@@ -31,7 +31,19 @@ export type Field = {
   hidden?: { from: "param" | "page" | "referrer" | "static"; name?: string; value?: string };
   /** Fill from a URL parameter of the same name when it's there. */
   prefill?: boolean;
+  /** Captured forms: the field's name on the team's own form. */
+  source?: string;
 };
+
+/** A form a team already has on its site, read when it's sent (docs/form-builder.md Part 9). */
+export type Capture = { adapter: "html" | "hubspot" | "marketo" | "webflow" | "framer"; selector?: string };
+export const ADAPTERS: { value: Capture["adapter"]; label: string; domain: string }[] = [
+  { value: "html", label: "Any HTML form", domain: "" },
+  { value: "hubspot", label: "HubSpot", domain: "hubspot.com" },
+  { value: "marketo", label: "Marketo", domain: "marketo.com" },
+  { value: "webflow", label: "Webflow", domain: "webflow.com" },
+  { value: "framer", label: "Framer", domain: "framer.com" },
+];
 
 export type Rule = {
   id: string;
@@ -57,6 +69,7 @@ export type Form = {
   consent: { mode: "off" | "by_region" | "always"; label: string };
   spam: { minSeconds: number; turnstile: boolean };
   after: After;
+  capture?: Capture;
 };
 
 export const FIELD_TYPES: { value: FieldType; label: string }[] = [
@@ -185,6 +198,8 @@ export function checkForm(raw: unknown, ctx: Ctx = {}): { form: Form } | { error
       if (fo.width === "half") f.width = "half";
       if (fo.check === "work_email" && type === "email") f.check = "work_email";
       if (fo.prefill === true) f.prefill = true;
+      const src = str(fo.source, 120);
+      if (src) f.source = src;
       if (type === "choice" || type === "multi") {
         const opts: Choice[] = [];
         const seen = new Set<string>();
@@ -268,6 +283,14 @@ export function checkForm(raw: unknown, ctx: Ctx = {}): { form: Form } | { error
     if (tool) schedule = { tool, url, perOwner: sch.perOwner === true };
     if (end.kind === "redirect") errors.push("A form can book a meeting or open a page after the submit, not both.");
   }
+  let capture: Capture | undefined;
+  const cap = r.capture as Record<string, unknown> | undefined;
+  if (cap && typeof cap === "object") {
+    const adapter = ADAPTERS.find((a) => a.value === cap.adapter)?.value ?? "html";
+    const selector = str(cap.selector, 200);
+    capture = { adapter, ...(selector ? { selector } : {}) };
+    for (const f of steps.flatMap((x) => x.fields)) if (f.type !== "hidden" && !f.source) errors.push(`${f.label || "A field"} needs its name on your form.`);
+  }
   const minSeconds = Math.round(Number(spam.minSeconds ?? 2));
   const form: Form = {
     steps,
@@ -279,6 +302,7 @@ export function checkForm(raw: unknown, ctx: Ctx = {}): { form: Form } | { error
     consent: { mode: consentMode, label: consentLabel },
     spam: { minSeconds: Number.isFinite(minSeconds) ? Math.min(Math.max(minSeconds, 0), 30) : 2, turnstile: spam.turnstile === true },
     after: { end, ...(schedule ? { schedule } : {}) },
+    ...(capture ? { capture } : {}),
   };
   return errors.length ? { errors: [...new Set(errors)] } : { form };
 }

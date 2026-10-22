@@ -79,8 +79,10 @@ export function prepareSubmit(
 
   // Spam is kept (7 days, in its own tab) but never becomes a contact or a delivery.
   const ms = typeof raw.ms === "number" ? raw.ms : 0;
+  // A captured form is the team's own, with its own spam checks, and its timer starts when our script loads, not
+  // when the visitor starts typing: no timing check there.
   const spam =
-    typeof raw.trap === "string" && raw.trap.trim() ? "trap" : ms < form.spam.minSeconds * 1000 ? "too_fast" : opts.turnstileFailed ? "turnstile" : null;
+    typeof raw.trap === "string" && raw.trap.trim() ? "trap" : !form.capture && ms < form.spam.minSeconds * 1000 ? "too_fast" : opts.turnstileFailed ? "turnstile" : null;
 
   const checked = checkAnswers(form, answers, { hidden });
   const errors = { ...checked.errors };

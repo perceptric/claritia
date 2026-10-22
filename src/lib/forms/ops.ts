@@ -22,7 +22,8 @@ export type Op =
   | { op: "set_consent"; mode?: Form["consent"]["mode"]; label?: string }
   | { op: "set_spam"; minSeconds?: number; turnstile?: boolean }
   | { op: "set_after"; end: After["end"] }
-  | { op: "set_schedule"; schedule: After["schedule"] | null };
+  | { op: "set_schedule"; schedule: After["schedule"] | null }
+  | { op: "set_capture"; adapter?: NonNullable<Form["capture"]>["adapter"]; selector?: string };
 
 const clone = <T>(x: T): T => JSON.parse(JSON.stringify(x)) as T;
 
@@ -157,6 +158,11 @@ export function applyOp(input: Form, op: Op): { form: Form } | { error: string }
       if (op.schedule) form.after = { ...form.after, schedule: op.schedule };
       else delete form.after.schedule;
       return { form };
+    case "set_capture":
+      if (!form.capture) return { error: "This form isn't a captured form." };
+      form.capture = { adapter: op.adapter ?? form.capture.adapter, ...((op.selector ?? form.capture.selector) ? { selector: op.selector ?? form.capture.selector } : {}) };
+      if (!form.capture.selector) delete form.capture.selector;
+      return { form };
     default:
       return { error: "Unknown change." };
   }
@@ -214,5 +220,7 @@ export function describeOp(op: Op, before: Form): string {
       return op.end.kind === "redirect" ? "Opens a page after the submit" : "Changed the thank-you message";
     case "set_schedule":
       return op.schedule ? "Books a meeting after the submit" : "No meeting after the submit";
+    case "set_capture":
+      return "Changed how the form is read";
   }
 }

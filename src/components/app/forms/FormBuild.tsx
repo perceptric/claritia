@@ -118,11 +118,16 @@ function FieldSettings({ form, field: f, apply, custom }: { form: Form; field: F
   const [lines, setLines] = useState((f.options ?? []).map((o) => o.label).join("\n"));
   return (
     <div className="grid grid-cols-2 gap-3 border-t border-line bg-canvas px-3 py-3">
-      <div className="col-span-2">
+      <div className={form.capture ? "" : "col-span-2"}>
         <Labeled label="Label">
           <Input value={f.label} onChange={(e) => patch({ label: e.target.value })} />
         </Labeled>
       </div>
+      {form.capture ? (
+        <Labeled label="Name on your form">
+          <Input value={f.source ?? ""} onChange={(e) => patch({ source: e.target.value.trim() || undefined })} placeholder="email" />
+        </Labeled>
+      ) : null}
       <Labeled label="Type">
         <Select<string> value={f.type} options={FIELD_TYPES} onChange={(t) => setType(t as FieldType)} ariaLabel="Type" className={SEL} />
       </Labeled>

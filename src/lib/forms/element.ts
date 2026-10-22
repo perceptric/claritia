@@ -25,7 +25,7 @@ const SCRIPT_BASE = (() => {
   }
 })();
 
-const CSS = `
+const STYLES = `
 :host{display:block;all:initial;font-family:var(--clr-font);font-size:var(--clr-size);color:var(--clr-text);line-height:1.45}
 *{box-sizing:border-box;font:inherit;color:inherit}
 .f{background:var(--clr-bg);display:flex;flex-direction:column;gap:var(--clr-gap);max-width:var(--clr-width,480px)}
@@ -106,6 +106,142 @@ async function sendQueued(x: Queued): Promise<boolean> {
   } catch {
     return false;
   }
+}
+
+/** What hidden fields pick up on this page, by field id. */
+function hiddenValues(form: Form): Record<string, string> {
+  const out: Record<string, string> = {};
+  const params = new URLSearchParams(location.search);
+  for (const f of allFields(form)) {
+    if (f.type !== "hidden" || !f.hidden) continue;
+    const v = f.hidden.from === "param" ? params.get(f.hidden.name ?? "") : f.hidden.from === "page" ? location.href : f.hidden.from === "referrer" ? document.referrer : f.hidden.value;
+    if (v) out[f.id] = v.slice(0, 500);
+  }
+  return out;
+}
+
+const utmValues = () => {
+  const params = new URLSearchParams(location.search);
+  return Object.fromEntries(["utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_content"].map((k) => [k, params.get(k) ?? ""]).filter(([, v]) => v));
+};
+
+/** The booking calendar over the page, for captured forms (they have no screen of their own to show it in). */
+function bookingOverlay(url: string) {
+  const back = el("div", { style: "position:fixed;inset:0;z-index:2147483647;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;padding:16px" });
+  const box = el("div", { role: "dialog", "aria-modal": "true", "aria-label": "Book a meeting", style: "background:#fff;width:100%;max-width:760px;max-height:92vh;overflow:auto;border-radius:8px;position:relative" });
+  const close = el("button", { type: "button", "aria-label": "Close", text: "×", style: "position:absolute;top:6px;right:10px;border:0;background:none;font:24px/1 sans-serif;cursor:pointer;color:#333" });
+  const done = () => {
+    back.remove();
+    document.removeEventListener("keydown", esc);
+  };
+  const esc = (e: KeyboardEvent) => e.key === "Escape" && done();
+  close.addEventListener("click", done);
+  back.addEventListener("click", (e) => e.target === back && done());
+  document.addEventListener("keydown", esc);
+  box.append(close, el("iframe", { src: url, title: "Book a meeting", style: "width:100%;min-height:680px;border:0;display:block" }));
+  back.append(box);
+  document.body.append(back);
+  close.focus();
+}
+
+type Values = (name: string) => unknown;
+
+/**
+ * Captured forms (docs/form-builder.md Part 9): the team's own form, read when it's sent. Only the fields mapped in
+ * Claritia are read, by their names, and only from the form set up here; the team's form keeps working as before.
+ * Started by <script src=".../forms/v1.js" data-capture="<form id>">.
+ */
+export function startCapture(formId: string, base: string) {
+  if (!/^[0-9a-f-]{36}$/.test(formId)) return;
+  const started = Date.now();
+  // Listeners go on at once and keep what was sent; the form's settings are read alongside, so a send made before
+  // they arrive still counts.
+  const ready: Promise<Loaded | null> = fetch(`${base}/api/forms/${formId}`, { credentials: "omit" })
+    .then((r) => (r.ok ? (r.json() as Promise<Loaded>) : null))
+    .catch(() => null);
+  const sentKeys = new Set<string>();
+
+  const send = async (adapter: NonNullable<Form["capture"]>["adapter"], get: Values, el?: HTMLFormElement) => {
+    const data = await ready;
+    const form = data?.body;
+    const cap = form?.capture;
+    if (!data || !form || !cap || data.status !== "live") return;
+    // Only the adapter set up here, and for HTML only the form it names (or the one holding the mapped email).
+    if (adapter !== cap.adapter && !(adapter === "html" && (cap.adapter === "webflow" || cap.adapter === "framer"))) return;
+    const fields = allFields(form).filter((f) => f.source);
+    const email = fields.find((f) => f.key === "email");
+    if (!email) return;
+    if (el && (cap.selector ? !el.matches(cap.selector) : get(email.source!) === undefined)) return;
+    const answers: Answers = {};
+    for (const f of fields) {
+      const v = get(f.source!);
+      if (v === undefined || v === null || v === "") continue;
+      answers[f.id] = f.type === "checkbox" ? v === true || v === "true" || v === "on" || v === "yes" : f.type === "multi" ? (Array.isArray(v) ? v.map(String) : String(v).split(/[;,]/)) : Array.isArray(v) ? String(v[0]) : String(v);
+    }
+    if (checkAnswers(form, answers).errors[email.id] || !answers[email.id]) return;
+    // The same answers sent twice in a row (a double click, two events for one send) count once.
+    const sig = JSON.stringify(answers);
+    if (sentKeys.has(sig)) return;
+    sentKeys.add(sig);
+    const key = idemKey();
+    const body = JSON.stringify({ v: 1, version: data.version, key, answers, hidden: hiddenValues(form), consent: {}, page: location.href.slice(0, 1000), referrer: document.referrer.slice(0, 1000), utm: utmValues(), ms: Date.now() - started, trap: "" });
+    const url = `${base}/api/forms/${formId}/submit`;
+    try {
+      const res = await fetch(url, { method: "POST", headers: { "content-type": "application/json" }, body, credentials: "omit", keepalive: true });
+      if (res.ok) {
+        const j = (await res.json().catch(() => ({}))) as { schedule?: { url: string } | null };
+        if (j.schedule && /^https:\/\//.test(j.schedule.url)) bookingOverlay(j.schedule.url);
+        return;
+      }
+      if (res.status < 500 && res.status !== 408 && res.status !== 429) return;
+    } catch {}
+    writeQueue([...readQueue(), { url, body, key, at: Date.now(), tries: 1 }]);
+  };
+
+  const byName = (list: { name: string; value: unknown }[]) => (name: string) => {
+    const hits = list.filter((x) => x.name === name || x.name.endsWith(`/${name}`)).map((x) => x.value);
+    return hits.length > 1 ? hits : hits[0];
+  };
+
+  // HubSpot: legacy embeds post a message; v4 forms raise a window event (check both against a live portal).
+  window.addEventListener("message", (e: MessageEvent) => {
+    const d = e.data as { type?: string; eventName?: string; data?: unknown } | null;
+    if (!d || d.type !== "hsFormCallback" || d.eventName !== "onFormSubmitted") return;
+    const raw = d.data as { name: string; value: unknown }[] | { submissionValues?: Record<string, unknown> } | undefined;
+    const list = Array.isArray(raw) ? raw : Object.entries(raw?.submissionValues ?? {}).map(([name, value]) => ({ name, value }));
+    void send("hubspot", byName(list));
+  });
+  window.addEventListener("hs-form-event:on-submission:success", async (e: Event) => {
+    const hs = (window as unknown as { HubSpotFormsV4?: { getFormFromEvent?: (e: Event) => { getFormFieldValues?: () => Promise<{ name: string; value: unknown }[]> } } }).HubSpotFormsV4;
+    const list = await hs?.getFormFromEvent?.(e)?.getFormFieldValues?.().catch(() => []);
+    if (list?.length) void send("hubspot", byName(list));
+  });
+  // Marketo: onSuccess returns nothing, so Marketo's own follow-up page still opens.
+  const tryMarketo = (n: number) => {
+    const M = (window as unknown as { MktoForms2?: { whenReady: (cb: (f: { onSuccess: (cb: (values: Record<string, unknown>) => void) => void }) => void) => void } }).MktoForms2;
+    if (!M) return void (n < 60 && setTimeout(() => tryMarketo(n + 1), 500));
+    M.whenReady((f) => f.onSuccess((values) => void send("marketo", (name) => values[name])));
+  };
+  void ready.then((d) => d?.body.capture?.adapter === "marketo" && tryMarketo(0));
+  // Plain HTML, Webflow and Framer: the form's own submit event, heard before the page moves on. The values are read
+  // at once, then checked against the settings.
+  document.addEventListener(
+    "submit",
+    (e) => {
+      const f = e.target as HTMLFormElement | null;
+      if (!f || f.tagName !== "FORM") return;
+      const fd = new FormData(f);
+      void send(
+        "html",
+        (name) => {
+          const all = fd.getAll(name).filter((v): v is string => typeof v === "string");
+          return all.length > 1 ? all : all[0];
+        },
+        f,
+      );
+    },
+    true,
+  );
 }
 
 let flushing = false;
@@ -235,7 +371,7 @@ export class ClaritiaForm extends HTMLElement {
     if (!d) return;
     const form = d.body;
     addFont(d.tokens.fontUrl ?? "");
-    const style = el("style", { text: `:host{${tokensCss(d.tokens)}--clr-width:${form.layout.width === "wide" ? "720px" : "480px"}}${CSS}` });
+    const style = el("style", { text: `:host{${tokensCss(d.tokens)}--clr-width:${form.layout.width === "wide" ? "720px" : "480px"}}${STYLES}` });
     if (d.status === "paused") return this.root.replaceChildren(style, el("div", { class: "f" }, el("p", { class: "i", text: "This form is closed." })));
     if (this.done) return this.root.replaceChildren(style, this.endScreen(form));
 
@@ -493,29 +629,18 @@ export class ClaritiaForm extends HTMLElement {
     await this.send();
   }
 
-  private hiddenValues(): Record<string, string> {
-    const out: Record<string, string> = {};
-    const params = new URLSearchParams(location.search);
-    for (const f of allFields(this.data!.body)) {
-      if (f.type !== "hidden" || !f.hidden) continue;
-      const v = f.hidden.from === "param" ? params.get(f.hidden.name ?? "") : f.hidden.from === "page" ? location.href : f.hidden.from === "referrer" ? document.referrer : f.hidden.value;
-      if (v) out[f.id] = v.slice(0, 500);
-    }
-    return out;
-  }
 
   private async send() {
     const d = this.data!;
     this.sending = true;
     this.render();
-    const params = new URLSearchParams(location.search);
-    const utm = Object.fromEntries(["utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_content"].map((k) => [k, params.get(k) ?? ""]).filter(([, v]) => v));
+    const utm = utmValues();
     const body = JSON.stringify({
       v: 1,
       version: d.version,
       key: this.key,
       answers: this.answers,
-      hidden: this.hiddenValues(),
+      hidden: hiddenValues(d.body),
       consent: this.needsConsent() ? { given: this.consent, wording: d.body.consent.label } : {},
       page: location.href.slice(0, 1000),
       referrer: document.referrer.slice(0, 1000),
@@ -561,3 +686,10 @@ export class ClaritiaForm extends HTMLElement {
 }
 
 if (typeof customElements !== "undefined" && !customElements.get("claritia-form")) customElements.define("claritia-form", ClaritiaForm);
+
+// <script src=".../forms/v1.js" data-capture="<form id>,<form id>">: capture the team's own forms on this page.
+const captureIds = (typeof document !== "undefined" && (document.currentScript as HTMLScriptElement | null)?.dataset.capture) || "";
+if (captureIds) {
+  void flushQueue();
+  for (const id of captureIds.split(",").map((x) => x.trim()).filter(Boolean)) void startCapture(id, SCRIPT_BASE || location.origin);
+}

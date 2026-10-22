@@ -12,7 +12,8 @@ import pw from "playwright-core";
 import { buildForms } from "./build-forms.mts";
 import { checkForm, type Form } from "../src/lib/forms/schema.ts";
 import { prepareSubmit, type Incoming } from "../src/lib/forms/submit.ts";
-import { TEMPLATES } from "../src/lib/forms/templates.ts";
+import { bookingUrl } from "../src/lib/forms/schedule.ts";
+import { capturedForm, TEMPLATES } from "../src/lib/forms/templates.ts";
 
 const url = process.env.PG_URL;
 if (!url) throw new Error("PG_URL is not set");
@@ -31,7 +32,7 @@ await q(`insert into auth.users (id, email) values ($1, 'forms-check@t.io')`, [U
 await q(`insert into workspace_members (workspace_id, user_id, role) values ($1, $2, 'owner')`, [WS, USER]);
 
 async function live(template: string, change?: (f: Form) => void) {
-  const f = TEMPLATES.find((t) => t.key === template)!.form();
+  const f = template.startsWith("captured:") ? capturedForm(template.slice(9) as "html") : TEMPLATES.find((t) => t.key === template)!.form();
   change?.(f);
   const r = checkForm(f);
   if ("errors" in r) throw new Error(r.errors.join(" "));
@@ -44,11 +45,28 @@ const sales = await live("contact_sales", (f) => {
 });
 const partner = await live("partner");
 const event = await live("event");
+const mapFields = (f: Form) => {
+  f.steps[0].fields.push(
+    { id: "nm", key: "name", type: "text", label: "Name", required: false, source: "full_name" },
+    { id: "co", key: "company", type: "text", label: "Company", required: false, source: "company" },
+  );
+};
+const capHtml = await live("captured:html", (f) => {
+  mapFields(f);
+  f.capture = { adapter: "html", selector: "#demo" };
+  f.after.schedule = { tool: "link", url: "https://example.com/book", perOwner: false };
+});
+const capMarketo = await live("captured:marketo", mapFields);
+const capHubspot = await live("captured:hubspot", mapFields);
 
 let down = false;
 let posts = 0;
 const code = Buffer.from(await buildForms());
-const server = createServer(async (req, res) => {
+const server = createServer((req, res) => void handle(req, res).catch((e: Error) => {
+  console.log("SERVER ERROR", e.message);
+  res.writeHead(500).end();
+}));
+async function handle(req: import("node:http").IncomingMessage, res: import("node:http").ServerResponse) {
   const u = new URL(req.url!, "http://localhost");
   const send = (status: number, body: unknown) => res.writeHead(status, { "content-type": "application/json", "access-control-allow-origin": "*" }).end(JSON.stringify(body));
   if (u.pathname === "/forms/v1.js") return void res.writeHead(200, { "content-type": "text/javascript" }).end(code);
@@ -68,11 +86,22 @@ const server = createServer(async (req, res) => {
     if ("error" in r) return send(r.status, { error: r.error });
     const a = r.args;
     const out = (await q(`select form_submit($1, $2, $3, $4, $5, $6, $7, $8, $9, false) as r`, [m[1], a.p_version, a.p_idem, a.p_values, a.p_hidden, a.p_contact, a.p_consent, a.p_country, a.p_spam]))[0].r;
-    return send(200, { id: out.id });
+    const sch = f.body.after.schedule;
+    const schedule = sch && a.p_contact ? { tool: sch.tool, url: bookingUrl(sch.tool, sch.url, { email: a.p_contact.email }, out.id) } : null;
+    return send(200, { id: out.id, schedule });
+  }
+  const cap = u.searchParams.get("capture");
+  if (cap) {
+    // The team's own form; its own handler runs too, and the page doesn't move.
+    return void res.writeHead(200, { "content-type": "text/html" }).end(`<!doctype html><title>own form</title><body>
+      <form id="demo" onsubmit="event.preventDefault(); window.ownHandled = (window.ownHandled || 0) + 1"><input name="email"><input name="full_name"><input name="company"><input type="password" name="pw"><button>Send</button></form>
+      <form id="other" onsubmit="event.preventDefault()"><input name="email"><button>Other</button></form>
+      <script>window.MktoForms2 = { whenReady(cb) { cb({ onSuccess(fn) { window.mktoSuccess = fn; } }); } };</script>
+      <script src="/forms/v1.js" data-capture="${cap}"></script></body>`);
   }
   const id = u.searchParams.get("form") ?? sales;
   res.writeHead(200, { "content-type": "text/html" }).end(`<!doctype html><title>form</title><body style="padding:24px"><claritia-form form-id="${id}"></claritia-form><script src="/forms/v1.js"></script>`);
-});
+}
 await new Promise<void>((r) => server.listen(0, r));
 const port = (server.address() as { port: number }).port;
 const base = `http://localhost:${port}`;
@@ -82,6 +111,7 @@ const fills = async (form: string) => Number((await q(`select count(*)::int n fr
 try {
   const ctx = await browser.newContext();
   const page = await ctx.newPage();
+  page.on("pageerror", (e) => console.log("page error:", e.message));
   const host = page.locator("claritia-form");
   await page.goto(`${base}/?form=${sales}`);
   await host.locator("form").waitFor();
@@ -157,6 +187,35 @@ try {
   await box.focus();
   check((await box.getAttribute("aria-expanded")) === "false", "the listbox closes after a pick");
   await page.screenshot({ path: process.env.FORMS_SHOT || "/tmp/forms-check.png", fullPage: true });
+
+  // Captured forms: the team's own HTML form is read when sent, only from the set-up form, only its mapped fields.
+  await page.goto(`${base}/?capture=${capHtml}`);
+  await page.waitForTimeout(300);
+  await page.fill("#other [name=email]", "other@acme.com");
+  await page.click("#other button");
+  await page.fill("#demo [name=email]", "dee@acme.com");
+  await page.fill("#demo [name=full_name]", "Dee Lane");
+  await page.fill("#demo [name=company]", "Acme");
+  await page.fill("#demo [name=pw]", "secret");
+  await page.click("#demo button");
+  await page.locator("iframe[title='Book a meeting']").waitFor({ timeout: 10_000 });
+  const capRow = (await q(`select s."values", c.first_name from submissions s join contacts c on c.id = s.contact_id where s.form_id = $1`, [capHtml]));
+  check(capRow.length === 1 && capRow[0].values.email === "dee@acme.com" && capRow[0].values.company === "Acme" && capRow[0].first_name === "Dee", "a captured HTML form lands its mapped fields once");
+  check(!JSON.stringify(capRow[0]?.values ?? {}).includes("secret") && (await page.evaluate(() => (window as unknown as { ownHandled?: number }).ownHandled)) === 1, "the password isn't read and the site's own handler still ran");
+  check((await page.locator("iframe[title='Book a meeting']").getAttribute("src"))?.startsWith("https://example.com/book?email=dee%40acme.com") === true, "after a captured fill the booking calendar opens over the page");
+
+  await page.goto(`${base}/?capture=${capMarketo}`);
+  await page.waitForFunction(() => typeof (window as unknown as { mktoSuccess?: unknown }).mktoSuccess === "function");
+  await page.evaluate(() => (window as unknown as { mktoSuccess: (v: object) => void }).mktoSuccess({ email: "mo@acme.com", full_name: "Mo Ray", company: "Acme" }));
+  await page.waitForTimeout(800);
+  check((await fills(capMarketo)) === 1, "a captured Marketo form lands from its onSuccess");
+
+  await page.goto(`${base}/?capture=${capHubspot}`);
+  await page.waitForTimeout(500);
+  await page.evaluate(() => window.postMessage({ type: "hsFormCallback", eventName: "onFormSubmitted", data: [{ name: "email", value: "hu@acme.com" }, { name: "company", value: "Acme" }] }, "*"));
+  await page.evaluate(() => window.postMessage({ type: "hsFormCallback", eventName: "onFormSubmitted", data: [{ name: "email", value: "hu@acme.com" }, { name: "company", value: "Acme" }] }, "*"));
+  await page.waitForTimeout(800);
+  check((await fills(capHubspot)) === 1, "a captured HubSpot form lands once from its submit callback");
 } finally {
   await browser.close();
   server.close();

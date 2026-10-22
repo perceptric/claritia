@@ -7,10 +7,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Tokens } from "@/lib/forms/brand";
 import { applyOp, type Op } from "@/lib/forms/ops";
-import { checkForm, emptyForm, type Form } from "@/lib/forms/schema";
-import { TEMPLATES } from "@/lib/forms/templates";
+import { ADAPTERS, checkForm, emptyForm, type Form } from "@/lib/forms/schema";
+import { capturedForm, TEMPLATES } from "@/lib/forms/templates";
 import type { CustomField } from "@/lib/records/fields";
 import { Copy, Inbox, Pause, Play, Plus, Redo, Send, Trash, Undo } from "../../Icons";
+import { BrandLogo } from "../BrandLogo";
 import { askConfirm } from "../Dialogs";
 import { SampleStats, SampleTags, ToolIntro } from "../ToolIntro";
 import { Badge, Button, Empty, ErrorNote, errorText, Loading, must, Page, Panel, postJson, setLeaveGuard, Tabs, Td, Th, timeAgo, useLoad, type ViewProps } from "../ui";
@@ -36,11 +37,11 @@ function FormList({ sb, session, ws, navigate }: ViewProps) {
   const [ask, setAsk] = useState("");
   const [url, setUrl] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const create = async (name: string, draft: Form, opts: { ask?: string; site?: string } = {}) => {
+  const create = async (name: string, draft: Form, opts: { ask?: string; site?: string; kind?: "built" | "captured" } = {}) => {
     setError("");
     setBusy(true);
     try {
-      const id = must(await sb.rpc("form_create", { p_ws: ws.id, p_name: name, p_draft: draft })) as string;
+      const id = must(await sb.rpc("form_create", { p_ws: ws.id, p_name: name, p_draft: draft, p_kind: opts.kind ?? "built" })) as string;
       if (opts.site) await postJson(session, "/api/forms/scan", { workspaceId: ws.id, url: opts.site, formId: id }).catch(() => undefined);
       if (opts.ask)
         try {
@@ -97,6 +98,10 @@ function FormList({ sb, session, ws, navigate }: ViewProps) {
           <span className="text-[12.5px] text-muted">{t.text}</span>
         </button>
       ))}
+      <button type="button" onClick={() => void create("Captured form", capturedForm(), { kind: "captured" })} className="flex flex-col gap-1 bg-panel p-4 text-left hover:bg-hover">
+        <span className="text-[14px] font-medium">Capture a form</span>
+        <span className="text-[12.5px] text-muted">Keep your HubSpot, Marketo, Webflow or HTML form</span>
+      </button>
     </div>
   );
   return (
@@ -522,7 +527,7 @@ function Builder({
               ) : tab === "settings" ? (
                 <FormSettings form={form} apply={apply} sb={sb} ws={ws} session={session} role={role} />
               ) : (
-                <Share id={initial.id} origin={origin} live={!!initial.version} />
+                <Share id={initial.id} origin={origin} live={!!initial.version} form={form} apply={apply} />
               )}
             </div>
             <div className="paper min-h-0 overflow-auto p-4 md:p-8">
@@ -545,9 +550,30 @@ function Builder({
                   After submit
                 </button>
               </div>
-              <div className="border border-line bg-panel p-6" style={{ background: tokens.background }}>
-                <FormPreview form={form} tokens={tokens} step={Math.min(preview.step, form.steps.length - 1)} done={preview.done} />
-              </div>
+              {form.capture ? (
+                <Panel>
+                  <table className="w-full border-collapse">
+                    <thead>
+                      <tr>
+                        <Th>Field</Th>
+                        <Th>Name on your form</Th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {form.steps.flatMap((st) => st.fields).map((f) => (
+                        <tr key={f.id}>
+                          <Td>{f.label}</Td>
+                          <Td className="font-mono text-[12px]">{f.source ?? <span className="text-danger">missing</span>}</Td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </Panel>
+              ) : (
+                <div className="border border-line bg-panel p-6" style={{ background: tokens.background }}>
+                  <FormPreview form={form} tokens={tokens} step={Math.min(preview.step, form.steps.length - 1)} done={preview.done} />
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -556,9 +582,58 @@ function Builder({
   );
 }
 
-function Share({ id, origin, live }: { id: string; origin: string; live: boolean }) {
+function Share({ id, origin, live, form, apply }: { id: string; origin: string; live: boolean; form: Form; apply: (op: Op) => void }) {
   const [copied, setCopied] = useState("");
-  if (!live) return <Empty title="Publish the form to share it" />;
+  const cap = form.capture;
+  const capture = cap ? (
+    <section className="flex flex-col gap-3">
+      <h3 className="label-mono">Your form</h3>
+      <div className="grid grid-cols-2 border-t border-l border-line sm:grid-cols-3">
+        {ADAPTERS.map((a) => (
+          <button
+            key={a.value}
+            type="button"
+            aria-pressed={cap.adapter === a.value}
+            onClick={() => apply({ op: "set_capture", adapter: a.value })}
+            className={`flex items-center gap-2 border-r border-b border-line px-3 py-2.5 text-left text-[13px] ${cap.adapter === a.value ? "bg-hover font-medium text-ink" : "bg-panel text-body hover:bg-hover"}`}
+          >
+            {a.domain ? <BrandLogo domain={a.domain} name={a.label} size={18} /> : null}
+            {a.label}
+          </button>
+        ))}
+      </div>
+      {cap.adapter === "html" || cap.adapter === "webflow" || cap.adapter === "framer" ? (
+        <label className="flex flex-col gap-1.5">
+          <span className="label-mono">Form selector</span>
+          <input
+            value={cap.selector ?? ""}
+            onChange={(e) => apply({ op: "set_capture", selector: e.target.value })}
+            placeholder="#demo-form"
+            className="h-9 w-full rounded-md border border-line bg-panel px-2.5 font-mono text-[12.5px] text-ink outline-none focus:border-ink"
+          />
+        </label>
+      ) : null}
+    </section>
+  ) : null;
+  if (!live) return capture ?? <Empty title="Publish the form to share it" />;
+  if (cap) {
+    const snippet = `<script src="${origin}/forms/v1.js" async data-capture="${id}"></script>`;
+    return (
+      <div className="flex flex-col gap-6">
+        {capture}
+        <section className="flex flex-col gap-2">
+          <div className="flex items-center gap-2">
+            <h3 className="label-mono">Add to the page with your form</h3>
+            <Button variant="plain" className="ml-auto" onClick={async () => setCopied((await copy(snippet)) ? "cap" : "")}>
+              <Copy size={14} />
+              {copied === "cap" ? "Copied" : "Copy"}
+            </Button>
+          </div>
+          <pre className="overflow-x-auto bg-[#161615] p-4 font-mono text-[12px] leading-relaxed text-[#e8e8e3]">{snippet}</pre>
+        </section>
+      </div>
+    );
+  }
   const embed = `<script src="${origin}/forms/v1.js" async></script>\n<claritia-form form-id="${id}"></claritia-form>`;
   const link = `${origin}/f/${id}`;
   const react = `useEffect(() => {\n  const s = document.createElement("script");\n  s.src = "${origin}/forms/v1.js";\n  document.head.append(s);\n}, []);\nreturn <claritia-form form-id="${id}" />;`;

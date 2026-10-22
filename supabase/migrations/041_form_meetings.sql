@@ -3,7 +3,8 @@
 --   form_bookings: meetings booked from a form on Calendly or Cal.com. A booking that comes back carrying its
 --   submission's tracking id is linked for sure and lands on the contact's timeline; one that only matches by email
 --   is kept as "email" (a maybe) and starts nothing (the CLAUDE.md rule on wrong links).
---   forms.kind: 'built' in Claritia, or 'captured' (the team's own form on their site, mapped to fields here).
+--   forms.kind: 'built' in Claritia, or 'captured' (the team's own form on their site, mapped to fields here; the
+--   script reads only the mapped fields of that one form, and only after the team set it up).
 
 alter table public.forms add column if not exists kind text not null default 'built' check (kind in ('built', 'captured'));
 
@@ -113,6 +114,28 @@ begin
   return n;
 end;
 $$;
+
+-- New forms say whether they're built here or captured from the team's own site.
+drop function if exists public.form_create(uuid, text, jsonb, uuid);
+create or replace function public.form_create(p_ws uuid, p_name text, p_draft jsonb, p_brand_kit uuid default null, p_kind text default 'built') returns uuid
+language plpgsql security definer set search_path = public as $$
+declare
+  fid uuid;
+begin
+  if not is_member(p_ws) then
+    raise exception 'Workspace not found';
+  end if;
+  if p_brand_kit is not null and not exists (select 1 from brand_kits where id = p_brand_kit and workspace_id = p_ws) then
+    raise exception 'Brand kit not found';
+  end if;
+  insert into forms (workspace_id, name, draft, brand_kit_id, created_by, kind)
+  values (p_ws, coalesce(nullif(trim(left(p_name, 120)), ''), 'Untitled form'), coalesce(p_draft, '{}'), p_brand_kit, auth.uid(), coalesce(p_kind, 'built'))
+  returning id into fid;
+  return fid;
+end;
+$$;
+revoke execute on function public.form_create(uuid, text, jsonb, uuid, text) from public, anon;
+grant execute on function public.form_create(uuid, text, jsonb, uuid, text) to authenticated;
 
 do $$
 declare

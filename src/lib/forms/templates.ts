@@ -104,3 +104,11 @@ export const TEMPLATES: Template[] = [
       ),
   },
 ];
+
+/** A captured form starts with the email field mapped to the usual name; the rest is mapped in the builder. */
+export function capturedForm(adapter: NonNullable<Form["capture"]>["adapter"] = "html"): Form {
+  return {
+    ...base([f({ key: "email", type: "email", label: "Email", required: true, source: "email" })], { consent: { mode: "off", label: DEFAULT_CONSENT }, spam: { minSeconds: 0, turnstile: false } }),
+    capture: { adapter },
+  };
+}
