@@ -972,6 +972,28 @@ select pg_temp.check((select draft from forms where id = 'f0a00000-0000-0000-000
 select set_config('request.jwt.claim.sub', '', false);
 delete from jobs;
 
+-- Form chat and brand scans (040): the AI cache and chat history stay server-side or in the workspace; only owners
+-- read AI costs; scans start only through the server.
+insert into form_chats (form_id, workspace_id, messages) values ('f0c00000-0000-0000-0000-0000000000c1', '22222222-0000-0000-0000-000000000000', '[{"role":"user","text":"cat secret"}]');
+insert into ai_cache (workspace_id, kind, key_hash, result) values ('22222222-0000-0000-0000-000000000000', 'form_chat', repeat('a', 64), '{}');
+insert into ai_calls (workspace_id, kind, model) values ('11111111-0000-0000-0000-000000000000', 'form_chat', 'claude-sonnet-5-5'), ('22222222-0000-0000-0000-000000000000', 'form_chat', 'claude-sonnet-5-5');
+select pg_temp.as_user('b0000000-0000-0000-0000-000000000000');
+set role authenticated;
+select pg_temp.check((select count(*) from form_chats) = 0, 'Ben reads Cat''s form chat');
+select pg_temp.check((select count(*) from ai_calls) = 0, 'Ben (a member) reads AI costs');
+select pg_temp.fails($$select * from ai_cache$$, 'Ben reads the AI cache');
+select pg_temp.fails($$select ai_cache_get('22222222-0000-0000-0000-000000000000', 'form_chat', repeat('a', 64))$$, 'Ben reads the AI cache through its function');
+select pg_temp.fails($$select ai_cache_put('11111111-0000-0000-0000-000000000000', 'form_chat', repeat('b', 64), '{}')$$, 'Ben writes the AI cache');
+select pg_temp.fails($$select ai_call_log('11111111-0000-0000-0000-000000000000', 'x_y', 'm', '{}', 0, false)$$, 'Ben logs AI costs');
+select pg_temp.fails($$select form_chat_add('f0a00000-0000-0000-0000-0000000000a1', '[]')$$, 'Ben writes chat history past the route');
+select pg_temp.fails($$select brand_scan_start('b0000000-0000-0000-0000-000000000000', '11111111-0000-0000-0000-000000000000', 'https://acme.com')$$, 'Ben starts a scan past the route');
+select pg_temp.fails($$select brand_scan_finish('bc000000-0000-0000-0000-0000000000c1', '{}', null, '{}', '[]', null)$$, 'Ben finishes a scan');
+select pg_temp.as_user('a0000000-0000-0000-0000-000000000000');
+select pg_temp.check((select count(*) from ai_calls) = 1, 'Ann (an owner) can''t read only her own AI costs');
+reset role;
+select set_config('request.jwt.claim.sub', '', false);
+delete from jobs;
+
 -- Cloud minutes: once Acme has used its 2,000, nobody there can start a run.
 insert into runs (workspace_id, project_id, test_name, test_version, environment_name, base_url, lock, status, duration_ms)
 values ('11111111-0000-0000-0000-000000000000', 'a1000000-0000-0000-0000-000000000000', 'long', 1, 'staging', 'https://x.com', '', 'passed', 2000 * 60000);

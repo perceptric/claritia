@@ -112,7 +112,7 @@ await tab.click("#f button");
 check(await until(async () => (await q(`select count(*)::int n from identity_evidence where device_id = $1`, [s.device_id]))[0].n === 1), "form evidence is written");
 const [e] = await q(`select identifiers, source from identity_evidence where device_id = $1`, [s.device_id]);
 check(e.source === "form" && e.identifiers[0].value === "jane@acme.com", "evidence holds the email only");
-check((await q(`select count(*)::int n from jobs where workspace_id = $1 and kind = 'stitch'`, [WS]))[0].n === 1, "a stitch job is queued");
+check(await until(async () => (await q(`select count(*)::int n from jobs where workspace_id = $1 and kind = 'stitch'`, [WS]))[0].n === 1), "a stitch job is queued");
 check((await q(`select count(*)::int n from jobs where workspace_id = $1 and kind = 'ip_lookup'`, [WS]))[0].n === 1, "an IP lookup is queued once");
 const dump = JSON.stringify(await q(`select (select json_agg(e) from events e where e.workspace_id = $1) a, (select json_agg(s) from sessions s where s.workspace_id = $1) b, (select json_agg(j) from jobs j where j.workspace_id = $1) c`, [WS]));
 check(!dump.includes("198.51.100.7") && !dump.includes("hunter2"), "no full IP or password anywhere");

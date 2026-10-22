@@ -19,6 +19,10 @@ import { claudeNamer, type Namer } from "./namer.ts";
 import { handlePlan, type Plan } from "./planHandle.ts";
 import { claudePlanner, type Planner } from "../src/lib/planner.ts";
 import { claudeWriter, type Writer } from "./writer.ts";
+import Anthropic from "@anthropic-ai/sdk";
+import { claudeLooker } from "../src/lib/brand/look.ts";
+import { runJob, type Job } from "../src/lib/jobs.ts";
+import { formCodeFrom, handleBrandScan } from "./brandScan.ts";
 
 const env = (k: string) => process.env[k]?.trim() ?? "";
 const SLOTS = Math.max(1, Math.min(8, Number(env("WORKER_SLOTS") || 2)));
@@ -115,7 +119,14 @@ async function slot(sb: SupabaseClient, n: number, writer: Writer | undefined, j
         if (x.error) throw new Error(x.error.message);
         exploration = (x.data as Exploration[] | null)?.[0];
       }
-      const id = run?.id ?? plan?.id ?? exploration?.id;
+      // Browser jobs from the jobs queue (brand scans) when no run, plan or exploration waits.
+      let job: Job | undefined;
+      if (!run && !plan && !exploration) {
+        const j = await sb.rpc("claim_job", { p_kinds: ["brand_scan"], p_worker: WORKER_ID, p_lease_s: 180, p_limit: 1 });
+        if (j.error) throw new Error(j.error.message);
+        job = (j.data as Job[] | null)?.[0];
+      }
+      const id = run?.id ?? plan?.id ?? exploration?.id ?? job?.id;
       if (!id) {
         await sleep(IDLE_MS + n * 250);
         continue;
@@ -125,7 +136,14 @@ async function slot(sb: SupabaseClient, n: number, writer: Writer | undefined, j
       try {
         if (run) await handleRun(sb, run, { workerId: WORKER_ID, chromiumPath, log, writer, judge, inboxDomain: env("INBOX_DOMAIN") || undefined });
         else if (plan) await handlePlan(sb, plan, { workerId: WORKER_ID, planner, log });
-        else await handleExploration(sb, exploration!, { workerId: WORKER_ID, chromiumPath, log, namer });
+        else if (exploration) await handleExploration(sb, exploration, { workerId: WORKER_ID, chromiumPath, log, namer });
+        else {
+          const key = env("ANTHROPIC_API_KEY");
+          const outcome = await runJob((fn, args) => sb.rpc(fn, args), WORKER_ID, job!, (j) =>
+            handleBrandScan(sb, j, { chromiumPath, log, looker: key ? claudeLooker(new Anthropic({ apiKey: key, maxRetries: 2, timeout: 60_000 })) : undefined, formCode: formCodeFrom(env("APP_URL") || "https://app.tryclaritia.com") }),
+          180);
+          log(`Brand scan ${job!.key}: ${outcome}`);
+        }
       } finally {
         busy.delete(id);
         lastWorkAt = Date.now();

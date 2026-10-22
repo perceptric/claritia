@@ -45,6 +45,8 @@ export function FormDesign({
   tokens,
   setTokens,
   saveKit,
+  scan,
+  site,
 }: {
   form: Form;
   apply: (op: Op) => void;
@@ -54,6 +56,8 @@ export function FormDesign({
   tokens: Partial<Tokens>;
   setTokens: (t: Partial<Tokens>) => void;
   saveKit: (name: string, tokens: Partial<Tokens>) => Promise<{ notes: string[] }>;
+  scan: (url: string) => Promise<void>;
+  site: string;
 }) {
   const kit = kits.find((k) => k.id === kitId) ?? null;
   const t = { ...DEFAULT_TOKENS, ...tokens };
@@ -61,9 +65,43 @@ export function FormDesign({
   const [notes, setNotes] = useState<string[]>([]);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [url, setUrl] = useState(site);
   const set = (k: keyof Tokens, v: string | number) => setTokens({ ...tokens, [k]: v });
+  const scanning = kit?.scan_status === "scanning";
   return (
     <div className="flex flex-col gap-5">
+      <form
+        className="flex items-end gap-2"
+        onSubmit={async (e) => {
+          e.preventDefault();
+          setError("");
+          setBusy(true);
+          try {
+            await scan(url);
+          } catch (err) {
+            setError(errorText(err));
+          } finally {
+            setBusy(false);
+          }
+        }}
+      >
+        <div className="flex-1">
+          <Field label="Site">
+            <Input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="acme.com" />
+          </Field>
+        </div>
+        <Button type="submit" variant="ghost" disabled={busy || scanning || !url.trim()}>
+          {scanning ? "Scanning…" : "Scan site"}
+        </Button>
+      </form>
+      {kit?.scan_status === "failed" && kit.scan_error ? <ErrorNote message={kit.scan_error} /> : null}
+      {kit?.scan_status === "done" && kit.notes.length ? (
+        <ul className="flex flex-col gap-1 text-[12.5px] text-body">
+          {kit.notes.map((n) => (
+            <li key={n}>{n}</li>
+          ))}
+        </ul>
+      ) : null}
       <div className="grid grid-cols-2 gap-3">
         <Field label="Brand kit">
           <Select<string>

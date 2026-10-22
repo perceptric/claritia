@@ -178,3 +178,19 @@ test("contrast: unreadable pairs are fixed to WCAG AA and noted", () => {
   const dark = fixContrast({ ...DEFAULT_TOKENS, background: "#0b0b0b", text: "#333333", muted: "#444444", error: "#c4320a" });
   assert.ok(contrast(dark.tokens.text, "#0b0b0b") >= 4.5);
 });
+
+test("look check fixes: at most three, each through the token checks, and contrast still holds", async () => {
+  const { applyFixes } = await import("../src/lib/brand/look.ts");
+  const r = applyFixes(DEFAULT_TOKENS, [
+    { token: "radius", value: "8", why: "Their fields are rounder" },
+    { token: "buttonBg", value: "url(javascript:1)", why: "bad" },
+    { token: "buttonText", value: "#111111", why: "dark button text" },
+    { token: "gap", value: "20", why: "more space" },
+    { token: "labelSize", value: "16", why: "fourth fix is dropped" },
+  ]);
+  assert.equal(r.tokens.radius, 8);
+  assert.equal(r.tokens.buttonBg, DEFAULT_TOKENS.buttonBg);
+  assert.equal(r.tokens.labelSize, DEFAULT_TOKENS.labelSize);
+  assert.ok(contrast(r.tokens.buttonText, r.tokens.buttonBg) >= 4.5, "an unreadable fix is moved back to readable");
+  assert.ok(r.notes.includes("Matched to your form: Their fields are rounder."));
+});

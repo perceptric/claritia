@@ -9,7 +9,7 @@ import type { Form } from "@/lib/forms/schema";
 import type { Tone } from "../ui";
 
 export type FormRow = { id: string; name: string; status: "draft" | "live" | "paused"; draft: Form; draft_rev: number; version: number; brand_kit_id: string | null; published_at: string | null };
-export type Kit = { id: string; name: string; tokens: Partial<Tokens>; logo_url: string | null; notes: string[] };
+export type Kit = { id: string; name: string; tokens: Partial<Tokens>; logo_url: string | null; notes: string[]; source_url: string | null; scan_status: "scanning" | "done" | "failed" | null; scan_error: string | null; scanned_at: string | null };
 export type Destination = { id: string; kind: "source" | "slack" | "webhook"; source_id: string | null; name: string; config: { host?: string }; paused: boolean; position: number };
 export type SourceRow = { id: string; kind: string; name: string; status: string };
 
