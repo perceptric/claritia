@@ -912,6 +912,65 @@ select pg_temp.check((select name from segments where id = '5e000000-0000-0000-0
 select set_config('request.jwt.claim.sub', '', false);
 delete from jobs;
 
+-- Forms (039): Ben edits and deletes only Acme's forms; nobody reads a destination's address or secret; publishing,
+-- serving, submitting and sending are server only; a stale draft never overwrites a newer one.
+insert into forms (id, workspace_id, name, status, version, draft) values
+  ('f0a00000-0000-0000-0000-0000000000a1', '11111111-0000-0000-0000-000000000000', 'Acme demo', 'live', 1, '{}'),
+  ('f0c00000-0000-0000-0000-0000000000c1', '22222222-0000-0000-0000-000000000000', 'Cat demo', 'live', 1, '{}');
+insert into form_versions (form_id, workspace_id, version, body) values
+  ('f0a00000-0000-0000-0000-0000000000a1', '11111111-0000-0000-0000-000000000000', 1, '{"steps":[]}'),
+  ('f0c00000-0000-0000-0000-0000000000c1', '22222222-0000-0000-0000-000000000000', 1, '{"steps":[]}');
+insert into form_destinations (id, workspace_id, form_id, kind, name) values
+  ('fda00000-0000-0000-0000-0000000000a1', '11111111-0000-0000-0000-000000000000', 'f0a00000-0000-0000-0000-0000000000a1', 'slack', 'Acme Slack'),
+  ('fdc00000-0000-0000-0000-0000000000c1', '22222222-0000-0000-0000-000000000000', 'f0c00000-0000-0000-0000-0000000000c1', 'webhook', 'Cat hook');
+insert into form_destination_secrets (destination_id, sealed) values
+  ('fda00000-0000-0000-0000-0000000000a1', 'v1:acme-slack'),
+  ('fdc00000-0000-0000-0000-0000000000c1', 'v1:cat-hook');
+insert into submissions (id, workspace_id, form_id, form_version, idem_key, "values") values
+  ('5b000000-0000-0000-0000-0000000000c1', '22222222-0000-0000-0000-000000000000', 'f0c00000-0000-0000-0000-0000000000c1', 1, 'catcatcatcatcatcat01', '{"email":"x@cat.com"}');
+insert into deliveries (id, workspace_id, submission_id, destination_id, status) values
+  ('de000000-0000-0000-0000-0000000000c1', '22222222-0000-0000-0000-000000000000', '5b000000-0000-0000-0000-0000000000c1', 'fdc00000-0000-0000-0000-0000000000c1', 'failed');
+insert into brand_kits (id, workspace_id, name) values ('bc000000-0000-0000-0000-0000000000c1', '22222222-0000-0000-0000-000000000000', 'Cat brand');
+select pg_temp.as_user('b0000000-0000-0000-0000-000000000000');
+set role authenticated;
+select pg_temp.check((select count(*) from forms) = 1, 'Ben sees another workspace''s forms');
+select pg_temp.check((select count(*) from form_versions) = 1, 'Ben sees another workspace''s form versions');
+select pg_temp.check((select count(*) from form_destinations) = 1, 'Ben sees another workspace''s destinations');
+select pg_temp.check((select count(*) from submissions) = 0 and (select count(*) from deliveries) = 0, 'Ben sees Cat''s submissions or deliveries');
+select pg_temp.check((select count(*) from brand_kits) = 0, 'Ben sees Cat''s brand kit');
+select pg_temp.fails($$select * from form_destination_secrets$$, 'Ben reads a destination''s secret');
+select pg_temp.fails($$insert into forms (workspace_id, name) values ('11111111-0000-0000-0000-000000000000', 'x')$$, 'Ben writes forms directly');
+select pg_temp.fails($$update submissions set spam = true$$, 'Ben writes submissions directly');
+select pg_temp.fails($$select form_create('22222222-0000-0000-0000-000000000000', 'x', '{}')$$, 'Ben makes a form in Cat''s workspace');
+select pg_temp.fails($$select form_save('f0c00000-0000-0000-0000-0000000000c1', 'mine', '{}', 0)$$, 'Ben saves Cat''s form');
+select pg_temp.fails($$select form_set_status('f0c00000-0000-0000-0000-0000000000c1', 'paused')$$, 'Ben pauses Cat''s form');
+select pg_temp.fails($$select form_delete('f0c00000-0000-0000-0000-0000000000c1')$$, 'Ben deletes Cat''s form');
+select pg_temp.fails($$select form_destination_delete('fdc00000-0000-0000-0000-0000000000c1')$$, 'Ben deletes Cat''s destination');
+select pg_temp.fails($$select form_destination_pause('fdc00000-0000-0000-0000-0000000000c1', true)$$, 'Ben pauses Cat''s destination');
+select pg_temp.fails($$select brand_kit_delete('bc000000-0000-0000-0000-0000000000c1')$$, 'Ben deletes Cat''s brand kit');
+select pg_temp.check(deliveries_replay(array['de000000-0000-0000-0000-0000000000c1']::uuid[]) = 0, 'Ben replays Cat''s delivery');
+select pg_temp.fails($$select form_publish('f0a00000-0000-0000-0000-0000000000a1', 'b0000000-0000-0000-0000-000000000000', '{}')$$, 'Ben publishes without the server''s check');
+select pg_temp.fails($$select form_public('f0c00000-0000-0000-0000-0000000000c1')$$, 'Ben reads a form the public way');
+select pg_temp.fails($$select form_submit('f0a00000-0000-0000-0000-0000000000a1', 1, 'abcdefghijklmnop', '{}', '{}', null, '{}', null, null, false)$$, 'Ben submits past the public route');
+select pg_temp.fails($$select delivery_take('de000000-0000-0000-0000-0000000000c1')$$, 'Ben takes a delivery');
+select pg_temp.fails($$select delivery_finish('de000000-0000-0000-0000-0000000000c1', 'done')$$, 'Ben finishes a delivery');
+select pg_temp.fails($$select form_destination_save('b0000000-0000-0000-0000-000000000000', 'f0a00000-0000-0000-0000-0000000000a1', null, 'webhook', null, 'x', '{}', 'upsert', 'v1:x')$$, 'Ben saves a destination past the route');
+select pg_temp.fails($$select brand_kit_save('b0000000-0000-0000-0000-000000000000', '11111111-0000-0000-0000-000000000000', null, 'x', '{}')$$, 'Ben saves a brand kit past the route');
+select pg_temp.fails($$select deliveries_sweep()$$, 'Ben sweeps deliveries');
+select pg_temp.fails($$select deliveries_held('fda00000-0000-0000-0000-0000000000a1')$$, 'Ben takes held deliveries');
+select pg_temp.fails_with($$select form_set_status(form_create('11111111-0000-0000-0000-000000000000', 'Fresh', '{}'), 'live')$$, '%Publish the form first%', 'Ben turns on a form never published');
+select pg_temp.check(form_save('f0a00000-0000-0000-0000-0000000000a1', 'Acme demo 2', '{"a":1}', 0) = 1, 'Ben can''t save Acme''s form');
+select pg_temp.fails_with($$select form_save('f0a00000-0000-0000-0000-0000000000a1', 'stale', '{"a":0}', 0)$$, '%changed in another window%', 'A stale draft overwrites a newer one');
+select pg_temp.as_user('');
+set role anon;
+select pg_temp.fails($$select form_public('f0a00000-0000-0000-0000-0000000000a1')$$, 'Anyone reads a form past the public route');
+select pg_temp.fails($$select * from submissions$$, 'Anyone reads submissions');
+reset role;
+select pg_temp.check((select name from forms where id = 'f0c00000-0000-0000-0000-0000000000c1') = 'Cat demo' and (select status from deliveries where id = 'de000000-0000-0000-0000-0000000000c1') = 'failed', 'Cat''s form or delivery changed');
+select pg_temp.check((select draft from forms where id = 'f0a00000-0000-0000-0000-0000000000a1') = '{"a":1}', 'The stale save changed the draft');
+select set_config('request.jwt.claim.sub', '', false);
+delete from jobs;
+
 -- Cloud minutes: once Acme has used its 2,000, nobody there can start a run.
 insert into runs (workspace_id, project_id, test_name, test_version, environment_name, base_url, lock, status, duration_ms)
 values ('11111111-0000-0000-0000-000000000000', 'a1000000-0000-0000-0000-000000000000', 'long', 1, 'staging', 'https://x.com', '', 'passed', 2000 * 60000);
