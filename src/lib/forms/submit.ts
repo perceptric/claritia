@@ -3,11 +3,15 @@
 // cleaning. What comes out is either errors to show on the form, or the arguments for form_submit. Server only
 // (email cleaning reads the domain lists).
 
+import { createHmac } from "node:crypto";
 import { cleanDomain } from "../company/domains.ts";
 import { cleanPhone, nameCase } from "../contacts/clean.ts";
 import { countryCode, customValue, type CustomField } from "../contacts/fields.ts";
 import type { ContactInput } from "../contacts/import.ts";
 import { cleanEmail, isRejected } from "../identity/clean.ts";
+import type { Rpc } from "../jobs.ts";
+import type { Tokens } from "./brand.ts";
+import { bookingUrl } from "./schedule.ts";
 import { regionOf } from "../web/policy.ts";
 import { allFields, type Form } from "./schema.ts";
 import { checkAnswers, contactParts } from "./values.ts";
@@ -25,6 +29,8 @@ export type Incoming = {
   ms?: unknown;
   trap?: unknown;
   turnstile?: unknown;
+  /** The daily form check's token: its fills are marked as tests. */
+  qa?: unknown;
 };
 
 export type Ctx = { custom: CustomField[]; own_domains?: string[]; partner_domains?: string[] };
@@ -154,3 +160,58 @@ export function prepareSubmit(
 /** Whether the consent box shows for a visitor from this country (unknown counts as strict). */
 export const consentShown = (form: Form, country: string | null | undefined) =>
   form.consent.mode === "always" || (form.consent.mode === "by_region" && regionOf(country ?? "", "") === "strict");
+
+/** The live form as the public routes load it (form_public). */
+export type PublicForm = { id: string; workspace_id: string; version: number; status: "live" | "paused"; body: Form; tokens: Partial<Tokens>; logo_url: string | null };
+
+/** The daily form check's token for a form, good for the day it was made and the next (src/app/api/forms). */
+export function qaToken(formId: string, day: string, secret: string): string {
+  return createHmac("sha256", secret).update(`form-qa:${formId}:${day}`).digest("hex").slice(0, 32);
+}
+
+export function qaOk(formId: string, token: unknown, secret: string | undefined, now = Date.now()): boolean {
+  if (!secret || typeof token !== "string" || token.length !== 32) return false;
+  const day = (t: number) => new Date(t).toISOString().slice(0, 10);
+  return [day(now), day(now - 86_400_000)].some((d) => qaToken(formId, d, secret) === token);
+}
+
+/**
+ * Take a fill for a live form: check it, save it (form_submit), and work out the booking link when the form books a
+ * meeting. Shared by the public route and the tests, so both run the same steps. Answers status and JSON body.
+ */
+export async function acceptFill(
+  rpc: Rpc,
+  f: PublicForm,
+  raw: Incoming,
+  ctx: Ctx,
+  o: { country?: string | null; turnstileFailed?: boolean; origin?: string | null; test?: boolean } = {},
+): Promise<{ status: number; body: Record<string, unknown> }> {
+  const r = prepareSubmit(f.body, f.version, raw, ctx, { country: o.country, turnstileFailed: o.turnstileFailed });
+  if ("errors" in r) return { status: 400, body: { errors: r.errors } };
+  if ("error" in r) return { status: r.status, body: { error: r.error } };
+  const { data, error } = await rpc("form_submit", { p_form: f.id, ...r.args, p_test: o.test === true });
+  if (error) {
+    if (/isn't taking answers|Unknown form version/.test(error.message)) return { status: 409, body: { error: "This form changed. Refresh the page and try again." } };
+    // Retryable: the browser keeps the fill and sends it again with the same key.
+    return { status: 503, body: { error: "Try again in a moment." } };
+  }
+  const sid = (data as { id: string }).id;
+  // Book a meeting next: the contact owner's link when the form says so and they have one, else the form's link.
+  const sch = f.body.after.schedule;
+  const lead = r.args.p_contact;
+  let schedule: { tool: string; url: string } | null = null;
+  if (sch && lead && !r.args.p_spam) {
+    let base = sch.url;
+    if (sch.perOwner) {
+      const own = await rpc("scheduler_for", { p_submission: sid, p_tool: sch.tool });
+      if (typeof own.data === "string" && own.data) base = own.data;
+    }
+    let host: string | undefined;
+    try {
+      host = new URL(o.origin ?? "").hostname || undefined;
+    } catch {}
+    const url = base ? bookingUrl(sch.tool, base, { first: lead.first_name, last: lead.last_name, email: lead.email }, sid, host) : null;
+    if (url) schedule = { tool: sch.tool, url };
+  }
+  return { status: 200, body: { id: sid, schedule } };
+}

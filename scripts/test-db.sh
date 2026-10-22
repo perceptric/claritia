@@ -20,5 +20,6 @@ if [ -n "${CHROMIUM_PATH:-}" ]; then
   PG_URL="$URL" node scripts/identity-check.ts
   PG_URL="$URL" node scripts/consent-check.ts
   PG_URL="$URL" node scripts/forms-check.ts
+  PG_URL="$URL" node scripts/forms-qa-check.ts
   node scripts/brand-check.ts
 fi

@@ -1011,6 +1011,22 @@ reset role;
 select set_config('request.jwt.claim.sub', '', false);
 delete from jobs;
 
+-- Form checks (042): members start checks and read results only in their workspace; the check's own steps are
+-- server only.
+insert into form_checks (workspace_id, form_id, status) values ('22222222-0000-0000-0000-000000000000', 'f0c00000-0000-0000-0000-0000000000c1', 'failed');
+select pg_temp.as_user('b0000000-0000-0000-0000-000000000000');
+set role authenticated;
+select pg_temp.check((select count(*) from form_checks) = 0, 'Ben sees Cat''s form checks');
+select pg_temp.fails($$select form_check_now('f0c00000-0000-0000-0000-0000000000c1')$$, 'Ben checks Cat''s form');
+select pg_temp.fails($$select form_check_start('f0a00000-0000-0000-0000-0000000000a1')$$, 'Ben starts a check past the runner');
+select pg_temp.fails($$select form_check_progress('f0c00000-0000-0000-0000-0000000000c1', now())$$, 'Ben reads a check''s progress');
+select pg_temp.fails($$select form_checks_due()$$, 'Ben queues checks');
+select form_check_now('f0a00000-0000-0000-0000-0000000000a1');
+reset role;
+select pg_temp.check((select count(*) from jobs where kind = 'form_qa' and key = 'f0a00000-0000-0000-0000-0000000000a1') = 1, 'Ben can''t check Acme''s live form');
+select set_config('request.jwt.claim.sub', '', false);
+delete from jobs;
+
 -- Cloud minutes: once Acme has used its 2,000, nobody there can start a run.
 insert into runs (workspace_id, project_id, test_name, test_version, environment_name, base_url, lock, status, duration_ms)
 values ('11111111-0000-0000-0000-000000000000', 'a1000000-0000-0000-0000-000000000000', 'long', 1, 'staging', 'https://x.com', '', 'passed', 2000 * 60000);

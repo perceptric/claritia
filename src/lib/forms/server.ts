@@ -1,12 +1,11 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Tokens } from "./brand.ts";
-import type { Form } from "./schema.ts";
+import type { PublicForm } from "./submit.ts";
 
 // What the public form routes share (docs/form-builder.md Part 6): the live form with a short cache, a per-visitor
 // rate limit, the Turnstile check, the visitor's country from the edge, and CORS for any site.
 
-export type PublicForm = { id: string; workspace_id: string; version: number; status: "live" | "paused"; body: Form; tokens: Partial<Tokens>; logo_url: string | null };
+export type { PublicForm };
 
 const CACHE_MS = 10_000;
 const cache = new Map<string, { at: number; form: PublicForm | null }>();

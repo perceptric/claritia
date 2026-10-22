@@ -11,8 +11,8 @@ import pg from "pg";
 import pw from "playwright-core";
 import { buildForms } from "./build-forms.mts";
 import { checkForm, type Form } from "../src/lib/forms/schema.ts";
-import { prepareSubmit, type Incoming } from "../src/lib/forms/submit.ts";
-import { bookingUrl } from "../src/lib/forms/schedule.ts";
+import { acceptFill, qaOk, type Incoming } from "../src/lib/forms/submit.ts";
+import { pgRpc } from "../worker-intel/rpc.ts";
 import { capturedForm, TEMPLATES } from "../src/lib/forms/templates.ts";
 
 const url = process.env.PG_URL;
@@ -81,14 +81,8 @@ async function handle(req: import("node:http").IncomingMessage, res: import("nod
     posts++;
     if (down) return send(503, { error: "Try again in a moment." });
     const f = (await q(`select form_public($1) as f`, [m[1]]))[0].f;
-    const r = prepareSubmit(f.body, f.version, JSON.parse(body) as Incoming, { custom: [] });
-    if ("errors" in r) return send(400, { errors: r.errors });
-    if ("error" in r) return send(r.status, { error: r.error });
-    const a = r.args;
-    const out = (await q(`select form_submit($1, $2, $3, $4, $5, $6, $7, $8, $9, false) as r`, [m[1], a.p_version, a.p_idem, a.p_values, a.p_hidden, a.p_contact, a.p_consent, a.p_country, a.p_spam]))[0].r;
-    const sch = f.body.after.schedule;
-    const schedule = sch && a.p_contact ? { tool: sch.tool, url: bookingUrl(sch.tool, sch.url, { email: a.p_contact.email }, out.id) } : null;
-    return send(200, { id: out.id, schedule });
+    const r = await acceptFill(pgRpc(pool), f, JSON.parse(body) as Incoming, { custom: [] }, { test: qaOk(m[1], (JSON.parse(body) as Incoming).qa, process.env.SECRETS_KEY) });
+    return send(r.status, r.body);
   }
   const cap = u.searchParams.get("capture");
   if (cap) {

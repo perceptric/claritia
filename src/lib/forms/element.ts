@@ -648,6 +648,8 @@ export class ClaritiaForm extends HTMLElement {
       ms: Date.now() - this.started,
       trap: (this.root.querySelector('input[name="company_url"]') as HTMLInputElement | null)?.value ?? "",
       turnstile: this.turnstileToken || undefined,
+      // The daily form check opens the form with its token; the fill is then marked as a test.
+      qa: new URLSearchParams(location.search).get("clr_qa") || undefined,
     });
     const url = `${this.base}/api/forms/${d.id}/submit`;
     let res: Response | null = null;

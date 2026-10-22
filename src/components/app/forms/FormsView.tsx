@@ -17,13 +17,14 @@ import { SampleStats, SampleTags, ToolIntro } from "../ToolIntro";
 import { Badge, Button, Empty, ErrorNote, errorText, Loading, must, Page, Panel, postJson, setLeaveGuard, Tabs, Td, Th, timeAgo, useLoad, type ViewProps } from "../ui";
 import { FormBuild } from "./FormBuild";
 import { FormChat } from "./FormChat";
+import { FormChecks } from "./FormChecks";
 import { FormDesign } from "./FormDesign";
 import { FormDestinations } from "./FormDestinations";
 import { FormFills } from "./FormFills";
 import { FormSettings } from "./FormSettings";
 import { copy, FormPreview, IconButton, STATUS, type Destination, type FormRow, type Kit, type SourceRow } from "./shared";
 
-type ListRow = { id: string; name: string; status: FormRow["status"]; version: number; updated_at: string; fills: number; last_fill: string | null; failed: number };
+type ListRow = { id: string; name: string; status: FormRow["status"]; kind: "built" | "captured"; version: number; updated_at: string; fills: number; last_fill: string | null; failed: number; check: "running" | "passed" | "failed" | null };
 
 export function FormsView(props: ViewProps) {
   if (props.id) return <FormPage key={props.id} {...props} />;
@@ -156,6 +157,8 @@ function FormList({ sb, session, ws, navigate }: ViewProps) {
                       <span className="flex items-center gap-2">
                         {f.name}
                         {f.failed ? <Badge tone="red">{`${f.failed} failed`}</Badge> : null}
+                        {f.check === "failed" ? <Badge tone="red">Check failed</Badge> : null}
+                        {f.kind === "captured" ? <Badge>Captured</Badge> : null}
                       </span>
                     </Td>
                     <Td>
@@ -179,7 +182,7 @@ function FormList({ sb, session, ws, navigate }: ViewProps) {
   );
 }
 
-type Tab = "chat" | "build" | "design" | "destinations" | "settings" | "share" | "fills";
+type Tab = "chat" | "build" | "design" | "destinations" | "settings" | "share" | "fills" | "checks";
 
 function FormPage(props: ViewProps) {
   const { sb, ws, id } = props;
@@ -427,6 +430,7 @@ function Builder({
     { value: "settings", label: "Settings" },
     { value: "share", label: "Share" },
     { value: "fills", label: "Fills" },
+    ...(form.capture ? [] : [{ value: "checks" as Tab, label: "Checks" }]),
   ];
 
   return (
@@ -480,7 +484,11 @@ function Builder({
             ) : null}
           </div>
         ) : null}
-        {tab === "fills" ? (
+        {tab === "checks" ? (
+          <div className="paper min-h-0 flex-1 overflow-auto p-4 md:p-6">
+            <FormChecks sb={sb} formId={initial.id} live={initial.status === "live"} />
+          </div>
+        ) : tab === "fills" ? (
           <div className="paper min-h-0 flex-1 overflow-auto p-4 md:p-6">
             <FormFills key={watch} sb={sb} formId={initial.id} destinations={dests} navigate={navigate} watch={watch} />
           </div>
