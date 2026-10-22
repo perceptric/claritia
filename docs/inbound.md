@@ -18,7 +18,7 @@ Two follow-ons from the same screenshot come after (Part 9): SDR to AE handoff a
 
 Facts about Default come from its own pages (home, pricing, comparisons, templates), read in October 2026. They are vendor claims.
 
-This plan changes the order in `docs/conversion-parity.md`. Weeks 1 to 8 are built. Inbound takes weeks 9 to 14, with two follow-ons in weeks 15 and 16. Email, workflows and the rest move back eight weeks (Part 8).
+This plan changes the order in `docs/conversion-parity.md`. Weeks 1 to 8 are built. Inbound takes weeks 9 to 16, with two follow-ons in weeks 17 and 18. Email, workflows and the rest move back ten weeks (Part 8).
 
 ---
 
@@ -65,40 +65,21 @@ The promise against HubSpot, in rules every screen follows:
 
 ## Part 4. Modules in detail
 
-### I1. Form Builder (week 9)
+### I1. Form Builder (weeks 9 to 11)
 
-**What it does:**
-- **Build:** fields from the registry (`src/lib/records/fields.ts`), hidden fields (UTMs, campaign, page, referrer), multi-step, rules that show or hide a field, consent block with wording by region, Turnstile spam check.
-- **Brand:** the team's fonts, colors and corners from a brand kit. A form looks like their site.
-- **Place it:** one script line, a hosted page at `forms.tryclaritia.com/<team>/<form>`, or a React and plain JS SDK for teams who build their own.
-- **Capture existing forms:** `claritia.js` already captures form fills (M1). A captured form gets the same router as a built one. Named adapters for HubSpot, Webflow, Marketo, Framer and Typeform embeds read the submit event so the native form keeps working.
-- **Shorten:** with enrichment on, fields Claritia already knows are hidden (I2).
-- **Progressive fields:** a known contact isn't asked the same thing twice.
+Full spec: `docs/form-builder.md`. In short:
+- **Built by chat:** the person says what the form is for. An AI chat (Sonnet with tools) edits a JSON form schema and never writes HTML or CSS. Clicks and chat share one undo history.
+- **Brand from the website:** the runner loads the site and reads computed styles (fonts, colors, button and input shapes, spacing, CSS variables) into a brand kit. Contrast is checked, and one look check compares the form to their own form page.
+- **Placed anywhere:** a web component embed, a hosted page, pop-ups, and a React SDK.
+- **Leads go anywhere:** each submission is saved first, then sent through an outbox with one delivery per destination: Claritia records, every CRM (HubSpot, Salesforce and Omniscient built, the rest added in turn), marketing tools, Slack, Teams, Sheets, webhooks. Each delivery retries, logs and can be replayed.
+- **After the submit:** Claritia's router or the CRM's own rules pick the owner. Then a meeting books on Claritia's calendar (I5) or on Calendly, Cal.com, HubSpot Meetings, SavvyCal or Chili Piper, tied back to the lead by a tracking id.
+- **Existing forms:** HubSpot, Webflow, Marketo, Framer and Typeform forms can be captured once the team maps them, with the same router, scheduler and destinations.
 
-**On submit:** contact upsert through `contacts_upsert`, consent with the exact wording shown, a `form_submit` event with page, referrer and UTMs, earlier anonymous visits attached (M1), then the form's router runs (I3 to I5).
+**Database:** `039_forms.sql` (`docs/form-builder.md` Part 11).
 
-**Database: `039_forms.sql`**
-```
-forms        (id, workspace_id, name, status, fields jsonb, rules jsonb, brand jsonb, router_id, version int, published_at)
-form_versions(form_id, version, body jsonb, published_by, at)
-captured_forms(id, workspace_id, site_id, selector, url_pattern, field_map jsonb, router_id)
-submissions  (id, workspace_id, form_id, captured_form_id, contact_id, session_id, values jsonb, hidden jsonb,
-              consent_id, router_run_id, idem_key unique, at)
-```
+**Done when:** from a site address and one sentence, a form that matches the site is live in under a minute, lands in HubSpot and Slack once through an outage test, and a Calendly booking from it ties to its lead by id.
 
-**Code:** `src/lib/forms/` (schema, render, rules, consent, adapters), `collect` route `/f` for submits, `src/components/forms/` for the embed.
-
-**Screens:** Forms list (templates first), form editor with live preview, Submissions tab, captured forms under each site.
-
-**Tests (flaky cases):**
-- A submit sent twice, or retried after a cut connection, makes one submission and one contact (`idem_key` from the browser).
-- A HubSpot embed that loads late, or reloads in an iframe, is still captured once.
-- A strict-region fill without the box ticked records no consent.
-- Funnel QA fills every published form in a real browser each day and checks the contact appears.
-
-**Done when:** a form built from a template is live on the Perceptric site and a captured HubSpot form on a test site lands the same contact fields.
-
-### I2. Lead Enrichment (week 10)
+### I2. Lead Enrichment (week 12)
 
 **What it does:**
 - **Waterfall:** for each field, try sources in order until one answers. Stop as soon as every asked-for field is filled.
@@ -134,7 +115,7 @@ enrich_usage   (workspace_id, month, vendor, credits)
 
 **Done when:** 100 real Perceptric contacts enrich with 80%+ of company fields filled, and the demo form drops to 2 fields for a known company.
 
-### I3. Qualification (week 11)
+### I3. Qualification (week 13)
 
 **What it does:**
 - **Rules first (fixed math):** work email, company size, country, industry, fit score, intent score, existing customer, open opportunity, competitor domain list, any field or segment. Each rule sends the lead to an outcome.
@@ -154,7 +135,7 @@ router_runs   (id, workspace_id, router_id, contact_id, submission_id, outcome, 
 
 **Done when:** a router built from the "Demo request" template sorts 200 recorded Perceptric fills the same way a person did, at 95%+.
 
-### I4. Routing (week 12)
+### I4. Routing (week 14)
 
 **What it does:**
 - **Match first:** existing contact owner, then account owner (lead-to-account matching by domain, aliases from M1, and fuzzy company name), then owner of an open opportunity.
@@ -185,7 +166,7 @@ sla_timers    (id, workspace_id, router_run_id, due_at, fired_at)
 
 **Done when:** a lead reaches the right rep in Slack within 30 seconds p95, and the log explains every decision on 200 recorded fills.
 
-### I5. Meeting Scheduling (weeks 13 and 14)
+### I5. Meeting Scheduling (weeks 15 and 16)
 
 **What it does:**
 - **Connect a calendar:** Google and Microsoft 365 by sign-in. Read busy times from every calendar a person picks, write to one.
@@ -267,18 +248,18 @@ The `CLAUDE.md` rule covers identity and the jobs queue. Routing and booking joi
 | Week | Build | Done when |
 |---|---|---|
 | 1–8 | Contacts, imports, records, sources, segments, warehouses (built) | Met |
-| 9 | I1: `039_forms.sql`, form builder, embed and hosted forms, SDK, capture of HubSpot, Webflow, Marketo, Framer and Typeform forms, consent, Turnstile, Funnel QA on forms | A template form and a captured HubSpot form land the same contact |
-| 10 | I2: `040_enrichment.sql`, waterfall, Coresignal person, People Data Labs, email check, bring your own key, before-submit field hiding, credits and caps | 80%+ company fields on 100 contacts; demo form shows 2 fields for known companies |
-| 11 | I3: `041_routing.sql` part 1, routers, rules, outcomes, AI check, review list, router log | 95%+ match with a person on 200 recorded fills |
-| 12 | I4: queues, matching, round robin, capacity, out of office, AI routing, CRM owner push, Slack, SLA | Right rep in Slack within 30 s p95 |
-| 13 | I5 part 1: `042_meetings.sql`, Google and Microsoft calendars, meeting types, personal and team links, booking page, Meet, Teams and Zoom links, emails and reminders | A personal link books with reminders on both calendars |
-| 14 | I5 part 2: booking in the form, group events, routing queues for meetings, held and no-show, outcomes to CRM, templates, first screens, Perceptric live | Demo form books in under 30 s; 0 double bookings in 1,000 at once |
-| 15–16 | Follow-ons: SDR to AE handoff, CRM hygiene (Part 9) | Each passes its tests |
-| 17 onward | `docs/conversion-parity.md` weeks 9 to 21 (sending, Email Studio, workflows, pages, scoring, ABM, ads, agents, migration, API), each moved back 8 weeks | As in that plan |
+| 9–11 | I1: forms, AI chat builder, brand scan, destinations, schedulers, captured forms (`docs/form-builder.md` Part 13) | As in that plan |
+| 12 | I2: `040_enrichment.sql`, waterfall, Coresignal person, People Data Labs, email check, bring your own key, before-submit field hiding, credits and caps | 80%+ company fields on 100 contacts; demo form shows 2 fields for known companies |
+| 13 | I3: `041_routing.sql` part 1, routers, rules, outcomes, AI check, review list, router log | 95%+ match with a person on 200 recorded fills |
+| 14 | I4: queues, matching, round robin, capacity, out of office, AI routing, CRM owner push, Slack, SLA | Right rep in Slack within 30 s p95 |
+| 15 | I5 part 1: `042_meetings.sql`, Google and Microsoft calendars, meeting types, personal and team links, booking page, Meet, Teams and Zoom links, emails and reminders | A personal link books with reminders on both calendars |
+| 16 | I5 part 2: booking in the form, group events, routing queues for meetings, held and no-show, outcomes to CRM, templates, first screens, Perceptric live | Demo form books in under 30 s; 0 double bookings in 1,000 at once |
+| 17–18 | Follow-ons: SDR to AE handoff, CRM hygiene (Part 9) | Each passes its tests |
+| 19 onward | `docs/conversion-parity.md` weeks 9 to 21 (sending, Email Studio, workflows, pages, scoring, ABM, ads, agents, migration, API), each moved back 10 weeks | As in that plan |
 
 Migration numbers in `docs/conversion-parity.md` from `039` on move up by four. Week 15 there (forms and pages) keeps only landing pages. Week 16 there (scoring and routing) keeps only scoring, since routing ships here.
 
-## Part 9. Follow-ons (weeks 15 and 16)
+## Part 9. Follow-ons (weeks 17 and 18)
 
 **SDR to AE handoff:**
 - An SDR books a meeting for an AE from Claritia, Omniscient, Gmail (Chrome extension), Salesforce or HubSpot. The router picks the AE, the SDR picks a time, credit goes to the SDR.
@@ -306,7 +287,7 @@ Assumptions: 500 form fills, 300 new people enriched (the rest are known or cach
 | Person enrichment | Coresignal or People Data Labs, 300 people at about $0.05 to $0.10 each (check) | $25 (check) |
 | Email check | 300 at about $0.004 each (check) | $1 (check) |
 | Calendar and video APIs | Google Calendar, Microsoft Graph, Zoom: free to call (check) | $0 |
-| Meeting emails | 450 through Resend until SES lands (conversion-parity week 9, moved to week 17) | under $1 |
+| Meeting emails | 450 through Resend until SES lands (conversion-parity week 9, moved to week 19) | under $1 |
 
 Claude prices from `docs/marketing-platform.md` Part 11 (Haiku 5.5 $0.10/$0.50, Sonnet 5.5 $2/$10 per million tokens, web search $10 per 1,000, check).
 
@@ -318,7 +299,7 @@ Claude prices from `docs/marketing-platform.md` Part 11 (Haiku 5.5 $0.10/$0.50, 
 | Person enrichment ($25 per team, check; volume price likely lower at Growth) | $1,250 (check) | $12,500 (check) |
 | Email check | $50 (check) | $500 (check) |
 | Resend for meeting emails (22,500 a month, then 225,000) | $20, Pro plan (check) | $200 (check) |
-| Fly: `collect` for form submits and the before-submit lookup, `claritia-web` for booking pages | $10 (check) | $60 (check) |
+| Fly: `collect` for form submits and the before-submit lookup, `claritia-web` for booking pages (the form builder's own lines are in `docs/form-builder.md` Part 14) | $10 (check) | $60 (check) |
 | Supabase: submissions, router runs, busy cache, meetings | $0 (within plan) | $25 (check) |
 | Cloudflare Turnstile | $0 (free tier, check) | $0 (check) |
 | Google OAuth verification for calendar scopes | $0 (sensitive scope, no paid audit, check) | $0 |
