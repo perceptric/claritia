@@ -293,6 +293,23 @@ begin
 end;
 $$;
 
+-- The Forms list: each form with its fills in the last 30 days (not spam or tests), its last fill, and how many
+-- deliveries failed and wait for a replay.
+create or replace function public.forms_list(p_ws uuid) returns jsonb
+language sql stable security definer set search_path = public as $$
+  select coalesce(jsonb_agg(jsonb_build_object('id', f.id, 'name', f.name, 'status', f.status, 'version', f.version, 'updated_at', f.updated_at,
+           'fills', coalesce(s.fills, 0), 'last_fill', s.last_fill, 'failed', coalesce(d.failed, 0)) order by f.updated_at desc), '[]'::jsonb)
+  from forms f
+  left join lateral (
+    select count(*) filter (where x.created_at > now() - interval '30 days') fills, max(x.created_at) last_fill
+    from submissions x where x.form_id = f.id and not x.spam and not x.test
+  ) s on true
+  left join lateral (
+    select count(*) failed from deliveries y join form_destinations fd on fd.id = y.destination_id where fd.form_id = f.id and y.status = 'failed'
+  ) d on true
+  where f.workspace_id = p_ws and is_member(p_ws);
+$$;
+
 -- The server's side ---------------------------------------------------------------------------------------------
 
 -- Publish a draft the server has checked. Returns the new version.
@@ -615,7 +632,7 @@ begin
     execute format('revoke execute on function public.%s from public, anon, authenticated', f);
     execute format('grant execute on function public.%s to service_role', f);
   end loop;
-  foreach f in array array['form_create(uuid, text, jsonb, uuid)', 'form_save(uuid, text, jsonb, int, uuid)', 'form_set_status(uuid, text)',
+  foreach f in array array['forms_list(uuid)', 'form_create(uuid, text, jsonb, uuid)', 'form_save(uuid, text, jsonb, int, uuid)', 'form_set_status(uuid, text)',
     'form_delete(uuid)', 'brand_kit_delete(uuid)', 'form_destination_delete(uuid)', 'form_destination_pause(uuid, boolean)', 'deliveries_replay(uuid[])'] loop
     execute format('revoke execute on function public.%s from public, anon', f);
     execute format('grant execute on function public.%s to authenticated', f);

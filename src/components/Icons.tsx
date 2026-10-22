@@ -222,3 +222,42 @@ export const Plug = (p: P) => (
     <path d="M9 3v5M15 3v5M6 8h12v3a6 6 0 0 1-12 0V8zM12 17v4" />
   </Svg>
 );
+
+export const ArrowUp = (p: P) => (
+  <Svg {...p}>
+    <path d="M12 19V5M6 11l6-6 6 6" />
+  </Svg>
+);
+
+export const ArrowDown = (p: P) => (
+  <Svg {...p}>
+    <path d="M12 5v14M6 13l6 6 6-6" />
+  </Svg>
+);
+
+export const Undo = (p: P) => (
+  <Svg {...p}>
+    <path d="M9 14L4 9l5-5" />
+    <path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11" />
+  </Svg>
+);
+
+export const Redo = (p: P) => (
+  <Svg {...p}>
+    <path d="M15 14l5-5-5-5" />
+    <path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H13" />
+  </Svg>
+);
+
+export const Inbox = (p: P) => (
+  <Svg {...p}>
+    <path d="M3 13h5l1.5 3h5L16 13h5" />
+    <path d="M5.5 5h13L21 13v6H3v-6z" />
+  </Svg>
+);
+
+export const Send = (p: P) => (
+  <Svg {...p}>
+    <path d="M21 3L10 14M21 3l-7 18-4-7-7-4z" />
+  </Svg>
+);

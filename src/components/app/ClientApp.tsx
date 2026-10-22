@@ -4,7 +4,7 @@ import type { Session } from "@supabase/supabase-js";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { getSupabase, type SupaConfig } from "@/lib/supa";
 import { allowedRoute, navFor, showsProjectPicker, type Route as NavRoute } from "@/lib/nav";
-import { BarChart, Box, Branch, Check, Clock, Contact, Eye, FileText, Globe, ListIcon, LogOut, MapIcon, Play, Settings, Target, Users } from "../Icons";
+import { BarChart, Box, Branch, Check, Clock, Contact, Eye, FileText, Globe, Inbox, ListIcon, LogOut, MapIcon, Play, Settings, Target, Users } from "../Icons";
 import { Logo } from "../Logo";
 import { AuthScreen } from "./AuthScreen";
 import { askText, DialogHost } from "./Dialogs";
@@ -22,6 +22,7 @@ import { AccountsView } from "./views/AccountsView";
 import { ContactsView, LeadsView } from "./views/ContactsView";
 import { CompaniesView, ObjectsView } from "./views/RecordsViews";
 import { SegmentsView } from "./views/SegmentsView";
+import { FormsView } from "./forms/FormsView";
 import { JourneysView, PagesView, ReportsView } from "./views/MarketingIntros";
 import { VisitorsView } from "./views/VisitorsView";
 import { SettingsView } from "./views/SettingsView";
@@ -31,6 +32,7 @@ import { TestsView } from "./views/TestsView";
 // four modules (AI works inside each: the Writer in Authoring, the Healer in Execution, smart retries in Management
 // and the Judge in Analytics), the marketing platform's screens, or both.
 const ICONS: Record<NavRoute, React.ReactNode> = {
+  forms: <Inbox size={15} />,
   contacts: <Contact size={15} />,
   leads: <Target size={15} />,
   segments: <ListIcon size={15} />,
@@ -57,7 +59,7 @@ const PROJECT_KEY = "claritia:project";
 const NEW_PROJECT = "__new";
 
 type Loc = { route: Route; id: string };
-const WITH_ID = new Set<Route>(["tests", "blocks", "runs", "approvals", "accounts", "contacts", "leads", "companies", "segments"]);
+const WITH_ID = new Set<Route>(["forms", "tests", "blocks", "runs", "approvals", "accounts", "contacts", "leads", "companies", "segments"]);
 
 const readLoc = (): Loc => {
   const [, first = "", id = "", rest = ""] = window.location.pathname.split("/");
@@ -319,7 +321,7 @@ export function ClientApp({ config }: { config: SupaConfig }) {
             <ErrorNote message={error} />
           </div>
         ) : null}
-        {route === "contacts" ? <ContactsView {...props} /> : route === "leads" ? <LeadsView {...props} /> : route === "companies" ? <CompaniesView {...props} /> : route === "segments" ? <SegmentsView {...props} /> : route === "objects" ? <ObjectsView key={loc.id.split("/")[0]} {...props} /> : route === "visitors" ? <VisitorsView {...props} /> : route === "accounts" ? <AccountsView {...props} /> : route === "journeys" ? <JourneysView /> : route === "pages" ? <PagesView /> : route === "reports" ? <ReportsView /> : route === "tests" ? <TestsView {...props} /> : route === "blocks" ? <BlocksView {...props} /> : route === "map" ? <MapView {...props} /> : route === "runs" ? <RunsView {...props} /> : route === "approvals" ? <ApprovalsView {...props} /> : route === "environments" ? <EnvironmentsView {...props} /> : route === "schedules" ? <SchedulesView {...props} /> : route === "insights" ? <InsightsView {...props} /> : <SettingsView {...props} />}
+        {route === "forms" ? <FormsView {...props} /> : route === "contacts" ? <ContactsView {...props} /> : route === "leads" ? <LeadsView {...props} /> : route === "companies" ? <CompaniesView {...props} /> : route === "segments" ? <SegmentsView {...props} /> : route === "objects" ? <ObjectsView key={loc.id.split("/")[0]} {...props} /> : route === "visitors" ? <VisitorsView {...props} /> : route === "accounts" ? <AccountsView {...props} /> : route === "journeys" ? <JourneysView /> : route === "pages" ? <PagesView /> : route === "reports" ? <ReportsView /> : route === "tests" ? <TestsView {...props} /> : route === "blocks" ? <BlocksView {...props} /> : route === "map" ? <MapView {...props} /> : route === "runs" ? <RunsView {...props} /> : route === "approvals" ? <ApprovalsView {...props} /> : route === "environments" ? <EnvironmentsView {...props} /> : route === "schedules" ? <SchedulesView {...props} /> : route === "insights" ? <InsightsView {...props} /> : <SettingsView {...props} />}
       </main>
     </div>
   );

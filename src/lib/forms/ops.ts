@@ -8,7 +8,7 @@ import { allFields, checkForm, CONTACT_KEYS, newId, questionKey, type After, typ
 export type FieldInput = Partial<Omit<Field, "id">> & { type: FieldType; label: string };
 
 export type Op =
-  | { op: "add_field"; field: FieldInput; step?: number; after?: string }
+  | { op: "add_field"; field: FieldInput; step?: number; after?: string; id?: string }
   | { op: "update_field"; id: string; patch: Partial<Omit<Field, "id">> }
   | { op: "remove_field"; id: string }
   | { op: "move_field"; id: string; step: number; index: number }
@@ -67,7 +67,7 @@ export function applyOp(input: Form, op: Op): { form: Form } | { error: string }
       if (!form.steps[s]) return { error: "That step doesn't exist." };
       const f: Field = {
         ...op.field,
-        id: newId(),
+        id: op.id && /^[a-z0-9]{1,24}$/.test(op.id) && !allFields(form).some((x) => x.id === op.id) ? op.id : newId(),
         key: keyFor(op.field, form),
         label: op.field.label,
         type: op.field.type,

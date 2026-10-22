@@ -938,6 +938,7 @@ select pg_temp.check((select count(*) from form_versions) = 1, 'Ben sees another
 select pg_temp.check((select count(*) from form_destinations) = 1, 'Ben sees another workspace''s destinations');
 select pg_temp.check((select count(*) from submissions) = 0 and (select count(*) from deliveries) = 0, 'Ben sees Cat''s submissions or deliveries');
 select pg_temp.check((select count(*) from brand_kits) = 0, 'Ben sees Cat''s brand kit');
+select pg_temp.check(jsonb_array_length(forms_list('22222222-0000-0000-0000-000000000000')) = 0 and jsonb_array_length(forms_list('11111111-0000-0000-0000-000000000000')) = 1, 'Ben lists Cat''s forms, or can''t list Acme''s');
 select pg_temp.fails($$select * from form_destination_secrets$$, 'Ben reads a destination''s secret');
 select pg_temp.fails($$insert into forms (workspace_id, name) values ('11111111-0000-0000-0000-000000000000', 'x')$$, 'Ben writes forms directly');
 select pg_temp.fails($$update submissions set spam = true$$, 'Ben writes submissions directly');
