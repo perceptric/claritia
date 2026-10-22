@@ -303,6 +303,9 @@ export async function applyHooks(d: Deps, events: HookEvent[]): Promise<Counts> 
     const got = object === "contacts" ? await applyContacts(d, all) : await applyCompanies(d, all);
     for (const k of ["pulled", "written", "skipped", "errors"] as const) c[k] += got[k];
   }
+  // Meetings booked in a scheduling tool, after their contacts exist: linked to the form fill they came from.
+  const bookings = events.flatMap((e) => (e.booking && e.booking.id ? [e.booking] : []));
+  if (bookings.length) await call(d.rpc, "booking_record", { p_source: d.ctx.source.id, p_rows: bookings });
   return c;
 }
 

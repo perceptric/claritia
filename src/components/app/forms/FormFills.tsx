@@ -21,6 +21,7 @@ type Fill = {
   contact_id: string | null;
   contacts: { email: string | null; first_name: string | null; last_name: string | null } | null;
   deliveries: { id: string; status: string; error: string | null; external_url: string | null; attempts: number; updated_at: string; destination_id: string }[];
+  form_bookings: { tool: string; linked: string; start_at: string | null }[];
 };
 type Kind = "leads" | "tests" | "spam";
 
@@ -31,7 +32,7 @@ export function FormFills({ sb, formId, destinations, navigate, watch }: Pick<Vi
   const fills = useLoad(async () => {
     let q = sb
       .from("submissions")
-      .select("id, created_at, values, hidden, test, spam, spam_reason, form_version, contact_id, contacts(email, first_name, last_name), deliveries(id, status, error, external_url, attempts, updated_at, destination_id)")
+      .select("id, created_at, values, hidden, test, spam, spam_reason, form_version, contact_id, contacts(email, first_name, last_name), deliveries(id, status, error, external_url, attempts, updated_at, destination_id), form_bookings(tool, linked, start_at)")
       .eq("form_id", formId)
       .order("created_at", { ascending: false })
       .limit(100);
@@ -101,6 +102,11 @@ export function FormFills({ sb, formId, destinations, navigate, watch }: Pick<Vi
                   <button type="button" onClick={() => setOpen(isOpen ? null : s.id)} aria-expanded={isOpen} className="flex w-full items-center gap-3 px-4 py-3 text-left text-[13px] hover:bg-hover">
                     <ChevronRight size={14} className={`text-faint transition-transform ${isOpen ? "rotate-90" : ""}`} />
                     <span className="min-w-0 flex-1 truncate font-medium">{who}</span>
+                    {s.form_bookings?.map((b, j) => (
+                      <Badge key={`b${j}`} tone={b.linked === "tracking" ? "violet" : "gray"}>
+                        {b.linked === "tracking" ? "Booked" : "Booked, maybe"}
+                      </Badge>
+                    ))}
                     {s.spam ? <Badge tone="amber">{s.spam_reason === "trap" ? "Trap" : s.spam_reason === "too_fast" ? "Too fast" : "Spam"}</Badge> : null}
                     <span className="flex gap-1">
                       {s.deliveries.map((d) => (

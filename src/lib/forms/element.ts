@@ -151,6 +151,7 @@ export class ClaritiaForm extends HTMLElement {
   private alert = "";
   private isPreview = false;
   private open: string | null = null;
+  private schedule: { tool: string; url: string } | null = null;
   private filter = "";
 
   constructor() {
@@ -443,6 +444,16 @@ export class ClaritiaForm extends HTMLElement {
   }
 
   private endScreen(form: Form): HTMLElement {
+    // A meeting to book: the scheduler opens in the form, with the lead filled in. In the builder, its link stands in.
+    const book = this.schedule ?? (this.isPreview && form.after.schedule?.url ? { tool: form.after.schedule.tool, url: form.after.schedule.url } : null);
+    if (book && (!this.isPreview || safeUrl(book.url))) {
+      return el(
+        "div",
+        { class: "f dn", role: "status" },
+        el("h2", { class: "h", text: "Pick a time" }),
+        el("iframe", { src: book.url, title: "Book a meeting", style: "width:100%;min-height:680px;border:0", loading: "lazy", allow: "payment" }),
+      );
+    }
     const end = form.after.end;
     if (end.kind === "redirect" && !this.isPreview && safeUrl(end.url)) {
       location.assign(end.url);
@@ -540,7 +551,8 @@ export class ClaritiaForm extends HTMLElement {
       writeQueue([...readQueue().filter((x) => x.key !== this.key), { url, body, key: this.key, at: Date.now(), tries: 1 }]);
       setTimeout(() => void flushQueue(), 15_000);
     } else {
-      const j = (await res.json().catch(() => ({}))) as { id?: string };
+      const j = (await res.json().catch(() => ({}))) as { id?: string; schedule?: { tool: string; url: string } | null };
+      if (j.schedule && /^https:\/\//.test(j.schedule.url)) this.schedule = j.schedule;
       this.dispatchEvent(new CustomEvent("claritia:submitted", { bubbles: true, composed: true, detail: { formId: d.id, submissionId: j.id ?? null } }));
     }
     this.done = true;

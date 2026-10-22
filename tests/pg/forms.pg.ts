@@ -274,3 +274,36 @@ test("a field removed after fills came in still shows on the old fills, by its k
   // A version that was never published is refused.
   await assert.rejects(q(`select form_submit($1, 3, $2, '{}', '{}', null, '{}', null, null, false)`, [f.id, "z".repeat(20)]), /Unknown form version/);
 });
+
+test("a Calendly booking with the fill's tracking id links for sure; one matching only by email is a maybe and starts nothing", async () => {
+  const { ws, user } = await workspace("forms-booking");
+  const f = await liveForm(ws, user);
+  const s = await submit(f, ws, SALES);
+  const source = (await q(`select source_connect($1, $2, 'calendly', 'Calendly', null, $3, '{}') as id`, [ws, user, seal(JSON.stringify({ type: "hook" }))]))[0].id as string;
+  const { calendly } = await import("../../src/lib/sources/forms.ts");
+  const hook = (uri: string, email: string, utm: string | null) =>
+    calendly.parse!({ event: "invitee.created", payload: { uri, email, name: "Ana Diaz", tracking: { utm_content: utm }, scheduled_event: { start_time: "2026-11-05T15:00:00Z" } } }, new Headers());
+  const events = [...hook("https://api.calendly.com/invitees/1", "ana@acme.com", `clr_${s.id}`), ...hook("https://api.calendly.com/invitees/2", "ana@acme.com", null), ...hook("https://api.calendly.com/invitees/1", "ana@acme.com", `clr_${s.id}`)];
+  for (const e of events) await q(`select hook_stage($1, $2, $3)`, [source, e.dedupe + ":" + Math.random(), e]);
+  const { runHooks } = await import("../../src/lib/sources/run.ts");
+  await runHooks({ rpc, clean: (w) => ctxFor(pool, w), sleep: async () => {} }, source);
+  const rows = await q(`select external_id, linked, submission_id, start_at from form_bookings where workspace_id = $1 order by external_id`, [ws]);
+  assert.deepEqual(rows.map((r) => [r.external_id.slice(-1), r.linked]), [["1", "tracking"], ["2", "email"]]);
+  assert.equal(rows[0].submission_id, s.id);
+  assert.equal(new Date(rows[0].start_at).toISOString(), "2026-11-05T15:00:00.000Z");
+  const booked = await q(`select data from contact_events where contact_id = $1 and kind = 'meeting.booked'`, [s.contact_id]);
+  assert.equal(booked.length, 1, "only the sure link lands on the timeline, once");
+  assert.equal(booked[0].data.submission_id, s.id);
+});
+
+test("after the submit, the contact owner's booking link wins over the form's", async () => {
+  const { ws, user } = await workspace("forms-owner-link");
+  const f = await liveForm(ws, user);
+  const s = await submit(f, ws, SALES);
+  assert.equal((await q(`select scheduler_for($1, 'calendly') as u`, [s.id]))[0].u, null);
+  await q(`update contacts set owner_user_id = $1 where id = $2`, [user, s.contact_id]);
+  await q(`select set_config('request.jwt.claim.sub', $1, false)`, [user]);
+  await q(`select scheduler_link_save($1, $2, 'calendly', 'https://calendly.com/owner/demo')`, [ws, user]);
+  await q(`select set_config('request.jwt.claim.sub', '', false)`);
+  assert.equal((await q(`select scheduler_for($1, 'calendly') as u`, [s.id]))[0].u, "https://calendly.com/owner/demo");
+});

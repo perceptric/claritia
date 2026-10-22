@@ -994,6 +994,23 @@ reset role;
 select set_config('request.jwt.claim.sub', '', false);
 delete from jobs;
 
+-- Meetings after the submit (041): people set their own booking link, owners anyone's; bookings stay in their
+-- workspace; linking bookings and picking the owner's link are server only.
+insert into form_bookings (workspace_id, tool, external_id, linked) values ('22222222-0000-0000-0000-000000000000', 'calendly', 'cat-booking', 'none');
+select pg_temp.as_user('b0000000-0000-0000-0000-000000000000');
+set role authenticated;
+select scheduler_link_save('11111111-0000-0000-0000-000000000000', 'b0000000-0000-0000-0000-000000000000', 'calendly', 'https://calendly.com/ben');
+select pg_temp.fails($$select scheduler_link_save('11111111-0000-0000-0000-000000000000', 'a0000000-0000-0000-0000-000000000000', 'calendly', 'https://calendly.com/evil')$$, 'Ben (a member) sets Ann''s booking link');
+select pg_temp.fails($$select scheduler_link_save('22222222-0000-0000-0000-000000000000', 'b0000000-0000-0000-0000-000000000000', 'calendly', 'https://calendly.com/ben')$$, 'Ben sets a link in Cat''s workspace');
+select pg_temp.fails($$insert into scheduler_links (workspace_id, user_id, tool, url) values ('11111111-0000-0000-0000-000000000000', 'a0000000-0000-0000-0000-000000000000', 'link', 'https://x.com')$$, 'Ben writes booking links directly');
+select pg_temp.check((select count(*) from form_bookings) = 0, 'Ben sees Cat''s bookings');
+select pg_temp.fails($$select booking_record('5c000000-0000-0000-0000-0000000000c1', '[]')$$, 'Ben records bookings');
+select pg_temp.fails($$select scheduler_for('5b000000-0000-0000-0000-0000000000c1', 'calendly')$$, 'Ben looks up a booking link past the route');
+select pg_temp.check((select url from scheduler_links where user_id = 'b0000000-0000-0000-0000-000000000000') = 'https://calendly.com/ben', 'Ben can''t set his own booking link');
+reset role;
+select set_config('request.jwt.claim.sub', '', false);
+delete from jobs;
+
 -- Cloud minutes: once Acme has used its 2,000, nobody there can start a run.
 insert into runs (workspace_id, project_id, test_name, test_version, environment_name, base_url, lock, status, duration_ms)
 values ('11111111-0000-0000-0000-000000000000', 'a1000000-0000-0000-0000-000000000000', 'long', 1, 'staging', 'https://x.com', '', 'passed', 2000 * 60000);

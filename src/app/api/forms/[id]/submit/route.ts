@@ -1,5 +1,6 @@
 import { cleaningCtx } from "@/lib/contacts/server";
 import { allowed, clientIp, cors, edgeCountry, json, loadPublic, turnstileOk } from "@/lib/forms/server";
+import { bookingUrl } from "@/lib/forms/schedule";
 import { prepareSubmit, type Incoming } from "@/lib/forms/submit";
 import { serviceClient } from "@/lib/serviceClient";
 
@@ -39,7 +40,25 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       // Retryable: the browser keeps the fill and sends it again with the same key.
       return json({ error: "Try again in a moment." }, 503);
     }
-    return json({ id: (data as { id: string }).id });
+    const sid = (data as { id: string }).id;
+    // Book a meeting next: the contact owner's link when the form says so and they have one, else the form's link.
+    const sch = f.body.after.schedule;
+    const lead = r.args.p_contact;
+    let schedule: { tool: string; url: string } | null = null;
+    if (sch && lead && !r.args.p_spam) {
+      let base = sch.url;
+      if (sch.perOwner) {
+        const own = await db.rpc("scheduler_for", { p_submission: sid, p_tool: sch.tool });
+        if (typeof own.data === "string" && own.data) base = own.data;
+      }
+      let host: string | undefined;
+      try {
+        host = new URL(request.headers.get("origin") ?? "").hostname || undefined;
+      } catch {}
+      const url = base ? bookingUrl(sch.tool, base, { first: lead.first_name, last: lead.last_name, email: lead.email }, sid, host) : null;
+      if (url) schedule = { tool: sch.tool, url };
+    }
+    return json({ id: sid, schedule });
   } catch {
     return json({ error: "Try again in a moment." }, 503);
   }

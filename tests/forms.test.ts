@@ -194,3 +194,25 @@ test("look check fixes: at most three, each through the token checks, and contra
   assert.ok(contrast(r.tokens.buttonText, r.tokens.buttonBg) >= 4.5, "an unreadable fix is moved back to readable");
   assert.ok(r.notes.includes("Matched to your form: Their fields are rounder."));
 });
+
+test("booking links: the right host per tool, the lead filled in, and the fill's tracking id", async () => {
+  const { bookingUrl, linkProblem, trackingFrom } = await import("../src/lib/forms/schedule.ts");
+  const id = "0192f3a1-0000-7000-8000-000000000001";
+  const c = new URL(bookingUrl("calendly", "https://calendly.com/acme/demo", { first: "Ana", last: "Diaz", email: "ana@acme.com" }, id, "acme.com")!);
+  assert.equal(c.searchParams.get("name"), "Ana Diaz");
+  assert.equal(c.searchParams.get("email"), "ana@acme.com");
+  assert.equal(c.searchParams.get("utm_content"), `clr_${id}`);
+  assert.equal(c.searchParams.get("embed_domain"), "acme.com");
+  const cal = new URL(bookingUrl("calcom", "https://cal.com/acme/30min", { email: "ana@acme.com" }, id)!);
+  assert.equal(cal.searchParams.get("metadata[clr]"), `clr_${id}`);
+  assert.equal(linkProblem("calendly", "https://evil.com/calendly.com"), "That isn't a Calendly link.");
+  assert.equal(linkProblem("hubspot_meetings", "https://meetings.hubspot.com/ana"), null);
+  assert.equal(linkProblem("link", "http://acme.com/book"), "Booking links need https://.");
+  assert.equal(bookingUrl("calendly", "https://evil.com/x", {}, id), null);
+  assert.equal(trackingFrom(` clr_${id} `), `clr_${id}`);
+  assert.equal(trackingFrom("clr_not-an-id"), null);
+  const f = emptyForm();
+  assert.match(errs({ ...f, after: { ...f.after, schedule: { tool: "calendly", url: "https://evil.com", perOwner: false } } }).join(), /isn't a Calendly link/);
+  assert.deepEqual(errs({ ...f, after: { ...f.after, schedule: { tool: "calendly", url: "", perOwner: true } } }), []);
+  assert.match(errs({ ...f, after: { end: { kind: "redirect", url: "https://acme.com" }, schedule: { tool: "calendly", url: "https://calendly.com/a", perOwner: false } } }).join(), /not both/);
+});

@@ -84,6 +84,11 @@ export const CHAT_TOOLS: Anthropic.Beta.BetaTool[] = [
     description: "What visitors see after they send it: a message, or a page to open.",
     input_schema: { type: "object", properties: { kind: { type: "string", enum: ["message", "redirect"] }, title: { type: "string" }, text: { type: "string" }, url: { type: "string" } }, required: ["kind"] },
   },
+  {
+    name: "set_meeting",
+    description: "Book a meeting after the submit on Calendly, Cal.com, HubSpot Meetings, SavvyCal or another link; per_owner books with the contact's owner when they have a link. Pass off: true to stop booking.",
+    input_schema: { type: "object", properties: { tool: { type: "string", enum: ["calendly", "calcom", "hubspot_meetings", "savvycal", "link"] }, url: { type: "string" }, per_owner: { type: "boolean" }, off: { type: "boolean" } } },
+  },
   { name: "use_template", description: `Replace the whole form with a template: ${TEMPLATES.map((t) => `${t.key} (${t.name})`).join(", ")}.`, input_schema: { type: "object", properties: { template: { type: "string", enum: TEMPLATES.map((t) => t.key) } }, required: ["template"] } },
   {
     name: "ask",
@@ -161,6 +166,10 @@ export function toOp(name: string, input: Record<string, unknown>): Op | { error
       return input.kind === "redirect"
         ? { op: "set_after", end: { kind: "redirect", url: str(input.url) ?? "" } }
         : { op: "set_after", end: { kind: "message", title: str(input.title) || "Thanks, we got it.", ...(str(input.text) ? { text: str(input.text) } : {}) } };
+    case "set_meeting":
+      if (input.off === true) return { op: "set_schedule", schedule: null };
+      if (!["calendly", "calcom", "hubspot_meetings", "savvycal", "link"].includes(input.tool as string)) return { error: "Pick a tool: calendly, calcom, hubspot_meetings, savvycal or link." };
+      return { op: "set_schedule", schedule: { tool: input.tool as "calendly", url: str(input.url) ?? "", perOwner: input.per_owner !== false } };
     default:
       return { error: `Unknown tool ${name}.` };
   }

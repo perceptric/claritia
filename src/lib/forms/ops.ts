@@ -21,7 +21,8 @@ export type Op =
   | { op: "set_copy"; title?: string; intro?: string; submit?: string }
   | { op: "set_consent"; mode?: Form["consent"]["mode"]; label?: string }
   | { op: "set_spam"; minSeconds?: number; turnstile?: boolean }
-  | { op: "set_after"; end: After["end"] };
+  | { op: "set_after"; end: After["end"] }
+  | { op: "set_schedule"; schedule: After["schedule"] | null };
 
 const clone = <T>(x: T): T => JSON.parse(JSON.stringify(x)) as T;
 
@@ -150,7 +151,11 @@ export function applyOp(input: Form, op: Op): { form: Form } | { error: string }
       form.spam = { ...form.spam, ...(op.minSeconds !== undefined ? { minSeconds: op.minSeconds } : {}), ...(op.turnstile !== undefined ? { turnstile: op.turnstile } : {}) };
       return { form };
     case "set_after":
-      form.after = { end: op.end };
+      form.after = { ...form.after, end: op.end };
+      return { form };
+    case "set_schedule":
+      if (op.schedule) form.after = { ...form.after, schedule: op.schedule };
+      else delete form.after.schedule;
       return { form };
     default:
       return { error: "Unknown change." };
@@ -207,5 +212,7 @@ export function describeOp(op: Op, before: Form): string {
       return "Changed spam checks";
     case "set_after":
       return op.end.kind === "redirect" ? "Opens a page after the submit" : "Changed the thank-you message";
+    case "set_schedule":
+      return op.schedule ? "Books a meeting after the submit" : "No meeting after the submit";
   }
 }

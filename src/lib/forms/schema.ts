@@ -3,6 +3,8 @@
 // the renderer, so a form that fails it can't go live. Labels and copy are plain text; nothing in a form is ever
 // read as HTML. Runs in the browser and on the server.
 
+import { linkProblem, SCHEDULERS, type Schedule } from "./schedule.ts";
+
 export type FieldType = "text" | "email" | "phone" | "textarea" | "number" | "choice" | "multi" | "checkbox" | "country" | "date" | "url" | "hidden" | "consent";
 
 /**
@@ -41,6 +43,8 @@ export type Step = { id: string; title?: string; fields: Field[] };
 
 export type After = {
   end: { kind: "message"; title: string; text?: string } | { kind: "redirect"; url: string };
+  /** Book a meeting on an outside scheduler after the submit (src/lib/forms/schedule.ts). */
+  schedule?: Schedule;
 };
 
 export type Form = {
@@ -254,6 +258,16 @@ export function checkForm(raw: unknown, ctx: Ctx = {}): { form: Form } | { error
   } else {
     end = { kind: "message", title: str(after.end?.title, LIMITS.label) || "Thanks, we got it.", ...(str(after.end?.text, LIMITS.text) ? { text: str(after.end?.text, LIMITS.text) } : {}) };
   }
+  let schedule: Schedule | undefined;
+  const sch = (after as { schedule?: Record<string, unknown> }).schedule;
+  if (sch && typeof sch === "object") {
+    const tool = SCHEDULERS.find((x) => x.value === sch.tool)?.value;
+    const url = str(sch.url, 500) ?? "";
+    const problem = tool ? linkProblem(tool, url) : "Pick a scheduler.";
+    if (problem && !(sch.perOwner === true && !url)) errors.push(`Booking: ${problem}`);
+    if (tool) schedule = { tool, url, perOwner: sch.perOwner === true };
+    if (end.kind === "redirect") errors.push("A form can book a meeting or open a page after the submit, not both.");
+  }
   const minSeconds = Math.round(Number(spam.minSeconds ?? 2));
   const form: Form = {
     steps,
@@ -264,7 +278,7 @@ export function checkForm(raw: unknown, ctx: Ctx = {}): { form: Form } | { error
     submit: { label: str(submit.label, 60) || "Submit" },
     consent: { mode: consentMode, label: consentLabel },
     spam: { minSeconds: Number.isFinite(minSeconds) ? Math.min(Math.max(minSeconds, 0), 30) : 2, turnstile: spam.turnstile === true },
-    after: { end },
+    after: { end, ...(schedule ? { schedule } : {}) },
   };
   return errors.length ? { errors: [...new Set(errors)] } : { form };
 }

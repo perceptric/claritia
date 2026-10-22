@@ -202,6 +202,7 @@ function Builder({
   sb,
   session,
   ws,
+  role,
   navigate,
   initial,
   published,
@@ -519,7 +520,7 @@ function Builder({
               ) : tab === "destinations" ? (
                 <FormDestinations sb={sb} session={session} ws={ws} formId={initial.id} list={dests} sources={sources} reload={reload} navigate={navigate} />
               ) : tab === "settings" ? (
-                <FormSettings form={form} apply={apply} />
+                <FormSettings form={form} apply={apply} sb={sb} ws={ws} session={session} role={role} />
               ) : (
                 <Share id={initial.id} origin={origin} live={!!initial.version} />
               )}
