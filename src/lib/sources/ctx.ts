@@ -88,7 +88,8 @@ export function makeCtx(o: CtxOpts): Ctx {
         data = text;
       }
       if (res.status === 401 || res.status === 403) throw new AuthError(messageOf(data) ?? "Sign in again: the tool turned the connection down.");
-      if (!res.ok) throw new Error(messageOf(data) ?? `The tool answered ${res.status}.`);
+      // The status rides along, so a caller can tell "gone" (404, 410) from a refusal.
+      if (!res.ok) throw Object.assign(new Error(messageOf(data) ?? `The tool answered ${res.status}.`), { status: res.status });
       return data as T;
     }
   }

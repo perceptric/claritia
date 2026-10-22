@@ -13,7 +13,7 @@ import { Badge, Button, CardHead, ErrorNote, errorText, must, Panel, postJson, t
 import { IconButton, type Destination, type SourceRow } from "./shared";
 
 /** Tools that take new contacts from Claritia today. */
-const PUSHES = new Set(CATALOG.filter((e) => e.twoWay).map((e) => e.kind));
+const PUSHES = new Set(CATALOG.filter((e) => e.twoWay || e.pushes).map((e) => e.kind));
 
 export function FormDestinations({
   sb,

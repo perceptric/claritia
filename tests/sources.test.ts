@@ -356,3 +356,64 @@ test("a warehouse host on a private network is refused", async () => {
   const ctx = makeCtx({ source: row("clickhouse"), creds: key({ url: "https://127.0.0.1:8443", user: "u", password: "p" }), fetcher: async () => Response.json({}) });
   await assert.rejects(runQuery(ctx, { ...q0, sql: "select email, updated_at from t" }, "x"), /private network/);
 });
+
+/** Push through a connector against recorded answers; also returns each call's method and body. */
+async function pushAll(kind: string, creds: Creds, routes: [RegExp, unknown[]][], changes: { localId: string; externalId: string | null; values: Record<string, unknown> }[]) {
+  const { fetcher, calls } = recorded(routes);
+  const sent: { url: string; method: string; body: unknown }[] = [];
+  const spy: typeof fetch = async (input, init) => {
+    sent.push({ url: String(input), method: init?.method ?? "GET", body: init?.body ? JSON.parse(String(init.body)) : null });
+    return fetcher(input, init);
+  };
+  const ctx = makeCtx({ source: row(kind), creds, fetcher: spy, sleep: async () => {} });
+  const results = await connectorFor(kind)!.push!(ctx, changes);
+  return { results, calls, sent };
+}
+
+test("Pipedrive, Attio and Close take contacts: found by email first, made when new, and gone when deleted there", async () => {
+  const lead = { first_name: "Ana", last_name: "Diaz", email: "ana@acme.com", phone: "+14155550132", job_title: "CTO", title: "CTO", name: "Ana Diaz" };
+  const pd = await pushAll(
+    "pipedrive",
+    key({ api_key: "pd" }),
+    [
+      [/persons\/search/, [{ data: { items: [{ item: { id: 77 } }] } }, { data: { items: [] } }]],
+      [/persons\/77\?/, [{ data: { id: 77 } }]],
+      [/persons\?api_token/, [{ data: { id: 78 } }]],
+    ],
+    [
+      { localId: "a", externalId: null, values: lead },
+      { localId: "b", externalId: null, values: { ...lead, email: "new@acme.com" } },
+      { localId: "c", externalId: "99", values: lead },
+    ],
+  );
+  assert.deepEqual(pd.results, [{ localId: "a", externalId: "77" }, { localId: "b", externalId: "78" }, { localId: "c", gone: true }]);
+  const made = pd.sent.find((s) => s.method === "POST")!.body as { name: string; email: { value: string }[] };
+  assert.equal(made.name, "Ana Diaz");
+  assert.equal(made.email[0].value, "new@acme.com");
+
+  const at = await pushAll("attio", oauth(), [[/people\/records\?matching_attribute=email_addresses/, [{ data: { id: { record_id: "rec_1" } } }]]], [
+    { localId: "a", externalId: null, values: lead },
+    { localId: "b", externalId: "rec_gone", values: lead },
+    { localId: "c", externalId: null, values: { first_name: "No email" } },
+  ]);
+  assert.deepEqual(at.results.map((r) => r.externalId ?? (r.gone ? "gone" : r.error)), ["rec_1", "gone", "Attio needs an email to match the person."]);
+  const asserted = at.sent.find((s) => s.method === "PUT")!.body as { data: { values: { email_addresses: string[]; name: { full_name: string }[]; phone_numbers: unknown[] } } };
+  assert.deepEqual(asserted.data.values.email_addresses, ["ana@acme.com"]);
+  assert.equal(asserted.data.values.name[0].full_name, "Ana Diaz");
+
+  const cl = await pushAll(
+    "close",
+    key({ api_key: "k" }),
+    [
+      [/\/lead\/\?/, [{ data: [{ contacts: [{ id: "cont_1", emails: [{ email: "ANA@acme.com" }] }] }] }, { data: [] }]],
+      [/\/contact\/cont_1\//, [{ id: "cont_1" }]],
+      [/\/lead\/$/, [{ id: "lead_2", contacts: [{ id: "cont_2" }] }]],
+    ],
+    [
+      { localId: "a", externalId: null, values: lead },
+      { localId: "b", externalId: null, values: { ...lead, email: "bo@beta.io" } },
+    ],
+  );
+  assert.deepEqual(cl.results, [{ localId: "a", externalId: "cont_1" }, { localId: "b", externalId: "cont_2" }]);
+  assert.equal((cl.sent.find((s) => s.url.endsWith("/lead/"))!.body as { name: string }).name, "beta.io");
+});
