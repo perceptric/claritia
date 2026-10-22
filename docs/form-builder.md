@@ -390,3 +390,48 @@ These lines come on top of `docs/inbound.md` Part 10, which already counts `coll
 | Licenses for referencing customer-hosted fonts from the hosted page | Lawyer |
 | Each named form adapter's success event (HubSpot, Marketo, Webflow, Typeform) | Build |
 | `f.tryclaritia.com` and `forms.tryclaritia.com` DNS and certificates | Founder |
+
+## Part 16. Status: built (weeks 9 to 11)
+
+| Piece | Where |
+|---|---|
+| Forms, versions, brand kits, submissions, destinations, deliveries; the submit that saves the fill, contact, consent and one delivery per destination in one transaction | `supabase/migrations/039_forms.sql` |
+| Schema checker, edit ops with undo, answer checks, brand tokens with the contrast fix, templates, test leads | `src/lib/forms/` (`schema.ts`, `ops.ts`, `values.ts`, `brand.ts`, `templates.ts`, `sample.ts`) |
+| `<claritia-form>` (10 KB gzipped): steps, rules, the keyboard listbox, consent by region, honeypot and timing, the browser queue that retries a fill for 24 hours, booking inside the form, captured forms | `src/lib/forms/element.ts`, built by `scripts/build-forms.mts`, served at `/forms/v1.js`; hosted page `/f/<id>` |
+| Public routes and the shared submit (`acceptFill`) | `src/app/api/forms/[id]/`, `src/lib/forms/submit.ts` |
+| Deliveries: the sources push (HubSpot, Salesforce, Omniscient, Pipedrive, Attio, Close), Slack, signed webhooks; retries, holds, replay | `src/lib/delivery/send.ts`, `worker-intel/jobs/deliver.ts`, push in `src/lib/sources/crms.ts` |
+| The chat: tools that map to checked ops, asks before three changes, Claude Sonnet 5.5 with the server-side fallback | `src/lib/forms/chat.ts`, `src/lib/forms/claude.ts`, `src/app/api/forms/chat/` |
+| Step cache and AI cost log | `supabase/migrations/040_form_ai.sql`, `src/lib/ai/cache.ts` |
+| Brand scan and look check on the runner | `src/lib/brand/scan.ts`, `src/lib/brand/look.ts`, `worker/brandScan.ts` |
+| Booking after the submit, owner links, bookings tied back by tracking id | `supabase/migrations/041_form_meetings.sql`, `src/lib/forms/schedule.ts`, `src/lib/sources/forms.ts` |
+| Captured forms (HTML, Webflow, Framer, HubSpot, Marketo) | `startCapture` in `src/lib/forms/element.ts` |
+| Daily form check in a real browser | `supabase/migrations/042_form_checks.sql`, `worker/formQa.ts` |
+| Screens: Forms list (build from a sentence, templates, capture), builder with Chat, Build, Design, Destinations, Settings, Share, Fills and Checks | `src/components/app/forms/` |
+| MCP tools: `list_forms`, `get_form`, `create_form`, `edit_form`, `publish_form` | `src/lib/forms/mcp.ts` |
+| Setup | `docs/forms-setup.md` |
+
+**Flaky and hostile cases tested:**
+- `tests/pg/forms.pg.ts`: a fill sent 4 times lands once with one delivery per destination; spam makes no contact; consent keeps the form's own wording; HubSpot answering 500, then making the record and losing the answer, ends with one HubSpot contact and its id kept; Slack down through four tries sends once, and past the last try fails with the reason, then replays; a paused destination sends held fills oldest first; two workers can't send one delivery; a private webhook address fails with no call; a removed field still shows on old fills; a Calendly booking with the tracking id links for sure and one matched by email stays a maybe; the owner's booking link wins.
+- `tests/pg/brand.pg.ts`: scans make and finish kits, a blocked site fails the kit with the reason, a crash retries until the last try; the step cache replays without calling the model and logs both.
+- `tests/forms.test.ts`, `tests/formChat.test.ts`: the checker refuses bad types, keys, rules and redirects and keeps HTML in labels as text; tokens refuse anything but colors, sizes, weights and font names; the chat refuses bad ops with reasons, waits for a yes before three changes, and is cut off after six rounds.
+- `scripts/forms-check.ts` (Chromium): errors before sending, the server's work email check on the right field, a double click sends once, a fill that can't be sent lands once after a reload, steps and the keyboard listbox, captured HTML (passwords never read, the site's handler still runs), Marketo and HubSpot forms, the booking calendar after a captured fill.
+- `scripts/brand-check.ts` (Chromium): light, dark, low-contrast and bot-wall sites, and private addresses.
+- `scripts/forms-qa-check.ts` (Chromium): the daily check passes a two-step form end to end, fails a removed Slack hook with the reason, and keeps its fills out of lead counts.
+
+**Changes from the spec above:**
+- Fills are taken by the web app (`/api/forms/<id>/submit`), not by `collect`. The web app already holds the email cleaning and the service client; `collect` stays the site script's intake. A fill's path is still saved first, then sent on.
+- Ops aren't stored one by one (`form_ops`). Undo lives in the builder (whole-form snapshots, Cmd+Z), and the chat's turns are kept in `form_chats`.
+- Field maps for destinations use each connector's defaults; the Haiku map suggestion comes with a per-destination map screen.
+- The hosted page and script live on the app's own domain for now (`/f/<id>`, `/forms/v1.js`); `forms.tryclaritia.com` and custom domains come later.
+
+**Left for later:** Google Sheets, Airtable, Notion, Microsoft Teams and email destinations; Zoho, Dynamics, Copper, Freshsales, monday CRM, Folk, Twenty, Affinity and Keap pushes; Chili Piper; HubSpot form submission API mirroring; Salesforce assignment rules header; the `@claritia/forms` React package (Share shows a snippet); pop-up and slide-in placement; Claritia's own calendar in the form (`docs/inbound.md` I5).
+
+**Running cost of what's built:** Claude for the chat, about 60 turns a team a month with the cache: about $1.10 a team with the look check. Runner time for scans and the daily check of 3 forms a team: well under $0.10 a team (check). Supabase disk for fills, deliveries and checks. The web app serves the form script with a 5-minute cache and takes the fills.
+
+| Line | Beta (50 teams) | Growth (500 teams) |
+|---|---|---|
+| Claude (chat and look check) | $55 | $550 |
+| Runner time (scans, daily checks) | $5 (check) | $25 (check) |
+| Supabase disk (fills, deliveries, checks, AI log) | $0 (within plan) | $15 (check) |
+| Render: the form script and fills on the web app | $0 (within plan) | $25, one size up (check) |
+| **Added by weeks 9 to 11** | **About $60** | **About $615** |

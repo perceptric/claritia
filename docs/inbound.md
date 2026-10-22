@@ -75,7 +75,9 @@ Full spec: `docs/form-builder.md`. In short:
 - **After the submit:** Claritia's router or the CRM's own rules pick the owner. Then a meeting books on Claritia's calendar (I5) or on Calendly, Cal.com, HubSpot Meetings, SavvyCal or Chili Piper, tied back to the lead by a tracking id.
 - **Existing forms:** HubSpot, Webflow, Marketo, Framer and Typeform forms can be captured once the team maps them, with the same router, scheduler and destinations.
 
-**Database:** `039_forms.sql` (`docs/form-builder.md` Part 11).
+**Database:** `039_forms.sql` to `042_form_checks.sql` (`docs/form-builder.md` Parts 11 and 16).
+
+**Status:** built (weeks 9 to 11). What shipped, what's left and the running cost: `docs/form-builder.md` Part 16.
 
 **Done when:** from a site address and one sentence, a form that matches the site is live in under a minute, lands in HubSpot and Slack once through an outage test, and a Calendly booking from it ties to its lead by id.
 
@@ -95,7 +97,7 @@ Full spec: `docs/form-builder.md`. In short:
 - **Deep research (optional):** for leads above a fit score, Sonnet with web search writes a 5-line brief with links. It only runs after rules pass.
 - **Credits:** each vendor call costs credits shown in Settings › Enrichment with a monthly cap per workspace. At the cap, enrichment stops and the router still runs.
 
-**Database: `040_enrichment.sql`**
+**Database: `043_enrichment.sql`**
 ```
 enrich_sources (workspace_id, vendor, position int, enabled, sealed_key, fields text[])
 enrich_runs    (id, workspace_id, contact_id, trigger, fields_asked text[], steps jsonb, credits int, at)
@@ -124,7 +126,7 @@ enrich_usage   (workspace_id, month, vendor, credits)
 - **Not a fit:** the visitor sees the team's chosen end (a thank-you page, a self-serve link, a resource), and the lead skips routing.
 - **Needs a look:** goes to a review list with one-click qualify or disqualify.
 
-**Database: `041_routing.sql` (part 1)**
+**Database: `044_routing.sql` (part 1)**
 ```
 routers       (id, workspace_id, name, status, graph jsonb, version int, fallback_owner_id)
 router_runs   (id, workspace_id, router_id, contact_id, submission_id, outcome, owner_id, steps jsonb, ms int, at)
@@ -146,7 +148,7 @@ router_runs   (id, workspace_id, router_id, contact_id, submission_id, outcome, 
 - **After routing:** owner set in Claritia and pushed to the CRM through the built sources, a Slack DM with a short brief, an SLA timer (one alert to the manager on breach).
 - **Log:** every run shows which rule decided and why ("Rule 3, territory US mid-market. Round robin: Sam, 2 of 8 this week").
 
-**Database: `041_routing.sql` (part 2)**
+**Database: `044_routing.sql` (part 2)**
 ```
 queues        (id, workspace_id, name, members jsonb, mode, weights jsonb)
 rep_capacity  (workspace_id, user_id, week, cap int, assigned int)
@@ -182,7 +184,7 @@ sla_timers    (id, workspace_id, router_run_id, due_at, fired_at)
 
 **No double bookings:** a booking first takes a 5-minute hold (unique on host and start time in Postgres), then reads the calendar's busy times once more, then writes the event. If the slot is gone, the visitor sees the next open times on the spot.
 
-**Database: `042_meetings.sql`**
+**Database: `045_meetings.sql`**
 ```
 calendars      (id, workspace_id, user_id, provider, sealed_token, read_ids text[], write_id, tz, synced_at)
 busy_cache     (calendar_id, start, end, updated_at)            -- refreshed by push notifications and a 10-minute pull
@@ -248,16 +250,16 @@ The `CLAUDE.md` rule covers identity and the jobs queue. Routing and booking joi
 | Week | Build | Done when |
 |---|---|---|
 | 1–8 | Contacts, imports, records, sources, segments, warehouses (built) | Met |
-| 9–11 | I1: forms, AI chat builder, brand scan, destinations, schedulers, captured forms (`docs/form-builder.md` Part 13) | As in that plan |
-| 12 | I2: `040_enrichment.sql`, waterfall, Coresignal person, People Data Labs, email check, bring your own key, before-submit field hiding, credits and caps | 80%+ company fields on 100 contacts; demo form shows 2 fields for known companies |
-| 13 | I3: `041_routing.sql` part 1, routers, rules, outcomes, AI check, review list, router log | 95%+ match with a person on 200 recorded fills |
+| 9–11 | I1: forms, AI chat builder, brand scan, destinations, schedulers, captured forms, daily form check (`docs/form-builder.md` Parts 13 and 16) (built) | Met |
+| 12 | I2: `043_enrichment.sql`, waterfall, Coresignal person, People Data Labs, email check, bring your own key, before-submit field hiding, credits and caps | 80%+ company fields on 100 contacts; demo form shows 2 fields for known companies |
+| 13 | I3: `044_routing.sql` part 1, routers, rules, outcomes, AI check, review list, router log | 95%+ match with a person on 200 recorded fills |
 | 14 | I4: queues, matching, round robin, capacity, out of office, AI routing, CRM owner push, Slack, SLA | Right rep in Slack within 30 s p95 |
-| 15 | I5 part 1: `042_meetings.sql`, Google and Microsoft calendars, meeting types, personal and team links, booking page, Meet, Teams and Zoom links, emails and reminders | A personal link books with reminders on both calendars |
+| 15 | I5 part 1: `045_meetings.sql`, Google and Microsoft calendars, meeting types, personal and team links, booking page, Meet, Teams and Zoom links, emails and reminders | A personal link books with reminders on both calendars |
 | 16 | I5 part 2: booking in the form, group events, routing queues for meetings, held and no-show, outcomes to CRM, templates, first screens, Perceptric live | Demo form books in under 30 s; 0 double bookings in 1,000 at once |
 | 17–18 | Follow-ons: SDR to AE handoff, CRM hygiene (Part 9) | Each passes its tests |
 | 19 onward | `docs/conversion-parity.md` weeks 9 to 21 (sending, Email Studio, workflows, pages, scoring, ABM, ads, agents, migration, API), each moved back 10 weeks | As in that plan |
 
-Migration numbers in `docs/conversion-parity.md` from `039` on move up by four. Week 15 there (forms and pages) keeps only landing pages. Week 16 there (scoring and routing) keeps only scoring, since routing ships here.
+Forms took `039` to `042`; enrichment, routing and meetings take `043` to `045`. Migration numbers in `docs/conversion-parity.md` from `039` on move up by seven. Week 15 there (forms and pages) keeps only landing pages. Week 16 there (scoring and routing) keeps only scoring, since routing ships here.
 
 ## Part 9. Follow-ons (weeks 17 and 18)
 
