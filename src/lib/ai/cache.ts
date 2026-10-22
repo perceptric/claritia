@@ -57,7 +57,7 @@ export async function cachedStep<T>(
   key: string,
   run: () => Promise<{ result: T; model: string; usage: Usage; keep?: boolean }>,
 ): Promise<{ result: T; cached: boolean; usage: Usage; cost: number }> {
-  const hit = await call<T | null>(rpc, "ai_cache_get", { p_ws: ws, p_kind: kind, p_hash: key });
+  const hit = await call<T | null>(rpc, "ai_cache_get", { p_ws: ws, p_kind: kind, p_key: key });
   if (hit !== null && hit !== undefined) {
     await call(rpc, "ai_call_log", { p_ws: ws, p_kind: kind, p_model: "cache", p_usage: {}, p_cost: 0, p_cached: true }).catch(() => undefined);
     return { result: hit, cached: true, usage: { input: 0, output: 0, cache_read: 0, cache_write: 0 }, cost: 0 };
@@ -65,6 +65,6 @@ export async function cachedStep<T>(
   const r = await run();
   const cost = costOf(r.model, r.usage);
   await call(rpc, "ai_call_log", { p_ws: ws, p_kind: kind, p_model: r.model, p_usage: r.usage, p_cost: cost, p_cached: false }).catch(() => undefined);
-  if (r.keep !== false) await call(rpc, "ai_cache_put", { p_ws: ws, p_kind: kind, p_hash: key, p_result: r.result });
+  if (r.keep !== false) await call(rpc, "ai_cache_put", { p_ws: ws, p_kind: kind, p_key: key, p_output: r.result, p_model: r.model, p_in: r.usage.input, p_out: r.usage.output });
   return { result: r.result, cached: false, usage: r.usage, cost };
 }

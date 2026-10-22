@@ -31,6 +31,7 @@ const STYLES = `
 .f{background:var(--clr-bg);display:flex;flex-direction:column;gap:var(--clr-gap);max-width:var(--clr-width,480px)}
 .h{font-family:var(--clr-heading-font);font-size:1.45em;font-weight:600;margin:0;line-height:1.2}
 .i{margin:0;color:var(--clr-muted)}
+.nt{font-size:.85em}
 .st{margin:0;font-size:.85em;color:var(--clr-muted)}
 .g{display:grid;grid-template-columns:1fr 1fr;gap:var(--clr-gap)}
 .fl{grid-column:span 2;display:flex;flex-direction:column;gap:6px;min-width:0}
@@ -108,22 +109,64 @@ async function sendQueued(x: Queued): Promise<boolean> {
   }
 }
 
+const TOUCH = ["utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_content", "gclid", "fbclid", "li_fat_id", "msclkid"];
+type Touch = { utm: Record<string, string>; first: Record<string, string>; page: string; referrer: string };
+
+/** Inside the frame /f/embed.js draws: it passes the page around it as ?c=. */
+const embedFrame = () => {
+  try {
+    return window.parent !== window && new URLSearchParams(location.search).has("c");
+  } catch {
+    return false;
+  }
+};
+
+/**
+ * Where the visitor is: the page around the frame when the embed sent it, else this page. UTMs and ad click ids,
+ * latest and first touch, kept in localStorage the same way the embed keeps them.
+ */
+function touch(): Touch {
+  const params = new URLSearchParams(location.search);
+  const pick = (o: unknown) => {
+    const out: Record<string, string> = {};
+    if (o && typeof o === "object") for (const k of TOUCH) if (typeof (o as Record<string, unknown>)[k] === "string" && (o as Record<string, string>)[k]) out[k] = (o as Record<string, string>)[k].slice(0, 300);
+    return out;
+  };
+  const text = (v: unknown) => (typeof v === "string" ? v.slice(0, 1000) : "");
+  if (embedFrame()) {
+    try {
+      const raw = atob((params.get("c") ?? "").replace(/-/g, "+").replace(/_/g, "/"));
+      const o = JSON.parse(new TextDecoder().decode(Uint8Array.from(raw, (ch) => ch.charCodeAt(0)))) as Record<string, unknown>;
+      return { utm: pick(o.utm), first: pick(o.first), page: text(o.page), referrer: text(o.referrer) };
+    } catch {}
+  }
+  const store = (k: string, v?: Record<string, string>): unknown => {
+    try {
+      if (v === undefined) return JSON.parse(localStorage.getItem(k) || "null");
+      localStorage.setItem(k, JSON.stringify(v));
+    } catch {}
+    return null;
+  };
+  const now = pick(Object.fromEntries(params));
+  if (Object.keys(now).length) {
+    store("_clr_utm", now);
+    if (!store("_clr_utm1")) store("_clr_utm1", now);
+  }
+  return { utm: Object.keys(now).length ? now : pick(store("_clr_utm")), first: pick(store("_clr_utm1")), page: text(location.href), referrer: text(document.referrer) };
+}
+
 /** What hidden fields pick up on this page, by field id. */
-function hiddenValues(form: Form): Record<string, string> {
+function hiddenValues(form: Form, t: Touch): Record<string, string> {
   const out: Record<string, string> = {};
   const params = new URLSearchParams(location.search);
   for (const f of allFields(form)) {
     if (f.type !== "hidden" || !f.hidden) continue;
-    const v = f.hidden.from === "param" ? params.get(f.hidden.name ?? "") : f.hidden.from === "page" ? location.href : f.hidden.from === "referrer" ? document.referrer : f.hidden.value;
+    const name = f.hidden.name ?? "";
+    const v = f.hidden.from === "param" ? (t.utm[name] ?? t.first[name] ?? params.get(name)) : f.hidden.from === "page" ? t.page : f.hidden.from === "referrer" ? t.referrer : f.hidden.value;
     if (v) out[f.id] = v.slice(0, 500);
   }
   return out;
 }
-
-const utmValues = () => {
-  const params = new URLSearchParams(location.search);
-  return Object.fromEntries(["utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_content"].map((k) => [k, params.get(k) ?? ""]).filter(([, v]) => v));
-};
 
 /** The booking calendar over the page, for captured forms (they have no screen of their own to show it in). */
 function bookingOverlay(url: string) {
@@ -184,7 +227,8 @@ export function startCapture(formId: string, base: string) {
     if (sentKeys.has(sig)) return;
     sentKeys.add(sig);
     const key = idemKey();
-    const body = JSON.stringify({ v: 1, version: data.version, key, answers, hidden: hiddenValues(form), consent: {}, page: location.href.slice(0, 1000), referrer: document.referrer.slice(0, 1000), utm: utmValues(), ms: Date.now() - started, trap: "" });
+    const t = touch();
+    const body = JSON.stringify({ v: 1, version: data.version, key, answers, hidden: hiddenValues(form, t), consent: {}, page: t.page, referrer: t.referrer, utm: t.utm, first: t.first, ms: Date.now() - started, trap: "" });
     const url = `${base}/api/forms/${formId}/submit`;
     try {
       const res = await fetch(url, { method: "POST", headers: { "content-type": "application/json" }, body, credentials: "omit", keepalive: true });
@@ -313,6 +357,15 @@ export class ClaritiaForm extends HTMLElement {
   connectedCallback() {
     if (!this.isPreview) void this.load();
     void flushQueue();
+    // In the embed's frame: tell the page around it how tall the form is.
+    if (!this.isPreview && embedFrame() && typeof ResizeObserver !== "undefined") {
+      const size = () => {
+        try {
+          window.parent.postMessage({ type: "claritia-form", id: this.getAttribute("form-id"), height: document.documentElement.scrollHeight }, "*");
+        } catch {}
+      };
+      new ResizeObserver(size).observe(document.body);
+    }
   }
 
   attributeChangedCallback() {
@@ -391,6 +444,7 @@ export class ClaritiaForm extends HTMLElement {
       box.addEventListener("change", () => (this.consent = box.checked));
       wrap.append(el("label", { class: "ck" }, box, el("span", { text: form.consent.label })));
     }
+    if (last && form.consent.mode === "notice") wrap.append(el("p", { class: "i nt", text: form.consent.label }));
     // Spam trap: hidden from people and screen readers; bots fill it.
     wrap.append(el("div", { class: "trap", "aria-hidden": "true" }, el("input", { type: "text", name: "company_url", tabindex: "-1", autocomplete: "off" })));
     if (d.turnstile && form.spam.turnstile) wrap.append(el("div", { class: "ts" }));
@@ -412,6 +466,27 @@ export class ClaritiaForm extends HTMLElement {
       void this.next();
     });
     this.root.replaceChildren(style, wrap);
+  }
+
+  /** After a fill: the page links the visit to the person (Claritia's site script), and the embed around a frame resizes or opens the next page. */
+  private tellPage() {
+    const d = this.data!;
+    const emailField = allFields(d.body).find((f) => f.key === "email");
+    const email = emailField && typeof this.answers[emailField.id] === "string" ? (this.answers[emailField.id] as string) : null;
+    const end = d.body.after.end;
+    if (embedFrame()) {
+      const redirect = end.kind === "redirect" && !this.schedule && safeUrl(end.url) ? end.url : null;
+      try {
+        window.parent.postMessage({ type: "claritia-form-done", id: d.id, email, redirect }, "*");
+      } catch {}
+      return;
+    }
+    const site = (window as unknown as { claritia?: (kind: string, email: string) => void }).claritia;
+    if (email && typeof site === "function") {
+      try {
+        site("form", email);
+      } catch {}
+    }
   }
 
   private needsConsent() {
@@ -592,7 +667,8 @@ export class ClaritiaForm extends HTMLElement {
     }
     const end = form.after.end;
     if (end.kind === "redirect" && !this.isPreview && safeUrl(end.url)) {
-      location.assign(end.url);
+      // In the embed's frame, the page around it opens the address.
+      if (!embedFrame()) location.assign(end.url);
       return el("div", { class: "f" }, el("p", { class: "i", text: "One moment…" }));
     }
     const title = end.kind === "message" ? end.title : "Thanks, we got it.";
@@ -634,17 +710,18 @@ export class ClaritiaForm extends HTMLElement {
     const d = this.data!;
     this.sending = true;
     this.render();
-    const utm = utmValues();
+    const t = touch();
     const body = JSON.stringify({
       v: 1,
       version: d.version,
       key: this.key,
       answers: this.answers,
-      hidden: hiddenValues(d.body),
+      hidden: hiddenValues(d.body, t),
       consent: this.needsConsent() ? { given: this.consent, wording: d.body.consent.label } : {},
-      page: location.href.slice(0, 1000),
-      referrer: document.referrer.slice(0, 1000),
-      utm,
+      page: t.page,
+      referrer: t.referrer,
+      utm: t.utm,
+      first: t.first,
       ms: Date.now() - this.started,
       trap: (this.root.querySelector('input[name="company_url"]') as HTMLInputElement | null)?.value ?? "",
       turnstile: this.turnstileToken || undefined,
@@ -681,6 +758,7 @@ export class ClaritiaForm extends HTMLElement {
       const j = (await res.json().catch(() => ({}))) as { id?: string; schedule?: { tool: string; url: string } | null };
       if (j.schedule && /^https:\/\//.test(j.schedule.url)) this.schedule = j.schedule;
       this.dispatchEvent(new CustomEvent("claritia:submitted", { bubbles: true, composed: true, detail: { formId: d.id, submissionId: j.id ?? null } }));
+      this.tellPage();
     }
     this.done = true;
     this.render();

@@ -281,7 +281,7 @@ For teams who keep their HubSpot, Webflow, Marketo or Framer forms:
 - **Funnel QA:** every published form is filled in a real browser each day on the live page (existing runner). Checks: the form loads on the page, the brand still matches the kit, the submit lands, each destination received it, the scheduler opens. A failure alerts the owner (alerts, built).
 - **Before publish:** schema check, axe accessibility check, contrast check, and a Test run that passed in the last hour.
 
-## Part 11. Database: `039_forms.sql`
+## Part 11. Database: `045_form_builder.sql`
 
 ```
 brand_kits        (id, workspace_id, site_id, tokens jsonb, logo_path, source_url, scanned_at, notes text[])
@@ -340,7 +340,7 @@ Forms take three weeks in place of one. `docs/inbound.md` Part 8 is updated to m
 
 | Week | Build | Done when |
 |---|---|---|
-| 9 | `039_forms.sql`, schema and validator, ops with undo, the web component and hosted page, manual builder, consent, spam, submissions, the outbox, destinations: Claritia, HubSpot, Salesforce, Omniscient, Slack, Google Sheets, webhook; delivery log and replay | A form built by hand lands in HubSpot and Slack once, through a HubSpot outage test |
+| 9 | `045_form_builder.sql`, schema and validator, ops with undo, the web component and hosted page, manual builder, consent, spam, submissions, the outbox, destinations: Claritia, HubSpot, Salesforce, Omniscient, Slack, Google Sheets, webhook; delivery log and replay | A form built by hand lands in HubSpot and Slack once, through a HubSpot outage test |
 | 10 | Brand scan on the runner, brand kits, contrast and look check, the AI chat with every tool, templates, the Test button, MCP form tools | From a site address and one sentence, a form that matches the site is live in under a minute on 5 of 5 test sites |
 | 11 | After submit: router hook, in-form native calendar slot, outside schedulers (Calendly, Cal.com, HubSpot Meetings, SavvyCal, Chili Piper) with tracking ids; push for Pipedrive, Attio, Close; Zoho and Dynamics; captured forms with adapters; React SDK; Funnel QA for forms | A Calendly booking from the form ties to its lead by id; a captured HubSpot form routes and books |
 
@@ -395,19 +395,21 @@ These lines come on top of `docs/inbound.md` Part 10, which already counts `coll
 
 | Piece | Where |
 |---|---|
-| Forms, versions, brand kits, submissions, destinations, deliveries; the submit that saves the fill, contact, consent and one delivery per destination in one transaction | `supabase/migrations/039_forms.sql` |
+| Forms, versions, brand kits, submissions, destinations, deliveries; the submit that saves the fill, contact, consent and one delivery per destination in one transaction | `supabase/migrations/045_form_builder.sql` (upgrades the forms from `041_forms.sql` in place) |
 | Schema checker, edit ops with undo, answer checks, brand tokens with the contrast fix, templates, test leads | `src/lib/forms/` (`schema.ts`, `ops.ts`, `values.ts`, `brand.ts`, `templates.ts`, `sample.ts`) |
 | `<claritia-form>` (10 KB gzipped): steps, rules, the keyboard listbox, consent by region, honeypot and timing, the browser queue that retries a fill for 24 hours, booking inside the form, captured forms | `src/lib/forms/element.ts`, built by `scripts/build-forms.mts`, served at `/forms/v1.js`; hosted page `/f/<id>` |
 | Public routes and the shared submit (`acceptFill`) | `src/app/api/forms/[id]/`, `src/lib/forms/submit.ts` |
 | Deliveries: the sources push (HubSpot, Salesforce, Omniscient, Pipedrive, Attio, Close), Slack, signed webhooks; retries, holds, replay | `src/lib/delivery/send.ts`, `worker-intel/jobs/deliver.ts`, push in `src/lib/sources/crms.ts` |
 | The chat: tools that map to checked ops, asks before three changes, Claude Sonnet 5.5 with the server-side fallback | `src/lib/forms/chat.ts`, `src/lib/forms/claude.ts`, `src/app/api/forms/chat/` |
-| Step cache and AI cost log | `supabase/migrations/040_form_ai.sql`, `src/lib/ai/cache.ts` |
+| Step cache and AI cost log | `supabase/migrations/046_form_ai.sql`, `src/lib/ai/cache.ts` |
 | Brand scan and look check on the runner | `src/lib/brand/scan.ts`, `src/lib/brand/look.ts`, `worker/brandScan.ts` |
-| Booking after the submit, owner links, bookings tied back by tracking id | `supabase/migrations/041_form_meetings.sql`, `src/lib/forms/schedule.ts`, `src/lib/sources/forms.ts` |
+| Booking after the submit, owner links, bookings tied back by tracking id | `supabase/migrations/047_form_meetings.sql`, `src/lib/forms/schedule.ts`, `src/lib/sources/forms.ts` |
 | Captured forms (HTML, Webflow, Framer, HubSpot, Marketo) | `startCapture` in `src/lib/forms/element.ts` |
-| Daily form check in a real browser | `supabase/migrations/042_form_checks.sql`, `worker/formQa.ts` |
+| Daily form check in a real browser | `supabase/migrations/048_form_checks.sql`, `worker/formQa.ts` |
 | Screens: Forms list (build from a sentence, templates, capture), builder with Chat, Build, Design, Destinations, Settings, Share, Fills and Checks | `src/components/app/forms/` |
 | MCP tools: `list_forms`, `get_form`, `create_form`, `edit_form`, `publish_form` | `src/lib/forms/mcp.ts` |
+| Forms made before the builder: same ids and links, fields as a first version, color as a brand kit, answers as submissions; the old `/f/embed.js` line frames the new form, which sizes the frame, reads the outer page's UTMs and click ids, hands the email to the site script and opens the next page around the frame | `045_form_builder.sql`, `src/lib/forms/render.ts`, `src/app/f/[id]/page.tsx`, `src/lib/forms/element.ts` |
+| Consent as a box (opt-in, with an email topic) or a notice (legitimate interest), and the `form.submitted` event in the shape nurture, lead scoring and CRM activity read | `045_form_builder.sql`, `src/lib/forms/submit.ts` |
 | Setup | `docs/forms-setup.md` |
 
 **Flaky and hostile cases tested:**
@@ -415,6 +417,8 @@ These lines come on top of `docs/inbound.md` Part 10, which already counts `coll
 - `tests/pg/brand.pg.ts`: scans make and finish kits, a blocked site fails the kit with the reason, a crash retries until the last try; the step cache replays without calling the model and logs both.
 - `tests/forms.test.ts`, `tests/formChat.test.ts`: the checker refuses bad types, keys, rules and redirects and keeps HTML in labels as text; tokens refuse anything but colors, sizes, weights and font names; the chat refuses bad ops with reasons, waits for a yes before three changes, and is cut off after six rounds.
 - `scripts/forms-check.ts` (Chromium): errors before sending, the server's work email check on the right field, a double click sends once, a fill that can't be sent lands once after a reload, steps and the keyboard listbox, captured HTML (passwords never read, the site's handler still runs), Marketo and HubSpot forms, the booking calendar after a captured fill.
+- `tests/pg/forms-upgrade.pg.ts`: a database at 044 with old forms and answers moves to the latest migration; each form keeps its id and status and passes the schema check unchanged; old answers keep their ids; a new fill joins the topic on opt-in, a notice keeps legitimate interest, and the event keeps 041's shape.
+- `scripts/forms-check.ts` also runs the old embed from another origin: the frame sizes to the form, the email reaches the site script, the outer page and its UTMs are kept, and a redirect opens around the frame.
 - `scripts/brand-check.ts` (Chromium): light, dark, low-contrast and bot-wall sites, and private addresses.
 - `scripts/forms-qa-check.ts` (Chromium): the daily check passes a two-step form end to end, fails a removed Slack hook with the reason, and keeps its fills out of lead counts.
 

@@ -7,6 +7,7 @@ import { test } from "node:test";
 import { makeCtx } from "../src/lib/sources/ctx.ts";
 import { effectiveMapping, recordsToRows } from "../src/lib/sources/map.ts";
 import { connectorFor } from "../src/lib/sources/registry.ts";
+import { pull } from "../src/lib/sources/sync.ts";
 import type { Creds, Page, RawRecord, SourceRow } from "../src/lib/sources/types.ts";
 import { CATALOG } from "../src/lib/sources/catalog.ts";
 
@@ -416,4 +417,15 @@ test("Pipedrive, Attio and Close take contacts: found by email first, made when 
   );
   assert.deepEqual(cl.results, [{ localId: "a", externalId: "cont_1" }, { localId: "b", externalId: "cont_2" }]);
   assert.equal((cl.sent.find((s) => s.url.endsWith("/lead/"))!.body as { name: string }).name, "beta.io");
+});
+
+test("a webhook-only tool's scheduled pull does nothing and doesn't fail", async () => {
+  for (const kind of ["calendly", "calcom", "typeform", "tally"]) {
+    const c = connectorFor(kind);
+    if (!c) continue;
+    const ctx = makeCtx({ source: row(kind), creds: { type: "hook" }, fetcher: async () => new Response("{}"), sleep: async () => {} });
+    const rpc = async () => ({ data: null, error: { message: "no rpc expected" } });
+    const out = await pull({ rpc, connector: c, ctx, clean: {} as never, saved: [] } as never);
+    assert.equal(out.more, false, kind);
+  }
 });

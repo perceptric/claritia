@@ -27,7 +27,7 @@ import { copy, FormPreview, IconButton, STATUS, type Destination, type FormRow, 
 type ListRow = { id: string; name: string; status: FormRow["status"]; kind: "built" | "captured"; version: number; updated_at: string; fills: number; last_fill: string | null; failed: number; check: "running" | "passed" | "failed" | null };
 
 export function FormsView(props: ViewProps) {
-  if (props.id) return <FormPage key={props.id} {...props} />;
+  if (props.id && props.id !== "new") return <FormPage key={props.id} {...props} />;
   return <FormList {...props} />;
 }
 

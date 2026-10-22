@@ -19,7 +19,7 @@ export type Op =
   | { op: "remove_rule"; id: string }
   | { op: "set_layout"; labels?: Form["layout"]["labels"]; width?: Form["layout"]["width"] }
   | { op: "set_copy"; title?: string; intro?: string; submit?: string }
-  | { op: "set_consent"; mode?: Form["consent"]["mode"]; label?: string }
+  | { op: "set_consent"; mode?: Form["consent"]["mode"]; label?: string; topicId?: string | null }
   | { op: "set_spam"; minSeconds?: number; turnstile?: boolean }
   | { op: "set_after"; end: After["end"] }
   | { op: "set_schedule"; schedule: After["schedule"] | null }
@@ -147,6 +147,8 @@ export function applyOp(input: Form, op: Op): { form: Form } | { error: string }
       return { form };
     case "set_consent":
       form.consent = { ...form.consent, ...(op.mode ? { mode: op.mode } : {}), ...(op.label !== undefined ? { label: op.label } : {}) };
+      if (op.topicId) form.consent.topicId = op.topicId;
+      if (op.topicId === null || form.consent.mode === "off" || form.consent.mode === "notice") delete form.consent.topicId;
       return { form };
     case "set_spam":
       form.spam = { ...form.spam, ...(op.minSeconds !== undefined ? { minSeconds: op.minSeconds } : {}), ...(op.turnstile !== undefined ? { turnstile: op.turnstile } : {}) };

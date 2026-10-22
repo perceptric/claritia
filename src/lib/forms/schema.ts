@@ -66,7 +66,8 @@ export type Form = {
   title?: string;
   intro?: string;
   submit: { label: string };
-  consent: { mode: "off" | "by_region" | "always"; label: string };
+  /** notice: no box, the label shows under the button and the lead is kept on legitimate interest. */
+  consent: { mode: "off" | "by_region" | "always" | "notice"; label: string; /** An opt-in joins this email topic. */ topicId?: string };
   spam: { minSeconds: number; turnstile: boolean };
   after: After;
   capture?: Capture;
@@ -94,15 +95,16 @@ export const CONTACT_KEYS: { key: FieldKey; label: string; types: FieldType[] }[
   { key: "first_name", label: "First name", types: ["text"] },
   { key: "last_name", label: "Last name", types: ["text"] },
   { key: "title", label: "Job title", types: ["text", "choice"] },
-  { key: "phone", label: "Phone", types: ["phone"] },
+  { key: "phone", label: "Phone", types: ["phone", "text"] },
   { key: "company", label: "Company", types: ["text"] },
   { key: "website", label: "Company website", types: ["url", "text"] },
-  { key: "country", label: "Country", types: ["country"] },
+  { key: "country", label: "Country", types: ["country", "text", "choice"] },
   { key: "region", label: "State or region", types: ["text", "choice"] },
 ];
 
 export const LIMITS = { steps: 10, fields: 40, options: 100, rules: 50, label: 300, text: 1000, value: 5000 };
 export const DEFAULT_CONSENT = "I agree to receive emails. I can unsubscribe at any time.";
+export const DEFAULT_NOTICE = "By sending this, you agree we may email you about our products. You can unsubscribe at any time.";
 
 const ID = /^[a-z0-9]{1,24}$/;
 const Q_KEY = /^q\.[a-z][a-z0-9_]{0,39}$/;
@@ -263,7 +265,8 @@ export function checkForm(raw: unknown, ctx: Ctx = {}): { form: Form } | { error
   const consent = (r.consent && typeof r.consent === "object" ? r.consent : {}) as Record<string, unknown>;
   const spam = (r.spam && typeof r.spam === "object" ? r.spam : {}) as Record<string, unknown>;
   const after = (r.after && typeof r.after === "object" ? r.after : {}) as { end?: Record<string, unknown> };
-  const consentMode = ["off", "by_region", "always"].includes(consent.mode as string) ? (consent.mode as Form["consent"]["mode"]) : "by_region";
+  const consentMode = ["off", "by_region", "always", "notice"].includes(consent.mode as string) ? (consent.mode as Form["consent"]["mode"]) : "by_region";
+  const topicId = typeof consent.topicId === "string" && /^[0-9a-f-]{36}$/.test(consent.topicId) && consentMode !== "off" && consentMode !== "notice" ? consent.topicId : undefined;
   const consentLabel = str(consent.label, LIMITS.text) || DEFAULT_CONSENT;
   let end: After["end"];
   if (after.end?.kind === "redirect") {
@@ -299,7 +302,7 @@ export function checkForm(raw: unknown, ctx: Ctx = {}): { form: Form } | { error
     ...(str(r.title, LIMITS.label) ? { title: str(r.title, LIMITS.label) } : {}),
     ...(str(r.intro, LIMITS.text) ? { intro: str(r.intro, LIMITS.text) } : {}),
     submit: { label: str(submit.label, 60) || "Submit" },
-    consent: { mode: consentMode, label: consentLabel },
+    consent: { mode: consentMode, label: consentLabel, ...(topicId ? { topicId } : {}) },
     spam: { minSeconds: Number.isFinite(minSeconds) ? Math.min(Math.max(minSeconds, 0), 30) : 2, turnstile: spam.turnstile === true },
     after: { end, ...(schedule ? { schedule } : {}) },
     ...(capture ? { capture } : {}),

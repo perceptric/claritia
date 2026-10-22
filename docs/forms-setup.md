@@ -4,7 +4,7 @@ Everything here is done once by us. Customers build a form, paste one line on th
 
 ## 1. Database
 
-Run `supabase/migrations/039_forms.sql` through `042_form_checks.sql` in order. They add:
+Run `supabase/migrations/045_form_builder.sql` through `048_form_checks.sql` in order. The first upgrades the forms from `041_forms.sql`: each form keeps its id, link and embed, its fields become a first version, its color becomes a brand kit, and its answers move to submissions. They add:
 
 - forms, versions, brand kits, submissions, destinations and deliveries (039),
 - the AI step cache, the AI cost log, form chats and the brand scan's state (040),

@@ -216,3 +216,48 @@ test("booking links: the right host per tool, the lead filled in, and the fill's
   assert.deepEqual(errs({ ...f, after: { ...f.after, schedule: { tool: "calendly", url: "", perOwner: true } } }), []);
   assert.match(errs({ ...f, after: { end: { kind: "redirect", url: "https://acme.com" }, schedule: { tool: "calendly", url: "https://calendly.com/a", perOwner: false } } }).join(), /not both/);
 });
+
+test("a notice form keeps its wording on legitimate interest; a topic rides only with a consent box", async () => {
+  const { prepareSubmit } = await import("../src/lib/forms/submit.ts");
+  const topic = "0190a0b0-0000-7000-8000-000000000001";
+  const boxed = ok({ ...emptyForm(), consent: { mode: "always", label: "Yes please", topicId: topic } });
+  assert.equal(boxed.consent.topicId, topic);
+  assert.equal(ok({ ...emptyForm(), consent: { mode: "notice", label: "We may email you", topicId: topic } }).consent.topicId, undefined);
+  assert.equal(ok({ ...emptyForm(), consent: { mode: "always", label: "x", topicId: "not-a-topic" } }).consent.topicId, undefined);
+  const off = applyOp(boxed, { op: "set_consent", mode: "notice" });
+  assert.ok(!("error" in off) && off.form.consent.topicId === undefined);
+
+  const notice = ok({ ...emptyForm(), consent: { mode: "notice", label: "We may email you" } });
+  const email = allFields(notice)[0].id;
+  const r = prepareSubmit(notice, 1, { v: 1, version: 1, key: "k".repeat(20), answers: { [email]: "ana@acme.com" }, consent: { given: true }, ms: 9000 }, { custom: [] });
+  assert.ok("args" in r);
+  assert.deepEqual(r.args.p_consent, { notice: true, wording: "We may email you" });
+});
+
+test("a fill keeps ad click ids and the first touch next to the UTMs, and drops anything else", async () => {
+  const { prepareSubmit } = await import("../src/lib/forms/submit.ts");
+  const f = ok(emptyForm());
+  const r = prepareSubmit(
+    f,
+    1,
+    {
+      v: 1,
+      version: 1,
+      key: "k".repeat(20),
+      answers: { [allFields(f)[0].id]: "ana@acme.com" },
+      utm: { utm_source: "news", gclid: "g1", token: "secret" },
+      first: { utm_source: "bing", msclkid: "m1", email: "x@y.z" },
+      page: "https://acme.com/p?utm_source=news&email=ana@acme.com",
+      ms: 9000,
+    },
+    { custom: [] },
+  );
+  assert.ok("args" in r);
+  assert.deepEqual(r.args.p_hidden, { utm_source: "news", first_utm_source: "bing", gclid: "g1", first_msclkid: "m1", page: "https://acme.com/p?utm_source=news" });
+});
+
+test("an old form's phone and country can be plain text fields", () => {
+  const f = emptyForm();
+  f.steps[0].fields.push({ id: "ph", key: "phone", type: "text", label: "Phone", required: false }, { id: "co", key: "country", type: "text", label: "Country", required: false });
+  ok(f);
+});

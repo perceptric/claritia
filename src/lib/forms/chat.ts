@@ -77,7 +77,7 @@ export const CHAT_TOOLS: Anthropic.Beta.BetaTool[] = [
   { name: "remove_rule", description: "Remove a rule by its id.", input_schema: { type: "object", properties: { rule_id: { type: "string" } }, required: ["rule_id"] } },
   { name: "set_layout", description: "Labels above or inside the fields, and the form's width.", input_schema: { type: "object", properties: { labels: { type: "string", enum: ["above", "inside"] }, width: { type: "string", enum: ["narrow", "wide"] } } } },
   { name: "set_text", description: "The form's title, intro line and button label. An empty string clears the title or intro.", input_schema: { type: "object", properties: { title: { type: "string" }, intro: { type: "string" }, button: { type: "string" } } } },
-  { name: "set_consent", description: "The email consent box: by_region shows it where the law asks, always, or off.", input_schema: { type: "object", properties: { mode: { type: "string", enum: ["by_region", "always", "off"] }, label: { type: "string" } } } },
+  { name: "set_consent", description: "The email consent box: by_region shows it where the law asks, always, off, or notice (a line under the button and no box).", input_schema: { type: "object", properties: { mode: { type: "string", enum: ["by_region", "always", "off", "notice"] }, label: { type: "string" } } } },
   { name: "set_spam", description: "Spam checks: the fastest a person could fill it, and Cloudflare Turnstile.", input_schema: { type: "object", properties: { min_seconds: { type: "integer", minimum: 0, maximum: 30 }, turnstile: { type: "boolean" } } } },
   {
     name: "set_after",
@@ -159,7 +159,7 @@ export function toOp(name: string, input: Record<string, unknown>): Op | { error
     case "set_text":
       return { op: "set_copy", ...(str(input.title) !== undefined ? { title: str(input.title) } : {}), ...(str(input.intro) !== undefined ? { intro: str(input.intro) } : {}), ...(str(input.button) ? { submit: str(input.button) } : {}) };
     case "set_consent":
-      return { op: "set_consent", ...(["by_region", "always", "off"].includes(input.mode as string) ? { mode: input.mode as Form["consent"]["mode"] } : {}), ...(str(input.label) ? { label: str(input.label) } : {}) };
+      return { op: "set_consent", ...(["by_region", "always", "off", "notice"].includes(input.mode as string) ? { mode: input.mode as Form["consent"]["mode"] } : {}), ...(str(input.label) ? { label: str(input.label) } : {}) };
     case "set_spam":
       return { op: "set_spam", ...(typeof input.min_seconds === "number" ? { minSeconds: input.min_seconds } : {}), ...(typeof input.turnstile === "boolean" ? { turnstile: input.turnstile } : {}) };
     case "set_after":

@@ -5,14 +5,16 @@
 import { useState } from "react";
 import type { Op } from "@/lib/forms/ops";
 import { SCHEDULERS, type SchedulerTool } from "@/lib/forms/schedule";
-import { DEFAULT_CONSENT, type Form } from "@/lib/forms/schema";
+import { DEFAULT_CONSENT, DEFAULT_NOTICE, type Form } from "@/lib/forms/schema";
 import { BrandLogo } from "../BrandLogo";
+import { Select } from "../Select";
 import { ErrorNote, errorText, Field, Input, must, Segmented, useLoad, type ViewProps } from "../ui";
 import { NumberInput, Toggle } from "./shared";
 
 const AREA = "w-full rounded-md border border-line bg-panel px-2.5 py-2 text-[13px] text-ink outline-none focus:border-ink";
 
 export function FormSettings({ form, apply, sb, ws, session, role }: { form: Form; apply: (op: Op) => void } & Pick<ViewProps, "sb" | "ws" | "session" | "role">) {
+  const topics = useLoad(async () => (must(await sb.from("topics").select("id, name").eq("workspace_id", ws.id).order("name")) ?? []) as { id: string; name: string }[], `${ws.id}:topics`);
   const end = form.after.end;
   const sch = form.after.schedule;
   return (
@@ -100,13 +102,27 @@ export function FormSettings({ form, apply, sb, ws, session, role }: { form: For
           options={[
             { value: "by_region", label: "Where the law asks" },
             { value: "always", label: "Always" },
+            { value: "notice", label: "Notice" },
             { value: "off", label: "Off" },
           ]}
-          onChange={(mode) => apply({ op: "set_consent", mode })}
+          onChange={(mode) => {
+            const swap = mode === "notice" ? form.consent.label === DEFAULT_CONSENT && DEFAULT_NOTICE : form.consent.label === DEFAULT_NOTICE && DEFAULT_CONSENT;
+            apply({ op: "set_consent", mode, ...(swap ? { label: swap } : {}) });
+          }}
         />
+        {(form.consent.mode === "by_region" || form.consent.mode === "always") && topics.data?.length ? (
+          <Field label="Email topic">
+            <Select
+              ariaLabel="Email topic"
+              value={form.consent.topicId ?? ""}
+              options={[{ value: "", label: "None" }, ...topics.data.map((t) => ({ value: t.id, label: t.name }))]}
+              onChange={(v) => apply({ op: "set_consent", topicId: v || null })}
+            />
+          </Field>
+        ) : null}
         {form.consent.mode !== "off" ? (
-          <Field label="Box text">
-            <textarea value={form.consent.label} rows={2} onChange={(e) => apply({ op: "set_consent", label: e.target.value })} onBlur={(e) => !e.target.value.trim() && apply({ op: "set_consent", label: DEFAULT_CONSENT })} className={AREA} />
+          <Field label={form.consent.mode === "notice" ? "Notice text" : "Box text"}>
+            <textarea value={form.consent.label} rows={2} onChange={(e) => apply({ op: "set_consent", label: e.target.value })} onBlur={(e) => !e.target.value.trim() && apply({ op: "set_consent", label: form.consent.mode === "notice" ? DEFAULT_NOTICE : DEFAULT_CONSENT })} className={AREA} />
           </Field>
         ) : null}
       </section>

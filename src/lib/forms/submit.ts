@@ -26,6 +26,8 @@ export type Incoming = {
   page?: unknown;
   referrer?: unknown;
   utm?: unknown;
+  /** The visitor's first-touch UTMs and click ids, kept by the embed. */
+  first?: unknown;
   ms?: unknown;
   trap?: unknown;
   turnstile?: unknown;
@@ -41,13 +43,15 @@ export type SubmitArgs = {
   p_values: Record<string, unknown>;
   p_hidden: Record<string, string>;
   p_contact: ContactInput | null;
-  p_consent: { given?: boolean; wording?: string };
+  p_consent: { given?: boolean; notice?: boolean; wording?: string };
   p_country: string | null;
   p_spam: string | null;
 };
 
 const KEY = /^[A-Za-z0-9_-]{16,64}$/;
 const UTM = ["utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_content"];
+// Ad click ids, kept with the UTMs (latest and first touch).
+const CLICK = ["gclid", "fbclid", "li_fat_id", "msclkid"];
 
 /** A page address with only its UTM parameters kept: anything else in a query string can hold someone's data. */
 export function pageOnly(raw: unknown): string | undefined {
@@ -103,7 +107,11 @@ export function prepareSubmit(
 
   const utmIn = raw.utm && typeof raw.utm === "object" ? (raw.utm as Record<string, unknown>) : {};
   const meta: Record<string, string> = {};
-  for (const k of UTM) if (typeof utmIn[k] === "string" && utmIn[k]) meta[k] = (utmIn[k] as string).slice(0, 200);
+  const firstIn = raw.first && typeof raw.first === "object" ? (raw.first as Record<string, unknown>) : {};
+  for (const k of [...UTM, ...CLICK]) {
+    if (typeof utmIn[k] === "string" && utmIn[k]) meta[k] = (utmIn[k] as string).slice(0, 200);
+    if (typeof firstIn[k] === "string" && firstIn[k]) meta[`first_${k}`] = (firstIn[k] as string).slice(0, 200);
+  }
   const page = pageOnly(raw.page);
   const referrer = pageOnly(raw.referrer);
   if (page) meta.page = page;
@@ -113,7 +121,7 @@ export function prepareSubmit(
   const consentIn = raw.consent && typeof raw.consent === "object" ? (raw.consent as Record<string, unknown>) : {};
   // The wording saved is the form's own, never what the browser says it showed.
   const asked = form.consent.mode === "always" || (form.consent.mode === "by_region" && "given" in consentIn);
-  const consent = asked ? { given: consentIn.given === true, wording: form.consent.label } : {};
+  const consent = form.consent.mode === "notice" ? { notice: true, wording: form.consent.label } : asked ? { given: consentIn.given === true, wording: form.consent.label } : {};
 
   const country = (typeof parts.country === "string" && countryCode(parts.country)) || (opts.country && /^[A-Z]{2}$/.test(opts.country) ? opts.country : null);
   let contact: ContactInput | null = null;

@@ -2,7 +2,8 @@
 // in for the two public routes, using the same checks they use (prepareSubmit) and the same database functions.
 // Cases: errors show before anything is sent; the server's own check lands on the right field; a double click sends
 // once; a send that can't reach us waits in localStorage and lands once after a reload; steps and the listbox work by
-// keyboard; a label with HTML in it stays text.
+// keyboard; a label with HTML in it stays text; the embed made before the builder (/f/embed.js) still frames the
+// form, sizes the frame, passes the page's UTMs, hands the email to the site script and opens the next page.
 // scripts/test-db.sh runs it when CHROMIUM_PATH is set.
 //   PG_URL=… CHROMIUM_PATH=… node scripts/forms-check.ts
 
@@ -10,7 +11,8 @@ import { createServer } from "node:http";
 import pg from "pg";
 import pw from "playwright-core";
 import { buildForms } from "./build-forms.mts";
-import { checkForm, type Form } from "../src/lib/forms/schema.ts";
+import { embedScript } from "../src/lib/forms/render.ts";
+import { checkForm, emptyForm, type Form } from "../src/lib/forms/schema.ts";
 import { acceptFill, qaOk, type Incoming } from "../src/lib/forms/submit.ts";
 import { pgRpc } from "../worker-intel/rpc.ts";
 import { capturedForm, TEMPLATES } from "../src/lib/forms/templates.ts";
@@ -32,7 +34,7 @@ await q(`insert into auth.users (id, email) values ($1, 'forms-check@t.io')`, [U
 await q(`insert into workspace_members (workspace_id, user_id, role) values ($1, $2, 'owner')`, [WS, USER]);
 
 async function live(template: string, change?: (f: Form) => void) {
-  const f = template.startsWith("captured:") ? capturedForm(template.slice(9) as "html") : TEMPLATES.find((t) => t.key === template)!.form();
+  const f = template === "plain" ? emptyForm() : template.startsWith("captured:") ? capturedForm(template.slice(9) as "html") : TEMPLATES.find((t) => t.key === template)!.form();
   change?.(f);
   const r = checkForm(f);
   if ("errors" in r) throw new Error(r.errors.join(" "));
@@ -57,6 +59,13 @@ const capHtml = await live("captured:html", (f) => {
   f.after.schedule = { tool: "link", url: "https://example.com/book", perOwner: false };
 });
 const capMarketo = await live("captured:marketo", mapFields);
+const framedMsg = await live("plain", (f) => {
+  f.spam.minSeconds = 0;
+});
+const framedGo = await live("plain", (f) => {
+  f.spam.minSeconds = 0;
+  f.after.end = { kind: "redirect", url: "https://example.com/thanks" };
+});
 const capHubspot = await live("captured:hubspot", mapFields);
 
 let down = false;
@@ -70,6 +79,17 @@ async function handle(req: import("node:http").IncomingMessage, res: import("nod
   const u = new URL(req.url!, "http://localhost");
   const send = (status: number, body: unknown) => res.writeHead(status, { "content-type": "application/json", "access-control-allow-origin": "*" }).end(JSON.stringify(body));
   if (u.pathname === "/forms/v1.js") return void res.writeHead(200, { "content-type": "text/javascript" }).end(code);
+  // The app's side of the old embed: the script, and the form's own page it frames (src/app/f/[id]/page.tsx).
+  if (u.pathname === "/f/embed.js") return void res.writeHead(200, { "content-type": "text/javascript" }).end(embedScript(app));
+  const own = /^\/f\/([0-9a-f-]{36})$/.exec(u.pathname);
+  if (own) return void res.writeHead(200, { "content-type": "text/html" }).end(`<!doctype html><title>Form</title><body style="margin:0"><main style="padding:4px"><claritia-form form-id="${own[1]}"></claritia-form></main><script src="/forms/v1.js"></script>`);
+  const embed = u.searchParams.get("embed");
+  if (embed) {
+    // A customer's page on another origin, with Claritia's site script and the old embed line.
+    return void res.writeHead(200, { "content-type": "text/html" }).end(`<!doctype html><title>site</title><body>
+      <script>window.claritia = function (kind, email) { window.relay = [kind, email]; };</script>
+      <h1>Get the guide</h1><script src="${app}/f/embed.js" data-claritia-form="${embed}" async></script></body>`);
+  }
   const m = /^\/api\/forms\/([0-9a-f-]{36})(\/submit)?$/.exec(u.pathname);
   if (m && !m[2]) {
     const f = (await q(`select form_public($1) as f`, [m[1]]))[0].f;
@@ -99,6 +119,7 @@ async function handle(req: import("node:http").IncomingMessage, res: import("nod
 await new Promise<void>((r) => server.listen(0, r));
 const port = (server.address() as { port: number }).port;
 const base = `http://localhost:${port}`;
+const app = `http://127.0.0.1:${port}`;
 
 const browser = await pw.chromium.launch({ executablePath: process.env.CHROMIUM_PATH });
 const fills = async (form: string) => Number((await q(`select count(*)::int n from submissions where form_id = $1`, [form]))[0].n);
@@ -210,6 +231,32 @@ try {
   await page.evaluate(() => window.postMessage({ type: "hsFormCallback", eventName: "onFormSubmitted", data: [{ name: "email", value: "hu@acme.com" }, { name: "company", value: "Acme" }] }, "*"));
   await page.waitForTimeout(800);
   check((await fills(capHubspot)) === 1, "a captured HubSpot form lands once from its submit callback");
+
+  // The old embed: a page on another origin frames /f/<id>, which now holds <claritia-form>.
+  const ids = async (form: string) => (await q(`select v.body from forms f join form_versions v on v.form_id = f.id and v.version = f.version where f.id = $1`, [form]))[0].body.steps[0].fields[0].id as string;
+  await page.goto(`${base}/?embed=${framedMsg}&utm_source=news&gclid=g1`);
+  const frame = page.frameLocator("iframe[data-claritia-frame]");
+  await frame.locator("claritia-form form").waitFor({ timeout: 10_000 });
+  await page.waitForFunction(() => (document.querySelector("iframe[data-claritia-frame]") as HTMLIFrameElement).offsetHeight > 150, null, { timeout: 5000 });
+  await page.waitForTimeout(600);
+  const tall = await page.evaluate(() => (document.querySelector("iframe[data-claritia-frame]") as HTMLIFrameElement).offsetHeight);
+  await page.waitForTimeout(600);
+  const still = await page.evaluate(() => (document.querySelector("iframe[data-claritia-frame]") as HTMLIFrameElement).offsetHeight);
+  check(tall > 150 && tall < 1200 && tall === still, `the old embed frames the new form and sizes the frame to it (${tall}px)`);
+  await frame.locator(`claritia-form #clr-${await ids(framedMsg)}`).fill("em@acme.com");
+  await frame.locator("claritia-form button[type=submit]").click();
+  await frame.locator("claritia-form [role=status]").waitFor();
+  await page.waitForFunction(() => !!(window as unknown as { relay?: unknown }).relay, null, { timeout: 5000 });
+  check(JSON.stringify(await page.evaluate(() => (window as unknown as { relay: unknown }).relay)) === JSON.stringify(["form", "em@acme.com"]), "the fill hands the email to the site script on the page around the frame");
+  const em = (await q(`select hidden from submissions where form_id = $1`, [framedMsg]))[0]?.hidden ?? {};
+  check(em.utm_source === "news" && em.gclid === "g1" && em.first_utm_source === "news" && em.page === `${base}/`, `the fill keeps the outer page and its UTMs (${JSON.stringify(em)})`);
+  await page.route("https://example.com/**", (r) => r.fulfill({ status: 200, contentType: "text/html", body: "<title>thanks</title>" }));
+  await page.goto(`${base}/?embed=${framedGo}`);
+  await frame.locator("claritia-form form").waitFor({ timeout: 10_000 });
+  await frame.locator(`claritia-form #clr-${await ids(framedGo)}`).fill("go@acme.com");
+  await frame.locator("claritia-form button[type=submit]").click();
+  await page.waitForURL("https://example.com/thanks", { timeout: 10_000 });
+  check((await fills(framedGo)) === 1, "a form that opens a page after the submit opens it on the page around the frame");
 } finally {
   await browser.close();
   server.close();
