@@ -797,6 +797,9 @@ Website rules are in `docs/account-intelligence.md` Part 3 and `docs/identity.md
 
 ## Part 10. Pricing (proposed)
 
+Replaced by `docs/pricing.md` (October 2026), priced against Chili Piper, Default, RevenueHero, Calendly and HubSpot.
+The table below is the earlier draft.
+
 | Plan | Price | Includes |
 |---|---|---|
 | Starter | $299/mo | 5,000 contacts, 25,000 emails/mo, 1 site, Website Intelligence, segments, broadcasts, 3 journeys with agent steps (review mode), Funnel QA basics |
