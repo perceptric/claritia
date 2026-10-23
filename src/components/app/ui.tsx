@@ -17,7 +17,8 @@ export type ViewProps = {
   session: Session;
   ws: Workspace;
   role: Role;
-  navigate: (r: Route, id?: string) => void;
+  /** Open a screen; `query` (like "tab=design") goes in the address after the record. */
+  navigate: (r: Route, id?: string, query?: string) => void;
   /** The record in the address, like a contact's id in /contacts/<id>. */
   id: string;
 };

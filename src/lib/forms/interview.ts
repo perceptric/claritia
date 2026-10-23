@@ -1,6 +1,6 @@
-// The questions a new form starts from (docs/form-builder-v2.md Part 2). Each answer is a click, and code turns the
+// The five questions a new form starts from (docs/form-studio.md Part 1). Each answer is a click, and code turns the
 // answers into the form: the same answers always build the same form, it always passes checkForm, and building one
-// calls no model. AI only reads a first sentence, types a written question and polishes the words, and the form is
+// calls no model. A typed sentence is read here by keywords; AI only polishes the words at the end, and the form is
 // whole without it. Runs in the browser and on the server.
 
 import { linkProblem, SCHEDULERS, type SchedulerTool } from "./schedule.ts";
@@ -8,13 +8,14 @@ import { DEFAULT_CONSENT, type Choice, type Field, type FieldType, type Form } f
 
 export type Goal = "demo" | "contact" | "trial" | "newsletter" | "event" | "download" | "partner" | "other";
 export type Place = "hero" | "pricing" | "popup" | "page" | "blog";
-export type Pick = "name_split" | "name" | "company" | "title" | "phone" | "company_size" | "country" | "website" | "message" | "budget" | "timeline" | "source";
+export type Pick = "name_split" | "name" | "company" | "title" | "phone" | "company_size" | "country" | "website" | "message" | "budget" | "timeline" | "team_size" | "source";
 export type After = { kind: "message" } | { kind: "redirect"; url: string } | { kind: "meeting"; tool: SchedulerTool; url: string; perOwner: boolean };
 /** A question the visitor answers that the person wrote in their own words, typed by AI or by the rules below. */
 export type Extra = { label: string; type: "text" | "textarea" | "choice" | "multi" | "number" | "date" | "url" | "checkbox"; options?: string[]; required: boolean };
 
 export type Answers = {
   goal: Goal;
+  /** Not asked any more; it comes from the goal or a typed sentence and sets the layout. */
   place: Place;
   fields: { pick: Pick; required: boolean }[];
   extra: Extra[];
@@ -28,29 +29,28 @@ export type Answers = {
 /** Words the polish step may change: the form's title and intro, the button, the thank-you, and field labels by id. */
 export type Copy = { title?: string; intro?: string; submit?: string; thanksTitle?: string; thanksText?: string; labels?: Record<string, string> };
 
-export type QuestionId = "goal" | "place" | "fields" | "extra" | "work" | "steps" | "after" | "send";
+export type QuestionId = "goal" | "fields" | "qualify" | "after" | "send";
 export const QUESTIONS: { id: QuestionId; ask: string }[] = [
   { id: "goal", ask: "What's this form for?" },
-  { id: "place", ask: "Where will it go on your site?" },
-  { id: "fields", ask: "What do you want to ask?" },
-  { id: "extra", ask: "Anything else to ask?" },
-  { id: "work", ask: "Business emails only?" },
-  { id: "steps", ask: "One page or steps?" },
-  { id: "after", ask: "What happens after they send it?" },
-  { id: "send", ask: "Where should the leads go?" },
+  { id: "fields", ask: "What should it collect?" },
+  { id: "qualify", ask: "Any questions to qualify them?" },
+  { id: "after", ask: "After they send it?" },
+  { id: "send", ask: "Where do leads go?" },
 ];
 
-type GoalInfo = { label: string; picks: Pick[]; required: Pick[]; workOnly: boolean; submit: string; title: string; intro: string; thanks: string; thanksText?: string; after: After["kind"] };
+type GoalInfo = { label: string; name: string; picks: Pick[]; required: Pick[]; workOnly: boolean; submit: string; title: string; intro: string; thanks: string; thanksText?: string; after: After["kind"] };
 export const GOALS: Record<Goal, GoalInfo> = {
-  demo: { label: "Book a demo", picks: ["name_split", "company", "company_size", "message"], required: ["name_split"], workOnly: true, submit: "Book a demo", title: "See it in action", intro: "Tell us a little about you and we'll set up a time.", thanks: "Thanks. Pick a time below.", after: "meeting" },
-  contact: { label: "Contact sales", picks: ["name", "company", "phone", "message"], required: ["name", "company", "message"], workOnly: true, submit: "Contact sales", title: "Talk to sales", intro: "We'll get back to you within one business day.", thanks: "Thanks. We'll be in touch within a day.", after: "message" },
-  trial: { label: "Free trial", picks: ["company"], required: [], workOnly: true, submit: "Start free trial", title: "Start your free trial", intro: "No card needed.", thanks: "You're in. Check your inbox to get started.", after: "message" },
-  newsletter: { label: "Newsletter", picks: [], required: [], workOnly: false, submit: "Subscribe", title: "Get the newsletter", intro: "One email a month. No spam.", thanks: "You're subscribed.", after: "message" },
-  event: { label: "Event signup", picks: ["name", "company", "title"], required: ["name", "company"], workOnly: false, submit: "Save my seat", title: "Save your seat", intro: "Spots are limited.", thanks: "You're in. The details are on their way.", after: "message" },
-  download: { label: "Download", picks: ["name_split", "company", "title"], required: ["name_split"], workOnly: true, submit: "Get the guide", title: "Get the guide", intro: "Free, straight to your inbox.", thanks: "It's on its way to your inbox.", after: "message" },
-  partner: { label: "Partner", picks: ["name", "company", "website", "message"], required: ["company", "website"], workOnly: true, submit: "Apply", title: "Become a partner", intro: "Tell us about your company and your customers.", thanks: "Thanks. Our partner team will reach out.", after: "message" },
-  other: { label: "Something else", picks: ["name"], required: [], workOnly: false, submit: "Send", title: "Get in touch", intro: "", thanks: "Thanks, we got it.", thanksText: "We'll be in touch soon.", after: "message" },
+  demo: { label: "Book demos", name: "Demo request", picks: ["name_split", "company", "company_size", "message"], required: ["name_split"], workOnly: true, submit: "Book a demo", title: "See it in action", intro: "Tell us a little about you and we'll set up a time.", thanks: "Thanks. Pick a time below.", after: "meeting" },
+  contact: { label: "Contact sales", name: "Contact sales", picks: ["name", "company", "phone", "message"], required: ["name", "company", "message"], workOnly: true, submit: "Contact sales", title: "Talk to sales", intro: "We'll get back to you within one business day.", thanks: "Thanks. We'll be in touch within a day.", after: "message" },
+  trial: { label: "Free trial", name: "Free trial", picks: ["company"], required: [], workOnly: true, submit: "Start free trial", title: "Start your free trial", intro: "No card needed.", thanks: "You're in. Check your inbox to get started.", after: "message" },
+  newsletter: { label: "Newsletter", name: "Newsletter", picks: [], required: [], workOnly: false, submit: "Subscribe", title: "Get the newsletter", intro: "One email a month. No spam.", thanks: "You're subscribed.", after: "message" },
+  event: { label: "Event", name: "Event signup", picks: ["name", "company", "title"], required: ["name", "company"], workOnly: false, submit: "Save my seat", title: "Save your seat", intro: "Spots are limited.", thanks: "You're in. The details are on their way.", after: "message" },
+  download: { label: "Download", name: "Download", picks: ["name_split", "company", "title"], required: ["name_split"], workOnly: true, submit: "Get the guide", title: "Get the guide", intro: "Free, straight to your inbox.", thanks: "It's on its way to your inbox.", after: "message" },
+  partner: { label: "Partner", name: "Partner application", picks: ["name", "company", "website", "message"], required: ["company", "website"], workOnly: true, submit: "Apply", title: "Become a partner", intro: "Tell us about your company and your customers.", thanks: "Thanks. Our partner team will reach out.", after: "message" },
+  other: { label: "Other", name: "Form", picks: ["name"], required: [], workOnly: false, submit: "Send", title: "Get in touch", intro: "", thanks: "Thanks, we got it.", thanksText: "We'll be in touch soon.", after: "message" },
 };
+/** The goals offered as option cards, in order. Partner is still read from a sentence. */
+export const GOAL_CHOICES: Goal[] = ["demo", "contact", "trial", "newsletter", "event", "download", "other"];
 
 export const PLACES: { value: Place; label: string }[] = [
   { value: "hero", label: "Hero or landing page" },
@@ -62,28 +62,34 @@ export const PLACES: { value: Place; label: string }[] = [
 
 const opts = (list: string[]): Choice[] => list.map((v) => ({ value: v, label: v }));
 type Made = Omit<Field, "required">;
-/** Each field a person can tick, in the order it appears on the form. */
-export const PICKS: { value: Pick; label: string; make: () => Made[] }[] = [
+/**
+ * Each field a person can tick, in the order it appears on the form. "collect" ones are asked in What should it
+ * collect, "qualify" ones in Any questions to qualify them.
+ */
+export const PICKS: { value: Pick; label: string; group: "collect" | "qualify"; make: () => Made[] }[] = [
   {
     value: "name_split",
     label: "First and last name",
+    group: "collect",
     make: () => [
       { id: "first", key: "first_name", type: "text", label: "First name", width: "half" },
       { id: "last", key: "last_name", type: "text", label: "Last name", width: "half" },
     ],
   },
-  { value: "name", label: "Full name", make: () => [{ id: "name", key: "name", type: "text", label: "Full name" }] },
-  { value: "company", label: "Company", make: () => [{ id: "company", key: "company", type: "text", label: "Company" }] },
-  { value: "title", label: "Job title", make: () => [{ id: "title", key: "title", type: "text", label: "Job title" }] },
-  { value: "phone", label: "Phone", make: () => [{ id: "phone", key: "phone", type: "phone", label: "Phone" }] },
-  { value: "company_size", label: "Company size", make: () => [{ id: "size", key: "q.company_size", type: "choice", label: "Company size", options: opts(["1-10", "11-50", "51-200", "201-1,000", "1,000+"]) }] },
-  { value: "country", label: "Country", make: () => [{ id: "country", key: "country", type: "country", label: "Country" }] },
-  { value: "website", label: "Website", make: () => [{ id: "website", key: "website", type: "url", label: "Company website" }] },
-  { value: "message", label: "Message", make: () => [{ id: "message", key: "q.message", type: "textarea", label: "How can we help?" }] },
-  { value: "budget", label: "Budget", make: () => [{ id: "budget", key: "q.budget", type: "choice", label: "Budget", options: opts(["Under $1k", "$1k-$5k", "$5k-$20k", "$20k+"]) }] },
-  { value: "timeline", label: "Timeline", make: () => [{ id: "timeline", key: "q.timeline", type: "choice", label: "When do you want to start?", options: opts(["This month", "This quarter", "Later", "Just looking"]) }] },
-  { value: "source", label: "How did you hear about us", make: () => [{ id: "source", key: "q.heard_from", type: "choice", label: "How did you hear about us?", options: opts(["Search", "Social media", "A friend or colleague", "An event", "Other"]) }] },
+  { value: "name", label: "Full name", group: "collect", make: () => [{ id: "name", key: "name", type: "text", label: "Full name" }] },
+  { value: "company", label: "Company", group: "collect", make: () => [{ id: "company", key: "company", type: "text", label: "Company" }] },
+  { value: "title", label: "Job title", group: "collect", make: () => [{ id: "title", key: "title", type: "text", label: "Job title" }] },
+  { value: "phone", label: "Phone", group: "collect", make: () => [{ id: "phone", key: "phone", type: "phone", label: "Phone" }] },
+  { value: "company_size", label: "Company size", group: "collect", make: () => [{ id: "size", key: "q.company_size", type: "choice", label: "Company size", options: opts(["1-10", "11-50", "51-200", "201-1,000", "1,000+"]) }] },
+  { value: "country", label: "Country", group: "collect", make: () => [{ id: "country", key: "country", type: "country", label: "Country" }] },
+  { value: "website", label: "Website", group: "collect", make: () => [{ id: "website", key: "website", type: "url", label: "Company website" }] },
+  { value: "budget", label: "Budget", group: "qualify", make: () => [{ id: "budget", key: "q.budget", type: "choice", label: "Budget", options: opts(["Under $1k", "$1k-$5k", "$5k-$20k", "$20k+"]) }] },
+  { value: "timeline", label: "Timeline", group: "qualify", make: () => [{ id: "timeline", key: "q.timeline", type: "choice", label: "When do you want to start?", options: opts(["This month", "This quarter", "Later", "Just looking"]) }] },
+  { value: "team_size", label: "Team size", group: "qualify", make: () => [{ id: "team", key: "q.team_size", type: "choice", label: "How big is your team?", options: opts(["Just me", "2-10", "11-50", "51+"]) }] },
+  { value: "source", label: "How did you hear about us", group: "qualify", make: () => [{ id: "source", key: "q.heard_from", type: "choice", label: "How did you hear about us?", options: opts(["Search", "Social media", "A friend or colleague", "An event", "Other"]) }] },
+  { value: "message", label: "Message", group: "collect", make: () => [{ id: "message", key: "q.message", type: "textarea", label: "How can we help?" }] },
 ];
+export const groupOf = (p: Pick) => PICKS.find((x) => x.value === p)?.group ?? "collect";
 
 /** The answers a goal starts with, so Skip never leaves a hole. */
 export function defaults(goal: Goal = "demo"): Answers {
@@ -100,15 +106,15 @@ export function defaults(goal: Goal = "demo"): Answers {
   };
 }
 
-/** A new goal keeps what else was answered, but takes that goal's fields and its usual next step. */
+/**
+ * A new goal keeps what else was answered, but takes that goal's contact fields and its usual next step. Ticked
+ * qualifying questions stay.
+ */
 export function withGoal(a: Answers, goal: Goal): Answers {
   const d = defaults(goal);
-  return { ...a, goal, fields: d.fields, workOnly: d.workOnly, after: a.after.kind === "redirect" ? a.after : d.after, place: a.place };
+  const kept = a.fields.filter((f) => groupOf(f.pick) === "qualify" && !d.fields.some((x) => x.pick === f.pick));
+  return { ...a, goal, fields: [...d.fields, ...kept], workOnly: d.workOnly, after: a.after.kind === "redirect" ? a.after : d.after, place: a.place };
 }
-
-const fieldCount = (a: Answers) => 1 + a.fields.reduce((n, f) => n + (f.pick === "name_split" ? 2 : 1), 0) + a.extra.length;
-/** Two steps are worth offering past five fields. */
-export const suggestSteps = (a: Answers) => fieldCount(a) > 5;
 
 const slug = (s: string, i: number) =>
   `q.${
@@ -183,24 +189,68 @@ export function buildForm(a: Answers, copy: Copy = {}): Form {
   };
 }
 
-/** A short name for the form from its goal and place: "Demo request, pricing page". */
-export function formName(a: Answers): string {
-  const goal = { demo: "Demo request", contact: "Contact sales", trial: "Free trial", newsletter: "Newsletter", event: "Event signup", download: "Download", partner: "Partner application", other: "Form" }[a.goal];
-  const place = { hero: "", pricing: "pricing page", popup: "popup", page: "", blog: "blog" }[a.place];
-  return place ? `${goal}, ${place}` : goal;
+/** Ticks or unticks a field. A full name and a split name never both stay ticked. */
+export function togglePick(fields: Answers["fields"], pick: Pick): Answers["fields"] {
+  if (fields.some((f) => f.pick === pick)) return fields.filter((f) => f.pick !== pick);
+  const other = pick === "name" ? "name_split" : pick === "name_split" ? "name" : null;
+  return [...fields.filter((f) => f.pick !== other), { pick, required: false }];
 }
+
+/** Why the after-the-submit answer can't be used yet, or null. A booking link can be added later; a page can't. */
+export function afterProblem(after: After): string | null {
+  const url = after.kind === "message" ? "" : after.url.trim();
+  if (after.kind === "redirect") return !url ? "Paste the page's address." : linkProblem("link", url) ? "Paste the full address, starting with https://." : null;
+  if (after.kind === "meeting" && url) return linkProblem(after.tool, url);
+  return null;
+}
+
+/** A short name for the form from its goal: "Demo request". */
+export function formName(a: Answers): string {
+  return GOALS[a.goal].name;
+}
+
+/**
+ * The line the chat ends on: "Demo request: 4 fields, books on Calendly, sends to HubSpot". `names` are the
+ * connected tools' names by source id.
+ */
+export function summaryLine(a: Answers, names: Record<string, string> = {}): string {
+  const n = buildForm(a).steps.reduce((sum, s) => sum + s.fields.length, 0);
+  const after =
+    a.after.kind === "meeting"
+      ? a.after.tool === "link"
+        ? "books a meeting"
+        : `books on ${SCHEDULERS.find((s) => s.value === (a.after as { tool: SchedulerTool }).tool)?.label ?? "a scheduler"}`
+      : a.after.kind === "redirect"
+        ? `goes to ${hostOf(a.after.url) || "a page"}`
+        : "shows a message";
+  const to = [...a.send.sources.map((id) => names[id] ?? "a tool"), ...(a.send.slack.trim() ? ["Slack"] : [])];
+  const send = to.length ? `sends to ${to.length > 1 ? `${to.slice(0, -1).join(", ")} and ${to[to.length - 1]}` : to[0]}` : "saves to Claritia";
+  return `${formName(a)}: ${n} field${n === 1 ? "" : "s"}, ${after}, ${send}`;
+}
+
+const hostOf = (u: string) => {
+  try {
+    return new URL(u).hostname.replace(/^www\./, "");
+  } catch {
+    return "";
+  }
+};
 
 // Reading a first sentence ---------------------------------------------------------------------------------------
 
 const has = (t: string, re: RegExp) => re.test(t);
 
+/** What a sentence gives away. Only what's here changes when it's laid over answers. */
+export type Found = { goal?: Goal; place?: Place; picks: Pick[]; workOnly?: boolean; steps?: "one" | "two"; after?: After; sources?: string[] };
+
 /**
- * Answers a first sentence gives away, by keywords: "demo form for the pricing page with phone, sends to HubSpot".
- * Returns the answers and which questions they settle, so those are skipped. `tools` are the connected tools.
+ * Answers a sentence gives away, by keywords: "demo form for the pricing page with phone, sends to HubSpot". Returns
+ * the answers (a goal's defaults with the sentence laid over), what it found, and which questions it settles, so
+ * those are skipped. `tools` are the connected tools.
  */
-export function readSentence(text: string, tools: { id: string; kind: string; name: string }[] = []): { answers: Answers; settled: QuestionId[] } {
+export function readSentence(text: string, tools: { id: string; kind: string; name: string }[] = []): { answers: Answers; settled: QuestionId[]; found: Found } {
   const t = ` ${text.toLowerCase()} `;
-  const settled = new Set<QuestionId>();
+  const found: Found = { picks: [] };
   const goal: Goal | null = has(t, /\bdemo/) ? "demo"
     : has(t, /\b(contact|sales|quote|talk to)/) ? "contact"
     : has(t, /\btrial|sign ?up for (the|a) (app|product)/) ? "trial"
@@ -209,13 +259,9 @@ export function readSentence(text: string, tools: { id: string; kind: string; na
     : has(t, /\bdownload|e-?book|whitepaper|guide|report|gated/) ? "download"
     : has(t, /\bpartner|reseller|affiliate|agenc/) ? "partner"
     : null;
-  const a = defaults(goal ?? "demo");
-  if (goal) settled.add("goal");
+  if (goal) found.goal = goal;
   const place: Place | null = has(t, /\bpricing/) ? "pricing" : has(t, /\bpop-?up|modal/) ? "popup" : has(t, /\bblog|article|post\b/) ? "blog" : has(t, /\bhome ?page|hero|landing/) ? "hero" : has(t, /\bown page|a link|standalone|hosted/) ? "page" : null;
-  if (place) {
-    a.place = place;
-    settled.add("place");
-  }
+  if (place) found.place = place;
   const ask: [RegExp, Pick][] = [
     [/\bphone|mobile|call\b/, "phone"],
     [/\b(company|organi[sz]ation) size|employees|headcount|over \d+ (people|employees)/, "company_size"],
@@ -225,45 +271,58 @@ export function readSentence(text: string, tools: { id: string; kind: string; na
     [/\bmessage|notes?\b|comments?|what they need|how can we help/, "message"],
     [/\bbudget/, "budget"],
     [/\btimeline|when they want|timeframe/, "timeline"],
+    [/\bteam size|size of (their|the) team|how big .*team/, "team_size"],
     [/\bhow (did )?they (hear|found)|heard about|referral source/, "source"],
     [/\bfirst and last|first name/, "name_split"],
     [/\bfull name|\bname\b/, "name"],
     [/\bcompany\b(?! size)/, "company"],
   ];
-  const named = ask.filter(([re]) => has(t, re)).map(([, p]) => p);
-  if (named.length) {
-    for (const p of named)
-      if (!a.fields.some((f) => f.pick === p) && !(p === "name" && a.fields.some((f) => f.pick === "name_split"))) a.fields.push({ pick: p, required: false });
-    settled.add("fields");
-  }
-  if (has(t, /\b(work|business|company) e-?mails?( only)?|no (gmail|free)/)) {
-    a.workOnly = true;
-    settled.add("work");
-  } else if (has(t, /\bany e-?mail|personal e-?mail/)) {
-    a.workOnly = false;
-    settled.add("work");
-  }
-  if (has(t, /\btwo|2|multi-?step|steps\b/) && has(t, /\bsteps?\b/)) {
-    a.steps = "two";
-    settled.add("steps");
-  } else if (has(t, /\bone page|single page|short\b/)) {
-    a.steps = "one";
-    settled.add("steps");
-  }
+  found.picks = ask.filter(([re]) => has(t, re)).map(([, p]) => p);
+  if (has(t, /\b(work|business|company) e-?mails?( only)?|no (gmail|free)/)) found.workOnly = true;
+  else if (has(t, /\bany e-?mail|personal e-?mail/)) found.workOnly = false;
+  if (has(t, /\btwo|2|multi-?step|steps\b/) && has(t, /\bsteps?\b/)) found.steps = "two";
+  else if (has(t, /\bone page|single page|short\b/)) found.steps = "one";
   const tool = SCHEDULERS.find((s) => s.value !== "link" && has(t, new RegExp(`\\b${s.label.split(" ")[0].toLowerCase().replace(".", "\\.")}`)));
-  if (tool) {
-    a.after = { kind: "meeting", tool: tool.value, url: "", perOwner: true };
-    settled.add("after");
-  } else if (has(t, /\bbook (a )?(call|meeting|time)|schedul/)) {
-    a.after = { kind: "meeting", tool: "calendly", url: "", perOwner: true };
+  if (tool) found.after = { kind: "meeting", tool: tool.value, url: "", perOwner: true };
+  else if (has(t, /\bbook (a )?(call|meeting|time)|schedul/)) found.after = { kind: "meeting", tool: "calendly", url: "", perOwner: true };
+  else if (has(t, /\b(thank(s|-you)|show a) message/)) found.after = { kind: "message" };
+  const sources = tools.filter((s) => has(t, new RegExp(`\\b${s.kind.replace(/[^a-z]/g, "")}|\\b${s.name.toLowerCase().replace(/[^a-z0-9 ]/g, "")}\\b`)));
+  if (sources.length) found.sources = sources.map((s) => s.id);
+  const r = fillFrom(defaults(goal ?? "demo"), found);
+  return { answers: r.answers, settled: r.settled, found };
+}
+
+/**
+ * Lays what a sentence found over answers already given, and says which questions that settles. A new goal takes its
+ * own contact fields first, but keeps an after-the-submit already `answered`; named fields are added, never removed;
+ * a full name and a split name never both stay.
+ */
+export function fillFrom(a: Answers, found: Found, answered: QuestionId[] = []): { answers: Answers; settled: QuestionId[] } {
+  const settled = new Set<QuestionId>();
+  let next: Answers = { ...a, fields: [...a.fields], send: { ...a.send } };
+  if (found.goal) {
+    if (found.goal !== a.goal) next = { ...withGoal(next, found.goal), ...(answered.includes("after") ? { after: a.after } : {}) };
+    settled.add("goal");
+  }
+  if (found.place) next.place = found.place;
+  for (const p of found.picks) {
+    if (next.fields.some((f) => f.pick === p) || (p === "name" && next.fields.some((f) => f.pick === "name_split"))) continue;
+    if (p === "name_split") next.fields = next.fields.filter((f) => f.pick !== "name");
+    next.fields = [...next.fields, { pick: p, required: false }];
+  }
+  if (found.picks.some((p) => groupOf(p) === "collect")) settled.add("fields");
+  if (found.picks.some((p) => groupOf(p) === "qualify")) settled.add("qualify");
+  if (found.workOnly !== undefined) next.workOnly = found.workOnly;
+  if (found.steps) next.steps = found.steps;
+  if (found.after) {
+    next.after = found.after;
     settled.add("after");
   }
-  const sources = tools.filter((s) => has(t, new RegExp(`\\b${s.kind.replace(/[^a-z]/g, "")}|\\b${s.name.toLowerCase().replace(/[^a-z0-9 ]/g, "")}\\b`)));
-  if (sources.length) {
-    a.send.sources = sources.map((s) => s.id);
+  if (found.sources) {
+    next.send = { ...next.send, sources: found.sources };
     settled.add("send");
   }
-  return { answers: a, settled: QUESTIONS.map((q) => q.id).filter((id) => settled.has(id)) };
+  return { answers: next, settled: QUESTIONS.map((q) => q.id).filter((id) => settled.has(id)) };
 }
 
 /**

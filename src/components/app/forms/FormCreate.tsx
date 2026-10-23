@@ -1,23 +1,28 @@
 "use client";
 
-// A new form (docs/form-builder-v2.md Parts 1 to 3): one box that asks what form you need, then three ways in. Ask me
-// goes through eight questions, one at a time, answered with clicks, while the real form builds itself on the right
-// in your site's style. Templates and Build by hand are the other two ways. All three end on the form's own page,
-// ready to publish and embed.
+// A new form (docs/form-studio.md Part 1): a chat asks five questions, one at a time, each answered with a click and
+// each with a good answer already picked, so Enter goes straight through. A typed sentence fills in what it can and
+// skips those questions. It ends on a one-line summary and Create form, which opens the form on its Design tab.
+// Templates and Start blank are the other two ways in.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Tokens } from "@/lib/forms/brand";
 import {
+  afterProblem,
   buildForm,
   defaults,
+  fillFrom,
   formName,
+  GOAL_CHOICES,
   GOALS,
   PICKS,
-  PLACES,
   QUESTIONS,
+  readQuestion,
   readSentence,
-  suggestSteps,
+  summaryLine,
+  togglePick,
   withGoal,
+  type After,
   type Answers,
   type Copy,
   type Extra,
@@ -28,15 +33,13 @@ import { SCHEDULERS, type SchedulerTool } from "@/lib/forms/schedule";
 import { emptyForm, type Form } from "@/lib/forms/schema";
 import { TEMPLATES } from "@/lib/forms/templates";
 import { CATALOG, entryOf } from "@/lib/sources/catalog";
-import { ArrowLeft, Chat, Check, CornerDownLeft, Grid, Inbox, Lock, Plus, Wand, X } from "../../Icons";
-import { BrandLogo } from "../BrandLogo";
+import { ArrowLeft, ArrowUp, Check, Inbox, Lock, Plus, Undo } from "../../Icons";
 import { AiAvatar } from "../Ai";
-import { Badge, Button, ErrorNote, errorText, Loading, must, Page, postJson, useLoad, type ViewProps } from "../ui";
-import { PreviewPane } from "./Preview";
+import { BrandLogo } from "../BrandLogo";
+import { Button, ErrorNote, errorText, Input, Loading, must, Page, postJson, useLoad, type ViewProps } from "../ui";
 import { FormPreview, type Kit } from "./shared";
 
 type Tool = { id: string; kind: string; name: string };
-type Phase = "start" | "ask" | "templates";
 const PUSHES = new Set(CATALOG.filter((e) => e.twoWay || e.pushes).map((e) => e.kind));
 const hostOf = (u: string) => {
   try {
@@ -109,18 +112,21 @@ function useBrand({ sb, session, ws }: Pick<ViewProps, "sb" | "session" | "ws">,
   return { site, kit, tokens: (kit?.tokens ?? {}) as Partial<Tokens>, scan, error };
 }
 
+const ORDER = QUESTIONS.map((q) => q.id);
+type Current = QuestionId | "done";
+
 function Create({ sb, session, ws, navigate, tools, site: firstSite, kits }: ViewProps & { tools: Tool[]; site: string; kits: Kit[] }) {
   const brand = useBrand({ sb, session, ws }, firstSite, kits);
-  const [phase, setPhase] = useState<Phase>("start");
-  const [sentence, setSentence] = useState("");
-  const [answers, setAnswers] = useState<Answers>(() => defaults("demo"));
+  const [templates, setTemplates] = useState(false);
+  // Every connected tool gets the leads unless unticked.
+  const [answers, setAnswers] = useState<Answers>(() => ({ ...defaults("demo"), send: { sources: tools.map((t) => t.id), slack: "", webhook: "" } }));
   const [settled, setSettled] = useState<Set<QuestionId>>(new Set());
-  const [current, setCurrent] = useState<QuestionId | "done">("goal");
+  const [current, setCurrent] = useState<Current>("goal");
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
 
-  /** Make the form, add where its leads go, and open it. */
-  const create = async (name: string, form: Form, o: { sources?: string[]; slack?: string; tab?: string } = {}) => {
+  /** Make the form, add where its leads go, and open it on its Design tab. */
+  const create = async (name: string, form: Form, o: { sources?: string[]; slack?: string } = {}) => {
     setError("");
     const id = must(await sb.rpc("form_create", { p_ws: ws.id, p_name: name, p_draft: form, p_brand_kit: brand.kit?.id ?? null, p_kind: "built" })) as string;
     const notes: string[] = [];
@@ -130,35 +136,19 @@ function Create({ sb, session, ws, navigate, tools, site: firstSite, kits }: Vie
     }
     if (o.slack) await postJson(session, "/api/forms/destination", { workspaceId: ws.id, formId: id, kind: "slack", url: o.slack, name: "Slack" }).catch((e) => notes.push(`Slack: ${errorText(e)}`));
     try {
-      if (o.tab) sessionStorage.setItem(`claritia:form-tab:${id}`, o.tab);
       if (notes.length) sessionStorage.setItem(`claritia:form-note:${id}`, notes.join(" "));
     } catch {}
-    navigate("forms", id);
+    navigate("forms", id, "tab=design");
   };
   const run = async (label: string, fn: () => Promise<void>) => {
     setBusy(label);
+    setError("");
     try {
       await fn();
     } catch (e) {
       setError(errorText(e));
       setBusy("");
     }
-  };
-
-  const begin = (text: string) => {
-    const t = text.trim();
-    if (t) {
-      const r = readSentence(t, tools);
-      setAnswers(r.answers);
-      setSettled(new Set(r.settled));
-      setCurrent(QUESTIONS.find((q) => !r.settled.includes(q.id))?.id ?? "done");
-    } else {
-      setAnswers(defaults("demo"));
-      setSettled(new Set());
-      setCurrent("goal");
-    }
-    setSentence(t);
-    setPhase("ask");
   };
 
   const finish = () =>
@@ -171,28 +161,20 @@ function Create({ sb, session, ws, navigate, tools, site: firstSite, kits }: Vie
         new Promise<Copy>((r) => setTimeout(() => r({}), 12_000)),
       ]);
       setBusy("create");
-      await create(formName(answers), buildForm(answers, copy), { sources: answers.send.sources, slack: answers.send.slack.trim() || undefined, tab: "share" });
+      await create(formName(answers), buildForm(answers, copy), { sources: answers.send.sources, slack: answers.send.slack.trim() || undefined });
     });
 
-  if (phase === "start")
-    return (
-      <Start
-        onSentence={begin}
-        onAsk={() => begin("")}
-        onTemplates={() => setPhase("templates")}
-        onBlank={() => run("blank", () => create("Untitled form", emptyForm(), { tab: "build" }))}
-        busy={!!busy}
-        error={error}
-      />
-    );
-  if (phase === "templates")
+  if (templates)
     return (
       <Templates
         tokens={brand.tokens}
-        back={() => setPhase("start")}
+        back={() => {
+          setError("");
+          setTemplates(false);
+        }}
         busy={busy}
         error={error}
-        pick={(name, form) => run(name, () => create(name, form, { tab: "share" }))}
+        pick={(name, form) => run(name, () => create(name, form))}
       />
     );
   return (
@@ -203,115 +185,57 @@ function Create({ sb, session, ws, navigate, tools, site: firstSite, kits }: Vie
       setSettled={setSettled}
       current={current}
       setCurrent={setCurrent}
-      sentence={sentence}
       tools={tools}
-      brand={brand}
-      session={session}
-      ws={ws}
       busy={busy}
       error={error}
       finish={finish}
-      back={() => setPhase("start")}
+      onTemplates={() => {
+        setError("");
+        setTemplates(true);
+      }}
+      onBlank={() => run("blank", () => create("Untitled form", emptyForm()))}
     />
   );
 }
 
-// The first screen ---------------------------------------------------------------------------------------------
+// The chat ------------------------------------------------------------------------------------------------------
 
-const TRY = ["Demo form for the pricing page that books a Calendly call", "Newsletter signup for the blog", "Contact sales with phone and budget, sends to HubSpot"];
-
-function Start({ onSentence, onAsk, onTemplates, onBlank, busy, error }: { onSentence: (t: string) => void; onAsk: () => void; onTemplates: () => void; onBlank: () => void; busy: boolean; error: string }) {
-  const [text, setText] = useState("");
-  const box = useRef<HTMLTextAreaElement>(null);
-  useEffect(() => box.current?.focus(), []);
-  const ways = [
-    { key: "ask", icon: <Chat size={18} />, title: "Ask me", text: "Eight quick questions, answered with clicks.", on: onAsk },
-    { key: "templates", icon: <Grid size={18} />, title: "Templates", text: "Twelve forms, already in your brand.", on: onTemplates },
-    { key: "blank", icon: <Plus size={18} />, title: "Build by hand", text: "Drag fields onto a blank form.", on: onBlank },
-  ];
-  return (
-    <div className="paper flex min-h-full flex-col items-center px-4 pt-[12vh] pb-16">
-      <div className="anim-rise flex w-full max-w-[680px] flex-col gap-6">
-        <div className="flex flex-col items-center gap-3 text-center">
-          <p className="label-mono">new form</p>
-          <div className="flex items-center gap-4">
-            <h2 className="font-semibold tracking-[-0.02em] text-left text-[34px] leading-[1.05] text-ink">
-              What form <span className="text-muted">do you need?</span>
-            </h2>
-          </div>
-        </div>
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            if (text.trim()) onSentence(text);
-          }}
-          className="frame flex flex-col gap-2 rounded-2xl border border-line-strong bg-card p-4 transition-colors focus-within:border-ink"
-        >
-          <textarea
-            ref={box}
-            value={text}
-            rows={2}
-            onChange={(e) => setText(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey) {
-                e.preventDefault();
-                if (text.trim()) onSentence(text);
-              }
-            }}
-            placeholder="Describe it in a sentence, or pick a way in below"
-            aria-label="What form do you need?"
-            className="w-full resize-none bg-transparent px-1 text-[15px] leading-relaxed text-ink outline-none placeholder:text-faint"
-          />
-          <div className="flex items-center gap-2">
-            <span className="hidden font-mono text-[11.5px] text-muted sm:inline">Enter to start</span>
-            <Button type="submit" className="ml-auto" disabled={!text.trim() || busy} aria-label="Start">
-              <CornerDownLeft size={14} />
-              Start
-            </Button>
-          </div>
-        </form>
-        <div className="flex flex-wrap justify-center gap-1.5">
-          {TRY.map((t) => (
-            <button key={t} type="button" onClick={() => onSentence(t)} className="press h-8 rounded-full border border-line-strong bg-card px-3 text-[12.5px] text-body transition-transform duration-[140ms] hover:-translate-y-px hover:border-ink hover:text-ink">
-              {t}
-            </button>
-          ))}
-        </div>
-        <ErrorNote message={error} />
-        <div className="grid gap-3 sm:grid-cols-3">
-          {ways.map((w) => (
-            <button key={w.key} type="button" disabled={busy} onClick={w.on} className="lift press group flex flex-col gap-2 rounded-2xl border border-line bg-card p-5 text-left hover:border-line-strong disabled:opacity-50">
-              <span className="mb-1 flex size-9 items-center justify-center rounded-full bg-paper-deep text-ink transition-colors group-hover:bg-ink group-hover:text-paper">{w.icon}</span>
-              <span className="text-[14px] font-medium">{w.title}</span>
-              <span className="text-[12.5px] leading-snug text-muted">{w.text}</span>
-            </button>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
+/** What the open question does with the keys: 1 to 9 pick, Enter continues. */
+type Act = { count: number; pick: (i: number) => void; next: () => void };
+type ActRef = React.RefObject<Act | null>;
+function useAct(actRef: ActRef, a: Act) {
+  useEffect(() => {
+    actRef.current = a;
+  });
 }
 
-// The questions ------------------------------------------------------------------------------------------------
+const COLLECT = PICKS.filter((p) => p.group === "collect");
+const QUALIFY = PICKS.filter((p) => p.group === "qualify");
+const AFTERS: { kind: After["kind"]; label: string }[] = [
+  { kind: "message", label: "Show a message" },
+  { kind: "redirect", label: "Go to a page" },
+  { kind: "meeting", label: "Book a meeting" },
+];
+const TYPE: Record<Extra["type"], string> = { text: "Short answer", textarea: "Long answer", choice: "Pick one", multi: "Pick many", number: "Number", date: "Date", url: "Link", checkbox: "Checkbox" };
 
-type Brand = ReturnType<typeof useBrand>;
-
-function summary(q: QuestionId, a: Answers, tools: Tool[]): string {
+/** Your answer to a question, as the bubble shows it. */
+function said(q: QuestionId, a: Answers, tools: Tool[]): string {
   switch (q) {
     case "goal":
       return GOALS[a.goal].label;
-    case "place":
-      return PLACES.find((p) => p.value === a.place)?.label ?? "";
     case "fields":
-      return [a.workOnly ? "Work email" : "Email", ...PICKS.filter((p) => a.fields.some((f) => f.pick === p.value)).map((p) => `${p.label}${a.fields.find((f) => f.pick === p.value)?.required ? " (required)" : ""}`)].join(", ");
-    case "extra":
-      return a.extra.length ? a.extra.map((x) => x.label).join(", ") : "No";
-    case "work":
-      return a.workOnly ? "Yes, business emails only" : "No, any email";
-    case "steps":
-      return a.steps === "two" ? "Two steps" : "One page";
-    case "after":
-      return a.after.kind === "meeting" ? `Book a meeting on ${SCHEDULERS.find((s) => s.value === (a.after as { tool: SchedulerTool }).tool)?.label}` : a.after.kind === "redirect" ? `Open ${a.after.url || "a page"}` : "Show a thank-you message";
+      return [a.workOnly ? "Work email" : "Email", ...COLLECT.filter((p) => a.fields.some((f) => f.pick === p.value)).map((p) => p.label)].join(", ");
+    case "qualify": {
+      const list = [...QUALIFY.filter((p) => a.fields.some((f) => f.pick === p.value)).map((p) => p.label), ...a.extra.map((x) => x.label)];
+      return list.length ? list.join(", ") : "None";
+    }
+    case "after": {
+      const x = a.after;
+      if (x.kind === "message") return "Show a message";
+      if (x.kind === "redirect") return `Go to ${hostOf(x.url) || "a page"}`;
+      const tool = SCHEDULERS.find((s) => s.value === x.tool);
+      return x.tool === "link" || !tool ? "Book a meeting" : `Book a meeting on ${tool.label}`;
+    }
     case "send":
       return ["Claritia", ...a.send.sources.map((id) => tools.find((t) => t.id === id)?.name ?? "A tool"), ...(a.send.slack ? ["Slack"] : [])].join(", ");
   }
@@ -324,461 +248,455 @@ function Ask({
   setSettled,
   current,
   setCurrent,
-  sentence,
   tools,
-  brand,
-  session,
-  ws,
   busy,
   error,
   finish,
-  back,
+  onTemplates,
+  onBlank,
 }: {
   answers: Answers;
   setAnswers: (a: Answers) => void;
   settled: Set<QuestionId>;
   setSettled: (s: Set<QuestionId>) => void;
-  current: QuestionId | "done";
-  setCurrent: (q: QuestionId | "done") => void;
-  sentence: string;
+  current: Current;
+  setCurrent: (q: Current) => void;
   tools: Tool[];
-  brand: Brand;
-  session: ViewProps["session"];
-  ws: ViewProps["ws"];
   busy: string;
   error: string;
   finish: () => void;
-  back: () => void;
+  onTemplates: () => void;
+  onBlank: () => void;
 }) {
-  // The open question's unsaved choices show in the form as they're made.
-  const [draft, setDraft] = useState<Answers | null>(null);
-  const form = useMemo(() => buildForm(draft ?? a), [draft, a]);
+  const act = useRef<Act | null>(null);
   const end = useRef<HTMLDivElement>(null);
-  const order = QUESTIONS.map((q) => q.id);
-  const answer = (q: QuestionId, next: Answers) => {
-    setDraft(null);
+  const box = useRef<HTMLInputElement>(null);
+  const [text, setText] = useState("");
+  const [miss, setMiss] = useState(false);
+  // A sentence can change the open question's answers, so its panel starts over.
+  const [round, setRound] = useState(0);
+
+  const answer = (q: QuestionId, next: Answers, unsettle: QuestionId[] = []) => {
     setAnswers(next);
     const s = new Set(settled);
     s.add(q);
+    for (const u of unsettle) s.delete(u);
     setSettled(s);
-    const i = order.indexOf(q);
-    setCurrent(order.slice(i + 1).find((x) => !s.has(x)) ?? "done");
+    setCurrent(ORDER.slice(ORDER.indexOf(q) + 1).find((x) => !s.has(x)) ?? "done");
   };
-  const prev = () => {
-    setDraft(null);
-    const i = current === "done" ? order.length : order.indexOf(current);
-    if (i <= 0) return back();
-    setCurrent(order[i - 1]);
+  const pickGoal = (g: Goal) => {
+    if (g === a.goal) return answer("goal", a);
+    // A new goal brings its own contact fields, so that question is asked again; a chosen next step stays.
+    const next = withGoal(a, g);
+    answer("goal", settled.has("after") ? { ...next, after: a.after } : next, ["fields"]);
   };
+  const back = useCallback(() => {
+    const i = current === "done" ? ORDER.length : ORDER.indexOf(current);
+    if (i > 0) setCurrent(ORDER[i - 1]);
+  }, [current, setCurrent]);
+
+  const read = () => {
+    const t = text.trim();
+    if (!t || busy) return;
+    const r = readSentence(t, tools);
+    if (!r.settled.length) return setMiss(true);
+    const f = fillFrom(a, r.found, [...settled]);
+    const s = new Set([...settled, ...f.settled]);
+    if (r.found.goal && r.found.goal !== a.goal && !f.settled.includes("fields")) s.delete("fields");
+    setAnswers(f.answers);
+    setSettled(s);
+    setCurrent(ORDER.find((x) => !s.has(x)) ?? "done");
+    setRound((n) => n + 1);
+    setText("");
+    setMiss(false);
+  };
+
+  // The open panel says what the keys do; at the end, Enter creates the form.
   useEffect(() => {
-    end.current?.scrollIntoView({ block: "end", behavior: "smooth" });
-  }, [current]);
-  const done = settled.size;
-  const step = current === "done" ? order.length : order.indexOf(current) + 1;
+    if (current === "done") act.current = { count: 0, pick: () => {}, next: () => !busy && finish() };
+  });
 
-  return (
-    <div className="grid h-full min-h-0 lg:grid-cols-[minmax(420px,560px)_1fr]">
-      <section className="flex min-h-0 flex-col border-line lg:border-r">
-        <div className="flex h-11 shrink-0 items-center gap-3 border-b border-line px-4">
-          <button type="button" onClick={prev} className="press inline-flex h-8 items-center gap-1.5 rounded-full px-3 text-[12.5px] font-medium text-muted hover:bg-hover hover:text-ink">
-            <ArrowLeft size={14} />
-            Back
-          </button>
-          <span className="ml-auto font-mono text-[11.5px] text-muted tabular-nums">{current === "done" ? "Ready" : `${step} of ${order.length}`}</span>
-          <span className="h-1.5 w-24 overflow-hidden rounded-full bg-paper-deep" aria-hidden="true">
-            <span className="block h-1.5 rounded-full bg-ink transition-[width] duration-[320ms] ease-out" style={{ width: `${(Math.max(done, step - 1) / order.length) * 100}%` }} />
-          </span>
-        </div>
-        <div className="min-h-0 flex-1 overflow-auto px-4 py-5">
-          <div className="flex flex-col gap-4">
-            {sentence ? <Mine text={sentence} /> : null}
-            {QUESTIONS.map((q) =>
-              q.id === current ? (
-                <div key={q.id} className="anim-rise-sm flex flex-col gap-3">
-                  <Theirs text={q.ask} />
-                  <Panel q={q.id} a={a} answer={answer} live={setDraft} tools={tools} session={session} ws={ws} />
-                </div>
-              ) : settled.has(q.id) ? (
-                <div key={q.id} className="flex flex-col gap-2">
-                  <Theirs text={q.ask} faint />
-                  <Mine
-                    text={summary(q.id, a, tools)}
-                    onClick={() => {
-                      setDraft(null);
-                      setCurrent(q.id);
-                    }}
-                  />
-                </div>
-              ) : null,
-            )}
-            {current === "done" ? (
-              <div className="anim-rise-sm flex flex-col gap-3">
-                <Theirs text="Here's your form. Create it, then publish and embed it." mood={busy ? "thinking" : "idle"} />
-                <ErrorNote message={error} />
-                <div>
-                  <Button onClick={finish} disabled={!!busy} className="h-10 px-5 text-[14px]">
-                    <Wand size={15} />
-                    {busy === "words" ? "Writing the words…" : busy === "create" ? "Creating…" : "Create form"}
-                  </Button>
-                </div>
-              </div>
-            ) : null}
-            <div ref={end} />
-          </div>
-        </div>
-      </section>
-      <PreviewPane form={form} brand={brand} popup={(draft ?? a).place === "popup"} />
-    </div>
-  );
-}
-
-/** The AI asks. */
-function Theirs({ text, faint, mood = "idle" }: { text: string; faint?: boolean; mood?: "idle" | "thinking" }) {
-  return (
-    <div className="flex items-start gap-2.5">
-      <span className={faint ? "opacity-60" : ""}>
-        <AiAvatar size={faint ? 22 : 28} working={mood === "thinking"} />
-      </span>
-      <p className={`pt-1 text-[14.5px] leading-snug ${faint ? "text-muted" : "font-medium text-ink"}`}>{text}</p>
-    </div>
-  );
-}
-
-function Mine({ text, onClick }: { text: string; onClick?: () => void }) {
-  const cls = "anim-rise-sm max-w-[85%] self-end rounded-2xl rounded-br-sm border border-line bg-paper-deep px-3.5 py-2 text-left text-[13.5px] text-ink";
-  return onClick ? (
-    <button type="button" onClick={onClick} title="Change" className={`${cls} transition-colors hover:border-ink`}>
-      {text}
-    </button>
-  ) : (
-    <p className={cls}>{text}</p>
-  );
-}
-
-/** One choice: a pill with its number key. */
-function Option({ n, label, on, selected, hint, children }: { n?: number; label: string; on: () => void; selected?: boolean; hint?: string; children?: React.ReactNode }) {
-  return (
-    <button
-      type="button"
-      onClick={on}
-      aria-pressed={selected}
-      className={`press flex min-h-10 items-center gap-2.5 rounded-full border py-2 pr-4 pl-2.5 text-left text-[13.5px] transition-[background-color,border-color,color,transform] duration-[140ms] ${selected ? "border-ink bg-ink text-paper" : "border-line-strong bg-card text-ink hover:border-ink"}`}
-    >
-      {n ? <span className={`flex size-5 shrink-0 items-center justify-center rounded-full border font-mono text-[10.5px] ${selected ? "border-paper/40" : "border-line-strong text-muted"}`}>{n}</span> : null}
-      {children}
-      <span className="min-w-0 flex-1">{label}</span>
-      {hint ? <span className={`font-mono text-[11.5px] ${selected ? "text-paper/70" : "text-muted"}`}>{hint}</span> : null}
-    </button>
-  );
-}
-
-/** Number keys pick a choice, outside text boxes. */
-function useKeys(count: number, pick: (i: number) => void) {
+  // Keys: 1 to 9 pick, Enter continues, Cmd or Ctrl+Z goes back a step. Text boxes keep their own keys, except the
+  // empty composer.
   useEffect(() => {
     const on = (e: KeyboardEvent) => {
-      if ((e.target as HTMLElement)?.closest?.("input, textarea, [contenteditable]") || e.metaKey || e.ctrlKey || e.altKey) return;
-      const n = Number(e.key);
-      if (n >= 1 && n <= count) {
+      const t = e.target as HTMLElement | null;
+      const field = t?.closest?.("input, textarea, [contenteditable]") as HTMLInputElement | null;
+      const blank = !!field && field === box.current && !field.value;
+      if ((e.metaKey || e.ctrlKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === "z") {
+        if (field && !blank) return;
         e.preventDefault();
-        pick(n - 1);
+        back();
+        return;
+      }
+      if (e.metaKey || e.ctrlKey || e.altKey || busy || (field && !blank) || e.isComposing) return;
+      const now = act.current;
+      if (!now) return;
+      if (/^[1-9]$/.test(e.key) && Number(e.key) <= now.count) {
+        e.preventDefault();
+        now.pick(Number(e.key) - 1);
+        return;
+      }
+      // Enter on an option or a check box continues instead of clicking it again; other buttons click.
+      if (e.key === "Enter" && !e.shiftKey && !field && (!t?.closest?.("button, a") || t.closest("[data-tile]"))) {
+        e.preventDefault();
+        now.next();
       }
     };
     window.addEventListener("keydown", on);
     return () => window.removeEventListener("keydown", on);
-  }, [count, pick]);
+  }, [back, busy]);
+
+  useEffect(() => box.current?.focus(), []);
+  useEffect(() => {
+    const still = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    end.current?.scrollIntoView({ block: "end", behavior: still ? "auto" : "smooth" });
+  }, [current]);
+
+  const panel = (q: QuestionId) => {
+    const key = `${q}-${round}`;
+    switch (q) {
+      case "goal":
+        return <GoalPanel key={key} value={a.goal} act={act} pick={pickGoal} />;
+      case "fields":
+        return <FieldsPanel key={key} a={a} act={act} done={(next) => answer("fields", next)} />;
+      case "qualify":
+        return <QualifyPanel key={key} a={a} act={act} done={(next) => answer("qualify", next)} />;
+      case "after":
+        return <AfterPanel key={key} a={a} act={act} done={(next) => answer("after", next)} />;
+      case "send":
+        return <SendPanel key={key} a={a} tools={tools} act={act} done={(next) => answer("send", next)} />;
+    }
+  };
+  const line = current === "done" ? summaryLine(a, Object.fromEntries(tools.map((t) => [t.id, t.name]))) : "";
+  const cut = line.indexOf(": ");
+
+  return (
+    <div className="flex h-full min-h-0 flex-col">
+      <div className="min-h-0 flex-1 overflow-auto">
+        <div className="mx-auto flex w-full max-w-[680px] flex-col gap-6 px-4 pt-10 pb-8 md:pt-14">
+          <h2 className="text-center text-[28px] leading-[1.1] font-semibold tracking-[-0.02em] text-ink">
+            What form <span className="text-muted">do you need?</span>
+          </h2>
+          {QUESTIONS.map((q, i) =>
+            q.id === current ? (
+              <section key={q.id} aria-label={q.ask} className="anim-rise-sm flex flex-col gap-3">
+                <div className="flex items-start gap-3">
+                  <AiAvatar size={28} />
+                  <h3 className="min-w-0 flex-1 pt-1 text-[15px] leading-snug font-medium text-ink">{q.ask}</h3>
+                  <span className="shrink-0 pt-1.5 text-[12px] text-muted tabular-nums">
+                    {i + 1} of {QUESTIONS.length}
+                  </span>
+                </div>
+                <div className="sm:pl-10">{panel(q.id)}</div>
+              </section>
+            ) : settled.has(q.id) ? (
+              <div key={q.id} className="flex flex-col gap-2">
+                <div className="flex items-start gap-3">
+                  <span className="opacity-60">
+                    <AiAvatar size={22} />
+                  </span>
+                  <p className="pt-0.5 text-[13.5px] text-muted">{q.ask}</p>
+                </div>
+                <button
+                  type="button"
+                  title="Change"
+                  onClick={() => setCurrent(q.id)}
+                  className="press group flex max-w-[85%] items-center gap-2 self-end rounded-2xl rounded-br-md border border-transparent bg-paper-deep py-2 pr-3 pl-3.5 text-left text-[13.5px] text-ink transition-colors duration-[140ms] hover:border-line-strong"
+                >
+                  <span className="min-w-0">{said(q.id, a, tools)}</span>
+                  <Undo size={13} className="text-faint transition-colors duration-[140ms] group-hover:text-ink" />
+                </button>
+              </div>
+            ) : null,
+          )}
+          {current === "done" ? (
+            <section aria-label="Your form" className="anim-rise-sm flex flex-col gap-3">
+              <div className="flex items-start gap-3">
+                <AiAvatar size={28} working={!!busy} />
+                <h3 className="pt-1 text-[15px] leading-snug font-medium text-ink">Here&apos;s your form.</h3>
+              </div>
+              <div className="flex flex-col gap-4 rounded-2xl border border-line bg-card p-5 sm:ml-10">
+                <p className="text-[14.5px] leading-snug">
+                  <span className="font-semibold text-ink">{line.slice(0, cut)}</span>
+                  <span className="text-muted">: {line.slice(cut + 2)}</span>
+                </p>
+                <ErrorNote message={error} />
+                <div>
+                  <Button onClick={finish} disabled={!!busy}>
+                    {busy === "words" ? "Writing the words…" : busy === "create" ? "Creating…" : "Create form"}
+                  </Button>
+                </div>
+              </div>
+            </section>
+          ) : null}
+          <div ref={end} />
+        </div>
+      </div>
+      <div className="shrink-0 px-4 pt-2 pb-5">
+        <div className="mx-auto flex max-w-[680px] flex-col gap-2.5">
+          {current !== "done" ? <ErrorNote message={error} /> : null}
+          <div className="flex items-center gap-2 rounded-2xl border border-line-strong bg-card py-1.5 pr-1.5 pl-4 transition-colors duration-[140ms] focus-within:border-ink">
+            <input
+              ref={box}
+              value={text}
+              onChange={(e) => {
+                setText(e.target.value);
+                setMiss(false);
+              }}
+              onKeyDown={(e) => {
+                if (e.key !== "Enter" || e.shiftKey || e.nativeEvent.isComposing) return;
+                e.preventDefault();
+                if (text.trim()) read();
+                else if (!busy) act.current?.next();
+              }}
+              placeholder="Describe it, or answer above"
+              aria-label="Describe your form"
+              maxLength={500}
+              className="h-9 min-w-0 flex-1 bg-transparent text-[14.5px] text-ink outline-none placeholder:text-faint"
+            />
+            <button type="button" aria-label="Send" title="Send" onClick={read} disabled={!text.trim() || !!busy} className="press flex size-9 shrink-0 items-center justify-center rounded-full bg-ink text-paper transition-opacity duration-[140ms] disabled:opacity-30">
+              <ArrowUp size={16} />
+            </button>
+          </div>
+          {miss ? <p className="text-center text-[12.5px] text-muted">Nothing to fill in from that. Pick an answer above.</p> : null}
+          <div className="flex justify-center gap-5 text-[12.5px] font-medium">
+            <button type="button" onClick={onTemplates} disabled={!!busy} className="text-muted transition-colors duration-[140ms] hover:text-ink disabled:opacity-45">
+              Start from a template
+            </button>
+            <button type="button" onClick={onBlank} disabled={!!busy} className="text-muted transition-colors duration-[140ms] hover:text-ink disabled:opacity-45">
+              {busy === "blank" ? "Creating…" : "Start blank"}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 }
 
-function Single<T extends string>({ options, value, onPick }: { options: { value: T; label: string; hint?: string }[]; value?: T; onPick: (v: T) => void }) {
-  const pick = useCallback((i: number) => onPick(options[i].value), [options, onPick]);
-  useKeys(options.length, pick);
+/** An option card: picking it answers. The number is its key. */
+function OptionCard({ n, label, selected, onClick }: { n: number; label: string; selected: boolean; onClick: () => void }) {
   return (
-    <div className="grid gap-1.5 sm:grid-cols-2">
-      {options.map((o, i) => (
-        <Option key={o.value} n={i + 1} label={o.label} hint={o.hint} selected={value === o.value} on={() => onPick(o.value)} />
+    <button
+      type="button"
+      data-tile
+      aria-pressed={selected}
+      onClick={onClick}
+      className={`press flex min-h-11 items-center gap-2 rounded-lg border bg-card px-3.5 py-2.5 text-left text-[13.5px] font-medium text-ink transition-[border-color,transform] duration-[140ms] ${selected ? "border-ink ring-1 ring-ink" : "border-line-strong hover:border-ink"}`}
+    >
+      <span className="min-w-0 flex-1">{label}</span>
+      <kbd aria-hidden="true" className={`font-mono text-[11px] ${selected ? "text-ink" : "text-faint"}`}>
+        {n}
+      </kbd>
+    </button>
+  );
+}
+
+/** A check box row. `locked` ones are always on. */
+function CheckTile({ n, label, on, toggle, tag, logo }: { n?: number; label: string; on: boolean; toggle?: () => void; tag?: string; logo?: React.ReactNode }) {
+  return (
+    <button
+      type="button"
+      role="checkbox"
+      aria-checked={on}
+      aria-label={label}
+      data-tile
+      disabled={!toggle}
+      onClick={toggle}
+      className={`press flex min-h-10 items-center gap-2.5 rounded-lg border bg-card px-3 py-2 text-left text-[13.5px] text-ink transition-[border-color,transform] duration-[140ms] disabled:cursor-default ${on ? "border-ink" : "border-line-strong hover:border-ink"}`}
+    >
+      <span aria-hidden="true" className={`flex size-4 shrink-0 items-center justify-center rounded-[5px] border transition-colors duration-[140ms] ${on ? "border-ink bg-ink text-paper" : "border-line-strong"}`}>
+        {on ? toggle ? <Check size={11} /> : <Lock size={10} /> : null}
+      </span>
+      {logo}
+      <span className="min-w-0 flex-1 truncate">{label}</span>
+      {tag ? <span className="shrink-0 text-[12px] text-muted">{tag}</span> : null}
+      {n ? (
+        <kbd aria-hidden="true" className="font-mono text-[11px] text-faint">
+          {n}
+        </kbd>
+      ) : null}
+    </button>
+  );
+}
+
+function Continue({ onClick, disabled }: { onClick: () => void; disabled?: boolean }) {
+  return (
+    <div className="flex justify-end">
+      <Button type="button" onClick={onClick} disabled={disabled}>
+        Continue
+      </Button>
+    </div>
+  );
+}
+
+function GoalPanel({ value, act, pick }: { value: Goal; act: ActRef; pick: (g: Goal) => void }) {
+  useAct(act, { count: GOAL_CHOICES.length, pick: (i) => pick(GOAL_CHOICES[i]), next: () => pick(value) });
+  return (
+    <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+      {GOAL_CHOICES.map((g, i) => (
+        <OptionCard key={g} n={i + 1} label={GOALS[g].label} selected={value === g} onClick={() => pick(g)} />
       ))}
     </div>
   );
 }
 
-function Continue({ onClick, label = "Continue", disabled }: { onClick: () => void; label?: string; disabled?: boolean }) {
-  useEffect(() => {
-    const on = (e: KeyboardEvent) => {
-      if (e.key !== "Enter" || (e.target as HTMLElement)?.closest?.("input, textarea, button")) return;
-      e.preventDefault();
-      if (!disabled) onClick();
-    };
-    window.addEventListener("keydown", on);
-    return () => window.removeEventListener("keydown", on);
-  }, [onClick, disabled]);
-  return (
-    <div className="flex items-center gap-2">
-      <Button onClick={onClick} disabled={disabled}>
-        {label}
-      </Button>
-      <span className="hidden font-mono text-[11.5px] text-muted sm:inline">or press Enter</span>
-    </div>
-  );
-}
-
-function Panel({ q, a, answer, live, tools, session, ws }: { q: QuestionId; a: Answers; answer: (q: QuestionId, next: Answers) => void; live: (a: Answers) => void; tools: Tool[]; session: ViewProps["session"]; ws: ViewProps["ws"] }) {
-  switch (q) {
-    case "goal":
-      return <Single<Goal> options={(Object.keys(GOALS) as Goal[]).map((g) => ({ value: g, label: GOALS[g].label }))} value={a.goal} onPick={(g) => answer("goal", withGoal(a, g))} />;
-    case "place":
-      return <Single options={PLACES} value={a.place} onPick={(place) => answer("place", { ...a, place })} />;
-    case "fields":
-      return <Fields a={a} live={live} done={(next) => answer("fields", next)} />;
-    case "extra":
-      return <Extras a={a} live={live} session={session} ws={ws} done={(next) => answer("extra", next)} />;
-    case "work":
-      return (
-        <Single
-          options={[
-            { value: "yes", label: "Yes, block Gmail and the like" },
-            { value: "no", label: "No, any email" },
-          ]}
-          value={a.workOnly ? "yes" : "no"}
-          onPick={(v) => answer("work", { ...a, workOnly: v === "yes" })}
-        />
-      );
-    case "steps":
-      return (
-        <Single
-          options={[
-            { value: "one", label: "One page" },
-            { value: "two", label: "Two steps", hint: suggestSteps(a) ? "Suggested" : undefined },
-          ]}
-          value={a.steps}
-          onPick={(steps) => answer("steps", { ...a, steps })}
-        />
-      );
-    case "after":
-      return <AfterPanel a={a} live={live} done={(next) => answer("after", next)} />;
-    case "send":
-      return <Send a={a} tools={tools} done={(next) => answer("send", next)} />;
-  }
-}
-
-function Fields({ a, live, done }: { a: Answers; live: (a: Answers) => void; done: (a: Answers) => void }) {
-  const [picked, setPickedState] = useState(a.fields);
-  const setPicked = (list: Answers["fields"]) => {
-    setPickedState(list);
-    live({ ...a, fields: list });
-  };
-  const toggle = (pick: (typeof PICKS)[number]["value"]) =>
-    setPicked(picked.some((f) => f.pick === pick) ? picked.filter((f) => f.pick !== pick) : [...picked.filter((f) => !(pick === "name" && f.pick === "name_split") && !(pick === "name_split" && f.pick === "name")), { pick, required: false }]);
-  const require = (pick: string) => setPicked(picked.map((f) => (f.pick === pick ? { ...f, required: !f.required } : f)));
+function FieldsPanel({ a, act, done }: { a: Answers; act: ActRef; done: (a: Answers) => void }) {
+  const [fields, setFields] = useState(a.fields);
+  const pick = (i: number) => setFields((f) => togglePick(f, COLLECT[i].value));
+  const next = () => done({ ...a, fields });
+  useAct(act, { count: COLLECT.length, pick, next });
   return (
     <div className="flex flex-col gap-3">
       <div className="grid gap-1.5 sm:grid-cols-2">
-        <div className="flex min-h-10 items-center gap-2.5 rounded-full border border-ink bg-ink py-2 pr-4 pl-3.5 text-[13.5px] text-paper">
-          <Lock size={13} />
-          <span className="flex-1">{a.workOnly ? "Work email" : "Email"}</span>
-          <span className="font-mono text-[11.5px] text-paper/70">Required</span>
-        </div>
-        {PICKS.map((p) => {
-          const on = picked.find((f) => f.pick === p.value);
-          return (
-            <div key={p.value} className={`flex min-h-10 items-center rounded-full border transition-colors duration-[140ms] ${on ? "border-ink bg-ink text-paper" : "border-line-strong bg-card text-ink hover:border-ink"}`}>
-              <button type="button" onClick={() => toggle(p.value)} aria-pressed={!!on} className="flex flex-1 items-center gap-2.5 self-stretch rounded-full py-2 pr-3 pl-3.5 text-left text-[13.5px]">
-                <span className={`flex size-4 shrink-0 items-center justify-center rounded-full border transition-transform duration-[320ms] ease-spring ${on ? "scale-110 border-paper bg-paper text-ink" : "border-line-strong"}`}>{on ? <Check size={11} /> : null}</span>
-                {p.label}
-              </button>
-              {on ? (
-                <button
-                  type="button"
-                  onClick={() => require(p.value)}
-                  aria-pressed={on.required}
-                  className={`mr-1.5 h-6 rounded-full px-2.5 font-mono text-[11.5px] ${on.required ? "bg-paper text-ink" : "text-paper/60 hover:text-paper"}`}
-                >
-                  Required
-                </button>
-              ) : null}
-            </div>
-          );
-        })}
+        <CheckTile label={a.workOnly ? "Work email" : "Email"} on tag="Required" />
+        {COLLECT.map((p, i) => (
+          <CheckTile key={p.value} n={i + 1} label={p.label} on={fields.some((f) => f.pick === p.value)} toggle={() => pick(i)} />
+        ))}
       </div>
-      <Continue onClick={() => done({ ...a, fields: picked })} />
+      <Continue onClick={next} />
     </div>
   );
 }
 
-function Extras({ a, live, session, ws, done }: { a: Answers; live: (a: Answers) => void; session: ViewProps["session"]; ws: ViewProps["ws"]; done: (a: Answers) => void }) {
-  const [list, setListState] = useState<Extra[]>(a.extra);
-  const setList = (f: (l: Extra[]) => Extra[]) =>
-    setListState((l) => {
-      const next = f(l);
-      queueMicrotask(() => live({ ...a, extra: next }));
-      return next;
-    });
+function QualifyPanel({ a, act, done }: { a: Answers; act: ActRef; done: (a: Answers) => void }) {
+  const [fields, setFields] = useState(a.fields);
+  const [extra, setExtra] = useState(a.extra);
   const [text, setText] = useState("");
-  const [busy, setBusy] = useState(false);
-  const input = useRef<HTMLInputElement>(null);
-  useEffect(() => input.current?.focus(), []);
-  const add = async () => {
+  const pick = (i: number) => setFields((f) => togglePick(f, QUALIFY[i].value));
+  const next = () => done({ ...a, fields, extra });
+  useAct(act, { count: QUALIFY.length, pick, next });
+  const add = () => {
     const t = text.trim();
-    if (!t || busy || list.length >= 10) return;
-    setBusy(true);
-    try {
-      const r = await postJson<{ field: Extra }>(session, "/api/forms/interview", { workspaceId: ws.id, mode: "question", text: t });
-      setList((l) => [...l, r.field]);
-      setText("");
-    } catch {
-      const { readQuestion } = await import("@/lib/forms/interview");
-      setList((l) => [...l, readQuestion(t)]);
-      setText("");
-    } finally {
-      setBusy(false);
-      input.current?.focus();
-    }
+    if (!t) return next();
+    if (extra.length >= 10) return;
+    setExtra((l) => [...l, readQuestion(t)]);
+    setText("");
   };
-  const TYPE: Record<Extra["type"], string> = { text: "Short answer", textarea: "Long answer", choice: "Pick one", multi: "Pick many", number: "Number", date: "Date", url: "Website", checkbox: "Checkbox" };
   return (
     <div className="flex flex-col gap-3">
-      {list.length ? (
-        <ul className="flex flex-col divide-y divide-line overflow-hidden rounded-lg border border-line bg-card">
-          {list.map((x, i) => (
-            <li key={`${x.label}-${i}`} className="anim-rise-sm flex items-center gap-2 py-2 pr-2 pl-3.5 text-[13px]">
-              <span className="min-w-0 flex-1">
-                <span className="block truncate font-medium">{x.label}</span>
-                {x.options?.length ? <span className="block truncate text-[12px] text-muted">{x.options.join(", ")}</span> : null}
-              </span>
-              <Badge>{TYPE[x.type]}</Badge>
-              <button type="button" aria-label="Remove" onClick={() => setList((l) => l.filter((_, j) => j !== i))} className="press flex size-8 items-center justify-center rounded-full text-muted hover:bg-rose-wash hover:text-rose">
-                <X size={14} />
-              </button>
-            </li>
-          ))}
-        </ul>
-      ) : null}
+      <div className="grid gap-1.5 sm:grid-cols-2">
+        {QUALIFY.map((p, i) => (
+          <CheckTile key={p.value} n={i + 1} label={p.label} on={fields.some((f) => f.pick === p.value)} toggle={() => pick(i)} />
+        ))}
+        {extra.map((x, i) => (
+          <CheckTile key={`${x.label}-${i}`} label={x.label} tag={TYPE[x.type]} on toggle={() => setExtra((l) => l.filter((_, j) => j !== i))} />
+        ))}
+      </div>
       <form
         onSubmit={(e) => {
           e.preventDefault();
-          void add();
+          add();
         }}
         className="flex gap-1.5"
       >
-        <input
-          ref={input}
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          placeholder="Which CRM do you use? (HubSpot, Salesforce, Other)"
-          aria-label="A question to ask"
-          className="h-10 min-w-0 flex-1 rounded-sm border border-line-strong bg-card px-3 text-[13.5px] text-ink outline-none placeholder:text-faint focus:border-ink focus:ring-1 focus:ring-ink"
-        />
-        <Button type="submit" variant="ghost" className="h-10" disabled={!text.trim() || busy}>
-          {busy ? "Adding…" : "Add"}
+        <Input value={text} onChange={(e) => setText(e.target.value)} maxLength={300} placeholder="Add your own" aria-label="Add your own" disabled={extra.length >= 10} />
+        <Button type="submit" variant="ghost" className="h-10" disabled={!text.trim()}>
+          Add
         </Button>
       </form>
-      <div className="flex items-center gap-2">
-        <Button onClick={() => done({ ...a, extra: list })}>{list.length ? "Continue" : "No, continue"}</Button>
-      </div>
+      <Continue onClick={next} />
     </div>
   );
 }
 
-function AfterPanel({ a, live, done }: { a: Answers; live: (a: Answers) => void; done: (a: Answers) => void }) {
-  const [kind, setKind] = useState<Answers["after"]["kind"]>(a.after.kind);
+function AfterPanel({ a, act, done }: { a: Answers; act: ActRef; done: (a: Answers) => void }) {
+  const [kind, setKind] = useState<After["kind"]>(a.after.kind);
   const [tool, setTool] = useState<SchedulerTool>(a.after.kind === "meeting" ? a.after.tool : "calendly");
-  const [url, setUrl] = useState(a.after.kind === "meeting" || a.after.kind === "redirect" ? a.after.url : "");
-  const [own, setOwn] = useState(a.after.kind === "meeting" ? a.after.perOwner : true);
-  const choose = useCallback(
-    (i: number) => {
-      const k = (["meeting", "message", "redirect"] as const)[i];
-      setKind(k);
-      if (k === "message") done({ ...a, after: { kind: "message" } });
-      else live({ ...a, after: k === "meeting" ? { kind: "meeting", tool, url: url.trim(), perOwner: true } : { kind: "redirect", url: url.trim() } });
-    },
-    [a, done, live, tool, url],
-  );
-  useKeys(3, choose);
-  const urlOk = kind === "redirect" ? /^https:\/\/\S+\.\S+/.test(url.trim()) : !url.trim() || /^https:\/\/\S+/.test(url.trim());
+  const [meet, setMeet] = useState(a.after.kind === "meeting" ? a.after.url : "");
+  const [page, setPage] = useState(a.after.kind === "redirect" ? a.after.url : "");
+  const [tried, setTried] = useState(false);
+  const value: After = kind === "message" ? { kind: "message" } : kind === "redirect" ? { kind: "redirect", url: page.trim() } : { kind: "meeting", tool, url: meet.trim(), perOwner: !meet.trim() };
+  const problem = afterProblem(value);
+  const next = () => {
+    if (problem) return setTried(true);
+    done({ ...a, after: value });
+  };
+  const choose = (i: number) => {
+    const k = AFTERS[i].kind;
+    setKind(k);
+    setTried(false);
+    if (k === "message") done({ ...a, after: { kind: "message" } });
+  };
+  useAct(act, { count: AFTERS.length, pick: choose, next });
+  const url = kind === "redirect" ? page : meet;
+  const show = problem && (tried || !!url.trim());
   return (
     <div className="flex flex-col gap-3">
-      <div className="grid gap-1.5">
-        <Option n={1} label="Book a meeting" selected={kind === "meeting"} on={() => choose(0)} />
-        <Option n={2} label="Show a thank-you message" selected={kind === "message"} on={() => choose(1)} />
-        <Option n={3} label="Open a page" selected={kind === "redirect"} on={() => choose(2)} />
+      <div className="grid gap-2 sm:grid-cols-3">
+        {AFTERS.map((o, i) => (
+          <OptionCard key={o.kind} n={i + 1} label={o.label} selected={kind === o.kind} onClick={() => choose(i)} />
+        ))}
       </div>
-      {kind === "meeting" ? (
-        <div className="anim-rise-sm flex flex-col gap-2.5 rounded-lg border border-line bg-card p-3.5">
-          <div className="flex flex-wrap gap-1.5">
-            {SCHEDULERS.map((s) => (
-              <button
-                key={s.value}
-                type="button"
-                onClick={() => setTool(s.value)}
-                aria-pressed={tool === s.value}
-                className={`press flex h-9 items-center gap-2 rounded-full border pr-3.5 pl-2.5 text-[13px] ${tool === s.value ? "border-ink bg-hover font-medium" : "border-line-strong bg-card hover:border-ink"}`}
-              >
-                {s.domain ? <BrandLogo domain={s.domain} name={s.label} size={16} /> : null}
-                {s.label}
-              </button>
-            ))}
+      {kind === "message" ? null : (
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            next();
+          }}
+          className="anim-rise-sm flex flex-col gap-2.5"
+        >
+          {kind === "meeting" ? (
+            <div className="flex flex-wrap gap-1.5">
+              {SCHEDULERS.map((s) => (
+                <button
+                  key={s.value}
+                  type="button"
+                  aria-pressed={tool === s.value}
+                  aria-label={s.label}
+                  onClick={() => setTool(s.value)}
+                  className={`press flex h-10 items-center gap-2 rounded-lg border bg-card px-3 text-[13px] text-ink transition-[border-color,transform] duration-[140ms] ${tool === s.value ? "border-ink ring-1 ring-ink" : "border-line-strong hover:border-ink"}`}
+                >
+                  {s.domain ? <BrandLogo domain={s.domain} name={s.label} size={16} /> : <Plus size={14} />}
+                  {s.label}
+                </button>
+              ))}
+            </div>
+          ) : null}
+          <div className="relative">
+            <Input
+              key={kind}
+              autoFocus={kind === "redirect"}
+              value={url}
+              onChange={(e) => (kind === "redirect" ? setPage : setMeet)(e.target.value)}
+              placeholder={kind === "redirect" ? "https://acme.com/thanks" : tool === "calendly" ? "https://calendly.com/you/demo" : tool === "calcom" ? "https://cal.com/you" : "https://"}
+              aria-label={kind === "redirect" ? "Page address" : "Booking link"}
+              aria-invalid={show ? true : undefined}
+              className="pr-9"
+            />
+            {url.trim() && !problem ? <Check size={15} className="absolute top-1/2 right-3 -translate-y-1/2 text-sage" /> : null}
           </div>
-          <input
-            value={url}
-            onChange={(e) => setUrl(e.target.value)}
-            placeholder={tool === "calendly" ? "https://calendly.com/you/demo" : tool === "calcom" ? "https://cal.com/you" : "https://"}
-            aria-label="Booking link"
-            className="h-9 rounded-sm border border-line-strong bg-card px-3 text-[13px] outline-none placeholder:text-faint focus:border-ink focus:ring-1 focus:ring-ink"
-          />
-          <label className="flex items-center gap-2 text-[13px]">
-            <input type="checkbox" checked={own} onChange={(e) => setOwn(e.target.checked)} className="size-4 accent-[var(--color-ink)]" />
-            Book with the contact owner&apos;s own link when they have one
-          </label>
-          <Continue disabled={!urlOk} onClick={() => done({ ...a, after: { kind: "meeting", tool, url: url.trim(), perOwner: own || !url.trim() } })} />
-        </div>
-      ) : kind === "redirect" ? (
-        <div className="anim-rise-sm flex flex-col gap-2.5 rounded-lg border border-line bg-card p-3.5">
-          <input
-            value={url}
-            onChange={(e) => setUrl(e.target.value)}
-            placeholder="https://acme.com/thanks"
-            aria-label="Page to open"
-            className="h-9 rounded-sm border border-line-strong bg-card px-3 text-[13px] outline-none placeholder:text-faint focus:border-ink focus:ring-1 focus:ring-ink"
-          />
-          <Continue disabled={!urlOk} onClick={() => done({ ...a, after: { kind: "redirect", url: url.trim() } })} />
-        </div>
-      ) : null}
+          {show ? <p className="text-[12.5px] text-rose">{problem}</p> : null}
+          <Continue onClick={next} />
+        </form>
+      )}
     </div>
   );
 }
 
-function Send({ a, tools, done }: { a: Answers; tools: Tool[]; done: (a: Answers) => void }) {
+function SendPanel({ a, tools, act, done }: { a: Answers; tools: Tool[]; act: ActRef; done: (a: Answers) => void }) {
   const [sources, setSources] = useState(a.send.sources);
-  const [slackOn, setSlackOn] = useState(!!a.send.slack);
-  const [slack, setSlack] = useState(a.send.slack);
-  const slackOk = !slackOn || /^https:\/\/hooks\.slack\.com\/services\/[A-Za-z0-9/_-]+$/.test(slack.trim());
-  const toggle = (id: string) => setSources((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]));
-  const row = (key: string, logo: React.ReactNode, label: string, on: boolean, click?: () => void) => (
-    <button key={key} type="button" disabled={!click} onClick={click} aria-pressed={on} className={`flex min-h-11 items-center gap-2.5 rounded-full border py-2 pr-3.5 pl-3 text-left text-[13.5px] transition-colors ${on ? "border-ink bg-hover" : "border-line-strong bg-card hover:border-ink"} disabled:cursor-default`}>
-      {logo}
-      <span className="flex-1 font-medium">{label}</span>
-      <span className={`flex size-4 items-center justify-center rounded-full border transition-transform duration-[320ms] ease-spring ${on ? "scale-110 border-ink bg-ink text-paper" : "border-line-strong"}`}>{on ? <Check size={11} /> : null}</span>
-    </button>
-  );
+  const pick = (i: number) => {
+    const id = tools[i].id;
+    setSources((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]));
+  };
+  const next = () => done({ ...a, send: { ...a.send, sources } });
+  useAct(act, { count: tools.length, pick, next });
   return (
     <div className="flex flex-col gap-3">
       <div className="grid gap-1.5 sm:grid-cols-2">
-        {row("claritia", <BrandLogo domain="tryclaritia.com" name="Claritia" size={20} />, "Claritia", true)}
-        {tools.map((t) => row(t.id, <BrandLogo domain={entryOf(t.kind)?.domain ?? ""} name={t.name} size={20} />, t.name, sources.includes(t.id), () => toggle(t.id)))}
-        {row("slack", <BrandLogo domain="slack.com" name="Slack" size={20} />, "Slack", slackOn, () => setSlackOn((v) => !v))}
-        <button type="button" onClick={() => window.open("/settings/sources", "_blank", "noopener")} className="flex min-h-11 items-center gap-2.5 rounded-full border border-dashed border-line-strong py-2 pr-3.5 pl-3 text-left text-[13.5px] text-muted hover:border-ink hover:text-ink">
-          <Plus size={16} />
-          Connect a tool
-        </button>
+        <CheckTile label="Claritia" on logo={<BrandLogo domain="tryclaritia.com" name="Claritia" size={18} />} />
+        {tools.map((t, i) => (
+          <CheckTile key={t.id} n={i < 9 ? i + 1 : undefined} label={t.name} on={sources.includes(t.id)} toggle={() => pick(i)} logo={<BrandLogo domain={entryOf(t.kind)?.domain ?? ""} name={t.name} size={18} />} />
+        ))}
       </div>
-      {slackOn ? (
-        <input
-          value={slack}
-          onChange={(e) => setSlack(e.target.value)}
-          placeholder="https://hooks.slack.com/services/…"
-          aria-label="Slack webhook address"
-          className="anim-rise-sm h-9 rounded-sm border border-line-strong bg-card px-3 text-[13px] outline-none placeholder:text-faint focus:border-ink focus:ring-1 focus:ring-ink"
-        />
-      ) : null}
-      <Continue disabled={!slackOk} onClick={() => done({ ...a, send: { sources, slack: slackOn ? slack.trim() : "", webhook: "" } })} />
+      <div className="flex items-center justify-between gap-3">
+        <a href="/settings/sources" target="_blank" rel="noopener" className="inline-flex items-center gap-1.5 text-[12.5px] font-medium text-muted transition-colors duration-[140ms] hover:text-ink">
+          <Plus size={13} />
+          Connect a tool
+        </a>
+        <Button onClick={next}>Continue</Button>
+      </div>
     </div>
   );
 }

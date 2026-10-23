@@ -116,7 +116,7 @@ export function ClientApp({ config }: { config: SupaConfig }) {
       setLoc(l);
       // Old and unknown addresses show where they landed.
       const want = `/${l.route}${l.id ? `/${l.id}` : ""}`;
-      if (window.location.pathname !== want && !(l.route === "settings" && !l.id)) window.history.replaceState(null, "", want);
+      if (window.location.pathname !== want && !(l.route === "settings" && !l.id)) window.history.replaceState(null, "", want + window.location.search);
     };
     sync();
     window.addEventListener("popstate", sync);
@@ -155,10 +155,10 @@ export function ClientApp({ config }: { config: SupaConfig }) {
   }, [sb, ws]);
 
   // Pages with unsaved changes get to ask first.
-  const navigate = useCallback((r: Route, id = "") => {
+  const navigate = useCallback((r: Route, id = "", query = "") => {
     mayLeave().then((ok) => {
       if (!ok) return;
-      window.history.pushState(null, "", `/${r}${id ? `/${id}` : ""}`);
+      window.history.pushState(null, "", `/${r}${id ? `/${id}` : ""}${query ? `?${query}` : ""}`);
       setLoc({ route: r, id });
     });
   }, []);
