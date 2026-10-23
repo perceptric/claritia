@@ -8,11 +8,12 @@ import { useState } from "react";
 import { BASES, BASIS_LABEL, type Basis } from "@/lib/contacts/consent";
 import { fullName, LIFECYCLES, type ContactRow, type CustomField } from "@/lib/contacts/fields";
 import type { AnyField } from "@/lib/records/fields";
-import { Contact, Plus, Upload } from "../../Icons";
+import { Contact, Eye, Plus, Upload } from "../../Icons";
 import { askConfirm, askText, tell } from "../Dialogs";
 import { Popover } from "../FilterBar";
 import { Select } from "../Select";
 import { SampleRows, SampleStats, SampleTags, ToolIntro } from "../ToolIntro";
+import { Sketch } from "../../sketches/Sketch";
 import { Avatar, Badge, Button, CardHead, Empty, ErrorNote, errorText, Field, Input, Loading, must, Page, Panel, postJson, timeAgo, useLoad, type Tone, type ViewProps } from "../ui";
 import type { Link } from "../records/FieldInput";
 import { useMeta, type Meta } from "../records/meta";
@@ -152,11 +153,11 @@ function ContactBulk({ sb, wsId, ids, done, meta }: { sb: ViewProps["sb"]; wsId:
   };
   return (
     <>
-      {error ? <span className="text-[12.5px] text-danger">{error}</span> : null}
-      <Button variant="ghost" className="h-7 px-2.5" onClick={(e) => setAnchor(e.currentTarget)}>
+      {error ? <span className="text-[12.5px] text-rose">{error}</span> : null}
+      <Button variant="ghost" size="sm" onClick={(e) => setAnchor(e.currentTarget)}>
         Add to list
       </Button>
-      <Button variant="ghost" className="h-7 px-2.5" onClick={merge}>
+      <Button variant="ghost" size="sm" onClick={merge}>
         Merge
       </Button>
       {anchor ? (
@@ -164,13 +165,13 @@ function ContactBulk({ sb, wsId, ids, done, meta }: { sb: ViewProps["sb"]; wsId:
           <ul className="max-h-72 overflow-y-auto p-1">
             {meta.lists.map((l) => (
               <li key={l.value}>
-                <button type="button" onClick={() => addTo(l.value)} className="flex h-8 w-full items-center rounded-md px-2 text-left hover:bg-hover">
+                <button type="button" onClick={() => addTo(l.value)} className="flex h-8 w-full items-center rounded-sm px-2.5 text-left hover:bg-hover">
                   {l.label}
                 </button>
               </li>
             ))}
             <li>
-              <button type="button" onClick={() => addTo(null)} className="flex h-8 w-full items-center gap-2 rounded-md px-2 text-left hover:bg-hover">
+              <button type="button" onClick={() => addTo(null)} className="flex h-8 w-full items-center gap-2 rounded-sm px-2.5 text-left hover:bg-hover">
                 <Plus size={13} />
                 New list
               </button>
@@ -185,8 +186,9 @@ function ContactBulk({ sb, wsId, ids, done, meta }: { sb: ViewProps["sb"]; wsId:
 function ContactsIntro({ action }: { action: React.ReactNode }) {
   return (
     <ToolIntro
+      sketch="cards"
       action={action}
-      title="Every contact in one place"
+      title={"Every contact\nin one place"}
       lead="Bring in your contacts from a CSV, or add them one by one. Claritia cleans each email, merges duplicates, keeps each person's email consent, and ties them to their visits."
       features={[
         {
@@ -299,12 +301,12 @@ function ContactPanel({
             onChange={(v) => setForm({ ...form, lifecycle: v })}
             ariaLabel="Lifecycle"
             options={[{ value: "", label: "None" }, ...LIFECYCLES]}
-            className="h-9 w-full rounded-md border border-line bg-panel px-2.5 text-[13px] hover:border-line-strong"
+            className="h-10 w-full rounded-sm border border-line-strong bg-card px-3 text-[13.5px] focus:border-ink"
           />
         </Field>
         {!id ? (
           <Field label="Email consent">
-            <Select<Basis> value={basis} onChange={setBasis} ariaLabel="Email consent" options={BASES} className="h-9 w-full rounded-md border border-line bg-panel px-2.5 text-[13px] hover:border-line-strong" />
+            <Select<Basis> value={basis} onChange={setBasis} ariaLabel="Email consent" options={BASES} className="h-10 w-full rounded-sm border border-line-strong bg-card px-3 text-[13.5px] focus:border-ink" />
           </Field>
         ) : null}
         {custom.map((f) => (
@@ -318,7 +320,7 @@ function ContactPanel({
                   { value: "", label: "None" },
                   ...(f.type === "checkbox" ? [{ value: "yes", label: "Yes" }, { value: "no", label: "No" }] : (f.options ?? []).map((o) => (typeof o === "string" ? { value: o, label: o } : o))),
                 ]}
-                className="h-9 w-full rounded-md border border-line bg-panel px-2.5 text-[13px] hover:border-line-strong"
+                className="h-10 w-full rounded-sm border border-line-strong bg-card px-3 text-[13.5px] focus:border-ink"
               />
             ) : (
               <Input value={fields[f.key] ?? ""} onChange={(e) => setFields({ ...fields, [f.key]: e.target.value })} placeholder={f.type === "date" ? "2026-03-31" : undefined} inputMode={f.type === "number" ? "decimal" : undefined} />
@@ -394,10 +396,11 @@ function ContactPage({ sb, ws, session, role, id, navigate }: ViewProps) {
   };
 
   const timeline = [
-    ...d.events.map((e) => ({ at: e.at, key: `e${e.at}${e.kind}`, node: <span>{`${EVENT_LABEL[e.kind] ?? e.kind} · ${sourceLabel(e.source)}`}</span> })),
+    ...d.events.map((e) => ({ at: e.at, key: `e${e.at}${e.kind}`, visit: false, node: <span>{`${EVENT_LABEL[e.kind] ?? e.kind} · ${sourceLabel(e.source)}`}</span> })),
     ...d.visits.map((v) => ({
       at: v.started_at,
       key: v.id,
+      visit: true,
       node: (
         <span className="flex flex-col gap-1">
           <span>
@@ -438,10 +441,10 @@ function ContactPage({ sb, ws, session, role, id, navigate }: ViewProps) {
       back={back}
       actions={
         <>
-          <Button variant="ghost" className="h-7 px-2.5" onClick={() => setEditing(true)}>
+          <Button variant="ghost" size="sm" onClick={() => setEditing(true)}>
             Edit
           </Button>
-          <Button variant="danger" className="h-7 px-2.5" onClick={remove}>
+          <Button variant="danger" size="sm" onClick={remove}>
             Remove
           </Button>
         </>
@@ -450,11 +453,11 @@ function ContactPage({ sb, ws, session, role, id, navigate }: ViewProps) {
       <div className="mx-auto flex max-w-6xl flex-col gap-5">
         <ErrorNote message={error} />
         <Panel>
-          <div className="flex flex-wrap items-start gap-x-10 gap-y-4 p-5">
-            <div className="flex min-w-0 items-start gap-3">
-              <Avatar label={name} size={40} />
+          <div className="flex flex-wrap items-center gap-x-10 gap-y-4 p-6">
+            <div className="flex min-w-0 items-center gap-4">
+              <Avatar label={name} size={64} />
               <div className="flex min-w-0 flex-col gap-1">
-                <span className="text-[20px] font-medium tracking-[-0.02em]">{name}</span>
+                <span className="serif text-[30px] leading-tight text-ink">{name}</span>
                 <span className="text-[13px] text-muted">{[c.title, d.company?.name ?? d.company?.domain, c.country].filter(Boolean).join(" · ") || c.email}</span>
                 <span className="mt-1 flex flex-wrap gap-1.5">
                   {c.lifecycle ? <Badge tone={LIFECYCLE_TONE[c.lifecycle] ?? "gray"}>{LIFECYCLE_LABEL[c.lifecycle] ?? c.lifecycle}</Badge> : null}
@@ -471,7 +474,7 @@ function ContactPage({ sb, ws, session, role, id, navigate }: ViewProps) {
             ].map(([label, v]) => (
               <div key={label as string} className="flex flex-col gap-1">
                 <span className="label-mono">{label}</span>
-                <span className="font-mono text-[24px] tabular-nums">{v ?? "—"}</span>
+                <span className="serif text-[32px] leading-none text-ink tabular-nums">{v ?? "—"}</span>
               </div>
             ))}
           </div>
@@ -484,13 +487,17 @@ function ContactPage({ sb, ws, session, role, id, navigate }: ViewProps) {
             <Panel>
               <CardHead label="Timeline" count={timeline.length} />
               {!timeline.length ? (
-                <Empty title="Nothing yet" />
+                <Empty title="Nothing yet" sketch={<Sketch name="road" size={160} />} />
               ) : (
-                <ol className="divide-y divide-line">
-                  {timeline.map((t) => (
-                    <li key={t.key} className="flex gap-4 px-4 py-3 text-[13px]">
-                      <span className="w-32 shrink-0 font-mono text-[12px] whitespace-nowrap text-muted">{new Date(t.at).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</span>
-                      {t.node}
+                <ol className="px-5 py-4">
+                  {timeline.map((t, i) => (
+                    <li key={t.key} className="anim-rise-sm relative flex gap-4 pb-5 pl-10 text-[13px] last:pb-1">
+                      {i < timeline.length - 1 ? <span className="absolute top-7 bottom-0 left-[13px] w-px bg-line-strong" /> : null}
+                      <span className={`absolute top-0 left-0 flex size-7 items-center justify-center rounded-full ${t.visit ? "bg-sky-wash text-sky" : "bg-clay-wash text-clay"}`}>
+                        {t.visit ? <Eye size={12} /> : <Plus size={12} />}
+                      </span>
+                      <span className="w-32 shrink-0 pt-1.5 font-mono text-[11.5px] whitespace-nowrap text-muted">{new Date(t.at).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</span>
+                      <span className="min-w-0 pt-1">{t.node}</span>
                     </li>
                   ))}
                 </ol>
@@ -519,7 +526,7 @@ function ContactPage({ sb, ws, session, role, id, navigate }: ViewProps) {
             {d.company ? (
               <Panel>
                 <CardHead label="Company">
-                  <Button variant="plain" className="h-7 px-2" onClick={() => navigate("companies", d.company!.id)}>
+                  <Button variant="plain" size="sm" onClick={() => navigate("companies", d.company!.id)}>
                     Open
                   </Button>
                 </CardHead>
@@ -617,16 +624,16 @@ function ContactPage({ sb, ws, session, role, id, navigate }: ViewProps) {
 /** The lead stages as one bar; the current stage is filled, a click moves the lead. */
 function StageBar({ stages, value, onPick }: { stages: { value: string; label: string; kind?: string }[]; value: string | null; onPick: (v: string) => void }) {
   return (
-    <div className="flex border-t border-line">
-      {stages.map((s, i) => {
+    <div className="flex gap-1 border-t border-line p-2">
+      {stages.map((s) => {
         const on = s.value === value;
         return (
           <button
             key={s.value}
             type="button"
             onClick={() => !on && onPick(s.value)}
-            className={`h-9 flex-1 truncate px-2 text-[12.5px] font-medium ${i ? "border-l border-line" : ""} ${
-              on ? (s.kind === "lost" ? "bg-danger-soft text-danger" : s.kind === "won" ? "bg-success-soft text-success" : "bg-ink text-white") : "text-muted hover:bg-hover hover:text-ink"
+            className={`press h-8 flex-1 truncate rounded-full px-3 text-[12.5px] font-medium transition-[background-color,color,transform] duration-[140ms] ${
+              on ? (s.kind === "lost" ? "bg-rose-wash text-rose" : s.kind === "won" ? "bg-sage-wash text-sage" : "bg-ink text-paper") : "text-muted hover:bg-hover hover:text-ink"
             }`}
           >
             {s.label}

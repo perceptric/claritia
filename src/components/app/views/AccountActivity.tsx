@@ -7,6 +7,8 @@ import { useState } from "react";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { decayed } from "@/lib/web/scores";
 import { Badge, Button, CardHead, Empty, ErrorNote, errorText, Loading, must, Panel, Td, timeAgo, useLoad, type Tone } from "../ui";
+import { Eye, FormIcon } from "../../Icons";
+import { Sketch } from "../../sketches/Sketch";
 import { activeTime, LEVEL_TONE } from "./VisitorsView";
 
 export const STAGE_TONE: Record<string, Tone> = {
@@ -120,13 +122,13 @@ export function AccountFeedback({ sb, accountId }: { sb: SupabaseClient; account
   };
   return (
     <>
-      {error ? <span className="text-[12px] text-danger">{error}</span> : null}
+      {error ? <span className="text-[12px] text-rose">{error}</span> : null}
       {[
         ["good", "Good pick"],
         ["bad", "Wrong company"],
         ["not_icp", "Not a fit"],
       ].map(([k, label]) => (
-        <Button key={k} variant={sent === k ? "primary" : "ghost"} className="h-7 px-2.5" onClick={() => feedback(k)} disabled={!!sent}>
+        <Button key={k} variant={sent === k ? "primary" : "ghost"} size="sm" onClick={() => feedback(k)} disabled={!!sent}>
           {label}
         </Button>
       ))}
@@ -182,13 +184,19 @@ export function AccountActivity({ sb, accountId }: { sb: SupabaseClient; account
         ) : !timeline.data ? (
           <Loading />
         ) : !timeline.data.length ? (
-          <Empty title="No visits yet" />
+          <Empty title="No visits yet" sketch={<Sketch name="browser" size={160} />} />
         ) : (
-          <ol className="divide-y divide-line">
-            {timeline.data.map((v) => (
-              <li key={v.id} className="flex flex-col gap-1.5 px-4 py-3">
-                <div className="flex flex-wrap items-center gap-2 text-[13px]">
-                  <span className="font-mono text-[12px] text-muted">
+          <ol className="px-5 py-4">
+            {timeline.data.map((v, i, all) => {
+              const form = v.events.some((e) => e.kind === "form");
+              return (
+              <li key={v.id} className="anim-rise-sm relative flex flex-col gap-1.5 pb-5 pl-10 last:pb-1">
+                {i < all.length - 1 ? <span className="absolute top-7 bottom-0 left-[13px] w-px bg-line-strong" /> : null}
+                <span className={`absolute top-0 left-0 flex size-7 items-center justify-center rounded-full ${form ? "bg-clay-wash text-clay" : "bg-sky-wash text-sky"}`}>
+                  {form ? <FormIcon size={12} /> : <Eye size={12} />}
+                </span>
+                <div className="flex min-h-7 flex-wrap items-center gap-2 text-[13px]">
+                  <span className="font-mono text-[11.5px] text-muted">
                     {new Date(v.started_at).toLocaleString(undefined, {
                       month: "short",
                       day: "numeric",
@@ -212,14 +220,15 @@ export function AccountActivity({ sb, accountId }: { sb: SupabaseClient; account
                     e.kind === "view" ? (
                       <span key={i}>{e.path}</span>
                     ) : (
-                      <span key={i} className="text-brand">
+                      <span key={i} className="text-clay">
                         {e.kind === "form" ? `form ${e.data?.form || ""}` : "signed in"}
                       </span>
                     ),
                   )}
                 </div>
               </li>
-            ))}
+              );
+            })}
           </ol>
         )}
       </Panel>
@@ -267,7 +276,7 @@ export function AccountActivity({ sb, accountId }: { sb: SupabaseClient; account
           ) : null}
         </Panel>
 
-        <Panel>
+        <Panel className="overflow-hidden">
           <CardHead label="Intent" count={contributions.length} />
           <table className="w-full border-collapse">
             <tbody>
