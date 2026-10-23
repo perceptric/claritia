@@ -33,7 +33,7 @@ export async function GET(request: Request, ctx: Ctx) {
     const len = Number(sp.get("len") ?? x.type.settings.lengths[0]);
     const from = sp.get("from") ? Number(sp.get("from")) : undefined;
     const to = sp.get("to") ? Number(sp.get("to")) : undefined;
-    const type: GuestType = guestTypeOf(x.type, x.t.profiles);
+    const type: GuestType = guestTypeOf(x.type, x.t.profiles, x.t.pay);
     const slots = await preferredSlots(x.rpc, { ws: x.t.ws.id, type: x.type, length: len, from, to, host: sp.get("host"), profiles: x.t.profiles });
     return json({ type, slots }, 200, { "Cache-Control": "no-store" });
   } catch {
