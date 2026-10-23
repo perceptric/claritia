@@ -365,6 +365,7 @@ export function checkForm(raw: unknown, ctx: Ctx = {}): { form: Form } | { error
       const src = str(fo.source, 120);
       if (src) f.source = src;
       fieldLook(f, fo);
+      if (f.hideOnPhone && f.required) errors.push(`${name} is required, so it can't be hidden on phones.`);
       const valid = validation(type, fo.valid, name, errors);
       if (valid) f.valid = valid;
       if (fo.overwrite === "always" || fo.overwrite === "if_empty" || fo.overwrite === "never") {

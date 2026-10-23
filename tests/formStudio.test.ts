@@ -114,6 +114,7 @@ test("look settings and widths survive the checker", () => {
     { width: "third", hideLabel: true, labels: "inside", size: "lg", hideOnPhone: true },
   );
   assert.equal(field(f, "b").width, undefined);
+  assert.match(errs(withFields([{ id: "a", key: "first_name", type: "text", label: "First", required: true, hideOnPhone: true }])), /can't be hidden on phones/);
   const l = ok({ ...withFields([]), layout: { labels: "above", width: "wide", progress: "dots", maxWidth: 99999 } });
   assert.deepEqual(l.layout, { labels: "above", width: "wide", progress: "dots", maxWidth: 1200 });
 });

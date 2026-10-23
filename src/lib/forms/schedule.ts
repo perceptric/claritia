@@ -78,11 +78,20 @@ export function linkProblem(tool: SchedulerTool, raw: string): string | null {
 
 /**
  * The link to open: the tool's link with the lead filled in and the fill's tracking id. Returns null for a link the
- * tool check refuses, so a bad saved link never opens.
+ * tool check refuses, so a bad saved link never opens. With `prefill` off the name and email stay out of the link;
+ * the tracking id still goes in, so the booking still links to its fill.
  */
-export function bookingUrl(tool: SchedulerTool, base: string, lead: { first?: string | null; last?: string | null; email?: string | null }, submissionId: string, embedHost?: string): string | null {
+export function bookingUrl(
+  tool: SchedulerTool,
+  base: string,
+  who: { first?: string | null; last?: string | null; email?: string | null },
+  submissionId: string,
+  embedHost?: string,
+  prefill = true,
+): string | null {
   if (linkProblem(tool, base)) return null;
   const u = new URL(base);
+  const lead = prefill ? who : {};
   const name = [lead.first, lead.last].filter(Boolean).join(" ");
   const set = (k: string, v: string | null | undefined) => {
     if (v) u.searchParams.set(k, v.slice(0, 200));
