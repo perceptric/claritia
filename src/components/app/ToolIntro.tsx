@@ -84,7 +84,7 @@ export function SampleStats({ items }: { items: [string, string][] }) {
     <span className="grid w-full grid-cols-3 gap-4" aria-hidden="true">
       {items.map(([lab, v]) => (
         <span key={lab} className="flex flex-col">
-          <span className="serif truncate text-[28px] leading-none tracking-[-0.03em] text-ink tabular-nums">{v}</span>
+          <span className="serif text-[26px] leading-none tracking-[-0.03em] whitespace-nowrap text-ink tabular-nums">{v}</span>
           <span className="label-mono mt-1">{lab}</span>
         </span>
       ))}

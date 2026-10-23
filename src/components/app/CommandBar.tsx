@@ -6,8 +6,8 @@ import { Pip } from "./Pip";
 
 export type Command = { id: string; label: string; group: string; icon?: React.ReactNode; run: () => void };
 
-/** ⌘K: a floating search with Pip on the left; results slide in, arrows and Enter pick one. */
-export function CommandBar({ open, onClose, commands }: { open: boolean; onClose: () => void; commands: Command[] }) {
+/** ⌘K: a floating search, mounted while open, with Pip on the left; results slide in, arrows and Enter pick one. */
+export function CommandBar({ onClose, commands }: { onClose: () => void; commands: Command[] }) {
   const [q, setQ] = useState("");
   const [active, setActive] = useState(0);
   const list = useRef<HTMLUListElement>(null);
@@ -18,16 +18,9 @@ export function CommandBar({ open, onClose, commands }: { open: boolean; onClose
   }, [q, commands]);
 
   useEffect(() => {
-    if (!open) return;
-    setQ("");
-    setActive(0);
-  }, [open]);
-  useEffect(() => setActive(0), [q]);
-  useEffect(() => {
     list.current?.querySelector<HTMLElement>(`[data-i="${active}"]`)?.scrollIntoView({ block: "nearest" });
   }, [active]);
 
-  if (!open) return null;
   const pick = (c: Command | undefined) => {
     if (!c) return;
     onClose();
@@ -42,7 +35,10 @@ export function CommandBar({ open, onClose, commands }: { open: boolean; onClose
           <input
             autoFocus
             value={q}
-            onChange={(e) => setQ(e.target.value)}
+            onChange={(e) => {
+              setQ(e.target.value);
+              setActive(0);
+            }}
             placeholder="Go to…"
             aria-label="Search"
             className="h-full min-w-0 flex-1 bg-transparent text-[15px] text-ink outline-none placeholder:text-faint"

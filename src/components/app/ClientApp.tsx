@@ -66,8 +66,8 @@ type Theme = "light" | "dark";
 
 /** Light or dark, saved on this computer; the page sets it before the first paint. */
 function useTheme() {
-  const [theme, setTheme] = useState<Theme>("light");
-  useEffect(() => setTheme(document.documentElement.dataset.theme === "dark" ? "dark" : "light"), []);
+  // The app shows a splash before anything themed, so reading the page here can't differ from the server's render.
+  const [theme, setTheme] = useState<Theme>(() => (typeof document !== "undefined" && document.documentElement.dataset.theme === "dark" ? "dark" : "light"));
   const flip = useCallback(() => {
     setTheme((t) => {
       const next: Theme = t === "dark" ? "light" : "dark";
@@ -229,7 +229,7 @@ export function ClientApp({ config }: { config: SupaConfig }) {
   return (
     <div className="flex h-screen min-h-0 flex-col bg-paper-deep md:flex-row">
       <DialogHost />
-      <CommandBar open={searching} onClose={() => setSearching(false)} commands={commands} />
+      {searching ? <CommandBar onClose={() => setSearching(false)} commands={commands} /> : null}
       {/* Side rail on wide screens, a top bar on phones */}
       <aside className="flex shrink-0 flex-col gap-3 p-3 md:h-full md:w-60 md:py-4">
         <div className="flex items-center justify-between gap-2 px-2">

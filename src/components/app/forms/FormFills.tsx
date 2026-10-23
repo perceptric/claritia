@@ -7,7 +7,7 @@ import { useEffect, useState } from "react";
 import { allFields, type Form } from "@/lib/forms/schema";
 import { ChevronRight, Link as LinkIcon, Refresh } from "../../Icons";
 import { Sketch } from "../../sketches/Sketch";
-import { Badge, Button, Empty, ErrorNote, errorText, Loading, must, Panel, Segmented, timeAgo, useLoad, type ViewProps } from "../ui";
+import { Badge, Button, Empty, ErrorNote, errorText, IconButton, Loading, must, Panel, Segmented, timeAgo, useLoad, type ViewProps } from "../ui";
 import { DELIVERY, type Destination } from "./shared";
 
 type Fill = {
@@ -81,9 +81,9 @@ export function FormFills({ sb, formId, destinations, navigate, watch }: Pick<Vi
           ]}
           onChange={setKind}
         />
-        <Button variant="plain" size="sm" onClick={fills.reload} className="ml-auto w-8 px-0">
+        <IconButton label="Refresh" onClick={fills.reload} className="ml-auto">
           <Refresh size={14} />
-        </Button>
+        </IconButton>
       </div>
       <ErrorNote message={error || fills.error} />
       {!fills.data ? (
