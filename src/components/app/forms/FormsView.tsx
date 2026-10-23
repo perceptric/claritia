@@ -14,14 +14,14 @@ import { Copy, Inbox, Pause, Pencil, Play, Plus, Redo, Send, Trash, Undo } from 
 import { BrandLogo } from "../BrandLogo";
 import { askConfirm, askText } from "../Dialogs";
 import { AiAvatar, AiMark, AiTag } from "../Ai";
-import { Badge, Button, Empty, ErrorNote, errorText, Loading, must, Page, Panel, postJson, setLeaveGuard, Tabs, timeAgo, useLoad, type ViewProps } from "../ui";
+import { Badge, Button, Empty, ErrorNote, errorText, Loading, must, Page, postJson, setLeaveGuard, Tabs, timeAgo, useLoad, type ViewProps } from "../ui";
 import { FormCanvas } from "./FormCanvas";
 import { FormChecks } from "./FormChecks";
-import { FormCreate, PreviewPane } from "./FormCreate";
+import { FormCreate } from "./FormCreate";
+import { PreviewPane } from "./Preview";
 import { FormDesign } from "./FormDesign";
-import { FormDestinations } from "./FormDestinations";
 import { FormFills } from "./FormFills";
-import { FormSettings } from "./FormSettings";
+import { SettingsTab } from "./SettingsTab";
 import { copy, IconButton, STATUS, type Destination, type FormRow, type Kit, type SourceRow } from "./shared";
 
 type ListRow = { id: string; name: string; status: FormRow["status"]; kind: "built" | "captured"; version: number; updated_at: string; fills: number; last_fill: string | null; failed: number; check: "running" | "passed" | "failed" | null };
@@ -456,16 +456,7 @@ function Builder({
           ) : tab === "build" ? (
             <FormCanvas form={form} apply={apply} custom={custom} tokens={tokens} name={name} setName={rename} look={look} />
           ) : tab === "connect" ? (
-            <div className="h-full overflow-auto bg-paper p-4 md:p-8">
-              <div className="mx-auto flex max-w-3xl flex-col gap-8">
-                <FormDestinations sb={sb} session={session} ws={ws} formId={initial.id} list={dests} sources={sources} reload={reload} navigate={navigate} />
-                <Panel>
-                  <div className="p-5">
-                    <FormSettings form={form} apply={apply} sb={sb} ws={ws} session={session} role={role} />
-                  </div>
-                </Panel>
-              </div>
-            </div>
+            <SettingsTab form={form} apply={apply} sb={sb} session={session} ws={ws} role={role} navigate={navigate} formId={initial.id} dests={dests} sources={sources} reload={reload} brand={brand} />
           ) : (
             <div className="h-full overflow-auto bg-paper p-4 md:p-8">
               <div className="mx-auto flex max-w-5xl flex-col gap-8">
