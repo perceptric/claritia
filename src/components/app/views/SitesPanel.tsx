@@ -13,10 +13,10 @@ export function Copy({ text }: { text: string }) {
   const [done, setDone] = useState(false);
   return (
     <div className="flex items-start gap-2">
-      <pre className="min-w-0 flex-1 overflow-x-auto rounded-md border border-line bg-canvas px-3 py-2 font-mono text-[11.5px] leading-5 whitespace-pre">{text}</pre>
+      <pre className="min-w-0 flex-1 overflow-x-auto rounded-sm border border-line bg-paper px-3 py-2 font-mono text-[11.5px] leading-5 whitespace-pre">{text}</pre>
       <Button
         variant="ghost"
-        className="h-7 px-2.5"
+        size="sm"
         onClick={() => {
           void navigator.clipboard.writeText(text).then(() => {
             setDone(true);
@@ -115,16 +115,16 @@ export function SitesPanel({ sb, ws, role }: Pick<ViewProps, "sb" | "ws" | "role
     }
   };
   return (
-    <Panel>
+    <Panel className="overflow-hidden">
       <CardHead label="Sites" count={sites.data?.rows.length}>
         {role === "owner" ? (
-          <Button variant="ghost" className="h-7 px-2.5" onClick={add}>
+          <Button variant="ghost" size="sm" onClick={add}>
             Add site
           </Button>
         ) : null}
       </CardHead>
       <div className="flex flex-col">
-        <div className="px-4 pt-3">
+        <div className="px-5 pt-3">
           <ErrorNote message={error || sites.error} />
         </div>
         {!sites.data ? (
@@ -133,15 +133,15 @@ export function SitesPanel({ sb, ws, role }: Pick<ViewProps, "sb" | "ws" | "role
           sites.data.rows.map((s, i) => {
             const live = !!s.last_event_at && sites.data!.at - Date.parse(s.last_event_at) < 3600_000;
             return (
-              <div key={s.id} className={`flex flex-col gap-3 px-4 py-4 ${i ? "border-t border-line" : ""}`}>
+              <div key={s.id} className={`flex flex-col gap-3 px-5 py-4 ${i ? "border-t border-line" : ""}`}>
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="text-[14px] font-medium">{s.domain}</span>
-                  {s.paused ? <Badge tone="amber">Paused</Badge> : live ? <Badge tone="green">Receiving events</Badge> : <Badge>Waiting for events</Badge>}
+                  {s.paused ? <Badge tone="amber">Paused</Badge> : live ? <Badge tone="green" dot>Receiving events</Badge> : <Badge>Waiting for events</Badge>}
                   {s.install_mode ? <Badge>{s.install_mode}</Badge> : null}
                   <span className="ml-auto font-mono text-[11.5px] text-muted">
                     {s.sessions_24h} visits · {s.with_account_24h} with a company · {s.identified_24h} with a person · last {timeAgo(s.last_event_at)}
                   </span>
-                  <Button variant="plain" className="h-7 px-2" onClick={() => setOpen(open === s.id ? "" : s.id)}>
+                  <Button variant="plain" size="sm" onClick={() => setOpen(open === s.id ? "" : s.id)}>
                     {open === s.id ? "Hide install" : "Install"}
                   </Button>
                 </div>
@@ -189,14 +189,14 @@ function IcpForm({ sb, ws, rules, onSaved }: Pick<ViewProps, "sb" | "ws"> & { ru
   return (
     <Panel>
       <CardHead label="Ideal customer" />
-      <div className="flex flex-col gap-4 p-4">
+      <div className="flex flex-col gap-4 p-5">
         <Field label="Industries">
           <Input value={industries} onChange={(e) => setIndustries(e.target.value)} placeholder="Software Development, Financial Services" />
         </Field>
         <Field label="Company size">
           <div className="flex flex-wrap gap-1.5">
             {SIZES.map((s) => (
-              <Button key={s} variant={sizes.includes(s) ? "primary" : "ghost"} className="h-7 px-2.5" onClick={() => setSizes(sizes.includes(s) ? sizes.filter((x) => x !== s) : [...sizes, s])}>
+              <Button key={s} variant={sizes.includes(s) ? "primary" : "ghost"} size="sm" onClick={() => setSizes(sizes.includes(s) ? sizes.filter((x) => x !== s) : [...sizes, s])}>
                 {s}
               </Button>
             ))}

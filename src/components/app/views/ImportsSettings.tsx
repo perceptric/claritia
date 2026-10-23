@@ -77,15 +77,15 @@ export function ImportsSettings({ sb, ws }: Pick<ViewProps, "sb" | "ws">) {
   return (
     <div className="flex flex-col gap-5">
       <ErrorNote message={error} />
-      <Panel>
+      <Panel className="overflow-hidden">
         <CardHead label="Imports" count={list.data?.length} />
         {!list.data ? (
           <Loading />
         ) : !list.data.length ? (
-          <p className="px-4 py-3 text-[13px] text-faint">—</p>
+          <p className="px-5 py-3 text-[13px] text-faint">—</p>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full border-collapse">
+            <table className="w-full border-collapse [&_tbody_tr:last-child_td]:border-b-0">
               <thead>
                 <tr>
                   <Th>File</Th>
@@ -119,7 +119,7 @@ export function ImportsSettings({ sb, ws }: Pick<ViewProps, "sb" | "ws">) {
                               {total ? ` / ${n(total)}` : ""}
                             </span>
                           ) : null}
-                          {i.status === "failed" && i.error ? <span className="max-w-[220px] truncate text-[12px] text-red-600">{i.error}</span> : null}
+                          {i.status === "failed" && i.error ? <span className="max-w-[220px] truncate text-[12px] text-rose">{i.error}</span> : null}
                         </span>
                       </Td>
                       <Td className="text-right font-mono">{n(c.rows)}</Td>
@@ -131,13 +131,13 @@ export function ImportsSettings({ sb, ws }: Pick<ViewProps, "sb" | "ws">) {
                       <Td className="text-right">
                         <span className="flex justify-end gap-1">
                           {i.errors_path ? (
-                            <Button variant="ghost" className="h-7 px-2.5" onClick={() => download(i)}>
+                            <Button variant="ghost" size="sm" onClick={() => download(i)}>
                               <Download size={13} />
                               Errors
                             </Button>
                           ) : null}
                           {canUndo ? (
-                            <Button variant="ghost" className="h-7 px-2.5" onClick={() => undo(i)}>
+                            <Button variant="ghost" size="sm" onClick={() => undo(i)}>
                               Undo
                             </Button>
                           ) : null}

@@ -10,17 +10,22 @@ const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replac
 
 function page(title: string, body: string, status = 200) {
   const html = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>${esc(title)}</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300..500&family=Geist:wght@400;500&display=swap">
 <style>
-:root{color-scheme:light dark;--ink:#0c0c0b;--muted:#6b6b66;--line:#eaeaea;--panel:#fff;--canvas:#fafafa;--brand:#266df0}
-@media (prefers-color-scheme:dark){:root{--ink:#f2f2f0;--muted:#a3a39e;--line:#2a2a28;--panel:#141413;--canvas:#0c0c0b}}
-body{margin:0;background:var(--canvas);color:var(--ink);font:15px/1.5 Geist,ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif}
+:root{color-scheme:light dark;--paper:#f2f1ed;--card:#fbfaf7;--ink:#121211;--muted:#7a7870;--line:rgb(18 18 17/.1);--line-strong:rgb(18 18 17/.18);--hover:rgb(18 18 17/.04)}
+@media (prefers-color-scheme:dark){:root{--paper:#141413;--card:#1f1f1d;--ink:#f2f1ed;--muted:#8f8d85;--line:rgb(242 241 237/.1);--line-strong:rgb(242 241 237/.18);--hover:rgb(242 241 237/.06)}}
+body{margin:0;background:var(--paper);color:var(--ink);font:15px/1.5 Geist,ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;-webkit-font-smoothing:antialiased}
 main{max-width:440px;margin:12vh auto 0;padding:0 16px}
-section{background:var(--panel);border:1px solid var(--line);padding:24px}
-h1{font-size:20px;font-weight:500;margin:0 0 8px;letter-spacing:-.01em}
+section{background:var(--card);border:1px solid var(--line);border-radius:24px;padding:28px}
+h1{font:300 28px/1.15 Fraunces,ui-serif,Georgia,"Times New Roman",serif;margin:0 0 10px;letter-spacing:-.02em}
 p{margin:0 0 20px;color:var(--muted)}
 form{display:flex;flex-wrap:wrap;gap:8px}
-button{font:inherit;font-size:14px;border-radius:6px;padding:8px 14px;cursor:pointer;border:1px solid var(--line);background:var(--panel);color:var(--ink)}
-button.primary{background:var(--brand);border-color:var(--brand);color:#fff}
+button{font:inherit;font-size:13.5px;font-weight:500;height:36px;border-radius:999px;padding:0 16px;cursor:pointer;border:1px solid var(--line-strong);background:var(--card);color:var(--ink);transition:transform 140ms cubic-bezier(.2,.8,.2,1),opacity 140ms}
+button:hover{background:var(--hover)}
+button:active{transform:scale(.98)}
+button.primary{background:var(--ink);border-color:var(--ink);color:var(--paper)}
+button.primary:hover{opacity:.85}
 </style></head><body><main><section>${body}</section></main></body></html>`;
   return new Response(html, { status, headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store", "X-Robots-Tag": "noindex" } });
 }

@@ -41,7 +41,7 @@ const EVERY = [
   { value: 360, label: "Every 6 hours" },
   { value: 1440, label: "Every day" },
 ];
-const SEL = "h-9 w-full rounded-md border border-line bg-panel px-2.5 text-[13px] hover:border-line-strong";
+const SEL = "h-9 w-full rounded-sm border border-line-strong bg-card px-3 text-[13px] outline-none focus:border-ink";
 const OBJECT_LABEL: Record<string, string> = { contacts: "Contacts", companies: "Companies", opportunities: "Opportunities", opportunity: "Opportunities", lists: "Lists", suppressions: "Unsubscribes", events: "Activity", records: "Records" };
 
 async function getJson<T>(session: ViewProps["session"], path: string): Promise<T> {
@@ -78,7 +78,8 @@ export function SourcesSettings({ sb, session, ws, role }: Pick<ViewProps, "sb" 
       <ErrorNote message={error} />
       {sources.data && !list.length ? (
         <ToolIntro
-          title="Contacts from every tool you use"
+          sketch="gear"
+          title={"Contacts from\nevery tool you use"}
           lead="Connect your CRM, email tools, forms and billing. Contacts come in with their consent and unsubscribes, duplicates merge, and two-way CRMs get changes back within minutes."
           features={[
             { title: "Two-way CRM sync", text: "HubSpot, Salesforce and Omniscient stay in step with Claritia. A person's edit wins over a sync by default.", visual: <SampleStats items={[["in", "12,408"], ["out", "1,930"], ["loops", "0"]]} /> },
@@ -88,7 +89,7 @@ export function SourcesSettings({ sb, session, ws, role }: Pick<ViewProps, "sb" 
         />
       ) : null}
       {list.length ? (
-        <Panel>
+        <Panel className="overflow-hidden">
           <CardHead label="Connected" count={list.length} />
           <ul className="divide-y divide-line">
             {list.map((s) => {
@@ -96,12 +97,12 @@ export function SourcesSettings({ sb, session, ws, role }: Pick<ViewProps, "sb" 
               const [label, tone] = STATE[s.status] ?? [s.status, "gray" as Tone];
               return (
                 <li key={s.id}>
-                  <button type="button" onClick={() => pick(s.id)} className="flex w-full items-center gap-3 px-4 py-3 text-left text-[13px] hover:bg-hover">
+                  <button type="button" onClick={() => pick(s.id)} className="flex w-full items-center gap-3 px-5 py-3.5 text-left text-[13px] transition-colors duration-[140ms] hover:bg-hover">
                     <BrandLogo domain={e?.domain ?? ""} name={s.name} size={22} />
                     <span className="font-medium">{s.name}</span>
                     {s.account ? <span className="truncate font-mono text-[11px] text-faint">{s.account}</span> : null}
                     <span className="ml-auto flex items-center gap-3">
-                      {s.last_error && s.status !== "disconnected" ? <span className="max-w-[280px] truncate text-[12px] text-red-600">{s.last_error}</span> : null}
+                      {s.last_error && s.status !== "disconnected" ? <span className="max-w-[280px] truncate text-[12px] text-rose">{s.last_error}</span> : null}
                       <span className="text-[12px] text-faint">{timeAgo(s.last_run_at)}</span>
                       <Badge tone={tone}>{label}</Badge>
                     </span>
@@ -123,8 +124,8 @@ export function SourcesSettings({ sb, session, ws, role }: Pick<ViewProps, "sb" 
         if (!items.length) return null;
         return (
           <section key={g.id} className="flex flex-col gap-2">
-            <h3 className="label-mono text-faint">{g.label}</h3>
-            <div className="grid grid-cols-2 border-t border-l border-line sm:grid-cols-3 lg:grid-cols-4">
+            <h3 className="label-mono">{g.label}</h3>
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
               {items.map((e) => {
                 const on = connected.get(e.kind);
                 return (
@@ -133,12 +134,12 @@ export function SourcesSettings({ sb, session, ws, role }: Pick<ViewProps, "sb" 
                     type="button"
                     disabled={!owner && !on}
                     onClick={() => (on ? pick(on.id) : setConnect(e))}
-                    className="flex items-center gap-3 border-r border-b border-line bg-panel px-4 py-3.5 text-left text-[13px] hover:bg-hover disabled:cursor-default disabled:hover:bg-panel"
+                    className={`flex min-w-0 items-center gap-3 rounded-lg border bg-card px-4 py-3.5 text-left text-[13px] disabled:cursor-default ${on ? "border-line-strong" : "border-line"} ${!owner && !on ? "" : "lift hover:border-line-strong"}`}
                   >
-                    <BrandLogo domain={e.domain} name={e.label} size={22} />
-                    <span className="font-medium">{e.label}</span>
-                    <span className="ml-auto flex gap-1">
-                      {on ? <Badge tone={STATE[on.status]?.[1] ?? "gray"}>{STATE[on.status]?.[0] ?? on.status}</Badge> : e.twoWay ? <Badge>Two-way</Badge> : null}
+                    <BrandLogo domain={e.domain} name={e.label} size={24} />
+                    <span className="truncate font-medium">{e.label}</span>
+                    <span className="ml-auto flex shrink-0 gap-1">
+                      {on ? <Badge tone={STATE[on.status]?.[1] ?? "gray"} dot>{STATE[on.status]?.[0] ?? on.status}</Badge> : e.twoWay ? <Badge>Two-way</Badge> : null}
                     </span>
                   </button>
                 );
@@ -257,7 +258,7 @@ function ConnectPanel({ session, wsId, entry, onClose, onError }: { session: Vie
                     rows={5}
                     spellCheck={false}
                     autoComplete="off"
-                    className="w-full rounded-md border border-line bg-panel px-2.5 py-2 font-mono text-[12px] outline-none focus:border-ink"
+                    className="w-full rounded-sm border border-line-strong bg-card px-3 py-2 font-mono text-[12px] outline-none focus:border-ink focus:ring-1 focus:ring-ink"
                   />
                 ) : (
                   <Input value={keys[k.key] ?? ""} onChange={(e) => setKeys({ ...keys, [k.key]: e.target.value })} type={k.secret ? "password" : "text"} placeholder={k.placeholder} autoComplete="off" />
@@ -266,7 +267,7 @@ function ConnectPanel({ session, wsId, entry, onClose, onError }: { session: Vie
             ))}
             {entry.grant ? (
               <Field label="Read-only user">
-                <pre className="overflow-x-auto border border-line bg-canvas px-3 py-2 font-mono text-[11.5px] leading-relaxed whitespace-pre text-body">{entry.grant}</pre>
+                <pre className="overflow-x-auto rounded-sm border border-line bg-paper px-3 py-2 font-mono text-[11.5px] leading-relaxed whitespace-pre text-body">{entry.grant}</pre>
               </Field>
             ) : null}
             <div className="flex items-center gap-3">
@@ -321,13 +322,13 @@ function SourcePanel({ sb, session, wsId, source, owner, onClose, changed }: { s
           <Badge tone={tone}>{state}</Badge>
           <span className="ml-auto flex gap-1.5">
             {source.status !== "disconnected" && !e?.hook ? (
-              <Button variant="ghost" className="h-8 px-2.5" onClick={() => act(async () => must(await sb.rpc("source_sync_now", { p_id: source.id })))} disabled={source.status === "paused"}>
+              <Button variant="ghost" size="sm" onClick={() => act(async () => must(await sb.rpc("source_sync_now", { p_id: source.id })))} disabled={source.status === "paused"}>
                 <Refresh size={14} />
                 Sync now
               </Button>
             ) : null}
             {owner && source.status !== "disconnected" ? (
-              <Button variant="ghost" className="h-8 px-2.5" onClick={() => act(async () => must(await sb.rpc("source_pause", { p_id: source.id, p_paused: source.status !== "paused" })))}>
+              <Button variant="ghost" size="sm" onClick={() => act(async () => must(await sb.rpc("source_pause", { p_id: source.id, p_paused: source.status !== "paused" })))}>
                 {source.status === "paused" ? <Play size={14} /> : <Pause size={14} />}
                 {source.status === "paused" ? "Resume" : "Pause"}
               </Button>
@@ -335,7 +336,7 @@ function SourcePanel({ sb, session, wsId, source, owner, onClose, changed }: { s
             {owner && source.status !== "disconnected" ? (
               <Button
                 variant="danger"
-                className="h-8 px-2.5"
+                size="sm"
                 onClick={() =>
                   act(async () => {
                     if (!(await askConfirm(`Disconnect ${source.name}?`, { ok: "Disconnect", danger: true }))) return;
@@ -354,7 +355,7 @@ function SourcePanel({ sb, session, wsId, source, owner, onClose, changed }: { s
           <Field label="Webhook URL">
             <div className="flex gap-1.5">
               <Input readOnly value={hook.data} className="font-mono text-[12px]" onFocus={(ev) => ev.currentTarget.select()} />
-              <Button variant="ghost" className="h-9 px-2.5" onClick={() => void navigator.clipboard.writeText(hook.data!)} aria-label="Copy">
+              <Button variant="ghost" className="!h-10 w-10 shrink-0 !px-0" onClick={() => void navigator.clipboard.writeText(hook.data!)} aria-label="Copy">
                 <Copy size={14} />
               </Button>
             </div>
@@ -364,7 +365,7 @@ function SourcePanel({ sb, session, wsId, source, owner, onClose, changed }: { s
         {owner && source.status !== "disconnected" ? (
           <Panel>
             <CardHead label="Sync" />
-            <div className="grid gap-4 p-4 sm:grid-cols-2">
+            <div className="grid gap-4 p-5 sm:grid-cols-2">
               {(e?.warehouse ? [] : (e?.objects ?? [])).map((o) => (
                 <Field key={o} label={OBJECT_LABEL[o] ?? o}>
                   <Select
@@ -424,7 +425,7 @@ function SourcePanel({ sb, session, wsId, source, owner, onClose, changed }: { s
                 </Field>
               ) : null}
             </div>
-            <div className="flex items-center gap-3 border-t border-line px-4 py-3">
+            <div className="flex items-center gap-3 border-t border-line px-5 py-3">
               <Button
                 onClick={() =>
                   act(async () => {
@@ -446,15 +447,15 @@ function SourcePanel({ sb, session, wsId, source, owner, onClose, changed }: { s
           <MappingPanel sb={sb} session={session} wsId={wsId} source={source} owner={owner} hasCompanies={!!e?.objects.includes("companies")} twoWay={!!e?.twoWay && source.settings.objects?.contacts === "both"} />
         ) : null}
 
-        <Panel>
+        <Panel className="overflow-hidden">
           <CardHead label="Runs" count={runs.data?.length} />
           {!runs.data ? (
             <Loading />
           ) : !runs.data.length ? (
-            <p className="px-4 py-3 text-[13px] text-faint">—</p>
+            <p className="px-5 py-3 text-[13px] text-faint">—</p>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full border-collapse">
+              <table className="w-full border-collapse [&_tbody_tr:last-child_td]:border-b-0">
                 <thead>
                   <tr>
                     <Th>When</Th>
@@ -473,7 +474,7 @@ function SourcePanel({ sb, session, wsId, source, owner, onClose, changed }: { s
                         <span className="flex items-center gap-2">
                           <Badge tone={r.direction === "out" ? "violet" : "brand"}>{r.direction === "out" ? "Out" : "In"}</Badge>
                           {OBJECT_LABEL[r.object] ?? r.object}
-                          {r.error ? <span className="max-w-[240px] truncate text-[12px] text-red-600">{r.error}</span> : null}
+                          {r.error ? <span className="max-w-[240px] truncate text-[12px] text-rose">{r.error}</span> : null}
                         </span>
                       </Td>
                       <Td className="text-right font-mono">{r.pulled.toLocaleString("en-US")}</Td>
@@ -523,9 +524,9 @@ function QueryPanel({ sb, session, wsId, source, owner, changed }: { sb: ViewPro
     setSaved(false);
   };
   return (
-    <Panel>
+    <Panel className="overflow-hidden">
       <CardHead label="Query" />
-      <div className="flex flex-col gap-3 p-4">
+      <div className="flex flex-col gap-3 p-5">
         <textarea
           value={q.sql}
           onChange={(e) => set({ sql: e.target.value })}
@@ -533,7 +534,7 @@ function QueryPanel({ sb, session, wsId, source, owner, changed }: { sb: ViewPro
           spellCheck={false}
           disabled={!owner}
           aria-label="Query"
-          className="w-full rounded-md border border-line bg-panel px-3 py-2 font-mono text-[12.5px] leading-relaxed outline-none focus:border-ink"
+          className="w-full rounded-sm border border-line-strong bg-card px-3 py-2 font-mono text-[12.5px] leading-relaxed outline-none focus:border-ink focus:ring-1 focus:ring-ink"
         />
         <div className="grid gap-3 sm:grid-cols-2">
           <Field label="Rows become">
@@ -585,7 +586,7 @@ function QueryPanel({ sb, session, wsId, source, owner, changed }: { sb: ViewPro
       </div>
       {test ? (
         <div className="overflow-x-auto border-t border-line">
-          <table className="w-full border-collapse">
+          <table className="w-full border-collapse [&_tbody_tr:last-child_td]:border-b-0">
             <thead>
               <tr>
                 {test.columns.map((c) => (
@@ -662,25 +663,29 @@ function MappingPanel({ sb, session, wsId, source, owner, hasCompanies, twoWay }
     }
   };
   return (
-    <Panel>
+    <Panel className="overflow-hidden">
       <CardHead label="Fields">
         {hasCompanies ? (
-          <span className="ml-auto flex gap-1">
+          <span className="ml-auto flex gap-0.5 rounded-full bg-paper-deep p-0.5">
             {(["contact", "company"] as const).map((o) => (
-              <button key={o} type="button" onClick={() => setObject(o)} className={`h-6 rounded-md px-2 text-[12px] ${object === o ? "bg-ink text-white" : "text-muted hover:bg-hover"}`}>
+              <button key={o} type="button" onClick={() => setObject(o)} className={`h-6 rounded-full px-2.5 text-[12px] font-medium transition-colors duration-[140ms] ${object === o ? "bg-ink text-paper" : "text-muted hover:text-ink"}`}>
                 {o === "contact" ? "Contacts" : "Companies"}
               </button>
             ))}
           </span>
         ) : null}
       </CardHead>
-      <ErrorNote message={error} />
+      {error ? (
+        <div className="px-5 pt-4">
+          <ErrorNote message={error} />
+        </div>
+      ) : null}
       {!data.data ? (
         <Loading />
       ) : !rows.length ? (
-        <p className="px-4 py-3 text-[13px] text-faint">—</p>
+        <p className="px-5 py-3 text-[13px] text-faint">—</p>
       ) : (
-        <table className="w-full border-collapse">
+        <table className="w-full border-collapse [&_tbody_tr:last-child_td]:border-b-0">
           <thead>
             <tr>
               <Th>{source.name}</Th>
@@ -714,7 +719,7 @@ function MappingPanel({ sb, session, wsId, source, owner, hasCompanies, twoWay }
         </table>
       )}
       {owner && dirty ? (
-        <div className="border-t border-line px-4 py-3">
+        <div className="border-t border-line px-5 py-3">
           <Button onClick={save}>Save fields</Button>
         </div>
       ) : null}
@@ -766,14 +771,14 @@ export function SyncLog({ sb, ws, navigate }: Pick<ViewProps, "sb" | "ws" | "nav
           </Button>
         ) : null}
       </div>
-      <Panel>
+      <Panel className="overflow-hidden">
         {!rows.data ? (
           <Loading />
         ) : !rows.data.length ? (
-          <p className="px-4 py-3 text-[13px] text-faint">—</p>
+          <p className="px-5 py-3 text-[13px] text-faint">—</p>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full border-collapse">
+            <table className="w-full border-collapse [&_tbody_tr:last-child_td]:border-b-0">
               <thead>
                 <tr>
                   <Th>{""}</Th>
@@ -816,7 +821,7 @@ export function SyncLog({ sb, ws, navigate }: Pick<ViewProps, "sb" | "ws" | "nav
                         <span className="flex items-center gap-2">
                           <Badge tone={r.direction === "out" ? "violet" : "brand"}>{r.direction === "out" ? "Out" : "In"}</Badge>
                           <Badge tone={tone}>{label}</Badge>
-                          {r.error ? <span className="max-w-[260px] truncate text-[12px] text-red-600">{r.error}</span> : null}
+                          {r.error ? <span className="max-w-[260px] truncate text-[12px] text-rose">{r.error}</span> : null}
                         </span>
                       </Td>
                       <Td className="max-w-[260px] truncate font-mono text-[11px] text-muted">{r.fields.join(", ") || "—"}</Td>
