@@ -5,10 +5,11 @@
 // which source may overwrite which; and custom objects.
 
 import { useState } from "react";
-import { FIELD_KINDS, LEAD_STAGES, optionsOf, PACKS, type CustomField, type FieldKind, type Option } from "@/lib/records/fields";
+import { FIELD_KINDS, LEAD_STAGES, PACKS, type Option } from "@/lib/records/fields";
 import { askConfirm, askLines, askText } from "../Dialogs";
 import { Select } from "../Select";
-import { Badge, Button, CardHead, ErrorNote, errorText, Field, Input, Loading, must, Panel, Segmented, useLoad, type ViewProps } from "../ui";
+import { Badge, Button, CardHead, ErrorNote, errorText, Field, Input, Loading, must, Panel, useLoad, type ViewProps } from "../ui";
+import { FieldDialog } from "../records/FieldDialog";
 import { useMeta } from "../records/meta";
 
 const CLASSES: { value: string; label: string }[] = [
@@ -101,17 +102,22 @@ export function FieldsSettings({ sb, ws, role }: Pick<ViewProps, "sb" | "ws" | "
       </div>
       <ErrorNote message={error} />
 
-      {adding ? (
-        <FieldForm
+      {adding || editing ? (
+        <FieldDialog
+          sb={sb}
+          ws={ws}
+          object={object}
           objects={objectOptions}
-          onCancel={() => setAdding(false)}
-          busy={busy}
-          onSave={(f) =>
-            run(async () => {
-              must(await sb.rpc("field_add", { p_ws: ws.id, p_object: object, p_label: f.label, p_type: f.type, p_options: f.options, p_config: f.config ?? {}, p_required: !!f.required, p_group: f.group ?? null }));
-              setAdding(false);
-            })
-          }
+          start={editing ? custom.find((f) => f.key === editing) : undefined}
+          onClose={() => {
+            setAdding(false);
+            setEditing(null);
+          }}
+          onSaved={() => {
+            setAdding(false);
+            setEditing(null);
+            meta.reload();
+          }}
         />
       ) : null}
 
@@ -122,35 +128,10 @@ export function FieldsSettings({ sb, ws, role }: Pick<ViewProps, "sb" | "ws" | "
         ) : (
           <ul className="divide-y divide-line">
             {custom.map((f, i) =>
-              editing === f.key ? (
-                <li key={f.key} className="p-3">
-                  <FieldForm
-                    objects={objectOptions}
-                    start={f}
-                    busy={busy}
-                    onCancel={() => setEditing(null)}
-                    onSave={(n) =>
-                      run(async () => {
-                        must(
-                          await sb.rpc("field_update", {
-                            p_ws: ws.id,
-                            p_object: object,
-                            p_key: f.key,
-                            p_label: n.label,
-                            p_options: n.options,
-                            p_config: n.config ?? {},
-                            p_required: !!n.required,
-                            p_group: n.group ?? "",
-                          }),
-                        );
-                        setEditing(null);
-                      })
-                    }
-                  />
-                </li>
-              ) : (
-                <li key={f.key} className="flex flex-wrap items-center gap-2 px-4 py-2.5 text-[13px]">
-                  <span className="font-medium">{f.label}</span>
+                              <li key={f.key} className="flex flex-wrap items-center gap-2 px-4 py-2.5 text-[13px]">
+                  <span className="font-medium" title={f.config?.description || undefined}>
+                    {f.label}
+                  </span>
                   <Badge>{FIELD_KINDS.find((k) => k.value === f.type)?.label ?? f.type}</Badge>
                   {f.required ? <Badge tone="amber">Required</Badge> : null}
                   {f.group_name ? <span className="text-[12px] text-muted">{f.group_name}</span> : null}
@@ -179,7 +160,6 @@ export function FieldsSettings({ sb, ws, role }: Pick<ViewProps, "sb" | "ws" | "
                     )}
                   </span>
                 </li>
-              ),
             )}
           </ul>
         )}
@@ -298,110 +278,6 @@ export function FieldsSettings({ sb, ws, role }: Pick<ViewProps, "sb" | "ws" | "
         </Panel>
       ) : null}
     </div>
-  );
-}
-
-type Draft = { label: string; type: FieldKind; options: Option[]; config?: CustomField["config"]; required?: boolean; group?: string | null };
-
-function FieldForm({ start, objects, busy, onSave, onCancel }: { start?: CustomField; objects: { value: string; label: string }[]; busy: boolean; onSave: (f: Draft) => void; onCancel: () => void }) {
-  const [label, setLabel] = useState(start?.label ?? "");
-  const [type, setType] = useState<FieldKind>(start?.type ?? "text");
-  const [lines, setLines] = useState(start ? toLines(optionsOf(start)) : "");
-  const [required, setRequired] = useState<"yes" | "no">(start?.required ? "yes" : "no");
-  const [group, setGroup] = useState(start?.group_name ?? start?.group ?? "");
-  const [target, setTarget] = useState(start?.config?.target ?? "contact");
-  const [multiple, setMultiple] = useState<"one" | "many">(start?.config?.multiple ? "many" : "one");
-  const [currency, setCurrency] = useState(start?.config?.currency ?? "USD");
-  const picks = type === "select" || type === "multi_select";
-  const ready = label.trim() && (!picks || fromLines(lines).length > 0);
-  return (
-    <Panel>
-      <form
-        className="grid gap-4 p-4 sm:grid-cols-2"
-        onSubmit={(e) => {
-          e.preventDefault();
-          if (!ready) return;
-          onSave({
-            label: label.trim(),
-            type,
-            options: picks ? fromLines(lines) : [],
-            config: type === "relation" ? { target, multiple: multiple === "many" } : type === "currency" ? { currency: currency.toUpperCase().slice(0, 3) } : {},
-            required: required === "yes",
-            group: group.trim() || null,
-          });
-        }}
-      >
-        <Field label="Name">
-          <Input autoFocus value={label} onChange={(e) => setLabel(e.target.value)} maxLength={80} />
-        </Field>
-        <Field label="Type">
-          <Select<FieldKind>
-            value={type}
-            onChange={setType}
-            disabled={!!start}
-            ariaLabel="Type"
-            options={FIELD_KINDS}
-            className="h-9 w-full rounded-md border border-line bg-panel px-2.5 text-[13px] hover:border-line-strong disabled:opacity-60"
-          />
-        </Field>
-        {picks ? (
-          <label className="flex flex-col gap-1.5 sm:col-span-2">
-            <span className="label-mono">Options, one per line</span>
-            <textarea value={lines} onChange={(e) => setLines(e.target.value)} rows={5} className="rounded-md border border-line bg-panel px-2.5 py-2 text-[13px] outline-none focus:border-ink" />
-          </label>
-        ) : null}
-        {type === "relation" ? (
-          <>
-            <Field label="Links to">
-              <Select<string>
-                value={target}
-                onChange={setTarget}
-                disabled={!!start}
-                ariaLabel="Links to"
-                options={objects}
-                className="h-9 w-full rounded-md border border-line bg-panel px-2.5 text-[13px] hover:border-line-strong disabled:opacity-60"
-              />
-            </Field>
-            <Field label="How many">
-              <Segmented<"one" | "many">
-                value={multiple}
-                onChange={setMultiple}
-                options={[
-                  { value: "one", label: "One" },
-                  { value: "many", label: "Many" },
-                ]}
-              />
-            </Field>
-          </>
-        ) : null}
-        {type === "currency" ? (
-          <Field label="Currency">
-            <Input value={currency} onChange={(e) => setCurrency(e.target.value)} maxLength={3} />
-          </Field>
-        ) : null}
-        <Field label="Group">
-          <Input value={group} onChange={(e) => setGroup(e.target.value)} maxLength={60} />
-        </Field>
-        <Field label="Required">
-          <Segmented<"yes" | "no">
-            value={required}
-            onChange={setRequired}
-            options={[
-              { value: "no", label: "No" },
-              { value: "yes", label: "Yes" },
-            ]}
-          />
-        </Field>
-        <div className="flex justify-end gap-2 sm:col-span-2">
-          <Button type="button" variant="plain" onClick={onCancel}>
-            Cancel
-          </Button>
-          <Button type="submit" disabled={!ready || busy}>
-            Save
-          </Button>
-        </div>
-      </form>
-    </Panel>
   );
 }
 

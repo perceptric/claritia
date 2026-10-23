@@ -1,7 +1,8 @@
 // The Forms screens in a real browser against the whole app (docs/form-builder-v2.md Part 6): the local stack
 // (scripts/local-stack.mjs) and `next dev`, signed in as one test user. Each way in goes from an empty workspace to a
 // live form that takes a fill and makes a contact: Ask me (eight questions by clicks and keys), a first sentence that
-// skips what it settles, a template, and Build by hand with drag and drop.
+// skips what it settles, a template, and Build by hand with drag and drop. Then the CRM: a custom field from the
+// table, a rating from the record page, a note and a task.
 //   POSTGREST_BIN=… CHROMIUM_PATH=… node scripts/screens-check.ts
 // scripts/test-db.sh runs it when both are set.
 
@@ -167,6 +168,38 @@ try {
   await publish();
   await fill(formId(), { "Work email": "bo@acme.com", "First name": "Bo" });
   check(await contactFor("bo@acme.com"), "a fill on the hand-built form makes a contact");
+
+  // The CRM: a field added from the table with colored options, a rating from the record page, a note and a task.
+  const ws = (await db.query(`select workspace_id from workspace_members limit 1`)).rows[0].workspace_id as string;
+  await db.query(`select contacts_upsert($1, 'manual', $2)`, [ws, JSON.stringify([{ email: "dana@acme.com", email_clean: "dana@acme.com", email_class: "work", first_name: "Dana", last_name: "Ray" }])]);
+  await page.goto(`${base}/contacts`);
+  await page.getByText("Dana Ray").first().waitFor({ timeout: 60_000 });
+  await page.getByRole("button", { name: "Add field" }).click();
+  await page.getByPlaceholder(/Budget, Renewal date/).fill("Plan");
+  await page.getByRole("button", { name: /Pick one/ }).click();
+  await page.getByLabel("Option 1").fill("Free");
+  await page.keyboard.press("Enter");
+  await page.getByLabel("Option 2").fill("Pro");
+  await page.getByRole("button", { name: "Add field", exact: true }).last().click();
+  await page.locator("th", { hasText: "Plan" }).waitFor({ timeout: 10_000 });
+  const plan = (await db.query(`select options from fields where workspace_id = $1 and key = 'plan'`, [ws])).rows[0]?.options as { label: string; color?: string }[] | undefined;
+  check(plan?.length === 2 && plan[1].color === "brand", "a field added from the table keeps its colored options and joins the table");
+  await page.getByText("Dana Ray").first().click();
+  await page.getByLabel("New note").fill("Wants a demo next week.");
+  await page.getByRole("button", { name: "Add note" }).click();
+  await page.getByText("Wants a demo next week.").last().waitFor();
+  await page.getByText("Tasks", { exact: true }).first().click();
+  await page.getByLabel("New task").fill("Send the deck");
+  await page.getByRole("button", { name: "Add", exact: true }).click();
+  await page.getByRole("checkbox", { name: "Mark done" }).first().click();
+  await until(async () => (await db.query(`select done from tasks where title = 'Send the deck'`)).rows[0]?.done === true, 10_000, "the task to be done");
+  check((await db.query(`select count(*)::int n from notes where workspace_id = $1`, [ws])).rows[0].n === 1, "a note and a done task land on the contact");
+  await page.getByRole("button", { name: "Add field" }).last().click();
+  await page.getByPlaceholder(/Budget, Renewal date/).fill("Fit score");
+  await page.getByRole("button", { name: /Rating/ }).click();
+  await page.getByRole("button", { name: "Add field", exact: true }).last().click();
+  await page.getByText("Fit score").first().waitFor({ timeout: 10_000 });
+  check((await db.query(`select type from fields where workspace_id = $1 and key = 'fit_score'`, [ws])).rows[0]?.type === "rating", "a rating field is added from the record page");
 
   check(!errors.length, `no page errors (${errors.slice(0, 3).join(" | ")})`);
 } catch (e) {

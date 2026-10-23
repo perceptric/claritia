@@ -12,7 +12,9 @@ import { askConfirm, askText } from "../Dialogs";
 import { Avatar, Badge, Button, CardHead, ErrorNote, errorText, Loading, must, Page, Panel, timeAgo, useLoad, type ViewProps } from "../ui";
 import type { Link } from "../records/FieldInput";
 import { useMeta } from "../records/meta";
+import { FieldDialog } from "../records/FieldDialog";
 import { FieldsPanel, HistoryPanel, type Change } from "../records/RecordParts";
+import { RecordWork } from "../records/RecordWork";
 import { RecordsList, type ViewState } from "../records/RecordsList";
 import { DEFAULT_WIDTH, type Row } from "../records/RecordTable";
 import { AccountActivity, AccountFeedback } from "./AccountActivity";
@@ -255,7 +257,8 @@ type Detail = {
   history: Change[];
 };
 
-function RecordPage({ sb, ws, id, navigate, object }: ViewProps & { object: string }) {
+function RecordPage({ sb, ws, session, role, id, navigate, object }: ViewProps & { object: string }) {
+  const [addingField, setAddingField] = useState(false);
   const company = object === "company";
   const opportunity = object === "opportunity";
   const meta = useMeta(sb, ws.id, object);
@@ -366,6 +369,7 @@ function RecordPage({ sb, ws, id, navigate, object }: ViewProps & { object: stri
 
         <div className="grid gap-5 lg:grid-cols-[2fr_1fr]">
           <div className="flex flex-col gap-5">
+            <RecordWork sb={sb} ws={ws} session={session} role={role} object={object} record={id} people={meta.data.people} />
             {company ? (
               <Panel>
                 <CardHead label="Contacts" count={d.contacts?.length} />
@@ -413,12 +417,25 @@ function RecordPage({ sb, ws, id, navigate, object }: ViewProps & { object: stri
               skip={company ? ["fit", "intent", "stage", "contacts"] : []}
               onSave={save}
               onCustomize={() => navigate("settings", "fields")}
+              onAddField={() => setAddingField(true)}
             />
             <p className="px-1 font-mono text-[10.5px] text-faint">Created {timeAgo(String(rec.created_at))}</p>
           </div>
         </div>
         {company && d.account ? <AccountActivity sb={sb} accountId={d.account.id} /> : null}
       </div>
+      {addingField ? (
+        <FieldDialog
+          sb={sb}
+          ws={ws}
+          object={object}
+          onClose={() => setAddingField(false)}
+          onSaved={() => {
+            setAddingField(false);
+            meta.reload();
+          }}
+        />
+      ) : null}
     </Page>
   );
 }

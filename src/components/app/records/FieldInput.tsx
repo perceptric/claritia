@@ -38,13 +38,19 @@ export function FieldValue({ field, value, links }: { field: AnyField; value: un
   if (field.kind === "multi_select" && Array.isArray(value)) {
     return (
       <span className="flex flex-wrap gap-1">
-        {value.map((v) => (
-          <Badge key={String(v)}>{field.options.find((o) => o.value === v)?.label ?? String(v)}</Badge>
-        ))}
+        {value.map((v) => {
+          const o = field.options.find((x) => x.value === v);
+          return (
+            <Badge key={String(v)} tone={(o?.color as Tone) || "gray"}>
+              {o?.label ?? String(v)}
+            </Badge>
+          );
+        })}
       </span>
     );
   }
   if (field.kind === "checkbox") return <span>{value ? "Yes" : "No"}</span>;
+  if (field.kind === "rating") return <Stars value={Number(value)} />;
   if (field.key === "created_at" || field.key === "updated_at") return <span className="font-mono text-[12px] text-muted">{timeAgo(String(value))}</span>;
   if (field.kind === "url")
     return (
@@ -60,6 +66,21 @@ export function FieldValue({ field, value, links }: { field: AnyField; value: un
     );
   const text = shown(field, value);
   return <span className={["number", "currency", "percent"].includes(field.kind) ? "font-mono text-[12.5px] tabular-nums" : ""}>{text}</span>;
+}
+
+/** A rating as five squares, the first ones filled. */
+export function Stars({ value, onPick }: { value: number; onPick?: (n: number | null) => void }) {
+  return (
+    <span className="inline-flex items-center gap-0.5" role={onPick ? "radiogroup" : "img"} aria-label={`${value || 0} of 5`}>
+      {[1, 2, 3, 4, 5].map((n) =>
+        onPick ? (
+          <button key={n} type="button" role="radio" aria-checked={value === n} aria-label={`${n} of 5`} onClick={(e) => (e.stopPropagation(), onPick(value === n ? null : n))} className={`size-3.5 border ${n <= value ? "border-ink bg-ink" : "border-line-strong bg-panel hover:border-ink"}`} />
+        ) : (
+          <span key={n} className={`size-2.5 border ${n <= value ? "border-ink bg-ink" : "border-line-strong"}`} />
+        ),
+      )}
+    </span>
+  );
 }
 
 /** Find records to link, for relation fields. */
@@ -199,6 +220,13 @@ export function FieldEditor({
         options={[{ value: "", label: "None" }, ...field.options.map((o) => ({ value: o.value, label: o.label }))]}
         className={selectClass}
       />
+    );
+  }
+  if (field.kind === "rating") {
+    return (
+      <span className={`flex ${h} items-center px-1`} onKeyDown={(e) => e.key === "Escape" && onCancel()}>
+        <Stars value={Number(value) || 0} onPick={(n) => onSave(n)} />
+      </span>
     );
   }
   if (field.kind === "checkbox") {

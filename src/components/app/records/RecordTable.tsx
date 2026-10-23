@@ -6,7 +6,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { useRef, useState } from "react";
 import { shown, valueOf, type AnyField } from "@/lib/records/fields";
-import { Check } from "../../Icons";
+import { Check, Plus } from "../../Icons";
 import { Avatar, Badge } from "../ui";
 import { FieldEditor, FieldValue, type Link } from "./FieldInput";
 
@@ -46,6 +46,7 @@ export function RecordTable({
   onSave,
   onColumns,
   nameExtra,
+  onAddField,
 }: {
   sb: SupabaseClient;
   wsId: string;
@@ -62,6 +63,8 @@ export function RecordTable({
   onSave: (r: Row, f: AnyField, v: unknown) => Promise<void>;
   onColumns: (c: Column[]) => void;
   nameExtra?: (r: Row) => React.ReactNode;
+  /** The + at the end of the header: a new field, which joins the table as a column. */
+  onAddField?: () => void;
 }) {
   const [editing, setEditing] = useState<{ id: string; key: string } | null>(null);
   const [dragKey, setDragKey] = useState<string | null>(null);
@@ -152,12 +155,14 @@ export function RecordTable({
                   className={`relative h-10 cursor-grab border-b border-line bg-canvas px-4 text-left font-mono text-[10.5px] font-medium tracking-[0.12em] whitespace-nowrap text-muted uppercase ${overKey === c.key && dragKey !== c.key ? "shadow-[inset_2px_0_0_var(--color-ink)]" : ""}`}
                 >
                   {sortable(f) ? (
-                    <button type="button" onClick={() => onSort(f.sort!)} className="max-w-full truncate uppercase hover:text-ink">
+                    <button type="button" onClick={() => onSort(f.sort!)} title={f.config.description || undefined} className="max-w-full truncate uppercase hover:text-ink">
                       {f.label}
                       {arrow(f)}
                     </button>
                   ) : (
-                    <span className="block truncate">{f.label}</span>
+                    <span className="block truncate" title={f.config.description || undefined}>
+                      {f.label}
+                    </span>
                   )}
                   <span
                     role="separator"
@@ -168,7 +173,13 @@ export function RecordTable({
                 </th>
               );
             })}
-            <th className="h-10 w-full border-b border-line bg-canvas" />
+            <th className="h-10 w-full border-b border-line bg-canvas px-2 text-left">
+              {onAddField ? (
+                <button type="button" onClick={onAddField} aria-label="Add field" title="Add field" className="flex size-7 items-center justify-center rounded-md text-muted hover:bg-hover hover:text-ink">
+                  <Plus size={14} />
+                </button>
+              ) : null}
+            </th>
           </tr>
         </thead>
         <tbody>

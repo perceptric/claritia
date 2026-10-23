@@ -40,6 +40,8 @@ before(async () => {
   await admin.connect();
   await admin.query(`create database ${DB}`);
   pool = new pg.Pool({ connectionString: dbUrl, max: 4 });
+  // Dropping the scratch database at the end ends any idle connection; that isn't a failure.
+  pool.on("error", () => {});
   await pool.query(readFileSync(new URL("../db/supabase_stub.sql", import.meta.url), "utf8"));
   await run(migrations.filter((f) => f < "045"));
 

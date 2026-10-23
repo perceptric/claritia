@@ -16,7 +16,9 @@ import { SampleRows, SampleStats, SampleTags, ToolIntro } from "../ToolIntro";
 import { Avatar, Badge, Button, CardHead, Empty, ErrorNote, errorText, Field, Input, Loading, must, Page, Panel, postJson, timeAgo, useLoad, type Tone, type ViewProps } from "../ui";
 import type { Link } from "../records/FieldInput";
 import { useMeta, type Meta } from "../records/meta";
+import { FieldDialog } from "../records/FieldDialog";
 import { FieldsPanel, HistoryPanel, sourceLabel, type Change } from "../records/RecordParts";
+import { RecordWork } from "../records/RecordWork";
 import { ImportPanel } from "../records/ImportPanel";
 import { RecordsList, type Preset, type ViewState } from "../records/RecordsList";
 import { SidePanel } from "../records/SidePanel";
@@ -350,7 +352,8 @@ type Detail = {
 
 const EVENT_LABEL: Record<string, string> = { "contact.created": "Added" };
 
-function ContactPage({ sb, ws, session, id, navigate }: ViewProps) {
+function ContactPage({ sb, ws, session, role, id, navigate }: ViewProps) {
+  const [addingField, setAddingField] = useState(false);
   const detail = useLoad(async () => must(await sb.rpc("contact_detail", { p_id: id })) as Detail, id);
   const meta = useMeta(sb, ws.id, "contact");
   const [editing, setEditing] = useState(false);
@@ -477,6 +480,7 @@ function ContactPage({ sb, ws, session, id, navigate }: ViewProps) {
 
         <div className="grid gap-5 lg:grid-cols-[2fr_1fr]">
           <div className="flex flex-col gap-5">
+            <RecordWork sb={sb} ws={ws} session={session} role={role} object="contact" record={id} people={meta.data.people} />
             <Panel>
               <CardHead label="Timeline" count={timeline.length} />
               {!timeline.length ? (
@@ -507,6 +511,7 @@ function ContactPage({ sb, ws, session, id, navigate }: ViewProps) {
               skip={["name", "known", "segment", "fit", "intent", "score"]}
               onSave={save}
               onCustomize={() => navigate("settings", "fields")}
+              onAddField={() => setAddingField(true)}
             />
 
             <OpportunitiesPanel sb={sb} ws={ws} object="contact" id={id} navigate={navigate} />
@@ -590,6 +595,18 @@ function ContactPage({ sb, ws, session, id, navigate }: ViewProps) {
           onClose={(saved) => {
             setEditing(false);
             if (saved) detail.reload();
+          }}
+        />
+      ) : null}
+      {addingField ? (
+        <FieldDialog
+          sb={sb}
+          ws={ws}
+          object="contact"
+          onClose={() => setAddingField(false)}
+          onSaved={() => {
+            setAddingField(false);
+            meta.reload();
           }}
         />
       ) : null}

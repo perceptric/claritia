@@ -18,7 +18,8 @@ export type FieldKind =
   | "email"
   | "phone"
   | "user"
-  | "relation";
+  | "relation"
+  | "rating";
 
 export const FIELD_KINDS: { value: FieldKind; label: string }[] = [
   { value: "text", label: "Text" },
@@ -36,12 +37,16 @@ export const FIELD_KINDS: { value: FieldKind; label: string }[] = [
   { value: "phone", label: "Phone" },
   { value: "user", label: "Teammate" },
   { value: "relation", label: "Linked record" },
+  { value: "rating", label: "Rating" },
 ];
 
 /** A pick list option. Stages carry a kind, so boards can tell open, won and lost apart. */
 export type Option = { value: string; label: string; color?: string; kind?: "open" | "won" | "lost" };
 
-export type FieldConfig = { target?: string; multiple?: boolean; currency?: string; decimals?: number };
+export type FieldConfig = { target?: string; multiple?: boolean; currency?: string; decimals?: number; /** One short line on what the field is for, shown on hover. */ description?: string };
+
+/** Colors an option can take, drawn as square tags. */
+export const OPTION_COLORS = ["gray", "brand", "green", "amber", "red", "violet"] as const;
 
 export type CustomField = {
   key: string;
@@ -330,6 +335,10 @@ export function customValue(f: Pick<CustomField, "type" | "options">, raw: strin
       return /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(s) ? s.toLowerCase().slice(0, 320) : undefined;
     case "phone":
       return s.slice(0, 50);
+    case "rating": {
+      const n = Math.round(Number(s));
+      return n >= 1 && n <= 5 ? n : undefined;
+    }
     case "long_text":
       return s.slice(0, 20000);
     case "user":
@@ -356,6 +365,8 @@ export function shown(f: Pick<AnyField, "kind" | "options" | "config">, v: unkno
       return typeof v === "number" ? v.toLocaleString("en-US", { style: "currency", currency: f.config.currency || "USD", maximumFractionDigits: f.config.decimals ?? 0 }) : String(v);
     case "percent":
       return `${v}%`;
+    case "rating":
+      return `${v} of 5`;
     case "number":
       return typeof v === "number" ? v.toLocaleString("en-US") : String(v);
     case "datetime":
