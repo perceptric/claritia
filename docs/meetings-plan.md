@@ -10,8 +10,8 @@ shows what made revenue.
 Piper), an inbound stack (Default) and marketing automation (Conversion.ai or HubSpot). Claritia replaces all three
 on one CRM.
 
-Competitor facts below are their own claims from their sites as of October 2026. Anything not yet read on the
-vendor's own page is marked "check".
+Competitor facts below come from search summaries of their pricing pages, help centers, docs and G2/Capterra reviews
+(October 2026). The vendor sites couldn't be loaded from here, so every price is marked "check".
 
 ---
 
@@ -29,7 +29,8 @@ vendor's own page is marked "check".
 | Email and AI writing | — | Basic | AI-written journeys | Sending, AI nurture with approval | **Campaigns and AI journeys** on the canvas (M6) |
 | Meeting follow-through | Reminders, no-show | Reminders | — | — | **Reminders, reschedule, no-show and held tracking** (M1) |
 | Reports | Meetings, conversion | Funnel | Attribution | — | **Inbound funnel and rep load** (M7) |
-| Price | Per seat, about $22 to $45+ a user a month (check) | Platform fee plus seats (check) | Platform fee (check) | — | One platform price, free seats for people who don't take meetings (Part 6) |
+| AI agents | Chat AI, Meeting Prep agent, Chili Assist, MCP server | Dot agent, MCP with previewed writes | Agents that draft emails, forms and workflows for approval | Form chat builder, MCP form tools | **Routing and booking tools over MCP**, meeting brief (M3, M4) |
+| Price | From $1,250 a month with 15 seats, then $45 a seat; annual only (check) | Growth $1,250 a month, Scale $3,000; routing and scheduling seats $45 a month (check) | Contact sales; one third party says from about $900 a month (check) | — | One platform price below theirs, free seats for people who don't take meetings (Part 6) |
 
 ---
 
@@ -46,12 +47,14 @@ vendor's own page is marked "check".
   booking window, daily and weekly caps per rep, questions on the booking page, and a confirmation message.
 - **Team types:**
   - Round robin, even by meetings booked or weighted per rep, with priority tiers.
+  - Double round robin: one rep from each of two pools on the same meeting (AE plus SE).
   - Collective: every host must be free.
   - Owner first: the contact's owner when free, else the pool.
 - **Booking page and embed:** a clean page per type and per rep, the inline calendar inside forms, and a popup button
   for any site. The lead's time zone is detected and can be changed.
 - **After booking:** the calendar invite with the Meet, Teams or Zoom link, a confirmation email, reminders (24 hours
-  and 1 hour, editable), and reschedule and cancel links that keep the same host.
+  and 1 hour, editable), and reschedule and cancel links. The team picks whether a reschedule keeps the same host or
+  can move to anyone in the pool. Text reminders come later as an add-on (Twilio cost passed through).
 - **Meeting status:** booked, rescheduled, canceled, held or no-show. A no-show is marked by the rep in one click or
   set by the conferencing tool's attendance, and it can start a workflow.
 - **Busy-time sync:** busy times are cached and kept fresh by calendar push notifications (Google watch and Graph
@@ -66,17 +69,22 @@ vendor's own page is marked "check".
 - **Who sees it** reuses the form's match rules, now with enrichment and qualification results. Leads that don't
   match get the message, a page, or a "we'll be in touch" with an SLA timer.
 - **Book later:** a lead who closes the page gets an email with the same rep's times, and the slot holds 10 minutes.
+- **Not booked:** every form has a catch-all path, so no lead ends without an outcome. A lead who was shown times but
+  didn't book is marked "not booked", the owner is told, and a follow-up workflow can start.
 - **Replaces the outside schedulers:** the form's Book a meeting adds "Claritia calendar" as the first choice; the
   Calendly-style embeds stay for teams that keep them.
 
 ### M3. Router (Distro)
 
 - **One router per workspace**, used by forms, imports, CRM sources and the API. Each lead goes through it once.
+- **Spam check first:** fake names, throwaway domains and bot-like fills are held, with an allow list, so they never
+  reach a rep's queue or calendar.
 - **Steps, in order, each one optional:**
   1. Match the account: the email domain to a company, then the company's owner (Claritia or CRM).
   2. Keep existing owners.
   3. Rules on any field, enrichment value, score or answer, grouped in queues: territory, segment, product.
-  4. Assign inside the queue: round robin even, weighted, or by availability (fewest meetings this week).
+  4. Assign inside the queue: round robin even, weighted, or by availability (fewest meetings this week). Strict
+     takes the next rep in line even if they're busy soon; flexible skips to the next free rep.
   5. Fallback owner.
 - **Capacity and presence:** daily and weekly caps, out of office from the calendar, and a pause switch per rep.
 - **SLA timers:** if the owner doesn't act (no email, call or meeting) within a set time, the lead goes back to the
@@ -84,6 +92,10 @@ vendor's own page is marked "check".
 - **Decision log:** every lead keeps the path it took ("Matched Acme, owner Sam. Sam out of office. Queue US
   mid-market, round robin: Lee (3 of 9 this week)").
 - **Test mode:** paste an email or pick a contact and see where it would go, without assigning.
+- **In plain words:** the decision log is written as sentences, the gap reviewers call out in Default ("logs don't
+  explain why a lead was routed").
+- **MCP tools:** Claude or ChatGPT can ask why a lead went where it did, test a route, and propose a rule change that
+  a person approves before it applies (Claritia's MCP server exists in `src/lib/mcpTools.ts`).
 - Replaces the routing in `lead_settings` with a migration that moves today's rules into the router.
 
 ### M4. Handoff and booking for others
@@ -103,6 +115,7 @@ vendor's own page is marked "check".
   source and date in field history.
 - **Before the submit:** as soon as a work email is typed, known fields are filled and can hide from the form (the
   form studio's "hide when known").
+- **Score reasons:** the lead score shows the top factors behind it, as Conversion.ai's does.
 - **AI qualify step:** reads the answers and enrichment and picks one of the team's outcomes (qualified, not a fit,
   needs a look) with a one-line reason. It goes through the step cache, so the same inputs never call the model twice,
   and its outcome is only ever one the team defined.
@@ -114,7 +127,11 @@ vendor's own page is marked "check".
     date.
   - Steps: enrich, qualify, route, book, send email, wait, branch, update a field, create a task, Slack, webhook, push
     to the CRM.
-- **Templates:** "Demo request", "No-show follow-up", "Not a fit nurture", "Event registration".
+- **Templates:** "Demo request", "No-show follow-up", "Not booked follow-up", "Not a fit nurture", "Event
+  registration".
+- **Run history and versions:** every run shows each step's result, and a workflow can roll back to an earlier
+  version.
+- **Preview as a contact:** pick any contact and see the exact email they would get.
 - **Campaigns:** broadcasts and journeys from `docs/lock-in-plan.md` weeks 3 and 4 run on this canvas, with
   AI-written emails in the brand voice that a person approves (the nurture approval flow, built).
 
@@ -182,8 +199,9 @@ real booking against a test Google calendar).
 
 - One platform price per workspace with forms, router, workflows and the CRM.
 - Seats only for people who take meetings. Everyone else is free.
-- Price is set below a Chili Piper Concierge seat plus a Default seat (check both on their pricing pages before
-  launch).
+- Chili Piper and Default both start around $1,250 a month with annual contracts, plus about $45 a seat for people
+  who route and book (check both on their pricing pages before launch). Claritia's price sits well under that, monthly
+  or annual, so a 5-person team can start without a sales call.
 
 ---
 
