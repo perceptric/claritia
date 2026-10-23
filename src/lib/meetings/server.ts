@@ -4,6 +4,7 @@
 
 import { createHash, randomBytes } from "node:crypto";
 import { enqueueJob, type Rpc } from "../jobs.ts";
+import { keepManageToken } from "./links.ts";
 import { pickHost, pickPair, slots as engine, type HostInput, type Turns } from "./slots.ts";
 import { dateIn, weekOf } from "./time.ts";
 import type { Availability, MeetingSource, MeetingType, Slot } from "./types.ts";
@@ -184,6 +185,9 @@ export async function book(rpc: Rpc, b: BookInput): Promise<BookResult> {
     return { ok: false, error: code, slots: code.startsWith("link") ? [] : (await fresh()).filter((x) => x.start !== b.start) };
   }
   const meetingId = data as string;
+  // A sealed copy of the guest's link, so the emails sent later can carry it (only its hash is the key). The meeting
+  // stands without it: the emails then go without the manage links.
+  await keepManageToken(rpc, meetingId, token).catch(() => undefined);
   // The calendar events and the confirmation email follow in the worker (meeting_sync), so the guest never waits on
   // a provider; a failed create is retried there and can't make a second event (the meeting id is its key).
   if (!b.pending) await enqueueJob(rpc, { workspaceId: b.ws, kind: "meeting_sync", key: `create:${meetingId}`, payload: { meeting: meetingId, action: "create" } });

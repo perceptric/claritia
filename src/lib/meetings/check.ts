@@ -132,6 +132,7 @@ export function checkSettings(raw: unknown, kind: Kind): { settings: TypeSetting
     seats: kind === "group" ? int(r.seats, 2, 500, 10) : 1,
     reschedule: r.reschedule === "pool" ? "pool" : "same_host",
     reminders,
+    noShowFollowUp: r.noShowFollowUp !== false,
     confirmation,
     ...(price ? { price } : {}),
     questions,

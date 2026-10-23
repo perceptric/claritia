@@ -78,6 +78,8 @@ export type TypeSettings = {
   reschedule: "same_host" | "pool";
   /** Minutes before the start that reminder emails go out. */
   reminders: number[];
+  /** After a no-show, one email to the guest with the host's next times. */
+  noShowFollowUp: boolean;
   confirmation: { kind: "message"; text?: string } | { kind: "redirect"; url: string };
   /** Paid types: amount in the smallest unit (cents) and the currency; refunded when the host cancels. */
   price?: { amount: number; currency: string };
@@ -99,6 +101,7 @@ export const DEFAULT_SETTINGS: TypeSettings = {
   seats: 1,
   reschedule: "same_host",
   reminders: [1440, 60],
+  noShowFollowUp: true,
   confirmation: { kind: "message" },
   questions: [],
 };
