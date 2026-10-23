@@ -103,6 +103,95 @@ export const TEMPLATES: Template[] = [
         { submit: { label: "Apply" } },
       ),
   },
+  {
+    key: "webinar",
+    name: "Webinar",
+    text: "Name, work email, company and a question for the speakers.",
+    form: () =>
+      base(
+        [
+          f({ key: "email", type: "email", label: "Work email", required: true }),
+          f({ key: "first_name", type: "text", label: "First name", required: true, width: "half" }),
+          f({ key: "last_name", type: "text", label: "Last name", required: true, width: "half" }),
+          f({ key: "company", type: "text", label: "Company", required: false }),
+          f({ key: "q.question", type: "textarea", label: "A question for the speakers", required: false }),
+        ],
+        { submit: { label: "Register" }, after: { end: { kind: "message", title: "You're registered. The link is in your inbox." } } },
+      ),
+  },
+  {
+    key: "download",
+    name: "Gated download",
+    text: "Work email, name and job title before the guide.",
+    form: () =>
+      base(
+        [
+          f({ key: "email", type: "email", label: "Work email", required: true, check: "work_email" }),
+          f({ key: "name", type: "text", label: "Full name", required: true }),
+          f({ key: "title", type: "text", label: "Job title", required: false }),
+        ],
+        { submit: { label: "Get the guide" }, after: { end: { kind: "message", title: "It's on its way to your inbox." } } },
+      ),
+  },
+  {
+    key: "job",
+    name: "Job application",
+    text: "Name, email, phone, the role and a link to their work.",
+    form: () =>
+      base(
+        [
+          f({ key: "name", type: "text", label: "Full name", required: true }),
+          f({ key: "email", type: "email", label: "Email", required: true }),
+          f({ key: "phone", type: "phone", label: "Phone", required: false }),
+          f({ key: "q.role", type: "choice", label: "Role", required: true, options: ["Engineering", "Design", "Sales", "Marketing", "Other"].map((v) => ({ value: v, label: v })) }),
+          f({ key: "q.portfolio", type: "url", label: "LinkedIn or portfolio", required: false }),
+          f({ key: "q.why", type: "textarea", label: "Why do you want to join?", required: false }),
+        ],
+        { consent: { mode: "off", label: DEFAULT_CONSENT }, submit: { label: "Apply" }, after: { end: { kind: "message", title: "Thanks for applying. We'll be in touch." } } },
+      ),
+  },
+  {
+    key: "quote",
+    name: "Quote request",
+    text: "Company, what they need, budget and timeline.",
+    form: () =>
+      base(
+        [
+          f({ key: "email", type: "email", label: "Work email", required: true, check: "work_email" }),
+          f({ key: "name", type: "text", label: "Full name", required: true, width: "half" }),
+          f({ key: "company", type: "text", label: "Company", required: true, width: "half" }),
+          f({ key: "q.need", type: "textarea", label: "What do you need?", required: true }),
+          f({ key: "q.budget", type: "choice", label: "Budget", required: false, options: ["Under $1k", "$1k-$5k", "$5k-$20k", "$20k+"].map((v) => ({ value: v, label: v })) }),
+          f({ key: "q.timeline", type: "choice", label: "Timeline", required: false, options: ["This month", "This quarter", "Later"].map((v) => ({ value: v, label: v })) }),
+        ],
+        { submit: { label: "Get a quote" } },
+      ),
+  },
+  {
+    key: "feedback",
+    name: "Feedback",
+    text: "A score, what to improve, and an email to follow up.",
+    form: () =>
+      base(
+        [
+          f({ key: "q.score", type: "choice", label: "How likely are you to recommend us?", required: true, options: ["0-6", "7-8", "9-10"].map((v) => ({ value: v, label: v })) }),
+          f({ key: "q.improve", type: "textarea", label: "What should we improve?", required: false }),
+          f({ key: "email", type: "email", label: "Email", required: true }),
+        ],
+        { consent: { mode: "off", label: DEFAULT_CONSENT }, submit: { label: "Send feedback" }, after: { end: { kind: "message", title: "Thank you. We read every one." } } },
+      ),
+  },
+  {
+    key: "waitlist",
+    name: "Waitlist",
+    text: "Email and company, for early access.",
+    form: () =>
+      base([f({ key: "email", type: "email", label: "Work email", required: true }), f({ key: "company", type: "text", label: "Company", required: false })], {
+        layout: { labels: "inside", width: "narrow" },
+        submit: { label: "Join the waitlist" },
+        after: { end: { kind: "message", title: "You're on the list." } },
+      }),
+  },
 ];
 
 /** A captured form starts with the email field mapped to the usual name; the rest is mapped in the builder. */

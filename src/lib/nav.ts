@@ -1,5 +1,5 @@
-// The sidebar (docs/marketing-platform.md): CRM, Email, Site, Ads and Settings. The testing screens are gone; their
-// old addresses land on Contacts.
+// The sidebar (docs/marketing-platform.md): Site, CRM, Email, Ads and Settings. Forms come first and are where the
+// app opens. The testing screens are gone; their old addresses land on Forms.
 
 export type Route =
   | "contacts"
@@ -18,6 +18,8 @@ export type Route =
 export type NavItem = { route: Route; label: string; group?: string };
 
 export const NAV: NavItem[] = [
+  { route: "forms", label: "Forms", group: "Site" },
+  { route: "pages", label: "Pages" },
   { route: "contacts", label: "Contacts", group: "CRM" },
   { route: "companies", label: "Companies" },
   { route: "opportunities", label: "Opportunities" },
@@ -25,8 +27,6 @@ export const NAV: NavItem[] = [
   { route: "templates", label: "Templates" },
   { route: "workflows", label: "Workflows" },
   { route: "analytics", label: "Analytics" },
-  { route: "forms", label: "Forms", group: "Site" },
-  { route: "pages", label: "Pages" },
   { route: "ads", label: "Ads", group: "" },
   { route: "settings", label: "Settings", group: "" },
 ];
@@ -44,10 +44,10 @@ const MOVED: Record<string, { route: Route; id?: string; keepId?: boolean }> = {
   reports: { route: "analytics" },
 };
 
-export const defaultRoute: Route = "contacts";
+export const defaultRoute: Route = "forms";
 
 /**
- * The screen for an address's first two parts. Unknown and old testing addresses open Contacts; moved ones open
+ * The screen for an address's first two parts. Unknown and old testing addresses open Forms; moved ones open
  * their new home. An account id opens through /companies/account/<id>, which finds its company.
  */
 export function resolveRoute(first: string, id: string): { route: Route; id: string } {

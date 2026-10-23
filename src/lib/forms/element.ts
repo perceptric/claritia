@@ -32,6 +32,10 @@ const STYLES = `
 .h{font-family:var(--clr-heading-font);font-size:1.45em;font-weight:600;margin:0;line-height:1.2}
 .i{margin:0;color:var(--clr-muted)}
 .nt{font-size:.85em}
+.pop{position:fixed;inset:0;z-index:2147483646;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;padding:16px;overflow:auto}
+.pop[hidden]{display:none}
+.pbox{position:relative;background:var(--clr-bg);padding:28px;max-width:calc(var(--clr-width,480px) + 56px);width:100%;max-height:calc(100vh - 32px);overflow:auto}
+.px{position:absolute;top:8px;right:8px;width:32px;height:32px;border:0;background:transparent;cursor:pointer;font-size:20px;line-height:1;color:var(--clr-muted)}
 .st{margin:0;font-size:.85em;color:var(--clr-muted)}
 .g{display:grid;grid-template-columns:1fr 1fr;gap:var(--clr-gap)}
 .fl{grid-column:span 2;display:flex;flex-direction:column;gap:6px;min-width:0}
@@ -357,6 +361,7 @@ export class ClaritiaForm extends HTMLElement {
   connectedCallback() {
     if (!this.isPreview) void this.load();
     void flushQueue();
+    this.wirePopup();
     // In the embed's frame: tell the page around it how tall the form is.
     if (!this.isPreview && embedFrame() && typeof ResizeObserver !== "undefined") {
       const size = () => {
@@ -380,7 +385,7 @@ export class ClaritiaForm extends HTMLElement {
       if (!res.ok) throw new Error(String(res.status));
       this.data = (await res.json()) as Loaded;
     } catch {
-      this.root.replaceChildren(el("p", { text: "This form couldn't load. Refresh the page to try again." }));
+      this.put(el("p", { text: "This form couldn't load. Refresh the page to try again." }));
       return;
     }
     // Prefill from the address: ?email=… for fields set to take it.
@@ -425,8 +430,8 @@ export class ClaritiaForm extends HTMLElement {
     const form = d.body;
     addFont(d.tokens.fontUrl ?? "");
     const style = el("style", { text: `:host{${tokensCss(d.tokens)}--clr-width:${form.layout.width === "wide" ? "720px" : "480px"}}${STYLES}` });
-    if (d.status === "paused") return this.root.replaceChildren(style, el("div", { class: "f" }, el("p", { class: "i", text: "This form is closed." })));
-    if (this.done) return this.root.replaceChildren(style, this.endScreen(form));
+    if (d.status === "paused") return this.put(style, el("div", { class: "f" }, el("p", { class: "i", text: "This form is closed." })));
+    if (this.done) return this.put(style, this.endScreen(form));
 
     const { shown, required } = visibility(form, this.answers);
     const last = this.step === form.steps.length - 1;
@@ -465,7 +470,7 @@ export class ClaritiaForm extends HTMLElement {
       e.preventDefault();
       void this.next();
     });
-    this.root.replaceChildren(style, wrap);
+    this.put(style, wrap);
   }
 
   /** After a fill: the page links the visit to the person (Claritia's site script), and the embed around a frame resizes or opens the next page. */
@@ -487,6 +492,54 @@ export class ClaritiaForm extends HTMLElement {
         site("form", email);
       } catch {}
     }
+  }
+
+  /**
+   * <claritia-form popup="click|delay:5|exit">: the form opens over the page from any [data-claritia-open] button for
+   * it, after a number of seconds, or when the pointer leaves the top of the window (once a visit).
+   */
+  private opened = false;
+  private put(...nodes: Node[]) {
+    if (!this.hasAttribute("popup") || this.isPreview) return this.root.replaceChildren(...nodes);
+    const style = nodes.find((n) => n instanceof HTMLStyleElement);
+    const close = el("button", { type: "button", class: "px", "aria-label": "Close", text: "×" });
+    close.addEventListener("click", () => this.toggle(false));
+    const box = el("div", { class: "pbox", role: "dialog", "aria-modal": "true" }, close, ...nodes.filter((n) => n !== style));
+    const pop = el("div", { class: "pop", ...(this.opened ? {} : { hidden: true }) }, box);
+    pop.addEventListener("click", (e) => e.target === pop && this.toggle(false));
+    this.root.replaceChildren(...(style ? [style] : []), pop);
+  }
+  private toggle(open: boolean) {
+    this.opened = open;
+    const pop = this.root.querySelector(".pop") as HTMLElement | null;
+    if (pop) pop.hidden = !open;
+    if (open) (this.root.querySelector(".in, .bx, input, button:not(.px)") as HTMLElement | null)?.focus();
+  }
+  private popupWired = false;
+  private wirePopup() {
+    if (this.popupWired || !this.hasAttribute("popup") || this.isPreview) return;
+    this.popupWired = true;
+    const how = this.getAttribute("popup") || "click";
+    const id = this.getAttribute("form-id");
+    document.addEventListener("click", (e) => {
+      const b = (e.target as HTMLElement | null)?.closest?.("[data-claritia-open]");
+      if (b && b.getAttribute("data-claritia-open") === id) {
+        e.preventDefault();
+        this.toggle(true);
+      }
+    });
+    document.addEventListener("keydown", (e) => e.key === "Escape" && this.opened && this.toggle(false));
+    const delay = /^delay:(\d{1,3})$/.exec(how);
+    if (delay) setTimeout(() => this.toggle(true), Number(delay[1]) * 1000);
+    if (how === "exit")
+      document.addEventListener("mouseout", (e) => {
+        if (e.relatedTarget || e.clientY > 0) return;
+        try {
+          if (sessionStorage.getItem(`clr_exit_${id}`)) return;
+          sessionStorage.setItem(`clr_exit_${id}`, "1");
+        } catch {}
+        this.toggle(true);
+      });
   }
 
   private needsConsent() {

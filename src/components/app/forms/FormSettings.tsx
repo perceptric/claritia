@@ -55,19 +55,6 @@ export function FormSettings({ form, apply, sb, ws, session, role }: { form: For
         ) : null}
       </section>
       <section className="flex flex-col gap-3">
-        <h3 className="label-mono">Text</h3>
-        <Field label="Title">
-          <Input value={form.title ?? ""} onChange={(e) => apply({ op: "set_copy", title: e.target.value })} />
-        </Field>
-        <Field label="Intro">
-          <textarea value={form.intro ?? ""} rows={2} onChange={(e) => apply({ op: "set_copy", intro: e.target.value })} className={AREA} />
-        </Field>
-        <Field label="Button">
-          <Input value={form.submit.label} onChange={(e) => apply({ op: "set_copy", submit: e.target.value })} />
-        </Field>
-      </section>
-
-      <section className="flex flex-col gap-3">
         <h3 className="label-mono">After the submit</h3>
         <Segmented
           label="After the submit"

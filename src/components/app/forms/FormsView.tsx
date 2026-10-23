@@ -1,188 +1,100 @@
 "use client";
 
-// Forms (docs/form-builder.md): the list of forms, and the builder for one. The builder keeps the draft on the left
-// and the real form on the right; drafts save as you go, Publish checks the draft on the server and makes it live,
-// and Test sends a fill marked as a test through every destination.
+// Forms (docs/form-builder-v2.md): the list, the new-form screen (/forms/new), and one form's page. A form's page has
+// four tabs: Share (the form on your site's look, the embed code and Publish), Build (drag and drop), Connect (where
+// leads go, meetings, consent and spam) and Results (fills, deliveries and the daily check). Drafts save as you go;
+// Publish checks the draft on the server and makes it live.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Tokens } from "@/lib/forms/brand";
 import { applyOp, type Op } from "@/lib/forms/ops";
 import { ADAPTERS, checkForm, emptyForm, type Form } from "@/lib/forms/schema";
-import { capturedForm, TEMPLATES } from "@/lib/forms/templates";
 import type { CustomField } from "@/lib/records/fields";
-import { Copy, Inbox, Pause, Play, Plus, Redo, Send, Trash, Undo } from "../../Icons";
+import { Copy, Inbox, Pause, Play, Plus, Redo, Send, Trash, Undo, Wand } from "../../Icons";
 import { BrandLogo } from "../BrandLogo";
 import { askConfirm } from "../Dialogs";
-import { SampleStats, SampleTags, ToolIntro } from "../ToolIntro";
 import { Badge, Button, Empty, ErrorNote, errorText, Loading, must, Page, Panel, postJson, setLeaveGuard, Tabs, Td, Th, timeAgo, useLoad, type ViewProps } from "../ui";
-import { FormBuild } from "./FormBuild";
-import { FormChat } from "./FormChat";
+import { FormCanvas } from "./FormCanvas";
 import { FormChecks } from "./FormChecks";
+import { FormCreate, PreviewPane } from "./FormCreate";
 import { FormDesign } from "./FormDesign";
 import { FormDestinations } from "./FormDestinations";
 import { FormFills } from "./FormFills";
 import { FormSettings } from "./FormSettings";
-import { copy, FormPreview, IconButton, STATUS, type Destination, type FormRow, type Kit, type SourceRow } from "./shared";
+import { copy, IconButton, STATUS, type Destination, type FormRow, type Kit, type SourceRow } from "./shared";
 
 type ListRow = { id: string; name: string; status: FormRow["status"]; kind: "built" | "captured"; version: number; updated_at: string; fills: number; last_fill: string | null; failed: number; check: "running" | "passed" | "failed" | null };
 
 export function FormsView(props: ViewProps) {
-  if (props.id && props.id !== "new") return <FormPage key={props.id} {...props} />;
+  if (props.id === "new") return <FormCreate key="new" {...props} />;
+  if (props.id) return <FormPage key={props.id} {...props} />;
   return <FormList {...props} />;
 }
 
-function FormList({ sb, session, ws, navigate }: ViewProps) {
+function FormList(props: ViewProps) {
+  const { sb, ws, navigate } = props;
   const list = useLoad(async () => must(await sb.rpc("forms_list", { p_ws: ws.id })) as ListRow[], ws.id);
-  const site = useLoad(async () => (((await sb.from("sites").select("domain").eq("workspace_id", ws.id).order("created_at").limit(1)).data ?? []) as { domain: string }[])[0]?.domain ?? "", ws.id);
-  const [error, setError] = useState("");
-  const [ask, setAsk] = useState("");
-  const [url, setUrl] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-  const create = async (name: string, draft: Form, opts: { ask?: string; site?: string; kind?: "built" | "captured" } = {}) => {
-    setError("");
-    setBusy(true);
-    try {
-      const id = must(await sb.rpc("form_create", { p_ws: ws.id, p_name: name, p_draft: draft, p_kind: opts.kind ?? "built" })) as string;
-      if (opts.site) await postJson(session, "/api/forms/scan", { workspaceId: ws.id, url: opts.site, formId: id }).catch(() => undefined);
-      if (opts.ask)
-        try {
-          sessionStorage.setItem(`claritia:form-ask:${id}`, opts.ask);
-        } catch {}
-      navigate("forms", id);
-    } catch (e) {
-      setError(errorText(e));
-    } finally {
-      setBusy(false);
-    }
-  };
-  const siteValue = url ?? site.data ?? "";
-  const prompt = (
-    <form
-      onSubmit={(e) => {
-        e.preventDefault();
-        const words = ask.trim().split(/\s+/).slice(0, 6).join(" ");
-        if (words) void create(words.charAt(0).toUpperCase() + words.slice(1), emptyForm(), { ask: ask.trim(), site: siteValue.trim() || undefined });
-      }}
-      className="grid gap-2 border border-line bg-panel p-4 md:grid-cols-[1fr_220px_auto]"
-    >
-      <input
-        value={ask}
-        onChange={(e) => setAsk(e.target.value)}
-        placeholder="What should this form do?"
-        aria-label="What should this form do?"
-        className="h-10 rounded-md border border-line bg-panel px-3 text-[14px] text-ink outline-none placeholder:text-faint focus:border-ink"
-      />
-      <input
-        value={siteValue}
-        onChange={(e) => setUrl(e.target.value)}
-        placeholder="yoursite.com"
-        aria-label="Site"
-        className="h-10 rounded-md border border-line bg-panel px-3 text-[14px] text-ink outline-none placeholder:text-faint focus:border-ink"
-      />
-      <Button type="submit" disabled={busy || !ask.trim()} className="h-10">
-        Build
-      </Button>
-    </form>
-  );
-  const templates = (
-    <div className="grid gap-px border border-line bg-line sm:grid-cols-2 lg:grid-cols-4">
-      <button type="button" onClick={() => void create("Untitled form", emptyForm())} className="flex flex-col gap-1 bg-panel p-4 text-left hover:bg-hover">
-        <span className="flex items-center gap-2 text-[14px] font-medium">
-          <Plus size={14} />
-          Blank form
-        </span>
-        <span className="text-[12.5px] text-muted">One email field</span>
-      </button>
-      {TEMPLATES.map((t) => (
-        <button key={t.key} type="button" onClick={() => void create(t.name, t.form())} className="flex flex-col gap-1 bg-panel p-4 text-left hover:bg-hover">
-          <span className="text-[14px] font-medium">{t.name}</span>
-          <span className="text-[12.5px] text-muted">{t.text}</span>
-        </button>
-      ))}
-      <button type="button" onClick={() => void create("Captured form", capturedForm(), { kind: "captured" })} className="flex flex-col gap-1 bg-panel p-4 text-left hover:bg-hover">
-        <span className="text-[14px] font-medium">Capture a form</span>
-        <span className="text-[12.5px] text-muted">Keep your HubSpot, Marketo, Webflow or HTML form</span>
-      </button>
-    </div>
-  );
+  if (list.data && !list.data.length)
+    return (
+      <Page icon={<Inbox size={14} />} title="Forms" count={0} flush>
+        <FormCreate {...props} embedded />
+      </Page>
+    );
   return (
-    <Page icon={<Inbox size={14} />} title="Forms" count={list.data?.length}>
-      <ErrorNote message={error || list.error} />
+    <Page
+      icon={<Inbox size={14} />}
+      title="Forms"
+      count={list.data?.length}
+      actions={
+        <Button onClick={() => navigate("forms", "new")}>
+          <Plus size={14} />
+          New form
+        </Button>
+      }
+    >
+      <ErrorNote message={list.error} />
       {!list.data ? (
         <Loading />
-      ) : !list.data.length ? (
-        <div className="flex flex-col gap-8">
-          <ToolIntro
-            action={
-              <div className="flex w-full flex-col gap-2">
-                {prompt}
-                <div className="flex flex-wrap items-center gap-1.5">
-                  <span className="label-mono">Try</span>
-                  {["Demo requests from companies over 20 people, work emails only", "Contact sales with phone and a message", "Newsletter signup with consent"].map((t) => (
-                    <Button key={t} variant="ghost" onClick={() => setAsk(t)}>
-                      {t}
-                    </Button>
-                  ))}
-                </div>
-              </div>
-            }
-            title="Forms that look like your site and send leads anywhere"
-            lead="Say what the form is for, or pick a template. Claritia reads your site's fonts and colors, builds the form, checks every answer, and sends each lead to Claritia and to your CRM, Slack or a webhook, with every delivery logged."
-            features={[
-              { title: "Your brand", text: "Fonts, colors and corners from a brand kit, so the form fits the page it sits on.", visual: <SampleStats items={[["fields", "4"], ["steps", "2"], ["kb", "9"]]} /> },
-              { title: "Leads go anywhere", text: "HubSpot, Salesforce, Omniscient, Slack and webhooks, one record per person, retried until it lands.", visual: <SampleTags rows={[["HubSpot", "Sent"], ["Slack", "Sent"], ["Webhook", "Retrying"]]} /> },
-              { title: "Nothing lost", text: "Every fill is saved before it's sent on. A fill sent twice counts once, and a failed delivery can be replayed." },
-            ]}
-          />
-          {templates}
-        </div>
       ) : (
-        <div className="flex flex-col gap-6">
-          {prompt}
-          <Panel>
-            <table className="w-full border-collapse">
-              <thead>
-                <tr>
-                  <Th>Name</Th>
-                  <Th>State</Th>
-                  <Th className="text-right">Fills, 30 days</Th>
-                  <Th>Last fill</Th>
-                  <Th>Changed</Th>
+        <Panel>
+          <table className="w-full border-collapse">
+            <thead>
+              <tr>
+                <Th>Name</Th>
+                <Th>State</Th>
+                <Th className="text-right">Fills, 30 days</Th>
+                <Th>Last fill</Th>
+                <Th>Changed</Th>
+              </tr>
+            </thead>
+            <tbody>
+              {list.data.map((f) => (
+                <tr key={f.id} className="cursor-pointer border-t border-line hover:bg-hover" onClick={() => navigate("forms", f.id)}>
+                  <Td className="font-medium">
+                    <span className="flex items-center gap-2">
+                      {f.name}
+                      {f.failed ? <Badge tone="red">{`${f.failed} failed`}</Badge> : null}
+                      {f.check === "failed" ? <Badge tone="red">Check failed</Badge> : null}
+                      {f.kind === "captured" ? <Badge>Captured</Badge> : null}
+                    </span>
+                  </Td>
+                  <Td>
+                    <Badge tone={STATUS[f.status][1]}>{STATUS[f.status][0]}</Badge>
+                  </Td>
+                  <Td className="text-right font-mono">{f.fills.toLocaleString("en-US")}</Td>
+                  <Td className="text-faint">{timeAgo(f.last_fill)}</Td>
+                  <Td className="text-faint">{timeAgo(f.updated_at)}</Td>
                 </tr>
-              </thead>
-              <tbody>
-                {list.data.map((f) => (
-                  <tr key={f.id} className="cursor-pointer border-t border-line hover:bg-hover" onClick={() => navigate("forms", f.id)}>
-                    <Td className="font-medium">
-                      <span className="flex items-center gap-2">
-                        {f.name}
-                        {f.failed ? <Badge tone="red">{`${f.failed} failed`}</Badge> : null}
-                        {f.check === "failed" ? <Badge tone="red">Check failed</Badge> : null}
-                        {f.kind === "captured" ? <Badge>Captured</Badge> : null}
-                      </span>
-                    </Td>
-                    <Td>
-                      <Badge tone={STATUS[f.status][1]}>{STATUS[f.status][0]}</Badge>
-                    </Td>
-                    <Td className="text-right font-mono">{f.fills.toLocaleString("en-US")}</Td>
-                    <Td className="text-faint">{timeAgo(f.last_fill)}</Td>
-                    <Td className="text-faint">{timeAgo(f.updated_at)}</Td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </Panel>
-          <section className="flex flex-col gap-2">
-            <h3 className="label-mono">New form</h3>
-            {templates}
-          </section>
-        </div>
+              ))}
+            </tbody>
+          </table>
+        </Panel>
       )}
     </Page>
   );
 }
 
-type Tab = "chat" | "build" | "design" | "destinations" | "settings" | "share" | "fills" | "checks";
+type Tab = "share" | "build" | "connect" | "results";
 
 function FormPage(props: ViewProps) {
   const { sb, ws, id } = props;
@@ -204,6 +116,17 @@ function FormPage(props: ViewProps) {
   if (!data.data) return <Loading />;
   if (!data.data.row) return <Empty title="Form not found" />;
   return <Builder {...props} initial={data.data.row} published={data.data.published} kits={data.data.kits} sources={data.data.sources} dests={data.data.dests} custom={data.data.custom} site={data.data.site} reload={data.reload} />;
+}
+
+/** Read and clear a one-time note the create screen left for this form. */
+function takeOnce(key: string): string | null {
+  try {
+    const v = sessionStorage.getItem(key);
+    sessionStorage.removeItem(key);
+    return v;
+  } catch {
+    return null;
+  }
 }
 
 function Builder({
@@ -231,45 +154,41 @@ function Builder({
   const [tokens, setTokens] = useState<Partial<Tokens>>(kits.find((k) => k.id === initial.brand_kit_id)?.tokens ?? {});
   const [past, setPast] = useState<Form[]>([]);
   const [future, setFuture] = useState<Form[]>([]);
-  const [tab, setTab] = useState<Tab>("chat");
-  // A first request typed on the Forms list, handed over once.
-  const [first] = useState(() => {
-    try {
-      const k = `claritia:form-ask:${initial.id}`;
-      const v = sessionStorage.getItem(k);
-      sessionStorage.removeItem(k);
-      return v;
-    } catch {
-      return null;
-    }
+  const [tab, setTab] = useState<Tab>(() => {
+    const t = takeOnce(`claritia:form-tab:${initial.id}`);
+    return t === "build" || t === "connect" || t === "results" ? t : "share";
   });
-  const [selected, setSelected] = useState<string | null>(null);
+  const [note] = useState(() => takeOnce(`claritia:form-note:${initial.id}`) ?? "");
   const [saved, setSaved] = useState(true);
   const [error, setError] = useState("");
   const [problems, setProblems] = useState<string[]>([]);
   const [busy, setBusy] = useState("");
   const [watch, setWatch] = useState(0);
-  const [preview, setPreview] = useState<{ step: number; done: boolean }>({ step: 0, done: false });
   const rev = useRef(initial.draft_rev);
   const dirty = useRef(false);
 
-  const apply = useCallback(
-    (op: Op) => {
-      const r = applyOp(form, op);
-      if ("error" in r) return setError(r.error);
-      setError("");
-      setPast((p) => [...p.slice(-99), form]);
-      setFuture([]);
-      setForm(r.form);
-      setSaved(false);
-      dirty.current = true;
-    },
-    [form],
-  );
+  // The latest form, so two ops in a row (add a field, then move it) both land.
+  const latest = useRef(form);
+  const put = (f: Form) => {
+    latest.current = f;
+    setForm(f);
+  };
+  const apply = useCallback((op: Op) => {
+    const cur = latest.current;
+    const r = applyOp(cur, op);
+    if ("error" in r) return setError(r.error);
+    setError("");
+    setPast((p) => [...p.slice(-99), cur]);
+    setFuture([]);
+    latest.current = r.form;
+    setForm(r.form);
+    setSaved(false);
+    dirty.current = true;
+  }, []);
   const undo = useCallback(() => {
     if (!past.length) return;
     setFuture((f) => [form, ...f]);
-    setForm(past[past.length - 1]);
+    put(past[past.length - 1]);
     setPast((p) => p.slice(0, -1));
     setSaved(false);
     dirty.current = true;
@@ -277,7 +196,7 @@ function Builder({
   const redo = useCallback(() => {
     if (!future.length) return;
     setPast((p) => [...p, form]);
-    setForm(future[0]);
+    put(future[0]);
     setFuture((f) => f.slice(1));
     setSaved(false);
     dirty.current = true;
@@ -350,7 +269,7 @@ function Builder({
     setError("");
     try {
       await postJson(session, "/api/forms/test", { workspaceId: ws.id, id: initial.id });
-      setTab("fills");
+      setTab("results");
       setWatch((w) => w + 1);
     } catch (e) {
       setError(errorText(e));
@@ -376,6 +295,11 @@ function Builder({
       setError(errorText(e));
     }
   };
+  const rename = (n: string) => {
+    setName(n);
+    setSaved(false);
+    dirty.current = true;
+  };
   const saveKit = async (kitName: string, t: Partial<Tokens>) => {
     const r = await postJson<{ id: string; tokens: Tokens; notes: string[] }>(session, "/api/forms/brand", { workspaceId: ws.id, id: kitId, name: kitName, tokens: t });
     setTokens(r.tokens);
@@ -386,15 +310,6 @@ function Builder({
     }
     reload();
     return { notes: r.notes };
-  };
-
-  const fromChat = (next: Form, nextRev: number) => {
-    setPast((p) => [...p.slice(-99), form]);
-    setFuture([]);
-    setForm(next);
-    rev.current = nextRev;
-    dirty.current = false;
-    setSaved(true);
   };
   const kit = kits.find((k) => k.id === kitId) ?? null;
   // While a scan runs, check the kit every 2 seconds; when it lands, the form takes the new tokens.
@@ -410,28 +325,58 @@ function Builder({
       setTokens(kit.tokens);
     }
   }, [kit]);
+  const [scanError, setScanError] = useState("");
   const scan = async (url: string) => {
-    const r = await postJson<{ kitId: string }>(session, "/api/forms/scan", { workspaceId: ws.id, url, kitId, formId: initial.id });
-    if (r.kitId !== kitId) {
-      setKitId(r.kitId);
-      setSaved(false);
-      dirty.current = true;
+    setScanError("");
+    try {
+      const r = await postJson<{ kitId: string }>(session, "/api/forms/scan", { workspaceId: ws.id, url, kitId, formId: initial.id });
+      if (r.kitId !== kitId) {
+        setKitId(r.kitId);
+        setSaved(false);
+        dirty.current = true;
+      }
+      reload();
+    } catch (e) {
+      setScanError(errorText(e));
     }
-    reload();
   };
+  const fromChat = (next: Form, nextRev: number) => {
+    setPast((p) => [...p.slice(-99), form]);
+    setFuture([]);
+    put(next);
+    rev.current = nextRev;
+    dirty.current = false;
+    setSaved(true);
+  };
+  const siteHost = (kit?.source_url ?? site).replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/\/.*$/, "");
+  const brand = { site: siteHost, kit, tokens, scan: (u: string) => void scan(u), error: scanError };
 
   const [label, tone] = STATUS[initial.status];
   const origin = typeof window === "undefined" ? "" : window.location.origin;
   const tabs: { value: Tab; label: string; count?: number }[] = [
-    { value: "chat", label: "Chat" },
-    { value: "build", label: "Build" },
-    { value: "design", label: "Design" },
-    { value: "destinations", label: "Destinations", count: dests.length + 1 },
-    { value: "settings", label: "Settings" },
     { value: "share", label: "Share" },
-    { value: "fills", label: "Fills" },
-    ...(form.capture ? [] : [{ value: "checks" as Tab, label: "Checks" }]),
+    { value: "build", label: "Build" },
+    { value: "connect", label: "Connect" },
+    { value: "results", label: "Results" },
   ];
+  const look = (
+    <FormDesign
+      form={form}
+      apply={apply}
+      kits={kits}
+      kitId={kitId}
+      setKit={(k) => {
+        setKitId(k);
+        setSaved(false);
+        dirty.current = true;
+      }}
+      tokens={tokens}
+      setTokens={setTokens}
+      saveKit={saveKit}
+      scan={scan}
+      site={kit?.source_url ?? site}
+    />
+  );
 
   return (
     <Page
@@ -455,26 +400,25 @@ function Builder({
               {initial.status === "paused" ? <Play size={14} /> : <Pause size={14} />}
             </IconButton>
           ) : null}
+          {initial.version ? (
+            <IconButton label="Send a test fill" onClick={test} disabled={!!busy}>
+              <Send size={14} />
+            </IconButton>
+          ) : null}
           <IconButton label="Delete form" onClick={remove} danger>
             <Trash size={14} />
           </IconButton>
-          {initial.version ? (
-            <Button variant="ghost" disabled={!!busy} onClick={test}>
-              <Send size={14} />
-              Test
-            </Button>
-          ) : null}
           <Button disabled={!!busy || (!!initial.version && !changed)} onClick={publish}>
-            {busy === "publish" ? "Publishing…" : "Publish"}
+            {busy === "publish" ? "Publishing…" : initial.version && !changed ? "Published" : "Publish"}
           </Button>
         </span>
       }
     >
       <div className="flex h-full min-h-0 flex-col">
         <Tabs value={tab} tabs={tabs} onChange={setTab} />
-        {error || problems.length ? (
+        {error || note || problems.length ? (
           <div className="border-b border-line bg-panel px-4 py-2">
-            <ErrorNote message={error || problems[0]} />
+            <ErrorNote message={error || problems[0] || note} />
             {problems.length > 1 ? (
               <ul className="mt-1 flex flex-col gap-0.5 text-[12.5px] text-danger">
                 {problems.slice(1).map((p) => (
@@ -484,119 +428,229 @@ function Builder({
             ) : null}
           </div>
         ) : null}
-        {tab === "checks" ? (
-          <div className="paper min-h-0 flex-1 overflow-auto p-4 md:p-6">
-            <FormChecks sb={sb} formId={initial.id} live={initial.status === "live"} />
-          </div>
-        ) : tab === "fills" ? (
-          <div className="paper min-h-0 flex-1 overflow-auto p-4 md:p-6">
-            <FormFills key={watch} sb={sb} formId={initial.id} destinations={dests} navigate={navigate} watch={watch} />
-          </div>
-        ) : (
-          <div className="grid min-h-0 flex-1 md:grid-cols-[minmax(360px,1fr)_minmax(320px,1fr)]">
-            <div className="min-h-0 overflow-auto border-line p-4 md:border-r md:p-5">
-              {tab === "chat" ? (
-                <FormChat sb={sb} session={session} ws={ws} formId={initial.id} first={first} prepare={async () => ((await save()) ? rev.current : null)} onResult={fromChat} />
-              ) : tab === "build" ? (
-                <div className="flex flex-col gap-4">
-                  <label className="flex flex-col gap-1.5">
-                    <span className="label-mono">Name</span>
-                    <input
-                      value={name}
-                      onChange={(e) => {
-                        setName(e.target.value);
-                        setSaved(false);
-                        dirty.current = true;
-                      }}
-                      className="h-9 w-full rounded-md border border-line bg-panel px-2.5 text-[13px] text-ink outline-none focus:border-ink"
-                    />
-                  </label>
-                  <FormBuild form={form} apply={apply} custom={custom} selected={selected} select={setSelected} />
-                </div>
-              ) : tab === "design" ? (
-                <FormDesign
-                  form={form}
-                  apply={apply}
-                  kits={kits}
-                  kitId={kitId}
-                  setKit={(k) => {
-                    setKitId(k);
-                    setSaved(false);
-                    dirty.current = true;
-                  }}
-                  tokens={tokens}
-                  setTokens={setTokens}
-                  saveKit={saveKit}
-                  scan={scan}
-                  site={kit?.source_url ?? site}
-                />
-              ) : tab === "destinations" ? (
+        <div className="min-h-0 flex-1">
+          {tab === "share" ? (
+            <div className="grid h-full min-h-0 lg:grid-cols-[1fr_380px]">
+              <PreviewPane form={form} brand={brand} footer={<ChangeBox session={session} ws={ws} formId={initial.id} prepare={async () => ((await save()) ? rev.current : null)} onResult={fromChat} />} />
+              <aside className="min-h-0 overflow-auto border-l border-line bg-panel">
+                <Embed id={initial.id} origin={origin} live={!!initial.version} form={form} apply={apply} />
+              </aside>
+            </div>
+          ) : tab === "build" ? (
+            <FormCanvas form={form} apply={apply} custom={custom} tokens={tokens} name={name} setName={rename} look={look} />
+          ) : tab === "connect" ? (
+            <div className="paper h-full overflow-auto p-4 md:p-8">
+              <div className="mx-auto flex max-w-3xl flex-col gap-8">
                 <FormDestinations sb={sb} session={session} ws={ws} formId={initial.id} list={dests} sources={sources} reload={reload} navigate={navigate} />
-              ) : tab === "settings" ? (
-                <FormSettings form={form} apply={apply} sb={sb} ws={ws} session={session} role={role} />
-              ) : (
-                <Share id={initial.id} origin={origin} live={!!initial.version} form={form} apply={apply} />
-              )}
-            </div>
-            <div className="paper min-h-0 overflow-auto p-4 md:p-8">
-              <div className="mb-4 flex items-center gap-2">
-                {form.steps.map((_, i) => (
-                  <button
-                    key={i}
-                    type="button"
-                    onClick={() => setPreview({ step: i, done: false })}
-                    className={`h-7 rounded-md px-2.5 text-[12px] font-medium ${!preview.done && preview.step === i ? "bg-ink text-white" : "border border-line bg-panel text-muted hover:text-ink"}`}
-                  >
-                    {form.steps.length > 1 ? `Step ${i + 1}` : "Form"}
-                  </button>
-                ))}
-                <button
-                  type="button"
-                  onClick={() => setPreview({ step: preview.step, done: true })}
-                  className={`h-7 rounded-md px-2.5 text-[12px] font-medium ${preview.done ? "bg-ink text-white" : "border border-line bg-panel text-muted hover:text-ink"}`}
-                >
-                  After submit
-                </button>
-              </div>
-              {form.capture ? (
                 <Panel>
-                  <table className="w-full border-collapse">
-                    <thead>
-                      <tr>
-                        <Th>Field</Th>
-                        <Th>Name on your form</Th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {form.steps.flatMap((st) => st.fields).map((f) => (
-                        <tr key={f.id}>
-                          <Td>{f.label}</Td>
-                          <Td className="font-mono text-[12px]">{f.source ?? <span className="text-danger">missing</span>}</Td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                  <div className="p-5">
+                    <FormSettings form={form} apply={apply} sb={sb} ws={ws} session={session} role={role} />
+                  </div>
                 </Panel>
-              ) : (
-                <div className="border border-line bg-panel p-6" style={{ background: tokens.background }}>
-                  <FormPreview form={form} tokens={tokens} step={Math.min(preview.step, form.steps.length - 1)} done={preview.done} />
-                </div>
-              )}
+              </div>
             </div>
-          </div>
-        )}
+          ) : (
+            <div className="paper h-full overflow-auto p-4 md:p-8">
+              <div className="mx-auto flex max-w-5xl flex-col gap-8">
+                <FormFills key={watch} sb={sb} formId={initial.id} destinations={dests} navigate={navigate} watch={watch} />
+                {form.capture ? null : <FormChecks sb={sb} formId={initial.id} live={initial.status === "live"} />}
+              </div>
+            </div>
+          )}
+        </div>
       </div>
     </Page>
   );
 }
 
-function Share({ id, origin, live, form, apply }: { id: string; origin: string; live: boolean; form: Form; apply: (op: Op) => void }) {
-  const [copied, setCopied] = useState("");
-  const cap = form.capture;
-  const capture = cap ? (
-    <section className="flex flex-col gap-3">
-      <h3 className="label-mono">Your form</h3>
-      <div className="grid grid-cols-2 border-t border-l border-line sm:grid-cols-3">
+// Changes in plain words ----------------------------------------------------------------------------------------
+
+const SUGGEST = ["Make it two steps", "Add a phone field", "Make it shorter", "Put the labels inside the fields"];
+
+function ChangeBox({ session, ws, formId, prepare, onResult }: Pick<ViewProps, "session" | "ws"> & { formId: string; prepare: () => Promise<number | null>; onResult: (f: Form, rev: number) => void }) {
+  const [text, setText] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [reply, setReply] = useState<{ text: string; lines: string[]; ask: string | null }>({ text: "", lines: [], ask: null });
+  const [error, setError] = useState("");
+  const send = async (message: string, confirmed = false) => {
+    const m = message.trim();
+    if (!m || busy) return;
+    setBusy(true);
+    setError("");
+    try {
+      const rev = await prepare();
+      if (rev === null) throw new Error("The draft didn't save. Try again.");
+      const r = await postJson<{ form: Form; rev: number; reply: string; lines: string[]; ask: { question: string } | null }>(session, "/api/forms/chat", { workspaceId: ws.id, id: formId, rev, message: m, confirmed });
+      if (r.lines.length) onResult(r.form, r.rev);
+      setReply({ text: r.reply, lines: r.lines, ask: r.ask ? m : null });
+      if (!r.ask) setText("");
+    } catch (e) {
+      setError(errorText(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <div className="mt-5 flex flex-col gap-2">
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          void send(text);
+        }}
+        className="flex items-center gap-2 border border-line bg-panel p-2 focus-within:border-ink"
+      >
+        <Wand size={15} className="ml-1 text-muted" />
+        <input value={text} onChange={(e) => setText(e.target.value)} placeholder="Change anything, like “add a budget question”" aria-label="Change the form" className="h-8 min-w-0 flex-1 bg-transparent text-[13.5px] outline-none placeholder:text-faint" />
+        <Button type="submit" disabled={!text.trim() || busy}>
+          {busy ? "Changing…" : "Change"}
+        </Button>
+      </form>
+      <div className="flex flex-wrap gap-1.5">
+        {SUGGEST.map((s) => (
+          <button key={s} type="button" disabled={busy} onClick={() => void send(s)} className="h-7 rounded-md border border-line bg-panel px-2.5 text-[12px] text-body hover:border-line-strong hover:text-ink disabled:opacity-50">
+            {s}
+          </button>
+        ))}
+      </div>
+      <ErrorNote message={error} />
+      {reply.text ? (
+        <div className="mk-rise border border-line bg-panel px-3 py-2 text-[13px]">
+          <p>{reply.text}</p>
+          {reply.lines.length ? (
+            <ul className="mt-1 text-[12.5px] text-muted">
+              {reply.lines.map((l) => (
+                <li key={l}>{l}</li>
+              ))}
+            </ul>
+          ) : null}
+          {reply.ask ? (
+            <div className="mt-2 flex gap-1.5">
+              <Button onClick={() => void send(reply.ask!, true)} disabled={busy}>
+                Yes
+              </Button>
+              <Button variant="ghost" onClick={() => setReply({ text: "", lines: [], ask: null })}>
+                No
+              </Button>
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+// Embed ---------------------------------------------------------------------------------------------------------
+
+type Way = "code" | "link" | "popup" | "wordpress" | "webflow" | "framer" | "react" | "iframe";
+const WAYS: { value: Way; label: string; domain?: string }[] = [
+  { value: "code", label: "Code" },
+  { value: "link", label: "Link" },
+  { value: "popup", label: "Popup" },
+  { value: "wordpress", label: "WordPress", domain: "wordpress.org" },
+  { value: "webflow", label: "Webflow", domain: "webflow.com" },
+  { value: "framer", label: "Framer", domain: "framer.com" },
+  { value: "react", label: "React", domain: "react.dev" },
+  { value: "iframe", label: "Iframe" },
+];
+
+function Embed({ id, origin, live, form, apply }: { id: string; origin: string; live: boolean; form: Form; apply: (op: Op) => void }) {
+  const [way, setWay] = useState<Way>("code");
+  const [trigger, setTrigger] = useState<"click" | "delay" | "exit">("click");
+  const [copied, setCopied] = useState(false);
+  if (form.capture) return <Capture id={id} origin={origin} live={live} form={form} apply={apply} />;
+  const script = `<script src="${origin}/forms/v1.js" async></script>`;
+  const tag = `<claritia-form form-id="${id}"></claritia-form>`;
+  const code = `${script}\n${tag}`;
+  const popupAttr = trigger === "delay" ? "delay:10" : trigger;
+  const text: Record<Way, string> = {
+    code,
+    link: `${origin}/f/${id}`,
+    popup: `${script}\n<claritia-form form-id="${id}" popup="${popupAttr}"></claritia-form>${trigger === "click" ? `\n<button data-claritia-open="${id}">${form.submit.label}</button>` : ""}`,
+    wordpress: code,
+    webflow: code,
+    framer: code,
+    react: `useEffect(() => {\n  const s = document.createElement("script");\n  s.src = "${origin}/forms/v1.js";\n  s.async = true;\n  document.head.append(s);\n}, []);\n\nreturn <claritia-form form-id="${id}" />;`,
+    iframe: `<script src="${origin}/f/embed.js" data-claritia-form="${id}" async></script>`,
+  };
+  const steps: Partial<Record<Way, string[]>> = {
+    wordpress: ["Edit the page and add a Custom HTML block where the form goes.", "Paste the code.", "Update the page."],
+    webflow: ["Drag an Embed element where the form goes.", "Paste the code and save.", "Publish the site."],
+    framer: ["Insert an Embed, and pick HTML.", "Paste the code.", "Publish the site."],
+  };
+  return (
+    <div className="flex flex-col gap-5 p-5">
+      <div className="flex items-center gap-2">
+        <h3 className="text-[15px] font-medium">Put it on your site</h3>
+        {live ? null : <Badge tone="amber">Live after Publish</Badge>}
+      </div>
+      <div className="grid grid-cols-4 border-t border-l border-line">
+        {WAYS.map((w) => (
+          <button
+            key={w.value}
+            type="button"
+            onClick={() => {
+              setWay(w.value);
+              setCopied(false);
+            }}
+            aria-pressed={way === w.value}
+            className={`flex flex-col items-center justify-center gap-1 border-r border-b border-line px-1 py-2.5 text-[11.5px] ${way === w.value ? "bg-ink text-white" : "bg-panel text-body hover:bg-hover"}`}
+          >
+            {w.domain ? <BrandLogo domain={w.domain} name={w.label} size={16} /> : <span className="font-mono text-[11px]">{w.value === "code" ? "</>" : w.value === "link" ? "URL" : w.value === "popup" ? "[ ]" : "<if>"}</span>}
+            {w.label}
+          </button>
+        ))}
+      </div>
+      {way === "popup" ? (
+        <div className="flex flex-wrap gap-1.5">
+          {(
+            [
+              ["click", "On a button"],
+              ["delay", "After 10 seconds"],
+              ["exit", "When they leave"],
+            ] as const
+          ).map(([v, l]) => (
+            <button key={v} type="button" onClick={() => setTrigger(v)} aria-pressed={trigger === v} className={`h-8 border px-2.5 text-[12.5px] ${trigger === v ? "border-ink bg-hover font-medium" : "border-line hover:border-ink"}`}>
+              {l}
+            </button>
+          ))}
+        </div>
+      ) : null}
+      {steps[way] ? (
+        <ol className="flex flex-col gap-1.5 text-[13px] text-body">
+          {steps[way]!.map((s, i) => (
+            <li key={s} className="flex gap-2">
+              <span className="flex size-5 shrink-0 items-center justify-center border border-line font-mono text-[10px] text-muted">{i + 1}</span>
+              {s}
+            </li>
+          ))}
+        </ol>
+      ) : null}
+      <div className="flex flex-col">
+        <pre className="max-h-64 overflow-auto bg-[#161615] p-4 font-mono text-[11.5px] leading-relaxed whitespace-pre-wrap text-[#e8e8e3]">{text[way]}</pre>
+        <div className="flex gap-2 pt-2">
+          <Button onClick={async () => setCopied(await copy(text[way]))}>
+            <Copy size={14} />
+            {copied ? "Copied" : "Copy"}
+          </Button>
+          {way === "link" && live ? (
+            <Button variant="ghost" onClick={() => window.open(text.link, "_blank", "noopener")}>
+              Open
+            </Button>
+          ) : null}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Capture({ id, origin, live, form, apply }: { id: string; origin: string; live: boolean; form: Form; apply: (op: Op) => void }) {
+  const [copied, setCopied] = useState(false);
+  const cap = form.capture!;
+  const snippet = `<script src="${origin}/forms/v1.js" async data-capture="${id}"></script>`;
+  return (
+    <div className="flex flex-col gap-5 p-5">
+      <h3 className="text-[15px] font-medium">Your form</h3>
+      <div className="grid grid-cols-2 border-t border-l border-line">
         {ADAPTERS.map((a) => (
           <button
             key={a.value}
@@ -621,53 +675,19 @@ function Share({ id, origin, live, form, apply }: { id: string; origin: string; 
           />
         </label>
       ) : null}
-    </section>
-  ) : null;
-  if (!live) return capture ?? <Empty title="Publish the form to share it" />;
-  if (cap) {
-    const snippet = `<script src="${origin}/forms/v1.js" async data-capture="${id}"></script>`;
-    return (
-      <div className="flex flex-col gap-6">
-        {capture}
-        <section className="flex flex-col gap-2">
-          <div className="flex items-center gap-2">
-            <h3 className="label-mono">Add to the page with your form</h3>
-            <Button variant="plain" className="ml-auto" onClick={async () => setCopied((await copy(snippet)) ? "cap" : "")}>
+      {live ? (
+        <div className="flex flex-col">
+          <pre className="overflow-x-auto bg-[#161615] p-4 font-mono text-[11.5px] leading-relaxed text-[#e8e8e3]">{snippet}</pre>
+          <div className="pt-2">
+            <Button onClick={async () => setCopied(await copy(snippet))}>
               <Copy size={14} />
-              {copied === "cap" ? "Copied" : "Copy"}
+              {copied ? "Copied" : "Copy"}
             </Button>
           </div>
-          <pre className="overflow-x-auto bg-[#161615] p-4 font-mono text-[12px] leading-relaxed text-[#e8e8e3]">{snippet}</pre>
-        </section>
-      </div>
-    );
-  }
-  const embed = `<script src="${origin}/forms/v1.js" async></script>\n<claritia-form form-id="${id}"></claritia-form>`;
-  const link = `${origin}/f/${id}`;
-  const react = `useEffect(() => {\n  const s = document.createElement("script");\n  s.src = "${origin}/forms/v1.js";\n  document.head.append(s);\n}, []);\nreturn <claritia-form form-id="${id}" />;`;
-  const block = (key: string, title: string, text: string) => (
-    <section className="flex flex-col gap-2">
-      <div className="flex items-center gap-2">
-        <h3 className="label-mono">{title}</h3>
-        <Button variant="plain" className="ml-auto" onClick={async () => setCopied((await copy(text)) ? key : "")}>
-          <Copy size={14} />
-          {copied === key ? "Copied" : "Copy"}
-        </Button>
-      </div>
-      <pre className="overflow-x-auto bg-[#161615] p-4 font-mono text-[12px] leading-relaxed text-[#e8e8e3]">{text}</pre>
-    </section>
-  );
-  return (
-    <div className="flex flex-col gap-6">
-      {block("embed", "Embed", embed)}
-      {block("link", "Link", link)}
-      {block("react", "React", react)}
-      <div>
-        <Button variant="ghost" onClick={() => window.open(link, "_blank", "noopener")}>
-          Open
-        </Button>
-      </div>
+        </div>
+      ) : (
+        <Badge tone="amber">Live after Publish</Badge>
+      )}
     </div>
   );
 }
-
