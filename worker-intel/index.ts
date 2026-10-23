@@ -5,6 +5,7 @@
 // SECRETS_KEY (credentials are sealed with it) and each tool's <PREFIX>_CLIENT_ID and _CLIENT_SECRET to refresh sign-ins.
 // Sending needs AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, SES_REGION, SES_CONFIGURATION_SET, SECRETS_KEY (link tokens)
 // and APP_URL when the app isn't at https://app.tryclaritia.com.
+// Calendars need SECRETS_KEY, GOOGLE_, MICROSOFT_ and ZOOM_CLIENT_ID and _CLIENT_SECRET, and APP_URL for push channels.
 
 import { createServer } from "node:http";
 import { hostname } from "node:os";
@@ -13,6 +14,8 @@ import { jobLoop } from "../src/lib/jobs.ts";
 import { linkBase } from "../src/lib/email/render.ts";
 import { sesFromEnv } from "../src/lib/email/ses.ts";
 import { domainCheck, domainRemove, send } from "./jobs/email.ts";
+import { calendarRefresh, calendarWatch, meetingSync } from "./jobs/calendars.ts";
+import { mailerFromEnv, meetingAfter, meetingBookLater, meetingNotify, meetingRemind, systemFrom } from "./jobs/meetings.ts";
 import { enrichCompany, identityChanged, ipLookup } from "./jobs/company.ts";
 import { accountAlert, scoreAccount, sweepSignals } from "./jobs/signals.ts";
 import { importFile, importUndo, pruneImportFiles } from "./jobs/imports.ts";
@@ -37,6 +40,8 @@ const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL, max: loop
 const rpc = pgRpc(pool);
 const ses = sesFromEnv();
 const company = { ipinfoToken: process.env.IPINFO_TOKEN, ipinfoCompany: process.env.IPINFO_COMPANY === "1", coresignalKey: process.env.CORESIGNAL_API_KEY };
+// Meeting emails: SES raw sends (the invite is a MIME part), from MEETINGS_FROM when a workspace has no verified domain.
+const meetings = { mailer: mailerFromEnv(), base: linkBase(), from: systemFrom() };
 const handlers = {
   stitch: stitch(pool),
   device_reset: deviceReset(pool),
@@ -60,6 +65,13 @@ const handlers = {
   send: send(rpc, { ses, base: linkBase() }),
   domain_check: domainCheck(rpc, ses),
   domain_remove: domainRemove(pool, ses),
+  meeting_notify: meetingNotify(rpc, meetings),
+  meeting_remind: meetingRemind(rpc, meetings),
+  meeting_after: meetingAfter(rpc, meetings),
+  meeting_book_later: meetingBookLater(rpc, meetings),
+  calendar_refresh: calendarRefresh(rpc),
+  calendar_watch: calendarWatch(rpc),
+  meeting_sync: meetingSync(rpc),
 };
 const stop = new AbortController();
 const worker = `intel-${hostname()}-${process.pid}`;

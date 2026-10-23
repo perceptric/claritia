@@ -11,7 +11,8 @@ import type { ContactInput } from "../contacts/import.ts";
 import { cleanEmail, isRejected } from "../identity/clean.ts";
 import type { Rpc } from "../jobs.ts";
 import type { Tokens } from "./brand.ts";
-import { bookingUrl, showsMeeting } from "./schedule.ts";
+import { offerForFill, type Booking } from "./booking.ts";
+import { bookingUrl, outside, showsMeeting } from "./schedule.ts";
 import { regionOf } from "../web/policy.ts";
 import { contactPolicy } from "./overwrite.ts";
 import { allFields, type Form, type Overwrite } from "./schema.ts";
@@ -189,14 +190,14 @@ export function qaOk(formId: string, token: unknown, secret: string | undefined,
 
 /**
  * Take a fill for a live form: check it, save it (form_submit), and work out the booking link when the form books a
- * meeting. Shared by the public route and the tests, so both run the same steps. Answers status and JSON body.
+ * meeting on an outside scheduler, or the times and booking token when it books with Claritia calendar. Shared by the public route and the tests, so both run the same steps. Answers status and JSON body.
  */
 export async function acceptFill(
   rpc: Rpc,
   f: PublicForm,
   raw: Incoming,
   ctx: Ctx,
-  o: { country?: string | null; turnstileFailed?: boolean; origin?: string | null; test?: boolean } = {},
+  o: { country?: string | null; turnstileFailed?: boolean; origin?: string | null; test?: boolean; secret?: string; now?: number } = {},
 ): Promise<{ status: number; body: Record<string, unknown> }> {
   const r = prepareSubmit(f.body, f.version, raw, ctx, { country: o.country, turnstileFailed: o.turnstileFailed });
   if ("errors" in r) return { status: 400, body: { errors: r.errors } };
@@ -217,6 +218,19 @@ export async function acceptFill(
   const byId: Record<string, unknown> = {};
   for (const x of allFields(f.body)) if (r.args.p_values[x.key] !== undefined) byId[x.id] = r.args.p_values[x.key];
   if (sch && lead && !r.args.p_spam && showsMeeting(sch, byId, !!lead.email_class && lead.email_class !== "free")) {
+    if (!outside(sch.tool)) {
+      // Claritia calendar: times from the cache with a signed token, or the message when there are none to show. A
+      // booking hiccup never loses the fill: it's saved, and the lead gets the message.
+      let booking: Booking | null = null;
+      if (sch.meetingTypeId && o.secret) {
+        try {
+          booking = await offerForFill(rpc, { submission: sid, typeId: sch.meetingTypeId, secret: o.secret, now: o.now });
+        } catch {
+          booking = null;
+        }
+      }
+      return { status: 200, body: { id: sid, schedule: null, ...(booking ? { booking } : {}) } };
+    }
     let base = sch.url;
     if (sch.perOwner) {
       const own = await rpc("scheduler_for", { p_submission: sid, p_tool: sch.tool });
@@ -226,7 +240,7 @@ export async function acceptFill(
     try {
       host = new URL(o.origin ?? "").hostname || undefined;
     } catch {}
-    const url = base ? bookingUrl(sch.tool, base, { first: lead.first_name, last: lead.last_name, email: lead.email }, sid, host, sch.prefill !== false) : null;
+    const url = base && outside(sch.tool) ? bookingUrl(sch.tool, base, { first: lead.first_name, last: lead.last_name, email: lead.email }, sid, host, sch.prefill !== false) : null;
     if (url) schedule = { tool: sch.tool, url };
   }
   return { status: 200, body: { id: sid, schedule } };

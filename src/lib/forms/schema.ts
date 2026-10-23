@@ -132,7 +132,7 @@ export type Step = { id: string; title?: string; fields: Field[]; skip?: { when:
 
 export type After = {
   end: { kind: "message"; title: string; text?: string } | { kind: "redirect"; url: string };
-  /** Book a meeting on an outside scheduler after the submit (src/lib/forms/schedule.ts). */
+  /** Book a meeting after the submit: Claritia calendar in the form, or an outside scheduler (src/lib/forms/schedule.ts). */
   schedule?: Schedule;
 };
 
@@ -503,12 +503,14 @@ export function checkForm(raw: unknown, ctx: Ctx = {}): { form: Form } | { error
   let schedule: Schedule | undefined;
   const sch = (after as { schedule?: Record<string, unknown> }).schedule;
   if (sch && typeof sch === "object") {
-    const tool = SCHEDULERS.find((x) => x.value === sch.tool)?.value;
-    const url = str(sch.url, 500) ?? "";
-    const problem = tool ? linkProblem(tool, url) : "Pick a scheduler.";
-    if (problem && !(sch.perOwner === true && !url)) errors.push(`Booking: ${problem}`);
+    const tool = sch.tool === "claritia" ? "claritia" : SCHEDULERS.find((x) => x.value === sch.tool)?.value;
+    // Claritia calendar books a meeting type and takes no link; an outside scheduler needs its link (or owners' links).
+    const typeId = tool === "claritia" && typeof sch.meetingTypeId === "string" && /^[0-9a-f-]{36}$/.test(sch.meetingTypeId) ? sch.meetingTypeId : undefined;
+    const url = tool === "claritia" ? "" : (str(sch.url, 500) ?? "");
+    const problem = tool === "claritia" ? (typeId ? null : "Pick a meeting type.") : tool ? linkProblem(tool, url) : "Pick a scheduler.";
+    if (problem && !(tool !== "claritia" && sch.perOwner === true && !url)) errors.push(`Booking: ${problem}`);
     if (tool) {
-      schedule = { tool, url, perOwner: sch.perOwner === true };
+      schedule = tool === "claritia" ? { tool, url, perOwner: false, ...(typeId ? { meetingTypeId: typeId } : {}) } : { tool, url, perOwner: sch.perOwner === true };
       if (sch.who === "match") {
         const rules: MatchRule[] = [];
         for (const x of (Array.isArray(sch.rules) ? sch.rules : []).slice(0, 10)) {
@@ -533,7 +535,7 @@ export function checkForm(raw: unknown, ctx: Ctx = {}): { form: Form } | { error
       }
       const heading = str(sch.heading, LIMITS.label);
       if (heading) schedule.heading = heading;
-      if (sch.prefill === false) schedule.prefill = false;
+      if (sch.prefill === false && tool !== "claritia") schedule.prefill = false;
     }
     if (end.kind === "redirect") errors.push("A form can book a meeting or open a page after the submit, not both.");
   }

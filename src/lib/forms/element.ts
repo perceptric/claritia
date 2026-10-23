@@ -5,8 +5,11 @@
 //   <script src="https://app.tryclaritia.com/forms/v1.js" async></script>
 //   <claritia-form form-id="…"></claritia-form>
 // Every label and answer is set as text, never as HTML. Choice lists are the component's own listbox, never <select>.
+// A form that books with Claritia calendar swaps to the inline calendar after the send (docs/meetings-scheduler.md
+// Part 2); a captured form opens it over the page, or on the thank-you page the team's form goes to.
 
 import { tokensCss, type Tokens } from "./brand.ts";
+import { byDay, dayText, localZone, sampleSlots, timeText, zoneName, zones, type Booked, type Booking } from "./calendar.ts";
 import { countryNames } from "./countries.ts";
 import { allFields, isContent, nextStep, safeUrl, visibility, type Choice, type Field, type FieldWidth, type Form } from "./schema.ts";
 import { checkAnswers, OTHER, stepPath, type Answers } from "./values.ts";
@@ -95,6 +98,18 @@ textarea.in{min-height:calc(var(--clr-input-h)*2.4);padding:10px 12px;resize:ver
 .trap{position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden}
 .al{color:var(--clr-error);margin:0}
 .dn{display:flex;flex-direction:column;gap:6px}
+.cl{gap:14px}
+.hs{display:flex;align-items:center;gap:10px;font-weight:600}
+.av{width:36px;height:36px;border-radius:50%;object-fit:cover}
+.ps{display:flex;flex-wrap:wrap;gap:6px}
+.dy{flex-wrap:nowrap;overflow-x:auto;padding:2px}
+.pl{min-height:calc(var(--clr-input-h)*.8);padding:0 14px;border-radius:999px;border:var(--clr-border-w) solid var(--clr-border);background:var(--clr-input-bg);cursor:pointer;white-space:nowrap}
+.pl[aria-pressed=true]{background:var(--clr-accent);border-color:var(--clr-accent);color:var(--clr-btn-text)}
+.pl:focus-visible{outline:2px solid var(--clr-accent);outline-offset:2px}
+.pl:disabled{opacity:.6;cursor:default}
+.tm{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:8px}
+.tm .pl{border-radius:var(--clr-radius)}
+.tz{display:flex;flex-direction:column;gap:6px;max-width:320px}
 @media (prefers-reduced-motion:no-preference){.f{transition:opacity .15s ease}.pb i{transition:transform .2s cubic-bezier(.2,0,0,1)}}
 `;
 
@@ -272,6 +287,28 @@ function bookingOverlay(url: string) {
 }
 
 type Values = (name: string) => unknown;
+/** What a send or a booking call answers. */
+type Answer = { schedule?: { url: string } | null; booking?: Booking; booked?: Booked; taken?: boolean; error?: string; expired?: boolean };
+
+/** Claritia calendar over the page: a <claritia-form> in booking mode, in the form's own look. */
+function calendarOver(data: Loaded, base: string, a: Answer) {
+  if (!a.booking && !a.booked) return;
+  const c = document.createElement("claritia-form") as ClaritiaForm;
+  c.setAttribute("popup", "");
+  c.setAttribute("host", base);
+  c.over(data, a);
+  document.body.append(c);
+}
+
+const PEND = "clr_book_pend";
+/** A captured send in flight: when the page moves on first, the next page (same site) sends it again, same key. */
+const pend = (v?: object) => {
+  try {
+    if (v) sessionStorage.setItem(PEND, JSON.stringify(v));
+    else sessionStorage.removeItem(PEND);
+  } catch {}
+};
+let addressDone = false;
 
 /**
  * Captured forms (docs/form-builder.md Part 9): the team's own form, read when it's sent. Only the fields mapped in
@@ -288,42 +325,79 @@ export function startCapture(formId: string, base: string) {
     .catch(() => null);
   const sentKeys = new Set<string>();
 
-  const send = async (adapter: NonNullable<Form["capture"]>["adapter"], get: Values, el?: HTMLFormElement) => {
+  const show = (data: Loaded, j: Answer) => {
+    if (j.booking || j.booked) calendarOver(data, base, j);
+    else if (j.schedule && /^https:\/\//.test(j.schedule.url)) bookingOverlay(j.schedule.url);
+  };
+  const post = async (url: string, body: string): Promise<{ res: Response; j: Answer } | null> => {
+    try {
+      const res = await fetch(url, { method: "POST", headers: { "content-type": "application/json" }, body, credentials: "omit", keepalive: true });
+      return { res, j: (await res.json().catch(() => ({}))) as Answer };
+    } catch {
+      return null;
+    }
+  };
+
+  // A thank-you page: the calendar opens from the token in the address, or from a send the last page didn't hear back.
+  void ready.then(async (data) => {
+    if (!data) return;
+    const tok = /[#&?]clr_book=([^&#]+)/.exec(location.href)?.[1];
+    if (tok && !addressDone) {
+      addressDone = true;
+      const r = await post(`${base}/api/forms/book`, JSON.stringify({ token: decodeURIComponent(tok) }));
+      if (r?.res.ok) show(data, r.j);
+      return;
+    }
+    let p: { url?: string; body?: string; form?: string; at?: number } | null = null;
+    try {
+      p = JSON.parse(sessionStorage.getItem(PEND) || "null");
+    } catch {}
+    if (!p || p.form !== formId || !p.url || !p.body || Date.now() - (p.at ?? 0) > 600_000) return;
+    pend();
+    const r = await post(p.url, p.body);
+    if (r?.res.ok) {
+      writeQueue(readQueue().filter((x) => x.body !== p!.body));
+      show(data, r.j);
+    }
+  });
+
+  const send = async (adapter: NonNullable<Form["capture"]>["adapter"], get: Values, el?: HTMLFormElement, quiet = false): Promise<Answer | null> => {
     const data = await ready;
     const form = data?.body;
     const cap = form?.capture;
-    if (!data || !form || !cap || data.status !== "live") return;
+    if (!data || !form || !cap || data.status !== "live") return null;
     // Only the adapter set up here, and for HTML only the form it names (or the one holding the mapped email).
-    if (adapter !== cap.adapter && !(adapter === "html" && (cap.adapter === "webflow" || cap.adapter === "framer"))) return;
+    if (adapter !== cap.adapter && !(adapter === "html" && (cap.adapter === "webflow" || cap.adapter === "framer"))) return null;
     const fields = allFields(form).filter((f) => f.source);
     const email = fields.find((f) => f.key === "email");
-    if (!email) return;
-    if (el && (cap.selector ? !el.matches(cap.selector) : get(email.source!) === undefined)) return;
+    if (!email) return null;
+    if (el && (cap.selector ? !el.matches(cap.selector) : get(email.source!) === undefined)) return null;
     const answers: Answers = {};
     for (const f of fields) {
       const v = get(f.source!);
       if (v === undefined || v === null || v === "") continue;
       answers[f.id] = f.type === "checkbox" ? v === true || v === "true" || v === "on" || v === "yes" : f.type === "multi" ? (Array.isArray(v) ? v.map(String) : String(v).split(/[;,]/)) : Array.isArray(v) ? String(v[0]) : String(v);
     }
-    if (checkAnswers(form, answers).errors[email.id] || !answers[email.id]) return;
+    if (checkAnswers(form, answers).errors[email.id] || !answers[email.id]) return null;
     // The same answers sent twice in a row (a double click, two events for one send) count once.
     const sig = JSON.stringify(answers);
-    if (sentKeys.has(sig)) return;
+    if (sentKeys.has(sig)) return null;
     sentKeys.add(sig);
     const key = idemKey();
     const t = touch();
     const body = JSON.stringify({ v: 1, version: data.version, key, answers, hidden: hiddenValues(form, t), consent: {}, page: t.page, referrer: t.referrer, utm: t.utm, first: t.first, ms: Date.now() - started, trap: "" });
     const url = `${base}/api/forms/${formId}/submit`;
-    try {
-      const res = await fetch(url, { method: "POST", headers: { "content-type": "application/json" }, body, credentials: "omit", keepalive: true });
-      if (res.ok) {
-        const j = (await res.json().catch(() => ({}))) as { schedule?: { url: string } | null };
-        if (j.schedule && /^https:\/\//.test(j.schedule.url)) bookingOverlay(j.schedule.url);
-        return;
-      }
-      if (res.status < 500 && res.status !== 408 && res.status !== 429) return;
-    } catch {}
+    pend({ url, body, form: formId, at: Date.now() });
+    const r = await post(url, body);
+    // Kept when there was no answer (the page moving on cuts the request off), for the next page to send again.
+    if (r) pend();
+    if (r?.res.ok) {
+      if (!quiet) show(data, r.j);
+      return r.j;
+    }
+    if (r && r.res.status < 500 && r.res.status !== 408 && r.res.status !== 429) return null;
     writeQueue([...readQueue(), { url, body, key, at: Date.now(), tries: 1 }]);
+    return null;
   };
 
   const byName = (list: { name: string; value: unknown }[]) => (name: string) => {
@@ -344,11 +418,26 @@ export function startCapture(formId: string, base: string) {
     const list = await hs?.getFormFromEvent?.(e)?.getFormFieldValues?.().catch(() => []);
     if (list?.length) void send("hubspot", byName(list));
   });
-  // Marketo: onSuccess returns nothing, so Marketo's own follow-up page still opens.
+  // Marketo: with a follow-up page, it opens once our answer is in (3 seconds at most), carrying the booking token so
+  // the calendar opens there; without one, the calendar opens over this page.
   const tryMarketo = (n: number) => {
-    const M = (window as unknown as { MktoForms2?: { whenReady: (cb: (f: { onSuccess: (cb: (values: Record<string, unknown>) => void) => void }) => void) => void } }).MktoForms2;
+    const M = (window as unknown as { MktoForms2?: { whenReady: (cb: (f: { onSuccess: (cb: (values: Record<string, unknown>, follow?: string) => boolean | void) => void }) => void) => void } }).MktoForms2;
     if (!M) return void (n < 60 && setTimeout(() => tryMarketo(n + 1), 500));
-    M.whenReady((f) => f.onSuccess((values) => void send("marketo", (name) => values[name])));
+    M.whenReady((f) =>
+      f.onSuccess((values, follow) => {
+        const p = send("marketo", (name) => values[name], undefined, !!follow);
+        if (!follow) return;
+        let gone = false;
+        const go = (t?: string) => {
+          if (gone) return;
+          gone = true;
+          location.assign(t ? `${follow}${follow.includes("#") ? "&" : "#"}clr_book=${encodeURIComponent(t)}` : follow);
+        };
+        setTimeout(go, 3000);
+        void p.then((j) => go(j?.booking?.token));
+        return false;
+      }),
+    );
   };
   void ready.then((d) => d?.body.capture?.adapter === "marketo" && tryMarketo(0));
   // Plain HTML, Webflow and Framer: the form's own submit event, heard before the page moves on. The values are read
@@ -425,6 +514,14 @@ export class ClaritiaForm extends Base {
   /** The defaults put in, so the builder can swap one the visitor hasn't changed. */
   private defaults: Record<string, unknown> = {};
   private seed = (Math.random() * 2 ** 31) | 0;
+  // Claritia calendar after the send: the times, the booked meeting, the day picked, the visitor's zone, a line to say.
+  private bk: Booking | null = null;
+  private bkDone: Booked | null = null;
+  private bkDay = "";
+  private bkTz = localZone();
+  private bkMsg = "";
+  private bkBusy = false;
+  private overPage = false;
 
   constructor() {
     super();
@@ -435,12 +532,23 @@ export class ClaritiaForm extends Base {
   set preview(p: { form: Form; tokens?: Partial<Tokens>; step?: number; done?: boolean }) {
     this.isPreview = true;
     const fresh = !this.data || this.done !== !!p.done;
+    if (fresh || p.form.after.schedule?.tool !== "claritia") this.bk = this.bkDone = null;
     this.data = { id: "preview", version: 0, status: "live", body: p.form, tokens: p.tokens ?? {}, strict: true };
     this.step = Math.min(p.step ?? this.step, p.form.steps.length - 1);
     this.done = !!p.done;
     if (fresh) this.errors = {};
     this.applyDefaults(p.form);
     this.render();
+  }
+
+  /** Captured forms: the calendar alone, over the page (calendarOver). */
+  over(data: Loaded, a: Answer) {
+    this.data = data;
+    this.done = this.opened = this.overPage = true;
+    this.bk = a.booking ?? null;
+    this.bkDone = a.booked ?? null;
+    this.render();
+    queueMicrotask(() => this.toggle(true));
   }
 
   private get base() {
@@ -637,6 +745,7 @@ export class ClaritiaForm extends Base {
     this.root.replaceChildren(...(style ? [style] : []), pop);
   }
   private toggle(open: boolean) {
+    if (!open && this.overPage) return this.remove();
     this.opened = open;
     const pop = this.root.querySelector(".pop") as HTMLElement | null;
     if (pop) pop.hidden = !open;
@@ -968,6 +1077,10 @@ export class ClaritiaForm extends Base {
   }
 
   private endScreen(form: Form): HTMLElement {
+    // Claritia calendar: the times in place of the form. In the builder, sample times and no network.
+    if (this.isPreview && form.after.schedule?.tool === "claritia" && !this.bk) this.bk = { token: "", slots: sampleSlots(Date.now()), lengths: [30], length: 30 };
+    if (this.bkDone) return this.booked();
+    if (this.bk) return this.calendar(form, this.bk);
     // A meeting to book: the scheduler opens in the form, with the lead filled in. In the builder, its link stands in.
     const book = this.schedule ?? (this.isPreview && form.after.schedule?.url ? { tool: form.after.schedule.tool, url: form.after.schedule.url } : null);
     if (book && (!this.isPreview || safeUrl(book.url))) {
@@ -989,6 +1102,105 @@ export class ClaritiaForm extends Base {
     const box = el("div", { class: "f dn", role: "status", tabindex: "-1" }, el("h2", { class: "h", text: title }), text ? el("p", { class: "i", text }) : null);
     queueMicrotask(() => box.focus());
     return box;
+  }
+
+  // Booking ------------------------------------------------------------------------------------------------
+
+  /** The host's photo and name, when known. */
+  private hostRow(h?: Booking["host"]) {
+    return h ? el("div", { class: "hs" }, h.photo ? el("img", { class: "av", src: h.photo, alt: "" }) : null, el("span", { text: h.name })) : null;
+  }
+
+  /** The inline calendar: lengths, the visitor's zone, days and times. One click on a time books it. */
+  private calendar(form: Form, b: Booking): HTMLElement {
+    const tz = this.bkTz;
+    const days = byDay(b.slots, tz);
+    const day = days.find((d) => d.day === this.bkDay) ?? days[0];
+    this.bkDay = day?.day ?? "";
+    const pill = (id: string, text: string, on: boolean, click: () => void, label?: string) => {
+      const x = el("button", { type: "button", id: `clr-${id}`, class: "pl", "aria-pressed": on ? "true" : "false", disabled: this.bkBusy, "aria-label": label, text });
+      x.addEventListener("click", click);
+      return x;
+    };
+    const box = el("div", { class: "f dn cl" }, el("h2", { class: "h", tabindex: "-1", text: form.after.schedule?.heading || "Pick a time" }), this.hostRow(b.host));
+    if (b.lengths.length > 1)
+      box.append(el("div", { class: "ps", role: "group", "aria-label": "Length" }, ...b.lengths.map((n) => pill(`l${n}`, `${n} min`, n === b.length, () => void this.times(n)))));
+    // The zone: the component's own listbox, so it works like every other list on the form.
+    const TZ = "_tz";
+    this.answers[TZ] = tz;
+    const zf = { id: TZ, key: TZ, type: "dropdown", label: "Time zone", required: false, options: zones(localZone()).map((z) => ({ value: z, label: zoneName(z) })) } as unknown as Field;
+    box.append(
+      el("div", { class: "tz" }, el("label", { class: "lb", for: `clr-${TZ}`, text: "Time zone" }), this.listbox(zf, { id: `clr-${TZ}` }, (v) => {
+        if (typeof v === "string" && v) this.bkTz = v;
+        this.later();
+      }, false)),
+    );
+    if (this.bkMsg) box.append(el("p", { class: "al", role: "alert", text: this.bkMsg }));
+    if (!day) {
+      box.append(el("p", { class: "i", text: "No open times right now." }));
+      return box;
+    }
+    box.append(el("div", { class: "ps dy", role: "group", "aria-label": "Day" }, ...days.map((d) => pill(`d${d.day}`, dayText(d.starts[0]!, tz), d === day, () => ((this.bkDay = d.day), this.later())))));
+    const label = `Times on ${dayText(day.starts[0]!, tz)}`;
+    box.append(el("div", { class: "tm", role: "group", "aria-label": label }, ...day.starts.map((t) => pill(`t${t}`, timeText(t, tz), false, () => void this.pick(t), `Book ${timeText(t, tz)}, ${dayText(t, tz)}`))));
+    return box;
+  }
+
+  /** The meeting booked, in place of the calendar. */
+  private booked(): HTMLElement {
+    const m = this.bkDone!;
+    const tz = this.bkTz;
+    const box = el(
+      "div",
+      { class: "f dn cl", role: "status", tabindex: "-1" },
+      el("h2", { class: "h", text: "You're booked" }),
+      this.hostRow(m.host),
+      el("p", { class: "i", text: `${dayText(m.start, tz)}, ${timeText(m.start, tz)} to ${timeText(m.end, tz)} (${zoneName(tz)})` }),
+      el("p", { class: "i", text: "The invite is on its way to your inbox." }),
+      m.manage && /^https:\/\//.test(m.manage) ? el("a", { class: "i", href: m.manage, target: "_blank", rel: "noopener", text: "Change or cancel" }) : null,
+    );
+    queueMicrotask(() => box.focus());
+    return box;
+  }
+
+  /** Ask the booking route: fresh times (no start) or a booking. */
+  private async bookCall(body: object): Promise<{ status: number; j: Answer }> {
+    try {
+      const res = await fetch(`${this.base}/api/forms/book`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ token: this.bk!.token, ...body }), credentials: "omit" });
+      return { status: res.status, j: (await res.json().catch(() => ({}))) as Answer };
+    } catch {
+      return { status: 0, j: {} };
+    }
+  }
+
+  private settle(r: { status: number; j: Answer }, focus = "") {
+    this.bkBusy = false;
+    if (r.j.booked) this.bkDone = r.j.booked;
+    if (r.j.booking) this.bk = r.j.booking;
+    this.bkMsg = r.j.taken ? "That time was just taken. Pick another." : r.j.booked || (r.status === 200 && r.j.booking) ? "" : (r.j.error ?? "Booking didn't go through. Try again.");
+    this.render();
+    (this.root.getElementById(focus) ?? (this.bkMsg ? this.root.querySelector(".tm .pl") : null) as HTMLElement | null)?.focus();
+  }
+
+  private async times(length: number) {
+    if (this.isPreview) return void ((this.bk = { ...this.bk!, length }), this.later());
+    if (this.bkBusy) return;
+    this.bkBusy = true;
+    this.render();
+    this.settle(await this.bookCall({ length }), `clr-l${length}`);
+  }
+
+  private async pick(start: number) {
+    const b = this.bk!;
+    if (this.bkBusy) return;
+    if (this.isPreview) {
+      this.bkDone = { start, end: start + b.length * 60_000, ...(b.host ? { host: b.host } : {}) };
+      return this.render();
+    }
+    this.bkBusy = true;
+    this.bkMsg = "";
+    this.render();
+    this.settle(await this.bookCall({ start, length: b.length, tz: this.bkTz }));
   }
 
   // Sending ------------------------------------------------------------------------------------------------
@@ -1070,13 +1282,16 @@ export class ClaritiaForm extends Base {
       writeQueue([...readQueue().filter((x) => x.key !== this.key), { url, body, key: this.key, at: Date.now(), tries: 1 }]);
       setTimeout(() => void flushQueue(), 15_000);
     } else {
-      const j = (await res.json().catch(() => ({}))) as { id?: string; schedule?: { tool: string; url: string } | null };
+      const j = (await res.json().catch(() => ({}))) as { id?: string; schedule?: { tool: string; url: string } | null; booking?: Booking };
       if (j.schedule && /^https:\/\//.test(j.schedule.url)) this.schedule = j.schedule;
+      if (j.booking?.token && Array.isArray(j.booking.slots)) this.bk = j.booking;
       this.dispatchEvent(new CustomEvent("claritia:submitted", { bubbles: true, composed: true, detail: { formId: d.id, submissionId: j.id ?? null } }));
       this.tellPage();
     }
     this.done = true;
     this.render();
+    // The calendar in place of the form: screen readers and keys start at its heading.
+    if (this.bk) (this.root.querySelector(".cl .h") as HTMLElement | null)?.focus();
   }
 }
 

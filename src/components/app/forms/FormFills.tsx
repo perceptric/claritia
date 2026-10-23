@@ -1,13 +1,17 @@
 "use client";
 
 // The Fills tab (docs/form-builder.md 7.3): each submission with its answers, page and UTMs, the contact it made,
-// and one line per destination with its state, a link to the record and Replay for failed ones.
+// and one line per destination with its state, a link to the record and Replay for failed ones. Forms that book with
+// Claritia calendar add booked, not booked and the booking rate, and each fill's meeting as its status changes
+// (docs/meetings-scheduler.md 2.5).
 
 import { useEffect, useState } from "react";
 import { allFields, type Form } from "@/lib/forms/schema";
 import { ChevronRight, Link as LinkIcon, Refresh } from "../../Icons";
 import { Sketch } from "../../sketches/Sketch";
-import { Badge, Button, Empty, ErrorNote, errorText, IconButton, Loading, must, Panel, Segmented, timeAgo, useLoad, type ViewProps } from "../ui";
+import type { MeetingStatus } from "@/lib/meetings/types";
+import { STATUS } from "../meetings/model";
+import { Badge, Button, Empty, ErrorNote, errorText, IconButton, Loading, must, Panel, Segmented, Stat, timeAgo, useLoad, type ViewProps } from "../ui";
 import { DELIVERY, type Destination } from "./shared";
 
 type Fill = {
@@ -23,7 +27,20 @@ type Fill = {
   contacts: { email: string | null; first_name: string | null; last_name: string | null } | null;
   deliveries: { id: string; status: string; error: string | null; external_url: string | null; attempts: number; updated_at: string; destination_id: string }[];
   form_bookings: { tool: string; linked: string; start_at: string | null }[];
+  booking_shown_at: string | null;
+  not_booked_at: string | null;
+  meetings: { id: string; status: MeetingStatus; start_at: string }[];
 };
+type Stats = { shown: number; booked: number; not_booked: number };
+
+/** A fill that saw Claritia calendar times: its meeting's status, not booked, or still deciding (the first 10 minutes). */
+function meetingState(s: Pick<Fill, "booking_shown_at" | "not_booked_at" | "meetings">, now = Date.now()): { label: string; tone: "gray" | "amber" | (typeof STATUS)[MeetingStatus]["tone"] } | null {
+  const m = [...(s.meetings ?? [])].sort((a, b) => (a.status === "canceled" ? 1 : 0) - (b.status === "canceled" ? 1 : 0))[0];
+  if (m) return STATUS[m.status] ?? { label: m.status, tone: "gray" };
+  if (!s.booking_shown_at) return null;
+  if (s.not_booked_at || now - new Date(s.booking_shown_at).getTime() > 600_000) return { label: "Not booked", tone: "amber" };
+  return { label: "Times shown", tone: "gray" };
+}
 type Kind = "leads" | "tests" | "spam";
 
 export function FormFills({ sb, formId, destinations, navigate, watch }: Pick<ViewProps, "sb" | "navigate"> & { formId: string; destinations: Destination[]; watch: number }) {
@@ -33,13 +50,14 @@ export function FormFills({ sb, formId, destinations, navigate, watch }: Pick<Vi
   const fills = useLoad(async () => {
     let q = sb
       .from("submissions")
-      .select("id, created_at, values, hidden, test, spam, spam_reason, form_version, contact_id, contacts(email, first_name, last_name), deliveries(id, status, error, external_url, attempts, updated_at, destination_id), form_bookings(tool, linked, start_at)")
+      .select("id, created_at, values, hidden, test, spam, spam_reason, form_version, contact_id, contacts(email, first_name, last_name), deliveries(id, status, error, external_url, attempts, updated_at, destination_id), form_bookings(tool, linked, start_at), booking_shown_at, not_booked_at, meetings(id, status, start_at)")
       .eq("form_id", formId)
       .order("created_at", { ascending: false })
       .limit(100);
     q = kind === "spam" ? q.eq("spam", true) : kind === "tests" ? q.eq("test", true).eq("spam", false) : q.eq("test", false).eq("spam", false);
     return must(await q) as unknown as Fill[];
   }, `${formId}:${kind}:${watch}`);
+  const stats = useLoad(async () => must(await sb.rpc("form_booking_stats", { p_form: formId })) as Stats, `${formId}:booking:${watch}`);
   const versions = useLoad(async () => {
     const rows = must(await sb.from("form_versions").select("version, body").eq("form_id", formId)) as { version: number; body: Form }[];
     return new Map(rows.map((r) => [r.version, r.body]));
@@ -86,6 +104,13 @@ export function FormFills({ sb, formId, destinations, navigate, watch }: Pick<Vi
         </IconButton>
       </div>
       <ErrorNote message={error || fills.error} />
+      {kind === "leads" && stats.data && stats.data.shown > 0 ? (
+        <Panel className="grid grid-cols-3 gap-4 px-5 py-5">
+          <Stat value={stats.data.booked} label="Booked" />
+          <Stat value={stats.data.not_booked} label="Not booked" />
+          <Stat value={`${Math.round((stats.data.booked / stats.data.shown) * 100)}%`} label="Booking rate" />
+        </Panel>
+      ) : null}
       {!fills.data ? (
         <Loading />
       ) : !fills.data.length ? (
@@ -98,6 +123,7 @@ export function FormFills({ sb, formId, destinations, navigate, watch }: Pick<Vi
               const who = s.contacts ? [s.contacts.first_name, s.contacts.last_name].filter(Boolean).join(" ") || s.contacts.email : String(s.values.email ?? "—");
               const failed = s.deliveries.filter((d) => d.status === "failed");
               const isOpen = open === s.id;
+              const meeting = meetingState(s);
               return (
                 <li key={s.id}>
                   <button type="button" onClick={() => setOpen(isOpen ? null : s.id)} aria-expanded={isOpen} className="flex min-h-14 w-full items-center gap-3 px-5 py-3 text-left text-[13.5px] transition-colors duration-[140ms] hover:bg-hover">
@@ -108,6 +134,7 @@ export function FormFills({ sb, formId, destinations, navigate, watch }: Pick<Vi
                         {b.linked === "tracking" ? "Booked" : "Booked, maybe"}
                       </Badge>
                     ))}
+                    {meeting ? <Badge tone={meeting.tone}>{meeting.label}</Badge> : null}
                     {s.spam ? <Badge tone="amber">{s.spam_reason === "trap" ? "Trap" : s.spam_reason === "too_fast" ? "Too fast" : "Spam"}</Badge> : null}
                     <span className="flex gap-1">
                       {s.deliveries.map((d) => (
@@ -135,6 +162,16 @@ export function FormFills({ sb, formId, destinations, navigate, watch }: Pick<Vi
                         ))}
                       </dl>
                       <div className="flex flex-col gap-2">
+                        {s.meetings?.length ? (
+                          <ul className="flex flex-col divide-y divide-line overflow-hidden rounded-lg border border-line bg-card">
+                            {s.meetings.map((m) => (
+                              <li key={m.id} className="flex items-center gap-2 px-3.5 py-2.5 text-[13px]">
+                                <span className="min-w-0 flex-1 truncate font-medium">{new Date(m.start_at).toLocaleString(undefined, { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</span>
+                                <Badge tone={STATUS[m.status]?.tone ?? "gray"}>{STATUS[m.status]?.label ?? m.status}</Badge>
+                              </li>
+                            ))}
+                          </ul>
+                        ) : null}
                         {s.contact_id ? (
                           <div>
                             <Button variant="ghost" onClick={() => navigate("contacts", s.contact_id!)}>

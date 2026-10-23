@@ -1,4 +1,5 @@
-// Builds <claritia-form> (src/lib/forms/element.ts) into .next/static/forms/v1.js, served at /forms/v1.js
+// Builds <claritia-form> (src/lib/forms/element.ts) and <claritia-book> (src/lib/meetings/bookElement.ts) into one
+// script, .next/static/forms/v1.js, served at /forms/v1.js
 // (src/app/forms/v1.js/route.ts). Runs after next build, which clears .next. `--dev` writes .forms/v1.js instead,
 // for next dev. Fails over 20 KB gzipped.
 import { build } from "esbuild";
@@ -13,7 +14,8 @@ const out = process.argv.includes("--dev") ? join(root, ".forms") : join(root, "
 
 export async function buildForms(): Promise<Uint8Array> {
   const res = await build({
-    entryPoints: [join(root, "src", "lib", "forms", "element.ts")],
+    // One script for forms and booking (docs/meetings-scheduler.md 1.8).
+    stdin: { contents: 'import "./forms/element.ts";\nimport "./meetings/bookElement.ts";\n', resolveDir: join(root, "src", "lib"), sourcefile: "v1.ts", loader: "ts" },
     bundle: true,
     minify: true,
     format: "iife",

@@ -378,3 +378,10 @@ export const Pencil = (p: P) => (
     <path d="M13.5 6.5l4 4" />
   </Svg>
 );
+
+export const CalendarIcon = (p: P) => (
+  <Svg {...p}>
+    <rect x="3.5" y="5" width="17" height="15.5" rx="3" />
+    <path d="M3.5 10h17M8 3v4M16 3v4" />
+  </Svg>
+);

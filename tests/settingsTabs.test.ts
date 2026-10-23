@@ -23,3 +23,11 @@ test("old and unknown settings addresses land on a real page", () => {
   assert.equal(settingsTab("github"), "sources");
   assert.equal(settingsTab(""), "sources");
 });
+
+test("calendars: the team's under Team, your own under Account", () => {
+  const where = (id: string) => SETTINGS_GROUPS.find((g) => g.tabs.some((t) => t.id === id))?.label;
+  assert.equal(where("calendars"), "Team");
+  assert.equal(where("calendar"), "Account");
+  assert.equal(settingsTab("calendar"), "calendar");
+  assert.equal(settingsTab("calendars"), "calendars");
+});
