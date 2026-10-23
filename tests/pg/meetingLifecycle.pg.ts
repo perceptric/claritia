@@ -472,3 +472,25 @@ test("not booked: each of the form's Slack channels hears once; paused ones and 
   await run();
   assert.equal(posts.length, 0);
 });
+
+test("a meeting email that bounces hard or draws a complaint suppresses the address; a soft bounce doesn't", async () => {
+  const sendFor = async () => {
+    const m = await meeting({ start: Date.now() + 3 * D });
+    await notify(m.id, "booked");
+    const row = await one<{ provider_id: string }>(`select provider_id from meeting_mails where meeting_id = $1 and kind = 'confirm'`, [m.id]);
+    return { guest: m.guest, ses: row.provider_id };
+  };
+  const event = (ses: string, kind: string, bounce?: string) => ({ sns_id: randomUUID(), ses_message_id: ses, kind, ...(bounce ? { bounce } : {}), at: new Date().toISOString(), detail: {} });
+  const suppressed = async (email: string) => (await q(`select reason from suppressions where workspace_id = $1 and email_clean = $2`, [ws, email]))[0]?.reason ?? null;
+
+  const a = await sendFor();
+  assert.equal((await one<{ r: string }>(`select ses_event_apply($1) r`, [event(a.ses, "bounced", "soft")])).r, "unknown_message", "not a campaign message");
+  assert.equal((await one<{ r: string }>(`select meeting_mail_event($1) r`, [event(a.ses, "bounced", "soft")])).r, "meeting_mail");
+  assert.equal(await suppressed(a.guest), null);
+  await q(`select meeting_mail_event($1)`, [event(a.ses, "bounced", "hard")]);
+  assert.equal(await suppressed(a.guest), "bounced");
+  const b = await sendFor();
+  await q(`select meeting_mail_event($1)`, [event(b.ses, "complained")]);
+  assert.equal(await suppressed(b.guest), "complained");
+  assert.equal((await one<{ r: string }>(`select meeting_mail_event($1) r`, [event("nope", "bounced", "hard")])).r, "unknown_message");
+});
