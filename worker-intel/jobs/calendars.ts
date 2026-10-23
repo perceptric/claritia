@@ -238,7 +238,7 @@ async function run(rpc: Rpc, o: CalendarOpts, job: Job, inp: Inputs, action: key
     const r = events[org.user_id]!;
     const acc = r.account === org.cal.id ? org.cal : await loadAccount(rpc, r.account);
     if (acc && acc.status === "ok") {
-      await guarded(rpc, acc, () => providerOf(rpc, o, acc, signal).update(r.calendar, r.event!, { start, end, guests, lead: leadOf(m) }));
+      await guarded(rpc, acc, () => providerOf(rpc, o, acc, signal).update(r.calendar, r.event!, { start, end, guests, leads: leadsOf(m) }));
       if (r.zoom) await moveZoom(rpc, o, r.zoom, start, end, signal);
       // Anyone else's old event (an earlier lead host) comes off.
       for (const [u, x] of placed) if (u !== org.user_id) await takeDown(rpc, o, x, signal);
@@ -276,7 +276,7 @@ async function place(rpc: Rpc, o: CalendarOpts, job: Job, inp: Inputs, org: Host
   }
   const answers = (inp.questions ?? []).filter((q) => m.answers?.[q.id]).map((q) => `${q.label}: ${m.answers[q.id]}`);
   const made = await guarded(rpc, cal, () =>
-    providerOf(rpc, o, cal, signal).create(cal.write, { title, description: answers.join("\n"), start, end, guests, lead: leadOf(m), conference, where, key: `${job.key}|${org.user_id}` }),
+    providerOf(rpc, o, cal, signal).create(cal.write, { title, description: answers.join("\n"), start, end, guests, leads: leadsOf(m), conference, where, key: `${job.key}|${org.user_id}` }),
   );
   const ref: Ref = { provider: cal.provider, account: cal.id, calendar: cal.write, event: made.id, ...(zoom ? { zoom } : {}) };
   const url = zoom?.url ?? made.joinUrl;
@@ -310,14 +310,22 @@ async function guarded<T>(rpc: Rpc, a: AccountRow, fn: () => Promise<T>): Promis
 }
 
 /**
- * The co-hosts, never the lead host's own address or the guest's. The guest goes to the provider as `lead`: Claritia
- * sends them its own invite (.ics), so the providers must not email them (sendUpdates=none on Google; not an
- * attendee on Microsoft).
+ * The guests outside the team: the lead, then a poll's other voters (answers.guests, comma-separated). Claritia sends
+ * them its own invite (.ics), so the providers must not email them (sendUpdates=none on Google; named in the body,
+ * not attendees, on Microsoft).
  */
+function leadsOf(m: Inputs["meeting"]): { email: string; name?: string | null }[] {
+  const lead = m.guest_email.trim().toLowerCase();
+  const voters = String(m.answers?.guests ?? "")
+    .split(",")
+    .map((e) => e.trim().toLowerCase())
+    .filter((e) => /^[^\s@,<>]+@[^\s@,<>]+\.[^\s@,<>]+$/.test(e) && e.length <= 320 && e !== lead);
+  return [{ email: lead, name: m.guest_name }, ...[...new Set(voters)].slice(0, 50).map((email) => ({ email }))];
+}
+
+/** The co-hosts, never the lead host's own address or a guest's. */
 function guestsFor(inp: Inputs, org: HostIn): string[] {
-  const skip = new Set([(org.cal?.account_email ?? org.email ?? "").toLowerCase(), inp.meeting.guest_email.trim().toLowerCase()]);
+  const skip = new Set([(org.cal?.account_email ?? org.email ?? "").toLowerCase(), ...leadsOf(inp.meeting).map((l) => l.email)]);
   const all = inp.hosts.filter((h) => h.user_id !== org.user_id).map((h) => h.cal?.account_email || h.email || "");
   return [...new Set(all.map((e) => e.trim().toLowerCase()).filter((e) => e && !skip.has(e)))];
 }
-
-const leadOf = (m: Inputs["meeting"]) => ({ email: m.guest_email, name: m.guest_name });

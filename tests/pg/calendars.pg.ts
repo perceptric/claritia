@@ -292,6 +292,30 @@ test("a collective meeting: one event on the lead host's calendar; providers nev
   }
 });
 
+test("a poll's other voters are on the event beside the lead, and still no provider emails them", async () => {
+  for (const provider of ["google", "microsoft"] as const) {
+    const { ws, users } = await team(1);
+    await connect(ws, users[0]!, provider);
+    const t = await meetingType(ws, "one", users);
+    const start = (await offer(rpc, { ws, type: t, length: 30 })).slots[0]!.start;
+    const guests = "ana@voter.io, Ben@Voter.io,dana@lead.io, not-an-email, ana@voter.io";
+    const r = await book(rpc, { ws, type: t, length: 30, start, guest: { email: "dana@lead.io", name: "Dana Lee", answers: { guests } }, source: "poll", liveBusy: none });
+    assert.ok(r.ok);
+    const g = fakeGoogle();
+    const ms = fakeMicrosoft();
+    await meetingSync(rpc, { http: { fetcher: byHost({ google: g.fetcher, microsoft: ms.fetcher }) } })(job("meeting_sync", `create:${r.meetingId}`, { meeting: r.meetingId, action: "create" }, ws), signal);
+    if (provider === "google") {
+      const post = g.s.calls.find((c) => c.method === "POST" && c.url.pathname.endsWith("/events"))!;
+      assert.equal(post.url.searchParams.get("sendUpdates"), "none");
+      assert.deepEqual(post.body!.attendees, [{ email: "dana@lead.io", displayName: "Dana Lee" }, { email: "ana@voter.io" }, { email: "ben@voter.io" }]);
+    } else {
+      const e = [...ms.s.events.values()][0]!;
+      assert.deepEqual(e.attendees, []);
+      assert.match((e.body as { content: string }).content, /^Guests: Dana Lee <dana@lead\.io>, ana@voter\.io, ben@voter\.io/);
+    }
+  }
+});
+
 test("Zoom: one Zoom meeting even when the calendar event fails after it, and its link goes on the event", async () => {
   const { ws, users } = await team(1);
   await connect(ws, users[0]!, "google");

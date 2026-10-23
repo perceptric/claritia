@@ -21,7 +21,8 @@ const H = 3_600_000;
 const T0 = Date.parse("2026-11-02T14:00:00Z");
 const live = (): Tok => ({ access: "access-1", refresh: "refresh-1", expiresAt: Date.now() + H });
 const lead = { email: "dana@lead.io", name: "Dana Lee" };
-const ev = (key: string, conference = true, guests: string[] = []) => ({ title: "Demo with Dana Lee", description: "", start: T0, end: T0 + H / 2, guests, lead, conference, key });
+const leads = [lead];
+const ev = (key: string, conference = true, guests: string[] = []) => ({ title: "Demo with Dana Lee", description: "", start: T0, end: T0 + H / 2, guests, leads, conference, key });
 
 test("Google: calendars with the person's own marked, busy per calendar in 30-day pieces, unreadable ones left out", async () => {
   const g = fakeGoogle({ "me@acme.io": [{ start: T0, end: T0 + H }], "team@acme.io": [{ start: T0 + 40 * 24 * H, end: T0 + 40 * 24 * H + H }] });
@@ -53,7 +54,7 @@ test("Google: a create whose answer is lost makes one event, and the retry gets 
   // A different key (a move to a new host) is a different event.
   await p.create("me@acme.io", ev("move:m1:1|u2"));
   assert.equal(g.s.events.size, 2);
-  await p.update("me@acme.io", again.id, { start: T0 + H, end: T0 + 2 * H, guests: ["co@acme.io"], lead });
+  await p.update("me@acme.io", again.id, { start: T0 + H, end: T0 + 2 * H, guests: ["co@acme.io"], leads });
   assert.equal((g.s.events.get(again.id)!.start as { dateTime: string }).dateTime, new Date(T0 + H).toISOString());
   assert.deepEqual(g.s.events.get(again.id)!.attendees, [{ email: "dana@lead.io", displayName: "Dana Lee" }, { email: "co@acme.io" }]);
   await p.cancel("me@acme.io", again.id);
@@ -137,7 +138,7 @@ test("Microsoft: a retried create carries the same transactionId and gets the fi
   // Outlook emails every attendee, so the lead (who gets Claritia's own invite) is named in the body instead.
   assert.deepEqual(body.attendees, [{ emailAddress: { address: "co@contoso.com" }, type: "required" }]);
   assert.match(String((body.body as { content: string }).content), /^Guest: Dana Lee <dana@lead\.io>/);
-  await p.update("AAMkDef", a.id, { start: T0 + H, end: T0 + 2 * H, guests: ["co@contoso.com"], lead });
+  await p.update("AAMkDef", a.id, { start: T0 + H, end: T0 + 2 * H, guests: ["co@contoso.com"], leads });
   assert.ok(!JSON.stringify(m.s.calls.at(-1)!.body).includes("dana@lead.io"), "a move doesn't add the lead either");
   await p.cancel("AAMkDef", a.id);
   assert.deepEqual(m.s.canceled, [a.id], "cancel, which sends Outlook's notice");

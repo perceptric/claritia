@@ -13,8 +13,8 @@ const enc = encodeURIComponent;
 
 type GEvent = { id: string; status?: string; hangoutLink?: string; conferenceData?: { entryPoints?: { entryPointType?: string; uri?: string }[] } };
 
-/** The lead and the co-hosts, shown on the event; with sendUpdates=none none of them is emailed by Google. */
-const attendees = (guests: string[], lead?: Lead) => [...(lead ? [{ email: lead.email, ...(lead.name ? { displayName: lead.name } : {}) }] : []), ...guests.map((email) => ({ email }))];
+/** The guests and the co-hosts, shown on the event; with sendUpdates=none none of them is emailed by Google. */
+const attendees = (guests: string[], leads: Lead[] = []) => [...leads.map((l) => ({ email: l.email, ...(l.name ? { displayName: l.name } : {}) })), ...guests.map((email) => ({ email }))];
 
 const joinUrl = (e: GEvent) => e.hangoutLink ?? e.conferenceData?.entryPoints?.find((p) => p.entryPointType === "video")?.uri;
 
@@ -48,7 +48,7 @@ export function googleProvider(token: Tok | null, o: HttpOpts = {}): FullProvide
   };
 
   const update: FullProvider["update"] = async (calendarId, eventId, c) => {
-    const body = { start: { dateTime: iso(c.start) }, end: { dateTime: iso(c.end) }, ...(c.guests || c.lead ? { attendees: attendees(c.guests ?? [], c.lead) } : {}) };
+    const body = { start: { dateTime: iso(c.start) }, end: { dateTime: iso(c.end) }, ...(c.guests || c.leads ? { attendees: attendees(c.guests ?? [], c.leads) } : {}) };
     await http(`${API}/calendars/${enc(calendarId)}/events/${enc(eventId)}?sendUpdates=none`, { method: "PATCH", body: JSON.stringify(body) });
   };
 
@@ -83,7 +83,7 @@ export function googleProvider(token: Tok | null, o: HttpOpts = {}): FullProvide
         description: e.description,
         start: { dateTime: iso(e.start) },
         end: { dateTime: iso(e.end) },
-        attendees: attendees(e.guests, e.lead),
+        attendees: attendees(e.guests, e.leads),
         ...(e.where ? { location: e.where } : {}),
         ...(e.conference ? { conferenceData: { createRequest: { requestId: id, conferenceSolutionKey: { type: "hangoutsMeet" } } } } : {}),
       };

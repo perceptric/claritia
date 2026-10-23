@@ -1,8 +1,8 @@
 // Microsoft 365 through Graph (docs/meetings-scheduler.md 1.1 to 1.3): calendars, busy times from calendarView with
 // showAs ("oof" is out of office), events with Teams links, and subscriptions for push. A create carries a
 // transactionId made from the booking's key, so Graph drops a retried POST instead of making a second event.
-// Outlook emails every attendee, and Claritia sends the lead its own invite (.ics), so the lead is never an attendee:
-// their name and email go in the event's body. Co-hosts (team members) stay attendees.
+// Outlook emails every attendee, and Claritia sends the guests its own invite (.ics), so they're never attendees:
+// their names and emails go in the event's body. Co-hosts (team members) stay attendees.
 
 import type { BusySpan, EventResult } from "../provider.ts";
 import { iso, keyId, makeHttp, ProviderError, type HttpOpts, type Tok } from "./http.ts";
@@ -22,7 +22,7 @@ type GEvent = { id: string; onlineMeeting?: { joinUrl?: string } | null };
 const parse = (t: GTime) => Date.parse(`${t.dateTime.replace(/(\.\d{3})\d*$/, "$1")}${/[zZ]|[+-]\d\d:\d\d$/.test(t.dateTime) ? "" : "Z"}`);
 const at = (ms: number): GTime => ({ dateTime: iso(ms).slice(0, 19), timeZone: "UTC" });
 const people = (guests: string[]) => guests.map((address) => ({ emailAddress: { address }, type: "required" }));
-const leadLine = (l: Lead) => `Guest: ${l.name ? `${l.name} <${l.email}>` : l.email}`;
+const leadLine = (ls: Lead[]) => (ls.length ? `${ls.length > 1 ? "Guests" : "Guest"}: ${ls.map((l) => (l.name ? `${l.name} <${l.email}>` : l.email)).join(", ")}` : "");
 const asGuid = (h: string) => `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20, 32)}`;
 
 export function microsoftProvider(token: Tok | null, o: HttpOpts = {}): FullProvider {
@@ -88,7 +88,7 @@ export function microsoftProvider(token: Tok | null, o: HttpOpts = {}): FullProv
     async create(calendarId: string, e: FullEventInput): Promise<EventResult> {
       const body = (teams: boolean) => ({
         subject: e.title,
-        body: { contentType: "text", content: [e.lead ? leadLine(e.lead) : "", e.description].filter(Boolean).join("\n\n") },
+        body: { contentType: "text", content: [leadLine(e.leads ?? []), e.description].filter(Boolean).join("\n\n") },
         start: at(e.start),
         end: at(e.end),
         attendees: people(e.guests),

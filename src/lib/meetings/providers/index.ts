@@ -54,10 +54,10 @@ function asFull(p: ReturnType<typeof fakeProvider>): FullProvider {
       const spans = await p.busy(ids, from, to);
       return Object.fromEntries(ids.slice(0, 1).map((id) => [id, spans]));
     },
-    async update(calendarId: string, eventId: string, c: { start: number; end: number; guests?: string[]; lead?: { email: string } }) {
+    async update(calendarId: string, eventId: string, c: { start: number; end: number; guests?: string[]; leads?: { email: string }[] }) {
       await p.move(calendarId, eventId, c.start, c.end);
       const e = p.events.get(eventId);
-      if (e && (c.guests || c.lead)) e.guests = [...(c.lead ? [c.lead.email] : []), ...(c.guests ?? [])];
+      if (e && (c.guests || c.leads)) e.guests = [...(c.leads ?? []).map((l) => l.email), ...(c.guests ?? [])];
     },
   });
 }

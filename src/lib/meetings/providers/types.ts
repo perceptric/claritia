@@ -4,13 +4,14 @@
 import type { BusySpan, Calendar, CalendarProvider, EventInput } from "../provider.ts";
 
 /**
- * The lead (guest) of a meeting. Claritia sends the lead its own invite with an .ics, so providers never email them:
- * Google keeps them on the event with sendUpdates=none, and Microsoft (which always emails attendees) names them in the
- * event's body instead. `guests` is then the co-hosts only, who are invited by the provider as usual on Microsoft.
+ * The meeting's guests outside the team: the lead, and a poll's other voters. Claritia sends them its own invite with
+ * an .ics, so providers never email them: Google keeps them on the event with sendUpdates=none, and Microsoft (which
+ * always emails attendees) names them in the event's body instead. `guests` is then the co-hosts only, who are
+ * invited by the provider as usual on Microsoft.
  */
 export type Lead = { email: string; name?: string | null };
-export type FullEventInput = EventInput & { lead?: Lead };
-export type EventUpdate = { start: number; end: number; guests?: string[]; lead?: Lead };
+export type FullEventInput = EventInput & { leads?: Lead[] };
+export type EventUpdate = { start: number; end: number; guests?: string[]; leads?: Lead[] };
 
 /** A listed calendar; `own` when the person owns it (theirs count as busy by default, others' shared ones don't). */
 export type OwnCalendar = Calendar & { own?: boolean };
