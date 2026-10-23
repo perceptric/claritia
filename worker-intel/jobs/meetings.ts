@@ -226,6 +226,13 @@ function joinUrl(m: MeetingRow): string | null {
   return null;
 }
 
+/** A poll's other voters: the guests besides the one the meeting is under (answers.guests, comma-separated). */
+export function otherGuests(m: Pick<MeetingRow, "guest_email" | "answers">): string[] {
+  const raw = typeof m.answers?.guests === "string" ? m.answers.guests : "";
+  const main = m.guest_email.toLowerCase();
+  return [...new Set(raw.split(",").map((e) => e.trim().toLowerCase()).filter((e) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e) && e !== main))].slice(0, 50);
+}
+
 function answersOf(m: MeetingRow, t: TypeRow | null): { label: string; value: string }[] {
   const qs = settingsOf(t).questions ?? [];
   return Object.entries(m.answers ?? {})
@@ -277,7 +284,7 @@ function ics(info: Info, method: "REQUEST" | "CANCEL", now: number) {
       location: whereLine(v.where),
       url: v.where.url,
       organizer,
-      attendees: [{ name: m.guest_name, email: m.guest_email }, ...info.hosts.slice(1).map((h) => ({ name: h.name, email: h.email }))],
+      attendees: [{ name: m.guest_name, email: m.guest_email }, ...otherGuests(m).map((email) => ({ name: null, email })), ...info.hosts.slice(1).map((h) => ({ name: h.name, email: h.email }))],
     }),
   };
 }
@@ -355,6 +362,22 @@ export const meetingNotify =
           ics: () => ics(info, "REQUEST", now),
         }),
       );
+      // A poll's other voters get the same invite, without the manage link (it changes the meeting for everyone).
+      for (const g of otherGuests(m)) {
+        results.push(
+          await sendOne(rpc, o, info.sending, {
+            ws,
+            meeting: m.id,
+            kind: moved ? "update" : "confirm",
+            to: g,
+            dedupe: moved ? `update:${m.id}:${info.sequence}:${g}` : `confirm:${m.id}:${g}`,
+            fromName: fromHost(info),
+            replyTo: info.hosts[0]?.email,
+            parts: () => (moved ? updateEmail(view(info, "guest", now, null), from) : confirmEmail(view(info, "guest", now, null))),
+            ics: () => ics(info, "REQUEST", now),
+          }),
+        );
+      }
       for (const h of info.hosts) {
         results.push(
           await sendOne(rpc, o, info.sending, {
@@ -393,6 +416,21 @@ export const meetingNotify =
           ics: () => ics(info, "CANCEL", now),
         }),
       );
+      for (const g of otherGuests(m)) {
+        results.push(
+          await sendOne(rpc, o, info.sending, {
+            ws,
+            meeting: m.id,
+            kind: "cancel",
+            to: g,
+            dedupe: `cancel:${m.id}:${g}`,
+            fromName: fromHost(info),
+            replyTo: info.hosts[0]?.email,
+            parts: () => cancelEmail(view(info, "guest", now), { reason: m.cancel_reason, bookAgain: null }),
+            ics: () => ics(info, "CANCEL", now),
+          }),
+        );
+      }
       for (const h of info.hosts) {
         results.push(
           await sendOne(rpc, o, info.sending, {
@@ -466,6 +504,20 @@ export const meetingRemind =
         // The subject says how long is left now, in case the job ran late.
         parts: () => reminderEmail(view(info, "guest", now, manage), Math.abs(left - min) <= 5 ? min : left),
       }),
+      ...(await Promise.all(
+        otherGuests(m).map((g) =>
+          sendOne(rpc, o, info.sending, {
+            ws: m.workspace_id,
+            meeting: m.id,
+            kind: "reminder",
+            to: g,
+            dedupe: `remind:${m.id}:${new Date(start).toISOString()}:${min}:${g}`,
+            fromName: fromHost(info),
+            replyTo: info.hosts[0]?.email,
+            parts: () => reminderEmail(view(info, "guest", now, null), Math.abs(left - min) <= 5 ? min : left),
+          }),
+        ),
+      )),
     ]);
   };
 
