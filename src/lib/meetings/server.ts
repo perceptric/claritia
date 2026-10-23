@@ -5,7 +5,7 @@
 import { createHash, randomBytes } from "node:crypto";
 import { enqueueJob, type Rpc } from "../jobs.ts";
 import { keepManageToken } from "./links.ts";
-import { pickHost, pickPair, slots as engine, type HostInput, type Turns } from "./slots.ts";
+import { cut, pickHost, pickPair, slots as engine, type HostInput, type Turns } from "./slots.ts";
 import { dateIn, weekOf } from "./time.ts";
 import type { Availability, MeetingSource, MeetingType, Slot } from "./types.ts";
 
@@ -69,6 +69,8 @@ export type Offer = {
   next?: string;
   /** Hosts left out, and why, for the screens. */
   out: { id: string; why: NonNullable<HostState["why"]> }[];
+  /** Group types: the starts that already have a seat booked (their event is on the host's calendar). */
+  seated?: number[];
 };
 
 /** The times a meeting type can be booked now, for one length. `owner` is the contact's owner for owner-first. */
@@ -97,7 +99,17 @@ export async function offer(rpc: Rpc, o: { ws: string; type: MeetingType; length
     const next = pickHost(inputs.map((h) => h.id), o.type.hosts, await turnsFor(rpc, o.type.id)) ?? undefined;
     return { slots: next ? run(inputs, next) : [], ...(next ? { next } : {}), out };
   }
-  return { slots: run(inputs), out };
+  return { slots: run(inputs), out, ...(o.type.kind === "group" ? { seated: [...group.keys()] } : {}) };
+}
+
+/**
+ * The live check for one start. A group start that already has seats has its own event on the host's calendar, so
+ * only the parts outside it are asked about.
+ */
+export async function liveAt(live: BookInput["liveBusy"], hosts: string[], block: { start: number; end: number }, session?: { start: number; end: number } | null): Promise<Set<string>> {
+  const parts = session ? cut([block], session) : [block];
+  const sets = await Promise.all(parts.map((p) => live(hosts, p.start, p.end)));
+  return new Set(sets.flatMap((x) => [...x]));
 }
 
 export type Guest = { email: string; name?: string; tz?: string; answers?: Record<string, string> };
@@ -147,7 +159,7 @@ export async function book(rpc: Rpc, b: BookInput): Promise<BookResult> {
   const end = b.start + b.length * MIN;
   const blockStart = b.start - s.bufferBefore * MIN;
   const blockEnd = end + s.bufferAfter * MIN;
-  const busy = await b.liveBusy(slot.hosts, blockStart, blockEnd);
+  const busy = await liveAt(b.liveBusy, slot.hosts, { start: blockStart, end: blockEnd }, offered.seated?.includes(b.start) ? { start: b.start, end } : null);
   const free = slot.hosts.filter((h) => !busy.has(h));
   let hosts: string[];
   const kind = b.type.kind;

@@ -245,6 +245,33 @@ test("group seats: the page shows seats left, and two guests racing for the last
   assert.ok(!(await guestSlots(rpc, { ws, type: t, length: 30, now: NOW })).some((s) => s.start === NY("10:00")), "a full start is gone");
 });
 
+test("a group seat moves to another start with seats left, past that start's own event; a full start is refused", async () => {
+  const { ws, users } = await team(1);
+  const t = await meetingType(ws, "group", users, { seats: 2 });
+  const acc = (await q(`select id from calendar_accounts where user_id = $1`, [users[0]]))[0].id;
+  const take = async (start: number) => {
+    const r = await bookType(rpc, { ws, type: t, length: 30, start, guest: guest(), source: "page", payReady: false, liveBusy: none, now: NOW });
+    assert.ok(r.ok);
+    return r;
+  };
+  await take(NY("11:00"));
+  // The 11:00 event is on the host's calendar, in the cache and live.
+  await q(`insert into busy_blocks (account_id, calendar_id, start_at, end_at) values ($1, 'primary', $2, $3)`, [acc, new Date(NY("11:00")).toISOString(), new Date(NY("11:30")).toISOString()]);
+  const live = async (h: string[], from: number, to: number) => new Set(from < NY("11:30") && to > NY("11:00") ? h : []);
+  const second = await bookType(rpc, { ws, type: t, length: 30, start: NY("11:00"), guest: guest(), source: "page", payReady: false, liveBusy: live, now: NOW });
+  assert.ok(second.ok, "a second seat books past the start's own event");
+  const mine = await take(NY("09:00"));
+  const view = (await loadMeeting(rpc, { token: mine.token }))!;
+  assert.ok(!(await rescheduleSlots(rpc, view, NOW)).some((s) => s.start === NY("11:00")), "11:00 is full");
+  const full = await reschedule(rpc, { view, start: NY("11:00"), liveBusy: live, now: NOW });
+  assert.ok(!full.ok);
+  await q(`update meetings set status = 'canceled' where id = $1`, [second.meetingId]);
+  assert.ok((await rescheduleSlots(rpc, view, NOW)).some((s) => s.start === NY("11:00")), "a seat came free");
+  const moved = await reschedule(rpc, { view, start: NY("11:00"), liveBusy: live, now: NOW });
+  assert.ok(moved.ok, "moved into the start past its own event");
+  assert.equal((await q(`select count(*)::int n from meetings where type_id = $1 and start_at = $2 and status = 'booked'`, [t.id, new Date(NY("11:00")).toISOString()]))[0].n, 2);
+});
+
 test("polls: guests vote on several times; a winner that's no longer free is refused with what's left; the next books every voter", async () => {
   const { ws, users } = await team(1);
   const made = checkLink({ kind: "poll", title: "Planning", offered: [{ start: NY("09:00") }, { start: NY("10:00") }, { start: NY("14:00") }], length: 30 }, { owner: users[0]!, type: null, now: NOW });

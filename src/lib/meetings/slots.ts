@@ -44,14 +44,23 @@ export function hostStarts(h: HostInput, length: number, s: TypeSettings, now: n
   return [...new Set(out)].sort((x, y) => x - y);
 }
 
+/** Spans with one hole cut out of them: what's left before and after it. */
+export function cut(spans: Span[], hole: Span): Span[] {
+  return spans.flatMap((x) =>
+    x.end <= hole.start || x.start >= hole.end
+      ? [x]
+      : [...(x.start < hole.start ? [{ start: x.start, end: hole.start }] : []), ...(x.end > hole.end ? [{ start: hole.end, end: x.end }] : [])],
+  );
+}
+
 function blocked(h: HostInput, t: number, length: number, s: TypeSettings, opts: { typeId?: string; group?: Map<number, number> }): boolean {
   const block = { start: t - s.bufferBefore * MIN, end: t + (length + s.bufferAfter) * MIN };
-  if (h.busy.some((b) => overlaps(b, block))) return true;
-  return h.booked.some((m) => {
-    // A group meeting of this same type at this same start is the seat being offered, not a conflict.
-    if (opts.group && m.typeId === opts.typeId && (m.at ?? m.start) === t) return false;
-    return overlaps(m, block);
-  });
+  // A group meeting of this same type at this same start is the seat being offered, not a conflict, and so is its
+  // event on the host's calendar.
+  const seats = opts.group ? h.booked.filter((m) => m.typeId === opts.typeId && (m.at ?? m.start) === t) : [];
+  const busy = seats.reduce((left, m) => cut(left, m), h.busy);
+  if (busy.some((b) => overlaps(b, block))) return true;
+  return h.booked.some((m) => !seats.includes(m) && overlaps(m, block));
 }
 
 function capped(h: HostInput, t: number, s: TypeSettings): boolean {

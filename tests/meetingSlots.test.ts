@@ -83,6 +83,18 @@ test("a group type keeps offering a start until its seats are taken", () => {
   assert.ok(!full.some((x) => x.start === t + 15 * 60_000), "the group meeting still blocks the host's other times");
 });
 
+test("a group start's own event on the host's calendar doesn't hide its seats; other events still do", () => {
+  const t = at("2026-10-26", "10:00", "America/New_York");
+  const seat = { start: t, end: t + 30 * 60_000, typeId: "g" };
+  // The calendar sync brings the first seat's event back as busy, merged with a call right after it.
+  const host = H("a", "America/New_York", { booked: [seat], busy: [{ start: t, end: t + 60 * 60_000 }] });
+  const open = slots({ kind: "group", typeId: "g", hosts: [host], length: 30, settings: S({ window: 1, seats: 3 }), now: MON, group: new Map([[t, 1]]) });
+  assert.ok(open.some((x) => x.start === t), "the seat is still offered");
+  assert.ok(!open.some((x) => x.start === t + 30 * 60_000), "the call after it is busy");
+  const longer = slots({ kind: "group", typeId: "g", hosts: [host], length: 60, settings: S({ window: 1, seats: 3, lengths: [60] }), now: MON, group: new Map([[t, 1]]) });
+  assert.ok(!longer.some((x) => x.start === t), "an hour from the same start runs into the call");
+});
+
 test("round robin stays fair over 1,000 bookings, with weights held within 2%", () => {
   const hosts: Host[] = [{ user_id: "a", weight: 1 }, { user_id: "b", weight: 2 }, { user_id: "c", weight: 1 }];
   const turns: Turns = {};

@@ -6,8 +6,8 @@
 import { createHash, randomBytes } from "node:crypto";
 import { enqueueJob, type Rpc } from "../jobs.ts";
 import { keepManageToken } from "./links.ts";
-import { book, hostStates, newToken, offer, tokenHash, turnsFor, type BookResult } from "./server.ts";
-import { pickHost, pickPair } from "./slots.ts";
+import { book, hostStates, liveAt, newToken, offer, tokenHash, turnsFor, type BookResult } from "./server.ts";
+import { cut, pickHost, pickPair } from "./slots.ts";
 import { checkSettings } from "./check.ts";
 import { guestLocation, toGuestType, type GuestIn, type GuestSlot, type GuestType, type Profile } from "./guest.ts";
 import { DEFAULT_SETTINGS, type Location, type MeetingSource, type MeetingStatus, type MeetingType, type Slot, type Span } from "./types.ts";
@@ -458,24 +458,15 @@ export async function loadMeeting(rpc: Rpc, by: { token: string } | { id: string
   return { ...v, type: v.type ? withDefaults(v.type) : null };
 }
 
-/** What the guest can still do. A meeting from a type moves within that type; group seats and links only cancel. */
+/** What the guest can still do. A meeting from a type moves within that type (a group seat to another start); links only cancel. */
 export function canChange(v: MeetingView, now = Date.now()): { reschedule: boolean; cancel: boolean } {
   const m = v.meeting;
   const ahead = Date.parse(m.start_at) > now;
   const live = m.status === "booked" || (m.status === "pending_payment" && m.holds);
   return {
-    reschedule: ahead && m.status === "booked" && !!v.type && v.type.active && v.type.kind !== "group" && m.source !== "one_off" && m.source !== "poll",
+    reschedule: ahead && m.status === "booked" && !!v.type && v.type.active && m.source !== "one_off" && m.source !== "poll",
     cancel: ahead && live,
   };
-}
-
-/** Spans with one hole cut out of them: what's left before and after it. */
-export function cut(spans: Span[], hole: Span): Span[] {
-  return spans.flatMap((x) =>
-    x.end <= hole.start || x.start >= hole.end
-      ? [x]
-      : [...(x.start < hole.start ? [{ start: x.start, end: hole.start }] : []), ...(x.end > hole.end ? [{ start: hole.end, end: x.end }] : [])],
-  );
 }
 
 const spanOf = (v: MeetingView): Span => ({ start: Date.parse(v.meeting.start_at), end: Date.parse(v.meeting.end_at) });
@@ -499,26 +490,33 @@ const without = (rpc: Rpc, v: MeetingView): Rpc => async (fn, args) => {
   };
 };
 
-/** The live check for a move: the meeting's own hosts are asked only about the part outside its old time. */
-async function liveForMove(live: LiveBusy, v: MeetingView, hosts: string[], from: number, to: number): Promise<Set<string>> {
+/**
+ * The live check for a move: the meeting's own hosts are asked only about the part outside its old time, and a
+ * group start that already has seats leaves out its own event too.
+ */
+async function liveForMove(live: LiveBusy, v: MeetingView, hosts: string[], block: Span, session: Span | null): Promise<Set<string>> {
   const mine = hosts.filter((h) => v.meeting.hosts.includes(h));
   const others = hosts.filter((h) => !v.meeting.hosts.includes(h));
-  const parts = cut([{ start: from, end: to }], spanOf(v));
-  const sets = await Promise.all([others.length ? live(others, from, to) : new Set<string>(), ...(mine.length ? parts.map((p) => live(mine, p.start, p.end)) : [])]);
+  const sets = await Promise.all([
+    others.length ? liveAt(live, others, block, session) : new Set<string>(),
+    mine.length ? liveAt((h, from, to) => liveAt(live, h, { start: from, end: to }, spanOf(v)), mine, block, session) : new Set<string>(),
+  ]);
   return new Set(sets.flatMap((x) => [...x]));
 }
 
 const meetingLength = (v: MeetingView) => Math.round((Date.parse(v.meeting.end_at) - Date.parse(v.meeting.start_at)) / MIN);
 
 /** The times this meeting can move to: same length, same type; only its own hosts' when the type keeps the host. */
-async function moveSlots(rpc: Rpc, v: MeetingView, now: number): Promise<Slot[]> {
+async function moveSlots(rpc: Rpc, v: MeetingView, now: number): Promise<Slot[] & { seated?: number[] }> {
   if (!v.type) return [];
   const type = v.type;
   const length = meetingLength(v);
   const t: MeetingType = type.settings.lengths.includes(length) ? type : { ...type, settings: { ...type.settings, lengths: [...type.settings.lengths, length] } };
   const off = await offer(without(rpc, v), { ws: v.meeting.workspace_id, type: t, length, now });
   const mine = v.meeting.hosts;
-  return off.slots.filter((s) => s.start !== Date.parse(v.meeting.start_at) && (type.settings.reschedule !== "same_host" || mine.every((h) => s.hosts.includes(h))));
+  const out: Slot[] & { seated?: number[] } = off.slots.filter((s) => s.start !== Date.parse(v.meeting.start_at) && (type.settings.reschedule !== "same_host" || mine.every((h) => s.hosts.includes(h))));
+  if (off.seated) out.seated = off.seated;
+  return out;
 }
 
 export async function rescheduleSlots(rpc: Rpc, v: MeetingView, now = Date.now()): Promise<GuestSlot[]> {
@@ -547,7 +545,7 @@ export async function reschedule(rpc: Rpc, o: { view: MeetingView; start: number
   const end = o.start + length * MIN;
   const blockStart = o.start - s.bufferBefore * MIN;
   const blockEnd = end + s.bufferAfter * MIN;
-  const busy = await liveForMove(o.liveBusy, v, slot.hosts, blockStart, blockEnd);
+  const busy = await liveForMove(o.liveBusy, v, slot.hosts, { start: blockStart, end: blockEnd }, slots.seated?.includes(o.start) ? { start: o.start, end } : null);
   const free = slot.hosts.filter((h) => !busy.has(h));
   const mine = v.meeting.hosts;
   let hosts: string[] = [];
@@ -570,8 +568,9 @@ export async function reschedule(rpc: Rpc, o: { view: MeetingView; start: number
     p_block_end: new Date(blockEnd).toISOString(),
   });
   if (error) {
-    const code = codeOf(error.message, ["slot_taken", "not_movable"] as const);
-    if (!code) throw new Error(error.message);
+    const found = codeOf(error.message, ["slot_taken", "full", "not_movable"] as const);
+    if (!found) throw new Error(error.message);
+    const code = found === "full" ? "slot_taken" : found;
     return { ok: false, error: code, slots: code === "slot_taken" ? (await moveSlots(rpc, v, now)).filter((x) => x.start !== o.start).map((x) => ({ start: x.start })) : [] };
   }
   await enqueueJob(rpc, { workspaceId: v.meeting.workspace_id, kind: "meeting_sync", key: `move:${v.meeting.id}:${Date.now()}`, payload: { meeting: v.meeting.id, action: "move" } });

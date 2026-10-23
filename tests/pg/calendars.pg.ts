@@ -340,6 +340,81 @@ test("Zoom: one Zoom meeting even when the calendar event fails after it, and it
   assert.equal(z.s.meetings.size, 0, "the Zoom meeting is deleted with the event");
 });
 
+test("group seats share one event and one link; a seat that moves or cancels leaves the event to the others", async () => {
+  const { ws, users } = await team(1);
+  await connect(ws, users[0]!, "google", tok(), "a@acme.io");
+  const t = await meetingType(ws, "group", users);
+  t.settings.seats = 3;
+  await q(`update meeting_types set settings = $2 where id = $1`, [t.id, t.settings]);
+  const [s1, s2] = (await offer(rpc, { ws, type: t, length: 30 })).slots.map((x) => x.start);
+  const seat = async (start: number, email: string, name: string) => {
+    const r = await book(rpc, { ws, type: t, length: 30, start, guest: { email, name }, source: "page", liveBusy: none });
+    assert.ok(r.ok, `${name} booked`);
+    return r.meetingId;
+  };
+  const g = fakeGoogle();
+  const sync = (id: string, action: string, n: number) => meetingSync(rpc, { http: { fetcher: g.fetcher } })(job("meeting_sync", `${action}:${id}:${n}`, { meeting: id, action }, ws), signal);
+  const people = (e: Record<string, unknown> | undefined) => ((e?.attendees ?? []) as { email: string }[]).map((x) => x.email);
+  const row = async (id: string) => (await q(`select events, location from meetings where id = $1`, [id]))[0];
+
+  const a = await seat(s1!, "dana@lead.io", "Dana Lee");
+  const b = await seat(s1!, "ben@lead.io", "Ben Ito");
+  await sync(a, "create", 1);
+  await sync(b, "create", 1);
+  assert.equal(g.s.events.size, 1, "one event for the start");
+  const e1 = [...g.s.events.values()][0]!;
+  assert.equal(e1.summary, "Intro call");
+  assert.deepEqual(people(e1), ["dana@lead.io", "ben@lead.io"]);
+  assert.deepEqual((await row(b)).events, (await row(a)).events);
+  assert.ok((await row(a)).location.url && (await row(b)).location.url === (await row(a)).location.url, "the same video link");
+
+  const c = await seat(s2!, "carl@lead.io", "Carl Diaz");
+  await sync(c, "create", 1);
+  const e2 = [...g.s.events.values()].find((e) => e.id !== e1.id)!;
+
+  // Ben moves to the later start: Dana keeps the first event, Ben joins Carl's.
+  const mv = await rpc("meeting_move", { p_id: b, p_hosts: users, p_start: new Date(s2!).toISOString(), p_end: new Date(s2! + 30 * 60_000).toISOString(), p_block_start: new Date(s2!).toISOString(), p_block_end: new Date(s2! + 30 * 60_000).toISOString() });
+  assert.equal(mv.error, null);
+  await sync(b, "move", 2);
+  assert.equal(g.s.events.size, 2);
+  assert.equal(e1.status, "confirmed");
+  assert.deepEqual(people(g.s.events.get(e1.id as string)), ["dana@lead.io"]);
+  assert.deepEqual(people(g.s.events.get(e2.id as string)), ["carl@lead.io", "ben@lead.io"]);
+  assert.deepEqual((await row(b)).events, (await row(c)).events);
+
+  // The last seat on an event cancels it; a seat with others leaves it standing.
+  await rpc("meeting_status", { p_id: a, p_status: "canceled" });
+  await sync(a, "cancel", 3);
+  assert.equal(g.s.events.get(e1.id as string)!.status, "cancelled");
+  await rpc("meeting_status", { p_id: c, p_status: "canceled" });
+  await sync(c, "cancel", 3);
+  assert.equal(g.s.events.get(e2.id as string)!.status, "confirmed");
+  assert.deepEqual(people(g.s.events.get(e2.id as string)), ["ben@lead.io"]);
+});
+
+test("two seats syncing at once for one start: the second waits for the first, so one event is made", async () => {
+  const { ws, users } = await team(1);
+  await connect(ws, users[0]!, "google");
+  const t = await meetingType(ws, "group", users);
+  t.settings.seats = 3;
+  await q(`update meeting_types set settings = $2 where id = $1`, [t.id, t.settings]);
+  const start = (await offer(rpc, { ws, type: t, length: 30 })).slots[0]!.start;
+  const ids: string[] = [];
+  for (const email of ["a@lead.io", "b@lead.io"]) {
+    const r = await book(rpc, { ws, type: t, length: 30, start, guest: { email }, source: "page", liveBusy: none });
+    assert.ok(r.ok);
+    ids.push(r.meetingId);
+  }
+  // The first seat's sync holds its lease; the second seat goes back in line.
+  await rpc("meeting_sync_lease", { p_meeting: ids[0], p_job: "first-seat", p_s: 60 });
+  await q(`delete from jobs where kind = 'meeting_sync'`);
+  const g = fakeGoogle();
+  await meetingSync(rpc, { http: { fetcher: g.fetcher } })(job("meeting_sync", `create:${ids[1]}`, { meeting: ids[1], action: "create" }, ws), signal);
+  assert.equal(g.s.events.size, 0);
+  assert.equal((await q(`select 1 from jobs where kind = 'meeting_sync' and payload->>'meeting' = $1`, [ids[1]])).length, 1);
+  assert.equal((await q(`select 1 from meeting_sync_leases where meeting_id = $1`, [ids[1]])).length, 0, "its own lease is let go");
+});
+
 test("one sync per meeting at a time: a second waits its turn without using up a try", async () => {
   const { ws, users } = await team(1);
   await connect(ws, users[0]!, "google");

@@ -169,7 +169,14 @@ type Inputs = {
   title: string;
   questions: { id: string; label: string }[] | null;
   hosts: HostIn[];
+  /** Group types: the other seats at this start, and the first seat (whose lease keeps one event per start). */
+  group?: boolean;
+  session?: Seat[];
+  anchor?: string | null;
+  /** Other meetings on this meeting's current event (group seats); a cancel or move leaves the event to them. */
+  sharing?: Seat[];
 };
+type Seat = Pick<Inputs["meeting"], "id" | "guest_email" | "guest_name" | "answers" | "start_at" | "end_at" | "events" | "location">;
 
 /** A failure that more tries won't fix: no calendar to write to, or a sign-in that's gone. */
 class Final extends Error {}
@@ -190,9 +197,18 @@ export const meetingSync =
     }
     const notify = (event: string) =>
       enqueueJob(rpc, { workspaceId: job.workspace_id, kind: "meeting_notify", key: event === "booked" ? `booked:${meeting}` : `${event}:${job.id}`, payload: { meeting, event } });
+    let anchor: string | null = null;
     try {
       const inp = await call<Inputs | null>(rpc, "meeting_sync_inputs", { p_meeting: meeting });
       if (!inp) return;
+      // A group seat also takes its start's first seat's lease, so two seats never each make an event.
+      if (inp.anchor && inp.anchor !== meeting) {
+        if (!(await call<boolean>(rpc, "meeting_sync_lease", { p_meeting: inp.anchor, p_job: job.id, p_s: 300 }))) {
+          await enqueueJob(rpc, { workspaceId: job.workspace_id, kind: "meeting_sync", key: job.key, payload: job.payload, delayS: 15, maxAttempts: job.max_attempts });
+          return;
+        }
+        anchor = inp.anchor;
+      }
       let send = true;
       try {
         send = await run(rpc, o, job, inp, action, signal);
@@ -208,6 +224,7 @@ export const meetingSync =
       if (send) await notify(EVENT[action]);
     } finally {
       await call(rpc, "meeting_sync_release", { p_meeting: meeting, p_job: job.id }).catch(() => undefined);
+      if (anchor) await call(rpc, "meeting_sync_release", { p_meeting: anchor, p_job: job.id }).catch(() => undefined);
     }
   };
 
@@ -218,9 +235,12 @@ async function run(rpc: Rpc, o: CalendarOpts, job: Job, inp: Inputs, action: key
   // Everything on a calendar or on Zoom for this meeting (a Zoom meeting alone is a create cut short).
   const placed = Object.entries(events).filter(([, r]) => r.event || r.zoom);
 
+  const sharers = inp.sharing ?? [];
   if (action === "cancel") {
     if (m.status !== "canceled") return false;
-    for (const [, r] of placed) await takeDown(rpc, o, r, signal);
+    // Seats still on the event keep it, without this guest.
+    if (sharers.length) await reseat(rpc, o, inp, placed, sharers, signal);
+    else for (const [, r] of placed) await takeDown(rpc, o, r, signal);
     return true;
   }
 
@@ -233,6 +253,26 @@ async function run(rpc: Rpc, o: CalendarOpts, job: Job, inp: Inputs, action: key
   const guests = guestsFor(inp, org);
   const start = Date.parse(m.start_at);
   const end = Date.parse(m.end_at);
+
+  if (inp.group) {
+    // A seat joins the event the other seats at its start already have.
+    const host = (inp.session ?? []).find((x) => Object.values(x.events ?? {}).some((r) => r.event));
+    if (action === "move" && placed.length && (sharers.length || host)) {
+      if (sharers.length) await reseat(rpc, o, inp, placed, sharers, signal);
+      else for (const [, r] of placed) await takeDown(rpc, o, r, signal);
+      await call(rpc, "meeting_calendar_save", { p_meeting: m.id, p_events: {}, p_location: { url: null } });
+      m.events = {};
+      placed.length = 0;
+    }
+    if (host) {
+      await join(rpc, o, inp, host, signal);
+      return true;
+    }
+    if (action === "move" && !placed.length) {
+      await place(rpc, o, job, inp, org, guests, start, end, signal);
+      return true;
+    }
+  }
 
   if (action === "move" && events[org.user_id]?.event) {
     const r = events[org.user_id]!;
@@ -256,7 +296,8 @@ async function place(rpc: Rpc, o: CalendarOpts, job: Job, inp: Inputs, org: Host
   const m = inp.meeting;
   const cal = org.cal!;
   const loc = m.location ?? {};
-  const title = `${inp.title} with ${m.guest_name || m.guest_email}`.slice(0, 250);
+  // A group event is shared by every seat, so it carries the type's name alone.
+  const title = (inp.group ? inp.title : `${inp.title} with ${m.guest_name || m.guest_email}`).slice(0, 250);
   let conference = loc.kind === "google_meet" || loc.kind === "teams";
   let where = loc.kind === "phone_host" ? loc.number : loc.kind === "in_person" ? loc.address : loc.kind === "link" ? loc.url : undefined;
   // A Zoom meeting made by an earlier try of this create (no event yet) is used again.
@@ -281,6 +322,42 @@ async function place(rpc: Rpc, o: CalendarOpts, job: Job, inp: Inputs, org: Host
   const ref: Ref = { provider: cal.provider, account: cal.id, calendar: cal.write, event: made.id, ...(zoom ? { zoom } : {}) };
   const url = zoom?.url ?? made.joinUrl;
   await call(rpc, "meeting_calendar_save", { p_meeting: m.id, p_events: { [org.user_id]: ref }, p_location: url ? { url } : {} });
+}
+
+/** Every seat's guests, once each, for a shared group event. */
+function seatLeads(seats: Pick<Seat, "guest_email" | "guest_name" | "answers">[]) {
+  const seen = new Set<string>();
+  return seats.flatMap(leadsOf).filter((l) => !seen.has(l.email) && !!seen.add(l.email));
+}
+
+/** The co-hosts for an event on `user`'s calendar. */
+const coHosts = (inp: Inputs, user: string) => {
+  const h = inp.hosts.find((x) => x.user_id === user);
+  return h ? guestsFor(inp, h) : [];
+};
+
+/** A seat leaves a shared event: it stays at its time with the remaining seats' guests. */
+async function reseat(rpc: Rpc, o: CalendarOpts, inp: Inputs, placed: [string, Ref][], rest: Seat[], signal: AbortSignal) {
+  const at = rest[0]!;
+  for (const [u, r] of placed) {
+    if (!r.event) continue;
+    const acc = await loadAccount(rpc, r.account);
+    if (acc && acc.status === "ok")
+      await guarded(rpc, acc, () => providerOf(rpc, o, acc, signal).update(r.calendar, r.event!, { start: Date.parse(at.start_at), end: Date.parse(at.end_at), guests: coHosts(inp, u), leads: seatLeads(rest) }));
+  }
+}
+
+/** A seat joins its start's event: the event gets this guest too, and the seat keeps the same event and link. */
+async function join(rpc: Rpc, o: CalendarOpts, inp: Inputs, host: Seat, signal: AbortSignal) {
+  const m = inp.meeting;
+  const all = [...(inp.session ?? []), m];
+  for (const [u, r] of Object.entries(host.events)) {
+    if (!r.event) continue;
+    const acc = await loadAccount(rpc, r.account);
+    if (acc && acc.status === "ok")
+      await guarded(rpc, acc, () => providerOf(rpc, o, acc, signal).update(r.calendar, r.event!, { start: Date.parse(m.start_at), end: Date.parse(m.end_at), guests: coHosts(inp, u), leads: seatLeads(all) }));
+  }
+  await call(rpc, "meeting_calendar_save", { p_meeting: m.id, p_events: host.events, p_location: host.location?.url ? { url: host.location.url } : {} });
 }
 
 /** Cancel an event and its Zoom meeting. A calendar since disconnected is skipped. */
@@ -314,7 +391,7 @@ async function guarded<T>(rpc: Rpc, a: AccountRow, fn: () => Promise<T>): Promis
  * them its own invite (.ics), so the providers must not email them (sendUpdates=none on Google; named in the body,
  * not attendees, on Microsoft).
  */
-function leadsOf(m: Inputs["meeting"]): { email: string; name?: string | null }[] {
+function leadsOf(m: Pick<Inputs["meeting"], "guest_email" | "guest_name" | "answers">): { email: string; name?: string | null }[] {
   const lead = m.guest_email.trim().toLowerCase();
   const voters = String(m.answers?.guests ?? "")
     .split(",")
