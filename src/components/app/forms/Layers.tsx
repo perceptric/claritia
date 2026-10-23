@@ -152,7 +152,14 @@ function LayerRow({
         <button type="button" aria-label="Duplicate" title="Duplicate" onClick={() => onDuplicate(f.id)} className={`${act} ${show}`}>
           <Copy size={12} />
         </button>
-        <button type="button" aria-label="Delete" title="Delete" disabled={f.key === "email"} onClick={() => onRemove(f.id)} className={`${act} ${show} hover:bg-rose-wash hover:text-rose disabled:opacity-35`}>
+        <button
+          type="button"
+          aria-label="Delete"
+          title="Delete"
+          disabled={f.key === "email"}
+          onClick={() => onRemove(f.id)}
+          className={`${act} ${show} hover:bg-rose-wash hover:text-rose disabled:opacity-35`}
+        >
           <Trash size={12} />
         </button>
       </span>

@@ -30,7 +30,18 @@ import { PreviewOverlay } from "./PreviewOverlay";
 import { SettingsTab } from "./SettingsTab";
 import { copy, IconButton, STATUS, type Destination, type FormRow, type Kit, type SourceRow } from "./shared";
 
-type ListRow = { id: string; name: string; status: FormRow["status"]; kind: "built" | "captured"; version: number; updated_at: string; fills: number; last_fill: string | null; failed: number; check: "running" | "passed" | "failed" | null };
+type ListRow = {
+  id: string;
+  name: string;
+  status: FormRow["status"];
+  kind: "built" | "captured";
+  version: number;
+  updated_at: string;
+  fills: number;
+  last_fill: string | null;
+  failed: number;
+  check: "running" | "passed" | "failed" | null;
+};
 
 export function FormsView(props: ViewProps) {
   if (props.id === "new") return <FormCreate key="new" {...props} />;
@@ -79,7 +90,11 @@ function FormList(props: ViewProps) {
           {list.data.map((f) => (
             <div key={f.id} className="group lift anim-rise-sm relative flex flex-col gap-6 rounded-2xl border border-line bg-card p-5 text-left hover:border-line-strong">
               <span className="flex items-start gap-2">
-                <button type="button" onClick={() => navigate("forms", f.id)} className="min-w-0 flex-1 truncate pt-px text-left text-[14.5px] font-medium text-ink after:absolute after:inset-0 after:rounded-2xl">
+                <button
+                  type="button"
+                  onClick={() => navigate("forms", f.id)}
+                  className="min-w-0 flex-1 truncate pt-px text-left text-[14.5px] font-medium text-ink after:absolute after:inset-0 after:rounded-2xl"
+                >
                   {f.name}
                 </button>
                 <span className="relative z-10 -my-1.5 opacity-0 group-hover:opacity-100 focus-within:opacity-100">
@@ -135,7 +150,19 @@ function FormPage(props: ViewProps) {
   if (data.error && !data.data) return <ErrorNote message={data.error} />;
   if (!data.data) return <Loading />;
   if (!data.data.row) return <Empty title="Form not found" />;
-  return <Builder {...props} initial={data.data.row} published={data.data.published} kits={data.data.kits} sources={data.data.sources} dests={data.data.dests} custom={data.data.custom} site={data.data.site} reload={data.reload} />;
+  return (
+    <Builder
+      {...props}
+      initial={data.data.row}
+      published={data.data.published}
+      kits={data.data.kits}
+      sources={data.data.sources}
+      dests={data.data.dests}
+      custom={data.data.custom}
+      site={data.data.site}
+      reload={data.reload}
+    />
+  );
 }
 
 /** Read and clear a one-time note the create screen left for this form. */
@@ -157,10 +184,7 @@ function writeTab(t: Tab) {
   window.history.replaceState(window.history.state, "", `${u.pathname}${u.search}${u.hash}`);
 }
 
-const ZOOMS = [
-  { value: "fit", label: "Fit" },
-  ...[50, 75, 100, 125, 150].map((z) => ({ value: String(z), label: `${z}%` })),
-];
+const ZOOMS = [{ value: "fit", label: "Fit" }, ...[50, 75, 100, 125, 150].map((z) => ({ value: String(z), label: `${z}%` }))];
 
 function Builder({
   sb,
@@ -413,7 +437,10 @@ function Builder({
     dirty.current = false;
     setSaved(true);
   };
-  const siteHost = (kit?.source_url ?? site).replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/\/.*$/, "");
+  const siteHost = (kit?.source_url ?? site)
+    .replace(/^https?:\/\//, "")
+    .replace(/^www\./, "")
+    .replace(/\/.*$/, "");
   const brand = { site: siteHost, kit, tokens, scan: (u: string) => void scan(u), error: scanError };
 
   const origin = typeof window === "undefined" ? "" : window.location.origin;
@@ -474,13 +501,28 @@ function Builder({
                     ["phone", "Phone", <Phone key="p" size={14} />],
                   ] as const
                 ).map(([d, label, icon]) => (
-                  <button key={d} type="button" role="radio" aria-checked={device === d} aria-label={label} title={label} onClick={() => setDevice(d)} className={`flex size-7 items-center justify-center rounded-full transition-colors duration-[140ms] ${device === d ? "bg-ink text-paper" : "text-muted hover:text-ink"}`}>
+                  <button
+                    key={d}
+                    type="button"
+                    role="radio"
+                    aria-checked={device === d}
+                    aria-label={label}
+                    title={label}
+                    onClick={() => setDevice(d)}
+                    className={`flex size-7 items-center justify-center rounded-full transition-colors duration-[140ms] ${device === d ? "bg-ink text-paper" : "text-muted hover:text-ink"}`}
+                  >
                     {icon}
                   </button>
                 ))}
               </div>
               <span className="w-[74px]">
-                <Select<string> value={String(zoom)} options={ZOOMS} onChange={(z) => setZoom(z === "fit" ? "fit" : Number(z))} ariaLabel="Zoom" className="h-8 w-full rounded-full px-2.5 text-[12.5px] font-medium text-ink tabular-nums hover:bg-hover" />
+                <Select<string>
+                  value={String(zoom)}
+                  options={ZOOMS}
+                  onChange={(z) => setZoom(z === "fit" ? "fit" : Number(z))}
+                  ariaLabel="Zoom"
+                  className="h-8 w-full rounded-full px-2.5 text-[12.5px] font-medium text-ink tabular-nums hover:bg-hover"
+                />
               </span>
             </>
           ) : null}
@@ -511,16 +553,43 @@ function Builder({
         ) : null}
         <div className="min-h-0 flex-1">
           {tab === "design" ? (
-            <Editor form={form} apply={apply} custom={custom} sources={sources} tokens={tokens} device={device} zoom={zoom} theme={theme} link={{ session, workspaceId: ws.id, sb, onFieldAdded: (f) => setAdded((a) => [...a, f]) }} />
+            <Editor
+              form={form}
+              apply={apply}
+              custom={custom}
+              sources={sources}
+              tokens={tokens}
+              device={device}
+              zoom={zoom}
+              theme={theme}
+              link={{ session, workspaceId: ws.id, sb, onFieldAdded: (f) => setAdded((a) => [...a, f]) }}
+            />
           ) : tab === "share" ? (
             <div className="grid h-full min-h-0 lg:grid-cols-[1fr_380px]">
-              <PreviewPane form={form} brand={brand} footer={<ChangeBox session={session} ws={ws} formId={initial.id} prepare={async () => ((await save()) ? rev.current : null)} onResult={fromChat} />} />
+              <PreviewPane
+                form={form}
+                brand={brand}
+                footer={<ChangeBox session={session} ws={ws} formId={initial.id} prepare={async () => ((await save()) ? rev.current : null)} onResult={fromChat} />}
+              />
               <aside className="min-h-0 overflow-auto border-l border-line bg-card">
                 <Embed id={initial.id} origin={origin} live={!!initial.version} form={form} apply={apply} />
               </aside>
             </div>
           ) : tab === "settings" ? (
-            <SettingsTab form={form} apply={apply} sb={sb} session={session} ws={ws} role={role} navigate={navigate} formId={initial.id} dests={dests} sources={sources} reload={reload} brand={brand} />
+            <SettingsTab
+              form={form}
+              apply={apply}
+              sb={sb}
+              session={session}
+              ws={ws}
+              role={role}
+              navigate={navigate}
+              formId={initial.id}
+              dests={dests}
+              sources={sources}
+              reload={reload}
+              brand={brand}
+            />
           ) : (
             <div className="h-full overflow-auto bg-paper p-4 md:p-8">
               <div className="mx-auto flex max-w-5xl flex-col gap-8">
@@ -537,7 +606,21 @@ function Builder({
 }
 
 /** Draft, Live or Paused as one pill, with what can be done from here in its menu. */
-function StatusMenu({ status, live, busy, onStatus, onTest, onDelete }: { status: FormRow["status"]; live: boolean; busy: boolean; onStatus: (s: "live" | "paused") => void; onTest: () => void; onDelete: () => void }) {
+function StatusMenu({
+  status,
+  live,
+  busy,
+  onStatus,
+  onTest,
+  onDelete,
+}: {
+  status: FormRow["status"];
+  live: boolean;
+  busy: boolean;
+  onStatus: (s: "live" | "paused") => void;
+  onTest: () => void;
+  onDelete: () => void;
+}) {
   const btn = useRef<HTMLButtonElement>(null);
   const [open, setOpen] = useState(false);
   const [label, tone] = STATUS[status];
@@ -549,7 +632,15 @@ function StatusMenu({ status, live, busy, onStatus, onTest, onDelete }: { status
   };
   return (
     <>
-      <button ref={btn} type="button" aria-label={`Status: ${label}`} aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen((o) => !o)} className="press inline-flex h-7 items-center gap-1.5 rounded-full bg-paper-deep pr-2 pl-2.5 text-[12px] font-medium text-ink hover:bg-hover">
+      <button
+        ref={btn}
+        type="button"
+        aria-label={`Status: ${label}`}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        onClick={() => setOpen((o) => !o)}
+        className="press inline-flex h-7 items-center gap-1.5 rounded-full bg-paper-deep pr-2 pl-2.5 text-[12px] font-medium text-ink hover:bg-hover"
+      >
         <span className={`size-1.5 rounded-full ${dot}`} />
         {label}
         <ChevronDown size={12} className="text-muted" />
@@ -582,7 +673,13 @@ function StatusMenu({ status, live, busy, onStatus, onTest, onDelete }: { status
 
 const SUGGEST = ["Make it two steps", "Add a phone field", "Make it shorter", "Put the labels inside the fields"];
 
-function ChangeBox({ session, ws, formId, prepare, onResult }: Pick<ViewProps, "session" | "ws"> & { formId: string; prepare: () => Promise<number | null>; onResult: (f: Form, rev: number) => void }) {
+function ChangeBox({
+  session,
+  ws,
+  formId,
+  prepare,
+  onResult,
+}: Pick<ViewProps, "session" | "ws"> & { formId: string; prepare: () => Promise<number | null>; onResult: (f: Form, rev: number) => void }) {
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
   const [reply, setReply] = useState<{ text: string; lines: string[]; ask: string | null }>({ text: "", lines: [], ask: null });
@@ -595,7 +692,13 @@ function ChangeBox({ session, ws, formId, prepare, onResult }: Pick<ViewProps, "
     try {
       const rev = await prepare();
       if (rev === null) throw new Error("The draft didn't save. Try again.");
-      const r = await postJson<{ form: Form; rev: number; reply: string; lines: string[]; ask: { question: string } | null }>(session, "/api/forms/chat", { workspaceId: ws.id, id: formId, rev, message: m, confirmed });
+      const r = await postJson<{ form: Form; rev: number; reply: string; lines: string[]; ask: { question: string } | null }>(session, "/api/forms/chat", {
+        workspaceId: ws.id,
+        id: formId,
+        rev,
+        message: m,
+        confirmed,
+      });
       if (r.lines.length) onResult(r.form, r.rev);
       setReply({ text: r.reply, lines: r.lines, ask: r.ask ? m : null });
       if (!r.ask) setText("");
@@ -615,14 +718,26 @@ function ChangeBox({ session, ws, formId, prepare, onResult }: Pick<ViewProps, "
         className="flex items-center gap-2 rounded-full border border-line-strong bg-card p-1.5 pl-2 transition-colors focus-within:border-ink"
       >
         <AiMark size={18} working={busy} className="ml-1.5" />
-        <input value={text} onChange={(e) => setText(e.target.value)} placeholder="Change anything, like “add a budget question”" aria-label="Change the form" className="h-8 min-w-0 flex-1 bg-transparent text-[13.5px] outline-none placeholder:text-faint" />
+        <input
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          placeholder="Change anything, like “add a budget question”"
+          aria-label="Change the form"
+          className="h-8 min-w-0 flex-1 bg-transparent text-[13.5px] outline-none placeholder:text-faint"
+        />
         <Button type="submit" disabled={!text.trim() || busy}>
           {busy ? "Changing…" : "Change"}
         </Button>
       </form>
       <div className="flex flex-wrap gap-1.5">
         {SUGGEST.map((s) => (
-          <button key={s} type="button" disabled={busy} onClick={() => void send(s)} className="press h-8 rounded-full border border-line-strong bg-card px-3 text-[12.5px] text-body transition-transform duration-[140ms] hover:-translate-y-px hover:border-ink hover:text-ink disabled:opacity-50">
+          <button
+            key={s}
+            type="button"
+            disabled={busy}
+            onClick={() => void send(s)}
+            className="press h-8 rounded-full border border-line-strong bg-card px-3 text-[12.5px] text-body transition-transform duration-[140ms] hover:-translate-y-px hover:border-ink hover:text-ink disabled:opacity-50"
+          >
             {s}
           </button>
         ))}
@@ -714,7 +829,11 @@ function Embed({ id, origin, live, form, apply }: { id: string; origin: string; 
             aria-pressed={way === w.value}
             className={`press flex flex-col items-center justify-center gap-1 rounded-lg border px-1 py-2.5 text-[11.5px] transition-colors ${way === w.value ? "border-ink bg-hover font-medium text-ink ring-1 ring-ink" : "border-line bg-card text-body hover:border-line-strong"}`}
           >
-            {w.domain ? <BrandLogo domain={w.domain} name={w.label} size={16} /> : <span className="font-mono text-[11px]">{w.value === "code" ? "</>" : w.value === "link" ? "URL" : w.value === "popup" ? "[ ]" : "<if>"}</span>}
+            {w.domain ? (
+              <BrandLogo domain={w.domain} name={w.label} size={16} />
+            ) : (
+              <span className="font-mono text-[11px]">{w.value === "code" ? "</>" : w.value === "link" ? "URL" : w.value === "popup" ? "[ ]" : "<if>"}</span>
+            )}
             {w.label}
           </button>
         ))}
@@ -728,7 +847,13 @@ function Embed({ id, origin, live, form, apply }: { id: string; origin: string; 
               ["exit", "When they leave"],
             ] as const
           ).map(([v, l]) => (
-            <button key={v} type="button" onClick={() => setTrigger(v)} aria-pressed={trigger === v} className={`press h-8 rounded-full border px-3 text-[12.5px] ${trigger === v ? "border-ink bg-ink font-medium text-paper" : "border-line-strong bg-card hover:border-ink"}`}>
+            <button
+              key={v}
+              type="button"
+              onClick={() => setTrigger(v)}
+              aria-pressed={trigger === v}
+              className={`press h-8 rounded-full border px-3 text-[12.5px] ${trigger === v ? "border-ink bg-ink font-medium text-paper" : "border-line-strong bg-card hover:border-ink"}`}
+            >
               {l}
             </button>
           ))}

@@ -6,7 +6,22 @@
 import { useState } from "react";
 import { countryNames } from "@/lib/forms/countries";
 import type { Op } from "@/lib/forms/ops";
-import { CONTACT_KEYS, FIELD_TYPES, isChoice, isContent, newId, questionKey, WIDTHS, type Field, type FieldKey, type FieldType, type FieldWidth, type Form, type Rule, type Validation } from "@/lib/forms/schema";
+import {
+  CONTACT_KEYS,
+  FIELD_TYPES,
+  isChoice,
+  isContent,
+  newId,
+  questionKey,
+  WIDTHS,
+  type Field,
+  type FieldKey,
+  type FieldType,
+  type FieldWidth,
+  type Form,
+  type Rule,
+  type Validation,
+} from "@/lib/forms/schema";
 import type { CustomField } from "@/lib/records/fields";
 import { Copy, Plus, Trash, X } from "../../Icons";
 import { AreaIn, NumRow, Pick, Row, Section, Seg, Switch, TagInput, TextIn, INPUT } from "./controls";
@@ -108,7 +123,12 @@ const TEXTY = ["text", "email", "phone", "textarea", "number", "url", "date"];
 
 function ContentTab({ form, f, patch }: { form: Form; f: Field; patch: PatchFn }) {
   if (isContent(f.type)) return <BlockContent f={f} patch={patch} />;
-  const taken = new Set(form.steps.flatMap((s) => s.fields).filter((x) => x.id !== f.id).map((x) => x.key as string));
+  const taken = new Set(
+    form.steps
+      .flatMap((s) => s.fields)
+      .filter((x) => x.id !== f.id)
+      .map((x) => x.key as string),
+  );
   const setType = (t: FieldType) => {
     const contact = CONTACT_KEYS.find((c) => c.key === f.key);
     const key: FieldKey = contact && !contact.types.includes(t) ? questionKey(f.label, taken) : f.key;
@@ -152,7 +172,12 @@ function ContentTab({ form, f, patch }: { form: Form; f: Field; patch: PatchFn }
         <Switch label="Required" on={f.required} disabled={f.key === "email"} onChange={(v) => patch({ required: v })} />
         {f.required ? (
           <Row label="Message">
-            <TextIn label="Required message" value={f.valid?.requiredMessage ?? ""} placeholder="Fill this in." onChange={(v) => patch({ valid: cleanValid({ ...f.valid, requiredMessage: v || undefined }) })} />
+            <TextIn
+              label="Required message"
+              value={f.valid?.requiredMessage ?? ""}
+              placeholder="Fill this in."
+              onChange={(v) => patch({ valid: cleanValid({ ...f.valid, requiredMessage: v || undefined }) })}
+            />
           </Row>
         ) : null}
       </Section>
@@ -163,7 +188,13 @@ function ContentTab({ form, f, patch }: { form: Form; f: Field; patch: PatchFn }
       ) : null}
       {f.type === "rating" ? (
         <Section title="Rating">
-          <NumRow label="Scale" value={f.rating?.scale ?? 5} min={3} max={10} onChange={(v) => v !== undefined && patch({ rating: { ...(f.rating ?? { style: "stars" }), scale: v } as Field["rating"] })} />
+          <NumRow
+            label="Scale"
+            value={f.rating?.scale ?? 5}
+            min={3}
+            max={10}
+            onChange={(v) => v !== undefined && patch({ rating: { ...(f.rating ?? { style: "stars" }), scale: v } as Field["rating"] })}
+          />
           <Row label="Style">
             <Seg
               label="Rating style"
@@ -176,10 +207,20 @@ function ContentTab({ form, f, patch }: { form: Form; f: Field; patch: PatchFn }
             />
           </Row>
           <Row label="Low label">
-            <TextIn label="Low label" value={f.rating?.low ?? ""} placeholder="Not likely" onChange={(v) => patch({ rating: { ...(f.rating ?? { scale: 5, style: "stars" }), low: v || undefined } })} />
+            <TextIn
+              label="Low label"
+              value={f.rating?.low ?? ""}
+              placeholder="Not likely"
+              onChange={(v) => patch({ rating: { ...(f.rating ?? { scale: 5, style: "stars" }), low: v || undefined } })}
+            />
           </Row>
           <Row label="High label">
-            <TextIn label="High label" value={f.rating?.high ?? ""} placeholder="Very likely" onChange={(v) => patch({ rating: { ...(f.rating ?? { scale: 5, style: "stars" }), high: v || undefined } })} />
+            <TextIn
+              label="High label"
+              value={f.rating?.high ?? ""}
+              placeholder="Very likely"
+              onChange={(v) => patch({ rating: { ...(f.rating ?? { scale: 5, style: "stars" }), high: v || undefined } })}
+            />
           </Row>
         </Section>
       ) : null}
@@ -191,7 +232,10 @@ function DefaultValue({ f, patch }: { f: Field; patch: PatchFn }) {
   if (f.type === "checkbox" || f.type === "multi") return null;
   const NONE = "__none";
   if (f.type === "choice" || f.type === "dropdown" || f.type === "rating") {
-    const options = f.type === "rating" ? Array.from({ length: f.rating?.scale ?? 5 }, (_, i) => ({ value: String(i + 1), label: String(i + 1) })) : (f.options ?? []).map((o) => ({ value: o.value, label: o.label }));
+    const options =
+      f.type === "rating"
+        ? Array.from({ length: f.rating?.scale ?? 5 }, (_, i) => ({ value: String(i + 1), label: String(i + 1) }))
+        : (f.options ?? []).map((o) => ({ value: o.value, label: o.label }));
     return (
       <Row label="Default">
         <Pick<string> label="Default value" value={f.default ?? NONE} options={[{ value: NONE, label: "None" }, ...options]} onChange={(v) => patch({ default: v === NONE ? undefined : v })} />
@@ -297,7 +341,12 @@ function ValidationTab({ f, patch }: { f: Field; patch: PatchFn }) {
         ) : null}
         {f.type === "phone" ? (
           <Row label="Country">
-            <Pick<string> label="Default country" value={v.country ?? "__any"} options={[{ value: "__any", label: "Any" }, ...countries]} onChange={(c) => set({ country: c === "__any" ? undefined : c })} />
+            <Pick<string>
+              label="Default country"
+              value={v.country ?? "__any"}
+              options={[{ value: "__any", label: "Any" }, ...countries]}
+              onChange={(c) => set({ country: c === "__any" ? undefined : c })}
+            />
           </Row>
         ) : null}
         {f.type === "date" ? (
@@ -352,7 +401,12 @@ function StyleTab({ f, patch }: { form: Form; f: Field; patch: PatchFn }) {
       {!block ? (
         <>
           <Row label="Width">
-            <Seg<FieldWidth> label="Width" value={f.width ?? "full"} options={WIDTHS.map((w) => ({ value: w, label: WIDTH_LABEL[w], title: WIDTH_TITLE[w] }))} onChange={(w) => patch({ width: w === "full" ? undefined : w })} />
+            <Seg<FieldWidth>
+              label="Width"
+              value={f.width ?? "full"}
+              options={WIDTHS.map((w) => ({ value: w, label: WIDTH_LABEL[w], title: WIDTH_TITLE[w] }))}
+              onChange={(w) => patch({ width: w === "full" ? undefined : w })}
+            />
           </Row>
           {f.type !== "checkbox" ? (
             <Row label="Label">
@@ -419,7 +473,15 @@ function DataTab({ form, f, patch, custom, sources, link }: { form: Form; f: Fie
               label="Value from"
               value={f.hidden?.from ?? "param"}
               options={HIDDEN_FROM.map((h) => ({ value: h.value, label: h.label }))}
-              onChange={(from) => patch({ hidden: { from: from as NonNullable<Field["hidden"]>["from"], ...(from === "param" ? { name: f.hidden?.name || "utm_source" } : {}), ...(from === "static" ? { value: f.hidden?.value ?? "" } : {}) } })}
+              onChange={(from) =>
+                patch({
+                  hidden: {
+                    from: from as NonNullable<Field["hidden"]>["from"],
+                    ...(from === "param" ? { name: f.hidden?.name || "utm_source" } : {}),
+                    ...(from === "static" ? { value: f.hidden?.value ?? "" } : {}),
+                  },
+                })
+              }
             />
           </Row>
           {f.hidden?.from === "param" || !f.hidden ? (
@@ -475,7 +537,9 @@ function LogicTab({ form, f, apply }: { form: Form; f: Field; apply: (op: Op | O
       ) : null}
       {canRequire ? (
         <Section first={f.key === "email"} title="Require when">
-          {reqRules.length ? <RuleList form={form} rules={reqRules} sources={sources} apply={apply} onAdd={() => addRule("require")} /> : (
+          {reqRules.length ? (
+            <RuleList form={form} rules={reqRules} sources={sources} apply={apply} onAdd={() => addRule("require")} />
+          ) : (
             <button type="button" onClick={() => addRule("require")} className="press inline-flex h-7 items-center gap-1 self-start rounded-full px-2 text-[12px] font-medium text-ink hover:bg-hover">
               <Plus size={12} />
               Add condition
@@ -513,15 +577,37 @@ function RuleRow({ rule: r, sources, apply }: { form: Form; rule: Rule; sources:
     <div className="flex flex-col gap-1.5 rounded-lg border border-line bg-paper p-2">
       <div className="flex items-center gap-1">
         <span className="min-w-0 flex-1">
-          <Pick<string> label="When field" value={r.when.field} options={sources.map((x) => ({ value: x.id, label: nameOf(x) }))} onChange={(field) => set({ field, op: r.when.op, ...(needs ? { value: "" } : {}) })} />
+          <Pick<string>
+            label="When field"
+            value={r.when.field}
+            options={sources.map((x) => ({ value: x.id, label: nameOf(x) }))}
+            onChange={(field) => set({ field, op: r.when.op, ...(needs ? { value: "" } : {}) })}
+          />
         </span>
-        <button type="button" aria-label="Remove condition" title="Remove" onClick={() => apply({ op: "remove_rule", id: r.id })} className="flex size-6 shrink-0 items-center justify-center rounded-full text-faint hover:bg-rose-wash hover:text-rose">
+        <button
+          type="button"
+          aria-label="Remove condition"
+          title="Remove"
+          onClick={() => apply({ op: "remove_rule", id: r.id })}
+          className="flex size-6 shrink-0 items-center justify-center rounded-full text-faint hover:bg-rose-wash hover:text-rose"
+        >
           <X size={11} />
         </button>
       </div>
       <div className="grid grid-cols-[96px_minmax(0,1fr)] gap-1">
-        <Pick<string> label="Condition" value={r.when.op} options={RULE_OPS} onChange={(op) => set({ field: r.when.field, op: op as Rule["when"]["op"], ...(op === "is" || op === "is_not" ? { value: r.when.value ?? values?.[0]?.value ?? "" } : {}) })} />
-        {needs ? values ? <Pick<string> label="Value" value={r.when.value ?? ""} placeholder="Pick" options={values} onChange={(value) => set({ ...r.when, value })} /> : <TextIn label="Value" value={r.when.value ?? ""} onChange={(value) => set({ ...r.when, value })} /> : null}
+        <Pick<string>
+          label="Condition"
+          value={r.when.op}
+          options={RULE_OPS}
+          onChange={(op) => set({ field: r.when.field, op: op as Rule["when"]["op"], ...(op === "is" || op === "is_not" ? { value: r.when.value ?? values?.[0]?.value ?? "" } : {}) })}
+        />
+        {needs ? (
+          values ? (
+            <Pick<string> label="Value" value={r.when.value ?? ""} placeholder="Pick" options={values} onChange={(value) => set({ ...r.when, value })} />
+          ) : (
+            <TextIn label="Value" value={r.when.value ?? ""} onChange={(value) => set({ ...r.when, value })} />
+          )
+        ) : null}
       </div>
     </div>
   );
@@ -537,7 +623,14 @@ function Several({ fields, apply, onRemove }: InspectorProps & { fields: Field[]
   return (
     <div className="flex h-full min-h-0 flex-col">
       <Header title={`${fields.length} selected`}>
-        <button type="button" aria-label="Delete selected" title="Delete" disabled={!removable.length} onClick={() => onRemove(removable.map((f) => f.id))} className={`${iconBtn} hover:bg-rose-wash hover:text-rose`}>
+        <button
+          type="button"
+          aria-label="Delete selected"
+          title="Delete"
+          disabled={!removable.length}
+          onClick={() => onRemove(removable.map((f) => f.id))}
+          className={`${iconBtn} hover:bg-rose-wash hover:text-rose`}
+        >
           <Trash size={13} />
         </button>
       </Header>
@@ -554,7 +647,11 @@ function Several({ fields, apply, onRemove }: InspectorProps & { fields: Field[]
             </Row>
           ) : null}
           {req.length ? <Switch label="Required" on={req.every((f) => f.required)} onChange={(v) => apply(req.map((f) => ({ op: "update_field", id: f.id, patch: { required: v } })))} /> : null}
-          <Switch label="Hide on phone" on={fields.every((f) => f.hideOnPhone)} onChange={(v) => apply(fields.map((f) => ({ op: "update_field", id: f.id, patch: { hideOnPhone: v || undefined } })))} />
+          <Switch
+            label="Hide on phone"
+            on={fields.every((f) => f.hideOnPhone)}
+            onChange={(v) => apply(fields.map((f) => ({ op: "update_field", id: f.id, patch: { hideOnPhone: v || undefined } })))}
+          />
         </Section>
       </div>
     </div>

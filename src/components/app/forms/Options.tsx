@@ -32,13 +32,26 @@ export function Options({ field: f, form, patch }: { field: Field; form: Form; p
         <SortableContext items={list.map((_, i) => `o:${i}`)} strategy={verticalListSortingStrategy}>
           <ul className="flex flex-col gap-1" aria-label="Options">
             {list.map((o, i) => (
-              <OptionRow key={i} o={o} i={i} only={list.length === 1} onLabel={(v) => rename(i, v)} onRemove={() => set(list.filter((_, j) => j !== i))} onEnter={() => set([...list.slice(0, i + 1), { value: nextOption(list), label: nextOption(list) }, ...list.slice(i + 1)])} />
+              <OptionRow
+                key={i}
+                o={o}
+                i={i}
+                only={list.length === 1}
+                onLabel={(v) => rename(i, v)}
+                onRemove={() => set(list.filter((_, j) => j !== i))}
+                onEnter={() => set([...list.slice(0, i + 1), { value: nextOption(list), label: nextOption(list) }, ...list.slice(i + 1)])}
+              />
             ))}
           </ul>
         </SortableContext>
       </DndContext>
       <div className="flex items-center gap-1">
-        <button type="button" onClick={() => set([...list, { value: nextOption(list), label: nextOption(list) }])} disabled={list.length >= 100} className="press inline-flex h-7 items-center gap-1 rounded-full px-2 text-[12px] font-medium text-ink hover:bg-hover disabled:opacity-40">
+        <button
+          type="button"
+          onClick={() => set([...list, { value: nextOption(list), label: nextOption(list) }])}
+          disabled={list.length >= 100}
+          className="press inline-flex h-7 items-center gap-1 rounded-full px-2 text-[12px] font-medium text-ink hover:bg-hover disabled:opacity-40"
+        >
           <Plus size={12} />
           Add option
         </button>
@@ -53,7 +66,15 @@ export function Options({ field: f, form, patch }: { field: Field; form: Form; p
           Paste
         </button>
         <span className="ml-auto w-[104px]">
-          <Select<string> value="" options={PRESETS.map((p) => ({ value: p.id, label: p.label }))} onChange={(id) => set(linesToOptions((PRESETS.find((p) => p.id === id)?.list() ?? []).join("\n"), []))} ariaLabel="Presets" placeholder="Presets" plainPlaceholder className={PICK} />
+          <Select<string>
+            value=""
+            options={PRESETS.map((p) => ({ value: p.id, label: p.label }))}
+            onChange={(id) => set(linesToOptions((PRESETS.find((p) => p.id === id)?.list() ?? []).join("\n"), []))}
+            ariaLabel="Presets"
+            placeholder="Presets"
+            plainPlaceholder
+            className={PICK}
+          />
         </span>
       </div>
       <Switch label="Other option" on={!!f.other} onChange={(v) => patch({ other: v || undefined })} />
@@ -72,7 +93,13 @@ function OptionRow({ o, i, only, onLabel, onRemove, onEnter }: { o: Choice; i: n
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: `o:${i}` });
   return (
     <li ref={setNodeRef} style={{ transform: CSS.Transform.toString(transform), transition }} className={`group flex items-center gap-1 ${isDragging ? "relative z-10 opacity-80" : ""}`}>
-      <button type="button" {...attributes} {...listeners} aria-label={`Drag option ${i + 1}`} className="flex h-7 w-4 shrink-0 cursor-grab items-center justify-center text-faint hover:text-ink active:cursor-grabbing">
+      <button
+        type="button"
+        {...attributes}
+        {...listeners}
+        aria-label={`Drag option ${i + 1}`}
+        className="flex h-7 w-4 shrink-0 cursor-grab items-center justify-center text-faint hover:text-ink active:cursor-grabbing"
+      >
         <Grip size={12} />
       </button>
       <input
@@ -88,7 +115,14 @@ function OptionRow({ o, i, only, onLabel, onRemove, onEnter }: { o: Choice; i: n
         }}
         className={INPUT}
       />
-      <button type="button" aria-label={`Remove option ${i + 1}`} title="Remove" disabled={only} onClick={onRemove} className="flex size-6 shrink-0 items-center justify-center rounded-full text-faint opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 hover:bg-rose-wash hover:text-rose disabled:hidden">
+      <button
+        type="button"
+        aria-label={`Remove option ${i + 1}`}
+        title="Remove"
+        disabled={only}
+        onClick={onRemove}
+        className="flex size-6 shrink-0 items-center justify-center rounded-full text-faint opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 hover:bg-rose-wash hover:text-rose disabled:hidden"
+      >
         <X size={11} />
       </button>
     </li>

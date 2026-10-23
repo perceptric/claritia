@@ -166,13 +166,25 @@ export const ELEMENTS: ElementDef[] = [
   { id: "checkbox", name: "Checkbox", group: "Questions", icon: "check", make: (f) => ({ key: own(f, "I agree"), type: "checkbox", label: "I agree" }) },
   { id: "number", name: "Number", group: "Questions", icon: "hash", make: (f) => ({ key: own(f, "How many"), type: "number", label: "How many?" }) },
   { id: "date", name: "Date", group: "Questions", icon: "calendar", make: (f) => ({ key: own(f, "Date"), type: "date", label: "Date" }) },
-  { id: "rating", name: "Rating", group: "Questions", icon: "star", make: (f) => ({ key: own(f, "Rating"), type: "rating", label: "How likely are you to recommend us?", rating: { scale: 5, style: "stars" } }) },
+  {
+    id: "rating",
+    name: "Rating",
+    group: "Questions",
+    icon: "star",
+    make: (f) => ({ key: own(f, "Rating"), type: "rating", label: "How likely are you to recommend us?", rating: { scale: 5, style: "stars" } }),
+  },
   { id: "link", name: "Link", group: "Questions", icon: "link", make: (f) => ({ key: own(f, "Link"), type: "url", label: "Link" }) },
   { id: "heading", name: "Heading", group: "Content", icon: "heading", make: () => ({ type: "heading", label: "Heading", content: { text: "Heading", level: 2 } }) },
   { id: "text", name: "Text", group: "Content", icon: "text", make: () => ({ type: "paragraph", label: "Text", content: { text: "Write something here." } }) },
   { id: "divider", name: "Divider", group: "Content", icon: "divider", make: () => ({ type: "divider", label: "Divider" }) },
   { id: "image", name: "Image", group: "Content", icon: "image", make: () => ({ type: "image", label: "Image", content: { src: "", alt: "" } }) },
-  { id: "hidden", name: "Hidden field", group: "Advanced", icon: "hidden", make: (f) => ({ key: own(f, "utm source"), type: "hidden", label: "UTM source", hidden: { from: "param", name: "utm_source" } }) },
+  {
+    id: "hidden",
+    name: "Hidden field",
+    group: "Advanced",
+    icon: "hidden",
+    make: (f) => ({ key: own(f, "utm source"), type: "hidden", label: "UTM source", hidden: { from: "param", name: "utm_source" } }),
+  },
 ];
 export const ELEMENT_GROUPS: ElementGroup[] = ["Contact", "Questions", "Content", "Advanced"];
 
@@ -183,7 +195,18 @@ export function findElements(q: string): ElementDef[] {
 
 /** Which icon a field shows in layers and on its name tag. */
 export function iconFor(f: Field): string {
-  const byKey: Record<string, string> = { email: "at", first_name: "user", last_name: "user", name: "id", phone: "phone", company: "building", title: "briefcase", website: "globe", country: "flag", region: "pin" };
+  const byKey: Record<string, string> = {
+    email: "at",
+    first_name: "user",
+    last_name: "user",
+    name: "id",
+    phone: "phone",
+    company: "building",
+    title: "briefcase",
+    website: "globe",
+    country: "flag",
+    region: "pin",
+  };
   if (byKey[f.key]) return byKey[f.key];
   const byType: Partial<Record<Field["type"], string>> = {
     text: "short",
@@ -219,15 +242,78 @@ export function nameOf(f: Field): string {
 // Options -------------------------------------------------------------------------------------------------------
 
 export const US_STATES = [
-  "Alabama", "Alaska", "Arizona", "Arkansas", "California", "Colorado", "Connecticut", "Delaware", "District of Columbia", "Florida", "Georgia", "Hawaii", "Idaho",
-  "Illinois", "Indiana", "Iowa", "Kansas", "Kentucky", "Louisiana", "Maine", "Maryland", "Massachusetts", "Michigan", "Minnesota", "Mississippi", "Missouri", "Montana",
-  "Nebraska", "Nevada", "New Hampshire", "New Jersey", "New Mexico", "New York", "North Carolina", "North Dakota", "Ohio", "Oklahoma", "Oregon", "Pennsylvania",
-  "Rhode Island", "South Carolina", "South Dakota", "Tennessee", "Texas", "Utah", "Vermont", "Virginia", "Washington", "West Virginia", "Wisconsin", "Wyoming",
+  "Alabama",
+  "Alaska",
+  "Arizona",
+  "Arkansas",
+  "California",
+  "Colorado",
+  "Connecticut",
+  "Delaware",
+  "District of Columbia",
+  "Florida",
+  "Georgia",
+  "Hawaii",
+  "Idaho",
+  "Illinois",
+  "Indiana",
+  "Iowa",
+  "Kansas",
+  "Kentucky",
+  "Louisiana",
+  "Maine",
+  "Maryland",
+  "Massachusetts",
+  "Michigan",
+  "Minnesota",
+  "Mississippi",
+  "Missouri",
+  "Montana",
+  "Nebraska",
+  "Nevada",
+  "New Hampshire",
+  "New Jersey",
+  "New Mexico",
+  "New York",
+  "North Carolina",
+  "North Dakota",
+  "Ohio",
+  "Oklahoma",
+  "Oregon",
+  "Pennsylvania",
+  "Rhode Island",
+  "South Carolina",
+  "South Dakota",
+  "Tennessee",
+  "Texas",
+  "Utah",
+  "Vermont",
+  "Virginia",
+  "Washington",
+  "West Virginia",
+  "Wisconsin",
+  "Wyoming",
 ];
 export const COMPANY_SIZES = ["1–10", "11–50", "51–200", "201–500", "501–1,000", "1,001–5,000", "5,001+"];
 export const INDUSTRIES = [
-  "Software", "Financial services", "Healthcare", "Education", "Retail and ecommerce", "Manufacturing", "Media and entertainment", "Professional services",
-  "Real estate", "Travel and hospitality", "Logistics", "Energy", "Government", "Nonprofit", "Telecommunications", "Agriculture", "Construction", "Other",
+  "Software",
+  "Financial services",
+  "Healthcare",
+  "Education",
+  "Retail and ecommerce",
+  "Manufacturing",
+  "Media and entertainment",
+  "Professional services",
+  "Real estate",
+  "Travel and hospitality",
+  "Logistics",
+  "Energy",
+  "Government",
+  "Nonprofit",
+  "Telecommunications",
+  "Agriculture",
+  "Construction",
+  "Other",
 ];
 export function countryOptions(): string[] {
   let dn: Intl.DisplayNames | null = null;
@@ -250,7 +336,10 @@ export function linesToOptions(text: string, existing: { value: string; label: s
   const seen = new Set<string>();
   const out: { value: string; label: string }[] = [];
   for (const raw of text.split(/\r?\n/)) {
-    const label = raw.replace(/^[-*•]\s+/, "").trim().slice(0, 200);
+    const label = raw
+      .replace(/^[-*•]\s+/, "")
+      .trim()
+      .slice(0, 200);
     if (!label) continue;
     const value = existing.find((o) => o.label === label)?.value ?? label;
     if (seen.has(value)) continue;
@@ -274,7 +363,7 @@ export function nextOption(list: { value: string }[]): string {
 export type Shown = "always" | "show" | "hide";
 export function shownMode(form: Form, id: string): Shown {
   const mine = form.rules.filter((r) => r.then.field === id && r.then.action !== "require");
-  return mine.length ? mine[0].then.action as Shown : "always";
+  return mine.length ? (mine[0].then.action as Shown) : "always";
 }
 
 /** Switching "Show this field": Always drops its rules; Show when and Hide when turn them over, or add a first one. */
@@ -377,7 +466,15 @@ export function fontUrl(names: string[]): string {
 }
 /** A tiny stylesheet with just the letters of each name, so the picker can show every font in itself. */
 export function previewFontsUrl(): string {
-  const letters = [...new Set(FONTS.map((f) => f.name).join("").replace(/\s/g, ""))].sort().join("");
+  const letters = [
+    ...new Set(
+      FONTS.map((f) => f.name)
+        .join("")
+        .replace(/\s/g, ""),
+    ),
+  ]
+    .sort()
+    .join("");
   return `https://fonts.googleapis.com/css2?${FONTS.map((f) => `family=${f.name.replace(/ /g, "+")}`).join("&")}&text=${encodeURIComponent(letters)}&display=swap`;
 }
 
@@ -387,7 +484,11 @@ export const THEME_PRESETS: { id: string; label: string; tokens: (t: Tokens) => 
   { id: "clean", label: "Clean", tokens: () => ({ radius: 6, buttonRadius: 6, borderWidth: 1, inputHeight: 42, gap: 16, buttonWeight: 500, buttonCase: "none", labelWeight: 500 }) },
   { id: "rounded", label: "Rounded", tokens: () => ({ radius: 14, buttonRadius: 60, borderWidth: 1, inputHeight: 46, gap: 16, buttonWeight: 600, buttonCase: "none", labelWeight: 500 }) },
   { id: "bold", label: "Bold", tokens: () => ({ radius: 4, buttonRadius: 4, borderWidth: 2, inputHeight: 48, gap: 18, buttonWeight: 700, buttonCase: "uppercase", labelWeight: 600 }) },
-  { id: "minimal", label: "Minimal", tokens: (t) => ({ radius: 0, buttonRadius: 0, borderWidth: 1, inputHeight: 40, gap: 20, buttonWeight: 500, buttonCase: "none", labelWeight: 400, inputBg: t.background }) },
+  {
+    id: "minimal",
+    label: "Minimal",
+    tokens: (t) => ({ radius: 0, buttonRadius: 0, borderWidth: 1, inputHeight: 40, gap: 20, buttonWeight: 500, buttonCase: "none", labelWeight: 400, inputBg: t.background }),
+  },
 ];
 
 // Contrast ------------------------------------------------------------------------------------------------------
@@ -419,7 +520,11 @@ export function mergeKey(op: Op): string {
     const keys = Object.keys(op.patch);
     return keys.length && keys.every((k) => TEXT_KEYS.has(k)) ? `f:${op.id}:${keys.sort().join()}` : "";
   }
-  if (op.op === "set_copy") return `c:${Object.keys(op).filter((k) => k !== "op").sort().join()}`;
+  if (op.op === "set_copy")
+    return `c:${Object.keys(op)
+      .filter((k) => k !== "op")
+      .sort()
+      .join()}`;
   if (op.op === "update_step") return `s:${op.index}`;
   if (op.op === "set_rule" && op.rule.id) return `r:${op.rule.id}:${op.rule.when.field}:${op.rule.when.op}`;
   if (op.op === "set_layout" && typeof op.maxWidth === "number" && !op.width && !op.labels && !op.progress) return "l:max";

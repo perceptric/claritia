@@ -43,20 +43,45 @@ export function PreviewOverlay({ form, tokens, device: start, onClose }: { form:
               ["phone", "Phone", <Phone key="p" size={14} />],
             ] as const
           ).map(([d, label, icon]) => (
-            <button key={d} type="button" role="radio" aria-checked={device === d} aria-label={label} title={label} onClick={() => setDevice(d)} className={`flex size-7 items-center justify-center rounded-full transition-colors duration-[140ms] ${device === d ? "bg-ink text-paper" : "text-muted hover:text-ink"}`}>
+            <button
+              key={d}
+              type="button"
+              role="radio"
+              aria-checked={device === d}
+              aria-label={label}
+              title={label}
+              onClick={() => setDevice(d)}
+              className={`flex size-7 items-center justify-center rounded-full transition-colors duration-[140ms] ${device === d ? "bg-ink text-paper" : "text-muted hover:text-ink"}`}
+            >
               {icon}
             </button>
           ))}
         </div>
-        <button type="button" aria-label="Start over" title="Start over" onClick={() => setRun((r) => r + 1)} className="press flex size-8 items-center justify-center rounded-full text-muted hover:bg-hover hover:text-ink">
+        <button
+          type="button"
+          aria-label="Start over"
+          title="Start over"
+          onClick={() => setRun((r) => r + 1)}
+          className="press flex size-8 items-center justify-center rounded-full text-muted hover:bg-hover hover:text-ink"
+        >
           <Refresh size={14} />
         </button>
-        <button ref={closeBtn} type="button" aria-label="Close preview" title="Close" onClick={onClose} className="press flex size-8 items-center justify-center rounded-full text-muted hover:bg-hover hover:text-ink">
+        <button
+          ref={closeBtn}
+          type="button"
+          aria-label="Close preview"
+          title="Close"
+          onClick={onClose}
+          className="press flex size-8 items-center justify-center rounded-full text-muted hover:bg-hover hover:text-ink"
+        >
           <X size={15} />
         </button>
       </div>
       <div className="min-h-0 flex-1 overflow-auto p-6 md:p-10">
-        <div className="mx-auto overflow-hidden rounded-lg border border-line shadow-soft transition-[max-width] duration-[320ms] ease-out" style={{ maxWidth: width, background: cleanTokens(tokens).tokens.background }}>
+        <div
+          className="mx-auto overflow-hidden rounded-lg border border-line shadow-soft transition-[max-width] duration-[320ms] ease-out"
+          style={{ maxWidth: width, background: cleanTokens(tokens).tokens.background }}
+        >
           <div className={device === "phone" ? "px-5 py-8" : "px-10 py-14"}>
             <div className="mx-auto" style={{ maxWidth: formWidth(form.layout) }}>
               <FormPreview key={run} form={form} tokens={tokens} />

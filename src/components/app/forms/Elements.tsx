@@ -17,7 +17,13 @@ export function Elements({ onAdd }: { onAdd: (def: ElementDef) => void }) {
       <div className="sticky top-0 z-[1] bg-card px-3 pt-3 pb-2">
         <label className="flex h-7 items-center gap-1.5 rounded-sm border border-line-strong bg-card px-2 focus-within:border-ink focus-within:ring-1 focus-within:ring-ink">
           <Search size={12} className="text-faint" />
-          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search elements" aria-label="Search elements" className="min-w-0 flex-1 bg-transparent text-[12.5px] outline-none placeholder:text-faint" />
+          <input
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="Search elements"
+            aria-label="Search elements"
+            className="min-w-0 flex-1 bg-transparent text-[12.5px] outline-none placeholder:text-faint"
+          />
           {q ? (
             <button type="button" aria-label="Clear search" onClick={() => setQ("")} className="text-faint hover:text-ink">
               <X size={11} />

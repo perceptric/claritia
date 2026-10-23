@@ -4,7 +4,7 @@
 // right, number boxes you can drag to scrub, segmented pills, sliders, swatches. Tokens only; the colors the color
 // picker shows are the form's own data.
 
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { createContext, useContext, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { contrast } from "@/lib/forms/brand";
 import { Check, Search, X } from "../../Icons";
@@ -12,7 +12,8 @@ import { Select } from "../Select";
 import { Toggle } from "../ui";
 import { FONTS, familyOf, grade, previewFontsUrl, SYSTEM_FONT } from "./editorModel";
 
-export const INPUT = "h-7 w-full min-w-0 rounded-sm border border-line-strong bg-card px-2 text-[12.5px] text-ink outline-none transition-shadow duration-[140ms] placeholder:text-faint hover:border-ink/40 focus:border-ink focus:ring-1 focus:ring-ink";
+export const INPUT =
+  "h-7 w-full min-w-0 rounded-sm border border-line-strong bg-card px-2 text-[12.5px] text-ink outline-none transition-shadow duration-[140ms] placeholder:text-faint hover:border-ink/40 focus:border-ink focus:ring-1 focus:ring-ink";
 export const PICK = "h-7 w-full min-w-0 rounded-sm border border-line-strong bg-card px-2 text-[12.5px] text-ink hover:border-ink/40";
 
 /** A titled block in a panel. */
@@ -30,15 +31,15 @@ export function Section({ title, action, children, first = false }: { title?: st
   );
 }
 
+/** How wide row labels are: the inspector's default, narrower in the left panel. */
+export const LabelWidth = createContext(76);
+
 /** Label left, control right. */
 export function Row({ label, children, top = false, onScrub }: { label: string; children: React.ReactNode; top?: boolean; onScrub?: (dx: number, e: PointerEvent) => void }) {
+  const w = useContext(LabelWidth);
   return (
-    <div className={`grid grid-cols-[76px_minmax(0,1fr)] gap-2 ${top ? "items-start" : "items-center"}`}>
-      {onScrub ? (
-        <ScrubLabel onScrub={onScrub}>{label}</ScrubLabel>
-      ) : (
-        <span className={`truncate text-[12px] text-muted ${top ? "pt-1.5" : ""}`}>{label}</span>
-      )}
+    <div className={`grid gap-2 ${top ? "items-start" : "items-center"}`} style={{ gridTemplateColumns: `${w}px minmax(0,1fr)` }}>
+      {onScrub ? <ScrubLabel onScrub={onScrub}>{label}</ScrubLabel> : <span className={`truncate text-[12px] text-muted ${top ? "pt-1.5" : ""}`}>{label}</span>}
       <div className="flex min-w-0 items-center gap-1.5">{children}</div>
     </div>
   );
@@ -72,7 +73,21 @@ function ScrubLabel({ children, onScrub }: { children: React.ReactNode; onScrub:
   );
 }
 
-export function TextIn({ value, onChange, placeholder, label, mono = false, onBlur }: { value: string; onChange: (v: string) => void; placeholder?: string; label: string; mono?: boolean; onBlur?: () => void }) {
+export function TextIn({
+  value,
+  onChange,
+  placeholder,
+  label,
+  mono = false,
+  onBlur,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  placeholder?: string;
+  label: string;
+  mono?: boolean;
+  onBlur?: () => void;
+}) {
   return <input value={value} onChange={(e) => onChange(e.target.value)} onBlur={onBlur} placeholder={placeholder} aria-label={label} className={`${INPUT} ${mono ? "font-mono text-[12px]" : ""}`} />;
 }
 
@@ -95,7 +110,27 @@ const clamp = (n: number, min?: number, max?: number) => Math.min(max ?? Infinit
  * A number box: type and press Enter, use the arrow keys (Shift for ten), or drag the row's label. Empty means
  * "not set" when `empty` is on.
  */
-export function NumIn({ value, onChange, min, max, step = 1, label, empty = false, unit, placeholder }: { value: number | undefined; onChange: (v: number | undefined) => void; min?: number; max?: number; step?: number; label: string; empty?: boolean; unit?: string; placeholder?: string }) {
+export function NumIn({
+  value,
+  onChange,
+  min,
+  max,
+  step = 1,
+  label,
+  empty = false,
+  unit,
+  placeholder,
+}: {
+  value: number | undefined;
+  onChange: (v: number | undefined) => void;
+  min?: number;
+  max?: number;
+  step?: number;
+  label: string;
+  empty?: boolean;
+  unit?: string;
+  placeholder?: string;
+}) {
   const [draft, setDraft] = useState<string | null>(null);
   const shown = draft ?? (value === undefined ? "" : String(value));
   const commit = () => {
@@ -138,7 +173,27 @@ export function NumIn({ value, onChange, min, max, step = 1, label, empty = fals
 }
 
 /** A number row whose label scrubs. */
-export function NumRow({ label, value, onChange, min, max, step = 1, empty, unit, placeholder }: { label: string; value: number | undefined; onChange: (v: number | undefined) => void; min?: number; max?: number; step?: number; empty?: boolean; unit?: string; placeholder?: string }) {
+export function NumRow({
+  label,
+  value,
+  onChange,
+  min,
+  max,
+  step = 1,
+  empty,
+  unit,
+  placeholder,
+}: {
+  label: string;
+  value: number | undefined;
+  onChange: (v: number | undefined) => void;
+  min?: number;
+  max?: number;
+  step?: number;
+  empty?: boolean;
+  unit?: string;
+  placeholder?: string;
+}) {
   return (
     <Row label={label} onScrub={(dx, e) => onChange(clamp(+((value ?? min ?? 0) + dx * step * (e.shiftKey ? 10 : 1)).toFixed(4), min, max))}>
       <NumIn label={label} value={value} onChange={onChange} min={min} max={max} step={step} empty={empty} unit={unit} placeholder={placeholder} />
@@ -147,7 +202,23 @@ export function NumRow({ label, value, onChange, min, max, step = 1, empty, unit
 }
 
 /** A slider with its number: drag the track, the label or the box. */
-export function SliderRow({ label, value, onChange, min, max, step = 1, unit = "" }: { label: string; value: number; onChange: (v: number) => void; min: number; max: number; step?: number; unit?: string }) {
+export function SliderRow({
+  label,
+  value,
+  onChange,
+  min,
+  max,
+  step = 1,
+  unit = "",
+}: {
+  label: string;
+  value: number;
+  onChange: (v: number) => void;
+  min: number;
+  max: number;
+  step?: number;
+  unit?: string;
+}) {
   return (
     <Row label={label} onScrub={(dx) => onChange(clamp(value + dx * step, min, max))}>
       <Slider label={label} value={value} min={min} max={max} step={step} onChange={onChange} />
@@ -195,7 +266,10 @@ export function Slider({ label, value, min, max, step = 1, onChange }: { label: 
       <span className="h-1 w-full rounded-full bg-paper-deep">
         <span className="block h-1 rounded-full bg-ink" style={{ width: `${pct}%` }} />
       </span>
-      <span className="absolute size-3.5 -translate-x-1/2 rounded-full border border-line-strong bg-card shadow-soft transition-transform duration-[140ms] group-hover:scale-110 group-focus-visible:ring-2 group-focus-visible:ring-ink" style={{ left: `${pct}%` }} />
+      <span
+        className="absolute size-3.5 -translate-x-1/2 rounded-full border border-line-strong bg-card shadow-soft transition-transform duration-[140ms] group-hover:scale-110 group-focus-visible:ring-2 group-focus-visible:ring-ink"
+        style={{ left: `${pct}%` }}
+      />
     </div>
   );
 }
@@ -231,14 +305,40 @@ export function Switch({ label, on, onChange, disabled }: { label: string; on: b
   );
 }
 
-export function Pick<T extends string | number>({ value, options, onChange, label, placeholder }: { value: T; options: { value: T; label: string }[]; onChange: (v: T) => void; label: string; placeholder?: string }) {
+export function Pick<T extends string | number>({
+  value,
+  options,
+  onChange,
+  label,
+  placeholder,
+}: {
+  value: T;
+  options: { value: T; label: string }[];
+  onChange: (v: T) => void;
+  label: string;
+  placeholder?: string;
+}) {
   return <Select<T> value={value} options={options} onChange={onChange} ariaLabel={label} placeholder={placeholder} className={PICK} />;
 }
 
 // Popovers -------------------------------------------------------------------------------------------------------
 
 /** A layer anchored to a button, above everything; closes on a click away or Escape. */
-export function Popover({ anchor, open, onClose, children, width = 248, label }: { anchor: React.RefObject<HTMLElement | null>; open: boolean; onClose: () => void; children: React.ReactNode; width?: number; label: string }) {
+export function Popover({
+  anchor,
+  open,
+  onClose,
+  children,
+  width = 248,
+  label,
+}: {
+  anchor: React.RefObject<HTMLElement | null>;
+  open: boolean;
+  onClose: () => void;
+  children: React.ReactNode;
+  width?: number;
+  label: string;
+}) {
   const box = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState<{ left: number; top: number } | null>(null);
   useLayoutEffect(() => {
@@ -281,7 +381,13 @@ export function Popover({ anchor, open, onClose, children, width = 248, label }:
   }, [open, onClose, anchor]);
   if (!open) return null;
   return createPortal(
-    <div ref={box} role="dialog" aria-label={label} style={{ position: "fixed", left: pos?.left ?? -9999, top: pos?.top ?? -9999, width }} className="anim-rise-sm z-[100] rounded-lg bg-card p-2.5 text-[12.5px] shadow-float">
+    <div
+      ref={box}
+      role="dialog"
+      aria-label={label}
+      style={{ position: "fixed", left: pos?.left ?? -9999, top: pos?.top ?? -9999, width }}
+      className="anim-rise-sm z-[100] rounded-lg bg-card p-2.5 text-[12.5px] shadow-float"
+    >
       {children}
     </div>,
     document.body,
@@ -290,7 +396,29 @@ export function Popover({ anchor, open, onClose, children, width = 248, label }:
 
 // Color ---------------------------------------------------------------------------------------------------------
 
-const SWATCHES = ["#111111", "#3a3a3a", "#6b6b6b", "#a3a3a3", "#d4d4d4", "#f4f4f4", "#ffffff", "#1d4ed8", "#2563eb", "#0ea5e9", "#0d9488", "#16a34a", "#65a30d", "#ca8a04", "#ea580c", "#dc2626", "#db2777", "#9333ea", "#7c3aed", "#4f46e5", "#b5532a"];
+const SWATCHES = [
+  "#111111",
+  "#3a3a3a",
+  "#6b6b6b",
+  "#a3a3a3",
+  "#d4d4d4",
+  "#f4f4f4",
+  "#ffffff",
+  "#1d4ed8",
+  "#2563eb",
+  "#0ea5e9",
+  "#0d9488",
+  "#16a34a",
+  "#65a30d",
+  "#ca8a04",
+  "#ea580c",
+  "#dc2626",
+  "#db2777",
+  "#9333ea",
+  "#7c3aed",
+  "#4f46e5",
+  "#b5532a",
+];
 
 const hexOk = (v: string) => /^#([0-9a-f]{6}|[0-9a-f]{3})$/i.test(v.trim());
 function toRgb(hex: string): [number, number, number] {
@@ -339,7 +467,10 @@ export function ColorField({ label, value, onChange, against, need = 4.5 }: { la
         className={`${INPUT} font-mono text-[11.5px] uppercase`}
       />
       {g ? (
-        <span title={`${ratio!.toFixed(1)} : 1`} className={`inline-flex h-5 shrink-0 items-center rounded-full px-1.5 text-[10.5px] font-medium tabular-nums ${g.ok ? "bg-sage-wash text-sage" : "bg-rose-wash text-rose"}`}>
+        <span
+          title={`${ratio!.toFixed(1)} : 1`}
+          className={`inline-flex h-5 shrink-0 items-center rounded-full px-1.5 text-[10.5px] font-medium tabular-nums ${g.ok ? "bg-sage-wash text-sage" : "bg-rose-wash text-rose"}`}
+        >
           {ratio!.toFixed(1)}
         </span>
       ) : null}
@@ -400,7 +531,10 @@ function ColorPicker({ value, onChange }: { value: string; onChange: (v: string)
         className="relative h-32 cursor-crosshair touch-none rounded-sm"
         style={{ background: `linear-gradient(to top, #000, transparent), linear-gradient(to right, #fff, ${fromHsv(h, 1, 1)})` }}
       >
-        <span className="pointer-events-none absolute size-3.5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white shadow-float" style={{ left: `${s * 100}%`, top: `${(1 - v) * 100}%` }} />
+        <span
+          className="pointer-events-none absolute size-3.5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white shadow-float"
+          style={{ left: `${s * 100}%`, top: `${(1 - v) * 100}%` }}
+        />
       </div>
       <div
         role="slider"
@@ -477,7 +611,14 @@ export function FontPicker({ label, value, onChange, allowSame = false }: { labe
       <Popover anchor={btn} open={open} onClose={() => setOpen(false)} label={label} width={240}>
         <label className="mb-1.5 flex h-7 items-center gap-1.5 rounded-sm border border-line-strong px-2 focus-within:border-ink">
           <Search size={12} className="text-faint" />
-          <input autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search fonts" aria-label="Search fonts" className="min-w-0 flex-1 bg-transparent text-[12.5px] outline-none placeholder:text-faint" />
+          <input
+            autoFocus
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="Search fonts"
+            aria-label="Search fonts"
+            className="min-w-0 flex-1 bg-transparent text-[12.5px] outline-none placeholder:text-faint"
+          />
           {q ? (
             <button type="button" aria-label="Clear search" onClick={() => setQ("")} className="text-faint hover:text-ink">
               <X size={11} />
@@ -485,11 +626,16 @@ export function FontPicker({ label, value, onChange, allowSame = false }: { labe
           ) : null}
         </label>
         <ul role="listbox" aria-label={label} className="-mx-1 max-h-64 overflow-y-auto">
-          {!q ? (
-            <FontRow name={allowSame ? "Same as text" : "System"} family={allowSame ? undefined : SYSTEM_FONT} on={!value} onPick={() => pick("")} />
-          ) : null}
+          {!q ? <FontRow name={allowSame ? "Same as text" : "System"} family={allowSame ? undefined : SYSTEM_FONT} on={!value} onPick={() => pick("")} /> : null}
           {list.map((f) => (
-            <FontRow key={f.name} name={f.name} family={`'${f.name}', ${f.cat === "serif" ? "serif" : f.cat === "mono" ? "monospace" : "sans-serif"}`} tag={f.cat === "sans" ? "" : f.cat} on={current.toLowerCase() === f.name.toLowerCase()} onPick={() => pick(f.name)} />
+            <FontRow
+              key={f.name}
+              name={f.name}
+              family={`'${f.name}', ${f.cat === "serif" ? "serif" : f.cat === "mono" ? "monospace" : "sans-serif"}`}
+              tag={f.cat === "sans" ? "" : f.cat}
+              on={current.toLowerCase() === f.name.toLowerCase()}
+              onPick={() => pick(f.name)}
+            />
           ))}
           {!list.length ? <li className="px-2 py-2 text-[12px] text-muted">No matches</li> : null}
         </ul>
@@ -513,10 +659,25 @@ function FontRow({ name, family, tag = "", on, onPick }: { name: string; family?
 // Tags ----------------------------------------------------------------------------------------------------------
 
 /** A list of short values as pills: type and press Enter or comma; Backspace on an empty box removes the last. */
-export function TagInput({ values, onChange, placeholder, label, clean }: { values: string[]; onChange: (v: string[]) => void; placeholder?: string; label: string; clean?: (v: string) => string | null }) {
+export function TagInput({
+  values,
+  onChange,
+  placeholder,
+  label,
+  clean,
+}: {
+  values: string[];
+  onChange: (v: string[]) => void;
+  placeholder?: string;
+  label: string;
+  clean?: (v: string) => string | null;
+}) {
   const [text, setText] = useState("");
   const add = (raw: string) => {
-    const parts = raw.split(/[\s,]+/).map((x) => (clean ? clean(x) : x.trim())).filter((x): x is string => !!x);
+    const parts = raw
+      .split(/[\s,]+/)
+      .map((x) => (clean ? clean(x) : x.trim()))
+      .filter((x): x is string => !!x);
     if (parts.length) onChange([...new Set([...values, ...parts])]);
     setText("");
   };

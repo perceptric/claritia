@@ -87,7 +87,13 @@ export function FormCanvas(props: CanvasProps) {
                 <span className="flex-1 text-[11.5px] text-faint tabular-nums">{fw}</span>
               )}
               {n > 1 ? (
-                <button type="button" aria-label={`Remove step ${si + 1}`} title="Remove step" onClick={() => apply({ op: "remove_step", index: si })} className="press flex size-6 items-center justify-center rounded-full text-muted hover:bg-rose-wash hover:text-rose">
+                <button
+                  type="button"
+                  aria-label={`Remove step ${si + 1}`}
+                  title="Remove step"
+                  onClick={() => apply({ op: "remove_step", index: si })}
+                  className="press flex size-6 items-center justify-center rounded-full text-muted hover:bg-rose-wash hover:text-rose"
+                >
                   <Trash size={12} />
                 </button>
               ) : null}
@@ -183,7 +189,10 @@ function StepFrame(props: CanvasProps & { si: number; z: number; fw: number }) {
         {last && form.consent.mode === "notice" ? <p style={{ color: t.muted, fontSize: "0.85em", margin: 0 }}>{form.consent.label}</p> : null}
         <div className="flex items-center gap-2.5">
           {si > 0 ? (
-            <span className="inline-flex items-center px-[22px]" style={{ minHeight: t.inputHeight, border: `${t.borderWidth}px solid ${t.border}`, borderRadius: t.buttonRadius, fontWeight: t.buttonWeight, textTransform: t.buttonCase }}>
+            <span
+              className="inline-flex items-center px-[22px]"
+              style={{ minHeight: t.inputHeight, border: `${t.borderWidth}px solid ${t.border}`, borderRadius: t.buttonRadius, fontWeight: t.buttonWeight, textTransform: t.buttonCase }}
+            >
               Back
             </span>
           ) : null}
@@ -200,7 +209,10 @@ function StepFrame(props: CanvasProps & { si: number; z: number; fw: number }) {
               style={{ minHeight: t.inputHeight, background: t.buttonBg, color: t.buttonText, borderRadius: t.buttonRadius, fontWeight: t.buttonWeight, textTransform: t.buttonCase }}
             />
           ) : (
-            <span className="inline-flex items-center px-[22px]" style={{ minHeight: t.inputHeight, background: t.buttonBg, color: t.buttonText, borderRadius: t.buttonRadius, fontWeight: t.buttonWeight, textTransform: t.buttonCase }}>
+            <span
+              className="inline-flex items-center px-[22px]"
+              style={{ minHeight: t.inputHeight, background: t.buttonBg, color: t.buttonText, borderRadius: t.buttonRadius, fontWeight: t.buttonWeight, textTransform: t.buttonCase }}
+            >
               Next
             </span>
           )}
@@ -273,7 +285,23 @@ function Editable({
   );
 }
 
-function InlineBox({ value, multiline, onDone, onCancel, style, className = "", label }: { value: string; multiline?: boolean; onDone: (v: string) => void; onCancel: () => void; style: React.CSSProperties; className?: string; label: string }) {
+function InlineBox({
+  value,
+  multiline,
+  onDone,
+  onCancel,
+  style,
+  className = "",
+  label,
+}: {
+  value: string;
+  multiline?: boolean;
+  onDone: (v: string) => void;
+  onCancel: () => void;
+  style: React.CSSProperties;
+  className?: string;
+  label: string;
+}) {
   const [text, setText] = useState(value);
   const done = useRef(false);
   const finish = (save: boolean) => {
@@ -302,9 +330,20 @@ function InlineBox({ value, multiline, onDone, onCancel, style, className = "", 
     className: `${className} w-full min-w-0 rounded-[2px] bg-transparent outline outline-2 outline-offset-2 outline-clay`,
     style: { ...style, font: "inherit", ...pick(style) },
   };
-  return multiline ? <textarea {...common} rows={Math.max(2, text.split("\n").length)} onChange={(e) => setText(e.target.value)} style={{ ...common.style, resize: "none" }} /> : <input {...common} onChange={(e) => setText(e.target.value)} />;
+  return multiline ? (
+    <textarea {...common} rows={Math.max(2, text.split("\n").length)} onChange={(e) => setText(e.target.value)} style={{ ...common.style, resize: "none" }} />
+  ) : (
+    <input {...common} onChange={(e) => setText(e.target.value)} />
+  );
 }
-const pick = (s: React.CSSProperties): React.CSSProperties => ({ fontFamily: s.fontFamily, fontSize: s.fontSize, fontWeight: s.fontWeight, lineHeight: s.lineHeight, color: s.color, textTransform: s.textTransform });
+const pick = (s: React.CSSProperties): React.CSSProperties => ({
+  fontFamily: s.fontFamily,
+  fontSize: s.fontSize,
+  fontWeight: s.fontWeight,
+  lineHeight: s.lineHeight,
+  color: s.color,
+  textTransform: s.textTransform,
+});
 
 function FieldBox(props: CanvasProps & { f: Field; si: number; phone: boolean; z: number }) {
   const { f, si, phone, z, form, t, selected, hovered, dragging, editing, onSelect, onHover, onEdit, onCommit } = props;
@@ -372,7 +411,13 @@ function Toolbar({ f, z, form, onNudge, onDuplicate, onRemove, apply }: CanvasPr
   const i = all.findIndex((x) => x.id === f.id);
   const btn = "press flex size-[26px] items-center justify-center rounded-full text-muted hover:bg-hover hover:text-ink disabled:opacity-35";
   return (
-    <span className="absolute right-0 bottom-full z-20" style={{ zoom: 1 / z, marginBottom: 4 }} onClick={(e) => e.stopPropagation()} onPointerDown={(e) => e.stopPropagation()} onDoubleClick={(e) => e.stopPropagation()}>
+    <span
+      className="absolute right-0 bottom-full z-20"
+      style={{ zoom: 1 / z, marginBottom: 4 }}
+      onClick={(e) => e.stopPropagation()}
+      onPointerDown={(e) => e.stopPropagation()}
+      onDoubleClick={(e) => e.stopPropagation()}
+    >
       <span role="toolbar" aria-label="Field actions" className="flex items-center gap-0.5 rounded-full bg-card p-0.5 shadow-float">
         <button type="button" aria-label="Move up" title="Move up" disabled={i <= 0} onClick={() => onNudge(f.id, -1)} className={btn}>
           <ArrowUp size={13} />
@@ -422,7 +467,9 @@ function FieldLook({ f, form, t, editing, onDone, onCancel }: { f: Field; form: 
       <div className="flex h-8 items-center gap-2 rounded-sm border border-dashed border-line-strong bg-card px-2.5 font-sans text-[12px] text-muted">
         <EyeOff size={13} />
         <span className="truncate text-ink">{f.label || "Hidden"}</span>
-        <span className="ml-auto truncate font-mono text-[11px]">{f.hidden?.from === "param" ? `?${f.hidden.name ?? ""}` : f.hidden?.from === "static" ? f.hidden.value || "fixed" : f.hidden?.from}</span>
+        <span className="ml-auto truncate font-mono text-[11px]">
+          {f.hidden?.from === "param" ? `?${f.hidden.name ?? ""}` : f.hidden?.from === "static" ? f.hidden.value || "fixed" : f.hidden?.from}
+        </span>
       </div>
     );
   if (f.type === "heading") {
@@ -465,7 +512,14 @@ function FieldLook({ f, form, t, editing, onDone, onCancel }: { f: Field; form: 
     control = (
       <span className="flex items-start gap-2.5">
         <span className="mt-0.5 size-[18px] shrink-0" style={{ border: `${Math.max(1, t.borderWidth)}px solid ${t.border}`, borderRadius: Math.min(4, t.radius), background: t.inputBg }} />
-        {editing ? <InlineBox value={f.label} onDone={onDone} onCancel={onCancel} style={{ color: t.text }} label="Label" /> : <span>{f.label}{req}</span>}
+        {editing ? (
+          <InlineBox value={f.label} onDone={onDone} onCancel={onCancel} style={{ color: t.text }} label="Label" />
+        ) : (
+          <span>
+            {f.label}
+            {req}
+          </span>
+        )}
       </span>
     );
   } else if (f.type === "choice" || f.type === "multi") {
@@ -474,7 +528,14 @@ function FieldLook({ f, form, t, editing, onDone, onCancel }: { f: Field; form: 
       <span className="flex flex-col gap-2">
         {list.map((o) => (
           <span key={o.value} className="flex items-center gap-2.5">
-            <span className="size-[18px] shrink-0" style={{ border: `${Math.max(1, t.borderWidth)}px solid ${t.border}`, borderRadius: f.type === "choice" ? 999 : Math.min(4, t.radius), background: value === o.value ? t.accent : t.inputBg }} />
+            <span
+              className="size-[18px] shrink-0"
+              style={{
+                border: `${Math.max(1, t.borderWidth)}px solid ${t.border}`,
+                borderRadius: f.type === "choice" ? 999 : Math.min(4, t.radius),
+                background: value === o.value ? t.accent : t.inputBg,
+              }}
+            />
             <span>{o.label}</span>
           </span>
         ))}
@@ -484,7 +545,11 @@ function FieldLook({ f, form, t, editing, onDone, onCancel }: { f: Field; form: 
     const picked = f.options?.find((o) => o.value === value)?.label ?? (f.type === "country" && value ? value : "");
     control = (
       <span className="flex items-center justify-between gap-2" style={box}>
-        {inside && editing ? <InlineBox value={f.label} onDone={onDone} onCancel={onCancel} style={{ color: t.text }} label="Label" /> : <span style={picked ? undefined : muted}>{picked || (inside ? f.label : f.placeholder) || "Choose…"}</span>}
+        {inside && editing ? (
+          <InlineBox value={f.label} onDone={onDone} onCancel={onCancel} style={{ color: t.text }} label="Label" />
+        ) : (
+          <span style={picked ? undefined : muted}>{picked || (inside ? f.label : f.placeholder) || "Choose…"}</span>
+        )}
         <ChevronDown size={14} />
       </span>
     );
@@ -501,7 +566,18 @@ function FieldLook({ f, form, t, editing, onDone, onCancel }: { f: Field; form: 
                 ★
               </span>
             ) : (
-              <span key={i} className="flex items-center justify-center px-2" style={{ minWidth: t.inputHeight, height: t.inputHeight, background: i + 1 === at ? t.accent : t.inputBg, color: i + 1 === at ? t.buttonText : t.text, border: `${t.borderWidth}px solid ${i + 1 === at ? t.accent : t.border}`, borderRadius: t.radius }}>
+              <span
+                key={i}
+                className="flex items-center justify-center px-2"
+                style={{
+                  minWidth: t.inputHeight,
+                  height: t.inputHeight,
+                  background: i + 1 === at ? t.accent : t.inputBg,
+                  color: i + 1 === at ? t.buttonText : t.text,
+                  border: `${t.borderWidth}px solid ${i + 1 === at ? t.accent : t.border}`,
+                  borderRadius: t.radius,
+                }}
+              >
                 {i + 1}
               </span>
             ),

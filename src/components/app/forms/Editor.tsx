@@ -197,10 +197,14 @@ export function Editor({ form, apply, custom, sources, tokens, device, zoom, the
     apply(ops);
     setPicked([item.id]);
   };
-  const ghost = drag ? (drag.data.kind === "element" ? { icon: drag.data.def.icon, name: drag.data.def.name } : (() => {
-    const f = fields.find((x) => x.id === drag.id);
-    return f ? { icon: iconFor(f), name: nameOf(f) } : null;
-  })()) : null;
+  const ghost = drag
+    ? drag.data.kind === "element"
+      ? { icon: drag.data.def.icon, name: drag.data.def.name }
+      : (() => {
+          const f = fields.find((x) => x.id === drag.id);
+          return f ? { icon: iconFor(f), name: nameOf(f) } : null;
+        })()
+    : null;
 
   const rail: { id: Panel; label: string; icon: React.ReactNode }[] = [
     { id: "elements", label: "Elements", icon: <PlusSquare size={16} /> },
@@ -209,11 +213,18 @@ export function Editor({ form, apply, custom, sources, tokens, device, zoom, the
   ];
 
   return (
-    <DndContext sensors={sensors} onDragStart={onStart} onDragMove={onMove} onDragEnd={onEnd} onDragCancel={() => {
+    <DndContext
+      sensors={sensors}
+      onDragStart={onStart}
+      onDragMove={onMove}
+      onDragEnd={onEnd}
+      onDragCancel={() => {
         dragRef.current = null;
         setDrag(null);
         setDrop(null);
-      }} autoScroll={{ threshold: { x: 0, y: 0.15 } }}>
+      }}
+      autoScroll={{ threshold: { x: 0, y: 0.15 } }}
+    >
       <div className={`grid h-full min-h-0 grid-rows-[minmax(0,1fr)] ${panel ? "grid-cols-[44px_232px_minmax(0,1fr)_280px]" : "grid-cols-[44px_minmax(0,1fr)_280px]"}`}>
         <nav aria-label="Panels" className="flex flex-col items-center gap-1 border-r border-line bg-card py-2">
           {rail.map((r) => (
@@ -237,7 +248,19 @@ export function Editor({ form, apply, custom, sources, tokens, device, zoom, the
             </div>
             <div className="min-h-0 flex-1 overflow-y-auto">
               {panel === "elements" ? <Elements onAdd={add} /> : null}
-              {panel === "layers" ? <LayersPanel form={form} selected={selected} hovered={hovered} dragging={drag?.data.kind === "field" ? drag.id : null} onSelect={select} onHover={setHovered} onDuplicate={duplicate} onRemove={(id) => remove([id])} apply={apply} /> : null}
+              {panel === "layers" ? (
+                <LayersPanel
+                  form={form}
+                  selected={selected}
+                  hovered={hovered}
+                  dragging={drag?.data.kind === "field" ? drag.id : null}
+                  onSelect={select}
+                  onHover={setHovered}
+                  onDuplicate={duplicate}
+                  onRemove={(id) => remove([id])}
+                  apply={apply}
+                />
+              ) : null}
               {panel === "theme" ? <FormDesign {...theme} /> : null}
             </div>
           </aside>
@@ -267,7 +290,11 @@ export function Editor({ form, apply, custom, sources, tokens, device, zoom, the
       </div>
       {drop
         ? createPortal(
-            <span aria-hidden="true" className="pointer-events-none fixed z-[95] rounded-full bg-clay" style={{ left: drop.line.left, top: drop.line.top, width: drop.line.width, height: drop.line.height }} />,
+            <span
+              aria-hidden="true"
+              className="pointer-events-none fixed z-[95] rounded-full bg-clay"
+              style={{ left: drop.line.left, top: drop.line.top, width: drop.line.width, height: drop.line.height }}
+            />,
             document.body,
           )
         : null}
@@ -311,7 +338,10 @@ function hitCanvas(p: P, form: Form, dragId: string, sits: boolean): Drop {
     const rowTop = (row: number[]) => Math.min(...row.map((i) => rects[i].top));
     const rowBottom = (row: number[]) => Math.max(...row.map((i) => rects[i].bottom));
     const before = (k: number): Drop => ({ target: { step: si, index: rows[k][0] }, line: hline(k === 0 ? rowTop(rows[0]) - 6 : (rowBottom(rows[k - 1]) + rowTop(rows[k])) / 2) });
-    const after = (k: number): Drop => ({ target: { step: si, index: rows[k][rows[k].length - 1] + 1 }, line: hline(k === rows.length - 1 ? rowBottom(rows[k]) + 6 : (rowBottom(rows[k]) + rowTop(rows[k + 1])) / 2) });
+    const after = (k: number): Drop => ({
+      target: { step: si, index: rows[k][rows[k].length - 1] + 1 },
+      line: hline(k === rows.length - 1 ? rowBottom(rows[k]) + 6 : (rowBottom(rows[k]) + rowTop(rows[k + 1])) / 2),
+    });
     const hit = rects.findIndex((r) => inside(p, r));
     if (hit >= 0) {
       const k = rows.findIndex((row) => row.includes(hit));

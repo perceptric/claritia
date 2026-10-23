@@ -32,7 +32,10 @@ const run = (f: Form, ops: Op[]) =>
     return r.form;
   }, f);
 const order = (f: Form) => f.steps.map((s) => s.fields.map((x) => x.id).join(",")).join(" | ");
-const widths = (f: Form) => allFields(f).map((x) => `${x.id}:${x.width ?? "full"}`).join(",");
+const widths = (f: Form) =>
+  allFields(f)
+    .map((x) => `${x.id}:${x.width ?? "full"}`)
+    .join(",");
 
 test("the tab comes from the address, old names land, anything else opens Design", () => {
   assert.equal(pickTab("?tab=settings"), "settings");
@@ -116,7 +119,10 @@ test("a copy sits right after its field, saves to its own place and keeps the fo
   const withName = run(base, [{ op: "add_field", id: "fn", field: { key: "first_name", type: "text", label: "First name", width: "half", required: true } }]);
   const copied = run(withName, [duplicateOp(allFields(withName)[1], "cp"), duplicateOp(email, "ce")]);
   const all = allFields(copied);
-  assert.deepEqual(all.map((x) => x.id), [email.id, "ce", "fn", "cp"]);
+  assert.deepEqual(
+    all.map((x) => x.id),
+    [email.id, "ce", "fn", "cp"],
+  );
   const cp = all.find((x) => x.id === "cp")!;
   assert.equal(cp.label, "First name copy");
   assert.notEqual(cp.key, "first_name");
@@ -146,11 +152,16 @@ test("every element adds cleanly, twice, and only the image waits for its addres
       assert.ok("form" in r, `${e.name}: ${"error" in r ? r.error : ""}`);
       f = r.form;
     }
-  const keys = allFields(f).filter((x) => !x.key.startsWith("c.")).map((x) => x.key);
+  const keys = allFields(f)
+    .filter((x) => !x.key.startsWith("c."))
+    .map((x) => x.key);
   assert.equal(new Set(keys).size, keys.length, "no two fields save to the same place");
   const r = checkForm(f);
   assert.ok("errors" in r);
-  assert.deepEqual(r.errors.filter((e) => !/picture address|Up to 40 fields/.test(e)), []);
+  assert.deepEqual(
+    r.errors.filter((e) => !/picture address|Up to 40 fields/.test(e)),
+    [],
+  );
   // "Link" never takes the contact's website.
   assert.match(allFields(f).find((x) => x.label === "Link")!.key, /^q\./);
 });
@@ -180,7 +191,10 @@ test("show this field: Always drops its rules, Show and Hide turn them over or a
   // A require rule stays when visibility goes back to Always.
   const req = run(hidden, [{ op: "set_rule", rule: { id: "rq", when: { field: "a", op: "empty" }, then: { action: "require", field: "b" } } }]);
   const always = run(req, setShownOps(req, "b", "always", "x"));
-  assert.deepEqual(always.rules.map((r) => r.id), ["rq"]);
+  assert.deepEqual(
+    always.rules.map((r) => r.id),
+    ["rq"],
+  );
   // With no other field to listen to, nothing is added.
   const lone = form([F("a")]);
   assert.deepEqual(setShownOps(lone, "a", "show", "r"), []);
