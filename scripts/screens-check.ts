@@ -1,8 +1,8 @@
-// The Forms screens in a real browser against the whole app (docs/form-builder-v2.md Part 6): the local stack
+// The Forms screens in a real browser against the whole app (docs/form-studio.md): the local stack
 // (scripts/local-stack.mjs) and `next dev`, signed in as one test user. Each way in goes from an empty workspace to a
-// live form that takes a fill and makes a contact: Ask me (eight questions by clicks and keys), a first sentence that
-// skips what it settles, a template, and Build by hand with drag and drop. Then the CRM: a custom field from the
-// table, a rating from the record page, a note and a task.
+// live form that takes a fill and makes a contact: Ask (five questions by clicks and keys, opening on Design), a
+// first sentence that skips what it settles, a template, and Start blank with click and drag on the canvas. Then the
+// CRM: a custom field from the table, a rating from the record page, a note and a task.
 //   POSTGREST_BIN=… CHROMIUM_PATH=… node scripts/screens-check.ts
 // scripts/test-db.sh runs it when both are set.
 
@@ -71,7 +71,7 @@ page.on("pageerror", (e) => errors.push(e.message));
 await page.goto(base);
 await page.evaluate(([k, v]) => localStorage.setItem(k, v), [st.storageKey, JSON.stringify(st.session)]);
 
-const formId = () => page.url().split("/").pop()!;
+const formId = () => new URL(page.url()).pathname.split("/").pop()!;
 const fill = async (id: string, values: Record<string, string>) => {
   const p = await browser.newPage();
   await p.goto(`${base}/f/${id}`);
@@ -90,7 +90,8 @@ const fill = async (id: string, values: Record<string, string>) => {
 };
 const publish = async () => {
   await page.getByRole("button", { name: "Publish" }).click();
-  await until(async () => (await db.query(`select status from forms where id = $1`, [formId()])).rows[0]?.status === "live", 20_000, "the form to go live");
+  // The first publish waits on next dev compiling the publish route.
+  await until(async () => (await db.query(`select status from forms where id = $1`, [formId()])).rows[0]?.status === "live", 60_000, "the form to go live");
 };
 const contactFor = async (email: string) => (await db.query(`select id from contacts where email_clean = $1`, [email])).rows.length === 1;
 
@@ -100,70 +101,77 @@ try {
   await page.getByText("What form do you need?").waitFor({ timeout: 60_000 });
   check(true, "an empty workspace opens Forms on the first screen");
 
-  // Ask me: every question by clicks and number keys.
-  await page.getByRole("button", { name: /Ask me/ }).click();
+  // Ask: five questions by clicks and keys, then the form opens on Design.
   await page.getByText("What's this form for?").waitFor();
   await page.keyboard.press("1");
-  await page.getByRole("button", { name: /Pricing page$/ }).click();
-  await page.getByRole("button", { name: "Phone", exact: true }).click();
+  await page.getByRole("checkbox", { name: "Phone", exact: true }).click();
   await page.getByRole("button", { name: "Continue" }).click();
-  await page.getByLabel("A question to ask").fill("Which CRM do you use? (HubSpot, Salesforce, Other)");
-  await page.getByRole("button", { name: "Add" }).click();
-  await page.getByText("HubSpot, Salesforce, Other").waitFor();
+  await page.getByRole("textbox", { name: "Add your own" }).fill("Which CRM do you use?");
+  await page.getByRole("button", { name: "Add", exact: true }).click();
+  await page.getByRole("checkbox", { name: "Which CRM do you use?" }).waitFor();
   await page.getByRole("button", { name: "Continue" }).click();
-  await page.keyboard.press("1");
-  await page.keyboard.press("2");
+  await page.getByRole("button", { name: "Book a meeting", exact: true }).click();
+  await page.getByRole("button", { name: "Calendly", exact: true }).click();
   await page.getByLabel("Booking link").fill("https://calendly.com/acme/demo");
   await page.getByRole("button", { name: "Continue" }).click();
   await page.getByRole("button", { name: "Continue" }).click();
-  await page.getByRole("button", { name: /Create form/ }).click();
-  await page.getByText("Put it on your site").waitFor({ timeout: 30_000 });
+  await page.getByRole("button", { name: "Create form" }).click();
+  await page.locator("[data-fid]").first().waitFor({ timeout: 30_000 });
+  check(new URL(page.url()).searchParams.get("tab") === "design", "a new form opens on the Design tab");
   const asked = (await db.query(`select name, draft from forms where id = $1`, [formId()])).rows[0];
   const keys = (asked.draft.steps as { fields: { key: string }[] }[]).flatMap((s) => s.fields.map((f) => f.key));
-  check(asked.name === "Demo request, pricing page" && asked.draft.steps.length === 2 && keys.includes("phone") && keys.includes("q.which_crm_do_you_use") && asked.draft.after.schedule?.tool === "calendly", "Ask me builds the form the answers describe");
+  check(asked.name === "Demo request" && keys.includes("phone") && keys.includes("q.which_crm_do_you_use") && asked.draft.after.schedule?.tool === "calendly", "Ask builds the form the answers describe");
+  await page.getByRole("tab", { name: "Share", exact: true }).click();
+  await page.getByText("Put it on your site").waitFor({ timeout: 30_000 });
   check((await page.locator("aside pre").first().textContent())?.includes(`form-id="${formId()}"`) === true, "the embed code names the form");
   await publish();
   await fill(formId(), { "Work email": "ann@acme.com", "First name": "Ann", "Last name": "Lee" });
-  await page.getByRole("button", { name: "Next" }).count();
   check(await contactFor("ann@acme.com").catch(() => false), "a fill on the asked form makes a contact");
 
-  // A first sentence skips what it settles.
-  await page.goto(`${base}/forms/new`);
-  await page.getByLabel("What form do you need?").fill("Contact sales form with phone and budget, business emails only");
+  // The name changes in place.
+  await page.getByRole("textbox", { name: "Name", exact: true }).fill("Pricing demo");
   await page.keyboard.press("Enter");
-  await page.getByText("Where will it go on your site?").waitFor();
-  const thread = (await page.locator("section").first().textContent()) ?? "";
-  check(thread.includes("Contact sales") && thread.includes("Yes, business emails only") && !thread.includes("One page or steps?"), "a first sentence settles the goal and the email rule and asks the rest");
+  await until(async () => (await db.query(`select name from forms where id = $1`, [formId()])).rows[0]?.name === "Pricing demo", 15_000, "the new name to save");
+  check(true, "a form is renamed from its title");
+
+  // A first sentence answers what it can and skips those questions.
+  await page.goto(`${base}/forms/new`);
+  await page.getByRole("textbox", { name: "Describe your form" }).fill("Contact sales form with phone and budget");
+  await page.keyboard.press("Enter");
+  await page.getByRole("button", { name: "Contact sales", exact: true }).waitFor();
+  check((await page.getByRole("region", { name: "What's this form for?" }).count()) === 0, "a first sentence settles the goal and moves on");
 
   // A template.
   await page.goto(`${base}/forms/new`);
-  await page.getByRole("button", { name: /Templates/ }).click();
+  await page.getByRole("button", { name: "Start from a template" }).click();
   await page.getByRole("button", { name: /Webinar/ }).click();
-  await page.getByText("Put it on your site").waitFor({ timeout: 30_000 });
+  await page.locator("[data-fid]").first().waitFor({ timeout: 30_000 });
   check((await db.query(`select name from forms where id = $1`, [formId()])).rows[0]?.name === "Webinar", "a template opens as a new form");
 
-  // Build by hand: click to add, drag from the list, delete by key.
+  // Start blank: click to add, drag onto the canvas, delete by key, undo.
   await page.goto(`${base}/forms/new`);
-  await page.getByRole("button", { name: /Build by hand/ }).click();
-  await page.getByText("Contact", { exact: true }).waitFor({ timeout: 30_000 });
-  const handles = () => page.locator("[aria-label='Drag to move']").count();
-  const n0 = await handles();
-  await page.locator("aside button", { hasText: /^First name$/ }).first().click();
-  const src = (await page.locator("aside button", { hasText: /^Company$/ }).first().boundingBox())!;
-  const dst = (await page.locator("section").filter({ hasText: "Work email" }).first().boundingBox())!;
+  await page.getByRole("button", { name: "Start blank" }).click();
+  await page.locator("[data-fid]").first().waitFor({ timeout: 30_000 });
+  const tiles = page.locator("aside[aria-label=Elements]");
+  const count = () => page.locator("[data-fid]").count();
+  const n0 = await count();
+  await tiles.getByRole("button", { name: "First name", exact: true }).click();
+  const src = (await tiles.getByRole("button", { name: "Company", exact: true }).boundingBox())!;
+  const dst = (await page.locator("[data-fid]").first().boundingBox())!;
   await page.mouse.move(src.x + 20, src.y + 10);
   await page.mouse.down();
   await page.mouse.move(src.x + 60, src.y + 20, { steps: 5 });
-  await page.mouse.move(dst.x + 100, dst.y + 40, { steps: 15 });
+  await page.mouse.move(dst.x + 100, dst.y + dst.height - 4, { steps: 15 });
   await page.mouse.up();
   await wait(500);
-  check((await handles()) === n0 + 2, "fields are added by click and by drag");
+  check((await count()) === n0 + 2, "fields are added by click and by drag");
+  await page.locator("[data-fid]").last().click();
   await page.keyboard.press("Backspace");
   await wait(400);
-  check((await handles()) === n0 + 1, "Backspace removes the selected field");
+  check((await count()) === n0 + 1, "Backspace removes the selected field");
   await page.keyboard.press(process.platform === "darwin" ? "Meta+z" : "Control+z");
   await wait(400);
-  check((await handles()) === n0 + 2, "Undo brings it back");
+  check((await count()) === n0 + 2, "Undo brings it back");
   await wait(1500);
   await publish();
   await fill(formId(), { "Work email": "bo@acme.com", "First name": "Bo" });
@@ -205,6 +213,8 @@ try {
 } catch (e) {
   failures.push((e as Error).message);
   console.log(`FAIL ${(e as Error).message}`);
+  // SHOT_ON_FAIL=<file.png> keeps a picture of the page where it stopped.
+  if (process.env.SHOT_ON_FAIL) await page.screenshot({ path: process.env.SHOT_ON_FAIL }).catch(() => {});
 } finally {
   await browser.close();
   await db.end();
