@@ -4,8 +4,8 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { applyOp } from "../src/lib/forms/ops.ts";
 import { WORK_EMAIL, showsMeeting, type Schedule } from "../src/lib/forms/schedule.ts";
-import { allFields, checkForm, emptyForm, type Field, type Form } from "../src/lib/forms/schema.ts";
-import { checkAnswers, OTHER } from "../src/lib/forms/values.ts";
+import { allFields, checkForm, emptyForm, nextStep, type Field, type Form } from "../src/lib/forms/schema.ts";
+import { checkAnswers, OTHER, stepPath } from "../src/lib/forms/values.ts";
 
 const EMAIL: Field = { id: "e", key: "email", type: "email", label: "Work email", required: true };
 const withFields = (fields: unknown[], extra: Partial<Form> = {}) => ({ ...emptyForm(), steps: [{ id: "s1", fields: [EMAIL, ...fields] }], ...extra });
@@ -154,4 +154,47 @@ test("booking rules are checked against the form's fields", () => {
   assert.match(errs(sched([{ field: "gone", op: "filled" }])), /field that's gone/);
   assert.match(errs(sched([{ field: "sz", op: "gte", value: "many" }])), /number that isn't one/);
   assert.match(errs(sched([])), /add a rule/);
+});
+
+test("rules for a field can all have to hold, and links can require https", () => {
+  const f = ok(withFields([
+    { id: "a", key: "q.a", type: "text", label: "A" },
+    { id: "b", key: "q.b", type: "text", label: "B" },
+    { id: "c", key: "q.c", type: "text", label: "C", logic: "all" },
+    { id: "u", key: "website", type: "url", label: "Site", valid: { https: true } },
+  ], { rules: [
+    { id: "r1", when: { field: "a", op: "filled" }, then: { action: "show", field: "c" } },
+    { id: "r2", when: { field: "b", op: "filled" }, then: { action: "show", field: "c" } },
+  ] } as Partial<Form>));
+  assert.equal(field(f, "c").logic, "all");
+  const shown = (answers: Record<string, unknown>) => !("c" in checkAnswers(f, { e: "a@b.co", c: "x", ...answers }).errors) && checkAnswers(f, { e: "a@b.co", c: "x", ...answers }).values["q.c"] === "x";
+  assert.equal(shown({ a: "1" }), false, "one of two");
+  assert.equal(shown({ a: "1", b: "2" }), true, "both");
+  const any = ok({ ...f, steps: [{ ...f.steps[0], fields: f.steps[0].fields.map((x) => (x.id === "c" ? { ...x, logic: undefined } : x)) }] });
+  assert.equal(checkAnswers(any, { e: "a@b.co", a: "1", c: "x" }).values["q.c"], "x", "any one is enough by default");
+  assert.equal(checkAnswers(f, { e: "a@b.co", u: "http://acme.com" }).errors.u, "Use a link that starts with https://.");
+  assert.equal(checkAnswers(f, { e: "a@b.co", u: "acme.com" }).values.website, "https://acme.com/");
+});
+
+test("a step can skip ahead, and the skipped step's required fields don't block the send", () => {
+  const raw = {
+    ...emptyForm(),
+    steps: [
+      { id: "s1", fields: [EMAIL, { id: "k", key: "q.kind", type: "choice", label: "Kind", options: ["Agency", "Brand"] }], skip: { when: { field: "k", op: "is", value: "Agency" }, to: 2 } },
+      { id: "s2", fields: [{ id: "b", key: "q.brand", type: "text", label: "Brand", required: true }] },
+      { id: "s3", fields: [{ id: "n", key: "q.notes", type: "text", label: "Notes" }] },
+    ],
+  };
+  const f = ok(raw);
+  assert.deepEqual(f.steps[0].skip, { when: { field: "k", op: "is", value: "Agency" }, to: 2 });
+  assert.equal(nextStep(f, 0, { k: "Agency" }), 2);
+  assert.equal(nextStep(f, 0, { k: "Brand" }), 1);
+  assert.equal(nextStep(f, 0, {}), 1, "a skipped question never skips");
+  assert.deepEqual(stepPath(f, { k: "Agency" }), [0, 2]);
+  const agency = checkAnswers(f, { e: "a@b.co", k: "Agency", b: "stale", n: "hi" });
+  assert.deepEqual(agency.errors, {});
+  assert.equal(agency.values["q.brand"], undefined, "answers on a skipped step are dropped");
+  assert.equal(checkAnswers(f, { e: "a@b.co", k: "Brand" }).errors.b, "Fill this in.");
+  assert.match(errs({ ...raw, steps: [{ ...raw.steps[0], skip: { when: { field: "b", op: "filled" }, to: 2 } }, raw.steps[1], raw.steps[2]] }), /isn't on it or before it/);
+  assert.match(errs({ ...raw, steps: [{ ...raw.steps[0], skip: { when: { field: "k", op: "filled" }, to: 1 } }, raw.steps[1], raw.steps[2]] }), /isn't after the next one/);
 });

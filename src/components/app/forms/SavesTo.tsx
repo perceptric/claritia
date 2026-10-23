@@ -159,7 +159,7 @@ export function SavesTo({ field, form, custom, sources, onChange, session, works
     }),
     {
       id: "fill",
-      title: "Only on this fill",
+      title: "Submission",
       icon: <span className="size-3.5" />,
       rows: [{ id: own, label: "Only on this fill", on: field.key.startsWith("q."), pick: () => setKey(own), search: "Only on this fill submission answer" }],
     },

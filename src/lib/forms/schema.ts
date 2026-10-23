@@ -53,6 +53,8 @@ export type Validation = {
   latest?: string;
   /** Date: Monday to Friday only. */
   weekdays?: boolean;
+  /** Link: https only. */
+  https?: boolean;
   /** Phone: the country it's read in when it has no +code. */
   country?: string;
   /** The error when an answer fails a check, and when a required field is empty. */
@@ -100,6 +102,8 @@ export type Field = {
   other?: boolean;
   shuffle?: boolean;
   rating?: { scale: number; style: "stars" | "numbers"; low?: string; high?: string };
+  /** How this field's rules combine for each action: any one of them (the default) or all of them. */
+  logic?: "all";
   /** Content blocks: the heading or paragraph text, the heading level, the picture and its words. */
   content?: { text?: string; level?: 1 | 2 | 3; src?: string; alt?: string; align?: "left" | "center" };
 };
@@ -123,7 +127,8 @@ export type Rule = {
   then: { action: "show" | "hide" | "require"; field: string };
 };
 
-export type Step = { id: string; title?: string; fields: Field[] };
+/** skip: when the condition holds at the end of this step, jump forward to step `to` (0-based). */
+export type Step = { id: string; title?: string; fields: Field[]; skip?: { when: Rule["when"]; to: number } };
 
 export type After = {
   end: { kind: "message"; title: string; text?: string } | { kind: "redirect"; url: string };
@@ -138,7 +143,8 @@ export type Form = {
   layout: { labels: "above" | "inside"; width: "narrow" | "wide"; progress?: "bar" | "dots" | "none"; maxWidth?: number };
   title?: string;
   intro?: string;
-  submit: { label: string };
+  /** full: the button spans the form's width. */
+  submit: { label: string; full?: boolean };
   /** notice: no box, the label shows under the button and the lead is kept on legitimate interest. */
   consent: { mode: "off" | "by_region" | "always" | "notice"; label: string; /** An opt-in joins this email topic. */ topicId?: string };
   spam: { minSeconds: number; turnstile: boolean };
@@ -188,7 +194,6 @@ export const DEFAULT_NOTICE = "By sending this, you agree we may email you about
 const ID = /^[a-z0-9]{1,24}$/;
 const Q_KEY = /^q\.[a-z][a-z0-9_]{0,39}$/;
 const F_KEY = /^f\.[a-z][a-z0-9_]{0,39}$/;
-const C_KEY = /^c\.[a-z0-9]{1,24}$/;
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
 const DOMAIN = /^[a-z0-9-]+(\.[a-z0-9-]+)+$/;
 const CRM_PROP = /^[A-Za-z0-9_.:-]{1,100}$/;
@@ -249,6 +254,7 @@ function contentBlock(id: string, type: FieldType, fo: Record<string, unknown>, 
   if (c.align === "center") content.align = "center";
   if (Object.keys(content).length) f.content = content;
   if (fo.hideOnPhone === true) f.hideOnPhone = true;
+  if (fo.logic === "all") f.logic = "all";
   return f;
 }
 
@@ -291,6 +297,7 @@ function validation(type: FieldType, raw: unknown, name: string, errors: string[
     if (v.earliest && v.latest && v.earliest > v.latest) errors.push(`${name}: the earliest day is after the latest.`);
     if (r.weekdays === true) v.weekdays = true;
   }
+  if (type === "url" && r.https === true) v.https = true;
   if (type === "phone") {
     const c = str(r.country, 2);
     if (c && /^[A-Z]{2}$/.test(c)) v.country = c;
@@ -389,6 +396,7 @@ export function checkForm(raw: unknown, ctx: Ctx = {}): { form: Form } | { error
           ...(str(ro.high, 60) ? { high: str(ro.high, 60) } : {}),
         };
       }
+      if (fo.logic === "all") f.logic = "all";
       if (isChoice(type)) {
         if (fo.other === true) f.other = true;
         if (fo.shuffle === true) f.shuffle = true;
@@ -462,6 +470,17 @@ export function checkForm(raw: unknown, ctx: Ctx = {}): { form: Form } | { error
     }
     rules.push({ id, when: { field: wf, op, ...(op === "is" || op === "is_not" ? { value: str(ro.when?.value, 200) ?? "" } : {}) }, then: { action, field: tf } });
   }
+  rawSteps.slice(0, LIMITS.steps).forEach((raw, i) => {
+    const sk = (raw && typeof raw === "object" ? (raw as Record<string, unknown>).skip : null) as { when?: Record<string, unknown>; to?: unknown } | null;
+    if (!sk || typeof sk !== "object" || !steps[i]) return;
+    const field = str(sk.when?.field, 24) ?? "";
+    const op = ["is", "is_not", "filled", "empty"].includes(sk.when?.op as string) ? (sk.when!.op as Rule["when"]["op"]) : null;
+    const to = Math.round(Number(sk.to));
+    const earlier = steps.slice(0, i + 1).some((s) => s.fields.some((f) => f.id === field && !isContent(f.type)));
+    if (!op || !earlier) errors.push(`Step ${i + 1} skips on a field that isn't on it or before it.`);
+    else if (!Number.isFinite(to) || to <= i + 1 || to >= steps.length) errors.push(`Step ${i + 1} skips to a step that isn't after the next one.`);
+    else steps[i].skip = { when: { field, op, ...(op === "is" || op === "is_not" ? { value: str(sk.when?.value, 200) ?? "" } : {}) }, to };
+  });
   const emailField = steps.flatMap((s) => s.fields).find((f) => f.key === "email");
   if (emailField && rules.some((x) => x.then.field === emailField.id && x.then.action !== "require")) errors.push("The email field can't be hidden by a rule.");
 
@@ -538,7 +557,7 @@ export function checkForm(raw: unknown, ctx: Ctx = {}): { form: Form } | { error
     },
     ...(str(r.title, LIMITS.label) ? { title: str(r.title, LIMITS.label) } : {}),
     ...(str(r.intro, LIMITS.text) ? { intro: str(r.intro, LIMITS.text) } : {}),
-    submit: { label: str(submit.label, 60) || "Submit" },
+    submit: { label: str(submit.label, 60) || "Submit", ...(submit.full === true ? { full: true } : {}) },
     consent: { mode: consentMode, label: consentLabel, ...(topicId ? { topicId } : {}) },
     spam: { minSeconds: Number.isFinite(minSeconds) ? Math.min(Math.max(minSeconds, 0), 30) : 2, turnstile: spam.turnstile === true },
     after: { end, ...(schedule ? { schedule } : {}) },
@@ -566,19 +585,43 @@ export function visibility(form: Pick<Form, "steps" | "rules">, answers: Record<
   // A field that a "show" rule controls starts hidden.
   for (const r of form.rules) if (r.then.action === "show") shown.delete(r.then.field);
   const byId = new Map(fields.map((f) => [f.id, f]));
-  for (const r of form.rules) {
+  // A field set to "all" acts only when every one of its rules for that action matches; the last one decides.
+  const group = (r: Rule) => `${r.then.field}|${r.then.action}`;
+  const last = new Map<string, number>();
+  form.rules.forEach((r, i) => last.set(group(r), i));
+  const missed = new Set<string>();
+  form.rules.forEach((r, i) => {
     const src = byId.get(r.when.field);
-    if (!src) continue;
-    const v = answers[src.id];
-    const list = Array.isArray(v) ? v.map(String) : v === undefined || v === null || v === "" || v === false ? [] : [String(v)];
-    const hit =
-      r.when.op === "filled" ? list.length > 0 : r.when.op === "empty" ? list.length === 0 : r.when.op === "is" ? list.includes(r.when.value ?? "") : !list.includes(r.when.value ?? "");
+    const all = byId.get(r.then.field)?.logic === "all";
     // A rule on a hidden field never fires.
-    if (!hit || (src.type !== "hidden" && !shown.has(src.id))) continue;
+    const hit = !!src && whenHits(r.when, answers[src.id]) && (src.type === "hidden" || shown.has(src.id));
+    if (all) {
+      if (!hit) missed.add(group(r));
+      if (last.get(group(r)) !== i || missed.has(group(r))) return;
+    } else if (!hit) return;
     if (r.then.action === "show") shown.add(r.then.field);
     else if (r.then.action === "hide") shown.delete(r.then.field);
     else required.add(r.then.field);
-  }
+  });
   for (const id of [...required]) if (!shown.has(id)) required.delete(id);
   return { shown, required };
+}
+
+/** Whether a rule's condition holds for an answer. */
+export function whenHits(when: Rule["when"], v: unknown): boolean {
+  const list = Array.isArray(v) ? v.map(String) : v === undefined || v === null || v === "" || v === false ? [] : [String(v)];
+  return when.op === "filled" ? list.length > 0 : when.op === "empty" ? list.length === 0 : when.op === "is" ? list.includes(when.value ?? "") : !list.includes(when.value ?? "");
+}
+
+/**
+ * The step to show after `from` given the answers: the step's skip target when its condition holds (and the field
+ * it reads is on a step already passed), else the next one. Returns form.steps.length when the form is done.
+ */
+export function nextStep(form: Pick<Form, "steps">, from: number, answers: Record<string, unknown>): number {
+  const skip = form.steps[from]?.skip;
+  if (skip && skip.to > from + 1 && skip.to < form.steps.length) {
+    const before = form.steps.slice(0, from + 1).some((s) => s.fields.some((f) => f.id === skip.when.field));
+    if (before && whenHits(skip.when, answers[skip.when.field])) return skip.to;
+  }
+  return from + 1;
 }

@@ -141,7 +141,7 @@ function StepFrame(props: CanvasProps & { si: number; z: number; fw: number }) {
         onClear();
       }}
       className="rounded-sm border border-line shadow-soft"
-      style={{ width: fw, background: t.background, padding: pad, fontFamily: t.font, fontSize: t.fontSize, color: t.text, lineHeight: 1.45 }}
+      style={{ width: fw, background: t.background, padding: pad, fontFamily: t.font, fontSize: t.fontSize, color: t.text, lineHeight: 1.45, fontVariantNumeric: "normal", letterSpacing: "normal" }}
     >
       <div className="mx-auto flex flex-col" style={{ maxWidth: formWidth(form.layout), gap: t.gap }}>
         {si === 0 && (form.title || editing?.kind === "title") ? (
@@ -205,12 +205,12 @@ function StepFrame(props: CanvasProps & { si: number; z: number; fw: number }) {
               onDone={(v) => onCommit({ kind: "submit" }, v)}
               onCancel={() => onEdit(null)}
               label="Button text"
-              className="inline-flex items-center px-[22px]"
+              className={`inline-flex items-center px-[22px] ${form.submit.full ? "flex-1 justify-center" : ""}`}
               style={{ minHeight: t.inputHeight, background: t.buttonBg, color: t.buttonText, borderRadius: t.buttonRadius, fontWeight: t.buttonWeight, textTransform: t.buttonCase }}
             />
           ) : (
             <span
-              className="inline-flex items-center px-[22px]"
+              className={`inline-flex items-center px-[22px] ${form.submit.full ? "flex-1 justify-center" : ""}`}
               style={{ minHeight: t.inputHeight, background: t.buttonBg, color: t.buttonText, borderRadius: t.buttonRadius, fontWeight: t.buttonWeight, textTransform: t.buttonCase }}
             >
               Next

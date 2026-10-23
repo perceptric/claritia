@@ -3,7 +3,7 @@
 // problems, while the builder lets a draft be unfinished and blocks only the publish. Runs in the browser and on
 // the server.
 
-import { allFields, checkForm, CONTACT_KEYS, isChoice, isContent, newId, questionKey, type After, type Choice, type Field, type FieldKey, type FieldType, type Form, type Rule } from "./schema.ts";
+import { allFields, checkForm, CONTACT_KEYS, isChoice, isContent, newId, questionKey, type After, type Choice, type Field, type FieldKey, type FieldType, type Form, type Rule, type Step } from "./schema.ts";
 
 export type FieldInput = Partial<Omit<Field, "id">> & { type: FieldType; label: string };
 
@@ -13,12 +13,12 @@ export type Op =
   | { op: "remove_field"; id: string }
   | { op: "move_field"; id: string; step: number; index: number }
   | { op: "add_step"; title?: string }
-  | { op: "update_step"; index: number; title: string }
+  | { op: "update_step"; index: number; title?: string; skip?: Step["skip"] | null }
   | { op: "remove_step"; index: number }
   | { op: "set_rule"; rule: Omit<Rule, "id"> & { id?: string } }
   | { op: "remove_rule"; id: string }
   | { op: "set_layout"; labels?: Form["layout"]["labels"]; width?: Form["layout"]["width"]; progress?: Form["layout"]["progress"]; maxWidth?: number | null }
-  | { op: "set_copy"; title?: string; intro?: string; submit?: string }
+  | { op: "set_copy"; title?: string; intro?: string; submit?: string; submitFull?: boolean }
   | { op: "set_consent"; mode?: Form["consent"]["mode"]; label?: string; topicId?: string | null }
   | { op: "set_spam"; minSeconds?: number; turnstile?: boolean }
   | { op: "set_after"; end: After["end"] }
@@ -119,8 +119,12 @@ export function applyOp(input: Form, op: Op): { form: Form } | { error: string }
       return { form };
     case "update_step":
       if (!form.steps[op.index]) return { error: "That step doesn't exist." };
-      form.steps[op.index].title = op.title || undefined;
-      if (!form.steps[op.index].title) delete form.steps[op.index].title;
+      if (op.title !== undefined) {
+        form.steps[op.index].title = op.title || undefined;
+        if (!form.steps[op.index].title) delete form.steps[op.index].title;
+      }
+      if (op.skip === null) delete form.steps[op.index].skip;
+      else if (op.skip) form.steps[op.index].skip = op.skip;
       return { form };
     case "remove_step": {
       if (!form.steps[op.index]) return { error: "That step doesn't exist." };
@@ -148,7 +152,8 @@ export function applyOp(input: Form, op: Op): { form: Form } | { error: string }
     case "set_copy":
       if (op.title !== undefined) form.title = op.title || undefined;
       if (op.intro !== undefined) form.intro = op.intro || undefined;
-      if (op.submit !== undefined) form.submit = { label: op.submit };
+      if (op.submit !== undefined) form.submit = { ...form.submit, label: op.submit };
+      if (op.submitFull !== undefined) form.submit = { label: form.submit.label, ...(op.submitFull ? { full: true } : {}) };
       if (!form.title) delete form.title;
       if (!form.intro) delete form.intro;
       return { form };
@@ -210,7 +215,7 @@ export function describeOp(op: Op, before: Form): string {
     case "add_step":
       return `Added a step${op.title ? `: ${op.title}` : ""}`;
     case "update_step":
-      return `Renamed step ${op.index + 1}`;
+      return op.title !== undefined ? `Renamed step ${op.index + 1}` : `Changed where step ${op.index + 1} goes next`;
     case "remove_step":
       return `Removed step ${op.index + 1}`;
     case "set_rule":

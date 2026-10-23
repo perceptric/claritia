@@ -8,8 +8,8 @@
 
 import { tokensCss, type Tokens } from "./brand.ts";
 import { countryNames } from "./countries.ts";
-import { allFields, isContent, safeUrl, visibility, type Choice, type Field, type FieldWidth, type Form } from "./schema.ts";
-import { checkAnswers, OTHER, type Answers } from "./values.ts";
+import { allFields, isContent, nextStep, safeUrl, visibility, type Choice, type Field, type FieldWidth, type Form } from "./schema.ts";
+import { checkAnswers, OTHER, stepPath, type Answers } from "./values.ts";
 
 type Loaded = { id: string; version: number; status: "live" | "paused"; body: Form; tokens: Partial<Tokens>; strict?: boolean; turnstile?: string };
 type Queued = { url: string; body: string; key: string; at: number; tries: number };
@@ -47,7 +47,7 @@ const STYLES = `
 .g{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:var(--clr-gap)}
 .fl{grid-column:span 6;display:flex;flex-direction:column;gap:6px;min-width:0}
 .w4{grid-column:span 4}.w3{grid-column:span 3}.w2{grid-column:span 2}
-@container (max-width:480px){.fl{grid-column:span 6}.np{display:none}}
+@container (max-width:400px){.fl{grid-column:span 6}.np{display:none}}
 .lb{font-size:var(--clr-label-size);font-weight:var(--clr-label-weight)}
 .rq{color:var(--clr-muted);margin-left:2px}
 .hp{font-size:.85em;color:var(--clr-muted);margin:0}
@@ -87,6 +87,7 @@ textarea.in{min-height:calc(var(--clr-input-h)*2.4);padding:10px 12px;resize:ver
 .im{display:block;max-width:100%;height:auto;border-radius:var(--clr-radius)}
 .ce{text-align:center;align-items:center}
 .ac{display:flex;gap:10px;align-items:center}
+.fw{flex:1}
 .bt{min-height:var(--clr-input-h);padding:0 22px;border:0;border-radius:var(--clr-btn-radius);background:var(--clr-btn-bg);color:var(--clr-btn-text);font-weight:var(--clr-btn-weight);text-transform:var(--clr-btn-case);cursor:pointer}
 .bt:disabled{opacity:.6;cursor:default}
 .bt.bk{background:transparent;color:var(--clr-text);border:var(--clr-border-w) solid var(--clr-border)}
@@ -538,7 +539,8 @@ export class ClaritiaForm extends Base {
     if (this.done) return this.put(style, this.endScreen(form));
 
     const { shown, required } = visibility(form, this.answers);
-    const last = this.step === form.steps.length - 1;
+    // The last step is the one whose next step (after any skip) is the end.
+    const last = nextStep(form, this.step, this.answers) >= form.steps.length;
     const step = form.steps[this.step];
     const wrap = el("form", { class: "f", novalidate: true, "aria-label": form.title || "Form" });
     if (form.title) wrap.append(el("h2", { class: "h", text: form.title }));
@@ -562,13 +564,16 @@ export class ClaritiaForm extends Base {
     if (this.step > 0) {
       const back = el("button", { type: "button", class: "bt bk", text: "Back" });
       back.addEventListener("click", () => {
-        this.step--;
+        // Back goes along the path the answers took, so a skipped step stays skipped.
+        const path = stepPath(form, this.answers);
+        const at = path.indexOf(this.step);
+        this.step = at > 0 ? path[at - 1]! : this.step - 1;
         this.alert = "";
         this.render();
       });
       actions.append(back);
     }
-    actions.append(el("button", { type: "submit", class: "bt", disabled: this.sending, text: this.sending ? "Sending…" : last ? form.submit.label : "Next" }));
+    actions.append(el("button", { type: "submit", class: form.submit.full ? "bt fw" : "bt", disabled: this.sending, text: this.sending ? "Sending…" : last ? form.submit.label : "Next" }));
     wrap.append(actions);
     wrap.addEventListener("submit", (e) => {
       e.preventDefault();
@@ -1001,8 +1006,9 @@ export class ClaritiaForm extends Base {
       (first && !first.matches("input,button,textarea") ? (first.querySelector("input,button") as HTMLElement | null) : first)?.focus();
       return;
     }
-    if (this.step < form.steps.length - 1) {
-      this.step++;
+    const to = nextStep(form, this.step, this.answers);
+    if (to < form.steps.length) {
+      this.step = to;
       this.render();
       (this.root.querySelector(".in, .bx, input") as HTMLElement | null)?.focus();
       return;

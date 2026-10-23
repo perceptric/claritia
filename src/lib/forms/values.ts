@@ -2,7 +2,7 @@
 // as people type; the server runs it again on every submit and trusts nothing the browser sent. Answers to fields
 // that rules hid are dropped. Runs in the browser and on the server.
 
-import { allFields, isChoice, isContent, visibility, type Field, type FieldKey, type Form } from "./schema.ts";
+import { allFields, isChoice, isContent, nextStep, visibility, type Field, type FieldKey, type Form } from "./schema.ts";
 
 export type Answers = Record<string, unknown>;
 export type Checked = {
@@ -92,6 +92,7 @@ function base(f: Field, raw: unknown): { value?: string | number | boolean | str
     }
     case "url": {
       const u = cleanWebsite(v);
+      if (u && c.https && !u.startsWith("https://")) return { error: "Use a link that starts with https://." };
       return u ? chars(u) : { error: "Enter a website like acme.com." };
     }
     case "choice":
@@ -113,6 +114,9 @@ function base(f: Field, raw: unknown): { value?: string | number | boolean | str
 export function checkAnswers(form: Form, answers: Answers, opts: { hidden?: Record<string, string>; steps?: number[] } = {}): Checked {
   const { shown, required } = visibility(form, answers);
   const onSteps = new Set((opts.steps ? opts.steps.map((i) => form.steps[i]).filter(Boolean) : form.steps).flatMap((s) => s.fields.map((f) => f.id)));
+  // Steps a skip jumped over count as not shown: nothing on them is required or kept.
+  const path = stepPath(form, answers);
+  const skipped = new Set(form.steps.filter((_, i) => !path.includes(i)).flatMap((s) => s.fields.map((f) => f.id)));
   const out: Checked = { values: {}, errors: {} };
   for (const f of allFields(form)) {
     if (isContent(f.type)) continue;
@@ -121,7 +125,7 @@ export function checkAnswers(form: Form, answers: Answers, opts: { hidden?: Reco
       if (typeof hv === "string" && hv.trim()) out.values[f.key] = hv.trim().slice(0, 500);
       continue;
     }
-    if (!shown.has(f.id)) continue;
+    if (!shown.has(f.id) || skipped.has(f.id)) continue;
     const r = one(f, answers[f.id]);
     if (onSteps.has(f.id)) {
       if (r.error) out.errors[f.id] = r.error;
@@ -158,4 +162,11 @@ export function contactParts(values: Checked["values"]) {
     region: s("region")?.slice(0, 100),
     fields,
   };
+}
+
+/** The steps a visitor goes through given the answers, following each step's skip. */
+export function stepPath(form: Form, answers: Answers): number[] {
+  const path: number[] = [];
+  for (let i = 0; i < form.steps.length && path.length <= form.steps.length; i = nextStep(form, i, answers)) path.push(i);
+  return path;
 }

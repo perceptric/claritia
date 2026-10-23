@@ -37,7 +37,7 @@ export function Elements({ onAdd }: { onAdd: (def: ElementDef) => void }) {
         return (
           <div key={g} className="px-3 pb-3">
             <p className="mb-1.5 text-[12px] font-medium text-muted">{g}</p>
-            <div className="grid grid-cols-3 gap-1.5">
+            <div className="grid grid-cols-2 gap-1.5">
               {items.map((e) => (
                 <Tile key={e.id} def={e} onAdd={() => onAdd(e)} />
               ))}
@@ -60,10 +60,10 @@ function Tile({ def, onAdd }: { def: ElementDef; onAdd: () => void }) {
       {...listeners}
       onClick={onAdd}
       title={def.name}
-      className={`press flex h-[62px] min-w-0 flex-col items-center justify-center gap-1.5 rounded-lg border border-line bg-card px-1 text-ink transition-[border-color,box-shadow,transform] duration-[140ms] hover:-translate-y-px hover:border-line-strong hover:shadow-soft ${isDragging ? "opacity-40" : ""}`}
+      className={`press flex h-10 min-w-0 items-center gap-2 rounded-lg border border-line bg-card px-2.5 text-left text-ink transition-[border-color,box-shadow,transform] duration-[140ms] hover:-translate-y-px hover:border-line-strong hover:shadow-soft ${isDragging ? "opacity-40" : ""}`}
     >
-      <ElementIcon name={def.icon} size={16} className="text-body" />
-      <span className="w-full truncate text-center text-[11.5px] leading-none">{def.name}</span>
+      <ElementIcon name={def.icon} size={15} className="shrink-0 text-body" />
+      <span className="min-w-0 flex-1 truncate text-[12.5px] leading-none">{def.name}</span>
     </button>
   );
 }

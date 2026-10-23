@@ -356,6 +356,7 @@ function ValidationTab({ f, patch }: { f: Field; patch: PatchFn }) {
             <Switch label="Weekdays only" on={!!v.weekdays} onChange={(weekdays) => set({ weekdays: weekdays || undefined })} />
           </>
         ) : null}
+        {f.type === "url" ? <Switch label="https only" on={!!v.https} onChange={(https) => set({ https: https || undefined })} /> : null}
       </Section>
       <Section title="Error">
         <Row label="Message">
@@ -532,13 +533,15 @@ function LogicTab({ form, f, apply }: { form: Form; f: Field; apply: (op: Op | O
             ]}
             onChange={(m) => apply(setShownOps(form, f.id, m, newId()))}
           />
-          {mode !== "always" ? <RuleList form={form} rules={shownRules} sources={sources} apply={apply} onAdd={() => addRule(mode)} /> : null}
+          {mode !== "always" && shownRules.length > 1 ? <MatchSeg f={f} apply={apply} /> : null}
+          {mode !== "always" ? <RuleList form={form} rules={shownRules} sources={sources} apply={apply} onAdd={() => addRule(mode)} all={f.logic === "all"} /> : null}
         </Section>
       ) : null}
       {canRequire ? (
         <Section first={f.key === "email"} title="Require when">
+          {reqRules.length > 1 ? <MatchSeg f={f} apply={apply} /> : null}
           {reqRules.length ? (
-            <RuleList form={form} rules={reqRules} sources={sources} apply={apply} onAdd={() => addRule("require")} />
+            <RuleList form={form} rules={reqRules} sources={sources} apply={apply} onAdd={() => addRule("require")} all={f.logic === "all"} />
           ) : (
             <button type="button" onClick={() => addRule("require")} className="press inline-flex h-7 items-center gap-1 self-start rounded-full px-2 text-[12px] font-medium text-ink hover:bg-hover">
               <Plus size={12} />
@@ -551,12 +554,27 @@ function LogicTab({ form, f, apply }: { form: Form; f: Field; apply: (op: Op | O
   );
 }
 
-function RuleList({ form, rules, sources, apply, onAdd }: { form: Form; rules: Rule[]; sources: Field[]; apply: (op: Op | Op[]) => void; onAdd: () => void }) {
+/** Whether a field's conditions all have to hold, or any one. */
+function MatchSeg({ f, apply }: { f: Field; apply: (op: Op | Op[]) => void }) {
+  return (
+    <Seg
+      label="Match"
+      value={f.logic ?? "any"}
+      options={[
+        { value: "any", label: "Any" },
+        { value: "all", label: "All" },
+      ]}
+      onChange={(m) => apply({ op: "update_field", id: f.id, patch: { logic: m === "all" ? "all" : undefined } })}
+    />
+  );
+}
+
+function RuleList({ form, rules, sources, apply, onAdd, all = false }: { form: Form; rules: Rule[]; sources: Field[]; apply: (op: Op | Op[]) => void; onAdd: () => void; all?: boolean }) {
   return (
     <div className="flex flex-col gap-1.5">
       {rules.map((r, i) => (
         <div key={r.id} className="flex flex-col gap-1.5">
-          {i > 0 ? <span className="pl-1 text-[11px] font-medium text-muted">or</span> : null}
+          {i > 0 ? <span className="pl-1 text-[11px] font-medium text-muted">{all ? "and" : "or"}</span> : null}
           <RuleRow form={form} rule={r} sources={sources} apply={apply} />
         </div>
       ))}
@@ -677,6 +695,7 @@ function FormPanel({ form, apply }: { form: Form; apply: (op: Op | Op[]) => void
           <Row label="Button">
             <TextIn label="Button text" value={form.submit.label} onChange={(submit) => apply({ op: "set_copy", submit })} />
           </Row>
+          <Switch label="Full-width button" on={!!form.submit.full} onChange={(submitFull) => apply({ op: "set_copy", submitFull })} />
         </Section>
         <Section title="Layout">
           <Row label="Labels">
@@ -716,7 +735,57 @@ function FormPanel({ form, apply }: { form: Form; apply: (op: Op | Op[]) => void
             />
           </Row>
         </Section>
+        {form.steps.length > 2 ? (
+          <Section title="Skip steps">
+            {form.steps.slice(0, -2).map((s, i) => (
+              <StepSkip key={s.id} form={form} index={i} apply={apply} />
+            ))}
+          </Section>
+        ) : null}
       </div>
+    </div>
+  );
+}
+
+/** After a step: go on to the next one, or jump ahead to a later step when a condition holds. */
+function StepSkip({ form, index, apply }: { form: Form; index: number; apply: (op: Op | Op[]) => void }) {
+  const skip = form.steps[index].skip;
+  const sources = form.steps.slice(0, index + 1).flatMap((s) => s.fields).filter((f) => !isContent(f.type));
+  const set = (next: NonNullable<typeof skip> | null) => apply({ op: "update_step", index, skip: next });
+  const later = form.steps.map((_, k) => k).filter((k) => k > index + 1);
+  const src = sources.find((x) => x.id === skip?.when.field);
+  const values = ruleValues(src);
+  const needs = skip?.when.op === "is" || skip?.when.op === "is_not";
+  return (
+    <div className="flex flex-col gap-1.5">
+      <Row label={`After ${index + 1}`}>
+        <Pick<string>
+          label={`After step ${index + 1}`}
+          value={skip ? String(skip.to) : "next"}
+          options={[{ value: "next", label: `Step ${index + 2}` }, ...later.map((k) => ({ value: String(k), label: `Skip to step ${k + 1}` }))]}
+          onChange={(v) => (v === "next" ? set(null) : sources[0] && set({ when: skip?.when ?? { field: sources[0].id, op: "filled" }, to: Number(v) }))}
+        />
+      </Row>
+      {skip ? (
+        <div className="grid grid-cols-[minmax(0,1fr)_96px] gap-1 rounded-lg border border-line bg-paper p-2">
+          <Pick<string> label="Skip when field" value={skip.when.field} options={sources.map((x) => ({ value: x.id, label: nameOf(x) }))} onChange={(field) => set({ ...skip, when: { field, op: skip.when.op, ...(needs ? { value: "" } : {}) } })} />
+          <Pick<string>
+            label="Skip condition"
+            value={skip.when.op}
+            options={RULE_OPS}
+            onChange={(op) => set({ ...skip, when: { field: skip.when.field, op: op as Rule["when"]["op"], ...(op === "is" || op === "is_not" ? { value: skip.when.value ?? values?.[0]?.value ?? "" } : {}) } })}
+          />
+          {needs ? (
+            <span className="col-span-2">
+              {values ? (
+                <Pick<string> label="Skip value" value={skip.when.value ?? ""} placeholder="Pick" options={values} onChange={(value) => set({ ...skip, when: { ...skip.when, value } })} />
+              ) : (
+                <TextIn label="Skip value" value={skip.when.value ?? ""} onChange={(value) => set({ ...skip, when: { ...skip.when, value } })} />
+              )}
+            </span>
+          ) : null}
+        </div>
+      ) : null}
     </div>
   );
 }
