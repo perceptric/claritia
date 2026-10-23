@@ -387,6 +387,9 @@ export async function applyHooks(d: Deps, events: HookEvent[]): Promise<Counts> 
     const got = object === "contacts" ? await applyContacts(d, all) : await applyCompanies(d, all);
     for (const k of ["pulled", "written", "skipped", "errors"] as const) c[k] += got[k];
   }
+  // Meetings booked in a scheduling tool, after their contacts exist: linked to the form fill they came from.
+  const bookings = events.flatMap((e) => (e.booking && e.booking.id ? [e.booking] : []));
+  if (bookings.length) await call(d.rpc, "booking_record", { p_source: d.ctx.source.id, p_rows: bookings });
   return c;
 }
 
@@ -421,10 +424,20 @@ type Candidate = {
 const plain = (c: Candidate) => ({ ...c, first_name: c.first_name ?? undefined, last_name: c.last_name ?? undefined, title: c.title ?? undefined, phone: c.phone ?? undefined, country: c.country ?? undefined, region: c.region ?? undefined, timezone: c.timezone ?? undefined, lifecycle: c.lifecycle ?? undefined, lead_status: c.lead_status ?? undefined, company_name: c.company_name ?? undefined, company_domain: c.company_domain ?? undefined });
 
 /** Push contacts that changed here. `ids` pushes just those (a retry from the sync log). */
-export async function push(d: Deps, opts: { ids?: string[]; budgetMs?: number; batch?: number } = {}): Promise<Counts & { more: boolean }> {
+/** How one contact's push ended, for callers that send chosen contacts (form deliveries). */
+export type PushOutcome = { externalId?: string; error?: string; gone?: boolean };
+
+/**
+ * Contacts out to the tool. `force` sends the given ids even when the source only pulls and its "push new" setting
+ * would hold them (a form chose this tool as a destination); `outcome` gets how each one ended.
+ */
+export async function push(
+  d: Deps,
+  opts: { ids?: string[]; budgetMs?: number; batch?: number; force?: boolean; outcome?: Map<string, PushOutcome> } = {},
+): Promise<Counts & { more: boolean }> {
   const c = { ...zero(), more: false };
   const src = d.ctx.source;
-  if (!d.connector.push || (src.settings.objects?.contacts ?? "in") !== "both") return c;
+  if (!d.connector.push || (!(opts.force && opts.ids) && (src.settings.objects?.contacts ?? "in") !== "both")) return c;
   const now = d.now ?? Date.now;
   const start = now();
   const all = effectiveMapping(d.connector, "contact", d.saved, [], d.clean.custom);
@@ -442,10 +455,11 @@ export async function push(d: Deps, opts: { ids?: string[]; budgetMs?: number; b
       const x = plain(k);
       const ours = agreed(cols, x);
       if (!k.external_id) {
-        const allowed = pushNew === "all" || (pushNew === "lifecycle" && !!k.lifecycle && k.lifecycle !== "subscriber");
+        const allowed = opts.force || pushNew === "all" || (pushNew === "lifecycle" && !!k.lifecycle && k.lifecycle !== "subscriber");
         if (!allowed) continue;
       } else if (changedKeys(pushPart(k.last), pushPart(ours)).length === 0) {
         c.skipped++;
+        opts.outcome?.set(k.id, { externalId: k.external_id });
         continue;
       }
       changes.push({ localId: k.id, externalId: k.external_id, values: toRemote(cols, x), ours, last: k.last });
@@ -459,17 +473,20 @@ export async function push(d: Deps, opts: { ids?: string[]; budgetMs?: number; b
       for (const ch of changes) {
         const r = byId.get(ch.localId);
         if (r?.gone && ch.externalId) {
+          opts.outcome?.set(ch.localId, { gone: true, error: "The record was deleted in the tool." });
           gone.push(ch.externalId);
           rows.push({ direction: "in", object: "contact", local_id: ch.localId, external_id: ch.externalId, action: "delete" });
           continue;
         }
         if (!r || r.error || !r.externalId) {
+          opts.outcome?.set(ch.localId, { error: r?.error ?? "The tool didn't answer for this contact." });
           c.errors++;
           rows.push({ direction: "out", object: "contact", local_id: ch.localId, external_id: ch.externalId, action: "error", error: r?.error ?? "The tool didn't answer for this contact." });
           continue;
         }
         // What the tool now holds: what it had, with what we sent.
         put.push({ external_id: r.externalId, local_id: ch.localId, values: { ...(ch.last ?? {}), ...pushPart(ch.ours) } });
+        opts.outcome?.set(ch.localId, { externalId: r.externalId });
         rows.push({ direction: "out", object: "contact", local_id: ch.localId, external_id: r.externalId, action: ch.externalId ? "update" : "create", fields: changedKeys(pushPart(ch.last), pushPart(ch.ours)) });
         c.written++;
       }

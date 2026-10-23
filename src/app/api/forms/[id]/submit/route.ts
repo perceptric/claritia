@@ -1,43 +1,47 @@
 import { cleaningCtx } from "@/lib/contacts/server";
-import { submitForm } from "@/lib/forms/submit";
+import { allowed, clientIp, cors, edgeCountry, json, loadPublic, turnstileOk } from "@/lib/forms/server";
+import { acceptFill, qaOk, type Incoming } from "@/lib/forms/submit";
 import { serviceClient } from "@/lib/serviceClient";
 
-// A form's answers. The work is in src/lib/forms/submit.ts.
+// A fill from <claritia-form> (docs/form-builder.md Part 2). Checks everything again, then form_submit saves the
+// submission, the contact, the consent and one delivery per destination in one transaction. The same idem key
+// sent again answers with the first submission.
 
-async function turnstileOk(token: unknown, ip: string): Promise<boolean> {
-  const secret = process.env.TURNSTILE_SECRET_KEY?.trim();
-  if (!secret) return true;
-  if (typeof token !== "string" || !token) return false;
-  const res = await fetch("https://challenges.cloudflare.com/turnstile/v0/siteverify", {
-    method: "POST",
-    body: new URLSearchParams({ secret, response: token, ...(ip ? { remoteip: ip } : {}) }),
-    signal: AbortSignal.timeout(8_000),
-  }).catch(() => null);
-  const j = res ? ((await res.json().catch(() => ({}))) as { success?: boolean }) : {};
-  return j.success === true;
-}
+const ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+const MAX_BODY = 64 * 1024;
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const db = serviceClient();
-  if (!db || !/^[0-9a-f-]{36}$/.test(id)) return Response.json({ error: "This form isn't available." }, { status: 404 });
-  const raw = await request.text();
-  if (raw.length > 100_000) return Response.json({ error: "Too much." }, { status: 413 });
-  let body: unknown;
+  if (!ID.test(id)) return json({ error: "Form not found." }, 404);
+  const ip = clientIp(request);
+  if (!allowed(`ip:${id}:${ip}`, 10) || !allowed(`form:${id}`, 600)) return json({ error: "Too many tries. Wait a minute and send again." }, 429, { "Retry-After": "60" });
+  const text = await request.text();
+  if (text.length > MAX_BODY) return json({ error: "That's too much text." }, 413);
+  let raw: Incoming;
   try {
-    body = JSON.parse(raw);
+    raw = JSON.parse(text) as Incoming;
   } catch {
-    return Response.json({ error: "Something went wrong. Try again." }, { status: 400 });
+    return json({ error: "Bad request." }, 400);
   }
-  const out = await submitForm(
-    { rpc: (fn, args) => db.rpc(fn, args), clean: (ws) => cleaningCtx(db, ws), captcha: turnstileOk, captchaOn: !!(process.env.TURNSTILE_SITE_KEY && process.env.TURNSTILE_SECRET_KEY) },
-    id,
-    body,
-    {
-      ip: (request.headers.get("fly-client-ip") ?? request.headers.get("x-forwarded-for") ?? "").split(",")[0].trim(),
-      userAgent: request.headers.get("user-agent") ?? "",
-      preview: new URL(request.url).searchParams.get("preview") === "1",
-    },
-  );
-  return Response.json(out.body, { status: out.status });
+  const db = serviceClient();
+  if (!db) return json({ error: "Not set up." }, 503);
+  try {
+    const f = await loadPublic(db, id, true);
+    if (!f || f.status !== "live") return json({ error: "This form isn't taking answers." }, 410);
+    const ctx = await cleaningCtx(db, f.workspace_id);
+    const turnstileFailed = f.body.spam.turnstile ? !(await turnstileOk(raw.turnstile, ip)) : false;
+    const r = await acceptFill((fn, args) => db.rpc(fn, args), f, raw, ctx, {
+      country: edgeCountry(request),
+      turnstileFailed,
+      origin: request.headers.get("origin"),
+      test: qaOk(id, raw.qa, process.env.SECRETS_KEY),
+    });
+    return json(r.body, r.status);
+  } catch {
+    return json({ error: "Try again in a moment." }, 503);
+  }
+}
+
+export function OPTIONS() {
+  return new Response(null, { status: 204, headers: cors });
 }

@@ -1,141 +1,309 @@
-// Forms on a real database: a real answer becomes one contact with its consent, topic and event; bots, fast posts,
-// floods, stale pages and bad emails are held back or refused; a draft takes no answers; a CRM hears about it.
+// Forms on a real database (docs/form-builder.md Part 12): a fill sent again lands once; spam never becomes a contact;
+// consent keeps its wording; HubSpot failing, then timing out after it made the record, ends with one HubSpot contact;
+// Slack down for hours waits and sends once; a paused destination holds and then sends in order; two workers can't
+// send the same delivery; a field removed later still shows on old fills.
 import assert from "node:assert/strict";
-import { after, before, test } from "node:test";
+import { after, test } from "node:test";
 import pg from "pg";
 import { uuid7 } from "../../collect/ids.ts";
-import { submitForm, type SubmitDeps } from "../../src/lib/forms/submit.ts";
-import { shownToken } from "../../src/lib/forms/token.ts";
-import { ctxFor } from "../../worker-intel/jobs/imports.ts";
+import { labeled, signature, type Taken } from "../../src/lib/delivery/send.ts";
+import { checkForm, type Form } from "../../src/lib/forms/schema.ts";
+import { prepareSubmit } from "../../src/lib/forms/submit.ts";
+import { TEMPLATES } from "../../src/lib/forms/templates.ts";
+import { seal } from "../../src/lib/seal.ts";
+import type { RunOpts } from "../../src/lib/sources/run.ts";
 import { pgRpc } from "../../worker-intel/rpc.ts";
+import { deliverHeld, deliverOnce } from "../../worker-intel/jobs/deliver.ts";
+import { ctxFor } from "../../worker-intel/jobs/imports.ts";
+import { FakeHubspot, rng } from "../sources/fakeHubspot.ts";
 
 process.env.SECRETS_KEY ||= "test-secrets-key-that-is-long-enough-1234";
 const url = process.env.PG_URL;
 if (!url) throw new Error("PG_URL is not set");
-const pool = new pg.Pool({ connectionString: url, max: 4 });
+const pool = new pg.Pool({ connectionString: url, max: 6 });
 const q = async (sql: string, p: unknown[] = []) => (await pool.query(sql, p)).rows;
 after(() => pool.end());
 const rpc = pgRpc(pool);
 
-let ws = "";
-let user = "";
-let form = "";
-let topic = "";
-let captchaAnswer = true;
-const deps: SubmitDeps = { rpc, clean: (w) => ctxFor(pool, w), captcha: async () => captchaAnswer, captchaOn: true };
-const meta = (ip = "203.0.113.7") => ({ ip, userAgent: "Mozilla/5.0 test", preview: false });
-const old = () => shownToken(form, Date.now() - 10_000);
-const send = (answers: Record<string, unknown>, ip?: string, context: unknown = {}) => submitForm(deps, form, { answers: { _t: old(), ...answers }, context }, meta(ip));
-const asOwner = async <T>(sql: string, params: unknown[]): Promise<T> => {
-  const c = await pool.connect();
-  try {
-    await c.query(`select set_config('request.jwt.claim.sub', $1, false)`, [user]);
-    await c.query("set role authenticated");
-    return (await c.query(sql, params)).rows[0]?.r as T;
-  } finally {
-    await c.query("reset role");
-    await c.query(`select set_config('request.jwt.claim.sub', '', false)`);
-    c.release();
-  }
-};
-
-const FIELDS = [
-  { key: "email", label: "Work email", type: "email", required: true, maps_to: "email" },
-  { key: "first_name", label: "First name", type: "text", maps_to: "first_name" },
-  { key: "company", label: "Company", type: "text", maps_to: "company" },
-  { key: "seats", label: "Seats", type: "number" },
-  { key: "country", label: "Country", type: "text", maps_to: "country" },
-];
-
-before(async () => {
-  ws = uuid7();
-  user = uuid7();
-  await q(`insert into workspaces (id, name) values ($1, 'forms')`, [ws]);
+async function workspace(name: string) {
+  const ws = uuid7();
+  const user = uuid7();
+  await q(`insert into workspaces (id, name) values ($1, $2)`, [ws, name]);
   await q(`insert into auth.users (id, email) values ($1, $2)`, [user, `${user}@t.io`]);
-  await q(`insert into workspace_members (workspace_id, user_id, role) values ($1, $2, 'member')`, [ws, user]);
-  topic = (await q(`insert into topics (workspace_id, name) values ($1, 'Guides') returning id`, [ws]))[0].id;
-  await assert.rejects(asOwner(`select form_save($1, null, 'No email', $2, '{}') as r`, [ws, JSON.stringify(FIELDS.slice(1))]), /needs an email field/);
-  form = await asOwner<string>(`select form_save($1, null, 'Guide download', $2, $3) as r`, [ws, JSON.stringify(FIELDS), JSON.stringify({ consent: "checkbox", topic_id: topic })]);
+  await q(`insert into workspace_members (workspace_id, user_id, role) values ($1, $2, 'owner')`, [ws, user]);
+  return { ws, user };
+}
+
+/** A live form from a template, published through the same function the app uses. */
+async function liveForm(ws: string, user: string, template = "contact_sales") {
+  const r = checkForm(TEMPLATES.find((t) => t.key === template)!.form());
+  if ("errors" in r) throw new Error(r.errors.join(" "));
+  const id = (await q(`insert into forms (workspace_id, name, draft) values ($1, 'Contact', $2) returning id`, [ws, r.form]))[0].id as string;
+  const v = (await q(`select form_publish($1, $2, $3) as v`, [id, user, r.form]))[0].v as number;
+  return { id, form: r.form, version: v };
+}
+
+async function destination(user: string, form: string, kind: "slack" | "webhook" | "source", o: { source?: string; secret?: object; name?: string } = {}) {
+  return (await q(`select form_destination_save($1, $2, null, $3, $4, $5, '{}', 'upsert', $6) as id`, [user, form, kind, o.source ?? null, o.name ?? kind, o.secret ? seal(JSON.stringify(o.secret)) : null]))[0]
+    .id as string;
+}
+
+/** A fill as the route makes it, through the same checks. */
+async function submit(f: { id: string; form: Form; version: number }, ws: string, answers: Record<string, string>, extra: Record<string, unknown> = {}) {
+  const fields = f.form.steps.flatMap((s) => s.fields);
+  const byKey = Object.fromEntries(Object.entries(answers).map(([k, v]) => [fields.find((x) => x.key === k)!.id, v]));
+  const r = prepareSubmit(f.form, f.version, { v: 1, version: f.version, key: "k".repeat(16) + uuid7().replace(/-/g, "").slice(0, 20), answers: byKey, ms: 5000, ...extra }, await ctxFor(pool, ws));
+  if (!("args" in r)) throw new Error(JSON.stringify(r));
+  const out = (await q(`select form_submit($1, $2, $3, $4, $5, $6, $7, $8, $9, false) as r`, [f.id, r.args.p_version, r.args.p_idem, r.args.p_values, r.args.p_hidden, r.args.p_contact, r.args.p_consent, r.args.p_country, r.args.p_spam]))[0].r;
+  return { ...out, args: r.args } as { id: string; contact_id: string | null; repeat: boolean; args: typeof r.args };
+}
+
+const SALES = { name: "Ana Diaz", email: "ana@acme.com", phone: "+1 415 555 0132", company: "Acme", "q.message": "Pricing please" };
+
+/** A Slack, webhook or anything that counts what it got and fails while `down` says so. */
+function fakeHttp(down: () => boolean) {
+  const got: { url: string; body: Record<string, unknown>; headers: Headers }[] = [];
+  const fetcher: typeof fetch = async (input, init) => {
+    if (down()) return new Response("upstream down", { status: 503 });
+    got.push({ url: String(input), body: JSON.parse(String(init?.body)), headers: new Headers(init?.headers) });
+    return new Response("ok", { status: 200 });
+  };
+  return { got, fetcher };
+}
+
+const sendWith = (fetcher: typeof fetch, extra: Partial<RunOpts> = {}) => ({
+  run: { rpc, clean: (w: string) => ctxFor(pool, w), sleep: async () => {}, ...extra } as RunOpts,
+  fetcher,
+  resolve: (async () => [{ address: "93.184.216.34", family: 4 }]) as never,
 });
 
-test("a draft takes no answers; live, a real answer becomes a contact with consent, topic and event", async () => {
-  assert.equal((await send({ email: "ann@acme.com" })).status, 404, "draft");
-  await asOwner(`select form_publish($1, true) as r`, [form]);
-  const r = await send({ email: "Ann@Acme.com", first_name: "ann", company: "Acme", seats: "40", _consent: "1" }, undefined, {
-    utm: { utm_source: "linkedin", utm_campaign: "q4" },
-    first: { utm_source: "google" },
-    page: "https://acme.io/guide",
-    referrer: "https://www.linkedin.com/",
-  });
-  assert.deepEqual(r, { status: 200, body: { ok: true, email: "Ann@Acme.com" } });
-  const c = (await q(`select id, email_clean, first_name, source, (select name from companies co where co.id = contacts.company_id) company from contacts where workspace_id = $1`, [ws]))[0];
-  assert.deepEqual([c.email_clean, c.first_name, c.source, c.company], ["ann@acme.com", "Ann", "form", "Acme"]);
-  assert.equal((await q(`select basis from consents where contact_id = $1 order by at desc limit 1`, [c.id]))[0].basis, "opt_in");
-  assert.equal((await q(`select status from subscriptions where contact_id = $1 and topic_id = $2`, [c.id, topic]))[0].status, "subscribed");
-  const s = (await q(`select answers, utm, page_url, contact_id, spam from form_submissions where form_id = $1`, [form]))[0];
-  assert.deepEqual(s.answers, { email: "Ann@Acme.com", first_name: "ann", company: "Acme", seats: "40" });
-  assert.deepEqual(s.utm, { utm_source: "linkedin", utm_campaign: "q4", first_utm_source: "google" });
-  assert.equal(s.contact_id, c.id);
-  const e = (await q(`select data from contact_events where contact_id = $1 and kind = 'form.submitted'`, [c.id]))[0].data;
-  assert.equal(e.form_name, "Guide download");
-  assert.equal(e.answers.seats, "40");
+test("a fill sent 3 times, and again a day later from the browser's queue, lands once with one delivery per destination", async () => {
+  const { ws, user } = await workspace("forms-repeat");
+  const f = await liveForm(ws, user);
+  await destination(user, f.id, "slack", { secret: { url: "https://hooks.slack.com/services/T/B/x" } });
+  await destination(user, f.id, "webhook", { secret: { url: "https://hooks.acme.com/in", secret: "s3cret" } });
+  const first = await submit(f, ws, SALES);
+  const again = await Promise.all([1, 2, 3].map(() => q(`select form_submit($1, $2, $3, $4, $5, $6, $7, $8, $9, false) as r`, [f.id, f.version, first.args.p_idem, first.args.p_values, first.args.p_hidden, first.args.p_contact, first.args.p_consent, null, null])));
+  for (const a of again) {
+    assert.equal(a[0].r.id, first.id);
+    assert.equal(a[0].r.repeat, true);
+  }
+  assert.equal((await q(`select count(*)::int n from submissions where workspace_id = $1`, [ws]))[0].n, 1);
+  assert.equal((await q(`select count(*)::int n from contacts where workspace_id = $1`, [ws]))[0].n, 1);
+  assert.equal((await q(`select count(*)::int n from deliveries where submission_id = $1`, [first.id]))[0].n, 2);
+  assert.equal((await q(`select count(*)::int n from jobs where kind = 'deliver' and workspace_id = $1`, [ws]))[0].n, 2);
+  const c = (await q(`select email_clean, first_name, last_name, company_id, source from contacts where id = $1`, [first.contact_id]))[0];
+  assert.deepEqual([c.email_clean, c.first_name, c.last_name, c.source], ["ana@acme.com", "Ana", "Diaz", "form"]);
+  assert.ok(c.company_id, "the work email's company is set");
+  const ev = await q(`select kind, data from contact_events where contact_id = $1 and kind = 'form.submitted'`, [first.contact_id]);
+  assert.equal(ev.length, 1);
+  assert.equal(ev[0].data.submission_id, first.id);
 });
 
-test("no tick, no consent: the contact comes in and can't be emailed, and no topic", async () => {
-  await send({ email: "bob@acme.com" });
-  const c = (await q(`select id from contacts where workspace_id = $1 and email_clean = 'bob@acme.com'`, [ws]))[0];
-  assert.equal((await q(`select basis from consents where contact_id = $1 order by at desc limit 1`, [c.id]))[0].basis, "none");
-  assert.equal((await q(`select count(*)::int n from subscriptions where contact_id = $1`, [c.id]))[0].n, 0);
-  // The same person again: still one contact.
-  await send({ email: "bob@acme.com", first_name: "Bob" });
-  assert.equal((await q(`select count(*)::int n from contacts where workspace_id = $1 and email_clean = 'bob@acme.com'`, [ws]))[0].n, 1);
+test("spam is kept apart: no contact, no delivery; and the server refuses a free email on a work email field", async () => {
+  const { ws, user } = await workspace("forms-spam");
+  const f = await liveForm(ws, user);
+  await destination(user, f.id, "slack", { secret: { url: "https://hooks.slack.com/services/T/B/x" } });
+  const trapped = await submit(f, ws, SALES, { trap: "http://spam.biz" });
+  const fast = await submit(f, ws, { ...SALES, email: "bot@acme.com" }, { ms: 100 });
+  for (const s of [trapped, fast]) {
+    assert.equal(s.contact_id, null);
+    assert.equal((await q(`select count(*)::int n from deliveries where submission_id = $1`, [s.id]))[0].n, 0);
+  }
+  assert.deepEqual((await q(`select spam_reason from submissions where workspace_id = $1 order by created_at`, [ws])).map((r) => r.spam_reason), ["trap", "too_fast"]);
+  assert.equal((await q(`select count(*)::int n from contacts where workspace_id = $1`, [ws]))[0].n, 0);
+  const fields = f.form.steps[0].fields;
+  const email = fields.find((x) => x.key === "email")!;
+  const r = prepareSubmit(f.form, f.version, { v: 1, version: f.version, key: "x".repeat(20), answers: { [email.id]: "ana@gmail.com" }, ms: 5000 }, await ctxFor(pool, ws));
+  assert.ok("errors" in r && r.errors[email.id] === "Use your work email.");
+  const stale = prepareSubmit(f.form, f.version, { v: 1, version: f.version - 1, key: "x".repeat(20), answers: {}, ms: 5000 }, await ctxFor(pool, ws));
+  assert.ok("error" in stale && stale.status === 409);
 });
 
-test("bots are held back quietly: honeypot and posting too fast look like success and make no contact", async () => {
-  const hp = await send({ email: "bot1@spam.com", _hp: "http://spam" });
-  assert.deepEqual(hp, { status: 200, body: { ok: true, email: null } });
-  const fast = await submitForm(deps, form, { answers: { _t: shownToken(form, Date.now() - 500), email: "bot2@spam.com" } }, meta());
-  assert.equal(fast.status, 200);
-  const rows = await q(`select answers->>'email' e, spam, contact_id from form_submissions where form_id = $1 and spam is not null order by created_at`, [form]);
-  assert.deepEqual(rows.map((r) => [r.e, r.spam, r.contact_id]), [["bot1@spam.com", "honeypot", null], ["bot2@spam.com", "too_fast", null]]);
-  assert.equal((await q(`select count(*)::int n from contacts where workspace_id = $1 and email_clean like 'bot%'`, [ws]))[0].n, 0);
+test("consent keeps the form's own wording, and an unticked box records nothing", async () => {
+  const { ws, user } = await workspace("forms-consent");
+  const f = await liveForm(ws, user, "newsletter");
+  const ticked = await submit(f, ws, { email: "lea@acme.de" }, { consent: { given: true, wording: "something else the browser claims" } });
+  const unticked = await submit(f, ws, { email: "max@acme.de" }, { consent: { given: false } });
+  const rows = await q(`select contact_id, basis, status, wording from consents where workspace_id = $1`, [ws]);
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].contact_id, ticked.contact_id);
+  assert.equal(rows[0].basis, "opt_in");
+  assert.equal(rows[0].wording, f.form.consent.label);
+  assert.ok(unticked.contact_id);
 });
 
-test("stale or forged page tokens, bad answers and failed Turnstile are refused", async () => {
-  assert.equal((await submitForm(deps, form, { answers: { email: "a@b.co" } }, meta())).status, 400, "no token");
-  assert.equal((await submitForm(deps, form, { answers: { _t: shownToken(form, Date.now() - 25 * 3_600_000), email: "a@b.co" } }, meta())).status, 400, "a day old");
-  assert.equal((await submitForm(deps, form, { answers: { _t: shownToken("another-form", Date.now() - 10_000), email: "a@b.co" } }, meta())).status, 400, "another form's");
-  const bad = await send({ email: "not an email", seats: "lots" });
-  assert.deepEqual(bad, { status: 422, body: { errors: { email: "Enter a valid email", seats: "Enter a number" } } });
-  const disposable = await send({ email: "x@mailinator.com" });
-  assert.equal(disposable.status, 422, "an address the import would drop");
-  await asOwner(`select form_save($1, $2, 'Guide download', $3, $4) as r`, [ws, form, JSON.stringify(FIELDS), JSON.stringify({ consent: "checkbox", topic_id: topic, captcha: true })]);
-  captchaAnswer = false;
-  assert.equal((await send({ email: "cy@acme.com" })).status, 400);
-  captchaAnswer = true;
-  assert.equal((await send({ email: "cy@acme.com" })).status, 200);
+test("HubSpot down, then timing out after it made the record: one HubSpot contact, its id kept, a link to it", async () => {
+  const { ws, user } = await workspace("forms-hubspot");
+  const hs = new FakeHubspot(rng(7), { portal: 4242 });
+  const creds = { type: "oauth", access: "t1", refresh: "r1", expiresAt: Date.now() + 3_600_000 };
+  // The source only pulls: the form's choice is what sends contacts out.
+  const source = (await q(`select source_connect($1, $2, 'hubspot', 'HubSpot', '4242', $3, $4) as id`, [ws, user, seal(JSON.stringify(creds)), JSON.stringify({ objects: { contacts: "in" } })]))[0].id;
+  const f = await liveForm(ws, user);
+  const dest = await destination(user, f.id, "source", { source, name: "HubSpot" });
+  const s = await submit(f, ws, SALES);
+  const delivery = (await q(`select id from deliveries where submission_id = $1 and destination_id = $2`, [s.id, dest]))[0].id as string;
+
+  let mode: "down" | "lost" | "up" = "down";
+  const fetcher: typeof fetch = async (input, init) => {
+    const isUpsert = String(input).includes("/batch/upsert");
+    if (mode === "down" && isUpsert) return new Response("{}", { status: 500 });
+    if (mode === "lost" && isUpsert) {
+      await hs.fetch(input, init); // HubSpot makes it…
+      throw new TypeError("socket hang up"); // …and the answer never comes back.
+    }
+    return hs.fetch(input, init);
+  };
+  const send = sendWith(fetcher, { fetcher });
+  assert.ok((await deliverOnce(rpc, send, delivery, false)).retry, "a 500 retries");
+  mode = "lost";
+  assert.ok((await deliverOnce(rpc, send, delivery, false)).retry, "a lost answer retries");
+  assert.equal((await q(`select status from deliveries where id = $1`, [delivery]))[0].status, "retrying");
+  mode = "up";
+  assert.deepEqual(await deliverOnce(rpc, send, delivery, false), {});
+  const live = hs.live().filter((c) => c.properties.email === "ana@acme.com");
+  assert.equal(live.length, 1, "one HubSpot contact");
+  const d = (await q(`select status, external_id, external_url, attempts, error from deliveries where id = $1`, [delivery]))[0];
+  assert.equal(d.status, "done");
+  assert.equal(d.external_id, live[0].id);
+  assert.equal(d.external_url, `https://app.hubspot.com/contacts/4242/record/0-1/${live[0].id}`);
+  assert.equal(d.attempts, 3);
+  assert.equal(d.error, null);
+  const link = await q(`select external_id from source_links where source_id = $1 and object = 'contact' and local_id = $2`, [source, s.contact_id]);
+  assert.equal(link[0]?.external_id, live[0].id);
+  // A second fill by the same person updates the same HubSpot record.
+  const s2 = await submit(f, ws, { ...SALES, "q.message": "Again" });
+  const d2 = (await q(`select id from deliveries where submission_id = $1`, [s2.id]))[0].id;
+  await deliverOnce(rpc, send, d2, false);
+  assert.equal(hs.live().filter((c) => c.properties.email === "ana@acme.com").length, 1);
+  assert.equal((await q(`select external_id from deliveries where id = $1`, [d2]))[0].external_id, live[0].id);
 });
 
-test("more than 10 from one address in 10 minutes are marked and make no contact", async () => {
-  for (let i = 0; i < 12; i++) await send({ email: `flood${i}@acme.com` }, "198.51.100.9");
-  const marked = await q(`select answers->>'email' e from form_submissions where form_id = $1 and spam = 'rate'`, [form]);
-  assert.deepEqual(marked.map((r) => r.e).sort(), ["flood10@acme.com", "flood11@acme.com"]);
-  assert.equal((await q(`select count(*)::int n from contacts where workspace_id = $1 and email_clean like 'flood%'`, [ws]))[0].n, 10);
+test("Slack down for 2 hours: the delivery waits through its tries and sends once; past the last try it fails with the reason", async () => {
+  const { ws, user } = await workspace("forms-slack");
+  const f = await liveForm(ws, user);
+  await destination(user, f.id, "slack", { secret: { url: "https://hooks.slack.com/services/T/B/x" } });
+  let down = true;
+  const slack = fakeHttp(() => down);
+  const send = sendWith(slack.fetcher);
+  const a = await submit(f, ws, SALES);
+  const da = (await q(`select id from deliveries where submission_id = $1`, [a.id]))[0].id;
+  for (let i = 0; i < 4; i++) assert.ok((await deliverOnce(rpc, send, da, false)).retry);
+  down = false;
+  await deliverOnce(rpc, send, da, false);
+  assert.equal((await q(`select status from deliveries where id = $1`, [da]))[0].status, "done");
+  assert.equal(slack.got.length, 1);
+  assert.match(String(slack.got[0].body.text), /New fill on Contact: Ana Diaz/);
+  // Done is done: another job for it sends nothing.
+  await deliverOnce(rpc, send, da, false);
+  assert.equal(slack.got.length, 1);
+
+  down = true;
+  const b = await submit(f, ws, { ...SALES, email: "bo@acme.com" });
+  const db = (await q(`select id from deliveries where submission_id = $1`, [b.id]))[0].id;
+  await deliverOnce(rpc, send, db, true);
+  const fb = (await q(`select status, error from deliveries where id = $1`, [db]))[0];
+  assert.equal(fb.status, "failed");
+  assert.match(fb.error, /503/);
+  // Replay from the app gives it a fresh set of tries.
+  await q(`select set_config('request.jwt.claim.sub', $1, false)`, [user]);
+  assert.equal((await q(`select deliveries_replay($1) as n`, [[db]]))[0].n, 1);
+  await q(`select set_config('request.jwt.claim.sub', '', false)`);
+  down = false;
+  await deliverOnce(rpc, send, db, false);
+  assert.equal((await q(`select status from deliveries where id = $1`, [db]))[0].status, "done");
 });
 
-test("a notice form counts as legitimate interest only where the law allows it; preview keeps nothing", async () => {
-  await asOwner(`select form_save($1, $2, 'Guide download', $3, $4) as r`, [ws, form, JSON.stringify(FIELDS), JSON.stringify({ consent: "notice" })]);
-  await send({ email: "dee@acme.com", country: "United States" });
-  await send({ email: "fay@acme.de", country: "Germany" });
-  await send({ email: "gus@acme.com" });
-  const basis = async (email: string) => (await q(`select k.basis from consents k join contacts c on c.id = k.contact_id where c.workspace_id = $1 and c.email_clean = $2 order by k.at desc limit 1`, [ws, email]))[0].basis;
-  assert.equal(await basis("dee@acme.com"), "legitimate_interest");
-  assert.equal(await basis("fay@acme.de"), "none", "the EU needs opt-in");
-  assert.equal(await basis("gus@acme.com"), "none", "an unknown country isn't the US");
-  const before = (await q(`select count(*)::int n from form_submissions where form_id = $1`, [form]))[0].n;
-  await asOwner(`select form_publish($1, false) as r`, [form]);
-  const p = await submitForm(deps, form, { answers: { _t: old(), email: "eve@acme.com" } }, { ...meta(), preview: true });
-  assert.equal(p.status, 200);
-  assert.equal((await q(`select count(*)::int n from form_submissions where form_id = $1`, [form]))[0].n, before);
-  assert.equal((await q(`select count(*)::int n from contacts where workspace_id = $1 and email_clean = 'eve@acme.com'`, [ws]))[0].n, 0);
+test("a paused destination holds fills, then sends them oldest first when it's turned back on", async () => {
+  const { ws, user } = await workspace("forms-pause");
+  const f = await liveForm(ws, user);
+  const dest = await destination(user, f.id, "webhook", { secret: { url: "https://hooks.acme.com/in", secret: "s3cret" } });
+  await q(`select set_config('request.jwt.claim.sub', $1, false)`, [user]);
+  await q(`select form_destination_pause($1, true)`, [dest]);
+  await q(`select set_config('request.jwt.claim.sub', '', false)`);
+  const emails = ["a1@acme.com", "a2@acme.com", "a3@acme.com", "a4@acme.com", "a5@acme.com"];
+  for (const e of emails) await submit(f, ws, { ...SALES, email: e });
+  assert.deepEqual((await q(`select distinct status from deliveries where destination_id = $1`, [dest])).map((r) => r.status), ["held"]);
+  assert.equal((await q(`select count(*)::int n from jobs where kind = 'deliver' and workspace_id = $1`, [ws]))[0].n, 0);
+  await q(`select set_config('request.jwt.claim.sub', $1, false)`, [user]);
+  await q(`select form_destination_pause($1, false)`, [dest]);
+  await q(`select set_config('request.jwt.claim.sub', '', false)`);
+  const job = (await q(`select * from jobs where kind = 'deliver_held' and key = $1`, [dest]))[0];
+  assert.ok(job);
+  const hook = fakeHttp(() => false);
+  const handler = deliverHeld(pool, rpc, { fetcher: hook.fetcher, sleep: async () => {}, resolve: (async () => [{ address: "93.184.216.34", family: 4 }]) as never });
+  await handler(job, new AbortController().signal);
+  assert.deepEqual(hook.got.map((g) => (g.body.contact as { email: string }).email), emails);
+  const sig = hook.got[0].headers.get("x-claritia-signature")!;
+  const [, t] = /t=(\d+)/.exec(sig)!;
+  assert.equal(sig, signature("s3cret", JSON.stringify(hook.got[0].body), Number(t)));
+  assert.equal(hook.got[0].headers.get("x-claritia-delivery"), hook.got[0].body.delivery_id);
+});
+
+test("two workers can't send the same delivery, and a webhook to a private address fails without a call", async () => {
+  const { ws, user } = await workspace("forms-lease");
+  const f = await liveForm(ws, user);
+  await destination(user, f.id, "webhook", { secret: { url: "https://10.0.0.5/hook" } });
+  const s = await submit(f, ws, SALES);
+  const id = (await q(`select id from deliveries where submission_id = $1`, [s.id]))[0].id;
+  const [one, two] = await Promise.all([q(`select delivery_take($1, 120) as t`, [id]), q(`select delivery_take($1, 120) as t`, [id])]);
+  assert.equal([one[0].t, two[0].t].filter(Boolean).length, 1);
+  // The lease ends; the next try takes it and refuses the address.
+  await q(`update deliveries set lease_until = now() - interval '1 second' where id = $1`, [id]);
+  const hook = fakeHttp(() => false);
+  await deliverOnce(rpc, { ...sendWith(hook.fetcher), resolve: undefined }, id, false);
+  const d = (await q(`select status, error from deliveries where id = $1`, [id]))[0];
+  assert.equal(d.status, "failed");
+  assert.match(d.error, /private network/);
+  assert.equal(hook.got.length, 0);
+});
+
+test("a field removed after fills came in still shows on the old fills, by its key", async () => {
+  const { ws, user } = await workspace("forms-history");
+  const f = await liveForm(ws, user);
+  await destination(user, f.id, "slack", { secret: { url: "https://hooks.slack.com/services/T/B/x" } });
+  const s = await submit(f, ws, SALES);
+  const next = { ...f.form, steps: [{ ...f.form.steps[0], fields: f.form.steps[0].fields.filter((x) => x.key !== "q.message") }] };
+  await q(`select form_publish($1, $2, $3)`, [f.id, user, next]);
+  const id = (await q(`select id from deliveries where submission_id = $1`, [s.id]))[0].id;
+  const t = (await q(`select delivery_take($1, 120) as t`, [id]))[0].t as Taken;
+  // The fill keeps its own version's labels.
+  assert.ok(labeled(t).some((r) => r.label === "How can we help?" && r.value === "Pricing please"));
+  const asIfNew = labeled({ ...t, form: { ...t.form!, body: next } });
+  assert.ok(asIfNew.some((r) => r.label === "q.message" && r.value === "Pricing please"));
+  // A version that was never published is refused.
+  await assert.rejects(q(`select form_submit($1, 3, $2, '{}', '{}', null, '{}', null, null, false)`, [f.id, "z".repeat(20)]), /Unknown form version/);
+});
+
+test("a Calendly booking with the fill's tracking id links for sure; one matching only by email is a maybe and starts nothing", async () => {
+  const { ws, user } = await workspace("forms-booking");
+  const f = await liveForm(ws, user);
+  const s = await submit(f, ws, SALES);
+  const source = (await q(`select source_connect($1, $2, 'calendly', 'Calendly', null, $3, '{}') as id`, [ws, user, seal(JSON.stringify({ type: "hook" }))]))[0].id as string;
+  const { calendly } = await import("../../src/lib/sources/forms.ts");
+  const hook = (uri: string, email: string, utm: string | null) =>
+    calendly.parse!({ event: "invitee.created", payload: { uri, email, name: "Ana Diaz", tracking: { utm_content: utm }, scheduled_event: { start_time: "2026-11-05T15:00:00Z" } } }, new Headers());
+  const events = [...hook("https://api.calendly.com/invitees/1", "ana@acme.com", `clr_${s.id}`), ...hook("https://api.calendly.com/invitees/2", "ana@acme.com", null), ...hook("https://api.calendly.com/invitees/1", "ana@acme.com", `clr_${s.id}`)];
+  for (const e of events) await q(`select hook_stage($1, $2, $3)`, [source, e.dedupe + ":" + Math.random(), e]);
+  const { runHooks } = await import("../../src/lib/sources/run.ts");
+  await runHooks({ rpc, clean: (w) => ctxFor(pool, w), sleep: async () => {} }, source);
+  const rows = await q(`select external_id, linked, submission_id, start_at from form_bookings where workspace_id = $1 order by external_id`, [ws]);
+  assert.deepEqual(rows.map((r) => [r.external_id.slice(-1), r.linked]), [["1", "tracking"], ["2", "email"]]);
+  assert.equal(rows[0].submission_id, s.id);
+  assert.equal(new Date(rows[0].start_at).toISOString(), "2026-11-05T15:00:00.000Z");
+  const booked = await q(`select data from contact_events where contact_id = $1 and kind = 'meeting.booked'`, [s.contact_id]);
+  assert.equal(booked.length, 1, "only the sure link lands on the timeline, once");
+  assert.equal(booked[0].data.submission_id, s.id);
+});
+
+test("after the submit, the contact owner's booking link wins over the form's", async () => {
+  const { ws, user } = await workspace("forms-owner-link");
+  const f = await liveForm(ws, user);
+  const s = await submit(f, ws, SALES);
+  assert.equal((await q(`select scheduler_for($1, 'calendly') as u`, [s.id]))[0].u, null);
+  await q(`update contacts set owner_user_id = $1 where id = $2`, [user, s.contact_id]);
+  await q(`select set_config('request.jwt.claim.sub', $1, false)`, [user]);
+  await q(`select scheduler_link_save($1, $2, 'calendly', 'https://calendly.com/owner/demo')`, [ws, user]);
+  await q(`select set_config('request.jwt.claim.sub', '', false)`);
+  assert.equal((await q(`select scheduler_for($1, 'calendly') as u`, [s.id]))[0].u, "https://calendly.com/owner/demo");
 });

@@ -13,7 +13,7 @@ import { ContactsView } from "./views/ContactsView";
 import { CompaniesView, ObjectsView, OpportunitiesView } from "./views/RecordsViews";
 import { SegmentsView } from "./views/SegmentsView";
 import { AdsView, AnalyticsView, PagesView, TemplatesView } from "./views/MarketingIntros";
-import { FormsView } from "./views/FormsView";
+import { FormsView } from "./forms/FormsView";
 import { NurtureView } from "./views/NurtureView";
 import { SettingsView } from "./views/SettingsView";
 

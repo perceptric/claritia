@@ -132,7 +132,7 @@ test("editing a live step holds it until approved again, and mail in line keeps 
 });
 
 test("a paused nurture holds everyone; a form nurture takes people who send the form after it goes live", async () => {
-  const form = await as<string>(`select form_save($1, null, 'Demo', $2, '{}') as r`, [ws, JSON.stringify([{ key: "email", label: "Email", type: "email", maps_to: "email" }])]);
+  const form = await as<string>(`select form_create($1, 'Demo', '{}') as r`, [ws]);
   const fn = await as<string>(`select nurture_save($1, null, 'Demo follow-up', $2, null, 'Acme demo follow-up brief text.', '{}') as r`, [ws, JSON.stringify({ kind: "form", form_id: form })]);
   const e = stepEmail({ paragraphs: ["Thanks for asking."], cta_label: "", cta_url: "" });
   const sid = await as<string>(`select nurture_step_save($1, null, 0, 'Thanks', '', $2, $3, '{}', false, '{}') as r`, [fn, e.html, e.text]);

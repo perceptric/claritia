@@ -19,6 +19,13 @@ services:
         generateValue: true
       - key: RESEND_API_KEY
         sync: false
+      # Forms (docs/forms-setup.md): the form chat, and Turnstile for forms that turn it on.
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: TURNSTILE_SITE_KEY
+        sync: false
+      - key: TURNSTILE_SECRET_KEY
+        sync: false
       - key: STRIPE_SECRET_KEY
         sync: false
       # Sources (docs/sources-setup.md). APP_URL only when the app isn't at https://app.tryclaritia.com.

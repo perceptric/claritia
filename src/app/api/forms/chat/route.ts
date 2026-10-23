@@ -1,0 +1,81 @@
+import { cachedStep, hashKey } from "@/lib/ai/cache";
+import { isMember } from "@/lib/contacts/server";
+import { CHAT_MODEL, CHAT_SYSTEM, CHAT_TOOLS, runChat, type ChatCtx, type ChatResult } from "@/lib/forms/chat";
+import { claudeChat } from "@/lib/forms/claude";
+import { emptyForm, type Form } from "@/lib/forms/schema";
+import { requireUser } from "@/lib/serverAuth";
+import { serviceClient } from "@/lib/serviceClient";
+
+// One chat turn on a form: POST { workspaceId, id, rev, message, confirmed? } (docs/form-builder.md 4.2). The editor
+// saves its draft first and sends the draft_rev it holds; the chat's changes are saved as the next draft and come
+// back with the new rev. The same request on the same form replays from the step cache.
+
+const bad = (error: string, status = 400) => Response.json({ error }, { status });
+
+export async function POST(request: Request) {
+  const auth = await requireUser(request);
+  if ("denied" in auth) return auth.denied;
+  const b = (await request.json().catch(() => ({}))) as { workspaceId?: unknown; id?: unknown; rev?: unknown; message?: unknown; confirmed?: unknown };
+  if (!(await isMember(auth, b.workspaceId))) return bad("Workspace not found.", 404);
+  const ws = b.workspaceId as string;
+  if (typeof b.id !== "string" || !/^[0-9a-f-]{36}$/.test(b.id)) return bad("Form not found.", 404);
+  const message = typeof b.message === "string" ? b.message.trim().slice(0, 4000) : "";
+  if (!message) return bad("Say what to change.");
+  const db = serviceClient();
+  if (!db) return bad("The server is not set up for this.", 500);
+  const model = claudeChat();
+  if (!model) return bad("The chat isn't set up on the server (ANTHROPIC_API_KEY).", 503);
+
+  const { data: f } = await db.from("forms").select("id, name, draft, draft_rev, brand_kit_id").eq("id", b.id).eq("workspace_id", ws).maybeSingle();
+  if (!f) return bad("Form not found.", 404);
+  if (typeof b.rev === "number" && b.rev !== f.draft_rev) return bad("This form changed in another window. Reload to see the latest.", 409);
+  const [custom, kit, sources, dests, chat, fills] = await Promise.all([
+    db.from("fields").select("key, label, type").eq("workspace_id", ws).eq("object", "contact"),
+    f.brand_kit_id ? db.from("brand_kits").select("name, source_url, site_forms").eq("id", f.brand_kit_id).maybeSingle() : Promise.resolve({ data: null }),
+    db.from("sources").select("name").eq("workspace_id", ws).neq("status", "disconnected"),
+    db.from("form_destinations").select("name").eq("form_id", f.id),
+    db.from("form_chats").select("messages").eq("form_id", f.id).maybeSingle(),
+    db.from("submissions").select("values").eq("form_id", f.id).eq("spam", false).order("created_at", { ascending: false }).limit(300),
+  ]);
+  const draft = f.draft as Partial<Form>;
+  const ctx: ChatCtx = {
+    form: draft && Array.isArray(draft.steps) ? (draft as Form) : emptyForm(),
+    custom: (custom.data ?? []) as ChatCtx["custom"],
+    brand: (kit.data as ChatCtx["brand"]) ?? null,
+    tools: ((sources.data ?? []) as { name: string }[]).map((s) => s.name),
+    destinations: ((dests.data ?? []) as { name: string }[]).map((d) => d.name),
+    history: (((chat.data?.messages as { role: "user" | "assistant"; text: string }[] | undefined) ?? []).filter((m) => m.text)).slice(-10),
+    confirmed: b.confirmed === true,
+    usedKeys: [...new Set(((fills.data ?? []) as { values: Record<string, unknown> }[]).flatMap((s) => Object.keys(s.values)))].sort(),
+  };
+  const rpc = (fn: string, args: Record<string, unknown>) => db.rpc(fn, args);
+  let out: ChatResult;
+  try {
+    const key = hashKey(CHAT_MODEL, CHAT_SYSTEM, CHAT_TOOLS, ctx, message);
+    out = (
+      await cachedStep(rpc, ws, "form_chat", key, async () => {
+        const r = await runChat(model, message, ctx);
+        const { usage, ...result } = r;
+        return { result, model: CHAT_MODEL, usage, keep: !!result.reply };
+      })
+    ).result;
+  } catch (e) {
+    return bad(`The chat didn't answer: ${e instanceof Error ? e.message.slice(0, 200) : "try again"}`, 502);
+  }
+
+  let rev = f.draft_rev as number;
+  if (out.lines.length) {
+    const saved = await auth.sb.rpc("form_save", { p_id: f.id, p_name: f.name, p_draft: out.form, p_rev: rev, p_brand_kit: f.brand_kit_id });
+    if (saved.error) return bad(saved.error.message, 409);
+    rev = saved.data as number;
+  }
+  const at = new Date().toISOString();
+  await db.rpc("form_chat_add", {
+    p_form: f.id,
+    p_messages: [
+      { role: "user", text: message, at },
+      { role: "assistant", text: out.reply, ...(out.lines.length ? { lines: out.lines } : {}), ...(out.ask ? { ask: out.ask } : {}), at },
+    ],
+  });
+  return Response.json({ form: out.form, rev, reply: out.reply, lines: out.lines, ask: out.ask ?? null });
+}

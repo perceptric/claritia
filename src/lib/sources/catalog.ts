@@ -22,6 +22,8 @@ export type Entry = {
   grant?: string;
   objects: ObjectKind[];
   twoWay?: boolean;
+  /** Takes new contacts from Claritia (form destinations) without being two-way. */
+  pushes?: boolean;
 };
 
 const key = (label = "API key"): KeyField[] => [{ key: "api_key", label, secret: true }];
@@ -38,9 +40,9 @@ export const CATALOG: Entry[] = [
     twoWay: true,
   },
   { kind: "omniscient", label: "Omniscient", group: "crm", domain: "tryomniscient.com", objects: ["companies", "contacts", "opportunities"], twoWay: true },
-  { kind: "pipedrive", label: "Pipedrive", group: "crm", domain: "pipedrive.com", oauth: true, keys: key("API token"), objects: ["companies", "contacts", "opportunities"] },
-  { kind: "attio", label: "Attio", group: "crm", domain: "attio.com", oauth: true, keys: key("Access token"), objects: ["companies", "contacts", "opportunities"] },
-  { kind: "close", label: "Close", group: "crm", domain: "close.com", keys: key(), objects: ["contacts"] },
+  { kind: "pipedrive", label: "Pipedrive", group: "crm", domain: "pipedrive.com", oauth: true, keys: key("API token"), pushes: true, objects: ["companies", "contacts", "opportunities"] },
+  { kind: "attio", label: "Attio", group: "crm", domain: "attio.com", oauth: true, keys: key("Access token"), pushes: true, objects: ["companies", "contacts", "opportunities"] },
+  { kind: "close", label: "Close", group: "crm", domain: "close.com", keys: key(), pushes: true, objects: ["contacts"] },
   { kind: "mailchimp", label: "Mailchimp", group: "email", domain: "mailchimp.com", oauth: true, keys: key(), objects: ["contacts"] },
   { kind: "klaviyo", label: "Klaviyo", group: "email", domain: "klaviyo.com", keys: key("Private API key"), objects: ["contacts"] },
   {

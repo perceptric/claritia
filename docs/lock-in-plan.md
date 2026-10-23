@@ -17,7 +17,7 @@ Reports show what each source, campaign and page produced. Everything else in `d
 | Contacts, companies, fields, imports | `033_contacts.sql`, `034_records.sql`, `035_imports.sql` |
 | Segments with AND/OR rules | `037_segments.sql`, `SegmentsView.tsx` |
 | Sending: domains, guard, unsubscribe, suppression (on Amazon SES) | `src/lib/email/`, `039_email.sql`, `SendingSettings.tsx` |
-| Forms | `src/lib/forms/`, `041_forms.sql`, `FormsView.tsx` |
+| Forms | `src/lib/forms/`, `041_forms.sql` to `048_form_checks.sql`, `forms/FormsView.tsx` |
 | Nurture with AI-written steps and approval | `src/lib/nurture/`, `042_nurture.sql`, `NurtureView.tsx` |
 | Lead scoring and routing | `043_lead_scoring.sql`, `LeadScoringPanel.tsx` |
 

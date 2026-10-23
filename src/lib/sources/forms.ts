@@ -4,6 +4,7 @@
 // mapped by hand on the source page.
 
 import { createHash, createHmac, timingSafeEqual } from "node:crypto";
+import { trackingFrom } from "../forms/schedule.ts";
 import type { Connector, HookEvent, HookRequest, RawRecord } from "./types.ts";
 
 const same = (a: string, b: string) => a.length === b.length && timingSafeEqual(Buffer.from(a), Buffer.from(b));
@@ -80,7 +81,10 @@ export const calendly: Connector = {
     const p = b.payload;
     const data: Record<string, unknown> = { email: p.email, name: p.name, first_name: p.first_name, last_name: p.last_name, timezone: p.timezone };
     for (const qa of (p.questions_and_answers as { question: string; answer: string }[]) ?? []) data[qa.question] = qa.answer;
-    return person(`calendly:${p.uri ?? p.email}`, data);
+    // The booking, tied to a Claritia form fill by the utm_content the form's link carried (src/lib/forms/schedule.ts).
+    const ev = (p.scheduled_event ?? {}) as { start_time?: string; uri?: string };
+    const tracking = trackingFrom((p.tracking as { utm_content?: unknown } | undefined)?.utm_content);
+    return person(`calendly:${p.uri ?? p.email}`, data).map((e) => ({ ...e, booking: { tool: "calendly", id: String(p.uri ?? ev.uri ?? p.email), start: ev.start_time ?? null, tracking, email: typeof p.email === "string" ? p.email : null } }));
   },
 };
 
@@ -89,12 +93,16 @@ export const calcom: Connector = {
   kind: "calcom",
   verify: (req, secret) => same(req.headers.get("x-cal-signature-256") ?? "", hmac(secret, req.body, "hex")),
   parse(body) {
-    const b = body as { triggerEvent?: string; payload?: { uid?: string; attendees?: { email: string; name: string; timeZone?: string }[]; responses?: Record<string, { value?: unknown; label?: string }> } };
+    const b = body as {
+      triggerEvent?: string;
+      payload?: { uid?: string; startTime?: string; metadata?: Record<string, unknown>; attendees?: { email: string; name: string; timeZone?: string }[]; responses?: Record<string, { value?: unknown; label?: string }> };
+    };
     if (b.triggerEvent !== "BOOKING_CREATED" || !b.payload) return [];
     const a = b.payload.attendees?.[0];
     const data: Record<string, unknown> = { email: a?.email, name: a?.name, timezone: a?.timeZone };
     for (const [k, r] of Object.entries(b.payload.responses ?? {})) if (!["email", "name"].includes(k)) data[r.label ?? k] = text(r.value);
-    return person(`calcom:${b.payload.uid}`, data);
+    const booking = { tool: "calcom", id: String(b.payload.uid ?? a?.email ?? ""), start: b.payload.startTime ?? null, tracking: trackingFrom(b.payload.metadata?.clr), email: a?.email ?? null };
+    return person(`calcom:${b.payload.uid}`, data).map((e) => ({ ...e, booking }));
   },
 };
 

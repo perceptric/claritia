@@ -2,6 +2,8 @@
 
 **One line:** Claritia turns website visitors into leads and leads into meetings, with AI agents running the journeys, writing the emails, building the pages and proving what made revenue.
 
+**Next build:** `docs/inbound.md`. Forms, enrichment, qualification, routing and meeting scheduling for small teams, after Default. It comes before M3 and M4.
+
 **Who it's for first:** B2B teams of 5 to 200 people, with 1 to 10 marketers. They pay for 4 or 5 tools today (HubSpot or Marketo, Warmly or Unify, Mutiny or Unbounce, HockeyStack or Dreamdata) at $35K to $100K a year.
 
 **The suite:**

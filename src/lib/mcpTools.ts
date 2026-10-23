@@ -4,6 +4,7 @@ import { startRuns } from "./apiRuns.ts";
 import { mcpServer, ToolError, type Tool } from "./mcpProtocol.ts";
 import { resultsText } from "./mcpText.ts";
 import { loadOutcomes } from "./runOutcomes.ts";
+import { formTools } from "./forms/mcp.ts";
 import { APP_URL } from "./site.ts";
 import { fromYaml, TestFileError, toYaml, type BlockRef, type Step } from "./testfile.ts";
 
@@ -216,6 +217,7 @@ export const mcp = mcpServer<Ctx>({
   version: "0.1.0",
   instructions:
     "Claritia runs end-to-end tests written in plain English, in a cloud browser. list_projects first. To check a change: " +
-    "verify_change on the environment or preview address where it's live, then fix app bugs it reports. Write or edit tests with save_test (YAML).",
-  tools,
+    "verify_change on the environment or preview address where it's live, then fix app bugs it reports. Write or edit tests with save_test (YAML). " +
+    "Lead forms: list_forms, create_form, edit_form with ops, then publish_form.",
+  tools: [...tools, ...formTools],
 });

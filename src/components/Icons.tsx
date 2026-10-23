@@ -223,6 +223,45 @@ export const Plug = (p: P) => (
   </Svg>
 );
 
+export const ArrowUp = (p: P) => (
+  <Svg {...p}>
+    <path d="M12 19V5M6 11l6-6 6 6" />
+  </Svg>
+);
+
+export const ArrowDown = (p: P) => (
+  <Svg {...p}>
+    <path d="M12 5v14M6 13l6 6 6-6" />
+  </Svg>
+);
+
+export const Undo = (p: P) => (
+  <Svg {...p}>
+    <path d="M9 14L4 9l5-5" />
+    <path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11" />
+  </Svg>
+);
+
+export const Redo = (p: P) => (
+  <Svg {...p}>
+    <path d="M15 14l5-5-5-5" />
+    <path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H13" />
+  </Svg>
+);
+
+export const Inbox = (p: P) => (
+  <Svg {...p}>
+    <path d="M3 13h5l1.5 3h5L16 13h5" />
+    <path d="M5.5 5h13L21 13v6H3v-6z" />
+  </Svg>
+);
+
+export const Send = (p: P) => (
+  <Svg {...p}>
+    <path d="M21 3L10 14M21 3l-7 18-4-7-7-4z" />
+  </Svg>
+);
+
 export const Dollar = (p: P) => (
   <Svg {...p}>
     <path d="M12 2v20M17 6.5c0-1.9-2.2-3-5-3s-5 1.3-5 3.3c0 4.7 10 2.6 10 7.4 0 2-2.2 3.3-5 3.3s-5-1.1-5-3" />

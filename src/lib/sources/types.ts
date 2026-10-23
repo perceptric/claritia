@@ -23,7 +23,9 @@ export type Page = { records: RawRecord[]; cursor: string | null; more: boolean 
 /** A list and its members by the tool's contact id or by email. */
 export type ListPage = { lists: { id: string; name: string; contactIds?: string[]; emails?: string[]; replace: boolean }[]; cursor: string | null; more: boolean };
 
-export type HookEvent = { dedupe: string; object: "contacts" | "companies"; id: string; deleted?: boolean; record?: RawRecord };
+/** A meeting booked in a scheduling tool; `tracking` is a form fill's id when the booking link carried one. */
+export type Booking = { tool: string; id: string; start: string | null; tracking: string | null; email: string | null };
+export type HookEvent = { dedupe: string; object: "contacts" | "companies"; id: string; deleted?: boolean; record?: RawRecord; booking?: Booking };
 
 export type PushChange = { localId: string; externalId: string | null; values: Record<string, unknown> };
 /** `gone`: the tool no longer has the record (deleted there and the news missed); the link goes, nothing is re-created. */

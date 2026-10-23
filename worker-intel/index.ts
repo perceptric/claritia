@@ -17,6 +17,7 @@ import { enrichCompany, identityChanged, ipLookup } from "./jobs/company.ts";
 import { accountAlert, scoreAccount, sweepSignals } from "./jobs/signals.ts";
 import { importFile, importUndo, pruneImportFiles } from "./jobs/imports.ts";
 import { segmentRefresh } from "./jobs/segments.ts";
+import { deliver, deliverHeld } from "./jobs/deliver.ts";
 import { crmActivity, crmPush, sourceHook, sourcePull } from "./jobs/sources.ts";
 import { deviceReset, privacy, rebuild, stitch, stitchEvidence } from "./jobs/stitch.ts";
 import { pgRpc } from "./rpc.ts";
@@ -54,6 +55,8 @@ const handlers = {
   crm_activity: crmActivity(pool, rpc),
   source_hook: sourceHook(pool, rpc),
   segment_refresh: segmentRefresh(rpc),
+  deliver: deliver(pool, rpc),
+  deliver_held: deliverHeld(pool, rpc),
   send: send(rpc, { ses, base: linkBase() }),
   domain_check: domainCheck(rpc, ses),
   domain_remove: domainRemove(pool, ses),
