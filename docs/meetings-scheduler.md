@@ -1,6 +1,7 @@
 # Meetings M1 and M2: the scheduler and instant booking (plan)
 
-Status: plan, waiting for a yes. Nothing is built yet. This is the detail for M1 and M2 in `docs/meetings-plan.md`.
+Status: plan, waiting for a yes. Nothing is built yet. This is the detail for M1 and M2 in `docs/meetings-plan.md`,
+plus everything Calendly does as a booking calendar on its own (1.8b).
 
 **M1:** reps connect Google or Microsoft in one click and set their hours, buffers and caps. Meeting types book one
 rep, a round robin, all hosts or the owner first. Leads get booking pages, reminders, reschedule and cancel links, and
@@ -114,6 +115,33 @@ booking gets an email with the same rep's times.
   popup from any button with `data-claritia-book`.
 - **Spam:** Turnstile on the page when the form uses it, plus a cap of booking tries per IP.
 
+### 1.8b Calendly parity: the booking calendar on its own
+
+Everything a rep does in Calendly works in Claritia without a form:
+
+| Calendly | Claritia |
+| --- | --- |
+| Personal page listing your event types | `/book/<workspace>/<person>`: photo, name, a line about them, and their types as cards |
+| Team page | `/book/<workspace>`: every public team type |
+| Event types: one-on-one, group, collective, round robin | The kinds in 1.4, plus **group** (one host, many guests, a seat limit, e.g. a weekly demo for 20) |
+| Secret event types | A type can be hidden from pages and shared only by link |
+| One-off meetings | Pick a few times or a range for one person, share a link, and it closes after one booking |
+| Single-use links | Any type can make a link that works once (good for an email to one lead) |
+| Meeting polls | Offer several times to a group, guests vote, the host books the winner |
+| Share times in an email | "Copy times" puts the next free slots as text with booking links in each, for Gmail or Outlook |
+| Invitee questions | The form studio's fields on the booking page, with answers saved to the contact |
+| Payments | Stripe on paid types: the guest pays to book, refunds on cancel by the host (Stripe fees are the customer's) |
+| Routing forms | Our forms and router (M2, M3) |
+| Workflows (reminders, follow-ups, thank-you emails) | Reminders in 1.7 now; any step after M6 ships |
+| Embeds: inline, popup widget, popup text | `<claritia-book>` inline, a floating button, and `data-claritia-book` on any link |
+| Branding | The brand kit: logo, font, colors, corners; "Powered by Claritia" can be hidden on paid plans |
+| Calendar connections (up to 6 per person) | Google and Microsoft, several accounts per person, all checked for busy |
+| Time zone detection, 12/24-hour, languages | Detected and switchable; English first, then the languages the forms support |
+| Contacts and meeting history | The CRM: every booking lands on the contact with its history |
+| Admin: managed event types | Owners make a type once and push it to many people; people can't change locked settings |
+| Integrations: HubSpot, Salesforce, Zoom, Teams, Slack, Zapier | Built through Sources and the API; Zapier through webhooks |
+| Mobile app | Not planned; the pages and the Meetings screen work on phones |
+
 ### 1.9 Screens
 
 | Screen | Where | Holds |
@@ -208,6 +236,10 @@ Every item ships with a test that runs on the flaky case:
 | The form is sent twice (retry) | One submission, one booking token | Existing idempotency, extended |
 | The lead books from the "book later" email after booking in the form | The second try shows "already booked" with a reschedule link | Postgres |
 | The meeting type is changed while a lead is booking | The booking uses the version shown, or asks the lead to pick again if the slot is gone | Unit |
+| Two guests take the last seat of a group type at once | One gets the seat; the other sees it full | Postgres test with parallel bookings |
+| A single-use or one-off link is opened twice | The second visit says it's used, with the host's page link | Postgres |
+| A guest pays and the slot is taken before payment finishes | The slot is held for the 10 minutes of checkout; if it's lost anyway, the payment is refunded at once | Fake Stripe webhook, out of order and repeated |
+| A poll's winning time stops being free | The host is told and picks again; no event is created on a busy time | Unit |
 
 `scripts/screens-check.ts` grows a booking run: a fake calendar provider (as the local stack fakes auth), a form
 with Claritia calendar, a fill, a pick, and the meeting in Meetings.
@@ -221,7 +253,9 @@ with Claritia calendar, a fill, a pick, and the meeting in Meetings.
 | 1 | Google and Microsoft connect, calendar lists, availability, busy-time cache with push and the 10-minute refresh, the slot engine (`src/lib/meetings/slots.ts`) with its tests | A connected rep's free times are right across time zones and daylight saving |
 | 2 | Meeting types (one person, round robin, collective, owner first, double round robin), booking with lock and live check, events with Meet, Teams and Zoom, the booking page and embed | A lead books a round robin of three on the page, fairly, with no double booking |
 | 3 | Reminders, reschedule, cancel, held and no-show, the Meetings screen, Meeting types editor, My calendar and Team calendars | A meeting is booked, moved, reminded, marked no-show, and the turn comes back |
-| 4 | Instant booking in Claritia forms and captured forms, book later, not booked, form Results, the screens-check booking run | A form fill shows the routed rep's times in under a second and books in one click |
+| 4 | Calendly parity: personal and team pages, group types with seats, secret types, one-off and single-use links, copy times, managed types | A rep shares their page and a one-off link, and both book |
+| 5 | Meeting polls and paid types on Stripe | A poll books its winner; a paid type takes payment before it books |
+| 6 | Instant booking in Claritia forms and captured forms, book later, not booked, form Results, the screens-check booking run | A form fill shows the routed rep's times in under a second and books in one click |
 
 ---
 
@@ -236,6 +270,8 @@ Assumptions: Beta is 50 teams with about 150 meetings each a month (7,500 meetin
 | Zoom API (free with the team's Zoom account) | $0 | $0 |
 | One more small worker for calendar refresh and reminders (Render or Fly) | $25 (check) | $85 (check) |
 | Email: about 32,000 a month at Beta and 430,000 at Growth on Resend | $20 (check) | $350 (check) |
+| Stripe for paid types (fees are paid by the customer from each payment) | $0 | $0 |
+| Polls, one-off links, group types (database only) | $0 | $0 |
 | Database: busy blocks, meetings, events (about 1 GB at Growth) | $0 (inside plan) | $25 (check) |
 | Claude tokens (none in M1 and M2) | $0 | $0 |
 | **Added per month** | **about $45** | **about $460** |
