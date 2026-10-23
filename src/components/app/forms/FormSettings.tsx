@@ -1,155 +1,155 @@
 "use client";
 
-// The Settings tab: the form's own words, the consent box, spam checks, and what visitors see after they send it.
+// The Settings tab's own sections (docs/form-studio.md Part 3): what visitors get after the submit (a message, a page or
+// a meeting), the consent box and the spam checks.
 
-import { useState } from "react";
+import { cleanLink } from "@/lib/forms/meeting";
 import type { Op } from "@/lib/forms/ops";
-import { SCHEDULERS, type SchedulerTool } from "@/lib/forms/schedule";
+import { linkProblem } from "@/lib/forms/schedule";
 import { DEFAULT_CONSENT, DEFAULT_NOTICE, type Form } from "@/lib/forms/schema";
-import { BrandLogo } from "../BrandLogo";
+import { Chat, Clock, Link as LinkIcon } from "../../Icons";
 import { Select } from "../Select";
-import { ErrorNote, errorText, Field, Input, must, Segmented, useLoad, type ViewProps } from "../ui";
-import { NumberInput, Toggle } from "./shared";
+import { Input, Segmented, Toggle, useLoad, must, type ViewProps } from "../ui";
+import { Meeting } from "./Meeting";
+import { AREA, Group, LinkInput, OptionCard, Row, SEL, Section } from "./SettingsParts";
 
-const AREA = "w-full rounded-sm border border-line-strong bg-card px-3 py-2 text-[13px] text-ink outline-none focus:border-ink focus:ring-1 focus:ring-ink";
+export type AfterKind = "message" | "page" | "meeting";
+export const afterKind = (form: Form): AfterKind => (form.after.schedule ? "meeting" : form.after.end.kind === "redirect" ? "page" : "message");
+const THANKS = { kind: "message" as const, title: "Thanks, we got it.", text: "We'll be in touch soon." };
 
-export function FormSettings({ form, apply, sb, ws, session, role }: { form: Form; apply: (op: Op) => void } & Pick<ViewProps, "sb" | "ws" | "session" | "role">) {
-  const topics = useLoad(async () => (must(await sb.from("topics").select("id, name").eq("workspace_id", ws.id).order("name")) ?? []) as { id: string; name: string }[], `${ws.id}:topics`);
+export function AfterSubmit({ form, apply, sb, ws, session, role }: { form: Form; apply: (op: Op) => void } & Pick<ViewProps, "sb" | "ws" | "session" | "role">) {
+  const kind = afterKind(form);
   const end = form.after.end;
-  const sch = form.after.schedule;
+  const pick = (k: AfterKind) => {
+    if (k === kind) return;
+    if (k !== "meeting" && form.after.schedule) apply({ op: "set_schedule", schedule: null });
+    if (k === "page") apply({ op: "set_after", end: { kind: "redirect", url: "" } });
+    else if (end.kind === "redirect") apply({ op: "set_after", end: THANKS });
+    if (k === "meeting") apply({ op: "set_schedule", schedule: { tool: "calendly", url: "", perOwner: true } });
+  };
+  const page = end.kind === "redirect" ? (end.url ? linkProblem("link", end.url) : null) : null;
   return (
-    <div className="flex flex-col gap-6">
-      <section className="flex flex-col gap-3">
-        <h3 className="label-mono">Meeting after the submit</h3>
-        <Segmented
-          label="Meeting after the submit"
-          value={sch ? "on" : "off"}
-          options={[
-            { value: "off", label: "Off" },
-            { value: "on", label: "Book a meeting" },
-          ]}
-          onChange={(v) => apply({ op: "set_schedule", schedule: v === "on" ? { tool: "calendly", url: "", perOwner: true } : null })}
-        />
-        {sch ? (
-          <>
-            <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3">
-              {SCHEDULERS.map((t) => (
-                <button
-                  key={t.value}
-                  type="button"
-                  aria-pressed={sch.tool === t.value}
-                  onClick={() => apply({ op: "set_schedule", schedule: { ...sch, tool: t.value } })}
-                  className={`press flex items-center gap-2 rounded-lg border px-3 py-2.5 text-left text-[13px] transition-colors ${sch.tool === t.value ? "border-ink bg-hover font-medium text-ink ring-1 ring-ink" : "border-line bg-card text-body hover:border-line-strong"}`}
-                >
-                  {t.domain ? <BrandLogo domain={t.domain} name={t.label} size={18} /> : null}
-                  {t.label}
-                </button>
-              ))}
-            </div>
-            <Field label="Team booking link">
-              <Input value={sch.url} onChange={(e) => apply({ op: "set_schedule", schedule: { ...sch, url: e.target.value.trim() } })} placeholder="https://" />
-            </Field>
-            <Toggle label="Book with the contact's owner when they have a link" checked={sch.perOwner} onChange={(v) => apply({ op: "set_schedule", schedule: { ...sch, perOwner: v } })} />
-            {sch.perOwner ? <OwnerLinks sb={sb} ws={ws} session={session} role={role} tool={sch.tool} /> : null}
-          </>
-        ) : null}
-      </section>
-      <section className="flex flex-col gap-3">
-        <h3 className="label-mono">After the submit</h3>
-        <Segmented
-          label="After the submit"
-          value={end.kind}
-          options={[
-            { value: "message", label: "Message" },
-            { value: "redirect", label: "Open a page" },
-          ]}
-          onChange={(k) => apply({ op: "set_after", end: k === "message" ? { kind: "message", title: "Thanks, we got it." } : { kind: "redirect", url: "https://" } })}
-        />
-        {end.kind === "message" ? (
-          <>
-            <Field label="Heading">
-              <Input value={end.title} onChange={(e) => apply({ op: "set_after", end: { ...end, title: e.target.value } })} />
-            </Field>
-            <Field label="Text">
-              <textarea value={end.text ?? ""} rows={2} onChange={(e) => apply({ op: "set_after", end: { ...end, text: e.target.value || undefined } })} className={AREA} />
-            </Field>
-          </>
-        ) : (
-          <Field label="Page">
-            <Input value={end.url} onChange={(e) => apply({ op: "set_after", end: { kind: "redirect", url: e.target.value } })} placeholder="https://acme.com/thanks" />
-          </Field>
-        )}
-      </section>
-
-      <section className="flex flex-col gap-3">
-        <h3 className="label-mono">Email consent</h3>
-        <Segmented
-          label="Email consent"
-          value={form.consent.mode}
-          options={[
-            { value: "by_region", label: "Where the law asks" },
-            { value: "always", label: "Always" },
-            { value: "notice", label: "Notice" },
-            { value: "off", label: "Off" },
-          ]}
-          onChange={(mode) => {
-            const swap = mode === "notice" ? form.consent.label === DEFAULT_CONSENT && DEFAULT_NOTICE : form.consent.label === DEFAULT_NOTICE && DEFAULT_CONSENT;
-            apply({ op: "set_consent", mode, ...(swap ? { label: swap } : {}) });
-          }}
-        />
-        {(form.consent.mode === "by_region" || form.consent.mode === "always") && topics.data?.length ? (
-          <Field label="Email topic">
-            <Select
-              ariaLabel="Email topic"
-              value={form.consent.topicId ?? ""}
-              options={[{ value: "", label: "None" }, ...topics.data.map((t) => ({ value: t.id, label: t.name }))]}
-              onChange={(v) => apply({ op: "set_consent", topicId: v || null })}
-            />
-          </Field>
-        ) : null}
-        {form.consent.mode !== "off" ? (
-          <Field label={form.consent.mode === "notice" ? "Notice text" : "Box text"}>
-            <textarea value={form.consent.label} rows={2} onChange={(e) => apply({ op: "set_consent", label: e.target.value })} onBlur={(e) => !e.target.value.trim() && apply({ op: "set_consent", label: form.consent.mode === "notice" ? DEFAULT_NOTICE : DEFAULT_CONSENT })} className={AREA} />
-          </Field>
-        ) : null}
-      </section>
-
-      <section className="flex flex-col gap-3">
-        <h3 className="label-mono">Spam</h3>
-        <div className="grid grid-cols-2 items-end gap-3">
-          <NumberInput label="Fastest human fill (seconds)" value={form.spam.minSeconds} min={0} max={30} onChange={(v) => apply({ op: "set_spam", minSeconds: v })} />
-          <Toggle label="Cloudflare Turnstile" checked={form.spam.turnstile} onChange={(v) => apply({ op: "set_spam", turnstile: v })} />
+    <Section id="after" title="After submit">
+      <div role="radiogroup" aria-label="After submit" className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+        <OptionCard picked={kind === "message"} onPick={() => pick("message")} icon={<Chat size={16} />} title="Show a message" />
+        <OptionCard picked={kind === "page"} onPick={() => pick("page")} icon={<LinkIcon size={16} />} title="Go to a page" />
+        <OptionCard picked={kind === "meeting"} onPick={() => pick("meeting")} icon={<Clock size={16} />} title="Book a meeting" />
+      </div>
+      {kind === "message" && end.kind === "message" ? (
+        <div key="message" className="anim-rise-sm flex flex-col gap-4">
+          <Group label="Heading" htmlFor="end-title">
+            <Input id="end-title" value={end.title} onChange={(e) => apply({ op: "set_after", end: { ...end, title: e.target.value } })} />
+          </Group>
+          <Group label="Text" htmlFor="end-text">
+            <textarea id="end-text" value={end.text ?? ""} rows={3} onChange={(e) => apply({ op: "set_after", end: { ...end, text: e.target.value || undefined } })} className={AREA} />
+          </Group>
         </div>
-      </section>
-    </div>
+      ) : null}
+      {kind === "page" && end.kind === "redirect" ? (
+        <div key="page" className="anim-rise-sm">
+          <Group label="Page" htmlFor="end-url">
+            <LinkInput
+              id="end-url"
+              value={end.url}
+              onChange={(v) => apply({ op: "set_after", end: { kind: "redirect", url: v.trim() } })}
+              onBlur={(v) => cleanLink(v) !== end.url && apply({ op: "set_after", end: { kind: "redirect", url: cleanLink(v) } })}
+              problem={page}
+              ok={!!end.url && !page}
+              placeholder="https://acme.com/thanks"
+            />
+          </Group>
+        </div>
+      ) : null}
+      {kind === "meeting" ? (
+        <div key="meeting" className="anim-rise-sm flex flex-col gap-6">
+          <Meeting form={form} apply={apply} sb={sb} ws={ws} session={session} role={role} />
+        </div>
+      ) : null}
+    </Section>
   );
 }
 
-/** Each teammate's own booking link for the tool. People set their own; owners set anyone's. */
-function OwnerLinks({ sb, ws, session, role, tool }: Pick<ViewProps, "sb" | "ws" | "session" | "role"> & { tool: SchedulerTool }) {
-  const data = useLoad(async () => {
-    const [people, links] = await Promise.all([sb.rpc("workspace_people", { p_ws: ws.id }), sb.from("scheduler_links").select("user_id, url").eq("workspace_id", ws.id).eq("tool", tool)]);
-    return { people: (must(people) ?? []) as { id: string; email: string }[], links: new Map(((must(links) ?? []) as { user_id: string; url: string }[]).map((l) => [l.user_id, l.url])) };
-  }, `${ws.id}:${tool}`);
-  const [error, setError] = useState("");
-  if (!data.data) return null;
-  const save = async (user: string, url: string) => {
-    setError("");
-    try {
-      must(await sb.rpc("scheduler_link_save", { p_ws: ws.id, p_user: user, p_tool: tool, p_url: url }));
-    } catch (e) {
-      setError(errorText(e));
-    }
-  };
+export function ConsentSettings({ form, apply, sb, ws }: { form: Form; apply: (op: Op) => void } & Pick<ViewProps, "sb" | "ws">) {
+  const topics = useLoad(async () => (must(await sb.from("topics").select("id, name").eq("workspace_id", ws.id).order("name")) ?? []) as { id: string; name: string }[], `${ws.id}:topics`);
+  const mode = form.consent.mode;
   return (
-    <div className="flex flex-col gap-2">
-      <ErrorNote message={error} />
-      {data.data.people.map((p) => (
-        <label key={p.id} className="grid grid-cols-[180px_1fr] items-center gap-2 text-[13px]">
-          <span className="truncate text-body">{p.email}</span>
-          <Input defaultValue={data.data!.links.get(p.id) ?? ""} disabled={role !== "owner" && p.id !== session.user.id} placeholder="https://" onBlur={(e) => void save(p.id, e.target.value.trim())} />
-        </label>
-      ))}
-    </div>
+    <Section id="consent" title="Consent">
+      <Group label="Email consent">
+        <div className="overflow-x-auto">
+          <Segmented
+            label="Email consent"
+            value={mode}
+            options={[
+              { value: "by_region", label: "Where the law asks" },
+              { value: "always", label: "Always" },
+              { value: "notice", label: "Notice" },
+              { value: "off", label: "Off" },
+            ]}
+            onChange={(m) => {
+              const swap = m === "notice" ? form.consent.label === DEFAULT_CONSENT && DEFAULT_NOTICE : form.consent.label === DEFAULT_NOTICE && DEFAULT_CONSENT;
+              apply({ op: "set_consent", mode: m, ...(swap ? { label: swap } : {}) });
+            }}
+          />
+        </div>
+      </Group>
+      {mode !== "off" ? (
+        <Group label={mode === "notice" ? "Notice text" : "Box text"} htmlFor="consent-label">
+          <textarea
+            id="consent-label"
+            value={form.consent.label}
+            rows={2}
+            onChange={(e) => apply({ op: "set_consent", label: e.target.value })}
+            onBlur={(e) => !e.target.value.trim() && apply({ op: "set_consent", label: mode === "notice" ? DEFAULT_NOTICE : DEFAULT_CONSENT })}
+            className={AREA}
+          />
+        </Group>
+      ) : null}
+      {(mode === "by_region" || mode === "always") && topics.data?.length ? (
+        <Group label="Email topic">
+          <Select
+            className={`h-10 ${SEL}`}
+            ariaLabel="Email topic"
+            value={form.consent.topicId ?? ""}
+            options={[{ value: "", label: "None" }, ...topics.data.map((t) => ({ value: t.id, label: t.name }))]}
+            onChange={(v) => apply({ op: "set_consent", topicId: v || null })}
+          />
+        </Group>
+      ) : null}
+    </Section>
+  );
+}
+
+export function SpamSettings({ form, apply }: { form: Form; apply: (op: Op) => void }) {
+  const secs = form.spam.minSeconds;
+  return (
+    <Section id="spam" title="Spam">
+      <div className="-my-2 flex flex-col divide-y divide-line">
+        <div className="py-2">
+          <Row label="Fastest human fill">
+            <span className="flex items-center gap-2">
+              <Input
+                aria-label="Fastest human fill in seconds"
+                type="number"
+                inputMode="numeric"
+                min={0}
+                max={30}
+                value={secs}
+                onChange={(e) => {
+                  const n = Math.round(Number(e.target.value));
+                  if (e.target.value !== "" && Number.isFinite(n)) apply({ op: "set_spam", minSeconds: Math.min(30, Math.max(0, n)) });
+                }}
+                className="h-9 w-20 text-right tabular-nums"
+              />
+              <span className="text-[13px] text-muted">sec</span>
+            </span>
+          </Row>
+        </div>
+        <div className="py-2">
+          <Row label="Cloudflare Turnstile">
+            <Toggle label="Cloudflare Turnstile" on={form.spam.turnstile} onChange={(v) => apply({ op: "set_spam", turnstile: v })} />
+          </Row>
+        </div>
+      </div>
+    </Section>
   );
 }
