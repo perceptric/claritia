@@ -4,7 +4,7 @@ import type { Session } from "@supabase/supabase-js";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { getSupabase, type SupaConfig } from "@/lib/supa";
 import { NAV, resolveRoute, type Route as NavRoute } from "@/lib/nav";
-import { BarChart, Box, Branch, Contact, Dollar, FileText, FormIcon, ListIcon, LogOut, Mail, Megaphone, Moon, Search, Settings, Sun, Users } from "../Icons";
+import { BarChart, Box, Branch, CalendarIcon, Contact, Dollar, FileText, FormIcon, ListIcon, LogOut, Mail, Megaphone, Moon, Search, Settings, Sun, Users } from "../Icons";
 import { Logo } from "../Logo";
 import { AuthScreen } from "./AuthScreen";
 import { Dots } from "./Ai";
@@ -16,6 +16,7 @@ import { CompaniesView, ObjectsView, OpportunitiesView } from "./views/RecordsVi
 import { SegmentsView } from "./views/SegmentsView";
 import { AdsView, AnalyticsView, PagesView, TemplatesView } from "./views/MarketingIntros";
 import { FormsView } from "./forms/FormsView";
+import { MeetingsView } from "./meetings/MeetingsView";
 import { NurtureView } from "./views/NurtureView";
 import { SettingsView } from "./views/SettingsView";
 
@@ -24,6 +25,7 @@ const ICONS: Record<NavRoute, React.ReactNode> = {
   contacts: <Contact size={15} />,
   companies: <Users size={15} />,
   opportunities: <Dollar size={15} />,
+  meetings: <CalendarIcon size={15} />,
   objects: <Box size={15} />,
   segments: <ListIcon size={15} />,
   templates: <Mail size={15} />,
@@ -48,6 +50,8 @@ const readLoc = (): Loc => {
   // Settings pages: /settings/<page>.
   if (r.route === "settings") return { route: r.route, id: /^[a-z_]{2,30}$/.test(a) ? a : "" };
   if ((r.route === "segments" || r.route === "forms" || r.route === "workflows") && a === "new") return { route: r.route, id: a };
+  // Meetings: /meetings/<id>, /meetings/types and /meetings/types/<id or new>.
+  if (r.route === "meetings") return { route: r.route, id: a === "types" ? (uuid(b) || b === "new" ? `types/${b}` : "types") : uuid(a) ? a : "" };
   // Companies: the live visit feed, and an old account link that finds its company.
   if (r.route === "companies" && a === "visits") return { route: r.route, id: a };
   if (r.route === "companies" && a === "account" && uuid(b)) return { route: r.route, id: `account/${b}` };
@@ -269,6 +273,8 @@ export function ClientApp({ config }: { config: SupaConfig }) {
           <CompaniesView {...props} />
         ) : route === "opportunities" ? (
           <OpportunitiesView {...props} />
+        ) : route === "meetings" ? (
+          <MeetingsView key={loc.id} {...props} />
         ) : route === "objects" ? (
           <ObjectsView key={loc.id.split("/")[0]} {...props} />
         ) : route === "segments" ? (

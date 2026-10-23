@@ -162,21 +162,25 @@ async function toCrmFields(t: Taken, dep: Deps, externalId: string, isNew: boole
 }
 
 async function toSlack(t: Taken, d: SendDeps): Promise<Result> {
-  const { url } = JSON.parse(unseal(t.sealed ?? "")) as { url?: string };
-  if (!url || !/^https:\/\/hooks\.slack\.com\/services\//.test(url)) return { status: "failed", error: "Add the Slack webhook address again." };
-  const rows = labeled(t).slice(0, 20);
   const name = t.form?.name ?? "A form";
   const who = t.contact ? [t.contact.first_name, t.contact.last_name].filter(Boolean).join(" ") || t.contact.email : null;
-  const text = `${t.submission.test ? "[Test] " : ""}New fill on ${name}${who ? `: ${who}` : ""}`;
+  return slackNote(t.sealed, `${t.submission.test ? "[Test] " : ""}New fill on ${name}${who ? `: ${who}` : ""}`, labeled(t), d.fetcher);
+}
+
+/** One message to a form's Slack destination: a bold line and up to 20 labeled rows. */
+export async function slackNote(sealed: string | null, text: string, rows: { label: string; value: string }[], fetcher: typeof fetch = fetch): Promise<Result> {
+  const { url } = JSON.parse(unseal(sealed ?? "")) as { url?: string };
+  if (!url || !/^https:\/\/hooks\.slack\.com\/services\//.test(url)) return { status: "failed", error: "Add the Slack webhook address again." };
+  const r = rows.slice(0, 20);
   const body = JSON.stringify({
     text,
     blocks: [
       { type: "section", text: { type: "mrkdwn", text: `*${esc(text)}*` } },
-      ...(rows.length ? [{ type: "section", fields: rows.slice(0, 10).map((r) => ({ type: "mrkdwn", text: `*${esc(r.label)}*\n${esc(r.value).slice(0, 500)}` })) }] : []),
-      ...(rows.length > 10 ? [{ type: "section", fields: rows.slice(10, 20).map((r) => ({ type: "mrkdwn", text: `*${esc(r.label)}*\n${esc(r.value).slice(0, 500)}` })) }] : []),
+      ...(r.length ? [{ type: "section", fields: r.slice(0, 10).map((x) => ({ type: "mrkdwn", text: `*${esc(x.label)}*\n${esc(x.value).slice(0, 500)}` })) }] : []),
+      ...(r.length > 10 ? [{ type: "section", fields: r.slice(10, 20).map((x) => ({ type: "mrkdwn", text: `*${esc(x.label)}*\n${esc(x.value).slice(0, 500)}` })) }] : []),
     ],
   });
-  const res = await post(url, body, {}, d.fetcher ?? fetch);
+  const res = await post(url, body, {}, fetcher);
   if (!(res instanceof Response)) return res;
   if (res.ok) return { status: "done" };
   const why = (await res.text().catch(() => "")).slice(0, 200);

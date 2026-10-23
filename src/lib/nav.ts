@@ -5,6 +5,7 @@ export type Route =
   | "contacts"
   | "companies"
   | "opportunities"
+  | "meetings"
   | "objects"
   | "segments"
   | "templates"
@@ -23,6 +24,7 @@ export const NAV: NavItem[] = [
   { route: "contacts", label: "Contacts", group: "CRM" },
   { route: "companies", label: "Companies" },
   { route: "opportunities", label: "Opportunities" },
+  { route: "meetings", label: "Meetings" },
   { route: "segments", label: "Segments", group: "Email" },
   { route: "templates", label: "Templates" },
   { route: "workflows", label: "Workflows" },
@@ -45,6 +47,17 @@ const MOVED: Record<string, { route: Route; id?: string; keepId?: boolean }> = {
 };
 
 export const defaultRoute: Route = "forms";
+
+/**
+ * Meetings' pages: the list (""), one meeting (<id>), the types ("types") and one type ("types/<id>", or
+ * "types/new"). Anything else opens the list.
+ */
+export function meetingsPage(id: string): { page: "list" | "meeting" | "types" | "type"; id: string } {
+  const [a = "", b = ""] = id.split("/");
+  const uuid = (x: string) => /^[0-9a-f-]{36}$/.test(x);
+  if (a === "types") return uuid(b) || b === "new" ? { page: "type", id: b } : { page: "types", id: "" };
+  return uuid(a) ? { page: "meeting", id: a } : { page: "list", id: "" };
+}
 
 /**
  * The screen for an address's first two parts. Unknown and old testing addresses open Forms; moved ones open

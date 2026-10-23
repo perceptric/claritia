@@ -2,7 +2,8 @@
 // (scripts/local-stack.mjs) and `next dev`, signed in as one test user. Each way in goes from an empty workspace to a
 // live form that takes a fill and makes a contact: Ask (five questions by clicks and keys, opening on Design), a
 // first sentence that skips what it settles, a template, and Start blank with click and drag on the canvas. Then the
-// CRM: a custom field from the table, a rating from the record page, a note and a task.
+// CRM: a custom field from the table, a rating from the record page, a note and a task. Then Meetings: a guest books
+// from the booking page, and a lead books inside a Claritia calendar form right after sending it.
 //   POSTGREST_BIN=… CHROMIUM_PATH=… node scripts/screens-check.ts
 // scripts/test-db.sh runs it when both are set.
 
@@ -12,6 +13,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import pg from "pg";
 import pw from "playwright-core";
+import { checkForm, emptyForm } from "../src/lib/forms/schema.ts";
 
 const failures: string[] = [];
 const check = (ok: boolean, what: string) => {
@@ -209,12 +211,72 @@ try {
   await page.getByText("Fit score").first().waitFor({ timeout: 10_000 });
   check((await db.query(`select type from fields where workspace_id = $1 and key = 'fit_score'`, [ws])).rows[0]?.type === "rating", "a rating field is added from the record page");
 
+  // Meetings: the user's calendar (the local fake), open all week, and one meeting type.
+  const user = (await db.query(`select user_id from workspace_members where workspace_id = $1 limit 1`, [ws])).rows[0].user_id as string;
+  const acc = (await db.query(`insert into calendar_accounts (workspace_id, user_id, provider, account_email) values ($1, $2, 'fake', 'me@acme.com') returning id`, [ws, user])).rows[0].id;
+  await db.query(`insert into calendar_lists (account_id, calendar_id, name, busy, write) values ($1, 'primary', 'Work', true, true)`, [acc]);
+  const allDay = Object.fromEntries(["mon", "tue", "wed", "thu", "fri", "sat", "sun"].map((d) => [d, [["00:00", "23:59"]]]));
+  await db.query(`insert into availability (workspace_id, user_id, tz, weekly, overrides) values ($1, $2, 'UTC', $3, '[]')`, [ws, user, allDay]);
+  await db.query(`insert into booking_profiles (workspace_id, user_id, slug, name) values ($1, $2, 'sam', 'Sam Lee') on conflict do nothing`, [ws, user]);
+  const slug = (await db.query(`select booking_slug_ensure($1) s`, [ws])).rows[0].s as string;
+  const settings = { lengths: [30], location: { kind: "google_meet" }, bufferBefore: 0, bufferAfter: 0, notice: 60, window: 7, perDay: 0, perWeek: 0, step: 30, rrMode: "flexible", seats: 1, reschedule: "same_host", reminders: [60], noShowFollowUp: true, confirmation: { kind: "message" }, questions: [] };
+  const typeId = (await db.query(`insert into meeting_types (workspace_id, slug, name, kind, hosts, settings) values ($1, 'intro', 'Intro call', 'one', $2, $3) returning id`, [ws, JSON.stringify([{ user_id: user }]), settings])).rows[0].id as string;
+
+  await page.goto(`${base}/meetings`);
+  await page.getByRole("button", { name: "Meeting types" }).click({ timeout: 60_000 });
+  await page.getByText("Intro call").first().waitFor({ timeout: 60_000 });
+  check(true, "Meeting types lists the type");
+
+  // The booking page: a time, then Next, the details, and Book meeting.
+  const guestPage = await browser.newPage();
+  guestPage.on("pageerror", (e) => errors.push(`book: ${e.message}`));
+  await guestPage.goto(`${base}/book/${slug}/intro`);
+  await guestPage.locator(".cb-time").first().waitFor({ timeout: 60_000 });
+  await guestPage.locator(".cb-time").first().click();
+  await guestPage.getByRole("button", { name: "Next", exact: true }).click();
+  await guestPage.getByLabel("Name", { exact: true }).fill("Rae Kim");
+  await guestPage.getByLabel("Email", { exact: true }).fill("rae@northwind.io");
+  await guestPage.getByRole("button", { name: "Book meeting" }).click();
+  await guestPage.getByText("You're booked").waitFor({ timeout: 60_000 });
+  const booked = (await db.query(`select m.status, c.email_clean from meetings m left join contacts c on c.id = m.contact_id where m.guest_email = 'rae@northwind.io'`)).rows;
+  check(booked.length === 1 && booked[0].status === "booked" && booked[0].email_clean === "rae@northwind.io", "a guest books from the booking page and becomes a contact");
+  await guestPage.close();
+
+  // A form that books with Claritia calendar: send it, then pick a time in the form.
+  const raw = {
+    ...emptyForm(),
+    steps: [{ id: "s1", fields: [{ id: "em", key: "email", type: "email", label: "Work email", required: true }, { id: "fn", key: "first_name", type: "text", label: "First name", required: false }] }],
+    spam: { minSeconds: 0, turnstile: false },
+    after: { end: { kind: "message", title: "Thanks" }, schedule: { tool: "claritia", url: "", perOwner: false, meetingTypeId: typeId } },
+  };
+  const made = checkForm(raw);
+  if ("errors" in made) throw new Error(made.errors.join(" "));
+  const bookForm = (await db.query(`insert into forms (workspace_id, name, draft) values ($1, 'Book a demo', $2) returning id`, [ws, made.form])).rows[0].id as string;
+  await db.query(`select form_publish($1, $2, $3)`, [bookForm, user, made.form]);
+  const lead = await browser.newPage();
+  lead.on("pageerror", (e) => errors.push(`form: ${e.message}`));
+  await lead.goto(`${base}/f/${bookForm}`);
+  const host = lead.locator("claritia-form");
+  await host.locator("form").waitFor({ timeout: 30_000 });
+  await host.getByLabel(/^Work email/).fill("lee@globex.io");
+  await host.getByLabel(/^First name/).fill("Lee");
+  await host.locator("button[type=submit]").click();
+  await host.getByRole("heading", { name: "Pick a time" }).waitFor({ timeout: 90_000 });
+  await host.getByRole("button", { name: /^Book / }).first().click();
+  await host.getByRole("heading", { name: "You're booked" }).waitFor({ timeout: 60_000 });
+  const fromForm = (await db.query(`select m.status, m.submission_id from meetings m where m.guest_email = 'lee@globex.io'`)).rows;
+  check(fromForm.length === 1 && fromForm[0].status === "booked" && !!fromForm[0].submission_id, "a lead books inside the form, and the meeting links to the fill");
+  await lead.close();
+
   check(!errors.length, `no page errors (${errors.slice(0, 3).join(" | ")})`);
 } catch (e) {
   failures.push((e as Error).message);
   console.log(`FAIL ${(e as Error).message}`);
   // SHOT_ON_FAIL=<file.png> keeps a picture of the page where it stopped.
-  if (process.env.SHOT_ON_FAIL) await page.screenshot({ path: process.env.SHOT_ON_FAIL }).catch(() => {});
+  if (process.env.SHOT_ON_FAIL) {
+    const open = browser.contexts().flatMap((c) => c.pages());
+    for (const [i, p] of open.entries()) await p.screenshot({ path: i ? process.env.SHOT_ON_FAIL.replace(/\.png$/, `-${i}.png`) : process.env.SHOT_ON_FAIL }).catch(() => {});
+  }
 } finally {
   await browser.close();
   await db.end();

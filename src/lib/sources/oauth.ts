@@ -4,7 +4,17 @@
 
 import { createHash, createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 
-export type OauthCfg = { env: string; authorize: string; token: string; scope?: string; basic?: boolean; pkce?: boolean; extra?: Record<string, string> };
+export type OauthCfg = {
+  env: string;
+  authorize: string;
+  token: string;
+  scope?: string;
+  basic?: boolean;
+  pkce?: boolean;
+  extra?: Record<string, string>;
+  /** Send the scope again when refreshing (Microsoft's identity platform asks for it). */
+  refreshScope?: boolean;
+};
 
 export const OAUTH: Record<string, OauthCfg> = {
   hubspot: {
@@ -20,6 +30,26 @@ export const OAUTH: Record<string, OauthCfg> = {
   pipedrive: { env: "PIPEDRIVE", authorize: "https://oauth.pipedrive.com/oauth/authorize", token: "https://oauth.pipedrive.com/oauth/token", basic: true },
   attio: { env: "ATTIO", authorize: "https://app.attio.com/authorize", token: "https://app.attio.com/oauth/token" },
   mailchimp: { env: "MAILCHIMP", authorize: "https://login.mailchimp.com/oauth2/authorize", token: "https://login.mailchimp.com/oauth2/token" },
+  // Meetings (docs/meetings-scheduler.md 1.1): each person's own calendar, connected from My calendar through
+  // /api/calendar/connect. Google asks again for consent so a refresh token always comes back.
+  google_calendar: {
+    env: "GOOGLE",
+    authorize: "https://accounts.google.com/o/oauth2/v2/auth",
+    token: "https://oauth2.googleapis.com/token",
+    scope: "https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/userinfo.email",
+    extra: { access_type: "offline", prompt: "consent", include_granted_scopes: "true" },
+  },
+  // Entra ID, multi-tenant: any work or school account (and personal Outlook accounts) can sign in.
+  microsoft_calendar: {
+    env: "MICROSOFT",
+    authorize: "https://login.microsoftonline.com/common/oauth2/v2.0/authorize",
+    token: "https://login.microsoftonline.com/common/oauth2/v2.0/token",
+    scope: "offline_access User.Read Calendars.ReadWrite",
+    extra: { prompt: "select_account" },
+    refreshScope: true,
+  },
+  // Zoom's scopes (meeting:write) are set on the Marketplace app itself, not in the sign-in link.
+  zoom: { env: "ZOOM", authorize: "https://zoom.us/oauth/authorize", token: "https://zoom.us/oauth/token", basic: true },
 };
 
 const env = (name: string) => process.env[name]?.trim() ?? "";
@@ -73,14 +103,28 @@ export function oauthUrl(kind: string, redirectUri: string, s: Omit<State, "exp"
 
 export type Token = { access: string; refresh: string | null; expiresAt: number; extra: Record<string, string> };
 
+/** A refused token call; `code` is the OAuth error ("invalid_grant" when the sign-in was revoked or expired). */
+export class OauthError extends Error {
+  code: string;
+  status: number;
+  constructor(message: string, code: string, status: number) {
+    super(message);
+    this.code = code;
+    this.status = status;
+  }
+}
+
 async function tokenCall(kind: string, params: Record<string, string>, fetcher: typeof fetch = fetch): Promise<Token> {
   const c = OAUTH[kind];
-  const body = new URLSearchParams(c.basic ? params : { ...params, client_id: clientId(kind), client_secret: clientSecret(kind) });
+  const scoped = c.refreshScope && params.grant_type === "refresh_token" && c.scope ? { ...params, scope: c.scope } : params;
+  const body = new URLSearchParams(c.basic ? scoped : { ...scoped, client_id: clientId(kind), client_secret: clientSecret(kind) });
   const headers: Record<string, string> = { "Content-Type": "application/x-www-form-urlencoded", Accept: "application/json" };
   if (c.basic) headers.Authorization = `Basic ${Buffer.from(`${clientId(kind)}:${clientSecret(kind)}`).toString("base64")}`;
   const res = await fetcher(c.token, { method: "POST", headers, body });
   const t = (await res.json().catch(() => ({}))) as Record<string, unknown>;
-  if (!res.ok || typeof t.access_token !== "string") throw new Error(String(t.error_description ?? t.message ?? t.error ?? `Sign-in failed (${res.status})`));
+  if (!res.ok || typeof t.access_token !== "string") {
+    throw new OauthError(String(t.error_description ?? t.message ?? t.error ?? `Sign-in failed (${res.status})`), typeof t.error === "string" ? t.error : "", res.status);
+  }
   const extra: Record<string, string> = {};
   // Salesforce's org address, Pipedrive's company address.
   for (const k of ["instance_url", "api_domain", "id"]) if (typeof t[k] === "string") extra[k] = t[k] as string;
@@ -93,7 +137,7 @@ async function tokenCall(kind: string, params: Record<string, string>, fetcher: 
   };
 }
 
-export const oauthExchange = (kind: string, code: string, redirectUri: string, verifier?: string) =>
-  tokenCall(kind, { grant_type: "authorization_code", code, redirect_uri: redirectUri, ...(verifier ? { code_verifier: verifier } : {}) });
+export const oauthExchange = (kind: string, code: string, redirectUri: string, verifier?: string, fetcher?: typeof fetch) =>
+  tokenCall(kind, { grant_type: "authorization_code", code, redirect_uri: redirectUri, ...(verifier ? { code_verifier: verifier } : {}) }, fetcher);
 
 export const oauthRefresh = (kind: string, refresh: string, fetcher?: typeof fetch) => tokenCall(kind, { grant_type: "refresh_token", refresh_token: refresh }, fetcher);

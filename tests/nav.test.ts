@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { NAV, resolveRoute } from "../src/lib/nav.ts";
+import { meetingsPage, NAV, resolveRoute } from "../src/lib/nav.ts";
 
 test("the sidebar is Site, CRM, Email, Ads and Settings, in that order", () => {
   const groups: [string, string[]][] = [];
@@ -10,7 +10,7 @@ test("the sidebar is Site, CRM, Email, Ads and Settings, in that order", () => {
   }
   assert.deepEqual(groups, [
     ["Site", ["forms", "pages"]],
-    ["CRM", ["contacts", "companies", "opportunities"]],
+    ["CRM", ["contacts", "companies", "opportunities", "meetings"]],
     ["Email", ["segments", "templates", "workflows", "analytics"]],
     ["", ["ads"]],
     ["", ["settings"]],
@@ -56,4 +56,17 @@ test("current addresses keep their record", () => {
     route: "objects",
     id: "deal/abc",
   });
+});
+
+test("meetings: the list, one meeting, the types and one type keep their address", () => {
+  const id = "0b7c6a8e-1f2d-4c3b-9a8e-7d6c5b4a3f21";
+  assert.deepEqual(resolveRoute("meetings", ""), { route: "meetings", id: "" });
+  assert.deepEqual(resolveRoute("meetings", `types/${id}`), { route: "meetings", id: `types/${id}` });
+  assert.deepEqual(meetingsPage(""), { page: "list", id: "" });
+  assert.deepEqual(meetingsPage(id), { page: "meeting", id });
+  assert.deepEqual(meetingsPage("types"), { page: "types", id: "" });
+  assert.deepEqual(meetingsPage(`types/${id}`), { page: "type", id });
+  assert.deepEqual(meetingsPage("types/new"), { page: "type", id: "new" });
+  assert.deepEqual(meetingsPage("types/nope"), { page: "types", id: "" });
+  assert.deepEqual(meetingsPage("nope"), { page: "list", id: "" });
 });

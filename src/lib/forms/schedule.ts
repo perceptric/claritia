@@ -4,6 +4,8 @@
 // tool; the rest are linked by email as a maybe. Runs in the browser and on the server.
 
 export type SchedulerTool = "calendly" | "calcom" | "hubspot_meetings" | "savvycal" | "link";
+/** Where the lead books: Claritia's own calendar (a meeting type, booked in the form) or an outside scheduler. */
+export type ScheduleTool = "claritia" | SchedulerTool;
 
 /**
  * Who sees the calendar (docs/form-studio.md Part 3). A rule reads a field's answer by field id, or "@work_email" for
@@ -12,8 +14,11 @@ export type SchedulerTool = "calendly" | "calcom" | "hubspot_meetings" | "savvyc
 export type MatchRule = { field: string; op: "is" | "is_not" | "filled" | "empty" | "gte" | "lte"; value?: string };
 
 export type Schedule = {
-  tool: SchedulerTool;
+  tool: ScheduleTool;
+  /** The outside scheduler's team link; empty for Claritia calendar. */
   url: string;
+  /** Claritia calendar: the meeting type the lead books (its kind decides owner first, round robin and the rest). */
+  meetingTypeId?: string;
   /** Book with the contact's owner when they have a link, else the team link. */
   perOwner: boolean;
   /** Everyone, or only leads that match the rules; the rest see the form's message or page. */
@@ -61,8 +66,11 @@ export const SCHEDULERS: { value: SchedulerTool; label: string; domain: string; 
   { value: "link", label: "Other link", domain: "", hosts: null, tracks: false },
 ];
 
-/** Why a link can't be used for a tool, or null when it can. */
-export function linkProblem(tool: SchedulerTool, raw: string): string | null {
+/** An outside scheduler (a link that opens in the form), as opposed to Claritia calendar. */
+export const outside = (tool: ScheduleTool): tool is SchedulerTool => tool !== "claritia";
+
+/** Why a link can't be used for a tool, or null when it can. Claritia calendar takes no link. */
+export function linkProblem(tool: ScheduleTool, raw: string): string | null {
   const t = SCHEDULERS.find((s) => s.value === tool);
   if (!t) return "Pick a scheduler.";
   let u: URL;

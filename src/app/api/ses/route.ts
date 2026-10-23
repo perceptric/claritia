@@ -29,5 +29,11 @@ export async function POST(request: Request) {
   if (!event) return Response.json({ ok: true, ignored: true });
   const { data, error } = await db.rpc("ses_event_apply", { p_event: event });
   if (error) return Response.json({ error: error.message }, { status: 500 });
+  // Not a campaign message: maybe a meeting email (063_meeting_mail_events.sql).
+  if (data === "unknown_message") {
+    const meeting = await db.rpc("meeting_mail_event", { p_event: event });
+    if (meeting.error) return Response.json({ error: meeting.error.message }, { status: 500 });
+    return Response.json({ ok: true, result: meeting.data });
+  }
   return Response.json({ ok: true, result: data });
 }

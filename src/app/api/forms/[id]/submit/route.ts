@@ -5,7 +5,7 @@ import { serviceClient } from "@/lib/serviceClient";
 
 // A fill from <claritia-form> (docs/form-builder.md Part 2). Checks everything again, then form_submit saves the
 // submission, the contact, the consent and one delivery per destination in one transaction. The same idem key
-// sent again answers with the first submission.
+// sent again answers with the first submission (and, for Claritia calendar, the same booking token).
 
 const ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const MAX_BODY = 64 * 1024;
@@ -35,6 +35,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       turnstileFailed,
       origin: request.headers.get("origin"),
       test: qaOk(id, raw.qa, process.env.SECRETS_KEY),
+      // Signs the booking token when the form books with Claritia calendar.
+      secret: process.env.SECRETS_KEY,
     });
     return json(r.body, r.status);
   } catch {
