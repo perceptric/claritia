@@ -1,7 +1,8 @@
-# Meetings M1 and M2: the scheduler and instant booking (plan)
+# Meetings M1 and M2: the scheduler and instant booking
 
-Status: plan, waiting for a yes. Nothing is built yet. This is the detail for M1 and M2 in `docs/meetings-plan.md`,
-plus everything Calendly does as a booking calendar on its own (1.8b).
+Status: built. This is the detail for M1 and M2 in `docs/meetings-plan.md`, plus everything Calendly does as a
+booking calendar on its own (1.8b). Production setup (calendar apps, Stripe, secrets) and the running cost as built
+are in `docs/meetings-setup.md`. What's left is listed at the end.
 
 **M1:** reps connect Google or Microsoft in one click and set their hours, buffers and caps. Meeting types book one
 rep, a round robin, all hosts or the owner first. Leads get booking pages, reminders, reschedule and cancel links, and
@@ -287,3 +288,26 @@ Assumptions: Beta is 50 teams with about 150 meetings each a month (7,500 meetin
 3. **Zoom:** a Zoom Marketplace OAuth app (free, check).
 4. **Resend** on the sending domain (lock-in plan week 1), since reminders depend on it.
 5. **Booking page domain:** `book.tryclaritia.com` (recommended), with the customer's own subdomain later.
+
+---
+
+## Part 7. Built, and what's left
+
+| Built | Where |
+| --- | --- |
+| Tables, slot engine, round robin, booking with locks and the live check | `supabase/migrations/053_meetings.sql`, `src/lib/meetings/{slots,server,time,check}.ts` |
+| Google, Microsoft and Zoom: connect, busy times with pushes and the 10-minute refresh, events with one invite (Claritia's) | `054_calendars.sql`, `src/lib/meetings/providers/`, `worker-intel/jobs/calendars.ts` |
+| Emails, reminders, after-meeting links, no-show follow-up, the reconnect email, bounces and complaints | `055_meeting_lifecycle.sql`, `059_calendar_reconnect_mail.sql`, `063_meeting_mail_events.sql`, `worker-intel/jobs/meetings.ts` |
+| Instant booking in forms, book later, not booked with a Slack note, form Results | `056_instant_booking.sql`, `062_not_booked_note.sql`, `src/lib/forms/booking.ts` |
+| Booking pages, embed, reschedule and cancel, one-off and single-use links, polls, group seats sharing one event, paid types | `057_book_public.sql`, `060_group_seats.sql`, `src/lib/meetings/public.ts`, `src/app/book/` |
+| Guests who book become contacts | `061_meeting_contacts.sql` |
+| Screens: Meetings, Meeting types, My calendar, Team calendars, Payments | `058_meetings_screens.sql`, `src/components/app/meetings/` |
+| The screens-check booking run: a page booking and an in-form booking | `scripts/screens-check.ts` |
+
+Left:
+
+- A one-off link or a poll's meeting can only be canceled by the guest, not moved.
+- Captured forms (2.3) open the calendar for HubSpot, Webflow and plain HTML; Marketo and Framer hooks need a test on
+  a live site.
+- Google app verification and Microsoft publisher verification (Part 6) before other companies can connect.
+
