@@ -58,7 +58,8 @@ export const BOOK_CSS = `
 .cb-icon:hover:not(:disabled){background:var(--cb-tint)}
 .cb-icon:disabled{opacity:.3;cursor:default}
 .cb-week,.cb-days{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px;text-align:center}
-.cb-week{font-size:11px;font-weight:500;color:var(--clr-muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:.04em}
+.cb-week{font-size:11px;font-weight:500;color:var(--clr-muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:.04em;container-type:inline-size}
+@container (max-width:280px){.cb-week span{font-size:0}.cb-week span::after{content:attr(data-short);font-size:11px}}
 .cb-day{position:relative;aspect-ratio:1;max-width:48px;width:100%;margin:0 auto;border-radius:999px;display:flex;align-items:center;justify-content:center;font-weight:500;font-variant-numeric:tabular-nums;color:var(--clr-muted);transition:background-color 140ms var(--cb-ease),color 140ms var(--cb-ease)}
 .cb-day:disabled{cursor:default;opacity:.55}
 .cb-day.cb-has{background:var(--cb-tint);color:var(--clr-accent);font-weight:600}
@@ -66,6 +67,7 @@ export const BOOK_CSS = `
 .cb-day[aria-pressed=true]{background:var(--clr-accent);color:var(--clr-btn-text)}
 .cb-day.cb-today::after{content:"";position:absolute;bottom:5px;left:50%;width:4px;height:4px;margin-left:-2px;border-radius:999px;background:currentColor}
 .cb-zone{margin-top:16px;display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px}
+.cb-zone>*{min-width:0;max-width:100%}
 .cb-zbtn{display:inline-flex;align-items:center;gap:8px;padding:6px 10px;margin-left:-10px;border-radius:999px;font-weight:500;max-width:100%}
 .cb-zbtn:hover{background:var(--cb-soft)}
 .cb-zbtn span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}

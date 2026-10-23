@@ -439,7 +439,9 @@ function Month(p: { month: string; today: string; days: Map<string, GuestSlot[]>
       </div>
       <div className="cb-week" aria-hidden="true">
         {week.map((w) => (
-          <span key={w}>{w}</span>
+          <span key={w} data-short={w.slice(0, 2)}>
+            {w}
+          </span>
         ))}
       </div>
       <div className="cb-days" role="grid" aria-busy={p.loading || undefined}>
