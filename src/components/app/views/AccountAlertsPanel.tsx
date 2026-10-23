@@ -54,25 +54,26 @@ export function AccountAlertsPanel({ sb, session, ws }: Pick<ViewProps, "sb" | "
           <Loading />
         ) : (
           rules.data.map((r) => (
-            <div key={r.id} className="flex flex-wrap items-center gap-3 border-b border-line px-4 py-3 text-[13px]">
+            <div key={r.id} className="anim-rise-sm mx-4 mt-3 flex flex-wrap items-center gap-3 rounded-lg border border-line bg-paper px-4 py-3 text-[13px]">
               <span>{ruleText(r.rule)}</span>
               <span className="font-mono text-[11.5px] text-muted">Slack …{r.slack_hint} · up to {r.daily_cap} a day</span>
               <span className="ml-auto flex gap-1.5">
-                <Button variant="ghost" className="h-7 px-2.5" disabled={!!busy} onClick={() => run(`t${r.id}`, () => postJson(session, "/api/account-alerts", { workspaceId: ws.id, ruleId: r.id, test: true }))}>
+                <Button variant="ghost" size="sm" disabled={!!busy} onClick={() => run(`t${r.id}`, () => postJson(session, "/api/account-alerts", { workspaceId: ws.id, ruleId: r.id, test: true }))}>
                   {busy === `t${r.id}` ? "Sending…" : "Send test"}
                 </Button>
-                <Button variant="plain" className="h-7 px-2" disabled={!!busy} onClick={() => remove(r.id)}>
+                <Button variant="plain" size="sm" disabled={!!busy} onClick={() => remove(r.id)}>
                   Remove
                 </Button>
               </span>
             </div>
           ))
         )}
-        <div className="grid gap-3 p-4 sm:grid-cols-[1fr_auto_auto]">
+        <div className="grid gap-3 p-5 sm:grid-cols-[1fr_auto_auto]">
           <Field label="When an account">
             <Select<AlertRule["when"]>
               value={when}
               onChange={setWhen}
+              className="h-10 w-full rounded-sm border border-line-strong bg-card px-3 text-[13.5px] focus:border-ink"
               options={[
                 { value: "hot", label: "turns hot" },
                 { value: "evaluating", label: "reaches Evaluating" },

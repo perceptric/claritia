@@ -12,9 +12,9 @@ export default async function HostedForm({ params, searchParams }: { params: Pro
   const framed = typeof (await searchParams).c === "string";
   const ok = /^[0-9a-f-]{36}$/.test(id);
   return (
-    <main style={framed ? { padding: 4, background: "transparent" } : { minHeight: "100vh", display: "flex", justifyContent: "center", padding: "48px 16px", background: "#ffffff" }}>
+    <main style={framed ? { padding: 4, background: "transparent" } : { minHeight: "100vh", display: "flex", justifyContent: "center", padding: "48px 16px", background: "var(--color-card)" }}>
       <div style={{ width: "100%", maxWidth: framed ? undefined : 720 }}>
-        {ok ? <claritia-form form-id={id} /> : <p>Form not found.</p>}
+        {ok ? <claritia-form form-id={id} /> : <p className="serif py-16 text-center text-[22px] text-ink">Form not found.</p>}
       </div>
       <Script src="/forms/v1.js" strategy="afterInteractive" />
     </main>

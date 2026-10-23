@@ -5,17 +5,19 @@
 
 import { useState } from "react";
 import { readStep, stepEmail } from "@/lib/nurture/email";
-import { Branch, Check, Plus, Refresh, Trash, X } from "../../Icons";
+import { ArrowDown, ArrowUp, Branch, Check, Plus, Refresh, Trash, X } from "../../Icons";
 import { askConfirm } from "../Dialogs";
 import { Select } from "../Select";
+import { ByPip, Pip } from "../Pip";
 import { SampleStats, ToolIntro } from "../ToolIntro";
-import { Badge, Button, CardHead, ErrorNote, errorText, Field, Input, Loading, must, Page, Panel, postJson, Td, Th, timeAgo, useLoad, type Tone, type ViewProps } from "../ui";
+import { Badge, Button, CardHead, ErrorNote, errorText, Field, IconButton, Input, Loading, must, Page, Panel, postJson, Td, Th, timeAgo, useLoad, type Tone, type ViewProps } from "../ui";
 
 type Nurture = { id: string; name: string; status: "draft" | "live" | "paused"; trigger: { kind?: string; segment_id?: string; form_id?: string }; topic_id: string | null; brief: string; exit_stages: string[]; updated_at: string };
 type Step = { id: string; position: number; wait_days: number; ai: boolean; review_notes: string[]; approved_at: string | null; emails: { subject: string; preheader: string | null; html: string; text: string } };
 type Enrollment = { id: string; status: string; step: number; next_at: string; exit_reason: string | null; contacts: { email_clean: string | null } | null };
 
-const SEL = "h-9 w-full rounded-md border border-line bg-panel px-2.5 text-[13px] hover:border-line-strong";
+const SEL = "h-10 w-full rounded-sm border border-line-strong bg-card px-3 text-[13.5px] focus:border-ink";
+const AREA = "w-full rounded-sm border border-line-strong bg-card px-3 py-2.5 text-[13.5px] leading-relaxed outline-none placeholder:text-faint focus:border-ink focus:ring-1 focus:ring-ink";
 const STATUS: Record<Nurture["status"], [string, Tone]> = { draft: ["Draft", "gray"], live: ["Live", "green"], paused: ["Paused", "amber"] };
 const STAGES = [
   { value: "mql", label: "MQL" },
@@ -44,8 +46,9 @@ function NurtureList({ sb, ws, navigate }: Pick<ViewProps, "sb" | "ws" | "naviga
         <Loading />
       ) : !list.data.length ? (
         <ToolIntro
+          sketch="plane"
           action={add}
-          title="Follow up with every lead, in your words"
+          title={"Follow up with every lead,\nin your words"}
           lead="Describe who it's for and what you offer. AI writes the emails from that brief only, you read and approve each one, and people join from a segment or a form and leave when they're ready for sales."
           features={[
             { title: "Approved before it sends", text: "Every step waits for a person. The AI lists anything you should check, and editing a step asks for approval again." },
@@ -54,11 +57,11 @@ function NurtureList({ sb, ws, navigate }: Pick<ViewProps, "sb" | "ws" | "naviga
           ]}
         />
       ) : (
-        <Panel>
+        <Panel className="overflow-hidden">
           <ul className="divide-y divide-line">
             {list.data.map((n) => (
               <li key={n.id}>
-                <button type="button" onClick={() => navigate("workflows", n.id)} className="flex w-full items-center gap-3 px-4 py-3 text-left text-[13px] hover:bg-hover">
+                <button type="button" onClick={() => navigate("workflows", n.id)} className="flex w-full items-center gap-3 px-5 py-3.5 text-left text-[13.5px] hover:bg-hover">
                   <span className="font-medium">{n.name}</span>
                   <span className="ml-auto flex items-center gap-3">
                     <span className="text-[12px] text-faint">{timeAgo(n.updated_at)}</span>
@@ -139,10 +142,8 @@ function Editor({ sb, session, ws, navigate, n, opts, reload }: Pick<ViewProps, 
             </Button>
           ) : null}
           {n ? (
-            <Button
-              variant="plain"
-              aria-label="Delete nurture"
-              title="Delete nurture"
+            <IconButton
+              label="Delete nurture"
               onClick={() =>
                 run("delete", async () => {
                   if (!(await askConfirm(`Delete ${n.name}?`, { body: "Everyone in it stops getting its emails.", ok: "Delete", danger: true }))) return;
@@ -152,7 +153,7 @@ function Editor({ sb, session, ws, navigate, n, opts, reload }: Pick<ViewProps, 
               }
             >
               <Trash size={14} />
-            </Button>
+            </IconButton>
           ) : null}
           <Button onClick={save} disabled={!!busy}>
             {busy === "save" ? "Saving…" : "Save"}
@@ -163,7 +164,7 @@ function Editor({ sb, session, ws, navigate, n, opts, reload }: Pick<ViewProps, 
       <div className="flex flex-col gap-5">
         <ErrorNote message={error} />
         <Panel>
-          <div className="grid gap-4 p-4 sm:grid-cols-2">
+          <div className="grid gap-4 p-5 sm:grid-cols-2">
             <Field label="Name">
               <Input value={name} onChange={(e) => setName(e.target.value)} />
             </Field>
@@ -174,10 +175,10 @@ function Editor({ sb, session, ws, navigate, n, opts, reload }: Pick<ViewProps, 
               <Select className={SEL} value={topic} onChange={setTopic} options={[{ value: "", label: "None" }, ...opts.topics.map((t) => ({ value: t.id, label: t.name }))]} />
             </Field>
             <Field label="Leaves at stage">
-              <div className="flex h-9 flex-wrap items-center gap-3">
+              <div className="flex h-10 flex-wrap items-center gap-3">
                 {STAGES.map((s) => (
                   <label key={s.value} className="flex items-center gap-1.5 text-[13px]">
-                    <input type="checkbox" checked={exit.includes(s.value)} onChange={(e) => setExit(e.target.checked ? [...exit, s.value] : exit.filter((x) => x !== s.value))} /> {s.label}
+                    <input type="checkbox" className="accent-ink" checked={exit.includes(s.value)} onChange={(e) => setExit(e.target.checked ? [...exit, s.value] : exit.filter((x) => x !== s.value))} /> {s.label}
                   </label>
                 ))}
               </div>
@@ -185,7 +186,7 @@ function Editor({ sb, session, ws, navigate, n, opts, reload }: Pick<ViewProps, 
             <div className="sm:col-span-2">
               <Field label="Brief">
                 <textarea
-                  className="min-h-36 w-full rounded-md border border-line bg-panel px-3 py-2 text-[13.5px] leading-relaxed"
+                  className={`min-h-36 ${AREA}`}
                   value={brief}
                   onChange={(e) => setBrief(e.target.value)}
                   placeholder="Who it's for, what you offer, proof you can stand behind, and the page to send them to (https://…)."
@@ -223,15 +224,16 @@ function Steps({ sb, session, n, onChange, onError }: Pick<ViewProps, "sb" | "se
   const draft = (body: object) => act("draft", () => postJson(session, "/api/nurture/draft", { nurtureId: n.id, ...body }));
   const steps = list.data ?? [];
   return (
-    <Panel>
+    <Panel className="overflow-hidden">
       <CardHead label="Emails" count={steps.length}>
+        {busy === "draft" ? <Pip mood="writing" size={22} /> : null}
         {!live ? (
           <span className="ml-auto flex items-center gap-2">
-            <Select className="h-7 w-20 rounded-md border border-line bg-panel px-2 text-[12px]" value={count} onChange={setCount} options={[1, 2, 3, 4, 5, 6].map((v) => ({ value: v, label: String(v) }))} ariaLabel="How many" />
-            <Button variant="ghost" className="h-7 px-2.5" disabled={!!busy} onClick={() => draft({ count })}>
+            <Select className="h-8 w-20 rounded-sm border border-line-strong bg-card px-2.5 text-[12.5px] focus:border-ink" value={count} onChange={setCount} options={[1, 2, 3, 4, 5, 6].map((v) => ({ value: v, label: String(v) }))} ariaLabel="How many" />
+            <Button variant="ghost" size="sm" disabled={!!busy} onClick={() => draft({ count })}>
               {busy === "draft" ? "Writing…" : "Write with AI"}
             </Button>
-            <Button variant="plain" className="h-7 px-2" disabled={!!busy} onClick={() => setEditing("new")}>
+            <Button variant="plain" size="sm" disabled={!!busy} onClick={() => setEditing("new")}>
               <Plus size={14} /> Email
             </Button>
           </span>
@@ -240,39 +242,37 @@ function Steps({ sb, session, n, onChange, onError }: Pick<ViewProps, "sb" | "se
       {!list.data ? (
         <Loading />
       ) : (
-        <ul className="divide-y divide-line">
+        <ul className="flex flex-col bg-paper p-5 empty:hidden">
           {steps.map((s, i) => (
-            <li key={s.id} className="flex flex-col gap-3 p-4">
+            <li key={s.id} className="anim-rise-sm relative flex flex-col gap-3 rounded-2xl border border-line bg-card p-4 [&:not(:last-child)]:mb-8">
+              {i < steps.length - 1 || editing === "new" ? <span aria-hidden="true" className="absolute top-[calc(100%+1px)] left-9 h-8 w-px bg-line-strong" /> : null}
               <div className="flex flex-wrap items-center gap-2">
-                <span className="font-mono text-[11px] text-faint">{i === 0 ? `Day ${s.wait_days}` : `+${s.wait_days} day${s.wait_days === 1 ? "" : "s"}`}</span>
+                <span className="font-mono text-[11.5px] text-muted">{i === 0 ? `Day ${s.wait_days}` : `+${s.wait_days} day${s.wait_days === 1 ? "" : "s"}`}</span>
                 <span className="text-[14px] font-medium">{s.emails.subject}</span>
-                {s.ai ? <Badge>AI</Badge> : null}
+                {s.ai ? <ByPip /> : null}
                 {s.approved_at ? <Badge tone="green">Approved</Badge> : <Badge tone="amber">Needs approval</Badge>}
                 <span className="ml-auto flex items-center gap-1">
                   {!s.approved_at ? (
-                    <Button variant="ghost" className="h-7 px-2.5" disabled={!!busy} onClick={() => act("approve", async () => must(await sb.rpc("nurture_step_approve", { p_step: s.id })))}>
+                    <Button variant="ghost" size="sm" disabled={!!busy} onClick={() => act("approve", async () => must(await sb.rpc("nurture_step_approve", { p_step: s.id })))}>
                       <Check size={14} /> Approve
                     </Button>
                   ) : null}
-                  <Button variant="plain" className="h-7 px-2" onClick={() => setEditing(editing === s.id ? null : s.id)}>
+                  <Button variant="plain" size="sm" onClick={() => setEditing(editing === s.id ? null : s.id)}>
                     Edit
                   </Button>
-                  <Button variant="plain" className="h-7 px-2" disabled={!!busy} aria-label="Rewrite with AI" title="Rewrite with AI" onClick={() => draft({ stepId: s.id })}>
+                  <IconButton label="Rewrite with AI" disabled={!!busy} onClick={() => draft({ stepId: s.id })}>
                     <Refresh size={14} />
-                  </Button>
+                  </IconButton>
                   {!live ? (
                     <>
-                      <Button variant="plain" className="h-7 px-2" disabled={i === 0 || !!busy} aria-label="Move up" title="Move up" onClick={() => act("move", async () => must(await sb.rpc("nurture_step_change", { p_step: s.id, p_action: "up" })))}>
-                        ↑
-                      </Button>
-                      <Button variant="plain" className="h-7 px-2" disabled={i === steps.length - 1 || !!busy} aria-label="Move down" title="Move down" onClick={() => act("move", async () => must(await sb.rpc("nurture_step_change", { p_step: s.id, p_action: "down" })))}>
-                        ↓
-                      </Button>
-                      <Button
-                        variant="plain"
-                        className="h-7 px-2"
-                        aria-label="Delete email"
-                        title="Delete email"
+                      <IconButton label="Move up" disabled={i === 0 || !!busy} onClick={() => act("move", async () => must(await sb.rpc("nurture_step_change", { p_step: s.id, p_action: "up" })))}>
+                        <ArrowUp size={14} />
+                      </IconButton>
+                      <IconButton label="Move down" disabled={i === steps.length - 1 || !!busy} onClick={() => act("move", async () => must(await sb.rpc("nurture_step_change", { p_step: s.id, p_action: "down" })))}>
+                        <ArrowDown size={14} />
+                      </IconButton>
+                      <IconButton
+                        label="Delete email"
                         onClick={() =>
                           act("delete", async () => {
                             if (!(await askConfirm("Delete this email?", { ok: "Delete", danger: true }))) return;
@@ -281,7 +281,7 @@ function Steps({ sb, session, n, onChange, onError }: Pick<ViewProps, "sb" | "se
                         }
                       >
                         <X size={14} />
-                      </Button>
+                      </IconButton>
                     </>
                   ) : null}
                 </span>
@@ -290,10 +290,10 @@ function Steps({ sb, session, n, onChange, onError }: Pick<ViewProps, "sb" | "se
               {editing === s.id ? (
                 <StepForm step={s} onCancel={() => setEditing(null)} onSave={(v) => act("save", async () => (must(await sb.rpc("nurture_step_save", { p_nurture: n.id, p_step: s.id, ...v })), setEditing(null)))} />
               ) : (
-                <pre className="border border-line bg-canvas p-3 font-sans text-[13px] leading-relaxed whitespace-pre-wrap">{s.emails.text}</pre>
+                <pre className="rounded-lg bg-paper p-3.5 font-sans text-[13px] leading-relaxed whitespace-pre-wrap">{s.emails.text}</pre>
               )}
               {s.review_notes.length && !s.approved_at ? (
-                <ul className="flex flex-col gap-1 border-l-2 border-amber-500 pl-3 text-[12.5px]">
+                <ul className="flex flex-col gap-1 rounded-lg bg-butter-wash px-3.5 py-2.5 text-[12.5px] text-ink">
                   {s.review_notes.map((r) => (
                     <li key={r}>{r}</li>
                   ))}
@@ -302,7 +302,7 @@ function Steps({ sb, session, n, onChange, onError }: Pick<ViewProps, "sb" | "se
             </li>
           ))}
           {editing === "new" ? (
-            <li className="p-4">
+            <li className="anim-rise-sm">
               <StepForm step={null} onCancel={() => setEditing(null)} onSave={(v) => act("save", async () => (must(await sb.rpc("nurture_step_save", { p_nurture: n.id, p_step: null, ...v })), setEditing(null)))} />
             </li>
           ) : null}
@@ -330,7 +330,7 @@ function StepForm({ step, onSave, onCancel }: { step: Step | null; onSave: (v: S
     onSave({ p_wait_days: Math.max(0, Math.min(90, Number(wait) || 0)), p_subject: subject.trim(), p_preheader: pre.trim(), p_html: e.html, p_text: e.text, p_links: e.links, p_ai: false, p_notes: [] });
   };
   return (
-    <div className="grid gap-3 border border-line p-3 sm:grid-cols-2">
+    <div className="grid gap-3 rounded-2xl border border-line bg-card p-4 sm:grid-cols-2">
       <Field label="Subject">
         <Input value={subject} onChange={(e) => setSubject(e.target.value)} />
       </Field>
@@ -344,7 +344,7 @@ function StepForm({ step, onSave, onCancel }: { step: Step | null; onSave: (v: S
       </div>
       <div className="sm:col-span-2">
         <Field label="Email">
-          <textarea className="min-h-40 w-full rounded-md border border-line bg-panel px-3 py-2 text-[13.5px] leading-relaxed" value={body} onChange={(e) => setBody(e.target.value)} />
+          <textarea className={`min-h-40 ${AREA}`} value={body} onChange={(e) => setBody(e.target.value)} />
         </Field>
       </div>
       <Field label="Button">
@@ -369,7 +369,7 @@ function People({ sb, n }: Pick<ViewProps, "sb"> & { n: Nurture }) {
   const [error, setError] = useState("");
   const count = (s: string) => list.data?.filter((e) => e.status === s).length ?? 0;
   return (
-    <Panel>
+    <Panel className="overflow-hidden">
       <CardHead label="People" count={list.data?.length}>
         {list.data?.length ? (
           <span className="ml-auto flex gap-3 text-[12px] text-muted">
@@ -400,11 +400,8 @@ function People({ sb, n }: Pick<ViewProps, "sb"> & { n: Nurture }) {
                 <Td>{e.status === "active" ? <Badge tone="brand">Active</Badge> : e.status === "done" ? <Badge tone="green">Done</Badge> : <Badge>{EXIT[e.exit_reason ?? ""] ?? "Left"}</Badge>}</Td>
                 <Td>
                   {e.status === "active" ? (
-                    <Button
-                      variant="plain"
-                      className="h-7 px-2"
-                      aria-label="Remove from nurture"
-                      title="Remove from nurture"
+                    <IconButton
+                      label="Remove from nurture"
                       onClick={async () => {
                         setError("");
                         try {
@@ -416,7 +413,7 @@ function People({ sb, n }: Pick<ViewProps, "sb"> & { n: Nurture }) {
                       }}
                     >
                       <X size={14} />
-                    </Button>
+                    </IconButton>
                   ) : null}
                 </Td>
               </tr>

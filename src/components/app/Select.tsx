@@ -126,7 +126,7 @@ export function Select<T extends string | number>({
               role="listbox"
               aria-label={ariaLabel}
               style={{ position: "fixed", left: pos.left, top: pos.top, minWidth: pos.width, maxHeight: 280 }}
-              className="z-[100] overflow-y-auto border border-line bg-panel p-1 text-[13px] shadow-pop"
+              className="anim-rise-sm z-[100] overflow-y-auto rounded-lg bg-card p-1.5 text-[13px] shadow-float"
             >
               {options.map((o, i) => (
                 <li
@@ -137,10 +137,10 @@ export function Select<T extends string | number>({
                   onMouseEnter={() => setActive(i)}
                   onMouseDown={(e) => e.preventDefault()}
                   onClick={() => pickAt(i)}
-                  className={`flex h-8 cursor-pointer items-center gap-2 rounded-md px-2 whitespace-nowrap ${i === active ? "bg-hover" : ""}`}
+                  className={`flex h-8 cursor-pointer items-center gap-2 rounded-sm px-2.5 whitespace-nowrap ${i === active ? "bg-hover" : ""}`}
                 >
                   <span className="flex-1">{o.label}</span>
-                  {o.value === value ? <Check size={13} className="text-brand" /> : <span className="w-[13px]" />}
+                  {o.value === value ? <Check size={13} className="text-ink" /> : <span className="w-[13px]" />}
                 </li>
               ))}
             </ul>,

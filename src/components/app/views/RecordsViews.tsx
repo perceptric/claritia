@@ -52,7 +52,7 @@ export function CompaniesView(props: ViewProps) {
         { name: "No owner", filters: [{ field: "owner", op: "empty", values: [] }] },
       ]}
       actions={
-        <Button variant="ghost" className="h-7 px-2.5" onClick={() => navigate("companies", "visits")}>
+        <Button variant="ghost" size="sm" onClick={() => navigate("companies", "visits")}>
           <Eye size={13} />
           Visits
         </Button>
@@ -112,7 +112,7 @@ export function OpportunitiesView(props: ViewProps) {
   return (
     <>
       {error ? (
-        <div className="border-b border-line bg-panel p-3">
+        <div className="border-b border-line bg-card p-3">
           <ErrorNote message={error} />
         </div>
       ) : null}
@@ -151,7 +151,7 @@ export function OpportunitiesPanel({ sb, ws, object, id, navigate }: { sb: Supab
   const rows = list.data ?? [];
   const open = rows.filter((o) => o.stage !== "won" && o.stage !== "lost").reduce((t, o) => t + (Number(o.amount) || 0), 0);
   return (
-    <Panel>
+    <Panel className="overflow-hidden">
       <CardHead label="Opportunities" count={list.data ? rows.length : undefined}>
         {amount && open ? <span className="font-mono text-[12px] text-muted tabular-nums">{shown(amount, open)} open</span> : null}
       </CardHead>
@@ -167,7 +167,7 @@ export function OpportunitiesPanel({ sb, ws, object, id, navigate }: { sb: Supab
             const st = stage?.options.find((x) => x.value === o.stage);
             return (
               <li key={o.id}>
-                <button type="button" onClick={() => navigate("opportunities", o.id)} className="flex w-full items-center gap-2.5 px-4 py-2.5 text-left text-[13px] hover:bg-hover">
+                <button type="button" onClick={() => navigate("opportunities", o.id)} className="flex min-h-12 w-full items-center gap-2.5 px-5 py-2.5 text-left text-[13px] transition-colors duration-[140ms] hover:bg-paper">
                   <span className="min-w-0 flex-1 truncate">{o.name}</span>
                   {st ? <Badge tone={st.kind === "won" ? "green" : st.kind === "lost" ? "red" : "gray"}>{st.label}</Badge> : null}
                   <span className="w-24 text-right font-mono text-[12px] text-muted tabular-nums">{amount && o.amount != null ? shown(amount, Number(o.amount)) : "—"}</span>
@@ -175,7 +175,7 @@ export function OpportunitiesPanel({ sb, ws, object, id, navigate }: { sb: Supab
               </li>
             );
           })}
-          {!rows.length ? <li className="px-4 py-3 text-[13px] text-faint">—</li> : null}
+          {!rows.length ? <li className="px-5 py-3 text-[13px] text-faint">—</li> : null}
         </ul>
       )}
     </Panel>
@@ -224,7 +224,7 @@ function ObjectList({ sb, ws, session, navigate, objectKey }: ViewProps & { obje
   return (
     <>
       {error ? (
-        <div className="border-b border-line bg-panel p-3">
+        <div className="border-b border-line bg-card p-3">
           <ErrorNote message={error} />
         </div>
       ) : null}
@@ -328,7 +328,7 @@ function RecordPage({ sb, ws, session, role, id, navigate, object }: ViewProps &
       actions={
         <>
           {company && d.account ? <AccountFeedback sb={sb} accountId={d.account.id} /> : null}
-          <Button variant="danger" className="h-7 px-2.5" onClick={remove}>
+          <Button variant="danger" size="sm" onClick={remove}>
             Remove
           </Button>
         </>
@@ -336,21 +336,21 @@ function RecordPage({ sb, ws, session, role, id, navigate, object }: ViewProps &
     >
       <div className="mx-auto flex max-w-6xl flex-col gap-5">
         <ErrorNote message={error} />
-        <Panel>
-          <div className="flex flex-wrap items-start gap-x-10 gap-y-4 p-5">
-            <div className="flex min-w-0 items-start gap-3">
-              <Avatar label={name} size={40} />
+        <Panel frame className="anim-rise-sm overflow-hidden">
+          <div className="flex flex-wrap items-center gap-x-12 gap-y-5 p-6">
+            <div className="flex min-w-0 items-center gap-4">
+              <Avatar label={name} size={64} />
               <div className="flex min-w-0 flex-col gap-1">
-                <span className="text-[20px] font-medium tracking-[-0.02em]">{name}</span>
+                <span className="serif truncate text-[34px] leading-[1.1] text-ink">{name}</span>
                 <span className="text-[13px] text-muted">{company ? d.company?.domain : meta.data.object?.label}</span>
                 {company && d.account?.temperature ? (
-                  <span className="mt-1 flex gap-1.5">
-                    <Badge tone={d.account.temperature === "hot" ? "red" : "gray"}>{d.account.temperature}</Badge>
+                  <span className="mt-1.5 flex flex-wrap gap-1.5">
+                    <Badge tone={d.account.temperature === "hot" ? "red" : "gray"} dot>{d.account.temperature}</Badge>
                     {d.account.stage ? <Badge tone="violet">{d.account.stage}</Badge> : null}
                   </span>
                 ) : null}
                 {opportunity && (stage || late) ? (
-                  <span className="mt-1 flex gap-1.5">
+                  <span className="mt-1.5 flex flex-wrap gap-1.5">
                     {stage ? <Badge tone={stage.kind === "won" ? "green" : stage.kind === "lost" ? "red" : "gray"}>{stage.label}</Badge> : null}
                     {late ? <Badge tone="red">Late</Badge> : null}
                   </span>
@@ -360,43 +360,43 @@ function RecordPage({ sb, ws, session, role, id, navigate, object }: ViewProps &
             {stats.map(([k, v]) => (
               <div key={k} className="flex flex-col gap-1">
                 <span className="label-mono">{k}</span>
-                <span className="font-mono text-[24px] tabular-nums">{v}</span>
+                <span className="serif text-[32px] leading-none text-ink tabular-nums">{v}</span>
               </div>
             ))}
           </div>
-          {company && d.account?.why_now ? <p className="border-t border-line px-5 py-3 text-[14px]">{d.account.why_now}</p> : null}
+          {company && d.account?.why_now ? <p className="border-t border-line bg-paper px-6 py-3.5 text-[14px] text-body">{d.account.why_now}</p> : null}
         </Panel>
 
         <div className="grid gap-5 lg:grid-cols-[2fr_1fr]">
           <div className="flex flex-col gap-5">
             <RecordWork sb={sb} ws={ws} session={session} role={role} object={object} record={id} people={meta.data.people} />
             {company ? (
-              <Panel>
+              <Panel className="overflow-hidden">
                 <CardHead label="Contacts" count={d.contacts?.length} />
                 <ul className="divide-y divide-line">
                   {(d.contacts ?? []).map((c) => (
                     <li key={c.id}>
-                      <button type="button" onClick={() => navigate("contacts", c.id)} className="flex w-full items-center gap-2.5 px-4 py-2.5 text-left text-[13px] hover:bg-hover">
-                        <Avatar label={[c.first_name, c.last_name].filter(Boolean).join(" ") || c.email || "?"} />
+                      <button type="button" onClick={() => navigate("contacts", c.id)} className="flex min-h-12 w-full items-center gap-3 px-5 py-2.5 text-left text-[13px] transition-colors duration-[140ms] hover:bg-paper">
+                        <Avatar label={[c.first_name, c.last_name].filter(Boolean).join(" ") || c.email || "?"} size={28} />
                         <span className="min-w-0 flex-1 truncate">{[c.first_name, c.last_name].filter(Boolean).join(" ") || c.email}</span>
                         <span className="truncate text-[12px] text-muted">{c.title}</span>
                       </button>
                     </li>
                   ))}
-                  {!d.contacts?.length ? <li className="px-4 py-3 text-[13px] text-faint">—</li> : null}
+                  {!d.contacts?.length ? <li className="px-5 py-3 text-[13px] text-faint">—</li> : null}
                 </ul>
               </Panel>
             ) : null}
             {company ? <OpportunitiesPanel sb={sb} ws={ws} object="company" id={id} navigate={navigate} /> : null}
             {backlinks.length ? (
-              <Panel>
+              <Panel className="overflow-hidden">
                 <CardHead label="Linked from" count={backlinks.length} />
                 <ul className="divide-y divide-line">
                   {backlinks.map((l, i) => (
                     <li key={i}>
-                      <button type="button" onClick={() => openLink(l)} className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-[13px] hover:bg-hover">
+                      <button type="button" onClick={() => openLink(l)} className="flex min-h-11 w-full items-center gap-2 px-5 py-2.5 text-left text-[13px] transition-colors duration-[140ms] hover:bg-paper">
                         <span className="text-muted">{l.field}</span>
-                        <span className="ml-auto font-mono text-[11px] text-faint">{l.object}</span>
+                        <span className="ml-auto font-mono text-[11.5px] text-faint">{l.object}</span>
                       </button>
                     </li>
                   ))}
@@ -419,7 +419,7 @@ function RecordPage({ sb, ws, session, role, id, navigate, object }: ViewProps &
               onCustomize={() => navigate("settings", "fields")}
               onAddField={() => setAddingField(true)}
             />
-            <p className="px-1 font-mono text-[10.5px] text-faint">Created {timeAgo(String(rec.created_at))}</p>
+            <p className="px-1 font-mono text-[11.5px] text-faint">Created {timeAgo(String(rec.created_at))}</p>
           </div>
         </div>
         {company && d.account ? <AccountActivity sb={sb} accountId={d.account.id} /> : null}

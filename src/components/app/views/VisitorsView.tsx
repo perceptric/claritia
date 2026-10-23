@@ -8,6 +8,7 @@ import { applyFilters, cleanFilters, type Filter, type FilterField } from "@/lib
 import { persona } from "@/lib/web/names";
 import { Badge, Button, Empty, ErrorNote, Loading, must, Page, Panel, Td, Th, timeAgo, useLoad, type Tone, type ViewProps } from "../ui";
 import { FilterBar, useFilters } from "../FilterBar";
+import { Sketch } from "../../sketches/Sketch";
 import { VisitorsIntro } from "./MarketingIntros";
 
 export type Visit = {
@@ -106,13 +107,13 @@ const VISIT_PRESETS: { name: string; filters: Filter[] }[] = [
   { name: "Unknown", filters: [{ field: "company", op: "empty", values: [] }, { field: "known", op: "is", values: ["false"] }] },
 ];
 
-/** The visitor's square avatar: initials on their color. */
+/** The visitor's round avatar: initials on their color. */
 export function VisitorAvatar({ code, size = 24 }: { code: string; size?: number }) {
   const p = persona(code);
   return (
     <span
       aria-hidden="true"
-      className="inline-flex shrink-0 items-center justify-center font-mono font-medium"
+      className="inline-flex shrink-0 items-center justify-center rounded-full font-mono font-medium"
       style={{ width: size, height: size, background: `${p.color}1f`, border: `1px solid ${p.color}55`, color: p.color, fontSize: size * 0.4 }}
     >
       {p.initials}
@@ -171,22 +172,22 @@ export function VisitorsView({ sb, ws, navigate }: ViewProps) {
       flush
     >
       <FilterBar sb={sb} wsId={ws.id} screen="visitors" fields={VISIT_FIELDS as FilterField<never>[]} filters={filters} onChange={setFilters} presets={VISIT_PRESETS} allLabel="All visits" />
-      <div className="grid grid-cols-2 border-b border-line bg-canvas md:grid-cols-4">
-        {stats.map((x, i) => (
-          <div key={x.label} className={`px-4 py-3 md:px-5 ${i ? "border-l border-line" : ""}`}>
-            <div className="font-mono text-[11px] uppercase tracking-[0.06em] text-muted">{x.label}</div>
-            <div className="mt-1 text-[22px] font-medium tabular-nums tracking-[-0.02em]">{x.value.toLocaleString("en-US")}</div>
+      <div className="grid grid-cols-2 gap-3 bg-paper px-4 pt-4 md:grid-cols-4 md:px-5">
+        {stats.map((x) => (
+          <div key={x.label} className="rounded-lg border border-line bg-card px-4 py-3.5">
+            <div className="label-mono">{x.label}</div>
+            <div className="serif mt-1.5 text-[30px] leading-none text-ink tabular-nums">{x.value.toLocaleString("en-US")}</div>
           </div>
         ))}
       </div>
-      <div className="flex flex-wrap items-center gap-x-6 gap-y-1 border-b border-line bg-canvas px-4 py-2 font-mono text-[11px] text-muted md:px-5">
+      <div className="flex flex-wrap items-center gap-x-6 gap-y-1 border-b border-line bg-paper px-4 py-3 font-mono text-[11.5px] text-muted md:px-5">
         <span>Last 24h</span>
         <span className="ml-auto">{sites.data.map((s) => `${s.domain} ${s.last_event_at ? timeAgo(s.last_event_at) : "—"}`).join(" · ")}</span>
       </div>
       {!rows.length ? (
-        <Empty icon={<Eye size={16} />} title={all.length ? "No visits match" : "No visits yet"} />
+        <Empty icon={<Eye size={16} />} sketch={all.length ? undefined : <Sketch name="browser" size={160} />} title={all.length ? "No visits match" : "No visits yet"} />
       ) : (
-        <Panel className="m-0 border-0">
+        <Panel className="m-4 overflow-clip md:m-5">
           <table className="w-full border-collapse">
             <thead>
               <tr>
@@ -200,7 +201,7 @@ export function VisitorsView({ sb, ws, navigate }: ViewProps) {
             </thead>
             <tbody>
               {rows.map((v) => (
-                <tr key={v.id} onClick={() => setOpenId(v.id)} className={`cursor-pointer hover:bg-hover ${v.id === openId ? "bg-hover" : ""}`}>
+                <tr key={v.id} onClick={() => setOpenId(v.id)} className={`anim-rise-sm cursor-pointer hover:bg-hover ${v.id === openId ? "bg-hover" : ""}`}>
                   <Td>
                     <span className="flex items-center gap-2.5">
                       <VisitorAvatar code={codeOf(v)} />
@@ -257,8 +258,8 @@ function VisitPanel({ v, onClose, onAccount }: { v: Visit; onClose: () => void; 
   ];
   return (
     <>
-      <div className="fixed inset-0 z-[80] bg-ink/10" onClick={onClose} aria-hidden="true" />
-      <aside role="dialog" aria-modal="true" aria-label={nameOf(v)} className="fixed inset-y-0 right-0 z-[81] flex w-full max-w-[440px] flex-col border-l border-line bg-panel">
+      <div className="anim-fade fixed inset-0 z-[80] bg-scrim" onClick={onClose} aria-hidden="true" />
+      <aside role="dialog" aria-modal="true" aria-label={nameOf(v)} className="fixed inset-y-0 right-0 z-[81] flex w-full max-w-[440px] flex-col overflow-hidden rounded-l-2xl bg-card shadow-float">
         <div className="flex items-start gap-3 border-b border-line px-5 py-4">
           <VisitorAvatar code={codeOf(v)} size={40} />
           <div className="min-w-0 flex-1">
@@ -269,10 +270,10 @@ function VisitPanel({ v, onClose, onAccount }: { v: Visit; onClose: () => void; 
             Close
           </Button>
         </div>
-        <div className="grid grid-cols-4 border-b border-line">
-          {tiles.map((x, i) => (
-            <div key={x.label} className={`px-4 py-3 ${i ? "border-l border-line" : ""}`}>
-              <div className="font-mono text-[10.5px] uppercase tracking-[0.06em] text-muted">{x.label}</div>
+        <div className="grid grid-cols-4 gap-2 border-b border-line p-4">
+          {tiles.map((x) => (
+            <div key={x.label} className="min-w-0 rounded-lg bg-paper px-3 py-2.5">
+              <div className="label-mono">{x.label}</div>
               <div className="mt-1 truncate text-[14px] font-medium">{x.value}</div>
             </div>
           ))}
@@ -284,13 +285,13 @@ function VisitPanel({ v, onClose, onAccount }: { v: Visit; onClose: () => void; 
           <ol>
             {v.pages.map((path, i) => (
               <li key={`${path}${i}`} className="flex items-center gap-3 border-b border-line px-5 py-2">
-                <span className="w-16 shrink-0 font-mono text-[11px] text-muted">{v.page_times?.[i] ? clock(v.page_times[i]) : ""}</span>
-                <span className="w-4 shrink-0 font-mono text-[11px] text-faint">{i + 1}</span>
+                <span className="w-16 shrink-0 font-mono text-[11.5px] text-muted">{v.page_times?.[i] ? clock(v.page_times[i]) : ""}</span>
+                <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-paper-deep font-mono text-[10.5px] text-muted">{i + 1}</span>
                 <span className="truncate font-mono text-[12.5px]">{path}</span>
               </li>
             ))}
           </ol>
-          {v.pageviews > v.pages.length ? <p className="px-5 py-2 font-mono text-[11px] text-faint">+{v.pageviews - v.pages.length} more</p> : null}
+          {v.pageviews > v.pages.length ? <p className="px-5 py-2 font-mono text-[11.5px] text-faint">+{v.pageviews - v.pages.length} more</p> : null}
         </div>
         {v.account_id ? (
           <div className="border-t border-line px-5 py-3">

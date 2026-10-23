@@ -51,22 +51,26 @@ export function TeamPanel({ sb, ws, role, session }: Pick<ViewProps, "sb" | "ws"
       else must(await sb.rpc("member_remove", { p_ws: ws.id, p_user: m.user_id }));
     });
   return (
-    <Panel>
+    <Panel className="overflow-hidden">
       <CardHead label="Team" count={team.data?.filter((m) => !m.pending).length}>
         {owner ? (
-          <Button variant="ghost" className="h-7 px-2.5" onClick={invite}>
+          <Button variant="ghost" size="sm" onClick={invite}>
             <Plus size={13} />
             Invite
           </Button>
         ) : null}
       </CardHead>
-      <ErrorNote message={error || team.error} />
+      {error || team.error ? (
+        <div className="px-5 pt-4">
+          <ErrorNote message={error || team.error} />
+        </div>
+      ) : null}
       {!team.data ? (
         team.error ? null : (
           <Loading />
         )
       ) : (
-        <table className="w-full border-collapse">
+        <table className="w-full border-collapse [&_tbody_tr:last-child_td]:border-b-0">
           <thead>
             <tr>
               <Th>Person</Th>
@@ -80,12 +84,12 @@ export function TeamPanel({ sb, ws, role, session }: Pick<ViewProps, "sb" | "ws"
               <tr key={m.invite_id ?? m.user_id}>
                 <Td>
                   <span className="flex items-center gap-2.5">
-                    <Avatar label={m.email} />
+                    <Avatar label={m.email} size={28} />
                     <span className="truncate">{m.email}</span>
                     {m.user_id === session.user.id ? <span className="text-[12px] text-faint">you</span> : null}
                   </span>
                 </Td>
-                <Td>{m.pending ? <Badge tone="amber">Invited</Badge> : <Badge tone={m.role === "owner" ? "brand" : "gray"}>{m.role}</Badge>}</Td>
+                <Td>{m.pending ? <Badge tone="amber" dot>Invited</Badge> : <Badge tone={m.role === "owner" ? "brand" : "gray"}>{m.role}</Badge>}</Td>
                 <Td className="font-mono text-[12px] text-muted">{timeAgo(m.joined_at)}</Td>
                 <Td className="text-right">
                   {owner && m.role !== "owner" ? (
@@ -94,7 +98,7 @@ export function TeamPanel({ sb, ws, role, session }: Pick<ViewProps, "sb" | "ws"
                       aria-label={m.pending ? "Cancel invite" : "Remove"}
                       title={m.pending ? "Cancel invite" : "Remove"}
                       onClick={() => remove(m)}
-                      className="rounded-md p-1.5 text-muted hover:bg-hover hover:text-danger"
+                      className="press inline-flex size-8 items-center justify-center rounded-full text-muted hover:bg-hover hover:text-rose"
                     >
                       <Trash size={13} />
                     </button>

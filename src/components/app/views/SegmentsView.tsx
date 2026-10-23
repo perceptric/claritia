@@ -4,7 +4,7 @@
 // with a live count and ten of the people while editing. Dynamic segments refresh hourly; lists from a tool are
 // static segments and show here too.
 
-import { useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import { describe, type Filter } from "@/lib/filters";
 import { filterFields } from "@/lib/records/fields";
 import { Plus, Refresh, Trash, Users, X } from "../../Icons";
@@ -12,7 +12,7 @@ import { askConfirm } from "../Dialogs";
 import { FilterEditor, Popover } from "../FilterBar";
 import { Select } from "../Select";
 import { SampleStats, ToolIntro } from "../ToolIntro";
-import { Badge, Button, CardHead, Empty, ErrorNote, errorText, Input, Loading, must, Page, Panel, Segmented, Td, Th, timeAgo, useLoad, type ViewProps } from "../ui";
+import { Badge, Button, CardHead, Empty, ErrorNote, errorText, IconButton, Input, Loading, must, Page, Panel, Segmented, Td, Th, timeAgo, useLoad, type ViewProps } from "../ui";
 import { useMeta } from "../records/meta";
 
 type Group = { op: "and" | "or"; rules: Node[] };
@@ -27,7 +27,7 @@ type Node = Group | Leaf;
 type Segment = { id: string; name: string; kind: "dynamic" | "static"; rules: Group | Record<string, never>; count: number; refreshed_at: string | null; error: string | null; source_id: string | null };
 type Ctx = { sb: ViewProps["sb"]; wsId: string; sources: { value: string; label: string }[]; objects: { value: string; label: string }[] };
 
-const SEL = "h-8 rounded-md border border-line bg-panel px-2.5 text-[13px] hover:border-line-strong";
+const SEL = "h-9 rounded-sm border border-line-strong bg-card px-3 text-[13px] focus:border-ink";
 const isGroup = (n: Node): n is Group => "rules" in n;
 const EVENTS = [
   { value: "email.clicked", label: "Clicked an email" },
@@ -75,8 +75,9 @@ function SegmentList({ sb, ws, navigate }: Pick<ViewProps, "sb" | "ws" | "naviga
         <Loading />
       ) : !list.data.length ? (
         <ToolIntro
+          sketch="cards"
           action={add}
-          title="Group contacts by anything you know"
+          title={"Group contacts\nby anything you know"}
           lead="Mix fields, activity, website visits, consent, sources and custom objects, with AND and OR. The count updates as you build, and members update every hour."
           features={[
             { title: "Any rule", text: "“Read pricing twice this week and can be emailed”, or “Customers with a subscription over 10 seats”.", visual: <SampleStats items={[["rules", "30+"], ["levels", "3"], ["count", "live"]]} /> },
@@ -85,7 +86,7 @@ function SegmentList({ sb, ws, navigate }: Pick<ViewProps, "sb" | "ws" | "naviga
           ]}
         />
       ) : (
-        <Panel>
+        <Panel className="overflow-hidden">
           <table className="w-full border-collapse">
             <thead>
               <tr>
@@ -101,7 +102,7 @@ function SegmentList({ sb, ws, navigate }: Pick<ViewProps, "sb" | "ws" | "naviga
                   <Td className="font-medium">
                     <span className="flex items-center gap-2">
                       {s.name}
-                      {s.error ? <span className="truncate text-[12px] font-normal text-red-600">{s.error}</span> : null}
+                      {s.error ? <span className="truncate text-[12px] font-normal text-rose">{s.error}</span> : null}
                     </span>
                   </Td>
                   <Td>
@@ -230,7 +231,7 @@ function Builder({ sb, wsId, seg, ctx, navigate, reload }: { sb: ViewProps["sb"]
             </Panel>
           )}
         </div>
-        <Panel className="self-start">
+        <Panel className="self-start overflow-hidden">
           <CardHead label="Matches" count={live ? live.count.toLocaleString("en-US") : undefined} />
           <ErrorNote message={liveError} />
           {!live ? (
@@ -241,7 +242,7 @@ function Builder({ sb, wsId, seg, ctx, navigate, reload }: { sb: ViewProps["sb"]
             <ul className="divide-y divide-line">
               {live.sample.map((c) => (
                 <li key={c.id}>
-                  <button type="button" onClick={() => navigate("contacts", c.id)} className="flex w-full flex-col px-4 py-2 text-left hover:bg-hover">
+                  <button type="button" onClick={() => navigate("contacts", c.id)} className="flex w-full flex-col px-5 py-2.5 text-left hover:bg-hover">
                     <span className="truncate text-[13px] font-medium">{c.name ?? c.email}</span>
                     <span className="truncate text-[12px] text-faint">{[c.name ? c.email : null, c.company].filter(Boolean).join(" · ")}</span>
                   </button>
@@ -261,7 +262,7 @@ function GroupEditor({ node, depth, onChange, onRemove, ...p }: EditorProps & { 
   const [adding, setAdding] = useState<HTMLElement | null>(null);
   const set = (i: number, n: Node | null) => onChange({ ...node, rules: n ? node.rules.map((x, j) => (j === i ? n : x)) : node.rules.filter((_, j) => j !== i) });
   return (
-    <div className={`flex flex-col gap-2 border border-line p-3 ${depth > 1 ? "bg-canvas" : "bg-panel"}`}>
+    <div className={`flex flex-col gap-2 rounded-2xl border border-line p-3 ${depth > 1 ? "anim-rise-sm bg-paper-deep" : "bg-paper"}`}>
       <div className="flex items-center gap-2">
         <Segmented<"and" | "or">
           value={node.op}
@@ -273,25 +274,28 @@ function GroupEditor({ node, depth, onChange, onRemove, ...p }: EditorProps & { 
           ]}
         />
         {onRemove ? (
-          <button type="button" aria-label="Remove group" onClick={onRemove} className="ml-auto flex size-7 items-center justify-center rounded-md text-faint hover:bg-hover hover:text-ink">
+          <IconButton label="Remove group" onClick={onRemove} className="ml-auto">
             <X size={14} />
-          </button>
+          </IconButton>
         ) : null}
       </div>
-      {node.rules.map((r, i) =>
-        isGroup(r) ? (
-          <GroupEditor key={i} node={r} depth={depth + 1} onChange={(g) => set(i, g)} onRemove={() => set(i, null)} {...p} />
-        ) : (
-          <RuleRow key={i} rule={r} onChange={(n) => set(i, n)} onRemove={() => set(i, null)} {...p} />
-        ),
-      )}
+      {node.rules.map((r, i) => (
+        <Fragment key={i}>
+          {i ? (
+            <span aria-hidden="true" className="pl-3">
+              <Badge tone={node.op === "and" ? "sky" : "amber"}>{node.op === "and" ? "And" : "Or"}</Badge>
+            </span>
+          ) : null}
+          {isGroup(r) ? <GroupEditor node={r} depth={depth + 1} onChange={(g) => set(i, g)} onRemove={() => set(i, null)} {...p} /> : <RuleRow rule={r} onChange={(n) => set(i, n)} onRemove={() => set(i, null)} {...p} />}
+        </Fragment>
+      ))}
       <div className="flex gap-1.5">
-        <Button variant="ghost" className="h-8 px-2.5" onClick={(e) => setAdding(e.currentTarget)}>
+        <Button variant="ghost" size="sm" onClick={(e) => setAdding(e.currentTarget)}>
           <Plus size={14} />
           Rule
         </Button>
         {depth < 3 ? (
-          <Button variant="ghost" className="h-8 px-2.5" onClick={() => onChange({ ...node, rules: [...node.rules, { op: node.op === "and" ? "or" : "and", rules: [] }] })}>
+          <Button variant="ghost" size="sm" onClick={() => onChange({ ...node, rules: [...node.rules, { op: node.op === "and" ? "or" : "and", rules: [] }] })}>
             <Plus size={14} />
             Group
           </Button>
@@ -314,7 +318,7 @@ function GroupEditor({ node, depth, onChange, onRemove, ...p }: EditorProps & { 
                 <button
                   key={k.value}
                   type="button"
-                  className="h-7 rounded-md border border-line px-2 text-[12px] hover:border-ink"
+                  className="h-8 rounded-full border border-line-strong bg-card px-3 text-[12.5px] transition-transform duration-[140ms] hover:-translate-y-px hover:border-ink"
                   onClick={() => {
                     onChange({ ...node, rules: [...node.rules, leaf] });
                     setAdding(null);
@@ -340,7 +344,7 @@ function RuleRow({ rule, onChange, onRemove, ctx, fields, anyFields }: EditorPro
     const f = fields.find((x) => x.key === rule.field);
     body = (
       <>
-        <button type="button" onClick={(e) => setEditing(e.currentTarget)} className="h-8 rounded-md border border-line bg-panel px-2.5 text-[13px] hover:border-ink">
+        <button type="button" onClick={(e) => setEditing(e.currentTarget)} className="h-9 rounded-full border border-line-strong bg-card px-3.5 text-[13px] hover:border-ink">
           {describe(rule, f as never)}
         </button>
         {editing ? (
@@ -372,16 +376,16 @@ function RuleRow({ rule, onChange, onRemove, ctx, fields, anyFields }: EditorPro
         {rule.kind === "event" ? (
           <Select className={SEL} value={rule.event} onChange={(event) => onChange({ ...rule, event })} options={EVENTS} />
         ) : (
-          <Input className="h-8 !w-44" value={rule.path ?? ""} onChange={(e) => onChange({ ...rule, path: e.target.value.slice(0, 300) })} placeholder="/pricing or /blog/*" aria-label="Page" />
+          <Input className="h-9 !w-44" value={rule.path ?? ""} onChange={(e) => onChange({ ...rule, path: e.target.value.slice(0, 300) })} placeholder="/pricing or /blog/*" aria-label="Page" />
         )}
         {rule.op === "at_least" ? (
           <>
-            <Input className="h-8 !w-14 text-right" value={String(rule.count ?? 1)} onChange={(e) => onChange({ ...rule, count: num(e.target.value, 1) })} aria-label="Times" />
+            <Input className="h-9 !w-14 text-right" value={String(rule.count ?? 1)} onChange={(e) => onChange({ ...rule, count: num(e.target.value, 1) })} aria-label="Times" />
             <span className="text-[13px] text-muted">or more times</span>
           </>
         ) : null}
         <span className="text-[13px] text-muted">in</span>
-        <Input className="h-8 !w-16 text-right" value={String(rule.days)} onChange={(e) => onChange({ ...rule, days: num(e.target.value, 30) })} aria-label="Days" />
+        <Input className="h-9 !w-16 text-right" value={String(rule.days)} onChange={(e) => onChange({ ...rule, days: num(e.target.value, 30) })} aria-label="Days" />
         <span className="text-[13px] text-muted">days</span>
       </>
     );
@@ -417,12 +421,12 @@ function RuleRow({ rule, onChange, onRemove, ctx, fields, anyFields }: EditorPro
     body = <ObjectRule rule={rule} onChange={onChange} ctx={ctx} />;
   }
   return (
-    <div className="flex flex-wrap items-center gap-1.5">
+    <div className="anim-rise-sm flex flex-wrap items-center gap-1.5 rounded-lg border border-line bg-card px-3 py-2">
       <span className="label-mono w-32 shrink-0 whitespace-nowrap text-faint">{KINDS.find((k) => k.value === rule.kind)?.label}</span>
       {body}
-      <button type="button" aria-label="Remove rule" onClick={onRemove} className="ml-auto flex size-7 items-center justify-center rounded-md text-faint hover:bg-hover hover:text-ink">
+      <IconButton label="Remove rule" onClick={onRemove} className="ml-auto">
         <X size={14} />
-      </button>
+      </IconButton>
     </div>
   );
 }
@@ -444,7 +448,7 @@ function ObjectRule({ rule, onChange, ctx }: { rule: Extract<Leaf, { kind: "obje
       />
       <Select className={SEL} value={rule.object} onChange={(object) => onChange({ ...rule, object, filters: [] })} options={ctx.objects} />
       {rule.filters.map((f, i) => (
-        <span key={i} className="inline-flex h-8 items-center gap-1 border border-line bg-panel pr-1 pl-2.5 text-[13px]">
+        <span key={i} className="inline-flex h-9 items-center gap-1 rounded-full border border-line-strong bg-card pr-2 pl-3.5 text-[13px]">
           <button type="button" onClick={(e) => setEditing({ anchor: e.currentTarget, index: i })}>
             {describe(f, fields.find((x) => x.key === f.field) as never)}
           </button>
@@ -453,7 +457,7 @@ function ObjectRule({ rule, onChange, ctx }: { rule: Extract<Leaf, { kind: "obje
           </button>
         </span>
       ))}
-      <Button variant="ghost" className="h-8 px-2" onClick={(e) => setEditing({ anchor: e.currentTarget, index: null })} aria-label="Add a condition">
+      <Button variant="ghost" size="sm" className="w-8 px-0" onClick={(e) => setEditing({ anchor: e.currentTarget, index: null })} aria-label="Add a condition">
         <Plus size={14} />
       </Button>
       {editing && meta.data ? (

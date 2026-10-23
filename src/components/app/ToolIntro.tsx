@@ -1,28 +1,41 @@
 "use client";
 
+import { Sketch, type SketchName } from "../sketches/Sketch";
+import { Pip } from "./Pip";
+
 // The first screen of a tool, before there's anything to show: what it does, and cards with small sample visuals.
 // The one place in the app that explains; working screens hold labels, buttons and real errors only.
 // Same pattern as Omniscient's and Arrowsterr's ToolIntro.
 
 type Feature = { title: string; text: string; visual?: React.ReactNode };
 
-export function ToolIntro({ title, lead, action, features }: { title: string; lead?: string; action?: React.ReactNode; features?: Feature[] }) {
+export function ToolIntro({ title, lead, action, features, sketch = "cards" }: { title: string; lead?: string; action?: React.ReactNode; features?: Feature[]; sketch?: SketchName }) {
+  // Big headings take two tones: a line break in the title turns the rest gray.
+  const [first, rest = ""] = title.split("\n");
   return (
-    <section className="mx-auto flex max-w-6xl flex-col gap-7 py-4">
-      <div className="flex flex-col gap-4">
-        <p className="fig">{"// fig. 00 — start here"}</p>
-        <h2 className="max-w-3xl text-[32px] leading-[1.1] font-medium tracking-[-0.03em]">{title}</h2>
-        {lead ? <p className="max-w-2xl text-[15px] leading-relaxed text-body">{lead}</p> : null}
+    <section className="mx-auto flex max-w-6xl flex-col gap-8 py-2">
+      <div className="wash relative grid items-center gap-6 overflow-hidden rounded-3xl px-7 py-9 md:grid-cols-[1fr_auto] md:px-10">
+        <div className="anim-rise flex flex-col gap-4">
+          <div className="flex items-center gap-2">
+            <Pip size={26} follow />
+            <span className="label-mono">Start here</span>
+          </div>
+          <h2 className="serif max-w-2xl text-[40px] leading-[1.08] text-ink md:text-[46px]">
+            {first}
+            {rest ? <span className="text-muted"> {rest}</span> : null}
+          </h2>
+          {lead ? <p className="max-w-xl text-[15px] leading-relaxed text-body">{lead}</p> : null}
+          {action ? <div className="mt-1 flex flex-wrap gap-2">{action}</div> : null}
+        </div>
+        <Sketch name={sketch} size={240} className="hidden md:block" />
       </div>
-      {action ? <div className="flex flex-wrap gap-2">{action}</div> : null}
       {features?.length ? (
-        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {features.map((f, i) => (
-            <div key={f.title} className="frame flex flex-col border border-line bg-panel">
-              <p className="fig border-b border-line bg-canvas px-4 py-2.5">{`// fig. ${String(i + 1).padStart(2, "0")}`}</p>
-              <div className="flex flex-1 flex-col gap-3 p-5">
+            <div key={f.title} className="lift anim-rise flex flex-col rounded-2xl border border-line bg-card" style={{ animationDelay: `${120 + i * 80}ms` }}>
+              <div className="flex flex-1 flex-col gap-3 p-6">
                 {f.visual ? <div className="flex h-20 items-center">{f.visual}</div> : null}
-                <h3 className="text-[15px] font-medium">{f.title}</h3>
+                <h3 className="serif mt-2 text-[22px] leading-tight text-ink">{f.title}</h3>
                 <p className="text-[13.5px] leading-relaxed text-body">{f.text}</p>
               </div>
             </div>
@@ -41,7 +54,7 @@ export function SampleBars({ values = [30, 45, 40, 52, 48, 60, 72, 66, 58, 70, 6
   return (
     <span className="flex h-16 w-full items-end gap-1" aria-hidden="true">
       {values.map((v, i) => (
-        <span key={i} className="flex-1 bg-brand" style={{ height: `${(v / max) * 100}%`, opacity: 0.35 + (i / values.length) * 0.65 }} />
+        <span key={i} className="flex-1 rounded-full bg-clay" style={{ height: `${(v / max) * 100}%`, opacity: 0.3 + (i / values.length) * 0.7 }} />
       ))}
     </span>
   );
@@ -55,8 +68,8 @@ export function SampleRows({ rows }: { rows: [string, number, string?][] }) {
       {rows.map(([label, v, shown]) => (
         <span key={label} className="grid grid-cols-[1fr_90px_44px] items-center gap-2 text-[11.5px]">
           <span className="truncate text-ink">{label}</span>
-          <span className="h-1.5 bg-hover">
-            <span className="block h-full bg-brand" style={{ width: `${(v / max) * 100}%` }} />
+          <span className="h-1.5 rounded-full bg-paper-deep">
+            <span className="block h-full rounded-full bg-clay" style={{ width: `${(v / max) * 100}%` }} />
           </span>
           <span className="num text-right text-body">{shown ?? v}</span>
         </span>
@@ -68,28 +81,25 @@ export function SampleRows({ rows }: { rows: [string, number, string?][] }) {
 /** A few big numbers side by side. */
 export function SampleStats({ items }: { items: [string, string][] }) {
   return (
-    <span className="grid w-full grid-cols-3 gap-2" aria-hidden="true">
+    <span className="grid w-full grid-cols-3 gap-4" aria-hidden="true">
       {items.map(([lab, v]) => (
         <span key={lab} className="flex flex-col">
-          <span className="text-[22px] font-medium tracking-[-0.03em] text-ink tabular-nums">{v}</span>
-          <span className="fig">
-            {"// "}
-            {lab}
-          </span>
+          <span className="serif text-[26px] leading-none tracking-[-0.03em] whitespace-nowrap text-ink tabular-nums">{v}</span>
+          <span className="label-mono mt-1">{lab}</span>
         </span>
       ))}
     </span>
   );
 }
 
-/** Rows with a square state tag on the right. */
+/** Rows with a state tag on the right. */
 export function SampleTags({ rows }: { rows: [string, string][] }) {
   return (
     <span className="flex w-full flex-col gap-1.5" aria-hidden="true">
       {rows.map(([label, tag]) => (
         <span key={label} className="flex items-center justify-between gap-2 text-[12px]">
           <span className="truncate text-ink">{label}</span>
-          <span className="border border-line bg-canvas px-1.5 font-mono text-[10px] tracking-[0.06em] text-body uppercase">{tag}</span>
+          <span className="rounded-full bg-paper-deep px-2 py-0.5 text-[11px] font-medium text-body">{tag}</span>
         </span>
       ))}
     </span>

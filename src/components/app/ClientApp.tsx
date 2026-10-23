@@ -4,9 +4,11 @@ import type { Session } from "@supabase/supabase-js";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { getSupabase, type SupaConfig } from "@/lib/supa";
 import { NAV, resolveRoute, type Route as NavRoute } from "@/lib/nav";
-import { BarChart, Box, Branch, Contact, Dollar, FileText, FormIcon, ListIcon, LogOut, Mail, Megaphone, Settings, Users } from "../Icons";
+import { BarChart, Box, Branch, Contact, Dollar, FileText, FormIcon, ListIcon, LogOut, Mail, Megaphone, Moon, Search, Settings, Sun, Users } from "../Icons";
 import { Logo } from "../Logo";
 import { AuthScreen } from "./AuthScreen";
+import { CommandBar, type Command } from "./CommandBar";
+import { Pip } from "./Pip";
 import { DialogHost } from "./Dialogs";
 import { Avatar, ErrorNote, errorText, mayLeave, must, type Role, type Route, type ViewProps, type Workspace } from "./ui";
 import { ContactsView } from "./views/ContactsView";
@@ -55,11 +57,28 @@ const readLoc = (): Loc => {
 function Splash() {
   return (
     <main className="flex min-h-screen items-center justify-center">
-      <span className="animate-pulse">
-        <Logo compact />
-      </span>
+      <Pip size={56} mood="thinking" />
     </main>
   );
+}
+
+type Theme = "light" | "dark";
+
+/** Light or dark, saved on this computer; the page sets it before the first paint. */
+function useTheme() {
+  // The app shows a splash before anything themed, so reading the page here can't differ from the server's render.
+  const [theme, setTheme] = useState<Theme>(() => (typeof document !== "undefined" && document.documentElement.dataset.theme === "dark" ? "dark" : "light"));
+  const flip = useCallback(() => {
+    setTheme((t) => {
+      const next: Theme = t === "dark" ? "light" : "dark";
+      document.documentElement.dataset.theme = next;
+      try {
+        localStorage.setItem("claritia:theme", next);
+      } catch {}
+      return next;
+    });
+  }, []);
+  return { theme, flip };
 }
 
 export function ClientApp({ config }: { config: SupaConfig }) {
@@ -69,7 +88,21 @@ export function ClientApp({ config }: { config: SupaConfig }) {
   const [role, setRole] = useState<Role>("member");
   const [loc, setLoc] = useState<Loc>({ route: "forms", id: "" });
   const [error, setError] = useState("");
+  const [searching, setSearching] = useState(false);
+  const { theme, flip } = useTheme();
   const route = loc.route;
+
+  // ⌘K or Ctrl+K opens the command bar.
+  useEffect(() => {
+    const key = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        setSearching((v) => !v);
+      }
+    };
+    window.addEventListener("keydown", key);
+    return () => window.removeEventListener("keydown", key);
+  }, []);
 
   useEffect(() => {
     sb.auth.getSession().then(({ data }) => setSession(data.session));
@@ -135,7 +168,7 @@ export function ClientApp({ config }: { config: SupaConfig }) {
   if (error && !ws)
     return (
       <main className="flex min-h-screen items-center justify-center px-4">
-        <div className="w-full max-w-md space-y-4 border border-line bg-panel p-7">
+        <div className="w-full max-w-md space-y-4 rounded-2xl border border-line bg-card p-7">
           <Logo />
           <ErrorNote message={error} />
         </div>
@@ -157,16 +190,16 @@ export function ClientApp({ config }: { config: SupaConfig }) {
           navigate("objects", o.key);
         }}
         aria-current={on && loc.id === o.key ? "page" : undefined}
-        className={`flex h-8 items-center gap-2.5 rounded-md px-2.5 text-[13px] font-medium ${on ? "bg-panel text-ink ring-1 ring-line" : "text-body hover:bg-hover hover:text-ink"}`}
+        className={`flex h-9 shrink-0 items-center gap-2.5 rounded-full px-3.5 text-[13.5px] font-medium transition-colors duration-[140ms] ${on ? "bg-ink text-paper" : "text-body hover:bg-hover hover:text-ink"}`}
       >
-        <span className={on ? "text-ink" : "text-muted"}>{ICONS.objects}</span>
+        <span className={on ? "text-paper" : "text-muted"}>{ICONS.objects}</span>
         <span className="truncate">{o.plural}</span>
       </a>
     );
   });
   const navLinks = NAV.map((n) => [
     n.group !== undefined ? (
-      <p key={`g-${n.route}`} className={`hidden px-2.5 font-mono text-[10px] tracking-[0.12em] text-faint uppercase md:block ${n.group ? "mt-3 mb-1" : "mt-3 border-t border-line pt-3"}`}>
+      <p key={`g-${n.route}`} className={`hidden px-3.5 font-mono text-[11px] text-faint md:block ${n.group ? "mt-4 mb-1" : "mx-3.5 mt-3 mb-2 h-px bg-line px-0"}`}>
         {n.group}
       </p>
     ) : null,
@@ -178,35 +211,55 @@ export function ClientApp({ config }: { config: SupaConfig }) {
         navigate(n.route);
       }}
       aria-current={route === n.route && !loc.id ? "page" : undefined}
-      className={`flex h-8 items-center gap-2.5 rounded-md px-2.5 text-[13px] font-medium ${route === n.route ? "bg-panel text-ink ring-1 ring-line" : "text-body hover:bg-hover hover:text-ink"}`}
+      className={`flex h-9 shrink-0 items-center gap-2.5 rounded-full px-3.5 text-[13.5px] font-medium transition-colors duration-[140ms] ${route === n.route ? "bg-ink text-paper" : "text-body hover:bg-hover hover:text-ink"}`}
     >
-      <span className={route === n.route ? "text-ink" : "text-muted"}>{ICONS[n.route]}</span>
+      <span className={route === n.route ? "text-paper" : "text-muted"}>{ICONS[n.route]}</span>
       {n.label}
     </a>,
     n.route === "opportunities" ? objectLinks : null,
   ]);
 
+  const commands: Command[] = [
+    ...NAV.map((n) => ({ id: n.route, label: n.label, group: n.group || "App", icon: ICONS[n.route], run: () => navigate(n.route) })),
+    ...customObjects.map((o) => ({ id: `o-${o.key}`, label: o.plural, group: "CRM", icon: ICONS.objects, run: () => navigate("objects", o.key) })),
+    { id: "theme", label: theme === "dark" ? "Light mode" : "Dark mode", group: "Look", icon: theme === "dark" ? <Sun size={15} /> : <Moon size={15} />, run: flip },
+    { id: "out", label: "Sign out", group: "Account", icon: <LogOut size={15} />, run: () => void sb.auth.signOut() },
+  ];
+
   return (
-    <div className="flex h-screen min-h-0 flex-col bg-canvas md:flex-row">
+    <div className="flex h-screen min-h-0 flex-col bg-paper-deep md:flex-row">
       <DialogHost />
-      {/* Sidebar on wide screens, a top bar on phones */}
-      <aside className="flex shrink-0 flex-col gap-3 border-b border-line bg-side p-3 md:h-full md:w-60 md:border-r md:border-b-0">
-        <div className="flex items-center justify-between gap-2 px-1">
+      {searching ? <CommandBar onClose={() => setSearching(false)} commands={commands} /> : null}
+      {/* Side rail on wide screens, a top bar on phones */}
+      <aside className="flex shrink-0 flex-col gap-3 p-3 md:h-full md:w-60 md:py-4">
+        <div className="flex items-center justify-between gap-2 px-2">
           <Logo />
-          <span className="truncate font-mono text-[10px] tracking-[0.08em] text-faint uppercase">{ws.name}</span>
+          <span className="truncate font-mono text-[11px] text-faint">{ws.name}</span>
         </div>
-        <nav className="flex gap-1 overflow-x-auto md:flex-col md:overflow-visible">{navLinks}</nav>
-        <div className="mt-auto hidden items-center gap-2 border-t border-line px-1 pt-3 md:flex">
-          <Avatar label={email} />
-          <span className="min-w-0 flex-1 truncate text-[12.5px] text-body">{email}</span>
-          <button type="button" aria-label="Sign out" title="Sign out" onClick={() => sb.auth.signOut()} className="rounded-md p-1.5 text-muted hover:bg-hover hover:text-ink">
-            <LogOut size={14} />
+        <button
+          type="button"
+          onClick={() => setSearching(true)}
+          className="hidden h-9 items-center gap-2 rounded-full border border-line bg-card px-3.5 text-[13px] text-muted transition-colors duration-[140ms] hover:border-line-strong hover:text-ink md:flex"
+        >
+          <Search size={14} />
+          <span className="flex-1 text-left">Search</span>
+          <kbd className="font-mono text-[11px] text-faint">⌘K</kbd>
+        </button>
+        <nav className="flex gap-1 overflow-x-auto md:flex-col md:gap-0.5 md:overflow-visible">{navLinks}</nav>
+        <div className="mt-auto hidden items-center gap-1 px-1 pt-3 md:flex">
+          <Avatar label={email} size={28} />
+          <span className="ml-1 min-w-0 flex-1 truncate text-[12.5px] text-body">{email}</span>
+          <button type="button" aria-label={theme === "dark" ? "Light mode" : "Dark mode"} title={theme === "dark" ? "Light mode" : "Dark mode"} onClick={flip} className="press rounded-full p-2 text-muted hover:bg-hover hover:text-ink">
+            {theme === "dark" ? <Sun size={15} /> : <Moon size={15} />}
+          </button>
+          <button type="button" aria-label="Sign out" title="Sign out" onClick={() => sb.auth.signOut()} className="press rounded-full p-2 text-muted hover:bg-hover hover:text-ink">
+            <LogOut size={15} />
           </button>
         </div>
       </aside>
-      <main className="min-h-0 min-w-0 flex-1">
+      <main className="min-h-0 min-w-0 flex-1 overflow-hidden border-line bg-card md:my-2.5 md:mr-2.5 md:rounded-3xl md:border">
         {error ? (
-          <div className="border-b border-line bg-panel p-3">
+          <div className="border-b border-line p-3">
             <ErrorNote message={error} />
           </div>
         ) : null}

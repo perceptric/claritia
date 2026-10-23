@@ -49,7 +49,7 @@ function DomainsForm({ sb, ws, owner, saved, onSaved }: Pick<ViewProps, "sb" | "
     }
   };
   return (
-    <div className="flex flex-col gap-4 p-4">
+    <div className="flex flex-col gap-4 p-5">
       <Field label="Your team's email domains">
         <Input value={own} onChange={(e) => setOwn(e.target.value)} placeholder="acme.com" disabled={!owner} />
       </Field>
@@ -117,23 +117,23 @@ function Secret({ sb, session, ws }: Pick<ViewProps, "sb" | "session" | "ws">) {
   const list = sites.data ?? [];
   const current = list.find((s) => s.id === site) ?? list[0];
   return (
-    <div className="flex flex-col gap-3 border-t border-line p-4">
+    <div className="flex flex-col gap-3 border-t border-line p-5">
       <div className="flex flex-wrap items-center gap-2">
         <span className="text-[13px] font-medium">Sign-in secret</span>
         {state.data ? state.data.secret ? <Badge tone="green">Set</Badge> : <Badge>Not set</Badge> : null}
         {state.data?.old ? <Badge tone="amber">Old secret still works</Badge> : null}
         <span className="ml-auto flex gap-1.5">
           {state.data?.secret ? (
-            <Button variant="plain" className="h-7 px-2" onClick={() => setShown(!shown)}>
+            <Button variant="plain" size="sm" onClick={() => setShown(!shown)}>
               {shown ? "Hide" : "Show"}
             </Button>
           ) : null}
           {state.data?.old ? (
-            <Button variant="ghost" className="h-7 px-2.5" onClick={() => act("drop_old")} disabled={!!busy}>
+            <Button variant="ghost" size="sm" onClick={() => act("drop_old")} disabled={!!busy}>
               Stop old secret
             </Button>
           ) : null}
-          <Button variant="ghost" className="h-7 px-2.5" onClick={() => act("rotate")} disabled={!!busy || !state.data}>
+          <Button variant="ghost" size="sm" onClick={() => act("rotate")} disabled={!!busy || !state.data}>
             {busy === "rotate" ? "Making…" : state.data?.secret ? "New secret" : "Make secret"}
           </Button>
         </span>

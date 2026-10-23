@@ -8,7 +8,7 @@ import { Plus, Refresh, Trash } from "../../Icons";
 import { askConfirm, askText } from "../Dialogs";
 import { Select } from "../Select";
 import { SampleTags, ToolIntro } from "../ToolIntro";
-import { Badge, Button, CardHead, ErrorNote, errorText, Field, Input, Loading, must, Panel, postJson, Td, Th, timeAgo, useLoad, type Tone, type ViewProps } from "../ui";
+import { Badge, Button, CardHead, ErrorNote, errorText, Field, IconButton, Input, Loading, must, Panel, postJson, Td, Th, timeAgo, useLoad, type Tone, type ViewProps } from "../ui";
 
 type DnsRecord = { key: string; type: string; name: string; value: string; status: "verified" | "waiting" | "wrong"; seen?: string };
 type Domain = { id: string; domain: string; status: "pending" | "verified" | "failed"; records: DnsRecord[]; error: string | null; checked_at: string | null };
@@ -82,13 +82,14 @@ export function SendingSettings({ sb, session, ws, role }: Pick<ViewProps, "sb" 
       <ErrorNote message={error || domains.error || settings.error} />
       {s?.paused ? (
         <Panel>
-          <div className="flex flex-wrap items-center gap-3 px-4 py-3">
-            <Badge tone="red">Paused</Badge>
+          <div className="flex flex-wrap items-center gap-3 px-5 py-3.5">
+            <Badge tone="red" dot>Paused</Badge>
             <span className="text-[13px]">{s.paused_reason}</span>
             {owner ? (
               <Button
                 variant="ghost"
-                className="ml-auto h-7 px-2.5"
+                size="sm"
+                className="ml-auto"
                 onClick={() =>
                   run(async () => {
                     if (!(await askConfirm("Resume sending?", { ok: "Resume" }))) return;
@@ -105,7 +106,8 @@ export function SendingSettings({ sb, session, ws, role }: Pick<ViewProps, "sb" 
 
       {!domains.data.length ? (
         <ToolIntro
-          title="Send from your own domain"
+          sketch="plane"
+          title={"Send from\nyour own domain"}
           lead="Add the domain you send from, then add the DNS records it shows. Sending opens once DKIM, SPF and DMARC check out, and every marketing email carries one-click unsubscribe."
           action={owner ? <AddDomain sb={sb} ws={ws} onAdded={domains.reload} onError={setError} /> : undefined}
           features={[
@@ -115,7 +117,7 @@ export function SendingSettings({ sb, session, ws, role }: Pick<ViewProps, "sb" 
           ]}
         />
       ) : (
-        <Panel>
+        <Panel className="overflow-hidden">
           <CardHead label="Domains" count={domains.data.length} />
           <div className="divide-y divide-line">
             {domains.data.map((d) => (
@@ -123,7 +125,7 @@ export function SendingSettings({ sb, session, ws, role }: Pick<ViewProps, "sb" 
             ))}
           </div>
           {owner ? (
-            <div className="border-t border-line px-4 py-3">
+            <div className="border-t border-line px-5 py-3.5">
               <AddDomain sb={sb} ws={ws} onAdded={domains.reload} onError={setError} />
             </div>
           ) : null}
@@ -184,21 +186,18 @@ function DomainCard({ d, owner, sb, onChange, onError }: { d: Domain; owner: boo
     }
   };
   return (
-    <div className="flex flex-col gap-3 px-4 py-4">
+    <div className="flex flex-col gap-3 px-5 py-5">
       <div className="flex flex-wrap items-center gap-2">
         <span className="font-mono text-[13px] font-medium">{d.domain}</span>
         <Badge tone={tone}>{label}</Badge>
         <span className="ml-auto flex items-center gap-2">
           {d.checked_at ? <span className="text-[12px] text-faint">{timeAgo(d.checked_at)}</span> : null}
-          <Button variant="plain" className="h-7 px-2" aria-label="Check now" title="Check now" onClick={() => act(async () => must(await sb.rpc("sending_domain_check_now", { p_id: d.id })))}>
+          <IconButton label="Check now" onClick={() => act(async () => must(await sb.rpc("sending_domain_check_now", { p_id: d.id })))}>
             <Refresh size={14} />
-          </Button>
+          </IconButton>
           {owner ? (
-            <Button
-              variant="plain"
-              className="h-7 px-2"
-              aria-label="Remove domain"
-              title="Remove domain"
+            <IconButton
+              label="Remove domain"
               onClick={() =>
                 act(async () => {
                   if (!(await askConfirm(`Remove ${d.domain}?`, { body: "Emails from this domain stop at once.", ok: "Remove", danger: true }))) return;
@@ -207,14 +206,14 @@ function DomainCard({ d, owner, sb, onChange, onError }: { d: Domain; owner: boo
               }
             >
               <Trash size={14} />
-            </Button>
+            </IconButton>
           ) : null}
         </span>
       </div>
       <ErrorNote message={d.error ?? ""} />
       {d.records.length ? (
-        <div className="overflow-x-auto border border-line">
-          <table className="w-full text-[12.5px]">
+        <div className="overflow-x-auto rounded-lg border border-line bg-card">
+          <table className="w-full text-[12.5px] [&_tbody_tr:last-child_td]:border-b-0">
             <thead>
               <tr>
                 <Th>Type</Th>
@@ -232,10 +231,10 @@ function DomainCard({ d, owner, sb, onChange, onError }: { d: Domain; owner: boo
                   </Td>
                   <Td>
                     <CopyText text={r.value} />
-                    {r.status === "wrong" && r.seen ? <p className="mt-1 font-mono text-[11px] text-red-600">{r.seen}</p> : null}
+                    {r.status === "wrong" && r.seen ? <p className="mt-1 font-mono text-[11px] text-rose">{r.seen}</p> : null}
                   </Td>
                   <Td>
-                    <Badge tone={RECORD[r.status][1]}>{RECORD[r.status][0]}</Badge>
+                    <Badge tone={RECORD[r.status][1]} dot>{RECORD[r.status][0]}</Badge>
                   </Td>
                 </tr>
               ))}
@@ -255,7 +254,7 @@ function CopyText({ text }: { text: string }) {
     <button
       type="button"
       title={done ? "Copied" : "Copy"}
-      className="max-w-full text-left font-mono break-all hover:text-brand"
+      className="max-w-full text-left font-mono break-all transition-colors duration-[140ms] hover:text-clay"
       onClick={() =>
         void navigator.clipboard.writeText(text).then(() => {
           setDone(true);
@@ -298,7 +297,7 @@ function SenderForm({ sb, ws, owner, saved, onSaved }: Pick<ViewProps, "sb" | "w
   return (
     <Panel>
       <CardHead label="Sender" />
-      <div className="grid gap-4 p-4 sm:grid-cols-2">
+      <div className="grid gap-4 p-5 sm:grid-cols-2">
         <Field label="From name">
           <Input value={v.from_name} onChange={set("from_name")} placeholder="Acme" disabled={!owner} />
         </Field>
@@ -331,7 +330,7 @@ function SenderForm({ sb, ws, owner, saved, onSaved }: Pick<ViewProps, "sb" | "w
         </Field>
       </div>
       {owner ? (
-        <div className="flex items-center gap-3 border-t border-line px-4 py-3">
+        <div className="flex items-center gap-3 border-t border-line px-5 py-3.5">
           <Button onClick={save} disabled={busy}>
             {busy ? "Saving…" : "Save"}
           </Button>
@@ -354,12 +353,12 @@ function Topics({ sb, ws, owner, onError }: Pick<ViewProps, "sb" | "ws"> & { own
     }
   };
   return (
-    <Panel>
+    <Panel className="overflow-hidden">
       <CardHead label="Topics" count={list.data?.length}>
         {owner ? (
           <Button
             variant="plain"
-            className="h-7 px-2"
+            size="sm"
             onClick={async () => {
               const name = await askText("New topic", { placeholder: "Product news" });
               if (name?.trim()) await save(null, name.trim(), true);
@@ -374,17 +373,17 @@ function Topics({ sb, ws, owner, onError }: Pick<ViewProps, "sb" | "ws"> & { own
       ) : (
         <ul className="divide-y divide-line">
           {list.data.map((t) => (
-            <li key={t.id} className="flex items-center gap-3 px-4 py-2.5 text-[13px]">
+            <li key={t.id} className="flex items-center gap-3 px-5 py-3 text-[13px]">
               <span className="font-medium">{t.name}</span>
               <Badge tone={t.default_on ? "green" : "gray"}>{t.default_on ? "On by default" : "Opt-in"}</Badge>
               {owner ? (
                 <span className="ml-auto flex items-center gap-1">
-                  <Button variant="plain" className="h-7 px-2" onClick={() => save(t, null, !t.default_on)}>
+                  <Button variant="plain" size="sm" onClick={() => save(t, null, !t.default_on)}>
                     {t.default_on ? "Make opt-in" : "Make on by default"}
                   </Button>
                   <Button
                     variant="plain"
-                    className="h-7 px-2"
+                    size="sm"
                     onClick={async () => {
                       const name = await askText("Rename topic", { initial: t.name });
                       if (name?.trim() && name.trim() !== t.name) await save(t, name.trim());
@@ -392,10 +391,8 @@ function Topics({ sb, ws, owner, onError }: Pick<ViewProps, "sb" | "ws"> & { own
                   >
                     Rename
                   </Button>
-                  <Button
-                    variant="plain"
-                    className="h-7 px-2"
-                    aria-label={`Delete ${t.name}`}
+                  <IconButton
+                    label={`Delete ${t.name}`}
                     title="Delete"
                     onClick={async () => {
                       if (!(await askConfirm(`Delete ${t.name}?`, { ok: "Delete", danger: true }))) return;
@@ -409,7 +406,7 @@ function Topics({ sb, ws, owner, onError }: Pick<ViewProps, "sb" | "ws"> & { own
                     }}
                   >
                     <Trash size={14} />
-                  </Button>
+                  </IconButton>
                 </span>
               ) : null}
             </li>
@@ -450,18 +447,22 @@ function Recent({ sb, session, ws, canTest }: Pick<ViewProps, "sb" | "session" |
   };
 
   return (
-    <Panel>
+    <Panel className="overflow-hidden">
       <CardHead label="Recent sends" count={list.data?.length}>
-        <Button variant="ghost" className="h-7 px-2.5" onClick={test} disabled={busy || !canTest}>
+        <Button variant="ghost" size="sm" onClick={test} disabled={busy || !canTest}>
           {busy ? "Sending…" : "Send test"}
         </Button>
       </CardHead>
-      <ErrorNote message={error || list.error} />
+      {error || list.error ? (
+        <div className="px-5 pt-4">
+          <ErrorNote message={error || list.error} />
+        </div>
+      ) : null}
       {!list.data ? (
         <Loading />
       ) : list.data.length ? (
         <div className="overflow-x-auto">
-          <table className="w-full text-[13px]">
+          <table className="w-full text-[13px] [&_tbody_tr:last-child_td]:border-b-0">
             <thead>
               <tr>
                 <Th>To</Th>
@@ -482,7 +483,7 @@ function Recent({ sb, session, ws, canTest }: Pick<ViewProps, "sb" | "session" |
                         <Badge tone={tone}>{label}</Badge>
                         {m.skip_reason ? <span className="text-[12px] text-muted">{SKIP[m.skip_reason] ?? m.skip_reason}</span> : null}
                         {m.error && (m.status === "failed" || m.status === "unknown") ? (
-                          <span className="max-w-[180px] truncate text-[12px] text-red-600" title={m.error}>
+                          <span className="max-w-[180px] truncate text-[12px] text-rose" title={m.error}>
                             {m.error}
                           </span>
                         ) : null}

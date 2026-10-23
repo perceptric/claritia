@@ -4,6 +4,7 @@
 
 import { useState } from "react";
 import { Check, Play, X } from "../../Icons";
+import { Sketch } from "../../sketches/Sketch";
 import { Badge, Button, Empty, ErrorNote, errorText, Loading, must, Panel, timeAgo, useLoad, type ViewProps } from "../ui";
 
 type Row = { id: string; status: "running" | "passed" | "failed"; steps: { name: string; ok: boolean; detail?: string }[]; error: string | null; started_at: string };
@@ -37,22 +38,22 @@ export function FormChecks({ sb, formId, live }: Pick<ViewProps, "sb"> & { formI
       {!list.data ? (
         <Loading />
       ) : !list.data.length ? (
-        <Empty title="No checks yet" />
+        <Empty sketch={<Sketch name="browser" tone="sage" size={160} />} title="No checks yet" />
       ) : (
-        <Panel>
+        <Panel className="overflow-hidden">
           <ul className="divide-y divide-line">
             {list.data.map((c) => (
-              <li key={c.id} className="flex flex-col gap-2 px-4 py-3 text-[13px]">
+              <li key={c.id} className="flex flex-col gap-2.5 px-5 py-4 text-[13px]">
                 <div className="flex items-center gap-2">
-                  <Badge tone={c.status === "passed" ? "green" : c.status === "failed" ? "red" : "brand"}>{c.status === "passed" ? "Passed" : c.status === "failed" ? "Failed" : "Running"}</Badge>
-                  <span className="text-faint">{timeAgo(c.started_at)}</span>
+                  <Badge tone={c.status === "passed" ? "green" : c.status === "failed" ? "red" : "brand"} dot>{c.status === "passed" ? "Passed" : c.status === "failed" ? "Failed" : "Running"}</Badge>
+                  <span className="font-mono text-[11.5px] text-muted">{timeAgo(c.started_at)}</span>
                 </div>
                 <ul className="flex flex-col gap-1">
                   {c.steps.map((s, i) => (
                     <li key={i} className="flex items-start gap-2">
-                      <span className={s.ok ? "text-success" : "text-danger"}>{s.ok ? <Check size={14} /> : <X size={14} />}</span>
+                      <span className={`mt-px flex size-[18px] shrink-0 items-center justify-center rounded-full ${s.ok ? "bg-sage-wash text-sage" : "bg-rose-wash text-rose"}`}>{s.ok ? <Check size={12} /> : <X size={12} />}</span>
                       <span className="text-ink">{s.name}</span>
-                      {s.detail ? <span className="text-danger">{s.detail}</span> : null}
+                      {s.detail ? <span className="text-rose">{s.detail}</span> : null}
                     </li>
                   ))}
                 </ul>

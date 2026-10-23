@@ -14,6 +14,7 @@ import {
   ErrorNote,
   errorText,
   Field,
+  IconButton,
   Input,
   Loading,
   must,
@@ -59,7 +60,7 @@ type Scored = {
 };
 
 const SEL =
-  "h-9 w-full rounded-md border border-line bg-panel px-2.5 text-[13px] hover:border-line-strong";
+  "h-10 w-full rounded-sm border border-line-strong bg-card px-3 text-[13.5px] focus:border-ink";
 const KINDS: { key: string; label: string }[] = [
   { key: "form.submitted", label: "Filled a form" },
   { key: "meeting.booked", label: "Booked a meeting" },
@@ -245,7 +246,7 @@ function Form({
             {v.enabled ? <Badge tone="green">On</Badge> : <Badge>Off</Badge>}
           </span>
         </CardHead>
-        <div className="grid gap-4 p-4 sm:grid-cols-2">
+        <div className="grid gap-4 p-5 sm:grid-cols-2">
           <Field label="Scoring">
             <Select
               className={SEL}
@@ -310,7 +311,7 @@ function Form({
 
       <Panel>
         <CardHead label="Points per activity" />
-        <div className="grid gap-3 p-4 sm:grid-cols-3">
+        <div className="grid gap-3 p-5 sm:grid-cols-3">
           {KINDS.map((k) => (
             <Field key={k.key} label={k.label}>
               <Input
@@ -339,7 +340,8 @@ function Form({
           {owner ? (
             <Button
               variant="plain"
-              className="ml-auto h-7 px-2"
+              size="sm"
+              className="ml-auto"
               onClick={() =>
                 setV({
                   ...v,
@@ -363,8 +365,8 @@ function Form({
             </Button>
           ) : null}
         </CardHead>
-        <div className="flex flex-col divide-y divide-line">
-          <div className="grid gap-3 p-4 sm:grid-cols-2">
+        <div className="flex flex-col gap-3 p-5">
+          <div className="grid gap-3 sm:grid-cols-2">
             <Field label="Contacts with an owner">
               <Select
                 className={SEL}
@@ -384,7 +386,10 @@ function Form({
             </Field>
           </div>
           {v.routing.rules.map((r, i) => (
-            <div key={i} className="grid gap-3 p-4 sm:grid-cols-2">
+            <div
+              key={i}
+              className="anim-rise-sm grid gap-3 rounded-lg border border-line bg-paper p-4 sm:grid-cols-2"
+            >
               <Field label="Rule">
                 <Input
                   value={r.name}
@@ -434,11 +439,9 @@ function Form({
                       owner={owner}
                     />
                     {owner ? (
-                      <Button
-                        variant="plain"
-                        className="ml-auto h-7 px-2"
-                        aria-label="Remove rule"
-                        title="Remove rule"
+                      <IconButton
+                        label="Remove rule"
+                        className="ml-auto"
                         onClick={() =>
                           setV({
                             ...v,
@@ -450,14 +453,14 @@ function Form({
                         }
                       >
                         <Trash size={14} />
-                      </Button>
+                      </IconButton>
                     ) : null}
                   </div>
                 </Field>
               </div>
             </div>
           ))}
-          <div className="p-4">
+          <div>
             <Field label="Everyone else">
               <OwnerPicker
                 value={v.routing.default.owners}
@@ -474,7 +477,7 @@ function Form({
           </div>
         </div>
         {owner ? (
-          <div className="flex flex-wrap items-center gap-3 border-t border-line px-4 py-3">
+          <div className="flex flex-wrap items-center gap-3 border-t border-line px-5 py-3.5">
             <Button onClick={save} disabled={!!busy}>
               {busy === "save" ? "Saving…" : "Save"}
             </Button>
@@ -512,7 +515,7 @@ function OwnerPicker({
       {value.map((o, i) => (
         <span
           key={i}
-          className="inline-flex items-center gap-1 border border-line px-1.5 py-0.5 text-[12px]"
+          className="inline-flex h-7 items-center gap-1.5 rounded-full bg-paper-deep pr-2 pl-3 text-[12px] text-ink"
         >
           {o.label}
           {owner ? (
@@ -529,7 +532,7 @@ function OwnerPicker({
       ))}
       {owner ? (
         <Select
-          className="h-7 w-56 rounded-md border border-line bg-panel px-2 text-[12px]"
+          className="h-8 w-56 rounded-sm border border-line-strong bg-card px-2.5 text-[12.5px] focus:border-ink"
           value=""
           placeholder="Add owner"
           options={owners
@@ -577,7 +580,7 @@ function Top({
     team.find((m) => m.id === r.owner_user_id)?.email ??
     (r.owner_crm_id ? `CRM ${r.owner_crm_id}` : "—");
   return (
-    <Panel>
+    <Panel className="overflow-hidden">
       <CardHead label="Top scores" count={rows.data.length} />
       <div className="overflow-x-auto">
         <table className="w-full text-[13px]">
@@ -600,17 +603,20 @@ function Top({
                 <Td className="tabular-nums">{r.fit_score ?? "—"}</Td>
                 <Td className="tabular-nums">{r.engagement_score ?? "—"}</Td>
                 <Td>
-                  <Badge
-                    tone={
-                      r.score_band === "hot"
-                        ? "red"
-                        : r.score_band === "warm"
-                          ? "amber"
-                          : "gray"
-                    }
-                  >
-                    {r.score ?? "—"}
-                  </Badge>
+                  <span className="inline-flex items-center gap-2">
+                    <span
+                      className={`size-2 rounded-full ${
+                        r.score_band === "hot"
+                          ? "bg-rose"
+                          : r.score_band === "warm"
+                            ? "bg-butter"
+                            : "bg-faint"
+                      }`}
+                    />
+                    <span className="serif text-[22px] leading-none text-ink tabular-nums">
+                      {r.score ?? "—"}
+                    </span>
+                  </span>
                 </Td>
                 <Td className="max-w-[220px] truncate text-muted">{who(r)}</Td>
               </tr>

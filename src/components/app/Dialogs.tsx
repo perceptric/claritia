@@ -56,7 +56,7 @@ export function DialogHost() {
 
   return (
     <div
-      className="fixed inset-0 z-[90] flex items-start justify-center bg-ink/20 px-4 pt-[15vh]"
+      className="anim-fade fixed inset-0 z-[90] flex items-start justify-center bg-scrim px-4 pt-[15vh]"
       onMouseDown={() => finish(false)}
       onKeyDown={(e) => e.key === "Escape" && finish(false)}
     >
@@ -64,15 +64,15 @@ export function DialogHost() {
         role="dialog"
         aria-modal="true"
         aria-label={req.title}
-        className="w-full max-w-md overflow-hidden frame bg-panel shadow-pop"
+        className="anim-rise-sm w-full max-w-md overflow-hidden rounded-2xl bg-card shadow-float"
         onMouseDown={(e) => e.stopPropagation()}
         onSubmit={(e) => {
           e.preventDefault();
           finish(true);
         }}
       >
-        <div className="space-y-3 p-5">
-          <h2 className="text-[15px] font-medium">{req.title}</h2>
+        <div className="space-y-3 p-6">
+          <h2 className="serif text-[24px] leading-tight">{req.title}</h2>
           {"body" in req && req.body ? <p className="max-h-64 overflow-auto text-[13px] leading-relaxed whitespace-pre-line text-muted">{req.body}</p> : null}
           {req.kind === "lines" ? (
             <textarea
@@ -81,7 +81,7 @@ export function DialogHost() {
               onChange={(e) => setText(e.target.value)}
               placeholder={req.placeholder}
               rows={8}
-              className="w-full rounded-md border border-line bg-panel px-2.5 py-2 font-mono text-[12.5px] outline-none focus:border-ink"
+              className="w-full rounded-sm border border-line-strong bg-card px-3 py-2 font-mono text-[12.5px] outline-none focus:border-ink focus:ring-1 focus:ring-ink"
             />
           ) : null}
           {req.kind === "text" ? (
@@ -91,11 +91,11 @@ export function DialogHost() {
               onChange={(e) => setText(e.target.value)}
               placeholder={req.placeholder}
               maxLength={120}
-              className="h-9 w-full rounded-md border border-line bg-panel px-2.5 text-[13px] outline-none focus:border-ink"
+              className="h-10 w-full rounded-sm border border-line-strong bg-card px-3 text-[13.5px] outline-none focus:border-ink focus:ring-1 focus:ring-ink"
             />
           ) : null}
         </div>
-        <div className="flex justify-end gap-2 border-t border-line bg-canvas px-5 py-3">
+        <div className="flex justify-end gap-2 px-6 pb-5">
           {req.kind !== "tell" ? (
             <Button type="button" variant="plain" onClick={() => finish(false)}>
               Cancel
@@ -105,7 +105,7 @@ export function DialogHost() {
             type="submit"
             autoFocus={req.kind !== "text"}
             disabled={(req.kind === "text" || req.kind === "lines") && !text.trim()}
-            className={req.kind === "confirm" && req.danger ? "bg-red-600 hover:bg-red-700" : ""}
+            className={req.kind === "confirm" && req.danger ? "!bg-rose" : ""}
           >
             {req.kind === "tell" ? "OK" : req.ok}
           </Button>

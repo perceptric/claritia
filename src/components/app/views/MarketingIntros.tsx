@@ -12,8 +12,9 @@ export function VisitorsIntro({ action }: { action?: React.ReactNode }) {
   return (
     <Page icon={<Eye size={14} />} title="Visits">
       <ToolIntro
+        sketch="funnel"
         action={action}
-        title="See which companies visit your site"
+        title={"See which companies\nvisit your site"}
         lead="Claritia names the companies and people behind your traffic, shows what they read, and tells you when an account heats up. It follows each region's privacy rules on its own."
         features={[
           {
@@ -41,7 +42,8 @@ export function TemplatesView() {
   return (
     <Page icon={<Mail size={14} />} title="Templates">
       <ToolIntro
-        title="Emails in your brand"
+        sketch="envelopes"
+        title={"Emails\nin your brand"}
         lead="Build email templates once, in your colors and voice. Workflows fill them for each contact."
         features={[
           {
@@ -64,7 +66,8 @@ export function AnalyticsView() {
   return (
     <Page icon={<BarChart size={14} />} title="Analytics">
       <ToolIntro
-        title="See which emails made revenue"
+        sketch="funnel"
+        title={"See which emails\nmade revenue"}
         lead="Opens, clicks, replies and meetings for every workflow and template, traced to the opportunities they touched."
         features={[
           {
@@ -87,7 +90,8 @@ export function PagesView() {
   return (
     <Page icon={<FileText size={14} />} title="Pages">
       <ToolIntro
-        title="Landing pages that convert"
+        sketch="browser"
+        title={"Landing pages\nthat convert"}
         lead="AI builds landing pages from your content, shapes them for each segment or account, and holds your forms."
         features={[
           {
@@ -110,7 +114,8 @@ export function AdsView() {
   return (
     <Page icon={<Megaphone size={14} />} title="Ads">
       <ToolIntro
-        title="Ads tied to pipeline"
+        sketch="megaphone"
+        title={"Ads tied\nto pipeline"}
         lead="Connect your ad accounts to see spend, leads and opportunities for every campaign, and send your segments as audiences."
         features={[
           {

@@ -1,7 +1,8 @@
 "use client";
 
 import type { Session, SupabaseClient } from "@supabase/supabase-js";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { Pip, PipDots } from "./Pip";
 
 import type { Route } from "@/lib/nav";
 export type { Route };
@@ -88,9 +89,8 @@ export function timeAgo(iso: string | null) {
   return new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
 }
 
-/** A page in the app: a slim title bar, then the content. */
+/** A page in the app: a two-tone serif title with a mono crumb, then the content. */
 export function Page({
-  icon,
   title,
   count,
   actions,
@@ -98,7 +98,7 @@ export function Page({
   flush = false,
   children,
 }: {
-  icon: React.ReactNode;
+  icon?: React.ReactNode;
   title: string;
   count?: number | string;
   actions?: React.ReactNode;
@@ -108,111 +108,166 @@ export function Page({
 }) {
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <header className="flex h-12 shrink-0 items-center gap-2 border-b border-line bg-panel px-4 md:px-5">
-        {back ? (
-          <>
-            <button type="button" onClick={back.onClick} className="rounded-md px-1.5 py-1 text-[13px] font-medium text-muted hover:bg-hover hover:text-ink">
-              {back.label}
+      <header className="flex min-h-16 shrink-0 items-center gap-3 border-b border-line px-5 py-3 md:px-7">
+        <div className="flex min-w-0 flex-col">
+          {back ? (
+            <button type="button" onClick={back.onClick} className="-ml-0.5 self-start rounded-full px-0.5 font-mono text-[11.5px] text-muted hover:text-ink">
+              {back.label} /
             </button>
-            <span className="text-faint">/</span>
-          </>
-        ) : null}
-        <span className="flex size-6 shrink-0 items-center justify-center rounded-sm border border-line bg-panel text-ink">{icon}</span>
-        <h1 className="truncate text-[14px] font-medium tracking-[-0.01em]">{title}</h1>
-        {count != null ? <span className="font-mono text-[11px] text-faint tabular-nums">[{count}]</span> : null}
-        {actions ? <div className="ml-auto flex items-center gap-2">{actions}</div> : null}
+          ) : null}
+          <h1 className="serif truncate text-[26px] leading-[1.15] text-ink">
+            {title}
+            {count != null ? <span className="ml-2 text-muted tabular-nums">{count}</span> : null}
+          </h1>
+        </div>
+        {actions ? <div className="ml-auto flex shrink-0 items-center gap-2">{actions}</div> : null}
       </header>
-      <div className={`min-h-0 flex-1 overflow-auto ${flush ? "bg-panel" : "paper p-4 md:p-6"}`}>{children}</div>
+      <div className={`min-h-0 flex-1 overflow-auto ${flush ? "" : "p-5 md:p-7"}`}>{children}</div>
     </div>
   );
 }
 
+/** A soft card. `frame` lifts the one card a screen is about. */
 export function Panel({ children, className = "", frame = false }: { children: React.ReactNode; className?: string; frame?: boolean }) {
-  return <div className={`border border-line bg-panel ${frame ? "frame" : ""} ${className}`}>{children}</div>;
+  return <div className={`rounded-2xl border border-line bg-card ${frame ? "frame" : ""} ${className}`}>{children}</div>;
 }
 
-/** A card's header bar: a black dot and a mono label, with room for actions on the right. */
+/** A card's header bar: a clay dot and a label, with room for actions on the right. */
 export function CardHead({ label, count, children }: { label: string; count?: number | string; children?: React.ReactNode }) {
   return (
-    <div className="flex h-10 items-center gap-2 border-b border-line bg-canvas px-4">
-      <span className="size-1.5 shrink-0 rounded-full bg-ink" />
-      <span className="label-mono truncate">{label}</span>
-      {count != null ? <span className="font-mono text-[10.5px] text-faint tabular-nums">{count}</span> : null}
+    <div className="flex h-11 items-center gap-2 border-b border-line px-5">
+      <span className="size-1.5 shrink-0 rounded-full bg-clay" />
+      <span className="truncate text-[13px] font-medium text-ink">{label}</span>
+      {count != null ? <span className="font-mono text-[11.5px] text-muted tabular-nums">{count}</span> : null}
       {children ? <div className="ml-auto flex items-center gap-1.5">{children}</div> : null}
     </div>
   );
 }
 
-export function Empty({ icon, title, children }: { icon?: React.ReactNode; title: string; children?: React.ReactNode }) {
+/** An empty list: a sketch (or Pip), one serif line, and what to do. */
+export function Empty({ icon, sketch, title, children }: { icon?: React.ReactNode; sketch?: React.ReactNode; title: string; children?: React.ReactNode }) {
   return (
-    <div className="flex flex-col items-center gap-2 px-6 py-20 text-center">
-      {icon ? <span className="frame mb-2 flex size-10 items-center justify-center border border-line bg-panel text-ink">{icon}</span> : null}
-      <p className="text-[15px] font-medium tracking-[-0.01em]">{title}</p>
-      {children ? <div className="max-w-sm text-[13px] text-muted">{children}</div> : null}
+    <div className="anim-rise-sm flex flex-col items-center gap-2 px-6 py-16 text-center">
+      <div className="mb-3">{sketch ?? (icon ? <span className="flex size-12 items-center justify-center rounded-full bg-paper-deep text-ink">{icon}</span> : <Pip size={44} />)}</div>
+      <p className="serif text-[22px] text-ink">{title}</p>
+      {children ? <div className="max-w-sm text-[13.5px] text-muted">{children}</div> : null}
     </div>
   );
 }
 
 export function ErrorNote({ message }: { message: string }) {
-  return message ? <p className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-[13px] text-red-700">{message}</p> : null;
+  return message ? (
+    <p role="alert" className="flex items-start gap-2 rounded-lg bg-rose-wash px-3.5 py-2.5 text-[13px] text-rose">
+      <Pip mood="oops" size={18} className="mt-px" />
+      <span className="min-w-0 flex-1">{message}</span>
+    </p>
+  ) : null;
 }
 
+/** Loading: Pip's dots over soft blobs that shimmer. */
 export function Loading() {
   return (
-    <div className="space-y-2 p-5" aria-label="Loading">
+    <div className="space-y-2.5 p-5" aria-label="Loading">
+      <PipDots className="mb-1 ml-1" />
       {[0, 1, 2, 3, 4].map((i) => (
-        <div key={i} className="h-9 animate-pulse rounded-md bg-hover" style={{ opacity: 1 - i * 0.16 }} />
+        <div key={i} className="anim-shimmer h-10 rounded-full bg-paper-deep" style={{ opacity: 1 - i * 0.16, animationDelay: `${i * 0.1}s` }} />
       ))}
     </div>
   );
 }
 
-export function Button({ variant = "primary", className = "", ...props }: React.ButtonHTMLAttributes<HTMLButtonElement> & { variant?: "primary" | "ghost" | "plain" | "danger" }) {
+export function Button({ variant = "primary", size = "md", className = "", ...props }: React.ButtonHTMLAttributes<HTMLButtonElement> & { variant?: "primary" | "ghost" | "plain" | "danger"; size?: "sm" | "md" }) {
   const look =
     variant === "primary"
-      ? "bg-ink text-white hover:bg-[#2b2b29]"
+      ? "bg-ink text-paper hover:opacity-85"
       : variant === "ghost"
-        ? "border border-line bg-panel text-ink hover:border-line-strong hover:bg-canvas"
+        ? "border border-line-strong bg-card text-ink hover:bg-paper"
         : variant === "danger"
-          ? "border border-line bg-panel text-danger hover:border-red-300 hover:bg-danger-soft"
+          ? "border border-line-strong bg-card text-rose hover:bg-rose-wash"
           : "text-body hover:bg-hover hover:text-ink";
   return (
     <button
       {...props}
-      className={`inline-flex h-8 items-center justify-center gap-1.5 rounded-md px-3.5 text-[13px] font-medium whitespace-nowrap transition-colors disabled:pointer-events-none disabled:opacity-50 ${look} ${className}`}
+      className={`press inline-flex items-center justify-center gap-1.5 rounded-full font-medium whitespace-nowrap transition-[opacity,background-color,transform] duration-[140ms] disabled:pointer-events-none disabled:opacity-45 ${size === "sm" ? "h-8 px-3.5 text-[12.5px]" : "h-9 px-4 text-[13.5px]"} ${look} ${className}`}
     />
   );
 }
 
+/** A round icon button with a tooltip. */
+export function IconButton({ label, className = "", ...props }: React.ButtonHTMLAttributes<HTMLButtonElement> & { label: string }) {
+  return <button type="button" aria-label={label} title={label} {...props} className={`press inline-flex size-8 shrink-0 items-center justify-center rounded-full text-muted hover:bg-hover hover:text-ink disabled:opacity-45 ${className}`} />;
+}
+
 export function Input({ className = "", ...props }: React.InputHTMLAttributes<HTMLInputElement>) {
-  return <input {...props} className={`h-9 w-full rounded-md border border-line bg-panel px-2.5 text-[13px] text-ink outline-none placeholder:text-faint focus:border-ink ${className}`} />;
+  return (
+    <input
+      {...props}
+      className={`h-10 w-full rounded-sm border border-line-strong bg-card px-3 text-[13.5px] text-ink outline-none transition-shadow duration-[140ms] placeholder:text-faint focus:border-ink focus:ring-1 focus:ring-ink ${className}`}
+    />
+  );
 }
 
 export function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <label className="flex flex-col gap-1.5">
-      <span className="label-mono">{label}</span>
+      <span className="text-[12.5px] font-medium text-body">{label}</span>
       {children}
     </label>
   );
 }
 
-export type Tone = "gray" | "brand" | "violet" | "green" | "amber" | "red";
-const TONES: Record<Tone, string> = {
-  gray: "text-body shadow-[inset_0_0_0_1px_var(--color-line-strong)]",
-  brand: "bg-brand text-white",
-  violet: "bg-violet-soft text-violet",
-  green: "bg-success-soft text-success",
-  amber: "bg-warning-soft text-warning",
-  red: "bg-danger-soft text-danger",
-};
-
-/** A record's state: a square tag. */
-export function Badge({ children, tone = "gray" }: { children: React.ReactNode; tone?: Tone }) {
-  return <span className={`inline-flex h-5 items-center rounded-sm px-1.5 font-mono text-[10px] font-medium tracking-[0.08em] whitespace-nowrap uppercase ${TONES[tone]}`}>{children}</span>;
+/** An on/off switch: a pill with a thumb that springs across. */
+export function Toggle({ on, onChange, label, disabled = false }: { on: boolean; onChange: (v: boolean) => void; label: string; disabled?: boolean }) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={on}
+      aria-label={label}
+      disabled={disabled}
+      onClick={() => onChange(!on)}
+      className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors duration-[320ms] disabled:opacity-45 ${on ? "bg-ink" : "bg-line-strong"}`}
+    >
+      <span className={`absolute left-0.5 size-4 rounded-full bg-paper transition-transform duration-[320ms] ease-spring ${on ? "translate-x-4" : ""}`} />
+    </button>
+  );
 }
 
-/** A round avatar with mono initials, for people. */
+/** A big serif number with a mono label under it. */
+export function Stat({ value, label }: { value: React.ReactNode; label: string }) {
+  return (
+    <div className="flex flex-col gap-1">
+      <span className="serif text-[40px] leading-none tracking-[-0.04em] text-ink tabular-nums">{value}</span>
+      <span className="label-mono">{label}</span>
+    </div>
+  );
+}
+
+export type Tone = "gray" | "brand" | "violet" | "green" | "amber" | "red" | "sky";
+const TONES: Record<Tone, { tag: string; dot: string }> = {
+  gray: { tag: "bg-paper-deep text-body", dot: "bg-muted" },
+  brand: { tag: "bg-clay-wash text-clay", dot: "bg-clay" },
+  violet: { tag: "bg-lilac-wash text-lilac", dot: "bg-lilac" },
+  green: { tag: "bg-sage-wash text-sage", dot: "bg-sage" },
+  amber: { tag: "bg-butter-wash text-butter", dot: "bg-butter" },
+  red: { tag: "bg-rose-wash text-rose", dot: "bg-rose" },
+  sky: { tag: "bg-sky-wash text-sky", dot: "bg-sky" },
+};
+
+/** A record's state: a pill tag, wash fill and deep text, with an optional dot. */
+export function Badge({ children, tone = "gray", dot = false }: { children: React.ReactNode; tone?: Tone; dot?: boolean }) {
+  return (
+    <span className={`inline-flex h-[22px] items-center gap-1.5 rounded-full px-2.5 text-[11.5px] font-medium whitespace-nowrap ${TONES[tone].tag}`}>
+      {dot ? <span className={`size-1.5 rounded-full ${TONES[tone].dot}`} /> : null}
+      {children}
+    </span>
+  );
+}
+
+// Avatar fills cycle through the washes, picked by the name so a person keeps theirs.
+const AVATAR = ["bg-clay-wash text-clay", "bg-sage-wash text-sage", "bg-sky-wash text-sky", "bg-lilac-wash text-lilac", "bg-butter-wash text-butter", "bg-rose-wash text-rose"];
+
+/** A round avatar with initials, for people. */
 export function Avatar({ label, size = 24 }: { label: string; size?: number }) {
   const initials =
     label
@@ -222,19 +277,21 @@ export function Avatar({ label, size = 24 }: { label: string; size?: number }) {
       .slice(0, 2)
       .map((w) => w[0]!.toUpperCase())
       .join("") || "?";
+  let h = 0;
+  for (const c of label) h = (h * 31 + c.charCodeAt(0)) >>> 0;
   return (
-    <span className="inline-flex shrink-0 items-center justify-center rounded-full border border-line bg-canvas font-mono font-medium text-ink" style={{ width: size, height: size, fontSize: Math.max(9, size * 0.36) }}>
+    <span className={`inline-flex shrink-0 items-center justify-center rounded-full font-medium ring-2 ring-paper ${AVATAR[h % AVATAR.length]}`} style={{ width: size, height: size, fontSize: Math.max(9, size * 0.38) }}>
       {initials}
     </span>
   );
 }
 
 export function Th({ children, className = "" }: { children: React.ReactNode; className?: string }) {
-  return <th className={`h-10 border-b border-line bg-canvas px-4 text-left font-mono text-[10.5px] font-medium tracking-[0.12em] whitespace-nowrap text-muted uppercase ${className}`}>{children}</th>;
+  return <th className={`sticky top-0 z-[1] h-11 border-b border-line bg-card px-4 text-left font-mono text-[11.5px] font-normal whitespace-nowrap text-muted ${className}`}>{children}</th>;
 }
 
 export function Td({ children, className = "" }: { children: React.ReactNode; className?: string }) {
-  return <td className={`h-12 border-b border-line px-4 text-[13.5px] whitespace-nowrap ${className}`}>{children}</td>;
+  return <td className={`h-14 border-b border-line px-4 text-[13.5px] whitespace-nowrap ${className}`}>{children}</td>;
 }
 
 /** The host of a URL, for showing it short. */
@@ -259,18 +316,36 @@ export function cleanUrl(raw: string): string | null {
   }
 }
 
-/** A row of choices where one is picked. */
+/** Where the picked child sits, so a thumb or underline can slide to it. */
+function useSlide(index: number, deps: unknown[]) {
+  const box = useRef<HTMLDivElement>(null);
+  const [at, setAt] = useState<{ left: number; width: number } | null>(null);
+  useLayoutEffect(() => {
+    const el = box.current?.querySelectorAll<HTMLElement>("[data-slide]")[index];
+    setAt(el ? { left: el.offsetLeft, width: el.offsetWidth } : null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [index, ...deps]);
+  return { box, at };
+}
+
+/** A row of choices where one is picked: a pill track with a sliding pill thumb. */
 export function Segmented<T extends string>({ value, options, onChange, label }: { value: T; options: { value: T; label: string }[]; onChange: (v: T) => void; label?: string }) {
+  const { box, at } = useSlide(
+    options.findIndex((o) => o.value === value),
+    [options.map((o) => o.label).join()],
+  );
   return (
-    <div role="radiogroup" aria-label={label} className="inline-flex h-8 items-center gap-0.5 rounded-md border border-line bg-panel p-0.5">
+    <div ref={box} role="radiogroup" aria-label={label} className="relative inline-flex h-9 items-center gap-0.5 rounded-full bg-paper-deep p-1">
+      {at ? <span aria-hidden="true" className="absolute top-1 bottom-1 rounded-full bg-ink transition-[transform,width] duration-[320ms] ease-out" style={{ left: 0, width: at.width, transform: `translateX(${at.left}px)` }} /> : null}
       {options.map((o) => (
         <button
           key={o.value}
+          data-slide=""
           type="button"
           role="radio"
           aria-checked={value === o.value}
           onClick={() => onChange(o.value)}
-          className={`inline-flex h-6 items-center rounded-[4px] px-2.5 text-[12.5px] font-medium ${value === o.value ? "bg-ink text-white" : "text-muted hover:text-ink"}`}
+          className={`relative inline-flex h-7 items-center rounded-full px-3 text-[12.5px] font-medium transition-colors duration-[320ms] ${value === o.value ? "text-paper" : "text-muted hover:text-ink"} ${at ? "" : value === o.value ? "bg-ink" : ""}`}
         >
           {o.label}
         </button>
@@ -279,24 +354,29 @@ export function Segmented<T extends string>({ value, options, onChange, label }:
   );
 }
 
-/** Tabs under a page header. */
+/** Tabs under a page header, with an ink underline that slides to the open one. */
 export function Tabs<T extends string>({ value, tabs, onChange }: { value: T; tabs: { value: T; label: string; count?: number }[]; onChange: (v: T) => void }) {
+  const { box, at } = useSlide(
+    tabs.findIndex((t) => t.value === value),
+    [tabs.map((t) => `${t.label}${t.count ?? ""}`).join()],
+  );
   return (
-    <div role="tablist" className="flex h-10 shrink-0 items-end gap-1 overflow-x-auto border-b border-line bg-panel px-3 md:px-4">
+    <div ref={box} role="tablist" className="relative flex h-11 shrink-0 items-end gap-1 overflow-x-auto border-b border-line px-4 md:px-6">
       {tabs.map((t) => (
         <button
           key={t.value}
+          data-slide=""
           type="button"
           role="tab"
           aria-selected={value === t.value}
           onClick={() => onChange(t.value)}
-          className={`relative flex h-9 shrink-0 items-center gap-1.5 px-2.5 text-[13px] font-medium ${value === t.value ? "text-ink" : "text-muted hover:text-ink"}`}
+          className={`relative flex h-10 shrink-0 items-center gap-1.5 px-2.5 text-[13.5px] font-medium transition-colors duration-[140ms] ${value === t.value ? "text-ink" : "text-muted hover:text-ink"}`}
         >
           {t.label}
-          {t.count != null ? <span className="font-mono text-[10.5px] text-faint">{t.count}</span> : null}
-          {value === t.value ? <span className="absolute inset-x-1 -bottom-px h-px bg-ink" /> : null}
+          {t.count != null ? <span className="font-mono text-[11px] text-faint">{t.count}</span> : null}
         </button>
       ))}
+      {at ? <span aria-hidden="true" className="absolute bottom-0 left-0 h-0.5 rounded-full bg-ink transition-[transform,width] duration-[320ms] ease-out" style={{ width: at.width - 12, transform: `translateX(${at.left + 6}px)` }} /> : null}
     </div>
   );
 }
@@ -308,7 +388,7 @@ export function PriorityBars({ value }: { value: "low" | "medium" | "high" }) {
     <span className="inline-flex items-center gap-1.5 text-[12px] text-muted">
       <span aria-hidden="true" className="inline-flex h-2.5 items-end gap-px">
         {[4, 7, 10].map((h, i) => (
-          <span key={h} className={`w-[3px] rounded-[1px] ${i < level ? "bg-ink" : "bg-line-strong"}`} style={{ height: h }} />
+          <span key={h} className={`w-[3px] rounded-full ${i < level ? "bg-ink" : "bg-line-strong"}`} style={{ height: h }} />
         ))}
       </span>
       {value[0]!.toUpperCase() + value.slice(1)}
@@ -321,7 +401,7 @@ export type StepStatus = "pending" | "running" | "passed" | "failed" | "skipped"
 const RUN_TONE: Record<RunStatus | StepStatus, Tone> = { queued: "gray", pending: "gray", running: "brand", passed: "green", failed: "red", error: "amber", canceled: "gray", skipped: "gray" };
 const RUN_LABEL: Record<RunStatus | StepStatus, string> = { queued: "Waiting", pending: "Waiting", running: "Running", passed: "Passed", failed: "Failed", error: "Error", canceled: "Canceled", skipped: "Skipped" };
 
-/** A run's or a step's state as a square tag. */
+/** A run's or a step's state as a tag. */
 export function StatusTag({ status }: { status: RunStatus | StepStatus }) {
   return <Badge tone={RUN_TONE[status] ?? "gray"}>{RUN_LABEL[status] ?? status}</Badge>;
 }

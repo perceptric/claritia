@@ -23,7 +23,7 @@ export function FieldValue({ field, value, links }: { field: AnyField; value: un
     return (
       <span className="flex flex-wrap gap-1">
         {list.map((l) => (
-          <span key={l.id} className="inline-flex h-5 max-w-[180px] items-center truncate border border-line bg-canvas px-1.5 text-[12px]">
+          <span key={l.id} className="inline-flex h-[22px] max-w-[180px] items-center truncate rounded-full bg-paper-deep px-2.5 text-[11.5px] font-medium text-body">
             {l.name}
           </span>
         ))}
@@ -68,15 +68,15 @@ export function FieldValue({ field, value, links }: { field: AnyField; value: un
   return <span className={["number", "currency", "percent"].includes(field.kind) ? "font-mono text-[12.5px] tabular-nums" : ""}>{text}</span>;
 }
 
-/** A rating as five squares, the first ones filled. */
+/** A rating as five dots, the first ones filled. */
 export function Stars({ value, onPick }: { value: number; onPick?: (n: number | null) => void }) {
   return (
     <span className="inline-flex items-center gap-0.5" role={onPick ? "radiogroup" : "img"} aria-label={`${value || 0} of 5`}>
       {[1, 2, 3, 4, 5].map((n) =>
         onPick ? (
-          <button key={n} type="button" role="radio" aria-checked={value === n} aria-label={`${n} of 5`} onClick={(e) => (e.stopPropagation(), onPick(value === n ? null : n))} className={`size-3.5 border ${n <= value ? "border-ink bg-ink" : "border-line-strong bg-panel hover:border-ink"}`} />
+          <button key={n} type="button" role="radio" aria-checked={value === n} aria-label={`${n} of 5`} onClick={(e) => (e.stopPropagation(), onPick(value === n ? null : n))} className={`press size-4 rounded-full border transition-colors duration-[140ms] ${n <= value ? "border-clay bg-clay" : "border-line-strong bg-card hover:border-ink"}`} />
         ) : (
-          <span key={n} className={`size-2.5 border ${n <= value ? "border-ink bg-ink" : "border-line-strong"}`} />
+          <span key={n} className={`size-2.5 rounded-full border ${n <= value ? "border-clay bg-clay" : "border-line-strong"}`} />
         ),
       )}
     </span>
@@ -122,9 +122,9 @@ export function RecordPicker({
       {picked.length ? (
         <div className="flex flex-wrap gap-1 border-b border-line p-2">
           {picked.map((p) => (
-            <span key={p.id} className="inline-flex h-6 items-center gap-1 border border-line bg-canvas pl-1.5 text-[12px]">
+            <span key={p.id} className="anim-pop inline-flex h-6 items-center gap-0.5 rounded-full bg-paper-deep pr-0.5 pl-2.5 text-[12px] text-body">
               {p.name}
-              <button type="button" aria-label="Remove" onClick={() => onChange(picked.filter((x) => x.id !== p.id))} className="px-1 text-muted hover:text-ink">
+              <button type="button" aria-label="Remove" onClick={() => onChange(picked.filter((x) => x.id !== p.id))} className="flex size-5 items-center justify-center rounded-full text-muted hover:bg-hover hover:text-ink">
                 <X size={11} />
               </button>
             </span>
@@ -132,7 +132,7 @@ export function RecordPicker({
         </div>
       ) : null}
       <div className="p-2">
-        <Input autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search" className="h-8" />
+        <Input autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search" className="h-9" />
       </div>
       <ul className="max-h-60 overflow-y-auto p-1 pt-0">
         {hits.map((h) => (
@@ -140,10 +140,10 @@ export function RecordPicker({
             <button
               type="button"
               onClick={() => onChange(has(h.id) ? picked.filter((p) => p.id !== h.id) : multiple ? [...picked, h] : [h])}
-              className="flex h-8 w-full items-center gap-2 rounded-md px-2 text-left hover:bg-hover"
+              className="flex h-8 w-full items-center gap-2 rounded-sm px-2.5 text-left hover:bg-hover"
             >
               <span className="flex-1 truncate">{h.name}</span>
-              {has(h.id) ? <Check size={13} className="text-brand" /> : null}
+              {has(h.id) ? <Check size={13} className="text-clay" /> : null}
             </button>
           </li>
         ))}
@@ -165,9 +165,9 @@ function MultiPicker({ field, value, onChange }: { field: AnyField; value: strin
               type="button"
               aria-pressed={on}
               onClick={() => onChange(on ? value.filter((v) => v !== o.value) : [...value, o.value])}
-              className="flex h-8 w-full items-center gap-2 rounded-md px-2 text-left hover:bg-hover"
+              className="flex h-8 w-full items-center gap-2 rounded-sm px-2.5 text-left hover:bg-hover"
             >
-              <span className={`flex size-4 items-center justify-center border ${on ? "border-ink bg-ink text-white" : "border-line-strong"}`}>{on ? <Check size={11} /> : null}</span>
+              <span className={`flex size-4 items-center justify-center rounded-[5px] border transition-colors duration-[140ms] ${on ? "border-ink bg-ink text-paper" : "border-line-strong bg-card"}`}>{on ? <Check size={11} /> : null}</span>
               {o.label}
             </button>
           </li>
@@ -207,7 +207,7 @@ export function FieldEditor({
   const [anchor, setAnchor] = useState<HTMLElement | null>(null);
   useEffect(() => setAnchor(box.current), []);
   const h = compact ? "h-8" : "h-9";
-  const selectClass = `${h} w-full rounded-md border border-ink bg-panel px-2.5 text-[13px]`;
+  const selectClass = `${h} w-full rounded-sm border border-ink bg-card px-3 text-[13px] ring-1 ring-ink`;
 
   if (field.kind === "select" || field.kind === "user") {
     return (
@@ -248,7 +248,7 @@ export function FieldEditor({
   }
   if (field.kind === "multi_select" || field.kind === "relation") {
     return (
-      <span ref={box} className={`flex ${h} w-full items-center rounded-md border border-ink bg-panel px-2.5 text-[13px]`}>
+      <span ref={box} className={`flex ${h} w-full items-center rounded-sm border border-ink bg-card px-3 text-[13px] ring-1 ring-ink`}>
         <FieldValue field={field} value={multi} links={picked} />
         {anchor ? (
           <Popover anchor={anchor} onClose={() => onSave(field.kind === "relation" ? picked.map((p) => p.id) : multi)} width={280}>
@@ -281,7 +281,7 @@ export function FieldEditor({
           if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) commit();
         }}
         rows={4}
-        className="w-full rounded-md border border-ink bg-panel px-2.5 py-2 text-[13px] outline-none"
+        className="w-full rounded-sm border border-ink bg-card px-3 py-2 text-[13px] ring-1 ring-ink outline-none"
       />
     );
   }

@@ -42,7 +42,7 @@ export function FormDestinations({
     if (d.kind === "slack") return <BrandLogo domain="slack.com" name="Slack" size={22} />;
     if (d.kind === "webhook")
       return (
-        <span className="flex size-[22px] items-center justify-center border border-line bg-canvas text-ink">
+        <span className="flex size-[22px] items-center justify-center rounded-full bg-paper-deep text-ink">
           <Code size={13} />
         </span>
       );
@@ -52,10 +52,10 @@ export function FormDestinations({
   return (
     <div className="flex flex-col gap-5">
       <ErrorNote message={error} />
-      <Panel>
+      <Panel className="overflow-hidden">
         <CardHead label="Leads go to" count={list.length + 1} />
         <ul className="divide-y divide-line">
-          <li className="flex items-center gap-3 px-4 py-3 text-[13px]">
+          <li className="flex min-h-14 items-center gap-3 px-5 py-3 text-[13px]">
             <BrandLogo domain="tryclaritia.com" name="Claritia" size={22} />
             <span className="font-medium">Claritia contacts</span>
             <span className="ml-auto">
@@ -63,10 +63,10 @@ export function FormDestinations({
             </span>
           </li>
           {list.map((d) => (
-            <li key={d.id} className="flex items-center gap-3 px-4 py-3 text-[13px]">
+            <li key={d.id} className="anim-rise-sm flex min-h-14 items-center gap-3 py-2.5 pr-3 pl-5 text-[13px]">
               {logo(d)}
               <span className="font-medium">{d.name}</span>
-              {d.config.host ? <span className="truncate font-mono text-[11px] text-faint">{d.config.host}</span> : null}
+              {d.config.host ? <span className="truncate font-mono text-[11.5px] text-muted">{d.config.host}</span> : null}
               <span className="ml-auto flex items-center gap-1">
                 {d.paused ? <Badge tone="amber">Paused</Badge> : <Badge tone="green">On</Badge>}
                 <IconButton label={d.paused ? "Turn on" : "Pause"} onClick={() => run(async () => must(await sb.rpc("form_destination_pause", { p_id: d.id, p_paused: !d.paused })))}>
@@ -105,9 +105,9 @@ export function FormDestinations({
 
       <section className="flex flex-col gap-2">
         <h3 className="label-mono">Add</h3>
-        <div className="grid grid-cols-2 border-t border-l border-line sm:grid-cols-3">
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
           {tools.map((s) => (
-            <button key={s.id} type="button" onClick={() => run(() => save({ kind: "source", sourceId: s.id, name: s.name }))} className="flex items-center gap-3 border-r border-b border-line bg-panel px-4 py-3.5 text-left text-[13px] hover:bg-hover">
+            <button key={s.id} type="button" onClick={() => run(() => save({ kind: "source", sourceId: s.id, name: s.name }))} className="lift press flex items-center gap-3 rounded-lg border border-line bg-card px-4 py-3.5 text-left text-[13px] hover:border-line-strong">
               <BrandLogo domain={entryOf(s.kind)?.domain ?? ""} name={s.name} size={22} />
               <span className="font-medium">{s.name}</span>
             </button>
@@ -118,7 +118,7 @@ export function FormDestinations({
               const url = await askText("Slack webhook address", { placeholder: "https://hooks.slack.com/services/…", ok: "Add" });
               if (url) await run(() => save({ kind: "slack", name: "Slack", url }));
             }}
-            className="flex items-center gap-3 border-r border-b border-line bg-panel px-4 py-3.5 text-left text-[13px] hover:bg-hover"
+            className="lift press flex items-center gap-3 rounded-lg border border-line bg-card px-4 py-3.5 text-left text-[13px] hover:border-line-strong"
           >
             <BrandLogo domain="slack.com" name="Slack" size={22} />
             <span className="font-medium">Slack</span>
@@ -133,9 +133,9 @@ export function FormDestinations({
                 if (r.secret) await tell("Signing secret", `Shown once. It signs the x-claritia-signature header.\n\n${r.secret}`);
               });
             }}
-            className="flex items-center gap-3 border-r border-b border-line bg-panel px-4 py-3.5 text-left text-[13px] hover:bg-hover"
+            className="lift press flex items-center gap-3 rounded-lg border border-line bg-card px-4 py-3.5 text-left text-[13px] hover:border-line-strong"
           >
-            <span className="flex size-[22px] items-center justify-center border border-line bg-canvas text-ink">
+            <span className="flex size-[22px] items-center justify-center rounded-full bg-paper-deep text-ink">
               <Code size={13} />
             </span>
             <span className="font-medium">Webhook</span>

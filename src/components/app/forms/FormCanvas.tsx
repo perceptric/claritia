@@ -138,7 +138,7 @@ export function FormCanvas({
   return (
     <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={onStart} onDragEnd={onEnd} onDragCancel={() => setDragging(null)}>
       <div className="grid h-full min-h-0 md:grid-cols-[200px_1fr] xl:grid-cols-[200px_1fr_340px]">
-        <aside className="hidden min-h-0 overflow-auto border-r border-line bg-panel p-3 md:block">
+        <aside className="hidden min-h-0 overflow-auto border-r border-line bg-card p-3 md:block">
           {PALETTE.map((g) => (
             <div key={g.group} className="mb-4">
               <p className="label-mono mb-1.5 px-1">{g.group}</p>
@@ -151,7 +151,7 @@ export function FormCanvas({
           ))}
         </aside>
 
-        <div className="paper min-h-0 overflow-auto p-4 md:p-8" onClick={() => setSelected(null)}>
+        <div className="min-h-0 overflow-auto bg-paper p-4 md:p-8" onClick={() => setSelected(null)}>
           <div className="mx-auto flex flex-col gap-4" style={{ maxWidth: form.layout.width === "wide" ? 760 : 540 }}>
             {form.steps.map((s, si) => (
               <StepBox key={s.id} index={si} count={form.steps.length} title={s.title ?? ""} onTitle={(title) => apply({ op: "update_step", index: si, title })} onRemove={() => apply({ op: "remove_step", index: si })} bg={t.background}>
@@ -206,7 +206,7 @@ export function FormCanvas({
           </div>
         </div>
 
-        <aside className="hidden min-h-0 overflow-auto border-l border-line bg-panel p-4 xl:block">
+        <aside className="hidden min-h-0 overflow-auto border-l border-line bg-card p-4 xl:block">
           {sel ? (
             <div className="flex flex-col gap-3">
               <div className="flex items-center gap-2">
@@ -227,7 +227,7 @@ export function FormCanvas({
           )}
         </aside>
       </div>
-      <DragOverlay dropAnimation={null}>{ghost ? <div className="border border-ink bg-panel px-3 py-2 text-[13px] font-medium shadow-[0_8px_24px_rgba(0,0,0,0.12)]">{ghost}</div> : null}</DragOverlay>
+      <DragOverlay dropAnimation={null}>{ghost ? <div className="anim-pop inline-flex rotate-[1.5deg] items-center gap-2 rounded-lg border border-line bg-card px-3.5 py-2.5 text-[13px] font-medium text-ink shadow-float">{ghost}</div> : null}</DragOverlay>
     </DndContext>
   );
 }
@@ -241,7 +241,7 @@ function PaletteRow({ item, onAdd }: { item: PaletteItem; onAdd: () => void }) {
       {...attributes}
       {...listeners}
       onClick={onAdd}
-      className={`flex h-8 items-center gap-2 border border-line bg-panel px-2 text-left text-[12.5px] text-ink hover:border-ink ${isDragging ? "opacity-40" : ""}`}
+      className={`press flex h-8 items-center gap-2 rounded-full border border-line-strong bg-card px-3 text-left text-[12.5px] text-ink hover:border-ink ${isDragging ? "opacity-40" : ""}`}
     >
       <Grip size={12} className="text-faint" />
       {item.label}
@@ -252,9 +252,9 @@ function PaletteRow({ item, onAdd }: { item: PaletteItem; onAdd: () => void }) {
 function StepBox({ index, count, title, onTitle, onRemove, bg, children }: { index: number; count: number; title: string; onTitle: (t: string) => void; onRemove: () => void; bg: string; children: React.ReactNode }) {
   const { setNodeRef, isOver } = useDroppable({ id: `step:${index}` });
   return (
-    <section ref={setNodeRef} className={`flex flex-col border ${isOver ? "border-ink" : "border-line"}`} style={{ background: bg }}>
+    <section ref={setNodeRef} className={`flex flex-col overflow-hidden rounded-2xl border transition-colors duration-[140ms] ${isOver ? "border-ink ring-1 ring-ink" : "border-line"}`} style={{ background: bg }}>
       {count > 1 ? (
-        <div className="flex items-center gap-2 border-b border-line bg-panel px-3 py-1.5" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center gap-2 border-b border-line bg-card py-1.5 pr-1.5 pl-4" onClick={(e) => e.stopPropagation()}>
           <span className="label-mono shrink-0">Step {index + 1}</span>
           <input value={title} placeholder="Title" onChange={(e) => onTitle(e.target.value)} aria-label={`Step ${index + 1} title`} className="h-7 min-w-0 flex-1 bg-transparent text-[13px] outline-none placeholder:text-faint" />
           <IconButton label="Remove step" onClick={onRemove} danger>
@@ -296,15 +296,15 @@ function FieldCard({
     <div
       ref={setNodeRef}
       style={{ transform: CSS.Transform.toString(transform), transition }}
-      className={`group relative ${f.width === "half" ? "col-span-1" : "col-span-2"} ${isDragging ? "z-10 opacity-40" : ""}`}
+      className={`group relative ${f.width === "half" ? "col-span-1" : "col-span-2"} ${isDragging ? "z-10 opacity-30" : ""}`}
       onClick={(e) => {
         e.stopPropagation();
         onSelect();
       }}
     >
-      <div className={`-m-2 flex flex-col gap-1.5 p-2 outline-offset-2 ${selected ? "outline-2 outline-brand" : "hover:outline-1 hover:outline-dashed hover:outline-line-strong"}`}>
+      <div className={`-m-2.5 flex flex-col gap-1.5 rounded-lg p-2.5 outline-offset-0 transition-[background-color,outline-color] duration-[140ms] ${selected ? "bg-hover outline-2 outline-ink" : "hover:bg-hover hover:outline-1 hover:outline-line-strong"}`}>
         {f.type === "hidden" ? (
-          <div className="flex h-9 items-center gap-2 border border-dashed border-line-strong px-3 font-mono text-[11px] text-muted">
+          <div className="flex h-9 items-center gap-2 rounded-lg border border-dashed border-line-strong px-3 font-mono text-[11.5px] text-muted">
             <Lock size={12} />
             Hidden · {f.label} · {f.hidden?.from === "param" ? `?${f.hidden.name}` : f.hidden?.from}
           </div>
@@ -340,9 +340,9 @@ function FieldCard({
           </>
         )}
       </div>
-      <div className={`absolute -top-3 right-1 flex items-center gap-0.5 border border-line bg-panel ${selected ? "" : "opacity-0 group-hover:opacity-100"}`}>
-        <span className="hidden px-1.5 font-mono text-[10px] text-faint sm:inline">{hint}</span>
-        <button type="button" {...attributes} {...listeners} aria-label="Drag to move" title="Drag to move" className="flex size-6 cursor-grab items-center justify-center text-muted hover:text-ink active:cursor-grabbing">
+      <div className={`absolute -top-4 right-1 flex items-center gap-0.5 rounded-full border border-line bg-card p-0.5 shadow-float transition-opacity duration-[140ms] ${selected ? "" : "opacity-0 group-hover:opacity-100"}`}>
+        <span className="hidden pr-1 pl-2.5 font-mono text-[11.5px] text-muted sm:inline">{hint}</span>
+        <button type="button" {...attributes} {...listeners} aria-label="Drag to move" title="Drag to move" className="flex size-8 cursor-grab items-center justify-center rounded-full text-muted hover:bg-hover hover:text-ink active:cursor-grabbing">
           <Grip size={13} />
         </button>
         <IconButton label="Copy field" onClick={onCopy}>

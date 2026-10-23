@@ -94,7 +94,7 @@ export function FieldsSettings({ sb, ws, role }: Pick<ViewProps, "sb" | "ws" | "
           }}
           ariaLabel="Object"
           options={objectOptions}
-          className="h-9 w-56 rounded-md border border-line bg-panel px-2.5 text-[13px] hover:border-line-strong"
+          className="h-9 w-56 rounded-sm border border-line-strong bg-card px-3 text-[13px] outline-none focus:border-ink"
         />
         <Button className="ml-auto" onClick={() => setAdding(true)} disabled={adding}>
           Add field
@@ -124,11 +124,11 @@ export function FieldsSettings({ sb, ws, role }: Pick<ViewProps, "sb" | "ws" | "
       <Panel>
         <CardHead label="Custom fields" count={custom.length} />
         {!custom.length ? (
-          <p className="px-4 py-3 text-[13px] text-faint">—</p>
+          <p className="px-5 py-3 text-[13px] text-faint">—</p>
         ) : (
           <ul className="divide-y divide-line">
             {custom.map((f, i) =>
-                              <li key={f.key} className="flex flex-wrap items-center gap-2 px-4 py-2.5 text-[13px]">
+                              <li key={f.key} className="flex flex-wrap items-center gap-2 px-5 py-3 text-[13px]">
                   <span className="font-medium" title={f.config?.description || undefined}>
                     {f.label}
                   </span>
@@ -137,19 +137,19 @@ export function FieldsSettings({ sb, ws, role }: Pick<ViewProps, "sb" | "ws" | "
                   {f.group_name ? <span className="text-[12px] text-muted">{f.group_name}</span> : null}
                   <span className="font-mono text-[11px] text-faint">{f.key}</span>
                   <span className="ml-auto flex gap-1">
-                    <Button variant="plain" className="h-7 px-2" disabled={i === 0 || busy} onClick={() => move(i, -1)} aria-label="Move up">
+                    <Button variant="plain" size="sm" className="w-8 !px-0" disabled={i === 0 || busy} onClick={() => move(i, -1)} aria-label="Move up">
                       ↑
                     </Button>
-                    <Button variant="plain" className="h-7 px-2" disabled={i === custom.length - 1 || busy} onClick={() => move(i, 1)} aria-label="Move down">
+                    <Button variant="plain" size="sm" className="w-8 !px-0" disabled={i === custom.length - 1 || busy} onClick={() => move(i, 1)} aria-label="Move down">
                       ↓
                     </Button>
-                    <Button variant="ghost" className="h-7 px-2.5" onClick={() => setEditing(f.key)}>
+                    <Button variant="ghost" size="sm" onClick={() => setEditing(f.key)}>
                       Edit
                     </Button>
                     {f.system ? null : (
                       <Button
                         variant="danger"
-                        className="h-7 px-2.5"
+                        size="sm"
                         onClick={async () => {
                           if (!(await askConfirm(`Delete "${f.label}"?`, { body: "Its values go from every record.", ok: "Delete", danger: true }))) return;
                           void run(async () => must(await sb.rpc("field_delete", { p_ws: ws.id, p_object: object, p_key: f.key })));
@@ -172,14 +172,14 @@ export function FieldsSettings({ sb, ws, role }: Pick<ViewProps, "sb" | "ws" | "
             const original = f.label;
             const stages = object === "contact" && f.key === "lead_status";
             return (
-              <li key={f.key} className="flex flex-wrap items-center gap-2 px-4 py-2.5 text-[13px]">
+              <li key={f.key} className="flex flex-wrap items-center gap-2 px-5 py-3 text-[13px]">
                 <span className={`font-medium ${f.hidden ? "text-faint line-through" : ""}`}>{f.label}</span>
                 <span className="font-mono text-[11px] text-faint">{f.key}</span>
                 <span className="ml-auto flex gap-1">
                   {stages ? (
                     <Button
                       variant="ghost"
-                      className="h-7 px-2.5"
+                      size="sm"
                       onClick={async () => {
                         const text = await askLines("Lead stages", { initial: toLines(f.options.length ? f.options : LEAD_STAGES, true) });
                         if (text == null) return;
@@ -193,7 +193,7 @@ export function FieldsSettings({ sb, ws, role }: Pick<ViewProps, "sb" | "ws" | "
                   ) : null}
                   <Button
                     variant="ghost"
-                    className="h-7 px-2.5"
+                    size="sm"
                     onClick={async () => {
                       const label = await askText("Rename field", { initial: original, ok: "Save" });
                       if (!label) return;
@@ -205,7 +205,7 @@ export function FieldsSettings({ sb, ws, role }: Pick<ViewProps, "sb" | "ws" | "
                   {f.key !== "name" && f.key !== "email" ? (
                     <Button
                       variant="ghost"
-                      className="h-7 px-2.5"
+                      size="sm"
                       onClick={() => run(async () => must(await sb.rpc("field_settings_save", { p_ws: ws.id, p_object: object, p_key: f.key, p_label: f.label, p_hidden: !f.hidden, p_options: null })))}
                     >
                       {f.hidden ? "Show" : "Hide"}
@@ -221,7 +221,7 @@ export function FieldsSettings({ sb, ws, role }: Pick<ViewProps, "sb" | "ws" | "
       {object === "contact" || object === "company" ? (
         <Panel>
           <CardHead label="Field packs" />
-          <div className="flex flex-wrap gap-2 p-4">
+          <div className="flex flex-wrap gap-2 p-5">
             {PACKS.filter((p) => p.object === object).map((p) => (
               <Button
                 key={p.key}
@@ -249,7 +249,7 @@ export function FieldsSettings({ sb, ws, role }: Pick<ViewProps, "sb" | "ws" | "
           <CardHead label="Which source wins" />
           <ol className="divide-y divide-line">
             {defaults.map((c, i) => (
-              <li key={c} className="flex items-center gap-3 px-4 py-2 text-[13px]">
+              <li key={c} className="flex items-center gap-3 px-5 py-2.5 text-[13px]">
                 <span className="w-5 font-mono text-[11px] text-faint">{i + 1}</span>
                 <span className="flex-1">{CLASSES.find((x) => x.value === c)?.label ?? c}</span>
                 {owner ? (
@@ -258,7 +258,8 @@ export function FieldsSettings({ sb, ws, role }: Pick<ViewProps, "sb" | "ws" | "
                       <Button
                         key={d}
                         variant="plain"
-                        className="h-7 px-2"
+                        size="sm"
+                        className="w-8 !px-0"
                         disabled={busy || i + d < 0 || i + d >= defaults.length}
                         aria-label={d < 0 ? "Move up" : "Move down"}
                         onClick={() => {
@@ -301,7 +302,7 @@ export function ObjectsSettings({ sb, ws, role, navigate }: Pick<ViewProps, "sb"
       <ErrorNote message={error} />
       <Panel>
         <form
-          className="flex flex-wrap items-end gap-3 p-4"
+          className="flex flex-wrap items-end gap-3 p-5"
           onSubmit={(e) => {
             e.preventDefault();
             if (!label.trim()) return;
@@ -328,20 +329,20 @@ export function ObjectsSettings({ sb, ws, role, navigate }: Pick<ViewProps, "sb"
         {!objects.data ? (
           <Loading />
         ) : !objects.data.length ? (
-          <p className="px-4 py-3 text-[13px] text-faint">—</p>
+          <p className="px-5 py-3 text-[13px] text-faint">—</p>
         ) : (
           <ul className="divide-y divide-line">
             {objects.data.map((o) => (
-              <li key={o.key} className="flex items-center gap-2 px-4 py-2.5 text-[13px]">
+              <li key={o.key} className="flex items-center gap-2 px-5 py-3 text-[13px]">
                 <span className="font-medium">{o.plural}</span>
                 <span className="font-mono text-[11px] text-faint">{o.key}</span>
                 <span className="ml-auto flex gap-1">
-                  <Button variant="ghost" className="h-7 px-2.5" onClick={() => (o.system ? navigate("opportunities") : navigate("objects", o.key))}>
+                  <Button variant="ghost" size="sm" onClick={() => (o.system ? navigate("opportunities") : navigate("objects", o.key))}>
                     Open
                   </Button>
                   <Button
                     variant="ghost"
-                    className="h-7 px-2.5"
+                    size="sm"
                     onClick={async () => {
                       const name = await askText("Rename object", { initial: o.label, ok: "Save" });
                       if (!name) return;
@@ -353,7 +354,7 @@ export function ObjectsSettings({ sb, ws, role, navigate }: Pick<ViewProps, "sb"
                   {role === "owner" && !o.system ? (
                     <Button
                       variant="danger"
-                      className="h-7 px-2.5"
+                      size="sm"
                       onClick={async () => {
                         if (!(await askConfirm(`Delete ${o.plural}?`, { body: "Every record, field and link of this object goes.", ok: "Delete", danger: true }))) return;
                         void run(async () => must(await sb.rpc("object_delete", { p_ws: ws.id, p_key: o.key })));

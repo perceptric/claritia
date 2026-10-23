@@ -9,7 +9,7 @@ import { FIELD_KINDS, OPTION_COLORS, optionsOf, type CustomField, type FieldKind
 import { Plus, X } from "../../Icons";
 import { askConfirm } from "../Dialogs";
 import { Select } from "../Select";
-import { Badge, Button, ErrorNote, errorText, Field, Input, must, Segmented, type Tone, type ViewProps } from "../ui";
+import { Badge, Button, ErrorNote, errorText, Field, IconButton, Input, must, Segmented, type Tone, type ViewProps } from "../ui";
 
 const GLYPH: Record<FieldKind, string> = {
   text: "Aa",
@@ -123,23 +123,23 @@ export function FieldDialog({
   const nextColor = (c?: string) => OPTION_COLORS[(OPTION_COLORS.indexOf((c ?? "gray") as (typeof OPTION_COLORS)[number]) + 1) % OPTION_COLORS.length];
 
   return (
-    <div className="fixed inset-0 z-[80] flex items-start justify-center overflow-auto bg-ink/20 px-4 py-[8vh]" onMouseDown={onClose}>
+    <div className="anim-fade fixed inset-0 z-[80] flex items-start justify-center overflow-auto bg-scrim px-4 py-[8vh]" onMouseDown={onClose}>
       <form
         role="dialog"
         aria-modal="true"
         aria-label={start ? "Edit field" : "New field"}
-        className="frame w-full max-w-lg bg-panel shadow-pop"
+        className="anim-rise-sm w-full max-w-lg overflow-hidden rounded-2xl border border-line bg-card shadow-float"
         onMouseDown={(e) => e.stopPropagation()}
         onSubmit={(e) => {
           e.preventDefault();
           void save();
         }}
       >
-        <div className="flex items-center gap-2 border-b border-line px-5 py-3">
-          <h2 className="flex-1 text-[15px] font-medium">{start ? "Edit field" : "New field"}</h2>
-          <button type="button" aria-label="Close" onClick={onClose} className="flex size-7 items-center justify-center rounded-md text-muted hover:bg-hover hover:text-ink">
+        <div className="flex items-center gap-2 border-b border-line px-5 py-3.5">
+          <h2 className="serif flex-1 text-[22px] text-ink">{start ? "Edit field" : "New field"}</h2>
+          <IconButton label="Close" onClick={onClose}>
             <X size={14} />
-          </button>
+          </IconButton>
         </div>
         <div className="flex max-h-[70vh] flex-col gap-4 overflow-auto p-5">
           <Field label="Name">
@@ -147,7 +147,7 @@ export function FieldDialog({
           </Field>
           <div className="flex flex-col gap-1.5">
             <span className="label-mono">Type</span>
-            <div className="grid grid-cols-4 border-t border-l border-line">
+            <div className="grid grid-cols-4 gap-1.5">
               {FIELD_KINDS.map((k) => (
                 <button
                   key={k.value}
@@ -155,7 +155,7 @@ export function FieldDialog({
                   disabled={!!start}
                   aria-pressed={type === k.value}
                   onClick={() => setType(k.value)}
-                  className={`flex h-14 flex-col items-center justify-center gap-1 border-r border-b border-line px-1 text-[11.5px] ${type === k.value ? "bg-ink text-white" : "bg-panel text-body hover:bg-hover"} disabled:cursor-default ${start && type !== k.value ? "opacity-40" : ""}`}
+                  className={`press flex h-16 flex-col items-center justify-center gap-1 rounded-lg border px-1 text-[11.5px] transition-colors duration-[140ms] ${type === k.value ? "border-ink bg-card text-ink ring-1 ring-ink" : "border-line bg-card text-body hover:border-line-strong hover:bg-paper"} disabled:cursor-default ${start && type !== k.value ? "opacity-40" : ""}`}
                 >
                   <span className="font-mono text-[12px]">{GLYPH[k.value]}</span>
                   {k.label}
@@ -169,7 +169,7 @@ export function FieldDialog({
               <ul className="flex flex-col gap-1">
                 {options.map((o, i) => (
                   <li key={i} className="flex items-center gap-1.5">
-                    <button type="button" aria-label="Change color" title="Change color" onClick={() => setOption(i, { color: nextColor(o.color) })} className="shrink-0">
+                    <button type="button" aria-label="Change color" title="Change color" onClick={() => setOption(i, { color: nextColor(o.color) })} className="press shrink-0 rounded-full">
                       <Badge tone={(o.color as Tone) || "gray"}>{o.label.trim() ? o.label.slice(0, 14) : "Color"}</Badge>
                     </button>
                     <Input
@@ -185,7 +185,7 @@ export function FieldDialog({
                       aria-label={`Option ${i + 1}`}
                       maxLength={60}
                     />
-                    <button type="button" aria-label="Remove option" onClick={() => setOptions((l) => l.filter((_, j) => j !== i))} disabled={options.length === 1} className="flex size-8 shrink-0 items-center justify-center rounded-md text-muted hover:bg-hover hover:text-danger disabled:opacity-30">
+                    <button type="button" aria-label="Remove option" onClick={() => setOptions((l) => l.filter((_, j) => j !== i))} disabled={options.length === 1} className="press flex size-8 shrink-0 items-center justify-center rounded-full text-muted hover:bg-hover hover:text-rose disabled:opacity-30">
                       <X size={14} />
                     </button>
                   </li>
@@ -202,7 +202,7 @@ export function FieldDialog({
           {type === "relation" ? (
             <div className="grid grid-cols-2 gap-3">
               <Field label="Links to">
-                <Select<string> value={target} onChange={setTarget} disabled={!!start} ariaLabel="Links to" options={objects} className="h-9 w-full rounded-md border border-line bg-panel px-2.5 text-[13px] hover:border-line-strong disabled:opacity-60" />
+                <Select<string> value={target} onChange={setTarget} disabled={!!start} ariaLabel="Links to" options={objects} className="h-10 w-full rounded-sm border border-line-strong bg-card px-3 text-[13px] focus:border-ink disabled:opacity-60" />
               </Field>
               <Field label="How many">
                 <Segmented<"one" | "many">
@@ -241,7 +241,7 @@ export function FieldDialog({
           </div>
           <ErrorNote message={error} />
         </div>
-        <div className="flex items-center gap-2 border-t border-line px-5 py-3">
+        <div className="flex items-center gap-2 border-t border-line bg-paper px-5 py-3">
           {start && !start.system ? (
             <Button type="button" variant="danger" onClick={remove}>
               Delete

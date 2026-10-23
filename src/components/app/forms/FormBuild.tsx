@@ -12,7 +12,7 @@ import { Select } from "../Select";
 import { Badge, Button, Field as Labeled, Input, Segmented } from "../ui";
 import { IconButton, Toggle } from "./shared";
 
-const SEL = "h-9 w-full rounded-md border border-line bg-panel px-2.5 text-[13px] hover:border-line-strong";
+const SEL = "h-9 w-full rounded-sm border border-line-strong bg-card px-3 text-[13px] hover:border-ink";
 const typeLabel = (t: FieldType) => FIELD_TYPES.find((x) => x.value === t)?.label ?? t;
 
 /** Where a field saves, in words: "Contact · Email", "Custom · Budget", "Answer". */
@@ -33,9 +33,9 @@ export function FormBuild({ form, apply, custom, selected, select }: { form: For
   return (
     <div className="flex flex-col gap-4">
       {form.steps.map((s, si) => (
-        <section key={s.id} className="flex flex-col border border-line bg-panel">
+        <section key={s.id} className="flex flex-col overflow-hidden rounded-2xl border border-line bg-card">
           {form.steps.length > 1 ? (
-            <div className="flex items-center gap-2 border-b border-line bg-canvas px-3 py-2">
+            <div className="flex items-center gap-2 border-b border-line bg-paper py-1.5 pr-1.5 pl-4">
               <span className="label-mono shrink-0">Step {si + 1}</span>
               <input
                 value={s.title ?? ""}
@@ -58,13 +58,13 @@ export function FormBuild({ form, apply, custom, selected, select }: { form: For
                   onClick={() => select(selected === f.id ? null : f.id)}
                   onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && (e.preventDefault(), select(selected === f.id ? null : f.id))}
                   aria-expanded={selected === f.id}
-                  className={`flex items-center gap-2 px-3 py-2.5 text-[13px] ${selected === f.id ? "bg-hover" : "hover:bg-hover"} cursor-pointer`}
+                  className={`flex items-center gap-2 py-2 pr-2 pl-4 text-[13px] transition-colors duration-[140ms] ${selected === f.id ? "bg-hover" : "hover:bg-hover"} cursor-pointer`}
                 >
                   <span className="min-w-0 flex-1 truncate font-medium">
                     {f.label || <span className="text-faint">No label</span>}
                     {f.required ? <span className="ml-0.5 text-muted">*</span> : null}
                   </span>
-                  <span className="hidden truncate font-mono text-[10.5px] text-faint sm:inline">{keyLabel(f.key, custom)}</span>
+                  <span className="hidden truncate font-mono text-[11.5px] text-muted sm:inline">{keyLabel(f.key, custom)}</span>
                   <Badge>{typeLabel(f.type)}</Badge>
                   <IconButton label="Move up" disabled={si === 0 && fi === 0} onClick={() => apply(fi > 0 ? { op: "move_field", id: f.id, step: si, index: fi - 1 } : { op: "move_field", id: f.id, step: si - 1, index: 999 })}>
                     <ArrowUp size={14} />
@@ -84,9 +84,9 @@ export function FormBuild({ form, apply, custom, selected, select }: { form: For
               </li>
             ))}
           </ul>
-          <div className="flex items-center gap-2 border-t border-line px-3 py-2">
+          <div className="flex items-center gap-2 border-t border-line px-4 py-2.5">
             <div className="w-44">
-              <Select<string> value="" options={FIELD_TYPES} onChange={(t) => add(si, t as FieldType)} ariaLabel="Add field" placeholder="Add field" plainPlaceholder className="h-8 w-full rounded-md border border-line bg-panel px-2.5 text-[13px] font-medium hover:border-line-strong" />
+              <Select<string> value="" options={FIELD_TYPES} onChange={(t) => add(si, t as FieldType)} ariaLabel="Add field" placeholder="Add field" plainPlaceholder className="h-9 w-full rounded-sm border border-line-strong bg-card px-3 text-[13px] font-medium hover:border-ink" />
             </div>
           </div>
         </section>
@@ -117,7 +117,7 @@ export function FieldSettings({ form, field: f, apply, custom }: { form: Form; f
   };
   const [lines, setLines] = useState((f.options ?? []).map((o) => o.label).join("\n"));
   return (
-    <div className="grid grid-cols-2 gap-3 border-t border-line bg-canvas px-3 py-3">
+    <div className="anim-rise-sm grid grid-cols-2 gap-3 border-t border-line bg-paper px-4 py-4">
       <div className={form.capture ? "" : "col-span-2"}>
         <Labeled label="Label">
           <Input value={f.label} onChange={(e) => patch({ label: e.target.value })} />
@@ -165,7 +165,7 @@ export function FieldSettings({ form, field: f, apply, custom }: { form: Form; f
                   .map((l) => ({ value: f.options?.find((o) => o.label === l)?.value ?? l, label: l }));
                 if (opts.length) patch({ options: opts });
               }}
-              className="w-full rounded-md border border-line bg-panel px-2.5 py-2 text-[13px] text-ink outline-none focus:border-ink"
+              className="w-full rounded-sm border border-line-strong bg-card px-3 py-2 text-[13px] text-ink outline-none focus:border-ink focus:ring-1 focus:ring-ink"
             />
           </Labeled>
         </div>

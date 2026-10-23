@@ -12,6 +12,7 @@ import { Check, Download, Plus, Trash, X } from "../../Icons";
 import { askConfirm, askText, tell } from "../Dialogs";
 import { FilterEditor, Popover } from "../FilterBar";
 import { Select } from "../Select";
+import { Sketch } from "../../sketches/Sketch";
 import { Button, Empty, ErrorNote, errorText, Input, Loading, must, Page, Segmented, Tabs, useLoad, type ViewProps } from "../ui";
 import { FieldDialog } from "./FieldDialog";
 import { FieldEditor } from "./FieldInput";
@@ -321,207 +322,211 @@ export function RecordsList({
   ) : null;
   return (
     <Page icon={icon} title={title} count={list.data ? total.toLocaleString("en-US") : undefined} flush actions={actions}>
-      <Tabs value={active.value} tabs={tabs.map((t) => ({ value: t.value, label: t.label }))} onChange={pickTab} />
-      <div className="flex flex-wrap items-center gap-2 border-b border-line bg-canvas px-4 py-2 md:px-5">
-        <div className="w-56">
-          <Input
-            value={search}
-            onChange={(e) => {
-              setSearch(e.target.value);
-              setOffset(0);
-            }}
-            placeholder="Search"
-            className="h-8"
-          />
-        </div>
-        {filters.map((f, i) => (
-          <span key={i} className="inline-flex h-8 items-center border border-line bg-panel text-[12.5px]">
-            <button type="button" onClick={(e) => setPop({ kind: "filter", anchor: e.currentTarget, index: i })} className="h-full max-w-[300px] truncate px-2.5 hover:bg-hover">
-              {describe(f, fieldsForFilter.find((x) => x.key === f.field))}
-            </button>
-            <button type="button" aria-label="Remove filter" onClick={() => change({ filters: filters.filter((_, j) => j !== i) })} className="flex h-full items-center border-l border-line px-1.5 text-muted hover:bg-hover hover:text-ink">
-              <X size={12} />
-            </button>
-          </span>
-        ))}
-        <Button variant="ghost" className="h-8 px-2.5" onClick={(e) => setPop({ kind: "filter", anchor: e.currentTarget })} disabled={filters.length >= 20}>
-          <Plus size={13} />
-          Filter
-        </Button>
-        {changed ? (
-          activeSaved ? (
-            <>
-              <Button variant="plain" className="h-8 px-2.5" onClick={updateView} disabled={!!busy}>
-                Save changes
+      <div className="flex h-full min-h-0 flex-col">
+        <Tabs value={active.value} tabs={tabs.map((t) => ({ value: t.value, label: t.label }))} onChange={pickTab} />
+        <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-line px-4 py-2.5 md:px-5">
+          <div className="w-56">
+            <Input
+              value={search}
+              onChange={(e) => {
+                setSearch(e.target.value);
+                setOffset(0);
+              }}
+              placeholder="Search"
+              className="h-9"
+            />
+          </div>
+          {filters.map((f, i) => (
+            <span key={i} className="anim-pop inline-flex h-8 items-center gap-0.5 rounded-full border border-line-strong bg-card pr-1 text-[12.5px] transition-[translate,box-shadow] duration-[320ms] ease-out hover:-translate-y-px hover:shadow-soft">
+              <button type="button" onClick={(e) => setPop({ kind: "filter", anchor: e.currentTarget, index: i })} className="h-full max-w-[300px] truncate rounded-full pr-1.5 pl-3 hover:text-ink">
+                {describe(f, fieldsForFilter.find((x) => x.key === f.field))}
+              </button>
+              <button type="button" aria-label="Remove filter" onClick={() => change({ filters: filters.filter((_, j) => j !== i) })} className="flex size-6 items-center justify-center rounded-full text-muted hover:bg-hover hover:text-ink">
+                <X size={12} />
+              </button>
+            </span>
+          ))}
+          <Button variant="ghost" size="sm" onClick={(e) => setPop({ kind: "filter", anchor: e.currentTarget })} disabled={filters.length >= 20}>
+            <Plus size={13} />
+            Filter
+          </Button>
+          {changed ? (
+            activeSaved ? (
+              <>
+                <Button variant="plain" size="sm" onClick={updateView} disabled={!!busy}>
+                  Save changes
+                </Button>
+                <Button variant="plain" size="sm" onClick={() => change(activeSaved)}>
+                  Reset
+                </Button>
+              </>
+            ) : (
+              <Button variant="plain" size="sm" onClick={(e) => setPop({ kind: "save", anchor: e.currentTarget })}>
+                Save view
               </Button>
-              <Button variant="plain" className="h-8 px-2.5" onClick={() => change(activeSaved)}>
-                Reset
+            )
+          ) : null}
+          {activeSaved && !changed ? (
+            <>
+              <Button variant="plain" size="sm" onClick={renameView}>
+                Rename
+              </Button>
+              <Button variant="plain" size="sm" onClick={deleteView}>
+                Delete view
               </Button>
             </>
-          ) : (
-            <Button variant="plain" className="h-8 px-2.5" onClick={(e) => setPop({ kind: "save", anchor: e.currentTarget })}>
-              Save view
-            </Button>
-          )
-        ) : null}
-        {activeSaved && !changed ? (
-          <>
-            <Button variant="plain" className="h-8 px-2.5" onClick={renameView}>
-              Rename
-            </Button>
-            <Button variant="plain" className="h-8 px-2.5" onClick={deleteView}>
-              Delete view
-            </Button>
-          </>
-        ) : null}
-        <span className="ml-auto flex items-center gap-2">
-          <Segmented<"table" | "board">
-            value={view.layout}
-            label="Layout"
-            onChange={(layout) => change({ layout, group: view.group ?? groupable[0]?.key ?? null })}
-            options={[
-              { value: "table", label: "Table" },
-              { value: "board", label: "Board" },
-            ]}
-          />
-          {board ? (
-            <Select<string>
-              value={groupField?.key ?? ""}
-              onChange={(group) => change({ group })}
-              ariaLabel="Group by"
-              placeholder="Group by"
-              options={groupable.map((f) => ({ value: f.key, label: f.label }))}
-              className="h-8 w-40 rounded-md border border-line bg-panel px-2.5 text-[13px] hover:border-line-strong"
+          ) : null}
+          <span className="ml-auto flex items-center gap-2">
+            <Segmented<"table" | "board">
+              value={view.layout}
+              label="Layout"
+              onChange={(layout) => change({ layout, group: view.group ?? groupable[0]?.key ?? null })}
+              options={[
+                { value: "table", label: "Table" },
+                { value: "board", label: "Board" },
+              ]}
             />
-          ) : (
-            <Button variant="ghost" className="h-8 px-2.5" onClick={(e) => setPop({ kind: "columns", anchor: e.currentTarget })}>
-              Columns
-            </Button>
-          )}
-          {onAdd ? (
-            <Button className="h-8 px-2.5" onClick={onAdd}>
-              <Plus size={13} />
-              New
-            </Button>
-          ) : null}
-        </span>
-      </div>
-
-      {count ? (
-        <div className="flex flex-wrap items-center gap-2 border-b border-line bg-brand-pale px-4 py-2 text-[13px] md:px-5">
-          <span className="font-medium">{count.toLocaleString("en-US")} selected</span>
-          {!allMatching && rows.length && rows.every((r) => selected.has(r.id)) && total > rows.length ? (
-            <Button variant="plain" className="h-7 px-2" onClick={() => setAllMatching(true)}>
-              Select all {total.toLocaleString("en-US")}
-            </Button>
-          ) : null}
-          <span className="ml-auto flex flex-wrap items-center gap-2">
-            <Button variant="ghost" className="h-7 px-2.5" onClick={(e) => setPop({ kind: "bulk_edit", anchor: e.currentTarget })} disabled={!!busy}>
-              Edit field
-            </Button>
-            {meta.data && bulkExtra
-              ? bulkExtra(pickedIds, () => {
-                  unselect();
-                  list.reload();
-                }, meta.data)
-              : null}
-            <Button variant="ghost" className="h-7 px-2.5" onClick={exportCsv} disabled={!!busy}>
-              <Download size={13} />
-              {busy === "export" ? "Exporting…" : "Export"}
-            </Button>
-            <Button variant="danger" className="h-7 px-2.5" onClick={remove} disabled={!!busy}>
-              <Trash size={13} />
-              {busy === "remove" ? "Removing…" : "Remove"}
-            </Button>
-            <Button variant="plain" className="h-7 px-2" onClick={unselect}>
-              Clear
-            </Button>
+            {board ? (
+              <Select<string>
+                value={groupField?.key ?? ""}
+                onChange={(group) => change({ group })}
+                ariaLabel="Group by"
+                placeholder="Group by"
+                options={groupable.map((f) => ({ value: f.key, label: f.label }))}
+                className="h-9 w-40 rounded-sm border border-line-strong bg-card px-3 text-[13px] focus:border-ink"
+              />
+            ) : (
+              <Button variant="ghost" size="sm" onClick={(e) => setPop({ kind: "columns", anchor: e.currentTarget })}>
+                Columns
+              </Button>
+            )}
+            {onAdd ? (
+              <Button size="sm" onClick={onAdd}>
+                <Plus size={13} />
+                New
+              </Button>
+            ) : null}
           </span>
         </div>
-      ) : null}
-      {error ? (
-        <div className="p-4">
-          <ErrorNote message={error} />
-        </div>
-      ) : null}
 
-      {!list.data || !meta.data ? (
-        <Loading />
-      ) : !rows.length ? (
-        <Empty icon={icon} title={effective.length ? "Nothing matches" : `No ${title.toLowerCase()} yet`} />
-      ) : board && groupField ? (
-        <RecordBoard
-          group={{ key: groupField.key, label: groupField.label, options: groupField.options }}
-          rows={rows}
-          counts={counts.data ?? {}}
-          cardFields={cardFields}
-          onOpen={onOpen}
-          onMove={(r, v) => void save(r, groupField, v)}
-          sum={sum ? fields.find((f) => f.key === sum) : undefined}
-        />
-      ) : board ? (
-        <Empty icon={icon} title="Pick a field to group by" />
-      ) : (
-        <>
-          <RecordTable
-            sb={sb}
-            wsId={ws.id}
-            fields={fields}
-            columns={columns}
-            rows={rows}
-            sort={view.sort}
-            onSort={(k) => change({ sort: { key: k, desc: view.sort.key === k ? !view.sort.desc : k !== "name" } })}
-            selected={selected}
-            allMatching={allMatching}
-            onToggle={(id) => {
-              const next = new Set(allMatching ? rows.map((r) => r.id) : selected);
-              if (next.has(id)) next.delete(id);
-              else next.add(id);
-              setAllMatching(false);
-              setSelected(next);
-            }}
-            onTogglePage={() => {
-              const all = rows.every((r) => selected.has(r.id));
-              setAllMatching(false);
-              setSelected(all ? new Set() : new Set(rows.map((r) => r.id)));
-            }}
-            onOpen={onOpen}
-            onSave={save}
-            onColumns={(c) => setView({ ...view, columns: c })}
-            nameExtra={nameExtra}
-            onAddField={() => setAddingField(true)}
-          />
-          <div className="flex items-center gap-2 px-4 py-3 font-mono text-[11.5px] text-muted md:px-5">
-            <span>
-              {(offset + 1).toLocaleString("en-US")}–{(offset + rows.length).toLocaleString("en-US")} of {total.toLocaleString("en-US")}
-            </span>
-            <span className="ml-auto flex gap-2">
-              <Button
-                variant="ghost"
-                className="h-7 px-2.5"
-                disabled={offset === 0}
-                onClick={() => {
-                  setOffset(Math.max(0, offset - PAGE));
-                  unselect();
-                }}
-              >
-                Previous
+        {count ? (
+          <div className="anim-rise-sm flex shrink-0 flex-wrap items-center gap-2 border-b border-line bg-brand-pale px-4 py-2 text-[13px] md:px-5">
+            <span className="font-medium">{count.toLocaleString("en-US")} selected</span>
+            {!allMatching && rows.length && rows.every((r) => selected.has(r.id)) && total > rows.length ? (
+              <Button variant="plain" size="sm" onClick={() => setAllMatching(true)}>
+                Select all {total.toLocaleString("en-US")}
               </Button>
-              <Button
-                variant="ghost"
-                className="h-7 px-2.5"
-                disabled={offset + PAGE >= total}
-                onClick={() => {
-                  setOffset(offset + PAGE);
-                  unselect();
-                }}
-              >
-                Next
+            ) : null}
+            <span className="ml-auto flex flex-wrap items-center gap-2">
+              <Button variant="ghost" size="sm" onClick={(e) => setPop({ kind: "bulk_edit", anchor: e.currentTarget })} disabled={!!busy}>
+                Edit field
+              </Button>
+              {meta.data && bulkExtra
+                ? bulkExtra(pickedIds, () => {
+                    unselect();
+                    list.reload();
+                  }, meta.data)
+                : null}
+              <Button variant="ghost" size="sm" onClick={exportCsv} disabled={!!busy}>
+                <Download size={13} />
+                {busy === "export" ? "Exporting…" : "Export"}
+              </Button>
+              <Button variant="danger" size="sm" onClick={remove} disabled={!!busy}>
+                <Trash size={13} />
+                {busy === "remove" ? "Removing…" : "Remove"}
+              </Button>
+              <Button variant="plain" size="sm" onClick={unselect}>
+                Clear
               </Button>
             </span>
           </div>
-        </>
-      )}
+        ) : null}
+        {error ? (
+          <div className="shrink-0 p-4">
+            <ErrorNote message={error} />
+          </div>
+        ) : null}
+
+        {!list.data || !meta.data ? (
+          <Loading />
+        ) : !rows.length ? (
+          <Empty icon={icon} sketch={effective.length ? undefined : <Sketch name="cards" size={160} />} title={effective.length ? "Nothing matches" : `No ${title.toLowerCase()} yet`} />
+        ) : board && groupField ? (
+          <div className="min-h-0 flex-1 overflow-auto">
+            <RecordBoard
+              group={{ key: groupField.key, label: groupField.label, options: groupField.options }}
+              rows={rows}
+              counts={counts.data ?? {}}
+              cardFields={cardFields}
+              onOpen={onOpen}
+              onMove={(r, v) => void save(r, groupField, v)}
+              sum={sum ? fields.find((f) => f.key === sum) : undefined}
+            />
+          </div>
+        ) : board ? (
+          <Empty icon={icon} title="Pick a field to group by" />
+        ) : (
+          <div className="flex min-h-0 flex-1 flex-col px-4 pt-4 md:px-5">
+            <RecordTable
+              sb={sb}
+              wsId={ws.id}
+              fields={fields}
+              columns={columns}
+              rows={rows}
+              sort={view.sort}
+              onSort={(k) => change({ sort: { key: k, desc: view.sort.key === k ? !view.sort.desc : k !== "name" } })}
+              selected={selected}
+              allMatching={allMatching}
+              onToggle={(id) => {
+                const next = new Set(allMatching ? rows.map((r) => r.id) : selected);
+                if (next.has(id)) next.delete(id);
+                else next.add(id);
+                setAllMatching(false);
+                setSelected(next);
+              }}
+              onTogglePage={() => {
+                const all = rows.every((r) => selected.has(r.id));
+                setAllMatching(false);
+                setSelected(all ? new Set() : new Set(rows.map((r) => r.id)));
+              }}
+              onOpen={onOpen}
+              onSave={save}
+              onColumns={(c) => setView({ ...view, columns: c })}
+              nameExtra={nameExtra}
+              onAddField={() => setAddingField(true)}
+            />
+            <div className="flex shrink-0 items-center gap-2 py-3 font-mono text-[11.5px] text-muted">
+              <span>
+                {(offset + 1).toLocaleString("en-US")}–{(offset + rows.length).toLocaleString("en-US")} of {total.toLocaleString("en-US")}
+              </span>
+              <span className="ml-auto flex gap-2">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  disabled={offset === 0}
+                  onClick={() => {
+                    setOffset(Math.max(0, offset - PAGE));
+                    unselect();
+                  }}
+                >
+                  Previous
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  disabled={offset + PAGE >= total}
+                  onClick={() => {
+                    setOffset(offset + PAGE);
+                    unselect();
+                  }}
+                >
+                  Next
+                </Button>
+              </span>
+            </div>
+          </div>
+        )}
+      </div>
 
       {pop?.kind === "filter" ? (
         <Popover anchor={pop.anchor} onClose={() => setPop(null)}>
@@ -548,9 +553,9 @@ export function RecordsList({
                       type="button"
                       aria-pressed={on}
                       onClick={() => setView({ ...view, columns: on ? view.columns.filter((c) => c.key !== f.key) : [...view.columns, { key: f.key, width: DEFAULT_WIDTH }] })}
-                      className="flex h-8 w-full items-center gap-2 rounded-md px-2 text-left hover:bg-hover"
+                      className="flex h-8 w-full items-center gap-2 rounded-sm px-2.5 text-left hover:bg-hover"
                     >
-                      <span className={`flex size-4 items-center justify-center border ${on ? "border-ink bg-ink text-white" : "border-line-strong"}`}>{on ? <Check size={11} /> : null}</span>
+                      <span className={`flex size-4 items-center justify-center rounded-[5px] border transition-colors duration-[140ms] ${on ? "border-ink bg-ink text-paper" : "border-line-strong bg-card"}`}>{on ? <Check size={11} /> : null}</span>
                       <span className="flex-1 truncate">{f.label}</span>
                     </button>
                   </li>
@@ -605,7 +610,7 @@ function SaveView({ onDone }: { onDone: (name: string | null, personal: boolean)
         if (name.trim()) onDone(name.trim(), who === "me");
       }}
     >
-      <Input autoFocus value={name} onChange={(e) => setName(e.target.value)} placeholder="View name" maxLength={80} className="h-8" />
+      <Input autoFocus value={name} onChange={(e) => setName(e.target.value)} placeholder="View name" maxLength={80} className="h-9" />
       <Segmented<"team" | "me">
         value={who}
         onChange={setWho}
@@ -616,10 +621,10 @@ function SaveView({ onDone }: { onDone: (name: string | null, personal: boolean)
         ]}
       />
       <div className="flex justify-end gap-2">
-        <Button type="button" variant="plain" className="h-7 px-2.5" onClick={() => onDone(null, false)}>
+        <Button type="button" variant="plain" size="sm" onClick={() => onDone(null, false)}>
           Cancel
         </Button>
-        <Button type="submit" className="h-7 px-2.5" disabled={!name.trim()}>
+        <Button type="submit" size="sm" disabled={!name.trim()}>
           Save
         </Button>
       </div>
@@ -638,7 +643,7 @@ function BulkEdit({ sb, wsId, fields, onDone }: { sb: ViewProps["sb"]; wsId: str
         ariaLabel="Field"
         placeholder="Field"
         options={fields.map((f) => ({ value: f.key, label: f.label }))}
-        className="h-9 w-full rounded-md border border-line bg-panel px-2.5 text-[13px] hover:border-line-strong"
+        className="h-9 w-full rounded-sm border border-line-strong bg-card px-3 text-[13px] focus:border-ink"
       />
       {field ? <FieldEditor key={field.key} sb={sb} wsId={wsId} field={field} value={null} onSave={(v) => onDone(field, v)} onCancel={() => onDone(null, null)} /> : null}
     </div>

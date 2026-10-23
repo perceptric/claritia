@@ -12,7 +12,7 @@ import { Select } from "../Select";
 import { Button, ErrorNote, errorText, Field, Input, Segmented } from "../ui";
 import { ColorInput, NumberInput, type Kit } from "./shared";
 
-const SEL = "h-9 w-full rounded-md border border-line bg-panel px-2.5 text-[13px] hover:border-line-strong";
+const SEL = "h-9 w-full rounded-sm border border-line-strong bg-card px-3 text-[13px] hover:border-ink";
 const NEW = "__new";
 
 const COLORS: [keyof Tokens, string][] = [

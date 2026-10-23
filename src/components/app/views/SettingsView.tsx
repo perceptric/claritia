@@ -37,7 +37,7 @@ function CopyRow({ label, text }: { label: string; text: string }) {
   return (
     <div className="flex items-center gap-2">
       <span className="label-mono w-24 shrink-0">{label}</span>
-      <code className="min-w-0 flex-1 truncate border border-line bg-canvas px-2.5 py-1.5 font-mono text-[12.5px]">{text}</code>
+      <code className="min-w-0 flex-1 truncate rounded-sm border border-line bg-paper px-2.5 py-1.5 font-mono text-[12.5px]">{text}</code>
       <Button
         variant="ghost"
         onClick={() =>
@@ -91,7 +91,7 @@ function KeysPanel({ sb, session, ws }: Pick<ViewProps, "sb" | "session" | "ws">
         </Button>
       </CardHead>
       {fresh ? (
-        <div className="flex flex-col gap-2 border-b border-line px-4 py-3">
+        <div className="anim-rise-sm flex flex-col gap-2 border-b border-line px-5 py-4">
           <span className="text-[13px] font-medium">Copy {fresh.name} now. It won&apos;t show again.</span>
           <CopyRow label="Key" text={fresh.key} />
           <CopyRow label="Claude Code" text={`claude mcp add --transport http claritia ${APP_URL}/api/mcp --header "Authorization: Bearer ${fresh.key}"`} />
@@ -111,7 +111,7 @@ function KeysPanel({ sb, session, ws }: Pick<ViewProps, "sb" | "session" | "ws">
       ) : keys.data.length ? (
         <ul className="divide-y divide-line">
           {keys.data.map((k) => (
-            <li key={k.id} className="flex items-center gap-3 px-4 py-3">
+            <li key={k.id} className="flex items-center gap-3 px-5 py-3.5">
               <Key size={13} />
               <span className="min-w-0 truncate text-[13.5px] font-medium">{k.name}</span>
               <span className="font-mono text-[12px] text-faint">{k.prefix}…</span>
@@ -134,7 +134,7 @@ function KeysPanel({ sb, session, ws }: Pick<ViewProps, "sb" | "session" | "ws">
         </ul>
       ) : null}
       {error ? (
-        <div className="px-4 pb-3">
+        <div className="px-5 pb-4">
           <ErrorNote message={error} />
         </div>
       ) : null}
@@ -189,7 +189,7 @@ export function SettingsView({ sb, session, ws, role, navigate, id }: ViewProps)
               </Button>
             ) : null}
           </CardHead>
-          <div className="flex items-center gap-2 px-4 py-4">
+          <div className="flex items-center gap-2 px-5 py-4">
             <span className="text-[15px] font-medium">{ws.name}</span>
             <Badge>{role}</Badge>
           </div>
@@ -199,7 +199,7 @@ export function SettingsView({ sb, session, ws, role, navigate, id }: ViewProps)
     profile: (
         <Panel>
           <CardHead label="Account" />
-          <div className="flex items-center gap-3 px-4 py-4">
+          <div className="flex items-center gap-3 px-5 py-4">
             <Avatar label={session.user.email ?? "?"} size={28} />
             <span className="min-w-0 flex-1 truncate text-[13.5px]">{session.user.email}</span>
             <Button variant="ghost" onClick={() => sb.auth.signOut()}>
@@ -221,29 +221,31 @@ export function SettingsView({ sb, session, ws, role, navigate, id }: ViewProps)
   };
 
   return (
-    <Page icon={<Settings size={14} />} title="Settings">
-      <div className="mx-auto flex max-w-5xl flex-col gap-6 md:flex-row md:gap-10">
-        <nav className="flex shrink-0 flex-col gap-4 md:sticky md:top-0 md:w-48 md:self-start" aria-label="Settings">
-          {groups.map((g) => (
-            <div key={g.label} className="flex flex-col gap-0.5">
-              <span className="label-mono px-2 pb-1">{g.label}</span>
-              {g.tabs.map((t) => (
-                <button
-                  key={t.id}
-                  type="button"
-                  aria-current={current.id === t.id ? "page" : undefined}
-                  onClick={() => pick(t.id)}
-                  className={`flex h-8 items-center rounded-md px-2.5 text-left text-[13px] font-medium ${current.id === t.id ? "bg-panel text-ink ring-1 ring-line" : "text-body hover:bg-hover hover:text-ink"}`}
-                >
-                  {t.label}
-                </button>
-              ))}
-            </div>
-          ))}
-        </nav>
-        <div className="flex min-w-0 flex-1 flex-col gap-5">
-          <ErrorNote message={error} />
-          {pages[current.id]}
+    <Page icon={<Settings size={14} />} title="Settings" flush>
+      <div className="min-h-full bg-paper p-5 md:p-7">
+        <div className="mx-auto flex max-w-5xl flex-col gap-6 md:flex-row md:gap-10">
+          <nav className="flex shrink-0 flex-col gap-4 md:sticky md:top-0 md:w-48 md:self-start" aria-label="Settings">
+            {groups.map((g) => (
+              <div key={g.label} className="flex flex-col gap-0.5">
+                <span className="label-mono px-3 pb-1">{g.label}</span>
+                {g.tabs.map((t) => (
+                  <button
+                    key={t.id}
+                    type="button"
+                    aria-current={current.id === t.id ? "page" : undefined}
+                    onClick={() => pick(t.id)}
+                    className={`flex h-8 items-center rounded-full px-3 text-left text-[13px] font-medium transition-colors duration-[140ms] ${current.id === t.id ? "bg-ink text-paper" : "text-body hover:bg-hover hover:text-ink"}`}
+                  >
+                    {t.label}
+                  </button>
+                ))}
+              </div>
+            ))}
+          </nav>
+          <div className="flex min-w-0 flex-1 flex-col gap-5">
+            <ErrorNote message={error} />
+            {pages[current.id]}
+          </div>
         </div>
       </div>
     </Page>
