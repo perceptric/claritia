@@ -225,7 +225,7 @@ export function Editor({ form, apply, custom, sources, tokens, device, zoom, the
       }}
       autoScroll={{ threshold: { x: 0, y: 0.15 } }}
     >
-      <div className={`grid h-full min-h-0 grid-rows-[minmax(0,1fr)] ${panel ? "grid-cols-[44px_232px_minmax(0,1fr)_280px]" : "grid-cols-[44px_minmax(0,1fr)_280px]"}`}>
+      <div className={`grid h-full min-h-0 grid-rows-[minmax(0,1fr)] ${panel ? "grid-cols-[44px_264px_minmax(0,1fr)_280px]" : "grid-cols-[44px_minmax(0,1fr)_280px]"}`}>
         <nav aria-label="Panels" className="flex flex-col items-center gap-1 border-r border-line bg-card py-2">
           {rail.map((r) => (
             <button

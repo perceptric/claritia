@@ -1,6 +1,6 @@
-# Form studio (plan)
+# Form studio
 
-Status: plan, waiting for a yes. Nothing is built yet.
+Status: built (the parts below). See "What shipped" at the end for the gaps.
 
 Building a form takes three moves: answer a short chat, then design it on a canvas, then decide what happens after
 the submit. Each move gets one screen that does one job well.
@@ -293,3 +293,33 @@ About five weeks for one engineer.
 For scale, today's form AI spend is about 500 new forms a month at Beta and 5,000 at Growth. At about 4k input and
 1.5k output tokens on Sonnet each, that comes to roughly $18 and $175 a month (Sonnet price: check). This plan
 doesn't add model calls: the chat questions are fixed, and typed answers are read by the existing local parser.
+
+---
+
+## What shipped
+
+- App-wide: Geist for every word, the sparkle for AI (`src/components/app/Ai.tsx`), sans labels, rename a form in
+  its title or from the list (`form_rename`, migration 050).
+- Schema (`src/lib/forms/schema.ts`, `values.ts`, `ops.ts`, `schedule.ts`): every field setting in 2.1 and 2.4, plus
+  All/Any conditions per field (`logic`), skip to a later step (`Step.skip`, followed by the form and the server),
+  https-only links and a full-width button. Tests: `tests/formStudio.test.ts`.
+- Ask (`FormCreate.tsx`, `interview.ts`): the five questions, the composer, the summary card; new forms, templates
+  and Start blank open on Design (`?tab=design`).
+- Design (`FormsView.tsx`, `Editor.tsx`, `FormCanvas.tsx`, `Elements.tsx`, `Layers.tsx`, `Inspector.tsx`,
+  `FormDesign.tsx`, `PreviewOverlay.tsx`): the editor in Part 2. Tests: `tests/formEditor.test.ts`.
+- Data (`SavesTo.tsx`, `src/lib/sources/properties.ts`, `/api/forms/crm-fields`, `overwrite.ts`, migration 051):
+  Claritia and CRM field links, overwrite rules on the contact and on the CRM push. Tests: `tests/formData.test.ts`,
+  `tests/pg/formData.pg.ts`.
+- Settings and Book a meeting (`SettingsTab.tsx`, `Meeting.tsx`, `FormSettings.tsx`, `FormDestinations.tsx`,
+  `meeting.ts`, migration 052): Part 3. Tests: `tests/meeting.test.ts`, `tests/pg/meetings.pg.ts`.
+- The visitor form (`element.ts`) draws all of it; the server only returns a booking link to leads that match.
+  Tests: `tests/formRuntime.test.ts`. `scripts/screens-check.ts` walks Ask, Design, rename and Start blank.
+
+Gaps:
+- The Consent box stays a form setting (Settings → Consent), not an element.
+- Omniscient's API doesn't list contact custom fields, so only Name, Title and Phone show for it in Saves to.
+- "Never overwrite" on a CRM can skip a value once when a delivery creates the record and then fails partway.
+- Single choice now draws as radio buttons (Dropdown is its own type), so live forms with single-choice questions
+  look different; their answers don't change.
+- Default overwrite is "only fill if empty" for everything but email and names, so forms no longer replace a title,
+  phone or custom value that came from an import.

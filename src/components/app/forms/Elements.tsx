@@ -60,10 +60,10 @@ function Tile({ def, onAdd }: { def: ElementDef; onAdd: () => void }) {
       {...listeners}
       onClick={onAdd}
       title={def.name}
-      className={`press flex h-10 min-w-0 items-center gap-2 rounded-lg border border-line bg-card px-2.5 text-left text-ink transition-[border-color,box-shadow,transform] duration-[140ms] hover:-translate-y-px hover:border-line-strong hover:shadow-soft ${isDragging ? "opacity-40" : ""}`}
+      className={`press flex h-10 min-w-0 items-center gap-1.5 rounded-lg border border-line bg-card px-2 text-left text-ink transition-[border-color,box-shadow,transform] duration-[140ms] hover:-translate-y-px hover:border-line-strong hover:shadow-soft ${isDragging ? "opacity-40" : ""}`}
     >
       <ElementIcon name={def.icon} size={15} className="shrink-0 text-body" />
-      <span className="min-w-0 flex-1 truncate text-[12.5px] leading-none">{def.name}</span>
+      <span className="line-clamp-2 min-w-0 flex-1 text-[12px] leading-[1.15]">{def.name}</span>
     </button>
   );
 }
