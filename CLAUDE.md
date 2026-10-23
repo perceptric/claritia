@@ -22,5 +22,11 @@ The sidebar is in `src/lib/nav.ts`: Site (Forms, Pages), CRM (Contacts, Companie
 - Explaining happens once, on a tool's first screen before there's data (the `ToolIntro` pattern from Omniscient).
 
 ## Rule: one brand style
-- Follow `docs/brand.md` for the app, the website, emails and decks.
-- Containers are square. Buttons and inputs use `rounded-md`. A state is a square tag. No pills, no shadows on cards, no gradients, no emoji.
+- Follow `docs/brand.md` for the app, the website, emails and decks. Use the tokens in `src/app/globals.css`, never a hex.
+- Warm paper, a thin serif (Fraunces) for big words, Geist for the rest. Big headings take two tones.
+- Buttons, tags and toggles are pills. Inputs 8px, cards 16 to 24px, the page panel 32px. A state is a pill `Badge`.
+- Soft washes are allowed on large areas. No gradients on buttons or text. No emoji.
+- Cards sit flat and lift on hover; shadows only on lifted and floating things.
+- Pip (`src/components/app/Pip.tsx`) is the face of every agent. Anything an agent made is tagged "by Pip".
+- Empty states and first screens use a sketch from `src/components/sketches`.
+- Motion uses the three speeds and two curves in `docs/brand.md`, and stops under reduced motion. Every screen works in light and dark.

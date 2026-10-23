@@ -1,63 +1,135 @@
 @import "tailwindcss";
 
+/* Brand v2 (docs/brand.md): a sketchbook that works. Warm paper, a thin serif for big words, Geist for the rest,
+   pills for buttons and tags, soft round cards, calm motion. Screens use these tokens, never a hex. */
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
 @theme {
-  /* Geist for reading, Geist Mono for labels and numbers */
   --font-sans: "Geist", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --font-mono: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --font-serif: "Fraunces", ui-serif, Georgia, "Times New Roman", serif;
+  --font-hand: "Caveat", "Comic Sans MS", cursive;
 
-  /* Ink black with warm grays */
-  --color-ink: #0c0c0b;
-  --color-body: #4a4a46;
-  --color-muted: #6f6f6b;
-  --color-faint: #a3a39e;
+  /* Paper and ink */
+  --color-paper: #f2f1ed;
+  --color-paper-deep: #e9e7e0;
+  --color-card: #fbfaf7;
+  --color-ink: #121211;
+  --color-body: #4a4944;
+  --color-muted: #7a7870;
+  --color-faint: #a8a69e;
+  --color-line: rgb(18 18 17 / 0.1);
+  --color-line-strong: rgb(18 18 17 / 0.18);
+  --color-hover: rgb(18 18 17 / 0.04);
+  --color-scrim: rgb(18 18 17 / 0.28);
 
-  /* White paper and hairlines */
-  --color-panel: #ffffff;
-  --color-canvas: #fafafa;
-  --color-side: #fafafa;
-  --color-hover: #f3f3f1;
-  --color-line: #eaeaea;
-  --color-line-strong: #dadad6;
+  /* Older names, kept so every screen reads the new paper */
+  --color-panel: var(--color-card);
+  --color-canvas: var(--color-paper);
+  --color-side: var(--color-paper-deep);
 
-  /* Accent blue for highlights, fire orange for the one thing to click */
-  --color-brand: #266df0;
-  --color-brand-hover: #1c58c9;
-  --color-brand-soft: #ebf1fe;
-  --color-brand-pale: #f4f7ff;
-  --color-brand-line: #c8d8fb;
-  --color-fire: #ff5a1f;
+  /* Accent pairs: a wash for fills, a deep tone for text and strokes */
+  --color-clay: #b5532a;
+  --color-clay-wash: #f4d9c6;
+  --color-sage: #3f6b3a;
+  --color-sage-wash: #d8e4d0;
+  --color-sky: #2f5d8a;
+  --color-sky-wash: #d6e3f0;
+  --color-lilac: #5b4a8f;
+  --color-lilac-wash: #e3dcf0;
+  --color-butter: #8a6a12;
+  --color-butter-wash: #f5e8bf;
+  --color-rose: #a33a3a;
+  --color-rose-wash: #f3d4d4;
 
-  /* Status: text on its soft fill */
-  --color-success: #007d53;
-  --color-success-soft: #e0fced;
-  --color-warning: #a34a00;
-  --color-warning-soft: #fff1e0;
-  --color-danger: #c4161c;
-  --color-danger-soft: #ffe9e9;
-  --color-violet: #5b3cc4;
-  --color-violet-soft: #efeafd;
+  /* Clay is the brand's warm color; status reads from the pairs */
+  --color-brand: var(--color-clay);
+  --color-brand-hover: #9a4421;
+  --color-brand-soft: var(--color-clay-wash);
+  --color-brand-pale: #f8ebe1;
+  --color-brand-line: #e7bfa4;
+  --color-fire: var(--color-clay);
+  --color-success: var(--color-sage);
+  --color-success-soft: var(--color-sage-wash);
+  --color-warning: var(--color-butter);
+  --color-warning-soft: var(--color-butter-wash);
+  --color-danger: var(--color-rose);
+  --color-danger-soft: var(--color-rose-wash);
+  --color-violet: var(--color-lilac);
+  --color-violet-soft: var(--color-lilac-wash);
 
-  /* Square corners */
-  --radius-sm: 3px;
-  --radius: 4px;
-  --radius-md: 6px;
-  --radius-lg: 6px;
-  --radius-xl: 8px;
-  --radius-2xl: 10px;
+  /* Soft corners: pills for buttons and tags, 8px inputs, 16 to 24px cards, 32px for the page panel */
+  --radius-xs: 4px;
+  --radius-sm: 8px;
+  --radius: 8px;
+  --radius-md: 8px;
+  --radius-lg: 16px;
+  --radius-xl: 20px;
+  --radius-2xl: 24px;
+  --radius-3xl: 32px;
 
-  /* Flat: hairlines do the work, a real shadow only for things that float */
-  --shadow-xs: 0 1px 1px rgb(12 12 11 / 0.04);
-  --shadow-card: 0 0 0 1px #eaeaea;
-  --shadow-pop: 0 0 0 1px rgb(12 12 11 / 0.08), 0 24px 48px -16px rgb(12 12 11 / 0.18), 0 8px 16px -8px rgb(12 12 11 / 0.08);
+  /* Cards sit flat and lift on hover; shadows only on lifted and floating things */
+  --shadow-xs: 0 1px 2px rgb(18 18 17 / 0.04);
+  --shadow-soft: 0 1px 2px rgb(18 18 17 / 0.04), 0 12px 32px -12px rgb(18 18 17 / 0.1);
+  --shadow-float: 0 0 0 1px rgb(18 18 17 / 0.06), 0 24px 48px -16px rgb(18 18 17 / 0.2), 0 8px 16px -8px rgb(18 18 17 / 0.08);
+  --shadow-card: 0 0 0 1px var(--color-line);
+  --shadow-pop: var(--shadow-float);
+
+  /* Motion: three speeds, two curves */
+  --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --duration-quick: 140ms;
+  --duration-calm: 320ms;
+  --duration-slow: 700ms;
+}
+
+[data-theme="dark"] {
+  color-scheme: dark;
+  --color-paper: #141413;
+  --color-paper-deep: #1c1c1a;
+  --color-card: #1f1f1d;
+  --color-ink: #f2f1ed;
+  --color-body: #c9c7bf;
+  --color-muted: #8f8d85;
+  --color-faint: #66645e;
+  --color-line: rgb(242 241 237 / 0.1);
+  --color-line-strong: rgb(242 241 237 / 0.18);
+  --color-hover: rgb(242 241 237 / 0.06);
+  --color-scrim: rgb(0 0 0 / 0.5);
+  --color-clay: #e8a07c;
+  --color-clay-wash: #3a2a20;
+  --color-sage: #9fc495;
+  --color-sage-wash: #24301f;
+  --color-sky: #8fb4dc;
+  --color-sky-wash: #1e2a36;
+  --color-lilac: #b3a5e0;
+  --color-lilac-wash: #2a2538;
+  --color-butter: #e0c46a;
+  --color-butter-wash: #352d17;
+  --color-rose: #e79a9a;
+  --color-rose-wash: #3a2222;
+  --color-brand-hover: #f0b494;
+  --color-brand-pale: #2a211b;
+  --color-brand-line: #5a3a2a;
+  --shadow-soft: 0 1px 2px rgb(0 0 0 / 0.3), 0 12px 32px -12px rgb(0 0 0 / 0.5);
+  --shadow-float: 0 0 0 1px rgb(242 241 237 / 0.08), 0 24px 48px -16px rgb(0 0 0 / 0.6), 0 8px 16px -8px rgb(0 0 0 / 0.4);
 }
 
 html,
 body {
-  background: var(--color-canvas);
+  background: var(--color-paper);
   color: var(--color-ink);
   font-size: 14px;
-  letter-spacing: -0.006em;
+  letter-spacing: -0.005em;
   font-variant-numeric: tabular-nums;
+}
+
+/* Paper grain: a faint noise so the page feels like paper */
+.grain {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 .05 0'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+[data-theme="dark"] .grain {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 .035 0'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E");
 }
 
 @layer base {
@@ -70,37 +142,49 @@ body {
 }
 
 ::selection {
-  background: var(--color-brand-soft);
+  background: var(--color-clay-wash);
 }
 
 @layer base {
   :focus-visible {
-    outline: 2px solid var(--color-brand);
+    outline: 2px solid var(--color-ink);
     outline-offset: 2px;
   }
 }
 
-/* Small labels: section headers and table headers. Mono, capitals, wide spacing. */
+/* The serif for big words: thin, tight, large optical size */
 @layer components {
-.label-mono {
-  font-family: var(--font-mono);
-  font-size: 10.5px;
-  font-weight: 500;
-  text-transform: uppercase;
-  letter-spacing: 0.14em;
-  color: var(--color-muted);
-}
+  .serif {
+    font-family: var(--font-serif);
+    font-weight: 300;
+    font-variation-settings: "opsz" 144;
+    letter-spacing: -0.03em;
+  }
+  .hand {
+    font-family: var(--font-hand);
+    font-weight: 500;
+  }
 }
 
-/* A "// note" label for figure captions */
+/* Small labels: mono, sentence case */
 @layer components {
-.fig {
-  font-family: var(--font-mono);
-  font-size: 10px;
-  text-transform: uppercase;
-  letter-spacing: 0.18em;
-  color: var(--color-faint);
+  .label-mono {
+    font-family: var(--font-mono);
+    font-size: 11.5px;
+    font-weight: 400;
+    letter-spacing: 0;
+    color: var(--color-muted);
+  }
 }
+
+/* A "// note" caption */
+@layer components {
+  .fig {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 0;
+    color: var(--color-faint);
+  }
 }
 
 /* Numbers in tables and meters */
@@ -109,73 +193,161 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
-/* A dot grid for empty states and hero areas */
+/* A soft wash for large areas: hero, first screens, empty states. Never on buttons or text. */
+.wash {
+  background:
+    radial-gradient(60% 80% at 15% 20%, var(--color-clay-wash), transparent 70%),
+    radial-gradient(50% 70% at 85% 30%, var(--color-sky-wash), transparent 70%),
+    radial-gradient(60% 80% at 60% 100%, var(--color-lilac-wash), transparent 70%);
+}
 .dot-grid {
-  background-image: radial-gradient(circle, rgb(12 12 11 / 0.16) 1px, transparent 1px);
-  background-size: 18px 18px;
-  mask-image: radial-gradient(ellipse 60% 55% at 50% 50%, black 0%, transparent 75%);
+  background:
+    radial-gradient(50% 60% at 30% 40%, var(--color-clay-wash), transparent 70%),
+    radial-gradient(50% 60% at 70% 60%, var(--color-sky-wash), transparent 70%);
+  opacity: 0.7;
 }
 
-/* A faint dot grid behind working pages */
+/* Working pages sit on plain paper */
 .paper {
-  background-color: var(--color-canvas);
-  background-image: radial-gradient(circle, rgb(12 12 11 / 0.07) 1px, transparent 1px);
-  background-size: 16px 16px;
+  background-color: var(--color-card);
 }
 
 @layer components {
-/* Crosshair marks on the corners of a framed block */
-.frame {
-  position: relative;
-}
-.frame::before,
-.frame::after {
-  content: "";
-  position: absolute;
-  z-index: 1;
-  width: 10px;
-  height: 10px;
-  pointer-events: none;
-  background:
-    linear-gradient(rgb(74 74 70 / 0.45), rgb(74 74 70 / 0.45)) center / 1px 100% no-repeat,
-    linear-gradient(rgb(74 74 70 / 0.45), rgb(74 74 70 / 0.45)) center / 100% 1px no-repeat;
-}
-.frame::before {
-  top: -5px;
-  left: -5px;
-}
-.frame::after {
-  bottom: -5px;
-  right: -5px;
-}
+  /* The one card a screen is about: a soft lift */
+  .frame {
+    position: relative;
+    box-shadow: var(--shadow-soft);
+  }
+  /* Cards lift on hover */
+  .lift {
+    transition:
+      transform var(--duration-calm) var(--ease-out),
+      box-shadow var(--duration-calm) var(--ease-out);
+  }
+  .lift:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-soft);
+  }
+  .press {
+    transition: transform var(--duration-quick) var(--ease-out);
+  }
+  .press:active {
+    transform: scale(0.98);
+  }
 }
 
-/* A hairline with small ticks at each end */
+/* A hairline */
 .ticks {
-  position: relative;
   height: 1px;
   background: var(--color-line);
 }
-.ticks::before,
-.ticks::after {
-  content: "";
-  position: absolute;
-  top: -3px;
-  width: 1px;
-  height: 7px;
-  background: var(--color-line-strong);
+
+/* Motion. Only transform, opacity and stroke offset move. */
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
 }
-.ticks::before {
-  left: 0;
+@keyframes rise-sm {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
 }
-.ticks::after {
-  right: 0;
+@keyframes pop-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+}
+@keyframes fade {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes draw {
+  from {
+    stroke-dashoffset: 1;
+  }
+}
+@keyframes breathe {
+  50% {
+    transform: scale(1.02);
+  }
+}
+@keyframes blink {
+  0%, 92%, 100% {
+    transform: scaleY(1);
+  }
+  96% {
+    transform: scaleY(0.1);
+  }
+}
+@keyframes bounce-dot {
+  0%, 60%, 100% {
+    transform: translateY(0);
+  }
+  30% {
+    transform: translateY(-5px);
+  }
+}
+@keyframes shimmer {
+  50% {
+    opacity: 0.55;
+  }
+}
+.anim-rise {
+  animation: rise var(--duration-slow) var(--ease-out) both;
+}
+.anim-rise-sm {
+  animation: rise-sm var(--duration-calm) var(--ease-out) both;
+}
+.anim-pop {
+  animation: pop-in var(--duration-calm) var(--ease-spring) both;
+}
+.anim-fade {
+  animation: fade var(--duration-calm) var(--ease-out) both;
+}
+.anim-shimmer {
+  animation: shimmer 1.6s ease-in-out infinite;
+}
+.sketch-draw path,
+.sketch-draw line,
+.sketch-draw circle,
+.sketch-draw rect,
+.sketch-draw ellipse,
+.sketch-draw polyline {
+  stroke-dasharray: 1;
+  animation: draw 1.4s var(--ease-out) both;
+}
+.pip-body {
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+  animation: breathe 4s ease-in-out infinite;
+}
+.pip-eye {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: blink 5s infinite;
+}
+.pip-dot {
+  animation: bounce-dot 1.1s var(--ease-out) infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
 
 /* Thin scrollbars */
 * {
   scrollbar-width: thin;
-  scrollbar-color: #dadad6 transparent;
+  scrollbar-color: var(--color-line-strong) transparent;
 }
 
 /* Legal pages */
@@ -188,7 +360,7 @@ body {
 .legal li {
   font-size: 15px;
   line-height: 1.7;
-  color: #4a4a46;
+  color: var(--color-body);
 }
 .legal p {
   margin: 0 0 0.9rem;
@@ -270,52 +442,35 @@ body {
   }
 }
 
-/* A card's header bar: a black dot, then a mono label in capitals */
+/* A card's header bar and a section header: a clay dot, then a label */
 @layer components {
-.card-head {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-height: 40px;
-  padding: 0 16px;
-  border-bottom: 1px solid var(--color-line);
-  background: var(--color-canvas);
-  font-family: var(--font-mono);
-  font-size: 10.5px;
-  font-weight: 500;
-  text-transform: uppercase;
-  letter-spacing: 0.14em;
-  color: var(--color-muted);
-}
-.card-head::before {
-  content: "";
-  flex-shrink: 0;
-  width: 6px;
-  height: 6px;
-  border-radius: 9999px;
-  background: var(--color-ink);
-}
-}
-
-@layer components {
-  /* A section header: a black dot, then a label in capitals */
-  .section-head {
+  .card-head {
     display: flex;
     align-items: center;
     gap: 8px;
-    font-size: 11px;
+    min-height: 44px;
+    padding: 0 18px;
+    border-bottom: 1px solid var(--color-line);
+    font-size: 13px;
     font-weight: 500;
-    text-transform: uppercase;
-    letter-spacing: 0.14em;
-    color: var(--color-muted);
+    color: var(--color-ink);
   }
+  .card-head::before,
   .section-head::before {
     content: "";
     flex-shrink: 0;
     width: 6px;
     height: 6px;
     border-radius: 9999px;
-    background: var(--color-ink);
+    background: var(--color-clay);
+  }
+  .section-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--color-ink);
   }
 }
 

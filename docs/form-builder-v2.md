@@ -33,7 +33,7 @@ Forms list ──► New form ──► Create screen
 
 ## Part 2. The questions
 
-Each question is a card in the chat with clickable choices (square tags, per `docs/brand.md`). Number keys pick a
+Each question is a card in the chat with clickable choices (pill chips, per `docs/brand.md`). Number keys pick a
 choice, Enter goes on, and Back goes up one. Every question has a default, so **Skip** never leaves a hole. On the
 right, each answer lands in the form within 150 ms and the changed part flashes once.
 
@@ -153,7 +153,7 @@ Before the new screens, one full pass over the current Forms section, in a real 
 - **No dead ends.** Every question can be skipped, every change undone, and every way in ends on the same screen.
 - **Keyboard first.** Number keys, Enter, Back, the undo keys and arrow keys all work, and focus is never lost when
   the form redraws.
-- **Brand rules** (`docs/brand.md`, `CLAUDE.md`): square tags for choices, no pills or shadows, our `Select` and
+- **Brand rules** (`docs/brand.md`, `CLAUDE.md`): pill chips for choices, Pip as the asker, our `Select` and
   dialogs, logos for tools, and help text only on the create screen.
 - **Phone.** On a narrow screen the chat and the form stack, with a "See form" switch at the top.
 

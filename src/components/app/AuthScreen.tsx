@@ -3,6 +3,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { useEffect, useState } from "react";
 import { Logo } from "../Logo";
+import { Sketch } from "../sketches/Sketch";
+import { Pip, type PipMood } from "./Pip";
 import { Button, ErrorNote, errorText } from "./ui";
 
 // Where people land after signing in.
@@ -41,16 +43,36 @@ function GitHubLogo() {
   );
 }
 
-const ssoClass = "flex h-11 w-full items-center justify-center gap-3 rounded-md border border-line bg-panel text-sm font-medium text-ink hover:border-line-strong hover:bg-canvas disabled:opacity-50";
+const ssoClass = "press flex h-11 w-full items-center justify-center gap-3 rounded-full border border-line-strong bg-card text-[13.5px] font-medium text-ink hover:bg-paper disabled:opacity-50";
 
-function Frame({ children }: { children: React.ReactNode }) {
+/** Split screen: the form on the left, a drawn funnel on the right that fills as you type. */
+function Frame({ typed = 0, mood = "idle", children }: { typed?: number; mood?: PipMood; children: React.ReactNode }) {
   return (
-    <main className="paper flex min-h-screen items-center justify-center px-4 py-10">
-      <div className="w-full max-w-sm space-y-6">
-        <a href="https://tryclaritia.com" aria-label="Claritia home">
+    <main className="grid min-h-screen bg-paper md:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]">
+      <div className="flex flex-col px-6 py-8 md:px-14">
+        <a href="https://tryclaritia.com" aria-label="Claritia home" className="self-start">
           <Logo />
         </a>
-        <div className="frame space-y-5 border border-line bg-panel p-7">{children}</div>
+        <div className="anim-rise my-auto w-full max-w-sm space-y-6 self-center py-10">{children}</div>
+      </div>
+      <div className="relative m-3 hidden overflow-hidden rounded-3xl bg-paper-deep md:block">
+        <div className="wash absolute inset-0 opacity-80" />
+        <div className="relative flex h-full flex-col items-center justify-center gap-10 p-10">
+          <p className="serif max-w-md text-center text-[44px] leading-[1.05] text-ink">
+            Visitors in.
+            <span className="text-muted"> Meetings out.</span>
+          </p>
+          <div className="relative">
+            <Sketch name="funnel" size={340} />
+            {/* Each letter typed drops a visitor into the funnel. */}
+            {Array.from({ length: Math.min(typed, 14) }, (_, i) => (
+              <span key={i} className="anim-pop absolute size-2 rounded-full bg-sky" style={{ left: `${36 + ((i * 37) % 30)}%`, top: `${30 + ((i * 13) % 14)}%` }} />
+            ))}
+            <span className="absolute -right-6 -bottom-4">
+              <Pip size={72} mood={mood} follow />
+            </span>
+          </div>
+        </div>
       </div>
     </main>
   );
@@ -99,9 +121,9 @@ export function AuthScreen({ sb }: { sb: SupabaseClient }) {
 
   if (sentTo) {
     return (
-      <Frame>
+      <Frame typed={14} mood="done">
         <div className="space-y-2">
-          <h1 className="text-lg font-medium">Check your inbox</h1>
+          <h1 className="serif text-[36px] leading-tight">Check your inbox</h1>
           <p className="text-sm text-muted">
             We sent a sign-in link to <span className="font-medium text-ink">{sentTo}</span>. It works once and expires in an hour.
           </p>
@@ -111,7 +133,7 @@ export function AuthScreen({ sb }: { sb: SupabaseClient }) {
           <button type="button" className="text-muted hover:text-ink" onClick={() => (setSentTo(""), setError(""))}>
             Use a different email
           </button>
-          <button type="button" className="font-medium text-brand hover:underline disabled:text-muted disabled:no-underline" disabled={busy || wait > 0} onClick={() => sendLink(sentTo)}>
+          <button type="button" className="font-medium text-ink underline-offset-4 hover:underline disabled:text-muted disabled:no-underline" disabled={busy || wait > 0} onClick={() => sendLink(sentTo)}>
             {busy ? "Sending…" : wait > 0 ? `Send again in ${wait}s` : "Send again"}
           </button>
         </div>
@@ -120,9 +142,12 @@ export function AuthScreen({ sb }: { sb: SupabaseClient }) {
   }
 
   return (
-    <Frame>
+    <Frame typed={email.length} mood={busy ? "thinking" : email ? "writing" : "idle"}>
       <div>
-        <h1 className="text-lg font-medium">Welcome to Claritia</h1>
+        <h1 className="serif text-[40px] leading-[1.05]">
+          Welcome
+          <span className="text-muted"> to Claritia</span>
+        </h1>
         <p className="mt-1 text-sm text-muted">Sign in or create your account.</p>
       </div>
       <div className="space-y-2.5">
@@ -155,7 +180,7 @@ export function AuthScreen({ sb }: { sb: SupabaseClient }) {
           onChange={(e) => setEmail(e.target.value)}
           placeholder="you@company.com"
           aria-label="Email"
-          className="h-11 w-full rounded-md border border-line px-3 text-sm outline-none focus:border-ink"
+          className="h-11 w-full rounded-sm border border-line-strong bg-card px-3.5 text-[14px] outline-none focus:border-ink focus:ring-1 focus:ring-ink"
         />
         <Button type="submit" className="h-11 w-full" disabled={busy}>
           {busy ? "Sending…" : "Continue with email"}
