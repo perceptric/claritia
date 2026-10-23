@@ -4,10 +4,13 @@
 // meeting_sync for the calendars. Server only (the routes and the pg tests), over any Rpc.
 
 import { createHash, randomBytes } from "node:crypto";
+import { cleanDomain } from "../company/domains.ts";
+import { cleanEmail, isRejected } from "../identity/clean.ts";
 import { enqueueJob, type Rpc } from "../jobs.ts";
 import { keepManageToken } from "./links.ts";
 import { book, hostStates, liveAt, newToken, offer, tokenHash, turnsFor, type BookResult } from "./server.ts";
 import { cut, pickHost, pickPair } from "./slots.ts";
+import { validZone } from "./time.ts";
 import { checkSettings } from "./check.ts";
 import { guestLocation, toGuestType, type GuestIn, type GuestSlot, type GuestType, type Profile } from "./guest.ts";
 import { DEFAULT_SETTINGS, type Location, type MeetingSource, type MeetingStatus, type MeetingType, type Slot, type Span } from "./types.ts";
@@ -117,6 +120,31 @@ export type BookOutcome =
 const guestSlotsOf = (slots: Slot[], from?: number) => slots.filter((s) => from === undefined || s.start >= from).map((s) => ({ start: s.start }));
 
 /**
+ * The guest becomes a contact once the booking stands (meeting_contact_make, 061_meeting_contacts.sql), when the CRM
+ * doesn't have them yet. The meeting stands without it.
+ */
+export async function guestContact(rpc: Rpc, meetingId: string, g: { email: string; name?: string | null; tz?: string | null }): Promise<void> {
+  const e = cleanEmail(g.email);
+  if (isRejected(e) || e.class === "own") return;
+  const [first, ...rest] = (g.name ?? "").trim().split(/\s+/).filter(Boolean);
+  const domain = (e.class === "work" || e.class === "role") && e.domain ? cleanDomain(e.domain)?.domain : undefined;
+  const row = {
+    email: e.raw,
+    email_clean: e.clean,
+    email_class: e.class,
+    ...(first ? { first_name: first.slice(0, 100) } : {}),
+    ...(rest.length ? { last_name: rest.join(" ").slice(0, 100) } : {}),
+    ...(g.tz && validZone(g.tz) ? { timezone: g.tz } : {}),
+    ...(domain ? { company_domain: domain } : {}),
+  };
+  try {
+    await rpc("meeting_contact_make", { p_meeting: meetingId, p_row: row });
+  } catch {
+    // The meeting stands; the contact can be added later.
+  }
+}
+
+/**
  * A guest books a type from a page, a single-use link or the embed. Paid types hold the time (pending) until
  * Stripe says the guest paid. The contact is linked when the CRM already has this email.
  */
@@ -152,6 +180,7 @@ export async function bookType(
     const slots = r.error.startsWith("link") ? [] : o.type.kind === "group" ? await guestSlots(rpc, { ws: o.ws, type: o.type, length: o.length, now: o.now }) : guestSlotsOf(r.slots);
     return { ok: false, error: r.error, slots: slots.filter((s) => s.start !== o.start) };
   }
+  if (!contactId) await guestContact(rpc, r.meetingId, o.guest);
   return { ok: true, meetingId: r.meetingId, token: r.token, start: r.start, end: r.end, hosts: r.hosts, pending };
 }
 
@@ -288,6 +317,7 @@ export async function bookOneOff(rpc: Rpc, o: { view: LinkView; start: number; g
   }
   const meetingId = data as string;
   await keepManageToken(rpc, meetingId, token).catch(() => undefined);
+  if (!contactId) await guestContact(rpc, meetingId, o.guest);
   await enqueueJob(rpc, { workspaceId: v.link.workspace_id, kind: "meeting_sync", key: `create:${meetingId}`, payload: { meeting: meetingId, action: "create" } });
   return { ok: true, meetingId, token, start: o.start, end, hosts: [host], pending: false };
 }
@@ -368,6 +398,7 @@ export async function pollBookWinner(rpc: Rpc, o: { view: LinkView; start: numbe
   }
   const meetingId = data as string;
   await keepManageToken(rpc, meetingId, token).catch(() => undefined);
+  await guestContact(rpc, meetingId, { email: lead.email, name: lead.name });
   await enqueueJob(rpc, { workspaceId: v.link.workspace_id, kind: "meeting_sync", key: `create:${meetingId}`, payload: { meeting: meetingId, action: "create" } });
   return { ok: true, meetingId, token, guests };
 }

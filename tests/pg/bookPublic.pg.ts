@@ -111,6 +111,25 @@ test("a booking lands on the contact the CRM already has", async () => {
   assert.equal((await q(`select contact_id from meetings where id = $1`, [r.meetingId]))[0].contact_id, contact);
 });
 
+test("a new guest becomes a contact once the booking stands; a failed try and team addresses never do", async () => {
+  const { ws, users } = await team(1);
+  await q(`insert into identity_settings (workspace_id, own_domains) values ($1, '{acme.io}') on conflict (workspace_id) do update set own_domains = '{acme.io}'`, [ws]);
+  const t = await meetingType(ws, "one", users);
+  const r = await bookType(rpc, { ws, type: t, length: 30, start: NY("09:00"), guest: { email: "Rae.Kim@Northwind.io", name: "Rae Kim Park", tz: "Europe/Berlin", answers: {} }, source: "page", payReady: false, liveBusy: none, now: NOW });
+  assert.ok(r.ok);
+  const c = (await q(`select c.id, c.first_name, c.last_name, c.timezone, c.source, co.domain from meetings m join contacts c on c.id = m.contact_id left join companies co on co.id = c.company_id where m.id = $1`, [r.meetingId]))[0];
+  assert.deepEqual({ first: c.first_name, last: c.last_name, tz: c.timezone, source: c.source, domain: c.domain }, { first: "Rae", last: "Kim Park", tz: "Europe/Berlin", source: "meeting", domain: "northwind.io" });
+  assert.equal((await q(`select 1 from contact_events where contact_id = $1 and kind = 'meeting.booked'`, [c.id])).length, 1, "on the contact's timeline");
+  // The same time again: refused, and no contact is made for that guest.
+  const lost = await bookType(rpc, { ws, type: t, length: 30, start: NY("09:00"), guest: guest("late@northwind.io"), source: "page", payReady: false, liveBusy: none, now: NOW });
+  assert.ok(!lost.ok);
+  assert.equal((await q(`select 1 from contacts where workspace_id = $1 and email_clean = 'late@northwind.io'`, [ws])).length, 0);
+  // A teammate booking time.
+  const own = await bookType(rpc, { ws, type: t, length: 30, start: NY("10:00"), guest: guest("sam@acme.io"), source: "page", payReady: false, liveBusy: none, now: NOW });
+  assert.ok(own.ok);
+  assert.equal((await q(`select contact_id from meetings where id = $1`, [own.meetingId]))[0].contact_id, null);
+});
+
 test("reschedule: into a time someone just took is refused and nothing moves; a free time moves it and queues the calendar move", async () => {
   const { ws, users } = await team(1);
   const t = await meetingType(ws, "one", users);

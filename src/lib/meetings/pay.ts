@@ -9,7 +9,7 @@
 // Stripe itself is passed in (the routes use the real client; the tests a fake), so this runs anywhere.
 
 import { enqueueJob, type Rpc } from "../jobs.ts";
-import { loadMeeting, type MeetingView } from "./public.ts";
+import { guestContact, loadMeeting, type MeetingView } from "./public.ts";
 
 /** Checkout must stay open at least 30 minutes (Stripe's minimum); the time itself is held for 10. */
 export const CHECKOUT_MINUTES = 30;
@@ -107,6 +107,7 @@ export async function handlePayEvent(rpc: Rpc, stripe: PayStripe, e: PayEvent): 
       p_payment: { session: obj.id, account, ...(intent ? { intent } : {}), status: "paid", paid_at: new Date().toISOString() },
     });
     if (r === "booked") {
+      await guestContact(rpc, meetingId, { email: v.meeting.guest_email, name: v.meeting.guest_name, tz: v.meeting.guest_tz });
       await enqueueJob(rpc, { workspaceId: v.meeting.workspace_id, kind: "meeting_sync", key: `create:${meetingId}`, payload: { meeting: meetingId, action: "create" } });
       return { ok: true, did: "booked" };
     }
