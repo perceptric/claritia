@@ -136,7 +136,7 @@ export function FieldDialog({
         }}
       >
         <div className="flex items-center gap-2 border-b border-line px-5 py-3.5">
-          <h2 className="serif flex-1 text-[22px] text-ink">{start ? "Edit field" : "New field"}</h2>
+          <h2 className="font-semibold tracking-[-0.02em] flex-1 text-[18px] text-ink">{start ? "Edit field" : "New field"}</h2>
           <IconButton label="Close" onClick={onClose}>
             <X size={14} />
           </IconButton>

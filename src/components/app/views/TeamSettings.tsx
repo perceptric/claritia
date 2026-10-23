@@ -90,7 +90,7 @@ export function TeamPanel({ sb, ws, role, session }: Pick<ViewProps, "sb" | "ws"
                   </span>
                 </Td>
                 <Td>{m.pending ? <Badge tone="amber" dot>Invited</Badge> : <Badge tone={m.role === "owner" ? "brand" : "gray"}>{m.role}</Badge>}</Td>
-                <Td className="font-mono text-[12px] text-muted">{timeAgo(m.joined_at)}</Td>
+                <Td className="text-[13px] text-muted">{timeAgo(m.joined_at)}</Td>
                 <Td className="text-right">
                   {owner && m.role !== "owner" ? (
                     <button

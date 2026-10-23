@@ -2,7 +2,7 @@
 
 import type { Session, SupabaseClient } from "@supabase/supabase-js";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { Pip, PipDots } from "./Pip";
+import { Dots } from "./Ai";
 
 import type { Route } from "@/lib/nav";
 export type { Route };
@@ -17,7 +17,8 @@ export type ViewProps = {
   session: Session;
   ws: Workspace;
   role: Role;
-  navigate: (r: Route, id?: string) => void;
+  /** Open a screen; `query` (like "tab=design") goes in the address after the record. */
+  navigate: (r: Route, id?: string, query?: string) => void;
   /** The record in the address, like a contact's id in /contacts/<id>. */
   id: string;
 };
@@ -89,17 +90,19 @@ export function timeAgo(iso: string | null) {
   return new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
 }
 
-/** A page in the app: a two-tone serif title with a mono crumb, then the content. */
+/** A page in the app: a crumb and a title, then the content. `onRename` makes the title an input you can type in. */
 export function Page({
   title,
   count,
   actions,
   back,
   flush = false,
+  onRename,
   children,
 }: {
   icon?: React.ReactNode;
   title: string;
+  onRename?: (name: string) => void;
   count?: number | string;
   actions?: React.ReactNode;
   back?: { label: string; onClick: () => void };
@@ -111,19 +114,56 @@ export function Page({
       <header className="flex min-h-16 shrink-0 items-center gap-3 border-b border-line px-5 py-3 md:px-7">
         <div className="flex min-w-0 flex-col">
           {back ? (
-            <button type="button" onClick={back.onClick} className="-ml-0.5 self-start rounded-full px-0.5 font-mono text-[11.5px] text-muted hover:text-ink">
+            <button type="button" onClick={back.onClick} className="-ml-0.5 self-start rounded-full px-0.5 text-[12px] font-medium text-muted hover:text-ink">
               {back.label} /
             </button>
           ) : null}
-          <h1 className="serif truncate text-[26px] leading-[1.15] text-ink">
-            {title}
-            {count != null ? <span className="ml-2 text-muted tabular-nums">{count}</span> : null}
-          </h1>
+          {onRename ? (
+            <TitleInput value={title} onChange={onRename} />
+          ) : (
+            <h1 className="truncate text-[20px] leading-[1.2] font-semibold tracking-[-0.02em] text-ink">
+              {title}
+              {count != null ? <span className="ml-2 font-medium text-muted tabular-nums">{count}</span> : null}
+            </h1>
+          )}
         </div>
         {actions ? <div className="ml-auto flex shrink-0 items-center gap-2">{actions}</div> : null}
       </header>
       <div className={`min-h-0 flex-1 overflow-auto ${flush ? "" : "p-5 md:p-7"}`}>{children}</div>
     </div>
+  );
+}
+
+/** A page title you can click and type in. Enter or clicking away saves; Escape puts the old name back. */
+function TitleInput({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const [text, setText] = useState(value);
+  const [was, setWas] = useState(value);
+  if (value !== was) {
+    setWas(value);
+    setText(value);
+  }
+  const done = () => {
+    const t = text.trim();
+    if (t && t !== value) onChange(t);
+    else setText(value);
+  };
+  return (
+    <input
+      aria-label="Name"
+      value={text}
+      maxLength={120}
+      onChange={(e) => setText(e.target.value)}
+      onBlur={done}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") e.currentTarget.blur();
+        if (e.key === "Escape") {
+          setText(value);
+          requestAnimationFrame(() => (e.target as HTMLInputElement).blur());
+        }
+      }}
+      style={{ width: `${Math.max(6, text.length + 1)}ch` }}
+      className="-ml-1.5 max-w-[60vw] min-w-0 rounded-sm border border-transparent bg-transparent px-1.5 text-[20px] leading-[1.3] font-semibold tracking-[-0.02em] text-ink outline-none hover:border-line-strong focus:border-ink focus:bg-card"
+    />
   );
 }
 
@@ -138,18 +178,18 @@ export function CardHead({ label, count, children }: { label: string; count?: nu
     <div className="flex h-11 items-center gap-2 border-b border-line px-5">
       <span className="size-1.5 shrink-0 rounded-full bg-clay" />
       <span className="truncate text-[13px] font-medium text-ink">{label}</span>
-      {count != null ? <span className="font-mono text-[11.5px] text-muted tabular-nums">{count}</span> : null}
+      {count != null ? <span className="text-[12px] text-muted tabular-nums">{count}</span> : null}
       {children ? <div className="ml-auto flex items-center gap-1.5">{children}</div> : null}
     </div>
   );
 }
 
-/** An empty list: a sketch (or Pip), one serif line, and what to do. */
+/** An empty list: a sketch or an icon, one line, and what to do. */
 export function Empty({ icon, sketch, title, children }: { icon?: React.ReactNode; sketch?: React.ReactNode; title: string; children?: React.ReactNode }) {
   return (
     <div className="anim-rise-sm flex flex-col items-center gap-2 px-6 py-16 text-center">
-      <div className="mb-3">{sketch ?? (icon ? <span className="flex size-12 items-center justify-center rounded-full bg-paper-deep text-ink">{icon}</span> : <Pip size={44} />)}</div>
-      <p className="serif text-[22px] text-ink">{title}</p>
+      {sketch || icon ? <div className="mb-3">{sketch ?? <span className="flex size-12 items-center justify-center rounded-full bg-paper-deep text-ink">{icon}</span>}</div> : null}
+      <p className="font-semibold tracking-[-0.02em] text-[18px] text-ink">{title}</p>
       {children ? <div className="max-w-sm text-[13.5px] text-muted">{children}</div> : null}
     </div>
   );
@@ -157,18 +197,17 @@ export function Empty({ icon, sketch, title, children }: { icon?: React.ReactNod
 
 export function ErrorNote({ message }: { message: string }) {
   return message ? (
-    <p role="alert" className="flex items-start gap-2 rounded-lg bg-rose-wash px-3.5 py-2.5 text-[13px] text-rose">
-      <Pip mood="oops" size={18} className="mt-px" />
-      <span className="min-w-0 flex-1">{message}</span>
+    <p role="alert" className="rounded-lg bg-rose-wash px-3.5 py-2.5 text-[13px] text-rose">
+      {message}
     </p>
   ) : null;
 }
 
-/** Loading: Pip's dots over soft blobs that shimmer. */
+/** Loading: dots over soft rows that shimmer. */
 export function Loading() {
   return (
     <div className="space-y-2.5 p-5" aria-label="Loading">
-      <PipDots className="mb-1 ml-1" />
+      <Dots className="mb-1 ml-1" />
       {[0, 1, 2, 3, 4].map((i) => (
         <div key={i} className="anim-shimmer h-10 rounded-full bg-paper-deep" style={{ opacity: 1 - i * 0.16, animationDelay: `${i * 0.1}s` }} />
       ))}
@@ -233,11 +272,11 @@ export function Toggle({ on, onChange, label, disabled = false }: { on: boolean;
   );
 }
 
-/** A big serif number with a mono label under it. */
+/** A big number with a label under it. */
 export function Stat({ value, label }: { value: React.ReactNode; label: string }) {
   return (
     <div className="flex flex-col gap-1">
-      <span className="serif text-[40px] leading-none tracking-[-0.04em] text-ink tabular-nums">{value}</span>
+      <span className="font-semibold text-[31px] leading-none tracking-[-0.04em] text-ink tabular-nums">{value}</span>
       <span className="label-mono">{label}</span>
     </div>
   );
@@ -287,7 +326,7 @@ export function Avatar({ label, size = 24 }: { label: string; size?: number }) {
 }
 
 export function Th({ children, className = "" }: { children: React.ReactNode; className?: string }) {
-  return <th className={`sticky top-0 z-[1] h-11 border-b border-line bg-card px-4 text-left font-mono text-[11.5px] font-normal whitespace-nowrap text-muted ${className}`}>{children}</th>;
+  return <th className={`sticky top-0 z-[1] h-11 border-b border-line bg-card px-4 text-left text-[12px] font-medium whitespace-nowrap text-muted ${className}`}>{children}</th>;
 }
 
 export function Td({ children, className = "" }: { children: React.ReactNode; className?: string }) {
@@ -373,7 +412,7 @@ export function Tabs<T extends string>({ value, tabs, onChange }: { value: T; ta
           className={`relative flex h-10 shrink-0 items-center gap-1.5 px-2.5 text-[13.5px] font-medium transition-colors duration-[140ms] ${value === t.value ? "text-ink" : "text-muted hover:text-ink"}`}
         >
           {t.label}
-          {t.count != null ? <span className="font-mono text-[11px] text-faint">{t.count}</span> : null}
+          {t.count != null ? <span className="text-[12px] text-faint">{t.count}</span> : null}
         </button>
       ))}
       {at ? <span aria-hidden="true" className="absolute bottom-0 left-0 h-0.5 rounded-full bg-ink transition-[transform,width] duration-[320ms] ease-out" style={{ width: at.width - 12, transform: `translateX(${at.left + 6}px)` }} /> : null}

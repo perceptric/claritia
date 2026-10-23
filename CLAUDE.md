@@ -23,10 +23,10 @@ The sidebar is in `src/lib/nav.ts`: Site (Forms, Pages), CRM (Contacts, Companie
 
 ## Rule: one brand style
 - Follow `docs/brand.md` for the app, the website, emails and decks. Use the tokens in `src/app/globals.css`, never a hex.
-- Warm paper, a thin serif (Fraunces) for big words, Geist for the rest. Big headings take two tones.
+- Warm paper and Geist for every word: titles 600 weight with tight tracking. Labels are Geist 12px, sentence case; mono only for code, keys and ids.
 - Buttons, tags and toggles are pills. Inputs 8px, cards 16 to 24px, the page panel 32px. A state is a pill `Badge`.
 - Soft washes are allowed on large areas. No gradients on buttons or text. No emoji.
 - Cards sit flat and lift on hover; shadows only on lifted and floating things.
-- Pip (`src/components/app/Pip.tsx`) is the face of every agent. Anything an agent made is tagged "by Pip".
+- AI is shown with the sparkle (`src/components/app/Ai.tsx`): `AiMark` beside AI controls, `AiAvatar` where AI speaks, `AiTag` on anything AI made.
 - Empty states and first screens use a sketch from `src/components/sketches`.
 - Motion uses the three speeds and two curves in `docs/brand.md`, and stops under reduced motion. Every screen works in light and dark.

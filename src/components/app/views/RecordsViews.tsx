@@ -153,7 +153,7 @@ export function OpportunitiesPanel({ sb, ws, object, id, navigate }: { sb: Supab
   return (
     <Panel className="overflow-hidden">
       <CardHead label="Opportunities" count={list.data ? rows.length : undefined}>
-        {amount && open ? <span className="font-mono text-[12px] text-muted tabular-nums">{shown(amount, open)} open</span> : null}
+        {amount && open ? <span className="text-[13px] text-muted tabular-nums">{shown(amount, open)} open</span> : null}
       </CardHead>
       {list.error ? (
         <div className="p-4">
@@ -170,7 +170,7 @@ export function OpportunitiesPanel({ sb, ws, object, id, navigate }: { sb: Supab
                 <button type="button" onClick={() => navigate("opportunities", o.id)} className="flex min-h-12 w-full items-center gap-2.5 px-5 py-2.5 text-left text-[13px] transition-colors duration-[140ms] hover:bg-paper">
                   <span className="min-w-0 flex-1 truncate">{o.name}</span>
                   {st ? <Badge tone={st.kind === "won" ? "green" : st.kind === "lost" ? "red" : "gray"}>{st.label}</Badge> : null}
-                  <span className="w-24 text-right font-mono text-[12px] text-muted tabular-nums">{amount && o.amount != null ? shown(amount, Number(o.amount)) : "—"}</span>
+                  <span className="w-24 text-right text-[13px] text-muted tabular-nums">{amount && o.amount != null ? shown(amount, Number(o.amount)) : "—"}</span>
                 </button>
               </li>
             );
@@ -341,7 +341,7 @@ function RecordPage({ sb, ws, session, role, id, navigate, object }: ViewProps &
             <div className="flex min-w-0 items-center gap-4">
               <Avatar label={name} size={64} />
               <div className="flex min-w-0 flex-col gap-1">
-                <span className="serif truncate text-[34px] leading-[1.1] text-ink">{name}</span>
+                <span className="font-semibold tracking-[-0.02em] truncate text-[27px] leading-[1.1] text-ink">{name}</span>
                 <span className="text-[13px] text-muted">{company ? d.company?.domain : meta.data.object?.label}</span>
                 {company && d.account?.temperature ? (
                   <span className="mt-1.5 flex flex-wrap gap-1.5">
@@ -360,7 +360,7 @@ function RecordPage({ sb, ws, session, role, id, navigate, object }: ViewProps &
             {stats.map(([k, v]) => (
               <div key={k} className="flex flex-col gap-1">
                 <span className="label-mono">{k}</span>
-                <span className="serif text-[32px] leading-none text-ink tabular-nums">{v}</span>
+                <span className="font-semibold tracking-[-0.02em] text-[26px] leading-none text-ink tabular-nums">{v}</span>
               </div>
             ))}
           </div>
@@ -396,7 +396,7 @@ function RecordPage({ sb, ws, session, role, id, navigate, object }: ViewProps &
                     <li key={i}>
                       <button type="button" onClick={() => openLink(l)} className="flex min-h-11 w-full items-center gap-2 px-5 py-2.5 text-left text-[13px] transition-colors duration-[140ms] hover:bg-paper">
                         <span className="text-muted">{l.field}</span>
-                        <span className="ml-auto font-mono text-[11.5px] text-faint">{l.object}</span>
+                        <span className="ml-auto text-[12px] text-faint">{l.object}</span>
                       </button>
                     </li>
                   ))}
@@ -419,7 +419,7 @@ function RecordPage({ sb, ws, session, role, id, navigate, object }: ViewProps &
               onCustomize={() => navigate("settings", "fields")}
               onAddField={() => setAddingField(true)}
             />
-            <p className="px-1 font-mono text-[11.5px] text-faint">Created {timeAgo(String(rec.created_at))}</p>
+            <p className="px-1 text-[12px] text-faint">Created {timeAgo(String(rec.created_at))}</p>
           </div>
         </div>
         {company && d.account ? <AccountActivity sb={sb} accountId={d.account.id} /> : null}

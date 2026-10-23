@@ -126,7 +126,7 @@ export function RecordTable({
             <th className="sticky top-0 left-0 z-30 h-11 w-10 border-b border-line bg-card pl-4">
               <CheckBox on={pageAll || allMatching} label="Select this page" onClick={onTogglePage} />
             </th>
-            <th className="sticky top-0 left-10 z-30 h-11 w-[280px] border-r border-b border-line bg-card px-4 text-left font-mono text-[11.5px] font-normal whitespace-nowrap text-muted">
+            <th className="sticky top-0 left-10 z-30 h-11 w-[280px] border-r border-b border-line bg-card px-4 text-left text-[12px] font-medium whitespace-nowrap text-muted">
               <button type="button" onClick={() => onSort("name")} className="hover:text-ink">
                 {nameField?.label ?? "Name"}
                 {sort.key === "name" ? (sort.desc ? " ↓" : " ↑") : ""}
@@ -159,7 +159,7 @@ export function RecordTable({
                     setOverKey(null);
                   }}
                   style={{ width: w }}
-                  className={`sticky top-0 z-20 h-11 cursor-grab border-b border-line bg-card px-4 text-left font-mono text-[11.5px] font-normal whitespace-nowrap text-muted ${overKey === c.key && dragKey !== c.key ? "shadow-[inset_2px_0_0_var(--color-ink)]" : ""}`}
+                  className={`sticky top-0 z-20 h-11 cursor-grab border-b border-line bg-card px-4 text-left text-[12px] font-normal whitespace-nowrap text-muted ${overKey === c.key && dragKey !== c.key ? "shadow-[inset_2px_0_0_var(--color-ink)]" : ""}`}
                 >
                   {sortable(f) ? (
                     <button type="button" onClick={() => onSort(f.sort!)} title={f.config.description || undefined} className="max-w-full truncate hover:text-ink">
@@ -307,8 +307,8 @@ export function RecordBoard({
           >
             <header className="flex h-12 items-center gap-2 px-3.5 pt-1">
               <Badge tone={"kind" in lane && lane.kind === "won" ? "green" : "kind" in lane && lane.kind === "lost" ? "red" : "gray"}>{lane.label}</Badge>
-              {sum && total ? <span className="ml-auto font-mono text-[11.5px] text-body tabular-nums">{shown(sum, total)}</span> : null}
-              <span className={`${sum && total ? "" : "ml-auto "}font-mono text-[11px] text-faint tabular-nums`}>{(counts[lane.value] ?? items.length).toLocaleString("en-US")}</span>
+              {sum && total ? <span className="ml-auto text-[12px] text-body tabular-nums">{shown(sum, total)}</span> : null}
+              <span className={`${sum && total ? "" : "ml-auto "}text-[12px] text-faint tabular-nums`}>{(counts[lane.value] ?? items.length).toLocaleString("en-US")}</span>
             </header>
             <ul className="flex min-h-16 flex-col gap-2 px-2 pb-2">
               {items.map((r) => (

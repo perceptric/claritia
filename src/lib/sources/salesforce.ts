@@ -7,9 +7,10 @@
 import { activityText } from "./activity.ts";
 import { readCursor } from "./ctx.ts";
 import { dealRecord, day, num } from "./opportunities.ts";
+import { describeSObject, SF_API } from "./properties.ts";
 import type { ActivityItem, ActivityResult, Connector, Ctx, Page, PushChange, PushResult, RawRecord } from "./types.ts";
 
-const V = "v61.0";
+const V = SF_API;
 const OVERLAP_MS = 5 * 60_000;
 const base = (ctx: Ctx) => {
   const u = ctx.secret("instance_url");
@@ -120,8 +121,7 @@ async function customFields(ctx: Ctx, type: "Lead" | "Contact"): Promise<Set<str
   const hit = described.get(key);
   if (hit && Date.now() - hit.at < 3_600_000) return hit.fields;
   try {
-    const d = await ctx.api<{ fields: { name: string; updateable?: boolean; createable?: boolean }[] }>(`${base(ctx)}/sobjects/${type}/describe`);
-    const fields = new Set(d.fields.filter((f) => f.name.endsWith("__c") && (f.updateable || f.createable)).map((f) => f.name));
+    const fields = new Set((await describeSObject(ctx, type)).filter((f) => f.name.endsWith("__c") && (f.updateable || f.createable)).map((f) => f.name));
     described.set(key, { at: Date.now(), fields });
     return fields;
   } catch {

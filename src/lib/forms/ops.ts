@@ -3,7 +3,7 @@
 // problems, while the builder lets a draft be unfinished and blocks only the publish. Runs in the browser and on
 // the server.
 
-import { allFields, checkForm, CONTACT_KEYS, newId, questionKey, type After, type Choice, type Field, type FieldKey, type FieldType, type Form, type Rule } from "./schema.ts";
+import { allFields, checkForm, CONTACT_KEYS, isChoice, isContent, newId, questionKey, type After, type Choice, type Field, type FieldKey, type FieldType, type Form, type Rule, type Step } from "./schema.ts";
 
 export type FieldInput = Partial<Omit<Field, "id">> & { type: FieldType; label: string };
 
@@ -13,12 +13,12 @@ export type Op =
   | { op: "remove_field"; id: string }
   | { op: "move_field"; id: string; step: number; index: number }
   | { op: "add_step"; title?: string }
-  | { op: "update_step"; index: number; title: string }
+  | { op: "update_step"; index: number; title?: string; skip?: Step["skip"] | null }
   | { op: "remove_step"; index: number }
   | { op: "set_rule"; rule: Omit<Rule, "id"> & { id?: string } }
   | { op: "remove_rule"; id: string }
-  | { op: "set_layout"; labels?: Form["layout"]["labels"]; width?: Form["layout"]["width"] }
-  | { op: "set_copy"; title?: string; intro?: string; submit?: string }
+  | { op: "set_layout"; labels?: Form["layout"]["labels"]; width?: Form["layout"]["width"]; progress?: Form["layout"]["progress"]; maxWidth?: number | null }
+  | { op: "set_copy"; title?: string; intro?: string; submit?: string; submitFull?: boolean }
   | { op: "set_consent"; mode?: Form["consent"]["mode"]; label?: string; topicId?: string | null }
   | { op: "set_spam"; minSeconds?: number; turnstile?: boolean }
   | { op: "set_after"; end: After["end"] }
@@ -67,14 +67,15 @@ export function applyOp(input: Form, op: Op): { form: Form } | { error: string }
     case "add_field": {
       const s = op.step ?? (op.after ? (find(form, op.after)?.step ?? form.steps.length - 1) : form.steps.length - 1);
       if (!form.steps[s]) return { error: "That step doesn't exist." };
+      const id = op.id && /^[a-z0-9]{1,24}$/.test(op.id) && !allFields(form).some((x) => x.id === op.id) ? op.id : newId();
       const f: Field = {
         ...op.field,
-        id: op.id && /^[a-z0-9]{1,24}$/.test(op.id) && !allFields(form).some((x) => x.id === op.id) ? op.id : newId(),
-        key: keyFor(op.field, form),
+        id,
+        key: isContent(op.field.type) ? `c.${id}` : keyFor(op.field, form),
         label: op.field.label,
         type: op.field.type,
-        required: op.field.required ?? false,
-        ...(op.field.options ? { options: choices(op.field.options) } : op.field.type === "choice" || op.field.type === "multi" ? { options: [{ value: "Option 1", label: "Option 1" }] } : {}),
+        required: isContent(op.field.type) ? false : (op.field.required ?? false),
+        ...(op.field.options ? { options: choices(op.field.options) } : isChoice(op.field.type) ? { options: [{ value: "Option 1", label: "Option 1" }] } : {}),
       };
       const at = op.after ? form.steps[s].fields.findIndex((x) => x.id === op.after) + 1 : form.steps[s].fields.length;
       form.steps[s].fields.splice(at > 0 ? at : form.steps[s].fields.length, 0, f);
@@ -87,7 +88,11 @@ export function applyOp(input: Form, op: Op): { form: Form } | { error: string }
       const next = { ...cur, ...op.patch, id: cur.id } as Field;
       if (op.patch.options) next.options = choices(op.patch.options);
       for (const k of Object.keys(next) as (keyof Field)[]) if (next[k] === undefined || next[k] === null) delete next[k];
-      if (next.type !== "choice" && next.type !== "multi") delete next.options;
+      if (isContent(next.type)) {
+        next.key = `c.${cur.id}`;
+        next.required = false;
+      } else if (isContent(cur.type)) next.key = keyFor({ ...next, key: undefined }, form);
+      if (!isChoice(next.type)) delete next.options;
       else if (!next.options?.length) next.options = [{ value: "Option 1", label: "Option 1" }];
       if (next.type !== "hidden") delete next.hidden;
       else next.hidden ??= { from: "param", name: "utm_source" };
@@ -114,8 +119,12 @@ export function applyOp(input: Form, op: Op): { form: Form } | { error: string }
       return { form };
     case "update_step":
       if (!form.steps[op.index]) return { error: "That step doesn't exist." };
-      form.steps[op.index].title = op.title || undefined;
-      if (!form.steps[op.index].title) delete form.steps[op.index].title;
+      if (op.title !== undefined) {
+        form.steps[op.index].title = op.title || undefined;
+        if (!form.steps[op.index].title) delete form.steps[op.index].title;
+      }
+      if (op.skip === null) delete form.steps[op.index].skip;
+      else if (op.skip) form.steps[op.index].skip = op.skip;
       return { form };
     case "remove_step": {
       if (!form.steps[op.index]) return { error: "That step doesn't exist." };
@@ -136,12 +145,15 @@ export function applyOp(input: Form, op: Op): { form: Form } | { error: string }
       form.rules = form.rules.filter((r) => r.id !== op.id);
       return { form };
     case "set_layout":
-      form.layout = { ...form.layout, ...(op.labels ? { labels: op.labels } : {}), ...(op.width ? { width: op.width } : {}) };
+      form.layout = { ...form.layout, ...(op.labels ? { labels: op.labels } : {}), ...(op.width ? { width: op.width } : {}), ...(op.progress ? { progress: op.progress } : {}) };
+      if (op.maxWidth === null) delete form.layout.maxWidth;
+      else if (op.maxWidth !== undefined) form.layout.maxWidth = op.maxWidth;
       return { form };
     case "set_copy":
       if (op.title !== undefined) form.title = op.title || undefined;
       if (op.intro !== undefined) form.intro = op.intro || undefined;
-      if (op.submit !== undefined) form.submit = { label: op.submit };
+      if (op.submit !== undefined) form.submit = { ...form.submit, label: op.submit };
+      if (op.submitFull !== undefined) form.submit = { label: form.submit.label, ...(op.submitFull ? { full: true } : {}) };
       if (!form.title) delete form.title;
       if (!form.intro) delete form.intro;
       return { form };
@@ -203,7 +215,7 @@ export function describeOp(op: Op, before: Form): string {
     case "add_step":
       return `Added a step${op.title ? `: ${op.title}` : ""}`;
     case "update_step":
-      return `Renamed step ${op.index + 1}`;
+      return op.title !== undefined ? `Renamed step ${op.index + 1}` : `Changed where step ${op.index + 1} goes next`;
     case "remove_step":
       return `Removed step ${op.index + 1}`;
     case "set_rule":

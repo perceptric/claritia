@@ -56,7 +56,7 @@ export function AccountAlertsPanel({ sb, session, ws }: Pick<ViewProps, "sb" | "
           rules.data.map((r) => (
             <div key={r.id} className="anim-rise-sm mx-4 mt-3 flex flex-wrap items-center gap-3 rounded-lg border border-line bg-paper px-4 py-3 text-[13px]">
               <span>{ruleText(r.rule)}</span>
-              <span className="font-mono text-[11.5px] text-muted">Slack …{r.slack_hint} · up to {r.daily_cap} a day</span>
+              <span className="text-[12px] text-muted">Slack …{r.slack_hint} · up to {r.daily_cap} a day</span>
               <span className="ml-auto flex gap-1.5">
                 <Button variant="ghost" size="sm" disabled={!!busy} onClick={() => run(`t${r.id}`, () => postJson(session, "/api/account-alerts", { workspaceId: ws.id, ruleId: r.id, test: true }))}>
                   {busy === `t${r.id}` ? "Sending…" : "Send test"}

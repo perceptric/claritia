@@ -457,7 +457,7 @@ function ContactPage({ sb, ws, session, role, id, navigate }: ViewProps) {
             <div className="flex min-w-0 items-center gap-4">
               <Avatar label={name} size={64} />
               <div className="flex min-w-0 flex-col gap-1">
-                <span className="serif text-[30px] leading-tight text-ink">{name}</span>
+                <span className="font-semibold tracking-[-0.02em] text-[24px] leading-tight text-ink">{name}</span>
                 <span className="text-[13px] text-muted">{[c.title, d.company?.name ?? d.company?.domain, c.country].filter(Boolean).join(" · ") || c.email}</span>
                 <span className="mt-1 flex flex-wrap gap-1.5">
                   {c.lifecycle ? <Badge tone={LIFECYCLE_TONE[c.lifecycle] ?? "gray"}>{LIFECYCLE_LABEL[c.lifecycle] ?? c.lifecycle}</Badge> : null}
@@ -474,7 +474,7 @@ function ContactPage({ sb, ws, session, role, id, navigate }: ViewProps) {
             ].map(([label, v]) => (
               <div key={label as string} className="flex flex-col gap-1">
                 <span className="label-mono">{label}</span>
-                <span className="serif text-[32px] leading-none text-ink tabular-nums">{v ?? "—"}</span>
+                <span className="font-semibold tracking-[-0.02em] text-[26px] leading-none text-ink tabular-nums">{v ?? "—"}</span>
               </div>
             ))}
           </div>
@@ -496,7 +496,7 @@ function ContactPage({ sb, ws, session, role, id, navigate }: ViewProps) {
                       <span className={`absolute top-0 left-0 flex size-7 items-center justify-center rounded-full ${t.visit ? "bg-sky-wash text-sky" : "bg-clay-wash text-clay"}`}>
                         {t.visit ? <Eye size={12} /> : <Plus size={12} />}
                       </span>
-                      <span className="w-32 shrink-0 pt-1.5 font-mono text-[11.5px] whitespace-nowrap text-muted">{new Date(t.at).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</span>
+                      <span className="w-32 shrink-0 pt-1.5 text-[12px] whitespace-nowrap text-muted">{new Date(t.at).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</span>
                       <span className="min-w-0 pt-1">{t.node}</span>
                     </li>
                   ))}
@@ -557,7 +557,7 @@ function ContactPage({ sb, ws, session, role, id, navigate }: ViewProps) {
                     <li key={i} className="flex items-center gap-2 px-4 py-2.5 text-[13px]">
                       <Badge tone={BASIS_TONE[k.basis]}>{BASIS_LABEL[k.basis]}</Badge>
                       <span className="text-muted">{sourceLabel(k.source)}</span>
-                      <span className="ml-auto font-mono text-[11.5px] text-faint">{fmtDate(k.at)}</span>
+                      <span className="ml-auto text-[12px] text-faint">{fmtDate(k.at)}</span>
                     </li>
                   ))}
                 </ul>
@@ -583,7 +583,7 @@ function ContactPage({ sb, ws, session, role, id, navigate }: ViewProps) {
                   {d.segments.map((g) => (
                     <li key={g.id} className="flex justify-between px-4 py-2.5 text-[13px]">
                       <span>{g.name}</span>
-                      <span className="font-mono text-[11.5px] text-faint">{timeAgo(g.entered_at)}</span>
+                      <span className="text-[12px] text-faint">{timeAgo(g.entered_at)}</span>
                     </li>
                   ))}
                 </ul>

@@ -1,7 +1,6 @@
 "use client";
 
 import { Sketch, type SketchName } from "../sketches/Sketch";
-import { Pip } from "./Pip";
 
 // The first screen of a tool, before there's anything to show: what it does, and cards with small sample visuals.
 // The one place in the app that explains; working screens hold labels, buttons and real errors only.
@@ -16,11 +15,8 @@ export function ToolIntro({ title, lead, action, features, sketch = "cards" }: {
     <section className="mx-auto flex max-w-6xl flex-col gap-8 py-2">
       <div className="wash relative grid items-center gap-6 overflow-hidden rounded-3xl px-7 py-9 md:grid-cols-[1fr_auto] md:px-10">
         <div className="anim-rise flex flex-col gap-4">
-          <div className="flex items-center gap-2">
-            <Pip size={26} follow />
-            <span className="label-mono">Start here</span>
-          </div>
-          <h2 className="serif max-w-2xl text-[40px] leading-[1.08] text-ink md:text-[46px]">
+          <span className="label-mono">Start here</span>
+          <h2 className="font-semibold tracking-[-0.02em] max-w-2xl text-[31px] leading-[1.08] text-ink md:text-[36px]">
             {first}
             {rest ? <span className="text-muted"> {rest}</span> : null}
           </h2>
@@ -35,7 +31,7 @@ export function ToolIntro({ title, lead, action, features, sketch = "cards" }: {
             <div key={f.title} className="lift anim-rise flex flex-col rounded-2xl border border-line bg-card" style={{ animationDelay: `${120 + i * 80}ms` }}>
               <div className="flex flex-1 flex-col gap-3 p-6">
                 {f.visual ? <div className="flex h-20 items-center">{f.visual}</div> : null}
-                <h3 className="serif mt-2 text-[22px] leading-tight text-ink">{f.title}</h3>
+                <h3 className="font-semibold tracking-[-0.02em] mt-2 text-[18px] leading-tight text-ink">{f.title}</h3>
                 <p className="text-[13.5px] leading-relaxed text-body">{f.text}</p>
               </div>
             </div>
@@ -84,7 +80,7 @@ export function SampleStats({ items }: { items: [string, string][] }) {
     <span className="grid w-full grid-cols-3 gap-4" aria-hidden="true">
       {items.map(([lab, v]) => (
         <span key={lab} className="flex flex-col">
-          <span className="serif text-[26px] leading-none tracking-[-0.03em] whitespace-nowrap text-ink tabular-nums">{v}</span>
+          <span className="font-semibold text-[21px] leading-none tracking-[-0.03em] whitespace-nowrap text-ink tabular-nums">{v}</span>
           <span className="label-mono mt-1">{lab}</span>
         </span>
       ))}

@@ -1,14 +1,12 @@
 @import "tailwindcss";
 
-/* Brand v2 (docs/brand.md): a sketchbook that works. Warm paper, a thin serif for big words, Geist for the rest,
-   pills for buttons and tags, soft round cards, calm motion. Screens use these tokens, never a hex. */
+/* Brand (docs/brand.md): warm paper, Geist for every word, pills for buttons and tags, soft round cards, calm motion.
+   Screens use these tokens, never a hex. */
 @custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
 
 @theme {
   --font-sans: "Geist", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --font-mono: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  --font-serif: "Fraunces", ui-serif, Georgia, "Times New Roman", serif;
-  --font-hand: "Caveat", "Comic Sans MS", cursive;
 
   /* Paper and ink */
   --color-paper: #f2f1ed;
@@ -152,26 +150,11 @@ body {
   }
 }
 
-/* The serif for big words: thin, tight, large optical size */
-@layer components {
-  .serif {
-    font-family: var(--font-serif);
-    font-weight: 300;
-    font-variation-settings: "opsz" 144;
-    letter-spacing: -0.03em;
-  }
-  .hand {
-    font-family: var(--font-hand);
-    font-weight: 500;
-  }
-}
-
-/* Small labels: mono, sentence case */
+/* Section and field labels: Geist, small, medium weight, sentence case. Mono is only for code, keys and ids. */
 @layer components {
   .label-mono {
-    font-family: var(--font-mono);
-    font-size: 11.5px;
-    font-weight: 400;
+    font-size: 12px;
+    font-weight: 500;
     letter-spacing: 0;
     color: var(--color-muted);
   }
@@ -271,19 +254,6 @@ body {
     stroke-dashoffset: 1;
   }
 }
-@keyframes breathe {
-  50% {
-    transform: scale(1.02);
-  }
-}
-@keyframes blink {
-  0%, 92%, 100% {
-    transform: scaleY(1);
-  }
-  96% {
-    transform: scaleY(0.1);
-  }
-}
 @keyframes bounce-dot {
   0%, 60%, 100% {
     transform: translateY(0);
@@ -321,17 +291,7 @@ body {
   stroke-dasharray: 1;
   animation: draw 1.4s var(--ease-out) both;
 }
-.pip-body {
-  transform-box: fill-box;
-  transform-origin: 50% 100%;
-  animation: breathe 4s ease-in-out infinite;
-}
-.pip-eye {
-  transform-box: fill-box;
-  transform-origin: center;
-  animation: blink 5s infinite;
-}
-.pip-dot {
+.dot-bounce {
   animation: bounce-dot 1.1s var(--ease-out) infinite;
 }
 @media (prefers-reduced-motion: reduce) {

@@ -20,7 +20,7 @@ export default async function AppPage() {
       <main className="flex min-h-screen items-center justify-center px-4">
         <div className="w-full max-w-md space-y-5 rounded-2xl border border-line bg-card p-8">
           <Logo />
-          <h1 className="serif text-[28px]">Connect Supabase</h1>
+          <h1 className="font-semibold tracking-[-0.02em] text-[22px]">Connect Supabase</h1>
           <p className="text-sm text-muted">Add these in Render under Environment, then redeploy:</p>
           <ul className="list-disc space-y-1 pl-5 text-sm">
             {missing.map((m) => (

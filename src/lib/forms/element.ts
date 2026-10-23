@@ -8,8 +8,8 @@
 
 import { tokensCss, type Tokens } from "./brand.ts";
 import { countryNames } from "./countries.ts";
-import { allFields, safeUrl, visibility, type Field, type Form } from "./schema.ts";
-import { checkAnswers, type Answers } from "./values.ts";
+import { allFields, isContent, nextStep, safeUrl, visibility, type Choice, type Field, type FieldWidth, type Form } from "./schema.ts";
+import { checkAnswers, OTHER, stepPath, type Answers } from "./values.ts";
 
 type Loaded = { id: string; version: number; status: "live" | "paused"; body: Form; tokens: Partial<Tokens>; strict?: boolean; turnstile?: string };
 type Queued = { url: string; body: string; key: string; at: number; tries: number };
@@ -28,24 +28,33 @@ const SCRIPT_BASE = (() => {
 const STYLES = `
 :host{display:block;all:initial;font-family:var(--clr-font);font-size:var(--clr-size);color:var(--clr-text);line-height:1.45}
 *{box-sizing:border-box;font:inherit;color:inherit}
-.f{background:var(--clr-bg);display:flex;flex-direction:column;gap:var(--clr-gap);max-width:var(--clr-width,480px)}
+.f{background:var(--clr-bg);display:flex;flex-direction:column;gap:var(--clr-gap);max-width:var(--clr-width,480px);container-type:inline-size}
 .h{font-family:var(--clr-heading-font);font-size:1.45em;font-weight:600;margin:0;line-height:1.2}
 .i{margin:0;color:var(--clr-muted)}
 .nt{font-size:.85em}
+.sr{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
 .pop{position:fixed;inset:0;z-index:2147483646;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;padding:16px;overflow:auto}
 .pop[hidden]{display:none}
 .pbox{position:relative;background:var(--clr-bg);padding:28px;max-width:calc(var(--clr-width,480px) + 56px);width:100%;max-height:calc(100vh - 32px);overflow:auto}
 .px{position:absolute;top:8px;right:8px;width:32px;height:32px;border:0;background:transparent;cursor:pointer;font-size:20px;line-height:1;color:var(--clr-muted)}
+.pg{display:flex;flex-direction:column;gap:8px}
 .st{margin:0;font-size:.85em;color:var(--clr-muted)}
-.g{display:grid;grid-template-columns:1fr 1fr;gap:var(--clr-gap)}
-.fl{grid-column:span 2;display:flex;flex-direction:column;gap:6px;min-width:0}
-.fl.half{grid-column:span 1}
-@media (max-width:480px){.fl.half{grid-column:span 2}}
+.pb{height:4px;border-radius:4px;overflow:hidden;background:color-mix(in srgb,var(--clr-muted) 22%,transparent)}
+.pb i{display:block;height:100%;background:var(--clr-accent);transform-origin:left}
+.pd{display:flex;gap:6px}
+.pd i{width:8px;height:8px;border-radius:50%;background:color-mix(in srgb,var(--clr-muted) 30%,transparent)}
+.pd i.on{background:var(--clr-accent)}
+.g{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:var(--clr-gap)}
+.fl{grid-column:span 6;display:flex;flex-direction:column;gap:6px;min-width:0}
+.w4{grid-column:span 4}.w3{grid-column:span 3}.w2{grid-column:span 2}
+@container (max-width:400px){.fl{grid-column:span 6}.np{display:none}}
 .lb{font-size:var(--clr-label-size);font-weight:var(--clr-label-weight)}
 .rq{color:var(--clr-muted);margin-left:2px}
 .hp{font-size:.85em;color:var(--clr-muted);margin:0}
 .in,.bx{width:100%;min-height:var(--clr-input-h);padding:0 12px;background:var(--clr-input-bg);border:var(--clr-border-w) solid var(--clr-border);border-radius:var(--clr-radius);outline:none}
 textarea.in{min-height:calc(var(--clr-input-h)*2.4);padding:10px 12px;resize:vertical}
+.sm .in,.sm .bx{min-height:calc(var(--clr-input-h)*.82);font-size:.92em}
+.lg .in,.lg .bx{min-height:calc(var(--clr-input-h)*1.2);font-size:1.08em}
 .in:focus,.bx:focus,.bx[aria-expanded=true]{border-color:var(--clr-accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--clr-accent) 22%,transparent)}
 .in[aria-invalid=true],.bx[aria-invalid=true]{border-color:var(--clr-error)}
 .er{color:var(--clr-error);font-size:.85em;margin:0}
@@ -60,7 +69,25 @@ textarea.in{min-height:calc(var(--clr-input-h)*2.4);padding:10px 12px;resize:ver
 .ch{display:flex;flex-direction:column;gap:8px}
 .ck{display:flex;align-items:flex-start;gap:10px;cursor:pointer}
 .ck input{width:18px;height:18px;margin:2px 0 0;accent-color:var(--clr-accent);flex:none}
+.rt{display:flex;flex-wrap:wrap;gap:6px}
+.rt label{position:relative;cursor:pointer;display:flex}
+.rt input{position:absolute;opacity:0;width:1px;height:1px;margin:0}
+.rt input:focus-visible+span{outline:2px solid var(--clr-accent);outline-offset:2px}
+.rs span{font-size:1.7em;line-height:1;border-radius:4px;color:color-mix(in srgb,var(--clr-muted) 40%,transparent)}
+.rs .on span{color:var(--clr-accent)}
+@media (hover:hover){.rs:hover span{color:var(--clr-accent)}.rs label:hover~label span{color:color-mix(in srgb,var(--clr-muted) 40%,transparent)}}
+.rn span{display:flex;align-items:center;justify-content:center;min-width:var(--clr-input-h);height:var(--clr-input-h);padding:0 8px;background:var(--clr-input-bg);border:var(--clr-border-w) solid var(--clr-border);border-radius:var(--clr-radius)}
+.rn .on span{background:var(--clr-accent);border-color:var(--clr-accent);color:var(--clr-btn-text)}
+.rt[aria-invalid=true] span{border-color:var(--clr-error)}
+.rl{display:flex;justify-content:space-between;gap:12px;font-size:.85em;color:var(--clr-muted)}
+.k1,.k2,.k3{font-family:var(--clr-heading-font);font-weight:600;margin:0;line-height:1.2}
+.k1{font-size:1.45em}.k2{font-size:1.2em}.k3{font-size:1.05em}
+.tx{margin:0;white-space:pre-line}
+.dv{width:100%;border:0;border-top:var(--clr-border-w) solid var(--clr-border);margin:4px 0}
+.im{display:block;max-width:100%;height:auto;border-radius:var(--clr-radius)}
+.ce{text-align:center;align-items:center}
 .ac{display:flex;gap:10px;align-items:center}
+.fw{flex:1}
 .bt{min-height:var(--clr-input-h);padding:0 22px;border:0;border-radius:var(--clr-btn-radius);background:var(--clr-btn-bg);color:var(--clr-btn-text);font-weight:var(--clr-btn-weight);text-transform:var(--clr-btn-case);cursor:pointer}
 .bt:disabled{opacity:.6;cursor:default}
 .bt.bk{background:transparent;color:var(--clr-text);border:var(--clr-border-w) solid var(--clr-border)}
@@ -68,7 +95,7 @@ textarea.in{min-height:calc(var(--clr-input-h)*2.4);padding:10px 12px;resize:ver
 .trap{position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden}
 .al{color:var(--clr-error);margin:0}
 .dn{display:flex;flex-direction:column;gap:6px}
-@media (prefers-reduced-motion:no-preference){.f{transition:opacity .15s ease}}
+@media (prefers-reduced-motion:no-preference){.f{transition:opacity .15s ease}.pb i{transition:transform .2s cubic-bezier(.2,0,0,1)}}
 `;
 
 const el = <K extends keyof HTMLElementTagNameMap>(tag: K, attrs: Record<string, string | boolean | undefined> = {}, ...kids: (Node | string | null | false)[]) => {
@@ -81,6 +108,59 @@ const el = <K extends keyof HTMLElementTagNameMap>(tag: K, attrs: Record<string,
   for (const k of kids) if (k) n.append(k);
   return n;
 };
+
+/** The columns a field takes on the form's six-column grid; a narrow form stacks every field. */
+export const SPAN: Record<FieldWidth, number> = { full: 6, half: 3, third: 2, two_thirds: 4 };
+
+/**
+ * A shuffled list in an order that holds for one page load (one seed), whatever order the list was saved in, so the
+ * options don't jump while the visitor answers.
+ */
+export function shuffled<T extends { value: string }>(list: T[], seed: number): T[] {
+  const hash = (v: string) => {
+    let h = (2166136261 ^ seed) >>> 0;
+    for (let i = 0; i < v.length; i++) h = Math.imul(h ^ v.charCodeAt(i), 16777619) >>> 0;
+    return h;
+  };
+  return list
+    .map((o) => [hash(o.value), o] as const)
+    .sort((a, b) => a[0] - b[0] || (a[1].value < b[1].value ? -1 : 1))
+    .map((x) => x[1]);
+}
+
+/** The input attributes a field's checks call for, so the browser and phone keyboards match what checkAnswers takes. */
+export function inputAttrs(f: Field): Record<string, string> {
+  const v = f.valid ?? {};
+  const a: Record<string, string> = {};
+  const put = (k: string, x: number | string | undefined) => {
+    if (x !== undefined) a[k] = String(x);
+  };
+  if (f.type === "text" || f.type === "textarea") {
+    put("maxlength", v.max ?? (f.type === "text" ? 1000 : 5000));
+    if (v.min) put("minlength", v.min);
+  } else if (f.type === "number") {
+    put("min", v.min);
+    put("max", v.max);
+    put("step", v.step);
+    // Whole numbers that can't go below zero get the digits-only keypad.
+    a.inputmode = v.step !== undefined && Number.isInteger(v.step) && v.min !== undefined && v.min >= 0 ? "numeric" : "decimal";
+  } else if (f.type === "date") {
+    put("min", v.earliest);
+    put("max", v.latest);
+  } else if (f.type === "email") put("maxlength", 320);
+  else if (f.type === "phone") put("maxlength", 50);
+  else if (f.type === "url") put("maxlength", 1000);
+  return a;
+}
+
+/** A default or a value from the address, as the field holds it. */
+export function fromText(f: Field, s: string): unknown {
+  if (f.type === "multi") return s.split(",").map((x) => x.trim()).filter(Boolean);
+  if (f.type === "rating") return Number.isFinite(Number(s)) ? Number(s) : s;
+  return s;
+}
+
+const listOf = (v: unknown): string[] => (Array.isArray(v) ? v.map(String) : (typeof v === "string" && v) || typeof v === "number" ? [String(v)] : []);
 
 function idemKey(): string {
   const b = new Uint8Array(18);
@@ -320,7 +400,10 @@ function addFont(url: string) {
   document.head.append(el("link", { rel: "stylesheet", href: url }));
 }
 
-export class ClaritiaForm extends HTMLElement {
+// Node (the tests) has no HTMLElement; the helpers above still load there.
+const Base = (typeof HTMLElement === "undefined" ? class {} : HTMLElement) as typeof HTMLElement;
+
+export class ClaritiaForm extends Base {
   static observedAttributes = ["form-id"];
   private root: ShadowRoot;
   private data: Loaded | null = null;
@@ -337,6 +420,11 @@ export class ClaritiaForm extends HTMLElement {
   private open: string | null = null;
   private schedule: { tool: string; url: string } | null = null;
   private filter = "";
+  /** "Other" text by field id: undefined when Other isn't picked. */
+  private other: Record<string, string | undefined> = {};
+  /** The defaults put in, so the builder can swap one the visitor hasn't changed. */
+  private defaults: Record<string, unknown> = {};
+  private seed = (Math.random() * 2 ** 31) | 0;
 
   constructor() {
     super();
@@ -351,6 +439,7 @@ export class ClaritiaForm extends HTMLElement {
     this.step = Math.min(p.step ?? this.step, p.form.steps.length - 1);
     this.done = !!p.done;
     if (fresh) this.errors = {};
+    this.applyDefaults(p.form);
     this.render();
   }
 
@@ -388,15 +477,30 @@ export class ClaritiaForm extends HTMLElement {
       this.put(el("p", { text: "This form couldn't load. Refresh the page to try again." }));
       return;
     }
-    // Prefill from the address: ?email=… for fields set to take it.
+    // Defaults first, then the address wins: ?email=… for fields set to take it.
+    this.applyDefaults(this.data.body);
     const params = new URLSearchParams(location.search);
     for (const f of allFields(this.data.body)) {
       const fromKey = params.get(f.key.replace(/^[fq]\./, ""));
-      if (f.prefill && fromKey) this.answers[f.id] = f.type === "multi" ? fromKey.split(",") : fromKey;
+      if (f.prefill && fromKey) this.answers[f.id] = fromText(f, fromKey);
     }
     this.started = Date.now();
     this.render();
     if (this.data.turnstile && this.data.body.spam.turnstile) this.loadTurnstile();
+  }
+
+  /** Each field's default, unless the visitor already answered it. */
+  private applyDefaults(form: Form) {
+    for (const f of allFields(form)) {
+      const prev = this.defaults[f.id];
+      const cur = this.answers[f.id];
+      if (cur !== undefined && (prev === undefined || JSON.stringify(cur) !== JSON.stringify(prev))) continue;
+      const next = f.default !== undefined && f.type !== "hidden" && !isContent(f.type) ? fromText(f, f.default) : undefined;
+      if (next === undefined) {
+        if (prev !== undefined) delete this.answers[f.id];
+        delete this.defaults[f.id];
+      } else this.answers[f.id] = this.defaults[f.id] = next;
+    }
   }
 
   private turnstileToken = "";
@@ -429,17 +533,19 @@ export class ClaritiaForm extends HTMLElement {
     if (!d) return;
     const form = d.body;
     addFont(d.tokens.fontUrl ?? "");
-    const style = el("style", { text: `:host{${tokensCss(d.tokens)}--clr-width:${form.layout.width === "wide" ? "720px" : "480px"}}${STYLES}` });
+    const width = form.layout.maxWidth ? `${form.layout.maxWidth}px` : form.layout.width === "wide" ? "720px" : "480px";
+    const style = el("style", { text: `:host{${tokensCss(d.tokens)}--clr-width:${width}}${STYLES}` });
     if (d.status === "paused") return this.put(style, el("div", { class: "f" }, el("p", { class: "i", text: "This form is closed." })));
     if (this.done) return this.put(style, this.endScreen(form));
 
     const { shown, required } = visibility(form, this.answers);
-    const last = this.step === form.steps.length - 1;
+    // The last step is the one whose next step (after any skip) is the end.
+    const last = nextStep(form, this.step, this.answers) >= form.steps.length;
     const step = form.steps[this.step];
     const wrap = el("form", { class: "f", novalidate: true, "aria-label": form.title || "Form" });
     if (form.title) wrap.append(el("h2", { class: "h", text: form.title }));
     if (form.intro) wrap.append(el("p", { class: "i", text: form.intro }));
-    if (form.steps.length > 1) wrap.append(el("p", { class: "st", text: `Step ${this.step + 1} of ${form.steps.length}${step.title ? ` · ${step.title}` : ""}` }));
+    if (form.steps.length > 1) wrap.append(this.progress(form));
     const grid = el("div", { class: "g" });
     for (const f of step.fields) if (f.type !== "hidden" && shown.has(f.id)) grid.append(this.field(f, form, required.has(f.id)));
     wrap.append(grid);
@@ -458,19 +564,40 @@ export class ClaritiaForm extends HTMLElement {
     if (this.step > 0) {
       const back = el("button", { type: "button", class: "bt bk", text: "Back" });
       back.addEventListener("click", () => {
-        this.step--;
+        // Back goes along the path the answers took, so a skipped step stays skipped.
+        const path = stepPath(form, this.answers);
+        const at = path.indexOf(this.step);
+        this.step = at > 0 ? path[at - 1]! : this.step - 1;
         this.alert = "";
         this.render();
       });
       actions.append(back);
     }
-    actions.append(el("button", { type: "submit", class: "bt", disabled: this.sending, text: this.sending ? "Sending…" : last ? form.submit.label : "Next" }));
+    actions.append(el("button", { type: "submit", class: form.submit.full ? "bt fw" : "bt", disabled: this.sending, text: this.sending ? "Sending…" : last ? form.submit.label : "Next" }));
     wrap.append(actions);
     wrap.addEventListener("submit", (e) => {
       e.preventDefault();
       void this.next();
     });
     this.put(style, wrap);
+  }
+
+  /** Where the visitor is in a form of several steps: a bar, dots, or only words for screen readers. */
+  private progress(form: Form): HTMLElement {
+    const n = form.steps.length;
+    const at = this.step + 1;
+    const title = form.steps[this.step].title;
+    const text = `Step ${at} of ${n}${title ? ` · ${title}` : ""}`;
+    const kind = form.layout.progress ?? "bar";
+    if (kind === "none") return el("p", { class: "sr", text });
+    if (kind === "dots")
+      return el("div", { class: "pg" }, el("p", { class: "sr", text }), el("div", { class: "pd", "aria-hidden": "true" }, ...Array.from({ length: n }, (_, j) => el("i", { class: j < at ? "on" : undefined }))));
+    return el(
+      "div",
+      { class: "pg" },
+      el("p", { class: "st", id: "clr-step", text }),
+      el("div", { class: "pb", role: "progressbar", "aria-labelledby": "clr-step", "aria-valuemin": "1", "aria-valuemax": String(n), "aria-valuenow": String(at) }, el("i", { style: `transform:scaleX(${at / n})` })),
+    );
   }
 
   /** After a fill: the page links the visit to the person (Claritia's site script), and the embed around a frame resizes or opens the next page. */
@@ -550,13 +677,32 @@ export class ClaritiaForm extends HTMLElement {
   private field(f: Field, form: Form, req: boolean): HTMLElement {
     const id = `clr-${f.id}`;
     const err = this.errors[f.id];
-    const box = el("div", { class: `fl${f.width === "half" ? " half" : ""}` });
-    const inside = form.layout.labels === "inside" && ["text", "email", "phone", "number", "url", "textarea"].includes(f.type);
-    const label = el("label", { class: "lb", for: id, text: f.label }, req ? el("span", { class: "rq", "aria-hidden": "true", text: "*" }) : null);
-    if (!inside && f.type !== "checkbox") box.append(label);
+    // A required field always shows: hidden on a phone, it could never be filled there.
+    const cls = ["fl", `w${SPAN[f.width ?? "full"]}`, f.size === "sm" || f.size === "lg" ? f.size : "", f.hideOnPhone && !req ? "np" : "", f.content?.align === "center" ? "ce" : ""];
+    const box = el("div", { class: cls.filter(Boolean).join(" ") });
+    if (isContent(f.type)) {
+      const c = this.content(f);
+      if (c) box.append(c);
+      return box;
+    }
+    const inside = (f.labels ?? form.layout.labels) === "inside" && ["text", "email", "phone", "number", "url", "textarea", "date", "dropdown", "country"].includes(f.type);
+    const group = f.type === "choice" || f.type === "multi" || f.type === "rating";
+    const star = req ? el("span", { class: "rq", "aria-hidden": "true", text: "*" }) : null;
+    // A hidden label, or one shown inside the box, stays for screen readers.
+    const label = group
+      ? el("div", { class: `lb${f.hideLabel ? " sr" : ""}`, id: `${id}-l`, text: f.label }, star)
+      : el("label", { class: `lb${f.hideLabel || inside ? " sr" : ""}`, for: id, text: f.label }, star);
+    if (f.type !== "checkbox") box.append(label);
     const common = { id, "aria-invalid": err ? "true" : undefined, "aria-describedby": err ? `${id}-e` : f.help ? `${id}-h` : undefined, "aria-required": req ? "true" : undefined };
-    const set = (v: unknown) => {
+    const set = (v: unknown, picked = false) => {
       this.answers[f.id] = v;
+      // A pick is checked at once (too many picks, say); typing is checked when the visitor moves on.
+      if (picked) {
+        const e = checkAnswers(form, this.answers, { steps: [this.step] }).errors[f.id];
+        if (e && listOf(v).length) this.errors[f.id] = e;
+        else delete this.errors[f.id];
+        return this.later();
+      }
       if (this.errors[f.id]) {
         delete this.errors[f.id];
         this.later();
@@ -569,37 +715,25 @@ export class ClaritiaForm extends HTMLElement {
         this.later();
       }
     };
-    if (f.type === "choice" || f.type === "country") box.append(this.listbox(f, common, set));
-    else if (f.type === "multi") {
-      const list = el("div", { class: "ch", role: "group", "aria-labelledby": `${id}-l` });
-      label.id = `${id}-l`;
-      const cur = new Set((this.answers[f.id] as string[] | undefined) ?? []);
-      for (const o of f.options ?? []) {
-        const c = el("input", { type: "checkbox", value: o.value, id: `${id}-${(f.options ?? []).indexOf(o)}` }) as HTMLInputElement;
-        c.checked = cur.has(o.value);
-        c.addEventListener("change", () => {
-          if (c.checked) cur.add(o.value);
-          else cur.delete(o.value);
-          set([...cur]);
-        });
-        list.append(el("label", { class: "ck" }, c, el("span", { text: o.label })));
-      }
-      box.append(list);
-    } else if (f.type === "checkbox") {
+    if (f.type === "dropdown" || f.type === "country") {
+      box.append(this.listbox(f, common, set, inside));
+      if (this.otherText(f) !== undefined) box.append(this.otherBox(f, id, set));
+    } else if (f.type === "choice" || f.type === "multi") box.append(this.picks(f, id, common, set));
+    else if (f.type === "rating") box.append(this.rating(f, id, common, set));
+    else if (f.type === "checkbox") {
       const c = el("input", { type: "checkbox", ...common }) as HTMLInputElement;
       c.checked = this.answers[f.id] === true;
       c.addEventListener("change", () => set(c.checked));
-      box.append(el("label", { class: "ck" }, c, el("span", { text: f.label }, req ? el("span", { class: "rq", text: "*" }) : null)));
+      box.append(el("label", { class: "ck" }, c, el("span", { class: f.hideLabel ? "sr" : undefined, text: f.label }, star)));
     } else {
       const types: Record<string, string> = { email: "email", phone: "tel", number: "text", url: "url", date: "date" };
       const auto: Record<string, string> = { email: "email", first_name: "given-name", last_name: "family-name", name: "name", phone: "tel", company: "organization", title: "organization-title", website: "url" };
-      const input = (f.type === "textarea" ? el("textarea", { class: "in", ...common }) : el("input", { class: "in", type: types[f.type] ?? "text", ...common, inputmode: f.type === "number" ? "decimal" : undefined })) as
+      const input = (f.type === "textarea" ? el("textarea", { class: "in", ...common, ...inputAttrs(f) }) : el("input", { class: "in", type: types[f.type] ?? "text", ...common, ...inputAttrs(f) })) as
         | HTMLInputElement
         | HTMLTextAreaElement;
       if (auto[f.key]) input.setAttribute("autocomplete", auto[f.key]);
       const ph = inside ? f.label + (req ? " *" : "") : f.placeholder;
       if (ph) input.setAttribute("placeholder", ph);
-      if (inside) input.setAttribute("aria-label", f.label);
       input.value = typeof this.answers[f.id] === "string" ? (this.answers[f.id] as string) : "";
       input.addEventListener("input", () => {
         this.answers[f.id] = input.value;
@@ -618,15 +752,141 @@ export class ClaritiaForm extends HTMLElement {
     return box;
   }
 
+  /** A heading, text, divider or image. Text is set as text; a picture needs https. */
+  private content(f: Field): HTMLElement | null {
+    const c = f.content ?? {};
+    if (f.type === "heading") {
+      const level = c.level ?? 2;
+      return el(`h${level + 1}` as "h2", { class: `k${level}`, text: c.text ?? "" });
+    }
+    if (f.type === "paragraph") return el("p", { class: "tx", text: c.text ?? "" });
+    if (f.type === "divider") return el("hr", { class: "dv" });
+    if (f.type === "image" && c.src && /^https:\/\//.test(c.src) && safeUrl(c.src)) return el("img", { class: "im", src: c.src, alt: c.alt ?? "", loading: "lazy", decoding: "async" });
+    return null;
+  }
+
+  /** The options in the order this visitor sees them. */
+  private optionsOf(f: Field): Choice[] {
+    const list = f.options ?? [];
+    return f.shuffle ? shuffled(list, this.seed) : list;
+  }
+
+  /** The "Other" text, or undefined when Other isn't picked. */
+  private otherText(f: Field): string | undefined {
+    if (f.id in this.other) return this.other[f.id];
+    const hit = listOf(this.answers[f.id]).find((v) => v.startsWith(OTHER));
+    return hit === undefined ? undefined : hit.slice(OTHER.length);
+  }
+
+  /** The answer from the picks and the Other text: "Other: " and the words, left out while the words are empty. */
+  private compose(f: Field, picked?: string[]): unknown {
+    const o = this.otherText(f);
+    const extra = o !== undefined && o.trim() ? OTHER + o.trim().slice(0, 200) : null;
+    if (f.type === "multi") {
+      const base = picked ?? listOf(this.answers[f.id]).filter((v) => !v.startsWith(OTHER));
+      return extra ? [...base, extra] : base;
+    }
+    return o !== undefined ? (extra ?? undefined) : picked?.[0];
+  }
+
+  private otherBox(f: Field, id: string, set: (v: unknown, picked?: boolean) => void): HTMLElement {
+    const t = el("input", { class: "in", type: "text", id: `${id}-ot`, "aria-label": `${f.label}: Other`, maxlength: "200" }) as HTMLInputElement;
+    t.value = this.otherText(f) ?? "";
+    t.addEventListener("input", () => {
+      this.other[f.id] = t.value;
+      this.answers[f.id] = this.compose(f);
+      if (this.errors[f.id]) {
+        delete this.errors[f.id];
+        const box = t.closest(".fl");
+        box?.querySelector(".er")?.remove();
+        box?.querySelector("[aria-invalid]")?.removeAttribute("aria-invalid");
+      }
+    });
+    t.addEventListener("change", () => set(this.compose(f)));
+    return t;
+  }
+
+  /** Pick one or pick many: radios or check boxes, with "Other" and its text box last. */
+  private picks(f: Field, id: string, common: Record<string, string | undefined>, set: (v: unknown, picked?: boolean) => void): HTMLElement {
+    const multi = f.type === "multi";
+    const list = el("div", {
+      class: "ch",
+      role: multi ? "group" : "radiogroup",
+      "aria-labelledby": `${id}-l`,
+      "aria-invalid": common["aria-invalid"],
+      "aria-describedby": common["aria-describedby"],
+      "aria-required": multi ? undefined : common["aria-required"],
+    });
+    const other = this.otherText(f);
+    const cur = listOf(this.answers[f.id]).filter((v) => !v.startsWith(OTHER));
+    const item = (value: string, text: string, n: string, on: boolean, change: (checked: boolean) => void) => {
+      const c = el("input", { type: multi ? "checkbox" : "radio", name: id, value, id: `${id}-${n}` }) as HTMLInputElement;
+      c.checked = on;
+      c.addEventListener("change", () => change(c.checked));
+      list.append(el("label", { class: "ck" }, c, el("span", { text })));
+    };
+    this.optionsOf(f).forEach((o, i) =>
+      item(o.value, o.label, String(i), cur.includes(o.value) && (multi || other === undefined), (checked) => {
+        if (!multi) {
+          this.other[f.id] = undefined;
+          return set(o.value, true);
+        }
+        set(this.compose(f, checked ? [...cur, o.value] : cur.filter((v) => v !== o.value)), true);
+      }),
+    );
+    if (f.other) {
+      item("", "Other", "o", other !== undefined, (checked) => {
+        this.other[f.id] = checked ? (other ?? "") : undefined;
+        set(this.compose(f, multi ? cur : []), true);
+      });
+      if (other !== undefined) list.append(this.otherBox(f, id, set));
+    }
+    return list;
+  }
+
+  /** A rating: a radio group of stars or numbers, so arrows move and screen readers say "3 of 5". */
+  private rating(f: Field, id: string, common: Record<string, string | undefined>, set: (v: unknown, picked?: boolean) => void): HTMLElement {
+    const r = f.rating ?? { scale: 5, style: "stars" };
+    const cur = Number(this.answers[f.id]) || 0;
+    const stars = r.style !== "numbers";
+    const group = el("div", {
+      class: `rt ${stars ? "rs" : "rn"}`,
+      role: "radiogroup",
+      "aria-labelledby": `${id}-l`,
+      "aria-invalid": common["aria-invalid"],
+      "aria-describedby": common["aria-describedby"],
+      "aria-required": common["aria-required"],
+    });
+    for (let n = 1; n <= r.scale; n++) {
+      const words = n === 1 && r.low ? `, ${r.low}` : n === r.scale && r.high ? `, ${r.high}` : "";
+      const c = el("input", { type: "radio", name: id, value: String(n), id: `${id}-${n}`, "aria-label": `${n} of ${r.scale}${words}` }) as HTMLInputElement;
+      c.checked = cur === n;
+      c.addEventListener("change", () => set(n, true));
+      group.append(el("label", { class: (stars ? n <= cur : n === cur) ? "on" : undefined }, c, el("span", { "aria-hidden": "true", text: stars ? "★" : String(n) })));
+    }
+    if (!r.low && !r.high) return group;
+    return el("div", { class: "ch" }, group, el("div", { class: "rl", "aria-hidden": "true" }, el("span", { text: r.low ?? "" }), el("span", { text: r.high ?? "" })));
+  }
+
   /** A single-pick list: a button that opens options, with keys (up, down, enter, escape, letters) and search for long lists. */
-  private listbox(f: Field, common: Record<string, string | undefined>, set: (v: unknown) => void): HTMLElement {
-    const options = f.type === "country" ? countryNames(navigator.language) : (f.options ?? []);
-    const cur = typeof this.answers[f.id] === "string" ? (this.answers[f.id] as string) : "";
+  private listbox(f: Field, common: Record<string, string | undefined>, set: (v: unknown, picked?: boolean) => void, inside: boolean): HTMLElement {
+    const OTHER_PICK = "\u0000other";
+    const options: Choice[] = f.type === "country" ? countryNames(navigator.language) : [...this.optionsOf(f), ...(f.other ? [{ value: OTHER_PICK, label: "Other" }] : [])];
+    const other = f.type === "country" ? undefined : this.otherText(f);
+    const cur = other !== undefined ? OTHER_PICK : typeof this.answers[f.id] === "string" ? (this.answers[f.id] as string) : "";
+    const pick = (value: string) => {
+      if (value === OTHER_PICK) {
+        this.other[f.id] = other ?? "";
+        return set(this.compose(f), true);
+      }
+      this.other[f.id] = undefined;
+      set(value, true);
+    };
     const isOpen = this.open === f.id;
     const wrap = el("div", { class: "dd" });
     const btn = el("button", { type: "button", class: "bx", ...common, "aria-haspopup": "listbox", "aria-expanded": isOpen ? "true" : "false" });
     const picked = options.find((o) => o.value === cur);
-    btn.append(el("span", { class: picked ? "" : "ph", text: picked?.label ?? f.placeholder ?? "Choose…" }), el("span", { "aria-hidden": "true", text: "▾" }));
+    btn.append(el("span", { class: picked ? "" : "ph", text: picked?.label ?? (inside ? f.label : f.placeholder) ?? "Choose…" }), el("span", { "aria-hidden": "true", text: "▾" }));
     const close = (focus = true) => {
       this.open = null;
       this.filter = "";
@@ -669,7 +929,7 @@ export class ClaritiaForm extends HTMLElement {
         else if (e.key === "Enter") {
           e.preventDefault();
           if (shownOpts[0]) {
-            set(shownOpts[0].value);
+            pick(shownOpts[0].value);
             close();
           }
         }
@@ -679,7 +939,7 @@ export class ClaritiaForm extends HTMLElement {
     shownOpts.slice(0, 300).forEach((o, i) => {
       const li = el("li", { class: "op", role: "option", tabindex: "-1", "aria-selected": o.value === cur ? "true" : "false", text: o.label });
       li.addEventListener("click", () => {
-        set(o.value);
+        pick(o.value);
         close();
       });
       li.addEventListener("keydown", (e) => {
@@ -692,7 +952,7 @@ export class ClaritiaForm extends HTMLElement {
           else move(i - 1);
         } else if (e.key === "Enter" || e.key === " ") {
           e.preventDefault();
-          set(o.value);
+          pick(o.value);
           close();
         } else if (e.key === "Escape" || e.key === "Tab") close(e.key === "Escape");
         else if (e.key.length === 1) {
@@ -714,7 +974,7 @@ export class ClaritiaForm extends HTMLElement {
       return el(
         "div",
         { class: "f dn", role: "status" },
-        el("h2", { class: "h", text: "Pick a time" }),
+        el("h2", { class: "h", text: form.after.schedule?.heading || "Pick a time" }),
         el("iframe", { src: book.url, title: "Book a meeting", style: "width:100%;min-height:680px;border:0", loading: "lazy", allow: "payment" }),
       );
     }
@@ -741,12 +1001,14 @@ export class ClaritiaForm extends HTMLElement {
     this.alert = "";
     if (Object.keys(r.errors).length) {
       this.render();
+      // A group (radios, check boxes, a rating) takes focus on its first box.
       const first = this.root.querySelector("[aria-invalid=true]") as HTMLElement | null;
-      first?.focus();
+      (first && !first.matches("input,button,textarea") ? (first.querySelector("input,button") as HTMLElement | null) : first)?.focus();
       return;
     }
-    if (this.step < form.steps.length - 1) {
-      this.step++;
+    const to = nextStep(form, this.step, this.answers);
+    if (to < form.steps.length) {
+      this.step = to;
       this.render();
       (this.root.querySelector(".in, .bx, input") as HTMLElement | null)?.focus();
       return;

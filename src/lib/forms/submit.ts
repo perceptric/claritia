@@ -11,9 +11,10 @@ import type { ContactInput } from "../contacts/import.ts";
 import { cleanEmail, isRejected } from "../identity/clean.ts";
 import type { Rpc } from "../jobs.ts";
 import type { Tokens } from "./brand.ts";
-import { bookingUrl } from "./schedule.ts";
+import { bookingUrl, showsMeeting } from "./schedule.ts";
 import { regionOf } from "../web/policy.ts";
-import { allFields, type Form } from "./schema.ts";
+import { contactPolicy } from "./overwrite.ts";
+import { allFields, type Form, type Overwrite } from "./schema.ts";
 import { checkAnswers, contactParts } from "./values.ts";
 
 export type Incoming = {
@@ -42,7 +43,8 @@ export type SubmitArgs = {
   p_idem: string;
   p_values: Record<string, unknown>;
   p_hidden: Record<string, string>;
-  p_contact: ContactInput | null;
+  /** overwrite: what each contact value may do to one already there (src/lib/forms/overwrite.ts). */
+  p_contact: (ContactInput & { overwrite?: Record<string, Overwrite> }) | null;
   p_consent: { given?: boolean; notice?: boolean; wording?: string };
   p_country: string | null;
   p_spam: string | null;
@@ -124,7 +126,7 @@ export function prepareSubmit(
   const consent = form.consent.mode === "notice" ? { notice: true, wording: form.consent.label } : asked ? { given: consentIn.given === true, wording: form.consent.label } : {};
 
   const country = (typeof parts.country === "string" && countryCode(parts.country)) || (opts.country && /^[A-Z]{2}$/.test(opts.country) ? opts.country : null);
-  let contact: ContactInput | null = null;
+  let contact: SubmitArgs["p_contact"] = null;
   if (!spam && !isRejected(e)) {
     const fields: ContactInput["fields"] = {};
     for (const [k, v] of Object.entries(parts.fields)) {
@@ -150,6 +152,8 @@ export function prepareSubmit(
       fields,
     };
     for (const k of Object.keys(contact) as (keyof ContactInput)[]) if (contact[k] === undefined) delete contact[k];
+    const overwrite = contactPolicy(form, checked.values);
+    if (Object.keys(overwrite).length) contact.overwrite = overwrite;
   }
   return {
     args: {
@@ -208,7 +212,11 @@ export async function acceptFill(
   const sch = f.body.after.schedule;
   const lead = r.args.p_contact;
   let schedule: { tool: string; url: string } | null = null;
-  if (sch && lead && !r.args.p_spam) {
+  // Who sees the calendar is decided here, on the checked answers (a field a rule hid or a skipped one has none) and
+  // on the server's email class: a work email is anything but free mail.
+  const byId: Record<string, unknown> = {};
+  for (const x of allFields(f.body)) if (r.args.p_values[x.key] !== undefined) byId[x.id] = r.args.p_values[x.key];
+  if (sch && lead && !r.args.p_spam && showsMeeting(sch, byId, !!lead.email_class && lead.email_class !== "free")) {
     let base = sch.url;
     if (sch.perOwner) {
       const own = await rpc("scheduler_for", { p_submission: sid, p_tool: sch.tool });
@@ -218,7 +226,7 @@ export async function acceptFill(
     try {
       host = new URL(o.origin ?? "").hostname || undefined;
     } catch {}
-    const url = base ? bookingUrl(sch.tool, base, { first: lead.first_name, last: lead.last_name, email: lead.email }, sid, host) : null;
+    const url = base ? bookingUrl(sch.tool, base, { first: lead.first_name, last: lead.last_name, email: lead.email }, sid, host, sch.prefill !== false) : null;
     if (url) schedule = { tool: sch.tool, url };
   }
   return { status: 200, body: { id: sid, schedule } };

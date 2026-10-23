@@ -84,7 +84,7 @@ export function RecordWork({ sb, ws, session, role, object, record, people }: Pi
                       onClick={() => void run(async () => must(await sb.rpc("task_save", { p_ws: ws.id, p_object: object, p_record: record, p_id: t.id, p_title: t.title, p_due: t.due, p_assignee: t.assignee, p_done: !t.done })))}
                     />
                     <span className={`min-w-0 flex-1 truncate ${t.done ? "text-faint line-through" : ""}`}>{t.title}</span>
-                    {t.due ? <span className={`font-mono text-[11.5px] ${late ? "text-rose" : "text-muted"}`}>{new Date(`${t.due}T00:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" })}</span> : null}
+                    {t.due ? <span className={`text-[12px] ${late ? "text-rose" : "text-muted"}`}>{new Date(`${t.due}T00:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" })}</span> : null}
                     {t.assignee ? <Avatar label={who(t.assignee)} size={20} /> : null}
                     <button
                       type="button"
@@ -146,7 +146,7 @@ function NoteRow({ note, author, mine, onSave, onDelete }: { note: Note; author:
       <div className="flex items-center gap-2">
         <Avatar label={author} size={20} />
         <span className="font-medium">{author}</span>
-        <span className="font-mono text-[11px] text-muted">{timeAgo(note.created_at)}</span>
+        <span className="text-[12px] text-muted">{timeAgo(note.created_at)}</span>
         {mine && !editing ? (
           <span className="ml-auto flex gap-1">
             <Button variant="plain" size="sm" onClick={() => setEditing(true)}>

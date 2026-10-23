@@ -4,7 +4,54 @@
 // tool; the rest are linked by email as a maybe. Runs in the browser and on the server.
 
 export type SchedulerTool = "calendly" | "calcom" | "hubspot_meetings" | "savvycal" | "link";
-export type Schedule = { tool: SchedulerTool; url: string; perOwner: boolean };
+
+/**
+ * Who sees the calendar (docs/form-studio.md Part 3). A rule reads a field's answer by field id, or "@work_email" for
+ * "the email is a work email". gte and lte compare numbers.
+ */
+export type MatchRule = { field: string; op: "is" | "is_not" | "filled" | "empty" | "gte" | "lte"; value?: string };
+
+export type Schedule = {
+  tool: SchedulerTool;
+  url: string;
+  /** Book with the contact's owner when they have a link, else the team link. */
+  perOwner: boolean;
+  /** Everyone, or only leads that match the rules; the rest see the form's message or page. */
+  who?: "all" | "match";
+  rules?: MatchRule[];
+  /** Match any rule instead of all of them. */
+  any?: boolean;
+  /** The line above the calendar. */
+  heading?: string;
+  /** Fill in the lead's name and email on the scheduler. On unless turned off. */
+  prefill?: boolean;
+};
+
+export const WORK_EMAIL = "@work_email";
+
+/**
+ * Whether this lead sees the calendar. `work` says whether the email is a work email (the server knows from the
+ * identity lists; the browser guesses from the free-mail list it has). A rule on a field the lead left empty only
+ * matches "empty", so a skipped question never books by accident.
+ */
+export function showsMeeting(s: Schedule, answers: Record<string, unknown>, work: boolean): boolean {
+  if (s.who !== "match" || !s.rules?.length) return true;
+  const one = (r: MatchRule): boolean => {
+    if (r.field === WORK_EMAIL) return r.op === "is_not" ? !work : work;
+    const raw = answers[r.field];
+    const list = Array.isArray(raw) ? raw.map(String) : raw === undefined || raw === null || raw === "" || raw === false ? [] : [String(raw)];
+    if (r.op === "filled") return list.length > 0;
+    if (r.op === "empty") return list.length === 0;
+    if (!list.length) return false;
+    if (r.op === "is") return list.includes(r.value ?? "");
+    if (r.op === "is_not") return !list.includes(r.value ?? "");
+    const n = Number(list[0]);
+    const want = Number(r.value);
+    if (!Number.isFinite(n) || !Number.isFinite(want)) return false;
+    return r.op === "gte" ? n >= want : n <= want;
+  };
+  return s.any ? s.rules.some(one) : s.rules.every(one);
+}
 
 export const SCHEDULERS: { value: SchedulerTool; label: string; domain: string; hosts: RegExp | null; tracks: boolean }[] = [
   { value: "calendly", label: "Calendly", domain: "calendly.com", hosts: /^(www\.)?calendly\.com$/, tracks: true },
@@ -31,11 +78,20 @@ export function linkProblem(tool: SchedulerTool, raw: string): string | null {
 
 /**
  * The link to open: the tool's link with the lead filled in and the fill's tracking id. Returns null for a link the
- * tool check refuses, so a bad saved link never opens.
+ * tool check refuses, so a bad saved link never opens. With `prefill` off the name and email stay out of the link;
+ * the tracking id still goes in, so the booking still links to its fill.
  */
-export function bookingUrl(tool: SchedulerTool, base: string, lead: { first?: string | null; last?: string | null; email?: string | null }, submissionId: string, embedHost?: string): string | null {
+export function bookingUrl(
+  tool: SchedulerTool,
+  base: string,
+  who: { first?: string | null; last?: string | null; email?: string | null },
+  submissionId: string,
+  embedHost?: string,
+  prefill = true,
+): string | null {
   if (linkProblem(tool, base)) return null;
   const u = new URL(base);
+  const lead = prefill ? who : {};
   const name = [lead.first, lead.last].filter(Boolean).join(" ");
   const set = (k: string, v: string | null | undefined) => {
     if (v) u.searchParams.set(k, v.slice(0, 200));
