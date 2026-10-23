@@ -1177,6 +1177,37 @@ select pg_temp.check((select threshold from lead_settings where workspace_id = '
 select pg_temp.check((select enabled from lead_settings where workspace_id = '22222222-0000-0000-0000-000000000000'), 'Cat''s scoring changed');
 select set_config('request.jwt.claim.sub', '', false);
 
+-- Notes and tasks (049): only in your own workspace; a note is changed by its author or an owner.
+insert into companies (id, workspace_id, name, domain) values
+  ('49a00000-0000-0000-0000-0000000000a1', '11111111-0000-0000-0000-000000000000', 'Acme customer', 'acmecustomer.com'),
+  ('49c00000-0000-0000-0000-0000000000c1', '22222222-0000-0000-0000-000000000000', 'Cat customer', 'catcustomer.com');
+insert into notes (id, workspace_id, object, record_id, body, author) values
+  ('49d00000-0000-0000-0000-0000000000c1', '22222222-0000-0000-0000-000000000000', 'company', '49c00000-0000-0000-0000-0000000000c1', 'Cat secret', 'c0000000-0000-0000-0000-000000000000'),
+  ('49d00000-0000-0000-0000-0000000000a1', '11111111-0000-0000-0000-000000000000', 'company', '49a00000-0000-0000-0000-0000000000a1', 'Ann wrote this', 'a0000000-0000-0000-0000-000000000000');
+insert into tasks (id, workspace_id, object, record_id, title) values
+  ('49e00000-0000-0000-0000-0000000000c1', '22222222-0000-0000-0000-000000000000', 'company', '49c00000-0000-0000-0000-0000000000c1', 'Cat task');
+select pg_temp.as_user('b0000000-0000-0000-0000-000000000000');
+set role authenticated;
+select pg_temp.check((select count(*) from notes where workspace_id = '22222222-0000-0000-0000-000000000000') = 0, 'Ben reads Cat''s notes');
+select pg_temp.check((select count(*) from tasks where workspace_id = '22222222-0000-0000-0000-000000000000') = 0, 'Ben reads Cat''s tasks');
+select pg_temp.fails($$select note_save('22222222-0000-0000-0000-000000000000', 'company', '49c00000-0000-0000-0000-0000000000c1', null, 'x')$$, 'Ben writes a note in Cat''s workspace');
+select pg_temp.fails($$select note_save('11111111-0000-0000-0000-000000000000', 'company', '49c00000-0000-0000-0000-0000000000c1', null, 'x')$$, 'Ben notes Cat''s record through his workspace');
+select pg_temp.fails($$select note_save('11111111-0000-0000-0000-000000000000', 'company', '49a00000-0000-0000-0000-0000000000a1', '49d00000-0000-0000-0000-0000000000a1', 'mine now')$$, 'Ben (not the author, not an owner) changes Ann''s note');
+select pg_temp.fails($$select note_delete('49d00000-0000-0000-0000-0000000000c1')$$, 'Ben deletes Cat''s note');
+select pg_temp.fails($$select task_save('11111111-0000-0000-0000-000000000000', 'company', '49a00000-0000-0000-0000-0000000000a1', '49e00000-0000-0000-0000-0000000000c1', 'took it', null, null, true)$$, 'Ben changes Cat''s task through his workspace');
+select pg_temp.fails($$select task_delete('49e00000-0000-0000-0000-0000000000c1')$$, 'Ben deletes Cat''s task');
+select pg_temp.fails($$insert into notes (workspace_id, object, record_id, body) values ('11111111-0000-0000-0000-000000000000', 'company', '49a00000-0000-0000-0000-0000000000a1', 'x')$$, 'Ben inserts a note directly');
+select pg_temp.fails($$select record_exists('22222222-0000-0000-0000-000000000000', 'company', '49c00000-0000-0000-0000-0000000000c1')$$, 'Ben probes for records');
+select note_save('11111111-0000-0000-0000-000000000000', 'company', '49a00000-0000-0000-0000-0000000000a1', null, 'Ben''s own note');
+select task_save('11111111-0000-0000-0000-000000000000', 'company', '49a00000-0000-0000-0000-0000000000a1', null, 'Call them', current_date, 'a0000000-0000-0000-0000-000000000000', false);
+reset role;
+select pg_temp.check((select count(*) from notes where workspace_id = '11111111-0000-0000-0000-000000000000') = 2, 'Ben (a member) can''t note Acme''s record');
+select pg_temp.check((select body from notes where id = '49d00000-0000-0000-0000-0000000000a1') = 'Ann wrote this', 'Ann''s note changed');
+select pg_temp.check((select count(*) from tasks where workspace_id = '22222222-0000-0000-0000-000000000000' and not done) = 1, 'Cat''s task changed');
+delete from companies where id = '49a00000-0000-0000-0000-0000000000a1';
+select pg_temp.check((select count(*) from notes where record_id = '49a00000-0000-0000-0000-0000000000a1') = 0 and (select count(*) from tasks where record_id = '49a00000-0000-0000-0000-0000000000a1') = 0, 'A deleted company keeps its notes and tasks');
+select set_config('request.jwt.claim.sub', '', false);
+
 -- Cloud minutes: once Acme has used its 2,000, nobody there can start a run.
 insert into runs (workspace_id, project_id, test_name, test_version, environment_name, base_url, lock, status, duration_ms)
 values ('11111111-0000-0000-0000-000000000000', 'a1000000-0000-0000-0000-000000000000', 'long', 1, 'staging', 'https://x.com', '', 'passed', 2000 * 60000);

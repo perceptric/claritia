@@ -13,6 +13,7 @@ import { askConfirm, askText, tell } from "../Dialogs";
 import { FilterEditor, Popover } from "../FilterBar";
 import { Select } from "../Select";
 import { Button, Empty, ErrorNote, errorText, Input, Loading, must, Page, Segmented, Tabs, useLoad, type ViewProps } from "../ui";
+import { FieldDialog } from "./FieldDialog";
 import { FieldEditor } from "./FieldInput";
 import { useMeta, type Meta } from "./meta";
 import { DEFAULT_WIDTH, RecordBoard, RecordTable, type Column, type Row } from "./RecordTable";
@@ -99,6 +100,7 @@ export function RecordsList({
   const [pop, setPop] = useState<{ kind: "filter" | "columns" | "save" | "bulk_edit"; anchor: HTMLElement; index?: number } | null>(null);
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
+  const [addingField, setAddingField] = useState(false);
 
   const fields = meta.data?.fields ?? [];
   const fieldsForFilter = filterFields(fields) as FilterField<never>[];
@@ -304,6 +306,19 @@ export function RecordsList({
     .filter((f): f is AnyField => !!f && f.key !== view.group)
     .slice(0, 3);
 
+  const fieldDialog = addingField ? (
+    <FieldDialog
+      sb={sb}
+      ws={ws}
+      object={object}
+      onClose={() => setAddingField(false)}
+      onSaved={(key) => {
+        setAddingField(false);
+        meta.reload();
+        if (key) setView({ ...view, columns: [...view.columns.filter((c) => c.key !== `f.${key}`), { key: `f.${key}`, width: DEFAULT_WIDTH }] });
+      }}
+    />
+  ) : null;
   return (
     <Page icon={icon} title={title} count={list.data ? total.toLocaleString("en-US") : undefined} flush actions={actions}>
       <Tabs value={active.value} tabs={tabs.map((t) => ({ value: t.value, label: t.label }))} onChange={pickTab} />
@@ -474,6 +489,7 @@ export function RecordsList({
             onSave={save}
             onColumns={(c) => setView({ ...view, columns: c })}
             nameExtra={nameExtra}
+            onAddField={() => setAddingField(true)}
           />
           <div className="flex items-center gap-2 px-4 py-3 font-mono text-[11.5px] text-muted md:px-5">
             <span>
@@ -573,6 +589,7 @@ export function RecordsList({
           />
         </Popover>
       ) : null}
+      {fieldDialog}
     </Page>
   );
 }

@@ -24,6 +24,16 @@ Patterns taken from Omniscient: stages with a kind (open, won, lost) so boards a
 - Links only go to companies and contacts the same source already synced. A CRM that won't share deals (scope not granted) logs one error in the sync log and contacts keep syncing.
 - Tests: `tests/opportunities.test.ts`, `tests/pg/opportunities.pg.ts` (250 deals through 429s and an expired token, stage changes, deletes, a portal without the deals scope).
 
+## Fields, notes and tasks (closer to Omniscient)
+
+- **Add a field where you are.** The + at the end of any records table, and Add field at the bottom of a record's details, open the field dialog; the new field joins the table as a column. Settings › Fields uses the same dialog.
+- **The field dialog:** name, type (16 types, now with Rating), colored options for pick lists (click an option's tag to change its color; they show as square tags everywhere), what a linked record points at, a one-line description shown on hover, the group and the required switch. Colors and descriptions live in `fields.options[].color` and `fields.config.description`.
+- **Notes and tasks** on every record (contacts, companies, opportunities, custom objects): `supabase/migrations/049_crm_notes.sql`, `src/components/app/records/RecordWork.tsx`. Notes are changed by their author or an owner. Tasks have a due date (late ones in red) and a teammate. A deleted record takes its notes and tasks with it.
+- Tests: leak tests for notes and tasks (`tests/db/leaks.sql`), and the CRM part of `scripts/screens-check.ts`.
+- Still to port from Omniscient: table grouping and footer totals, keyboard moves with copy and paste, a page per field with unique and default values, paired relationships, formula and rollup fields, files on a record.
+
+Running cost: no AI and no new services. Notes and tasks are small rows (under 1 KB each): about 50 MB at Beta and 1 GB at Growth, inside the Supabase plan. $0 a month added at both stages.
+
 ## Settings
 
 - **CRM:** Connection, Imports, Sync log, Fields, Objects.

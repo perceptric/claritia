@@ -6,6 +6,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { useState } from "react";
 import { shown, valueOf, type AnyField } from "@/lib/records/fields";
+import { Plus } from "../../Icons";
 import { CardHead, ErrorNote, errorText, Panel, timeAgo } from "../ui";
 import { FieldEditor, FieldValue, type Link } from "./FieldInput";
 import type { Meta } from "./meta";
@@ -60,6 +61,7 @@ export function FieldsPanel({
   skip = [],
   onSave,
   onCustomize,
+  onAddField,
 }: {
   sb: SupabaseClient;
   wsId: string;
@@ -71,6 +73,7 @@ export function FieldsPanel({
   skip?: string[];
   onSave: (f: AnyField, v: unknown) => Promise<void>;
   onCustomize?: () => void;
+  onAddField?: () => void;
 }) {
   const [editing, setEditing] = useState<string | null>(null);
   const [error, setError] = useState("");
@@ -99,7 +102,7 @@ export function FieldsPanel({
               const empty = f.kind === "relation" ? !l?.length : v == null || v === "" || (Array.isArray(v) && !v.length);
               return (
                 <div key={f.key} className="grid grid-cols-[120px_1fr] items-start gap-3 px-4 py-2 text-[13px]">
-                  <dt className="pt-1.5 text-muted">
+                  <dt className="pt-1.5 text-muted" title={f.config.description || undefined}>
                     {f.label}
                     {f.required ? <span className="text-danger"> *</span> : null}
                   </dt>
@@ -140,6 +143,14 @@ export function FieldsPanel({
               );
             })}
           </dl>
+          {i === sections.length - 1 && onAddField ? (
+            <div className="border-t border-line px-4 py-2">
+              <button type="button" onClick={onAddField} className="inline-flex h-7 items-center gap-1.5 rounded-md px-1.5 text-[12.5px] font-medium text-muted hover:bg-hover hover:text-ink">
+                <Plus size={13} />
+                Add field
+              </button>
+            </div>
+          ) : null}
         </Panel>
       ))}
     </>
