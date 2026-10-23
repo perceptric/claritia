@@ -25,7 +25,7 @@ export function AfterSubmit({ form, apply, sb, ws, session, role }: { form: Form
     if (k !== "meeting" && form.after.schedule) apply({ op: "set_schedule", schedule: null });
     if (k === "page") apply({ op: "set_after", end: { kind: "redirect", url: "" } });
     else if (end.kind === "redirect") apply({ op: "set_after", end: THANKS });
-    if (k === "meeting") apply({ op: "set_schedule", schedule: { tool: "calendly", url: "", perOwner: true } });
+    if (k === "meeting") apply({ op: "set_schedule", schedule: { tool: "claritia", url: "", perOwner: false } });
   };
   const page = end.kind === "redirect" ? (end.url ? linkProblem("link", end.url) : null) : null;
   return (
