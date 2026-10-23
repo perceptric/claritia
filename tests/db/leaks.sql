@@ -952,6 +952,7 @@ select pg_temp.fails($$insert into forms (workspace_id, name) values ('11111111-
 select pg_temp.fails($$update submissions set spam = true$$, 'Ben writes submissions directly');
 select pg_temp.fails($$select form_create('22222222-0000-0000-0000-000000000000', 'x', '{}')$$, 'Ben makes a form in Cat''s workspace');
 select pg_temp.fails($$select form_save('f0c00000-0000-0000-0000-0000000000c1', 'mine', '{}', 0)$$, 'Ben saves Cat''s form');
+select pg_temp.fails($$select form_rename('f0c00000-0000-0000-0000-0000000000c1', 'mine')$$, 'Ben renames Cat''s form');
 select pg_temp.fails($$select form_set_status('f0c00000-0000-0000-0000-0000000000c1', 'paused')$$, 'Ben pauses Cat''s form');
 select pg_temp.fails($$select form_delete('f0c00000-0000-0000-0000-0000000000c1')$$, 'Ben deletes Cat''s form');
 select pg_temp.fails($$select form_destination_delete('fdc00000-0000-0000-0000-0000000000c1')$$, 'Ben deletes Cat''s destination');
@@ -970,6 +971,9 @@ select pg_temp.fails($$select deliveries_held('fda00000-0000-0000-0000-000000000
 select pg_temp.fails_with($$select form_set_status(form_create('11111111-0000-0000-0000-000000000000', 'Fresh', '{}'), 'live')$$, '%Publish the form first%', 'Ben turns on a form never published');
 select pg_temp.check(form_save('f0a00000-0000-0000-0000-0000000000a1', 'Acme demo 2', '{"a":1}', 0) = 1, 'Ben can''t save Acme''s form');
 select pg_temp.fails_with($$select form_save('f0a00000-0000-0000-0000-0000000000a1', 'stale', '{"a":0}', 0)$$, '%changed in another window%', 'A stale draft overwrites a newer one');
+select form_rename('f0a00000-0000-0000-0000-0000000000a1', '  Acme demo 3  ');
+select pg_temp.check((select name = 'Acme demo 3' and draft_rev = 1 from forms where id = 'f0a00000-0000-0000-0000-0000000000a1'), 'A rename changes the draft or keeps the spaces');
+select pg_temp.fails_with($$select form_rename('f0a00000-0000-0000-0000-0000000000a1', '   ')$$, '%Name the form%', 'A form is renamed to nothing');
 select pg_temp.as_user('');
 set role anon;
 select pg_temp.fails($$select form_public('f0a00000-0000-0000-0000-0000000000a1')$$, 'Anyone reads a form past the public route');

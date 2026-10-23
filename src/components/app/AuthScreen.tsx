@@ -4,7 +4,6 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { useEffect, useState } from "react";
 import { Logo } from "../Logo";
 import { Sketch } from "../sketches/Sketch";
-import { Pip, type PipMood } from "./Pip";
 import { Button, ErrorNote, errorText } from "./ui";
 
 // Where people land after signing in.
@@ -46,7 +45,7 @@ function GitHubLogo() {
 const ssoClass = "press flex h-11 w-full items-center justify-center gap-3 rounded-full border border-line-strong bg-card text-[13.5px] font-medium text-ink hover:bg-paper disabled:opacity-50";
 
 /** Split screen: the form on the left, a drawn funnel on the right that fills as you type. */
-function Frame({ typed = 0, mood = "idle", children }: { typed?: number; mood?: PipMood; children: React.ReactNode }) {
+function Frame({ typed = 0, children }: { typed?: number; children: React.ReactNode }) {
   return (
     <main className="grid min-h-screen bg-paper md:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]">
       <div className="flex flex-col px-6 py-8 md:px-14">
@@ -58,7 +57,7 @@ function Frame({ typed = 0, mood = "idle", children }: { typed?: number; mood?: 
       <div className="relative m-3 hidden overflow-hidden rounded-3xl bg-paper-deep md:block">
         <div className="wash absolute inset-0 opacity-80" />
         <div className="relative flex h-full flex-col items-center justify-center gap-10 p-10">
-          <p className="serif max-w-md text-center text-[44px] leading-[1.05] text-ink">
+          <p className="font-semibold tracking-[-0.02em] max-w-md text-center text-[34px] leading-[1.05] text-ink">
             Visitors in.
             <span className="text-muted"> Meetings out.</span>
           </p>
@@ -68,9 +67,6 @@ function Frame({ typed = 0, mood = "idle", children }: { typed?: number; mood?: 
             {Array.from({ length: Math.min(typed, 14) }, (_, i) => (
               <span key={i} className="anim-pop absolute size-2 rounded-full bg-sky" style={{ left: `${36 + ((i * 37) % 30)}%`, top: `${30 + ((i * 13) % 14)}%` }} />
             ))}
-            <span className="absolute -right-6 -bottom-4">
-              <Pip size={72} mood={mood} follow />
-            </span>
           </div>
         </div>
       </div>
@@ -121,9 +117,9 @@ export function AuthScreen({ sb }: { sb: SupabaseClient }) {
 
   if (sentTo) {
     return (
-      <Frame typed={14} mood="done">
+      <Frame typed={14}>
         <div className="space-y-2">
-          <h1 className="serif text-[36px] leading-tight">Check your inbox</h1>
+          <h1 className="font-semibold tracking-[-0.02em] text-[28px] leading-tight">Check your inbox</h1>
           <p className="text-sm text-muted">
             We sent a sign-in link to <span className="font-medium text-ink">{sentTo}</span>. It works once and expires in an hour.
           </p>
@@ -142,9 +138,9 @@ export function AuthScreen({ sb }: { sb: SupabaseClient }) {
   }
 
   return (
-    <Frame typed={email.length} mood={busy ? "thinking" : email ? "writing" : "idle"}>
+    <Frame typed={email.length}>
       <div>
-        <h1 className="serif text-[40px] leading-[1.05]">
+        <h1 className="font-semibold tracking-[-0.02em] text-[31px] leading-[1.05]">
           Welcome
           <span className="text-muted"> to Claritia</span>
         </h1>

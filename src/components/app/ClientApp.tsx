@@ -7,8 +7,8 @@ import { NAV, resolveRoute, type Route as NavRoute } from "@/lib/nav";
 import { BarChart, Box, Branch, Contact, Dollar, FileText, FormIcon, ListIcon, LogOut, Mail, Megaphone, Moon, Search, Settings, Sun, Users } from "../Icons";
 import { Logo } from "../Logo";
 import { AuthScreen } from "./AuthScreen";
+import { Dots } from "./Ai";
 import { CommandBar, type Command } from "./CommandBar";
-import { Pip } from "./Pip";
 import { DialogHost } from "./Dialogs";
 import { Avatar, ErrorNote, errorText, mayLeave, must, type Role, type Route, type ViewProps, type Workspace } from "./ui";
 import { ContactsView } from "./views/ContactsView";
@@ -57,7 +57,7 @@ const readLoc = (): Loc => {
 function Splash() {
   return (
     <main className="flex min-h-screen items-center justify-center">
-      <Pip size={56} mood="thinking" />
+      <Dots />
     </main>
   );
 }
@@ -199,7 +199,7 @@ export function ClientApp({ config }: { config: SupaConfig }) {
   });
   const navLinks = NAV.map((n) => [
     n.group !== undefined ? (
-      <p key={`g-${n.route}`} className={`hidden px-3.5 font-mono text-[11px] text-faint md:block ${n.group ? "mt-4 mb-1" : "mx-3.5 mt-3 mb-2 h-px bg-line px-0"}`}>
+      <p key={`g-${n.route}`} className={`hidden px-3.5 text-[12px] text-faint md:block ${n.group ? "mt-4 mb-1" : "mx-3.5 mt-3 mb-2 h-px bg-line px-0"}`}>
         {n.group}
       </p>
     ) : null,
@@ -234,7 +234,7 @@ export function ClientApp({ config }: { config: SupaConfig }) {
       <aside className="flex shrink-0 flex-col gap-3 p-3 md:h-full md:w-60 md:py-4">
         <div className="flex items-center justify-between gap-2 px-2">
           <Logo />
-          <span className="truncate font-mono text-[11px] text-faint">{ws.name}</span>
+          <span className="truncate text-[12px] text-faint">{ws.name}</span>
         </div>
         <button
           type="button"

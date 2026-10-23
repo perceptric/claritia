@@ -72,7 +72,7 @@ export function DialogHost() {
         }}
       >
         <div className="space-y-3 p-6">
-          <h2 className="serif text-[24px] leading-tight">{req.title}</h2>
+          <h2 className="font-semibold tracking-[-0.02em] text-[20px] leading-tight">{req.title}</h2>
           {"body" in req && req.body ? <p className="max-h-64 overflow-auto text-[13px] leading-relaxed whitespace-pre-line text-muted">{req.body}</p> : null}
           {req.kind === "lines" ? (
             <textarea

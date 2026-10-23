@@ -135,7 +135,7 @@ export function FieldsPanel({
                         <span className="block truncate">
                           <FieldValue field={f} value={v} links={l} />
                         </span>
-                        {w && !empty ? <span className="mt-0.5 block font-mono text-[10.5px] text-faint">{`${sourceLabel(w.source)} · ${timeAgo(w.at)}`}</span> : null}
+                        {w && !empty ? <span className="mt-0.5 block text-[12px] text-faint">{`${sourceLabel(w.source)} · ${timeAgo(w.at)}`}</span> : null}
                       </button>
                     )}
                   </dd>
@@ -180,7 +180,7 @@ export function HistoryPanel({ history, fields, people }: { history: Change[]; f
                   <span className="text-muted"> {text(c.old)} → </span>
                   <span>{text(c.new)}</span>
                 </p>
-                <p className="mt-0.5 font-mono text-[11px] text-faint">
+                <p className="mt-0.5 text-[12px] text-faint">
                   {who(c)} · {timeAgo(c.at)}
                 </p>
               </li>

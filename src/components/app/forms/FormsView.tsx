@@ -10,10 +10,10 @@ import type { Tokens } from "@/lib/forms/brand";
 import { applyOp, type Op } from "@/lib/forms/ops";
 import { ADAPTERS, checkForm, emptyForm, type Form } from "@/lib/forms/schema";
 import type { CustomField } from "@/lib/records/fields";
-import { Copy, Inbox, Pause, Play, Plus, Redo, Send, Trash, Undo } from "../../Icons";
+import { Copy, Inbox, Pause, Pencil, Play, Plus, Redo, Send, Trash, Undo } from "../../Icons";
 import { BrandLogo } from "../BrandLogo";
-import { askConfirm } from "../Dialogs";
-import { ByPip, Pip } from "../Pip";
+import { askConfirm, askText } from "../Dialogs";
+import { AiAvatar, AiMark, AiTag } from "../Ai";
 import { Badge, Button, Empty, ErrorNote, errorText, Loading, must, Page, Panel, postJson, setLeaveGuard, Tabs, timeAgo, useLoad, type ViewProps } from "../ui";
 import { FormCanvas } from "./FormCanvas";
 import { FormChecks } from "./FormChecks";
@@ -35,6 +35,18 @@ export function FormsView(props: ViewProps) {
 function FormList(props: ViewProps) {
   const { sb, ws, navigate } = props;
   const list = useLoad(async () => must(await sb.rpc("forms_list", { p_ws: ws.id })) as ListRow[], ws.id);
+  const [renameError, setRenameError] = useState("");
+  const renameForm = async (formId: string, current: string) => {
+    const next = await askText("Rename form", { initial: current, ok: "Rename" });
+    if (!next || next === current) return;
+    try {
+      must(await sb.rpc("form_rename", { p_id: formId, p_name: next }));
+      setRenameError("");
+      list.reload();
+    } catch (e) {
+      setRenameError(errorText(e));
+    }
+  };
   if (list.data && !list.data.length)
     return (
       <Page icon={<Inbox size={14} />} title="Forms" count={0} flush>
@@ -53,22 +65,29 @@ function FormList(props: ViewProps) {
         </Button>
       }
     >
-      <ErrorNote message={list.error} />
+      <ErrorNote message={list.error || renameError} />
       {!list.data ? (
         <Loading />
       ) : (
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
           {list.data.map((f) => (
-            <button key={f.id} type="button" onClick={() => navigate("forms", f.id)} className="lift press anim-rise-sm flex flex-col gap-6 rounded-2xl border border-line bg-card p-5 text-left hover:border-line-strong">
+            <div key={f.id} className="group lift anim-rise-sm relative flex flex-col gap-6 rounded-2xl border border-line bg-card p-5 text-left hover:border-line-strong">
               <span className="flex items-start gap-2">
-                <span className="min-w-0 flex-1 truncate pt-px text-[14.5px] font-medium text-ink">{f.name}</span>
+                <button type="button" onClick={() => navigate("forms", f.id)} className="min-w-0 flex-1 truncate pt-px text-left text-[14.5px] font-medium text-ink after:absolute after:inset-0 after:rounded-2xl">
+                  {f.name}
+                </button>
+                <span className="relative z-10 -my-1.5 opacity-0 group-hover:opacity-100 focus-within:opacity-100">
+                  <IconButton label="Rename" onClick={() => void renameForm(f.id, f.name)}>
+                    <Pencil size={14} />
+                  </IconButton>
+                </span>
                 <Badge tone={STATUS[f.status][1]} dot>
                   {STATUS[f.status][0]}
                 </Badge>
               </span>
               <span className="flex items-end gap-4">
                 <span className="flex min-w-0 flex-1 flex-col gap-1.5">
-                  <span className="serif text-[44px] leading-none text-ink tabular-nums">{f.fills.toLocaleString("en-US")}</span>
+                  <span className="font-semibold tracking-[-0.02em] text-[34px] leading-none text-ink tabular-nums">{f.fills.toLocaleString("en-US")}</span>
                   <span className="label-mono">Fills, 30 days</span>
                 </span>
                 <span className="flex shrink-0 flex-col items-end gap-1 text-right">
@@ -83,7 +102,7 @@ function FormList(props: ViewProps) {
                   {f.kind === "captured" ? <Badge>Captured</Badge> : null}
                 </span>
               ) : null}
-            </button>
+            </div>
           ))}
         </div>
       )}
@@ -379,6 +398,7 @@ function Builder({
     <Page
       icon={<Inbox size={14} />}
       title={name}
+      onRename={rename}
       back={{ label: "Forms", onClick: () => navigate("forms") }}
       flush
       actions={
@@ -496,7 +516,7 @@ function ChangeBox({ session, ws, formId, prepare, onResult }: Pick<ViewProps, "
         }}
         className="flex items-center gap-2 rounded-full border border-line-strong bg-card p-1.5 pl-2 transition-colors focus-within:border-ink"
       >
-        <Pip size={26} mood={busy ? "thinking" : "idle"} />
+        <AiMark size={18} working={busy} className="ml-1.5" />
         <input value={text} onChange={(e) => setText(e.target.value)} placeholder="Change anything, like “add a budget question”" aria-label="Change the form" className="h-8 min-w-0 flex-1 bg-transparent text-[13.5px] outline-none placeholder:text-faint" />
         <Button type="submit" disabled={!text.trim() || busy}>
           {busy ? "Changing…" : "Change"}
@@ -512,7 +532,7 @@ function ChangeBox({ session, ws, formId, prepare, onResult }: Pick<ViewProps, "
       <ErrorNote message={error} />
       {reply.text ? (
         <div className="anim-rise-sm flex items-start gap-2.5 rounded-lg border border-line bg-card px-3.5 py-3 text-[13px]">
-          <Pip size={24} mood={busy ? "thinking" : reply.lines.length ? "done" : "idle"} />
+          <AiAvatar size={24} working={busy} />
           <div className="min-w-0 flex-1">
             <p className="pt-0.5">{reply.text}</p>
             {reply.lines.length ? (
@@ -533,7 +553,7 @@ function ChangeBox({ session, ws, formId, prepare, onResult }: Pick<ViewProps, "
               </div>
             ) : null}
           </div>
-          {reply.lines.length ? <ByPip /> : null}
+          {reply.lines.length ? <AiTag /> : null}
         </div>
       ) : null}
     </div>

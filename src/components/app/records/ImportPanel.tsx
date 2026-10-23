@@ -206,7 +206,7 @@ export function ImportPanel({
               <div className="flex flex-col gap-3 p-5">
                 <div className="flex items-center gap-2 text-[13px]">
                   <Badge tone="brand">{imp?.status === "queued" ? "Waiting" : "Importing"}</Badge>
-                  <span className="font-mono text-[12px] text-muted tabular-nums">
+                  <span className="text-[13px] text-muted tabular-nums">
                     {(imp?.progress?.rows ?? 0).toLocaleString("en-US")} of {info?.exact ? "" : "about "}
                     {(info?.rows ?? 0).toLocaleString("en-US")} rows
                   </span>
@@ -237,7 +237,7 @@ export function ImportPanel({
               {tiles.map(([label, v]) => (
                 <div key={label} className="anim-rise-sm rounded-lg border border-line bg-card px-4 py-3.5">
                   <div className="label-mono">{label}</div>
-                  <div className="serif mt-1 text-[28px] leading-tight text-ink tabular-nums">{Number(v).toLocaleString("en-US")}</div>
+                  <div className="font-semibold tracking-[-0.02em] mt-1 text-[22px] leading-tight text-ink tabular-nums">{Number(v).toLocaleString("en-US")}</div>
                 </div>
               ))}
             </div>
@@ -301,7 +301,7 @@ export function ImportPanel({
                     <Upload size={18} />
                   </span>
                   <span className="text-[14px] font-medium">Choose a file</span>
-                  <span className="font-mono text-[11px] text-faint">CSV · TSV · Excel · vCard</span>
+                  <span className="text-[12px] text-faint">CSV · TSV · Excel · vCard</span>
                   <input
                     type="file"
                     accept=".csv,.tsv,.txt,.tab,.xlsx,.xlsm,.vcf,.vcard,text/csv"
@@ -341,7 +341,7 @@ export function ImportPanel({
           <>
             <div className="flex flex-wrap items-center gap-2 text-[13px]">
               <span className="font-medium">{file?.name}</span>
-              <span className="font-mono text-[11.5px] text-faint">
+              <span className="text-[12px] text-faint">
                 {info.exact ? "" : "about "}
                 {info.rows.toLocaleString("en-US")} rows
               </span>
@@ -371,7 +371,7 @@ export function ImportPanel({
                   <tbody>
                     {preview.map((r) => (
                       <tr key={r.row}>
-                        <Td className="font-mono text-[12px] text-faint">{r.row}</Td>
+                        <Td className="text-[13px] text-faint">{r.row}</Td>
                         <Td className="max-w-[220px] truncate">{r.email || <span className="text-faint">—</span>}</Td>
                         <Td className="max-w-[160px] truncate">{r.name}</Td>
                         <Td className="max-w-[160px] truncate">{r.company}</Td>

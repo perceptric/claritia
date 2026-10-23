@@ -113,7 +113,7 @@ export function VisitorAvatar({ code, size = 24 }: { code: string; size?: number
   return (
     <span
       aria-hidden="true"
-      className="inline-flex shrink-0 items-center justify-center rounded-full font-mono font-medium"
+      className="inline-flex shrink-0 items-center justify-center rounded-full font-medium"
       style={{ width: size, height: size, background: `${p.color}1f`, border: `1px solid ${p.color}55`, color: p.color, fontSize: size * 0.4 }}
     >
       {p.initials}
@@ -176,11 +176,11 @@ export function VisitorsView({ sb, ws, navigate }: ViewProps) {
         {stats.map((x) => (
           <div key={x.label} className="rounded-lg border border-line bg-card px-4 py-3.5">
             <div className="label-mono">{x.label}</div>
-            <div className="serif mt-1.5 text-[30px] leading-none text-ink tabular-nums">{x.value.toLocaleString("en-US")}</div>
+            <div className="font-semibold tracking-[-0.02em] mt-1.5 text-[24px] leading-none text-ink tabular-nums">{x.value.toLocaleString("en-US")}</div>
           </div>
         ))}
       </div>
-      <div className="flex flex-wrap items-center gap-x-6 gap-y-1 border-b border-line bg-paper px-4 py-3 font-mono text-[11.5px] text-muted md:px-5">
+      <div className="flex flex-wrap items-center gap-x-6 gap-y-1 border-b border-line bg-paper px-4 py-3 text-[12px] text-muted md:px-5">
         <span>Last 24h</span>
         <span className="ml-auto">{sites.data.map((s) => `${s.domain} ${s.last_event_at ? timeAgo(s.last_event_at) : "—"}`).join(" · ")}</span>
       </div>
@@ -223,14 +223,14 @@ export function VisitorsView({ sb, ws, navigate }: ViewProps) {
                     {v.pages.slice(0, 3).join("  ")}
                     {v.pageviews > 3 ? <span className="text-faint">{`  +${v.pageviews - 3}`}</span> : null}
                   </Td>
-                  <Td className="text-right font-mono text-[12px] tabular-nums">{activeTime(v.engaged_s)}</Td>
+                  <Td className="text-right text-[13px] tabular-nums">{activeTime(v.engaged_s)}</Td>
                   <Td>
                     <span className="flex items-center gap-2">
                       <Badge tone={v.ref_class === "ai_assistant" ? "brand" : "gray"}>{REF_LABEL[v.ref_class ?? "direct"] ?? v.ref_class}</Badge>
                       <span className="truncate text-[12px] text-muted">{v.referrer_host ?? v.source ?? ""}</span>
                     </span>
                   </Td>
-                  <Td className="font-mono text-[12px] text-muted">{timeAgo(v.started_at)}</Td>
+                  <Td className="text-[13px] text-muted">{timeAgo(v.started_at)}</Td>
                 </tr>
               ))}
             </tbody>
@@ -285,13 +285,13 @@ function VisitPanel({ v, onClose, onAccount }: { v: Visit; onClose: () => void; 
           <ol>
             {v.pages.map((path, i) => (
               <li key={`${path}${i}`} className="flex items-center gap-3 border-b border-line px-5 py-2">
-                <span className="w-16 shrink-0 font-mono text-[11.5px] text-muted">{v.page_times?.[i] ? clock(v.page_times[i]) : ""}</span>
-                <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-paper-deep font-mono text-[10.5px] text-muted">{i + 1}</span>
+                <span className="w-16 shrink-0 text-[12px] text-muted">{v.page_times?.[i] ? clock(v.page_times[i]) : ""}</span>
+                <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-paper-deep text-[12px] text-muted">{i + 1}</span>
                 <span className="truncate font-mono text-[12.5px]">{path}</span>
               </li>
             ))}
           </ol>
-          {v.pageviews > v.pages.length ? <p className="px-5 py-2 font-mono text-[11.5px] text-faint">+{v.pageviews - v.pages.length} more</p> : null}
+          {v.pageviews > v.pages.length ? <p className="px-5 py-2 text-[12px] text-faint">+{v.pageviews - v.pages.length} more</p> : null}
         </div>
         {v.account_id ? (
           <div className="border-t border-line px-5 py-3">

@@ -495,7 +495,7 @@ export function RecordsList({
               nameExtra={nameExtra}
               onAddField={() => setAddingField(true)}
             />
-            <div className="flex shrink-0 items-center gap-2 py-3 font-mono text-[11.5px] text-muted">
+            <div className="flex shrink-0 items-center gap-2 py-3 text-[12px] text-muted">
               <span>
                 {(offset + 1).toLocaleString("en-US")}–{(offset + rows.length).toLocaleString("en-US")} of {total.toLocaleString("en-US")}
               </span>

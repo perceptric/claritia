@@ -30,7 +30,7 @@ import { TEMPLATES } from "@/lib/forms/templates";
 import { CATALOG, entryOf } from "@/lib/sources/catalog";
 import { ArrowLeft, Chat, Check, CornerDownLeft, Grid, Inbox, Lock, Monitor, Phone, Plus, Wand, X } from "../../Icons";
 import { BrandLogo } from "../BrandLogo";
-import { Pip, type PipMood } from "../Pip";
+import { AiAvatar } from "../Ai";
 import { Badge, Button, ErrorNote, errorText, Loading, must, Page, postJson, useLoad, type ViewProps } from "../ui";
 import { FormPreview, type Kit } from "./shared";
 
@@ -234,8 +234,7 @@ function Start({ onSentence, onAsk, onTemplates, onBlank, busy, error }: { onSen
         <div className="flex flex-col items-center gap-3 text-center">
           <p className="label-mono">new form</p>
           <div className="flex items-center gap-4">
-            <Pip size={52} follow />
-            <h2 className="serif text-left text-[44px] leading-[1.05] text-ink">
+            <h2 className="font-semibold tracking-[-0.02em] text-left text-[34px] leading-[1.05] text-ink">
               What form <span className="text-muted">do you need?</span>
             </h2>
           </div>
@@ -432,11 +431,13 @@ function Ask({
   );
 }
 
-/** Pip asks. */
-function Theirs({ text, faint, mood = "idle" }: { text: string; faint?: boolean; mood?: PipMood }) {
+/** The AI asks. */
+function Theirs({ text, faint, mood = "idle" }: { text: string; faint?: boolean; mood?: "idle" | "thinking" }) {
   return (
     <div className="flex items-start gap-2.5">
-      <Pip size={faint ? 22 : 28} mood={mood} className={faint ? "opacity-60" : ""} />
+      <span className={faint ? "opacity-60" : ""}>
+        <AiAvatar size={faint ? 22 : 28} working={mood === "thinking"} />
+      </span>
       <p className={`pt-1 text-[14.5px] leading-snug ${faint ? "text-muted" : "font-medium text-ink"}`}>{text}</p>
     </div>
   );
@@ -881,7 +882,7 @@ function Templates({ tokens, back, busy, error, pick }: { tokens: Partial<Tokens
             <ArrowLeft size={14} />
             Back
           </Button>
-          <h2 className="serif text-[28px] leading-none text-ink">Templates</h2>
+          <h2 className="font-semibold tracking-[-0.02em] text-[22px] leading-none text-ink">Templates</h2>
         </div>
         <ErrorNote message={error} />
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">

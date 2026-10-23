@@ -364,3 +364,17 @@ export const Moon = (p: P) => (
     <path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z" />
   </Svg>
 );
+
+export const Sparkle = (p: P) => (
+  <Svg {...p}>
+    <path d="M11 3l1.9 5.1L18 10l-5.1 1.9L11 17l-1.9-5.1L4 10l5.1-1.9z" />
+    <path d="M19 14.5l.8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8z" />
+  </Svg>
+);
+
+export const Pencil = (p: P) => (
+  <Svg {...p}>
+    <path d="M16.5 3.5l4 4L8 20H4v-4z" />
+    <path d="M13.5 6.5l4 4" />
+  </Svg>
+);

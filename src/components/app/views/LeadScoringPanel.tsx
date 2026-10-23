@@ -613,7 +613,7 @@ function Top({
                             : "bg-faint"
                       }`}
                     />
-                    <span className="serif text-[22px] leading-none text-ink tabular-nums">
+                    <span className="font-semibold tracking-[-0.02em] text-[18px] leading-none text-ink tabular-nums">
                       {r.score ?? "—"}
                     </span>
                   </span>

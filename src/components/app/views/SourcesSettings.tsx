@@ -477,10 +477,10 @@ function SourcePanel({ sb, session, wsId, source, owner, onClose, changed }: { s
                           {r.error ? <span className="max-w-[240px] truncate text-[12px] text-rose">{r.error}</span> : null}
                         </span>
                       </Td>
-                      <Td className="text-right font-mono">{r.pulled.toLocaleString("en-US")}</Td>
-                      <Td className="text-right font-mono">{r.written.toLocaleString("en-US")}</Td>
-                      <Td className="text-right font-mono">{r.skipped.toLocaleString("en-US")}</Td>
-                      <Td className="text-right font-mono">{r.errors.toLocaleString("en-US")}</Td>
+                      <Td className="text-right tabular-nums">{r.pulled.toLocaleString("en-US")}</Td>
+                      <Td className="text-right tabular-nums">{r.written.toLocaleString("en-US")}</Td>
+                      <Td className="text-right tabular-nums">{r.skipped.toLocaleString("en-US")}</Td>
+                      <Td className="text-right tabular-nums">{r.errors.toLocaleString("en-US")}</Td>
                     </tr>
                   ))}
                 </tbody>

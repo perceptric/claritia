@@ -8,7 +8,7 @@ import { readStep, stepEmail } from "@/lib/nurture/email";
 import { ArrowDown, ArrowUp, Branch, Check, Plus, Refresh, Trash, X } from "../../Icons";
 import { askConfirm } from "../Dialogs";
 import { Select } from "../Select";
-import { ByPip, Pip } from "../Pip";
+import { AiMark, AiTag } from "../Ai";
 import { SampleStats, ToolIntro } from "../ToolIntro";
 import { Badge, Button, CardHead, ErrorNote, errorText, Field, IconButton, Input, Loading, must, Page, Panel, postJson, Td, Th, timeAgo, useLoad, type Tone, type ViewProps } from "../ui";
 
@@ -226,7 +226,7 @@ function Steps({ sb, session, n, onChange, onError }: Pick<ViewProps, "sb" | "se
   return (
     <Panel className="overflow-hidden">
       <CardHead label="Emails" count={steps.length}>
-        {busy === "draft" ? <Pip mood="writing" size={22} /> : null}
+        {busy === "draft" ? <AiMark size={16} working /> : null}
         {!live ? (
           <span className="ml-auto flex items-center gap-2">
             <Select className="h-8 w-20 rounded-sm border border-line-strong bg-card px-2.5 text-[12.5px] focus:border-ink" value={count} onChange={setCount} options={[1, 2, 3, 4, 5, 6].map((v) => ({ value: v, label: String(v) }))} ariaLabel="How many" />
@@ -247,9 +247,9 @@ function Steps({ sb, session, n, onChange, onError }: Pick<ViewProps, "sb" | "se
             <li key={s.id} className="anim-rise-sm relative flex flex-col gap-3 rounded-2xl border border-line bg-card p-4 [&:not(:last-child)]:mb-8">
               {i < steps.length - 1 || editing === "new" ? <span aria-hidden="true" className="absolute top-[calc(100%+1px)] left-9 h-8 w-px bg-line-strong" /> : null}
               <div className="flex flex-wrap items-center gap-2">
-                <span className="font-mono text-[11.5px] text-muted">{i === 0 ? `Day ${s.wait_days}` : `+${s.wait_days} day${s.wait_days === 1 ? "" : "s"}`}</span>
+                <span className="text-[12px] text-muted">{i === 0 ? `Day ${s.wait_days}` : `+${s.wait_days} day${s.wait_days === 1 ? "" : "s"}`}</span>
                 <span className="text-[14px] font-medium">{s.emails.subject}</span>
-                {s.ai ? <ByPip /> : null}
+                {s.ai ? <AiTag /> : null}
                 {s.approved_at ? <Badge tone="green">Approved</Badge> : <Badge tone="amber">Needs approval</Badge>}
                 <span className="ml-auto flex items-center gap-1">
                   {!s.approved_at ? (

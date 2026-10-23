@@ -108,7 +108,7 @@ function SegmentList({ sb, ws, navigate }: Pick<ViewProps, "sb" | "ws" | "naviga
                   <Td>
                     <Badge tone={s.kind === "dynamic" ? "brand" : "gray"}>{s.kind === "dynamic" ? "Dynamic" : "List"}</Badge>
                   </Td>
-                  <Td className="text-right font-mono">{s.count.toLocaleString("en-US")}</Td>
+                  <Td className="text-right tabular-nums">{s.count.toLocaleString("en-US")}</Td>
                   <Td className="text-faint">{timeAgo(s.refreshed_at)}</Td>
                 </tr>
               ))}

@@ -2,11 +2,10 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Search } from "../Icons";
-import { Pip } from "./Pip";
 
 export type Command = { id: string; label: string; group: string; icon?: React.ReactNode; run: () => void };
 
-/** ⌘K: a floating search, mounted while open, with Pip on the left; results slide in, arrows and Enter pick one. */
+/** ⌘K: a floating search, mounted while open; results slide in, arrows and Enter pick one. */
 export function CommandBar({ onClose, commands }: { onClose: () => void; commands: Command[] }) {
   const [q, setQ] = useState("");
   const [active, setActive] = useState(0);
@@ -31,7 +30,7 @@ export function CommandBar({ onClose, commands }: { onClose: () => void; command
     <div className="anim-fade fixed inset-0 z-[95] flex items-start justify-center bg-scrim px-4 pt-[14vh]" onMouseDown={onClose}>
       <div className="anim-rise-sm w-full max-w-lg" onMouseDown={(e) => e.stopPropagation()}>
         <div className="flex h-14 items-center gap-3 rounded-full bg-card pr-5 pl-3 shadow-float">
-          <Pip size={34} mood={q ? "thinking" : "idle"} />
+          <Search size={17} className="ml-2 text-muted" />
           <input
             autoFocus
             value={q}
@@ -56,7 +55,6 @@ export function CommandBar({ onClose, commands }: { onClose: () => void; command
               }
             }}
           />
-          <Search size={16} className="text-faint" />
         </div>
         {shown.length ? (
           <ul ref={list} role="listbox" className="mt-2 max-h-[50vh] overflow-y-auto rounded-2xl bg-card p-1.5 shadow-float">
@@ -73,7 +71,7 @@ export function CommandBar({ onClose, commands }: { onClose: () => void; command
               >
                 <span className="text-muted">{c.icon}</span>
                 <span className="flex-1 truncate">{c.label}</span>
-                <span className="font-mono text-[11px] text-faint">{c.group}</span>
+                <span className="text-[12px] text-faint">{c.group}</span>
               </li>
             ))}
           </ul>

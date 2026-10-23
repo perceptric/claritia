@@ -114,7 +114,7 @@ export function ImportsSettings({ sb, ws }: Pick<ViewProps, "sb" | "ws">) {
                         <span className="flex items-center gap-2">
                           <Badge tone={tone}>{label}</Badge>
                           {i.status === "running" && i.rows_done ? (
-                            <span className="font-mono text-[11px] text-faint">
+                            <span className="text-[12px] text-faint">
                               {n(i.rows_done)}
                               {total ? ` / ${n(total)}` : ""}
                             </span>
@@ -122,11 +122,11 @@ export function ImportsSettings({ sb, ws }: Pick<ViewProps, "sb" | "ws">) {
                           {i.status === "failed" && i.error ? <span className="max-w-[220px] truncate text-[12px] text-rose">{i.error}</span> : null}
                         </span>
                       </Td>
-                      <Td className="text-right font-mono">{n(c.rows)}</Td>
-                      <Td className="text-right font-mono">{n(c.created)}</Td>
-                      <Td className="text-right font-mono">{n(c.changed)}</Td>
-                      <Td className="text-right font-mono">{n(c.suppressed)}</Td>
-                      <Td className="text-right font-mono">{c.skipped ? n(skipped) : "—"}</Td>
+                      <Td className="text-right tabular-nums">{n(c.rows)}</Td>
+                      <Td className="text-right tabular-nums">{n(c.created)}</Td>
+                      <Td className="text-right tabular-nums">{n(c.changed)}</Td>
+                      <Td className="text-right tabular-nums">{n(c.suppressed)}</Td>
+                      <Td className="text-right tabular-nums">{c.skipped ? n(skipped) : "—"}</Td>
                       <Td className="whitespace-nowrap text-faint">{timeAgo(i.created_at)}</Td>
                       <Td className="text-right">
                         <span className="flex justify-end gap-1">

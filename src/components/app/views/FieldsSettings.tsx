@@ -250,7 +250,7 @@ export function FieldsSettings({ sb, ws, role }: Pick<ViewProps, "sb" | "ws" | "
           <ol className="divide-y divide-line">
             {defaults.map((c, i) => (
               <li key={c} className="flex items-center gap-3 px-5 py-2.5 text-[13px]">
-                <span className="w-5 font-mono text-[11px] text-faint">{i + 1}</span>
+                <span className="w-5 text-[12px] text-faint">{i + 1}</span>
                 <span className="flex-1">{CLASSES.find((x) => x.value === c)?.label ?? c}</span>
                 {owner ? (
                   <span className="flex gap-1">

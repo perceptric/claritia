@@ -196,7 +196,7 @@ export function AccountActivity({ sb, accountId }: { sb: SupabaseClient; account
                   {form ? <FormIcon size={12} /> : <Eye size={12} />}
                 </span>
                 <div className="flex min-h-7 flex-wrap items-center gap-2 text-[13px]">
-                  <span className="font-mono text-[11.5px] text-muted">
+                  <span className="text-[12px] text-muted">
                     {new Date(v.started_at).toLocaleString(undefined, {
                       month: "short",
                       day: "numeric",
@@ -241,7 +241,7 @@ export function AccountActivity({ sb, accountId }: { sb: SupabaseClient; account
               <li key={p.id} className="flex items-center gap-2 px-4 py-2.5 text-[13px]">
                 <span className="min-w-0 truncate">{p.email ?? "Person"}</span>
                 {p.level ? <Badge tone={LEVEL_TONE[p.level] ?? "gray"}>{p.level}</Badge> : null}
-                <span className="ml-auto font-mono text-[11.5px] text-faint">{timeAgo(p.last_seen)}</span>
+                <span className="ml-auto text-[12px] text-faint">{timeAgo(p.last_seen)}</span>
               </li>
             ))}
             <li className="px-4 py-2.5 text-[12.5px] text-muted">
@@ -266,9 +266,9 @@ export function AccountActivity({ sb, accountId }: { sb: SupabaseClient; account
               </div>
             ))}
           </dl>
-          {a.firmo_at ? <p className="border-t border-line px-4 py-2 font-mono text-[11px] text-faint">Coresignal · {timeAgo(a.firmo_at)}</p> : null}
+          {a.firmo_at ? <p className="border-t border-line px-4 py-2 text-[12px] text-faint">Coresignal · {timeAgo(a.firmo_at)}</p> : null}
           {d.networks.length ? (
-            <ul className="border-t border-line px-4 py-2 font-mono text-[11.5px] text-muted">
+            <ul className="border-t border-line px-4 py-2 text-[12px] text-muted">
               {d.networks.map((n) => (
                 <li key={n.net}>{n.net} · by network</li>
               ))}
@@ -286,7 +286,7 @@ export function AccountActivity({ sb, accountId }: { sb: SupabaseClient; account
                     {s.kind.replace(/^page_/, "").replace(/_/g, " ")}
                     {s.person_id ? <span className="text-faint"> · {people.get(s.person_id) ?? "person"}</span> : null}
                   </Td>
-                  <Td className="h-9 text-right font-mono text-[11.5px] text-muted tabular-nums">
+                  <Td className="h-9 text-right text-[12px] text-muted tabular-nums">
                     {s.weight} × {(s.points / s.weight).toFixed(2)} = {s.points.toFixed(1)}
                   </Td>
                 </tr>

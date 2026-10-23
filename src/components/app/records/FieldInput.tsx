@@ -51,7 +51,7 @@ export function FieldValue({ field, value, links }: { field: AnyField; value: un
   }
   if (field.kind === "checkbox") return <span>{value ? "Yes" : "No"}</span>;
   if (field.kind === "rating") return <Stars value={Number(value)} />;
-  if (field.key === "created_at" || field.key === "updated_at") return <span className="font-mono text-[12px] text-muted">{timeAgo(String(value))}</span>;
+  if (field.key === "created_at" || field.key === "updated_at") return <span className="text-[13px] text-muted">{timeAgo(String(value))}</span>;
   if (field.kind === "url")
     return (
       <a href={String(value)} target="_blank" rel="noreferrer noopener" onClick={(e) => e.stopPropagation()} className="truncate text-brand hover:underline">
@@ -65,7 +65,7 @@ export function FieldValue({ field, value, links }: { field: AnyField; value: un
       </a>
     );
   const text = shown(field, value);
-  return <span className={["number", "currency", "percent"].includes(field.kind) ? "font-mono text-[12.5px] tabular-nums" : ""}>{text}</span>;
+  return <span className={["number", "currency", "percent"].includes(field.kind) ? "text-[13px] tabular-nums" : ""}>{text}</span>;
 }
 
 /** A rating as five dots, the first ones filled. */

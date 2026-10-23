@@ -138,7 +138,7 @@ export function SitesPanel({ sb, ws, role }: Pick<ViewProps, "sb" | "ws" | "role
                   <span className="text-[14px] font-medium">{s.domain}</span>
                   {s.paused ? <Badge tone="amber">Paused</Badge> : live ? <Badge tone="green" dot>Receiving events</Badge> : <Badge>Waiting for events</Badge>}
                   {s.install_mode ? <Badge>{s.install_mode}</Badge> : null}
-                  <span className="ml-auto font-mono text-[11.5px] text-muted">
+                  <span className="ml-auto text-[12px] text-muted">
                     {s.sessions_24h} visits · {s.with_account_24h} with a company · {s.identified_24h} with a person · last {timeAgo(s.last_event_at)}
                   </span>
                   <Button variant="plain" size="sm" onClick={() => setOpen(open === s.id ? "" : s.id)}>
