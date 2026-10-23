@@ -5,7 +5,7 @@ import { Clock, Dollar, Globe, Users } from "@/components/Icons";
 import { LOCATION_LABEL, priceLabel, type GuestSlot, type GuestType } from "@/lib/meetings/guest";
 import type { GuestMeeting } from "@/lib/meetings/public";
 import { BookingCalendar, go, hostLine, LocationIcon, timeIn, whenLong } from "./BookingCalendar";
-import { detectZone } from "./ZonePicker";
+import { use12h, useZone } from "./browser";
 
 // The guest's manage link (docs/meetings-scheduler.md 1.7): the meeting, then reschedule (a new time from the same
 // type, through the same calendar) or cancel with an optional reason. After paying, it waits for Stripe's word.
@@ -15,21 +15,13 @@ const STATUS: Record<GuestMeeting["status"], string> = { booked: "Booked", pendi
 export function ManageView({ token, initial, paid, embed }: { token: string; initial: GuestMeeting; paid?: boolean; embed?: boolean }) {
   const [m, setM] = useState(initial);
   const [mode, setMode] = useState<"view" | "move" | "cancel">("view");
-  const [tz, setTz] = useState(initial.guest.tz || "UTC");
-  const [h12, setH12] = useState(true);
+  const tz = useZone();
+  const h12 = use12h();
   const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
   const endpoint = `/api/book/m/${token}`;
-
-  useEffect(() => {
-    setTz(detectZone());
-    try {
-      const c = new Intl.DateTimeFormat(undefined, { hour: "numeric" }).resolvedOptions().hourCycle;
-      setH12(c === "h12" || c === "h11");
-    } catch {}
-  }, []);
 
   // Back from Stripe: the webhook usually lands within seconds.
   const waiting = paid && m.status === "pending_payment";

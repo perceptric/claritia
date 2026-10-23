@@ -6,7 +6,8 @@ import { byDay, LOCATION_LABEL, lengthLabel, priceLabel, type BookReply, type Gu
 import { addDays, dateIn, dayOf } from "@/lib/meetings/time";
 import { BOOK_CSS } from "./styles";
 import { themeOf } from "./theme";
-import { detectZone, ZonePicker } from "./ZonePicker";
+import { use12h, useMounted, useSundayFirst, useZone } from "./browser";
+import { ZonePicker } from "./ZonePicker";
 
 // The booking calendar (docs/meetings-scheduler.md 1.8 and 1.8b): the type on the left, a month in the middle, the
 // day's times on the right; stacked on phones. The guest's time zone is detected and can be changed, lengths are a
@@ -56,17 +57,6 @@ const addMonths = (ym: string, n: number) => {
   const d = new Date(Date.UTC(y!, m! - 1 + n, 1));
   return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
 };
-
-function usePrefers12h(): boolean {
-  const [h12, set] = useState(true);
-  useEffect(() => {
-    try {
-      const c = new Intl.DateTimeFormat(undefined, { hour: "numeric" }).resolvedOptions().hourCycle;
-      set(c === "h12" || c === "h11");
-    } catch {}
-  }, []);
-  return h12;
-}
 
 export function Avatar({ host, size }: { host: GuestHost; size?: "lg" }) {
   const initials = host.name.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]!.toUpperCase()).join("");
@@ -131,77 +121,66 @@ export function BookingCalendar(p: BookingCalendarProps) {
 }
 
 function Calendar(p: BookingCalendarProps) {
-  const [mounted, setMounted] = useState(false);
-  const [tz, setTz] = useState("UTC");
-  const prefers = usePrefers12h();
+  const mounted = useMounted();
+  const detected = useZone();
+  const prefers = use12h();
+  const [tzPick, setTz] = useState<string | null>(null);
+  const tz = tzPick ?? detected;
   const [h12, setH12] = useState<boolean | null>(null);
   const hour12 = h12 ?? prefers;
   const [length, setLength] = useState(p.type.lengths[0] ?? 30);
-  const [slots, setSlots] = useState<GuestSlot[] | null>(p.initialSlots ?? null);
-  const [loadFailed, setLoadFailed] = useState(false);
-  const [month, setMonth] = useState<string | null>(null);
-  const [day, setDay] = useState<string | null>(null);
-  const [time, setTime] = useState<number | null>(null);
+  const [reload, setReload] = useState(0);
+  // Times by length (and retry), so a switch shows the right list or nothing while it loads.
+  const key = `${length}:${reload}`;
+  const [loaded, setLoaded] = useState<{ key: string; slots: GuestSlot[] | null; failed?: boolean }>({ key: `${p.type.lengths[0] ?? 30}:0`, slots: p.initialSlots ?? null });
+  const slots = loaded.key === key ? loaded.slots : null;
+  const loadFailed = loaded.key === key && !!loaded.failed;
+  const [monthPick, setMonth] = useState<string | null>(null);
+  const [dayPick, setDay] = useState<string | null>(null);
+  const [timePick, setTime] = useState<number | null>(null);
   const [step, setStep] = useState<"pick" | "details" | "done">("pick");
   const [notice, setNotice] = useState<string | null>(null);
   const [done, setDone] = useState<Booked | null>(null);
   const [moving, setMoving] = useState(false);
-  const [reload, setReload] = useState(0);
+  const [now] = useState(() => Date.now());
   const timesRef = useRef<HTMLDivElement>(null);
-  const firstLoad = useRef(!!p.initialSlots);
   // The email the guest booked with, for the confirmation line.
   const [doneEmail, setDoneEmail] = useState("");
 
-  useEffect(() => {
-    setTz(detectZone());
-    setMounted(true);
-  }, []);
-
   const { load } = p;
+  const has = loaded.key === key && loaded.slots !== null;
   useEffect(() => {
-    if (firstLoad.current) {
-      firstLoad.current = false;
-      return;
-    }
+    if (has) return;
     let live = true;
-    setSlots(null);
-    setLoadFailed(false);
     load(length)
-      .then((s) => live && setSlots(s))
-      .catch(() => live && setLoadFailed(true));
+      .then((s) => live && setLoaded({ key, slots: s }))
+      .catch(() => live && setLoaded({ key, slots: null, failed: true }));
     return () => {
       live = false;
     };
-  }, [length, load, reload]);
+  }, [has, key, length, load]);
 
   const days = useMemo(() => byDay(slots ?? [], tz), [slots, tz]);
-  const firstDay = useMemo(() => [...days.keys()][0] ?? null, [days]);
-  const today = mounted ? dateIn(Date.now(), tz) : "";
-
-  // Keep a day picked that has times: the first one when the times or the zone change.
-  useEffect(() => {
-    if (!mounted || slots === null) return;
-    if (day && days.has(day)) return;
-    const d = firstDay;
-    setDay(d);
-    setMonth(d ? monthOf(d) : (month ?? monthOf(today)));
-    setTime(null);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [days, mounted, slots]);
-
-  const shownMonth = month ?? (today ? monthOf(today) : "");
-  const lastDay = useMemo(() => [...days.keys()].at(-1) ?? null, [days]);
+  const dayList = useMemo(() => [...days.keys()], [days]);
+  const today = mounted ? dateIn(now, tz) : "";
+  // The day shown: the one picked while it still has times, else the first with times in the month picked (or at
+  // all). The time picked only counts while it's still on that day.
+  const day = dayPick && days.has(dayPick) ? dayPick : monthPick ? (dayList.find((d) => monthOf(d) === monthPick) ?? null) : (dayList[0] ?? null);
+  const daySlots = (mounted && day && days.get(day)) || [];
+  const time = timePick !== null && daySlots.some((x) => x.start === timePick) ? timePick : null;
+  const shownMonth = monthPick ?? (day ? monthOf(day) : today ? monthOf(today) : "");
+  const lastDay = dayList.at(-1) ?? null;
   const minMonth = today ? monthOf(today) : shownMonth;
   const maxMonth = lastDay ? monthOf(lastDay) : today ? addMonths(monthOf(today), 2) : shownMonth;
 
   const pickMonth = (ym: string) => {
     setMonth(ym);
-    const first = [...days.keys()].find((d) => monthOf(d) === ym) ?? null;
-    setDay(first);
+    setDay(null);
     setTime(null);
   };
   const pickDay = (d: string) => {
     setDay(d);
+    setMonth(monthOf(d));
     setTime(null);
     setNotice(null);
     requestAnimationFrame(() => {
@@ -210,12 +189,15 @@ function Calendar(p: BookingCalendarProps) {
     });
   };
 
-  const afterTaken = useCallback((msg: string, fresh?: GuestSlot[]) => {
-    if (fresh) setSlots(fresh);
-    setTime(null);
-    setStep("pick");
-    setNotice(msg);
-  }, []);
+  const afterTaken = useCallback(
+    (msg: string, fresh?: GuestSlot[]) => {
+      if (fresh) setLoaded({ key, slots: fresh });
+      setTime(null);
+      setStep("pick");
+      setNotice(msg);
+    },
+    [key],
+  );
 
   const next = async () => {
     if (time === null) return;
@@ -234,9 +216,8 @@ function Calendar(p: BookingCalendarProps) {
 
   if (step === "done" && done) return <Done type={p.type} reply={done} tz={tz} hour12={hour12} email={doneEmail} />;
 
-  const daySlots = (day && days.get(day)) || [];
-  const monthHas = [...days.keys()].some((d) => monthOf(d) === shownMonth);
-  const nextAvail = [...days.keys()].find((d) => monthOf(d) > shownMonth) ?? null;
+  const monthHas = dayList.some((d) => monthOf(d) === shownMonth);
+  const nextAvail = dayList.find((d) => monthOf(d) > shownMonth) ?? null;
 
   return (
     <div className="cb-grid">
@@ -434,14 +415,7 @@ function Info({ type, logo, length, setLength, picked }: { type: GuestType; logo
 }
 
 function Month(p: { month: string; today: string; days: Map<string, GuestSlot[]>; day: string | null; loading: boolean; canBack: boolean; canNext: boolean; onMonth: (n: number) => void; onDay: (d: string) => void }) {
-  const [sundayFirst, setSundayFirst] = useState(false);
-  useEffect(() => {
-    try {
-      const loc = new Intl.Locale(navigator.language) as Intl.Locale & { getWeekInfo?: () => { firstDay: number }; weekInfo?: { firstDay: number } };
-      const first = loc.getWeekInfo?.().firstDay ?? loc.weekInfo?.firstDay;
-      setSundayFirst(first ? first === 7 : /-(US|CA|MX|BR|JP|IL|PH)$/i.test(navigator.language));
-    } catch {}
-  }, []);
+  const sundayFirst = useSundayFirst();
   if (!p.month) return <div className="cb-days" style={{ minHeight: 280 }} />;
   const first = `${p.month}-01`;
   const lead = (["mon", "tue", "wed", "thu", "fri", "sat", "sun"].indexOf(dayOf(first)) + (sundayFirst ? 1 : 0)) % 7;
@@ -494,18 +468,19 @@ function Month(p: { month: string; today: string; days: Map<string, GuestSlot[]>
 type GuestForm = { name: string; email: string; answers: Record<string, string>; turnstile?: string };
 
 function useTurnstile(key: string | null | undefined) {
-  const box = useRef<HTMLDivElement>(null);
+  const [box, setBox] = useState<HTMLDivElement | null>(null);
   const [token, setToken] = useState("");
   useEffect(() => {
-    if (!key || !box.current) return;
+    if (!key || !box) return;
     const w = window as unknown as { turnstile?: { render: (el: Element, o: object) => string; remove?: (id: string) => void } };
     let id: string | undefined;
     const draw = () => {
-      if (box.current && w.turnstile) id = w.turnstile.render(box.current, { sitekey: key, callback: (t: string) => setToken(t), "expired-callback": () => setToken("") });
+      if (w.turnstile && !id) id = w.turnstile.render(box, { sitekey: key, callback: (t: string) => setToken(t), "expired-callback": () => setToken("") });
     };
+    let s: HTMLScriptElement | null = null;
     if (w.turnstile) draw();
     else {
-      let s = document.querySelector<HTMLScriptElement>("script[data-cb-turnstile]");
+      s = document.querySelector<HTMLScriptElement>("script[data-cb-turnstile]");
       if (!s) {
         s = document.createElement("script");
         s.src = "https://challenges.cloudflare.com/turnstile/v0/api.js";
@@ -516,10 +491,11 @@ function useTurnstile(key: string | null | undefined) {
       s.addEventListener("load", draw);
     }
     return () => {
+      s?.removeEventListener("load", draw);
       if (id) w.turnstile?.remove?.(id);
     };
-  }, [key]);
-  return { box, token };
+  }, [key, box]);
+  return [setBox, token] as const;
 }
 
 function Details(p: {
@@ -539,7 +515,7 @@ function Details(p: {
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [err, setErr] = useState<{ error: string; field?: string } | null>(null);
   const [busy, setBusy] = useState(false);
-  const ts = useTurnstile(p.preview ? null : p.turnstileKey);
+  const [tsMount, tsToken] = useTurnstile(p.preview ? null : p.turnstileKey);
   const set = (id: string, v: string) => setAnswers((a) => ({ ...a, [id]: v }));
   const fieldErr = (f: string) => (err?.field === f ? err.error : null);
   const questions = [...p.type.questions, ...(p.type.location.kind === "phone_guest" ? [{ id: "phone", label: "Phone number", type: "phone" as const, required: true }] : [])];
@@ -553,7 +529,7 @@ function Details(p: {
     for (const q of questions) if (q.required && !answers[q.id]?.trim()) return setErr({ error: `${q.label} is required.`, field: q.id });
     setBusy(true);
     try {
-      const r = await p.submit({ name: name.trim(), email: email.trim(), answers, ...(ts.token ? { turnstile: ts.token } : {}) });
+      const r = await p.submit({ name: name.trim(), email: email.trim(), answers, ...(tsToken ? { turnstile: tsToken } : {}) });
       if (!r.ok) setErr(r);
     } catch {
       setErr({ error: "Try again in a moment." });
@@ -613,7 +589,7 @@ function Details(p: {
           {fieldErr(q.id) && <p className="cb-err">{fieldErr(q.id)}</p>}
         </div>
       ))}
-      {p.turnstileKey && !p.preview && <div ref={ts.box} />}
+      {p.turnstileKey && !p.preview && <div ref={tsMount} />}
       {err && !err.field && (
         <p className="cb-err" role="alert">
           {err.error}

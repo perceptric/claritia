@@ -5,16 +5,19 @@ import { Check, Clock, Users } from "@/components/Icons";
 import { byDay, LOCATION_LABEL, lengthLabel } from "@/lib/meetings/guest";
 import type { PollView as Poll } from "@/lib/meetings/public";
 import { Avatar, dayLong, LocationIcon, timeIn } from "./BookingCalendar";
-import { detectZone, ZonePicker } from "./ZonePicker";
+import { use12h, useMounted, useZone } from "./browser";
+import { ZonePicker } from "./ZonePicker";
 
 // A meeting poll (docs/meetings-scheduler.md 1.8b): guests pick every time that works, with their name and email;
 // the host books the winner. Voting again with the same email replaces the vote.
 
 export function PollView({ token, initial, turnstileKey }: { token: string; initial: Poll; turnstileKey?: string | null }) {
   const [poll, setPoll] = useState(initial);
-  const [tz, setTz] = useState("UTC");
-  const [h12, setH12] = useState(true);
-  const [mounted, setMounted] = useState(false);
+  const detected = useZone();
+  const [tzPick, setTz] = useState<string | null>(null);
+  const tz = tzPick ?? detected;
+  const h12 = use12h();
+  const mounted = useMounted();
   const [picks, setPicks] = useState<Set<number>>(new Set());
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -24,14 +27,6 @@ export function PollView({ token, initial, turnstileKey }: { token: string; init
   const [token2, setToken2] = useState("");
   const tsBox = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    setTz(detectZone());
-    setMounted(true);
-    try {
-      const c = new Intl.DateTimeFormat(undefined, { hour: "numeric" }).resolvedOptions().hourCycle;
-      setH12(c === "h12" || c === "h11");
-    } catch {}
-  }, []);
   useEffect(() => {
     if (!turnstileKey || !tsBox.current) return;
     const w = window as unknown as { turnstile?: { render: (el: Element, o: object) => void } };

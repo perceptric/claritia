@@ -19,13 +19,7 @@ function zones(): string[] {
   return FALLBACK;
 }
 
-export function detectZone(): string {
-  try {
-    return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
-  } catch {
-    return "UTC";
-  }
-}
+export { detectZone } from "./browser";
 
 const city = (z: string) => (z === "UTC" ? "UTC" : (z.split("/").pop() ?? z).replace(/_/g, " "));
 function offsetLabel(z: string, now: number): string {
@@ -54,7 +48,6 @@ export function ZonePicker({ value, onChange, hour12 }: { value: string; onChang
   const [now, setNow] = useState(0);
   useEffect(() => {
     if (!open) return;
-    setNow(Date.now());
     const away = (e: MouseEvent) => !box.current?.contains(e.target as Node) && setOpen(false);
     document.addEventListener("mousedown", away);
     return () => document.removeEventListener("mousedown", away);
@@ -67,7 +60,7 @@ export function ZonePicker({ value, onChange, hour12 }: { value: string; onChang
   }, [q, all]);
   const clock = (z: string) => {
     try {
-      return new Intl.DateTimeFormat(undefined, { timeZone: z, hour: "numeric", minute: "2-digit", hour12 }).format(now || Date.now());
+      return new Intl.DateTimeFormat(undefined, { timeZone: z, hour: "numeric", minute: "2-digit", hour12 }).format(now);
     } catch {
       return "";
     }
@@ -82,7 +75,10 @@ export function ZonePicker({ value, onChange, hour12 }: { value: string; onChang
   }, [active]);
   return (
     <div className="cb-pop" ref={box}>
-      <button type="button" className="cb-zbtn" aria-haspopup="listbox" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
+      <button type="button" className="cb-zbtn" aria-haspopup="listbox" aria-expanded={open} onClick={() => {
+          setNow(Date.now());
+          setOpen((o) => !o);
+        }}>
         <Globe size={15} />
         <span suppressHydrationWarning>{zoneName(value)}</span>
       </button>
@@ -101,10 +97,16 @@ export function ZonePicker({ value, onChange, hour12 }: { value: string; onChang
               setActive(0);
             }}
             onKeyDown={(e) => {
-              if (e.key === "ArrowDown") (e.preventDefault(), setActive((a) => Math.min(shown.length - 1, a + 1)));
-              else if (e.key === "ArrowUp") (e.preventDefault(), setActive((a) => Math.max(0, a - 1)));
-              else if (e.key === "Enter" && shown[active]) (e.preventDefault(), pick(shown[active]));
-              else if (e.key === "Escape") setOpen(false);
+              if (e.key === "ArrowDown") {
+                e.preventDefault();
+                setActive((a) => Math.min(shown.length - 1, a + 1));
+              } else if (e.key === "ArrowUp") {
+                e.preventDefault();
+                setActive((a) => Math.max(0, a - 1));
+              } else if (e.key === "Enter" && shown[active]) {
+                e.preventDefault();
+                pick(shown[active]);
+              } else if (e.key === "Escape") setOpen(false);
             }}
           />
           <ul className="cb-opts" role="listbox" id="cb-zones" ref={list} aria-label="Time zones">
@@ -121,7 +123,7 @@ export function ZonePicker({ value, onChange, hour12 }: { value: string; onChang
               >
                 <span>{z.replace(/_/g, " ")}</span>
                 <small>
-                  {offsetLabel(z, now || Date.now())} {clock(z)}
+                  {offsetLabel(z, now)} {clock(z)}
                 </small>
               </li>
             ))}
