@@ -38,6 +38,8 @@ Competitor facts below come from search summaries of their pricing pages, help c
 
 ### M1. Calendars and meeting types (the scheduler)
 
+The detail for M1 and M2 is in `docs/meetings-scheduler.md`.
+
 - **Connect a calendar** in one click: Google (Calendar API) and Microsoft 365 (Graph). Read busy times from every
   calendar a rep picks; write the event to one. Conferencing: Google Meet and Teams from the calendar, Zoom by its
   own sign-in.
