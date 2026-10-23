@@ -1,7 +1,6 @@
 // Meetings screens (docs/meetings-scheduler.md 1.9): the plain helpers behind them, with no React, so the server
 // routes and the tests use the same ones. Times are ISO strings or epoch ms; days and clocks are in a person's zone.
 
-import { addDays, dayOf } from "../../../lib/meetings/time.ts";
 import { DAYS, KINDS, type Availability, type Day, type Kind, type MeetingSource, type MeetingStatus, type MeetingType, type Range } from "../../../lib/meetings/types.ts";
 
 export type Tone = "gray" | "brand" | "violet" | "green" | "amber" | "red" | "sky";
@@ -100,16 +99,6 @@ export type MeetingFilter = { host: string; type: string; status: MeetingStatus 
 export const filterMeetings = <T extends MeetingRow>(rows: T[], f: MeetingFilter) =>
   rows.filter((m) => (!f.host || m.hosts.includes(f.host)) && (!f.type || m.type_id === f.type) && (!f.status || m.status === f.status));
 
-/** A meeting's day and time in a zone: "Tue 3 Nov, 9:00 to 9:30". */
-export function whenText(startIso: string, endIso: string, tz?: string, hour12 = false): string {
-  const s = new Date(startIso);
-  const e = new Date(endIso);
-  const zone = tz ? { timeZone: tz } : {};
-  const day = s.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", ...zone });
-  const t = (d: Date) => d.toLocaleTimeString(hour12 ? "en-US" : "en-GB", { hour: "numeric", minute: "2-digit", hour12, ...zone });
-  return `${day}, ${t(s)} to ${t(e)}`;
-}
-
 // Copy times (1.8b) ------------------------------------------------------------------------------------------------
 
 /**
@@ -191,14 +180,6 @@ export function hoursSummary(weekly: Availability["weekly"]): string {
     i = j + 1;
   }
   return parts.length ? parts.join("; ") : "No hours";
-}
-
-/** The next n dates from a date, with their weekday, for picking override days. */
-export function nextDates(from: string, n: number): { date: string; day: Day }[] {
-  return Array.from({ length: n }, (_, i) => {
-    const date = addDays(from, i);
-    return { date, day: dayOf(date) };
-  });
 }
 
 /** Every zone the browser or Node knows, with the person's own first. */
