@@ -1,7 +1,7 @@
 "use client";
 
 // The filter bar for Contacts, Visitors and Accounts (docs/conversion-parity.md Part 6): a view menu with built-in and
-// saved views, each filter as a square tag, and "+ Filter" to add one. Saved views are shared in the workspace.
+// saved views, each filter as a pill tag, and "+ Filter" to add one. Saved views are shared in the workspace.
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
@@ -74,7 +74,7 @@ export function Popover({ anchor, onClose, children, width = 300 }: { anchor: HT
   }, [anchor, onClose]);
   if (!pos) return null;
   return createPortal(
-    <div ref={box} style={{ position: "fixed", left: pos.left, top: pos.top, width }} className="z-[95] border border-line bg-panel text-[13px] shadow-pop">
+    <div ref={box} style={{ position: "fixed", left: pos.left, top: pos.top, width }} className="anim-rise-sm z-[95] overflow-hidden rounded-lg border border-line bg-card text-[13px] shadow-float">
       {children}
     </div>,
     document.body,
@@ -94,7 +94,7 @@ export function FilterEditor({ fields, start, onDone }: { fields: AnyField[]; st
     return (
       <div className="flex flex-col">
         <div className="border-b border-line p-2">
-          <Input autoFocus value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Field" className="h-8" />
+          <Input autoFocus value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Field" className="h-9" />
         </div>
         <ul className="max-h-72 overflow-y-auto p-1">
           {shown.map((f) => (
@@ -107,7 +107,7 @@ export function FilterEditor({ fields, start, onDone }: { fields: AnyField[]; st
                   setValues(f.type === "bool" ? ["true"] : []);
                   setText("");
                 }}
-                className="flex h-8 w-full items-center rounded-md px-2 text-left hover:bg-hover"
+                className="flex h-8 w-full items-center rounded-sm px-2.5 text-left hover:bg-hover"
               >
                 {f.label}
               </button>
@@ -142,7 +142,7 @@ export function FilterEditor({ fields, start, onDone }: { fields: AnyField[]; st
             onChange={setOp}
             ariaLabel="Condition"
             options={OPS[field.type].map((o) => ({ value: o, label: OP_LABEL[o] }))}
-            className="ml-auto h-8 w-36 rounded-md border border-line bg-panel px-2.5 text-[13px] hover:border-line-strong"
+            className="ml-auto h-9 w-36 rounded-sm border border-line-strong bg-card px-3 text-[13px] focus:border-ink"
           />
         ) : null}
       </div>
@@ -158,9 +158,9 @@ export function FilterEditor({ fields, start, onDone }: { fields: AnyField[]; st
                   type="button"
                   aria-pressed={on}
                   onClick={() => setValues(on ? values.filter((v) => v !== o.value) : [...values, o.value])}
-                  className="flex h-8 w-full items-center gap-2 rounded-md px-2 text-left hover:bg-hover"
+                  className="flex h-8 w-full items-center gap-2 rounded-sm px-2.5 text-left hover:bg-hover"
                 >
-                  <span className={`flex size-4 items-center justify-center border ${on ? "border-ink bg-ink text-white" : "border-line-strong"}`}>{on ? <Check size={11} /> : null}</span>
+                  <span className={`flex size-4 items-center justify-center rounded-[5px] border transition-colors duration-[140ms] ${on ? "border-ink bg-ink text-paper" : "border-line-strong bg-card"}`}>{on ? <Check size={11} /> : null}</span>
                   {o.label}
                 </button>
               </li>
@@ -169,15 +169,15 @@ export function FilterEditor({ fields, start, onDone }: { fields: AnyField[]; st
         </ul>
       ) : (
         <div className="flex items-center gap-2">
-          <Input autoFocus value={text} onChange={(e) => setText(e.target.value)} inputMode={field.type === "text" ? undefined : "decimal"} className="h-8" />
+          <Input autoFocus value={text} onChange={(e) => setText(e.target.value)} inputMode={field.type === "text" ? undefined : "decimal"} className="h-9" />
           {field.type === "date" ? <span className="text-muted">days</span> : field.unit ? <span className="text-muted">{field.unit}</span> : null}
         </div>
       )}
       <div className="flex justify-end gap-2">
-        <Button type="button" variant="plain" className="h-7 px-2.5" onClick={() => onDone(null)}>
+        <Button type="button" variant="plain" size="sm" onClick={() => onDone(null)}>
           Cancel
         </Button>
-        <Button type="submit" className="h-7 px-2.5" disabled={bad}>
+        <Button type="submit" size="sm" disabled={bad}>
           Apply
         </Button>
       </div>
@@ -242,7 +242,7 @@ export function FilterBar({
   };
 
   return (
-    <div className="flex flex-wrap items-center gap-2 border-b border-line bg-canvas px-4 py-2 md:px-5">
+    <div className="flex flex-wrap items-center gap-2 border-b border-line px-4 py-2.5 md:px-5">
       <Select
         value={active?.value ?? ""}
         onChange={(v) => onChange(views.find((x) => x.value === v)?.filters ?? [])}
@@ -250,33 +250,33 @@ export function FilterBar({
         placeholder="Custom view"
         plainPlaceholder
         options={views.map((v) => ({ value: v.value, label: v.label }))}
-        className="h-8 w-44 rounded-md border border-line bg-panel px-2.5 text-[13px] hover:border-line-strong"
+        className="h-9 w-44 rounded-sm border border-line-strong bg-card px-3 text-[13px] focus:border-ink"
       />
       {filters.map((f, i) => (
-        <span key={i} className="inline-flex h-8 items-center border border-line bg-panel text-[12.5px]">
-          <button type="button" onClick={(e) => setEditing({ index: i, anchor: e.currentTarget })} className="h-full max-w-[320px] truncate px-2.5 hover:bg-hover">
+        <span key={i} className="anim-pop inline-flex h-8 items-center gap-0.5 rounded-full border border-line-strong bg-card pr-1 text-[12.5px] transition-[translate,box-shadow] duration-[320ms] ease-out hover:-translate-y-px hover:shadow-soft">
+          <button type="button" onClick={(e) => setEditing({ index: i, anchor: e.currentTarget })} className="h-full max-w-[320px] truncate rounded-full pr-1.5 pl-3 hover:text-ink">
             {describe(f, fields.find((x) => x.key === f.field))}
           </button>
-          <button type="button" aria-label="Remove filter" onClick={() => onChange(filters.filter((_, j) => j !== i))} className="flex h-full items-center border-l border-line px-1.5 text-muted hover:bg-hover hover:text-ink">
+          <button type="button" aria-label="Remove filter" onClick={() => onChange(filters.filter((_, j) => j !== i))} className="flex size-6 items-center justify-center rounded-full text-muted hover:bg-hover hover:text-ink">
             <X size={12} />
           </button>
         </span>
       ))}
-      <Button variant="ghost" className="h-8 px-2.5" onClick={(e) => setEditing({ index: null, anchor: e.currentTarget })} disabled={filters.length >= 20}>
+      <Button variant="ghost" size="sm" onClick={(e) => setEditing({ index: null, anchor: e.currentTarget })} disabled={filters.length >= 20}>
         <Plus size={13} />
         Filter
       </Button>
       {filters.length && !active ? (
-        <Button variant="plain" className="h-8 px-2.5" onClick={saveView}>
+        <Button variant="plain" size="sm" onClick={saveView}>
           Save view
         </Button>
       ) : null}
       {savedActive ? (
-        <Button variant="plain" className="h-8 px-2.5" onClick={deleteView}>
+        <Button variant="plain" size="sm" onClick={deleteView}>
           Delete view
         </Button>
       ) : null}
-      {error || stored.error ? <span className="text-[12.5px] text-danger">{error || stored.error}</span> : null}
+      {error || stored.error ? <span className="text-[12.5px] text-rose">{error || stored.error}</span> : null}
       {right ? <div className="ml-auto flex items-center gap-2">{right}</div> : null}
       {editing ? (
         <Popover anchor={editing.anchor} onClose={() => setEditing(null)}>

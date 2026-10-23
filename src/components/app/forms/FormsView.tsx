@@ -10,10 +10,11 @@ import type { Tokens } from "@/lib/forms/brand";
 import { applyOp, type Op } from "@/lib/forms/ops";
 import { ADAPTERS, checkForm, emptyForm, type Form } from "@/lib/forms/schema";
 import type { CustomField } from "@/lib/records/fields";
-import { Copy, Inbox, Pause, Play, Plus, Redo, Send, Trash, Undo, Wand } from "../../Icons";
+import { Copy, Inbox, Pause, Play, Plus, Redo, Send, Trash, Undo } from "../../Icons";
 import { BrandLogo } from "../BrandLogo";
 import { askConfirm } from "../Dialogs";
-import { Badge, Button, Empty, ErrorNote, errorText, Loading, must, Page, Panel, postJson, setLeaveGuard, Tabs, Td, Th, timeAgo, useLoad, type ViewProps } from "../ui";
+import { ByPip, Pip } from "../Pip";
+import { Badge, Button, Empty, ErrorNote, errorText, Loading, must, Page, Panel, postJson, setLeaveGuard, Tabs, timeAgo, useLoad, type ViewProps } from "../ui";
 import { FormCanvas } from "./FormCanvas";
 import { FormChecks } from "./FormChecks";
 import { FormCreate, PreviewPane } from "./FormCreate";
@@ -56,39 +57,35 @@ function FormList(props: ViewProps) {
       {!list.data ? (
         <Loading />
       ) : (
-        <Panel>
-          <table className="w-full border-collapse">
-            <thead>
-              <tr>
-                <Th>Name</Th>
-                <Th>State</Th>
-                <Th className="text-right">Fills, 30 days</Th>
-                <Th>Last fill</Th>
-                <Th>Changed</Th>
-              </tr>
-            </thead>
-            <tbody>
-              {list.data.map((f) => (
-                <tr key={f.id} className="cursor-pointer border-t border-line hover:bg-hover" onClick={() => navigate("forms", f.id)}>
-                  <Td className="font-medium">
-                    <span className="flex items-center gap-2">
-                      {f.name}
-                      {f.failed ? <Badge tone="red">{`${f.failed} failed`}</Badge> : null}
-                      {f.check === "failed" ? <Badge tone="red">Check failed</Badge> : null}
-                      {f.kind === "captured" ? <Badge>Captured</Badge> : null}
-                    </span>
-                  </Td>
-                  <Td>
-                    <Badge tone={STATUS[f.status][1]}>{STATUS[f.status][0]}</Badge>
-                  </Td>
-                  <Td className="text-right font-mono">{f.fills.toLocaleString("en-US")}</Td>
-                  <Td className="text-faint">{timeAgo(f.last_fill)}</Td>
-                  <Td className="text-faint">{timeAgo(f.updated_at)}</Td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </Panel>
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          {list.data.map((f) => (
+            <button key={f.id} type="button" onClick={() => navigate("forms", f.id)} className="lift press anim-rise-sm flex flex-col gap-6 rounded-2xl border border-line bg-card p-5 text-left hover:border-line-strong">
+              <span className="flex items-start gap-2">
+                <span className="min-w-0 flex-1 truncate pt-px text-[14.5px] font-medium text-ink">{f.name}</span>
+                <Badge tone={STATUS[f.status][1]} dot>
+                  {STATUS[f.status][0]}
+                </Badge>
+              </span>
+              <span className="flex items-end gap-4">
+                <span className="flex min-w-0 flex-1 flex-col gap-1.5">
+                  <span className="serif text-[44px] leading-none text-ink tabular-nums">{f.fills.toLocaleString("en-US")}</span>
+                  <span className="label-mono">Fills, 30 days</span>
+                </span>
+                <span className="flex shrink-0 flex-col items-end gap-1 text-right">
+                  <span className="label-mono">Last fill {timeAgo(f.last_fill)}</span>
+                  <span className="label-mono">Changed {timeAgo(f.updated_at)}</span>
+                </span>
+              </span>
+              {f.failed || f.check === "failed" || f.kind === "captured" ? (
+                <span className="-mt-2 flex flex-wrap gap-1.5">
+                  {f.failed ? <Badge tone="red">{`${f.failed} failed`}</Badge> : null}
+                  {f.check === "failed" ? <Badge tone="red">Check failed</Badge> : null}
+                  {f.kind === "captured" ? <Badge>Captured</Badge> : null}
+                </span>
+              ) : null}
+            </button>
+          ))}
+        </div>
       )}
     </Page>
   );
@@ -386,7 +383,7 @@ function Builder({
       flush
       actions={
         <span className="flex items-center gap-1.5">
-          <span className="hidden font-mono text-[10.5px] text-faint sm:inline">{saved ? "Saved" : "Saving…"}</span>
+          <span className="hidden font-mono text-[11.5px] text-muted sm:inline">{saved ? "Saved" : "Saving…"}</span>
           <IconButton label="Undo" onClick={undo} disabled={!past.length}>
             <Undo size={14} />
           </IconButton>
@@ -417,10 +414,10 @@ function Builder({
       <div className="flex h-full min-h-0 flex-col">
         <Tabs value={tab} tabs={tabs} onChange={setTab} />
         {error || note || problems.length ? (
-          <div className="border-b border-line bg-panel px-4 py-2">
+          <div className="border-b border-line bg-card px-4 py-2">
             <ErrorNote message={error || problems[0] || note} />
             {problems.length > 1 ? (
-              <ul className="mt-1 flex flex-col gap-0.5 text-[12.5px] text-danger">
+              <ul className="mt-1 flex flex-col gap-0.5 px-3.5 text-[12.5px] text-rose">
                 {problems.slice(1).map((p) => (
                   <li key={p}>{p}</li>
                 ))}
@@ -432,14 +429,14 @@ function Builder({
           {tab === "share" ? (
             <div className="grid h-full min-h-0 lg:grid-cols-[1fr_380px]">
               <PreviewPane form={form} brand={brand} footer={<ChangeBox session={session} ws={ws} formId={initial.id} prepare={async () => ((await save()) ? rev.current : null)} onResult={fromChat} />} />
-              <aside className="min-h-0 overflow-auto border-l border-line bg-panel">
+              <aside className="min-h-0 overflow-auto border-l border-line bg-card">
                 <Embed id={initial.id} origin={origin} live={!!initial.version} form={form} apply={apply} />
               </aside>
             </div>
           ) : tab === "build" ? (
             <FormCanvas form={form} apply={apply} custom={custom} tokens={tokens} name={name} setName={rename} look={look} />
           ) : tab === "connect" ? (
-            <div className="paper h-full overflow-auto p-4 md:p-8">
+            <div className="h-full overflow-auto bg-paper p-4 md:p-8">
               <div className="mx-auto flex max-w-3xl flex-col gap-8">
                 <FormDestinations sb={sb} session={session} ws={ws} formId={initial.id} list={dests} sources={sources} reload={reload} navigate={navigate} />
                 <Panel>
@@ -450,7 +447,7 @@ function Builder({
               </div>
             </div>
           ) : (
-            <div className="paper h-full overflow-auto p-4 md:p-8">
+            <div className="h-full overflow-auto bg-paper p-4 md:p-8">
               <div className="mx-auto flex max-w-5xl flex-col gap-8">
                 <FormFills key={watch} sb={sb} formId={initial.id} destinations={dests} navigate={navigate} watch={watch} />
                 {form.capture ? null : <FormChecks sb={sb} formId={initial.id} live={initial.status === "live"} />}
@@ -497,9 +494,9 @@ function ChangeBox({ session, ws, formId, prepare, onResult }: Pick<ViewProps, "
           e.preventDefault();
           void send(text);
         }}
-        className="flex items-center gap-2 border border-line bg-panel p-2 focus-within:border-ink"
+        className="flex items-center gap-2 rounded-full border border-line-strong bg-card p-1.5 pl-2 transition-colors focus-within:border-ink"
       >
-        <Wand size={15} className="ml-1 text-muted" />
+        <Pip size={26} mood={busy ? "thinking" : "idle"} />
         <input value={text} onChange={(e) => setText(e.target.value)} placeholder="Change anything, like “add a budget question”" aria-label="Change the form" className="h-8 min-w-0 flex-1 bg-transparent text-[13.5px] outline-none placeholder:text-faint" />
         <Button type="submit" disabled={!text.trim() || busy}>
           {busy ? "Changing…" : "Change"}
@@ -507,32 +504,36 @@ function ChangeBox({ session, ws, formId, prepare, onResult }: Pick<ViewProps, "
       </form>
       <div className="flex flex-wrap gap-1.5">
         {SUGGEST.map((s) => (
-          <button key={s} type="button" disabled={busy} onClick={() => void send(s)} className="h-7 rounded-md border border-line bg-panel px-2.5 text-[12px] text-body hover:border-line-strong hover:text-ink disabled:opacity-50">
+          <button key={s} type="button" disabled={busy} onClick={() => void send(s)} className="press h-8 rounded-full border border-line-strong bg-card px-3 text-[12.5px] text-body transition-transform duration-[140ms] hover:-translate-y-px hover:border-ink hover:text-ink disabled:opacity-50">
             {s}
           </button>
         ))}
       </div>
       <ErrorNote message={error} />
       {reply.text ? (
-        <div className="mk-rise border border-line bg-panel px-3 py-2 text-[13px]">
-          <p>{reply.text}</p>
-          {reply.lines.length ? (
-            <ul className="mt-1 text-[12.5px] text-muted">
-              {reply.lines.map((l) => (
-                <li key={l}>{l}</li>
-              ))}
-            </ul>
-          ) : null}
-          {reply.ask ? (
-            <div className="mt-2 flex gap-1.5">
-              <Button onClick={() => void send(reply.ask!, true)} disabled={busy}>
-                Yes
-              </Button>
-              <Button variant="ghost" onClick={() => setReply({ text: "", lines: [], ask: null })}>
-                No
-              </Button>
-            </div>
-          ) : null}
+        <div className="anim-rise-sm flex items-start gap-2.5 rounded-lg border border-line bg-card px-3.5 py-3 text-[13px]">
+          <Pip size={24} mood={busy ? "thinking" : reply.lines.length ? "done" : "idle"} />
+          <div className="min-w-0 flex-1">
+            <p className="pt-0.5">{reply.text}</p>
+            {reply.lines.length ? (
+              <ul className="mt-1 text-[12.5px] text-muted">
+                {reply.lines.map((l) => (
+                  <li key={l}>{l}</li>
+                ))}
+              </ul>
+            ) : null}
+            {reply.ask ? (
+              <div className="mt-2 flex gap-1.5">
+                <Button onClick={() => void send(reply.ask!, true)} disabled={busy}>
+                  Yes
+                </Button>
+                <Button variant="ghost" onClick={() => setReply({ text: "", lines: [], ask: null })}>
+                  No
+                </Button>
+              </div>
+            ) : null}
+          </div>
+          {reply.lines.length ? <ByPip /> : null}
         </div>
       ) : null}
     </div>
@@ -583,7 +584,7 @@ function Embed({ id, origin, live, form, apply }: { id: string; origin: string; 
         <h3 className="text-[15px] font-medium">Put it on your site</h3>
         {live ? null : <Badge tone="amber">Live after Publish</Badge>}
       </div>
-      <div className="grid grid-cols-4 border-t border-l border-line">
+      <div className="grid grid-cols-4 gap-1.5">
         {WAYS.map((w) => (
           <button
             key={w.value}
@@ -593,7 +594,7 @@ function Embed({ id, origin, live, form, apply }: { id: string; origin: string; 
               setCopied(false);
             }}
             aria-pressed={way === w.value}
-            className={`flex flex-col items-center justify-center gap-1 border-r border-b border-line px-1 py-2.5 text-[11.5px] ${way === w.value ? "bg-ink text-white" : "bg-panel text-body hover:bg-hover"}`}
+            className={`press flex flex-col items-center justify-center gap-1 rounded-lg border px-1 py-2.5 text-[11.5px] transition-colors ${way === w.value ? "border-ink bg-hover font-medium text-ink ring-1 ring-ink" : "border-line bg-card text-body hover:border-line-strong"}`}
           >
             {w.domain ? <BrandLogo domain={w.domain} name={w.label} size={16} /> : <span className="font-mono text-[11px]">{w.value === "code" ? "</>" : w.value === "link" ? "URL" : w.value === "popup" ? "[ ]" : "<if>"}</span>}
             {w.label}
@@ -609,7 +610,7 @@ function Embed({ id, origin, live, form, apply }: { id: string; origin: string; 
               ["exit", "When they leave"],
             ] as const
           ).map(([v, l]) => (
-            <button key={v} type="button" onClick={() => setTrigger(v)} aria-pressed={trigger === v} className={`h-8 border px-2.5 text-[12.5px] ${trigger === v ? "border-ink bg-hover font-medium" : "border-line hover:border-ink"}`}>
+            <button key={v} type="button" onClick={() => setTrigger(v)} aria-pressed={trigger === v} className={`press h-8 rounded-full border px-3 text-[12.5px] ${trigger === v ? "border-ink bg-ink font-medium text-paper" : "border-line-strong bg-card hover:border-ink"}`}>
               {l}
             </button>
           ))}
@@ -619,14 +620,14 @@ function Embed({ id, origin, live, form, apply }: { id: string; origin: string; 
         <ol className="flex flex-col gap-1.5 text-[13px] text-body">
           {steps[way]!.map((s, i) => (
             <li key={s} className="flex gap-2">
-              <span className="flex size-5 shrink-0 items-center justify-center border border-line font-mono text-[10px] text-muted">{i + 1}</span>
+              <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-paper-deep font-mono text-[10.5px] text-muted">{i + 1}</span>
               {s}
             </li>
           ))}
         </ol>
       ) : null}
       <div className="flex flex-col">
-        <pre className="max-h-64 overflow-auto bg-[#161615] p-4 font-mono text-[11.5px] leading-relaxed whitespace-pre-wrap text-[#e8e8e3]">{text[way]}</pre>
+        <pre className="max-h-64 overflow-auto rounded-lg bg-[#161615] p-4 font-mono text-[11.5px] leading-relaxed whitespace-pre-wrap text-[#e8e8e3]">{text[way]}</pre>
         <div className="flex gap-2 pt-2">
           <Button onClick={async () => setCopied(await copy(text[way]))}>
             <Copy size={14} />
@@ -650,14 +651,14 @@ function Capture({ id, origin, live, form, apply }: { id: string; origin: string
   return (
     <div className="flex flex-col gap-5 p-5">
       <h3 className="text-[15px] font-medium">Your form</h3>
-      <div className="grid grid-cols-2 border-t border-l border-line">
+      <div className="grid grid-cols-2 gap-1.5">
         {ADAPTERS.map((a) => (
           <button
             key={a.value}
             type="button"
             aria-pressed={cap.adapter === a.value}
             onClick={() => apply({ op: "set_capture", adapter: a.value })}
-            className={`flex items-center gap-2 border-r border-b border-line px-3 py-2.5 text-left text-[13px] ${cap.adapter === a.value ? "bg-hover font-medium text-ink" : "bg-panel text-body hover:bg-hover"}`}
+            className={`press flex items-center gap-2 rounded-lg border px-3 py-2.5 text-left text-[13px] transition-colors ${cap.adapter === a.value ? "border-ink bg-hover font-medium text-ink ring-1 ring-ink" : "border-line bg-card text-body hover:border-line-strong"}`}
           >
             {a.domain ? <BrandLogo domain={a.domain} name={a.label} size={18} /> : null}
             {a.label}
@@ -671,13 +672,13 @@ function Capture({ id, origin, live, form, apply }: { id: string; origin: string
             value={cap.selector ?? ""}
             onChange={(e) => apply({ op: "set_capture", selector: e.target.value })}
             placeholder="#demo-form"
-            className="h-9 w-full rounded-md border border-line bg-panel px-2.5 font-mono text-[12.5px] text-ink outline-none focus:border-ink"
+            className="h-9 w-full rounded-sm border border-line-strong bg-card px-3 font-mono text-[12.5px] text-ink outline-none focus:border-ink focus:ring-1 focus:ring-ink"
           />
         </label>
       ) : null}
       {live ? (
         <div className="flex flex-col">
-          <pre className="overflow-x-auto bg-[#161615] p-4 font-mono text-[11.5px] leading-relaxed text-[#e8e8e3]">{snippet}</pre>
+          <pre className="overflow-x-auto rounded-lg bg-[#161615] p-4 font-mono text-[11.5px] leading-relaxed text-[#e8e8e3]">{snippet}</pre>
           <div className="pt-2">
             <Button onClick={async () => setCopied(await copy(snippet))}>
               <Copy size={14} />

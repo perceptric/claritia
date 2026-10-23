@@ -44,7 +44,7 @@ export function ColorInput({ label, value, onChange }: { label: string; value: s
   const hex = /^#[0-9a-f]{6}/i.test(value) ? value.slice(0, 7) : "#000000";
   return (
     <label className="flex items-center gap-2">
-      <input type="color" value={hex} onChange={(e) => onChange(e.target.value)} aria-label={label} className="size-8 shrink-0 cursor-pointer rounded-md border border-line bg-panel p-0.5" />
+      <input type="color" value={hex} onChange={(e) => onChange(e.target.value)} aria-label={label} className="size-8 shrink-0 cursor-pointer overflow-hidden rounded-full border border-line-strong bg-card p-0.5" />
       <span className="flex min-w-0 flex-1 flex-col">
         <span className="label-mono">{label}</span>
         <input value={value} onChange={(e) => onChange(e.target.value)} className="h-7 w-full bg-transparent font-mono text-[12px] text-ink outline-none" aria-label={`${label} hex`} />
@@ -75,7 +75,7 @@ export function NumberInput({ label, value, min, max, onChange }: { label: strin
           const n = Number(e.target.value);
           if (Number.isFinite(n)) onChange(Math.min(max, Math.max(min, n)));
         }}
-        className="h-9 w-full rounded-md border border-line bg-panel px-2.5 text-[13px] text-ink outline-none focus:border-ink"
+        className="h-9 w-full rounded-sm border border-line-strong bg-card px-3 text-[13px] text-ink outline-none focus:border-ink focus:ring-1 focus:ring-ink"
       />
     </label>
   );
@@ -92,7 +92,7 @@ export function IconButton({ label, onClick, children, disabled, danger }: { lab
         e.stopPropagation();
         onClick();
       }}
-      className={`inline-flex size-7 items-center justify-center rounded-md text-muted hover:bg-hover disabled:pointer-events-none disabled:opacity-40 ${danger ? "hover:text-danger" : "hover:text-ink"}`}
+      className={`press inline-flex size-8 shrink-0 items-center justify-center rounded-full text-muted disabled:pointer-events-none disabled:opacity-40 ${danger ? "hover:bg-rose-wash hover:text-rose" : "hover:bg-hover hover:text-ink"}`}
     >
       {children}
     </button>

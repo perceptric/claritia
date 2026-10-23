@@ -211,8 +211,8 @@ export function ImportPanel({
                     {(info?.rows ?? 0).toLocaleString("en-US")} rows
                   </span>
                 </div>
-                <div className="h-1.5 bg-hover">
-                  <div className="h-full bg-ink transition-[width]" style={{ width: `${Math.min(100, ((imp?.progress?.rows ?? 0) / Math.max(1, info?.rows ?? 1)) * 100)}%` }} />
+                <div className="h-1.5 overflow-hidden rounded-full bg-paper-deep">
+                  <div className="h-full w-full origin-left rounded-full bg-ink transition-transform duration-[700ms] ease-out" style={{ transform: `scaleX(${Math.min(100, ((imp?.progress?.rows ?? 0) / Math.max(1, info?.rows ?? 1)) * 100) / 100})` }} />
                 </div>
               </div>
             </Panel>
@@ -233,11 +233,11 @@ export function ImportPanel({
             </Panel>
           ) : null}
           {imp && !going ? (
-            <div className="grid grid-cols-2 border-t border-l border-line sm:grid-cols-4">
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
               {tiles.map(([label, v]) => (
-                <div key={label} className="border-r border-b border-line px-5 py-4">
+                <div key={label} className="anim-rise-sm rounded-lg border border-line bg-card px-4 py-3.5">
                   <div className="label-mono">{label}</div>
-                  <div className="mt-1 text-[22px] font-medium tabular-nums">{Number(v).toLocaleString("en-US")}</div>
+                  <div className="serif mt-1 text-[28px] leading-tight text-ink tabular-nums">{Number(v).toLocaleString("en-US")}</div>
                 </div>
               ))}
             </div>
@@ -296,8 +296,10 @@ export function ImportPanel({
                 ]}
               />
               {how === "file" ? (
-                <label className="frame flex cursor-pointer flex-col items-center gap-3 border border-dashed border-line-strong bg-canvas px-6 py-16 text-center hover:border-ink">
-                  <Upload size={18} />
+                <label className="lift flex cursor-pointer flex-col items-center gap-3 rounded-2xl border border-dashed border-line-strong bg-paper px-6 py-16 text-center hover:border-ink">
+                  <span className="flex size-11 items-center justify-center rounded-full bg-card text-ink">
+                    <Upload size={18} />
+                  </span>
                   <span className="text-[14px] font-medium">Choose a file</span>
                   <span className="font-mono text-[11px] text-faint">CSV · TSV · Excel · vCard</span>
                   <input
@@ -317,7 +319,7 @@ export function ImportPanel({
                     onChange={(e) => setPaste(e.target.value)}
                     rows={12}
                     placeholder={"email,first name,company\njane@acme.com,Jane,Acme"}
-                    className="w-full rounded-md border border-line bg-panel px-2.5 py-2 font-mono text-[12.5px] outline-none focus:border-ink"
+                    className="w-full rounded-sm border border-line-strong bg-card px-3 py-2.5 font-mono text-[12.5px] outline-none placeholder:text-faint focus:border-ink focus:ring-1 focus:ring-ink"
                   />
                   <div>
                     <Button
@@ -349,13 +351,13 @@ export function ImportPanel({
                   onChange={(s) => void inspect(file!, s)}
                   ariaLabel="Sheet"
                   options={info.sheets.map((s) => ({ value: s, label: s }))}
-                  className="ml-auto h-8 w-48 rounded-md border border-line bg-panel px-2.5 text-[13px] hover:border-line-strong"
+                  className="ml-auto h-9 w-48 rounded-sm border border-line-strong bg-card px-3 text-[13px] focus:border-ink"
                 />
               ) : null}
             </div>
 
             {preview ? (
-              <Panel>
+              <Panel className="overflow-hidden">
                 <table className="w-full border-collapse">
                   <thead>
                     <tr>
@@ -386,7 +388,7 @@ export function ImportPanel({
               </Panel>
             ) : (
               <>
-                <Panel>
+                <Panel className="overflow-hidden">
                   <table className="w-full border-collapse">
                     <thead>
                       <tr>
@@ -406,7 +408,7 @@ export function ImportPanel({
                               onChange={(t) => choose(i, t)}
                               ariaLabel={`Field for ${h}`}
                               options={targetOptions}
-                              className={`h-8 w-full rounded-md border border-line bg-panel px-2.5 text-[13px] hover:border-line-strong ${columns[i] === "skip" ? "text-faint" : ""}`}
+                              className={`h-9 w-full rounded-sm border border-line-strong bg-card px-3 text-[13px] focus:border-ink ${columns[i] === "skip" ? "text-faint" : ""}`}
                             />
                           </Td>
                         </tr>
@@ -434,7 +436,7 @@ export function ImportPanel({
                       ariaLabel="Source"
                       placeholder="Choose…"
                       options={IMPORT_SOURCES}
-                      className="h-9 w-full rounded-md border border-line bg-panel px-2.5 text-[13px] hover:border-line-strong"
+                      className="h-10 w-full rounded-sm border border-line-strong bg-card px-3 text-[13px] focus:border-ink"
                     />
                   </Field>
                   {!blocking ? (
@@ -445,7 +447,7 @@ export function ImportPanel({
                         ariaLabel="Email consent"
                         placeholder="Choose…"
                         options={BASES}
-                        className="h-9 w-full rounded-md border border-line bg-panel px-2.5 text-[13px] hover:border-line-strong"
+                        className="h-10 w-full rounded-sm border border-line-strong bg-card px-3 text-[13px] focus:border-ink"
                       />
                     </Field>
                   ) : null}

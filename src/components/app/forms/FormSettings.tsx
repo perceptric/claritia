@@ -11,7 +11,7 @@ import { Select } from "../Select";
 import { ErrorNote, errorText, Field, Input, must, Segmented, useLoad, type ViewProps } from "../ui";
 import { NumberInput, Toggle } from "./shared";
 
-const AREA = "w-full rounded-md border border-line bg-panel px-2.5 py-2 text-[13px] text-ink outline-none focus:border-ink";
+const AREA = "w-full rounded-sm border border-line-strong bg-card px-3 py-2 text-[13px] text-ink outline-none focus:border-ink focus:ring-1 focus:ring-ink";
 
 export function FormSettings({ form, apply, sb, ws, session, role }: { form: Form; apply: (op: Op) => void } & Pick<ViewProps, "sb" | "ws" | "session" | "role">) {
   const topics = useLoad(async () => (must(await sb.from("topics").select("id, name").eq("workspace_id", ws.id).order("name")) ?? []) as { id: string; name: string }[], `${ws.id}:topics`);
@@ -32,14 +32,14 @@ export function FormSettings({ form, apply, sb, ws, session, role }: { form: For
         />
         {sch ? (
           <>
-            <div className="grid grid-cols-2 border-t border-l border-line sm:grid-cols-3">
+            <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3">
               {SCHEDULERS.map((t) => (
                 <button
                   key={t.value}
                   type="button"
                   aria-pressed={sch.tool === t.value}
                   onClick={() => apply({ op: "set_schedule", schedule: { ...sch, tool: t.value } })}
-                  className={`flex items-center gap-2 border-r border-b border-line px-3 py-2.5 text-left text-[13px] ${sch.tool === t.value ? "bg-hover font-medium text-ink" : "bg-panel text-body hover:bg-hover"}`}
+                  className={`press flex items-center gap-2 rounded-lg border px-3 py-2.5 text-left text-[13px] transition-colors ${sch.tool === t.value ? "border-ink bg-hover font-medium text-ink ring-1 ring-ink" : "border-line bg-card text-body hover:border-line-strong"}`}
                 >
                   {t.domain ? <BrandLogo domain={t.domain} name={t.label} size={18} /> : null}
                   {t.label}

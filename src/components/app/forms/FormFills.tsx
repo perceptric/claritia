@@ -6,6 +6,7 @@
 import { useEffect, useState } from "react";
 import { allFields, type Form } from "@/lib/forms/schema";
 import { ChevronRight, Link as LinkIcon, Refresh } from "../../Icons";
+import { Sketch } from "../../sketches/Sketch";
 import { Badge, Button, Empty, ErrorNote, errorText, Loading, must, Panel, Segmented, timeAgo, useLoad, type ViewProps } from "../ui";
 import { DELIVERY, type Destination } from "./shared";
 
@@ -80,7 +81,7 @@ export function FormFills({ sb, formId, destinations, navigate, watch }: Pick<Vi
           ]}
           onChange={setKind}
         />
-        <Button variant="plain" onClick={fills.reload} className="ml-auto">
+        <Button variant="plain" size="sm" onClick={fills.reload} className="ml-auto w-8 px-0">
           <Refresh size={14} />
         </Button>
       </div>
@@ -88,9 +89,9 @@ export function FormFills({ sb, formId, destinations, navigate, watch }: Pick<Vi
       {!fills.data ? (
         <Loading />
       ) : !fills.data.length ? (
-        <Empty title={kind === "spam" ? "No spam" : kind === "tests" ? "No tests yet" : "No fills yet"} />
+        <Empty sketch={<Sketch name={kind === "tests" ? "plane" : "clipboard"} size={160} />} title={kind === "spam" ? "No spam" : kind === "tests" ? "No tests yet" : "No fills yet"} />
       ) : (
-        <Panel>
+        <Panel className="overflow-hidden">
           <ul className="divide-y divide-line">
             {fills.data.map((s) => {
               const body = versions.data?.get(s.form_version);
@@ -99,7 +100,7 @@ export function FormFills({ sb, formId, destinations, navigate, watch }: Pick<Vi
               const isOpen = open === s.id;
               return (
                 <li key={s.id}>
-                  <button type="button" onClick={() => setOpen(isOpen ? null : s.id)} aria-expanded={isOpen} className="flex w-full items-center gap-3 px-4 py-3 text-left text-[13px] hover:bg-hover">
+                  <button type="button" onClick={() => setOpen(isOpen ? null : s.id)} aria-expanded={isOpen} className="flex min-h-14 w-full items-center gap-3 px-5 py-3 text-left text-[13.5px] transition-colors duration-[140ms] hover:bg-hover">
                     <ChevronRight size={14} className={`text-faint transition-transform ${isOpen ? "rotate-90" : ""}`} />
                     <span className="min-w-0 flex-1 truncate font-medium">{who}</span>
                     {s.form_bookings?.map((b, j) => (
@@ -115,10 +116,10 @@ export function FormFills({ sb, formId, destinations, navigate, watch }: Pick<Vi
                         </Badge>
                       ))}
                     </span>
-                    <span className="w-20 shrink-0 text-right text-[12px] text-faint">{timeAgo(s.created_at)}</span>
+                    <span className="w-20 shrink-0 text-right font-mono text-[11.5px] text-muted">{timeAgo(s.created_at)}</span>
                   </button>
                   {isOpen ? (
-                    <div className="grid gap-4 border-t border-line bg-canvas px-4 py-4 md:grid-cols-2">
+                    <div className="anim-rise-sm grid gap-4 border-t border-line bg-paper px-5 py-5 md:grid-cols-2">
                       <dl className="flex flex-col gap-2 text-[13px]">
                         {Object.entries(s.values).map(([k, v]) => (
                           <div key={k} className="flex flex-col">
@@ -141,20 +142,20 @@ export function FormFills({ sb, formId, destinations, navigate, watch }: Pick<Vi
                             </Button>
                           </div>
                         ) : null}
-                        <ul className="flex flex-col divide-y divide-line border border-line bg-panel">
+                        <ul className="flex flex-col divide-y divide-line overflow-hidden rounded-lg border border-line bg-card">
                           {s.deliveries.map((d) => (
-                            <li key={d.id} className="flex flex-col gap-1 px-3 py-2 text-[13px]">
+                            <li key={d.id} className="flex flex-col gap-1 px-3.5 py-2.5 text-[13px]">
                               <div className="flex items-center gap-2">
                                 <span className="min-w-0 flex-1 truncate font-medium">{destName(d.destination_id)}</span>
                                 {d.external_url ? (
-                                  <a href={d.external_url} target="_blank" rel="noreferrer" className="text-muted hover:text-ink" aria-label="Open the record" title="Open the record">
+                                  <a href={d.external_url} target="_blank" rel="noreferrer" className="flex size-8 items-center justify-center rounded-full text-muted hover:bg-hover hover:text-ink" aria-label="Open the record" title="Open the record">
                                     <LinkIcon size={14} />
                                   </a>
                                 ) : null}
                                 <Badge tone={DELIVERY[d.status]?.[1] ?? "gray"}>{DELIVERY[d.status]?.[0] ?? d.status}</Badge>
                               </div>
-                              {d.error ? <p className="text-[12px] break-words text-danger">{d.error}</p> : null}
-                              <p className="font-mono text-[10.5px] text-faint">
+                              {d.error ? <p className="text-[12px] break-words text-rose">{d.error}</p> : null}
+                              <p className="font-mono text-[11.5px] text-muted">
                                 {d.attempts} {d.attempts === 1 ? "try" : "tries"} · {timeAgo(d.updated_at)}
                               </p>
                             </li>

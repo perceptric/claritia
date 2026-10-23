@@ -22,10 +22,17 @@ export function displayName(r: Row): string {
   return (typeof n === "string" && n) || (r.email as string) || (r.domain as string) || "—";
 }
 
-export function CheckBox({ on, label, onClick }: { on: boolean; label: string; onClick: (e: React.MouseEvent) => void }) {
+export function CheckBox({ on, label, onClick, round = false }: { on: boolean; label: string; onClick: (e: React.MouseEvent) => void; round?: boolean }) {
   return (
-    <button type="button" role="checkbox" aria-checked={on} aria-label={label} onClick={onClick} className={`flex size-4 items-center justify-center border ${on ? "border-ink bg-ink text-white" : "border-line-strong bg-panel hover:border-ink"}`}>
-      {on ? <Check size={11} /> : null}
+    <button
+      type="button"
+      role="checkbox"
+      aria-checked={on}
+      aria-label={label}
+      onClick={onClick}
+      className={`press flex shrink-0 items-center justify-center border transition-colors duration-[140ms] ${round ? "size-5 rounded-full" : "size-4 rounded-[5px]"} ${on ? "border-ink bg-ink text-paper" : "border-line-strong bg-card hover:border-ink"}`}
+    >
+      {on ? <Check size={round ? 12 : 11} className="anim-pop" /> : null}
     </button>
   );
 }
@@ -112,15 +119,15 @@ export function RecordTable({
   const nameField = byKey.get("name");
 
   return (
-    <div className="overflow-x-auto">
-      <table className="w-max min-w-full table-fixed border-collapse">
+    <div className="min-h-0 overflow-auto rounded-2xl border border-line bg-card">
+      <table className="w-max min-w-full table-fixed border-separate border-spacing-0">
         <thead>
           <tr>
-            <th className="sticky left-0 z-20 h-10 w-10 border-b border-line bg-canvas pl-4">
+            <th className="sticky top-0 left-0 z-30 h-11 w-10 border-b border-line bg-card pl-4">
               <CheckBox on={pageAll || allMatching} label="Select this page" onClick={onTogglePage} />
             </th>
-            <th className="sticky left-10 z-20 h-10 w-[280px] border-r border-b border-line bg-canvas px-4 text-left font-mono text-[10.5px] font-medium tracking-[0.12em] whitespace-nowrap text-muted uppercase">
-              <button type="button" onClick={() => onSort("name")} className="uppercase hover:text-ink">
+            <th className="sticky top-0 left-10 z-30 h-11 w-[280px] border-r border-b border-line bg-card px-4 text-left font-mono text-[11.5px] font-normal whitespace-nowrap text-muted">
+              <button type="button" onClick={() => onSort("name")} className="hover:text-ink">
                 {nameField?.label ?? "Name"}
                 {sort.key === "name" ? (sort.desc ? " ↓" : " ↑") : ""}
               </button>
@@ -152,10 +159,10 @@ export function RecordTable({
                     setOverKey(null);
                   }}
                   style={{ width: w }}
-                  className={`relative h-10 cursor-grab border-b border-line bg-canvas px-4 text-left font-mono text-[10.5px] font-medium tracking-[0.12em] whitespace-nowrap text-muted uppercase ${overKey === c.key && dragKey !== c.key ? "shadow-[inset_2px_0_0_var(--color-ink)]" : ""}`}
+                  className={`sticky top-0 z-20 h-11 cursor-grab border-b border-line bg-card px-4 text-left font-mono text-[11.5px] font-normal whitespace-nowrap text-muted ${overKey === c.key && dragKey !== c.key ? "shadow-[inset_2px_0_0_var(--color-ink)]" : ""}`}
                 >
                   {sortable(f) ? (
-                    <button type="button" onClick={() => onSort(f.sort!)} title={f.config.description || undefined} className="max-w-full truncate uppercase hover:text-ink">
+                    <button type="button" onClick={() => onSort(f.sort!)} title={f.config.description || undefined} className="max-w-full truncate hover:text-ink">
                       {f.label}
                       {arrow(f)}
                     </button>
@@ -168,14 +175,14 @@ export function RecordTable({
                     role="separator"
                     aria-label={`Resize ${f.label}`}
                     onMouseDown={(e) => startResize(e, c.key, w)}
-                    className="absolute inset-y-0 right-0 w-1.5 cursor-col-resize hover:bg-line-strong"
+                    className="absolute inset-y-2 right-0 w-1.5 cursor-col-resize rounded-full hover:bg-line-strong"
                   />
                 </th>
               );
             })}
-            <th className="h-10 w-full border-b border-line bg-canvas px-2 text-left">
+            <th className="sticky top-0 z-20 h-11 w-full border-b border-line bg-card px-2 text-left">
               {onAddField ? (
-                <button type="button" onClick={onAddField} aria-label="Add field" title="Add field" className="flex size-7 items-center justify-center rounded-md text-muted hover:bg-hover hover:text-ink">
+                <button type="button" onClick={onAddField} aria-label="Add field" title="Add field" className="press flex size-8 items-center justify-center rounded-full text-muted hover:bg-hover hover:text-ink">
                   <Plus size={14} />
                 </button>
               ) : null}
@@ -187,8 +194,8 @@ export function RecordTable({
             const on = allMatching || selected.has(r.id);
             const links = (r.links ?? {}) as Record<string, Link[]>;
             return (
-              <tr key={r.id} className={`group ${on ? "bg-brand-pale" : "hover:bg-hover"}`}>
-                <td className={`sticky left-0 z-10 h-11 w-10 border-b border-line pl-4 ${on ? "bg-brand-pale" : "bg-panel group-hover:bg-hover"}`}>
+              <tr key={r.id} className={`group transition-colors duration-[140ms] ${on ? "bg-brand-pale" : "hover:bg-paper"}`}>
+                <td className={`sticky left-0 z-10 h-14 w-10 border-b border-line pl-4 group-last:border-b-0 ${on ? "bg-brand-pale" : "bg-card group-hover:bg-paper"}`}>
                   <CheckBox
                     on={on}
                     label="Select"
@@ -200,10 +207,10 @@ export function RecordTable({
                 </td>
                 <td
                   onClick={() => onOpen(r)}
-                  className={`sticky left-10 z-10 h-11 w-[280px] cursor-pointer border-r border-b border-line px-4 text-[13.5px] ${on ? "bg-brand-pale" : "bg-panel group-hover:bg-hover"}`}
+                  className={`sticky left-10 z-10 h-14 w-[280px] cursor-pointer border-r border-b border-line px-4 text-[13.5px] group-last:border-b-0 ${on ? "bg-brand-pale" : "bg-card group-hover:bg-paper"}`}
                 >
-                  <span className="flex items-center gap-2.5">
-                    <Avatar label={displayName(r)} />
+                  <span className="flex items-center gap-3">
+                    <Avatar label={displayName(r)} size={28} />
                     <span className="flex min-w-0 flex-col">
                       <span className="truncate font-medium">{displayName(r)}</span>
                       {r.email && displayName(r) !== r.email ? <span className="truncate text-[12px] text-faint">{String(r.email)}</span> : null}
@@ -219,7 +226,7 @@ export function RecordTable({
                     <td
                       key={c.key}
                       onClick={() => (f.edit ? setEditing({ id: r.id, key: c.key }) : onOpen(r))}
-                      className={`h-11 overflow-hidden border-b border-line px-4 text-[13.5px] whitespace-nowrap ${f.edit ? "cursor-text" : "cursor-pointer"} ${active ? "px-1.5" : ""}`}
+                      className={`h-14 overflow-hidden border-b border-line px-4 text-[13.5px] whitespace-nowrap group-last:border-b-0 ${f.edit ? "cursor-text" : "cursor-pointer"} ${active ? "px-1.5" : ""}`}
                     >
                       {active ? (
                         <FieldEditor
@@ -243,7 +250,7 @@ export function RecordTable({
                     </td>
                   );
                 })}
-                <td className="h-11 border-b border-line" />
+                <td className="h-14 border-b border-line group-last:border-b-0" />
               </tr>
             );
           })}
@@ -296,14 +303,14 @@ export function RecordBoard({
               setDragId(null);
               setOver(null);
             }}
-            className={`flex w-64 shrink-0 flex-col border border-line ${over === lane.value && dragId ? "bg-hover" : "bg-canvas"}`}
+            className={`flex w-72 shrink-0 flex-col rounded-2xl transition-colors duration-[140ms] ${over === lane.value && dragId ? "bg-paper ring-1 ring-line-strong" : "bg-paper-deep"}`}
           >
-            <header className="flex h-10 items-center gap-2 border-b border-line px-3">
+            <header className="flex h-12 items-center gap-2 px-3.5 pt-1">
               <Badge tone={"kind" in lane && lane.kind === "won" ? "green" : "kind" in lane && lane.kind === "lost" ? "red" : "gray"}>{lane.label}</Badge>
               {sum && total ? <span className="ml-auto font-mono text-[11.5px] text-body tabular-nums">{shown(sum, total)}</span> : null}
               <span className={`${sum && total ? "" : "ml-auto "}font-mono text-[11px] text-faint tabular-nums`}>{(counts[lane.value] ?? items.length).toLocaleString("en-US")}</span>
             </header>
-            <ul className="flex flex-col gap-2 p-2">
+            <ul className="flex min-h-16 flex-col gap-2 px-2 pb-2">
               {items.map((r) => (
                 <li
                   key={r.id}
@@ -311,14 +318,17 @@ export function RecordBoard({
                   onDragStart={() => setDragId(r.id)}
                   onDragEnd={() => setDragId(null)}
                   onClick={() => onOpen(r)}
-                  className={`cursor-pointer border border-line bg-panel p-3 hover:border-line-strong ${dragId === r.id ? "opacity-50" : ""}`}
+                  className={`lift cursor-grab rounded-lg border border-line bg-card p-3.5 transition-[transform,rotate,box-shadow,opacity] duration-[320ms] ease-out active:cursor-grabbing ${dragId === r.id ? "rotate-2 opacity-90 shadow-float" : ""}`}
                 >
-                  <p className="truncate text-[13px] font-medium">{displayName(r)}</p>
+                  <p className="flex items-center gap-2 text-[13px] font-medium">
+                    <Avatar label={displayName(r)} size={22} />
+                    <span className="min-w-0 truncate">{displayName(r)}</span>
+                  </p>
                   {cardFields.map((f) => {
                     const v = valueOf(r, f.key);
                     if (v == null || v === "" || (Array.isArray(v) && !v.length)) return null;
                     return (
-                      <p key={f.key} className="mt-1 truncate text-[12px] text-muted">
+                      <p key={f.key} className="mt-1.5 truncate text-[12px] text-muted">
                         <FieldValue field={f} value={v} links={((r.links ?? {}) as Record<string, Link[]>)[f.key.slice(2)]} />
                       </p>
                     );

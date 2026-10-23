@@ -84,7 +84,7 @@ export function FieldsPanel({
         <Panel key={s.name}>
           <CardHead label={s.name}>
             {i === 0 && onCustomize ? (
-              <button type="button" onClick={onCustomize} className="text-[12px] text-muted hover:text-ink">
+              <button type="button" onClick={onCustomize} className="inline-flex h-7 items-center rounded-full px-2.5 text-[12px] text-muted hover:bg-hover hover:text-ink">
                 Customize
               </button>
             ) : null}
@@ -101,10 +101,10 @@ export function FieldsPanel({
               const l = links[f.key.slice(2)];
               const empty = f.kind === "relation" ? !l?.length : v == null || v === "" || (Array.isArray(v) && !v.length);
               return (
-                <div key={f.key} className="grid grid-cols-[120px_1fr] items-start gap-3 px-4 py-2 text-[13px]">
+                <div key={f.key} className="grid grid-cols-[120px_1fr] items-start gap-3 px-5 py-2 text-[13px]">
                   <dt className="pt-1.5 text-muted" title={f.config.description || undefined}>
                     {f.label}
-                    {f.required ? <span className="text-danger"> *</span> : null}
+                    {f.required ? <span className="text-rose"> *</span> : null}
                   </dt>
                   <dd className="min-w-0">
                     {editing === f.key ? (
@@ -130,7 +130,7 @@ export function FieldsPanel({
                         type="button"
                         disabled={!f.edit}
                         onClick={() => setEditing(f.key)}
-                        className={`block min-h-8 w-full rounded-md px-1.5 py-1.5 text-left ${f.edit ? "hover:bg-hover" : "cursor-default"}`}
+                        className={`block min-h-9 w-full rounded-sm px-2 py-1.5 text-left ${f.edit ? "hover:bg-hover" : "cursor-default"}`}
                       >
                         <span className="block truncate">
                           <FieldValue field={f} value={v} links={l} />
@@ -144,8 +144,8 @@ export function FieldsPanel({
             })}
           </dl>
           {i === sections.length - 1 && onAddField ? (
-            <div className="border-t border-line px-4 py-2">
-              <button type="button" onClick={onAddField} className="inline-flex h-7 items-center gap-1.5 rounded-md px-1.5 text-[12.5px] font-medium text-muted hover:bg-hover hover:text-ink">
+            <div className="border-t border-line px-4 py-2.5">
+              <button type="button" onClick={onAddField} className="press inline-flex h-8 items-center gap-1.5 rounded-full px-3 text-[12.5px] font-medium text-muted hover:bg-hover hover:text-ink">
                 <Plus size={13} />
                 Add field
               </button>
@@ -163,23 +163,24 @@ export function HistoryPanel({ history, fields, people }: { history: Change[]; f
   const byKey = new Map(fields.map((f) => [f.key, f]));
   const who = (c: Change) => (c.by ? (people.find((p) => p.id === c.by)?.email ?? "Someone") : sourceLabel(c.source));
   return (
-    <Panel>
+    <Panel className="overflow-hidden">
       <CardHead label="Changes" count={history.length} />
       {!history.length ? (
-        <p className="px-4 py-3 text-[13px] text-faint">—</p>
+        <p className="px-5 py-3 text-[13px] text-faint">—</p>
       ) : (
-        <ol className="max-h-[420px] divide-y divide-line overflow-auto">
+        <ol className="max-h-[420px] overflow-auto py-2">
           {history.map((c, i) => {
             const f = byKey.get(c.key);
             const text = (v: unknown) => (v == null || v === "" ? "—" : f ? shown(f, v) || String(v) : typeof v === "object" ? JSON.stringify(v) : String(v));
             return (
-              <li key={i} className="px-4 py-2.5 text-[12.5px]">
+              <li key={i} className="relative py-2 pr-5 pl-12 text-[12.5px] before:absolute before:inset-y-0 before:left-[27px] before:w-px before:bg-line-strong first:before:top-4 last:before:bottom-auto last:before:h-4">
+                <span aria-hidden="true" className="absolute top-3.5 left-[23px] size-[9px] rounded-full border-2 border-card bg-muted ring-1 ring-line-strong" />
                 <p>
                   <span className="font-medium">{f?.label ?? (c.key === "merged" ? "Merged" : c.key)}</span>
                   <span className="text-muted"> {text(c.old)} → </span>
                   <span>{text(c.new)}</span>
                 </p>
-                <p className="font-mono text-[10.5px] text-faint">
+                <p className="mt-0.5 font-mono text-[11px] text-faint">
                   {who(c)} · {timeAgo(c.at)}
                 </p>
               </li>

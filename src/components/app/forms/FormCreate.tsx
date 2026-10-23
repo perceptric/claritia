@@ -30,6 +30,7 @@ import { TEMPLATES } from "@/lib/forms/templates";
 import { CATALOG, entryOf } from "@/lib/sources/catalog";
 import { ArrowLeft, Chat, Check, CornerDownLeft, Grid, Inbox, Lock, Monitor, Phone, Plus, Wand, X } from "../../Icons";
 import { BrandLogo } from "../BrandLogo";
+import { Pip, type PipMood } from "../Pip";
 import { Badge, Button, ErrorNote, errorText, Loading, must, Page, postJson, useLoad, type ViewProps } from "../ui";
 import { FormPreview, type Kit } from "./shared";
 
@@ -229,17 +230,22 @@ function Start({ onSentence, onAsk, onTemplates, onBlank, busy, error }: { onSen
   ];
   return (
     <div className="paper flex min-h-full flex-col items-center px-4 pt-[12vh] pb-16">
-      <div className="mk-rise flex w-full max-w-[680px] flex-col gap-6">
-        <div className="flex flex-col gap-2 text-center">
-          <p className="fig">{"// new form"}</p>
-          <h2 className="text-[34px] leading-[1.1] font-medium tracking-[-0.03em]">What form do you need?</h2>
+      <div className="anim-rise flex w-full max-w-[680px] flex-col gap-6">
+        <div className="flex flex-col items-center gap-3 text-center">
+          <p className="label-mono">new form</p>
+          <div className="flex items-center gap-4">
+            <Pip size={52} follow />
+            <h2 className="serif text-left text-[44px] leading-[1.05] text-ink">
+              What form <span className="text-muted">do you need?</span>
+            </h2>
+          </div>
         </div>
         <form
           onSubmit={(e) => {
             e.preventDefault();
             if (text.trim()) onSentence(text);
           }}
-          className="flex flex-col gap-2 border border-line bg-panel p-3 focus-within:border-ink"
+          className="frame flex flex-col gap-2 rounded-2xl border border-line-strong bg-card p-4 transition-colors focus-within:border-ink"
         >
           <textarea
             ref={box}
@@ -257,7 +263,7 @@ function Start({ onSentence, onAsk, onTemplates, onBlank, busy, error }: { onSen
             className="w-full resize-none bg-transparent px-1 text-[15px] leading-relaxed text-ink outline-none placeholder:text-faint"
           />
           <div className="flex items-center gap-2">
-            <span className="hidden font-mono text-[10.5px] text-faint sm:inline">Enter to start</span>
+            <span className="hidden font-mono text-[11.5px] text-muted sm:inline">Enter to start</span>
             <Button type="submit" className="ml-auto" disabled={!text.trim() || busy} aria-label="Start">
               <CornerDownLeft size={14} />
               Start
@@ -266,16 +272,16 @@ function Start({ onSentence, onAsk, onTemplates, onBlank, busy, error }: { onSen
         </form>
         <div className="flex flex-wrap justify-center gap-1.5">
           {TRY.map((t) => (
-            <button key={t} type="button" onClick={() => onSentence(t)} className="h-7 rounded-md border border-line bg-panel px-2.5 text-[12.5px] text-body hover:border-line-strong hover:text-ink">
+            <button key={t} type="button" onClick={() => onSentence(t)} className="press h-8 rounded-full border border-line-strong bg-card px-3 text-[12.5px] text-body transition-transform duration-[140ms] hover:-translate-y-px hover:border-ink hover:text-ink">
               {t}
             </button>
           ))}
         </div>
         <ErrorNote message={error} />
-        <div className="grid gap-px border border-line bg-line sm:grid-cols-3">
+        <div className="grid gap-3 sm:grid-cols-3">
           {ways.map((w) => (
-            <button key={w.key} type="button" disabled={busy} onClick={w.on} className="group flex flex-col gap-2 bg-panel p-4 text-left transition-colors hover:bg-hover disabled:opacity-50">
-              <span className="flex size-8 items-center justify-center border border-line bg-canvas text-ink group-hover:border-ink">{w.icon}</span>
+            <button key={w.key} type="button" disabled={busy} onClick={w.on} className="lift press group flex flex-col gap-2 rounded-2xl border border-line bg-card p-5 text-left hover:border-line-strong disabled:opacity-50">
+              <span className="mb-1 flex size-9 items-center justify-center rounded-full bg-paper-deep text-ink transition-colors group-hover:bg-ink group-hover:text-paper">{w.icon}</span>
               <span className="text-[14px] font-medium">{w.title}</span>
               <span className="text-[12.5px] leading-snug text-muted">{w.text}</span>
             </button>
@@ -374,13 +380,13 @@ function Ask({
     <div className="grid h-full min-h-0 lg:grid-cols-[minmax(420px,560px)_1fr]">
       <section className="flex min-h-0 flex-col border-line lg:border-r">
         <div className="flex h-11 shrink-0 items-center gap-3 border-b border-line px-4">
-          <button type="button" onClick={prev} className="inline-flex items-center gap-1.5 rounded-md px-1.5 py-1 text-[12.5px] font-medium text-muted hover:bg-hover hover:text-ink">
+          <button type="button" onClick={prev} className="press inline-flex h-8 items-center gap-1.5 rounded-full px-3 text-[12.5px] font-medium text-muted hover:bg-hover hover:text-ink">
             <ArrowLeft size={14} />
             Back
           </button>
-          <span className="ml-auto font-mono text-[10.5px] text-faint tabular-nums">{current === "done" ? "Ready" : `${step} of ${order.length}`}</span>
-          <span className="h-1 w-24 bg-hover" aria-hidden="true">
-            <span className="block h-1 bg-ink transition-[width] duration-300" style={{ width: `${(Math.max(done, step - 1) / order.length) * 100}%` }} />
+          <span className="ml-auto font-mono text-[11.5px] text-muted tabular-nums">{current === "done" ? "Ready" : `${step} of ${order.length}`}</span>
+          <span className="h-1.5 w-24 overflow-hidden rounded-full bg-paper-deep" aria-hidden="true">
+            <span className="block h-1.5 rounded-full bg-ink transition-[width] duration-[320ms] ease-out" style={{ width: `${(Math.max(done, step - 1) / order.length) * 100}%` }} />
           </span>
         </div>
         <div className="min-h-0 flex-1 overflow-auto px-4 py-5">
@@ -388,7 +394,7 @@ function Ask({
             {sentence ? <Mine text={sentence} /> : null}
             {QUESTIONS.map((q) =>
               q.id === current ? (
-                <div key={q.id} className="mk-rise flex flex-col gap-3">
+                <div key={q.id} className="anim-rise-sm flex flex-col gap-3">
                   <Theirs text={q.ask} />
                   <Panel q={q.id} a={a} answer={answer} live={setDraft} tools={tools} session={session} ws={ws} />
                 </div>
@@ -406,8 +412,8 @@ function Ask({
               ) : null,
             )}
             {current === "done" ? (
-              <div className="mk-rise flex flex-col gap-3">
-                <Theirs text="Here's your form. Create it, then publish and embed it." />
+              <div className="anim-rise-sm flex flex-col gap-3">
+                <Theirs text="Here's your form. Create it, then publish and embed it." mood={busy ? "thinking" : "idle"} />
                 <ErrorNote message={error} />
                 <div>
                   <Button onClick={finish} disabled={!!busy} className="h-10 px-5 text-[14px]">
@@ -426,21 +432,20 @@ function Ask({
   );
 }
 
-function Theirs({ text, faint }: { text: string; faint?: boolean }) {
+/** Pip asks. */
+function Theirs({ text, faint, mood = "idle" }: { text: string; faint?: boolean; mood?: PipMood }) {
   return (
     <div className="flex items-start gap-2.5">
-      <span className="mt-0.5 flex size-6 shrink-0 items-center justify-center bg-ink text-white" aria-hidden="true">
-        <Chat size={12} />
-      </span>
-      <p className={`pt-0.5 text-[14.5px] leading-snug ${faint ? "text-muted" : "font-medium text-ink"}`}>{text}</p>
+      <Pip size={faint ? 22 : 28} mood={mood} className={faint ? "opacity-60" : ""} />
+      <p className={`pt-1 text-[14.5px] leading-snug ${faint ? "text-muted" : "font-medium text-ink"}`}>{text}</p>
     </div>
   );
 }
 
 function Mine({ text, onClick }: { text: string; onClick?: () => void }) {
-  const cls = "max-w-[85%] self-end border border-line bg-canvas px-3 py-2 text-left text-[13.5px] text-ink";
+  const cls = "anim-rise-sm max-w-[85%] self-end rounded-2xl rounded-br-sm border border-line bg-paper-deep px-3.5 py-2 text-left text-[13.5px] text-ink";
   return onClick ? (
-    <button type="button" onClick={onClick} title="Change" className={`${cls} hover:border-ink`}>
+    <button type="button" onClick={onClick} title="Change" className={`${cls} transition-colors hover:border-ink`}>
       {text}
     </button>
   ) : (
@@ -448,19 +453,19 @@ function Mine({ text, onClick }: { text: string; onClick?: () => void }) {
   );
 }
 
-/** One choice: a square button with its number key. */
+/** One choice: a pill with its number key. */
 function Option({ n, label, on, selected, hint, children }: { n?: number; label: string; on: () => void; selected?: boolean; hint?: string; children?: React.ReactNode }) {
   return (
     <button
       type="button"
       onClick={on}
       aria-pressed={selected}
-      className={`flex min-h-10 items-center gap-2.5 border px-3 py-2 text-left text-[13.5px] transition-colors ${selected ? "border-ink bg-ink text-white" : "border-line bg-panel text-ink hover:border-ink"}`}
+      className={`press flex min-h-10 items-center gap-2.5 rounded-full border py-2 pr-4 pl-2.5 text-left text-[13.5px] transition-[background-color,border-color,color,transform] duration-[140ms] ${selected ? "border-ink bg-ink text-paper" : "border-line-strong bg-card text-ink hover:border-ink"}`}
     >
-      {n ? <span className={`flex size-5 shrink-0 items-center justify-center border font-mono text-[10px] ${selected ? "border-white/40" : "border-line text-faint"}`}>{n}</span> : null}
+      {n ? <span className={`flex size-5 shrink-0 items-center justify-center rounded-full border font-mono text-[10.5px] ${selected ? "border-paper/40" : "border-line-strong text-muted"}`}>{n}</span> : null}
       {children}
       <span className="min-w-0 flex-1">{label}</span>
-      {hint ? <span className={`font-mono text-[10px] tracking-[0.08em] uppercase ${selected ? "text-white/70" : "text-faint"}`}>{hint}</span> : null}
+      {hint ? <span className={`font-mono text-[11.5px] ${selected ? "text-paper/70" : "text-muted"}`}>{hint}</span> : null}
     </button>
   );
 }
@@ -508,7 +513,7 @@ function Continue({ onClick, label = "Continue", disabled }: { onClick: () => vo
       <Button onClick={onClick} disabled={disabled}>
         {label}
       </Button>
-      <span className="hidden font-mono text-[10.5px] text-faint sm:inline">or press Enter</span>
+      <span className="hidden font-mono text-[11.5px] text-muted sm:inline">or press Enter</span>
     </div>
   );
 }
@@ -564,17 +569,17 @@ function Fields({ a, live, done }: { a: Answers; live: (a: Answers) => void; don
   return (
     <div className="flex flex-col gap-3">
       <div className="grid gap-1.5 sm:grid-cols-2">
-        <div className="flex min-h-10 items-center gap-2.5 border border-ink bg-ink px-3 py-2 text-[13.5px] text-white">
+        <div className="flex min-h-10 items-center gap-2.5 rounded-full border border-ink bg-ink py-2 pr-4 pl-3.5 text-[13.5px] text-paper">
           <Lock size={13} />
           <span className="flex-1">{a.workOnly ? "Work email" : "Email"}</span>
-          <span className="font-mono text-[10px] tracking-[0.08em] text-white/70 uppercase">Required</span>
+          <span className="font-mono text-[11.5px] text-paper/70">Required</span>
         </div>
         {PICKS.map((p) => {
           const on = picked.find((f) => f.pick === p.value);
           return (
-            <div key={p.value} className={`flex min-h-10 items-center border transition-colors ${on ? "border-ink bg-ink text-white" : "border-line bg-panel text-ink hover:border-ink"}`}>
-              <button type="button" onClick={() => toggle(p.value)} aria-pressed={!!on} className="flex flex-1 items-center gap-2.5 self-stretch px-3 py-2 text-left text-[13.5px]">
-                <span className={`flex size-4 shrink-0 items-center justify-center border ${on ? "border-white bg-white text-ink" : "border-line-strong"}`}>{on ? <Check size={11} /> : null}</span>
+            <div key={p.value} className={`flex min-h-10 items-center rounded-full border transition-colors duration-[140ms] ${on ? "border-ink bg-ink text-paper" : "border-line-strong bg-card text-ink hover:border-ink"}`}>
+              <button type="button" onClick={() => toggle(p.value)} aria-pressed={!!on} className="flex flex-1 items-center gap-2.5 self-stretch rounded-full py-2 pr-3 pl-3.5 text-left text-[13.5px]">
+                <span className={`flex size-4 shrink-0 items-center justify-center rounded-full border transition-transform duration-[320ms] ease-spring ${on ? "scale-110 border-paper bg-paper text-ink" : "border-line-strong"}`}>{on ? <Check size={11} /> : null}</span>
                 {p.label}
               </button>
               {on ? (
@@ -582,7 +587,7 @@ function Fields({ a, live, done }: { a: Answers; live: (a: Answers) => void; don
                   type="button"
                   onClick={() => require(p.value)}
                   aria-pressed={on.required}
-                  className={`mr-1.5 h-6 rounded-sm px-1.5 font-mono text-[10px] tracking-[0.08em] uppercase ${on.required ? "bg-white text-ink" : "text-white/60 hover:text-white"}`}
+                  className={`mr-1.5 h-6 rounded-full px-2.5 font-mono text-[11.5px] ${on.required ? "bg-paper text-ink" : "text-paper/60 hover:text-paper"}`}
                 >
                   Required
                 </button>
@@ -629,15 +634,15 @@ function Extras({ a, live, session, ws, done }: { a: Answers; live: (a: Answers)
   return (
     <div className="flex flex-col gap-3">
       {list.length ? (
-        <ul className="flex flex-col divide-y divide-line border border-line bg-panel">
+        <ul className="flex flex-col divide-y divide-line overflow-hidden rounded-lg border border-line bg-card">
           {list.map((x, i) => (
-            <li key={`${x.label}-${i}`} className="flex items-center gap-2 px-3 py-2 text-[13px]">
+            <li key={`${x.label}-${i}`} className="anim-rise-sm flex items-center gap-2 py-2 pr-2 pl-3.5 text-[13px]">
               <span className="min-w-0 flex-1">
                 <span className="block truncate font-medium">{x.label}</span>
                 {x.options?.length ? <span className="block truncate text-[12px] text-muted">{x.options.join(", ")}</span> : null}
               </span>
               <Badge>{TYPE[x.type]}</Badge>
-              <button type="button" aria-label="Remove" onClick={() => setList((l) => l.filter((_, j) => j !== i))} className="flex size-7 items-center justify-center rounded-md text-muted hover:bg-hover hover:text-danger">
+              <button type="button" aria-label="Remove" onClick={() => setList((l) => l.filter((_, j) => j !== i))} className="press flex size-8 items-center justify-center rounded-full text-muted hover:bg-rose-wash hover:text-rose">
                 <X size={14} />
               </button>
             </li>
@@ -657,7 +662,7 @@ function Extras({ a, live, session, ws, done }: { a: Answers; live: (a: Answers)
           onChange={(e) => setText(e.target.value)}
           placeholder="Which CRM do you use? (HubSpot, Salesforce, Other)"
           aria-label="A question to ask"
-          className="h-10 min-w-0 flex-1 rounded-md border border-line bg-panel px-3 text-[13.5px] text-ink outline-none placeholder:text-faint focus:border-ink"
+          className="h-10 min-w-0 flex-1 rounded-sm border border-line-strong bg-card px-3 text-[13.5px] text-ink outline-none placeholder:text-faint focus:border-ink focus:ring-1 focus:ring-ink"
         />
         <Button type="submit" variant="ghost" className="h-10" disabled={!text.trim() || busy}>
           {busy ? "Adding…" : "Add"}
@@ -694,7 +699,7 @@ function AfterPanel({ a, live, done }: { a: Answers; live: (a: Answers) => void;
         <Option n={3} label="Open a page" selected={kind === "redirect"} on={() => choose(2)} />
       </div>
       {kind === "meeting" ? (
-        <div className="mk-rise flex flex-col gap-2.5 border border-line bg-panel p-3">
+        <div className="anim-rise-sm flex flex-col gap-2.5 rounded-lg border border-line bg-card p-3.5">
           <div className="flex flex-wrap gap-1.5">
             {SCHEDULERS.map((s) => (
               <button
@@ -702,7 +707,7 @@ function AfterPanel({ a, live, done }: { a: Answers; live: (a: Answers) => void;
                 type="button"
                 onClick={() => setTool(s.value)}
                 aria-pressed={tool === s.value}
-                className={`flex h-9 items-center gap-2 border px-2.5 text-[13px] ${tool === s.value ? "border-ink bg-hover font-medium" : "border-line hover:border-ink"}`}
+                className={`press flex h-9 items-center gap-2 rounded-full border pr-3.5 pl-2.5 text-[13px] ${tool === s.value ? "border-ink bg-hover font-medium" : "border-line-strong bg-card hover:border-ink"}`}
               >
                 {s.domain ? <BrandLogo domain={s.domain} name={s.label} size={16} /> : null}
                 {s.label}
@@ -714,7 +719,7 @@ function AfterPanel({ a, live, done }: { a: Answers; live: (a: Answers) => void;
             onChange={(e) => setUrl(e.target.value)}
             placeholder={tool === "calendly" ? "https://calendly.com/you/demo" : tool === "calcom" ? "https://cal.com/you" : "https://"}
             aria-label="Booking link"
-            className="h-9 rounded-md border border-line bg-panel px-2.5 text-[13px] outline-none placeholder:text-faint focus:border-ink"
+            className="h-9 rounded-sm border border-line-strong bg-card px-3 text-[13px] outline-none placeholder:text-faint focus:border-ink focus:ring-1 focus:ring-ink"
           />
           <label className="flex items-center gap-2 text-[13px]">
             <input type="checkbox" checked={own} onChange={(e) => setOwn(e.target.checked)} className="size-4 accent-[var(--color-ink)]" />
@@ -723,13 +728,13 @@ function AfterPanel({ a, live, done }: { a: Answers; live: (a: Answers) => void;
           <Continue disabled={!urlOk} onClick={() => done({ ...a, after: { kind: "meeting", tool, url: url.trim(), perOwner: own || !url.trim() } })} />
         </div>
       ) : kind === "redirect" ? (
-        <div className="mk-rise flex flex-col gap-2.5 border border-line bg-panel p-3">
+        <div className="anim-rise-sm flex flex-col gap-2.5 rounded-lg border border-line bg-card p-3.5">
           <input
             value={url}
             onChange={(e) => setUrl(e.target.value)}
             placeholder="https://acme.com/thanks"
             aria-label="Page to open"
-            className="h-9 rounded-md border border-line bg-panel px-2.5 text-[13px] outline-none placeholder:text-faint focus:border-ink"
+            className="h-9 rounded-sm border border-line-strong bg-card px-3 text-[13px] outline-none placeholder:text-faint focus:border-ink focus:ring-1 focus:ring-ink"
           />
           <Continue disabled={!urlOk} onClick={() => done({ ...a, after: { kind: "redirect", url: url.trim() } })} />
         </div>
@@ -745,10 +750,10 @@ function Send({ a, tools, done }: { a: Answers; tools: Tool[]; done: (a: Answers
   const slackOk = !slackOn || /^https:\/\/hooks\.slack\.com\/services\/[A-Za-z0-9/_-]+$/.test(slack.trim());
   const toggle = (id: string) => setSources((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]));
   const row = (key: string, logo: React.ReactNode, label: string, on: boolean, click?: () => void) => (
-    <button key={key} type="button" disabled={!click} onClick={click} aria-pressed={on} className={`flex min-h-11 items-center gap-2.5 border px-3 py-2 text-left text-[13.5px] ${on ? "border-ink bg-hover" : "border-line bg-panel hover:border-ink"} disabled:cursor-default`}>
+    <button key={key} type="button" disabled={!click} onClick={click} aria-pressed={on} className={`flex min-h-11 items-center gap-2.5 rounded-full border py-2 pr-3.5 pl-3 text-left text-[13.5px] transition-colors ${on ? "border-ink bg-hover" : "border-line-strong bg-card hover:border-ink"} disabled:cursor-default`}>
       {logo}
       <span className="flex-1 font-medium">{label}</span>
-      <span className={`flex size-4 items-center justify-center border ${on ? "border-ink bg-ink text-white" : "border-line-strong"}`}>{on ? <Check size={11} /> : null}</span>
+      <span className={`flex size-4 items-center justify-center rounded-full border transition-transform duration-[320ms] ease-spring ${on ? "scale-110 border-ink bg-ink text-paper" : "border-line-strong"}`}>{on ? <Check size={11} /> : null}</span>
     </button>
   );
   return (
@@ -757,7 +762,7 @@ function Send({ a, tools, done }: { a: Answers; tools: Tool[]; done: (a: Answers
         {row("claritia", <BrandLogo domain="tryclaritia.com" name="Claritia" size={20} />, "Claritia", true)}
         {tools.map((t) => row(t.id, <BrandLogo domain={entryOf(t.kind)?.domain ?? ""} name={t.name} size={20} />, t.name, sources.includes(t.id), () => toggle(t.id)))}
         {row("slack", <BrandLogo domain="slack.com" name="Slack" size={20} />, "Slack", slackOn, () => setSlackOn((v) => !v))}
-        <button type="button" onClick={() => window.open("/settings/sources", "_blank", "noopener")} className="flex min-h-11 items-center gap-2.5 border border-dashed border-line-strong px-3 py-2 text-left text-[13.5px] text-muted hover:border-ink hover:text-ink">
+        <button type="button" onClick={() => window.open("/settings/sources", "_blank", "noopener")} className="flex min-h-11 items-center gap-2.5 rounded-full border border-dashed border-line-strong py-2 pr-3.5 pl-3 text-left text-[13.5px] text-muted hover:border-ink hover:text-ink">
           <Plus size={16} />
           Connect a tool
         </button>
@@ -768,7 +773,7 @@ function Send({ a, tools, done }: { a: Answers; tools: Tool[]; done: (a: Answers
           onChange={(e) => setSlack(e.target.value)}
           placeholder="https://hooks.slack.com/services/…"
           aria-label="Slack webhook address"
-          className="mk-rise h-9 rounded-md border border-line bg-panel px-2.5 text-[13px] outline-none placeholder:text-faint focus:border-ink"
+          className="anim-rise-sm h-9 rounded-sm border border-line-strong bg-card px-3 text-[13px] outline-none placeholder:text-faint focus:border-ink focus:ring-1 focus:ring-ink"
         />
       ) : null}
       <Continue disabled={!slackOk} onClick={() => done({ ...a, send: { sources, slack: slackOn ? slack.trim() : "", webhook: "" } })} />
@@ -790,11 +795,11 @@ export function PreviewPane({ form, brand, popup, footer }: { form: Form; brand:
   const status = brand.kit?.scan_status;
   const bg = brand.tokens.background || "#ffffff";
   return (
-    <section className="hidden min-h-0 flex-col bg-canvas lg:flex">
-      <div className="flex h-11 shrink-0 items-center gap-2 border-b border-line bg-panel px-4">
-        <div className="flex items-center border border-line" role="group" aria-label="Device">
+    <section className="hidden min-h-0 flex-col bg-paper lg:flex">
+      <div className="flex h-12 shrink-0 items-center gap-2 border-b border-line bg-card px-4">
+        <div className="flex items-center gap-0.5 rounded-full border border-line-strong bg-card p-0.5" role="group" aria-label="Device">
           {(["desktop", "phone"] as const).map((d) => (
-            <button key={d} type="button" aria-label={d === "desktop" ? "Desktop view" : "Phone view"} title={d === "desktop" ? "Desktop view" : "Phone view"} aria-pressed={device === d} onClick={() => setDevice(d)} className={`flex size-7 items-center justify-center ${device === d ? "bg-ink text-white" : "text-muted hover:text-ink"}`}>
+            <button key={d} type="button" aria-label={d === "desktop" ? "Desktop view" : "Phone view"} title={d === "desktop" ? "Desktop view" : "Phone view"} aria-pressed={device === d} onClick={() => setDevice(d)} className={`flex size-7 items-center justify-center rounded-full transition-colors duration-[140ms] ${device === d ? "bg-ink text-paper" : "text-muted hover:text-ink"}`}>
               {d === "desktop" ? <Monitor size={14} /> : <Phone size={14} />}
             </button>
           ))}
@@ -806,7 +811,7 @@ export function PreviewPane({ form, brand, popup, footer }: { form: Form; brand:
               type="button"
               onClick={() => setView(v)}
               aria-pressed={(view === "done" ? "done" : step) === v}
-              className={`h-7 rounded-md px-2 text-[12px] font-medium ${(view === "done" ? "done" : step) === v ? "bg-ink text-white" : "text-muted hover:text-ink"}`}
+              className={`h-7 rounded-full px-3 text-[12px] font-medium transition-colors duration-[140ms] ${(view === "done" ? "done" : step) === v ? "bg-ink text-paper" : "text-muted hover:bg-hover hover:text-ink"}`}
             >
               {v === "done" ? "After submit" : form.steps.length > 1 ? `Step ${v + 1}` : "Form"}
             </button>
@@ -815,22 +820,22 @@ export function PreviewPane({ form, brand, popup, footer }: { form: Form; brand:
         <SiteBox key={brand.site} brand={brand} />
       </div>
       {brand.error || (status === "failed" && brand.kit?.scan_error) ? (
-        <div className="border-b border-line bg-panel px-4 py-2">
+        <div className="border-b border-line bg-card px-4 py-2">
           <ErrorNote message={brand.error || brand.kit?.scan_error || ""} />
         </div>
       ) : null}
-      <div className="paper min-h-0 flex-1 overflow-auto p-6 xl:p-10">
-        <div className={`mx-auto transition-[max-width] duration-300 ${device === "phone" ? "max-w-[390px]" : "max-w-[880px]"}`}>
-          <div className="relative border border-line" style={{ background: bg }}>
-            <div className="flex h-7 items-center gap-1.5 border-b border-line bg-panel px-3" aria-hidden="true">
-              <span className="size-2 bg-line-strong" />
-              <span className="size-2 bg-line-strong" />
-              <span className="size-2 bg-line-strong" />
-              <span className="ml-2 truncate font-mono text-[10.5px] text-faint">{brand.site || "yoursite.com"}</span>
+      <div className="min-h-0 flex-1 overflow-auto p-6 xl:p-10">
+        <div className={`mx-auto transition-[max-width] duration-[320ms] ease-out ${device === "phone" ? "max-w-[390px]" : "max-w-[880px]"}`}>
+          <div className={`frame relative overflow-hidden border border-line-strong transition-[border-radius] duration-[320ms] ease-out ${device === "phone" ? "rounded-3xl" : "rounded-2xl"}`} style={{ background: bg }}>
+            <div className="flex h-8 items-center gap-1.5 border-b border-line bg-card px-3.5" aria-hidden="true">
+              <span className="size-2 rounded-full bg-line-strong" />
+              <span className="size-2 rounded-full bg-line-strong" />
+              <span className="size-2 rounded-full bg-line-strong" />
+              <span className="ml-2 truncate font-mono text-[11.5px] text-muted">{brand.site || "yoursite.com"}</span>
             </div>
             {popup ? (
-              <div className="relative flex min-h-[560px] items-center justify-center bg-black/35 p-6">
-                <div className="w-full max-w-[520px] border border-line p-6" style={{ background: bg }}>
+              <div className="relative flex min-h-[560px] items-center justify-center bg-scrim p-6">
+                <div className="anim-pop w-full max-w-[520px] rounded-2xl border border-line p-6 shadow-float" style={{ background: bg }}>
                   {shown}
                 </div>
               </div>
@@ -858,7 +863,7 @@ function SiteBox({ brand }: { brand: { site: string; kit: Kit | null; scan: (u: 
       className="ml-auto flex items-center gap-2"
     >
       <span className="label-mono">Style from</span>
-      <input value={site} onChange={(e) => setSite(e.target.value)} onBlur={go} placeholder="yoursite.com" aria-label="Your site" className="h-7 w-44 rounded-md border border-line bg-panel px-2 font-mono text-[12px] outline-none placeholder:text-faint focus:border-ink" />
+      <input value={site} onChange={(e) => setSite(e.target.value)} onBlur={go} placeholder="yoursite.com" aria-label="Your site" className="h-8 w-44 rounded-sm border border-line-strong bg-card px-2.5 font-mono text-[12px] outline-none placeholder:text-faint focus:border-ink focus:ring-1 focus:ring-ink" />
       {status === "scanning" ? <Badge tone="brand">Reading</Badge> : status === "done" ? <Badge tone="green">Matched</Badge> : status === "failed" ? <Badge tone="red">Failed</Badge> : null}
     </form>
   );
@@ -876,7 +881,7 @@ function Templates({ tokens, back, busy, error, pick }: { tokens: Partial<Tokens
             <ArrowLeft size={14} />
             Back
           </Button>
-          <h2 className="text-[20px] font-medium tracking-[-0.02em]">Templates</h2>
+          <h2 className="serif text-[28px] leading-none text-ink">Templates</h2>
         </div>
         <ErrorNote message={error} />
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
@@ -886,14 +891,14 @@ function Templates({ tokens, back, busy, error, pick }: { tokens: Partial<Tokens
               type="button"
               disabled={!!busy}
               onClick={() => pick(t.name, t.form())}
-              className="group flex flex-col border border-line bg-panel text-left transition-colors hover:border-ink disabled:opacity-60"
+              className="lift press group flex flex-col overflow-hidden rounded-2xl border border-line bg-card text-left hover:border-line-strong disabled:opacity-60"
             >
               <span className="relative block h-[260px] overflow-hidden border-b border-line" style={{ background: tokens.background || "#fff" }}>
                 <span className="pointer-events-none absolute top-0 left-0 block w-[166%] origin-top-left scale-[0.6] p-8" aria-hidden="true">
                   <FormPreview form={forms[t.key]} tokens={tokens} />
                 </span>
               </span>
-              <span className="flex items-center gap-2 px-4 py-3">
+              <span className="flex items-center gap-2 px-5 py-4">
                 <span className="min-w-0 flex-1">
                   <span className="block text-[14px] font-medium">{t.name}</span>
                   <span className="block truncate text-[12.5px] text-muted">{t.text}</span>
