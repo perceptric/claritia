@@ -9,10 +9,11 @@ import pg from "pg";
 import { SesError } from "../../src/lib/email/ses.ts";
 import type { Job } from "../../src/lib/jobs.ts";
 import { meetingUid } from "../../src/lib/meetings/ics.ts";
+import { seal } from "../../src/lib/seal.ts";
 import { keepManageToken, manageToken, readOutcomeToken } from "../../src/lib/meetings/links.ts";
 import { newToken, tokenHash } from "../../src/lib/meetings/server.ts";
 import { DEFAULT_AVAILABILITY, DEFAULT_SETTINGS } from "../../src/lib/meetings/types.ts";
-import { calendarReconnect, meetingAfter, meetingBookLater, meetingNotify, meetingRemind, type Mail, type Mailer, type MeetingOpts } from "../../worker-intel/jobs/meetings.ts";
+import { calendarReconnect, formNotBooked, meetingAfter, meetingBookLater, meetingNotify, meetingRemind, type Mail, type Mailer, type MeetingOpts } from "../../worker-intel/jobs/meetings.ts";
 import { pgRpc } from "../../worker-intel/rpc.ts";
 
 const url = process.env.PG_URL;
@@ -433,4 +434,41 @@ test("a calendar that needs reconnecting sends its person one email per break, a
   await q(`select calendar_reconnect($1, 'invalid_grant')`, [acc]);
   await run();
   assert.equal(sent.length, 1);
+});
+
+test("not booked: each of the form's Slack channels hears once; paused ones and leads who booked since don't", async () => {
+  const form = (await one<{ id: string }>(`insert into forms (workspace_id, name, draft) values ($1, 'Demo request', '{}') returning id`, [ws])).id;
+  const slack = async (name: string, paused = false) => {
+    const d = (await one<{ id: string }>(`insert into form_destinations (workspace_id, form_id, kind, name, paused) values ($1, $2, 'slack', $3, $4) returning id`, [ws, form, name, paused])).id;
+    await q(`insert into form_destination_secrets (destination_id, sealed) values ($1, $2)`, [d, seal(JSON.stringify({ url: `https://hooks.slack.com/services/T0/B0/${name}` }), SECRET)]);
+    return d;
+  };
+  await slack("sales");
+  await slack("muted", true);
+  const s = await submission();
+  await q(`update submissions set form_id = $2 where id = $1`, [s.id, form]);
+  await bookLater(s.id, { host });
+  await bookLater(s.id, { host });
+  const jobs = await q(`select payload from jobs where kind = 'form_not_booked' and payload->>'submission' = $1`, [s.id]);
+  assert.equal(jobs.length, 1, "one job, for the channel that's on");
+  const posts: { url: string; body: { text: string; blocks: { fields?: { text: string }[] }[] } }[] = [];
+  let answer = 503;
+  const fetcher = (async (url: string, init: RequestInit) => {
+    posts.push({ url, body: JSON.parse(String(init.body)) });
+    const r = new Response("", { status: answer });
+    answer = 200;
+    return r;
+  }) as unknown as typeof fetch;
+  const run = () => formNotBooked(rpc, { fetcher })(job("form_not_booked", jobs[0].payload), signal);
+  await assert.rejects(run, /Slack answered 503/, "Slack down: the job tries again");
+  await run();
+  assert.equal(posts.length, 2);
+  assert.ok(posts[1]!.url.endsWith("/sales"));
+  assert.equal(posts[1]!.body.text, "Dana Lee saw times on Demo request and didn't book");
+  assert.ok(posts[1]!.body.blocks[1]!.fields!.some((f) => f.text === "*Host*\nSam Lee"));
+  // The lead books before the job runs: nothing goes.
+  posts.length = 0;
+  await meeting({ start: Date.now() + 2 * D, guest: s.email, submission: s.id, contact: s.contact });
+  await run();
+  assert.equal(posts.length, 0);
 });

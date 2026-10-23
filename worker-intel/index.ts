@@ -15,7 +15,7 @@ import { linkBase } from "../src/lib/email/render.ts";
 import { sesFromEnv } from "../src/lib/email/ses.ts";
 import { domainCheck, domainRemove, send } from "./jobs/email.ts";
 import { calendarRefresh, calendarWatch, meetingSync } from "./jobs/calendars.ts";
-import { calendarReconnect, mailerFromEnv, meetingAfter, meetingBookLater, meetingNotify, meetingRemind, systemFrom } from "./jobs/meetings.ts";
+import { calendarReconnect, formNotBooked, mailerFromEnv, meetingAfter, meetingBookLater, meetingNotify, meetingRemind, systemFrom } from "./jobs/meetings.ts";
 import { enrichCompany, identityChanged, ipLookup } from "./jobs/company.ts";
 import { accountAlert, scoreAccount, sweepSignals } from "./jobs/signals.ts";
 import { importFile, importUndo, pruneImportFiles } from "./jobs/imports.ts";
@@ -69,6 +69,7 @@ const handlers = {
   meeting_remind: meetingRemind(rpc, meetings),
   meeting_after: meetingAfter(rpc, meetings),
   meeting_book_later: meetingBookLater(rpc, meetings),
+  form_not_booked: formNotBooked(rpc),
   calendar_refresh: calendarRefresh(rpc),
   calendar_watch: calendarWatch(rpc),
   calendar_reconnect: calendarReconnect(rpc, meetings),

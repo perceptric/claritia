@@ -10,6 +10,7 @@
 // is never sent again, so a job delivered twice sends one email. Emails go from the workspace's From address when its
 // domain is verified, else from MEETINGS_FROM (default meetings@tryclaritia.com, which must be verified in SES).
 
+import { slackNote } from "../../src/lib/delivery/send.ts";
 import { SesError } from "../../src/lib/email/ses.ts";
 import { signV4, type Creds } from "../../src/lib/email/sigv4.ts";
 import { enqueueJob, JobError, type Handler, type Rpc } from "../../src/lib/jobs.ts";
@@ -573,8 +574,12 @@ export const meetingBookLater =
     const info = await call<LaterInfo | null>(rpc, "meeting_book_later_info", { p_submission: submission, p_type: typeId });
     // The lead booked meanwhile (in the form, or from another link): nothing to do.
     if (!info || info.booked || info.submission.spam) return;
-    // The mark and the timeline line (056_instant_booking.sql); it skips fills that never saw times.
-    await call(rpc, "submission_not_booked", { p_submission: submission });
+    // The mark and the timeline line (056_instant_booking.sql); it skips fills that never saw times. A new mark tells
+    // the form's Slack channels, one job each (062_not_booked_note.sql).
+    if (await call<boolean>(rpc, "submission_not_booked", { p_submission: submission })) {
+      for (const destination of await call<string[]>(rpc, "form_not_booked_targets", { p_submission: submission }))
+        await enqueueJob(rpc, { workspaceId: info.submission.workspace_id, kind: "form_not_booked", key: `not_booked:${submission}:${destination}`, payload: { submission, destination, type: typeId, host: hostId ?? ownerId } });
+    }
     const c = info.contact;
     const t = info.type ? typeOf(info.type) : null;
     if (!c?.email || !t || !t.active) return;
@@ -646,4 +651,41 @@ export const calendarReconnect =
         parts: () => reconnectEmail({ name: info.person!.name, provider, account: a.account_email, upcoming: info.upcoming, link: `${o.base.replace(/\/$/, "")}/settings/calendar` }),
       }),
     ]);
+  };
+
+// Not booked, in Slack ----------------------------------------------------------------------------------------------
+
+type NoteInfo = {
+  form: string;
+  test: boolean;
+  not_booked: boolean;
+  booked: boolean;
+  contact: { email: string | null; first_name: string | null; last_name: string | null } | null;
+  type: string | null;
+  host: string | null;
+  paused: boolean;
+  sealed: string | null;
+};
+
+/** form_not_booked: one message to one of the form's Slack channels about a lead who saw times and didn't book. */
+export const formNotBooked =
+  (rpc: Rpc, o: { fetcher?: typeof fetch } = {}): Handler =>
+  async (job) => {
+    const uuid = /^[0-9a-f-]{36}$/;
+    const p = job.payload;
+    const id = (k: string) => (typeof p[k] === "string" && uuid.test(p[k] as string) ? (p[k] as string) : null);
+    if (!id("submission") || !id("destination")) throw new JobError("form_not_booked needs a submission and a destination", { retry: false });
+    const n = await call<NoteInfo | null>(rpc, "form_not_booked_note", { p_submission: id("submission"), p_destination: id("destination"), p_type: id("type"), p_host: id("host") });
+    // Gone, paused, or the lead booked since: nothing to say.
+    if (!n || n.paused || !n.not_booked || n.booked) return;
+    const c = n.contact;
+    const who = (c && ([c.first_name, c.last_name].filter(Boolean).join(" ") || c.email)) || "A lead";
+    const rows = [
+      { label: "Email", value: c?.email ?? "" },
+      { label: "Meeting", value: n.type ?? "" },
+      { label: "Host", value: n.host ?? "" },
+    ].filter((r) => r.value);
+    const r = await slackNote(n.sealed, `${n.test ? "[Test] " : ""}${who} saw times on ${n.form} and didn't book`, rows, o.fetcher);
+    if (r.status === "retry") throw new JobError(r.error, { retryAfterS: r.retryAfterS ?? 60 });
+    if (r.status === "failed") throw new JobError(r.error, { retry: false });
   };
