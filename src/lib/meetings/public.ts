@@ -5,7 +5,6 @@
 
 import { createHash, randomBytes } from "node:crypto";
 import { cleanDomain } from "../company/domains.ts";
-import { cleanEmail, isRejected } from "../identity/clean.ts";
 import { enqueueJob, type Rpc } from "../jobs.ts";
 import { keepManageToken } from "./links.ts";
 import { book, hostStates, liveAt, newToken, offer, tokenHash, turnsFor, type BookResult } from "./server.ts";
@@ -124,6 +123,8 @@ const guestSlotsOf = (slots: Slot[], from?: number) => slots.filter((s) => from 
  * doesn't have them yet. The meeting stands without it.
  */
 export async function guestContact(rpc: Rpc, meetingId: string, g: { email: string; name?: string | null; tz?: string | null }): Promise<void> {
+  // Loaded here: the booking pages import this file, and the cleaner reads its lists from disk when it loads.
+  const { cleanEmail, isRejected } = await import("../identity/clean.ts");
   const e = cleanEmail(g.email);
   if (isRejected(e) || e.class === "own") return;
   const [first, ...rest] = (g.name ?? "").trim().split(/\s+/).filter(Boolean);
