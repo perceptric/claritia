@@ -7,10 +7,11 @@
 import { createHmac } from "node:crypto";
 import { hostIsPrivate } from "../privateNet.ts";
 import { unseal } from "../seal.ts";
+import { crmPlan, isCrmVendor, listProperties, sendCrmFields } from "../sources/properties.ts";
 import { deps, type RunOpts } from "../sources/run.ts";
-import { push, type PushOutcome } from "../sources/sync.ts";
+import { call, push, type Deps, type PushOutcome } from "../sources/sync.ts";
 import { AuthError, RateLimited } from "../sources/types.ts";
-import { allFields, type Form } from "../forms/schema.ts";
+import { allFields, isContent, type Form } from "../forms/schema.ts";
 
 export type Taken = {
   delivery: { id: string; attempts: number; external_id: string | null };
@@ -21,7 +22,8 @@ export type Taken = {
   contact: { id: string; email: string | null; first_name: string | null; last_name: string | null; title: string | null; phone: string | null; country: string | null; company: string | null; company_domain: string | null } | null;
 };
 
-export type Result = { status: "done"; externalId?: string; externalUrl?: string } | { status: "skipped"; reason: string } | { status: "failed"; error: string } | { status: "retry"; error: string; retryAfterS?: number };
+/** notes: linked CRM fields that didn't go, with why (also in the source's sync log). */
+export type Result = { status: "done"; externalId?: string; externalUrl?: string; notes?: string[] } | { status: "skipped"; reason: string } | { status: "failed"; error: string } | { status: "retry"; error: string; retryAfterS?: number };
 
 export type SendDeps = { run: RunOpts; fetcher?: typeof fetch; resolve?: Parameters<typeof hostIsPrivate>[1] };
 
@@ -99,22 +101,64 @@ async function toSource(t: Taken, d: SendDeps): Promise<Result> {
   if (dep.ctx.source.status === "paused") return { status: "retry", error: `${t.destination.name} is paused in Settings › Tools.`, retryAfterS: 1800 };
   const outcome = new Map<string, PushOutcome>();
   try {
+    const linked = linkedFields(t, dep.ctx.source.id);
+    // "Never" may still fill a record this delivery makes: was the contact linked to one before?
+    const wasLinked = linked.some((f) => f.overwrite === "never")
+      ? !!(await call<{ external_id: string | null }[]>(dep.rpc, "push_candidates", { p_source: dep.ctx.source.id, p_after: null, p_limit: 1, p_ids: [t.contact.id] }))[0]?.external_id
+      : true;
     await push(dep, { ids: [t.contact.id], force: true, outcome });
     let o = outcome.get(t.contact.id);
+    let gone = false;
     // Deleted on their side since we last linked it: the link is gone now, so this sends it again as new.
     if (o?.gone) {
+      gone = true;
       outcome.clear();
       await push(dep, { ids: [t.contact.id], force: true, outcome });
       o = outcome.get(t.contact.id);
     }
     if (!o) return { status: "retry", error: "The contact wasn't ready to send." };
     if (o.error) return TRANSIENT.test(o.error) ? { status: "retry", error: o.error } : { status: "failed", error: o.error };
-    return { status: "done", externalId: o.externalId, externalUrl: o.externalId ? recordUrl(dep.ctx.source.kind, dep.ctx.source.account, o.externalId, dep.ctx.secret) : undefined };
+    const notes = linked.length && o.externalId ? await toCrmFields(t, dep, o.externalId, !wasLinked || gone) : [];
+    return {
+      status: "done",
+      externalId: o.externalId,
+      externalUrl: o.externalId ? recordUrl(dep.ctx.source.kind, dep.ctx.source.account, o.externalId, dep.ctx.secret) : undefined,
+      ...(notes.length ? { notes } : {}),
+    };
   } catch (e) {
     if (e instanceof AuthError) return { status: "failed", error: `Sign in to ${t.destination.name} again: ${e.message}`.slice(0, 500) };
     if (e instanceof RateLimited) return { status: "retry", error: e.message, retryAfterS: e.retryAfterS };
     return { status: "retry", error: String((e as Error).message ?? e).slice(0, 500) };
   }
+}
+
+/** The form's fields linked to a property on this CRM source. */
+function linkedFields(t: Taken, sourceId: string) {
+  return t.form?.body ? allFields(t.form.body).filter((f) => !isContent(f.type) && f.crm?.source === sourceId) : [];
+}
+
+/**
+ * Answers linked to CRM properties, after the contact landed (src/lib/sources/properties.ts). What the CRM can't
+ * take is skipped and logged with why, and the delivery still counts as done: the contact is there. A CRM that's
+ * down or busy throws, so the whole delivery tries again (the contact push is skipped then: nothing changed).
+ */
+async function toCrmFields(t: Taken, dep: Deps, externalId: string, isNew: boolean): Promise<string[]> {
+  const src = dep.ctx.source;
+  if (!isCrmVendor(src.kind) || !t.form?.body || !t.contact) return [];
+  // The field list tells a deleted property from a bad value; when it can't be read, the CRM's answer decides.
+  const props = await listProperties(dep.ctx).catch((e) => {
+    if (e instanceof AuthError) throw e;
+    return null;
+  });
+  const plan = crmPlan(t.form.body, t.submission.values, src.id, src.kind, props);
+  const r = await sendCrmFields(dep.ctx, src.kind, { id: externalId, localId: t.contact.id, email: t.contact.email, isNew }, plan.send, props);
+  const skipped = [...plan.skip, ...r.skip];
+  if (skipped.length)
+    await call(dep.rpc, "sync_log_add", {
+      p_source: src.id,
+      p_rows: skipped.map((s) => ({ direction: "out", object: "contact", local_id: t.contact!.id, external_id: externalId, action: "error", fields: [s.property], error: `${s.label}: ${s.reason}`.slice(0, 1000) })),
+    });
+  return skipped.map((s) => `${s.label}: ${s.reason}`);
 }
 
 async function toSlack(t: Taken, d: SendDeps): Promise<Result> {
