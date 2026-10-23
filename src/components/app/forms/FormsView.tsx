@@ -1,26 +1,32 @@
 "use client";
 
-// Forms (docs/form-builder-v2.md): the list, the new-form screen (/forms/new), and one form's page. A form's page has
-// four tabs: Share (the form on your site's look, the embed code and Publish), Build (drag and drop), Connect (where
-// leads go, meetings, consent and spam) and Results (fills, deliveries and the daily check). Drafts save as you go;
-// Publish checks the draft on the server and makes it live.
+// Forms (docs/form-studio.md): the list, the new-form screen (/forms/new), and one form's page. A form's page has
+// four tabs, kept in the address as ?tab=: Design (the canvas editor, docs/form-studio.md Part 2), Settings (what
+// happens after the submit, where leads go, consent and spam), Share (the embed code) and Results (fills, deliveries
+// and the daily check). The top bar holds the name, status, undo and redo, the device and zoom, Preview and Publish.
+// Drafts save as you go; Publish checks the draft on the server and makes it live.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { Tokens } from "@/lib/forms/brand";
+import { cleanTokens, type Tokens } from "@/lib/forms/brand";
 import { applyOp, type Op } from "@/lib/forms/ops";
 import { ADAPTERS, checkForm, emptyForm, type Form } from "@/lib/forms/schema";
 import type { CustomField } from "@/lib/records/fields";
-import { Copy, Inbox, Pause, Pencil, Play, Plus, Redo, Send, Trash, Undo } from "../../Icons";
+import { Copy, Inbox, Monitor, Pause, Pencil, Phone, Play, Plus, Redo, Send, Trash, Undo } from "../../Icons";
 import { BrandLogo } from "../BrandLogo";
 import { askConfirm, askText } from "../Dialogs";
 import { AiAvatar, AiMark, AiTag } from "../Ai";
 import { Badge, Button, Empty, ErrorNote, errorText, Loading, must, Page, postJson, setLeaveGuard, Tabs, timeAgo, useLoad, type ViewProps } from "../ui";
-import { FormCanvas } from "./FormCanvas";
+import { Select } from "../Select";
+import { Popover } from "./controls";
+import { Editor } from "./Editor";
+import { mergeKey, pickTab, type Device, type Tab } from "./editorModel";
 import { FormChecks } from "./FormChecks";
 import { FormCreate } from "./FormCreate";
 import { PreviewPane } from "./Preview";
-import { FormDesign } from "./FormDesign";
+import type { ThemeProps } from "./FormDesign";
 import { FormFills } from "./FormFills";
+import { ChevronDown, Tablet } from "./icons";
+import { PreviewOverlay } from "./PreviewOverlay";
 import { SettingsTab } from "./SettingsTab";
 import { copy, IconButton, STATUS, type Destination, type FormRow, type Kit, type SourceRow } from "./shared";
 
@@ -110,8 +116,6 @@ function FormList(props: ViewProps) {
   );
 }
 
-type Tab = "share" | "build" | "connect" | "results";
-
 function FormPage(props: ViewProps) {
   const { sb, ws, id } = props;
   const data = useLoad(async () => {
@@ -145,6 +149,19 @@ function takeOnce(key: string): string | null {
   }
 }
 
+/** Keep the open tab in the address (?tab=…), on the same history entry. */
+function writeTab(t: Tab) {
+  const u = new URL(window.location.href);
+  if (u.searchParams.get("tab") === t) return;
+  u.searchParams.set("tab", t);
+  window.history.replaceState(window.history.state, "", `${u.pathname}${u.search}${u.hash}`);
+}
+
+const ZOOMS = [
+  { value: "fit", label: "Fit" },
+  ...[50, 75, 100, 125, 150].map((z) => ({ value: String(z), label: `${z}%` })),
+];
+
 function Builder({
   sb,
   session,
@@ -156,10 +173,13 @@ function Builder({
   kits,
   sources,
   dests,
-  custom,
+  custom: loadedCustom,
   site,
   reload,
 }: ViewProps & { initial: FormRow; published: Form | null; kits: Kit[]; sources: SourceRow[]; dests: Destination[]; custom: CustomField[]; site: string; reload: () => void }) {
+  // Custom fields made from the Saves to picker join the list at once, without a reload.
+  const [added, setAdded] = useState<CustomField[]>([]);
+  const custom = useMemo(() => [...loadedCustom, ...added.filter((a) => !loadedCustom.some((c) => c.key === a.key))], [loadedCustom, added]);
   const start = useMemo(() => {
     const d = initial.draft as Partial<Form>;
     return d && Array.isArray(d.steps) ? (d as Form) : emptyForm();
@@ -170,10 +190,15 @@ function Builder({
   const [tokens, setTokens] = useState<Partial<Tokens>>(kits.find((k) => k.id === initial.brand_kit_id)?.tokens ?? {});
   const [past, setPast] = useState<Form[]>([]);
   const [future, setFuture] = useState<Form[]>([]);
-  const [tab, setTab] = useState<Tab>(() => {
-    const t = takeOnce(`claritia:form-tab:${initial.id}`);
-    return t === "build" || t === "connect" || t === "results" ? t : "share";
-  });
+  const [tab, setTabState] = useState<Tab>(() => (typeof window === "undefined" ? "design" : pickTab(window.location.search)));
+  const setTab = useCallback((t: Tab) => {
+    setTabState(t);
+    writeTab(t);
+  }, []);
+  useEffect(() => writeTab(tab), [tab]);
+  const [device, setDevice] = useState<Device>("desktop");
+  const [zoom, setZoom] = useState<"fit" | number>("fit");
+  const [previewing, setPreviewing] = useState(false);
   const [note] = useState(() => takeOnce(`claritia:form-note:${initial.id}`) ?? "");
   const [saved, setSaved] = useState(true);
   const [error, setError] = useState("");
@@ -189,20 +214,33 @@ function Builder({
     latest.current = f;
     setForm(f);
   };
-  const apply = useCallback((op: Op) => {
+  // Several ops (a drop that also sets widths) are one step on the undo stack, and so is typing in one box.
+  const merge = useRef<{ key: string; at: number } | null>(null);
+  const apply = useCallback((input: Op | Op[]) => {
+    const ops = Array.isArray(input) ? input : [input];
+    if (!ops.length) return;
     const cur = latest.current;
-    const r = applyOp(cur, op);
-    if ("error" in r) return setError(r.error);
+    let next = cur;
+    for (const op of ops) {
+      const r = applyOp(next, op);
+      if ("error" in r) return setError(r.error);
+      next = r.form;
+    }
     setError("");
-    setPast((p) => [...p.slice(-99), cur]);
+    const key = ops.length === 1 ? mergeKey(ops[0]) : "";
+    const now = Date.now();
+    const joins = !!key && merge.current?.key === key && now - merge.current.at < 1000;
+    merge.current = key ? { key, at: now } : null;
+    if (!joins) setPast((p) => [...p.slice(-99), cur]);
     setFuture([]);
-    latest.current = r.form;
-    setForm(r.form);
+    latest.current = next;
+    setForm(next);
     setSaved(false);
     dirty.current = true;
   }, []);
   const undo = useCallback(() => {
     if (!past.length) return;
+    merge.current = null;
     setFuture((f) => [form, ...f]);
     put(past[past.length - 1]);
     setPast((p) => p.slice(0, -1));
@@ -211,6 +249,7 @@ function Builder({
   }, [past, form]);
   const redo = useCallback(() => {
     if (!future.length) return;
+    merge.current = null;
     setPast((p) => [...p, form]);
     put(future[0]);
     setFuture((f) => f.slice(1));
@@ -250,8 +289,17 @@ function Builder({
     const t = setTimeout(() => void save(), 800);
     return () => clearTimeout(t);
   }, [saved, save, form, name, kitId]);
+  // A theme not saved to a kit yet asks before it's left behind.
+  const themeDirty = useRef(false);
   useEffect(() => {
-    setLeaveGuard(async () => (dirty.current ? (await save()) || askConfirm("Leave without saving?", { ok: "Leave", danger: true }) : true));
+    const kitTokens = kits.find((k) => k.id === kitId)?.tokens ?? {};
+    themeDirty.current = JSON.stringify(cleanTokens(tokens).tokens) !== JSON.stringify(cleanTokens(kitTokens).tokens);
+  }, [tokens, kits, kitId]);
+  useEffect(() => {
+    setLeaveGuard(async () => {
+      if (dirty.current && !(await save()) && !(await askConfirm("Leave without saving?", { ok: "Leave", danger: true }))) return false;
+      return themeDirty.current ? askConfirm("Leave without saving the theme?", { ok: "Leave", danger: true }) : true;
+    });
     const before = (e: BeforeUnloadEvent) => {
       if (dirty.current) e.preventDefault();
     };
@@ -316,8 +364,9 @@ function Builder({
     setSaved(false);
     dirty.current = true;
   };
-  const saveKit = async (kitName: string, t: Partial<Tokens>) => {
-    const r = await postJson<{ id: string; tokens: Tokens; notes: string[] }>(session, "/api/forms/brand", { workspaceId: ws.id, id: kitId, name: kitName, tokens: t });
+  /** Save the theme to the form's kit, or (`own`) to a new kit that only this form uses. */
+  const saveKit = async (kitName: string, t: Partial<Tokens>, own: boolean) => {
+    const r = await postJson<{ id: string; tokens: Tokens; notes: string[] }>(session, "/api/forms/brand", { workspaceId: ws.id, id: own ? null : kitId, name: kitName, tokens: t });
     setTokens(r.tokens);
     if (r.id !== kitId) {
       setKitId(r.id);
@@ -367,32 +416,29 @@ function Builder({
   const siteHost = (kit?.source_url ?? site).replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/\/.*$/, "");
   const brand = { site: siteHost, kit, tokens, scan: (u: string) => void scan(u), error: scanError };
 
-  const [label, tone] = STATUS[initial.status];
   const origin = typeof window === "undefined" ? "" : window.location.origin;
-  const tabs: { value: Tab; label: string; count?: number }[] = [
+  const tabs: { value: Tab; label: string }[] = [
+    { value: "design", label: "Design" },
+    { value: "settings", label: "Settings" },
     { value: "share", label: "Share" },
-    { value: "build", label: "Build" },
-    { value: "connect", label: "Connect" },
     { value: "results", label: "Results" },
   ];
-  const look = (
-    <FormDesign
-      form={form}
-      apply={apply}
-      kits={kits}
-      kitId={kitId}
-      setKit={(k) => {
-        setKitId(k);
-        setSaved(false);
-        dirty.current = true;
-      }}
-      tokens={tokens}
-      setTokens={setTokens}
-      saveKit={saveKit}
-      scan={scan}
-      site={kit?.source_url ?? site}
-    />
-  );
+  const theme: ThemeProps = {
+    tokens,
+    setTokens,
+    kits,
+    kitId,
+    setKit: (k) => {
+      setKitId(k);
+      setSaved(false);
+      dirty.current = true;
+    },
+    saveKit,
+    scan,
+    site: kit?.source_url ?? site,
+    formName: name,
+  };
+  const sep = <span aria-hidden="true" className="mx-1 h-5 w-px bg-line" />;
 
   return (
     <Page
@@ -402,29 +448,47 @@ function Builder({
       back={{ label: "Forms", onClick: () => navigate("forms") }}
       flush
       actions={
-        <span className="flex items-center gap-1.5">
-          <span className="hidden font-mono text-[11.5px] text-muted sm:inline">{saved ? "Saved" : "Saving…"}</span>
+        <span className="flex items-center gap-1">
+          <span className="hidden pr-1 text-[12px] text-muted sm:inline">{saved ? "Saved" : "Saving…"}</span>
+          <StatusMenu status={initial.status} live={!!initial.version} busy={!!busy} onStatus={setStatus} onTest={test} onDelete={remove} />
+          {initial.version && changed ? (
+            <span className="hidden 2xl:inline-flex">
+              <Badge tone="amber">Unpublished changes</Badge>
+            </span>
+          ) : null}
+          {sep}
           <IconButton label="Undo" onClick={undo} disabled={!past.length}>
             <Undo size={14} />
           </IconButton>
           <IconButton label="Redo" onClick={redo} disabled={!future.length}>
             <Redo size={14} />
           </IconButton>
-          <Badge tone={tone}>{label}</Badge>
-          {initial.version && changed ? <Badge tone="amber">Unpublished changes</Badge> : null}
-          {initial.version ? (
-            <IconButton label={initial.status === "paused" ? "Turn on" : "Pause"} onClick={() => setStatus(initial.status === "paused" ? "live" : "paused")}>
-              {initial.status === "paused" ? <Play size={14} /> : <Pause size={14} />}
-            </IconButton>
+          {tab === "design" ? (
+            <>
+              {sep}
+              <div role="radiogroup" aria-label="Device" className="flex items-center gap-0.5 rounded-full bg-paper-deep p-0.5">
+                {(
+                  [
+                    ["desktop", "Desktop", <Monitor key="d" size={14} />],
+                    ["tablet", "Tablet", <Tablet key="t" size={14} />],
+                    ["phone", "Phone", <Phone key="p" size={14} />],
+                  ] as const
+                ).map(([d, label, icon]) => (
+                  <button key={d} type="button" role="radio" aria-checked={device === d} aria-label={label} title={label} onClick={() => setDevice(d)} className={`flex size-7 items-center justify-center rounded-full transition-colors duration-[140ms] ${device === d ? "bg-ink text-paper" : "text-muted hover:text-ink"}`}>
+                    {icon}
+                  </button>
+                ))}
+              </div>
+              <span className="w-[74px]">
+                <Select<string> value={String(zoom)} options={ZOOMS} onChange={(z) => setZoom(z === "fit" ? "fit" : Number(z))} ariaLabel="Zoom" className="h-8 w-full rounded-full px-2.5 text-[12.5px] font-medium text-ink tabular-nums hover:bg-hover" />
+              </span>
+            </>
           ) : null}
-          {initial.version ? (
-            <IconButton label="Send a test fill" onClick={test} disabled={!!busy}>
-              <Send size={14} />
-            </IconButton>
-          ) : null}
-          <IconButton label="Delete form" onClick={remove} danger>
-            <Trash size={14} />
-          </IconButton>
+          {sep}
+          <Button variant="ghost" onClick={() => setPreviewing(true)}>
+            <Play size={13} />
+            Preview
+          </Button>
           <Button disabled={!!busy || (!!initial.version && !changed)} onClick={publish}>
             {busy === "publish" ? "Publishing…" : initial.version && !changed ? "Published" : "Publish"}
           </Button>
@@ -446,16 +510,16 @@ function Builder({
           </div>
         ) : null}
         <div className="min-h-0 flex-1">
-          {tab === "share" ? (
+          {tab === "design" ? (
+            <Editor form={form} apply={apply} custom={custom} sources={sources} tokens={tokens} device={device} zoom={zoom} theme={theme} link={{ session, workspaceId: ws.id, sb, onFieldAdded: (f) => setAdded((a) => [...a, f]) }} />
+          ) : tab === "share" ? (
             <div className="grid h-full min-h-0 lg:grid-cols-[1fr_380px]">
               <PreviewPane form={form} brand={brand} footer={<ChangeBox session={session} ws={ws} formId={initial.id} prepare={async () => ((await save()) ? rev.current : null)} onResult={fromChat} />} />
               <aside className="min-h-0 overflow-auto border-l border-line bg-card">
                 <Embed id={initial.id} origin={origin} live={!!initial.version} form={form} apply={apply} />
               </aside>
             </div>
-          ) : tab === "build" ? (
-            <FormCanvas form={form} apply={apply} custom={custom} tokens={tokens} name={name} setName={rename} look={look} />
-          ) : tab === "connect" ? (
+          ) : tab === "settings" ? (
             <SettingsTab form={form} apply={apply} sb={sb} session={session} ws={ws} role={role} navigate={navigate} formId={initial.id} dests={dests} sources={sources} reload={reload} brand={brand} />
           ) : (
             <div className="h-full overflow-auto bg-paper p-4 md:p-8">
@@ -467,7 +531,50 @@ function Builder({
           )}
         </div>
       </div>
+      {previewing ? <PreviewOverlay form={form} tokens={tokens} device={device} onClose={() => setPreviewing(false)} /> : null}
     </Page>
+  );
+}
+
+/** Draft, Live or Paused as one pill, with what can be done from here in its menu. */
+function StatusMenu({ status, live, busy, onStatus, onTest, onDelete }: { status: FormRow["status"]; live: boolean; busy: boolean; onStatus: (s: "live" | "paused") => void; onTest: () => void; onDelete: () => void }) {
+  const btn = useRef<HTMLButtonElement>(null);
+  const [open, setOpen] = useState(false);
+  const [label, tone] = STATUS[status];
+  const dot = tone === "green" ? "bg-sage" : tone === "amber" ? "bg-butter" : "bg-muted";
+  const item = "flex h-8 w-full items-center gap-2 rounded-sm px-2 text-left text-[12.5px] text-ink hover:bg-hover disabled:opacity-40";
+  const run = (fn: () => void) => () => {
+    setOpen(false);
+    fn();
+  };
+  return (
+    <>
+      <button ref={btn} type="button" aria-label={`Status: ${label}`} aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen((o) => !o)} className="press inline-flex h-7 items-center gap-1.5 rounded-full bg-paper-deep pr-2 pl-2.5 text-[12px] font-medium text-ink hover:bg-hover">
+        <span className={`size-1.5 rounded-full ${dot}`} />
+        {label}
+        <ChevronDown size={12} className="text-muted" />
+      </button>
+      <Popover anchor={btn} open={open} onClose={() => setOpen(false)} label="Form status" width={200}>
+        <div role="menu" aria-label="Form status" className="-m-1 flex flex-col">
+          {live ? (
+            <button type="button" role="menuitem" onClick={run(() => onStatus(status === "paused" ? "live" : "paused"))} className={item}>
+              {status === "paused" ? <Play size={13} /> : <Pause size={13} />}
+              {status === "paused" ? "Turn on" : "Pause"}
+            </button>
+          ) : null}
+          {live ? (
+            <button type="button" role="menuitem" disabled={busy} onClick={run(onTest)} className={item}>
+              <Send size={13} />
+              Send a test fill
+            </button>
+          ) : null}
+          <button type="button" role="menuitem" onClick={run(onDelete)} className={`${item} text-rose hover:bg-rose-wash`}>
+            <Trash size={13} />
+            Delete form
+          </button>
+        </div>
+      </Popover>
+    </>
   );
 }
 
