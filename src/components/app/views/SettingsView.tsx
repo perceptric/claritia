@@ -12,6 +12,7 @@ import { IcpPanel, SitesPanel } from "./SitesPanel";
 import { SETTINGS_GROUPS, settingsTab, type SettingsTab } from "@/lib/settingsTabs";
 import { TeamPanel } from "./TeamSettings";
 import { MyCalendar } from "../meetings/MyCalendar";
+import { Payments } from "../meetings/Payments";
 import { TeamCalendars } from "../meetings/TeamCalendars";
 import { FieldsSettings, ObjectsSettings } from "./FieldsSettings";
 import { ImportsSettings } from "./ImportsSettings";
@@ -173,6 +174,7 @@ export function SettingsView({ sb, session, ws, role, navigate, id }: ViewProps)
     team: <TeamPanel sb={sb} ws={ws} role={role} session={session} />,
     calendars: <TeamCalendars sb={sb} ws={ws} role={role} session={session} />,
     calendar: <MyCalendar sb={sb} ws={ws} session={session} />,
+    payments: <Payments sb={sb} ws={ws} role={role} session={session} />,
     workspace: (
         <Panel>
           <CardHead label="Workspace" count={members.data ? `${members.data.length} ${members.data.length === 1 ? "member" : "members"}` : undefined}>

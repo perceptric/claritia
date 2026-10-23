@@ -1,7 +1,7 @@
 // Settings pages, grouped the way the Settings sidebar shows them (same layout as Arrowsterr).
 
 export type SettingsTab =
-  | "sources" | "imports" | "sync_log" | "fields" | "objects" | "sending" | "team" | "calendars" | "sites" | "identity" | "icp" | "lead_scoring" | "account_alerts" | "workspace" | "keys" | "profile" | "calendar";
+  | "sources" | "imports" | "sync_log" | "fields" | "objects" | "sending" | "team" | "calendars" | "sites" | "identity" | "icp" | "lead_scoring" | "account_alerts" | "workspace" | "payments" | "keys" | "profile" | "calendar";
 export type SettingsGroup = { label: string; tabs: { id: SettingsTab; label: string }[] };
 
 export const SETTINGS_GROUPS: SettingsGroup[] = [
@@ -13,7 +13,7 @@ export const SETTINGS_GROUPS: SettingsGroup[] = [
   { label: "Team", tabs: [{ id: "team", label: "Members" }, { id: "calendars", label: "Calendars" }] },
   { label: "Website", tabs: [{ id: "sites", label: "Sites" }, { id: "identity", label: "Identity" }] },
   { label: "Scoring", tabs: [{ id: "icp", label: "Ideal customer" }, { id: "lead_scoring", label: "Lead scoring" }, { id: "account_alerts", label: "Account alerts" }] },
-  { label: "Workspace", tabs: [{ id: "workspace", label: "General" }, { id: "keys", label: "API keys" }] },
+  { label: "Workspace", tabs: [{ id: "workspace", label: "General" }, { id: "payments", label: "Payments" }, { id: "keys", label: "API keys" }] },
   { label: "Account", tabs: [{ id: "profile", label: "Profile" }, { id: "calendar", label: "Calendar" }] },
 ];
 
