@@ -101,7 +101,7 @@ export function FormBuild({ form, apply, custom, selected, select }: { form: For
   );
 }
 
-function FieldSettings({ form, field: f, apply, custom }: { form: Form; field: Field; apply: (op: Op) => void; custom: CustomField[] }) {
+export function FieldSettings({ form, field: f, apply, custom }: { form: Form; field: Field; apply: (op: Op) => void; custom: CustomField[] }) {
   const patch = (p: Partial<Omit<Field, "id">>) => apply({ op: "update_field", id: f.id, patch: p });
   const taken = new Set(allFields(form).filter((x) => x.id !== f.id).map((x) => x.key as string));
   const keyOptions: { value: string; label: string }[] = [

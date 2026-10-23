@@ -252,7 +252,18 @@ body {
     opacity: 0.35;
   }
 }
+/* A new chat message or question: a short rise. */
+.mk-rise {
+  animation: mk-rise 0.22s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+@keyframes mk-rise {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
 @media (prefers-reduced-motion: reduce) {
+  .mk-rise,
   .mk-fade,
   .mk-pulse {
     animation: none;

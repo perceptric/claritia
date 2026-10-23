@@ -288,3 +288,59 @@ export const Megaphone = (p: P) => (
     <path d="M17 9a4 4 0 0 1 0 6M7 15l1.5 5h2.5l-1.2-4.2" />
   </Svg>
 );
+
+export const Chat = (p: P) => (
+  <Svg {...p}>
+    <path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z" />
+  </Svg>
+);
+
+export const Grid = (p: P) => (
+  <Svg {...p}>
+    <rect x="3" y="3" width="7" height="7" />
+    <rect x="14" y="3" width="7" height="7" />
+    <rect x="3" y="14" width="7" height="7" />
+    <rect x="14" y="14" width="7" height="7" />
+  </Svg>
+);
+
+export const Monitor = (p: P) => (
+  <Svg {...p}>
+    <rect x="2" y="4" width="20" height="13" rx="1" />
+    <path d="M8 21h8M12 17v4" />
+  </Svg>
+);
+
+export const Phone = (p: P) => (
+  <Svg {...p}>
+    <rect x="6" y="2" width="12" height="20" rx="2" />
+    <path d="M11 18h2" />
+  </Svg>
+);
+
+export const ArrowLeft = (p: P) => (
+  <Svg {...p}>
+    <path d="M19 12H5M11 18l-6-6 6-6" />
+  </Svg>
+);
+
+export const CornerDownLeft = (p: P) => (
+  <Svg {...p}>
+    <path d="M9 10l-5 5 5 5" />
+    <path d="M20 4v7a4 4 0 0 1-4 4H4" />
+  </Svg>
+);
+
+export const Lock = (p: P) => (
+  <Svg {...p}>
+    <rect x="5" y="11" width="14" height="10" rx="1" />
+    <path d="M8 11V7a4 4 0 0 1 8 0v4" />
+  </Svg>
+);
+
+export const Wand = (p: P) => (
+  <Svg {...p}>
+    <path d="M15 4V2M15 10V8M11 6h-2M21 6h-2M18.5 3.5l-1 1M12.5 8.5l-1 1M17.5 8.5l1 1" />
+    <path d="M3 21l11-11" />
+  </Svg>
+);

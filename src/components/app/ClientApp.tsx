@@ -67,7 +67,7 @@ export function ClientApp({ config }: { config: SupaConfig }) {
   const [session, setSession] = useState<Session | null | undefined>(undefined);
   const [ws, setWs] = useState<Workspace | null>(null);
   const [role, setRole] = useState<Role>("member");
-  const [loc, setLoc] = useState<Loc>({ route: "contacts", id: "" });
+  const [loc, setLoc] = useState<Loc>({ route: "forms", id: "" });
   const [error, setError] = useState("");
   const route = loc.route;
 

@@ -199,3 +199,21 @@ check).
 
 That's about $32 a month less at Beta and about $325 less at Growth than the first builder, because forms are built
 from answers instead of from a chat.
+
+## Part 10. Status: built
+
+| Piece | Where |
+|---|---|
+| The question tree and answers to form, with unit tests on every goal, place, step and next step | `src/lib/forms/interview.ts`, `tests/interview.test.ts` |
+| Typed questions (Claude Haiku 5.5) and the final words (Claude Sonnet 5.5), through the step cache, with the rules-based answer when AI isn't there | `src/app/api/forms/interview/route.ts` |
+| The first screen, the questions with the form building beside them, the brand scan from the start, templates | `src/components/app/forms/FormCreate.tsx` |
+| The form's page: Share (preview, change box, embed options), Build, Connect, Results | `src/components/app/forms/FormsView.tsx` |
+| Drag and drop builder | `src/components/app/forms/FormCanvas.tsx` (`@dnd-kit`) |
+| Popup mode in the form script: on a button, after N seconds, on exit | `popup` in `src/lib/forms/element.ts` |
+| Twelve templates | `src/lib/forms/templates.ts` |
+| The whole app on one machine for browser checks: database, PostgREST, a stand-in for Supabase Auth | `scripts/local-stack.mjs` |
+| Browser checks for every way in, from an empty workspace to a fill that makes a contact | `scripts/screens-check.ts` (run by `scripts/test-db.sh` when `POSTGREST_BIN` and `CHROMIUM_PATH` are set) |
+
+Changed from the plan: a first sentence is read by rules in the browser (instant, no model call), so the Haiku line
+is only for typed questions. The link has no QR code yet. The embed code shows "Live after Publish" until the first
+publish instead of serving a draft.
