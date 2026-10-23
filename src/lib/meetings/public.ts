@@ -10,7 +10,7 @@ import { book, hostStates, newToken, offer, tokenHash, turnsFor, type BookResult
 import { pickHost, pickPair } from "./slots.ts";
 import { checkSettings } from "./check.ts";
 import { guestLocation, toGuestType, type GuestIn, type GuestSlot, type GuestType, type Profile } from "./guest.ts";
-import { DEFAULT_SETTINGS, type Location, type MeetingSource, type MeetingStatus, type MeetingType, type Slot } from "./types.ts";
+import { DEFAULT_SETTINGS, type Location, type MeetingSource, type MeetingStatus, type MeetingType, type Slot, type Span } from "./types.ts";
 
 const MIN = 60_000;
 export type Kit = { tokens: Record<string, unknown>; logo_url: string | null };
@@ -469,12 +469,44 @@ export function canChange(v: MeetingView, now = Date.now()): { reschedule: boole
   };
 }
 
-/** An Rpc that leaves one meeting out of the hosts' booked times, so a meeting can move next to where it is. */
-const without = (rpc: Rpc, meetingId: string): Rpc => async (fn, args) => {
+/** Spans with one hole cut out of them: what's left before and after it. */
+export function cut(spans: Span[], hole: Span): Span[] {
+  return spans.flatMap((x) =>
+    x.end <= hole.start || x.start >= hole.end
+      ? [x]
+      : [...(x.start < hole.start ? [{ start: x.start, end: hole.start }] : []), ...(x.end > hole.end ? [{ start: hole.end, end: x.end }] : [])],
+  );
+}
+
+const spanOf = (v: MeetingView): Span => ({ start: Date.parse(v.meeting.start_at), end: Date.parse(v.meeting.end_at) });
+
+/**
+ * An Rpc that leaves one meeting out of its hosts' booked and busy times, so a meeting can move next to where it is
+ * or overlap its old time. Its own calendar event comes back from the providers as busy, so that span is cut out.
+ */
+const without = (rpc: Rpc, v: MeetingView): Rpc => async (fn, args) => {
   const r = await rpc(fn, args);
   if (fn !== "meeting_inputs" || r.error || !Array.isArray(r.data)) return r;
-  return { data: (r.data as { booked: unknown[][] }[]).map((h) => ({ ...h, booked: (h.booked ?? []).filter((b) => b[4] !== meetingId) })), error: null };
+  const hole = spanOf(v);
+  const iso = (n: number) => new Date(n).toISOString();
+  return {
+    data: (r.data as { id: string; booked: unknown[][]; busy: [string, string][] }[]).map((h) => ({
+      ...h,
+      booked: (h.booked ?? []).filter((b) => b[4] !== v.meeting.id),
+      busy: v.meeting.hosts.includes(h.id) ? cut((h.busy ?? []).map(([a, b]) => ({ start: Date.parse(a), end: Date.parse(b) })), hole).map((x) => [iso(x.start), iso(x.end)]) : h.busy,
+    })),
+    error: null,
+  };
 };
+
+/** The live check for a move: the meeting's own hosts are asked only about the part outside its old time. */
+async function liveForMove(live: LiveBusy, v: MeetingView, hosts: string[], from: number, to: number): Promise<Set<string>> {
+  const mine = hosts.filter((h) => v.meeting.hosts.includes(h));
+  const others = hosts.filter((h) => !v.meeting.hosts.includes(h));
+  const parts = cut([{ start: from, end: to }], spanOf(v));
+  const sets = await Promise.all([others.length ? live(others, from, to) : new Set<string>(), ...(mine.length ? parts.map((p) => live(mine, p.start, p.end)) : [])]);
+  return new Set(sets.flatMap((x) => [...x]));
+}
 
 const meetingLength = (v: MeetingView) => Math.round((Date.parse(v.meeting.end_at) - Date.parse(v.meeting.start_at)) / MIN);
 
@@ -484,7 +516,7 @@ async function moveSlots(rpc: Rpc, v: MeetingView, now: number): Promise<Slot[]>
   const type = v.type;
   const length = meetingLength(v);
   const t: MeetingType = type.settings.lengths.includes(length) ? type : { ...type, settings: { ...type.settings, lengths: [...type.settings.lengths, length] } };
-  const off = await offer(without(rpc, v.meeting.id), { ws: v.meeting.workspace_id, type: t, length, now });
+  const off = await offer(without(rpc, v), { ws: v.meeting.workspace_id, type: t, length, now });
   const mine = v.meeting.hosts;
   return off.slots.filter((s) => s.start !== Date.parse(v.meeting.start_at) && (type.settings.reschedule !== "same_host" || mine.every((h) => s.hosts.includes(h))));
 }
@@ -515,7 +547,7 @@ export async function reschedule(rpc: Rpc, o: { view: MeetingView; start: number
   const end = o.start + length * MIN;
   const blockStart = o.start - s.bufferBefore * MIN;
   const blockEnd = end + s.bufferAfter * MIN;
-  const busy = await o.liveBusy(slot.hosts, blockStart, blockEnd);
+  const busy = await liveForMove(o.liveBusy, v, slot.hosts, blockStart, blockEnd);
   const free = slot.hosts.filter((h) => !busy.has(h));
   const mine = v.meeting.hosts;
   let hosts: string[] = [];

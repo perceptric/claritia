@@ -15,7 +15,7 @@ import { linkBase } from "../src/lib/email/render.ts";
 import { sesFromEnv } from "../src/lib/email/ses.ts";
 import { domainCheck, domainRemove, send } from "./jobs/email.ts";
 import { calendarRefresh, calendarWatch, meetingSync } from "./jobs/calendars.ts";
-import { mailerFromEnv, meetingAfter, meetingBookLater, meetingNotify, meetingRemind, systemFrom } from "./jobs/meetings.ts";
+import { calendarReconnect, mailerFromEnv, meetingAfter, meetingBookLater, meetingNotify, meetingRemind, systemFrom } from "./jobs/meetings.ts";
 import { enrichCompany, identityChanged, ipLookup } from "./jobs/company.ts";
 import { accountAlert, scoreAccount, sweepSignals } from "./jobs/signals.ts";
 import { importFile, importUndo, pruneImportFiles } from "./jobs/imports.ts";
@@ -71,6 +71,7 @@ const handlers = {
   meeting_book_later: meetingBookLater(rpc, meetings),
   calendar_refresh: calendarRefresh(rpc),
   calendar_watch: calendarWatch(rpc),
+  calendar_reconnect: calendarReconnect(rpc, meetings),
   meeting_sync: meetingSync(rpc),
 };
 const stop = new AbortController();

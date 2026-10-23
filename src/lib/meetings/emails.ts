@@ -300,6 +300,26 @@ export function bookLaterEmail(v: TimesView): MailParts {
   };
 }
 
+export type ReconnectView = { name: string | null; provider: string; account: string; upcoming: number; link: string };
+
+/** To a host whose calendar sign-in stopped working: they can't be booked until they reconnect. */
+export function reconnectEmail(v: ReconnectView): MailParts {
+  const held = v.upcoming === 1 ? "Your 1 meeting in the next two weeks stays booked." : v.upcoming > 1 ? `Your ${v.upcoming} meetings in the next two weeks stay booked.` : "";
+  return {
+    subject: `Reconnect your ${v.provider} calendar`,
+    ...render({
+      preheader: "People can't book time with you until you reconnect",
+      heading: `Reconnect your ${v.provider} calendar`,
+      blocks: [
+        { p: hi(v.name) },
+        { p: `${v.provider} stopped letting Claritia read ${v.account}. People can't book time with you until you reconnect.` },
+        ...(held ? [{ p: held }] : []),
+        { buttons: [{ label: "Reconnect", url: v.link, primary: true }] },
+      ],
+    }),
+  };
+}
+
 // MIME ------------------------------------------------------------------------------------------------------------
 
 const oneLine = (s: string) => s.replace(/[\r\n\t]+/g, " ").replace(/\s{2,}/g, " ").trim();

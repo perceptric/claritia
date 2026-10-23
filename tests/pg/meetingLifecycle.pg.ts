@@ -12,7 +12,7 @@ import { meetingUid } from "../../src/lib/meetings/ics.ts";
 import { keepManageToken, manageToken, readOutcomeToken } from "../../src/lib/meetings/links.ts";
 import { newToken, tokenHash } from "../../src/lib/meetings/server.ts";
 import { DEFAULT_AVAILABILITY, DEFAULT_SETTINGS } from "../../src/lib/meetings/types.ts";
-import { meetingAfter, meetingBookLater, meetingNotify, meetingRemind, type Mail, type Mailer, type MeetingOpts } from "../../worker-intel/jobs/meetings.ts";
+import { calendarReconnect, meetingAfter, meetingBookLater, meetingNotify, meetingRemind, type Mail, type Mailer, type MeetingOpts } from "../../worker-intel/jobs/meetings.ts";
 import { pgRpc } from "../../worker-intel/rpc.ts";
 
 const url = process.env.PG_URL;
@@ -391,4 +391,46 @@ test("book later does nothing when the lead booked meanwhile", async () => {
   await bookLater(t.id, {});
   assert.equal(sent.length, 0);
   assert.equal((await q(`select 1 from contact_events where contact_id = $1 and kind = 'meeting.not_booked'`, [t.contact])).length, 1);
+});
+
+test("a calendar that needs reconnecting sends its person one email per break, and none once reconnected", async () => {
+  const u = randomUUID();
+  await q(`insert into auth.users (id, email) values ($1, $2)`, [u, `${u}@acme.test`]);
+  await q(`insert into workspace_members (workspace_id, user_id, role) values ($1, $2, 'member')`, [ws, u]);
+  await q(`insert into booking_profiles (workspace_id, user_id, slug, name) values ($1, $2, $3, 'Rio Park')`, [ws, u, `rio-${u.slice(0, 6)}`]);
+  const acc = (await one<{ id: string }>(`insert into calendar_accounts (workspace_id, user_id, provider, account_email) values ($1, $2, 'google', 'rio@gmail.test') returning id`, [ws, u])).id;
+  await meeting({ start: Date.now() + 2 * D, hosts: [u] });
+  const run = async () => {
+    for (const j of await q(`select id, payload from jobs where kind = 'calendar_reconnect' and key = $1 and status = 'queued'`, [acc])) {
+      await calendarReconnect(rpc, opts)(job("calendar_reconnect", j.payload), signal);
+      await q(`update jobs set status = 'done' where id = $1`, [j.id]);
+    }
+  };
+
+  // Two refusals in a row queue one job; running the job twice still sends one email.
+  assert.equal((await one<{ r: boolean }>(`select calendar_reconnect($1, 'invalid_grant') r`, [acc])).r, true);
+  assert.equal((await one<{ r: boolean }>(`select calendar_reconnect($1, 'invalid_grant') r`, [acc])).r, false);
+  const [j] = await q(`select payload from jobs where kind = 'calendar_reconnect' and key = $1 and status = 'queued'`, [acc]);
+  await run();
+  await calendarReconnect(rpc, opts)(job("calendar_reconnect", j.payload), signal);
+  assert.equal(sent.length, 1);
+  assert.equal(sent[0]!.to, `${u}@acme.test`);
+  assert.equal(subjectOf(sent[0]!), "Reconnect your Google calendar");
+  const text = parts(sent[0]!.raw)["text/plain"]!;
+  assert.ok(text.includes("rio@gmail.test"));
+  assert.ok(text.includes("Your 1 meeting in the next two weeks stays booked."));
+  assert.ok(text.includes("https://app.test/settings/calendar"));
+
+  // Reconnected before the job ran: nothing goes.
+  sent = [];
+  await q(`update calendar_accounts set status = 'ok' where id = $1`, [acc]);
+  await q(`select calendar_reconnect($1, 'invalid_grant')`, [acc]);
+  await q(`update calendar_accounts set status = 'ok' where id = $1`, [acc]);
+  await run();
+  assert.equal(sent.length, 0);
+
+  // A later break is a new email.
+  await q(`select calendar_reconnect($1, 'invalid_grant')`, [acc]);
+  await run();
+  assert.equal(sent.length, 1);
 });

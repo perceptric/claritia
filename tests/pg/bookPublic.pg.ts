@@ -134,6 +134,29 @@ test("reschedule: into a time someone just took is refused and nothing moves; a 
   assert.equal(await syncJobs(mine.meetingId, "move"), 1);
 });
 
+test("reschedule onto part of its own old time: the meeting's own calendar event doesn't count as busy, other events still do", async () => {
+  const { ws, users } = await team(1);
+  const t = await meetingType(ws, "one", users, { lengths: [60] });
+  const r = await bookType(rpc, { ws, type: t, length: 60, start: NY("09:00"), guest: guest(), source: "page", payReady: false, liveBusy: none, now: NOW });
+  assert.ok(r.ok);
+  // The calendar sync brings the meeting's own event back as busy, merged with a call right after it.
+  const acc = (await q(`select id from calendar_accounts where user_id = $1`, [users[0]]))[0].id;
+  await q(`insert into busy_blocks (account_id, calendar_id, start_at, end_at) values ($1, 'primary', $2, $3)`, [acc, new Date(NY("09:00")).toISOString(), new Date(NY("11:00")).toISOString()]);
+  const view = (await loadMeeting(rpc, { token: r.token }))!;
+  const offered = (await rescheduleSlots(rpc, view, NOW)).map((s) => s.start);
+  assert.ok(offered.includes(NY("11:00")), "right after the call");
+  assert.ok(!offered.includes(NY("09:30")), "the call from 10:00 to 11:00 is still busy");
+  await q(`update busy_blocks set end_at = $2 where account_id = $1`, [acc, new Date(NY("10:00")).toISOString()]);
+  assert.ok((await rescheduleSlots(rpc, view, NOW)).some((s) => s.start === NY("09:30")), "half an hour later, over its own old time");
+  // The providers also report the old event live; only the part outside the old time is asked about.
+  const asked: [number, number][] = [];
+  const live = async (h: string[], from: number, to: number) => (asked.push([from, to]), new Set(from < NY("10:00") && to > NY("09:00") ? h : []));
+  const moved = await reschedule(rpc, { view, start: NY("09:30"), liveBusy: live, now: NOW });
+  assert.ok(moved.ok, "moved over its own old time");
+  assert.deepEqual(asked, [[NY("10:00"), NY("10:30")]]);
+  assert.equal(new Date((await q(`select start_at from meetings where id = $1`, [r.meetingId]))[0].start_at).getTime(), NY("09:30"));
+});
+
 test("reschedule into the pool picks someone free when the host isn't; same-host types keep the host", async () => {
   const { ws, users } = await team(2);
   const t = await meetingType(ws, "round_robin", users, { reschedule: "pool" });

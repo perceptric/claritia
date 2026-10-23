@@ -23,6 +23,7 @@ import {
   hostMovedEmail,
   mime,
   noShowEmail,
+  reconnectEmail,
   reminderEmail,
   updateEmail,
   validAddress,
@@ -125,7 +126,7 @@ type Send = {
   ws: string;
   meeting?: string | null;
   submission?: string | null;
-  kind: "confirm" | "host_booked" | "update" | "host_moved" | "cancel" | "host_canceled" | "reminder" | "after" | "no_show" | "book_later";
+  kind: "confirm" | "host_booked" | "update" | "host_moved" | "cancel" | "host_canceled" | "reminder" | "after" | "no_show" | "book_later" | "reconnect";
   to: string;
   dedupe: string;
   /** Respects suppressions, erasures and paused sending. */
@@ -606,6 +607,43 @@ export const meetingBookLater =
         fromName: person?.name ?? info.sending.from_name ?? info.workspace.name,
         replyTo: person?.email,
         parts: () => bookLaterEmail({ name, host: person?.name ?? info.workspace.name, typeName: t.name, times, tz: tzOr(c.timezone, person?.tz), link, now }),
+      }),
+    ]);
+  };
+
+// Reconnect -------------------------------------------------------------------------------------------------------
+
+type ReconnectInfo = {
+  account: { id: string; workspace_id: string; user_id: string; provider: string; account_email: string; status: string; reconnect_at: string | null };
+  person: Person | null;
+  upcoming: number;
+  workspace: { id: string; name: string };
+  sending: Sending;
+};
+
+const PROVIDER_NAMES: Record<string, string> = { google: "Google", microsoft: "Microsoft", zoom: "Zoom" };
+
+/**
+ * calendar_reconnect: one email to the person whose calendar sign-in stopped working (queued by calendar_reconnect in
+ * 054_calendars.sql). Nothing is sent once they've reconnected; each break sends at most one email.
+ */
+export const calendarReconnect =
+  (rpc: Rpc, o: MeetingOpts): Handler =>
+  async (job) => {
+    const account = String(job.payload.account ?? "");
+    if (!/^[0-9a-f-]{36}$/.test(account)) throw new JobError("calendar_reconnect needs an account", { retry: false });
+    const info = await call<ReconnectInfo | null>(rpc, "calendar_reconnect_info", { p_account: account });
+    if (!info || info.account.status !== "reconnect" || !info.person) return;
+    const a = info.account;
+    const provider = PROVIDER_NAMES[a.provider] ?? a.provider;
+    settle([
+      await sendOne(rpc, o, info.sending, {
+        ws: a.workspace_id,
+        kind: "reconnect",
+        to: info.person.email,
+        dedupe: `reconnect:${a.id}:${a.reconnect_at ?? ""}`,
+        fromName: "Claritia",
+        parts: () => reconnectEmail({ name: info.person!.name, provider, account: a.account_email, upcoming: info.upcoming, link: `${o.base.replace(/\/$/, "")}/settings/calendar` }),
       }),
     ]);
   };
