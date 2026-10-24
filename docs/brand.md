@@ -162,7 +162,7 @@ Each module is a reusable piece. Many are "toys": they react to the mouse, to sc
 
 ### App shell
 
-14. **Shell.** `paper-deep` shell with the white-ish `card` page panel inset, `rounded-3xl`. The side rail has pill nav items; the current one is a filled `ink` pill. Groups fold and each has a small color tile (CRM sky, Automation clay, Routing sage, Scheduling butter). Summary numbers sit in flat stat cards that count up once.
+14. **Shell.** `paper-deep` shell with the white-ish `card` page panel inset, `rounded-3xl`. The side rail has pill nav items; the current one is a filled `ink` pill. Groups fold and each has a small color tile (CRM sky, Automation clay, Routing sage, Scheduling butter, Reports lilac). Summary numbers sit in flat stat cards that count up once.
 15. **Command bar.** ⌘K opens a floating pill search; results slide in.
 16. **Page header.** An editable title, a breadcrumb, one primary pill button.
 17. **First screens (ToolIntro).** Serif title, short lead, "Try" chips as pills, a big sketch that draws in, and three feature cards with mini animated previews.

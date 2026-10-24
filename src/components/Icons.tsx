@@ -145,6 +145,12 @@ export const BarChart = (p: P) => (
   </Svg>
 );
 
+export const Funnel = (p: P) => (
+  <Svg {...p}>
+    <path d="M4 5h16l-6 7.5V19l-4-2v-4.5L4 5z" />
+  </Svg>
+);
+
 export const Branch = (p: P) => (
   <Svg {...p}>
     <circle cx="6" cy="5" r="2" />

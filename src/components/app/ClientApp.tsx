@@ -3,7 +3,7 @@
 import type { Session } from "@supabase/supabase-js";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { getSupabase, type SupaConfig } from "@/lib/supa";
-import { enrichmentPage, NAV, resolveRoute, routingPage, schedulingPage, signalsPage } from "@/lib/nav";
+import { enrichmentPage, NAV, reportsPage, resolveRoute, routingPage, schedulingPage, signalsPage } from "@/lib/nav";
 import { Check, LogOut, Moon, Sun } from "../Icons";
 import { Logo } from "../Logo";
 import { AuthScreen } from "./AuthScreen";
@@ -19,7 +19,8 @@ import { SignalsView } from "./signals/SignalsView";
 import { ContactsView } from "./views/ContactsView";
 import { CompaniesView, ObjectsView, OpportunitiesView } from "./views/RecordsViews";
 import { SegmentsView } from "./views/SegmentsView";
-import { AdsView, AnalyticsView, PagesView } from "./views/MarketingIntros";
+import { AdsView, PagesView } from "./views/MarketingIntros";
+import { ReportsView } from "./reports/ReportsView";
 import { FormsView } from "./forms/FormsView";
 import { MeetingsView } from "./meetings/MeetingsView";
 import { useRoutingCommands } from "./routing/commands";
@@ -28,7 +29,7 @@ import { EmailTemplatesView } from "./workflows/EmailTemplatesView";
 import { WorkflowsView } from "./workflows/WorkflowsView";
 import { SettingsView } from "./views/SettingsView";
 
-const GROUP_LABEL = { crm: "CRM", automation: "Automation", routing: "Routing", scheduling: "Scheduling", email: "Email", site: "Site", ads: "App", settings: "App" } as const;
+const GROUP_LABEL = { crm: "CRM", automation: "Automation", routing: "Routing", scheduling: "Scheduling", reports: "Reports", email: "Email", site: "Site", ads: "App", settings: "App" } as const;
 
 type Loc = { route: Route; id: string };
 const WITH_ID = new Set<Route>(["contacts", "companies", "opportunities", "segments", "forms", "workflows"]);
@@ -50,6 +51,7 @@ const readLoc = (): Loc => {
   if (r.route === "scheduling") return { route: r.route, id: schedulingPage(r.id).id };
   if (r.route === "signals") return { route: r.route, id: signalsPage(r.id).id };
   if (r.route === "enrichment") return { route: r.route, id: enrichmentPage(r.id).id };
+  if (r.route === "reports") return { route: r.route, id: reportsPage(r.id).id };
   // Companies: an old account link that finds its company.
   if (r.route === "companies" && a === "account" && uuid(b)) return { route: r.route, id: `account/${b}` };
   return { route: r.route, id: WITH_ID.has(r.route) && uuid(a) ? a : "" };
@@ -275,8 +277,8 @@ export function ClientApp({ config }: { config: SupaConfig }) {
           <EmailTemplatesView {...props} />
         ) : route === "workflows" ? (
           <WorkflowsView key={loc.id === "new" ? "new" : "wf"} {...props} />
-        ) : route === "analytics" ? (
-          <AnalyticsView />
+        ) : route === "reports" ? (
+          <ReportsView key="reports" {...props} />
         ) : route === "forms" ? (
           <FormsView {...props} />
         ) : route === "pages" ? (

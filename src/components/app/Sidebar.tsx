@@ -7,7 +7,6 @@
 import { useEffect, useState } from "react";
 import { activeItem, GROUPS, NAV, type GroupKey, type NavItem, type Route as NavRoute } from "@/lib/nav";
 import {
-  BarChart,
   Box,
   Branch,
   Building,
@@ -20,6 +19,7 @@ import {
   FileText,
   Flag,
   FormIcon,
+  Funnel,
   Gauge,
   History,
   Layers,
@@ -75,13 +75,18 @@ export const NAV_ICONS: Record<string, React.ReactNode> = {
   "scheduling/notetaker": <Mic size={14} />,
   segments: <ListIcon size={14} />,
   templates: <Mail size={14} />,
-  analytics: <BarChart size={14} />,
+  reports: <Funnel size={14} />,
+  "reports/speed": <Clock size={14} />,
+  "reports/reps": <Users size={14} />,
+  "reports/forms": <FormIcon size={14} />,
+  "reports/email": <Mail size={14} />,
   pages: <FileText size={14} />,
   ads: <Megaphone size={14} />,
   settings: <Settings size={14} />,
 };
 
-const TILE: Record<"sky" | "clay" | "sage" | "butter", string> = {
+const TILE: Record<"sky" | "clay" | "sage" | "butter" | "lilac", string> = {
+  lilac: "bg-lilac-wash text-lilac",
   sky: "bg-sky-wash text-sky",
   clay: "bg-clay-wash text-clay",
   sage: "bg-sage-wash text-sage",
@@ -203,7 +208,7 @@ export function Sidebar(p: SidebarProps) {
   );
 }
 
-function NavLink({ n, tone, on, count, navigate, icon }: { n: NavItem; tone: "sky" | "clay" | "sage" | "butter" | null; on: boolean; count?: number; navigate: SidebarProps["navigate"]; icon?: React.ReactNode }) {
+function NavLink({ n, tone, on, count, navigate, icon }: { n: NavItem; tone: "sky" | "clay" | "sage" | "butter" | "lilac" | null; on: boolean; count?: number; navigate: SidebarProps["navigate"]; icon?: React.ReactNode }) {
   const glyph = icon ?? NAV_ICONS[n.key] ?? NAV_ICONS[n.route];
   return (
     <a

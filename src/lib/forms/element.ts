@@ -177,6 +177,20 @@ export function fromText(f: Field, s: string): unknown {
 
 const listOf = (v: unknown): string[] => (Array.isArray(v) ? v.map(String) : (typeof v === "string" && v) || typeof v === "number" ? [String(v)] : []);
 
+/** A random id for this browser, kept in localStorage; one per page load when storage is blocked. */
+let pageVid = "";
+function visitorId(): string {
+  try {
+    const v = localStorage.getItem("_clr_vid");
+    if (v && /^[A-Za-z0-9_-]{8,64}$/.test(v)) return v;
+    const n = idemKey();
+    localStorage.setItem("_clr_vid", n);
+    return n;
+  } catch {
+    return (pageVid ||= idemKey());
+  }
+}
+
 function idemKey(): string {
   const b = new Uint8Array(18);
   crypto.getRandomValues(b);
@@ -529,6 +543,39 @@ export class ClaritiaForm extends Base {
   constructor() {
     super();
     this.root = this.attachShadow({ mode: "open" });
+    // The first answer is a start (Reports' Forms page).
+    const start = () => this.beacon("start");
+    this.root.addEventListener("input", start);
+    this.root.addEventListener("change", start);
+  }
+
+  /** One view (half on screen for a second) and one start per load; the server counts each visitor every 30 minutes. */
+  private sent = new Set<"view" | "start">();
+  private beacon(kind: "view" | "start") {
+    const id = this.getAttribute("form-id");
+    if (this.isPreview || this.sent.has(kind) || !this.data || this.data.status !== "live" || !id) return;
+    this.sent.add(kind);
+    fetch(`${this.base}/api/forms/${id}/seen`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ kind, vid: visitorId() }), credentials: "omit", keepalive: true }).catch(() => {});
+  }
+
+  private watchView() {
+    if (this.isPreview || typeof IntersectionObserver === "undefined") return;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const io = new IntersectionObserver(
+      ([e]) => {
+        if (e?.isIntersecting) {
+          timer ??= setTimeout(() => {
+            this.beacon("view");
+            io.disconnect();
+          }, 1000);
+        } else if (timer) {
+          clearTimeout(timer);
+          timer = null;
+        }
+      },
+      { threshold: 0.5 },
+    );
+    io.observe(this);
   }
 
   /** The app's builder shows a draft without loading or sending anything. */
@@ -597,6 +644,7 @@ export class ClaritiaForm extends Base {
     }
     this.started = Date.now();
     this.render();
+    this.watchView();
     if (this.data.turnstile && this.data.body.spam.turnstile) this.loadTurnstile();
   }
 

@@ -1,4 +1,5 @@
-// The sidebar (docs/app-structure.md Part 1): CRM, Automation, Routing, Scheduling, Email, Site, Ads and Settings.
+// The sidebar (docs/app-structure.md Part 1): CRM, Automation, Routing, Scheduling, Reports, Email, Site, Ads and
+// Settings.
 // CRM comes first and the app opens on Contacts. An item is a route, or one page inside a route (Routing and
 // Scheduling have several). Old addresses keep working: they forward to their new page.
 
@@ -15,20 +16,21 @@ export type Route =
   | "routing"
   | "scheduling"
   | "segments"
+  | "reports"
   | "templates"
-  | "analytics"
   | "pages"
   | "ads"
   | "settings";
 
-export type GroupKey = "crm" | "automation" | "routing" | "scheduling" | "email" | "site" | "ads" | "settings";
+export type GroupKey = "crm" | "automation" | "routing" | "scheduling" | "reports" | "email" | "site" | "ads" | "settings";
 
 /** A group's color tile (docs/brand.md: sidebar groups) and its title; empty titles draw a rule. */
-export const GROUPS: { key: GroupKey; label: string; tone: "sky" | "clay" | "sage" | "butter" | null }[] = [
+export const GROUPS: { key: GroupKey; label: string; tone: "sky" | "clay" | "sage" | "butter" | "lilac" | null }[] = [
   { key: "crm", label: "CRM", tone: "sky" },
   { key: "automation", label: "Automation", tone: "clay" },
   { key: "routing", label: "Routing", tone: "sage" },
   { key: "scheduling", label: "Scheduling", tone: "butter" },
+  { key: "reports", label: "Reports", tone: "lilac" },
   { key: "email", label: "Email", tone: null },
   { key: "site", label: "Site", tone: null },
   { key: "ads", label: "", tone: null },
@@ -81,9 +83,13 @@ export const NAV: NavItem[] = [
   item("scheduling", "scheduling", "Payments", "payments"),
   item("scheduling", "scheduling", "AI scheduler", "ai", { soon: true }),
   item("scheduling", "scheduling", "Notetaker", "notetaker", { soon: true }),
+  item("reports", "reports", "Funnel"),
+  item("reports", "reports", "Speed to lead", "speed"),
+  item("reports", "reports", "Reps", "reps"),
+  item("reports", "reports", "Forms", "forms"),
+  item("reports", "reports", "Email", "email"),
   item("email", "segments", "Segments"),
   item("email", "templates", "Templates"),
-  item("email", "analytics", "Analytics"),
   item("site", "pages", "Pages"),
   item("ads", "ads", "Ads"),
   item("settings", "settings", "Settings"),
@@ -98,6 +104,7 @@ export function activeItem(route: Route, id: string): NavItem | null {
   const first = id.split("/")[0] ?? "";
   if (route === "routing") return NAV.find((n) => n.route === "routing" && n.page === routingPage(id).page) ?? null;
   if (route === "scheduling") return NAV.find((n) => n.route === "scheduling" && n.page === schedulingPage(id).page) ?? null;
+  if (route === "reports") return NAV.find((n) => n.route === "reports" && n.page === reportsPage(id).id) ?? null;
   return NAV.find((n) => n.route === route && (n.page === "" || n.page === first)) ?? null;
 }
 
@@ -157,6 +164,14 @@ export function signalsPage(id: string): { tab: SignalsTab; id: string } {
   return a === "visitors" || a === "alerts" || a === "setup" ? { tab: a, id: a } : { tab: "feed", id: "" };
 }
 
+export type ReportsPage = "funnel" | "speed" | "reps" | "forms" | "email";
+
+/** Reports' pages: Funnel (""), Speed to lead, Reps, Forms and Email. */
+export function reportsPage(id: string): { page: ReportsPage; id: string } {
+  const a = id.split("/")[0] ?? "";
+  return a === "speed" || a === "reps" || a === "forms" || a === "email" ? { page: a, id: a } : { page: "funnel", id: "" };
+}
+
 export type EnrichmentTab = "overview" | "providers" | "rules" | "history";
 
 /** Enrichment's tabs: Overview (""), Providers, Rules and History. */
@@ -175,7 +190,8 @@ const MOVED: Record<string, { route: Route; id?: string; keepId?: boolean }> = {
   visitors: { route: "signals", id: "visitors" },
   journeys: { route: "workflows" },
   nurture: { route: "workflows", keepId: true },
-  reports: { route: "analytics" },
+  // Email › Analytics became Reports › Email.
+  analytics: { route: "reports", id: "email" },
 };
 
 /** Settings pages that moved out of Settings. */

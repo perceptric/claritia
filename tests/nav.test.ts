@@ -1,18 +1,19 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { activeItem, availabilityPage, defaultRoute, enrichmentPage, GROUPS, meetingsPage, NAV, resolveRoute, routingPage, schedulingPage, signalsPage } from "../src/lib/nav.ts";
+import { activeItem, availabilityPage, defaultRoute, enrichmentPage, GROUPS, meetingsPage, NAV, reportsPage, resolveRoute, routingPage, schedulingPage, signalsPage } from "../src/lib/nav.ts";
 
-test("the sidebar is CRM, Automation, Routing, Scheduling, Email, Site, Ads and Settings, CRM first", () => {
+test("the sidebar is CRM, Automation, Routing, Scheduling, Reports, Email, Site, Ads and Settings, CRM first", () => {
   assert.deepEqual(
     GROUPS.map((g) => g.key),
-    ["crm", "automation", "routing", "scheduling", "email", "site", "ads", "settings"],
+    ["crm", "automation", "routing", "scheduling", "reports", "email", "site", "ads", "settings"],
   );
   const by = (g: string) => NAV.filter((n) => n.group === g).map((n) => n.label);
   assert.deepEqual(by("crm"), ["Contacts", "Companies", "Opportunities", "Meetings"]);
   assert.deepEqual(by("automation"), ["Workflows", "Forms", "Signals", "Enrichment"]);
   assert.deepEqual(by("routing"), ["Overview", "Rules", "Teams", "Regions", "Company types", "Handoffs", "History", "Needs review"]);
   assert.deepEqual(by("scheduling"), ["Meeting types", "Availability", "Links and polls", "Booking forms", "Reminders", "Payments", "AI scheduler", "Notetaker"]);
-  assert.deepEqual(by("email"), ["Segments", "Templates", "Analytics"]);
+  assert.deepEqual(by("reports"), ["Funnel", "Speed to lead", "Reps", "Forms", "Email"]);
+  assert.deepEqual(by("email"), ["Segments", "Templates"]);
   assert.equal(defaultRoute, "contacts");
   assert.equal(new Set(NAV.map((n) => n.key)).size, NAV.length, "each item once");
   assert.deepEqual(NAV.filter((n) => n.soon).map((n) => n.label), ["Handoffs", "AI scheduler", "Notetaker"]);
@@ -24,7 +25,8 @@ test("old addresses open their new home", () => {
   assert.deepEqual(resolveRoute("visitors", ""), { route: "signals", id: "visitors" });
   assert.deepEqual(resolveRoute("companies", "visits"), { route: "signals", id: "visitors" });
   assert.deepEqual(resolveRoute("journeys", ""), { route: "workflows", id: "" });
-  assert.deepEqual(resolveRoute("reports", ""), { route: "analytics", id: "" });
+  assert.deepEqual(resolveRoute("analytics", ""), { route: "reports", id: "email" });
+  assert.deepEqual(resolveRoute("reports", "speed"), { route: "reports", id: "speed" });
   const id = "0b7c6a8e-1f2d-4c3b-9a8e-7d6c5b4a3f21";
   assert.deepEqual(resolveRoute("meetings", "types"), { route: "scheduling", id: "types" });
   assert.deepEqual(resolveRoute("meetings", `types/${id}`), { route: "scheduling", id: `types/${id}` });
@@ -94,4 +96,12 @@ test("the open page lights its sidebar item", () => {
   assert.equal(activeItem("scheduling", "availability/team")?.label, "Availability");
   assert.equal(activeItem("meetings", run)?.label, "Meetings");
   assert.equal(activeItem("signals", "alerts")?.label, "Signals");
+});
+
+test("reports: five pages, and anything else opens the Funnel", () => {
+  assert.deepEqual(reportsPage(""), { page: "funnel", id: "" });
+  for (const p of ["speed", "reps", "forms", "email"] as const) assert.deepEqual(reportsPage(p), { page: p, id: p });
+  assert.deepEqual(reportsPage("nope"), { page: "funnel", id: "" });
+  assert.equal(activeItem("reports", "reps")?.label, "Reps");
+  assert.equal(activeItem("reports", "")?.label, "Funnel");
 });

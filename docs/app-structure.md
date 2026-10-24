@@ -51,10 +51,16 @@ Scheduling                (butter)
   AI scheduler      (later)             answers scheduling emails, like Calendly's Callie
   Notetaker         (later)             joins calls, writes notes to the deal
 
+Reports           (docs/enrich-workflows-reports.md Part 3)
+  Funnel
+  Speed to lead
+  Reps
+  Forms
+  Email
+
 Email
   Segments
   Templates
-  Analytics
 
 Site
   Pages
@@ -350,7 +356,8 @@ Things Calendly can't do because it has no CRM:
 
 ## Part 7. Email, Site, Ads, Settings
 
-- **Email**: Segments, Templates, Analytics (Workflows moved to Automation).
+- **Email**: Segments, Templates (Workflows moved to Automation; Analytics became Reports › Email, and /analytics
+  forwards there).
 - **Site**: Pages.
 - **Ads** and **Settings** stay. Settings loses Sites, Identity and Account alerts (to Signals) and Calendar, Team
   calendars and Payments (to Scheduling); each old Settings address forwards to its new page.
@@ -400,7 +407,8 @@ Later items, for when they're planned:
 ## Part 10. What changes in CLAUDE.md and the docs
 
 - CLAUDE.md: the sidebar line becomes "CRM (Contacts, Companies, Opportunities, Meetings), Automation (Workflows,
-  Forms, Signals, Enrichment), Routing, Scheduling, Email (Segments, Templates, Analytics), Site (Pages), Ads,
+  Forms, Signals, Enrichment), Routing, Scheduling, Reports (Funnel, Speed to lead, Reps, Forms, Email), Email (Segments,
+  Templates), Site (Pages), Ads,
   Settings. The app opens on Contacts."
 - `docs/brand.md`: sidebar group tiles (sky, clay, sage, butter), the side sheet with folding sections, stat cards.
 - `docs/meetings-scheduler.md`: Part 1.9 Screens points here; named schedules and reminder templates added to Data.

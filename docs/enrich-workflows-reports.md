@@ -594,6 +594,25 @@ of boxes and lines. It is easier to read, and every path is plain to test.
 
 ## Part 3. Reports
 
+**Built.** Run `070_reports.sql` after 069. It backfills first touch for every contact. `pg_cron` runs
+`reports_nightly()` at 03:17 UTC (job `claritia-reports`): yesterday's `site_daily` for each workspace, first touch
+for contacts with no fill, and old form beacons out. Day lines use the workspace's sending time zone
+(`send_settings.timezone`). No new keys.
+
+Code:
+- `supabase/migrations/070_reports.sql`: `form_daily` and `form_seen` (beacons), `contacts.first_touch`, the
+  `site_daily` writer, and `report_funnel`, `report_speed`, `report_reps`, `report_forms`, `report_email` and
+  `report_people` (the contacts behind a number), members only.
+- `src/app/api/forms/[id]/seen/route.ts` and the beacons in `src/lib/forms/element.ts`.
+- `src/lib/reports/`: date ranges, number words, CSV, the bot check.
+- `src/components/app/charts/Charts.tsx` (funnel bars, ranked bars, day line) and
+  `src/components/app/reports/ReportsView.tsx` (the five pages).
+- Tests: `tests/reports.test.ts`, `tests/pg/reports.pg.ts` (hand-counted fixtures, time zones, beacons, and the load
+  test: every report under 0.6 s on 50,000 contacts and 200,000 visits), the Reports block in `tests/db/leaks.sql`,
+  and the Reports steps in `scripts/screens-check.ts`.
+
+Running cost as planned in Part 4: $0 at Beta; at Growth, $25 a month only if a larger database is needed (check).
+
 ### 3.1 What's there today
 
 **Data we have**

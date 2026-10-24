@@ -1281,6 +1281,30 @@ reset role;
 select pg_temp.check((select name from workflows where id = '69a00000-0000-0000-0000-0000000000c1') = 'Cat''s flow' and (select status from workflow_runs where id = '69b00000-0000-0000-0000-0000000000c1') = 'failed', 'Cat''s workflow changed');
 select set_config('request.jwt.claim.sub', '', false);
 
+-- Reports (070): every report is members-only; beacons, rollups and first touch are the server's.
+insert into form_daily (form_id, workspace_id, day, views, starts) select id, workspace_id, current_date, 5, 2 from forms where workspace_id = '22222222-0000-0000-0000-000000000000' limit 1;
+select pg_temp.as_user('b0000000-0000-0000-0000-000000000000');
+set role authenticated;
+select pg_temp.check((select count(*) from form_daily where workspace_id = '22222222-0000-0000-0000-000000000000') = 0, 'Ben reads Cat''s form views');
+select pg_temp.fails($$select count(*) from form_seen$$, 'Ben reads form beacons');
+select pg_temp.fails($$select count(*) from site_rolled$$, 'Ben reads the rollup ledger');
+select pg_temp.fails($$select report_funnel('22222222-0000-0000-0000-000000000000', current_date - 30, current_date)$$, 'Ben reads Cat''s funnel');
+select pg_temp.fails($$select report_speed('22222222-0000-0000-0000-000000000000', current_date - 30, current_date)$$, 'Ben reads Cat''s speed to lead');
+select pg_temp.fails($$select report_reps('22222222-0000-0000-0000-000000000000', current_date - 30, current_date)$$, 'Ben reads Cat''s reps');
+select pg_temp.fails($$select report_forms('22222222-0000-0000-0000-000000000000', current_date - 30, current_date)$$, 'Ben reads Cat''s forms report');
+select pg_temp.fails($$select report_email('22222222-0000-0000-0000-000000000000', current_date - 30, current_date)$$, 'Ben reads Cat''s email report');
+select pg_temp.fails($$select report_people('22222222-0000-0000-0000-000000000000', current_date - 30, current_date, 'funnel', 'submitted')$$, 'Ben lists Cat''s leads');
+select pg_temp.fails($$select report_facts('22222222-0000-0000-0000-000000000000', now() - interval '30 days', now())$$, 'Ben reads lead facts directly');
+select pg_temp.fails($$select report_leads('22222222-0000-0000-0000-000000000000', now() - interval '30 days', now())$$, 'Ben reads leads directly');
+select pg_temp.fails($$select report_visits('22222222-0000-0000-0000-000000000000', current_date - 30, current_date)$$, 'Ben reads visits directly');
+select pg_temp.fails($$select form_seen(id, 'abcdefgh12', 'view') from forms limit 1$$, 'Ben counts a form view');
+select pg_temp.fails($$select site_daily_roll('22222222-0000-0000-0000-000000000000', current_date)$$, 'Ben rolls Cat''s visits');
+select pg_temp.fails($$select reports_nightly()$$, 'Ben runs the nightly reports job');
+select pg_temp.fails($$select first_touch_fill()$$, 'Ben fills first touch');
+select pg_temp.fails($$update contacts set first_touch = '{}' where workspace_id = '11111111-0000-0000-0000-000000000000'$$, 'Ben writes first touch directly');
+reset role;
+select set_config('request.jwt.claim.sub', '', false);
+
 -- Cloud minutes: once Acme has used its 2,000, nobody there can start a run.
 insert into runs (workspace_id, project_id, test_name, test_version, environment_name, base_url, lock, status, duration_ms)
 values ('11111111-0000-0000-0000-000000000000', 'a1000000-0000-0000-0000-000000000000', 'long', 1, 'staging', 'https://x.com', '', 'passed', 2000 * 60000);

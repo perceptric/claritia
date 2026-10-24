@@ -3,7 +3,7 @@
 // First screens for the marketing platform's tools, shown until each one has data
 // (docs/marketing-platform.md). Each tool replaces its intro with the working screen when it ships.
 
-import { BarChart, Eye, FileText, Megaphone } from "../../Icons";
+import { Eye, FileText, Megaphone } from "../../Icons";
 import { SampleBars, SampleRows, SampleTags, ToolIntro } from "../ToolIntro";
 import { Page } from "../ui";
 
@@ -44,30 +44,6 @@ export function VisitorsIntro({ action, head }: { action?: React.ReactNode; head
   return (
     <Page icon={<Eye size={14} />} title="Visits">
       {intro}
-    </Page>
-  );
-}
-
-export function AnalyticsView() {
-  return (
-    <Page icon={<BarChart size={14} />} title="Analytics">
-      <ToolIntro
-        sketch="funnel"
-        title={"See which emails\nmade revenue"}
-        lead="Opens, clicks, replies and meetings for every workflow and template, traced to the opportunities they touched."
-        features={[
-          {
-            title: "Pipeline by workflow",
-            text: "Opportunities and revenue each workflow touched, from your CRM.",
-            visual: <SampleRows rows={[["Guide follow-up", 42, "$42k"], ["Webinar no-shows", 35, "$35k"], ["Trial nudge", 28, "$28k"]]} />,
-          },
-          {
-            title: "Every send",
-            text: "Delivered, opened, clicked and replied, by template and by step.",
-            visual: <SampleBars values={[12, 18, 15, 22, 27, 25, 31, 36, 33, 40, 44, 48]} />,
-          },
-        ]}
-      />
     </Page>
   );
 }

@@ -6,7 +6,7 @@
 // from the booking page, and a lead books inside a Claritia calendar form right after sending it. Then the app's
 // structure (docs/app-structure.md): the sidebar's groups, Scheduling's pages with a named schedule, Signals,
 // Enrichment, and Routing's pages from the first screen to Make live, Teams' Deal 20 leads and a company type,
-// Workflows from a blank one to Make live and Try a contact, and an email template.
+// Workflows from a blank one to Make live and Try a contact, an email template, and Reports.
 //   POSTGREST_BIN=… CHROMIUM_PATH=… node scripts/screens-check.ts
 // scripts/test-db.sh runs it when both are set.
 
@@ -397,6 +397,22 @@ try {
   await page.getByRole("dialog").getByRole("button", { name: "Create", exact: true }).click();
   await until(async () => (await db.query(`select count(*)::int n from email_templates where workspace_id = $1 and name = 'Product update'`, [ws])).rows[0]?.n === 1, 30_000, "the template to save");
   check(true, "an email template saves");
+
+  // Reports: the funnel counts the fills above and opens the contacts behind a number; the old Analytics address
+  // forwards to Reports › Email.
+  await page.goto(`${base}/reports`);
+  await page.getByRole("list", { name: "Funnel" }).waitFor({ timeout: 60_000 });
+  const submitted = page.getByRole("list", { name: "Funnel" }).getByRole("listitem").filter({ hasText: "Submitted" }).getByRole("button");
+  await submitted.click({ timeout: 30_000 });
+  await page.getByRole("dialog", { name: "Submitted" }).getByText("mo@initech.io").waitFor({ timeout: 30_000 });
+  check(true, "the funnel counts this month's fills and lists the contacts behind a number");
+  await page.keyboard.press("Escape");
+  await page.goto(`${base}/reports/speed`);
+  await page.getByText("To a rep").first().waitFor({ timeout: 60_000 });
+  check(true, "Speed to lead opens on its numbers");
+  await page.goto(`${base}/analytics`);
+  await until(async () => new URL(page.url()).pathname === "/reports/email", 30_000, "Analytics to forward to Reports › Email");
+  check(true, "the old Analytics address opens Reports › Email");
 
   check(!errors.length, `no page errors (${errors.slice(0, 3).join(" | ")})`);
 } catch (e) {
