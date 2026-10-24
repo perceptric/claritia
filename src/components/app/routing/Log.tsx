@@ -61,7 +61,14 @@ export function LogTab({ sb, session, ws, role, navigate, sub }: Props) {
   const [error, setError] = useState("");
   const [fresh, setFresh] = useState<Set<string>>(new Set());
   const rowsRef = useRef<RunRow[] | null>(null);
-  rowsRef.current = rows;
+  useEffect(() => {
+    rowsRef.current = rows;
+  }, [rows]);
+  const changeFilters = (f: LogFilters) => {
+    setFilters(f);
+    setRows(null);
+    setError("");
+  };
 
   const query = useCallback(
     (f: LogFilters) => {
@@ -81,8 +88,6 @@ export function LogTab({ sb, session, ws, role, navigate, sub }: Props) {
   // The newest page, again whenever the filters change.
   useEffect(() => {
     let on = true;
-    setRows(null);
-    setError("");
     query(filters)
       .order("created_at", { ascending: false })
       .limit(PAGE)
@@ -139,7 +144,7 @@ export function LogTab({ sb, session, ws, role, navigate, sub }: Props) {
   const body = live.data?.body;
   const shown = useMemo(() => (rows ?? []).filter((r) => matchesSearch(r, q)), [rows, q]);
   const filtered = Object.values(filters).some(Boolean) || !!q.trim();
-  const set = (k: keyof LogFilters) => (v: string) => setFilters((f) => ({ ...f, [k]: v }));
+  const set = (k: keyof LogFilters) => (v: string) => changeFilters({ ...filters, [k]: v });
   const open = (id: string) => navigate(ROUTING, `log/${id}`);
   const openId = UUID.test(sub) ? sub : "";
 
@@ -182,7 +187,7 @@ export function LogTab({ sb, session, ws, role, navigate, sub }: Props) {
             variant="plain"
             size="sm"
             onClick={() => {
-              setFilters(NO_FILTERS);
+              changeFilters(NO_FILTERS);
               setQ("");
             }}
           >

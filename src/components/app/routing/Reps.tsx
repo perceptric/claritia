@@ -366,7 +366,7 @@ function CapMeter({ n, cap, max, label, edit, out, onSave }: { n: number; cap: n
 
 /** Pause for a while, out of office for some dates, or back in. */
 function StatusPopover({ anchor, rep, onClose, onSave }: { anchor: HTMLElement; rep: RepRow | undefined; onClose: () => void; onSave: (p: Patch) => Promise<void> }) {
-  const today = localDate(Date.now());
+  const [today] = useState(() => localDate(Date.now()));
   const [until, setUntil] = useState("");
   const [from, setFrom] = useState(today);
   const [to, setTo] = useState(today);

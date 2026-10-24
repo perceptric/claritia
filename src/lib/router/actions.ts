@@ -2,6 +2,7 @@
 // is known to be a member (and an owner, for changes). Reads that members can do straight from the database (Log,
 // Reps, Held) stay in the screens with row security; everything here needs the service role or the engine.
 
+import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Rpc } from "../jobs.ts";
 import { enqueueJob } from "../jobs.ts";
 import { allFields, isContent, type Form } from "../forms/schema.ts";
@@ -30,7 +31,7 @@ async function call<T>(rpc: Rpc, fn: string, args: Record<string, unknown>): Pro
   return data as T;
 }
 
-type Q = { from: (t: string) => { select: (c: string) => any } };
+type Q = SupabaseClient;
 
 const ownerOnly = (c: Caller) => {
   if (c.role !== "owner") throw new Refused(403, "Only workspace owners can change routing.");
@@ -406,7 +407,7 @@ export async function saveLists(rpc: Rpc, c: Caller, allow: unknown, block: unkn
 }
 
 /** Where alerts go: a Slack incoming webhook (sealed), with a label for the screens. An empty url removes it. */
-export async function saveAlert(db: { from: (t: string) => any }, c: Caller, url: string | null, label: string | null, seal: (s: string) => string) {
+export async function saveAlert(db: SupabaseClient, c: Caller, url: string | null, label: string | null, seal: (s: string) => string) {
   ownerOnly(c);
   const u = (url ?? "").trim();
   if (!u) {
@@ -426,7 +427,7 @@ export async function crmOwners(db: Q, c: Caller) {
   return { links };
 }
 
-export async function saveCrmOwners(db: { from: (t: string) => any }, c: Caller, rows: unknown) {
+export async function saveCrmOwners(db: SupabaseClient, c: Caller, rows: unknown) {
   ownerOnly(c);
   const list = Array.isArray(rows) ? rows : [];
   for (const r of list.slice(0, 500)) {
