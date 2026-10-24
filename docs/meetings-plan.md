@@ -78,6 +78,8 @@ The detail for M1 and M2 is in `docs/meetings-scheduler.md`.
 
 ### M3. Router (Distro)
 
+Detailed plan: `docs/router.md`.
+
 - **One router per workspace**, used by forms, imports, CRM sources and the API. Each lead goes through it once.
 - **Spam check first:** fake names, throwaway domains and bot-like fills are held, with an allow list, so they never
   reach a rep's queue or calendar.
