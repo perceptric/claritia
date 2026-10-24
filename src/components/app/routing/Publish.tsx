@@ -1,11 +1,14 @@
 "use client";
 
 // Publish (docs/router-ux.md 4.5) and the two small dialogs beside it: Compare (a version against live, as signed
-// sentences) and Alerts (the Slack webhook the router posts to).
+// sentences) and Alerts (the Claritia Slack app, which messages each rep and answers /book, and the Slack channel
+// webhook the router posts to).
 
 import type { Session } from "@supabase/supabase-js";
 import { useEffect, useState } from "react";
 import type { Change } from "@/lib/router/diff";
+import { BrandLogo } from "../BrandLogo";
+import { askConfirm } from "../Dialogs";
 import { Modal } from "../meetings/parts";
 import { Button, ErrorNote, errorText, Field, Input } from "../ui";
 import { routingApi, type ChangesOut } from "./api";
@@ -138,7 +141,21 @@ export function CompareDialog({ session, ws, from, to, onClose }: { session: Ses
   );
 }
 
-export function AlertsDialog({ session, ws, label, onSaved, onClose }: { session: Session; ws: string; label: string | null; onSaved: () => void; onClose: () => void }) {
+export function AlertsDialog({
+  session,
+  ws,
+  label,
+  slack,
+  onSaved,
+  onClose,
+}: {
+  session: Session;
+  ws: string;
+  label: string | null;
+  slack: { ready: boolean; team: string | null };
+  onSaved: () => void;
+  onClose: () => void;
+}) {
   const [url, setUrl] = useState("");
   const [name, setName] = useState("");
   const [busy, setBusy] = useState(false);
@@ -175,6 +192,7 @@ export function AlertsDialog({ session, ws, label, onSaved, onClose }: { session
         </>
       }
     >
+      <SlackApp session={session} ws={ws} slack={slack} onSaved={onSaved} />
       <form
         className="flex flex-col gap-4"
         onSubmit={(e) => {
@@ -197,5 +215,54 @@ export function AlertsDialog({ session, ws, label, onSaved, onClose }: { session
         <ErrorNote message={error} />
       </form>
     </Modal>
+  );
+}
+
+/** The Claritia Slack app: "Add to Slack" goes to Slack's approve page and back to Routing. */
+function SlackApp({ session, ws, slack, onSaved }: { session: Session; ws: string; slack: { ready: boolean; team: string | null }; onSaved: () => void }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  if (!slack.ready && !slack.team) return null;
+  const add = async () => {
+    setBusy(true);
+    setError("");
+    try {
+      const r = await routingApi<{ url: string }>(session, ws, "slack_install");
+      window.location.href = r.url;
+    } catch (e) {
+      setError(errorText(e));
+      setBusy(false);
+    }
+  };
+  const remove = async () => {
+    if (!(await askConfirm("Remove Slack?", { ok: "Remove", danger: true }))) return;
+    setBusy(true);
+    setError("");
+    try {
+      await routingApi(session, ws, "slack_remove");
+      onSaved();
+    } catch (e) {
+      setError(errorText(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <div className="mb-5 flex flex-col gap-2 border-b border-line pb-5">
+      <div className="flex items-center gap-3">
+        <BrandLogo domain="slack.com" name="Slack" size={22} />
+        <span className="flex-1 text-[13px] text-ink">{slack.team ?? "Slack"}</span>
+        {slack.team ? (
+          <Button variant="plain" size="sm" disabled={busy} onClick={() => void remove()}>
+            Remove
+          </Button>
+        ) : (
+          <Button size="sm" disabled={busy} onClick={() => void add()}>
+            Add to Slack
+          </Button>
+        )}
+      </div>
+      <ErrorNote message={error} />
+    </div>
   );
 }

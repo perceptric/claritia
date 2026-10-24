@@ -203,7 +203,7 @@ export function flowCounts(stats: Partial<Stats> | null | undefined, b: RouterBo
 }
 
 /** What the inspector shows. */
-export type Selection = { kind: "spam" | "account" | "keep" | "rules" | "fallback" } | { kind: "rule" | "queue"; id: string };
+export type Selection = { kind: "spam" | "account" | "keep" | "rules" | "fallback" | "sla" } | { kind: "rule" | "queue"; id: string };
 
 export const sameSelection = (a: Selection | null, b: Selection | null) => !!a && !!b && a.kind === b.kind && ("id" in a ? a.id : "") === ("id" in b ? b.id : "");
 
@@ -243,7 +243,7 @@ export function pathOf(lines: Line[] | null | undefined): { marks: Partial<Recor
       if (marks.rules === "ok" && l.mark !== "ok") marks.rules = "miss";
       continue;
     }
-    if (l.step === "hand") continue;
+    if (l.step === "hand" || l.step === "sla") continue;
     marks[l.step] = l.mark;
     reached.add(l.step);
     if (l.step === "rules" && l.mark === "ok") {

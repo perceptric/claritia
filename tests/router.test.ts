@@ -270,3 +270,49 @@ test("blocked: owners skip caps and hours", () => {
   assert.equal(blocked(r, NOW, { forOwner: true }), null);
   assert.deepEqual(blocked(rep("X", { outUntil: NOW - 1 }), NOW), null, "an out-of-office that ended");
 });
+
+// Response times (docs/router.md Part 17) ------------------------------------------------------------------------
+
+test("response time: a rep who let the lead wait is skipped everywhere, and never kept", async () => {
+  const { cleanSla } = await import("../src/lib/router/check.ts");
+  const b = body();
+  // The owner who missed is never kept, even with "keep them" when out; their backup takes it.
+  b.keep.whenOut = "keep";
+  const f = facts({ owner: { user: LEE, crm: null }, passed: [LEE], reps: { [LEE]: rep("Lee Park", { backup: ANA }), [ANA]: rep("Ana Ruiz"), [RAJ]: rep("Raj Shah"), [SAM]: rep("Sam Lee") } });
+  const d = decide(b, f);
+  assert.deepEqual(d.result, { kind: "owner", user: ANA, by: "keep" });
+  // No backup: the queue picks someone else.
+  const f2 = facts({ owner: { user: LEE, crm: null }, passed: [LEE] });
+  const d2 = decide(b, f2);
+  assert.equal(d2.result.kind, "owner");
+  assert.notEqual((d2.result as { user: string }).user, LEE);
+  const q = d2.steps.find((s) => s.step === "queue") as Extract<(typeof d2.steps)[number], { step: "queue" }>;
+  assert.deepEqual(q.others.find((o) => o.user === LEE), { user: LEE, n: 0, why: "passed" });
+  // Every queue member and the fallback passed: Unassigned.
+  const f3 = facts({ passed: [LEE, ANA, RAJ, SAM] });
+  assert.equal(decide(b, f3).result.kind, "unassigned");
+  // The line that says why the lead moved reads first.
+  const lines = plain({ ...d2, steps: [{ step: "sla", ok: false, user: LEE, minutes: 60 }, ...d2.steps] }, f2);
+  assert.match(lines.split("\n")[0]!, /^✗ Response time: Lee Park didn't act within 1 hour\. Passed on\.$/);
+  assert.match(pathWords({ ...d2, steps: [{ step: "sla", ok: false, user: LEE, minutes: 60 }, ...d2.steps] }), /^Passed on\. Rule: /);
+  assert.equal(whyNot(b, f2, d2, LEE).why, "passed");
+  // Settings kept in range; a nudge at or after the deadline is dropped.
+  assert.deepEqual(cleanSla({ on: true, minutes: 2, nudge: 10, next: "x" }), { on: true, minutes: 5, nudge: null, next: "route", manager: null });
+  assert.deepEqual(cleanSla({ on: true, minutes: 60, nudge: 30, next: "manager", manager: SAM }), { on: true, minutes: 60, nudge: 30, next: "manager", manager: SAM });
+  assert.equal(cleanBody({}).sla?.on, false);
+  // Manager missing or gone stops publishing.
+  const m = { ...body(), sla: { on: true, minutes: 60, nudge: null, next: "manager" as const, manager: null } };
+  assert.ok(problems(m, { members: new Set([LEE, ANA, RAJ, SAM]) }).some((p) => p.where.kind === "sla"));
+  assert.deepEqual(diffBodies(body(), { ...body(), sla: { on: true, minutes: 30, nudge: 10, next: "route", manager: null } }).at(-1), { sign: "~", text: "Response time off → 30 minutes, then route again, nudge at 10 minutes" });
+});
+
+test("/book: the email and type words, Slack's mailto wrapping, and the type picked by name", async () => {
+  const { parseBook, pickType } = await import("../src/lib/slack/book.ts");
+  assert.deepEqual(parseBook("<mailto:Dana@Acme.com|Dana@Acme.com> demo"), { email: "dana@acme.com", words: ["demo"] });
+  assert.deepEqual(parseBook("intro dana@acme.com"), { email: "dana@acme.com", words: ["intro"] });
+  assert.deepEqual(parseBook("  "), { email: null, words: [] });
+  const types = [{ name: "Demo call" }, { name: "Intro call" }];
+  assert.equal(pickType(types, [])?.name, "Demo call");
+  assert.equal(pickType(types, ["intro"])?.name, "Intro call");
+  assert.equal(pickType(types, ["pricing"]), null);
+});

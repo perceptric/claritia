@@ -6,9 +6,13 @@ import { ruleMatches } from "./conditions.ts";
 import { spamSignals } from "./spam.ts";
 import type { Decision, Facts, Queue, RepFacts, RouterBody, StepResult, WhenOut, Why } from "./types.ts";
 
-/** Why a rep can't take a new lead now, or null when they can. `forOwner`: keeping a lead they own skips caps and hours. */
-export function blocked(rep: RepFacts | undefined, now: number, o: { forOwner?: boolean; hoursOnly?: boolean } = {}): { why: Why; until?: number | null } | null {
+/**
+ * Why a rep can't take a new lead now, or null when they can. `forOwner`: keeping a lead they own skips caps and hours.
+ * `passed`: they let this lead wait past its response time, so it goes to someone else.
+ */
+export function blocked(rep: RepFacts | undefined, now: number, o: { forOwner?: boolean; hoursOnly?: boolean; passed?: boolean } = {}): { why: Why; until?: number | null } | null {
   if (!rep || !rep.member) return { why: "not_member" };
+  if (o.passed) return { why: "passed" };
   if (rep.pausedUntil !== null && rep.pausedUntil > now) return { why: "paused", until: Number.isFinite(rep.pausedUntil) ? rep.pausedUntil : null };
   if (rep.outUntil !== null && rep.outUntil > now) return { why: "out", until: rep.outUntil };
   if (o.forOwner) return null;
@@ -32,7 +36,7 @@ export function pickInQueue(q: Queue, f: Facts): { picked: Pick; others: { user:
     const rep = f.reps[m.user];
     const c = counts[m.user] ?? { n: 0, last: 0 };
     const score = q.method === "load" ? (rep?.meetingsWeek ?? 0) : q.method === "weighted" ? c.n / Math.max(1, Math.min(10, m.weight || 1)) : c.n;
-    const no = blocked(rep, f.now, { hoursOnly: q.hoursOnly && !q.strict });
+    const no = blocked(rep, f.now, { hoursOnly: q.hoursOnly && !q.strict, passed: passedBy(f, m.user) });
     return { user: m.user, n: q.method === "load" ? (rep?.meetingsWeek ?? 0) : c.n, score, last: c.last, i, no };
   });
   const order = [...scored].sort((a, b) => a.score - b.score || a.last - b.last || a.i - b.i);
@@ -44,12 +48,14 @@ export function pickInQueue(q: Queue, f: Facts): { picked: Pick; others: { user:
   };
 }
 
-/** An owner who's out or paused: keep them, give it to their backup, or route on. */
-function whenOut(action: WhenOut, owner: string, f: Facts): { keep: string | null; backup?: string } {
-  if (action === "keep") return { keep: owner };
-  if (action === "backup") {
+const passedBy = (f: Facts, user: string) => !!f.passed?.includes(user);
+
+/** An owner who's out or paused: keep them, give it to their backup, or route on. One who let it wait is never kept. */
+function whenOut(action: WhenOut, owner: string, f: Facts, why: Why): { keep: string | null; backup?: string } {
+  if (action === "keep" && why !== "passed") return { keep: owner };
+  if (action === "backup" || (action === "keep" && why === "passed")) {
     const b = f.reps[owner]?.backup;
-    if (b && b !== owner && !blocked(f.reps[b], f.now, { forOwner: true })) return { keep: b, backup: b };
+    if (b && b !== owner && !blocked(f.reps[b], f.now, { forOwner: true, passed: passedBy(f, b) })) return { keep: b, backup: b };
   }
   return { keep: null };
 }
@@ -88,13 +94,13 @@ export function decide(body: RouterBody, f: Facts): Decision {
         r.owner = owner;
         r.via = opp ? "opp" : "company";
         if (opp) r.opp = c.oppName;
-        const no = blocked(f.reps[owner], f.now, { forOwner: true });
+        const no = blocked(f.reps[owner], f.now, { forOwner: true, passed: passedBy(f, owner) });
         if (!no) r.ok = true;
         else if (no.why === "not_member") r.unavailable = { user: owner, why: no.why };
         else {
           r.unavailable = { user: owner, why: no.why, until: no.until ?? null };
-          r.action = body.keep.whenOut;
-          const w = whenOut(body.keep.whenOut, owner, f);
+          r.action = no.why === "passed" && body.keep.whenOut === "keep" ? "backup" : body.keep.whenOut;
+          const w = whenOut(body.keep.whenOut, owner, f, no.why);
           if (w.keep) {
             r.ok = true;
             if (w.backup) r.backup = w.backup;
@@ -113,13 +119,13 @@ export function decide(body: RouterBody, f: Facts): Decision {
     if (!o?.user) r.miss = o?.crm ? "unmapped" : "no_owner";
     else {
       r.owner = o.user;
-      const no = blocked(f.reps[o.user], f.now, { forOwner: true });
+      const no = blocked(f.reps[o.user], f.now, { forOwner: true, passed: passedBy(f, o.user) });
       if (!no) r.ok = true;
       else if (no.why === "not_member") r.unavailable = { user: o.user, why: no.why };
       else {
         r.unavailable = { user: o.user, why: no.why, until: no.until ?? null };
-        r.action = body.keep.whenOut;
-        const w = whenOut(body.keep.whenOut, o.user, f);
+        r.action = no.why === "passed" && body.keep.whenOut === "keep" ? "backup" : body.keep.whenOut;
+        const w = whenOut(body.keep.whenOut, o.user, f, no.why);
         if (w.keep) {
           r.ok = true;
           if (w.backup) r.backup = w.backup;
@@ -166,9 +172,9 @@ export function decide(body: RouterBody, f: Facts): Decision {
     return { result: { kind: "unassigned" }, steps };
   }
   if (fb.kind === "user") {
-    const no = blocked(f.reps[fb.id], f.now);
+    const no = blocked(f.reps[fb.id], f.now, { passed: passedBy(f, fb.id) });
     // The fallback takes leads over its caps: it's the last stop.
-    const hard = no && (no.why === "not_member" || no.why === "paused" || no.why === "out") ? no : null;
+    const hard = no && (no.why === "not_member" || no.why === "paused" || no.why === "out" || no.why === "passed") ? no : null;
     steps.push({ step: "fallback", ok: !hard, ...(hard ? { why: hard.why } : { picked: fb.id }) });
     return hard ? { result: { kind: "unassigned" }, steps } : { result: { kind: "owner", user: fb.id, by: "fallback" }, steps };
   }
@@ -186,7 +192,7 @@ export function decide(body: RouterBody, f: Facts): Decision {
 export function whyNot(body: RouterBody, f: Facts, d: Decision, user: string): { why: Why | "not_in_queue" | "not_their_turn" | "owner_kept" | "held" | "picked"; until?: number | null; queue?: string } {
   if (d.result.kind === "owner" && d.result.user === user) return { why: "picked" };
   if (d.result.kind === "held") return { why: "held" };
-  const no = blocked(f.reps[user], f.now);
+  const no = blocked(f.reps[user], f.now, { passed: passedBy(f, user) });
   if (no) return { why: no.why, until: no.until ?? null };
   if (d.result.kind === "owner" && (d.result.by === "account" || d.result.by === "keep")) return { why: "owner_kept" };
   const qStep = d.steps.find((s): s is Extract<StepResult, { step: "queue" }> => s.step === "queue");

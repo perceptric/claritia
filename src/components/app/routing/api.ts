@@ -26,6 +26,7 @@ export type Loaded = {
   stats: { total: number; held: number; unassigned: number; by: Record<string, number>; rules: Record<string, number>; queues: Record<string, number>; p95_ms: number | null };
   lists: { allow: string[]; block: string[] };
   alert: { label: string | null };
+  slack: { ready: boolean; team: string | null };
   legacy: { body: RouterBody; unmapped: string[] } | null;
 };
 

@@ -1,7 +1,8 @@
 // What changed between two versions, as sentences (docs/router-ux.md 4.5): shown on Publish and Compare.
 
 import { ruleWords, type FieldDef } from "./conditions.ts";
-import type { RouterBody } from "./types.ts";
+import { minutesWords } from "./explain.ts";
+import { defaultSla, type RouterBody, type Sla } from "./types.ts";
 
 export type Change = { sign: "+" | "-" | "~"; text: string };
 
@@ -81,5 +82,11 @@ export function diffBodies(from: RouterBody | null, to: RouterBody, o: { names?:
     else if (old.name !== t.name || old.countries.join() !== t.countries.join()) out.push({ sign: "~", text: `Territory ${t.name}` });
   }
   for (const t of from.territories) if (!to.territories.some((x) => x.id === t.id)) out.push({ sign: "-", text: `Territory ${t.name}` });
+
+  const slaWords = (x: Sla) =>
+    !x.on ? "off" : `${minutesWords(x.minutes)}, then ${x.next === "route" ? "route again" : x.next === "manager" ? `give to ${x.manager ? who(x.manager) : "the manager"}` : "tell the rep"}${x.nudge ? `, nudge at ${minutesWords(x.nudge)}` : ""}`;
+  const sa = slaWords(from.sla ?? defaultSla());
+  const sb = slaWords(to.sla ?? defaultSla());
+  if (sa !== sb) out.push({ sign: "~", text: `Response time ${sa} → ${sb}` });
   return out;
 }
