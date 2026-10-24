@@ -4,7 +4,9 @@ The router works, but its screens use builder words ("queue", "fallback", "stric
 "publish", "version", "SLA"). A founder opening it for the first time can't tell what any part does. This plan rewrites
 every screen so a person who has never routed a lead can set it up in five minutes and explain it to their team.
 
-Nothing about how leads are routed changes. This is words, layout, guidance and previews.
+How leads are routed stays the same. This plan changes the words, the layout, what you can see before going live, and
+how it feels: you watch a lead travel through your setup, see turns dealt out like cards, and get a small celebration
+when it goes live.
 
 ---
 
@@ -242,28 +244,141 @@ A **Guide me** link in the status bar replays the four steps on an existing setu
 
 ---
 
-## Part 10. Build order (1 week)
+## Part 10. Watch it work (the moving lead)
 
-| Day | Work | Done when |
-|---|---|---|
-| 1 | New words in one file (`src/lib/router/words.ts`), sentences in `explain.ts`, diff, Slack and emails | Tests read the new sentences |
-| 2 | Status bar with Pause routing, flow as a story, card lines, Skipped state | A test lead's path reads top to bottom |
-| 3 | Rules as sentences with in-place pickers and starters; Teams cards with "Next in line" | A rule is built without the side panel |
-| 4 | Questions panel with real-name examples; Try a lead panel always open; Who gets what | Every choice shows its example |
-| 5 | Team, Needs review, History, Saved setups; first-time four steps and Guide me | `scripts/screens-check.ts` runs the four steps in light and dark |
+The signature moment. When you **Try a lead**, a small round chip with the lead's initials drops in at the top of the
+flow and travels down the line:
 
-Tests: unit tests for the new words and sentences, the editor model tests updated, `tests/routingScreens.test.ts`
-for each renamed screen, and a database test that Pause routing leaves new leads with the owner they came with.
+1. It slides along the line to each card (`calm`, `ease-out`), and the line behind it draws in ink (`slow`).
+2. At each card it stops for a beat. A card that let it pass gets a small gray "–" stamp; the card that decides gets a
+   green check that pops (`quick`, `ease-spring`).
+3. On a rule, the matching words in the sentence light up one by one ("United States" ✓, "51 to 200" ✓).
+4. In a team, the reps' faces sit in a row with a small pointer over "next in line". The pointer hops along the row,
+   skipping faces that are away (they're dimmed with a moon), and lands on the rep who gets it.
+5. The chip flies into that rep's face, which does a small bounce, and the answer sentence types in under the flow.
+
+Held leads stop at "Filter out junk" and the chip turns amber with a small shake (two 4px moves, `quick`). No rep
+found: the chip ends in a dashed circle at the bottom with "No rep found".
+
+**Live traffic.** With the setup open, real leads routed in the last minute travel as tiny dots along the lines
+(`docs/brand.md` item 29), at most one every 2 seconds, so the screen shows the router is working without a refresh.
+
+Reduced motion: the chip appears at its end place, the path is drawn at once, and the answer shows in full.
 
 ---
 
-## Part 11. Running cost
+## Part 11. Deal 20 leads (see how turns work)
 
-No new services and no Claude tokens. The always-open Try a lead panel adds one `router_facts` read per lead tried and
-the "Who gets what" bars read `router_stats`, both inside the database plan.
+A button on every team card: **Deal 20 leads**. It runs 20 made-up leads through the team in memory (the same
+`pickInQueue` with counts going up after each pick), and shows it as dealing cards:
+
+- 20 small cards fly from a deck to the reps' faces in turn order, 60 ms apart (`calm`, `ease-spring`), and each
+  rep's pile shows its count.
+- "Take turns": piles end even. "Some get more": Ana at 2x ends with twice the pile. "Fewest meetings first": reps with
+  full calendars get fewer.
+- Changing a setting deals again, so the difference shows in two seconds.
+
+Nothing is written; it's a preview. This one control explains "Take turns", "Some get more" and "Keep the order"
+better than any line of text.
+
+---
+
+## Part 12. Your setup in plain words
+
+A **Read it back** button in the status bar turns the whole setup into a short paragraph, made from the setup itself
+(no AI, so it's always exact):
+
+> Leads that look fake wait for you to review. A lead from a company you already work with goes to that company's rep.
+> Enterprise leads (over 1,000 people) go to Sam. Leads from North America with 51 to 200 people go to the US team,
+> who take turns. Everyone else goes to Sam. Reps must reach out within 1 hour, or the lead goes to someone else.
+
+It's also the text used in "What changes" on Make live (before and after), and copied to Slack with one click to
+tell the team.
+
+---
+
+## Part 13. Describe it, and Claude builds it
+
+At the top of the first screen and in the status bar, with the sparkle (`AiMark`):
+
+> **Describe how you route leads** "Europe goes to Ana and Raj, companies over 500 people go to Sam, everyone else
+> takes turns"
+
+- Claude turns it into a setup (rules, teams, everything else) using the reps' real names, and shows it as **changes
+  not live yet**, with the moving-lead preview on three recent leads. Nothing goes live without **Make live**.
+- Names it can't match ("Raj" when there are two) come back as one question with faces to pick from.
+- Anything Claude made carries `AiTag` until a person edits it.
+- The call goes through the step cache; the same words give the same setup.
+
+---
+
+## Part 14. Small delights
+
+| Moment | What happens | Motion |
+|---|---|---|
+| Rule sentence edited | The changed word swaps with a short slide up | `quick`, `ease-out` |
+| Rep dragged onto a team | The face lifts with a shadow, the team card opens a gap, the face drops in | `calm`, `ease-spring` |
+| Rule dragged to a new place | Other rules slide out of the way | `calm`, `ease-out` |
+| Counts change | Numbers count up | `slow`, `ease-out` |
+| Make live, first time | A short burst of small round dots in the brand washes from the status dot, then "Routing is on" | `slow`, `ease-spring`, once per workspace |
+| Make live, later | The status dot pulses green once | `calm` |
+| First real lead routed | A toast with the rep's face: "Your first lead went to Lee" | `calm`, `ease-spring` |
+| Follow-up time running | A thin ring around the rep's face empties as time passes, turning amber in the last 15 minutes | steady, no loop under reduced motion |
+| Mark contacted | The ring fills and turns green with a check | `calm`, `ease-spring` |
+| Needs review emptied | The sketch of a clear desk draws in, "All clear" | `slow` |
+| Problem fixed | The task in the setup list ticks and slides away | `calm`, `ease-out` |
+
+Every animation uses the three speeds and two curves in `docs/brand.md`, moves only transform, opacity and SVG stroke,
+and shows its end state under reduced motion. Nothing loops except the live-traffic dots, which stop when the tab is
+hidden.
+
+---
+
+## Part 15. Easier to use
+
+- **Faces everywhere.** Reps are shown as faces with a status ring: green taking leads, amber full for today, gray
+  away (with a small moon). Hover shows "Away until Friday".
+- **Words that explain themselves.** Terms in the side panel have a dotted underline; hovering shows a small card with
+  a two-line meaning and a tiny drawing (a deck for "Take turns", a scale for "Some get more"). Shown on hover only,
+  so working screens stay clean.
+- **Setup check.** A short list at the top while anything is missing, as tasks with one-click fixes: "Add reps to the
+  US team", "Pick who gets leads no rule matched". It ticks off as you go and folds away when done.
+- **One undo for everything**, with a toast in the new words: "Removed Ana from US team. Undo".
+- **Safe by default.** Make live always shows the before and after paragraph and the effect on last month's leads.
+  Go back to any saved setup in one click.
+- **Keyboard.** `T` try a lead, `D` deal 20 leads, `N` new rule, `⌘Z` undo, `⌘S` save, `⌘↵` make live.
+
+---
+
+## Part 16. Build order (2 weeks)
+
+| Day | Work | Done when |
+|---|---|---|
+| 1 | New words in one place (`src/lib/router/words.ts`), sentences in `explain.ts`, diff, Slack and emails | Tests read the new sentences |
+| 2 | Status bar with Pause routing, Read it back paragraph | Pause leaves new leads with their owner (database test) |
+| 3 | Flow as a story: joining words, card lines, Skipped state, counts as sentences | The story reads top to bottom in light and dark |
+| 4 | Rules as sentences with in-place pickers and six starters | A rule is built without the side panel |
+| 5 | Teams with faces, status rings, next-in-line pointer, drag a face onto a team | Drag and drop works with mouse and keyboard |
+| 6 | Questions panel with real-name examples, hover meanings | Every choice shows its example |
+| 7 | Try a lead panel and the moving lead | The chip's path matches the run's lines in tests |
+| 8 | Deal 20 leads, live-traffic dots | Dealing matches `pickInQueue` counts in tests |
+| 9 | Describe it with Claude, step cache, name questions | The same words give the same setup twice |
+| 10 | Team, Needs review, History, Saved setups; first-time four steps; delights table; screens check run with screenshots | `scripts/screens-check.ts` runs the four steps and Try a lead in light and dark, with reduced motion |
+
+Tests: unit tests for words, the paragraph, the deal and the chip path; editor model tests updated;
+`tests/routingScreens.test.ts` for each renamed screen; a database test for Pause routing; an AI test that a cached
+description replays without calling the model.
+
+---
+
+## Part 17. Running cost
+
+Only "Describe it" calls Claude. One description is about 4,000 tokens in (the setup format, reps' names and fields)
+and 1,500 out. Assumes 20 descriptions a team a month at Beta (1,000) and 10 at Growth (5,000), with about a third
+served from the step cache.
 
 | Item | Beta (50 teams) | Growth (500 teams) |
 |---|---|---|
-| Extra database reads (Try a lead, Who gets what) | $0 | $0 |
-| Claude tokens | $0 | $0 |
-| **Added per month** | **$0** | **$0** |
+| Claude Sonnet for Describe it, about $0.035 each (check) | $25 (check) | $120 (check) |
+| Try a lead, Deal 20 leads, Read it back, live dots (database reads and the browser) | $0 | $0 |
+| **Added per month** | **about $25** | **about $120** |
