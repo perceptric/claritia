@@ -24,10 +24,7 @@ test("old and unknown settings addresses land on a real page", () => {
   assert.equal(settingsTab(""), "sources");
 });
 
-test("calendars: the team's under Team, your own under Account", () => {
-  const where = (id: string) => SETTINGS_GROUPS.find((g) => g.tabs.some((t) => t.id === id))?.label;
-  assert.equal(where("calendars"), "Team");
-  assert.equal(where("calendar"), "Account");
-  assert.equal(settingsTab("calendar"), "calendar");
-  assert.equal(settingsTab("calendars"), "calendars");
+test("pages that moved out of Settings aren't listed there", () => {
+  const ids = SETTINGS_GROUPS.flatMap((g) => g.tabs.map((t) => t.id)) as string[];
+  for (const moved of ["calendar", "calendars", "payments", "sites", "identity", "account_alerts"]) assert.ok(!ids.includes(moved), `${moved} moved`);
 });

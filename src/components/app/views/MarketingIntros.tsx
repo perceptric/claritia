@@ -8,9 +8,8 @@ import { SampleBars, SampleRows, SampleStats, SampleTags, ToolIntro } from "../T
 import { Page } from "../ui";
 
 /** Visitors before a site is added. */
-export function VisitorsIntro({ action }: { action?: React.ReactNode }) {
-  return (
-    <Page icon={<Eye size={14} />} title="Visits">
+export function VisitorsIntro({ action, head }: { action?: React.ReactNode; head?: React.ReactNode }) {
+  const intro = (
       <ToolIntro
         sketch="funnel"
         action={action}
@@ -34,6 +33,17 @@ export function VisitorsIntro({ action }: { action?: React.ReactNode }) {
           },
         ]}
       />
+  );
+  if (head)
+    return (
+      <Page title="Signals" flush>
+        {head}
+        <div className="p-5 md:p-7">{intro}</div>
+      </Page>
+    );
+  return (
+    <Page icon={<Eye size={14} />} title="Visits">
+      {intro}
     </Page>
   );
 }

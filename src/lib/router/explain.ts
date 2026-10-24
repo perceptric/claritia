@@ -18,8 +18,8 @@ export type Line = {
   more?: Part[][];
 };
 
-const TITLES: Record<StepResult["step"], string> = { sla: "Response time", spam: "Spam check", account: "Match account", keep: "Keep owner", rules: "Rules", queue: "Queue", fallback: "Fallback", hand: "By hand" };
-const METHOD_WORDS: Record<Method, string> = { rr: "round robin", weighted: "weighted", load: "by load" };
+const TITLES: Record<StepResult["step"], string> = { sla: "Follow-up time", spam: "Filter out junk", account: "Same company, same rep", keep: "Keep their rep", rules: "Who gets which leads", queue: "Team", fallback: "Everyone else goes to", hand: "By hand" };
+const METHOD_WORDS: Record<Method, string> = { rr: "take turns", weighted: "some get more", load: "fewest meetings first" };
 
 export function dateWords(ms: number, tz = "UTC", now = Date.now()): string {
   const days = (ms - now) / 86_400_000;
@@ -163,7 +163,7 @@ export function pathWords(d: Decision): string {
     return `Matched ${a?.company?.name ?? "the account"}${a?.backup ? " (backup)" : ""}`;
   }
   if (r.by === "keep") return "Kept owner";
-  if (r.by === "fallback") return "Fallback";
+  if (r.by === "fallback") return "Everyone else";
   if (r.by === "hand") return d.steps.some((s) => s.step === "sla") ? "Response time missed: manager" : "By hand";
   const rule = d.steps.find((s): s is Extract<StepResult, { step: "rules" }> => s.step === "rules")?.rule;
   const q = d.steps.find((s): s is Extract<StepResult, { step: "queue" }> => s.step === "queue");

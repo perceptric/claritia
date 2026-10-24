@@ -116,6 +116,7 @@ export async function load(rpc: Rpc, db: Q, c: Caller) {
   const draft = row?.draft ? cleanBody(row.draft) : null;
   return {
     live: live ? { version: live.version, body: cleanBody(live.body) } : null,
+    paused: !!live?.paused,
     draft,
     draftBase: row?.draft_base ?? null,
     revision: row?.draft_revision ?? 0,
@@ -425,6 +426,13 @@ export async function saveAlert(db: SupabaseClient, c: Caller, url: string | nul
   await db.from("router_secrets").upsert({ workspace_id: c.ws, sealed: seal(JSON.stringify({ url: u })), updated_at: new Date().toISOString() }, { onConflict: "workspace_id" });
   await db.from("routers").upsert({ workspace_id: c.ws, alert_label: (label ?? "").trim().slice(0, 120) || "Slack" }, { onConflict: "workspace_id" });
   return { ok: true };
+}
+
+/** Pause routing (new leads keep the owner they come with), or turn it back on. Owners only. */
+export async function setPaused(rpc: Rpc, c: Caller, paused: boolean) {
+  ownerOnly(c);
+  await call(rpc, "router_pause", { p_ws: c.ws, p_paused: paused, p_user: c.user });
+  return { paused };
 }
 
 /** "Add to Slack": the sign-in link, for workspace owners. */

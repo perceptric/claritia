@@ -452,3 +452,17 @@ served from the step cache.
 | Claude Sonnet for Describe it, about $0.035 each (check) | $25 (check) | $120 (check) |
 | Try a lead, Deal 20 leads, Read it back, live dots (database reads and the browser) | $0 | $0 |
 | **Added per month** | **about $25** | **about $120** |
+
+---
+
+## Part 19. What's built
+
+Built with `docs/app-structure.md` phase 5: the new words in `explain.ts`, `diff.ts` and the screens; Pause routing
+(`router_pause`, database test); Read it back (`src/lib/router/readback.ts`); the flow as a story with joining words;
+Teams with Deal 20 leads (`src/lib/router/deal.ts`, matched to `pickInQueue` in tests); Company types worked out before
+the rules (`company.type`); the Overview page with stat cards; Try a lead and Preview on past leads under their new
+names; Make live.
+
+Left for later: the moving lead, live-traffic dots, rules as sentences with in-place pickers, Describe it with Claude,
+First free rep, saved History views, hover cards and the first-time four steps. Their cost is unchanged (Part 18).
+

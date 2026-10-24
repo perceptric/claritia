@@ -51,7 +51,7 @@ const run = (o: Partial<RunRow> = {}): RunRow => ({
 
 test("a saved run becomes a Decision from its row", () => {
   assert.deepEqual(resultOf(run()), { kind: "owner", user: LEE, by: "queue", queue: "q1", rule: "r-us" });
-  assert.equal(pathWords(decisionOf(run())), "Rule: US mid-market → round robin");
+  assert.equal(pathWords(decisionOf(run())), "Rule: US mid-market → take turns");
   const held = run({ kind: "held", owner: null, by: null, steps: [{ step: "spam", ok: false, checks: 5, signals: ["disposable", "fake_name"] }] });
   assert.deepEqual(resultOf(held), { kind: "held", signals: ["disposable", "fake_name"] });
   assert.deepEqual(heldWords(held), ["Throwaway email", "Fake name"]);

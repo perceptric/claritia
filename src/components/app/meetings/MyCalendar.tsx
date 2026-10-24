@@ -26,7 +26,9 @@ export const PROVIDERS: { id: Exclude<Provider, "fake">; name: string; domain: s
 ];
 export const providerOf = (p: Provider) => PROVIDERS.find((x) => x.id === p) ?? { id: p, name: "Test calendar", domain: "example.com", connect: "" };
 
-export function MyCalendar({ sb, session, ws }: Pick<ViewProps, "sb" | "session" | "ws">) {
+export type CalendarPart = "calendars" | "hours" | "profile";
+
+export function MyCalendar({ sb, session, ws, parts = ["calendars", "hours", "profile"] }: Pick<ViewProps, "sb" | "session" | "ws"> & { parts?: CalendarPart[] }) {
   const me = session.user.id;
   const data = useLoad(async () => {
     const accounts = (must(await sb.from("calendar_accounts").select("id, user_id, provider, account_email, status, refreshed_at").eq("workspace_id", ws.id).eq("user_id", me).order("created_at")) ?? []) as Account[];
@@ -42,7 +44,7 @@ export function MyCalendar({ sb, session, ws }: Pick<ViewProps, "sb" | "session"
       profile: must(profile) as { slug: string; name: string; headline: string | null; photo_url: string | null } | null,
     };
   }, ws.id);
-  // Back from a provider's sign-in: /settings/calendar?connected=google or ?error=...
+  // Back from a provider's sign-in: /scheduling/availability/calendars?connected=google or ?error=...
   const [back] = useState(() => new URLSearchParams(typeof window === "undefined" ? "" : window.location.search));
   const [error, setError] = useState(() => back.get("error")?.slice(0, 200) ?? "");
   const note = back.get("connected") ? `${providerOf(back.get("connected") as Provider).name} connected` : "";
@@ -71,6 +73,7 @@ export function MyCalendar({ sb, session, ws }: Pick<ViewProps, "sb" | "session"
   return (
     <div className="flex flex-col gap-5">
       <ErrorNote message={error} />
+      {parts.includes("calendars") ? (
       <Panel className="overflow-hidden">
         <CardHead label="Calendars" count={accounts.length || undefined}>
           {note ? (
@@ -114,8 +117,9 @@ export function MyCalendar({ sb, session, ws }: Pick<ViewProps, "sb" | "session"
           ))}
         </div>
       </Panel>
-      <HoursPanel session={session} ws={ws.id} saved={data.data.hours} onSaved={data.reload} />
-      <ProfilePanel session={session} ws={ws.id} email={session.user.email ?? ""} saved={data.data.profile} onSaved={data.reload} />
+      ) : null}
+      {parts.includes("hours") ? <HoursPanel session={session} ws={ws.id} saved={data.data.hours} onSaved={data.reload} /> : null}
+      {parts.includes("profile") ? <ProfilePanel session={session} ws={ws.id} email={session.user.email ?? ""} saved={data.data.profile} onSaved={data.reload} /> : null}
     </div>
   );
 }
@@ -202,7 +206,7 @@ function HoursPanel({ session, ws, saved, onSaved, userId }: { session: ViewProp
   const dirty = !saved || JSON.stringify(draft) !== JSON.stringify(saved);
   return (
     <Panel className="overflow-hidden">
-      <CardHead label="Hours">
+      <CardHead label="Working hours">
         <Button
           size="sm"
           disabled={!dirty || busy}

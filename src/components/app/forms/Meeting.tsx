@@ -123,7 +123,7 @@ function TypePick({ sch, set, types, error }: { sch: Schedule; set: (p: Partial<
             </span>
           ) : null}
           {picked ? <Badge>{kindLabel(picked.kind)}</Badge> : null}
-          <Link href="/meetings/types" className="press inline-flex h-9 items-center gap-1.5 rounded-full px-3 text-[13px] font-medium text-ink transition-colors duration-[140ms] hover:bg-hover">
+          <Link href="/scheduling/types" className="press inline-flex h-9 items-center gap-1.5 rounded-full px-3 text-[13px] font-medium text-ink transition-colors duration-[140ms] hover:bg-hover">
             <Plus size={14} />
             New meeting type
           </Link>

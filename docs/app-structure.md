@@ -1,4 +1,4 @@
-# The new app structure (plan)
+# The new app structure
 
 The sidebar today is Site, CRM, Email, Ads and Settings, with Meetings and Routing as single items under CRM. This
 plan reorders the whole app around five jobs, CRM first, the way Default groups its app (Views, Automation, Routing,
@@ -406,3 +406,22 @@ Later items, for when they're planned:
 - `docs/meetings-scheduler.md`: Part 1.9 Screens points here; named schedules and reminder templates added to Data.
 - `docs/router-ux-v2.md`: Part 16.1 is replaced by Part 5 here.
 - `src/lib/nav.ts` header comment and `docs/marketing-platform.md` sidebar section.
+
+---
+
+## Part 11. What's built
+
+Phases 1 to 6 are in the app. Run `supabase/migrations/066_app_structure.sql` after 065.
+
+| Phase | Built | Left for later |
+|---|---|---|
+| 1. Sidebar | The new tree with folding groups and color tiles (`src/components/app/Sidebar.tsx`), the Create menu, ⌘K, Contacts first, Get started (`GetStarted.tsx`), every old address forwarding (`resolveRoute`) | — |
+| 2. Pages that move | Signals (Feed, Visitors, Alerts, Setup); Availability (Calendars, Team) and Payments under Scheduling; Settings no longer holds them | — |
+| 3. Meetings | CRM › Meetings after Calendly's Calendar (`meetings/Calendar.tsx`): whose, search, presets and a picked day, All vs Booked in Claritia, stat cards, day groups, now line, outside busy times (`meeting_calendar_busy`) | Meeting as a side sheet (opens as a page) |
+| 4. Scheduling | Grouped type cards with on and off, Copy link and bulk actions; named schedules (`availability_schedules`, picked by name on each type) with database tests for a schedule edited during a booking; Availability tabs (Schedules, Calendars, Team, Days off); Links and polls; Booking forms; Reminders per type with "Use on all types" | The type sheet with live preview (the editor stays a full page); reminder templates (`meeting_templates`) |
+| 5. Routing pages | Overview with status, Pause routing, Read it back and stat cards; Rules (the editor with plain words and joining lines); Teams with Deal 20 leads; Regions; Company types (worked out before the rules); History; Needs review; Handoffs marked Soon | See `docs/router-ux-v2.md` Part 19 |
+| 6. Enrichment | Overview with field coverage, Providers with Try a domain (owners, Coresignal, company cache first), History | Rules tab |
+
+Running cost of what's built: Coresignal lookups for Try a domain, about $5 (check) at Beta and $50 (check) at Growth a
+month. No Claude tokens and no new services. "Describe it" is not built, so its $25 and $120 (check) are not spent yet.
+

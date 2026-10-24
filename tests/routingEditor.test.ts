@@ -105,7 +105,7 @@ test("queues: names stay their own, removing one clears the rules and fallback t
   let b = addQueue(addQueue(emptyBody(), "q1"), "q2");
   assert.deepEqual(
     b.queues.map((q) => q.name),
-    ["New queue", "New queue 2"],
+    ["New team", "New team 2"],
   );
   b = addRule(b, "r1", "q1");
   b = { ...b, fallback: { kind: "queue", id: "q1" } };

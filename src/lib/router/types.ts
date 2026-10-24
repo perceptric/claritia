@@ -31,9 +31,9 @@ export type Rule = { id: string; name: string; match: "all" | "any"; conds: Cond
 export type Method = "rr" | "weighted" | "load";
 
 export const METHODS: { value: Method; label: string }[] = [
-  { value: "rr", label: "Round robin" },
-  { value: "weighted", label: "Weighted" },
-  { value: "load", label: "By load" },
+  { value: "rr", label: "Take turns" },
+  { value: "weighted", label: "Some get more" },
+  { value: "load", label: "Fewest meetings first" },
 ];
 
 export type Member = { user: string; weight: number };
@@ -45,6 +45,13 @@ export type Member = { user: string; weight: number };
 export type Queue = { id: string; name: string; method: Method; strict: boolean; hoursOnly: boolean; members: Member[] };
 
 export type Territory = { id: string; name: string; countries: string[] };
+
+/**
+ * A company type (docs/app-structure.md Part 5): a named kind of company, like "Enterprise: over 1,000 people". The
+ * engine works out which types a lead's company is before the rules run, as the value of `company.type`, so a rule can
+ * say "Company type is Enterprise". Rules use the name.
+ */
+export type Segment = { id: string; name: string; match: "all" | "any"; conds: Cond[] };
 
 export type WhenOut = "keep" | "backup" | "route";
 
@@ -68,6 +75,8 @@ export type RouterBody = {
   queues: Queue[];
   fallback: { kind: "user" | "queue"; id: string } | null;
   territories: Territory[];
+  /** Left out by versions made before company types. */
+  segments?: Segment[];
   /** Left out by versions made before response times. */
   sla?: Sla;
 };

@@ -131,8 +131,8 @@ test("engine: the first matching rule picks the queue; round robin by count, the
   const text = plain(d, f);
   assert.match(text, /Skipped "Enterprise": company size is more than 1000 \(it's 51-200\)/);
   assert.match(text, /"US mid-market" matched/);
-  assert.match(text, /US mid-market, round robin\. Lee Park had 3 of the last 10\./);
-  assert.equal(pathWords(d), "Rule: US mid-market → round robin");
+  assert.match(text, /US mid-market, take turns\. Lee Park had 3 of the last 10\./);
+  assert.equal(pathWords(d), "Rule: US mid-market → take turns");
   assert.match(plain(decide(body(), facts()), facts()), /Lee Park takes the queue's first lead\./, "a new queue reads plainly");
 });
 
@@ -195,7 +195,7 @@ test("explain: every step reads as a sentence, with links for names", () => {
   const company = { id: "co1", name: "Acme", domain: "acme.com", owner: null, ownerCrm: null, oppOwner: null, oppName: null };
   const f = facts({ company });
   const lines = explain(decide(body(), f), f);
-  assert.deepEqual(lines.map((l) => [l.title, l.mark]), [["Spam check", "ok"], ["Match account", "skip"], ["Keep owner", "skip"], ["Rules", "ok"], ["Queue", "ok"]]);
+  assert.deepEqual(lines.map((l) => [l.title, l.mark]), [["Filter out junk", "ok"], ["Same company, same rep", "skip"], ["Keep their rep", "skip"], ["Who gets which leads", "ok"], ["Team", "ok"]]);
   assert.ok(lines[3]!.parts.some((p) => typeof p !== "string" && p.kind === "rule" && p.id === "r_us"));
   assert.ok(lines[4]!.more?.length === 2, "the other reps fold under the queue line");
 });
@@ -228,9 +228,9 @@ test("diff: changes between versions in words", () => {
   const names = { [LEE]: "Lee Park", [SAM]: "Sam Lee" };
   const t = diffBodies(a, b, { names }).map((c) => `${c.sign} ${c.text}`);
   assert.ok(t.includes(`+ Rule "EMEA" (3rd) → Enterprise`));
-  assert.ok(t.includes("~ US mid-market: round robin → weighted"));
+  assert.ok(t.includes("~ US mid-market: take turns → some get more"));
   assert.ok(t.includes("~ Lee Park weight 1 → 2 in US mid-market"));
-  assert.ok(t.includes("~ Fallback Sam Lee → Lee Park"));
+  assert.ok(t.includes("~ Everyone else goes to Sam Lee → Lee Park"));
   assert.deepEqual(diffBodies(a, structuredClone(a)), []);
 });
 
@@ -293,7 +293,7 @@ test("response time: a rep who let the lead wait is skipped everywhere, and neve
   assert.equal(decide(b, f3).result.kind, "unassigned");
   // The line that says why the lead moved reads first.
   const lines = plain({ ...d2, steps: [{ step: "sla", ok: false, user: LEE, minutes: 60 }, ...d2.steps] }, f2);
-  assert.match(lines.split("\n")[0]!, /^✗ Response time: Lee Park didn't act within 1 hour\. Passed on\.$/);
+  assert.match(lines.split("\n")[0]!, /^✗ Follow-up time: Lee Park didn't act within 1 hour\. Passed on\.$/);
   assert.match(pathWords({ ...d2, steps: [{ step: "sla", ok: false, user: LEE, minutes: 60 }, ...d2.steps] }), /^Passed on\. Rule: /);
   assert.equal(whyNot(b, f2, d2, LEE).why, "passed");
   // Settings kept in range; a nudge at or after the deadline is dropped.
@@ -303,7 +303,7 @@ test("response time: a rep who let the lead wait is skipped everywhere, and neve
   // Manager missing or gone stops publishing.
   const m = { ...body(), sla: { on: true, minutes: 60, nudge: null, next: "manager" as const, manager: null } };
   assert.ok(problems(m, { members: new Set([LEE, ANA, RAJ, SAM]) }).some((p) => p.where.kind === "sla"));
-  assert.deepEqual(diffBodies(body(), { ...body(), sla: { on: true, minutes: 30, nudge: 10, next: "route", manager: null } }).at(-1), { sign: "~", text: "Response time off → 30 minutes, then route again, nudge at 10 minutes" });
+  assert.deepEqual(diffBodies(body(), { ...body(), sla: { on: true, minutes: 30, nudge: 10, next: "route", manager: null } }).at(-1), { sign: "~", text: "Follow-up time off → 30 minutes, then someone else, reminder at 10 minutes" });
 });
 
 test("/book: the email and type words, Slack's mailto wrapping, and the type picked by name", async () => {

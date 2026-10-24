@@ -83,6 +83,8 @@ export type TypeSettings = {
   confirmation: { kind: "message"; text?: string } | { kind: "redirect"; url: string };
   /** Paid types: amount in the smallest unit (cents) and the currency; refunded when the host cancels. */
   price?: { amount: number; currency: string };
+  /** A named schedule (availability_schedules): each host's schedule of this name, else their default hours. */
+  schedule?: string;
   /** Extra questions on the booking page: the form studio's fields. */
   questions: { id: string; label: string; type: "text" | "textarea" | "phone" | "choice"; required: boolean; options?: string[] }[];
 };

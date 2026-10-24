@@ -158,7 +158,7 @@ export function RepsTab({ sb, session, ws, role, navigate }: Props) {
                 <Th>Status</Th>
                 <Th>Today</Th>
                 <Th className="hidden sm:table-cell">This week</Th>
-                <Th className="hidden md:table-cell">Queues</Th>
+                <Th className="hidden md:table-cell">Teams</Th>
                 <Th className="hidden md:table-cell">Backup</Th>
               </tr>
             </thead>
@@ -235,7 +235,7 @@ export function RepsTab({ sb, session, ws, role, navigate }: Props) {
                       {qs.length ? (
                         <span className="flex flex-wrap gap-1">
                           {qs.map((x) => (
-                            <button key={x.id} type="button" onClick={() => navigate(ROUTING)} className="press rounded-full">
+                            <button key={x.id} type="button" onClick={() => navigate(ROUTING, "teams")} className="press rounded-full">
                               <Badge>{x.name}</Badge>
                             </button>
                           ))}

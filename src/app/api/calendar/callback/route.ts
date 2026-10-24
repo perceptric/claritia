@@ -9,7 +9,7 @@ import { serviceClient } from "@/lib/serviceClient";
 
 const KINDS = new Set(["google_calendar", "microsoft_calendar", "zoom"]);
 /** My calendar (docs/meetings-scheduler.md 1.9). */
-const PAGE = "/settings/calendar";
+const PAGE = "/scheduling/availability/calendars";
 
 export async function GET(request: Request) {
   const url = new URL(request.url);

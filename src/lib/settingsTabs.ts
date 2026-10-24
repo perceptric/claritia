@@ -1,4 +1,5 @@
-// Settings pages, grouped the way the Settings sidebar shows them (same layout as Arrowsterr).
+// Settings pages, grouped the way the Settings sidebar shows them (same layout as Arrowsterr). Sites, Identity and
+// Account alerts moved to Signals; Calendar, Calendars and Payments to Scheduling (src/lib/nav.ts forwards them).
 
 export type SettingsTab =
   | "sources" | "imports" | "sync_log" | "fields" | "objects" | "sending" | "team" | "calendars" | "sites" | "identity" | "icp" | "lead_scoring" | "account_alerts" | "workspace" | "payments" | "keys" | "profile" | "calendar";
@@ -10,11 +11,10 @@ export const SETTINGS_GROUPS: SettingsGroup[] = [
     tabs: [{ id: "sources", label: "Connection" }, { id: "imports", label: "Imports" }, { id: "sync_log", label: "Sync log" }, { id: "fields", label: "Fields" }, { id: "objects", label: "Objects" }],
   },
   { label: "Email", tabs: [{ id: "sending", label: "Sending domains" }] },
-  { label: "Team", tabs: [{ id: "team", label: "Members" }, { id: "calendars", label: "Calendars" }] },
-  { label: "Website", tabs: [{ id: "sites", label: "Sites" }, { id: "identity", label: "Identity" }] },
-  { label: "Scoring", tabs: [{ id: "icp", label: "Ideal customer" }, { id: "lead_scoring", label: "Lead scoring" }, { id: "account_alerts", label: "Account alerts" }] },
-  { label: "Workspace", tabs: [{ id: "workspace", label: "General" }, { id: "payments", label: "Payments" }, { id: "keys", label: "API keys" }] },
-  { label: "Account", tabs: [{ id: "profile", label: "Profile" }, { id: "calendar", label: "Calendar" }] },
+  { label: "Team", tabs: [{ id: "team", label: "Members" }] },
+  { label: "Scoring", tabs: [{ id: "icp", label: "Ideal customer" }, { id: "lead_scoring", label: "Lead scoring" }] },
+  { label: "Workspace", tabs: [{ id: "workspace", label: "General" }, { id: "keys", label: "API keys" }] },
+  { label: "Account", tabs: [{ id: "profile", label: "Profile" }] },
 ];
 
 /** The page for an address: old names land on their new pages, unknown ones on the first. */

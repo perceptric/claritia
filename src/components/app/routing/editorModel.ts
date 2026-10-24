@@ -95,7 +95,7 @@ export function moveRuleTo(b: RouterBody, id: string, index: number): RouterBody
 export const moveRule = (b: RouterBody, id: string, dir: -1 | 1) => moveRuleTo(b, id, b.rules.list.findIndex((r) => r.id === id) + dir);
 
 /** A new empty queue; the name gets a number when it's taken. */
-export function addQueue(b: RouterBody, id: string, name = "New queue"): RouterBody {
+export function addQueue(b: RouterBody, id: string, name = "New team"): RouterBody {
   const names = new Set(b.queues.map((q) => q.name));
   let n = name;
   for (let i = 2; names.has(n); i++) n = `${name} ${i}`;
@@ -208,7 +208,8 @@ export type Selection = { kind: "spam" | "account" | "keep" | "rules" | "fallbac
 export const sameSelection = (a: Selection | null, b: Selection | null) => !!a && !!b && a.kind === b.kind && ("id" in a ? a.id : "") === ("id" in b ? b.id : "");
 
 /** The card a problem belongs to. */
-export const selectionOf = (p: Problem): Selection => (p.where.kind === "rule" || p.where.kind === "queue" ? { kind: p.where.kind, id: p.where.id ?? "" } : { kind: p.where.kind });
+export const selectionOf = (p: Problem): Selection =>
+  p.where.kind === "rule" || p.where.kind === "queue" ? { kind: p.where.kind, id: p.where.id ?? "" } : p.where.kind === "segment" ? { kind: "rules" } : { kind: p.where.kind };
 
 /** Finish setup: each open problem as something to do. "EMEA has no reps" reads "Add reps to EMEA". */
 export function setupItems(ps: Problem[]): { text: string; at: Selection }[] {

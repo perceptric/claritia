@@ -36,6 +36,7 @@ const WORDS: Record<string, [number, string]> = {
   bad_change: [409, "That change isn't possible for this meeting now."],
   not_started: [409, "The meeting hasn't started yet."],
   bad_template: [400, "Only one-person and group types can be given to people."],
+  name_taken: [409, "You already have a schedule with that name."],
 };
 
 async function call<T>(rpc: Rpc, fn: string, args: Record<string, unknown>): Promise<T> {
@@ -143,6 +144,33 @@ export async function saveAvailability(rpc: Rpc, a: Actor, user: unknown, raw: u
   const r = checkAvailability(raw);
   if ("errors" in r) throw new Refused(400, r.errors[0]!, r.errors);
   await call(rpc, "availability_save", { p_ws: a.ws, p_user: who, p_tz: r.availability.tz, p_weekly: r.availability.weekly, p_overrides: r.availability.overrides });
+}
+
+/**
+ * A named schedule (docs/app-structure.md 6.4): your own, or anyone's for owners. `id` null adds one; the hours are
+ * checked like the default hours. Returns the schedule's id.
+ */
+export async function saveSchedule(rpc: Rpc, a: Actor, user: unknown, id: unknown, name: unknown, raw: unknown): Promise<string> {
+  const { role, ids } = await roleOf(rpc, a);
+  const who = typeof user === "string" && user ? user : a.user;
+  if (!ids.has(who)) throw new Refused(404, "Person not found.");
+  if (who !== a.user && role !== "owner") throw new Refused(403, "Only owners can change someone else's hours.");
+  const n = typeof name === "string" ? name.trim().slice(0, 60) : "";
+  if (!n) throw new Refused(400, "Name the schedule.");
+  if (/^working hours$/i.test(n)) throw new Refused(409, "Working hours is your default schedule.");
+  const r = checkAvailability(raw);
+  if ("errors" in r) throw new Refused(400, r.errors[0]!, r.errors);
+  const sid = typeof id === "string" && UUID.test(id) ? id : null;
+  return call<string>(rpc, "schedule_save", { p_ws: a.ws, p_user: who, p_id: sid, p_name: n, p_tz: r.availability.tz, p_weekly: r.availability.weekly, p_overrides: r.availability.overrides });
+}
+
+export async function deleteSchedule(rpc: Rpc, a: Actor, user: unknown, id: unknown): Promise<void> {
+  const { role, ids } = await roleOf(rpc, a);
+  const who = typeof user === "string" && user ? user : a.user;
+  if (!ids.has(who)) throw new Refused(404, "Person not found.");
+  if (who !== a.user && role !== "owner") throw new Refused(403, "Only owners can change someone else's hours.");
+  if (typeof id !== "string" || !UUID.test(id)) throw new Refused(404, "Schedule not found.");
+  await call(rpc, "schedule_delete", { p_ws: a.ws, p_user: who, p_id: id });
 }
 
 export async function saveProfile(rpc: Rpc, a: Actor, raw: unknown): Promise<void> {

@@ -3,14 +3,19 @@
 import type { Session } from "@supabase/supabase-js";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { getSupabase, type SupaConfig } from "@/lib/supa";
-import { NAV, resolveRoute, routingPage, type Route as NavRoute } from "@/lib/nav";
-import { BarChart, Box, Branch, CalendarIcon, Contact, Dollar, FileText, FormIcon, ListIcon, LogOut, Mail, Megaphone, Moon, Search, Settings, Signpost, Sun, Users } from "../Icons";
+import { enrichmentPage, NAV, resolveRoute, routingPage, schedulingPage, signalsPage } from "@/lib/nav";
+import { Check, LogOut, Moon, Sun } from "../Icons";
 import { Logo } from "../Logo";
 import { AuthScreen } from "./AuthScreen";
 import { Dots } from "./Ai";
 import { CommandBar, type Command } from "./CommandBar";
 import { DialogHost } from "./Dialogs";
-import { Avatar, ErrorNote, errorText, mayLeave, must, type Role, type Route, type ViewProps, type Workspace } from "./ui";
+import { ErrorNote, errorText, mayLeave, must, type Role, type Route, type ViewProps, type Workspace } from "./ui";
+import { GetStarted } from "./GetStarted";
+import { NAV_ICONS, Sidebar, type CreateItem } from "./Sidebar";
+import { EnrichmentView } from "./enrichment/EnrichmentView";
+import { SchedulingView } from "./scheduling/SchedulingView";
+import { SignalsView } from "./signals/SignalsView";
 import { ContactsView } from "./views/ContactsView";
 import { CompaniesView, ObjectsView, OpportunitiesView } from "./views/RecordsViews";
 import { SegmentsView } from "./views/SegmentsView";
@@ -22,23 +27,7 @@ import { RoutingView } from "./routing/RoutingView";
 import { NurtureView } from "./views/NurtureView";
 import { SettingsView } from "./views/SettingsView";
 
-// One icon per screen. The sidebar's groups are in src/lib/nav.ts.
-const ICONS: Record<NavRoute, React.ReactNode> = {
-  contacts: <Contact size={15} />,
-  companies: <Users size={15} />,
-  opportunities: <Dollar size={15} />,
-  meetings: <CalendarIcon size={15} />,
-  routing: <Signpost size={15} />,
-  objects: <Box size={15} />,
-  segments: <ListIcon size={15} />,
-  templates: <Mail size={15} />,
-  workflows: <Branch size={15} />,
-  analytics: <BarChart size={15} />,
-  forms: <FormIcon size={15} />,
-  pages: <FileText size={15} />,
-  ads: <Megaphone size={15} />,
-  settings: <Settings size={15} />,
-};
+const GROUP_LABEL = { crm: "CRM", automation: "Automation", routing: "Routing", scheduling: "Scheduling", email: "Email", site: "Site", ads: "App", settings: "App" } as const;
 
 type Loc = { route: Route; id: string };
 const WITH_ID = new Set<Route>(["contacts", "companies", "opportunities", "segments", "forms", "workflows"]);
@@ -53,12 +42,14 @@ const readLoc = (): Loc => {
   // Settings pages: /settings/<page>.
   if (r.route === "settings") return { route: r.route, id: /^[a-z_]{2,30}$/.test(a) ? a : "" };
   if ((r.route === "segments" || r.route === "forms" || r.route === "workflows") && a === "new") return { route: r.route, id: a };
-  // Meetings: /meetings/<id>, /meetings/types and /meetings/types/<id or new>.
-  if (r.route === "meetings") return { route: r.route, id: a === "types" ? (uuid(b) || b === "new" ? `types/${b}` : "types") : uuid(a) ? a : "" };
-  // Routing: /routing/reps, /routing/log, /routing/log/<run>, /routing/held and /routing/versions/<n>.
+  // Meetings: /meetings/<id>.
+  if (r.route === "meetings") return { route: r.route, id: uuid(a) ? a : "" };
+  // Pages inside a route (src/lib/nav.ts).
   if (r.route === "routing") return { route: r.route, id: routingPage(r.id).id };
-  // Companies: the live visit feed, and an old account link that finds its company.
-  if (r.route === "companies" && a === "visits") return { route: r.route, id: a };
+  if (r.route === "scheduling") return { route: r.route, id: schedulingPage(r.id).id };
+  if (r.route === "signals") return { route: r.route, id: signalsPage(r.id).id };
+  if (r.route === "enrichment") return { route: r.route, id: enrichmentPage(r.id).id };
+  // Companies: an old account link that finds its company.
   if (r.route === "companies" && a === "account" && uuid(b)) return { route: r.route, id: `account/${b}` };
   return { route: r.route, id: WITH_ID.has(r.route) && uuid(a) ? a : "" };
 };
@@ -95,7 +86,7 @@ export function ClientApp({ config }: { config: SupaConfig }) {
   const [session, setSession] = useState<Session | null | undefined>(undefined);
   const [ws, setWs] = useState<Workspace | null>(null);
   const [role, setRole] = useState<Role>("member");
-  const [loc, setLoc] = useState<Loc>({ route: "forms", id: "" });
+  const [loc, setLoc] = useState<Loc>({ route: "contacts", id: "" });
   const [error, setError] = useState("");
   const [searching, setSearching] = useState(false);
   const { theme, flip } = useTheme();
@@ -125,7 +116,8 @@ export function ClientApp({ config }: { config: SupaConfig }) {
       setLoc(l);
       // Old and unknown addresses show where they landed.
       const want = `/${l.route}${l.id ? `/${l.id}` : ""}`;
-      if (window.location.pathname !== want && !(l.route === "settings" && !l.id)) window.history.replaceState(null, "", want + window.location.search);
+      if (window.location.pathname !== want && !(l.route === "settings" && !l.id) && !(l.route === "scheduling" && l.id === "types" && window.location.pathname === "/scheduling"))
+        window.history.replaceState(null, "", want + window.location.search);
     };
     sync();
     window.addEventListener("popstate", sync);
@@ -163,6 +155,25 @@ export function ClientApp({ config }: { config: SupaConfig }) {
     return () => window.removeEventListener("claritia:changed", load);
   }, [sb, ws]);
 
+  // Counts in the sidebar: leads waiting in Needs review, and today's meetings.
+  const [counts, setCounts] = useState<Partial<Record<string, number>>>({});
+  useEffect(() => {
+    if (!ws) return;
+    const load = async () => {
+      const start = new Date();
+      start.setHours(0, 0, 0, 0);
+      const end = new Date(start.getTime() + 86_400_000);
+      const [review, today] = await Promise.all([
+        sb.from("contacts").select("id", { count: "exact", head: true }).eq("workspace_id", ws.id).in("route_status", ["held", "unassigned"]).is("deleted_at", null),
+        sb.from("meetings").select("id", { count: "exact", head: true }).eq("workspace_id", ws.id).in("status", ["booked", "held"]).gte("start_at", start.toISOString()).lt("start_at", end.toISOString()),
+      ]);
+      setCounts({ "routing/review": review.count ?? 0, meetings: today.count ?? 0 });
+    };
+    void load();
+    window.addEventListener("claritia:changed", load);
+    return () => window.removeEventListener("claritia:changed", load);
+  }, [sb, ws]);
+
   // Pages with unsaved changes get to ask first.
   const navigate = useCallback((r: Route, id = "", query = "") => {
     mayLeave().then((ok) => {
@@ -189,49 +200,24 @@ export function ClientApp({ config }: { config: SupaConfig }) {
   const props: ViewProps = { sb, session, ws, role, navigate, id: loc.id };
   const email = session.user.email ?? "";
 
-  const objectLinks = customObjects.map((o) => {
-    const on = route === "objects" && (loc.id === o.key || loc.id.startsWith(`${o.key}/`));
-    return (
-      <a
-        key={`o-${o.key}`}
-        href={`/objects/${o.key}`}
-        onClick={(e) => {
-          e.preventDefault();
-          navigate("objects", o.key);
-        }}
-        aria-current={on && loc.id === o.key ? "page" : undefined}
-        className={`flex h-9 shrink-0 items-center gap-2.5 rounded-full px-3.5 text-[13.5px] font-medium transition-colors duration-[140ms] ${on ? "bg-ink text-paper" : "text-body hover:bg-hover hover:text-ink"}`}
-      >
-        <span className={on ? "text-paper" : "text-muted"}>{ICONS.objects}</span>
-        <span className="truncate">{o.plural}</span>
-      </a>
-    );
-  });
-  const navLinks = NAV.map((n) => [
-    n.group !== undefined ? (
-      <p key={`g-${n.route}`} className={`hidden px-3.5 text-[12px] text-faint md:block ${n.group ? "mt-4 mb-1" : "mx-3.5 mt-3 mb-2 h-px bg-line px-0"}`}>
-        {n.group}
-      </p>
-    ) : null,
-    <a
-      key={n.route}
-      href={`/${n.route}`}
-      onClick={(e) => {
-        e.preventDefault();
-        navigate(n.route);
-      }}
-      aria-current={route === n.route && !loc.id ? "page" : undefined}
-      className={`flex h-9 shrink-0 items-center gap-2.5 rounded-full px-3.5 text-[13.5px] font-medium transition-colors duration-[140ms] ${route === n.route ? "bg-ink text-paper" : "text-body hover:bg-hover hover:text-ink"}`}
-    >
-      <span className={route === n.route ? "text-paper" : "text-muted"}>{ICONS[n.route]}</span>
-      {n.label}
-    </a>,
-    n.route === "opportunities" ? objectLinks : null,
-  ]);
+  const create: CreateItem[] = [
+    { group: "CRM", label: "Contact", run: () => navigate("contacts", "", "create=1") },
+    { group: "CRM", label: "Opportunity", run: () => navigate("opportunities", "", "create=1") },
+    { group: "Automation", label: "Workflow", run: () => navigate("workflows", "new") },
+    { group: "Automation", label: "Form", run: () => navigate("forms", "new") },
+    { group: "Routing", label: "Rule", run: () => navigate("routing", "rules", "create=1") },
+    { group: "Routing", label: "Team", run: () => navigate("routing", "teams", "create=1") },
+    { group: "Scheduling", label: "Meeting type", run: () => navigate("scheduling", "types/new") },
+    { group: "Scheduling", label: "Single-use link", run: () => navigate("scheduling", "links", "create=single_use") },
+    { group: "Scheduling", label: "Poll", run: () => navigate("scheduling", "links", "create=poll") },
+    { group: "Scheduling", label: "Booking form", run: () => navigate("scheduling", "forms", "create=1") },
+  ];
 
   const commands: Command[] = [
-    ...NAV.map((n) => ({ id: n.route, label: n.label, group: n.group || "App", icon: ICONS[n.route], run: () => navigate(n.route) })),
-    ...customObjects.map((o) => ({ id: `o-${o.key}`, label: o.plural, group: "CRM", icon: ICONS.objects, run: () => navigate("objects", o.key) })),
+    ...NAV.map((n) => ({ id: n.key, label: n.label, group: GROUP_LABEL[n.group], icon: NAV_ICONS[n.key] ?? NAV_ICONS[n.route], run: () => navigate(n.route, n.page) })),
+    ...customObjects.map((o) => ({ id: `o-${o.key}`, label: o.plural, group: "CRM", icon: NAV_ICONS.objects, run: () => navigate("objects", o.key) })),
+    ...create.map((c) => ({ id: `create-${c.label}`, label: `New ${c.label.toLowerCase()}`, group: "Create", icon: NAV_ICONS.objects, run: c.run })),
+    { id: "get-started", label: "Get started", group: "App", icon: <Check size={15} />, run: () => window.dispatchEvent(new Event("claritia:get-started")) },
     ...routingCommands,
     { id: "theme", label: theme === "dark" ? "Light mode" : "Dark mode", group: "Look", icon: theme === "dark" ? <Sun size={15} /> : <Moon size={15} />, run: flip },
     { id: "out", label: "Sign out", group: "Account", icon: <LogOut size={15} />, run: () => void sb.auth.signOut() },
@@ -242,32 +228,21 @@ export function ClientApp({ config }: { config: SupaConfig }) {
       <DialogHost />
       {searching ? <CommandBar onClose={() => setSearching(false)} commands={commands} /> : null}
       {/* Side rail on wide screens, a top bar on phones */}
-      <aside className="flex shrink-0 flex-col gap-3 p-3 md:h-full md:w-60 md:py-4">
-        <div className="flex items-center justify-between gap-2 px-2">
-          <Logo />
-          <span className="truncate text-[12px] text-faint">{ws.name}</span>
-        </div>
-        <button
-          type="button"
-          onClick={() => setSearching(true)}
-          className="hidden h-9 items-center gap-2 rounded-full border border-line bg-card px-3.5 text-[13px] text-muted transition-colors duration-[140ms] hover:border-line-strong hover:text-ink md:flex"
-        >
-          <Search size={14} />
-          <span className="flex-1 text-left">Search</span>
-          <kbd className="font-mono text-[11px] text-faint">⌘K</kbd>
-        </button>
-        <nav className="flex gap-1 overflow-x-auto md:flex-col md:gap-0.5 md:overflow-visible">{navLinks}</nav>
-        <div className="mt-auto hidden items-center gap-1 px-1 pt-3 md:flex">
-          <Avatar label={email} size={28} />
-          <span className="ml-1 min-w-0 flex-1 truncate text-[12.5px] text-body">{email}</span>
-          <button type="button" aria-label={theme === "dark" ? "Light mode" : "Dark mode"} title={theme === "dark" ? "Light mode" : "Dark mode"} onClick={flip} className="press rounded-full p-2 text-muted hover:bg-hover hover:text-ink">
-            {theme === "dark" ? <Sun size={15} /> : <Moon size={15} />}
-          </button>
-          <button type="button" aria-label="Sign out" title="Sign out" onClick={() => sb.auth.signOut()} className="press rounded-full p-2 text-muted hover:bg-hover hover:text-ink">
-            <LogOut size={15} />
-          </button>
-        </div>
-      </aside>
+      <Sidebar
+        route={route}
+        id={loc.id}
+        navigate={navigate}
+        objects={customObjects}
+        counts={counts}
+        wsName={ws.name}
+        email={email}
+        theme={theme}
+        onTheme={flip}
+        onSignOut={() => void sb.auth.signOut()}
+        onSearch={() => setSearching(true)}
+        create={create}
+        start={<GetStarted sb={sb} ws={ws} session={session} navigate={navigate} />}
+      />
       <main className="min-h-0 min-w-0 flex-1 overflow-hidden border-line bg-card md:my-2.5 md:mr-2.5 md:rounded-3xl md:border">
         {error ? (
           <div className="border-b border-line p-3">
@@ -284,6 +259,12 @@ export function ClientApp({ config }: { config: SupaConfig }) {
           <MeetingsView key={loc.id} {...props} />
         ) : route === "routing" ? (
           <RoutingView key="routing" {...props} />
+        ) : route === "scheduling" ? (
+          <SchedulingView key={loc.id.split("/")[0]} {...props} />
+        ) : route === "signals" ? (
+          <SignalsView {...props} />
+        ) : route === "enrichment" ? (
+          <EnrichmentView {...props} />
         ) : route === "objects" ? (
           <ObjectsView key={loc.id.split("/")[0]} {...props} />
         ) : route === "segments" ? (

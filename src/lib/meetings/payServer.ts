@@ -78,7 +78,7 @@ export async function connectLink(rpc: Rpc, stripe: Stripe, ws: string, existing
     const { error } = await rpc("payment_account_set", { p_ws: ws, p_account: account, p_ready: !!a.charges_enabled });
     if (error) throw new Error(error.message);
   }
-  const back = `${appBase()}/settings/payments`;
+  const back = `${appBase()}/scheduling/payments`;
   const link = await stripe.accountLinks.create({ account, type: "account_onboarding", refresh_url: `${back}?stripe=retry`, return_url: `${back}?stripe=done` });
   return link.url;
 }

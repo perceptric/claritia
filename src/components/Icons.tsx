@@ -414,3 +414,84 @@ export const Bell = (p: P) => (
     <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />
   </Svg>
 );
+
+export const Radar = (p: P) => (
+  <Svg {...p}>
+    <path d="M19.07 4.93A10 10 0 1 0 22 12" />
+    <path d="M16.24 7.76A6 6 0 1 0 18 12" />
+    <circle cx="12" cy="12" r="2" />
+    <path d="m13.4 10.6 6-6" />
+  </Svg>
+);
+
+export const Layers = (p: P) => (
+  <Svg {...p}>
+    <path d="m12 2 10 5-10 5L2 7l10-5Z" />
+    <path d="m2 17 10 5 10-5M2 12l10 5 10-5" />
+  </Svg>
+);
+
+export const Flag = (p: P) => (
+  <Svg {...p}>
+    <path d="M4 22V4M4 4h13l-2 4 2 4H4" />
+  </Svg>
+);
+
+export const Swap = (p: P) => (
+  <Svg {...p}>
+    <path d="M16 3l4 4-4 4M20 7H4M8 21l-4-4 4-4M4 17h16" />
+  </Svg>
+);
+
+export const Building = (p: P) => (
+  <Svg {...p}>
+    <rect x="4" y="3" width="16" height="18" rx="2" />
+    <path d="M9 7h1M14 7h1M9 11h1M14 11h1M9 15h1M14 15h1M10 21v-3h4v3" />
+  </Svg>
+);
+
+export const Card = (p: P) => (
+  <Svg {...p}>
+    <rect x="2" y="5" width="20" height="14" rx="2" />
+    <path d="M2 10h20M6 15h4" />
+  </Svg>
+);
+
+export const Mic = (p: P) => (
+  <Svg {...p}>
+    <rect x="9" y="2" width="6" height="12" rx="3" />
+    <path d="M5 10a7 7 0 0 0 14 0M12 17v5" />
+  </Svg>
+);
+
+export const History = (p: P) => (
+  <Svg {...p}>
+    <path d="M3 12a9 9 0 1 0 3-6.7L3 8" />
+    <path d="M3 3v5h5M12 7v5l3 2" />
+  </Svg>
+);
+
+export const Gauge = (p: P) => (
+  <Svg {...p}>
+    <path d="M12 14l4-4" />
+    <path d="M3.3 19a10 10 0 1 1 17.4 0" />
+  </Svg>
+);
+
+export const ChevronDown = (p: P) => (
+  <Svg {...p}>
+    <path d="m6 9 6 6 6-6" />
+  </Svg>
+);
+
+export const ExternalLink = (p: P) => (
+  <Svg {...p}>
+    <path d="M15 3h6v6M10 14 21 3M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+  </Svg>
+);
+
+export const Shuffle = (p: P) => (
+  <Svg {...p}>
+    <path d="M16 3h5v5M4 20 21 3M21 16v5h-5M15 15l6 6M4 4l5 5" />
+  </Svg>
+);

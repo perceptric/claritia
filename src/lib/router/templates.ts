@@ -7,9 +7,9 @@ import { emptyBody, type Queue, type Rule, type RouterBody } from "./types.ts";
 export type TemplateId = "round_robin" | "territories" | "owner_first";
 
 export const TEMPLATES: { id: TemplateId; name: string; text: string }[] = [
-  { id: "round_robin", name: "Round robin", text: "Everyone shares" },
-  { id: "territories", name: "Territories", text: "A queue per region" },
-  { id: "owner_first", name: "Owner first", text: "Accounts keep their owner" },
+  { id: "round_robin", name: "Everyone takes turns", text: "One team shares every lead" },
+  { id: "territories", name: "By region", text: "A team for each region" },
+  { id: "owner_first", name: "Company owner first", text: "Known companies keep their rep" },
 ];
 
 const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "").slice(0, 30) || "x";

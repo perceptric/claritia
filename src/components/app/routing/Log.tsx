@@ -145,7 +145,7 @@ export function LogTab({ sb, session, ws, role, navigate, sub }: Props) {
   const shown = useMemo(() => (rows ?? []).filter((r) => matchesSearch(r, q)), [rows, q]);
   const filtered = Object.values(filters).some(Boolean) || !!q.trim();
   const set = (k: keyof LogFilters) => (v: string) => changeFilters({ ...filters, [k]: v });
-  const open = (id: string) => navigate(ROUTING, `log/${id}`);
+  const open = (id: string) => navigate(ROUTING, `history/${id}`);
   const openId = UUID.test(sub) ? sub : "";
 
   return (
@@ -156,7 +156,7 @@ export function LogTab({ sb, session, ws, role, navigate, sub }: Props) {
           <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search" aria-label="Search by name, email or domain" className="h-9 pl-8" />
         </div>
         <FilterChip label="Owner" value={filters.owner} onChange={set("owner")} options={[{ value: "", label: "Anyone" }, ...(people.data?.list ?? []).map((p) => ({ value: p.id, label: p.name }))]} />
-        <FilterChip label="Queue" value={filters.queue} onChange={set("queue")} options={[{ value: "", label: "Any queue" }, ...(body?.queues ?? []).map((x) => ({ value: x.id, label: x.name }))]} />
+        <FilterChip label="Team" value={filters.queue} onChange={set("queue")} options={[{ value: "", label: "Any team" }, ...(body?.queues ?? []).map((x) => ({ value: x.id, label: x.name }))]} />
         <FilterChip label="Rule" value={filters.rule} onChange={set("rule")} options={[{ value: "", label: "Any rule" }, ...(body?.rules.list ?? []).map((x) => ({ value: x.id, label: x.name }))]} />
         <FilterChip
           label="Result"
@@ -269,7 +269,7 @@ export function LogTab({ sb, session, ws, role, navigate, sub }: Props) {
         </div>
       )}
 
-      {openId ? <RunPanel sb={sb} session={session} ws={ws} role={role} navigate={navigate} runId={openId} onClose={() => navigate(ROUTING, "log")} /> : null}
+      {openId ? <RunPanel sb={sb} session={session} ws={ws} role={role} navigate={navigate} runId={openId} onClose={() => navigate(ROUTING, "history")} /> : null}
     </div>
   );
 }
@@ -381,9 +381,9 @@ export function RunPanel({ sb, session, ws, navigate, runId, onClose, onRouted }
   const lines = r ? explain(decisionOf(r), factsOf(r, names), { territories: live.data?.body.territories }) : [];
   const lead = r ? leadOf(r) : null;
   const onLink: LinkTo = (p) => {
-    if (p.kind === "user") navigate(ROUTING, "reps");
+    if (p.kind === "user") navigate(ROUTING, "teams");
     else if (p.kind === "company") navigate("companies", p.id);
-    else navigate(ROUTING);
+    else navigate(ROUTING, "rules");
   };
 
   const again = async () => {
@@ -413,7 +413,7 @@ export function RunPanel({ sb, session, ws, navigate, runId, onClose, onRouted }
             <Button variant="ghost" size="sm" onClick={() => navigate("contacts", r.contact_id!)}>
               Open contact
             </Button>
-            <Button variant="ghost" size="sm" onClick={() => navigate(ROUTING, "", `test=${r.contact_id}`)}>
+            <Button variant="ghost" size="sm" onClick={() => navigate(ROUTING, "rules", `test=${r.contact_id}`)}>
               Test draft
             </Button>
             <Button size="sm" onClick={again} disabled={busy}>
