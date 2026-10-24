@@ -4,6 +4,8 @@ Status: plan, waiting for a yes. This is the detail for M3 in `docs/meetings-pla
 routing). It builds on what's built: contacts and companies with owners, the CRM sync, instant booking in forms, the
 meeting types' round robin and the jobs queue.
 
+Screens, workflows and the code behind them: `docs/router-ux.md`.
+
 **In one line:** every new lead goes through one router, in under 150 ms, and comes out with an owner, a log that says
 why in plain sentences, and (from a form) the right rep's times on the calendar.
 
