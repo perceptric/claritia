@@ -32,11 +32,12 @@ export const routeJob =
     const contact = String(p.contact ?? "");
     const reason = String(p.reason ?? "api");
     const key = String(p.key ?? job.key ?? "");
-    if (!UUID.test(contact) || !REASON_SET.has(reason) || !key) throw new JobError("route needs a contact, a reason and a key", { retry: false });
-    if (reason === "sla") return passOn(rpc, job.workspace_id, contact, key, String(p.sla ?? ""));
-    if (p.undo === true) await call(rpc, "router_undo", { p_ws: job.workspace_id, p_contact: contact });
+    const ws = job.workspace_id;
+    if (!ws || !UUID.test(contact) || !REASON_SET.has(reason) || !key) throw new JobError("route needs a workspace, a contact, a reason and a key", { retry: false });
+    if (reason === "sla") return passOn(rpc, ws, contact, key, String(p.sla ?? ""));
+    if (p.undo === true) await call(rpc, "router_undo", { p_ws: ws, p_contact: contact });
     const byUser = typeof p.byUser === "string" && UUID.test(p.byUser) ? p.byUser : null;
-    await route(rpc, { ws: job.workspace_id, contact, key, reason: reason as Reason, byUser, force: p.undo === true });
+    await route(rpc, { ws, contact, key, reason: reason as Reason, byUser, force: p.undo === true });
   };
 
 type SlaInfo = {
