@@ -112,7 +112,7 @@ export function explain(d: Decision, f: Facts, o: { fields?: FieldDef[]; territo
         const unit = s.queue.method === "load" ? "meetings this week" : `of the last ${s.window}`;
         const more = s.others.map((x): Part[] => [user(x.user), x.why ? ` ${whyWords(x.why, x.until, f.reps[x.user], f.now)}.` : s.queue.method === "load" ? ` has ${x.n} meetings this week.` : ` had ${x.n}.`]);
         if (!s.picked) return { step: s.step, mark: "miss", title, parts: [q, `, ${METHOD_WORDS[s.queue.method]}. No one can take it.`], ...(more.length ? { more } : {}) };
-        const had = s.queue.method === "load" ? ` has ${s.pickedN ?? 0} ${unit}.` : ` had ${s.pickedN ?? 0} ${unit}.`;
+        const had = s.queue.method === "load" ? ` has ${s.pickedN ?? 0} ${unit}.` : s.window === 0 ? " takes the queue's first lead." : ` had ${s.pickedN ?? 0} ${unit}.`;
         return { step: s.step, mark: "ok", title, parts: [q, `, ${METHOD_WORDS[s.queue.method]}. `, user(s.picked), had], ...(more.length ? { more } : {}) };
       }
       case "hand":

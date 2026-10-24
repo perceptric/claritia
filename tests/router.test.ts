@@ -133,6 +133,7 @@ test("engine: the first matching rule picks the queue; round robin by count, the
   assert.match(text, /"US mid-market" matched/);
   assert.match(text, /US mid-market, round robin\. Lee Park had 3 of the last 10\./);
   assert.equal(pathWords(d), "Rule: US mid-market → round robin");
+  assert.match(plain(decide(body(), facts()), facts()), /Lee Park takes the queue's first lead\./, "a new queue reads plainly");
 });
 
 test("engine: paused, out, caps and hours are skipped, with the reason kept", () => {

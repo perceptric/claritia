@@ -1,6 +1,6 @@
 # M3 Router: screens, workflows and how they work
 
-Status: plan, waiting for a yes. `docs/router.md` says what the router does. This file says how people use it: every
+Status: built (October 2026); what's left is in `docs/router.md` Part 16. `docs/router.md` says what the router does. This file says how people use it: every
 screen and state, every workflow from start to finish, and the code behind each one. Brand and copy rules come from
 `CLAUDE.md` and `docs/brand.md`.
 

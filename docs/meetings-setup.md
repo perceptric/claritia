@@ -85,3 +85,9 @@ Beta is 50 teams with about 7,500 meetings a month; Growth is 500 teams with abo
 | Stripe for paid types (fees come out of each payment) | $0 | $0 |
 | Claude tokens (none) | $0 | $0 |
 | **Added per month** | **about $4** | **about $75 to $100** |
+
+## Routing
+
+Run `supabase/migrations/064_router.sql` after 053 to 063. Routing alerts go to a Slack incoming webhook set in
+Routing › Router › Alerts (sealed with `SECRETS_KEY`), or by email through the same SES mailer as meeting emails.
+

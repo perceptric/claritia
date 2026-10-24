@@ -1,6 +1,6 @@
 # M3 Router: every lead to the right rep
 
-Status: plan, waiting for a yes. This is the detail for M3 in `docs/meetings-plan.md` (Chili Piper Distro, Default's
+Status: built (October 2026). What shipped and what's left is in Part 16. This is the detail for M3 in `docs/meetings-plan.md` (Chili Piper Distro, Default's
 routing). It builds on what's built: contacts and companies with owners, the CRM sync, instant booking in forms, the
 meeting types' round robin and the jobs queue.
 
@@ -352,3 +352,28 @@ at Growth (1,000,000 runs).
    This plan says off by default, so turning on Claritia never changes owners in a team's CRM on its own.
 3. **SLA timers** (lead goes back to the queue if the owner doesn't act) come right after, in M3's second week, on
    top of the runs and reps built here.
+
+---
+
+## Part 16. Built, and what's left
+
+| Built | Where |
+|---|---|
+| Engine, spam signals, conditions, sentences, checks, version changes, templates and the move from `lead_settings` | `src/lib/router/*`, tests in `tests/router.test.ts` |
+| Tables, facts, the commit that takes the queue's turn under a lock, drafts, versions, reps, lists, stats, alerts info, background queueing | `supabase/migrations/064_router.sql`, tests in `tests/pg/router.pg.ts` |
+| Routing in the form send (300 ms, then a job with the same key), owner-first booking with the routed rep | `src/lib/forms/submit.ts`, `src/lib/meetings/server.ts` |
+| Jobs: `route` (CRM, imports, MQLs, Route again) and `router_alert` (Slack, else email) | `worker-intel/jobs/router.ts` |
+| API and MCP tools (`get_router`, `route_explain`, `route_test`, `route_suggest`) | `src/app/api/routing/route.ts`, `src/lib/router/actions.ts`, `src/lib/router/mcp.ts` |
+| Screens: first screen, editor with the lit test path, Test, Replay, Publish, Versions, Reps, Log with the run panel, Held, contact page, ⌘K, import and CRM toggles, CRM owners | `src/components/app/routing/*`, `scripts/screens-check.ts` |
+
+Left:
+
+- Reps shows out-of-office dates set by hand; calendar out-of-office blocks count in routing but don't show on Reps yet.
+- Reps' Today and This week meters count from the browser's day and week; the router itself uses the rep's time zone.
+- Replay runs in one request (up to 5,000 leads); there's no background job or progress bar.
+- The editor stacks below 1,024 px instead of going read-only; reps can't be dragged between queues.
+- SLA timers (a lead goes back to the queue when the owner doesn't act) come next, in M3's second week.
+
+**Running cost:** as in `docs/router-ux.md` Part 10: about $3 a month at Beta and about $100 at Growth (check), with no
+Claude tokens.
+
