@@ -55,7 +55,8 @@ export const ipLookup = (pool: pg.Pool, deps: CompanyDeps): Handler => async (jo
   }
 };
 
-/** enrich_company: company data by domain (shared cache, 30 days), written to every account on that domain. */
+/** enrich_company: company data by domain (shared cache, 30 days), written to every account on that domain and to the
+ * workspace's company there. */
 export const enrichCompany = (pool: pg.Pool, deps: CompanyDeps): Handler => async (job) => {
   const clean = cleanDomain(String(job.payload.domain ?? job.key ?? ""));
   if (!clean) throw new JobError("enrich_company needs a domain", { retry: false });
@@ -82,6 +83,8 @@ export const enrichCompany = (pool: pg.Pool, deps: CompanyDeps): Handler => asyn
   const d = row.data as { not_found?: boolean; name?: string | null };
   if (d.not_found) return;
   await pool.query(`update accounts set name = coalesce($2, name), firmo = $3, firmo_at = now() where domain = $1`, [domain, d.name ?? null, JSON.stringify(d)]);
+  // The workspace's company on that domain gets the same values, by field order and with history.
+  if (job.workspace_id) await pool.query(`select enrich_write_company($1, 'coresignal', $2, false)`, [job.workspace_id, JSON.stringify({ ...d, domain })]);
 };
 
 /** identity_changed: a person's visits get their account again (90 days), and changed accounts are rescored. */

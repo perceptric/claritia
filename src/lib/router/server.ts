@@ -214,12 +214,26 @@ export async function readFacts(
   if (raw.existing) return { existing: raw.existing };
   const facts = toFacts(raw, o.reason, o.now);
   facts.lead.disposable = await disposable(raw.contact.email_clean ?? raw.contact.email);
+  // The columns enrichment and qualify added (068_enrichment.sql).
+  if (raw.contact.id) {
+    const more = await call<{ seniority?: string; department?: string; qualify?: string; employees?: number } | null>(rpc, "router_facts_more", { p_contact: raw.contact.id }).catch(() => null);
+    facts.values["contact.seniority"] = more?.seniority ?? null;
+    facts.values["contact.department"] = more?.department ?? null;
+    facts.values["lead.qualify"] = more?.qualify ?? null;
+    facts.values["company.employees"] = more?.employees ?? null;
+  }
   return { facts, raw };
 }
 
 export type Routed =
   | { status: "ok" | "dup"; run: string; decision: Decision | null; result: Decision["result"] }
   | { status: "no_router" | "paused" | "gone" | "spam" };
+
+/** Whether a body's rules or company types test the qualify outcome. */
+export function usesQualify(body: RouterBody): boolean {
+  const test = (conds: { field: string }[] | undefined) => !!conds?.some((c) => c.field === "lead.qualify");
+  return (body.rules.on && body.rules.list.some((r) => r.on !== false && test(r.conds))) || !!body.segments?.some((sg) => test(sg.conds));
+}
 
 /** The live router's body and version, and whether routing is paused. */
 export async function liveRouter(rpc: Rpc, ws: string): Promise<{ version: number; body: RouterBody; paused?: boolean } | null> {
@@ -246,6 +260,8 @@ export async function route(
     before?: StepResult[];
     live?: { version: number; body: RouterBody; paused?: boolean } | null;
     now?: () => number;
+    /** Qualify the lead now (enrich/server.ts qualifyContact), for a body whose rules test its outcome. */
+    qualify?: (contact: string) => Promise<unknown>;
   },
 ): Promise<Routed> {
   const live = o.live === undefined ? await liveRouter(rpc, o.ws) : o.live;
@@ -253,6 +269,10 @@ export async function route(
   // Paused: new leads keep the owner they come with.
   if (live.paused) return { status: "paused" };
   const t0 = Date.now();
+  // A rule that tests the qualify outcome waits for it, up to 3 seconds; with none by then the lead goes on without.
+  if (o.qualify && usesQualify(live.body)) {
+    await Promise.race([o.qualify(o.contact).catch(() => undefined), new Promise((r) => setTimeout(r, 3000))]);
+  }
   for (let tries = 0; tries < 3; tries++) {
     const now = o.now?.() ?? Date.now();
     const read = await readFacts(rpc, { ws: o.ws, contact: o.contact, key: o.key, body: live.body, reason: o.reason, now });

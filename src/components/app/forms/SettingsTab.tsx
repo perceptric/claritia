@@ -8,7 +8,7 @@ import type { Op } from "@/lib/forms/ops";
 import type { Form } from "@/lib/forms/schema";
 import { Segmented, type ViewProps } from "../ui";
 import { FormDestinations } from "./FormDestinations";
-import { AfterSubmit, afterKind, ConsentSettings, SpamSettings } from "./FormSettings";
+import { AfterSubmit, afterKind, ConsentSettings, KnownSettings, SpamSettings } from "./FormSettings";
 import type { Brand } from "./Preview";
 import { FormPreview, type Destination, type SourceRow } from "./shared";
 
@@ -25,6 +25,7 @@ export type SettingsTabProps = Pick<ViewProps, "sb" | "session" | "ws" | "role" 
 const SECTIONS = [
   { id: "after", label: "After submit" },
   { id: "destinations", label: "Destinations" },
+  { id: "known", label: "Known fields" },
   { id: "consent", label: "Consent" },
   { id: "spam", label: "Spam" },
 ] as const;
@@ -52,7 +53,7 @@ export function SettingsTab({ form, apply, sb, session, ws, role, navigate, form
     document.getElementById(id)?.scrollIntoView({ behavior: still ? "auto" : "smooth", block: "start" });
     setActive(id);
   };
-  const notes: Record<SectionId, string> = { after: AFTER_NOTE[afterKind(form)], destinations: String(dests.length + 1), consent: "", spam: "" };
+  const notes: Record<SectionId, string> = { after: AFTER_NOTE[afterKind(form)], destinations: String(dests.length + 1), known: form.enrich?.hideKnown ? String(form.enrich.fields.length) : "", consent: "", spam: "" };
   return (
     <div ref={box} onScroll={spy} className="h-full overflow-auto bg-paper">
       <div className="mx-auto grid max-w-[1320px] gap-6 p-4 md:p-8 lg:grid-cols-[176px_minmax(0,1fr)] lg:gap-8 xl:grid-cols-[176px_minmax(0,1fr)_400px]">
@@ -74,6 +75,7 @@ export function SettingsTab({ form, apply, sb, session, ws, role, navigate, form
         <div className="flex min-w-0 flex-col gap-6 pb-16">
           <AfterSubmit form={form} apply={apply} sb={sb} ws={ws} session={session} role={role} />
           <FormDestinations sb={sb} session={session} ws={ws} formId={formId} list={dests} sources={sources} reload={reload} navigate={navigate} />
+          <KnownSettings form={form} apply={apply} />
           <ConsentSettings form={form} apply={apply} sb={sb} ws={ws} />
           <SpamSettings form={form} apply={apply} />
         </div>

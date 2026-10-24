@@ -12,6 +12,7 @@ import { leadRoutedEmail, mime, slaEmail, validAddress } from "../../src/lib/mee
 import { buttons, esc, fields, section, slackDm, tokenOf } from "../../src/lib/slack/app.ts";
 import { explain, minutesWords, partText, pathWords } from "../../src/lib/router/explain.ts";
 import { route } from "../../src/lib/router/server.ts";
+import { qualifyContact } from "../../src/lib/enrich/server.ts";
 import type { Facts, Reason, StepResult } from "../../src/lib/router/types.ts";
 import { REASONS } from "../../src/lib/router/types.ts";
 import type { Mailer } from "./meetings.ts";
@@ -37,7 +38,7 @@ export const routeJob =
     if (reason === "sla") return passOn(rpc, ws, contact, key, String(p.sla ?? ""));
     if (p.undo === true) await call(rpc, "router_undo", { p_ws: ws, p_contact: contact });
     const byUser = typeof p.byUser === "string" && UUID.test(p.byUser) ? p.byUser : null;
-    await route(rpc, { ws, contact, key, reason: reason as Reason, byUser, force: p.undo === true });
+    await route(rpc, { ws, contact, key, reason: reason as Reason, byUser, force: p.undo === true, qualify: (c) => qualifyContact(rpc, c, { timeoutMs: 2900 }) });
   };
 
 type SlaInfo = {

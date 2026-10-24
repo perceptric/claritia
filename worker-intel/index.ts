@@ -5,6 +5,7 @@
 // SECRETS_KEY (credentials are sealed with it) and each tool's <PREFIX>_CLIENT_ID and _CLIENT_SECRET to refresh sign-ins.
 // Sending needs RESEND_API_KEY (the API for campaigns and domains, SMTP for meeting emails), RESEND_REGION for new
 // domains (default us-east-1), SECRETS_KEY (link tokens) and APP_URL when the app isn't at https://app.tryclaritia.com.
+// Enrichment uses CORESIGNAL_API_KEY and PDL_API_KEY (a team's own keys come sealed); qualify uses ANTHROPIC_API_KEY.
 // The router's alerts use the meeting mailer and a Slack webhook sealed with SECRETS_KEY.
 // Calendars need SECRETS_KEY, GOOGLE_, MICROSOFT_ and ZOOM_CLIENT_ID and _CLIENT_SECRET, and APP_URL for push channels.
 
@@ -18,6 +19,8 @@ import { domainCheck, domainRemove, send } from "./jobs/email.ts";
 import { calendarRefresh, calendarWatch, meetingSync } from "./jobs/calendars.ts";
 import { calendarReconnect, formNotBooked, mailerFromEnv, meetingAfter, meetingBookLater, meetingNotify, meetingRemind, systemFrom } from "./jobs/meetings.ts";
 import { enrichCompany, identityChanged, ipLookup } from "./jobs/company.ts";
+import { enrichBackfill, enrichContactJob, qualifyJob } from "./jobs/enrich.ts";
+import { keysFromEnv } from "../src/lib/enrich/server.ts";
 import { accountAlert, scoreAccount, sweepSignals } from "./jobs/signals.ts";
 import { importFile, importUndo, pruneImportFiles } from "./jobs/imports.ts";
 import { routeJob, routerAlert, routerSla } from "./jobs/router.ts";
@@ -54,6 +57,9 @@ const handlers = {
   identity_changed: identityChanged(pool),
   ip_lookup: ipLookup(pool, company),
   enrich_company: enrichCompany(pool, company),
+  enrich_contact: enrichContactJob(rpc, { keys: keysFromEnv() }),
+  enrich_backfill: enrichBackfill(rpc),
+  qualify: qualifyJob(rpc),
   score_account: scoreAccount(pool),
   account_alert: accountAlert(pool),
   import_file: importFile(pool, rpc),

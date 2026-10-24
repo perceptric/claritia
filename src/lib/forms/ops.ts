@@ -21,6 +21,7 @@ export type Op =
   | { op: "set_copy"; title?: string; intro?: string; submit?: string; submitFull?: boolean }
   | { op: "set_consent"; mode?: Form["consent"]["mode"]; label?: string; topicId?: string | null }
   | { op: "set_spam"; minSeconds?: number; turnstile?: boolean }
+  | { op: "set_enrich"; hideKnown?: boolean; fields?: string[] }
   | { op: "set_after"; end: After["end"] }
   | { op: "set_schedule"; schedule: After["schedule"] | null }
   | { op: "set_capture"; adapter?: NonNullable<Form["capture"]>["adapter"]; selector?: string };
@@ -165,6 +166,11 @@ export function applyOp(input: Form, op: Op): { form: Form } | { error: string }
     case "set_spam":
       form.spam = { ...form.spam, ...(op.minSeconds !== undefined ? { minSeconds: op.minSeconds } : {}), ...(op.turnstile !== undefined ? { turnstile: op.turnstile } : {}) };
       return { form };
+    case "set_enrich": {
+      const cur = form.enrich ?? { hideKnown: false, fields: [] };
+      form.enrich = { hideKnown: op.hideKnown ?? cur.hideKnown, fields: op.fields ? [...new Set(op.fields)] : cur.fields };
+      return { form };
+    }
     case "set_after":
       form.after = { ...form.after, end: op.end };
       return { form };
@@ -230,6 +236,8 @@ export function describeOp(op: Op, before: Form): string {
       return op.mode === "off" ? "Turned off the consent box" : "Changed the consent box";
     case "set_spam":
       return "Changed spam checks";
+    case "set_enrich":
+      return op.hideKnown === false ? "Shows every field" : "Hides fields we already know";
     case "set_after":
       return op.end.kind === "redirect" ? "Opens a page after the submit" : "Changed the thank-you message";
     case "set_schedule":

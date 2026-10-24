@@ -522,6 +522,9 @@ export class ClaritiaForm extends Base {
   private bkMsg = "";
   private bkBusy = false;
   private overPage = false;
+  /** Field ids hidden because enrichment already knows them (fill before submit), and the email they're for. */
+  private known = new Set<string>();
+  private knownFor = "";
 
   constructor() {
     super();
@@ -655,7 +658,7 @@ export class ClaritiaForm extends Base {
     if (form.intro) wrap.append(el("p", { class: "i", text: form.intro }));
     if (form.steps.length > 1) wrap.append(this.progress(form));
     const grid = el("div", { class: "g" });
-    for (const f of step.fields) if (f.type !== "hidden" && shown.has(f.id)) grid.append(this.field(f, form, required.has(f.id)));
+    for (const f of step.fields) if (f.type !== "hidden" && shown.has(f.id) && !this.known.has(f.id)) grid.append(this.field(f, form, required.has(f.id)));
     wrap.append(grid);
     if (last && this.needsConsent()) {
       const box = el("input", { type: "checkbox", id: "clr-consent" }) as HTMLInputElement;
@@ -807,7 +810,7 @@ export class ClaritiaForm extends Base {
       this.answers[f.id] = v;
       // A pick is checked at once (too many picks, say); typing is checked when the visitor moves on.
       if (picked) {
-        const e = checkAnswers(form, this.answers, { steps: [this.step] }).errors[f.id];
+        const e = checkAnswers(form, this.answers, { steps: [this.step], known: this.known }).errors[f.id];
         if (e && listOf(v).length) this.errors[f.id] = e;
         else delete this.errors[f.id];
         return this.later();
@@ -818,7 +821,8 @@ export class ClaritiaForm extends Base {
       } else if (form.rules.some((r) => r.when.field === f.id)) this.later();
     };
     const blur = () => {
-      const r = checkAnswers(form, this.answers, { steps: [this.step] });
+      if (f.key === "email") void this.lookupKnown(form, this.answers[f.id]);
+      const r = checkAnswers(form, this.answers, { steps: [this.step], known: this.known });
       if (r.errors[f.id] && this.answers[f.id] !== undefined && this.answers[f.id] !== "") {
         this.errors[f.id] = r.errors[f.id];
         this.later();
@@ -1208,7 +1212,7 @@ export class ClaritiaForm extends Base {
   private async next() {
     const d = this.data!;
     const form = d.body;
-    const r = checkAnswers(form, this.answers, { steps: [this.step] });
+    const r = checkAnswers(form, this.answers, { steps: [this.step], known: this.known });
     this.errors = r.errors;
     this.alert = "";
     if (Object.keys(r.errors).length) {
@@ -1233,6 +1237,36 @@ export class ClaritiaForm extends Base {
   }
 
 
+  /**
+   * Fill before submit: ask which of the owner's chosen fields enrichment already knows for this email, and hide the
+   * ones the visitor hasn't answered. A slow or failed answer hides nothing. A new email asks again.
+   */
+  private async lookupKnown(form: Form, value: unknown) {
+    if (!form.enrich?.hideKnown || this.isPreview || !this.data) return;
+    const email = typeof value === "string" ? value.trim().toLowerCase() : "";
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email) || email === this.knownFor) return;
+    this.knownFor = email;
+    let ids: string[] = [];
+    try {
+      const ctl = new AbortController();
+      const t = setTimeout(() => ctl.abort(), 2500);
+      const res = await fetch(`${this.base}/api/forms/${this.data.id}/known`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ email }), credentials: "omit", signal: ctl.signal });
+      clearTimeout(t);
+      if (res.ok) ids = ((await res.json()) as { known?: unknown }).known as string[];
+    } catch {
+      ids = [];
+    }
+    // The email changed while we asked: this answer is for another person.
+    if (this.knownFor !== email || !Array.isArray(ids)) return;
+    const empty = (id: string) => this.answers[id] === undefined || this.answers[id] === "" || (Array.isArray(this.answers[id]) && !(this.answers[id] as unknown[]).length);
+    const next = new Set(ids.filter((id) => typeof id === "string" && empty(id)));
+    const same = next.size === this.known.size && [...next].every((id) => this.known.has(id));
+    if (same) return;
+    this.known = next;
+    for (const id of next) delete this.errors[id];
+    this.later();
+  }
+
   private async send() {
     const d = this.data!;
     this.sending = true;
@@ -1254,6 +1288,7 @@ export class ClaritiaForm extends Base {
       turnstile: this.turnstileToken || undefined,
       // The daily form check opens the form with its token; the fill is then marked as a test.
       qa: new URLSearchParams(location.search).get("clr_qa") || undefined,
+      known: this.known.size ? [...this.known] : undefined,
     });
     const url = `${this.base}/api/forms/${d.id}/submit`;
     let res: Response | null = null;

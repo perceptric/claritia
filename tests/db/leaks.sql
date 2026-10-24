@@ -1213,6 +1213,34 @@ delete from companies where id = '49a00000-0000-0000-0000-0000000000a1';
 select pg_temp.check((select count(*) from notes where record_id = '49a00000-0000-0000-0000-0000000000a1') = 0 and (select count(*) from tasks where record_id = '49a00000-0000-0000-0000-0000000000a1') = 0, 'A deleted company keeps its notes and tasks');
 select set_config('request.jwt.claim.sub', '', false);
 
+-- Enrichment (068): runs, usage and settings stay in their workspace; the shared person cache and the teams' own
+-- keys are the server's only; members can't change settings, spend credits or write vendor values.
+insert into enrich_runs (workspace_id, trigger, steps, fields) values ('22222222-0000-0000-0000-000000000000', 'new', '[]', '{title}');
+insert into enrich_usage (workspace_id, month, credits) values ('22222222-0000-0000-0000-000000000000', date_trunc('month', now())::date, 5);
+insert into enrich_settings (workspace_id, credit_cap) values ('22222222-0000-0000-0000-000000000000', 9);
+insert into enrich_keys (workspace_id, step, sealed) values ('22222222-0000-0000-0000-000000000000', 'pdl', 'v1:sealed');
+insert into qualify_settings (workspace_id, "on") values ('22222222-0000-0000-0000-000000000000', true);
+insert into person_cache (email_clean, vendor, data) values ('someone@else.com', 'pdl', '{"title":"CEO"}');
+select pg_temp.as_user('b0000000-0000-0000-0000-000000000000');
+set role authenticated;
+select pg_temp.check((select count(*) from enrich_runs) = 0, 'Ben reads Cat''s lookups');
+select pg_temp.check((select count(*) from enrich_usage) = 0, 'Ben reads Cat''s credits');
+select pg_temp.check((select count(*) from enrich_settings) = 0, 'Ben reads Cat''s enrichment settings');
+select pg_temp.check((select count(*) from qualify_settings) = 0, 'Ben reads Cat''s qualify settings');
+select pg_temp.fails($$select count(*) from person_cache$$, 'Ben reads the shared person cache');
+select pg_temp.fails($$select count(*) from enrich_keys$$, 'Ben reads a team''s own keys');
+select pg_temp.fails($$select enrich_settings_save('11111111-0000-0000-0000-000000000000', '{"on":false}', null)$$, 'Ben (a member) turns enrichment off');
+select pg_temp.fails($$select enrich_backfill_start('11111111-0000-0000-0000-000000000000', '{}')$$, 'Ben (a member) starts a backfill');
+select pg_temp.fails($$select enrich_backfill_count('22222222-0000-0000-0000-000000000000', '{}')$$, 'Ben counts Cat''s contacts');
+select pg_temp.fails($$select enrich_spend('22222222-0000-0000-0000-000000000000', 1)$$, 'Ben spends Cat''s credits');
+select pg_temp.fails($$select enrich_cache_get('someone@else.com', 'else.com')$$, 'Ben reads the cache through a function');
+select pg_temp.fails($$select enrich_write('5f200000-0000-0000-0000-0000000000c1', 'pdl', '{}', null)$$, 'Ben writes vendor values');
+select pg_temp.fails($$select qualify_store('5f200000-0000-0000-0000-0000000000c1', 'Qualified', 'x', 'ai')$$, 'Ben sets a qualify outcome');
+select pg_temp.fails($$select qualify_load('5f200000-0000-0000-0000-0000000000c1')$$, 'Ben reads a lead''s answers through qualify');
+select pg_temp.fails($$select enrich_load_email('22222222-0000-0000-0000-000000000000', 'x@y.com')$$, 'Ben loads Cat''s enrichment');
+reset role;
+select set_config('request.jwt.claim.sub', '', false);
+
 -- Cloud minutes: once Acme has used its 2,000, nobody there can start a run.
 insert into runs (workspace_id, project_id, test_name, test_version, environment_name, base_url, lock, status, duration_ms)
 values ('11111111-0000-0000-0000-000000000000', 'a1000000-0000-0000-0000-000000000000', 'long', 1, 'staging', 'https://x.com', '', 'passed', 2000 * 60000);

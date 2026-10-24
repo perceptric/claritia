@@ -150,7 +150,15 @@ export type Form = {
   spam: { minSeconds: number; turnstile: boolean };
   after: After;
   capture?: Capture;
+  /** Fill before submit (docs/enrich-workflows-reports.md 1.2 B): fields hidden when enrichment already knows them. */
+  enrich?: { hideKnown: boolean; fields: string[] };
 };
+
+/** The fields fill before submit may hide (src/lib/enrich/types.ts HIDEABLE). */
+export const HIDE_KEYS = ["company", "website", "title", "country", "phone", "size", "industry", "seniority", "department"];
+
+/** The enrichment key a field answers ("company", "title"... or a custom "f.industry" as "industry"). */
+export const hideKeyOf = (key: string) => key.replace(/^f\./, "");
 
 export const FIELD_TYPES: { value: FieldType; label: string }[] = [
   { value: "text", label: "Short answer" },
@@ -548,6 +556,8 @@ export function checkForm(raw: unknown, ctx: Ctx = {}): { form: Form } | { error
     for (const f of steps.flatMap((x) => x.fields)) if (f.type !== "hidden" && !f.source) errors.push(`${f.label || "A field"} needs its name on your form.`);
   }
   const minSeconds = Math.round(Number(spam.minSeconds ?? 2));
+  const en = (r.enrich && typeof r.enrich === "object" ? r.enrich : {}) as { hideKnown?: unknown; fields?: unknown };
+  const enrichFields = Array.isArray(en.fields) ? [...new Set(en.fields.filter((x): x is string => typeof x === "string" && HIDE_KEYS.includes(x)))] : [];
   const form: Form = {
     steps,
     rules,
@@ -564,6 +574,7 @@ export function checkForm(raw: unknown, ctx: Ctx = {}): { form: Form } | { error
     spam: { minSeconds: Number.isFinite(minSeconds) ? Math.min(Math.max(minSeconds, 0), 30) : 2, turnstile: spam.turnstile === true },
     after: { end, ...(schedule ? { schedule } : {}) },
     ...(capture ? { capture } : {}),
+    ...(en.hideKnown === true || enrichFields.length ? { enrich: { hideKnown: en.hideKnown === true, fields: enrichFields } } : {}),
   };
   return errors.length ? { errors: [...new Set(errors)] } : { form };
 }

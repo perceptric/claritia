@@ -1,12 +1,12 @@
 "use client";
 
 // The Settings tab's own sections (docs/form-studio.md Part 3): what visitors get after the submit (a message, a page or
-// a meeting), the consent box and the spam checks.
+// a meeting), fields hidden when enrichment knows them, the consent box and the spam checks.
 
 import { cleanLink } from "@/lib/forms/meeting";
 import type { Op } from "@/lib/forms/ops";
 import { linkProblem } from "@/lib/forms/schedule";
-import { DEFAULT_CONSENT, DEFAULT_NOTICE, type Form } from "@/lib/forms/schema";
+import { allFields, DEFAULT_CONSENT, DEFAULT_NOTICE, HIDE_KEYS, hideKeyOf, type Form } from "@/lib/forms/schema";
 import { Chat, Clock, Link as LinkIcon } from "../../Icons";
 import { Select } from "../Select";
 import { Input, Segmented, Toggle, useLoad, must, type ViewProps } from "../ui";
@@ -149,6 +149,53 @@ export function SpamSettings({ form, apply }: { form: Form; apply: (op: Op) => v
             <Toggle label="Cloudflare Turnstile" on={form.spam.turnstile} onChange={(v) => apply({ op: "set_spam", turnstile: v })} />
           </Row>
         </div>
+      </div>
+    </Section>
+  );
+}
+
+/** Fill before submit: the fields that fold away when enrichment already knows the person (an email is typed first). */
+export function KnownSettings({ form, apply }: { form: Form; apply: (op: Op) => void }) {
+  const on = !!form.enrich?.hideKnown;
+  const picked = new Set(form.enrich?.fields ?? []);
+  const fields = allFields(form).filter((f) => HIDE_KEYS.includes(hideKeyOf(f.key)));
+  const toggle = (key: string) => {
+    const next = new Set(picked);
+    if (next.has(key)) next.delete(key);
+    else next.add(key);
+    apply({ op: "set_enrich", fields: [...next] });
+  };
+  return (
+    <Section id="known" title="Known fields">
+      <div className="-my-2 flex flex-col divide-y divide-line">
+        <div className="py-2">
+          <Row label="Hide fields we already know">
+            <Toggle label="Hide fields we already know" on={on} onChange={(v) => apply({ op: "set_enrich", hideKnown: v, ...(v && !picked.size ? { fields: fields.map((f) => hideKeyOf(f.key)) } : {}) })} />
+          </Row>
+        </div>
+        {on ? (
+          <div className="flex flex-wrap gap-2 py-3">
+            {fields.length ? (
+              fields.map((f) => {
+                const k = hideKeyOf(f.key);
+                const yes = picked.has(k);
+                return (
+                  <button
+                    key={f.id}
+                    type="button"
+                    aria-pressed={yes}
+                    onClick={() => toggle(k)}
+                    className={`press inline-flex h-8 items-center rounded-full border px-3 text-[12.5px] font-medium transition-colors duration-[140ms] ${yes ? "border-ink bg-ink text-paper" : "border-line-strong bg-card text-body hover:text-ink"}`}
+                  >
+                    {f.label}
+                  </button>
+                );
+              })
+            ) : (
+              <p className="text-[13px] text-muted">No company, title, country or phone fields yet</p>
+            )}
+          </div>
+        ) : null}
       </div>
     </Section>
   );

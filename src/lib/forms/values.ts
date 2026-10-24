@@ -111,7 +111,11 @@ function base(f: Field, raw: unknown): { value?: string | number | boolean | str
  * Check answers keyed by field id. `hidden` holds the values hidden fields picked up on the page (by field id).
  * Only fields on the given steps are checked; pass every step for a whole submit.
  */
-export function checkAnswers(form: Form, answers: Answers, opts: { hidden?: Record<string, string>; steps?: number[] } = {}): Checked {
+/**
+ * Check answers. `known`: field ids the form hid because enrichment already knows them (fill before submit); they
+ * count as not shown, so they're neither required nor kept.
+ */
+export function checkAnswers(form: Form, answers: Answers, opts: { hidden?: Record<string, string>; steps?: number[]; known?: Set<string> } = {}): Checked {
   const { shown, required } = visibility(form, answers);
   const onSteps = new Set((opts.steps ? opts.steps.map((i) => form.steps[i]).filter(Boolean) : form.steps).flatMap((s) => s.fields.map((f) => f.id)));
   // Steps a skip jumped over count as not shown: nothing on them is required or kept.
@@ -125,7 +129,7 @@ export function checkAnswers(form: Form, answers: Answers, opts: { hidden?: Reco
       if (typeof hv === "string" && hv.trim()) out.values[f.key] = hv.trim().slice(0, 500);
       continue;
     }
-    if (!shown.has(f.id) || skipped.has(f.id)) continue;
+    if (!shown.has(f.id) || skipped.has(f.id) || opts.known?.has(f.id)) continue;
     const r = one(f, answers[f.id]);
     if (onSteps.has(f.id)) {
       if (r.error) out.errors[f.id] = r.error;

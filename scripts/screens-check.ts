@@ -297,8 +297,18 @@ try {
   await page.goto(`${base}/signals`);
   await page.getByText("Companies on the site").first().waitFor({ timeout: 60_000 });
   await page.goto(`${base}/enrichment`);
-  await page.getByText("Companies filled").first().waitFor({ timeout: 60_000 });
+  await page.getByText("Fields filled this month").first().waitFor({ timeout: 60_000 });
   check(true, "Signals and Enrichment open on their numbers");
+
+  // Enrichment's steps in order, and Qualify turned on from Rules.
+  await page.goto(`${base}/enrichment/providers`);
+  await page.getByText("Try an email").first().waitFor({ timeout: 60_000 });
+  const steps = await page.locator("ol li").allInnerTexts();
+  check(["Email check", "Coresignal", "People Data Labs"].every((n, i) => steps[i]?.includes(n)), "Providers lists the waterfall in order");
+  await page.goto(`${base}/enrichment/rules`);
+  await page.getByRole("switch", { name: "Qualify new leads" }).click();
+  await until(async () => (await db.query(`select "on" from qualify_settings where workspace_id = $1`, [ws])).rows[0]?.on === true, 30_000, "qualify to turn on");
+  check(true, "Qualify turns on from Rules");
 
   // Routing: a template, Make live, Try a lead, a form fill routed in the send, a held lead let through, History.
   await page.goto(`${base}/routing`);

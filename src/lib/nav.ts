@@ -157,12 +157,12 @@ export function signalsPage(id: string): { tab: SignalsTab; id: string } {
   return a === "visitors" || a === "alerts" || a === "setup" ? { tab: a, id: a } : { tab: "feed", id: "" };
 }
 
-export type EnrichmentTab = "overview" | "providers" | "history";
+export type EnrichmentTab = "overview" | "providers" | "rules" | "history";
 
-/** Enrichment's tabs: Overview (""), Providers and History. */
+/** Enrichment's tabs: Overview (""), Providers, Rules and History. */
 export function enrichmentPage(id: string): { tab: EnrichmentTab; id: string } {
   const a = id.split("/")[0] ?? "";
-  return a === "providers" || a === "history" ? { tab: a, id: a } : { tab: "overview", id: "" };
+  return a === "providers" || a === "rules" || a === "history" ? { tab: a, id: a } : { tab: "overview", id: "" };
 }
 
 // Old addresses ---------------------------------------------------------------------------------------------------

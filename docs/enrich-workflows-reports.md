@@ -121,6 +121,31 @@ before this deploys.
 
 ## Part 1. Enrichment
 
+**Built.** Run `068_enrichment.sql` after 067.
+
+Set these keys:
+- **`claritia-intel`:** `CORESIGNAL_API_KEY`, `PDL_API_KEY` and `ANTHROPIC_API_KEY` (lookups, backfills, qualify).
+- **`claritia-web`:** the same three. The form's known-fields lookup and the qualify wait before routing run there.
+
+A step with no key, ours or the team's, shows as off.
+
+Credits follow the plan (`enrich_cap`). For a beta team on the free plan, set `enrich_settings.credit_cap` by hand.
+
+Code:
+- `src/lib/enrich/`: the waterfall, email check, People Data Labs, qualify, and the server glue.
+- `worker-intel/jobs/enrich.ts`: the jobs.
+- `/api/forms/[id]/known`: the form's lookup.
+- `/api/enrichment/{try,keys,qualify}`: the Enrichment page's routes.
+
+Tests:
+- `tests/enrich.test.ts`
+- `tests/pg/enrich.pg.ts`
+- the enrichment block in `tests/db/leaks.sql`
+
+Left for later:
+- seniority and department as columns in the Contacts table
+- a timeline line for a new qualify outcome
+
 ### 1.1 What's there today
 
 **Company data**

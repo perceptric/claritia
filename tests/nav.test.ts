@@ -81,7 +81,8 @@ test("scheduling, signals and enrichment pages", () => {
   assert.deepEqual(signalsPage(""), { tab: "feed", id: "" });
   assert.deepEqual(signalsPage("alerts"), { tab: "alerts", id: "alerts" });
   assert.deepEqual(enrichmentPage("providers"), { tab: "providers", id: "providers" });
-  assert.deepEqual(enrichmentPage("rules"), { tab: "overview", id: "" });
+  assert.deepEqual(enrichmentPage("rules"), { tab: "rules", id: "rules" });
+  assert.deepEqual(enrichmentPage("nope"), { tab: "overview", id: "" });
 });
 
 test("the open page lights its sidebar item", () => {
