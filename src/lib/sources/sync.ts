@@ -154,6 +154,11 @@ export async function applyContacts(d: Deps, records: RawRecord[]): Promise<Coun
     if (owners.length) await call(d.rpc, "contacts_owner_crm_set", { p_ws: src.workspace_id, p_rows: owners });
   }
   await call(d.rpc, "source_links_put", { p_source: src.id, p_object: "contact", p_rows: put });
+  // New contacts the CRM gave no owner go through the router, when the team turned that on for this source.
+  if ((src.settings as { route_new?: boolean } | null)?.route_new === true) {
+    const fresh = meta.filter((m) => !m.before && ids[m.x.email_clean] && !m.values[OWNER]).map((m) => ids[m.x.email_clean]);
+    if (fresh.length) await call(d.rpc, "router_queue", { p_ws: src.workspace_id, p_reason: "crm", p_contacts: fresh });
+  }
   await log(
     d,
     meta.map((m) => ({ direction: "in", object: "contact", local_id: ids[m.x.email_clean] ?? null, external_id: m.x.source_id, action: m.before ? "update" : "create", fields: changedKeys(m.before?.values, m.values) })),

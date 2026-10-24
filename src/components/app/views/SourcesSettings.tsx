@@ -13,7 +13,9 @@ import { BrandLogo } from "../BrandLogo";
 import { askConfirm } from "../Dialogs";
 import { Select } from "../Select";
 import { SampleStats, ToolIntro } from "../ToolIntro";
-import { Badge, Button, CardHead, ErrorNote, errorText, Field, Input, Loading, must, Panel, postJson, Td, Th, timeAgo, useLoad, type Tone, type ViewProps } from "../ui";
+import { Badge, Button, CardHead, ErrorNote, errorText, Field, Input, Loading, must, Panel, postJson, Td, Th, timeAgo, Toggle, useLoad, type Tone, type ViewProps } from "../ui";
+import { usePeople } from "../meetings/parts";
+import { routingApi } from "../routing/api";
 import { CheckBox } from "../records/RecordTable";
 import { SidePanel } from "../records/SidePanel";
 
@@ -23,7 +25,7 @@ type Source = {
   name: string;
   account: string | null;
   status: string;
-  settings: { objects?: Record<string, string>; every_min?: number; basis?: Basis; push_new?: string; follow_deletes?: boolean; activity?: boolean; query?: WhQuery };
+  settings: { objects?: Record<string, string>; every_min?: number; basis?: Basis; push_new?: string; follow_deletes?: boolean; activity?: boolean; query?: WhQuery; route_new?: boolean };
   last_run_at: string | null;
   last_error: string | null;
   created_at: string;
@@ -411,6 +413,12 @@ function SourcePanel({ sb, session, wsId, source, owner, onClose, changed }: { s
                   />
                 </Field>
               ) : null}
+              {e?.group === "crm" ? (
+                <div className="flex items-center justify-between gap-3 sm:col-span-2">
+                  <span className="text-[12.5px] font-medium text-body">Route new contacts with no owner</span>
+                  <Toggle label="Route new contacts with no owner" on={settings.route_new === true} onChange={(v) => setSettings({ ...settings, route_new: v })} />
+                </div>
+              ) : null}
               {!e?.hook && !e?.warehouse ? (
                 <Field label="When a contact is deleted there">
                   <Select
@@ -440,6 +448,8 @@ function SourcePanel({ sb, session, wsId, source, owner, onClose, changed }: { s
             </div>
           </Panel>
         ) : null}
+
+        {e?.group === "crm" && source.status !== "disconnected" ? <CrmOwnersPanel sb={sb} session={session} wsId={wsId} source={source} owner={owner} /> : null}
 
         {e?.warehouse && source.status !== "disconnected" ? <QueryPanel sb={sb} session={session} wsId={wsId} source={source} owner={owner} changed={changed} /> : null}
 
@@ -490,6 +500,72 @@ function SourcePanel({ sb, session, wsId, source, owner, onClose, changed }: { s
         </Panel>
       </div>
     </SidePanel>
+  );
+}
+
+type OwnerLink = { source_id: string; crm_owner_id: string; label: string | null; user_id: string | null };
+
+/** CRM owners (docs/router-ux.md 4.10): each owner id seen on contacts and companies, linked to a teammate. */
+function CrmOwnersPanel({ sb, session, wsId, source, owner }: { sb: ViewProps["sb"]; session: ViewProps["session"]; wsId: string; source: Source; owner: boolean }) {
+  const people = usePeople(sb, wsId);
+  const data = useLoad(async () => {
+    const [links, contacts, companies] = await Promise.all([
+      routingApi<{ links: OwnerLink[] }>(session, wsId, "crm_owners"),
+      sb.from("contacts").select("owner_crm_id").eq("workspace_id", wsId).not("owner_crm_id", "is", null).limit(5000),
+      sb.from("companies").select("owner_crm_id").eq("workspace_id", wsId).not("owner_crm_id", "is", null).limit(5000),
+    ]);
+    const mine = links.links.filter((l) => l.source_id === source.id);
+    const seen = new Set([...((must(contacts) ?? []) as { owner_crm_id: string }[]), ...((must(companies) ?? []) as { owner_crm_id: string }[])].map((r) => r.owner_crm_id).filter(Boolean));
+    for (const l of mine) seen.delete(l.crm_owner_id);
+    return [...mine, ...[...seen].sort().map((id): OwnerLink => ({ source_id: source.id, crm_owner_id: id, label: null, user_id: null }))];
+  }, source.id);
+  const [error, setError] = useState("");
+  const link = async (row: OwnerLink, user: string) => {
+    setError("");
+    try {
+      await routingApi(session, wsId, "save_crm_owners", { rows: [{ ...row, user_id: user || null }] });
+      data.reload();
+    } catch (e) {
+      setError(errorText(e));
+    }
+  };
+  const options = [{ value: "", label: "Not linked" }, ...(people.data?.list ?? []).map((p) => ({ value: p.id, label: p.name }))];
+  return (
+    <Panel className="overflow-hidden">
+      <CardHead label="CRM owners" count={data.data?.length} />
+      {error || data.error || people.error ? (
+        <div className="px-5 pt-4">
+          <ErrorNote message={error || data.error || people.error} />
+        </div>
+      ) : null}
+      {!data.data || !people.data ? (
+        data.error ? null : <Loading />
+      ) : !data.data.length ? (
+        <p className="px-5 py-3 text-[13px] text-faint">—</p>
+      ) : (
+        <table className="w-full border-collapse [&_tbody_tr:last-child_td]:border-b-0">
+          <thead>
+            <tr>
+              <Th>{source.name}</Th>
+              <Th>Teammate</Th>
+            </tr>
+          </thead>
+          <tbody>
+            {data.data.map((r) => (
+              <tr key={r.crm_owner_id} className="border-t border-line">
+                <Td className="max-w-[260px] truncate">
+                  {r.label ? <span className="mr-2">{r.label}</span> : null}
+                  <span className="font-mono text-[11.5px] text-muted">{r.crm_owner_id}</span>
+                </Td>
+                <Td className="w-56">
+                  <Select className={`${SEL} h-8 ${r.user_id ? "" : "text-faint"}`} value={r.user_id ?? ""} onChange={(v) => void link(r, v)} options={options} disabled={!owner} ariaLabel={`Teammate for ${r.label ?? r.crm_owner_id}`} />
+                </Td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </Panel>
   );
 }
 

@@ -3,8 +3,8 @@
 import type { Session } from "@supabase/supabase-js";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { getSupabase, type SupaConfig } from "@/lib/supa";
-import { NAV, resolveRoute, type Route as NavRoute } from "@/lib/nav";
-import { BarChart, Box, Branch, CalendarIcon, Contact, Dollar, FileText, FormIcon, ListIcon, LogOut, Mail, Megaphone, Moon, Search, Settings, Sun, Users } from "../Icons";
+import { NAV, resolveRoute, routingPage, type Route as NavRoute } from "@/lib/nav";
+import { BarChart, Box, Branch, CalendarIcon, Contact, Dollar, FileText, FormIcon, ListIcon, LogOut, Mail, Megaphone, Moon, Search, Settings, Signpost, Sun, Users } from "../Icons";
 import { Logo } from "../Logo";
 import { AuthScreen } from "./AuthScreen";
 import { Dots } from "./Ai";
@@ -17,6 +17,8 @@ import { SegmentsView } from "./views/SegmentsView";
 import { AdsView, AnalyticsView, PagesView, TemplatesView } from "./views/MarketingIntros";
 import { FormsView } from "./forms/FormsView";
 import { MeetingsView } from "./meetings/MeetingsView";
+import { useRoutingCommands } from "./routing/commands";
+import { RoutingView } from "./routing/RoutingView";
 import { NurtureView } from "./views/NurtureView";
 import { SettingsView } from "./views/SettingsView";
 
@@ -26,6 +28,7 @@ const ICONS: Record<NavRoute, React.ReactNode> = {
   companies: <Users size={15} />,
   opportunities: <Dollar size={15} />,
   meetings: <CalendarIcon size={15} />,
+  routing: <Signpost size={15} />,
   objects: <Box size={15} />,
   segments: <ListIcon size={15} />,
   templates: <Mail size={15} />,
@@ -52,6 +55,8 @@ const readLoc = (): Loc => {
   if ((r.route === "segments" || r.route === "forms" || r.route === "workflows") && a === "new") return { route: r.route, id: a };
   // Meetings: /meetings/<id>, /meetings/types and /meetings/types/<id or new>.
   if (r.route === "meetings") return { route: r.route, id: a === "types" ? (uuid(b) || b === "new" ? `types/${b}` : "types") : uuid(a) ? a : "" };
+  // Routing: /routing/reps, /routing/log, /routing/log/<run>, /routing/held and /routing/versions/<n>.
+  if (r.route === "routing") return { route: r.route, id: routingPage(r.id).id };
   // Companies: the live visit feed, and an old account link that finds its company.
   if (r.route === "companies" && a === "visits") return { route: r.route, id: a };
   if (r.route === "companies" && a === "account" && uuid(b)) return { route: r.route, id: `account/${b}` };
@@ -166,6 +171,7 @@ export function ClientApp({ config }: { config: SupaConfig }) {
       setLoc({ route: r, id });
     });
   }, []);
+  const routingCommands = useRoutingCommands({ sb, session, ws: ws?.id ?? null, navigate });
 
   if (session === undefined) return <Splash />;
   if (!session) return <AuthScreen sb={sb} />;
@@ -226,6 +232,7 @@ export function ClientApp({ config }: { config: SupaConfig }) {
   const commands: Command[] = [
     ...NAV.map((n) => ({ id: n.route, label: n.label, group: n.group || "App", icon: ICONS[n.route], run: () => navigate(n.route) })),
     ...customObjects.map((o) => ({ id: `o-${o.key}`, label: o.plural, group: "CRM", icon: ICONS.objects, run: () => navigate("objects", o.key) })),
+    ...routingCommands,
     { id: "theme", label: theme === "dark" ? "Light mode" : "Dark mode", group: "Look", icon: theme === "dark" ? <Sun size={15} /> : <Moon size={15} />, run: flip },
     { id: "out", label: "Sign out", group: "Account", icon: <LogOut size={15} />, run: () => void sb.auth.signOut() },
   ];
@@ -275,6 +282,8 @@ export function ClientApp({ config }: { config: SupaConfig }) {
           <OpportunitiesView {...props} />
         ) : route === "meetings" ? (
           <MeetingsView key={loc.id} {...props} />
+        ) : route === "routing" ? (
+          <RoutingView key="routing" {...props} />
         ) : route === "objects" ? (
           <ObjectsView key={loc.id.split("/")[0]} {...props} />
         ) : route === "segments" ? (

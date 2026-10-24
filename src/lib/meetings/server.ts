@@ -77,9 +77,14 @@ export type Offer = {
 export async function offer(rpc: Rpc, o: { ws: string; type: MeetingType; length: number; now?: number; owner?: string | null }): Promise<Offer> {
   const now = o.now ?? Date.now();
   const s = o.type.settings;
-  const states = await hostStates(rpc, o.ws, o.type.hosts.map((h) => h.user_id), now, now + (s.window + 1) * 86_400_000);
-  const out = states.filter((h) => !h.bookable).map((h) => ({ id: h.id, why: h.why! }));
-  const inputs = states.filter((h) => h.bookable).map((h) => withCounts(h.input, o.type.id));
+  const hostIds = o.type.hosts.map((h) => h.user_id);
+  // Owner first: the contact's owner (often the router's pick, docs/router.md Part 7) is offered first even when
+  // they aren't one of the type's hosts; the round robin after them stays among the hosts.
+  const extra = o.type.kind === "owner_first" && o.owner && !hostIds.includes(o.owner) ? o.owner : null;
+  const states = await hostStates(rpc, o.ws, extra ? [...hostIds, extra] : hostIds, now, now + (s.window + 1) * 86_400_000);
+  const out = states.filter((h) => !h.bookable && h.id !== extra).map((h) => ({ id: h.id, why: h.why! }));
+  const all = states.filter((h) => h.bookable).map((h) => withCounts(h.input, o.type.id));
+  const inputs = all.filter((h) => h.id !== extra);
   const pools = Object.fromEntries(o.type.hosts.map((h) => [h.user_id, h.pool ?? "a"])) as Record<string, "a" | "b">;
   const group = new Map<number, number>();
   if (o.type.kind === "group") {
@@ -91,7 +96,7 @@ export async function offer(rpc: Rpc, o: { ws: string; type: MeetingType; length
   }
   const run = (hosts: HostInput[], next?: string) => engine({ kind: o.type.kind === "owner_first" ? "round_robin" : o.type.kind, hosts, length: o.length, settings: s, now, typeId: o.type.id, pools, next, group });
   if (o.type.kind === "owner_first" && o.owner) {
-    const own = inputs.filter((h) => h.id === o.owner);
+    const own = all.filter((h) => h.id === o.owner);
     const mine = own.length ? run(own) : [];
     if (mine.length) return { slots: mine, owner: o.owner, out };
   }

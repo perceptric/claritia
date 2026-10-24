@@ -385,3 +385,32 @@ export const CalendarIcon = (p: P) => (
     <path d="M3.5 10h17M8 3v4M16 3v4" />
   </Svg>
 );
+
+/** A signpost: one post, a sign pointing right and one pointing left. */
+export const Signpost = (p: P) => (
+  <Svg {...p}>
+    <path d="M12 3v18M9 21h6" />
+    <path d="M12 5h6.5l2.5 2.5-2.5 2.5H12M12 12H5.5L3 14.5 5.5 17H12" />
+  </Svg>
+);
+
+export const MoreHorizontal = (p: P) => (
+  <Svg {...p}>
+    <circle cx="5" cy="12" r="1" />
+    <circle cx="12" cy="12" r="1" />
+    <circle cx="19" cy="12" r="1" />
+  </Svg>
+);
+
+export const Minus = (p: P) => (
+  <Svg {...p}>
+    <path d="M5 12h14" />
+  </Svg>
+);
+
+export const Bell = (p: P) => (
+  <Svg {...p}>
+    <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" />
+    <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />
+  </Svg>
+);

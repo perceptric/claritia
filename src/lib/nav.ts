@@ -6,6 +6,7 @@ export type Route =
   | "companies"
   | "opportunities"
   | "meetings"
+  | "routing"
   | "objects"
   | "segments"
   | "templates"
@@ -25,6 +26,7 @@ export const NAV: NavItem[] = [
   { route: "companies", label: "Companies" },
   { route: "opportunities", label: "Opportunities" },
   { route: "meetings", label: "Meetings" },
+  { route: "routing", label: "Routing" },
   { route: "segments", label: "Segments", group: "Email" },
   { route: "templates", label: "Templates" },
   { route: "workflows", label: "Workflows" },
@@ -57,6 +59,20 @@ export function meetingsPage(id: string): { page: "list" | "meeting" | "types" |
   const uuid = (x: string) => /^[0-9a-f-]{36}$/.test(x);
   if (a === "types") return uuid(b) || b === "new" ? { page: "type", id: b } : { page: "types", id: "" };
   return uuid(a) ? { page: "meeting", id: a } : { page: "list", id: "" };
+}
+
+export type RoutingTab = "router" | "reps" | "log" | "held";
+
+/**
+ * Routing's pages (docs/router-ux.md Part 3): the Router (""), Reps, Log with one run open ("log/<run>"), Held, and
+ * one past version read-only ("versions/<n>"). `id` is the address to keep; anything else opens the Router.
+ */
+export function routingPage(id: string): { tab: RoutingTab; sub: string; version: number | null; id: string } {
+  const [a = "", b = ""] = id.split("/");
+  if (a === "reps" || a === "held") return { tab: a, sub: "", version: null, id: a };
+  if (a === "log") return /^[0-9a-f-]{36}$/.test(b) ? { tab: "log", sub: b, version: null, id: `log/${b}` } : { tab: "log", sub: "", version: null, id: "log" };
+  if (a === "versions" && /^[1-9]\d{0,6}$/.test(b)) return { tab: "router", sub: "", version: Number(b), id: `versions/${b}` };
+  return { tab: "router", sub: "", version: null, id: "" };
 }
 
 /**

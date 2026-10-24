@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { meetingsPage, NAV, resolveRoute } from "../src/lib/nav.ts";
+import { meetingsPage, NAV, resolveRoute, routingPage } from "../src/lib/nav.ts";
 
 test("the sidebar is Site, CRM, Email, Ads and Settings, in that order", () => {
   const groups: [string, string[]][] = [];
@@ -10,7 +10,7 @@ test("the sidebar is Site, CRM, Email, Ads and Settings, in that order", () => {
   }
   assert.deepEqual(groups, [
     ["Site", ["forms", "pages"]],
-    ["CRM", ["contacts", "companies", "opportunities", "meetings"]],
+    ["CRM", ["contacts", "companies", "opportunities", "meetings", "routing"]],
     ["Email", ["segments", "templates", "workflows", "analytics"]],
     ["", ["ads"]],
     ["", ["settings"]],
@@ -69,4 +69,17 @@ test("meetings: the list, one meeting, the types and one type keep their address
   assert.deepEqual(meetingsPage("types/new"), { page: "type", id: "new" });
   assert.deepEqual(meetingsPage("types/nope"), { page: "types", id: "" });
   assert.deepEqual(meetingsPage("nope"), { page: "list", id: "" });
+});
+
+test("routing: the Router, Reps, Log with a run, Held and a past version keep their address", () => {
+  const run = "0b7c6a8e-1f2d-4c3b-9a8e-7d6c5b4a3f21";
+  assert.deepEqual(resolveRoute("routing", `log/${run}`), { route: "routing", id: `log/${run}` });
+  assert.deepEqual(routingPage(""), { tab: "router", sub: "", version: null, id: "" });
+  assert.deepEqual(routingPage("reps"), { tab: "reps", sub: "", version: null, id: "reps" });
+  assert.deepEqual(routingPage("held"), { tab: "held", sub: "", version: null, id: "held" });
+  assert.deepEqual(routingPage("log"), { tab: "log", sub: "", version: null, id: "log" });
+  assert.deepEqual(routingPage(`log/${run}`), { tab: "log", sub: run, version: null, id: `log/${run}` });
+  assert.deepEqual(routingPage("log/nope"), { tab: "log", sub: "", version: null, id: "log" });
+  assert.deepEqual(routingPage("versions/3"), { tab: "router", sub: "", version: 3, id: "versions/3" });
+  for (const bad of ["versions/0", "versions/x", "versions", "nope", "nope/1"]) assert.deepEqual(routingPage(bad), { tab: "router", sub: "", version: null, id: "" });
 });
