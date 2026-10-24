@@ -9,7 +9,7 @@ import { cleanPhone, nameCase } from "../contacts/clean.ts";
 import { countryCode, customValue, type CustomField } from "../contacts/fields.ts";
 import type { ContactInput } from "../contacts/import.ts";
 import { cleanEmail, isRejected } from "../identity/clean.ts";
-import type { Rpc } from "../jobs.ts";
+import { enqueueJob, type Rpc } from "../jobs.ts";
 import type { Tokens } from "./brand.ts";
 import { offerForFill, type Booking } from "./booking.ts";
 import { bookingUrl, outside, showsMeeting } from "./schedule.ts";
@@ -192,6 +192,20 @@ export function qaOk(formId: string, token: unknown, secret: string | undefined,
  * Take a fill for a live form: check it, save it (form_submit), and work out the booking link when the form books a
  * meeting on an outside scheduler, or the times and booking token when it books with Claritia calendar. Shared by the public route and the tests, so both run the same steps. Answers status and JSON body.
  */
+async function routeFill(rpc: Rpc, ws: string, contact: string, submission: string): Promise<void> {
+  const key = `form:${submission}`;
+  const later = () => enqueueJob(rpc, { workspaceId: ws, kind: "route", key, payload: { contact, reason: "form", key } }).catch(() => undefined);
+  try {
+    const { route } = await import("../router/server.ts");
+    const done = route(rpc, { ws, contact, key, reason: "form" }).then(() => true);
+    const ok = await Promise.race([done, new Promise<false>((r) => setTimeout(() => r(false), 300))]);
+    done.catch(() => undefined);
+    if (!ok) await later();
+  } catch {
+    await later();
+  }
+}
+
 export async function acceptFill(
   rpc: Rpc,
   f: PublicForm,
@@ -209,6 +223,10 @@ export async function acceptFill(
     return { status: 503, body: { error: "Try again in a moment." } };
   }
   const sid = (data as { id: string }).id;
+  // The router picks the owner now (docs/router.md Part 7), so the calendar below shows that rep's times. It has
+  // 300 ms; slower, or failing, the lead still books from the meeting type, and a job routes them with the same key.
+  const cid = (data as { contact_id?: string | null }).contact_id;
+  if (cid && !r.args.p_spam && !(data as { repeat?: boolean }).repeat) await routeFill(rpc, f.workspace_id, cid, sid);
   // Book a meeting next: the contact owner's link when the form says so and they have one, else the form's link.
   const sch = f.body.after.schedule;
   const lead = r.args.p_contact;

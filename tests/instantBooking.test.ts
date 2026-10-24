@@ -140,6 +140,8 @@ function db(o: { slots?: boolean; ctxFails?: boolean } = {}) {
       return { data: [{ id: HOST, availability: o.slots === false ? null : a, connected: true, reconnect: false, busy: [], booked: [] }], error: null };
     }
     if (fn === "form_booking_shown") return { data: new Date().toISOString(), error: null };
+    // No router set up: the fill isn't routed.
+    if (fn === "router_live") return { data: null, error: null };
     return { data: null, error: { message: `unexpected ${fn}` } };
   };
   return { rpc, calls };
@@ -159,11 +161,11 @@ test("a lead who matches gets times, the host and a token for this fill; one who
   assert.deepEqual(b.host, { name: "Sam Lee" }, "a photo that isn't https is left out");
   assert.deepEqual(readBooking(b.token, SECRET), { ...(readBooking(b.token, SECRET) as Claim), submission: SID, type: TYPE, owner: OWNER });
   assert.equal(r.body.schedule, null);
-  assert.deepEqual(yes.calls, ["form_submit", "form_booking_ctx", "meeting_inputs", "form_booking_shown"]);
+  assert.deepEqual(yes.calls, ["form_submit", "router_live", "form_booking_ctx", "meeting_inputs", "form_booking_shown"]);
   const no = db();
   const m = await send(no.rpc, demo({ who: "match", rules: [{ field: "size", op: "gte", value: "50" }] }), { em: "ana@acme.com", size: "5" });
   assert.equal(m.body.booking, undefined);
-  assert.deepEqual(no.calls, ["form_submit"], "nothing read for a lead who doesn't match");
+  assert.deepEqual(no.calls, ["form_submit", "router_live"], "nothing read for a lead who doesn't match");
   const skipped = db();
   assert.equal((await send(skipped.rpc, demo({ who: "match", rules: [{ field: "size", op: "gte", value: "50" }] }), { em: "ana@acme.com" })).body.booking, undefined);
 });
@@ -180,5 +182,5 @@ test("no times, a failing read or no secret: the fill is kept and the lead gets 
   const unsigned = db();
   const u = await send(unsigned.rpc, demo({}), { em: "ana@acme.com" }, "");
   assert.deepEqual([u.status, u.body.booking], [200, undefined]);
-  assert.deepEqual(unsigned.calls, ["form_submit"]);
+  assert.deepEqual(unsigned.calls, ["form_submit", "router_live"]);
 });

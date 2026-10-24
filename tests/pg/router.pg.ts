@@ -10,6 +10,9 @@ import { fromLeadSettings } from "../../src/lib/router/templates.ts";
 import { liveRouter, route, testRoute } from "../../src/lib/router/server.ts";
 import { emptyBody, type RouterBody } from "../../src/lib/router/types.ts";
 import { pgRpc } from "../../worker-intel/rpc.ts";
+import { routeJob, routerAlert } from "../../worker-intel/jobs/router.ts";
+import { seal } from "../../src/lib/seal.ts";
+import type { Job } from "../../src/lib/jobs.ts";
 
 const url = process.env.PG_URL;
 if (!url) throw new Error("PG_URL is not set");
@@ -287,4 +290,42 @@ test("today's routing moved over gives the same owners for 200 sample leads", as
   const got = [];
   for (const c of leads) got.push((await q(`select owner_user_id from contacts where id = $1`, [c]))[0].owner_user_id);
   assert.deepEqual(got, want);
+});
+
+const job = (ws: string, kind: string, key: string, payload: Record<string, unknown>): Job => ({ id: randomUUID(), workspace_id: ws, kind, key, payload, attempts: 1, max_attempts: 5 });
+const signal = new AbortController().signal;
+
+test("the route job routes once; the alert goes to Slack, or by email when Slack is down for good", async () => {
+  process.env.SECRETS_KEY ||= "router-test-secret-key-0123456789abcdef";
+  const { ws, users } = await team(2);
+  await publish(ws, rrBody([users[1]!]));
+  const c = await lead(ws, { first: "Dana", last: "Lee" });
+  const j = job(ws, "route", `form:${c}`, { contact: c, reason: "form", key: `form:${c}` });
+  await routeJob(rpc)(j, signal);
+  await routeJob(rpc)(j, signal);
+  assert.equal((await q(`select count(*)::int n from router_runs where workspace_id = $1`, [ws]))[0].n, 1);
+  const run = (await q(`select id from router_runs where workspace_id = $1`, [ws]))[0].id;
+  // Slack answers 500 once (try again), then 200.
+  await q(`insert into router_secrets (workspace_id, sealed) values ($1, $2)`, [ws, seal(JSON.stringify({ url: "https://hooks.slack.com/services/T/B/x" }))]);
+  const posts: { text: string }[] = [];
+  let status = 500;
+  const fetcher = (async (_u: string, init: RequestInit) => {
+    posts.push(JSON.parse(String(init.body)));
+    const r = new Response("", { status });
+    status = 200;
+    return r;
+  }) as unknown as typeof fetch;
+  const sent: { to: string }[] = [];
+  const mailer = { send: async (m: { to: string }) => (sent.push(m), "ses-1") };
+  const alert = routerAlert(rpc, { mailer, base: "https://app.test", from: "meetings@tryclaritia.com", fetcher });
+  await assert.rejects(alert(job(ws, "router_alert", run, { run }), signal), /Slack answered 500/);
+  await alert(job(ws, "router_alert", run, { run }), signal);
+  assert.equal(posts.length, 2);
+  assert.match(posts[1]!.text, /^New lead for Rep 1: Dana Lee, US from A form$/);
+  assert.equal(sent.length, 0);
+  // A removed webhook: the rep hears by email instead.
+  const gone = (async () => new Response("no_service", { status: 404 })) as unknown as typeof fetch;
+  await routerAlert(rpc, { mailer, base: "https://app.test", from: "meetings@tryclaritia.com", fetcher: gone })(job(ws, "router_alert", run, { run }), signal);
+  assert.equal(sent.length, 1);
+  assert.match(sent[0]!.to, /^rep1-/);
 });

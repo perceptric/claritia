@@ -5,6 +5,7 @@
 // SECRETS_KEY (credentials are sealed with it) and each tool's <PREFIX>_CLIENT_ID and _CLIENT_SECRET to refresh sign-ins.
 // Sending needs AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, SES_REGION, SES_CONFIGURATION_SET, SECRETS_KEY (link tokens)
 // and APP_URL when the app isn't at https://app.tryclaritia.com.
+// The router's alerts use the meeting mailer and a Slack webhook sealed with SECRETS_KEY.
 // Calendars need SECRETS_KEY, GOOGLE_, MICROSOFT_ and ZOOM_CLIENT_ID and _CLIENT_SECRET, and APP_URL for push channels.
 
 import { createServer } from "node:http";
@@ -19,6 +20,7 @@ import { calendarReconnect, formNotBooked, mailerFromEnv, meetingAfter, meetingB
 import { enrichCompany, identityChanged, ipLookup } from "./jobs/company.ts";
 import { accountAlert, scoreAccount, sweepSignals } from "./jobs/signals.ts";
 import { importFile, importUndo, pruneImportFiles } from "./jobs/imports.ts";
+import { routeJob, routerAlert } from "./jobs/router.ts";
 import { segmentRefresh } from "./jobs/segments.ts";
 import { deliver, deliverHeld } from "./jobs/deliver.ts";
 import { crmActivity, crmPush, sourceHook, sourcePull } from "./jobs/sources.ts";
@@ -70,6 +72,8 @@ const handlers = {
   meeting_after: meetingAfter(rpc, meetings),
   meeting_book_later: meetingBookLater(rpc, meetings),
   form_not_booked: formNotBooked(rpc),
+  route: routeJob(rpc),
+  router_alert: routerAlert(rpc, { mailer: meetings.mailer, base: meetings.base, from: meetings.from }),
   calendar_refresh: calendarRefresh(rpc),
   calendar_watch: calendarWatch(rpc),
   calendar_reconnect: calendarReconnect(rpc, meetings),

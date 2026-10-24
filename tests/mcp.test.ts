@@ -88,7 +88,7 @@ test("the handshake, ping, tool list and notifications work as MCP clients expec
   assert.equal((await call("initialize", { protocolVersion: "1999-01-01" })).result.protocolVersion, MCP_VERSIONS[0]);
   assert.deepEqual((await call("ping")).result, {});
   const names = (await call("tools/list")).result.tools.map((t: Row) => t.name);
-  assert.deepEqual(names, ["list_projects", "list_tests", "get_test", "save_test", "verify_change", "get_results", "list_fixes", "list_forms", "get_form", "create_form", "edit_form", "publish_form"]);
+  assert.deepEqual(names, ["list_projects", "list_tests", "get_test", "save_test", "verify_change", "get_results", "list_fixes", "list_forms", "get_form", "create_form", "edit_form", "publish_form", "get_router", "route_explain", "route_test", "route_suggest"]);
   assert.equal(await mcp(ctx, JSON.stringify({ jsonrpc: "2.0", method: "notifications/initialized" })), null);
   assert.equal((await call("nope")).error.code, -32601);
   assert.equal(((await mcp(ctx, "{not json")) as Row).error.code, -32700);

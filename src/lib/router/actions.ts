@@ -17,11 +17,10 @@ import type { Decision, Facts, RouterBody, Run } from "./types.ts";
 export type Caller = { ws: string; user: string; role: "owner" | "member" };
 
 export class Refused extends Error {
-  constructor(
-    public status: number,
-    message: string,
-  ) {
+  status: number;
+  constructor(status: number, message: string) {
     super(message);
+    this.status = status;
   }
 }
 

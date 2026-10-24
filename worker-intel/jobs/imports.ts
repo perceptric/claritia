@@ -31,6 +31,9 @@ export const importFile =
     const imp = await call<ImportRow | null>(rpc, "import_claim", { p_import: id });
     if (!imp) return;
     await executeImport(rpc, imp, await ctxFor(pool, imp.workspace_id), { signal, open });
+    // "Route new contacts" on the import's last step: its new contacts go through the router (docs/router-ux.md W9).
+    const done = (await pool.query(`select status, mapping from imports where id = $1`, [id])).rows[0] as { status: string; mapping: { route?: boolean } } | undefined;
+    if (done?.status === "done" && done.mapping?.route === true) await call(rpc, "router_queue", { p_ws: imp.workspace_id, p_reason: "import", p_import: id });
   };
 
 /** import_undo: take back what an import did. */

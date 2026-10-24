@@ -124,7 +124,7 @@ test("a lead who matches the rules sees times, with the host, from the cache onl
   assert.deepEqual(big.booking.lengths, [30]);
   assert.deepEqual(big.booking.host, { name: "Host 0", photo: "https://img.acme.com/0.png" });
   // Only the database on this path: no calendar provider, no live check.
-  assert.deepEqual([...new Set(calls)].sort(), ["form_booking_ctx", "form_booking_shown", "form_submit", "meeting_inputs"]);
+  assert.deepEqual([...new Set(calls)].sort(), ["form_booking_ctx", "form_booking_shown", "form_submit", "meeting_inputs", "router_live"]);
   const no = await fill(f, { em: "cy@acme.com", size: "10" });
   assert.equal(no.booking, undefined, "too small: the message");
   const skipped = await fill(f, { em: "di@acme.com" });
@@ -251,4 +251,32 @@ test("Results: booked, not booked once, and the booking rate", async () => {
   assert.equal((await q(`select count(*)::int n from contact_events where kind = 'meeting.not_booked' and data->>'submission_id' = $1`, [b.id]))[0].n, 1);
   const stats = (await q(`select form_booking_stats($1) as s`, [f.id]))[0].s;
   assert.deepEqual(stats, { shown: 3, booked: 1, not_booked: 1 });
+});
+
+test("with a live router, a fill is routed in the send and the routed rep's times show first, even when they aren't a host", async () => {
+  const { ws, users } = await team(2);
+  // The meeting type's only host is rep 0; the router gives every lead to rep 1.
+  const type = await meetingType(ws, "owner_first", [users[0]!]);
+  const body = {
+    ...(await import("../../src/lib/router/types.ts")).emptyBody(),
+    account: { on: false, oppFirst: true, setCompanyOwner: false },
+    queues: [{ id: "q", name: "Rep 1", method: "rr", strict: false, hoursOnly: false, members: [{ user: users[1]!, weight: 1 }] }],
+    fallback: { kind: "queue", id: "q" },
+  };
+  await q(`select router_publish($1, $2, 'test', null)`, [ws, body]);
+  const f = await liveForm(ws, users[0]!, { meetingTypeId: type });
+  const t0 = performance.now();
+  const out = await fill(f, { em: "routed@acme.com" });
+  const ms = performance.now() - t0;
+  assert.ok(ms < 1000, `the send took ${Math.round(ms)} ms`);
+  const c = (await q(`select owner_user_id from contacts where id = (select contact_id from submissions where id = $1)`, [out.id]))[0];
+  assert.equal(c.owner_user_id, users[1], "the router set the owner in the send");
+  assert.equal((await q(`select reason, key from router_runs where workspace_id = $1`, [ws]))[0].key, `form:${out.id}`);
+  assert.ok(out.booking, "times show");
+  assert.deepEqual(out.booking!.host, { name: "Host 1", photo: "https://img.acme.com/1.png" }, "the routed rep's times, though only rep 0 is a host");
+  // The same send again (a browser retry) doesn't route twice.
+  const k = key();
+  await fill(f, { em: "routed@acme.com" }, { key: k });
+  await fill(f, { em: "routed@acme.com" }, { key: k });
+  assert.equal((await q(`select count(*)::int n from router_runs where workspace_id = $1`, [ws]))[0].n, 2);
 });

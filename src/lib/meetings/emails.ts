@@ -320,6 +320,21 @@ export function reconnectEmail(v: ReconnectView): MailParts {
   };
 }
 
+export type RoutedView = { lead: string; company: string | null; from: string | null; why: string; link: string; unassigned?: boolean };
+
+/** To a rep when the router gives them a lead, or to the owners when no one could take it (docs/router.md 3.8). */
+export function leadRoutedEmail(v: RoutedView): MailParts {
+  const title = v.unassigned ? `A lead needs an owner: ${v.lead}` : `New lead: ${v.lead}${v.company ? `, ${v.company}` : ""}`;
+  return {
+    subject: title,
+    ...render({
+      preheader: v.why,
+      heading: title,
+      blocks: [{ rows: [["Company", v.company ?? ""], ["From", v.from ?? ""], ["Why", v.why]] }, { buttons: [{ label: v.unassigned ? "Assign" : "Open lead", url: v.link, primary: true }] }],
+    }),
+  };
+}
+
 // MIME ------------------------------------------------------------------------------------------------------------
 
 const oneLine = (s: string) => s.replace(/[\r\n\t]+/g, " ").replace(/\s{2,}/g, " ").trim();

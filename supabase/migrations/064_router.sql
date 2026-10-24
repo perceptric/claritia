@@ -628,6 +628,50 @@ begin
 end;
 $$;
 
+-- Queue background routes (docs/router-ux.md W8 and W9): new CRM contacts with no owner there, or an import's new
+-- contacts, when the workspace has a live router. Contacts that already have an owner, or were marked spam, are left
+-- alone. One job per contact, keyed so a second call queues nothing more.
+create or replace function public.router_queue(p_ws uuid, p_reason text, p_contacts uuid[] default null, p_import uuid default null) returns int
+language plpgsql security definer set search_path = public as $$
+declare
+  c record;
+  n int := 0;
+  k text;
+begin
+  if p_reason not in ('crm', 'import') then raise exception 'bad reason'; end if;
+  if not exists (select 1 from routers where workspace_id = p_ws and live_version is not null) then return 0; end if;
+  for c in
+    select x.id from contacts x
+    where x.workspace_id = p_ws and x.deleted_at is null and x.owner_user_id is null and x.owner_crm_id is null
+      and coalesce(x.route_status, '') <> 'spam'
+      and ((p_contacts is not null and x.id = any(p_contacts)) or (p_import is not null and x.import_id = p_import))
+    limit 50000
+  loop
+    k := p_reason || ':' || c.id::text;
+    perform enqueue_job(p_ws, 'route', k, jsonb_build_object('contact', c.id, 'reason', p_reason, 'key', k), 0, 5);
+    n := n + 1;
+  end loop;
+  return n;
+end;
+$$;
+
+-- What one alert needs (worker-intel/jobs/router.ts): the run, the Slack webhook (sealed), the owner, and the
+-- workspace owners' emails for leads no one could take.
+create or replace function public.router_alert_info(p_run uuid) returns jsonb
+language sql stable security definer set search_path = public as $$
+  select jsonb_build_object(
+    'run', jsonb_build_object('id', r.id, 'workspace_id', r.workspace_id, 'contact_id', r.contact_id, 'kind', r.kind, 'owner', r.owner, 'by', r."by", 'reason', r.reason,
+                              'queue_id', r.queue_id, 'rule_id', r.rule_id, 'steps', r.steps, 'facts', r.facts, 'undone', r.undone_at is not null),
+    'sealed', (select sealed from router_secrets s where s.workspace_id = r.workspace_id),
+    'owner', case when r.owner is null then null else meeting_people(r.workspace_id, array[r.owner])->0 end,
+    'admins', coalesce((select jsonb_agg(lower(u.email)) from workspace_members m join auth.users u on u.id = m.user_id
+                        where m.workspace_id = r.workspace_id and m.role = 'owner' and u.email is not null), '[]'),
+    'workspace', (select name from workspaces w where w.id = r.workspace_id),
+    'form', (select f.name from forms f where f.id::text = r.facts->'values'->>'lead.form'),
+    'sending', meeting_sending(r.workspace_id))
+  from router_runs r where r.id = p_run;
+$$;
+
 -- Runs kept 13 months; replays 7 days. On their own cron entry, so this file doesn't redefine minute_tick.
 create or replace function public.router_prune() returns int
 language plpgsql security definer set search_path = public as $$
@@ -657,7 +701,7 @@ begin
     'router_pick(uuid, jsonb)', 'router_commit(uuid, uuid, text, text, int, jsonb, jsonb, jsonb, int, boolean, uuid, jsonb)', 'router_undo(uuid, uuid)',
     'router_draft_save(uuid, jsonb, int, uuid)', 'router_draft_drop(uuid)', 'router_publish(uuid, jsonb, text, uuid, boolean)', 'router_live(uuid)',
     'router_rep_save(uuid, uuid, jsonb)', 'router_lists_save(uuid, text[], text[])', 'router_spam(uuid, uuid[])', 'router_assign(uuid, uuid, uuid, uuid)',
-    'router_stats(uuid, int)', 'router_prune()'
+    'router_stats(uuid, int)', 'router_prune()', 'router_alert_info(uuid)', 'router_queue(uuid, text, uuid[], uuid)', 'router_steps_pick(jsonb, text, uuid, jsonb)'
   ] loop
     execute format('revoke execute on function public.%s from public, anon, authenticated', f);
     execute format('grant execute on function public.%s to service_role', f);
