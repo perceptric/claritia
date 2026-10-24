@@ -17,6 +17,7 @@ import { SegmentsView } from "./views/SegmentsView";
 import { AdsView, AnalyticsView, PagesView, TemplatesView } from "./views/MarketingIntros";
 import { FormsView } from "./forms/FormsView";
 import { MeetingsView } from "./meetings/MeetingsView";
+import { useRoutingCommands } from "./routing/commands";
 import { RoutingView } from "./routing/RoutingView";
 import { NurtureView } from "./views/NurtureView";
 import { SettingsView } from "./views/SettingsView";
@@ -170,6 +171,7 @@ export function ClientApp({ config }: { config: SupaConfig }) {
       setLoc({ route: r, id });
     });
   }, []);
+  const routingCommands = useRoutingCommands({ sb, session, ws: ws?.id ?? null, navigate });
 
   if (session === undefined) return <Splash />;
   if (!session) return <AuthScreen sb={sb} />;
@@ -230,6 +232,7 @@ export function ClientApp({ config }: { config: SupaConfig }) {
   const commands: Command[] = [
     ...NAV.map((n) => ({ id: n.route, label: n.label, group: n.group || "App", icon: ICONS[n.route], run: () => navigate(n.route) })),
     ...customObjects.map((o) => ({ id: `o-${o.key}`, label: o.plural, group: "CRM", icon: ICONS.objects, run: () => navigate("objects", o.key) })),
+    ...routingCommands,
     { id: "theme", label: theme === "dark" ? "Light mode" : "Dark mode", group: "Look", icon: theme === "dark" ? <Sun size={15} /> : <Moon size={15} />, run: flip },
     { id: "out", label: "Sign out", group: "Account", icon: <LogOut size={15} />, run: () => void sb.auth.signOut() },
   ];

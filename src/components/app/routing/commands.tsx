@@ -13,11 +13,11 @@ import { routingApi } from "./api";
 import { ROUTING } from "./screenParts";
 import { pausedMs } from "./screensModel";
 
-export function useRoutingCommands({ sb, session, ws, navigate }: { sb: SupabaseClient; session: Session; ws: string | null; navigate: ViewProps["navigate"] }): Command[] {
-  const me = session.user.id;
+export function useRoutingCommands({ sb, session, ws, navigate }: { sb: SupabaseClient; session: Session | null | undefined; ws: string | null; navigate: ViewProps["navigate"] }): Command[] {
+  const me = session?.user.id ?? "";
   const [paused, setPaused] = useState(false);
   useEffect(() => {
-    if (!ws) return;
+    if (!ws || !me) return;
     const load = () =>
       void sb
         .from("router_reps")
@@ -34,7 +34,7 @@ export function useRoutingCommands({ sb, session, ws, navigate }: { sb: Supabase
     return () => window.removeEventListener("claritia:changed", load);
   }, [sb, ws, me]);
 
-  if (!ws) return [];
+  if (!ws || !session) return [];
   const pause = async () => {
     try {
       await routingApi(session, ws, "rep", { user: me, patch: { paused_until: paused ? "" : "infinity" } });

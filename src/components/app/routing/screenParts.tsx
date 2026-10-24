@@ -27,7 +27,7 @@ export function useLiveBody(sb: SupabaseClient, ws: string) {
 
 /** The empty-state sketch for Routing. */
 export function RouteSketch({ size = 160 }: { size?: number }) {
-  return <Sketch name="road" size={size} />;
+  return <Sketch name="signpost" size={size} />;
 }
 
 type ToastState = { id: number; text: string; action?: { label: string; run: () => void } };
