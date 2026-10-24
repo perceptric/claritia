@@ -182,7 +182,7 @@ $$;
  * owners found here and every backup are added. p_queues: the body's queue ids, for their 30-day counts. A key seen
  * before returns that run instead, so the caller writes nothing.
  */
-create or replace function public.router_facts(p_ws uuid, p_contact uuid, p_key text, p_users uuid[], p_queues text[]) returns jsonb
+create or replace function public.router_facts(p_ws uuid, p_contact uuid, p_key text, p_users uuid[], p_queues text[], p_email text default null, p_email_class text default null) returns jsonb
 language plpgsql stable security definer set search_path = public as $$
 declare
   c contacts%rowtype;
@@ -205,7 +205,15 @@ begin
     end if;
   end if;
   select * into c from contacts where id = p_contact and workspace_id = p_ws and deleted_at is null;
-  if c.id is null then return null; end if;
+  -- The Test panel with an email no contact has yet: a lead with only that email.
+  if c.id is null and p_contact is null and nullif(trim(p_email), '') is not null then
+    c.email := lower(trim(p_email));
+    c.email_clean := c.email;
+    c.email_class := p_email_class;
+    c.fields := '{}';
+  elsif c.id is null then
+    return null;
+  end if;
   dom := lower(nullif(split_part(coalesce(c.email_clean, c.email, ''), '@', 2), ''));
   if c.company_id is not null then
     select * into co from companies where id = c.company_id and deleted_at is null;
@@ -227,7 +235,7 @@ begin
   end if;
   -- The fill this route is for, or the contact's latest.
   select s.id, s.form_id, s."values", s.hidden into sub_id, sub_form, sub_values, sub_hidden from submissions s
-  where s.workspace_id = p_ws and s.contact_id = c.id
+  where c.id is not null and s.workspace_id = p_ws and s.contact_id = c.id
   order by (p_key is not null and p_key = 'form:' || s.id::text) desc, s.created_at desc limit 1;
   select * into rt from routers where workspace_id = p_ws;
 
@@ -645,7 +653,7 @@ declare
   f text;
 begin
   foreach f in array array[
-    'router_crm_user(uuid, text)', 'router_owner_user(uuid, text)', 'router_rep_facts(uuid, uuid)', 'router_facts(uuid, uuid, text, uuid[], text[])',
+    'router_crm_user(uuid, text)', 'router_owner_user(uuid, text)', 'router_rep_facts(uuid, uuid)', 'router_facts(uuid, uuid, text, uuid[], text[], text, text)',
     'router_pick(uuid, jsonb)', 'router_commit(uuid, uuid, text, text, int, jsonb, jsonb, jsonb, int, boolean, uuid, jsonb)', 'router_undo(uuid, uuid)',
     'router_draft_save(uuid, jsonb, int, uuid)', 'router_draft_drop(uuid)', 'router_publish(uuid, jsonb, text, uuid, boolean)', 'router_live(uuid)',
     'router_rep_save(uuid, uuid, jsonb)', 'router_lists_save(uuid, text[], text[])', 'router_spam(uuid, uuid[])', 'router_assign(uuid, uuid, uuid, uuid)',

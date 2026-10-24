@@ -162,7 +162,7 @@ export function toFacts(raw: RawFacts, reason: Reason, now = Date.now()): Facts 
   return {
     now,
     lead: {
-      id: c.id,
+      id: c.id ?? "",
       name,
       email: c.email,
       emailClass: c.email_class,
@@ -198,9 +198,18 @@ export function namesOf(body: RouterBody): { users: string[]; queues: string[] }
 }
 
 /** Read one lead's facts for a body. Null when the contact is gone; `existing` when the key was routed already. */
-export async function readFacts(rpc: Rpc, o: { ws: string; contact: string; key: string | null; body: RouterBody; reason: Reason; now?: number }): Promise<{ facts: Facts; raw: RawFacts } | { existing: NonNullable<RawFacts["existing"]> } | null> {
+export async function readFacts(
+  rpc: Rpc,
+  o: { ws: string; contact: string | null; email?: string | null; key: string | null; body: RouterBody; reason: Reason; now?: number },
+): Promise<{ facts: Facts; raw: RawFacts } | { existing: NonNullable<RawFacts["existing"]> } | null> {
   const n = namesOf(o.body);
-  const raw = await call<RawFacts | null>(rpc, "router_facts", { p_ws: o.ws, p_contact: o.contact, p_key: o.key, p_users: n.users, p_queues: n.queues });
+  let emailClass: string | null = null;
+  if (!o.contact && o.email) {
+    const { cleanEmail } = await import("../identity/clean.ts");
+    const e = cleanEmail(o.email);
+    emailClass = "rejected" in e ? null : e.class;
+  }
+  const raw = await call<RawFacts | null>(rpc, "router_facts", { p_ws: o.ws, p_contact: o.contact, p_key: o.key, p_users: n.users, p_queues: n.queues, p_email: o.email ?? null, p_email_class: emailClass });
   if (!raw) return null;
   if (raw.existing) return { existing: raw.existing };
   const facts = toFacts(raw, o.reason, o.now);
@@ -222,7 +231,10 @@ export async function liveRouter(rpc: Rpc, ws: string): Promise<{ version: numbe
  * Route one lead with the live router. `key` makes it once-only (the fill id, an import row, an API key). A lead marked
  * spam isn't routed unless `force` (Held's "Let through").
  */
-export async function route(rpc: Rpc, o: { ws: string; contact: string; key: string; reason: Reason; byUser?: string | null; force?: boolean; live?: { version: number; body: RouterBody } | null; now?: () => number }): Promise<Routed> {
+export async function route(
+  rpc: Rpc,
+  o: { ws: string; contact: string; key: string; reason: Reason; byUser?: string | null; force?: boolean; skipSpam?: boolean; live?: { version: number; body: RouterBody } | null; now?: () => number },
+): Promise<Routed> {
   const live = o.live === undefined ? await liveRouter(rpc, o.ws) : o.live;
   if (!live) return { status: "no_router" };
   const t0 = Date.now();
@@ -236,8 +248,11 @@ export async function route(rpc: Rpc, o: { ws: string; contact: string; key: str
       return { status: "dup", run: e.id, decision: null, result };
     }
     if (read.raw.contact.route_status === "spam" && !o.force) return { status: "spam" };
-    const d = decide(live.body, read.facts);
-    const pick = pickFor(live.body, d);
+    // Held's "Let through": a person looked at it, so the spam step and the block list are skipped.
+    const body = o.skipSpam ? { ...live.body, spam: { ...live.body.spam, on: false } } : live.body;
+    if (o.skipSpam) read.facts.lists = { ...read.facts.lists, block: [] };
+    const d = decide(body, read.facts);
+    const pick = pickFor(body, d);
     const res = await call<{ status: string; id?: string; kind?: string; owner?: string | null; steps?: unknown }>(rpc, "router_commit", {
       p_ws: o.ws,
       p_contact: o.contact,
@@ -284,8 +299,8 @@ export function pickFor(body: RouterBody, d: Decision): { queue: string; method:
 }
 
 /** Test a lead against a body without writing anything (docs/router-ux.md 4.3). Changed fields override the lead's. */
-export async function testRoute(rpc: Rpc, o: { ws: string; contact: string; body: RouterBody; changes?: Record<string, unknown>; now?: number }): Promise<{ decision: Decision; facts: Facts } | null> {
-  const read = await readFacts(rpc, { ws: o.ws, contact: o.contact, key: null, body: o.body, reason: "manual", now: o.now });
+export async function testRoute(rpc: Rpc, o: { ws: string; contact?: string | null; email?: string | null; body: RouterBody; changes?: Record<string, unknown>; now?: number }): Promise<{ decision: Decision; facts: Facts } | null> {
+  const read = await readFacts(rpc, { ws: o.ws, contact: o.contact ?? null, email: o.email, key: null, body: o.body, reason: "form", now: o.now });
   if (!read || "existing" in read) return null;
   const facts = read.facts;
   for (const [k, v] of Object.entries(o.changes ?? {})) facts.values[k] = v;
