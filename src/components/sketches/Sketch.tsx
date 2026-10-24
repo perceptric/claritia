@@ -97,6 +97,14 @@ const DEFS = {
     accent: "M64 66a6 6 0 1 0 12 0a6 6 0 1 0-12 0z M70 72v8 M132 30q-6 30-46 34 M92 58l-6 6 8 3",
     accentTone: "clay",
   },
+  // A signpost with three arrows, and a paper plane landing on the top one.
+  signpost: {
+    wash: "M80 24h46l8 7-8 7H80z",
+    ink: "M80.4 20q-.6 44 .2 88 M58 108.4q22-1.2 44 .2 M80 24.4q23-.8 46 0l8 6.8-8 7.2q-23 .6-46-.2 M80 46.2q-22 .8-44-.2l-8 7.4 8 6.8q22-.6 44 .2 M80 68.4q20-.8 40 0l8 6.8-8 7.2q-20 .6-40-.2 M90 31.2h22 M44 53.2h26 M90 75.4h18",
+    accent: "M106 9l18 12-19-2.6 3.4-3.6z M108.4 15.4l15.6 5.6",
+    dots: along([28, 26], [58, -4], [100, 10], 9),
+    accentTone: "sky",
+  },
 } satisfies Record<string, Def>;
 
 export type SketchName = keyof typeof DEFS;

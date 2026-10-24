@@ -62,6 +62,7 @@ export function FieldsPanel({
   onSave,
   onCustomize,
   onAddField,
+  under,
 }: {
   sb: SupabaseClient;
   wsId: string;
@@ -74,6 +75,8 @@ export function FieldsPanel({
   onSave: (f: AnyField, v: unknown) => Promise<void>;
   onCustomize?: () => void;
   onAddField?: () => void;
+  /** Extra lines under a field's value, by field key (the contact's "Routed by" under Owner). */
+  under?: Record<string, React.ReactNode>;
 }) {
   const [editing, setEditing] = useState<string | null>(null);
   const [error, setError] = useState("");
@@ -138,6 +141,7 @@ export function FieldsPanel({
                         {w && !empty ? <span className="mt-0.5 block text-[12px] text-faint">{`${sourceLabel(w.source)} · ${timeAgo(w.at)}`}</span> : null}
                       </button>
                     )}
+                    {under?.[f.key] ?? null}
                   </dd>
                 </div>
               );

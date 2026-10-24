@@ -25,6 +25,8 @@ import { RecordsList, type Preset, type ViewState } from "../records/RecordsList
 import { SidePanel } from "../records/SidePanel";
 import { DEFAULT_WIDTH, type Row } from "../records/RecordTable";
 import { OpportunitiesPanel } from "./RecordsViews";
+import { routingApi } from "../routing/api";
+import { RoutedBy } from "../routing/Log";
 import { activeTime } from "./VisitorsView";
 
 const LIFECYCLE_LABEL = Object.fromEntries(LIFECYCLES.map((l) => [l.value, l.label]));
@@ -56,7 +58,7 @@ export function ContactsView(props: ViewProps) {
   return <ContactsList {...props} />;
 }
 
-function ContactsList({ sb, ws, session, navigate }: ViewProps) {
+function ContactsList({ sb, ws, session, role, navigate }: ViewProps) {
   const [panel, setPanel] = useState<"import" | "add" | null>(null);
   const [tick, setTick] = useState(0);
   const custom = useMeta(sb, ws.id, "contact");
@@ -89,7 +91,7 @@ function ContactsList({ sb, ws, session, navigate }: ViewProps) {
         onOpen={(r) => navigate("contacts", r.id)}
         nameExtra={(r) => (r.person_id ? <Badge tone="brand">On site</Badge> : null)}
         intro={<ContactsIntro action={actions} />}
-        bulkExtra={(ids, done, meta) => <ContactBulk sb={sb} wsId={ws.id} ids={ids} done={done} meta={meta} />}
+        bulkExtra={(ids, done, meta) => <ContactBulk sb={sb} session={session} wsId={ws.id} owner={role === "owner"} ids={ids} done={done} meta={meta} />}
       />
       {panel === "import" ? (
         <ImportPanel
@@ -119,8 +121,8 @@ function ContactsList({ sb, ws, session, navigate }: ViewProps) {
   );
 }
 
-/** Contacts' own bulk actions: add to a list, merge two. */
-function ContactBulk({ sb, wsId, ids, done, meta }: { sb: ViewProps["sb"]; wsId: string; ids: () => Promise<string[]>; done: () => void; meta: Meta }) {
+/** Contacts' own bulk actions: add to a list, merge two, route again. */
+function ContactBulk({ sb, session, wsId, owner, ids, done, meta }: { sb: ViewProps["sb"]; session: ViewProps["session"]; wsId: string; owner: boolean; ids: () => Promise<string[]>; done: () => void; meta: Meta }) {
   const [anchor, setAnchor] = useState<HTMLElement | null>(null);
   const [error, setError] = useState("");
   const addTo = async (list: string | null) => {
@@ -151,12 +153,28 @@ function ContactBulk({ sb, wsId, ids, done, meta }: { sb: ViewProps["sb"]; wsId:
       setError(errorText(e));
     }
   };
+  const routeAgain = async () => {
+    try {
+      const chosen = await ids();
+      if (!chosen.length || !(await askConfirm(`Route ${chosen.length.toLocaleString("en-US")} ${chosen.length === 1 ? "contact" : "contacts"} again?`, { ok: "Route again" }))) return;
+      const r = await routingApi<{ queued?: number; routed?: number }>(session, wsId, "route", { contacts: chosen });
+      done();
+      await tell(r.queued ? `Routing ${r.queued.toLocaleString("en-US")}` : r.routed ? "Routed" : "Not routed");
+    } catch (e) {
+      setError(errorText(e));
+    }
+  };
   return (
     <>
       {error ? <span className="text-[12.5px] text-rose">{error}</span> : null}
       <Button variant="ghost" size="sm" onClick={(e) => setAnchor(e.currentTarget)}>
         Add to list
       </Button>
+      {owner ? (
+        <Button variant="ghost" size="sm" onClick={routeAgain}>
+          Route again
+        </Button>
+      ) : null}
       <Button variant="ghost" size="sm" onClick={merge}>
         Merge
       </Button>
@@ -360,6 +378,7 @@ function ContactPage({ sb, ws, session, role, id, navigate }: ViewProps) {
   const meta = useMeta(sb, ws.id, "contact");
   const [editing, setEditing] = useState(false);
   const [error, setError] = useState("");
+  const [routed, setRouted] = useState(0);
   const back = { label: "Contacts", onClick: () => navigate("contacts") };
 
   if (detail.data?.moved_to) {
@@ -381,6 +400,17 @@ function ContactPage({ sb, ws, session, role, id, navigate }: ViewProps) {
   const record: Row = { ...(c as unknown as Row), company_name: d.company?.name ?? d.company?.domain ?? null, company_domain: d.company?.domain ?? null, fit: d.company?.fit ?? null, intent: d.company?.intent ?? null, industry: d.company?.industry ?? null, size: d.company?.size ?? null };
   const stage = fields.find((f) => f.key === "lead_status");
 
+  async function routeAgain() {
+    if (!(await askConfirm(`Route ${name} again?`, { ok: "Route again" }))) return;
+    setError("");
+    try {
+      await routingApi(session, ws.id, "route", { contacts: [id] });
+      detail.reload();
+      setRouted((n) => n + 1);
+    } catch (e) {
+      setError(errorText(e));
+    }
+  }
   async function remove() {
     if (!(await askConfirm(`Remove ${name}?`, { ok: "Remove", danger: true }))) return;
     try {
@@ -443,6 +473,9 @@ function ContactPage({ sb, ws, session, role, id, navigate }: ViewProps) {
         <>
           <Button variant="ghost" size="sm" onClick={() => setEditing(true)}>
             Edit
+          </Button>
+          <Button variant="ghost" size="sm" onClick={routeAgain}>
+            Route again
           </Button>
           <Button variant="danger" size="sm" onClick={remove}>
             Remove
@@ -519,6 +552,7 @@ function ContactPage({ sb, ws, session, role, id, navigate }: ViewProps) {
               onSave={save}
               onCustomize={() => navigate("settings", "fields")}
               onAddField={() => setAddingField(true)}
+              under={{ owner: <RoutedBy key={routed} sb={sb} session={session} ws={ws} role={role} navigate={navigate} contact={id} /> }}
             />
 
             <OpportunitiesPanel sb={sb} ws={ws} object="contact" id={id} navigate={navigate} />

@@ -10,7 +10,7 @@ import { TARGETS, type CustomField, type Target } from "@/lib/contacts/fields";
 import { Upload } from "../../Icons";
 import { askConfirm, askText } from "../Dialogs";
 import { Select } from "../Select";
-import { Badge, Button, ErrorNote, errorText, Field, Loading, must, Panel, postJson, Segmented, Td, Th, type Tone, type ViewProps } from "../ui";
+import { Badge, Button, ErrorNote, errorText, Field, Loading, must, Panel, postJson, Segmented, Td, Th, Toggle, useLoad, type Tone, type ViewProps } from "../ui";
 import { SidePanel } from "./SidePanel";
 
 type Inspect = { kind: string; size: number; sheets: string[]; sheet: string | null; header: string[]; samples: string[][]; rows: number; exact: boolean; guessed: Target[] };
@@ -57,6 +57,9 @@ export function ImportPanel({
   const [imp, setImp] = useState<ImportRow | null>(null);
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
+  const [route, setRoute] = useState(false);
+  // Route new contacts is offered once the workspace has a live router.
+  const live = useLoad(async () => !!((must(await sb.from("routers").select("live_version").eq("workspace_id", wsId).maybeSingle()) as { live_version: number | null } | null)?.live_version), wsId);
 
   const run = async (label: string, fn: () => Promise<void>) => {
     setError("");
@@ -138,7 +141,7 @@ export function ImportPanel({
     });
   const start = () =>
     run("start", async () => {
-      const r = await postJson<{ importId: string }>(session, "/api/contacts/import", { workspaceId: wsId, path: file!.path, fileName: file!.name, sheet: info!.sheet, mapping, kind: file!.kind });
+      const r = await postJson<{ importId: string }>(session, "/api/contacts/import", { workspaceId: wsId, path: file!.path, fileName: file!.name, sheet: info!.sheet, mapping: route && live.data && list === "contacts" ? { ...mapping, route: true } : mapping, kind: file!.kind });
       setImportId(r.importId);
     });
   const undo = async () => {
@@ -266,6 +269,12 @@ export function ImportPanel({
             >
               Start over
             </Button>
+            {preview && live.data && list === "contacts" ? (
+              <label className="mr-auto flex items-center gap-2 text-[12.5px] font-medium text-body">
+                <Toggle label="Route new contacts" on={route} onChange={setRoute} disabled={!!busy} />
+                Route new contacts
+              </label>
+            ) : null}
             {preview ? (
               <Button onClick={start} disabled={!ready || !!busy}>
                 {busy === "start" ? "Starting…" : `Import ${info.exact ? "" : "about "}${info.rows.toLocaleString("en-US")} rows`}
