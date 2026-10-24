@@ -5,7 +5,8 @@
 // CRM: a custom field from the table, a rating from the record page, a note and a task. Then Meetings: a guest books
 // from the booking page, and a lead books inside a Claritia calendar form right after sending it. Then the app's
 // structure (docs/app-structure.md): the sidebar's groups, Scheduling's pages with a named schedule, Signals,
-// Enrichment, and Routing's pages from the first screen to Make live, Teams' Deal 20 leads and a company type.
+// Enrichment, and Routing's pages from the first screen to Make live, Teams' Deal 20 leads and a company type,
+// Workflows from a blank one to Make live and Try a contact, and an email template.
 //   POSTGREST_BIN=… CHROMIUM_PATH=… node scripts/screens-check.ts
 // scripts/test-db.sh runs it when both are set.
 
@@ -369,6 +370,33 @@ try {
   await until(async () => (await db.query(`select draft->'segments'->0->>'name' n from routers where workspace_id = $1`, [ws])).rows[0]?.n === "Enterprise", 30_000, "the company type to save to the draft");
   await page.getByText("You have changes that aren't live.").waitFor({ timeout: 30_000 });
   check(true, "a company type saves to the draft and asks to make it live");
+
+  // Workflows: a blank one with a task goes live; Try a contact reads its path; a saved email template.
+  await page.goto(`${base}/workflows`);
+  await page.getByRole("button", { name: "New workflow" }).first().click({ timeout: 60_000 });
+  await page.getByRole("button", { name: /Start blank/ }).click({ timeout: 30_000 });
+  await until(async () => /^\/workflows\/[0-9a-f-]{36}$/.test(new URL(page.url()).pathname), 30_000, "the new workflow to open");
+  await page.getByRole("button", { name: "Add a step" }).last().click({ timeout: 30_000 });
+  await page.getByRole("button", { name: "Create task", exact: true }).click();
+  await until(async () => (await db.query(`select draft->'steps'->0->>'kind' k from workflows where workspace_id = $1`, [ws])).rows[0]?.k === "task", 30_000, "the task to save to the draft");
+  check(true, "a step added to a workflow saves to the draft");
+  const wfLive = page.getByRole("button", { name: "Make live", exact: true }).first();
+  await until(async () => await wfLive.isEnabled(), 30_000, "the workflow to be ready to make live");
+  await wfLive.click();
+  await page.getByRole("dialog").getByRole("button", { name: "Make live", exact: true }).click({ timeout: 30_000 });
+  await until(async () => (await db.query(`select status, live_version from workflows where workspace_id = $1`, [ws])).rows[0]?.live_version === 1, 30_000, "the workflow to go live");
+  check(true, "a workflow goes live");
+  await page.getByRole("button", { name: "Try a contact", exact: true }).first().click({ timeout: 30_000 });
+  await page.getByRole("textbox", { name: "Find a contact" }).fill("lee");
+  await page.getByRole("dialog", { name: "Try a contact" }).getByRole("button", { name: /Lee/ }).first().click({ timeout: 30_000 });
+  await page.getByRole("dialog", { name: "Try a contact" }).getByText("Task for their rep: Follow up").waitFor({ timeout: 30_000 });
+  check(true, "Try a contact reads the path a contact would take");
+  await page.goto(`${base}/templates`);
+  await page.getByRole("button", { name: "New template" }).first().click({ timeout: 60_000 });
+  await page.getByRole("dialog").getByRole("textbox").fill("Product update");
+  await page.getByRole("dialog").getByRole("button", { name: "Create", exact: true }).click();
+  await until(async () => (await db.query(`select count(*)::int n from email_templates where workspace_id = $1 and name = 'Product update'`, [ws])).rows[0]?.n === 1, 30_000, "the template to save");
+  check(true, "an email template saves");
 
   check(!errors.length, `no page errors (${errors.slice(0, 3).join(" | ")})`);
 } catch (e) {

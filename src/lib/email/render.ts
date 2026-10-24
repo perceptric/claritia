@@ -2,6 +2,7 @@
 // one-click unsubscribe headers Gmail and Yahoo require of bulk senders (RFC 8058).
 
 import { fromHeader, type Outgoing } from "./provider.ts";
+import { fillMerge } from "../workflows/engine.ts";
 import { makeToken, rewriteLinks } from "./track.ts";
 
 /** What send_claim hands the worker for each message (supabase/migrations/039_email.sql). */
@@ -26,6 +27,8 @@ export type Claimed = {
   per_second: number;
   /** Tries so far, this one included (067_resend.sql). */
   attempts?: number;
+  /** Merge values for {{first_name|there}} and the rest (069_workflows.sql). */
+  vars?: Record<string, string | null> | null;
 };
 
 const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
@@ -35,8 +38,12 @@ export const linkBase = (env: NodeJS.ProcessEnv = process.env) => env.APP_URL?.t
 
 export function renderMessage(m: Claimed, o: { base: string; secret?: string }): Outgoing {
   const unsub = `${o.base}/u/${makeToken({ kind: "unsub", message: m.id, link: 0 }, o.secret)}`;
-  let html = rewriteLinks(m.html, (i) => `${o.base}/c/${makeToken({ kind: "click", message: m.id, link: i }, o.secret)}`);
-  let text = m.text;
+  // Merge values: as typed in the subject and text, escaped in the html.
+  const vars = m.vars ?? {};
+  const htmlVars = Object.fromEntries(Object.entries(vars).map(([k, v]) => [k, v ? esc(v) : v]));
+  let html = rewriteLinks(fillMerge(m.html, htmlVars), (i) => `${o.base}/c/${makeToken({ kind: "click", message: m.id, link: i }, o.secret)}`);
+  let text = fillMerge(m.text, vars);
+  m = { ...m, subject: fillMerge(m.subject, vars), preheader: m.preheader ? fillMerge(m.preheader, vars) : m.preheader };
 
   if (m.preheader?.trim()) {
     const pre = `<div style="display:none;max-height:0;overflow:hidden;opacity:0">${esc(oneLine(m.preheader))}</div>`;

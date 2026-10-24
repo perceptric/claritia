@@ -1241,6 +1241,46 @@ select pg_temp.fails($$select enrich_load_email('22222222-0000-0000-0000-0000000
 reset role;
 select set_config('request.jwt.claim.sub', '', false);
 
+-- Workflows (069): every table stays in its workspace; the runner's functions are the server's only.
+insert into workflows (id, workspace_id, name, status, draft, live_version) values ('69a00000-0000-0000-0000-0000000000c1', '22222222-0000-0000-0000-000000000000', 'Cat''s flow', 'live', '{}', 1);
+insert into workflow_versions (workflow_id, workspace_id, version, body) values ('69a00000-0000-0000-0000-0000000000c1', '22222222-0000-0000-0000-000000000000', 1, '{"trigger":{"kind":"manual"},"steps":[]}');
+insert into workflow_runs (id, workspace_id, workflow_id, version, contact_id, key, status) values ('69b00000-0000-0000-0000-0000000000c1', '22222222-0000-0000-0000-000000000000', '69a00000-0000-0000-0000-0000000000c1', 1, null, 'manual:x', 'failed');
+insert into workflow_steps_done (run_id, workspace_id, step_id, status) values ('69b00000-0000-0000-0000-0000000000c1', '22222222-0000-0000-0000-000000000000', 's1', 'failed');
+insert into workflow_watch (workspace_id, workflow_id, key) values ('22222222-0000-0000-0000-000000000000', '69a00000-0000-0000-0000-0000000000c1', 'lifecycle');
+insert into contacts (id, workspace_id, email, email_clean, first_name) values ('69d00000-0000-0000-0000-0000000000c1', '22222222-0000-0000-0000-000000000000', 'cat.lead@x.com', 'cat.lead@x.com', 'Cat''s lead');
+insert into email_templates (id, workspace_id, name, body) values ('69c00000-0000-0000-0000-0000000000c1', '22222222-0000-0000-0000-000000000000', 'Cat''s template', '{}');
+select pg_temp.as_user('b0000000-0000-0000-0000-000000000000');
+set role authenticated;
+select pg_temp.check((select count(*) from workflows where workspace_id = '22222222-0000-0000-0000-000000000000') = 0, 'Ben reads Cat''s workflows');
+select pg_temp.check((select count(*) from workflow_versions) = 0, 'Ben reads Cat''s workflow versions');
+select pg_temp.check((select count(*) from workflow_runs) = 0, 'Ben reads Cat''s workflow runs');
+select pg_temp.check((select count(*) from workflow_steps_done) = 0, 'Ben reads Cat''s workflow steps');
+select pg_temp.check((select count(*) from email_templates) = 0, 'Ben reads Cat''s email templates');
+select pg_temp.fails($$select count(*) from workflow_watch$$, 'Ben reads the watch list');
+select pg_temp.fails($$update workflows set name = 'mine' where id = '69a00000-0000-0000-0000-0000000000c1'$$ , 'Ben renames a workflow directly');
+select pg_temp.fails($$insert into workflow_runs (workspace_id, workflow_id, version, key) values ('11111111-0000-0000-0000-000000000000', '69a00000-0000-0000-0000-0000000000c1', 1, 'x')$$, 'Ben starts a run directly');
+select pg_temp.fails($$select workflow_save('22222222-0000-0000-0000-000000000000', '69a00000-0000-0000-0000-0000000000c1', 'x', '{}', null)$$, 'Ben saves Cat''s workflow');
+select pg_temp.fails($$select workflow_save('11111111-0000-0000-0000-000000000000', '69a00000-0000-0000-0000-0000000000c1', 'x', '{}', null)$$, 'Ben saves Cat''s workflow through his workspace');
+select pg_temp.fails($$select workflow_set_status('69a00000-0000-0000-0000-0000000000c1', 'paused')$$, 'Ben pauses Cat''s workflow');
+select pg_temp.fails($$select workflow_delete('69a00000-0000-0000-0000-0000000000c1')$$, 'Ben deletes Cat''s workflow');
+select pg_temp.fails($$select workflow_enter('69a00000-0000-0000-0000-0000000000c1', array['69d00000-0000-0000-0000-0000000000c1'::uuid])$$, 'Ben adds people to Cat''s workflow');
+select pg_temp.fails($$select workflow_retry('69b00000-0000-0000-0000-0000000000c1')$$, 'Ben retries Cat''s run');
+select pg_temp.fails($$select workflow_stats('69a00000-0000-0000-0000-0000000000c1')$$, 'Ben reads Cat''s workflow counts');
+select pg_temp.fails($$select workflows_overview('22222222-0000-0000-0000-000000000000')$$, 'Ben reads Cat''s workflow list counts');
+select pg_temp.check((select workflow_preview_facts('69d00000-0000-0000-0000-0000000000c1')) is null, 'Ben previews Cat''s contact');
+select pg_temp.fails($$select email_template_save('22222222-0000-0000-0000-000000000000', null, 'x', '{}')$$, 'Ben saves a template in Cat''s workspace');
+select pg_temp.fails($$select email_template_save('11111111-0000-0000-0000-000000000000', '69c00000-0000-0000-0000-0000000000c1', 'x', '{}')$$, 'Ben changes Cat''s template through his workspace');
+select pg_temp.fails($$select email_template_delete('69c00000-0000-0000-0000-0000000000c1')$$, 'Ben deletes Cat''s template');
+select pg_temp.fails($$select workflow_publish('69a00000-0000-0000-0000-0000000000c1', 'b0000000-0000-0000-0000-000000000000', '{}', '[]')$$, 'Ben publishes without the server');
+select pg_temp.fails($$select workflow_claim('22222222-0000-0000-0000-000000000000')$$, 'Ben claims Cat''s runs');
+select pg_temp.fails($$select workflow_facts('69b00000-0000-0000-0000-0000000000c1')$$, 'Ben reads a run''s facts');
+select pg_temp.fails($$select workflow_step_done('69b00000-0000-0000-0000-0000000000c1', 's1', 1, 'done', '{}', null, null, null, 'done')$$, 'Ben finishes a step');
+select pg_temp.fails($$select workflow_email('69b00000-0000-0000-0000-0000000000c1', 's1', '{}', null, null)$$, 'Ben queues a workflow email');
+select pg_temp.fails($$select workflows_tick()$$, 'Ben runs the workflow tick');
+reset role;
+select pg_temp.check((select name from workflows where id = '69a00000-0000-0000-0000-0000000000c1') = 'Cat''s flow' and (select status from workflow_runs where id = '69b00000-0000-0000-0000-0000000000c1') = 'failed', 'Cat''s workflow changed');
+select set_config('request.jwt.claim.sub', '', false);
+
 -- Cloud minutes: once Acme has used its 2,000, nobody there can start a run.
 insert into runs (workspace_id, project_id, test_name, test_version, environment_name, base_url, lock, status, duration_ms)
 values ('11111111-0000-0000-0000-000000000000', 'a1000000-0000-0000-0000-000000000000', 'long', 1, 'staging', 'https://x.com', '', 'passed', 2000 * 60000);

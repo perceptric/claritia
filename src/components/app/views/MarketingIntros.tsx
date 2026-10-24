@@ -3,8 +3,8 @@
 // First screens for the marketing platform's tools, shown until each one has data
 // (docs/marketing-platform.md). Each tool replaces its intro with the working screen when it ships.
 
-import { BarChart, Eye, FileText, Mail, Megaphone } from "../../Icons";
-import { SampleBars, SampleRows, SampleStats, SampleTags, ToolIntro } from "../ToolIntro";
+import { BarChart, Eye, FileText, Megaphone } from "../../Icons";
+import { SampleBars, SampleRows, SampleTags, ToolIntro } from "../ToolIntro";
 import { Page } from "../ui";
 
 /** Visitors before a site is added. */
@@ -44,30 +44,6 @@ export function VisitorsIntro({ action, head }: { action?: React.ReactNode; head
   return (
     <Page icon={<Eye size={14} />} title="Visits">
       {intro}
-    </Page>
-  );
-}
-
-export function TemplatesView() {
-  return (
-    <Page icon={<Mail size={14} />} title="Templates">
-      <ToolIntro
-        sketch="envelopes"
-        title={"Emails\nin your brand"}
-        lead="Build email templates once, in your colors and voice. Workflows fill them for each contact."
-        features={[
-          {
-            title: "Your brand kit",
-            text: "Logo, colors and fonts come from your site.",
-            visual: <SampleTags rows={[["Product update", "Ready"], ["Webinar invite", "Draft"], ["Guide follow-up", "Ready"]]} />,
-          },
-          {
-            title: "Written for each contact",
-            text: "AI blocks write a line or a paragraph from what the contact did, with the source behind each claim.",
-            visual: <SampleStats items={[["templates", "12"], ["AI blocks", "31"], ["approved", "96%"]]} />,
-          },
-        ]}
-      />
     </Page>
   );
 }

@@ -20,6 +20,7 @@ import { calendarRefresh, calendarWatch, meetingSync } from "./jobs/calendars.ts
 import { calendarReconnect, formNotBooked, mailerFromEnv, meetingAfter, meetingBookLater, meetingNotify, meetingRemind, systemFrom } from "./jobs/meetings.ts";
 import { enrichCompany, identityChanged, ipLookup } from "./jobs/company.ts";
 import { enrichBackfill, enrichContactJob, qualifyJob } from "./jobs/enrich.ts";
+import { workflowRun } from "./jobs/workflows.ts";
 import { keysFromEnv } from "../src/lib/enrich/server.ts";
 import { accountAlert, scoreAccount, sweepSignals } from "./jobs/signals.ts";
 import { importFile, importUndo, pruneImportFiles } from "./jobs/imports.ts";
@@ -60,6 +61,7 @@ const handlers = {
   enrich_contact: enrichContactJob(rpc, { keys: keysFromEnv() }),
   enrich_backfill: enrichBackfill(rpc),
   qualify: qualifyJob(rpc),
+  workflow_run: workflowRun(rpc, { keys: keysFromEnv(), secret: process.env.SECRETS_KEY }),
   score_account: scoreAccount(pool),
   account_alert: accountAlert(pool),
   import_file: importFile(pool, rpc),

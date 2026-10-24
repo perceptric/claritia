@@ -19,12 +19,13 @@ import { SignalsView } from "./signals/SignalsView";
 import { ContactsView } from "./views/ContactsView";
 import { CompaniesView, ObjectsView, OpportunitiesView } from "./views/RecordsViews";
 import { SegmentsView } from "./views/SegmentsView";
-import { AdsView, AnalyticsView, PagesView, TemplatesView } from "./views/MarketingIntros";
+import { AdsView, AnalyticsView, PagesView } from "./views/MarketingIntros";
 import { FormsView } from "./forms/FormsView";
 import { MeetingsView } from "./meetings/MeetingsView";
 import { useRoutingCommands } from "./routing/commands";
 import { RoutingView } from "./routing/RoutingView";
-import { NurtureView } from "./views/NurtureView";
+import { EmailTemplatesView } from "./workflows/EmailTemplatesView";
+import { WorkflowsView } from "./workflows/WorkflowsView";
 import { SettingsView } from "./views/SettingsView";
 
 const GROUP_LABEL = { crm: "CRM", automation: "Automation", routing: "Routing", scheduling: "Scheduling", email: "Email", site: "Site", ads: "App", settings: "App" } as const;
@@ -204,6 +205,7 @@ export function ClientApp({ config }: { config: SupaConfig }) {
     { group: "CRM", label: "Contact", run: () => navigate("contacts", "", "create=1") },
     { group: "CRM", label: "Opportunity", run: () => navigate("opportunities", "", "create=1") },
     { group: "Automation", label: "Workflow", run: () => navigate("workflows", "new") },
+    { group: "Automation", label: "Broadcast", run: () => navigate("workflows", "new", "template=broadcast") },
     { group: "Automation", label: "Form", run: () => navigate("forms", "new") },
     { group: "Routing", label: "Rule", run: () => navigate("routing", "rules", "create=1") },
     { group: "Routing", label: "Team", run: () => navigate("routing", "teams", "create=1") },
@@ -270,9 +272,9 @@ export function ClientApp({ config }: { config: SupaConfig }) {
         ) : route === "segments" ? (
           <SegmentsView {...props} />
         ) : route === "templates" ? (
-          <TemplatesView />
+          <EmailTemplatesView {...props} />
         ) : route === "workflows" ? (
-          <NurtureView {...props} />
+          <WorkflowsView key={loc.id === "new" ? "new" : "wf"} {...props} />
         ) : route === "analytics" ? (
           <AnalyticsView />
         ) : route === "forms" ? (

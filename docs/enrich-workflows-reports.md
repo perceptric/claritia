@@ -357,6 +357,24 @@ Timing:
 
 ## Part 2. Workflows
 
+**Built.** Run `069_workflows.sql` after 068. It moves any nurtures into draft workflows; a live one goes live again
+from the editor. `pg_cron` runs `workflows_tick()` each minute (job `claritia-workflows`), and the `workflow_run` job
+in `claritia-intel` moves the runs. No new keys: emails go through Resend (Part 0), and webhooks are signed with
+`SECRETS_KEY`.
+
+Code:
+- `src/lib/workflows/`: types, the step tree, the engine (shared by Try a contact and the worker), checks, words,
+  templates, facts.
+- `worker-intel/jobs/workflows.ts`: one handler per step kind, with the once-only ledger.
+- `src/app/api/workflows/`: Make live, Try a contact, Write with AI, the webhook secret.
+- `src/components/app/workflows/`: the list and template picker, the editor (`Flow`, `Inspector`, `Panels` for Try a
+  contact, History, Versions and Make live), and Email › Templates.
+- Tests: `tests/workflows.test.ts`, `tests/pg/workflows.pg.ts`, the Workflows block in `tests/db/leaks.sql`, and the
+  Workflows steps in `scripts/screens-check.ts`.
+
+Running cost as planned in Part 4: $0 added at Beta; about $55 a month at Growth (one more worker machine and
+database growth, both check).
+
 ### 2.1 What's there today
 
 **Nurture**
