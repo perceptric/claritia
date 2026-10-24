@@ -268,6 +268,50 @@ try {
   check(fromForm.length === 1 && fromForm[0].status === "booked" && !!fromForm[0].submission_id, "a lead books inside the form, and the meeting links to the fill");
   await lead.close();
 
+  // Routing: a template, Publish, a test, a form fill routed in the send, a held lead let through, the log.
+  await page.goto(`${base}/routing`);
+  await page.getByRole("button", { name: /Round robin/ }).first().click({ timeout: 60_000 });
+  const publishBtn = page.getByRole("button", { name: "Publish", exact: true }).first();
+  await until(async () => await publishBtn.isEnabled(), 30_000, "the draft to be ready to publish");
+  await publishBtn.click();
+  await page.getByRole("dialog").getByRole("button", { name: "Publish", exact: true }).click({ timeout: 30_000 });
+  await until(async () => (await db.query(`select live_version from routers where workspace_id = $1`, [ws])).rows[0]?.live_version === 1, 30_000, "the router to go live");
+  check(true, "a template publishes as v1");
+  await page.getByRole("button", { name: "Test", exact: true }).first().click();
+  await page.getByRole("textbox", { name: "Email" }).fill("rae@northwind.io");
+  await page.keyboard.press("Enter");
+  await page.getByRole("complementary", { name: "Test" }).getByText("Spam check").first().waitFor({ timeout: 30_000 });
+  check(true, "the Test panel explains where a lead would go");
+
+  const routedLead = await browser.newPage();
+  routedLead.on("pageerror", (e) => errors.push(`form: ${e.message}`));
+  for (const [em, first] of [["mo@initech.io", "Mo"], ["x@initech.io", "asdf"]] as const) {
+    await routedLead.goto(`${base}/f/${bookForm}`);
+    const h = routedLead.locator("claritia-form");
+    await h.locator("form").waitFor({ timeout: 30_000 });
+    await h.getByLabel(/^Work email/).fill(em);
+    await h.getByLabel(/^First name/).fill(first);
+    await h.locator("button[type=submit]").click();
+    await until(async () => (await db.query(`select 1 from router_runs r join contacts c on c.id = r.contact_id where c.email_clean = $1`, [em])).rows.length === 1, 30_000, `the fill from ${em} to be routed`);
+  }
+  await routedLead.close();
+  const mo = (await db.query(`select c.owner_user_id, r.kind from contacts c join router_runs r on r.contact_id = c.id where c.email_clean = 'mo@initech.io'`)).rows[0];
+  check(mo?.kind === "owner" && mo.owner_user_id === user, "a form fill is routed in the send and the rep owns the lead");
+  const heldRow = (await db.query(`select c.route_status from contacts c where c.email_clean = 'x@initech.io'`)).rows[0];
+  check(heldRow?.route_status === "held", "a fake name is held");
+  await page.goto(`${base}/routing/held`);
+  await page.getByText("x@initech.io").first().waitFor({ timeout: 30_000 });
+  await page.getByRole("button", { name: "Let through", exact: true }).first().click();
+  await until(async () => (await db.query(`select owner_user_id from contacts where email_clean = 'x@initech.io'`)).rows[0]?.owner_user_id === user, 30_000, "the held lead to be routed");
+  check(true, "Let through routes a held lead");
+  await page.goto(`${base}/routing/log`);
+  await page.getByText("mo@initech.io").first().click({ timeout: 30_000 });
+  await page.getByText(/Passed \d checks/).first().waitFor({ timeout: 30_000 });
+  check(true, "the log opens a run with its sentences");
+  await page.goto(`${base}/routing/reps`);
+  await page.getByText("Sam Lee").first().waitFor({ timeout: 30_000 });
+  check(true, "Reps lists the team");
+
   check(!errors.length, `no page errors (${errors.slice(0, 3).join(" | ")})`);
 } catch (e) {
   failures.push((e as Error).message);
