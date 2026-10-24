@@ -372,8 +372,67 @@ Left:
 - Reps' Today and This week meters count from the browser's day and week; the router itself uses the rep's time zone.
 - Replay runs in one request (up to 5,000 leads); there's no background job or progress bar.
 - The editor stacks below 1,024 px instead of going read-only; reps can't be dragged between queues.
-- SLA timers (a lead goes back to the queue when the owner doesn't act) come next, in M3's second week.
+- Response times and the Slack app are built (Part 17).
 
 **Running cost:** as in `docs/router-ux.md` Part 10: about $3 a month at Beta and about $100 at Growth (check), with no
 Claude tokens.
+
+---
+
+## Part 17. Response times and the Slack app (M3, week 2)
+
+**Response time.** A setting on the router (the last card in the editor, so it's versioned and published like the
+rest): on or off, "act within" 5 minutes to 2 days, an optional nudge before the deadline, and what happens at the
+deadline: route again, give to a manager, or only tell the rep.
+
+1. A lead routed to a rep starts a timer (`router_slas`, made by a trigger on `router_runs` from the run's own version,
+   so a later publish never changes a running timer). A newer run for the lead closes the old timer.
+2. The rep acts by adding a note, finishing their task on the lead, getting a meeting booked with the lead (by anyone,
+   the lead included), or pressing **Mark contacted** (on the contact, in the Slack message, or `router_sla_mark`).
+3. Every minute, `router_sla_due` looks only at timers at their nudge time or deadline, under `for update skip locked`,
+   so two ticks at once never act twice. Acted on: met, with the time of the first act. Reassigned by hand: closed.
+4. At the nudge time the rep hears once (`router_sla` job): a Slack app message with **Open lead** and **Mark
+   contacted**, else the router's Slack channel, else email.
+5. At the deadline the timer is missed and a `route` job runs with reason `sla` and key `sla:<run>`, so it routes once.
+   Route again skips every rep who let this lead wait in the last 30 days (a new reason, `passed`, in the run's
+   sentences: "Lee Park didn't act within 1 hour. Passed on."); when all of them did, the lead ends Unassigned and the
+   owners hear. Manager gives it to the manager, with no new timer. The spam step is skipped: the lead passed it already.
+6. The contact shows "Reply by 3:40 PM" with Mark contacted while a timer is open, and "Response time missed" after.
+
+**Slack app.** Routing › Alerts › **Add to Slack** (workspace owners). One install per workspace, its bot token sealed in
+`slack_installs`. With it:
+
+- New leads go to the rep as a direct message (found by their email) with Open lead and Mark contacted; the channel
+  webhook, when set, still gets its post. A rep not in Slack gets the channel post or email as before.
+- `/book dana@acme.com [type words]` answers only the person who typed it with a single-use booking link. The host is
+  the lead's owner, else the person asking; the type is the one whose name matches the words, else the first by name.
+- Every request from Slack is checked against the signing secret and must be under five minutes old.
+
+| Built | Where |
+|---|---|
+| Setting, checks, version changes, the `passed` skip, sentences | `src/lib/router/types.ts`, `check.ts`, `diff.ts`, `engine.ts`, `explain.ts`; tests in `tests/router.test.ts` |
+| Timers, the minute tick, Mark contacted, Slack installs, `/book` lookup | `supabase/migrations/065_router_sla.sql`; tests in `tests/pg/routerSla.pg.ts` |
+| Pass-on and nudge jobs, Slack direct messages | `worker-intel/jobs/router.ts` |
+| Slack sign-in, `/book`, buttons | `src/lib/slack/*`, `src/app/api/slack/*` |
+| Response time card, Add to Slack, Reply by on the contact | `src/components/app/routing/Flow.tsx`, `Inspector.tsx`, `Publish.tsx`, `Log.tsx` |
+
+Left:
+
+- Calls and emails sent outside Claritia (Gmail, the CRM) don't count as acting yet; reps press Mark contacted.
+- The clock runs on calendar time, not the rep's working hours.
+- Reps doesn't show response-time stats yet (`router_sla_stats` is ready for it).
+
+**Running cost.** No Claude tokens. Assumes half the teams turn it on and a nudge goes for 40% of their leads (10,000
+nudges a month at Beta, 200,000 at Growth), half of them by email.
+
+| Item | Beta (50 teams) | Growth (500 teams) |
+|---|---|---|
+| Nudge emails on SES at $0.10 per 1,000 | $0.50 (check) | $10 (check) |
+| Slack Web API (direct messages, `/book`, buttons) | $0 | $0 |
+| Database: timers at about 300 bytes, kept with their runs (about 2 GB at Growth, inside the line in Part 14) | $0 | $0 |
+| The minute tick (pg_cron, reads only due timers) | $0 | $0 |
+| Claude tokens | $0 | $0 |
+| **Added per month** | **about $1** | **about $10** |
+
+Totals with Part 14: about $4 a month at Beta and about $85 at Growth (check).
 

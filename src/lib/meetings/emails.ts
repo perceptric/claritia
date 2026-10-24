@@ -335,6 +335,19 @@ export function leadRoutedEmail(v: RoutedView): MailParts {
   };
 }
 
+/** A response-time nudge to the rep, or the note that the time ran out (docs/router.md Part 17). */
+export function slaEmail(v: { lead: string; company: string | null; left: string | null; link: string }): MailParts {
+  const title = v.left ? `${v.lead} is waiting: ${v.left} left` : `${v.lead} waited past the response time`;
+  return {
+    subject: title,
+    ...render({
+      preheader: v.left ? "Open the lead and reach out." : "Reach out now.",
+      heading: title,
+      blocks: [{ rows: [["Company", v.company ?? ""]] }, { buttons: [{ label: "Open lead", url: v.link, primary: true }] }],
+    }),
+  };
+}
+
 // MIME ------------------------------------------------------------------------------------------------------------
 
 const oneLine = (s: string) => s.replace(/[\r\n\t]+/g, " ").replace(/\s{2,}/g, " ").trim();

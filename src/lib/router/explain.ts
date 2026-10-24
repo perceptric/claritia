@@ -18,7 +18,7 @@ export type Line = {
   more?: Part[][];
 };
 
-const TITLES: Record<StepResult["step"], string> = { spam: "Spam check", account: "Match account", keep: "Keep owner", rules: "Rules", queue: "Queue", fallback: "Fallback", hand: "By hand" };
+const TITLES: Record<StepResult["step"], string> = { sla: "Response time", spam: "Spam check", account: "Match account", keep: "Keep owner", rules: "Rules", queue: "Queue", fallback: "Fallback", hand: "By hand" };
 const METHOD_WORDS: Record<Method, string> = { rr: "round robin", weighted: "weighted", load: "by load" };
 
 export function dateWords(ms: number, tz = "UTC", now = Date.now()): string {
@@ -45,6 +45,8 @@ export function whyWords(why: Why | "none", until?: number | null, rep?: { capDa
       return rep?.capWeek ? `is at their weekly cap of ${rep.capWeek}` : "is at their weekly cap";
     case "hours":
       return "is outside their working hours";
+    case "passed":
+      return "already let this lead wait";
     default:
       return "can't take it";
   }
@@ -59,6 +61,8 @@ export function explain(d: Decision, f: Facts, o: { fields?: FieldDef[]; territo
   return d.steps.map((s): Line => {
     const title = TITLES[s.step];
     switch (s.step) {
+      case "sla":
+        return { step: s.step, mark: "miss", title, parts: [user(s.user), ` didn't act within ${minutesWords(s.minutes)}. Passed on.`] };
       case "spam": {
         if (s.off) return { step: s.step, mark: "skip", title, parts: ["Off."] };
         if (s.allowed) return { step: s.step, mark: "ok", title, parts: ["On the allow list."] };
@@ -126,6 +130,13 @@ export function explain(d: Decision, f: Facts, o: { fields?: FieldDef[]; territo
   });
 }
 
+/** "30 minutes", "2 hours", "1 day". */
+export function minutesWords(m: number): string {
+  if (m % 1440 === 0) return m === 1440 ? "1 day" : `${m / 1440} days`;
+  if (m % 60 === 0) return m === 60 ? "1 hour" : `${m / 60} hours`;
+  return m === 1 ? "1 minute" : `${m} minutes`;
+}
+
 export const partText = (p: Part) => (typeof p === "string" ? p : p.text);
 
 /** A run as text, one line per step, for Slack, email, MCP and the timeline. */
@@ -153,8 +164,9 @@ export function pathWords(d: Decision): string {
   }
   if (r.by === "keep") return "Kept owner";
   if (r.by === "fallback") return "Fallback";
-  if (r.by === "hand") return "By hand";
+  if (r.by === "hand") return d.steps.some((s) => s.step === "sla") ? "Response time missed: manager" : "By hand";
   const rule = d.steps.find((s): s is Extract<StepResult, { step: "rules" }> => s.step === "rules")?.rule;
   const q = d.steps.find((s): s is Extract<StepResult, { step: "queue" }> => s.step === "queue");
-  return `Rule: ${rule?.name ?? "?"} → ${q ? METHOD_WORDS[q.queue.method] : "queue"}`;
+  const words = `Rule: ${rule?.name ?? "?"} → ${q ? METHOD_WORDS[q.queue.method] : "queue"}`;
+  return d.steps.some((s) => s.step === "sla") ? `Passed on. ${words}` : words;
 }

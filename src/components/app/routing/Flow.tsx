@@ -10,8 +10,8 @@ import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-
 import { CSS } from "@dnd-kit/utilities";
 import { useState } from "react";
 import { newId, type Problem } from "@/lib/router/check";
-import type { Line as RunLine } from "@/lib/router/explain";
-import type { RouterBody, Rule } from "@/lib/router/types";
+import { minutesWords, type Line as RunLine } from "@/lib/router/explain";
+import { defaultSla, type RouterBody, type Rule } from "@/lib/router/types";
 import { ArrowDown, ArrowUp, Check, Grip, MoreHorizontal, Plus, Trash, X } from "../../Icons";
 import { askConfirm } from "../Dialogs";
 import { Popover } from "../FilterBar";
@@ -41,6 +41,7 @@ export type FlowProps = {
 };
 
 const WHEN_OUT = { keep: "keep them", backup: "backup", route: "route on" } as const;
+const SLA_NEXT_WORDS = { route: "route again", manager: "manager", nudge: "tell the rep" } as const;
 
 export function Flow(p: FlowProps) {
   const { body, counts, path, sel, onSelect, edit } = p;
@@ -118,6 +119,18 @@ export function Flow(p: FlowProps) {
         mark={path?.marks.fallback}
         faded={!reached("fallback")}
         problem={problemFor("fallback")?.text}
+        runKey={p.runKey}
+      />
+      <Connector count={null} lit={false} runKey={p.runKey} />
+      <StepCard
+        title="Response time"
+        summary={body.sla?.on ? `${minutesWords(body.sla.minutes)}, then ${SLA_NEXT_WORDS[body.sla.next]}` : "Off"}
+        on={!!body.sla?.on}
+        onToggle={edit ? (on: boolean) => edit((b) => ({ ...b, sla: { ...(b.sla ?? defaultSla()), on } })) : undefined}
+        selected={sameSelection(sel, { kind: "sla" })}
+        onClick={() => onSelect({ kind: "sla" })}
+        faded={!!path}
+        problem={problemFor("sla")?.text}
         runKey={p.runKey}
       />
       <Queues {...p} problemFor={problemFor} />

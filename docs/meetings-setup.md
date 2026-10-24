@@ -88,6 +88,24 @@ Beta is 50 teams with about 7,500 meetings a month; Growth is 500 teams with abo
 
 ## Routing
 
-Run `supabase/migrations/064_router.sql` after 053 to 063. Routing alerts go to a Slack incoming webhook set in
-Routing › Router › Alerts (sealed with `SECRETS_KEY`), or by email through the same SES mailer as meeting emails.
+Run `supabase/migrations/064_router.sql` after 053 to 063, then `065_router_sla.sql`. Routing alerts go to the Claritia
+Slack app as direct messages, to a Slack incoming webhook set in Routing › Router › Alerts (sealed with `SECRETS_KEY`),
+or by email through the same SES mailer as meeting emails.
+
+## Slack app
+
+1. api.slack.com/apps → **Create New App** → From scratch, named Claritia. Turn on **Manage Distribution** so other
+   Slack workspaces can add it.
+2. OAuth & Permissions: redirect URL `https://app.tryclaritia.com/api/slack/callback`; bot scopes `commands`,
+   `chat:write`, `users:read`, `users:read.email`.
+3. Slash Commands → **Create New Command**: `/book`, request URL `https://app.tryclaritia.com/api/slack/commands`,
+   usage hint `lead@company.com [meeting type]`.
+4. Interactivity & Shortcuts: on, request URL `https://app.tryclaritia.com/api/slack/actions`.
+5. App Home: turn on the Messages tab, so reps can read the app's direct messages.
+6. Secrets on Render: `SLACK_CLIENT_ID`, `SLACK_CLIENT_SECRET`, `SLACK_SIGNING_SECRET` (Basic Information). Without
+   them, Add to Slack doesn't show, and alerts use the channel webhook or email.
+
+Check it works: Routing › Alerts › **Add to Slack**, approve, then route a test lead. The rep gets a direct message;
+pressing Mark contacted shows "Marked contacted" and ends the lead's response time. `/book` with a lead's email answers
+with a link that books once.
 

@@ -7,7 +7,8 @@
 import { useState } from "react";
 import { BASE_FIELDS, countryName, needsValue, opsFor, REGIONS, type FieldDef } from "@/lib/router/conditions";
 import { newId, type Problem } from "@/lib/router/check";
-import { METHODS, OPS, type Cond, type Method, type Op, type Rule, type RouterBody, type WhenOut } from "@/lib/router/types";
+import { minutesWords } from "@/lib/router/explain";
+import { defaultSla, METHODS, OPS, SLA_MINUTES, type Cond, type Method, type Op, type Rule, type RouterBody, type Sla, type WhenOut } from "@/lib/router/types";
 import { COUNTRY_CODES } from "@/lib/forms/countries";
 import { Minus, Plus, Trash, X } from "../../Icons";
 import { askConfirm } from "../Dialogs";
@@ -50,7 +51,7 @@ export type InspectorProps = {
   onSelect: (s: Selection) => void;
 };
 
-const TITLES = { spam: "Spam check", account: "Match account", keep: "Keep owner", rules: "Rules", fallback: "Fallback" } as const;
+const TITLES = { spam: "Spam check", account: "Match account", keep: "Keep owner", rules: "Rules", fallback: "Fallback", sla: "Response time" } as const;
 
 export function Inspector(p: InspectorProps) {
   const { sel, body } = p;
@@ -85,6 +86,7 @@ export function Inspector(p: InspectorProps) {
         {sel.kind === "keep" ? <KeepInspector {...p} /> : null}
         {sel.kind === "rules" ? <RulesInspector {...p} /> : null}
         {sel.kind === "fallback" ? <FallbackInspector {...p} /> : null}
+        {sel.kind === "sla" ? <SlaInspector {...p} /> : null}
         {rule ? <RuleInspector key={rule.id} {...p} rule={rule} /> : null}
         {sel.kind === "queue" && queue ? <QueueInspector key={queue.id} {...p} id={queue.id} /> : null}
         {(sel.kind === "rule" && !rule) || (sel.kind === "queue" && !queue) ? <p className="px-5 py-6 text-[13px] text-muted">Removed</p> : null}
@@ -242,6 +244,63 @@ function FallbackInspector({ body, edit, members, readOnly }: InspectorProps) {
         disabled={readOnly}
         className={`${PICK} h-8`}
       />
+    </Block>
+  );
+}
+
+const SLA_NEXT: { value: Sla["next"]; label: string }[] = [
+  { value: "route", label: "Route again" },
+  { value: "manager", label: "Manager" },
+  { value: "nudge", label: "Tell the rep" },
+];
+
+function SlaInspector({ body, edit, members, readOnly }: InspectorProps) {
+  const s = body.sla ?? defaultSla();
+  const set = (patch: Partial<Sla>) => edit((b) => ({ ...b, sla: { ...(b.sla ?? defaultSla()), ...patch } }));
+  const nudges = SLA_MINUTES.filter((m) => m < s.minutes);
+  return (
+    <Block first>
+      <Line label="Response time">
+        <Toggle label="Response time" on={s.on} onChange={(on) => set({ on })} disabled={readOnly} />
+      </Line>
+      <Line label="Act within">
+        <Select<string>
+          value={String(s.minutes)}
+          options={SLA_MINUTES.map((m) => ({ value: String(m), label: minutesWords(m) }))}
+          onChange={(v) => {
+            const minutes = Number(v);
+            set({ minutes, nudge: s.nudge !== null && s.nudge < minutes ? s.nudge : (nudges.filter((m) => m < minutes).at(-1) ?? null) });
+          }}
+          ariaLabel="Act within"
+          disabled={readOnly || !s.on}
+          className={`${PICK} h-8 w-36`}
+        />
+      </Line>
+      <Line label="Nudge at">
+        <Select<string>
+          value={s.nudge === null ? "none" : String(s.nudge)}
+          options={[{ value: "none", label: "No nudge" }, ...nudges.map((m) => ({ value: String(m), label: minutesWords(m) }))]}
+          onChange={(v) => set({ nudge: v === "none" ? null : Number(v) })}
+          ariaLabel="Nudge at"
+          disabled={readOnly || !s.on}
+          className={`${PICK} h-8 w-36`}
+        />
+      </Line>
+      <div className="flex flex-col gap-2 pt-1">
+        <span className="text-[12.5px] text-body">If the rep doesn&apos;t act</span>
+        <Segmented<Sla["next"]> label="If the rep doesn't act" value={s.next} options={SLA_NEXT} onChange={(next) => !readOnly && s.on && set({ next })} />
+      </div>
+      {s.next === "manager" ? (
+        <Select<string>
+          value={s.manager ?? ""}
+          options={members.map((m) => ({ value: m.id, label: m.name }))}
+          onChange={(manager) => set({ manager })}
+          ariaLabel="Manager"
+          placeholder="Pick a manager"
+          disabled={readOnly || !s.on}
+          className={`${PICK} h-8`}
+        />
+      ) : null}
     </Block>
   );
 }

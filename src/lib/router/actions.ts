@@ -13,7 +13,11 @@ import { decide, whyNot } from "./engine.ts";
 import { explain, pathWords, resultWords, type Line } from "./explain.ts";
 import { liveRouter, route, testRoute } from "./server.ts";
 import { fromLeadSettings, type OldRouting } from "./templates.ts";
+import { slackInstallUrl, slackReady } from "../slack/app.ts";
+import { signState } from "../sources/oauth.ts";
 import type { Decision, Facts, RouterBody, Run } from "./types.ts";
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 export type Caller = { ws: string; user: string; role: "owner" | "member" };
 
@@ -91,12 +95,13 @@ async function routerRow(db: Q, ws: string): Promise<RouterRow | null> {
 
 /** Everything the Router screen opens with. */
 export async function load(rpc: Rpc, db: Q, c: Caller) {
-  const [row, live, members, f, stats] = await Promise.all([
+  const [row, live, members, f, stats, slack] = await Promise.all([
     routerRow(db, c.ws),
     liveRouter(rpc, c.ws),
     membersOf(rpc, db, c.ws),
     fieldsFor(db, c.ws),
     call<Record<string, unknown>>(rpc, "router_stats", { p_ws: c.ws, p_days: 7 }),
+    db.from("slack_installs").select("team_name, created_at").eq("workspace_id", c.ws).maybeSingle(),
   ]);
   const versions = ((await db.from("router_versions").select("version, note, published_by, published_at").eq("workspace_id", c.ws).order("version", { ascending: false }).limit(100)).data ?? []) as unknown[];
   let legacy: { body: RouterBody; unmapped: string[] } | null = null;
@@ -122,6 +127,7 @@ export async function load(rpc: Rpc, db: Q, c: Caller) {
     stats,
     lists: { allow: row?.allow ?? [], block: row?.block ?? [] },
     alert: { label: row?.alert_label ?? null },
+    slack: { ready: slackReady(), team: slack.data ? ((slack.data as { team_name: string | null }).team_name ?? "Slack") : null },
     legacy,
   };
 }
@@ -419,6 +425,31 @@ export async function saveAlert(db: SupabaseClient, c: Caller, url: string | nul
   await db.from("router_secrets").upsert({ workspace_id: c.ws, sealed: seal(JSON.stringify({ url: u })), updated_at: new Date().toISOString() }, { onConflict: "workspace_id" });
   await db.from("routers").upsert({ workspace_id: c.ws, alert_label: (label ?? "").trim().slice(0, 120) || "Slack" }, { onConflict: "workspace_id" });
   return { ok: true };
+}
+
+/** "Add to Slack": the sign-in link, for workspace owners. */
+export function slackInstall(c: Caller, redirect: string) {
+  ownerOnly(c);
+  if (!slackReady()) throw new Refused(400, "Slack isn't set up on the server yet.");
+  return { url: slackInstallUrl(redirect, signState({ ws: c.ws, user: c.user, kind: "slack" })) };
+}
+
+export async function slackRemove(db: SupabaseClient, c: Caller) {
+  ownerOnly(c);
+  await db.from("slack_installs").delete().eq("workspace_id", c.ws);
+  return { ok: true };
+}
+
+/** Mark contacted: the lead's owner (or a workspace owner) says they reached out, which meets the response time. */
+export async function markContacted(rpc: Rpc, c: Caller, contact: string | null) {
+  if (!contact || !UUID.test(contact)) throw new Refused(400, "Pick a lead.");
+  const { data, error } = await rpc("router_sla_mark", { p_ws: c.ws, p_contact: contact, p_user: c.user });
+  if (error) {
+    if (error.message.includes("not_owner")) throw new Refused(403, "Only the lead's owner can mark it contacted.");
+    if (error.message.includes("not_found")) throw new Refused(404, "Lead not found.");
+    throw new Error(error.message);
+  }
+  return { met: data === true };
 }
 
 /** CRM owners and the teammates they're linked to (Settings › Sources), and owner ids seen with no link yet. */

@@ -48,6 +48,17 @@ export type Territory = { id: string; name: string; countries: string[] };
 
 export type WhenOut = "keep" | "backup" | "route";
 
+/**
+ * Response time (docs/router.md Part 17): after a lead is routed, the rep has `minutes` to act (a note, a finished
+ * task, a meeting, or Mark contacted). They're nudged at `nudge` minutes; at the deadline the lead is routed again
+ * without them, given to `manager`, or only the rep is told.
+ */
+export type Sla = { on: boolean; minutes: number; nudge: number | null; next: "route" | "manager" | "nudge"; manager: string | null };
+
+export const SLA_MINUTES = [5, 15, 30, 60, 120, 240, 480, 1440, 2880];
+
+export const defaultSla = (): Sla => ({ on: false, minutes: 60, nudge: 30, next: "route", manager: null });
+
 export type RouterBody = {
   v: 1;
   spam: { on: boolean; disposable: boolean; fakeName: boolean; tooMany: boolean; freeMail: boolean; maxPerHour: number };
@@ -57,6 +68,8 @@ export type RouterBody = {
   queues: Queue[];
   fallback: { kind: "user" | "queue"; id: string } | null;
   territories: Territory[];
+  /** Left out by versions made before response times. */
+  sla?: Sla;
 };
 
 export const emptyBody = (): RouterBody => ({
@@ -68,6 +81,7 @@ export const emptyBody = (): RouterBody => ({
   queues: [],
   fallback: null,
   territories: [],
+  sla: defaultSla(),
 });
 
 // Facts --------------------------------------------------------------------------------------------------------
@@ -116,12 +130,14 @@ export type Facts = {
   /** Leads each rep got from each queue in the last 30 days, and when they last got one. */
   counts: Record<string, Record<string, { n: number; last: number }>>;
   lists: { allow: string[]; block: string[] };
+  /** Reps who let this lead wait past its response time: routing it again skips them. */
+  passed?: string[];
 };
 
 // Results ------------------------------------------------------------------------------------------------------
 
 /** Why a rep can't take a lead now. */
-export type Why = "not_member" | "paused" | "out" | "cap_day" | "cap_week" | "hours";
+export type Why = "not_member" | "paused" | "out" | "cap_day" | "cap_week" | "hours" | "passed";
 
 export type SpamSignal = "disposable" | "blocked" | "fake_name" | "too_many" | "free_mail";
 
@@ -161,7 +177,9 @@ export type StepResult =
       window: number;
     }
   | { step: "fallback"; ok: boolean; picked?: string; queue?: { id: string; name: string }; why?: Why | "none" }
-  /** Assigned by hand from Unassigned (router_assign). */
+  /** The rep before didn't act within the response time; the lead was passed on. */
+  | { step: "sla"; ok: false; user: string; minutes: number }
+  /** Assigned by hand from Unassigned (router_assign), or to the manager after a missed response time. */
   | { step: "hand"; ok: true; user: string; by_user: string | null };
 
 export type Result =
@@ -185,7 +203,7 @@ export type Run = {
   created_at: string;
 };
 
-export type Reason = "form" | "import" | "crm" | "api" | "again" | "let_through" | "score" | "manual";
+export type Reason = "form" | "import" | "crm" | "api" | "again" | "let_through" | "score" | "manual" | "sla";
 
 export const REASONS: Record<Reason, string> = {
   form: "Form",
@@ -196,4 +214,5 @@ export const REASONS: Record<Reason, string> = {
   let_through: "Let through",
   score: "Lead score",
   manual: "By hand",
+  sla: "Response time",
 };

@@ -7,7 +7,7 @@ import type { Rpc } from "../jobs.ts";
 import type { Availability } from "../meetings/types.ts";
 import { addDays, at, dateIn, dayOf, validZone } from "../meetings/time.ts";
 import { decide } from "./engine.ts";
-import type { Decision, Facts, Reason, RepFacts, RouterBody } from "./types.ts";
+import type { Decision, Facts, Reason, RepFacts, RouterBody, StepResult } from "./types.ts";
 
 async function call<T>(rpc: Rpc, fn: string, args: Record<string, unknown>): Promise<T> {
   const { data, error } = await rpc(fn, args);
@@ -229,11 +229,24 @@ export async function liveRouter(rpc: Rpc, ws: string): Promise<{ version: numbe
 
 /**
  * Route one lead with the live router. `key` makes it once-only (the fill id, an import row, an API key). A lead marked
- * spam isn't routed unless `force` (Held's "Let through").
+ * spam isn't routed unless `force` (Held's "Let through"). After a missed response time, `passed` names the reps who
+ * let it wait (they're skipped) and `before` is the line that says so, put first in the run.
  */
 export async function route(
   rpc: Rpc,
-  o: { ws: string; contact: string; key: string; reason: Reason; byUser?: string | null; force?: boolean; skipSpam?: boolean; live?: { version: number; body: RouterBody } | null; now?: () => number },
+  o: {
+    ws: string;
+    contact: string;
+    key: string;
+    reason: Reason;
+    byUser?: string | null;
+    force?: boolean;
+    skipSpam?: boolean;
+    passed?: string[];
+    before?: StepResult[];
+    live?: { version: number; body: RouterBody } | null;
+    now?: () => number;
+  },
 ): Promise<Routed> {
   const live = o.live === undefined ? await liveRouter(rpc, o.ws) : o.live;
   if (!live) return { status: "no_router" };
@@ -251,7 +264,9 @@ export async function route(
     // Held's "Let through": a person looked at it, so the spam step and the block list are skipped.
     const body = o.skipSpam ? { ...live.body, spam: { ...live.body.spam, on: false } } : live.body;
     if (o.skipSpam) read.facts.lists = { ...read.facts.lists, block: [] };
-    const d = decide(body, read.facts);
+    if (o.passed?.length) read.facts.passed = o.passed;
+    const decided = decide(body, read.facts);
+    const d: Decision = o.before?.length ? { ...decided, steps: [...o.before, ...decided.steps] } : decided;
     const pick = pickFor(body, d);
     const res = await call<{ status: string; id?: string; kind?: string; owner?: string | null; steps?: unknown }>(rpc, "router_commit", {
       p_ws: o.ws,

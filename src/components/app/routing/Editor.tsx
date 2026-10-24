@@ -440,7 +440,7 @@ export function RouterEditor({
           onClose={() => setPublishing(false)}
         />
       ) : null}
-      {alerts ? <AlertsDialog session={session} ws={ws.id} label={data.alert.label} onSaved={() => void refresh(false)} onClose={() => setAlerts(false)} /> : null}
+      {alerts ? <AlertsDialog session={session} ws={ws.id} label={data.alert.label} slack={data.slack ?? { ready: false, team: null }} onSaved={() => void refresh(false)} onClose={() => setAlerts(false)} /> : null}
       {reviewing && data.live && data.draftBase ? <CompareDialog session={session} ws={ws.id} from={data.draftBase} to={data.live.version} onClose={() => setReviewing(false)} /> : null}
     </div>
   );

@@ -20,7 +20,7 @@ import { calendarReconnect, formNotBooked, mailerFromEnv, meetingAfter, meetingB
 import { enrichCompany, identityChanged, ipLookup } from "./jobs/company.ts";
 import { accountAlert, scoreAccount, sweepSignals } from "./jobs/signals.ts";
 import { importFile, importUndo, pruneImportFiles } from "./jobs/imports.ts";
-import { routeJob, routerAlert } from "./jobs/router.ts";
+import { routeJob, routerAlert, routerSla } from "./jobs/router.ts";
 import { segmentRefresh } from "./jobs/segments.ts";
 import { deliver, deliverHeld } from "./jobs/deliver.ts";
 import { crmActivity, crmPush, sourceHook, sourcePull } from "./jobs/sources.ts";
@@ -74,6 +74,7 @@ const handlers = {
   form_not_booked: formNotBooked(rpc),
   route: routeJob(rpc),
   router_alert: routerAlert(rpc, { mailer: meetings.mailer, base: meetings.base, from: meetings.from }),
+  router_sla: routerSla(rpc, { mailer: meetings.mailer, base: meetings.base, from: meetings.from }),
   calendar_refresh: calendarRefresh(rpc),
   calendar_watch: calendarWatch(rpc),
   calendar_reconnect: calendarReconnect(rpc, meetings),

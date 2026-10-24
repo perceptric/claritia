@@ -3,7 +3,7 @@
 // live, each tied to the card it belongs to. Both run in the browser and on the server.
 
 import { BASE_FIELDS, needsValue, opsFor, type FieldDef } from "./conditions.ts";
-import { emptyBody, METHODS, OPS, type Cond, type Member, type Queue, type Rule, type RouterBody, type Territory, type WhenOut } from "./types.ts";
+import { defaultSla, emptyBody, METHODS, OPS, type Cond, type Member, type Queue, type Rule, type RouterBody, type Sla, type Territory, type WhenOut } from "./types.ts";
 
 const ID = /^[a-z0-9_-]{1,40}$/i;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
@@ -59,6 +59,18 @@ function cleanTerritory(raw: unknown): Territory | null {
   return { id, name: s(r.name, 60) || "Territory", countries };
 }
 
+/** A response time kept in range: 5 minutes to 7 days, the nudge before the deadline. */
+export function cleanSla(raw: unknown): Sla {
+  const r = obj(raw);
+  const d = defaultSla();
+  const minutes = typeof r.minutes === "number" && Number.isFinite(r.minutes) ? Math.min(10080, Math.max(5, Math.round(r.minutes))) : d.minutes;
+  const n = typeof r.nudge === "number" && Number.isFinite(r.nudge) ? Math.round(r.nudge) : r.nudge === null ? null : d.nudge;
+  const nudge = n !== null && n >= 1 && n < minutes ? n : null;
+  const next = r.next === "manager" || r.next === "nudge" ? r.next : "route";
+  const manager = s(r.manager, 36);
+  return { on: b(r.on, false), minutes, nudge, next, manager: UUID.test(manager) ? manager : null };
+}
+
 /** Any input to a valid body. Unknown parts are dropped; numbers are kept in range. */
 export function cleanBody(raw: unknown): RouterBody {
   const r = obj(raw);
@@ -105,11 +117,12 @@ export function cleanBody(raw: unknown): RouterBody {
     queues: queues.slice(0, 50),
     fallback,
     territories: territories.slice(0, 50),
+    sla: r.sla === undefined ? defaultSla() : cleanSla(r.sla),
   };
 }
 
 /** Where a problem is: a step, a rule, a queue or the fallback. The editor puts it on that card. */
-export type Where = { kind: "rule" | "queue" | "fallback" | "spam" | "account" | "keep"; id?: string };
+export type Where = { kind: "rule" | "queue" | "fallback" | "spam" | "account" | "keep" | "sla"; id?: string };
 export type Problem = { where: Where; text: string };
 
 /** What stops a body from going live. `members`: workspace members' ids. `fields`: every field a rule may test. */
@@ -143,5 +156,10 @@ export function problems(body: RouterBody, o: { members: Set<string>; fields?: F
   }
   if (!body.fallback) out.push({ where: { kind: "fallback" }, text: "Pick a fallback" });
   else if (body.fallback.kind === "user" && !o.members.has(body.fallback.id)) out.push({ where: { kind: "fallback" }, text: "The fallback is no longer in the workspace" });
+  const sla = body.sla;
+  if (sla?.on && sla.next === "manager") {
+    if (!sla.manager) out.push({ where: { kind: "sla" }, text: "Pick a manager for missed response times" });
+    else if (!o.members.has(sla.manager)) out.push({ where: { kind: "sla" }, text: "The manager is no longer in the workspace" });
+  }
   return out;
 }

@@ -283,15 +283,50 @@ export function RoutedBy({ sb, session, ws, role, navigate, contact }: Pick<View
     async () => must(await sb.from("router_runs").select(COLS).eq("workspace_id", ws.id).eq("contact_id", contact).order("created_at", { ascending: false }).limit(1).maybeSingle()) as unknown as RunRow | null,
     contact,
   );
+  const sla = useLoad(async () => {
+    const row = must(await sb.from("router_slas").select("run_id, user_id, status, due_at").eq("workspace_id", ws.id).eq("contact_id", contact).order("started_at", { ascending: false }).limit(1).maybeSingle()) as unknown as SlaRow | null;
+    if (!row) return null;
+    const due = new Date(row.due_at);
+    return { ...row, words: dueWords(due), soon: due.getTime() - Date.now() < 15 * 60_000 };
+  }, contact);
   const [open, setOpen] = useState<string | null>(null);
+  const [marking, setMarking] = useState(false);
+  const [markError, setMarkError] = useState("");
   const r = latest.data;
   if (!r) return null;
+  const t = sla.data;
+  const mark = async () => {
+    setMarking(true);
+    setMarkError("");
+    try {
+      await routingApi(session, ws.id, "contacted", { contact });
+      sla.reload();
+      announceChange();
+    } catch (e) {
+      setMarkError(errorText(e));
+    } finally {
+      setMarking(false);
+    }
+  };
   return (
-    <span className="mt-0.5 flex items-center gap-1.5 px-2 text-[12px] text-faint">
+    <span className="mt-0.5 flex flex-wrap items-center gap-1.5 px-2 text-[12px] text-faint">
       <span className="truncate">{routedBy(r)}</span>
       <button type="button" onClick={() => setOpen(r.id)} className="shrink-0 font-medium text-muted underline decoration-line underline-offset-2 hover:text-ink hover:decoration-ink">
         Why?
       </button>
+      {t?.status === "open" ? (
+        <span className="flex basis-full items-center gap-2 pt-1">
+          <Badge tone={t.soon ? "amber" : "gray"}>Reply by {t.words}</Badge>
+          <Button size="sm" variant="plain" disabled={marking} onClick={() => void mark()}>
+            Mark contacted
+          </Button>
+        </span>
+      ) : t?.status === "missed" ? (
+        <span className="basis-full pt-1">
+          <Badge tone="red">Response time missed</Badge>
+        </span>
+      ) : null}
+      {markError ? <span className="basis-full text-rose">{markError}</span> : null}
       {open ? (
         <RunPanel
           sb={sb}
@@ -309,6 +344,14 @@ export function RoutedBy({ sb, session, ws, role, navigate, contact }: Pick<View
       ) : null}
     </span>
   );
+}
+
+type SlaRow = { run_id: string; user_id: string; status: "open" | "met" | "missed" | "closed"; due_at: string };
+
+/** "3:40 PM" today, "Tue 3:40 PM" later. */
+function dueWords(d: Date): string {
+  const time = d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+  return d.toDateString() === new Date().toDateString() ? time : `${d.toLocaleDateString("en-US", { weekday: "short" })} ${time}`;
 }
 
 /**

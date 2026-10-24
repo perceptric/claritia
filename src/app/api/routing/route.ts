@@ -1,3 +1,4 @@
+import { appBase } from "@/lib/billing";
 import * as A from "@/lib/router/actions";
 import type { Rpc } from "@/lib/jobs";
 import { seal } from "@/lib/seal";
@@ -56,6 +57,12 @@ export async function POST(request: Request) {
           return A.saveLists(rpc, c, body.allow, body.block);
         case "alert":
           return A.saveAlert(db, c, str("url"), str("label"), (s) => seal(s));
+        case "slack_install":
+          return A.slackInstall(c, `${appBase()}/api/slack/callback`);
+        case "slack_remove":
+          return A.slackRemove(db, c);
+        case "contacted":
+          return A.markContacted(rpc, c, str("contact"));
         case "crm_owners":
           return A.crmOwners(db, c);
         case "save_crm_owners":
