@@ -350,7 +350,75 @@ hidden.
 
 ---
 
-## Part 16. Build order (2 weeks)
+## Part 16. What we take from Default
+
+Default (the tool Claritia follows for inbound, `docs/inbound.md`) splits routing into small pages a team can learn one
+at a time, opens each page on a few numbers that say how things are going, and builds routing from three named blocks:
+places (territories), kinds of company (segments) and groups of people (queues). We take the structure and keep our
+plain words.
+
+### 16.1 Routing gets its own group in the sidebar
+
+Today Routing is one item with tabs. It becomes a group, like Default's, with one page per job:
+
+| Page | What it's for | Default's name |
+|---|---|---|
+| **Overview** | How routing is doing, with the setup flow below | — |
+| **Teams** | The groups of reps who take turns, with faces, limits and who's away | Queues |
+| **Regions** | Named places: "North America", "DACH", "US West", by country, state or zip | Territories |
+| **Company types** | Named kinds of company: "Enterprise: over 1,000 people", "Startups: under 50 and funded" | Segments |
+| **Handoffs** | An SDR books a meeting for an AE from a lead, Slack or the extension (M4, next) | Handoffs |
+| **History** | Every lead routed and why, with saved views | Assignments |
+| **Needs review** | Junk and leads with no rep, with a count badge | — |
+
+Each item gets a small colored icon tile, one hue for the whole group (sage for Routing), the way Default colors each
+group. The tile uses the brand's wash and step colors, so it follows `docs/brand.md`; the rest of the sidebar keeps its
+plain icons until the same change is made app-wide.
+
+### 16.2 Rules built from named blocks
+
+Regions and Company types are made once and reused in rules, so a rule reads "**North America** and **Mid-market** →
+**US team**" in place of a list of countries and numbers. Changing "Mid-market" from 51–200 to 51–500 updates every rule
+that uses it, and Make live shows which rules that touches. Today's territories become Regions; Company types are new
+and stored in the setup next to them.
+
+### 16.3 Two ways a team shares leads
+
+Default names these "max fairness" and "max availability". In our words, on each team card:
+
+- **Fair turns**: everyone ends up with the same number over 30 days (today's round robin; "Some get more" adds shares).
+- **First free rep**: whoever can take it right now, picking the one who waited longest. Best with instant booking,
+  where the lead wants a time today.
+
+"Fewest meetings first" stays as a third choice. Deal 20 leads (Part 11) shows the difference on the card.
+
+### 16.4 Every page opens on a few numbers
+
+Like Default's "Total records / Incomplete / Unassigned" cards, each page starts with three or four stat cards whose
+small line is a sentence, then one chart, then the list:
+
+| Page | Cards | Chart |
+|---|---|---|
+| Overview | Leads routed this week (vs last week), Reached out on time (92%), No rep found (0), Waiting for review (3) | Leads routed per day, bars, with a range picker; "Where leads came from" with logos (Forms, HubSpot, Salesforce, imports) |
+| Teams | Reps taking leads, Away today, Full for today | Leads per rep this week, as bars with faces |
+| History | Routed, Moved after a missed follow-up, Undone | Median time to reach out, per day |
+
+Numbers count up on load (`slow`). An empty page shows the sketch and one button instead of zeros.
+
+### 16.5 Saved views of History
+
+History gets views like Default's list: "All leads", "Mine", "Missed follow-ups", "From the pricing form", each with
+an owner and a count, and any filter can be saved as a view.
+
+### 16.6 Hover cards for people and leads
+
+Hovering a rep or a lead anywhere in Routing shows a small floating card (as Default does for a person): face, name,
+email, then the facts routing used for leads (job title, company size, industry, country) or the status, limits and
+follow-up time for reps.
+
+---
+
+## Part 17. Build order (2 weeks and 2 days)
 
 | Day | Work | Done when |
 |---|---|---|
@@ -363,7 +431,9 @@ hidden.
 | 7 | Try a lead panel and the moving lead | The chip's path matches the run's lines in tests |
 | 8 | Deal 20 leads, live-traffic dots | Dealing matches `pickInQueue` counts in tests |
 | 9 | Describe it with Claude, step cache, name questions | The same words give the same setup twice |
-| 10 | Team, Needs review, History, Saved setups; first-time four steps; delights table; screens check run with screenshots | `scripts/screens-check.ts` runs the four steps and Try a lead in light and dark, with reduced motion |
+| 10 | Sidebar group with icon tiles, Overview page with stat cards and charts, hover cards | Overview numbers match `router_stats` in tests |
+| 11 | Regions and Company types as named blocks in rules, First free rep, saved History views | Changing a block shows every rule it touches on Make live |
+| 12 | Team, Needs review, History, Saved setups; first-time four steps; delights table; screens check run with screenshots | `scripts/screens-check.ts` runs the four steps and Try a lead in light and dark, with reduced motion |
 
 Tests: unit tests for words, the paragraph, the deal and the chip path; editor model tests updated;
 `tests/routingScreens.test.ts` for each renamed screen; a database test for Pause routing; an AI test that a cached
@@ -371,7 +441,7 @@ description replays without calling the model.
 
 ---
 
-## Part 17. Running cost
+## Part 18. Running cost
 
 Only "Describe it" calls Claude. One description is about 4,000 tokens in (the setup format, reps' names and fields)
 and 1,500 out. Assumes 20 descriptions a team a month at Beta (1,000) and 10 at Growth (5,000), with about a third
