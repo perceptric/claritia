@@ -19,6 +19,9 @@ no meeting emails sent. Nothing has to be moved from SES, so Part 0 swaps the pr
 
 ## Part 0. All email on Resend
 
+**Built.** Setup and tests are in `docs/sending-setup.md`. Run `067_resend.sql`, then set the Resend secrets on Fly
+before this deploys.
+
 ### 0.1 What's there today
 
 - Campaign email runs on Amazon SES: `src/lib/email/ses.ts` and `sigv4.ts` send, `src/app/api/ses/route.ts` and

@@ -1049,7 +1049,7 @@ insert into send_settings (workspace_id, from_email, address) values
   ('22222222-0000-0000-0000-000000000000', 'news@mail.other.com', '2 Side St');
 insert into emails (id, workspace_id, name, kind, subject, html, text) values
   ('5f100000-0000-0000-0000-0000000000c1', '22222222-0000-0000-0000-000000000000', 'Cat news', 'broadcast', 'Cat news', '<p>x</p>', 'x');
-insert into email_messages (id, workspace_id, email_id, to_email, dedupe, status, ses_message_id) values
+insert into email_messages (id, workspace_id, email_id, to_email, dedupe, status, provider_id) values
   ('5f200000-0000-0000-0000-0000000000c1', '22222222-0000-0000-0000-000000000000', '5f100000-0000-0000-0000-0000000000c1', 'cat-friend@x.com', 'c1', 'sent', 'ses-cat-1');
 insert into topics (id, workspace_id, name) values ('5f300000-0000-0000-0000-0000000000c1', '22222222-0000-0000-0000-000000000000', 'Cat topic');
 select pg_temp.as_user('b0000000-0000-0000-0000-000000000000');
@@ -1068,15 +1068,16 @@ select pg_temp.fails($$select topic_save('11111111-0000-0000-0000-000000000000',
 select pg_temp.fails($$select topic_delete('5f300000-0000-0000-0000-0000000000c1')$$, 'Ben deletes Cat''s topic');
 select pg_temp.fails($$select email_guard('5f200000-0000-0000-0000-0000000000c1')$$, 'Ben runs the guard');
 select pg_temp.fails($$select send_claim('22222222-0000-0000-0000-000000000000', 10)$$, 'Ben claims Cat''s messages');
-select pg_temp.fails($$select send_done('5f200000-0000-0000-0000-0000000000c1', 'ok', 'x', null)$$, 'Ben records a send');
+select pg_temp.fails($$select send_done('5f200000-0000-0000-0000-0000000000c1', 'ok', 'x', null, 60)$$, 'Ben records a send');
 select pg_temp.fails($$select email_create('11111111-0000-0000-0000-000000000000', 'b0000000-0000-0000-0000-000000000000', '{}')$$, 'Ben creates an email directly');
 select pg_temp.fails($$select email_queue('5f100000-0000-0000-0000-0000000000c1', '{}')$$, 'Ben queues Cat''s email');
 select pg_temp.fails($$select email_queue_test('5f100000-0000-0000-0000-0000000000c1', 'b0000000-0000-0000-0000-000000000000')$$, 'Ben queues a test');
-select pg_temp.fails($$select ses_event_apply('{"kind":"complained","ses_message_id":"ses-cat-1","sns_id":"x"}')$$, 'Ben fakes a complaint');
+select pg_temp.fails($$select email_event_apply('{"kind":"complained","provider_id":"ses-cat-1","event_id":"x"}')$$, 'Ben fakes a complaint');
+select pg_temp.fails($$select meeting_mail_event('{"kind":"complained","to":"cat-friend@x.com"}')$$, 'Ben fakes a meeting email complaint');
 select pg_temp.fails($$select email_click('5f200000-0000-0000-0000-0000000000c1', 0, true, '{}')$$, 'Ben fakes a click');
 select pg_temp.fails($$select email_unsubscribe('5f200000-0000-0000-0000-0000000000c1', 'all')$$, 'Ben unsubscribes Cat''s contact');
 select pg_temp.fails($$select email_unsubscribe_info('5f200000-0000-0000-0000-0000000000c1')$$, 'Ben reads unsubscribe info');
-select pg_temp.fails($$select sending_domain_update('5f000000-0000-0000-0000-0000000000c1', null, '[]', 'failed')$$, 'Ben updates Cat''s domain');
+select pg_temp.fails($$select sending_domain_update('5f000000-0000-0000-0000-0000000000c1', 'x', '[]', 'failed')$$, 'Ben updates Cat''s domain');
 select pg_temp.fails($$select sending_domain_load('5f000000-0000-0000-0000-0000000000c1')$$, 'Ben loads Cat''s domain');
 select pg_temp.fails($$select sends_due()$$, 'Ben starts sends');
 select pg_temp.fails($$select domain_checks_due()$$, 'Ben starts domain checks');

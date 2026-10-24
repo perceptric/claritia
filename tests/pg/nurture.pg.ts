@@ -6,9 +6,9 @@ import { after, before, test } from "node:test";
 import pg from "pg";
 import { uuid7 } from "../../collect/ids.ts";
 import { stepEmail } from "../../src/lib/nurture/email.ts";
-import type { Outgoing, Ses } from "../../src/lib/email/ses.ts";
+import type { Outgoing } from "../../src/lib/email/provider.ts";
 import type { Job } from "../../src/lib/jobs.ts";
-import { send } from "../../worker-intel/jobs/email.ts";
+import { send, type Sender } from "../../worker-intel/jobs/email.ts";
 import { pgRpc } from "../../worker-intel/rpc.ts";
 
 process.env.SECRETS_KEY ||= "test-secrets-key-that-is-long-enough-1234";
@@ -26,8 +26,8 @@ let nurture = "";
 let topic = "";
 const contact: Record<string, string> = {};
 const sent: Outgoing[] = [];
-const ses = { region: "ap-northeast-1", send: async (m: Outgoing) => (sent.push(m), `ses-${uuid7()}`) } as unknown as Ses;
-const runSend = () => send(rpc, { ses, base: "https://app.test", roundMs: 3_000, sleep: async () => {} })({ id: uuid7(), workspace_id: ws, kind: "send", key: ws, payload: {}, attempts: 1, max_attempts: 3 } as Job, new AbortController().signal);
+const sender: Sender = { send: async (m: Outgoing) => (sent.push(m), `re-${uuid7()}`), batch: async (items) => items.map((i) => (sent.push(i.out), `re-${uuid7()}`)) };
+const runSend = () => send(rpc, { sender, base: "https://app.test", roundMs: 3_000, sleep: async () => {} })({ id: uuid7(), workspace_id: ws, kind: "send", key: ws, payload: {}, attempts: 1, max_attempts: 3 } as Job, new AbortController().signal);
 const as = async <T>(sql: string, params: unknown[]): Promise<T> => {
   const c = await pool.connect();
   try {

@@ -179,7 +179,8 @@ test("Test writes nothing", async () => {
   await publish(ws, rrBody(users));
   const c = await lead(ws);
   const tables = ["router_runs", "contact_events", "jobs", "field_history"];
-  const count = async () => Promise.all(tables.map(async (t) => (await q(`select count(*)::int n from ${t}`))[0].n as number));
+  // This workspace only: other test files write to the same tables at the same time.
+  const count = async () => Promise.all(tables.map(async (t) => (await q(`select count(*)::int n from ${t} where workspace_id = $1`, [ws]))[0].n as number));
   const before = await count();
   const owner = (await q(`select owner_user_id from contacts where id = $1`, [c]))[0].owner_user_id;
   const r = await testRoute(rpc, { ws, contact: c, body: rrBody(users), changes: { "lead.country": "DE" } });

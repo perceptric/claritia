@@ -6,7 +6,7 @@ import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { after, before, beforeEach, test } from "node:test";
 import pg from "pg";
-import { SesError } from "../../src/lib/email/ses.ts";
+import { SendError } from "../../src/lib/email/provider.ts";
 import type { Job } from "../../src/lib/jobs.ts";
 import { meetingUid } from "../../src/lib/meetings/ics.ts";
 import { seal } from "../../src/lib/seal.ts";
@@ -34,11 +34,11 @@ let script: ("ok" | "throttle" | "timeout" | "reject")[] = [];
 const mailer: Mailer = {
   async send(m) {
     const next = script.shift() ?? "ok";
-    if (next === "throttle") throw new SesError("SES 429", { status: 429, retry: true });
-    if (next === "timeout") throw new SesError("SES didn't answer", { unknown: true });
-    if (next === "reject") throw new SesError("SES 400 MessageRejected", { status: 400 });
+    if (next === "throttle") throw new SendError("Resend 429", { status: 429, later: true });
+    if (next === "timeout") throw new SendError("SMTP: the connection closed", { unknown: true });
+    if (next === "reject") throw new SendError("SMTP 550 No such user", { status: 550 });
     sent.push(m);
-    return `ses-${randomUUID()}`;
+    return randomUUID();
   },
 };
 const opts: MeetingOpts = { mailer, base: "https://app.test", secret: SECRET, from: "meetings@tryclaritia.com" };
@@ -480,11 +480,11 @@ test("a meeting email that bounces hard or draws a complaint suppresses the addr
     const row = await one<{ provider_id: string }>(`select provider_id from meeting_mails where meeting_id = $1 and kind = 'confirm'`, [m.id]);
     return { guest: m.guest, ses: row.provider_id };
   };
-  const event = (ses: string, kind: string, bounce?: string) => ({ sns_id: randomUUID(), ses_message_id: ses, kind, ...(bounce ? { bounce } : {}), at: new Date().toISOString(), detail: {} });
+  const event = (ses: string, kind: string, bounce?: string, to?: string) => ({ event_id: randomUUID(), provider_id: ses, kind, ...(bounce ? { bounce } : {}), ...(to ? { to } : {}), at: new Date().toISOString(), detail: {} });
   const suppressed = async (email: string) => (await q(`select reason from suppressions where workspace_id = $1 and email_clean = $2`, [ws, email]))[0]?.reason ?? null;
 
   const a = await sendFor();
-  assert.equal((await one<{ r: string }>(`select ses_event_apply($1) r`, [event(a.ses, "bounced", "soft")])).r, "unknown_message", "not a campaign message");
+  assert.equal((await one<{ r: string }>(`select email_event_apply($1) r`, [event(a.ses, "bounced", "soft")])).r, "unknown_message", "not a campaign message");
   assert.equal((await one<{ r: string }>(`select meeting_mail_event($1) r`, [event(a.ses, "bounced", "soft")])).r, "meeting_mail");
   assert.equal(await suppressed(a.guest), null);
   await q(`select meeting_mail_event($1)`, [event(a.ses, "bounced", "hard")]);
@@ -493,4 +493,16 @@ test("a meeting email that bounces hard or draws a complaint suppresses the addr
   await q(`select meeting_mail_event($1)`, [event(b.ses, "complained")]);
   assert.equal(await suppressed(b.guest), "complained");
   assert.equal((await one<{ r: string }>(`select meeting_mail_event($1) r`, [event("nope", "bounced", "hard")])).r, "unknown_message");
+  // The SMTP answer had no id: found by the address when one workspace sent it meeting email lately.
+  const c = await sendFor();
+  await q(`update meeting_mails set provider_id = null where to_email = $1`, [c.guest]);
+  assert.equal((await one<{ r: string }>(`select meeting_mail_event($1) r`, [event("", "complained", undefined, c.guest)])).r, "meeting_mail");
+  assert.equal(await suppressed(c.guest), "complained");
+  // Two workspaces wrote to the same address: a complaint is never pinned on a guess.
+  const d = await sendFor();
+  const other = (await one<{ id: string }>(`insert into workspaces (name) values ('Other') returning id`)).id;
+  await q(`insert into meeting_mails (workspace_id, kind, to_email, dedupe, status, sent_at) values ($1, 'confirm', $2, 'x', 'sent', now())`, [other, d.guest]);
+  await q(`update meeting_mails set provider_id = null where to_email = $1`, [d.guest]);
+  assert.equal((await one<{ r: string }>(`select meeting_mail_event($1) r`, [event("", "complained", undefined, d.guest)])).r, "ambiguous");
+  assert.equal(await suppressed(d.guest), null);
 });

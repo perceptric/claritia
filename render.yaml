@@ -53,8 +53,8 @@ services:
         sync: false
       - key: MAILCHIMP_CLIENT_SECRET
         sync: false
-      # Sending (docs/sending-setup.md): the SNS topic SES events come from.
-      - key: SES_SNS_TOPIC_ARN
+      # Sending (docs/sending-setup.md): the signing secret of Resend's webhook.
+      - key: RESEND_WEBHOOK_SECRET
         sync: false
       # Forms (docs/conversion-parity.md Part 21g): Cloudflare Turnstile, optional per form.
       - key: TURNSTILE_SITE_KEY

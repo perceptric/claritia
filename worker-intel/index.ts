@@ -3,8 +3,8 @@
 //   DATABASE_URL=… SECRETS_KEY=… node worker-intel/index.ts
 // Imports also need SUPABASE_URL and SUPABASE_SECRET_KEY, to read uploaded files from storage. Sources need
 // SECRETS_KEY (credentials are sealed with it) and each tool's <PREFIX>_CLIENT_ID and _CLIENT_SECRET to refresh sign-ins.
-// Sending needs AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, SES_REGION, SES_CONFIGURATION_SET, SECRETS_KEY (link tokens)
-// and APP_URL when the app isn't at https://app.tryclaritia.com.
+// Sending needs RESEND_API_KEY (the API for campaigns and domains, SMTP for meeting emails), RESEND_REGION for new
+// domains (default us-east-1), SECRETS_KEY (link tokens) and APP_URL when the app isn't at https://app.tryclaritia.com.
 // The router's alerts use the meeting mailer and a Slack webhook sealed with SECRETS_KEY.
 // Calendars need SECRETS_KEY, GOOGLE_, MICROSOFT_ and ZOOM_CLIENT_ID and _CLIENT_SECRET, and APP_URL for push channels.
 
@@ -13,7 +13,7 @@ import { hostname } from "node:os";
 import pg from "pg";
 import { jobLoop } from "../src/lib/jobs.ts";
 import { linkBase } from "../src/lib/email/render.ts";
-import { sesFromEnv } from "../src/lib/email/ses.ts";
+import { resendFromEnv } from "../src/lib/email/resend.ts";
 import { domainCheck, domainRemove, send } from "./jobs/email.ts";
 import { calendarRefresh, calendarWatch, meetingSync } from "./jobs/calendars.ts";
 import { calendarReconnect, formNotBooked, mailerFromEnv, meetingAfter, meetingBookLater, meetingNotify, meetingRemind, systemFrom } from "./jobs/meetings.ts";
@@ -40,9 +40,10 @@ if (!process.env.DATABASE_URL) {
 const loops = Math.max(1, Number(process.env.CONCURRENCY || 4));
 const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL, max: loops + 2, statement_timeout: 30_000 });
 const rpc = pgRpc(pool);
-const ses = sesFromEnv();
+const resend = resendFromEnv();
 const company = { ipinfoToken: process.env.IPINFO_TOKEN, ipinfoCompany: process.env.IPINFO_COMPANY === "1", coresignalKey: process.env.CORESIGNAL_API_KEY };
-// Meeting emails: SES raw sends (the invite is a MIME part), from MEETINGS_FROM when a workspace has no verified domain.
+// Meeting emails: raw sends over Resend's SMTP (the invite is a MIME part), from MEETINGS_FROM when a workspace has no
+// verified domain.
 const meetings = { mailer: mailerFromEnv(), base: linkBase(), from: systemFrom() };
 const handlers = {
   stitch: stitch(pool),
@@ -64,9 +65,9 @@ const handlers = {
   segment_refresh: segmentRefresh(rpc),
   deliver: deliver(pool, rpc),
   deliver_held: deliverHeld(pool, rpc),
-  send: send(rpc, { ses, base: linkBase() }),
-  domain_check: domainCheck(rpc, ses),
-  domain_remove: domainRemove(pool, ses),
+  send: send(rpc, { sender: resend, base: linkBase() }),
+  domain_check: domainCheck(rpc, resend),
+  domain_remove: domainRemove(pool, resend),
   meeting_notify: meetingNotify(rpc, meetings),
   meeting_remind: meetingRemind(rpc, meetings),
   meeting_after: meetingAfter(rpc, meetings),
@@ -84,7 +85,7 @@ const stop = new AbortController();
 const worker = `intel-${hostname()}-${process.pid}`;
 
 health({ ok: true, worker, kinds: Object.keys(handlers), loops });
-log("intel started", { worker, loops, secrets: !!process.env.SECRETS_KEY, ses: !!ses, ipinfo: !!company.ipinfoToken, coresignal: !!company.coresignalKey });
+log("intel started", { worker, loops, secrets: !!process.env.SECRETS_KEY, resend: !!resend, ipinfo: !!company.ipinfoToken, coresignal: !!company.coresignalKey });
 const running = Array.from({ length: loops }, (_, i) => jobLoop({ rpc, worker: `${worker}-${i}`, handlers, leaseS: 120, idleMs: 1000, signal: stop.signal, log: (m) => log(m) }));
 
 // The signals sweep: one instance at a time (session advisory lock), every 30 seconds.

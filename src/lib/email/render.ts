@@ -1,7 +1,7 @@
 // The final email for one message: tracked links, the preheader, the footer a marketing email can't drop, and the
 // one-click unsubscribe headers Gmail and Yahoo require of bulk senders (RFC 8058).
 
-import { fromHeader, type Outgoing } from "./ses.ts";
+import { fromHeader, type Outgoing } from "./provider.ts";
 import { makeToken, rewriteLinks } from "./track.ts";
 
 /** What send_claim hands the worker for each message (supabase/migrations/039_email.sql). */
@@ -24,6 +24,8 @@ export type Claimed = {
   topic: string | null;
   mail_from: string | null;
   per_second: number;
+  /** Tries so far, this one included (067_resend.sql). */
+  attempts?: number;
 };
 
 const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");

@@ -1,8 +1,8 @@
 # Meetings setup
 
 What Meetings needs in production: the calendar apps, Stripe for paid types, and the meeting email address. The
-plan is `docs/meetings-scheduler.md`. Email sending itself is `docs/sending-setup.md` (meeting emails go through the
-same Amazon SES user and SNS topic).
+plan is `docs/meetings-scheduler.md`. Email sending itself is `docs/sending-setup.md` (meeting emails go through
+Resend's SMTP relay with the same API key, and its webhook reports their bounces).
 
 ## 1. Google Calendar
 
@@ -78,19 +78,19 @@ Beta is 50 teams with about 7,500 meetings a month; Growth is 500 teams with abo
 | Item | Beta (50 teams) | Growth (500 teams) |
 |---|---|---|
 | Google, Microsoft and Zoom APIs (free within quotas) | $0 | $0 |
-| Meeting emails on SES, about 32,000 and 430,000 a month at $0.10 per 1,000 | $4 (check) | $45 (check) |
+| Meeting emails on Resend, about 32,000 and 430,000 a month, inside the Resend plan in `docs/sending-setup.md` | $0 added | $0 added |
 | Calendar refresh, pushes and reminders on the existing claritia-intel worker | $0 | $30 for a larger machine (check) |
 | Database: busy times, meetings and their history (about 1 GB at Growth) | $0 (inside plan) | $0 to $25 (check) |
 | Slack notes for leads who didn't book (incoming webhooks) | $0 | $0 |
 | Stripe for paid types (fees come out of each payment) | $0 | $0 |
 | Claude tokens (none) | $0 | $0 |
-| **Added per month** | **about $4** | **about $75 to $100** |
+| **Added per month** | **$0** | **about $30 to $55** |
 
 ## Routing
 
-Run `supabase/migrations/064_router.sql` after 053 to 063, then `065_router_sla.sql` and `066_app_structure.sql` (named schedules, the calendar's busy times, Pause routing). Routing alerts go to the Claritia
+Run `supabase/migrations/064_router.sql` after 053 to 063, then `065_router_sla.sql`, `066_app_structure.sql` (named schedules, the calendar's busy times, Pause routing) and `067_resend.sql` (all email on Resend). Routing alerts go to the Claritia
 Slack app as direct messages, to a Slack incoming webhook set in Routing › Router › Alerts (sealed with `SECRETS_KEY`),
-or by email through the same SES mailer as meeting emails.
+or by email through the same Resend SMTP mailer as meeting emails.
 
 ## Slack app
 

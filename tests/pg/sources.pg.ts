@@ -214,7 +214,7 @@ test("a warehouse query feeds contacts, activity and a custom object, reads on f
   await q(`insert into wh.subs values ('s1', 'u1@acme1.com', 'Acme Pro', 10, now() - interval '1 day'), ('s2', 'U2@Acme2.com', 'Acme Team', 3, now())`);
 
   const dbName = new URL(url!).pathname.slice(1);
-  const creds = { type: "key", values: { host: "localhost", port: "5432", database: dbName, user: "postgres", password: "", ssl: "disable" } };
+  const creds = { type: "key", values: { host: "localhost", port: "5432", database: dbName, user: "postgres", password: decodeURIComponent(new URL(url!).password), ssl: "disable" } };
   const connect = async (kind: string, query: Record<string, string>) => {
     await q(`delete from sources where workspace_id = $1 and kind = $2`, [ws, kind]);
     return (await q(`select source_connect($1, $2, $3, $3, 'local', $4, $5) as id`, [ws, user, kind, seal(JSON.stringify(creds)), JSON.stringify({ basis: "legitimate_interest", query })]))[0].id as string;

@@ -11,8 +11,8 @@
 // domain is verified, else from MEETINGS_FROM (default meetings@tryclaritia.com, which must be verified in SES).
 
 import { slackNote } from "../../src/lib/delivery/send.ts";
-import { SesError } from "../../src/lib/email/ses.ts";
-import { signV4, type Creds } from "../../src/lib/email/sigv4.ts";
+import { outcomeOf } from "../../src/lib/email/provider.ts";
+import { smtpFromEnv, smtpSend, type SmtpOpts } from "../../src/lib/email/smtp.ts";
 import { enqueueJob, JobError, type Handler, type Rpc } from "../../src/lib/jobs.ts";
 import {
   afterEmail,
@@ -40,61 +40,22 @@ import { validZone } from "../../src/lib/meetings/time.ts";
 import { DEFAULT_SETTINGS, type MeetingType, type TypeSettings } from "../../src/lib/meetings/types.ts";
 
 const MIN = 60_000;
-const NOT_SET = "Amazon SES isn't set up on the worker (AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY).";
+const NOT_SET = "Resend isn't set up on the worker (RESEND_API_KEY).";
 
 // Sending ---------------------------------------------------------------------------------------------------------
 
 export type Mail = { from: string; to: string; raw: string; tags: Record<string, string> };
-/** Sends one raw message; returns the provider's id. Throws SesError: retry (not now) or unknown (may have gone). */
+/** Sends one raw message; returns the provider's id ("" when it gave none). Throws SendError: retry (not now) or unknown (may have gone). */
 export type Mailer = { send(m: Mail): Promise<string> };
 
-const RETRY_CODES = new Set(["TooManyRequestsException", "LimitExceededException", "ThrottlingException", "Throttling", "ServiceUnavailable", "InternalFailure"]);
-
-/** SES v2 raw sending (the calendar invite needs its own MIME part). Resend can stand in behind the same type. */
-export function sesRawMailer(o: { region: string; creds: Creds; configSet?: string | null; fetchFn?: typeof fetch; timeoutMs?: number }): Mailer {
-  const url = `https://email.${o.region}.amazonaws.com/v2/email/outbound-emails`;
-  const fetchFn = o.fetchFn ?? fetch;
-  return {
-    async send(m) {
-      const json = JSON.stringify({
-        FromEmailAddress: m.from,
-        Destination: { ToAddresses: [m.to] },
-        Content: { Raw: { Data: Buffer.from(m.raw, "utf8").toString("base64") } },
-        EmailTags: Object.entries(m.tags).map(([Name, Value]) => ({ Name, Value })),
-        ...(o.configSet ? { ConfigurationSetName: o.configSet } : {}),
-      });
-      const headers = signV4({ method: "POST", url, body: json, region: o.region, service: "ses", creds: o.creds, headers: { "content-type": "application/json" } });
-      let res: Response;
-      try {
-        res = await fetchFn(url, { method: "POST", headers, body: json, signal: AbortSignal.timeout(o.timeoutMs ?? 15_000) });
-      } catch (e) {
-        throw new SesError(`SES didn't answer: ${(e as Error).message}`, { unknown: true });
-      }
-      const text = await res.text().catch(() => "");
-      if (res.ok) {
-        const id = (JSON.parse(text || "{}") as { MessageId?: string }).MessageId;
-        if (!id) throw new SesError("SES took the email but sent no message id", { unknown: true });
-        return id;
-      }
-      let code = res.headers.get("x-amzn-errortype")?.split(":")[0] ?? "";
-      let message = text.slice(0, 300);
-      try {
-        const j = JSON.parse(text) as { message?: string; Message?: string; __type?: string };
-        message = j.message ?? j.Message ?? message;
-        code ||= (j.__type ?? "").split("#").pop() ?? "";
-      } catch {
-        // Not JSON; keep the text.
-      }
-      throw new SesError(`SES ${res.status}${code ? ` ${code}` : ""}: ${message}`, { status: res.status, code, retry: res.status === 429 || res.status >= 500 || RETRY_CODES.has(code) });
-    },
-  };
+/** Raw sends through Resend's SMTP relay (the calendar invite needs its own MIME part). */
+export function smtpMailer(o: SmtpOpts): Mailer {
+  return { send: (m) => smtpSend(o, m) };
 }
 
-export function mailerFromEnv(env: NodeJS.ProcessEnv = process.env, fetchFn: typeof fetch = fetch): Mailer | null {
-  const id = env.AWS_ACCESS_KEY_ID?.trim();
-  const secret = env.AWS_SECRET_ACCESS_KEY?.trim();
-  if (!id || !secret) return null;
-  return sesRawMailer({ region: env.SES_REGION?.trim() || "ap-northeast-1", creds: { accessKeyId: id, secretAccessKey: secret, sessionToken: env.AWS_SESSION_TOKEN?.trim() || undefined }, configSet: env.SES_CONFIGURATION_SET?.trim() || null, fetchFn });
+export function mailerFromEnv(env: NodeJS.ProcessEnv = process.env): Mailer | null {
+  const o = smtpFromEnv(env);
+  return o ? smtpMailer(o) : null;
 }
 
 /** The Claritia address meeting emails use when the workspace has no verified domain. */
@@ -162,11 +123,11 @@ async function sendOne(rpc: Rpc, o: MeetingOpts, sending: Sending, s: Send): Pro
     const raw = mime({ from: { name: s.fromName, email: fromEmail }, to, replyTo: s.replyTo && validAddress(s.replyTo) ? s.replyTo : null, subject: parts.subject, html: parts.html, text: parts.text, ics: s.ics?.() ?? null });
     providerId = await o.mailer.send({ from: fromEmail, to, raw, tags: { meeting_mail: id, kind: s.kind } });
   } catch (e) {
-    const se = e instanceof SesError ? e : null;
-    outcome = se?.unknown ? "unknown" : se?.retry ? "retry" : "failed";
+    const o = outcomeOf(e);
+    outcome = o === "later" ? "retry" : o === "ok" ? "failed" : o;
     error = (e as Error).message;
   }
-  await call(rpc, "meeting_mail_done", { p_id: id, p_outcome: outcome, p_provider_id: providerId, p_error: error });
+  await call(rpc, "meeting_mail_done", { p_id: id, p_outcome: outcome, p_provider_id: providerId || null, p_error: error });
   return outcome === "ok" ? "sent" : outcome;
 }
 
