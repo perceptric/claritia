@@ -24,9 +24,9 @@ async function call<T>(rpc: Rpc, fn: string, args: Record<string, unknown>): Pro
  * The hosts' state and engine input over a span. A host is bookable only with a working calendar to write to, no
  * calendar waiting on a reconnect, and hours set: times are never shown for someone whose calendar can't be checked.
  */
-export async function hostStates(rpc: Rpc, ws: string, users: string[], from: number, to: number): Promise<HostState[]> {
+export async function hostStates(rpc: Rpc, ws: string, users: string[], from: number, to: number, schedule?: string | null): Promise<HostState[]> {
   if (!users.length) return [];
-  const raw = await call<Raw[]>(rpc, "meeting_inputs", { p_ws: ws, p_users: users, p_from: new Date(from).toISOString(), p_to: new Date(to).toISOString() });
+  const raw = await call<Raw[]>(rpc, "meeting_inputs", { p_ws: ws, p_users: users, p_from: new Date(from).toISOString(), p_to: new Date(to).toISOString(), ...(schedule ? { p_schedule: schedule } : {}) });
   return (raw ?? []).map((r) => {
     const why = r.reconnect ? "reconnect" : !r.connected ? "no_calendar" : !r.availability ? "no_hours" : undefined;
     const ms = (s: string) => new Date(s).getTime();
@@ -81,7 +81,7 @@ export async function offer(rpc: Rpc, o: { ws: string; type: MeetingType; length
   // Owner first: the contact's owner (often the router's pick, docs/router.md Part 7) is offered first even when
   // they aren't one of the type's hosts; the round robin after them stays among the hosts.
   const extra = o.type.kind === "owner_first" && o.owner && !hostIds.includes(o.owner) ? o.owner : null;
-  const states = await hostStates(rpc, o.ws, extra ? [...hostIds, extra] : hostIds, now, now + (s.window + 1) * 86_400_000);
+  const states = await hostStates(rpc, o.ws, extra ? [...hostIds, extra] : hostIds, now, now + (s.window + 1) * 86_400_000, s.schedule);
   const out = states.filter((h) => !h.bookable && h.id !== extra).map((h) => ({ id: h.id, why: h.why! }));
   const all = states.filter((h) => h.bookable).map((h) => withCounts(h.input, o.type.id));
   const inputs = all.filter((h) => h.id !== extra);

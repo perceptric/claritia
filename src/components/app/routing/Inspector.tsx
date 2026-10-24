@@ -51,14 +51,14 @@ export type InspectorProps = {
   onSelect: (s: Selection) => void;
 };
 
-const TITLES = { spam: "Spam check", account: "Match account", keep: "Keep owner", rules: "Rules", fallback: "Fallback", sla: "Response time" } as const;
+const TITLES = { spam: "Filter out junk", account: "Same company, same rep", keep: "Keep their rep", rules: "Who gets which leads", fallback: "Everyone else goes to", sla: "Follow-up time" } as const;
 
 export function Inspector(p: InspectorProps) {
   const { sel, body } = p;
   const rule = sel.kind === "rule" ? body.rules.list.find((r) => r.id === sel.id) : undefined;
   const queue = sel.kind === "queue" ? body.queues.find((q) => q.id === sel.id) : undefined;
   const crumb =
-    sel.kind === "rule" ? ["Rules", rule?.name ?? ""] : sel.kind === "queue" ? ["Queues", queue?.name ?? ""] : [TITLES[sel.kind]];
+    sel.kind === "rule" ? ["Rules", rule?.name ?? ""] : sel.kind === "queue" ? ["Teams", queue?.name ?? ""] : [TITLES[sel.kind]];
   const mine = p.problems.filter((x) => x.where.kind === sel.kind && (!("id" in sel) || x.where.id === sel.id));
   return (
     <div className="flex flex-col">
@@ -109,8 +109,8 @@ function SpamInspector({ body, edit, lists, onLists, readOnly }: InspectorProps)
   return (
     <>
       <Block first>
-        <Line label="Spam check">
-          <Toggle label="Spam check" on={s.on} onChange={(on) => set({ on })} disabled={readOnly} />
+        <Line label="Filter out junk">
+          <Toggle label="Filter out junk" on={s.on} onChange={(on) => set({ on })} disabled={readOnly} />
         </Line>
         <Line label="Throwaway emails">
           <Toggle label="Throwaway emails" on={s.disposable} onChange={(disposable) => set({ disposable })} disabled={readOnly || !s.on} />
@@ -147,8 +147,8 @@ function AccountInspector({ body, edit, readOnly }: InspectorProps) {
   const set = (patch: Partial<RouterBody["account"]>) => edit((b) => ({ ...b, account: { ...b.account, ...patch } }));
   return (
     <Block first>
-      <Line label="Match account">
-        <Toggle label="Match account" on={a.on} onChange={(on) => set({ on })} disabled={readOnly} />
+      <Line label="Same company, same rep">
+        <Toggle label="Same company, same rep" on={a.on} onChange={(on) => set({ on })} disabled={readOnly} />
       </Line>
       <Line label="Open opportunity owner first">
         <Toggle label="Open opportunity owner first" on={a.oppFirst} onChange={(oppFirst) => set({ oppFirst })} disabled={readOnly || !a.on} />
@@ -170,8 +170,8 @@ function KeepInspector({ body, edit, readOnly }: InspectorProps) {
   const k = body.keep;
   return (
     <Block first>
-      <Line label="Keep owner">
-        <Toggle label="Keep owner" on={k.on} onChange={(on) => edit((b) => ({ ...b, keep: { ...b.keep, on } }))} disabled={readOnly} />
+      <Line label="Keep their rep">
+        <Toggle label="Keep their rep" on={k.on} onChange={(on) => edit((b) => ({ ...b, keep: { ...b.keep, on } }))} disabled={readOnly} />
       </Line>
       <div className="flex flex-col gap-2 pt-1">
         <span className="text-[12.5px] text-body">When the owner is out</span>
@@ -185,8 +185,8 @@ function RulesInspector({ body, edit, readOnly, onSelect, counts }: InspectorPro
   return (
     <>
       <Block first>
-        <Line label="Rules">
-          <Toggle label="Rules" on={body.rules.on} onChange={(on) => edit((b) => ({ ...b, rules: { ...b.rules, on } }))} disabled={readOnly} />
+        <Line label="Use rules">
+          <Toggle label="Use rules" on={body.rules.on} onChange={(on) => edit((b) => ({ ...b, rules: { ...b.rules, on } }))} disabled={readOnly} />
         </Line>
       </Block>
       <Block title="Order">
@@ -227,11 +227,11 @@ function FallbackInspector({ body, edit, members, readOnly }: InspectorProps) {
   return (
     <Block first>
       <Segmented<"user" | "queue">
-        label="Fallback"
+        label="Everyone else goes to"
         value={kind}
         options={[
           { value: "user", label: "A rep" },
-          { value: "queue", label: "A queue" },
+          { value: "queue", label: "A team" },
         ]}
         onChange={(k) => !readOnly && setKind(k)}
       />
@@ -239,8 +239,8 @@ function FallbackInspector({ body, edit, members, readOnly }: InspectorProps) {
         value={fb?.kind === kind ? fb.id : ""}
         options={options}
         onChange={(id) => edit((b) => ({ ...b, fallback: { kind, id } }))}
-        ariaLabel={kind === "user" ? "Rep" : "Queue"}
-        placeholder={kind === "user" ? "Pick a rep" : "Pick a queue"}
+        ariaLabel={kind === "user" ? "Rep" : "Team"}
+        placeholder={kind === "user" ? "Pick a rep" : "Pick a team"}
         disabled={readOnly}
         className={`${PICK} h-8`}
       />
@@ -260,8 +260,8 @@ function SlaInspector({ body, edit, members, readOnly }: InspectorProps) {
   const nudges = SLA_MINUTES.filter((m) => m < s.minutes);
   return (
     <Block first>
-      <Line label="Response time">
-        <Toggle label="Response time" on={s.on} onChange={(on) => set({ on })} disabled={readOnly} />
+      <Line label="Follow-up time">
+        <Toggle label="Follow-up time" on={s.on} onChange={(on) => set({ on })} disabled={readOnly} />
       </Line>
       <Line label="Act within">
         <Select<string>
@@ -375,7 +375,7 @@ function RuleInspector({ body, edit, rule, fields, forms, readOnly, counts, onSe
           <span className="w-52">
             <Select<string>
               value={rule.queue}
-              options={[...body.queues.map((q) => ({ value: q.id, label: q.name })), { value: "__new", label: "New queue…" }]}
+              options={[...body.queues.map((q) => ({ value: q.id, label: q.name })), { value: "__new", label: "New team…" }]}
               onChange={(v) => {
                 if (v !== "__new") return set({ queue: v });
                 const id = newId("q_");
@@ -383,7 +383,7 @@ function RuleInspector({ body, edit, rule, fields, forms, readOnly, counts, onSe
                 onSelect({ kind: "queue", id });
               }}
               ariaLabel="Send to"
-              placeholder="Pick a queue"
+              placeholder="Pick a team"
               disabled={readOnly}
               className={`${PICK} h-8`}
             />
@@ -476,7 +476,7 @@ function ValueInput({ c, f, body, forms, readOnly, onChange, onRegion }: { c: Co
   const key = `cond:${c.field}:${c.op}`;
   if (c.op === "one_of" || c.op === "not_one_of") {
     if (type === "country") {
-      const territories = body.territories.map((t) => ({ value: `t:${t.id}`, label: t.name, group: "Territories" }));
+      const territories = body.territories.map((t) => ({ value: `t:${t.id}`, label: t.name, group: "Regions" }));
       const regions = REGIONS.filter((r) => !body.territories.some((t) => t.name === r.name && list.includes(`t:${t.id}`))).map((r) => ({ value: r.name, label: r.name }));
       return (
         <ChoiceChips
@@ -557,8 +557,8 @@ function QueueInspector({ body, edit, id, members, readOnly, counts, onSelect }:
           <span className="text-[12.5px] text-body">Method</span>
           <Segmented<Method> label="Method" value={q.method} options={METHODS} onChange={(method) => !readOnly && edit((b) => setQueue(b, q.id, { method }))} />
         </div>
-        <Line label="Strict">
-          <Toggle label="Strict" on={q.strict} onChange={(strict) => edit((b) => setQueue(b, q.id, { strict }))} disabled={readOnly} />
+        <Line label="Keep the order">
+          <Toggle label="Keep the order" on={q.strict} onChange={(strict) => edit((b) => setQueue(b, q.id, { strict }))} disabled={readOnly} />
         </Line>
         <Line label="Only during working hours">
           <Toggle label="Only during working hours" on={q.hoursOnly} onChange={(hoursOnly) => edit((b) => setQueue(b, q.id, { hoursOnly }))} disabled={readOnly} />
@@ -626,14 +626,14 @@ function QueueInspector({ body, edit, id, members, readOnly, counts, onSelect }:
           <button
             type="button"
             onClick={async () => {
-              if (!(await askConfirm(`Delete the queue "${q.name}"?`, { ok: "Delete", danger: true }))) return;
+              if (!(await askConfirm(`Delete the team "${q.name}"?`, { ok: "Delete", danger: true }))) return;
               edit((b) => removeQueue(b, q.id));
               onSelect({ kind: "rules" });
             }}
             className="press mt-1 inline-flex h-7 items-center gap-1.5 self-start rounded-full px-2 text-[12.5px] font-medium text-rose hover:bg-rose-wash"
           >
             <Trash size={12} />
-            Delete queue
+            Delete team
           </button>
         ) : null}
       </Block>

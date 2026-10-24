@@ -135,6 +135,7 @@ export function checkSettings(raw: unknown, kind: Kind): { settings: TypeSetting
     noShowFollowUp: r.noShowFollowUp !== false,
     confirmation,
     ...(price ? { price } : {}),
+    ...(str(r.schedule, 60) ? { schedule: str(r.schedule, 60) } : {}),
     questions,
   };
   return { settings, errors };

@@ -58,7 +58,6 @@ function useChanges(session: Session, ws: string, body: { from?: number | null; 
 export function PublishDialog({
   session,
   ws,
-  next,
   replay,
   onReplay,
   onPublished,
@@ -90,7 +89,7 @@ export function PublishDialog({
   };
   return (
     <Modal
-      title={`Publish v${next}`}
+      title="Make live"
       onClose={onClose}
       footer={
         <>
@@ -98,7 +97,7 @@ export function PublishDialog({
             Cancel
           </Button>
           <Button onClick={() => void publish()} disabled={busy}>
-            Publish
+            Make live
           </Button>
         </>
       }
@@ -116,7 +115,7 @@ export function PublishDialog({
           <ErrorNote message={loadError} />
         </section>
         <section className="flex items-center gap-3 text-[13px]">
-          <span className="w-16 shrink-0 text-[12.5px] font-medium text-body">Replay</span>
+          <span className="w-16 shrink-0 text-[12.5px] font-medium text-body">Past leads</span>
           <span className="flex-1 text-ink tabular-nums">{replay ? `${replay.changed} of ${replay.total} change` : "Not run"}</span>
           <Button type="button" variant="ghost" size="sm" onClick={onReplay}>
             {replay ? "Open" : "Run now"}

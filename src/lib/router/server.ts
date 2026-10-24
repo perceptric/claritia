@@ -219,11 +219,11 @@ export async function readFacts(
 
 export type Routed =
   | { status: "ok" | "dup"; run: string; decision: Decision | null; result: Decision["result"] }
-  | { status: "no_router" | "gone" | "spam" };
+  | { status: "no_router" | "paused" | "gone" | "spam" };
 
-/** The live router's body and version. */
-export async function liveRouter(rpc: Rpc, ws: string): Promise<{ version: number; body: RouterBody } | null> {
-  const r = await call<{ version: number; body: RouterBody } | null>(rpc, "router_live", { p_ws: ws });
+/** The live router's body and version, and whether routing is paused. */
+export async function liveRouter(rpc: Rpc, ws: string): Promise<{ version: number; body: RouterBody; paused?: boolean } | null> {
+  const r = await call<{ version: number; body: RouterBody; paused?: boolean } | null>(rpc, "router_live", { p_ws: ws });
   return r ?? null;
 }
 
@@ -244,12 +244,14 @@ export async function route(
     skipSpam?: boolean;
     passed?: string[];
     before?: StepResult[];
-    live?: { version: number; body: RouterBody } | null;
+    live?: { version: number; body: RouterBody; paused?: boolean } | null;
     now?: () => number;
   },
 ): Promise<Routed> {
   const live = o.live === undefined ? await liveRouter(rpc, o.ws) : o.live;
   if (!live) return { status: "no_router" };
+  // Paused: new leads keep the owner they come with.
+  if (live.paused) return { status: "paused" };
   const t0 = Date.now();
   for (let tries = 0; tries < 3; tries++) {
     const now = o.now?.() ?? Date.now();

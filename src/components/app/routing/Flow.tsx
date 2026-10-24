@@ -40,7 +40,7 @@ export type FlowProps = {
   setup?: { text: string; at: Selection }[];
 };
 
-const WHEN_OUT = { keep: "keep them", backup: "backup", route: "route on" } as const;
+const WHEN_OUT = { keep: "wait for them", backup: "whoever covers", route: "send on to a team" } as const;
 const SLA_NEXT_WORDS = { route: "route again", manager: "manager", nudge: "tell the rep" } as const;
 
 export function Flow(p: FlowProps) {
@@ -63,10 +63,11 @@ export function Flow(p: FlowProps) {
         <span className="font-medium text-ink">New lead</span>
         {counts ? <span className="ml-3 text-[12px] text-muted tabular-nums">{fmt(counts.total)} this week</span> : null}
       </div>
-      <Connector count={null} lit={lit("spam")} runKey={p.runKey} />
+      <Connector count={null} word="first" lit={lit("spam")} runKey={p.runKey} />
       <StepCard
-        title="Spam check"
-        summary={body.spam.on ? `${spamOn.length} checks` : "Off"}
+        title="Filter out junk"
+        meaning="Hold leads that look fake"
+        summary={`${spamOn.length} checks: ${spamOn.join(", ")}`}
         on={body.spam.on}
         onToggle={toggle("spam")}
         selected={sameSelection(sel, { kind: "spam" })}
@@ -74,13 +75,14 @@ export function Flow(p: FlowProps) {
         mark={path?.marks.spam}
         faded={!reached("spam")}
         problem={problemFor("spam")?.text}
-        branch={counts && body.spam.on ? `${fmt(counts.held)} held` : null}
+        branch={counts && body.spam.on ? `${fmt(counts.held)} held for review` : null}
         branchLit={path?.marks.spam === "miss"}
         runKey={p.runKey}
       />
-      <Connector count={counts?.afterSpam ?? null} lit={lit("account")} runKey={p.runKey} />
+      <Connector count={counts?.afterSpam ?? null} word="then" lit={lit("account")} runKey={p.runKey} />
       <StepCard
-        title="Match account"
+        title="Same company, same rep"
+        meaning="Send to whoever owns the company"
         summary={body.account.on ? (body.account.oppFirst ? "Opportunity owner, then company owner" : "Company owner") : "Off"}
         on={body.account.on}
         onToggle={toggle("account")}
@@ -89,13 +91,14 @@ export function Flow(p: FlowProps) {
         mark={path?.marks.account}
         faded={!reached("account")}
         problem={problemFor("account")?.text}
-        branch={counts && body.account.on ? `${fmt(counts.matched)} matched` : null}
+        branch={counts && body.account.on ? `${fmt(counts.matched)} went to their company's rep` : null}
         branchLit={path?.marks.account === "ok" && !path.reached.has("keep")}
         runKey={p.runKey}
       />
-      <Connector count={counts?.afterAccount ?? null} lit={lit("keep")} runKey={p.runKey} />
+      <Connector count={counts?.afterAccount ?? null} word="if no company rep" lit={lit("keep")} runKey={p.runKey} />
       <StepCard
-        title="Keep owner"
+        title="Keep their rep"
+        meaning="A lead who already has a rep keeps them"
         summary={body.keep.on ? `If out: ${WHEN_OUT[body.keep.whenOut]}` : "Off"}
         on={body.keep.on}
         onToggle={toggle("keep")}
@@ -104,15 +107,16 @@ export function Flow(p: FlowProps) {
         mark={path?.marks.keep}
         faded={!reached("keep")}
         problem={problemFor("keep")?.text}
-        branch={counts && body.keep.on ? `${fmt(counts.kept)} kept` : null}
+        branch={counts && body.keep.on ? `${fmt(counts.kept)} kept their rep` : null}
         branchLit={path?.marks.keep === "ok" && !path.reached.has("rules")}
         runKey={p.runKey}
       />
-      <Connector count={counts?.afterKeep ?? null} lit={lit("rules")} runKey={p.runKey} />
+      <Connector count={counts?.afterKeep ?? null} word="otherwise" lit={lit("rules")} runKey={p.runKey} />
       <RulesCard {...p} faded={!reached("rules")} problemFor={problemFor} />
-      <Connector count={counts?.noRule ?? null} label="no rule matched" lit={lit("fallback")} runKey={p.runKey} />
+      <Connector count={counts?.noRule ?? null} word="if no rule matches" label="this week" lit={lit("fallback")} runKey={p.runKey} />
       <StepCard
-        title="Fallback"
+        title="Everyone else goes to"
+        meaning="Leads no rule matched"
         summary={fbName}
         selected={sameSelection(sel, { kind: "fallback" })}
         onClick={() => onSelect({ kind: "fallback" })}
@@ -121,9 +125,10 @@ export function Flow(p: FlowProps) {
         problem={problemFor("fallback")?.text}
         runKey={p.runKey}
       />
-      <Connector count={null} lit={false} runKey={p.runKey} />
+      <Connector count={null} word="after a rep gets the lead" lit={false} runKey={p.runKey} />
       <StepCard
-        title="Response time"
+        title="Follow-up time"
+        meaning="The rep must reach out in time"
         summary={body.sla?.on ? `${minutesWords(body.sla.minutes)}, then ${SLA_NEXT_WORDS[body.sla.next]}` : "Off"}
         on={!!body.sla?.on}
         onToggle={edit ? (on: boolean) => edit((b) => ({ ...b, sla: { ...(b.sla ?? defaultSla()), on } })) : undefined}
@@ -157,15 +162,16 @@ function FinishSetup({ items, onSelect }: { items: { text: string; at: Selection
 }
 
 /** The line between two cards, with its count. Lit lines draw in along the stroke (slow). */
-function Connector({ count, label, lit, runKey }: { count: number | null; label?: string; lit: boolean; runKey: number }) {
+function Connector({ count, label, word, lit, runKey }: { count: number | null; label?: string; word?: string; lit: boolean; runKey: number }) {
   return (
     <div className="relative flex h-10 items-center pl-[21px]">
       <svg width="2" height="40" viewBox="0 0 2 40" className="absolute top-0 left-[21px] overflow-visible" aria-hidden="true">
         <path d="M1 0V40" stroke="var(--color-line-strong)" strokeWidth="1.5" strokeLinecap="round" />
         {lit ? <path key={runKey} d="M1 0V40" pathLength={1} stroke="var(--color-ink)" strokeWidth="2" strokeLinecap="round" style={{ strokeDasharray: 1, animation: "draw 700ms var(--ease-out) both" }} /> : null}
       </svg>
+      {word ? <span className="ml-5 text-[11.5px] font-medium text-faint italic">{word}</span> : null}
       {count !== null ? (
-        <span className="ml-5 text-[12px] text-muted tabular-nums">
+        <span className="ml-3 text-[12px] text-muted tabular-nums">
           {fmt(count)}
           {label ? ` ${label}` : ""}
         </span>
@@ -197,6 +203,7 @@ function MarkDot({ mark }: { mark: RunLine["mark"] | undefined }) {
 
 function StepCard({
   title,
+  meaning,
   summary,
   on,
   onToggle,
@@ -211,6 +218,8 @@ function StepCard({
   children,
 }: {
   title: string;
+  /** What the step does, in one line (the only help text on the screen, docs/router-ux-v2.md 3.2). */
+  meaning?: string;
   summary: string;
   on?: boolean;
   onToggle?: (on: boolean) => void;
@@ -234,7 +243,8 @@ function StepCard({
           <MarkDot mark={mark} />
           <button type="button" onClick={onClick} aria-pressed={selected} className="min-w-0 flex-1 text-left outline-none focus-visible:underline">
             <span className="block text-[13.5px] font-medium text-ink">{title}</span>
-            <span className="line-clamp-2 block text-[12.5px] text-muted">{summary}</span>
+            {meaning ? <span className={`block text-[12px] text-faint ${off ? "line-through" : ""}`}>{meaning}</span> : null}
+            <span className="mt-0.5 line-clamp-2 block text-[12.5px] text-muted">{off ? "Skipped" : summary}</span>
           </button>
           {off ? <Badge>Off</Badge> : null}
           {onToggle ? <Toggle label={`${title} on`} on={!off} onChange={onToggle} /> : null}
@@ -279,11 +289,12 @@ function RulesCard(p: FlowProps & { faded: boolean; problemFor: (k: Problem["whe
     <div className={`w-full max-w-[380px] rounded-2xl border bg-card transition-[opacity,transform,box-shadow] duration-[140ms] ease-out ${selected ? "border-ink" : "border-line"} ${p.faded ? "opacity-40" : off ? "opacity-60" : ""}`}>
       <div className="flex items-center gap-2.5 px-4 pt-3 pb-1.5">
         <MarkDot mark={path?.marks.rules} />
-        <button type="button" onClick={() => onSelect({ kind: "rules" })} aria-pressed={selected} className="min-w-0 flex-1 text-left text-[13.5px] font-medium text-ink outline-none focus-visible:underline">
-          Rules
+        <button type="button" onClick={() => onSelect({ kind: "rules" })} aria-pressed={selected} className="min-w-0 flex-1 text-left outline-none focus-visible:underline">
+          <span className="block text-[13.5px] font-medium text-ink">Who gets which leads</span>
+          <span className={`block text-[12px] text-faint ${off ? "line-through" : ""}`}>If a lead matches, send it to a team. Checked top to bottom.</span>
         </button>
         {off ? <Badge>Off</Badge> : null}
-        {edit ? <Toggle label="Rules on" on={!off} onChange={(on) => edit((b) => ({ ...b, rules: { ...b.rules, on } }))} /> : null}
+        {edit ? <Toggle label="Use rules" on={!off} onChange={(on) => edit((b) => ({ ...b, rules: { ...b.rules, on } }))} /> : null}
       </div>
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onEnd}>
         <SortableContext items={body.rules.list.map((r) => r.id)} strategy={verticalListSortingStrategy}>
@@ -383,7 +394,7 @@ function RuleRow({
         </button>
         {problem ? <span className="size-1.5 shrink-0 rounded-full bg-rose" aria-label={problem} title={problem} /> : null}
         {off ? <Badge>Off</Badge> : unused ? <Badge>Unused</Badge> : null}
-        <span className="max-w-[96px] truncate text-[12px] text-muted">→ {queue ?? "No queue"}</span>
+        <span className="max-w-[96px] truncate text-[12px] text-muted">→ {queue ?? "No team"}</span>
         {count !== null ? <span className="w-9 text-right text-[12px] text-muted tabular-nums">{fmt(count)}</span> : null}
         {edit ? (
           <button
@@ -449,7 +460,7 @@ function MenuItem({ icon, label, onClick, disabled = false, danger = false }: { 
 function Queues({ body, sel, onSelect, edit, path, problemFor }: FlowProps & { problemFor: (k: Problem["where"]["kind"], id?: string) => Problem | undefined }) {
   return (
     <div className="mt-8 flex max-w-[560px] flex-wrap items-center gap-1.5">
-      <span className="mr-1.5 text-[12px] text-muted">Queues</span>
+      <span className="mr-1.5 text-[12px] text-muted">Teams</span>
       {body.queues.map((q) => {
         const on = sameSelection(sel, { kind: "queue", id: q.id });
         const problem = problemFor("queue", q.id);
@@ -479,7 +490,7 @@ function Queues({ body, sel, onSelect, edit, path, problemFor }: FlowProps & { p
           className="press inline-flex h-8 items-center gap-1 rounded-full border border-dashed border-line-strong px-3 text-[12.5px] font-medium text-body hover:border-ink/40 hover:text-ink"
         >
           <Plus size={12} />
-          Queue
+          Team
         </button>
       ) : null}
       {!body.queues.length && !edit ? <span className="text-[12.5px] text-faint">None</span> : null}

@@ -67,11 +67,12 @@ export function TypeEditor(props: ViewProps) {
   const people = usePeople(sb, ws.id);
   const slug = useWorkspaceSlug(session, ws.id);
   const data = useLoad(async () => {
-    const [row, hours, copies, kit] = await Promise.all([
+    const [row, hours, copies, kit, named] = await Promise.all([
       isNew ? Promise.resolve({ data: null, error: null }) : sb.from("meeting_types").select("*").eq("id", id).eq("workspace_id", ws.id).maybeSingle(),
       sb.from("availability").select("user_id, tz, weekly, overrides").eq("workspace_id", ws.id),
       isNew ? Promise.resolve({ data: [], error: null }) : sb.from("meeting_types").select("owner_user_id").eq("template_id", id),
       sb.from("brand_kits").select("tokens").eq("workspace_id", ws.id).order("created_at").limit(1),
+      sb.from("availability_schedules").select("user_id, name, tz, weekly, overrides").eq("workspace_id", ws.id),
     ]);
     const t = must(row) as TypeRow | null;
     return {
@@ -79,6 +80,8 @@ export function TypeEditor(props: ViewProps) {
       hours: new Map(((must(hours) ?? []) as ({ user_id: string } & Availability)[]).map((h) => [h.user_id, h])),
       tokens: ((kit.data ?? []) as { tokens: Record<string, unknown> | null }[])[0]?.tokens ?? null,
       copies: ((must(copies) ?? []) as { owner_user_id: string | null }[]).map((c) => c.owner_user_id).filter((x): x is string => !!x),
+      // Named schedules (docs/app-structure.md 6.4); a table missing before 066 reads as none.
+      named: ((named.data ?? []) as ({ user_id: string; name: string } & Availability)[]),
     };
   }, id);
 
@@ -107,7 +110,7 @@ export function TypeEditor(props: ViewProps) {
     return () => setLeaveGuard(null);
   }, [dirty]);
 
-  const back = { label: "Meeting types", onClick: () => navigate("meetings", "types") };
+  const back = { label: "Meeting types", onClick: () => navigate("scheduling", "types") };
   if (data.error && !data.data)
     return (
       <Page title="Meeting type" back={back}>
@@ -146,7 +149,7 @@ export function TypeEditor(props: ViewProps) {
       setBase(JSON.stringify(draft));
       if (isNew) {
         setLeaveGuard(null);
-        navigate("meetings", `types/${r.id}`);
+        navigate("scheduling", `types/${r.id}`);
       } else data.reload();
     } catch (e) {
       setErrors([errorText(e)]);
@@ -159,7 +162,7 @@ export function TypeEditor(props: ViewProps) {
     try {
       await meetingsApi(session, ws.id, "types", { action: "delete", id });
       setLeaveGuard(null);
-      navigate("meetings", "types");
+      navigate("scheduling", "types");
     } catch (e) {
       setErrors([errorText(e)]);
     }
@@ -263,6 +266,14 @@ export function TypeEditor(props: ViewProps) {
                   value={s.notice}
                   options={[...new Set([...NOTICE, s.notice])].sort((a, b) => a - b).map((n) => ({ value: n, label: n ? minutesText(n) : "None" }))}
                   onChange={(v) => !isLocked("notice") && setS("notice", v)}
+                />
+              </Row>
+              <Row label="Schedule">
+                <Pick<string>
+                  label="Schedule"
+                  value={s.schedule ?? ""}
+                  options={[{ value: "", label: "Working hours" }, ...[...new Set(data.data.named.filter((n) => draft.hosts.some((h) => h.user_id === n.user_id)).map((n) => n.name))].sort().map((n) => ({ value: n, label: n }))]}
+                  onChange={(v) => setDraft((d) => (d ? { ...d, settings: { ...d.settings, schedule: v || undefined } } : d))}
                 />
               </Row>
               <NumRow label="Window" unit="days" value={s.window} min={1} max={365} onChange={(v) => !isLocked("window") && setS("window", v ?? 14)} />
@@ -388,7 +399,7 @@ export function TypeEditor(props: ViewProps) {
         </LabelWidth.Provider>
         <div className="border-t border-line bg-paper lg:min-h-0 lg:overflow-y-auto lg:border-t-0">
           <div className="mx-auto flex min-h-full max-w-[860px] items-center px-4 py-8 md:px-8 lg:py-10">
-            <Preview draft={draft} hours={data.data.hours} tz={tz} now={now} guestType={guestType} tokens={data.data.tokens} />
+            <Preview draft={draft} hours={hoursFor(data.data.hours, data.data.named, s.schedule)} tz={tz} now={now} guestType={guestType} tokens={data.data.tokens} />
           </div>
         </div>
       </div>
@@ -421,6 +432,21 @@ function Preview({ draft, hours, tz, now, guestType, tokens }: { draft: Draft; h
       <BookingCalendar key={guestType.lengths.join()} type={guestType} load={load} tokens={tokens} />
     </div>
   );
+}
+
+/** Each host's hours for the preview: their schedule of the type's name, else their working hours. */
+const HOURS_CACHE = new WeakMap<Map<string, Availability>, Map<string, Map<string, Availability>>>();
+function hoursFor(hours: Map<string, Availability>, named: ({ user_id: string; name: string } & Availability)[], schedule: string | undefined): Map<string, Availability> {
+  if (!schedule) return hours;
+  const seen = HOURS_CACHE.get(hours) ?? new Map<string, Map<string, Availability>>();
+  HOURS_CACHE.set(hours, seen);
+  const key = schedule.toLowerCase();
+  const hit = seen.get(key);
+  if (hit) return hit;
+  const out = new Map(hours);
+  for (const n of named) if (n.name.toLowerCase() === key) out.set(n.user_id, { tz: n.tz, weekly: n.weekly, overrides: n.overrides });
+  seen.set(key, out);
+  return out;
 }
 
 function Block({ title, children, action, first = false, locked = false }: { title: string; children: React.ReactNode; action?: React.ReactNode; first?: boolean; locked?: boolean }) {

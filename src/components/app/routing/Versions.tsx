@@ -27,9 +27,9 @@ export function VersionsDrawer({ data, current, onOpen, onClose }: { data: Loade
   }, [onClose]);
   return (
     <div className="anim-fade fixed inset-0 z-[75] flex justify-end bg-scrim" onMouseDown={onClose}>
-      <div ref={ref} role="dialog" aria-modal="true" aria-label="Versions" onMouseDown={(e) => e.stopPropagation()} className="flex h-full w-full max-w-sm flex-col bg-card shadow-float md:my-2.5 md:mr-2.5 md:h-[calc(100%-20px)] md:rounded-2xl">
+      <div ref={ref} role="dialog" aria-modal="true" aria-label="Saved setups" onMouseDown={(e) => e.stopPropagation()} className="flex h-full w-full max-w-sm flex-col bg-card shadow-float md:my-2.5 md:mr-2.5 md:h-[calc(100%-20px)] md:rounded-2xl">
         <div className="flex h-14 shrink-0 items-center gap-2 border-b border-line px-5">
-          <h2 className="flex-1 text-[16px] font-semibold tracking-[-0.02em] text-ink">Versions</h2>
+          <h2 className="flex-1 text-[16px] font-semibold tracking-[-0.02em] text-ink">Saved setups</h2>
           <IconButton label="Close" onClick={onClose} autoFocus>
             <X size={15} />
           </IconButton>
@@ -117,7 +117,7 @@ export function VersionView({
           : undefined,
       });
       onRolledBack();
-      navigate("routing");
+      navigate("routing", "rules");
     } catch (e) {
       setError(errorText(e));
       setBusy(false);
@@ -127,7 +127,7 @@ export function VersionView({
   return (
     <div className="flex h-full min-h-0 flex-col">
       <div className="flex min-h-14 shrink-0 flex-wrap items-center gap-2 border-b border-line px-4 py-2 md:px-6">
-        <IconButton label="Back to the router" onClick={() => navigate("routing")}>
+        <IconButton label="Back to the setup" onClick={() => navigate("routing", "rules")}>
           <ArrowLeft size={15} />
         </IconButton>
         <Badge>v{version} · read-only</Badge>

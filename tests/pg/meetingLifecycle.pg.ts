@@ -420,7 +420,7 @@ test("a calendar that needs reconnecting sends its person one email per break, a
   const text = parts(sent[0]!.raw)["text/plain"]!;
   assert.ok(text.includes("rio@gmail.test"));
   assert.ok(text.includes("Your 1 meeting in the next two weeks stays booked."));
-  assert.ok(text.includes("https://app.test/settings/calendar"));
+  assert.ok(text.includes("https://app.test/scheduling/availability/calendars"));
 
   // Reconnected before the job ran: nothing goes.
   sent = [];

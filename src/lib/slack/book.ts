@@ -5,6 +5,7 @@
 import type { Rpc } from "../jobs.ts";
 import { checkLink, withDefaults, type LinkRow } from "../meetings/public.ts";
 import type { MeetingType } from "../meetings/types.ts";
+import { seal } from "../seal.ts";
 import { buttons, esc, section } from "./app.ts";
 
 const EMAIL = /^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/;
@@ -45,7 +46,7 @@ export function pickType<T extends { name: string }>(types: T[], words: string[]
 }
 
 export async function slackBook(
-  o: { rpc: Rpc; ws: string; user: string; text: string; base: string; loadType: (id: string) => Promise<MeetingType | null>; saveLink: (row: LinkRow & { workspace_id: string }) => Promise<void> },
+  o: { rpc: Rpc; ws: string; user: string; text: string; base: string; loadType: (id: string) => Promise<MeetingType | null>; saveLink: (row: LinkRow & { workspace_id: string; token_sealed: string | null }) => Promise<void> },
 ): Promise<Reply> {
   const { email, words } = parseBook(o.text);
   if (!email) return say("Type /book and the lead's email, like /book dana@acme.com");
@@ -59,7 +60,13 @@ export async function slackBook(
   if (!type) return say("That meeting type was turned off.");
   const made = checkLink({ kind: "single_use", typeId: type.id }, { owner: info.host.id, type: withDefaults(type) });
   if ("errors" in made) return say(made.errors[0]!);
-  await o.saveLink({ workspace_id: o.ws, ...made.row });
+  let sealed: string | null = null;
+  try {
+    sealed = seal(made.token);
+  } catch {
+    sealed = null;
+  }
+  await o.saveLink({ workspace_id: o.ws, ...made.row, token_sealed: sealed });
   const q = new URLSearchParams({ email });
   if (info.contact?.name) q.set("name", info.contact.name);
   const url = `${o.base.replace(/\/$/, "")}/book/l/${made.token}?${q}`;

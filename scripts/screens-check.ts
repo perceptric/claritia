@@ -3,7 +3,9 @@
 // live form that takes a fill and makes a contact: Ask (five questions by clicks and keys, opening on Design), a
 // first sentence that skips what it settles, a template, and Start blank with click and drag on the canvas. Then the
 // CRM: a custom field from the table, a rating from the record page, a note and a task. Then Meetings: a guest books
-// from the booking page, and a lead books inside a Claritia calendar form right after sending it.
+// from the booking page, and a lead books inside a Claritia calendar form right after sending it. Then the app's
+// structure (docs/app-structure.md): the sidebar's groups, Scheduling's pages with a named schedule, Signals,
+// Enrichment, and Routing's pages from the first screen to Make live, Teams' Deal 20 leads and a company type.
 //   POSTGREST_BIN=… CHROMIUM_PATH=… node scripts/screens-check.ts
 // scripts/test-db.sh runs it when both are set.
 
@@ -98,7 +100,14 @@ const publish = async () => {
 const contactFor = async (email: string) => (await db.query(`select id from contacts where email_clean = $1`, [email])).rows.length === 1;
 
 try {
-  // An empty workspace opens on the first screen.
+  // The app opens on Contacts, with the sidebar's groups; an unknown address lands there too.
+  await page.goto(`${base}/nope`);
+  await until(async () => new URL(page.url()).pathname === "/contacts", 60_000, "the app to open on Contacts");
+  const nav = page.getByRole("navigation", { name: "Main" });
+  for (const g of ["CRM", "Automation", "Routing", "Scheduling", "Email"]) await nav.getByRole("group", { name: g }).waitFor({ timeout: 60_000 });
+  check(true, "the app opens on Contacts with CRM, Automation, Routing, Scheduling and Email");
+
+  // An empty workspace opens Forms on the first screen.
   await page.goto(`${base}/forms`);
   await page.getByText("What form do you need?").waitFor({ timeout: 60_000 });
   check(true, "an empty workspace opens Forms on the first screen");
@@ -225,7 +234,23 @@ try {
   await page.goto(`${base}/meetings`);
   await page.getByRole("button", { name: "Meeting types" }).click({ timeout: 60_000 });
   await page.getByText("Intro call").first().waitFor({ timeout: 60_000 });
-  check(true, "Meeting types lists the type");
+  check(new URL(page.url()).pathname === "/scheduling/types", "Meeting types lists the type under Scheduling");
+  // An old address still lands there.
+  await page.goto(`${base}/meetings/types`);
+  await until(async () => new URL(page.url()).pathname === "/scheduling/types", 30_000, "the old Meeting types address to forward");
+
+  // A named schedule: made on Availability, picked on the type, and the booking page offers only its hours.
+  await page.goto(`${base}/scheduling/availability`);
+  await page.getByRole("button", { name: "New schedule" }).click({ timeout: 60_000 });
+  await page.getByRole("dialog").getByRole("textbox", { name: "Name" }).fill("Demo hours");
+  await page.getByRole("dialog").getByRole("button", { name: "Save", exact: true }).click();
+  await until(async () => (await db.query(`select count(*)::int n from availability_schedules where workspace_id = $1 and name = 'Demo hours'`, [ws])).rows[0].n === 1, 30_000, "the schedule to save");
+  check(true, "a named schedule is made on Availability");
+  for (const p of ["links", "forms", "reminders", "payments"]) {
+    await page.goto(`${base}/scheduling/${p}`);
+    await page.locator("h1").first().waitFor({ timeout: 60_000 });
+  }
+  check(true, "Links and polls, Booking forms, Reminders and Payments open");
 
   // The booking page: a time, then Next, the details, and Book meeting.
   const guestPage = await browser.newPage();
@@ -268,20 +293,32 @@ try {
   check(fromForm.length === 1 && fromForm[0].status === "booked" && !!fromForm[0].submission_id, "a lead books inside the form, and the meeting links to the fill");
   await lead.close();
 
-  // Routing: a template, Publish, a test, a form fill routed in the send, a held lead let through, the log.
+  // Signals and Enrichment open with their numbers.
+  await page.goto(`${base}/signals`);
+  await page.getByText("Companies on the site").first().waitFor({ timeout: 60_000 });
+  await page.goto(`${base}/enrichment`);
+  await page.getByText("Companies filled").first().waitFor({ timeout: 60_000 });
+  check(true, "Signals and Enrichment open on their numbers");
+
+  // Routing: a template, Make live, Try a lead, a form fill routed in the send, a held lead let through, History.
   await page.goto(`${base}/routing`);
-  await page.getByRole("button", { name: /Round robin/ }).first().click({ timeout: 60_000 });
-  const publishBtn = page.getByRole("button", { name: "Publish", exact: true }).first();
-  await until(async () => await publishBtn.isEnabled(), 30_000, "the draft to be ready to publish");
+  await page.getByRole("button", { name: /Everyone takes turns/ }).first().click({ timeout: 60_000 });
+  await until(async () => new URL(page.url()).pathname === "/routing/rules", 30_000, "the setup to open on Rules");
+  const publishBtn = page.getByRole("button", { name: "Make live", exact: true }).first();
+  await until(async () => await publishBtn.isEnabled(), 30_000, "the draft to be ready to make live");
   await publishBtn.click();
-  await page.getByRole("dialog").getByRole("button", { name: "Publish", exact: true }).click({ timeout: 30_000 });
+  await page.getByRole("dialog").getByRole("button", { name: "Make live", exact: true }).click({ timeout: 30_000 });
   await until(async () => (await db.query(`select live_version from routers where workspace_id = $1`, [ws])).rows[0]?.live_version === 1, 30_000, "the router to go live");
-  check(true, "a template publishes as v1");
-  await page.getByRole("button", { name: "Test", exact: true }).first().click();
+  check(true, "a template goes live");
+  await page.getByRole("button", { name: "Try a lead", exact: true }).first().click();
   await page.getByRole("textbox", { name: "Email" }).fill("rae@northwind.io");
   await page.keyboard.press("Enter");
-  await page.getByRole("complementary", { name: "Test" }).getByText("Spam check").first().waitFor({ timeout: 30_000 });
-  check(true, "the Test panel explains where a lead would go");
+  await page.getByRole("complementary", { name: "Try a lead" }).getByText("Filter out junk").first().waitFor({ timeout: 30_000 });
+  check(true, "Try a lead explains where a lead would go");
+  await page.goto(`${base}/routing`);
+  await page.getByText("Routing is on.").waitFor({ timeout: 60_000 });
+  await page.getByText("Your setup in plain words").waitFor();
+  check(true, "Overview says routing is on and reads the setup back");
 
   const routedLead = await browser.newPage();
   routedLead.on("pageerror", (e) => errors.push(`form: ${e.message}`));
@@ -305,12 +342,23 @@ try {
   await until(async () => (await db.query(`select owner_user_id from contacts where email_clean = 'x@initech.io'`)).rows[0]?.owner_user_id === user, 30_000, "the held lead to be routed");
   check(true, "Let through routes a held lead");
   await page.goto(`${base}/routing/log`);
+  await until(async () => new URL(page.url()).pathname === "/routing/history", 30_000, "the old log address to forward");
   await page.getByText("mo@initech.io").first().click({ timeout: 30_000 });
   await page.getByText(/Passed \d checks/).first().waitFor({ timeout: 30_000 });
-  check(true, "the log opens a run with its sentences");
-  await page.goto(`${base}/routing/reps`);
+  check(true, "History opens a run with its sentences");
+  await page.goto(`${base}/routing/teams`);
   await page.getByText("Sam Lee").first().waitFor({ timeout: 30_000 });
-  check(true, "Reps lists the team");
+  await page.getByRole("button", { name: "Deal 20 leads" }).first().click();
+  await page.getByText("20 of 20 dealt").waitFor({ timeout: 30_000 });
+  check(true, "Teams lists the reps and deals 20 leads");
+  await page.goto(`${base}/routing/company-types`);
+  await page.getByRole("button", { name: "New company type" }).first().click({ timeout: 60_000 });
+  await page.getByRole("dialog").getByRole("textbox", { name: "Name" }).fill("Enterprise");
+  await page.getByRole("dialog").getByRole("textbox", { name: "Value" }).fill("1000");
+  await page.getByRole("dialog").getByRole("button", { name: "Save", exact: true }).click();
+  await until(async () => (await db.query(`select draft->'segments'->0->>'name' n from routers where workspace_id = $1`, [ws])).rows[0]?.n === "Enterprise", 30_000, "the company type to save to the draft");
+  await page.getByText("You have changes that aren't live.").waitFor({ timeout: 30_000 });
+  check(true, "a company type saves to the draft and asks to make it live");
 
   check(!errors.length, `no page errors (${errors.slice(0, 3).join(" | ")})`);
 } catch (e) {

@@ -648,7 +648,7 @@ export const calendarReconnect =
         to: info.person.email,
         dedupe: `reconnect:${a.id}:${a.reconnect_at ?? ""}`,
         fromName: "Claritia",
-        parts: () => reconnectEmail({ name: info.person!.name, provider, account: a.account_email, upcoming: info.upcoming, link: `${o.base.replace(/\/$/, "")}/settings/calendar` }),
+        parts: () => reconnectEmail({ name: info.person!.name, provider, account: a.account_email, upcoming: info.upcoming, link: `${o.base.replace(/\/$/, "")}/scheduling/availability/calendars` }),
       }),
     ]);
   };

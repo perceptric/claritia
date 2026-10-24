@@ -88,7 +88,7 @@ Beta is 50 teams with about 7,500 meetings a month; Growth is 500 teams with abo
 
 ## Routing
 
-Run `supabase/migrations/064_router.sql` after 053 to 063, then `065_router_sla.sql`. Routing alerts go to the Claritia
+Run `supabase/migrations/064_router.sql` after 053 to 063, then `065_router_sla.sql` and `066_app_structure.sql` (named schedules, the calendar's busy times, Pause routing). Routing alerts go to the Claritia
 Slack app as direct messages, to a Slack incoming webhook set in Routing › Router › Alerts (sealed with `SECRETS_KEY`),
 or by email through the same SES mailer as meeting emails.
 

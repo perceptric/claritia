@@ -52,7 +52,7 @@ export function TypesList(props: ViewProps) {
           title={"Share one link\nand let leads pick a time"}
           lead="A meeting type sets who hosts, how long, when and where. Share it as a page, a one-time link or times in an email."
           action={
-            <Button onClick={() => navigate("meetings", "types/new")}>
+            <Button onClick={() => navigate("scheduling", "types/new")}>
               <Plus size={14} />
               New meeting type
             </Button>
@@ -69,7 +69,7 @@ export function TypesList(props: ViewProps) {
       count={list.data?.length}
       back={back}
       actions={
-        <Button onClick={() => navigate("meetings", "types/new")}>
+        <Button onClick={() => navigate("scheduling", "types/new")}>
           <Plus size={14} />
           New type
         </Button>
@@ -87,7 +87,7 @@ export function TypesList(props: ViewProps) {
               return (
                 <div key={t.id} className="group lift anim-rise-sm relative flex flex-col gap-5 rounded-2xl border border-line bg-card p-5 hover:border-line-strong" style={{ animationDelay: `${Math.min(i, 8) * 40}ms` }}>
                   <div className="flex items-start gap-2">
-                    <button type="button" onClick={() => navigate("meetings", `types/${t.id}`)} className="flex min-w-0 flex-1 flex-col gap-1 text-left after:absolute after:inset-0 after:rounded-2xl">
+                    <button type="button" onClick={() => navigate("scheduling", `types/${t.id}`)} className="flex min-w-0 flex-1 flex-col gap-1 text-left after:absolute after:inset-0 after:rounded-2xl">
                       <span className="truncate text-[15px] font-semibold tracking-[-0.01em] text-ink">{t.name}</span>
                       <span className="truncate text-[12.5px] text-muted">
                         {kindLabel(t.kind)}, {lengthsText(t.settings.lengths)}
@@ -114,7 +114,7 @@ export function TypesList(props: ViewProps) {
                       <IconButton label="New link" onClick={() => setLinkFor(t.id)}>
                         <LinkIcon size={14} />
                       </IconButton>
-                      <IconButton label="Duplicate" onClick={() => act(async () => navigate("meetings", `types/${(await meetingsApi<{ id: string }>(session, ws.id, "types", { action: "duplicate", id: t.id })).id}`))}>
+                      <IconButton label="Duplicate" onClick={() => act(async () => navigate("scheduling", `types/${(await meetingsApi<{ id: string }>(session, ws.id, "types", { action: "duplicate", id: t.id })).id}`))}>
                         <Copy size={14} />
                       </IconButton>
                       <IconButton

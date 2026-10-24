@@ -65,7 +65,7 @@ export function ReplayPanel({
 
   return (
     <Modal
-      title="Replay draft"
+      title="Preview on past leads"
       wide
       onClose={onClose}
       footer={
@@ -75,7 +75,7 @@ export function ReplayPanel({
           </Button>
           {canPublish ? (
             <Button onClick={onPublish} disabled={busy}>
-              Publish draft
+              Make live
             </Button>
           ) : null}
         </>
@@ -109,7 +109,7 @@ export function ReplayPanel({
 
         {error ? (
           <div role="alert" className="flex items-center gap-3 rounded-lg bg-rose-wash px-3.5 py-2.5 text-[13px] text-rose">
-            <span className="flex-1">Replay stopped. {error}</span>
+            <span className="flex-1">Preview stopped. {error}</span>
             <button type="button" onClick={() => void run()} className="font-medium underline underline-offset-2">
               Resume
             </button>

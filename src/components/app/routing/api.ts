@@ -15,6 +15,8 @@ export type Member = { id: string; name: string; email: string };
 
 export type Loaded = {
   live: { version: number; body: RouterBody } | null;
+  /** Routing paused: new leads keep the owner they come with. */
+  paused?: boolean;
   draft: RouterBody | null;
   draftBase: number | null;
   revision: number;

@@ -125,7 +125,9 @@ const codeOf = (v: Visit) => v.device_id ?? v.id;
 const nameOf = (v: Visit) => v.person_email ?? persona(codeOf(v)).name;
 const clock = (iso: string) => new Date(iso).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
 
-export function VisitorsView({ sb, ws, navigate }: ViewProps) {
+/** Visitors, inside Signals (docs/app-structure.md 4.2): `head` is Signals' tab row, shown under the title. */
+export function VisitorsView({ sb, ws, navigate, head }: ViewProps & { head?: React.ReactNode }) {
+  const pageProps = head ? { title: "Signals" } : { icon: <Eye size={14} />, title: "Visits", back: { label: "Companies", onClick: () => navigate("companies") } };
   const sites = useLoad(async () => must(await sb.rpc("site_health", { p_ws: ws.id })) as SiteHealth[], ws.id);
   const visits = useLoad(async () => must(await sb.rpc("visitors_live", { p_ws: ws.id, p_hours: 24, p_limit: 200 })) as Visit[], ws.id);
   const reload = visits.reload;
@@ -140,19 +142,23 @@ export function VisitorsView({ sb, ws, navigate }: ViewProps) {
 
   if (sites.error || visits.error) {
     return (
-      <Page icon={<Eye size={14} />} title="Visits" back={{ label: "Companies", onClick: () => navigate("companies") }}>
-        <ErrorNote message={sites.error || visits.error} />
+      <Page {...pageProps} flush={!!head}>
+        {head}
+        <div className={head ? "p-5 md:p-7" : ""}>
+          <ErrorNote message={sites.error || visits.error} />
+        </div>
       </Page>
     );
   }
   if (!sites.data || !visits.data) {
     return (
-      <Page icon={<Eye size={14} />} title="Visits" back={{ label: "Companies", onClick: () => navigate("companies") }}>
+      <Page {...pageProps} flush={!!head}>
+        {head}
         <Loading />
       </Page>
     );
   }
-  if (!sites.data.length) return <VisitorsIntro action={<Button onClick={() => navigate("settings", "sites")}>Add your site</Button>} />;
+  if (!sites.data.length) return <VisitorsIntro head={head} action={<Button onClick={() => navigate("signals", "setup")}>Add your site</Button>} />;
 
   const all = visits.data;
   const rows = applyFilters(all, filters, VISIT_FIELDS);
@@ -164,13 +170,8 @@ export function VisitorsView({ sb, ws, navigate }: ViewProps) {
     { label: "From AI", value: applyFilters(all, [AI], VISIT_FIELDS).length },
   ];
   return (
-    <Page
-      icon={<Eye size={14} />}
-      title="Visits"
-      back={{ label: "Companies", onClick: () => navigate("companies") }}
-      count={rows.length}
-      flush
-    >
+    <Page {...pageProps} count={head ? undefined : rows.length} flush>
+      {head}
       <FilterBar sb={sb} wsId={ws.id} screen="visitors" fields={VISIT_FIELDS as FilterField<never>[]} filters={filters} onChange={setFilters} presets={VISIT_PRESETS} allLabel="All visits" />
       <div className="grid grid-cols-2 gap-3 bg-paper px-4 pt-4 md:grid-cols-4 md:px-5">
         {stats.map((x) => (

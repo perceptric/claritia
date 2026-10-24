@@ -2,7 +2,7 @@
 // always give the same answer, so a real route, the Test panel and Replay all run this one function. The server reads
 // the facts (router_facts) and writes the result under a lock (router_commit).
 
-import { ruleMatches } from "./conditions.ts";
+import { ruleMatches, segmentsOf } from "./conditions.ts";
 import { spamSignals } from "./spam.ts";
 import type { Decision, Facts, Queue, RepFacts, RouterBody, StepResult, WhenOut, Why } from "./types.ts";
 
@@ -136,13 +136,14 @@ export function decide(body: RouterBody, f: Facts): Decision {
     if (r.ok) return { result: { kind: "owner", user: r.backup ?? r.owner!, by: "keep" }, steps };
   } else steps.push({ step: "keep", ok: false, off: true });
 
-  // 4. Rules, then 5. the queue they pick.
+  // 4. Rules, then 5. the queue they pick. The company's types are worked out first, for rules that test them.
+  const values = body.segments?.length ? { ...f.values, "company.type": segmentsOf(body.segments, f.values, body.territories) } : f.values;
   if (body.rules.on) {
     const skipped: Extract<StepResult, { step: "rules" }>["skipped"] = [];
     let hit: { id: string; name: string; queue: string } | undefined;
     for (const rule of body.rules.list) {
       if (rule.on === false) continue;
-      const m = ruleMatches(rule, f.values, body.territories);
+      const m = ruleMatches(rule, values, body.territories);
       if (m.ok) {
         hit = { id: rule.id, name: rule.name, queue: rule.queue };
         break;

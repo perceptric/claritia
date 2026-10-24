@@ -2,7 +2,7 @@
 // that decides whether a condition holds. The rule editor and the engine both use this file, so what a person sees in
 // the editor is what runs.
 
-import type { Cond, Op, Rule, Territory } from "./types.ts";
+import type { Cond, Op, Rule, Segment, Territory } from "./types.ts";
 
 export type FieldType = "text" | "number" | "country" | "choice" | "bool";
 
@@ -23,6 +23,7 @@ export const BASE_FIELDS: FieldDef[] = [
   { key: "company.country", label: "Company country", group: "Company", type: "country" },
   { key: "company.industry", label: "Industry", group: "Company", type: "text" },
   { key: "company.size", label: "Company size", group: "Company", type: "number" },
+  { key: "company.type", label: "Company type", group: "Company", type: "choice" },
   { key: "lead.form", label: "Form", group: "Source", type: "choice" },
   { key: "lead.source", label: "Came from", group: "Source", type: "choice", options: ["form", "import", "crm", "api"] },
   { key: "utm.source", label: "UTM source", group: "Source", type: "text" },
@@ -128,6 +129,15 @@ export function ruleMatches(r: Rule, values: Record<string, unknown>, territorie
   const f = results.find((x) => !x.ok)!;
   return { ok, failed: { cond: f.cond, actual: f.actual ?? null } };
 }
+
+/** The company types a lead's company is, by name, from the other values (a type's conditions can't use types). */
+export function segmentsOf(segments: Segment[] | undefined, values: Record<string, unknown>, territories: Territory[]): string[] {
+  return (segments ?? []).filter((s) => ruleMatches({ id: s.id, name: s.name, match: s.match, conds: s.conds.filter((c) => c.field !== "company.type"), queue: "" }, values, territories).ok).map((s) => s.name);
+}
+
+/** The fields with Company type's choices filled in from a body's types. */
+export const withSegments = (fields: FieldDef[], segments: Segment[] | undefined): FieldDef[] =>
+  fields.map((f) => (f.key === "company.type" ? { ...f, options: (segments ?? []).map((s) => s.name) } : f));
 
 // Words ----------------------------------------------------------------------------------------------------------
 

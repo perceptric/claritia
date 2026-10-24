@@ -6,6 +6,7 @@
 // second owner's save shows as a conflict instead of being overwritten.
 
 import type { Session } from "@supabase/supabase-js";
+import { withSegments } from "@/lib/router/conditions";
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { problems as checkProblems } from "@/lib/router/check";
 import type { Line } from "@/lib/router/explain";
@@ -274,7 +275,6 @@ export function RouterEditor({
   const path = useMemo(() => (testLines ? pathOf(testLines) : null), [testLines]);
   const dirty = st.n !== savedN;
   const draft = hasDraft || dirty;
-  const base = data.draftBase ?? data.live?.version ?? null;
   const moved = !!data.live && hasDraft && data.draftBase !== null && data.live.version > data.draftBase;
   const next = Math.max(0, ...data.versions.map((v) => v.version), data.live?.version ?? 0) + 1;
   const canPublish = !readOnly && draft && !probs.length;
@@ -284,11 +284,11 @@ export function RouterEditor({
       <div className="flex min-h-14 shrink-0 flex-wrap items-center gap-2 border-b border-line px-4 py-2 md:px-6">
         {draft ? (
           <Badge tone="amber" dot>
-            {base ? `Draft · based on v${base}` : "Draft"}
+            Changes not live yet
           </Badge>
         ) : data.live ? (
           <Badge tone="green" dot>
-            Live v{data.live.version}
+            Live
           </Badge>
         ) : null}
         {saveState === "retry" ? (
@@ -317,22 +317,22 @@ export function RouterEditor({
             </IconButton>
           ) : null}
           <Button variant="ghost" size="sm" onClick={() => setVersions(true)}>
-            Versions
+            Saved setups
           </Button>
           <span ref={testButton} className="contents">
             <Button variant="ghost" size="sm" aria-pressed={testing} onClick={() => (testing ? closeTest() : openTest())} aria-keyshortcuts="T">
-              Test
+              Try a lead
             </Button>
           </span>
           {!readOnly ? (
             <Button variant="ghost" size="sm" onClick={() => setReplaying(true)}>
-              Replay
+              Preview on past leads
             </Button>
           ) : null}
           {!readOnly ? (
             <span title={probs.length ? `${probs.length} to fix` : undefined}>
               <Button size="sm" disabled={!canPublish} onClick={() => void openPublish()}>
-                Publish
+                Make live
               </Button>
             </span>
           ) : null}
@@ -395,7 +395,7 @@ export function RouterEditor({
               edit={edit}
               readOnly={readOnly}
               members={data.members}
-              fields={data.fields}
+              fields={withSegments(data.fields, st.body.segments)}
               forms={data.forms}
               counts={data.stats ? counts : null}
               problems={probs}
@@ -406,7 +406,7 @@ export function RouterEditor({
           </div>
           {testing ? (
             <div ref={testPanel}>
-              <TestPanel sb={sb} session={session} ws={ws.id} body={st.body} hasLive={!!data.live} members={data.members} fields={data.fields} start={startTest} onLines={onLines} onClose={closeTest} />
+              <TestPanel sb={sb} session={session} ws={ws.id} body={st.body} hasLive={!!data.live} members={data.members} fields={withSegments(data.fields, st.body.segments)} start={startTest} onLines={onLines} onClose={closeTest} />
             </div>
           ) : null}
         </aside>

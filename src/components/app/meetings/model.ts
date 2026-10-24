@@ -212,3 +212,51 @@ export function checkProfile(raw: unknown): { profile: Profile } | { errors: str
   if (photo_url && !/^https:\/\/\S+$/.test(photo_url)) errors.push("The photo link needs https://.");
   return errors.length ? { errors } : { profile: { slug, name, headline, photo_url } };
 }
+
+// The calendar view (docs/app-structure.md 3.1) ---------------------------------------------------------------------
+
+export type Preset = "today" | "upcoming" | "week" | "last_week" | "day";
+
+/**
+ * The span a preset shows, in the viewer's time zone: Today, Upcoming (now to 60 days ahead), This week and Last
+ * week (Monday to Sunday), or one picked day. `day` is YYYY-MM-DD.
+ */
+export function presetSpan(p: Preset, now = Date.now(), day?: string): { from: number; to: number } {
+  const start = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  const today = start(new Date(now));
+  const DAY = 86_400_000;
+  const monday = (t: number) => {
+    const d = new Date(t);
+    const back = (d.getDay() + 6) % 7;
+    return start(new Date(d.getFullYear(), d.getMonth(), d.getDate() - back));
+  };
+  const plusDays = (t: number, n: number) => {
+    const d = new Date(t);
+    return new Date(d.getFullYear(), d.getMonth(), d.getDate() + n).getTime();
+  };
+  switch (p) {
+    case "today":
+      return { from: today, to: plusDays(today, 1) };
+    case "upcoming":
+      return { from: now, to: now + 60 * DAY };
+    case "week":
+      return { from: monday(now), to: plusDays(monday(now), 7) };
+    case "last_week":
+      return { from: plusDays(monday(now), -7), to: monday(now) };
+    case "day": {
+      const [y, m, d] = (day ?? "").split("-").map(Number);
+      const t = y && m && d ? new Date(y, m - 1, d).getTime() : today;
+      return { from: t, to: plusDays(t, 1) };
+    }
+  }
+}
+
+/** Calendar busy times that aren't a Claritia meeting already shown (the meeting's own event is on the calendar). */
+export function outsideBusy<B extends { start: string; end: string }>(busy: B[], meetings: { start_at: string; end_at: string; hosts: string[] }[], host: string): B[] {
+  const mine = meetings.filter((m) => m.hosts.includes(host)).map((m) => [Date.parse(m.start_at), Date.parse(m.end_at)] as const);
+  return busy.filter((b) => {
+    const s = Date.parse(b.start);
+    const e = Date.parse(b.end);
+    return !mine.some(([ms, me]) => s >= ms - 60_000 && e <= me + 60_000);
+  });
+}

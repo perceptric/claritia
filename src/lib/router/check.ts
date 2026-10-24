@@ -3,7 +3,7 @@
 // live, each tied to the card it belongs to. Both run in the browser and on the server.
 
 import { BASE_FIELDS, needsValue, opsFor, type FieldDef } from "./conditions.ts";
-import { defaultSla, emptyBody, METHODS, OPS, type Cond, type Member, type Queue, type Rule, type RouterBody, type Sla, type Territory, type WhenOut } from "./types.ts";
+import { defaultSla, emptyBody, METHODS, OPS, type Cond, type Member, type Queue, type Rule, type RouterBody, type Segment, type Sla, type Territory, type WhenOut } from "./types.ts";
 
 const ID = /^[a-z0-9_-]{1,40}$/i;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
@@ -57,6 +57,14 @@ function cleanTerritory(raw: unknown): Territory | null {
   if (!ID.test(id)) return null;
   const countries = [...new Set(arr(r.countries).filter((x): x is string => typeof x === "string").map((x) => x.trim().toUpperCase()).filter((x) => /^[A-Z]{2}$/.test(x)))];
   return { id, name: s(r.name, 60) || "Territory", countries };
+}
+
+function cleanSegment(raw: unknown): Segment | null {
+  const r = obj(raw);
+  const id = s(r.id, 40);
+  const name = s(r.name, 60);
+  if (!ID.test(id) || !name) return null;
+  return { id, name, match: r.match === "any" ? "any" : "all", conds: arr(r.conds).map(cleanCond).filter((c): c is Cond => !!c && c.field !== "company.type").slice(0, 20) };
 }
 
 /** A response time kept in range: 5 minutes to 7 days, the nudge before the deadline. */
@@ -117,12 +125,16 @@ export function cleanBody(raw: unknown): RouterBody {
     queues: queues.slice(0, 50),
     fallback,
     territories: territories.slice(0, 50),
+    segments: arr(r.segments)
+      .map(cleanSegment)
+      .filter((x, i, all): x is Segment => !!x && all.findIndex((y) => y?.name.toLowerCase() === x.name.toLowerCase()) === i)
+      .slice(0, 50),
     sla: r.sla === undefined ? defaultSla() : cleanSla(r.sla),
   };
 }
 
 /** Where a problem is: a step, a rule, a queue or the fallback. The editor puts it on that card. */
-export type Where = { kind: "rule" | "queue" | "fallback" | "spam" | "account" | "keep" | "sla"; id?: string };
+export type Where = { kind: "rule" | "queue" | "fallback" | "spam" | "account" | "keep" | "sla" | "segment"; id?: string };
 export type Problem = { where: Where; text: string };
 
 /** What stops a body from going live. `members`: workspace members' ids. `fields`: every field a rule may test. */
@@ -156,6 +168,16 @@ export function problems(body: RouterBody, o: { members: Set<string>; fields?: F
   }
   if (!body.fallback) out.push({ where: { kind: "fallback" }, text: "Pick a fallback" });
   else if (body.fallback.kind === "user" && !o.members.has(body.fallback.id)) out.push({ where: { kind: "fallback" }, text: "The fallback is no longer in the workspace" });
+  const types = new Set((body.segments ?? []).map((x) => x.name.toLowerCase()));
+  for (const seg of body.segments ?? []) if (!seg.conds.length) out.push({ where: { kind: "segment", id: seg.id }, text: `${seg.name} has no conditions` });
+  for (const r of body.rules.on ? body.rules.list : []) {
+    if (r.on === false) continue;
+    for (const c of r.conds) {
+      if (c.field !== "company.type" || !needsValue(c.op)) continue;
+      const list = Array.isArray(c.value) ? c.value : [c.value];
+      if (list.some((v) => typeof v === "string" && !types.has(v.toLowerCase()))) out.push({ where: { kind: "rule", id: r.id }, text: `"${r.name}" uses a company type that's gone` });
+    }
+  }
   const sla = body.sla;
   if (sla?.on && sla.next === "manager") {
     if (!sla.manager) out.push({ where: { kind: "sla" }, text: "Pick a manager for missed response times" });
