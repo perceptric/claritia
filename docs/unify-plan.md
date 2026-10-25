@@ -196,9 +196,11 @@ Removed: `views/MarketingIntros.tsx` (Pages, Ads), `reports/ReportsView.tsx` (it
   while loading; one set of words (Make live, Versions, Try a contact, Changes not live yet); meeting types and email
   templates save by themselves; one panel heading style; the shared stat cards on Visits; first screens on Companies
   and Opportunities; saved views on lists as a View picker; field-type icons; en-US dates; raw hex removed.
-- **Still to do:** the five copy buttons and the forms builder's own toggle, segmented control and icon button merged
-  into the shared ones; one template picker for routing, workflows and forms; a bulk bar on every list;
-  screenshots of each section in light and dark.
+- **Also done:** one copy button (`CopyButton`); `SHOTS_DIR=<folder>` on `scripts/screens-check.ts` saves every
+  section in light and dark (checked 25 Oct, all 30 screens).
+- **Still to do:** the forms builder's own toggle, segmented control and icon button merged into the shared ones; one
+  template picker for routing, workflows and forms; a bulk bar on the lists that don't have one yet (Workflows,
+  Forms, Segments, Templates).
 
 ## Decisions (25 Oct)
 
