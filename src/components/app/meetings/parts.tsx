@@ -5,7 +5,7 @@
 
 import type { Session, SupabaseClient } from "@supabase/supabase-js";
 import { useEffect, useState } from "react";
-import { Check, Copy, X } from "../../Icons";
+import { X } from "../../Icons";
 import { Avatar, Badge, IconButton, must, postJson, useLoad } from "../ui";
 import { STATUS } from "./model";
 import type { MeetingStatus } from "@/lib/meetings/types";
@@ -81,43 +81,7 @@ export function Modal({ title, onClose, children, footer, wide = false }: { titl
   );
 }
 
-export async function copyText(text: string): Promise<boolean> {
-  try {
-    await navigator.clipboard.writeText(text);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-/** A round copy button that turns into a check for a moment. `get` may fetch what to copy. */
-export function CopyButton({ text, get, label = "Copy link", size = 14, onError }: { text?: string; get?: () => Promise<string>; label?: string; size?: number; onError?: (m: string) => void }) {
-  const [done, setDone] = useState(false);
-  const [busy, setBusy] = useState(false);
-  return (
-    <IconButton
-      label={done ? "Copied" : label}
-      disabled={busy}
-      onClick={async (e) => {
-        e.stopPropagation();
-        setBusy(true);
-        try {
-          const t = text ?? (get ? await get() : "");
-          if (t && (await copyText(t))) {
-            setDone(true);
-            setTimeout(() => setDone(false), 1400);
-          }
-        } catch (err) {
-          onError?.(err instanceof Error ? err.message : String(err));
-        } finally {
-          setBusy(false);
-        }
-      }}
-    >
-      {done ? <Check size={size} className="anim-pop text-sage" /> : <Copy size={size} />}
-    </IconButton>
-  );
-}
+export { copyText, CopyButton } from "../CopyButton";
 
 /** POST to /api/meetings/<path> for this workspace. */
 export const meetingsApi = <T = Record<string, unknown>,>(session: Session, ws: string, path: "types" | "availability" | "profile" | "action" | "times", body: object) =>
