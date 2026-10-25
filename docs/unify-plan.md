@@ -47,9 +47,10 @@ projects, environments).
 
 ### 0.3 How
 
-One SQL file, `scripts/reset-data.sql`, in a single transaction. It deletes in an order that respects every foreign
-key and prints the row counts before and after. You run it in the Supabase SQL editor, or I run it after you say
-"go". A backup is taken first (Supabase dashboard → Database → Backups, or `pg_dump`), because this can't be undone.
+One SQL file, `scripts/reset-data.sql`, in a single transaction. It copies every cleared table into the schema
+`reset_backup_20261025`, then empties them with one `TRUNCATE` that has no `CASCADE`: if any kept table still points
+at a cleared one, it stops and changes nothing. You run it in the Supabase SQL editor, or I run it after you say
+"go". Drop the backup schema once you're sure.
 
 ---
 
@@ -183,9 +184,11 @@ Removed: `views/MarketingIntros.tsx` (Pages, Ads), `reports/ReportsView.tsx` (it
 
 ---
 
-## Decisions for you
+## Decisions (25 Oct)
 
-1. **Clearing data:** is the list in 0.2 right? It clears every workspace, including yours.
-2. **Reports:** fold them into the sections (Part 1 table), or keep a Reports group?
-3. **Visitors and Enrichment:** Visitors under Inbound and Enrichment under Automation, as above?
-4. **Workflows:** under Automation (above), or under Nurture next to the emails?
+1. Clearing data: the list in 0.2, in every workspace. `scripts/reset-data.sql` is tested on a copy built from every
+   migration: records go, workspaces, settings, fields and sites stay, the backup holds every cleared row, and a
+   second run stops before it can overwrite the backup.
+2. Reports fold into the sections (Part 1 table).
+3. Visitors under Inbound, Enrichment under Automation.
+4. Workflows under Automation.
