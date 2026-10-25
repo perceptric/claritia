@@ -15,7 +15,7 @@ import { Copy, Inbox, Monitor, Pause, Pencil, Phone, Play, Plus, Redo, Send, Tra
 import { BrandLogo } from "../BrandLogo";
 import { askConfirm, askText } from "../Dialogs";
 import { AiAvatar, AiMark, AiTag } from "../Ai";
-import { Badge, Button, Empty, ErrorNote, errorText, Loading, must, Page, postJson, setLeaveGuard, Tabs, timeAgo, useLoad, type ViewProps } from "../ui";
+import { Badge, Button, Empty, ErrorNote, errorText, Loading, must, Page, postJson, Section, setLeaveGuard, Tabs, timeAgo, useLoad, type ViewProps } from "../ui";
 import { Select } from "../Select";
 import { Popover } from "./controls";
 import { Editor } from "./Editor";
@@ -29,6 +29,8 @@ import { ChevronDown, Tablet } from "./icons";
 import { PreviewOverlay } from "./PreviewOverlay";
 import { SettingsTab } from "./SettingsTab";
 import { copy, IconButton, STATUS, type Destination, type FormRow, type Kit, type SourceRow } from "./shared";
+import { FORMS_TABS } from "@/lib/nav";
+import { Report } from "../reports/Report";
 
 type ListRow = {
   id: string;
@@ -43,10 +45,22 @@ type ListRow = {
   check: "running" | "passed" | "failed" | null;
 };
 
+/** Inbound › Forms: the list and the Overview as tabs; a new form and one form open as their own pages. */
 export function FormsView(props: ViewProps) {
   if (props.id === "new") return <FormCreate key="new" {...props} />;
-  if (props.id) return <FormPage key={props.id} {...props} />;
-  return <FormList {...props} />;
+  if (props.id && props.id !== "overview") return <FormPage key={props.id} {...props} />;
+  const nav = { title: "Forms", tabs: FORMS_TABS, current: props.id, onPick: (t: string) => props.navigate("forms", t) };
+  return (
+    <Section nav={nav}>
+      {props.id === "overview" ? (
+        <Page title="Forms">
+          <Report sb={props.sb} ws={props.ws.id} navigate={props.navigate} show={["forms"]} titled={false} />
+        </Page>
+      ) : (
+        <FormList {...props} />
+      )}
+    </Section>
+  );
 }
 
 function FormList(props: ViewProps) {

@@ -3,7 +3,7 @@
 import type { Session } from "@supabase/supabase-js";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { getSupabase, type SupaConfig } from "@/lib/supa";
-import { enrichmentPage, NAV, reportsPage, resolveRoute, routingPage, schedulingPage, signalsPage } from "@/lib/nav";
+import { contactsPage, emailsPage, enrichmentPage, NAV, resolveRoute, routingPage, schedulingPage, scoringPage, visitorsPage } from "@/lib/nav";
 import { Check, LogOut, Moon, Sun } from "../Icons";
 import { Logo } from "../Logo";
 import { AuthScreen } from "./AuthScreen";
@@ -19,17 +19,16 @@ import { SignalsView } from "./signals/SignalsView";
 import { ContactsView } from "./views/ContactsView";
 import { CompaniesView, ObjectsView, OpportunitiesView } from "./views/RecordsViews";
 import { SegmentsView } from "./views/SegmentsView";
-import { AdsView, PagesView } from "./views/MarketingIntros";
-import { ReportsView } from "./reports/ReportsView";
 import { FormsView } from "./forms/FormsView";
 import { MeetingsView } from "./meetings/MeetingsView";
 import { useRoutingCommands } from "./routing/commands";
 import { RoutingView } from "./routing/RoutingView";
-import { EmailTemplatesView } from "./workflows/EmailTemplatesView";
+import { EmailsView } from "./nurture/EmailsView";
+import { ScoringView } from "./nurture/ScoringView";
 import { WorkflowsView } from "./workflows/WorkflowsView";
 import { SettingsView } from "./views/SettingsView";
 
-const GROUP_LABEL = { crm: "CRM", automation: "Automation", routing: "Routing", scheduling: "Scheduling", reports: "Reports", email: "Email", site: "Site", ads: "App", settings: "App" } as const;
+const GROUP_LABEL = { crm: "CRM", automation: "Automation", inbound: "Inbound", nurture: "Nurture", settings: "App" } as const;
 
 type Loc = { route: Route; id: string };
 const WITH_ID = new Set<Route>(["contacts", "companies", "opportunities", "segments", "forms", "workflows"]);
@@ -44,14 +43,17 @@ const readLoc = (): Loc => {
   // Settings pages: /settings/<page>.
   if (r.route === "settings") return { route: r.route, id: /^[a-z_]{2,30}$/.test(a) ? a : "" };
   if ((r.route === "segments" || r.route === "forms" || r.route === "workflows") && a === "new") return { route: r.route, id: a };
+  if (r.route === "forms" && a === "overview") return { route: r.route, id: a };
   // Meetings: /meetings/<id>.
   if (r.route === "meetings") return { route: r.route, id: uuid(a) ? a : "" };
   // Pages inside a route (src/lib/nav.ts).
   if (r.route === "routing") return { route: r.route, id: routingPage(r.id).id };
   if (r.route === "scheduling") return { route: r.route, id: schedulingPage(r.id).id };
-  if (r.route === "signals") return { route: r.route, id: signalsPage(r.id).id };
+  if (r.route === "visitors") return { route: r.route, id: visitorsPage(r.id).id };
   if (r.route === "enrichment") return { route: r.route, id: enrichmentPage(r.id).id };
-  if (r.route === "reports") return { route: r.route, id: reportsPage(r.id).id };
+  if (r.route === "emails") return { route: r.route, id: emailsPage(r.id).id };
+  if (r.route === "scoring") return { route: r.route, id: scoringPage(r.id).id };
+  if (r.route === "contacts" && !uuid(a)) return { route: r.route, id: contactsPage(r.id).id };
   // Companies: an old account link that finds its company.
   if (r.route === "companies" && a === "account" && uuid(b)) return { route: r.route, id: `account/${b}` };
   return { route: r.route, id: WITH_ID.has(r.route) && uuid(a) ? a : "" };
@@ -207,14 +209,15 @@ export function ClientApp({ config }: { config: SupaConfig }) {
     { group: "CRM", label: "Contact", run: () => navigate("contacts", "", "create=1") },
     { group: "CRM", label: "Opportunity", run: () => navigate("opportunities", "", "create=1") },
     { group: "Automation", label: "Workflow", run: () => navigate("workflows", "new") },
-    { group: "Automation", label: "Broadcast", run: () => navigate("workflows", "new", "template=broadcast") },
-    { group: "Automation", label: "Form", run: () => navigate("forms", "new") },
-    { group: "Routing", label: "Rule", run: () => navigate("routing", "rules", "create=1") },
-    { group: "Routing", label: "Team", run: () => navigate("routing", "teams", "create=1") },
-    { group: "Scheduling", label: "Meeting type", run: () => navigate("scheduling", "types/new") },
-    { group: "Scheduling", label: "Single-use link", run: () => navigate("scheduling", "links", "create=single_use") },
-    { group: "Scheduling", label: "Poll", run: () => navigate("scheduling", "links", "create=poll") },
-    { group: "Scheduling", label: "Booking form", run: () => navigate("scheduling", "forms", "create=1") },
+    { group: "Automation", label: "Routing rule", run: () => navigate("routing", "rules", "create=1") },
+    { group: "Automation", label: "Team", run: () => navigate("routing", "teams", "create=1") },
+    { group: "Inbound", label: "Form", run: () => navigate("forms", "new") },
+    { group: "Inbound", label: "Meeting type", run: () => navigate("scheduling", "types/new") },
+    { group: "Inbound", label: "Single-use link", run: () => navigate("scheduling", "links", "create=single_use") },
+    { group: "Inbound", label: "Poll", run: () => navigate("scheduling", "links", "create=poll") },
+    { group: "Nurture", label: "Broadcast", run: () => navigate("workflows", "new", "template=broadcast") },
+    { group: "Nurture", label: "Email template", run: () => navigate("emails", "templates", "create=1") },
+    { group: "Nurture", label: "Segment", run: () => navigate("segments", "new") },
   ];
 
   const commands: Command[] = [
@@ -265,7 +268,7 @@ export function ClientApp({ config }: { config: SupaConfig }) {
           <RoutingView key="routing" {...props} />
         ) : route === "scheduling" ? (
           <SchedulingView key={loc.id.split("/")[0]} {...props} />
-        ) : route === "signals" ? (
+        ) : route === "visitors" ? (
           <SignalsView {...props} />
         ) : route === "enrichment" ? (
           <EnrichmentView {...props} />
@@ -273,18 +276,14 @@ export function ClientApp({ config }: { config: SupaConfig }) {
           <ObjectsView key={loc.id.split("/")[0]} {...props} />
         ) : route === "segments" ? (
           <SegmentsView {...props} />
-        ) : route === "templates" ? (
-          <EmailTemplatesView {...props} />
         ) : route === "workflows" ? (
           <WorkflowsView key={loc.id === "new" ? "new" : "wf"} {...props} />
-        ) : route === "reports" ? (
-          <ReportsView key="reports" {...props} />
+        ) : route === "emails" ? (
+          <EmailsView {...props} />
+        ) : route === "scoring" ? (
+          <ScoringView {...props} />
         ) : route === "forms" ? (
           <FormsView {...props} />
-        ) : route === "pages" ? (
-          <PagesView />
-        ) : route === "ads" ? (
-          <AdsView />
         ) : (
           <SettingsView {...props} />
         )}

@@ -1,7 +1,7 @@
 "use client";
 
 import type { Session, SupabaseClient } from "@supabase/supabase-js";
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Dots } from "./Ai";
 
 import type { Route } from "@/lib/nav";
@@ -91,6 +91,18 @@ export function timeAgo(iso: string | null) {
 }
 
 /** A page in the app: a crumb and a title, then the content. `onRename` makes the title an input you can type in. */
+/** A section with tabs (Routing, Scheduling, Visitors...): every page inside it shows the section's title and tabs. */
+export type SectionNav = { title: string; tabs: { value: string; label: string }[]; current: string; onPick: (v: string) => void };
+const SectionCtx = createContext<SectionNav | null>(null);
+export function Section({ nav, children }: { nav: SectionNav; children: React.ReactNode }) {
+  return <SectionCtx.Provider value={nav}>{children}</SectionCtx.Provider>;
+}
+
+/**
+ * Every screen's frame (docs/unify-plan.md 2.1): the title (or a back crumb and the record's name), one row of
+ * actions on the right, the section's tabs under it, then the body. Inside a `Section`, pages show its title and tabs;
+ * a page with `back` is a record or an editor and shows its own title instead.
+ */
 export function Page({
   title,
   count,
@@ -109,9 +121,12 @@ export function Page({
   flush?: boolean;
   children: React.ReactNode;
 }) {
+  const section = useContext(SectionCtx);
+  const tabs = section && !back ? section : null;
+  const heading = tabs ? tabs.title : title;
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <header className="flex min-h-16 shrink-0 items-center gap-3 border-b border-line px-5 py-3 md:px-7">
+      <header className={`flex min-h-16 shrink-0 items-center gap-3 px-5 py-3 md:px-7 ${tabs ? "" : "border-b border-line"}`}>
         <div className="flex min-w-0 flex-col">
           {back ? (
             <button type="button" onClick={back.onClick} className="-ml-0.5 self-start rounded-full px-0.5 text-[12px] font-medium text-muted hover:text-ink">
@@ -119,16 +134,17 @@ export function Page({
             </button>
           ) : null}
           {onRename ? (
-            <TitleInput value={title} onChange={onRename} />
+            <TitleInput value={heading} onChange={onRename} />
           ) : (
             <h1 className="truncate text-[20px] leading-[1.2] font-semibold tracking-[-0.02em] text-ink">
-              {title}
+              {heading}
               {count != null ? <span className="ml-2 font-medium text-muted tabular-nums">{count}</span> : null}
             </h1>
           )}
         </div>
         {actions ? <div className="ml-auto flex shrink-0 items-center gap-2">{actions}</div> : null}
       </header>
+      {tabs ? <Tabs value={tabs.current} tabs={tabs.tabs} onChange={tabs.onPick} /> : null}
       <div className={`min-h-0 flex-1 overflow-auto ${flush ? "" : "p-5 md:p-7"}`}>{children}</div>
     </div>
   );

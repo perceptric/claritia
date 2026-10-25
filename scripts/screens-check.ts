@@ -4,9 +4,9 @@
 // first sentence that skips what it settles, a template, and Start blank with click and drag on the canvas. Then the
 // CRM: a custom field from the table, a rating from the record page, a note and a task. Then Meetings: a guest books
 // from the booking page, and a lead books inside a Claritia calendar form right after sending it. Then the app's
-// structure (docs/app-structure.md): the sidebar's groups, Scheduling's pages with a named schedule, Signals,
-// Enrichment, and Routing's pages from the first screen to Make live, Teams' Deal 20 leads and a company type,
-// Workflows from a blank one to Make live and Try a contact, an email template, and Reports.
+// structure (docs/unify-plan.md): the four sections, Scheduling's tabs with a named schedule, Visitors, Enrichment,
+// and Routing's tabs from the first screen to Make live, Teams' Deal 20 leads and a company type, Workflows from a
+// blank one to Make live and Try a contact, an email template, and the reports inside their sections.
 //   POSTGREST_BIN=… CHROMIUM_PATH=… node scripts/screens-check.ts
 // scripts/test-db.sh runs it when both are set.
 
@@ -105,8 +105,9 @@ try {
   await page.goto(`${base}/nope`);
   await until(async () => new URL(page.url()).pathname === "/contacts", 60_000, "the app to open on Contacts");
   const nav = page.getByRole("navigation", { name: "Main" });
-  for (const g of ["CRM", "Automation", "Routing", "Scheduling", "Email"]) await nav.getByRole("group", { name: g }).waitFor({ timeout: 60_000 });
-  check(true, "the app opens on Contacts with CRM, Automation, Routing, Scheduling and Email");
+  for (const g of ["CRM", "Automation", "Inbound", "Nurture"]) await nav.getByRole("group", { name: g }).waitFor({ timeout: 60_000 });
+  const gone = await Promise.all(["Pages", "Ads", "Funnel", "Rules", "Meeting types"].map((n) => nav.getByRole("link", { name: n, exact: true }).count()));
+  check(gone.every((n) => n === 0), "the app opens on Contacts with CRM, Automation, Inbound and Nurture, and no Pages, Ads or sub-pages in the sidebar");
 
   // An empty workspace opens Forms on the first screen.
   await page.goto(`${base}/forms`);
@@ -247,11 +248,13 @@ try {
   await page.getByRole("dialog").getByRole("button", { name: "Save", exact: true }).click();
   await until(async () => (await db.query(`select count(*)::int n from availability_schedules where workspace_id = $1 and name = 'Demo hours'`, [ws])).rows[0].n === 1, 30_000, "the schedule to save");
   check(true, "a named schedule is made on Availability");
-  for (const p of ["links", "forms", "reminders", "payments"]) {
+  for (const p of ["links", "reminders", "payments"]) {
     await page.goto(`${base}/scheduling/${p}`);
-    await page.locator("h1").first().waitFor({ timeout: 60_000 });
+    await page.getByRole("tab", { selected: true }).filter({ hasText: p === "links" ? "Links and polls" : p === "reminders" ? "Reminders" : "Payments" }).waitFor({ timeout: 60_000 });
   }
-  check(true, "Links and polls, Booking forms, Reminders and Payments open");
+  check((await page.locator("h1").allInnerTexts()).join() === "Scheduling", "Links and polls, Reminders and Payments open as tabs under one Scheduling title");
+  await page.goto(`${base}/scheduling/forms`);
+  await until(async () => new URL(page.url()).pathname === "/forms", 30_000, "Booking forms to forward to Forms");
 
   // The booking page: a time, then Next, the details, and Book meeting.
   const guestPage = await browser.newPage();
@@ -294,12 +297,13 @@ try {
   check(fromForm.length === 1 && fromForm[0].status === "booked" && !!fromForm[0].submission_id, "a lead books inside the form, and the meeting links to the fill");
   await lead.close();
 
-  // Signals and Enrichment open with their numbers.
+  // Visitors (once Signals, and its old address forwards) and Enrichment open with their numbers.
   await page.goto(`${base}/signals`);
+  await until(async () => new URL(page.url()).pathname === "/visitors", 30_000, "Signals to forward to Visitors");
   await page.getByText("Companies on the site").first().waitFor({ timeout: 60_000 });
   await page.goto(`${base}/enrichment`);
   await page.getByText("Fields filled this month").first().waitFor({ timeout: 60_000 });
-  check(true, "Signals and Enrichment open on their numbers");
+  check(true, "Visitors and Enrichment open on their numbers");
 
   // Enrichment's steps in order, and Qualify turned on from Rules.
   await page.goto(`${base}/enrichment/providers`);
@@ -398,21 +402,24 @@ try {
   await until(async () => (await db.query(`select count(*)::int n from email_templates where workspace_id = $1 and name = 'Product update'`, [ws])).rows[0]?.n === 1, 30_000, "the template to save");
   check(true, "an email template saves");
 
-  // Reports: the funnel counts the fills above and opens the contacts behind a number; the old Analytics address
-  // forwards to Reports › Email.
+  // Reports live in their sections: the funnel on Contacts › Overview counts the fills above and opens the contacts
+  // behind a number; speed to lead on Routing › Overview; old Reports and Analytics addresses forward.
   await page.goto(`${base}/reports`);
+  await until(async () => new URL(page.url()).pathname === "/contacts/overview", 30_000, "Reports to forward to Contacts › Overview");
   await page.getByRole("list", { name: "Funnel" }).waitFor({ timeout: 60_000 });
   const submitted = page.getByRole("list", { name: "Funnel" }).getByRole("listitem").filter({ hasText: "Submitted" }).getByRole("button");
   await submitted.click({ timeout: 30_000 });
   await page.getByRole("dialog", { name: "Submitted" }).getByText("mo@initech.io").waitFor({ timeout: 30_000 });
   check(true, "the funnel counts this month's fills and lists the contacts behind a number");
   await page.keyboard.press("Escape");
-  await page.goto(`${base}/reports/speed`);
+  await page.goto(`${base}/routing`);
   await page.getByText("To a rep").first().waitFor({ timeout: 60_000 });
-  check(true, "Speed to lead opens on its numbers");
+  check(true, "Speed to lead shows on Routing › Overview");
   await page.goto(`${base}/analytics`);
-  await until(async () => new URL(page.url()).pathname === "/reports/email", 30_000, "Analytics to forward to Reports › Email");
-  check(true, "the old Analytics address opens Reports › Email");
+  await until(async () => new URL(page.url()).pathname === "/emails", 30_000, "Analytics to forward to Nurture › Emails");
+  await page.goto(`${base}/pages`);
+  await until(async () => new URL(page.url()).pathname === "/contacts", 30_000, "the removed Pages to open Contacts");
+  check(true, "old Analytics and Pages addresses open their new homes");
 
   check(!errors.length, `no page errors (${errors.slice(0, 3).join(" | ")})`);
 } catch (e) {

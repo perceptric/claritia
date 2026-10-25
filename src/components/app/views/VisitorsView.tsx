@@ -9,7 +9,7 @@ import { persona } from "@/lib/web/names";
 import { Badge, Button, Empty, ErrorNote, Loading, must, Page, Panel, Td, Th, timeAgo, useLoad, type Tone, type ViewProps } from "../ui";
 import { FilterBar, useFilters } from "../FilterBar";
 import { Sketch } from "../../sketches/Sketch";
-import { VisitorsIntro } from "./MarketingIntros";
+import { VisitorsIntro } from "./VisitorsIntro";
 
 export type Visit = {
   id: string;
@@ -158,7 +158,7 @@ export function VisitorsView({ sb, ws, navigate, head }: ViewProps & { head?: Re
       </Page>
     );
   }
-  if (!sites.data.length) return <VisitorsIntro head={head} action={<Button onClick={() => navigate("signals", "setup")}>Add your site</Button>} />;
+  if (!sites.data.length) return <VisitorsIntro head={head} action={<Button onClick={() => navigate("visitors", "setup")}>Add your site</Button>} />;
 
   const all = visits.data;
   const rows = applyFilters(all, filters, VISIT_FIELDS);

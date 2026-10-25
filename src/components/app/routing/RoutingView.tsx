@@ -1,18 +1,16 @@
 "use client";
 
-// Routing (docs/app-structure.md Part 5): one sidebar item per page.
-//   Overview       how routing is doing, the setup in plain words and as a story (/routing)
+// Automation › Routing (docs/unify-plan.md Part 1): one sidebar item, with its pages as tabs.
+//   Overview       how routing is doing, speed to lead, the setup in plain words and as a story (/routing)
 //   Rules          the setup editor: the flow, rules, teams, test and make live (/routing/rules, /routing/versions/<n>)
 //   Teams          teams with Deal 20 leads, and every rep's status and limits (/routing/teams)
 //   Regions        named places (/routing/regions)
 //   Company types  named kinds of company (/routing/company-types)
-//   Handoffs       booking for a teammate, coming with M4 (/routing/handoffs)
 //   History        every lead routed and why (/routing/history, /routing/history/<run>)
 //   Needs review   junk and leads with no rep (/routing/review)
 
-import { routingPage } from "@/lib/nav";
-import { ToolIntro } from "../ToolIntro";
-import { Badge, Page, type ViewProps } from "../ui";
+import { routingPage, ROUTING_TABS } from "@/lib/nav";
+import { Page, Section, type ViewProps } from "../ui";
 import { HeldTab } from "./Held";
 import { LogTab } from "./Log";
 import { OverviewPage } from "./OverviewPage";
@@ -29,7 +27,7 @@ export function RoutingView(props: ViewProps) {
     switch (page.page) {
       case "":
         return page.version !== null ? (
-          <Page title="Saved setup" flush>
+          <Page title={`Version ${page.version}`} back={{ label: "Routing", onClick: () => navigate("routing") }} flush>
             <RouterTab {...shared} version={page.version} />
           </Page>
         ) : (
@@ -47,16 +45,6 @@ export function RoutingView(props: ViewProps) {
         return <RegionsPage {...props} />;
       case "company-types":
         return <CompanyTypesPage {...props} />;
-      case "handoffs":
-        return (
-          <Page title="Handoffs" actions={<Badge tone="violet">Soon</Badge>}>
-            <ToolIntro
-              sketch="signpost"
-              title={"Book a meeting\nfor a teammate"}
-              lead="An SDR qualifies a lead, then books the right AE from the lead's page, from Slack with /book, or from the Chrome extension, without leaving the call."
-            />
-          </Page>
-        );
       case "history":
         return (
           <Page title="History" flush>
@@ -71,10 +59,11 @@ export function RoutingView(props: ViewProps) {
         );
     }
   })();
+  const nav = { title: "Routing", tabs: ROUTING_TABS, current: page.page, onPick: (t: string) => navigate("routing", t) };
   return (
-    <>
+    <Section nav={nav}>
       {body}
       <ToastHost />
-    </>
+    </Section>
   );
 }

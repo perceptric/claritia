@@ -17,34 +17,29 @@ import { DEFAULT_QUALIFY, cleanQualify, type QualifySettings } from "@/lib/enric
 import { PLAN_CREDITS, STEPS, orderSources, stepOf, type Source, type StepResult } from "@/lib/enrich/types";
 import { BASE_FIELDS, needsValue, opsFor } from "@/lib/router/conditions";
 import { OPS } from "@/lib/router/types";
-import { enrichmentPage, type EnrichmentTab } from "@/lib/nav";
+import { enrichmentPage, ENRICHMENT_TABS } from "@/lib/nav";
 import { ArrowDown, ArrowUp, Grip, Plus, Search, Trash } from "../../Icons";
 import { AiMark, AiTag } from "../Ai";
 import { BrandLogo } from "../BrandLogo";
 import { askConfirm, askText } from "../Dialogs";
 import { Select } from "../Select";
 import { StatCards } from "../StatCards";
-import { Badge, Button, Empty, ErrorNote, errorText, IconButton, Input, Loading, must, Page, Panel, postJson, Segmented, Tabs, timeAgo, Toggle, useLoad, type ViewProps } from "../ui";
+import { Badge, Button, Empty, ErrorNote, errorText, IconButton, Input, Loading, must, Page, Panel, postJson, Section, Segmented, timeAgo, Toggle, useLoad, type ViewProps } from "../ui";
 import { Sketch } from "../../sketches/Sketch";
-
-const TABS: { value: EnrichmentTab; label: string }[] = [
-  { value: "overview", label: "Overview" },
-  { value: "providers", label: "Providers" },
-  { value: "rules", label: "Rules" },
-  { value: "history", label: "History" },
-];
 
 type Coverage = { key: string; label: string; object: "companies" | "contacts"; n: number; total: number };
 
 export function EnrichmentView(props: ViewProps) {
   const page = enrichmentPage(props.id);
+  const nav = { title: "Enrichment", tabs: ENRICHMENT_TABS, current: page.tab, onPick: (t: string) => props.navigate("enrichment", t === "overview" ? "" : t) };
   return (
-    <Page title="Enrichment" flush>
-      <Tabs value={page.tab} tabs={TABS} onChange={(t) => props.navigate("enrichment", t === "overview" ? "" : t)} />
-      <div className="mx-auto flex w-full max-w-5xl flex-col gap-5 p-5 md:p-7">
-        {page.tab === "overview" ? <Overview {...props} /> : page.tab === "providers" ? <Providers {...props} /> : page.tab === "rules" ? <Rules {...props} /> : <History {...props} />}
-      </div>
-    </Page>
+    <Section nav={nav}>
+      <Page title="Enrichment">
+        <div className="mx-auto flex w-full max-w-5xl flex-col gap-5">
+          {page.tab === "overview" ? <Overview {...props} /> : page.tab === "providers" ? <Providers {...props} /> : page.tab === "rules" ? <Rules {...props} /> : <History {...props} />}
+        </div>
+      </Page>
+    </Section>
   );
 }
 

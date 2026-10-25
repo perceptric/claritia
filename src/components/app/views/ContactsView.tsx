@@ -5,6 +5,7 @@
 // actions. Leads are a view on Contacts (contacts with a lead status). The add and edit forms live here.
 
 import { useState } from "react";
+import { contactsPage, CONTACTS_TABS } from "@/lib/nav";
 import { BASES, BASIS_LABEL, type Basis } from "@/lib/contacts/consent";
 import { fullName, LIFECYCLES, type ContactRow, type CustomField } from "@/lib/contacts/fields";
 import type { AnyField } from "@/lib/records/fields";
@@ -14,7 +15,8 @@ import { Popover } from "../FilterBar";
 import { Select } from "../Select";
 import { SampleRows, SampleStats, SampleTags, ToolIntro } from "../ToolIntro";
 import { Sketch } from "../../sketches/Sketch";
-import { Avatar, Badge, Button, CardHead, Empty, ErrorNote, errorText, Field, Input, Loading, must, Page, Panel, postJson, timeAgo, useLoad, type Tone, type ViewProps } from "../ui";
+import { Avatar, Badge, Button, CardHead, Empty, ErrorNote, errorText, Field, Input, Loading, must, Page, Panel, postJson, Section, timeAgo, useLoad, type Tone, type ViewProps } from "../ui";
+import { Report } from "../reports/Report";
 import { AiTag } from "../Ai";
 import type { Link } from "../records/FieldInput";
 import { useMeta, type Meta } from "../records/meta";
@@ -54,9 +56,22 @@ const CONTACT_PRESETS: Preset[] = [
   { name: "By lifecycle", layout: "board", group: "lifecycle" },
 ];
 
+/** CRM › Contacts: the table and the Overview (the funnel and reps) as tabs; one contact opens as its own page. */
 export function ContactsView(props: ViewProps) {
-  if (props.id) return <ContactPage {...props} />;
-  return <ContactsList {...props} />;
+  const page = contactsPage(props.id);
+  if (page.page === "contact") return <ContactPage {...props} />;
+  const nav = { title: "Contacts", tabs: CONTACTS_TABS, current: page.id, onPick: (t: string) => props.navigate("contacts", t) };
+  return (
+    <Section nav={nav}>
+      {page.page === "overview" ? (
+        <Page title="Contacts">
+          <Report sb={props.sb} ws={props.ws.id} navigate={props.navigate} show={["funnel", "reps"]} />
+        </Page>
+      ) : (
+        <ContactsList {...props} />
+      )}
+    </Section>
+  );
 }
 
 function ContactsList({ sb, ws, session, role, navigate }: ViewProps) {
