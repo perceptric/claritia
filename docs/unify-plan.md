@@ -82,16 +82,16 @@ Rules from the UI/UX skill and the audit:
   Routing goes from 8 rows to 1, and Scheduling from 8 to 1.
 - **Every tab has its own address** (`/routing/teams`, `/scheduling/availability`), so back, refresh and links
   work. Old addresses forward: `/signals/*` → `/visitors/*`, `/templates` → `/emails/templates`,
-  `/settings/lead_scoring` → `/lead-scoring`, `/pages`, `/ads` → Contacts.
+  `/settings/lead_scoring` → `/scoring`, `/pages`, `/ads` → Contacts.
 - **The current item is always marked**: the filled ink pill on the sidebar item, the underline on the tab.
 - **Reports fold into the screens where people act on them**, so there's no Reports group:
 
 | Report today | New home |
 |---|---|
-| Funnel and Reps | CRM › Contacts, an "Overview" tab before the table |
-| Speed to lead | Automation › Routing › Overview |
-| Forms | Inbound › Forms: views, submit rate and booked rate as list columns, the full report on each form's Fills tab |
-| Email | Nurture › Emails: sent, clicked, meetings as list columns, the full numbers on each email |
+| Funnel and Reps | CRM › Contacts › Overview |
+| Speed to lead and routing rules | Automation › Routing › Overview, under the setup |
+| Forms | Inbound › Forms › Overview |
+| Email | Nurture › Emails: every email and workflow with sent, delivered, clicked and meetings |
 
 - **"Soon" items** (Handoffs, AI scheduler, Notetaker) come out of the sidebar until they're built.
 
@@ -183,6 +183,22 @@ Removed: `views/MarketingIntros.tsx` (Pages, Ads), `reports/ReportsView.tsx` (it
 - The data reset (Part 0) runs on a copy built from every migration first, and must leave the kept rows untouched.
 
 ---
+
+## What's built (25 Oct)
+
+- **Part 0:** `scripts/reset-data.sql`, tested on a copy. Not run on production yet: it runs when you run it in the
+  Supabase SQL editor.
+- **Part 1:** the four sections; one item per route with tabs under the title (`Section` in `ui.tsx`); Pages, Ads,
+  the Reports group and the "Soon" items removed; booking forms fold into Forms; Signals is Visitors; Templates is a
+  tab of Emails; Lead scoring and Ideal customer moved out of Settings; reports inside their sections; every old
+  address forwards (`tests/nav.test.ts`).
+- **Part 2 and 3, done:** one `Sheet` for every side panel; the workflow editor on the standard header; headers stay
+  while loading; one set of words (Make live, Versions, Try a contact, Changes not live yet); meeting types and email
+  templates save by themselves; one panel heading style; the shared stat cards on Visits; first screens on Companies
+  and Opportunities; saved views on lists as a View picker; field-type icons; en-US dates; raw hex removed.
+- **Still to do:** the five copy buttons and the forms builder's own toggle, segmented control and icon button merged
+  into the shared ones; one template picker for routing, workflows and forms; a bulk bar on every list;
+  screenshots of each section in light and dark.
 
 ## Decisions (25 Oct)
 

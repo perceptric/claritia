@@ -421,6 +421,20 @@ try {
   await until(async () => new URL(page.url()).pathname === "/contacts", 30_000, "the removed Pages to open Contacts");
   check(true, "old Analytics and Pages addresses open their new homes");
 
+  // SHOTS_DIR=<folder> keeps a picture of every section in light and dark, for a person to look over.
+  if (process.env.SHOTS_DIR) {
+    for (const theme of ["light", "dark"]) {
+      await page.evaluate((t) => localStorage.setItem("claritia:theme", t), theme);
+      for (const r of ["contacts", "contacts/overview", "workflows", "routing", "routing/rules", "enrichment", "forms", "scheduling/types", "scheduling/availability", "visitors", "emails", "emails/templates", "segments", "scoring", "settings"]) {
+        await page.goto(`${base}/${r}`);
+        await page.locator("h1").first().waitFor({ timeout: 60_000 });
+        await page.waitForTimeout(1500);
+        await page.screenshot({ path: join(process.env.SHOTS_DIR, `${r.replace(/\//g, "-")}-${theme}.png`) });
+      }
+    }
+    await page.evaluate(() => localStorage.setItem("claritia:theme", "light"));
+  }
+
   check(!errors.length, `no page errors (${errors.slice(0, 3).join(" | ")})`);
 } catch (e) {
   failures.push((e as Error).message);
