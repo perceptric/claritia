@@ -1,58 +1,115 @@
-// Sending (docs/conversion-weeks.md week 9): AWS signing, SES answers, link tokens, rendering with one-click
-// unsubscribe, SNS signatures, SES event parsing, and DNS record checks.
+// Sending (docs/enrich-workflows-reports.md Part 0): Resend's answers and keys, batches, link tokens, rendering with
+// one-click unsubscribe, webhook signatures, event parsing, DNS record checks, and the SMTP relay for raw mail.
 import assert from "node:assert/strict";
-import { generateKeyPairSync, sign } from "node:crypto";
+import { createHmac } from "node:crypto";
+import net from "node:net";
 import { test } from "node:test";
-import { checkRecords, expectedRecords, type Resolver } from "../src/lib/email/domains.ts";
+import { checkRecords, expectedRecords, hostOf, type Resolver } from "../src/lib/email/domains.ts";
+import { fromHeader, outcomeOf, SendError, type Outgoing } from "../src/lib/email/provider.ts";
 import { renderMessage, type Claimed } from "../src/lib/email/render.ts";
-import { fromHeader, sesClient, SesError } from "../src/lib/email/ses.ts";
-import { signV4 } from "../src/lib/email/sigv4.ts";
-import { checkSns, parseSesEvent, stringToSign, type SnsMessage } from "../src/lib/email/sns.ts";
+import { batchKey, resendClient, type ResendDomain } from "../src/lib/email/resend.ts";
+import { dotStuff, smtpSend } from "../src/lib/email/smtp.ts";
 import { extractLinks, looksLikeScanner, makeToken, readToken, rewriteLinks } from "../src/lib/email/track.ts";
+import { checkSvix, parseResendEvent } from "../src/lib/email/webhook.ts";
+import { sendRound, type Sender } from "../worker-intel/jobs/email.ts";
 
 const SECRET = "x".repeat(40);
 
-test("SigV4 matches AWS's get-vanilla test", () => {
-  const h = signV4({ method: "GET", url: "https://example.amazonaws.com/", region: "us-east-1", service: "service", creds: { accessKeyId: "AKIDEXAMPLE", secretAccessKey: "wJalrXUtnFEMI/K7MDENG+bPxRfiCYEXAMPLEKEY" }, now: new Date("2015-08-30T12:36:00Z") });
-  assert.equal(h.Authorization, "AWS4-HMAC-SHA256 Credential=AKIDEXAMPLE/20150830/us-east-1/service/aws4_request, SignedHeaders=host;x-amz-date, Signature=5fa00fa31553b73ebf1942676e86291e8372ff2a2260956d9b8aae1d763fbf31");
-  assert.equal(h["x-amz-date"], "20150830T123600Z");
-});
+const answer = (status: number, body: object | string, headers: Record<string, string> = {}) => (async () => new Response(typeof body === "string" ? body : JSON.stringify(body), { status, headers })) as unknown as typeof fetch;
+const msg: Outgoing = { from: "a@b.co", to: "c@d.co", subject: "s", html: "h", text: "t", headers: [], tags: {} };
 
-test("SES answers sort into sent, try again, failed and unknown", async () => {
-  const answer = (status: number, body: object | string, headers: Record<string, string> = {}) => async () => new Response(typeof body === "string" ? body : JSON.stringify(body), { status, headers });
-  const client = (f: typeof fetch) => sesClient({ region: "ap-northeast-1", creds: { accessKeyId: "a", secretAccessKey: "b" }, fetchFn: f });
-  const msg = { from: "a@b.co", to: "c@d.co", subject: "s", html: "h", text: "t", headers: [], tags: {} };
-
+test("Resend answers sort into sent, later, try again, failed and unknown, and every send carries its key", async () => {
+  const client = (f: typeof fetch) => resendClient({ apiKey: "re_test", fetchFn: f });
   let seen: RequestInit | undefined;
   let url = "";
   const id = await client((async (u: string, init: RequestInit) => {
     url = u;
     seen = init;
-    return new Response(JSON.stringify({ MessageId: "m-1" }), { status: 200 });
-  }) as typeof fetch).send({ ...msg, headers: [{ name: "List-Unsubscribe", value: "<https://x/u/1>" }], tags: { message: "abc" } });
-  assert.equal(id, "m-1");
-  assert.equal(url, "https://email.ap-northeast-1.amazonaws.com/v2/email/outbound-emails");
+    return new Response(JSON.stringify({ id: "r-1" }), { status: 200 });
+  }) as typeof fetch).send({ ...msg, replyTo: "r@d.co", headers: [{ name: "List-Unsubscribe", value: "<https://x/u/1>" }], tags: { message: "abc" } }, "msg:1");
+  assert.equal(id, "r-1");
+  assert.equal(url, "https://api.resend.com/emails");
+  const h = seen?.headers as Record<string, string>;
+  assert.equal(h.Authorization, "Bearer re_test");
+  assert.equal(h["Idempotency-Key"], "msg:1");
   const sent = JSON.parse(String(seen?.body));
-  assert.deepEqual(sent.Content.Simple.Headers, [{ Name: "List-Unsubscribe", Value: "<https://x/u/1>" }]);
-  assert.deepEqual(sent.EmailTags, [{ Name: "message", Value: "abc" }]);
-  assert.match(String((seen?.headers as Record<string, string>).Authorization), /^AWS4-HMAC-SHA256 Credential=a\/\d{8}\/ap-northeast-1\/ses\/aws4_request/);
+  assert.deepEqual(sent.to, ["c@d.co"]);
+  assert.equal(sent.reply_to, "r@d.co");
+  assert.deepEqual(sent.headers, { "List-Unsubscribe": "<https://x/u/1>" });
+  assert.deepEqual(sent.tags, [{ name: "message", value: "abc" }]);
 
-  const fails = async (f: typeof fetch) => client(f).send(msg).then(() => assert.fail("should throw"), (e: SesError) => e);
-  const throttled = await fails(answer(429, { message: "Maximum sending rate exceeded." }, { "x-amzn-errortype": "TooManyRequestsException:http://x" }) as unknown as typeof fetch);
-  assert.ok(throttled.retry && !throttled.unknown);
-  const rejected = await fails(answer(400, { message: "Email address is not verified." }, { "x-amzn-errortype": "MessageRejected" }) as unknown as typeof fetch);
-  assert.ok(!rejected.retry && !rejected.unknown);
-  assert.match(rejected.message, /MessageRejected/);
-  const server = await fails(answer(503, "Service Unavailable") as unknown as typeof fetch);
-  assert.ok(server.retry);
+  const fails = async (f: typeof fetch) => client(f).send(msg, "k").then(() => assert.fail("should throw"), (e: SendError) => e);
+  const limited = await fails(answer(429, { name: "rate_limit_exceeded", message: "Too many requests" }, { "retry-after": "7" }));
+  assert.equal(outcomeOf(limited), "later");
+  assert.equal(limited.retryAfterS, 7);
+  const invalid = await fails(answer(422, { name: "validation_error", message: "Invalid `to` field." }));
+  assert.equal(outcomeOf(invalid), "failed");
+  assert.ok(invalid.invalid);
+  assert.equal(outcomeOf(await fails(answer(403, { name: "validation_error", message: "The domain is not verified." }))), "failed");
+  assert.equal(outcomeOf(await fails(answer(503, "Service Unavailable"))), "retry");
+  assert.equal(outcomeOf(await fails(answer(409, { name: "concurrent_idempotent_requests", message: "Same key in flight" }))), "later");
+  assert.equal(outcomeOf(await fails(answer(409, { name: "invalid_idempotent_request", message: "Key used for other content" }))), "unknown");
   const timeout = await fails((async () => {
     throw new Error("The operation was aborted due to timeout");
   }) as unknown as typeof fetch);
-  assert.ok(timeout.unknown && !timeout.retry);
+  assert.equal(outcomeOf(timeout), "unknown");
+  assert.equal(outcomeOf(await fails(answer(200, {}))), "unknown", "taken with no id");
+});
 
-  assert.equal(await client(answer(404, { message: "nope" }, { "x-amzn-errortype": "NotFoundException" }) as unknown as typeof fetch).getIdentity("acme.com"), null);
-  const ident = await client(answer(200, { DkimAttributes: { Status: "SUCCESS", Tokens: ["t1", "t2", "t3"] }, MailFromAttributes: { MailFromDomain: "bounce.acme.com", MailFromDomainStatus: "SUCCESS" }, VerifiedForSendingStatus: true }) as unknown as typeof fetch).getIdentity("acme.com");
-  assert.deepEqual(ident, { dkimStatus: "SUCCESS", dkimTokens: ["t1", "t2", "t3"], mailFrom: "bounce.acme.com", mailFromStatus: "SUCCESS", verified: true });
+test("a batch is one call keyed by its messages; its ids come back in order", async () => {
+  let body: unknown[] = [];
+  let key = "";
+  const ids = await resendClient({ apiKey: "k", fetchFn: (async (_u: string, init: RequestInit) => {
+    body = JSON.parse(String(init.body));
+    key = (init.headers as Record<string, string>)["Idempotency-Key"];
+    return new Response(JSON.stringify({ data: [{ id: "a" }, { id: "b" }] }), { status: 200 });
+  }) as typeof fetch }).batch([{ out: msg, key: "msg:1" }, { out: { ...msg, to: "e@f.co" }, key: "msg:2" }]);
+  assert.deepEqual(ids, ["a", "b"]);
+  assert.equal(body.length, 2);
+  assert.equal(key, batchKey(["msg:1", "msg:2"]));
+  assert.notEqual(batchKey(["msg:1", "msg:2"]), batchKey(["msg:2", "msg:1"]));
+  const short = await resendClient({ apiKey: "k", fetchFn: answer(200, { data: [{ id: "a" }] }) }).batch([{ out: msg, key: "1" }, { out: msg, key: "2" }]).catch((e: SendError) => e);
+  assert.equal(outcomeOf(short), "unknown", "ids that don't match the batch are unclear");
+});
+
+const claimedRow = (id: string, attempts = 1) => ({ id, attempts }) as Claimed;
+
+test("a round: first tries share a batch; a retried message goes alone with its own key", async () => {
+  const calls: string[] = [];
+  const sender: Sender = {
+    send: async (_m, key) => (calls.push(`one ${key}`), `id-${key}`),
+    batch: async (items) => (calls.push(`batch ${items.map((i) => i.key).join(",")}`), items.map((i) => `id-${i.key}`)),
+  };
+  const r = await sendRound(sender, [claimedRow("a"), claimedRow("b"), claimedRow("c", 2)], () => msg);
+  assert.deepEqual(calls.sort(), ["batch msg:a,msg:b", "one msg:c"]);
+  assert.deepEqual(r.map((x) => `${x.id}:${x.outcome}`).sort(), ["a:ok", "b:ok", "c:ok"]);
+});
+
+test("a round on a flaky provider: a bad address is found one by one, a batch timeout is never resent, a rate limit sends nothing", async () => {
+  const run = (batchErr: SendError, one: (key: string) => Promise<string>) =>
+    sendRound({ send: (_m, key) => one(key), batch: async () => Promise.reject(batchErr) }, [claimedRow("a"), claimedRow("b")], () => msg);
+
+  const bad = await run(new SendError("422", { status: 422, invalid: true }), async (key) => {
+    if (key === "msg:b") throw new SendError("Invalid to", { status: 422, invalid: true });
+    return "ok-a";
+  });
+  assert.deepEqual(bad.map((x) => `${x.id}:${x.outcome}`), ["a:ok", "b:failed"]);
+
+  let singles = 0;
+  const unclear = await run(new SendError("timeout", { unknown: true }), async () => (singles++, "x"));
+  assert.deepEqual(unclear.map((x) => x.outcome), ["unknown", "unknown"]);
+  const server = await run(new SendError("500", { status: 500, retry: true }), async () => (singles++, "x"));
+  assert.deepEqual(server.map((x) => x.outcome), ["unknown", "unknown"], "a batch's key can't protect a repeat");
+  assert.equal(singles, 0, "nothing is sent again one by one");
+
+  const limited = await run(new SendError("429", { status: 429, later: true, retryAfterS: 30 }), async () => "x");
+  assert.deepEqual(limited.map((x) => `${x.outcome}:${x.delayS}`), ["later:30", "later:30"]);
+
+  // A single send's timeout is safe to repeat: the same key gives the same email.
+  const one = await sendRound({ send: async () => Promise.reject(new SendError("timeout", { unknown: true })), batch: async () => [] }, [claimedRow("z")], () => msg);
+  assert.equal(one[0].outcome, "retry");
+  const reused = await sendRound({ send: async () => Promise.reject(new SendError("409", { status: 409, unknown: true })), batch: async () => [] }, [claimedRow("z")], () => msg);
+  assert.equal(reused[0].outcome, "unknown", "a key Resend saw with other content may have sent");
 });
 
 test("From names are quoted, or MIME-encoded when not plain ASCII", () => {
@@ -143,48 +200,54 @@ test("a non-marketing email has no footer or unsubscribe headers", () => {
   assert.equal(out.text, "Hi\n");
 });
 
-function snsSigned(o: Partial<SnsMessage>, version = "2") {
-  const { privateKey, publicKey } = generateKeyPairSync("rsa", { modulusLength: 2048 });
-  const m = { Type: "Notification", MessageId: "sns-1", TopicArn: "arn:aws:sns:ap-northeast-1:1:ses", Message: "{}", Timestamp: "2026-10-16T00:00:00.000Z", SignatureVersion: version, SigningCertURL: "https://sns.ap-northeast-1.amazonaws.com/SimpleNotificationService-abc.pem", Signature: "", ...o } as SnsMessage;
-  m.Signature = sign(version === "2" ? "sha256" : "sha1", Buffer.from(stringToSign(m)), privateKey).toString("base64");
-  return { m, pem: publicKey.export({ type: "spki", format: "pem" }).toString() };
-}
+const svix = (secret: string, id: string, ts: number, body: string) => `v1,${createHmac("sha256", Buffer.from(secret.replace(/^whsec_/, ""), "base64")).update(`${id}.${ts}.${body}`).digest("base64")}`;
 
-test("SNS messages are checked against the certificate and our topic", async () => {
-  const topic = "arn:aws:sns:ap-northeast-1:1:ses";
-  const { m, pem } = snsSigned({ Subject: "Amazon SES Email Event Notification" });
-  let fetched = 0;
-  const cert = async () => (fetched++, pem);
-  assert.equal(await checkSns(m, topic, cert), null);
-  assert.equal(await checkSns({ ...m, Message: '{"eventType":"Complaint"}' }, topic, cert), "Bad signature");
-  assert.equal(await checkSns(m, "arn:aws:sns:ap-northeast-1:1:other", cert), "Wrong topic");
-  assert.equal(await checkSns({ ...m, SigningCertURL: "https://evil.example.com/cert.pem" }, topic, cert), "Certificate isn't from SNS");
-  assert.equal(await checkSns({ ...m, SigningCertURL: "https://sns.ap-northeast-1.amazonaws.com.evil.com/x.pem" }, topic, cert), "Certificate isn't from SNS");
-  assert.equal(await checkSns({ ...m, SignatureVersion: "3" }, topic, cert), "Unknown signature version");
-  const v1 = snsSigned({ SigningCertURL: "https://sns.ap-northeast-1.amazonaws.com/SimpleNotificationService-v1.pem" }, "1");
-  assert.equal(await checkSns(v1.m, topic, async () => v1.pem), null);
-  const sub = snsSigned({ Type: "SubscriptionConfirmation", SubscribeURL: "https://sns.ap-northeast-1.amazonaws.com/?Action=ConfirmSubscription", Token: "tok", SigningCertURL: "https://sns.ap-northeast-1.amazonaws.com/SimpleNotificationService-sub.pem" });
-  assert.equal(await checkSns(sub.m, topic, async () => sub.pem), null);
-  assert.equal(fetched, 1, "the certificate is fetched once");
+test("webhooks: only a fresh delivery signed with our secret is trusted", () => {
+  const secret = `whsec_${Buffer.from("a-very-secret-key-for-tests").toString("base64")}`;
+  const now = Date.parse("2026-10-24T10:00:00Z");
+  const ts = now / 1000;
+  const body = '{"type":"email.delivered","data":{"email_id":"r-1"}}';
+  const sig = svix(secret, "msg_1", ts, body);
+  const check = (o: Partial<Parameters<typeof checkSvix>[0]>) => checkSvix({ secret, id: "msg_1", timestamp: String(ts), signature: sig, body, now, ...o });
+  assert.equal(check({}), null);
+  assert.equal(check({ signature: `v1,bad v1,${sig.slice(3)}` }), null, "any one of several signatures may match");
+  assert.equal(check({ body: body.replace("r-1", "r-2") }), "Bad signature");
+  assert.equal(check({ id: "msg_2" }), "Bad signature");
+  assert.equal(check({ now: now + 10 * 60_000 }), "Too old");
+  assert.equal(check({ signature: null }), "Missing signature headers");
+  assert.equal(check({ secret: `whsec_${Buffer.from("another").toString("base64")}` }), "Bad signature");
 });
 
-test("SES events become delivered, hard and soft bounces, complaints, rejects and delays", () => {
-  const ev = (body: object) => parseSesEvent({ Type: "Notification", MessageId: "sns-9", Message: JSON.stringify(body), Timestamp: "2026-10-16T00:00:09Z" } as SnsMessage);
-  const mail = { messageId: "ses-1", timestamp: "2026-10-16T00:00:00Z" };
-  assert.deepEqual(ev({ eventType: "Delivery", mail, delivery: { timestamp: "2026-10-16T00:00:02Z" } }), { sns_id: "sns-9", ses_message_id: "ses-1", kind: "delivered", at: "2026-10-16T00:00:02Z", detail: {} });
-  assert.equal(ev({ eventType: "Bounce", mail, bounce: { bounceType: "Permanent", bounceSubType: "General", bouncedRecipients: [{ diagnosticCode: "550 no such user" }] } })?.bounce, "hard");
-  assert.equal(ev({ eventType: "Bounce", mail, bounce: { bounceType: "Transient", bounceSubType: "MailboxFull" } })?.bounce, "soft");
-  assert.equal(ev({ eventType: "Bounce", mail, bounce: { bounceType: "Undetermined" } })?.bounce, "soft");
-  assert.equal(ev({ notificationType: "Complaint", mail, complaint: { complaintFeedbackType: "abuse" } })?.kind, "complained");
-  assert.equal(ev({ eventType: "Complaint", mail, complaint: { complaintFeedbackType: "not-spam" } }), null);
-  assert.equal(ev({ eventType: "Reject", mail, reject: { reason: "Bad content" } })?.kind, "rejected");
-  assert.equal(ev({ eventType: "DeliveryDelay", mail, deliveryDelay: { delayType: "MailboxFull" } })?.kind, "delayed");
-  assert.equal(ev({ eventType: "Open", mail }), null);
-  assert.equal(ev({ eventType: "Delivery" }), null);
-  assert.equal(parseSesEvent({ Type: "Notification", MessageId: "x", Message: "not json" } as SnsMessage), null);
+test("Resend events become delivered, hard and soft bounces, complaints, failures and delays", () => {
+  const ev = (type: string, data: object = {}) => parseResendEvent("evt-1", JSON.stringify({ type, created_at: "2026-10-24T10:00:02Z", data: { email_id: "r-1", to: ["Dana@Acme.com"], ...data } }));
+  assert.deepEqual(ev("email.delivered"), { event_id: "evt-1", provider_id: "r-1", to: "dana@acme.com", at: "2026-10-24T10:00:02Z", kind: "delivered", detail: {} });
+  assert.equal(ev("email.bounced", { bounce: { type: "Permanent", subType: "General" } })?.bounce, "hard");
+  assert.equal(ev("email.bounced", { bounce: { type: "Transient", subType: "MailboxFull" } })?.bounce, "soft");
+  assert.equal(ev("email.bounced", { bounce: { type: "Undetermined" } })?.bounce, "soft");
+  assert.equal(ev("email.complained")?.kind, "complained");
+  assert.equal(ev("email.failed", { failed: { reason: "reached_daily_quota" } })?.kind, "rejected");
+  assert.equal(ev("email.delivery_delayed")?.kind, "delayed");
+  assert.equal(ev("email.sent"), null);
+  assert.equal(ev("email.opened"), null);
+  assert.equal(parseResendEvent("x", "not json"), null);
+  assert.equal(parseResendEvent("x", '{"type":"email.delivered","data":{}}'), null, "no email id");
 });
 
-const row = { id: "d1", domain: "mail.acme.com", mail_from: "bounce.mail.acme.com", dkim_tokens: ["aa", "bb", "cc"] };
+test("record names Resend gives turn into full hosts", () => {
+  assert.equal(hostOf("send", "acme.com"), "send.acme.com");
+  assert.equal(hostOf("send", "mail.acme.com"), "send.mail.acme.com");
+  assert.equal(hostOf("send.mail", "mail.acme.com"), "send.mail.acme.com");
+  assert.equal(hostOf("resend._domainkey.mail", "mail.acme.com"), "resend._domainkey.mail.acme.com");
+  assert.equal(hostOf("resend._domainkey", "acme.com"), "resend._domainkey.acme.com");
+  assert.equal(hostOf("send.acme.com", "acme.com"), "send.acme.com");
+});
+
+const RECORDS = [
+  { record: "SPF", name: "send.mail", type: "MX", value: "feedback-smtp.us-east-1.amazonses.com", priority: 10, status: "not_started" },
+  { record: "SPF", name: "send.mail", type: "TXT", value: "v=spf1 include:amazonses.com ~all", status: "not_started" },
+  { record: "DKIM", name: "resend._domainkey.mail", type: "TXT", value: "p=MIGfMA0", status: "not_started" },
+];
+const rd = (status: string, recStatus = "not_started"): ResendDomain => ({ id: "dom-1", name: "mail.acme.com", status, records: RECORDS.map((r) => ({ ...r, status: recStatus })) });
 const nx = () => Object.assign(new Error("not found"), { code: "ENOTFOUND" });
 const fake = (zone: Record<string, string[] | { exchange: string; priority: number }[]>): Resolver => {
   const get = <T>(key: string): T => {
@@ -198,46 +261,104 @@ const fake = (zone: Record<string, string[] | { exchange: string; priority: numb
   };
 };
 
-test("the records to add: three DKIM CNAMEs, MAIL FROM MX and SPF, and DMARC", () => {
+test("the records to add: Resend's DKIM, the return path's MX and SPF, and our DMARC", () => {
   assert.deepEqual(
-    expectedRecords(row, "ap-northeast-1").map((r) => `${r.type} ${r.name} ${r.value}`),
+    expectedRecords("mail.acme.com", RECORDS).map((r) => `${r.key} ${r.type} ${r.name} ${r.value}`),
     [
-      "CNAME aa._domainkey.mail.acme.com aa.dkim.amazonses.com",
-      "CNAME bb._domainkey.mail.acme.com bb.dkim.amazonses.com",
-      "CNAME cc._domainkey.mail.acme.com cc.dkim.amazonses.com",
-      "MX bounce.mail.acme.com 10 feedback-smtp.ap-northeast-1.amazonses.com",
-      "TXT bounce.mail.acme.com v=spf1 include:amazonses.com ~all",
-      "TXT _dmarc.mail.acme.com v=DMARC1; p=none; rua=mailto:dmarc@mail.acme.com",
+      "dkim TXT resend._domainkey.mail.acme.com p=MIGfMA0",
+      "mx MX send.mail.acme.com 10 feedback-smtp.us-east-1.amazonses.com",
+      "spf TXT send.mail.acme.com v=spf1 include:amazonses.com ~all",
+      "dmarc TXT _dmarc.mail.acme.com v=DMARC1; p=none; rua=mailto:dmarc@mail.acme.com",
     ],
   );
 });
 
-test("records read Waiting, Wrong or Verified, and the domain verifies only with all three", async () => {
-  const pending = { dkimStatus: "PENDING", dkimTokens: ["aa", "bb", "cc"], mailFrom: "bounce.mail.acme.com", mailFromStatus: "PENDING", verified: false };
-  const none = await checkRecords(row, pending, "ap-northeast-1", fake({}));
+test("records read Waiting, Wrong or Verified, and the domain verifies only when Resend does and DMARC exists", async () => {
+  const none = await checkRecords("mail.acme.com", rd("pending"), fake({}));
   assert.equal(none.status, "pending");
-  assert.deepEqual(none.records.map((r) => r.status), ["waiting", "waiting", "waiting", "waiting", "waiting", "waiting"]);
+  assert.deepEqual(none.records.map((r) => r.status), ["waiting", "waiting", "waiting", "waiting"]);
 
-  const typos = await checkRecords(row, pending, "ap-northeast-1", fake({
-    "CNAME aa._domainkey.mail.acme.com": ["aa.dkim.amazonses.com"],
-    "CNAME bb._domainkey.mail.acme.com": ["bb.dkim.amazon.com"],
-    "MX bounce.mail.acme.com": [{ exchange: "mx.google.com", priority: 1 }],
-    "TXT bounce.mail.acme.com": ["v=spf1 include:_spf.google.com ~all"],
+  const typos = await checkRecords("mail.acme.com", rd("pending"), fake({
+    "TXT resend._domainkey.mail.acme.com": ["p=OTHERKEY"],
+    "MX send.mail.acme.com": [{ exchange: "mx.google.com", priority: 1 }],
+    "TXT send.mail.acme.com": ["v=spf1 include:amazonses.com ~all"],
     "TXT _dmarc.mail.acme.com": ["dmarc please"],
   }));
-  assert.deepEqual(typos.records.map((r) => `${r.key}:${r.status}`), ["dkim1:waiting", "dkim2:wrong", "dkim3:waiting", "mx:wrong", "spf:wrong", "dmarc:wrong"]);
-  assert.equal(typos.records[1].seen, "bb.dkim.amazon.com");
+  assert.deepEqual(typos.records.map((r) => `${r.key}:${r.status}`), ["dkim:wrong", "mx:wrong", "spf:waiting", "dmarc:wrong"]);
+  assert.equal(typos.records[1].seen, "1 mx.google.com");
 
-  const ok = { ...pending, dkimStatus: "SUCCESS", mailFromStatus: "SUCCESS", verified: true };
-  const zone = { "TXT bounce.mail.acme.com": ["v=spf1 include:amazonses.com ~all"], "TXT _dmarc.acme.com": ["v=DMARC1; p=quarantine"] };
-  const done = await checkRecords(row, ok, "ap-northeast-1", fake(zone));
+  const done = await checkRecords("mail.acme.com", rd("verified", "verified"), fake({ "TXT _dmarc.acme.com": ["v=DMARC1; p=quarantine"] }));
   assert.equal(done.status, "verified", "DMARC on the parent domain counts");
   assert.ok(done.records.every((r) => r.status === "verified"));
 
-  const noDmarc = await checkRecords(row, ok, "ap-northeast-1", fake({ "TXT bounce.mail.acme.com": ["v=spf1 include:amazonses.com ~all"] }));
+  const noDmarc = await checkRecords("mail.acme.com", rd("verified", "verified"), fake({}));
   assert.equal(noDmarc.status, "pending", "no DMARC, no sending");
 
-  const flaky: Resolver = { ...fake({}), cname: async () => Promise.reject(Object.assign(new Error("timeout"), { code: "ETIMEOUT" })) };
-  assert.equal((await checkRecords(row, pending, "ap-northeast-1", flaky)).records[0].status, "waiting", "a DNS timeout never reads as wrong");
-  assert.equal((await checkRecords(row, { ...pending, dkimStatus: "FAILED" }, "ap-northeast-1", fake({}))).status, "failed");
+  const flaky: Resolver = { ...fake({}), txt: async () => Promise.reject(Object.assign(new Error("timeout"), { code: "ETIMEOUT" })) };
+  assert.equal((await checkRecords("mail.acme.com", rd("pending"), flaky)).records[0].status, "waiting", "a DNS timeout never reads as wrong");
+  assert.equal((await checkRecords("mail.acme.com", rd("failed"), fake({}))).status, "failed");
+});
+
+// A tiny SMTP server that answers each command from a script, for the relay's flaky cases.
+async function smtpServer(o: { afterData?: "ok" | "drop" | "450" | "550"; auth?: "ok" | "535"; dropBeforeData?: boolean } = {}) {
+  const got: string[] = [];
+  const server = net.createServer((s) => {
+    let inData = false;
+    let data = "";
+    s.write("220 test ESMTP\r\n");
+    s.on("data", (b) => {
+      const text = b.toString();
+      if (inData) {
+        data += text;
+        if (data.endsWith("\r\n.\r\n")) {
+          inData = false;
+          got.push(data);
+          if (o.afterData === "drop") return s.destroy();
+          s.write(o.afterData === "450" ? "450 Try later\r\n" : o.afterData === "550" ? "550 No such user\r\n" : "250 OK 3f2a4b6c-1d2e-4f50-8a9b-0c1d2e3f4a5b\r\n");
+        }
+        return;
+      }
+      for (const line of text.split("\r\n").filter(Boolean)) {
+        got.push(line);
+        if (line.startsWith("EHLO")) s.write("250-test\r\n250 AUTH PLAIN\r\n");
+        else if (line.startsWith("AUTH")) s.write(o.auth === "535" ? "535 Bad key\r\n" : "235 OK\r\n");
+        else if (line.startsWith("MAIL") || line.startsWith("RCPT")) s.write("250 OK\r\n");
+        else if (line === "DATA") {
+          if (o.dropBeforeData) return s.destroy();
+          inData = true;
+          s.write("354 Go\r\n");
+        } else if (line === "QUIT") s.end("221 Bye\r\n");
+      }
+    });
+  });
+  await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
+  const port = (server.address() as net.AddressInfo).port;
+  return { got, port, close: () => new Promise<void>((r) => server.close(() => r())) };
+}
+
+test("the SMTP relay: a sent message returns the relay's id; dots are doubled; no answer after the last line is unknown", async () => {
+  assert.equal(dotStuff("a\n.b\r\n..c"), "a\r\n..b\r\n...c");
+  const raw = "From: a@b.co\r\nTo: c@d.co\r\nSubject: Hi\r\n\r\n.hidden line\r\nbody";
+  const send = (port: number) => smtpSend({ host: "127.0.0.1", port, user: "resend", pass: "re_x", secure: false, timeoutMs: 2000 }, { from: "a@b.co", to: "c@d.co", raw });
+
+  const ok = await smtpServer();
+  assert.equal(await send(ok.port), "3f2a4b6c-1d2e-4f50-8a9b-0c1d2e3f4a5b");
+  assert.ok(ok.got.includes(`AUTH PLAIN ${Buffer.from("\0resend\0re_x").toString("base64")}`));
+  assert.ok(ok.got.some((g) => g.includes("\r\n..hidden line\r\n")), "a line starting with a dot is doubled");
+  await ok.close();
+
+  const outcome = async (o: Parameters<typeof smtpServer>[0]) => {
+    const s = await smtpServer(o);
+    try {
+      return outcomeOf(await send(s.port).then(() => null, (e) => e));
+    } finally {
+      await s.close();
+    }
+  };
+  assert.equal(await outcome({ afterData: "drop" }), "unknown", "the message may have gone");
+  assert.equal(await outcome({ dropBeforeData: true }), "retry", "nothing was sent yet");
+  assert.equal(await outcome({ afterData: "450" }), "retry");
+  assert.equal(await outcome({ afterData: "550" }), "failed");
+  assert.equal(await outcome({ auth: "535" }), "failed");
+  assert.equal(outcomeOf(await send(1).then(() => null, (e) => e)), "retry", "no connection, nothing sent");
 });

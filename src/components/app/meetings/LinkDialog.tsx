@@ -159,7 +159,7 @@ export function TimePicker({ session, ws, typeId, length, picked, onChange, max 
               aria-pressed={on}
               className={`press relative flex w-14 shrink-0 flex-col items-center gap-0.5 rounded-lg border py-2 transition-colors duration-[140ms] ${on ? "border-ink bg-ink text-paper" : "border-line bg-card text-ink hover:border-line-strong"}`}
             >
-              <span className={`text-[11px] font-medium ${on ? "text-paper" : "text-muted"}`}>{date.toLocaleDateString("en-GB", { weekday: "short" })}</span>
+              <span className={`text-[11px] font-medium ${on ? "text-paper" : "text-muted"}`}>{date.toLocaleDateString("en-US", { weekday: "short" })}</span>
               <span className="text-[17px] leading-none font-semibold tracking-[-0.02em] tabular-nums">{date.getDate()}</span>
               {n ? <span className={`absolute -top-1.5 -right-1.5 flex size-[18px] items-center justify-center rounded-full text-[10.5px] font-semibold ${on ? "bg-clay text-paper" : "bg-ink text-paper"}`}>{n}</span> : null}
             </button>
@@ -177,7 +177,7 @@ export function TimePicker({ session, ws, typeId, length, picked, onChange, max 
               onClick={() => toggle(s)}
               className={`press h-9 rounded-full border text-[12.5px] font-medium tabular-nums transition-colors duration-[140ms] ${on ? "border-ink bg-ink text-paper" : "border-line-strong bg-card text-ink hover:border-ink/40"}`}
             >
-              {new Date(s).toLocaleTimeString("en-GB", { hour: "numeric", minute: "2-digit" })}
+              {new Date(s).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}
             </button>
           );
         })}

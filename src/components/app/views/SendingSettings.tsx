@@ -9,6 +9,7 @@ import { askConfirm, askText } from "../Dialogs";
 import { Select } from "../Select";
 import { SampleTags, ToolIntro } from "../ToolIntro";
 import { Badge, Button, CardHead, ErrorNote, errorText, Field, IconButton, Input, Loading, must, Panel, postJson, Td, Th, timeAgo, useLoad, type Tone, type ViewProps } from "../ui";
+import { CopyButton } from "../CopyButton";
 
 type DnsRecord = { key: string; type: string; name: string; value: string; status: "verified" | "waiting" | "wrong"; seen?: string };
 type Domain = { id: string; domain: string; status: "pending" | "verified" | "failed"; records: DnsRecord[]; error: string | null; checked_at: string | null };
@@ -248,22 +249,13 @@ function DomainCard({ d, owner, sb, onChange, onError }: { d: Domain; owner: boo
   );
 }
 
+/** A DNS value to copy: the value, and the shared copy button. */
 function CopyText({ text }: { text: string }) {
-  const [done, setDone] = useState(false);
   return (
-    <button
-      type="button"
-      title={done ? "Copied" : "Copy"}
-      className="max-w-full text-left font-mono break-all transition-colors duration-[140ms] hover:text-clay"
-      onClick={() =>
-        void navigator.clipboard.writeText(text).then(() => {
-          setDone(true);
-          setTimeout(() => setDone(false), 1200);
-        })
-      }
-    >
-      {done ? "Copied" : text}
-    </button>
+    <span className="flex max-w-full items-center gap-1">
+      <span className="min-w-0 font-mono break-all">{text}</span>
+      <CopyButton text={text} label="Copy" size={13} />
+    </span>
   );
 }
 

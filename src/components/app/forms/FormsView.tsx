@@ -15,7 +15,7 @@ import { Copy, Inbox, Monitor, Pause, Pencil, Phone, Play, Plus, Redo, Send, Tra
 import { BrandLogo } from "../BrandLogo";
 import { askConfirm, askText } from "../Dialogs";
 import { AiAvatar, AiMark, AiTag } from "../Ai";
-import { Badge, Button, Empty, ErrorNote, errorText, Loading, must, Page, postJson, setLeaveGuard, Tabs, timeAgo, useLoad, type ViewProps } from "../ui";
+import { Badge, Button, Empty, ErrorNote, errorText, Loading, must, Page, postJson, Section, setLeaveGuard, Tabs, timeAgo, useLoad, type ViewProps } from "../ui";
 import { Select } from "../Select";
 import { Popover } from "./controls";
 import { Editor } from "./Editor";
@@ -29,6 +29,8 @@ import { ChevronDown, Tablet } from "./icons";
 import { PreviewOverlay } from "./PreviewOverlay";
 import { SettingsTab } from "./SettingsTab";
 import { copy, IconButton, STATUS, type Destination, type FormRow, type Kit, type SourceRow } from "./shared";
+import { FORMS_TABS } from "@/lib/nav";
+import { Report } from "../reports/Report";
 
 type ListRow = {
   id: string;
@@ -43,10 +45,22 @@ type ListRow = {
   check: "running" | "passed" | "failed" | null;
 };
 
+/** Inbound › Forms: the list and the Overview as tabs; a new form and one form open as their own pages. */
 export function FormsView(props: ViewProps) {
   if (props.id === "new") return <FormCreate key="new" {...props} />;
-  if (props.id) return <FormPage key={props.id} {...props} />;
-  return <FormList {...props} />;
+  if (props.id && props.id !== "overview") return <FormPage key={props.id} {...props} />;
+  const nav = { title: "Forms", tabs: FORMS_TABS, current: props.id, onPick: (t: string) => props.navigate("forms", t) };
+  return (
+    <Section nav={nav}>
+      {props.id === "overview" ? (
+        <Page title="Forms">
+          <Report sb={props.sb} ws={props.ws.id} navigate={props.navigate} show={["forms"]} titled={false} />
+        </Page>
+      ) : (
+        <FormList {...props} />
+      )}
+    </Section>
+  );
 }
 
 function FormList(props: ViewProps) {
@@ -148,7 +162,12 @@ function FormPage(props: ViewProps) {
     return { row, published, kits: must(kits) as Kit[], sources: must(sources) as SourceRow[], dests: must(dests) as Destination[], custom: must(custom) as CustomField[], site };
   }, id);
   if (data.error && !data.data) return <ErrorNote message={data.error} />;
-  if (!data.data) return <Loading />;
+  if (!data.data)
+    return (
+      <Page title="Form" back={{ label: "Forms", onClick: () => props.navigate("forms") }}>
+        <Loading />
+      </Page>
+    );
   if (!data.data.row) return <Empty title="Form not found" />;
   return (
     <Builder
@@ -480,7 +499,9 @@ function Builder({
           <StatusMenu status={initial.status} live={!!initial.version} busy={!!busy} onStatus={setStatus} onTest={test} onDelete={remove} />
           {initial.version && changed ? (
             <span className="hidden 2xl:inline-flex">
-              <Badge tone="amber">Unpublished changes</Badge>
+              <Badge tone="amber" dot>
+                Changes not live yet
+              </Badge>
             </span>
           ) : null}
           {sep}
@@ -532,7 +553,7 @@ function Builder({
             Preview
           </Button>
           <Button disabled={!!busy || (!!initial.version && !changed)} onClick={publish}>
-            {busy === "publish" ? "Publishing…" : initial.version && !changed ? "Published" : "Publish"}
+            {busy === "publish" ? "Making live…" : initial.version && !changed ? "Live" : "Make live"}
           </Button>
         </span>
       }
@@ -870,7 +891,7 @@ function Embed({ id, origin, live, form, apply }: { id: string; origin: string; 
         </ol>
       ) : null}
       <div className="flex flex-col">
-        <pre className="max-h-64 overflow-auto rounded-lg bg-[#161615] p-4 font-mono text-[11.5px] leading-relaxed whitespace-pre-wrap text-[#e8e8e3]">{text[way]}</pre>
+        <pre className="max-h-64 overflow-auto rounded-lg bg-ink p-4 font-mono text-[11.5px] leading-relaxed whitespace-pre-wrap text-paper">{text[way]}</pre>
         <div className="flex gap-2 pt-2">
           <Button onClick={async () => setCopied(await copy(text[way]))}>
             <Copy size={14} />
@@ -921,7 +942,7 @@ function Capture({ id, origin, live, form, apply }: { id: string; origin: string
       ) : null}
       {live ? (
         <div className="flex flex-col">
-          <pre className="overflow-x-auto rounded-lg bg-[#161615] p-4 font-mono text-[11.5px] leading-relaxed text-[#e8e8e3]">{snippet}</pre>
+          <pre className="overflow-x-auto rounded-lg bg-ink p-4 font-mono text-[11.5px] leading-relaxed text-paper">{snippet}</pre>
           <div className="pt-2">
             <Button onClick={async () => setCopied(await copy(snippet))}>
               <Copy size={14} />

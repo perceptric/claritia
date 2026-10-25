@@ -122,9 +122,9 @@ export function TestPanel({
   const whyWords = (out?.draft ?? out?.live)?.whyNot?.words;
 
   return (
-    <aside ref={ref} aria-label="Try a lead" className="absolute inset-0 z-10 flex flex-col overflow-y-auto bg-card">
+    <aside ref={ref} aria-label="Try a contact" className="absolute inset-0 z-10 flex flex-col overflow-y-auto bg-card">
       <div className="flex h-12 shrink-0 items-center gap-2 border-b border-line px-5">
-        <h2 className="flex-1 text-[13px] font-semibold text-ink">Try a lead</h2>
+        <h2 className="flex-1 text-[13px] font-semibold text-ink">Try a contact</h2>
         {hasLive ? (
           <Segmented<Which>
             label="Version"

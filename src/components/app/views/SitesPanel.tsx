@@ -6,26 +6,16 @@ import { useState } from "react";
 import { askText } from "../Dialogs";
 import { Badge, Button, CardHead, ErrorNote, errorText, Field, Input, Loading, must, Panel, Tabs, timeAgo, useLoad, type ViewProps } from "../ui";
 import type { SiteHealth } from "./VisitorsView";
+import { CopyButton } from "../CopyButton";
 
 const COLLECT = "https://claritia-collect.fly.dev";
 
+/** A snippet in a box with the shared copy button beside it. */
 export function Copy({ text }: { text: string }) {
-  const [done, setDone] = useState(false);
   return (
     <div className="flex items-start gap-2">
       <pre className="min-w-0 flex-1 overflow-x-auto rounded-sm border border-line bg-paper px-3 py-2 font-mono text-[11.5px] leading-5 whitespace-pre">{text}</pre>
-      <Button
-        variant="ghost"
-        size="sm"
-        onClick={() => {
-          void navigator.clipboard.writeText(text).then(() => {
-            setDone(true);
-            setTimeout(() => setDone(false), 1500);
-          });
-        }}
-      >
-        {done ? "Copied" : "Copy"}
-      </Button>
+      <CopyButton text={text} label="Copy" />
     </div>
   );
 }

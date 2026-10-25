@@ -186,7 +186,7 @@ test("a saved segment refreshes: who joined and who left are events, and a secon
   await q(`select contact_update($1, 'manual', '{"country":"DE"}')`, [id.tom]);
   await q(`select contact_update($1, 'manual', '{"country":"US"}')`, [id.ana]);
   assert.deepEqual((await q(`select segment_refresh($1) r`, [sid]))[0].r, { joined: 1, left: 1 });
-  const ev = await q(`select c.email_clean, e.kind from contact_events e join contacts c on c.id = e.contact_id where e.workspace_id = $1 and e.kind like 'segment.%' order by e.at, c.email_clean`, [ws]);
+  const ev = await q(`select c.email_clean, e.kind from contact_events e join contacts c on c.id = e.contact_id where e.workspace_id = $1 and e.kind like 'segment.%' and e.data->>'segment_id' = $2 order by e.at, c.email_clean`, [ws, sid]);
   assert.deepEqual(ev.map((r) => `${r.email_clean.split("@")[0]}:${r.kind}`), ["jane:segment.entered", "tom:segment.entered", "ana:segment.entered", "tom:segment.left"]);
   assert.equal((await q(`select count from segments where id = $1`, [sid]))[0].count, 2);
   // Tom comes back: entered again.

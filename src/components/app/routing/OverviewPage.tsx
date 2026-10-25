@@ -18,6 +18,7 @@ import { flowCounts, type Stats } from "./editorModel";
 import { Flow } from "./Flow";
 import { FirstScreen } from "./FirstScreen";
 import { useRouterData } from "./useRouterData";
+import { Report } from "../reports/Report";
 
 const FROM_TONE: Partial<Record<Reason, string>> = { form: "bg-clay", import: "bg-sky", crm: "bg-sage", api: "bg-butter" };
 
@@ -218,6 +219,7 @@ export function OverviewPage(props: ViewProps) {
           </div>
           <Flow body={live} counts={flowCounts(d.stats as Partial<Stats>, live)} problems={[]} sel={null} onSelect={() => navigate("routing", "rules")} members={d.members} path={null} runKey={0} />
         </Panel>
+        <Report sb={sb} ws={ws.id} navigate={navigate} show={["speed", "rules"]} />
       </div>
     </Page>
   );

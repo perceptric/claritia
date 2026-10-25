@@ -144,14 +144,14 @@ export function MeetingPage(props: ViewProps) {
             <Panel frame className="anim-rise-sm overflow-hidden">
               <div className="wash flex flex-wrap items-end gap-4 px-6 py-6">
                 <div className="flex min-w-0 flex-1 flex-col gap-1.5">
-                  <span className="label-mono">{start.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}</span>
+                  <span className="label-mono">{start.toLocaleDateString("en-US", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}</span>
                   <span className="text-[31px] leading-none font-semibold tracking-[-0.03em] text-ink tabular-nums">
-                    {start.toLocaleTimeString("en-GB", { hour: "numeric", minute: "2-digit" })}
+                    {start.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}
                     <span className="text-muted"> {minutesText(minutes)}</span>
                   </span>
                   {guestZone ? (
                     <span className="text-[12.5px] text-body">
-                      {start.toLocaleTimeString("en-GB", { hour: "numeric", minute: "2-digit", timeZone: guestZone })} for the guest, {guestZone.split("/").pop()!.replace(/_/g, " ")}
+                      {start.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone: guestZone })} for the guest, {guestZone.split("/").pop()!.replace(/_/g, " ")}
                     </span>
                   ) : null}
                 </div>
@@ -230,7 +230,7 @@ export function MeetingPage(props: ViewProps) {
                     <span className="text-[13px] font-medium text-ink">{eventLabel(e.kind)}</span>
                     {e.kind === "moved" && typeof e.detail.from === "string" ? (
                       <span className="text-[12px] text-muted">
-                        from {new Date(e.detail.from).toLocaleString("en-GB", { weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })}
+                        from {new Date(e.detail.from).toLocaleString("en-US", { weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })}
                       </span>
                     ) : null}
                     {typeof e.detail.reason === "string" ? <span className="text-[12px] text-muted">{e.detail.reason}</span> : null}

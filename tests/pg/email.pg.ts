@@ -1,13 +1,14 @@
-// Sending on a real database (docs/conversion-weeks.md week 9): the guard at send time, flaky SES answers, a worker
-// killed mid-send, SES events, complaint storms, clicks and unsubscribes. SES is a fake that records each call.
+// Sending on a real database (docs/enrich-workflows-reports.md Part 0): the guard at send time, flaky Resend answers,
+// a worker killed mid-send, Resend events, complaint storms, clicks and unsubscribes. Resend is a fake that records
+// each call and the key it carried.
 import assert from "node:assert/strict";
 import { after, before, beforeEach, test } from "node:test";
 import pg from "pg";
 import { uuid7 } from "../../collect/ids.ts";
-import { SesError, type Outgoing, type Ses } from "../../src/lib/email/ses.ts";
+import { SendError, type Outgoing } from "../../src/lib/email/provider.ts";
 import { readToken } from "../../src/lib/email/track.ts";
 import type { Job } from "../../src/lib/jobs.ts";
-import { send } from "../../worker-intel/jobs/email.ts";
+import { send, type Sender } from "../../worker-intel/jobs/email.ts";
 import { pgRpc } from "../../worker-intel/rpc.ts";
 
 const url = process.env.PG_URL;
@@ -23,23 +24,49 @@ let ws = "";
 let owner = "";
 const contact: Record<string, string> = {};
 
-// The fake SES: answers in order from `script` (then "ok"), and keeps every email it took.
+// The fake Resend: each call (one email or a batch) takes the next answer from `script` (then "ok"), and it keeps
+// every email it took with its key. A repeat of a key Resend already took gives the first answer, as Resend does.
 let sent: Outgoing[] = [];
-let script: ("ok" | "throttle" | "reject" | "timeout")[] = [];
-const ses = {
-  region: "ap-northeast-1",
-  async send(m: Outgoing) {
+let keys: string[] = [];
+type Step = "ok" | "throttle" | "reject" | "timeout" | "server";
+let script: Step[] = [];
+const taken = new Map<string, string>();
+const fail = (s: Step) =>
+  s === "throttle" ? new SendError("Resend 429", { status: 429, later: true, retryAfterS: 30 }) :
+  s === "reject" ? new SendError("Resend 422 validation_error", { status: 422, invalid: true }) :
+  s === "server" ? new SendError("Resend 500", { status: 500, retry: true }) :
+  new SendError("Resend didn't answer", { unknown: true });
+const sender: Sender = {
+  async send(m, key) {
+    if (taken.has(key)) return taken.get(key)!;
     const next = script.shift() ?? "ok";
-    if (next === "throttle") throw new SesError("SES 429", { status: 429, retry: true });
-    if (next === "reject") throw new SesError("SES 400 MessageRejected", { status: 400 });
-    if (next === "timeout") throw new SesError("SES didn't answer", { unknown: true });
+    if (next === "timeout") {
+      // Resend took it, but the answer never came back.
+      sent.push(m);
+      keys.push(key);
+      taken.set(key, `re-${uuid7()}`);
+      throw fail(next);
+    }
+    if (next !== "ok") throw fail(next);
     sent.push(m);
-    return `ses-${uuid7()}`;
+    keys.push(key);
+    taken.set(key, `re-${uuid7()}`);
+    return taken.get(key)!;
   },
-} as unknown as Ses;
+  async batch(items) {
+    const next = script.shift() ?? "ok";
+    if (next !== "ok" && next !== "timeout") throw fail(next);
+    for (const i of items) {
+      sent.push(i.out);
+      keys.push(i.key);
+    }
+    if (next === "timeout") throw fail(next);
+    return items.map(() => `re-${uuid7()}`);
+  },
+};
 
 const job = (): Job => ({ id: uuid7(), workspace_id: ws, kind: "send", key: ws, payload: {}, attempts: 1, max_attempts: 3 });
-const runSend = () => send(rpc, { ses, base: "https://app.test", secret: SECRET, roundMs: 5_000, sleep: async () => {} })(job(), new AbortController().signal);
+const runSend = () => send(rpc, { sender, base: "https://app.test", secret: SECRET, roundMs: 5_000, sleep: async () => {} })(job(), new AbortController().signal);
 
 async function newEmail(o: { topic?: string; marketing?: boolean; kind?: string } = {}) {
   return (await rpc("email_create", {
@@ -49,7 +76,7 @@ async function newEmail(o: { topic?: string; marketing?: boolean; kind?: string 
   })).data as string;
 }
 const queue = async (email: string, names: string[]) => (await rpc("email_queue", { p_email: email, p_contacts: names.map((n) => contact[n]) })).data as number;
-const msgOf = (email: string, name: string) => one<{ id: string; status: string; skip_reason: string | null; send_after: Date; ses_message_id: string | null; attempts: number }>(`select * from email_messages where email_id = $1 and contact_id = $2`, [email, contact[name]]);
+const msgOf = (email: string, name: string) => one<{ id: string; status: string; skip_reason: string | null; send_after: Date; provider_id: string | null; attempts: number }>(`select * from email_messages where email_id = $1 and contact_id = $2`, [email, contact[name]]);
 
 before(async () => {
   process.env.SECRETS_KEY = SECRET;
@@ -83,6 +110,7 @@ before(async () => {
 
 beforeEach(() => {
   sent = [];
+  keys = [];
   script = [];
 });
 
@@ -166,7 +194,7 @@ test("quiet hours wait for morning in the contact's time zone; an unknown zone f
   await q(`update email_messages set status = 'skipped', skip_reason = 'test' where email_id = $1 and status = 'queued'`, [e]);
 });
 
-test("flaky SES: a throttle retries, a rejection fails, a timeout is never resent", async () => {
+test("flaky Resend: a rate limit sends nothing and costs no try; a bad address is found alone; a timed-out send repeats with its key and makes one email", async () => {
   const extra: string[] = [];
   for (let i = 0; i < 3; i++) {
     const r = await one<{ id: string }>(`insert into contacts (workspace_id, email, email_clean, country) values ($1, $2, $2, 'US') returning id`, [ws, `flaky${i}-${ws.slice(-6)}@example.com`]);
@@ -175,17 +203,58 @@ test("flaky SES: a throttle retries, a rejection fails, a timeout is never resen
   }
   const e = await newEmail();
   await queue(e, extra);
-  script = ["throttle", "reject", "timeout"];
+  const states = async () => (await q(`select status, attempts from email_messages where email_id = $1 order by to_email`, [e])).map((s) => `${s.status}:${s.attempts}`);
+
+  // The batch hits the rate limit: all three go back in line for 30 seconds, and the try doesn't count.
+  await q(`delete from jobs where workspace_id = $1 and kind = 'send' and status = 'queued'`, [ws]);
+  script = ["throttle"];
   await runSend();
-  const states = await q(`select status, attempts from email_messages where email_id = $1 order by created_at, id`, [e]);
-  assert.deepEqual(states.map((s) => s.status).sort(), ["failed", "queued", "unknown"]);
+  assert.deepEqual(await states(), ["queued:0", "queued:0", "queued:0"]);
   assert.equal(sent.length, 0);
-  // The throttled one comes back later; the unclear one never does.
+  const wait = await one<{ s: number }>(`select extract(epoch from min(send_after) - now())::int s from email_messages where email_id = $1`, [e]);
+  assert.ok(wait.s >= 25 && wait.s <= 31, `waits about 30 s (${wait.s})`);
+  assert.equal((await one<{ n: number }>(`select count(*)::int n from jobs where workspace_id = $1 and kind = 'send' and status = 'queued' and run_after > now() + interval '20 seconds'`, [ws])).n, 1, "the next round waits too");
+
+  // Resend refuses the batch for a bad address: each goes alone. One is refused, one times out after Resend took
+  // it, one goes.
+  await q(`update email_messages set send_after = now() where email_id = $1`, [e]);
+  script = ["reject", "reject", "timeout", "ok"];
+  await runSend();
+  assert.deepEqual((await states()).sort(), ["failed:1", "queued:1", "sent:1"]);
+  assert.equal(sent.length, 2, "the timed-out one did go out");
+
+  // The timed-out one goes again, alone, with the same key: Resend answers with the first email. Still two.
   await q(`update email_messages set send_after = now() where email_id = $1 and status = 'queued'`, [e]);
   await runSend();
-  const after1 = await q(`select status from email_messages where email_id = $1`, [e]);
-  assert.deepEqual(after1.map((s) => s.status).sort(), ["failed", "sent", "unknown"]);
-  assert.equal(sent.length, 1);
+  assert.deepEqual((await states()).sort(), ["failed:1", "sent:1", "sent:2"]);
+  assert.equal(sent.length, 2, "one email per address, never two");
+  assert.equal(new Set(keys).size, keys.length);
+});
+
+test("a batch with no clear answer is never sent again; a server error on one email repeats with its key", async () => {
+  const extra: string[] = [];
+  for (let i = 0; i < 2; i++) {
+    const r = await one<{ id: string }>(`insert into contacts (workspace_id, email, email_clean, country) values ($1, $2, $2, 'US') returning id`, [ws, `unclear${i}-${ws.slice(-6)}@example.com`]);
+    contact[`unclear${i}`] = r.id;
+    extra.push(`unclear${i}`);
+  }
+  const e = await newEmail();
+  await queue(e, extra);
+  script = ["timeout"];
+  await runSend();
+  assert.deepEqual((await q(`select status from email_messages where email_id = $1`, [e])).map((s) => s.status), ["unknown", "unknown"]);
+  const before = sent.length;
+  await runSend();
+  assert.equal(sent.length, before, "an unclear batch is never repeated");
+
+  const e2 = await newEmail();
+  await queue(e2, ["unclear0"]);
+  script = ["server"];
+  await runSend();
+  assert.equal((await one<{ status: string }>(`select status from email_messages where email_id = $1`, [e2])).status, "queued");
+  await q(`update email_messages set send_after = now() where email_id = $1`, [e2]);
+  await runSend();
+  assert.equal((await one<{ status: string }>(`select status from email_messages where email_id = $1`, [e2])).status, "sent");
 });
 
 test("a worker killed mid-send never sends twice: the message turns 'unknown'", async () => {
@@ -193,7 +262,7 @@ test("a worker killed mid-send never sends twice: the message turns 'unknown'", 
   contact.killed = r.id;
   const e = await newEmail();
   await queue(e, ["killed"]);
-  // The worker claims it, hands it to SES, and dies before recording the answer.
+  // The worker claims it, hands it to Resend, and dies before recording the answer.
   const claimed = (await rpc("send_claim", { p_ws: ws, p_limit: 10 })).data as { id: string }[];
   assert.equal(claimed.length, 1);
   assert.equal((await msgOf(e, "killed")).status, "sending");
@@ -205,7 +274,7 @@ test("a worker killed mid-send never sends twice: the message turns 'unknown'", 
   assert.equal(sent.length, 0);
 });
 
-test("SES events: delivered once per SNS id; hard bounces and 3 soft bounces suppress", async () => {
+test("Resend events: delivered once per event id; hard bounces and 3 soft bounces suppress; a late delivered never undoes a bounce", async () => {
   const e = await newEmail();
   for (const n of ["bounce_hard", "bounce_soft"]) {
     const r = await one<{ id: string }>(`insert into contacts (workspace_id, email, email_clean, country) values ($1, $2, $2, 'US') returning id`, [ws, `${n}-${ws.slice(-6)}@example.com`]);
@@ -215,32 +284,35 @@ test("SES events: delivered once per SNS id; hard bounces and 3 soft bounces sup
   await runSend();
   const hard = await msgOf(e, "bounce_hard");
   const soft = await msgOf(e, "bounce_soft");
-  const apply = async (ev: object) => (await rpc("ses_event_apply", { p_event: ev })).data;
+  const apply = async (ev: object) => (await rpc("email_event_apply", { p_event: ev })).data;
 
-  assert.equal(await apply({ sns_id: `d-${hard.id}`, ses_message_id: hard.ses_message_id, kind: "delivered", at: new Date().toISOString() }), "ok");
-  assert.equal(await apply({ sns_id: `d-${hard.id}`, ses_message_id: hard.ses_message_id, kind: "delivered", at: new Date().toISOString() }), "duplicate");
+  assert.equal(await apply({ event_id: `d-${hard.id}`, provider_id: hard.provider_id, kind: "delivered", at: new Date().toISOString() }), "ok");
+  assert.equal(await apply({ event_id: `d-${hard.id}`, provider_id: hard.provider_id, kind: "delivered", at: new Date().toISOString() }), "duplicate");
   assert.equal((await msgOf(e, "bounce_hard")).status, "delivered");
-  assert.equal(await apply({ sns_id: `b-${hard.id}`, ses_message_id: hard.ses_message_id, kind: "bounced", bounce: "hard" }), "ok");
+  assert.equal(await apply({ event_id: `b-${hard.id}`, provider_id: hard.provider_id, kind: "bounced", bounce: "hard" }), "ok");
   assert.equal((await one<{ reason: string }>(`select reason from suppressions where workspace_id = $1 and email_clean = $2`, [ws, `bounce_hard-${ws.slice(-6)}@example.com`])).reason, "bounced");
 
-  for (let i = 0; i < 2; i++) await apply({ sns_id: `s${i}-${soft.id}`, ses_message_id: soft.ses_message_id, kind: "bounced", bounce: "soft" });
+  for (let i = 0; i < 2; i++) await apply({ event_id: `s${i}-${soft.id}`, provider_id: soft.provider_id, kind: "bounced", bounce: "soft" });
   assert.equal((await q(`select 1 from suppressions where workspace_id = $1 and email_clean = $2`, [ws, `bounce_soft-${ws.slice(-6)}@example.com`])).length, 0, "two soft bounces don't suppress");
-  await apply({ sns_id: `s2-${soft.id}`, ses_message_id: soft.ses_message_id, kind: "bounced", bounce: "soft" });
+  await apply({ event_id: `s2-${soft.id}`, provider_id: soft.provider_id, kind: "bounced", bounce: "soft" });
   assert.equal((await q(`select 1 from suppressions where workspace_id = $1 and email_clean = $2`, [ws, `bounce_soft-${ws.slice(-6)}@example.com`])).length, 1, "the third does");
-  assert.equal(await apply({ sns_id: "x", ses_message_id: "not-ours", kind: "delivered" }), "unknown_message");
+  assert.equal(await apply({ event_id: "x", provider_id: "not-ours", kind: "delivered" }), "unknown_message");
+  // Events out of order: a "delivered" that arrives after the bounce leaves it bounced.
+  assert.equal(await apply({ event_id: `late-${hard.id}`, provider_id: hard.provider_id, kind: "delivered" }), "ok");
+  assert.equal((await msgOf(e, "bounce_hard")).status, "bounced");
 });
 
 test("a complaint storm pauses the workspace; the owner resumes it", async () => {
   // 600 sent in the last week, then 2 complaints: 0.33%, over the 0.2% line.
   const e = await newEmail();
   await q(
-    `insert into email_messages (workspace_id, email_id, to_email, dedupe, status, sent_at, ses_message_id)
+    `insert into email_messages (workspace_id, email_id, to_email, dedupe, status, sent_at, provider_id)
      select $1, $2::uuid, 'bulk' || g || '@example.com', 'bulk' || g, 'sent', now() - interval '1 day', 'bulk-' || $2::text || '-' || g from generate_series(1, 600) g`,
     [ws, e],
   );
-  await rpc("ses_event_apply", { p_event: { sns_id: `c1-${e}`, ses_message_id: `bulk-${e}-1`, kind: "complained" } });
+  await rpc("email_event_apply", { p_event: { event_id: `c1-${e}`, provider_id: `bulk-${e}-1`, kind: "complained" } });
   assert.equal((await one<{ paused: boolean }>(`select paused from send_settings where workspace_id = $1`, [ws])).paused, false, "one complaint in 600 is under the line");
-  await rpc("ses_event_apply", { p_event: { sns_id: `c2-${e}`, ses_message_id: `bulk-${e}-2`, kind: "complained" } });
+  await rpc("email_event_apply", { p_event: { event_id: `c2-${e}`, provider_id: `bulk-${e}-2`, kind: "complained" } });
   const s = await one<{ paused: boolean; paused_reason: string }>(`select paused, paused_reason from send_settings where workspace_id = $1`, [ws]);
   assert.equal(s.paused, true);
   assert.match(s.paused_reason, /2 of 6\d\d sent/);

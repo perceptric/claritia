@@ -14,6 +14,8 @@ export const BASE_FIELDS: FieldDef[] = [
   { key: "contact.email_domain", label: "Email domain", group: "Contact", type: "text" },
   { key: "contact.email_class", label: "Email type", group: "Contact", type: "choice", options: ["work", "free", "role"] },
   { key: "contact.title", label: "Job title", group: "Contact", type: "text" },
+  { key: "contact.seniority", label: "Seniority", group: "Contact", type: "choice", options: ["C-level", "VP", "Director", "Manager", "Individual"] },
+  { key: "contact.department", label: "Department", group: "Contact", type: "choice", options: ["Marketing", "Sales", "Engineering", "Product", "Finance", "HR", "Operations", "Other"] },
   { key: "contact.country", label: "Contact country", group: "Contact", type: "country" },
   { key: "contact.region", label: "State or region", group: "Contact", type: "text" },
   { key: "contact.lifecycle", label: "Lifecycle stage", group: "Contact", type: "choice", options: ["subscriber", "lead", "mql", "sql", "opportunity", "customer", "evangelist", "other"] },
@@ -23,6 +25,7 @@ export const BASE_FIELDS: FieldDef[] = [
   { key: "company.country", label: "Company country", group: "Company", type: "country" },
   { key: "company.industry", label: "Industry", group: "Company", type: "text" },
   { key: "company.size", label: "Company size", group: "Company", type: "number" },
+  { key: "company.employees", label: "Employees", group: "Company", type: "number" },
   { key: "company.type", label: "Company type", group: "Company", type: "choice" },
   { key: "lead.form", label: "Form", group: "Source", type: "choice" },
   { key: "lead.source", label: "Came from", group: "Source", type: "choice", options: ["form", "import", "crm", "api"] },
@@ -31,6 +34,7 @@ export const BASE_FIELDS: FieldDef[] = [
   { key: "utm.campaign", label: "UTM campaign", group: "Source", type: "text" },
   { key: "lead.score", label: "Lead score", group: "Score", type: "number" },
   { key: "lead.band", label: "Score band", group: "Score", type: "text" },
+  { key: "lead.qualify", label: "Qualify outcome", group: "Score", type: "choice" },
 ];
 
 /** The tests that fit a field's type. */

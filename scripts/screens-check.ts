@@ -4,8 +4,9 @@
 // first sentence that skips what it settles, a template, and Start blank with click and drag on the canvas. Then the
 // CRM: a custom field from the table, a rating from the record page, a note and a task. Then Meetings: a guest books
 // from the booking page, and a lead books inside a Claritia calendar form right after sending it. Then the app's
-// structure (docs/app-structure.md): the sidebar's groups, Scheduling's pages with a named schedule, Signals,
-// Enrichment, and Routing's pages from the first screen to Make live, Teams' Deal 20 leads and a company type.
+// structure (docs/unify-plan.md): the four sections, Scheduling's tabs with a named schedule, Visitors, Enrichment,
+// and Routing's tabs from the first screen to Make live, Teams' Deal 20 leads and a company type, Workflows from a
+// blank one to Make live and Try a contact, an email template, and the reports inside their sections.
 //   POSTGREST_BIN=… CHROMIUM_PATH=… node scripts/screens-check.ts
 // scripts/test-db.sh runs it when both are set.
 
@@ -93,7 +94,7 @@ const fill = async (id: string, values: Record<string, string>) => {
   await p.close();
 };
 const publish = async () => {
-  await page.getByRole("button", { name: "Publish" }).click();
+  await page.getByRole("button", { name: "Make live" }).click();
   // The first publish waits on next dev compiling the publish route.
   await until(async () => (await db.query(`select status from forms where id = $1`, [formId()])).rows[0]?.status === "live", 60_000, "the form to go live");
 };
@@ -104,8 +105,9 @@ try {
   await page.goto(`${base}/nope`);
   await until(async () => new URL(page.url()).pathname === "/contacts", 60_000, "the app to open on Contacts");
   const nav = page.getByRole("navigation", { name: "Main" });
-  for (const g of ["CRM", "Automation", "Routing", "Scheduling", "Email"]) await nav.getByRole("group", { name: g }).waitFor({ timeout: 60_000 });
-  check(true, "the app opens on Contacts with CRM, Automation, Routing, Scheduling and Email");
+  for (const g of ["CRM", "Automation", "Inbound", "Nurture"]) await nav.getByRole("group", { name: g }).waitFor({ timeout: 60_000 });
+  const gone = await Promise.all(["Pages", "Ads", "Funnel", "Rules", "Meeting types"].map((n) => nav.getByRole("link", { name: n, exact: true }).count()));
+  check(gone.every((n) => n === 0), "the app opens on Contacts with CRM, Automation, Inbound and Nurture, and no Pages, Ads or sub-pages in the sidebar");
 
   // An empty workspace opens Forms on the first screen.
   await page.goto(`${base}/forms`);
@@ -246,11 +248,13 @@ try {
   await page.getByRole("dialog").getByRole("button", { name: "Save", exact: true }).click();
   await until(async () => (await db.query(`select count(*)::int n from availability_schedules where workspace_id = $1 and name = 'Demo hours'`, [ws])).rows[0].n === 1, 30_000, "the schedule to save");
   check(true, "a named schedule is made on Availability");
-  for (const p of ["links", "forms", "reminders", "payments"]) {
+  for (const p of ["links", "reminders", "payments"]) {
     await page.goto(`${base}/scheduling/${p}`);
-    await page.locator("h1").first().waitFor({ timeout: 60_000 });
+    await page.getByRole("tab", { selected: true }).filter({ hasText: p === "links" ? "Links and polls" : p === "reminders" ? "Reminders" : "Payments" }).waitFor({ timeout: 60_000 });
   }
-  check(true, "Links and polls, Booking forms, Reminders and Payments open");
+  check((await page.locator("h1").allInnerTexts()).join() === "Scheduling", "Links and polls, Reminders and Payments open as tabs under one Scheduling title");
+  await page.goto(`${base}/scheduling/forms`);
+  await until(async () => new URL(page.url()).pathname === "/forms", 30_000, "Booking forms to forward to Forms");
 
   // The booking page: a time, then Next, the details, and Book meeting.
   const guestPage = await browser.newPage();
@@ -293,14 +297,25 @@ try {
   check(fromForm.length === 1 && fromForm[0].status === "booked" && !!fromForm[0].submission_id, "a lead books inside the form, and the meeting links to the fill");
   await lead.close();
 
-  // Signals and Enrichment open with their numbers.
+  // Visitors (once Signals, and its old address forwards) and Enrichment open with their numbers.
   await page.goto(`${base}/signals`);
+  await until(async () => new URL(page.url()).pathname === "/visitors", 30_000, "Signals to forward to Visitors");
   await page.getByText("Companies on the site").first().waitFor({ timeout: 60_000 });
   await page.goto(`${base}/enrichment`);
-  await page.getByText("Companies filled").first().waitFor({ timeout: 60_000 });
-  check(true, "Signals and Enrichment open on their numbers");
+  await page.getByText("Fields filled this month").first().waitFor({ timeout: 60_000 });
+  check(true, "Visitors and Enrichment open on their numbers");
 
-  // Routing: a template, Make live, Try a lead, a form fill routed in the send, a held lead let through, History.
+  // Enrichment's steps in order, and Qualify turned on from Rules.
+  await page.goto(`${base}/enrichment/providers`);
+  await page.getByText("Try an email").first().waitFor({ timeout: 60_000 });
+  const steps = await page.locator("ol li").allInnerTexts();
+  check(["Email check", "Coresignal", "People Data Labs"].every((n, i) => steps[i]?.includes(n)), "Providers lists the waterfall in order");
+  await page.goto(`${base}/enrichment/rules`);
+  await page.getByRole("switch", { name: "Qualify new leads" }).click();
+  await until(async () => (await db.query(`select "on" from qualify_settings where workspace_id = $1`, [ws])).rows[0]?.on === true, 30_000, "qualify to turn on");
+  check(true, "Qualify turns on from Rules");
+
+  // Routing: a template, Make live, Try a contact, a form fill routed in the send, a held lead let through, History.
   await page.goto(`${base}/routing`);
   await page.getByRole("button", { name: /Everyone takes turns/ }).first().click({ timeout: 60_000 });
   await until(async () => new URL(page.url()).pathname === "/routing/rules", 30_000, "the setup to open on Rules");
@@ -310,11 +325,11 @@ try {
   await page.getByRole("dialog").getByRole("button", { name: "Make live", exact: true }).click({ timeout: 30_000 });
   await until(async () => (await db.query(`select live_version from routers where workspace_id = $1`, [ws])).rows[0]?.live_version === 1, 30_000, "the router to go live");
   check(true, "a template goes live");
-  await page.getByRole("button", { name: "Try a lead", exact: true }).first().click();
+  await page.getByRole("button", { name: "Try a contact", exact: true }).first().click();
   await page.getByRole("textbox", { name: "Email" }).fill("rae@northwind.io");
   await page.keyboard.press("Enter");
-  await page.getByRole("complementary", { name: "Try a lead" }).getByText("Filter out junk").first().waitFor({ timeout: 30_000 });
-  check(true, "Try a lead explains where a lead would go");
+  await page.getByRole("complementary", { name: "Try a contact" }).getByText("Filter out junk").first().waitFor({ timeout: 30_000 });
+  check(true, "Try a contact explains where a lead would go");
   await page.goto(`${base}/routing`);
   await page.getByText("Routing is on.").waitFor({ timeout: 60_000 });
   await page.getByText("Your setup in plain words").waitFor();
@@ -359,6 +374,66 @@ try {
   await until(async () => (await db.query(`select draft->'segments'->0->>'name' n from routers where workspace_id = $1`, [ws])).rows[0]?.n === "Enterprise", 30_000, "the company type to save to the draft");
   await page.getByText("You have changes that aren't live.").waitFor({ timeout: 30_000 });
   check(true, "a company type saves to the draft and asks to make it live");
+
+  // Workflows: a blank one with a task goes live; Try a contact reads its path; a saved email template.
+  await page.goto(`${base}/workflows`);
+  await page.getByRole("button", { name: "New workflow" }).first().click({ timeout: 60_000 });
+  await page.getByRole("button", { name: /Start blank/ }).click({ timeout: 30_000 });
+  await until(async () => /^\/workflows\/[0-9a-f-]{36}$/.test(new URL(page.url()).pathname), 30_000, "the new workflow to open");
+  await page.getByRole("button", { name: "Add a step" }).last().click({ timeout: 30_000 });
+  await page.getByRole("button", { name: "Create task", exact: true }).click();
+  await until(async () => (await db.query(`select draft->'steps'->0->>'kind' k from workflows where workspace_id = $1`, [ws])).rows[0]?.k === "task", 30_000, "the task to save to the draft");
+  check(true, "a step added to a workflow saves to the draft");
+  const wfLive = page.getByRole("button", { name: "Make live", exact: true }).first();
+  await until(async () => await wfLive.isEnabled(), 30_000, "the workflow to be ready to make live");
+  await wfLive.click();
+  await page.getByRole("dialog").getByRole("button", { name: "Make live", exact: true }).click({ timeout: 30_000 });
+  await until(async () => (await db.query(`select status, live_version from workflows where workspace_id = $1`, [ws])).rows[0]?.live_version === 1, 30_000, "the workflow to go live");
+  check(true, "a workflow goes live");
+  await page.getByRole("button", { name: "Try a contact", exact: true }).first().click({ timeout: 30_000 });
+  await page.getByRole("textbox", { name: "Find a contact" }).fill("lee");
+  await page.getByRole("dialog", { name: "Try a contact" }).getByRole("button", { name: /Lee/ }).first().click({ timeout: 30_000 });
+  await page.getByRole("dialog", { name: "Try a contact" }).getByText("Task for their rep: Follow up").waitFor({ timeout: 30_000 });
+  check(true, "Try a contact reads the path a contact would take");
+  await page.goto(`${base}/templates`);
+  await page.getByRole("button", { name: "New template" }).first().click({ timeout: 60_000 });
+  await page.getByRole("dialog").getByRole("textbox").fill("Product update");
+  await page.getByRole("dialog").getByRole("button", { name: "Create", exact: true }).click();
+  await until(async () => (await db.query(`select count(*)::int n from email_templates where workspace_id = $1 and name = 'Product update'`, [ws])).rows[0]?.n === 1, 30_000, "the template to save");
+  check(true, "an email template saves");
+
+  // Reports live in their sections: the funnel on Contacts › Overview counts the fills above and opens the contacts
+  // behind a number; speed to lead on Routing › Overview; old Reports and Analytics addresses forward.
+  await page.goto(`${base}/reports`);
+  await until(async () => new URL(page.url()).pathname === "/contacts/overview", 30_000, "Reports to forward to Contacts › Overview");
+  await page.getByRole("list", { name: "Funnel" }).waitFor({ timeout: 60_000 });
+  const submitted = page.getByRole("list", { name: "Funnel" }).getByRole("listitem").filter({ hasText: "Submitted" }).getByRole("button");
+  await submitted.click({ timeout: 30_000 });
+  await page.getByRole("dialog", { name: "Submitted" }).getByText("mo@initech.io").waitFor({ timeout: 30_000 });
+  check(true, "the funnel counts this month's fills and lists the contacts behind a number");
+  await page.keyboard.press("Escape");
+  await page.goto(`${base}/routing`);
+  await page.getByText("To a rep").first().waitFor({ timeout: 60_000 });
+  check(true, "Speed to lead shows on Routing › Overview");
+  await page.goto(`${base}/analytics`);
+  await until(async () => new URL(page.url()).pathname === "/emails", 30_000, "Analytics to forward to Nurture › Emails");
+  await page.goto(`${base}/pages`);
+  await until(async () => new URL(page.url()).pathname === "/contacts", 30_000, "the removed Pages to open Contacts");
+  check(true, "old Analytics and Pages addresses open their new homes");
+
+  // SHOTS_DIR=<folder> keeps a picture of every section in light and dark, for a person to look over.
+  if (process.env.SHOTS_DIR) {
+    for (const theme of ["light", "dark"]) {
+      await page.evaluate((t) => localStorage.setItem("claritia:theme", t), theme);
+      for (const r of ["contacts", "contacts/overview", "workflows", "routing", "routing/rules", "enrichment", "forms", "scheduling/types", "scheduling/availability", "visitors", "emails", "emails/templates", "segments", "scoring", "settings"]) {
+        await page.goto(`${base}/${r}`);
+        await page.locator("h1").first().waitFor({ timeout: 60_000 });
+        await page.waitForTimeout(1500);
+        await page.screenshot({ path: join(process.env.SHOTS_DIR, `${r.replace(/\//g, "-")}-${theme}.png`) });
+      }
+    }
+    await page.evaluate(() => localStorage.setItem("claritia:theme", "light"));
+  }
 
   check(!errors.length, `no page errors (${errors.slice(0, 3).join(" | ")})`);
 } catch (e) {

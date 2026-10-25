@@ -1,32 +1,57 @@
-// A sending domain's DNS records and their state (docs/marketing-platform.md M3, Settings › Sending).
-//   DKIM: three CNAMEs from SES (Easy DKIM).
-//   SPF and bounces: an MX and a TXT on the custom MAIL FROM subdomain.
-//   DMARC: a TXT at _dmarc (or on a parent domain), p=none is enough.
-// Sending stays blocked until SES confirms DKIM and MAIL FROM and a DMARC record exists.
+// A sending domain's DNS records and their state (Settings › Sending, docs/enrich-workflows-reports.md Part 0).
+//   Resend's records: a DKIM TXT at resend._domainkey, and an MX and an SPF TXT on the send. return path.
+//   DMARC: a TXT at _dmarc (or on a parent domain); p=none is enough. Resend doesn't check it, we do.
+// Resend's word wins for its own records. Our DNS lookup only tells "waiting" from "wrong" while Resend waits.
+// Sending stays blocked until Resend says verified and a DMARC record exists.
 
 import { promises as dns } from "node:dns";
-import type { Identity } from "./ses.ts";
+import type { ResendDomain, ResendRecord } from "./resend.ts";
 
 export type RecordState = "verified" | "waiting" | "wrong";
 export type DnsRecord = { key: string; type: "CNAME" | "MX" | "TXT"; name: string; value: string; status: RecordState; seen?: string };
-export type DomainRow = { id: string; domain: string; mail_from: string; dkim_tokens: string[] };
+export type DomainRow = { id: string; domain: string; provider_id: string | null };
 
 export type Resolver = {
-  cname: (name: string) => Promise<string[]>;
   mx: (name: string) => Promise<{ exchange: string; priority: number }[]>;
   txt: (name: string) => Promise<string[][]>;
+  cname: (name: string) => Promise<string[]>;
 };
 
 export const systemResolver: Resolver = { cname: (n) => dns.resolveCname(n), mx: (n) => dns.resolveMx(n), txt: (n) => dns.resolveTxt(n) };
 
-/** The records to add, before any check. */
-export function expectedRecords(d: DomainRow, region: string, tokens = d.dkim_tokens): Omit<DnsRecord, "status">[] {
-  return [
-    ...tokens.map((t, i) => ({ key: `dkim${i + 1}`, type: "CNAME" as const, name: `${t}._domainkey.${d.domain}`, value: `${t}.dkim.amazonses.com` })),
-    { key: "mx", type: "MX" as const, name: d.mail_from, value: `10 feedback-smtp.${region}.amazonses.com` },
-    { key: "spf", type: "TXT" as const, name: d.mail_from, value: "v=spf1 include:amazonses.com ~all" },
-    { key: "dmarc", type: "TXT" as const, name: `_dmarc.${d.domain}`, value: `v=DMARC1; p=none; rua=mailto:dmarc@${d.domain}` },
-  ];
+/**
+ * The full host for a record name Resend gives relative to the domain's zone. "send" on mail.acme.com is
+ * send.mail.acme.com; "send.mail" on mail.acme.com is the same host (the name already ends with the domain's first
+ * label); a full name stays as it is.
+ */
+export function hostOf(name: string, domain: string): string {
+  const n = name.toLowerCase().replace(/\.$/, "");
+  const d = domain.toLowerCase();
+  if (n === d || n.endsWith(`.${d}`) || n === "@" || n === "") return n === "@" || n === "" ? d : n;
+  const nl = n.split(".");
+  const dl = d.split(".");
+  // The longest run of the name's last labels that matches the domain's first labels, short of the whole domain.
+  for (let k = Math.min(nl.length - 1, dl.length - 1); k > 0; k--) {
+    if (nl.slice(nl.length - k).join(".") === dl.slice(0, k).join(".")) return [...nl, ...dl.slice(k)].join(".");
+  }
+  return `${n}.${d}`;
+}
+
+const dmarcRecord = (domain: string): Omit<DnsRecord, "status"> => ({ key: "dmarc", type: "TXT", name: `_dmarc.${domain}`, value: `v=DMARC1; p=none; rua=mailto:dmarc@${domain}` });
+
+/** Our record list from Resend's: DKIM, then the return path's MX and SPF, then DMARC. */
+export function expectedRecords(domain: string, rs: ResendRecord[]): (Omit<DnsRecord, "status"> & { resend?: string })[] {
+  const out: (Omit<DnsRecord, "status"> & { resend?: string })[] = [];
+  const count: Record<string, number> = {};
+  const order = (r: ResendRecord) => (r.record === "DKIM" ? 0 : r.type === "MX" ? 1 : 2);
+  for (const r of [...rs].sort((a, b) => order(a) - order(b))) {
+    const type = (["CNAME", "MX", "TXT"].includes(r.type) ? r.type : "TXT") as DnsRecord["type"];
+    const base = r.record === "DKIM" ? "dkim" : type === "MX" ? "mx" : r.record === "SPF" ? "spf" : (r.record || type).toLowerCase().replace(/[^a-z]/g, "");
+    count[base] = (count[base] ?? 0) + 1;
+    out.push({ key: count[base] > 1 ? `${base}${count[base]}` : base, type, name: hostOf(r.name, domain), value: type === "MX" ? `${r.priority ?? 10} ${r.value}` : r.value, resend: r.status });
+  }
+  out.push(dmarcRecord(domain));
+  return out;
 }
 
 // Empty answers and "no such name" mean the record isn't there yet. Anything else (a timeout) tells us nothing.
@@ -39,43 +64,39 @@ async function look<T>(f: () => Promise<T[]>): Promise<T[] | null> {
   }
 }
 const same = (a: string, b: string) => a.toLowerCase().replace(/\.$/, "") === b.toLowerCase().replace(/\.$/, "");
+const squash = (s: string) => s.replace(/\s+/g, "").replace(/^"|"$/g, "");
 
-/** Check every record. SES's word wins for DKIM and MAIL FROM; DNS tells "waiting" from "wrong". */
-export async function checkRecords(d: DomainRow, identity: Identity, region: string, r: Resolver = systemResolver): Promise<{ records: DnsRecord[]; status: "pending" | "verified" | "failed" }> {
-  const tokens = identity.dkimTokens.length ? identity.dkimTokens : d.dkim_tokens;
-  const want = expectedRecords(d, region, tokens);
-  const dkimOk = identity.dkimStatus === "SUCCESS";
-  const mailFromOk = identity.mailFromStatus === "SUCCESS" && identity.mailFrom === d.mail_from;
-
+/** Check every record against Resend's answer and DNS. */
+export async function checkRecords(domain: string, rd: ResendDomain, r: Resolver = systemResolver): Promise<{ records: DnsRecord[]; status: "pending" | "verified" | "failed" }> {
   const records: DnsRecord[] = [];
-  for (const w of want) {
-    if (w.type === "CNAME") {
-      if (dkimOk) {
-        records.push({ ...w, status: "verified" });
-        continue;
-      }
-      const got = await look(() => r.cname(w.name));
-      records.push({ ...w, status: got?.length && !got.some((g) => same(g, w.value)) ? "wrong" : "waiting", ...(got?.length ? { seen: got.join(", ") } : {}) });
-    } else if (w.key === "mx") {
-      if (mailFromOk) {
-        records.push({ ...w, status: "verified" });
-        continue;
-      }
-      const got = await look(() => r.mx(w.name));
-      const host = w.value.split(" ")[1];
-      records.push({ ...w, status: got?.length && !got.some((g) => same(g.exchange, host)) ? "wrong" : "waiting", ...(got?.length ? { seen: got.map((g) => `${g.priority} ${g.exchange}`).join(", ") } : {}) });
-    } else if (w.key === "spf") {
-      const got = (await look(() => r.txt(w.name)))?.map((p) => p.join("")) ?? null;
-      const spf = got?.filter((t) => /^v=spf1\b/i.test(t)) ?? [];
-      const ok = spf.some((t) => /include:amazonses\.com\b/i.test(t));
-      records.push({ ...w, status: ok && mailFromOk ? "verified" : spf.length && !ok ? "wrong" : "waiting", ...(spf.length ? { seen: spf.join(" | ") } : {}) });
+  for (const w of expectedRecords(domain, rd.records)) {
+    const { resend, ...rec } = w;
+    if (rec.key === "dmarc") {
+      const found = await dmarcOf(domain, r);
+      records.push({ ...rec, status: found.ok ? "verified" : found.seen ? "wrong" : "waiting", ...(found.seen ? { seen: found.seen } : {}) });
+      continue;
+    }
+    if (resend === "verified") {
+      records.push({ ...rec, status: "verified" });
+      continue;
+    }
+    if (rec.type === "MX") {
+      const got = await look(() => r.mx(rec.name));
+      const host = rec.value.split(" ").pop() ?? "";
+      records.push({ ...rec, status: got?.length && !got.some((g) => same(g.exchange, host)) ? "wrong" : "waiting", ...(got?.length ? { seen: got.map((g) => `${g.priority} ${g.exchange}`).join(", ") } : {}) });
+    } else if (rec.type === "CNAME") {
+      const got = await look(() => r.cname(rec.name));
+      records.push({ ...rec, status: got?.length && !got.some((g) => same(g, rec.value)) ? "wrong" : "waiting", ...(got?.length ? { seen: got.join(", ") } : {}) });
     } else {
-      const found = await dmarcOf(d.domain, r);
-      records.push({ ...w, status: found.ok ? "verified" : found.seen ? "wrong" : "waiting", ...(found.seen ? { seen: found.seen } : {}) });
+      const got = (await look(() => r.txt(rec.name)))?.map((p) => p.join("")) ?? null;
+      // An SPF host can hold one SPF record only; a DKIM host holds the key.
+      const rel = rec.key.startsWith("spf") ? (got ?? []).filter((t) => /^v=spf1\b/i.test(t)) : (got ?? []);
+      const ok = rel.some((t) => squash(t) === squash(rec.value));
+      records.push({ ...rec, status: rel.length && !ok ? "wrong" : "waiting", ...(rel.length ? { seen: rel.join(" | ").slice(0, 300) } : {}) });
     }
   }
   const dmarc = records.find((x) => x.key === "dmarc")?.status === "verified";
-  const status = identity.dkimStatus === "FAILED" ? "failed" : dkimOk && mailFromOk && dmarc ? "verified" : "pending";
+  const status = rd.status === "failed" ? "failed" : rd.status === "verified" && dmarc ? "verified" : "pending";
   return { records, status };
 }
 

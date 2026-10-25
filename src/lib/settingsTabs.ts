@@ -1,5 +1,6 @@
 // Settings pages, grouped the way the Settings sidebar shows them (same layout as Arrowsterr). Sites, Identity and
-// Account alerts moved to Signals; Calendar, Calendars and Payments to Scheduling (src/lib/nav.ts forwards them).
+// Account alerts moved to Visitors; Calendar, Calendars and Payments to Scheduling; Ideal customer and Lead scoring to
+// Nurture › Lead scoring (src/lib/nav.ts forwards them).
 
 export type SettingsTab =
   | "sources" | "imports" | "sync_log" | "fields" | "objects" | "sending" | "team" | "calendars" | "sites" | "identity" | "icp" | "lead_scoring" | "account_alerts" | "workspace" | "payments" | "keys" | "profile" | "calendar";
@@ -12,7 +13,6 @@ export const SETTINGS_GROUPS: SettingsGroup[] = [
   },
   { label: "Email", tabs: [{ id: "sending", label: "Sending domains" }] },
   { label: "Team", tabs: [{ id: "team", label: "Members" }] },
-  { label: "Scoring", tabs: [{ id: "icp", label: "Ideal customer" }, { id: "lead_scoring", label: "Lead scoring" }] },
   { label: "Workspace", tabs: [{ id: "workspace", label: "General" }, { id: "keys", label: "API keys" }] },
   { label: "Account", tabs: [{ id: "profile", label: "Profile" }] },
 ];

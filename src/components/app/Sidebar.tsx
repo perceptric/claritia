@@ -5,42 +5,29 @@
 // tile in their group's wash, and Needs review and Meetings show a count. Folds to icons between 768 and 1,280 px.
 
 import { useEffect, useState } from "react";
-import { activeItem, GROUPS, NAV, type GroupKey, type NavItem, type Route as NavRoute } from "@/lib/nav";
+import { activeItem, GROUPS, NAV, type GroupKey, type NavItem, type Route as NavRoute, type Tone } from "@/lib/nav";
 import {
-  BarChart,
   Box,
   Branch,
-  Building,
   CalendarIcon,
-  Card,
   ChevronDown,
   Clock,
   Contact,
   Dollar,
-  FileText,
-  Flag,
   FormIcon,
   Gauge,
-  History,
   Layers,
-  Link as LinkIcon,
   ListIcon,
   LogOut,
   Mail,
-  MapIcon,
-  Megaphone,
-  Mic,
   Moon,
   Plus,
   Radar,
   Search,
   Settings,
   Signpost,
-  Sparkle,
   Sun,
-  Swap,
   Users,
-  Bell,
 } from "../Icons";
 import { Logo } from "../Logo";
 import { Popover } from "./FilterBar";
@@ -54,34 +41,18 @@ export const NAV_ICONS: Record<string, React.ReactNode> = {
   meetings: <CalendarIcon size={14} />,
   objects: <Box size={14} />,
   workflows: <Branch size={14} />,
-  forms: <FormIcon size={14} />,
-  signals: <Radar size={14} />,
+  routing: <Signpost size={14} />,
   enrichment: <Layers size={14} />,
-  routing: <Gauge size={14} />,
-  "routing/rules": <Signpost size={14} />,
-  "routing/teams": <Users size={14} />,
-  "routing/regions": <MapIcon size={14} />,
-  "routing/company-types": <Building size={14} />,
-  "routing/handoffs": <Swap size={14} />,
-  "routing/history": <History size={14} />,
-  "routing/review": <Flag size={14} />,
-  "scheduling/types": <CalendarIcon size={14} />,
-  "scheduling/availability": <Clock size={14} />,
-  "scheduling/links": <LinkIcon size={14} />,
-  "scheduling/forms": <FormIcon size={14} />,
-  "scheduling/reminders": <Bell size={14} />,
-  "scheduling/payments": <Card size={14} />,
-  "scheduling/ai": <Sparkle size={14} />,
-  "scheduling/notetaker": <Mic size={14} />,
+  forms: <FormIcon size={14} />,
+  scheduling: <Clock size={14} />,
+  visitors: <Radar size={14} />,
+  emails: <Mail size={14} />,
   segments: <ListIcon size={14} />,
-  templates: <Mail size={14} />,
-  analytics: <BarChart size={14} />,
-  pages: <FileText size={14} />,
-  ads: <Megaphone size={14} />,
+  scoring: <Gauge size={14} />,
   settings: <Settings size={14} />,
 };
 
-const TILE: Record<"sky" | "clay" | "sage" | "butter", string> = {
+const TILE: Record<Tone, string> = {
   sky: "bg-sky-wash text-sky",
   clay: "bg-clay-wash text-clay",
   sage: "bg-sage-wash text-sage",
@@ -118,7 +89,7 @@ export type SidebarProps = {
 };
 
 export function Sidebar(p: SidebarProps) {
-  const active = activeItem(p.route as NavRoute, p.id);
+  const active = activeItem(p.route as NavRoute);
   const [folded, setFolded] = useState<Set<GroupKey>>(() => (typeof window === "undefined" ? new Set() : readFolded()));
   const toggle = (g: GroupKey) =>
     setFolded((s) => {
@@ -203,7 +174,7 @@ export function Sidebar(p: SidebarProps) {
   );
 }
 
-function NavLink({ n, tone, on, count, navigate, icon }: { n: NavItem; tone: "sky" | "clay" | "sage" | "butter" | null; on: boolean; count?: number; navigate: SidebarProps["navigate"]; icon?: React.ReactNode }) {
+function NavLink({ n, tone, on, count, navigate, icon }: { n: NavItem; tone: Tone | null; on: boolean; count?: number; navigate: SidebarProps["navigate"]; icon?: React.ReactNode }) {
   const glyph = icon ?? NAV_ICONS[n.key] ?? NAV_ICONS[n.route];
   return (
     <a
@@ -223,7 +194,6 @@ function NavLink({ n, tone, on, count, navigate, icon }: { n: NavItem; tone: "sk
         {glyph}
       </span>
       <span className="truncate md:hidden xl:inline">{n.label}</span>
-      {n.soon ? <span className={`ml-auto rounded-full px-1.5 text-[10.5px] md:hidden xl:inline ${on ? "bg-paper/15 text-paper" : "bg-paper-deep text-faint"}`}>Soon</span> : null}
       {count ? (
         <span className={`ml-auto rounded-full px-1.5 text-[11px] tabular-nums md:hidden xl:inline ${on ? "bg-paper/15 text-paper" : "bg-butter-wash text-butter"}`}>{count > 99 ? "99+" : count}</span>
       ) : null}

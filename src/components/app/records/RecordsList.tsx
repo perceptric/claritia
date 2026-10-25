@@ -13,7 +13,7 @@ import { askConfirm, askText, tell } from "../Dialogs";
 import { FilterEditor, Popover } from "../FilterBar";
 import { Select } from "../Select";
 import { Sketch } from "../../sketches/Sketch";
-import { Button, Empty, ErrorNote, errorText, Input, Loading, must, Page, Segmented, Tabs, useLoad, type ViewProps } from "../ui";
+import { Button, Empty, ErrorNote, errorText, Input, Loading, must, Page, Segmented, useLoad, type ViewProps } from "../ui";
 import { FieldDialog } from "./FieldDialog";
 import { FieldEditor } from "./FieldInput";
 import { useMeta, type Meta } from "./meta";
@@ -323,8 +323,8 @@ export function RecordsList({
   return (
     <Page icon={icon} title={title} count={list.data ? total.toLocaleString("en-US") : undefined} flush actions={actions}>
       <div className="flex h-full min-h-0 flex-col">
-        <Tabs value={active.value} tabs={tabs.map((t) => ({ value: t.value, label: t.label }))} onChange={pickTab} />
         <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-line px-4 py-2.5 md:px-5">
+          {tabs.length > 1 ? <Select value={active.value} options={tabs.map((t) => ({ value: t.value, label: t.label }))} onChange={pickTab} ariaLabel="View" className="h-9 w-44" /> : null}
           <div className="w-56">
             <Input
               value={search}

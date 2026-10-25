@@ -154,7 +154,7 @@ function Overrides({ value, onChange }: { value: Availability; onChange: (a: Ava
     <div className="flex flex-col gap-2 border-t border-line pt-5">
       <div className="flex items-center gap-2">
         <span className="flex-1 text-[13px] font-semibold tracking-[-0.01em] text-ink">Date changes</span>
-        <button ref={anchor} type="button" onClick={() => setOpen((o) => !o)} className="press inline-flex h-8 items-center gap-1.5 rounded-full border border-line-strong bg-card px-3 text-[12.5px] font-medium text-ink hover:bg-paper">
+        <button ref={anchor} type="button" onClick={() => setOpen((o) => !o)} className="press inline-flex h-8 items-center gap-1.5 rounded-full border border-line-strong bg-card px-3 text-[12.5px] font-medium text-ink hover:bg-hover">
           <Plus size={13} />
           Add a date
         </button>
@@ -174,7 +174,7 @@ function Overrides({ value, onChange }: { value: Availability; onChange: (a: Ava
           {list.map((o) => (
             <li key={o.date} className="anim-rise-sm flex items-start gap-3 px-3 py-2.5">
               <span className="flex h-8 w-28 shrink-0 items-center text-[13px] font-medium text-ink tabular-nums">
-                {new Date(`${o.date}T12:00:00Z`).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" })}
+                {new Date(`${o.date}T12:00:00Z`).toLocaleDateString("en-US", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" })}
               </span>
               <span className="flex h-8 shrink-0 items-center">
                 <Toggle label="Working" on={o.ranges.length > 0} onChange={(on) => put(o.date, on ? (value.weekly[dayOf(o.date)].length ? value.weekly[dayOf(o.date)] : [["09:00", "17:00"]]) : [])} />
@@ -207,7 +207,7 @@ function MonthPick({ from, taken, onPick }: { from: string; taken: Set<string>; 
   return (
     <div className="flex flex-col gap-2">
       <div className="flex items-center">
-        <span className="flex-1 pl-1 text-[13px] font-semibold text-ink">{new Date(`${month}-15T12:00:00Z`).toLocaleDateString("en-GB", { month: "long", year: "numeric", timeZone: "UTC" })}</span>
+        <span className="flex-1 pl-1 text-[13px] font-semibold text-ink">{new Date(`${month}-15T12:00:00Z`).toLocaleDateString("en-US", { month: "long", year: "numeric", timeZone: "UTC" })}</span>
         <IconButton label="Last month" className="size-7" disabled={month <= from.slice(0, 7)} onClick={() => move(-1)}>
           <ChevronRight size={13} className="rotate-180" />
         </IconButton>

@@ -9,7 +9,8 @@ import { persona } from "@/lib/web/names";
 import { Badge, Button, Empty, ErrorNote, Loading, must, Page, Panel, Td, Th, timeAgo, useLoad, type Tone, type ViewProps } from "../ui";
 import { FilterBar, useFilters } from "../FilterBar";
 import { Sketch } from "../../sketches/Sketch";
-import { VisitorsIntro } from "./MarketingIntros";
+import { VisitorsIntro } from "./VisitorsIntro";
+import { StatCards } from "../StatCards";
 
 export type Visit = {
   id: string;
@@ -158,7 +159,7 @@ export function VisitorsView({ sb, ws, navigate, head }: ViewProps & { head?: Re
       </Page>
     );
   }
-  if (!sites.data.length) return <VisitorsIntro head={head} action={<Button onClick={() => navigate("signals", "setup")}>Add your site</Button>} />;
+  if (!sites.data.length) return <VisitorsIntro head={head} action={<Button onClick={() => navigate("visitors", "setup")}>Add your site</Button>} />;
 
   const all = visits.data;
   const rows = applyFilters(all, filters, VISIT_FIELDS);
@@ -173,13 +174,8 @@ export function VisitorsView({ sb, ws, navigate, head }: ViewProps & { head?: Re
     <Page {...pageProps} count={head ? undefined : rows.length} flush>
       {head}
       <FilterBar sb={sb} wsId={ws.id} screen="visitors" fields={VISIT_FIELDS as FilterField<never>[]} filters={filters} onChange={setFilters} presets={VISIT_PRESETS} allLabel="All visits" />
-      <div className="grid grid-cols-2 gap-3 bg-paper px-4 pt-4 md:grid-cols-4 md:px-5">
-        {stats.map((x) => (
-          <div key={x.label} className="rounded-lg border border-line bg-card px-4 py-3.5">
-            <div className="label-mono">{x.label}</div>
-            <div className="font-semibold tracking-[-0.02em] mt-1.5 text-[24px] leading-none text-ink tabular-nums">{x.value.toLocaleString("en-US")}</div>
-          </div>
-        ))}
+      <div className="bg-paper px-4 pt-4 md:px-5">
+        <StatCards cards={stats} />
       </div>
       <div className="flex flex-wrap items-center gap-x-6 gap-y-1 border-b border-line bg-paper px-4 py-3 text-[12px] text-muted md:px-5">
         <span>Last 24h</span>

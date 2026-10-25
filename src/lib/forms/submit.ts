@@ -15,7 +15,7 @@ import { offerForFill, type Booking } from "./booking.ts";
 import { bookingUrl, outside, showsMeeting } from "./schedule.ts";
 import { regionOf } from "../web/policy.ts";
 import { contactPolicy } from "./overwrite.ts";
-import { allFields, type Form, type Overwrite } from "./schema.ts";
+import { allFields, hideKeyOf, type Form, type Overwrite } from "./schema.ts";
 import { checkAnswers, contactParts } from "./values.ts";
 
 export type Incoming = {
@@ -35,6 +35,8 @@ export type Incoming = {
   turnstile?: unknown;
   /** The daily form check's token: its fills are marked as tests. */
   qa?: unknown;
+  /** Field ids the form hid as known (fill before submit). The server checks them again before trusting them. */
+  known?: unknown;
 };
 
 export type Ctx = { custom: CustomField[]; own_domains?: string[]; partner_domains?: string[] };
@@ -80,7 +82,7 @@ export function prepareSubmit(
   version: number,
   raw: Incoming,
   ctx: Ctx,
-  opts: { country?: string | null; turnstileFailed?: boolean } = {},
+  opts: { country?: string | null; turnstileFailed?: boolean; known?: Set<string> } = {},
 ): { errors: Record<string, string> } | { error: string; status: number } | { args: SubmitArgs } {
   if (raw.v !== 1 || typeof raw.key !== "string" || !KEY.test(raw.key)) return { error: "Bad request.", status: 400 };
   if (raw.version !== version) return { error: "This form changed. Refresh the page and try again.", status: 409 };
@@ -97,7 +99,7 @@ export function prepareSubmit(
   const spam =
     typeof raw.trap === "string" && raw.trap.trim() ? "trap" : !form.capture && ms < form.spam.minSeconds * 1000 ? "too_fast" : opts.turnstileFailed ? "turnstile" : null;
 
-  const checked = checkAnswers(form, answers, { hidden });
+  const checked = checkAnswers(form, answers, { hidden, known: opts.known });
   const errors = { ...checked.errors };
   const parts = contactParts(checked.values);
   const emailField = allFields(form).find((f) => f.key === "email");
@@ -197,12 +199,48 @@ async function routeFill(rpc: Rpc, ws: string, contact: string, submission: stri
   const later = () => enqueueJob(rpc, { workspaceId: ws, kind: "route", key, payload: { contact, reason: "form", key } }).catch(() => undefined);
   try {
     const { route } = await import("../router/server.ts");
-    const done = route(rpc, { ws, contact, key, reason: "form" }).then(() => true);
+    const { qualifyContact } = await import("../enrich/server.ts");
+    const done = route(rpc, { ws, contact, key, reason: "form", qualify: (c) => qualifyContact(rpc, c, { timeoutMs: 2900 }) }).then(() => true);
     const ok = await Promise.race([done, new Promise<false>((r) => setTimeout(() => r(false), 300))]);
     done.catch(() => undefined);
     if (!ok) await later();
   } catch {
     await later();
+  }
+}
+
+/**
+ * The fields the browser hid as known, checked again against the team's records and the lookup caches (filled when
+ * the visitor left the email field). Only fields the owner allowed, and only ones still known, are let off.
+ */
+async function knownIds(rpc: Rpc, f: PublicForm, raw: Incoming): Promise<Set<string> | undefined> {
+  const e = f.body.enrich;
+  if (!e?.hideKnown || !Array.isArray(raw.known) || !raw.known.length) return undefined;
+  const fields = allFields(f.body);
+  const byId = new Map(fields.map((x) => [x.id, x]));
+  const ids = raw.known.filter((id): id is string => typeof id === "string" && !!byId.get(id) && e.fields.includes(hideKeyOf(byId.get(id)!.key))).slice(0, 20);
+  const emailField = fields.find((x) => x.key === "email");
+  const answers = raw.answers && typeof raw.answers === "object" ? (raw.answers as Record<string, unknown>) : {};
+  const email = emailField && typeof answers[emailField.id] === "string" ? (answers[emailField.id] as string) : "";
+  if (!ids.length || !email) return undefined;
+  try {
+    const { knownForEmail } = await import("../enrich/server.ts");
+    const keys = await knownForEmail(rpc, f.workspace_id, email, ids.map((id) => hideKeyOf(byId.get(id)!.key)), { cacheOnly: true, budgetMs: 400 });
+    return new Set(ids.filter((id) => keys.includes(hideKeyOf(byId.get(id)!.key))));
+  } catch {
+    return undefined;
+  }
+}
+
+/** The cached lookup into the new contact, in under 300 ms or not at all (the background job finishes it). */
+async function fillKnown(rpc: Rpc, contact: string): Promise<void> {
+  try {
+    const { enrichContact } = await import("../enrich/server.ts");
+    const done = enrichContact(rpc, contact, { trigger: "form", cacheOnly: true, budgetMs: 300 });
+    done.catch(() => undefined);
+    await Promise.race([done, new Promise((r) => setTimeout(r, 300))]);
+  } catch {
+    // The enrich_contact job fills it a moment later.
   }
 }
 
@@ -213,7 +251,8 @@ export async function acceptFill(
   ctx: Ctx,
   o: { country?: string | null; turnstileFailed?: boolean; origin?: string | null; test?: boolean; secret?: string; now?: number } = {},
 ): Promise<{ status: number; body: Record<string, unknown> }> {
-  const r = prepareSubmit(f.body, f.version, raw, ctx, { country: o.country, turnstileFailed: o.turnstileFailed });
+  const known = await knownIds(rpc, f, raw);
+  const r = prepareSubmit(f.body, f.version, raw, ctx, { country: o.country, turnstileFailed: o.turnstileFailed, known });
   if ("errors" in r) return { status: 400, body: { errors: r.errors } };
   if ("error" in r) return { status: r.status, body: { error: r.error } };
   const { data, error } = await rpc("form_submit", { p_form: f.id, ...r.args, p_test: o.test === true });
@@ -226,6 +265,8 @@ export async function acceptFill(
   // The router picks the owner now (docs/router.md Part 7), so the calendar below shows that rep's times. It has
   // 300 ms; slower, or failing, the lead still books from the meeting type, and a job routes them with the same key.
   const cid = (data as { contact_id?: string | null }).contact_id;
+  // Fields hidden as known are filled from the lookup the form already made, before the router reads the lead.
+  if (cid && !r.args.p_spam && f.body.enrich?.hideKnown && !(data as { repeat?: boolean }).repeat) await fillKnown(rpc, cid);
   if (cid && !r.args.p_spam && !(data as { repeat?: boolean }).repeat) await routeFill(rpc, f.workspace_id, cid, sid);
   // Book a meeting next: the contact owner's link when the form says so and they have one, else the form's link.
   const sch = f.body.after.schedule;

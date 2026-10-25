@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Copy, Key, LogOut, Plus, Settings } from "../../Icons";
+import { Key, LogOut, Plus, Settings } from "../../Icons";
 import { APP_URL } from "@/lib/site";
 import { askConfirm, askText } from "../Dialogs";
 import { AccountAlertsPanel } from "./AccountAlertsPanel";
@@ -33,26 +33,15 @@ import {
   useLoad,
   type ViewProps,
 } from "../ui";
+import { CopyButton } from "../CopyButton";
 
-/** A label, a line to copy, and a Copy button. */
+/** A label, a line to copy, and the shared copy button. */
 function CopyRow({ label, text }: { label: string; text: string }) {
-  const [copied, setCopied] = useState(false);
   return (
     <div className="flex items-center gap-2">
       <span className="label-mono w-24 shrink-0">{label}</span>
       <code className="min-w-0 flex-1 truncate rounded-sm border border-line bg-paper px-2.5 py-1.5 font-mono text-[12.5px]">{text}</code>
-      <Button
-        variant="ghost"
-        onClick={() =>
-          navigator.clipboard?.writeText(text).then(() => {
-            setCopied(true);
-            setTimeout(() => setCopied(false), 1500);
-          })
-        }
-      >
-        <Copy size={12} />
-        {copied ? "Copied" : "Copy"}
-      </Button>
+      <CopyButton text={text} label="Copy" />
     </div>
   );
 }

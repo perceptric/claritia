@@ -3,69 +3,55 @@
 // Versions (docs/router-ux.md 4.6): a drawer with every published version, and one past version open read-only in the
 // same flow view, with Roll back (asks first, then publishes a copy as a new version) and Compare with live.
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { cleanBody } from "@/lib/router/check";
 import type { RouterBody } from "@/lib/router/types";
-import { ArrowLeft, X } from "../../Icons";
+import { ArrowLeft } from "../../Icons";
 import { askConfirm } from "../Dialogs";
 import { Badge, Button, ErrorNote, errorText, IconButton, must, timeAgo, useLoad, type Role, type ViewProps } from "../ui";
 import { routingApi, type Loaded } from "./api";
 import { flowCounts, type Selection } from "./editorModel";
 import { Flow, FlowSkeleton } from "./Flow";
 import { Inspector } from "./Inspector";
-import { useSlideIn } from "./parts";
 import { CompareDialog } from "./Publish";
 import { toast } from "./Toast";
+import { Sheet } from "../Sheet";
 
 export function VersionsDrawer({ data, current, onOpen, onClose }: { data: Loaded; current: number | null; onOpen: (n: number) => void; onClose: () => void }) {
-  const ref = useSlideIn<HTMLDivElement>();
   const names = new Map(data.members.map((m) => [m.id, m.name]));
-  useEffect(() => {
-    const key = (e: KeyboardEvent) => e.key === "Escape" && onClose();
-    window.addEventListener("keydown", key);
-    return () => window.removeEventListener("keydown", key);
-  }, [onClose]);
   return (
-    <div className="anim-fade fixed inset-0 z-[75] flex justify-end bg-scrim" onMouseDown={onClose}>
-      <div ref={ref} role="dialog" aria-modal="true" aria-label="Saved setups" onMouseDown={(e) => e.stopPropagation()} className="flex h-full w-full max-w-sm flex-col bg-card shadow-float md:my-2.5 md:mr-2.5 md:h-[calc(100%-20px)] md:rounded-2xl">
-        <div className="flex h-14 shrink-0 items-center gap-2 border-b border-line px-5">
-          <h2 className="flex-1 text-[16px] font-semibold tracking-[-0.02em] text-ink">Saved setups</h2>
-          <IconButton label="Close" onClick={onClose} autoFocus>
-            <X size={15} />
-          </IconButton>
-        </div>
-        {data.versions.length ? (
-          <ul className="flex-1 overflow-y-auto p-2">
-            {data.versions.map((v) => (
-              <li key={v.version}>
-                <button
-                  type="button"
-                  onClick={() => onOpen(v.version)}
-                  aria-current={current === v.version ? "true" : undefined}
-                  className={`flex w-full flex-col gap-0.5 rounded-lg px-3 py-2.5 text-left hover:bg-hover ${current === v.version ? "bg-hover" : ""}`}
-                >
-                  <span className="flex items-center gap-2">
-                    <span className="text-[13.5px] font-semibold text-ink tabular-nums">v{v.version}</span>
-                    {data.live?.version === v.version ? (
-                      <Badge tone="green" dot>
-                        Live
-                      </Badge>
-                    ) : null}
-                    <span className="ml-auto text-[12px] text-muted" title={new Date(v.published_at).toLocaleString()}>
-                      {timeAgo(v.published_at)}
-                    </span>
+    <Sheet title="Versions" onClose={onClose}>
+      {data.versions.length ? (
+        <ul className="p-2">
+          {data.versions.map((v) => (
+            <li key={v.version}>
+              <button
+                type="button"
+                onClick={() => onOpen(v.version)}
+                aria-current={current === v.version ? "true" : undefined}
+                className={`flex w-full flex-col gap-0.5 rounded-lg px-3 py-2.5 text-left hover:bg-hover ${current === v.version ? "bg-hover" : ""}`}
+              >
+                <span className="flex items-center gap-2">
+                  <span className="text-[13.5px] font-semibold text-ink tabular-nums">v{v.version}</span>
+                  {data.live?.version === v.version ? (
+                    <Badge tone="green" dot>
+                      Live
+                    </Badge>
+                  ) : null}
+                  <span className="ml-auto text-[12px] text-muted" title={new Date(v.published_at).toLocaleString()}>
+                    {timeAgo(v.published_at)}
                   </span>
-                  <span className="truncate text-[12.5px] text-muted">{(v.published_by && names.get(v.published_by)) || "A teammate"}</span>
-                  {v.note ? <span className="text-[12.5px] text-body">{v.note}</span> : null}
-                </button>
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <p className="px-5 py-8 text-center text-[13px] text-muted">No versions yet</p>
-        )}
-      </div>
-    </div>
+                </span>
+                <span className="truncate text-[12.5px] text-muted">{(v.published_by && names.get(v.published_by)) || "A teammate"}</span>
+                {v.note ? <span className="text-[12.5px] text-body">{v.note}</span> : null}
+              </button>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="px-5 py-8 text-center text-[13px] text-muted">No versions yet</p>
+      )}
+    </Sheet>
   );
 }
 

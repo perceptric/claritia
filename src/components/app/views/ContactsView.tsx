@@ -5,6 +5,7 @@
 // actions. Leads are a view on Contacts (contacts with a lead status). The add and edit forms live here.
 
 import { useState } from "react";
+import { contactsPage, CONTACTS_TABS } from "@/lib/nav";
 import { BASES, BASIS_LABEL, type Basis } from "@/lib/contacts/consent";
 import { fullName, LIFECYCLES, type ContactRow, type CustomField } from "@/lib/contacts/fields";
 import type { AnyField } from "@/lib/records/fields";
@@ -14,7 +15,9 @@ import { Popover } from "../FilterBar";
 import { Select } from "../Select";
 import { SampleRows, SampleStats, SampleTags, ToolIntro } from "../ToolIntro";
 import { Sketch } from "../../sketches/Sketch";
-import { Avatar, Badge, Button, CardHead, Empty, ErrorNote, errorText, Field, Input, Loading, must, Page, Panel, postJson, timeAgo, useLoad, type Tone, type ViewProps } from "../ui";
+import { Avatar, Badge, Button, CardHead, Empty, ErrorNote, errorText, Field, Input, Loading, must, Page, Panel, postJson, Section, timeAgo, useLoad, type Tone, type ViewProps } from "../ui";
+import { Report } from "../reports/Report";
+import { AiTag } from "../Ai";
 import type { Link } from "../records/FieldInput";
 import { useMeta, type Meta } from "../records/meta";
 import { FieldDialog } from "../records/FieldDialog";
@@ -22,7 +25,7 @@ import { FieldsPanel, HistoryPanel, sourceLabel, type Change } from "../records/
 import { RecordWork } from "../records/RecordWork";
 import { ImportPanel } from "../records/ImportPanel";
 import { RecordsList, type Preset, type ViewState } from "../records/RecordsList";
-import { SidePanel } from "../records/SidePanel";
+import { Sheet } from "../Sheet";
 import { DEFAULT_WIDTH, type Row } from "../records/RecordTable";
 import { OpportunitiesPanel } from "./RecordsViews";
 import { routingApi } from "../routing/api";
@@ -53,9 +56,22 @@ const CONTACT_PRESETS: Preset[] = [
   { name: "By lifecycle", layout: "board", group: "lifecycle" },
 ];
 
+/** CRM › Contacts: the table and the Overview (the funnel and reps) as tabs; one contact opens as its own page. */
 export function ContactsView(props: ViewProps) {
-  if (props.id) return <ContactPage {...props} />;
-  return <ContactsList {...props} />;
+  const page = contactsPage(props.id);
+  if (page.page === "contact") return <ContactPage {...props} />;
+  const nav = { title: "Contacts", tabs: CONTACTS_TABS, current: page.id, onPick: (t: string) => props.navigate("contacts", t) };
+  return (
+    <Section nav={nav}>
+      {page.page === "overview" ? (
+        <Page title="Contacts">
+          <Report sb={props.sb} ws={props.ws.id} navigate={props.navigate} show={["funnel", "reps"]} />
+        </Page>
+      ) : (
+        <ContactsList {...props} />
+      )}
+    </Section>
+  );
 }
 
 function ContactsList({ sb, ws, session, role, navigate }: ViewProps) {
@@ -286,7 +302,7 @@ function ContactPanel({
   }
 
   return (
-    <SidePanel
+    <Sheet
       title={id ? "Edit contact" : "Add contact"}
       onClose={() => onClose()}
       footer={
@@ -347,7 +363,7 @@ function ContactPanel({
         ))}
         <button type="submit" className="hidden" />
       </form>
-    </SidePanel>
+    </Sheet>
   );
 }
 
@@ -355,7 +371,7 @@ function ContactPanel({
 
 type Detail = {
   moved_to?: string;
-  contact: ContactRow & { email_clean: string; timezone: string | null; score_reasons: unknown; company_id: string | null; owner: string | null };
+  contact: ContactRow & { email_clean: string; timezone: string | null; score_reasons: unknown; company_id: string | null; owner: string | null; seniority?: string | null; department?: string | null; linkedin_url?: string | null; qualify_outcome?: string | null; qualify_reason?: string | null; qualify_by?: string | null; qualify_at?: string | null };
   company: { id: string; name: string | null; domain: string | null; industry: string | null; size: string | null; account_id: string | null; fit: number | null; intent: number | null; stage: string | null } | null;
   person: { id: string; level: string | null } | null;
   writes: Record<string, { source: string; at: string }>;
@@ -371,6 +387,41 @@ type Detail = {
 };
 
 const EVENT_LABEL: Record<string, string> = { "contact.created": "Added" };
+
+/** What enrichment and qualify added (docs/enrich-workflows-reports.md 1.3): role, and the qualify outcome with why. */
+function EnrichedPanel({ c }: { c: Detail["contact"] }) {
+  const rows = [
+    ["Seniority", c.seniority],
+    ["Department", c.department],
+  ].filter(([, v]) => v) as [string, string][];
+  return (
+    <Panel>
+      <CardHead label="Role and fit" />
+      <div className="flex flex-col gap-3 px-5 py-4 text-[13px]">
+        {c.qualify_outcome ? (
+          <div className="flex flex-col gap-1.5">
+            <span className="flex items-center gap-2">
+              <Badge tone="violet">{c.qualify_outcome}</Badge>
+              {c.qualify_by === "ai" ? <AiTag /> : null}
+            </span>
+            {c.qualify_reason ? <span className="text-body">{c.qualify_reason}</span> : null}
+          </div>
+        ) : null}
+        {rows.map(([k, v]) => (
+          <div key={k} className="flex items-center justify-between gap-3">
+            <span className="text-muted">{k}</span>
+            <span className="text-ink">{v}</span>
+          </div>
+        ))}
+        {c.linkedin_url ? (
+          <a href={c.linkedin_url} target="_blank" rel="noreferrer" className="w-fit text-ink underline-offset-2 hover:underline">
+            LinkedIn
+          </a>
+        ) : null}
+      </div>
+    </Panel>
+  );
+}
 
 function ContactPage({ sb, ws, session, role, id, navigate }: ViewProps) {
   const [addingField, setAddingField] = useState(false);
@@ -554,6 +605,8 @@ function ContactPage({ sb, ws, session, role, id, navigate }: ViewProps) {
               onAddField={() => setAddingField(true)}
               under={{ owner: <RoutedBy key={routed} sb={sb} session={session} ws={ws} role={role} navigate={navigate} contact={id} /> }}
             />
+
+            {c.qualify_outcome || c.seniority || c.department || c.linkedin_url ? <EnrichedPanel c={c} /> : null}
 
             <OpportunitiesPanel sb={sb} ws={ws} object="contact" id={id} navigate={navigate} />
 

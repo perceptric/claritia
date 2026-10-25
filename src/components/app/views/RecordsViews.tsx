@@ -7,7 +7,7 @@
 import { useEffect, useState } from "react";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { shown, type AnyField } from "@/lib/records/fields";
-import { Box, Dollar, Eye, Users } from "../../Icons";
+import { Box, Dollar, Eye, Plus, Users } from "../../Icons";
 import { askConfirm, askText } from "../Dialogs";
 import { Avatar, Badge, Button, CardHead, ErrorNote, errorText, Loading, must, Page, Panel, timeAgo, useLoad, type ViewProps } from "../ui";
 import type { Link } from "../records/FieldInput";
@@ -18,7 +18,7 @@ import { RecordWork } from "../records/RecordWork";
 import { RecordsList, type ViewState } from "../records/RecordsList";
 import { DEFAULT_WIDTH, type Row } from "../records/RecordTable";
 import { AccountActivity, AccountFeedback } from "./AccountActivity";
-import { VisitorsView } from "./VisitorsView";
+import { ToolIntro } from "../ToolIntro";
 
 const cols = (...keys: string[]) => keys.map((key) => ({ key, width: DEFAULT_WIDTH }));
 
@@ -32,7 +32,6 @@ const COMPANIES_BASE: ViewState = {
 
 export function CompaniesView(props: ViewProps) {
   const { sb, ws, session, navigate, id } = props;
-  if (id === "visits") return <VisitorsView {...props} />;
   if (id.startsWith("account/")) return <CompanyForAccount {...props} accountId={id.slice(8)} />;
   if (id) return <RecordPage {...props} object="company" />;
   return (
@@ -52,10 +51,22 @@ export function CompaniesView(props: ViewProps) {
         { name: "No owner", filters: [{ field: "owner", op: "empty", values: [] }] },
       ]}
       actions={
-        <Button variant="ghost" size="sm" onClick={() => navigate("companies", "visits")}>
+        <Button variant="ghost" size="sm" onClick={() => navigate("visitors", "visits")}>
           <Eye size={13} />
           Visits
         </Button>
+      }
+      intro={
+        <ToolIntro
+          sketch="cards"
+          title={"Every company\nyour leads work at"}
+          lead="Companies are made from your contacts' work emails and your CRM, then filled in by enrichment and scored for fit and intent from their visits."
+          action={
+            <Button onClick={() => navigate("contacts", "", "create=1")}>
+              <Plus size={14} /> Add contact
+            </Button>
+          }
+        />
       }
       onOpen={(r) => navigate("companies", r.id)}
     />
@@ -134,6 +145,18 @@ export function OpportunitiesView(props: ViewProps) {
           { name: "No company", filters: [{ field: "f.company", op: "empty", values: [] }] },
         ]}
         onAdd={add}
+        intro={
+          <ToolIntro
+            sketch="funnel"
+            title={"Every deal\nfrom first meeting to won"}
+            lead="Opportunities come from your CRM, or you add them here. Each one links to its company and contacts, so reports can follow a lead to the deal it became."
+            action={
+              <Button onClick={() => void add()}>
+                <Plus size={14} /> New opportunity
+              </Button>
+            }
+          />
+        }
         onOpen={(r) => navigate("opportunities", r.id)}
       />
     </>
@@ -167,7 +190,7 @@ export function OpportunitiesPanel({ sb, ws, object, id, navigate }: { sb: Supab
             const st = stage?.options.find((x) => x.value === o.stage);
             return (
               <li key={o.id}>
-                <button type="button" onClick={() => navigate("opportunities", o.id)} className="flex min-h-12 w-full items-center gap-2.5 px-5 py-2.5 text-left text-[13px] transition-colors duration-[140ms] hover:bg-paper">
+                <button type="button" onClick={() => navigate("opportunities", o.id)} className="flex min-h-12 w-full items-center gap-2.5 px-5 py-2.5 text-left text-[13px] transition-colors duration-[140ms] hover:bg-hover">
                   <span className="min-w-0 flex-1 truncate">{o.name}</span>
                   {st ? <Badge tone={st.kind === "won" ? "green" : st.kind === "lost" ? "red" : "gray"}>{st.label}</Badge> : null}
                   <span className="w-24 text-right text-[13px] text-muted tabular-nums">{amount && o.amount != null ? shown(amount, Number(o.amount)) : "—"}</span>
@@ -376,7 +399,7 @@ function RecordPage({ sb, ws, session, role, id, navigate, object }: ViewProps &
                 <ul className="divide-y divide-line">
                   {(d.contacts ?? []).map((c) => (
                     <li key={c.id}>
-                      <button type="button" onClick={() => navigate("contacts", c.id)} className="flex min-h-12 w-full items-center gap-3 px-5 py-2.5 text-left text-[13px] transition-colors duration-[140ms] hover:bg-paper">
+                      <button type="button" onClick={() => navigate("contacts", c.id)} className="flex min-h-12 w-full items-center gap-3 px-5 py-2.5 text-left text-[13px] transition-colors duration-[140ms] hover:bg-hover">
                         <Avatar label={[c.first_name, c.last_name].filter(Boolean).join(" ") || c.email || "?"} size={28} />
                         <span className="min-w-0 flex-1 truncate">{[c.first_name, c.last_name].filter(Boolean).join(" ") || c.email}</span>
                         <span className="truncate text-[12px] text-muted">{c.title}</span>
@@ -394,7 +417,7 @@ function RecordPage({ sb, ws, session, role, id, navigate, object }: ViewProps &
                 <ul className="divide-y divide-line">
                   {backlinks.map((l, i) => (
                     <li key={i}>
-                      <button type="button" onClick={() => openLink(l)} className="flex min-h-11 w-full items-center gap-2 px-5 py-2.5 text-left text-[13px] transition-colors duration-[140ms] hover:bg-paper">
+                      <button type="button" onClick={() => openLink(l)} className="flex min-h-11 w-full items-center gap-2 px-5 py-2.5 text-left text-[13px] transition-colors duration-[140ms] hover:bg-hover">
                         <span className="text-muted">{l.field}</span>
                         <span className="ml-auto text-[12px] text-faint">{l.object}</span>
                       </button>

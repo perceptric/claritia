@@ -177,6 +177,20 @@ export function fromText(f: Field, s: string): unknown {
 
 const listOf = (v: unknown): string[] => (Array.isArray(v) ? v.map(String) : (typeof v === "string" && v) || typeof v === "number" ? [String(v)] : []);
 
+/** A random id for this browser, kept in localStorage; one per page load when storage is blocked. */
+let pageVid = "";
+function visitorId(): string {
+  try {
+    const v = localStorage.getItem("_clr_vid");
+    if (v && /^[A-Za-z0-9_-]{8,64}$/.test(v)) return v;
+    const n = idemKey();
+    localStorage.setItem("_clr_vid", n);
+    return n;
+  } catch {
+    return (pageVid ||= idemKey());
+  }
+}
+
 function idemKey(): string {
   const b = new Uint8Array(18);
   crypto.getRandomValues(b);
@@ -522,10 +536,46 @@ export class ClaritiaForm extends Base {
   private bkMsg = "";
   private bkBusy = false;
   private overPage = false;
+  /** Field ids hidden because enrichment already knows them (fill before submit), and the email they're for. */
+  private known = new Set<string>();
+  private knownFor = "";
 
   constructor() {
     super();
     this.root = this.attachShadow({ mode: "open" });
+    // The first answer is a start (Reports' Forms page).
+    const start = () => this.beacon("start");
+    this.root.addEventListener("input", start);
+    this.root.addEventListener("change", start);
+  }
+
+  /** One view (half on screen for a second) and one start per load; the server counts each visitor every 30 minutes. */
+  private sent = new Set<"view" | "start">();
+  private beacon(kind: "view" | "start") {
+    const id = this.getAttribute("form-id");
+    if (this.isPreview || this.sent.has(kind) || !this.data || this.data.status !== "live" || !id) return;
+    this.sent.add(kind);
+    fetch(`${this.base}/api/forms/${id}/seen`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ kind, vid: visitorId() }), credentials: "omit", keepalive: true }).catch(() => {});
+  }
+
+  private watchView() {
+    if (this.isPreview || typeof IntersectionObserver === "undefined") return;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const io = new IntersectionObserver(
+      ([e]) => {
+        if (e?.isIntersecting) {
+          timer ??= setTimeout(() => {
+            this.beacon("view");
+            io.disconnect();
+          }, 1000);
+        } else if (timer) {
+          clearTimeout(timer);
+          timer = null;
+        }
+      },
+      { threshold: 0.5 },
+    );
+    io.observe(this);
   }
 
   /** The app's builder shows a draft without loading or sending anything. */
@@ -594,6 +644,7 @@ export class ClaritiaForm extends Base {
     }
     this.started = Date.now();
     this.render();
+    this.watchView();
     if (this.data.turnstile && this.data.body.spam.turnstile) this.loadTurnstile();
   }
 
@@ -655,7 +706,7 @@ export class ClaritiaForm extends Base {
     if (form.intro) wrap.append(el("p", { class: "i", text: form.intro }));
     if (form.steps.length > 1) wrap.append(this.progress(form));
     const grid = el("div", { class: "g" });
-    for (const f of step.fields) if (f.type !== "hidden" && shown.has(f.id)) grid.append(this.field(f, form, required.has(f.id)));
+    for (const f of step.fields) if (f.type !== "hidden" && shown.has(f.id) && !this.known.has(f.id)) grid.append(this.field(f, form, required.has(f.id)));
     wrap.append(grid);
     if (last && this.needsConsent()) {
       const box = el("input", { type: "checkbox", id: "clr-consent" }) as HTMLInputElement;
@@ -807,7 +858,7 @@ export class ClaritiaForm extends Base {
       this.answers[f.id] = v;
       // A pick is checked at once (too many picks, say); typing is checked when the visitor moves on.
       if (picked) {
-        const e = checkAnswers(form, this.answers, { steps: [this.step] }).errors[f.id];
+        const e = checkAnswers(form, this.answers, { steps: [this.step], known: this.known }).errors[f.id];
         if (e && listOf(v).length) this.errors[f.id] = e;
         else delete this.errors[f.id];
         return this.later();
@@ -818,7 +869,8 @@ export class ClaritiaForm extends Base {
       } else if (form.rules.some((r) => r.when.field === f.id)) this.later();
     };
     const blur = () => {
-      const r = checkAnswers(form, this.answers, { steps: [this.step] });
+      if (f.key === "email") void this.lookupKnown(form, this.answers[f.id]);
+      const r = checkAnswers(form, this.answers, { steps: [this.step], known: this.known });
       if (r.errors[f.id] && this.answers[f.id] !== undefined && this.answers[f.id] !== "") {
         this.errors[f.id] = r.errors[f.id];
         this.later();
@@ -1208,7 +1260,7 @@ export class ClaritiaForm extends Base {
   private async next() {
     const d = this.data!;
     const form = d.body;
-    const r = checkAnswers(form, this.answers, { steps: [this.step] });
+    const r = checkAnswers(form, this.answers, { steps: [this.step], known: this.known });
     this.errors = r.errors;
     this.alert = "";
     if (Object.keys(r.errors).length) {
@@ -1233,6 +1285,36 @@ export class ClaritiaForm extends Base {
   }
 
 
+  /**
+   * Fill before submit: ask which of the owner's chosen fields enrichment already knows for this email, and hide the
+   * ones the visitor hasn't answered. A slow or failed answer hides nothing. A new email asks again.
+   */
+  private async lookupKnown(form: Form, value: unknown) {
+    if (!form.enrich?.hideKnown || this.isPreview || !this.data) return;
+    const email = typeof value === "string" ? value.trim().toLowerCase() : "";
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email) || email === this.knownFor) return;
+    this.knownFor = email;
+    let ids: string[] = [];
+    try {
+      const ctl = new AbortController();
+      const t = setTimeout(() => ctl.abort(), 2500);
+      const res = await fetch(`${this.base}/api/forms/${this.data.id}/known`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ email }), credentials: "omit", signal: ctl.signal });
+      clearTimeout(t);
+      if (res.ok) ids = ((await res.json()) as { known?: unknown }).known as string[];
+    } catch {
+      ids = [];
+    }
+    // The email changed while we asked: this answer is for another person.
+    if (this.knownFor !== email || !Array.isArray(ids)) return;
+    const empty = (id: string) => this.answers[id] === undefined || this.answers[id] === "" || (Array.isArray(this.answers[id]) && !(this.answers[id] as unknown[]).length);
+    const next = new Set(ids.filter((id) => typeof id === "string" && empty(id)));
+    const same = next.size === this.known.size && [...next].every((id) => this.known.has(id));
+    if (same) return;
+    this.known = next;
+    for (const id of next) delete this.errors[id];
+    this.later();
+  }
+
   private async send() {
     const d = this.data!;
     this.sending = true;
@@ -1254,6 +1336,7 @@ export class ClaritiaForm extends Base {
       turnstile: this.turnstileToken || undefined,
       // The daily form check opens the form with its token; the fill is then marked as a test.
       qa: new URLSearchParams(location.search).get("clr_qa") || undefined,
+      known: this.known.size ? [...this.known] : undefined,
     });
     const url = `${this.base}/api/forms/${d.id}/submit`;
     let res: Response | null = null;

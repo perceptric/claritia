@@ -2,7 +2,7 @@
 // message with the calendar file. Plain and short: what, when (in the reader's own time zone), who, where, and the
 // links. Every value from a person (names, answers, addresses) is escaped. Server only.
 
-import { fromHeader } from "../email/ses.ts";
+import { fromHeader } from "../email/provider.ts";
 import { validZone } from "./time.ts";
 import type { Location } from "./types.ts";
 
@@ -387,7 +387,7 @@ export type MimeInput = {
   boundary?: string;
 };
 
-/** The whole message, ready for SES's raw send. Refuses addresses that could break the headers. */
+/** The whole message, ready for a raw send over SMTP. Refuses addresses that could break the headers. */
 export function mime(m: MimeInput): string {
   if (!validAddress(m.to)) throw new Error(`Not an email address: ${m.to}`);
   if (!validAddress(m.from.email)) throw new Error(`Not an email address: ${m.from.email}`);

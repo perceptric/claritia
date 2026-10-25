@@ -1,30 +1,23 @@
 "use client";
 
-// Automation › Signals (docs/app-structure.md 4.2): everything the app learns from website visits and buying signals.
-//   Feed      numbers first (companies on the site, signals, hot accounts, alerts sent), signals per day, then the
+// Inbound › Visitors (docs/unify-plan.md Part 1, once Signals): everything the app learns from website visits.
+//   Signals   numbers first (companies on the site, signals, hot accounts, alerts sent), signals per day, then the
 //             live list: "Acme read the pricing page", with the company, when, and Open company
-//   Visitors  today's visits (moved from Companies › Visits)
+//   Visits    today's visits (moved from Companies › Visits)
 //   Alerts    which signals post to Slack or email (moved from Settings › Account alerts)
 //   Setup     sites and the snippet, and identity settings (moved from Settings › Sites and Identity)
 
 import { useMemo } from "react";
-import { signalsPage, type SignalsTab } from "@/lib/nav";
+import { visitorsPage, VISITORS_TABS } from "@/lib/nav";
 import { Radar } from "../../Icons";
 import { BrandLogo } from "../BrandLogo";
 import { byDay, DayBars, StatCards } from "../StatCards";
-import { Badge, Button, Empty, ErrorNote, Loading, must, Page, Panel, Tabs, timeAgo, useLoad, type ViewProps } from "../ui";
+import { Badge, Button, Empty, ErrorNote, Loading, must, Page, Panel, Section, timeAgo, useLoad, type ViewProps } from "../ui";
 import { Sketch } from "../../sketches/Sketch";
 import { AccountAlertsPanel } from "../views/AccountAlertsPanel";
 import { IdentityPanel } from "../views/IdentityPanel";
 import { SitesPanel } from "../views/SitesPanel";
 import { VisitorsView } from "../views/VisitorsView";
-
-const TABS: { value: SignalsTab; label: string }[] = [
-  { value: "feed", label: "Feed" },
-  { value: "visitors", label: "Visitors" },
-  { value: "alerts", label: "Alerts" },
-  { value: "setup", label: "Setup" },
-];
 
 /** What each signal means, in a few words after the company's name. */
 export const SIGNAL_WORDS: Record<string, string> = {
@@ -48,25 +41,29 @@ type SignalRow = { id: string; kind: string; at: string; account: { id: string; 
 
 export function SignalsView(props: ViewProps) {
   const { navigate } = props;
-  const page = signalsPage(props.id);
-  const head = <Tabs value={page.tab} tabs={TABS} onChange={(t) => navigate("signals", t === "feed" ? "" : t)} />;
-  if (page.tab === "visitors") return <VisitorsView {...props} head={head} />;
+  const page = visitorsPage(props.id);
+  const nav = { title: "Visitors", tabs: VISITORS_TABS, current: page.tab, onPick: (t: string) => navigate("visitors", t === "feed" ? "" : t) };
   return (
-    <Page title="Signals" flush>
-      {head}
-      <div className="mx-auto flex w-full max-w-5xl flex-col gap-5 p-5 md:p-7">
-        {page.tab === "feed" ? (
-          <Feed {...props} />
-        ) : page.tab === "alerts" ? (
-          <AccountAlertsPanel sb={props.sb} session={props.session} ws={props.ws} />
-        ) : (
-          <>
-            <SitesPanel sb={props.sb} ws={props.ws} role={props.role} />
-            <IdentityPanel sb={props.sb} session={props.session} ws={props.ws} role={props.role} />
-          </>
-        )}
-      </div>
-    </Page>
+    <Section nav={nav}>
+      {page.tab === "visits" ? (
+        <VisitorsView {...props} />
+      ) : (
+        <Page title="Visitors">
+          <div className="mx-auto flex w-full max-w-5xl flex-col gap-5">
+            {page.tab === "feed" ? (
+              <Feed {...props} />
+            ) : page.tab === "alerts" ? (
+              <AccountAlertsPanel sb={props.sb} session={props.session} ws={props.ws} />
+            ) : (
+              <>
+                <SitesPanel sb={props.sb} ws={props.ws} role={props.role} />
+                <IdentityPanel sb={props.sb} session={props.session} ws={props.ws} role={props.role} />
+              </>
+            )}
+          </div>
+        </Page>
+      )}
+    </Section>
   );
 }
 
@@ -124,7 +121,7 @@ function Feed({ sb, ws, navigate }: ViewProps) {
         <Loading />
       ) : !d.recent.length ? (
         <Empty sketch={<Sketch name="browser" size={150} />} title="No signals yet">
-          <Button className="mt-3" onClick={() => navigate("signals", "setup")}>
+          <Button className="mt-3" onClick={() => navigate("visitors", "setup")}>
             Set up your site
           </Button>
         </Empty>

@@ -10,7 +10,7 @@ import { Search } from "../../Icons";
 import { BrandLogo } from "../BrandLogo";
 import { askConfirm } from "../Dialogs";
 import { PersonAvatar, usePeople, type Person } from "../meetings/parts";
-import { SidePanel } from "../records/SidePanel";
+import { Sheet } from "../Sheet";
 import { announceChange, Badge, Button, Empty, ErrorNote, errorText, Input, Loading, must, Td, Th, timeAgo, useLoad, type ViewProps } from "../ui";
 import { routingApi } from "./api";
 import { RunLines, type LinkTo } from "./Lines";
@@ -404,7 +404,7 @@ export function RunPanel({ sb, session, ws, navigate, runId, onClose, onRouted }
   };
 
   return (
-    <SidePanel
+    <Sheet
       title={lead ? [lead.name, lead.company].filter(Boolean).join(" · ") : "Run"}
       onClose={onClose}
       footer={
@@ -447,6 +447,6 @@ export function RunPanel({ sb, session, ws, navigate, runId, onClose, onRouted }
           </>
         )}
       </div>
-    </SidePanel>
+    </Sheet>
   );
 }

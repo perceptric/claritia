@@ -12,7 +12,7 @@ import { availabilityPage, type AvailabilityTab } from "@/lib/nav";
 import { CalendarIcon, Plus, Trash } from "../../Icons";
 import { askConfirm } from "../Dialogs";
 import { MoreMenu } from "../StatCards";
-import { Button, CardHead, Empty, ErrorNote, errorText, Input, Loading, must, Page, Panel, Tabs, useLoad, type ViewProps } from "../ui";
+import { Button, CardHead, Empty, ErrorNote, errorText, Input, Loading, must, Page, Panel, Segmented, useLoad, type ViewProps } from "../ui";
 import { HoursEditor } from "../meetings/HoursEditor";
 import { MyCalendar } from "../meetings/MyCalendar";
 import { meetingsApi, Modal, ownZone } from "../meetings/parts";
@@ -31,9 +31,11 @@ export function AvailabilityPage(props: ViewProps & { tab: string }) {
   const { navigate } = props;
   const tab = availabilityPage(props.tab);
   return (
-    <Page title="Availability" flush>
-      <Tabs value={tab} tabs={TABS} onChange={(t) => navigate("scheduling", t === "schedules" ? "availability" : `availability/${t}`)} />
-      <div className="mx-auto flex w-full max-w-4xl flex-col gap-5 p-5 md:p-7">
+    <Page title="Availability">
+      <div className="mx-auto flex w-full max-w-4xl flex-col gap-5">
+        <div>
+          <Segmented value={tab} options={TABS} onChange={(t) => navigate("scheduling", t === "schedules" ? "availability" : `availability/${t}`)} label="Availability" />
+        </div>
         {tab === "schedules" ? (
           <>
             <MyCalendar sb={props.sb} session={props.session} ws={props.ws} parts={["hours"]} />

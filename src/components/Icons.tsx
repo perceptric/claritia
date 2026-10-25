@@ -145,6 +145,58 @@ export const BarChart = (p: P) => (
   </Svg>
 );
 
+export const TypeIcon = (p: P) => (
+  <Svg {...p}>
+    <path d="M5 7V5h14v2M12 5v14M9 19h6" />
+  </Svg>
+);
+
+export const AlignLeft = (p: P) => (
+  <Svg {...p}>
+    <path d="M4 6h16M4 10h10M4 14h16M4 18h10" />
+  </Svg>
+);
+
+export const Hash = (p: P) => (
+  <Svg {...p}>
+    <path d="M9 4 7 20M17 4l-2 16M4 9h16M3 15h16" />
+  </Svg>
+);
+
+export const Percent = (p: P) => (
+  <Svg {...p}>
+    <path d="M19 5 5 19" />
+    <circle cx="7" cy="7" r="2" />
+    <circle cx="17" cy="17" r="2" />
+  </Svg>
+);
+
+export const CircleDot = (p: P) => (
+  <Svg {...p}>
+    <circle cx="12" cy="12" r="8" />
+    <circle cx="12" cy="12" r="2.5" fill="currentColor" />
+  </Svg>
+);
+
+export const CheckSquare = (p: P) => (
+  <Svg {...p}>
+    <rect x="4" y="4" width="16" height="16" rx="4" />
+    <path d="m8.5 12 2.5 2.5 4.5-5" />
+  </Svg>
+);
+
+export const Star = (p: P) => (
+  <Svg {...p}>
+    <path d="m12 4 2.4 5 5.4.6-4 3.7 1.1 5.4L12 16l-4.9 2.7 1.1-5.4-4-3.7 5.4-.6L12 4z" />
+  </Svg>
+);
+
+export const Funnel = (p: P) => (
+  <Svg {...p}>
+    <path d="M4 5h16l-6 7.5V19l-4-2v-4.5L4 5z" />
+  </Svg>
+);
+
 export const Branch = (p: P) => (
   <Svg {...p}>
     <circle cx="6" cy="5" r="2" />

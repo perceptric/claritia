@@ -6,28 +6,28 @@
 
 import { useEffect, useState } from "react";
 import { FIELD_KINDS, OPTION_COLORS, optionsOf, type CustomField, type FieldKind, type Option } from "@/lib/records/fields";
-import { Plus, X } from "../../Icons";
+import { AlignLeft, CalendarIcon, CheckSquare, CircleDot, Clock, Contact, Dollar, Hash, Link, ListIcon, Mail, Percent, Phone, Plus, Star, Swap, TypeIcon, X } from "../../Icons";
 import { askConfirm } from "../Dialogs";
 import { Select } from "../Select";
 import { Badge, Button, ErrorNote, errorText, Field, IconButton, Input, must, Segmented, type Tone, type ViewProps } from "../ui";
 
-const GLYPH: Record<FieldKind, string> = {
-  text: "Aa",
-  long_text: "¶",
-  number: "#",
-  currency: "$",
-  percent: "%",
-  date: "D",
-  datetime: "DT",
-  select: "◉",
-  multi_select: "☰",
-  checkbox: "✓",
-  url: "↗",
-  email: "@",
-  phone: "☏",
-  user: "U",
-  relation: "⇄",
-  rating: "▪▪",
+const GLYPH: Record<string, React.ReactNode> = {
+  text: <TypeIcon size={15} />,
+  long_text: <AlignLeft size={15} />,
+  number: <Hash size={15} />,
+  currency: <Dollar size={15} />,
+  percent: <Percent size={15} />,
+  date: <CalendarIcon size={15} />,
+  datetime: <Clock size={15} />,
+  select: <CircleDot size={15} />,
+  multi_select: <ListIcon size={15} />,
+  checkbox: <CheckSquare size={15} />,
+  url: <Link size={15} />,
+  email: <Mail size={15} />,
+  phone: <Phone size={15} />,
+  user: <Contact size={15} />,
+  relation: <Swap size={15} />,
+  rating: <Star size={15} />,
 };
 
 const slug = (l: string) => l.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "") || "option";
@@ -155,9 +155,9 @@ export function FieldDialog({
                   disabled={!!start}
                   aria-pressed={type === k.value}
                   onClick={() => setType(k.value)}
-                  className={`press flex h-16 flex-col items-center justify-center gap-1 rounded-lg border px-1 text-[11.5px] transition-colors duration-[140ms] ${type === k.value ? "border-ink bg-card text-ink ring-1 ring-ink" : "border-line bg-card text-body hover:border-line-strong hover:bg-paper"} disabled:cursor-default ${start && type !== k.value ? "opacity-40" : ""}`}
+                  className={`press flex h-16 flex-col items-center justify-center gap-1 rounded-lg border px-1 text-[11.5px] transition-colors duration-[140ms] ${type === k.value ? "border-ink bg-card text-ink ring-1 ring-ink" : "border-line bg-card text-body hover:border-line-strong hover:bg-hover"} disabled:cursor-default ${start && type !== k.value ? "opacity-40" : ""}`}
                 >
-                  <span className="font-mono text-[12px]">{GLYPH[k.value]}</span>
+                  <span className="text-muted">{GLYPH[k.value]}</span>
                   {k.label}
                 </button>
               ))}
