@@ -1,9 +1,10 @@
 "use client";
 
-// Email › Templates (docs/enrich-workflows-reports.md 2.4): saved emails that workflows and broadcasts reuse. The same
-// form as a workflow's Send email step; a step picks one with "Use a template".
+// Nurture › Emails › Templates (docs/enrich-workflows-reports.md 2.4): saved emails that workflows and broadcasts
+// reuse. The same form as a workflow's Send email step; a step picks one with "Use a template". A template saves
+// itself 800 ms after the last change, like every editor.
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { mergeGaps } from "@/lib/workflows/engine";
 import { emptyEmail, type EmailBody } from "@/lib/workflows/types";
 import { Mail, Plus, Trash } from "../../Icons";
@@ -30,14 +31,28 @@ export function EmailTemplatesView({ sb, ws }: ViewProps) {
     setSaved(true);
     list.reload();
   };
-  const save = async () => {
-    if (!open) return;
-    const { error: e } = await sb.rpc("email_template_save", { p_ws: ws.id, p_id: open.id, p_name: open.name, p_body: open.body });
-    if (e) return setError(e.message);
-    setSaved(true);
-    setError("");
-    list.reload();
-  };
+  const reload = list.reload;
+  useEffect(() => {
+    if (saved || !open || !open.name.trim()) return;
+    const t = setTimeout(async () => {
+      const { error: e } = await sb.rpc("email_template_save", { p_ws: ws.id, p_id: open.id, p_name: open.name.trim(), p_body: open.body });
+      if (e) return setError(e.message);
+      setSaved(true);
+      setError("");
+      reload();
+    }, 800);
+    return () => clearTimeout(t);
+  }, [open, saved, sb, ws.id, reload]);
+  // The Create menu's "Email template" opens here with ?create=1.
+  const [asked] = useState(() => typeof window !== "undefined" && new URLSearchParams(window.location.search).get("create") === "1");
+  useEffect(() => {
+    if (!asked) return;
+    history.replaceState(null, "", window.location.pathname);
+    const t = setTimeout(() => void create(), 0);
+    return () => clearTimeout(t);
+    // Once, on the first render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [asked]);
   const del = async (t: Template) => {
     if (!(await askConfirm(`Delete ${t.name}?`, { ok: "Delete", danger: true }))) return;
     const { error: e } = await sb.rpc("email_template_delete", { p_id: t.id });
@@ -104,12 +119,9 @@ export function EmailTemplatesView({ sb, ws }: ViewProps) {
                 readOnly={false}
               />
               {gaps.length ? <p className="text-[12.5px] text-butter">Add a fallback to {[...new Set(gaps)].join(", ")}</p> : null}
-              <div className="flex items-center gap-3">
-                <Button onClick={() => void save()} disabled={saved || !open.name.trim()}>
-                  Save
-                </Button>
-                {saved ? <span className="text-[12.5px] text-muted">Saved</span> : null}
-              </div>
+              <span role="status" className="text-[12.5px] text-muted">
+                {saved ? "Saved" : "Saving…"}
+              </span>
             </Panel>
           ) : null}
         </div>

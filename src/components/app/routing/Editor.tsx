@@ -317,11 +317,11 @@ export function RouterEditor({
             </IconButton>
           ) : null}
           <Button variant="ghost" size="sm" onClick={() => setVersions(true)}>
-            Saved setups
+            Versions
           </Button>
           <span ref={testButton} className="contents">
             <Button variant="ghost" size="sm" aria-pressed={testing} onClick={() => (testing ? closeTest() : openTest())} aria-keyshortcuts="T">
-              Try a lead
+              Try a contact
             </Button>
           </span>
           {!readOnly ? (

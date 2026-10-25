@@ -94,7 +94,7 @@ const fill = async (id: string, values: Record<string, string>) => {
   await p.close();
 };
 const publish = async () => {
-  await page.getByRole("button", { name: "Publish" }).click();
+  await page.getByRole("button", { name: "Make live" }).click();
   // The first publish waits on next dev compiling the publish route.
   await until(async () => (await db.query(`select status from forms where id = $1`, [formId()])).rows[0]?.status === "live", 60_000, "the form to go live");
 };
@@ -315,7 +315,7 @@ try {
   await until(async () => (await db.query(`select "on" from qualify_settings where workspace_id = $1`, [ws])).rows[0]?.on === true, 30_000, "qualify to turn on");
   check(true, "Qualify turns on from Rules");
 
-  // Routing: a template, Make live, Try a lead, a form fill routed in the send, a held lead let through, History.
+  // Routing: a template, Make live, Try a contact, a form fill routed in the send, a held lead let through, History.
   await page.goto(`${base}/routing`);
   await page.getByRole("button", { name: /Everyone takes turns/ }).first().click({ timeout: 60_000 });
   await until(async () => new URL(page.url()).pathname === "/routing/rules", 30_000, "the setup to open on Rules");
@@ -325,11 +325,11 @@ try {
   await page.getByRole("dialog").getByRole("button", { name: "Make live", exact: true }).click({ timeout: 30_000 });
   await until(async () => (await db.query(`select live_version from routers where workspace_id = $1`, [ws])).rows[0]?.live_version === 1, 30_000, "the router to go live");
   check(true, "a template goes live");
-  await page.getByRole("button", { name: "Try a lead", exact: true }).first().click();
+  await page.getByRole("button", { name: "Try a contact", exact: true }).first().click();
   await page.getByRole("textbox", { name: "Email" }).fill("rae@northwind.io");
   await page.keyboard.press("Enter");
-  await page.getByRole("complementary", { name: "Try a lead" }).getByText("Filter out junk").first().waitFor({ timeout: 30_000 });
-  check(true, "Try a lead explains where a lead would go");
+  await page.getByRole("complementary", { name: "Try a contact" }).getByText("Filter out junk").first().waitFor({ timeout: 30_000 });
+  check(true, "Try a contact explains where a lead would go");
   await page.goto(`${base}/routing`);
   await page.getByText("Routing is on.").waitFor({ timeout: 60_000 });
   await page.getByText("Your setup in plain words").waitFor();

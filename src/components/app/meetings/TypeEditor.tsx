@@ -14,7 +14,7 @@ import { CalendarIcon, Check, Clock, Link as LinkIcon, Lock, Plus, Trash, Users,
 import { askConfirm } from "../Dialogs";
 import { Select } from "../Select";
 import { AreaIn, INPUT, LabelWidth, NumIn, NumRow, Pick, Row, Seg, Switch, TagInput, TextIn } from "../forms/controls";
-import { Badge, Button, Empty, ErrorNote, errorText, IconButton, Loading, must, Page, setLeaveGuard, Toggle, useLoad, type ViewProps } from "../ui";
+import { Button, Empty, ErrorNote, errorText, IconButton, Loading, must, Page, setLeaveGuard, Toggle, useLoad, type ViewProps } from "../ui";
 import { BookingCalendar } from "@/components/book/BookingCalendar";
 import { LinkDialog } from "./LinkDialog";
 import { minutesText, slugify } from "./model";
@@ -90,6 +90,7 @@ export function TypeEditor(props: ViewProps) {
   const [slugTouched, setSlugTouched] = useState(!isNew);
   const [errors, setErrors] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
+  const [savedAt, setSavedAt] = useState(0);
   const [giving, setGiving] = useState(false);
   const [linking, setLinking] = useState(false);
   const [tz] = useState(ownZone);
@@ -109,6 +110,30 @@ export function TypeEditor(props: ViewProps) {
     setLeaveGuard(dirty ? () => askConfirm("Leave without saving?", { ok: "Leave", danger: true }) : null);
     return () => setLeaveGuard(null);
   }, [dirty]);
+
+  // A saved type saves itself 800 ms after the last change, like every editor (docs/unify-plan.md 2.3). A change
+  // the server refused isn't sent again until it changes.
+  const [failed, setFailed] = useState("");
+  useEffect(() => {
+    if (isNew || !dirty || busy || !draft) return;
+    const sent = JSON.stringify(draft);
+    if (sent === failed) return;
+    const t = setTimeout(async () => {
+      setBusy(true);
+      setErrors([]);
+      try {
+        await meetingsApi(session, ws.id, "types", { action: "save", id, type: draft });
+        setBase(sent);
+        setSavedAt(Date.now());
+      } catch (e) {
+        setFailed(sent);
+        setErrors([errorText(e)]);
+      } finally {
+        setBusy(false);
+      }
+    }, 800);
+    return () => clearTimeout(t);
+  }, [draft, isNew, dirty, busy, failed, session, ws.id, id]);
 
   const back = { label: "Meeting types", onClick: () => navigate("scheduling", "types") };
   if (data.error && !data.data)
@@ -144,9 +169,11 @@ export function TypeEditor(props: ViewProps) {
   const save = async () => {
     setErrors([]);
     setBusy(true);
+    const sent = draft;
     try {
-      const r = await meetingsApi<{ id: string }>(session, ws.id, "types", { action: "save", id: isNew ? null : id, type: draft });
-      setBase(JSON.stringify(draft));
+      const r = await meetingsApi<{ id: string }>(session, ws.id, "types", { action: "save", id: isNew ? null : id, type: sent });
+      setBase(JSON.stringify(sent));
+      setSavedAt(Date.now());
       if (isNew) {
         setLeaveGuard(null);
         navigate("scheduling", `types/${r.id}`);
@@ -181,7 +208,11 @@ export function TypeEditor(props: ViewProps) {
       flush
       actions={
         <>
-          {dirty ? <Badge tone="amber">Unsaved</Badge> : null}
+          {!isNew ? (
+            <span role="status" key={savedAt} className={`text-[12.5px] ${errors.length && dirty ? "text-rose" : "anim-fade text-muted"}`}>
+              {errors.length && dirty ? "Not saved" : busy ? "Saving…" : savedAt && !dirty ? "Saved" : ""}
+            </span>
+          ) : null}
           {!isNew ? (
             <>
               <CopyButton label="Copy times" get={async () => (await meetingsApi<{ text: string }>(session, ws.id, "times", { typeId: id, length, tz })).text || Promise.reject(new Error("No free times in the window."))} onError={(m) => setErrors([m])} />
@@ -195,9 +226,11 @@ export function TypeEditor(props: ViewProps) {
               ) : null}
             </>
           ) : null}
-          <Button onClick={() => void save()} disabled={busy || (!dirty && !isNew)}>
-            {isNew ? "Create" : "Save"}
-          </Button>
+          {isNew ? (
+            <Button onClick={() => void save()} disabled={busy}>
+              Create
+            </Button>
+          ) : null}
         </>
       }
     >

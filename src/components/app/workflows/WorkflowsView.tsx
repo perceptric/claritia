@@ -123,7 +123,12 @@ function TemplatePicker({ sb, ws, navigate }: ViewProps) {
     if (t) make(t.name, t.body()).catch((e) => setError(errorText(e)));
   }, [asked, make]);
 
-  if (asked && templateByKey(asked) && !error) return <Loading />;
+  if (asked && templateByKey(asked) && !error)
+    return (
+      <Page title="New workflow" back={{ label: "Workflows", onClick: () => navigate("workflows") }}>
+        <Loading />
+      </Page>
+    );
   return (
     <Page icon={<Branch size={16} />} title="New workflow">
       <ErrorNote message={error} />
@@ -143,7 +148,7 @@ function Card({ name, line, onClick, disabled }: { name: string; line: string; o
       type="button"
       onClick={onClick}
       disabled={disabled}
-      className="anim-rise-sm flex flex-col gap-1 rounded-2xl border border-line bg-card px-5 py-4 text-left transition-[transform,box-shadow] duration-[140ms] hover:-translate-y-px hover:shadow-soft disabled:opacity-60"
+      className="lift anim-rise flex flex-col gap-1 rounded-2xl border border-line bg-card p-5 text-left disabled:opacity-60"
     >
       <span className="text-[14px] font-semibold tracking-[-0.01em] text-ink">{name}</span>
       <span className="text-[12.5px] text-muted">{line}</span>
@@ -161,7 +166,12 @@ function EditorPage({ sb, session, ws, navigate, id }: ViewProps) {
         <ErrorNote message={res.error} />
       </Page>
     );
-  if (!res.data) return <Loading />;
+  if (!res.data)
+    return (
+      <Page title="Workflow" back={{ label: "Workflows", onClick: () => navigate("workflows") }}>
+        <Loading />
+      </Page>
+    );
   const w = res.data.wf;
   return <WorkflowEditor key={`${w.draft_revision}:${w.status}:${w.live_version}`} sb={sb} session={session} ws={ws} navigate={navigate} data={res.data} reload={reload} />;
 }

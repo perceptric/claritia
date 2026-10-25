@@ -133,8 +133,19 @@ function SegmentPage({ sb, ws, id, navigate }: Pick<ViewProps, "sb" | "ws" | "na
       objects: ((o.data ?? []) as { key: string; plural: string }[]).map((x) => ({ value: x.key, label: x.plural })),
     };
   }, ws.id);
-  if ((!isNew && seg.data === undefined) || !extra.data) return <Loading />;
-  if (!isNew && !seg.data) return <Empty title="Segment not found" />;
+  const back = { label: "Segments", onClick: () => navigate("segments") };
+  if ((!isNew && seg.data === undefined) || !extra.data)
+    return (
+      <Page title={isNew ? "New segment" : "Segment"} back={back}>
+        <Loading />
+      </Page>
+    );
+  if (!isNew && !seg.data)
+    return (
+      <Page title="Segment" back={back}>
+        <Empty title="Segment not found" />
+      </Page>
+    );
   return <Builder sb={sb} wsId={ws.id} seg={seg.data ?? null} ctx={{ sb, wsId: ws.id, ...extra.data }} navigate={navigate} reload={seg.reload} />;
 }
 

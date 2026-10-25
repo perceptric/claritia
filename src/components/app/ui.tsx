@@ -191,9 +191,8 @@ export function Panel({ children, className = "", frame = false }: { children: R
 /** A card's header bar: a clay dot and a label, with room for actions on the right. */
 export function CardHead({ label, count, children }: { label: string; count?: number | string; children?: React.ReactNode }) {
   return (
-    <div className="flex h-11 items-center gap-2 border-b border-line px-5">
-      <span className="size-1.5 shrink-0 rounded-full bg-clay" />
-      <span className="truncate text-[13px] font-medium text-ink">{label}</span>
+    <div className="flex h-12 items-center gap-2 border-b border-line px-5">
+      <h2 className="truncate text-[14px] font-semibold tracking-[-0.01em] text-ink">{label}</h2>
       {count != null ? <span className="text-[12px] text-muted tabular-nums">{count}</span> : null}
       {children ? <div className="ml-auto flex items-center gap-1.5">{children}</div> : null}
     </div>
@@ -292,7 +291,7 @@ export function Toggle({ on, onChange, label, disabled = false }: { on: boolean;
 export function Stat({ value, label }: { value: React.ReactNode; label: string }) {
   return (
     <div className="flex flex-col gap-1">
-      <span className="font-semibold text-[31px] leading-none tracking-[-0.04em] text-ink tabular-nums">{value}</span>
+      <span className="font-semibold text-[30px] leading-none tracking-[-0.04em] text-ink tabular-nums">{value}</span>
       <span className="label-mono">{label}</span>
     </div>
   );

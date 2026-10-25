@@ -25,7 +25,7 @@ import { FieldsPanel, HistoryPanel, sourceLabel, type Change } from "../records/
 import { RecordWork } from "../records/RecordWork";
 import { ImportPanel } from "../records/ImportPanel";
 import { RecordsList, type Preset, type ViewState } from "../records/RecordsList";
-import { SidePanel } from "../records/SidePanel";
+import { Sheet } from "../Sheet";
 import { DEFAULT_WIDTH, type Row } from "../records/RecordTable";
 import { OpportunitiesPanel } from "./RecordsViews";
 import { routingApi } from "../routing/api";
@@ -302,7 +302,7 @@ function ContactPanel({
   }
 
   return (
-    <SidePanel
+    <Sheet
       title={id ? "Edit contact" : "Add contact"}
       onClose={() => onClose()}
       footer={
@@ -363,7 +363,7 @@ function ContactPanel({
         ))}
         <button type="submit" className="hidden" />
       </form>
-    </SidePanel>
+    </Sheet>
   );
 }
 

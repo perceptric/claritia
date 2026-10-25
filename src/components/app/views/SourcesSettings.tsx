@@ -17,7 +17,7 @@ import { Badge, Button, CardHead, ErrorNote, errorText, Field, Input, Loading, m
 import { usePeople } from "../meetings/parts";
 import { routingApi } from "../routing/api";
 import { CheckBox } from "../records/RecordTable";
-import { SidePanel } from "../records/SidePanel";
+import { Sheet } from "../Sheet";
 
 type Source = {
   id: string;
@@ -204,7 +204,7 @@ function ConnectPanel({ session, wsId, entry, onClose, onError }: { session: Vie
   };
   const signIn = entry.oauth || entry.kind === "omniscient";
   return (
-    <SidePanel title={entry.label} onClose={() => onClose()} footer={null}>
+    <Sheet title={entry.label} onClose={() => onClose()} footer={null}>
       <div className="flex flex-col gap-4 p-5">
         <div className="flex items-center gap-3">
           <BrandLogo domain={entry.domain} name={entry.label} size={32} />
@@ -285,7 +285,7 @@ function ConnectPanel({ session, wsId, entry, onClose, onError }: { session: Vie
           </form>
         )}
       </div>
-    </SidePanel>
+    </Sheet>
   );
 }
 
@@ -313,7 +313,7 @@ function SourcePanel({ sb, session, wsId, source, owner, onClose, changed }: { s
   const setObject = (o: string, v: string) => setSettings({ ...settings, objects: { ...objects, [o]: v } });
 
   return (
-    <SidePanel title={source.name} wide onClose={onClose} footer={null}>
+    <Sheet title={source.name} wide onClose={onClose} footer={null}>
       <div className="flex flex-col gap-5 p-5">
         <div className="flex flex-wrap items-center gap-3">
           <BrandLogo domain={e?.domain ?? ""} name={source.name} size={32} />
@@ -499,7 +499,7 @@ function SourcePanel({ sb, session, wsId, source, owner, onClose, changed }: { s
           )}
         </Panel>
       </div>
-    </SidePanel>
+    </Sheet>
   );
 }
 

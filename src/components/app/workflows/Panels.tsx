@@ -8,40 +8,19 @@ import { cleanBody } from "@/lib/workflows/check";
 import { diffWords, resultWords, stepWords, type Names as WordNames } from "@/lib/workflows/explain";
 import { find } from "@/lib/workflows/tree";
 import type { Body } from "@/lib/workflows/types";
-import { Search, X } from "../../Icons";
+import { Search } from "../../Icons";
 import { askConfirm } from "../Dialogs";
 import { Modal } from "../meetings/parts";
-import { useSlideIn } from "../routing/parts";
-import { Badge, Button, ErrorNote, errorText, IconButton, Input, must, postJson, Tabs, timeAgo, useLoad, type Tone } from "../ui";
+import { Sheet } from "../Sheet";
+import { Badge, Button, ErrorNote, errorText, Input, must, postJson, Tabs, timeAgo, useLoad, type Tone } from "../ui";
 import type { Version } from "./data";
 
-/** A drawer from the right, over the editor. */
-function Drawer({ title, onClose, children, wide = false }: { title: string; onClose: () => void; children: React.ReactNode; wide?: boolean }) {
-  const ref = useSlideIn<HTMLDivElement>();
-  useEffect(() => {
-    const key = (e: KeyboardEvent) => e.key === "Escape" && !document.querySelector('[aria-modal="true"][data-top]') && onClose();
-    window.addEventListener("keydown", key);
-    return () => window.removeEventListener("keydown", key);
-  }, [onClose]);
+/** A sheet from the right, over the editor. */
+function Drawer({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode; wide?: boolean }) {
   return (
-    <div className="anim-fade fixed inset-0 z-[75] flex justify-end bg-scrim" onMouseDown={onClose}>
-      <div
-        ref={ref}
-        role="dialog"
-        aria-modal="true"
-        aria-label={title}
-        onMouseDown={(e) => e.stopPropagation()}
-        className={`flex h-full w-full flex-col bg-card shadow-float md:my-2.5 md:mr-2.5 md:h-[calc(100%-20px)] md:rounded-2xl ${wide ? "max-w-xl" : "max-w-sm"}`}
-      >
-        <div className="flex h-14 shrink-0 items-center gap-2 border-b border-line px-5">
-          <h2 className="flex-1 text-[16px] font-semibold tracking-[-0.02em] text-ink">{title}</h2>
-          <IconButton label="Close" onClick={onClose} autoFocus>
-            <X size={15} />
-          </IconButton>
-        </div>
-        {children}
-      </div>
-    </div>
+    <Sheet title={title} onClose={onClose}>
+      <div className="flex min-h-full flex-col">{children}</div>
+    </Sheet>
   );
 }
 

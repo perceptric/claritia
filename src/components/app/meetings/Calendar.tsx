@@ -32,7 +32,7 @@ const PRESETS: { value: Exclude<Preset, "day">; label: string }[] = [
 type Busy = { start: string; end: string; ooo: boolean };
 type Item = { kind: "meeting"; at: number; m: Meeting } | { kind: "busy"; at: number; b: Busy };
 
-const clock = (t: string | number) => new Date(t).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+const clock = (t: string | number) => new Date(t).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
 
 export function MeetingsCalendar(props: ViewProps) {
   const { sb, session, ws, role, navigate } = props;
@@ -242,7 +242,7 @@ export function MeetingsCalendar(props: ViewProps) {
                 <section key={g.key} className="flex flex-col gap-2">
                   <h2 className="flex items-center gap-2 text-[15px] font-semibold tracking-[-0.01em] text-ink">
                     {g.date.toLocaleDateString("en-US", { weekday: "short" })}
-                    <span className="font-medium text-muted">{g.date.toLocaleDateString("en-GB", { day: "numeric", month: "short" })}</span>
+                    <span className="font-medium text-muted">{g.date.toLocaleDateString("en-US", { day: "numeric", month: "short" })}</span>
                     {isToday ? <Badge tone="sky">Today</Badge> : null}
                   </h2>
                   <ul className="flex flex-col gap-2">

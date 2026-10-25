@@ -6,48 +6,16 @@
 // for each block, and the contacts behind any number. The counting rules are on the first screen, before there's data.
 
 import { useMemo, useState } from "react";
-import {
-  compact,
-  daysIn,
-  delta,
-  duration,
-  money,
-  pct,
-  presetRange,
-  previous,
-  PRESETS,
-  rangeWords,
-  todayIn,
-  toCsv,
-  type Preset,
-  type Range,
-} from "@/lib/reports/range";
+import { compact, daysIn, delta, duration, money, pct, presetRange, previous, PRESETS, rangeWords, todayIn, toCsv, type Preset, type Range } from "@/lib/reports/range";
 import { Download } from "../../Icons";
 import { DayLine, FunnelBars, type FunnelStep } from "../charts/Charts";
 import { Modal } from "../meetings/parts";
 import { Select } from "../Select";
 import { StatCards, type StatCard } from "../StatCards";
 import { ToolIntro } from "../ToolIntro";
-import {
-  ErrorNote,
-  IconButton,
-  Loading,
-  must,
-  Panel,
-  Segmented,
-  Td,
-  Th,
-  useLoad,
-  type ViewProps,
-} from "../ui";
+import { ErrorNote, IconButton, Loading, must, Panel, Segmented, Td, Th, useLoad, type ViewProps } from "../ui";
 
-export type ReportKind =
-  | "funnel"
-  | "reps"
-  | "speed"
-  | "rules"
-  | "forms"
-  | "email";
+export type ReportKind = "funnel" | "reps" | "speed" | "rules" | "forms" | "email";
 const TITLE: Record<ReportKind, string> = {
   funnel: "Funnel",
   reps: "Reps",
@@ -82,9 +50,7 @@ function readPreset(): Preset {
 }
 
 function download(c: { name: string; text: string }) {
-  const url = URL.createObjectURL(
-    new Blob([c.text], { type: "text/csv;charset=utf-8" }),
-  );
+  const url = URL.createObjectURL(new Blob([c.text], { type: "text/csv;charset=utf-8" }));
   const a = document.createElement("a");
   a.href = url;
   a.download = c.name;
@@ -97,17 +63,9 @@ function Head({ title, csv }: { title?: string; csv: Csv | null }) {
   if (!title && !csv) return null;
   return (
     <div className="flex min-h-8 items-center gap-2">
-      {title ? (
-        <h2 className="text-[15px] font-semibold tracking-[-0.01em] text-ink">
-          {title}
-        </h2>
-      ) : null}
+      {title ? <h2 className="text-[14px] font-semibold tracking-[-0.01em] text-ink">{title}</h2> : null}
       {csv ? (
-        <IconButton
-          label="Export CSV"
-          className="ml-auto"
-          onClick={() => download(csv())}
-        >
+        <IconButton label="Export CSV" className="ml-auto" onClick={() => download(csv())}>
           <Download size={15} />
         </IconButton>
       ) : null}
@@ -136,53 +94,24 @@ export function Report({
     const [forms, people, profiles, versions, settings] = await Promise.all([
       sb.from("forms").select("id, name").eq("workspace_id", ws),
       sb.rpc("workspace_people", { p_ws: ws }),
-      sb
-        .from("booking_profiles")
-        .select("user_id, name")
-        .eq("workspace_id", ws),
-      sb
-        .from("router_versions")
-        .select("version, body")
-        .eq("workspace_id", ws)
-        .order("version", { ascending: false })
-        .limit(20),
-      sb
-        .from("send_settings")
-        .select("timezone")
-        .eq("workspace_id", ws)
-        .maybeSingle(),
+      sb.from("booking_profiles").select("user_id, name").eq("workspace_id", ws),
+      sb.from("router_versions").select("version, body").eq("workspace_id", ws).order("version", { ascending: false }).limit(20),
+      sb.from("send_settings").select("timezone").eq("workspace_id", ws).maybeSingle(),
     ]);
-    const named = new Map(
-      ((profiles.data ?? []) as { user_id: string; name: string }[]).map(
-        (p) => [p.user_id, p.name],
-      ),
-    );
+    const named = new Map(((profiles.data ?? []) as { user_id: string; name: string }[]).map((p) => [p.user_id, p.name]));
     const rules: Record<string, string> = {};
     for (const v of (versions.data ?? []) as {
       body: { rules?: { list?: { id: string; name: string }[] } };
     }[])
       for (const r of v.body.rules?.list ?? []) rules[r.id] ??= r.name;
     return {
-      forms: Object.fromEntries(
-        ((must(forms) ?? []) as { id: string; name: string }[]).map((f) => [
-          f.id,
-          f.name,
-        ]),
-      ),
-      people: Object.fromEntries(
-        ((people.data ?? []) as { id: string; email: string }[]).map((p) => [
-          p.id,
-          named.get(p.id) || p.email.replace(/@.*/, ""),
-        ]),
-      ),
+      forms: Object.fromEntries(((must(forms) ?? []) as { id: string; name: string }[]).map((f) => [f.id, f.name])),
+      people: Object.fromEntries(((people.data ?? []) as { id: string; email: string }[]).map((p) => [p.id, named.get(p.id) || p.email.replace(/@.*/, "")])),
       rules,
       tz: (settings.data as { timezone?: string } | null)?.timezone || "UTC",
     };
   }, ws);
-  const range = useMemo(
-    () => presetRange(preset, todayIn(names.data?.tz ?? "UTC")),
-    [preset, names.data?.tz],
-  );
+  const range = useMemo(() => presetRange(preset, todayIn(names.data?.tz ?? "UTC")), [preset, names.data?.tz]);
   const pick = (p: Preset) => {
     setPreset(p);
     try {
@@ -195,16 +124,8 @@ export function Report({
   return (
     <div className="flex flex-col gap-8">
       <div className="flex items-center justify-end gap-2">
-        <span className="hidden text-[12.5px] text-muted tabular-nums sm:inline">
-          {rangeWords(range)}
-        </span>
-        <Select
-          value={preset}
-          options={PRESETS}
-          onChange={pick}
-          ariaLabel="Date range"
-          className="h-9 w-40"
-        />
+        <span className="hidden text-[12.5px] text-muted tabular-nums sm:inline">{rangeWords(range)}</span>
+        <Select value={preset} options={PRESETS} onChange={pick} ariaLabel="Date range" className="h-9 w-40" />
       </div>
       {show.map((k) => {
         const t = titled ? TITLE[k] : undefined;
@@ -223,16 +144,7 @@ export function Report({
             return <EmailPage key={k} {...props} title={t} />;
         }
       })}
-      {drill ? (
-        <People
-          sb={sb}
-          ws={ws}
-          range={range}
-          drill={drill}
-          onOpen={(cid) => navigate("contacts", cid)}
-          onClose={() => setDrill(null)}
-        />
-      ) : null}
+      {drill ? <People sb={sb} ws={ws} range={range} drill={drill} onOpen={(cid) => navigate("contacts", cid)} onClose={() => setDrill(null)} /> : null}
     </div>
   );
 }
@@ -249,29 +161,14 @@ type PageProps = {
 /** "vs Sep 1 – 30: +12%" under a stat card. */
 const vs = (range: Range, now: number, before: number) => {
   const d = delta(now, before);
-  return d
-    ? `${d} vs ${rangeWords(previous(range))}`
-    : `None in ${rangeWords(previous(range))} either`;
+  return d ? `${d} vs ${rangeWords(previous(range))}` : `None in ${rangeWords(previous(range))} either`;
 };
 
 /** A number that opens the contacts behind it. */
-function Num({
-  value,
-  onClick,
-  format = (n: number) => n.toLocaleString("en-US"),
-}: {
-  value: number;
-  onClick?: () => void;
-  format?: (n: number) => string;
-}) {
-  if (!onClick || !value)
-    return <span className="tabular-nums">{format(value)}</span>;
+function Num({ value, onClick, format = (n: number) => n.toLocaleString("en-US") }: { value: number; onClick?: () => void; format?: (n: number) => string }) {
+  if (!onClick || !value) return <span className="tabular-nums">{format(value)}</span>;
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="rounded-full font-medium text-ink tabular-nums underline-offset-2 hover:underline focus-visible:underline"
-    >
+    <button type="button" onClick={onClick} className="rounded-full font-medium text-ink tabular-nums underline-offset-2 hover:underline focus-visible:underline">
       {format(value)}
     </button>
   );
@@ -322,16 +219,7 @@ const BY: { value: By; label: string }[] = [
 ];
 
 const groupName = (by: By, key: string, n: Names) => {
-  if (!key)
-    return by === "campaign"
-      ? "No campaign"
-      : by === "rep"
-        ? "No rep"
-        : by === "rule"
-          ? "No rule"
-          : by === "form"
-            ? "No form"
-            : "Unknown";
+  if (!key) return by === "campaign" ? "No campaign" : by === "rep" ? "No rep" : by === "rule" ? "No rule" : by === "form" ? "No form" : "Unknown";
   if (by === "form") return n.forms[key] ?? "A removed form";
   if (by === "rep") return n.people[key] ?? "A former teammate";
   if (by === "rule") return n.rules[key] ?? "A removed rule";
@@ -357,19 +245,8 @@ function FunnelPage({ sb, ws, range, names, onDrill, title }: PageProps) {
     ? () => ({
         name: `funnel-${range.from}-${range.to}-by-${by}.csv`,
         text: toCsv(
-          [
-            BY.find((b) => b.value === by)!.label,
-            ...STEPS.map((s) => s.label),
-            "Won amount",
-          ],
-          [
-            ["All", ...STEPS.map((s) => d.now[s.key]), d.now.won_amount],
-            ...(d.now.groups ?? []).map((g) => [
-              groupName(by, g.key, names),
-              ...STEPS.map((s) => g[s.key] ?? ""),
-              g.won_amount ?? 0,
-            ]),
-          ],
+          [BY.find((b) => b.value === by)!.label, ...STEPS.map((s) => s.label), "Won amount"],
+          [["All", ...STEPS.map((s) => d.now[s.key]), d.now.won_amount], ...(d.now.groups ?? []).map((g) => [groupName(by, g.key, names), ...STEPS.map((s) => g[s.key] ?? ""), g.won_amount ?? 0])],
         ),
       })
     : null;
@@ -449,24 +326,14 @@ function FunnelPage({ sb, ws, range, names, onDrill, title }: PageProps) {
       </Panel>
       {daysIn(range) > 1 ? (
         <Panel className="p-5">
-          <span className="mb-3 block text-[13px] font-medium text-ink">
-            Leads a day
-          </span>
-          <DayLine
-            label="Leads a day"
-            points={d.days.map((x) => ({ day: x.day, v: x.n }))}
-          />
+          <span className="mb-3 block text-[13px] font-medium text-ink">Leads a day</span>
+          <DayLine label="Leads a day" points={d.days.map((x) => ({ day: x.day, v: x.n }))} />
         </Panel>
       ) : null}
       <Panel className="overflow-hidden">
         <div className="flex flex-wrap items-center gap-3 border-b border-line px-5 py-3">
           <span className="text-[13px] font-medium text-ink">By</span>
-          <Segmented
-            value={by}
-            options={BY}
-            onChange={setBy}
-            label="Break down by"
-          />
+          <Segmented value={by} options={BY} onChange={setBy} label="Break down by" />
         </div>
         {groups.length ? (
           <div className="overflow-x-auto">
@@ -487,58 +354,30 @@ function FunnelPage({ sb, ws, range, names, onDrill, title }: PageProps) {
               <tbody>
                 {groups.slice(0, 50).map((g) => (
                   <tr key={g.key} className="border-t border-line">
-                    <Td className="max-w-[260px] truncate">
-                      {groupName(by, g.key, names)}
-                    </Td>
-                    {hasVisits ? (
-                      <Td className="text-right tabular-nums">
-                        {compact(g.visits ?? 0)}
-                      </Td>
-                    ) : null}
-                    {hasViews ? (
-                      <Td className="text-right tabular-nums">
-                        {compact(g.views ?? 0)}
-                      </Td>
-                    ) : null}
+                    <Td className="max-w-[260px] truncate">{groupName(by, g.key, names)}</Td>
+                    {hasVisits ? <Td className="text-right tabular-nums">{compact(g.visits ?? 0)}</Td> : null}
+                    {hasViews ? <Td className="text-right tabular-nums">{compact(g.views ?? 0)}</Td> : null}
                     <Td className="text-right">
-                      <Num
-                        value={g.submitted ?? 0}
-                        onClick={() => drillTo("submitted", g.key)}
-                      />
+                      <Num value={g.submitted ?? 0} onClick={() => drillTo("submitted", g.key)} />
                     </Td>
                     <Td className="text-right">
-                      <Num
-                        value={g.qualified ?? 0}
-                        onClick={() => drillTo("qualified", g.key)}
-                      />
+                      <Num value={g.qualified ?? 0} onClick={() => drillTo("qualified", g.key)} />
                     </Td>
                     <Td className="text-right">
-                      <Num
-                        value={g.booked ?? 0}
-                        onClick={() => drillTo("booked", g.key)}
-                      />
+                      <Num value={g.booked ?? 0} onClick={() => drillTo("booked", g.key)} />
                     </Td>
-                    <Td className="text-right text-muted tabular-nums">
-                      {pct(g.booked ?? 0, g.submitted ?? 0)}
-                    </Td>
+                    <Td className="text-right text-muted tabular-nums">{pct(g.booked ?? 0, g.submitted ?? 0)}</Td>
                     <Td className="text-right">
-                      <Num
-                        value={g.won ?? 0}
-                        onClick={() => drillTo("won", g.key)}
-                      />
+                      <Num value={g.won ?? 0} onClick={() => drillTo("won", g.key)} />
                     </Td>
-                    <Td className="text-right tabular-nums">
-                      {money(g.won_amount ?? 0)}
-                    </Td>
+                    <Td className="text-right tabular-nums">{money(g.won_amount ?? 0)}</Td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
         ) : (
-          <p className="px-5 py-6 text-[13px] text-muted">
-            No leads in this range
-          </p>
+          <p className="px-5 py-6 text-[13px] text-muted">No leads in this range</p>
         )}
       </Panel>
     </div>
@@ -572,11 +411,7 @@ type SpeedOut = {
 const faster = (now: number | null, before: number | null) => {
   if (now == null || before == null || !before) return "";
   const p = Math.round(((now - before) / before) * 100);
-  return p === 0
-    ? ", same as before"
-    : p < 0
-      ? `, ${Math.abs(p)}% faster`
-      : `, ${p}% slower`;
+  return p === 0 ? ", same as before" : p < 0 ? `, ${Math.abs(p)}% faster` : `, ${p}% slower`;
 };
 
 function SpeedPage({ sb, ws, range, title }: PageProps) {
@@ -598,24 +433,9 @@ function SpeedPage({ sb, ws, range, title }: PageProps) {
         text: toCsv(
           ["Measure", "Median (seconds)", "90th percentile (seconds)", "Leads"],
           [
-            [
-              "To a rep",
-              d.now.assigned.median,
-              d.now.assigned.p90,
-              d.now.assigned.n,
-            ],
-            [
-              "To first touch",
-              d.now.touched.median,
-              d.now.touched.p90,
-              d.now.touched.n,
-            ],
-            [
-              "To a meeting",
-              d.now.booked.median,
-              d.now.booked.p90,
-              d.now.booked.n,
-            ],
+            ["To a rep", d.now.assigned.median, d.now.assigned.p90, d.now.assigned.n],
+            ["To first touch", d.now.touched.median, d.now.touched.p90, d.now.touched.n],
+            ["To a meeting", d.now.booked.median, d.now.booked.p90, d.now.booked.n],
           ],
         ),
       })
@@ -662,48 +482,30 @@ function SpeedPage({ sb, ws, range, title }: PageProps) {
       },
       {
         label: "Reached on time",
-        value: d.now.on_time.total
-          ? Math.round((d.now.on_time.met / d.now.on_time.total) * 100)
-          : null,
+        value: d.now.on_time.total ? Math.round((d.now.on_time.met / d.now.on_time.total) * 100) : null,
         format: (n) => `${n}%`,
         note: `${d.now.on_time.met} of ${d.now.on_time.total} timed leads`,
       },
     ] as StatCard[]
-  ).map(
-    (c): StatCard =>
-      c.value == null ? { ...c, value: 0, format: () => "–" } : c,
-  );
+  ).map((c): StatCard => (c.value == null ? { ...c, value: 0, format: () => "–" } : c));
   return (
     <div className="flex flex-col gap-5">
       <Head title={title} csv={csv} />
       <StatCards cards={cards} />
       {daysIn(range) > 1 ? (
         <Panel className="p-5">
-          <span className="mb-3 block text-[13px] font-medium text-ink">
-            Median to first touch, by day
-          </span>
-          <DayLine
-            label="Median to first touch, by day"
-            points={d.days.map((x) => ({ day: x.day, v: x.median }))}
-            format={duration}
-          />
+          <span className="mb-3 block text-[13px] font-medium text-ink">Median to first touch, by day</span>
+          <DayLine label="Median to first touch, by day" points={d.days.map((x) => ({ day: x.day, v: x.median }))} format={duration} />
         </Panel>
       ) : null}
       <Panel className="overflow-hidden">
-        <div className="border-b border-line px-5 py-3 text-[13px] font-medium text-ink">
-          Slowest leads
-        </div>
+        <div className="border-b border-line px-5 py-3 text-[13px] font-medium text-ink">Slowest leads</div>
         {d.slowest.length ? (
           <table className="w-full text-[13px]">
             <tbody>
               {d.slowest.map((s) => (
-                <tr
-                  key={s.id}
-                  className="border-t border-line first:border-t-0"
-                >
-                  <Td className="max-w-[280px] truncate">
-                    {s.name || s.email || "No name"}
-                  </Td>
+                <tr key={s.id} className="border-t border-line first:border-t-0">
+                  <Td className="max-w-[280px] truncate">{s.name || s.email || "No name"}</Td>
                   <Td className="text-muted">
                     {new Date(s.at).toLocaleString("en-US", {
                       month: "short",
@@ -712,19 +514,13 @@ function SpeedPage({ sb, ws, range, title }: PageProps) {
                       minute: "2-digit",
                     })}
                   </Td>
-                  <Td className="text-right tabular-nums">
-                    {s.touched
-                      ? duration(s.seconds)
-                      : `Not reached, ${duration(s.seconds)}`}
-                  </Td>
+                  <Td className="text-right tabular-nums">{s.touched ? duration(s.seconds) : `Not reached, ${duration(s.seconds)}`}</Td>
                 </tr>
               ))}
             </tbody>
           </table>
         ) : (
-          <p className="px-5 py-6 text-[13px] text-muted">
-            No leads in this range
-          </p>
+          <p className="px-5 py-6 text-[13px] text-muted">No leads in this range</p>
         )}
       </Panel>
     </div>
@@ -760,36 +556,13 @@ function RepsPage({ sb, ws, range, names, onDrill, title }: PageProps) {
   );
   const d = r.data;
   const name = (id: string) => names.people[id] ?? "A former teammate";
-  const perWeek = (x: Rep) =>
-    d && d.weeks > 0 ? Math.round((x.leads / d.weeks) * 10) / 10 : 0;
+  const perWeek = (x: Rep) => (d && d.weeks > 0 ? Math.round((x.leads / d.weeks) * 10) / 10 : 0);
   const csv: Csv | null = d
     ? () => ({
         name: `reps-${range.from}-${range.to}.csv`,
         text: toCsv(
-          [
-            "Rep",
-            "Leads",
-            "Leads a week",
-            "Weekly cap",
-            "Reached on time",
-            "Booked",
-            "Held",
-            "No-shows",
-            "Opportunities",
-            "Won amount",
-          ],
-          d.reps.map((x) => [
-            name(x.id),
-            x.leads,
-            perWeek(x),
-            x.cap_week,
-            pct(x.met, x.timed),
-            x.booked,
-            x.held,
-            x.no_show,
-            x.opportunities,
-            x.won_amount,
-          ]),
+          ["Rep", "Leads", "Leads a week", "Weekly cap", "Reached on time", "Booked", "Held", "No-shows", "Opportunities", "Won amount"],
+          d.reps.map((x) => [name(x.id), x.leads, perWeek(x), x.cap_week, pct(x.met, x.timed), x.booked, x.held, x.no_show, x.opportunities, x.won_amount]),
         ),
       })
     : null;
@@ -823,49 +596,27 @@ function RepsPage({ sb, ws, range, names, onDrill, title }: PageProps) {
           <tbody>
             {d.reps.map((x) => (
               <tr key={x.id} className="border-t border-line">
-                <Td className="max-w-[220px] truncate font-medium">
-                  {name(x.id)}
-                </Td>
+                <Td className="max-w-[220px] truncate font-medium">{name(x.id)}</Td>
                 <Td className="text-right">
-                  <Num
-                    value={x.leads}
-                    onClick={() => drill("leads", x, "Leads")}
-                  />
+                  <Num value={x.leads} onClick={() => drill("leads", x, "Leads")} />
                 </Td>
                 <Td className="text-right text-muted tabular-nums">
                   {perWeek(x)}
                   {x.cap_week ? ` of ${x.cap_week}` : ""}
                 </Td>
-                <Td className="text-right tabular-nums">
-                  {pct(x.met, x.timed)}
+                <Td className="text-right tabular-nums">{pct(x.met, x.timed)}</Td>
+                <Td className="text-right">
+                  <Num value={x.booked} onClick={() => drill("booked", x, "Booked")} />
                 </Td>
                 <Td className="text-right">
-                  <Num
-                    value={x.booked}
-                    onClick={() => drill("booked", x, "Booked")}
-                  />
+                  <Num value={x.held} onClick={() => drill("held", x, "Held")} />
                 </Td>
                 <Td className="text-right">
-                  <Num
-                    value={x.held}
-                    onClick={() => drill("held", x, "Held")}
-                  />
-                </Td>
-                <Td className="text-right">
-                  <Num
-                    value={x.no_show}
-                    onClick={() => drill("no_show", x, "No-shows")}
-                  />
-                  <span className="ml-1 text-muted">
-                    {x.held + x.no_show
-                      ? `(${pct(x.no_show, x.held + x.no_show)})`
-                      : ""}
-                  </span>
+                  <Num value={x.no_show} onClick={() => drill("no_show", x, "No-shows")} />
+                  <span className="ml-1 text-muted">{x.held + x.no_show ? `(${pct(x.no_show, x.held + x.no_show)})` : ""}</span>
                 </Td>
                 <Td className="text-right tabular-nums">{x.opportunities}</Td>
-                <Td className="text-right tabular-nums">
-                  {money(Number(x.won_amount))}
-                </Td>
+                <Td className="text-right tabular-nums">{money(Number(x.won_amount))}</Td>
               </tr>
             ))}
           </tbody>
@@ -911,24 +662,8 @@ function FormsPage({ sb, ws, range, onDrill, title }: PageProps) {
     ? () => ({
         name: `forms-${range.from}-${range.to}.csv`,
         text: toCsv(
-          [
-            "Form",
-            "Views",
-            "Starts",
-            "Submits",
-            "Submit rate",
-            "Booked rate",
-            "Qualified rate",
-          ],
-          d.forms.map((f) => [
-            f.name,
-            f.views,
-            f.starts,
-            f.submits,
-            pct(f.submits, f.views),
-            pct(f.booked, f.submits),
-            pct(f.qualified, f.people),
-          ]),
+          ["Form", "Views", "Starts", "Submits", "Submit rate", "Booked rate", "Qualified rate"],
+          d.forms.map((f) => [f.name, f.views, f.starts, f.submits, pct(f.submits, f.views), pct(f.booked, f.submits), pct(f.qualified, f.people)]),
         ),
       })
     : null;
@@ -954,15 +689,9 @@ function FormsPage({ sb, ws, range, onDrill, title }: PageProps) {
             <tbody>
               {d.forms.map((f) => (
                 <tr key={f.id} className="border-t border-line">
-                  <Td className="max-w-[260px] truncate font-medium">
-                    {f.name}
-                  </Td>
-                  <Td className="text-right tabular-nums">
-                    {compact(f.views)}
-                  </Td>
-                  <Td className="text-right tabular-nums">
-                    {compact(f.starts)}
-                  </Td>
+                  <Td className="max-w-[260px] truncate font-medium">{f.name}</Td>
+                  <Td className="text-right tabular-nums">{compact(f.views)}</Td>
+                  <Td className="text-right tabular-nums">{compact(f.starts)}</Td>
                   <Td className="text-right">
                     <Num
                       value={f.submits}
@@ -976,9 +705,7 @@ function FormsPage({ sb, ws, range, onDrill, title }: PageProps) {
                       }
                     />
                   </Td>
-                  <Td className="text-right tabular-nums">
-                    {pct(f.submits, f.views)}
-                  </Td>
+                  <Td className="text-right tabular-nums">{pct(f.submits, f.views)}</Td>
                   <Td className="text-right">
                     <Num
                       value={f.booked}
@@ -993,17 +720,13 @@ function FormsPage({ sb, ws, range, onDrill, title }: PageProps) {
                       }
                     />
                   </Td>
-                  <Td className="text-right tabular-nums">
-                    {pct(f.qualified, f.people)}
-                  </Td>
+                  <Td className="text-right tabular-nums">{pct(f.qualified, f.people)}</Td>
                 </tr>
               ))}
             </tbody>
           </table>
         ) : (
-          <p className="px-5 py-6 text-[13px] text-muted">
-            No form views or fills in this range
-          </p>
+          <p className="px-5 py-6 text-[13px] text-muted">No form views or fills in this range</p>
         )}
       </Panel>
     </div>
@@ -1023,19 +746,13 @@ function RulesPage({ sb, ws, range, names, title }: PageProps) {
     `${ws}:${range.from}:${range.to}`,
   );
   const d = r.data;
-  const ruleName = (x: RuleRow) =>
-    x.name || names.rules[x.id] || "A removed rule";
+  const ruleName = (x: RuleRow) => x.name || names.rules[x.id] || "A removed rule";
   const csv: Csv | null = d
     ? () => ({
         name: `routing-rules-${range.from}-${range.to}.csv`,
         text: toCsv(
           ["Rule", "Leads", "Booked", "Booked rate"],
-          d.rules.map((x) => [
-            ruleName(x),
-            x.leads,
-            x.booked,
-            pct(x.booked, x.leads),
-          ]),
+          d.rules.map((x) => [ruleName(x), x.leads, x.booked, pct(x.booked, x.leads)]),
         ),
       })
     : null;
@@ -1058,14 +775,10 @@ function RulesPage({ sb, ws, range, names, title }: PageProps) {
           <tbody>
             {d.rules.map((x) => (
               <tr key={x.id} className="border-t border-line">
-                <Td className="max-w-[260px] truncate font-medium">
-                  {ruleName(x)}
-                </Td>
+                <Td className="max-w-[260px] truncate font-medium">{ruleName(x)}</Td>
                 <Td className="text-right tabular-nums">{x.leads}</Td>
                 <Td className="text-right tabular-nums">{x.booked}</Td>
-                <Td className="text-right tabular-nums">
-                  {pct(x.booked, x.leads)}
-                </Td>
+                <Td className="text-right tabular-nums">{pct(x.booked, x.leads)}</Td>
               </tr>
             ))}
           </tbody>
@@ -1108,26 +821,8 @@ function EmailPage({ sb, ws, range, onDrill, title }: PageProps) {
     ? () => ({
         name: `email-${view}-${range.from}-${range.to}.csv`,
         text: toCsv(
-          [
-            view === "emails" ? "Email" : "Workflow",
-            "Sent",
-            "Delivered",
-            "Bounced",
-            "Clicked",
-            "Unsubscribed",
-            "Complaints",
-            "Meetings within 7 days of a click",
-          ],
-          rows.map((m) => [
-            m.name,
-            m.sent,
-            m.delivered,
-            m.bounced,
-            m.clicked,
-            m.unsubscribed,
-            m.complaints,
-            m.meetings,
-          ]),
+          [view === "emails" ? "Email" : "Workflow", "Sent", "Delivered", "Bounced", "Clicked", "Unsubscribed", "Complaints", "Meetings within 7 days of a click"],
+          rows.map((m) => [m.name, m.sent, m.delivered, m.bounced, m.clicked, m.unsubscribed, m.complaints, m.meetings]),
         ),
       })
     : null;
@@ -1188,47 +883,26 @@ function EmailPage({ sb, ws, range, onDrill, title }: PageProps) {
             <tbody>
               {rows.map((m) => (
                 <tr key={m.id} className="border-t border-line">
-                  <Td className="max-w-[260px] truncate font-medium">
-                    {m.name}
-                  </Td>
+                  <Td className="max-w-[260px] truncate font-medium">{m.name}</Td>
                   <Td className="text-right">
                     <Num value={m.sent} onClick={drill(m, "sent", "Sent")} />
                   </Td>
-                  <Td className="text-right tabular-nums">
-                    {pct(m.delivered, m.sent)}
+                  <Td className="text-right tabular-nums">{pct(m.delivered, m.sent)}</Td>
+                  <Td className="text-right">
+                    <Num value={m.bounced} onClick={drill(m, "bounced", "Bounced")} />
                   </Td>
                   <Td className="text-right">
-                    <Num
-                      value={m.bounced}
-                      onClick={drill(m, "bounced", "Bounced")}
-                    />
+                    <Num value={m.clicked} onClick={drill(m, "clicked", "Clicked")} />
+                    <span className="ml-1 text-muted">({pct(m.clicked, m.delivered)})</span>
                   </Td>
                   <Td className="text-right">
-                    <Num
-                      value={m.clicked}
-                      onClick={drill(m, "clicked", "Clicked")}
-                    />
-                    <span className="ml-1 text-muted">
-                      ({pct(m.clicked, m.delivered)})
-                    </span>
+                    <Num value={m.unsubscribed} onClick={drill(m, "unsubscribed", "Unsubscribed")} />
                   </Td>
                   <Td className="text-right">
-                    <Num
-                      value={m.unsubscribed}
-                      onClick={drill(m, "unsubscribed", "Unsubscribed")}
-                    />
+                    <Num value={m.complaints} onClick={drill(m, "complaints", "Complaints")} />
                   </Td>
                   <Td className="text-right">
-                    <Num
-                      value={m.complaints}
-                      onClick={drill(m, "complaints", "Complaints")}
-                    />
-                  </Td>
-                  <Td className="text-right">
-                    <Num
-                      value={m.meetings}
-                      onClick={drill(m, "meetings", "Meetings after a click")}
-                    />
+                    <Num value={m.meetings} onClick={drill(m, "meetings", "Meetings after a click")} />
                   </Td>
                 </tr>
               ))}
@@ -1242,21 +916,7 @@ function EmailPage({ sb, ws, range, onDrill, title }: PageProps) {
 
 // The contacts behind a number ----------------------------------------------------------------------------------------
 
-function People({
-  sb,
-  ws,
-  range,
-  drill,
-  onOpen,
-  onClose,
-}: {
-  sb: ViewProps["sb"];
-  ws: string;
-  range: Range;
-  drill: Drill;
-  onOpen: (id: string) => void;
-  onClose: () => void;
-}) {
+function People({ sb, ws, range, drill, onOpen, onClose }: { sb: ViewProps["sb"]; ws: string; range: Range; drill: Drill; onOpen: (id: string) => void; onClose: () => void }) {
   const r = useLoad(
     async () =>
       must(
@@ -1287,19 +947,9 @@ function People({
         <ul className="-mx-2 flex max-h-[60vh] flex-col overflow-y-auto">
           {r.data.map((c) => (
             <li key={c.id}>
-              <button
-                type="button"
-                onClick={() => onOpen(c.id)}
-                className="flex w-full items-center gap-3 rounded-lg px-2 py-2 text-left hover:bg-hover"
-              >
-                <span className="truncate text-[13.5px] font-medium text-ink">
-                  {c.name || c.email || "No name"}
-                </span>
-                {c.name && c.email ? (
-                  <span className="truncate text-[12.5px] text-muted">
-                    {c.email}
-                  </span>
-                ) : null}
+              <button type="button" onClick={() => onOpen(c.id)} className="flex w-full items-center gap-3 rounded-lg px-2 py-2 text-left hover:bg-hover">
+                <span className="truncate text-[13.5px] font-medium text-ink">{c.name || c.email || "No name"}</span>
+                {c.name && c.email ? <span className="truncate text-[12.5px] text-muted">{c.email}</span> : null}
               </button>
             </li>
           ))}

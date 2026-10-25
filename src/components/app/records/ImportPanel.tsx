@@ -11,7 +11,7 @@ import { Upload } from "../../Icons";
 import { askConfirm, askText } from "../Dialogs";
 import { Select } from "../Select";
 import { Badge, Button, ErrorNote, errorText, Field, Loading, must, Panel, postJson, Segmented, Td, Th, Toggle, useLoad, type Tone, type ViewProps } from "../ui";
-import { SidePanel } from "./SidePanel";
+import { Sheet } from "../Sheet";
 
 type Inspect = { kind: string; size: number; sheets: string[]; sheet: string | null; header: string[]; samples: string[][]; rows: number; exact: boolean; guessed: Target[] };
 type PreviewRow = { row: number; email: string; name: string; company: string; outcome: "new" | "update" | "suppressed" | "skip" | "erased"; reason?: string };
@@ -182,7 +182,7 @@ export function ImportPanel({
       ["No email consent", c.no_basis ?? 0],
     ];
     return (
-      <SidePanel
+      <Sheet
         title="Import"
         wide
         onClose={() => onClose(true)}
@@ -246,12 +246,12 @@ export function ImportPanel({
             </div>
           ) : null}
         </div>
-      </SidePanel>
+      </Sheet>
     );
   }
 
   return (
-    <SidePanel
+    <Sheet
       title="Import"
       wide
       onClose={() => onClose(false)}
@@ -467,6 +467,6 @@ export function ImportPanel({
           </>
         )}
       </div>
-    </SidePanel>
+    </Sheet>
   );
 }
