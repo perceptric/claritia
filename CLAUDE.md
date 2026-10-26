@@ -23,4 +23,7 @@ Workspaces see screens by `workspaces.features` (`src/lib/nav.ts`): `testing`, `
 
 ## Rule: one brand style
 - Follow `docs/brand.md` for the app, the website, emails and decks.
-- Containers are square. Buttons and inputs use `rounded-md`. A state is a square tag. No pills, no shadows on cards, no gradients, no emoji.
+- The marketing site is **dark** and the product is the **reverse — plain white**. Same shape language, inverted in value.
+- Marketing: dark ground, a product window in the hero, rounded cards (16px), pill buttons, one gradient headline and one soft glow per screen, thin section rails, a logo marquee. App: white paper, black ink, quiet chrome, dense tables.
+- Shadows only on things that float (windows, popovers, the announcement pill), never on resting cards. No emoji.
+- Take visual direction from the `default.com` homepage; never copy another company's files, images, logos or copy.
