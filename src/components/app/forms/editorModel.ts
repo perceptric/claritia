@@ -5,7 +5,7 @@
 import type { Tokens } from "../../../lib/forms/brand.ts";
 import { COUNTRY_CODES } from "../../../lib/forms/countries.ts";
 import type { FieldInput, Op } from "../../../lib/forms/ops.ts";
-import { allFields, isChoice, isContent, questionKey, type Field, type FieldWidth, type Form, type Rule } from "../../../lib/forms/schema.ts";
+import { allFields, everyOption, isChoice, isContent, OP_KIND, opsFor, questionKey, type Cond, type Field, type FieldWidth, type Form, type Op as CondOp, type Rule } from "../../../lib/forms/schema.ts";
 
 // Tabs ----------------------------------------------------------------------------------------------------------
 
@@ -174,6 +174,7 @@ export const ELEMENTS: ElementDef[] = [
     make: (f) => ({ key: own(f, "Rating"), type: "rating", label: "How likely are you to recommend us?", rating: { scale: 5, style: "stars" } }),
   },
   { id: "link", name: "Link", group: "Questions", icon: "link", make: (f) => ({ key: own(f, "Link"), type: "url", label: "Link" }) },
+  { id: "calc", name: "Calculation", group: "Questions", icon: "calc", make: (f) => ({ key: own(f, "Total"), type: "calc", label: "Total", calc: { formula: "0" } }) },
   { id: "heading", name: "Heading", group: "Content", icon: "heading", make: () => ({ type: "heading", label: "Heading", content: { text: "Heading", level: 2 } }) },
   { id: "text", name: "Text", group: "Content", icon: "text", make: () => ({ type: "paragraph", label: "Text", content: { text: "Write something here." } }) },
   { id: "divider", name: "Divider", group: "Content", icon: "divider", make: () => ({ type: "divider", label: "Divider" }) },
@@ -223,6 +224,7 @@ export function iconFor(f: Field): string {
     url: "link",
     rating: "star",
     hidden: "hidden",
+    calc: "calc",
     heading: "heading",
     paragraph: "text",
     divider: "divider",
@@ -382,7 +384,7 @@ export const ruleSources = (form: Form, id: string) => allFields(form).filter((f
 /** The values a rule can compare with, when the field has a fixed list. */
 export function ruleValues(f: Field | undefined): { value: string; label: string }[] | null {
   if (!f) return null;
-  if (isChoice(f.type)) return (f.options ?? []).map((o) => ({ value: o.value, label: o.label }));
+  if (isChoice(f.type)) return everyOption(f).map((o) => ({ value: o.value, label: o.label }));
   if (f.type === "checkbox") return [{ value: "true", label: "Checked" }];
   if (f.type === "rating") return Array.from({ length: f.rating?.scale ?? 5 }, (_, i) => ({ value: String(i + 1), label: String(i + 1) }));
   return null;
@@ -393,7 +395,37 @@ export const RULE_OPS: { value: Rule["when"]["op"]; label: string }[] = [
   { value: "is_not", label: "is not" },
   { value: "filled", label: "is filled" },
   { value: "empty", label: "is empty" },
+  { value: "contains", label: "contains" },
+  { value: "not_contains", label: "doesn't contain" },
+  { value: "starts_with", label: "starts with" },
+  { value: "ends_with", label: "ends with" },
+  { value: "gt", label: "is over" },
+  { value: "gte", label: "is at least" },
+  { value: "lt", label: "is under" },
+  { value: "lte", label: "is at most" },
+  { value: "between", label: "is between" },
+  { value: "before", label: "is before" },
+  { value: "after", label: "is after" },
+  { value: "within_days", label: "is within days" },
+  { value: "any_of", label: "is any of" },
+  { value: "none_of", label: "is none of" },
 ];
+
+/** The ops a condition on this field can use, with their words. */
+export const opsOf = (f: Field | undefined) => (f ? RULE_OPS.filter((o) => opsFor(f.type).includes(o.value)) : RULE_OPS.slice(0, 4));
+
+/** A condition moved to another op: keeps what still fits, and starts the value the new op needs. */
+export function condFor(c: Cond, op: CondOp, src: Field | undefined): Cond {
+  const kind = OP_KIND[op];
+  const values = ruleValues(src);
+  if (op === "filled" || op === "empty") return { field: c.field, op };
+  if (op === "is" || op === "is_not") return { field: c.field, op, value: OP_KIND[c.op] === "any" ? (c.value ?? values?.[0]?.value ?? "") : (values?.[0]?.value ?? "") };
+  if (kind === "list") return { field: c.field, op, values: c.values?.length ? c.values : values?.[0] ? [values[0].value] : [] };
+  if (op === "between") return { field: c.field, op, value: OP_KIND[c.op] === "number" ? (c.value ?? "0") : "0", value2: c.value2 ?? "100" };
+  if (op === "within_days") return { field: c.field, op, value: "30" };
+  const keep = OP_KIND[c.op] === kind ? c.value : undefined;
+  return { field: c.field, op, value: keep ?? (kind === "number" ? "0" : kind === "date" ? new Date().toISOString().slice(0, 10) : "") };
+}
 
 // Fonts ---------------------------------------------------------------------------------------------------------
 
@@ -510,7 +542,7 @@ export function grade(ratio: number, need: number): { label: string; ok: boolean
 
 // Undo ----------------------------------------------------------------------------------------------------------
 
-const TEXT_KEYS = new Set(["label", "placeholder", "help", "default", "content", "valid", "hidden", "options", "rating", "source"]);
+const TEXT_KEYS = new Set(["label", "placeholder", "help", "default", "content", "valid", "hidden", "options", "rating", "source", "calc", "optionsBy"]);
 /**
  * Typing in one box is one step on the undo stack: ops with the same key, a second apart or less, join. Text and
  * number edits have a key; picks, toggles and moves don't, so each one is its own step.

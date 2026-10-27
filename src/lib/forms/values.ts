@@ -2,7 +2,7 @@
 // as people type; the server runs it again on every submit and trusts nothing the browser sent. Answers to fields
 // that rules hid are dropped. Runs in the browser and on the server.
 
-import { allFields, isChoice, isContent, nextStep, visibility, type Field, type FieldKey, type Form } from "./schema.ts";
+import { allFields, isChoice, isContent, nextStep, optionsFor, visibility, withCalcs, type Choice, type Field, type FieldKey, type Form, type RunCtx } from "./schema.ts";
 
 export type Answers = Record<string, unknown>;
 export type Checked = {
@@ -33,18 +33,18 @@ export function cleanWebsite(raw: string): string | null {
 export const OTHER = "Other: ";
 const isOther = (f: Field, v: string) => !!f.other && v.startsWith(OTHER) && v.length > OTHER.length && v.length <= OTHER.length + 200;
 
-function one(f: Field, raw: unknown): { value?: string | number | boolean | string[]; error?: string } {
-  const r = base(f, raw);
+function one(f: Field, raw: unknown, opts: Choice[]): { value?: string | number | boolean | string[]; error?: string } {
+  const r = base(f, raw, opts);
   // A field's own words for a failed check win over the default ones.
   return r.error && f.valid?.message ? { error: f.valid.message } : r;
 }
 
-function base(f: Field, raw: unknown): { value?: string | number | boolean | string[]; error?: string } {
+function base(f: Field, raw: unknown, opts: Choice[]): { value?: string | number | boolean | string[]; error?: string } {
   const c = f.valid ?? {};
   if (f.type === "checkbox") return { value: raw === true || raw === "true" || raw === "on" };
   if (f.type === "multi") {
     const list = (Array.isArray(raw) ? raw : raw === undefined || raw === null || raw === "" ? [] : [raw]).map(String);
-    const ok = new Set((f.options ?? []).map((o) => o.value));
+    const ok = new Set(opts.map((o) => o.value));
     if (list.some((v) => !ok.has(v) && !isOther(f, v))) return { error: "Pick from the list." };
     const value = [...new Set(list)];
     if (value.length && c.min !== undefined && value.length < c.min) return { error: `Pick at least ${c.min}.` };
@@ -97,7 +97,7 @@ function base(f: Field, raw: unknown): { value?: string | number | boolean | str
     }
     case "choice":
     case "dropdown":
-      return (f.options ?? []).some((o) => o.value === v) || isOther(f, v) ? { value: v } : { error: "Pick from the list." };
+      return opts.some((o) => o.value === v) || isOther(f, v) ? { value: v } : { error: "Pick from the list." };
     case "country":
       return /^[A-Za-z]{2}$/.test(v) ? { value: v.toUpperCase() } : { error: "Pick a country." };
     case "textarea":
@@ -115,11 +115,14 @@ function base(f: Field, raw: unknown): { value?: string | number | boolean | str
  * Check answers. `known`: field ids the form hid because enrichment already knows them (fill before submit); they
  * count as not shown, so they're neither required nor kept.
  */
-export function checkAnswers(form: Form, answers: Answers, opts: { hidden?: Record<string, string>; steps?: number[]; known?: Set<string> } = {}): Checked {
-  const { shown, required } = visibility(form, answers);
+export function checkAnswers(form: Form, answers: Answers, opts: { hidden?: Record<string, string>; steps?: number[]; known?: Set<string> } & RunCtx = {}): Checked {
+  const ctx: RunCtx = { today: opts.today, regions: opts.regions };
+  // Calcs are worked out here from the answers; whatever the browser sent for one is never read.
+  const all = withCalcs(form, answers, ctx);
+  const { shown, required } = visibility(form, answers, ctx);
   const onSteps = new Set((opts.steps ? opts.steps.map((i) => form.steps[i]).filter(Boolean) : form.steps).flatMap((s) => s.fields.map((f) => f.id)));
   // Steps a skip jumped over count as not shown: nothing on them is required or kept.
-  const path = stepPath(form, answers);
+  const path = stepPath(form, answers, ctx);
   const skipped = new Set(form.steps.filter((_, i) => !path.includes(i)).flatMap((s) => s.fields.map((f) => f.id)));
   const out: Checked = { values: {}, errors: {} };
   for (const f of allFields(form)) {
@@ -130,7 +133,11 @@ export function checkAnswers(form: Form, answers: Answers, opts: { hidden?: Reco
       continue;
     }
     if (!shown.has(f.id) || skipped.has(f.id) || opts.known?.has(f.id)) continue;
-    const r = one(f, answers[f.id]);
+    if (f.type === "calc") {
+      if (typeof all[f.id] === "number") out.values[f.key] = all[f.id] as number;
+      continue;
+    }
+    const r = one(f, answers[f.id], optionsFor(f, answers, ctx));
     if (onSteps.has(f.id)) {
       if (r.error) out.errors[f.id] = r.error;
       else if (required.has(f.id) && (r.value === undefined || r.value === false || (Array.isArray(r.value) && !r.value.length)))
@@ -169,8 +176,8 @@ export function contactParts(values: Checked["values"]) {
 }
 
 /** The steps a visitor goes through given the answers, following each step's skip. */
-export function stepPath(form: Form, answers: Answers): number[] {
+export function stepPath(form: Form, answers: Answers, ctx: RunCtx = {}): number[] {
   const path: number[] = [];
-  for (let i = 0; i < form.steps.length && path.length <= form.steps.length; i = nextStep(form, i, answers)) path.push(i);
+  for (let i = 0; i < form.steps.length && path.length <= form.steps.length; i = nextStep(form, i, answers, ctx)) path.push(i);
   return path;
 }

@@ -24,7 +24,7 @@ import { FormChecks } from "./FormChecks";
 import { FormCreate } from "./FormCreate";
 import { PreviewPane } from "./Preview";
 import type { ThemeProps } from "./FormDesign";
-import { FormFills } from "./FormFills";
+import { FormResults } from "./FormFields";
 import { ChevronDown, Tablet } from "./icons";
 import { PreviewOverlay } from "./PreviewOverlay";
 import { SettingsTab } from "./SettingsTab";
@@ -614,7 +614,7 @@ function Builder({
           ) : (
             <div className="h-full overflow-auto bg-paper p-4 md:p-8">
               <div className="mx-auto flex max-w-5xl flex-col gap-8">
-                <FormFills key={watch} sb={sb} formId={initial.id} destinations={dests} navigate={navigate} watch={watch} />
+                <FormResults key={watch} sb={sb} session={session} ws={ws} formId={initial.id} destinations={dests} navigate={navigate} watch={watch} books={!!form.after.schedule} />
                 {form.capture ? null : <FormChecks sb={sb} formId={initial.id} live={initial.status === "live"} />}
               </div>
             </div>

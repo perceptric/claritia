@@ -139,7 +139,7 @@ export function Report({
           case "rules":
             return <RulesPage key={k} {...props} title={t} />;
           case "forms":
-            return <FormsPage key={k} {...props} title={t} />;
+            return <FormsPage key={k} {...props} title={t} onField={(id) => navigate("forms", id, "tab=results&view=fields")} />;
           case "email":
             return <EmailPage key={k} {...props} title={t} />;
         }
@@ -645,25 +645,28 @@ type RuleRow = {
   booked: number;
 };
 
-function FormsPage({ sb, ws, range, onDrill, title }: PageProps) {
-  const r = useLoad(
-    async () =>
-      must(
-        await sb.rpc("report_forms", {
-          p_ws: ws,
-          p_from: range.from,
-          p_to: range.to,
-        }),
-      ) as { forms: FormRow[]; rules: RuleRow[] },
-    `${ws}:${range.from}:${range.to}`,
-  );
+type DropRow = { form_id: string; visits: number; left: number; field: string | null; n: number | null; label: string | null };
+
+function FormsPage({ sb, ws, range, onDrill, title, onField }: PageProps & { onField: (formId: string) => void }) {
+  const r = useLoad(async () => {
+    const [forms, drop] = await Promise.all([
+      sb.rpc("report_forms", { p_ws: ws, p_from: range.from, p_to: range.to }),
+      sb.rpc("report_form_dropoff", { p_ws: ws, p_from: range.from, p_to: range.to }),
+    ]);
+    return { ...(must(forms) as { forms: FormRow[]; rules: RuleRow[] }), drop: new Map((must(drop) as DropRow[]).map((x) => [x.form_id, x])) };
+  }, `${ws}:${range.from}:${range.to}`);
   const d = r.data;
+  /** The field most visits stopped at, and the share of visits that stopped there. */
+  const dropOf = (id: string) => {
+    const x = d?.drop.get(id);
+    return x?.field && x.n ? { label: x.label || "A removed field", share: pct(x.n, x.visits) } : null;
+  };
   const csv: Csv | null = d
     ? () => ({
         name: `forms-${range.from}-${range.to}.csv`,
         text: toCsv(
-          ["Form", "Views", "Starts", "Submits", "Submit rate", "Booked rate", "Qualified rate"],
-          d.forms.map((f) => [f.name, f.views, f.starts, f.submits, pct(f.submits, f.views), pct(f.booked, f.submits), pct(f.qualified, f.people)]),
+          ["Form", "Views", "Starts", "Submits", "Submit rate", "Booked rate", "Qualified rate", "Most left at"],
+          d.forms.map((f) => [f.name, f.views, f.starts, f.submits, pct(f.submits, f.views), pct(f.booked, f.submits), pct(f.qualified, f.people), dropOf(f.id) ? `${dropOf(f.id)!.label} (${dropOf(f.id)!.share})` : ""]),
         ),
       })
     : null;
@@ -684,6 +687,7 @@ function FormsPage({ sb, ws, range, onDrill, title }: PageProps) {
                 <Th className="text-right">Submit rate</Th>
                 <Th className="text-right">Booked rate</Th>
                 <Th className="text-right">Qualified rate</Th>
+                <Th>Most left at</Th>
               </tr>
             </thead>
             <tbody>
@@ -721,6 +725,16 @@ function FormsPage({ sb, ws, range, onDrill, title }: PageProps) {
                     />
                   </Td>
                   <Td className="text-right tabular-nums">{pct(f.qualified, f.people)}</Td>
+                  <Td className="max-w-[220px]">
+                    {dropOf(f.id) ? (
+                      <button type="button" onClick={() => onField(f.id)} className="flex max-w-full items-center gap-1.5 text-left hover:underline">
+                        <span className="truncate">{dropOf(f.id)!.label}</span>
+                        <span className="shrink-0 text-muted tabular-nums">{dropOf(f.id)!.share}</span>
+                      </button>
+                    ) : (
+                      <span className="text-faint">—</span>
+                    )}
+                  </Td>
                 </tr>
               ))}
             </tbody>

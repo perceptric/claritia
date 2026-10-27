@@ -7,7 +7,7 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import { addUsage, usageOf, type Usage } from "../ai/cache.ts";
 import { applyStrict, describeOp, type FieldInput, type Op } from "./ops.ts";
-import { allFields, CONTACT_KEYS, FIELD_TYPES, type FieldType, type Form, type Rule } from "./schema.ts";
+import { allFields, CONTACT_KEYS, FIELD_TYPES, OP_KIND, type Cond, type FieldType, type Form, type Rule } from "./schema.ts";
 import { TEMPLATES } from "./templates.ts";
 
 export const CHAT_MODEL = "claude-sonnet-5-5";
@@ -41,6 +41,19 @@ const FIELD_PROPS = {
   placeholder: { type: "string" },
   help: { type: "string" },
   options: { type: "array", items: { type: "string" }, description: "For choice and multi fields." },
+  option_scores: { type: "array", items: { type: "number" }, description: "A number for each option, in order, for calculations to read (a price, a score)." },
+  calc: {
+    type: "object",
+    description: "For calc fields: a formula over other fields by id in braces, like {seats} * 40 + {plan}. Has + - * / ( ), > < >= <= == !=, and, or, min, max, round, abs, if(cond, a, b), ifempty(x, y). Picks count their option scores.",
+    properties: { formula: { type: "string" }, format: { type: "string", enum: ["number", "money", "percent"] }, currency: { type: "string" }, decimals: { type: "integer", minimum: 0, maximum: 4 }, show: { type: "boolean" } },
+    required: ["formula"],
+  },
+  follows: {
+    type: "object",
+    description: "For choice, multi and dropdown fields whose options depend on another pick: the field id it follows, and either its options for each answer of that field, or regions: true to list the regions of a country field.",
+    properties: { field_id: { type: "string" }, options_by_answer: { type: "object", additionalProperties: { type: "array", items: { type: "string" } } }, regions: { type: "boolean" } },
+    required: ["field_id"],
+  },
   width: { type: "string", enum: ["full", "half"] },
   check: { type: "string", enum: ["work_email"], description: "Email fields: refuse free email addresses." },
   hidden: {
@@ -68,8 +81,19 @@ export const CHAT_TOOLS: Anthropic.Beta.BetaTool[] = [
         target_field_id: { type: "string" },
         action: { type: "string", enum: ["show", "hide", "require"] },
         when_field_id: { type: "string" },
-        op: { type: "string", enum: ["is", "is_not", "filled", "empty"] },
-        value: { type: "string" },
+        op: { type: "string", enum: Object.keys(OP_KIND) },
+        value: { type: "string", description: "The value to compare with: a choice, words, a number, a date (YYYY-MM-DD) or, for within_days, a number of days." },
+        value2: { type: "string", description: "The top of the range for between." },
+        values: { type: "array", items: { type: "string" }, description: "The choices for any_of and none_of." },
+        group: {
+          type: "object",
+          description: "More conditions that must also hold: all of them, or any one.",
+          properties: {
+            logic: { type: "string", enum: ["all", "any"] },
+            conditions: { type: "array", maxItems: 5, items: { type: "object", properties: { field_id: { type: "string" }, op: { type: "string", enum: Object.keys(OP_KIND) }, value: { type: "string" }, value2: { type: "string" }, values: { type: "array", items: { type: "string" } } }, required: ["field_id", "op"] } },
+          },
+          required: ["logic", "conditions"],
+        },
       },
       required: ["target_field_id", "action", "when_field_id", "op"],
     },
@@ -115,9 +139,36 @@ function fieldInput(raw: Record<string, unknown>): Partial<FieldInput> {
   const out: Record<string, unknown> = {};
   for (const k of ["type", "label", "key", "placeholder", "help", "width", "check"] as const) if (typeof raw[k] === "string") out[k] = raw[k];
   if (typeof raw.required === "boolean") out.required = raw.required;
-  if (Array.isArray(raw.options)) out.options = raw.options.filter((o) => typeof o === "string").map((o) => ({ value: o, label: o }));
+  if (Array.isArray(raw.options)) {
+    const scores = Array.isArray(raw.option_scores) ? raw.option_scores : [];
+    out.options = raw.options.filter((o) => typeof o === "string").map((o, i) => ({ value: o, label: o, ...(typeof scores[i] === "number" ? { score: scores[i] } : {}) }));
+  }
   if (raw.hidden && typeof raw.hidden === "object") out.hidden = raw.hidden;
+  if (raw.calc && typeof raw.calc === "object") {
+    const c = raw.calc as Record<string, unknown>;
+    out.calc = { formula: str(c.formula) ?? "", ...(c.format === "money" || c.format === "percent" ? { format: c.format } : {}), ...(str(c.currency) ? { currency: str(c.currency) } : {}), ...(typeof c.decimals === "number" ? { decimals: c.decimals } : {}), ...(c.show === false ? { show: false } : {}) };
+  }
+  if (raw.follows && typeof raw.follows === "object") {
+    const fo = raw.follows as Record<string, unknown>;
+    const by = fo.options_by_answer && typeof fo.options_by_answer === "object" ? (fo.options_by_answer as Record<string, unknown>) : {};
+    out.optionsBy =
+      fo.regions === true
+        ? { field: str(fo.field_id) ?? "", preset: "regions" }
+        : { field: str(fo.field_id) ?? "", map: Object.fromEntries(Object.entries(by).map(([k, v]) => [k, (Array.isArray(v) ? v : []).filter((x) => typeof x === "string").map((x) => ({ value: x, label: x }))])) };
+  }
   return out as Partial<FieldInput>;
+}
+
+/** A condition from a tool call, in the shape the schema checks. */
+function condInput(field: unknown, raw: Record<string, unknown>): Cond {
+  const op = str(raw.op) as Cond["op"];
+  return {
+    field: str(field) ?? "",
+    op,
+    ...(str(raw.value) !== undefined ? { value: str(raw.value) } : op === "is" || op === "is_not" ? { value: "" } : {}),
+    ...(str(raw.value2) !== undefined ? { value2: str(raw.value2) } : {}),
+    ...(Array.isArray(raw.values) ? { values: raw.values.filter((x): x is string => typeof x === "string") } : {}),
+  };
 }
 
 /** A tool call as an op, or why it can't be one. `use_template` and `ask` are handled by the loop. */
@@ -142,12 +193,14 @@ export function toOp(name: string, input: Record<string, unknown>): Op | { error
     case "remove_step":
       return { op: "remove_step", index: Number(input.step) };
     case "set_rule": {
-      const op = str(input.op) as Rule["when"]["op"];
+      const g = input.group && typeof input.group === "object" ? (input.group as Record<string, unknown>) : null;
+      const conds = g && Array.isArray(g.conditions) ? (g.conditions as Record<string, unknown>[]).filter((c) => c && typeof c === "object").map((c) => condInput(c.field_id, c)) : [];
       return {
         op: "set_rule",
         rule: {
           ...(str(input.rule_id) ? { id: str(input.rule_id) } : {}),
-          when: { field: str(input.when_field_id) ?? "", op, ...(op === "is" || op === "is_not" ? { value: str(input.value) ?? "" } : {}) },
+          when: condInput(input.when_field_id, input),
+          ...(conds.length ? { group: { logic: g?.logic === "any" ? "any" : "all", when: conds } } : {}),
           then: { action: str(input.action) as Rule["then"]["action"], field: str(input.target_field_id) ?? "" },
         },
       };

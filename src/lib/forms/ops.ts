@@ -3,7 +3,7 @@
 // problems, while the builder lets a draft be unfinished and blocks only the publish. Runs in the browser and on
 // the server.
 
-import { allFields, checkForm, CONTACT_KEYS, isChoice, isContent, newId, questionKey, type After, type Choice, type Field, type FieldKey, type FieldType, type Form, type Rule, type Step } from "./schema.ts";
+import { allFields, checkForm, CONTACT_KEYS, isChoice, isContent, newId, questionKey, type After, type Choice, type Cond, type Field, type FieldKey, type FieldType, type Form, type Rule, type Step } from "./schema.ts";
 
 export type FieldInput = Partial<Omit<Field, "id">> & { type: FieldType; label: string };
 
@@ -76,7 +76,8 @@ export function applyOp(input: Form, op: Op): { form: Form } | { error: string }
         label: op.field.label,
         type: op.field.type,
         required: isContent(op.field.type) ? false : (op.field.required ?? false),
-        ...(op.field.options ? { options: choices(op.field.options) } : isChoice(op.field.type) ? { options: [{ value: "Option 1", label: "Option 1" }] } : {}),
+        ...(op.field.options ? { options: choices(op.field.options) } : isChoice(op.field.type) && !op.field.optionsBy ? { options: [{ value: "Option 1", label: "Option 1" }] } : {}),
+        ...(op.field.type === "calc" ? { calc: op.field.calc ?? { formula: "0" }, required: false } : {}),
       };
       const at = op.after ? form.steps[s].fields.findIndex((x) => x.id === op.after) + 1 : form.steps[s].fields.length;
       form.steps[s].fields.splice(at > 0 ? at : form.steps[s].fields.length, 0, f);
@@ -93,8 +94,15 @@ export function applyOp(input: Form, op: Op): { form: Form } | { error: string }
         next.key = `c.${cur.id}`;
         next.required = false;
       } else if (isContent(cur.type)) next.key = keyFor({ ...next, key: undefined }, form);
-      if (!isChoice(next.type)) delete next.options;
-      else if (!next.options?.length) next.options = [{ value: "Option 1", label: "Option 1" }];
+      if (!isChoice(next.type)) {
+        delete next.options;
+        delete next.optionsBy;
+      } else if (!next.options?.length && !next.optionsBy) next.options = [{ value: "Option 1", label: "Option 1" }];
+      if (next.type !== "calc") delete next.calc;
+      else {
+        next.calc ??= { formula: "0" };
+        next.required = false;
+      }
       if (next.type !== "hidden") delete next.hidden;
       else next.hidden ??= { from: "param", name: "utm_source" };
       form.steps[at.step].fields[at.index] = next;
@@ -105,7 +113,14 @@ export function applyOp(input: Form, op: Op): { form: Form } | { error: string }
       if (!at) return { error: "That field is gone." };
       if (form.steps[at.step].fields[at.index].key === "email") return { error: "The email field stays, so each answer reaches a contact." };
       form.steps[at.step].fields.splice(at.index, 1);
-      form.rules = form.rules.filter((r) => r.when.field !== op.id && r.then.field !== op.id);
+      form.rules = form.rules
+        .filter((r) => r.when.field !== op.id && r.then.field !== op.id)
+        .map((r) => {
+          const left = r.group?.when.filter((c) => c.field !== op.id);
+          const { group, ...rest } = r;
+          return left?.length ? { ...rest, group: { logic: group!.logic, when: left } } : rest;
+        });
+      for (const st of form.steps) if (st.skip?.when.field === op.id) delete st.skip;
       return { form };
     }
     case "move_field": {
@@ -136,7 +151,7 @@ export function applyOp(input: Form, op: Op): { form: Form } | { error: string }
       return { form };
     }
     case "set_rule": {
-      const rule: Rule = { id: op.rule.id ?? newId(), when: op.rule.when, then: op.rule.then };
+      const rule: Rule = { id: op.rule.id ?? newId(), when: op.rule.when, ...(op.rule.group?.when.length ? { group: op.rule.group } : {}), then: op.rule.then };
       const i = form.rules.findIndex((r) => r.id === rule.id);
       if (i >= 0) form.rules[i] = rule;
       else form.rules.push(rule);
@@ -203,6 +218,33 @@ export function applyStrict(input: Form, op: Op, ctx: Parameters<typeof checkFor
   return { form: after.form };
 }
 
+const OP_WORDS: Record<Cond["op"], string> = {
+  is: "is",
+  is_not: "isn't",
+  filled: "is filled",
+  empty: "is empty",
+  contains: "contains",
+  not_contains: "doesn't contain",
+  starts_with: "starts with",
+  ends_with: "ends with",
+  gt: "is over",
+  gte: "is at least",
+  lt: "is under",
+  lte: "is at most",
+  between: "is between",
+  before: "is before",
+  after: "is after",
+  within_days: "is within",
+  any_of: "is any of",
+  none_of: "is none of",
+};
+
+/** A condition in words: "Budget is between 10 and 50", "Country is any of US, CA". */
+export function condText(c: Cond, label: (id: string) => string): string {
+  const v = c.op === "between" ? `${c.value} and ${c.value2}` : c.op === "within_days" ? `${c.value} days` : c.values ? c.values.join(", ") : (c.value ?? "");
+  return `${label(c.field)} ${OP_WORDS[c.op]}${c.op === "filled" || c.op === "empty" ? "" : ` ${v}`}`;
+}
+
 /** A short line for the change list: "Added Phone", "Made Company required". */
 export function describeOp(op: Op, before: Form): string {
   const label = (id: string) => allFields(before).find((f) => f.id === id)?.label || "a field";
@@ -225,7 +267,7 @@ export function describeOp(op: Op, before: Form): string {
     case "remove_step":
       return `Removed step ${op.index + 1}`;
     case "set_rule":
-      return `${op.rule.then.action === "show" ? "Show" : op.rule.then.action === "hide" ? "Hide" : "Require"} ${label(op.rule.then.field)} when ${label(op.rule.when.field)} ${op.rule.when.op === "filled" ? "is filled" : op.rule.when.op === "empty" ? "is empty" : `${op.rule.when.op === "is" ? "is" : "isn't"} ${op.rule.when.value}`}`;
+      return `${op.rule.then.action === "show" ? "Show" : op.rule.then.action === "hide" ? "Hide" : "Require"} ${label(op.rule.then.field)} when ${condText(op.rule.when, label)}${op.rule.group?.when.length ? ` and ${op.rule.group.logic === "any" ? "any" : "all"} of ${op.rule.group.when.length} more` : ""}`;
     case "remove_rule":
       return "Removed a rule";
     case "set_layout":

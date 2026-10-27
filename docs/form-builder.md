@@ -175,7 +175,7 @@ brand_kits (id, workspace_id, site_id, tokens jsonb, logo_path, source_url, scan
 | React SDK | `@claritia/forms`: `<ClaritiaForm id>` and a headless `useClaritiaForm(id)` that gives fields, errors and submit for teams who draw their own inputs |
 | With `claritia.js` | If the site script is installed, the form uses its session, so earlier visits attach to the lead (M1) |
 
-- **Size:** under 20 KB gzipped for the component, schema loaded with it from the edge cache. The script loads `async` and never blocks the page.
+- **Size:** under 23 KB gzipped for the component (20 KB before calc fields, richer rules and field numbers, `docs/forms-plan.md`), schema loaded with it from the edge cache. The script loads `async` and never blocks the page.
 - **Accessibility:** labels tied to inputs, errors announced, full keyboard use, focus kept on step changes, respects reduced motion. Checked by axe in CI on every template.
 - **Fields at work:** work email check (free mail list from `src/lib/identity/domainList.ts`), phone by country with live format, country and state lists, prefill from URL params and for known contacts (only fields the contact can already see, never enriched data).
 - **Spam:** Turnstile (invisible), a honeypot field, and a minimum fill time. Spam is kept 7 days in a Spam tab and never delivered.
