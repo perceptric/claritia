@@ -3,6 +3,7 @@
 // the renderer, so a form that fails it can't go live. Labels and copy are plain text; nothing in a form is ever
 // read as HTML. Runs in the browser and on the server.
 
+import { evalFormula, parseFormula, type Ast } from "./formula.ts";
 import { linkProblem, SCHEDULERS, WORK_EMAIL, type MatchRule, type Schedule } from "./schedule.ts";
 
 export type FieldType =
@@ -21,6 +22,8 @@ export type FieldType =
   | "rating"
   | "hidden"
   | "consent"
+  // Worked out from other answers by a formula (docs/forms-plan.md 2.3); the server works it out again.
+  | "calc"
   // Content blocks: shown on the form, they take no answer and save nothing (docs/form-studio.md 2.4).
   | "heading"
   | "paragraph"
@@ -38,7 +41,17 @@ export const isChoice = (t: FieldType) => t === "choice" || t === "multi" || t =
  */
 export type FieldKey = "email" | "first_name" | "last_name" | "name" | "title" | "phone" | "company" | "website" | "country" | "region" | `f.${string}` | `q.${string}` | `c.${string}`;
 
-export type Choice = { value: string; label: string };
+/** score: the number a formula reads when this choice is picked. */
+export type Choice = { value: string; label: string; score?: number };
+
+/**
+ * Options that follow another field's answer (docs/forms-plan.md 2.2): a list per answer of the parent, or the
+ * built-in regions of the country picked.
+ */
+export type OptionsBy = { field: string; map?: Record<string, Choice[]>; preset?: "regions" };
+
+/** A calculated field: the formula, how its result shows, and whether it shows at all. */
+export type Calc = { formula: string; format?: "number" | "money" | "percent"; decimals?: number; currency?: string; show?: false };
 
 /** Checks on an answer (docs/form-studio.md 2.1). min and max are characters for text, the value for numbers and
  * ratings, and picks for "pick many". */
@@ -106,6 +119,8 @@ export type Field = {
   logic?: "all";
   /** Content blocks: the heading or paragraph text, the heading level, the picture and its words. */
   content?: { text?: string; level?: 1 | 2 | 3; src?: string; alt?: string; align?: "left" | "center" };
+  optionsBy?: OptionsBy;
+  calc?: Calc;
 };
 
 export type FieldWidth = "full" | "half" | "third" | "two_thirds";
@@ -121,14 +136,79 @@ export const ADAPTERS: { value: Capture["adapter"]; label: string; domain: strin
   { value: "framer", label: "Framer", domain: "framer.com" },
 ];
 
+export type Op =
+  | "is"
+  | "is_not"
+  | "filled"
+  | "empty"
+  | "contains"
+  | "not_contains"
+  | "starts_with"
+  | "ends_with"
+  | "gt"
+  | "gte"
+  | "lt"
+  | "lte"
+  | "between"
+  | "before"
+  | "after"
+  | "within_days"
+  | "any_of"
+  | "none_of";
+
+/** One condition on one field. value2 is the top of "between"; values are the picks of "any of" and "none of". */
+export type Cond = { field: string; op: Op; value?: string; value2?: string; values?: string[] };
+
+/**
+ * when: the rule's condition. group: more conditions that must also hold, all of them or any one (one level deep),
+ * so "country is US and (size over 50 or budget over 10k)" is one rule.
+ */
 export type Rule = {
   id: string;
-  when: { field: string; op: "is" | "is_not" | "filled" | "empty"; value?: string };
+  when: Cond;
+  group?: { logic: "all" | "any"; when: Cond[] };
   then: { action: "show" | "hide" | "require"; field: string };
 };
 
 /** skip: when the condition holds at the end of this step, jump forward to step `to` (0-based). */
-export type Step = { id: string; title?: string; fields: Field[]; skip?: { when: Rule["when"]; to: number } };
+export type Step = { id: string; title?: string; fields: Field[]; skip?: { when: Cond; to: number } };
+
+/** What each op compares: any answer, text, a number, a date, or picks from a list. */
+export const OP_KIND: Record<Op, "any" | "text" | "number" | "date" | "list"> = {
+  is: "any",
+  is_not: "any",
+  filled: "any",
+  empty: "any",
+  contains: "text",
+  not_contains: "text",
+  starts_with: "text",
+  ends_with: "text",
+  gt: "number",
+  gte: "number",
+  lt: "number",
+  lte: "number",
+  between: "number",
+  before: "date",
+  after: "date",
+  within_days: "date",
+  any_of: "list",
+  none_of: "list",
+};
+const OP_LIST = /* @__PURE__ */ Object.keys(OP_KIND) as Op[];
+const TEXTY: FieldType[] = ["text", "email", "phone", "textarea", "url", "hidden"];
+const NUMERIC: FieldType[] = ["number", "rating", "calc", "hidden"];
+const LISTY: FieldType[] = ["choice", "multi", "dropdown", "country"];
+
+/** The ops a condition on this type of field can use. */
+export function opsFor(type: FieldType): Op[] {
+  return OP_LIST.filter((op) => {
+    const k = OP_KIND[op];
+    return k === "any" || (k === "text" && TEXTY.includes(type)) || (k === "number" && NUMERIC.includes(type)) || (k === "date" && type === "date") || (k === "list" && LISTY.includes(type));
+  });
+}
+
+/** Field types a formula can read. */
+export const CALC_INPUTS: FieldType[] = ["number", "rating", "choice", "multi", "dropdown", "checkbox", "calc"];
 
 export type After = {
   end: { kind: "message"; title: string; text?: string } | { kind: "redirect"; url: string };
@@ -175,6 +255,7 @@ export const FIELD_TYPES: { value: FieldType; label: string }[] = [
   { value: "url", label: "Website" },
   { value: "rating", label: "Rating" },
   { value: "hidden", label: "Hidden" },
+  { value: "calc", label: "Calculation" },
   { value: "heading", label: "Heading" },
   { value: "paragraph", label: "Text" },
   { value: "divider", label: "Divider" },
@@ -240,6 +321,66 @@ export function emptyForm(): Form {
 type Ctx = { custom?: { key: string }[] };
 
 const str = (v: unknown, max: number): string | undefined => (typeof v === "string" ? v.replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/g, "").trim().slice(0, max) : undefined);
+
+/** A list of choices, cleaned: no repeats, a label for each, a score when it's a number. */
+function choices(raw: unknown, max: number): Choice[] {
+  const opts: Choice[] = [];
+  const seen = new Set<string>();
+  for (const o of Array.isArray(raw) ? raw.slice(0, max) : []) {
+    const oo = (typeof o === "string" ? { value: o, label: o } : o && typeof o === "object" ? o : {}) as Record<string, unknown>;
+    const lab = str(oo.label, 200) ?? "";
+    const val = str(oo.value, 200) || lab;
+    if (!val || seen.has(val)) continue;
+    seen.add(val);
+    const score = typeof oo.score === "number" && Number.isFinite(oo.score) ? oo.score : typeof oo.score === "string" && oo.score.trim() !== "" && Number.isFinite(Number(oo.score)) ? Number(oo.score) : undefined;
+    opts.push({ value: val, label: lab || val, ...(score !== undefined ? { score } : {}) });
+  }
+  return opts;
+}
+
+function readOptionsBy(raw: unknown): OptionsBy | undefined {
+  if (!raw || typeof raw !== "object") return undefined;
+  const r = raw as Record<string, unknown>;
+  const field = str(r.field, 24) ?? "";
+  if (r.preset === "regions") return { field, preset: "regions" };
+  const map: Record<string, Choice[]> = {};
+  const m = (r.map && typeof r.map === "object" && !Array.isArray(r.map) ? r.map : {}) as Record<string, unknown>;
+  for (const [k, v] of Object.entries(m).slice(0, 50)) {
+    const key = str(k, 200);
+    const list = choices(v, LIMITS.options);
+    if (key && list.length) map[key] = list;
+  }
+  return { field, map };
+}
+
+const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
+const isNum = (v: unknown) => typeof v === "string" && v.trim() !== "" && Number.isFinite(Number(v));
+
+/** One condition, checked against the fields it can read. Returns the clean condition or the problem. */
+function readCond(raw: unknown, types: Map<string, FieldType>): Cond | string {
+  const c = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
+  const field = str(c.field, 24) ?? "";
+  const type = types.get(field);
+  if (!type) return "A rule points at a field that's gone.";
+  const op = OP_LIST.includes(c.op as Op) ? (c.op as Op) : null;
+  if (!op) return "A rule is incomplete.";
+  if (!opsFor(type).includes(op)) return "A rule compares a field in a way that doesn't fit its type.";
+  const kind = OP_KIND[op];
+  const value = str(typeof c.value === "number" ? String(c.value) : c.value, 200) ?? "";
+  if (op === "is" || op === "is_not") return { field, op, value };
+  if (op === "filled" || op === "empty") return { field, op };
+  if (kind === "text") return value ? { field, op, value } : "A rule needs the words to look for.";
+  if (op === "between") {
+    const value2 = str(typeof c.value2 === "number" ? String(c.value2) : c.value2, 40) ?? "";
+    if (!isNum(value) || !isNum(value2)) return "A rule compares with a number that isn't one.";
+    return Number(value) <= Number(value2) ? { field, op, value, value2 } : "A rule's lowest number is above its highest.";
+  }
+  if (kind === "number") return isNum(value) ? { field, op, value } : "A rule compares with a number that isn't one.";
+  if (op === "within_days") return /^\d{1,4}$/.test(value) ? { field, op, value } : "A rule needs a number of days.";
+  if (kind === "date") return DAY_RE.test(value) ? { field, op, value } : "A rule needs a date.";
+  const values = [...new Set((Array.isArray(c.values) ? c.values : []).map((x) => str(x, 200) ?? "").filter(Boolean))].slice(0, 50);
+  return values.length ? { field, op, values } : "A rule needs at least one choice to match.";
+}
 
 /** A heading, text, divider or image, checked. */
 function contentBlock(id: string, type: FieldType, fo: Record<string, unknown>, name: string, errors: string[]): Field | null {
@@ -369,7 +510,7 @@ export function checkForm(raw: unknown, ctx: Ctx = {}): { form: Form } | { error
       } else if (!Q_KEY.test(key)) errors.push(`${name} has a bad key.`);
       if (keys.has(key)) errors.push(`Two fields save to the same place (${name}).`);
       keys.add(key);
-      const f: Field = { id, key: key as FieldKey, type, label, required: fo.required === true && type !== "hidden" };
+      const f: Field = { id, key: key as FieldKey, type, label, required: fo.required === true && type !== "hidden" && type !== "calc" };
       const placeholder = str(fo.placeholder, LIMITS.label);
       if (placeholder) f.placeholder = placeholder;
       const help = str(fo.help, LIMITS.label);
@@ -410,21 +551,29 @@ export function checkForm(raw: unknown, ctx: Ctx = {}): { form: Form } | { error
         if (fo.shuffle === true) f.shuffle = true;
       }
       if (type === "choice" || type === "multi" || type === "dropdown") {
-        const opts: Choice[] = [];
-        const seen = new Set<string>();
-        for (const o of Array.isArray(fo.options) ? fo.options.slice(0, LIMITS.options) : []) {
-          const oo = (typeof o === "string" ? { value: o, label: o } : o && typeof o === "object" ? o : {}) as Record<string, unknown>;
-          const lab = str(oo.label, 200) ?? "";
-          const val = str(oo.value, 200) || lab;
-          if (!val || seen.has(val)) continue;
-          seen.add(val);
-          opts.push({ value: val, label: lab || val });
-        }
-        if (!opts.length) errors.push(`${name} needs at least one option.`);
-        f.options = opts;
+        f.options = choices(fo.options, LIMITS.options);
+        const by = readOptionsBy(fo.optionsBy);
+        if (by) f.optionsBy = by;
+        else if (!f.options.length) errors.push(`${name} needs at least one option.`);
+      }
+      if (type === "calc") {
+        const co = (fo.calc && typeof fo.calc === "object" ? fo.calc : {}) as Record<string, unknown>;
+        const formula = str(co.formula, 500) ?? "";
+        const parsed = parseFormula(formula);
+        if ("error" in parsed) errors.push(`${name}: ${parsed.error}`);
+        const decimals = Math.round(Number(co.decimals));
+        const currency = str(co.currency, 3)?.toUpperCase();
+        const format = co.format === "money" || co.format === "percent" ? co.format : undefined;
+        f.calc = {
+          formula,
+          ...(format ? { format } : {}),
+          ...(co.decimals !== undefined && Number.isFinite(decimals) ? { decimals: Math.min(Math.max(decimals, 0), 4) } : {}),
+          ...(format === "money" && currency && /^[A-Z]{3}$/.test(currency) ? { currency } : {}),
+          ...(co.show === false ? { show: false as const } : {}),
+        };
       }
       const def = str(fo.default, LIMITS.label);
-      if (def && type !== "hidden" && type !== "checkbox") {
+      if (def && type !== "hidden" && type !== "checkbox" && type !== "calc" && !f.optionsBy) {
         if (isChoice(type) && !(f.options ?? []).some((o) => o.value === def)) errors.push(`${name} starts on a choice it doesn't have.`);
         else f.default = def;
       }
@@ -447,25 +596,62 @@ export function checkForm(raw: unknown, ctx: Ctx = {}): { form: Form } | { error
   });
   const fieldIds = new Set(steps.flatMap((s) => s.fields.map((f) => f.id)));
   const contentIds = new Set(steps.flatMap((s) => s.fields.filter((f) => isContent(f.type)).map((f) => f.id)));
+  const flat = steps.flatMap((s) => s.fields);
+  const types = new Map(flat.filter((f) => !isContent(f.type)).map((f) => [f.id, f.type]));
+  const byId = new Map(flat.map((f) => [f.id, f]));
+  for (const f of flat) {
+    const name = f.label || "A field";
+    const by = f.optionsBy;
+    if (by) {
+      const parent = byId.get(by.field);
+      if (!parent || parent.id === f.id || !["choice", "dropdown", "country"].includes(parent.type)) errors.push(`${name} follows a field that's gone or isn't a single pick.`);
+      else if (by.preset === "regions" && parent.type !== "country") errors.push(`${name}: regions follow a country field.`);
+      else if (!by.preset && !Object.keys(by.map ?? {}).length) errors.push(`${name} needs options for at least one answer of ${parent.label || "the field it follows"}.`);
+      else if (!by.preset && parent.type !== "country") {
+        const ok = new Set((parent.options ?? []).map((o) => o.value));
+        if (Object.keys(by.map ?? {}).some((k) => !ok.has(k))) errors.push(`${name} has options for an answer ${parent.label || "the field it follows"} doesn't have.`);
+      }
+    }
+    if (f.calc) {
+      const parsed = parseFormula(f.calc.formula);
+      if ("refs" in parsed)
+        for (const ref of parsed.refs) {
+          const t = types.get(ref);
+          if (ref === f.id) errors.push(`${name} can't use its own answer.`);
+          else if (!t || !CALC_INPUTS.includes(t)) errors.push(`${name} uses a field that's gone or isn't a number, pick or checkbox.`);
+        }
+    }
+  }
+  // A calc that reads itself through others could never finish.
+  const reads = (f: Field) => {
+    const p = f.calc ? parseFormula(f.calc.formula) : null;
+    return p && "refs" in p ? p.refs : [];
+  };
+  const state = new Map<string, 1 | 2>();
+  const loops = (id: string): boolean => {
+    if (state.get(id) === 2) return false;
+    if (state.get(id) === 1) return true;
+    state.set(id, 1);
+    const f = byId.get(id);
+    const hit = !!f && reads(f).some((r) => byId.get(r)?.type === "calc" && loops(r));
+    state.set(id, 2);
+    return hit;
+  };
+  for (const f of flat) if (f.calc && loops(f.id)) errors.push(`${f.label || "A calculation"} goes round in a loop with another calculation.`);
 
   const rules: Rule[] = [];
   for (const x of (Array.isArray(r.rules) ? r.rules : []).slice(0, LIMITS.rules)) {
-    const ro = (x && typeof x === "object" ? x : {}) as { id?: unknown; when?: Record<string, unknown>; then?: Record<string, unknown> };
+    const ro = (x && typeof x === "object" ? x : {}) as { id?: unknown; when?: Record<string, unknown>; group?: Record<string, unknown>; then?: Record<string, unknown> };
     const id = str(ro.id, 24) ?? "";
     const wf = str(ro.when?.field, 24) ?? "";
     const tf = str(ro.then?.field, 24) ?? "";
-    const op = ["is", "is_not", "filled", "empty"].includes(ro.when?.op as string) ? (ro.when!.op as Rule["when"]["op"]) : null;
     const action = ["show", "hide", "require"].includes(ro.then?.action as string) ? (ro.then!.action as Rule["then"]["action"]) : null;
-    if (!ID.test(id) || !op || !action) {
+    if (!ID.test(id) || !action || !OP_LIST.includes(ro.when?.op as Op)) {
       errors.push("A rule is incomplete.");
       continue;
     }
     if (!fieldIds.has(wf) || !fieldIds.has(tf)) {
       errors.push("A rule points at a field that's gone.");
-      continue;
-    }
-    if (wf === tf) {
-      errors.push("A rule can't depend on its own field.");
       continue;
     }
     if (contentIds.has(wf)) {
@@ -476,18 +662,30 @@ export function checkForm(raw: unknown, ctx: Ctx = {}): { form: Form } | { error
       errors.push("A heading, text, divider or image can't be required.");
       continue;
     }
-    rules.push({ id, when: { field: wf, op, ...(op === "is" || op === "is_not" ? { value: str(ro.when?.value, 200) ?? "" } : {}) }, then: { action, field: tf } });
+    const when = readCond(ro.when, types);
+    const groupIn = Array.isArray(ro.group?.when) ? (ro.group.when as unknown[]).slice(0, 5) : [];
+    const group = groupIn.map((c) => readCond(c, types));
+    const bad = [when, ...group].find((c): c is string => typeof c === "string");
+    if (bad) {
+      errors.push(bad);
+      continue;
+    }
+    if ([when as Cond, ...(group as Cond[])].some((c) => c.field === tf)) {
+      errors.push("A rule can't depend on its own field.");
+      continue;
+    }
+    rules.push({ id, when: when as Cond, ...(group.length ? { group: { logic: ro.group?.logic === "any" ? "any" : "all", when: group as Cond[] } } : {}), then: { action, field: tf } });
   }
   rawSteps.slice(0, LIMITS.steps).forEach((raw, i) => {
     const sk = (raw && typeof raw === "object" ? (raw as Record<string, unknown>).skip : null) as { when?: Record<string, unknown>; to?: unknown } | null;
     if (!sk || typeof sk !== "object" || !steps[i]) return;
     const field = str(sk.when?.field, 24) ?? "";
-    const op = ["is", "is_not", "filled", "empty"].includes(sk.when?.op as string) ? (sk.when!.op as Rule["when"]["op"]) : null;
     const to = Math.round(Number(sk.to));
     const earlier = steps.slice(0, i + 1).some((s) => s.fields.some((f) => f.id === field && !isContent(f.type)));
-    if (!op || !earlier) errors.push(`Step ${i + 1} skips on a field that isn't on it or before it.`);
+    const when = readCond(sk.when, types);
+    if (!earlier || typeof when === "string") errors.push(earlier && typeof when === "string" && when !== "A rule is incomplete." ? `Step ${i + 1}: ${when}` : `Step ${i + 1} skips on a field that isn't on it or before it.`);
     else if (!Number.isFinite(to) || to <= i + 1 || to >= steps.length) errors.push(`Step ${i + 1} skips to a step that isn't after the next one.`);
-    else steps[i].skip = { when: { field, op, ...(op === "is" || op === "is_not" ? { value: str(sk.when?.value, 200) ?? "" } : {}) }, to };
+    else steps[i].skip = { when, to };
   });
   const emailField = steps.flatMap((s) => s.fields).find((f) => f.key === "email");
   if (emailField && rules.some((x) => x.then.field === emailField.id && x.then.action !== "require")) errors.push("The email field can't be hidden by a rule.");
@@ -590,10 +788,91 @@ export function safeUrl(raw: string): boolean {
   }
 }
 
+/**
+ * What answers are checked against besides the form: the visitor's day (for "within N days"; the server takes the
+ * browser's when it's within a day of its own), and the built-in regions of a country.
+ */
+export type RunCtx = { today?: string; regions?: (country: string) => string[] | undefined };
+
+/** The options a field shows for the answers so far: its own, or the list for its parent's answer. */
+export function optionsFor(f: Field, answers: Record<string, unknown>, ctx: RunCtx = {}): Choice[] {
+  const by = f.optionsBy;
+  if (!by) return f.options ?? [];
+  const p = answers[by.field];
+  if (typeof p !== "string" || !p) return [];
+  if (by.preset === "regions") return (ctx.regions?.(p) ?? []).map((r) => ({ value: r, label: r }));
+  return by.map?.[p] ?? [];
+}
+
+/** Every option a field can ever show, for labels in Results and the editor. */
+export const everyOption = (f: Field): Choice[] => (f.optionsBy?.map ? [...(f.options ?? []), ...Object.values(f.optionsBy.map).flat()] : (f.options ?? []));
+
+const asts = /* @__PURE__ */ new Map<string, Ast | null>();
+function astOf(formula: string): Ast | null {
+  if (!asts.has(formula)) {
+    const p = parseFormula(formula);
+    if (asts.size > 500) asts.clear();
+    asts.set(formula, "ast" in p ? p.ast : null);
+  }
+  return asts.get(formula)!;
+}
+
+const hasCalc = (form: Pick<Form, "steps">) => form.steps.some((s) => s.fields.some((f) => f.type === "calc"));
+
+/** Each calc field's result from the answers given; a calc's own answer is never read. */
+function calcs(form: Pick<Form, "steps">, answers: Record<string, unknown>): Record<string, number | null> {
+  const byId = new Map(allFields(form).map((f) => [f.id, f]));
+  const out: Record<string, number | null> = {};
+  const busy = new Set<string>();
+  const numOf = (id: string): number | null => {
+    const f = byId.get(id);
+    if (!f) return null;
+    if (f.type === "calc") {
+      if (!(id in out)) {
+        if (busy.has(id)) return null;
+        busy.add(id);
+        const ast = astOf(f.calc?.formula ?? "");
+        const v = ast === null ? null : evalFormula(ast, numOf);
+        const p = 10 ** (f.calc?.decimals ?? 2);
+        out[id] = v === null ? null : Math.round(v * p) / p;
+      }
+      return out[id]!;
+    }
+    const raw = answers[id];
+    if (f.type === "checkbox") return raw === true ? 1 : 0;
+    const list = (Array.isArray(raw) ? raw : raw === undefined || raw === null || raw === "" ? [] : [raw]).map(String);
+    if (!list.length) return null;
+    const score = (v: string) => (f.options ?? []).find((o) => o.value === v)?.score ?? (Number.isFinite(Number(v)) ? Number(v) : f.type === "multi" ? 0 : null);
+    if (f.type === "multi") return list.reduce((a, v) => a + (score(v) ?? 0), 0);
+    if (isChoice(f.type)) return score(list[0]!);
+    const n = Number(list[0]!.replace(/,/g, ""));
+    return Number.isFinite(n) ? n : null;
+  };
+  for (const f of byId.values()) if (f.type === "calc") numOf(f.id);
+  return out;
+}
+
+/**
+ * The answers with every calc worked out. Twice: once from all the answers, then again from only the fields that
+ * show, so a field a rule hid never counts. The browser and the server run this same function.
+ */
+export function withCalcs(form: Pick<Form, "steps" | "rules">, answers: Record<string, unknown>, ctx: RunCtx = {}): Record<string, unknown> {
+  if (!hasCalc(form)) return answers;
+  const first = { ...answers, ...calcs(form, answers) };
+  const { shown } = rawVisibility(form, first, ctx);
+  const kept: Record<string, unknown> = {};
+  for (const f of allFields(form)) if ((f.type === "hidden" || shown.has(f.id)) && answers[f.id] !== undefined) kept[f.id] = answers[f.id];
+  return { ...answers, ...calcs(form, kept) };
+}
+
 /** Which fields show, and which are required, given the answers so far. Rules run in order; later ones win. */
-export function visibility(form: Pick<Form, "steps" | "rules">, answers: Record<string, unknown>): { shown: Set<string>; required: Set<string> } {
+export function visibility(form: Pick<Form, "steps" | "rules">, answers: Record<string, unknown>, ctx: RunCtx = {}): { shown: Set<string>; required: Set<string> } {
+  return rawVisibility(form, withCalcs(form, answers, ctx), ctx);
+}
+
+function rawVisibility(form: Pick<Form, "steps" | "rules">, answers: Record<string, unknown>, ctx: RunCtx): { shown: Set<string>; required: Set<string> } {
   const fields = allFields(form);
-  const shown = new Set(fields.filter((f) => f.type !== "hidden").map((f) => f.id));
+  const shown = new Set(fields.filter((f) => f.type !== "hidden" && !(f.type === "calc" && f.calc?.show === false)).map((f) => f.id));
   const required = new Set(fields.filter((f) => f.required).map((f) => f.id));
   // A field that a "show" rule controls starts hidden.
   for (const r of form.rules) if (r.then.action === "show") shown.delete(r.then.field);
@@ -603,11 +882,14 @@ export function visibility(form: Pick<Form, "steps" | "rules">, answers: Record<
   const last = new Map<string, number>();
   form.rules.forEach((r, i) => last.set(group(r), i));
   const missed = new Set<string>();
+  // A condition on a hidden field never holds. A calc that doesn't show still counts.
+  const holds = (c: Cond) => {
+    const src = byId.get(c.field);
+    return !!src && whenHits(c, answers[src.id], ctx) && (src.type === "hidden" || src.type === "calc" || shown.has(src.id));
+  };
   form.rules.forEach((r, i) => {
-    const src = byId.get(r.when.field);
     const all = byId.get(r.then.field)?.logic === "all";
-    // A rule on a hidden field never fires.
-    const hit = !!src && whenHits(r.when, answers[src.id]) && (src.type === "hidden" || shown.has(src.id));
+    const hit = holds(r.when) && (!r.group || (r.group.logic === "any" ? r.group.when.some(holds) : r.group.when.every(holds)));
     if (all) {
       if (!hit) missed.add(group(r));
       if (last.get(group(r)) !== i || missed.has(group(r))) return;
@@ -616,25 +898,58 @@ export function visibility(form: Pick<Form, "steps" | "rules">, answers: Record<
     else if (r.then.action === "hide") shown.delete(r.then.field);
     else required.add(r.then.field);
   });
+  // A list that follows another field shows only when it has options for that answer.
+  for (const f of fields) if (f.optionsBy && !optionsFor(f, answers, ctx).length) shown.delete(f.id);
   for (const id of [...required]) if (!shown.has(id)) required.delete(id);
   return { shown, required };
 }
 
-/** Whether a rule's condition holds for an answer. */
-export function whenHits(when: Rule["when"], v: unknown): boolean {
+/** Today as YYYY-MM-DD in UTC. */
+export const utcDay = (at = Date.now()) => new Date(at).toISOString().slice(0, 10);
+const dayNum = (d: string) => Date.parse(`${d}T00:00:00Z`) / 86_400_000;
+
+/** Whether a condition holds for an answer. */
+export function whenHits(when: Cond, v: unknown, ctx: RunCtx = {}): boolean {
   const list = Array.isArray(v) ? v.map(String) : v === undefined || v === null || v === "" || v === false ? [] : [String(v)];
-  return when.op === "filled" ? list.length > 0 : when.op === "empty" ? list.length === 0 : when.op === "is" ? list.includes(when.value ?? "") : !list.includes(when.value ?? "");
+  const op = when.op;
+  const val = when.value ?? "";
+  if (op === "filled") return list.length > 0;
+  if (op === "empty") return list.length === 0;
+  if (op === "is") return list.includes(val);
+  if (op === "is_not") return !list.includes(val);
+  if (op === "any_of" || op === "none_of") return list.some((x) => (when.values ?? []).includes(x)) === (op === "any_of");
+  // By name, not through OP_KIND, so the form script doesn't carry the checker's tables.
+  if (op === "contains" || op === "not_contains" || op === "starts_with" || op === "ends_with") {
+    const q = val.toLowerCase();
+    const has = list.some((x) => {
+      const t = x.toLowerCase();
+      return op === "starts_with" ? t.startsWith(q) : op === "ends_with" ? t.endsWith(q) : t.includes(q);
+    });
+    return op === "not_contains" ? !has : has;
+  }
+  const first = list[0];
+  if (first === undefined) return false;
+  if (op === "before" || op === "after" || op === "within_days") {
+    if (!DAY_RE.test(first)) return false;
+    if (op === "before") return first < val;
+    if (op === "after") return first > val;
+    return Math.abs(dayNum(first) - dayNum(ctx.today && DAY_RE.test(ctx.today) ? ctx.today : utcDay())) <= Number(val);
+  }
+  const n = Number(first.replace(/,/g, ""));
+  const x = Number(val);
+  if (!Number.isFinite(n)) return false;
+  return op === "gt" ? n > x : op === "gte" ? n >= x : op === "lt" ? n < x : op === "lte" ? n <= x : n >= x && n <= Number(when.value2);
 }
 
 /**
  * The step to show after `from` given the answers: the step's skip target when its condition holds (and the field
  * it reads is on a step already passed), else the next one. Returns form.steps.length when the form is done.
  */
-export function nextStep(form: Pick<Form, "steps">, from: number, answers: Record<string, unknown>): number {
+export function nextStep(form: Pick<Form, "steps" | "rules">, from: number, answers: Record<string, unknown>, ctx: RunCtx = {}): number {
   const skip = form.steps[from]?.skip;
   if (skip && skip.to > from + 1 && skip.to < form.steps.length) {
     const before = form.steps.slice(0, from + 1).some((s) => s.fields.some((f) => f.id === skip.when.field));
-    if (before && whenHits(skip.when, answers[skip.when.field])) return skip.to;
+    if (before && whenHits(skip.when, withCalcs(form, answers, ctx)[skip.when.field], ctx)) return skip.to;
   }
   return from + 1;
 }

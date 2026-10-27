@@ -15,7 +15,8 @@ import { offerForFill, type Booking } from "./booking.ts";
 import { bookingUrl, outside, showsMeeting } from "./schedule.ts";
 import { regionOf } from "../web/policy.ts";
 import { contactPolicy } from "./overwrite.ts";
-import { allFields, hideKeyOf, type Form, type Overwrite } from "./schema.ts";
+import { regionsOf } from "./regions.ts";
+import { allFields, hideKeyOf, utcDay, type Form, type Overwrite } from "./schema.ts";
 import { checkAnswers, contactParts } from "./values.ts";
 
 export type Incoming = {
@@ -37,7 +38,15 @@ export type Incoming = {
   qa?: unknown;
   /** Field ids the form hid as known (fill before submit). The server checks them again before trusting them. */
   known?: unknown;
+  /** The visitor's day (YYYY-MM-DD), for rules like "within 30 days". Taken only when it's within a day of ours. */
+  today?: unknown;
 };
+
+/** The visitor's day when it's within a day of the server's (time zones), else the server's own. */
+export function visitorDay(raw: unknown, now = Date.now()): string {
+  if (typeof raw === "string" && /^\d{4}-\d{2}-\d{2}$/.test(raw) && [utcDay(now - 86_400_000), utcDay(now), utcDay(now + 86_400_000)].includes(raw)) return raw;
+  return utcDay(now);
+}
 
 export type Ctx = { custom: CustomField[]; own_domains?: string[]; partner_domains?: string[] };
 
@@ -99,7 +108,7 @@ export function prepareSubmit(
   const spam =
     typeof raw.trap === "string" && raw.trap.trim() ? "trap" : !form.capture && ms < form.spam.minSeconds * 1000 ? "too_fast" : opts.turnstileFailed ? "turnstile" : null;
 
-  const checked = checkAnswers(form, answers, { hidden, known: opts.known });
+  const checked = checkAnswers(form, answers, { hidden, known: opts.known, today: visitorDay(raw.today), regions: regionsOf });
   const errors = { ...checked.errors };
   const parts = contactParts(checked.values);
   const emailField = allFields(form).find((f) => f.key === "email");

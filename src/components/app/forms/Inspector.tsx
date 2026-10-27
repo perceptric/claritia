@@ -6,14 +6,20 @@
 import { useState } from "react";
 import { countryNames } from "@/lib/forms/countries";
 import type { Op } from "@/lib/forms/ops";
+import { parseFormula } from "@/lib/forms/formula";
 import {
+  CALC_INPUTS,
   CONTACT_KEYS,
   FIELD_TYPES,
   isChoice,
   isContent,
   newId,
+  OP_KIND,
+  opsFor,
   questionKey,
   WIDTHS,
+  type Calc,
+  type Cond,
   type Field,
   type FieldKey,
   type FieldType,
@@ -25,7 +31,7 @@ import {
 import type { CustomField } from "@/lib/records/fields";
 import { Copy, Plus, Trash, X } from "../../Icons";
 import { AreaIn, NumRow, Pick, Row, Section, Seg, Switch, TagInput, TextIn, INPUT } from "./controls";
-import { formWidth, iconFor, nameOf, RULE_OPS, ruleSources, ruleValues, setShownOps, shownMode, WIDTH_LABEL, type Shown } from "./editorModel";
+import { condFor, formWidth, iconFor, nameOf, opsOf, ruleSources, ruleValues, setShownOps, shownMode, WIDTH_LABEL, type Shown } from "./editorModel";
 import { AlignCenter, AlignLeft, ElementIcon } from "./icons";
 import { Options } from "./Options";
 import { SavesTo, type SavesToProps } from "./SavesTo";
@@ -60,6 +66,7 @@ function tabsFor(f: Field): ITab[] {
   if (f.type === "divider") return ["style", "logic"];
   if (isContent(f.type)) return ["content", "style", "logic"];
   if (f.type === "hidden") return ["content", "data"];
+  if (f.type === "calc") return ["content", "style", "data", "logic"];
   const checks = !["choice", "dropdown", "checkbox", "country", "rating", "multi"].includes(f.type);
   return ["content", ...(checks ? (["validation"] as ITab[]) : []), "style", "data", "logic"];
 }
@@ -142,7 +149,8 @@ function ContentTab({ form, f, patch }: { form: Form; f: Field; patch: PatchFn }
         </Row>
       </Section>
     );
-  const types = FIELD_TYPES.filter((t) => !isContent(t.value) && t.value !== "hidden");
+  if (f.type === "calc") return <CalcContent form={form} f={f} patch={patch} />;
+  const types = FIELD_TYPES.filter((t) => !isContent(t.value) && t.value !== "hidden" && t.value !== "calc");
   return (
     <>
       <Section first>
@@ -587,20 +595,18 @@ function RuleList({ form, rules, sources, apply, onAdd, all = false }: { form: F
 }
 
 function RuleRow({ rule: r, sources, apply }: { form: Form; rule: Rule; sources: Field[]; apply: (op: Op | Op[]) => void }) {
-  const set = (when: Rule["when"]) => apply({ op: "set_rule", rule: { ...r, when } });
-  const src = sources.find((x) => x.id === r.when.field);
-  const values = ruleValues(src);
-  const needs = r.when.op === "is" || r.when.op === "is_not";
+  const put = (next: Partial<Rule>) => apply({ op: "set_rule", rule: { ...r, ...next } });
+  const group = r.group;
+  const setGroup = (g: Rule["group"] | undefined) => {
+    const rest: Rule = { id: r.id, when: r.when, then: r.then };
+    apply({ op: "set_rule", rule: g?.when.length ? { ...rest, group: g } : rest });
+  };
+  const fresh = (): Cond => ({ field: sources[0].id, op: "filled" });
   return (
     <div className="flex flex-col gap-1.5 rounded-lg border border-line bg-paper p-2">
-      <div className="flex items-center gap-1">
+      <div className="flex items-start gap-1">
         <span className="min-w-0 flex-1">
-          <Pick<string>
-            label="When field"
-            value={r.when.field}
-            options={sources.map((x) => ({ value: x.id, label: nameOf(x) }))}
-            onChange={(field) => set({ field, op: r.when.op, ...(needs ? { value: "" } : {}) })}
-          />
+          <CondEditor label="When" c={r.when} sources={sources} onChange={(when) => put({ when })} />
         </span>
         <button
           type="button"
@@ -612,22 +618,185 @@ function RuleRow({ rule: r, sources, apply }: { form: Form; rule: Rule; sources:
           <X size={11} />
         </button>
       </div>
-      <div className="grid grid-cols-[96px_minmax(0,1fr)] gap-1">
-        <Pick<string>
-          label="Condition"
-          value={r.when.op}
-          options={RULE_OPS}
-          onChange={(op) => set({ field: r.when.field, op: op as Rule["when"]["op"], ...(op === "is" || op === "is_not" ? { value: r.when.value ?? values?.[0]?.value ?? "" } : {}) })}
-        />
-        {needs ? (
-          values ? (
-            <Pick<string> label="Value" value={r.when.value ?? ""} placeholder="Pick" options={values} onChange={(value) => set({ ...r.when, value })} />
-          ) : (
-            <TextIn label="Value" value={r.when.value ?? ""} onChange={(value) => set({ ...r.when, value })} />
-          )
-        ) : null}
-      </div>
+      {group ? (
+        <div className="flex flex-col gap-1.5 border-l-2 border-line pl-2">
+          <div className="flex items-center gap-1.5">
+            <span className="text-[11px] font-medium text-muted">and</span>
+            <Seg
+              label="Group match"
+              value={group.logic}
+              options={[
+                { value: "all", label: "All" },
+                { value: "any", label: "Any" },
+              ]}
+              onChange={(logic) => setGroup({ ...group, logic })}
+            />
+            <span className="text-[11px] font-medium text-muted">of</span>
+          </div>
+          {group.when.map((c, i) => (
+            <div key={i} className="flex items-start gap-1">
+              <span className="min-w-0 flex-1">
+                <CondEditor label={`Group ${i + 1}`} c={c} sources={sources} onChange={(next) => setGroup({ ...group, when: group.when.map((x, k) => (k === i ? next : x)) })} />
+              </span>
+              <button
+                type="button"
+                aria-label={`Remove group condition ${i + 1}`}
+                title="Remove"
+                onClick={() => setGroup({ ...group, when: group.when.filter((_, k) => k !== i) })}
+                className="flex size-6 shrink-0 items-center justify-center rounded-full text-faint hover:bg-rose-wash hover:text-rose"
+              >
+                <X size={11} />
+              </button>
+            </div>
+          ))}
+          {group.when.length < 5 ? (
+            <button type="button" onClick={() => setGroup({ ...group, when: [...group.when, fresh()] })} className="press inline-flex h-7 items-center gap-1 self-start rounded-full px-2 text-[12px] font-medium text-ink hover:bg-hover">
+              <Plus size={12} />
+              Add to group
+            </button>
+          ) : null}
+        </div>
+      ) : (
+        <button type="button" onClick={() => setGroup({ logic: "any", when: [fresh()] })} className="press inline-flex h-7 items-center gap-1 self-start rounded-full px-2 text-[12px] font-medium text-ink hover:bg-hover">
+          <Plus size={12} />
+          Add group
+        </button>
+      )}
     </div>
+  );
+}
+
+/** One condition: the field, how it compares, and the value the comparison needs. */
+function CondEditor({ c, sources, onChange, label }: { c: Cond; sources: Field[]; onChange: (c: Cond) => void; label: string }) {
+  const src = sources.find((x) => x.id === c.field);
+  const values = ruleValues(src);
+  const kind = OP_KIND[c.op];
+  const pickField = (field: string) => {
+    const next = sources.find((x) => x.id === field);
+    onChange(condFor({ field, op: "filled" }, next && opsFor(next.type).includes(c.op) && OP_KIND[c.op] !== "any" ? c.op : "filled", next));
+  };
+  return (
+    <div className="flex flex-col gap-1">
+      <Pick<string> label={`${label} field`} value={c.field} options={sources.map((x) => ({ value: x.id, label: nameOf(x) }))} onChange={pickField} />
+      <div className="grid grid-cols-[112px_minmax(0,1fr)] gap-1">
+        <Pick<string> label={`${label} condition`} value={c.op} options={opsOf(src)} onChange={(op) => onChange(condFor(c, op as Cond["op"], src))} />
+        {c.op === "filled" || c.op === "empty" ? null : kind === "any" ? (
+          values ? (
+            <Pick<string> label={`${label} value`} value={c.value ?? ""} placeholder="Pick" options={values} onChange={(value) => onChange({ ...c, value })} />
+          ) : (
+            <TextIn label={`${label} value`} value={c.value ?? ""} onChange={(value) => onChange({ ...c, value })} />
+          )
+        ) : kind === "list" ? (
+          values ? (
+            <Pick<string>
+              label={`${label} add choice`}
+              value=""
+              placeholder="Add"
+              options={values.filter((v) => !c.values?.includes(v.value))}
+              onChange={(v) => onChange({ ...c, values: [...(c.values ?? []), v] })}
+            />
+          ) : (
+            <TagInput
+              label={`${label} choices`}
+              values={c.values ?? []}
+              placeholder={src?.type === "country" ? "US" : "Value"}
+              clean={(v) => (src?.type === "country" ? (/^[a-z]{2}$/i.test(v.trim()) ? v.trim().toUpperCase() : null) : v.trim() || null)}
+              onChange={(vals) => onChange({ ...c, values: vals })}
+            />
+          )
+        ) : c.op === "between" ? (
+          <span className="grid grid-cols-2 gap-1">
+            <TextIn label={`${label} from`} mono value={c.value ?? ""} onChange={(value) => onChange({ ...c, value })} />
+            <TextIn label={`${label} to`} mono value={c.value2 ?? ""} onChange={(value2) => onChange({ ...c, value2 })} />
+          </span>
+        ) : (
+          <TextIn
+            label={`${label} value`}
+            mono={kind !== "text"}
+            value={c.value ?? ""}
+            placeholder={c.op === "within_days" ? "Days" : kind === "date" ? "YYYY-MM-DD" : ""}
+            onChange={(value) => onChange({ ...c, value })}
+          />
+        )}
+      </div>
+      {kind === "list" && values && c.values?.length ? (
+        <div className="flex flex-wrap gap-1">
+          {c.values.map((v) => (
+            <span key={v} className="inline-flex h-5 items-center gap-1 rounded-full bg-paper-deep pr-1 pl-2 text-[11.5px] text-ink">
+              {values.find((x) => x.value === v)?.label ?? v}
+              <button type="button" aria-label={`Remove ${v}`} onClick={() => onChange({ ...c, values: c.values!.filter((x) => x !== v) })} className="text-faint hover:text-ink">
+                <X size={10} />
+              </button>
+            </span>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+// Calculations --------------------------------------------------------------------------------------------------
+
+function CalcContent({ form, f, patch }: { form: Form; f: Field; patch: PatchFn }) {
+  const c: Calc = f.calc ?? { formula: "0" };
+  const set = (p: Partial<Calc>) => {
+    const next = { ...c, ...p } as Calc;
+    for (const k of Object.keys(next) as (keyof Calc)[]) if (next[k] === undefined) delete next[k];
+    patch({ calc: next });
+  };
+  const inputs = form.steps.flatMap((s) => s.fields).filter((x) => x.id !== f.id && CALC_INPUTS.includes(x.type));
+  const parsed = parseFormula(c.formula);
+  const gone = "refs" in parsed ? parsed.refs.filter((r) => !inputs.some((x) => x.id === r)) : [];
+  return (
+    <>
+      <Section first>
+        <Row label="Label">
+          <TextIn label="Label" value={f.label} onChange={(v) => patch({ label: v })} />
+        </Row>
+        <Switch label="Hide label" on={!!f.hideLabel} onChange={(v) => patch({ hideLabel: v || undefined })} />
+        <Switch label="Show on form" on={c.show !== false} onChange={(v) => set({ show: v ? undefined : false })} />
+      </Section>
+      <Section title="Formula">
+        <AreaIn label="Formula" rows={3} value={c.formula} placeholder="{seats} * 40" onChange={(formula) => set({ formula })} />
+        {"error" in parsed ? <p className="text-[12px] text-rose">{parsed.error}</p> : gone.length ? <p className="text-[12px] text-rose">No field {gone.map((g) => `{${g}}`).join(", ")}</p> : null}
+        {inputs.length ? (
+          <div className="flex flex-wrap gap-1">
+            {inputs.map((x) => (
+              <button
+                key={x.id}
+                type="button"
+                title={`Add {${x.id}}`}
+                onClick={() => set({ formula: `${c.formula.trim() === "0" ? "" : c.formula}${c.formula.trim() && c.formula.trim() !== "0" ? " " : ""}{${x.id}}` })}
+                className="press inline-flex h-6 max-w-full items-center gap-1 rounded-full border border-line bg-card px-2 text-[11.5px] text-ink hover:border-line-strong"
+              >
+                <ElementIcon name={iconFor(x)} size={11} className="text-muted" />
+                <span className="truncate">{nameOf(x)}</span>
+              </button>
+            ))}
+          </div>
+        ) : null}
+      </Section>
+      <Section title="Format">
+        <Row label="Show as">
+          <Seg
+            label="Show as"
+            value={c.format ?? "number"}
+            options={[
+              { value: "number", label: "Number" },
+              { value: "money", label: "Money" },
+              { value: "percent", label: "%" },
+            ]}
+            onChange={(v) => set({ format: v === "number" ? undefined : v, currency: v === "money" ? (c.currency ?? "USD") : undefined })}
+          />
+        </Row>
+        {c.format === "money" ? (
+          <Row label="Currency">
+            <TextIn label="Currency" mono value={c.currency ?? "USD"} placeholder="USD" onChange={(v) => set({ currency: v.trim().toUpperCase().slice(0, 3) || undefined })} />
+          </Row>
+        ) : null}
+        <NumRow label="Decimals" value={c.decimals} empty min={0} max={4} placeholder="Auto" onChange={(decimals) => set({ decimals })} />
+      </Section>
+    </>
   );
 }
 
@@ -753,9 +922,6 @@ function StepSkip({ form, index, apply }: { form: Form; index: number; apply: (o
   const sources = form.steps.slice(0, index + 1).flatMap((s) => s.fields).filter((f) => !isContent(f.type));
   const set = (next: NonNullable<typeof skip> | null) => apply({ op: "update_step", index, skip: next });
   const later = form.steps.map((_, k) => k).filter((k) => k > index + 1);
-  const src = sources.find((x) => x.id === skip?.when.field);
-  const values = ruleValues(src);
-  const needs = skip?.when.op === "is" || skip?.when.op === "is_not";
   return (
     <div className="flex flex-col gap-1.5">
       <Row label={`After ${index + 1}`}>
@@ -767,23 +933,8 @@ function StepSkip({ form, index, apply }: { form: Form; index: number; apply: (o
         />
       </Row>
       {skip ? (
-        <div className="grid grid-cols-[minmax(0,1fr)_96px] gap-1 rounded-lg border border-line bg-paper p-2">
-          <Pick<string> label="Skip when field" value={skip.when.field} options={sources.map((x) => ({ value: x.id, label: nameOf(x) }))} onChange={(field) => set({ ...skip, when: { field, op: skip.when.op, ...(needs ? { value: "" } : {}) } })} />
-          <Pick<string>
-            label="Skip condition"
-            value={skip.when.op}
-            options={RULE_OPS}
-            onChange={(op) => set({ ...skip, when: { field: skip.when.field, op: op as Rule["when"]["op"], ...(op === "is" || op === "is_not" ? { value: skip.when.value ?? values?.[0]?.value ?? "" } : {}) } })}
-          />
-          {needs ? (
-            <span className="col-span-2">
-              {values ? (
-                <Pick<string> label="Skip value" value={skip.when.value ?? ""} placeholder="Pick" options={values} onChange={(value) => set({ ...skip, when: { ...skip.when, value } })} />
-              ) : (
-                <TextIn label="Skip value" value={skip.when.value ?? ""} onChange={(value) => set({ ...skip, when: { ...skip.when, value } })} />
-              )}
-            </span>
-          ) : null}
+        <div className="rounded-lg border border-line bg-paper p-2">
+          <CondEditor label="Skip when" c={skip.when} sources={sources} onChange={(when) => set({ ...skip, when })} />
         </div>
       ) : null}
     </div>

@@ -1,14 +1,14 @@
 // Builds <claritia-form> (src/lib/forms/element.ts) and <claritia-book> (src/lib/meetings/bookElement.ts) into one
 // script, .next/static/forms/v1.js, served at /forms/v1.js
 // (src/app/forms/v1.js/route.ts). Runs after next build, which clears .next. `--dev` writes .forms/v1.js instead,
-// for next dev. Fails over 20 KB gzipped.
+// for next dev. Fails over 23 KB gzipped (20 KB until calc fields, richer rules and field numbers, docs/forms-plan.md).
 import { build } from "esbuild";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { gzipSync } from "node:zlib";
 
-const LIMIT = 20 * 1024;
+const LIMIT = 23 * 1024;
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const out = process.argv.includes("--dev") ? join(root, ".forms") : join(root, ".next", "static", "forms");
 

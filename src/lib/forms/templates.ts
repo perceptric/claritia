@@ -90,18 +90,23 @@ export const TEMPLATES: Template[] = [
   {
     key: "partner",
     name: "Partner application",
-    text: "Company, website, partner type and a note.",
-    form: () =>
-      base(
+    text: "Company, website, where they are, partner type and a note.",
+    form: () => {
+      // The region list follows the country picked (docs/forms-plan.md 2.2).
+      const country = f({ key: "country", type: "country", label: "Country", required: false, width: "half" });
+      return base(
         [
           f({ key: "email", type: "email", label: "Work email", required: true, check: "work_email" }),
           f({ key: "company", type: "text", label: "Company", required: true }),
           f({ key: "website", type: "url", label: "Website", required: true }),
+          country,
+          f({ key: "region", type: "dropdown", label: "State or region", required: false, width: "half", optionsBy: { field: country.id, preset: "regions" } }),
           f({ key: "q.partner_type", type: "choice", label: "Partner type", required: true, options: ["Agency", "Technology", "Reseller"].map((v) => ({ value: v, label: v })) }),
           f({ key: "q.note", type: "textarea", label: "Tell us about your customers", required: false }),
         ],
         { submit: { label: "Apply" } },
-      ),
+      );
+    },
   },
   {
     key: "webinar",
@@ -153,19 +158,36 @@ export const TEMPLATES: Template[] = [
   {
     key: "quote",
     name: "Quote request",
-    text: "Company, what they need, budget and timeline.",
-    form: () =>
-      base(
+    text: "Company, what they need, seats and plan with a price, and timeline.",
+    form: () => {
+      // The price works itself out from seats and plan (docs/forms-plan.md 2.3); the server works it out again.
+      const seats = f({ key: "q.seats", type: "number", label: "Seats", required: false, width: "half", valid: { min: 1, step: 1 } });
+      const plan = f({
+        key: "q.plan",
+        type: "dropdown",
+        label: "Plan",
+        required: false,
+        width: "half",
+        options: [
+          { value: "Starter", label: "Starter", score: 20 },
+          { value: "Team", label: "Team", score: 40 },
+          { value: "Business", label: "Business", score: 80 },
+        ],
+      });
+      return base(
         [
           f({ key: "email", type: "email", label: "Work email", required: true, check: "work_email" }),
           f({ key: "name", type: "text", label: "Full name", required: true, width: "half" }),
           f({ key: "company", type: "text", label: "Company", required: true, width: "half" }),
           f({ key: "q.need", type: "textarea", label: "What do you need?", required: true }),
-          f({ key: "q.budget", type: "choice", label: "Budget", required: false, options: ["Under $1k", "$1k-$5k", "$5k-$20k", "$20k+"].map((v) => ({ value: v, label: v })) }),
+          seats,
+          plan,
+          f({ key: "q.estimate", type: "calc", label: "Estimated price a month", required: false, calc: { formula: `{${seats.id}} * {${plan.id}}`, format: "money", currency: "USD", decimals: 0 } }),
           f({ key: "q.timeline", type: "choice", label: "Timeline", required: false, options: ["This month", "This quarter", "Later"].map((v) => ({ value: v, label: v })) }),
         ],
         { submit: { label: "Get a quote" } },
-      ),
+      );
+    },
   },
   {
     key: "feedback",
