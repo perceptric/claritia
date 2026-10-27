@@ -203,7 +203,7 @@ export function qaOk(formId: string, token: unknown, secret: string | undefined,
  * Take a fill for a live form: check it, save it (form_submit), and work out the booking link when the form books a
  * meeting on an outside scheduler, or the times and booking token when it books with Claritia calendar. Shared by the public route and the tests, so both run the same steps. Answers status and JSON body.
  */
-async function routeFill(rpc: Rpc, ws: string, contact: string, submission: string): Promise<void> {
+export async function routeFill(rpc: Rpc, ws: string, contact: string, submission: string): Promise<void> {
   const key = `form:${submission}`;
   const later = () => enqueueJob(rpc, { workspaceId: ws, kind: "route", key, payload: { contact, reason: "form", key } }).catch(() => undefined);
   try {
@@ -312,4 +312,50 @@ export async function acceptFill(
     if (url) schedule = { tool: sch.tool, url };
   }
   return { status: 200, body: { id: sid, schedule } };
+}
+
+/** A saved fill as releaseFill reads it. */
+export type HeldFill = {
+  id: string;
+  workspace_id: string;
+  form_version: number;
+  idem_key: string;
+  values: Record<string, unknown>;
+  consent: Record<string, unknown>;
+  country: string | null;
+  created_at: string;
+  contact_id: string | null;
+};
+
+/**
+ * Let a fill held as spam through (docs/forms-plan.md 1.1): its saved answers go through the same checks a fill takes
+ * on the way in, against the version it was sent on, then submission_release gives it its contact, consent and
+ * deliveries, and the router picks it up. A fill that was a lead before (marked spam by hand) only leaves Spam. A
+ * fill whose answers can't make a lead (a disposable email, say) stays where it is, with the reason.
+ */
+export async function releaseFill(rpc: Rpc, s: HeldFill, body: Form, ctx: Ctx): Promise<{ contact: string | null } | { error: string }> {
+  let args: SubmitArgs | null = null;
+  if (!s.contact_id) {
+    const answers: Record<string, unknown> = {};
+    const hidden: Record<string, string> = {};
+    for (const f of allFields(body)) {
+      const v = s.values[f.key];
+      if (v === undefined) continue;
+      if (f.type === "hidden") {
+        if (typeof v === "string") hidden[f.id] = v;
+      } else answers[f.id] = v;
+    }
+    const consent = typeof s.consent.given === "boolean" ? { given: s.consent.given } : {};
+    const raw: Incoming = { v: 1, version: s.form_version, key: s.idem_key, answers, hidden, consent, ms: 3_600_000, trap: "", today: s.created_at.slice(0, 10) };
+    const r = prepareSubmit(body, s.form_version, raw, ctx, { country: s.country });
+    if ("errors" in r) return { error: Object.values(r.errors)[0] ?? "Check the answers." };
+    if ("error" in r) return { error: r.error };
+    if (!r.args.p_contact) return { error: "This fill has no email to make a lead from." };
+    args = r.args;
+  }
+  const { data, error } = await rpc("submission_release", { p_sid: s.id, p_contact: args?.p_contact ?? null, p_consent: args?.p_consent ?? s.consent });
+  if (error) return { error: "Try again in a moment." };
+  const contact = typeof data === "string" ? data : null;
+  if (contact && args) await routeFill(rpc, s.workspace_id, contact, s.id);
+  return { contact };
 }

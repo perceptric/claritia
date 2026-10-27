@@ -5,6 +5,7 @@
 
 import { useEffect, useRef } from "react";
 import type { Tokens } from "@/lib/forms/brand";
+import { allRegions, usesRegions } from "@/lib/forms/regions";
 import type { Form } from "@/lib/forms/schema";
 import type { Tone } from "../ui";
 
@@ -30,7 +31,7 @@ export function FormPreview({ form, tokens, step = 0, done = false }: { form: Fo
   useEffect(() => {
     let live = true;
     void import("@/lib/forms/element").then(() => {
-      if (live && ref.current) (ref.current as unknown as { preview: unknown }).preview = { form, tokens, step, done };
+      if (live && ref.current) (ref.current as unknown as { preview: unknown }).preview = { form, tokens, step, done, ...(usesRegions(form) ? { regions: allRegions() } : {}) };
     });
     return () => {
       live = false;

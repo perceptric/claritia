@@ -3,7 +3,9 @@
 // Cases: errors show before anything is sent; the server's own check lands on the right field; a double click sends
 // once; a send that can't reach us waits in localStorage and lands once after a reload; steps and the listbox work by
 // keyboard; a label with HTML in it stays text; the embed made before the builder (/f/embed.js) still frames the
-// form, sizes the frame, passes the page's UTMs, hands the email to the site script and opens the next page.
+// form, sizes the frame, passes the page's UTMs, hands the email to the site script and opens the next page. The
+// region list follows the country picked, a calc total shows as the visitor answers and the server saves its own, and
+// a sent form leaves one field summary (docs/forms-plan.md Parts 1 and 2).
 // scripts/test-db.sh runs it when CHROMIUM_PATH is set.
 //   PG_URL=… CHROMIUM_PATH=… node scripts/forms-check.ts
 
@@ -12,6 +14,7 @@ import pg from "pg";
 import pw from "playwright-core";
 import { buildForms } from "./build-forms.mts";
 import { embedScript } from "../src/lib/forms/render.ts";
+import { allRegions, usesRegions } from "../src/lib/forms/regions.ts";
 import { checkForm, emptyForm, type Form } from "../src/lib/forms/schema.ts";
 import { acceptFill, qaOk, type Incoming } from "../src/lib/forms/submit.ts";
 import { pgRpc } from "../worker-intel/rpc.ts";
@@ -46,6 +49,7 @@ const sales = await live("contact_sales", (f) => {
   f.steps[0].fields[0].label = `Name <img src=x onerror="window.pwned=1">`;
 });
 const partner = await live("partner");
+const quote = await live("quote");
 const event = await live("event");
 const mapFields = (f: Form) => {
   f.steps[0].fields.push(
@@ -90,12 +94,20 @@ async function handle(req: import("node:http").IncomingMessage, res: import("nod
       <script>window.claritia = function (kind, email) { window.relay = [kind, email]; };</script>
       <h1>Get the guide</h1><script src="${app}/f/embed.js" data-claritia-form="${embed}" async></script></body>`);
   }
-  const m = /^\/api\/forms\/([0-9a-f-]{36})(\/submit)?$/.exec(u.pathname);
+  const m = /^\/api\/forms\/([0-9a-f-]{36})(\/submit|\/seen)?$/.exec(u.pathname);
   if (m && !m[2]) {
     const f = (await q(`select form_public($1) as f`, [m[1]]))[0].f;
-    return send(200, { ...f, workspace_id: undefined, strict: true });
+    return send(200, { ...f, workspace_id: undefined, strict: true, ...(usesRegions(f.body) ? { regions: allRegions() } : {}) });
   }
-  if (m && m[2] && req.method === "POST") {
+  if (m && m[2] === "/seen" && req.method === "POST") {
+    let body = "";
+    for await (const ch of req) body += ch;
+    const b = JSON.parse(body || "{}");
+    if (b.kind === "fields") await q(`select form_field_seen($1, $2, $3, $4, $5, $6, $7)`, [m[1], b.vid, b.version, b.fields, b.left ?? null, b.step ?? 0, b.sent === true]);
+    else await q(`select form_seen($1, $2, $3)`, [m[1], b.vid, b.kind]);
+    return void res.writeHead(204).end();
+  }
+  if (m && m[2] === "/submit" && req.method === "POST") {
     let body = "";
     for await (const ch of req) body += ch;
     posts++;
@@ -191,17 +203,59 @@ try {
   await host.getByRole("button", { name: "Back" }).click();
   check((await host.getByLabel(/^Email/).inputValue()) === "cy@acme.com", "Back keeps what was typed");
 
-  // The listbox by keyboard.
+  // The listbox by keyboard: the country, searched and picked. Then the region list for that country.
   await page.goto(`${base}/?form=${partner}`);
   await host.locator("form").waitFor();
-  const box = host.locator("button.bx");
+  const box = host.locator("button.bx").first();
+  check((await host.locator("button.bx").count()) === 1, "the region list stays hidden until a country is picked");
   await box.click();
+  await page.keyboard.type("United States");
   await page.keyboard.press("ArrowDown");
   await page.keyboard.press("Enter");
-  check((await box.textContent())?.includes("Technology") === true, "the listbox opens, moves and picks by keyboard");
+  check((await box.textContent())?.includes("United States") === true, "the listbox opens, moves and picks by keyboard");
   await box.focus();
   check((await box.getAttribute("aria-expanded")) === "false", "the listbox closes after a pick");
+  const region = host.locator("button.bx").nth(1);
+  await region.click();
+  await page.keyboard.type("Tex");
+  await page.keyboard.press("ArrowDown");
+  await page.keyboard.press("Enter");
+  check((await region.textContent())?.includes("Texas") === true, "the region list follows the country picked");
+  await host.getByLabel(/^Work email/).fill("pia@agency.io");
+  await host.getByLabel(/^Company/).fill("Agency");
+  await host.getByLabel(/^Website/).fill("agency.io");
+  await host.getByText("Reseller").click();
   await page.screenshot({ path: process.env.FORMS_SHOT || "/tmp/forms-check.png", fullPage: true });
+  await host.locator("button[type=submit]").click();
+  await host.locator(".dn").waitFor();
+  const pv = (await q(`select "values" from submissions where form_id = $1`, [partner]))[0]?.values ?? {};
+  check(pv.region === "Texas" && pv.country === "US", `the fill saves the country and region (${JSON.stringify({ country: pv.country, region: pv.region })})`);
+  await page.waitForTimeout(300);
+  const fs = (await q(`select sent, fields from form_field_sessions where form_id = $1`, [partner]))[0];
+  check(!!fs?.sent && Object.keys(fs.fields).length >= 5, "a sent form leaves one field summary, and never the answers");
+  check(!JSON.stringify(fs?.fields ?? {}).includes("pia@agency.io"), "the field summary has no answers in it");
+
+  // A calc: the price shows as the visitor answers, and the server works it out again.
+  await page.goto(`${base}/?form=${quote}`);
+  await host.locator("form").waitFor();
+  await host.getByLabel(/^Seats/).fill("12");
+  await host.getByLabel(/^Seats/).blur();
+  await host.locator("button.bx").click();
+  await host.getByRole("option", { name: "Team" }).click();
+  check((await host.locator("output").textContent())?.replace(/\s/g, "") === "$480", `the price shows as the visitor answers (${await host.locator("output").textContent()})`);
+  await host.getByLabel(/^Work email/).fill("li@buyer.com");
+  await host.getByLabel(/^Full name/).fill("Li Wu");
+  await host.getByLabel(/^Company/).fill("Buyer");
+  await host.getByLabel(/^What do you need/).fill("Seats for the team");
+  await host.evaluate((el) => {
+    // A visitor who edits the page: the total they send is ignored.
+    const o = el.shadowRoot?.querySelector("output");
+    if (o) o.textContent = "$1";
+  });
+  await host.locator("button[type=submit]").click();
+  await host.locator(".dn").waitFor();
+  const qv = (await q(`select "values" from submissions where form_id = $1`, [quote]))[0]?.values ?? {};
+  check(qv["q.estimate"] === 480, `the server saves its own total (${qv["q.estimate"]})`);
 
   // Captured forms: the team's own HTML form is read when sent, only from the set-up form, only its mapped fields.
   await page.goto(`${base}/?capture=${capHtml}`);

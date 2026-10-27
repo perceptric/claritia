@@ -6,7 +6,7 @@
 import pw from "playwright-core";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { sampleAnswers } from "../src/lib/forms/sample.ts";
-import type { Form } from "../src/lib/forms/schema.ts";
+import { everyOption, type Form } from "../src/lib/forms/schema.ts";
 import { qaToken, type PublicForm } from "../src/lib/forms/submit.ts";
 import { JobError, type Job } from "../src/lib/jobs.ts";
 
@@ -23,24 +23,31 @@ async function rpc<T>(sb: SupabaseClient, fn: string, args: Record<string, unkno
   return data as T;
 }
 
-/** Fill one step's fields in the page as a visitor would. */
+/**
+ * Fill one step's fields in the page as a visitor would: type into boxes, pick from a dropdown's list (searching a long
+ * one), click the radio or check box for a pick by its label (options can be shuffled), and leave calcs alone. Only
+ * fields the step shows for the answers so far, so a list that follows another field is filled after it.
+ */
 async function fillStep(page: pw.Page, form: Form, step: number, answers: Record<string, unknown>) {
   const names = new Intl.DisplayNames(["en"], { type: "region" });
+  const host = page.locator("claritia-form");
   for (const f of form.steps[step].fields) {
     const v = answers[f.id];
-    if (v === undefined || f.type === "hidden") continue;
+    if (v === undefined || f.type === "hidden" || f.type === "calc") continue;
     const box = page.locator(`claritia-form #clr-${f.id}`);
-    if (f.type === "choice" || f.type === "country") {
-      const label = f.type === "country" ? (names.of(String(v)) ?? String(v)) : (f.options?.find((o) => o.value === v)?.label ?? String(v));
+    const label = (x: unknown) => (f.type === "country" ? (names.of(String(x)) ?? String(x)) : (everyOption(f).find((o) => o.value === x)?.label ?? String(x)));
+    if (f.type === "dropdown" || f.type === "country") {
       await box.click();
       const search = page.locator("claritia-form .ls input");
       if (await search.count()) {
-        await search.fill(label);
+        await search.fill(label(v));
         await search.press("Enter");
-      } else await page.locator("claritia-form [role=option]", { hasText: label }).first().click();
-    } else if (f.type === "multi") {
-      for (const val of v as string[]) await page.locator(`claritia-form #clr-${f.id}-${(f.options ?? []).findIndex((o) => o.value === val)}`).check();
-    } else if (f.type === "checkbox") await box.check();
+      } else await page.locator("claritia-form [role=option]", { hasText: label(v) }).first().click();
+    } else if (f.type === "choice") await host.getByRole("radio", { name: label(v), exact: true }).check();
+    else if (f.type === "multi") {
+      for (const val of v as string[]) await host.getByRole("checkbox", { name: label(val), exact: true }).check();
+    } else if (f.type === "rating") await host.getByRole("radio", { name: new RegExp(`^${Number(v)} of `) }).check();
+    else if (f.type === "checkbox") await box.check();
     else await box.fill(String(v));
   }
 }

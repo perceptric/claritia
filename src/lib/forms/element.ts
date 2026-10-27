@@ -11,10 +11,12 @@
 import { tokensCss, type Tokens } from "./brand.ts";
 import { byDay, dayText, localZone, sampleSlots, timeText, zoneName, zones, type Booked, type Booking } from "./calendar.ts";
 import { countryNames } from "./countries.ts";
+import { calcText } from "./formula.ts";
 import { allFields, isContent, nextStep, optionsFor, safeUrl, visibility, withCalcs, type Choice, type Field, type FieldWidth, type Form, type RunCtx } from "./schema.ts";
 import { checkAnswers, OTHER, stepPath, type Answers } from "./values.ts";
 
-type Loaded = { id: string; version: number; status: "live" | "paused"; body: Form; tokens: Partial<Tokens>; strict?: boolean; turnstile?: string };
+/** regions: the region lists, sent with the form when a list follows a country field (src/lib/forms/regions.ts). */
+type Loaded = { id: string; version: number; status: "live" | "paused"; body: Form; tokens: Partial<Tokens>; strict?: boolean; turnstile?: string; regions?: Record<string, string[]> };
 type Queued = { url: string; body: string; key: string; at: number; tries: number };
 
 const QUEUE = "clr_form_queue";
@@ -180,17 +182,6 @@ const localDay = () => {
   const d = new Date();
   return new Date(d.getTime() - d.getTimezoneOffset() * 60_000).toISOString().slice(0, 10);
 };
-
-/** A calc's result as the form shows it. */
-export function calcText(f: Field, n: unknown): string {
-  if (typeof n !== "number") return "—";
-  const c = f.calc ?? { formula: "" };
-  const opts: Intl.NumberFormatOptions = { maximumFractionDigits: c.decimals ?? 2, ...(c.decimals !== undefined ? { minimumFractionDigits: c.decimals } : {}) };
-  try {
-    if (c.format === "money") return n.toLocaleString(undefined, { ...opts, style: "currency", currency: c.currency ?? "USD" });
-  } catch {}
-  return n.toLocaleString(undefined, opts) + (c.format === "percent" ? "%" : "");
-}
 
 const listOf = (v: unknown): string[] => (Array.isArray(v) ? v.map(String) : (typeof v === "string" && v) || typeof v === "number" ? [String(v)] : []);
 
@@ -562,30 +553,8 @@ export class ClaritiaForm extends Base {
   /** Field ids hidden because enrichment already knows them (fill before submit), and the email they're for. */
   private known = new Set<string>();
   private knownFor = "";
-  /** Region lists by country, fetched when a dropdown follows a country field; a promise while one loads. */
-  private regions = new Map<string, string[] | Promise<void>>();
   private get ctx(): RunCtx {
-    return { today: localDay(), regions: (c) => (Array.isArray(this.regions.get(c)) ? (this.regions.get(c) as string[]) : undefined) };
-  }
-  private loadRegions(form: Form) {
-    for (const f of allFields(form)) {
-      const c = f.optionsBy?.preset === "regions" ? this.answers[f.optionsBy.field] : null;
-      if (typeof c !== "string" || !/^[A-Z]{2}$/.test(c) || this.regions.has(c)) continue;
-      const done = (list: string[]) => {
-        this.regions.set(c, list);
-        this.later();
-      };
-      this.regions.set(
-        c,
-        fetch(`${this.base}/api/forms/regions?c=${c}`, { credentials: "omit" })
-          .then((r) => r.json())
-          .then((j: { regions?: unknown }) => done(Array.isArray(j.regions) ? j.regions.map(String) : []))
-          .catch(() => {
-            this.regions.delete(c);
-            this.later();
-          }),
-      );
-    }
+    return { today: localDay(), regions: (c) => this.data?.regions?.[c] };
   }
 
   constructor() {
@@ -595,6 +564,38 @@ export class ClaritiaForm extends Base {
     const start = () => this.beacon("start");
     this.root.addEventListener("input", start);
     this.root.addEventListener("change", start);
+    // Time in each field, and the last one the visitor was in (docs/forms-plan.md 1.2).
+    const fid = (e: Event) => /^clr-([a-z0-9]{1,24})/.exec((e.target as HTMLElement | null)?.id ?? "")?.[1];
+    this.root.addEventListener("focusin", (e) => {
+      const id = fid(e);
+      if (id && this.data?.body.steps.some((st) => st.fields.some((f) => f.id === id))) this.at = [id, Date.now()];
+    });
+    this.root.addEventListener("focusout", () => {
+      if (this.at) this.row(this.at[0])[3] += Date.now() - this.at[1];
+      this.last = this.at?.[0] ?? this.last;
+      this.at = null;
+    });
+  }
+
+  /** Per field: [reached, answered, errors, ms]. Never the answers. */
+  private seenFields: Record<string, [number, number, number, number]> = {};
+  private at: [string, number] | null = null;
+  private last = "";
+  private maxStep = 0;
+  private told = "";
+  private hooked = false;
+  private row(id: string) {
+    return (this.seenFields[id] ??= [0, 0, 0, 0]);
+  }
+  /** One summary when the visitor leaves the page or sends the form; a later one replaces it on the server. */
+  private summary(sent: boolean) {
+    const id = this.getAttribute("form-id");
+    if (this.isPreview || !this.sent.has("start") || !this.data || this.data.status !== "live" || !id || this.told === "sent") return;
+    for (const [k, r] of Object.entries(this.seenFields)) r[1] = listOf(this.answers[k]).length || this.answers[k] === true ? 1 : 0;
+    const body = JSON.stringify({ kind: "fields", vid: visitorId(), version: this.data.version, fields: this.seenFields, left: this.at?.[0] ?? this.last, step: this.maxStep, sent });
+    if (body === this.told) return;
+    this.told = sent ? "sent" : body;
+    fetch(`${this.base}/api/forms/${id}/seen`, { method: "POST", headers: { "content-type": "text/plain" }, body, credentials: "omit", keepalive: true }).catch(() => {});
   }
 
   /** One view (half on screen for a second) and one start per load; the server counts each visitor every 30 minutes. */
@@ -627,11 +628,11 @@ export class ClaritiaForm extends Base {
   }
 
   /** The app's builder shows a draft without loading or sending anything. */
-  set preview(p: { form: Form; tokens?: Partial<Tokens>; step?: number; done?: boolean }) {
+  set preview(p: { form: Form; tokens?: Partial<Tokens>; step?: number; done?: boolean; regions?: Record<string, string[]> }) {
     this.isPreview = true;
     const fresh = !this.data || this.done !== !!p.done;
     if (fresh || p.form.after.schedule?.tool !== "claritia") this.bk = this.bkDone = null;
-    this.data = { id: "preview", version: 0, status: "live", body: p.form, tokens: p.tokens ?? {}, strict: true };
+    this.data = { id: "preview", version: 0, status: "live", body: p.form, tokens: p.tokens ?? {}, strict: true, regions: p.regions };
     this.step = Math.min(p.step ?? this.step, p.form.steps.length - 1);
     this.done = !!p.done;
     if (fresh) this.errors = {};
@@ -657,6 +658,10 @@ export class ClaritiaForm extends Base {
     if (!this.isPreview) void this.load();
     void flushQueue();
     this.wirePopup();
+    if (!this.isPreview && !this.hooked) {
+      this.hooked = true;
+      document.addEventListener("visibilitychange", () => document.visibilityState === "hidden" && this.summary(false));
+    }
     // In the embed's frame: tell the page around it how tall the form is.
     if (!this.isPreview && embedFrame() && typeof ResizeObserver !== "undefined") {
       const size = () => {
@@ -745,7 +750,6 @@ export class ClaritiaForm extends Base {
     if (d.status === "paused") return this.put(style, el("div", { class: "f" }, el("p", { class: "i", text: "This form is closed." })));
     if (this.done) return this.put(style, this.endScreen(form));
 
-    this.loadRegions(form);
     const { shown, required } = visibility(form, this.answers, this.ctx);
     // The last step is the one whose next step (after any skip) is the end.
     const last = nextStep(form, this.step, this.answers, this.ctx) >= form.steps.length;
@@ -755,7 +759,12 @@ export class ClaritiaForm extends Base {
     if (form.intro) wrap.append(el("p", { class: "i", text: form.intro }));
     if (form.steps.length > 1) wrap.append(this.progress(form));
     const grid = el("div", { class: "g" });
-    for (const f of step.fields) if (f.type !== "hidden" && shown.has(f.id) && !this.known.has(f.id)) grid.append(this.field(f, form, required.has(f.id)));
+    this.maxStep = Math.max(this.maxStep, this.step);
+    for (const f of step.fields)
+      if (f.type !== "hidden" && shown.has(f.id) && !this.known.has(f.id)) {
+        if (!isContent(f.type)) this.row(f.id)[0] = 1;
+        grid.append(this.field(f, form, required.has(f.id)));
+      }
     wrap.append(grid);
     if (last && this.needsConsent()) {
       const box = el("input", { type: "checkbox", id: "clr-consent" }) as HTMLInputElement;
@@ -895,7 +904,7 @@ export class ClaritiaForm extends Base {
       return box;
     }
     if (f.type === "calc") {
-      box.append(el("label", { class: `lb${f.hideLabel ? " sr" : ""}`, for: id, text: f.label }), el("output", { class: "in", id, "aria-live": "polite", text: calcText(f, withCalcs(form, this.answers, this.ctx)[f.id]) }));
+      box.append(el("label", { class: `lb${f.hideLabel ? " sr" : ""}`, for: id, text: f.label }), el("output", { class: "in", id, "aria-live": "polite", text: calcText(f.calc, withCalcs(form, this.answers, this.ctx)[f.id]) }));
       return box;
     }
     const inside = (f.labels ?? form.layout.labels) === "inside" && ["text", "email", "phone", "number", "url", "textarea", "date", "dropdown", "country"].includes(f.type);
@@ -934,6 +943,7 @@ export class ClaritiaForm extends Base {
       const r = checkAnswers(form, this.answers, { steps: [this.step], known: this.known, ...this.ctx });
       if (r.errors[f.id] && this.answers[f.id] !== undefined && this.answers[f.id] !== "") {
         this.errors[f.id] = r.errors[f.id];
+        this.row(f.id)[2]++;
         this.later();
       }
     };
@@ -1321,10 +1331,9 @@ export class ClaritiaForm extends Base {
   private async next() {
     const d = this.data!;
     const form = d.body;
-    // A region list still on its way: wait for it, so what shows matches what the server checks.
-    await Promise.all([...this.regions.values()].filter((x) => x instanceof Promise));
     const r = checkAnswers(form, this.answers, { steps: [this.step], known: this.known, ...this.ctx });
     this.errors = r.errors;
+    for (const id of Object.keys(r.errors)) this.row(id)[2]++;
     this.alert = "";
     if (Object.keys(r.errors).length) {
       this.render();
@@ -1414,6 +1423,7 @@ export class ClaritiaForm extends Base {
       // The server's own check found something the browser didn't (a free email on a work email field).
       const j = (await res.json().catch(() => ({}))) as { errors?: Record<string, string>; error?: string };
       this.errors = j.errors ?? {};
+      for (const id of Object.keys(this.errors)) this.row(id)[2]++;
       this.alert = j.errors ? "" : (j.error ?? "Check the form and try again.");
       const firstStep = d.body.steps.findIndex((s) => s.fields.some((f) => this.errors[f.id]));
       if (firstStep >= 0) this.step = firstStep;
@@ -1435,6 +1445,8 @@ export class ClaritiaForm extends Base {
       this.dispatchEvent(new CustomEvent("claritia:submitted", { bubbles: true, composed: true, detail: { formId: d.id, submissionId: j.id ?? null } }));
       this.tellPage();
     }
+    // Sent, or kept to send again: either way the visitor finished the form.
+    this.summary(true);
     this.done = true;
     this.render();
     // The calendar in place of the form: screen readers and keys start at its heading.

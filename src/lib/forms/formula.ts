@@ -134,3 +134,13 @@ export function evalFormula(ast: Ast, get: (id: string) => number | null): numbe
   const out = v(ast);
   return out === null || !Number.isFinite(out) ? null : out;
 }
+
+/** A calc's result as the form and Results show it: money in its currency, a percent sign, or a plain number. */
+export function calcText(c: { format?: "number" | "money" | "percent"; decimals?: number; currency?: string } | undefined, n: unknown): string {
+  if (typeof n !== "number") return "—";
+  const opts: Intl.NumberFormatOptions = { maximumFractionDigits: c?.decimals ?? 2, ...(c?.decimals !== undefined ? { minimumFractionDigits: c.decimals } : {}) };
+  try {
+    if (c?.format === "money") return n.toLocaleString(undefined, { ...opts, style: "currency", currency: c.currency ?? "USD" });
+  } catch {}
+  return n.toLocaleString(undefined, opts) + (c?.format === "percent" ? "%" : "");
+}

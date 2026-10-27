@@ -758,7 +758,13 @@ function CalcContent({ form, f, patch }: { form: Form; f: Field; patch: PatchFn 
       </Section>
       <Section title="Formula">
         <AreaIn label="Formula" rows={3} value={c.formula} placeholder="{seats} * 40" onChange={(formula) => set({ formula })} />
-        {"error" in parsed ? <p className="text-[12px] text-rose">{parsed.error}</p> : gone.length ? <p className="text-[12px] text-rose">No field {gone.map((g) => `{${g}}`).join(", ")}</p> : null}
+        {"error" in parsed ? (
+          <p className="text-[12px] text-rose">{parsed.error}</p>
+        ) : gone.length ? (
+          <p className="text-[12px] text-rose">No field {gone.map((g) => `{${g}}`).join(", ")}</p>
+        ) : parsed.refs.length ? (
+          <p className="text-[12px] break-words text-muted">{c.formula.replace(/\{\s*([a-z0-9]+)\s*\}/g, (_, id: string) => nameOf(inputs.find((x) => x.id === id)!))}</p>
+        ) : null}
         {inputs.length ? (
           <div className="flex flex-wrap gap-1">
             {inputs.map((x) => (

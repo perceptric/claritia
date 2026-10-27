@@ -1,6 +1,6 @@
 # Forms: the next build
 
-Status: proposed, October 2026. Built on `main` at `6c78dcc`.
+Status: Parts 1 and 2 built (see "Status" at the end); Parts 3 to 6 proposed. October 2026.
 
 Forms already go from a fill to a lead, a qualify, a route and a booked meeting (`docs/form-builder.md`,
 `docs/form-builder-v2.md`, `docs/form-studio.md`). This plan closes the gaps found in a side-by-side check against
@@ -46,7 +46,7 @@ Documents, signatures, approvals, payments, Salesforce custom objects, import fr
 ### 1.1 The fills table
 
 - **Pages.** Keyset pages of 50 on `(created_at, id)`, so a form with 100,000 fills loads as fast as one with 10. The
-  count at the top comes from one `count` query, cached for a minute.
+  count at the top comes from one `count` query, run again only when the filters change.
 - **Search.** One box searches every answer, the email and the contact's name. A generated `tsvector` column on
   `submissions` (from `values` and `hidden`, `simple` config) with a GIN index. Filters next to it: date range,
   destination status (Sent, Failed, Waiting), booked or not, and any choice field's value.
@@ -54,10 +54,11 @@ Documents, signatures, approvals, payments, Salesforce custom objects, import fr
   set is saved on the form (`forms.results_columns text[]`), so the whole team sees the same table. Old fills from an
   older version show the label from their own version (`form_versions`), as today.
 - **Bulk.** Select many to replay deliveries, mark as spam or not spam, or delete (with the app's confirm dialog).
-- **Export.** "Export answers" writes a CSV of every answer for the filtered set. Up to 5,000 rows it streams right
-  away. Above that it runs as a job (`src/lib/jobs.ts`), writes to the private `exports` bucket and shows a link that
-  works for 24 hours. One column per field across all versions, named by label, with the field id in a second header
-  row for re-imports.
+  Not spam on a fill held as spam on the way in runs the same checks and steps a fill takes on the way in (contact,
+  consent, deliveries, routing), once however many times it's clicked.
+- **Export.** "Export answers" writes a CSV of every answer for the filtered set. It streams in pages of 1,000 for any
+  size, so no job or bucket is needed. One column per field across all versions, named by label, with the field's key
+  in a second header row for re-imports.
 
 ### 1.2 Numbers per field
 
@@ -66,16 +67,16 @@ page or sends the form.
 
 - **What it sends:** form id, version, visitor id, and for each field it touched: reached, answered, error count and
   time spent. Plus the last field touched and the last step reached. Never the answers.
-- **How:** `navigator.sendBeacon` on `visibilitychange` to hidden and on submit, once per session. A lost beacon
-  changes no fill, because it sits on its own route (`/api/forms/[id]/seen`, extended) and the submit path never waits
-  on it.
-- **Stored as:** `form_field_daily (form_id, version, field_id, day, reached, answered, errors, ms_sum, left_here)`,
-  rolled up in the same RPC as `form_seen`, with the same bot filter and rate limit. Kept 13 months.
+- **How:** a `keepalive` request on `visibilitychange` to hidden and on submit. A lost beacon changes no fill,
+  because it sits on its own route (`/api/forms/[id]/seen`, extended) and the submit path never waits on it.
+- **Stored as:** one row per visit in `form_field_sessions`, with the same bot filter and rate limit as views and
+  starts. A later summary within 30 minutes replaces the earlier one, so a visitor who switches tabs and comes back to
+  send the form counts as sent, never as leaving. Added up when the Fields view opens. Kept 13 months.
 - **The screen:** Results gets two views, Fills and Fields. Fields lists each question in form order with a bar from
   reached to answered, the error rate, the median time and a `Badge` on the field where most people stop. A step
   funnel sits on top for forms with steps. The date range matches the Forms report.
-- **Reports:** the Forms report (`src/components/app/reports/Report.tsx`) gets a "Drop-off" column that opens this
-  view.
+- **Reports:** the Forms report (`src/components/app/reports/Report.tsx`) gets a "Most left at" column that opens
+  this view.
 
 ### 1.3 Tests
 
@@ -102,8 +103,8 @@ page or sends the form.
 ### 2.2 Dependent dropdowns
 
 - A choice or dropdown field can take `optionsBy: { field, map }`: for each value of a parent field, its own list.
-  A built-in `country` to `region` list ships with the element (ISO 3166-2 for the 20 countries asked for most,
-  loaded only when the form uses it).
+  A built-in `country` to `region` list covers the 20 countries asked for most. The lists come with the form itself
+  when the form uses them, so the form script stays small and the browser and the server always check the same list.
 - When the parent changes, the child's answer clears. The checker fails a map key that isn't one of the parent's
   values, and the server rejects a child answer that isn't in the list for the parent's answer.
 
@@ -129,6 +130,7 @@ page or sends the form.
 - Calc fields: a tampered browser total is replaced by the server's; a formula that divides by an empty field gives
   an empty answer and no crash.
 - A child answer from the wrong parent list is rejected with the field's own error.
+- A visitor a day ahead of the server (UTC+14) gets the same "within N days" result on submit.
 
 ---
 
@@ -258,7 +260,7 @@ A form setting with two choices:
 | Step | What | Days |
 |---|---|---|
 | 1 | Results: pages, search, columns, bulk, full-answer export | 4 |
-| 2 | Field beacon, `form_field_daily`, the Fields view, Drop-off in the Forms report | 4 |
+| 2 | Field beacon, `form_field_sessions`, the Fields view, Drop-off in the Forms report | 4 |
 | 3 | Richer conditions and groups, with the property test | 3 |
 | 4 | Dependent dropdowns and the region lists | 2 |
 | 5 | Calculated fields: parser, server work-out, editor | 3 |
@@ -282,9 +284,9 @@ emails, 2 extra languages on 2 forms, published 3 times each.
 
 | Line | Beta (50 teams) | Growth (500 teams) |
 |---|---|---|
-| Field beacons and `form_field_daily`: database writes, inside the current plan; about 1 million rows a year at Growth | $0 | $0 |
+| Field summaries in `form_field_sessions`: one row per started visit, about 450,000 a month at Growth, about 2 GB over 13 months | $0 | in the database line below |
 | Search index on submissions: a few hundred MB at Growth | $0 | $0 |
-| Exports bucket: files kept 24 hours | $0 | $0 |
+| Exports: streamed, no storage | $0 | $0 |
 | Calc, conditions and dropdowns: code only | $0 | $0 |
 | File storage on Supabase: 100 GB included, then about $0.021 a GB (check). Beta holds about 70 GB after a year; Growth about 700 GB | $0 | $13 (check) |
 | File downloads: about 30% of files opened, at about $0.09 a GB past the included amount (check) | $0 | $2 (check) |
@@ -295,4 +297,31 @@ emails, 2 extra languages on 2 forms, published 3 times each.
 | Database growth from all of the above | $0 (inside plan) | $25 (check, if a larger database is needed) |
 | **Added per month** | **about $10** | **about $170** |
 
-Step 1 to 6 alone add $0 at Beta and $0 to $25 at Growth.
+Step 1 to 6 alone add $0 at Beta and $0 to $25 at Growth (the database line, check).
+
+## Status: Parts 1 and 2 built
+
+| Piece | Where |
+|---|---|
+| Search, saved columns, keyset pages, counts, bulk spam and delete, field summaries, the Fields numbers, the report's drop-off | `supabase/migrations/071_form_results.sql` |
+| `form_submit` split so a released fill takes the same steps (`submission_accept`) | `supabase/migrations/071_form_results.sql` |
+| Filters, columns across versions and the CSV | `src/lib/forms/results.ts` |
+| Fills view: search, filters, columns, pages, bulk bar, export | `src/components/app/forms/FormFills.tsx` |
+| Fields view and the Fills or Fields switch | `src/components/app/forms/FormFields.tsx` |
+| Export and Not spam routes | `src/app/api/forms/[id]/export/route.ts`, `src/app/api/forms/release/route.ts` |
+| Field summary in the form script, and its route | `src/lib/forms/element.ts`, `src/app/api/forms/[id]/seen/route.ts` |
+| Most left at in the Forms report | `src/components/app/reports/Report.tsx` |
+| Conditions, groups, lists that follow a field, calcs | `src/lib/forms/schema.ts`, `src/lib/forms/values.ts`, `src/lib/forms/formula.ts`, `src/lib/forms/regions.ts` |
+| Builder: condition editor with groups, calc settings, scores, follows | `src/components/app/forms/Inspector.tsx`, `src/components/app/forms/Options.tsx` |
+| Chat tools, MCP, Quote request and Partner templates | `src/lib/forms/chat.ts`, `src/lib/forms/mcp.ts`, `src/lib/forms/templates.ts` |
+| The daily form check picks by label (shuffled options, dropdowns, ratings) and skips calcs | `worker/formQa.ts` |
+| Tests | `tests/formEngine.test.ts` (with the 10,000-form property test), `tests/formResults.test.ts`, `tests/pg/formResults.pg.ts`, `scripts/forms-check.ts`, `scripts/forms-qa-check.ts` |
+
+Changed from the plan:
+
+- The form script's size limit went from 20 KB to 23 KB gzipped (`scripts/build-forms.mts`). It is about 22 KB now.
+- Field numbers are kept per visit (`form_field_sessions`) instead of per day, so a tab switch can't count as leaving.
+- Exports stream for any size, so the exports bucket and job weren't needed.
+- Region lists come with the form instead of a separate request.
+- Not tested in a browser here: the app screens' end-to-end run (`scripts/screens-check.ts`) needs PostgREST, which
+  wasn't available. The Results views and the builder panels were checked in Chromium against a stand-in client.

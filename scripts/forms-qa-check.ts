@@ -9,8 +9,9 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 import pg from "pg";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { buildForms } from "./build-forms.mts";
-import { checkForm } from "../src/lib/forms/schema.ts";
+import { checkForm, type Form } from "../src/lib/forms/schema.ts";
 import { acceptFill, qaOk, type Incoming } from "../src/lib/forms/submit.ts";
+import { allRegions, usesRegions } from "../src/lib/forms/regions.ts";
 import { TEMPLATES } from "../src/lib/forms/templates.ts";
 import { seal } from "../src/lib/seal.ts";
 import type { Job } from "../src/lib/jobs.ts";
@@ -38,8 +39,10 @@ await q(`insert into auth.users (id, email) values ($1, 'qa-check@t.io')`, [USER
 await q(`insert into workspace_members (workspace_id, user_id, role) values ($1, $2, 'owner')`, [WS, USER]);
 await q(`insert into identity_settings (workspace_id, own_domains) values ($1, '{acme.com}') on conflict (workspace_id) do update set own_domains = excluded.own_domains`, [WS]);
 
-async function live(template: string, dest: { kind: "webhook" | "slack"; url: string; name: string }) {
-  const r = checkForm(TEMPLATES.find((t) => t.key === template)!.form());
+async function live(template: string, dest: { kind: "webhook" | "slack"; url: string; name: string }, change?: (f: Form) => void) {
+  const body = TEMPLATES.find((t) => t.key === template)!.form();
+  change?.(body);
+  const r = checkForm(body);
   if ("errors" in r) throw new Error(r.errors.join(" "));
   const id = (await q(`insert into forms (workspace_id, name, draft) values ($1, $2, $3) returning id`, [WS, template, r.form]))[0].id as string;
   await q(`select form_publish($1, $2, $3)`, [id, USER, r.form]);
@@ -48,6 +51,11 @@ async function live(template: string, dest: { kind: "webhook" | "slack"; url: st
 }
 const good = await live("event", { kind: "webhook", url: "https://hooks.acme.com/in", name: "CRM webhook" });
 const broken = await live("partner", { kind: "slack", url: "https://hooks.slack.com/services/T/B/gone", name: "Slack" });
+// Picks in a shuffled order, a dropdown with scores and a calc: the check picks by label and leaves the calc alone.
+const shuffled = await live("demo", { kind: "webhook", url: "https://hooks.acme.com/in", name: "CRM webhook" }, (f) => {
+  for (const x of f.steps[0].fields) if (x.type === "choice") x.shuffle = true;
+});
+const priced = await live("quote", { kind: "webhook", url: "https://hooks.acme.com/in", name: "CRM webhook" });
 
 // The receivers: the webhook answers 200; the removed Slack hook answers 404 no_service.
 const received: string[] = [];
@@ -77,7 +85,7 @@ async function handle(req: IncomingMessage, res: ServerResponse) {
   const m = /^\/api\/forms\/([0-9a-f-]{36})(\/submit)?$/.exec(u.pathname);
   if (!m) return void res.writeHead(404).end();
   const f = (await q(`select form_public($1) as f`, [m[1]]))[0].f;
-  if (!m[2]) return send(200, { ...f, workspace_id: undefined, strict: true });
+  if (!m[2]) return send(200, { ...f, workspace_id: undefined, strict: true, ...(usesRegions(f.body) ? { regions: allRegions() } : {}) });
   let body = "";
   for await (const ch of req) body += ch;
   const raw = JSON.parse(body) as Incoming;
@@ -103,6 +111,10 @@ try {
   const b = (await q(`select status, error, steps from form_checks where form_id = $1`, [broken]))[0];
   check(b.status === "failed" && /removed/.test(b.error), `the failure says why (${b.error})`);
   check(b.steps.find((x: { name: string }) => x.name === "The fill is accepted")?.ok === true, "the listbox and website fields were filled like a visitor would");
+  check((await handleFormQa(sb, job(shuffled), opts)) === "passed", "shuffled picks are picked by their label");
+  check((await handleFormQa(sb, job(priced), opts)) === "passed", "a form with a calc and a priced dropdown passes the check");
+  const pv = (await q(`select "values" from submissions where form_id = $1 and test`, [priced]))[0]?.values ?? {};
+  check(typeof pv["q.estimate"] === "number" && pv["q.estimate"] > 0, `the check's fill has the server's total (${pv["q.estimate"]})`);
 
   const c2 = await pool.connect();
   let list: { id: string; fills: number; check: string }[];
@@ -113,7 +125,7 @@ try {
   } finally {
     c2.release();
   }
-  check(list.length === 2 && list.every((r) => r.fills === 0) && list.find((r) => r.id === good)?.check === "passed" && list.find((r) => r.id === broken)?.check === "failed", "check fills never count as leads, and the list shows each form's last check");
+  check(list.length === 4 && list.every((r) => r.fills === 0) && list.find((r) => r.id === good)?.check === "passed" && list.find((r) => r.id === broken)?.check === "failed" && list.find((r) => r.id === priced)?.check === "passed", "check fills never count as leads, and the list shows each form's last check");
 
   await q(`update forms set status = 'paused' where id = $1`, [good]);
   check((await handleFormQa(sb, job(good), opts)) === "skipped", "a paused form isn't checked");

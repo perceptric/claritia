@@ -1,7 +1,7 @@
 // States, provinces and regions for the 20 countries forms ask about most (docs/forms-plan.md 2.2), by ISO 3166-1
-// code. A dropdown set to follow a country field shows the list for the country picked. The form script fetches one
-// list when it's needed (src/app/api/forms/regions/route.ts), so these never ship in the script; the server reads them
-// here when it checks a fill. English names, as a CRM's state field takes them.
+// code. A dropdown set to follow a country field shows the list for the country picked. They never ship in the form
+// script: a form that uses them gets them with the form itself (src/app/api/forms/[id]/route.ts), so what the visitor
+// sees and what the server checks always come from the same lists. English names, as a CRM's state field takes them.
 
 const LISTS: Record<string, string> = {
   US: "Alabama|Alaska|Arizona|Arkansas|California|Colorado|Connecticut|Delaware|District of Columbia|Florida|Georgia|Hawaii|Idaho|Illinois|Indiana|Iowa|Kansas|Kentucky|Louisiana|Maine|Maryland|Massachusetts|Michigan|Minnesota|Mississippi|Missouri|Montana|Nebraska|Nevada|New Hampshire|New Jersey|New Mexico|New York|North Carolina|North Dakota|Ohio|Oklahoma|Oregon|Pennsylvania|Rhode Island|South Carolina|South Dakota|Tennessee|Texas|Utah|Vermont|Virginia|Washington|West Virginia|Wisconsin|Wyoming",
@@ -27,6 +27,12 @@ const LISTS: Record<string, string> = {
 };
 
 export const REGION_COUNTRIES = Object.keys(LISTS);
+
+/** Every list, for a form that has a dropdown following a country field. */
+export const allRegions = (): Record<string, string[]> => Object.fromEntries(REGION_COUNTRIES.map((c) => [c, regionsOf(c)!]));
+
+/** Whether a form needs the lists. */
+export const usesRegions = (form: { steps: { fields: { optionsBy?: { preset?: string } }[] }[] }) => form.steps.some((s) => s.fields.some((f) => f.optionsBy?.preset === "regions"));
 
 const cache = new Map<string, string[]>();
 
