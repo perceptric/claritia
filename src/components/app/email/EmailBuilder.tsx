@@ -145,6 +145,7 @@ export function EmailBuilder({
     if (snap.system !== draft.current()) draft.set(snap.system);
   }, [future, draft, put]);
 
+  const assetCtx = useMemo(() => ({ session, sb, workspaceId }), [session, sb, workspaceId]);
   const [rail, setRail] = useState<Rail>("add");
   const [side, setSide] = useState<"settings" | "style">("settings");
   const [device, setDevice] = useState<EmailBp>("base");
@@ -402,7 +403,7 @@ export function EmailBuilder({
           </div>
           <div className="min-h-0 flex-1 overflow-y-auto">
             {side === "settings" ? (
-              <BlockSettings doc={doc} selected={sel} onChange={(d, m) => apply({ doc: d }, m)} kits={kits.map((k) => ({ id: k.id, name: k.name }))} kitId={kit?.id ?? null} />
+              <BlockSettings doc={doc} selected={sel} onChange={(d, m) => apply({ doc: d }, m)} kits={kits.map((k) => ({ id: k.id, name: k.name }))} kitId={kit?.id ?? null} assets={assetCtx} />
             ) : (
               <EmailStylePanel
                 system={system}

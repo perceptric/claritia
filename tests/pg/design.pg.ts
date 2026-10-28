@@ -77,3 +77,15 @@ test("a draft reaches the live form only when published, and only a member publi
   assert.deepEqual(await live(), draft);
   assert.equal((await asUser<{ changed: boolean }>(user, `select brand_kit_design_uses($1) as r`, [kit])).changed, false);
 });
+
+test("images: only members add or delete them, and only their workspace's", async () => {
+  const { ws, user } = await workspace();
+  const other = await workspace();
+  const add = (u: string, w: string) => q(`select design_asset_add($1, $2, $3, $4, 'logo.png', 'image/png', 10, 20, 300) as id`, [w, u, `${w}/a.png`, `https://cdn.test/${w}/a.png`]).then((r) => r[0].id as string);
+  const id = await add(user, ws);
+  await assert.rejects(add(other.user, ws), /not found/, "someone outside the workspace can't add to it");
+  await assert.rejects(asUser(other.user, `select design_asset_delete($1) as r`, [id]), /not found/);
+  assert.equal(await asUser<string>(user, `select design_asset_delete($1) as r`, [id]), `${ws}/a.png`, "deleting hands back the file to remove");
+  assert.equal((await q(`select count(*)::int n from design_assets where id = $1`, [id]))[0].n, 0);
+  await assert.rejects(q(`insert into design_assets (workspace_id, path, url, type, width, height, bytes) values ($1, 'x', 'y', 'image/svg+xml', 1, 1, 1)`, [ws]), /check/, "only the four image types");
+});

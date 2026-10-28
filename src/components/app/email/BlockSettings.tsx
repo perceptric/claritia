@@ -11,6 +11,7 @@ import { findEl, setColumns, setSettings, updateBlock, updateSection } from "@/l
 import { Plus, Trash } from "../../Icons";
 import { askText } from "../Dialogs";
 import { Select } from "../Select";
+import { ImagePicker, type AssetCtx } from "./ImagePicker";
 import { AreaIn, NumRow, PICK, Row, Section as Group, Seg, Switch, TextIn } from "../forms/controls";
 
 type Change = (doc: EmailDoc, merge?: string) => void;
@@ -29,10 +30,10 @@ const LAYOUTS: { value: string; label: string; widths: number[] }[] = [
   { value: "67,33", label: "2:1", widths: [67, 33] },
 ];
 
-export function BlockSettings({ doc, selected, onChange, kits, kitId }: { doc: EmailDoc; selected: string | null; onChange: Change; kits: { id: string; name: string }[]; kitId: string | null }) {
+export function BlockSettings({ doc, selected, onChange, kits, kitId, assets }: { doc: EmailDoc; selected: string | null; onChange: Change; kits: { id: string; name: string }[]; kitId: string | null; assets?: AssetCtx }) {
   const f = selected ? findEl(doc, selected) : null;
   if (!f) return <EmailSettings doc={doc} onChange={onChange} kits={kits} kitId={kitId} />;
-  if (f.block) return <BlockForm doc={doc} b={f.block} onChange={onChange} />;
+  if (f.block) return <BlockForm doc={doc} b={f.block} onChange={onChange} assets={assets} />;
   return <SectionForm doc={doc} s={f.section} onChange={onChange} />;
 }
 
@@ -150,13 +151,14 @@ const Merge = ({ onPick }: { onPick: (tag: string) => void }) => (
   </div>
 );
 
-function BlockForm({ doc, b, onChange }: { doc: EmailDoc; b: Block; onChange: Change }) {
+function BlockForm({ doc, b, onChange, assets }: { doc: EmailDoc; b: Block; onChange: Change; assets?: AssetCtx }) {
   const set = (patch: Record<string, unknown>, merge?: string) => onChange(updateBlock(doc, b.id, patch as Partial<Block>), merge ? `${b.id}:${merge}` : undefined);
   const text = (label: string, key: string, value: string | undefined, o: { placeholder?: string; mono?: boolean } = {}) => (
     <Row label={label}>
       <TextIn label={label} value={value ?? ""} placeholder={o.placeholder} mono={o.mono} onChange={(v) => set({ [key]: v }, key)} />
     </Row>
   );
+  const image = (label: string, key: string, value: string | undefined, placeholder?: string) => <ImagePicker label={label} value={value ?? ""} placeholder={placeholder} ctx={assets} onChange={(v, m) => set({ [key]: v }, m ? key : undefined)} />;
   const align = (value: string) => (
     <Row label="Align">
       <Seg<string> label="Align" value={value} options={ALIGN.map((a) => ({ ...a }))} onChange={(v) => set({ align: v })} />
@@ -199,7 +201,7 @@ function BlockForm({ doc, b, onChange }: { doc: EmailDoc; b: Block; onChange: Ch
       case "image":
         return (
           <>
-            {text("Image", "src", b.src, { placeholder: "https://", mono: true })}
+            {image("Image", "src", b.src)}
             {text("Alt text", "alt", b.alt)}
             {text("Link", "url", b.url, { placeholder: "https://", mono: true })}
             <NumRow label="Width" value={b.width} onChange={(v) => set({ width: v })} min={20} max={1400} empty unit="px" />
@@ -209,7 +211,7 @@ function BlockForm({ doc, b, onChange }: { doc: EmailDoc; b: Block; onChange: Ch
       case "logo":
         return (
           <>
-            {text("Image", "src", b.src, { placeholder: "Brand kit logo", mono: true })}
+            {image("Image", "src", b.src, "Brand kit logo")}
             {text("Alt text", "alt", b.alt)}
             {text("Link", "url", b.url, { placeholder: "https://", mono: true })}
             <NumRow label="Width" value={b.width} onChange={(v) => set({ width: v ?? 120 })} min={40} max={400} unit="px" />
@@ -265,7 +267,7 @@ function BlockForm({ doc, b, onChange }: { doc: EmailDoc; b: Block; onChange: Ch
         return (
           <>
             {text("Video", "url", b.url, { placeholder: "https://", mono: true })}
-            {text("Picture", "thumb", b.thumb, { placeholder: "https://", mono: true })}
+            {image("Picture", "thumb", b.thumb)}
             {text("Alt text", "alt", b.alt)}
           </>
         );
@@ -275,7 +277,7 @@ function BlockForm({ doc, b, onChange }: { doc: EmailDoc; b: Block; onChange: Ch
             {text("Name", "title", b.title)}
             <AreaIn label="Text" value={b.text ?? ""} rows={2} onChange={(v) => set({ text: v }, "text")} />
             {text("Price", "price", b.price)}
-            {text("Picture", "image", b.image, { placeholder: "https://", mono: true })}
+            {image("Picture", "image", b.image)}
             {text("Link", "url", b.url, { placeholder: "https://", mono: true })}
             {text("Button", "button", b.button)}
           </>
@@ -296,7 +298,7 @@ function BlockForm({ doc, b, onChange }: { doc: EmailDoc; b: Block; onChange: Ch
             {text("Name", "name", b.name)}
             {text("Title", "title", b.title)}
             {text("Company", "company", b.company)}
-            {text("Photo", "image", b.image, { placeholder: "https://", mono: true })}
+            {image("Photo", "image", b.image)}
           </>
         );
       case "footer":
