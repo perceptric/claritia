@@ -805,3 +805,47 @@ Changes from the plan:
   component. They can't hold HTML blocks.
 - **The builder edits words in Settings** (with a rich text box) rather than on the canvas.
 - Migrations 073 and 074 also need running on the production database.
+
+### Release 3 (steps 15 to 19): built; step 20 waits on accounts
+
+| Step | Where |
+|---|---|
+| 15. Brand setup: palette, heading sizes, shadow, social links, address and a brief | `src/lib/brand/scan.ts`, `design.ts`, `brief.ts`, `worker/brandScan.ts`, `076_brand_setup.sql` |
+| 16. AI for emails and forms, versions and 3 versions | `src/lib/design/email/chat.ts`, `src/app/api/email/chat/route.ts`, `AiPanel.tsx`, `Versions.tsx`, `src/lib/forms/chat.ts`, `075_email_versions.sql` |
+| 17. Imports: HTML, MJML, EML and a screenshot | `src/lib/design/email/import.ts`, the AI tab's "From a picture" |
+| 18. 30 email templates | `src/lib/design/email/templates.ts`, the builder's Templates rail |
+| 19. Booking pages on the design system | `src/lib/design/book.ts`, `BookingCalendar.tsx`, `StyleGuide.tsx` (Booking pages), `077_book_design.sql` |
+| 20. Real inbox tests and the rendering service | Not done: needs the four inbox accounts and an Email on Acid or Litmus seat |
+
+Tests: `tests/email-import.test.ts`, `tests/email-chat.test.ts` (raw colors refused, component edits become props,
+one design-check pass), `tests/formChat.test.ts` (style tools), `tests/pg/brand.pg.ts` (the scan never overwrites a
+kit's own variables or styles), the booking case in `tests/design.test.ts`, `scripts/brand-check.ts` (a real site
+scanned in Chromium) and `scripts/book-design-check.ts` (booking styles drawn in Chromium at desktop and phone, scoped
+to the booking page).
+
+Running cost of Release 3 as built, at Sonnet's $2 and $10 a million tokens in and out (check). Every call goes
+through the step cache, so a repeat replays without the model.
+
+| Line | Beta (50 teams) | Growth (500 teams) |
+|---|---|---|
+| Brand brief: one call per scan | $1 | $5 |
+| AI email changes: 8 a team a month | $15 | $150 |
+| 3 versions: about 2 of those 8 asks, two extra calls each | $8 | $80 |
+| Screenshot imports: 2 a team a month | $5 | $45 |
+| Form style changes by AI: inside the form chat that runs today | $0 | $0 |
+| Booking styles, templates and HTML, MJML and EML imports: no AI and no service | $0 | $0 |
+| **Added per month** | **about $29 (check)** | **about $280 (check)** |
+
+With Release 2's image lines, the design system adds about $29 a month at Beta and about $299 at Growth (check). The
+rendering service for step 20 adds $99 (check) once it's bought.
+
+Changes from the plan:
+- **Forwarding an email to an inbox to import it** isn't built. HTML, MJML, EML and a screenshot are.
+- **Real inbox tests** (step 20) wait on the four test accounts and a rendering service seat.
+- **Images aren't resized yet.** Emails still set the width they're shown at.
+- **Components keep props** when the AI edits them: a change to a component's block becomes a prop on that use.
+- **The look check on new emails** is the design check in code (contrast, sizes, buttons, alt text), run once after
+  the AI's changes, with no extra model call.
+- **Booking pages** take the variables and global styles for eight parts (page, card, heading, small text, host,
+  day, time, button), with hover, picked and phone. They keep their own layout.
+- Migrations 071 to 077 still need running on the production database.
