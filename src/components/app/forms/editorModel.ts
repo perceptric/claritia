@@ -559,6 +559,7 @@ export function mergeKey(op: Op): string {
       .join()}`;
   if (op.op === "update_step") return `s:${op.index}`;
   if (op.op === "set_rule" && op.rule.id) return `r:${op.rule.id}:${op.rule.when.field}:${op.rule.when.op}`;
+  if (op.op === "set_design" && op.merge) return `d:${op.merge}`;
   if (op.op === "set_layout" && typeof op.maxWidth === "number" && !op.width && !op.labels && !op.progress) return "l:max";
   return "";
 }

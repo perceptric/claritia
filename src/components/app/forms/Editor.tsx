@@ -11,19 +11,24 @@ import { cleanTokens, type Tokens } from "@/lib/forms/brand";
 import type { Op } from "@/lib/forms/ops";
 import { allFields, newId, type Form } from "@/lib/forms/schema";
 import type { CustomField } from "@/lib/records/fields";
-import { formCss } from "@/lib/design/form";
-import type { State } from "@/lib/design/model";
+import { designFonts, formCss } from "@/lib/design/form";
+import type { DesignSystem, State } from "@/lib/design/model";
 import type { PartKey } from "@/lib/design/parts";
+import type { Edit } from "@/lib/design/edit";
 import { FormCanvas, type Editing, type Picked } from "./FormCanvas";
+import { StylePanel } from "./StylePanel";
+import { StyleGuide } from "./StyleGuide";
+import { StylesPanel, VariablesPanel, type StylesLive } from "./DesignPanels";
+import type { DesignDraft } from "./useDesignDraft";
 import { FormDesign, type ThemeProps } from "./FormDesign";
 import { Elements } from "./Elements";
 import { Inspector, type InspectorProps } from "./Inspector";
 import { Layers as LayersPanel } from "./Layers";
-import { addOp, canSit, duplicateOp, iconFor, nameOf, nudge, planDrop, type Device, type Dragged, type ElementDef, type Target } from "./editorModel";
-import { ElementIcon, Layers, Palette, PlusSquare } from "./icons";
+import { addOp, canSit, fontUrl, duplicateOp, iconFor, nameOf, nudge, planDrop, type Device, type Dragged, type ElementDef, type Target } from "./editorModel";
+import { Diamond, ElementIcon, Hash, Layers, Palette, PlusSquare } from "./icons";
 import type { SourceRow } from "./shared";
 
-type Panel = "elements" | "layers" | "theme";
+type Panel = "elements" | "layers" | "theme" | "styles" | "variables";
 type DragData = { kind: "element"; def: ElementDef } | { kind: "field"; id: string };
 type Line = { left: number; top: number; width: number; height: number };
 type Drop = { target: Target; line: Line } | null;
@@ -38,19 +43,27 @@ export type EditorProps = {
   zoom: "fit" | number;
   theme: ThemeProps;
   link?: InspectorProps["link"];
-  /** The design system's draft (the brand kit's), which the canvas draws with. */
-  system: unknown;
+  /** The design system's draft (the brand kit's), which the canvas draws with and the Style panel edits. */
+  draft: DesignDraft;
+  hasKit: boolean;
+  applyStyles: (e: Edit, merge?: string) => void;
+  applySystem: (system: DesignSystem, merge?: string) => void;
+  styles: Omit<StylesLive, "openGuide">;
 };
 
 const BP = { desktop: "base", tablet: "tablet", phone: "phone" } as const;
 
-export function Editor({ form, apply, custom, sources, tokens, device, zoom, theme, link, system }: EditorProps) {
+export function Editor({ form, apply, custom, sources, tokens, device, zoom, theme, link, draft, hasKit, applyStyles, applySystem, styles }: EditorProps) {
+  const [guide, setGuide] = useState(false);
+  const live: StylesLive = { ...styles, openGuide: () => setGuide(true) };
+  const system = draft.system;
+  const [side, setSide] = useState<"settings" | "style">("settings");
   const [panel, setPanel] = useState<Panel | null>("elements");
   const [picked, setPicked] = useState<string[]>([]);
   const [hovered, setHovered] = useState<string | null>(null);
   const [editing, setEditing] = useState<Editing>(null);
   const [part, setPart] = useState<Picked>(null);
-  const [state] = useState<State | undefined>(undefined);
+  const [state, setState] = useState<State | undefined>(undefined);
   const [drag, setDrag] = useState<{ data: DragData; id: string } | null>(null);
   const [drop, setDropState] = useState<Drop>(null);
   // dnd-kit calls the handlers it was given when the drag began, so the drag and its target also live in refs.
@@ -69,10 +82,13 @@ export function Editor({ form, apply, custom, sources, tokens, device, zoom, the
       return "";
     }
   }, [form, t, system, device]);
+  const fontKey = fontUrl(designFonts(system, form.design));
+  const fonts = useMemo(() => (fontKey ? [fontKey] : []), [fontKey]);
   const fields = allFields(form);
   // A selection the form no longer has (after an undo) falls away.
   const selected = picked.filter((id) => fields.some((f) => f.id === id));
   const primary = selected.length === 1 ? selected[0] : null;
+  const shownPart = part && (part.id === "form" || selected.includes(part.id)) ? part : null;
 
   const select = useCallback((id: string, add: boolean) => {
     setEditing(null);
@@ -241,6 +257,8 @@ export function Editor({ form, apply, custom, sources, tokens, device, zoom, the
     { id: "elements", label: "Elements", icon: <PlusSquare size={16} /> },
     { id: "layers", label: "Layers", icon: <Layers size={16} /> },
     { id: "theme", label: "Theme", icon: <Palette size={16} /> },
+    { id: "styles", label: "Styles", icon: <Hash size={16} /> },
+    { id: "variables", label: "Variables", icon: <Diamond size={16} /> },
   ];
 
   return (
@@ -293,6 +311,26 @@ export function Editor({ form, apply, custom, sources, tokens, device, zoom, the
                 />
               ) : null}
               {panel === "theme" ? <FormDesign {...theme} /> : null}
+              {panel === "styles" ? (
+                <StylesPanel
+                  e={{ system, design: form.design ?? {} }}
+                  hasKit={hasKit}
+                  onEdit={(e) => applyStyles(e)}
+                  onPick={(cid) => {
+                    // The first element with the class, styled at the class.
+                    const el = Object.entries(form.design?.classes ?? {}).find(([, l]) => l.includes(cid))?.[0];
+                    if (el) {
+                      setPicked([el]);
+                      setPart({ id: el, part: "field" });
+                      setSide("style");
+                    }
+                  }}
+                  live={live}
+                />
+              ) : null}
+              {panel === "variables" ? (
+                <VariablesPanel e={{ system, design: form.design ?? {} }} tokens={tokens} hasKit={hasKit} onEdit={(e, m) => applyStyles(e, m)} onTheme={() => setPanel("theme")} live={live} />
+              ) : null}
             </div>
           </aside>
         ) : null}
@@ -302,12 +340,13 @@ export function Editor({ form, apply, custom, sources, tokens, device, zoom, the
           device={device}
           zoom={zoom}
           css={css}
+          fonts={fonts}
           selected={selected}
           hovered={hovered}
           dragging={drag?.data.kind === "field" ? drag.id : null}
           editing={editing}
-          part={part && (part.id === "form" || selected.includes(part.id)) ? part : null}
-          state={state}
+          part={shownPart}
+          state={side === "style" ? state : undefined}
           onPick={pick}
           onClear={clear}
           onHover={setHovered}
@@ -318,8 +357,40 @@ export function Editor({ form, apply, custom, sources, tokens, device, zoom, the
           onRemove={(id) => remove([id])}
           apply={apply}
         />
-        <aside aria-label="Inspector" className="min-h-0 border-l border-line bg-card">
-          <Inspector form={form} apply={apply} custom={custom} sources={sources} selected={selected} onDuplicate={duplicate} onRemove={remove} link={link} />
+        <aside aria-label="Inspector" className="flex min-h-0 flex-col border-l border-line bg-card">
+          <div role="tablist" aria-label="Inspector" className="flex h-11 shrink-0 items-center gap-1 border-b border-line px-2">
+            {(["settings", "style"] as const).map((k) => (
+              <button
+                key={k}
+                type="button"
+                role="tab"
+                aria-selected={side === k}
+                onClick={() => setSide(k)}
+                className={`press h-7 rounded-full px-3 text-[12.5px] font-medium transition-colors duration-[140ms] ${side === k ? "bg-ink text-paper" : "text-muted hover:text-ink"}`}
+              >
+                {k === "settings" ? "Settings" : "Style"}
+              </button>
+            ))}
+            <span className="flex-1" />
+          </div>
+          <div className={`min-h-0 flex-1 ${side === "style" ? "overflow-y-auto" : ""}`}>
+            {side === "settings" ? (
+              <Inspector form={form} apply={apply} custom={custom} sources={sources} selected={selected} onDuplicate={duplicate} onRemove={remove} link={link} />
+            ) : (
+              <StylePanel
+                form={form}
+                system={system}
+                tokens={t}
+                bp={BP[device]}
+                hasKit={hasKit}
+                part={shownPart}
+                onPart={setPart}
+                state={state}
+                onState={setState}
+                onEdit={applyStyles}
+              />
+            )}
+          </div>
         </aside>
       </div>
       {drop
@@ -332,6 +403,7 @@ export function Editor({ form, apply, custom, sources, tokens, device, zoom, the
             document.body,
           )
         : null}
+      {guide ? <StyleGuide system={system} tokens={tokens} hasKit={hasKit} bp={BP[device]} onEdit={applySystem} onClose={() => setGuide(false)} /> : null}
       <DragOverlay dropAnimation={null}>
         {ghost ? (
           <div className="anim-pop inline-flex rotate-[1.5deg] items-center gap-2 rounded-full bg-card px-3 py-1.5 text-[12.5px] font-medium text-ink shadow-float">

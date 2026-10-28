@@ -32,6 +32,8 @@ export type CanvasProps = {
   zoom: "fit" | number;
   /** The draft's compiled styles for this device (src/lib/design/form.ts with `device` and `preview`). */
   css: string;
+  /** Font stylesheets the styles need. */
+  fonts?: string[];
   selected: string[];
   hovered: string | null;
   dragging: string | null;
@@ -50,6 +52,8 @@ export type CanvasProps = {
   apply: (op: Op | Op[]) => void;
   /** Tells the editor the zoom in use, for the zoom menu. */
   onZoom?: (z: number) => void;
+  /** The style guide: parts can be picked, nothing else changes. */
+  locked?: boolean;
 };
 
 /** Edit mode only: empty steps and hidden fields keep a size, and fields hidden on phones show faded. */
@@ -58,7 +62,7 @@ const EDIT_CSS = `.g:empty{min-height:80px;border:1px dashed var(--clr-border);b
 @container (max-width:400px){.np{display:flex;opacity:.35}}`;
 
 export function FormCanvas(props: CanvasProps) {
-  const { form, device, zoom, onClear, apply, onZoom } = props;
+  const { form, device, zoom, onClear, apply, onZoom, locked } = props;
   const stage = useRef<HTMLDivElement>(null);
   const [stageW, setStageW] = useState(800);
   useLayoutEffect(() => {
@@ -81,7 +85,7 @@ export function FormCanvas(props: CanvasProps) {
           <div key={s.id} className="flex flex-col gap-2">
             <div className="flex h-7 items-center gap-2" style={{ width: fw * z }} onClick={(e) => e.stopPropagation()}>
               <span className="shrink-0 text-[12px] font-medium text-muted">{n > 1 ? `Step ${si + 1} of ${n}` : device === "desktop" ? "Desktop" : device === "tablet" ? "Tablet" : "Phone"}</span>
-              {n > 1 ? (
+              {n > 1 && !locked ? (
                 <input
                   value={s.title ?? ""}
                   placeholder="Title"
@@ -92,7 +96,7 @@ export function FormCanvas(props: CanvasProps) {
               ) : (
                 <span className="flex-1 text-[11.5px] text-faint tabular-nums">{fw}</span>
               )}
-              {n > 1 ? (
+              {n > 1 && !locked ? (
                 <button
                   type="button"
                   aria-label={`Remove step ${si + 1}`}
@@ -109,18 +113,20 @@ export function FormCanvas(props: CanvasProps) {
             </div>
           </div>
         ))}
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            apply({ op: "add_step" });
-            onClear();
-          }}
-          className="press inline-flex h-8 items-center gap-1.5 rounded-full border border-line-strong bg-card px-3.5 text-[12.5px] font-medium text-ink hover:border-ink"
-        >
-          <Plus size={13} />
-          Add step
-        </button>
+        {locked ? null : (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              apply({ op: "add_step" });
+              onClear();
+            }}
+            className="press inline-flex h-8 items-center gap-1.5 rounded-full border border-line-strong bg-card px-3.5 text-[12.5px] font-medium text-ink hover:border-ink"
+          >
+            <Plus size={13} />
+            Add step
+          </button>
+        )}
       </div>
     </div>
   );
@@ -145,7 +151,7 @@ function editTarget(root: ShadowRoot, e: NonNullable<Editing>): HTMLElement | nu
 }
 
 function StepFrame(props: CanvasProps & { si: number; z: number; fw: number }) {
-  const { form, t, device, si, z, fw, css, editing, part, state, dragging, onPick, onClear, onEdit, onCommit } = props;
+  const { form, t, device, si, z, fw, css, fonts, editing, part, state, dragging, onPick, onClear, onEdit, onCommit } = props;
   const host = useRef<HTMLElement>(null);
   const [layout, setLayout] = useState<Layout>(NO_LAYOUT);
   const step = form.steps[si];
@@ -158,12 +164,12 @@ function StepFrame(props: CanvasProps & { si: number; z: number; fw: number }) {
   useEffect(() => {
     let live = true;
     void import("@/lib/forms/element").then(() => {
-      if (live && host.current) (host.current as unknown as { preview: unknown }).preview = { form, tokens: t, step: si, css: fullCss, edit: true, ...(usesRegions(form) ? { regions: allRegions() } : {}) };
+      if (live && host.current) (host.current as unknown as { preview: unknown }).preview = { form, tokens: t, step: si, css: fullCss, fonts, edit: true, ...(usesRegions(form) ? { regions: allRegions() } : {}) };
     });
     return () => {
       live = false;
     };
-  }, [form, t, si, fullCss]);
+  }, [form, t, si, fullCss, fonts]);
 
   // After every draw: the picked part shows the state being styled, and the layer measures the form again.
   const measure = useCallback(() => {
@@ -275,7 +281,7 @@ function StepFrame(props: CanvasProps & { si: number; z: number; fw: number }) {
         }}
         onDoubleClick={(e) => {
           e.stopPropagation();
-          onEdit({ kind });
+          if (!props.locked) onEdit({ kind });
         }}
       />
     ) : null;
@@ -371,7 +377,7 @@ function InlineEdit({ form, place, editing, onDone, onCancel }: CanvasProps & { 
 
 function FieldBox(props: CanvasProps & { f: Field; si: number; phone: boolean; z: number; r: R; partAt: (f: Field, x: number, y: number) => PartKey }) {
   const { f, si, phone, z, r, form, selected, hovered, editing, onPick, onHover, onEdit } = props;
-  const { attributes, listeners, setNodeRef } = useDraggable({ id: `f:${f.id}`, data: { kind: "field", id: f.id } });
+  const { attributes, listeners, setNodeRef } = useDraggable({ id: `f:${f.id}`, data: { kind: "field", id: f.id }, disabled: props.locked });
   const isSel = selected.includes(f.id);
   const primary = isSel && selected.length === 1;
   const isHover = hovered === f.id && !isSel;
@@ -396,7 +402,7 @@ function FieldBox(props: CanvasProps & { f: Field; si: number; phone: boolean; z
       }}
       onDoubleClick={(e) => {
         e.stopPropagation();
-        if (f.type !== "divider" && f.type !== "image" && f.type !== "hidden") onEdit({ kind: "field", id: f.id });
+        if (f.type !== "divider" && f.type !== "image" && f.type !== "hidden" && !props.locked) onEdit({ kind: "field", id: f.id });
       }}
       onMouseEnter={() => onHover(f.id)}
       onMouseLeave={() => onHover(null)}
@@ -428,7 +434,7 @@ function FieldBox(props: CanvasProps & { f: Field; si: number; phone: boolean; z
           </span>
         </span>
       ) : null}
-      {primary && !editingThis ? <Toolbar {...props} /> : null}
+      {primary && !editingThis && !props.locked ? <Toolbar {...props} /> : null}
     </div>
   );
 }

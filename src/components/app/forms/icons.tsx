@@ -159,6 +159,12 @@ export const Layers = (p: P) => (
     <path d="m2 17 10 5 10-5M2 12l10 5 10-5" />
   </Svg>
 );
+/** A variable: a diamond, as in Figma and Webflow. */
+export const Diamond = (p: P) => (
+  <Svg {...p}>
+    <path d="M12 3.5 20.5 12 12 20.5 3.5 12Z" />
+  </Svg>
+);
 export const Palette = (p: P) => (
   <Svg {...p}>
     <circle cx="12" cy="12" r="10" />

@@ -110,6 +110,55 @@ try {
   await page.waitForTimeout(50);
   check((await last()) === '["commit",{"kind":"field","id":"b"},"Full name"]', "Enter saves the new text");
 
+  // The Style panel: the picked label at its element, then at a class, then for every form.
+  await clickOn('.fl[data-id="a"] .lb');
+  const letters = page.getByRole("textbox", { name: "Letter spacing", exact: true });
+  await letters.fill("2");
+  await letters.press("Enter");
+  await page.waitForTimeout(100);
+  const spacing = await inForm((r) => getComputedStyle(r.querySelector('.fl[data-id="a"] .lb')!).letterSpacing);
+  check(spacing === "2px", `a value typed in the panel shows on the canvas at once (${spacing})`);
+  const other = await inForm((r) => getComputedStyle(r.querySelector('.fl[data-id="b"] .lb')!).letterSpacing);
+  check(other !== "2px", "and only on that element");
+  const fontSize = page.getByRole("textbox", { name: "Size", exact: true });
+  await fontSize.fill("10+4");
+  await fontSize.press("Enter");
+  await page.waitForTimeout(100);
+  check((await inForm((r) => getComputedStyle(r.querySelector('.fl[data-id="a"] .lb')!).fontSize)) === "14px", "a typed sum is worked out (10+4 is 14px)");
+  await fontSize.fill("red");
+  await fontSize.press("Enter");
+  await page.waitForTimeout(100);
+  const refused = await fontSize.getAttribute("aria-invalid");
+  check(refused === "true" && (await inForm((r) => getComputedStyle(r.querySelector('.fl[data-id="a"] .lb')!).fontSize)) === "14px", "a value of the wrong type is refused and nothing changes");
+  await fontSize.press("Escape");
+  await fontSize.fill("30");
+  await fontSize.press("Escape");
+  await page.waitForTimeout(50);
+  check((await inForm((r) => getComputedStyle(r.querySelector('.fl[data-id="a"] .lb')!).fontSize)) === "14px", "Escape leaves the box without saving");
+  await page.getByRole("radio", { name: "All forms" }).click();
+  const color = page.getByRole("textbox", { name: "Color", exact: true });
+  await color.fill("#0000aa");
+  await color.press("Enter");
+  await page.waitForTimeout(100);
+  const both = await inForm((r) => [...r.querySelectorAll(".lb")].map((n) => getComputedStyle(n).color));
+  check(both.length >= 3 && both.every((c) => c === "rgb(0, 0, 170)"), `a global style reaches every label (${both})`);
+  // A border width alone also sets a solid style, so the border shows.
+  await page.getByRole("radio", { name: "This field" }).click();
+  await page.getByRole("button", { name: "Borders" }).click();
+  const width = page.getByRole("textbox", { name: "Width", exact: true });
+  await width.fill("3");
+  await width.press("Enter");
+  await page.waitForTimeout(100);
+  const border = await inForm((r) => {
+    const cs = getComputedStyle(r.querySelector('.fl[data-id="a"] .lb')!);
+    return [cs.borderTopWidth, cs.borderTopStyle, cs.borderLeftWidth];
+  });
+  check(JSON.stringify(border) === '["3px","solid","3px"]', `a border width on every side draws a border (${border})`);
+  // SHOT=path saves a picture of the canvas and panel, for a look by eye.
+  if (process.env.SHOT) await page.screenshot({ path: process.env.SHOT });
+  const edits = await page.evaluate(() => (window as unknown as { edits: unknown[] }).edits.length);
+  check(edits === 4, `each change is one edit (${edits})`);
+
   const touched = await inForm((r) => ({ errors: r.querySelectorAll(".er").length, checked: (r.querySelector(".ck input") as HTMLInputElement).checked }));
   check(!touched.errors && !touched.checked, `clicks never reach the form below (${JSON.stringify(touched)})`);
   const chip = await page.evaluate(() => document.querySelector('[data-fid="h"]')!.textContent ?? "");

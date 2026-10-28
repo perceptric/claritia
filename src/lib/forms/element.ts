@@ -17,7 +17,7 @@ import { checkAnswers, OTHER, stepPath, type Answers } from "./values.ts";
 
 /** regions: the region lists, sent with the form when a list follows a country field (src/lib/forms/regions.ts). */
 /** css: the design system's styles compiled for this form (src/lib/design/web.ts); it starts with the layer order. */
-type Loaded = { id: string; version: number; status: "live" | "paused"; body: Form; tokens: Partial<Tokens>; strict?: boolean; turnstile?: string; regions?: Record<string, string[]>; css?: string };
+type Loaded = { id: string; version: number; status: "live" | "paused"; body: Form; tokens: Partial<Tokens>; strict?: boolean; turnstile?: string; regions?: Record<string, string[]>; css?: string; fonts?: string[] };
 type Queued = { url: string; body: string; key: string; at: number; tries: number };
 
 const QUEUE = "clr_form_queue";
@@ -631,12 +631,12 @@ export class ClaritiaForm extends Base {
   }
 
   /** The app's builder shows a draft without loading or sending anything. */
-  set preview(p: { form: Form; tokens?: Partial<Tokens>; step?: number; done?: boolean; regions?: Record<string, string[]>; css?: string; edit?: boolean }) {
+  set preview(p: { form: Form; tokens?: Partial<Tokens>; step?: number; done?: boolean; regions?: Record<string, string[]>; css?: string; fonts?: string[]; edit?: boolean }) {
     this.isPreview = true;
     this.edit = !!p.edit;
     const fresh = !this.data || this.done !== !!p.done;
     if (fresh || p.form.after.schedule?.tool !== "claritia") this.bk = this.bkDone = null;
-    this.data = { id: "preview", version: 0, status: "live", body: p.form, tokens: p.tokens ?? {}, strict: true, regions: p.regions, css: p.css };
+    this.data = { id: "preview", version: 0, status: "live", body: p.form, tokens: p.tokens ?? {}, strict: true, regions: p.regions, css: p.css, fonts: p.fonts };
     this.step = Math.min(p.step ?? this.step, p.form.steps.length - 1);
     this.done = !!p.done;
     if (fresh) this.errors = {};
@@ -748,7 +748,7 @@ export class ClaritiaForm extends Base {
     const d = this.data;
     if (!d) return;
     const form = d.body;
-    addFont(d.tokens.fontUrl ?? "");
+    for (const u of [d.tokens.fontUrl ?? "", ...(d.fonts ?? [])]) addFont(u);
     const width = form.layout.maxWidth ? `${form.layout.maxWidth}px` : form.layout.width === "wide" ? "720px" : "480px";
     // The form's own stylesheet is the lowest layer; the design system's layers (in d.css) sit above it.
     const style = el("style", { text: `${d.css ?? ""}\n:host{${tokensCss(d.tokens)}--clr-width:${width}}\n@layer base{${STYLES}}` });

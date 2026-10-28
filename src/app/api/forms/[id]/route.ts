@@ -1,4 +1,5 @@
-import { formCss } from "@/lib/design/form";
+import { designFonts, formCss } from "@/lib/design/form";
+import { fontUrl } from "@/components/app/forms/editorModel";
 import { allRegions, usesRegions } from "@/lib/forms/regions";
 import { regionOf } from "@/lib/web/policy";
 import { cors, edgeCountry, json, loadPublic, turnstileSiteKey } from "@/lib/forms/server";
@@ -33,7 +34,9 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
 function cssOf(f: { body: Parameters<typeof formCss>[0]; tokens: Parameters<typeof formCss>[1]; design?: unknown }) {
   try {
     const css = formCss(f.body, f.tokens, f.design);
-    return css ? { css } : {};
+    if (!css) return {};
+    const fonts = fontUrl(designFonts(f.design, f.body.design));
+    return { css, ...(fonts ? { fonts: [fonts] } : {}) };
   } catch {
     // A design that can't compile never stops the form from loading; it shows with its kit's tokens.
     return {};

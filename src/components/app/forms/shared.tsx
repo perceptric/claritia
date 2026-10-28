@@ -4,7 +4,8 @@
 // exactly what visitors get), and small controls.
 
 import { useEffect, useMemo, useRef } from "react";
-import { formCss } from "@/lib/design/form";
+import { designFonts, formCss } from "@/lib/design/form";
+import { fontUrl } from "./editorModel";
 import type { Breakpoint } from "@/lib/design/model";
 import type { Tokens } from "@/lib/forms/brand";
 import { allRegions, usesRegions } from "@/lib/forms/regions";
@@ -12,7 +13,7 @@ import type { Form } from "@/lib/forms/schema";
 import type { Tone } from "../ui";
 
 export type FormRow = { id: string; name: string; status: "draft" | "live" | "paused"; draft: Form; draft_rev: number; version: number; brand_kit_id: string | null; published_at: string | null };
-export type Kit = { id: string; name: string; tokens: Partial<Tokens>; logo_url: string | null; notes: string[]; source_url: string | null; scan_status: "scanning" | "done" | "failed" | null; scan_error: string | null; scanned_at: string | null; design?: unknown; design_rev?: number };
+export type Kit = { id: string; name: string; tokens: Partial<Tokens>; logo_url: string | null; notes: string[]; source_url: string | null; scan_status: "scanning" | "done" | "failed" | null; scan_error: string | null; scanned_at: string | null; design?: unknown; design_live?: unknown; design_rev?: number };
 export type Destination = { id: string; kind: "source" | "slack" | "webhook"; source_id: string | null; name: string; config: { host?: string }; paused: boolean; position: number };
 export type SourceRow = { id: string; kind: string; name: string; status: string };
 
@@ -40,15 +41,16 @@ export function FormPreview({ form, tokens, step = 0, done = false, system, devi
       return "";
     }
   }, [form, tokens, system, device]);
+  const fontKey = fontUrl(designFonts(system, form.design));
   useEffect(() => {
     let live = true;
     void import("@/lib/forms/element").then(() => {
-      if (live && ref.current) (ref.current as unknown as { preview: unknown }).preview = { form, tokens, step, done, css, ...(usesRegions(form) ? { regions: allRegions() } : {}) };
+      if (live && ref.current) (ref.current as unknown as { preview: unknown }).preview = { form, tokens, step, done, css, ...(fontKey ? { fonts: [fontKey] } : {}), ...(usesRegions(form) ? { regions: allRegions() } : {}) };
     });
     return () => {
       live = false;
     };
-  }, [form, tokens, step, done, css]);
+  }, [form, tokens, step, done, css, fontKey]);
   return <claritia-form ref={ref} />;
 }
 

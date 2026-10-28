@@ -1,13 +1,15 @@
-// The builder canvas alone, for scripts/canvas-check.ts: a two-step form with a hidden field, a choice and an empty
-// step, drawn with a design system that styles labels and the button's hover. What the canvas reports goes to
-// window.log; window.setState sets the state the style panel would edit.
+// The builder canvas and the Style panel, for scripts/canvas-check.ts: a two-step form with a hidden field, a choice
+// and an empty step, drawn with a design system that styles labels and the button's hover. What the canvas reports
+// goes to window.log; window.setState sets the state the style panel edits; window.edits holds what the panel wrote.
 
 import { DndContext, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
 import { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { FormCanvas, type Editing, type Picked } from "../../src/components/app/forms/FormCanvas";
+import type { Edit } from "../../src/lib/design/edit";
 import { formCss } from "../../src/lib/design/form";
-import type { State } from "../../src/lib/design/model";
+import { readSystem, type State } from "../../src/lib/design/model";
+import { StylePanel } from "../../src/components/app/forms/StylePanel";
 import { cleanTokens } from "../../src/lib/forms/brand";
 import { checkForm, emptyForm } from "../../src/lib/forms/schema";
 
@@ -31,9 +33,10 @@ if ("errors" in r) throw new Error(r.errors.join(" "));
 // A step with no fields can't be saved, but the builder shows one right after "Add step".
 const form = { ...r.form, steps: [...r.form.steps, { id: "s2", fields: [] }] };
 const t = cleanTokens({}).tokens;
-const system = { globals: { label: { base: { color: "#aa0000", "font-size": "18px" } }, button: { "base:hover": { "background-color": "#00aa55" } } } };
-const w = window as unknown as { log: unknown[]; setState: (s: State | undefined) => void; Z?: number };
+const start = readSystem({ globals: { label: { base: { color: "#aa0000", "font-size": "18px" } }, button: { "base:hover": { "background-color": "#00aa55" } } } }, t);
+const w = window as unknown as { log: unknown[]; edits: Edit[]; setState: (s: State | undefined) => void; Z?: number };
 w.log = [];
+w.edits = [];
 
 function App() {
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
@@ -41,18 +44,20 @@ function App() {
   const [part, setPart] = useState<Picked>(null);
   const [editing, setEditing] = useState<Editing>(null);
   const [state, setState] = useState<State | undefined>(undefined);
+  const [e, setE] = useState<Edit>({ system: start, design: {} });
+  const shown = { ...form, design: e.design };
   useEffect(() => {
     w.setState = setState;
   }, []);
   return (
     <DndContext sensors={sensors}>
-      <div style={{ height: 1400, display: "grid" }}>
+      <div style={{ height: 1400, display: "grid", gridTemplateColumns: "minmax(0,1fr) 300px" }}>
         <FormCanvas
-          form={form}
+          form={shown}
           t={t}
           device="desktop"
           zoom={w.Z ?? 100}
-          css={formCss(form, t, system, { device: "base", preview: true })}
+          css={formCss(shown, t, e.system, { device: "base", preview: true })}
           selected={selected}
           hovered={null}
           dragging={null}
@@ -79,6 +84,23 @@ function App() {
           onRemove={() => {}}
           apply={() => {}}
         />
+        <aside aria-label="Style" style={{ overflowY: "auto" }}>
+          <StylePanel
+            form={shown}
+            system={e.system}
+            tokens={t}
+            bp="base"
+            hasKit
+            part={part}
+            onPart={setPart}
+            state={state}
+            onState={setState}
+            onEdit={(next) => {
+              w.edits.push(next);
+              setE(next);
+            }}
+          />
+        </aside>
       </div>
     </DndContext>
   );
