@@ -787,7 +787,7 @@ function ChangeBox({
     try {
       const rev = await prepare();
       if (rev === null) throw new Error("The draft didn't save. Try again.");
-      const r = await postJson<{ form: Form; rev: number; reply: string; lines: string[]; ask: { question: string } | null }>(session, "/api/forms/chat", {
+      const r = await postJson<{ form: Form; rev: number; reply: string; lines: string[]; ask: { question: string } | null; styles?: boolean }>(session, "/api/forms/chat", {
         workspaceId: ws.id,
         id: formId,
         rev,
@@ -795,6 +795,8 @@ function ChangeBox({
         confirmed,
       });
       if (r.lines.length) onResult(r.form, r.rev);
+      // The brand's styles changed: load the kit again so the builder shows them.
+      if (r.styles) window.dispatchEvent(new Event("claritia:changed"));
       setReply({ text: r.reply, lines: r.lines, ask: r.ask ? m : null });
       if (!r.ask) setText("");
     } catch (e) {

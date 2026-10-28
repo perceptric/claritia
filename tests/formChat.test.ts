@@ -124,3 +124,27 @@ test("the context names the site's forms, custom fields and where leads go", () 
   assert.match(t, /acme\.com\/contact: Email \[email\]; button "Talk to us"/);
   assert.match(t, /sends to: Claritia contacts, HubSpot/);
 });
+
+test("styles: variables first, a raw color only when asked, and every form's styles change the kit", async () => {
+  const { readSystem } = await import("../src/lib/design/model.ts");
+  const { DEFAULT_TOKENS } = await import("../src/lib/forms/brand.ts");
+  const form = emptyForm();
+  const email = allFields(form)[0]!.id;
+  const { model, seen } = scripted([
+    () =>
+      tools([
+        { name: "set_style", input: { element_id: email, part: "label", property: "color", value: "#ff0000" } },
+        { name: "set_style", input: { element_id: email, part: "label", property: "font-size", value: "18px" } },
+        { name: "set_style", input: { element_id: "form", part: "button", property: "background-color", value: "$accent", on: "all_forms" } },
+        { name: "set_style", input: { element_id: email, part: "title", property: "color", value: "$accent" } },
+      ]),
+    () => say("Made the label bigger and the button the accent color everywhere."),
+  ]);
+  const r = await runChat(model, "bigger label, accent button", ctx({ form, system: readSystem({}, DEFAULT_TOKENS), tokens: DEFAULT_TOKENS }));
+  const res = lastResults(seen[1]!);
+  assert.match(String(res[0]!.content), /Use a color variable/);
+  assert.match(String(res[3]!.content), /isn't a part of a field/);
+  assert.deepEqual(r.form.design?.styles?.[email], { label: { base: { "font-size": "18px" } } });
+  assert.deepEqual(r.system?.globals, { button: { base: { "background-color": "$accent" } } });
+  assert.deepEqual(r.lines, ["Styled the label", "Styled every form's button"]);
+});

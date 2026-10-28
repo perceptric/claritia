@@ -3,6 +3,8 @@ import { isMember } from "@/lib/contacts/server";
 import { CHAT_MODEL, CHAT_SYSTEM, CHAT_TOOLS, runChat, type ChatCtx, type ChatResult } from "@/lib/forms/chat";
 import { claudeChat } from "@/lib/forms/claude";
 import { emptyForm, type Form } from "@/lib/forms/schema";
+import { cleanTokens } from "@/lib/forms/brand";
+import { readSystem } from "@/lib/design/model";
 import { requireUser } from "@/lib/serverAuth";
 import { serviceClient } from "@/lib/serviceClient";
 
@@ -31,17 +33,21 @@ export async function POST(request: Request) {
   if (typeof b.rev === "number" && b.rev !== f.draft_rev) return bad("This form changed in another window. Reload to see the latest.", 409);
   const [custom, kit, sources, dests, chat, fills] = await Promise.all([
     db.from("fields").select("key, label, type").eq("workspace_id", ws).eq("object", "contact"),
-    f.brand_kit_id ? db.from("brand_kits").select("name, source_url, site_forms").eq("id", f.brand_kit_id).maybeSingle() : Promise.resolve({ data: null }),
+    f.brand_kit_id ? db.from("brand_kits").select("name, source_url, site_forms, tokens, design, design_rev").eq("id", f.brand_kit_id).maybeSingle() : Promise.resolve({ data: null }),
     db.from("sources").select("name").eq("workspace_id", ws).neq("status", "disconnected"),
     db.from("form_destinations").select("name").eq("form_id", f.id),
     db.from("form_chats").select("messages").eq("form_id", f.id).maybeSingle(),
     db.from("submissions").select("values").eq("form_id", f.id).eq("spam", false).order("created_at", { ascending: false }).limit(300),
   ]);
   const draft = f.draft as Partial<Form>;
+  const k = kit.data as { name: string; source_url: string | null; site_forms: unknown; tokens?: unknown; design?: unknown; design_rev?: number } | null;
+  const tokens = cleanTokens((k?.tokens ?? {}) as object).tokens;
   const ctx: ChatCtx = {
     form: draft && Array.isArray(draft.steps) ? (draft as Form) : emptyForm(),
     custom: (custom.data ?? []) as ChatCtx["custom"],
-    brand: (kit.data as ChatCtx["brand"]) ?? null,
+    brand: k ? ({ name: k.name, source_url: k.source_url, site_forms: k.site_forms } as ChatCtx["brand"]) : null,
+    // Styles at "all forms" or a class change the kit's design system; without a kit only this form's own styles.
+    ...(k ? { system: readSystem(k.design ?? {}, tokens), tokens } : { tokens }),
     tools: ((sources.data ?? []) as { name: string }[]).map((s) => s.name),
     destinations: ((dests.data ?? []) as { name: string }[]).map((d) => d.name),
     history: (((chat.data?.messages as { role: "user" | "assistant"; text: string }[] | undefined) ?? []).filter((m) => m.text)).slice(-10),
@@ -63,6 +69,11 @@ export async function POST(request: Request) {
     return bad(`The chat didn't answer: ${e instanceof Error ? e.message.slice(0, 200) : "try again"}`, 502);
   }
 
+  // The chat changed the brand's styles: save the kit's draft (refused if someone saved it since).
+  if (out.system && k && f.brand_kit_id) {
+    const saved = await db.rpc("brand_kit_design_save", { p_user: auth.user.id, p_id: f.brand_kit_id, p_design: out.system, p_rev: k.design_rev ?? 0 });
+    if (saved.error) return bad(/Changed elsewhere/.test(saved.error.message) ? "Someone changed the brand's styles at the same time. Try again." : "Try again in a moment.", 409);
+  }
   let rev = f.draft_rev as number;
   if (out.lines.length) {
     const saved = await auth.sb.rpc("form_save", { p_id: f.id, p_name: f.name, p_draft: out.form, p_rev: rev, p_brand_kit: f.brand_kit_id });
@@ -77,5 +88,5 @@ export async function POST(request: Request) {
       { role: "assistant", text: out.reply, ...(out.lines.length ? { lines: out.lines } : {}), ...(out.ask ? { ask: out.ask } : {}), at },
     ],
   });
-  return Response.json({ form: out.form, rev, reply: out.reply, lines: out.lines, ask: out.ask ?? null });
+  return Response.json({ form: out.form, rev, reply: out.reply, lines: out.lines, ask: out.ask ?? null, styles: !!out.system });
 }
