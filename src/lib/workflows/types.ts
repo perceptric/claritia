@@ -3,6 +3,7 @@
 // the worker all read this one shape.
 
 import type { Cond } from "../router/types.ts";
+import type { EmailDoc } from "../design/email/doc.ts";
 
 export type TriggerKind = "form" | "meeting" | "not_booked" | "outcome" | "band" | "routed" | "segment" | "field" | "clicked" | "date" | "broadcast" | "manual";
 
@@ -20,8 +21,11 @@ export type Trigger =
   | { kind: "broadcast"; segment: string; at: string }
   | { kind: "manual" };
 
-/** One email in a workflow: the step form's words (src/lib/nurture/email.ts), approved before it can go. */
-export type EmailBody = { subject: string; preheader: string; paragraphs: string[]; cta_label: string; cta_url: string };
+/**
+ * One email in a workflow: the step form's words (src/lib/nurture/email.ts), approved before it can go. With `doc`
+ * it was built with blocks (docs/design-system.md Part 4), and the words are kept only as they were.
+ */
+export type EmailBody = { subject: string; preheader: string; paragraphs: string[]; cta_label: string; cta_url: string; doc?: EmailDoc };
 
 export type WaitEvent = "meeting.booked" | "email.clicked" | "form.submitted" | "lead.outcome" | "segment.entered";
 
