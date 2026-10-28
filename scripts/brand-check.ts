@@ -6,6 +6,7 @@
 import { createServer } from "node:http";
 import { contrast } from "../src/lib/forms/brand.ts";
 import { scanSite, ScanBlocked } from "../src/lib/brand/scan.ts";
+import { brandDesign } from "../src/lib/brand/design.ts";
 
 const failures: string[] = [];
 const check = (ok: boolean, what: string) => {
@@ -18,10 +19,13 @@ const SITES: Record<string, string> = {
   "/light/": page(
     `<header><img src="https://cdn.example.com/acme-logo.svg" alt="Acme logo"><a href="/light/pricing">Pricing</a> <a href="/light/contact">Contact sales</a></header>
      <main><h1>Ship faster</h1><p>Acme helps teams ship faster with fewer meetings and clearer plans, every single week of the year.</p>
-     <a class="btn" href="/light/contact">Book a demo</a> <a class="ghost" href="/light/docs">Docs</a><p><small class="muted">Trusted by 2,000 teams</small></p></main>`,
+     <a class="btn" href="/light/contact">Book a demo</a> <a class="ghost" href="/light/docs">Docs</a><p><small class="muted">Trusted by 2,000 teams</small></p>
+     <h2>Why teams switch</h2><section class="band"><div class="card"><h3>Plans</h3><p>Clear plans for every team, every week.</p></div></section></main>
+     <footer><a href="https://www.linkedin.com/company/acme">LinkedIn</a> <a href="https://x.com/acme?ref=site">X</a><p>Acme Inc.</p><p>500 Market Street, Suite 2, San Francisco, CA 94105</p></footer>`,
     `body{font-family:"Helvetica Neue",Arial,sans-serif;font-size:16px;color:#222222;background:#ffffff}
      .btn{display:inline-block;background:#2563eb;color:#fff;border-radius:4px;padding:10px 18px;font-weight:600;text-decoration:none}
-     .ghost{color:#2563eb}.muted{color:#6b7280}`,
+     .ghost{color:#2563eb}.muted{color:#6b7280}h1{font-size:44px;font-weight:700}h2{font-size:30px}h3{font-size:20px}
+     .band{background:#0f766e;padding:40px;width:1100px;height:400px}.card{background:#fff;box-shadow:0 4px 12px rgba(0, 0, 0, 0.12);padding:20px;width:400px}`,
   ),
   "/light/contact": page(
     `<h1>Talk to sales</h1><p>Tell us a little about your team and we will get back to you within one business day.</p>
@@ -56,6 +60,17 @@ const opts = { chromiumPath: process.env.CHROMIUM_PATH, allowPrivate: true };
 
 try {
   const light = await scanSite(`${base}/light/`, opts);
+  // Brand setup (docs/design-system.md Part 7.1): beyond the tokens.
+  const b = light.brand;
+  const bd = brandDesign(b, light.tokens, ["Deep teal"]);
+  check(bd.variables.some((v) => v.id === "brand-1" && v.value === "#0f766e" && v.name === "Deep teal"), `light: the band's teal is the first brand color (${JSON.stringify(bd.variables.filter((v) => v.kind === "color"))})`);
+  check(!bd.variables.some((v) => v.kind === "color" && v.value === "#2563eb"), "light: the button blue isn't repeated (the tokens have it)");
+  check(JSON.stringify(b.headings.map((h) => h.size)) === '["44px","30px","20px"]', `light: heading sizes (${JSON.stringify(b.headings)})`);
+  check(bd.variables.some((v) => v.id === "card-shadow" && v.value.includes("12px")), `light: the card shadow (${b.shadow})`);
+  check(JSON.stringify(bd.social) === '[{"kind":"linkedin","url":"https://www.linkedin.com/company/acme"},{"kind":"x","url":"https://x.com/acme"}]', `light: social links (${JSON.stringify(bd.social)})`);
+  check(bd.address === "500 Market Street, Suite 2, San Francisco, CA 94105", `light: the address (${bd.address})`);
+  check(b.copy.includes("Ship faster") && b.copy.length < 7000, "light: the page's words, for the brief");
+  check(bd.email.heading === "$h2-size", "light: email headings take the site's H2 size");
   const t = light.tokens;
   check(t.buttonBg === "#2563eb" && t.buttonText === "#ffffff" && t.buttonRadius === 4 && t.buttonWeight === 600, `light: the primary button (${t.buttonBg}, ${t.buttonRadius}px, ${t.buttonWeight})`);
   check(t.border === "#d1d5db" && t.radius === 4 && t.inputHeight === 42 && t.borderWidth === 1, `light: fields from the contact page, at their drawn height (40px plus borders) (${t.border}, ${t.radius}px, ${t.inputHeight}px)`);

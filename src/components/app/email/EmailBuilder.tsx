@@ -10,7 +10,7 @@ import type { Session, SupabaseClient } from "@supabase/supabase-js";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { compileEmail } from "@/lib/design/email/compile";
-import { newBlock, readEmailDoc, type EmailDoc } from "@/lib/design/email/doc";
+import { newBlock, readBlock, readEmailDoc, type EmailDoc } from "@/lib/design/email/doc";
 import type { EmailEdit } from "@/lib/design/email/edit";
 import { addBlock, duplicateEl, findEl, moveBlock, moveSection, removeEl, type Place } from "@/lib/design/email/ops";
 import { insertComponent } from "@/lib/design/email/components";
@@ -93,7 +93,7 @@ export function EmailBuilder({
     let live = true;
     void sb
       .from("brand_kits")
-      .select("id, name, tokens, logo_url, notes, source_url, scan_status, scan_error, scanned_at, design, design_live, design_rev")
+      .select("id, name, tokens, logo_url, notes, source_url, scan_status, scan_error, scanned_at, design, design_live, design_rev, social")
       .eq("workspace_id", workspaceId)
       .order("created_at")
       .then(({ data, error: e }) => {
@@ -186,7 +186,8 @@ export function EmailBuilder({
     return { section: footerAt >= 0 ? footerAt : latest.current.sections.length };
   };
   const add = (type: BlockType) => {
-    const b = newBlock(type);
+    // A Social block starts with the links the brand scan found.
+    const b = type === "social" && kit?.social?.length ? (readBlock({ ...newBlock(type), links: kit.social }, new Set(), false) ?? newBlock(type)) : newBlock(type);
     apply({ doc: addBlock(latest.current, b, placeFor()) });
     setSelected(b.id);
     setPart(null);

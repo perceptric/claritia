@@ -42,7 +42,7 @@ export async function POST(request: Request) {
     image = { type: kind.type, data: Buffer.from(raw).toString("base64") };
   } else if ((b.doc as { sections?: unknown } | undefined)?.sections === undefined) return bad("Send the email.");
   const doc = readEmailDoc(b.doc, { allowHtml: true });
-  const { data: kits } = await db.from("brand_kits").select("id, name, tokens, notes, design").eq("workspace_id", ws).order("created_at");
+  const { data: kits } = await db.from("brand_kits").select("id, name, tokens, notes, brief, design").eq("workspace_id", ws).order("created_at");
   const kit = (kits ?? []).find((k) => k.id === doc.kitId) ?? (kits ?? [])[0];
   const tokens = cleanTokens(kit?.tokens ?? {}).tokens;
   const system = readSystem(kit?.design ?? {}, tokens);
@@ -54,7 +54,7 @@ export async function POST(request: Request) {
     system,
     tokens,
     subject: typeof b.subject === "string" ? b.subject.slice(0, 200) : "",
-    brand: kit ? { name: kit.name as string, brief: ((kit.notes as string[] | null) ?? []).join("\n") } : null,
+    brand: kit ? { name: kit.name as string, brief: (kit.brief as string | null) || ((kit.notes as string[] | null) ?? []).join("\n") } : null,
     history,
     confirmed: b.confirmed === true,
     ...(image ? { image } : {}),
