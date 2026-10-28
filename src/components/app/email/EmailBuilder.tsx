@@ -21,7 +21,10 @@ import { readSystem, type DesignSystem } from "@/lib/design/model";
 import { CLIENT_LABEL, type Client } from "@/lib/design/props";
 import { Select } from "../Select";
 import { cleanTokens } from "@/lib/forms/brand";
-import { ArrowDown, ArrowUp, Copy, Monitor, Moon, Phone, Redo, Send, Sun, Trash, Undo, X } from "../../Icons";
+import { ArrowDown, ArrowUp, Copy, FileText, Monitor, Moon, Phone, Redo, Send, Sun, Trash, Undo, X } from "../../Icons";
+import { askConfirm, askLines, tell } from "../Dialogs";
+import { importAny } from "@/lib/design/email/import";
+import { EMAIL_TEMPLATES } from "@/lib/design/email/templates";
 import { Button, ErrorNote, IconButton, postJson, errorText } from "../ui";
 import { VariablesPanel } from "../forms/DesignPanels";
 import { fontUrl } from "../forms/editorModel";
@@ -35,7 +38,7 @@ import { EmailCanvas } from "./EmailCanvas";
 import { EmailStylePanel } from "./EmailStyle";
 
 type Snap = { doc: EmailDoc; system: DesignSystem };
-type Rail = "add" | "layers" | "variables" | "checks";
+type Rail = "add" | "templates" | "layers" | "variables" | "checks";
 
 const BLOCKS: { type: BlockType; label: string; icon: string }[] = [
   { type: "heading", label: "Heading", icon: "heading" },
@@ -257,6 +260,7 @@ export function EmailBuilder({
 
   const rails: { id: Rail; label: string; icon: React.ReactNode }[] = [
     { id: "add", label: "Add", icon: <PlusSquare size={16} /> },
+    { id: "templates", label: "Templates", icon: <FileText size={16} /> },
     { id: "layers", label: "Layers", icon: <Layers size={16} /> },
     { id: "variables", label: "Variables", icon: <Diamond size={16} /> },
     { id: "checks", label: "Checks", icon: <CheckSquare size={16} /> },
@@ -324,6 +328,20 @@ export function EmailBuilder({
             Publish styles
           </Button>
         ) : null}
+        <Button
+          variant="ghost"
+          onClick={async () => {
+            const source = await askLines("Import an email", { placeholder: "Paste HTML, MJML or an .eml file", ok: "Import" });
+            if (!source?.trim()) return;
+            const r = importAny(source);
+            if (!r.doc.sections.some((x) => x.columns.some((c) => c.blocks.some((b) => b.type !== "footer")))) return void tell("Nothing to import", "No words, pictures or buttons were found.");
+            apply({ doc: { ...r.doc, ...(latest.current.kitId ? { kitId: latest.current.kitId } : {}) } });
+            setSelected(null);
+            if (r.notes.length) void tell("Imported", r.notes.join(" "));
+          }}
+        >
+          Import
+        </Button>
         <Button variant="ghost" disabled={sending} onClick={() => void test()}>
           <Send size={13} />
           {sending ? "Sending…" : "Test"}
@@ -389,6 +407,29 @@ export function EmailBuilder({
               </>
             ) : null}
             {rail === "layers" ? <LayerList doc={doc} selected={sel} onSelect={(id) => (setSelected(id), setPart(null))} onNudge={nudge} onDuplicate={duplicate} onRemove={remove} /> : null}
+            {rail === "templates" ? (
+              <div className="flex flex-col gap-3 p-3">
+                {(["Welcome", "News", "Events", "Sales", "Customers"] as const).map((g) => (
+                  <div key={g} className="flex flex-col gap-1">
+                    <p className="text-[12px] font-medium text-muted">{g}</p>
+                    {EMAIL_TEMPLATES.filter((t) => t.group === g).map((t) => (
+                      <button
+                        key={t.key}
+                        type="button"
+                        onClick={async () => {
+                          if (!(await askConfirm(`Start from ${t.name}?`, { body: "It takes the place of this email. Undo brings it back.", ok: "Use template" }))) return;
+                          apply({ doc: { ...t.make(), ...(latest.current.kitId ? { kitId: latest.current.kitId } : {}) } });
+                          setSelected(null);
+                        }}
+                        className="press flex h-8 items-center rounded-lg border border-line bg-card px-3 text-left text-[12.5px] text-ink hover:border-line-strong hover:shadow-soft"
+                      >
+                        {t.name}
+                      </button>
+                    ))}
+                  </div>
+                ))}
+              </div>
+            ) : null}
             {rail === "checks" ? (
               <CheckList
                 notes={checks}

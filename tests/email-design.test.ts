@@ -333,3 +333,23 @@ test("components: save, reuse with props, lock, change everywhere, detach and de
   // Components never hold HTML blocks.
   assert.ok("error" in c.saveAsComponent({ system: sys(), doc: doc({ sections: [{ id: "x", columns: [{ id: "y", blocks: [{ id: "z", type: "html", html: "<p>x</p>" }] }] }] }) }, "x", "Raw"));
 });
+
+test("templates: 30, each reads back, builds under the size limit and passes the design check", async () => {
+  const { EMAIL_TEMPLATES } = await import("../src/lib/design/email/templates.ts");
+  const { checkEmailDesign } = await import("../src/lib/design/check.ts");
+  assert.equal(EMAIL_TEMPLATES.length, 30);
+  assert.equal(new Set(EMAIL_TEMPLATES.map((t) => t.key)).size, 30);
+  const brand = sys({ variables: [], email: { globals: { heading: { base: { color: "#123456" } } } } });
+  for (const t of EMAIL_TEMPLATES) {
+    const d = t.make();
+    assert.deepEqual(readEmailDoc(d), d, `${t.key} reads back the same`);
+    const out = compileEmail(brand, d, { tokens: DEFAULT_TOKENS, logo: "https://cdn.test/logo.png" });
+    assert.ok(out.size < 40_000, `${t.key} is small (${out.size})`);
+    const blocking = checkEmailDesign(brand, d, DEFAULT_TOKENS).filter((n) => n.level === "block" || /hard to read|fallback/.test(n.text));
+    assert.deepEqual(blocking, [], `${t.key} passes the check`);
+    // No colors of its own: the brand styles it.
+    assert.equal(d.styles, undefined, `${t.key} sets no styles`);
+    if (out.html.includes("<h1") || out.html.includes("<h2")) assert.match(out.html, /color:#123456/, `${t.key} shows in the brand`);
+  }
+  assert.notEqual(EMAIL_TEMPLATES[0]!.make().sections[0]!.id, EMAIL_TEMPLATES[0]!.make().sections[0]!.id, "each copy gets fresh ids");
+});

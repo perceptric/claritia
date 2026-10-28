@@ -24,11 +24,11 @@ const BLOCK: Record<string, string[]> = /* @__PURE__ */ Object.assign({}, RICH, 
   h3: [],
   h4: [],
   div: ["align"],
-  table: ["width", "align", "cellpadding", "cellspacing", "border", "role"],
+  table: ["width", "align", "cellpadding", "cellspacing", "border", "role", "bgcolor"],
   tbody: [],
   tr: [],
-  td: ["width", "align", "valign", "colspan", "rowspan"],
-  th: ["width", "align", "valign", "colspan", "rowspan"],
+  td: ["width", "align", "valign", "colspan", "rowspan", "bgcolor"],
+  th: ["width", "align", "valign", "colspan", "rowspan", "bgcolor"],
   img: ["src", "alt", "width", "height"],
   hr: [],
   blockquote: [],
@@ -103,6 +103,8 @@ export function cleanHtml(input: string, mode: "rich" | "block" = "rich"): strin
         if (/^\d{1,4}%?$/.test(value)) attrs.push(`${name}="${value}"`);
       } else if (name === "align" || name === "valign") {
         if (/^(left|right|center|top|middle|bottom)$/i.test(value)) attrs.push(`${name}="${value.toLowerCase()}"`);
+      } else if (name === "bgcolor") {
+        if (/^#?[0-9a-f]{3,8}$/i.test(value)) attrs.push(`bgcolor="${value}"`);
       } else if (name === "role") {
         if (value === "presentation") attrs.push('role="presentation"');
       } else attrs.push(`${name}="${esc(value.slice(0, 300))}"`);
