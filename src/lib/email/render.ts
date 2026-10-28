@@ -1,9 +1,11 @@
-// The final email for one message: tracked links, the preheader, the footer a marketing email can't drop, and the
-// one-click unsubscribe headers Gmail and Yahoo require of bulk senders (RFC 8058).
+// The final email for one message: tracked links, the parts meant for this person (conditions from the email
+// builder), merge values, the preheader, the footer a marketing email can't drop, and the one-click unsubscribe
+// headers Gmail and Yahoo require of bulk senders (RFC 8058).
 
 import { fromHeader, type Outgoing } from "./provider.ts";
 import { fillMerge } from "../workflows/engine.ts";
 import { makeToken, rewriteLinks } from "./track.ts";
+import { applyConditions } from "../design/email/compile.ts";
 
 /** What send_claim hands the worker for each message (supabase/migrations/039_email.sql). */
 export type Claimed = {
@@ -41,8 +43,20 @@ export function renderMessage(m: Claimed, o: { base: string; secret?: string }):
   // Merge values: as typed in the subject and text, escaped in the html.
   const vars = m.vars ?? {};
   const htmlVars = Object.fromEntries(Object.entries(vars).map(([k, v]) => [k, v ? esc(v) : v]));
-  let html = rewriteLinks(fillMerge(m.html, htmlVars), (i) => `${o.base}/c/${makeToken({ kind: "click", message: m.id, link: i }, o.secret)}`);
-  let text = fillMerge(m.text, vars);
+  // Links take their place first, as stored (emails.links), so a part left out for this person or a merge value can
+  // never move a click onto another link.
+  let html = rewriteLinks(m.html, (i) => `${o.base}/c/${makeToken({ kind: "click", message: m.id, link: i }, o.secret)}`);
+  let text = m.text;
+  html = applyConditions(html, vars);
+  text = applyConditions(text, vars);
+  // An email built with blocks carries its own footer: its unsubscribe link and the sender's address go in here. If
+  // this person's copy has none (a condition left it out), the fixed footer below is added as for any email.
+  const ownFooter = html.includes("{{unsubscribe_url}}");
+  const address = oneLine(m.address ?? "");
+  html = html.replace(/\{\{unsubscribe_url\}\}/g, unsub).replace(/\{\{company_address\}\}/g, esc(address));
+  text = text.replace(/\{\{unsubscribe_url\}\}/g, unsub).replace(/\{\{company_address\}\}/g, address);
+  html = fillMerge(html, htmlVars);
+  text = fillMerge(text, vars);
   m = { ...m, subject: fillMerge(m.subject, vars), preheader: m.preheader ? fillMerge(m.preheader, vars) : m.preheader };
 
   if (m.preheader?.trim()) {
@@ -51,7 +65,8 @@ export function renderMessage(m: Claimed, o: { base: string; secret?: string }):
   }
 
   const headers: Outgoing["headers"] = [];
-  if (m.marketing) {
+  if (m.marketing && ownFooter) headers.push({ name: "List-Unsubscribe", value: `<${unsub}>` }, { name: "List-Unsubscribe-Post", value: "List-Unsubscribe=One-Click" });
+  else if (m.marketing) {
     const who = [m.from_name, m.address].map((x) => oneLine(x ?? "")).filter(Boolean);
     const footer =
       `<div style="margin:32px 0 0;padding:16px 0 0;border-top:1px solid #e5e7eb;font:12px/1.6 -apple-system,Segoe UI,Arial,sans-serif;color:#6b7280;text-align:center">` +

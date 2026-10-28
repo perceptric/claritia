@@ -7,11 +7,11 @@
 // Every change goes through src/lib/design/edit.ts and lands as one undo step.
 
 import { useEffect, useRef, useState } from "react";
-import { literal, resolve, sourceText } from "@/lib/design/cascade";
+import { literal, resolve, sourceText, type Resolved } from "@/lib/design/cascade";
 import { addClass, evalSum, nudgeValue, originOf, ownValue, parseLength, removeClass, resetPart, setProp, setsAny, type Edit, type Level, type Origin } from "@/lib/design/edit";
 import { allVariables, STATES, type Breakpoint, type DesignSystem, type FormDesign, type PartStyles, type State, type Variable } from "@/lib/design/model";
 import { fieldParts, FORM_PARTS, partDef, type PartKey } from "@/lib/design/parts";
-import { propDef, PROP_NAMES, type Group, type Prop } from "@/lib/design/props";
+import { CLIENT_LABEL, propDef, PROP_NAMES, type Group, type Prop } from "@/lib/design/props";
 import { partSelector } from "@/lib/design/web";
 import type { Tokens } from "@/lib/forms/brand";
 import type { Form } from "@/lib/forms/schema";
@@ -44,19 +44,26 @@ const STATE_LABEL: Record<State, string> = { hover: "Hover", focus: "Focus", pre
 // Where a value comes from, as the label's color (Part 5.3).
 const ORIGIN_CLASS: Record<Origin, string> = { here: "text-ink font-medium", inherited: "text-clay", class: "text-sky", global: "text-muted", default: "text-muted", none: "text-muted" };
 
-type Ctx = {
-  e: Edit;
-  level: Level;
-  id: string;
-  part: PartKey;
-  bp: Breakpoint;
-  state?: State;
+/**
+ * What the sections and inputs need, for a form part or an email part alike: the values that show, what this level
+ * itself sets, where each value comes from, and how to write one.
+ */
+export type StyleCtx = {
   vars: Variable[];
-  resolved: ReturnType<typeof resolve>;
-  system: DesignSystem;
+  resolved: Resolved;
+  /** The value this level sets at this breakpoint and state, if any. */
+  own: (p: Prop) => string | undefined;
+  origin: (p: Prop) => Origin;
+  /** Words for where a property's value comes from. */
+  source: (p: Prop) => string | undefined;
+  /** Whether this level sets any of these, for a section's dot. */
+  setsAny: (props: Prop[]) => boolean;
   /** Write one value to several properties (linked sides); false when the value isn't allowed. */
   write: (props: Prop[], value: string, merge?: boolean) => boolean;
+  /** Emails: properties the email builder doesn't offer are hidden, and those some clients ignore are marked. */
+  email?: boolean;
 };
+type Ctx = StyleCtx;
 
 /** Element styles copied with Cmd+Alt+C, for Cmd+Alt+V on another element. */
 let copied: PartStyles | null = null;
@@ -106,16 +113,14 @@ export function StylePanel(props: StylePanelProps) {
   const st = state && states.includes(state) ? state : undefined;
   const vars = allVariables(system, tokens);
   const levelKey = level.kind === "class" ? `c${level.id}` : level.kind;
+  const resolved = resolve(system, design, { id, part: part.part }, bp, st);
   const ctx: Ctx = {
-    e,
-    level,
-    id,
-    part: part.part,
-    bp,
-    state: st,
     vars,
-    system,
-    resolved: resolve(system, design, { id, part: part.part }, bp, st),
+    resolved,
+    own: (p) => ownValue(e, level, id, part.part, bp, st, p),
+    origin: (p) => originOf(e, level, id, part.part, bp, st, p),
+    source: (p) => (resolved[p] ? sourceText(resolved[p]!.source, system) : undefined),
+    setsAny: (ps) => setsAny(e, level, id, part.part, bp, st, ps),
     write: (ps, value, merge) => {
       let next: Edit | null = e;
       for (const p of ps) next = next && setProp(next, tokens, level, id, part.part, bp, st, p, value);
@@ -233,7 +238,7 @@ const SIDES = ["top", "right", "bottom", "left"] as const;
 const SPACING: Prop[] = SIDES.flatMap((s) => [`margin-${s}`, `padding-${s}`] as Prop[]);
 const BORDERS: Prop[] = PROP_NAMES.filter((p) => propDef(p).group === "borders");
 
-function Sections({ ctx }: { ctx: Ctx }) {
+export function Sections({ ctx }: { ctx: Ctx }) {
   const [open, setOpen] = useState<Record<string, boolean>>({});
   const [q, setQ] = useState("");
   const val = (p: Prop) => literal(ctx.resolved[p]?.value ?? "", new Map(ctx.vars.map((v) => [v.id, v])));
@@ -247,8 +252,10 @@ function Sections({ ctx }: { ctx: Ctx }) {
     { id: "borders", label: "Borders", props: BORDERS, body: <Borders ctx={ctx} /> },
     { id: "effects", label: "Effects", props: SHOWN.effects!("", "") },
   ];
+  // Emails offer only what email clients can draw.
+  if (ctx.email) for (const l of lists) l.props = l.props.filter((p) => propDef(p).email !== false);
   const shown = new Set(lists.flatMap((l) => l.props));
-  const rest = PROP_NAMES.filter((p) => !shown.has(p));
+  const rest = PROP_NAMES.filter((p) => !shown.has(p) && (!ctx.email || propDef(p).email !== false));
   const more = rest.filter((p) => !q.trim() || `${p} ${propDef(p).label}`.toLowerCase().includes(q.trim().toLowerCase()));
   lists.push({
     id: "more",
@@ -265,8 +272,8 @@ function Sections({ ctx }: { ctx: Ctx }) {
   });
   return (
     <>
-      {lists.map((l) => {
-        const set = setsAny(ctx.e, ctx.level, ctx.id, ctx.part, ctx.bp, ctx.state, l.props);
+      {lists.filter((l) => l.props.length).map((l) => {
+        const set = ctx.setsAny(l.props);
         const isOpen = open[l.id] ?? (set || l.id === "typography" || l.id === "spacing");
         return (
           <section key={l.id} className="border-t border-line first:border-t-0">
@@ -277,7 +284,7 @@ function Sections({ ctx }: { ctx: Ctx }) {
                 {set ? <span aria-label="Has styles" className="size-1.5 rounded-full bg-clay" /> : null}
               </button>
               {set ? (
-                <button type="button" aria-label={`Reset ${l.label}`} title="Reset" onClick={() => ctx.write(l.props.filter((p) => ownValue(ctx.e, ctx.level, ctx.id, ctx.part, ctx.bp, ctx.state, p) !== undefined), "")} className="press flex size-6 items-center justify-center rounded-full text-muted hover:bg-hover hover:text-ink">
+                <button type="button" aria-label={`Reset ${l.label}`} title="Reset" onClick={() => ctx.write(l.props.filter((p) => ctx.own(p) !== undefined), "")} className="press flex size-6 items-center justify-center rounded-full text-muted hover:bg-hover hover:text-ink">
                   <Refresh size={11} />
                 </button>
               ) : null}
@@ -296,17 +303,21 @@ const shortLabel = (p: Prop) => propDef(p).label.replace(/^(Border|Corner|Inset)
 
 function PropRow({ ctx, prop, label, linked }: { ctx: Ctx; prop: Prop; label?: string; linked?: Prop[] }) {
   const all = linked ?? [prop];
-  const origin = originOf(ctx.e, ctx.level, ctx.id, ctx.part, ctx.bp, ctx.state, prop);
-  const own = ownValue(ctx.e, ctx.level, ctx.id, ctx.part, ctx.bp, ctx.state, prop);
-  const r = ctx.resolved[prop];
+  const origin = ctx.origin(prop);
+  const own = ctx.own(prop);
   const name = label ?? propDef(prop).label;
   const kind = propDef(prop).kind;
+  // Emails: the clients that ignore this property (Part 5.4).
+  const ignored = ctx.email ? (propDef(prop).email || []).map((c) => CLIENT_LABEL[c]) : [];
   const scrubs = kind === "length" || kind === "number" || kind === "integer" || kind === "time";
   return (
     <div className="grid items-center gap-2" style={{ gridTemplateColumns: "88px minmax(0,1fr)" }}>
       <Scrub ctx={ctx} prop={prop} props={all} enabled={scrubs}>
-        <span className={`truncate text-[12px] ${ORIGIN_CLASS[origin]}`} title={r ? sourceText(r.source, ctx.system) : undefined}>
-          {name}
+        <span className={`flex min-w-0 items-center gap-1 text-[12px] ${ORIGIN_CLASS[origin]}`} title={ctx.source(prop)}>
+          <span className="truncate">{name}</span>
+          {ignored.length ? (
+            <span role="img" aria-label={`${ignored.join(", ")} ${ignored.length === 1 ? "ignores" : "ignore"} this`} title={`${ignored.join(", ")} ${ignored.length === 1 ? "ignores" : "ignore"} this`} className="size-1.5 shrink-0 rounded-full bg-butter" />
+          ) : null}
         </span>
       </Scrub>
       <div className="flex min-w-0 items-center gap-1">
@@ -323,7 +334,7 @@ function PropRow({ ctx, prop, label, linked }: { ctx: Ctx; prop: Prop; label?: s
 
 /** The current value to nudge from: this level's own, else what shows (when it's a plain number). */
 const baseOf = (ctx: Ctx, prop: Prop) => {
-  const own = ownValue(ctx.e, ctx.level, ctx.id, ctx.part, ctx.bp, ctx.state, prop);
+  const own = ctx.own(prop);
   const shown = own ?? ctx.resolved[prop]?.value;
   const lit = shown ? literal(shown, new Map(ctx.vars.map((v) => [v.id, v]))) : undefined;
   return parseLength(lit) ? lit : undefined;
@@ -367,7 +378,7 @@ const VAR_KIND: Partial<Record<string, Variable["kind"][]>> = { color: ["color"]
 
 function Value({ ctx, prop, props, label }: { ctx: Ctx; prop: Prop; props: Prop[]; label: string }) {
   const d = propDef(prop);
-  const own = ownValue(ctx.e, ctx.level, ctx.id, ctx.part, ctx.bp, ctx.state, prop);
+  const own = ctx.own(prop);
   const r = ctx.resolved[prop];
   const varName = (v: string | undefined) => (v?.startsWith("$") ? ctx.vars.find((x) => `$${x.id}` === v)?.name : undefined);
   if (d.kind === "keyword" || d.kind === "weight" || d.kind === "font") {
@@ -396,7 +407,7 @@ function Value({ ctx, prop, props, label }: { ctx: Ctx; prop: Prop; props: Prop[
 
 /** Text for any value: Enter or leaving the box saves, Escape puts it back, arrows nudge numbers, "16+8" is 24. */
 function TextValue({ ctx, prop, props, label }: { ctx: Ctx; prop: Prop; props: Prop[]; label: string }) {
-  const own = ownValue(ctx.e, ctx.level, ctx.id, ctx.part, ctx.bp, ctx.state, prop);
+  const own = ctx.own(prop);
   const r = ctx.resolved[prop];
   const [draft, setDraft] = useState<string | null>(null);
   const [bad, setBad] = useState(false);
@@ -565,8 +576,8 @@ const OPPOSITE = { top: "bottom", bottom: "top", left: "right", right: "left" } 
 
 function BoxCell({ ctx, kind, side }: { ctx: Ctx; kind: "margin" | "padding"; side: (typeof SIDES)[number] }) {
   const prop = `${kind}-${side}` as Prop;
-  const origin = originOf(ctx.e, ctx.level, ctx.id, ctx.part, ctx.bp, ctx.state, prop);
-  const own = ownValue(ctx.e, ctx.level, ctx.id, ctx.part, ctx.bp, ctx.state, prop);
+  const origin = ctx.origin(prop);
+  const own = ctx.own(prop);
   const r = ctx.resolved[prop];
   const [draft, setDraft] = useState<string | null>(null);
   const [bad, setBad] = useState(false);
@@ -587,7 +598,7 @@ function BoxCell({ ctx, kind, side }: { ctx: Ctx; kind: "margin" | "padding"; si
       value={draft ?? (shown === "0px" ? "0" : shown.replace(/px$/, ""))}
       placeholder="0"
       aria-label={`${kind === "margin" ? "Margin" : "Padding"} ${side}`}
-      title={r ? sourceText(r.source, ctx.system) : undefined}
+      title={ctx.source(prop)}
       aria-invalid={bad || undefined}
       onChange={(ev) => {
         setDraft(ev.target.value);
@@ -640,7 +651,7 @@ function BoxCell({ ctx, kind, side }: { ctx: Ctx; kind: "margin" | "padding"; si
 
 /** Borders: one width, style and color for every side and one radius for every corner, or each apart. */
 function Borders({ ctx }: { ctx: Ctx }) {
-  const own = (p: Prop) => ownValue(ctx.e, ctx.level, ctx.id, ctx.part, ctx.bp, ctx.state, p);
+  const own = (p: Prop) => ctx.own(p);
   const apart =
     SIDES.some((s) => ["width", "style", "color"].some((k) => own(`border-${s}-${k}` as Prop) !== own(`border-top-${k}` as Prop))) ||
     ["top-right", "bottom-right", "bottom-left"].some((c) => own(`border-${c}-radius` as Prop) !== own("border-top-left-radius"));

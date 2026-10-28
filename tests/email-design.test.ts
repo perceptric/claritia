@@ -179,3 +179,46 @@ test("compiler: every new block compiles, and the starting email has no blocking
     assert.ok(out.html.includes("</html>"), `${type} compiles`);
   }
 });
+
+test("email edits: a value lands at its level; classes go on by name; bad values change nothing", async () => {
+  const { setEmailProp, addEmailClass, removeEmailClass, emailOrigin, emailOwnValue } = await import("../src/lib/design/email/edit.ts");
+  const e0 = { system: sys(), doc: one([{ id: "h1", type: "heading", text: "Hi" }]) };
+  const el = setEmailProp(e0, DEFAULT_TOKENS, { kind: "element" }, "h1", "heading", "phone", "dark", "color", "#ff0000")!;
+  assert.deepEqual(el.doc.styles, { h1: { heading: { "phone:dark": { color: "#ff0000" } } } });
+  assert.equal(setEmailProp(e0, DEFAULT_TOKENS, { kind: "element" }, "h1", "heading", "base", undefined, "color", "red;}x{"), null);
+  const g = setEmailProp(e0, DEFAULT_TOKENS, { kind: "global" }, "h1", "heading", "base", undefined, "border-top-width", "2px")!;
+  assert.deepEqual(g.system.email?.globals.heading?.base, { "border-top-width": "2px", "border-top-style": "solid" });
+  assert.equal(emailOrigin(g, { kind: "element" }, "h1", "heading", "base", undefined, "border-top-width"), "global");
+  const c = addEmailClass(e0, "h1", "Hero");
+  assert.ok(!("error" in c));
+  const cid = c.system.email!.classes[0]!.id;
+  const cs = setEmailProp(c, DEFAULT_TOKENS, { kind: "class", id: cid }, "h1", "heading", "base", undefined, "font-size", "40px")!;
+  assert.equal(emailOwnValue(cs, { kind: "class", id: cid }, "h1", "heading", "base", undefined, "font-size"), "40px");
+  assert.match(compileEmail(cs.system, cs.doc, { tokens: DEFAULT_TOKENS }).html, /font-size:40px/);
+  // What the edits make reads back the same through the saved-design checks.
+  assert.deepEqual(readSystem(cs.system, DEFAULT_TOKENS).email, cs.system.email);
+  assert.deepEqual(readEmailDoc(cs.doc, { system: cs.system, tokens: DEFAULT_TOKENS }).classes, { h1: [cid] });
+  assert.equal(removeEmailClass(cs, "h1", cid).doc.classes, undefined);
+});
+
+test("structure: add, move, copy, remove and change columns without losing anything", async () => {
+  const ops = await import("../src/lib/design/email/ops.ts");
+  let d = doc({ sections: [{ id: "s1", columns: [{ id: "c1", blocks: [{ id: "a", type: "heading", text: "A" }, { id: "b", type: "heading", text: "B" }, { id: "c", type: "heading", text: "C" }] }] }], styles: { a: { heading: { base: { color: "#ff0000" } } } } });
+  const order = (x: EmailDoc) => x.sections.flatMap((s) => s.columns.flatMap((c) => c.blocks.map((b) => b.id)));
+  assert.deepEqual(order(ops.moveBlock(d, "a", { column: "c1", index: 3 })), ["b", "c", "a"], "moving down counts the place before it's taken out");
+  assert.deepEqual(order(ops.moveBlock(d, "c", { column: "c1", index: 0 })), ["c", "a", "b"]);
+  const dup = ops.duplicateEl(d, "a");
+  assert.equal(order(dup.doc).length, 4);
+  assert.notEqual(dup.id, "a");
+  assert.deepEqual(dup.doc.styles?.[dup.id!], d.styles?.a, "a copy keeps the looks under its own id");
+  const two = ops.setColumns(d, "s1", [50, 50]);
+  assert.equal(two.sections[0]!.columns.length, 2);
+  const back = ops.setColumns(ops.addBlock(two, newBlock("divider", "z"), { column: two.sections[0]!.columns[1]!.id, index: 0 }), "s1", [100]);
+  assert.deepEqual(order(back), ["a", "b", "c", "z"], "blocks from a removed column move into the one kept");
+  d = ops.removeEl(d, "a");
+  assert.equal(d.styles, undefined, "a removed block's styles go too");
+  assert.deepEqual(order(ops.removeEl(ops.addBlock(d, newBlock("text", "t"), { section: 1 }), d.sections[0]!.id)), ["t"]);
+  const u = ops.updateBlock(d, "b", { text: "New", id: "hack", type: "html" } as never);
+  assert.deepEqual(u.sections[0]!.columns[0]!.blocks[0], { id: "b", type: "heading", text: "New", level: 2 });
+  assert.deepEqual(readEmailDoc(dup.doc), dup.doc, "every change reads back the same");
+});

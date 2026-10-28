@@ -200,6 +200,34 @@ test("a non-marketing email has no footer or unsubscribe headers", () => {
   assert.equal(out.text, "Hi\n");
 });
 
+test("a block email: each click keeps its link when a part is left out for someone or a link holds a merge value", () => {
+  const cond = (c: object) => `<!--clr-if:${encodeURIComponent(JSON.stringify(c)).replace(/-/g, "%2D")}-->`;
+  const html = `<html><body>${cond({ field: "company", op: "is", value: "Acme" })}<a href="https://acme.com/only-acme">A</a><!--clr-end--><a href="https://x.io/{{first_name}}">M</a><a href="https://acme.com/all">B</a><p><a href="{{unsubscribe_url}}">Unsubscribe</a><br>{{company_address}}</p></body></html>`;
+  // What publishing stores: the links in order, as extractLinks finds them in the compiled email.
+  const links = extractLinks(html);
+  assert.deepEqual(links, ["https://acme.com/only-acme", "https://acme.com/all"]);
+  const base = { html, links, text: `${cond({ field: "company", op: "is", value: "Acme" })}A: https://acme.com/only-acme<!--clr-end-->\nUnsubscribe: {{unsubscribe_url}}`, preheader: null };
+  for (const company of ["Acme", "Other"]) {
+    const out = renderMessage(claimed({ ...base, vars: { company, first_name: "dana" } }), { base: "https://app.test", secret: SECRET });
+    const clicks = [...out.html.matchAll(/href="https:\/\/app\.test\/c\/([^"]+)">(\w)</g)].map((m) => [m[2], readToken(m[1]!, SECRET)?.link]);
+    // B is always the second stored link, whether or not A was left out; the merged link isn't tracked.
+    assert.deepEqual(clicks, company === "Acme" ? [["A", 0], ["B", 1]] : [["B", 1]]);
+    assert.match(out.html, /href="https:\/\/x\.io\/dana"/);
+    assert.doesNotMatch(out.html, /clr-if|clr-end|\{\{/);
+    // Its own footer is used: the unsubscribe link and address go in, and no second footer is added.
+    assert.equal((out.html.match(/Unsubscribe/g) ?? []).length, 1);
+    assert.match(out.html, /href="https:\/\/app\.test\/u\/[^"]+">Unsubscribe<\/a><br>1 Main St, Springfield/);
+    assert.ok(out.headers.some((h) => h.name === "List-Unsubscribe"));
+    assert.equal(out.text.includes("only-acme"), company === "Acme");
+    assert.match(out.text, /Unsubscribe: https:\/\/app\.test\/u\//);
+  }
+  // A footer left out by a condition still leaves the email with an unsubscribe link: the fixed one.
+  const hidden = `<html><body><p>Hi</p>${cond({ field: "title", op: "is_set" })}<a href="{{unsubscribe_url}}">Unsubscribe</a><!--clr-end--></body></html>`;
+  const out = renderMessage(claimed({ html: hidden, links: [], vars: {} }), { base: "https://app.test", secret: SECRET });
+  assert.equal((out.html.match(/>Unsubscribe</g) ?? []).length, 1);
+  assert.match(out.html, /Acme · 1 Main St, Springfield<br><a href="https:\/\/app\.test\/u\//);
+});
+
 const svix = (secret: string, id: string, ts: number, body: string) => `v1,${createHmac("sha256", Buffer.from(secret.replace(/^whsec_/, ""), "base64")).update(`${id}.${ts}.${body}`).digest("base64")}`;
 
 test("webhooks: only a fresh delivery signed with our secret is trusted", () => {
