@@ -18,8 +18,9 @@ const start = readEmailDoc({
     { id: "s2", columns: [{ id: "c2", blocks: [{ id: "f1", type: "footer", address: "1 Main St" }] }] },
   ],
 });
-const w = window as unknown as { saved: EmailDoc[] };
+const w = window as unknown as { saved: EmailDoc[]; subjects: string[] };
 w.saved = [];
+w.subjects = [];
 
 function App() {
   const [open, setOpen] = useState(true);
@@ -32,7 +33,10 @@ function App() {
       workspaceId="0190f5a2-1c3b-7d4e-8f90-000000000001"
       subject="Welcome"
       doc={start}
-      onChange={(d) => w.saved.push(d)}
+      onChange={(d, subject) => {
+        w.saved.push(d);
+        if (subject) w.subjects.push(subject);
+      }}
       onClose={() => setOpen(false)}
     />
     </>

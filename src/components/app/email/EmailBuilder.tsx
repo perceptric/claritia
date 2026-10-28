@@ -32,6 +32,9 @@ import { CheckSquare, Diamond, ElementIcon, Layers, PlusSquare } from "../forms/
 import type { Kit } from "../forms/shared";
 import { useDesignDraft } from "../forms/useDesignDraft";
 import { BlockSettings } from "./BlockSettings";
+import { AiPanel } from "./AiPanel";
+import { Versions } from "./Versions";
+import { AiMark } from "../Ai";
 import { CheckList } from "./CheckList";
 import { checkEmailDesign } from "@/lib/design/check";
 import { EmailCanvas } from "./EmailCanvas";
@@ -68,6 +71,7 @@ export function EmailBuilder({
   subject,
   doc: start,
   onChange,
+  versionRef,
   onClose,
 }: {
   session: Session;
@@ -75,7 +79,10 @@ export function EmailBuilder({
   workspaceId: string;
   subject: string;
   doc: EmailDoc;
-  onChange: (doc: EmailDoc) => void;
+  /** The document as it changes; with the subject when the AI changed it, in the same call. */
+  onChange: (doc: EmailDoc, subject?: string) => void;
+  /** Where the AI's versions of this email are kept ("wf:<workflow>:<step>" or "tpl:<template>"). */
+  versionRef?: string;
   onClose: () => void;
 }) {
   const [kits, setKits] = useState<Kit[]>([]);
@@ -111,21 +118,21 @@ export function EmailBuilder({
   const latest = useRef(doc);
   const merge = useRef<{ key: string; at: number } | null>(null);
   const put = useCallback(
-    (d: EmailDoc) => {
+    (d: EmailDoc, subject?: string) => {
       latest.current = d;
       setDoc(d);
-      onChange(d);
+      onChange(d, subject);
     },
     [onChange],
   );
   const apply = useCallback(
-    (next: Partial<EmailEdit>, mergeOn?: string) => {
+    (next: Partial<EmailEdit> & { subject?: string }, mergeOn?: string) => {
       const now = Date.now();
       const joins = !!mergeOn && merge.current?.key === mergeOn && now - merge.current.at < 1000;
       merge.current = mergeOn ? { key: mergeOn, at: now } : null;
       if (!joins) setPast((p) => [...p.slice(-99), { doc: latest.current, system: draft.current() }]);
       setFuture([]);
-      if (next.doc && next.doc !== latest.current) put(next.doc);
+      if (next.doc && next.doc !== latest.current) put(next.doc, next.subject);
       if (next.system && next.system !== draft.current()) draft.set(next.system);
     },
     [draft, put],
@@ -151,7 +158,7 @@ export function EmailBuilder({
 
   const assetCtx = useMemo(() => ({ session, sb, workspaceId }), [session, sb, workspaceId]);
   const [rail, setRail] = useState<Rail>("add");
-  const [side, setSide] = useState<"settings" | "style">("settings");
+  const [side, setSide] = useState<"settings" | "style" | "ai">("settings");
   const [device, setDevice] = useState<EmailBp>("base");
   const [dark, setDark] = useState(false);
   const [client, setClient] = useState<Client | "">("");
@@ -466,14 +473,28 @@ export function EmailBuilder({
         />
         <aside aria-label="Inspector" className="flex min-h-0 flex-col border-l border-line bg-card">
           <div role="tablist" aria-label="Inspector" className="flex h-11 shrink-0 items-center gap-1 border-b border-line px-2">
-            {(["settings", "style"] as const).map((k) => (
-              <button key={k} type="button" role="tab" aria-selected={side === k} onClick={() => setSide(k)} className={`press h-7 rounded-full px-3 text-[12.5px] font-medium transition-colors duration-[140ms] ${side === k ? "bg-ink text-paper" : "text-muted hover:text-ink"}`}>
-                {k === "settings" ? "Settings" : "Style"}
+            {(["settings", "style", "ai"] as const).map((k) => (
+              <button key={k} type="button" role="tab" aria-selected={side === k} onClick={() => setSide(k)} className={`press inline-flex h-7 items-center gap-1 rounded-full px-3 text-[12.5px] font-medium transition-colors duration-[140ms] ${side === k ? "bg-ink text-paper" : "text-muted hover:text-ink"}`}>
+                {k === "ai" ? <AiMark size={12} /> : null}
+                {k === "settings" ? "Settings" : k === "style" ? "Style" : "AI"}
               </button>
             ))}
+            <span className="flex-1" />
+            {versionRef ? <Versions sb={sb} workspaceId={workspaceId} versionRef={versionRef} onRestore={(d) => apply({ doc: { ...d, ...(latest.current.kitId && !d.kitId ? { kitId: latest.current.kitId } : {}) } })} /> : null}
           </div>
           <div className="min-h-0 flex-1 overflow-y-auto">
-            {side === "settings" ? (
+            {side === "ai" ? (
+              <AiPanel
+                session={session}
+                workspaceId={workspaceId}
+                versionRef={versionRef}
+                doc={() => latest.current}
+                subject={subject}
+                system={system}
+                tokens={tokens}
+                onResult={(r) => apply({ doc: readEmailDoc(r.doc, { allowHtml: true }), ...(r.system ? { system: readSystem(r.system, tokens) } : {}), ...(r.subject && r.subject !== subject ? { subject: r.subject } : {}) })}
+              />
+            ) : side === "settings" ? (
               <BlockSettings
                 doc={doc}
                 system={system}

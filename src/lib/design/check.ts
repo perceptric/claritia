@@ -119,10 +119,12 @@ export function checkEmailDesign(system: DesignSystem, given: EmailDoc, tokens: 
       if (/<a\b[^>]*>\s*<\/a>/i.test(b.html)) out.push({ level: "warn", id: b.id, text: "A link has no words." });
     }
   }
-  for (const s of doc.sections) {
-    const buttons = s.columns.flatMap((c) => c.blocks).filter((b) => b.type === "button" || b.type === "meeting");
-    if (buttons.length > 1) out.push({ level: "warn", id: s.id, text: "A section has more than one main button." });
-  }
+  // Side-by-side columns can each have their own button; one column with two competes with itself.
+  for (const s of doc.sections)
+    for (const c of s.columns) {
+      const buttons = c.blocks.filter((b) => b.type === "button" || b.type === "meeting");
+      if (buttons.length > 1) out.push({ level: "warn", id: s.id, text: "A section has more than one main button." });
+    }
   for (const gap of new Set(mergeGaps(`${doc.settings.preheader}\n${emailText(doc)}`))) {
     if (!/unsubscribe_url|company_address/.test(gap)) out.push({ level: "warn", text: `Give ${gap} a fallback, like {{first_name|there}}.` });
   }

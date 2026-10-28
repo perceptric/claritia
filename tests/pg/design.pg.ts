@@ -89,3 +89,29 @@ test("images: only members add or delete them, and only their workspace's", asyn
   assert.equal((await q(`select count(*)::int n from design_assets where id = $1`, [id]))[0].n, 0);
   await assert.rejects(q(`insert into design_assets (workspace_id, path, url, type, width, height, bytes) values ($1, 'x', 'y', 'image/svg+xml', 1, 1, 1)`, [ws]), /check/, "only the four image types");
 });
+
+test("email versions: only members add them, members read their own, and the last 50 are kept", async () => {
+  const { ws, user } = await workspace();
+  const other = await workspace();
+  const add = (u: string, n: number) => q(`select email_version_add($1, $2, 'tpl:0190f5a2-1c3b-7d4e-8f90-123456789abc', $3, 'Subject', $4, true) as id`, [ws, u, { v: 1, n }, `v${n}`]);
+  await assert.rejects(add(other.user, 0), /not found/);
+  for (let n = 1; n <= 52; n++) await add(user, n);
+  const rows = await q(`select note from email_versions where workspace_id = $1 order by created_at desc, note desc`, [ws]);
+  assert.equal(rows.length, 50);
+  assert.ok(!rows.some((r) => r.note === "v1" || r.note === "v2"), "the oldest go");
+  // Read as a signed-in person, through row level security.
+  const seen = async (u: string) => {
+    const c = await pool.connect();
+    try {
+      await c.query("begin");
+      await c.query("set local role authenticated");
+      await c.query(`select set_config('request.jwt.claim.sub', $1, true)`, [u]);
+      return (await c.query(`select count(*)::int as n from email_versions where workspace_id = $1`, [ws])).rows[0].n as number;
+    } finally {
+      await c.query("rollback");
+      c.release();
+    }
+  };
+  assert.equal(await seen(other.user), 0, "another workspace sees none");
+  assert.equal(await seen(user), 50);
+});

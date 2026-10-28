@@ -41,6 +41,17 @@ await page.route("**/api/design/save", async (route) => {
   await route.fulfill({ json: { rev: ++rev, design: b.design } });
 });
 
+// The AI answers here: it adds a heading to the last section (three ways when asked for three versions).
+await page.route("**/api/email/chat", async (route) => {
+  const b = JSON.parse(route.request().postData() ?? "{}");
+  const one = (i: number) => {
+    const doc = JSON.parse(JSON.stringify(b.doc));
+    doc.sections.at(-1).columns[0].blocks.unshift({ id: `ai${i}`, type: "heading", text: `AI heading ${i}`, level: 2 });
+    return { doc, system: null, subject: `AI subject ${i}`, reply: "Renamed the heading.", lines: ["Changed the heading"], ask: null };
+  };
+  await route.fulfill({ json: b.variants === 3 ? { variants: [one(1), one(2), one(3)] } : one(0) });
+});
+
 const frame = () => page.frameLocator('iframe[title="Email"]');
 const inFrame = <T,>(fn: string) => page.evaluate(`(() => { const d = document.querySelector('iframe[title="Email"]').contentDocument; return (${fn})(d); })()`) as Promise<T>;
 const saved = () => page.evaluate(() => (window as unknown as { saved: { sections: { columns: { blocks: { type: string; text?: string }[] }[] }[] }[] }).saved.at(-1));
@@ -117,6 +128,26 @@ try {
   await heading.fill("Second copy");
   await page.waitForTimeout(200);
   check((await frame().locator("h2", { hasText: "Second copy" }).count()) === 1 && (await frame().locator("h2", { hasText: "Hello Dana" }).count()) === 1, "one use's own words leave the other alone");
+
+  // The AI tab: a change shows at once, with what it did; three versions to pick from; undo takes it back.
+  await page.getByRole("tab", { name: "AI" }).click();
+  await page.getByRole("textbox", { name: "What to change" }).fill("Rename the heading");
+  await page.getByRole("button", { name: "Change" }).click();
+  await page.waitForTimeout(300);
+  check((await frame().locator("h2", { hasText: "AI heading 0" }).count()) >= 1, "the AI's change shows in the email");
+  check(await page.getByText("Changed the heading").isVisible(), "with what it changed");
+  const subj = await page.evaluate(() => (window as unknown as { subjects: string[] }).subjects.at(-1));
+  check(subj === "AI subject 0", `the AI's subject goes back with the email in one change (${subj})`);
+  await page.getByRole("textbox", { name: "What to change" }).fill("Try three");
+  await page.getByRole("button", { name: "3 versions" }).click();
+  await page.getByRole("dialog", { name: "Three versions" }).waitFor();
+  check((await page.locator('iframe[title^="Version "]').count()) === 3, "three versions show side by side");
+  await page.getByRole("button", { name: "Use this" }).nth(1).click();
+  await page.waitForTimeout(300);
+  check((await frame().locator("h2", { hasText: "AI heading 2" }).count()) >= 1, "the one picked goes into the email");
+  await page.keyboard.press("ControlOrMeta+z");
+  await page.waitForTimeout(200);
+  check((await frame().locator("h2", { hasText: "AI heading 2" }).count()) === 0, "undo takes the AI's change back");
 
   // Phone width and dark mode.
   await page.getByRole("radio", { name: "Phone", exact: true }).click();

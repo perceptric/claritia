@@ -117,7 +117,7 @@ export function EmailTemplatesView({ sb, ws, session }: ViewProps) {
                   setSaved(false);
                 }}
                 readOnly={false}
-                builder={{ session, sb, ws: ws.id }}
+                builder={{ session, sb, ws: ws.id, ref: `tpl:${open.id}` }}
               />
               {gaps.length ? <p className="text-[12.5px] text-butter">Add a fallback to {[...new Set(gaps)].join(", ")}</p> : null}
               <span role="status" className="text-[12.5px] text-muted">

@@ -284,7 +284,7 @@ export function Conditions({ conds, onChange, readOnly }: { conds: Cond[]; onCha
 // Email --------------------------------------------------------------------------------------------------------------
 
 /** Where the email builder opens from: who is signed in and the workspace. */
-export type BuilderCtx = { session: Session; sb: SupabaseClient; ws: string };
+export type BuilderCtx = { session: Session; sb: SupabaseClient; ws: string; /** Where the AI's versions are kept. */ ref?: string };
 
 export function EmailForm({ email, onChange, readOnly, builder }: { email: EmailBody; onChange: (e: EmailBody, key?: string) => void; readOnly: boolean; builder?: BuilderCtx }) {
   const [open, setOpen] = useState(false);
@@ -294,7 +294,16 @@ export function EmailForm({ email, onChange, readOnly, builder }: { email: Email
     </Row>
   );
   const built = open && builder && email.doc ? (
-    <EmailBuilder session={builder.session} sb={builder.sb} workspaceId={builder.ws} subject={email.subject} doc={email.doc} onChange={(doc) => onChange({ ...email, doc }, "doc")} onClose={() => setOpen(false)} />
+    <EmailBuilder
+      session={builder.session}
+      sb={builder.sb}
+      workspaceId={builder.ws}
+      subject={email.subject}
+      doc={email.doc}
+      versionRef={builder.ref}
+      onChange={(doc, subject) => onChange({ ...email, doc, ...(subject ? { subject } : {}) }, "doc")}
+      onClose={() => setOpen(false)}
+    />
   ) : null;
   // Built with blocks: the subject here, the rest in the builder.
   if (email.doc)
@@ -467,7 +476,7 @@ export function StepPanel(p: {
               className="h-9 w-full"
             />
           ) : null}
-          <EmailForm email={s.email} onChange={(email, key) => p.onPatch({ email } as Partial<Step>, key)} readOnly={p.readOnly} builder={p.sb ? { session: p.session, sb: p.sb, ws: p.ws } : undefined} />
+          <EmailForm email={s.email} onChange={(email, key) => p.onPatch({ email } as Partial<Step>, key)} readOnly={p.readOnly} builder={p.sb ? { session: p.session, sb: p.sb, ws: p.ws, ...(p.workflowId ? { ref: `wf:${p.workflowId}:${s.id}` } : {}) } : undefined} />
           {s.notes?.length ? (
             <div className="flex flex-col gap-1 rounded-lg bg-butter-wash px-3 py-2.5">
               <span className={label}>Check before approving</span>
