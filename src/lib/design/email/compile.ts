@@ -20,8 +20,10 @@ export type CompileOpts = {
   logo?: string | null;
   /** A Google Fonts stylesheet for the fonts used, for clients that load web fonts. */
   fontUrl?: string;
-  /** Builder previews: mark each element with data-eid so the canvas can find it. */
+  /** Builder previews: mark each element with data-eid, and each part with its class, so the canvas can find them. */
   preview?: boolean;
+  /** Builder previews: draw the dark rules whatever the computer's setting is. */
+  forceDark?: boolean;
 };
 export type CompileNote = { level: "block" | "warn"; text: string; id?: string };
 export type Compiled = { html: string; text: string; size: number; notes: CompileNote[] };
@@ -94,7 +96,7 @@ function style(ctx: Ctx, id: string, part: EmailPartKey, skip?: (p: Prop) => boo
     if (text) ctx.rules.ogsc.push(`[data-ogsc] ${sel}{${text}}`);
     if (back) ctx.rules.ogsc.push(`[data-ogsb] ${sel}{${back}}`);
   }
-  return { inline: css(base, skip), className: p || h || d || pd ? cls(id, part) : "", base };
+  return { inline: css(base, skip), className: p || h || d || pd || ctx.opts.preview ? cls(id, part) : "", base };
 }
 
 const attrClass = (c: string) => (c ? ` class="${c}"` : "");
@@ -307,8 +309,8 @@ export function compileEmail(system: DesignSystem, doc: EmailDoc, opts: CompileO
     "a[x-apple-data-detectors]{color:inherit!important;text-decoration:none!important}",
     `@media (max-width:${PHONE}px){.clr-w{width:100%!important}.clr-stack{max-width:100%!important;display:block!important}.clr-hp{display:none!important}.clr-sp{display:block!important;max-height:none!important;overflow:visible!important}${phone.join("")}}`,
     hover.length ? `@media (hover:hover){${hover.join("")}}` : "",
-    dark.length ? `@media (prefers-color-scheme:dark){${dark.join("")}}${ogsc.join("")}` : "",
-    phoneDark.length ? `@media (max-width:${PHONE}px) and (prefers-color-scheme:dark){${phoneDark.join("")}}` : "",
+    dark.length ? (opts.forceDark ? dark.join("") : `@media (prefers-color-scheme:dark){${dark.join("")}}${ogsc.join("")}`) : "",
+    phoneDark.length ? `@media (max-width:${PHONE}px)${opts.forceDark ? "" : " and (prefers-color-scheme:dark)"}{${phoneDark.join("")}}` : "",
   ]
     .filter(Boolean)
     .join("\n");

@@ -1,9 +1,5 @@
-import { fontUrl } from "@/components/app/forms/editorModel";
-import { compileEmail } from "@/lib/design/email/compile";
-import { designFonts } from "@/lib/design/form";
-import { readSystem } from "@/lib/design/model";
+import { compileWithKit, hasHtmlBlock, loadKits } from "@/lib/design/email/server";
 import { extractLinks } from "@/lib/email/track";
-import { cleanTokens } from "@/lib/forms/brand";
 import { stepEmail } from "@/lib/nurture/email";
 import { requireUser } from "@/lib/serverAuth";
 import { serviceClient } from "@/lib/serviceClient";
@@ -37,20 +33,17 @@ export async function POST(request: Request) {
     if (s.kind === "email" && s.email.doc) docs.push(s);
   });
   // Brand kits for emails built with blocks: the one each names, else the workspace's first.
-  const kits = docs.length ? ((await db.from("brand_kits").select("id, tokens, logo_url, design_live").eq("workspace_id", w.workspace_id).order("created_at")).data ?? []) : [];
-  if (docs.some((s) => s.email.doc!.sections.some((x) => x.columns.some((c) => c.blocks.some((b) => b.type === "html"))))) {
+  const kits = docs.length ? await loadKits(db, w.workspace_id) : [];
+  if (docs.some((s) => hasHtmlBlock(s.email.doc!))) {
     const { data: me } = await auth.sb.from("workspace_members").select("role").eq("workspace_id", w.workspace_id).eq("user_id", auth.user.id).maybeSingle();
     if (me?.role !== "owner") return bad("Only owners can make HTML blocks live.");
   }
   const compiled = new Map<string, { html: string; text: string; preheader: string }>();
   for (const s of docs) {
     const doc = s.email.doc!;
-    const kit = kits.find((k) => k.id === doc.kitId) ?? kits[0];
-    const tokens = cleanTokens(kit?.tokens ?? {}).tokens;
-    const system = readSystem(kit?.design_live ?? {}, tokens);
     let r;
     try {
-      r = compileEmail(system, doc, { tokens, logo: kit?.logo_url ?? null, fontUrl: fontUrl(designFonts(system, doc.styles ?? null)) });
+      r = compileWithKit(doc, kits, "live");
     } catch {
       return bad(`The email "${s.email.subject}" couldn't be built. Open it and try again.`);
     }
