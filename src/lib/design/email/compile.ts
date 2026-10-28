@@ -7,7 +7,7 @@
 
 import { literal } from "../cascade.ts";
 import { allVariables, type DesignSystem, type Variable } from "../model.ts";
-import { cssName, propDef, type Prop } from "../props.ts";
+import { cssName, propDef, type Client, type Prop } from "../props.ts";
 import type { Tokens } from "../../forms/brand.ts";
 import { condHolds, type Block, type EmailCond, type EmailDoc, type Section } from "./doc.ts";
 import { escapeAttr, escapeText, htmlToText } from "./html.ts";
@@ -24,6 +24,8 @@ export type CompileOpts = {
   preview?: boolean;
   /** Builder previews: draw the dark rules whatever the computer's setting is. */
   forceDark?: boolean;
+  /** Builder previews (Client view, Part 5.4): leave out what this mail app ignores, so the canvas looks like it. */
+  client?: Client;
 };
 export type CompileNote = { level: "block" | "warn"; text: string; id?: string };
 export type Compiled = { html: string; text: string; size: number; notes: CompileNote[] };
@@ -56,9 +58,20 @@ function values(ctx: Ctx, id: string, part: EmailPartKey, bp: EmailBp = "base", 
 
 const SKIP_INLINE = new Set<Prop>(["display", "position", "inset-top", "inset-right", "inset-bottom", "inset-left", "z-index", "cursor", "transition-duration", "transition-timing-function", "transform", "outline-width", "outline-style", "outline-color", "outline-offset"]);
 const isMargin = (p: string) => p.startsWith("margin-");
-const css = (decls: Partial<Record<Prop, string>>, skip: (p: Prop) => boolean = () => false, important = false) =>
+// Fonts every mail app has: what a font stack falls back to where web fonts don't load.
+const SAFE_FONTS = /^(arial|helvetica|georgia|times new roman|times|verdana|tahoma|trebuchet ms|courier new|courier|segoe ui|system-ui|-apple-system|ui-sans-serif|ui-serif|sans-serif|serif|monospace)$/i;
+const safeStack = (v: string) => v.split(",").map((f) => f.trim()).filter((f) => SAFE_FONTS.test(f.replace(/^['"]|['"]$/g, ""))).join(", ") || "sans-serif";
+
+/** Declarations as CSS. With a client (Client view), what it ignores is left out and fonts fall back as it would. */
+const cssFor = (client: Client | undefined) => (decls: Partial<Record<Prop, string>>, skip: (p: Prop) => boolean = () => false, important = false) =>
   Object.entries(decls)
     .filter(([p]) => !SKIP_INLINE.has(p as Prop) && !skip(p as Prop) && propDef(p as Prop).email !== false)
+    .map(([p, v]) => {
+      const ignores = !!client && (propDef(p as Prop).email || []).includes(client);
+      if (!ignores) return [p, v] as const;
+      return p === "font-family" ? ([p, safeStack(v!)] as const) : null;
+    })
+    .filter((x): x is readonly [string, string] => !!x)
     .map(([p, v]) => `${cssName(p as Prop)}:${v}${important ? " !important" : ""}`)
     .join(";");
 
@@ -73,6 +86,7 @@ const cls = (id: string, part: EmailPartKey) => `c${id}-${part}`;
  * properties placed elsewhere (margins go on the wrapper cell).
  */
 function style(ctx: Ctx, id: string, part: EmailPartKey, skip?: (p: Prop) => boolean): { inline: string; className: string; base: Partial<Record<Prop, string>> } {
+  const css = cssFor(ctx.opts.client);
   const base = values(ctx, id, part);
   const sel = `.${cls(id, part)}`;
   const phone = diff(base, values(ctx, id, part, "phone"));

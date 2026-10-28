@@ -222,3 +222,66 @@ test("structure: add, move, copy, remove and change columns without losing anyth
   assert.deepEqual(u.sections[0]!.columns[0]!.blocks[0], { id: "b", type: "heading", text: "New", level: 2 });
   assert.deepEqual(readEmailDoc(dup.doc), dup.doc, "every change reads back the same");
 });
+
+test("client view: what a mail app ignores is left out, and fonts fall back to the safe ones", () => {
+  const system = sys({ email: { globals: { heading: { base: { "box-shadow": "0 1px 2px #000000", "border-top-left-radius": "8px", "font-family": "'Poppins', Arial, sans-serif" } } } } });
+  const d = one([{ id: "h", type: "heading", text: "Hi" }]);
+  const all = compileEmail(system, d, { tokens: DEFAULT_TOKENS }).html;
+  assert.match(all, /box-shadow:0 1px 2px #000000/);
+  const outlook = compileEmail(system, d, { tokens: DEFAULT_TOKENS, client: "outlook" }).html;
+  assert.doesNotMatch(outlook, /box-shadow|border-top-left-radius:8px/);
+  assert.match(outlook, /<h2 [^>]*font-family:Arial, sans-serif/);
+  const apple = compileEmail(system, d, { tokens: DEFAULT_TOKENS, client: "apple" }).html;
+  assert.match(apple, /box-shadow:0 1px 2px #000000/, "Apple Mail draws shadows");
+});
+
+test("design check: hard-to-read text, alt text, buttons, small text, links, merge tags and near colors", async () => {
+  const { checkEmailDesign, checkFormDesign, hex } = await import("../src/lib/design/check.ts");
+  assert.equal(hex("rgb(255, 0, 0)"), "#ff0000");
+  assert.equal(hex("#abc"), "#aabbcc");
+  assert.equal(hex("rgba(0,0,0,0.5)"), null, "see-through colors aren't judged");
+  const system = sys({ variables: [{ id: "brand", name: "Brand", kind: "color", value: "#3355ff", dark: "#202020" }], email: { globals: { content: { "base:dark": { "background-color": "#111111" } } } } });
+  const d = doc({
+    sections: [
+      {
+        id: "s1",
+        columns: [
+          {
+            id: "c1",
+            blocks: [
+              { id: "h", type: "heading", text: "Hi {{first_name}}" },
+              { id: "i", type: "image", src: "https://cdn.io/x.png", alt: "" },
+              { id: "b1", type: "button", label: "One", url: "http://a.io" },
+              { id: "b2", type: "button", label: "Two", url: "https://a.io" },
+              { id: "t", type: "text", html: '<p>x <a href="https://a.io"></a></p>' },
+            ],
+          },
+        ],
+      },
+    ],
+    styles: { h: { heading: { base: { color: "#eeeeee" }, "base:dark": { color: "$brand" } } }, t: { text: { phone: { "font-size": "12px" }, base: { color: "#3356fe" } } } },
+  });
+  const notes = checkEmailDesign(system, d, DEFAULT_TOKENS);
+  const has = (re: RegExp, id?: string) => notes.some((n) => re.test(n.text) && (id === undefined || n.id === id));
+  assert.ok(has(/hard to read \(/, "h"), "light gray on white");
+  assert.ok(notes.some((n) => n.id === "h" && /dark mode/.test(n.text)), "a variable's dark value on the dark background");
+  assert.ok(has(/alt text/, "i"));
+  assert.ok(has(/more than one main button/, "s1"));
+  assert.ok(has(/http:\/\//, "b1"));
+  assert.ok(has(/12px on phones/, "t"));
+  assert.ok(has(/no words/, "t"));
+  assert.ok(has(/nearly Brand/, "t"));
+  assert.ok(has(/Give \{\{first_name\}\} a fallback/));
+  assert.ok(notes.some((n) => n.level === "block" && /Footer/.test(n.text)));
+  assert.ok(!checkEmailDesign(system, d, DEFAULT_TOKENS, { marketing: false }).some((n) => n.level === "block"));
+  // The starting email passes.
+  const start = (await import("../src/lib/design/email/doc.ts")).emptyEmailDoc();
+  assert.deepEqual(checkEmailDesign(sys(), start, DEFAULT_TOKENS).filter((n) => !/button is/.test(n.text)), []);
+  // Forms.
+  const { checkForm, emptyForm } = await import("../src/lib/forms/schema.ts");
+  const r = checkForm({ ...emptyForm(), steps: [{ id: "s", fields: [{ id: "a", key: "email", type: "email", label: "Email", required: true }] }], design: { styles: { a: { label: { base: { color: "#dddddd" } }, input: { phone: { "min-height": "30px" } } } } } });
+  assert.ok("form" in r);
+  const fn = checkFormDesign(sys(), r.form, DEFAULT_TOKENS);
+  assert.ok(fn.some((n) => /label of Email is hard to read/.test(n.text)));
+  assert.ok(fn.some((n) => /30px tall on phones/.test(n.text)));
+});

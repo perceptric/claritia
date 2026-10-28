@@ -1,7 +1,7 @@
 // What stops a workflow from going live, in words (like src/lib/router/check.ts). The editor shows these as you
 // build; Make live refuses while any is left. `cleanBody` makes stored or sent JSON safe to use.
 
-import { mergeGaps } from "./engine.ts";
+import { mergeGaps } from "./merge.ts";
 import { emailText } from "../design/email/compile.ts";
 import { readEmailDoc, type EmailDoc } from "../design/email/doc.ts";
 import { countSteps, maxDepth, pathsOf, walk } from "./tree.ts";

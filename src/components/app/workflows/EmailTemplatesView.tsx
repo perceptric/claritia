@@ -5,7 +5,7 @@
 // itself 800 ms after the last change, like every editor.
 
 import { useEffect, useState } from "react";
-import { mergeGaps } from "@/lib/workflows/engine";
+import { mergeGaps } from "@/lib/workflows/merge";
 import { emptyEmail, type EmailBody } from "@/lib/workflows/types";
 import { Mail, Plus, Trash } from "../../Icons";
 import { askConfirm, askText } from "../Dialogs";

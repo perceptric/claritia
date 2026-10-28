@@ -3,7 +3,7 @@
 // headers Gmail and Yahoo require of bulk senders (RFC 8058).
 
 import { fromHeader, type Outgoing } from "./provider.ts";
-import { fillMerge } from "../workflows/engine.ts";
+import { fillMerge } from "../workflows/merge.ts";
 import { makeToken, rewriteLinks } from "./track.ts";
 import { applyConditions } from "../design/email/compile.ts";
 

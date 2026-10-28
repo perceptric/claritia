@@ -17,20 +17,24 @@ import { BLOCK_TYPES, type BlockType, type EmailPartKey } from "@/lib/design/ema
 import type { EmailBp, EmailState } from "@/lib/design/email/style";
 import { designFonts } from "@/lib/design/form";
 import { readSystem, type DesignSystem } from "@/lib/design/model";
+import { CLIENT_LABEL, type Client } from "@/lib/design/props";
+import { Select } from "../Select";
 import { cleanTokens } from "@/lib/forms/brand";
 import { ArrowDown, ArrowUp, Copy, Monitor, Moon, Phone, Redo, Send, Sun, Trash, Undo, X } from "../../Icons";
 import { Button, ErrorNote, IconButton, postJson, errorText } from "../ui";
 import { VariablesPanel } from "../forms/DesignPanels";
 import { fontUrl } from "../forms/editorModel";
-import { Diamond, ElementIcon, Layers, PlusSquare } from "../forms/icons";
+import { CheckSquare, Diamond, ElementIcon, Layers, PlusSquare } from "../forms/icons";
 import type { Kit } from "../forms/shared";
 import { useDesignDraft } from "../forms/useDesignDraft";
 import { BlockSettings } from "./BlockSettings";
+import { CheckList } from "./CheckList";
+import { checkEmailDesign } from "@/lib/design/check";
 import { EmailCanvas } from "./EmailCanvas";
 import { EmailStylePanel } from "./EmailStyle";
 
 type Snap = { doc: EmailDoc; system: DesignSystem };
-type Rail = "add" | "layers" | "variables";
+type Rail = "add" | "layers" | "variables" | "checks";
 
 const BLOCKS: { type: BlockType; label: string; icon: string }[] = [
   { type: "heading", label: "Heading", icon: "heading" },
@@ -145,6 +149,7 @@ export function EmailBuilder({
   const [side, setSide] = useState<"settings" | "style">("settings");
   const [device, setDevice] = useState<EmailBp>("base");
   const [dark, setDark] = useState(false);
+  const [client, setClient] = useState<Client | "">("");
   const [selected, setSelected] = useState<string | null>(null);
   const [part, setPart] = useState<EmailPartKey | null>(null);
   const [state, setState] = useState<EmailState | undefined>(undefined);
@@ -153,11 +158,11 @@ export function EmailBuilder({
   const logo = kit?.logo_url ?? null;
   const compiled = useMemo(() => {
     try {
-      return compileEmail(system, doc, { tokens, logo, preview: true, forceDark: dark, fontUrl: fontUrl(designFonts(system, doc.styles ?? null)) });
+      return compileEmail(system, doc, { tokens, logo, preview: true, forceDark: dark, client: client || undefined, fontUrl: client && client !== "apple" ? undefined : fontUrl(designFonts(system, doc.styles ?? null)) });
     } catch (e) {
       return { html: `<!doctype html><html><body><p>${errorText(e)}</p></body></html>`, text: "", size: 0, notes: [] };
     }
-  }, [system, doc, tokens, logo, dark]);
+  }, [system, doc, tokens, logo, dark, client]);
 
   /** Where a new block goes: after the picked block, at the end of the picked section, or before the footer. */
   const placeFor = (): Place => {
@@ -252,9 +257,17 @@ export function EmailBuilder({
     { id: "add", label: "Add", icon: <PlusSquare size={16} /> },
     { id: "layers", label: "Layers", icon: <Layers size={16} /> },
     { id: "variables", label: "Variables", icon: <Diamond size={16} /> },
+    { id: "checks", label: "Checks", icon: <CheckSquare size={16} /> },
   ];
   const width = device === "phone" ? 390 : doc.settings.width + 64;
-  const notes = compiled.notes.filter((n) => n.level === "block");
+  const checks = useMemo(() => {
+    try {
+      return checkEmailDesign(system, doc, tokens);
+    } catch {
+      return [];
+    }
+  }, [system, doc, tokens]);
+  const notes = checks.filter((n) => n.level === "block");
 
   return createPortal(
     <div role="dialog" aria-modal="true" aria-label="Email builder" className="anim-fade fixed inset-0 z-[85] flex flex-col bg-paper">
@@ -295,6 +308,15 @@ export function EmailBuilder({
             </button>
           ))}
         </div>
+        <span className="w-[150px]">
+          <Select<string>
+            value={client}
+            options={[{ value: "", label: "Every mail app" }, ...(Object.keys(CLIENT_LABEL) as Client[]).map((c) => ({ value: c, label: CLIENT_LABEL[c] }))]}
+            onChange={(v) => setClient(v as Client | "")}
+            ariaLabel="Client view"
+            className="h-8 w-full rounded-full px-2.5 text-[12.5px] font-medium text-ink hover:bg-hover"
+          />
+        </span>
         {stylesChanged ? (
           <Button variant="ghost" onClick={() => void publishStyles()}>
             Publish styles
@@ -314,8 +336,9 @@ export function EmailBuilder({
       <div className="grid min-h-0 flex-1 grid-cols-[44px_248px_minmax(0,1fr)_300px]">
         <nav aria-label="Panels" className="flex flex-col items-center gap-1 border-r border-line bg-card py-2">
           {rails.map((r) => (
-            <button key={r.id} type="button" aria-label={r.label} title={r.label} aria-pressed={rail === r.id} onClick={() => setRail(r.id)} className={`press flex size-8 items-center justify-center rounded-full transition-colors duration-[140ms] ${rail === r.id ? "bg-ink text-paper" : "text-muted hover:bg-hover hover:text-ink"}`}>
+            <button key={r.id} type="button" aria-label={r.id === "checks" && checks.length ? `${r.label}, ${checks.length}` : r.label} title={r.label} aria-pressed={rail === r.id} onClick={() => setRail(r.id)} className={`press relative flex size-8 items-center justify-center rounded-full transition-colors duration-[140ms] ${rail === r.id ? "bg-ink text-paper" : "text-muted hover:bg-hover hover:text-ink"}`}>
               {r.icon}
+              {r.id === "checks" && checks.length ? <span aria-hidden="true" className="absolute top-0.5 right-0.5 size-2 rounded-full bg-butter" /> : null}
             </button>
           ))}
         </nav>
@@ -335,6 +358,15 @@ export function EmailBuilder({
               </div>
             ) : null}
             {rail === "layers" ? <LayerList doc={doc} selected={sel} onSelect={(id) => (setSelected(id), setPart(null))} onNudge={nudge} onDuplicate={duplicate} onRemove={remove} /> : null}
+            {rail === "checks" ? (
+              <CheckList
+                notes={checks}
+                onPick={(id) => {
+                  setSelected(id && findEl(doc, id) ? id : null);
+                  setSide("settings");
+                }}
+              />
+            ) : null}
             {rail === "variables" ? (
               <VariablesPanel
                 e={{ system, design: {} }}

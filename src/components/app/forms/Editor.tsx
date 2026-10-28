@@ -12,7 +12,7 @@ import type { Op } from "@/lib/forms/ops";
 import { allFields, newId, type Form } from "@/lib/forms/schema";
 import type { CustomField } from "@/lib/records/fields";
 import { designFonts, formCss } from "@/lib/design/form";
-import type { DesignSystem, State } from "@/lib/design/model";
+import { readSystem, type DesignSystem, type State } from "@/lib/design/model";
 import type { PartKey } from "@/lib/design/parts";
 import type { Edit } from "@/lib/design/edit";
 import { FormCanvas, type Editing, type Picked } from "./FormCanvas";
@@ -25,10 +25,12 @@ import { Elements } from "./Elements";
 import { Inspector, type InspectorProps } from "./Inspector";
 import { Layers as LayersPanel } from "./Layers";
 import { addOp, canSit, fontUrl, duplicateOp, iconFor, nameOf, nudge, planDrop, type Device, type Dragged, type ElementDef, type Target } from "./editorModel";
-import { Diamond, ElementIcon, Hash, Layers, Palette, PlusSquare } from "./icons";
+import { CheckSquare, Diamond, ElementIcon, Hash, Layers, Palette, PlusSquare } from "./icons";
+import { CheckList } from "../email/CheckList";
+import { checkFormDesign } from "@/lib/design/check";
 import type { SourceRow } from "./shared";
 
-type Panel = "elements" | "layers" | "theme" | "styles" | "variables";
+type Panel = "elements" | "layers" | "theme" | "styles" | "variables" | "checks";
 type DragData = { kind: "element"; def: ElementDef } | { kind: "field"; id: string };
 type Line = { left: number; top: number; width: number; height: number };
 type Drop = { target: Target; line: Line } | null;
@@ -82,6 +84,13 @@ export function Editor({ form, apply, custom, sources, tokens, device, zoom, the
       return "";
     }
   }, [form, t, system, device]);
+  const checks = useMemo(() => {
+    try {
+      return checkFormDesign(readSystem(system, t), form, t);
+    } catch {
+      return [];
+    }
+  }, [system, form, t]);
   const fontKey = fontUrl(designFonts(system, form.design));
   const fonts = useMemo(() => (fontKey ? [fontKey] : []), [fontKey]);
   const fields = allFields(form);
@@ -259,6 +268,7 @@ export function Editor({ form, apply, custom, sources, tokens, device, zoom, the
     { id: "theme", label: "Theme", icon: <Palette size={16} /> },
     { id: "styles", label: "Styles", icon: <Hash size={16} /> },
     { id: "variables", label: "Variables", icon: <Diamond size={16} /> },
+    { id: "checks", label: "Checks", icon: <CheckSquare size={16} /> },
   ];
 
   return (
@@ -326,6 +336,16 @@ export function Editor({ form, apply, custom, sources, tokens, device, zoom, the
                     }
                   }}
                   live={live}
+                />
+              ) : null}
+              {panel === "checks" ? (
+                <CheckList
+                  notes={checks}
+                  onPick={(id) => {
+                    if (id && id !== "form") select(id, false);
+                    else if (id === "form") pick("form", "button", false);
+                    setSide("style");
+                  }}
                 />
               ) : null}
               {panel === "variables" ? (

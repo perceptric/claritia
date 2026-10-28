@@ -10,7 +10,7 @@ import { useState } from "react";
 import { BASE_FIELDS, needsValue, opsFor } from "@/lib/router/conditions";
 import { OPS, type Cond } from "@/lib/router/types";
 import { stepProblems } from "@/lib/workflows/check";
-import { MERGE_KEYS } from "@/lib/workflows/engine";
+import { MERGE_KEYS } from "@/lib/workflows/merge";
 import { STEP_KINDS, TRIGGERS, UPDATABLE, type Body, type EmailBody, type Goal, type Step, type Trigger, type TriggerKind } from "@/lib/workflows/types";
 import { Copy, Plus, Trash } from "../../Icons";
 import { AiMark } from "../Ai";
