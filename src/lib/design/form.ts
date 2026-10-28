@@ -1,6 +1,6 @@
 // A form's CSS from its design system (docs/design-system.md Part 3.2): the kit's published design and the form's own
 // element styles, read safely and compiled. The public form route sends it with the form; the builder makes the same
-// CSS from the draft, with container queries so the device frames show each breakpoint. Runs in the browser and on
+// CSS from the draft, with each device frame's breakpoint applied directly. Runs in the browser and on
 // the server.
 
 import type { Tokens } from "../forms/brand.ts";

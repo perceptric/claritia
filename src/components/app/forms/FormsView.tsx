@@ -150,7 +150,7 @@ function FormPage(props: ViewProps) {
   const data = useLoad(async () => {
     const [f, kits, sources, dests, custom, sites] = await Promise.all([
       sb.from("forms").select("id, name, status, draft, draft_rev, version, brand_kit_id, published_at").eq("id", id).maybeSingle(),
-      sb.from("brand_kits").select("id, name, tokens, logo_url, notes, source_url, scan_status, scan_error, scanned_at").eq("workspace_id", ws.id).order("created_at"),
+      sb.from("brand_kits").select("id, name, tokens, logo_url, notes, source_url, scan_status, scan_error, scanned_at, design, design_rev").eq("workspace_id", ws.id).order("created_at"),
       sb.from("sources").select("id, kind, name, status").eq("workspace_id", ws.id).order("name"),
       sb.from("form_destinations").select("id, kind, source_id, name, config, paused, position").eq("form_id", id).order("position"),
       sb.from("fields").select("key, label, type, options").eq("workspace_id", ws.id).eq("object", "contact").order("position"),
@@ -583,6 +583,7 @@ function Builder({
               device={device}
               zoom={zoom}
               theme={theme}
+              system={kit?.design}
               link={{ session, workspaceId: ws.id, sb, onFieldAdded: (f) => setAdded((a) => [...a, f]) }}
             />
           ) : tab === "share" ? (
@@ -621,7 +622,7 @@ function Builder({
           )}
         </div>
       </div>
-      {previewing ? <PreviewOverlay form={form} tokens={tokens} device={device} onClose={() => setPreviewing(false)} /> : null}
+      {previewing ? <PreviewOverlay form={form} tokens={tokens} system={kit?.design} device={device} onClose={() => setPreviewing(false)} /> : null}
     </Page>
   );
 }

@@ -11,7 +11,10 @@ import { cleanTokens, type Tokens } from "@/lib/forms/brand";
 import type { Op } from "@/lib/forms/ops";
 import { allFields, newId, type Form } from "@/lib/forms/schema";
 import type { CustomField } from "@/lib/records/fields";
-import { FormCanvas, type Editing } from "./FormCanvas";
+import { formCss } from "@/lib/design/form";
+import type { State } from "@/lib/design/model";
+import type { PartKey } from "@/lib/design/parts";
+import { FormCanvas, type Editing, type Picked } from "./FormCanvas";
 import { FormDesign, type ThemeProps } from "./FormDesign";
 import { Elements } from "./Elements";
 import { Inspector, type InspectorProps } from "./Inspector";
@@ -35,13 +38,19 @@ export type EditorProps = {
   zoom: "fit" | number;
   theme: ThemeProps;
   link?: InspectorProps["link"];
+  /** The design system's draft (the brand kit's), which the canvas draws with. */
+  system: unknown;
 };
 
-export function Editor({ form, apply, custom, sources, tokens, device, zoom, theme, link }: EditorProps) {
+const BP = { desktop: "base", tablet: "tablet", phone: "phone" } as const;
+
+export function Editor({ form, apply, custom, sources, tokens, device, zoom, theme, link, system }: EditorProps) {
   const [panel, setPanel] = useState<Panel | null>("elements");
   const [picked, setPicked] = useState<string[]>([]);
   const [hovered, setHovered] = useState<string | null>(null);
   const [editing, setEditing] = useState<Editing>(null);
+  const [part, setPart] = useState<Picked>(null);
+  const [state] = useState<State | undefined>(undefined);
   const [drag, setDrag] = useState<{ data: DragData; id: string } | null>(null);
   const [drop, setDropState] = useState<Drop>(null);
   // dnd-kit calls the handlers it was given when the drag began, so the drag and its target also live in refs.
@@ -53,6 +62,13 @@ export function Editor({ form, apply, custom, sources, tokens, device, zoom, the
   };
   const start = useRef({ x: 0, y: 0 });
   const t = useMemo(() => cleanTokens(tokens).tokens, [tokens]);
+  const css = useMemo(() => {
+    try {
+      return formCss(form, t, system, { device: BP[device], preview: true });
+    } catch {
+      return "";
+    }
+  }, [form, t, system, device]);
   const fields = allFields(form);
   // A selection the form no longer has (after an undo) falls away.
   const selected = picked.filter((id) => fields.some((f) => f.id === id));
@@ -60,11 +76,26 @@ export function Editor({ form, apply, custom, sources, tokens, device, zoom, the
 
   const select = useCallback((id: string, add: boolean) => {
     setEditing(null);
+    setPart(add ? null : { id, part: "field" });
     setPicked((cur) => (add ? (cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id]) : [id]));
   }, []);
+  const pick = useCallback(
+    (id: string, p: PartKey, add: boolean) => {
+      if (id !== "form") {
+        select(id, add);
+        if (!add) setPart({ id, part: p });
+        return;
+      }
+      setEditing(null);
+      setPicked([]);
+      setPart({ id, part: p });
+    },
+    [select],
+  );
   const clear = useCallback(() => {
     setEditing(null);
     setPicked([]);
+    setPart(null);
   }, []);
 
   const latest = useRef(form);
@@ -134,7 +165,7 @@ export function Editor({ form, apply, custom, sources, tokens, device, zoom, the
       const mod = e.metaKey || e.ctrlKey;
       const list = allFields(latest.current);
       if (e.key === "Escape") {
-        if (selected.length) {
+        if (selected.length || part) {
           e.preventDefault();
           clear();
         }
@@ -164,7 +195,7 @@ export function Editor({ form, apply, custom, sources, tokens, device, zoom, the
     };
     window.addEventListener("keydown", on);
     return () => window.removeEventListener("keydown", on);
-  }, [selected, primary, clear, remove, duplicate, move]);
+  }, [selected, primary, part, clear, remove, duplicate, move]);
 
   // Dragging ------------------------------------------------------------------------------------------------------
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
@@ -270,11 +301,14 @@ export function Editor({ form, apply, custom, sources, tokens, device, zoom, the
           t={t}
           device={device}
           zoom={zoom}
+          css={css}
           selected={selected}
           hovered={hovered}
           dragging={drag?.data.kind === "field" ? drag.id : null}
           editing={editing}
-          onSelect={select}
+          part={part && (part.id === "form" || selected.includes(part.id)) ? part : null}
+          state={state}
+          onPick={pick}
           onClear={clear}
           onHover={setHovered}
           onEdit={setEditing}

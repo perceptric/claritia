@@ -211,6 +211,52 @@ try {
   console.log(`compared ${compared} values, ${unhovered} hover misses`);
   check(unhovered < compared / 20, `the pointer reached its part almost every time (${unhovered} misses)`);
 
+  // The builder's edit mode (src/components/app/forms/FormCanvas.tsx): every field shows, the hidden one and the one
+  // logic hides included, a later step shows its own fields and the submit button, and a forced state draws the same
+  // as the real state.
+  const edit = checkForm({
+    ...emptyForm(),
+    steps: [
+      {
+        id: "s1",
+        fields: [
+          { id: "a", key: "email", type: "email", label: "Work email", required: true },
+          { id: "h", key: "q.utm", type: "hidden", label: "Source", required: false, hidden: { from: "param", name: "utm_source" } },
+          { id: "t", key: "q.why", type: "text", label: "Why", required: false },
+        ],
+      },
+      { id: "s2", fields: [{ id: "u", key: "q.more", type: "text", label: "More", required: false }] },
+    ],
+    rules: [{ id: "r1", when: { field: "a", op: "is", value: "x@y.io" }, then: { action: "show", field: "t" } }],
+  });
+  if ("errors" in edit) throw new Error(edit.errors.join(" "));
+  const sys = readSystem({ globals: { button: { "base:hover": { "background-color": "#aa0000" } } } }, DEFAULT_TOKENS);
+  const editCss = compileWeb(sys, {}, ["a", "h", "t", "u"], { preview: true });
+  const drawn = async (step: number, on: boolean) =>
+    page.evaluate(
+      ([f, c, s, e]) => {
+        const el = document.querySelector("claritia-form") as unknown as { preview: unknown; shadowRoot: ShadowRoot };
+        el.preview = { form: f, css: c, step: s, edit: e };
+        const r = el.shadowRoot;
+        return { ids: [...r.querySelectorAll(".g > .fl[data-id]")].map((n) => (n as HTMLElement).dataset.id), button: r.querySelector(".ac .bt:not(.bk)")?.textContent ?? "" };
+      },
+      [edit.form, editCss, step, on] as const,
+    );
+  const off = await drawn(0, false);
+  check(JSON.stringify(off.ids) === '["a"]', `outside edit mode, hidden and logic-hidden fields stay out (${off.ids})`);
+  const one = await drawn(0, true);
+  check(JSON.stringify(one.ids) === '["a","h","t"]' && one.button === "Next", `edit mode shows every field of step 1 (${one.ids}, ${one.button})`);
+  const two = await drawn(1, true);
+  check(JSON.stringify(two.ids) === '["u"]' && two.button === edit.form.submit.label, `edit mode shows step 2 with the submit button (${two.ids}, ${two.button})`);
+  const forced = await page.evaluate(() => {
+    const r = document.querySelector("claritia-form")!.shadowRoot!;
+    const b = r.querySelector(".ac .bt:not(.bk)")!;
+    const before = getComputedStyle(b).backgroundColor;
+    b.classList.add("clr-force-hover");
+    return [before, getComputedStyle(b).backgroundColor];
+  });
+  check(forced[0] !== "rgb(170, 0, 0)" && forced[1] === "rgb(170, 0, 0)", `a forced hover draws the hover style (${forced})`);
+
   // Nothing reaches the page around the form.
   const outside = await page.evaluate(() => getComputedStyle(document.getElementById("outside")!).color);
   check(outside === "rgb(1, 2, 3)", "the page around the form keeps its own styles");

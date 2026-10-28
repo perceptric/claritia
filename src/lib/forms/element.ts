@@ -535,6 +535,8 @@ export class ClaritiaForm extends Base {
   private done = false;
   private alert = "";
   private isPreview = false;
+  /** The builder's canvas: every field shows (logic and hidden ones too), so each can be picked. */
+  private edit = false;
   private open: string | null = null;
   private schedule: { tool: string; url: string } | null = null;
   private filter = "";
@@ -629,8 +631,9 @@ export class ClaritiaForm extends Base {
   }
 
   /** The app's builder shows a draft without loading or sending anything. */
-  set preview(p: { form: Form; tokens?: Partial<Tokens>; step?: number; done?: boolean; regions?: Record<string, string[]>; css?: string }) {
+  set preview(p: { form: Form; tokens?: Partial<Tokens>; step?: number; done?: boolean; regions?: Record<string, string[]>; css?: string; edit?: boolean }) {
     this.isPreview = true;
+    this.edit = !!p.edit;
     const fresh = !this.data || this.done !== !!p.done;
     if (fresh || p.form.after.schedule?.tool !== "claritia") this.bk = this.bkDone = null;
     this.data = { id: "preview", version: 0, status: "live", body: p.form, tokens: p.tokens ?? {}, strict: true, regions: p.regions, css: p.css };
@@ -754,7 +757,7 @@ export class ClaritiaForm extends Base {
 
     const { shown, required } = visibility(form, this.answers, this.ctx);
     // The last step is the one whose next step (after any skip) is the end.
-    const last = nextStep(form, this.step, this.answers, this.ctx) >= form.steps.length;
+    const last = this.edit ? this.step === form.steps.length - 1 : nextStep(form, this.step, this.answers, this.ctx) >= form.steps.length;
     const step = form.steps[this.step];
     const wrap = el("form", { class: "f", novalidate: true, "aria-label": form.title || "Form" });
     if (form.title) wrap.append(el("h2", { class: "h", text: form.title }));
@@ -763,7 +766,8 @@ export class ClaritiaForm extends Base {
     const grid = el("div", { class: "g" });
     this.maxStep = Math.max(this.maxStep, this.step);
     for (const f of step.fields)
-      if (f.type !== "hidden" && shown.has(f.id) && !this.known.has(f.id)) {
+      if (this.edit && f.type === "hidden") grid.append(el("div", { class: "fl", "data-id": f.id, "data-hidden": "" }));
+      else if (this.edit || (f.type !== "hidden" && shown.has(f.id) && !this.known.has(f.id))) {
         if (!isContent(f.type)) this.row(f.id)[0] = 1;
         grid.append(this.field(f, form, required.has(f.id)));
       }
