@@ -6,6 +6,7 @@
 
 import { DEFAULT_TOKENS, type Tokens } from "../forms/brand.ts";
 import { partDef, PART_KEYS, type PartKey } from "./parts.ts";
+import { EMAIL_PART_KEYS, type EmailPartKey } from "./email/parts.ts";
 import { isProp, type Prop } from "./props.ts";
 import { checkValue, color, VAR_ID } from "./values.ts";
 
@@ -34,7 +35,13 @@ export type DesignSystem = {
   globals: PartStyles;
   classes: DesignClass[];
   breakpoints: { tablet: number; phone: number };
+  /** Emails: their own global styles and classes (email parts differ from a form's), on the same variables. */
+  email?: EmailSystem;
 };
+
+export type EmailStyles = Partial<Record<EmailPartKey, StyleRule>>;
+export type EmailClass = { id: string; name: string; with?: string[]; styles: EmailStyles };
+export type EmailSystem = { globals: EmailStyles; classes: EmailClass[] };
 
 /** The styles one form puts on its own elements, keyed by element id ("form" for the form's own parts). */
 export type FormDesign = { classes?: Record<string, string[]>; styles?: Record<string, PartStyles> };
@@ -140,6 +147,41 @@ export function readPartStyles(raw: unknown, vars?: Map<string, { kind: string }
   return out;
 }
 
+/** Email part styles, made safe. */
+export function readEmailStyles(raw: unknown, vars?: Map<string, { kind: string }>): EmailStyles {
+  const r = obj(raw);
+  const out: EmailStyles = {};
+  if (!r) return out;
+  for (const part of EMAIL_PART_KEYS) {
+    const rule = readRule(r[part], vars);
+    if (rule) out[part] = rule;
+  }
+  return out;
+}
+
+/** Classes as saved, made safe: unique ids and names, combos only on classes listed before them. */
+function readClasses<S>(raw: unknown, read: (styles: unknown) => S): { id: string; name: string; with?: string[]; styles: S }[] {
+  const classes: { id: string; name: string; with?: string[]; styles: S }[] = [];
+  const names = new Set<string>();
+  const ids = new Set<string>();
+  const bases = new Set<string>();
+  for (const c of Array.isArray(raw) ? raw.slice(0, LIMITS.classes) : []) {
+    const co = obj(c);
+    if (!co) continue;
+    const id = str(co.id, 24);
+    const name = str(co.name, LIMITS.nameLen);
+    if (!ID.test(id) || ids.has(id) || !name || names.has(name.toLowerCase())) continue;
+    // A combo builds on classes defined before it that aren't combos themselves.
+    const withIds = Array.isArray(co.with) ? [...new Set(co.with.filter((x): x is string => typeof x === "string" && bases.has(x)))].slice(0, 3) : [];
+    if (Array.isArray(co.with) && co.with.length && !withIds.length) continue;
+    ids.add(id);
+    names.add(name.toLowerCase());
+    if (!withIds.length) bases.add(id);
+    classes.push({ id, name, ...(withIds.length ? { with: withIds } : {}), styles: read(co.styles) });
+  }
+  return classes;
+}
+
 /** A design system as saved or edited, made safe. `tokens` gives the built-in variables' values for `$id` checks. */
 export function readSystem(raw: unknown, tokens: Partial<Tokens> = {}): DesignSystem {
   const r = obj(raw) ?? {};
@@ -153,30 +195,22 @@ export function readSystem(raw: unknown, tokens: Partial<Tokens> = {}): DesignSy
     }
   }
   const vars = varKinds(allVariables({ variables }, tokens));
-  const classes: DesignClass[] = [];
-  const names = new Set<string>();
-  const ids = new Set<string>();
-  const bases = new Set<string>();
-  for (const c of Array.isArray(r.classes) ? r.classes.slice(0, LIMITS.classes) : []) {
-    const co = obj(c);
-    if (!co) continue;
-    const id = str(co.id, 24);
-    const name = str(co.name, LIMITS.nameLen);
-    if (!ID.test(id) || ids.has(id) || !name || names.has(name.toLowerCase())) continue;
-    // A combo builds on classes defined before it that aren't combos themselves.
-    const withIds = Array.isArray(co.with) ? [...new Set(co.with.filter((x): x is string => typeof x === "string" && bases.has(x)))].slice(0, 3) : [];
-    if (Array.isArray(co.with) && co.with.length && !withIds.length) continue;
-    ids.add(id);
-    names.add(name.toLowerCase());
-    if (!withIds.length) bases.add(id);
-    // A class goes on a field, so it styles only parts inside a field.
-    classes.push({ id, name, ...(withIds.length ? { with: withIds } : {}), styles: readPartStyles(co.styles, vars, "field") });
-  }
+  // A class goes on a field, so it styles only parts inside a field.
+  const classes: DesignClass[] = readClasses(r.classes, (st) => readPartStyles(st, vars, "field"));
+  const em = obj(r.email);
+  const email: EmailSystem | null = em ? { globals: readEmailStyles(em.globals, vars), classes: readClasses(em.classes, (st) => readEmailStyles(st, vars)) } : null;
   const bp = obj(r.breakpoints) ?? {};
   const clamp = (v: unknown, lo: number, hi: number, d: number) => (Number.isFinite(Number(v)) ? Math.round(Math.min(hi, Math.max(lo, Number(v)))) : d);
   const tablet = clamp(bp.tablet, 600, 1400, 991);
   const phone = clamp(bp.phone, 320, tablet - 1, 479);
-  return { v: 1, variables, globals: readPartStyles(r.globals, vars), classes, breakpoints: { tablet, phone } };
+  return {
+    v: 1,
+    variables,
+    globals: readPartStyles(r.globals, vars),
+    classes,
+    breakpoints: { tablet, phone },
+    ...(email && (Object.keys(email.globals).length || email.classes.length) ? { email } : {}),
+  };
 }
 
 /**

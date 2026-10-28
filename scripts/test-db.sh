@@ -24,5 +24,6 @@ if [ -n "${CHROMIUM_PATH:-}" ]; then
   node scripts/brand-check.ts
   node scripts/design-check.ts
   node scripts/canvas-check.ts
+  node scripts/email-check.ts
   if [ -n "${POSTGREST_BIN:-}" ]; then node scripts/screens-check.ts; fi
 fi
