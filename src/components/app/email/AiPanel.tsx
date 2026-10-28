@@ -5,7 +5,7 @@
 // "3 versions" gets three different takes to pick from. Each change is one undo step and a saved version.
 
 import type { Session } from "@supabase/supabase-js";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { compileEmail } from "@/lib/design/email/compile";
 import type { EmailDoc } from "@/lib/design/email/doc";
@@ -45,14 +45,15 @@ export function AiPanel({
   const [variants, setVariants] = useState<AiOut[] | null>(null);
   const history = log.slice(-10).map((l) => ({ role: l.role, text: l.text }));
 
-  const send = async (message: string, o: { confirmed?: boolean; three?: boolean } = {}) => {
+  const shot = useRef<HTMLInputElement>(null);
+  const send = async (message: string, o: { confirmed?: boolean; three?: boolean; image?: string } = {}) => {
     const m = message.trim();
     if (!m || busy) return;
     setBusy(o.three ? "three" : "one");
     setError("");
     setAsk(null);
     try {
-      const body = { workspaceId, ref: versionRef, doc: doc(), subject, message: m, history, confirmed: !!o.confirmed, ...(o.three ? { variants: 3 } : {}) };
+      const body = { workspaceId, ref: versionRef, doc: doc(), subject, message: m, history, confirmed: !!o.confirmed, ...(o.three ? { variants: 3 } : {}), ...(o.image ? { image: o.image } : {}) };
       if (o.three) {
         const r = await postJson<{ variants: AiOut[] }>(session, "/api/email/chat", body);
         setVariants(r.variants);
@@ -146,6 +147,25 @@ export function AiPanel({
           </Button>
           <Button type="button" variant="ghost" disabled={!!busy || !text.trim()} onClick={() => void send(text, { three: true })}>
             3 versions
+          </Button>
+          <input
+            ref={shot}
+            type="file"
+            accept="image/png,image/jpeg,image/webp,image/gif"
+            className="hidden"
+            onChange={async (e) => {
+              const f = e.target.files?.[0];
+              e.target.value = "";
+              if (!f) return;
+              if (f.size > 5 * 1024 * 1024) return setError("Use a picture up to 5 MB.");
+              const bytes = new Uint8Array(await f.arrayBuffer());
+              let bin = "";
+              for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+              void send(text.trim() || "Build this email from the screenshot.", { image: btoa(bin) });
+            }}
+          />
+          <Button type="button" variant="ghost" disabled={!!busy} onClick={() => shot.current?.click()}>
+            From a picture
           </Button>
         </div>
       </form>

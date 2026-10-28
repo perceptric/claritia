@@ -3,6 +3,7 @@ import { isMember } from "@/lib/contacts/server";
 import { EMAIL_CHAT_MODEL, EMAIL_CHAT_SYSTEM, EMAIL_CHAT_TOOLS, runEmailChat, type EmailChatCtx, type EmailChatResult } from "@/lib/design/email/chat";
 import { readEmailDoc } from "@/lib/design/email/doc";
 import { readSystem } from "@/lib/design/model";
+import { MAX_ASSET_BYTES, sniffImage } from "@/lib/design/assets";
 import { cleanTokens } from "@/lib/forms/brand";
 import { claudeChat } from "@/lib/forms/claude";
 import { requireUser } from "@/lib/serverAuth";
@@ -21,8 +22,8 @@ export async function POST(request: Request) {
   const auth = await requireUser(request);
   if ("denied" in auth) return auth.denied;
   const text = await request.text();
-  if (text.length > 900_000) return bad("That email is too big.", 413);
-  const b = (JSON.parse(text || "{}") ?? {}) as { workspaceId?: unknown; ref?: unknown; doc?: unknown; subject?: unknown; message?: unknown; history?: unknown; confirmed?: unknown; variants?: unknown };
+  if (text.length > 8_000_000) return bad("That's too big.", 413);
+  const b = (JSON.parse(text || "{}") ?? {}) as { workspaceId?: unknown; ref?: unknown; doc?: unknown; subject?: unknown; message?: unknown; history?: unknown; confirmed?: unknown; variants?: unknown; image?: unknown };
   if (!(await isMember(auth, b.workspaceId))) return bad("Workspace not found.", 404);
   const ws = b.workspaceId as string;
   const message = typeof b.message === "string" ? b.message.trim().slice(0, 4000) : "";
@@ -32,6 +33,14 @@ export async function POST(request: Request) {
   const model = claudeChat();
   if (!model) return bad("The AI isn't set up on the server (ANTHROPIC_API_KEY).", 503);
 
+  // A screenshot to build from: an image, known by its bytes, up to 5 MB.
+  let image: EmailChatCtx["image"];
+  if (typeof b.image === "string" && b.image) {
+    const raw = Uint8Array.from(Buffer.from(b.image, "base64"));
+    const kind = raw.length <= MAX_ASSET_BYTES ? sniffImage(raw) : null;
+    if (!kind) return bad("Use a PNG, JPEG, GIF or WebP picture up to 5 MB.");
+    image = { type: kind.type, data: Buffer.from(raw).toString("base64") };
+  } else if ((b.doc as { sections?: unknown } | undefined)?.sections === undefined) return bad("Send the email.");
   const doc = readEmailDoc(b.doc, { allowHtml: true });
   const { data: kits } = await db.from("brand_kits").select("id, name, tokens, notes, design").eq("workspace_id", ws).order("created_at");
   const kit = (kits ?? []).find((k) => k.id === doc.kitId) ?? (kits ?? [])[0];
@@ -48,6 +57,7 @@ export async function POST(request: Request) {
     brand: kit ? { name: kit.name as string, brief: ((kit.notes as string[] | null) ?? []).join("\n") } : null,
     history,
     confirmed: b.confirmed === true,
+    ...(image ? { image } : {}),
   };
   const rpc = (fn: string, args: Record<string, unknown>) => db.rpc(fn, args);
   const count = b.variants === 3 ? 3 : 1;

@@ -31,6 +31,8 @@ export type EmailChatCtx = {
   brand?: { name: string; brief?: string } | null;
   history: { role: "user" | "assistant"; text: string }[];
   confirmed?: boolean;
+  /** A screenshot of an email to build (Part 7.5): base64, checked by its bytes before it gets here. */
+  image?: { type: "image/png" | "image/jpeg" | "image/gif" | "image/webp"; data: string };
 };
 export type EmailChatResult = { doc: EmailDoc; system: DesignSystem; subject: string; lines: string[]; reply: string; ask?: { question: string; choices: string[] } };
 export type Model = (params: { system: Anthropic.Beta.BetaTextBlockParam[]; tools: Anthropic.Beta.BetaTool[]; messages: Anthropic.Beta.BetaMessageParam[] }) => Promise<Anthropic.Beta.BetaMessage>;
@@ -80,6 +82,7 @@ How emails work here:
 - Looks come from the brand's design system: variables (colors, fonts, sizes) and classes. Use variables ($id) and existing classes first. Use a raw color only when the person asks for that exact color, and pass raw: true.
 - Every marketing email needs the Footer block. Merge tags look like {{first_name|there}} and always need a fallback after the bar.
 - Write plainly and briefly. Never invent facts, prices, numbers, quotes or customer names; leave a clear placeholder like "Your price" instead, and say so.
+- With a screenshot: rebuild its layout and words with blocks in the brand's variables. Don't copy its colors unless the person asks; leave pictures as Image blocks without a picture, and say so.
 - When you're done, say in one or two sentences what you changed.`;
 
 const str = (v: unknown) => (typeof v === "string" ? v : undefined);
@@ -229,7 +232,13 @@ export async function runEmailChat(model: Model, message: string, ctx: EmailChat
   let checked = false;
   const messages: Anthropic.Beta.BetaMessageParam[] = [
     ...ctx.history.slice(-10).map((h) => ({ role: h.role, content: h.text.slice(0, 2000) }) as Anthropic.Beta.BetaMessageParam),
-    { role: "user", content: `${emailContext(ctx, doc, subject)}\n\nThe person says:\n${message.slice(0, 4000)}` },
+    {
+      role: "user",
+      content: [
+        ...(ctx.image ? [{ type: "image" as const, source: { type: "base64" as const, media_type: ctx.image.type, data: ctx.image.data } }] : []),
+        { type: "text" as const, text: `${emailContext(ctx, doc, subject)}\n\nThe person says:\n${message.slice(0, 4000)}` },
+      ],
+    },
   ];
   while (messages.length && messages[0]!.role !== "user") messages.shift();
 

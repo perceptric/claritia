@@ -103,3 +103,12 @@ test("a block from a component: the AI changes this email's words for it, unless
   const locked = await run(c.lockComponent(saved.system, saved.system.email!.components![0]!.id, true));
   assert.deepEqual(locked.lines, []);
 });
+
+test("a screenshot goes to the model with the email, as an image", async () => {
+  const s = scripted([msg([], "Built it.")]);
+  await runEmailChat(s.model, "Build this email from the screenshot.", { ...ctx(), image: { type: "image/png", data: "AAAA" } });
+  const first = s.seen[0]!.at(-1)!.content as { type: string; source?: { media_type: string } }[];
+  assert.equal(first[0]!.type, "image");
+  assert.equal(first[0]!.source?.media_type, "image/png");
+  assert.equal(first[1]!.type, "text");
+});
