@@ -724,3 +724,44 @@ Notes:
 | Old `brand_kits` table | Keep as a view for a release, or drop with the migration | Keep for one release |
 | Tablet breakpoint in emails | Add, or keep desktop and phone | Keep two; email clients don't need a third |
 | Who edits locked components and the style guide | Owners only, or a new Designer role | Owners only at first |
+
+---
+
+## Part 15. Status
+
+### Release 1 (steps 1 to 7): built
+
+| Step | Where |
+|---|---|
+| 1. Style engine | `src/lib/design/` (`props.ts`, `values.ts`, `model.ts`, `parts.ts`, `cascade.ts`) |
+| 2. Web compiler | `src/lib/design/web.ts`, `form.ts` |
+| 3. Storage | `supabase/migrations/072_design_system.sql`, `src/app/api/design/save/route.ts` |
+| 4. Forms on it | `src/lib/forms/element.ts` (compiled CSS above its own stylesheet), `src/app/api/forms/[id]/route.ts` |
+| 5. Canvas on the real form | `src/components/app/forms/FormCanvas.tsx` |
+| 6. Style panel | `src/components/app/forms/StylePanel.tsx`, `src/lib/design/edit.ts` |
+| 7. Styles, Variables, style guide, Publish styles | `DesignPanels.tsx`, `StyleGuide.tsx`, `useDesignDraft.ts` |
+
+Tests: `tests/design.test.ts` (values, attacks, cascade, compiler, edits), `tests/pg/design.pg.ts` (two saves at once,
+publishing), `scripts/design-check.ts` (random designs drawn in Chromium match the panel at every breakpoint and on
+hover; edit mode; forced states) and `scripts/canvas-check.ts` (the editing layer sits on the real fields at any zoom,
+clicks pick parts and never reach the form, the Style panel's edits show at once, one undo step each).
+
+Running cost of Release 1: nothing new. No AI calls, no new services; the designs are a few KB per brand kit in the
+database. Beta (50 teams): $0. Growth (500 teams): $0.
+
+Changes from the plan:
+- **Brand kits grow in place.** `brand_kits` gets `design` (the draft), `design_live` (published) and `design_rev`
+  instead of a new `design_systems` table, so every form keeps its `brand_kit_id` and nothing is copied.
+- **Cascade layers.** Each level is a CSS cascade layer (`base`, `g`, one per class, `e`), so the compiled CSS and the
+  panel's "where it comes from" agree by construction. The form's old stylesheet is the `base` layer, so forms with
+  no design look exactly as before.
+- **Breakpoints are media queries** on the page width (991px and 479px by default); the builder's device frames get
+  each breakpoint's rules written in directly, so a frame shows its size whatever the window is.
+- **Forced states.** The builder shows the state being styled on the picked part with a `clr-force-<state>` class.
+- **Fonts** picked in a style load from the page (`fonts` beside `css` in the public form), since fonts don't load
+  from inside a shadow root.
+- **Publish styles** lists the live forms it changes; the before and after pictures come with Release 2's visual
+  tests.
+- **Deleting a variable** asks what its uses become (another variable or a value), and fills in its own value by
+  default.
+- Migrations 071 and 072 still need running on the production database.
