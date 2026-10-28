@@ -765,3 +765,43 @@ Changes from the plan:
 - **Deleting a variable** asks what its uses become (another variable or a value), and fills in its own value by
   default.
 - Migrations 071 and 072 still need running on the production database.
+
+### Release 2 (steps 8 to 14): built
+
+| Step | Where |
+|---|---|
+| 8. Email document, 17 blocks and columns, conditions, plain text | `src/lib/design/email/doc.ts`, `html.ts`, `ops.ts` |
+| 9. Email compiler | `src/lib/design/email/compile.ts`, `style.ts`, `parts.ts` |
+| 10. Email builder, Test, publish and frozen sends | `src/components/app/email/`, `src/app/api/workflows/publish/route.ts`, `src/app/api/email/test/route.ts`, `src/lib/email/render.ts` |
+| 11. Client support marks and Client view | `StylePanel.tsx` (marks), `compile.ts` (`client`) |
+| 12. Components with props, locks and detach | `src/lib/design/email/components.ts` |
+| 13. Assets | `src/app/api/assets/route.ts`, `src/lib/design/assets.ts`, `074_design_assets.sql` |
+| 14. Design check | `src/lib/design/check.ts`, shown in both builders |
+
+Tests: `tests/email-design.test.ts` (documents, the compiler, attacks, conditions, edits, structure, components, the
+design check), `tests/email.test.ts` (link places, conditions and footers at send), `tests/assets.test.ts`,
+`tests/pg/workflows.pg.ts` (a style change while an email waits never changes it), `tests/pg/design.pg.ts` (images),
+`scripts/email-check.ts` (random email designs drawn in Chromium at desktop, phone and dark match the cascade; it
+found and fixed phone-and-dark values) and `scripts/email-builder-check.ts` (the builder end to end).
+
+Running cost of Release 2 as built: no AI calls and no new service. Image delivery and storage are the lines in
+Part 13: Beta (50 teams) $0 inside the Supabase plan; Growth (500 teams) about $19 (check). The rendering service for
+Outlook tests (Part 11.2, $99 a month, check) isn't bought yet. Beta: about $0. Growth: about $19 (check).
+
+Changes from the plan:
+- **17 blocks plus columns.** Columns are a section's layout (1, 2, 3, 1:2, 2:1) rather than a block.
+- **Email styles live beside form styles** in the same design system (`email.globals`, `email.classes`,
+  `email.components`), on the same variables, since email parts differ from a form's.
+- **Conditions run at send.** The compiled email carries marked parts, and the send keeps or drops them per person
+  (`applyConditions`). Conditions test what the send knows: first name, last name, company and job title.
+- **Links keep their place.** The send gives each link its tracking place before conditions and merge values, so a
+  part left out for someone never moves a click onto another link (this fixed a drift the old order allowed).
+- **A block email's own footer** replaces the fixed footer; if a condition hides it, the fixed footer comes back.
+- **Frozen sends** use the existing per-version `emails` row: publishing compiles with the brand kit's published
+  styles and stores the HTML; nothing recompiles it.
+- **Images** are checked, sized and cleaned, but not resized yet; emails set the width they're shown at. Resizing to
+  1x and 2x moves to the worker with Release 3.
+- **Components** keep words, links and pictures as props (by block); styles and structure change only in the
+  component. They can't hold HTML blocks.
+- **The builder edits words in Settings** (with a rich text box) rather than on the canvas.
+- Migrations 073 and 074 also need running on the production database.
