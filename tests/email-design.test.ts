@@ -285,3 +285,51 @@ test("design check: hard-to-read text, alt text, buttons, small text, links, mer
   assert.ok(fn.some((n) => /label of Email is hard to read/.test(n.text)));
   assert.ok(fn.some((n) => /30px tall on phones/.test(n.text)));
 });
+
+test("components: save, reuse with props, lock, change everywhere, detach and delete", async () => {
+  const c = await import("../src/lib/design/email/components.ts");
+  const d0 = doc({
+    sections: [{ id: "s1", columns: [{ id: "c1", blocks: [{ id: "h", type: "heading", text: "Our news" }, { id: "b", type: "button", label: "Read", url: "https://a.io" }] }] }],
+    styles: { h: { heading: { base: { color: "#aa0000" } } } },
+  });
+  const saved = c.saveAsComponent({ system: sys(), doc: d0 }, "s1", "News header");
+  assert.ok(!("error" in saved));
+  const comp = saved.system.email!.components![0]!;
+  assert.equal(comp.name, "News header");
+  assert.deepEqual(comp.styles, { h: { heading: { base: { color: "#aa0000" } } } }, "the component keeps the section's looks");
+  assert.equal(saved.doc.styles, undefined, "and the email no longer holds them itself");
+  assert.ok("error" in c.saveAsComponent(saved, "s1", "news header"), "names stay unique");
+  // A second use, with its own words.
+  const ins = c.insertComponent(saved.doc, saved.system, comp.id, 1)!;
+  let d = c.setProp(ins.doc, ins.id, "h", "text", "Product update");
+  const html = () => compileEmail(saved.system, d, { tokens: DEFAULT_TOKENS }).html;
+  assert.match(html(), /Our news/);
+  assert.match(html(), /Product update/);
+  assert.equal((html().match(/color:#aa0000/g) ?? []).length, 2, "both uses get the component's looks");
+  assert.deepEqual(readEmailDoc(d), d, "uses read back the same");
+  assert.deepEqual(readSystem(saved.system, DEFAULT_TOKENS).email, saved.system.email, "components read back the same");
+  // Locked: every use shows the component's words.
+  const locked = c.lockComponent(saved.system, comp.id, true);
+  assert.doesNotMatch(compileEmail(locked, d, { tokens: DEFAULT_TOKENS }).html, /Product update/);
+  // Change the component in place: every use gets it; the use keeps its props.
+  let e = { system: saved.system, doc: c.startEdit(d, saved.system, "s1") };
+  const editId = c.copyId("s1", "h");
+  e = { ...e, doc: (await import("../src/lib/design/email/ops.ts")).updateBlock(e.doc, editId, { text: "Company news" } as never) };
+  e = c.finishEdit(e, "s1");
+  d = e.doc;
+  const after = compileEmail(e.system, d, { tokens: DEFAULT_TOKENS }).html;
+  assert.match(after, /Company news/);
+  assert.match(after, /Product update/, "a use's own words stay");
+  assert.equal(d.sections[0]!.component?.edit, undefined);
+  // Detach: an ordinary section with its words and looks.
+  const det = c.detach(d, e.system, ins.id);
+  assert.equal(det.sections[1]!.component, undefined);
+  assert.equal(compileEmail(e.system, det, { tokens: DEFAULT_TOKENS }).html, after, "detaching doesn't change how it looks");
+  // Delete: uses keep their last copy.
+  const gone = c.deleteComponent({ system: e.system, doc: d }, comp.id);
+  assert.equal(gone.system.email!.components!.length, 0);
+  assert.ok(gone.doc.sections.every((s) => !s.component));
+  assert.match(compileEmail(gone.system, gone.doc, { tokens: DEFAULT_TOKENS }).html, /Company news[\s\S]*Product update/);
+  // Components never hold HTML blocks.
+  assert.ok("error" in c.saveAsComponent({ system: sys(), doc: doc({ sections: [{ id: "x", columns: [{ id: "y", blocks: [{ id: "z", type: "html", html: "<p>x</p>" }] }] }] }) }, "x", "Raw"));
+});

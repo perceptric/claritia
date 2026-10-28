@@ -9,6 +9,7 @@ import type { Tokens } from "../forms/brand.ts";
 import { mergeGaps } from "../workflows/merge.ts";
 import { literal, resolve } from "./cascade.ts";
 import { compileEmail, emailText } from "./email/compile.ts";
+import { expandComponents } from "./email/components.ts";
 import { elements, type EmailDoc } from "./email/doc.ts";
 import type { EmailPartKey } from "./email/parts.ts";
 import { resolveEmail, type EmailBp, type EmailState } from "./email/style.ts";
@@ -60,7 +61,8 @@ function nearVariable(value: string, vars: Variable[]): Variable | null {
 
 const TEXT_PARTS: EmailPartKey[] = ["heading", "text", "list", "quote", "social", "card-title", "muted", "footer", "button"];
 
-export function checkEmailDesign(system: DesignSystem, doc: EmailDoc, tokens: Partial<Tokens> = {}, opts: { marketing?: boolean } = {}): DesignNote[] {
+export function checkEmailDesign(system: DesignSystem, given: EmailDoc, tokens: Partial<Tokens> = {}, opts: { marketing?: boolean } = {}): DesignNote[] {
+  const doc = expandComponents(given, system);
   const out: DesignNote[] = [];
   const vars = allVariables(system, tokens);
   const varMap = new Map(vars.map((v) => [v.id, v]));

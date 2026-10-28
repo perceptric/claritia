@@ -18,8 +18,7 @@ export function safeHref(raw: string): string | null {
 
 // Rich text: what the Text block's editor writes. Rich HTML blocks (owners only) allow more.
 const RICH: Record<string, string[]> = { b: [], strong: [], i: [], em: [], u: [], s: [], a: ["href"], br: [], p: [], ul: [], ol: [], li: [], span: [] };
-const BLOCK: Record<string, string[]> = {
-  ...RICH,
+const BLOCK: Record<string, string[]> = /* @__PURE__ */ Object.assign({}, RICH, {
   h1: [],
   h2: [],
   h3: [],
@@ -37,10 +36,10 @@ const BLOCK: Record<string, string[]> = {
   sup: [],
   sub: [],
   center: [],
-};
-const VOID = new Set(["br", "img", "hr"]);
+});
+const VOID = /* @__PURE__ */ new Set(["br", "img", "hr"]);
 // A style attribute in an HTML block keeps only these, with plain values.
-const STYLE_PROPS = new Set(["color", "background-color", "font-size", "font-weight", "font-style", "text-align", "text-decoration", "line-height", "padding", "margin", "border", "border-radius", "width", "max-width", "height", "display"]);
+const STYLE_PROPS = /* @__PURE__ */ new Set(["color", "background-color", "font-size", "font-weight", "font-style", "text-align", "text-decoration", "line-height", "padding", "margin", "border", "border-radius", "width", "max-width", "height", "display"]);
 
 function cleanStyle(raw: string): string {
   const out: string[] = [];

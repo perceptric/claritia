@@ -9,6 +9,7 @@ import { literal } from "../cascade.ts";
 import { allVariables, type DesignSystem, type Variable } from "../model.ts";
 import { cssName, propDef, type Client, type Prop } from "../props.ts";
 import type { Tokens } from "../../forms/brand.ts";
+import { expandComponents } from "./components.ts";
 import { condHolds, type Block, type EmailCond, type EmailDoc, type Section } from "./doc.ts";
 import { escapeAttr, escapeText, htmlToText } from "./html.ts";
 import { emailPartsOf, type EmailPartKey } from "./parts.ts";
@@ -305,7 +306,9 @@ function blockRow(ctx: Ctx, b: Block, width: number, mark: (id: string) => strin
 
 // The whole email ----------------------------------------------------------------------------------------------------
 
-export function compileEmail(system: DesignSystem, doc: EmailDoc, opts: CompileOpts = {}): Compiled {
+export function compileEmail(system: DesignSystem, given: EmailDoc, opts: CompileOpts = {}): Compiled {
+  // Component uses get their component's blocks, props and styles.
+  const doc = expandComponents(given, system);
   const vars = new Map(allVariables(system, opts.tokens).map((v) => [v.id, v]));
   const ctx: Ctx = { system, doc, vars, opts, rules: { phone: [], hover: [], dark: [], ogsc: [], phoneDark: [] }, notes: [] };
   const width = doc.settings.width;

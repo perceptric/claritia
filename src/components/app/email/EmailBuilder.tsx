@@ -13,6 +13,7 @@ import { compileEmail } from "@/lib/design/email/compile";
 import { newBlock, readEmailDoc, type EmailDoc } from "@/lib/design/email/doc";
 import type { EmailEdit } from "@/lib/design/email/edit";
 import { addBlock, duplicateEl, findEl, moveBlock, moveSection, removeEl, type Place } from "@/lib/design/email/ops";
+import { insertComponent } from "@/lib/design/email/components";
 import { BLOCK_TYPES, type BlockType, type EmailPartKey } from "@/lib/design/email/parts";
 import type { EmailBp, EmailState } from "@/lib/design/email/style";
 import { designFonts } from "@/lib/design/form";
@@ -349,14 +350,43 @@ export function EmailBuilder({
           </div>
           <div className="min-h-0 flex-1 overflow-y-auto">
             {rail === "add" ? (
-              <div className="grid grid-cols-2 gap-1.5 p-3">
-                {BLOCKS.map((b) => (
-                  <button key={b.type} type="button" onClick={() => add(b.type)} className="press flex h-16 flex-col items-center justify-center gap-1.5 rounded-lg border border-line bg-card text-[12px] text-ink transition-[box-shadow,border-color] duration-[140ms] hover:border-line-strong hover:shadow-soft">
-                    <ElementIcon name={b.icon} size={16} className="text-muted" />
-                    {b.label}
-                  </button>
-                ))}
-              </div>
+              <>
+                <div className="grid grid-cols-2 gap-1.5 p-3">
+                  {BLOCKS.map((b) => (
+                    <button key={b.type} type="button" onClick={() => add(b.type)} className="press flex h-16 flex-col items-center justify-center gap-1.5 rounded-lg border border-line bg-card text-[12px] text-ink transition-[box-shadow,border-color] duration-[140ms] hover:border-line-strong hover:shadow-soft">
+                      <ElementIcon name={b.icon} size={16} className="text-muted" />
+                      {b.label}
+                    </button>
+                  ))}
+                </div>
+                {system.email?.components?.length ? (
+                  <div className="flex flex-col gap-1 px-3 pb-3">
+                    <p className="mb-0.5 text-[12px] font-medium text-muted">Components</p>
+                    {system.email.components.map((c) => (
+                      <button
+                        key={c.id}
+                        type="button"
+                        onClick={() => {
+                          const at = (() => {
+                            const f = sel ? findEl(latest.current, sel) : null;
+                            if (f) return f.si + 1;
+                            const footerAt = latest.current.sections.findIndex((s) => s.columns.some((col) => col.blocks.some((b) => b.type === "footer")));
+                            return footerAt >= 0 ? footerAt : latest.current.sections.length;
+                          })();
+                          const r = insertComponent(latest.current, system, c.id, at);
+                          if (!r) return;
+                          apply({ doc: r.doc });
+                          setSelected(r.id);
+                        }}
+                        className="press flex h-9 items-center gap-2 rounded-lg border border-line bg-card px-3 text-left text-[12.5px] text-ink hover:border-line-strong hover:shadow-soft"
+                      >
+                        <Layers size={13} className="text-muted" />
+                        <span className="truncate">{c.name}</span>
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
+              </>
             ) : null}
             {rail === "layers" ? <LayerList doc={doc} selected={sel} onSelect={(id) => (setSelected(id), setPart(null))} onNudge={nudge} onDuplicate={duplicate} onRemove={remove} /> : null}
             {rail === "checks" ? (
@@ -403,7 +433,16 @@ export function EmailBuilder({
           </div>
           <div className="min-h-0 flex-1 overflow-y-auto">
             {side === "settings" ? (
-              <BlockSettings doc={doc} selected={sel} onChange={(d, m) => apply({ doc: d }, m)} kits={kits.map((k) => ({ id: k.id, name: k.name }))} kitId={kit?.id ?? null} assets={assetCtx} />
+              <BlockSettings
+                doc={doc}
+                system={system}
+                selected={sel}
+                onChange={(d, m) => apply({ doc: d }, m)}
+                onEdit={(e) => apply(e)}
+                kits={kits.map((k) => ({ id: k.id, name: k.name }))}
+                kitId={kit?.id ?? null}
+                assets={assetCtx}
+              />
             ) : (
               <EmailStylePanel
                 system={system}

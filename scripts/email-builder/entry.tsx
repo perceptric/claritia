@@ -4,6 +4,7 @@
 import { useState } from "react";
 import { createRoot } from "react-dom/client";
 import type { Session, SupabaseClient } from "@supabase/supabase-js";
+import { DialogHost } from "../../src/components/app/Dialogs";
 import { EmailBuilder } from "../../src/components/app/email/EmailBuilder";
 import { readEmailDoc, type EmailDoc } from "../../src/lib/design/email/doc";
 
@@ -23,6 +24,8 @@ w.saved = [];
 function App() {
   const [open, setOpen] = useState(true);
   return open ? (
+    <>
+    <DialogHost />
     <EmailBuilder
       session={session}
       sb={sb}
@@ -32,6 +35,7 @@ function App() {
       onChange={(d) => w.saved.push(d)}
       onClose={() => setOpen(false)}
     />
+    </>
   ) : (
     <p id="closed">Closed</p>
   );

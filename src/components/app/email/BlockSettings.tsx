@@ -5,11 +5,13 @@
 // the email's own settings. Every change is a whole new document through src/lib/design/email/ops.ts.
 
 import { useEffect, useRef } from "react";
-import { COND_FIELDS, COND_OPS, SOCIAL_KINDS, type Block, type EmailCond, type EmailDoc, type Section, type SocialKind } from "@/lib/design/email/doc";
+import { COND_FIELDS, COND_OPS, PROP_KEYS, SOCIAL_KINDS, type Block, type EmailCond, type EmailDoc, type Section, type SocialKind } from "@/lib/design/email/doc";
 import { cleanHtml } from "@/lib/design/email/html";
 import { findEl, setColumns, setSettings, updateBlock, updateSection } from "@/lib/design/email/ops";
+import { cancelEdit, deleteComponent, detach, finishEdit, lockComponent, saveAsComponent, setProp as setUseProp, startEdit, componentUseOf } from "@/lib/design/email/components";
+import type { DesignSystem } from "@/lib/design/model";
 import { Plus, Trash } from "../../Icons";
-import { askText } from "../Dialogs";
+import { askConfirm, askText, tell } from "../Dialogs";
 import { Select } from "../Select";
 import { ImagePicker, type AssetCtx } from "./ImagePicker";
 import { AreaIn, NumRow, PICK, Row, Section as Group, Seg, Switch, TextIn } from "../forms/controls";
@@ -30,11 +32,142 @@ const LAYOUTS: { value: string; label: string; widths: number[] }[] = [
   { value: "67,33", label: "2:1", widths: [67, 33] },
 ];
 
-export function BlockSettings({ doc, selected, onChange, kits, kitId, assets }: { doc: EmailDoc; selected: string | null; onChange: Change; kits: { id: string; name: string }[]; kitId: string | null; assets?: AssetCtx }) {
+export function BlockSettings({
+  doc,
+  system,
+  selected,
+  onChange,
+  onEdit,
+  kits,
+  kitId,
+  assets,
+}: {
+  doc: EmailDoc;
+  system: DesignSystem;
+  selected: string | null;
+  onChange: Change;
+  /** Changes to the design system too (components). */
+  onEdit: (e: { system: DesignSystem; doc: EmailDoc }) => void;
+  kits: { id: string; name: string }[];
+  kitId: string | null;
+  assets?: AssetCtx;
+}) {
   const f = selected ? findEl(doc, selected) : null;
   if (!f) return <EmailSettings doc={doc} onChange={onChange} kits={kits} kitId={kitId} />;
-  if (f.block) return <BlockForm doc={doc} b={f.block} onChange={onChange} assets={assets} />;
-  return <SectionForm doc={doc} s={f.section} onChange={onChange} />;
+  const use = selected ? componentUseOf(doc, system, selected) : null;
+  if (use) return <UseForm doc={doc} system={system} use={use} picked={f.block ? selected! : null} onChange={onChange} onEdit={onEdit} assets={assets} />;
+  const editing = f.section.component?.edit ? components(system).find((c) => c.id === f.section.component!.id) : undefined;
+  const bar = editing ? (
+    <Group title={`Changing ${editing.name}`} first>
+      <div className="flex gap-1.5">
+        <button type="button" onClick={() => onEdit(finishEdit({ system, doc }, f.section.id))} className="press h-7 rounded-full bg-ink px-3 text-[12px] font-medium text-paper">
+          Save to component
+        </button>
+        <button type="button" onClick={() => onChange(cancelEdit(doc, system, f.section.id))} className="press h-7 rounded-full border border-line-strong px-3 text-[12px] text-ink hover:border-ink">
+          Cancel
+        </button>
+      </div>
+    </Group>
+  ) : null;
+  if (f.block)
+    return (
+      <>
+        {bar}
+        <BlockForm doc={doc} b={f.block} onChange={onChange} assets={assets} />
+      </>
+    );
+  return (
+    <>
+      {bar}
+      <SectionForm doc={doc} s={f.section} onChange={onChange} />
+      {editing ? null : (
+        <Group title="Component">
+          <button
+            type="button"
+            onClick={async () => {
+              const name = await askText("Save as a component", { placeholder: "Name", ok: "Save" });
+              if (!name?.trim()) return;
+              const r = saveAsComponent({ system, doc }, f.section.id, name);
+              if ("error" in r) return void tell(r.error);
+              onEdit(r);
+            }}
+            className="press h-7 self-start rounded-full border border-line-strong px-3 text-[12px] text-ink hover:border-ink"
+          >
+            Save as component
+          </button>
+        </Group>
+      )}
+    </>
+  );
+}
+
+const components = (s: DesignSystem) => s.email?.components ?? [];
+
+/** A component's use: its words, links and pictures (unless locked), and what can be done with it. */
+function UseForm({
+  doc,
+  system,
+  use,
+  picked,
+  onChange,
+  onEdit,
+  assets,
+}: {
+  doc: EmailDoc;
+  system: DesignSystem;
+  use: NonNullable<ReturnType<typeof componentUseOf>>;
+  picked: string | null;
+  onChange: Change;
+  onEdit: (e: { system: DesignSystem; doc: EmailDoc }) => void;
+  assets?: AssetCtx;
+}) {
+  const comp = use.component;
+  const s = use.section;
+  const blocks = comp.columns.flatMap((c) => c.blocks).filter((b) => (PROP_KEYS[b.type] ?? []).length && (!picked || b.id === use.blockId));
+  const value = (bid: string, key: string, base: string) => s.component?.props?.[bid]?.[key] ?? base;
+  return (
+    <>
+      <Group title={comp.name} first>
+        <div className="flex flex-wrap gap-1.5">
+          <button type="button" onClick={() => onChange(startEdit(doc, system, s.id))} className="press h-7 rounded-full border border-line-strong px-3 text-[12px] text-ink hover:border-ink">
+            Change component
+          </button>
+          <button type="button" onClick={() => onChange(detach(doc, system, s.id))} className="press h-7 rounded-full border border-line-strong px-3 text-[12px] text-ink hover:border-ink">
+            Detach
+          </button>
+          <button
+            type="button"
+            onClick={async () => {
+              if (!(await askConfirm(`Delete ${comp.name}?`, { body: "Emails using it keep their copy.", ok: "Delete", danger: true }))) return;
+              onEdit(deleteComponent({ system, doc }, comp.id));
+            }}
+            className="press h-7 rounded-full border border-line-strong px-3 text-[12px] text-rose hover:border-rose"
+          >
+            Delete
+          </button>
+        </div>
+        <Switch label="Locked" on={!!comp.locked} onChange={(v) => onEdit({ system: lockComponent(system, comp.id, v), doc })} />
+      </Group>
+      {comp.locked ? null : (
+        <Group title="This email's words">
+          {blocks.map((b) =>
+            (PROP_KEYS[b.type] ?? []).map((key) => {
+              const base = String((b as Record<string, unknown>)[key] ?? "");
+              const label = `${key === "html" ? "Text" : key[0]!.toUpperCase() + key.slice(1)}`;
+              const set = (v: string) => onChange(setUseProp(doc, s.id, b.id, key, v === base ? "" : v), `${s.id}:${b.id}:${key}`);
+              if (key === "src" || key === "image" || key === "thumb") return <ImagePicker key={`${b.id}${key}`} label={label} value={value(b.id, key, base)} ctx={assets} onChange={set} />;
+              if (key === "html") return <RichText key={`${b.id}${key}`} value={value(b.id, key, base)} onChange={set} />;
+              return (
+                <Row key={`${b.id}${key}`} label={label}>
+                  <TextIn label={label} value={value(b.id, key, base)} placeholder={base} onChange={set} mono={key === "url"} />
+                </Row>
+              );
+            }),
+          )}
+        </Group>
+      )}
+    </>
+  );
 }
 
 function EmailSettings({ doc, onChange, kits, kitId }: { doc: EmailDoc; onChange: Change; kits: { id: string; name: string }[]; kitId: string | null }) {

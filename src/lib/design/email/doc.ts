@@ -44,7 +44,14 @@ export type Block = Base &
   );
 
 export type Column = { id: string; width: number; blocks: Block[] };
-export type Section = Base & { columns: Column[]; stackOnPhone: boolean };
+/**
+ * A section can be a component's (docs/design-system.md Part 2.4): its columns then come from the component when
+ * the email is built, with `props` changing words, links and pictures of its blocks (by the component's block ids).
+ * `columns` keeps the last copy, used if the component is deleted. `edit` marks a component being changed here:
+ * its blocks are in `columns` under these ids, mapped back to the component's.
+ */
+export type ComponentUse = { id: string; props?: Record<string, Record<string, string>>; edit?: Record<string, string> };
+export type Section = Base & { columns: Column[]; stackOnPhone: boolean; component?: ComponentUse };
 export type EmailSettings = { width: 600 | 640 | 700; align: "center" | "left"; darkMode: "auto" | "off"; preheader: string; lang: string };
 export type EmailDoc = {
   v: 1;
@@ -171,6 +178,67 @@ export function readBlock(raw: unknown, seen: Set<string>, allowHtml: boolean): 
   }
 }
 
+/** A section's columns, made safe; widths add up to 100. `count` keeps the email's block total under the limit. */
+export function readColumns(raw: unknown, seen: Set<string>, allowHtml: boolean, count: { blocks: number }): Column[] {
+  const columns: Column[] = [];
+  for (const c of Array.isArray(raw) ? raw.slice(0, EMAIL_LIMITS.columns) : []) {
+    const co = obj(c);
+    if (!co) continue;
+    const id = str(co.id, 24);
+    if (!ID.test(id) || seen.has(id)) continue;
+    seen.add(id);
+    const list: Block[] = [];
+    for (const b of Array.isArray(co.blocks) ? co.blocks : []) {
+      if (count.blocks >= EMAIL_LIMITS.blocks) break;
+      const block = readBlock(b, seen, allowHtml);
+      if (block) {
+        list.push(block);
+        count.blocks++;
+      }
+    }
+    columns.push({ id, width: num(co.width, 10, 100, 100), blocks: list });
+  }
+  const total = columns.reduce((n, c) => n + c.width, 0);
+  let left = 100;
+  columns.forEach((c, i) => {
+    c.width = i === columns.length - 1 ? left : Math.max(10, Math.round((c.width / total) * 100));
+    left -= c.width;
+  });
+  return columns;
+}
+
+/** The words, links and pictures a component's use may change, by block type. */
+export const PROP_KEYS: Partial<Record<BlockType, string[]>> = {
+  heading: ["text"],
+  text: ["html"],
+  button: ["label", "url"],
+  meeting: ["label", "url"],
+  image: ["src", "alt", "url"],
+  logo: ["src", "alt", "url"],
+  quote: ["text", "cite"],
+  product: ["title", "text", "price", "image", "url", "button"],
+  event: ["title", "when", "where", "url", "button"],
+  signature: ["name", "title", "company", "image"],
+  footer: ["text", "address"],
+  video: ["url", "thumb", "alt"],
+};
+const PROP_NAMES = /* @__PURE__ */ new Set(/* @__PURE__ */ Object.values(PROP_KEYS).flat());
+
+function readUse(raw: unknown): ComponentUse | undefined {
+  const r = obj(raw);
+  const id = str(r?.id, 24);
+  if (!r || !ID.test(id)) return undefined;
+  const props: Record<string, Record<string, string>> = {};
+  for (const [bid, p] of Object.entries(obj(r.props) ?? {}).slice(0, 60)) {
+    const po = obj(p);
+    if (!ID.test(bid) || !po) continue;
+    const keep = Object.fromEntries(Object.entries(po).filter(([k, v]) => PROP_NAMES.has(k) && typeof v === "string").map(([k, v]) => [k, str(v, k === "html" ? EMAIL_LIMITS.text : 2000)]));
+    if (Object.keys(keep).length) props[bid] = keep;
+  }
+  const edit = Object.fromEntries(Object.entries(obj(r.edit) ?? {}).filter(([a, b]) => ID.test(a) && typeof b === "string" && ID.test(b)).slice(0, 200)) as Record<string, string>;
+  return { id, ...(Object.keys(props).length ? { props } : {}), ...(Object.keys(edit).length ? { edit } : {}) };
+}
+
 const DEFAULT_SETTINGS: EmailSettings = { width: 600, align: "center", darkMode: "auto", preheader: "", lang: "en" };
 
 /**
@@ -188,40 +256,17 @@ export function readEmailDoc(raw: unknown, opts: { system?: DesignSystem; tokens
     lang: /^[a-z]{2}(-[A-Z]{2})?$/.test(str(st.lang, 5)) ? str(st.lang, 5) : DEFAULT_SETTINGS.lang,
   };
   const seen = new Set<string>();
-  let blocks = 0;
+  const count = { blocks: 0 };
   const sections: Section[] = [];
   for (const s of Array.isArray(r.sections) ? r.sections.slice(0, EMAIL_LIMITS.sections) : []) {
     const so = obj(s);
     if (!so) continue;
     const base = readBase(so, seen);
     if (!base) continue;
-    const columns: Column[] = [];
-    for (const c of Array.isArray(so.columns) ? so.columns.slice(0, EMAIL_LIMITS.columns) : []) {
-      const co = obj(c);
-      if (!co) continue;
-      const id = str(co.id, 24);
-      if (!ID.test(id) || seen.has(id)) continue;
-      seen.add(id);
-      const list: Block[] = [];
-      for (const b of Array.isArray(co.blocks) ? co.blocks : []) {
-        if (blocks >= EMAIL_LIMITS.blocks) break;
-        const block = readBlock(b, seen, !!opts.allowHtml);
-        if (block) {
-          list.push(block);
-          blocks++;
-        }
-      }
-      columns.push({ id, width: num(co.width, 10, 100, 100), blocks: list });
-    }
+    const columns = readColumns(so.columns, seen, !!opts.allowHtml, count);
     if (!columns.length) continue;
-    // Widths always add up to 100.
-    const total = columns.reduce((n, c) => n + c.width, 0);
-    let left = 100;
-    columns.forEach((c, i) => {
-      c.width = i === columns.length - 1 ? left : Math.max(10, Math.round((c.width / total) * 100));
-      left -= c.width;
-    });
-    sections.push({ ...base, columns, stackOnPhone: so.stackOnPhone !== false });
+    const component = readUse(so.component);
+    sections.push({ ...base, columns, stackOnPhone: so.stackOnPhone !== false, ...(component ? { component } : {}) });
   }
   const ids = new Set([...seen, "email"]);
   const vars = opts.system ? varKinds(allVariables(opts.system, opts.tokens)) : undefined;

@@ -7,6 +7,7 @@
 import { DEFAULT_TOKENS, type Tokens } from "../forms/brand.ts";
 import { partDef, PART_KEYS, type PartKey } from "./parts.ts";
 import { EMAIL_PART_KEYS, type EmailPartKey } from "./email/parts.ts";
+import { readColumns, type Column } from "./email/doc.ts";
 import { isProp, type Prop } from "./props.ts";
 import { checkValue, color, VAR_ID } from "./values.ts";
 
@@ -41,7 +42,9 @@ export type DesignSystem = {
 
 export type EmailStyles = Partial<Record<EmailPartKey, StyleRule>>;
 export type EmailClass = { id: string; name: string; with?: string[]; styles: EmailStyles };
-export type EmailSystem = { globals: EmailStyles; classes: EmailClass[] };
+/** A saved section to reuse (docs/design-system.md Part 2.4): `locked` keeps every use's words as the component's. */
+export type EmailComponent = { id: string; name: string; locked?: boolean; columns: Column[]; stackOnPhone: boolean; styles?: Record<string, EmailStyles>; classes?: Record<string, string[]> };
+export type EmailSystem = { globals: EmailStyles; classes: EmailClass[]; components?: EmailComponent[] };
 
 /** The styles one form puts on its own elements, keyed by element id ("form" for the form's own parts). */
 export type FormDesign = { classes?: Record<string, string[]>; styles?: Record<string, PartStyles> };
@@ -182,6 +185,36 @@ function readClasses<S>(raw: unknown, read: (styles: unknown) => S): { id: strin
   return classes;
 }
 
+/** Saved sections, made safe: up to 100, each with its own block ids, styles only for those blocks. */
+function readComponents(raw: unknown, vars: Map<string, { kind: string }>): EmailComponent[] {
+  const out: EmailComponent[] = [];
+  const names = new Set<string>();
+  for (const c of Array.isArray(raw) ? raw.slice(0, 100) : []) {
+    const co = obj(c);
+    if (!co) continue;
+    const id = str(co.id, 24);
+    const name = str(co.name, LIMITS.nameLen);
+    if (!ID.test(id) || out.some((x) => x.id === id) || !name || names.has(name.toLowerCase())) continue;
+    const seen = new Set<string>();
+    // HTML blocks stay out of components: they're reused by people who may not be owners.
+    const columns = readColumns(co.columns, seen, false, { blocks: 0 });
+    if (!columns.length) continue;
+    names.add(name.toLowerCase());
+    const styles: Record<string, EmailStyles> = {};
+    for (const [el, ps] of Object.entries(obj(co.styles) ?? {})) if (seen.has(el)) {
+      const clean = readEmailStyles(ps, vars);
+      if (Object.keys(clean).length) styles[el] = clean;
+    }
+    const classes: Record<string, string[]> = {};
+    for (const [el, l] of Object.entries(obj(co.classes) ?? {})) if (seen.has(el) && Array.isArray(l)) {
+      const ok = l.filter((x): x is string => typeof x === "string" && ID.test(x)).slice(0, 6);
+      if (ok.length) classes[el] = ok;
+    }
+    out.push({ id, name, ...(co.locked === true ? { locked: true } : {}), columns, stackOnPhone: co.stackOnPhone !== false, ...(Object.keys(styles).length ? { styles } : {}), ...(Object.keys(classes).length ? { classes } : {}) });
+  }
+  return out;
+}
+
 /** A design system as saved or edited, made safe. `tokens` gives the built-in variables' values for `$id` checks. */
 export function readSystem(raw: unknown, tokens: Partial<Tokens> = {}): DesignSystem {
   const r = obj(raw) ?? {};
@@ -198,7 +231,8 @@ export function readSystem(raw: unknown, tokens: Partial<Tokens> = {}): DesignSy
   // A class goes on a field, so it styles only parts inside a field.
   const classes: DesignClass[] = readClasses(r.classes, (st) => readPartStyles(st, vars, "field"));
   const em = obj(r.email);
-  const email: EmailSystem | null = em ? { globals: readEmailStyles(em.globals, vars), classes: readClasses(em.classes, (st) => readEmailStyles(st, vars)) } : null;
+  const components = em ? readComponents(em.components, vars) : [];
+  const email: EmailSystem | null = em ? { globals: readEmailStyles(em.globals, vars), classes: readClasses(em.classes, (st) => readEmailStyles(st, vars)), ...(components.length ? { components } : {}) } : null;
   const bp = obj(r.breakpoints) ?? {};
   const clamp = (v: unknown, lo: number, hi: number, d: number) => (Number.isFinite(Number(v)) ? Math.round(Math.min(hi, Math.max(lo, Number(v)))) : d);
   const tablet = clamp(bp.tablet, 600, 1400, 991);
@@ -209,7 +243,7 @@ export function readSystem(raw: unknown, tokens: Partial<Tokens> = {}): DesignSy
     globals: readPartStyles(r.globals, vars),
     classes,
     breakpoints: { tablet, phone },
-    ...(email && (Object.keys(email.globals).length || email.classes.length) ? { email } : {}),
+    ...(email && (Object.keys(email.globals).length || email.classes.length || email.components?.length) ? { email } : {}),
   };
 }
 

@@ -102,6 +102,22 @@ try {
   await page.waitForTimeout(200);
   check((await inFrame<string>("(d) => d.location.href")) === before, "a link in the email doesn't open in the builder");
 
+  // Components: save the first section as one, use it again, change this use's words.
+  await page.getByRole("button", { name: "Layers", exact: true }).click();
+  await page.getByRole("button", { name: "Section 1", exact: true }).click();
+  await page.getByRole("button", { name: "Save as component" }).click();
+  await page.getByRole("dialog", { name: "Save as a component" }).getByRole("textbox").fill("Intro");
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await page.waitForTimeout(150);
+  await page.getByRole("button", { name: "Add", exact: true }).click();
+  await page.getByRole("button", { name: "Intro", exact: true }).click();
+  await page.waitForTimeout(200);
+  check((await frame().locator("h2", { hasText: "Hello Dana" }).count()) === 2, "a component is used twice");
+  const heading = page.getByRole("textbox", { name: "Text", exact: true }).first();
+  await heading.fill("Second copy");
+  await page.waitForTimeout(200);
+  check((await frame().locator("h2", { hasText: "Second copy" }).count()) === 1 && (await frame().locator("h2", { hasText: "Hello Dana" }).count()) === 1, "one use's own words leave the other alone");
+
   // Phone width and dark mode.
   await page.getByRole("radio", { name: "Phone", exact: true }).click();
   await page.waitForTimeout(400);
