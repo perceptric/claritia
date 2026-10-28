@@ -12,7 +12,7 @@ export function postToParent(msg: Record<string, unknown>) {
   } catch {}
 }
 
-export function BookShell({ tokens, embed, narrow, children }: { tokens: Record<string, unknown> | null; embed?: boolean; narrow?: boolean; children: React.ReactNode }) {
+export function BookShell({ tokens, design, embed, narrow, children }: { tokens: Record<string, unknown> | null; design?: unknown; embed?: boolean; narrow?: boolean; children: React.ReactNode }) {
   useEffect(() => {
     if (!embed) return;
     let last = 0;
@@ -30,7 +30,7 @@ export function BookShell({ tokens, embed, narrow, children }: { tokens: Record<
     return () => ro.disconnect();
   }, [embed]);
   return (
-    <KitScope tokens={tokens ?? {}} className={`cb-page ${embed ? "cb-embed" : ""}`}>
+    <KitScope tokens={tokens ?? {}} design={design} className={`cb-page ${embed ? "cb-embed" : ""}`}>
       <div className={`cb-wrap ${narrow ? "cb-narrow" : ""}`}>
         <main className="cb-card">{children}</main>
         <footer className="cb-foot">

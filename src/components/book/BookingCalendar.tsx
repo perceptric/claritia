@@ -5,6 +5,16 @@ import { ArrowLeft, Check, ChevronRight, Clock, Dollar, Globe, MapIcon, Monitor,
 import { byDay, LOCATION_LABEL, lengthLabel, priceLabel, type BookReply, type GuestHost, type GuestLocation, type GuestSlot, type GuestType } from "@/lib/meetings/guest";
 import { addDays, dateIn, dayOf } from "@/lib/meetings/time";
 import { BOOK_CSS } from "./styles";
+import { compileBook } from "@/lib/design/book";
+import { readSystem } from "@/lib/design/model";
+import type { Tokens } from "@/lib/forms/brand";
+
+/** A short name for a stylesheet, so React keeps one copy of each. */
+const hashText = (s: string) => {
+  let h = 2166136261;
+  for (let i = 0; i < s.length; i++) h = Math.imul(h ^ s.charCodeAt(i), 16777619) >>> 0;
+  return h.toString(36);
+};
 import { themeOf } from "./theme";
 import { use12h, useMounted, useSundayFirst, useZone } from "./browser";
 import { ZonePicker } from "./ZonePicker";
@@ -81,13 +91,20 @@ export function hostLine(hosts: GuestHost[]): string {
 }
 
 /** Wraps children in the kit's variables and the booking styles. */
-export function KitScope({ tokens, className = "", children }: { tokens?: Record<string, unknown> | null; className?: string; children: React.ReactNode }) {
+export function KitScope({ tokens, design, className = "", children }: { tokens?: Record<string, unknown> | null; design?: unknown; className?: string; children: React.ReactNode }) {
   const theme = useMemo(() => (tokens !== undefined ? themeOf(tokens) : null), [tokens]);
+  // The brand's booking styles (docs/design-system.md Part 3.5), scoped to .cb-root.cb-ds.
+  const css = useMemo(() => (design ? compileBook(readSystem(design, (tokens ?? {}) as Partial<Tokens>), (tokens ?? {}) as Partial<Tokens>) : ""), [design, tokens]);
   return (
-    <div className={`cb-root ${className}`} style={(theme?.vars ?? undefined) as React.CSSProperties | undefined} data-dark={theme?.dark || undefined}>
+    <div className={`cb-root ${css ? "cb-ds " : ""}${className}`} style={(theme?.vars ?? undefined) as React.CSSProperties | undefined} data-dark={theme?.dark || undefined}>
       <style href="clr-book" precedence="default">
         {BOOK_CSS}
       </style>
+      {css ? (
+        <style href={`clr-book-ds-${hashText(css)}`} precedence="default">
+          {css}
+        </style>
+      ) : null}
       {theme?.fontUrl ? <link rel="stylesheet" href={theme.fontUrl} precedence="default" /> : null}
       {children}
     </div>

@@ -334,3 +334,22 @@ test("classes: rename keeps names unique; delete takes combos and uses with it",
   assert.equal(gone.system.classes.length, 0, "the combo goes with its base");
   assert.equal(gone.design.classes, undefined);
 });
+
+test("booking pages: styles read back, compile scoped, and set only what's allowed", async () => {
+  const { compileBook, resolveBook, setBookProp } = await import("../src/lib/design/book.ts");
+  let s = readSystem({ variables: [{ id: "brand", name: "Brand", kind: "color", value: "#3355ff" }] }, {});
+  s = setBookProp(s, {}, "day", "base", undefined, "color", "$brand")!;
+  s = setBookProp(s, {}, "day", "base", "checked", "background-color", "#111111")!;
+  s = setBookProp(s, {}, "button", "phone", undefined, "padding-top", "20")!;
+  assert.equal(setBookProp(s, {}, "day", "base", undefined, "color", "red;}x{"), null);
+  assert.deepEqual(readSystem(s, {}).book, s.book, "it reads back the same");
+  const css = compileBook(s);
+  assert.match(css, /\.cb-root\.cb-ds\{--v-brand:#3355ff\}/);
+  assert.match(css, /\.cb-root\.cb-ds \.cb-day\.cb-has\{color:var\(--v-brand\)\}/);
+  assert.match(css, /\.cb-root\.cb-ds \.cb-day\[aria-pressed="true"\]\{background-color:#111111\}/);
+  assert.match(css, /@container \(max-width:640px\)\{\.cb-root\.cb-ds \.cb-btn:not\(\.cb-ghost\):not\(\.cb-danger\)\{padding-top:20px\}\}/);
+  assert.equal(resolveBook(s, "day", "base").color?.value, "$brand");
+  assert.equal(resolveBook(s, "day", "base", "checked")["background-color"]?.value, "#111111");
+  assert.equal(compileBook(readSystem({}, {})), "", "nothing set, nothing written");
+  assert.equal(setBookProp(setBookProp(s, {}, "button", "phone", undefined, "padding-top", "")!, {}, "day", "base", undefined, "color", "")!.book?.globals.button, undefined);
+});

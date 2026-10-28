@@ -23,7 +23,7 @@ export default async function PollPage({ params, searchParams }: Props) {
       </BookShell>
     );
   return (
-    <BookShell tokens={v.ws.kit.tokens} embed={o.embed} narrow>
+    <BookShell tokens={v.ws.kit.tokens} design={v.ws.kit.design} embed={o.embed} narrow>
       <PollView token={token} initial={pollView(v)} turnstileKey={turnstileFor(v.ws.turnstile)} />
     </BookShell>
   );

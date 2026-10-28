@@ -7,6 +7,7 @@
 import { DEFAULT_TOKENS, type Tokens } from "../forms/brand.ts";
 import { partDef, PART_KEYS, type PartKey } from "./parts.ts";
 import { EMAIL_PART_KEYS, type EmailPartKey } from "./email/parts.ts";
+import { BOOK_PART_KEYS, type BookPartKey } from "./book.ts";
 import { readColumns, type Column } from "./email/doc.ts";
 import { isProp, type Prop } from "./props.ts";
 import { checkValue, color, VAR_ID } from "./values.ts";
@@ -38,7 +39,11 @@ export type DesignSystem = {
   breakpoints: { tablet: number; phone: number };
   /** Emails: their own global styles and classes (email parts differ from a form's), on the same variables. */
   email?: EmailSystem;
+  /** Booking pages: global styles for their parts (src/lib/design/book.ts). */
+  book?: { globals: BookStyles };
 };
+
+export type BookStyles = Partial<Record<BookPartKey, StyleRule>>;
 
 export type EmailStyles = Partial<Record<EmailPartKey, StyleRule>>;
 export type EmailClass = { id: string; name: string; with?: string[]; styles: EmailStyles };
@@ -232,6 +237,12 @@ export function readSystem(raw: unknown, tokens: Partial<Tokens> = {}): DesignSy
   const classes: DesignClass[] = readClasses(r.classes, (st) => readPartStyles(st, vars, "field"));
   const em = obj(r.email);
   const components = em ? readComponents(em.components, vars) : [];
+  const bk = obj(obj(r.book)?.globals);
+  const book: BookStyles = {};
+  for (const part of BOOK_PART_KEYS) {
+    const rule = bk ? readRule(bk[part], vars) : null;
+    if (rule) book[part] = rule;
+  }
   const email: EmailSystem | null = em ? { globals: readEmailStyles(em.globals, vars), classes: readClasses(em.classes, (st) => readEmailStyles(st, vars)), ...(components.length ? { components } : {}) } : null;
   const bp = obj(r.breakpoints) ?? {};
   const clamp = (v: unknown, lo: number, hi: number, d: number) => (Number.isFinite(Number(v)) ? Math.round(Math.min(hi, Math.max(lo, Number(v)))) : d);
@@ -244,6 +255,7 @@ export function readSystem(raw: unknown, tokens: Partial<Tokens> = {}): DesignSy
     classes,
     breakpoints: { tablet, phone },
     ...(email && (Object.keys(email.globals).length || email.classes.length || email.components?.length) ? { email } : {}),
+    ...(Object.keys(book).length ? { book: { globals: book } } : {}),
   };
 }
 

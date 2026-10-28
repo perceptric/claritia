@@ -5,17 +5,24 @@
 // styles it for every form (or for its class), never for one element, so editing here changes it everywhere.
 
 import { DndContext, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { Edit } from "@/lib/design/edit";
 import { designFonts, formCss } from "@/lib/design/form";
-import { allVariables, type Breakpoint, type DesignSystem, type FormDesign, type State, type Variable } from "@/lib/design/model";
+import { allVariables, type Breakpoint, type DesignSystem, type FormDesign, type RuleKey, type State, type Variable } from "@/lib/design/model";
 import { cleanTokens, type Tokens } from "@/lib/forms/brand";
 import { checkForm, emptyForm, type Form } from "@/lib/forms/schema";
 import { X } from "../../Icons";
 import { FormCanvas, type Picked } from "./FormCanvas";
 import { fontUrl } from "./editorModel";
-import { StylePanel } from "./StylePanel";
+import { Sections, StylePanel, type StyleCtx } from "./StylePanel";
+import { Seg, PICK } from "./controls";
+import { Select } from "../Select";
+import { BookingCalendar, KitScope } from "@/components/book/BookingCalendar";
+import { BOOK_PART_KEYS, bookPartDef, resolveBook, setBookProp, type BookPartKey } from "@/lib/design/book";
+import type { Resolved } from "@/lib/design/cascade";
+import type { Prop } from "@/lib/design/props";
+import { sampleSlots, type GuestType } from "@/lib/meetings/guest";
 
 /** The sample form: common fields, then one field for each class (with its base classes for a combo). */
 function sample(system: DesignSystem): Form {
@@ -70,6 +77,7 @@ export function StyleGuide({
   const [part, setPart] = useState<Picked>(null);
   const [selected, setSelected] = useState<string[]>([]);
   const [state, setState] = useState<State | undefined>(undefined);
+  const [view, setView] = useState<"form" | "booking">("form");
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
   const closeBtn = useRef<HTMLButtonElement>(null);
   useEffect(() => {
@@ -91,7 +99,17 @@ export function StyleGuide({
     <div role="dialog" aria-modal="true" aria-label="Style guide" className="anim-fade fixed inset-0 z-[85] flex flex-col bg-paper-deep">
       <div className="flex h-12 shrink-0 items-center gap-2 border-b border-line bg-card px-4">
         <span className="text-[13px] font-semibold tracking-[-0.01em] text-ink">Style guide</span>
-        <span className="flex-1" />
+        <span className="mx-auto w-[220px]">
+          <Seg<"form" | "booking">
+            label="What to style"
+            value={view}
+            options={[
+              { value: "form", label: "Forms" },
+              { value: "booking", label: "Booking pages" },
+            ]}
+            onChange={setView}
+          />
+        </span>
         <button ref={closeBtn} type="button" aria-label="Close" title="Close" onClick={onClose} className="press flex size-8 items-center justify-center rounded-full text-muted hover:bg-hover hover:text-ink">
           <X size={15} />
         </button>
@@ -129,6 +147,9 @@ export function StyleGuide({
             ))}
           </ul>
         </aside>
+        {view === "booking" ? (
+          <BookingView system={system} tokens={tokens} hasKit={hasKit} bp={bp} onEdit={onEdit} />
+        ) : (
         <DndContext sensors={sensors}>
           <FormCanvas
             form={form}
@@ -161,6 +182,8 @@ export function StyleGuide({
             locked
           />
         </DndContext>
+        )}
+        {view === "booking" ? null : (
         <aside aria-label="Style" className="min-h-0 overflow-y-auto border-l border-line bg-card">
           <StylePanel
             form={form}
@@ -176,8 +199,75 @@ export function StyleGuide({
             kitOnly
           />
         </aside>
+        )}
       </div>
     </div>,
     document.body,
+  );
+}
+
+// Booking pages ------------------------------------------------------------------------------------------------------
+
+const SAMPLE: GuestType = { slug: "intro", name: "Intro call", kind: "one", lengths: [30], location: { kind: "google_meet" }, questions: [], price: null, seats: null, hosts: [{ name: "Alex Kim", photo: null }] };
+
+/** The booking calendar with sample times, and the booking parts' styles for every booking page. */
+function BookingView({ system, tokens, hasKit, bp, onEdit }: { system: DesignSystem; tokens: Partial<Tokens>; hasKit: boolean; bp: Breakpoint; onEdit: (system: DesignSystem, merge?: string) => void }) {
+  const [part, setPart] = useState<BookPartKey>("day");
+  const [state, setState] = useState<"" | "hover" | "checked">("");
+  const [now] = useState(() => Date.now());
+  const load = useCallback(async (length: number) => sampleSlots(length, "UTC", now, 21), [now]);
+  const at = bp === "phone" ? "phone" : "base";
+  const st = state || undefined;
+  const resolved = resolveBook(system, part, at, st);
+  const key = (st ? `${at}:${st}` : at) as RuleKey;
+  const own = (p: Prop) => system.book?.globals[part]?.[key]?.[p];
+  const ctx: StyleCtx = {
+    vars: allVariables(system, tokens),
+    resolved: resolved as Resolved,
+    own,
+    origin: (p) => (own(p) !== undefined ? "here" : resolved[p]?.source.level === "global" ? "inherited" : resolved[p] ? "default" : "none"),
+    source: (p) => (resolved[p] ? (resolved[p]!.source.level === "global" ? "All booking pages" : "Booking page default") : undefined),
+    setsAny: (ps) => ps.some((p) => own(p) !== undefined),
+    write: (ps, value, merge) => {
+      let next: DesignSystem | null = system;
+      for (const p of ps) next = next && setBookProp(next, tokens, part, at, st, p, value);
+      if (!next) return false;
+      onEdit(next, merge ? `book:${part}:${ps.join()}:${key}` : undefined);
+      return true;
+    },
+  };
+  return (
+    <>
+      <div className="min-h-0 overflow-auto bg-paper-deep p-6">
+        <div className="mx-auto" style={{ maxWidth: bp === "phone" ? 390 : bp === "tablet" ? 768 : 1000 }}>
+          <KitScope tokens={tokens as Record<string, unknown>} design={system} className="cb-page cb-embed">
+            <div className="cb-wrap">
+              <main className="cb-card">
+                <BookingCalendar type={SAMPLE} load={load} />
+              </main>
+            </div>
+          </KitScope>
+        </div>
+      </div>
+      <aside aria-label="Style" className="min-h-0 overflow-y-auto border-l border-line bg-card">
+        {hasKit ? (
+          <>
+            <div className="flex flex-col gap-2.5 border-b border-line px-3 py-3">
+              <Select<BookPartKey> value={part} options={BOOK_PART_KEYS.map((k) => ({ value: k, label: bookPartDef(k).label }))} onChange={setPart} ariaLabel="Part" className={PICK} />
+              <Select<string>
+                value={state}
+                options={[{ value: "", label: "No state" }, { value: "hover", label: "Hover" }, ...(bookPartDef(part).selected ? [{ value: "checked", label: "Picked" }] : [])]}
+                onChange={(v) => setState(v as "" | "hover" | "checked")}
+                ariaLabel="State"
+                className={PICK}
+              />
+            </div>
+            <Sections ctx={ctx} />
+          </>
+        ) : (
+          <p className="px-4 py-10 text-center text-[12.5px] text-muted">Save the theme to a brand kit to style booking pages</p>
+        )}
+      </aside>
+    </>
   );
 }
