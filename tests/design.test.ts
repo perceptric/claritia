@@ -176,8 +176,12 @@ test("compiler: layers in order, scoped selectors, variables, breakpoints, state
   assert.match(css, /@layer e\{\n[^@]*@media \(max-width: 479px\)\{\n\.ac \.bt:not\(\.bk\)\{width:100%\}/);
   // Built-in variables keep the names the form's stylesheet already uses.
   assert.match(compileWeb(readSystem({ globals: { label: { base: { color: "$accent" } } } }), {}, []), /color:var\(--clr-accent\)/);
-  // The builder's device frames use container queries on the form's own box.
-  assert.match(compileWeb(SYS, {}, [], { queries: "container" }), /:host\{container:clr \/ inline-size;/);
+  // The builder's device frames apply their breakpoint's rules directly, larger ones too, smaller ones not at all.
+  const tablet = compileWeb(SYS, {}, [], { device: "tablet" });
+  assert.ok(!tablet.includes("@media") && !tablet.includes("font-size:13px"), "a tablet frame has no phone rules and no media queries");
+  assert.match(compileWeb(SYS, {}, [], { device: "phone" }), /\.fl \.lb\{font-size:13px\}/);
+  // A forced state in the builder has the same weight as the real one.
+  assert.equal(partSelector("label", ".fl", "hover", true), ".fl .lb:is(:hover, .clr-force-hover)");
   // Unused classes aren't written.
   assert.ok(!compileWeb(SYS, {}, []).includes("c-boxed"));
 });

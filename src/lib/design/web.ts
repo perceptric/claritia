@@ -12,8 +12,16 @@ import { varRef } from "./values.ts";
 import { appliedClasses } from "./cascade.ts";
 
 export type WebOpts = {
-  /** media: the visitor's screen (live forms). container: the box the form sits in (the builder's device frames). */
-  queries?: "media" | "container";
+  /**
+   * The builder's device frame: that breakpoint's rules (and the larger ones') apply directly, with no media query,
+   * so each frame shows its own size whatever the window is. Live forms leave it out and use media queries.
+   */
+  device?: Breakpoint;
+  /**
+   * The builder: a state also applies to parts carrying `clr-force-<state>`, so the canvas can show the selected
+   * part hovered, focused, checked... while the style panel edits that state.
+   */
+  preview?: boolean;
 };
 
 const SAFE_ID = /^[a-z0-9]{1,24}$/;
@@ -36,7 +44,9 @@ const splitSel = (s: string) => {
 };
 
 /** The selectors for a part inside a scope, in a state; null when the state doesn't apply to that part. */
-export function partSelector(part: PartKey, scope: string, state?: State): string | null {
+export function partSelector(part: PartKey, scope: string, state?: State, preview = false): string | null {
+  // In the builder a forced state is a class on the part, with the same weight as the pseudo-class it stands for.
+  const f = (pseudo: string) => (preview ? `:is(${pseudo}, .clr-force-${state})` : pseudo);
   const d = partDef(part);
   const list = splitSel(d.sel || "");
   const field = d.scope === "field";
@@ -46,19 +56,19 @@ export function partSelector(part: PartKey, scope: string, state?: State): strin
     if (sel.includes("::") || d.plain) return null;
     switch (state) {
       case "hover":
-        return `${base}:hover`;
+        return `${base}${f(":hover")}`;
       case "focus":
-        return `${base}:focus-within`;
+        return `${base}${f(":focus-within")}`;
       case "pressed":
-        return `${base}:active`;
+        return `${base}${f(":active")}`;
       case "disabled":
-        return `${base}:is(:disabled, :has(:disabled))`;
+        return `${base}${f(":is(:disabled, :has(:disabled))")}`;
       case "checked":
-        if (d.checked) return field ? `${scope} ${d.checked}` : d.checked;
-        return `${base}:is(:checked, :has(:checked))`;
+        if (d.checked) return [field ? `${scope} ${d.checked}` : d.checked, ...(preview ? [`${base}.clr-force-checked`] : [])].join(", ");
+        return `${base}${f(":is(:checked, :has(:checked))")}`;
       case "invalid":
         if (!field) return null;
-        return sel ? `${scope}:has([aria-invalid="true"]) ${sel}` : `${scope}:has([aria-invalid="true"])`;
+        return sel ? `${scope}${f(':has([aria-invalid="true"])')} ${sel}` : `${scope}${f(':has([aria-invalid="true"])')}`;
       case "dark":
         return null;
     }
@@ -80,7 +90,7 @@ const declsCss = (d: Record<string, string> | undefined) =>
     .join(";");
 
 /** One level's rules for one scope (every part it styles), grouped by breakpoint. */
-function levelRules(styles: PartStyles, scope: string, into: Record<Breakpoint, string[]>) {
+function levelRules(styles: PartStyles, scope: string, into: Record<Breakpoint, string[]>, preview = false) {
   for (const part of PART_KEYS) {
     const rule: StyleRule | undefined = styles[part];
     if (!rule) continue;
@@ -92,7 +102,7 @@ function levelRules(styles: PartStyles, scope: string, into: Record<Breakpoint, 
         const [b, st] = key.split(":") as [Breakpoint, State | undefined];
         if (b !== bp || !st) continue;
         const body = declsCss(decls);
-        const s = partSelector(part, scope, st);
+        const s = partSelector(part, scope, st, preview);
         if (body && s) into[bp].push(`${s}{${body}}`);
       }
     }
@@ -104,14 +114,17 @@ function levelRules(styles: PartStyles, scope: string, into: Record<Breakpoint, 
  * element styles. `elements` are the form's element ids (fields and blocks).
  */
 export function compileWeb(system: DesignSystem, design: FormDesign, elements: string[], opts: WebOpts = {}): string {
-  const media = (bp: Breakpoint) => {
-    const w = bp === "tablet" ? system.breakpoints.tablet : system.breakpoints.phone;
-    return opts.queries === "container" ? `@container clr (max-width: ${w}px)` : `@media (max-width: ${w}px)`;
+  const media = (bp: Breakpoint) => `@media (max-width: ${bp === "tablet" ? system.breakpoints.tablet : system.breakpoints.phone}px)`;
+  const upto = opts.device ? BREAKPOINTS.indexOf(opts.device) : -1;
+  const wrap = (bp: "tablet" | "phone", rules: string[]) => {
+    if (!rules.length) return "";
+    if (!opts.device) return `${media(bp)}{\n${rules.join("\n")}\n}`;
+    return BREAKPOINTS.indexOf(bp) <= upto ? rules.join("\n") : "";
   };
   const layer = (name: string, fill: (into: Record<Breakpoint, string[]>) => void) => {
     const into: Record<Breakpoint, string[]> = { base: [], tablet: [], phone: [] };
     fill(into);
-    const body = [into.base.join("\n"), ...(["tablet", "phone"] as const).map((bp) => (into[bp].length ? `${media(bp)}{\n${into[bp].join("\n")}\n}` : ""))].filter(Boolean).join("\n");
+    const body = [into.base.join("\n"), wrap("tablet", into.tablet), wrap("phone", into.phone)].filter(Boolean).join("\n");
     return body ? `@layer ${name}{\n${body}\n}` : "";
   };
 
@@ -120,20 +133,20 @@ export function compileWeb(system: DesignSystem, design: FormDesign, elements: s
   const order = `@layer base, g, ${classes.map((c) => `c-${c.id}`).join(", ")}${classes.length ? ", " : ""}e;`;
 
   const vars = system.variables.map((v) => `${varCss(v.id)}:${v.value}`).join(";");
-  const host = [opts.queries === "container" ? "container:clr / inline-size" : "", vars].filter(Boolean).join(";");
+  const host = vars;
 
   const parts: string[] = [order];
   if (host) parts.push(`:host{${host}}`);
-  parts.push(layer("g", (into) => levelRules(system.globals, ".fl", into)));
+  parts.push(layer("g", (into) => levelRules(system.globals, ".fl", into, opts.preview)));
   for (const c of classes) {
     const scope = `.fl.c-${c.id}${(c.with ?? []).map((w) => `.c-${w}`).join("")}`;
-    parts.push(layer(`c-${c.id}`, (into) => levelRules(c.styles, scope, into)));
+    parts.push(layer(`c-${c.id}`, (into) => levelRules(c.styles, scope, into, opts.preview)));
   }
   parts.push(
     layer("e", (into) => {
       for (const [id, styles] of Object.entries(design.styles ?? {})) {
         if (id !== "form" && (!SAFE_ID.test(id) || !elements.includes(id))) continue;
-        levelRules(styles, id === "form" ? "" : `.fl[data-id="${id}"]`, into);
+        levelRules(styles, id === "form" ? "" : `.fl[data-id="${id}"]`, into, opts.preview);
       }
     }),
   );
