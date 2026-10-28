@@ -22,5 +22,6 @@ if [ -n "${CHROMIUM_PATH:-}" ]; then
   PG_URL="$URL" node scripts/forms-check.ts
   PG_URL="$URL" node scripts/forms-qa-check.ts
   node scripts/brand-check.ts
+  node scripts/design-check.ts
   if [ -n "${POSTGREST_BIN:-}" ]; then node scripts/screens-check.ts; fi
 fi

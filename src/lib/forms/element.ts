@@ -16,7 +16,8 @@ import { allFields, isContent, nextStep, optionsFor, safeUrl, visibility, withCa
 import { checkAnswers, OTHER, stepPath, type Answers } from "./values.ts";
 
 /** regions: the region lists, sent with the form when a list follows a country field (src/lib/forms/regions.ts). */
-type Loaded = { id: string; version: number; status: "live" | "paused"; body: Form; tokens: Partial<Tokens>; strict?: boolean; turnstile?: string; regions?: Record<string, string[]> };
+/** css: the design system's styles compiled for this form (src/lib/design/web.ts); it starts with the layer order. */
+type Loaded = { id: string; version: number; status: "live" | "paused"; body: Form; tokens: Partial<Tokens>; strict?: boolean; turnstile?: string; regions?: Record<string, string[]>; css?: string };
 type Queued = { url: string; body: string; key: string; at: number; tries: number };
 
 const QUEUE = "clr_form_queue";
@@ -628,11 +629,11 @@ export class ClaritiaForm extends Base {
   }
 
   /** The app's builder shows a draft without loading or sending anything. */
-  set preview(p: { form: Form; tokens?: Partial<Tokens>; step?: number; done?: boolean; regions?: Record<string, string[]> }) {
+  set preview(p: { form: Form; tokens?: Partial<Tokens>; step?: number; done?: boolean; regions?: Record<string, string[]>; css?: string }) {
     this.isPreview = true;
     const fresh = !this.data || this.done !== !!p.done;
     if (fresh || p.form.after.schedule?.tool !== "claritia") this.bk = this.bkDone = null;
-    this.data = { id: "preview", version: 0, status: "live", body: p.form, tokens: p.tokens ?? {}, strict: true, regions: p.regions };
+    this.data = { id: "preview", version: 0, status: "live", body: p.form, tokens: p.tokens ?? {}, strict: true, regions: p.regions, css: p.css };
     this.step = Math.min(p.step ?? this.step, p.form.steps.length - 1);
     this.done = !!p.done;
     if (fresh) this.errors = {};
@@ -746,7 +747,8 @@ export class ClaritiaForm extends Base {
     const form = d.body;
     addFont(d.tokens.fontUrl ?? "");
     const width = form.layout.maxWidth ? `${form.layout.maxWidth}px` : form.layout.width === "wide" ? "720px" : "480px";
-    const style = el("style", { text: `:host{${tokensCss(d.tokens)}--clr-width:${width}}${STYLES}` });
+    // The form's own stylesheet is the lowest layer; the design system's layers (in d.css) sit above it.
+    const style = el("style", { text: `${d.css ?? ""}\n:host{${tokensCss(d.tokens)}--clr-width:${width}}\n@layer base{${STYLES}}` });
     if (d.status === "paused") return this.put(style, el("div", { class: "f" }, el("p", { class: "i", text: "This form is closed." })));
     if (this.done) return this.put(style, this.endScreen(form));
 
@@ -770,7 +772,7 @@ export class ClaritiaForm extends Base {
       const box = el("input", { type: "checkbox", id: "clr-consent" }) as HTMLInputElement;
       box.checked = this.consent;
       box.addEventListener("change", () => (this.consent = box.checked));
-      wrap.append(el("label", { class: "ck" }, box, el("span", { text: form.consent.label })));
+      wrap.append(el("label", { class: "ck cs" }, box, el("span", { text: form.consent.label })));
     }
     if (last && form.consent.mode === "notice") wrap.append(el("p", { class: "i nt", text: form.consent.label }));
     // Spam trap: hidden from people and screen readers; bots fill it.
@@ -897,7 +899,9 @@ export class ClaritiaForm extends Base {
     const err = this.errors[f.id];
     // A required field always shows: hidden on a phone, it could never be filled there.
     const cls = ["fl", `w${SPAN[f.width ?? "full"]}`, f.size === "sm" || f.size === "lg" ? f.size : "", f.hideOnPhone && !req ? "np" : "", f.content?.align === "center" ? "ce" : ""];
-    const box = el("div", { class: cls.filter(Boolean).join(" ") });
+    // The design system finds a field by its id, and its classes by c-<id> (src/lib/design/web.ts).
+    const own = (form.design?.classes?.[f.id] ?? []).filter((c) => /^[a-z0-9]{1,24}$/.test(c)).map((c) => `c-${c}`);
+    const box = el("div", { class: [...cls, ...own].filter(Boolean).join(" "), "data-id": f.id });
     if (isContent(f.type)) {
       const c = this.content(f);
       if (c) box.append(c);
