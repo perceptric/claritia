@@ -19,14 +19,13 @@ export type Route =
   | "scoring"
   | "settings";
 
-export type GroupKey = "crm" | "automation" | "inbound" | "nurture" | "settings";
+export type GroupKey = "inbound" | "crm" | "nurture" | "settings";
 export type Tone = "sky" | "clay" | "sage" | "butter";
 
 /** A group's color tile (docs/brand.md: sidebar groups) and its title; an empty title draws a rule. */
 export const GROUPS: { key: GroupKey; label: string; tone: Tone | null }[] = [
-  { key: "crm", label: "CRM", tone: "sky" },
-  { key: "automation", label: "Automation", tone: "clay" },
   { key: "inbound", label: "Inbound", tone: "sage" },
+  { key: "crm", label: "CRM", tone: "sky" },
   { key: "nurture", label: "Nurture", tone: "butter" },
   { key: "settings", label: "", tone: null },
 ];
@@ -44,23 +43,22 @@ export type NavItem = {
 const item = (group: GroupKey, route: Route, label: string): NavItem => ({ key: route, route, page: "", label, group });
 
 export const NAV: NavItem[] = [
+  item("inbound", "forms", "Forms"),
+  item("inbound", "scheduling", "Calendar"),
+  item("inbound", "routing", "Routing"),
+  item("inbound", "scoring", "Scoring"),
+  item("inbound", "visitors", "Visitors"),
   item("crm", "contacts", "Contacts"),
   item("crm", "companies", "Companies"),
   item("crm", "opportunities", "Opportunities"),
   item("crm", "meetings", "Meetings"),
-  item("automation", "workflows", "Workflows"),
-  item("automation", "routing", "Routing"),
-  item("automation", "enrichment", "Enrichment"),
-  item("inbound", "forms", "Forms"),
-  item("inbound", "scheduling", "Scheduling"),
-  item("inbound", "visitors", "Visitors"),
   item("nurture", "emails", "Emails"),
   item("nurture", "segments", "Segments"),
-  item("nurture", "scoring", "Lead scoring"),
+  item("nurture", "workflows", "Workflows"),
   item("settings", "settings", "Settings"),
 ];
 
-const ROUTES = new Set<string>([...NAV.map((n) => n.route), "objects"]);
+const ROUTES = new Set<string>([...NAV.map((n) => n.route), "objects", "enrichment"]);
 
 export const defaultRoute: Route = "contacts";
 

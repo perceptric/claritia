@@ -15,7 +15,7 @@ import { TypesPage } from "./TypesPage";
 
 export function SchedulingView(props: ViewProps) {
   const p = schedulingPage(props.id);
-  const nav = { title: "Scheduling", tabs: SCHEDULING_TABS, current: p.page, onPick: (t: string) => props.navigate("scheduling", t) };
+  const nav = { title: "Calendar", tabs: SCHEDULING_TABS, current: p.page, onPick: (t: string) => props.navigate("scheduling", t) };
   return <Section nav={nav}>{body(props, p)}</Section>;
 }
 

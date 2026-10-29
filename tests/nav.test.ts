@@ -19,17 +19,16 @@ import {
   visitorsPage,
 } from "../src/lib/nav.ts";
 
-test("the sidebar is CRM, Automation, Inbound and Nurture, then Settings, with at most four items a group", () => {
+test("the sidebar is Inbound, CRM and Nurture, then Settings, with at most five items a group", () => {
   assert.deepEqual(
     GROUPS.map((g) => g.key),
-    ["crm", "automation", "inbound", "nurture", "settings"],
+    ["inbound", "crm", "nurture", "settings"],
   );
   const by = (g: string) => NAV.filter((n) => n.group === g).map((n) => n.label);
   assert.deepEqual(by("crm"), ["Contacts", "Companies", "Opportunities", "Meetings"]);
-  assert.deepEqual(by("automation"), ["Workflows", "Routing", "Enrichment"]);
-  assert.deepEqual(by("inbound"), ["Forms", "Scheduling", "Visitors"]);
-  assert.deepEqual(by("nurture"), ["Emails", "Segments", "Lead scoring"]);
-  for (const g of GROUPS) assert.ok(by(g.key).length <= 4, g.key);
+  assert.deepEqual(by("inbound"), ["Forms", "Calendar", "Routing", "Scoring", "Visitors"]);
+  assert.deepEqual(by("nurture"), ["Emails", "Segments", "Workflows"]);
+  for (const g of GROUPS) assert.ok(by(g.key).length <= 5, g.key);
   assert.equal(defaultRoute, "contacts");
   assert.equal(new Set(NAV.map((n) => n.route)).size, NAV.length, "one item per route");
   assert.deepEqual(ROUTING_TABS.map((t) => t.label), ["Setup", "Leads", "Team"]);
@@ -135,9 +134,10 @@ test("scheduling, visitors, enrichment, emails and lead scoring tabs", () => {
 
 test("every page lights its one sidebar item", () => {
   assert.equal(activeItem("routing")?.label, "Routing");
-  assert.equal(activeItem("scheduling")?.label, "Scheduling");
+  assert.equal(activeItem("scheduling")?.label, "Calendar");
   assert.equal(activeItem("visitors")?.label, "Visitors");
   assert.equal(activeItem("emails")?.label, "Emails");
-  assert.equal(activeItem("scoring")?.label, "Lead scoring");
+  assert.equal(activeItem("scoring")?.label, "Scoring");
+  assert.equal(activeItem("enrichment"), null, "off the sidebar, still at its address");
   assert.equal(activeItem("objects"), null);
 });
