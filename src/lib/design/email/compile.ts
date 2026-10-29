@@ -54,6 +54,9 @@ function values(ctx: Ctx, id: string, part: EmailPartKey, bp: EmailBp = "base", 
     const val = literal(v!.value, ctx.vars, dark);
     if (val) out[p as Prop] = val;
   }
+  // Defaults give only the top-left corner; the other three follow it unless they're set.
+  const tl = out["border-top-left-radius"];
+  if (tl) for (const c of ["top-right", "bottom-right", "bottom-left"] as const) out[`border-${c}-radius`] ??= tl;
   return out;
 }
 
@@ -119,6 +122,10 @@ const px = (v: string | undefined, d: number) => {
   const m = /^(-?\d+(?:\.\d+)?)px$/.exec(v ?? "");
   return m ? Number(m[1]) : d;
 };
+
+/** A card's box. Separate borders, so its corners round (collapsed borders drop border-radius). */
+const cardBox = (s: { inline: string; className: string }, inner: string) =>
+  `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:separate"><tr><td${attrClass(s.className)} style="${escapeAttr(s.inline)}">${inner}</td></tr></table>`;
 
 /** A block's margins as padding on the cell around it (Outlook ignores margins). */
 function wrapperPadding(base: Partial<Record<Prop, string>>): string {
@@ -230,7 +237,7 @@ function blockHtml(ctx: Ctx, b: Block, width: number): string {
         '<div style="height:12px;line-height:12px;font-size:1px">&nbsp;</div>',
         button(ctx, b.id, b.button, b.url, "left"),
       ].join("");
-      return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td${attrClass(s.className)} style="${escapeAttr(s.inline)}">${inner}</td></tr></table>`;
+      return cardBox(s, inner);
     }
     case "event": {
       const s = style(ctx, b.id, "card", isMargin);
@@ -240,7 +247,7 @@ function blockHtml(ctx: Ctx, b: Block, width: number): string {
         '<div style="height:12px;line-height:12px;font-size:1px">&nbsp;</div>',
         button(ctx, b.id, b.button, b.url, "left"),
       ].join("");
-      return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td${attrClass(s.className)} style="${escapeAttr(s.inline)}">${inner}</td></tr></table>`;
+      return cardBox(s, inner);
     }
     case "signature": {
       const pic = b.image ? `<td width="56" valign="top" style="padding-right:12px"><img src="${escapeAttr(b.image)}" alt="" width="48" height="48" style="display:block;width:48px;height:48px;border-radius:24px;border:0"></td>` : "";
