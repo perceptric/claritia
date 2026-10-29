@@ -87,7 +87,11 @@ export function cleanBody(raw: unknown): RouterBody {
   const account = obj(r.account);
   const keep = obj(r.keep);
   const rules = obj(r.rules);
-  const queues = arr(r.queues).map(cleanQueue).filter((q): q is Queue => !!q);
+  // The starting team was once called "Everyone", which read as "Everyone else goes to Everyone".
+  const queues = arr(r.queues)
+    .map(cleanQueue)
+    .filter((q): q is Queue => !!q)
+    .map((q) => (q.id === "q_everyone" && q.name === "Everyone" ? { ...q, name: "All reps" } : q));
   const qids = new Set(queues.map((q) => q.id));
   const territories = arr(r.territories).map(cleanTerritory).filter((t): t is Territory => !!t);
   const list: Rule[] = [];
@@ -189,12 +193,18 @@ export function problems(body: RouterBody, o: { members: Set<string>; fields?: F
 
 /** A problem in plain words, for the screen. The texts above stay as they are: the chat and tests match on them. */
 export function problemWords(t: string): string {
-  return t === "Pick a fallback"
-    ? "Pick who gets leads that match no rule"
-    : t
-        .replace(/^"(.+?)" has no team$/, '"$1" needs a rep or team')
-        .replace(/^"(.+?)" has no conditions$/, '"$1" needs a condition')
-        .replace(/^"(.+?)" has a condition with no value$/, 'Pick a value for "$1"')
-        .replace(/^(.+?) has no reps$/, "Add reps to $1")
-        .replace(/^The fallback is no longer in the workspace$/, "The rep for everyone else has left. Pick another");
+  if (t === "Pick a fallback") return "Pick who gets leads that match no rule";
+  // A rule still on its made-up name ("Rule 1", "New rule") isn't named in the message; it's the one on screen.
+  const auto = /^"(New rule( \d+)?|Rule \d+)" /;
+  if (auto.test(t))
+    return t
+      .replace(/^".+?" has no team$/, "Pick who gets these leads")
+      .replace(/^".+?" has no conditions$/, "Add a condition")
+      .replace(/^".+?" has a condition with no value$/, "Pick a value for the condition");
+  return t
+    .replace(/^"(.+?)" has no team$/, '"$1" needs a rep or team')
+    .replace(/^"(.+?)" has no conditions$/, '"$1" needs a condition')
+    .replace(/^"(.+?)" has a condition with no value$/, 'Pick a value for "$1"')
+    .replace(/^(.+?) has no reps$/, "Add reps to $1")
+    .replace(/^The fallback is no longer in the workspace$/, "The rep for leads no rule matched has left. Pick another");
 }

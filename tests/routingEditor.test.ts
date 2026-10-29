@@ -230,3 +230,17 @@ test("a test lead's path: each step's mark, the steps reached, the matched rule 
   assert.equal(held.rule, null);
   assert.deepEqual(pathOf(null).marks, {});
 });
+
+test("names on screen: a made-up rule name shows what it matches, and the first team reads as All reps", async () => {
+  const { ruleTitle } = await import("../src/components/app/routing/editorModel.ts");
+  const { BASE_FIELDS } = await import("../src/lib/router/conditions.ts");
+  const { cleanBody, problemWords } = await import("../src/lib/router/check.ts");
+  const rule = { id: "r1", name: "Rule 1", on: true, match: "all" as const, conds: [{ field: "lead.country", op: "one_of" as const, value: ["US"] }], queue: null };
+  assert.match(ruleTitle(rule, BASE_FIELDS, []), /united states/i);
+  assert.equal(ruleTitle({ ...rule, conds: [{ field: "lead.country", op: "one_of" as const, value: [] }] }, BASE_FIELDS, []), "New rule");
+  assert.equal(ruleTitle({ ...rule, name: "EMEA enterprise" }, BASE_FIELDS, []), "EMEA enterprise");
+  assert.equal(problemWords('"Rule 1" has no team'), "Pick who gets these leads");
+  assert.equal(problemWords('"EMEA" has no team'), '"EMEA" needs a rep or team');
+  const b = cleanBody({ queues: [{ id: "q_everyone", name: "Everyone", method: "rr", members: [] }] });
+  assert.equal(b.queues[0]!.name, "All reps");
+});
