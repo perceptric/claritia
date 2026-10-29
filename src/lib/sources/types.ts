@@ -28,6 +28,15 @@ export type Booking = { tool: string; id: string; start: string | null; tracking
 export type HookEvent = { dedupe: string; object: "contacts" | "companies"; id: string; deleted?: boolean; record?: RawRecord; booking?: Booking };
 
 export type PushChange = { localId: string; externalId: string | null; values: Record<string, unknown> };
+/**
+ * How a form destination's sync rules shape one push (docs/form-builder.md 7.4). owner: "set" writes the owner
+ * column as usual, "keep" leaves the owner of a record the tool already has, "none" never writes it (the tool
+ * assigns). autoAssign: Salesforce runs its own assignment rules on new records. create: what a new Salesforce record
+ * is. optIn: the person ticked the consent box on this submission.
+ */
+export type PushOptions = { owner?: "set" | "keep" | "none"; autoAssign?: boolean; create?: "Lead" | "Contact"; optIn?: boolean };
+/** A record in the tool with the same name at the same company domain, found before creating a new one. */
+export type Similar = { id: string; email: string | null; name: string };
 /** `gone`: the tool no longer has the record (deleted there and the news missed); the link goes, nothing is re-created. */
 export type PushResult = { localId: string; externalId?: string; error?: string; gone?: boolean };
 
@@ -107,7 +116,9 @@ export type Connector = {
   parse?(body: unknown, headers: Headers): HookEvent[];
   /** For one webhook URL shared by every account (HubSpot): which account it's for. */
   hookAccount?(body: unknown): string | null;
-  push?(ctx: Ctx, changes: PushChange[]): Promise<PushResult[]>;
+  push?(ctx: Ctx, changes: PushChange[], o?: PushOptions): Promise<PushResult[]>;
+  /** Records with this first and last name and an email at this domain (the duplicate check in sync rules). */
+  similar?(ctx: Ctx, p: { first: string; last: string; domain: string }): Promise<Similar[]>;
   /** Write email and form activity to the CRM, one result per item. */
   activity?(ctx: Ctx, items: ActivityItem[]): Promise<ActivityResult[]>;
   /** The CRM's users who can own a contact, for routing rules. */

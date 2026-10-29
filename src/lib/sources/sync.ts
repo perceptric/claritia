@@ -13,7 +13,7 @@ import { writeContacts } from "../contacts/contacts.ts";
 import type { Rpc } from "../jobs.ts";
 import { agreed, cellOf, changedKeys, compared, decide, effectiveMapping, outOnly, OWNER, propOf, pushable, recordsToCompanies, recordsToRows, toRemote, type Col, type SavedMapping } from "./map.ts";
 import { toOpportunityRows } from "./opportunities.ts";
-import type { ActivityItem, ActivityResult, Connector, Ctx, HookEvent, ObjectKind, PushChange, RawRecord } from "./types.ts";
+import type { ActivityItem, ActivityResult, Connector, Ctx, HookEvent, ObjectKind, PushChange, PushOptions, RawRecord } from "./types.ts";
 
 export type Deps = { rpc: Rpc; connector: Connector; ctx: Ctx; clean: CleanCtx; saved: SavedMapping[]; now?: () => number };
 export type Counts = { pulled: number; written: number; skipped: number; errors: number };
@@ -438,7 +438,7 @@ export type PushOutcome = { externalId?: string; error?: string; gone?: boolean 
  */
 export async function push(
   d: Deps,
-  opts: { ids?: string[]; budgetMs?: number; batch?: number; force?: boolean; outcome?: Map<string, PushOutcome> } = {},
+  opts: { ids?: string[]; budgetMs?: number; batch?: number; force?: boolean; outcome?: Map<string, PushOutcome>; options?: PushOptions } = {},
 ): Promise<Counts & { more: boolean }> {
   const c = { ...zero(), more: false };
   const src = d.ctx.source;
@@ -470,7 +470,7 @@ export async function push(
       changes.push({ localId: k.id, externalId: k.external_id, values: toRemote(cols, x), ours, last: k.last });
     }
     if (changes.length) {
-      const results = await d.connector.push(d.ctx, changes);
+      const results = await d.connector.push(d.ctx, changes, opts.options);
       const byId = new Map(results.map((r) => [r.localId, r]));
       const put: { external_id: string; local_id: string; values: Record<string, unknown> }[] = [];
       const rows: LogRow[] = [];
