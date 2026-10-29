@@ -165,6 +165,17 @@ brand_kits (id, workspace_id, site_id, tokens jsonb, logo_path, source_url, scan
 - **Match (default):** the form uses the brand kit tokens inside a Shadow DOM. The site's own CSS can't break the form, and the form can't break the site.
 - **Inherit:** for teams with a design system. The form drops the Shadow DOM, uses plain class names (`clr-field`, `clr-input`, `clr-button`), and the site's CSS styles it. The chat warns if the site's CSS makes a field hard to read (the runner checks contrast after load).
 
+### 5.4 Every form starts in the brand kit
+
+- The kit is scanned from the workspace's website when the workspace is set up (or when the first form is made, if it isn't scanned yet). No form ever starts in a default look.
+- A new form takes the kit's button color, font, corners, button shape and logo. The assistant says so in its first message ("Styled with the Lumen brand kit from lumen.io").
+- The style bar above the form shows the kit. Edit opens Style: button color (from the kit's colors), font (the kit's fonts), corners, button shape, show logo, and Scan again.
+- A change made for one form ("Use square corners", "Use a serif font") stays on that form and marks it Custom style. The kit is unchanged, and Reset to brand kit brings the form back.
+- Changing the kit restyles every form that isn't custom (5.2). A rescan that finds new colors shows the change before it applies.
+- Contrast is checked on every change. A button color that fails WCAG AA on its background is refused with the reason.
+
+Running cost: the scan already exists (5.1) and runs once per site, plus the monthly rescan. Starting forms in the kit adds no AI call. Added per month: $0 at Beta (50 teams) and $0 at Growth (500 teams).
+
 ## Part 6. The renderer
 
 | Way to place it | How |
