@@ -88,8 +88,6 @@ function ChatDock({ session, ws, data, onTurn }: { session: ViewProps["session"]
   const [pending, setPending] = useState<string | null>(null);
   const [all, setAll] = useState(false);
   const messages = data.chat ?? [];
-  const last = messages[messages.length - 1];
-  const ask = last?.role === "assistant" && last.ask ? last.ask : null;
   const shown = all ? messages : messages.slice(-1);
 
   const send = async (message: string) => {
@@ -147,7 +145,7 @@ function ChatDock({ session, ws, data, onTurn }: { session: ViewProps["session"]
           <ErrorNote message={error} />
         </div>
       ) : null}
-      <AskDock wide busy={busy} starters={ask && !busy ? ask.choices : messages.length ? [] : ["Send leads by region", "Big companies go to my senior reps", "Ana is out next week"]} placeholder="Ask the assistant to change the routing" onSend={(t) => void send(t)} />
+      <AskDock wide busy={busy} placeholder="Ask the assistant to change the routing" onSend={(t) => void send(t)} />
     </div>
   );
 }

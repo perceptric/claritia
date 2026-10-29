@@ -224,7 +224,7 @@ export function Editor({ session, ws, role, data, model, refresh }: Pick<ViewPro
               ) : null}
             </div>
           ) : null}
-          <AskDock wide busy={busy} starters={msgs.length > 1 ? [] : ["Suggest changes from past deals", "We can take 10 leads a week", "Count pricing visits once"]} placeholder="Ask the assistant to change the model" onSend={(t) => void send(t)} />
+          <AskDock wide busy={busy} placeholder="Ask the assistant to change the model" onSend={(t) => void send(t)} />
         </div>
       ) : null}
     </div>
