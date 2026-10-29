@@ -13,12 +13,12 @@ export function ToolIntro({ title, lead, action, features, sketch = "cards" }: {
   const [first, rest = ""] = title.split("\n");
   return (
     <section className="mx-auto flex max-w-6xl flex-col gap-8 py-2">
-      <div className="wash relative grid items-center gap-6 overflow-hidden rounded-3xl px-7 py-9 md:grid-cols-[1fr_auto] md:px-10">
+      <div className="wash relative grid items-center gap-6 overflow-hidden rounded-2xl border border-line px-7 py-9 md:grid-cols-[1fr_auto] md:px-10">
         <div className="anim-rise flex flex-col gap-4">
-          <span className="label-mono">Start here</span>
-          <h2 className="font-semibold tracking-[-0.02em] max-w-2xl text-[31px] leading-[1.08] text-ink md:text-[36px]">
+          <span className="font-mono text-[11.5px] font-medium tracking-[0.08em] text-muted uppercase">Start here</span>
+          <h2 className="max-w-2xl text-[31px] leading-[1.08] font-medium tracking-[-0.035em] text-ink md:text-[38px]">
             {first}
-            {rest ? <span className="text-muted"> {rest}</span> : null}
+            {rest ? <span className="block text-faint">{rest}</span> : null}
           </h2>
           {lead ? <p className="max-w-xl text-[15px] leading-relaxed text-body">{lead}</p> : null}
           {action ? <div className="mt-1 flex flex-wrap gap-2">{action}</div> : null}
@@ -28,11 +28,11 @@ export function ToolIntro({ title, lead, action, features, sketch = "cards" }: {
       {features?.length ? (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {features.map((f, i) => (
-            <div key={f.title} className="lift anim-rise flex flex-col rounded-2xl border border-line bg-card" style={{ animationDelay: `${120 + i * 80}ms` }}>
+            <div key={f.title} className="lift anim-rise flex flex-col rounded-lg border border-line bg-card" style={{ animationDelay: `${120 + i * 80}ms` }}>
               <div className="flex flex-1 flex-col gap-3 p-6">
                 {f.visual ? <div className="flex h-20 items-center">{f.visual}</div> : null}
-                <h3 className="font-semibold tracking-[-0.02em] mt-2 text-[18px] leading-tight text-ink">{f.title}</h3>
-                <p className="text-[13.5px] leading-relaxed text-body">{f.text}</p>
+                <h3 className="mt-2 text-[16px] leading-tight font-medium tracking-[-0.015em] text-ink">{f.title}</h3>
+                <p className="text-[13.5px] leading-relaxed text-muted">{f.text}</p>
               </div>
             </div>
           ))}
@@ -50,7 +50,7 @@ export function SampleBars({ values = [30, 45, 40, 52, 48, 60, 72, 66, 58, 70, 6
   return (
     <span className="flex h-16 w-full items-end gap-1" aria-hidden="true">
       {values.map((v, i) => (
-        <span key={i} className="flex-1 rounded-full bg-clay" style={{ height: `${(v / max) * 100}%`, opacity: 0.3 + (i / values.length) * 0.7 }} />
+        <span key={i} className="flex-1 rounded-[3px] bg-clay" style={{ height: `${(v / max) * 100}%`, opacity: 0.3 + (i / values.length) * 0.7 }} />
       ))}
     </span>
   );

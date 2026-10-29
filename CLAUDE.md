@@ -23,10 +23,10 @@ The sidebar is in `src/lib/nav.ts` (`docs/unify-plan.md`): CRM (Contacts, Compan
 
 ## Rule: one brand style
 - Follow `docs/brand.md` for the app, the website, emails and decks. Use the tokens in `src/app/globals.css`, never a hex.
-- Warm paper and Geist for every word: titles 600 weight with tight tracking. Labels are Geist 12px, sentence case; mono only for code, keys and ids.
-- Buttons, tags and toggles are pills. Inputs 8px, cards 16 to 24px, the page panel 32px. A state is a pill `Badge`.
-- Soft washes are allowed on large areas. No gradients on buttons or text. No emoji.
-- Cards sit flat and lift on hover; shadows only on lifted and floating things.
+- The same family as Omniscient and tryclaritia.com: black and white with plain grays, Inter for every word, black for the one primary action, emerald as the one signal (about 5% of a view). Big titles take two tones. Mono only for eyebrows, code, keys and ids.
+- Buttons, tags and toggles are pills. Inputs 6px, cards 10px, the page panel and dialogs 16px. A state is a pill `Badge`.
+- No gradients and no emoji. Cards sit flat on a hairline; shadows only on the page panel, the one frame and things that float.
+- The corner bracket from the mark is Claritia's motif (the Catch in `src/components/app/Catch.tsx`).
 - AI is shown with the sparkle (`src/components/app/Ai.tsx`): `AiMark` beside AI controls, `AiAvatar` where AI speaks, `AiTag` on anything AI made.
-- Empty states and first screens use a sketch from `src/components/sketches`.
+- Empty states and first screens use a drawing from `src/components/sketches`.
 - Motion uses the three speeds and two curves in `docs/brand.md`, and stops under reduced motion. Every screen works in light and dark.

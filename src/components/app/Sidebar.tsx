@@ -1,11 +1,11 @@
 "use client";
 
 // The side rail (docs/app-structure.md Part 1): Create, Search, then the groups from src/lib/nav.ts. Groups fold (the
-// fold is kept on this computer; the open page's group never folds), items in the four main groups carry a small
-// tile in their group's wash, and Needs review and Meetings show a count. Folds to icons between 768 and 1,280 px.
+// fold is kept on this computer; the open page's group never folds), and Needs review and Meetings show a count. The
+// open item is a white chip with a hairline, like Omniscient. Folds to icons between 768 and 1,280 px.
 
 import { useEffect, useState } from "react";
-import { activeItem, GROUPS, NAV, type GroupKey, type NavItem, type Route as NavRoute, type Tone } from "@/lib/nav";
+import { activeItem, GROUPS, NAV, type GroupKey, type NavItem, type Route as NavRoute } from "@/lib/nav";
 import {
   Box,
   Branch,
@@ -50,13 +50,6 @@ export const NAV_ICONS: Record<string, React.ReactNode> = {
   segments: <ListIcon size={14} />,
   scoring: <Gauge size={14} />,
   settings: <Settings size={14} />,
-};
-
-const TILE: Record<Tone, string> = {
-  sky: "bg-sky-wash text-sky",
-  clay: "bg-clay-wash text-clay",
-  sage: "bg-sage-wash text-sage",
-  butter: "bg-butter-wash text-butter",
 };
 
 const FOLD_KEY = "claritia:nav-folded";
@@ -113,7 +106,7 @@ export function Sidebar(p: SidebarProps) {
         type="button"
         onClick={p.onSearch}
         aria-label="Search"
-        className="hidden h-9 items-center gap-2 rounded-full border border-line bg-card px-3.5 text-[13px] text-muted transition-colors duration-[140ms] hover:border-line-strong hover:text-ink md:flex md:justify-center xl:justify-start"
+        className="hidden h-8 items-center gap-2 rounded-md border border-line bg-card px-3 text-[13px] text-muted transition-colors duration-[140ms] hover:border-line-strong hover:text-ink md:flex md:justify-center xl:justify-start"
       >
         <Search size={14} />
         <span className="flex-1 text-left md:hidden xl:inline">Search</span>
@@ -130,24 +123,23 @@ export function Sidebar(p: SidebarProps) {
                   type="button"
                   onClick={() => toggle(g.key)}
                   aria-expanded={open}
-                  className="group/head mt-3 mb-0.5 hidden h-6 items-center gap-1 rounded-full px-3.5 text-left text-[12px] text-faint transition-colors duration-[140ms] hover:text-ink xl:flex"
+                  className="group/head mt-3 mb-0.5 hidden h-6 items-center gap-1 rounded-md px-2 text-left text-[11.5px] text-faint transition-colors duration-[140ms] hover:text-ink xl:flex"
                 >
                   <span className="flex-1">{g.label}</span>
                   <ChevronDown size={12} className={`opacity-0 transition-[transform,opacity] duration-[140ms] group-hover/head:opacity-100 ${open ? "" : "-rotate-90 opacity-100"}`} />
                 </button>
               ) : (
-                <span aria-hidden="true" className="mx-3.5 mt-3 mb-2 hidden h-px bg-line md:block" />
+                <span aria-hidden="true" className="mx-2 mt-3 mb-2 hidden h-px bg-line md:block" />
               )}
               <div className={`flex gap-1 md:flex-col md:gap-0.5 ${open ? "" : "xl:hidden"}`}>
                 {items.map((n) => (
-                  <NavLink key={n.key} n={n} tone={g.tone} on={active?.key === n.key} count={p.counts[n.key]} navigate={p.navigate} />
+                  <NavLink key={n.key} n={n} on={active?.key === n.key} count={p.counts[n.key]} navigate={p.navigate} />
                 ))}
                 {g.key === "crm"
                   ? p.objects.map((o) => (
                       <NavLink
                         key={`o-${o.key}`}
                         n={{ key: `objects/${o.key}`, route: "objects", page: o.key, label: o.plural, group: "crm" }}
-                        tone={g.tone}
                         on={p.route === "objects" && (p.id === o.key || p.id.startsWith(`${o.key}/`))}
                         navigate={p.navigate}
                         icon={NAV_ICONS.objects}
@@ -174,7 +166,7 @@ export function Sidebar(p: SidebarProps) {
   );
 }
 
-function NavLink({ n, tone, on, count, navigate, icon }: { n: NavItem; tone: Tone | null; on: boolean; count?: number; navigate: SidebarProps["navigate"]; icon?: React.ReactNode }) {
+function NavLink({ n, on, count, navigate, icon }: { n: NavItem; on: boolean; count?: number; navigate: SidebarProps["navigate"]; icon?: React.ReactNode }) {
   const glyph = icon ?? NAV_ICONS[n.key] ?? NAV_ICONS[n.route];
   return (
     <a
@@ -185,17 +177,14 @@ function NavLink({ n, tone, on, count, navigate, icon }: { n: NavItem; tone: Ton
       }}
       aria-current={on ? "page" : undefined}
       title={n.label}
-      className={`flex h-9 shrink-0 items-center gap-2.5 rounded-full px-2 text-[13.5px] font-medium transition-colors duration-[140ms] md:justify-center xl:justify-start ${on ? "bg-ink text-paper" : "text-body hover:bg-hover hover:text-ink"}`}
+      className={`flex h-8 shrink-0 items-center gap-2.5 rounded-[7px] px-2 text-[13px] transition-[background-color,color,box-shadow] duration-[120ms] md:justify-center xl:justify-start ${on ? "bg-card text-ink shadow-[0_0_0_1px_var(--color-line),0_1px_2px_rgb(10_10_10/0.05)]" : "text-muted hover:bg-hover hover:text-ink"}`}
     >
-      <span
-        aria-hidden="true"
-        className={`flex size-6 shrink-0 items-center justify-center rounded-md transition-colors duration-[140ms] ${on ? "bg-paper/15 text-paper" : tone ? TILE[tone] : "text-muted"}`}
-      >
+      <span aria-hidden="true" className={`flex size-5 shrink-0 items-center justify-center ${on ? "text-ink" : ""}`}>
         {glyph}
       </span>
       <span className="truncate md:hidden xl:inline">{n.label}</span>
       {count ? (
-        <span className={`ml-auto rounded-full px-1.5 text-[11px] tabular-nums md:hidden xl:inline ${on ? "bg-paper/15 text-paper" : "bg-butter-wash text-butter"}`}>{count > 99 ? "99+" : count}</span>
+        <span className="ml-auto rounded-full bg-hover px-1.5 font-mono text-[11px] tabular-nums text-muted md:hidden xl:inline">{count > 99 ? "99+" : count}</span>
       ) : null}
     </a>
   );
@@ -219,7 +208,7 @@ function CreateButton({ items }: { items: CreateItem[] }) {
         aria-haspopup="menu"
         aria-expanded={open}
         onClick={(e) => setAnchor(anchor ? null : e.currentTarget)}
-        className="press flex h-9 items-center justify-center gap-1.5 rounded-full bg-ink px-3.5 text-[13px] font-medium text-paper transition-colors duration-[140ms] hover:bg-ink/90"
+        className="press flex h-8 items-center justify-center gap-1.5 rounded-full bg-ink px-3.5 text-[13px] font-medium text-paper transition-colors duration-[140ms] hover:bg-ink/90"
       >
         <Plus size={14} />
         <span className="md:hidden xl:inline">Create</span>

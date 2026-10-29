@@ -65,12 +65,12 @@ const html = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").repla
 /** The same alert as an email, in the brand's plain style: square boxes, one blue link color, no images. */
 export function emailMessage(project: string, failures: AlertFailure[], heals: AlertHeal[]) {
   const subject = alertTitle(project, failures, heals);
-  const font = "font-family:Geist,-apple-system,'Segoe UI',Roboto,Arial,sans-serif";
+  const font = "font-family:Inter,-apple-system,'Segoe UI',Roboto,Arial,sans-serif";
   const row = (title: string, sub: string, href: string, label: string) =>
-    `<tr><td style="padding:14px 16px;border-top:1px solid #eaeaea;${font}">` +
-    `<div style="font-size:14px;font-weight:600;color:#0c0c0b">${html(title)}</div>` +
-    `<div style="font-size:13px;color:#6f6f6b;margin-top:4px;line-height:1.5">${sub}</div>` +
-    `<div style="margin-top:8px"><a href="${html(href)}" style="font-size:13px;color:#266df0;text-decoration:none">${label} &rarr;</a></div></td></tr>`;
+    `<tr><td style="padding:14px 16px;border-top:1px solid #e7e7e4;${font}">` +
+    `<div style="font-size:14px;font-weight:600;color:#0a0a0a">${html(title)}</div>` +
+    `<div style="font-size:13px;color:#6b6b6b;margin-top:4px;line-height:1.5">${sub}</div>` +
+    `<div style="margin-top:8px"><a href="${html(href)}" style="font-size:13px;color:#0a0a0a;text-decoration:none">${label} &rarr;</a></div></td></tr>`;
   const rows = [
     ...failures.slice(0, MAX_ITEMS).map((f) =>
       row(f.test, [html(where(f)), html(cut(why(f), 280)), f.failedStep ? html(`Step ${f.failedStep.position}: ${cut(f.failedStep.label, 200)}`) : ""].filter(Boolean).join("<br>"), runUrl(f.runId), "Open run"),
@@ -79,13 +79,13 @@ export function emailMessage(project: string, failures: AlertFailure[], heals: A
   ];
   const more = Math.max(0, failures.length - MAX_ITEMS) + Math.max(0, heals.length - MAX_ITEMS);
   const body =
-    `<div style="background:#fafafa;padding:24px 12px">` +
-    `<table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="max-width:560px;margin:0 auto;background:#ffffff;border:1px solid #eaeaea;border-collapse:collapse">` +
-    `<tr><td style="padding:16px;${font};font-size:15px;font-weight:600;color:#0c0c0b">${html(subject)}</td></tr>` +
+    `<div style="background:#f7f7f5;padding:24px 12px">` +
+    `<table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="max-width:560px;margin:0 auto;background:#ffffff;border:1px solid #e7e7e4;border-collapse:collapse">` +
+    `<tr><td style="padding:16px;${font};font-size:15px;font-weight:600;color:#0a0a0a">${html(subject)}</td></tr>` +
     rows.join("") +
-    (more ? `<tr><td style="padding:12px 16px;border-top:1px solid #eaeaea;${font};font-size:13px;color:#6f6f6b">And ${more} more in <a href="${APP_URL}/runs" style="color:#266df0">Claritia</a>.</td></tr>` : "") +
+    (more ? `<tr><td style="padding:12px 16px;border-top:1px solid #e7e7e4;${font};font-size:13px;color:#6b6b6b">And ${more} more in <a href="${APP_URL}/runs" style="color:#0a0a0a">Claritia</a>.</td></tr>` : "") +
     `</table>` +
-    `<div style="max-width:560px;margin:12px auto 0;${font};font-size:12px;color:#6f6f6b">Change alerts in <a href="${APP_URL}/settings" style="color:#6f6f6b">Settings</a>.</div></div>`;
+    `<div style="max-width:560px;margin:12px auto 0;${font};font-size:12px;color:#6b6b6b">Change alerts in <a href="${APP_URL}/settings" style="color:#6b6b6b">Settings</a>.</div></div>`;
   const text = [
     subject,
     "",

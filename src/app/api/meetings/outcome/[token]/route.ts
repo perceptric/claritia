@@ -11,11 +11,11 @@ const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replac
 function page(title: string, body: string, status = 200) {
   const html = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>${esc(title)}</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap">
 <style>
-:root{color-scheme:light dark;--paper:#f2f1ed;--card:#fbfaf7;--ink:#121211;--muted:#7a7870;--line:rgb(18 18 17/.1)}
-@media (prefers-color-scheme:dark){:root{--paper:#141413;--card:#1f1f1d;--ink:#f2f1ed;--muted:#8f8d85;--line:rgb(242 241 237/.1)}}
-body{margin:0;background:var(--paper);color:var(--ink);font:15px/1.5 Geist,ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;-webkit-font-smoothing:antialiased}
+:root{color-scheme:light dark;--paper:#f7f7f5;--card:#ffffff;--ink:#0a0a0a;--muted:#6b6b6b;--line:#e7e7e4}
+@media (prefers-color-scheme:dark){:root{--paper:#0a0a0a;--card:#161616;--ink:#fafafa;--muted:#a3a3a3;--line:rgb(242 241 237/.1)}}
+body{margin:0;background:var(--paper);color:var(--ink);font:15px/1.5 Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;-webkit-font-smoothing:antialiased}
 main{max-width:440px;margin:12vh auto 0;padding:0 16px}
 section{background:var(--card);border:1px solid var(--line);border-radius:24px;padding:28px}
 h1{font-weight:600;font-size:24px;line-height:1.2;letter-spacing:-.02em;margin:0 0 10px}
