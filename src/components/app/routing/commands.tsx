@@ -46,8 +46,8 @@ export function useRoutingCommands({ sb, session, ws, navigate }: { sb: Supabase
   };
   return [
     { id: "routing-pause", label: paused ? "Resume my new leads" : "Pause my new leads", group: "Routing", icon: paused ? <Play size={15} /> : <Pause size={15} />, run: () => void pause() },
-    { id: "routing-test", label: "Try a contact", group: "Routing", icon: <Branch size={15} />, run: () => navigate(ROUTING, "rules", "test=") },
-    { id: "routing-log", label: "Routing history", group: "Routing", icon: <ListIcon size={15} />, run: () => navigate(ROUTING, "history") },
-    { id: "routing-held", label: "Leads that need review", group: "Routing", icon: <Inbox size={15} />, run: () => navigate(ROUTING, "review") },
+    { id: "routing-test", label: "Try a contact", group: "Routing", icon: <Branch size={15} />, run: () => navigate(ROUTING, "", "test=") },
+    { id: "routing-log", label: "Routing history", group: "Routing", icon: <ListIcon size={15} />, run: () => navigate(ROUTING, "leads") },
+    { id: "routing-held", label: "Leads that need review", group: "Routing", icon: <Inbox size={15} />, run: () => navigate(ROUTING, "leads/review") },
   ];
 }

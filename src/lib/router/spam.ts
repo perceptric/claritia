@@ -76,4 +76,5 @@ export const SIGNAL_WORDS: Record<SpamSignal, string> = {
   fake_name: "Fake name",
   too_many: "Too many fills",
   free_mail: "Personal email",
+  rule: "A rule held it",
 };

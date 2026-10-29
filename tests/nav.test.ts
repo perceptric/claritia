@@ -32,7 +32,7 @@ test("the sidebar is CRM, Automation, Inbound and Nurture, then Settings, with a
   for (const g of GROUPS) assert.ok(by(g.key).length <= 4, g.key);
   assert.equal(defaultRoute, "contacts");
   assert.equal(new Set(NAV.map((n) => n.route)).size, NAV.length, "one item per route");
-  assert.deepEqual(ROUTING_TABS.map((t) => t.label), ["Overview", "Rules", "Teams", "Regions", "Company types", "History", "Needs review"]);
+  assert.deepEqual(ROUTING_TABS.map((t) => t.label), ["Setup", "Leads", "Team"]);
   assert.deepEqual(SCHEDULING_TABS.map((t) => t.label), ["Meeting types", "Availability", "Links and polls", "Reminders", "Payments"]);
 });
 
@@ -93,16 +93,20 @@ test("contacts and meetings: the list, the Overview, and one record", () => {
   assert.deepEqual(meetingsPage("nope"), { page: "list", id: "" });
 });
 
-test("routing: seven tabs, a run in History, a past version, and the old tab names forward", () => {
+test("routing: three tabs, a run in Leads, the review list, a past version, and the old tab names forward", () => {
   const run = "0b7c6a8e-1f2d-4c3b-9a8e-7d6c5b4a3f21";
   assert.deepEqual(routingPage(""), { page: "", sub: "", version: null, id: "" });
-  for (const p of ["rules", "teams", "regions", "company-types", "review"] as const) assert.deepEqual(routingPage(p), { page: p, sub: "", version: null, id: p });
-  assert.deepEqual(routingPage(`history/${run}`), { page: "history", sub: run, version: null, id: `history/${run}` });
-  assert.deepEqual(routingPage("history/nope"), { page: "history", sub: "", version: null, id: "history" });
+  assert.deepEqual(routingPage("leads"), { page: "leads", sub: "", version: null, id: "leads" });
+  assert.deepEqual(routingPage("team"), { page: "team", sub: "", version: null, id: "team" });
+  assert.deepEqual(routingPage(`leads/${run}`), { page: "leads", sub: run, version: null, id: `leads/${run}` });
+  assert.deepEqual(routingPage("leads/nope"), { page: "leads", sub: "", version: null, id: "leads" });
+  assert.deepEqual(routingPage("leads/review"), { page: "leads", sub: "review", version: null, id: "leads/review" });
   assert.deepEqual(routingPage("versions/3"), { page: "", sub: "", version: 3, id: "versions/3" });
-  assert.equal(routingPage("reps").id, "teams");
-  assert.equal(routingPage(`log/${run}`).id, `history/${run}`);
-  assert.equal(routingPage("held").id, "review");
+  for (const old of ["rules", "overview", "regions", "company-types"]) assert.equal(routingPage(old).id, "");
+  for (const old of ["teams", "reps"]) assert.equal(routingPage(old).id, "team");
+  assert.equal(routingPage(`history/${run}`).id, `leads/${run}`);
+  assert.equal(routingPage(`log/${run}`).id, `leads/${run}`);
+  for (const old of ["review", "held"]) assert.equal(routingPage(old).id, "leads/review");
   for (const bad of ["handoffs", "versions/0", "versions/x", "versions", "nope", "nope/1"]) assert.deepEqual(routingPage(bad), { page: "", sub: "", version: null, id: "" });
 });
 

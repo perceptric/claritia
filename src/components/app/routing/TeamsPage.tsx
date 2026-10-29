@@ -36,11 +36,11 @@ export function TeamsPage(props: ViewProps) {
   const queues = r.body?.queues ?? [];
   return (
     <Page
-      title="Teams"
+      title="Team"
       count={queues.length || undefined}
       actions={
         owner ? (
-          <Button variant="ghost" onClick={() => navigate("routing", "rules")}>
+          <Button variant="ghost" onClick={() => navigate("routing", "")}>
             <Plus size={14} />
             New team
           </Button>
@@ -54,7 +54,7 @@ export function TeamsPage(props: ViewProps) {
           <div className="flex items-center gap-3 rounded-2xl border border-butter/40 bg-butter-wash/50 px-4 py-2.5 text-[13px]">
             <span className="size-2 rounded-full bg-butter" />
             <span className="flex-1 text-ink">You have changes that aren&apos;t live.</span>
-            <Button size="sm" onClick={() => navigate("routing", "rules")}>
+            <Button size="sm" onClick={() => navigate("routing", "")}>
               Review and make live
             </Button>
           </div>
@@ -62,7 +62,7 @@ export function TeamsPage(props: ViewProps) {
         {!r.data ? (
           <Loading />
         ) : !queues.length ? (
-          <p className="text-[13.5px] text-muted">No teams yet. Add one in Rules.</p>
+          <p className="text-[13.5px] text-muted">No teams yet.</p>
         ) : (
           <div className="grid gap-3 md:grid-cols-2">
             {queues.map((q, i) => (

@@ -145,7 +145,7 @@ export function LogTab({ sb, session, ws, role, navigate, sub }: Props) {
   const shown = useMemo(() => (rows ?? []).filter((r) => matchesSearch(r, q)), [rows, q]);
   const filtered = Object.values(filters).some(Boolean) || !!q.trim();
   const set = (k: keyof LogFilters) => (v: string) => changeFilters({ ...filters, [k]: v });
-  const open = (id: string) => navigate(ROUTING, `history/${id}`);
+  const open = (id: string) => navigate(ROUTING, `leads/${id}`);
   const openId = UUID.test(sub) ? sub : "";
 
   return (
@@ -269,7 +269,7 @@ export function LogTab({ sb, session, ws, role, navigate, sub }: Props) {
         </div>
       )}
 
-      {openId ? <RunPanel sb={sb} session={session} ws={ws} role={role} navigate={navigate} runId={openId} onClose={() => navigate(ROUTING, "history")} /> : null}
+      {openId ? <RunPanel sb={sb} session={session} ws={ws} role={role} navigate={navigate} runId={openId} onClose={() => navigate(ROUTING, "leads")} /> : null}
     </div>
   );
 }
@@ -381,9 +381,9 @@ export function RunPanel({ sb, session, ws, navigate, runId, onClose, onRouted }
   const lines = r ? explain(decisionOf(r), factsOf(r, names), { territories: live.data?.body.territories }) : [];
   const lead = r ? leadOf(r) : null;
   const onLink: LinkTo = (p) => {
-    if (p.kind === "user") navigate(ROUTING, "teams");
+    if (p.kind === "user") navigate(ROUTING, "team");
     else if (p.kind === "company") navigate("companies", p.id);
-    else navigate(ROUTING, "rules");
+    else navigate(ROUTING, "");
   };
 
   const again = async () => {
@@ -413,7 +413,7 @@ export function RunPanel({ sb, session, ws, navigate, runId, onClose, onRouted }
             <Button variant="ghost" size="sm" onClick={() => navigate("contacts", r.contact_id!)}>
               Open contact
             </Button>
-            <Button variant="ghost" size="sm" onClick={() => navigate(ROUTING, "rules", `test=${r.contact_id}`)}>
+            <Button variant="ghost" size="sm" onClick={() => navigate(ROUTING, "", `test=${r.contact_id}`)}>
               Test draft
             </Button>
             <Button size="sm" onClick={again} disabled={busy}>

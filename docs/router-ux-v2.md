@@ -1,5 +1,7 @@
 # Routing, made easy to understand (plan)
 
+> Setup by chat replaces this screen plan: see `docs/routing-chat-plan.md`.
+
 The router works, but its screens use builder words ("queue", "fallback", "strict", "weighted", "held", "replay",
 "publish", "version", "SLA"). A founder opening it for the first time can't tell what any part does. This plan rewrites
 every screen so a person who has never routed a lead can set it up in five minutes and explain it to their team.

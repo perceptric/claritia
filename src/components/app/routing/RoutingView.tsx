@@ -1,21 +1,17 @@
 "use client";
 
-// Automation › Routing (docs/unify-plan.md Part 1): one sidebar item, with its pages as tabs.
-//   Overview       how routing is doing, speed to lead, the setup in plain words and as a story (/routing)
-//   Rules          the setup editor: the flow, rules, teams, test and make live (/routing/rules, /routing/versions/<n>)
-//   Teams          teams with Deal 20 leads, and every rep's status and limits (/routing/teams)
-//   Regions        named places (/routing/regions)
-//   Company types  named kinds of company (/routing/company-types)
-//   History        every lead routed and why (/routing/history, /routing/history/<run>)
-//   Needs review   junk and leads with no rep (/routing/review)
+// Automation › Routing (docs/routing-chat-plan.md 1.4): one sidebar item, with three tabs.
+//   Setup   the chat that writes the setup, the plan card (Plan and Flow), and Make live (/routing, /routing/versions/<n>)
+//   Leads   every lead routed and why, and the ones held for review (/routing/leads, /routing/leads/<run>, /routing/leads/review)
+//   Team    teams and every rep's status and limits (/routing/team)
 
 import { routingPage, ROUTING_TABS } from "@/lib/nav";
-import { Page, Section, type ViewProps } from "../ui";
+import { Page, Section, Segmented, type ViewProps } from "../ui";
 import { HeldTab } from "./Held";
+import { LeadNumbers } from "./LeadNumbers";
 import { LogTab } from "./Log";
-import { OverviewPage } from "./OverviewPage";
-import { CompanyTypesPage, RegionsPage } from "./RegionsPage";
 import { RouterTab } from "./Router";
+import { SetupTab } from "./Setup";
 import { TeamsPage } from "./TeamsPage";
 import { ToastHost } from "./Toast";
 
@@ -31,32 +27,37 @@ export function RoutingView(props: ViewProps) {
             <RouterTab {...shared} version={page.version} />
           </Page>
         ) : (
-          <OverviewPage {...props} />
-        );
-      case "rules":
-        return (
-          <Page title="Rules" flush>
-            <RouterTab {...shared} version={null} />
+          <Page title="Setup" flush>
+            <SetupTab {...shared} />
           </Page>
         );
-      case "teams":
+      case "leads": {
+        const review = page.sub === "review";
+        return (
+          <Page
+            title="Leads"
+            actions={
+              <Segmented
+                label="Show"
+                value={review ? "review" : "all"}
+                onChange={(v) => navigate("routing", v === "review" ? "leads/review" : "leads")}
+                options={[
+                  { value: "all", label: "All" },
+                  { value: "review", label: "Needs review" },
+                ]}
+              />
+            }
+            flush
+          >
+            <div className="flex h-full min-h-0 flex-col overflow-y-auto">
+              <LeadNumbers session={session} ws={ws} />
+              {review ? <HeldTab {...shared} sub="" /> : <LogTab {...shared} sub={page.sub} />}
+            </div>
+          </Page>
+        );
+      }
+      case "team":
         return <TeamsPage {...props} />;
-      case "regions":
-        return <RegionsPage {...props} />;
-      case "company-types":
-        return <CompanyTypesPage {...props} />;
-      case "history":
-        return (
-          <Page title="History" flush>
-            <LogTab {...shared} sub={page.sub} />
-          </Page>
-        );
-      case "review":
-        return (
-          <Page title="Needs review" flush>
-            <HeldTab {...shared} sub={page.sub} />
-          </Page>
-        );
     }
   })();
   const nav = { title: "Routing", tabs: ROUTING_TABS, current: page.page, onPick: (t: string) => navigate("routing", t) };

@@ -26,7 +26,14 @@ export const OPS: { value: Op; label: string }[] = [
  */
 export type Cond = { field: string; op: Op; value?: string | number | (string | number)[] };
 
-export type Rule = { id: string; name: string; match: "all" | "any"; conds: Cond[]; queue: string; on?: boolean };
+/**
+ * What a matching rule does (docs/routing-chat-plan.md Part 3.3): send to its queue (the default, and what older
+ * versions without `then` mean), send to the company's owner (the rep on its open deal first when the account step
+ * says so, else the company's owner, else the contact's owner), or hold the lead for review.
+ */
+export type Then = "queue" | "owner" | "hold";
+
+export type Rule = { id: string; name: string; match: "all" | "any"; conds: Cond[]; queue: string; on?: boolean; then?: Then };
 
 export type Method = "rr" | "weighted" | "load";
 
@@ -148,7 +155,7 @@ export type Facts = {
 /** Why a rep can't take a lead now. */
 export type Why = "not_member" | "paused" | "out" | "cap_day" | "cap_week" | "hours" | "passed";
 
-export type SpamSignal = "disposable" | "blocked" | "fake_name" | "too_many" | "free_mail";
+export type SpamSignal = "disposable" | "blocked" | "fake_name" | "too_many" | "free_mail" | "rule";
 
 export type StepResult =
   | { step: "spam"; ok: boolean; off?: boolean; allowed?: boolean; checks: number; signals: SpamSignal[] }
@@ -175,7 +182,7 @@ export type StepResult =
       action?: WhenOut;
       backup?: string;
     }
-  | { step: "rules"; ok: boolean; off?: boolean; rule?: { id: string; name: string; queue: string }; skipped: { id: string; name: string; failed: { cond: Cond; actual: unknown } | null }[] }
+  | { step: "rules"; ok: boolean; off?: boolean; rule?: { id: string; name: string; queue: string; then?: Then }; owner?: string; unavailable?: { user: string; why: Why; until?: number | null }; skipped: { id: string; name: string; failed: { cond: Cond; actual: unknown } | null }[] }
   | {
       step: "queue";
       ok: boolean;

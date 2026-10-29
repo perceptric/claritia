@@ -4,7 +4,7 @@
 
 import { ruleMatches, segmentsOf } from "./conditions.ts";
 import { spamSignals } from "./spam.ts";
-import type { Decision, Facts, Queue, RepFacts, RouterBody, StepResult, WhenOut, Why } from "./types.ts";
+import type { Decision, Facts, Queue, RepFacts, RouterBody, StepResult, WhenOut, Why, Then } from "./types.ts";
 
 /**
  * Why a rep can't take a new lead now, or null when they can. `forOwner`: keeping a lead they own skips caps and hours.
@@ -140,18 +140,32 @@ export function decide(body: RouterBody, f: Facts): Decision {
   const values = body.segments?.length ? { ...f.values, "company.type": segmentsOf(body.segments, f.values, body.territories) } : f.values;
   if (body.rules.on) {
     const skipped: Extract<StepResult, { step: "rules" }>["skipped"] = [];
-    let hit: { id: string; name: string; queue: string } | undefined;
+    let hit: { id: string; name: string; queue: string; then?: Then } | undefined;
     for (const rule of body.rules.list) {
       if (rule.on === false) continue;
       const m = ruleMatches(rule, values, body.territories);
       if (m.ok) {
-        hit = { id: rule.id, name: rule.name, queue: rule.queue };
+        hit = { id: rule.id, name: rule.name, queue: rule.queue, ...(rule.then && rule.then !== "queue" ? { then: rule.then } : {}) };
         break;
       }
       skipped.push({ id: rule.id, name: rule.name, failed: m.failed });
     }
-    steps.push({ step: "rules", ok: !!hit, ...(hit ? { rule: hit } : {}), skipped });
-    const q = hit ? body.queues.find((x) => x.id === hit!.queue) : undefined;
+    // A rule that holds: the lead waits for review, like junk.
+    if (hit?.then === "hold") {
+      steps.push({ step: "rules", ok: true, rule: hit, skipped });
+      return { result: { kind: "held", signals: ["rule"] }, steps };
+    }
+    // A rule that sends to the owner: the rep on the open deal (when the account step looks there), the company's
+    // owner, then the contact's owner. Away or missing, the lead goes on to the fallback.
+    if (hit?.then === "owner") {
+      const c = f.company;
+      const owner = (body.account.oppFirst ? c?.oppOwner : null) ?? c?.owner ?? f.owner?.user ?? null;
+      const no = owner ? blocked(f.reps[owner], f.now, { forOwner: true, passed: passedBy(f, owner) }) : null;
+      const r: Extract<StepResult, { step: "rules" }> = { step: "rules", ok: !!owner && !no, rule: hit, skipped, ...(owner ? { owner } : {}), ...(owner && no ? { unavailable: { user: owner, why: no.why, until: no.until ?? null } } : {}) };
+      steps.push(r);
+      if (r.ok) return { result: { kind: "owner", user: owner!, by: "account", rule: hit.id }, steps };
+    } else steps.push({ step: "rules", ok: !!hit, ...(hit ? { rule: hit } : {}), skipped });
+    const q = hit && (hit.then ?? "queue") === "queue" ? body.queues.find((x) => x.id === hit!.queue) : undefined;
     if (hit && q) {
       const p = pickInQueue(q, f);
       steps.push({

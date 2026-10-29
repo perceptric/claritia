@@ -116,7 +116,7 @@ test("queues: names stay their own, removing one clears the rules and fallback t
   );
   assert.equal(out.rules.list[0]!.queue, "");
   assert.equal(out.fallback, null);
-  assert.ok(problems(out, { members: new Set() }).some((p) => p.text === '"Rule 1" has no queue'));
+  assert.ok(problems(out, { members: new Set() }).some((p) => p.text === '"Rule 1" has no team'));
 });
 
 test("reps join a queue once, weights stay between 1 and 10, and they can leave", () => {
