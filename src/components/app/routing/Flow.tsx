@@ -56,95 +56,125 @@ export function Flow(p: FlowProps) {
   const fbName = !fb ? "None" : fb.kind === "user" ? (names.get(fb.id) ?? "Former teammate") : (body.queues.find((q) => q.id === fb.id)?.name ?? "A removed queue");
 
   return (
-    <div className="flex flex-col px-5 py-6 md:px-8">
-      <div className="flex items-center gap-2.5 pl-[17px] text-[13px]">
-        <span className="size-2.5 rounded-full bg-ink" aria-hidden="true" />
-        <span className="font-medium text-ink">New lead</span>
-        {counts ? <span className="ml-3 text-[12px] text-muted tabular-nums">{fmt(counts.total)} this week</span> : null}
+    <div className="relative min-h-full">
+      <Dots />
+      <div className="relative flex flex-col items-center px-5 py-8 md:px-8">
+        <div className="flex h-9 items-center gap-2 rounded-full border border-ink bg-ink px-4 text-[13px] font-medium text-paper">
+          New lead
+          {counts ? <span className="text-paper/70 tabular-nums">{fmt(counts.total)}</span> : null}
+        </div>
+        <Connector lit={lit("spam")} runKey={p.runKey} />
+        <StepCard
+          title="Is it spam?"
+          summary={spamOn.join(", ").replace(/^./, (c) => c.toUpperCase())}
+          on={body.spam.on}
+          onToggle={toggle("spam")}
+          selected={sameSelection(sel, { kind: "spam" })}
+          onClick={() => onSelect({ kind: "spam" })}
+          mark={path?.marks.spam}
+          faded={!reached("spam")}
+          problem={problemFor("spam")?.text}
+          branch={body.spam.on ? { text: "Hold for review", count: counts?.held } : null}
+          branchLit={path?.marks.spam === "miss"}
+          runKey={p.runKey}
+        />
+        <Connector label={body.spam.on ? "No" : undefined} lit={lit("account")} runKey={p.runKey} />
+        <StepCard
+          title="Is the company already in your CRM?"
+          summary={body.account.oppFirst ? "Deal owner first, then company owner" : "Company owner"}
+          on={body.account.on}
+          onToggle={toggle("account")}
+          selected={sameSelection(sel, { kind: "account" })}
+          onClick={() => onSelect({ kind: "account" })}
+          mark={path?.marks.account}
+          faded={!reached("account")}
+          problem={problemFor("account")?.text}
+          branch={body.account.on ? { text: body.account.oppFirst ? "Deal or company owner" : "Company owner", count: counts?.matched } : null}
+          branchLit={path?.marks.account === "ok" && !path.reached.has("keep")}
+          runKey={p.runKey}
+        />
+        <Connector label={body.account.on ? "No" : undefined} lit={lit("keep")} runKey={p.runKey} />
+        <StepCard
+          title="Does the lead already have a rep?"
+          summary={WHEN_OUT[body.keep.whenOut]}
+          on={body.keep.on}
+          onToggle={toggle("keep")}
+          selected={sameSelection(sel, { kind: "keep" })}
+          onClick={() => onSelect({ kind: "keep" })}
+          mark={path?.marks.keep}
+          faded={!reached("keep")}
+          problem={problemFor("keep")?.text}
+          branch={body.keep.on ? { text: "Keep that rep", count: counts?.kept } : null}
+          branchLit={path?.marks.keep === "ok" && !path.reached.has("rules")}
+          runKey={p.runKey}
+        />
+        <Connector label={body.keep.on ? "No" : undefined} lit={lit("rules")} runKey={p.runKey} />
+        <Row>
+          <RulesCard {...p} faded={!reached("rules")} problemFor={problemFor} />
+        </Row>
+        <Connector label={body.rules.on && body.rules.list.length ? "No match" : undefined} lit={lit("fallback")} runKey={p.runKey} />
+        <StepCard
+          title="Everyone else"
+          summary={fb ? `Goes to ${fbName}` : "Pick a rep or team"}
+          selected={sameSelection(sel, { kind: "fallback" })}
+          onClick={() => onSelect({ kind: "fallback" })}
+          mark={path?.marks.fallback}
+          faded={!reached("fallback")}
+          problem={problemFor("fallback")?.text}
+          runKey={p.runKey}
+        />
+        <Connector dashed lit={false} runKey={p.runKey} />
+        <StepCard
+          title="Time to reach out"
+          summary={body.sla ? `${minutesWords(body.sla.minutes)}, ${SLA_NEXT_WORDS[body.sla.next]}` : ""}
+          on={!!body.sla?.on}
+          onToggle={edit ? (on: boolean) => edit((b) => ({ ...b, sla: { ...(b.sla ?? defaultSla()), on } })) : undefined}
+          selected={sameSelection(sel, { kind: "sla" })}
+          onClick={() => onSelect({ kind: "sla" })}
+          faded={!!path}
+          problem={problemFor("sla")?.text}
+          runKey={p.runKey}
+        />
+        <Queues {...p} problemFor={problemFor} />
       </div>
-      <Connector count={null} lit={lit("spam")} runKey={p.runKey} />
-      <StepCard
-        title="Spam check"
-        summary={spamOn.join(", ").replace(/^./, (c) => c.toUpperCase())}
-        on={body.spam.on}
-        onToggle={toggle("spam")}
-        selected={sameSelection(sel, { kind: "spam" })}
-        onClick={() => onSelect({ kind: "spam" })}
-        mark={path?.marks.spam}
-        faded={!reached("spam")}
-        problem={problemFor("spam")?.text}
-        branch={counts?.held && body.spam.on ? `${fmt(counts.held)} held for you to check` : null}
-        branchLit={path?.marks.spam === "miss"}
-        runKey={p.runKey}
-      />
-      <Connector count={counts?.afterSpam ?? null} lit={lit("account")} runKey={p.runKey} />
-      <StepCard
-        title="Existing company"
-        summary={body.account.oppFirst ? "Goes to the deal owner, or else the company owner" : "Goes to the company owner"}
-        on={body.account.on}
-        onToggle={toggle("account")}
-        selected={sameSelection(sel, { kind: "account" })}
-        onClick={() => onSelect({ kind: "account" })}
-        mark={path?.marks.account}
-        faded={!reached("account")}
-        problem={problemFor("account")?.text}
-        branch={counts?.matched && body.account.on ? `${fmt(counts.matched)} went to their company's rep` : null}
-        branchLit={path?.marks.account === "ok" && !path.reached.has("keep")}
-        runKey={p.runKey}
-      />
-      <Connector count={counts?.afterAccount ?? null} lit={lit("keep")} runKey={p.runKey} />
-      <StepCard
-        title="Current rep"
-        summary={WHEN_OUT[body.keep.whenOut]}
-        on={body.keep.on}
-        onToggle={toggle("keep")}
-        selected={sameSelection(sel, { kind: "keep" })}
-        onClick={() => onSelect({ kind: "keep" })}
-        mark={path?.marks.keep}
-        faded={!reached("keep")}
-        problem={problemFor("keep")?.text}
-        branch={counts?.kept && body.keep.on ? `${fmt(counts.kept)} kept their rep` : null}
-        branchLit={path?.marks.keep === "ok" && !path.reached.has("rules")}
-        runKey={p.runKey}
-      />
-      <Connector count={counts?.afterKeep ?? null} lit={lit("rules")} runKey={p.runKey} />
-      <RulesCard {...p} faded={!reached("rules")} problemFor={problemFor} />
-      <Connector count={counts?.noRule ?? null} lit={lit("fallback")} runKey={p.runKey} />
-      <StepCard
-        title="Everyone else"
-        summary={fb ? `Goes to ${fbName}` : "Pick a rep or team"}
-        selected={sameSelection(sel, { kind: "fallback" })}
-        onClick={() => onSelect({ kind: "fallback" })}
-        mark={path?.marks.fallback}
-        faded={!reached("fallback")}
-        problem={problemFor("fallback")?.text}
-        runKey={p.runKey}
-      />
-      <Connector count={null} lit={false} runKey={p.runKey} />
-      <StepCard
-        title="Time to reach out"
-        summary={body.sla ? `${minutesWords(body.sla.minutes)}, ${SLA_NEXT_WORDS[body.sla.next]}` : ""}
-        on={!!body.sla?.on}
-        onToggle={edit ? (on: boolean) => edit((b) => ({ ...b, sla: { ...(b.sla ?? defaultSla()), on } })) : undefined}
-        selected={sameSelection(sel, { kind: "sla" })}
-        onClick={() => onSelect({ kind: "sla" })}
-        faded={!!path}
-        problem={problemFor("sla")?.text}
-        runKey={p.runKey}
-      />
-      <Queues {...p} problemFor={problemFor} />
     </div>
   );
 }
 
-/** The line between two cards, with its count. Lit lines draw in along the stroke (slow). */
-function Connector({ lit, runKey }: { count?: number | null; lit: boolean; runKey: number }) {
+/** The dotted canvas behind the flow, like an automation builder. */
+function Dots() {
   return (
-    <div className="relative flex h-6 items-center pl-[21px]">
-      <svg width="2" height="24" viewBox="0 0 2 24" className="absolute top-0 left-[21px] overflow-visible" aria-hidden="true">
-        <path d="M1 0V24" stroke="var(--color-line-strong)" strokeWidth="1.5" strokeLinecap="round" />
-        {lit ? <path key={runKey} d="M1 0V24" pathLength={1} stroke="var(--color-ink)" strokeWidth="2" strokeLinecap="round" style={{ strokeDasharray: 1, animation: "draw 700ms var(--ease-out) both" }} /> : null}
+    <svg className="pointer-events-none absolute inset-0 size-full" aria-hidden="true">
+      <defs>
+        <pattern id="flow-dots" width="16" height="16" patternUnits="userSpaceOnUse">
+          <circle cx="1" cy="1" r="1" style={{ fill: "var(--color-line-strong)" }} />
+        </pattern>
+      </defs>
+      <rect width="100%" height="100%" fill="url(#flow-dots)" />
+    </svg>
+  );
+}
+
+/** One row of the chart: the step in the middle, its Yes branch to the right. */
+function Row({ children, side }: { children: React.ReactNode; side?: React.ReactNode }) {
+  return (
+    <div className="grid w-full grid-cols-[minmax(0,1fr)_minmax(0,340px)_minmax(0,1fr)] items-start">
+      <span />
+      <div className="flex justify-center">{children}</div>
+      <div className="min-w-0">{side}</div>
+    </div>
+  );
+}
+
+/** The line down to the next step, with "No" on it. Lit lines draw in along the stroke (slow). */
+function Connector({ label, dashed = false, lit, runKey }: { label?: string; dashed?: boolean; lit: boolean; runKey: number }) {
+  return (
+    <div className="relative flex h-12 w-full justify-center">
+      <svg width="12" height="48" viewBox="0 0 12 48" className="overflow-visible" aria-hidden="true">
+        <path d="M6 0V44M3 41l3 3 3-3" stroke="var(--color-line-strong)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" fill="none" strokeDasharray={dashed ? "3 4" : undefined} />
+        {lit ? <path key={runKey} d="M6 0V44M3 41l3 3 3-3" pathLength={1} stroke="var(--color-ink)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" fill="none" style={{ strokeDasharray: 1, animation: "draw 700ms var(--ease-out) both" }} /> : null}
       </svg>
+      {label ? <span className="absolute top-1/2 left-1/2 ml-3 -translate-y-1/2 rounded-full border border-line bg-card px-2 py-0.5 text-[11px] font-medium text-muted">{label}</span> : null}
     </div>
   );
 }
@@ -194,16 +224,16 @@ function StepCard({
   mark?: RunLine["mark"];
   faded: boolean;
   problem?: string;
-  branch?: string | null;
+  branch?: { text: string; count?: number } | null;
   branchLit?: boolean;
   runKey: number;
   children?: React.ReactNode;
 }) {
   const off = on === false;
   return (
-    <div className="flex items-start">
+    <Row side={branch && !off ? <Branch text={branch.text} count={branch.count} lit={branchLit} runKey={runKey} /> : null}>
       <div
-        className={`w-full max-w-[380px] rounded-2xl border bg-card transition-[opacity,transform,box-shadow] duration-[140ms] ease-out ${selected ? "border-ink" : "border-line hover:-translate-y-px hover:shadow-soft"} ${faded ? "opacity-40" : off ? "opacity-60" : ""}`}
+        className={`w-full rounded-2xl border bg-card transition-[opacity,transform,box-shadow] duration-[140ms] ease-out ${selected ? "border-ink" : "border-line hover:-translate-y-px hover:shadow-soft"} ${faded ? "opacity-40" : off ? "opacity-60" : ""}`}
       >
         <div className="flex items-center gap-2.5 px-4 py-3">
           <MarkDot mark={mark} />
@@ -221,20 +251,25 @@ function StepCard({
         ) : null}
         {children}
       </div>
-      {branch ? <Branch text={branch} lit={branchLit} runKey={runKey} /> : null}
-    </div>
+    </Row>
   );
 }
 
-/** A route that ends here, off to the right with its count. */
-function Branch({ text, lit, runKey }: { text: string; lit: boolean; runKey: number }) {
+/** The Yes branch: an arrow out to the right, to where the lead ends up, with its count. */
+function Branch({ text, count, lit, runKey }: { text: string; count?: number; lit: boolean; runKey: number }) {
   return (
-    <div className="mt-5 hidden shrink-0 items-center gap-2 sm:flex">
-      <svg width="40" height="8" viewBox="0 0 40 8" className="overflow-visible" aria-hidden="true">
-        <path d="M0 4H36M32 1l4 3-4 3" stroke="var(--color-line-strong)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" fill="none" />
-        {lit ? <path key={runKey} d="M0 4H36M32 1l4 3-4 3" pathLength={1} stroke="var(--color-ink)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" fill="none" style={{ strokeDasharray: 1, animation: "draw 700ms var(--ease-out) both" }} /> : null}
-      </svg>
-      <span className={`text-[12px] tabular-nums ${lit ? "font-medium text-ink" : "text-muted"}`}>{text}</span>
+    <div className="mt-4 hidden items-center sm:flex">
+      <span className="relative flex w-16 shrink-0 justify-center">
+        <svg width="64" height="8" viewBox="0 0 64 8" className="overflow-visible" aria-hidden="true">
+          <path d="M0 4H60M57 1l3 3-3 3" stroke="var(--color-line-strong)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+          {lit ? <path key={runKey} d="M0 4H60M57 1l3 3-3 3" pathLength={1} stroke="var(--color-ink)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" fill="none" style={{ strokeDasharray: 1, animation: "draw 700ms var(--ease-out) both" }} /> : null}
+        </svg>
+        <span className="absolute -top-5 rounded-full border border-line bg-card px-2 py-0.5 text-[11px] font-medium text-muted">Yes</span>
+      </span>
+      <span className={`flex h-8 shrink-0 items-center gap-1.5 rounded-full border bg-card px-3 text-[12.5px] whitespace-nowrap ${lit ? "border-ink font-medium text-ink" : "border-line-strong text-ink"}`}>
+        {text}
+        {count ? <span className="text-muted tabular-nums">{fmt(count)}</span> : null}
+      </span>
     </div>
   );
 }
@@ -250,11 +285,11 @@ function RulesCard(p: FlowProps & { faded: boolean; problemFor: (k: Problem["whe
   const off = !body.rules.on;
   const selected = sameSelection(sel, { kind: "rules" });
   return (
-    <div className={`w-full max-w-[380px] rounded-2xl border bg-card transition-[opacity,transform,box-shadow] duration-[140ms] ease-out ${selected ? "border-ink" : "border-line"} ${p.faded ? "opacity-40" : off ? "opacity-60" : ""}`}>
+    <div className={`w-full rounded-2xl border bg-card transition-[opacity,transform,box-shadow] duration-[140ms] ease-out ${selected ? "border-ink" : "border-line"} ${p.faded ? "opacity-40" : off ? "opacity-60" : ""}`}>
       <div className="flex items-center gap-2.5 px-4 pt-3 pb-1.5">
         <MarkDot mark={path?.marks.rules} />
         <button type="button" onClick={() => onSelect({ kind: "rules" })} aria-pressed={selected} className="min-w-0 flex-1 text-left outline-none focus-visible:underline">
-          <span className="block text-[13.5px] font-medium text-ink">Rules</span>
+          <span className="block text-[13.5px] font-medium text-ink">Does it match a rule?</span>
         </button>
         {edit ? <Toggle label="Use rules" on={!off} onChange={(on) => edit((b) => ({ ...b, rules: { ...b.rules, on } }))} /> : null}
       </div>
@@ -420,7 +455,7 @@ function MenuItem({ icon, label, onClick, disabled = false, danger = false }: { 
 
 function Queues({ body, sel, onSelect, edit, path, problemFor }: FlowProps & { problemFor: (k: Problem["where"]["kind"], id?: string) => Problem | undefined }) {
   return (
-    <div className="mt-8 flex max-w-[560px] flex-wrap items-center gap-1.5">
+    <div className="mt-10 flex max-w-[560px] flex-wrap items-center justify-center gap-1.5 rounded-full bg-card/80 px-2 py-1">
       <span className="mr-1.5 text-[12px] text-muted">Teams</span>
       {body.queues.map((q) => {
         const on = sameSelection(sel, { kind: "queue", id: q.id });
