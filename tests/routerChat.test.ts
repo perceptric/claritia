@@ -81,7 +81,7 @@ test("flaky case: a bad tool call is refused, the setup is unchanged by it, and 
   assert.equal(r.body.rules.list.length, 1);
   assert.equal(r.body.queues.length, 1);
   // No fallback yet: the reply says what's left.
-  assert.match(r.reply, /Still to do: pick who gets everyone else\./);
+  assert.match(r.reply, /Still to do: pick who gets leads that match no rule\./);
 });
 
 test("a name two teammates share is refused, and the model asks; the turn stops at the question", async () => {
@@ -119,7 +119,7 @@ test("rep changes come back as patches: away dates and a daily cap; past dates a
 
 test("the chat can't publish or route: no tool does, and an unknown tool is an error", async () => {
   for (const t of ROUTER_TOOLS) assert.doesNotMatch(t.name, /publish|live|route_now|assign/);
-  const { model, seen } = script([[{ name: "publish", input: {} }], "I can't make it live; click Make live when it looks right."]);
+  const { model, seen } = script([[{ name: "publish", input: {} }], "I can't make it live; click Publish when it looks right."]);
   const r = await runRouterChat(model, "make it live", ctx());
   assert.match(JSON.stringify(seen[1]), /Unknown tool publish/);
   assert.ok(!r.changed);

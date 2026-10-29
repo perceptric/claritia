@@ -57,7 +57,10 @@ export function useFormChat({ sb, session, ws, formId, prepare, onResult }: Pick
 export function ChatHistory({ chat }: { chat: ReturnType<typeof useFormChat> }) {
   const { msgs, busy, error, send, decline } = chat;
   const end = useRef<HTMLDivElement>(null);
-  useEffect(() => end.current?.scrollIntoView({ block: "end" }), [msgs.length, busy]);
+  useEffect(() => {
+    // Braces matter: Chrome now returns a promise from scrollIntoView, and an effect must return nothing or a cleanup.
+    end.current?.scrollIntoView({ block: "end" });
+  }, [msgs.length, busy]);
   return (
     <div className="h-full min-h-0 overflow-y-auto bg-card px-4 py-4">
       <div className="flex flex-col gap-3">

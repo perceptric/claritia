@@ -1,7 +1,7 @@
 "use client";
 
 // Automation › Routing (docs/routing-chat-plan.md 1.4): one sidebar item, with three tabs.
-//   Setup   the chat that writes the setup, the plan card (Plan and Flow), and Make live (/routing, /routing/versions/<n>)
+//   Setup   the chat that writes the setup, the plan card (Plan and Flow), and Publish (/routing, /routing/versions/<n>)
 //   Leads   every lead routed and why, and the ones held for review (/routing/leads, /routing/leads/<run>, /routing/leads/review)
 //   Team    teams and every rep's status and limits (/routing/team)
 

@@ -8,7 +8,7 @@ The engine (`src/lib/router/engine.ts`, `server.ts`, `064_router.sql`) stays as 
 Nobody should build routing by hand. Routing opens on a chat. The person says how leads should be shared, in their
 own words, and Claritia builds the whole setup: teams, regions, company types, rules, the backup rep and the junk
 filter. It tests the setup on the team's own past leads, shows the result in a few lines, and waits for one click:
-**Make live**. To change it later, they say so in the same chat.
+**Publish**. To change it later, they say so in the same chat.
 
 The person thinks about one thing: who should get which leads. Claritia does the rest.
 
@@ -16,7 +16,7 @@ The person thinks about one thing: who should get which leads. Claritia does the
 |---|---|
 | 7 tabs: Overview, Rules, Teams, Regions, Company types, History, Needs review | 3 tabs: **Setup**, **Leads**, **Team** |
 | Build teams, regions and types first, then rules that use them | Say it in a sentence; the chat makes all of it |
-| "Finish setup" errors ("Rule 1 has no queue") | The chat never leaves a setup broken; Make live only lights up when it works |
+| "Finish setup" errors ("Rule 1 has no queue") | The chat never leaves a setup broken; Publish only lights up when it works |
 | Toggles for junk, same company, keep their rep | On by default; the chat changes them when asked |
 | Try a contact, Preview on past leads, Versions as buttons | The test runs on every change, by itself |
 
@@ -45,7 +45,7 @@ turns."
 The reply is one card beside the chat (under it on phones):
 
 ```
-Your setup                                         Make live
+Your setup                                         Publish
 ──────────────────────────────────────────────────────────
 1  Leads from a company you already work with go to its owner.
 2  Europe goes to Ana and Raj. They take turns.
@@ -61,14 +61,14 @@ Tested on your last 50 leads
 - Each line is the readback (`src/lib/router/readback.ts`), so it is always exactly what will run.
 - Each underlined word is a picker: click "Ana and Raj" to swap people, "500" to change the number, "take turns" to
   pick "some get more" or "fewest meetings first". That is the only manual editing there is.
-- **Make live** is the one black button. It is gray, with the reason as its label ("Pick who covers Europe"), until
+- **Publish** is the one black button. It is gray, with the reason as its label ("Pick who covers Europe"), until
   the setup works.
 
 ### 1.3 Changing it later
 
 The chat stays open under the card. "Move Canada to Lena." "Lena is out until Monday." "Stop sending personal emails
 to sales." Each message updates the card and shows what changed in green and red lines, with the new test numbers.
-Nothing changes for real until Make live.
+Nothing changes for real until Publish.
 
 Questions work too: "Why did Dana go to Sam?" answers from the routing run (`explain.ts`), with a link to the lead.
 "Where would a 300-person company in Spain go?" answers with a test (`testRoute`).
@@ -97,7 +97,7 @@ each tool is checked before it applies.
 
 Rules for the chat:
 
-- **It never publishes.** Only the person's click on Make live does (same as the MCP tools in `src/lib/router/mcp.ts`).
+- **It never publishes.** Only the person's click on Publish does (same as the MCP tools in `src/lib/router/mcp.ts`).
 - **It never leaves a broken setup.** After every turn the draft goes through `cleanBody` and the problem list
   (`check.ts`). A tool call that would add a problem is refused, and the error goes back to the model, which fixes it
   in the same turn.
@@ -233,7 +233,7 @@ The data stays the same (`router_versions`, `RouterBody`), so nothing is migrate
 | 1 | Router ops: each tool as a checked op on `RouterBody`, with tests | 2 days |
 | 1b | Engine additions from Part 3: language on leads and reps, time conditions with holidays per region, named account lists, page they came from, the "no rep, start a workflow" and "also tell a channel" actions | 3 days |
 | 2 | The chat: system prompt, tools, step cache, one question at a time (`src/lib/router/chat.ts`, `/api/routing/chat`) | 2 days |
-| 3 | The plan card: readback lines with pickers, test numbers, changed leads, Make live with its reason | 2 days |
+| 3 | The plan card: readback lines with pickers, test numbers, changed leads, Publish with its reason | 2 days |
 | 4 | "Set it up for me" from the workspace's data | 1 day |
 | 5 | Leads tab (History and Needs review merged), Team tab trimmed | 1.5 days |
 | 6 | Remove the old tabs, forward their addresses to Setup, update `src/lib/nav.ts` | 0.5 day |
@@ -279,7 +279,7 @@ Repeated messages replay from the cache, so the real bill should be lower.
   right away, setup changes saved as the draft. It has no way to publish. Kept in `router_chats`
   (`supabase/migrations/078_router_chat.sql`). Tests: `tests/routerChat.test.ts`.
 - Routing has three tabs (`src/lib/nav.ts`): **Setup** (`src/components/app/routing/Setup.tsx`: the chat as the
-  first screen, then the chat beside the plan card with Plan and Flow, where past leads would go, and Make live),
+  first screen, then the chat beside the plan card with Plan and Flow, where past leads would go, and Publish),
   **Leads** (this week's numbers, then History and Needs review as All and Needs review), **Team**. Old addresses
   forward.
 - Not built yet: the Part 3 engine additions (language, time of day, named account lists, the page they came from,

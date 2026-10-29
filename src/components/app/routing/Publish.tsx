@@ -89,7 +89,7 @@ export function PublishDialog({
   };
   return (
     <Modal
-      title="Make live"
+      title="Publish"
       onClose={onClose}
       footer={
         <>
@@ -97,7 +97,7 @@ export function PublishDialog({
             Cancel
           </Button>
           <Button onClick={() => void publish()} disabled={busy}>
-            Make live
+            Publish
           </Button>
         </>
       }

@@ -72,7 +72,7 @@ test("a setup built from ops has no problems and reads back in order", () => {
   assert.equal(b.queues.find((q) => q.id === b.rules.list[2]!.queue)!.name, "Ana Ruiz");
   const lines = planLines(b, { names: Object.fromEntries(ctx.members.map((m) => [m.id, m.name])) });
   assert.deepEqual(lines.map((l) => l.kind), ["spam", "account", "keep", "rule", "rule", "rule", "fallback"]);
-  assert.match(lines[3]!.text, /go to their company's owner/);
+  assert.match(lines[3]!.text, /goes to their company's owner/);
   assert.match(lines[4]!.text, /AEs team, taking turns/);
 });
 
@@ -119,7 +119,7 @@ test("strict: an op that would leave a new problem is refused; the chat can add 
   // Emptying the team a rule uses adds "has no reps": refused.
   const empty = applyStrict((r as { body: RouterBody }).body, { op: "edit_team", team: "AEs", people: [] }, ctx);
   assert.ok("error" in empty && /would leave a problem/.test(empty.error));
-  // The same op through applyOp (Flow, mid-edit) goes through, and Make live names what's missing.
+  // The same op through applyOp (Flow, mid-edit) goes through, and Publish names what's missing.
   const loose = applyOp((r as { body: RouterBody }).body, { op: "edit_team", team: "AEs", people: [] }, ctx);
   assert.ok(!("error" in loose));
   assert.equal(firstProblem((loose as { body: RouterBody }).body, ctx), "AEs has no reps");
@@ -188,4 +188,14 @@ test("moving and removing rules keeps the order people see", () => {
   // The German 900-person lead now meets Europe first.
   const d = decide((applyOp(b, { op: "set_account", on: false }, ctx) as { body: RouterBody }).body, facts());
   assert.equal(d.result.kind === "owner" && d.result.user, ANA);
+});
+
+test("plan lines read plainly: a condition with no value and a rule with no team say so", () => {
+  const b = sample();
+  b.rules.list[1]!.conds = [{ field: "lead.country", op: "one_of", value: [] }];
+  b.rules.list[1]!.queue = "gone";
+  const line = planLines(b).find((l) => l.id === b.rules.list[1]!.id)!;
+  assert.equal(line.name, b.rules.list[1]!.name);
+  assert.match(line.text, /^If .+ is \(no value yet\), the lead goes to no one yet\.$/);
+  assert.equal(firstProblem(b, ctx), `"${b.rules.list[1]!.name}" needs a rep or team`);
 });

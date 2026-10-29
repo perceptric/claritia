@@ -1,7 +1,7 @@
 // The routing chat (docs/routing-chat-plan.md Part 2). Claude changes the setup only through tools, and each tool is
 // one op (src/lib/router/ops.ts) checked before it applies: an op that is malformed, points at someone who isn't on
 // the team, or would leave the setup with a new problem is refused, and the error goes back to the model, which fixes
-// it in the same turn. Claude never publishes; the person's click on Make live does. Rep changes (away, caps) come
+// it in the same turn. Claude never publishes; the person's click on Publish does. Rep changes (away, caps) come
 // back as patches for the route to save, since they are the rep's status and not part of the setup.
 
 import type Anthropic from "@anthropic-ai/sdk";
@@ -78,7 +78,7 @@ Rules:
 - When a whole setup is described, also set everyone else. If they didn't say, ask who gets everyone else, with "Everyone takes turns" as a choice.
 - "Set it up for me": propose the simplest setup that fits the lead summary: one team taking turns when leads are mixed, a team per region when most leads come from two or three regions, and a rule for big companies when many are large.
 - A tool error means the change didn't apply. Fix it and try again in the same turn.
-- Changes stay a draft until the person clicks Make live. Never say it's live.
+- Changes stay a draft until the person clicks Publish. Never say it's live.
 - You can't route by language, time of day, or start a workflow yet. Say so plainly when asked, and offer the closest rule.
 - Reply in one or two short plain sentences: what you changed, or your question. No lists, no markdown, no emoji.`;
 
@@ -230,7 +230,7 @@ export async function runRouterChat(model: Model, message: string, ctx: RouterCh
         reps.push(r);
         const p = r.patch;
         lines.push(p.out_dates ? `${r.name} is away ${p.out_dates[0]!.from} to ${p.out_dates[0]!.to}` : p.cap_day !== undefined ? `${r.name}: ${p.cap_day === null ? "no daily cap" : `at most ${p.cap_day} a day`}` : p.cap_week !== undefined ? `${r.name}: ${p.cap_week === null ? "no weekly cap" : `at most ${p.cap_week} a week`}` : `${r.name} has a new backup`);
-        results.push({ type: "tool_result", tool_use_id: c.id, content: "Saved. This applies right away, without Make live." });
+        results.push({ type: "tool_result", tool_use_id: c.id, content: "Saved. This applies right away, without Publish." });
         continue;
       }
       const op = toOp(c.name, input);

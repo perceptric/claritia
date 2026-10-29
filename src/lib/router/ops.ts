@@ -356,10 +356,15 @@ export function applyStrict(body: RouterBody, op: RouterOp, ctx: OpCtx): Applied
   return r;
 }
 
-/** What stops a setup from going live, as one short line for the Make live button. Empty when it can go live. */
+/** What stops a setup from going live, as one short line for the Publish button. Empty when it can go live. */
 export function firstProblem(body: RouterBody, ctx: OpCtx): string {
   const p = problems(body, { members: new Set(ctx.members.map((m) => m.id)), fields: ctx.fields });
   if (!p.length) return "";
   const t = p[0]!.text;
-  return t === "Pick a fallback" ? "Pick who gets everyone else" : t.replace(/^"(.+?)" has no team$/, 'Pick who gets "$1"').replace(/^"(.+?)" has no conditions$/, 'Pick when "$1" applies').replace(/^"(.+?)" has a condition with no value$/, 'Finish "$1"');
+  return t === "Pick a fallback"
+    ? "Pick who gets leads that match no rule"
+    : t
+        .replace(/^"(.+?)" has no team$/, '"$1" needs a rep or team')
+        .replace(/^"(.+?)" has no conditions$/, '"$1" needs a condition')
+        .replace(/^"(.+?)" has a condition with no value$/, '"$1" has a condition with no value');
 }

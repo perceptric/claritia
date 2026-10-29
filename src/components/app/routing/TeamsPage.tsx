@@ -3,7 +3,7 @@
 // Routing › Teams (docs/router-ux-v2.md Part 4 and Part 11): the teams that share leads, as cards with their reps'
 // faces, how they share, who's next in line and "Deal 20 leads" (made-up leads dealt to the faces like cards, so the
 // way a team shares shows in two seconds). Below, every rep: status, limits, who covers for them (today's Reps).
-// Changing how a team shares saves to the draft; it goes live with Make live on Rules.
+// Changing how a team shares saves to the draft; it goes live with Publish on Rules.
 
 import { useEffect, useMemo, useState } from "react";
 import { dealPreview } from "@/lib/router/deal";

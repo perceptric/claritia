@@ -75,7 +75,9 @@ export function FormCanvas(props: CanvasProps) {
   }, []);
   const fw = frameWidth(device, form.layout);
   const z = zoom === "fit" ? Math.min(1, Math.max(0.25, (stageW - 64) / fw)) : zoom / 100;
-  useEffect(() => onZoom?.(z), [z, onZoom]);
+  useEffect(() => {
+    onZoom?.(z);
+  }, [z, onZoom]);
 
   const n = form.steps.length;
   return (
