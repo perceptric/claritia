@@ -14,139 +14,34 @@ import { readSystem, type DesignSystem, type FormDesign } from "@/lib/design/mod
 
 type Snap = { form: Form; system: DesignSystem };
 import type { CustomField } from "@/lib/records/fields";
-import { Copy, Inbox, Monitor, Pause, Pencil, Phone, Play, Plus, Redo, Send, Trash, Undo } from "../../Icons";
+import { BarChart, Copy, Inbox, Monitor, Pause, Phone, Play, Redo, Send, Trash, Undo, Upload } from "../../Icons";
 import { BrandLogo } from "../BrandLogo";
-import { askConfirm, askText } from "../Dialogs";
-import { AiAvatar, AiMark, AiTag } from "../Ai";
-import { Badge, Button, Empty, ErrorNote, errorText, Loading, must, Page, postJson, Section, setLeaveGuard, Tabs, timeAgo, useLoad, type ViewProps } from "../ui";
+import { askConfirm } from "../Dialogs";
+import { Badge, Button, Empty, ErrorNote, errorText, hostOf, Loading, must, Page, postJson, setLeaveGuard, useLoad, type ViewProps } from "../ui";
 import { Select } from "../Select";
 import { Popover } from "./controls";
-import { Editor } from "./Editor";
-import { mergeKey, pickTab, type Device, type Tab } from "./editorModel";
+import { Editor, type Panel } from "./Editor";
+import { FormChat } from "./FormChat";
+import { FormDestinations } from "./FormDestinations";
+import { AfterSubmit, KnownSettings } from "./FormSettings";
+import { Sheet } from "../Sheet";
+import { mergeKey, pickTab, type Device } from "./editorModel";
 import { FormChecks } from "./FormChecks";
 import { FormCreate } from "./FormCreate";
-import { PreviewPane } from "./Preview";
+import { FormHome } from "./FormHome";
 import type { ThemeProps } from "./FormDesign";
 import { FormResults } from "./FormFields";
 import { ChevronDown, Tablet } from "./icons";
 import { PreviewOverlay } from "./PreviewOverlay";
 import { useDesignDraft } from "./useDesignDraft";
-import { SettingsTab } from "./SettingsTab";
 import { copy, IconButton, STATUS, type Destination, type FormRow, type Kit, type SourceRow } from "./shared";
-import { FORMS_TABS } from "@/lib/nav";
-import { Report } from "../reports/Report";
 
-type ListRow = {
-  id: string;
-  name: string;
-  status: FormRow["status"];
-  kind: "built" | "captured";
-  version: number;
-  updated_at: string;
-  fills: number;
-  last_fill: string | null;
-  failed: number;
-  check: "running" | "passed" | "failed" | null;
-};
 
 /** Inbound › Forms: the list and the Overview as tabs; a new form and one form open as their own pages. */
 export function FormsView(props: ViewProps) {
   if (props.id === "new") return <FormCreate key="new" {...props} />;
   if (props.id && props.id !== "overview") return <FormPage key={props.id} {...props} />;
-  const nav = { title: "Forms", tabs: FORMS_TABS, current: props.id, onPick: (t: string) => props.navigate("forms", t) };
-  return (
-    <Section nav={nav}>
-      {props.id === "overview" ? (
-        <Page title="Forms">
-          <Report sb={props.sb} ws={props.ws.id} navigate={props.navigate} show={["forms"]} titled={false} />
-        </Page>
-      ) : (
-        <FormList {...props} />
-      )}
-    </Section>
-  );
-}
-
-function FormList(props: ViewProps) {
-  const { sb, ws, navigate } = props;
-  const list = useLoad(async () => must(await sb.rpc("forms_list", { p_ws: ws.id })) as ListRow[], ws.id);
-  const [renameError, setRenameError] = useState("");
-  const renameForm = async (formId: string, current: string) => {
-    const next = await askText("Rename form", { initial: current, ok: "Rename" });
-    if (!next || next === current) return;
-    try {
-      must(await sb.rpc("form_rename", { p_id: formId, p_name: next }));
-      setRenameError("");
-      list.reload();
-    } catch (e) {
-      setRenameError(errorText(e));
-    }
-  };
-  if (list.data && !list.data.length)
-    return (
-      <Page icon={<Inbox size={14} />} title="Forms" count={0} flush>
-        <FormCreate {...props} embedded />
-      </Page>
-    );
-  return (
-    <Page
-      icon={<Inbox size={14} />}
-      title="Forms"
-      count={list.data?.length}
-      actions={
-        <Button onClick={() => navigate("forms", "new")}>
-          <Plus size={14} />
-          New form
-        </Button>
-      }
-    >
-      <ErrorNote message={list.error || renameError} />
-      {!list.data ? (
-        <Loading />
-      ) : (
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-          {list.data.map((f) => (
-            <div key={f.id} className="group lift anim-rise-sm relative flex flex-col gap-6 rounded-2xl border border-line bg-card p-5 text-left hover:border-line-strong">
-              <span className="flex items-start gap-2">
-                <button
-                  type="button"
-                  onClick={() => navigate("forms", f.id)}
-                  className="min-w-0 flex-1 truncate pt-px text-left text-[14.5px] font-medium text-ink after:absolute after:inset-0 after:rounded-2xl"
-                >
-                  {f.name}
-                </button>
-                <span className="relative z-10 -my-1.5 opacity-0 group-hover:opacity-100 focus-within:opacity-100">
-                  <IconButton label="Rename" onClick={() => void renameForm(f.id, f.name)}>
-                    <Pencil size={14} />
-                  </IconButton>
-                </span>
-                <Badge tone={STATUS[f.status][1]} dot>
-                  {STATUS[f.status][0]}
-                </Badge>
-              </span>
-              <span className="flex items-end gap-4">
-                <span className="flex min-w-0 flex-1 flex-col gap-1.5">
-                  <span className="font-semibold tracking-[-0.02em] text-[34px] leading-none text-ink tabular-nums">{f.fills.toLocaleString("en-US")}</span>
-                  <span className="label-mono">Fills, 30 days</span>
-                </span>
-                <span className="flex shrink-0 flex-col items-end gap-1 text-right">
-                  <span className="label-mono">Last fill {timeAgo(f.last_fill)}</span>
-                  <span className="label-mono">Changed {timeAgo(f.updated_at)}</span>
-                </span>
-              </span>
-              {f.failed || f.check === "failed" || f.kind === "captured" ? (
-                <span className="-mt-2 flex flex-wrap gap-1.5">
-                  {f.failed ? <Badge tone="red">{`${f.failed} failed`}</Badge> : null}
-                  {f.check === "failed" ? <Badge tone="red">Check failed</Badge> : null}
-                  {f.kind === "captured" ? <Badge>Captured</Badge> : null}
-                </span>
-              ) : null}
-            </div>
-          ))}
-        </div>
-      )}
-    </Page>
-  );
+  return <FormHome {...props} />;
 }
 
 function FormPage(props: ViewProps) {
@@ -199,14 +94,6 @@ function takeOnce(key: string): string | null {
   }
 }
 
-/** Keep the open tab in the address (?tab=…), on the same history entry. */
-function writeTab(t: Tab) {
-  const u = new URL(window.location.href);
-  if (u.searchParams.get("tab") === t) return;
-  u.searchParams.set("tab", t);
-  window.history.replaceState(window.history.state, "", `${u.pathname}${u.search}${u.hash}`);
-}
-
 const ZOOMS = [{ value: "fit", label: "Fit" }, ...[50, 75, 100, 125, 150].map((z) => ({ value: String(z), label: `${z}%` }))];
 
 function Builder({
@@ -240,12 +127,10 @@ function Builder({
   const [future, setFuture] = useState<Snap[]>([]);
   const kit = kits.find((k) => k.id === kitId) ?? null;
   const draft = useDesignDraft(session, ws.id, kit, tokens);
-  const [tab, setTabState] = useState<Tab>(() => (typeof window === "undefined" ? "design" : pickTab(window.location.search)));
-  const setTab = useCallback((t: Tab) => {
-    setTabState(t);
-    writeTab(t);
-  }, []);
-  useEffect(() => writeTab(tab), [tab]);
+  // One screen (docs/form-builder.md Part 4): the form, or its results over it. Settings open in sheets.
+  const [view, setView] = useState<"edit" | "results">(() => (typeof window !== "undefined" && pickTab(window.location.search) === "results" ? "results" : "edit"));
+  const [sheet, setSheet] = useState<null | "submit" | "sync" | "share">(null);
+  const [panelAsk, setPanelAsk] = useState<{ id: Panel; n: number } | undefined>(undefined);
   const [device, setDevice] = useState<Device>("desktop");
   const [zoom, setZoom] = useState<"fit" | number>("fit");
   const [previewing, setPreviewing] = useState(false);
@@ -445,7 +330,7 @@ function Builder({
     setError("");
     try {
       await postJson(session, "/api/forms/test", { workspaceId: ws.id, id: initial.id });
-      setTab("results");
+      setView("results");
       setWatch((w) => w + 1);
     } catch (e) {
       setError(errorText(e));
@@ -524,20 +409,7 @@ function Builder({
     dirty.current = false;
     setSaved(true);
   };
-  const siteHost = (kit?.source_url ?? site)
-    .replace(/^https?:\/\//, "")
-    .replace(/^www\./, "")
-    .replace(/\/.*$/, "");
-  // Previews draw the styles being edited, so the kit carries the draft.
-  const brand = { site: siteHost, kit: kit ? { ...kit, design: draft.system } : null, tokens, scan: (u: string) => void scan(u), error: scanError };
-
   const origin = typeof window === "undefined" ? "" : window.location.origin;
-  const tabs: { value: Tab; label: string }[] = [
-    { value: "design", label: "Design" },
-    { value: "settings", label: "Settings" },
-    { value: "share", label: "Share" },
-    { value: "results", label: "Results" },
-  ];
   const theme: ThemeProps = {
     tokens,
     setTokens,
@@ -554,6 +426,17 @@ function Builder({
     formName: name,
   };
   const sep = <span aria-hidden="true" className="mx-1 h-5 w-px bg-line" />;
+  const sch = form.after.schedule;
+  const submitWords = sch
+    ? sch.who === "routed"
+      ? `Book a meeting, for ${sch.routeRules?.length ?? 0} routing ${sch.routeRules?.length === 1 ? "rule" : "rules"}`
+      : sch.who === "match"
+        ? "Book a meeting, for leads that match"
+        : "Book a meeting"
+    : form.after.end.kind === "redirect"
+      ? `Redirect to ${hostOf(form.after.end.url) || "another page"}`
+      : "Pop-up message";
+  const swatch = [tokens.buttonBg ?? tokens.accent, tokens.text, tokens.background].filter((c): c is string => typeof c === "string" && /^#[0-9a-f]{3,8}$/i.test(c));
 
   return (
     <Page
@@ -569,7 +452,7 @@ function Builder({
           {initial.version && changed ? (
             <span className="hidden 2xl:inline-flex">
               <Badge tone="amber" dot>
-                Changes not live yet
+                Unpublished changes
               </Badge>
             </span>
           ) : null}
@@ -580,7 +463,7 @@ function Builder({
           <IconButton label="Redo" onClick={redo} disabled={!future.length}>
             <Redo size={14} />
           </IconButton>
-          {tab === "design" ? (
+          {view === "edit" ? (
             <>
               {sep}
               <div role="radiogroup" aria-label="Device" className="flex items-center gap-0.5 rounded-full bg-paper-deep p-0.5">
@@ -588,7 +471,7 @@ function Builder({
                   [
                     ["desktop", "Desktop", <Monitor key="d" size={14} />],
                     ["tablet", "Tablet", <Tablet key="t" size={14} />],
-                    ["phone", "Phone", <Phone key="p" size={14} />],
+                    ["phone", "Mobile", <Phone key="p" size={14} />],
                   ] as const
                 ).map(([d, label, icon]) => (
                   <button
@@ -617,86 +500,128 @@ function Builder({
             </>
           ) : null}
           {sep}
+          <Button variant="ghost" aria-pressed={view === "results"} onClick={() => setView(view === "results" ? "edit" : "results")} className={view === "results" ? "border-ink bg-ink text-paper hover:bg-ink" : ""}>
+            <BarChart size={13} />
+            Results
+          </Button>
+          <Button variant="ghost" onClick={() => setSheet("share")}>
+            <Upload size={13} />
+            Share
+          </Button>
           <Button variant="ghost" onClick={() => setPreviewing(true)}>
             <Play size={13} />
             Preview
           </Button>
           <Button disabled={!!busy || (!!initial.version && !changed)} onClick={publish}>
-            {busy === "publish" ? "Making live…" : initial.version && !changed ? "Live" : "Make live"}
+            {busy === "publish" ? "Publishing…" : initial.version && !changed ? "Published" : "Publish"}
           </Button>
         </span>
       }
     >
-      <div className="flex h-full min-h-0 flex-col">
-        <Tabs value={tab} tabs={tabs} onChange={setTab} />
-        {error || draft.error || note || problems.length ? (
-          <div className="border-b border-line bg-card px-4 py-2">
-            <ErrorNote message={error || draft.error || problems[0] || note} />
-            {problems.length > 1 ? (
-              <ul className="mt-1 flex flex-col gap-0.5 px-3.5 text-[12.5px] text-rose">
-                {problems.slice(1).map((p) => (
-                  <li key={p}>{p}</li>
+      <div className="grid h-full min-h-0 grid-rows-[minmax(0,1fr)] lg:grid-cols-[340px_minmax(0,1fr)]">
+        <aside aria-label="Assistant" className="hidden min-h-0 border-r border-line lg:block">
+          <FormChat
+            session={session}
+            ws={ws}
+            formId={initial.id}
+            prepare={async () => ((await save()) ? rev.current : null)}
+            onResult={fromChat}
+            starters={["Add a phone field", "Make it two steps", "Only work emails", "Ask for their budget"]}
+          />
+        </aside>
+        <div className="flex min-h-0 min-w-0 flex-col">
+          <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-line bg-card px-3 py-2">
+            <PathButton label="Style" onClick={() => {
+              setView("edit");
+              setPanelAsk((p) => ({ id: "theme", n: (p?.n ?? 0) + 1 }));
+            }}>
+              <span className="flex">
+                {swatch.map((c, i) => (
+                  <i key={i} className="-ml-1 size-3.5 rounded-full shadow-[0_0_0_2px_var(--color-card)] first:ml-0" style={{ background: c }} />
                 ))}
-              </ul>
-            ) : null}
+              </span>
+              {kit ? kit.name : "No brand kit"}
+            </PathButton>
+            <PathButton label="On submission" onClick={() => setSheet("submit")}>
+              {submitWords}
+            </PathButton>
+            <PathButton label="Sync leads to" onClick={() => setSheet("sync")}>
+              {["Claritia contacts", ...dests.filter((d) => !d.paused).map((d) => d.name)].join(", ")}
+            </PathButton>
           </div>
-        ) : null}
-        <div className="min-h-0 flex-1">
-          {tab === "design" ? (
-            <Editor
-              form={form}
-              apply={apply}
-              custom={custom}
-              sources={sources}
-              tokens={tokens}
-              device={device}
-              zoom={zoom}
-              theme={theme}
-              draft={draft}
-              hasKit={!!kit}
-              applyStyles={applyStyles}
-              applySystem={applySystem}
-              styles={{ changed: stylesChanged, publish: publishStyles }}
-              link={{ session, workspaceId: ws.id, sb, onFieldAdded: (f) => setAdded((a) => [...a, f]) }}
-            />
-          ) : tab === "share" ? (
-            <div className="grid h-full min-h-0 lg:grid-cols-[1fr_380px]">
-              <PreviewPane
+          {error || draft.error || scanError || note || problems.length ? (
+            <div className="border-b border-line bg-card px-4 py-2">
+              <ErrorNote message={error || draft.error || scanError || problems[0] || note} />
+              {problems.length > 1 ? (
+                <ul className="mt-1 flex flex-col gap-0.5 px-3.5 text-[12.5px] text-rose">
+                  {problems.slice(1).map((p) => (
+                    <li key={p}>{p}</li>
+                  ))}
+                </ul>
+              ) : null}
+            </div>
+          ) : null}
+          <div className="min-h-0 flex-1">
+            {view === "edit" ? (
+              <Editor
                 form={form}
-                brand={brand}
-                footer={<ChangeBox session={session} ws={ws} formId={initial.id} prepare={async () => ((await save()) ? rev.current : null)} onResult={fromChat} />}
+                apply={apply}
+                custom={custom}
+                sources={sources}
+                tokens={tokens}
+                device={device}
+                zoom={zoom}
+                theme={theme}
+                draft={draft}
+                hasKit={!!kit}
+                applyStyles={applyStyles}
+                applySystem={applySystem}
+                styles={{ changed: stylesChanged, publish: publishStyles }}
+                link={{ session, workspaceId: ws.id, sb, onFieldAdded: (f) => setAdded((a) => [...a, f]) }}
+                startPanel={null}
+                openPanel={panelAsk}
               />
-              <aside className="min-h-0 overflow-auto border-l border-line bg-card">
-                <Embed id={initial.id} origin={origin} live={!!initial.version} form={form} apply={apply} />
-              </aside>
-            </div>
-          ) : tab === "settings" ? (
-            <SettingsTab
-              form={form}
-              apply={apply}
-              sb={sb}
-              session={session}
-              ws={ws}
-              role={role}
-              navigate={navigate}
-              formId={initial.id}
-              dests={dests}
-              sources={sources}
-              reload={reload}
-              brand={brand}
-            />
-          ) : (
-            <div className="h-full overflow-auto bg-paper p-4 md:p-8">
-              <div className="mx-auto flex max-w-5xl flex-col gap-8">
-                <FormResults key={watch} sb={sb} session={session} ws={ws} formId={initial.id} destinations={dests} navigate={navigate} watch={watch} books={!!form.after.schedule} />
-                {form.capture ? null : <FormChecks sb={sb} formId={initial.id} live={initial.status === "live"} />}
+            ) : (
+              <div className="h-full overflow-auto bg-paper p-4 md:p-8">
+                <div className="mx-auto flex max-w-5xl flex-col gap-8">
+                  <FormResults key={watch} sb={sb} session={session} ws={ws} formId={initial.id} destinations={dests} navigate={navigate} watch={watch} books={!!form.after.schedule} />
+                  {form.capture ? null : <FormChecks sb={sb} formId={initial.id} live={initial.status === "live"} />}
+                </div>
               </div>
-            </div>
-          )}
+            )}
+          </div>
         </div>
       </div>
+      {sheet === "submit" ? (
+        <Sheet title="On submission" onClose={() => setSheet(null)}>
+          <div className="flex flex-col gap-6">
+            <AfterSubmit form={form} apply={apply} sb={sb} ws={ws} session={session} role={role} />
+          </div>
+        </Sheet>
+      ) : sheet === "sync" ? (
+        <Sheet title="Sync leads to" onClose={() => setSheet(null)}>
+          <div className="flex flex-col gap-6">
+            <FormDestinations sb={sb} session={session} ws={ws} formId={initial.id} list={dests} sources={sources} reload={reload} navigate={navigate} />
+            <KnownSettings form={form} apply={apply} />
+          </div>
+        </Sheet>
+      ) : sheet === "share" ? (
+        <Sheet title="Share" onClose={() => setSheet(null)}>
+          <Embed id={initial.id} origin={origin} live={!!initial.version} form={form} apply={apply} />
+        </Sheet>
+      ) : null}
       {previewing ? <PreviewOverlay form={form} tokens={tokens} system={draft.system} device={device} onClose={() => setPreviewing(false)} /> : null}
     </Page>
+  );
+}
+
+/** One step of the lead's path above the canvas: what it does now, in a few words. */
+function PathButton({ label, onClick, children }: { label: string; onClick: () => void; children: React.ReactNode }) {
+  return (
+    <button type="button" onClick={onClick} className="press flex h-9 min-w-0 max-w-full items-center gap-2 rounded-full border border-line bg-card px-3 text-left text-[12.5px] transition-colors duration-[120ms] hover:border-ink">
+      <span className="shrink-0 font-mono text-[10.5px] tracking-[0.06em] text-faint uppercase">{label}</span>
+      <span className="flex min-w-0 items-center gap-1.5 truncate text-ink">{children}</span>
+    </button>
   );
 }
 
@@ -761,112 +686,6 @@ function StatusMenu({
         </div>
       </Popover>
     </>
-  );
-}
-
-// Changes in plain words ----------------------------------------------------------------------------------------
-
-const SUGGEST = ["Make it two steps", "Add a phone field", "Make it shorter", "Put the labels inside the fields"];
-
-function ChangeBox({
-  session,
-  ws,
-  formId,
-  prepare,
-  onResult,
-}: Pick<ViewProps, "session" | "ws"> & { formId: string; prepare: () => Promise<number | null>; onResult: (f: Form, rev: number) => void }) {
-  const [text, setText] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [reply, setReply] = useState<{ text: string; lines: string[]; ask: string | null }>({ text: "", lines: [], ask: null });
-  const [error, setError] = useState("");
-  const send = async (message: string, confirmed = false) => {
-    const m = message.trim();
-    if (!m || busy) return;
-    setBusy(true);
-    setError("");
-    try {
-      const rev = await prepare();
-      if (rev === null) throw new Error("The draft didn't save. Try again.");
-      const r = await postJson<{ form: Form; rev: number; reply: string; lines: string[]; ask: { question: string } | null; styles?: boolean }>(session, "/api/forms/chat", {
-        workspaceId: ws.id,
-        id: formId,
-        rev,
-        message: m,
-        confirmed,
-      });
-      if (r.lines.length) onResult(r.form, r.rev);
-      // The brand's styles changed: load the kit again so the builder shows them.
-      if (r.styles) window.dispatchEvent(new Event("claritia:changed"));
-      setReply({ text: r.reply, lines: r.lines, ask: r.ask ? m : null });
-      if (!r.ask) setText("");
-    } catch (e) {
-      setError(errorText(e));
-    } finally {
-      setBusy(false);
-    }
-  };
-  return (
-    <div className="mt-5 flex flex-col gap-2">
-      <form
-        onSubmit={(e) => {
-          e.preventDefault();
-          void send(text);
-        }}
-        className="flex items-center gap-2 rounded-full border border-line-strong bg-card p-1.5 pl-2 transition-colors focus-within:border-ink"
-      >
-        <AiMark size={18} working={busy} className="ml-1.5" />
-        <input
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          placeholder="Change anything, like “add a budget question”"
-          aria-label="Change the form"
-          className="h-8 min-w-0 flex-1 bg-transparent text-[13.5px] outline-none placeholder:text-faint"
-        />
-        <Button type="submit" disabled={!text.trim() || busy}>
-          {busy ? "Changing…" : "Change"}
-        </Button>
-      </form>
-      <div className="flex flex-wrap gap-1.5">
-        {SUGGEST.map((s) => (
-          <button
-            key={s}
-            type="button"
-            disabled={busy}
-            onClick={() => void send(s)}
-            className="press h-8 rounded-full border border-line-strong bg-card px-3 text-[12.5px] text-body transition-transform duration-[140ms] hover:-translate-y-px hover:border-ink hover:text-ink disabled:opacity-50"
-          >
-            {s}
-          </button>
-        ))}
-      </div>
-      <ErrorNote message={error} />
-      {reply.text ? (
-        <div className="anim-rise-sm flex items-start gap-2.5 rounded-lg border border-line bg-card px-3.5 py-3 text-[13px]">
-          <AiAvatar size={24} working={busy} />
-          <div className="min-w-0 flex-1">
-            <p className="pt-0.5">{reply.text}</p>
-            {reply.lines.length ? (
-              <ul className="mt-1 text-[12.5px] text-muted">
-                {reply.lines.map((l) => (
-                  <li key={l}>{l}</li>
-                ))}
-              </ul>
-            ) : null}
-            {reply.ask ? (
-              <div className="mt-2 flex gap-1.5">
-                <Button onClick={() => void send(reply.ask!, true)} disabled={busy}>
-                  Yes
-                </Button>
-                <Button variant="ghost" onClick={() => setReply({ text: "", lines: [], ask: null })}>
-                  No
-                </Button>
-              </div>
-            ) : null}
-          </div>
-          {reply.lines.length ? <AiTag /> : null}
-        </div>
-      ) : null}
-    </div>
   );
 }
 

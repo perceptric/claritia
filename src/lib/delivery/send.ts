@@ -12,6 +12,7 @@ import { deps, type RunOpts } from "../sources/run.ts";
 import { call, push, type Deps, type PushOutcome } from "../sources/sync.ts";
 import { AuthError, RateLimited } from "../sources/types.ts";
 import { allFields, isContent, type Form } from "../forms/schema.ts";
+import { rulesOf } from "./rules.ts";
 
 export type Taken = {
   delivery: { id: string; attempts: number; external_id: string | null };
@@ -103,7 +104,8 @@ async function toSource(t: Taken, d: SendDeps): Promise<Result> {
   try {
     const linked = linkedFields(t, dep.ctx.source.id);
     // "Never" may still fill a record this delivery makes: was the contact linked to one before?
-    const wasLinked = linked.some((f) => f.overwrite === "never")
+    const rules = rulesOf(t.destination.config);
+    const wasLinked = linked.some((f) => (f.overwrite ?? rules?.exists) === "never")
       ? !!(await call<{ external_id: string | null }[]>(dep.rpc, "push_candidates", { p_source: dep.ctx.source.id, p_after: null, p_limit: 1, p_ids: [t.contact.id] }))[0]?.external_id
       : true;
     await push(dep, { ids: [t.contact.id], force: true, outcome });
@@ -150,7 +152,7 @@ async function toCrmFields(t: Taken, dep: Deps, externalId: string, isNew: boole
     if (e instanceof AuthError) throw e;
     return null;
   });
-  const plan = crmPlan(t.form.body, t.submission.values, src.id, src.kind, props);
+  const plan = crmPlan(t.form.body, t.submission.values, src.id, src.kind, props, rulesOf(t.destination.config));
   const r = await sendCrmFields(dep.ctx, src.kind, { id: externalId, localId: t.contact.id, email: t.contact.email, isNew }, plan.send, props);
   const skipped = [...plan.skip, ...r.skip];
   if (skipped.length)

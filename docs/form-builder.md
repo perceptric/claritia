@@ -119,6 +119,15 @@ A `ToolIntro` with one input: "What should this form do?" and the site address f
 
 The same ops are tools on the MCP server (`create_form`, `edit_form`, `publish_form`) and in the REST API, so a team can build a form from Claude or a script. Publishing from outside the app needs an owner's key.
 
+### 4.4 One screen, no tabs (built 29 October 2026)
+
+- **Forms home** (`src/components/app/forms/FormHome.tsx`): the forms as a list, with no stats on top, and the assistant's box always at the bottom. Describing a form there opens the new form screen with that sentence already read, so the questions it answered are settled. With no forms yet, a form builds itself in the middle of the screen (still under reduced motion). The Overview tab is gone.
+- **New form** (`FormCreate.tsx`): the assistant asks the questions one at a time (what it's for, what to collect, what happens on submission, where leads sync), with click answers and a default picked. The form starts in the brand kit from the website (5.4).
+- **The form** (`FormsView.tsx` Builder): the assistant on the left (`FormChat.tsx`, `/api/forms/chat`), the canvas on the right, and the lead's path above it: **Style** (opens the Theme panel on the brand kit), **On submission** (a sheet: Pop-up message, Redirect to another page, or Book a meeting) and **Sync leads to** (a sheet: Claritia contacts, each tool with its sync rule, and known fields). **Results** shows submissions and field drop-off in place of the canvas; **Share** opens the embed codes in a sheet. **Publish** replaces Make live. Spam protection and consent are built in with their defaults and not asked.
+- **Book a meeting by routing rule:** "Leads routed by these rules" lists every live routing rule, plus Existing owner and Everyone else, with a link to Routing. Only leads routed by a picked rule see the calendar; the rest see the message. A held lead never books. When routing doesn't answer within 300 ms, the lead books anyway, because a missed meeting costs more than one booked with the meeting type's own host (`routedBooks` in `src/lib/forms/schedule.ts`, tests in `tests/instantBooking.test.ts`).
+
+Running cost: no new service or AI call (the assistant uses the existing form chat, 4.2). Added per month: $0 at Beta (50 teams) and $0 at Growth (500 teams).
+
 ## Part 5. Brand from the website
 
 ### 5.1 The scan
@@ -232,6 +241,8 @@ Each submission shows its values, the form version, the page and UTMs, earlier v
 ### 7.4 Sync rules
 
 Each CRM destination (HubSpot, Salesforce, and every CRM added later) has its own sync rules, set from "Sync leads to" on the form (Sync rules) or by the assistant ("never overwrite CRM data"). The defaults protect what's already in the CRM.
+
+Built so far: "When the record exists" per CRM destination (`src/lib/delivery/rules.ts`, saved in `form_destinations.config.rules`, set in Sync leads to). New CRM destinations start on "Fill empty fields only"; ones made before keep overwriting until changed. The other rules below are planned.
 
 | Rule | Choices | Default |
 |---|---|---|

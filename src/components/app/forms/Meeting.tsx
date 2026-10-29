@@ -8,7 +8,9 @@ import Link from "next/link";
 import { useState } from "react";
 import { canSetLink, cleanLink, firstRule, linkState, linkToSave, ownerRoute, retarget, ruleFields, ruleOps, withOp } from "@/lib/forms/meeting";
 import type { Op } from "@/lib/forms/ops";
-import { outside, SCHEDULERS, type MatchRule, type Schedule, type SchedulerTool } from "@/lib/forms/schedule";
+import { FALLBACK, OWNED, outside, SCHEDULERS, type MatchRule, type Schedule, type SchedulerTool } from "@/lib/forms/schedule";
+import { BASE_FIELDS, ruleWords } from "@/lib/router/conditions";
+import { useLiveBody } from "../routing/screenParts";
 import type { Form } from "@/lib/forms/schema";
 import type { Kind } from "@/lib/meetings/types";
 import { Link as LinkIcon, Plus, X } from "../../Icons";
@@ -80,8 +82,11 @@ export function Meeting({ form, apply, sb, ws, session, role }: { form: Form; ap
 
       <Group label="Who sees it?">
         <div role="radiogroup" aria-label="Who sees it?" className="flex flex-col gap-2">
-          <RadioRow picked={sch.who !== "match"} onPick={() => set({ who: "all", rules: undefined, any: undefined })} label="Everyone" />
-          <RadioRow picked={sch.who === "match"} onPick={() => set({ who: "match", rules: sch.rules?.length ? sch.rules : [firstRule()] })} label="Only leads that match">
+          <RadioRow picked={!sch.who || sch.who === "all"} onPick={() => set({ who: "all", rules: undefined, any: undefined, routeRules: undefined })} label="Everyone" />
+          <RadioRow picked={sch.who === "routed"} onPick={() => set({ who: "routed", rules: undefined, any: undefined, routeRules: sch.routeRules?.length ? sch.routeRules : [FALLBACK] })} label="Leads routed by these rules">
+            <RoutedRules sb={sb} ws={ws} picked={sch.routeRules ?? []} set={(routeRules) => set({ routeRules })} />
+          </RadioRow>
+          <RadioRow picked={sch.who === "match"} onPick={() => set({ who: "match", rules: sch.rules?.length ? sch.rules : [firstRule()], routeRules: undefined })} label="Only leads that match">
             <Rules form={form} schedule={sch} set={set} />
             {end.kind === "message" ? (
               <div className="mt-2 flex flex-col gap-2 border-t border-line pt-4">
@@ -311,5 +316,31 @@ function OwnerRow({ person, me, saved, schedule, tool, editable, onSave }: { per
         {route === "own" ? <Badge tone="green">Own link</Badge> : route === "team" ? <Badge>Team link</Badge> : <Badge tone="amber">Message</Badge>}
       </span>
     </li>
+  );
+}
+
+/** Book only leads routed by the picked routing rules: every live rule, leads kept with their rep, and everyone else. */
+function RoutedRules({ sb, ws, picked, set }: Pick<ViewProps, "sb" | "ws"> & { picked: string[]; set: (ids: string[]) => void }) {
+  const live = useLiveBody(sb, ws.id);
+  const rules = live.data?.body.rules.list ?? [];
+  const rows = [...rules.map((r) => ({ id: r.id, name: r.name, text: r.conds.length ? ruleWords(r, BASE_FIELDS, live.data!.body.territories) : "No conditions yet" })), { id: OWNED, name: "Existing owner", text: "Leads kept with the rep they or their company already have" }, { id: FALLBACK, name: "Everyone else", text: "Leads no rule matched" }];
+  const toggle = (id: string) => set(picked.includes(id) ? picked.filter((x) => x !== id) : rows.map((r) => r.id).filter((x) => x === id || picked.includes(x)));
+  return (
+    <div className="flex flex-col gap-1">
+      <ErrorNote message={live.error} />
+      {live.data === null ? <p className="text-[12.5px] text-muted">No routing is live yet.</p> : null}
+      {rows.map((r) => (
+        <label key={r.id} className="flex cursor-pointer items-start gap-2.5 rounded-sm px-1.5 py-1.5 hover:bg-hover">
+          <input type="checkbox" checked={picked.includes(r.id)} onChange={() => toggle(r.id)} className="mt-0.5 size-4 accent-ink" />
+          <span className="flex min-w-0 flex-col">
+            <span className="text-[13px] font-medium text-ink">{r.name}</span>
+            <span className="text-[12px] text-muted">{r.text}</span>
+          </span>
+        </label>
+      ))}
+      <Link href="/routing" className="mt-1 self-start text-[12.5px] font-medium text-ink underline decoration-line-strong underline-offset-[3px] hover:decoration-ink">
+        Go to Routing rules
+      </Link>
+    </div>
   );
 }

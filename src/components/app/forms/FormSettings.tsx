@@ -29,10 +29,10 @@ export function AfterSubmit({ form, apply, sb, ws, session, role }: { form: Form
   };
   const page = end.kind === "redirect" ? (end.url ? linkProblem("link", end.url) : null) : null;
   return (
-    <Section id="after" title="After submit">
-      <div role="radiogroup" aria-label="After submit" className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-        <OptionCard picked={kind === "message"} onPick={() => pick("message")} icon={<Chat size={16} />} title="Show a message" />
-        <OptionCard picked={kind === "page"} onPick={() => pick("page")} icon={<LinkIcon size={16} />} title="Go to a page" />
+    <Section id="after" title="On submission">
+      <div role="radiogroup" aria-label="On submission" className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+        <OptionCard picked={kind === "message"} onPick={() => pick("message")} icon={<Chat size={16} />} title="Pop-up message" />
+        <OptionCard picked={kind === "page"} onPick={() => pick("page")} icon={<LinkIcon size={16} />} title="Redirect to another page" />
         <OptionCard picked={kind === "meeting"} onPick={() => pick("meeting")} icon={<Clock size={16} />} title="Book a meeting" />
       </div>
       {kind === "message" && end.kind === "message" ? (

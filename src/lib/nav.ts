@@ -85,10 +85,6 @@ export const CONTACTS_TABS: Tab[] = [
 ];
 
 /** Forms: the list (""), the Overview (views, fills and booked per form), a new form ("new") and one form (<id>). */
-export const FORMS_TABS: Tab[] = [
-  { value: "", label: "Forms" },
-  { value: "overview", label: "Overview" },
-];
 
 /** Meetings: the list ("") and one meeting (<id>). Anything else opens the list. */
 export function meetingsPage(id: string): { page: "list" | "meeting"; id: string } {

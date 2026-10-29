@@ -6,6 +6,7 @@
 // Templates and Start blank are the other two ways in.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ASK_KEY } from "./FormHome";
 import type { Tokens } from "@/lib/forms/brand";
 import {
   afterProblem,
@@ -119,9 +120,22 @@ function Create({ sb, session, ws, navigate, tools, site: firstSite, kits }: Vie
   const brand = useBrand({ sb, session, ws }, firstSite, kits);
   const [templates, setTemplates] = useState(false);
   // Every connected tool gets the leads unless unticked.
-  const [answers, setAnswers] = useState<Answers>(() => ({ ...defaults("demo"), send: { sources: tools.map((t) => t.id), slack: "", webhook: "" } }));
-  const [settled, setSettled] = useState<Set<QuestionId>>(new Set());
-  const [current, setCurrent] = useState<Current>("goal");
+  // A sentence typed on the Forms home is read first, so the questions it answered are already settled.
+  const [first] = useState(() => {
+    const base: Answers = { ...defaults("demo"), send: { sources: tools.map((t) => t.id), slack: "", webhook: "" } };
+    let said = "";
+    try {
+      said = sessionStorage.getItem(ASK_KEY) ?? "";
+      sessionStorage.removeItem(ASK_KEY);
+    } catch {}
+    const r = said ? readSentence(said, tools) : null;
+    if (!r?.settled.length) return { answers: base, settled: new Set<QuestionId>() };
+    const f = fillFrom(base, r.found, []);
+    return { answers: f.answers, settled: new Set<QuestionId>(f.settled) };
+  });
+  const [answers, setAnswers] = useState<Answers>(first.answers);
+  const [settled, setSettled] = useState<Set<QuestionId>>(first.settled);
+  const [current, setCurrent] = useState<Current>(() => ORDER.find((x) => !first.settled.has(x)) ?? "done");
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
 

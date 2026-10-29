@@ -21,8 +21,12 @@ export type Schedule = {
   meetingTypeId?: string;
   /** Book with the contact's owner when they have a link, else the team link. */
   perOwner: boolean;
-  /** Everyone, or only leads that match the rules; the rest see the form's message or page. */
-  who?: "all" | "match";
+  /** Everyone, only leads that match the rules, or only leads routed by the picked routing rules; the rest see the
+   * form's message or page. */
+  who?: "all" | "match" | "routed";
+  /** who "routed": routing rule ids, "owned" for leads kept with the rep they or their company already have, and
+   * "fallback" for leads no rule matched (Everyone else). */
+  routeRules?: string[];
   rules?: MatchRule[];
   /** Match any rule instead of all of them. */
   any?: boolean;
@@ -33,6 +37,27 @@ export type Schedule = {
 };
 
 export const WORK_EMAIL = "@work_email";
+/** The routed choices for leads no routing rule matched, and for leads kept with the rep they already have. */
+export const FALLBACK = "fallback";
+export const OWNED = "owned";
+
+/** How routing placed the lead, as far as the booking step needs it. null: routing didn't answer in time. */
+export type RoutedAs = { kind: "owner" | "held" | "unassigned"; rule?: string | null; by?: string | null } | null;
+
+/**
+ * Whether routing lets this lead book (who "routed"). A lead routed by a picked rule books; one no rule matched
+ * books when Everyone else is picked; a held lead never books. When routing didn't answer in time the lead books
+ * anyway: a missed booking costs more than one made with the meeting type's own host.
+ */
+export function routedBooks(s: Schedule, routed: RoutedAs): boolean {
+  if (s.who !== "routed") return true;
+  if (!routed) return true;
+  if (routed.kind === "held") return false;
+  const picked = s.routeRules ?? [];
+  if (routed.rule) return picked.includes(routed.rule);
+  if (routed.kind === "owner" && (routed.by === "account" || routed.by === "keep")) return picked.includes(OWNED);
+  return picked.includes(FALLBACK);
+}
 
 /**
  * Whether this lead sees the calendar. `work` says whether the email is a work email (the server knows from the

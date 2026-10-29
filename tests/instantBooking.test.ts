@@ -184,3 +184,34 @@ test("no times, a failing read or no secret: the fill is kept and the lead gets 
   assert.deepEqual([u.status, u.body.booking], [200, undefined]);
   assert.deepEqual(unsigned.calls, ["form_submit", "router_live"]);
 });
+
+// Booking by routing rule (docs/form-builder.md 8): the form books only leads routed by the picked rules.
+test("routed booking: picked rules, kept owners and everyone else book; a held lead never does; no answer still books", async () => {
+  const { routedBooks, FALLBACK, OWNED } = await import("../src/lib/forms/schedule.ts");
+  const sch = { tool: "claritia" as const, url: "", perOwner: false, who: "routed" as const, routeRules: ["r_ent", OWNED] };
+  assert.equal(routedBooks(sch, { kind: "owner", rule: "r_ent", by: "queue" }), true);
+  assert.equal(routedBooks(sch, { kind: "owner", rule: "r_smb", by: "queue" }), false, "a rule not picked");
+  assert.equal(routedBooks(sch, { kind: "owner", rule: null, by: "account" }), true, "same company, same rep");
+  assert.equal(routedBooks(sch, { kind: "owner", rule: null, by: "fallback" }), false, "everyone else isn't picked");
+  assert.equal(routedBooks({ ...sch, routeRules: [FALLBACK] }, { kind: "unassigned" }), true);
+  assert.equal(routedBooks(sch, { kind: "held" }), false);
+  // Flaky case: routing was slow or failed. The lead books rather than losing the meeting.
+  assert.equal(routedBooks(sch, null), true);
+  assert.equal(routedBooks({ ...sch, who: "all" }, { kind: "held" }), true, "only who routed reads routing");
+});
+
+test("routed booking: the form check keeps picked rules and refuses an empty pick", () => {
+  const base = demo({});
+  const keep = checkForm({ ...base, after: { ...base.after, schedule: { ...base.after.schedule!, who: "routed", routeRules: ["r_ent", "fallback", "r_ent", "bad id!"] } } });
+  assert.ok("form" in keep);
+  assert.deepEqual(keep.form.after.schedule?.routeRules, ["r_ent", "fallback"]);
+  const none = checkForm({ ...base, after: { ...base.after, schedule: { ...base.after.schedule!, who: "routed", routeRules: [] } } });
+  assert.ok("errors" in none && none.errors.some((e) => /pick at least one routing rule/.test(e)));
+});
+
+test("routed booking on submit: with no router to answer, the lead still gets times", async () => {
+  const d = db();
+  const r = await send(d.rpc, demo({ who: "routed", routeRules: ["r_ent"] }), { em: "ana@acme.com", size: "80" });
+  assert.equal(r.status, 200);
+  assert.ok((r.body.booking as { slots: number[] } | undefined)?.slots.length, "books when routing gave no answer");
+});
