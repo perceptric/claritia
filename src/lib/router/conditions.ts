@@ -180,6 +180,7 @@ export function condWords(c: Cond, fields: FieldDef[], territories: Territory[])
   const op = OPS_WORDS[c.op];
   if (!needsValue(c.op)) return `${name} ${op}`;
   if (c.op === "between" && Array.isArray(c.value)) return `${name} is between ${c.value[0]} and ${c.value[1]}`;
+  if (c.value === undefined || c.value === "" || (Array.isArray(c.value) && !c.value.length)) return `${name} ${c.op === "one_of" ? "is" : c.op === "not_one_of" ? "is not" : op} (no value yet)`;
   if (c.op === "one_of" || c.op === "not_one_of") return `${name} ${c.op === "one_of" ? "is" : "is not"} ${listWords(c.value, f, territories)}`;
   return `${name} ${op} ${listWords(c.value, f, territories)}`;
 }

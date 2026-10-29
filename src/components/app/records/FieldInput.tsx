@@ -205,7 +205,9 @@ export function FieldEditor({
   const [multi, setMulti] = useState<string[]>(Array.isArray(value) ? (value as string[]) : []);
   const [picked, setPicked] = useState<Link[]>(links ?? []);
   const [anchor, setAnchor] = useState<HTMLElement | null>(null);
-  useEffect(() => setAnchor(box.current), []);
+  useEffect(() => {
+    setAnchor(box.current);
+  }, []);
   const h = compact ? "h-8" : "h-9";
   const selectClass = `${h} w-full rounded-sm border border-ink bg-card px-3 text-[13px] ring-1 ring-ink`;
 

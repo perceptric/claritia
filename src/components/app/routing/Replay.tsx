@@ -75,7 +75,7 @@ export function ReplayPanel({
           </Button>
           {canPublish ? (
             <Button onClick={onPublish} disabled={busy}>
-              Make live
+              Publish
             </Button>
           ) : null}
         </>

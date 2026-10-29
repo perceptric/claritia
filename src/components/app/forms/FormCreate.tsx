@@ -375,7 +375,9 @@ function Ask({
     return () => window.removeEventListener("keydown", on);
   }, [back, busy]);
 
-  useEffect(() => box.current?.focus(), []);
+  useEffect(() => {
+    box.current?.focus();
+  }, []);
   useEffect(() => {
     const still = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
     end.current?.scrollIntoView({ block: "end", behavior: still ? "auto" : "smooth" });

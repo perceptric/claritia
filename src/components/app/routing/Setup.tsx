@@ -3,7 +3,7 @@
 // Routing › Setup (docs/routing-chat-plan.md Part 1): the chat writes the setup, the plan card shows it. Before there's
 // a setup, the chat is the whole first screen. After, the chat sits on the left and the plan card on the right, with
 // Plan (the setup in sentences, and where past leads would go) and Flow (the editor, to change any step by hand). The
-// chat never makes anything live: Make live does, after a check of the setup.
+// chat never makes anything live: Publish does, after a check of the setup.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { firstProblem } from "@/lib/router/ops";
@@ -22,7 +22,7 @@ import { toast } from "./Toast";
 type Props = Pick<ViewProps, "sb" | "session" | "ws" | "role" | "navigate">;
 type View = "plan" | "flow";
 
-const STARTERS = ["Set it up for me", "Everyone takes turns", "By region"];
+const STARTERS = ["Set it up for me", "Share leads evenly", "Send leads by region"];
 
 export function SetupTab(props: Props) {
   const { session, ws, role } = props;
@@ -78,7 +78,7 @@ export function SetupTab(props: Props) {
     );
 
   const d = state.data;
-  const fresh = !d.live && !d.draft && !d.chat.length;
+  const fresh = !d.live && !d.draft && !(d.chat ?? []).length;
   const chat = <Chat session={session} ws={ws.id} data={d} owner={owner} big={fresh} onTurn={() => void refresh(true)} />;
   if (fresh) return <div className="h-full overflow-y-auto">{chat}</div>;
 
@@ -122,8 +122,8 @@ function PlanHead({ session, ws, data, owner, view, onView, onChanged }: { sessi
   };
   return (
     <div className="flex h-14 shrink-0 items-center gap-3 border-b border-line px-4 md:px-6">
-      <h2 className="text-[14px] font-medium text-ink">Your setup</h2>
-      {data.draft ? <Badge tone="amber">Not live yet</Badge> : data.live && data.paused ? <Badge>Paused</Badge> : data.live ? <Badge tone="green" dot>Live</Badge> : null}
+      <h2 className="text-[14px] font-medium text-ink">Lead routing</h2>
+      {data.draft ? <Badge tone="amber">Draft</Badge> : data.live && data.paused ? <Badge>Paused</Badge> : data.live ? <Badge tone="green" dot>Live</Badge> : null}
       <div className="ml-auto flex items-center gap-2">
         {owner && data.live ? (
           <IconButton label={data.paused ? "Turn routing on" : "Pause routing"} disabled={busy} onClick={() => void pause(!data.paused)}>
@@ -135,8 +135,8 @@ function PlanHead({ session, ws, data, owner, view, onView, onChanged }: { sessi
           value={view}
           onChange={onView}
           options={[
-            { value: "plan", label: "Plan" },
-            { value: "flow", label: "Flow" },
+            { value: "plan", label: "Summary" },
+            { value: "flow", label: "Editor" },
           ]}
         />
       </div>
@@ -151,7 +151,7 @@ function Chat({ session, ws, data, owner, big, onTurn }: { session: ViewProps["s
   const [error, setError] = useState("");
   const [pending, setPending] = useState<string | null>(null);
   const end = useRef<HTMLDivElement>(null);
-  const messages = data.chat;
+  const messages = data.chat ?? [];
   const last = messages[messages.length - 1];
   const ask = last?.role === "assistant" && last.ask ? last.ask : null;
 
@@ -224,7 +224,7 @@ function Chat({ session, ws, data, owner, big, onTurn }: { session: ViewProps["s
             void send(text);
           }
         }}
-        placeholder={big ? "Europe goes to Ana, companies over 500 people go to Sam and Raj, everyone else takes turns" : "Ana is out next week"}
+        placeholder={big ? "For example: leads from Europe go to Ana. Companies over 500 people go to Sam and Raj. Everyone else takes turns." : "For example: Ana is out next week"}
         className="min-h-0 flex-1 resize-none bg-transparent px-2 py-1.5 text-[13px] text-ink outline-none placeholder:text-faint"
       />
       <IconButton label="Send" type="submit" disabled={!owner || busy || !text.trim()}>
@@ -255,9 +255,9 @@ function Chat({ session, ws, data, owner, big, onTurn }: { session: ViewProps["s
         <div className="flex flex-col items-start gap-4">
           <AiAvatar size={36} working={busy} />
           <h1 className="text-[32px] leading-[1.1] font-semibold tracking-[-0.02em] text-balance text-ink">
-            Who should get your leads?
+            Set up lead routing
             <br />
-            <span className="text-muted">Say it, and it&apos;s set up.</span>
+            <span className="text-muted">Tell the assistant which rep gets which leads.</span>
           </h1>
         </div>
         {pending ? <Bubble role="user" text={pending} /> : null}
@@ -281,7 +281,7 @@ function Chat({ session, ws, data, owner, big, onTurn }: { session: ViewProps["s
     <div className="flex h-full min-h-0 flex-col">
       <div className="flex h-14 shrink-0 items-center gap-2 border-b border-line px-4">
         <AiAvatar size={24} working={busy} />
-        <span className="text-[13px] font-medium text-ink">Routing chat</span>
+        <span className="text-[13px] font-medium text-ink">Assistant</span>
         {owner && messages.length ? (
           <IconButton label="Clear the chat" className="ml-auto" onClick={() => void startOver()}>
             <Refresh size={15} />
@@ -306,7 +306,7 @@ function Chat({ session, ws, data, owner, big, onTurn }: { session: ViewProps["s
       </div>
       <div className="flex shrink-0 flex-col gap-2 border-t border-line p-3">
         <ErrorNote message={error} />
-        {!messages.length && owner ? starters(["Everyone takes turns", "By region", "Big companies to the AEs"]) : null}
+        {!messages.length && owner ? starters(STARTERS) : null}
         {box}
       </div>
     </div>
@@ -335,9 +335,9 @@ function Bubble({ role, text, lines }: { role: ChatMessage["role"]; text: string
   );
 }
 
-const STEP: Record<PlanLine["kind"], string> = { spam: "Junk", account: "Same company", keep: "Has a rep", rule: "Rule", fallback: "Everyone else", sla: "Response time" };
+const STEP: Record<PlanLine["kind"], string> = { spam: "Spam check", account: "Existing company", keep: "Current rep", rule: "Rule", fallback: "Everyone else", sla: "Time to reach out" };
 
-/** The setup in sentences, where past leads would go, and Make live. */
+/** The setup in sentences, where past leads would go, and Publish. */
 function Plan({ session, ws, data, owner, onLive, onOpenFlow }: { session: ViewProps["session"]; ws: string; data: Loaded; owner: boolean; onLive: () => void; onOpenFlow: () => void }) {
   const body: RouterBody = data.draft ?? data.live?.body ?? emptyBody();
   const names = useMemo(() => Object.fromEntries(data.members.map((m) => [m.id, m.name])), [data.members]);
@@ -363,13 +363,13 @@ function Plan({ session, ws, data, owner, onLive, onOpenFlow }: { session: ViewP
   const replay = tested?.key === bodyKey ? tested.out : null;
 
   const makeLive = async () => {
-    const moved = replay && data.live ? `${fmt(replay.changed)} of ${fmt(replay.total)} past leads would go somewhere new.` : undefined;
-    if (!(await askConfirm("Make this live?", { body: moved, ok: "Make live" }))) return;
+    const moved = replay && data.live ? `${fmt(replay.changed)} of ${fmt(replay.total)} past leads would get a different rep.` : undefined;
+    if (!(await askConfirm(data.live ? "Publish these changes?" : "Turn on routing?", { body: moved, ok: "Publish" }))) return;
     setBusy(true);
     setError("");
     try {
       const r = await routingApi<{ version: number }>(session, ws, "publish", { note: null });
-      toast({ text: `Version ${r.version} is live` });
+      toast({ text: `Version ${r.version} published` });
       onLive();
     } catch (e) {
       setError(errorText(e));
@@ -380,12 +380,13 @@ function Plan({ session, ws, data, owner, onLive, onOpenFlow }: { session: ViewP
 
   const split = Object.entries(replay?.split ?? {}).sort((a, b) => b[1] - a[1]);
   const top = split[0]?.[1] ?? 0;
-  const label = (k: string) => (k === "held" ? "Held for review" : k === "unassigned" ? "No rep" : (names[k] ?? "A former teammate"));
+  const label = (k: string) => (k === "held" ? "Held for you to check" : k === "unassigned" ? "No rep" : (names[k] ?? "A former teammate"));
 
   return (
     <div className="h-full overflow-y-auto">
       <div className="mx-auto flex max-w-3xl flex-col gap-6 px-4 py-6 md:px-6">
-        <ol className="flex flex-col">
+        <p className="text-[13px] text-muted">Each new lead goes through these steps in order. The first step that fits picks the rep.</p>
+        <ol className="-mt-3 flex flex-col">
           {lines.map((l, i) => (
             <li key={`${l.kind}-${l.id ?? i}`}>
               <button
@@ -395,7 +396,7 @@ function Plan({ session, ws, data, owner, onLive, onOpenFlow }: { session: ViewP
               >
                 <span className="w-6 shrink-0 pt-0.5 font-mono text-[11px] text-faint tabular-nums">{String(i + 1).padStart(2, "0")}</span>
                 <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-                  <span className="font-mono text-[10.5px] tracking-[0.06em] text-faint uppercase">{STEP[l.kind]}</span>
+                  <span className="font-mono text-[10.5px] tracking-[0.06em] text-faint uppercase">{l.kind === "rule" && l.name ? `Rule: ${l.name}` : STEP[l.kind]}</span>
                   <span className="text-[13.5px] text-ink group-hover:underline">{l.text}</span>
                 </span>
               </button>
@@ -406,9 +407,9 @@ function Plan({ session, ws, data, owner, onLive, onOpenFlow }: { session: ViewP
         {owner && (testing || (replay && replay.total > 0)) ? (
           <section className="flex flex-col gap-3 rounded-[10px] border border-line p-4">
             <div className="flex items-center gap-2">
-              <h3 className="text-[13px] font-medium text-ink">Past 30 days</h3>
+              <h3 className="text-[13px] font-medium text-ink">If these steps ran on the last 30 days</h3>
               {replay && !testing ? <span className="text-[12.5px] text-muted tabular-nums">{fmt(replay.total)} leads</span> : null}
-              {testing ? <Dots className="ml-auto" /> : replay && data.live ? <span className="ml-auto text-[12.5px] text-muted tabular-nums">{fmt(replay.changed)} would move</span> : null}
+              {testing ? <Dots className="ml-auto" /> : replay && data.live ? <span className="ml-auto text-[12.5px] text-muted tabular-nums">{fmt(replay.changed)} would change rep</span> : null}
             </div>
             {split.map(([k, n]) => (
               <div key={k} className="grid grid-cols-[minmax(0,140px)_minmax(0,1fr)_48px] items-center gap-3 text-[12.5px]">
@@ -425,9 +426,13 @@ function Plan({ session, ws, data, owner, onLive, onOpenFlow }: { session: ViewP
         <ErrorNote message={error} />
         {owner && data.draft ? (
           <div className="flex items-center justify-end gap-3">
-            {problem ? <span className="text-[12.5px] text-muted">{problem}</span> : null}
+            {problem ? (
+              <button type="button" onClick={onOpenFlow} className="text-[12.5px] text-muted underline-offset-2 hover:text-ink hover:underline">
+                {problem}
+              </button>
+            ) : null}
             <Button disabled={!!problem || busy} onClick={() => void makeLive()}>
-              Make live
+              Publish
             </Button>
           </div>
         ) : null}

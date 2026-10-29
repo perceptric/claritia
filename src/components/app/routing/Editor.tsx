@@ -332,7 +332,7 @@ export function RouterEditor({
           {!readOnly ? (
             <span title={probs.length ? `${probs.length} to fix` : undefined}>
               <Button size="sm" disabled={!canPublish} onClick={() => void openPublish()}>
-                Make live
+                Publish
               </Button>
             </span>
           ) : null}
