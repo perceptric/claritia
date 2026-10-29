@@ -155,3 +155,18 @@ test("AI output is cleaned before it touches the form", () => {
   assert.deepEqual(c.labels, { email: "Your work email" });
   assert.equal(allFields(ok(defaults("demo"), c)).find((x) => x.id === "email")?.label, "Your work email");
 });
+
+test("book on Claritia's calendar for picked routing rules: the form gets a routed Claritia booking that passes the check", async () => {
+  const { afterProblem, buildForm, defaults } = await import("../src/lib/forms/interview.ts");
+  const { checkForm } = await import("../src/lib/forms/schema.ts");
+  const type = "0192f3a1-0000-7000-8000-0000000000aa";
+  const after = { kind: "meeting" as const, tool: "claritia" as const, url: "", perOwner: false, meetingTypeId: type, routeRules: ["r_ent", "fallback"] };
+  assert.equal(afterProblem(after), null);
+  assert.equal(afterProblem({ ...after, meetingTypeId: undefined }), "Pick a meeting type.");
+  const f = buildForm({ ...defaults("demo"), after });
+  assert.deepEqual(f.after.schedule, { tool: "claritia", url: "", perOwner: false, meetingTypeId: type, who: "routed", routeRules: ["r_ent", "fallback"] });
+  const r = checkForm(f);
+  assert.ok("form" in r, "errors" in r ? r.errors.join(" ") : "");
+  // No rules picked: everyone books.
+  assert.equal(buildForm({ ...defaults("demo"), after: { ...after, routeRules: [] } }).after.schedule?.who, undefined);
+});

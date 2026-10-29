@@ -10,18 +10,18 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { cleanTokens, type Tokens } from "@/lib/forms/brand";
 import { applyOp, type Op } from "@/lib/forms/ops";
 import { ADAPTERS, checkForm, emptyForm, type Form } from "@/lib/forms/schema";
-import { readSystem, type DesignSystem, type FormDesign } from "@/lib/design/model";
+import type { DesignSystem } from "@/lib/design/model";
 
 type Snap = { form: Form; system: DesignSystem };
 import type { CustomField } from "@/lib/records/fields";
-import { BarChart, Copy, Inbox, Monitor, Pause, Phone, Play, Redo, Send, Trash, Undo, Upload } from "../../Icons";
+import { BarChart, Copy, Inbox, Pause, Play, Redo, Send, Trash, Undo, Upload } from "../../Icons";
 import { BrandLogo } from "../BrandLogo";
 import { askConfirm } from "../Dialogs";
 import { Badge, Button, Empty, ErrorNote, errorText, hostOf, Loading, must, Page, postJson, setLeaveGuard, useLoad, type ViewProps } from "../ui";
-import { Select } from "../Select";
 import { Popover } from "./controls";
-import { Editor, type Panel } from "./Editor";
-import { FormChat } from "./FormChat";
+import { ChatHistory, useFormChat } from "./FormChat";
+import { AskDock } from "./FormHome";
+import { QuestionList } from "./QuestionList";
 import { FormDestinations } from "./FormDestinations";
 import { AfterSubmit, KnownSettings } from "./FormSettings";
 import { Sheet } from "../Sheet";
@@ -29,9 +29,8 @@ import { mergeKey, pickTab, type Device } from "./editorModel";
 import { FormChecks } from "./FormChecks";
 import { FormCreate } from "./FormCreate";
 import { FormHome } from "./FormHome";
-import type { ThemeProps } from "./FormDesign";
 import { FormResults } from "./FormFields";
-import { ChevronDown, Tablet } from "./icons";
+import { ChevronDown } from "./icons";
 import { PreviewOverlay } from "./PreviewOverlay";
 import { useDesignDraft } from "./useDesignDraft";
 import { copy, IconButton, STATUS, type Destination, type FormRow, type Kit, type SourceRow } from "./shared";
@@ -94,7 +93,6 @@ function takeOnce(key: string): string | null {
   }
 }
 
-const ZOOMS = [{ value: "fit", label: "Fit" }, ...[50, 75, 100, 125, 150].map((z) => ({ value: String(z), label: `${z}%` }))];
 
 function Builder({
   sb,
@@ -108,11 +106,10 @@ function Builder({
   sources,
   dests,
   custom: loadedCustom,
-  site,
   reload,
 }: ViewProps & { initial: FormRow; published: Form | null; kits: Kit[]; sources: SourceRow[]; dests: Destination[]; custom: CustomField[]; site: string; reload: () => void }) {
   // Custom fields made from the Saves to picker join the list at once, without a reload.
-  const [added, setAdded] = useState<CustomField[]>([]);
+  const [added] = useState<CustomField[]>([]);
   const custom = useMemo(() => [...loadedCustom, ...added.filter((a) => !loadedCustom.some((c) => c.key === a.key))], [loadedCustom, added]);
   const start = useMemo(() => {
     const d = initial.draft as Partial<Form>;
@@ -120,7 +117,7 @@ function Builder({
   }, [initial.draft]);
   const [form, setForm] = useState<Form>(start);
   const [name, setName] = useState(initial.name);
-  const [kitId, setKitId] = useState<string | null>(initial.brand_kit_id);
+  const [kitId] = useState<string | null>(initial.brand_kit_id);
   const [tokens, setTokens] = useState<Partial<Tokens>>(kits.find((k) => k.id === initial.brand_kit_id)?.tokens ?? {});
   // One undo stack for the form and its design system's draft: a style edit is one step either way.
   const [past, setPast] = useState<Snap[]>([]);
@@ -130,9 +127,7 @@ function Builder({
   // One screen (docs/form-builder.md Part 4): the form, or its results over it. Settings open in sheets.
   const [view, setView] = useState<"edit" | "results">(() => (typeof window !== "undefined" && pickTab(window.location.search) === "results" ? "results" : "edit"));
   const [sheet, setSheet] = useState<null | "submit" | "sync" | "share">(null);
-  const [panelAsk, setPanelAsk] = useState<{ id: Panel; n: number } | undefined>(undefined);
-  const [device, setDevice] = useState<Device>("desktop");
-  const [zoom, setZoom] = useState<"fit" | number>("fit");
+  const [device] = useState<Device>("desktop");
   const [previewing, setPreviewing] = useState(false);
   const [note] = useState(() => takeOnce(`claritia:form-note:${initial.id}`) ?? "");
   const [saved, setSaved] = useState(true);
@@ -173,42 +168,6 @@ function Builder({
     setSaved(false);
     dirty.current = true;
   }, [draft]);
-  /** A style edit: the form's own styles and the design system's draft together, one undo step (typing in one box joins). */
-  const applyStyles = useCallback(
-    (edit: { system: DesignSystem; design: FormDesign }, mergeOn?: string) => {
-      const cur = latest.current;
-      const sys = draft.current();
-      const r = applyOp(cur, { op: "set_design", design: edit.design });
-      if ("error" in r) return setError(r.error);
-      const key = mergeOn ? `d:${mergeOn}` : "";
-      const now = Date.now();
-      const joins = !!key && merge.current?.key === key && now - merge.current.at < 1000;
-      merge.current = key ? { key, at: now } : null;
-      if (!joins) setPast((p) => [...p.slice(-99), { form: cur, system: sys }]);
-      setFuture([]);
-      if (JSON.stringify(r.form.design ?? {}) !== JSON.stringify(cur.design ?? {})) {
-        latest.current = r.form;
-        setForm(r.form);
-        setSaved(false);
-        dirty.current = true;
-      }
-      if (edit.system !== sys) draft.set(edit.system);
-    },
-    [draft],
-  );
-  /** A change to the design system alone (the style guide, the Styles and Variables panels). */
-  const applySystem = useCallback(
-    (system: DesignSystem, mergeOn?: string) => {
-      const key = mergeOn ? `d:${mergeOn}` : "";
-      const now = Date.now();
-      const joins = !!key && merge.current?.key === key && now - merge.current.at < 1000;
-      merge.current = key ? { key, at: now } : null;
-      if (!joins) setPast((p) => [...p.slice(-99), { form: latest.current, system: draft.current() }]);
-      setFuture([]);
-      draft.set(system);
-    },
-    [draft],
-  );
   const restore = (snap: Snap) => {
     put(snap.form);
     if (snap.system && snap.system !== draft.current()) draft.set(snap.system);
@@ -288,24 +247,6 @@ function Builder({
     };
   }, [save, draft]);
 
-  // Publish styles (docs/design-system.md Part 8.3): the draft goes to every live form on the kit, after saying which.
-  const stylesChanged = !!kit && JSON.stringify(draft.system) !== JSON.stringify(readSystem(kit.design_live, tokens));
-  const publishStyles = async () => {
-    if (!kit) return;
-    setError("");
-    try {
-      if (!(await draft.flush())) return;
-      const uses = must(await sb.rpc("brand_kit_design_uses", { p_id: kit.id })) as { live_forms: number; forms: { id: string; name: string }[] };
-      const n = uses.live_forms;
-      const names = uses.forms.slice(0, 5).map((f) => f.name);
-      const body = n ? `${n === 1 ? "1 live form" : `${n} live forms`} change: ${names.join(", ")}${n > names.length ? ` and ${n - names.length} more` : ""}.` : "No live forms use these styles yet.";
-      if (!(await askConfirm("Publish styles?", { body, ok: "Publish" }))) return;
-      must(await sb.rpc("brand_kit_design_publish", { p_id: kit.id }));
-      reload();
-    } catch (e) {
-      setError(errorText(e));
-    }
-  };
 
   const checked = useMemo(() => checkForm(form, { custom }), [form, custom]);
   const changed = !published || JSON.stringify("form" in checked ? checked.form : form) !== JSON.stringify(published);
@@ -361,18 +302,6 @@ function Builder({
     setSaved(false);
     dirty.current = true;
   };
-  /** Save the theme to the form's kit, or (`own`) to a new kit that only this form uses. */
-  const saveKit = async (kitName: string, t: Partial<Tokens>, own: boolean) => {
-    const r = await postJson<{ id: string; tokens: Tokens; notes: string[] }>(session, "/api/forms/brand", { workspaceId: ws.id, id: own ? null : kitId, name: kitName, tokens: t });
-    setTokens(r.tokens);
-    if (r.id !== kitId) {
-      setKitId(r.id);
-      setSaved(false);
-      dirty.current = true;
-    }
-    reload();
-    return { notes: r.notes };
-  };
   // While a scan runs, check the kit every 2 seconds; when it lands, the form takes the new tokens.
   useEffect(() => {
     if (kit?.scan_status !== "scanning") return;
@@ -386,21 +315,6 @@ function Builder({
       setTokens(kit.tokens);
     }
   }, [kit]);
-  const [scanError, setScanError] = useState("");
-  const scan = async (url: string) => {
-    setScanError("");
-    try {
-      const r = await postJson<{ kitId: string }>(session, "/api/forms/scan", { workspaceId: ws.id, url, kitId, formId: initial.id });
-      if (r.kitId !== kitId) {
-        setKitId(r.kitId);
-        setSaved(false);
-        dirty.current = true;
-      }
-      reload();
-    } catch (e) {
-      setScanError(errorText(e));
-    }
-  };
   const fromChat = (next: Form, nextRev: number) => {
     setPast((p) => [...p.slice(-99), { form, system: draft.current() }]);
     setFuture([]);
@@ -409,22 +323,8 @@ function Builder({
     dirty.current = false;
     setSaved(true);
   };
+  const chat = useFormChat({ sb, session, ws, formId: initial.id, prepare: async () => ((await save()) ? rev.current : null), onResult: fromChat });
   const origin = typeof window === "undefined" ? "" : window.location.origin;
-  const theme: ThemeProps = {
-    tokens,
-    setTokens,
-    kits,
-    kitId,
-    setKit: (k) => {
-      setKitId(k);
-      setSaved(false);
-      dirty.current = true;
-    },
-    saveKit,
-    scan,
-    site: kit?.source_url ?? site,
-    formName: name,
-  };
   const sep = <span aria-hidden="true" className="mx-1 h-5 w-px bg-line" />;
   const sch = form.after.schedule;
   const submitWords = sch
@@ -436,7 +336,6 @@ function Builder({
     : form.after.end.kind === "redirect"
       ? `Redirect to ${hostOf(form.after.end.url) || "another page"}`
       : "Pop-up message";
-  const swatch = [tokens.buttonBg ?? tokens.accent, tokens.text, tokens.background].filter((c): c is string => typeof c === "string" && /^#[0-9a-f]{3,8}$/i.test(c));
 
   return (
     <Page
@@ -463,42 +362,6 @@ function Builder({
           <IconButton label="Redo" onClick={redo} disabled={!future.length}>
             <Redo size={14} />
           </IconButton>
-          {view === "edit" ? (
-            <>
-              {sep}
-              <div role="radiogroup" aria-label="Device" className="flex items-center gap-0.5 rounded-full bg-paper-deep p-0.5">
-                {(
-                  [
-                    ["desktop", "Desktop", <Monitor key="d" size={14} />],
-                    ["tablet", "Tablet", <Tablet key="t" size={14} />],
-                    ["phone", "Mobile", <Phone key="p" size={14} />],
-                  ] as const
-                ).map(([d, label, icon]) => (
-                  <button
-                    key={d}
-                    type="button"
-                    role="radio"
-                    aria-checked={device === d}
-                    aria-label={label}
-                    title={label}
-                    onClick={() => setDevice(d)}
-                    className={`flex size-7 items-center justify-center rounded-full transition-colors duration-[140ms] ${device === d ? "bg-ink text-paper" : "text-muted hover:text-ink"}`}
-                  >
-                    {icon}
-                  </button>
-                ))}
-              </div>
-              <span className="w-[74px]">
-                <Select<string>
-                  value={String(zoom)}
-                  options={ZOOMS}
-                  onChange={(z) => setZoom(z === "fit" ? "fit" : Number(z))}
-                  ariaLabel="Zoom"
-                  className="h-8 w-full rounded-full px-2.5 text-[12.5px] font-medium text-ink tabular-nums hover:bg-hover"
-                />
-              </span>
-            </>
-          ) : null}
           {sep}
           <Button variant="ghost" aria-pressed={view === "results"} onClick={() => setView(view === "results" ? "edit" : "results")} className={view === "results" ? "border-ink bg-ink text-paper hover:bg-ink" : ""}>
             <BarChart size={13} />
@@ -518,30 +381,13 @@ function Builder({
         </span>
       }
     >
-      <div className="grid h-full min-h-0 grid-rows-[minmax(0,1fr)] lg:grid-cols-[340px_minmax(0,1fr)]">
+      <div className="flex h-full min-h-0 flex-col">
+      <div className="grid min-h-0 flex-1 grid-rows-[minmax(0,1fr)] lg:grid-cols-[340px_minmax(0,1fr)]">
         <aside aria-label="Assistant" className="hidden min-h-0 border-r border-line lg:block">
-          <FormChat
-            session={session}
-            ws={ws}
-            formId={initial.id}
-            prepare={async () => ((await save()) ? rev.current : null)}
-            onResult={fromChat}
-            starters={["Add a phone field", "Make it two steps", "Only work emails", "Ask for their budget"]}
-          />
+          <ChatHistory chat={chat} />
         </aside>
         <div className="flex min-h-0 min-w-0 flex-col">
           <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-line bg-card px-3 py-2">
-            <PathButton label="Style" onClick={() => {
-              setView("edit");
-              setPanelAsk((p) => ({ id: "theme", n: (p?.n ?? 0) + 1 }));
-            }}>
-              <span className="flex">
-                {swatch.map((c, i) => (
-                  <i key={i} className="-ml-1 size-3.5 rounded-full shadow-[0_0_0_2px_var(--color-card)] first:ml-0" style={{ background: c }} />
-                ))}
-              </span>
-              {kit ? kit.name : "No brand kit"}
-            </PathButton>
             <PathButton label="On submission" onClick={() => setSheet("submit")}>
               {submitWords}
             </PathButton>
@@ -549,9 +395,9 @@ function Builder({
               {["Claritia contacts", ...dests.filter((d) => !d.paused).map((d) => d.name)].join(", ")}
             </PathButton>
           </div>
-          {error || draft.error || scanError || note || problems.length ? (
+          {error || draft.error || note || problems.length ? (
             <div className="border-b border-line bg-card px-4 py-2">
-              <ErrorNote message={error || draft.error || scanError || problems[0] || note} />
+              <ErrorNote message={error || draft.error || problems[0] || note} />
               {problems.length > 1 ? (
                 <ul className="mt-1 flex flex-col gap-0.5 px-3.5 text-[12.5px] text-rose">
                   {problems.slice(1).map((p) => (
@@ -563,24 +409,9 @@ function Builder({
           ) : null}
           <div className="min-h-0 flex-1">
             {view === "edit" ? (
-              <Editor
-                form={form}
-                apply={apply}
-                custom={custom}
-                sources={sources}
-                tokens={tokens}
-                device={device}
-                zoom={zoom}
-                theme={theme}
-                draft={draft}
-                hasKit={!!kit}
-                applyStyles={applyStyles}
-                applySystem={applySystem}
-                styles={{ changed: stylesChanged, publish: publishStyles }}
-                link={{ session, workspaceId: ws.id, sb, onFieldAdded: (f) => setAdded((a) => [...a, f]) }}
-                startPanel={null}
-                openPanel={panelAsk}
-              />
+              <div className="h-full overflow-auto bg-paper px-4 py-8 md:px-8">
+                <QuestionList form={form} apply={apply} />
+              </div>
             ) : (
               <div className="h-full overflow-auto bg-paper p-4 md:p-8">
                 <div className="mx-auto flex max-w-5xl flex-col gap-8">
@@ -591,6 +422,8 @@ function Builder({
             )}
           </div>
         </div>
+      </div>
+      <AskDock wide starters={[]} placeholder="Ask the assistant to change the form" busy={chat.busy} onSend={(t) => void chat.send(t)} />
       </div>
       {sheet === "submit" ? (
         <Sheet title="On submission" onClose={() => setSheet(null)}>

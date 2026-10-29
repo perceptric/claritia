@@ -7,6 +7,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ASK_KEY } from "./FormHome";
+import { RoutePicker } from "./RoutePicker";
 import type { Tokens } from "@/lib/forms/brand";
 import {
   afterProblem,
@@ -34,7 +35,7 @@ import { SCHEDULERS, type SchedulerTool } from "@/lib/forms/schedule";
 import { emptyForm, type Form } from "@/lib/forms/schema";
 import { TEMPLATES } from "@/lib/forms/templates";
 import { CATALOG, entryOf } from "@/lib/sources/catalog";
-import { ArrowLeft, ArrowUp, Check, Inbox, Lock, Plus, Undo } from "../../Icons";
+import { ArrowLeft, ArrowUp, Check, ChevronDown, Inbox, Lock, Plus } from "../../Icons";
 import { AiAvatar } from "../Ai";
 import { BrandLogo } from "../BrandLogo";
 import { Button, ErrorNote, errorText, Input, Loading, must, Page, postJson, useLoad, type ViewProps } from "../ui";
@@ -42,6 +43,8 @@ import { FormPreview, type Kit } from "./shared";
 
 type Tool = { id: string; kind: string; name: string };
 const PUSHES = new Set(CATALOG.filter((e) => e.twoWay || e.pushes).map((e) => e.kind));
+/** CRMs leads can sync to, offered to connect when they aren't yet. */
+const CRMS = CATALOG.filter((e) => e.group === "crm" && (e.kind === "salesforce" || e.kind === "hubspot" || e.kind === "pipedrive"));
 const hostOf = (u: string) => {
   try {
     return new URL(/^https?:\/\//.test(u) ? u : `https://${u}`).hostname.replace(/^www\./, "");
@@ -208,6 +211,7 @@ function Create({ sb, session, ws, navigate, tools, site: firstSite, kits }: Vie
         setTemplates(true);
       }}
       onBlank={() => run("blank", () => create("Untitled form", emptyForm()))}
+      link={{ sb, session, ws }}
     />
   );
 }
@@ -226,8 +230,8 @@ function useAct(actRef: ActRef, a: Act) {
 const COLLECT = PICKS.filter((p) => p.group === "collect");
 const QUALIFY = PICKS.filter((p) => p.group === "qualify");
 const AFTERS: { kind: After["kind"]; label: string }[] = [
-  { kind: "message", label: "Show a message" },
-  { kind: "redirect", label: "Go to a page" },
+  { kind: "message", label: "Pop-up message" },
+  { kind: "redirect", label: "Redirect to another page" },
   { kind: "meeting", label: "Book a meeting" },
 ];
 const TYPE: Record<Extra["type"], string> = { text: "Short answer", textarea: "Long answer", choice: "Pick one", multi: "Pick many", number: "Number", date: "Date", url: "Link", checkbox: "Checkbox" };
@@ -245,8 +249,9 @@ function said(q: QuestionId, a: Answers, tools: Tool[]): string {
     }
     case "after": {
       const x = a.after;
-      if (x.kind === "message") return "Show a message";
-      if (x.kind === "redirect") return `Go to ${hostOf(x.url) || "a page"}`;
+      if (x.kind === "message") return "Pop-up message";
+      if (x.kind === "redirect") return `Redirect to ${hostOf(x.url) || "another page"}`;
+      if (x.tool === "claritia") return x.routeRules?.length ? `Book a meeting, for ${x.routeRules.length} routing ${x.routeRules.length === 1 ? "rule" : "rules"}` : "Book a meeting on Claritia calendar";
       const tool = SCHEDULERS.find((s) => s.value === x.tool);
       return x.tool === "link" || !tool ? "Book a meeting" : `Book a meeting on ${tool.label}`;
     }
@@ -268,7 +273,9 @@ function Ask({
   finish,
   onTemplates,
   onBlank,
+  link,
 }: {
+  link: Pick<ViewProps, "sb" | "session" | "ws">;
   answers: Answers;
   setAnswers: (a: Answers) => void;
   settled: Set<QuestionId>;
@@ -290,7 +297,14 @@ function Ask({
   // A sentence can change the open question's answers, so its panel starts over.
   const [round, setRound] = useState(0);
 
+  // A question already answered opens in place to change; the rest of the chat stays as it is.
+  const [editing, setEditing] = useState<QuestionId | null>(null);
   const answer = (q: QuestionId, next: Answers, unsettle: QuestionId[] = []) => {
+    if (editing === q && current !== q) {
+      setAnswers(next);
+      setEditing(null);
+      return;
+    }
     setAnswers(next);
     const s = new Set(settled);
     s.add(q);
@@ -377,7 +391,7 @@ function Ask({
       case "qualify":
         return <QualifyPanel key={key} a={a} act={act} done={(next) => answer("qualify", next)} />;
       case "after":
-        return <AfterPanel key={key} a={a} act={act} done={(next) => answer("after", next)} />;
+        return <AfterPanel key={key} a={a} act={act} link={link} done={(next) => answer("after", next)} />;
       case "send":
         return <SendPanel key={key} a={a} tools={tools} act={act} done={(next) => answer("send", next)} />;
     }
@@ -414,13 +428,14 @@ function Ask({
                 </div>
                 <button
                   type="button"
-                  title="Change"
-                  onClick={() => setCurrent(q.id)}
+                  aria-expanded={editing === q.id}
+                  onClick={() => setEditing(editing === q.id ? null : q.id)}
                   className="press group flex max-w-[85%] items-center gap-2 self-end rounded-2xl rounded-br-md border border-transparent bg-paper-deep py-2 pr-3 pl-3.5 text-left text-[13.5px] text-ink transition-colors duration-[140ms] hover:border-line-strong"
                 >
                   <span className="min-w-0">{said(q.id, a, tools)}</span>
-                  <Undo size={13} className="text-faint transition-colors duration-[140ms] group-hover:text-ink" />
+                  <ChevronDown size={13} className={`text-faint transition-transform duration-[200ms] group-hover:text-ink ${editing === q.id ? "rotate-180" : ""}`} />
                 </button>
+                {editing === q.id ? <div className="anim-rise-sm sm:pl-10">{panel(q.id)}</div> : null}
               </div>
             ) : null,
           )}
@@ -447,8 +462,8 @@ function Ask({
           <div ref={end} />
         </div>
       </div>
-      <div className="shrink-0 px-4 pt-2 pb-5">
-        <div className="mx-auto flex max-w-[680px] flex-col gap-2.5">
+      <div className="shrink-0 border-t border-line px-4 pt-3 pb-4 md:px-8">
+        <div className="flex flex-col gap-2.5">
           {current !== "done" ? <ErrorNote message={error} /> : null}
           <div className="flex items-center gap-2 rounded-2xl border border-line-strong bg-card py-1.5 pr-1.5 pl-4 transition-colors duration-[140ms] focus-within:border-ink">
             <input
@@ -614,13 +629,29 @@ function QualifyPanel({ a, act, done }: { a: Answers; act: ActRef; done: (a: Ans
   );
 }
 
-function AfterPanel({ a, act, done }: { a: Answers; act: ActRef; done: (a: Answers) => void }) {
+type TypeRow = { id: string; name: string };
+
+function AfterPanel({ a, act, done, link }: { a: Answers; act: ActRef; done: (a: Answers) => void; link: Pick<ViewProps, "sb" | "session" | "ws"> }) {
+  const types = useLoad(async () => (must(await link.sb.from("meeting_types").select("id, name").eq("workspace_id", link.ws.id).eq("active", true).order("name")) ?? []) as TypeRow[], `${link.ws.id}:meeting-types`);
+  const was = a.after.kind === "meeting" ? a.after : null;
   const [kind, setKind] = useState<After["kind"]>(a.after.kind);
-  const [tool, setTool] = useState<SchedulerTool>(a.after.kind === "meeting" ? a.after.tool : "calendly");
-  const [meet, setMeet] = useState(a.after.kind === "meeting" ? a.after.url : "");
+  // Claritia's calendar unless an outside scheduler was already set up with its link.
+  const [tool, setTool] = useState<SchedulerTool | "claritia">(was && (was.tool === "claritia" || was.url) ? was.tool : "claritia");
+  const [typeId, setTypeId] = useState(was?.meetingTypeId ?? "");
+  const [routed, setRouted] = useState<string[]>(was?.routeRules ?? []);
+  const [meet, setMeet] = useState(was && was.tool !== "claritia" ? was.url : "");
   const [page, setPage] = useState(a.after.kind === "redirect" ? a.after.url : "");
   const [tried, setTried] = useState(false);
-  const value: After = kind === "message" ? { kind: "message" } : kind === "redirect" ? { kind: "redirect", url: page.trim() } : { kind: "meeting", tool, url: meet.trim(), perOwner: !meet.trim() };
+  // Claritia's calendar is the default; with no meeting type yet, the first outside scheduler is.
+  const type = typeId || types.data?.[0]?.id || "";
+  const value: After =
+    kind === "message"
+      ? { kind: "message" }
+      : kind === "redirect"
+        ? { kind: "redirect", url: page.trim() }
+        : tool === "claritia"
+          ? { kind: "meeting", tool, url: "", perOwner: false, ...(type ? { meetingTypeId: type } : {}), ...(routed.length ? { routeRules: routed } : {}) }
+          : { kind: "meeting", tool, url: meet.trim(), perOwner: !meet.trim() };
   const problem = afterProblem(value);
   const next = () => {
     if (problem) return setTried(true);
@@ -634,7 +665,8 @@ function AfterPanel({ a, act, done }: { a: Answers; act: ActRef; done: (a: Answe
   };
   useAct(act, { count: AFTERS.length, pick: choose, next });
   const url = kind === "redirect" ? page : meet;
-  const show = problem && (tried || !!url.trim());
+  const show = problem && (tried || !!url.trim() || tool === "claritia");
+  const chip = (on: boolean) => `press flex h-10 items-center gap-2 rounded-lg border bg-card px-3 text-[13px] text-ink transition-[border-color,transform] duration-[140ms] ${on ? "border-ink ring-1 ring-ink" : "border-line-strong hover:border-ink"}`;
   return (
     <div className="flex flex-col gap-3">
       <div className="grid gap-2 sm:grid-cols-3">
@@ -648,38 +680,60 @@ function AfterPanel({ a, act, done }: { a: Answers; act: ActRef; done: (a: Answe
             e.preventDefault();
             next();
           }}
-          className="anim-rise-sm flex flex-col gap-2.5"
+          className="anim-rise-sm flex flex-col gap-3"
         >
           {kind === "meeting" ? (
             <div className="flex flex-wrap gap-1.5">
+              <button type="button" aria-pressed={tool === "claritia"} onClick={() => setTool("claritia")} className={chip(tool === "claritia")}>
+                <BrandLogo domain="tryclaritia.com" name="Claritia" size={16} />
+                Claritia calendar
+              </button>
               {SCHEDULERS.map((s) => (
-                <button
-                  key={s.value}
-                  type="button"
-                  aria-pressed={tool === s.value}
-                  aria-label={s.label}
-                  onClick={() => setTool(s.value)}
-                  className={`press flex h-10 items-center gap-2 rounded-lg border bg-card px-3 text-[13px] text-ink transition-[border-color,transform] duration-[140ms] ${tool === s.value ? "border-ink ring-1 ring-ink" : "border-line-strong hover:border-ink"}`}
-                >
+                <button key={s.value} type="button" aria-pressed={tool === s.value} aria-label={s.label} onClick={() => setTool(s.value)} className={chip(tool === s.value)}>
                   {s.domain ? <BrandLogo domain={s.domain} name={s.label} size={16} /> : <Plus size={14} />}
                   {s.label}
                 </button>
               ))}
             </div>
           ) : null}
-          <div className="relative">
-            <Input
-              key={kind}
-              autoFocus={kind === "redirect"}
-              value={url}
-              onChange={(e) => (kind === "redirect" ? setPage : setMeet)(e.target.value)}
-              placeholder={kind === "redirect" ? "https://acme.com/thanks" : tool === "calendly" ? "https://calendly.com/you/demo" : tool === "calcom" ? "https://cal.com/you" : "https://"}
-              aria-label={kind === "redirect" ? "Page address" : "Booking link"}
-              aria-invalid={show ? true : undefined}
-              className="pr-9"
-            />
-            {url.trim() && !problem ? <Check size={15} className="absolute top-1/2 right-3 -translate-y-1/2 text-sage" /> : null}
-          </div>
+          {kind === "meeting" && tool === "claritia" ? (
+            <>
+              <div className="flex flex-col gap-1.5">
+                <span className="text-[12.5px] font-medium text-muted">Meeting type</span>
+                {types.data && !types.data.length ? (
+                  <a href="/scheduling" target="_blank" rel="noopener" className="self-start text-[13px] font-medium text-ink underline decoration-line-strong underline-offset-[3px]">
+                    Create a meeting type
+                  </a>
+                ) : (
+                  <div className="flex flex-wrap gap-1.5">
+                    {(types.data ?? []).map((t) => (
+                      <button key={t.id} type="button" aria-pressed={type === t.id} onClick={() => setTypeId(t.id)} className={chip(type === t.id)}>
+                        {t.name}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <span className="text-[12.5px] font-medium text-muted">Book with the rep routed by</span>
+                <RoutePicker sb={link.sb} session={link.session} ws={link.ws} picked={routed} set={setRouted} />
+              </div>
+            </>
+          ) : (
+            <div className="relative">
+              <Input
+                key={kind}
+                autoFocus={kind === "redirect"}
+                value={url}
+                onChange={(e) => (kind === "redirect" ? setPage : setMeet)(e.target.value)}
+                placeholder={kind === "redirect" ? "https://acme.com/thanks" : tool === "calendly" ? "https://calendly.com/you/demo" : tool === "calcom" ? "https://cal.com/you" : "https://"}
+                aria-label={kind === "redirect" ? "Page address" : "Booking link"}
+                aria-invalid={show ? true : undefined}
+                className="pr-9"
+              />
+              {url.trim() && !problem ? <Check size={15} className="absolute top-1/2 right-3 -translate-y-1/2 text-sage" /> : null}
+            </div>
+          )}
           {show ? <p className="text-[12.5px] text-rose">{problem}</p> : null}
           <Continue onClick={next} />
         </form>
@@ -702,6 +756,13 @@ function SendPanel({ a, tools, act, done }: { a: Answers; tools: Tool[]; act: Ac
         <CheckTile label="Claritia" on logo={<BrandLogo domain="tryclaritia.com" name="Claritia" size={18} />} />
         {tools.map((t, i) => (
           <CheckTile key={t.id} n={i < 9 ? i + 1 : undefined} label={t.name} on={sources.includes(t.id)} toggle={() => pick(i)} logo={<BrandLogo domain={entryOf(t.kind)?.domain ?? ""} name={t.name} size={18} />} />
+        ))}
+        {CRMS.filter((e) => !tools.some((t) => t.kind === e.kind)).map((e) => (
+          <a key={e.kind} href="/settings/sources" target="_blank" rel="noopener" className="press flex h-11 items-center gap-2.5 rounded-lg border border-dashed border-line-strong px-3 text-[13px] text-ink transition-colors duration-[140ms] hover:border-ink">
+            <BrandLogo domain={e.domain} name={e.label} size={18} />
+            <span className="min-w-0 flex-1 truncate">{e.label}</span>
+            <span className="text-[12px] font-medium text-muted">Connect</span>
+          </a>
         ))}
       </div>
       <div className="flex items-center justify-between gap-3">
