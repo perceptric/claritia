@@ -5,7 +5,7 @@
 // (saved on their own), so they don't go through undo.
 
 import { useState } from "react";
-import { BASE_FIELDS, countryName, needsValue, opsFor, REGIONS, type FieldDef } from "@/lib/router/conditions";
+import { BASE_FIELDS, countryName, needsValue, opsFor, REGIONS, ruleWords, type FieldDef } from "@/lib/router/conditions";
 import { newId, problemWords, type Problem } from "@/lib/router/check";
 import { minutesWords } from "@/lib/router/explain";
 import { defaultSla, METHODS, OPS, SLA_MINUTES, type Cond, type Method, type Op, type Rule, type RouterBody, type Sla, type WhenOut } from "@/lib/router/types";
@@ -20,6 +20,7 @@ import {
   addMember,
   addQueue,
   addRule,
+  madeName,
   removeMember,
   removeQueue,
   removeRule,
@@ -308,7 +309,12 @@ function SlaInspector({ body, edit, members, readOnly }: InspectorProps) {
 // Rule ------------------------------------------------------------------------------------------------------------
 
 function RuleInspector({ body, edit, rule, fields, forms, readOnly, counts, onSelect }: InspectorProps & { rule: Rule }) {
-  const set = (patch: Partial<Rule>, key?: string) => edit((b) => setRule(b, rule.id, patch), key);
+  // A rule's made name follows its conditions: "Country is Germany or France", until someone renames it.
+  const sentence = (conds: Cond[]) => (conds.length && conds.every((c) => !needsValue(c.op) || (Array.isArray(c.value) ? c.value.length : c.value !== undefined && c.value !== "")) ? ruleWords({ ...rule, conds }, fields, body.territories).slice(0, 80) : null);
+  const set = (patch: Partial<Rule>, key?: string) => {
+    const auto = patch.conds && madeName(rule.name, ruleWords(rule, fields, body.territories).slice(0, 80)) ? sentence(patch.conds) : null;
+    edit((b) => setRule(b, rule.id, auto ? { ...patch, name: auto } : patch), key);
+  };
   const setCond = (i: number, c: Cond, key?: string) => set({ conds: rule.conds.map((x, j) => (j === i ? c : x)) }, key);
   const first = fields.find((f) => f.key === "lead.country") ?? fields[0] ?? BASE_FIELDS[0]!;
   const addRegion = (i: number, name: string) => {

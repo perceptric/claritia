@@ -68,12 +68,20 @@ export function setQueue(b: RouterBody, id: string, patch: Partial<Queue>): Rout
 }
 
 /** A new rule at the end, named "Rule N" with a free number, sending to `queue` when given. */
-export function addRule(b: RouterBody, id: string, queue = ""): RouterBody {
+/**
+ * A new rule: one condition ready to fill (country) and the team everyone else goes to, so it starts one step from
+ * working. Its name follows its conditions until someone renames it (`autoName`).
+ */
+export function addRule(b: RouterBody, id: string, queue?: string): RouterBody {
   const names = new Set(b.rules.list.map((r) => r.name));
-  let i = b.rules.list.length + 1;
-  while (names.has(`Rule ${i}`)) i++;
-  return { ...b, rules: { ...b.rules, list: [...b.rules.list, { id, name: `Rule ${i}`, match: "all", conds: [], queue }] } };
+  let name = "New rule";
+  for (let i = 2; names.has(name); i++) name = `New rule ${i}`;
+  const team = queue ?? (b.fallback?.kind === "queue" ? b.fallback.id : (b.queues[0]?.id ?? ""));
+  return { ...b, rules: { ...b.rules, list: [...b.rules.list, { id, name, match: "all", conds: [{ field: "lead.country", op: "one_of", value: [] }], queue: team }] } };
 }
+
+/** Whether a rule's name was made for it (so it may follow its conditions), or a person chose it. */
+export const madeName = (name: string, sentence: string) => /^(New rule( \d+)?|Rule \d+)$/.test(name) || name === sentence;
 
 export function removeRule(b: RouterBody, id: string): RouterBody {
   return { ...b, rules: { ...b.rules, list: b.rules.list.filter((r) => r.id !== id) } };

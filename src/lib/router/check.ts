@@ -194,6 +194,7 @@ export function problemWords(t: string): string {
     : t
         .replace(/^"(.+?)" has no team$/, '"$1" needs a rep or team')
         .replace(/^"(.+?)" has no conditions$/, '"$1" needs a condition')
+        .replace(/^"(.+?)" has a condition with no value$/, 'Pick a value for "$1"')
         .replace(/^(.+?) has no reps$/, "Add reps to $1")
         .replace(/^The fallback is no longer in the workspace$/, "The rep for everyone else has left. Pick another");
 }
