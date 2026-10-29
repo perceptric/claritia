@@ -44,7 +44,7 @@ const ownerOnly = (c: Caller) => {
 export type Member = { id: string; name: string; email: string };
 
 /** The fields rules can test: the base ones, custom contact and company fields, and the answers on live forms. */
-async function fieldsFor(db: Q, ws: string): Promise<{ fields: FieldDef[]; forms: { id: string; name: string }[] }> {
+export async function fieldsFor(db: Q, ws: string): Promise<{ fields: FieldDef[]; forms: { id: string; name: string }[] }> {
   const fields: FieldDef[] = [...BASE_FIELDS];
   const custom = ((await db.from("fields").select("object, key, label, type, options").eq("workspace_id", ws)).data ?? []) as { object: string; key: string; label: string; type: string; options: unknown[] }[];
   for (const f of custom) {

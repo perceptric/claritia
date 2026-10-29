@@ -24,7 +24,7 @@ import { MeetingsView } from "./meetings/MeetingsView";
 import { useRoutingCommands } from "./routing/commands";
 import { RoutingView } from "./routing/RoutingView";
 import { EmailsView } from "./nurture/EmailsView";
-import { ScoringView } from "./nurture/ScoringView";
+import { ScoringView } from "./scoring/ScoringView";
 import { WorkflowsView } from "./workflows/WorkflowsView";
 import { SettingsView } from "./views/SettingsView";
 

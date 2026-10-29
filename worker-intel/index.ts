@@ -26,6 +26,7 @@ import { accountAlert, scoreAccount, sweepSignals } from "./jobs/signals.ts";
 import { importFile, importUndo, pruneImportFiles } from "./jobs/imports.ts";
 import { routeJob, routerAlert, routerSla } from "./jobs/router.ts";
 import { segmentRefresh } from "./jobs/segments.ts";
+import { scoreRefresh } from "./jobs/scoring.ts";
 import { deliver, deliverHeld } from "./jobs/deliver.ts";
 import { crmActivity, crmPush, sourceHook, sourcePull } from "./jobs/sources.ts";
 import { deviceReset, privacy, rebuild, stitch, stitchEvidence } from "./jobs/stitch.ts";
@@ -71,6 +72,7 @@ const handlers = {
   crm_activity: crmActivity(pool, rpc),
   source_hook: sourceHook(pool, rpc),
   segment_refresh: segmentRefresh(rpc),
+  score_refresh: scoreRefresh(pool, rpc),
   deliver: deliver(pool, rpc),
   deliver_held: deliverHeld(pool, rpc),
   send: send(rpc, { sender: resend, base: linkBase() }),

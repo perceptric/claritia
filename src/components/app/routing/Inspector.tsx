@@ -6,7 +6,7 @@
 
 import { useState } from "react";
 import { BASE_FIELDS, countryName, needsValue, opsFor, REGIONS, type FieldDef } from "@/lib/router/conditions";
-import { newId, type Problem } from "@/lib/router/check";
+import { newId, problemWords, type Problem } from "@/lib/router/check";
 import { minutesWords } from "@/lib/router/explain";
 import { defaultSla, METHODS, OPS, SLA_MINUTES, type Cond, type Method, type Op, type Rule, type RouterBody, type Sla, type WhenOut } from "@/lib/router/types";
 import { COUNTRY_CODES } from "@/lib/forms/countries";
@@ -51,7 +51,7 @@ export type InspectorProps = {
   onSelect: (s: Selection) => void;
 };
 
-const TITLES = { spam: "Filter out junk", account: "Same company, same rep", keep: "Keep their rep", rules: "Who gets which leads", fallback: "Everyone else goes to", sla: "Follow-up time" } as const;
+const TITLES = { spam: "Spam check", account: "Existing company", keep: "Current rep", rules: "Rules", fallback: "Everyone else", sla: "Time to reach out" } as const;
 
 export function Inspector(p: InspectorProps) {
   const { sel, body } = p;
@@ -75,7 +75,7 @@ export function Inspector(p: InspectorProps) {
           {mine.map((x, i) => (
             <li key={i} className="flex items-center gap-2 text-[12.5px] text-rose">
               <span className="size-1.5 shrink-0 rounded-full bg-rose" />
-              {x.text}
+              {problemWords(x.text)}
             </li>
           ))}
         </ul>

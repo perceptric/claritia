@@ -122,7 +122,7 @@ test("strict: an op that would leave a new problem is refused; the chat can add 
   // The same op through applyOp (Flow, mid-edit) goes through, and Publish names what's missing.
   const loose = applyOp((r as { body: RouterBody }).body, { op: "edit_team", team: "AEs", people: [] }, ctx);
   assert.ok(!("error" in loose));
-  assert.equal(firstProblem((loose as { body: RouterBody }).body, ctx), "AEs has no reps");
+  assert.equal(firstProblem((loose as { body: RouterBody }).body, ctx), "Add reps to AEs");
 });
 
 test("a rule that sends to the owner: deal rep first, then company owner, then contact owner", () => {
