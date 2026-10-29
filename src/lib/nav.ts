@@ -127,19 +127,22 @@ export function enrichmentPage(id: string): { tab: EnrichmentTab; id: string } {
   return a === "providers" || a === "rules" || a === "history" ? { tab: a, id: a } : { tab: "overview", id: "" };
 }
 
-export type SchedulingPageKey = "types" | "availability" | "links" | "reminders" | "payments";
+export type SchedulingPageKey = "types" | "booking" | "availability" | "links" | "reminders" | "payments" | "webhooks";
 export type AvailabilityTab = "schedules" | "calendars" | "team" | "days-off";
 export const SCHEDULING_TABS: Tab<SchedulingPageKey>[] = [
   { value: "types", label: "Meeting types" },
+  { value: "booking", label: "Booking page" },
   { value: "availability", label: "Availability" },
   { value: "links", label: "Links and polls" },
   { value: "reminders", label: "Reminders" },
   { value: "payments", label: "Payments" },
+  { value: "webhooks", label: "Webhooks" },
 ];
 
 /**
- * Scheduling's tabs: Meeting types with one type ("types/<id>" or "types/new"), Availability with its views
- * ("availability/calendars"...), Links and polls, Reminders and Payments. Anything else opens Meeting types.
+ * Scheduling's tabs: Meeting types with one type ("types/<id>" or "types/new"), Booking page, Availability with its
+ * views ("availability/calendars"...), Links and polls, Reminders, Payments and Webhooks. Anything else opens Meeting
+ * types.
  */
 export function schedulingPage(id: string): { page: SchedulingPageKey; sub: string; id: string } {
   const [a = "", b = ""] = id.split("/");
@@ -148,7 +151,7 @@ export function schedulingPage(id: string): { page: SchedulingPageKey; sub: stri
     const tab = (["calendars", "team", "days-off"] as string[]).includes(b) ? b : "";
     return { page: "availability", sub: tab, id: tab ? `availability/${tab}` : "availability" };
   }
-  if (a === "links" || a === "reminders" || a === "payments") return { page: a, sub: "", id: a };
+  if (a === "booking" || a === "links" || a === "reminders" || a === "payments" || a === "webhooks") return { page: a, sub: "", id: a };
   return { page: "types", sub: "", id: "types" };
 }
 

@@ -54,6 +54,13 @@ export async function loadTarget(rpc: Rpc, ws: string, slug: string | null, form
   return { ...t, type: t.type ? withDefaults(t.type) : null, types: (t.types ?? []).map(withDefaults) };
 }
 
+/** A /booking/<handle> name: the workspace's booking name and, for a person, their link name. Null when it's free. */
+export async function resolveHandle(rpc: Rpc, handle: string): Promise<{ ws: string; person: string | null; handle: string } | null> {
+  const h = handle.toLowerCase();
+  if (!/^[a-z0-9][a-z0-9-]{1,38}[a-z0-9]$/.test(h)) return null;
+  return call<{ ws: string; person: string | null; handle: string } | null>(rpc, "booking_resolve", { p_handle: h });
+}
+
 /** A type as stored, with any setting it doesn't have taken from the defaults. */
 export function withDefaults(t: MeetingType): MeetingType {
   return { ...t, hosts: t.hosts ?? [], settings: { ...DEFAULT_SETTINGS, ...(t.settings ?? {}) } };

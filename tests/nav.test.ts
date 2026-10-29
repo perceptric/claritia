@@ -32,7 +32,7 @@ test("the sidebar is Inbound, CRM and Nurture, then Settings, with at most five 
   assert.equal(defaultRoute, "contacts");
   assert.equal(new Set(NAV.map((n) => n.route)).size, NAV.length, "one item per route");
   assert.deepEqual(ROUTING_TABS.map((t) => t.label), ["Setup", "Leads", "Team"]);
-  assert.deepEqual(SCHEDULING_TABS.map((t) => t.label), ["Meeting types", "Availability", "Links and polls", "Reminders", "Payments"]);
+  assert.deepEqual(SCHEDULING_TABS.map((t) => t.label), ["Meeting types", "Booking page", "Availability", "Links and polls", "Reminders", "Payments", "Webhooks"]);
 });
 
 test("old addresses open their new home", () => {
@@ -119,7 +119,7 @@ test("scheduling, visitors, enrichment, emails and lead scoring tabs", () => {
   assert.deepEqual(schedulingPage("availability/nope"), { page: "availability", sub: "", id: "availability" });
   assert.equal(availabilityPage(""), "schedules");
   assert.equal(availabilityPage("days-off"), "days-off");
-  for (const p of ["links", "reminders", "payments"]) assert.equal(schedulingPage(p).page, p);
+  for (const p of ["booking", "links", "reminders", "payments", "webhooks"]) assert.equal(schedulingPage(p).page, p);
   for (const gone of ["forms", "ai", "notetaker"]) assert.equal(schedulingPage(gone).page, "types");
   assert.deepEqual(visitorsPage(""), { tab: "feed", id: "" });
   assert.deepEqual(visitorsPage("visits"), { tab: "visits", id: "visits" });
