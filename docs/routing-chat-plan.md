@@ -33,7 +33,7 @@ The first screen (the `ToolIntro` pattern) is a big chat box with the two-tone t
 leads. / It builds the rest." Under it, three starting chips, made from the workspace's own data:
 
 - **Set it up for me.** No typing. Claritia reads the team and the last 90 days of leads and proposes a setup
-  (Part 3).
+  (Part 3b).
 - **Everyone takes turns.** One team, every rep, round robin.
 - **By region.** A team per region it finds in the team's leads (for example "North America, Europe").
 
@@ -109,7 +109,86 @@ Rules for the chat:
 
 ---
 
-## Part 3. "Set it up for me"
+## Part 3. Every rule the chat can build
+
+The chat and the Flow editor can make anything the engine runs. This is the whole list. "New" marks what the engine
+doesn't do today and this plan adds (Part 7, step 1b).
+
+### 3.1 The steps every lead goes through, in order
+
+| Step | What it does | Settings |
+|---|---|---|
+| Hold junk | Holds leads that look fake for review in Leads | Throwaway emails, blocked domains, made-up names, too many fills in an hour (the limit), personal emails |
+| Allow and block lists | Domains or emails that always pass, or are always held | Two lists |
+| Same company, same rep | A lead from a company you work with goes to its rep | Rep on the open deal first, or the company's owner; also make the rep the company's owner; when that rep is away: keep them, send to their backup, or route on |
+| Keep their rep | A lead who already has a rep keeps them | When that rep is away: keep, backup, or route on |
+| Rules | Checked top to bottom; the first that matches decides | Below |
+| Everyone else | The team that gets what no rule caught | A team |
+| Backup | Who gets a lead when no one else can take it | One person or a team |
+| Response time | After a lead is routed, the rep has a set time to act | 5 minutes to 2 days; a nudge before; then route again without them, give it to a manager, or only tell the rep |
+
+### 3.2 What a rule can test
+
+Any number of conditions, joined by **all** or **any**.
+
+| Group | Fields | Tests |
+|---|---|---|
+| Contact | Country, contact country, state or region, email domain, email type (work, personal, role), job title, seniority, department, lifecycle stage, lead status, **language (new)** | is, is not, is one of, is not one of, contains, starts with, is filled, is empty |
+| Company | Company name, domain, country, industry, size, employees, company type, **on a named account list (new)** | The same, plus more than, less than, between for numbers |
+| Source | Form, came from (form, import, CRM, API), UTM source, medium and campaign, **page they came from (new)** | The same |
+| Form answers | Every question on every form (budget, team size, "what are you looking for") | Fits the question's type |
+| Custom fields | Every custom field on contacts and companies | Fits the field's type |
+| Score | Lead score, score band | Numbers and bands |
+| **Time (new)** | Arrived on a weekday or the weekend, inside or outside business hours, on a holiday | is |
+
+Regions ("Europe", "DACH", "US West") and company types ("Enterprise: over 1,000 people") are named lists the chat
+makes when a rule needs one. People never make them first.
+
+### 3.3 What a rule can do
+
+| Action | Example |
+|---|---|
+| Send to a team | "Europe goes to Ana and Raj" |
+| Send to one person | "Customers go to Priya" |
+| Send to the company's owner | "Named accounts go to whoever owns them" |
+| Hold for review | "Hold leads from competitors" |
+| **Don't assign, start a workflow (new)** | "Scores under 20 go to the nurture emails, no rep" |
+| **Also tell a channel (new)** | "Enterprise leads also post in #big-deals" |
+
+### 3.4 How a team shares leads
+
+| Setting | Choices |
+|---|---|
+| How | Take turns, some get more (a weight per person), fewest meetings first |
+| Order | Flexible (skips anyone who can't take a lead now) or strict (keeps the turn) |
+| Working hours | Only give leads to reps inside their hours, or anytime |
+| **Matching language (new)** | Prefer a rep who speaks the lead's language |
+
+### 3.5 Each rep (Team tab)
+
+Working hours and time zone (from their calendar), away until (from their calendar or set by hand), paused, a daily
+and weekly cap, a backup person, and **languages (new)**.
+
+### 3.6 Phrases the chat must handle
+
+The test fixtures (Part 8) include at least one message for every row above, for example:
+
+- "Spanish speakers go to Ana." (language)
+- "Leads after 6 pm and on weekends go to Lena." (time)
+- "Our 40 target accounts go to their owners; everyone else at those companies too." (named accounts)
+- "Anyone from the partner form goes to Raj." (form)
+- "Google Ads leads with a score over 70 go to the AEs; the rest go to the SDRs." (source and score, two teams)
+- "Customers go to Priya, not sales." (lifecycle)
+- "VPs and C-level at companies over 500 go to Sam." (seniority and size)
+- "Hold anyone from gmail." (personal emails)
+- "Scores under 20 get the nurture emails instead of a rep." (no rep, workflow)
+- "If no one answers in 15 minutes, give it to the next person." (response time)
+- "Sam takes at most 10 a day." (cap)
+- "Lena is out next week." (away)
+
+---
+
+## Part 3b. "Set it up for me"
 
 With no words at all, Claritia proposes a setup from what it can see:
 
@@ -147,11 +226,12 @@ The data stays the same (`router_versions`, `RouterBody`), so nothing is migrate
 
 ---
 
-## Part 7. Build order (about 2 weeks)
+## Part 7. Build order (about 2.5 weeks)
 
 | Step | Work | Time |
 |---|---|---|
 | 1 | Router ops: each tool as a checked op on `RouterBody`, with tests | 2 days |
+| 1b | Engine additions from Part 3: language on leads and reps, time conditions with holidays per region, named account lists, page they came from, the "no rep, start a workflow" and "also tell a channel" actions | 3 days |
 | 2 | The chat: system prompt, tools, step cache, one question at a time (`src/lib/router/chat.ts`, `/api/routing/chat`) | 2 days |
 | 3 | The plan card: readback lines with pickers, test numbers, changed leads, Make live with its reason | 2 days |
 | 4 | "Set it up for me" from the workspace's data | 1 day |
@@ -163,7 +243,7 @@ The data stays the same (`router_versions`, `RouterBody`), so nothing is migrate
 
 Per the reliability rule (routing is on the list), every part ships with a test on a flaky case:
 
-- 40 example messages, each with the setup it should make (fixtures). Each runs twice: the second time comes from the
+- 60 example messages, at least one for every row in Part 3, each with the setup it should make (fixtures). Each runs twice: the second time comes from the
   cache with no model call.
 - No message can produce a setup with problems: a property test feeds broken tool calls and checks every turn ends
   with zero problems or a question.
@@ -174,7 +254,7 @@ Per the reliability rule (routing is on the list), every part ships with a test 
 
 ## Part 9. Running cost
 
-Routing itself adds nothing: the engine has no AI calls. Only chat messages call Claude.
+Routing itself adds nothing: the engine has no AI calls, and the Part 3 additions (language, time, account lists) run in the same database query. Only chat messages call Claude.
 
 One message is about 6,000 tokens in (the setup, reps, fields and the cached instructions) and 800 out. With the
 instructions cached, that is about $0.03 a message on Claude Sonnet 5.5 (check). Most teams send about 20 messages a
