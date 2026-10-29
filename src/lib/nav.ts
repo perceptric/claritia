@@ -96,26 +96,25 @@ export function meetingsPage(id: string): { page: "list" | "meeting"; id: string
   return UUID.test(a) ? { page: "meeting", id: a } : { page: "list", id: "" };
 }
 
-export type RoutingPageKey = "" | "rules" | "teams" | "regions" | "company-types" | "history" | "review";
+export type RoutingPageKey = "" | "leads" | "team";
 export const ROUTING_TABS: Tab<RoutingPageKey>[] = [
-  { value: "", label: "Overview" },
-  { value: "rules", label: "Rules" },
-  { value: "teams", label: "Teams" },
-  { value: "regions", label: "Regions" },
-  { value: "company-types", label: "Company types" },
-  { value: "history", label: "History" },
-  { value: "review", label: "Needs review" },
+  { value: "", label: "Setup" },
+  { value: "leads", label: "Leads" },
+  { value: "team", label: "Team" },
 ];
 
 /**
- * Routing's tabs: Overview (""), Rules, Teams, Regions, Company types, History with one run open ("history/<run>"),
- * Needs review, and one past version read-only ("versions/<n>", on Overview). Older names (reps, log, held) forward.
+ * Routing's tabs (docs/routing-chat-plan.md 1.4): Setup (""), Leads with one run open ("leads/<run>") or the ones
+ * held for review ("leads/review"), Team, and one past version read-only ("versions/<n>", on Setup). Older names
+ * forward: rules, overview, regions and company-types to Setup; history, log, review and held to Leads; teams and
+ * reps to Team.
  */
 export function routingPage(id: string): { page: RoutingPageKey; sub: string; version: number | null; id: string } {
   const [raw = "", b = ""] = id.split("/");
-  const a = ({ reps: "teams", log: "history", held: "review" } as Record<string, string>)[raw] ?? raw;
-  if (a === "rules" || a === "teams" || a === "regions" || a === "company-types" || a === "review") return { page: a, sub: "", version: null, id: a };
-  if (a === "history") return UUID.test(b) ? { page: "history", sub: b, version: null, id: `history/${b}` } : { page: "history", sub: "", version: null, id: "history" };
+  const a = ({ history: "leads", log: "leads", review: "held", teams: "team", reps: "team" } as Record<string, string>)[raw] ?? raw;
+  if (a === "team") return { page: "team", sub: "", version: null, id: "team" };
+  if (a === "held" || (a === "leads" && b === "review")) return { page: "leads", sub: "review", version: null, id: "leads/review" };
+  if (a === "leads") return UUID.test(b) ? { page: "leads", sub: b, version: null, id: `leads/${b}` } : { page: "leads", sub: "", version: null, id: "leads" };
   if (a === "versions" && /^[1-9]\d{0,6}$/.test(b)) return { page: "", sub: "", version: Number(b), id: `versions/${b}` };
   return { page: "", sub: "", version: null, id: "" };
 }

@@ -109,7 +109,14 @@ export function explain(d: Decision, f: Facts, o: { fields?: FieldDef[]; territo
           k.failed ? `: ${condWords(k.failed.cond, fields, territories)} (it's ${k.failed.actual === null || k.failed.actual === undefined || k.failed.actual === "" ? "empty" : String(k.failed.actual)}).` : ": it has no conditions.",
         ]);
         if (!s.rule) return { step: s.step, mark: "miss", title, parts: [s.skipped.length ? "No rule matched." : "No rules."], ...(more.length ? { more } : {}) };
-        return { step: s.step, mark: "ok", title, parts: [{ text: `"${s.rule.name}"`, kind: "rule", id: s.rule.id }, " matched."], ...(more.length ? { more } : {}) };
+        const matched: Part[] = [{ text: `"${s.rule.name}"`, kind: "rule", id: s.rule.id }, " matched."];
+        if (s.rule.then === "hold") matched.push(" Held for review.");
+        if (s.rule.then === "owner") {
+          if (!s.owner) matched.push(" No owner to send it to. Routed on.");
+          else if (s.unavailable) matched.push(" ", user(s.unavailable.user), ` ${whyWords(s.unavailable.why, s.unavailable.until, f.reps[s.unavailable.user], f.now)}. Routed on.`);
+          else matched.push(" Sent to the owner, ", user(s.owner), ".");
+        }
+        return { step: s.step, mark: s.ok ? "ok" : "miss", title, parts: matched, ...(more.length ? { more } : {}) };
       }
       case "queue": {
         const q: Part = { text: s.queue.name, kind: "queue", id: s.queue.id };
@@ -158,6 +165,7 @@ export function pathWords(d: Decision): string {
   const r = d.result;
   if (r.kind === "held") return `Held: ${r.signals.map((s) => SIGNAL_WORDS[s].toLowerCase()).join(", ")}`;
   if (r.kind === "unassigned") return "No one could take it";
+  if (r.by === "account" && r.rule) return `Rule: ${d.steps.find((s): s is Extract<StepResult, { step: "rules" }> => s.step === "rules")?.rule?.name ?? "?"} → owner`;
   if (r.by === "account") {
     const a = d.steps.find((s): s is Extract<StepResult, { step: "account" }> => s.step === "account");
     return `Matched ${a?.company?.name ?? "the account"}${a?.backup ? " (backup)" : ""}`;

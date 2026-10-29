@@ -65,6 +65,10 @@ export async function POST(request: Request) {
           return A.slackRemove(db, c);
         case "contacted":
           return A.markContacted(rpc, c, str("contact"));
+        case "chat": {
+          const { claudeChat } = await import("@/lib/forms/claude");
+          return A.chat(rpc, db, c, { message: str("message") ?? "", revision: typeof body.revision === "number" ? body.revision : null, model: claudeChat(), clear: body.clear === true });
+        }
         case "crm_owners":
           return A.crmOwners(db, c);
         case "save_crm_owners":

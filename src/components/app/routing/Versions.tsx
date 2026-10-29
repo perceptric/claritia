@@ -103,7 +103,7 @@ export function VersionView({
           : undefined,
       });
       onRolledBack();
-      navigate("routing", "rules");
+      navigate("routing", "");
     } catch (e) {
       setError(errorText(e));
       setBusy(false);
@@ -113,7 +113,7 @@ export function VersionView({
   return (
     <div className="flex h-full min-h-0 flex-col">
       <div className="flex min-h-14 shrink-0 flex-wrap items-center gap-2 border-b border-line px-4 py-2 md:px-6">
-        <IconButton label="Back to the setup" onClick={() => navigate("routing", "rules")}>
+        <IconButton label="Back to the setup" onClick={() => navigate("routing", "")}>
           <ArrowLeft size={15} />
         </IconButton>
         <Badge>v{version} · read-only</Badge>

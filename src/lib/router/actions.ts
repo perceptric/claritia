@@ -15,7 +15,7 @@ import { liveRouter, route, testRoute } from "./server.ts";
 import { fromLeadSettings, type OldRouting } from "./templates.ts";
 import { slackInstallUrl, slackReady } from "../slack/app.ts";
 import { signState } from "../sources/oauth.ts";
-import type { Decision, Facts, RouterBody, Run } from "./types.ts";
+import { emptyBody, type Decision, type Facts, type RouterBody, type Run } from "./types.ts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
@@ -95,13 +95,14 @@ async function routerRow(db: Q, ws: string): Promise<RouterRow | null> {
 
 /** Everything the Router screen opens with. */
 export async function load(rpc: Rpc, db: Q, c: Caller) {
-  const [row, live, members, f, stats, slack] = await Promise.all([
+  const [row, live, members, f, stats, slack, chatRow] = await Promise.all([
     routerRow(db, c.ws),
     liveRouter(rpc, c.ws),
     membersOf(rpc, db, c.ws),
     fieldsFor(db, c.ws),
     call<Record<string, unknown>>(rpc, "router_stats", { p_ws: c.ws, p_days: 7 }),
     db.from("slack_installs").select("team_name, created_at").eq("workspace_id", c.ws).maybeSingle(),
+    db.from("router_chats").select("messages").eq("workspace_id", c.ws).maybeSingle(),
   ]);
   const versions = ((await db.from("router_versions").select("version, note, published_by, published_at").eq("workspace_id", c.ws).order("version", { ascending: false }).limit(100)).data ?? []) as unknown[];
   let legacy: { body: RouterBody; unmapped: string[] } | null = null;
@@ -130,8 +131,12 @@ export async function load(rpc: Rpc, db: Q, c: Caller) {
     alert: { label: row?.alert_label ?? null },
     slack: { ready: slackReady(), team: slack.data ? ((slack.data as { team_name: string | null }).team_name ?? "Slack") : null },
     legacy,
+    chat: ((chatRow.data as { messages?: ChatMessage[] } | null)?.messages ?? []).slice(-40),
   };
 }
+
+/** One message in the routing chat, as router_chats keeps it. */
+export type ChatMessage = { role: "user" | "assistant"; text: string; lines?: string[]; ask?: { question: string; choices: string[] }; at: string };
 
 export async function saveDraft(rpc: Rpc, c: Caller, body: unknown, revision: number | null) {
   ownerOnly(c);
@@ -276,6 +281,8 @@ export async function replay(db: Q, c: Caller, o: { days: number; draft?: unknow
   let same = 0;
   let held = 0;
   let unassigned = 0;
+  // Where every lead would go under the draft, for the plan card's split (docs/routing-chat-plan.md 1.2).
+  const split: Record<string, number> = {};
   for (const r of runs) {
     const f = r.facts as Facts;
     if (!f?.lead || !f.reps) continue;
@@ -288,6 +295,7 @@ export async function replay(db: Q, c: Caller, o: { days: number; draft?: unknow
     }
     const before = r.kind === "owner" ? (r.owner ?? "") : r.kind;
     const after = d.result.kind === "owner" ? d.result.user : d.result.kind;
+    split[after] = (split[after] ?? 0) + 1;
     if (d.result.kind === "held") held++;
     if (d.result.kind === "unassigned") unassigned++;
     if (before === after) {
@@ -305,7 +313,7 @@ export async function replay(db: Q, c: Caller, o: { days: number; draft?: unknow
     groups.set(k, g);
   }
   const list = [...groups.values()].sort((a, b) => b.count - a.count);
-  return { total: runs.length, same, changed: runs.length - same, held, unassigned, groups: list, days };
+  return { total: runs.length, same, changed: runs.length - same, held, unassigned, groups: list, days, split };
 }
 
 /** Route again: one lead now, or many by a job each. The lead's earlier runs give their turns back. */
@@ -488,3 +496,93 @@ export async function saveCrmOwners(db: SupabaseClient, c: Caller, rows: unknown
   }
   return { ok: true };
 }
+
+// Routing by chat (docs/routing-chat-plan.md) ---------------------------------------------------------------------
+
+type RunRow = { kind: string; owner: string | null; by: string | null; rule_id: string | null; created_at: string; lead: { name?: string; email?: string } | null; values: Record<string, unknown> | null };
+
+const bucketSize = (v: unknown): string | null => {
+  const n = typeof v === "number" ? v : typeof v === "string" ? Number(v.replace(/,/g, "").match(/\d+/)?.[0]) : NaN;
+  if (!Number.isFinite(n)) return null;
+  return n <= 50 ? "1 to 50" : n <= 200 ? "51 to 200" : n <= 500 ? "201 to 500" : n <= 1000 ? "501 to 1,000" : "over 1,000";
+};
+
+/**
+ * One chat turn (docs/routing-chat-plan.md Part 2): read the setup, the team, recent leads and the chat so far, run
+ * the chat through the step cache, save what it changed as the draft (refused if someone saved since), save rep
+ * changes, and keep both messages. Never publishes.
+ */
+export async function chat(rpc: Rpc, db: Q, c: Caller, o: { message: string; revision: number | null; model: import("./chat.ts").Model | null; clear?: boolean }) {
+  ownerOnly(c);
+  if (o.clear) {
+    await call(rpc, "router_chat_clear", { p_ws: c.ws });
+    return { cleared: true };
+  }
+  const message = o.message.trim().slice(0, 4000);
+  if (!message) throw new Refused(400, "Say who should get which leads.");
+  if (!o.model) throw new Refused(503, "The chat isn't set up on the server (ANTHROPIC_API_KEY).");
+  const { runRouterChat, ROUTER_CHAT_MODEL, ROUTER_SYSTEM, ROUTER_TOOLS } = await import("./chat.ts");
+  const { cachedStep, hashKey } = await import("../ai/cache.ts");
+  const loaded = await load(rpc, db, c);
+  if (o.revision !== null && o.revision !== loaded.revision) throw new Refused(409, "The setup changed in another window. Reload to see the latest.");
+  const body = loaded.draft ?? loaded.live?.body ?? loaded.legacy?.body ?? emptyBody();
+  const since = new Date(Date.now() - 90 * 86_400_000).toISOString();
+  const runs = await db.from("router_runs").select("kind, owner, by, rule_id, created_at, lead:facts->lead, values:facts->values").eq("workspace_id", c.ws).gte("created_at", since).is("undone_at", null).order("created_at", { ascending: false }).limit(2000);
+  const rows = (runs.data ?? []) as unknown as RunRow[];
+  const names = Object.fromEntries(loaded.members.map((m) => [m.id, m.name]));
+  const tally = (key: (r: RunRow) => string | null) => {
+    const m = new Map<string, number>();
+    for (const r of rows) {
+      const k = key(r);
+      if (k) m.set(k, (m.get(k) ?? 0) + 1);
+    }
+    return [...m.entries()].sort((a, b) => b[1] - a[1]).slice(0, 12);
+  };
+  const ruleName = (id: string | null) => body.rules.list.find((r) => r.id === id)?.name ?? "a rule";
+  const ctx = {
+    body,
+    members: loaded.members,
+    fields: loaded.fields,
+    forms: loaded.forms,
+    summary: rows.length ? { leads: rows.length, days: 90, countries: tally((r) => (r.values?.["lead.country"] as string) ?? null), sizes: tally((r) => bucketSize(r.values?.["company.size"])), withOwner: rows.filter((r) => r.by === "account" || r.by === "keep").length } : undefined,
+    recent: rows.slice(0, 40).map((r) => ({
+      name: r.lead?.name || r.lead?.email || "A lead",
+      company: (r.values?.["company.name"] as string) ?? null,
+      country: (r.values?.["lead.country"] as string) ?? null,
+      size: (r.values?.["company.size"] as string | number) ?? null,
+      went: r.kind === "owner" ? (names[r.owner ?? ""] ?? "a former teammate") : r.kind === "held" ? "review" : "no one",
+      path: r.by === "account" ? (r.rule_id ? `rule ${ruleName(r.rule_id)}, the owner` : "same company, same rep") : r.by === "keep" ? "kept their rep" : r.by === "queue" ? `rule ${ruleName(r.rule_id)}` : r.by === "fallback" ? "everyone else" : r.kind === "held" ? "held" : "no one could take it",
+      at: r.created_at.slice(0, 16).replace("T", " "),
+    })),
+    history: loaded.chat.filter((m) => m.text).slice(-10).map((m) => ({ role: m.role, text: m.text })),
+    today: new Date().toISOString().slice(0, 10),
+  };
+  const key = hashKey(ROUTER_CHAT_MODEL, ROUTER_SYSTEM, ROUTER_TOOLS, ctx, message);
+  const out = (
+    await cachedStep(rpc, c.ws, "router_chat", key, async () => {
+      const r = await runRouterChat(o.model!, message, ctx);
+      const { usage, ...result } = r;
+      return { result, model: ROUTER_CHAT_MODEL, usage, keep: !!result.reply && !result.reps.length };
+    })
+  ).result;
+  let revision = loaded.revision;
+  if (out.changed) revision = (await saveDraft(rpc, c, out.body, loaded.revision)).revision;
+  for (const r of out.reps) {
+    const patch: Record<string, unknown> = { ...r.patch };
+    if (r.patch.out_dates) {
+      const had = ((await db.from("router_reps").select("out_dates").eq("workspace_id", c.ws).eq("user_id", r.user).maybeSingle()).data as { out_dates?: { from: string; to: string }[] } | null)?.out_dates ?? [];
+      patch.out_dates = [...had.filter((d) => d.to >= ctx.today), ...r.patch.out_dates];
+    }
+    await saveRep(rpc, c, r.user, patch);
+  }
+  const at = new Date().toISOString();
+  await call(rpc, "router_chat_add", {
+    p_ws: c.ws,
+    p_messages: [
+      { role: "user", text: message, at },
+      { role: "assistant", text: out.reply, ...(out.lines.length ? { lines: out.lines } : {}), ...(out.ask ? { ask: out.ask } : {}), at },
+    ],
+  });
+  return { reply: out.reply, lines: out.lines, ask: out.ask ?? null, revision, changed: out.changed, reps: out.reps.length };
+}
+

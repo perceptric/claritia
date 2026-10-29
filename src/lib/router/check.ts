@@ -102,6 +102,7 @@ export function cleanBody(raw: unknown): RouterBody {
       conds: arr(o.conds).map(cleanCond).filter((c): c is Cond => !!c).slice(0, 30),
       queue: s(o.queue, 40),
       ...(o.on === false ? { on: false } : {}),
+      ...(o.then === "owner" || o.then === "hold" ? { then: o.then } : {}),
     });
   }
   const fb = obj(r.fallback);
@@ -147,7 +148,7 @@ export function problems(body: RouterBody, o: { members: Set<string>; fields?: F
     if (r.on === false) continue;
     const where: Where = { kind: "rule", id: r.id };
     if (!r.conds.length) out.push({ where, text: `"${r.name}" has no conditions` });
-    if (!qById.has(r.queue)) out.push({ where, text: `"${r.name}" has no queue` });
+    if ((r.then ?? "queue") === "queue" && !qById.has(r.queue)) out.push({ where, text: `"${r.name}" has no team` });
     for (const c of r.conds) {
       const f = fields.find((x) => x.key === c.field);
       if (!known(c.field)) out.push({ where, text: `"${r.name}" tests a field that's gone` });
@@ -158,7 +159,7 @@ export function problems(body: RouterBody, o: { members: Set<string>; fields?: F
       for (const v of list) if (typeof v === "string" && v.startsWith("t:") && !body.territories.some((t) => t.id === v.slice(2))) out.push({ where, text: `"${r.name}" uses a territory that's gone` });
     }
   }
-  const used = new Set([...body.rules.list.filter((r) => r.on !== false).map((r) => r.queue), ...(body.fallback?.kind === "queue" ? [body.fallback.id] : [])]);
+  const used = new Set([...body.rules.list.filter((r) => r.on !== false && (r.then ?? "queue") === "queue").map((r) => r.queue), ...(body.fallback?.kind === "queue" ? [body.fallback.id] : [])]);
   for (const q of body.queues) {
     const where: Where = { kind: "queue", id: q.id };
     if (!used.has(q.id)) continue;

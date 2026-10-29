@@ -1,6 +1,6 @@
 # Routing, by chat (plan)
 
-Status: proposed, 29 October 2026. Replaces the screen plan in `docs/router-ux-v2.md` for how people set up routing.
+Status: first build in the app, 29 October 2026 (see "What's built" at the end). Replaces the screen plan in `docs/router-ux-v2.md` for how people set up routing.
 The engine (`src/lib/router/engine.ts`, `server.ts`, `064_router.sql`) stays as it is.
 
 ## The idea
@@ -268,3 +268,21 @@ month while setting up, then a few.
 | **Added per month** | **about $30 (check)** | **about $300 (check)** |
 
 Repeated messages replay from the cache, so the real bill should be lower.
+
+## What's built (29 October 2026)
+
+- Router ops (`src/lib/router/ops.ts`): every chat tool is a checked change on `RouterBody`; a change that would
+  leave a new problem is refused (`applyStrict`). Rules can now send to a team, the company's owner, or hold for
+  review (`Rule.then`). Tests: `tests/routerOps.test.ts`.
+- The chat (`src/lib/router/chat.ts`, `chat` in `src/lib/router/actions.ts`, `/api/routing` action `chat`): Claude
+  with the router tools, through the step cache, one question at a time, rep changes (away dates, daily caps) saved
+  right away, setup changes saved as the draft. It has no way to publish. Kept in `router_chats`
+  (`supabase/migrations/078_router_chat.sql`). Tests: `tests/routerChat.test.ts`.
+- Routing has three tabs (`src/lib/nav.ts`): **Setup** (`src/components/app/routing/Setup.tsx`: the chat as the
+  first screen, then the chat beside the plan card with Plan and Flow, where past leads would go, and Make live),
+  **Leads** (this week's numbers, then History and Needs review as All and Needs review), **Team**. Old addresses
+  forward.
+- Not built yet: the Part 3 engine additions (language, time of day, named account lists, the page they came from,
+  "start a workflow" and "also tell a channel"). The chat says these aren't available yet.
+
+The running cost is Part 9: about $30 a month at Beta and $300 at Growth (check), all Claude tokens.
