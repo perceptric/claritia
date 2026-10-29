@@ -9,7 +9,11 @@ import { DEFAULT_CONSENT, type Choice, type Field, type FieldType, type Form } f
 export type Goal = "demo" | "contact" | "trial" | "newsletter" | "event" | "download" | "partner" | "other";
 export type Place = "hero" | "pricing" | "popup" | "page" | "blog";
 export type Pick = "name_split" | "name" | "company" | "title" | "phone" | "company_size" | "country" | "website" | "message" | "budget" | "timeline" | "team_size" | "source";
-export type After = { kind: "message" } | { kind: "redirect"; url: string } | { kind: "meeting"; tool: SchedulerTool; url: string; perOwner: boolean };
+/**
+ * Book a meeting: on Claritia's calendar (a meeting type, booked in the form, and only for leads routed by the picked
+ * routing rules when `routeRules` is set) or on an outside scheduler.
+ */
+export type After = { kind: "message" } | { kind: "redirect"; url: string } | { kind: "meeting"; tool: SchedulerTool | "claritia"; url: string; perOwner: boolean; meetingTypeId?: string; routeRules?: string[] };
 /** A question the visitor answers that the person wrote in their own words, typed by AI or by the rules below. */
 export type Extra = { label: string; type: "text" | "textarea" | "choice" | "multi" | "number" | "date" | "url" | "checkbox"; options?: string[]; required: boolean };
 
@@ -184,7 +188,14 @@ export function buildForm(a: Answers, copy: Copy = {}): Form {
     spam: { minSeconds: 2, turnstile: false },
     after: {
       end: redirect ? { kind: "redirect", url: redirect } : { kind: "message", title: thanksTitle.slice(0, 300), ...(thanksText ? { text: thanksText.slice(0, 1000) } : {}) },
-      ...(meeting ? { schedule: { tool: meeting.tool, url: meeting.url, perOwner: meeting.perOwner || !meeting.url } } : {}),
+      ...(meeting
+        ? {
+            schedule:
+              meeting.tool === "claritia"
+                ? { tool: "claritia" as const, url: "", perOwner: false, ...(meeting.meetingTypeId ? { meetingTypeId: meeting.meetingTypeId } : {}), ...(meeting.routeRules?.length ? { who: "routed" as const, routeRules: meeting.routeRules } : {}) }
+                : { tool: meeting.tool, url: meeting.url, perOwner: meeting.perOwner || !meeting.url },
+          }
+        : {}),
     },
   };
 }
@@ -200,6 +211,7 @@ export function togglePick(fields: Answers["fields"], pick: Pick): Answers["fiel
 export function afterProblem(after: After): string | null {
   const url = after.kind === "message" ? "" : after.url.trim();
   if (after.kind === "redirect") return !url ? "Paste the page's address." : linkProblem("link", url) ? "Paste the full address, starting with https://." : null;
+  if (after.kind === "meeting" && after.tool === "claritia") return after.meetingTypeId ? null : "Pick a meeting type.";
   if (after.kind === "meeting" && url) return linkProblem(after.tool, url);
   return null;
 }

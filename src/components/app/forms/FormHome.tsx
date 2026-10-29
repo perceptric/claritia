@@ -92,7 +92,7 @@ export function FormHome(props: ViewProps) {
 }
 
 /** The assistant's box, always at the bottom of the screen, with a few starters above it. */
-export function AskDock({ starters, placeholder, onSend, busy = false }: { starters: string[]; placeholder: string; onSend: (text: string) => void; busy?: boolean }) {
+export function AskDock({ starters, placeholder, onSend, busy = false, wide = false }: { starters: string[]; placeholder: string; onSend: (text: string) => void; busy?: boolean; wide?: boolean }) {
   const [text, setText] = useState("");
   const send = (t: string) => {
     if (!t.trim() || busy) return;
@@ -101,7 +101,7 @@ export function AskDock({ starters, placeholder, onSend, busy = false }: { start
   };
   return (
     <div className="shrink-0 border-t border-line bg-card px-4 pt-3 pb-4 md:px-8">
-      <div className="mx-auto flex max-w-5xl flex-col gap-2.5">
+      <div className={`mx-auto flex flex-col gap-2.5 ${wide ? "" : "max-w-5xl"}`}>
         {starters.length ? (
           <div className="flex flex-wrap gap-2">
             {starters.map((s) => (
