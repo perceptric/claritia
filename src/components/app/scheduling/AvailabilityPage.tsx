@@ -42,7 +42,7 @@ export function AvailabilityPage(props: ViewProps & { tab: string }) {
             <NamedSchedules {...props} />
           </>
         ) : tab === "calendars" ? (
-          <MyCalendar sb={props.sb} session={props.session} ws={props.ws} parts={["calendars", "profile"]} />
+          <MyCalendar sb={props.sb} session={props.session} ws={props.ws} parts={["calendars"]} />
         ) : tab === "team" ? (
           <TeamCalendars sb={props.sb} ws={props.ws} role={props.role} session={props.session} />
         ) : (

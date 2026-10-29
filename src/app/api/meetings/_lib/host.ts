@@ -37,9 +37,14 @@ const WORDS: Record<string, [number, string]> = {
   not_started: [409, "The meeting hasn't started yet."],
   bad_template: [400, "Only one-person and group types can be given to people."],
   name_taken: [409, "You already have a schedule with that name."],
+  handle_taken: [409, "That name is taken."],
+  bad_handle: [400, "Use 3 to 40 lowercase letters, numbers and dashes."],
+  no_profile: [409, "Save your page first."],
+  too_many: [409, "A workspace can have up to 10 webhooks."],
+  no_address: [400, "Add the address."],
 };
 
-async function call<T>(rpc: Rpc, fn: string, args: Record<string, unknown>): Promise<T> {
+export async function call<T>(rpc: Rpc, fn: string, args: Record<string, unknown>): Promise<T> {
   const { data, error } = await rpc(fn, args);
   if (error) {
     const code = Object.keys(WORDS).find((k) => error.message.includes(k));
@@ -55,7 +60,7 @@ export async function members(rpc: Rpc, ws: string): Promise<{ id: string; role:
 }
 
 /** The caller's role, or a refusal when they aren't in the workspace. */
-async function roleOf(rpc: Rpc, a: Actor): Promise<{ role: Role; ids: Set<string> }> {
+export async function roleOf(rpc: Rpc, a: Actor): Promise<{ role: Role; ids: Set<string> }> {
   const all = await members(rpc, a.ws);
   const me = all.find((m) => m.id === a.user);
   if (!me) throw new Refused(404, "Workspace not found.");

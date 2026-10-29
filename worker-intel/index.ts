@@ -28,6 +28,7 @@ import { routeJob, routerAlert, routerSla } from "./jobs/router.ts";
 import { segmentRefresh } from "./jobs/segments.ts";
 import { scoreRefresh } from "./jobs/scoring.ts";
 import { deliver, deliverHeld } from "./jobs/deliver.ts";
+import { meetingWebhook } from "./jobs/webhooks.ts";
 import { crmActivity, crmPush, sourceHook, sourcePull } from "./jobs/sources.ts";
 import { deviceReset, privacy, rebuild, stitch, stitchEvidence } from "./jobs/stitch.ts";
 import { pgRpc } from "./rpc.ts";
@@ -90,6 +91,7 @@ const handlers = {
   calendar_watch: calendarWatch(rpc),
   calendar_reconnect: calendarReconnect(rpc, meetings),
   meeting_sync: meetingSync(rpc),
+  meeting_webhook: meetingWebhook(rpc, { base: meetings.base }),
 };
 const stop = new AbortController();
 const worker = `intel-${hostname()}-${process.pid}`;

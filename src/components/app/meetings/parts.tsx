@@ -84,7 +84,7 @@ export function Modal({ title, onClose, children, footer, wide = false }: { titl
 export { copyText, CopyButton } from "../CopyButton";
 
 /** POST to /api/meetings/<path> for this workspace. */
-export const meetingsApi = <T = Record<string, unknown>,>(session: Session, ws: string, path: "types" | "availability" | "profile" | "action" | "times", body: object) =>
+export const meetingsApi = <T = Record<string, unknown>,>(session: Session, ws: string, path: "types" | "availability" | "profile" | "action" | "times" | "booking" | "webhooks", body: object) =>
   postJson<T>(session, `/api/meetings/${path}`, { workspaceId: ws, ...body });
 
 /** The workspace's booking address (/book/<slug>), made the first time it's asked for. */

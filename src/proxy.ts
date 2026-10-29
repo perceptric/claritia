@@ -6,6 +6,8 @@ import { NextResponse, type NextRequest } from "next/server";
 const SITE = process.env.SITE_HOST?.trim() || "tryclaritia.com";
 const APP = process.env.APP_HOST?.trim() || "app.tryclaritia.com";
 const MARKETING = new Set(["/"]);
+// Booking pages answer on the site's short address too: tryclaritia.com/booking/<handle>.
+const SHARED = (path: string) => path === "/booking" || path.startsWith("/booking/");
 
 export function proxy(request: NextRequest) {
   const raw = request.headers.get("x-forwarded-host") ?? request.headers.get("host") ?? "";
@@ -14,7 +16,7 @@ export function proxy(request: NextRequest) {
   const go = (to: string, path: string) => NextResponse.redirect(`https://${to}${path}${search}`, 308);
 
   if (host === `www.${SITE}`) return go(SITE, pathname);
-  if (host === SITE && !MARKETING.has(pathname)) return go(APP, pathname);
+  if (host === SITE && !MARKETING.has(pathname) && !SHARED(pathname)) return go(APP, pathname);
   if (host === APP && (pathname === "/" || pathname === "/start")) return go(APP, "/contacts");
   return NextResponse.next();
 }
