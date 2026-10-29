@@ -218,6 +218,37 @@ A destination is a connected tool plus a field map and a mode. Connections are t
 
 Each submission shows its values, the form version, the page and UTMs, earlier visits, the router's log, the meeting, and one line per destination: status tag, time, the external id as a link ("Open in HubSpot"), and the error if any. Settings › Form deliveries lists every delivery with filters and bulk replay.
 
+### 7.4 Sync rules
+
+Each CRM destination (HubSpot, Salesforce, and every CRM added later) has its own sync rules, set from "Sync leads to" on the form (Sync rules) or by the assistant ("never overwrite CRM data"). The defaults protect what's already in the CRM.
+
+| Rule | Choices | Default |
+|---|---|---|
+| Create as | Salesforce: Lead or Contact. HubSpot: Contact, or Contact and deal | Lead (Salesforce), Contact (HubSpot) |
+| Find existing records by | Email; or email, then name and company domain (flagged as a possible duplicate, never merged without asking) | Email |
+| When the record exists | Fill empty fields only; overwrite with new answers; do not update | Fill empty fields only |
+| Owner | Keep the current owner; set the owner from routing | Keep the current owner |
+| Who assigns new leads | Claritia routing rules; the CRM's own assignment rules (never both) | Claritia routing rules |
+| Sync consent status | On or off, written to the CRM's opt-in fields (HubSpot subscription types, Salesforce `HasOptedOutOfEmail`, check) | On |
+
+How each data problem is handled:
+
+- **Duplicates.** Upsert by email first. With the second match on, a record with the same name and company domain is flagged on the submission, and the person picks merge or create. In Salesforce, Contacts are checked before Leads, and the record that exists is updated.
+- **Good data overwritten.** Each field can also set its own rule ("When the contact already has a value" on the field), which wins over the destination rule. Every value keeps its source (typed, enrichment, CRM), and typed answers win over enrichment.
+- **Field mismatches.** The field map shows each form field, its CRM field, and what happens to the value on the way: choice answers are mapped to the CRM's allowed values (`51–200` becomes `51-200` or a number), phones are sent in E.164, dates in ISO 8601, and long text is cut to the CRM's limit (the full text stays in Claritia).
+- **Required CRM fields the form doesn't ask.** The map warns when the destination is set up (Salesforce Lead: Last Name, Company). The value comes from enrichment, else "Unknown", so no submission fails for it.
+- **CRM fields renamed or deleted.** A daily job checks every map against the CRM's fields and alerts the owner once, naming the field.
+- **Assignment conflicts.** One owner of assignment per destination. When Claritia routes, the CRM's assignment rules are not triggered (Salesforce `Sforce-Auto-Assign: false`, check). When the CRM assigns, Claritia's router doesn't write an owner.
+- **Company linking.** Contacts are linked to the Account or Company with the same domain. A company is created only when none exists, and personal email domains are never used to match.
+- **Failures.** Retries follow 7.2. An expired token or removed connection pauses that destination, alerts the owner once, and sends the waiting submissions in order after reconnecting. Each CRM has its own queue that stays under its API limits, so a burst (2,000 webinar registrations) never fails. If the contact is created but the deal fails, only the deal is retried.
+- **Sync loops.** Every write carries Claritia's source tag, and changes that come back from the CRM with that tag are ignored. Merged records follow the record that survived. Deleted records are not created again.
+- **Deletion requests.** Deleting a person in Claritia deletes or flags them in every synced CRM, and the deletion is logged.
+- **Visibility.** The "Sync leads to" card shows a failed count per CRM ("2 failed") with the reason and Retry. The assistant answers "Why didn't Dana sync to Salesforce?" from the delivery log.
+
+Reliability rule: the send pipeline is on the list, so each rule ships with a test on a flaky case: a timeout after the CRM created the record (no second record), a picklist value the CRM rejects (clear error, no silent drop), a token that expires mid-burst (held, then sent in order), and a change that comes back from the CRM (no loop).
+
+Running cost: sync rules add no new service or AI call. The daily map check and the per-CRM queues run on the existing jobs queue and use the CRM APIs inside their free limits (check). Added per month: $0 at Beta (50 teams) and $0 at Growth (500 teams).
+
 ## Part 8. After the submit
 
 The `after` part of the schema runs in this order:
