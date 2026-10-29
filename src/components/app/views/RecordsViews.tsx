@@ -17,9 +17,9 @@ import { FieldsPanel, HistoryPanel, type Change } from "../records/RecordParts";
 import { RecordWork } from "../records/RecordWork";
 import { RecordsList, type ViewState } from "../records/RecordsList";
 import { DEFAULT_WIDTH, type Row } from "../records/RecordTable";
-import { AccountActivity, AccountFeedback } from "./AccountActivity";
+import { AccountActivity } from "./AccountActivity";
 import { ToolIntro } from "../ToolIntro";
-import { FieldGroup, RailRow, RecordHead, RecordLayout, RelatedList, StatStrip, type RelatedRow } from "../records/RecordLayout";
+import { FieldGroup, RailRow, RecordHead, RecordLayout, RelatedList, StagePath, StatStrip, type RelatedRow } from "../records/RecordLayout";
 
 const cols = (...keys: string[]) => keys.map((key) => ({ key, width: DEFAULT_WIDTH }));
 
@@ -369,7 +369,6 @@ function RecordPage({ sb, ws, session, role, id, navigate, object }: ViewProps &
       flush
       actions={
         <>
-          {company && d.account ? <AccountFeedback sb={sb} accountId={d.account.id} /> : null}
           <Button variant="danger" size="sm" onClick={remove}>
             Remove
           </Button>
@@ -390,7 +389,7 @@ function RecordPage({ sb, ws, session, role, id, navigate, object }: ViewProps &
         top={
           <>
             <StatStrip items={stats} />
-            {company && d.account?.why_now ? <p className="mx-5 mb-4 rounded-lg border border-line bg-paper px-4 py-3 text-[13.5px] text-body">{d.account.why_now}</p> : null}
+            {opportunity && field("f.stage") ? <StagePath stages={field("f.stage")!.options} value={typeof f.stage === "string" ? f.stage : null} onPick={(v) => void save(field("f.stage")!, v).catch((e) => setError(errorText(e)))} /> : null}
           </>
         }
         tabs={<Tabs value={open} onChange={setTab} tabs={tabList} bare />}

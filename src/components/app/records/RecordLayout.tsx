@@ -135,3 +135,55 @@ export function RelatedList({ id, title, rows, extra }: { id: string; title: str
     </FieldGroup>
   );
 }
+
+export type PathStage = { value: string; label: string; kind?: string };
+
+// Each step is an arrow: a notch on the left and a point on the right, so the steps read as one flow.
+const ARROW = "polygon(0 0, calc(100% - 12px) 0, 100% 50%, calc(100% - 12px) 100%, 0 100%, 12px 50%)";
+const FIRST = "polygon(0 0, calc(100% - 12px) 0, 100% 50%, calc(100% - 12px) 100%, 0 100%)";
+const LAST = "polygon(0 0, 100% 0, 100% 100%, 0 100%, 12px 50%)";
+
+/** The stages as one path of arrows, like Salesforce: done steps carry a check, the current one is black, a click moves the record. */
+export function StagePath({ stages, value, onPick }: { stages: PathStage[]; value: string | null; onPick: (v: string) => void }) {
+  const at = stages.findIndex((s) => s.value === value);
+  const current = at >= 0 ? stages[at] : null;
+  const lost = current?.kind === "lost";
+  return (
+    <div className="px-5 pb-4">
+      <div role="list" aria-label="Stage" className="flex">
+        {stages.map((s, i) => {
+          const on = i === at;
+          const done = !lost && at >= 0 && i < at;
+          const look = on
+            ? s.kind === "lost"
+              ? "bg-rose text-card"
+              : s.kind === "won"
+                ? "bg-sage text-card"
+                : "bg-ink text-card"
+            : done
+              ? "bg-signal-soft text-signal-text hover:bg-signal-line"
+              : "bg-paper-deep text-muted hover:bg-line hover:text-ink dark:bg-line dark:hover:bg-line-strong";
+          return (
+            <button
+              key={s.value}
+              type="button"
+              role="listitem"
+              aria-current={on ? "step" : undefined}
+              title={s.label}
+              onClick={() => !on && onPick(s.value)}
+              style={{ clipPath: stages.length === 1 ? undefined : i === 0 ? FIRST : i === stages.length - 1 ? LAST : ARROW, marginLeft: i === 0 ? 0 : -8 }}
+              className={`flex h-9 min-w-0 flex-1 items-center justify-center gap-1.5 px-5 text-[12.5px] font-medium transition-colors duration-[120ms] ${look}`}
+            >
+              {done ? (
+                <svg width="12" height="12" viewBox="0 0 16 16" fill="none" aria-hidden="true" className="shrink-0">
+                  <path d="m3.5 8.5 3 3 6-7" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              ) : null}
+              <span className="truncate">{s.label}</span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}

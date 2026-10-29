@@ -107,7 +107,8 @@ Counts are small gray pills. "Create" is the rail's one black button.
 - **Lists:** the table runs edge to edge under one filter bar. 40px rows, 12px gray headers, hairlines between cells,
   a 22px avatar and the name in the first column, the page count in the footer.
 - **Records** (`src/components/app/records/RecordLayout.tsx`): at most 6xl wide. The main column has the picture,
-  name and tags, "Title at Company", a strip of key numbers, the lead stages, then tabs (Timeline, Notes, Tasks,
+  name and tags, "Title at Company", a strip of key numbers, the stages as one path of arrows like Salesforce
+  (`StagePath`: done steps green with a check, the current one black, won green, lost red), then tabs (Timeline, Notes, Tasks,
   Changes and the rest). The 360px right rail holds the fields in folding groups (`FieldGroup`), each row a 132px
   label and the value with its source, then short lists of related records (`RelatedList`).
 

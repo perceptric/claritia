@@ -17,7 +17,6 @@ import { SampleRows, SampleStats, SampleTags, ToolIntro } from "../ToolIntro";
 import { Sketch } from "../../sketches/Sketch";
 import { Avatar, Badge, Button, Empty, ErrorNote, errorText, Field, Input, Loading, must, Page, postJson, Section, Tabs, timeAgo, useLoad, type Tone, type ViewProps } from "../ui";
 import { Report } from "../reports/Report";
-import { AiTag } from "../Ai";
 import type { Link } from "../records/FieldInput";
 import { useMeta, type Meta } from "../records/meta";
 import { FieldDialog } from "../records/FieldDialog";
@@ -28,7 +27,7 @@ import { RecordsList, type Preset, type ViewState } from "../records/RecordsList
 import { Sheet } from "../Sheet";
 import { DEFAULT_WIDTH, type Row } from "../records/RecordTable";
 import { OpportunitiesRail } from "./RecordsViews";
-import { FieldGroup, RailRow, RecordHead, RecordLayout, RelatedList, StatStrip } from "../records/RecordLayout";
+import { FieldGroup, RailRow, RecordHead, RecordLayout, RelatedList, StagePath, StatStrip } from "../records/RecordLayout";
 import { routingApi } from "../routing/api";
 import { RoutedBy } from "../routing/Log";
 import { activeTime } from "./VisitorsView";
@@ -392,21 +391,10 @@ const EVENT_LABEL: Record<string, string> = { "contact.created": "Added" };
 /** What enrichment and qualify added (docs/enrich-workflows-reports.md 1.3): role, and the qualify outcome with why. */
 type ContactTab = "timeline" | "notes" | "tasks" | "changes" | "consent" | "segments";
 
-/** Role and fit in the rail: the qualify outcome with its reason, seniority, department and LinkedIn. */
+/** Role in the rail: seniority, department and LinkedIn. */
 function EnrichedGroup({ c }: { c: Detail["contact"] }) {
   return (
-    <FieldGroup id="contact:fit" title="Role and fit">
-      {c.qualify_outcome ? (
-        <RailRow label="Qualify">
-          <span className="flex flex-col gap-1">
-            <span className="flex items-center gap-2">
-              <Badge tone="violet">{c.qualify_outcome}</Badge>
-              {c.qualify_by === "ai" ? <AiTag /> : null}
-            </span>
-            {c.qualify_reason ? <span className="text-[12.5px] text-body">{c.qualify_reason}</span> : null}
-          </span>
-        </RailRow>
-      ) : null}
+    <FieldGroup id="contact:role" title="Role">
       {c.seniority ? <RailRow label="Seniority">{c.seniority}</RailRow> : null}
       {c.department ? <RailRow label="Department">{c.department}</RailRow> : null}
       {c.linkedin_url ? (
@@ -587,7 +575,7 @@ function ContactPage({ sb, ws, session, role, id, navigate }: ViewProps) {
                 ["Intent", d.company?.intent ?? null],
               ]}
             />
-            {stage ? <StageBar stages={stage.options} value={c.lead_status} onPick={(v) => void save(stage, v).catch((e) => setError(errorText(e)))} /> : null}
+            {stage ? <StagePath stages={stage.options} value={c.lead_status} onPick={(v) => void save(stage, v).catch((e) => setError(errorText(e)))} /> : null}
           </>
         }
         tabs={<Tabs value={tab} onChange={setTab} tabs={tabList} bare />}
@@ -607,7 +595,7 @@ function ContactPage({ sb, ws, session, role, id, navigate }: ViewProps) {
               onAddField={() => setAddingField(true)}
               under={{ owner: <RoutedBy key={routed} sb={sb} session={session} ws={ws} role={role} navigate={navigate} contact={id} /> }}
             />
-            {c.qualify_outcome || c.seniority || c.department || c.linkedin_url ? <EnrichedGroup c={c} /> : null}
+            {c.seniority || c.department || c.linkedin_url ? <EnrichedGroup c={c} /> : null}
             <RelatedList id="contact:company" title="Company" rows={companyRows} />
             <OpportunitiesRail sb={sb} ws={ws} object="contact" id={id} navigate={navigate} />
           </>
@@ -703,28 +691,5 @@ function ContactPage({ sb, ws, session, role, id, navigate }: ViewProps) {
         />
       ) : null}
     </Page>
-  );
-}
-
-/** The lead stages as one bar; the current stage is filled, a click moves the lead. */
-function StageBar({ stages, value, onPick }: { stages: { value: string; label: string; kind?: string }[]; value: string | null; onPick: (v: string) => void }) {
-  return (
-    <div className="flex gap-1 px-5 pb-4">
-      {stages.map((s) => {
-        const on = s.value === value;
-        return (
-          <button
-            key={s.value}
-            type="button"
-            onClick={() => !on && onPick(s.value)}
-            className={`press h-8 flex-1 truncate rounded-full border px-3 text-[12.5px] font-medium transition-[background-color,color,border-color,transform] duration-[120ms] ${
-              on ? (s.kind === "lost" ? "border-transparent bg-rose-wash text-rose" : s.kind === "won" ? "border-transparent bg-sage-wash text-sage" : "border-ink bg-ink text-paper") : "border-line text-muted hover:bg-hover hover:text-ink"
-            }`}
-          >
-            {s.label}
-          </button>
-        );
-      })}
-    </div>
   );
 }
