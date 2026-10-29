@@ -601,7 +601,7 @@ function Builder({
       ) : sheet === "sync" ? (
         <Sheet title="Sync leads to" onClose={() => setSheet(null)}>
           <div className="flex flex-col gap-6">
-            <FormDestinations sb={sb} session={session} ws={ws} formId={initial.id} list={dests} sources={sources} reload={reload} navigate={navigate} />
+            <FormDestinations sb={sb} session={session} ws={ws} formId={initial.id} list={dests} sources={sources} reload={reload} navigate={navigate} form={form} />
             <KnownSettings form={form} apply={apply} />
           </div>
         </Sheet>

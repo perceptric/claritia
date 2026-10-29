@@ -442,9 +442,9 @@ test("sync rules: the destination rule sets the policy, a field's own setting wi
   const own = withFields(allFields(crmForm()).filter((f) => f.key !== "email").map((f) => (f.id === "b" ? { ...f, overwrite: "always" as const } : f)));
   assert.deepEqual(pol({ exists: "never" }, own), [["budget", "always"], ["industry_pick", "never"]], "the field's own setting wins");
   // Reading rules: junk is dropped, and new destinations start safe.
-  assert.deepEqual(rulesOf({ rules: { exists: "if_empty", owner: "x" } }), { exists: "if_empty" });
+  assert.deepEqual(rulesOf({ rules: { exists: "if_empty", owner: "x" } }), NEW_RULES);
   for (const junk of [null, {}, { rules: null }, { rules: { exists: "sometimes" } }, "rules"]) assert.equal(rulesOf(junk), null);
-  assert.deepEqual(NEW_RULES, { exists: "if_empty" });
+  assert.equal(NEW_RULES.exists, "if_empty");
 });
 
 test("sync rules, flaky case: with 'Do not update', a record that already existed keeps its values; a new one is filled", async () => {

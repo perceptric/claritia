@@ -6,7 +6,7 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 import { activityHtml, activityText } from "./activity.ts";
 import { readCursor } from "./ctx.ts";
 import { dealRecord, day, num, type StageKind } from "./opportunities.ts";
-import type { ActivityItem, ActivityResult, Connector, Ctx, HookEvent, HookRequest, Page, PushChange, PushResult, RawRecord } from "./types.ts";
+import type { ActivityItem, ActivityResult, Connector, Ctx, HookEvent, HookRequest, Page, PushChange, PushOptions, PushResult, RawRecord } from "./types.ts";
 
 const BASE = "https://api.hubapi.com";
 const OVERLAP_MS = 5 * 60_000;
@@ -200,16 +200,27 @@ export const hubspot: Connector = {
     }
     return out;
   },
-  async push(ctx, changes) {
+  async push(ctx, changes, o) {
     const out: PushResult[] = [];
     for (let i = 0; i < changes.length; i += 100) {
-      const part = changes.slice(i, i + 100);
+      const part = await shapedAll(ctx, changes.slice(i, i + 100), o);
       const update = part.filter((c) => c.externalId);
       const create = part.filter((c) => !c.externalId);
       if (update.length) out.push(...(await batch(ctx, "update", update)));
       if (create.length) out.push(...(await batch(ctx, "upsert", create)));
     }
     return out;
+  },
+  async similar(ctx, p) {
+    const d = await ctx.api<{ results: Obj[] }>(`${BASE}/crm/v3/objects/contacts/search`, {
+      method: "POST",
+      body: JSON.stringify({
+        filterGroups: [{ filters: [{ propertyName: "firstname", operator: "EQ", value: p.first }, { propertyName: "lastname", operator: "EQ", value: p.last }, { propertyName: "email", operator: "CONTAINS_TOKEN", value: `*@${p.domain}` }] }],
+        properties: ["email", "firstname", "lastname"],
+        limit: 5,
+      }),
+    });
+    return (d.results ?? []).map((r) => ({ id: String(r.id), email: (r.properties.email as string | null) ?? null, name: [r.properties.firstname, r.properties.lastname].filter(Boolean).join(" ") }));
   },
   async owners(ctx) {
     const out: { id: string; label: string }[] = [];
@@ -258,6 +269,29 @@ export const hubspot: Connector = {
     },
   },
 };
+
+/**
+ * The sync rules on one batch (docs/form-builder.md 7.4): the owner left out where the rules say, and the consent
+ * box as the legal basis. "keep" reads which emails HubSpot already has, since an upsert by email can land on one.
+ */
+async function shapedAll(ctx: Ctx, part: PushChange[], o: PushOptions | undefined): Promise<PushChange[]> {
+  if (!o) return part;
+  let known = new Set<string>();
+  if (o.owner === "keep") {
+    const emails = part.filter((c) => !c.externalId && c.values.email).map((c) => String(c.values.email));
+    if (emails.length) {
+      const d = await ctx.api<{ results: Obj[] }>(`${BASE}/crm/v3/objects/contacts/batch/read`, { method: "POST", body: JSON.stringify({ idProperty: "email", properties: ["email"], inputs: emails.map((id) => ({ id })) }) });
+      known = new Set((d.results ?? []).map((r) => String(r.properties.email ?? "").toLowerCase()));
+    }
+  }
+  return part.map((c) => {
+    const values = { ...c.values };
+    const existing = !!c.externalId || known.has(String(c.values.email ?? "").toLowerCase());
+    if (o.owner === "none" || (o.owner === "keep" && existing)) delete values.hubspot_owner_id;
+    if (o.optIn) values.hs_legal_basis = "Freely given consent from contact";
+    return { ...c, values };
+  });
+}
 
 async function batch(ctx: Ctx, mode: "update" | "upsert", part: PushChange[]): Promise<PushResult[]> {
   const inputs =

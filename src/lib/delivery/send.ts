@@ -12,13 +12,14 @@ import { deps, type RunOpts } from "../sources/run.ts";
 import { call, push, type Deps, type PushOutcome } from "../sources/sync.ts";
 import { AuthError, RateLimited } from "../sources/types.ts";
 import { allFields, isContent, type Form } from "../forms/schema.ts";
-import { rulesOf } from "./rules.ts";
+import { DUPLICATE, pushOptions, rulesOf } from "./rules.ts";
 
 export type Taken = {
-  delivery: { id: string; attempts: number; external_id: string | null };
+  /** allow_duplicate: Create anyway was clicked on a possible duplicate. */
+  delivery: { id: string; attempts: number; external_id: string | null; allow_duplicate?: boolean };
   destination: { id: string; kind: "source" | "slack" | "webhook"; source_id: string | null; name: string; config: Record<string, unknown>; mode: string };
   sealed: string | null;
-  submission: { id: string; created_at: string; values: Record<string, unknown>; hidden: Record<string, unknown>; test: boolean; form_version: number; contact_id: string | null };
+  submission: { id: string; created_at: string; values: Record<string, unknown>; hidden: Record<string, unknown>; consent?: { given?: boolean }; test: boolean; form_version: number; contact_id: string | null };
   form: { id: string | null; name: string | null; body: Form | null } | null;
   contact: { id: string; email: string | null; first_name: string | null; last_name: string | null; title: string | null; phone: string | null; country: string | null; company: string | null; company_domain: string | null } | null;
 };
@@ -105,17 +106,28 @@ async function toSource(t: Taken, d: SendDeps): Promise<Result> {
     const linked = linkedFields(t, dep.ctx.source.id);
     // "Never" may still fill a record this delivery makes: was the contact linked to one before?
     const rules = rulesOf(t.destination.config);
-    const wasLinked = linked.some((f) => (f.overwrite ?? rules?.exists) === "never")
+    const options = pushOptions(rules, t.submission.consent?.given === true);
+    const checkDuplicate = rules?.match === "email_name" && !t.delivery.allow_duplicate && !!dep.connector.similar && !!t.contact.first_name && !!t.contact.last_name && !!t.contact.company_domain;
+    const wasLinked = linked.some((f) => (f.overwrite ?? rules?.exists) === "never") || checkDuplicate
       ? !!(await call<{ external_id: string | null }[]>(dep.rpc, "push_candidates", { p_source: dep.ctx.source.id, p_after: null, p_limit: 1, p_ids: [t.contact.id] }))[0]?.external_id
       : true;
-    await push(dep, { ids: [t.contact.id], force: true, outcome });
+    // Not linked yet: someone with the same name at the same company domain may already be there under another email.
+    if (checkDuplicate && !wasLinked) {
+      const email = (t.contact.email ?? "").toLowerCase();
+      const hits = (await dep.connector.similar!(dep.ctx, { first: t.contact.first_name!, last: t.contact.last_name!, domain: t.contact.company_domain! })).filter((x) => (x.email ?? "").toLowerCase() !== email);
+      if (hits.length) {
+        const h = hits[0]!;
+        return { status: "failed", error: `${DUPLICATE} in ${t.destination.name}: ${h.name}${h.email ? ` (${h.email})` : ""}. Create anyway, or update that record in ${t.destination.name}.`.slice(0, 500) };
+      }
+    }
+    await push(dep, { ids: [t.contact.id], force: true, outcome, options });
     let o = outcome.get(t.contact.id);
     let gone = false;
     // Deleted on their side since we last linked it: the link is gone now, so this sends it again as new.
     if (o?.gone) {
       gone = true;
       outcome.clear();
-      await push(dep, { ids: [t.contact.id], force: true, outcome });
+      await push(dep, { ids: [t.contact.id], force: true, outcome, options });
       o = outcome.get(t.contact.id);
     }
     if (!o) return { status: "retry", error: "The contact wasn't ready to send." };

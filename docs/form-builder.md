@@ -242,7 +242,7 @@ Each submission shows its values, the form version, the page and UTMs, earlier v
 
 Each CRM destination (HubSpot, Salesforce, and every CRM added later) has its own sync rules, set from "Sync leads to" on the form (Sync rules) or by the assistant ("never overwrite CRM data"). The defaults protect what's already in the CRM.
 
-Built so far: "When the record exists" per CRM destination (`src/lib/delivery/rules.ts`, saved in `form_destinations.config.rules`, set in Sync leads to). New CRM destinations start on "Fill empty fields only"; ones made before keep overwriting until changed. The other rules below are planned.
+Built (29 October 2026): every rule in the table, set per CRM under Sync leads to (`src/components/app/forms/SyncRules.tsx`), saved in `form_destinations.config.rules` (`src/lib/delivery/rules.ts`) and applied in the push (`PushOptions` in `src/lib/sources/types.ts`; Salesforce and HubSpot in `salesforce.ts` and `hubspot.ts`). New CRM destinations start on the defaults below. A destination made before keeps its old behavior (overwrite, owner written, consent not sent) until someone changes a rule. HubSpot has no "Contact and deal" yet; Salesforce creates a Lead or a Contact. The duplicate check stops the delivery with "Possible duplicate" and the record it found; **Create anyway** sends it once without the check (`deliveries_create_anyway`, `supabase/migrations/079_sync_rules.sql`). Failed deliveries show under each CRM with **Retry**. Salesforce Leads need Last Name and Company: when the form doesn't ask them, the panel says so and Salesforce gets "[not provided]". HubSpot's consent value "Freely given consent from contact" for `hs_legal_basis` (check). Tests: `tests/syncRules.test.ts`.
 
 | Rule | Choices | Default |
 |---|---|---|

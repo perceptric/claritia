@@ -8,7 +8,7 @@ import { activityText } from "./activity.ts";
 import { readCursor } from "./ctx.ts";
 import { dealRecord, day, num } from "./opportunities.ts";
 import { describeSObject, SF_API } from "./properties.ts";
-import type { ActivityItem, ActivityResult, Connector, Ctx, Page, PushChange, PushResult, RawRecord } from "./types.ts";
+import type { ActivityItem, ActivityResult, Connector, Ctx, Page, PushChange, PushOptions, PushResult, RawRecord } from "./types.ts";
 
 const V = SF_API;
 const OVERLAP_MS = 5 * 60_000;
@@ -133,11 +133,21 @@ const soqlList = (xs: string[]) => xs.map((x) => `'${x.replace(/\\/g, "\\\\").re
 
 type SaveResult = { id?: string; success: boolean; errors?: { statusCode: string; message: string }[] };
 
-async function collection(ctx: Ctx, method: "POST" | "PATCH", records: Record<string, unknown>[]) {
-  return ctx.api<SaveResult[]>(`${base(ctx)}/composite/sobjects`, { method, body: JSON.stringify({ allOrNone: false, records }) });
+async function collection(ctx: Ctx, method: "POST" | "PATCH", records: Record<string, unknown>[], autoAssign?: boolean) {
+  // Salesforce's own assignment rules run on new records only when asked (the Sforce-Auto-Assign header).
+  const headers = autoAssign === undefined ? undefined : { "Sforce-Auto-Assign": autoAssign ? "TRUE" : "FALSE" };
+  return ctx.api<SaveResult[]>(`${base(ctx)}/composite/sobjects`, { method, body: JSON.stringify({ allOrNone: false, records }), ...(headers ? { headers } : {}) });
 }
 
-async function pushAll(ctx: Ctx, changes: PushChange[]): Promise<PushResult[]> {
+/** The fields a push writes, shaped by the sync rules: the owner kept or left out, and the consent box. */
+function shaped(fields: Record<string, unknown>, o: PushOptions | undefined, existing: boolean): Record<string, unknown> {
+  const out = { ...fields };
+  if (o?.owner === "none" || (o?.owner === "keep" && existing)) delete out.OwnerId;
+  if (o?.optIn) out.HasOptedOutOfEmail = false;
+  return out;
+}
+
+async function pushAll(ctx: Ctx, changes: PushChange[], o?: PushOptions): Promise<PushResult[]> {
   const out: PushResult[] = [];
   for (let i = 0; i < changes.length; i += 200) {
     const part = changes.slice(i, i + 200);
@@ -156,7 +166,7 @@ async function pushAll(ctx: Ctx, changes: PushChange[]): Promise<PushResult[]> {
     const creates = part.filter((c) => !c.externalId && !existing.has(String(c.values.Email ?? "").toLowerCase()));
     const custom = needsCustom(part) ? { Lead: await customFields(ctx, "Lead"), Contact: await customFields(ctx, "Contact") } : { Lead: null, Contact: null };
     if (updates.length) {
-      const res = await collection(ctx, "PATCH", updates.map(({ c, id }) => ({ attributes: { type: typeOf(id!) }, id, ...fieldsFor(typeOf(id!), c.values, custom[typeOf(id!)]) })));
+      const res = await collection(ctx, "PATCH", updates.map(({ c, id }) => ({ attributes: { type: typeOf(id!) }, id, ...shaped(fieldsFor(typeOf(id!), c.values, custom[typeOf(id!)]), o, true) })));
       updates.forEach(({ c, id }, j) => {
         const r = res[j];
         if (r?.success) out.push({ localId: c.localId, externalId: id! });
@@ -168,7 +178,12 @@ async function pushAll(ctx: Ctx, changes: PushChange[]): Promise<PushResult[]> {
       const res = await collection(
         ctx,
         "POST",
-        creates.map((c) => ({ attributes: { type: "Lead" }, ...fieldsFor("Lead", c.values, custom.Lead), LastName: c.values.LastName || "[not provided]", Company: c.values.Company || "[not provided]" })),
+        creates.map((c) =>
+          o?.create === "Contact"
+            ? { attributes: { type: "Contact" }, ...shaped(fieldsFor("Contact", c.values, custom.Contact), o, false), LastName: c.values.LastName || "[not provided]" }
+            : { attributes: { type: "Lead" }, ...shaped(fieldsFor("Lead", c.values, custom.Lead), o, false), LastName: c.values.LastName || "[not provided]", Company: c.values.Company || "[not provided]" },
+        ),
+        o?.autoAssign,
       );
       creates.forEach((c, j) => {
         const r = res[j];
@@ -191,6 +206,15 @@ export const salesforce: Connector = {
   },
   pull: (ctx, object, cursor) => (object === "companies" ? pullAccounts(ctx, cursor) : object === "opportunities" ? pullOpportunities(ctx, cursor) : pullPeople(ctx, cursor)),
   push: pushAll,
+  async similar(ctx, p) {
+    const out: { id: string; email: string | null; name: string }[] = [];
+    for (const obj of ["Contact", "Lead"] as const) {
+      const where = `FirstName = ${soqlList([p.first])} AND LastName = ${soqlList([p.last])} AND Email LIKE ${soqlList([`%@${p.domain}`])}${obj === "Lead" ? " AND IsConverted = false" : ""}`;
+      const d = await ctx.api<QueryOut>(`${base(ctx)}/query?q=${encodeURIComponent(`SELECT Id, Email, FirstName, LastName FROM ${obj} WHERE ${where} LIMIT 5`)}`);
+      for (const r of d.records) out.push({ id: String(r.Id), email: (r.Email as string | null) ?? null, name: [r.FirstName, r.LastName].filter(Boolean).join(" ") });
+    }
+    return out;
+  },
   async owners(ctx) {
     const d = await ctx.api<QueryOut>(`${base(ctx)}/query?q=${encodeURIComponent("SELECT Id, Name, Email FROM User WHERE IsActive = true AND UserType = 'Standard' ORDER BY Name LIMIT 2000")}`);
     return d.records.map((r) => ({ id: r.Id, label: String(r.Name ?? r.Email ?? r.Id) }));
