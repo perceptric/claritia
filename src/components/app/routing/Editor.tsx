@@ -11,9 +11,9 @@ import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "r
 import { problems as checkProblems } from "@/lib/router/check";
 import type { Line } from "@/lib/router/explain";
 import { emptyBody, type RouterBody } from "@/lib/router/types";
-import { BarChart, Bell, History, Play, Redo, Undo } from "../../Icons";
+import { BarChart, Bell, History, Pause, Play, Redo, Undo } from "../../Icons";
 import { askConfirm } from "../Dialogs";
-import { Button, ErrorNote, errorText, IconButton, setLeaveGuard, type ViewProps } from "../ui";
+import { Badge, Button, ErrorNote, errorText, IconButton, setLeaveGuard, type ViewProps } from "../ui";
 import { routingApi, type Loaded, type ReplayOut } from "./api";
 import { editorReducer, flowCounts, pathOf, setupItems, startEditor, type Selection } from "./editorModel";
 import { Flow } from "./Flow";
@@ -268,6 +268,16 @@ export function RouterEditor({
     return () => window.removeEventListener("keydown", onKey);
   }, [readOnly, testing, openTest, closeTest]);
 
+  const pause = async (paused: boolean) => {
+    if (paused && !(await askConfirm("Pause routing?", { body: "New leads keep the owner they come with until you turn it back on.", ok: "Pause" }))) return;
+    try {
+      await routingApi(session, ws.id, "pause", { paused });
+      await refresh(false);
+    } catch (e) {
+      setError(errorText(e));
+    }
+  };
+
   // What the screen shows ---------------------------------------------------------------------------------------------
   const counts = useMemo(() => flowCounts(data.stats, st.body), [data.stats, st.body]);
   const liveRules = useMemo(() => new Set(data.live?.body.rules.list.map((r) => r.id) ?? []), [data.live]);
@@ -282,6 +292,13 @@ export function RouterEditor({
   return (
     <div className="flex h-full min-h-0 flex-col">
       <div className="flex min-h-14 shrink-0 flex-wrap items-center gap-2 border-b border-line px-4 py-2 md:px-6">
+        <h2 className="text-[14px] font-medium text-ink">Lead routing</h2>
+        {!data.live ? <Badge tone="amber">Draft</Badge> : draft ? <Badge tone="amber">Unpublished changes</Badge> : data.paused ? <Badge>Paused</Badge> : <Badge tone="green" dot>Live</Badge>}
+        {!readOnly && data.live ? (
+          <IconButton label={data.paused ? "Turn routing on" : "Pause routing"} onClick={() => void pause(!data.paused)}>
+            {data.paused ? <Play size={14} /> : <Pause size={14} />}
+          </IconButton>
+        ) : null}
         {saveState === "retry" ? (
           <span role="status" className="text-[12.5px] text-rose">
             Not saved. Retrying…

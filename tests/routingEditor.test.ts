@@ -12,6 +12,7 @@ import {
   addMember,
   addQueue,
   addRule,
+  madeName,
   editorReducer,
   flowCounts,
   moveRule,
@@ -86,7 +87,7 @@ test("rules move by drag or Move up and Move down, and stay put at the ends", ()
   let b = addRule(addRule(addRule(emptyBody(), "a"), "b"), "c");
   assert.deepEqual(
     b.rules.list.map((r) => r.name),
-    ["Rule 1", "Rule 2", "Rule 3"],
+    ["New rule", "New rule 2", "New rule 3"],
   );
   const ids = (x: RouterBody) => x.rules.list.map((r) => r.id).join("");
   assert.equal(ids(moveRuleTo(b, "c", 0)), "cab");
@@ -96,9 +97,13 @@ test("rules move by drag or Move up and Move down, and stay put at the ends", ()
   assert.equal(moveRule(b, "a", -1), b, "the first rule can't move up");
   assert.equal(moveRule(b, "c", 1), b, "the last can't move down");
   assert.equal(moveRuleTo(b, "nope", 0), b);
-  // A new rule's name skips the ones taken.
-  b = setRule(b, "a", { name: "Rule 4" });
-  assert.equal(addRule(b, "d").rules.list[3]!.name, "Rule 5");
+  // A new rule's name skips the ones taken, starts with a country to fill and goes to the everyone-else team.
+  b = setRule(b, "a", { name: "New rule 4" });
+  const d = addRule({ ...b, queues: [{ id: "q9", name: "Everyone", method: "rr", strict: false, hoursOnly: false, members: [] }], fallback: { kind: "queue", id: "q9" } }, "d").rules.list[3]!;
+  assert.equal(d.name, "New rule");
+  assert.equal(d.queue, "q9");
+  assert.equal(d.conds[0]!.field, "lead.country");
+  assert.ok(madeName("New rule 5", "x") && madeName("Rule 1", "x") && madeName("Country is DE", "Country is DE") && !madeName("Europe", "Country is DE"));
 });
 
 test("queues: names stay their own, removing one clears the rules and fallback that used it", () => {
@@ -116,7 +121,7 @@ test("queues: names stay their own, removing one clears the rules and fallback t
   );
   assert.equal(out.rules.list[0]!.queue, "");
   assert.equal(out.fallback, null);
-  assert.ok(problems(out, { members: new Set() }).some((p) => p.text === '"Rule 1" has no team'));
+  assert.ok(problems(out, { members: new Set() }).some((p) => p.text === '"New rule" has no team'));
 });
 
 test("reps join a queue once, weights stay between 1 and 10, and they can leave", () => {

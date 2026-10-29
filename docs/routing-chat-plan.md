@@ -286,3 +286,10 @@ Repeated messages replay from the cache, so the real bill should be lower.
   "start a workflow" and "also tell a channel"). The chat says these aren't available yet.
 
 The running cost is Part 9: about $30 a month at Beta and $300 at Growth (check), all Claude tokens.
+
+## Part 10. Setup in the same spirit as Scoring
+
+- **First visit:** no questions and no empty chat. The assistant reads the team, the CRM's owners and the last 90 days of leads, and writes a first setup as a draft (`src/components/app/routing/Build.tsx`). Each source has its own picture while it works, then each step of the setup appears, and "Review the setup" opens the editor. If the assistant can't run, "Start with everyone taking turns" saves a basic setup, and "Use my current routing" brings over the old one.
+- **After that:** one screen. The flowchart editor with its side panel, the status and pause in its top bar, and the assistant's box at the bottom with its latest reply. The left chat panel and the Summary and Editor switch are gone.
+- **New rules** start with a country to fill and the team everyone else goes to. Their name follows their conditions ("Country is Germany or France") until someone renames it, so there's no "Rule 1".
+- **Running cost:** the build is one assistant message, about $0.03 per team (check), inside the routing chat's $30 a month at Beta and $300 at Growth (check).
