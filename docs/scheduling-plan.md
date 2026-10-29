@@ -177,3 +177,41 @@ Headers:
 | **Total** | **about $21 a month (check)** | **about $205 a month (check)** |
 
 What this change adds now (booking page and webhooks): $0 at both stages.
+
+## Part 10. Making Calendar shorter (next)
+
+Today Calendar has 7 tabs, and Availability has 4 more inside it. Connecting a calendar sits at Calendar →
+Availability → Calendars, so people can't find it. The fix is fewer places and connecting first.
+
+### 10.1 Connect first
+
+- **First visit:** the first step of the build screen is two buttons, "Connect Google Calendar" and "Connect Outlook
+  Calendar". The assistant builds after the calendar is in, so the hours come from real meetings. "Skip" builds with
+  9 to 5.
+- **No calendar yet:** "Connect calendar" is the one primary button in Calendar's header on every tab until one is
+  connected. After that, the header shows the connected account as a small pill.
+- **Booking page:** a page with no calendar shows "Connect calendar" in place of the preview, since guests could book
+  over busy times.
+
+### 10.2 Three tabs
+
+| Tab | Holds | Comes from |
+| --- | --- | --- |
+| Meeting types | The types, and each type's editor with its reminders. A "Links" switch shows single-use links, one-off meetings and polls. | Meeting types, Reminders, Links and polls |
+| Booking page | Your page and the team page, as now | Booking page |
+| Availability | One page: connected calendars at the top, then weekly hours, then days off. Owners get a "Team" switch to see everyone's week. | Availability's 4 inner tabs |
+
+- **Payments** moves to Settings → Payments, next to billing.
+- **Webhooks** moves to Settings → Developers, next to API keys.
+- Old addresses forward: `scheduling/links` to Meeting types with Links on, `scheduling/reminders` to Meeting types,
+  `scheduling/availability/calendars` and the other inner tabs to Availability, `scheduling/payments` and
+  `scheduling/webhooks` to their Settings pages.
+
+### 10.3 Shorter links
+
+- The copied link stays `tryclaritia.com/booking/<name>`, and the site sends it on to the app (done).
+- Handles suggest the first name alone when it's free (`maya`), then the full name (`maya-chen`).
+
+### 10.4 Running cost
+
+No new services or AI calls. $0 at Beta (50 teams) and Growth (500 teams).
