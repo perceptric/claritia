@@ -604,3 +604,25 @@ input[type="radio"] {
 @media (prefers-reduced-motion: reduce) {
   .form-build, .form-float { animation: none; opacity: 1; }
 }
+
+/* Scoring's build screen: the assistant reads the site, the CRM and past leads (src/components/app/scoring/Build.tsx). */
+@keyframes sc-scan { 0%, 100% { top: 14%; } 50% { top: 82%; } }
+@keyframes sc-dot { to { opacity: 1; transform: scale(1); } }
+@keyframes sc-met { 50% { transform: scale(1.4); } to { opacity: 1; transform: scale(1); background: var(--color-signal); } }
+@keyframes sc-row { from { opacity: 0; transform: translateX(-6px); background: var(--color-signal-soft); } 60% { background: var(--color-signal-soft); } }
+@keyframes sc-ring { to { transform: rotate(360deg); } }
+@keyframes sc-breathe { 50% { transform: scale(0.82); } }
+.sc-scan { animation: sc-scan 1.6s var(--ease-out) infinite; }
+.sc-bar { height: 0; transition: height 700ms var(--ease-out); }
+.sc-on .sc-bar { height: var(--h); }
+.sc-dot { opacity: 0.25; transform: scale(0.4); }
+.sc-on .sc-dot { animation: sc-dot 400ms var(--ease-out) both; animation-delay: var(--d); }
+.sc-on .sc-dot.sc-m { animation-name: sc-met; }
+.sc-row { animation: sc-row 320ms var(--ease-out) both; }
+.sc-ring { animation: sc-ring 1.1s linear infinite; }
+.sc-breathe { animation: sc-breathe 1.6s var(--ease-out) infinite; }
+@media (prefers-reduced-motion: reduce) {
+  .sc-scan, .sc-ring, .sc-breathe, .sc-row, .sc-on .sc-dot { animation: none; }
+  .sc-dot { opacity: 1; transform: none; }
+  .sc-bar { transition: none; }
+}

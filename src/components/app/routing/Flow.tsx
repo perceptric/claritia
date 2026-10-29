@@ -142,7 +142,7 @@ export function Flow(p: FlowProps) {
 }
 
 /** The dotted canvas behind the flow, like an automation builder. */
-function Dots() {
+export function Dots() {
   return (
     <svg className="pointer-events-none absolute inset-0 size-full" aria-hidden="true">
       <defs>

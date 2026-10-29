@@ -180,15 +180,17 @@ export function emailsPage(id: string): { tab: EmailsTab; id: string } {
   return (id.split("/")[0] ?? "") === "templates" ? { tab: "templates", id: "templates" } : { tab: "emails", id: "" };
 }
 
-export type ScoringTab = "score" | "ideal";
+export type ScoringTab = "model" | "leads" | "ideal";
 export const SCORING_TABS: Tab<ScoringTab>[] = [
-  { value: "score", label: "Score" },
+  { value: "model", label: "Model" },
+  { value: "leads", label: "Leads" },
   { value: "ideal", label: "Ideal customer" },
 ];
 
-/** Lead scoring's tabs: Score ("") and Ideal customer. */
+/** Lead scoring's tabs: Model (""), Leads and Ideal customer. */
 export function scoringPage(id: string): { tab: ScoringTab; id: string } {
-  return (id.split("/")[0] ?? "") === "ideal" ? { tab: "ideal", id: "ideal" } : { tab: "score", id: "" };
+  const first = id.split("/")[0] ?? "";
+  return first === "ideal" || first === "leads" ? { tab: first, id: first } : { tab: "model", id: "" };
 }
 
 // Old addresses ---------------------------------------------------------------------------------------------------

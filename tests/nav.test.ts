@@ -128,7 +128,8 @@ test("scheduling, visitors, enrichment, emails and lead scoring tabs", () => {
   assert.deepEqual(enrichmentPage("nope"), { tab: "overview", id: "" });
   assert.deepEqual(emailsPage(""), { tab: "emails", id: "" });
   assert.deepEqual(emailsPage("templates"), { tab: "templates", id: "templates" });
-  assert.deepEqual(scoringPage(""), { tab: "score", id: "" });
+  assert.deepEqual(scoringPage(""), { tab: "model", id: "" });
+  assert.deepEqual(scoringPage("leads"), { tab: "leads", id: "leads" });
   assert.deepEqual(scoringPage("ideal"), { tab: "ideal", id: "ideal" });
 });
 

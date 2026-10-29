@@ -1,6 +1,6 @@
 # Lead scoring plan
 
-Scoring gives every lead a number from 0 to 100. The number says how ready the lead is for sales. It is built the same way as Forms and Routing: the assistant sets it up in a chat, the Summary reads it back in sentences, and the Editor shows it as a flowchart on the dotted canvas. Nothing changes live scores until someone clicks Publish.
+Scoring gives every lead a fit grade and an activity level (A1 to D4), or one score from 0 to 100. It says how ready the lead is for sales. There are no setup questions: on the first visit the assistant builds the model from the website, the CRM and the last 90 days of leads, and the team then changes anything they like. Nothing changes live scores until someone clicks Publish.
 
 ## Part 1. What we have now
 
@@ -94,4 +94,32 @@ Scoring itself makes no AI calls. Only the chat and "Suggest from my deals" call
 | Claude Sonnet 5.5, Suggest from my deals, one run per team a month (check) | $4 (check) | $40 (check) |
 | Worker time for `score.refresh` | $0 (current worker) | $0 (current worker) |
 | Score history rows in Postgres | $0 (inside plan) | $0 (inside plan, check) |
+| **Total** | **about $34 a month (check)** | **about $340 a month (check)** |
+
+## Part 7. What's built
+
+The first version follows the demo: the assistant builds the model on the first visit, and people edit it from there.
+
+- **Build screen** (`src/components/app/scoring/Build.tsx`): no questions. The server reads the leads of the last 90 days, the forms and the site (`src/lib/scoring/build.ts`), then the assistant reviews the result through the step cache (`src/lib/scoring/ai.ts`, kind `scoring_build`). While it works, each source has its own picture: a page being scanned, customers by company size, and past leads as dots. Then each finding and each rule appear one by one, and "Review the model" opens the editor.
+- **Model** (`src/components/app/scoring/Editor.tsx`): Rules and Results.
+  - **Rules:** the flowchart on the dotted canvas. New lead splits into Fit and Activity, the two columns join at Points taken away, and the three statuses follow. The split and join lines come from the same grid as the columns, so each line meets the center of its column at any width.
+  - **Side panel:** Model settings (grading, cut-offs, fade time, start over, capacity), a group (name, max, fit or activity, delete) or a rule (any number of conditions with All or Any, add or take away points or remove the lead, count once or every time up to a limit, its own fade, and how its past leads did). Undo and Redo, autosave after 800 ms, Publish with a confirm.
+  - **Results:** the grade grid (click a grade to make it sales-ready), sales-ready leads a week against capacity with "Match my team's capacity", the share of leads that met sales that were sales-ready first, and leads by status.
+  - **Assistant:** the box at the bottom (kind `scoring_chat`). It sends back a whole model, which is cleaned before it is saved.
+- **Leads** (`src/components/app/scoring/Leads.tsx`): scored leads with search and status filters, fit and activity bars, and the Why panel from the reasons saved with each score.
+- **Engine** (`src/lib/scoring/engine.ts`): one pure function scores a lead. Results score each past lead at its own best moment (just before it met sales, or right after its last action), with its meeting and anything after it left out, so the meeting can't make the model look better than it is.
+- **Data** (`supabase/migrations/080_scoring_models.sql`): `scoring_models` and `scoring_versions`, `scoring_facts` (field values, forms, meetings, clicks, unsubscribes, and verified or asserted page views and product events), `scoring_write` (writes only what changed, so a band change adds one `lead.band` event) and `scoring_changed`. Publishing turns off the old fixed scoring in `lead_settings`.
+- **Worker** (`worker-intel/jobs/scoring.ts`, job `score_refresh`): a quick pass every 5 minutes for leads that are new or did something, so Routing sees a score when a form comes in, and a full pass every 6 hours so activity points fade. Scores keep using `score`, `score_band` (hot, warm, cold, out), `fit_score` and `engagement_score`, so CRM sync, Routing and Workflows work as before; `score_grade` is new.
+- **Not yet:** a second model for part of the leads, and a version history screen (versions are kept).
+
+### Running cost of what's built
+
+- Claude: about one build per team (cached after that) at about $0.08, plus about 20 chat messages a month at about $0.03 each (check).
+- Worker: the quick pass reads only changed leads. The full pass reads every lead four times a day: at Growth, 500 teams with 20,000 leads each is about 40 million lead reads a day, a few minutes of database time each hour on the current plan (check).
+
+| Item | Beta (50 teams) | Growth (500 teams) |
+|---|---|---|
+| Claude Sonnet 5.5, build and chat (check) | $34 (check) | $340 (check) |
+| Worker time for `score_refresh` | $0 (current worker) | $0 (current worker, check) |
+| Database reads for the full pass | $0 (inside plan) | $0 (inside plan, check) |
 | **Total** | **about $34 a month (check)** | **about $340 a month (check)** |
