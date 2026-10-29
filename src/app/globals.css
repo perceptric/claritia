@@ -1,52 +1,60 @@
 @import "tailwindcss";
 
-/* Brand (docs/brand.md): warm paper, Geist for every word, pills for buttons and tags, soft round cards, calm motion.
-   Screens use these tokens, never a hex. */
+/* Brand (docs/brand.md): the same family as Omniscient and tryclaritia.com. Black and white with plain grays, Inter,
+   black for the one primary action, emerald as the one signal. A white panel inset on a light gray shell.
+   Round buttons and tags, controls 6px, cards 10px, frames 16px. Screens use these tokens, never a hex. */
 @custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
 
 @theme {
-  --font-sans: "Geist", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --font-mono: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 
-  /* Paper and ink */
-  --color-paper: #f2f1ed;
-  --color-paper-deep: #e9e7e0;
-  --color-card: #fbfaf7;
-  --color-ink: #121211;
-  --color-body: #4a4944;
-  --color-muted: #7a7870;
-  --color-faint: #a8a69e;
-  --color-line: rgb(18 18 17 / 0.1);
-  --color-line-strong: rgb(18 18 17 / 0.18);
-  --color-hover: rgb(18 18 17 / 0.04);
-  --color-scrim: rgb(18 18 17 / 0.28);
+  /* Surfaces and text: white panel, gray shell, black ink, plain grays */
+  --color-paper: #f7f7f5;
+  --color-paper-deep: #f2f2f0;
+  --color-card: #ffffff;
+  --color-ink: #0a0a0a;
+  --color-body: #404040;
+  --color-muted: #6b6b6b;
+  --color-faint: #a3a3a3;
+  --color-line: #e7e7e4;
+  --color-line-strong: #d4d4d0;
+  --color-hover: rgb(10 10 10 / 0.04);
+  --color-scrim: rgb(10 10 10 / 0.28);
 
-  /* Older names, kept so every screen reads the new paper */
+  /* Older names, kept so every screen follows along */
   --color-panel: var(--color-card);
   --color-canvas: var(--color-paper);
   --color-side: var(--color-paper-deep);
 
-  /* Accent pairs: a wash for fills, a deep tone for text and strokes */
-  --color-clay: #b5532a;
-  --color-clay-wash: #f4d9c6;
-  --color-sage: #3f6b3a;
-  --color-sage-wash: #d8e4d0;
-  --color-sky: #2f5d8a;
-  --color-sky-wash: #d6e3f0;
-  --color-lilac: #5b4a8f;
-  --color-lilac-wash: #e3dcf0;
-  --color-butter: #8a6a12;
-  --color-butter-wash: #f5e8bf;
-  --color-rose: #a33a3a;
-  --color-rose-wash: #f3d4d4;
+  /* Emerald is the signal: the mark, live lines, scores, booked. About 5% of a view. */
+  --color-signal: #0c8c5e;
+  --color-signal-text: #0a7a52;
+  --color-signal-soft: #e8f5ef;
+  --color-signal-line: #b8e2cf;
+  --color-mint: #18e299;
 
-  /* Clay is the brand's warm color; status reads from the pairs */
-  --color-brand: var(--color-clay);
-  --color-brand-hover: #9a4421;
-  --color-brand-soft: var(--color-clay-wash);
-  --color-brand-pale: #f8ebe1;
-  --color-brand-line: #e7bfa4;
-  --color-fire: var(--color-clay);
+  /* Status pairs: a step 3 fill and a step 11 text. The names stay; the hues follow the new family. */
+  --color-clay: var(--color-signal-text);
+  --color-clay-wash: var(--color-signal-soft);
+  --color-sage: #0a7a52;
+  --color-sage-wash: #e8f5ef;
+  --color-sky: #0b62b0;
+  --color-sky-wash: #e3f2fe;
+  --color-lilac: #5230c2;
+  --color-lilac-wash: #f1ecfe;
+  --color-butter: #b25a09;
+  --color-butter-wash: #fff1e2;
+  --color-rose: #b23a26;
+  --color-rose-wash: #fdecea;
+
+  /* Black is the action: the primary button, links, the open row, focus */
+  --color-brand: var(--color-ink);
+  --color-brand-hover: #262626;
+  --color-brand-soft: var(--color-paper-deep);
+  --color-brand-pale: var(--color-paper);
+  --color-brand-line: var(--color-line-strong);
+  --color-fire: var(--color-signal);
   --color-success: var(--color-sage);
   --color-success-soft: var(--color-sage-wash);
   --color-warning: var(--color-butter);
@@ -56,61 +64,63 @@
   --color-violet: var(--color-lilac);
   --color-violet-soft: var(--color-lilac-wash);
 
-  /* Soft corners: pills for buttons and tags, 8px inputs, 16 to 24px cards, 32px for the page panel */
-  --radius-xs: 4px;
-  --radius-sm: 8px;
-  --radius: 8px;
-  --radius-md: 8px;
-  --radius-lg: 16px;
-  --radius-xl: 20px;
-  --radius-2xl: 24px;
-  --radius-3xl: 32px;
+  /* Corners: inline 3px, controls 6px, cards and menus 10px, frames and dialogs 16px. Buttons and tags are round. */
+  --radius-xs: 3px;
+  --radius-sm: 6px;
+  --radius: 6px;
+  --radius-md: 6px;
+  --radius-lg: 10px;
+  --radius-xl: 12px;
+  --radius-2xl: 16px;
+  --radius-3xl: 16px;
 
-  /* Cards sit flat and lift on hover; shadows only on lifted and floating things */
-  --shadow-xs: 0 1px 2px rgb(18 18 17 / 0.04);
-  --shadow-soft: 0 1px 2px rgb(18 18 17 / 0.04), 0 12px 32px -12px rgb(18 18 17 / 0.1);
-  --shadow-float: 0 0 0 1px rgb(18 18 17 / 0.06), 0 24px 48px -16px rgb(18 18 17 / 0.2), 0 8px 16px -8px rgb(18 18 17 / 0.08);
+  /* Cards sit flat on a hairline. Shadows only on the page panel and things that float. */
+  --shadow-xs: 0 1px 2px rgb(10 10 10 / 0.04);
+  --shadow-soft: 0 8px 24px -8px rgb(10 10 10 / 0.14), 0 1px 2px rgb(10 10 10 / 0.04);
+  --shadow-float: 0 0 0 1px rgb(10 10 10 / 0.06), 0 8px 24px -8px rgb(10 10 10 / 0.18), 0 1px 2px rgb(10 10 10 / 0.04);
+  --shadow-heavy: 0 1px 2px rgb(10 10 10 / 0.04), 0 24px 48px -24px rgb(10 10 10 / 0.18);
   --shadow-card: 0 0 0 1px var(--color-line);
   --shadow-pop: var(--shadow-float);
 
   /* Motion: three speeds, two curves */
-  --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
   --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
-  --duration-quick: 140ms;
-  --duration-calm: 320ms;
-  --duration-slow: 700ms;
+  --duration-quick: 120ms;
+  --duration-calm: 200ms;
+  --duration-slow: 320ms;
 }
 
 [data-theme="dark"] {
   color-scheme: dark;
-  --color-paper: #141413;
-  --color-paper-deep: #1c1c1a;
-  --color-card: #1f1f1d;
-  --color-ink: #f2f1ed;
-  --color-body: #c9c7bf;
-  --color-muted: #8f8d85;
-  --color-faint: #66645e;
-  --color-line: rgb(242 241 237 / 0.1);
-  --color-line-strong: rgb(242 241 237 / 0.18);
-  --color-hover: rgb(242 241 237 / 0.06);
+  --color-paper: #111111;
+  --color-paper-deep: #0a0a0a;
+  --color-card: #161616;
+  --color-ink: #fafafa;
+  --color-body: #d4d4d4;
+  --color-muted: #a3a3a3;
+  --color-faint: #737373;
+  --color-line: #262626;
+  --color-line-strong: #333333;
+  --color-hover: rgb(255 255 255 / 0.05);
   --color-scrim: rgb(0 0 0 / 0.5);
-  --color-clay: #e8a07c;
-  --color-clay-wash: #3a2a20;
-  --color-sage: #9fc495;
-  --color-sage-wash: #24301f;
-  --color-sky: #8fb4dc;
-  --color-sky-wash: #1e2a36;
-  --color-lilac: #b3a5e0;
-  --color-lilac-wash: #2a2538;
-  --color-butter: #e0c46a;
-  --color-butter-wash: #352d17;
-  --color-rose: #e79a9a;
-  --color-rose-wash: #3a2222;
-  --color-brand-hover: #f0b494;
-  --color-brand-pale: #2a211b;
-  --color-brand-line: #5a3a2a;
-  --shadow-soft: 0 1px 2px rgb(0 0 0 / 0.3), 0 12px 32px -12px rgb(0 0 0 / 0.5);
-  --shadow-float: 0 0 0 1px rgb(242 241 237 / 0.08), 0 24px 48px -16px rgb(0 0 0 / 0.6), 0 8px 16px -8px rgb(0 0 0 / 0.4);
+  --color-signal: #18e299;
+  --color-signal-text: #3ddca4;
+  --color-signal-soft: #0f2a20;
+  --color-signal-line: #1f4a38;
+  --color-sage: #3ddca4;
+  --color-sage-wash: #0f2a20;
+  --color-sky: #7cc4ff;
+  --color-sky-wash: #0f2236;
+  --color-lilac: #b9a6ff;
+  --color-lilac-wash: #1f1838;
+  --color-butter: #f5b056;
+  --color-butter-wash: #2c1d0b;
+  --color-rose: #ff8a7a;
+  --color-rose-wash: #2e1512;
+  --color-brand-hover: #e5e5e5;
+  --shadow-soft: 0 1px 2px rgb(0 0 0 / 0.3), 0 8px 24px -8px rgb(0 0 0 / 0.5);
+  --shadow-float: 0 0 0 1px rgb(255 255 255 / 0.08), 0 8px 24px -8px rgb(0 0 0 / 0.6), 0 1px 2px rgb(0 0 0 / 0.3);
+  --shadow-heavy: 0 1px 2px rgb(0 0 0 / 0.3), 0 24px 48px -24px rgb(0 0 0 / 0.6);
 }
 
 html,
@@ -118,16 +128,14 @@ body {
   background: var(--color-paper);
   color: var(--color-ink);
   font-size: 14px;
-  letter-spacing: -0.005em;
+  letter-spacing: -0.006em;
+  font-feature-settings: "cv11", "ss01";
   font-variant-numeric: tabular-nums;
 }
 
-/* Paper grain: a faint noise so the page feels like paper */
+/* The old paper grain is retired; the class stays so older markup is harmless. */
 .grain {
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 .05 0'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E");
-}
-[data-theme="dark"] .grain {
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 .035 0'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-image: none;
 }
 
 @layer base {
@@ -135,12 +143,12 @@ body {
   h2,
   h3 {
     font-weight: 500;
-    letter-spacing: -0.02em;
+    letter-spacing: -0.025em;
   }
 }
 
 ::selection {
-  background: var(--color-clay-wash);
+  background: var(--color-signal-soft);
 }
 
 @layer base {
@@ -150,7 +158,7 @@ body {
   }
 }
 
-/* Section and field labels: Geist, small, medium weight, sentence case. Mono is only for code, keys and ids. */
+/* Section and field labels: Inter, small, medium weight, sentence case. Mono is only for code, keys and ids. */
 @layer components {
   .label-mono {
     font-size: 12px;
@@ -176,17 +184,15 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
-/* A soft wash for large areas: hero, first screens, empty states. Never on buttons or text. */
+/* Large quiet areas: first screens and empty states. A plain tint with a faint dot grid. No gradients. */
 .wash {
-  background:
-    radial-gradient(60% 80% at 15% 20%, var(--color-clay-wash), transparent 70%),
-    radial-gradient(50% 70% at 85% 30%, var(--color-sky-wash), transparent 70%),
-    radial-gradient(60% 80% at 60% 100%, var(--color-lilac-wash), transparent 70%);
+  background-color: var(--color-paper);
+  background-image: radial-gradient(var(--color-line) 1px, transparent 1px);
+  background-size: 16px 16px;
 }
 .dot-grid {
-  background:
-    radial-gradient(50% 60% at 30% 40%, var(--color-clay-wash), transparent 70%),
-    radial-gradient(50% 60% at 70% 60%, var(--color-sky-wash), transparent 70%);
+  background-image: radial-gradient(var(--color-line-strong) 1px, transparent 1px);
+  background-size: 16px 16px;
   opacity: 0.7;
 }
 
@@ -196,20 +202,17 @@ body {
 }
 
 @layer components {
-  /* The one card a screen is about: a soft lift */
+  /* The one frame a screen is about: the heavy frame shadow */
   .frame {
     position: relative;
-    box-shadow: var(--shadow-soft);
+    box-shadow: var(--shadow-heavy);
   }
-  /* Cards lift on hover */
+  /* Cards stay flat; on hover their hairline darkens */
   .lift {
-    transition:
-      transform var(--duration-calm) var(--ease-out),
-      box-shadow var(--duration-calm) var(--ease-out);
+    transition: border-color var(--duration-calm) var(--ease-out);
   }
   .lift:hover {
-    transform: translateY(-2px);
-    box-shadow: var(--shadow-soft);
+    border-color: var(--color-line-strong);
   }
   .press {
     transition: transform var(--duration-quick) var(--ease-out);
@@ -322,6 +325,132 @@ body {
   }
 }
 
+/* The Catch (src/components/app/Catch.tsx), the same picture as tryclaritia.com's hero. 8 seconds, loops. */
+.catch {
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+.catch .lab {
+  font: 500 13px var(--font-sans);
+  letter-spacing: -0.01em;
+  fill: var(--color-faint);
+}
+.catch .num {
+  font: 500 10px var(--font-mono);
+  letter-spacing: 0.06em;
+  fill: var(--color-faint);
+  opacity: 0.7;
+}
+.catch .v {
+  fill: var(--color-line-strong);
+  animation: catch-drift 8s var(--ease-out) infinite;
+  animation-delay: calc(var(--i) * -0.41s);
+  transform-box: fill-box;
+}
+.catch .v.fit {
+  animation-name: catch-drift-fit;
+}
+@keyframes catch-drift {
+  0% { transform: translate(0, 0); opacity: 0; }
+  10% { opacity: 1; }
+  70% { transform: translate(var(--dx), var(--dy)); opacity: 1; }
+  85%, 100% { transform: translate(var(--dx), var(--dy)); opacity: 0; }
+}
+@keyframes catch-drift-fit {
+  0% { transform: translate(0, 0); fill: var(--color-line-strong); opacity: 0; }
+  10% { opacity: 1; }
+  60% { fill: var(--color-line-strong); }
+  72% { transform: translate(var(--dx), var(--dy)); fill: var(--color-signal); opacity: 1; }
+  88%, 100% { transform: translate(var(--dx), var(--dy)); fill: var(--color-signal); opacity: 0; }
+}
+.catch .runner {
+  fill: var(--color-signal);
+  offset-path: path("M150 150 H370 V370 H150 L260 260");
+  offset-rotate: 0deg;
+  animation: catch-run 8s var(--ease-out) infinite;
+}
+@keyframes catch-run {
+  0% { offset-distance: 0%; opacity: 0; }
+  3% { opacity: 1; }
+  18% { offset-distance: 27%; }
+  36% { offset-distance: 54%; }
+  54% { offset-distance: 81%; }
+  66% { offset-distance: 100%; opacity: 1; }
+  70%, 100% { offset-distance: 100%; opacity: 0; }
+}
+.catch .corner {
+  fill: var(--color-card);
+  stroke: var(--color-line-strong);
+  animation: catch-corner 8s steps(1) infinite;
+  animation-delay: var(--d);
+}
+@keyframes catch-corner {
+  0% { stroke: var(--color-ink); fill: var(--color-ink); }
+  14%, 100% { stroke: var(--color-line-strong); fill: var(--color-card); }
+}
+.catch .clab {
+  animation: catch-label 8s steps(1) infinite;
+  animation-delay: var(--d);
+}
+@keyframes catch-label {
+  0% { fill: var(--color-ink); }
+  14%, 100% { fill: var(--color-faint); }
+}
+.catch .bk {
+  animation: catch-snap 8s var(--ease-spring) infinite;
+  transform-origin: 260px 260px;
+}
+@keyframes catch-snap {
+  0%, 64% { transform: scale(1); }
+  70% { transform: scale(0.94); }
+  78%, 100% { transform: scale(1); }
+}
+.catch .tick {
+  stroke: var(--color-signal);
+  stroke-width: 6;
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: catch-tick 8s var(--ease-out) infinite;
+}
+@keyframes catch-tick {
+  0%, 66% { stroke-dashoffset: 1; opacity: 1; }
+  78%, 95% { stroke-dashoffset: 0; opacity: 1; }
+  100% { stroke-dashoffset: 0; opacity: 0; }
+}
+.catch .booked {
+  opacity: 0;
+  animation: catch-booked 8s var(--ease-out) infinite;
+}
+@keyframes catch-booked {
+  0%, 72% { opacity: 0; transform: translateY(6px); }
+  80%, 95% { opacity: 1; transform: none; }
+  100% { opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .catch .v,
+  .catch .runner {
+    opacity: 0;
+    animation: none !important;
+  }
+  .catch .tick {
+    stroke-dashoffset: 0;
+    animation: none !important;
+  }
+  .catch .booked {
+    opacity: 1;
+    animation: none !important;
+  }
+  .catch .bk,
+  .catch .corner,
+  .catch .clab {
+    animation: none !important;
+  }
+}
+
 /* Thin scrollbars */
 * {
   scrollbar-width: thin;
@@ -420,7 +549,7 @@ body {
   }
 }
 
-/* A card's header bar and a section header: a clay dot, then a label */
+/* A card's header bar and a section header: an emerald point, then a label */
 @layer components {
   .card-head {
     display: flex;
@@ -440,7 +569,7 @@ body {
     width: 6px;
     height: 6px;
     border-radius: 9999px;
-    background: var(--color-clay);
+    background: var(--color-signal);
   }
   .section-head {
     display: flex;

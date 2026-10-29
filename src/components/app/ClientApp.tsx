@@ -250,7 +250,7 @@ export function ClientApp({ config }: { config: SupaConfig }) {
         create={create}
         start={<GetStarted sb={sb} ws={ws} session={session} navigate={navigate} />}
       />
-      <main className="min-h-0 min-w-0 flex-1 overflow-hidden border-line bg-card md:my-2.5 md:mr-2.5 md:rounded-3xl md:border">
+      <main className="min-h-0 min-w-0 flex-1 overflow-hidden border-line bg-card md:my-2 md:mr-2 md:rounded-2xl md:border md:shadow-xs">
         {error ? (
           <div className="border-b border-line p-3">
             <ErrorNote message={error} />

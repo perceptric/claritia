@@ -97,12 +97,12 @@ const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replac
 const safeUrl = (u: string) => (/^https?:\/\/[^\s"'<>]+$/i.test(u) ? u : "");
 
 // Email clients don't read CSS variables, so the brand's paper, ink and muted gray are written out here.
-const PAPER = "#f2f1ed";
-const CARD = "#fbfaf7";
-const INK = "#121211";
-const MUTED = "#7a7870";
-const LINE = "#e3e1db";
-const FONT = "Geist,-apple-system,'Segoe UI',Roboto,Arial,sans-serif";
+const PAPER = "#f7f7f5";
+const CARD = "#ffffff";
+const INK = "#0a0a0a";
+const MUTED = "#6b6b6b";
+const LINE = "#e7e7e4";
+const FONT = "Inter,-apple-system,'Segoe UI',Roboto,Arial,sans-serif";
 
 function render(o: { preheader: string; heading: string; blocks: Block[] }): { html: string; text: string } {
   const html: string[] = [];

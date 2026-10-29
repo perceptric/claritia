@@ -1,6 +1,6 @@
-// Hand-drawn sketches for first screens and empty states (docs/brand.md, "Sketch library"): a 1.5px ink line with
-// round caps, one wash fill that sits 3px off like a print that slipped, and an accent in a deep tone. Lines draw
-// themselves in on first view when `draw` is on.
+// Line drawings for first screens and empty states (docs/brand.md, "Drawings"), in the website's style: a thin black
+// line, a plain gray fill under it, and emerald for the part that moves. Lines draw themselves in on first view when
+// `draw` is on. `tone` is kept for older callers; the colors no longer change with it.
 
 export type SketchTone = "clay" | "sage" | "sky" | "lilac" | "butter" | "rose";
 
@@ -109,14 +109,15 @@ const DEFS = {
 
 export type SketchName = keyof typeof DEFS;
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export function Sketch({ name, tone = "clay", draw = true, size = 200, className = "" }: { name: SketchName; tone?: SketchTone; draw?: boolean; size?: number; className?: string }) {
   const d: Def = DEFS[name];
-  const deep = `var(--color-${d.accentTone ?? tone})`;
-  // Lines stay about 1.5px at any size.
-  const w = (1.5 * 160) / size;
+  const deep = "var(--color-signal)";
+  // Lines stay about 1.2px at any size.
+  const w = (1.2 * 160) / size;
   return (
     <svg width={size} height={(size * 120) / 160} viewBox="0 0 160 120" fill="none" aria-hidden="true" className={`${draw ? "sketch-draw" : ""} shrink-0 overflow-visible ${className}`}>
-      <path d={d.wash} transform="translate(3 3)" fill={`var(--color-${tone}-wash)`} stroke="none" style={{ animation: draw ? "fade 700ms 500ms both" : undefined }} />
+      <path d={d.wash} fill="var(--color-paper-deep)" stroke="none" style={{ animation: draw ? "fade 700ms 500ms both" : undefined }} />
       <path d={d.ink} pathLength={1} stroke="var(--color-ink)" strokeWidth={w} strokeLinecap="round" strokeLinejoin="round" />
       {d.accent ? <path d={d.accent} pathLength={1} stroke={deep} strokeWidth={w} strokeLinecap="round" strokeLinejoin="round" style={{ animationDelay: "300ms" }} /> : null}
       {d.dots?.map(([x, y], i) => <circle key={i} cx={x} cy={y} r="1.6" fill={deep} stroke="none" style={{ animation: draw ? `fade 320ms ${200 + i * 70}ms both` : undefined }} />)}
@@ -124,7 +125,7 @@ export function Sketch({ name, tone = "clay", draw = true, size = 200, className
   );
 }
 
-/** Scribbles for notes: an arrow, a circle, an underline or a star, in a deep tone. */
+/** Scribbles for notes: an arrow, a circle, an underline or a star, in a status tone. */
 export function Scribble({ kind, tone = "clay", className = "" }: { kind: "arrow" | "circle" | "underline" | "star"; tone?: SketchTone; className?: string }) {
   const path = {
     arrow: "M4 30q20-26 52-16 M46 6l10 8-12 6",

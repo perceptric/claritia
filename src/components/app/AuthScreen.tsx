@@ -3,7 +3,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { useEffect, useState } from "react";
 import { Logo } from "../Logo";
-import { Sketch } from "../sketches/Sketch";
+import { Catch } from "./Catch";
 import { Button, ErrorNote, errorText } from "./ui";
 
 // Where people land after signing in.
@@ -42,32 +42,25 @@ function GitHubLogo() {
   );
 }
 
-const ssoClass = "press flex h-11 w-full items-center justify-center gap-3 rounded-full border border-line-strong bg-card text-[13.5px] font-medium text-ink hover:bg-paper disabled:opacity-50";
+const ssoClass = "press flex h-11 w-full items-center justify-center gap-3 rounded-full border border-line-strong bg-card text-[13.5px] font-medium text-ink hover:bg-hover disabled:opacity-50";
 
-/** Split screen: the form on the left, a drawn funnel on the right that fills as you type. */
-function Frame({ typed = 0, children }: { typed?: number; children: React.ReactNode }) {
+/** Split screen: the form on the left, and the website's Catch on the right. */
+function Frame({ children }: { children: React.ReactNode }) {
   return (
-    <main className="grid min-h-screen bg-paper md:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]">
+    <main className="grid min-h-screen bg-card md:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]">
       <div className="flex flex-col px-6 py-8 md:px-14">
         <a href="https://tryclaritia.com" aria-label="Claritia home" className="self-start">
           <Logo />
         </a>
         <div className="anim-rise my-auto w-full max-w-sm space-y-6 self-center py-10">{children}</div>
       </div>
-      <div className="relative m-3 hidden overflow-hidden rounded-3xl bg-paper-deep md:block">
-        <div className="wash absolute inset-0 opacity-80" />
-        <div className="relative flex h-full flex-col items-center justify-center gap-10 p-10">
-          <p className="font-semibold tracking-[-0.02em] max-w-md text-center text-[34px] leading-[1.05] text-ink">
-            Visitors in.
-            <span className="text-muted"> Meetings out.</span>
+      <div className="relative m-2 hidden overflow-hidden rounded-2xl border border-line bg-paper md:block">
+        <div className="relative flex h-full flex-col items-center justify-center gap-8 p-10">
+          <p className="max-w-md text-center text-[36px] leading-[1.05] font-medium tracking-[-0.04em] text-ink">
+            Catch every lead.
+            <span className="block text-faint">Book the meeting.</span>
           </p>
-          <div className="relative">
-            <Sketch name="funnel" size={340} />
-            {/* Each letter typed drops a visitor into the funnel. */}
-            {Array.from({ length: Math.min(typed, 14) }, (_, i) => (
-              <span key={i} className="anim-pop absolute size-2 rounded-full bg-sky" style={{ left: `${36 + ((i * 37) % 30)}%`, top: `${30 + ((i * 13) % 14)}%` }} />
-            ))}
-          </div>
+          <Catch className="max-w-[420px]" />
         </div>
       </div>
     </main>
@@ -117,7 +110,7 @@ export function AuthScreen({ sb }: { sb: SupabaseClient }) {
 
   if (sentTo) {
     return (
-      <Frame typed={14}>
+      <Frame>
         <div className="space-y-2">
           <h1 className="font-semibold tracking-[-0.02em] text-[28px] leading-tight">Check your inbox</h1>
           <p className="text-sm text-muted">
@@ -138,7 +131,7 @@ export function AuthScreen({ sb }: { sb: SupabaseClient }) {
   }
 
   return (
-    <Frame typed={email.length}>
+    <Frame>
       <div>
         <h1 className="font-semibold tracking-[-0.02em] text-[31px] leading-[1.05]">
           Welcome

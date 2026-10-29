@@ -183,12 +183,12 @@ function TitleInput({ value, onChange }: { value: string; onChange: (v: string) 
   );
 }
 
-/** A soft card. `frame` lifts the one card a screen is about. */
+/** A flat card on a hairline. `frame` gives the one frame a screen is about its shadow. */
 export function Panel({ children, className = "", frame = false }: { children: React.ReactNode; className?: string; frame?: boolean }) {
-  return <div className={`rounded-2xl border border-line bg-card ${frame ? "frame" : ""} ${className}`}>{children}</div>;
+  return <div className={`rounded-lg border border-line bg-card ${frame ? "frame" : ""} ${className}`}>{children}</div>;
 }
 
-/** A card's header bar: a clay dot and a label, with room for actions on the right. */
+/** A card's header bar: a label, with room for actions on the right. */
 export function CardHead({ label, count, children }: { label: string; count?: number | string; children?: React.ReactNode }) {
   return (
     <div className="flex h-12 items-center gap-2 border-b border-line px-5">
@@ -203,7 +203,7 @@ export function CardHead({ label, count, children }: { label: string; count?: nu
 export function Empty({ icon, sketch, title, children }: { icon?: React.ReactNode; sketch?: React.ReactNode; title: string; children?: React.ReactNode }) {
   return (
     <div className="anim-rise-sm flex flex-col items-center gap-2 px-6 py-16 text-center">
-      {sketch || icon ? <div className="mb-3">{sketch ?? <span className="flex size-12 items-center justify-center rounded-full bg-paper-deep text-ink">{icon}</span>}</div> : null}
+      {sketch || icon ? <div className="mb-3">{sketch ?? <span className="flex size-12 items-center justify-center rounded-lg border border-line bg-card text-ink">{icon}</span>}</div> : null}
       <p className="font-semibold tracking-[-0.02em] text-[18px] text-ink">{title}</p>
       {children ? <div className="max-w-sm text-[13.5px] text-muted">{children}</div> : null}
     </div>
@@ -224,7 +224,7 @@ export function Loading() {
     <div className="space-y-2.5 p-5" aria-label="Loading">
       <Dots className="mb-1 ml-1" />
       {[0, 1, 2, 3, 4].map((i) => (
-        <div key={i} className="anim-shimmer h-10 rounded-full bg-paper-deep" style={{ opacity: 1 - i * 0.16, animationDelay: `${i * 0.1}s` }} />
+        <div key={i} className="anim-shimmer h-10 rounded-md bg-paper-deep" style={{ opacity: 1 - i * 0.16, animationDelay: `${i * 0.1}s` }} />
       ))}
     </div>
   );
@@ -233,16 +233,16 @@ export function Loading() {
 export function Button({ variant = "primary", size = "md", className = "", ...props }: React.ButtonHTMLAttributes<HTMLButtonElement> & { variant?: "primary" | "ghost" | "plain" | "danger"; size?: "sm" | "md" }) {
   const look =
     variant === "primary"
-      ? "bg-ink text-paper hover:opacity-85"
+      ? "bg-ink text-paper hover:bg-brand-hover"
       : variant === "ghost"
-        ? "border border-line-strong bg-card text-ink hover:bg-paper"
+        ? "border border-line-strong bg-card text-ink hover:bg-hover"
         : variant === "danger"
           ? "border border-line-strong bg-card text-rose hover:bg-rose-wash"
           : "text-body hover:bg-hover hover:text-ink";
   return (
     <button
       {...props}
-      className={`press inline-flex items-center justify-center gap-1.5 rounded-full font-medium whitespace-nowrap transition-[opacity,background-color,transform] duration-[140ms] disabled:pointer-events-none disabled:opacity-45 ${size === "sm" ? "h-8 px-3.5 text-[12.5px]" : "h-9 px-4 text-[13.5px]"} ${look} ${className}`}
+      className={`press inline-flex items-center justify-center gap-1.5 rounded-full font-medium whitespace-nowrap transition-[background-color,border-color,transform] duration-[120ms] disabled:pointer-events-none disabled:opacity-45 ${size === "sm" ? "h-8 px-3.5 text-[12.5px]" : "h-9 px-4 text-[13.5px]"} ${look} ${className}`}
     />
   );
 }
@@ -256,7 +256,7 @@ export function Input({ className = "", ...props }: React.InputHTMLAttributes<HT
   return (
     <input
       {...props}
-      className={`h-10 w-full rounded-sm border border-line-strong bg-card px-3 text-[13.5px] text-ink outline-none transition-shadow duration-[140ms] placeholder:text-faint focus:border-ink focus:ring-1 focus:ring-ink ${className}`}
+      className={`h-10 w-full rounded-sm border border-line-strong bg-card px-3 text-[13.5px] text-ink outline-none transition-shadow duration-[140ms] placeholder:text-faint focus:border-ink focus:ring-[3px] focus:ring-hover ${className}`}
     />
   );
 }
@@ -291,7 +291,7 @@ export function Toggle({ on, onChange, label, disabled = false }: { on: boolean;
 export function Stat({ value, label }: { value: React.ReactNode; label: string }) {
   return (
     <div className="flex flex-col gap-1">
-      <span className="font-semibold text-[30px] leading-none tracking-[-0.04em] text-ink tabular-nums">{value}</span>
+      <span className="font-medium text-[30px] leading-none tracking-[-0.04em] text-ink tabular-nums">{value}</span>
       <span className="label-mono">{label}</span>
     </div>
   );
@@ -318,8 +318,8 @@ export function Badge({ children, tone = "gray", dot = false }: { children: Reac
   );
 }
 
-// Avatar fills cycle through the washes, picked by the name so a person keeps theirs.
-const AVATAR = ["bg-clay-wash text-clay", "bg-sage-wash text-sage", "bg-sky-wash text-sky", "bg-lilac-wash text-lilac", "bg-butter-wash text-butter", "bg-rose-wash text-rose"];
+// Avatars are plain gray with dark initials, like Omniscient. Color is kept for status.
+const AVATAR = ["bg-paper-deep text-body"];
 
 /** A round avatar with initials, for people. */
 export function Avatar({ label, size = 24 }: { label: string; size?: number }) {
@@ -334,7 +334,7 @@ export function Avatar({ label, size = 24 }: { label: string; size?: number }) {
   let h = 0;
   for (const c of label) h = (h * 31 + c.charCodeAt(0)) >>> 0;
   return (
-    <span className={`inline-flex shrink-0 items-center justify-center rounded-full font-medium ring-2 ring-paper ${AVATAR[h % AVATAR.length]}`} style={{ width: size, height: size, fontSize: Math.max(9, size * 0.38) }}>
+    <span className={`inline-flex shrink-0 items-center justify-center rounded-full font-semibold ring-2 ring-card ${AVATAR[h % AVATAR.length]}`} style={{ width: size, height: size, fontSize: Math.max(9, size * 0.38) }}>
       {initials}
     </span>
   );
