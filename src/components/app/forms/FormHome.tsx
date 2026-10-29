@@ -15,7 +15,6 @@ type ListRow = { id: string; name: string; status: "draft" | "live" | "paused"; 
 
 /** The sentence the new form screen reads first. */
 export const ASK_KEY = "claritia:form-ask";
-const STARTERS = ["Demo request", "Contact sales", "Newsletter signup", "Event registration"];
 
 export function FormHome(props: ViewProps) {
   const { sb, ws, navigate } = props;
@@ -85,14 +84,14 @@ export function FormHome(props: ViewProps) {
             )}
           </div>
         </div>
-        <AskDock starters={STARTERS} placeholder="Describe a new form, for example: demo request for work emails only" onSend={start} />
+        <AskDock placeholder="Describe a new form, for example: demo request for work emails only" onSend={start} />
       </div>
     </Page>
   );
 }
 
-/** The assistant's box, always at the bottom of the screen, with a few starters above it. */
-export function AskDock({ starters, placeholder, onSend, busy = false, wide = false }: { starters: string[]; placeholder: string; onSend: (text: string) => void; busy?: boolean; wide?: boolean }) {
+/** The assistant's box, always at the bottom of the screen. */
+export function AskDock({ placeholder, onSend, busy = false, wide = false }: { placeholder: string; onSend: (text: string) => void; busy?: boolean; wide?: boolean }) {
   const [text, setText] = useState("");
   const send = (t: string) => {
     if (!t.trim() || busy) return;
@@ -102,15 +101,6 @@ export function AskDock({ starters, placeholder, onSend, busy = false, wide = fa
   return (
     <div className="shrink-0 border-t border-line bg-card px-4 pt-3 pb-4 md:px-8">
       <div className={`mx-auto flex flex-col gap-2.5 ${wide ? "" : "max-w-5xl"}`}>
-        {starters.length ? (
-          <div className="flex flex-wrap gap-2">
-            {starters.map((s) => (
-              <button key={s} type="button" disabled={busy} onClick={() => send(s)} className="press inline-flex h-8 items-center rounded-full border border-line px-3 text-[12.5px] text-body transition-colors duration-[120ms] hover:border-line-strong hover:text-ink disabled:opacity-50">
-                {s}
-              </button>
-            ))}
-          </div>
-        ) : null}
         <form
           onSubmit={(e) => {
             e.preventDefault();

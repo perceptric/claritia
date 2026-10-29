@@ -86,7 +86,7 @@ test("replacing an email asks first, then uses the template", async () => {
   assert.equal(a.doc.sections[0]!.columns[0]!.blocks[0]!.id, "h1", "nothing changed yet");
   const yes = scripted([msg([{ name: "use_template", input: { template: "newsletter" } }]), msg([], "Started from the newsletter.")]);
   const b = await runEmailChat(yes.model, "Yes", { ...ctx(), confirmed: true });
-  assert.deepEqual(b.lines, ["Started from the Newsletter template"]);
+  assert.deepEqual(b.lines, ["Started from the Monthly newsletter template"]);
   assert.ok(b.doc.sections.length > 2);
 });
 

@@ -334,11 +334,13 @@ test("components: save, reuse with props, lock, change everywhere, detach and de
   assert.ok("error" in c.saveAsComponent({ system: sys(), doc: doc({ sections: [{ id: "x", columns: [{ id: "y", blocks: [{ id: "z", type: "html", html: "<p>x</p>" }] }] }] }) }, "x", "Raw"));
 });
 
-test("templates: 30, each reads back, builds under the size limit and passes the design check", async () => {
+test("templates: 21 in 7 folders, each reads back, builds under the size limit and passes the design check", async () => {
   const { EMAIL_TEMPLATES } = await import("../src/lib/design/email/templates.ts");
   const { checkEmailDesign } = await import("../src/lib/design/check.ts");
-  assert.equal(EMAIL_TEMPLATES.length, 30);
-  assert.equal(new Set(EMAIL_TEMPLATES.map((t) => t.key)).size, 30);
+  const { TEMPLATE_FOLDERS } = await import("../src/lib/design/email/templates.ts");
+  assert.equal(EMAIL_TEMPLATES.length, 21);
+  assert.equal(new Set(EMAIL_TEMPLATES.map((t) => t.key)).size, 21);
+  for (const f of TEMPLATE_FOLDERS) assert.equal(EMAIL_TEMPLATES.filter((t) => t.group === f).length, 3, `${f} has 3`);
   const brand = sys({ variables: [], email: { globals: { heading: { base: { color: "#123456" } } } } });
   for (const t of EMAIL_TEMPLATES) {
     const d = t.make();
@@ -347,9 +349,20 @@ test("templates: 30, each reads back, builds under the size limit and passes the
     assert.ok(out.size < 40_000, `${t.key} is small (${out.size})`);
     const blocking = checkEmailDesign(brand, d, DEFAULT_TOKENS).filter((n) => n.level === "block" || /hard to read|fallback/.test(n.text));
     assert.deepEqual(blocking, [], `${t.key} passes the check`);
-    // No colors of its own: the brand styles it.
-    assert.equal(d.styles, undefined, `${t.key} sets no styles`);
+    // No colors of its own: every color is a brand variable.
+    for (const [el, parts] of Object.entries(d.styles ?? {}))
+      for (const [part, st] of Object.entries(parts ?? {}))
+        for (const [prop, v] of Object.entries(st?.base ?? {}))
+          if (/color|background|border/.test(prop) && /#|rgb|hsl/i.test(String(v))) assert.fail(`${t.key} ${el} ${part} ${prop} uses a raw color`);
     if (out.html.includes("<h1") || out.html.includes("<h2")) assert.match(out.html, /color:#123456/, `${t.key} shows in the brand`);
   }
   assert.notEqual(EMAIL_TEMPLATES[0]!.make().sections[0]!.id, EMAIL_TEMPLATES[0]!.make().sections[0]!.id, "each copy gets fresh ids");
+});
+
+test("corners: a top-left default rounds all four, and cards keep their corners", async () => {
+  const { emailTemplate } = await import("../src/lib/design/email/templates.ts");
+  const d = emailTemplate("webinar_invite")!.make();
+  const html = compileEmail(sys(), d, { tokens: { ...DEFAULT_TOKENS, buttonRadius: 999 } }).html;
+  for (const c of ["top-left", "top-right", "bottom-right", "bottom-left"]) assert.match(html, new RegExp(`border-${c}-radius:999px`), `button ${c}`);
+  assert.match(html, /border-collapse:separate"><tr><td[^>]*border-top-left-radius:12px[^"]*border-bottom-right-radius:12px/, "the card's corners round");
 });

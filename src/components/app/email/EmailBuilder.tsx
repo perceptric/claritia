@@ -24,7 +24,7 @@ import { cleanTokens } from "@/lib/forms/brand";
 import { ArrowDown, ArrowUp, Copy, FileText, Monitor, Moon, Phone, Redo, Send, Sun, Trash, Undo, X } from "../../Icons";
 import { askConfirm, askLines, tell } from "../Dialogs";
 import { importAny } from "@/lib/design/email/import";
-import { EMAIL_TEMPLATES } from "@/lib/design/email/templates";
+import { EMAIL_TEMPLATES, TEMPLATE_FOLDERS } from "@/lib/design/email/templates";
 import { Button, ErrorNote, IconButton, postJson, errorText } from "../ui";
 import { VariablesPanel } from "../forms/DesignPanels";
 import { fontUrl } from "../forms/editorModel";
@@ -417,7 +417,7 @@ export function EmailBuilder({
             {rail === "layers" ? <LayerList doc={doc} selected={sel} onSelect={(id) => (setSelected(id), setPart(null))} onNudge={nudge} onDuplicate={duplicate} onRemove={remove} /> : null}
             {rail === "templates" ? (
               <div className="flex flex-col gap-3 p-3">
-                {(["Welcome", "News", "Events", "Sales", "Customers"] as const).map((g) => (
+                {TEMPLATE_FOLDERS.map((g) => (
                   <div key={g} className="flex flex-col gap-1">
                     <p className="text-[12px] font-medium text-muted">{g}</p>
                     {EMAIL_TEMPLATES.filter((t) => t.group === g).map((t) => (

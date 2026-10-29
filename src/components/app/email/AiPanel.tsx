@@ -108,13 +108,6 @@ export function AiPanel({
         {ask ? (
           <div className="flex flex-col gap-1.5">
             <p className="text-[12.5px] font-medium text-ink">{ask.question}</p>
-            <div className="flex flex-wrap gap-1.5">
-              {ask.choices.map((c) => (
-                <button key={c} type="button" onClick={() => void send(c, { confirmed: true })} className="press h-7 rounded-full border border-line-strong px-3 text-[12px] text-ink hover:border-ink">
-                  {c}
-                </button>
-              ))}
-            </div>
           </div>
         ) : null}
         {error ? <ErrorNote message={error} /> : null}

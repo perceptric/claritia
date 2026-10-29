@@ -423,7 +423,7 @@ function Builder({
           </div>
         </div>
       </div>
-      <AskDock wide starters={[]} placeholder="Ask the assistant to change the form" busy={chat.busy} onSend={(t) => void chat.send(t)} />
+      <AskDock wide placeholder="Ask the assistant to change the form" busy={chat.busy} onSend={(t) => void chat.send(t)} />
       </div>
       {sheet === "submit" ? (
         <Sheet title="On submission" onClose={() => setSheet(null)}>
