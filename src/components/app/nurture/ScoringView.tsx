@@ -10,10 +10,10 @@ import { IcpPanel } from "../views/SitesPanel";
 
 export function ScoringView({ sb, session, ws, role, navigate, id }: ViewProps) {
   const { tab } = scoringPage(id);
-  const nav = { title: "Lead scoring", tabs: SCORING_TABS, current: tab, onPick: (t: string) => navigate("scoring", t === "score" ? "" : t) };
+  const nav = { title: "Scoring", tabs: SCORING_TABS, current: tab, onPick: (t: string) => navigate("scoring", t === "score" ? "" : t) };
   return (
     <Section nav={nav}>
-      <Page title="Lead scoring">
+      <Page title="Scoring">
         <div className="mx-auto max-w-3xl">{tab === "ideal" ? <IcpPanel sb={sb} ws={ws} /> : <LeadScoringPanel sb={sb} session={session} ws={ws} role={role} />}</div>
       </Page>
     </Section>
