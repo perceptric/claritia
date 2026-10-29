@@ -3,6 +3,7 @@
 // problems, while the builder lets a draft be unfinished and blocks only the publish. Runs in the browser and on
 // the server.
 
+import { readFormDesign, type FormDesign } from "../design/model.ts";
 import { allFields, checkForm, CONTACT_KEYS, isChoice, isContent, newId, questionKey, type After, type Choice, type Cond, type Field, type FieldKey, type FieldType, type Form, type Rule, type Step } from "./schema.ts";
 
 export type FieldInput = Partial<Omit<Field, "id">> & { type: FieldType; label: string };
@@ -24,7 +25,9 @@ export type Op =
   | { op: "set_enrich"; hideKnown?: boolean; fields?: string[] }
   | { op: "set_after"; end: After["end"] }
   | { op: "set_schedule"; schedule: After["schedule"] | null }
-  | { op: "set_capture"; adapter?: NonNullable<Form["capture"]>["adapter"]; selector?: string };
+  | { op: "set_capture"; adapter?: NonNullable<Form["capture"]>["adapter"]; selector?: string }
+  /** The form's own styles and classes, whole (docs/design-system.md Part 3.1). `merge` joins edits of one input into one undo step. */
+  | { op: "set_design"; design: FormDesign; merge?: string };
 
 const clone = <T>(x: T): T => JSON.parse(JSON.stringify(x)) as T;
 
@@ -193,6 +196,12 @@ export function applyOp(input: Form, op: Op): { form: Form } | { error: string }
       if (op.schedule) form.after = { ...form.after, schedule: op.schedule };
       else delete form.after.schedule;
       return { form };
+    case "set_design": {
+      const design = readFormDesign(op.design, new Set(allFields(form).map((f) => f.id)));
+      if (Object.keys(design).length) form.design = design;
+      else delete form.design;
+      return { form };
+    }
     case "set_capture":
       if (!form.capture) return { error: "This form isn't a captured form." };
       form.capture = { adapter: op.adapter ?? form.capture.adapter, ...((op.selector ?? form.capture.selector) ? { selector: op.selector ?? form.capture.selector } : {}) };
@@ -286,5 +295,7 @@ export function describeOp(op: Op, before: Form): string {
       return op.schedule ? "Books a meeting after the submit" : "No meeting after the submit";
     case "set_capture":
       return "Changed how the form is read";
+    case "set_design":
+      return "Changed the styles";
   }
 }

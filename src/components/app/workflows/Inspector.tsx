@@ -3,12 +3,14 @@
 // The side panel (docs/enrich-workflows-reports.md 2.4): the trigger with who can enter and the goals, or the picked
 // step's settings. Labels and controls only; the card's own line says what the step does.
 
-import type { Session } from "@supabase/supabase-js";
+import type { Session, SupabaseClient } from "@supabase/supabase-js";
+import { docFromBody, newBlock, newSection } from "@/lib/design/email/doc";
+import { EmailBuilder } from "../email/EmailBuilder";
 import { useState } from "react";
 import { BASE_FIELDS, needsValue, opsFor } from "@/lib/router/conditions";
 import { OPS, type Cond } from "@/lib/router/types";
 import { stepProblems } from "@/lib/workflows/check";
-import { MERGE_KEYS } from "@/lib/workflows/engine";
+import { MERGE_KEYS } from "@/lib/workflows/merge";
 import { STEP_KINDS, TRIGGERS, UPDATABLE, type Body, type EmailBody, type Goal, type Step, type Trigger, type TriggerKind } from "@/lib/workflows/types";
 import { Copy, Plus, Trash } from "../../Icons";
 import { AiMark } from "../Ai";
@@ -281,12 +283,45 @@ export function Conditions({ conds, onChange, readOnly }: { conds: Cond[]; onCha
 
 // Email --------------------------------------------------------------------------------------------------------------
 
-export function EmailForm({ email, onChange, readOnly }: { email: EmailBody; onChange: (e: EmailBody, key?: string) => void; readOnly: boolean }) {
+/** Where the email builder opens from: who is signed in and the workspace. */
+export type BuilderCtx = { session: Session; sb: SupabaseClient; ws: string; /** Where the AI's versions are kept. */ ref?: string };
+
+export function EmailForm({ email, onChange, readOnly, builder }: { email: EmailBody; onChange: (e: EmailBody, key?: string) => void; readOnly: boolean; builder?: BuilderCtx }) {
+  const [open, setOpen] = useState(false);
+  const subject = (
+    <Row name="Subject">
+      <Input value={email.subject} onChange={(e) => onChange({ ...email, subject: e.target.value }, "subject")} className="h-9" disabled={readOnly} />
+    </Row>
+  );
+  const built = open && builder && email.doc ? (
+    <EmailBuilder
+      session={builder.session}
+      sb={builder.sb}
+      workspaceId={builder.ws}
+      subject={email.subject}
+      doc={email.doc}
+      versionRef={builder.ref}
+      onChange={(doc, subject) => onChange({ ...email, doc, ...(subject ? { subject } : {}) }, "doc")}
+      onClose={() => setOpen(false)}
+    />
+  ) : null;
+  // Built with blocks: the subject here, the rest in the builder.
+  if (email.doc)
+    return (
+      <div className="flex flex-col gap-4">
+        {subject}
+        <div className="flex items-center gap-2">
+          <Button disabled={readOnly || !builder} onClick={() => setOpen(true)}>
+            Open the builder
+          </Button>
+          <span className="text-[12.5px] text-muted">{email.doc.sections.reduce((n, s) => n + s.columns.reduce((m, c) => m + c.blocks.length, 0), 0)} blocks</span>
+        </div>
+        {built}
+      </div>
+    );
   return (
     <div className="flex flex-col gap-4">
-      <Row name="Subject">
-        <Input value={email.subject} onChange={(e) => onChange({ ...email, subject: e.target.value }, "subject")} className="h-9" disabled={readOnly} />
-      </Row>
+      {subject}
       <Row name="Preview text">
         <Input value={email.preheader} onChange={(e) => onChange({ ...email, preheader: e.target.value }, "preheader")} className="h-9" disabled={readOnly} />
       </Row>
@@ -322,6 +357,21 @@ export function EmailForm({ email, onChange, readOnly }: { email: EmailBody; onC
           <Input value={email.cta_url} onChange={(e) => onChange({ ...email, cta_url: e.target.value }, "url")} placeholder="https://" className="h-9" disabled={readOnly} />
         </Row>
       </div>
+      {builder && !readOnly ? (
+        <Button
+          variant="ghost"
+          className="self-start"
+          onClick={() => {
+            // The words so far become blocks, with the footer marketing email needs.
+            const doc = docFromBody(email);
+            doc.sections.push(newSection([newBlock("footer")]));
+            onChange({ ...email, doc });
+            setOpen(true);
+          }}
+        >
+          Design with blocks
+        </Button>
+      ) : null}
     </div>
   );
 }
@@ -344,6 +394,8 @@ export function StepPanel(p: {
   readOnly: boolean;
   session: Session;
   ws: string;
+  /** For the email builder. */
+  sb?: SupabaseClient;
   workflowId: string | null;
   onRemove: () => void;
 }) {
@@ -424,7 +476,7 @@ export function StepPanel(p: {
               className="h-9 w-full"
             />
           ) : null}
-          <EmailForm email={s.email} onChange={(email, key) => p.onPatch({ email } as Partial<Step>, key)} readOnly={p.readOnly} />
+          <EmailForm email={s.email} onChange={(email, key) => p.onPatch({ email } as Partial<Step>, key)} readOnly={p.readOnly} builder={p.sb ? { session: p.session, sb: p.sb, ws: p.ws, ...(p.workflowId ? { ref: `wf:${p.workflowId}:${s.id}` } : {}) } : undefined} />
           {s.notes?.length ? (
             <div className="flex flex-col gap-1 rounded-lg bg-butter-wash px-3 py-2.5">
               <span className={label}>Check before approving</span>

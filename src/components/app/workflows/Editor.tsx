@@ -344,6 +344,7 @@ export function WorkflowEditor({
                 readOnly={false}
                 session={session}
                 ws={ws.id}
+                sb={sb}
                 workflowId={id}
                 onRemove={() => void onRemove(selStep.id)}
               />

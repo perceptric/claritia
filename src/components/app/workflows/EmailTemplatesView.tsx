@@ -5,7 +5,7 @@
 // itself 800 ms after the last change, like every editor.
 
 import { useEffect, useState } from "react";
-import { mergeGaps } from "@/lib/workflows/engine";
+import { mergeGaps } from "@/lib/workflows/merge";
 import { emptyEmail, type EmailBody } from "@/lib/workflows/types";
 import { Mail, Plus, Trash } from "../../Icons";
 import { askConfirm, askText } from "../Dialogs";
@@ -15,7 +15,7 @@ import { EmailForm } from "./Inspector";
 
 type Template = { id: string; name: string; body: EmailBody; updated_at: string };
 
-export function EmailTemplatesView({ sb, ws }: ViewProps) {
+export function EmailTemplatesView({ sb, ws, session }: ViewProps) {
   const list = useLoad(async () => (must(await sb.from("email_templates").select("id, name, body, updated_at").eq("workspace_id", ws.id).order("updated_at", { ascending: false })) ?? []) as Template[], ws.id);
   const [open, setOpen] = useState<Template | null>(null);
   const [saved, setSaved] = useState(true);
@@ -117,6 +117,7 @@ export function EmailTemplatesView({ sb, ws }: ViewProps) {
                   setSaved(false);
                 }}
                 readOnly={false}
+                builder={{ session, sb, ws: ws.id, ref: `tpl:${open.id}` }}
               />
               {gaps.length ? <p className="text-[12.5px] text-butter">Add a fallback to {[...new Set(gaps)].join(", ")}</p> : null}
               <span role="status" className="text-[12.5px] text-muted">

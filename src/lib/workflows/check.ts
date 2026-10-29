@@ -1,7 +1,9 @@
 // What stops a workflow from going live, in words (like src/lib/router/check.ts). The editor shows these as you
 // build; Make live refuses while any is left. `cleanBody` makes stored or sent JSON safe to use.
 
-import { mergeGaps } from "./engine.ts";
+import { mergeGaps } from "./merge.ts";
+import { emailText } from "../design/email/compile.ts";
+import { readEmailDoc, type EmailDoc } from "../design/email/doc.ts";
 import { countSteps, maxDepth, pathsOf, walk } from "./tree.ts";
 import type { Cond } from "../router/types.ts";
 import { LIMITS, UPDATABLE, emptyBody, type Body, type Step } from "./types.ts";
@@ -44,15 +46,31 @@ export function problems(body: Body): Problem[] {
   return out;
 }
 
+/** What stops an email built with blocks from going out (the parts of the design check that don't need its styles). */
+export function docProblems(doc: EmailDoc): string[] {
+  const out: string[] = [];
+  const blocks = doc.sections.flatMap((s) => s.columns.flatMap((c) => c.blocks));
+  if (!blocks.some((b) => b.type !== "footer" && b.type !== "divider" && b.type !== "spacer")) out.push("Write the email");
+  for (const b of blocks) {
+    if ((b.type === "button" || b.type === "meeting" || b.type === "product" || b.type === "event") && !https(b.url)) out.push(`The ${b.type === "meeting" ? "meeting" : "button"} needs an https:// link`);
+    if ((b.type === "image" || b.type === "video") && !(b.type === "image" ? b.src : b.thumb)) out.push("Add the image or remove its block");
+  }
+  if (!blocks.some((b) => b.type === "footer")) out.push("Add the Footer block");
+  return [...new Set(out)];
+}
+
 export function stepProblems(s: Step): string[] {
   const out: string[] = [];
   switch (s.kind) {
     case "email": {
       const e = s.email;
       if (!e.subject.trim()) out.push("Write a subject");
-      if (!e.paragraphs.some((p) => p.trim())) out.push("Write the email");
-      if (e.cta_label.trim() && !https(e.cta_url)) out.push("The button needs an https:// link");
-      const gaps = [e.subject, e.preheader, ...e.paragraphs, e.cta_label].flatMap(mergeGaps);
+      if (e.doc) out.push(...docProblems(e.doc));
+      else {
+        if (!e.paragraphs.some((p) => p.trim())) out.push("Write the email");
+        if (e.cta_label.trim() && !https(e.cta_url)) out.push("The button needs an https:// link");
+      }
+      const gaps = [e.subject, e.preheader, ...(e.doc ? [e.doc.settings.preheader, emailText(e.doc)] : [...e.paragraphs, e.cta_label])].flatMap(mergeGaps).filter((g) => !/\{\{\s*(unsubscribe_url|company_address)\s*\}\}/.test(g));
       if (gaps.length) out.push(`Give ${gaps[0]} a fallback, like {{first_name|there}}`);
       if (!s.approved) out.push("Approve the email");
       break;
@@ -170,7 +188,15 @@ function cleanStep(x: unknown, depth: number): Step | null {
       return {
         id,
         kind: "email",
-        email: { subject: str(e.subject, 200), preheader: str(e.preheader, 200), paragraphs: (Array.isArray(e.paragraphs) ? e.paragraphs : []).map((p) => str(p, 2000)).slice(0, 12), cta_label: str(e.cta_label, 60), cta_url: str(e.cta_url, 1000) },
+        email: {
+          subject: str(e.subject, 200),
+          preheader: str(e.preheader, 200),
+          paragraphs: (Array.isArray(e.paragraphs) ? e.paragraphs : []).map((p) => str(p, 2000)).slice(0, 12),
+          cta_label: str(e.cta_label, 60),
+          cta_url: str(e.cta_url, 1000),
+          // Built with blocks: read safely. HTML blocks stay here; publishing allows them from owners only.
+          ...(e.doc && typeof e.doc === "object" ? { doc: readEmailDoc(e.doc, { allowHtml: true }) } : {}),
+        },
         from: s.from === "owner" ? "owner" : "team",
         approved: s.approved === true,
         ...(s.ai === true ? { ai: true } : {}),

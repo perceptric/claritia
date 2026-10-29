@@ -10,6 +10,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { cleanTokens, type Tokens } from "@/lib/forms/brand";
 import { applyOp, type Op } from "@/lib/forms/ops";
 import { ADAPTERS, checkForm, emptyForm, type Form } from "@/lib/forms/schema";
+import { readSystem, type DesignSystem, type FormDesign } from "@/lib/design/model";
+
+type Snap = { form: Form; system: DesignSystem };
 import type { CustomField } from "@/lib/records/fields";
 import { Copy, Inbox, Monitor, Pause, Pencil, Phone, Play, Plus, Redo, Send, Trash, Undo } from "../../Icons";
 import { BrandLogo } from "../BrandLogo";
@@ -27,6 +30,7 @@ import type { ThemeProps } from "./FormDesign";
 import { FormResults } from "./FormFields";
 import { ChevronDown, Tablet } from "./icons";
 import { PreviewOverlay } from "./PreviewOverlay";
+import { useDesignDraft } from "./useDesignDraft";
 import { SettingsTab } from "./SettingsTab";
 import { copy, IconButton, STATUS, type Destination, type FormRow, type Kit, type SourceRow } from "./shared";
 import { FORMS_TABS } from "@/lib/nav";
@@ -150,7 +154,7 @@ function FormPage(props: ViewProps) {
   const data = useLoad(async () => {
     const [f, kits, sources, dests, custom, sites] = await Promise.all([
       sb.from("forms").select("id, name, status, draft, draft_rev, version, brand_kit_id, published_at").eq("id", id).maybeSingle(),
-      sb.from("brand_kits").select("id, name, tokens, logo_url, notes, source_url, scan_status, scan_error, scanned_at").eq("workspace_id", ws.id).order("created_at"),
+      sb.from("brand_kits").select("id, name, tokens, logo_url, notes, source_url, scan_status, scan_error, scanned_at, design, design_live, design_rev").eq("workspace_id", ws.id).order("created_at"),
       sb.from("sources").select("id, kind, name, status").eq("workspace_id", ws.id).order("name"),
       sb.from("form_destinations").select("id, kind, source_id, name, config, paused, position").eq("form_id", id).order("position"),
       sb.from("fields").select("key, label, type, options").eq("workspace_id", ws.id).eq("object", "contact").order("position"),
@@ -231,8 +235,11 @@ function Builder({
   const [name, setName] = useState(initial.name);
   const [kitId, setKitId] = useState<string | null>(initial.brand_kit_id);
   const [tokens, setTokens] = useState<Partial<Tokens>>(kits.find((k) => k.id === initial.brand_kit_id)?.tokens ?? {});
-  const [past, setPast] = useState<Form[]>([]);
-  const [future, setFuture] = useState<Form[]>([]);
+  // One undo stack for the form and its design system's draft: a style edit is one step either way.
+  const [past, setPast] = useState<Snap[]>([]);
+  const [future, setFuture] = useState<Snap[]>([]);
+  const kit = kits.find((k) => k.id === kitId) ?? null;
+  const draft = useDesignDraft(session, ws.id, kit, tokens);
   const [tab, setTabState] = useState<Tab>(() => (typeof window === "undefined" ? "design" : pickTab(window.location.search)));
   const setTab = useCallback((t: Tab) => {
     setTabState(t);
@@ -274,31 +281,73 @@ function Builder({
     const now = Date.now();
     const joins = !!key && merge.current?.key === key && now - merge.current.at < 1000;
     merge.current = key ? { key, at: now } : null;
-    if (!joins) setPast((p) => [...p.slice(-99), cur]);
+    if (!joins) setPast((p) => [...p.slice(-99), { form: cur, system: draft.current() }]);
     setFuture([]);
     latest.current = next;
     setForm(next);
     setSaved(false);
     dirty.current = true;
-  }, []);
+  }, [draft]);
+  /** A style edit: the form's own styles and the design system's draft together, one undo step (typing in one box joins). */
+  const applyStyles = useCallback(
+    (edit: { system: DesignSystem; design: FormDesign }, mergeOn?: string) => {
+      const cur = latest.current;
+      const sys = draft.current();
+      const r = applyOp(cur, { op: "set_design", design: edit.design });
+      if ("error" in r) return setError(r.error);
+      const key = mergeOn ? `d:${mergeOn}` : "";
+      const now = Date.now();
+      const joins = !!key && merge.current?.key === key && now - merge.current.at < 1000;
+      merge.current = key ? { key, at: now } : null;
+      if (!joins) setPast((p) => [...p.slice(-99), { form: cur, system: sys }]);
+      setFuture([]);
+      if (JSON.stringify(r.form.design ?? {}) !== JSON.stringify(cur.design ?? {})) {
+        latest.current = r.form;
+        setForm(r.form);
+        setSaved(false);
+        dirty.current = true;
+      }
+      if (edit.system !== sys) draft.set(edit.system);
+    },
+    [draft],
+  );
+  /** A change to the design system alone (the style guide, the Styles and Variables panels). */
+  const applySystem = useCallback(
+    (system: DesignSystem, mergeOn?: string) => {
+      const key = mergeOn ? `d:${mergeOn}` : "";
+      const now = Date.now();
+      const joins = !!key && merge.current?.key === key && now - merge.current.at < 1000;
+      merge.current = key ? { key, at: now } : null;
+      if (!joins) setPast((p) => [...p.slice(-99), { form: latest.current, system: draft.current() }]);
+      setFuture([]);
+      draft.set(system);
+    },
+    [draft],
+  );
+  const restore = (snap: Snap) => {
+    put(snap.form);
+    if (snap.system && snap.system !== draft.current()) draft.set(snap.system);
+  };
   const undo = useCallback(() => {
     if (!past.length) return;
     merge.current = null;
-    setFuture((f) => [form, ...f]);
-    put(past[past.length - 1]);
+    setFuture((f) => [{ form, system: draft.current() }, ...f]);
+    restore(past[past.length - 1]);
     setPast((p) => p.slice(0, -1));
     setSaved(false);
     dirty.current = true;
-  }, [past, form]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [past, form, draft]);
   const redo = useCallback(() => {
     if (!future.length) return;
     merge.current = null;
-    setPast((p) => [...p, form]);
-    put(future[0]);
+    setPast((p) => [...p, { form, system: draft.current() }]);
+    restore(future[0]);
     setFuture((f) => f.slice(1));
     setSaved(false);
     dirty.current = true;
-  }, [future, form]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [future, form, draft]);
 
   // Cmd+Z and Shift+Cmd+Z, except while typing in a field (the browser's own undo works there).
   useEffect(() => {
@@ -340,7 +389,8 @@ function Builder({
   }, [tokens, kits, kitId]);
   useEffect(() => {
     setLeaveGuard(async () => {
-      if (dirty.current && !(await save()) && !(await askConfirm("Leave without saving?", { ok: "Leave", danger: true }))) return false;
+      const ok = (!dirty.current || (await save())) && (await draft.flush());
+      if (!ok && !(await askConfirm("Leave without saving?", { ok: "Leave", danger: true }))) return false;
       return themeDirty.current ? askConfirm("Leave without saving the theme?", { ok: "Leave", danger: true }) : true;
     });
     const before = (e: BeforeUnloadEvent) => {
@@ -351,7 +401,26 @@ function Builder({
       setLeaveGuard(null);
       window.removeEventListener("beforeunload", before);
     };
-  }, [save]);
+  }, [save, draft]);
+
+  // Publish styles (docs/design-system.md Part 8.3): the draft goes to every live form on the kit, after saying which.
+  const stylesChanged = !!kit && JSON.stringify(draft.system) !== JSON.stringify(readSystem(kit.design_live, tokens));
+  const publishStyles = async () => {
+    if (!kit) return;
+    setError("");
+    try {
+      if (!(await draft.flush())) return;
+      const uses = must(await sb.rpc("brand_kit_design_uses", { p_id: kit.id })) as { live_forms: number; forms: { id: string; name: string }[] };
+      const n = uses.live_forms;
+      const names = uses.forms.slice(0, 5).map((f) => f.name);
+      const body = n ? `${n === 1 ? "1 live form" : `${n} live forms`} change: ${names.join(", ")}${n > names.length ? ` and ${n - names.length} more` : ""}.` : "No live forms use these styles yet.";
+      if (!(await askConfirm("Publish styles?", { body, ok: "Publish" }))) return;
+      must(await sb.rpc("brand_kit_design_publish", { p_id: kit.id }));
+      reload();
+    } catch (e) {
+      setError(errorText(e));
+    }
+  };
 
   const checked = useMemo(() => checkForm(form, { custom }), [form, custom]);
   const changed = !published || JSON.stringify("form" in checked ? checked.form : form) !== JSON.stringify(published);
@@ -419,7 +488,6 @@ function Builder({
     reload();
     return { notes: r.notes };
   };
-  const kit = kits.find((k) => k.id === kitId) ?? null;
   // While a scan runs, check the kit every 2 seconds; when it lands, the form takes the new tokens.
   useEffect(() => {
     if (kit?.scan_status !== "scanning") return;
@@ -449,7 +517,7 @@ function Builder({
     }
   };
   const fromChat = (next: Form, nextRev: number) => {
-    setPast((p) => [...p.slice(-99), form]);
+    setPast((p) => [...p.slice(-99), { form, system: draft.current() }]);
     setFuture([]);
     put(next);
     rev.current = nextRev;
@@ -460,7 +528,8 @@ function Builder({
     .replace(/^https?:\/\//, "")
     .replace(/^www\./, "")
     .replace(/\/.*$/, "");
-  const brand = { site: siteHost, kit, tokens, scan: (u: string) => void scan(u), error: scanError };
+  // Previews draw the styles being edited, so the kit carries the draft.
+  const brand = { site: siteHost, kit: kit ? { ...kit, design: draft.system } : null, tokens, scan: (u: string) => void scan(u), error: scanError };
 
   const origin = typeof window === "undefined" ? "" : window.location.origin;
   const tabs: { value: Tab; label: string }[] = [
@@ -495,7 +564,7 @@ function Builder({
       flush
       actions={
         <span className="flex items-center gap-1">
-          <span className="hidden pr-1 text-[12px] text-muted sm:inline">{saved ? "Saved" : "Saving…"}</span>
+          <span className="hidden pr-1 text-[12px] text-muted sm:inline">{saved && !draft.saving ? "Saved" : "Saving…"}</span>
           <StatusMenu status={initial.status} live={!!initial.version} busy={!!busy} onStatus={setStatus} onTest={test} onDelete={remove} />
           {initial.version && changed ? (
             <span className="hidden 2xl:inline-flex">
@@ -560,9 +629,9 @@ function Builder({
     >
       <div className="flex h-full min-h-0 flex-col">
         <Tabs value={tab} tabs={tabs} onChange={setTab} />
-        {error || note || problems.length ? (
+        {error || draft.error || note || problems.length ? (
           <div className="border-b border-line bg-card px-4 py-2">
-            <ErrorNote message={error || problems[0] || note} />
+            <ErrorNote message={error || draft.error || problems[0] || note} />
             {problems.length > 1 ? (
               <ul className="mt-1 flex flex-col gap-0.5 px-3.5 text-[12.5px] text-rose">
                 {problems.slice(1).map((p) => (
@@ -583,6 +652,11 @@ function Builder({
               device={device}
               zoom={zoom}
               theme={theme}
+              draft={draft}
+              hasKit={!!kit}
+              applyStyles={applyStyles}
+              applySystem={applySystem}
+              styles={{ changed: stylesChanged, publish: publishStyles }}
               link={{ session, workspaceId: ws.id, sb, onFieldAdded: (f) => setAdded((a) => [...a, f]) }}
             />
           ) : tab === "share" ? (
@@ -621,7 +695,7 @@ function Builder({
           )}
         </div>
       </div>
-      {previewing ? <PreviewOverlay form={form} tokens={tokens} device={device} onClose={() => setPreviewing(false)} /> : null}
+      {previewing ? <PreviewOverlay form={form} tokens={tokens} system={draft.system} device={device} onClose={() => setPreviewing(false)} /> : null}
     </Page>
   );
 }
@@ -713,7 +787,7 @@ function ChangeBox({
     try {
       const rev = await prepare();
       if (rev === null) throw new Error("The draft didn't save. Try again.");
-      const r = await postJson<{ form: Form; rev: number; reply: string; lines: string[]; ask: { question: string } | null }>(session, "/api/forms/chat", {
+      const r = await postJson<{ form: Form; rev: number; reply: string; lines: string[]; ask: { question: string } | null; styles?: boolean }>(session, "/api/forms/chat", {
         workspaceId: ws.id,
         id: formId,
         rev,
@@ -721,6 +795,8 @@ function ChangeBox({
         confirmed,
       });
       if (r.lines.length) onResult(r.form, r.rev);
+      // The brand's styles changed: load the kit again so the builder shows them.
+      if (r.styles) window.dispatchEvent(new Event("claritia:changed"));
       setReply({ text: r.reply, lines: r.lines, ask: r.ask ? m : null });
       if (!r.ask) setText("");
     } catch (e) {

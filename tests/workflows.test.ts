@@ -195,3 +195,15 @@ test("the editor: typing in one field is one undo step, an edited email loses it
   const added = addStep(b0, { parent: "sp", path: "b", index: 0 }, newStep("task"));
   assert.equal((find(added.steps, "sp")!.step as Extract<Step, { kind: "split" }>).b.length, 1);
 });
+
+test("an email built with blocks: checked for words, links, images and its footer, and read safely", async () => {
+  const { stepProblems, cleanBody } = await import("../src/lib/workflows/check.ts");
+  const step = (blocks: object[]) => ({ id: "e1", kind: "email", from: "team", approved: true, email: { subject: "Hi", preheader: "", paragraphs: [], cta_label: "", cta_url: "", doc: { sections: [{ id: "s1", columns: [{ id: "c1", blocks }] }] } } });
+  const clean = (blocks: object[]) => cleanBody({ trigger: { kind: "manual" }, steps: [step(blocks)] }).steps[0]!;
+  assert.deepEqual(stepProblems(clean([{ id: "f", type: "footer" }])), ["Write the email"]);
+  assert.deepEqual(stepProblems(clean([{ id: "h", type: "heading", text: "Hi {{first_name}}" }])), ["Add the Footer block", "Give {{first_name}} a fallback, like {{first_name|there}}"]);
+  assert.deepEqual(stepProblems(clean([{ id: "b", type: "button", label: "Go", url: "http://x.io" }, { id: "i", type: "image", src: "" }, { id: "f", type: "footer" }])), ["The button needs an https:// link", "Add the image or remove its block"]);
+  assert.deepEqual(stepProblems(clean([{ id: "h", type: "heading", text: "Hi {{first_name|there}}" }, { id: "f", type: "footer" }])), [], "the footer's own merge tags need no fallback");
+  const read = clean([{ id: "t", type: "text", html: "<p onclick=x>ok<script>bad()</script></p>" }]) as { email: { doc: { sections: { columns: { blocks: { html: string }[] }[] }[] } } };
+  assert.equal(read.email.doc.sections[0]!.columns[0]!.blocks[0]!.html, "<p>ok</p>");
+});

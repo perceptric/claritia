@@ -43,7 +43,7 @@ export default async function TypeOrPerson({ params, searchParams }: Props) {
     const p = t.profile!;
     const types = t.types.map((x) => ({ href: keep(`/book/${t.ws.slug}/${x.slug}`, o.embed), type: guestTypeOf(x, t.profiles, t.pay) }));
     return (
-      <BookShell tokens={t.kit.tokens} embed={o.embed} narrow>
+      <BookShell tokens={t.kit.tokens} design={t.kit.design} embed={o.embed} narrow>
         <PageHead title={p.name} line={p.headline} hosts={[{ name: p.name, photo: p.photo_url }]} big />
         <TypeCards types={types} />
       </BookShell>
@@ -52,7 +52,7 @@ export default async function TypeOrPerson({ params, searchParams }: Props) {
   const type = guestTypeOf(t.type, t.profiles, t.pay);
   const first = await preferredSlots(rpc, { ws: t.ws.id, type: t.type, length: type.lengths[0]!, host: o.link?.host, profiles: t.profiles }).catch(() => undefined);
   return (
-    <BookShell tokens={t.kit.tokens} embed={o.embed}>
+    <BookShell tokens={t.kit.tokens} design={t.kit.design} embed={o.embed}>
       <BookFlow
         endpoint={`/api/book/t/${t.ws.slug}/${t.type.slug}`}
         type={type}

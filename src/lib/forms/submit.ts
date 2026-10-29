@@ -186,7 +186,8 @@ export const consentShown = (form: Form, country: string | null | undefined) =>
   form.consent.mode === "always" || (form.consent.mode === "by_region" && regionOf(country ?? "", "") === "strict");
 
 /** The live form as the public routes load it (form_public). */
-export type PublicForm = { id: string; workspace_id: string; version: number; status: "live" | "paused"; body: Form; tokens: Partial<Tokens>; logo_url: string | null };
+/** design: the kit's published design system (src/lib/design/model.ts), raw as stored. */
+export type PublicForm = { id: string; workspace_id: string; version: number; status: "live" | "paused"; body: Form; tokens: Partial<Tokens>; logo_url: string | null; design?: unknown };
 
 /** The daily form check's token for a form, good for the day it was made and the next (src/app/api/forms). */
 export function qaToken(formId: string, day: string, secret: string): string {

@@ -1,3 +1,5 @@
+import { designFonts, formCss } from "@/lib/design/form";
+import { fontUrl } from "@/components/app/forms/editorModel";
 import { allRegions, usesRegions } from "@/lib/forms/regions";
 import { regionOf } from "@/lib/web/policy";
 import { cors, edgeCountry, json, loadPublic, turnstileSiteKey } from "@/lib/forms/server";
@@ -19,12 +21,25 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     if (!f) return json({ error: "Form not found." }, 404);
     const country = edgeCountry(request);
     return json(
-      { id: f.id, version: f.version, status: f.status, body: f.body, tokens: f.tokens, logo_url: f.logo_url, strict: regionOf(country ?? "", "") === "strict", turnstile: turnstileSiteKey() || undefined, ...(usesRegions(f.body) ? { regions: allRegions() } : {}) },
+      { id: f.id, version: f.version, status: f.status, body: f.body, tokens: f.tokens, logo_url: f.logo_url, strict: regionOf(country ?? "", "") === "strict", turnstile: turnstileSiteKey() || undefined, ...(usesRegions(f.body) ? { regions: allRegions() } : {}), ...cssOf(f) },
       200,
       { "Cache-Control": "public, max-age=30", Vary: "cf-ipcountry" },
     );
   } catch {
     return json({ error: "Try again in a moment." }, 503);
+  }
+}
+
+/** The design system's CSS for the form, checked and compiled here so the form script only places it. */
+function cssOf(f: { body: Parameters<typeof formCss>[0]; tokens: Parameters<typeof formCss>[1]; design?: unknown }) {
+  try {
+    const css = formCss(f.body, f.tokens, f.design);
+    if (!css) return {};
+    const fonts = fontUrl(designFonts(f.design, f.body.design));
+    return { css, ...(fonts ? { fonts: [fonts] } : {}) };
+  } catch {
+    // A design that can't compile never stops the form from loading; it shows with its kit's tokens.
+    return {};
   }
 }
 

@@ -3,6 +3,7 @@
 // the renderer, so a form that fails it can't go live. Labels and copy are plain text; nothing in a form is ever
 // read as HTML. Runs in the browser and on the server.
 
+import { readFormDesign, type FormDesign } from "../design/model.ts";
 import { evalFormula, parseFormula, type Ast } from "./formula.ts";
 import { linkProblem, SCHEDULERS, WORK_EMAIL, type MatchRule, type Schedule } from "./schedule.ts";
 
@@ -232,6 +233,8 @@ export type Form = {
   capture?: Capture;
   /** Fill before submit (docs/enrich-workflows-reports.md 1.2 B): fields hidden when enrichment already knows them. */
   enrich?: { hideKnown: boolean; fields: string[] };
+  /** The form's own styles and classes on its elements (docs/design-system.md Part 3.1). */
+  design?: FormDesign;
 };
 
 /** The fields fill before submit may hide (src/lib/enrich/types.ts HIDEABLE). */
@@ -773,6 +776,7 @@ export function checkForm(raw: unknown, ctx: Ctx = {}): { form: Form } | { error
     after: { end, ...(schedule ? { schedule } : {}) },
     ...(capture ? { capture } : {}),
     ...(en.hideKnown === true || enrichFields.length ? { enrich: { hideKnown: en.hideKnown === true, fields: enrichFields } } : {}),
+    ...((d) => (Object.keys(d).length ? { design: d } : {}))(readFormDesign(r.design, new Set(flat.map((f) => f.id)))),
   };
   return errors.length ? { errors: [...new Set(errors)] } : { form };
 }

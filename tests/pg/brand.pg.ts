@@ -78,3 +78,28 @@ test("the step cache: the same AI step replays without calling the model, and bo
   assert.deepEqual(logged.map((r) => r.cached), [false, true]);
   assert.ok(Math.abs(logged[0].c - 0.003) < 1e-6);
 });
+
+test("brand setup: the brief, colors, sizes and links join the kit, and nothing the kit has is overwritten", async () => {
+  const { kit, job } = await setup();
+  // The kit already has a color named Ocean and its own email heading size.
+  await q(`update brand_kits set design = $2, design_rev = 3 where id = $1`, [kit, { variables: [{ id: "ocean", name: "Ocean", kind: "color", value: "#003366" }], email: { globals: { heading: { base: { "font-size": "40px" } } } } }]);
+  const brand = { palette: [{ color: "rgb(15, 118, 110)", weight: 900 }, { color: "rgb(255, 255, 255)", weight: 800 }, { color: "rgb(200, 30, 90)", weight: 100 }], headings: [{ level: 2, size: "30px", weight: "600" }], shadow: "rgba(0, 0, 0, 0.12) 0px 4px 12px 0px", social: [{ kind: "linkedin", url: "https://linkedin.com/company/acme" }], address: "500 Market Street, San Francisco", copy: "Acme helps teams ship." };
+  let briefs = 0;
+  const briefer = async () => (briefs++, { brief: { brief: "Acme sells to busy teams. Plain, warm tone.", colors: ["Ocean", "Berry"] }, usage: { input_tokens: 10, output_tokens: 5 } as never });
+  await handleBrandScan(sb, { ...job, attempts: 1 }, { scan: fakeScan({ brand }), briefer });
+  const k = (await q(`select design, design_rev, social, address, brief from brand_kits where id = $1`, [kit]))[0];
+  assert.equal(briefs, 1);
+  assert.equal(k.brief, "Acme sells to busy teams. Plain, warm tone.");
+  assert.equal(k.address, "500 Market Street, San Francisco");
+  assert.deepEqual(k.social, [{ kind: "linkedin", url: "https://linkedin.com/company/acme" }]);
+  const vars = k.design.variables as { id: string; name: string; value: string }[];
+  assert.deepEqual(vars.map((v) => v.id), ["ocean", "brand-2", "h2-size", "card-shadow"], "the kit's Ocean stays; the scan's color named Ocean is left out");
+  assert.equal(vars.find((v) => v.id === "ocean")!.value, "#003366");
+  assert.equal(vars.find((v) => v.id === "brand-2")!.name, "Berry");
+  assert.equal(k.design.email.globals.heading.base["font-size"], "40px", "the kit's own heading size stays");
+  assert.equal(k.design_rev, 4, "a change bumps the rev, so open builders pick it up");
+  // A second scan of the same site replays the brief from the step cache.
+  await handleBrandScan(sb, { ...job, attempts: 1 }, { scan: fakeScan({ brand }), briefer });
+  assert.equal(briefs, 1);
+  assert.equal((await q(`select design_rev from brand_kits where id = $1`, [kit]))[0].design_rev, 4, "nothing new, no new rev");
+});

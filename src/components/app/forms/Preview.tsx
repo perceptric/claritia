@@ -18,7 +18,7 @@ export function PreviewPane({ form, brand, popup, footer }: { form: Form; brand:
   const step = view === "done" ? 0 : Math.min(view, form.steps.length - 1);
   const shown = (
     <div className="mx-auto" style={{ maxWidth: form.layout.width === "wide" ? 720 : 480 }}>
-      <FormPreview form={form} tokens={brand.tokens} step={step} done={view === "done"} />
+      <FormPreview form={form} tokens={brand.tokens} step={step} done={view === "done"} system={brand.kit?.design} device={device === "phone" ? "phone" : "base"} />
     </div>
   );
   const status = brand.kit?.scan_status;

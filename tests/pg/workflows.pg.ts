@@ -287,3 +287,41 @@ test("the screens' counts: entered and done per step in 7 days, people in it now
   assert.equal(o.days.reduce((x: number, y: number) => x + y, 0), 3);
   await q(`select set_config('request.jwt.claim.sub', '', false)`);
 });
+
+test("an email built with blocks keeps the HTML it was made live with, whatever the styles do later", async () => {
+  const { compileEmail } = await import("../../src/lib/design/email/compile.ts");
+  const { readEmailDoc } = await import("../../src/lib/design/email/doc.ts");
+  const { readSystem } = await import("../../src/lib/design/model.ts");
+  const { ws, user } = await workspace();
+  const kit = (await q(`select brand_kit_save($1, $2, null, 'Acme', '{}') as id`, [user, ws]))[0].id as string;
+  const red = { email: { globals: { heading: { base: { color: "#aa0000" } } } } };
+  await q(`update brand_kits set design = $2, design_live = $2 where id = $1`, [kit, red]);
+  const doc = readEmailDoc({ kitId: kit, sections: [{ id: "s1", columns: [{ id: "c1", blocks: [{ id: "h", type: "heading", text: "Hello" }, { id: "f", type: "footer" }] }] }] });
+  const step: Step = { id: "e1", kind: "email", from: "team", approved: true, email: { subject: "Blocks", preheader: "", paragraphs: [], cta_label: "", cta_url: "", doc } };
+  const body = manual([step]);
+  const wf = (await q(`insert into workflows (workspace_id, name, draft) values ($1, 'Blocks', $2) returning id`, [ws, body]))[0].id as string;
+  // What the publish route does: compile with the kit's published styles, store the HTML with the version.
+  const live = (await q(`select design_live from brand_kits where id = $1`, [kit]))[0].design_live;
+  const c1 = compileEmail(readSystem(live), doc);
+  assert.match(c1.html, /color:#aa0000/);
+  await q(`select workflow_publish($1, $2, $3, $4) v`, [wf, user, JSON.stringify(body), JSON.stringify([{ step: "e1", subject: "Blocks", preheader: "", html: c1.html, text: c1.text, links: [] }])]);
+  const c = await contact(ws);
+  const r = await start(ws, wf, c);
+  await q(`select workflow_claim($1, 10)`, [ws]);
+  await q(`select workflow_step_begin($1, 'e1', 1)`, [r]);
+  await q(`select workflow_email($1, 'e1', '{}', null, null)`, [r]);
+  // The styles change and are published while the email waits to send.
+  await q(`select brand_kit_design_save($1, $2, $3, (select design_rev from brand_kits where id = $2))`, [user, kit, { email: { globals: { heading: { base: { color: "#0000aa" } } } } }]);
+  const cl = await pool.connect();
+  try {
+    await cl.query(`select set_config('request.jwt.claim.sub', $1, false)`, [user]);
+    await cl.query(`select brand_kit_design_publish($1)`, [kit]);
+  } finally {
+    await cl.query(`select set_config('request.jwt.claim.sub', '', false)`);
+    cl.release();
+  }
+  const queued = await q(`select e.html from email_messages m join emails e on e.id = m.email_id where m.dedupe like $1`, [`wf:${r}:%`]);
+  assert.equal(queued.length, 1);
+  assert.equal(queued[0].html, c1.html, "the queued email is exactly what was made live");
+  assert.doesNotMatch(queued[0].html, /#0000aa/);
+});

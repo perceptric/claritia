@@ -8,7 +8,9 @@ import { cleanColor, cleanFontUrl, cleanTokens, contrast, fixContrast, type Toke
 import { hostIsPrivate } from "../privateNet.ts";
 
 export type SiteForm = { url: string; fields: { label: string; type: string }[]; button?: string };
-export type Scan = { tokens: Tokens; notes: string[]; logo: string | null; forms: SiteForm[]; formShot: Buffer | null; pages: string[] };
+export type Scan = { tokens: Tokens; notes: string[]; logo: string | null; forms: SiteForm[]; formShot: Buffer | null; pages: string[]; brand: BrandExtras };
+/** What the scan finds beyond the 22 tokens (docs/design-system.md Part 7.1). */
+export type BrandExtras = { palette: { color: string; weight: number }[]; headings: { level: number; size: string; weight: string }[]; shadow: string | null; social: { kind: string; url: string }[]; address: string | null; copy: string };
 export class ScanBlocked extends Error {}
 
 type Raw = {
@@ -29,6 +31,15 @@ type Raw = {
   logo: string | null;
   forms: SiteForm[];
   ctas: string[];
+  /** Colors by how much of the page they cover (backgrounds by area, text by length), most first. */
+  palette: { color: string; weight: number }[];
+  /** Heading sizes and weights, h1 to h3, as drawn. */
+  headings: { level: number; size: string; weight: string }[];
+  shadow: string | null;
+  social: { kind: string; url: string }[];
+  address: string | null;
+  /** The page's words, for the brand brief. */
+  copy: string;
 };
 
 /** Runs in the page. Plain JavaScript only: it's serialized into the browser. */
@@ -107,6 +118,47 @@ const READ = () => {
     const sub = f.querySelector("button[type=submit], button:not([type]), input[type=submit]") as HTMLInputElement | null;
     if (fields.length) forms.push({ url: location.href.split("#")[0].split("?")[0], fields, button: ((sub?.textContent || sub?.value || "").trim().slice(0, 40)) || undefined });
   }
+  // The palette: background colors by area, text colors by length, so the brand's colors rise to the top.
+  const paint = new Map<string, number>();
+  const add = (c: string, w: number) => {
+    if (!clear(c) && w > 0) paint.set(c, (paint.get(c) ?? 0) + w);
+  };
+  for (const el of [...document.querySelectorAll("body *")].slice(0, 2500)) {
+    if (!vis(el)) continue;
+    const s = css(el);
+    const r = el.getBoundingClientRect();
+    add(s.backgroundColor, Math.min(r.width * r.height, 1280 * 900) / 1000);
+    const own = [...el.childNodes].filter((n) => n.nodeType === 3).map((n) => n.textContent ?? "").join("").trim().length;
+    if (own) add(s.color, own * 2);
+    if (parseFloat(s.borderTopWidth) > 0) add(s.borderTopColor, (r.width / 50) * parseFloat(s.borderTopWidth));
+  }
+  const palette = [...paint.entries()].sort((a, b) => b[1] - a[1]).slice(0, 12).map(([color, weight]) => ({ color, weight: Math.round(weight) }));
+  const headings = [1, 2, 3].flatMap((level) => {
+    const h = [...document.querySelectorAll(`h${level}`)].find(vis);
+    return h ? [{ level, size: css(h).fontSize, weight: css(h).fontWeight }] : [];
+  });
+  const shadowEl = [...document.querySelectorAll("div, article, section, a, button")].filter(vis).find((el) => css(el).boxShadow !== "none" && el.getBoundingClientRect().width > 120);
+  const SOCIAL: [RegExp, string][] = [
+    [/(^|\.)linkedin\.com$/, "linkedin"],
+    [/(^|\.)(twitter|x)\.com$/, "x"],
+    [/(^|\.)facebook\.com$/, "facebook"],
+    [/(^|\.)instagram\.com$/, "instagram"],
+    [/(^|\.)youtube\.com$/, "youtube"],
+    [/(^|\.)github\.com$/, "github"],
+  ];
+  const social: { kind: string; url: string }[] = [];
+  for (const a of [...document.querySelectorAll("a[href]")] as HTMLAnchorElement[]) {
+    const hit = SOCIAL.find(([re]) => re.test(a.hostname));
+    if (hit && a.protocol === "https:" && !social.some((x) => x.kind === hit[1]) && social.length < 8) social.push({ kind: hit[1], url: a.href.split("?")[0] });
+  }
+  // The company address: a line in the footer with a street number and a street word, or a postcode.
+  const foot = document.querySelector("footer") ?? body;
+  const address =
+    (foot.innerText ?? "")
+      .split(/\n+/)
+      .map((l) => l.trim())
+      .find((l) => l.length < 160 && /\d/.test(l) && /(\b(street|st|avenue|ave|road|rd|boulevard|blvd|suite|floor|lane|ln|drive|dr|way|place|pl|strasse|straße|rue|via)\b|\b\d{5}(-\d{4})?\b|\b[A-Z]{1,2}\d[A-Z\d]? ?\d[A-Z]{2}\b)/i.test(l)) ?? null;
+  const copy = (body.innerText ?? "").replace(/\s+\n/g, "\n").slice(0, 6000);
   const ctas = [...document.querySelectorAll("a[href]")]
     .filter((a) => vis(a) && (a as HTMLAnchorElement).host === location.host && /contact|demo|sales|get-started|signup|sign-up|book|talk|request/i.test(((a as HTMLAnchorElement).pathname || "") + " " + (a.textContent || "")))
     .map((a) => (a as HTMLAnchorElement).href.split("#")[0]);
@@ -128,6 +180,12 @@ const READ = () => {
     logo: logoEl ? ((logoEl as HTMLImageElement).currentSrc || (logoEl as HTMLImageElement).src || null) : null,
     forms,
     ctas: [...new Set(ctas)].slice(0, 10),
+    palette,
+    headings,
+    shadow: shadowEl ? css(shadowEl).boxShadow : null,
+    social,
+    address,
+    copy,
   };
 };
 
@@ -229,7 +287,8 @@ export async function scanSite(rawUrl: string, opts: { chromiumPath?: string; al
     const { tokens, notes } = tokensFrom(home, formPage);
     const forms = [...home.forms, ...(formPage?.forms ?? [])].slice(0, 5);
     const logo = home.logo && /^https:\/\//.test(home.logo) ? home.logo.slice(0, 1000) : null;
-    return { tokens, notes, logo, forms, formShot, pages };
+    const brand: BrandExtras = { palette: home.palette, headings: home.headings, shadow: home.shadow, social: home.social, address: home.address, copy: home.copy };
+    return { tokens, notes, logo, forms, formShot, pages, brand };
   } finally {
     await browser.close().catch(() => undefined);
   }

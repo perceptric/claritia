@@ -1,33 +1,47 @@
 "use client";
 
-// The editing canvas (docs/form-studio.md Part 2): a gray stage with the form drawn at the device's width, one frame
-// per step. It draws the form the way <claritia-form> does (the brand kit's tokens, the 6-column grid, labels above
-// or inside, sizes, content blocks, steps), with editing on top: hover outlines, a 2px accent outline and name tag on
-// the selected field, a floating toolbar, labels edited in place on double-click, and drag handles for the
-// Editor's drop logic. The editor's own chrome keeps its size at any zoom.
+// The editing canvas (docs/design-system.md Part 3.3): a gray stage with one real <claritia-form> per step, drawn in
+// edit mode at the device's width with the draft's compiled styles, so the builder shows exactly what visitors get.
+// A clear layer on top mirrors where each field sits and does the editing: hover outlines, a 2px accent outline and
+// name tag on the selected field, the selected part (label, input...) picked from under the pointer, a floating
+// toolbar, text edited in place on double-click, and drag handles for the Editor's drop logic (which reads the
+// layer's `data-step-frame`, `data-grid` and `data-fid` boxes). The editor's own chrome keeps its size at any zoom.
 
 import { useDraggable } from "@dnd-kit/core";
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { Tokens } from "@/lib/forms/brand";
 import type { Op } from "@/lib/forms/ops";
+import { allRegions, usesRegions } from "@/lib/forms/regions";
 import { isContent, WIDTHS, type Field, type FieldWidth, type Form } from "@/lib/forms/schema";
+import type { State } from "@/lib/design/model";
+import { fieldParts, FORM_PARTS, partAt, partDef, type PartKey } from "@/lib/design/parts";
+import { partSelector } from "@/lib/design/web";
 import { ArrowDown, ArrowUp, Branch, Copy, Plus, Trash } from "../../Icons";
 import { Popover, Seg } from "./controls";
-import { frameWidth, formWidth, iconFor, nameOf, spanOf, WIDTH_LABEL, type Device } from "./editorModel";
-import { Calendar, ChevronDown, Columns, ElementIcon, EyeOff, ImageIcon, PhoneOff } from "./icons";
+import { frameWidth, iconFor, nameOf, WIDTH_LABEL, type Device } from "./editorModel";
+import { Columns, ElementIcon, EyeOff, PhoneOff } from "./icons";
 
 export type Editing = { kind: "field"; id: string } | { kind: "title" | "intro" | "submit" } | null;
+/** What the style panel edits: an element ("form" for the form's own parts) and one of its parts. */
+export type Picked = { id: string; part: PartKey } | null;
 
 export type CanvasProps = {
   form: Form;
   t: Tokens;
   device: Device;
   zoom: "fit" | number;
+  /** The draft's compiled styles for this device (src/lib/design/form.ts with `device` and `preview`). */
+  css: string;
+  /** Font stylesheets the styles need. */
+  fonts?: string[];
   selected: string[];
   hovered: string | null;
   dragging: string | null;
   editing: Editing;
-  onSelect: (id: string, add: boolean) => void;
+  part: Picked;
+  /** The state the style panel edits, shown on the selected part. */
+  state?: State;
+  onPick: (id: string, part: PartKey, add: boolean) => void;
   onClear: () => void;
   onHover: (id: string | null) => void;
   onEdit: (e: Editing) => void;
@@ -38,10 +52,17 @@ export type CanvasProps = {
   apply: (op: Op | Op[]) => void;
   /** Tells the editor the zoom in use, for the zoom menu. */
   onZoom?: (z: number) => void;
+  /** The style guide: parts can be picked, nothing else changes. */
+  locked?: boolean;
 };
 
+/** Edit mode only: empty steps and hidden fields keep a size, and fields hidden on phones show faded. */
+const EDIT_CSS = `.g:empty{min-height:80px;border:1px dashed var(--clr-border);border-radius:var(--clr-radius)}
+[data-hidden]{min-height:32px}
+@container (max-width:400px){.np{display:flex;opacity:.35}}`;
+
 export function FormCanvas(props: CanvasProps) {
-  const { form, t, device, zoom, onClear, apply, onZoom } = props;
+  const { form, device, zoom, onClear, apply, onZoom, locked } = props;
   const stage = useRef<HTMLDivElement>(null);
   const [stageW, setStageW] = useState(800);
   useLayoutEffect(() => {
@@ -56,17 +77,6 @@ export function FormCanvas(props: CanvasProps) {
   const z = zoom === "fit" ? Math.min(1, Math.max(0.25, (stageW - 64) / fw)) : zoom / 100;
   useEffect(() => onZoom?.(z), [z, onZoom]);
 
-  // The fonts the canvas draws in.
-  useEffect(() => {
-    const url = t.fontUrl;
-    if (!url || document.querySelector(`link[data-form-font="${CSS.escape(url)}"]`)) return;
-    const l = document.createElement("link");
-    l.rel = "stylesheet";
-    l.href = url;
-    l.dataset.formFont = url;
-    document.head.append(l);
-  }, [t.fontUrl]);
-
   const n = form.steps.length;
   return (
     <div ref={stage} className="relative min-h-0 min-w-0 overflow-auto bg-paper-deep" onClick={onClear} data-stage="">
@@ -75,7 +85,7 @@ export function FormCanvas(props: CanvasProps) {
           <div key={s.id} className="flex flex-col gap-2">
             <div className="flex h-7 items-center gap-2" style={{ width: fw * z }} onClick={(e) => e.stopPropagation()}>
               <span className="shrink-0 text-[12px] font-medium text-muted">{n > 1 ? `Step ${si + 1} of ${n}` : device === "desktop" ? "Desktop" : device === "tablet" ? "Tablet" : "Phone"}</span>
-              {n > 1 ? (
+              {n > 1 && !locked ? (
                 <input
                   value={s.title ?? ""}
                   placeholder="Title"
@@ -86,7 +96,7 @@ export function FormCanvas(props: CanvasProps) {
               ) : (
                 <span className="flex-1 text-[11.5px] text-faint tabular-nums">{fw}</span>
               )}
-              {n > 1 ? (
+              {n > 1 && !locked ? (
                 <button
                   type="button"
                   aria-label={`Remove step ${si + 1}`}
@@ -103,36 +113,179 @@ export function FormCanvas(props: CanvasProps) {
             </div>
           </div>
         ))}
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            apply({ op: "add_step" });
-            onClear();
-          }}
-          className="press inline-flex h-8 items-center gap-1.5 rounded-full border border-line-strong bg-card px-3.5 text-[12.5px] font-medium text-ink hover:border-ink"
-        >
-          <Plus size={13} />
-          Add step
-        </button>
+        {locked ? null : (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              apply({ op: "add_step" });
+              onClear();
+            }}
+            className="press inline-flex h-8 items-center gap-1.5 rounded-full border border-line-strong bg-card px-3.5 text-[12.5px] font-medium text-ink hover:border-ink"
+          >
+            <Plus size={13} />
+            Add step
+          </button>
+        )}
       </div>
     </div>
   );
 }
 
-// As <claritia-form> draws them (src/lib/forms/element.ts): small and large change the box, not the label.
-const heightOf = (f: Field) => (f.size === "sm" ? 0.82 : f.size === "lg" ? 1.2 : 1);
-const fontOf = (f: Field) => (f.size === "sm" ? 0.92 : f.size === "lg" ? 1.08 : 1);
-const INSIDE = ["text", "email", "phone", "number", "url", "textarea", "date", "dropdown", "country"];
+// Where things sit, in the frame's own pixels (zoom taken out).
+type R = { x: number; y: number; w: number; h: number };
+type Layout = { fields: Record<string, R>; grid: R | null; title: R | null; intro: R | null; submit: R | null; part: R | null; edit: React.CSSProperties | null };
+const NO_LAYOUT: Layout = { fields: {}, grid: null, title: null, intro: null, submit: null, part: null, edit: null };
+
+/** The selector for a picked part inside the form; null for parts that can't be found in the page (placeholders). */
+function pickedSelector(p: NonNullable<Picked>): string | null {
+  const sel = partSelector(p.part, p.id === "form" ? "" : `.fl[data-id="${p.id}"]`);
+  return sel && !sel.includes("::") ? sel : null;
+}
+
+/** The text a double-click edits, inside the form. */
+function editTarget(root: ShadowRoot, e: NonNullable<Editing>): HTMLElement | null {
+  if (e.kind !== "field") return root.querySelector(e.kind === "title" ? ".f > .h" : e.kind === "intro" ? ".f > .i:not(.nt)" : ".ac .bt:not(.bk)");
+  const box = root.querySelector(`.fl[data-id="${e.id}"]`);
+  return box?.querySelector<HTMLElement>(".lb, .ck span, .k1, .k2, .k3, .tx, .in, .bx") ?? null;
+}
 
 function StepFrame(props: CanvasProps & { si: number; z: number; fw: number }) {
-  const { form, t, device, si, z, fw, editing, onEdit, onCommit, onClear } = props;
+  const { form, t, device, si, z, fw, css, fonts, editing, part, state, dragging, onPick, onClear, onEdit, onCommit } = props;
+  const host = useRef<HTMLElement>(null);
+  const [layout, setLayout] = useState<Layout>(NO_LAYOUT);
   const step = form.steps[si];
-  const n = form.steps.length;
-  const last = si === n - 1;
   const phone = device === "phone";
-  const progress = form.layout.progress ?? "bar";
   const pad = phone ? 20 : 48;
+  const rootOf = () => host.current?.shadowRoot ?? null;
+
+  // The real form, in edit mode, for this step.
+  const fullCss = `${css}\n${EDIT_CSS}${dragging ? `\n.fl[data-id="${dragging}"]{opacity:.3}` : ""}`;
+  useEffect(() => {
+    let live = true;
+    void import("@/lib/forms/element").then(() => {
+      if (live && host.current) (host.current as unknown as { preview: unknown }).preview = { form, tokens: t, step: si, css: fullCss, fonts, edit: true, ...(usesRegions(form) ? { regions: allRegions() } : {}) };
+    });
+    return () => {
+      live = false;
+    };
+  }, [form, t, si, fullCss, fonts]);
+
+  // After every draw: the picked part shows the state being styled, and the layer measures the form again.
+  const measure = useCallback(() => {
+    const h = host.current;
+    const root = h?.shadowRoot;
+    if (!h || !root) return;
+    for (const n of root.querySelectorAll("[class*=clr-force-]")) n.classList.forEach((c) => c.startsWith("clr-force-") && n.classList.remove(c));
+    const sel = part ? pickedSelector(part) : null;
+    let partEl: Element | null = null;
+    try {
+      partEl = sel ? root.querySelector(sel) : null;
+      if (sel && state && state !== "dark") for (const n of root.querySelectorAll(sel)) n.classList.add(`clr-force-${state}`);
+    } catch {
+      partEl = null;
+    }
+    const box = h.getBoundingClientRect();
+    // Some browsers measure zoomed pages in zoomed pixels and some don't: the host's own width tells which.
+    const s = box.width / (h.offsetWidth || 1) || 1;
+    const loc = (n: Element | null): R | null => {
+      if (!n) return null;
+      const r = n.getBoundingClientRect();
+      if (!r.width && !r.height) return null;
+      return { x: (r.left - box.left) / s, y: (r.top - box.top) / s, w: r.width / s, h: r.height / s };
+    };
+    const fields: Record<string, R> = {};
+    for (const n of root.querySelectorAll(".g > .fl[data-id]")) {
+      const r = loc(n);
+      if (r) fields[(n as HTMLElement).dataset.id!] = r;
+    }
+    // The text being edited: where it sits and its font, so the box over it looks the same.
+    let edit: React.CSSProperties | null = null;
+    const el = editing ? editTarget(root, editing) : null;
+    const er = loc(el);
+    if (el && er) {
+      const cs = getComputedStyle(el);
+      edit = {
+        left: er.x,
+        top: er.y,
+        width: Math.max(120, er.w),
+        minHeight: er.h,
+        fontFamily: cs.fontFamily,
+        fontSize: cs.fontSize,
+        fontWeight: cs.fontWeight,
+        lineHeight: cs.lineHeight,
+        letterSpacing: cs.letterSpacing,
+        textTransform: cs.textTransform as React.CSSProperties["textTransform"],
+        textAlign: cs.textAlign as React.CSSProperties["textAlign"],
+        color: el.matches(".in, .bx, .bt") ? undefined : cs.color,
+      };
+    }
+    setLayout({ fields, grid: loc(root.querySelector(".g")), title: loc(root.querySelector(".f > .h")), intro: loc(root.querySelector(".f > .i:not(.nt)")), submit: loc(root.querySelector(".ac .bt:not(.bk)")), part: loc(partEl), edit });
+  }, [part, state, editing]);
+  useEffect(() => {
+    const h = host.current;
+    if (!h) return;
+    let frame = 0;
+    const soon = () => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(measure);
+    };
+    let mo: MutationObserver | null = null;
+    const watch = () => {
+      if (mo || !h.shadowRoot) return;
+      mo = new MutationObserver(soon);
+      mo.observe(h.shadowRoot, { childList: true, subtree: true, characterData: true });
+    };
+    const ro = new ResizeObserver(() => {
+      watch();
+      soon();
+    });
+    ro.observe(h);
+    watch();
+    soon();
+    void document.fonts?.ready.then(soon);
+    return () => {
+      cancelAnimationFrame(frame);
+      ro.disconnect();
+      mo?.disconnect();
+    };
+  }, [measure]);
+
+  /** The form's own part under the pointer (title, button, progress...), seen through the layer. */
+  const formPartAt = (x: number, y: number): PartKey | null => {
+    const root = rootOf();
+    const f = root?.querySelector(".f") ?? null;
+    if (!root || !f) return null;
+    const hit = root.elementsFromPoint(x, y).find((n) => root.contains(n) && !n.closest(".fl"));
+    return hit ? partAt(hit, f, FORM_PARTS) : null;
+  };
+  /** The part of one field under the pointer. */
+  const fieldPartAt = (f: Field, x: number, y: number): PartKey => {
+    const root = rootOf();
+    const box = root?.querySelector(`.fl[data-id="${f.id}"]`) ?? null;
+    const hit = root?.elementsFromPoint(x, y).find((n) => box?.contains(n)) ?? null;
+    return partAt(hit, box, fieldParts(f.type)) ?? "field";
+  };
+
+  const textZone = (kind: "title" | "intro" | "submit", r: R | null, label: string) =>
+    r && editing?.kind !== kind ? (
+      <div
+        role="button"
+        tabIndex={-1}
+        aria-label={label}
+        className="absolute cursor-text rounded-[2px] hover:outline hover:outline-1 hover:outline-clay/60"
+        style={{ left: r.x, top: r.y, width: r.w, height: r.h, outlineOffset: 4 / z }}
+        onClick={(e) => {
+          e.stopPropagation();
+          onPick("form", kind === "submit" ? "button" : kind, false);
+        }}
+        onDoubleClick={(e) => {
+          e.stopPropagation();
+          if (!props.locked) onEdit({ kind });
+        }}
+      />
+    ) : null;
+
   return (
     <section
       data-step-frame={si}
@@ -141,167 +294,52 @@ function StepFrame(props: CanvasProps & { si: number; z: number; fw: number }) {
         onClear();
       }}
       className="rounded-sm border border-line shadow-soft"
-      style={{ width: fw, background: t.background, padding: pad, fontFamily: t.font, fontSize: t.fontSize, color: t.text, lineHeight: 1.45, fontVariantNumeric: "normal", letterSpacing: "normal" }}
+      style={{ width: fw, background: t.background, padding: pad }}
     >
-      <div className="mx-auto flex flex-col" style={{ maxWidth: formWidth(form.layout), gap: t.gap }}>
-        {si === 0 && (form.title || editing?.kind === "title") ? (
-          <Editable
-            as="h2"
-            value={form.title ?? ""}
-            editing={editing?.kind === "title"}
-            onStart={() => onEdit({ kind: "title" })}
-            onDone={(v) => onCommit({ kind: "title" }, v)}
-            onCancel={() => onEdit(null)}
-            style={{ fontFamily: t.headingFont || t.font, fontSize: "1.45em", fontWeight: 600, lineHeight: 1.2, margin: 0 }}
-            label="Form title"
-          />
-        ) : null}
-        {si === 0 && (form.intro || editing?.kind === "intro") ? (
-          <Editable
-            as="p"
-            multiline
-            value={form.intro ?? ""}
-            editing={editing?.kind === "intro"}
-            onStart={() => onEdit({ kind: "intro" })}
-            onDone={(v) => onCommit({ kind: "intro" }, v)}
-            onCancel={() => onEdit(null)}
-            style={{ color: t.muted, margin: 0 }}
-            label="Intro"
-          />
-        ) : null}
-        {n > 1 && progress !== "none" ? <Progress kind={progress} at={si} n={n} t={t} title={step.title} /> : null}
-        <div data-grid="" className="grid grid-cols-6" style={{ gap: t.gap }}>
-          {step.fields.map((f) => (
-            <FieldBox key={f.id} {...props} f={f} si={si} phone={phone} z={z} />
-          ))}
-          {!step.fields.length ? (
-            <div className="col-span-6 flex h-20 items-center justify-center rounded-sm border border-dashed text-muted" style={{ borderColor: t.border, color: t.muted }} aria-label="Empty step">
+      <div className="relative">
+        <claritia-form ref={host} />
+        {/* The layer: it takes every pointer event, so nothing in the form below reacts while editing. */}
+        <div
+          className="absolute inset-0"
+          onClick={(e) => {
+            e.stopPropagation();
+            const p = formPartAt(e.clientX, e.clientY);
+            if (p) onPick("form", p, false);
+            else onClear();
+          }}
+        >
+          <div data-grid="" className="pointer-events-none absolute" style={layout.grid ? { left: layout.grid.x, top: layout.grid.y, width: layout.grid.w, height: layout.grid.h } : { left: 0, top: 0, width: 0, height: 0 }} />
+          {!step.fields.length && layout.grid ? (
+            <span className="pointer-events-none absolute flex items-center justify-center" style={{ left: layout.grid.x, top: layout.grid.y, width: layout.grid.w, height: layout.grid.h, color: t.muted }} aria-label="Empty step">
               <Plus size={18} />
-            </div>
-          ) : null}
-        </div>
-        {last && (form.consent.mode === "always" || form.consent.mode === "by_region") ? (
-          <label className="flex items-start gap-2.5">
-            <span className="mt-0.5 size-[18px] shrink-0" style={{ border: `${Math.max(1, t.borderWidth)}px solid ${t.border}`, borderRadius: Math.min(4, t.radius), background: t.inputBg }} />
-            <span>{form.consent.label}</span>
-          </label>
-        ) : null}
-        {last && form.consent.mode === "notice" ? <p style={{ color: t.muted, fontSize: "0.85em", margin: 0 }}>{form.consent.label}</p> : null}
-        <div className="flex items-center gap-2.5">
-          {si > 0 ? (
-            <span
-              className="inline-flex items-center px-[22px]"
-              style={{ minHeight: t.inputHeight, border: `${t.borderWidth}px solid ${t.border}`, borderRadius: t.buttonRadius, fontWeight: t.buttonWeight, textTransform: t.buttonCase }}
-            >
-              Back
             </span>
           ) : null}
-          {last ? (
-            <Editable
-              as="span"
-              value={form.submit.label}
-              editing={editing?.kind === "submit"}
-              onStart={() => onEdit({ kind: "submit" })}
-              onDone={(v) => onCommit({ kind: "submit" }, v)}
-              onCancel={() => onEdit(null)}
-              label="Button text"
-              className={`inline-flex items-center px-[22px] ${form.submit.full ? "flex-1 justify-center" : ""}`}
-              style={{ minHeight: t.inputHeight, background: t.buttonBg, color: t.buttonText, borderRadius: t.buttonRadius, fontWeight: t.buttonWeight, textTransform: t.buttonCase }}
-            />
-          ) : (
-            <span
-              className={`inline-flex items-center px-[22px] ${form.submit.full ? "flex-1 justify-center" : ""}`}
-              style={{ minHeight: t.inputHeight, background: t.buttonBg, color: t.buttonText, borderRadius: t.buttonRadius, fontWeight: t.buttonWeight, textTransform: t.buttonCase }}
-            >
-              Next
+          {si === 0 ? textZone("title", layout.title, "Form title") : null}
+          {si === 0 ? textZone("intro", layout.intro, "Intro") : null}
+          {si === form.steps.length - 1 ? textZone("submit", layout.submit, "Button text") : null}
+          {step.fields.map((f) => (layout.fields[f.id] ? <FieldBox key={f.id} {...props} f={f} si={si} phone={phone} z={z} r={layout.fields[f.id]} partAt={fieldPartAt} /> : null))}
+          {part && layout.part && (part.id === "form" || layout.fields[part.id]) && part.part !== "field" && part.part !== "form" ? (
+            <span className="pointer-events-none absolute rounded-[2px] outline-dashed outline-clay" style={{ left: layout.part.x, top: layout.part.y, width: layout.part.w, height: layout.part.h, outlineWidth: 1 / z, outlineOffset: 2 / z }}>
+              <span className="absolute top-full left-0" style={{ zoom: 1 / z, marginTop: 4 }}>
+                <span className="inline-flex h-5 items-center rounded-full bg-ink px-2 text-[11px] font-medium text-paper">{partDef(part.part).label}</span>
+              </span>
             </span>
-          )}
+          ) : null}
+          {editing && layout.edit && (editing.kind === "field" ? !!layout.fields[editing.id] : si === 0 || editing.kind === "submit") ? (
+            <InlineEdit key={JSON.stringify(editing)} {...props} place={layout.edit} editing={editing} onDone={(v) => onCommit(editing, v)} onCancel={() => onEdit(null)} />
+          ) : null}
         </div>
       </div>
     </section>
   );
 }
 
-/** Where a visitor is: words over a bar, or dots alone (as element.ts draws them). */
-function Progress({ kind, at, n, t, title }: { kind: "bar" | "dots"; at: number; n: number; t: Tokens; title?: string }) {
-  const off = `color-mix(in srgb, ${t.muted} 22%, transparent)`;
-  return (
-    <div className="flex flex-col gap-2">
-      {kind === "bar" ? (
-        <>
-          <p style={{ margin: 0, fontSize: "0.85em", color: t.muted }}>{`Step ${at + 1} of ${n}${title ? ` · ${title}` : ""}`}</p>
-          <span className="block h-1 overflow-hidden rounded-[4px]" style={{ background: off }}>
-            <span className="block h-full" style={{ width: `${((at + 1) / n) * 100}%`, background: t.accent }} />
-          </span>
-        </>
-      ) : (
-        <span className="flex gap-1.5">
-          {Array.from({ length: n }, (_, i) => (
-            <span key={i} className="size-2 rounded-full" style={{ background: i <= at ? t.accent : `color-mix(in srgb, ${t.muted} 30%, transparent)` }} />
-          ))}
-        </span>
-      )}
-    </div>
-  );
-}
-
-/** Text that turns into a box in place: Enter saves (Cmd+Enter for several lines), Escape puts it back. */
-function Editable({
-  as,
-  value,
-  editing,
-  onStart,
-  onDone,
-  onCancel,
-  style,
-  className = "",
-  multiline = false,
-  label,
-}: {
-  as: "h2" | "p" | "span";
-  value: string;
-  editing: boolean;
-  onStart: () => void;
-  onDone: (v: string) => void;
-  onCancel: () => void;
-  style: React.CSSProperties;
-  className?: string;
-  multiline?: boolean;
-  label: string;
-}) {
-  const Tag = as;
-  if (editing) return <InlineBox value={value} multiline={multiline} onDone={onDone} onCancel={onCancel} style={style} className={className} label={label} />;
-  return (
-    <Tag
-      className={`${className} cursor-text rounded-[2px] outline-offset-4 hover:outline hover:outline-1 hover:outline-clay/60`}
-      style={{ ...style, whiteSpace: multiline ? "pre-wrap" : undefined }}
-      onDoubleClick={(e) => {
-        e.stopPropagation();
-        onStart();
-      }}
-    >
-      {value}
-    </Tag>
-  );
-}
-
-function InlineBox({
-  value,
-  multiline,
-  onDone,
-  onCancel,
-  style,
-  className = "",
-  label,
-}: {
-  value: string;
-  multiline?: boolean;
-  onDone: (v: string) => void;
-  onCancel: () => void;
-  style: React.CSSProperties;
-  className?: string;
-  label: string;
-}) {
+/** A box over the text being edited, in the text's own font: Enter saves (Cmd+Enter for several lines), Escape puts it back. */
+function InlineEdit({ form, place, editing, onDone, onCancel }: CanvasProps & { place: React.CSSProperties; editing: NonNullable<Editing>; onDone: (v: string) => void; onCancel: () => void }) {
+  const field = editing.kind === "field" ? form.steps.flatMap((s) => s.fields).find((f) => f.id === editing.id) : undefined;
+  const value =
+    editing.kind === "title" ? (form.title ?? "") : editing.kind === "intro" ? (form.intro ?? "") : editing.kind === "submit" ? form.submit.label : field && (field.type === "heading" || field.type === "paragraph") ? (field.content?.text ?? "") : (field?.label ?? "");
+  const multiline = editing.kind === "intro" || field?.type === "paragraph";
   const [text, setText] = useState(value);
   const done = useRef(false);
   const finish = (save: boolean) => {
@@ -310,6 +348,7 @@ function InlineBox({
     if (save) onDone(text);
     else onCancel();
   };
+  const label = editing.kind === "title" ? "Form title" : editing.kind === "intro" ? "Intro" : editing.kind === "submit" ? "Button text" : field?.type === "heading" ? "Heading text" : field?.type === "paragraph" ? "Text" : "Label";
   const common = {
     autoFocus: true,
     value: text,
@@ -327,33 +366,23 @@ function InlineBox({
         finish(true);
       }
     },
-    className: `${className} w-full min-w-0 rounded-[2px] bg-transparent outline outline-2 outline-offset-2 outline-clay`,
-    style: { ...style, font: "inherit", ...pick(style) },
+    className: "absolute z-30 rounded-[2px] border-0 bg-card p-0 text-ink outline outline-2 outline-offset-2 outline-clay",
   };
   return multiline ? (
-    <textarea {...common} rows={Math.max(2, text.split("\n").length)} onChange={(e) => setText(e.target.value)} style={{ ...common.style, resize: "none" }} />
+    <textarea {...common} rows={Math.max(2, text.split("\n").length)} onChange={(e) => setText(e.target.value)} style={{ ...place, resize: "none" }} />
   ) : (
-    <input {...common} onChange={(e) => setText(e.target.value)} />
+    <input {...common} onChange={(e) => setText(e.target.value)} style={place} />
   );
 }
-const pick = (s: React.CSSProperties): React.CSSProperties => ({
-  fontFamily: s.fontFamily,
-  fontSize: s.fontSize,
-  fontWeight: s.fontWeight,
-  lineHeight: s.lineHeight,
-  color: s.color,
-  textTransform: s.textTransform,
-});
 
-function FieldBox(props: CanvasProps & { f: Field; si: number; phone: boolean; z: number }) {
-  const { f, si, phone, z, form, t, selected, hovered, dragging, editing, onSelect, onHover, onEdit, onCommit } = props;
-  const { attributes, listeners, setNodeRef } = useDraggable({ id: `f:${f.id}`, data: { kind: "field", id: f.id } });
+function FieldBox(props: CanvasProps & { f: Field; si: number; phone: boolean; z: number; r: R; partAt: (f: Field, x: number, y: number) => PartKey }) {
+  const { f, si, phone, z, r, form, selected, hovered, editing, onPick, onHover, onEdit } = props;
+  const { attributes, listeners, setNodeRef } = useDraggable({ id: `f:${f.id}`, data: { kind: "field", id: f.id }, disabled: props.locked });
   const isSel = selected.includes(f.id);
   const primary = isSel && selected.length === 1;
   const isHover = hovered === f.id && !isSel;
-  const span = spanOf(f, phone);
   const ghost = phone && f.hideOnPhone;
-  const ruled = form.rules.some((r) => r.then.field === f.id);
+  const ruled = form.rules.some((x) => x.then.field === f.id);
   const editingThis = editing?.kind === "field" && editing.id === f.id;
   const outline = isSel ? `${2 / z}px solid var(--color-clay)` : isHover ? `${1 / z}px solid var(--color-clay)` : undefined;
   return (
@@ -369,18 +398,24 @@ function FieldBox(props: CanvasProps & { f: Field; si: number; phone: boolean; z
       aria-pressed={isSel}
       onClick={(e) => {
         e.stopPropagation();
-        onSelect(f.id, e.shiftKey || e.metaKey || e.ctrlKey);
+        onPick(f.id, props.partAt(f, e.clientX, e.clientY), e.shiftKey || e.metaKey || e.ctrlKey);
       }}
       onDoubleClick={(e) => {
         e.stopPropagation();
-        if (f.type !== "divider" && f.type !== "image") onEdit({ kind: "field", id: f.id });
+        if (f.type !== "divider" && f.type !== "image" && f.type !== "hidden" && !props.locked) onEdit({ kind: "field", id: f.id });
       }}
       onMouseEnter={() => onHover(f.id)}
       onMouseLeave={() => onHover(null)}
-      className={`relative min-w-0 cursor-default rounded-[2px] outline-offset-[4px] ${dragging === f.id ? "opacity-30" : ghost ? "opacity-35" : ""}`}
-      style={{ gridColumn: `span ${span} / span ${span}`, outline, outlineOffset: `${4 / z}px` }}
+      className="absolute cursor-default rounded-[2px]"
+      style={{ left: r.x, top: r.y, width: r.w, height: r.h, outline, outlineOffset: `${4 / z}px` }}
     >
-      <FieldLook f={f} form={form} t={t} editing={editingThis} onDone={(v) => onCommit({ kind: "field", id: f.id }, v)} onCancel={() => onEdit(null)} />
+      {f.type === "hidden" ? (
+        <div className="flex h-full items-center gap-2 rounded-sm border border-dashed border-line-strong bg-card px-2.5 font-sans text-[12px] text-muted">
+          <EyeOff size={13} />
+          <span className="truncate text-ink">{f.label || "Hidden"}</span>
+          <span className="ml-auto truncate font-mono text-[11px]">{f.hidden?.from === "param" ? `?${f.hidden.name ?? ""}` : f.hidden?.from === "static" ? f.hidden.value || "fixed" : f.hidden?.from}</span>
+        </div>
+      ) : null}
       {ruled && !isSel ? (
         <span className="absolute top-0 right-0 flex size-5 items-center justify-center rounded-full bg-lilac-wash text-lilac" style={{ zoom: 1 / z }} title="Has logic">
           <Branch size={11} />
@@ -399,7 +434,7 @@ function FieldBox(props: CanvasProps & { f: Field; si: number; phone: boolean; z
           </span>
         </span>
       ) : null}
-      {primary && !editingThis ? <Toolbar {...props} /> : null}
+      {primary && !editingThis && !props.locked ? <Toolbar {...props} /> : null}
     </div>
   );
 }
@@ -449,168 +484,5 @@ function Toolbar({ f, z, form, onNudge, onDuplicate, onRemove, apply }: CanvasPr
         />
       </Popover>
     </span>
-  );
-}
-
-/** One field, drawn like the published form draws it. */
-function FieldLook({ f, form, t, editing, onDone, onCancel }: { f: Field; form: Form; t: Tokens; editing: boolean; onDone: (v: string) => void; onCancel: () => void }) {
-  const fs = t.fontSize * fontOf(f);
-  const h = Math.round(t.inputHeight * heightOf(f));
-  const label: React.CSSProperties = { fontSize: t.labelSize, fontWeight: t.labelWeight };
-  const box: React.CSSProperties = { minHeight: h, background: t.inputBg, border: `${t.borderWidth}px solid ${t.border}`, borderRadius: t.radius, fontSize: fs, paddingLeft: 12, paddingRight: 12 };
-  const muted: React.CSSProperties = { color: t.muted };
-  const req = f.required ? <span style={{ color: t.muted, marginLeft: 2 }}>*</span> : null;
-  const align = f.content?.align === "center" ? "center" : "left";
-
-  if (f.type === "hidden")
-    return (
-      <div className="flex h-8 items-center gap-2 rounded-sm border border-dashed border-line-strong bg-card px-2.5 font-sans text-[12px] text-muted">
-        <EyeOff size={13} />
-        <span className="truncate text-ink">{f.label || "Hidden"}</span>
-        <span className="ml-auto truncate font-mono text-[11px]">
-          {f.hidden?.from === "param" ? `?${f.hidden.name ?? ""}` : f.hidden?.from === "static" ? f.hidden.value || "fixed" : f.hidden?.from}
-        </span>
-      </div>
-    );
-  if (f.type === "heading") {
-    const size = f.content?.level === 1 ? "1.45em" : f.content?.level === 3 ? "1.05em" : "1.2em";
-    const style: React.CSSProperties = { fontFamily: t.headingFont || t.font, fontSize: size, fontWeight: 600, lineHeight: 1.2, margin: 0, textAlign: align };
-    return editing ? <InlineBox value={f.content?.text ?? ""} onDone={onDone} onCancel={onCancel} style={style} label="Heading text" /> : <p style={style}>{f.content?.text || "Heading"}</p>;
-  }
-  if (f.type === "paragraph") {
-    const style: React.CSSProperties = { margin: 0, textAlign: align, whiteSpace: "pre-line" };
-    return editing ? <InlineBox multiline value={f.content?.text ?? ""} onDone={onDone} onCancel={onCancel} style={style} label="Text" /> : <p style={style}>{f.content?.text || "Text"}</p>;
-  }
-  if (f.type === "divider") return <hr style={{ border: 0, borderTop: `${t.borderWidth}px solid ${t.border}`, margin: "4px 0" }} />;
-  if (f.type === "image")
-    return f.content?.src ? (
-      // eslint-disable-next-line @next/next/no-img-element
-      <img src={f.content.src} alt={f.content.alt ?? ""} draggable={false} style={{ display: "block", maxWidth: "100%", borderRadius: t.radius, margin: align === "center" ? "0 auto" : undefined }} />
-    ) : (
-      <div className="flex h-28 items-center justify-center" style={{ border: `1px dashed ${t.border}`, borderRadius: t.radius, color: t.muted }}>
-        <ImageIcon size={22} />
-      </div>
-    );
-
-  const inside = (f.labels ?? form.layout.labels) === "inside" && INSIDE.includes(f.type);
-  const labelText = editing ? (
-    <InlineBox value={f.label} onDone={onDone} onCancel={onCancel} style={{ ...label, color: t.text }} label="Label" />
-  ) : (
-    <span style={label}>
-      {f.label}
-      {req}
-    </span>
-  );
-  const top = f.hideLabel && !editing ? null : labelText;
-  const help = f.help ? <p style={{ margin: 0, fontSize: "0.85em", color: t.muted }}>{f.help}</p> : null;
-  const value = f.default;
-  let control: React.ReactNode;
-  let showTop = !inside;
-
-  if (f.type === "checkbox") {
-    showTop = false;
-    control = (
-      <span className="flex items-start gap-2.5">
-        <span className="mt-0.5 size-[18px] shrink-0" style={{ border: `${Math.max(1, t.borderWidth)}px solid ${t.border}`, borderRadius: Math.min(4, t.radius), background: t.inputBg }} />
-        {editing ? (
-          <InlineBox value={f.label} onDone={onDone} onCancel={onCancel} style={{ color: t.text }} label="Label" />
-        ) : (
-          <span>
-            {f.label}
-            {req}
-          </span>
-        )}
-      </span>
-    );
-  } else if (f.type === "choice" || f.type === "multi") {
-    const list = [...(f.options ?? []), ...(f.other ? [{ value: "__other", label: "Other" }] : [])];
-    control = (
-      <span className="flex flex-col gap-2">
-        {list.map((o) => (
-          <span key={o.value} className="flex items-center gap-2.5">
-            <span
-              className="size-[18px] shrink-0"
-              style={{
-                border: `${Math.max(1, t.borderWidth)}px solid ${t.border}`,
-                borderRadius: f.type === "choice" ? 999 : Math.min(4, t.radius),
-                background: value === o.value ? t.accent : t.inputBg,
-              }}
-            />
-            <span>{o.label}</span>
-          </span>
-        ))}
-      </span>
-    );
-  } else if (f.type === "dropdown" || f.type === "country") {
-    const picked = f.options?.find((o) => o.value === value)?.label ?? (f.type === "country" && value ? value : "");
-    control = (
-      <span className="flex items-center justify-between gap-2" style={box}>
-        {inside && editing ? (
-          <InlineBox value={f.label} onDone={onDone} onCancel={onCancel} style={{ color: t.text }} label="Label" />
-        ) : (
-          <span style={picked ? undefined : muted}>{picked || (inside ? f.label : f.placeholder) || "Choose…"}</span>
-        )}
-        <ChevronDown size={14} />
-      </span>
-    );
-  } else if (f.type === "rating") {
-    const scale = f.rating?.scale ?? 5;
-    const stars = f.rating?.style !== "numbers";
-    const at = Number(value) || 0;
-    control = (
-      <span className="flex flex-col gap-2">
-        <span className="flex flex-wrap gap-1.5">
-          {Array.from({ length: scale }, (_, i) =>
-            stars ? (
-              <span key={i} style={{ fontSize: "1.7em", lineHeight: 1, color: i < at ? t.accent : `color-mix(in srgb, ${t.muted} 40%, transparent)` }}>
-                ★
-              </span>
-            ) : (
-              <span
-                key={i}
-                className="flex items-center justify-center px-2"
-                style={{
-                  minWidth: t.inputHeight,
-                  height: t.inputHeight,
-                  background: i + 1 === at ? t.accent : t.inputBg,
-                  color: i + 1 === at ? t.buttonText : t.text,
-                  border: `${t.borderWidth}px solid ${i + 1 === at ? t.accent : t.border}`,
-                  borderRadius: t.radius,
-                }}
-              >
-                {i + 1}
-              </span>
-            ),
-          )}
-        </span>
-        {f.rating?.low || f.rating?.high ? (
-          <span className="flex justify-between gap-3" style={{ fontSize: "0.85em", color: t.muted }}>
-            <span>{f.rating?.low}</span>
-            <span>{f.rating?.high}</span>
-          </span>
-        ) : null}
-      </span>
-    );
-  } else {
-    const ph = inside ? `${f.label}${f.required ? " *" : ""}` : f.placeholder || (f.type === "date" ? "mm/dd/yyyy" : "");
-    control = (
-      <span className={`flex justify-between gap-2 ${f.type === "textarea" ? "items-start py-2.5" : "items-center"}`} style={{ ...box, minHeight: f.type === "textarea" ? h * 2.4 : h }}>
-        {inside && editing ? (
-          <InlineBox value={f.label} onDone={onDone} onCancel={onCancel} style={{ color: t.text }} label="Label" />
-        ) : (
-          <span className="truncate" style={value ? undefined : muted}>
-            {value || ph}
-          </span>
-        )}
-        {f.type === "date" ? <Calendar size={14} /> : null}
-      </span>
-    );
-  }
-  return (
-    <div className="flex flex-col gap-1.5" style={{ fontSize: fs }}>
-      {showTop ? top : null}
-      {control}
-      {help}
-    </div>
   );
 }

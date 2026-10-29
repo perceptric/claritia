@@ -13,7 +13,7 @@ import { formWidth, type Device } from "./editorModel";
 import { Tablet } from "./icons";
 import { FormPreview } from "./shared";
 
-export function PreviewOverlay({ form, tokens, device: start, onClose }: { form: Form; tokens: Partial<Tokens>; device: Device; onClose: () => void }) {
+export function PreviewOverlay({ form, tokens, system, device: start, onClose }: { form: Form; tokens: Partial<Tokens>; system?: unknown; device: Device; onClose: () => void }) {
   const [device, setDevice] = useState<Device>(start);
   const [run, setRun] = useState(0);
   const closeBtn = useRef<HTMLButtonElement>(null);
@@ -84,7 +84,7 @@ export function PreviewOverlay({ form, tokens, device: start, onClose }: { form:
         >
           <div className={device === "phone" ? "px-5 py-8" : "px-10 py-14"}>
             <div className="mx-auto" style={{ maxWidth: formWidth(form.layout) }}>
-              <FormPreview key={run} form={form} tokens={tokens} />
+              <FormPreview key={run} form={form} tokens={tokens} system={system} device={device === "desktop" ? "base" : device} />
             </div>
           </div>
         </div>

@@ -15,7 +15,8 @@ import { guestLocation, toGuestType, type GuestIn, type GuestSlot, type GuestTyp
 import { DEFAULT_SETTINGS, type Location, type MeetingSource, type MeetingStatus, type MeetingType, type Slot, type Span } from "./types.ts";
 
 const MIN = 60_000;
-export type Kit = { tokens: Record<string, unknown>; logo_url: string | null };
+/** The brand kit a booking page uses; `design` is its published design system (077_book_design.sql). */
+export type Kit = { tokens: Record<string, unknown>; logo_url: string | null; design?: unknown };
 export type LiveBusy = (hosts: string[], from: number, to: number) => Promise<Set<string>>;
 type Ws = { id: string; name: string; slug: string | null; kit: Kit; turnstile: boolean; pay: { account: string; ready: boolean } | null };
 

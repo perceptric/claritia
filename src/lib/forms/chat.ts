@@ -9,6 +9,12 @@ import { addUsage, usageOf, type Usage } from "../ai/cache.ts";
 import { applyStrict, describeOp, type FieldInput, type Op } from "./ops.ts";
 import { allFields, CONTACT_KEYS, FIELD_TYPES, OP_KIND, type Cond, type FieldType, type Form, type Rule } from "./schema.ts";
 import { TEMPLATES } from "./templates.ts";
+import type { Tokens } from "./brand.ts";
+import { addClass, setProp, type Level } from "../design/edit.ts";
+import { allVariables, readSystem, type DesignSystem, type FormDesign } from "../design/model.ts";
+import { partDef, PART_KEYS, type PartKey } from "../design/parts.ts";
+import { isProp, propDef, type Prop } from "../design/props.ts";
+import { varRef } from "../design/values.ts";
 
 export const CHAT_MODEL = "claude-sonnet-5-5";
 const MAX_ROUNDS = 6;
@@ -25,9 +31,12 @@ export type ChatCtx = {
   confirmed?: boolean;
   /** Field keys that past fills used. */
   usedKeys?: string[];
+  /** The brand kit's design system draft, for set_style and add_class (docs/design-system.md Part 7.3). */
+  system?: DesignSystem;
+  tokens?: Partial<Tokens>;
 };
 
-export type ChatResult = { form: Form; ops: Op[]; lines: string[]; reply: string; ask?: { question: string; choices: string[] } };
+export type ChatResult = { form: Form; ops: Op[]; lines: string[]; reply: string; ask?: { question: string; choices: string[] }; /** Set when the chat changed the design system. */ system?: DesignSystem };
 
 /** One model call. The route passes Claude; tests pass a script. */
 export type Model = (params: { system: Anthropic.Beta.BetaTextBlockParam[]; tools: Anthropic.Beta.BetaTool[]; messages: Anthropic.Beta.BetaMessageParam[] }) => Promise<Anthropic.Beta.BetaMessage>;
@@ -64,6 +73,26 @@ const FIELD_PROPS = {
 } as const;
 
 export const CHAT_TOOLS: Anthropic.Beta.BetaTool[] = [
+  {
+    name: "set_style",
+    description:
+      'Style a part of a field (by its id) or of the form ("form": title, intro, button, back, progress, consent, notice). Field parts: field, label, input, placeholder, help, error, option, option-text, heading, text. Values are variables ($id) first; a raw color only when the person asked for it, with raw: true.',
+    input_schema: {
+      type: "object",
+      properties: {
+        element_id: { type: "string" },
+        part: { type: "string" },
+        property: { type: "string" },
+        value: { type: "string", description: 'A value, a variable like "$accent", or "" to clear.' },
+        on: { type: "string", enum: ["this", "class", "all_forms"] },
+        breakpoint: { type: "string", enum: ["desktop", "tablet", "phone"] },
+        state: { type: "string", enum: ["none", "hover", "focus", "invalid", "checked"] },
+        raw: { type: "boolean" },
+      },
+      required: ["element_id", "part", "property", "value"],
+    },
+  },
+  { name: "add_class", description: "Put a class on a field by name (made if new), so several fields can share a look.", input_schema: { type: "object", properties: { element_id: { type: "string" }, name: { type: "string" } }, required: ["element_id", "name"] } },
   { name: "add_field", description: "Add a field. Without step it goes at the end of the last step.", input_schema: { type: "object", properties: { field: { type: "object", properties: FIELD_PROPS, required: ["type", "label"] }, step: { type: "integer", minimum: 0 }, after_field_id: { type: "string" } }, required: ["field"] } },
   { name: "update_field", description: "Change a field by its id.", input_schema: { type: "object", properties: { field_id: { type: "string" }, changes: { type: "object", properties: FIELD_PROPS } }, required: ["field_id", "changes"] } },
   { name: "remove_field", description: "Remove a field by its id. The email field can't be removed.", input_schema: { type: "object", properties: { field_id: { type: "string" } }, required: ["field_id"] } },
@@ -130,6 +159,8 @@ Use the site's own words when the site's forms are listed (their button text and
 Before you turn off the consent box, remove a field that past fills used, or replace the whole form with a template, call ask and wait. When a request is unclear, call ask with a few likely answers. Don't call ask for small changes you can simply make.
 
 Claritia sends every lead to its contacts; other tools are added in the form's Destinations tab, which you can't change. Say so if asked.
+
+Looks come from the brand kit's design system. To change how something looks, call set_style with a variable ($id) first; use a raw color only when the person asks for that color. Style one field unless the person means every form.
 
 After your changes, reply in one or two short sentences of plain words that say what changed. No emoji, no lists, no field ids.`;
 
@@ -257,6 +288,8 @@ function needsYes(op: Op, form: Form, ctx: ChatCtx): string | null {
 /** One chat turn: up to six model calls, every tool call applied in order and checked. */
 export async function runChat(model: Model, message: string, ctx: ChatCtx): Promise<ChatResult & { usage: Usage }> {
   let form = ctx.form;
+  let system = ctx.system ?? readSystem({}, ctx.tokens ?? {});
+  let systemChanged = false;
   const ops: Op[] = [];
   const lines: string[] = [];
   let usage: Usage = { input: 0, output: 0, cache_read: 0, cache_write: 0 };
@@ -310,6 +343,26 @@ export async function runChat(model: Model, message: string, ctx: ChatCtx): Prom
         results.push({ type: "tool_result", tool_use_id: c.id, content: `Done. The form is now:\n${JSON.stringify(form)}` });
         continue;
       }
+      if (c.name === "set_style" || c.name === "add_class") {
+        const r = styleTool(c.name, input, form, system, ctx);
+        if ("error" in r) {
+          fail(r.error);
+          continue;
+        }
+        const applied = applyStrict(form, { op: "set_design", design: r.design });
+        if ("error" in applied) {
+          fail(applied.error);
+          continue;
+        }
+        form = applied.form;
+        if (r.system !== system) {
+          system = r.system;
+          systemChanged = true;
+        }
+        lines.push(r.line);
+        results.push({ type: "tool_result", tool_use_id: c.id, content: "Done." });
+        continue;
+      }
       const op = toOp(c.name, input);
       if ("error" in op) {
         fail(op.error);
@@ -339,5 +392,40 @@ export async function runChat(model: Model, message: string, ctx: ChatCtx): Prom
     }
     if (round === MAX_ROUNDS - 1) reply = text || (lines.length ? "Done." : "I couldn't finish that. Try saying it another way.");
   }
-  return { form, ops, lines, reply: reply.slice(0, 1000) || (lines.length ? "Done." : ""), ask, usage };
+  return { form, ops, lines, reply: reply.slice(0, 1000) || (lines.length ? "Done." : ""), ask, usage, ...(systemChanged ? { system } : {}) };
+}
+
+/** set_style and add_class: the same edits as the Style panel (src/lib/design/edit.ts), variables first. */
+function styleTool(name: string, input: Record<string, unknown>, form: Form, system: DesignSystem, ctx: ChatCtx): { design: FormDesign; system: DesignSystem; line: string } | { error: string } {
+  const id = str(input.element_id) ?? "";
+  const field = allFields(form).find((f) => f.id === id);
+  if (id !== "form" && !field) return { error: `No field ${id}.` };
+  const design = form.design ?? {};
+  if (name === "add_class") {
+    if (!field) return { error: "Classes go on fields." };
+    const r = addClass({ system, design }, id, str(input.name) ?? "");
+    if ("error" in r) return r;
+    return { ...r, line: `Added the class ${str(input.name)}` };
+  }
+  const part = str(input.part) as PartKey;
+  const prop = str(input.property) as Prop;
+  const value = str(input.value) ?? "";
+  if (!PART_KEYS.includes(part) || (partDef(part).scope === "form") !== (id === "form")) return { error: `${part} isn't a part of ${id === "form" ? "the form" : "a field"}.` };
+  if (!isProp(prop)) return { error: `Unknown property ${prop}.` };
+  if (propDef(prop).kind === "color" && value && !varRef(value) && input.raw !== true) {
+    const colors = allVariables(system, ctx.tokens ?? {}).filter((v) => v.kind === "color").map((v) => `$${v.id}`);
+    return { error: `Use a color variable (${colors.join(", ")}), or pass raw: true if the person asked for this color.` };
+  }
+  let level: Level = { kind: "element" };
+  if (input.on === "all_forms") level = { kind: "global" };
+  if (input.on === "class") {
+    const cls = design.classes?.[id]?.at(-1);
+    if (!cls) return { error: "That field has no class. Call add_class first." };
+    level = { kind: "class", id: cls };
+  }
+  const bp = input.breakpoint === "phone" ? "phone" : input.breakpoint === "tablet" ? "tablet" : "base";
+  const state = input.state === "hover" || input.state === "focus" || input.state === "invalid" || input.state === "checked" ? input.state : undefined;
+  const r = setProp({ system, design }, ctx.tokens ?? {}, level, id, part, bp, state, prop, value);
+  if (!r) return { error: `${value} isn't a value ${prop} takes.` };
+  return { ...r, line: `Styled ${level.kind === "global" ? "every form's" : "the"} ${partDef(part).label.toLowerCase()}` };
 }

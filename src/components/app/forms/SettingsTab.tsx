@@ -123,7 +123,7 @@ function AfterPreview({ form, brand }: { form: Form; brand: Brand }) {
             <span className="ml-2 truncate font-mono text-[11px] text-muted">{brand.site || "yoursite.com"}</span>
           </div>
           <div className="p-5">
-            <FormPreview form={shown} tokens={brand.tokens} done />
+            <FormPreview form={shown} tokens={brand.tokens} done system={brand.kit?.design} />
           </div>
         </div>
       </div>

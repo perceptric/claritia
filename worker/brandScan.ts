@@ -5,12 +5,15 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { cachedStep, hashKey, usageOf } from "../src/lib/ai/cache.ts";
 import { applyFixes, drawForm, LOOK_MODEL, type Looker } from "../src/lib/brand/look.ts";
-import { scanSite, ScanBlocked, type Scan } from "../src/lib/brand/scan.ts";
+import { scanSite, ScanBlocked, type BrandExtras, type Scan } from "../src/lib/brand/scan.ts";
+import { BRIEF_MODEL, type Brief, type Briefer } from "../src/lib/brand/brief.ts";
+import { brandColors, brandDesign } from "../src/lib/brand/design.ts";
+import type { Tokens } from "../src/lib/forms/brand.ts";
 import { checkForm } from "../src/lib/forms/schema.ts";
 import { TEMPLATES } from "../src/lib/forms/templates.ts";
 import { JobError, type Job } from "../src/lib/jobs.ts";
 
-export type ScanOpts = { chromiumPath?: string; looker?: Looker; formCode?: () => Promise<string | null>; allowPrivate?: boolean; scan?: typeof scanSite; log?: (...a: unknown[]) => void };
+export type ScanOpts = { chromiumPath?: string; looker?: Looker; briefer?: Briefer; formCode?: () => Promise<string | null>; allowPrivate?: boolean; scan?: typeof scanSite; log?: (...a: unknown[]) => void };
 
 export async function handleBrandScan(sb: SupabaseClient, job: Job, o: ScanOpts) {
   const kit = String(job.payload.kit_id ?? "");
@@ -57,6 +60,34 @@ export async function handleBrandScan(sb: SupabaseClient, job: Job, o: ScanOpts)
     }
   }
   await finish({ tokens, logo: scan.logo, notes: notes.slice(0, 20), forms: scan.forms }, null);
+  if (scan.brand) await brandSetup(sb, ws, kit, url, scan.brand, tokens, o);
+}
+
+/**
+ * Brand setup (docs/design-system.md Part 7.1): the brief and color names from Claude (once per site, through the
+ * step cache), then the brand's colors, heading sizes and shadow into the kit's design system draft, and its social
+ * links and address onto the kit. Only polishes: the scan stands without it.
+ */
+async function brandSetup(sb: SupabaseClient, ws: string, kit: string, url: string, brand: BrandExtras, tokens: Tokens, o: ScanOpts) {
+  try {
+    const colors = brandColors(brand, tokens);
+    let brief: Brief = { brief: "", colors: [] };
+    if (o.briefer && brand.copy.trim()) {
+      const rpc = (fn: string, args: Record<string, unknown>) => sb.rpc(fn, args);
+      brief = (
+        await cachedStep(rpc, ws, "brand_brief", hashKey(BRIEF_MODEL, url, brand.copy, colors), async () => {
+          const r = await o.briefer!({ url, copy: brand.copy, colors });
+          return { result: r.brief, model: BRIEF_MODEL, usage: usageOf(r.usage), keep: !!r.brief.brief };
+        })
+      ).result;
+    }
+    const design = brandDesign(brand, tokens, brief.colors);
+    // Merged in the database, so a person editing the styles at the same time loses nothing.
+    const { error } = await sb.rpc("brand_scan_design", { p_kit: kit, p_vars: design.variables, p_heading: design.email.heading ?? null, p_social: design.social, p_address: design.address, p_brief: brief.brief || null });
+    if (error) throw new Error(error.message);
+  } catch (e) {
+    o.log?.(`Brand setup skipped: ${(e as Error).message}`);
+  }
 }
 
 /** The built form script from the app, for the look check. */
