@@ -186,3 +186,14 @@ export function problems(body: RouterBody, o: { members: Set<string>; fields?: F
   }
   return out;
 }
+
+/** A problem in plain words, for the screen. The texts above stay as they are: the chat and tests match on them. */
+export function problemWords(t: string): string {
+  return t === "Pick a fallback"
+    ? "Pick who gets leads that match no rule"
+    : t
+        .replace(/^"(.+?)" has no team$/, '"$1" needs a rep or team')
+        .replace(/^"(.+?)" has no conditions$/, '"$1" needs a condition')
+        .replace(/^(.+?) has no reps$/, "Add reps to $1")
+        .replace(/^The fallback is no longer in the workspace$/, "The rep for everyone else has left. Pick another");
+}

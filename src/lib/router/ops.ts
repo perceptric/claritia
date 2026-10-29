@@ -5,7 +5,7 @@
 // the browser and on the server.
 
 import { BASE_FIELDS, needsValue, opsFor, REGIONS, type FieldDef } from "./conditions.ts";
-import { cleanBody, newId, problems } from "./check.ts";
+import { cleanBody, newId, problems, problemWords } from "./check.ts";
 import { METHODS, OPS, SLA_MINUTES, type Cond, type Method, type Op, type Queue, type Rule, type RouterBody, type Then, type WhenOut } from "./types.ts";
 
 export type CondInput = { field: string; op: Op; value?: string | number | (string | number)[] };
@@ -360,11 +360,5 @@ export function applyStrict(body: RouterBody, op: RouterOp, ctx: OpCtx): Applied
 export function firstProblem(body: RouterBody, ctx: OpCtx): string {
   const p = problems(body, { members: new Set(ctx.members.map((m) => m.id)), fields: ctx.fields });
   if (!p.length) return "";
-  const t = p[0]!.text;
-  return t === "Pick a fallback"
-    ? "Pick who gets leads that match no rule"
-    : t
-        .replace(/^"(.+?)" has no team$/, '"$1" needs a rep or team')
-        .replace(/^"(.+?)" has no conditions$/, '"$1" needs a condition')
-        .replace(/^"(.+?)" has a condition with no value$/, '"$1" has a condition with no value');
+  return problemWords(p[0]!.text);
 }

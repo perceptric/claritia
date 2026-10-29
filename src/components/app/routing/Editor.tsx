@@ -11,9 +11,9 @@ import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "r
 import { problems as checkProblems } from "@/lib/router/check";
 import type { Line } from "@/lib/router/explain";
 import { emptyBody, type RouterBody } from "@/lib/router/types";
-import { Bell, Redo, Undo } from "../../Icons";
+import { BarChart, Bell, History, Play, Redo, Undo } from "../../Icons";
 import { askConfirm } from "../Dialogs";
-import { Badge, Button, ErrorNote, errorText, IconButton, setLeaveGuard, type ViewProps } from "../ui";
+import { Button, ErrorNote, errorText, IconButton, setLeaveGuard, type ViewProps } from "../ui";
 import { routingApi, type Loaded, type ReplayOut } from "./api";
 import { editorReducer, flowCounts, pathOf, setupItems, startEditor, type Selection } from "./editorModel";
 import { Flow } from "./Flow";
@@ -282,15 +282,6 @@ export function RouterEditor({
   return (
     <div className="flex h-full min-h-0 flex-col">
       <div className="flex min-h-14 shrink-0 flex-wrap items-center gap-2 border-b border-line px-4 py-2 md:px-6">
-        {draft ? (
-          <Badge tone="amber" dot>
-            Changes not live yet
-          </Badge>
-        ) : data.live ? (
-          <Badge tone="green" dot>
-            Live
-          </Badge>
-        ) : null}
         {saveState === "retry" ? (
           <span role="status" className="text-[12.5px] text-rose">
             Not saved. Retrying…
@@ -316,18 +307,18 @@ export function RouterEditor({
               <Bell size={15} />
             </IconButton>
           ) : null}
-          <Button variant="ghost" size="sm" onClick={() => setVersions(true)}>
-            Versions
-          </Button>
+          <IconButton label="Versions" onClick={() => setVersions(true)}>
+            <History size={15} />
+          </IconButton>
           <span ref={testButton} className="contents">
-            <Button variant="ghost" size="sm" aria-pressed={testing} onClick={() => (testing ? closeTest() : openTest())} aria-keyshortcuts="T">
-              Try a contact
-            </Button>
+            <IconButton label="Test with a contact" aria-pressed={testing} onClick={() => (testing ? closeTest() : openTest())} aria-keyshortcuts="T">
+              <Play size={15} />
+            </IconButton>
           </span>
           {!readOnly ? (
-            <Button variant="ghost" size="sm" onClick={() => setReplaying(true)}>
-              Preview on past leads
-            </Button>
+            <IconButton label="Test on past leads" onClick={() => setReplaying(true)}>
+              <BarChart size={15} />
+            </IconButton>
           ) : null}
           {!readOnly ? (
             <span title={probs.length ? `${probs.length} to fix` : undefined}>
