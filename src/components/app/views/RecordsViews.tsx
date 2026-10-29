@@ -9,7 +9,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { shown, type AnyField } from "@/lib/records/fields";
 import { Box, Dollar, Eye, Plus, Users } from "../../Icons";
 import { askConfirm, askText } from "../Dialogs";
-import { Avatar, Badge, Button, CardHead, ErrorNote, errorText, Loading, must, Page, Panel, timeAgo, useLoad, type ViewProps } from "../ui";
+import { Avatar, Badge, Button, ErrorNote, errorText, Loading, must, Page, Tabs, timeAgo, useLoad, type ViewProps } from "../ui";
 import type { Link } from "../records/FieldInput";
 import { useMeta } from "../records/meta";
 import { FieldDialog } from "../records/FieldDialog";
@@ -17,8 +17,9 @@ import { FieldsPanel, HistoryPanel, type Change } from "../records/RecordParts";
 import { RecordWork } from "../records/RecordWork";
 import { RecordsList, type ViewState } from "../records/RecordsList";
 import { DEFAULT_WIDTH, type Row } from "../records/RecordTable";
-import { AccountActivity, AccountFeedback } from "./AccountActivity";
+import { AccountActivity } from "./AccountActivity";
 import { ToolIntro } from "../ToolIntro";
+import { FieldGroup, RailRow, RecordHead, RecordLayout, RelatedList, StagePath, StatStrip, type RelatedRow } from "../records/RecordLayout";
 
 const cols = (...keys: string[]) => keys.map((key) => ({ key, width: DEFAULT_WIDTH }));
 
@@ -165,44 +166,23 @@ export function OpportunitiesView(props: ViewProps) {
 
 type Opp = { id: string; name: string; amount: number | null; stage: string | null; close_date: string | null };
 
-/** Opportunities linked to a company or a contact, with their stage and amount. */
-export function OpportunitiesPanel({ sb, ws, object, id, navigate }: { sb: SupabaseClient; ws: { id: string }; object: "company" | "contact"; id: string; navigate: ViewProps["navigate"] }) {
+/** The same opportunities as a short list in a record page's right rail. */
+export function OpportunitiesRail({ sb, ws, object, id, navigate }: { sb: SupabaseClient; ws: { id: string }; object: "company" | "contact"; id: string; navigate: ViewProps["navigate"] }) {
   const meta = useMeta(sb, ws.id, "opportunity");
   const list = useLoad(async () => must(await sb.rpc("opportunities_for", { p_object: object, p_id: id })) as Opp[], `${object}:${id}`);
   const amount = meta.data?.fields.find((f) => f.key === "f.amount");
   const stage = meta.data?.fields.find((f) => f.key === "f.stage");
-  const rows = list.data ?? [];
-  const open = rows.filter((o) => o.stage !== "won" && o.stage !== "lost").reduce((t, o) => t + (Number(o.amount) || 0), 0);
-  return (
-    <Panel className="overflow-hidden">
-      <CardHead label="Opportunities" count={list.data ? rows.length : undefined}>
-        {amount && open ? <span className="text-[13px] text-muted tabular-nums">{shown(amount, open)} open</span> : null}
-      </CardHead>
-      {list.error ? (
-        <div className="p-4">
-          <ErrorNote message={list.error} />
-        </div>
-      ) : !list.data ? (
-        <Loading />
-      ) : (
-        <ul className="divide-y divide-line">
-          {rows.map((o) => {
-            const st = stage?.options.find((x) => x.value === o.stage);
-            return (
-              <li key={o.id}>
-                <button type="button" onClick={() => navigate("opportunities", o.id)} className="flex min-h-12 w-full items-center gap-2.5 px-5 py-2.5 text-left text-[13px] transition-colors duration-[140ms] hover:bg-hover">
-                  <span className="min-w-0 flex-1 truncate">{o.name}</span>
-                  {st ? <Badge tone={st.kind === "won" ? "green" : st.kind === "lost" ? "red" : "gray"}>{st.label}</Badge> : null}
-                  <span className="w-24 text-right text-[13px] text-muted tabular-nums">{amount && o.amount != null ? shown(amount, Number(o.amount)) : "—"}</span>
-                </button>
-              </li>
-            );
-          })}
-          {!rows.length ? <li className="px-5 py-3 text-[13px] text-faint">—</li> : null}
-        </ul>
-      )}
-    </Panel>
-  );
+  const rows: RelatedRow[] = (list.data ?? []).map((o) => {
+    const st = stage?.options.find((x) => x.value === o.stage);
+    return {
+      id: o.id,
+      name: o.name,
+      sub: amount && o.amount != null ? shown(amount, Number(o.amount)) : null,
+      tag: st ? <Badge tone={st.kind === "won" ? "green" : st.kind === "lost" ? "red" : "gray"}>{st.label}</Badge> : undefined,
+      onOpen: () => navigate("opportunities", o.id),
+    };
+  });
+  return <RelatedList id={`opps:${object}`} title="Opportunities" rows={rows} />;
 }
 
 /** /objects/<key> lists a custom object; /objects/<key>/<id> opens one record. */
@@ -280,8 +260,11 @@ type Detail = {
   history: Change[];
 };
 
+type RecordTab = "activity" | "people" | "notes" | "tasks" | "changes" | "links";
+
 function RecordPage({ sb, ws, session, role, id, navigate, object }: ViewProps & { object: string }) {
   const [addingField, setAddingField] = useState(false);
+  const [tab, setTab] = useState<RecordTab>("activity");
   const company = object === "company";
   const opportunity = object === "opportunity";
   const meta = useMeta(sb, ws.id, object);
@@ -343,92 +326,75 @@ function RecordPage({ sb, ws, session, role, id, navigate, object }: ViewProps &
   // Opportunities have their own panel on a company page.
   const backlinks = (d.backlinks ?? []).filter((l) => !(company && l.object === "opportunity"));
 
+  const tabList: { value: RecordTab; label: string; count?: number }[] = [
+    ...(company && d.account ? [{ value: "activity" as RecordTab, label: "Activity" }] : []),
+    ...(company ? [{ value: "people" as RecordTab, label: "People", count: d.contacts?.length || undefined }] : []),
+    { value: "notes", label: "Notes" },
+    { value: "tasks", label: "Tasks" },
+    { value: "changes", label: "Changes", count: d.history.length || undefined },
+    ...(backlinks.length ? [{ value: "links" as RecordTab, label: "Linked from", count: backlinks.length }] : []),
+  ];
+  const open = tabList.some((t) => t.value === tab) ? tab : tabList[0].value;
+  const tags = (
+    <>
+      {company && d.account?.temperature ? (
+        <Badge tone={d.account.temperature === "hot" ? "red" : "gray"} dot>
+          {d.account.temperature}
+        </Badge>
+      ) : null}
+      {company && d.account?.stage ? <Badge tone="violet">{d.account.stage}</Badge> : null}
+      {stage ? <Badge tone={stage.kind === "won" ? "green" : stage.kind === "lost" ? "red" : "gray"}>{stage.label}</Badge> : null}
+      {late ? <Badge tone="red">Late</Badge> : null}
+    </>
+  );
+  const sub = company ? (
+    d.company?.domain ? (
+      <a href={`https://${d.company.domain}`} target="_blank" rel="noreferrer" className="text-ink hover:underline">
+        {d.company.domain}
+      </a>
+    ) : null
+  ) : (
+    meta.data.object?.label
+  );
+  const peopleRows: RelatedRow[] = (d.contacts ?? []).map((c) => {
+    const n = [c.first_name, c.last_name].filter(Boolean).join(" ") || c.email || "Contact";
+    return { id: c.id, name: n, sub: c.title, onOpen: () => navigate("contacts", c.id) };
+  });
+
   return (
     <Page
       icon={icon}
       title={name}
       back={{ label, onClick: listRoute }}
+      flush
       actions={
         <>
-          {company && d.account ? <AccountFeedback sb={sb} accountId={d.account.id} /> : null}
           <Button variant="danger" size="sm" onClick={remove}>
             Remove
           </Button>
         </>
       }
     >
-      <div className="mx-auto flex max-w-6xl flex-col gap-5">
-        <ErrorNote message={error} />
-        <Panel frame className="anim-rise-sm overflow-hidden">
-          <div className="flex flex-wrap items-center gap-x-12 gap-y-5 p-6">
-            <div className="flex min-w-0 items-center gap-4">
-              <Avatar label={name} size={64} />
-              <div className="flex min-w-0 flex-col gap-1">
-                <span className="font-semibold tracking-[-0.02em] truncate text-[27px] leading-[1.1] text-ink">{name}</span>
-                <span className="text-[13px] text-muted">{company ? d.company?.domain : meta.data.object?.label}</span>
-                {company && d.account?.temperature ? (
-                  <span className="mt-1.5 flex flex-wrap gap-1.5">
-                    <Badge tone={d.account.temperature === "hot" ? "red" : "gray"} dot>{d.account.temperature}</Badge>
-                    {d.account.stage ? <Badge tone="violet">{d.account.stage}</Badge> : null}
-                  </span>
-                ) : null}
-                {opportunity && (stage || late) ? (
-                  <span className="mt-1.5 flex flex-wrap gap-1.5">
-                    {stage ? <Badge tone={stage.kind === "won" ? "green" : stage.kind === "lost" ? "red" : "gray"}>{stage.label}</Badge> : null}
-                    {late ? <Badge tone="red">Late</Badge> : null}
-                  </span>
-                ) : null}
+      <RecordLayout
+        head={
+          <>
+            <RecordHead visual={<Avatar label={name} size={44} />} title={name} tag={tags} sub={sub} />
+            {error ? (
+              <div className="px-5 pb-3">
+                <ErrorNote message={error} />
               </div>
-            </div>
-            {stats.map(([k, v]) => (
-              <div key={k} className="flex flex-col gap-1">
-                <span className="label-mono">{k}</span>
-                <span className="font-semibold tracking-[-0.02em] text-[26px] leading-none text-ink tabular-nums">{v}</span>
-              </div>
-            ))}
-          </div>
-          {company && d.account?.why_now ? <p className="border-t border-line bg-paper px-6 py-3.5 text-[14px] text-body">{d.account.why_now}</p> : null}
-        </Panel>
-
-        <div className="grid gap-5 lg:grid-cols-[2fr_1fr]">
-          <div className="flex flex-col gap-5">
-            <RecordWork sb={sb} ws={ws} session={session} role={role} object={object} record={id} people={meta.data.people} />
-            {company ? (
-              <Panel className="overflow-hidden">
-                <CardHead label="Contacts" count={d.contacts?.length} />
-                <ul className="divide-y divide-line">
-                  {(d.contacts ?? []).map((c) => (
-                    <li key={c.id}>
-                      <button type="button" onClick={() => navigate("contacts", c.id)} className="flex min-h-12 w-full items-center gap-3 px-5 py-2.5 text-left text-[13px] transition-colors duration-[140ms] hover:bg-hover">
-                        <Avatar label={[c.first_name, c.last_name].filter(Boolean).join(" ") || c.email || "?"} size={28} />
-                        <span className="min-w-0 flex-1 truncate">{[c.first_name, c.last_name].filter(Boolean).join(" ") || c.email}</span>
-                        <span className="truncate text-[12px] text-muted">{c.title}</span>
-                      </button>
-                    </li>
-                  ))}
-                  {!d.contacts?.length ? <li className="px-5 py-3 text-[13px] text-faint">—</li> : null}
-                </ul>
-              </Panel>
             ) : null}
-            {company ? <OpportunitiesPanel sb={sb} ws={ws} object="company" id={id} navigate={navigate} /> : null}
-            {backlinks.length ? (
-              <Panel className="overflow-hidden">
-                <CardHead label="Linked from" count={backlinks.length} />
-                <ul className="divide-y divide-line">
-                  {backlinks.map((l, i) => (
-                    <li key={i}>
-                      <button type="button" onClick={() => openLink(l)} className="flex min-h-11 w-full items-center gap-2 px-5 py-2.5 text-left text-[13px] transition-colors duration-[140ms] hover:bg-hover">
-                        <span className="text-muted">{l.field}</span>
-                        <span className="ml-auto text-[12px] text-faint">{l.object}</span>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              </Panel>
-            ) : null}
-            <HistoryPanel history={d.history} fields={meta.data.fields} people={meta.data.people} />
-          </div>
-          <div className="flex flex-col gap-5">
+          </>
+        }
+        top={
+          <>
+            <StatStrip items={stats} />
+            {opportunity && field("f.stage") ? <StagePath stages={field("f.stage")!.options} value={typeof f.stage === "string" ? f.stage : null} onPick={(v) => void save(field("f.stage")!, v).catch((e) => setError(errorText(e)))} /> : null}
+          </>
+        }
+        tabs={<Tabs value={open} onChange={setTab} tabs={tabList} bare />}
+        rail={
+          <>
             <FieldsPanel
               sb={sb}
               wsId={ws.id}
@@ -442,11 +408,49 @@ function RecordPage({ sb, ws, session, role, id, navigate, object }: ViewProps &
               onCustomize={() => navigate("settings", "fields")}
               onAddField={() => setAddingField(true)}
             />
-            <p className="px-1 text-[12px] text-faint">Created {timeAgo(String(rec.created_at))}</p>
-          </div>
+            {company ? <RelatedList id="company:people" title="People" rows={peopleRows} /> : null}
+            {company ? <OpportunitiesRail sb={sb} ws={ws} object="company" id={id} navigate={navigate} /> : null}
+            <FieldGroup id={`${object}:system`} title="System">
+              <RailRow label="Created">{timeAgo(String(rec.created_at))}</RailRow>
+            </FieldGroup>
+          </>
+        }
+      >
+        <div className="px-5 py-5">
+          {open === "activity" && company && d.account ? <AccountActivity sb={sb} accountId={d.account.id} /> : null}
+          {open === "people" ? (
+            !peopleRows.length ? (
+              <p className="py-6 text-center text-[13px] text-faint">No people yet</p>
+            ) : (
+              <ul className="divide-y divide-line rounded-lg border border-line">
+                {(d.contacts ?? []).map((c) => (
+                  <li key={c.id}>
+                    <button type="button" onClick={() => navigate("contacts", c.id)} className="flex min-h-11 w-full items-center gap-3 px-4 py-2 text-left text-[13px] transition-colors duration-[120ms] hover:bg-hover">
+                      <Avatar label={[c.first_name, c.last_name].filter(Boolean).join(" ") || c.email || "?"} size={24} />
+                      <span className="min-w-0 flex-1 truncate font-medium">{[c.first_name, c.last_name].filter(Boolean).join(" ") || c.email}</span>
+                      <span className="truncate text-[12px] text-muted">{c.title}</span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )
+          ) : null}
+          {open === "notes" || open === "tasks" ? <RecordWork sb={sb} ws={ws} session={session} role={role} object={object} record={id} people={meta.data.people} show={open} /> : null}
+          {open === "changes" ? <HistoryPanel history={d.history} fields={meta.data.fields} people={meta.data.people} /> : null}
+          {open === "links" ? (
+            <ul className="divide-y divide-line rounded-lg border border-line">
+              {backlinks.map((l, i) => (
+                <li key={i}>
+                  <button type="button" onClick={() => openLink(l)} className="flex min-h-11 w-full items-center gap-2 px-4 py-2 text-left text-[13px] transition-colors duration-[120ms] hover:bg-hover">
+                    <span className="text-muted">{l.field}</span>
+                    <span className="ml-auto text-[12px] text-faint">{l.object}</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          ) : null}
         </div>
-        {company && d.account ? <AccountActivity sb={sb} accountId={d.account.id} /> : null}
-      </div>
+      </RecordLayout>
       {addingField ? (
         <FieldDialog
           sb={sb}

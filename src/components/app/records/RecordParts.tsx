@@ -1,13 +1,14 @@
 "use client";
 
-// Pieces of every record page: the details panel (fields in their sections, edited in place, each with where its
-// value came from) and the change history.
+// Pieces of every record page: the fields rail (fields in folding groups, edited in place, each with where its value
+// came from, like Omniscient's record rail) and the change history.
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { useState } from "react";
 import { shown, valueOf, type AnyField } from "@/lib/records/fields";
-import { Plus } from "../../Icons";
-import { CardHead, ErrorNote, errorText, Panel, timeAgo } from "../ui";
+import { Plus, Settings } from "../../Icons";
+import { ErrorNote, errorText, IconButton, timeAgo } from "../ui";
+import { FieldGroup } from "./RecordLayout";
 import { FieldEditor, FieldValue, type Link } from "./FieldInput";
 import type { Meta } from "./meta";
 
@@ -83,79 +84,78 @@ export function FieldsPanel({
   const sections = sectionsFor(fields, layout, skip);
   return (
     <>
+      {error ? (
+        <div className="px-3 pt-3">
+          <ErrorNote message={error} />
+        </div>
+      ) : null}
       {sections.map((s, i) => (
-        <Panel key={s.name}>
-          <CardHead label={s.name}>
-            {i === 0 && onCustomize ? (
-              <button type="button" onClick={onCustomize} className="inline-flex h-7 items-center rounded-full px-2.5 text-[12px] text-muted hover:bg-hover hover:text-ink">
-                Customize
-              </button>
-            ) : null}
-          </CardHead>
-          {i === 0 && error ? (
-            <div className="p-3">
-              <ErrorNote message={error} />
-            </div>
-          ) : null}
-          <dl className="divide-y divide-line">
-            {s.fields.map((f) => {
-              const v = valueOf(record, f.key);
-              const w = writes[f.key];
-              const l = links[f.key.slice(2)];
-              const empty = f.kind === "relation" ? !l?.length : v == null || v === "" || (Array.isArray(v) && !v.length);
-              return (
-                <div key={f.key} className="grid grid-cols-[120px_1fr] items-start gap-3 px-5 py-2 text-[13px]">
-                  <dt className="pt-1.5 text-muted" title={f.config.description || undefined}>
-                    {f.label}
-                    {f.required ? <span className="text-rose"> *</span> : null}
-                  </dt>
-                  <dd className="min-w-0">
-                    {editing === f.key ? (
-                      <FieldEditor
-                        sb={sb}
-                        wsId={wsId}
-                        field={f}
-                        value={v}
-                        links={l}
-                        onCancel={() => setEditing(null)}
-                        onSave={async (nv) => {
-                          setEditing(null);
-                          setError("");
-                          try {
-                            await onSave(f, nv);
-                          } catch (e) {
-                            setError(errorText(e));
-                          }
-                        }}
-                      />
-                    ) : (
-                      <button
-                        type="button"
-                        disabled={!f.edit}
-                        onClick={() => setEditing(f.key)}
-                        className={`block min-h-9 w-full rounded-sm px-2 py-1.5 text-left ${f.edit ? "hover:bg-hover" : "cursor-default"}`}
-                      >
-                        <span className="block truncate">
-                          <FieldValue field={f} value={v} links={l} />
-                        </span>
-                        {w && !empty ? <span className="mt-0.5 block text-[12px] text-faint">{`${sourceLabel(w.source)} · ${timeAgo(w.at)}`}</span> : null}
-                      </button>
-                    )}
-                    {under?.[f.key] ?? null}
-                  </dd>
+        <FieldGroup
+          key={s.name}
+          id={`fields:${s.name}`}
+          title={s.name}
+          action={
+            i === 0 && onCustomize ? (
+              <IconButton label="Customize fields" className="size-7" onClick={onCustomize}>
+                <Settings size={14} />
+              </IconButton>
+            ) : undefined
+          }
+        >
+          {s.fields.map((f) => {
+            const v = valueOf(record, f.key);
+            const w = writes[f.key];
+            const l = links[f.key.slice(2)];
+            const empty = f.kind === "relation" ? !l?.length : v == null || v === "" || (Array.isArray(v) && !v.length);
+            return (
+              <div key={f.key} className="group grid grid-cols-[132px_1fr] items-start gap-2 rounded-md px-2 py-1 hover:bg-hover">
+                <span className="truncate pt-1 text-[12px] text-muted" title={f.config.description || undefined}>
+                  {f.label}
+                  {f.required ? <span className="text-rose"> *</span> : null}
+                </span>
+                <div className="min-w-0">
+                  {editing === f.key ? (
+                    <FieldEditor
+                      sb={sb}
+                      wsId={wsId}
+                      field={f}
+                      value={v}
+                      links={l}
+                      onCancel={() => setEditing(null)}
+                      onSave={async (nv) => {
+                        setEditing(null);
+                        setError("");
+                        try {
+                          await onSave(f, nv);
+                        } catch (e) {
+                          setError(errorText(e));
+                        }
+                      }}
+                    />
+                  ) : (
+                    <button
+                      type="button"
+                      disabled={!f.edit}
+                      onClick={() => setEditing(f.key)}
+                      title={w && !empty ? `${sourceLabel(w.source)}, ${timeAgo(w.at)}` : undefined}
+                      className={`flex w-full min-w-0 items-center gap-2 rounded px-1 py-0.5 text-left text-[13px] ${f.edit ? "cursor-text" : "cursor-default"}`}
+                    >
+                      <span className={`min-w-0 flex-1 break-words ${empty ? "text-faint" : "text-ink"}`}>{empty ? (f.edit ? "Empty" : "—") : <FieldValue field={f} value={v} links={l} />}</span>
+                      {w && !empty ? <span className="shrink-0 text-[12px] text-faint">{sourceLabel(w.source)}</span> : null}
+                    </button>
+                  )}
+                  {under?.[f.key] ?? null}
                 </div>
-              );
-            })}
-          </dl>
+              </div>
+            );
+          })}
           {i === sections.length - 1 && onAddField ? (
-            <div className="border-t border-line px-4 py-2.5">
-              <button type="button" onClick={onAddField} className="press inline-flex h-8 items-center gap-1.5 rounded-full px-3 text-[12.5px] font-medium text-muted hover:bg-hover hover:text-ink">
-                <Plus size={13} />
-                Add field
-              </button>
-            </div>
+            <button type="button" onClick={onAddField} className="mt-1 inline-flex h-7 items-center gap-1.5 rounded-md px-2 text-[12.5px] font-medium text-muted hover:bg-hover hover:text-ink">
+              <Plus size={13} />
+              Add field
+            </button>
           ) : null}
-        </Panel>
+        </FieldGroup>
       ))}
     </>
   );
@@ -166,32 +166,27 @@ export type Change = { key: string; old: unknown; new: unknown; source: string; 
 export function HistoryPanel({ history, fields, people }: { history: Change[]; fields: AnyField[]; people: { id: string; email: string }[] }) {
   const byKey = new Map(fields.map((f) => [f.key, f]));
   const who = (c: Change) => (c.by ? (people.find((p) => p.id === c.by)?.email ?? "Someone") : sourceLabel(c.source));
-  return (
-    <Panel className="overflow-hidden">
-      <CardHead label="Changes" count={history.length} />
-      {!history.length ? (
-        <p className="px-5 py-3 text-[13px] text-faint">—</p>
-      ) : (
-        <ol className="max-h-[420px] overflow-auto py-2">
+  return !history.length ? (
+    <p className="py-6 text-center text-[13px] text-faint">No changes yet</p>
+  ) : (
+        <ol className="py-1">
           {history.map((c, i) => {
             const f = byKey.get(c.key);
             const text = (v: unknown) => (v == null || v === "" ? "—" : f ? shown(f, v) || String(v) : typeof v === "object" ? JSON.stringify(v) : String(v));
             return (
-              <li key={i} className="relative py-2 pr-5 pl-12 text-[12.5px] before:absolute before:inset-y-0 before:left-[27px] before:w-px before:bg-line-strong first:before:top-4 last:before:bottom-auto last:before:h-4">
-                <span aria-hidden="true" className="absolute top-3.5 left-[23px] size-[9px] rounded-full border-2 border-card bg-muted ring-1 ring-line-strong" />
+              <li key={i} className="relative py-2 pr-2 pl-8 text-[13px] before:absolute before:inset-y-0 before:left-[11px] before:w-px before:bg-line first:before:top-4 last:before:bottom-auto last:before:h-4">
+                <span aria-hidden="true" className="absolute top-3.5 left-[7px] size-[9px] rounded-full border border-line-strong bg-card" />
                 <p>
                   <span className="font-medium">{f?.label ?? (c.key === "merged" ? "Merged" : c.key)}</span>
                   <span className="text-muted"> {text(c.old)} → </span>
                   <span>{text(c.new)}</span>
                 </p>
                 <p className="mt-0.5 text-[12px] text-faint">
-                  {who(c)} · {timeAgo(c.at)}
+                  {who(c)}, {timeAgo(c.at)}
                 </p>
               </li>
             );
           })}
         </ol>
-      )}
-    </Panel>
   );
 }

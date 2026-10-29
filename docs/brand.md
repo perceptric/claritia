@@ -100,6 +100,18 @@ A white panel (`card`, 16px, a hairline and `shadow-xs`) inset on the gray shell
 plain icons and quiet gray labels. The open item is a white chip with a hairline and a faint shadow, like Omniscient.
 Counts are small gray pills. "Create" is the rail's one black button.
 
+## 3a. CRM screens, copied from Omniscient
+
+- **Page header:** a 48px bar with a breadcrumb ("Contacts / Emma Lopez") at 13px, the page icon, actions on the right.
+  A section's tabs sit in a 40px bar under it with a black underline.
+- **Lists:** the table runs edge to edge under one filter bar. 40px rows, 12px gray headers, hairlines between cells,
+  a 22px avatar and the name in the first column, the page count in the footer.
+- **Records** (`src/components/app/records/RecordLayout.tsx`): at most 6xl wide. The main column has the picture,
+  name and tags, "Title at Company", a strip of key numbers, the stages as one path of arrows like Salesforce
+  (`StagePath`: done steps green with a check, the current one black, won green, lost red), then tabs (Timeline, Notes, Tasks,
+  Changes and the rest). The 360px right rail holds the fields in folding groups (`FieldGroup`), each row a 132px
+  label and the value with its source, then short lists of related records (`RelatedList`).
+
 ## 4. Mark and pictures
 
 - **Mark:** an emerald tile (`#0C8C5E`, 6px corners at 32px) with four white corner brackets and a check

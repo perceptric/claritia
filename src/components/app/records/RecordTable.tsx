@@ -119,14 +119,14 @@ export function RecordTable({
   const nameField = byKey.get("name");
 
   return (
-    <div className="min-h-0 overflow-auto rounded-2xl border border-line bg-card">
+    <div className="min-h-0 flex-1 overflow-auto bg-card">
       <table className="w-max min-w-full table-fixed border-separate border-spacing-0">
         <thead>
           <tr>
-            <th className="sticky top-0 left-0 z-30 h-11 w-10 border-b border-line bg-card pl-4">
+            <th className="sticky top-0 left-0 z-30 h-10 w-10 border-b border-line bg-card pl-3">
               <CheckBox on={pageAll || allMatching} label="Select this page" onClick={onTogglePage} />
             </th>
-            <th className="sticky top-0 left-10 z-30 h-11 w-[280px] border-r border-b border-line bg-card px-4 text-left text-[12px] font-medium whitespace-nowrap text-muted">
+            <th className="sticky top-0 left-10 z-30 h-10 w-[280px] border-r border-b border-r-line-light border-b-line bg-card px-2 text-left text-[12px] font-medium whitespace-nowrap text-faint">
               <button type="button" onClick={() => onSort("name")} className="hover:text-ink">
                 {nameField?.label ?? "Name"}
                 {sort.key === "name" ? (sort.desc ? " ↓" : " ↑") : ""}
@@ -159,7 +159,7 @@ export function RecordTable({
                     setOverKey(null);
                   }}
                   style={{ width: w }}
-                  className={`sticky top-0 z-20 h-11 cursor-grab border-b border-line bg-card px-4 text-left text-[12px] font-normal whitespace-nowrap text-muted ${overKey === c.key && dragKey !== c.key ? "shadow-[inset_2px_0_0_var(--color-ink)]" : ""}`}
+                  className={`sticky top-0 z-20 h-10 cursor-grab border-r border-b border-r-line-light border-b-line bg-card px-2 text-left text-[12px] font-medium whitespace-nowrap text-faint ${overKey === c.key && dragKey !== c.key ? "shadow-[inset_2px_0_0_var(--color-ink)]" : ""}`}
                 >
                   {sortable(f) ? (
                     <button type="button" onClick={() => onSort(f.sort!)} title={f.config.description || undefined} className="max-w-full truncate hover:text-ink">
@@ -180,9 +180,9 @@ export function RecordTable({
                 </th>
               );
             })}
-            <th className="sticky top-0 z-20 h-11 w-full border-b border-line bg-card px-2 text-left">
+            <th className="sticky top-0 z-20 h-10 border-b border-line bg-card px-2 text-left">
               {onAddField ? (
-                <button type="button" onClick={onAddField} aria-label="Add field" title="Add field" className="press flex size-8 items-center justify-center rounded-full text-muted hover:bg-hover hover:text-ink">
+                <button type="button" onClick={onAddField} aria-label="Add field" title="Add field" className="press flex size-7 items-center justify-center rounded-full text-muted hover:bg-hover hover:text-ink">
                   <Plus size={14} />
                 </button>
               ) : null}
@@ -194,8 +194,8 @@ export function RecordTable({
             const on = allMatching || selected.has(r.id);
             const links = (r.links ?? {}) as Record<string, Link[]>;
             return (
-              <tr key={r.id} className={`group transition-colors duration-[140ms] ${on ? "bg-brand-pale" : "hover:bg-paper"}`}>
-                <td className={`sticky left-0 z-10 h-14 w-10 border-b border-line pl-4 group-last:border-b-0 ${on ? "bg-brand-pale" : "bg-card group-hover:bg-paper"}`}>
+              <tr key={r.id} className={`group transition-colors duration-[120ms] ${on ? "bg-hover" : "hover:bg-hover"}`}>
+                <td className={`sticky left-0 z-10 h-10 w-10 border-b border-line-light pl-3 ${on ? "bg-paper" : "bg-card group-hover:bg-paper"}`}>
                   <CheckBox
                     on={on}
                     label="Select"
@@ -207,14 +207,11 @@ export function RecordTable({
                 </td>
                 <td
                   onClick={() => onOpen(r)}
-                  className={`sticky left-10 z-10 h-14 w-[280px] cursor-pointer border-r border-b border-line px-4 text-[13.5px] group-last:border-b-0 ${on ? "bg-brand-pale" : "bg-card group-hover:bg-paper"}`}
+                  className={`sticky left-10 z-10 h-10 w-[280px] cursor-pointer border-r border-b border-line-light px-2 text-[13px] ${on ? "bg-paper" : "bg-card group-hover:bg-paper"}`}
                 >
-                  <span className="flex items-center gap-3">
-                    <Avatar label={displayName(r)} size={28} />
-                    <span className="flex min-w-0 flex-col">
-                      <span className="truncate font-medium">{displayName(r)}</span>
-                      {r.email && displayName(r) !== r.email ? <span className="truncate text-[12px] text-faint">{String(r.email)}</span> : null}
-                    </span>
+                  <span className="flex items-center gap-2">
+                    <Avatar label={displayName(r)} size={22} />
+                    <span className="min-w-0 truncate font-medium">{displayName(r)}</span>
                     {nameExtra?.(r)}
                   </span>
                 </td>
@@ -226,7 +223,7 @@ export function RecordTable({
                     <td
                       key={c.key}
                       onClick={() => (f.edit ? setEditing({ id: r.id, key: c.key }) : onOpen(r))}
-                      className={`h-14 overflow-hidden border-b border-line px-4 text-[13.5px] whitespace-nowrap group-last:border-b-0 ${f.edit ? "cursor-text" : "cursor-pointer"} ${active ? "px-1.5" : ""}`}
+                      className={`h-10 overflow-hidden border-r border-b border-line-light px-2 text-[13px] whitespace-nowrap ${f.edit ? "cursor-text hover:outline hover:outline-1 hover:-outline-offset-1 hover:outline-line-strong" : "cursor-pointer"} ${active ? "px-1" : ""}`}
                     >
                       {active ? (
                         <FieldEditor
@@ -250,7 +247,7 @@ export function RecordTable({
                     </td>
                   );
                 })}
-                <td className="h-14 border-b border-line group-last:border-b-0" />
+                <td className="h-10 border-b border-line-light" />
               </tr>
             );
           })}

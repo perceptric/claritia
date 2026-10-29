@@ -19,6 +19,7 @@
   --color-faint: #a3a3a3;
   --color-line: #e7e7e4;
   --color-line-strong: #d4d4d0;
+  --color-line-light: #f0f0ee;
   --color-hover: rgb(10 10 10 / 0.04);
   --color-scrim: rgb(10 10 10 / 0.28);
 
@@ -101,6 +102,7 @@
   --color-faint: #737373;
   --color-line: #262626;
   --color-line-strong: #333333;
+  --color-line-light: #1f1f1f;
   --color-hover: rgb(255 255 255 / 0.05);
   --color-scrim: rgb(0 0 0 / 0.5);
   --color-signal: #18e299;

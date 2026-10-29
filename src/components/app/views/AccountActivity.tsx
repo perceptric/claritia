@@ -3,10 +3,9 @@
 // What a company does on your site (docs/m1-website-intelligence.md 8.6): visits, the people behind them, firmographics
 // and the signals behind its intent score. Shown on the company page.
 
-import { useState } from "react";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { decayed } from "@/lib/web/scores";
-import { Badge, Button, CardHead, Empty, ErrorNote, errorText, Loading, must, Panel, Td, timeAgo, useLoad, type Tone } from "../ui";
+import { Badge, CardHead, Empty, ErrorNote, Loading, must, Panel, Td, timeAgo, useLoad, type Tone } from "../ui";
 import { Eye, FormIcon } from "../../Icons";
 import { Sketch } from "../../sketches/Sketch";
 import { activeTime, LEVEL_TONE } from "./VisitorsView";
@@ -101,40 +100,6 @@ const HALF_LIFE: Record<string, number> = {
   demo_request: 21,
   new_person: 14,
 };
-
-/** Good pick, wrong company, not a fit: teaches the scoring. */
-export function AccountFeedback({ sb, accountId }: { sb: SupabaseClient; accountId: string }) {
-  const [sent, setSent] = useState("");
-  const [error, setError] = useState("");
-  const feedback = async (kind: string) => {
-    setError("");
-    try {
-      must(
-        await sb.rpc("account_feedback_add", {
-          p_account: accountId,
-          p_kind: kind,
-        }),
-      );
-      setSent(kind);
-    } catch (e) {
-      setError(errorText(e));
-    }
-  };
-  return (
-    <>
-      {error ? <span className="text-[12px] text-rose">{error}</span> : null}
-      {[
-        ["good", "Good pick"],
-        ["bad", "Wrong company"],
-        ["not_icp", "Not a fit"],
-      ].map(([k, label]) => (
-        <Button key={k} variant={sent === k ? "primary" : "ghost"} size="sm" onClick={() => feedback(k)} disabled={!!sent}>
-          {label}
-        </Button>
-      ))}
-    </>
-  );
-}
 
 export function AccountActivity({ sb, accountId }: { sb: SupabaseClient; accountId: string }) {
   const id = accountId;

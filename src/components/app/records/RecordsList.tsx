@@ -323,8 +323,8 @@ export function RecordsList({
   return (
     <Page icon={icon} title={title} count={list.data ? total.toLocaleString("en-US") : undefined} flush actions={actions}>
       <div className="flex h-full min-h-0 flex-col">
-        <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-line px-4 py-2.5 md:px-5">
-          {tabs.length > 1 ? <Select value={active.value} options={tabs.map((t) => ({ value: t.value, label: t.label }))} onChange={pickTab} ariaLabel="View" className="h-9 w-44" /> : null}
+        <div className="flex min-h-11 shrink-0 flex-wrap items-center gap-2 border-b border-line px-3 py-1.5">
+          {tabs.length > 1 ? <Select value={active.value} options={tabs.map((t) => ({ value: t.value, label: t.label }))} onChange={pickTab} ariaLabel="View" className="h-8 w-44" /> : null}
           <div className="w-56">
             <Input
               value={search}
@@ -410,7 +410,7 @@ export function RecordsList({
         </div>
 
         {count ? (
-          <div className="anim-rise-sm flex shrink-0 flex-wrap items-center gap-2 border-b border-line bg-brand-pale px-4 py-2 text-[13px] md:px-5">
+          <div className="anim-rise-sm flex shrink-0 flex-wrap items-center gap-2 border-b border-line bg-paper px-3 py-1.5 text-[13px]">
             <span className="font-medium">{count.toLocaleString("en-US")} selected</span>
             {!allMatching && rows.length && rows.every((r) => selected.has(r.id)) && total > rows.length ? (
               <Button variant="plain" size="sm" onClick={() => setAllMatching(true)}>
@@ -466,7 +466,7 @@ export function RecordsList({
         ) : board ? (
           <Empty icon={icon} title="Pick a field to group by" />
         ) : (
-          <div className="flex min-h-0 flex-1 flex-col px-4 pt-4 md:px-5">
+          <div className="flex min-h-0 flex-1 flex-col">
             <RecordTable
               sb={sb}
               wsId={ws.id}
@@ -495,7 +495,7 @@ export function RecordsList({
               nameExtra={nameExtra}
               onAddField={() => setAddingField(true)}
             />
-            <div className="flex shrink-0 items-center gap-2 py-3 text-[12px] text-muted">
+            <div className="flex shrink-0 items-center gap-2 border-t border-line px-3 py-2 text-[12px] text-muted">
               <span>
                 {(offset + 1).toLocaleString("en-US")}–{(offset + rows.length).toLocaleString("en-US")} of {total.toLocaleString("en-US")}
               </span>
