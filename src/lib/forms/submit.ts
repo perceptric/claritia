@@ -12,7 +12,7 @@ import { cleanEmail, isRejected } from "../identity/clean.ts";
 import { enqueueJob, type Rpc } from "../jobs.ts";
 import type { Tokens } from "./brand.ts";
 import { offerForFill, type Booking } from "./booking.ts";
-import { bookingUrl, outside, showsMeeting } from "./schedule.ts";
+import { bookingUrl, outside, routedBooks, showsMeeting, type RoutedAs } from "./schedule.ts";
 import { regionOf } from "../web/policy.ts";
 import { contactPolicy } from "./overwrite.ts";
 import { regionsOf } from "./regions.ts";
@@ -204,18 +204,24 @@ export function qaOk(formId: string, token: unknown, secret: string | undefined,
  * Take a fill for a live form: check it, save it (form_submit), and work out the booking link when the form books a
  * meeting on an outside scheduler, or the times and booking token when it books with Claritia calendar. Shared by the public route and the tests, so both run the same steps. Answers status and JSON body.
  */
-export async function routeFill(rpc: Rpc, ws: string, contact: string, submission: string): Promise<void> {
+export async function routeFill(rpc: Rpc, ws: string, contact: string, submission: string): Promise<RoutedAs> {
   const key = `form:${submission}`;
   const later = () => enqueueJob(rpc, { workspaceId: ws, kind: "route", key, payload: { contact, reason: "form", key } }).catch(() => undefined);
   try {
     const { route } = await import("../router/server.ts");
     const { qualifyContact } = await import("../enrich/server.ts");
-    const done = route(rpc, { ws, contact, key, reason: "form", qualify: (c) => qualifyContact(rpc, c, { timeoutMs: 2900 }) }).then(() => true);
-    const ok = await Promise.race([done, new Promise<false>((r) => setTimeout(() => r(false), 300))]);
+    const done = route(rpc, { ws, contact, key, reason: "form", qualify: (c) => qualifyContact(rpc, c, { timeoutMs: 2900 }) });
+    const r = await Promise.race([done, new Promise<null>((res) => setTimeout(() => res(null), 300))]);
     done.catch(() => undefined);
-    if (!ok) await later();
+    if (!r) {
+      await later();
+      return null;
+    }
+    if (r.status !== "ok" && r.status !== "dup") return null;
+    return r.result.kind === "owner" ? { kind: "owner", rule: r.result.rule ?? null, by: r.result.by } : { kind: r.result.kind };
   } catch {
     await later();
+    return null;
   }
 }
 
@@ -277,7 +283,7 @@ export async function acceptFill(
   const cid = (data as { contact_id?: string | null }).contact_id;
   // Fields hidden as known are filled from the lookup the form already made, before the router reads the lead.
   if (cid && !r.args.p_spam && f.body.enrich?.hideKnown && !(data as { repeat?: boolean }).repeat) await fillKnown(rpc, cid);
-  if (cid && !r.args.p_spam && !(data as { repeat?: boolean }).repeat) await routeFill(rpc, f.workspace_id, cid, sid);
+  const routed = cid && !r.args.p_spam && !(data as { repeat?: boolean }).repeat ? await routeFill(rpc, f.workspace_id, cid, sid) : null;
   // Book a meeting next: the contact owner's link when the form says so and they have one, else the form's link.
   const sch = f.body.after.schedule;
   const lead = r.args.p_contact;
@@ -286,7 +292,7 @@ export async function acceptFill(
   // on the server's email class: a work email is anything but free mail.
   const byId: Record<string, unknown> = {};
   for (const x of allFields(f.body)) if (r.args.p_values[x.key] !== undefined) byId[x.id] = r.args.p_values[x.key];
-  if (sch && lead && !r.args.p_spam && showsMeeting(sch, byId, !!lead.email_class && lead.email_class !== "free")) {
+  if (sch && lead && !r.args.p_spam && showsMeeting(sch, byId, !!lead.email_class && lead.email_class !== "free") && routedBooks(sch, routed)) {
     if (!outside(sch.tool)) {
       // Claritia calendar: times from the cache with a signed token, or the message when there are none to show. A
       // booking hiccup never loses the fill: it's saved, and the lead gets the message.

@@ -742,6 +742,12 @@ export function checkForm(raw: unknown, ctx: Ctx = {}): { form: Form } | { error
         schedule.rules = rules;
         if (sch.any === true) schedule.any = true;
       }
+      if (sch.who === "routed") {
+        const picked = [...new Set((Array.isArray(sch.routeRules) ? sch.routeRules : []).filter((x): x is string => typeof x === "string" && /^[\w-]{1,40}$/.test(x)))].slice(0, 50);
+        if (!picked.length) errors.push("Booking: pick at least one routing rule, or show it to everyone.");
+        schedule.who = "routed";
+        schedule.routeRules = picked;
+      }
       const heading = str(sch.heading, LIMITS.label);
       if (heading) schedule.heading = heading;
       if (sch.prefill === false && tool !== "claritia") schedule.prefill = false;

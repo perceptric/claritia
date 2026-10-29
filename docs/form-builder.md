@@ -119,6 +119,15 @@ A `ToolIntro` with one input: "What should this form do?" and the site address f
 
 The same ops are tools on the MCP server (`create_form`, `edit_form`, `publish_form`) and in the REST API, so a team can build a form from Claude or a script. Publishing from outside the app needs an owner's key.
 
+### 4.4 One screen, no tabs (built 29 October 2026)
+
+- **Forms home** (`src/components/app/forms/FormHome.tsx`): the forms as a list, with no stats on top, and the assistant's box always at the bottom. Describing a form there opens the new form screen with that sentence already read, so the questions it answered are settled. With no forms yet, a form builds itself in the middle of the screen (still under reduced motion). The Overview tab is gone.
+- **New form** (`FormCreate.tsx`): the assistant asks the questions one at a time (what it's for, what to collect, what happens on submission, where leads sync), with click answers and a default picked. The form starts in the brand kit from the website (5.4).
+- **The form** (`FormsView.tsx` Builder): the assistant on the left (`FormChat.tsx`, `/api/forms/chat`), the canvas on the right, and the lead's path above it: **Style** (opens the Theme panel on the brand kit), **On submission** (a sheet: Pop-up message, Redirect to another page, or Book a meeting) and **Sync leads to** (a sheet: Claritia contacts, each tool with its sync rule, and known fields). **Results** shows submissions and field drop-off in place of the canvas; **Share** opens the embed codes in a sheet. **Publish** replaces Make live. Spam protection and consent are built in with their defaults and not asked.
+- **Book a meeting by routing rule:** "Leads routed by these rules" lists every live routing rule, plus Existing owner and Everyone else, with a link to Routing. Only leads routed by a picked rule see the calendar; the rest see the message. A held lead never books. When routing doesn't answer within 300 ms, the lead books anyway, because a missed meeting costs more than one booked with the meeting type's own host (`routedBooks` in `src/lib/forms/schedule.ts`, tests in `tests/instantBooking.test.ts`).
+
+Running cost: no new service or AI call (the assistant uses the existing form chat, 4.2). Added per month: $0 at Beta (50 teams) and $0 at Growth (500 teams).
+
 ## Part 5. Brand from the website
 
 ### 5.1 The scan
@@ -164,6 +173,17 @@ brand_kits (id, workspace_id, site_id, tokens jsonb, logo_path, source_url, scan
 
 - **Match (default):** the form uses the brand kit tokens inside a Shadow DOM. The site's own CSS can't break the form, and the form can't break the site.
 - **Inherit:** for teams with a design system. The form drops the Shadow DOM, uses plain class names (`clr-field`, `clr-input`, `clr-button`), and the site's CSS styles it. The chat warns if the site's CSS makes a field hard to read (the runner checks contrast after load).
+
+### 5.4 Every form starts in the brand kit
+
+- The kit is scanned from the workspace's website when the workspace is set up (or when the first form is made, if it isn't scanned yet). No form ever starts in a default look.
+- A new form takes the kit's button color, font, corners, button shape and logo. The assistant says so in its first message ("Styled with the Lumen brand kit from lumen.io").
+- The style bar above the form shows the kit. Edit opens Style: button color (from the kit's colors), font (the kit's fonts), corners, button shape, show logo, and Scan again.
+- A change made for one form ("Use square corners", "Use a serif font") stays on that form and marks it Custom style. The kit is unchanged, and Reset to brand kit brings the form back.
+- Changing the kit restyles every form that isn't custom (5.2). A rescan that finds new colors shows the change before it applies.
+- Contrast is checked on every change. A button color that fails WCAG AA on its background is refused with the reason.
+
+Running cost: the scan already exists (5.1) and runs once per site, plus the monthly rescan. Starting forms in the kit adds no AI call. Added per month: $0 at Beta (50 teams) and $0 at Growth (500 teams).
 
 ## Part 6. The renderer
 
@@ -217,6 +237,39 @@ A destination is a connected tool plus a field map and a mode. Connections are t
 ### 7.3 The lead page and the delivery log
 
 Each submission shows its values, the form version, the page and UTMs, earlier visits, the router's log, the meeting, and one line per destination: status tag, time, the external id as a link ("Open in HubSpot"), and the error if any. Settings › Form deliveries lists every delivery with filters and bulk replay.
+
+### 7.4 Sync rules
+
+Each CRM destination (HubSpot, Salesforce, and every CRM added later) has its own sync rules, set from "Sync leads to" on the form (Sync rules) or by the assistant ("never overwrite CRM data"). The defaults protect what's already in the CRM.
+
+Built so far: "When the record exists" per CRM destination (`src/lib/delivery/rules.ts`, saved in `form_destinations.config.rules`, set in Sync leads to). New CRM destinations start on "Fill empty fields only"; ones made before keep overwriting until changed. The other rules below are planned.
+
+| Rule | Choices | Default |
+|---|---|---|
+| Create as | Salesforce: Lead or Contact. HubSpot: Contact, or Contact and deal | Lead (Salesforce), Contact (HubSpot) |
+| Find existing records by | Email; or email, then name and company domain (flagged as a possible duplicate, never merged without asking) | Email |
+| When the record exists | Fill empty fields only; overwrite with new answers; do not update | Fill empty fields only |
+| Owner | Keep the current owner; set the owner from routing | Keep the current owner |
+| Who assigns new leads | Claritia routing rules; the CRM's own assignment rules (never both) | Claritia routing rules |
+| Sync consent status | On or off, written to the CRM's opt-in fields (HubSpot subscription types, Salesforce `HasOptedOutOfEmail`, check) | On |
+
+How each data problem is handled:
+
+- **Duplicates.** Upsert by email first. With the second match on, a record with the same name and company domain is flagged on the submission, and the person picks merge or create. In Salesforce, Contacts are checked before Leads, and the record that exists is updated.
+- **Good data overwritten.** Each field can also set its own rule ("When the contact already has a value" on the field), which wins over the destination rule. Every value keeps its source (typed, enrichment, CRM), and typed answers win over enrichment.
+- **Field mismatches.** The field map shows each form field, its CRM field, and what happens to the value on the way: choice answers are mapped to the CRM's allowed values (`51–200` becomes `51-200` or a number), phones are sent in E.164, dates in ISO 8601, and long text is cut to the CRM's limit (the full text stays in Claritia).
+- **Required CRM fields the form doesn't ask.** The map warns when the destination is set up (Salesforce Lead: Last Name, Company). The value comes from enrichment, else "Unknown", so no submission fails for it.
+- **CRM fields renamed or deleted.** A daily job checks every map against the CRM's fields and alerts the owner once, naming the field.
+- **Assignment conflicts.** One owner of assignment per destination. When Claritia routes, the CRM's assignment rules are not triggered (Salesforce `Sforce-Auto-Assign: false`, check). When the CRM assigns, Claritia's router doesn't write an owner.
+- **Company linking.** Contacts are linked to the Account or Company with the same domain. A company is created only when none exists, and personal email domains are never used to match.
+- **Failures.** Retries follow 7.2. An expired token or removed connection pauses that destination, alerts the owner once, and sends the waiting submissions in order after reconnecting. Each CRM has its own queue that stays under its API limits, so a burst (2,000 webinar registrations) never fails. If the contact is created but the deal fails, only the deal is retried.
+- **Sync loops.** Every write carries Claritia's source tag, and changes that come back from the CRM with that tag are ignored. Merged records follow the record that survived. Deleted records are not created again.
+- **Deletion requests.** Deleting a person in Claritia deletes or flags them in every synced CRM, and the deletion is logged.
+- **Visibility.** The "Sync leads to" card shows a failed count per CRM ("2 failed") with the reason and Retry. The assistant answers "Why didn't Dana sync to Salesforce?" from the delivery log.
+
+Reliability rule: the send pipeline is on the list, so each rule ships with a test on a flaky case: a timeout after the CRM created the record (no second record), a picklist value the CRM rejects (clear error, no silent drop), a token that expires mid-burst (held, then sent in order), and a change that comes back from the CRM (no loop).
+
+Running cost: sync rules add no new service or AI call. The daily map check and the per-CRM queues run on the existing jobs queue and use the CRM APIs inside their free limits (check). Added per month: $0 at Beta (50 teams) and $0 at Growth (500 teams).
 
 ## Part 8. After the submit
 

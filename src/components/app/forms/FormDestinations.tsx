@@ -9,18 +9,38 @@ import { CATALOG, entryOf } from "@/lib/sources/catalog";
 import { Code, Pause, Play, Plus, Trash } from "../../Icons";
 import { BrandLogo } from "../BrandLogo";
 import { askConfirm, askText, tell } from "../Dialogs";
-import { Badge, Button, ErrorNote, errorText, must, postJson, type ViewProps } from "../ui";
+import {
+  Badge,
+  Button,
+  ErrorNote,
+  errorText,
+  must,
+  postJson,
+  type ViewProps,
+} from "../ui";
 import { Label, Section } from "./SettingsParts";
+import { rulesOf } from "@/lib/delivery/rules";
 import { IconButton, type Destination, type SourceRow } from "./shared";
 
 /** Tools that take new contacts from Claritia today. */
-const PUSHES = new Set(CATALOG.filter((e) => e.twoWay || e.pushes).map((e) => e.kind));
+const PUSHES = new Set(
+  CATALOG.filter((e) => e.twoWay || e.pushes).map((e) => e.kind),
+);
 
 const HookMark = ({ size = 22 }: { size?: number }) => (
-  <span className="flex shrink-0 items-center justify-center rounded-full bg-paper-deep text-ink" style={{ width: size, height: size }}>
+  <span
+    className="flex shrink-0 items-center justify-center rounded-full bg-paper-deep text-ink"
+    style={{ width: size, height: size }}
+  >
     <Code size={Math.round(size * 0.6)} />
   </span>
 );
+
+const EXISTS = [
+  ["if_empty", "Fill empty fields only"],
+  ["always", "Overwrite with new answers"],
+  ["never", "Do not update"],
+] as const;
 
 export function FormDestinations({
   sb,
@@ -31,10 +51,17 @@ export function FormDestinations({
   sources,
   reload,
   navigate,
-}: Pick<ViewProps, "sb" | "session" | "ws" | "navigate"> & { formId: string; list: Destination[]; sources: SourceRow[]; reload: () => void }) {
+}: Pick<ViewProps, "sb" | "session" | "ws" | "navigate"> & {
+  formId: string;
+  list: Destination[];
+  sources: SourceRow[];
+  reload: () => void;
+}) {
   const [error, setError] = useState("");
   const used = new Set(list.map((d) => d.source_id).filter(Boolean));
-  const tools = sources.filter((s) => s.status !== "disconnected" && PUSHES.has(s.kind) && !used.has(s.id));
+  const tools = sources.filter(
+    (s) => s.status !== "disconnected" && PUSHES.has(s.kind) && !used.has(s.id),
+  );
   const run = async (fn: () => Promise<unknown>) => {
     setError("");
     try {
@@ -44,19 +71,44 @@ export function FormDestinations({
       setError(errorText(e));
     }
   };
-  const save = (body: object) => postJson<{ id: string; secret?: string }>(session, "/api/forms/destination", { workspaceId: ws.id, formId, ...body });
+  const save = (body: object) =>
+    postJson<{ id: string; secret?: string }>(
+      session,
+      "/api/forms/destination",
+      { workspaceId: ws.id, formId, ...body },
+    );
   const showSecret = async (r: { secret?: string }) => {
-    if (r.secret) await tell("Signing secret", `Shown once. It signs the x-claritia-signature header.\n\n${r.secret}`);
+    if (r.secret)
+      await tell(
+        "Signing secret",
+        `Shown once. It signs the x-claritia-signature header.\n\n${r.secret}`,
+      );
   };
   const logo = (d: Destination) => {
-    if (d.kind === "slack") return <BrandLogo domain="slack.com" name="Slack" size={22} />;
+    if (d.kind === "slack")
+      return <BrandLogo domain="slack.com" name="Slack" size={22} />;
     if (d.kind === "webhook") return <HookMark />;
     const s = sources.find((x) => x.id === d.source_id);
-    return <BrandLogo domain={entryOf(s?.kind ?? "")?.domain ?? ""} name={d.name} size={22} />;
+    return (
+      <BrandLogo
+        domain={entryOf(s?.kind ?? "")?.domain ?? ""}
+        name={d.name}
+        size={22}
+      />
+    );
   };
-  const tile = "lift press flex h-12 items-center gap-3 rounded-lg border border-line bg-card px-4 text-left text-[13px] hover:border-line-strong";
+  const tile =
+    "lift press flex h-12 items-center gap-3 rounded-lg border border-line bg-card px-4 text-left text-[13px] hover:border-line-strong";
   return (
-    <Section id="destinations" title="Destinations" aside={<span className="text-[12.5px] text-muted tabular-nums">{list.length + 1}</span>}>
+    <Section
+      id="destinations"
+      title="Sync leads to"
+      aside={
+        <span className="text-[12.5px] text-muted tabular-nums">
+          {list.length + 1}
+        </span>
+      }
+    >
       <ErrorNote message={error} />
       <ul className="-my-1 flex flex-col divide-y divide-line">
         <li className="flex min-h-12 items-center gap-3 py-2 text-[13.5px]">
@@ -67,38 +119,125 @@ export function FormDestinations({
           </span>
         </li>
         {list.map((d) => (
-          <li key={d.id} className="anim-rise-sm flex min-h-12 items-center gap-3 py-2 text-[13.5px]">
-            {logo(d)}
-            <span className="min-w-0 truncate font-medium text-ink">{d.name}</span>
-            {d.config.host ? <span className="hidden truncate font-mono text-[11.5px] text-muted sm:inline">{d.config.host}</span> : null}
-            <span className="ml-auto flex shrink-0 items-center gap-1">
-              {d.paused ? <Badge tone="amber">Paused</Badge> : <Badge tone="green">On</Badge>}
-              <IconButton label={d.paused ? "Turn on" : "Pause"} onClick={() => run(async () => must(await sb.rpc("form_destination_pause", { p_id: d.id, p_paused: !d.paused })))}>
-                {d.paused ? <Play size={14} /> : <Pause size={14} />}
-              </IconButton>
-              {d.kind !== "source" ? (
+          <li key={d.id} className="anim-rise-sm flex flex-col py-2">
+            <div className="flex min-h-12 items-center gap-3 text-[13.5px]">
+              {logo(d)}
+              <span className="min-w-0 truncate font-medium text-ink">
+                {d.name}
+              </span>
+              {d.config.host ? (
+                <span className="hidden truncate font-mono text-[11.5px] text-muted sm:inline">
+                  {d.config.host}
+                </span>
+              ) : null}
+              <span className="ml-auto flex shrink-0 items-center gap-1">
+                {d.paused ? (
+                  <Badge tone="amber">Paused</Badge>
+                ) : (
+                  <Badge tone="green">On</Badge>
+                )}
                 <IconButton
-                  label="Change address"
+                  label={d.paused ? "Turn on" : "Pause"}
+                  onClick={() =>
+                    run(async () =>
+                      must(
+                        await sb.rpc("form_destination_pause", {
+                          p_id: d.id,
+                          p_paused: !d.paused,
+                        }),
+                      ),
+                    )
+                  }
+                >
+                  {d.paused ? <Play size={14} /> : <Pause size={14} />}
+                </IconButton>
+                {d.kind !== "source" ? (
+                  <IconButton
+                    label="Change address"
+                    onClick={async () => {
+                      const url = await askText(
+                        d.kind === "slack"
+                          ? "Slack webhook address"
+                          : "Webhook address",
+                        { placeholder: "https://", ok: "Save" },
+                      );
+                      if (!url) return;
+                      await run(async () =>
+                        showSecret(
+                          await save({
+                            id: d.id,
+                            kind: d.kind,
+                            name: d.name,
+                            url,
+                          }),
+                        ),
+                      );
+                    }}
+                  >
+                    <Code size={14} />
+                  </IconButton>
+                ) : null}
+                <IconButton
+                  label="Remove"
+                  danger
                   onClick={async () => {
-                    const url = await askText(d.kind === "slack" ? "Slack webhook address" : "Webhook address", { placeholder: "https://", ok: "Save" });
-                    if (!url) return;
-                    await run(async () => showSecret(await save({ id: d.id, kind: d.kind, name: d.name, url })));
+                    if (
+                      !(await askConfirm(`Stop sending leads to ${d.name}?`, {
+                        ok: "Remove",
+                        danger: true,
+                      }))
+                    )
+                      return;
+                    await run(async () =>
+                      must(
+                        await sb.rpc("form_destination_delete", { p_id: d.id }),
+                      ),
+                    );
                   }}
                 >
-                  <Code size={14} />
+                  <Trash size={14} />
                 </IconButton>
-              ) : null}
-              <IconButton
-                label="Remove"
-                danger
-                onClick={async () => {
-                  if (!(await askConfirm(`Stop sending leads to ${d.name}?`, { ok: "Remove", danger: true }))) return;
-                  await run(async () => must(await sb.rpc("form_destination_delete", { p_id: d.id })));
-                }}
-              >
-                <Trash size={14} />
-              </IconButton>
-            </span>
+              </span>
+            </div>
+            {d.kind === "source" ? (
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-2 pb-1 pl-[34px]">
+                <span className="text-[12.5px] text-muted">
+                  When the record exists
+                </span>
+                <span
+                  role="radiogroup"
+                  aria-label={`${d.name}: when the record exists`}
+                  className="flex flex-wrap gap-1.5"
+                >
+                  {EXISTS.map(([v, l]) => {
+                    const cur = rulesOf(d.config)?.exists ?? "always";
+                    return (
+                      <button
+                        key={v}
+                        type="button"
+                        role="radio"
+                        aria-checked={cur === v}
+                        onClick={() =>
+                          cur !== v &&
+                          run(() =>
+                            save({
+                              id: d.id,
+                              kind: "source",
+                              sourceId: d.source_id,
+                              name: d.name,
+                              rules: { exists: v },
+                            }),
+                          )
+                        }
+                        className={`press h-7 rounded-full border px-2.5 text-[12px] transition-colors duration-[120ms] ${cur === v ? "border-ink bg-ink font-medium text-paper" : "border-line text-body hover:border-line-strong"}`}
+                      >
+                        {l}
+                      </button>
+                    );
+                  })}
+                </span>
+              </div>
+            ) : null}
           </li>
         ))}
       </ul>
@@ -107,16 +246,33 @@ export function FormDestinations({
         <Label>Add</Label>
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3">
           {tools.map((s) => (
-            <button key={s.id} type="button" onClick={() => run(() => save({ kind: "source", sourceId: s.id, name: s.name }))} className={tile}>
-              <BrandLogo domain={entryOf(s.kind)?.domain ?? ""} name={s.name} size={22} />
+            <button
+              key={s.id}
+              type="button"
+              onClick={() =>
+                run(() =>
+                  save({ kind: "source", sourceId: s.id, name: s.name }),
+                )
+              }
+              className={tile}
+            >
+              <BrandLogo
+                domain={entryOf(s.kind)?.domain ?? ""}
+                name={s.name}
+                size={22}
+              />
               <span className="truncate font-medium">{s.name}</span>
             </button>
           ))}
           <button
             type="button"
             onClick={async () => {
-              const url = await askText("Slack webhook address", { placeholder: "https://hooks.slack.com/services/…", ok: "Add" });
-              if (url) await run(() => save({ kind: "slack", name: "Slack", url }));
+              const url = await askText("Slack webhook address", {
+                placeholder: "https://hooks.slack.com/services/…",
+                ok: "Add",
+              });
+              if (url)
+                await run(() => save({ kind: "slack", name: "Slack", url }));
             }}
             className={tile}
           >
@@ -126,7 +282,10 @@ export function FormDestinations({
           <button
             type="button"
             onClick={async () => {
-              const url = await askText("Webhook address", { placeholder: "https://", ok: "Add" });
+              const url = await askText("Webhook address", {
+                placeholder: "https://",
+                ok: "Add",
+              });
               if (!url) return;
               await run(async () => {
                 let name = "Webhook";
@@ -143,7 +302,11 @@ export function FormDestinations({
           </button>
         </div>
         <div>
-          <Button variant="plain" size="sm" onClick={() => navigate("settings", "sources")}>
+          <Button
+            variant="plain"
+            size="sm"
+            onClick={() => navigate("settings", "sources")}
+          >
             <Plus size={14} />
             Connect a tool
           </Button>

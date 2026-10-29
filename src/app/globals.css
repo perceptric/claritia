@@ -587,3 +587,20 @@ input[type="checkbox"],
 input[type="radio"] {
   accent-color: var(--color-ink);
 }
+
+/* Forms first use: a form that builds itself, then what follows a submission floats in (src/components/app/forms/FormHome.tsx). */
+@keyframes form-build {
+  0%, 4% { opacity: 0; transform: translateY(8px); }
+  12%, 88% { opacity: 1; transform: none; }
+  96%, 100% { opacity: 0; }
+}
+@keyframes form-float {
+  0%, 4% { opacity: 0; transform: translateY(6px); }
+  12%, 80% { opacity: 1; transform: none; }
+  90%, 100% { opacity: 0; }
+}
+.form-build { opacity: 0; animation: form-build 6s var(--ease-out) infinite both; }
+.form-float { opacity: 0; animation: form-float 6s var(--ease-out) infinite both; }
+@media (prefers-reduced-motion: reduce) {
+  .form-build, .form-float { animation: none; opacity: 1; }
+}

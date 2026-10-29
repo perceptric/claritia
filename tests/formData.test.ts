@@ -7,7 +7,7 @@ import { test } from "node:test";
 import { sendDelivery, type Taken } from "../src/lib/delivery/send.ts";
 import { contactPolicy, defaultOverwrite, mergeKeys } from "../src/lib/forms/overwrite.ts";
 import { customFit, customKindsFor, sameOptions, takenCrm } from "../src/lib/forms/savesTo.ts";
-import { checkForm, emptyForm, type Field, type Form } from "../src/lib/forms/schema.ts";
+import { allFields, checkForm, emptyForm, type Field, type Form } from "../src/lib/forms/schema.ts";
 import { prepareSubmit } from "../src/lib/forms/submit.ts";
 import { seal } from "../src/lib/seal.ts";
 import { makeCtx } from "../src/lib/sources/ctx.ts";
@@ -428,4 +428,35 @@ test("a delivery to HubSpot sends the contact, then the linked answers; a delete
   const third = await sendDelivery(t, { run });
   assert.equal(third.status, "done");
   assert.equal(hs.record.budget, "5000");
+});
+
+// Sync rules (docs/form-builder.md 7.4): the destination's "When the record exists" rule sets the policy for linked
+// answers, a field's own setting still wins, and a destination without rules keeps the old policy.
+test("sync rules: the destination rule sets the policy, a field's own setting wins, no rules keeps the old one", async () => {
+  const { rulesOf, NEW_RULES } = await import("../src/lib/delivery/rules.ts");
+  const props = hubspotProperties(HS_PROPS);
+  const pol = (rules: ReturnType<typeof rulesOf>, form = crmForm()) => crmPlan(form, crmValues, SRC, "hubspot", props, rules).send.map((s) => [s.property, s.policy]);
+  assert.deepEqual(pol(null), [["budget", "if_empty"], ["industry_pick", "always"]], "no rules: unchanged");
+  assert.deepEqual(pol({ exists: "never" }), [["budget", "never"], ["industry_pick", "never"]]);
+  assert.deepEqual(pol({ exists: "always" }), [["budget", "always"], ["industry_pick", "always"]]);
+  const own = withFields(allFields(crmForm()).filter((f) => f.key !== "email").map((f) => (f.id === "b" ? { ...f, overwrite: "always" as const } : f)));
+  assert.deepEqual(pol({ exists: "never" }, own), [["budget", "always"], ["industry_pick", "never"]], "the field's own setting wins");
+  // Reading rules: junk is dropped, and new destinations start safe.
+  assert.deepEqual(rulesOf({ rules: { exists: "if_empty", owner: "x" } }), { exists: "if_empty" });
+  for (const junk of [null, {}, { rules: null }, { rules: { exists: "sometimes" } }, "rules"]) assert.equal(rulesOf(junk), null);
+  assert.deepEqual(NEW_RULES, { exists: "if_empty" });
+});
+
+test("sync rules, flaky case: with 'Do not update', a record that already existed keeps its values; a new one is filled", async () => {
+  const props = hubspotProperties(HS_PROPS);
+  const plan = crmPlan(crmForm(), crmValues, SRC, "hubspot", props, { exists: "never" }).send.map((x) => ({ ...x, property: x.property === "industry_pick" ? "industry" : x.property }));
+  const hs = fakeHubspot(["budget", "industry"], { budget: "9000", industry: "Retail" });
+  const ctx = makeCtx({ source: source("hubspot"), creds: KEY, fetcher: hs.fetcher, sleep: async () => {} });
+  const r = await sendCrmFields(ctx, "hubspot", { id: "501", localId: "c1", isNew: false }, plan, null);
+  assert.deepEqual(r.sent, [], "nothing overwritten on an existing record");
+  assert.deepEqual(hs.record, { budget: "9000", industry: "Retail" });
+  const fresh = fakeHubspot(["budget", "industry"]);
+  const ctx2 = makeCtx({ source: source("hubspot"), creds: KEY, fetcher: fresh.fetcher, sleep: async () => {} });
+  const made = await sendCrmFields(ctx2, "hubspot", { id: "501", localId: "c1", isNew: true }, plan, null);
+  assert.deepEqual(made.sent.sort(), ["budget", "industry"]);
 });

@@ -11,6 +11,7 @@
 
 import { OTHER } from "../forms/values.ts";
 import { overwriteOf } from "../forms/overwrite.ts";
+import { policyFor, type SyncRules } from "../delivery/rules.ts";
 import { allFields, isContent, type Choice, type FieldType, type Form, type Overwrite } from "../forms/schema.ts";
 import { AuthError, RateLimited, type Ctx } from "./types.ts";
 
@@ -351,7 +352,7 @@ const answered = (v: unknown) => v !== undefined && v !== null && v !== "" && !(
  * one property: the first in the form's order whose answer the property takes goes; the other is skipped and says so. `props` null means the list
  * couldn't be read; then nothing is skipped up front and the CRM's own answer decides.
  */
-export function crmPlan(form: Pick<Form, "steps">, values: Record<string, unknown>, source: string, vendor: CrmVendor, props: CrmProperty[] | null): { send: CrmSend[]; skip: CrmSkip[] } {
+export function crmPlan(form: Pick<Form, "steps">, values: Record<string, unknown>, source: string, vendor: CrmVendor, props: CrmProperty[] | null, rules: SyncRules | null = null): { send: CrmSend[]; skip: CrmSkip[] } {
   const send: CrmSend[] = [];
   const skip: CrmSkip[] = [];
   const by = props ? new Map(props.map((p) => [p.name, p])) : null;
@@ -383,7 +384,7 @@ export function crmPlan(form: Pick<Form, "steps">, values: Record<string, unknow
       continue;
     }
     taken.set(p.name, f.label || p.name);
-    send.push({ property: p.name, label, value: c.value, policy: overwriteOf(f) ?? "always", field: f.id });
+    send.push({ property: p.name, label, value: c.value, policy: policyFor(f, rules, overwriteOf(f)), field: f.id });
   }
   return { send, skip };
 }

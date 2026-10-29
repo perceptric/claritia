@@ -30,7 +30,7 @@ import { CheckList } from "../email/CheckList";
 import { checkFormDesign } from "@/lib/design/check";
 import type { SourceRow } from "./shared";
 
-type Panel = "elements" | "layers" | "theme" | "styles" | "variables" | "checks";
+export type Panel = "elements" | "layers" | "theme" | "styles" | "variables" | "checks";
 type DragData = { kind: "element"; def: ElementDef } | { kind: "field"; id: string };
 type Line = { left: number; top: number; width: number; height: number };
 type Drop = { target: Target; line: Line } | null;
@@ -51,16 +51,24 @@ export type EditorProps = {
   applyStyles: (e: Edit, merge?: string) => void;
   applySystem: (system: DesignSystem, merge?: string) => void;
   styles: Omit<StylesLive, "openGuide">;
+  /** The rail panel open at first (Elements unless set), and a panel to open from outside (the Style button). */
+  startPanel?: Panel | null;
+  openPanel?: { id: Panel; n: number };
 };
 
 const BP = { desktop: "base", tablet: "tablet", phone: "phone" } as const;
 
-export function Editor({ form, apply, custom, sources, tokens, device, zoom, theme, link, draft, hasKit, applyStyles, applySystem, styles }: EditorProps) {
+export function Editor({ form, apply, custom, sources, tokens, device, zoom, theme, link, draft, hasKit, applyStyles, applySystem, styles, startPanel, openPanel }: EditorProps) {
   const [guide, setGuide] = useState(false);
   const live: StylesLive = { ...styles, openGuide: () => setGuide(true) };
   const system = draft.system;
   const [side, setSide] = useState<"settings" | "style">("settings");
-  const [panel, setPanel] = useState<Panel | null>("elements");
+  const [panel, setPanel] = useState<Panel | null>(startPanel === undefined ? "elements" : startPanel);
+  const [opened, setOpened] = useState(openPanel?.n ?? 0);
+  if (openPanel && openPanel.n !== opened) {
+    setOpened(openPanel.n);
+    setPanel(openPanel.id);
+  }
   const [picked, setPicked] = useState<string[]>([]);
   const [hovered, setHovered] = useState<string | null>(null);
   const [editing, setEditing] = useState<Editing>(null);
