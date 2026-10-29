@@ -14,7 +14,8 @@ import { CheckBox } from "./RecordTable";
 type Note = { id: string; body: string; author: string | null; created_at: string; updated_at: string };
 type Task = { id: string; title: string; due: string | null; assignee: string | null; done: boolean; created_at: string };
 
-export function RecordWork({ sb, ws, session, role, object, record, people }: Pick<ViewProps, "sb" | "ws" | "session" | "role"> & { object: string; record: string; people: { id: string; email: string }[] }) {
+/** Notes and tasks on a record. With `show`, one of them alone, for a record page's Notes or Tasks tab. */
+export function RecordWork({ sb, ws, session, role, object, record, people, show }: Pick<ViewProps, "sb" | "ws" | "session" | "role"> & { object: string; record: string; people: { id: string; email: string }[]; show?: "notes" | "tasks" }) {
   const data = useLoad(async () => {
     const [n, t] = await Promise.all([
       sb.from("notes").select("id, body, author, created_at, updated_at").eq("workspace_id", ws.id).eq("object", object).eq("record_id", record).order("created_at", { ascending: false }).limit(200),
@@ -23,7 +24,8 @@ export function RecordWork({ sb, ws, session, role, object, record, people }: Pi
     return { notes: must(n) as Note[], tasks: must(t) as Task[] };
   }, `${object}:${record}`);
   const open = (data.data?.tasks ?? []).filter((t) => !t.done).length;
-  const [tab, setTab] = useState<"notes" | "tasks">("notes");
+  const [picked, setTab] = useState<"notes" | "tasks">("notes");
+  const tab = show ?? picked;
   const [error, setError] = useState("");
   const run = async (fn: () => Promise<unknown>) => {
     setError("");
@@ -39,17 +41,8 @@ export function RecordWork({ sb, ws, session, role, object, record, people }: Pi
   const me = session.user.id;
   const who = (id: string | null) => people.find((p) => p.id === id)?.email ?? "Someone";
 
-  return (
-    <Panel className="overflow-hidden">
-      <Tabs
-        value={tab}
-        onChange={setTab}
-        tabs={[
-          { value: "notes", label: "Notes", count: data.data?.notes.length },
-          { value: "tasks", label: "Tasks", count: open || undefined },
-        ]}
-      />
-      <div className="flex flex-col gap-3 p-4">
+  const body = (
+      <div className={`flex flex-col gap-3 ${show ? "" : "p-4"}`}>
         <ErrorNote message={error || data.error} />
         {tab === "notes" ? (
           <>
@@ -103,6 +96,19 @@ export function RecordWork({ sb, ws, session, role, object, record, people }: Pi
           </>
         )}
       </div>
+  );
+  if (show) return body;
+  return (
+    <Panel className="overflow-hidden">
+      <Tabs
+        value={tab}
+        onChange={setTab}
+        tabs={[
+          { value: "notes", label: "Notes", count: data.data?.notes.length },
+          { value: "tasks", label: "Tasks", count: open || undefined },
+        ]}
+      />
+      {body}
     </Panel>
   );
 }

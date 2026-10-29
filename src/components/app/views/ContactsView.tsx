@@ -15,7 +15,7 @@ import { Popover } from "../FilterBar";
 import { Select } from "../Select";
 import { SampleRows, SampleStats, SampleTags, ToolIntro } from "../ToolIntro";
 import { Sketch } from "../../sketches/Sketch";
-import { Avatar, Badge, Button, CardHead, Empty, ErrorNote, errorText, Field, Input, Loading, must, Page, Panel, postJson, Section, timeAgo, useLoad, type Tone, type ViewProps } from "../ui";
+import { Avatar, Badge, Button, Empty, ErrorNote, errorText, Field, Input, Loading, must, Page, postJson, Section, Tabs, timeAgo, useLoad, type Tone, type ViewProps } from "../ui";
 import { Report } from "../reports/Report";
 import { AiTag } from "../Ai";
 import type { Link } from "../records/FieldInput";
@@ -27,7 +27,8 @@ import { ImportPanel } from "../records/ImportPanel";
 import { RecordsList, type Preset, type ViewState } from "../records/RecordsList";
 import { Sheet } from "../Sheet";
 import { DEFAULT_WIDTH, type Row } from "../records/RecordTable";
-import { OpportunitiesPanel } from "./RecordsViews";
+import { OpportunitiesRail } from "./RecordsViews";
+import { FieldGroup, RailRow, RecordHead, RecordLayout, RelatedList, StatStrip } from "../records/RecordLayout";
 import { routingApi } from "../routing/api";
 import { RoutedBy } from "../routing/Log";
 import { activeTime } from "./VisitorsView";
@@ -389,37 +390,33 @@ type Detail = {
 const EVENT_LABEL: Record<string, string> = { "contact.created": "Added" };
 
 /** What enrichment and qualify added (docs/enrich-workflows-reports.md 1.3): role, and the qualify outcome with why. */
-function EnrichedPanel({ c }: { c: Detail["contact"] }) {
-  const rows = [
-    ["Seniority", c.seniority],
-    ["Department", c.department],
-  ].filter(([, v]) => v) as [string, string][];
+type ContactTab = "timeline" | "notes" | "tasks" | "changes" | "consent" | "segments";
+
+/** Role and fit in the rail: the qualify outcome with its reason, seniority, department and LinkedIn. */
+function EnrichedGroup({ c }: { c: Detail["contact"] }) {
   return (
-    <Panel>
-      <CardHead label="Role and fit" />
-      <div className="flex flex-col gap-3 px-5 py-4 text-[13px]">
-        {c.qualify_outcome ? (
-          <div className="flex flex-col gap-1.5">
+    <FieldGroup id="contact:fit" title="Role and fit">
+      {c.qualify_outcome ? (
+        <RailRow label="Qualify">
+          <span className="flex flex-col gap-1">
             <span className="flex items-center gap-2">
               <Badge tone="violet">{c.qualify_outcome}</Badge>
               {c.qualify_by === "ai" ? <AiTag /> : null}
             </span>
-            {c.qualify_reason ? <span className="text-body">{c.qualify_reason}</span> : null}
-          </div>
-        ) : null}
-        {rows.map(([k, v]) => (
-          <div key={k} className="flex items-center justify-between gap-3">
-            <span className="text-muted">{k}</span>
-            <span className="text-ink">{v}</span>
-          </div>
-        ))}
-        {c.linkedin_url ? (
-          <a href={c.linkedin_url} target="_blank" rel="noreferrer" className="w-fit text-ink underline-offset-2 hover:underline">
-            LinkedIn
+            {c.qualify_reason ? <span className="text-[12.5px] text-body">{c.qualify_reason}</span> : null}
+          </span>
+        </RailRow>
+      ) : null}
+      {c.seniority ? <RailRow label="Seniority">{c.seniority}</RailRow> : null}
+      {c.department ? <RailRow label="Department">{c.department}</RailRow> : null}
+      {c.linkedin_url ? (
+        <RailRow label="LinkedIn">
+          <a href={c.linkedin_url} target="_blank" rel="noreferrer" className="text-ink underline-offset-2 hover:underline">
+            Profile
           </a>
-        ) : null}
-      </div>
-    </Panel>
+        </RailRow>
+      ) : null}
+    </FieldGroup>
   );
 }
 
@@ -430,6 +427,7 @@ function ContactPage({ sb, ws, session, role, id, navigate }: ViewProps) {
   const [editing, setEditing] = useState(false);
   const [error, setError] = useState("");
   const [routed, setRouted] = useState(0);
+  const [tab, setTab] = useState<ContactTab>("timeline");
   const back = { label: "Contacts", onClick: () => navigate("contacts") };
 
   if (detail.data?.moved_to) {
@@ -515,11 +513,46 @@ function ContactPage({ sb, ws, session, role, id, navigate }: ViewProps) {
     fields: Object.fromEntries(d.fields.filter((f) => f.type !== "relation").map((f) => [f.key, c.fields?.[f.key] == null ? "" : f.type === "checkbox" ? (c.fields[f.key] ? "yes" : "no") : Array.isArray(c.fields[f.key]) ? (c.fields[f.key] as string[]).join(", ") : String(c.fields[f.key])])),
   };
 
+  const tabList: { value: ContactTab; label: string; count?: number }[] = [
+    { value: "timeline", label: "Timeline", count: timeline.length || undefined },
+    { value: "notes", label: "Notes" },
+    { value: "tasks", label: "Tasks" },
+    { value: "changes", label: "Changes", count: d.history.length || undefined },
+    { value: "consent", label: "Consent", count: d.consents.length || undefined },
+    { value: "segments", label: "Segments", count: d.segments.length || undefined },
+  ];
+  const sub = (
+    <>
+      {c.title}
+      {c.title && d.company ? " at " : ""}
+      {d.company ? (
+        <button type="button" onClick={() => navigate("companies", d.company!.id)} className="font-medium text-ink hover:underline">
+          {d.company.name ?? d.company.domain}
+        </button>
+      ) : null}
+      {!c.title && !d.company ? c.email : null}
+    </>
+  );
+  const tags = (
+    <>
+      {c.lifecycle ? <Badge tone={LIFECYCLE_TONE[c.lifecycle] ?? "gray"}>{LIFECYCLE_LABEL[c.lifecycle] ?? c.lifecycle}</Badge> : null}
+      {consent ? <Badge tone={BASIS_TONE[consent.basis]}>{BASIS_LABEL[consent.basis]}</Badge> : null}
+      {d.suppressed ? <Badge tone="red">{d.suppressed.reason}</Badge> : null}
+      {d.person ? (
+        <Badge tone="brand" dot>
+          On site
+        </Badge>
+      ) : null}
+    </>
+  );
+  const companyRows = d.company ? [{ id: d.company.id, name: d.company.name ?? d.company.domain ?? "Company", sub: [d.company.domain, d.company.industry, d.company.size].filter(Boolean).join(", ") || null, onOpen: () => navigate("companies", d.company!.id) }] : [];
+
   return (
     <Page
       icon={<Contact size={14} />}
       title={name}
       back={back}
+      flush
       actions={
         <>
           <Button variant="ghost" size="sm" onClick={() => setEditing(true)}>
@@ -534,63 +567,32 @@ function ContactPage({ sb, ws, session, role, id, navigate }: ViewProps) {
         </>
       }
     >
-      <div className="mx-auto flex max-w-6xl flex-col gap-5">
-        <ErrorNote message={error} />
-        <Panel>
-          <div className="flex flex-wrap items-center gap-x-10 gap-y-4 p-6">
-            <div className="flex min-w-0 items-center gap-4">
-              <Avatar label={name} size={64} />
-              <div className="flex min-w-0 flex-col gap-1">
-                <span className="font-semibold tracking-[-0.02em] text-[24px] leading-tight text-ink">{name}</span>
-                <span className="text-[13px] text-muted">{[c.title, d.company?.name ?? d.company?.domain, c.country].filter(Boolean).join(" · ") || c.email}</span>
-                <span className="mt-1 flex flex-wrap gap-1.5">
-                  {c.lifecycle ? <Badge tone={LIFECYCLE_TONE[c.lifecycle] ?? "gray"}>{LIFECYCLE_LABEL[c.lifecycle] ?? c.lifecycle}</Badge> : null}
-                  {consent ? <Badge tone={BASIS_TONE[consent.basis]}>{BASIS_LABEL[consent.basis]}</Badge> : null}
-                  {d.suppressed ? <Badge tone="red">{d.suppressed.reason}</Badge> : null}
-                  {d.person ? <Badge tone="brand">On site</Badge> : null}
-                </span>
+      <RecordLayout
+        head={
+          <>
+            <RecordHead visual={<Avatar label={name} size={44} />} title={name} tag={tags} sub={sub} />
+            {error ? (
+              <div className="px-5 pb-3">
+                <ErrorNote message={error} />
               </div>
-            </div>
-            {[
-              ["Score", c.score],
-              ["Fit", d.company?.fit ?? null],
-              ["Intent", d.company?.intent ?? null],
-            ].map(([label, v]) => (
-              <div key={label as string} className="flex flex-col gap-1">
-                <span className="label-mono">{label}</span>
-                <span className="font-semibold tracking-[-0.02em] text-[26px] leading-none text-ink tabular-nums">{v ?? "—"}</span>
-              </div>
-            ))}
-          </div>
-          {stage ? <StageBar stages={stage.options} value={c.lead_status} onPick={(v) => void save(stage, v).catch((e) => setError(errorText(e)))} /> : null}
-        </Panel>
-
-        <div className="grid gap-5 lg:grid-cols-[2fr_1fr]">
-          <div className="flex flex-col gap-5">
-            <RecordWork sb={sb} ws={ws} session={session} role={role} object="contact" record={id} people={meta.data.people} />
-            <Panel>
-              <CardHead label="Timeline" count={timeline.length} />
-              {!timeline.length ? (
-                <Empty title="Nothing yet" sketch={<Sketch name="road" size={160} />} />
-              ) : (
-                <ol className="px-5 py-4">
-                  {timeline.map((t, i) => (
-                    <li key={t.key} className="anim-rise-sm relative flex gap-4 pb-5 pl-10 text-[13px] last:pb-1">
-                      {i < timeline.length - 1 ? <span className="absolute top-7 bottom-0 left-[13px] w-px bg-line-strong" /> : null}
-                      <span className={`absolute top-0 left-0 flex size-7 items-center justify-center rounded-full ${t.visit ? "bg-sky-wash text-sky" : "bg-clay-wash text-clay"}`}>
-                        {t.visit ? <Eye size={12} /> : <Plus size={12} />}
-                      </span>
-                      <span className="w-32 shrink-0 pt-1.5 text-[12px] whitespace-nowrap text-muted">{new Date(t.at).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</span>
-                      <span className="min-w-0 pt-1">{t.node}</span>
-                    </li>
-                  ))}
-                </ol>
-              )}
-            </Panel>
-            <HistoryPanel history={d.history} fields={fields} people={meta.data.people} />
-          </div>
-
-          <div className="flex flex-col gap-5">
+            ) : null}
+          </>
+        }
+        top={
+          <>
+            <StatStrip
+              items={[
+                ["Score", c.score],
+                ["Fit", d.company?.fit ?? null],
+                ["Intent", d.company?.intent ?? null],
+              ]}
+            />
+            {stage ? <StageBar stages={stage.options} value={c.lead_status} onPick={(v) => void save(stage, v).catch((e) => setError(errorText(e)))} /> : null}
+          </>
+        }
+        tabs={<Tabs value={tab} onChange={setTab} tabs={tabList} bare />}
+        rail={
+          <>
             <FieldsPanel
               sb={sb}
               wsId={ws.id}
@@ -605,41 +607,39 @@ function ContactPage({ sb, ws, session, role, id, navigate }: ViewProps) {
               onAddField={() => setAddingField(true)}
               under={{ owner: <RoutedBy key={routed} sb={sb} session={session} ws={ws} role={role} navigate={navigate} contact={id} /> }}
             />
-
-            {c.qualify_outcome || c.seniority || c.department || c.linkedin_url ? <EnrichedPanel c={c} /> : null}
-
-            <OpportunitiesPanel sb={sb} ws={ws} object="contact" id={id} navigate={navigate} />
-
-            {d.company ? (
-              <Panel>
-                <CardHead label="Company">
-                  <Button variant="plain" size="sm" onClick={() => navigate("companies", d.company!.id)}>
-                    Open
-                  </Button>
-                </CardHead>
-                <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 px-4 py-3 text-[13px]">
-                  {[
-                    ["Name", d.company.name],
-                    ["Domain", d.company.domain],
-                    ["Industry", d.company.industry],
-                    ["Size", d.company.size],
-                    ["Stage", d.company.stage],
-                  ].map(([k, v]) => (
-                    <div key={k as string} className="contents">
-                      <dt className="text-muted">{k}</dt>
-                      <dd>{v ?? "—"}</dd>
-                    </div>
-                  ))}
-                </dl>
-              </Panel>
-            ) : null}
-
-            <Panel>
-              <CardHead label="Email consent" />
+            {c.qualify_outcome || c.seniority || c.department || c.linkedin_url ? <EnrichedGroup c={c} /> : null}
+            <RelatedList id="contact:company" title="Company" rows={companyRows} />
+            <OpportunitiesRail sb={sb} ws={ws} object="contact" id={id} navigate={navigate} />
+          </>
+        }
+      >
+        <div className="px-5 py-5">
+          {tab === "timeline" ? (
+            !timeline.length ? (
+              <Empty title="Nothing yet" sketch={<Sketch name="road" size={160} />} />
+            ) : (
+              <ol>
+                {timeline.map((t, i) => (
+                  <li key={t.key} className="anim-rise-sm relative flex gap-4 pb-5 pl-9 text-[13px] last:pb-1">
+                    {i < timeline.length - 1 ? <span className="absolute top-7 bottom-0 left-[11px] w-px bg-line" /> : null}
+                    <span className={`absolute top-0.5 left-0 flex size-6 items-center justify-center rounded-full border ${t.visit ? "border-line bg-card text-muted" : "border-signal-line bg-signal-soft text-signal-text"}`}>
+                      {t.visit ? <Eye size={12} /> : <Plus size={12} />}
+                    </span>
+                    <span className="min-w-0 flex-1 pt-1">{t.node}</span>
+                    <span className="shrink-0 pt-1 text-[12px] whitespace-nowrap text-faint">{new Date(t.at).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</span>
+                  </li>
+                ))}
+              </ol>
+            )
+          ) : null}
+          {tab === "notes" || tab === "tasks" ? <RecordWork sb={sb} ws={ws} session={session} role={role} object="contact" record={id} people={meta.data.people} show={tab} /> : null}
+          {tab === "changes" ? <HistoryPanel history={d.history} fields={fields} people={meta.data.people} /> : null}
+          {tab === "consent" ? (
+            <div className="flex flex-col gap-4">
               {!d.consents.length ? (
-                <p className="px-4 py-3 text-[13px] text-faint">—</p>
+                <p className="py-6 text-center text-[13px] text-faint">No consent on record</p>
               ) : (
-                <ul className="divide-y divide-line">
+                <ul className="divide-y divide-line rounded-lg border border-line">
                   {d.consents.map((k, i) => (
                     <li key={i} className="flex items-center gap-2 px-4 py-2.5 text-[13px]">
                       <Badge tone={BASIS_TONE[k.basis]}>{BASIS_LABEL[k.basis]}</Badge>
@@ -650,35 +650,33 @@ function ContactPage({ sb, ws, session, role, id, navigate }: ViewProps) {
                 </ul>
               )}
               {d.topics.length ? (
-                <ul className="border-t border-line px-4 py-2 text-[13px]">
+                <ul className="divide-y divide-line rounded-lg border border-line text-[13px]">
                   {d.topics.map((t) => (
-                    <li key={t.name} className="flex justify-between py-1">
+                    <li key={t.name} className="flex items-center justify-between px-4 py-2.5">
                       <span>{t.name}</span>
                       <Badge tone={t.status === "subscribed" ? "green" : "gray"}>{t.status}</Badge>
                     </li>
                   ))}
                 </ul>
               ) : null}
-            </Panel>
-
-            <Panel>
-              <CardHead label="Lists and segments" count={d.segments.length} />
-              {!d.segments.length ? (
-                <p className="px-4 py-3 text-[13px] text-faint">—</p>
-              ) : (
-                <ul className="divide-y divide-line">
-                  {d.segments.map((g) => (
-                    <li key={g.id} className="flex justify-between px-4 py-2.5 text-[13px]">
-                      <span>{g.name}</span>
-                      <span className="text-[12px] text-faint">{timeAgo(g.entered_at)}</span>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </Panel>
-          </div>
+            </div>
+          ) : null}
+          {tab === "segments" ? (
+            !d.segments.length ? (
+              <p className="py-6 text-center text-[13px] text-faint">Not in any segment</p>
+            ) : (
+              <ul className="divide-y divide-line rounded-lg border border-line">
+                {d.segments.map((g) => (
+                  <li key={g.id} className="flex justify-between px-4 py-2.5 text-[13px]">
+                    <span>{g.name}</span>
+                    <span className="text-[12px] text-faint">{timeAgo(g.entered_at)}</span>
+                  </li>
+                ))}
+              </ul>
+            )
+          ) : null}
         </div>
-      </div>
+      </RecordLayout>
       {editing ? (
         <ContactPanel
           session={session}
@@ -711,7 +709,7 @@ function ContactPage({ sb, ws, session, role, id, navigate }: ViewProps) {
 /** The lead stages as one bar; the current stage is filled, a click moves the lead. */
 function StageBar({ stages, value, onPick }: { stages: { value: string; label: string; kind?: string }[]; value: string | null; onPick: (v: string) => void }) {
   return (
-    <div className="flex gap-1 border-t border-line p-2">
+    <div className="flex gap-1 px-5 pb-4">
       {stages.map((s) => {
         const on = s.value === value;
         return (
@@ -719,8 +717,8 @@ function StageBar({ stages, value, onPick }: { stages: { value: string; label: s
             key={s.value}
             type="button"
             onClick={() => !on && onPick(s.value)}
-            className={`press h-8 flex-1 truncate rounded-full px-3 text-[12.5px] font-medium transition-[background-color,color,transform] duration-[140ms] ${
-              on ? (s.kind === "lost" ? "bg-rose-wash text-rose" : s.kind === "won" ? "bg-sage-wash text-sage" : "bg-ink text-paper") : "text-muted hover:bg-hover hover:text-ink"
+            className={`press h-8 flex-1 truncate rounded-full border px-3 text-[12.5px] font-medium transition-[background-color,color,border-color,transform] duration-[120ms] ${
+              on ? (s.kind === "lost" ? "border-transparent bg-rose-wash text-rose" : s.kind === "won" ? "border-transparent bg-sage-wash text-sage" : "border-ink bg-ink text-paper") : "border-line text-muted hover:bg-hover hover:text-ink"
             }`}
           >
             {s.label}

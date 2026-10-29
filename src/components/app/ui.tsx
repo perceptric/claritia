@@ -104,6 +104,7 @@ export function Section({ nav, children }: { nav: SectionNav; children: React.Re
  * a page with `back` is a record or an editor and shows its own title instead.
  */
 export function Page({
+  icon,
   title,
   count,
   actions,
@@ -125,27 +126,33 @@ export function Page({
   const tabs = section && !back ? section : null;
   const heading = tabs ? tabs.title : title;
   return (
-    <div className="flex h-full min-h-0 flex-col">
-      <header className={`flex min-h-16 shrink-0 items-center gap-3 px-5 py-3 md:px-7 ${tabs ? "" : "border-b border-line"}`}>
-        <div className="flex min-w-0 flex-col">
+    <div className="flex h-full min-h-0 flex-col bg-card">
+      <header className="flex h-12 shrink-0 items-center gap-1 border-b border-line px-3">
+        <nav aria-label="Breadcrumb" className="flex min-w-0 items-center gap-1">
           {back ? (
-            <button type="button" onClick={back.onClick} className="-ml-0.5 self-start rounded-full px-0.5 text-[12px] font-medium text-muted hover:text-ink">
-              {back.label} /
-            </button>
+            <span className="contents">
+              <button type="button" onClick={back.onClick} className="min-w-0 truncate rounded-sm px-1 py-0.5 text-[13px] text-muted transition-colors duration-[120ms] hover:bg-hover hover:text-ink">
+                {back.label}
+              </button>
+              <span className="text-faint">/</span>
+            </span>
           ) : null}
-          {onRename ? (
-            <TitleInput value={heading} onChange={onRename} />
-          ) : (
-            <h1 className="truncate text-[20px] leading-[1.2] font-semibold tracking-[-0.02em] text-ink">
-              {heading}
-              {count != null ? <span className="ml-2 font-medium text-muted tabular-nums">{count}</span> : null}
-            </h1>
-          )}
-        </div>
+          <span className="flex min-w-0 items-center gap-1.5 px-1">
+            {icon ? <span className="flex shrink-0 items-center text-muted [&_svg]:size-4">{icon}</span> : null}
+            {onRename ? (
+              <TitleInput value={heading} onChange={onRename} />
+            ) : (
+              <h1 aria-current="page" className="truncate text-[13px] leading-normal font-medium text-ink">
+                {heading}
+              </h1>
+            )}
+            {count != null ? <span className="text-[13px] text-faint tabular-nums">{count}</span> : null}
+          </span>
+        </nav>
         {actions ? <div className="ml-auto flex shrink-0 items-center gap-2">{actions}</div> : null}
       </header>
       {tabs ? <Tabs value={tabs.current} tabs={tabs.tabs} onChange={tabs.onPick} /> : null}
-      <div className={`min-h-0 flex-1 overflow-auto ${flush ? "" : "p-5 md:p-7"}`}>{children}</div>
+      <div className={`min-h-0 flex-1 overflow-auto ${flush ? "" : "p-4 md:p-6"}`}>{children}</div>
     </div>
   );
 }
@@ -178,7 +185,7 @@ function TitleInput({ value, onChange }: { value: string; onChange: (v: string) 
         }
       }}
       style={{ width: `${Math.max(6, text.length + 1)}ch` }}
-      className="-ml-1.5 max-w-[60vw] min-w-0 rounded-sm border border-transparent bg-transparent px-1.5 text-[20px] leading-[1.3] font-semibold tracking-[-0.02em] text-ink outline-none hover:border-line-strong focus:border-ink focus:bg-card"
+      className="h-7 max-w-[60vw] min-w-0 rounded-sm border border-transparent bg-transparent px-1 text-[13px] font-medium text-ink outline-none hover:bg-hover focus:border-ink focus:bg-card"
     />
   );
 }
@@ -341,11 +348,11 @@ export function Avatar({ label, size = 24 }: { label: string; size?: number }) {
 }
 
 export function Th({ children, className = "" }: { children: React.ReactNode; className?: string }) {
-  return <th className={`sticky top-0 z-[1] h-11 border-b border-line bg-card px-4 text-left text-[12px] font-medium whitespace-nowrap text-muted ${className}`}>{children}</th>;
+  return <th className={`sticky top-0 z-[1] h-10 border-r border-b border-r-line-light border-b-line bg-card px-3 text-left text-[12px] font-medium whitespace-nowrap text-faint last:border-r-0 ${className}`}>{children}</th>;
 }
 
 export function Td({ children, className = "" }: { children: React.ReactNode; className?: string }) {
-  return <td className={`h-14 border-b border-line px-4 text-[13.5px] whitespace-nowrap ${className}`}>{children}</td>;
+  return <td className={`h-10 border-r border-b border-line-light px-3 text-[13px] whitespace-nowrap last:border-r-0 ${className}`}>{children}</td>;
 }
 
 /** The host of a URL, for showing it short. */
@@ -409,13 +416,13 @@ export function Segmented<T extends string>({ value, options, onChange, label }:
 }
 
 /** Tabs under a page header, with an ink underline that slides to the open one. */
-export function Tabs<T extends string>({ value, tabs, onChange }: { value: T; tabs: { value: T; label: string; count?: number }[]; onChange: (v: T) => void }) {
+export function Tabs<T extends string>({ value, tabs, onChange, bare = false }: { value: T; tabs: { value: T; label: string; count?: number }[]; onChange: (v: T) => void; bare?: boolean }) {
   const { box, at } = useSlide(
     tabs.findIndex((t) => t.value === value),
     [tabs.map((t) => `${t.label}${t.count ?? ""}`).join()],
   );
   return (
-    <div ref={box} role="tablist" className="relative flex h-11 shrink-0 items-end gap-1 overflow-x-auto border-b border-line px-4 md:px-6">
+    <div ref={box} role="tablist" className={`relative flex h-10 shrink-0 items-end gap-2 overflow-x-auto ${bare ? "-mb-px" : "border-b border-line px-3"}`}>
       {tabs.map((t) => (
         <button
           key={t.value}
@@ -424,13 +431,13 @@ export function Tabs<T extends string>({ value, tabs, onChange }: { value: T; ta
           role="tab"
           aria-selected={value === t.value}
           onClick={() => onChange(t.value)}
-          className={`relative flex h-10 shrink-0 items-center gap-1.5 px-2.5 text-[13.5px] font-medium transition-colors duration-[140ms] ${value === t.value ? "text-ink" : "text-muted hover:text-ink"}`}
+          className={`relative flex h-10 shrink-0 items-center gap-1.5 px-2 text-[13px] whitespace-nowrap transition-colors duration-[120ms] ${value === t.value ? "font-medium text-ink" : "text-muted hover:text-ink"}`}
         >
           {t.label}
-          {t.count != null ? <span className="text-[12px] text-faint">{t.count}</span> : null}
+          {t.count != null ? <span className={`text-[12px] tabular-nums ${value === t.value ? "font-medium text-ink" : "text-faint"}`}>{t.count}</span> : null}
         </button>
       ))}
-      {at ? <span aria-hidden="true" className="absolute bottom-0 left-0 h-0.5 rounded-full bg-ink transition-[transform,width] duration-[320ms] ease-out" style={{ width: at.width - 12, transform: `translateX(${at.left + 6}px)` }} /> : null}
+      {at ? <span aria-hidden="true" className="absolute bottom-0 left-0 h-0.5 bg-ink transition-[transform,width] duration-[200ms] ease-out" style={{ width: at.width, transform: `translateX(${at.left}px)` }} /> : null}
     </div>
   );
 }
