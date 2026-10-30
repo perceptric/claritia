@@ -9,20 +9,7 @@ import { ChevronRight, Plug, Plus } from "../../Icons";
 import { askConfirm } from "../Dialogs";
 import { MoreMenu } from "../StatCards";
 import { ToolIntro } from "../ToolIntro";
-import {
-  Badge,
-  Button,
-  Empty,
-  ErrorNote,
-  errorText,
-  Input,
-  Loading,
-  Page,
-  Toggle,
-  useLoad,
-  type Tone,
-  type ViewProps,
-} from "../ui";
+import { Badge, Button, Empty, ErrorNote, errorText, Input, Loading, Page, Toggle, useLoad, type Tone, type ViewProps } from "../ui";
 import { CopyButton, meetingsApi, Modal } from "../meetings/parts";
 
 type Endpoint = {
@@ -68,14 +55,12 @@ const when = (iso: string) =>
 
 function state(e: Endpoint): { label: string; tone: Tone } {
   if (!e.active) return { label: "Paused", tone: "gray" };
-  if (e.last_fail_at && (!e.last_ok_at || e.last_fail_at > e.last_ok_at))
-    return { label: "Failing", tone: "red" };
+  if (e.last_fail_at && (!e.last_ok_at || e.last_fail_at > e.last_ok_at)) return { label: "Failing", tone: "red" };
   return { label: "Active", tone: "green" };
 }
 
 export function WebhooksPage({ session, ws }: ViewProps) {
-  const api = <T,>(action: string, body: object = {}) =>
-    meetingsApi<T>(session, ws.id, "webhooks", { action, ...body });
+  const api = <T,>(action: string, body: object = {}) => meetingsApi<T>(session, ws.id, "webhooks", { action, ...body });
   const data = useLoad(() => api<List>("list"), ws.id);
   const [editing, setEditing] = useState<Endpoint | "new" | null>(null);
   const [secret, setSecret] = useState<string | null>(null);
@@ -120,9 +105,7 @@ export function WebhooksPage({ session, ws }: ViewProps) {
           }}
         />
       ) : null}
-      {secret ? (
-        <SecretDialog secret={secret} onClose={() => setSecret(null)} />
-      ) : null}
+      {secret ? <SecretDialog secret={secret} onClose={() => setSecret(null)} /> : null}
     </>
   );
 
@@ -162,50 +145,23 @@ export function WebhooksPage({ session, ws }: ViewProps) {
         {d.endpoints.map((e, i) => {
           const st = state(e);
           return (
-            <section
-              key={e.id}
-              className="anim-rise-sm rounded-[10px] border border-line bg-card"
-              style={{ animationDelay: `${Math.min(i, 10) * 30}ms` }}
-            >
+            <section key={e.id} className="anim-rise-sm rounded-[10px] border border-line bg-card" style={{ animationDelay: `${Math.min(i, 10) * 30}ms` }}>
               <div className="flex items-center gap-3 px-4 py-3">
-                <button
-                  type="button"
-                  onClick={() => setOpen(open === e.id ? null : e.id)}
-                  className="flex min-w-0 flex-1 items-center gap-3 text-left"
-                  aria-expanded={open === e.id}
-                >
-                  <ChevronRight
-                    size={14}
-                    className={`shrink-0 text-faint transition-transform duration-[180ms] ${open === e.id ? "rotate-90" : ""}`}
-                  />
+                <button type="button" onClick={() => setOpen(open === e.id ? null : e.id)} className="flex min-w-0 flex-1 items-center gap-3 text-left" aria-expanded={open === e.id}>
+                  <ChevronRight size={14} className={`shrink-0 text-faint transition-transform duration-[180ms] ${open === e.id ? "rotate-90" : ""}`} />
                   <span className="flex min-w-0 flex-col">
                     <span className="flex items-center gap-2">
-                      <span className="truncate font-mono text-[13px] text-ink">
-                        {e.host}
-                      </span>
+                      <span className="truncate font-mono text-[13px] text-ink">{e.host}</span>
                       <Badge tone={st.tone} dot>
                         {st.label}
                       </Badge>
                     </span>
                     <span className="truncate text-[12.5px] text-muted">
-                      {[
-                        e.description,
-                        e.events.map((x) => EVENT_LABEL[x]).join(", "),
-                        `${e.sent} sent`,
-                        e.failed ? `${e.failed} failed` : null,
-                      ]
-                        .filter(Boolean)
-                        .join(" · ")}
+                      {[e.description, e.events.map((x) => EVENT_LABEL[x]).join(", "), `${e.sent} sent`, e.failed ? `${e.failed} failed` : null].filter(Boolean).join(" · ")}
                     </span>
                   </span>
                 </button>
-                {note?.id === e.id ? (
-                  <span
-                    className={`shrink-0 text-[12px] ${note.ok ? "text-signal-text" : "text-danger"}`}
-                  >
-                    {note.text}
-                  </span>
-                ) : null}
+                {note?.id === e.id ? <span className={`shrink-0 text-[12px] ${note.ok ? "text-signal-text" : "text-danger"}`}>{note.text}</span> : null}
                 <Button
                   variant="ghost"
                   size="sm"
@@ -220,10 +176,7 @@ export function WebhooksPage({ session, ws }: ViewProps) {
                       setNote({
                         id: e.id,
                         ok: r.status === "done",
-                        text:
-                          r.status === "done"
-                            ? `Sent, ${r.code}`
-                            : (r.error ?? "Failed"),
+                        text: r.status === "done" ? `Sent, ${r.code}` : (r.error ?? "Failed"),
                       });
                       data.reload();
                     })
@@ -288,18 +241,9 @@ export function WebhooksPage({ session, ws }: ViewProps) {
                   ]}
                 />
               </div>
-              {e.last_error && st.label === "Failing" ? (
-                <p className="border-t border-line px-4 py-2 text-[12.5px] text-danger">
-                  {e.last_error}
-                </p>
-              ) : null}
+              {e.last_error && st.label === "Failing" ? <p className="border-t border-line px-4 py-2 text-[12.5px] text-danger">{e.last_error}</p> : null}
               {open === e.id ? (
-                <Sends
-                  key={`${e.id}:${e.sent}:${e.failed}`}
-                  load={() => api<{ sends: Send[] }>("sends", { id: e.id })}
-                  resend={(send) => api("resend", { send })}
-                  hint={e.secret_hint}
-                />
+                <Sends key={`${e.id}:${e.sent}:${e.failed}`} load={() => api<{ sends: Send[] }>("sends", { id: e.id })} resend={(send) => api("resend", { send })} hint={e.secret_hint} />
               ) : null}
             </section>
           );
@@ -310,15 +254,7 @@ export function WebhooksPage({ session, ws }: ViewProps) {
 }
 
 /** One endpoint's last sends, newest first; a send opens to its body. */
-function Sends({
-  load,
-  resend,
-  hint,
-}: {
-  load: () => Promise<{ sends: Send[] }>;
-  resend: (id: string) => Promise<unknown>;
-  hint: string;
-}) {
+function Sends({ load, resend, hint }: { load: () => Promise<{ sends: Send[] }>; resend: (id: string) => Promise<unknown>; hint: string }) {
   const data = useLoad(load, "sends");
   const [open, setOpen] = useState<string | null>(null);
   const [error, setError] = useState("");
@@ -340,25 +276,13 @@ function Sends({
           {data.data.sends.map((s) => (
             <li key={s.id}>
               <div className="flex items-center gap-3 px-4 py-2">
-                <button
-                  type="button"
-                  onClick={() => setOpen(open === s.id ? null : s.id)}
-                  className="flex min-w-0 flex-1 items-center gap-3 text-left text-[13px]"
-                >
-                  <span className="w-36 shrink-0 truncate font-mono text-[12px] text-ink">
-                    {s.event}
-                  </span>
-                  <Badge tone={SEND_STATE[s.status].tone}>
-                    {SEND_STATE[s.status].label}
-                  </Badge>
+                <button type="button" onClick={() => setOpen(open === s.id ? null : s.id)} className="flex min-w-0 flex-1 items-center gap-3 text-left text-[13px]">
+                  <span className="w-36 shrink-0 truncate font-mono text-[12px] text-ink">{s.event}</span>
+                  <Badge tone={SEND_STATE[s.status].tone}>{SEND_STATE[s.status].label}</Badge>
                   {s.test ? <Badge>Test</Badge> : null}
-                  <span className="truncate text-muted">
-                    {s.code ? `${s.code}` : (s.error ?? "")}
-                  </span>
+                  <span className="truncate text-muted">{s.code ? `${s.code}` : (s.error ?? "")}</span>
                 </button>
-                <span className="shrink-0 text-[12px] text-faint tabular-nums">
-                  {when(s.created_at)}
-                </span>
+                <span className="shrink-0 text-[12px] text-faint tabular-nums">{when(s.created_at)}</span>
                 <span className="flex w-24 shrink-0 justify-end">
                   {!s.test && (s.status === "failed" || s.status === "done") ? (
                     <Button
@@ -381,12 +305,8 @@ function Sends({
               </div>
               {open === s.id ? (
                 <div className="flex flex-col gap-2 px-4 pb-3">
-                  {s.error ? (
-                    <p className="text-[12.5px] text-danger">{s.error}</p>
-                  ) : null}
-                  <pre className="max-h-72 overflow-auto rounded-sm bg-paper-deep p-3 font-mono text-[11.5px] leading-relaxed text-body">
-                    {JSON.stringify(s.body, null, 2)}
-                  </pre>
+                  {s.error ? <p className="text-[12.5px] text-danger">{s.error}</p> : null}
+                  <pre className="max-h-72 overflow-auto rounded-sm bg-paper-deep p-3 font-mono text-[11.5px] leading-relaxed text-body">{JSON.stringify(s.body, null, 2)}</pre>
                 </div>
               ) : null}
             </li>
@@ -406,21 +326,14 @@ function EndpointDialog({
   endpoint: Endpoint | null;
   events: WebhookEvent[];
   onClose: () => void;
-  onSave: (e: {
-    url?: string;
-    events: WebhookEvent[];
-    description: string;
-  }) => Promise<void>;
+  onSave: (e: { url?: string; events: WebhookEvent[]; description: string }) => Promise<void>;
 }) {
   const [url, setUrl] = useState("");
-  const [picked, setPicked] = useState<WebhookEvent[]>(
-    endpoint?.events ?? events,
-  );
+  const [picked, setPicked] = useState<WebhookEvent[]>(endpoint?.events ?? events);
   const [description, setDescription] = useState(endpoint?.description ?? "");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const ready =
-    (endpoint || /^https:\/\/\S+$/.test(url.trim())) && picked.length > 0;
+  const ready = (endpoint || /^https:\/\/\S+$/.test(url.trim())) && picked.length > 0;
   return (
     <Modal
       title={endpoint ? "Edit endpoint" : "Add endpoint"}
@@ -456,42 +369,20 @@ function EndpointDialog({
         <ErrorNote message={error} />
         <label className="flex flex-col gap-1.5">
           <span className="text-[12px] font-medium text-muted">Address</span>
-          <Input
-            value={url}
-            onChange={(e) => setUrl(e.target.value)}
-            placeholder={endpoint ? `https://${endpoint.host}/…` : "https://"}
-            autoFocus
-          />
+          <Input value={url} onChange={(e) => setUrl(e.target.value)} placeholder={endpoint ? `https://${endpoint.host}/…` : "https://"} autoFocus />
         </label>
         <label className="flex flex-col gap-1.5">
           <span className="text-[12px] font-medium text-muted">Name</span>
-          <Input
-            value={description}
-            maxLength={120}
-            onChange={(e) => setDescription(e.target.value)}
-            placeholder="Zapier"
-          />
+          <Input value={description} maxLength={120} onChange={(e) => setDescription(e.target.value)} placeholder="Zapier" />
         </label>
         <div className="flex flex-col gap-1.5">
           <span className="text-[12px] font-medium text-muted">Events</span>
           <ul className="divide-y divide-line rounded-sm border border-line">
             {events.map((ev) => (
               <li key={ev} className="flex items-center gap-3 px-3 py-2">
-                <span className="flex-1 text-[13px] text-ink">
-                  {EVENT_LABEL[ev]}
-                </span>
+                <span className="flex-1 text-[13px] text-ink">{EVENT_LABEL[ev]}</span>
                 <span className="font-mono text-[11.5px] text-faint">{ev}</span>
-                <Toggle
-                  label={EVENT_LABEL[ev]}
-                  on={picked.includes(ev)}
-                  onChange={(on) =>
-                    setPicked(
-                      on
-                        ? events.filter((x) => x === ev || picked.includes(x))
-                        : picked.filter((x) => x !== ev),
-                    )
-                  }
-                />
+                <Toggle label={EVENT_LABEL[ev]} on={picked.includes(ev)} onChange={(on) => setPicked(on ? events.filter((x) => x === ev || picked.includes(x)) : picked.filter((x) => x !== ev))} />
               </li>
             ))}
           </ul>
@@ -502,27 +393,13 @@ function EndpointDialog({
 }
 
 /** The signing secret, shown once. */
-function SecretDialog({
-  secret,
-  onClose,
-}: {
-  secret: string;
-  onClose: () => void;
-}) {
+function SecretDialog({ secret, onClose }: { secret: string; onClose: () => void }) {
   return (
-    <Modal
-      title="Signing secret"
-      onClose={onClose}
-      footer={<Button onClick={onClose}>Done</Button>}
-    >
+    <Modal title="Signing secret" onClose={onClose} footer={<Button onClick={onClose}>Done</Button>}>
       <div className="flex flex-col gap-3">
-        <p className="text-[13px] text-body">
-          Copy it now. It isn&apos;t shown again.
-        </p>
+        <p className="text-[13px] text-body">Copy it now. It isn&apos;t shown again.</p>
         <div className="flex items-center gap-2 rounded-sm border border-line-strong bg-paper-deep px-3 py-2">
-          <code className="min-w-0 flex-1 break-all font-mono text-[12px] text-ink">
-            {secret}
-          </code>
+          <code className="min-w-0 flex-1 break-all font-mono text-[12px] text-ink">{secret}</code>
           <CopyButton text={secret} label="Copy secret" size={13} />
         </div>
       </div>

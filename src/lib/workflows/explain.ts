@@ -32,6 +32,8 @@ export function triggerWords(t: Trigger, n: Names = {}): string {
       return `When ${t.key.replace(/^f\./, "").replace(/_/g, " ") || "a field"} changes${t.to ? ` to ${t.to}` : ""}`;
     case "clicked":
       return `When someone clicks ${named(t.emails, n.emails, "an email")}`;
+    case "product":
+      return `When someone does ${list(t.events.map((x) => `"${x}"`)) || "something"} in the product`;
     case "date":
       return t.days === 0 ? `On each contact's ${t.field.replace(/_/g, " ")}` : `${plural(Math.abs(t.days), "day")} ${t.days < 0 ? "before" : "after"} each contact's ${t.field.replace(/_/g, " ")}`;
     case "broadcast":
@@ -41,7 +43,7 @@ export function triggerWords(t: Trigger, n: Names = {}): string {
   }
 }
 
-const EVENT_WORDS: Record<string, string> = { "meeting.booked": "they book a meeting", "email.clicked": "they click an email", "form.submitted": "they send a form", "lead.outcome": "qualify decides", "segment.entered": "they join a segment" };
+const EVENT_WORDS: Record<string, string> = { "meeting.booked": "they book a meeting", "email.clicked": "they click an email", "form.submitted": "they send a form", "lead.outcome": "qualify decides", "segment.entered": "they join a segment", "product.used": "they do something in the product" };
 
 export function waitWords(s: Extract<Step, { kind: "wait" }>): string {
   const parts = [s.days ? plural(s.days, "day") : "", s.hours ? plural(s.hours, "hour") : ""].filter(Boolean);
@@ -57,7 +59,7 @@ export function stepWords(s: Step, n: Names = {}): string {
     case "wait":
       return waitWords(s);
     case "wait_until":
-      return `Wait up to ${plural(s.days, "day")} for ${EVENT_WORDS[s.event] ?? s.event}`;
+      return `Wait up to ${plural(s.days, "day")} for ${s.event === "product.used" && s.name ? `"${s.name}" in the product` : (EVENT_WORDS[s.event] ?? s.event)}`;
     case "branch":
       return s.conds.length ? `If ${s.conds.map((c) => ruleWords({ id: s.id, name: "", match: s.match, conds: [c], queue: "" }, BASE_FIELDS, []).replace(/^./, (x) => x.toLowerCase())).join(s.match === "any" ? " or " : " and ")}` : "If…";
     case "split":

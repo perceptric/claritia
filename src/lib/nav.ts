@@ -172,15 +172,24 @@ export function visitorsPage(id: string): { tab: VisitorsTab; id: string } {
   return a === "visits" || a === "alerts" || a === "setup" ? { tab: a, id: a } : { tab: "feed", id: "" };
 }
 
-export type EmailsTab = "emails" | "templates";
+export type EmailsTab = "journeys" | "emails" | "library" | "brand";
 export const EMAILS_TABS: Tab<EmailsTab>[] = [
+  { value: "journeys", label: "Journeys" },
   { value: "emails", label: "Emails" },
-  { value: "templates", label: "Templates" },
+  { value: "library", label: "Library" },
+  { value: "brand", label: "Brand" },
 ];
 
-/** Emails' tabs: every email (""), and Templates. */
-export function emailsPage(id: string): { tab: EmailsTab; id: string } {
-  return (id.split("/")[0] ?? "") === "templates" ? { tab: "templates", id: "templates" } : { tab: "emails", id: "" };
+/**
+ * Emails' tabs (docs/email-plan.md Part 8): Journeys ("", one open as "journeys/<id>"), every email sent ("emails"),
+ * the Library ("library") and Brand ("brand"). The old Templates tab ("templates") opens the Library.
+ */
+export function emailsPage(id: string): { tab: EmailsTab; sub: string; id: string } {
+  const [a = "", b = ""] = id.split("/");
+  if (a === "emails" || a === "brand") return { tab: a, sub: "", id: a };
+  if (a === "library" || a === "templates") return { tab: "library", sub: "", id: "library" };
+  if (a === "journeys" && UUID.test(b)) return { tab: "journeys", sub: b, id: `journeys/${b}` };
+  return { tab: "journeys", sub: "", id: "" };
 }
 
 export type ScoringTab = "model" | "leads" | "ideal";

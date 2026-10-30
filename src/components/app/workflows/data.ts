@@ -17,7 +17,7 @@ export type Stats = { entered: number; active: number; steps: Record<string, num
 export type Loaded = { wf: Workflow; draft: Body; live: Body | null; versions: Version[]; names: Names; words: WordNames; stats: Stats };
 
 export async function loadNames(sb: SupabaseClient, ws: string): Promise<Names> {
-  const [forms, segments, types, people, profiles, qualify, fields, templates] = await Promise.all([
+  const [forms, segments, types, people, profiles, qualify, fields, templates, product] = await Promise.all([
     sb.from("forms").select("id, name").eq("workspace_id", ws).order("name"),
     sb.from("segments").select("id, name, kind").eq("workspace_id", ws).order("name"),
     sb.from("meeting_types").select("id, name").eq("workspace_id", ws).order("name"),
@@ -26,6 +26,7 @@ export async function loadNames(sb: SupabaseClient, ws: string): Promise<Names> 
     sb.from("qualify_settings").select("outcomes").eq("workspace_id", ws).maybeSingle(),
     sb.from("fields").select("key, label, type").eq("workspace_id", ws).eq("object", "contact").order("position"),
     sb.from("email_templates").select("id, name, body").eq("workspace_id", ws).order("name"),
+    sb.rpc("product_event_names", { p_ws: ws }),
   ]);
   const named = new Map(((profiles.data ?? []) as { user_id: string; name: string }[]).map((p) => [p.user_id, p.name]));
   const outcomes = (((qualify.data as { outcomes?: { label?: string }[] } | null)?.outcomes ?? []) as { label?: string }[]).map((o) => o.label ?? "").filter(Boolean);
@@ -37,6 +38,8 @@ export async function loadNames(sb: SupabaseClient, ws: string): Promise<Names> 
     outcomes: outcomes.length ? outcomes : ["Sales ready", "Nurture", "Not a fit"],
     dateFields: ((fields.data ?? []) as { key: string; label: string; type: string }[]).filter((f) => f.type === "date").map((f) => ({ key: `f.${f.key}`, label: f.label })),
     templates: (must(templates) ?? []) as Names["templates"],
+    // Missing before the migration runs: the pickers then take typed names.
+    productEvents: ((product.data ?? []) as string[]).filter(Boolean),
   };
 }
 

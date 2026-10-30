@@ -78,6 +78,8 @@ function blankTrigger(kind: TriggerKind): Trigger {
       return { kind, key: "lifecycle" };
     case "clicked":
       return { kind, emails: [] };
+    case "product":
+      return { kind, events: [] };
     case "date":
       return { kind, field: "", days: 0, time: "09:00" };
     case "broadcast":
@@ -168,6 +170,11 @@ export function TriggerPanel({ body, names, onChange, readOnly }: { body: Body; 
             )}
           </Row>
         </>
+      ) : null}
+      {t.kind === "product" ? (
+        <Row name="Events">
+          <ProductEvents known={names.productEvents} value={t.events} onChange={(events) => set({ events })} disabled={readOnly} />
+        </Row>
       ) : null}
       {t.kind === "date" ? (
         <>
@@ -385,7 +392,27 @@ const EVENTS = [
   { value: "form.submitted", label: "They send a form" },
   { value: "lead.outcome", label: "Qualify decides" },
   { value: "segment.entered", label: "They join a segment" },
+  { value: "product.used", label: "They do something in the product" },
 ];
+
+/** Product events by name: the ones seen in the last 30 days as pills, and any other typed in. */
+function ProductEvents({ known, value, onChange, disabled }: { known: string[]; value: string[]; onChange: (v: string[]) => void; disabled?: boolean }) {
+  const [typed, setTyped] = useState("");
+  const names = [...new Set([...known, ...value])];
+  const add = () => {
+    const n = typed.trim().slice(0, 64);
+    if (n && !value.includes(n)) onChange([...value, n]);
+    setTyped("");
+  };
+  return (
+    <div className="flex flex-col gap-2">
+      {names.length ? <Pills options={names.map((n) => ({ value: n, label: n }))} value={value} onChange={onChange} disabled={disabled} /> : null}
+      {disabled ? null : (
+        <Input value={typed} onChange={(e) => setTyped(e.target.value)} onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), add())} onBlur={add} placeholder="Event name" className="h-9" />
+      )}
+    </div>
+  );
+}
 
 export function StepPanel(p: {
   step: Step;
@@ -530,6 +557,15 @@ export function StepPanel(p: {
           <Row name="Until">
             <Select value={s.event} options={EVENTS} onChange={(event) => p.onPatch({ event } as Partial<Step>)} ariaLabel="Until" className="h-9 w-full" disabled={p.readOnly} />
           </Row>
+          {s.event === "product.used" ? (
+            <Row name="Event">
+              {p.names.productEvents.length ? (
+                <Select value={s.name ?? ""} options={[...new Set([...p.names.productEvents, ...(s.name ? [s.name] : [])])].map((n) => ({ value: n, label: n }))} onChange={(name) => p.onPatch({ name } as Partial<Step>)} ariaLabel="Event" className="h-9 w-full" placeholder="Pick an event" disabled={p.readOnly} />
+              ) : (
+                <Input value={s.name ?? ""} onChange={(e) => p.onPatch({ name: e.target.value } as Partial<Step>, "name")} placeholder="Event name" className="h-9" disabled={p.readOnly} />
+              )}
+            </Row>
+          ) : null}
           <Row name="At most, days">
             <Input type="number" min={1} value={s.days} onChange={(e) => p.onPatch({ days: Math.max(1, Math.round(Number(e.target.value) || 1)) } as Partial<Step>, "days")} className="h-9 w-28" disabled={p.readOnly} />
           </Row>

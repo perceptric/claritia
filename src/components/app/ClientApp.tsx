@@ -216,7 +216,7 @@ export function ClientApp({ config }: { config: SupaConfig }) {
     { group: "Inbound", label: "Single-use link", run: () => navigate("scheduling", "links", "create=single_use") },
     { group: "Inbound", label: "Poll", run: () => navigate("scheduling", "links", "create=poll") },
     { group: "Nurture", label: "Broadcast", run: () => navigate("workflows", "new", "template=broadcast") },
-    { group: "Nurture", label: "Email template", run: () => navigate("emails", "templates", "create=1") },
+    { group: "Nurture", label: "Email template", run: () => navigate("emails", "library", "create=1") },
     { group: "Nurture", label: "Segment", run: () => navigate("segments", "new") },
   ];
 

@@ -109,3 +109,53 @@ Templates and parts open in the existing builder. Folders can be renamed, added 
 | Worker time for imports | $0 (current worker) | $0 (current worker, check) |
 | Storage for imported emails | $0 (inside plan) | $0 (inside plan, check) |
 | **Total** | **about $56 a month (check)** | **about $555 a month (check)** |
+
+## Part 8. Lifecycle journeys (built)
+
+Emails is about lifecycle marketing for SaaS teams: trial, pipeline and customer. Its first tab is Journeys.
+
+- **First visit, no questions.** Claritia reads the brand kit, the product's events from the last 30 days
+  (`claritia.track()` in the app), the CRM's stages and recent meetings. Then it makes one journey for each moment the
+  workspace can actually signal, and writes every email in the brand's voice from its brief.
+- **The journeys:**
+
+| Stage | Journey | Starts when | Made when |
+| --- | --- | --- | --- |
+| Trial | Trial onboarding | A sign-up or trial-start event | Such an event exists. It waits for the activation event by name when there is one |
+| Trial | Trial ending | 3 days before a trial-end date field | A contact date field mentions "trial" |
+| Pipeline | Ready for sales | The score turns hot | Always |
+| Pipeline | Missed demo | A booked meeting is a no-show | Always |
+| Pipeline | Form, no meeting | A form is sent without booking | Always |
+| Customer | Room to grow | A limit, seat or quota event | Such an event exists |
+| Customer | Win-back | A cancel or churn event, after 30 days | Such an event exists |
+
+- **Safe by default.** Each journey is a draft workflow and each email starts unapproved, so nothing sends until a
+  person reads it and makes the journey live. "Build N more" adds journeys that became possible later.
+- **After the first visit:** the journeys by stage on the left and the open one in the workflow editor.
+- **Library:** the 21 built-in templates by folder, previewed in the brand's look, with "Use template" into the saved
+  templates below. **Brand:** the look, the brief and Sending.
+
+### 8.1 How it works
+
+- `product_events_sync` copies custom events from identified sessions into `contact_events` as `product.used`, once
+  per event, every minute. Workflows start on it (`product` trigger) and wait for it by name (`wait_until`).
+- The voice rewrite is one model call through the step cache. A rewrite with a merge tag missing its fallback, a link,
+  markdown or an exclamation mark is dropped, and that email keeps its built words. When the call fails, every email
+  keeps its built words.
+- Migration: `supabase/migrations/082_lifecycle_journeys.sql`.
+
+### 8.2 Running cost
+
+- **Product event sync:** one query a minute on the database, inside the plan (check).
+- **Voice rewrite:** about 6,000 tokens in and 3,000 out per build, about $0.06 on Claude Sonnet 5.5 (check), once per
+  team and again for "Build N more". About 10% of teams are new each month.
+- **Sending:** the existing sending pipeline and its costs are unchanged.
+
+| Item | Beta (50 teams) | Growth (500 teams) |
+| --- | --- | --- |
+| Claude, journey builds for new teams (check) | $0.30 (check) | $3 (check) |
+| Product event sync | $0 (inside plan) | $0 (inside plan, check) |
+| **Total added** | **about $0.30 a month (check)** | **about $3 a month (check)** |
+
+Next: the assistant box on Journeys, so a person types a change ("send the second email a day sooner") and it edits
+the open journey with undo, like Routing and Scoring.
