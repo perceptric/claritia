@@ -1,6 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { seal, unseal } from "@/lib/seal";
-import { requireUser } from "@/lib/serverAuth";
+import { requireUser, roleIn, type Auth } from "@/lib/serverAuth";
+import { later } from "@/lib/later";
 import { serviceClient } from "@/lib/serviceClient";
 
 // The identify secret signs claritia("identify", ...) calls (docs/identity.md 5.2). It is sealed in
@@ -10,10 +11,8 @@ import { serviceClient } from "@/lib/serviceClient";
 const bad = (error: string, status = 400) => Response.json({ error }, { status });
 type Secrets = { current?: string; next?: string };
 
-async function owner(auth: Exclude<Awaited<ReturnType<typeof requireUser>>, { denied: Response }>, workspaceId: unknown) {
-  if (typeof workspaceId !== "string" || !/^[0-9a-f-]{36}$/.test(workspaceId)) return false;
-  const { data } = await auth.sb.from("workspace_members").select("role").eq("workspace_id", workspaceId).eq("user_id", auth.user.id).maybeSingle();
-  return data?.role === "owner";
+async function owner(auth: Auth, workspaceId: unknown) {
+  return (await roleIn(auth, workspaceId)) === "owner";
 }
 
 async function read(sb: NonNullable<ReturnType<typeof serviceClient>>, ws: string): Promise<Secrets> {
@@ -59,6 +58,6 @@ export async function POST(request: Request) {
   }
   const { error } = await sb.from("identity_settings").upsert({ workspace_id: ws, identify_secrets_sealed: sealed, updated_at: new Date().toISOString() }, { onConflict: "workspace_id" });
   if (error) return bad(error.message);
-  await sb.from("audit_log").insert({ workspace_id: ws, actor: auth.user.id, action: `identity.secret_${body.action}`, target: ws });
+  later(() => sb.from("audit_log").insert({ workspace_id: ws, actor: auth.user.id, action: `identity.secret_${body.action}`, target: ws }));
   return Response.json({ secret: next.current ?? null, old: !!next.next });
 }

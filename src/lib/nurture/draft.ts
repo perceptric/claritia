@@ -79,8 +79,12 @@ ${before ? `<emails_so_far>\n${before}\n</emails_so_far>\n\n` : ""}${ask}`;
 }
 
 /** Claude, with the brief as the only source. Needs ANTHROPIC_API_KEY. */
+const clients = new Map<string, Anthropic>();
+
 export function claudeDrafter(apiKey: string): Drafter {
-  const client = new Anthropic({ apiKey });
+  // One client per key for the process; 45 s a call and one retry, so a draft can't hang the request.
+  let client = clients.get(apiKey);
+  if (!client) clients.set(apiKey, (client = new Anthropic({ apiKey, maxRetries: 1, timeout: 45_000 })));
   return async (input) => {
     const res = await client.beta.messages.create({
       model: DRAFT_MODEL,

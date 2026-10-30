@@ -1,16 +1,10 @@
 import { seal, unseal } from "@/lib/seal";
-import { requireUser } from "@/lib/serverAuth";
+import { requireUser, roleIn } from "@/lib/serverAuth";
+import { later } from "@/lib/later";
 import { serviceClient } from "@/lib/serviceClient";
 import { checkConnection, cleanBaseUrl, isProduct, keyHint, PRODUCTS, type Product } from "@/lib/suite";
 
 const bad = (error: string, status = 400) => Response.json({ error }, { status });
-
-type Auth = Exclude<Awaited<ReturnType<typeof requireUser>>, { denied: Response }>;
-
-async function roleIn(auth: Auth, workspaceId: string) {
-  const { data } = await auth.sb.from("workspace_members").select("role").eq("workspace_id", workspaceId).eq("user_id", auth.user.id).maybeSingle<{ role: string }>();
-  return data?.role ?? null;
-}
 
 /**
  * Connect a suite product: { workspaceId, product, baseUrl, key, brand? }. Owners only. The key is checked with the
@@ -77,7 +71,7 @@ export async function POST(request: Request) {
     { onConflict: "workspace_id,product" },
   );
   if (error) return bad(error.message, 500);
-  await sb.from("audit_log").insert({ workspace_id: body.workspaceId, actor: auth.user.id, action: "suite.connect", target: product, data: { base_url: base.url, ok: result.ok } });
+  later(() => sb.from("audit_log").insert({ workspace_id: body.workspaceId, actor: auth.user.id, action: "suite.connect", target: product, data: { base_url: base.url, ok: result.ok } }));
   return Response.json(result.ok ? { ok: true, detail: result.detail } : { ok: false, error: result.error });
 }
 
@@ -95,6 +89,6 @@ export async function DELETE(request: Request) {
   if (!sb) return bad("The server is not set up for suite connections.", 500);
   const { error } = await sb.from("suite_connections").delete().eq("workspace_id", body.workspaceId).eq("product", body.product);
   if (error) return bad(error.message, 500);
-  await sb.from("audit_log").insert({ workspace_id: body.workspaceId, actor: auth.user.id, action: "suite.disconnect", target: body.product });
+  later(() => sb.from("audit_log").insert({ workspace_id: body.workspaceId, actor: auth.user.id, action: "suite.disconnect", target: body.product }));
   return Response.json({ ok: true });
 }

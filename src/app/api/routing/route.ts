@@ -2,7 +2,7 @@ import { appBase } from "@/lib/billing";
 import * as A from "@/lib/router/actions";
 import type { Rpc } from "@/lib/jobs";
 import { seal } from "@/lib/seal";
-import { requireUser } from "@/lib/serverAuth";
+import { requireUser, roleIn } from "@/lib/serverAuth";
 import { serviceClient } from "@/lib/serviceClient";
 
 // The Routing screens' server side (docs/router-ux.md 7.3): POST { workspaceId, action, ... }. The caller signs in and
@@ -14,18 +14,24 @@ export async function POST(request: Request) {
   if ("denied" in auth) return auth.denied;
   const body = (await request.json().catch(() => ({}))) as Record<string, unknown>;
   const ws = typeof body.workspaceId === "string" && /^[0-9a-f-]{36}$/.test(body.workspaceId) ? body.workspaceId : "";
-  const { data: member } = ws ? await auth.sb.from("workspace_members").select("role").eq("workspace_id", ws).eq("user_id", auth.user.id).maybeSingle() : { data: null };
-  if (!member) return Response.json({ error: "Workspace not found." }, { status: 404 });
+  const role = await roleIn(auth, ws);
+  if (!role) return Response.json({ error: "Workspace not found." }, { status: 404 });
   const db = serviceClient();
   if (!db) return Response.json({ error: "The server is not set up for this." }, { status: 500 });
   const rpc: Rpc = (f, args) => db.rpc(f, args);
-  const c: A.Caller = { ws, user: auth.user.id, role: member.role === "owner" ? "owner" : "member" };
+  const c: A.Caller = { ws, user: auth.user.id, role };
   const str = (k: string) => (typeof body[k] === "string" ? (body[k] as string) : null);
   try {
     const out = await (async () => {
       switch (body.action) {
         case "load":
-          return A.load(rpc, db, c);
+          return A.load(rpc, db, c, { slim: body.slim === true });
+        case "stats":
+          return { stats: await A.stats(rpc, c) };
+        case "versions":
+          return { versions: await A.versions(db, c) };
+        case "chat_history":
+          return { chat: await A.chatHistory(db, c) };
         case "save_draft":
           return A.saveDraft(rpc, c, body.body, typeof body.revision === "number" ? body.revision : null);
         case "drop_draft":

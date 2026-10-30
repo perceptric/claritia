@@ -83,7 +83,22 @@ export async function build(rpc: Rpc, db: Q, c: Caller, o: { base: string; ai: M
       // The built words stand on their own.
     }
   }
-  const made: { id: string; key: string }[] = [];
-  for (const j of todo) made.push({ id: await call<string>(rpc, "journey_create", { p_ws: c.ws, p_user: c.user, p_name: j.name, p_stage: j.stage, p_journey: j.key, p_draft: j.body }), key: j.key });
+  // Every journey in one call (journeys_create, 088). journey_create keeps one per journey key, so the old calls can
+  // stand in for it safely.
+  const items = todo.map((j) => ({ name: j.name, stage: j.stage, journey: j.key, draft: j.body }));
+  const { rpcOr } = await import("../rpcCompat.ts");
+  const ids = items.length
+    ? await rpcOr<string[]>(rpc, "journeys_create", { p_ws: c.ws, p_user: c.user, p_items: items }, async () => {
+        const out: string[] = [];
+        for (const j of todo) {
+          const r = await rpc("journey_create", { p_ws: c.ws, p_user: c.user, p_name: j.name, p_stage: j.stage, p_journey: j.key, p_draft: j.body });
+          if (r.error) return { data: null, error: r.error };
+          out.push(r.data as string);
+        }
+        return { data: out, error: null };
+      }, { anyError: true })
+    : { data: [] as string[], error: null };
+  if (ids.error) throw new Refused(400, ids.error.message.replace(/^.*?: /, ""));
+  const made = todo.map((j, i) => ({ id: ids.data![i]!, key: j.key }));
   return { made, rewritten };
 }

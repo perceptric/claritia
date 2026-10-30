@@ -13,10 +13,13 @@ const PAYING = new Set(["active", "trialing", "past_due"]);
 
 export const appBase = () => process.env.APP_URL?.trim().replace(/\/+$/, "") || APP_URL;
 
-/** Stripe, when STRIPE_SECRET_KEY is set. */
+/** Stripe, when STRIPE_SECRET_KEY is set: one client per process, 10 s a call and one retry, so no request hangs. */
+let stripeShared: { key: string; stripe: Stripe } | null = null;
 export function stripeClient() {
   const key = process.env.STRIPE_SECRET_KEY?.trim();
-  return key ? new Stripe(key) : null;
+  if (!key) return null;
+  if (stripeShared?.key !== key) stripeShared = { key, stripe: new Stripe(key, { timeout: 10_000, maxNetworkRetries: 1 }) };
+  return stripeShared.stripe;
 }
 
 export const isPaidPlan = (plan: unknown): plan is "starter" | "team" => PAID.includes(plan as PlanId);

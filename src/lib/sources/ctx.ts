@@ -18,9 +18,15 @@ export type CtxOpts = {
   local?: boolean;
   /** Refresh a token; defaults to the tool's OAuth app. */
   refresh?: (refresh: string) => Promise<{ access: string; refresh: string | null; expiresAt: number }>;
+  /** How long one call may take before it's dropped (and tried again). Default 15 s; a call can pass its own. */
+  callTimeoutMs?: number;
 };
 
 const BACKOFF_S = [1, 5, 30];
+// A rate limit that asks for a longer wait than this isn't slept on here: RateLimited goes up with the wait, so a job
+// is put back in line for then (worker-intel/jobs/sources.ts) and a person's request answers at once.
+const MAX_429_SLEEP_S = 5;
+const CALL_TIMEOUT_MS = 15_000;
 const wait = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
 export function makeCtx(o: CtxOpts): Ctx {
@@ -45,8 +51,9 @@ export function makeCtx(o: CtxOpts): Ctx {
     return "";
   }
 
-  async function api<T>(url: string, init: RequestInit & { auth?: boolean } = {}): Promise<T> {
-    const { auth = true, ...rest } = init;
+  async function api<T>(url: string, init: RequestInit & { auth?: boolean; timeoutMs?: number } = {}): Promise<T> {
+    const { auth = true, timeoutMs, ...rest } = init;
+    const limit = timeoutMs ?? o.callTimeoutMs ?? CALL_TIMEOUT_MS;
     let refreshed = false;
     for (let attempt = 0; ; attempt++) {
       if (o.signal?.aborted) throw new Error("Stopped");
@@ -59,7 +66,9 @@ export function makeCtx(o: CtxOpts): Ctx {
       headers.set("accept", headers.get("accept") ?? "application/json");
       let res: Response;
       try {
-        res = await fetcher(url, { ...rest, headers, signal: o.signal });
+        // The job's stop and this call's own time limit, whichever comes first. A call that runs out is tried again.
+        const timer = AbortSignal.timeout(limit);
+        res = await fetcher(url, { ...rest, headers, signal: o.signal ? AbortSignal.any([o.signal, timer]) : timer });
       } catch (e) {
         if (o.signal?.aborted) throw new Error("Stopped");
         if (attempt >= BACKOFF_S.length) throw e;
@@ -73,6 +82,9 @@ export function makeCtx(o: CtxOpts): Ctx {
       }
       if (res.status === 429 || res.status >= 500) {
         const after = Number(res.headers.get("retry-after"));
+        const asked = Number.isFinite(after) && after > 0 ? after : 0;
+        // A long rate-limit wait (or the third one) goes up instead of holding this call open.
+        if (res.status === 429 && (asked > MAX_429_SLEEP_S || attempt >= 2)) throw new RateLimited("The tool's rate limit was hit; trying again later.", asked || 60);
         if (attempt >= BACKOFF_S.length) {
           if (res.status === 429) throw new RateLimited("The tool's rate limit was hit; trying again later.", Number.isFinite(after) && after > 0 ? after : 60);
           throw new Error(`The tool answered ${res.status}; trying again later.`);

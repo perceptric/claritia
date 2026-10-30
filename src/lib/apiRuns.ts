@@ -26,7 +26,11 @@ export async function startRuns(caller: ApiCaller, input: StartInput, trigger: "
     baseUrl = input.base_url.trim();
   }
 
-  const { data: envRows, error: envErr } = await sb.from("environments").select("id, name").eq("workspace_id", workspaceId).eq("project_id", project.id).order("created_at");
+  // The project's environments and tests, read together.
+  const [{ data: envRows, error: envErr }, { data: testRows, error: testErr }] = await Promise.all([
+    sb.from("environments").select("id, name").eq("workspace_id", workspaceId).eq("project_id", project.id).order("created_at"),
+    sb.from("tests").select("id, name, use_case, steps, lock").eq("workspace_id", workspaceId).eq("project_id", project.id).order("use_case").order("name"),
+  ]);
   if (envErr) return bad(envErr.message, 500);
   const envs = (envRows ?? []) as { id: string; name: string }[];
   if (!envs.length) return bad(`Add an environment to ${project.name} in Environments first.`);
@@ -39,7 +43,6 @@ export async function startRuns(caller: ApiCaller, input: StartInput, trigger: "
     env = found;
   }
 
-  const { data: testRows, error: testErr } = await sb.from("tests").select("id, name, use_case, steps, lock").eq("workspace_id", workspaceId).eq("project_id", project.id).order("use_case").order("name");
   if (testErr) return bad(testErr.message, 500);
   const all = (testRows ?? []) as TestRow[];
   const hasSteps = (t: TestRow) => Array.isArray(t.steps) && t.steps.length > 0;
