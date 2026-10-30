@@ -41,17 +41,26 @@ export function useFilters(screen: Screen, wsId: string, initial: Filter[] = [])
 /** A small layer under an anchor, above the page, closed by a click away or Escape. */
 export function Popover({ anchor, onClose, children, width = 300 }: { anchor: HTMLElement | null; onClose: () => void; children: React.ReactNode; width?: number }) {
   const box = useRef<HTMLDivElement>(null);
-  const [pos, setPos] = useState<{ left: number; top: number } | null>(null);
+  const [pos, setPos] = useState<{ left: number; top: number; max: number } | null>(null);
   useLayoutEffect(() => {
     if (!anchor) return;
+    // Below the anchor when it fits; above when there's more room there. Either way it scrolls inside the screen.
     const place = () => {
       const r = anchor.getBoundingClientRect();
-      setPos({ left: Math.max(8, Math.min(r.left, window.innerWidth - width - 8)), top: r.bottom + 4 });
+      const h = box.current?.scrollHeight ?? 0;
+      const below = window.innerHeight - r.bottom - 12;
+      const above = r.top - 12;
+      const up = h > below && above > below;
+      const max = Math.max(120, up ? above : below);
+      setPos({ left: Math.max(8, Math.min(r.left, window.innerWidth - width - 8)), top: up ? Math.max(8, r.top - 4 - Math.min(h, max)) : r.bottom + 4, max });
     };
     place();
+    // Once it has drawn, its height is known: place it again.
+    const raf = requestAnimationFrame(place);
     window.addEventListener("resize", place);
     window.addEventListener("scroll", place, true);
     return () => {
+      cancelAnimationFrame(raf);
       window.removeEventListener("resize", place);
       window.removeEventListener("scroll", place, true);
     };
@@ -74,7 +83,7 @@ export function Popover({ anchor, onClose, children, width = 300 }: { anchor: HT
   }, [anchor, onClose]);
   if (!pos) return null;
   return createPortal(
-    <div ref={box} style={{ position: "fixed", left: pos.left, top: pos.top, width }} className="anim-rise-sm z-[95] overflow-hidden rounded-lg border border-line bg-card text-[13px] shadow-float">
+    <div ref={box} style={{ position: "fixed", left: pos.left, top: pos.top, width, maxHeight: pos.max }} className="anim-rise-sm z-[95] overflow-y-auto rounded-lg border border-line bg-card text-[13px] shadow-float">
       {children}
     </div>,
     document.body,

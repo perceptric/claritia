@@ -9,7 +9,7 @@ import { EMAIL_TEMPLATES, TEMPLATE_FOLDERS, type EmailTemplate } from "@/lib/des
 import { readSystem } from "@/lib/design/model";
 import { cleanTokens, type Tokens } from "@/lib/forms/brand";
 import { emptyEmail } from "@/lib/workflows/types";
-import { Badge, Button, CardHead, ErrorNote, errorText, Panel, useLoad, type ViewProps } from "../ui";
+import { Badge, Button, ErrorNote, errorText, useLoad, type ViewProps } from "../ui";
 import { Modal } from "../meetings/parts";
 import { EmailTemplatesView } from "../workflows/EmailTemplatesView";
 
@@ -50,28 +50,44 @@ export function LibraryPage(props: ViewProps) {
   };
 
   const folders = (
-    <div className="mb-6 flex flex-col gap-5">
+    <div className="mb-8 flex flex-col gap-8">
       <ErrorNote message={error} />
       {TEMPLATE_FOLDERS.map((f) => (
-        <Panel key={f} className="overflow-hidden">
-          <CardHead label={f} count={EMAIL_TEMPLATES.filter((t) => t.group === f).length} />
-          <ul className="grid gap-px bg-line sm:grid-cols-3">
+        <section key={f} className="flex flex-col gap-3">
+          <h2 className="text-[14px] font-medium text-ink">{f}</h2>
+          <ul className="grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-4">
             {EMAIL_TEMPLATES.filter((t) => t.group === f).map((t) => (
-              <li key={t.key} className="flex items-center gap-2 bg-card px-4 py-3">
-                <button type="button" onClick={() => setOpen(t)} className="min-w-0 flex-1 truncate text-left text-[13.5px] text-ink hover:underline">
-                  {t.name}
+              <li key={t.key}>
+                <button type="button" onClick={() => setOpen(t)} className="group flex w-full flex-col gap-2 text-left">
+                  {kit.data ? <Thumb t={t} tokens={kit.data.tokens} logo={kit.data.logo} /> : <div className="h-[280px] rounded-[10px] border border-line bg-paper" />}
+                  <span className="flex items-center gap-2 text-[13px] text-ink">
+                    {t.name}
+                    {added === t.key ? <Badge tone="green">Saved</Badge> : null}
+                  </span>
                 </button>
-                {added === t.key ? <Badge tone="green">Saved</Badge> : null}
               </li>
             ))}
           </ul>
-        </Panel>
+        </section>
       ))}
-      <p className="text-[13.5px] font-medium text-ink">Saved</p>
+      <h2 className="text-[14px] font-medium text-ink">Saved</h2>
       {open && kit.data ? <PreviewDialog t={open} tokens={kit.data.tokens} logo={kit.data.logo} onClose={() => setOpen(null)} onUse={() => void use(open)} /> : null}
     </div>
   );
   return <EmailTemplatesView key={n} {...props} above={folders} />;
+}
+
+/** Merge tags as a reader sees them: the fallback, or a sample address. */
+const filled = (html: string) => html.replace(/\{\{\s*([a-z_]+)\s*(?:\|([^}]*))?\}\}/g, (_m, k: string, f?: string) => (k === "company_address" ? "100 Main St, Austin, TX" : k === "unsubscribe_url" ? "#" : (f ?? "")));
+
+/** A template as it would arrive, scaled down to a card. */
+function Thumb({ t, tokens, logo }: { t: EmailTemplate; tokens: Tokens; logo?: string }) {
+  const html = useMemo(() => filled(compileEmail(readSystem({}, tokens), t.make(), { tokens, logo }).html), [t, tokens, logo]);
+  return (
+    <div className="relative h-[280px] overflow-hidden rounded-[10px] border border-line bg-paper transition-[border-color,transform] duration-[180ms] ease-out group-hover:-translate-y-0.5 group-hover:border-line-strong motion-reduce:transform-none">
+      <iframe title="" aria-hidden="true" tabIndex={-1} srcDoc={html} className="pointer-events-none absolute top-0 left-1/2 h-[760px] w-[640px] origin-top -translate-x-1/2 scale-[0.37] border-0 bg-paper" />
+    </div>
+  );
 }
 
 function PreviewDialog({ t, tokens, logo, onClose, onUse }: { t: EmailTemplate; tokens: Tokens; logo?: string; onClose: () => void; onUse: () => void }) {
