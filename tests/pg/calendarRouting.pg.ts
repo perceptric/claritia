@@ -56,12 +56,12 @@ test("two guests confirming one start at once: one meeting, one run, the other g
   assert.equal([a, b].filter((r) => r.ok).length, 1);
   const lost = [a, b].find((r) => !r.ok)!;
   assert.ok(!lost.ok && lost.error === "slot_taken" && lost.slots.every((x) => x.start !== TEN));
-  // Written at once, or (when the database is slow) by the job with the meeting's key: one either way.
-  const runs = await q(`select reason, queue_id, owner from router_runs where workspace_id = $1`, [s.ws]);
+  // Written at once, or (when the database is slow) by the job with the meeting's key, or both: still one run.
   const queued = await q(`select payload from jobs where workspace_id = $1 and kind = 'meeting_team_run'`, [s.ws]);
-  assert.equal(runs.length + queued.length, 1);
-  if (runs.length) assert.deepEqual([runs[0].reason, runs[0].queue_id], ["booking", "sales"]);
-  else assert.equal(queued[0].payload.p_queue, "sales");
+  for (const j of queued) await q(`select meeting_team_run($1, $2, $3, $4, $5, $6)`, [s.ws, j.payload.p_meeting, j.payload.p_contact, j.payload.p_queue, j.payload.p_owner, j.payload.p_version]);
+  const runs = await q(`select reason, queue_id, owner from router_runs where workspace_id = $1`, [s.ws]);
+  assert.equal(runs.length, 1);
+  assert.deepEqual([runs[0].reason, runs[0].queue_id], ["booking", "sales"]);
 });
 
 test("the queue's turn moves on after each booking, and a booking counts toward the rep's day", async () => {
