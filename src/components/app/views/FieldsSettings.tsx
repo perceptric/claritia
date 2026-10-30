@@ -8,9 +8,9 @@ import { useState } from "react";
 import { FIELD_KINDS, LEAD_STAGES, PACKS, type Option } from "@/lib/records/fields";
 import { askConfirm, askLines, askText } from "../Dialogs";
 import { Select } from "../Select";
-import { Badge, Button, CardHead, ErrorNote, errorText, Field, Input, Loading, must, Panel, useLoad, type ViewProps } from "../ui";
+import { Badge, Button, CardHead, ErrorNote, errorText, Field, Input, invalidate, Loading, must, Panel, useQuery, type ViewProps } from "../ui";
 import { FieldDialog } from "../records/FieldDialog";
-import { useMeta } from "../records/meta";
+import { fieldsChanged, useMeta, type Meta } from "../records/meta";
 
 const CLASSES: { value: string; label: string }[] = [
   { value: "manual", label: "People in the app" },
@@ -24,7 +24,7 @@ const CLASSES: { value: string; label: string }[] = [
 const DEFAULT_ORDER = CLASSES.map((c) => c.value);
 
 function useObjects(sb: ViewProps["sb"], wsId: string) {
-  return useLoad(async () => must(await sb.from("objects").select("key, label, plural, icon, system").eq("workspace_id", wsId).order("created_at")) as { key: string; label: string; plural: string; icon: string; system: boolean }[], wsId);
+  return useQuery(`objects:${wsId}:all`, async () => must(await sb.from("objects").select("key, label, plural, icon, system").eq("workspace_id", wsId).order("created_at")) as { key: string; label: string; plural: string; icon: string; system: boolean }[]);
 }
 
 /** Options as lines: "value" or "Label" per line; stages also take ": won" or ": lost". */
@@ -48,20 +48,20 @@ export function FieldsSettings({ sb, ws, role }: Pick<ViewProps, "sb" | "ws" | "
   const objects = useObjects(sb, ws.id);
   const [object, setObject] = useState("contact");
   const meta = useMeta(sb, ws.id, object);
-  const order = useLoad(async () => must(await sb.from("field_order").select("key, classes").eq("workspace_id", ws.id).eq("object", object)) as { key: string; classes: string[] }[], `${ws.id}:${object}`);
+  const order = useQuery(`field_order:${ws.id}:${object}`, async () => must(await sb.from("field_order").select("key, classes").eq("workspace_id", ws.id).eq("object", object)) as { key: string; classes: string[] }[]);
   const [adding, setAdding] = useState(false);
   const [editing, setEditing] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
-  const run = async (fn: () => Promise<unknown>) => {
+  /** Run a change; `change` shows it on screen first and is put back if the save fails. */
+  const run = async (fn: () => Promise<unknown>, change?: (m: Meta) => Meta) => {
     setError("");
     setBusy(true);
     try {
-      await fn();
-      meta.reload();
-      order.reload();
-      window.dispatchEvent(new Event("claritia:changed"));
+      if (change) await meta.mutate(change, fn);
+      else await fn();
+      fieldsChanged(ws.id, object);
     } catch (e) {
       setError(errorText(e));
     } finally {
@@ -77,7 +77,11 @@ export function FieldsSettings({ sb, ws, role }: Pick<ViewProps, "sb" | "ws" | "
     const keys = custom.map((f) => f.key);
     const [k] = keys.splice(i, 1);
     keys.splice(i + d, 0, k);
-    void run(async () => must(await sb.rpc("fields_order", { p_ws: ws.id, p_object: object, p_keys: keys })));
+    // The arrows move the row at once.
+    void run(
+      async () => must(await sb.rpc("fields_order", { p_ws: ws.id, p_object: object, p_keys: keys })),
+      (m) => ({ ...m, custom: m.custom.map((f) => ({ ...f, position: keys.indexOf(f.key) })) }),
+    );
   };
   const defaults = order.data?.find((o) => o.key === "*")?.classes ?? DEFAULT_ORDER;
   const owner = role === "owner";
@@ -116,7 +120,6 @@ export function FieldsSettings({ sb, ws, role }: Pick<ViewProps, "sb" | "ws" | "
           onSaved={() => {
             setAdding(false);
             setEditing(null);
-            meta.reload();
           }}
         />
       ) : null}
@@ -291,8 +294,8 @@ export function ObjectsSettings({ sb, ws, role, navigate }: Pick<ViewProps, "sb"
     setError("");
     try {
       await fn();
-      objects.reload();
-      window.dispatchEvent(new Event("claritia:changed"));
+      invalidate(`objects:${ws.id}`);
+      fieldsChanged(ws.id);
     } catch (e) {
       setError(errorText(e));
     }

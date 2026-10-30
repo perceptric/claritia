@@ -106,7 +106,8 @@ export function Submissions(props: ViewProps & { form: Form; formId: string; des
     return { leads: Number(leads.data ?? 0), spam: Number(spam.data ?? 0), left: (left.data ?? { count: 0, rows: [] }) as { count: number; rows: Left[] } };
   }, `${formId}:${from}:${tick}`);
   const meta = useLoad(async () => {
-    const [vers, f] = await Promise.all([sb.from("form_versions").select("version, body").eq("form_id", formId), sb.from("forms").select("results_columns").eq("id", formId).maybeSingle()]);
+    // The columns come from the last 50 versions' questions (not every body ever published).
+    const [vers, f] = await Promise.all([sb.from("form_versions").select("version, body").eq("form_id", formId).order("version", { ascending: false }).limit(50), sb.from("forms").select("results_columns").eq("id", formId).maybeSingle()]);
     return { cols: fillColumns((vers.data ?? []) as { version: number; body: Form }[]), picked: (f.data as { results_columns: string[] | null } | null)?.results_columns ?? null };
   }, `${formId}:${tick}`);
 
@@ -184,6 +185,21 @@ export function Submissions(props: ViewProps & { form: Form; formId: string; des
     }
   };
   const reload = () => setTick((t) => t + 1);
+  /** Rows leave the list at once; the counts are read again; a failure reads the list again. */
+  const drop = async (ids: string[], fn: () => Promise<void>) => {
+    const was = rows;
+    setRows((r) => (r ? r.filter((x) => !ids.includes(x.id)) : r));
+    setOpen(null);
+    setSel(new Set());
+    try {
+      await fn();
+    } catch (e) {
+      setRows(was);
+      throw e;
+    }
+    counts.reload();
+    funnel.reload();
+  };
   const picked = (rows ?? []).filter((r) => sel.has(r.id));
   const replay = (list: Fill[]) =>
     run(async () => {
@@ -193,30 +209,29 @@ export function Submissions(props: ViewProps & { form: Form; formId: string; des
       reload();
     }, "Sent again");
   const markSpam = (list: Fill[], spam: boolean) =>
-    run(async () => {
-      if (spam) must(await sb.rpc("submissions_mark_spam", { p_ids: list.map((r) => r.id), p_spam: true }));
-      else {
-        must(await sb.rpc("submissions_mark_spam", { p_ids: list.filter((r) => r.contact_id).map((r) => r.id), p_spam: false }));
-        const held = list.filter((r) => !r.contact_id).map((r) => r.id);
-        if (held.length) {
-          const r = await postJson<{ released: number; errors: Record<string, string> }>(session, "/api/forms/release", { workspaceId: ws.id, ids: held });
-          const first = Object.values(r.errors)[0];
-          if (first) throw new Error(first);
-        }
-      }
-      setOpen(null);
-      setSel(new Set());
-      reload();
-    }, spam ? "Moved to Spam. The contact's alerts and emails stop." : "Let in. Routing, alerts and the auto-reply run now.");
+    run(
+      () =>
+        drop(
+          list.map((r) => r.id),
+          async () => {
+            if (spam) must(await sb.rpc("submissions_mark_spam", { p_ids: list.map((r) => r.id), p_spam: true }));
+            else {
+              must(await sb.rpc("submissions_mark_spam", { p_ids: list.filter((r) => r.contact_id).map((r) => r.id), p_spam: false }));
+              const held = list.filter((r) => !r.contact_id).map((r) => r.id);
+              if (held.length) {
+                const r = await postJson<{ released: number; errors: Record<string, string> }>(session, "/api/forms/release", { workspaceId: ws.id, ids: held });
+                const first = Object.values(r.errors)[0];
+                if (first) throw new Error(first);
+              }
+            }
+          },
+        ),
+      spam ? "Moved to Spam. The contact's alerts and emails stop." : "Let in. Routing, alerts and the auto-reply run now.",
+    );
   const remove = async (list: Fill[]) => {
     const n = list.length;
     if (!(await askConfirm(`Delete ${n === 1 ? "this submission" : `${n} submissions`}?`, { body: "The answers go. The contacts stay. HubSpot keeps what it already has.", ok: "Delete", danger: true }))) return;
-    await run(async () => {
-      must(await sb.rpc("submissions_delete", { p_ids: list.map((r) => r.id) }));
-      setOpen(null);
-      setSel(new Set());
-      reload();
-    }, n === 1 ? "Submission deleted" : `${n} submissions deleted`);
+    await run(() => drop(list.map((r) => r.id), async () => void must(await sb.rpc("submissions_delete", { p_ids: list.map((r) => r.id) }))), n === 1 ? "Submission deleted" : `${n} submissions deleted`);
   };
   const exportAll = () =>
     run(async () => {
@@ -230,10 +245,18 @@ export function Submissions(props: ViewProps & { form: Form; formId: string; des
     download(new Blob([lines.join("\n")], { type: "text/csv" }), "answers.csv");
     note.show("Exported");
   };
-  const saveCols = (keys: string[]) => run(async () => {
-    must(await sb.rpc("form_results_columns", { p_form: formId, p_cols: keys }));
-    meta.reload();
-  });
+  // The columns change at once; they go back if the save fails.
+  const saveCols = (keys: string[]) =>
+    run(async () => {
+      const was = meta.data;
+      if (was) meta.set({ ...was, picked: keys });
+      try {
+        must(await sb.rpc("form_results_columns", { p_form: formId, p_cols: keys }));
+      } catch (e) {
+        if (was) meta.set(was);
+        throw e;
+      }
+    });
 
   const f = funnel.data;
   const pct = (a: number, b: number) => (b ? `${Math.round((a / b) * 100)}% of` : "");

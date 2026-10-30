@@ -10,6 +10,7 @@ import { AlignLeft, CalendarIcon, CheckSquare, CircleDot, Clock, Contact, Dollar
 import { askConfirm } from "../Dialogs";
 import { Select } from "../Select";
 import { Badge, Button, ErrorNote, errorText, Field, IconButton, Input, must, Segmented, type Tone, type ViewProps } from "../ui";
+import { fieldsChanged } from "./meta";
 
 const GLYPH: Record<string, React.ReactNode> = {
   text: <TypeIcon size={15} />,
@@ -102,7 +103,7 @@ export function FieldDialog({
         const made = must(await sb.rpc("field_add", { p_ws: ws.id, p_object: object, p_label: label.trim(), p_type: type, p_options: picks ? opts : [], p_config: config, p_required: required, p_group: group.trim() || null })) as { key: string };
         onSaved(made.key);
       }
-      window.dispatchEvent(new Event("claritia:changed"));
+      fieldsChanged(ws.id, object);
     } catch (e) {
       setError(errorText(e));
     } finally {
@@ -113,7 +114,7 @@ export function FieldDialog({
     if (!start || !(await askConfirm(`Delete "${start.label}"?`, { body: "Its values go from every record.", ok: "Delete", danger: true }))) return;
     try {
       must(await sb.rpc("field_delete", { p_ws: ws.id, p_object: object, p_key: start.key }));
-      window.dispatchEvent(new Event("claritia:changed"));
+      fieldsChanged(ws.id, object);
       onSaved(null);
     } catch (e) {
       setError(errorText(e));

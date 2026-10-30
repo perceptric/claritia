@@ -1,7 +1,8 @@
 "use client";
 
 import type { Session, SupabaseClient } from "@supabase/supabase-js";
-import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useId, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
+import { cache, type Snap } from "@/lib/queryCache";
 import { Dots } from "./Ai";
 
 import type { Route } from "@/lib/nav";
@@ -21,6 +22,8 @@ export type ViewProps = {
   navigate: (r: Route, id?: string, query?: string) => void;
   /** The record in the address, like a contact's id in /contacts/<id>. */
   id: string;
+  /** Change the workspace on screen (a rename shows everywhere without reloading the page). */
+  onWorkspace?: (patch: Partial<Workspace>) => void;
 };
 
 // A page with unsaved changes can ask before anyone leaves it, from the sidebar or the back button.
@@ -30,38 +33,209 @@ export const setLeaveGuard = (fn: (() => Promise<boolean>) | null) => {
 };
 export const mayLeave = () => (leaveGuard ? leaveGuard() : Promise.resolve(true));
 
-/** Tell every loaded page that data changed, so lists reload. */
-export const announceChange = () => window.dispatchEvent(new Event("claritia:changed"));
+/** The app's shared cache (src/lib/queryCache.ts): screens paint from it at once and fetch again in the background. */
+export { cache };
+export const invalidate = (name: string | ((key: string) => boolean)) => void cache.invalidate(name);
 
-/** Load data once, and again when `reload` is called or `key` changes. */
+export type Query<T> = {
+  data: T | null;
+  error: string;
+  /** True once this key has an answer (data, or null, or an error); false while it first loads. */
+  loaded: boolean;
+  /** True while a fetch is out (the data on screen may be the last answer). */
+  fetching: boolean;
+  /** Fetch again now. */
+  reload: () => void;
+  /** Change the data in place (a row that came back from a write). */
+  set: (next: T | ((prev: T) => T)) => void;
+  /** Change the data at once, send the write, and put it back (and throw) when the write fails. */
+  mutate: <R>(change: (prev: T) => T, write: () => Promise<R>, opts?: { refetch?: boolean }) => Promise<R>;
+};
+
+const noop = () => {};
+const EMPTY_SNAP: Snap<never> = { data: undefined, error: "", at: 0, fetching: false };
+
+/**
+ * Read a key from the shared cache. Keys name what they hold, like `meeting_types:<workspace>`, so every screen that
+ * asks for the same key shares one answer; `invalidate("meeting_types")` fetches it again wherever it's shown. The last
+ * answer paints at once (a tab switch or the back button shows the page with no wait) and is fetched again when older
+ * than `staleMs`. While a new key loads, the previous key's data stays on screen. A `null` key loads nothing.
+ */
+export function useQuery<T>(key: string | null, fn: () => Promise<T>, opts: { staleMs?: number } = {}): Query<T> {
+  const staleMs = opts.staleMs ?? 15_000;
+  const latest = useRef(fn);
+  useEffect(() => {
+    latest.current = fn;
+  });
+  const subscribe = useCallback((cb: () => void) => (key ? cache.subscribe(key, cb) : noop), [key]);
+  const read = useCallback((): Snap<T> => (key ? cache.get<T>(key) : EMPTY_SNAP), [key]);
+  const snap = useSyncExternalStore(subscribe, read, read);
+  useEffect(() => {
+    if (!key) return;
+    const run = () => latest.current();
+    cache.register(key, run);
+    if (cache.isStale(key, staleMs)) cache.fetch(key, run).catch(noop);
+  }, [key, staleMs]);
+  // While a new key loads, keep showing the last data (search, paging, the next record).
+  const [last, setLast] = useState<{ data: T } | null>(null);
+  if (snap.data !== undefined && last?.data !== snap.data) setLast({ data: snap.data });
+  const data = snap.data !== undefined ? snap.data : snap.at || !key ? null : (last?.data ?? null);
+  const reload = useCallback(() => {
+    if (key) cache.fetch(key, () => latest.current(), true).catch(noop);
+  }, [key]);
+  const set = useCallback(
+    (next: T | ((prev: T) => T)) => {
+      if (key) cache.set<T>(key, next as T | ((prev: T | undefined) => T));
+    },
+    [key],
+  );
+  const mutate = useCallback(
+    <R,>(change: (prev: T) => T, write: () => Promise<R>, o?: { refetch?: boolean }) => (key ? cache.mutate<T, R>(key, (p) => change(p as T), write, o) : write()),
+    [key],
+  );
+  return { data, error: snap.error, fetching: snap.fetching, loaded: snap.at > 0, reload, set, mutate };
+}
+
+/** A key's data from the cache when fresh, else one shared fetch: for loaders that build on shared data. */
+export function cached<T>(key: string, fn: () => Promise<T>, staleMs = 30_000): Promise<T> {
+  if (!cache.isStale(key, staleMs)) return Promise.resolve(cache.get<T>(key).data as T);
+  return cache.fetch(key, fn);
+}
+
+/** Load data for this screen only, again when `key` changes or `reload` is called. Shared data uses `useQuery`. */
 export function useLoad<T>(fn: () => Promise<T>, key: string) {
-  const [data, setData] = useState<T | null>(null);
-  const [error, setError] = useState("");
-  const [tick, setTick] = useState(0);
+  const id = useId();
+  return useQuery<T>(`local:${id}:${key}`, fn, { staleMs: Infinity });
+}
+
+// A screen's own state (search, page, selection, scroll) kept while you open a record and come back.
+const kept = new Map<string, unknown>();
+
+/** `useState` that outlives the screen: list → record → back finds the same search, page and selection. */
+export function useKept<T>(key: string, initial: T | (() => T)) {
+  const [v, setV] = useState<T>(() => (kept.has(key) ? (kept.get(key) as T) : typeof initial === "function" ? (initial as () => T)() : initial));
+  const set = useCallback(
+    (next: T | ((prev: T) => T)) =>
+      setV((prev) => {
+        const n = typeof next === "function" ? (next as (p: T) => T)(prev) : next;
+        kept.set(key, n);
+        return n;
+      }),
+    [key],
+  );
+  return [v, set] as const;
+}
+
+/** A scroll box that comes back where you left it: put the returned ref on the element that scrolls. */
+export function useKeptScroll(key: string) {
+  return useCallback(
+    (el: HTMLElement | null) => {
+      if (!el) return;
+      const top = kept.get(`scroll:${key}`) as number | undefined;
+      if (top) requestAnimationFrame(() => (el.scrollTop = top));
+      el.addEventListener("scroll", () => kept.set(`scroll:${key}`, el.scrollTop), { passive: true });
+    },
+    [key],
+  );
+}
+
+/**
+ * Call `fn` every `every` ms while `active` and the tab is visible; each call waits `backoff` times longer (up to
+ * `max`), and polling stops after `stopAfter` ms. A tab coming back into view calls it once at once.
+ */
+export function usePoll(fn: () => void, active: boolean, { every = 10_000, backoff = 1, max = 60_000, stopAfter = Infinity }: { every?: number; backoff?: number; max?: number; stopAfter?: number } = {}) {
   const latest = useRef(fn);
   useEffect(() => {
     latest.current = fn;
   });
   useEffect(() => {
-    let live = true;
-    latest
-      .current()
-      .then((d) => {
-        if (!live) return;
-        setData(d);
-        setError("");
-      })
-      .catch((e) => live && setError(e instanceof Error ? e.message : String(e)));
-    return () => {
-      live = false;
+    if (!active) return;
+    const started = Date.now();
+    let wait = every;
+    let t: ReturnType<typeof setTimeout> | null = null;
+    const next = () => {
+      if (Date.now() - started > stopAfter) return;
+      t = setTimeout(() => {
+        if (document.visibilityState === "visible") latest.current();
+        wait = Math.min(max, wait * backoff);
+        next();
+      }, wait);
     };
-  }, [key, tick]);
-  const reload = useCallback(() => setTick((t) => t + 1), []);
+    next();
+    const vis = () => {
+      if (document.visibilityState === "visible" && Date.now() - started <= stopAfter) latest.current();
+    };
+    document.addEventListener("visibilitychange", vis);
+    return () => {
+      if (t) clearTimeout(t);
+      document.removeEventListener("visibilitychange", vis);
+    };
+  }, [active, every, backoff, max, stopAfter]);
+}
+
+/** The value, settled for `ms` (search boxes ask the server once you stop typing). */
+export function useDebounced<T>(value: T, ms = 250) {
+  const [v, setV] = useState(value);
   useEffect(() => {
-    window.addEventListener("claritia:changed", reload);
-    return () => window.removeEventListener("claritia:changed", reload);
-  }, [reload]);
-  return { data, error, reload };
+    const t = setTimeout(() => setV(value), ms);
+    return () => clearTimeout(t);
+  }, [value, ms]);
+  return v;
+}
+
+function scrollParent(el: HTMLElement): HTMLElement | null {
+  for (let p = el.parentElement; p; p = p.parentElement) {
+    const o = getComputedStyle(p).overflowY;
+    if ((o === "auto" || o === "scroll") && p.scrollHeight > p.clientHeight) return p;
+  }
+  return null;
+}
+
+/**
+ * Draw only the rows in view of a long list (over `min` rows). Put `box` (a ref callback) on the list's box, `data-row` on each row,
+ * render rows `start` to `end`, and a spacer of `before` px above and `after` px below. Rows are measured as they draw.
+ */
+export function useWindowed(count: number, { estimate = 44, overscan = 12, min = 200 }: { estimate?: number; overscan?: number; min?: number } = {}) {
+  const [el, box] = useState<HTMLElement | null>(null);
+  const on = count > min;
+  const [range, setRange] = useState({ start: 0, end: 60, h: estimate });
+  useLayoutEffect(() => {
+    if (!on || !el) return;
+    const scroller = scrollParent(el);
+    const update = () => {
+      const h = el.querySelector<HTMLElement>("[data-row]")?.getBoundingClientRect().height || estimate;
+      const viewTop = scroller ? scroller.getBoundingClientRect().top : 0;
+      const viewH = scroller ? scroller.clientHeight : window.innerHeight;
+      const startPx = Math.max(0, viewTop - el.getBoundingClientRect().top);
+      const start = Math.max(0, Math.floor(startPx / h) - overscan);
+      const end = Math.min(count, Math.ceil((startPx + viewH) / h) + overscan);
+      setRange((r) => (r.start === start && r.end === end && r.h === h ? r : { start, end, h }));
+    };
+    update();
+    const target: HTMLElement | Window = scroller ?? window;
+    target.addEventListener("scroll", update, { passive: true });
+    window.addEventListener("resize", update);
+    return () => {
+      target.removeEventListener("scroll", update);
+      window.removeEventListener("resize", update);
+    };
+  }, [el, on, count, overscan, estimate]);
+  if (!on) return { box, start: 0, end: count, before: 0, after: 0 };
+  const start = Math.min(range.start, count);
+  const end = Math.min(Math.max(range.end, start), count);
+  return { box, start, end, before: start * range.h, after: (count - end) * range.h };
+}
+
+/** Patch one row (by id) in every cached list under `name`, like a contact's status wherever it's listed. */
+export function patchRows<R extends { id: string }>(name: string, id: string, patch: Partial<R> | ((r: R) => R)) {
+  for (const k of cache.keys(name)) {
+    const rows = cache.get<unknown>(k).data;
+    if (Array.isArray(rows) && rows.some((r: R) => r?.id === id))
+      cache.set(
+        k,
+        rows.map((r: R) => (r?.id === id ? (typeof patch === "function" ? patch(r) : { ...r, ...patch }) : r)),
+      );
+  }
 }
 
 /** POST to one of our API routes as the signed-in user. */

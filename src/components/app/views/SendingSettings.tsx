@@ -3,12 +3,12 @@
 // Settings › Sending (docs/conversion-weeks.md week 9): sending domains with their DNS records, the sender and
 // physical address, frequency cap and quiet hours, topics, recent sends, and a test email to yourself.
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Plus, Refresh, Trash } from "../../Icons";
 import { askConfirm, askText } from "../Dialogs";
 import { Select } from "../Select";
 import { SampleTags, ToolIntro } from "../ToolIntro";
-import { Badge, Button, CardHead, ErrorNote, errorText, Field, IconButton, Input, Loading, must, Panel, postJson, Td, Th, timeAgo, useLoad, type Tone, type ViewProps } from "../ui";
+import { Badge, Button, CardHead, ErrorNote, errorText, Field, IconButton, Input, Loading, must, Panel, postJson, Td, Th, timeAgo, type Tone, useLoad, usePoll, type ViewProps } from "../ui";
 import { CopyButton } from "../CopyButton";
 
 type DnsRecord = { key: string; type: string; name: string; value: string; status: "verified" | "waiting" | "wrong"; seen?: string };
@@ -59,11 +59,8 @@ export function SendingSettings({ sb, session, ws, role }: Pick<ViewProps, "sb" 
   const waiting = domains.data?.some((d) => d.status !== "verified") ?? false;
   const reloadDomains = domains.reload;
 
-  useEffect(() => {
-    if (!waiting) return;
-    const t = setInterval(reloadDomains, 10_000);
-    return () => clearInterval(t);
-  }, [waiting, reloadDomains]);
+  // A domain waiting on DNS: check every 10 seconds, then less often, and stop after 15 minutes (Verify checks again).
+  usePoll(reloadDomains, waiting, { every: 10_000, backoff: 1.5, max: 60_000, stopAfter: 15 * 60_000 });
 
   const run = async (fn: () => Promise<unknown>, after?: () => void) => {
     setError("");
@@ -337,9 +334,14 @@ function Topics({ sb, ws, owner, onError }: Pick<ViewProps, "sb" | "ws"> & { own
   const list = useLoad(async () => must(await sb.from("topics").select("id, name, default_on").eq("workspace_id", ws.id).order("name")) as Topic[], `${ws.id}:topics`);
   const save = async (t: Topic | null, name: string | null, defaultOn?: boolean) => {
     onError("");
+    const write = async () => must(await sb.rpc("topic_save", { p_ws: ws.id, p_id: t?.id ?? null, p_name: name ?? t?.name, p_default_on: defaultOn ?? t?.default_on ?? true }));
     try {
-      must(await sb.rpc("topic_save", { p_ws: ws.id, p_id: t?.id ?? null, p_name: name ?? t?.name, p_default_on: defaultOn ?? t?.default_on ?? true }));
-      list.reload();
+      // A change to a topic shows at once and goes back if the save fails; a new one is read back.
+      if (t) await list.mutate((l) => l.map((x) => (x.id === t.id ? { ...x, name: name ?? x.name, default_on: defaultOn ?? x.default_on } : x)), write);
+      else {
+        await write();
+        list.reload();
+      }
     } catch (e) {
       onError(errorText(e));
     }
@@ -390,8 +392,7 @@ function Topics({ sb, ws, owner, onError }: Pick<ViewProps, "sb" | "ws"> & { own
                       if (!(await askConfirm(`Delete ${t.name}?`, { ok: "Delete", danger: true }))) return;
                       onError("");
                       try {
-                        must(await sb.rpc("topic_delete", { p_id: t.id }));
-                        list.reload();
+                        await list.mutate((l) => l.filter((x) => x.id !== t.id), async () => must(await sb.rpc("topic_delete", { p_id: t.id })));
                       } catch (e) {
                         onError(errorText(e));
                       }
@@ -416,14 +417,10 @@ function Recent({ sb, session, ws, canTest }: Pick<ViewProps, "sb" | "session" |
   );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const moving = list.data?.some((m) => m.status === "queued" || m.status === "sending" || m.status === "sent") ?? false;
+  // Only mail still on its way keeps the list polling ("sent" has left; its delivery news comes slowly).
+  const moving = list.data?.some((m) => m.status === "queued" || m.status === "sending") ?? false;
   const reload = list.reload;
-
-  useEffect(() => {
-    if (!moving) return;
-    const t = setInterval(reload, 5000);
-    return () => clearInterval(t);
-  }, [moving, reload]);
+  usePoll(reload, moving, { every: 5000, backoff: 1.3, max: 30_000, stopAfter: 10 * 60_000 });
 
   const test = async () => {
     setBusy(true);

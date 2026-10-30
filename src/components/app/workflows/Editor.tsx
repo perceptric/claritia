@@ -11,7 +11,7 @@ import { newStep, type Body, type Step, type StepKind } from "@/lib/workflows/ty
 import { Redo, Trash, Undo } from "../../Icons";
 import { askConfirm } from "../Dialogs";
 import { toast } from "../routing/Toast";
-import { Badge, Button, ErrorNote, IconButton, Page, setLeaveGuard, type Tone, type ViewProps } from "../ui";
+import { Badge, Button, ErrorNote, IconButton, invalidate, Page, setLeaveGuard, type Tone, type ViewProps } from "../ui";
 import type { Loaded, Version } from "./data";
 import { Flow, type Sel } from "./Flow";
 import { StepPanel, TriggerPanel } from "./Inspector";
@@ -33,10 +33,13 @@ export function WorkflowEditor({
   navigate,
   data,
   reload,
+  patch,
   home,
 }: Pick<ViewProps, "sb" | "session" | "ws" | "navigate"> & {
   data: Loaded;
   reload: () => Promise<void>;
+  /** Change the loaded workflow on screen (a status flip shows at once). */
+  patch?: (fn: (d: Loaded) => Loaded) => void;
   /** Where Back and Delete lead: Workflows, or the screen this editor sits in (Emails › Journeys). */
   home?: { label: string; go: () => void };
 }) {
@@ -67,6 +70,20 @@ export function WorkflowEditor({
   useEffect(() => {
     latest.current = { body, name, n };
   });
+
+  // Load theirs: once their draft has been read, the editor starts from it in place (no remount).
+  const [taking, setTaking] = useState(false);
+  useEffect(() => {
+    if (!taking || data.wf.draft_revision === revRef.current) return;
+    setTaking(false);
+    revRef.current = data.wf.draft_revision;
+    dispatch({ type: "reset", body: data.draft });
+    setName(data.wf.name);
+    setNameN(0);
+    savedRef.current = 0;
+    setSavedN(0);
+    setSaveState("idle");
+  }, [taking, data]);
 
   const save = useCallback(async (): Promise<boolean> => {
     if (inflight.current) await inflight.current;
@@ -175,12 +192,19 @@ export function WorkflowEditor({
       }))
     )
       return;
+    // The status shows at once; it goes back, with the error, if the change fails.
+    const was = data.wf.status;
+    patch?.((d) => ({ ...d, wf: { ...d.wf, status } }));
     const { error: e } = await sb.rpc("workflow_set_status", {
       p_id: id,
       p_status: status,
     });
-    if (e) return setError(e.message);
-    await reload();
+    if (e) {
+      patch?.((d) => ({ ...d, wf: { ...d.wf, status: was } }));
+      return setError(e.message);
+    }
+    invalidate(`workflows:${ws.id}`);
+    if (!patch) await reload();
   };
   const del = async () => {
     if (
@@ -296,7 +320,13 @@ export function WorkflowEditor({
       <div className="flex h-full min-h-0 flex-col">
         {saveState === "conflict" ? (
           <Bar text="Someone else changed this workflow.">
-            <Button size="sm" onClick={() => void reload()}>
+            <Button
+              size="sm"
+              onClick={() => {
+                setTaking(true);
+                void reload();
+              }}
+            >
               Load theirs
             </Button>
           </Bar>

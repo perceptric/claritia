@@ -3,7 +3,7 @@
 // Routing › Log (docs/router-ux.md 4.8): every run, newest first, with filters and search; new runs rise in while the
 // tab is visible. A row opens the run in a side panel (RunPanel), also used by the contact page's "Why?".
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { explain, pathWords } from "@/lib/router/explain";
 import { REASONS, type Reason } from "@/lib/router/types";
 import { Search } from "../../Icons";
@@ -12,7 +12,8 @@ import { askConfirm } from "../Dialogs";
 import { PersonAvatar, usePeople, type Person } from "../meetings/parts";
 import { Select } from "../Select";
 import { Sheet } from "../Sheet";
-import { announceChange, Badge, Button, Empty, ErrorNote, errorText, Input, Loading, must, Td, Th, timeAgo, useLoad, type ViewProps } from "../ui";
+import { Badge, Button, Empty, ErrorNote, errorText, Input, invalidate, Loading, must, Td, Th, timeAgo, useKept, useQuery, useWindowed, type ViewProps } from "../ui";
+import { useFormNames } from "../shared";
 import { routingApi } from "./api";
 import { RunLines, type LinkTo } from "./Lines";
 import { ROUTING, FilterChip, RouteSketch, useLiveBody } from "./screenParts";
@@ -21,6 +22,11 @@ import { decisionOf, factsOf, fromWords, leadOf, matchesSearch, mergeNewer, NO_F
 type Props = Pick<ViewProps, "sb" | "session" | "ws" | "role" | "navigate"> & { sub: string };
 
 const COLS = "id, contact_id, reason, version, kind, owner, by, queue_id, rule_id, steps, facts, ms, created_at, undone_at";
+// The list reads only the parts of a run's facts it shows (the lead, the company, the form); the run panel reads all.
+const LIST_COLS = "id, contact_id, reason, version, kind, owner, by, queue_id, rule_id, steps, ms, created_at, undone_at, f_lead:facts->lead, f_company:facts->company, f_values:facts->values";
+type SlimRow = Omit<RunRow, "facts"> & { f_lead: unknown; f_company: unknown; f_values: unknown };
+const slim = (rows: SlimRow[]): RunRow[] =>
+  rows.map(({ f_lead, f_company, f_values, ...r }) => ({ ...r, facts: { lead: f_lead ?? undefined, company: f_company ?? undefined, values: f_values ?? undefined } as RunRow["facts"] }));
 const PAGE = 200;
 const UUID = /^[0-9a-f-]{36}$/;
 
@@ -44,36 +50,23 @@ export function ResultCell({ row, people }: { row: Pick<RunRow, "kind" | "owner"
 export function LogTab({ sb, session, ws, role, navigate, sub }: Props) {
   const people = usePeople(sb, ws.id);
   const live = useLiveBody(sb, ws.id);
-  const lists = useLoad(async () => {
-    const [forms, versions] = await Promise.all([
-      sb.from("forms").select("id, name").eq("workspace_id", ws.id),
-      sb.from("router_versions").select("version").eq("workspace_id", ws.id).order("version", { ascending: false }).limit(100),
-    ]);
-    return {
-      forms: Object.fromEntries(((must(forms) ?? []) as { id: string; name: string }[]).map((f) => [f.id, f.name])),
-      versions: ((must(versions) ?? []) as { version: number }[]).map((v) => v.version),
-    };
-  }, ws.id);
-  const [filters, setFilters] = useState<LogFilters>(NO_FILTERS);
-  const [q, setQ] = useState("");
-  const [rows, setRows] = useState<RunRow[] | null>(null);
-  const [more, setMore] = useState(false);
+  const forms = useFormNames(sb, ws.id);
+  const versions = useQuery<number[]>(`router_versions:${ws.id}`, async () =>
+    ((must(await sb.from("router_versions").select("version").eq("workspace_id", ws.id).order("version", { ascending: false }).limit(100)) ?? []) as { version: number }[]).map((v) => v.version),
+  );
+  const [filters, setFilters] = useKept<LogFilters>(`routing-log:${ws.id}:filters`, NO_FILTERS);
+  const [q, setQ] = useKept(`routing-log:${ws.id}:q`, "");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [fresh, setFresh] = useState<Set<string>>(new Set());
-  const rowsRef = useRef<RunRow[] | null>(null);
-  useEffect(() => {
-    rowsRef.current = rows;
-  }, [rows]);
   const changeFilters = (f: LogFilters) => {
     setFilters(f);
-    setRows(null);
     setError("");
   };
 
   const query = useCallback(
     (f: LogFilters) => {
-      let x = sb.from("router_runs").select(COLS).eq("workspace_id", ws.id);
+      let x = sb.from("router_runs").select(LIST_COLS).eq("workspace_id", ws.id);
       if (f.owner) x = x.eq("owner", f.owner);
       if (f.queue) x = x.eq("queue_id", f.queue);
       if (f.rule) x = x.eq("rule_id", f.rule);
@@ -86,23 +79,19 @@ export function LogTab({ sb, session, ws, role, navigate, sub }: Props) {
     [sb, ws.id],
   );
 
-  // The newest page, again whenever the filters change.
+  // The newest page for these filters, from the cache at once and fetched again in the background.
+  const pageKey = `router_runs:${ws.id}:log:${JSON.stringify(filters)}`;
+  const first = useQuery<RunRow[]>(pageKey, async () => slim(must(await query(filters).order("created_at", { ascending: false }).limit(PAGE)) as unknown as SlimRow[]));
+  // Older pages loaded with Load more, for the filters they were loaded with.
+  const [older, setOlder] = useState<{ key: string; rows: RunRow[]; more: boolean } | null>(null);
+  const extra = older?.key === pageKey ? older : null;
+  const rows = useMemo(() => (first.data ? [...first.data, ...(extra?.rows ?? [])] : null), [first.data, extra]);
+  const more = extra ? extra.more : (first.data?.length ?? 0) === PAGE;
+  const rowsRef = useRef<RunRow[] | null>(null);
   useEffect(() => {
-    let on = true;
-    query(filters)
-      .order("created_at", { ascending: false })
-      .limit(PAGE)
-      .then((res) => {
-        if (!on) return;
-        if (res.error) return setError(res.error.message);
-        const list = (res.data ?? []) as unknown as RunRow[];
-        setRows(list);
-        setMore(list.length === PAGE);
-      });
-    return () => {
-      on = false;
-    };
-  }, [query, filters]);
+    rowsRef.current = rows;
+  }, [rows]);
+  const setFirst = first.set;
 
   // New runs every 10 seconds while the tab is open and visible.
   useEffect(() => {
@@ -113,8 +102,8 @@ export function LogTab({ sb, session, ws, role, navigate, sub }: Props) {
       if (list[0]) x = x.gt("created_at", list[0].created_at);
       const res = await x.order("created_at", { ascending: false }).limit(50);
       if (res.error || !res.data?.length) return;
-      const newer = res.data as unknown as RunRow[];
-      setRows((cur) => (cur ? mergeNewer(cur, newer) : cur));
+      const newer = slim(res.data as unknown as SlimRow[]);
+      setFirst((cur) => (cur ? mergeNewer(cur, newer) : cur));
       setFresh(new Set(newer.map((r) => r.id)));
     };
     const t = setInterval(() => void tick(), 10_000);
@@ -124,16 +113,15 @@ export function LogTab({ sb, session, ws, role, navigate, sub }: Props) {
       clearInterval(t);
       document.removeEventListener("visibilitychange", vis);
     };
-  }, [query, filters]);
+  }, [query, filters, setFirst]);
 
   const loadMore = async () => {
     const last = rows?.[rows.length - 1];
     if (!last) return;
     setBusy(true);
     try {
-      const list = must(await query(filters).lt("created_at", last.created_at).order("created_at", { ascending: false }).limit(PAGE)) as unknown as RunRow[];
-      setRows((cur) => [...(cur ?? []), ...list]);
-      setMore(list.length === PAGE);
+      const list = slim(must(await query(filters).lt("created_at", last.created_at).order("created_at", { ascending: false }).limit(PAGE)) as unknown as SlimRow[]);
+      setOlder({ key: pageKey, rows: [...(extra?.rows ?? []), ...list], more: list.length === PAGE });
     } catch (e) {
       setError(errorText(e));
     } finally {
@@ -146,8 +134,10 @@ export function LogTab({ sb, session, ws, role, navigate, sub }: Props) {
   const shown = useMemo(() => (rows ?? []).filter((r) => matchesSearch(r, q)), [rows, q]);
   const filtered = Object.values(filters).some(Boolean) || !!q.trim();
   const set = (k: keyof LogFilters) => (v: string) => changeFilters({ ...filters, [k]: v });
-  const open = (id: string) => navigate(ROUTING, `leads/${id}`);
+  const open = useCallback((id: string) => navigate(ROUTING, `leads/${id}`), [navigate]);
   const openId = UUID.test(sub) ? sub : "";
+  const { box: rowsBox, start: winStart, end: winEnd, before: winBefore, after: winAfter } = useWindowed(shown.length, { estimate: 53 });
+  const listError = error || first.error;
 
   return (
     <div className="flex min-h-0 flex-col">
@@ -171,7 +161,7 @@ export function LogTab({ sb, session, ws, role, navigate, sub }: Props) {
           ]}
         />
         <FilterChip label="Source" value={filters.reason} onChange={set("reason")} options={[{ value: "", label: "Any source" }, ...(Object.keys(REASONS) as Reason[]).map((k) => ({ value: k, label: REASONS[k] }))]} />
-        <FilterChip label="Version" value={filters.version} onChange={set("version")} options={[{ value: "", label: "Any version" }, ...(lists.data?.versions ?? []).map((v) => ({ value: String(v), label: `v${v}` }))]} />
+        <FilterChip label="Version" value={filters.version} onChange={set("version")} options={[{ value: "", label: "Any version" }, ...(versions.data ?? []).map((v) => ({ value: String(v), label: `v${v}` }))]} />
         <FilterChip
           label="Date"
           value={filters.days}
@@ -197,16 +187,16 @@ export function LogTab({ sb, session, ws, role, navigate, sub }: Props) {
         ) : null}
       </div>
 
-      {error || people.error ? (
+      {listError || people.error ? (
         <div className="p-5">
-          <ErrorNote message={error || people.error} />
+          <ErrorNote message={listError || people.error} />
         </div>
       ) : !rows ? (
         <Loading />
       ) : !shown.length ? (
         filtered ? <Empty title="No matches" /> : <Empty sketch={<RouteSketch />} title="No leads routed yet" />
       ) : (
-        <div className="overflow-x-auto" aria-live="polite">
+        <div className={`overflow-x-auto transition-opacity duration-[140ms] ${first.fetching && !first.data ? "opacity-70" : ""}`} aria-live="polite">
           <table className="w-full border-collapse [&_tbody_tr:last-child_td]:border-b-0">
             <thead>
               <tr>
@@ -219,45 +209,12 @@ export function LogTab({ sb, session, ws, role, navigate, sub }: Props) {
                 <Th className="hidden text-right md:table-cell">Time</Th>
               </tr>
             </thead>
-            <tbody>
-              {shown.map((r) => {
-                const l = leadOf(r);
-                return (
-                  <tr
-                    key={r.id}
-                    tabIndex={0}
-                    aria-label={`${l.name}, ${timeAgo(r.created_at)}`}
-                    onClick={() => open(r.id)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" || e.key === " ") {
-                        e.preventDefault();
-                        open(r.id);
-                      }
-                    }}
-                    className={`cursor-pointer outline-none transition-colors duration-[140ms] hover:bg-hover focus-visible:bg-hover ${openId === r.id ? "bg-hover" : ""} ${fresh.has(r.id) ? "anim-rise-sm" : ""} ${r.undone_at ? "opacity-60" : ""}`}
-                  >
-                    <Td className="pl-5 text-muted">
-                      <span title={new Date(r.created_at).toLocaleString("en-US")}>{timeAgo(r.created_at)}</span>
-                    </Td>
-                    <Td className="max-w-[260px]">
-                      <span className="flex min-w-0 items-center gap-2.5">
-                        {l.domain ? <BrandLogo domain={l.domain} name={l.company || l.domain} size={18} /> : null}
-                        <span className="flex min-w-0 flex-col">
-                          <span className="truncate font-medium text-ink">{l.name}</span>
-                          <span className="truncate text-[12px] text-muted">{[l.email !== l.name ? l.email : "", l.company].filter(Boolean).join(" · ")}</span>
-                        </span>
-                      </span>
-                    </Td>
-                    <Td className="hidden max-w-[180px] truncate text-body md:table-cell">{fromWords(r, lists.data?.forms)}</Td>
-                    <Td className="max-w-[200px]">
-                      <ResultCell row={r} people={byId} />
-                    </Td>
-                    <Td className="hidden max-w-[260px] truncate text-body lg:table-cell">{pathWords(decisionOf(r))}</Td>
-                    <Td className="hidden text-muted tabular-nums md:table-cell">{r.version ? `v${r.version}` : "—"}</Td>
-                    <Td className="hidden text-right text-muted tabular-nums md:table-cell">{r.ms != null ? `${r.ms} ms` : "—"}</Td>
-                  </tr>
-                );
-              })}
+            <tbody ref={rowsBox}>
+              {winBefore ? <tr aria-hidden="true" style={{ height: winBefore }} /> : null}
+              {shown.slice(winStart, winEnd).map((r) => (
+                <LogRow key={r.id} r={r} on={openId === r.id} fresh={fresh.has(r.id)} forms={forms.data ?? undefined} people={byId} open={open} />
+              ))}
+              {winAfter ? <tr aria-hidden="true" style={{ height: winAfter }} /> : null}
             </tbody>
           </table>
           {more && !q.trim() ? (
@@ -275,34 +232,75 @@ export function LogTab({ sb, session, ws, role, navigate, sub }: Props) {
   );
 }
 
+/** One run in the log. Memoized: a new run rising in doesn't redraw the other rows. */
+const LogRow = memo(function LogRow({ r, on, fresh, forms, people, open }: { r: RunRow; on: boolean; fresh: boolean; forms?: Record<string, string>; people?: Map<string, Person>; open: (id: string) => void }) {
+  const l = leadOf(r);
+  return (
+    <tr
+      data-row
+      tabIndex={0}
+      aria-label={`${l.name}, ${timeAgo(r.created_at)}`}
+      onClick={() => open(r.id)}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          open(r.id);
+        }
+      }}
+      className={`cursor-pointer outline-none transition-colors duration-[140ms] hover:bg-hover focus-visible:bg-hover ${on ? "bg-hover" : ""} ${fresh ? "anim-rise-sm" : ""} ${r.undone_at ? "opacity-60" : ""}`}
+    >
+      <Td className="pl-5 text-muted">
+        <span title={new Date(r.created_at).toLocaleString("en-US")}>{timeAgo(r.created_at)}</span>
+      </Td>
+      <Td className="max-w-[260px]">
+        <span className="flex min-w-0 items-center gap-2.5">
+          {l.domain ? <BrandLogo domain={l.domain} name={l.company || l.domain} size={18} /> : null}
+          <span className="flex min-w-0 flex-col">
+            <span className="truncate font-medium text-ink">{l.name}</span>
+            <span className="truncate text-[12px] text-muted">{[l.email !== l.name ? l.email : "", l.company].filter(Boolean).join(" · ")}</span>
+          </span>
+        </span>
+      </Td>
+      <Td className="hidden max-w-[180px] truncate text-body md:table-cell">{fromWords(r, forms)}</Td>
+      <Td className="max-w-[200px]">
+        <ResultCell row={r} people={people} />
+      </Td>
+      <Td className="hidden max-w-[260px] truncate text-body lg:table-cell">{pathWords(decisionOf(r))}</Td>
+      <Td className="hidden text-muted tabular-nums md:table-cell">{r.version ? `v${r.version}` : "—"}</Td>
+      <Td className="hidden text-right text-muted tabular-nums md:table-cell">{r.ms != null ? `${r.ms} ms` : "—"}</Td>
+    </tr>
+  );
+});
+
 /**
  * Under the Owner field on a contact's page (docs/router-ux.md 4.10): "Routed by US mid-market · Why?", with Why?
  * opening the contact's latest run. Nothing when the contact was never routed.
  */
 export function RoutedBy({ sb, session, ws, role, navigate, contact }: Pick<ViewProps, "sb" | "session" | "ws" | "role" | "navigate"> & { contact: string }) {
-  const latest = useLoad(
+  const latest = useQuery(
+    `router_runs:${ws.id}:contact:${contact}`,
     async () => must(await sb.from("router_runs").select(COLS).eq("workspace_id", ws.id).eq("contact_id", contact).order("created_at", { ascending: false }).limit(1).maybeSingle()) as unknown as RunRow | null,
-    contact,
   );
-  const sla = useLoad(async () => {
+  const sla = useQuery(`router_slas:${ws.id}:contact:${contact}`, async () => {
     const row = must(await sb.from("router_slas").select("run_id, user_id, status, due_at").eq("workspace_id", ws.id).eq("contact_id", contact).order("started_at", { ascending: false }).limit(1).maybeSingle()) as unknown as SlaRow | null;
     if (!row) return null;
     const due = new Date(row.due_at);
     return { ...row, words: dueWords(due), soon: due.getTime() - Date.now() < 15 * 60_000 };
-  }, contact);
+  });
   const [open, setOpen] = useState<string | null>(null);
   const [marking, setMarking] = useState(false);
   const [markError, setMarkError] = useState("");
   const r = latest.data;
   if (!r) return null;
   const t = sla.data;
+  // Mark contacted: the reply-by pill goes at once; it comes back with the error if the write fails.
   const mark = async () => {
     setMarking(true);
     setMarkError("");
     try {
-      await routingApi(session, ws.id, "contacted", { contact });
-      sla.reload();
-      announceChange();
+      await sla.mutate((s) => (s ? { ...s, status: "met" as const } : s), () => routingApi(session, ws.id, "contacted", { contact }));
+      invalidate(`router_slas:${ws.id}`);
+      invalidate("app_counts");
     } catch (e) {
       setMarkError(errorText(e));
     } finally {
@@ -339,7 +337,7 @@ export function RoutedBy({ sb, session, ws, role, navigate, contact }: Pick<View
           onClose={() => setOpen(null)}
           onRouted={() => {
             latest.reload();
-            announceChange();
+            invalidateRouted(ws.id);
           }}
         />
       ) : null}
@@ -368,12 +366,12 @@ export function RunPanel({ sb, session, ws, role, navigate, runId, onClose, onRo
   }
   const people = usePeople(sb, ws.id);
   const live = useLiveBody(sb, ws.id);
-  const run = useLoad(async () => {
+  const forms = useFormNames(sb, ws.id);
+  const run = useQuery(`router_run:${ws.id}:${id}`, async () => {
     const r = must(await sb.from("router_runs").select(COLS).eq("workspace_id", ws.id).eq("id", id).maybeSingle()) as unknown as RunRow | null;
     if (!r) throw new Error("This run is gone.");
-    const form = r.reason === "form" && typeof r.facts?.values?.["lead.form"] === "string" ? (must(await sb.from("forms").select("id, name").eq("id", r.facts.values["lead.form"] as string).maybeSingle()) as { id: string; name: string } | null) : null;
-    return { r, forms: form ? { [form.id]: form.name } : {} };
-  }, id);
+    return { r };
+  });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
@@ -395,6 +393,7 @@ export function RunPanel({ sb, session, ws, role, navigate, runId, onClose, onRo
       const out = await routingApi<{ routed?: number; run?: string; status?: string }>(session, ws.id, "route", { contacts: [r.contact_id] });
       if (out.run) {
         setId(out.run);
+        invalidateRouted(ws.id);
         onRouted?.(out.run);
       } else if (out.status) setError(out.status === "gone" ? "This contact is gone." : "Couldn't route it. Try again.");
     } catch (e) {
@@ -415,7 +414,8 @@ export function RunPanel({ sb, session, ws, role, navigate, runId, onClose, onRo
       const out = await routingApi<{ moved?: number; kept?: number }>(session, ws.id, "held", { op: "assign", contacts: [r.contact_id], user, moveMeetings });
       const name = people.data?.byId.get(user)?.name ?? "them";
       if (moveMeetings && out.kept) setError(`${name} isn't free at that time. The meeting stays where it is.`);
-      announceChange();
+      invalidateRouted(ws.id);
+      run.reload();
       onRouted?.(id);
     } catch (e) {
       setError(errorText(e));
@@ -463,7 +463,7 @@ export function RunPanel({ sb, session, ws, role, navigate, runId, onClose, onRo
         ) : (
           <>
             <p className="text-[12.5px] text-muted">
-              {[fromWords(r, run.data?.forms), new Date(r.created_at).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }), r.version ? `v${r.version}` : null, r.ms != null ? `${r.ms} ms` : null]
+              {[fromWords(r, forms.data ?? undefined), new Date(r.created_at).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }), r.version ? `v${r.version}` : null, r.ms != null ? `${r.ms} ms` : null]
                 .filter(Boolean)
                 .join(" · ")}
               {r.undone_at ? (
@@ -482,4 +482,12 @@ export function RunPanel({ sb, session, ws, role, navigate, runId, onClose, onRo
       </div>
     </Sheet>
   );
+}
+
+/** After a lead is routed or given to someone: the log, Held, the contact's run and the sidebar count. */
+export function invalidateRouted(ws: string) {
+  invalidate(`router_runs:${ws}`);
+  invalidate(`routing_held:${ws}`);
+  invalidate(`router_slas:${ws}`);
+  invalidate("app_counts");
 }

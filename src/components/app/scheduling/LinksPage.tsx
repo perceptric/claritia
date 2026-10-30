@@ -9,13 +9,15 @@ import { Link as LinkIcon, Plus, Search } from "../../Icons";
 import { askConfirm } from "../Dialogs";
 import { MoreMenu } from "../StatCards";
 import { ToolIntro } from "../ToolIntro";
-import { Badge, Button, ErrorNote, errorText, Input, Loading, must, Page, postJson, Tabs, useLoad, type ViewProps } from "../ui";
+import { Badge, Button, ErrorNote, errorText, Input, Loading, must, Page, postJson, Tabs, useQuery, type ViewProps } from "../ui";
+import { useMeetingTypes } from "../meetings/TypesList";
 import { LinkDialog } from "../meetings/LinkDialog";
 import { copyText, PersonAvatar, usePeople } from "../meetings/parts";
 import { LINK_KIND, LINK_STATE, linkState, type LinkRow } from "./model";
 
 type Filter = "open" | "all";
 type Kind = LinkRow["kind"];
+type Vote = { email: string; name: string | null; picks: string[] };
 
 const createKind = (): Kind | null => {
   if (typeof window === "undefined") return null;
@@ -27,18 +29,20 @@ export function LinksPage(props: ViewProps) {
   const { sb, session, ws, role } = props;
   const me = session.user.id;
   const people = usePeople(sb, ws.id);
-  const data = useLoad(async () => {
-    const [links, types, votes] = await Promise.all([
-      sb.from("meeting_links").select("id, kind, type_id, owner_user_id, title, offered, length_min, used_at, meeting_id, closed_at, expires_at, created_at").eq("workspace_id", ws.id).order("created_at", { ascending: false }).limit(500),
-      sb.from("meeting_types").select("id, name, slug, kind, settings").eq("workspace_id", ws.id).order("name"),
-      sb.from("poll_votes").select("link_id, email, name, picks"),
-    ]);
-    return {
-      links: (must(links) ?? []) as LinkRow[],
-      types: ((must(types) ?? []) as { id: string; name: string; slug: string; kind: string; settings: { lengths: number[] } }[]).map((t) => ({ ...t, lengths: t.settings.lengths })),
-      votes: (must(votes) ?? []) as { link_id: string; email: string; name: string | null; picks: string[] }[],
-    };
-  }, ws.id);
+  // The links with their own poll votes (one query; votes only for these links).
+  const links = useQuery(`meeting_links:${ws.id}`, async () =>
+    (must(
+      await sb
+        .from("meeting_links")
+        .select("id, kind, type_id, owner_user_id, title, offered, length_min, used_at, meeting_id, closed_at, expires_at, created_at, votes:poll_votes(email, name, picks)")
+        .eq("workspace_id", ws.id)
+        .order("created_at", { ascending: false })
+        .limit(500),
+    ) ?? []) as (LinkRow & { votes: Vote[] })[],
+  );
+  const typeRows = useMeetingTypes(sb, ws.id);
+  const types = useMemo(() => (typeRows.data ? [...typeRows.data].sort((a, b) => a.name.localeCompare(b.name)).map((t) => ({ ...t, lengths: t.settings.lengths })) : null), [typeRows.data]);
+  const data = { data: links.data && types ? { links: links.data, types } : null, error: links.error || typeRows.error, reload: links.reload };
   const [filter, setFilter] = useState<Filter>("open");
   const [query, setQuery] = useState("");
   const [making, setMaking] = useState<Kind | null>(createKind);
@@ -144,12 +148,12 @@ export function LinksPage(props: ViewProps) {
             {rows.map((l, i) => {
               const s = linkState(l);
               const st = LINK_STATE[s];
-              const votes = (data.data?.votes ?? []).filter((v) => v.link_id === l.id);
+              const votes = (l as LinkRow & { votes?: Vote[] }).votes ?? [];
               const owner = people.data?.byId.get(l.owner_user_id);
               const mine = l.owner_user_id === me || role === "owner";
               const name = l.title || (l.type_id ? typeName.get(l.type_id) : null) || LINK_KIND[l.kind];
               return (
-                <li key={l.id} className="anim-rise-sm rounded-2xl border border-line bg-card" style={{ animationDelay: `${Math.min(i, 10) * 30}ms` }}>
+                <li key={l.id} className="anim-rise-sm rounded-2xl border border-line bg-card" style={rows.length <= 8 ? { animationDelay: `${i * 30}ms` } : undefined}>
                   <div className="flex items-center gap-3 px-4 py-3">
                     <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-butter-wash text-butter">
                       <LinkIcon size={15} />
@@ -177,15 +181,14 @@ export function LinksPage(props: ViewProps) {
                     {mine ? (
                       <MoreMenu
                         items={[
-                          s === "waiting" || s === "voting" ? { label: "Close", run: () => void act(async () => { await call("close", l.id); data.reload(); }) } : null,
+                          s === "waiting" || s === "voting" ? { label: "Close", run: () => void act(() => links.mutate((ls) => ls.map((x) => (x.id === l.id ? { ...x, closed_at: new Date().toISOString() } : x)), () => call("close", l.id))) } : null,
                           {
                             label: "Delete",
                             danger: true,
                             run: () =>
                               void act(async () => {
                                 if (!(await askConfirm(`Delete this ${LINK_KIND[l.kind].toLowerCase()}?`, { body: s === "booked" ? "The meeting it booked stays." : undefined, ok: "Delete", danger: true }))) return;
-                                await call("delete", l.id);
-                                data.reload();
+                                await links.mutate((ls) => ls.filter((x) => x.id !== l.id), () => call("delete", l.id));
                               }),
                           },
                         ]}

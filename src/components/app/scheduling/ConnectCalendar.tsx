@@ -4,22 +4,20 @@
 // area, never a card inside a narrow column. It says why, has Google Calendar and Outlook, and goes away once a
 // calendar is connected. A calendar that needs signing in again shows Reconnect.
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { CalendarIcon } from "../../Icons";
 import { BrandLogo } from "../BrandLogo";
-import { Button, ErrorNote, errorText, must, postJson, useLoad, type ViewProps } from "../ui";
-import { PROVIDERS, type Account } from "../meetings/MyCalendar";
+import { Button, ErrorNote, errorText, postJson, type ViewProps } from "../ui";
+import { PROVIDERS, useMyCalendars } from "../meetings/MyCalendar";
 
 const CALENDARS = PROVIDERS.filter((p) => p.id !== "zoom");
 /** The short names the banner uses. */
 const SHORT: Record<string, string> = { google: "Google Calendar", microsoft: "Outlook" };
 
 /** Your calendar accounts in this workspace, or null while they load. */
-export function useCalendarAccounts({ sb, session, ws }: Pick<ViewProps, "sb" | "session" | "ws">) {
-  return useLoad(
-    async () => (must(await sb.from("calendar_accounts").select("id, user_id, provider, account_email, status, refreshed_at").eq("workspace_id", ws.id).eq("user_id", session.user.id)) ?? []) as Account[],
-    `${ws.id}:${session.user.id}`,
-  );
+export function useCalendarAccounts(p: Pick<ViewProps, "sb" | "session" | "ws">) {
+  const q = useMyCalendars(p);
+  return { ...q, data: q.data?.accounts ?? null };
 }
 
 /** Starts a provider's sign-in; it comes back to Availability, Calendars. */
@@ -33,11 +31,27 @@ export function ConnectCalendar(props: Pick<ViewProps, "sb" | "session" | "ws">)
   const accounts = useCalendarAccounts(props);
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
+  // Whether the banner showed last time, so while the accounts load its space is kept (or not) and nothing jumps.
+  const seenKey = `claritia:calendar-banner:${props.ws.id}:${props.session.user.id}`;
+  const [shownBefore] = useState(() => {
+    try {
+      return typeof window !== "undefined" && localStorage.getItem(seenKey) === "1";
+    } catch {
+      return false;
+    }
+  });
   const list = accounts.data;
-  if (!list) return null;
-  const cals = list.filter((a) => a.provider !== "zoom");
+  const cals = (list ?? []).filter((a) => a.provider !== "zoom");
   const stale = cals.find((a) => a.status === "reconnect");
-  if (cals.some((a) => a.status === "ok") && !stale) return null;
+  const hide = !!list && cals.some((a) => a.status === "ok") && !stale;
+  useEffect(() => {
+    if (!list) return;
+    try {
+      localStorage.setItem(seenKey, hide ? "0" : "1");
+    } catch {}
+  }, [list, hide, seenKey]);
+  if (!list) return shownBefore ? <div aria-hidden="true" className="h-[52px] shrink-0 border-b border-line bg-paper" /> : null;
+  if (hide) return null;
   const go = async (provider: string) => {
     setBusy(provider);
     setError("");

@@ -14,12 +14,12 @@ import { CalendarIcon, Check, Clock, Link as LinkIcon, Lock, Plus, Trash, Users,
 import { askConfirm } from "../Dialogs";
 import { Select } from "../Select";
 import { AreaIn, INPUT, LabelWidth, NumIn, NumRow, Pick, Row, Seg, Switch, TagInput, TextIn } from "../forms/controls";
-import { Button, Empty, ErrorNote, errorText, IconButton, Loading, must, Page, setLeaveGuard, Toggle, useLoad, type ViewProps } from "../ui";
+import { Button, Empty, ErrorNote, errorText, IconButton, invalidate, Loading, must, Page, setLeaveGuard, Toggle, useLoad, type ViewProps } from "../ui";
 import { BookingCalendar } from "@/components/book/BookingCalendar";
 import { LinkDialog } from "./LinkDialog";
 import { minutesText, slugify } from "./model";
 import { CopyButton, meetingsApi, Modal, ownZone, PersonAvatar, useNow, usePeople, useWorkspaceSlug, type Person } from "./parts";
-import type { TypeRow } from "./TypesList";
+import { TYPE_COLS, type TypeRow } from "./TypesList";
 
 export type Draft = Pick<MeetingType, "name" | "slug" | "kind" | "hosts" | "settings" | "secret" | "active" | "locked" | "owner_user_id">;
 type LockKey = MeetingType["locked"][number];
@@ -68,7 +68,7 @@ export function TypeEditor(props: ViewProps) {
   const slug = useWorkspaceSlug(session, ws.id);
   const data = useLoad(async () => {
     const [row, hours, copies, kit, named] = await Promise.all([
-      isNew ? Promise.resolve({ data: null, error: null }) : sb.from("meeting_types").select("*").eq("id", id).eq("workspace_id", ws.id).maybeSingle(),
+      isNew ? Promise.resolve({ data: null, error: null }) : sb.from("meeting_types").select(TYPE_COLS).eq("id", id).eq("workspace_id", ws.id).maybeSingle(),
       sb.from("availability").select("user_id, tz, weekly, overrides").eq("workspace_id", ws.id),
       isNew ? Promise.resolve({ data: [], error: null }) : sb.from("meeting_types").select("owner_user_id").eq("template_id", id),
       sb.from("brand_kits").select("tokens").eq("workspace_id", ws.id).order("created_at").limit(1),
@@ -174,6 +174,8 @@ export function TypeEditor(props: ViewProps) {
       const r = await meetingsApi<{ id: string }>(session, ws.id, "types", { action: "save", id: isNew ? null : id, type: sent });
       setBase(JSON.stringify(sent));
       setSavedAt(Date.now());
+      invalidate("meeting_types");
+      invalidate("app_counts");
       if (isNew) {
         setLeaveGuard(null);
         navigate("scheduling", `types/${r.id}/all`);

@@ -12,7 +12,7 @@ import { allFields, type Form } from "@/lib/forms/schema";
 import { CATALOG, entryOf } from "@/lib/sources/catalog";
 import { BrandLogo } from "../BrandLogo";
 import { askConfirm, askText, tell } from "../Dialogs";
-import { Badge, ErrorNote, errorText, must, postJson, useLoad, type ViewProps } from "../ui";
+import { Badge, ErrorNote, errorText, must, postJson, useQuery, type ViewProps } from "../ui";
 import { daysAgo, issuesOf } from "./formModel";
 import { Ic } from "./ic";
 import { BTN, CARD, CROW, GHOST_SM, GHOST_SM_RED, LINK, RowText, Seg, useNote, Tg } from "./parts";
@@ -34,6 +34,8 @@ type Props = ViewProps & {
   crm: ReturnType<typeof useCrm>;
   failed: Record<string, number>;
   reload: () => void;
+  /** Change the destinations on screen before the server answers. */
+  patchDests?: (fn: (d: Destination[]) => Destination[]) => void;
   onFix: (fieldId: string) => void;
   issueCtx: Parameters<typeof issuesOf>[1];
 };
@@ -43,14 +45,10 @@ export function Sync(props: Props) {
   const tools = sources.filter((s) => s.status !== "disconnected" && PUSHES.has(s.kind));
   const crmDests = dests.filter((d) => d.kind === "source");
   const hooks = dests.filter((d) => d.kind === "webhook");
-  const sent = useLoad(async () => {
-    if (!crmDests.length) return {} as Record<string, number>;
-    const since = daysAgo(30);
-    const rows = ((await sb.from("deliveries").select("destination_id").in("destination_id", crmDests.map((d) => d.id)).eq("status", "done").gte("created_at", since).limit(5000)).data ?? []) as { destination_id: string }[];
-    const out: Record<string, number> = {};
-    for (const r of rows) out[r.destination_id] = (out[r.destination_id] ?? 0) + 1;
-    return out;
-  }, `${formId}:${crmDests.map((d) => d.id).join()}`);
+  // Sent this month per CRM, counted by the database.
+  const sent = useQuery(`form:${formId}:sent:${crmDests.map((d) => d.id).join()}`, async () =>
+    crmDests.length ? ((must(await sb.rpc("form_deliveries_by_dest", { p_form: formId, p_status: "done", p_since: daysAgo(30) })) ?? {}) as Record<string, number>) : ({} as Record<string, number>),
+  );
   const items: { key: string; logo: React.ReactNode; title: string; sub: string; bad?: boolean; on?: boolean }[] = [
     { key: "claritia", logo: <BrandLogo domain="tryclaritia.com" name="Claritia" size={28} />, title: "Claritia CRM", sub: "Every lead becomes a contact", on: true },
     ...tools.map((s) => {
@@ -146,7 +144,7 @@ function ClaritiaPane({ navigate }: Props) {
   );
 }
 
-function CrmPane({ sb, session, ws, form, formId, dests, failed, reload, onFix, issueCtx, source, logo, crm }: Props & { source: SourceRow; logo: React.ReactNode }) {
+function CrmPane({ sb, session, ws, form, formId, dests, failed, reload, patchDests, onFix, issueCtx, source, logo, crm }: Props & { source: SourceRow; logo: React.ReactNode }) {
   const d = dests.find((x) => x.kind === "source" && x.source_id === source.id);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -164,8 +162,24 @@ function CrmPane({ sb, session, ws, form, formId, dests, failed, reload, onFix, 
       setBusy(false);
     }
   };
+  /** Pause and resume show at once and go back, with the error, if the save fails. */
+  const quick = async (change: (ds: Destination[]) => Destination[], fn: () => Promise<unknown>, words?: string) => {
+    if (!patchDests) return run(fn, words);
+    setError("");
+    setBusy(true);
+    patchDests(change);
+    try {
+      await fn();
+      if (words) note.show(words);
+    } catch (e) {
+      patchDests(() => dests);
+      setError(errorText(e));
+    } finally {
+      setBusy(false);
+    }
+  };
   const save = (body: object) => postJson(session, "/api/forms/destination", { workspaceId: ws.id, formId, ...body });
-  const fails = useLoad(async () => (d ? ((must(await sb.from("deliveries").select("id, error").eq("destination_id", d.id).eq("status", "failed").order("created_at", { ascending: false }).limit(200)) ?? []) as { id: string; error: string | null }[]) : []), `${d?.id ?? ""}:${failed[d?.id ?? ""] ?? 0}`);
+  const fails = useQuery(`form:${formId}:fails:${d?.id ?? ""}:${failed[d?.id ?? ""] ?? 0}`, async () => (d ? ((must(await sb.from("deliveries").select("id, error").eq("destination_id", d.id).eq("status", "failed").order("created_at", { ascending: false }).limit(200)) ?? []) as { id: string; error: string | null }[]) : []));
   if (!d) return <Start logo={logo} name={source.name} button={`Send leads to ${source.name}`} busy={busy} onClick={() => void run(() => save({ kind: "source", sourceId: source.id, name: source.name }), `Leads go to ${source.name} now`)} />;
   const r: SyncRules = rulesOf(d.config) ?? BEFORE;
   const set = (patch: Partial<SyncRules>) => void run(() => save({ id: d.id, kind: "source", sourceId: d.source_id, name: d.name, rules: { ...r, ...patch } }));
@@ -270,7 +284,11 @@ function CrmPane({ sb, session, ws, form, formId, dests, failed, reload, onFix, 
             disabled={busy}
             onClick={async () => {
               if (!d.paused && !(await askConfirm(`Stop sending leads to ${source.name}?`, { body: "Leads keep going to Claritia. Turn it on again any time.", ok: "Turn off", danger: true }))) return;
-              await run(async () => must(await sb.rpc("form_destination_pause", { p_id: d.id, p_paused: !d.paused })), d.paused ? `Leads go to ${source.name} again` : `Stopped sending to ${source.name}`);
+              await quick(
+                (ds) => ds.map((x) => (x.id === d.id ? { ...x, paused: !d.paused } : x)),
+                async () => must(await sb.rpc("form_destination_pause", { p_id: d.id, p_paused: !d.paused })),
+                d.paused ? `Leads go to ${source.name} again` : `Stopped sending to ${source.name}`,
+              );
             }}
           >
             {d.paused ? "Turn on" : "Turn off"}
@@ -282,7 +300,7 @@ function CrmPane({ sb, session, ws, form, formId, dests, failed, reload, onFix, 
   );
 }
 
-function WebhookPane({ sb, session, ws, formId, reload, hooks }: Props & { hooks: Destination[] }) {
+function WebhookPane({ sb, session, ws, formId, reload, patchDests, dests, hooks }: Props & { hooks: Destination[] }) {
   const [error, setError] = useState("");
   const run = async (fn: () => Promise<unknown>) => {
     setError("");
@@ -290,6 +308,18 @@ function WebhookPane({ sb, session, ws, formId, reload, hooks }: Props & { hooks
       await fn();
       reload();
     } catch (e) {
+      setError(errorText(e));
+    }
+  };
+  /** Pause and remove show at once and go back, with the error, if the save fails. */
+  const quick = async (change: (ds: Destination[]) => Destination[], fn: () => Promise<unknown>) => {
+    if (!patchDests) return run(fn);
+    setError("");
+    patchDests(change);
+    try {
+      await fn();
+    } catch (e) {
+      patchDests(() => dests);
       setError(errorText(e));
     }
   };
@@ -314,7 +344,7 @@ function WebhookPane({ sb, session, ws, formId, reload, hooks }: Props & { hooks
         {hooks.map((h) => (
           <div key={h.id} className={CROW}>
             <RowText title={h.name} sub={h.paused ? "Paused" : "Signed, retried, the same body every try"} />
-            <button type="button" className={GHOST_SM} onClick={() => void run(async () => must(await sb.rpc("form_destination_pause", { p_id: h.id, p_paused: !h.paused })))}>
+            <button type="button" className={GHOST_SM} onClick={() => void quick((ds) => ds.map((x) => (x.id === h.id ? { ...x, paused: !h.paused } : x)), async () => must(await sb.rpc("form_destination_pause", { p_id: h.id, p_paused: !h.paused })))}>
               {h.paused ? "Turn on" : "Pause"}
             </button>
             <button
@@ -322,7 +352,7 @@ function WebhookPane({ sb, session, ws, formId, reload, hooks }: Props & { hooks
               className={GHOST_SM_RED}
               onClick={async () => {
                 if (!(await askConfirm(`Stop sending leads to ${h.name}?`, { ok: "Remove", danger: true }))) return;
-                await run(async () => must(await sb.rpc("form_destination_delete", { p_id: h.id })));
+                await quick((ds) => ds.filter((x) => x.id !== h.id), async () => must(await sb.rpc("form_destination_delete", { p_id: h.id })));
               }}
             >
               Remove

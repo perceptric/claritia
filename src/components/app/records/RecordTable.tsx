@@ -4,10 +4,10 @@
 // selection and inline editing of every editable field.
 
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { useRef, useState } from "react";
+import { memo, useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { shown, valueOf, type AnyField } from "@/lib/records/fields";
 import { Check, Plus } from "../../Icons";
-import { Avatar, Badge } from "../ui";
+import { Avatar, Badge, useKeptScroll } from "../ui";
 import { FieldEditor, FieldValue, type Link } from "./FieldInput";
 
 export type Row = Record<string, unknown> & { id: string };
@@ -54,6 +54,7 @@ export function RecordTable({
   onColumns,
   nameExtra,
   onAddField,
+  scrollKey,
 }: {
   sb: SupabaseClient;
   wsId: string;
@@ -72,13 +73,25 @@ export function RecordTable({
   nameExtra?: (r: Row) => React.ReactNode;
   /** The + at the end of the header: a new field, which joins the table as a column. */
   onAddField?: () => void;
+  /** Where the scroll is kept, so opening a record and coming back finds the same place. */
+  scrollKey?: string;
 }) {
   const [editing, setEditing] = useState<{ id: string; key: string } | null>(null);
+  const keepScroll = useKeptScroll(scrollKey ?? "");
+  // Row handlers that keep one identity, so a row redraws only when its own data or state changes.
+  const live = useRef({ onToggle, onOpen, onSave, nameExtra });
+  useLayoutEffect(() => {
+    live.current = { onToggle, onOpen, onSave, nameExtra };
+  });
+  const toggle = useCallback((id: string) => live.current.onToggle(id), []);
+  const open = useCallback((r: Row) => live.current.onOpen(r), []);
+  const save = useCallback((r: Row, f: AnyField, v: unknown) => live.current.onSave(r, f, v), []);
+  const extra = useCallback((r: Row) => live.current.nameExtra?.(r), []);
   const [dragKey, setDragKey] = useState<string | null>(null);
   const [overKey, setOverKey] = useState<string | null>(null);
   const resizing = useRef<{ key: string; x: number; w: number } | null>(null);
-  const byKey = new Map(fields.map((f) => [f.key, f]));
-  const shown = columns.filter((c) => byKey.has(c.key) && c.key !== "name" && !byKey.get(c.key)!.hidden);
+  const byKey = useMemo(() => new Map(fields.map((f) => [f.key, f])), [fields]);
+  const shown = useMemo(() => columns.filter((c) => byKey.has(c.key) && c.key !== "name" && !byKey.get(c.key)!.hidden), [columns, byKey]);
   const pageAll = rows.length > 0 && rows.every((r) => selected.has(r.id));
 
   const startResize = (e: React.MouseEvent, key: string, w: number) => {
@@ -119,7 +132,7 @@ export function RecordTable({
   const nameField = byKey.get("name");
 
   return (
-    <div className="min-h-0 flex-1 overflow-auto bg-card">
+    <div ref={scrollKey ? keepScroll : undefined} className="min-h-0 flex-1 overflow-auto bg-card">
       <table className="w-max min-w-full table-fixed border-separate border-spacing-0">
         <thead>
           <tr>
@@ -190,72 +203,113 @@ export function RecordTable({
           </tr>
         </thead>
         <tbody>
-          {rows.map((r) => {
-            const on = allMatching || selected.has(r.id);
-            const links = (r.links ?? {}) as Record<string, Link[]>;
-            return (
-              <tr key={r.id} className={`group transition-colors duration-[120ms] ${on ? "bg-hover" : "hover:bg-hover"}`}>
-                <td className={`sticky left-0 z-10 h-10 w-10 border-b border-line-light pl-3 ${on ? "bg-paper" : "bg-card group-hover:bg-paper"}`}>
-                  <CheckBox
-                    on={on}
-                    label="Select"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onToggle(r.id);
-                    }}
-                  />
-                </td>
-                <td
-                  onClick={() => onOpen(r)}
-                  className={`sticky left-10 z-10 h-10 w-[280px] cursor-pointer border-r border-b border-line-light px-2 text-[13px] ${on ? "bg-paper" : "bg-card group-hover:bg-paper"}`}
-                >
-                  <span className="flex items-center gap-2">
-                    <Avatar label={displayName(r)} size={22} />
-                    <span className="min-w-0 truncate font-medium">{displayName(r)}</span>
-                    {nameExtra?.(r)}
-                  </span>
-                </td>
-                {shown.map((c) => {
-                  const f = byKey.get(c.key)!;
-                  const active = editing?.id === r.id && editing.key === c.key;
-                  const value = valueOf(r, c.key);
-                  return (
-                    <td
-                      key={c.key}
-                      onClick={() => (f.edit ? setEditing({ id: r.id, key: c.key }) : onOpen(r))}
-                      className={`h-10 overflow-hidden border-r border-b border-line-light px-2 text-[13px] whitespace-nowrap ${f.edit ? "cursor-text hover:outline hover:outline-1 hover:-outline-offset-1 hover:outline-line-strong" : "cursor-pointer"} ${active ? "px-1" : ""}`}
-                    >
-                      {active ? (
-                        <FieldEditor
-                          sb={sb}
-                          wsId={wsId}
-                          field={f}
-                          value={value}
-                          links={links[c.key.slice(2)]}
-                          compact
-                          onCancel={() => setEditing(null)}
-                          onSave={(v) => {
-                            setEditing(null);
-                            void onSave(r, f, v);
-                          }}
-                        />
-                      ) : (
-                        <span className="block truncate">
-                          <FieldValue field={f} value={value} links={links[c.key.slice(2)]} />
-                        </span>
-                      )}
-                    </td>
-                  );
-                })}
-                <td className="h-10 border-b border-line-light" />
-              </tr>
-            );
-          })}
+          {rows.map((r) => (
+            <TableRow
+              key={r.id}
+              r={r}
+              on={allMatching || selected.has(r.id)}
+              cols={shown}
+              byKey={byKey}
+              editingKey={editing?.id === r.id ? editing.key : null}
+              setEditing={setEditing}
+              sb={sb}
+              wsId={wsId}
+              onToggle={toggle}
+              onOpen={open}
+              onSave={save}
+              nameExtra={nameExtra ? extra : undefined}
+            />
+          ))}
         </tbody>
       </table>
     </div>
   );
 }
+
+/** One table row. Memoized: selecting, editing or saving one row redraws only that row. */
+const TableRow = memo(function TableRow({
+  r,
+  on,
+  cols,
+  byKey,
+  editingKey,
+  setEditing,
+  sb,
+  wsId,
+  onToggle,
+  onOpen,
+  onSave,
+  nameExtra,
+}: {
+  r: Row;
+  on: boolean;
+  cols: Column[];
+  byKey: Map<string, AnyField>;
+  editingKey: string | null;
+  setEditing: (e: { id: string; key: string } | null) => void;
+  sb: SupabaseClient;
+  wsId: string;
+  onToggle: (id: string) => void;
+  onOpen: (r: Row) => void;
+  onSave: (r: Row, f: AnyField, v: unknown) => Promise<void>;
+  nameExtra?: (r: Row) => React.ReactNode;
+}) {
+  const links = (r.links ?? {}) as Record<string, Link[]>;
+  return (
+    <tr className={`group transition-colors duration-[120ms] ${on ? "bg-hover" : "hover:bg-hover"}`}>
+      <td className={`sticky left-0 z-10 h-10 w-10 border-b border-line-light pl-3 ${on ? "bg-paper" : "bg-card group-hover:bg-paper"}`}>
+        <CheckBox
+          on={on}
+          label="Select"
+          onClick={(e) => {
+            e.stopPropagation();
+            onToggle(r.id);
+          }}
+        />
+      </td>
+      <td onClick={() => onOpen(r)} className={`sticky left-10 z-10 h-10 w-[280px] cursor-pointer border-r border-b border-line-light px-2 text-[13px] ${on ? "bg-paper" : "bg-card group-hover:bg-paper"}`}>
+        <span className="flex items-center gap-2">
+          <Avatar label={displayName(r)} size={22} />
+          <span className="min-w-0 truncate font-medium">{displayName(r)}</span>
+          {nameExtra?.(r)}
+        </span>
+      </td>
+      {cols.map((c) => {
+        const f = byKey.get(c.key)!;
+        const active = editingKey === c.key;
+        const value = valueOf(r, c.key);
+        return (
+          <td
+            key={c.key}
+            onClick={() => (f.edit ? setEditing({ id: r.id, key: c.key }) : onOpen(r))}
+            className={`h-10 overflow-hidden border-r border-b border-line-light px-2 text-[13px] whitespace-nowrap ${f.edit ? "cursor-text hover:outline hover:outline-1 hover:-outline-offset-1 hover:outline-line-strong" : "cursor-pointer"} ${active ? "px-1" : ""}`}
+          >
+            {active ? (
+              <FieldEditor
+                sb={sb}
+                wsId={wsId}
+                field={f}
+                value={value}
+                links={links[c.key.slice(2)]}
+                compact
+                onCancel={() => setEditing(null)}
+                onSave={(v) => {
+                  setEditing(null);
+                  void onSave(r, f, v);
+                }}
+              />
+            ) : (
+              <span className="block truncate">
+                <FieldValue field={f} value={value} links={links[c.key.slice(2)]} />
+              </span>
+            )}
+          </td>
+        );
+      })}
+      <td className="h-10 border-b border-line-light" />
+    </tr>
+  );
+});
 
 /** A board: one column per pick list value, cards you drag between them. */
 export function RecordBoard({
@@ -278,13 +332,28 @@ export function RecordBoard({
 }) {
   const [dragId, setDragId] = useState<string | null>(null);
   const [over, setOver] = useState<string | null>(null);
-  const known = new Set(group.options.map((o) => o.value));
-  const extra = [...new Set(rows.map((r) => String(valueOf(r, group.key) ?? "")).filter((v) => v && !known.has(v)))];
-  const lanes = [...group.options, ...extra.map((v) => ({ value: v, label: v })), { value: "", label: "No value" }];
+  // Cards sorted into lanes in one pass, again only when the rows or the grouping change.
+  const { lanes, byLane } = useMemo(() => {
+    const known = new Set(group.options.map((o) => o.value));
+    const byLane = new Map<string, Row[]>();
+    for (const r of rows) {
+      const v = String(valueOf(r, group.key) ?? "");
+      const l = byLane.get(v);
+      if (l) l.push(r);
+      else byLane.set(v, [r]);
+    }
+    const extra = [...byLane.keys()].filter((v) => v && !known.has(v));
+    return { lanes: [...group.options, ...extra.map((v) => ({ value: v, label: v })), { value: "", label: "No value" }], byLane };
+  }, [rows, group]);
+  const live = useRef({ onOpen });
+  useLayoutEffect(() => {
+    live.current = { onOpen };
+  });
+  const open = useCallback((r: Row) => live.current.onOpen(r), []);
   return (
     <div className="flex min-h-full gap-3 overflow-x-auto p-4 md:p-5">
       {lanes.map((lane) => {
-        const items = rows.filter((r) => String(valueOf(r, group.key) ?? "") === lane.value);
+        const items = byLane.get(lane.value) ?? [];
         const total = sum ? items.reduce((t, r) => t + (Number(valueOf(r, sum.key)) || 0), 0) : 0;
         return (
           <section
@@ -309,28 +378,7 @@ export function RecordBoard({
             </header>
             <ul className="flex min-h-16 flex-col gap-2 px-2 pb-2">
               {items.map((r) => (
-                <li
-                  key={r.id}
-                  draggable
-                  onDragStart={() => setDragId(r.id)}
-                  onDragEnd={() => setDragId(null)}
-                  onClick={() => onOpen(r)}
-                  className={`lift cursor-grab rounded-lg border border-line bg-card p-3.5 transition-[transform,rotate,box-shadow,opacity] duration-[320ms] ease-out active:cursor-grabbing ${dragId === r.id ? "rotate-2 opacity-90 shadow-float" : ""}`}
-                >
-                  <p className="flex items-center gap-2 text-[13px] font-medium">
-                    <Avatar label={displayName(r)} size={22} />
-                    <span className="min-w-0 truncate">{displayName(r)}</span>
-                  </p>
-                  {cardFields.map((f) => {
-                    const v = valueOf(r, f.key);
-                    if (v == null || v === "" || (Array.isArray(v) && !v.length)) return null;
-                    return (
-                      <p key={f.key} className="mt-1.5 truncate text-[12px] text-muted">
-                        <FieldValue field={f} value={v} links={((r.links ?? {}) as Record<string, Link[]>)[f.key.slice(2)]} />
-                      </p>
-                    );
-                  })}
-                </li>
+                <BoardCard key={r.id} r={r} cardFields={cardFields} dragging={dragId === r.id} setDragId={setDragId} onOpen={open} />
               ))}
             </ul>
           </section>
@@ -339,3 +387,30 @@ export function RecordBoard({
     </div>
   );
 }
+
+/** One card on the board. Memoized: dragging one card doesn't redraw the other thousand. */
+const BoardCard = memo(function BoardCard({ r, cardFields, dragging, setDragId, onOpen }: { r: Row; cardFields: AnyField[]; dragging: boolean; setDragId: (id: string | null) => void; onOpen: (r: Row) => void }) {
+  return (
+    <li
+      draggable
+      onDragStart={() => setDragId(r.id)}
+      onDragEnd={() => setDragId(null)}
+      onClick={() => onOpen(r)}
+      className={`lift cursor-grab rounded-lg border border-line bg-card p-3.5 transition-[transform,rotate,box-shadow,opacity] duration-[320ms] ease-out [contain-intrinsic-size:auto_72px] [content-visibility:auto] active:cursor-grabbing ${dragging ? "rotate-2 opacity-90 shadow-float" : ""}`}
+    >
+      <p className="flex items-center gap-2 text-[13px] font-medium">
+        <Avatar label={displayName(r)} size={22} />
+        <span className="min-w-0 truncate">{displayName(r)}</span>
+      </p>
+      {cardFields.map((f) => {
+        const v = valueOf(r, f.key);
+        if (v == null || v === "" || (Array.isArray(v) && !v.length)) return null;
+        return (
+          <p key={f.key} className="mt-1.5 truncate text-[12px] text-muted">
+            <FieldValue field={f} value={v} links={((r.links ?? {}) as Record<string, Link[]>)[f.key.slice(2)]} />
+          </p>
+        );
+      })}
+    </li>
+  );
+});

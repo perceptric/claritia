@@ -9,7 +9,7 @@ import { ChevronRight, Plug, Plus } from "../../Icons";
 import { askConfirm } from "../Dialogs";
 import { MoreMenu } from "../StatCards";
 import { ToolIntro } from "../ToolIntro";
-import { Badge, Button, Empty, ErrorNote, errorText, Input, Loading, Page, Toggle, useLoad, type Tone, type ViewProps } from "../ui";
+import { Badge, Button, Empty, ErrorNote, errorText, Input, Loading, Page, Toggle, type Tone, useQuery, type ViewProps } from "../ui";
 import { CopyButton, meetingsApi, Modal } from "../meetings/parts";
 
 type Endpoint = {
@@ -61,7 +61,7 @@ function state(e: Endpoint): { label: string; tone: Tone } {
 
 export function WebhooksPage({ session, ws }: ViewProps) {
   const api = <T,>(action: string, body: object = {}) => meetingsApi<T>(session, ws.id, "webhooks", { action, ...body });
-  const data = useLoad(() => api<List>("list"), ws.id);
+  const data = useQuery(`meeting_webhooks:${ws.id}`, () => api<List>("list"));
   const [editing, setEditing] = useState<Endpoint | "new" | null>(null);
   const [secret, setSecret] = useState<string | null>(null);
   const [open, setOpen] = useState<string | null>(null);
@@ -145,7 +145,7 @@ export function WebhooksPage({ session, ws }: ViewProps) {
         {d.endpoints.map((e, i) => {
           const st = state(e);
           return (
-            <section key={e.id} className="anim-rise-sm rounded-[10px] border border-line bg-card" style={{ animationDelay: `${Math.min(i, 10) * 30}ms` }}>
+            <section key={e.id} className="anim-rise-sm rounded-[10px] border border-line bg-card" style={i < 8 ? { animationDelay: `${i * 30}ms` } : undefined}>
               <div className="flex items-center gap-3 px-4 py-3">
                 <button type="button" onClick={() => setOpen(open === e.id ? null : e.id)} className="flex min-w-0 flex-1 items-center gap-3 text-left" aria-expanded={open === e.id}>
                   <ChevronRight size={14} className={`shrink-0 text-faint transition-transform duration-[180ms] ${open === e.id ? "rotate-90" : ""}`} />
@@ -190,13 +190,10 @@ export function WebhooksPage({ session, ws }: ViewProps) {
                     {
                       label: e.active ? "Pause" : "Resume",
                       run: () =>
-                        void act(
-                          async () => (
-                            await api("change", {
-                              id: e.id,
-                              endpoint: { active: !e.active },
-                            }),
-                            data.reload()
+                        void act(() =>
+                          data.mutate(
+                            (l) => ({ ...l, endpoints: l.endpoints.map((x) => (x.id === e.id ? { ...x, active: !e.active } : x)) }),
+                            () => api("change", { id: e.id, endpoint: { active: !e.active } }),
                           ),
                         ),
                     },
@@ -234,8 +231,7 @@ export function WebhooksPage({ session, ws }: ViewProps) {
                             }))
                           )
                             return;
-                          await api("delete", { id: e.id });
-                          data.reload();
+                          await data.mutate((l) => ({ ...l, endpoints: l.endpoints.filter((x) => x.id !== e.id) }), () => api("delete", { id: e.id }));
                         }),
                     },
                   ]}
@@ -243,7 +239,7 @@ export function WebhooksPage({ session, ws }: ViewProps) {
               </div>
               {e.last_error && st.label === "Failing" ? <p className="border-t border-line px-4 py-2 text-[12.5px] text-danger">{e.last_error}</p> : null}
               {open === e.id ? (
-                <Sends key={`${e.id}:${e.sent}:${e.failed}`} load={() => api<{ sends: Send[] }>("sends", { id: e.id })} resend={(send) => api("resend", { send })} hint={e.secret_hint} />
+                <Sends cacheKey={`meeting_webhooks:${ws.id}:sends:${e.id}:${e.sent}:${e.failed}`} load={() => api<{ sends: Send[] }>("sends", { id: e.id })} resend={(send) => api("resend", { send })} hint={e.secret_hint} />
               ) : null}
             </section>
           );
@@ -254,8 +250,9 @@ export function WebhooksPage({ session, ws }: ViewProps) {
 }
 
 /** One endpoint's last sends, newest first; a send opens to its body. */
-function Sends({ load, resend, hint }: { load: () => Promise<{ sends: Send[] }>; resend: (id: string) => Promise<unknown>; hint: string }) {
-  const data = useLoad(load, "sends");
+function Sends({ cacheKey, load, resend, hint }: { cacheKey: string; load: () => Promise<{ sends: Send[] }>; resend: (id: string) => Promise<unknown>; hint: string }) {
+  // Opening an endpoint again shows its sends at once, from the cache.
+  const data = useQuery(cacheKey, load);
   const [open, setOpen] = useState<string | null>(null);
   const [error, setError] = useState("");
   return (

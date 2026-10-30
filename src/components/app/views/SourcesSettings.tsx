@@ -13,7 +13,7 @@ import { BrandLogo } from "../BrandLogo";
 import { askConfirm } from "../Dialogs";
 import { Select } from "../Select";
 import { SampleStats, ToolIntro } from "../ToolIntro";
-import { Badge, Button, CardHead, ErrorNote, errorText, Field, Input, Loading, must, Panel, postJson, Td, Th, timeAgo, Toggle, useLoad, type Tone, type ViewProps } from "../ui";
+import { Badge, Button, CardHead, ErrorNote, errorText, Field, Input, Loading, must, Panel, postJson, Td, Th, timeAgo, Toggle, type Tone, useLoad, useQuery, type ViewProps } from "../ui";
 import { usePeople } from "../meetings/parts";
 import { routingApi } from "../routing/api";
 import { CheckBox } from "../records/RecordTable";
@@ -296,8 +296,9 @@ function SourcePanel({ sb, session, wsId, source, owner, onClose, changed }: { s
   const [settings, setSettings] = useState(source.settings);
   const [error, setError] = useState("");
   const [saved, setSaved] = useState(false);
-  const runs = useLoad(async () => must(await sb.from("source_runs").select("id, object, direction, started_at, finished_at, pulled, written, skipped, errors, error").eq("source_id", source.id).order("started_at", { ascending: false }).limit(20)) as Run[], source.id);
-  const hook = useLoad(async () => (e?.hook && owner && source.status !== "disconnected" ? (await getJson<{ url: string }>(session, `/api/sources/hook-url?id=${source.id}`)).url : null), source.id);
+  // Opening a source again shows its runs and hook address at once, from the cache.
+  const runs = useQuery(`source_runs:${source.id}`, async () => must(await sb.from("source_runs").select("id, object, direction, started_at, finished_at, pulled, written, skipped, errors, error").eq("source_id", source.id).order("started_at", { ascending: false }).limit(20)) as Run[]);
+  const hook = useQuery(`source_hook:${source.id}:${source.status}`, async () => (e?.hook && owner && source.status !== "disconnected" ? (await getJson<{ url: string }>(session, `/api/sources/hook-url?id=${source.id}`)).url : null), { staleMs: 300_000 });
   const [state, tone] = STATE[source.status] ?? [source.status, "gray" as Tone];
   const act = async (fn: () => Promise<unknown>) => {
     setError("");
@@ -508,23 +509,23 @@ type OwnerLink = { source_id: string; crm_owner_id: string; label: string | null
 /** CRM owners (docs/router-ux.md 4.10): each owner id seen on contacts and companies, linked to a teammate. */
 function CrmOwnersPanel({ sb, session, wsId, source, owner }: { sb: ViewProps["sb"]; session: ViewProps["session"]; wsId: string; source: Source; owner: boolean }) {
   const people = usePeople(sb, wsId);
-  const data = useLoad(async () => {
-    const [links, contacts, companies] = await Promise.all([
-      routingApi<{ links: OwnerLink[] }>(session, wsId, "crm_owners"),
-      sb.from("contacts").select("owner_crm_id").eq("workspace_id", wsId).not("owner_crm_id", "is", null).limit(5000),
-      sb.from("companies").select("owner_crm_id").eq("workspace_id", wsId).not("owner_crm_id", "is", null).limit(5000),
-    ]);
+  // The links and every owner id the CRM sent (distinct, from the database).
+  const data = useQuery(`crm_owners:${wsId}:${source.id}`, async () => {
+    const [links, ids] = await Promise.all([routingApi<{ links: OwnerLink[] }>(session, wsId, "crm_owners"), sb.rpc("crm_owner_ids", { p_ws: wsId })]);
     const mine = links.links.filter((l) => l.source_id === source.id);
-    const seen = new Set([...((must(contacts) ?? []) as { owner_crm_id: string }[]), ...((must(companies) ?? []) as { owner_crm_id: string }[])].map((r) => r.owner_crm_id).filter(Boolean));
+    const seen = new Set(((must(ids) ?? []) as string[]).filter(Boolean));
     for (const l of mine) seen.delete(l.crm_owner_id);
     return [...mine, ...[...seen].sort().map((id): OwnerLink => ({ source_id: source.id, crm_owner_id: id, label: null, user_id: null }))];
-  }, source.id);
+  });
   const [error, setError] = useState("");
   const link = async (row: OwnerLink, user: string) => {
     setError("");
     try {
-      await routingApi(session, wsId, "save_crm_owners", { rows: [{ ...row, user_id: user || null }] });
-      data.reload();
+      // The picker shows the teammate at once; it goes back, with the error, if the save fails.
+      await data.mutate(
+        (l) => l.map((x) => (x.crm_owner_id === row.crm_owner_id && x.source_id === row.source_id ? { ...x, user_id: user || null } : x)),
+        () => routingApi(session, wsId, "save_crm_owners", { rows: [{ ...row, user_id: user || null }] }),
+      );
     } catch (e) {
       setError(errorText(e));
     }
@@ -705,8 +706,8 @@ const WINS: { value: Wins; label: string }[] = [
 
 function MappingPanel({ sb, session, wsId, source, owner, hasCompanies, twoWay }: { sb: ViewProps["sb"]; session: ViewProps["session"]; wsId: string; source: Source; owner: boolean; hasCompanies: boolean; twoWay: boolean }) {
   const [object, setObject] = useState<"contact" | "company">("contact");
-  const data = useLoad(async () => getJson<{ contact: MapRow[]; company: MapRow[] }>(session, `/api/sources/mapping?id=${source.id}`), source.id);
-  const custom = useLoad(async () => must(await sb.from("fields").select("key, label").eq("workspace_id", wsId).eq("object", "contact").order("position")) as { key: string; label: string }[], wsId);
+  const data = useQuery(`source_mapping:${source.id}`, async () => getJson<{ contact: MapRow[]; company: MapRow[] }>(session, `/api/sources/mapping?id=${source.id}`));
+  const custom = useQuery(`meta:${wsId}:contact:names`, async () => must(await sb.from("fields").select("key, label").eq("workspace_id", wsId).eq("object", "contact").order("position")) as { key: string; label: string }[]);
   const [edits, setEdits] = useState<Record<string, Record<string, string>>>({});
   const [winEdits, setWinEdits] = useState<Record<string, Wins>>({});
   const [error, setError] = useState("");
@@ -730,10 +731,14 @@ function MappingPanel({ sb, session, wsId, source, owner, hasCompanies, twoWay }
   const save = async () => {
     setError("");
     try {
+      // Saved rows become the mapping on screen; no need to read it again.
       must(await sb.rpc("mapping_save", { p_source: source.id, p_object: object, p_rows: rows.filter((r) => r.target !== "skip").map((r) => ({ col: r.col, target: r.target, wins: r.wins })) }));
+      data.set((d) => ({ ...d, [object]: (d[object] ?? []).map((r) => {
+        const s = rows.find((x) => x.col === r.col);
+        return s ? { ...r, target: s.target, wins: s.wins } : r;
+      }) }));
       setEdits({ ...edits, [object]: {} });
       if (object === "contact") setWinEdits({});
-      data.reload();
     } catch (e) {
       setError(errorText(e));
     }

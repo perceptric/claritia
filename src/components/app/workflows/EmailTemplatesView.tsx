@@ -10,14 +10,14 @@ import { emptyEmail, type EmailBody } from "@/lib/workflows/types";
 import { Mail, Plus, Trash } from "../../Icons";
 import { askConfirm, askText } from "../Dialogs";
 import { ToolIntro } from "../ToolIntro";
-import { Button, ErrorNote, IconButton, Loading, must, Page, Panel, timeAgo, useLoad, type ViewProps } from "../ui";
+import { Button, ErrorNote, errorText, IconButton, invalidate, Loading, must, Page, Panel, timeAgo, useQuery, type ViewProps } from "../ui";
 import { EmailForm } from "./Inspector";
 
 type Template = { id: string; name: string; body: EmailBody; updated_at: string };
 
 /** `above`: shown first on the page (the Library's built-in templates). */
 export function EmailTemplatesView({ sb, ws, session, above }: ViewProps & { above?: React.ReactNode }) {
-  const list = useLoad(async () => (must(await sb.from("email_templates").select("id, name, body, updated_at").eq("workspace_id", ws.id).order("updated_at", { ascending: false })) ?? []) as Template[], ws.id);
+  const list = useQuery(`email_templates:${ws.id}`, async () => (must(await sb.from("email_templates").select("id, name, body, updated_at").eq("workspace_id", ws.id).order("updated_at", { ascending: false })) ?? []) as Template[]);
   const [open, setOpen] = useState<Template | null>(null);
   const [saved, setSaved] = useState(true);
   const [error, setError] = useState("");
@@ -28,11 +28,14 @@ export function EmailTemplatesView({ sb, ws, session, above }: ViewProps & { abo
     const body = emptyEmail();
     const { data, error: e } = await sb.rpc("email_template_save", { p_ws: ws.id, p_id: null, p_name: name.trim(), p_body: body });
     if (e) return setError(e.message);
-    setOpen({ id: data as string, name: name.trim(), body, updated_at: new Date().toISOString() });
+    const made = { id: data as string, name: name.trim(), body, updated_at: new Date().toISOString() };
+    setOpen(made);
     setSaved(true);
-    list.reload();
+    list.set((l) => [made, ...l.filter((x) => x.id !== made.id)]);
+    invalidate(`workflow_names:${ws.id}`);
   };
-  const reload = list.reload;
+  // Autosave puts the saved template into the list in place (no reading the whole list again after each save).
+  const setList = list.set;
   useEffect(() => {
     if (saved || !open || !open.name.trim()) return;
     const t = setTimeout(async () => {
@@ -40,10 +43,11 @@ export function EmailTemplatesView({ sb, ws, session, above }: ViewProps & { abo
       if (e) return setError(e.message);
       setSaved(true);
       setError("");
-      reload();
+      const at = new Date().toISOString();
+      setList((l) => [{ ...open, name: open.name.trim(), updated_at: at }, ...l.filter((x) => x.id !== open.id)]);
     }, 800);
     return () => clearTimeout(t);
-  }, [open, saved, sb, ws.id, reload]);
+  }, [open, saved, sb, ws.id, setList]);
   // The Create menu's "Email template" opens here with ?create=1.
   const [asked] = useState(() => typeof window !== "undefined" && new URLSearchParams(window.location.search).get("create") === "1");
   useEffect(() => {
@@ -56,10 +60,17 @@ export function EmailTemplatesView({ sb, ws, session, above }: ViewProps & { abo
   }, [asked]);
   const del = async (t: Template) => {
     if (!(await askConfirm(`Delete ${t.name}?`, { ok: "Delete", danger: true }))) return;
-    const { error: e } = await sb.rpc("email_template_delete", { p_id: t.id });
-    if (e) return setError(e.message);
+    // The template leaves at once; it comes back, with the error, if deleting fails.
+    try {
+      await list.mutate((l) => l.filter((x) => x.id !== t.id), async () => {
+        const { error: e } = await sb.rpc("email_template_delete", { p_id: t.id });
+        if (e) throw new Error(e.message);
+      });
+    } catch (e) {
+      return setError(errorText(e));
+    }
     if (open?.id === t.id) setOpen(null);
-    list.reload();
+    invalidate(`workflow_names:${ws.id}`);
   };
   const pick = async (t: Template) => {
     if (!saved && !(await askConfirm("Leave without saving?", { ok: "Leave", danger: true }))) return;

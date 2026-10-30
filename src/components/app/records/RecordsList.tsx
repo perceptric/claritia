@@ -13,7 +13,7 @@ import { askConfirm, askText, tell } from "../Dialogs";
 import { FilterEditor, Popover } from "../FilterBar";
 import { Select } from "../Select";
 import { Sketch } from "../../sketches/Sketch";
-import { Button, Empty, ErrorNote, errorText, Input, Loading, must, Page, Segmented, useLoad, type ViewProps } from "../ui";
+import { Button, Empty, ErrorNote, errorText, Input, invalidate, Loading, must, Page, Segmented, useDebounced, useKept, useQuery, type ViewProps } from "../ui";
 import { FieldDialog } from "./FieldDialog";
 import { FieldEditor } from "./FieldInput";
 import { useMeta, type Meta } from "./meta";
@@ -33,6 +33,30 @@ function download(name: string, text: string) {
   a.download = name;
   a.click();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+/** Run `fn` on every chunk, a few at a time (bulk changes over thousands of records). */
+async function inChunks<T>(items: T[], size: number, fn: (chunk: T[]) => Promise<unknown>, at = 3) {
+  const chunks: T[][] = [];
+  for (let i = 0; i < items.length; i += size) chunks.push(items.slice(i, i + size));
+  let next = 0;
+  await Promise.all(
+    Array.from({ length: Math.min(at, chunks.length) }, async () => {
+      while (next < chunks.length) await fn(chunks[next++]!);
+    }),
+  );
+}
+
+/** A row with one field set the way the server stores it, for the screen to show before the server answers. */
+function withValue(r: Row, key: string, v: unknown): Row | null {
+  if (key === "name" || key === "company" || key === "known") return null;
+  if (key.startsWith("f.")) {
+    const k = key.slice(2);
+    if ((r.links as Record<string, unknown> | undefined)?.[k]) return null;
+    return { ...r, fields: { ...((r.fields as Record<string, unknown>) ?? {}), [k]: v } };
+  }
+  if (key === "owner") return { ...r, owner: v, owner_user_id: v };
+  return { ...r, [key]: v };
 }
 
 const sameView = (a: ViewState, b: ViewState) =>
@@ -93,11 +117,15 @@ export function RecordsList({
 }) {
   const meta = useMeta(sb, ws.id, object);
   const [view, setView] = useStoredView(`claritia:view:${ws.id}:${screen}`, base);
-  const [activeId, setActiveId] = useState<string>("all");
-  const [search, setSearch] = useState("");
-  const [offset, setOffset] = useState(0);
-  const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [allMatching, setAllMatching] = useState(false);
+  // Kept while a record is open, so coming back finds the same view, search, page and selection.
+  const keep = `records-list:${ws.id}:${screen}`;
+  const [activeId, setActiveId] = useKept<string>(`${keep}:view`, "all");
+  const [search, setSearch] = useKept(`${keep}:search`, "");
+  const [offset, setOffset] = useKept(`${keep}:offset`, 0);
+  const [selected, setSelected] = useKept<Set<string>>(`${keep}:selected`, () => new Set());
+  const [allMatching, setAllMatching] = useKept(`${keep}:all`, false);
+  // The server is asked once typing stops.
+  const query = useDebounced(search.trim(), 250);
   const [pop, setPop] = useState<{ kind: "filter" | "columns" | "save" | "bulk_edit"; anchor: HTMLElement; index?: number } | null>(null);
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
@@ -106,11 +134,12 @@ export function RecordsList({
   const fields = meta.data?.fields ?? [];
   const fieldsForFilter = filterFields(fields) as FilterField<never>[];
   const filters = meta.data ? cleanFilters(view.filters, fieldsForFilter) : view.filters.filter((f) => !f.field.startsWith("f."));
-  const effective = search.trim() ? [...filters, { field: "q", op: "contains" as const, values: [search.trim()] }] : filters;
+  const effective = query ? [...filters, { field: "q", op: "contains" as const, values: [query] }] : filters;
   const board = view.layout === "board";
   const groupField = fields.find((f) => f.key === view.group && (f.kind === "select" || f.kind === "user"));
 
-  const saved = useLoad(
+  const saved = useQuery(
+    `saved_views:${ws.id}:${screen}`,
     async () =>
       (must(await sb.from("saved_views").select("id, name, filters, columns, sort, layout, group_by, owner_id").eq("workspace_id", ws.id).eq("screen", screen).order("position").order("created_at")) as {
         id: string;
@@ -133,11 +162,12 @@ export function RecordsList({
           group: r.group_by ?? base.group,
         }),
       ),
-    `${ws.id}:${screen}`,
   );
 
   const key = JSON.stringify({ effective, sort: view.sort, offset, board });
-  const list = useLoad(
+  const listKey = `records:${ws.id}:${object}:${key}`;
+  const list = useQuery(
+    listKey,
     async () =>
       must(
         await sb.rpc("records_list", {
@@ -150,12 +180,9 @@ export function RecordsList({
           p_offset: board ? 0 : offset,
         }),
       ) as { total: number; rows: Row[] },
-    `${ws.id}:${object}:${key}`,
   );
-  const counts = useLoad(
-    async () =>
-      board && groupField ? (must(await sb.rpc("records_group_counts", { p_ws: ws.id, p_object: object, p_filters: effective, p_group: groupField.key })) as Record<string, number>) : {},
-    `${ws.id}:${object}:${key}:${groupField?.key}`,
+  const counts = useQuery(`records:${ws.id}:${object}:counts:${key}:${groupField?.key}`, async () =>
+    board && groupField ? (must(await sb.rpc("records_group_counts", { p_ws: ws.id, p_object: object, p_filters: effective, p_group: groupField.key })) as Record<string, number>) : {},
   );
 
   const unselect = () => {
@@ -183,15 +210,15 @@ export function RecordsList({
   /** The ids the selection means, paging through when every match is picked. */
   async function pickedRows(): Promise<Row[]> {
     if (!allMatching) return rows.filter((r) => selected.has(r.id));
-    const out: Row[] = [];
-    for (let at = 0; at < Math.min(total, MAX_EXPORT); at += 1000) {
-      const page = must(await sb.rpc("records_list", { p_ws: ws.id, p_object: object, p_filters: effective, p_sort: view.sort.key, p_desc: view.sort.desc, p_limit: 1000, p_offset: at })) as {
-        rows: Row[];
-      };
-      out.push(...page.rows);
-      if (page.rows.length < 1000) break;
-    }
-    return out;
+    // Pages of 1,000, a few at a time, put back in order.
+    const offsets: number[] = [];
+    for (let at = 0; at < Math.min(total, MAX_EXPORT); at += 1000) offsets.push(at);
+    const pages = new Map<number, Row[]>();
+    await inChunks(offsets, 1, async ([at]) => {
+      const page = must(await sb.rpc("records_list", { p_ws: ws.id, p_object: object, p_filters: effective, p_sort: view.sort.key, p_desc: view.sort.desc, p_limit: 1000, p_offset: at })) as { rows: Row[] };
+      pages.set(at!, page.rows);
+    }, 4);
+    return offsets.flatMap((at) => pages.get(at) ?? []);
   }
   const pickedIds = async () => (await pickedRows()).map((r) => r.id);
 
@@ -207,10 +234,32 @@ export function RecordsList({
     }
   }
 
+  /**
+   * Save one field. The row changes on screen at once (a card dropped on the board stays in its new lane, and the lane
+   * counts move with it); the write goes out; a failure puts the row back and shows why. Only fields the screen can't
+   * show right without the server (a relation, the name) read the list again.
+   */
   const save = async (r: Row, f: AnyField, v: unknown) => {
+    const next = withValue(r, f.key, v ?? null);
+    const write = async () => must(await sb.rpc("record_set", { p_object: object, p_id: r.id, p_key: f.key, p_value: v ?? null }));
+    const lane = (x: Row) => String(valueOf(x, f.key) ?? "");
+    const moved = next && board && groupField?.key === f.key ? { from: lane(r), to: lane(next) } : null;
     await run("save", async () => {
-      must(await sb.rpc("record_set", { p_object: object, p_id: r.id, p_key: f.key, p_value: v ?? null }));
-      list.reload();
+      if (!next) {
+        await write();
+        list.reload();
+        return;
+      }
+      if (moved) counts.set((c) => ({ ...c, [moved.from]: Math.max(0, (c[moved.from] ?? 1) - 1), [moved.to]: (c[moved.to] ?? 0) + 1 }));
+      try {
+        await list.mutate((d) => ({ ...d, rows: d.rows.map((x) => (x.id === r.id ? next : x)) }), write);
+      } catch (e) {
+        if (moved) counts.reload();
+        throw e;
+      }
+      // The same record in other lists (another view, the record page) reads again when next shown.
+      invalidate((k) => k.startsWith(`records:${ws.id}:${object}:`) && k !== listKey && !k.includes(":counts:"));
+      if (object === "contact") invalidate("app_counts");
     });
   };
 
@@ -233,9 +282,9 @@ export function RecordsList({
     if (!(await askConfirm(`Remove ${count.toLocaleString("en-US")} ${count === 1 ? "record" : "records"}?`, { ok: "Remove", danger: true }))) return;
     await run("remove", async () => {
       const ids = await pickedIds();
-      for (let i = 0; i < ids.length; i += 5000) must(await sb.rpc("records_delete", { p_ws: ws.id, p_object: object, p_ids: ids.slice(i, i + 5000) }));
+      await inChunks(ids, 5000, async (chunk) => must(await sb.rpc("records_delete", { p_ws: ws.id, p_object: object, p_ids: chunk })));
       unselect();
-      list.reload();
+      invalidate(`records:${ws.id}:${object}`);
     });
   };
 
@@ -255,25 +304,25 @@ export function RecordsList({
   const updateView = () =>
     activeSaved &&
     run("view", async () => {
-      must(await sb.from("saved_views").update({ filters: view.filters, columns: view.columns, sort: view.sort, layout: view.layout, group_by: view.group }).eq("id", activeSaved.id));
-      saved.reload();
+      await saved.mutate(
+        (l) => l.map((x) => (x.id === activeSaved.id ? { ...x, ...view } : x)),
+        async () => must(await sb.from("saved_views").update({ filters: view.filters, columns: view.columns, sort: view.sort, layout: view.layout, group_by: view.group }).eq("id", activeSaved.id)),
+      );
     });
   const renameView = async () => {
     if (!activeSaved) return;
     const name = await askText("Rename view", { initial: activeSaved.name, ok: "Save" });
     if (!name) return;
     await run("view", async () => {
-      must(await sb.from("saved_views").update({ name }).eq("id", activeSaved.id));
-      saved.reload();
+      await saved.mutate((l) => l.map((x) => (x.id === activeSaved.id ? { ...x, name } : x)), async () => must(await sb.from("saved_views").update({ name }).eq("id", activeSaved.id)));
     });
   };
   const deleteView = async () => {
     if (!activeSaved || !(await askConfirm(`Delete the view "${activeSaved.name}"?`, { ok: "Delete", danger: true }))) return;
     await run("view", async () => {
-      must(await sb.from("saved_views").delete().eq("id", activeSaved.id));
-      saved.reload();
       setActiveId("all");
       change(base);
+      await saved.mutate((l) => l.filter((x) => x.id !== activeSaved.id), async () => must(await sb.from("saved_views").delete().eq("id", activeSaved.id)));
     });
   };
 
@@ -315,7 +364,6 @@ export function RecordsList({
       onClose={() => setAddingField(false)}
       onSaved={(key) => {
         setAddingField(false);
-        meta.reload();
         if (key) setView({ ...view, columns: [...view.columns.filter((c) => c.key !== `f.${key}`), { key: `f.${key}`, width: DEFAULT_WIDTH }] });
       }}
     />
@@ -494,6 +542,7 @@ export function RecordsList({
               onColumns={(c) => setView({ ...view, columns: c })}
               nameExtra={nameExtra}
               onAddField={() => setAddingField(true)}
+              scrollKey={keep}
             />
             <div className="flex shrink-0 items-center gap-2 border-t border-line px-3 py-2 text-[12px] text-muted">
               <span>
@@ -585,9 +634,9 @@ export function RecordsList({
               if (!f) return;
               await run("bulk", async () => {
                 const ids = await pickedIds();
-                for (let i = 0; i < ids.length; i += 2000) must(await sb.rpc("records_bulk_set", { p_ws: ws.id, p_object: object, p_ids: ids.slice(i, i + 2000), p_key: f.key, p_value: v ?? null }));
+                await inChunks(ids, 2000, async (chunk) => must(await sb.rpc("records_bulk_set", { p_ws: ws.id, p_object: object, p_ids: chunk, p_key: f.key, p_value: v ?? null })));
                 unselect();
-                list.reload();
+                invalidate(`records:${ws.id}:${object}`);
                 await tell(`${f.label} set on ${ids.length.toLocaleString("en-US")} ${ids.length === 1 ? "record" : "records"}`);
               });
             }}

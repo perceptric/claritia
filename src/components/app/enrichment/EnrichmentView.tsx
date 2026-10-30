@@ -13,7 +13,7 @@ import { DndContext, PointerSensor, closestCenter, useSensor, useSensors, type D
 import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { useState } from "react";
-import { DEFAULT_QUALIFY, cleanQualify, type QualifySettings } from "@/lib/enrich/qualify";
+import { DEFAULT_QUALIFY, cleanQualify, type QualifySettings } from "@/lib/enrich/qualifyRules";
 import { PLAN_CREDITS, STEPS, orderSources, stepOf, type Source, type StepResult } from "@/lib/enrich/types";
 import { BASE_FIELDS, needsValue, opsFor } from "@/lib/router/conditions";
 import { OPS } from "@/lib/router/types";
@@ -24,7 +24,7 @@ import { BrandLogo } from "../BrandLogo";
 import { askConfirm, askText } from "../Dialogs";
 import { Select } from "../Select";
 import { StatCards } from "../StatCards";
-import { Badge, Button, Empty, ErrorNote, errorText, IconButton, Input, Loading, must, Page, Panel, postJson, Section, Segmented, timeAgo, Toggle, useLoad, type ViewProps } from "../ui";
+import { Badge, Button, Empty, ErrorNote, errorText, IconButton, Input, Loading, must, Page, Panel, postJson, Section, Segmented, timeAgo, Toggle, useLoad, useQuery, type ViewProps } from "../ui";
 import { Sketch } from "../../sketches/Sketch";
 
 type Coverage = { key: string; label: string; object: "companies" | "contacts"; n: number; total: number };
@@ -50,38 +50,24 @@ const n = (x: number) => x.toLocaleString("en-US");
 // Overview -----------------------------------------------------------------------------------------------------------
 
 function Overview({ sb, ws, navigate, role }: ViewProps) {
-  const data = useLoad(async () => {
-    const head = { count: "exact" as const, head: true };
-    const co = () => sb.from("companies").select("id", head).eq("workspace_id", ws.id).is("deleted_at", null);
-    const ct = () => sb.from("contacts").select("id", head).eq("workspace_id", ws.id).is("deleted_at", null);
+  // Coverage and this month's numbers in one call (enrich_overview), beside three small reads.
+  const data = useQuery(`enrichment:${ws.id}:overview`, async () => {
     const month = monthStart();
     const monthIso = month.toISOString();
-    const [companies, contacts, size, industry, coCountry, domain, title, seniority, phone, ctCountry, company, usage, runs, qualified, billing, settings] = await Promise.all([
-      co(),
-      ct(),
-      co().not("size", "is", null),
-      co().not("industry", "is", null),
-      co().not("country", "is", null),
-      co().not("domain", "is", null),
-      ct().not("title", "is", null),
-      ct().not("seniority", "is", null),
-      ct().not("phone", "is", null),
-      ct().not("country", "is", null),
-      ct().not("company_id", "is", null),
+    const [ov, usage, billing, settings] = await Promise.all([
+      sb.rpc("enrich_overview", { p_ws: ws.id, p_month: monthIso }),
       sb.from("enrich_usage").select("lookups, matches, credits").eq("workspace_id", ws.id).eq("month", monthIso.slice(0, 10)).maybeSingle(),
-      sb.from("enrich_runs").select("fields").eq("workspace_id", ws.id).gte("created_at", monthIso).limit(5000),
-      ct().not("qualify_outcome", "is", null).gte("qualify_at", monthIso),
       sb.from("workspace_billing").select("plan").eq("workspace_id", ws.id).maybeSingle(),
       sb.from("enrich_settings").select("credit_cap").eq("workspace_id", ws.id).maybeSingle(),
     ]);
-    must(companies);
-    must(contacts);
-    must(runs);
+    const o = must(ov) as Record<string, number>;
+    const count = (k: string) => ({ count: o[k] ?? 0 });
+    const [companies, contacts, size, industry, coCountry, domain, title, seniority, phone, ctCountry, company, qualified] = ["companies", "contacts", "size", "industry", "co_country", "domain", "title", "seniority", "phone", "ct_country", "company", "qualified"].map(count);
     const C = companies.count ?? 0;
     const P = contacts.count ?? 0;
     const u = (usage.data as { lookups: number; matches: number; credits: number } | null) ?? { lookups: 0, matches: 0, credits: 0 };
     const cap = (settings.data as { credit_cap: number | null } | null)?.credit_cap ?? PLAN_CREDITS[(billing.data as { plan?: string } | null)?.plan ?? "free"] ?? 0;
-    const filled = ((runs.data ?? []) as { fields: string[] }[]).reduce((s, r) => s + (r.fields?.length ?? 0), 0);
+    const filled = o.filled ?? 0;
     const fields: Coverage[] = [
       { key: "size", label: "Company size", object: "companies", n: size.count ?? 0, total: C },
       { key: "industry", label: "Industry", object: "companies", n: industry.count ?? 0, total: C },
@@ -94,7 +80,7 @@ function Overview({ sb, ws, navigate, role }: ViewProps) {
       { key: "phone", label: "Phone", object: "contacts", n: phone.count ?? 0, total: P },
     ];
     return { filled, usage: u, cap, qualified: qualified.count ?? 0, fields };
-  }, ws.id);
+  });
   const d = data.data;
   if (data.error) return <ErrorNote message={data.error} />;
   return (
@@ -153,7 +139,7 @@ function Backfill({ sb, ws, onDone }: Pick<ViewProps, "sb" | "ws"> & { onDone: (
   const [missing, setMissing] = useState("any");
   const [error, setError] = useState("");
   const [started, setStarted] = useState<number | null>(null);
-  const count = useLoad(async () => (must(await sb.rpc("enrich_backfill_count", { p_ws: ws.id, p_filter: { missing } })) as number) ?? 0, `${ws.id}:${missing}`);
+  const count = useQuery(`enrichment:${ws.id}:backfill:${missing}`, async () => (must(await sb.rpc("enrich_backfill_count", { p_ws: ws.id, p_filter: { missing } })) as number) ?? 0);
   const start = async () => {
     const c = count.data ?? 0;
     if (!(await askConfirm(`Fill ${n(c)} contacts?`, { body: `Uses up to ${n(c * 2)} credits, and stops at this month's cap.`, ok: "Fill them" }))) return;
@@ -167,7 +153,7 @@ function Backfill({ sb, ws, onDone }: Pick<ViewProps, "sb" | "ws"> & { onDone: (
     <Panel className="flex flex-wrap items-center gap-3 px-5 py-4">
       <h2 className="mr-auto text-[14px] font-semibold tracking-[-0.01em] text-ink">Fill missing fields</h2>
       <Select value={missing} options={MISSING} onChange={setMissing} ariaLabel="Missing field" className="h-9 w-44" />
-      <span className="text-[13px] text-muted tabular-nums">{count.data === undefined ? "…" : `${n(count.data ?? 0)} contacts`}</span>
+      <span className="text-[13px] text-muted tabular-nums">{!count.loaded ? "…" : `${n(count.data ?? 0)} contacts`}</span>
       <Button onClick={() => void start()} disabled={!count.data}>
         Fill them
       </Button>
@@ -187,24 +173,13 @@ type SavedSource = { step: string; on: boolean; position: number; timeout_ms: nu
 function Providers({ sb, ws, role, session }: ViewProps) {
   const owner = role === "owner";
   const [error, setError] = useState("");
-  const loaded = useLoad(async () => {
+  const loaded = useQuery(`enrichment:${ws.id}:providers`, async () => {
     const since = new Date(Date.now() - 30 * 86_400_000).toISOString();
-    const [src, runs] = await Promise.all([
-      sb.from("enrich_sources").select("step, on, position, timeout_ms, has_key").eq("workspace_id", ws.id),
-      sb.from("enrich_runs").select("steps").eq("workspace_id", ws.id).gte("created_at", since).order("created_at", { ascending: false }).limit(1000),
-    ]);
+    const [src, runs] = await Promise.all([sb.from("enrich_sources").select("step, on, position, timeout_ms, has_key").eq("workspace_id", ws.id), sb.rpc("enrich_step_rates", { p_ws: ws.id, p_since: since })]);
     const saved = (must(src) ?? []) as SavedSource[];
-    const rates: Record<string, { hit: number; ran: number }> = {};
-    for (const r of (must(runs) ?? []) as { steps: StepResult[] }[]) {
-      for (const s of r.steps ?? []) {
-        if (s.result !== "hit" && s.result !== "miss") continue;
-        rates[s.step] ??= { hit: 0, ran: 0 };
-        rates[s.step].ran++;
-        if (s.result === "hit") rates[s.step].hit++;
-      }
-    }
+    const rates = (must(runs) ?? {}) as Record<string, { hit: number; ran: number }>;
     return { sources: orderSources(saved.map((s) => ({ step: s.step as Source["step"], on: s.on, position: s.position, timeoutMs: s.timeout_ms }))), keys: Object.fromEntries(saved.map((s) => [s.step, s.has_key])), rates };
-  }, ws.id);
+  });
   const [draft, setDraft] = useState<Source[] | null>(null);
   const list = draft ?? loaded.data?.sources ?? null;
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));

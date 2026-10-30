@@ -528,13 +528,17 @@ export function FormPanel(p: BuildProps & { open: string | null; setOpen: (k: st
   const corner = cornerOf(Number(t.radius ?? 6));
   const accent = (t.buttonBg || t.accent || "") as string;
   const swatchBox = useRef<HTMLDivElement>(null);
+  // A corner or color shows on the form at once; only a new kit reads the kits again.
   const saveTokens = async (patch: Record<string, unknown>) => {
     setError("");
+    const before = kit;
+    if (kit && p.patchKits) p.patchKits((ks) => ks.map((k) => (k.id === kit.id ? { ...k, tokens: { ...t, ...patch } } : k)));
     try {
       const r = await postJson<{ id: string }>(session, "/api/forms/brand", { workspaceId: ws.id, id: kit?.id ?? null, name: kit?.name ?? (site || "Brand kit"), tokens: { ...t, ...patch } });
       if (r.id !== kit?.id) p.setKit(r.id);
-      p.reloadKits();
+      if (!before || r.id !== before.id || !p.patchKits) p.reloadKits();
     } catch (e) {
+      if (before && p.patchKits) p.patchKits((ks) => ks.map((k) => (k.id === before.id ? before : k)));
       setError(errorText(e));
     }
   };

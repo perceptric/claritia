@@ -16,7 +16,8 @@ import { Send } from "../../Icons";
 import { FormSketch } from "../../sketches/FormSketch";
 import { AiMark } from "../Ai";
 import { askConfirm } from "../Dialogs";
-import { Badge, ErrorNote, errorText, IconButton, Loading, must, postJson, useLoad, type ViewProps } from "../ui";
+import { Badge, ErrorNote, errorText, IconButton, invalidate, Loading, must, postJson, useKept, useQuery, type ViewProps } from "../ui";
+import { meetingTypes } from "../meetings/TypesList";
 import { ago, whereWords } from "./formModel";
 import { Ic } from "./ic";
 import { BTN, copyText, Dialog, DialogHead, Dots, EYEBROW, GHOST, IB, Seg, SegN, Thumb, useNote } from "./parts";
@@ -44,18 +45,40 @@ export type ListRow = {
 };
 type KitLite = { id: string; tokens: Partial<Tokens>; source_url: string | null; scan_status: string | null };
 
+/** What New form starts from: the tools that take leads, the site, a meeting type and whether routing is on. */
+function useNewFormContext(sb: ViewProps["sb"], ws: string) {
+  return useQuery(`forms:${ws}:new`, async () => {
+    const [sources, sites, types, router] = await Promise.all([
+      sb.from("sources").select("id, kind, name, status").eq("workspace_id", ws).order("name"),
+      sb.from("sites").select("domain").eq("workspace_id", ws).order("created_at").limit(1),
+      meetingTypes(sb, ws),
+      sb.from("routers").select("live_version, paused_at").eq("workspace_id", ws).maybeSingle(),
+    ]);
+    const tools = ((sources.data ?? []) as Tool[]).filter((s) => s.status !== "disconnected" && PUSHES.has(s.kind));
+    const r = router.data as { live_version: number | null; paused_at: string | null } | null;
+    return {
+      tools,
+      site: ((sites.data ?? []) as { domain: string }[])[0]?.domain ?? "",
+      type: types.find((t) => t.active)?.id ?? null,
+      routing: !!r?.live_version && !r.paused_at,
+    };
+  });
+}
+
 /** A form made from a description says so the first time it opens. */
 export const MADE_KEY = "claritia:form-made:";
 
 export function FormHome(props: ViewProps & { startNew?: boolean }) {
   const { sb, ws, navigate } = props;
-  const list = useLoad(async () => {
+  const list = useQuery(`forms:${ws.id}:home`, async () => {
     const [rows, kits] = await Promise.all([sb.rpc("forms_list", { p_ws: ws.id }), sb.from("brand_kits").select("id, tokens, source_url, scan_status").eq("workspace_id", ws.id)]);
     return { rows: must(rows) as ListRow[], kits: ((kits.data ?? []) as KitLite[]) };
-  }, ws.id);
+  });
+  // What New form needs, read with the list so the dialog opens ready.
+  useNewFormContext(sb, ws.id);
   const [error, setError] = useState("");
-  const [filter, setFilter] = useState<"all" | "live" | "draft">("all");
-  const [q, setQ] = useState("");
+  const [filter, setFilter] = useKept<"all" | "live" | "draft">(`forms:${ws.id}:filter`, "all");
+  const [q, setQ] = useKept(`forms:${ws.id}:q`, "");
   const [dialog, setDialog] = useState(!!props.startNew);
   const [menu, setMenu] = useState<{ id: string; at: HTMLElement } | null>(null);
   const note = useNote();
@@ -85,8 +108,9 @@ export function FormHome(props: ViewProps & { startNew?: boolean }) {
     });
   const offline = (r: ListRow, on: boolean) =>
     act(async () => {
-      must(await sb.rpc("form_set_status", { p_id: r.id, p_status: on ? "live" : "paused" }));
-      list.reload();
+      // The status changes on click; it goes back, with the error, if the save fails.
+      await list.mutate((d) => ({ ...d, rows: d.rows.map((x) => (x.id === r.id ? { ...x, status: on ? "live" : "paused" } : x)) }), async () => must(await sb.rpc("form_set_status", { p_id: r.id, p_status: on ? "live" : "paused" })));
+      invalidate("app_counts");
       note.show(on ? "Back online" : "Offline. Pages show nothing until you publish again.");
     });
   const remove = (r: ListRow) =>
@@ -94,8 +118,9 @@ export function FormHome(props: ViewProps & { startNew?: boolean }) {
       const where = whereWords({ ...r, pages: r.pages ?? 0, page: r.page ?? null, hosted: !!r.hosted });
       const body = r.status === "draft" ? "It's a draft, so nothing else changes." : `It comes off ${where.charAt(0).toLowerCase()}${where.slice(1)}. Its ${r.fills.toLocaleString("en-US")} submissions stay on your contacts.`;
       if (!(await askConfirm(`Delete ${r.name}?`, { body, ok: "Delete", danger: true }))) return;
-      must(await sb.rpc("form_delete", { p_id: r.id }));
-      list.reload();
+      await list.mutate((d) => ({ ...d, rows: d.rows.filter((x) => x.id !== r.id) }), async () => must(await sb.rpc("form_delete", { p_id: r.id })));
+      invalidate(`form_names:${ws.id}`);
+      invalidate("app_counts");
       note.show(`${r.name} deleted`);
     });
 
@@ -346,22 +371,7 @@ const host = (u: string | null | undefined) => {
  * then the form opens in Build. `start` makes one at once (from the first screen's box, or Blank form).
  */
 function NewForm({ sb, session, ws, navigate, kits, onClose, start }: ViewProps & { kits: KitLite[]; onClose: () => void; start?: { text: string } | { starter: string } }) {
-  const ctx = useLoad(async () => {
-    const [sources, sites, types, router] = await Promise.all([
-      sb.from("sources").select("id, kind, name, status").eq("workspace_id", ws.id).order("name"),
-      sb.from("sites").select("domain").eq("workspace_id", ws.id).order("created_at").limit(1),
-      sb.from("meeting_types").select("id, name, active").eq("workspace_id", ws.id).order("created_at"),
-      sb.from("routers").select("live_version, paused_at").eq("workspace_id", ws.id).maybeSingle(),
-    ]);
-    const tools = ((sources.data ?? []) as Tool[]).filter((s) => s.status !== "disconnected" && PUSHES.has(s.kind));
-    const r = router.data as { live_version: number | null; paused_at: string | null } | null;
-    return {
-      tools,
-      site: ((sites.data ?? []) as { domain: string }[])[0]?.domain ?? "",
-      type: ((types.data ?? []) as { id: string; active: boolean }[]).find((t) => t.active)?.id ?? null,
-      routing: !!r?.live_version && !r.paused_at,
-    };
-  }, ws.id);
+  const ctx = useNewFormContext(sb, ws.id);
   const [text, setText] = useState("");
   const [pick, setPick] = useState("demo");
   const [lines, setLines] = useState<string[] | null>(null);
@@ -389,7 +399,7 @@ function NewForm({ sb, session, ws, navigate, kits, onClose, start }: ViewProps 
         const r = await postJson<{ kitId: string }>(session, "/api/forms/scan", { workspaceId: ws.id, url: host(site) }).catch(() => null);
         kitId = r?.kitId ?? null;
       }
-      await wait(400);
+      await wait(120);
       say(siteName ? `Read ${siteName} and took its look` : "Took Claritia's look");
       let name: string;
       let form: Form;
@@ -423,11 +433,11 @@ function NewForm({ sb, session, ws, navigate, kits, onClose, start }: ViewProps 
         const t = c.tools.find((x) => x.id === s);
         await postJson(session, "/api/forms/destination", { workspaceId: ws.id, formId: id, kind: "source", sourceId: s, name: t?.name ?? "Tool" }).catch(() => undefined);
       }
-      await wait(300);
+      await wait(100);
       say(`Matched them to your contact fields${crm && sources.includes(crm.id) ? ` and ${crm.name}` : ""}`);
-      await wait(400);
+      await wait(120);
       say(form.after.schedule ? (c.routing ? "Leads go to Routing, then book a call" : "Leads book a call") : c.routing ? "Leads go to Routing" : "Leads become contacts");
-      await wait(450);
+      await wait(150);
       try {
         if (made) sessionStorage.setItem(`${MADE_KEY}${id}`, "1");
       } catch {}
