@@ -134,6 +134,7 @@ function SpamInspector({ body, edit, lists, onLists, readOnly }: InspectorProps)
             </span>
           </Line>
         ) : null}
+        <p className="text-[12px] text-muted">Forms check free email and fill limits for form leads</p>
       </Block>
       <Block title="Blocked">
         <ChipList label="Blocked domains and emails" placeholder="competitor.com" values={lists.block} clean={cleanDomain} disabled={readOnly || !onLists} onChange={(block) => onLists?.({ allow: lists.allow.filter((x) => !block.includes(x)), block })} />

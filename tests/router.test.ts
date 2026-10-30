@@ -78,8 +78,14 @@ test("spam: fake names are caught and real short names never are", () => {
   assert.ok(listed(["qa@acme.com"], "QA@acme.com", null));
   const b = emptyBody();
   b.spam.freeMail = true;
-  const s = spamSignals(b, facts({ lead: { disposable: true, emailClass: "free", recent: 9, firstName: "asdf", lastName: "asdf" }, lists: { allow: [], block: ["acme.com"] } }));
-  assert.deepEqual(s.signals.sort(), ["blocked", "disposable", "fake_name", "free_mail", "too_many"]);
+  const lead = { disposable: true, emailClass: "free", recent: 9, firstName: "asdf", lastName: "asdf" };
+  const api = facts({ lead, lists: { allow: [], block: ["acme.com"] } });
+  api.values["lead.source"] = "api";
+  assert.deepEqual(spamSignals(b, api).signals.sort(), ["blocked", "disposable", "fake_name", "free_mail", "too_many"]);
+  // A form lead: the form already decided free email and fill limits.
+  const form = facts({ lead, lists: { allow: [], block: ["acme.com"] } });
+  form.values["lead.source"] = "form";
+  assert.deepEqual(spamSignals(b, form).signals.sort(), ["blocked", "disposable", "fake_name"]);
   assert.deepEqual(spamSignals(b, facts({ lead: { disposable: true }, lists: { allow: ["acme.com"], block: ["acme.com"] } })).signals, [], "the allow list wins");
 });
 

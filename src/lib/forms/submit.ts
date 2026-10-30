@@ -367,9 +367,15 @@ async function pastHourly(rpc: Rpc, form: string, perHour: number): Promise<bool
 }
 
 /** One form_notify job per submission when the form alerts the team or replies (worker-intel/jobs/forms.ts). */
+/**
+ * The alerts go now (they wait for routing in the job); the auto-reply goes 5 minutes later, so a lead who books in
+ * the meantime gets it without a booking link (docs/scheduling-plan.md Part 13.1).
+ */
+export const REPLY_DELAY_S = 300;
+
 export async function queueNotify(rpc: Rpc, ws: string, body: Form, submission: string): Promise<void> {
-  if (!body.notify?.on && !body.reply?.on) return;
-  await enqueueJob(rpc, { workspaceId: ws, kind: "form_notify", key: `form_notify:${submission}`, payload: { submission } }).catch(() => undefined);
+  if (body.notify?.on) await enqueueJob(rpc, { workspaceId: ws, kind: "form_notify", key: `form_notify:${submission}`, payload: { submission, only: "alerts" } }).catch(() => undefined);
+  if (body.reply?.on) await enqueueJob(rpc, { workspaceId: ws, kind: "form_notify", key: `form_reply:${submission}`, payload: { submission, only: "reply" }, delayS: REPLY_DELAY_S }).catch(() => undefined);
 }
 
 /** A saved fill as releaseFill reads it. */

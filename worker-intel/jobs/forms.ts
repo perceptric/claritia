@@ -2,7 +2,10 @@
 //   form_notify  after a submission (or one let out of Spam): the alert email to each teammate picked, a post in the
 //                Routing Slack channel, and the auto-reply to the person who sent it. Each part is noted in
 //                form_notify_sent once it went (or may have gone), so a retry sends only what's left. Spam, tests and
-//                removed submissions send nothing.
+//                removed submissions send nothing. `only` splits the alerts (sent now) from the auto-reply (5 minutes
+//                later). Both wait up to 2 minutes for a route job that hasn't finished, so they name the rep; the
+//                Slack post is left to Routing when the router is live, and the auto-reply's link is the meeting the
+//                lead was offered, for their rep, and left out once they booked (docs/scheduling-plan.md Part 13).
 
 import { slackNote } from "../../src/lib/delivery/send.ts";
 import { outcomeOf } from "../../src/lib/email/provider.ts";
@@ -15,7 +18,7 @@ import type { Mailer } from "./meetings.ts";
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 export type NotifyInfo = {
-  submission: { id: string; workspace_id: string; form_id: string | null; values: Record<string, unknown>; spam: boolean; test: boolean; contact_id: string | null };
+  submission: { id: string; workspace_id: string; form_id: string | null; values: Record<string, unknown>; spam: boolean; test: boolean; contact_id: string | null; created_at?: string };
   form: string | null;
   body: Form | null;
   contact: { id: string; email: string | null; email_class: string | null; first_name: string | null; last_name: string | null; company: string | null; owner: string | null } | null;
@@ -25,7 +28,14 @@ export type NotifyInfo = {
   sealed: string | null;
   sending: { from_name: string | null; from_email: string | null; reply_to: string | null; paused: boolean };
   sent: string[];
+  routing?: "none" | "pending" | "done";
+  booked?: boolean;
+  meet?: { id: string; slug: string } | null;
 };
+
+/** How long the alerts and auto-reply wait for a route job, and how often they look. */
+export const ROUTE_WAIT_S = 120;
+export const ROUTE_LOOK_S = 30;
 
 export type FormJobOpts = { mailer: Mailer | null; base: string; from: string; fetcher?: typeof fetch };
 
@@ -53,6 +63,10 @@ export const formNotify =
     const info = await call<NotifyInfo | null>(rpc, "form_notify_info", { p_sid: sid });
     // Gone, held as spam since, or a test: nothing to send.
     if (!info || info.submission.spam || info.submission.test || !info.body) return;
+    const only = job.payload.only === "alerts" || job.payload.only === "reply" ? job.payload.only : null;
+    // Routing took longer than the form waited: its job routes the lead a moment later, so wait for the rep's name.
+    const age = (Date.now() - Date.parse(info.submission.created_at ?? "")) / 1000;
+    if (info.routing === "pending" && age < ROUTE_WAIT_S) throw new JobError("Waiting for the lead to be routed", { retryAfterS: ROUTE_LOOK_S });
     const body = info.body;
     const sent = new Set(info.sent);
     const c = info.contact;
@@ -83,11 +97,12 @@ export const formNotify =
     };
 
     const n = body.notify;
-    if (n?.on) {
+    if (n?.on && only !== "reply") {
       const answers = answersOf(body, info.submission.values);
       const parts = alertEmail({ form, lead, answers, showAnswers: n.answers, subject: n.subject, link, owner: info.owner?.name ?? null });
       for (const to of n.to.filter((a) => validAddress(a)).slice(0, 10)) await send(`alert:${to}`, to, parts, "Claritia", c?.email ?? null);
-      if (n.slack && info.sealed && !sent.has("slack")) {
+      // Routing tells the Slack channel about every lead it routes; the form only posts when Routing isn't live.
+      if (n.slack && info.sealed && !sent.has("slack") && (info.routing ?? "none") === "none") {
         const who = name || c?.email || "Someone";
         const rows = [...(n.answers ? answers.slice(0, 8) : []), ...(info.owner ? [{ label: "Routed to", value: info.owner.name }] : []), { label: "Open", value: `<${link}|Open in Claritia>` }];
         const res = await slackNote(info.sealed, `${who} sent ${form}`, rows, o.fetcher);
@@ -97,10 +112,11 @@ export const formNotify =
     }
 
     const r = body.reply;
-    if (r && replyGoes(r, c?.email, c?.email_class) && !info.sending.paused) {
+    if (r && only !== "alerts" && replyGoes(r, c?.email, c?.email_class) && !info.sending.paused) {
       const fromRep = r.from === "owner" && info.owner;
       const sender = fromRep ? info.owner!.name : info.sending.from_name || info.workspace || "The team";
-      const booking = info.handle ? `${base}/booking/${info.handle}` : null;
+      // The meeting the lead was offered, for their rep; none once they've booked.
+      const booking = info.booked || !info.handle ? null : `${base}/booking/${encodeURIComponent(info.handle)}${info.meet?.slug ? `/${encodeURIComponent(info.meet.slug)}` : ""}`;
       const parts = replyEmail({ reply: r, lead, form, sender, booking });
       await send("reply", c!.email!.trim().toLowerCase(), parts, sender, fromRep ? info.owner!.email : info.sending.reply_to);
     }

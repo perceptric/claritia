@@ -43,9 +43,13 @@ export function listed(list: string[], email: string | null, domain: string | nu
   });
 }
 
-/** The spam signals a lead shows, and how many checks ran. An allow-listed lead shows none. */
+/**
+ * The spam signals a lead shows, and how many checks ran. An allow-listed lead shows none. A lead from a form skips
+ * free email and too many fills: the form decides those before it lets a fill in (docs/scheduling-plan.md Part 13.4).
+ */
 export function spamSignals(body: RouterBody, f: Facts): { signals: SpamSignal[]; checks: number; allowed: boolean } {
-  const s = body.spam;
+  const fromForm = f.values["lead.source"] === "form";
+  const s = fromForm ? { ...body.spam, tooMany: false, freeMail: false } : body.spam;
   const l = f.lead;
   if (listed(f.lists.allow, l.email, l.domain)) return { signals: [], checks: 0, allowed: true };
   const out: SpamSignal[] = [];

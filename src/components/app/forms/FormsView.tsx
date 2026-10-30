@@ -433,6 +433,10 @@ function Builder({
   const origin = typeof window === "undefined" ? "" : window.location.origin;
   const sep = <span aria-hidden="true" className="mx-1 h-5 w-px bg-line" />;
 
+  const routingLive = useLoad(async () => {
+    const r = (await sb.from("routers").select("live_version, paused_at").eq("workspace_id", ws.id).maybeSingle()).data as { live_version: number | null; paused_at: string | null } | null;
+    return !!r?.live_version && !r.paused_at;
+  }, ws.id);
   const held = useLoad(async () => (await sb.from("submissions").select("id", { count: "exact", head: true }).eq("form_id", initial.id).eq("spam", false).eq("test", false)).count ?? 0, `${initial.id}:${watch}`);
   const SUBS: { value: SettingsSub; label: string; on?: boolean }[] = [
     { value: "after", label: "After submit" },
@@ -565,7 +569,7 @@ function Builder({
                   {sub === "after" ? (
                     <AfterSubmit form={form} apply={apply} sb={sb} ws={ws} session={session} role={role} />
                   ) : sub === "alerts" ? (
-                    <TeamAlerts form={form} apply={apply} />
+                    <TeamAlerts form={form} apply={apply} routingLive={!!routingLive.data} />
                   ) : sub === "reply" ? (
                     <AutoReply form={form} apply={apply} />
                   ) : sub === "consent" ? (
