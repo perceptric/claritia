@@ -404,6 +404,18 @@ one answer to "who takes this lead".
 No new services, jobs or AI calls; it reads the router and the calendars Claritia already holds. One router call per
 team booking, a few milliseconds of database time. **$0 more a month at Beta (50 teams) and Growth (500 teams).**
 
+### 12.11 Built
+- `src/lib/meetings/team.ts`: `teamOf` (the live queue's members as hosts, 300 ms), `pickTeamHost` (owner first, then
+  `router_pick`, then the type's rotation), `recordTeamRun` (`meeting_team_run`, else the `meeting_team_run` job),
+  `handOffMeetings` (12.6). `offer()` and `book()` in `server.ts` use them; days off and pause come with
+  `meeting_inputs`. The save API fills a team type's hosts from the queue.
+- Rules and the fallback carry `meet` (a meeting type id); the Routing panel has a Meeting pick; a form books the
+  rule's meeting. Routing › Leads has "Give to" with "Move their upcoming meeting too?". Team cards list their types.
+- `supabase/migrations/084_calendar_routing.sql`; tests in `tests/teamBooking.test.ts` and
+  `tests/pg/calendarRouting.pg.ts`.
+- When the new rep isn't free at the meeting's time, the meeting stays where it is and the panel says so; the email
+  offering the new rep's times is not built yet.
+
 ## Part 13. Fixing where the parts disagree (plan)
 
 Found by tracing one lead through Forms, Routing, Calendar, Emails and the CRM. Part 12 fixes the two rotations; these are
@@ -431,3 +443,7 @@ the rest. Each ships with a test on a flaky case.
    stays where it is and the new owner gets a task: "Take over Maya Chen's Demo on Tue, Nov 3?". Nothing moves on its own.
 
 Running cost: $0 more a month at Beta (50 teams) and Growth (500 teams); one more job per form submission at most.
+
+Built: all seven, in `worker-intel/jobs/forms.ts` (split alerts and reply, wait for routing, Slack left to Routing,
+the offered meeting's link), `worker-intel/jobs/meetings.ts` (`form_journey_follows`), `src/lib/router/spam.ts`,
+`worker-intel/jobs/workflows.ts` (`router_recent`) and the CRM owner triggers in `084_calendar_routing.sql`.
