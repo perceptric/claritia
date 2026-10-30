@@ -37,7 +37,7 @@ export function Editor({ session, ws, role, data, model, refresh }: Pick<ViewPro
   const [view, setView] = useState<"rules" | "results">("rules");
   const [res, setRes] = useState<Results | null>(null);
   const [error, setError] = useState("");
-  const [msgs, setMsgs] = useState<Msg[]>(() => (model.findings.length && !model.live ? [{ role: "assistant", text: "I built this model from your website, your CRM and the last 90 days of leads. Change any rule, or tell me what's different about your sales.", lines: model.findings.slice(0, 3).map((f) => f.text) }] : []));
+  const [msgs, setMsgs] = useState<Msg[]>([]);
   const [busy, setBusy] = useState(false);
   const [allMsgs, setAllMsgs] = useState(false);
   const words = useMemo(() => ({ fields: data.fields, forms: Object.fromEntries(data.forms.map((f) => [f.id, f.name])) }), [data.fields, data.forms]);

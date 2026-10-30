@@ -12,7 +12,7 @@ import { askConfirm } from "../Dialogs";
 import { Select } from "../Select";
 import { MoreMenu } from "../StatCards";
 import { ToolIntro } from "../ToolIntro";
-import { Badge, Button, ErrorNote, errorText, Input, Loading, must, Page, Toggle, useLoad, type ViewProps } from "../ui";
+import { Badge, Button, ErrorNote, errorText, Input, Loading, must, Page, Segmented, Toggle, useLoad, type ViewProps } from "../ui";
 import { LinkDialog } from "../meetings/LinkDialog";
 import { copyText, meetingsApi, ownZone, PersonAvatar, usePeople, useWorkspaceSlug } from "../meetings/parts";
 import type { TypeRow } from "../meetings/TypesList";
@@ -41,6 +41,8 @@ export function TypesPage(props: ViewProps) {
   }, ws.id);
   const [query, setQuery] = useState("");
   const [kind, setKind] = useState<Kind | "">("");
+  // You: your own types. Team: the shared ones and everyone else's, so each list stays short.
+  const [whose, setWhose] = useState<"you" | "team">("you");
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [error, setError] = useState("");
   const [linkFor, setLinkFor] = useState<string | null>(null);
@@ -57,7 +59,7 @@ export function TypesPage(props: ViewProps) {
   const nameOf = (id: string) => people.data?.byId.get(id)?.name ?? "Former teammate";
   const types = data.data?.types;
   const shown = useMemo(() => (types ?? []).filter((t) => (!kind || t.kind === kind) && (!query.trim() || t.name.toLowerCase().includes(query.trim().toLowerCase()))), [types, kind, query]);
-  const groups = groupTypes(shown, me, nameOf);
+  const groups = groupTypes(shown, me, nameOf).filter((g) => (whose === "you" ? g.person === me : g.person !== me));
   const origin = typeof window === "undefined" ? "" : window.location.origin;
   const typeUrl = (s: string) => (slug.data ? `${origin}/book/${slug.data}/${s}` : "");
   const flash = (id: string) => {
@@ -119,6 +121,15 @@ export function TypesPage(props: ViewProps) {
       <div className="mx-auto flex max-w-5xl flex-col gap-5">
         <ConnectCalendar sb={sb} session={session} ws={ws} />
         <div className="flex flex-wrap items-center gap-2">
+          <Segmented<"you" | "team">
+            label="Whose"
+            value={whose}
+            options={[
+              { value: "you", label: "You" },
+              { value: "team", label: "Team" },
+            ]}
+            onChange={setWhose}
+          />
           <label className="relative flex min-w-[220px] flex-1 items-center sm:max-w-sm">
             <Search size={14} className="pointer-events-none absolute left-3 text-faint" />
             <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search meeting types" aria-label="Search meeting types" className="h-9 pl-8" />
@@ -147,7 +158,7 @@ export function TypesPage(props: ViewProps) {
         <ErrorNote message={error || data.error || slug.error} />
         {!data.data ? (
           <Loading />
-        ) : !shown.length ? (
+        ) : !groups.length ? (
           <p className="py-10 text-center text-[13.5px] text-muted">No matches</p>
         ) : (
           groups.map((g) => {
