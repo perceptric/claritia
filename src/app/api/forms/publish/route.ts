@@ -1,6 +1,8 @@
 import { cleaningCtx, isMember } from "@/lib/contacts/server";
 import { checkForm } from "@/lib/forms/schema";
 import { forgetPublic } from "@/lib/forms/server";
+import { forgetFields } from "@/lib/router/actions";
+import { forgetScoring } from "@/lib/scoring/actions";
 import { requireUser } from "@/lib/serverAuth";
 import { serviceClient } from "@/lib/serviceClient";
 
@@ -26,5 +28,8 @@ export async function POST(request: Request) {
   if (error) return bad(error.message, 500);
   // The new version shows at once on this server (others read it again within 10 seconds, or on the first send).
   forgetPublic(body.id);
+  // Routing's field list and Scoring's context include the form's questions.
+  forgetFields(body.workspaceId as string);
+  forgetScoring(body.workspaceId as string);
   return Response.json({ version: data as number });
 }

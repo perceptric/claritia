@@ -13,7 +13,7 @@ import { BASE_FIELDS, type FieldDef } from "./conditions.ts";
 import { diffBodies } from "./diff.ts";
 import { decide, whyNot } from "./engine.ts";
 import { explain, pathWords, resultWords, type Line } from "./explain.ts";
-import { liveRouter, route, testRoute } from "./server.ts";
+import { invalidateRouterLive, liveRouter, route, testRoute } from "./server.ts";
 import { fromLeadSettings, type OldRouting } from "./templates.ts";
 import { slackInstallUrl, slackReady } from "../slack/app.ts";
 import { signState } from "../sources/oauth.ts";
@@ -278,6 +278,7 @@ export async function publish(rpc: Rpc, db: Q, c: Caller, note: string | null) {
   const ps = problems(body, { members: new Set(members.map((m) => m.id)), fields: f.fields });
   if (ps.length) throw new Refused(400, ps.map((p) => p.text).join(". "));
   const version = await call<number>(rpc, "router_publish", { p_ws: c.ws, p_body: body, p_note: note?.trim().slice(0, 300) || null, p_user: c.user, p_clear_draft: true });
+  invalidateRouterLive(c.ws);
   return { version };
 }
 
@@ -286,6 +287,7 @@ export async function rollback(rpc: Rpc, db: Q, c: Caller, version: number) {
   const v = (await db.from("router_versions").select("body").eq("workspace_id", c.ws).eq("version", version).maybeSingle()).data as { body: RouterBody } | null;
   if (!v) throw new Refused(404, "That version is gone.");
   const out = await call<number>(rpc, "router_publish", { p_ws: c.ws, p_body: cleanBody(v.body), p_note: `Rolled back to v${version}`, p_user: c.user, p_clear_draft: false });
+  invalidateRouterLive(c.ws);
   return { version: out };
 }
 
@@ -638,6 +640,7 @@ export async function saveAlert(db: SupabaseClient, c: Caller, url: string | nul
 export async function setPaused(rpc: Rpc, c: Caller, paused: boolean) {
   ownerOnly(c);
   await call(rpc, "router_pause", { p_ws: c.ws, p_paused: paused, p_user: c.user });
+  invalidateRouterLive(c.ws);
   return { paused };
 }
 
