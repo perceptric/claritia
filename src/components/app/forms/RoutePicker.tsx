@@ -25,7 +25,7 @@ export function RoutePicker({ sb, session, ws, picked, set }: Pick<ViewProps, "s
   const rows = [
     ...(body?.rules.list ?? []).map((r) => ({ id: r.id, name: r.name, text: r.conds.length ? ruleWords(r, BASE_FIELDS, body!.territories) : "No conditions yet" })),
     { id: OWNED, name: "Existing owner", text: "Leads kept with the rep they or their company already have" },
-    { id: FALLBACK, name: "No rule matched", text: "Leads no rule matched" },
+    { id: FALLBACK, name: "Fallback", text: "Leads no rule matched" },
   ];
   const toggle = (id: string) => set(picked.includes(id) ? picked.filter((x) => x !== id) : rows.map((r) => r.id).filter((x) => x === id || picked.includes(x)));
   const api = <T,>(action: string, extra: object) => postJson<T>(session, "/api/routing", { workspaceId: ws.id, action, ...extra });

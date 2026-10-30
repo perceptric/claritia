@@ -53,7 +53,7 @@ export type InspectorProps = {
   onSelect: (s: Selection) => void;
 };
 
-const TITLES = { spam: "Spam check", account: "Existing company", keep: "Current rep", rules: "Rules", fallback: "No rule matched", sla: "Time to reach out" } as const;
+const TITLES = { spam: "Spam check", account: "Existing company", keep: "Current rep", rules: "Rules", fallback: "Fallback", sla: "Time to reach out" } as const;
 
 export function Inspector(p: InspectorProps) {
   const { sel, body } = p;
@@ -229,7 +229,7 @@ function FallbackInspector({ body, edit, members, readOnly }: InspectorProps) {
   return (
     <Block first>
       <Segmented<"user" | "queue">
-        label="Goes to"
+        label="Assign to"
         value={kind}
         options={[
           { value: "user", label: "A rep" },

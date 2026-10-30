@@ -33,7 +33,7 @@ export function readBack(body: RouterBody, o: { names?: Record<string, string>; 
     }
   }
   const fb = body.fallback;
-  out.push(!fb ? "Leads nothing else matched have no rep yet." : fb.kind === "user" ? `Leads no rule matched go to ${who(fb.id)}.` : `Leads no rule matched go to the ${team(fb.id)?.name ?? "removed"} team.`);
+  out.push(!fb ? "Leads nothing else matched have no rep yet." : fb.kind === "user" ? `Fallback: assign to ${who(fb.id)}.` : `Fallback: the ${team(fb.id)?.name ?? "removed"} team.`);
   const sla = body.sla ?? defaultSla();
   if (sla.on) {
     const then = sla.next === "route" ? "it goes to someone else" : sla.next === "manager" ? `it goes to ${sla.manager ? who(sla.manager) : "the manager"}` : "they get a reminder";

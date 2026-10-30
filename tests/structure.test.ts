@@ -130,5 +130,5 @@ test("Read it back: the whole setup as a paragraph", () => {
   assert.match(text, /^Leads with throwaway emails, made-up names or too many forms from one person wait for you to review\./);
   assert.match(text, /A lead from a company you already work with goes to the rep on its open deal, or else the company's owner\./);
   assert.match(text, /When country is United States, it goes to the US team, who take turns\./);
-  assert.match(text, /Leads no rule matched go to Ben\. Reps must reach out within 1 hour, or it goes to someone else\.$/);
+  assert.match(text, /Fallback: assign to Ben\. Reps must reach out within 1 hour, or it goes to someone else\.$/);
 });
