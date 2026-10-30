@@ -403,3 +403,31 @@ one answer to "who takes this lead".
 ### 12.10 Running cost
 No new services, jobs or AI calls; it reads the router and the calendars Claritia already holds. One router call per
 team booking, a few milliseconds of database time. **$0 more a month at Beta (50 teams) and Growth (500 teams).**
+
+## Part 13. Fixing where the parts disagree (plan)
+
+Found by tracing one lead through Forms, Routing, Calendar, Emails and the CRM. Part 12 fixes the two rotations; these are
+the rest. Each ships with a test on a flaky case.
+
+1. **One "book a meeting" nudge.** A lead who sends a form and doesn't book could get the auto-reply's "Pick a time",
+   the meeting "book later" email and the "Form, no meeting" journey. Now: the auto-reply goes 5 minutes after the
+   submission and leaves out its booking link when the lead booked meanwhile; the "book later" email doesn't send when a
+   live journey starts on "not booked" for that form (or all forms). The journey owns the follow-up.
+2. **One alert per channel.** Routing already tells the rep and the Routing Slack channel about each new lead. The
+   form's team alert no longer posts to Slack when Routing will (the router is live); its email still goes, for the
+   people picked (a manager, say). Settings shows "Routing posts new leads here" beside the switch.
+3. **Alerts after routing.** When Routing takes longer than 300 ms the lead is routed by a job a moment later. The alert
+   and auto-reply now wait for that job (they read the owner when they send; if the route job hasn't finished they try
+   again in 30 seconds, up to 2 minutes, then send without a rep).
+4. **One home for each spam rule.** Forms decide what gets in (timer, captcha, free email, sites, hourly limit).
+   Routing's spam step skips the checks a form already made for that lead (free email, too many fills) and keeps its own
+   (throwaway email, fake name) for leads from anywhere. Routing's settings say "Forms check free email and fill limits
+   for form leads".
+5. **No second routing.** A workflow's Route step does nothing for a lead Routing already routed in the last 10 minutes
+   (it says "Already routed" in the run), so a form trigger can't change the owner twice.
+6. **The right booking link.** The auto-reply's link goes to the meeting the lead was offered: the rule's meeting
+   (Part 12.5), else the form's meeting type, else the rep's page, always for the routed rep (/booking/sam/demo).
+7. **CRM owner changes.** When the owner changes in the CRM, Claritia updates the lead's owner; their upcoming meeting
+   stays where it is and the new owner gets a task: "Take over Maya Chen's Demo on Tue, Nov 3?". Nothing moves on its own.
+
+Running cost: $0 more a month at Beta (50 teams) and Growth (500 teams); one more job per form submission at most.
