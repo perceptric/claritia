@@ -678,3 +678,42 @@ input[type="radio"] {
 @media (prefers-reduced-motion: reduce) {
   .fm-flash, .fm-blink { animation: none; }
 }
+
+/* Forms › Settings › After submit: a small loop under each choice. The form is sent (its button pressed), then what the
+   visitor sees: the message, the page, or their rep's times with one picked and Booked. Stops under reduced motion on
+   the end screen. */
+.da { position: relative; display: block; height: 96px; overflow: hidden; border: 1px solid var(--color-line); border-radius: 6px; background: var(--color-paper); }
+.da i { display: block; font-style: normal; }
+.da-f, .da-r { position: absolute; inset: 10px 14px; display: flex; flex-direction: column; gap: 6px; }
+.da-l { width: 60%; height: 6px; border-radius: 3px; background: var(--color-line-strong); }
+.da-l.lt { background: var(--color-line); }
+.da-l.w70 { width: 70%; }
+.da-l.w60 { width: 60%; }
+.da-l.w50 { width: 50%; }
+.da-l.w40 { width: 40%; }
+.da-in { height: 14px; border: 1px solid var(--color-line-strong); border-radius: 4px; background: var(--color-card); }
+.da-btn { width: 40%; height: 14px; border-radius: 999px; background: var(--color-ink); animation: da-press 4s var(--ease-out) infinite; }
+.da-f { animation: da-out 4s var(--ease-out) infinite; }
+.da-r { opacity: 0; animation: da-in 4s var(--ease-out) infinite; }
+.da-ok { display: flex !important; width: 18px; height: 18px; align-items: center; justify-content: center; border-radius: 50%; background: var(--color-signal-soft); color: var(--color-signal); }
+.da-page { inset: 0; gap: 6px; padding: 0 0 8px; }
+.da-bar { height: 12px; border-bottom: 1px solid var(--color-line); background: var(--color-paper-deep); }
+.da-hero { height: 26px; margin: 0 12px; border-radius: 4px; background: var(--color-line); }
+.da-page .da-l { margin-left: 12px; }
+.da-who { display: flex; align-items: center; gap: 6px; }
+.da-av { display: flex !important; width: 16px; height: 16px; align-items: center; justify-content: center; border-radius: 50%; background: var(--color-ink); color: var(--color-card); font-size: 6.5px; font-weight: 600; }
+.da-t { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; }
+.da-t i { height: 12px; border: 1px solid var(--color-line-strong); border-radius: 999px; background: var(--color-card); }
+.da-t i.pick { animation: da-pick 4s var(--ease-out) infinite; }
+.da-done { position: absolute; right: 0; bottom: 0; display: inline-flex !important; height: 16px; align-items: center; gap: 3px; padding: 0 6px; border-radius: 999px; background: var(--color-signal-soft); color: var(--color-signal); font-size: 9px; font-weight: 600; opacity: 0; animation: da-done 4s var(--ease-out) infinite; }
+@keyframes da-press { 0%, 26% { transform: scale(1); } 30% { transform: scale(0.92); } 34%, 100% { transform: scale(1); } }
+@keyframes da-out { 0%, 34% { opacity: 1; transform: none; } 44%, 92% { opacity: 0; transform: translateY(-6px); } 100% { opacity: 1; transform: none; } }
+@keyframes da-in { 0%, 40% { opacity: 0; transform: translateY(6px); } 50%, 90% { opacity: 1; transform: none; } 98%, 100% { opacity: 0; } }
+@keyframes da-pick { 0%, 60% { background: var(--color-card); border-color: var(--color-line-strong); } 66%, 100% { background: var(--color-ink); border-color: var(--color-ink); } }
+@keyframes da-done { 0%, 70% { opacity: 0; transform: translateY(4px); } 76%, 90% { opacity: 1; transform: none; } 98%, 100% { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) {
+  .da-f, .da-r, .da-btn, .da-t i.pick, .da-done { animation: none; }
+  .da-f { opacity: 0; }
+  .da-r, .da-done { opacity: 1; }
+  .da-t i.pick { background: var(--color-ink); border-color: var(--color-ink); }
+}

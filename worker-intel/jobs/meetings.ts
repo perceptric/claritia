@@ -575,6 +575,8 @@ export const meetingBookLater =
       const uuid = /^[0-9a-f-]{36}$/;
       const hostId = typeof job.payload.host === "string" && uuid.test(job.payload.host) ? job.payload.host : null;
       const ownerId = typeof job.payload.owner === "string" && uuid.test(job.payload.owner) ? job.payload.owner : null;
+      // The rep Routing gave the lead: the email offers their times alone (src/lib/forms/schedule.ts claritiaPlan).
+      const only = job.payload.only === true && ownerId ? ownerId : null;
       if (!uuid.test(submission) || !uuid.test(typeId)) throw new JobError("meeting_book_later needs a submission and a type", { retry: false });
       const info = await call<LaterInfo | null>(rpc, "meeting_book_later_info", { p_submission: submission, p_type: typeId });
       // The lead booked meanwhile (in the form, or from another link): nothing to do.
@@ -595,7 +597,7 @@ export const meetingBookLater =
       let owner: string | undefined;
       let next: string | undefined;
       try {
-        const got = await offer(rpc, { ws: info.submission.workspace_id, type: t, length: t.settings.lengths[0] ?? 30, now, owner: ownerId });
+        const got = await offer(rpc, { ws: info.submission.workspace_id, type: t, length: t.settings.lengths[0] ?? 30, now, owner: ownerId, only });
         slots = got.slots;
         owner = got.owner;
         next = got.next;
@@ -603,11 +605,13 @@ export const meetingBookLater =
         slots = [];
       }
       // The same host the lead saw, when there was one.
-      const who = hostId ?? owner ?? next ?? (t.hosts.length === 1 ? t.hosts[0]!.user_id : null);
+      const who = only ?? hostId ?? owner ?? next ?? (t.hosts.length === 1 ? t.hosts[0]!.user_id : null);
+      // Their rep still has no free times: nothing to offer, so no email.
+      if (only && !slots.length) return;
       const person = who ? info.people.find((p) => p.id === who) : undefined;
       const times = slots.filter((s) => !who || s.hosts.includes(who)).slice(0, 5).map((s) => s.start);
       const name = [c.first_name, c.last_name].filter(Boolean).join(" ") || null;
-      const link = bookingUrl(o.base, { workspace: info.workspace.slug, type: t.slug, name, email: c.email, host: who && t.hosts.length > 1 ? who : null, ref: bookRef(submission, now, o.secret) });
+      const link = bookingUrl(o.base, { workspace: info.workspace.slug, type: t.slug, name, email: c.email, host: who && (only || t.hosts.length > 1) ? who : null, ref: bookRef(submission, now, o.secret) });
       settleFor(job, o, [
         await sendOne(rpc, o, info.sending, {
           ws: info.submission.workspace_id,

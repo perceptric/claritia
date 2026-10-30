@@ -12,6 +12,8 @@ import type { CustomField } from "@/lib/records/fields";
 import { askConfirm, tell } from "../Dialogs";
 import { Badge, cache, ErrorNote, errorText, invalidate, Loading, must, postJson, setLeaveGuard, Tabs, useQuery, type ViewProps } from "../ui";
 import { useLiveBody } from "../routing/screenParts";
+import { useRoutingLoad } from "../routing/useRouterData";
+import { firstRow, routeRows, type Routes } from "./routes";
 import { Build, type Pick as Picked } from "./Build";
 import { mergeKey } from "./editorModel";
 import { useFormChat } from "./FormChat";
@@ -142,6 +144,16 @@ function Editor(props: ViewProps & { data: FormData; reload: () => void; patchRo
   const merge = useRef<{ key: string; at: number } | null>(null);
   const crm = useCrm(data.sources, session, ws.id);
   const live = useLiveBody(sb, ws.id);
+  // Routing as the After submit step reads it: live when a version is published and not paused.
+  const rload = useRoutingLoad(session, ws.id);
+  const [pv, setPv] = useState("");
+  const routes = useMemo((): Routes => {
+    const l = rload.data;
+    const body = l?.live?.body ?? live.data?.body ?? null;
+    const rows = body ? routeRows(body, l?.members ?? [], l?.fields ?? []) : [];
+    const pick = rows.find((r) => r.id === pv) ?? firstRow(rows);
+    return { on: !!body && !!l?.live && !l.paused, rows, pv: pick?.id ?? "", setPv, types: data.types, open: () => navigate("routing") };
+  }, [rload.data, live.data, pv, data.types, navigate]);
   const kit = data.kits.find((k) => k.id === kitId) ?? null;
 
   const setTab = (t: Tab) => {
@@ -490,6 +502,7 @@ function Editor(props: ViewProps & { data: FormData; reload: () => void; patchRo
             onCustom={(c) => setCustom((x) => [...x, c])}
             crm={crm}
             routing={live.data?.body ?? null}
+            routes={routes}
             kit={kit}
             kits={data.kits}
             setKit={setKit}
@@ -519,7 +532,7 @@ function Editor(props: ViewProps & { data: FormData; reload: () => void; patchRo
         ) : tab === "sync" ? (
           <Sync {...props} form={form} formId={row.id} dests={data.dests} sources={data.sources} crm={crm} failed={data.failed} reload={reload} patchDests={patchDests} onFix={(qid) => goto(qid)} issueCtx={issueCtx} />
         ) : (
-          <Setup {...props} form={form} apply={apply} sub={sub} setSub={setSub} formId={row.id} types={data.types} routing={live.data?.body ?? null} onReview={() => setTab("submissions")} subs={data.subs} name={name} />
+          <Setup {...props} form={form} apply={apply} sub={sub} setSub={setSub} formId={row.id} types={data.types} routing={live.data?.body ?? null} routes={routes} onReview={() => setTab("submissions")} subs={data.subs} name={name} />
         )}
       </div>
       {dialog === "publish" ? <PublishDialog checks={checks} live={!!row.version} onClose={() => setDialog(null)} onPublish={() => void publish()} onFix={(qid) => goto(qid)} error={error} /> : null}

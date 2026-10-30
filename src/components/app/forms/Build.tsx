@@ -9,6 +9,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { cleanTokens } from "@/lib/forms/brand";
+import { localZone, zoneName } from "@/lib/forms/calendar";
 import type { Op } from "@/lib/forms/ops";
 import { condText } from "@/lib/forms/ops";
 import { allFields, newId, questionKey, type Field, type Form } from "@/lib/forms/schema";
@@ -19,7 +20,8 @@ import type { useFormChat } from "./FormChat";
 import { AskPill } from "./FormHome";
 import { CONSENT_ID, consentBox, GROUP_WORDS, isContentKind, issuesOf, KINDS, known, newQuestion, questionsOf, showRules, type Kind, type Q } from "./formModel";
 import { Ic } from "./ic";
-import { GHOST_SM, IB_SM, Seg } from "./parts";
+import { Dd, GHOST_SM, IB_SM, Seg } from "./parts";
+import { typeLabel, type Routes } from "./routes";
 import { ButtonPanel, FormPanel, QuestionPanel } from "./Panels";
 import type { SetupSub } from "./Setup";
 import type { Kit } from "./shared";
@@ -37,6 +39,8 @@ export type BuildProps = ViewProps & {
   onCustom: (c: CustomField) => void;
   crm: ReturnType<typeof useCrm>;
   routing: RouterBody | null;
+  /** Routing as After submit reads it, and which of its rows the preview shows. */
+  routes: Routes;
   kit: Kit | null;
   kits: Kit[];
   setKit: (id: string | null) => void;
@@ -184,6 +188,22 @@ export function Build(p: BuildProps) {
         <div className="flex h-[44px] shrink-0 items-center gap-[6px] overflow-x-auto border-b border-line bg-card px-[12px] [scrollbar-width:none]">
           {stepBar}
           <span className="flex-1" />
+          {isEnd && form.after.schedule?.tool === "claritia" && p.routes.on && p.routes.rows.length ? (
+            <span className="mr-[8px] w-[230px] shrink-0">
+              <Dd
+                sm
+                ariaLabel="Preview as"
+                menuWidth={280}
+                label={
+                  <>
+                    <span className="text-muted">Preview as</span>
+                    <span className="truncate">{p.routes.rows.find((r) => r.id === p.routes.pv)?.name}</span>
+                  </>
+                }
+                items={p.routes.rows.map((r) => ({ kind: "option" as const, key: r.id, label: r.name, hint: r.lead.email, on: r.id === p.routes.pv, onPick: () => (p.routes.setPv(r.id), setPick(null)) }))}
+              />
+            </span>
+          ) : null}
           <span className="max-[860px]:hidden">
             <Seg icons label="Device" value={device} onChange={setDevice} options={[{ value: "desktop", label: <Ic n="monitor" />, title: "Desktop" }, { value: "phone", label: <Ic n="phone" />, title: "Phone" }]} />
           </span>
@@ -516,8 +536,8 @@ function sampleTimes(): string[] {
   return ["10:00", "14:30", "09:00", "11:30", "15:00", "10:30"].map((t, i) => `${days[Math.floor(i / 2)]} ${t}`);
 }
 
-/** After submit, as the visitor sees it. */
-function EndView({ form, types, onSettings }: BuildProps) {
+/** After submit, as the visitor sees it: with Routing live, as the lead of the row picked in "Preview as" sees it. */
+function EndView({ form, types, onSettings, routes }: BuildProps) {
   const s = form.after.schedule;
   const end = form.after.end;
   const tag = (t: string) => (
@@ -531,6 +551,11 @@ function EndView({ form, types, onSettings }: BuildProps) {
       Edit in Settings
     </button>
   );
+  const toRouting = (
+    <button type="button" className={GHOST_SM} onClick={routes.open}>
+      Edit in Routing
+    </button>
+  );
   if (!s && end.kind === "redirect")
     return (
       <div className="flex flex-col items-start gap-[12px]">
@@ -540,33 +565,88 @@ function EndView({ form, types, onSettings }: BuildProps) {
         {edit}
       </div>
     );
-  const type = s?.tool === "claritia" ? types.find((t) => t.id === s.meetingTypeId) : null;
-  const len = type?.settings?.lengths?.[0];
+  const check = (
+    <span className="inline-flex size-[36px] items-center justify-center rounded-full bg-signal-soft text-signal">
+      <Ic n="check" s={18} />
+    </span>
+  );
+  const h2 = (t: string) => <h2 className="m-0 text-[20px] leading-[1.2] font-semibold tracking-[-0.02em]">{t}</h2>;
+  const message = (t: React.ReactNode, after: React.ReactNode) => (
+    <div className="flex flex-col items-start gap-[12px]">
+      {check}
+      {h2(end.kind === "message" ? end.title : "")}
+      {end.kind === "message" && end.text ? <p className="m-0 text-[14px] text-[var(--b-muted)]">{end.text}</p> : null}
+      {t}
+      {after}
+    </div>
+  );
+  if (!s) return message(tag("Everyone sees this"), edit);
+  const times = (
+    <div className="grid w-full grid-cols-3 gap-[6px]">
+      {sampleTimes().map((t) => (
+        <span key={t} className="flex h-[36px] items-center justify-center rounded-full border border-[var(--b-line)] text-[13px]">
+          {t}
+        </span>
+      ))}
+    </div>
+  );
+  const heading = s.heading || "Pick a time";
+  const zone = `Times in your zone, ${zoneName(localZone())}.`;
+  const lede = (t: string) => <p className="m-0 text-[14px] text-[var(--b-muted)]">{t}</p>;
+  if (s.tool !== "claritia") {
+    return (
+      <div className="flex flex-col items-start gap-[12px]">
+        {check}
+        {h2(heading)}
+        {lede("A meeting. Times in their own zone.")}
+        {times}
+        {tag(s.who === "routed" ? "Only for leads Routing sends to a rep. Others see the message" : s.who === "match" ? "Only for leads that match. Others see the message" : "Everyone sees times")}
+        {edit}
+      </div>
+    );
+  }
+  const own = types.find((t) => t.id === s.meetingTypeId);
+  const r = routes.on ? routes.rows.find((x) => x.id === routes.pv) : undefined;
+  // Routing isn't live: everyone books the form's meeting with its hosts.
+  if (!r)
+    return (
+      <div className="flex flex-col items-start gap-[12px]">
+        {check}
+        {h2(`Thanks, Maya. ${heading}.`)}
+        {lede(`${typeLabel(own)}. ${zone}`)}
+        {times}
+        {tag("Times from the meeting's hosts")}
+        {edit}
+      </div>
+    );
+  if (r.held) return message(tag(`${r.name} in Routing`), toRouting);
+  const rep = r.rep?.name ?? "your rep";
+  const meet = r.meet ? types.find((t) => t.id === r.meet) : own;
   return (
     <div className="flex flex-col items-start gap-[12px]">
-      <span className="inline-flex size-[36px] items-center justify-center rounded-full bg-signal-soft text-signal">
-        <Ic n="check" s={18} />
-      </span>
-      <h2 className="m-0 text-[20px] leading-[1.2] font-semibold tracking-[-0.02em]">{s ? s.heading || "Pick a time" : end.kind === "message" ? end.title : ""}</h2>
-      {s ? (
-        <>
-          <p className="m-0 text-[14px] text-[var(--b-muted)]">{`${type ? `${type.name}${len ? `, ${len} min` : ""}` : "A meeting"}. Times in their own zone.`}</p>
-          <div className="grid w-full grid-cols-3 gap-[6px]">
-            {sampleTimes().map((t) => (
-              <span key={t} className="flex h-[36px] items-center justify-center rounded-full border border-[var(--b-line)] text-[13px]">
-                {t}
-              </span>
-            ))}
-          </div>
-          {tag(s.who === "routed" ? "Only for leads Routing sends to a rep. Others see the message" : s.who === "match" ? "Only for leads that match. Others see the message" : "Everyone sees times")}
-        </>
-      ) : (
-        <>
-          {end.kind === "message" && end.text ? <p className="m-0 text-[14px] text-[var(--b-muted)]">{end.text}</p> : null}
-          {tag("Everyone sees this")}
-        </>
-      )}
-      {edit}
+      {check}
+      {h2(`Thanks, ${r.lead.first}. ${heading} with ${rep.split(" ")[0]}.`)}
+      <div className="flex items-center gap-[10px]">
+        <span aria-hidden="true" className="inline-flex size-[36px] shrink-0 items-center justify-center rounded-full bg-ink text-[12px] font-semibold text-card">
+          {initials(rep)}
+        </span>
+        <span className="flex flex-col leading-[1.3]">
+          <b className="text-[14px] font-semibold">{r.rep?.name ?? "Their rep"}</b>
+          <span className="text-[12.5px] text-[var(--b-muted)]">{typeLabel(meet)}</span>
+        </span>
+      </div>
+      {lede(zone)}
+      {times}
+      {tag(`${r.name} in Routing${r.meet ? "" : ", this form's meeting"}`)}
+      {toRouting}
     </div>
   );
 }
+
+const initials = (name: string) =>
+  name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((w) => w[0]!.toUpperCase())
+    .join("") || "?";

@@ -4,7 +4,7 @@ import type { Session, SupabaseClient } from "@supabase/supabase-js";
 import dynamic from "next/dynamic";
 import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import { getSupabase, type SupaConfig } from "@/lib/supa";
-import { contactsPage, emailsPage, enrichmentPage, NAV, resolveRoute, routingPage, schedulingPage, scoringPage, visitorsPage } from "@/lib/nav";
+import { contactsPage, emailsPage, enrichmentPage, NAV, resolveRoute, routingPage, schedulingPage, scoringPage } from "@/lib/nav";
 import { Check, LogOut, Moon, Sun } from "../Icons";
 import { Logo } from "../Logo";
 import { AuthScreen } from "./AuthScreen";
@@ -26,7 +26,6 @@ const LOADERS = {
   meetings: () => import("./meetings/MeetingsView").then((m) => m.MeetingsView),
   routing: () => import("./routing/RoutingView").then((m) => m.RoutingView),
   scheduling: () => import("./scheduling/SchedulingView").then((m) => m.SchedulingView),
-  visitors: () => import("./signals/SignalsView").then((m) => m.SignalsView),
   enrichment: () => import("./enrichment/EnrichmentView").then((m) => m.EnrichmentView),
   segments: () => import("./views/SegmentsView").then((m) => m.SegmentsView),
   workflows: () => import("./workflows/WorkflowsView").then((m) => m.WorkflowsView),
@@ -46,7 +45,6 @@ const VIEWS: Record<ViewRoute, React.ComponentType<ViewProps>> = {
   meetings: dynamic(LOADERS.meetings, { ssr: false, loading }),
   routing: dynamic(LOADERS.routing, { ssr: false, loading }),
   scheduling: dynamic(LOADERS.scheduling, { ssr: false, loading }),
-  visitors: dynamic(LOADERS.visitors, { ssr: false, loading }),
   enrichment: dynamic(LOADERS.enrichment, { ssr: false, loading }),
   segments: dynamic(LOADERS.segments, { ssr: false, loading }),
   workflows: dynamic(LOADERS.workflows, { ssr: false, loading }),
@@ -86,7 +84,6 @@ const readLoc = (): Loc => {
   // Pages inside a route (src/lib/nav.ts).
   if (r.route === "routing") return { route: r.route, id: routingPage(r.id).id };
   if (r.route === "scheduling") return { route: r.route, id: schedulingPage(r.id).id };
-  if (r.route === "visitors") return { route: r.route, id: visitorsPage(r.id).id };
   if (r.route === "enrichment") return { route: r.route, id: enrichmentPage(r.id).id };
   if (r.route === "emails") return { route: r.route, id: emailsPage(r.id).id };
   if (r.route === "scoring") return { route: r.route, id: scoringPage(r.id).id };

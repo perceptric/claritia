@@ -13,7 +13,6 @@ export type Route =
   | "enrichment"
   | "forms"
   | "scheduling"
-  | "visitors"
   | "emails"
   | "segments"
   | "scoring"
@@ -47,7 +46,6 @@ export const NAV: NavItem[] = [
   item("inbound", "scheduling", "Calendar"),
   item("inbound", "routing", "Routing"),
   item("inbound", "scoring", "Scoring"),
-  item("inbound", "visitors", "Visitors"),
   item("crm", "contacts", "Contacts"),
   item("crm", "companies", "Companies"),
   item("crm", "opportunities", "Opportunities"),
@@ -173,20 +171,6 @@ export function schedulingPage(id: string): { page: SchedulingPageKey; sub: stri
 /** Availability's view from its address part ("" is Schedules). */
 export const availabilityPage = (sub: string): AvailabilityTab => (sub === "calendars" || sub === "team" || sub === "days-off" ? sub : "schedules");
 
-export type VisitorsTab = "feed" | "visits" | "alerts" | "setup";
-export const VISITORS_TABS: Tab<VisitorsTab>[] = [
-  { value: "feed", label: "Signals" },
-  { value: "visits", label: "Visits" },
-  { value: "alerts", label: "Alerts" },
-  { value: "setup", label: "Setup" },
-];
-
-/** Visitors' tabs (today's Signals): Signals (""), Visits, Alerts and Setup. */
-export function visitorsPage(id: string): { tab: VisitorsTab; id: string } {
-  const a = id.split("/")[0] ?? "";
-  return a === "visits" || a === "alerts" || a === "setup" ? { tab: a, id: a } : { tab: "feed", id: "" };
-}
-
 export type EmailsTab = "journeys" | "emails" | "library" | "brand";
 export const EMAILS_TABS: Tab<EmailsTab>[] = [
   { value: "journeys", label: "Journeys" },
@@ -224,6 +208,9 @@ export function scoringPage(id: string): { tab: ScoringTab; id: string } {
 
 /** Old first parts of an address and where they open now: the route, and the page inside it. */
 const MOVED: Record<string, { route: Route; id?: string; keepId?: boolean }> = {
+  // Visitors (once Signals) was removed; its addresses open Contacts.
+  visitors: { route: "contacts" },
+  signals: { route: "contacts" },
   leads: { route: "contacts", keepId: true },
   people: { route: "contacts" },
   accounts: { route: "companies", id: "account", keepId: true },
@@ -233,8 +220,6 @@ const MOVED: Record<string, { route: Route; id?: string; keepId?: boolean }> = {
   analytics: { route: "emails" },
 };
 
-/** Signals' old tabs, now under Visitors. */
-const SIGNALS: Record<string, string> = { "": "", visitors: "visits", alerts: "alerts", setup: "setup" };
 
 /** Reports' old pages, now inside the sections they're about. */
 const REPORTS: Record<string, { route: Route; id: string }> = {
@@ -250,9 +235,6 @@ const SETTINGS_MOVED: Record<string, { route: Route; id: string }> = {
   calendar: { route: "scheduling", id: "availability/calendars" },
   calendars: { route: "scheduling", id: "availability/team" },
   payments: { route: "scheduling", id: "settings/payments" },
-  sites: { route: "visitors", id: "setup" },
-  identity: { route: "visitors", id: "setup" },
-  account_alerts: { route: "visitors", id: "alerts" },
   lead_scoring: { route: "scoring", id: "" },
   icp: { route: "scoring", id: "ideal" },
 };
@@ -267,12 +249,9 @@ export function resolveRoute(first: string, id: string): { route: Route; id: str
   // Meeting types lived under Meetings; booking forms under Scheduling.
   if (first === "meetings" && a === "types") return { route: "scheduling", id: ["types", ...rest].join("/") };
   if (first === "scheduling" && a === "forms") return { route: "forms", id: "" };
-  if (first === "companies" && a === "visits") return { route: "visitors", id: "visits" };
+  if (first === "companies" && a === "visits") return { route: "companies", id: "" };
   if (first === "settings" && SETTINGS_MOVED[a]) return SETTINGS_MOVED[a];
-  if (first === "signals") return { route: "visitors", id: SIGNALS[a] ?? "" };
   if (first === "reports") return REPORTS[a] ?? REPORTS[""]!;
-  // /visitors/visitors was Signals' visitor list.
-  if (first === "visitors" && a === "visitors") return { route: "visitors", id: "visits" };
   // Workflows live in Emails › Journeys (docs/email-plan.md Part 8); only a new one keeps its own screen.
   if (first === "workflows" && a !== "new") return { route: "emails", id: UUID.test(a) ? `journeys/${a}` : "" };
   if (ROUTES.has(first)) return { route: first as Route, id };

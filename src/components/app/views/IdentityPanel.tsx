@@ -8,7 +8,7 @@ import { askConfirm } from "../Dialogs";
 import { Badge, Button, CardHead, ErrorNote, errorText, Field, Input, Loading, must, Panel, postJson, Tabs, useLoad, type ViewProps } from "../ui";
 import { domainList } from "@/lib/identity/domainList";
 import { Copy } from "./SitesPanel";
-import type { SiteHealth } from "./VisitorsView";
+import type { SiteHealth } from "./SitesPanel";
 import { useSiteHealth } from "../shared";
 
 type Domains = { own_domains: string[]; partner_domains: string[] };

@@ -7,13 +7,14 @@
 import { useState } from "react";
 import { DEFAULT_NOTIFY, DEFAULT_REPLY, merge } from "@/lib/forms/notify";
 import type { Op } from "@/lib/forms/ops";
-import { REP, SCHEDULERS, WORK_EMAIL } from "@/lib/forms/schedule";
+import { SCHEDULERS } from "@/lib/forms/schedule";
 import { DEFAULT_CONSENT, type Form } from "@/lib/forms/schema";
 import type { RouterBody } from "@/lib/router/types";
 import { BrandLogo } from "../BrandLogo";
 import { askText } from "../Dialogs";
 import { Badge, ErrorNote, errorText, must, useLoad, type ViewProps } from "../ui";
 import { Ic } from "./ic";
+import { RouteList, typeLabel, type Routes } from "./routes";
 import { AREA, Box, CARD, CROW, CSTACK, Dd, GHOST_SM, GHOST_SM_RED, IN, IN_FIT, RowText, Seg, useNote, type DdItem, Tg } from "./parts";
 
 export type SetupSub = "after" | "alerts" | "reply" | "consent" | "spam" | "data";
@@ -26,6 +27,7 @@ type Props = ViewProps & {
   formId: string;
   types: { id: string; name: string; active: boolean; settings?: { lengths?: number[] } }[];
   routing: RouterBody | null;
+  routes: Routes;
   onReview: () => void;
   subs: number;
   name: string;
@@ -78,32 +80,80 @@ const messageOp = (text: string): Op => {
   return { op: "set_after", end: { kind: "message", title: (title ?? "").trim() || "Thanks, we got it.", ...(rest.join("\n\n").trim() ? { text: rest.join("\n\n").trim() } : {}) } };
 };
 
-function After({ form, apply, types, routing }: Props) {
+/** A small loop under each choice: the form is sent, then what the visitor sees (the .da styles in globals.css). */
+function DemoAnim({ v }: { v: "msg" | "url" | "book" }) {
+  return (
+    <span className="da w-full" aria-hidden="true">
+      <span className="da-f">
+        <i className="da-l" />
+        <i className="da-in" />
+        <i className="da-in" />
+        <i className="da-btn" />
+      </span>
+      {v === "msg" ? (
+        <span className="da-r">
+          <i className="da-ok">
+            <Ic n="check" s={10} />
+          </i>
+          <i className="da-l w70" />
+          <i className="da-l w50 lt" />
+        </span>
+      ) : v === "url" ? (
+        <span className="da-r da-page">
+          <i className="da-bar" />
+          <i className="da-hero" />
+          <i className="da-l w60 lt" />
+          <i className="da-l w40 lt" />
+        </span>
+      ) : (
+        <span className="da-r">
+          <span className="da-who">
+            <i className="da-av">DR</i>
+            <i className="da-l w50" />
+          </span>
+          <span className="da-t">
+            <i />
+            <i className="pick" />
+            <i />
+            <i />
+            <i />
+            <i />
+          </span>
+          <i className="da-done">
+            <Ic n="check" s={9} />
+            Booked
+          </i>
+        </span>
+      )}
+    </span>
+  );
+}
+
+function After({ form, apply, types, routes }: Props) {
   const s = form.after.schedule;
   const end = form.after.end;
   const kind = s ? "book" : end.kind === "redirect" ? "url" : "msg";
   const active = types.filter((t) => t.active);
-  const routed = !!routing;
   const [msg, setMsg] = useState(messageText(form));
   const lastMsg = end.kind === "message" ? end : { kind: "message" as const, title: "Thanks, we got it." };
   const pick = (k: "msg" | "url" | "book") => {
     if (k === kind) return;
-    if (k === "book") apply([...(end.kind === "redirect" ? [{ op: "set_after" as const, end: lastMsg }] : []), { op: "set_schedule", schedule: { tool: "claritia", url: "", perOwner: false, ...(active[0] ? { meetingTypeId: active[0].id } : {}), ...(routed ? { who: "routed" as const, routeRules: [REP] } : {}) } }], "Books a meeting after the submit");
+    if (k === "book") apply([...(end.kind === "redirect" ? [{ op: "set_after" as const, end: lastMsg }] : []), { op: "set_schedule", schedule: { tool: "claritia", url: "", perOwner: false, ...(active[0] ? { meetingTypeId: active[0].id } : {}) } }], "Books a meeting after the submit");
     else if (k === "url") apply([{ op: "set_schedule", schedule: null }, { op: "set_after", end: { kind: "redirect", url: end.kind === "redirect" ? end.url : "https://" } }], "Goes to a page after the submit");
     else apply([{ op: "set_schedule", schedule: null }, { op: "set_after", end: lastMsg }], "Shows a message after the submit");
   };
-  const who = !s?.who ? "all" : s.who === "match" && s.rules?.length === 1 && s.rules[0]!.field === WORK_EMAIL && s.rules[0]!.op === "is" ? "work" : s.who === "routed" ? "routed" : "other";
-  const setWho = (v: "all" | "work" | "routed") => {
-    if (!s) return;
-    const base = { ...s };
-    delete base.who;
-    delete base.rules;
-    delete base.routeRules;
-    delete base.any;
-    apply({ op: "set_schedule", schedule: v === "all" ? base : v === "work" ? { ...base, who: "match", rules: [{ field: WORK_EMAIL, op: "is" }] } : { ...base, who: "routed", routeRules: [REP] } });
-  };
   const type = s?.tool === "claritia" ? types.find((t) => t.id === s.meetingTypeId) : null;
-  const typeLabel = (t: (typeof types)[number]) => `${t.name}${t.settings?.lengths?.[0] ? `, ${t.settings.lengths[0]} min` : ""}`;
+  const claritia = s?.tool === "claritia";
+  const on = claritia && routes.on;
+  // Routing decides who sees times now: an older form's "who sees times" goes when the meeting changes here.
+  const base = (): NonNullable<typeof s> => {
+    const b = { ...s! };
+    delete b.who;
+    delete b.rules;
+    delete b.routeRules;
+    delete b.any;
+    return b;
+  };
   return (
     <>
       <H3>After submit</H3>
@@ -116,11 +166,12 @@ function After({ form, apply, types, routing }: Props) {
             ["book", "meet", "Book a meeting"],
           ] as const
         ).map(([v, i, l]) => (
-          <button key={v} type="button" aria-pressed={kind === v} onClick={() => pick(v)} className={`flex flex-col items-start gap-[8px] rounded-[10px] border p-[10px] text-left transition-colors duration-[120ms] ${kind === v ? "border-ink ring-1 ring-ink" : "border-line hover:border-line-strong"}`}>
+          <button key={v} type="button" aria-pressed={kind === v} onClick={() => pick(v)} className={`flex min-w-0 flex-col items-start gap-[8px] rounded-[10px] border p-[10px] text-left transition-colors duration-[120ms] ${kind === v ? "border-ink ring-1 ring-ink" : "border-line hover:border-line-strong"}`}>
             <span className="inline-flex size-[30px] items-center justify-center rounded-lg bg-paper-deep text-body">
               <Ic n={i} />
             </span>
             <b className="text-[12.5px] font-medium text-ink">{l}</b>
+            <DemoAnim v={v} />
           </button>
         ))}
       </div>
@@ -133,29 +184,59 @@ function After({ form, apply, types, routing }: Props) {
           </div>
         </div>
       ) : null}
+      {kind === "book" && on ? (
+        <div className={CARD}>
+          <div className={CROW}>
+            <RowText title="Routing decides" sub="Each lead books with the rep Routing gives them" />
+            <button type="button" className={GHOST_SM} onClick={routes.open}>
+              <Ic n="branch" s={12} />
+              Edit in Routing
+            </button>
+          </div>
+          <div className={CSTACK}>
+            <RouteList routes={routes} formType={s?.meetingTypeId} />
+          </div>
+        </div>
+      ) : null}
       {kind === "book" && s ? (
         <div className={CARD}>
           <div className={CSTACK}>
-            <Label>Meeting</Label>
+            <Label>{on ? "Meeting when the rule names none" : "Meeting"}</Label>
             <Dd
               ariaLabel="Meeting"
               label={type ? typeLabel(type) : s.tool !== "claritia" ? (SCHEDULERS.find((x) => x.value === s.tool)?.label ?? "Scheduler") : "Pick a meeting type"}
-              items={active.length ? active.map((t): DdItem => ({ kind: "option", key: t.id, label: typeLabel(t), on: t.id === s.meetingTypeId, onPick: () => apply({ op: "set_schedule", schedule: { ...s, tool: "claritia", url: "", perOwner: false, meetingTypeId: t.id } }) })) : [{ kind: "option", key: "none", label: "No meeting types yet", why: " ", onPick: () => {} }]}
+              items={active.length ? active.map((t): DdItem => ({ kind: "option", key: t.id, label: typeLabel(t), on: t.id === s.meetingTypeId, onPick: () => apply({ op: "set_schedule", schedule: { ...base(), tool: "claritia", url: "", perOwner: false, meetingTypeId: t.id } }) })) : [{ kind: "option", key: "none", label: "No meeting types yet", why: " ", onPick: () => {} }]}
             />
-            <span className="text-[12px] text-muted">A Routing rule&apos;s own meeting wins for its leads</span>
           </div>
+          {claritia && !on ? (
+            <div className={CROW}>
+              <RowText title="Times are for" sub="The meeting's hosts" />
+              <button type="button" className={GHOST_SM} onClick={routes.open}>
+                <Ic n="branch" s={12} />
+                Set up Routing
+              </button>
+            </div>
+          ) : null}
           <div className={CSTACK}>
-            <Label>Who sees times</Label>
-            <Seg label="Who sees times" value={who === "other" ? "all" : who} onChange={setWho} options={[{ value: "all", label: "Everyone" }, { value: "work", label: "Work emails" }, { value: "routed", label: "Leads Routing gives a rep", disabled: !routing }]} />
+            <Label>Heading</Label>
+            <input className={IN} aria-label="Heading" value={s.heading ?? "Pick a time"} onChange={(e) => apply({ op: "set_schedule", schedule: { ...s, heading: e.target.value.slice(0, 120) } })} onBlur={(e) => !e.target.value.trim() && apply({ op: "set_schedule", schedule: { ...s, heading: "Pick a time" } })} />
           </div>
-          <div className={CSTACK}>
-            <Label>Times are for</Label>
-            <span className="text-ink">{routing ? "The rep Routing picks" : "The meeting type's hosts"}</span>
-          </div>
-          <div className={CSTACK}>
-            <Label>When there are no times</Label>
-            <Seg label="When there are no times" value="message" onChange={() => {}} options={[{ value: "message", label: "Show the message" }, { value: "later", label: "Email times later", disabled: true }]} />
-          </div>
+          {claritia ? (
+            <div className={CSTACK}>
+              <Label>When their rep has no times</Label>
+              <Seg
+                label="When their rep has no times"
+                value={s.none === "later" ? "later" : "message"}
+                onChange={(v) => {
+                  const next = { ...s };
+                  if (v === "later") next.none = "later";
+                  else delete next.none;
+                  apply({ op: "set_schedule", schedule: next });
+                }}
+                options={[{ value: "message", label: "Show the message" }, { value: "later", label: "Email times later" }]}
+              />
+            </div>
+          ) : null}
         </div>
       ) : null}
       {kind !== "url" ? (

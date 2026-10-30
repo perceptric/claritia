@@ -103,6 +103,8 @@ textarea.in{min-height:calc(var(--clr-input-h)*2.4);padding:10px 12px;resize:ver
 .trap{position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden}
 .al{color:var(--clr-error);margin:0}
 .dn{display:flex;flex-direction:column;gap:6px}
+.ok{--clr-ok:rgb(12 140 94);display:flex;width:36px;height:36px;margin-bottom:6px;align-items:center;justify-content:center;border-radius:50%;background:color-mix(in srgb,var(--clr-ok) 12%,var(--clr-bg))}
+.ok::after{content:"";width:12px;height:6px;border-left:2px solid var(--clr-ok);border-bottom:2px solid var(--clr-ok);transform:translateY(-2px) rotate(-45deg)}
 .cl{gap:14px}
 .hs{display:flex;align-items:center;gap:10px;font-weight:600}
 .av{width:36px;height:36px;border-radius:50%;object-fit:cover}
@@ -1238,7 +1240,7 @@ export class ClaritiaForm extends Base {
     }
     const title = end.kind === "message" ? end.title : "Thanks, we got it.";
     const text = end.kind === "message" ? end.text : `Then we open ${end.url}`;
-    const box = el("div", { class: "f dn", role: "status", tabindex: "-1" }, el("h2", { class: "h", text: title }), text ? el("p", { class: "i", text }) : null);
+    const box = el("div", { class: "f dn", role: "status", tabindex: "-1" }, el("span", { class: "ok", "aria-hidden": "true" }), el("h2", { class: "h", text: title }), text ? el("p", { class: "i", text }) : null);
     queueMicrotask(() => box.focus());
     return box;
   }
@@ -1261,7 +1263,12 @@ export class ClaritiaForm extends Base {
       x.addEventListener("click", click);
       return x;
     };
-    const box = el("div", { class: "f dn cl" }, el("h2", { class: "h", tabindex: "-1", text: form.after.schedule?.heading || "Pick a time" }), this.hostRow(b.host));
+    // "Thanks, Maya. Pick a time with Dan." when the lead and their rep are known (docs/inbound.md).
+    const first = allFields(form).find((f) => f.key === "first_name");
+    const name = first && typeof this.answers[first.id] === "string" ? String(this.answers[first.id]).trim().split(/\s+/)[0] : "";
+    const rep = b.host?.name.trim().split(/\s+/)[0];
+    const heading = `${name ? `Thanks, ${name.slice(0, 40)}. ` : ""}${form.after.schedule?.heading || "Pick a time"}${rep ? ` with ${rep}` : ""}`;
+    const box = el("div", { class: "f dn cl" }, el("span", { class: "ok", "aria-hidden": "true" }), el("h2", { class: "h", tabindex: "-1", text: name || rep ? `${heading}.` : heading }), this.hostRow(b.host));
     if (b.lengths.length > 1)
       box.append(el("div", { class: "ps", role: "group", "aria-label": "Length" }, ...b.lengths.map((n) => pill(`l${n}`, `${n} min`, n === b.length, () => void this.times(n)))));
     // The zone: the component's own listbox, so it works like every other list on the form.
@@ -1292,6 +1299,7 @@ export class ClaritiaForm extends Base {
     const box = el(
       "div",
       { class: "f dn cl", role: "status", tabindex: "-1" },
+      el("span", { class: "ok", "aria-hidden": "true" }),
       el("h2", { class: "h", text: "You're booked" }),
       this.hostRow(m.host),
       el("p", { class: "i", text: `${dayText(m.start, tz)}, ${timeText(m.start, tz)} to ${timeText(m.end, tz)} (${zoneName(tz)})` }),

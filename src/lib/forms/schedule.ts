@@ -32,6 +32,9 @@ export type Schedule = {
   any?: boolean;
   /** The line above the calendar. */
   heading?: string;
+  /** Claritia calendar with Routing live: when the lead's rep has no free times, show the message (the default) or
+   * email the rep's times later. */
+  none?: "message" | "later";
   /** Fill in the lead's name and email on the scheduler. On unless turned off. */
   prefill?: boolean;
 };
@@ -46,7 +49,31 @@ export const OWNED = "owned";
 
 /** How routing placed the lead, as far as the booking step needs it. null: routing didn't answer in time. */
 /** `meet`: the meeting type the routing rule (or the fallback) names, offered instead of the form's own. */
-export type RoutedAs = { kind: "owner" | "held" | "unassigned"; rule?: string | null; by?: string | null; meet?: string | null } | null;
+/** `user`: the rep Routing gave the lead. */
+export type RoutedAs = { kind: "owner" | "held" | "unassigned"; rule?: string | null; by?: string | null; meet?: string | null; user?: string | null } | null;
+
+/**
+ * What a Claritia-calendar form does after the send (docs/inbound.md: Routing decides, the form shows the result).
+ *   message: the form's message, no times (held, unassigned, nothing to book).
+ *   times:   times for `type`; with `rep`, only that rep's times, and the booking is made with them alone.
+ */
+export type BookPlan = { kind: "message" } | { kind: "times"; type: string; rep: string | null };
+
+/**
+ * With Routing live (a live router, not paused) the lead books the meeting their rule names (else the form's own)
+ * with the rep Routing gave them, and only that rep. Held and unassigned leads see the message. When routing didn't
+ * answer in time (`routed` null) the lead books from the meeting type's own hosts: a missed booking costs more. With
+ * Routing not live, everyone books the form's meeting with its hosts. The form's old who / rules / routeRules are
+ * not read here.
+ */
+export function claritiaPlan(s: Schedule, routed: RoutedAs, live: { paused?: boolean } | null | undefined): BookPlan {
+  const own = s.meetingTypeId;
+  const on = !!live && !live.paused;
+  if (!on || !routed) return own ? { kind: "times", type: own, rep: null } : { kind: "message" };
+  if (routed.kind !== "owner" || !routed.user) return { kind: "message" };
+  const type = routed.meet || own;
+  return type ? { kind: "times", type, rep: routed.user } : { kind: "message" };
+}
 
 /**
  * Whether routing lets this lead book (who "routed"). A lead routed by a picked rule books; one no rule matched

@@ -8,7 +8,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { Tokens } from "@/lib/forms/brand";
 import { buildForm, formName, readSentence, type Copy } from "@/lib/forms/interview";
-import { REP } from "@/lib/forms/schedule";
 import { STARTERS } from "@/lib/forms/templates";
 import type { Form } from "@/lib/forms/schema";
 import { CATALOG } from "@/lib/sources/catalog";
@@ -416,14 +415,13 @@ function NewForm({ sb, session, ws, navigate, kits, onClose, start }: ViewProps 
           new Promise<Copy>((r) => setTimeout(() => r({}), 12_000)),
         ]);
         form = buildForm(a, copy);
-        if (form.after.schedule?.tool === "claritia" && c.routing) form.after.schedule = { ...form.after.schedule, who: "routed", routeRules: [REP] };
         name = formName(a);
         sources = a.send.sources;
         made = true;
       } else {
         const s = STARTERS.find((x) => x.key === how.starter) ?? STARTERS[0]!;
         form = s.form();
-        if (s.book && c.type) form.after.schedule = { tool: "claritia", url: "", perOwner: false, meetingTypeId: c.type, ...(c.routing ? { who: "routed" as const, routeRules: [REP] } : {}) };
+        if (s.book && c.type) form.after.schedule = { tool: "claritia", url: "", perOwner: false, meetingTypeId: c.type };
         name = s.key === "blank" ? "Untitled form" : s.name;
       }
       const n = form.steps.reduce((sum, s) => sum + s.fields.length, 0);

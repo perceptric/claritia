@@ -16,7 +16,7 @@ import { callNewer } from "./newer.ts";
 import { siteAllowed } from "./notify.ts";
 import type { Tokens } from "./brand.ts";
 import { offerForFill, type Booking } from "./booking.ts";
-import { bookingUrl, outside, routedBooks, showsMeeting, type RoutedAs } from "./schedule.ts";
+import { bookingUrl, claritiaPlan, outside, routedBooks, showsMeeting, type RoutedAs } from "./schedule.ts";
 import { regionOf } from "../web/policy.ts";
 import { contactPolicy } from "./overwrite.ts";
 import { regionsOf } from "./regions.ts";
@@ -226,6 +226,8 @@ export function qaOk(formId: string, token: unknown, secret: string | undefined,
  * Take a fill for a live form: check it, save it (form_submit), and work out the booking link when the form books a
  * meeting on an outside scheduler, or the times and booking token when it books with Claritia calendar. Shared by the public route and the tests, so both run the same steps. Answers status and JSON body.
  */
+/** "Email times later": when the rep's times are emailed after their calendar had none free at the send. */
+export const LATER_S = 86_400;
 /** How long the send waits on routing before a job takes the lead. */
 export const ROUTE_BUDGET_MS = 300;
 /** Once the send's own router_commit has started, how long it may still take before the job is queued as well. */
@@ -292,7 +294,7 @@ export async function routeFillWith(
     const body = live?.body;
     const rule = res.rule ? body?.rules.list.find((x) => x.id === res.rule) : undefined;
     const meet = rule ? rule.meet : res.by === "fallback" ? body?.fallback?.meet : undefined;
-    return { routed: { kind: "owner", rule: res.rule ?? null, by: res.by, ...(meet ? { meet } : {}) }, live };
+    return { routed: { kind: "owner", rule: res.rule ?? null, by: res.by, user: res.user, ...(meet ? { meet } : {}) }, live };
   } catch {
     // Failed before it claimed the lead, or while committing: the job routes it (a repeat by key writes nothing).
     if (owner !== "job") await later();
@@ -382,9 +384,11 @@ export async function acceptFill(
   // The router picks the owner now (docs/router.md Part 7), so the calendar below shows that rep's times. It has
   // ROUTE_BUDGET_MS; slower, or failing, the lead still books from the meeting type, and a job routes them with the
   // same key. Fields hidden as known are filled from the lookup the form already made, before the router reads them.
+  // A repeat send asks again too: the key makes it read the first run back (nothing new is written), so a retried
+  // send shows the same rep's times.
   const routing =
-    cid && !spam && !repeat
-      ? await routeFillWith(rpc, f.workspace_id, cid, sid, { before: f.body.enrich?.hideKnown ? () => fillKnown(rpc, cid) : undefined })
+    cid && !spam
+      ? await routeFillWith(rpc, f.workspace_id, cid, sid, { before: f.body.enrich?.hideKnown && !repeat ? () => fillKnown(rpc, cid) : undefined })
       : null;
   const routed = routing?.routed ?? null;
   // Book a meeting next: the contact owner's link when the form says so and they have one, else the form's link.
@@ -395,21 +399,28 @@ export async function acceptFill(
   // on the server's email class: a work email is anything but free mail.
   const byId: Record<string, unknown> = {};
   for (const x of allFields(f.body)) if (r.args.p_values[x.key] !== undefined) byId[x.id] = r.args.p_values[x.key];
-  if (sch && lead && !spam && showsMeeting(sch, byId, !!lead.email_class && lead.email_class !== "free") && routedBooks(sch, routed)) {
-    if (!outside(sch.tool)) {
-      // Claritia calendar: times from the cache with a signed token, or the message when there are none to show. A
-      // booking hiccup never loses the fill: it's saved, and the lead gets the message.
-      let booking: Booking | null = null;
-      const typeId = routed?.meet ?? sch.meetingTypeId;
-      if (typeId && o.secret) {
-        try {
-          booking = await offerForFill(rpc, { submission: sid, typeId, secret: o.secret, now: o.now, live: routing?.live });
-        } catch {
-          booking = null;
-        }
+  const shows = () => !!lead && showsMeeting(sch!, byId, !!lead.email_class && lead.email_class !== "free");
+  if (sch && lead && !spam && !outside(sch.tool)) {
+    // Claritia calendar: Routing decides who, the form shows the result (claritiaPlan). Times from the cache with a
+    // signed token, or the message when there are none to show. A booking hiccup never loses the fill: it's saved,
+    // and the lead gets the message. With Routing not live, an older form's "who sees times" still holds.
+    const routingOn = !!routing?.live && !routing.live.paused;
+    const plan = routingOn || shows() ? claritiaPlan(sch, routed, routing?.live) : ({ kind: "message" } as const);
+    let booking: Booking | null = null;
+    if (plan.kind === "times" && o.secret) {
+      try {
+        booking = await offerForFill(rpc, { submission: sid, typeId: plan.type, secret: o.secret, now: o.now, live: routing?.live, rep: plan.rep });
+      } catch {
+        booking = null;
       }
-      return { status: 200, body: { id: sid, schedule: null, ...(booking ? { booking } : {}) } };
+      // Their rep has no free times: the message, and with "Email times later" the rep's times by email once they
+      // have some (meeting_book_later, the same key as a shown booking's, so it's queued once).
+      if (!booking && plan.rep && sch.none === "later" && !o.test)
+        await enqueueJob(rpc, { workspaceId: f.workspace_id, kind: "meeting_book_later", key: `book_later:${sid}`, payload: { submission: sid, type: plan.type, owner: plan.rep, only: true }, delayS: LATER_S, maxAttempts: 3 }).catch(() => undefined);
     }
+    return { status: 200, body: { id: sid, schedule: null, ...(booking ? { booking } : {}) } };
+  }
+  if (sch && lead && !spam && shows() && routedBooks(sch, routed)) {
     let base = sch.url;
     if (sch.perOwner) {
       const own = await rpc("scheduler_for", { p_submission: sid, p_tool: sch.tool });
