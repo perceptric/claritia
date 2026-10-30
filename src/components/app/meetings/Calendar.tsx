@@ -132,7 +132,7 @@ export function MeetingsCalendar(props: ViewProps) {
                 <Plus size={14} />
                 New meeting
               </Button>
-              <Button variant="ghost" onClick={() => navigate("reps", "availability/calendars")}>
+              <Button variant="ghost" onClick={() => navigate("routing", "reps/availability/calendars")}>
                 <CalendarIcon size={14} />
                 Connect your calendar
               </Button>

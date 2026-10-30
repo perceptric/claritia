@@ -3,7 +3,7 @@
 // the server.
 
 /** A condition's test. "between" takes [low, high]; "one_of" and "not_one_of" take a list. */
-export type Op = "is" | "is_not" | "one_of" | "not_one_of" | "contains" | "starts_with" | "filled" | "empty" | "gt" | "lt" | "between";
+export type Op = "is" | "is_not" | "one_of" | "not_one_of" | "contains" | "starts_with" | "filled" | "empty" | "gt" | "gte" | "lt" | "between";
 
 export const OPS: { value: Op; label: string }[] = [
   { value: "is", label: "is" },
@@ -15,6 +15,7 @@ export const OPS: { value: Op; label: string }[] = [
   { value: "filled", label: "is filled" },
   { value: "empty", label: "is empty" },
   { value: "gt", label: "is more than" },
+  { value: "gte", label: "is at least" },
   { value: "lt", label: "is less than" },
   { value: "between", label: "is between" },
 ];
@@ -87,6 +88,12 @@ export type RouterBody = {
   segments?: Segment[];
   /** Left out by versions made before response times. */
   sla?: Sla;
+  /**
+   * Left out by versions made before Routing's Safeguards. `noTimes`: when the lead's rep has no free times, the lead
+   * sees the form's message and gets the rep's times by email once there are some (meeting_book_later), for every
+   * form, as a form's own "Email times later" does.
+   */
+  notify?: { noTimes: boolean };
 };
 
 export const emptyBody = (): RouterBody => ({
@@ -99,6 +106,7 @@ export const emptyBody = (): RouterBody => ({
   fallback: null,
   territories: [],
   sla: defaultSla(),
+  notify: { noTimes: true },
 });
 
 // Facts --------------------------------------------------------------------------------------------------------

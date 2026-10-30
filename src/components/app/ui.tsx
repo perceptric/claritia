@@ -267,7 +267,7 @@ export function timeAgo(iso: string | null) {
 /** A page in the app: a crumb and a title, then the content. `onRename` makes the title an input you can type in. */
 /** A section with tabs (Routing, Scheduling, Visitors...): every page inside it shows the section's title and tabs. */
 /** `banner` is one slim line across the top of the work area, under the tabs (Calendar's Connect your calendar). */
-export type SectionNav = { title: string; tabs: { value: string; label: string; icon?: React.ReactNode }[]; current: string; onPick: (v: string) => void; banner?: React.ReactNode };
+export type SectionNav = { title: string; tabs: { value: string; label: string; icon?: React.ReactNode; count?: number; dot?: string }[]; current: string; onPick: (v: string) => void; banner?: React.ReactNode };
 const SectionCtx = createContext<SectionNav | null>(null);
 export function Section({ nav, children }: { nav: SectionNav; children: React.ReactNode }) {
   return <SectionCtx.Provider value={nav}>{children}</SectionCtx.Provider>;

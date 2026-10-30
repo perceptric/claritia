@@ -41,7 +41,7 @@ export const BASE_FIELDS: FieldDef[] = [
 export function opsFor(type: FieldType): Op[] {
   switch (type) {
     case "number":
-      return ["is", "is_not", "gt", "lt", "between", "filled", "empty"];
+      return ["is", "is_not", "gt", "gte", "lt", "between", "filled", "empty"];
     case "country":
     case "choice":
       return ["one_of", "not_one_of", "filled", "empty"];
@@ -108,11 +108,12 @@ export function holds(c: Cond, actual: unknown, territories: Territory[] = []): 
     case "starts_with":
       return listOf(c.value, territories).some((v) => a.startsWith(v));
     case "gt":
+    case "gte":
     case "lt": {
       const n = toNumber(actual);
       const lim = toNumber(Array.isArray(c.value) ? c.value[0] : c.value);
       if (n === null || lim === null) return false;
-      return c.op === "gt" ? n > lim : n < lim;
+      return c.op === "gt" ? n > lim : c.op === "gte" ? n >= lim : n < lim;
     }
     case "between": {
       const n = toNumber(actual);
@@ -195,6 +196,7 @@ const OPS_WORDS: Record<Op, string> = {
   filled: "is filled",
   empty: "is empty",
   gt: "is more than",
+  gte: "is at least",
   lt: "is less than",
   between: "is between",
 };

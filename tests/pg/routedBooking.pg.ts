@@ -39,7 +39,7 @@ const free = () => async () => new Set<string>();
  * Three reps. Routing: Enterprise (more than 499 people) goes to its own queue with rep 0 alone; a team size of 1 is
  * held; everyone else goes to Sales (all three). The form's meeting is a round robin hosted by the Sales team.
  */
-async function setup(o: { meet?: boolean; paused?: boolean; none?: Schedule["none"] } = {}) {
+async function setup(o: { meet?: boolean; paused?: boolean; none?: Schedule["none"]; noTimes?: boolean } = {}) {
   const ws = randomUUID();
   await q(`insert into workspaces (id, name) values ($1, 'Acme')`, [ws]);
   const users: string[] = [];
@@ -73,6 +73,8 @@ async function setup(o: { meet?: boolean; paused?: boolean; none?: Schedule["non
       ],
     },
     fallback: { kind: "queue", id: "sales" },
+    // Routing › Assignment's "Alert the rep when there is no availability": off unless a test turns it on.
+    notify: { noTimes: !!o.noTimes },
   };
   await q(`insert into routers (workspace_id, live_version, paused_at) values ($1, 1, $2)`, [ws, o.paused ? new Date().toISOString() : null]);
   await q(`insert into router_versions (workspace_id, version, body) values ($1, 1, $2)`, [ws, body]);
@@ -182,6 +184,13 @@ test("a rep with no free times: the message; with Email times later, their times
   const jobs = await q(`select payload, run_after > now() + interval '23 hours' as later from jobs where workspace_id = $1 and kind = 'meeting_book_later'`, [l.ws]);
   assert.equal(jobs.length, 1);
   assert.deepEqual([jobs[0].payload.owner, jobs[0].payload.only, jobs[0].later], [l.users[0], true, true]);
+  // Routing's own switch does the same for every form, with the form left on "Show the message".
+  const r = await setup({ noTimes: true });
+  await q(`delete from availability where workspace_id = $1 and user_id = $2`, [r.ws, r.users[0]]);
+  const rb = await fill(r.form, 700);
+  assert.equal(rb.booking, undefined, "still the message");
+  const rj = await q(`select payload from jobs where workspace_id = $1 and kind = 'meeting_book_later'`, [r.ws]);
+  assert.deepEqual([rj.length, rj[0]?.payload.owner, rj[0]?.payload.only], [1, r.users[0], true]);
 });
 
 test("a held lead sees the message, never times", async () => {
