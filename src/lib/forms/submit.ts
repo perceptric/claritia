@@ -125,11 +125,19 @@ export function prepareSubmit(
   const parts = contactParts(checked.values);
   const emailField = allFields(form).find((f) => f.key === "email");
   const e = cleanEmail(parts.email ?? "", ctx);
-  if (emailField && !errors[emailField.id]) {
+  // A throwaway address on a form that holds them: kept in Spam with its reason, never a contact or a delivery.
+  const throwaway = form.spam.throwaway === "hold" && isRejected(e) && e.rejected === "disposable";
+  if (emailField && !errors[emailField.id] && !throwaway) {
     if (isRejected(e)) errors[emailField.id] = e.rejected === "disposable" ? "Use an email address you'll keep." : "Enter a valid email.";
     else if ((emailField.check === "work_email" || form.spam.blockFree) && e.class === "free") errors[emailField.id] = "Use your work email.";
   }
-  if (Object.keys(errors).length && !spam) return { errors };
+  const held = spam ?? (throwaway ? "throwaway" : null);
+  if (Object.keys(errors).length && !held) return { errors };
+
+  const consentIn = raw.consent && typeof raw.consent === "object" ? (raw.consent as Record<string, unknown>) : {};
+  // A required box that shows for this visitor (an unknown country counts as strict) must come back ticked.
+  if (!held && form.consent.required && consentIn.given !== true && (form.consent.mode === "always" || (form.consent.mode === "by_region" && ("given" in consentIn || consentShown(form, opts.country)))))
+    return { error: "Tick the box to send the form.", status: 400 };
 
   const utmIn = raw.utm && typeof raw.utm === "object" ? (raw.utm as Record<string, unknown>) : {};
   const meta: Record<string, string> = {};
@@ -144,14 +152,13 @@ export function prepareSubmit(
   if (referrer) meta.referrer = referrer;
   for (const f of allFields(form)) if (f.type === "hidden" && typeof checked.values[f.key] === "string") meta[f.key] = checked.values[f.key] as string;
 
-  const consentIn = raw.consent && typeof raw.consent === "object" ? (raw.consent as Record<string, unknown>) : {};
   // The wording saved is the form's own, never what the browser says it showed.
   const asked = form.consent.mode === "always" || (form.consent.mode === "by_region" && "given" in consentIn);
   const consent = form.consent.mode === "notice" ? { notice: true, wording: form.consent.label } : asked ? { given: consentIn.given === true, wording: form.consent.label } : {};
 
   const country = (typeof parts.country === "string" && countryCode(parts.country)) || (opts.country && /^[A-Z]{2}$/.test(opts.country) ? opts.country : null);
   let contact: SubmitArgs["p_contact"] = null;
-  if (!spam && !isRejected(e)) {
+  if (!held && !isRejected(e)) {
     const fields: ContactInput["fields"] = {};
     for (const [k, v] of Object.entries(parts.fields)) {
       const def = ctx.custom.find((c) => c.key === k);
@@ -188,7 +195,7 @@ export function prepareSubmit(
       p_contact: contact,
       p_consent: consent,
       p_country: country,
-      p_spam: spam,
+      p_spam: held,
     },
   };
 }

@@ -80,8 +80,11 @@ export type Validation = {
 /** What a form answer does to a contact value that's already there. */
 export type Overwrite = "always" | "if_empty" | "never";
 
-/** A CRM property the answer also goes to, on a connected CRM source. */
-export type CrmLink = { source: string; property: string; label?: string; type?: string };
+/**
+ * A CRM property the answer also goes to, on a connected CRM source. `map`: for pick lists, the CRM value each of the
+ * field's choices goes as ("" sends nothing for that choice); a choice not in the map goes as itself.
+ */
+export type CrmLink = { source: string; property: string; label?: string; type?: string; map?: Record<string, string> };
 
 export type Field = {
   id: string;
@@ -227,10 +230,19 @@ export type Form = {
   intro?: string;
   /** full: the button spans the form's width. */
   submit: { label: string; full?: boolean };
-  /** notice: no box, the label shows under the button and the lead is kept on legitimate interest. */
-  consent: { mode: "off" | "by_region" | "always" | "notice"; label: string; /** An opt-in joins this email topic. */ topicId?: string };
-  /** blockFree: free email addresses are refused. sites: the only pages that may send it. perHour: the most a form takes in an hour. */
-  spam: { minSeconds: number; turnstile: boolean; blockFree?: boolean; sites?: string[]; perHour?: number };
+  /**
+   * notice: no box, the label shows under the button and the lead is kept on legitimate interest. required: the box
+   * must be ticked to send the form wherever it shows. confirm: an opt-in is confirmed by email before marketing
+   * emails go (double opt-in).
+   */
+  consent: { mode: "off" | "by_region" | "always" | "notice"; label: string; /** An opt-in joins this email topic. */ topicId?: string; required?: true; confirm?: true };
+  /**
+   * blockFree: free email addresses are refused. sites: the only pages that may send it. perHour: the most a form takes
+   * in an hour. bot: with turnstile on, "always" shows the check to everyone; otherwise it runs unseen and only asks
+   * when a fill looks like a bot. throwaway: "hold" keeps fills from throwaway addresses in Spam instead of refusing
+   * them with a message.
+   */
+  spam: { minSeconds: number; turnstile: boolean; blockFree?: boolean; sites?: string[]; perHour?: number; bot?: "always"; throwaway?: "hold" };
   after: After;
   /** Team alerts and the auto-reply (src/lib/forms/notify.ts). */
   notify?: Notify;
@@ -331,6 +343,18 @@ export function emptyForm(): Form {
 type Ctx = { custom?: { key: string }[] };
 
 const str = (v: unknown, max: number): string | undefined => (typeof v === "string" ? v.replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/g, "").trim().slice(0, max) : undefined);
+
+/** A pick list's choice-to-CRM-value map, cleaned: text keys and values, at most 100 of them. */
+function cleanValueMap(raw: unknown): Record<string, string> | undefined {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return undefined;
+  const out: Record<string, string> = {};
+  for (const [k, v] of Object.entries(raw as Record<string, unknown>).slice(0, 100)) {
+    const key = str(k, 200);
+    const val = typeof v === "string" ? (str(v, 200) ?? "") : null;
+    if (key && val !== null) out[key] = val;
+  }
+  return Object.keys(out).length ? out : undefined;
+}
 
 /** A list of choices, cleaned: no repeats, a label for each, a score when it's a number. */
 function choices(raw: unknown, max: number): Choice[] {
@@ -543,7 +567,11 @@ export function checkForm(raw: unknown, ctx: Ctx = {}): { form: Form } | { error
         const source = str(crm.source, 36) ?? "";
         const property = str(crm.property, 100) ?? "";
         if (!/^[0-9a-f-]{36}$/.test(source) || !CRM_PROP.test(property)) errors.push(`${name} links to a CRM field that can't be read.`);
-        else f.crm = { source, property, ...(str(crm.label, 120) ? { label: str(crm.label, 120) } : {}), ...(str(crm.type, 40) ? { type: str(crm.type, 40) } : {}) };
+        else {
+          f.crm = { source, property, ...(str(crm.label, 120) ? { label: str(crm.label, 120) } : {}), ...(str(crm.type, 40) ? { type: str(crm.type, 40) } : {}) };
+          const map = cleanValueMap(crm.map);
+          if (map && isChoice(type)) f.crm.map = map;
+        }
       }
       if (type === "rating") {
         const ro = (fo.rating && typeof fo.rating === "object" ? fo.rating : {}) as Record<string, unknown>;
@@ -784,13 +812,21 @@ export function checkForm(raw: unknown, ctx: Ctx = {}): { form: Form } | { error
     ...(str(r.title, LIMITS.label) ? { title: str(r.title, LIMITS.label) } : {}),
     ...(str(r.intro, LIMITS.text) ? { intro: str(r.intro, LIMITS.text) } : {}),
     submit: { label: str(submit.label, 60) || "Submit", ...(submit.full === true ? { full: true } : {}) },
-    consent: { mode: consentMode, label: consentLabel, ...(topicId ? { topicId } : {}) },
+    consent: {
+      mode: consentMode,
+      label: consentLabel,
+      ...(topicId ? { topicId } : {}),
+      ...(consent.required === true && consentMode !== "off" && consentMode !== "notice" ? { required: true as const } : {}),
+      ...(consent.confirm === true && consentMode !== "off" && consentMode !== "notice" ? { confirm: true as const } : {}),
+    },
     spam: {
       minSeconds: Number.isFinite(minSeconds) ? Math.min(Math.max(minSeconds, 0), 30) : 2,
       turnstile: spam.turnstile === true,
       ...(spam.blockFree === true ? { blockFree: true } : {}),
       ...((s) => (s.length ? { sites: s } : {}))(cleanSites(spam.sites)),
       ...(Number.isFinite(Number(spam.perHour)) && Number(spam.perHour) >= 1 ? { perHour: Math.min(Math.round(Number(spam.perHour)), 10000) } : {}),
+      ...(spam.bot === "always" && spam.turnstile === true ? { bot: "always" as const } : {}),
+      ...(spam.throwaway === "hold" ? { throwaway: "hold" as const } : {}),
     },
     after: { end, ...(schedule ? { schedule } : {}) },
     ...((n) => (n ? { notify: n } : {}))(cleanNotify(r.notify, errors)),

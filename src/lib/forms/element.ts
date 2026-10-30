@@ -41,6 +41,8 @@ const STYLES = `
 .sr{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
 .pop{position:fixed;inset:0;z-index:2147483646;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;padding:16px;overflow:auto}
 .pop[hidden]{display:none}
+.pop.sl{inset:auto 16px 16px auto;background:none;padding:0;width:min(420px,calc(100vw - 32px));max-height:calc(100vh - 32px);display:block;overflow:visible}
+.pop.sl .pbox{box-shadow:0 16px 40px rgba(0,0,0,.18);border-radius:12px}
 .pbox{position:relative;background:var(--clr-bg);padding:28px;max-width:calc(var(--clr-width,480px) + 56px);width:100%;max-height:calc(100vh - 32px);overflow:auto}
 .px{position:absolute;top:8px;right:8px;width:32px;height:32px;border:0;background:transparent;cursor:pointer;font-size:20px;line-height:1;color:var(--clr-muted)}
 .pg{display:flex;flex-direction:column;gap:8px}
@@ -723,7 +725,8 @@ export class ClaritiaForm extends Base {
   private loadTurnstile() {
     const w = window as unknown as { turnstile?: { render: (el: Element, o: object) => void } };
     const draw = () =>
-      w.turnstile?.render(this.root.querySelector(".ts")!, { sitekey: this.data!.turnstile, size: "invisible", callback: (t: string) => (this.turnstileToken = t) });
+      // Unseen unless a fill looks like a bot; "always" shows the check to everyone.
+      w.turnstile?.render(this.root.querySelector(".ts")!, { sitekey: this.data!.turnstile, size: this.data!.body.spam.bot === "always" ? "normal" : "invisible", callback: (t: string) => (this.turnstileToken = t) });
     if (w.turnstile) return draw();
     const s = el("script", { src: "https://challenges.cloudflare.com/turnstile/v0/api.js", async: true });
     s.addEventListener("load", draw);
@@ -855,7 +858,8 @@ export class ClaritiaForm extends Base {
     const close = el("button", { type: "button", class: "px", "aria-label": "Close", text: "×" });
     close.addEventListener("click", () => this.toggle(false));
     const box = el("div", { class: "pbox", role: "dialog", "aria-modal": "true" }, close, ...nodes.filter((n) => n !== style));
-    const pop = el("div", { class: "pop", ...(this.opened ? {} : { hidden: true }) }, box);
+    // slide: a panel in the corner over the page, with no shade behind it.
+    const pop = el("div", { class: this.hasAttribute("slide") ? "pop sl" : "pop", ...(this.opened ? {} : { hidden: true }) }, box);
     pop.addEventListener("click", (e) => e.target === pop && this.toggle(false));
     this.root.replaceChildren(...(style ? [style] : []), pop);
   }
@@ -880,6 +884,10 @@ export class ClaritiaForm extends Base {
       }
     });
     document.addEventListener("keydown", (e) => e.key === "Escape" && this.opened && this.toggle(false));
+    // once: it doesn't open by itself again for someone who already sent it (a button still opens it).
+    try {
+      if (this.hasAttribute("once") && localStorage.getItem(`clr_sent_${id}`)) return;
+    } catch {}
     const delay = /^delay:(\d{1,3})$/.exec(how);
     if (delay) setTimeout(() => this.toggle(true), Number(delay[1]) * 1000);
     if (how === "exit")
@@ -1357,6 +1365,13 @@ export class ClaritiaForm extends Base {
       (this.root.querySelector(".in, .bx, input") as HTMLElement | null)?.focus();
       return;
     }
+    // A consent box the form requires has to be ticked first.
+    if (form.consent.required && this.needsConsent() && !this.consent) {
+      this.alert = "Tick the box to send the form.";
+      this.render();
+      (this.root.querySelector("#clr-consent") as HTMLElement | null)?.focus();
+      return;
+    }
     if (this.isPreview) {
       this.done = true;
       return this.render();
@@ -1455,6 +1470,9 @@ export class ClaritiaForm extends Base {
     }
     // Sent, or kept to send again: either way the visitor finished the form.
     this.summary(true);
+    try {
+      localStorage.setItem(`clr_sent_${d.id}`, "1");
+    } catch {}
     this.done = true;
     this.render();
     // The calendar in place of the form: screen readers and keys start at its heading.

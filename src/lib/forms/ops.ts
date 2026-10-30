@@ -21,8 +21,8 @@ export type Op =
   | { op: "remove_rule"; id: string }
   | { op: "set_layout"; labels?: Form["layout"]["labels"]; width?: Form["layout"]["width"]; progress?: Form["layout"]["progress"]; maxWidth?: number | null }
   | { op: "set_copy"; title?: string; intro?: string; submit?: string; submitFull?: boolean }
-  | { op: "set_consent"; mode?: Form["consent"]["mode"]; label?: string; topicId?: string | null }
-  | { op: "set_spam"; minSeconds?: number; turnstile?: boolean; blockFree?: boolean; sites?: string[]; perHour?: number | null }
+  | { op: "set_consent"; mode?: Form["consent"]["mode"]; label?: string; topicId?: string | null; required?: boolean; confirm?: boolean }
+  | { op: "set_spam"; minSeconds?: number; turnstile?: boolean; blockFree?: boolean; sites?: string[]; perHour?: number | null; bot?: "auto" | "always"; throwaway?: "refuse" | "hold" }
   | { op: "set_notify"; notify: Partial<Notify> }
   | { op: "set_reply"; reply: Partial<Reply> }
   | { op: "set_keep"; keep: Partial<Keep> }
@@ -183,7 +183,16 @@ export function applyOp(input: Form, op: Op): { form: Form } | { error: string }
     case "set_consent":
       form.consent = { ...form.consent, ...(op.mode ? { mode: op.mode } : {}), ...(op.label !== undefined ? { label: op.label } : {}) };
       if (op.topicId) form.consent.topicId = op.topicId;
+      if (op.required === true) form.consent.required = true;
+      if (op.required === false) delete form.consent.required;
+      if (op.confirm === true) form.consent.confirm = true;
+      if (op.confirm === false) delete form.consent.confirm;
       if (op.topicId === null || form.consent.mode === "off" || form.consent.mode === "notice") delete form.consent.topicId;
+      // No box, nothing to require or confirm.
+      if (form.consent.mode === "off" || form.consent.mode === "notice") {
+        delete form.consent.required;
+        delete form.consent.confirm;
+      }
       return { form };
     case "set_spam":
       form.spam = {
@@ -197,6 +206,10 @@ export function applyOp(input: Form, op: Op): { form: Form } | { error: string }
       else if (op.perHour !== undefined) form.spam.perHour = op.perHour;
       if (form.spam.sites && !form.spam.sites.length) delete form.spam.sites;
       if (form.spam.blockFree === false) delete form.spam.blockFree;
+      if (op.bot === "always") form.spam.bot = "always";
+      if (op.bot === "auto" || !form.spam.turnstile) delete form.spam.bot;
+      if (op.throwaway === "hold") form.spam.throwaway = "hold";
+      if (op.throwaway === "refuse") delete form.spam.throwaway;
       return { form };
     case "set_notify":
       form.notify = { ...DEFAULT_NOTIFY, ...form.notify, ...op.notify };
