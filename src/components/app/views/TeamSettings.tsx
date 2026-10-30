@@ -6,7 +6,7 @@
 import { useState } from "react";
 import { Plus, Trash } from "../../Icons";
 import { askConfirm, askText } from "../Dialogs";
-import { Avatar, Badge, Button, CardHead, ErrorNote, errorText, Loading, must, Panel, Td, Th, timeAgo, useLoad, type Role, type ViewProps } from "../ui";
+import { Avatar, Badge, Button, CardHead, ErrorNote, errorText, invalidate, Loading, must, Panel, type Role, Td, Th, timeAgo, useQuery, type ViewProps } from "../ui";
 
 type Member = {
   user_id: string | null;
@@ -18,7 +18,7 @@ type Member = {
 };
 
 export function TeamPanel({ sb, ws, role, session }: Pick<ViewProps, "sb" | "ws" | "session"> & { role: Role }) {
-  const team = useLoad(async () => must(await sb.rpc("team", { p_ws: ws.id })) as Member[], ws.id);
+  const team = useQuery(`team:${ws.id}`, async () => must(await sb.rpc("team", { p_ws: ws.id })) as Member[]);
   const [error, setError] = useState("");
   const owner = role === "owner";
   const act = async (fn: () => Promise<unknown>) => {
@@ -26,6 +26,10 @@ export function TeamPanel({ sb, ws, role, session }: Pick<ViewProps, "sb" | "ws"
     try {
       await fn();
       team.reload();
+      // Teammates show in pickers across the app.
+      invalidate(`workspace_people:${ws.id}`);
+      invalidate(`people:${ws.id}`);
+      invalidate("app_counts");
     } catch (e) {
       setError(errorText(e));
     }
@@ -47,8 +51,12 @@ export function TeamPanel({ sb, ws, role, session }: Pick<ViewProps, "sb" | "ws"
         }))
       )
         return;
-      if (m.pending) must(await sb.rpc("cancel_invite", { p_id: m.invite_id }));
-      else must(await sb.rpc("member_remove", { p_ws: ws.id, p_user: m.user_id }));
+      // The row leaves at once; it comes back, with the error, if the change fails.
+      const key = (x: Member) => (m.pending ? x.invite_id === m.invite_id : x.user_id === m.user_id && !x.pending);
+      await team.mutate(
+        (l) => l.filter((x) => !key(x)),
+        async () => (m.pending ? must(await sb.rpc("cancel_invite", { p_id: m.invite_id })) : must(await sb.rpc("member_remove", { p_ws: ws.id, p_user: m.user_id }))),
+      );
     });
   return (
     <Panel className="overflow-hidden">

@@ -17,22 +17,7 @@ import { TeamCalendars } from "../meetings/TeamCalendars";
 import { FieldsSettings, ObjectsSettings } from "./FieldsSettings";
 import { ImportsSettings } from "./ImportsSettings";
 import { SourcesSettings, SyncLog } from "./SourcesSettings";
-import {
-  Avatar,
-  Badge,
-  Button,
-  CardHead,
-  ErrorNote,
-  errorText,
-  Loading,
-  must,
-  Page,
-  Panel,
-  postJson,
-  timeAgo,
-  useLoad,
-  type ViewProps,
-} from "../ui";
+import { Avatar, Badge, Button, CardHead, ErrorNote, errorText, Loading, must, Page, Panel, postJson, timeAgo, useQuery, type ViewProps } from "../ui";
 import { CopyButton } from "../CopyButton";
 
 /** A label, a line to copy, and the shared copy button. */
@@ -50,7 +35,7 @@ type ApiKey = { id: string; name: string; prefix: string; created_at: string; la
 
 /** The workspace's API keys, for the REST API and the CLI. A new key shows once. */
 function KeysPanel({ sb, session, ws }: Pick<ViewProps, "sb" | "session" | "ws">) {
-  const keys = useLoad(async () => must(await sb.from("api_keys").select("id, name, prefix, created_at, last_used_at").eq("workspace_id", ws.id).is("revoked_at", null).order("created_at")) as ApiKey[], ws.id);
+  const keys = useQuery(`api_keys:${ws.id}`, async () => must(await sb.from("api_keys").select("id, name, prefix, created_at, last_used_at").eq("workspace_id", ws.id).is("revoked_at", null).order("created_at")) as ApiKey[]);
   const [fresh, setFresh] = useState<{ name: string; key: string } | null>(null);
   const [error, setError] = useState("");
   const act = async (fn: () => Promise<unknown>) => {
@@ -114,8 +99,7 @@ function KeysPanel({ sb, session, ws }: Pick<ViewProps, "sb" | "session" | "ws">
                 onClick={() =>
                   act(async () => {
                     if (!(await askConfirm(`Revoke ${k.name}?`, { body: "Anything using this key stops working.", ok: "Revoke key", danger: true }))) return;
-                    must(await sb.rpc("revoke_api_key", { p_key: k.id }));
-                    keys.reload();
+                    await keys.mutate((l) => l.filter((x) => x.id !== k.id), async () => must(await sb.rpc("revoke_api_key", { p_key: k.id })));
                   })
                 }
               >
@@ -134,10 +118,10 @@ function KeysPanel({ sb, session, ws }: Pick<ViewProps, "sb" | "session" | "ws">
   );
 }
 
-export function SettingsView({ sb, session, ws, role, navigate, id }: ViewProps) {
+export function SettingsView({ sb, session, ws, role, navigate, id, onWorkspace }: ViewProps) {
   const [error, setError] = useState("");
   const [tab, setTab] = useState<SettingsTab>(() => settingsTab(id || (typeof window === "undefined" ? "" : window.location.hash.slice(1))));
-  const members = useLoad(async () => must(await sb.from("workspace_members").select("user_id, role, created_at").eq("workspace_id", ws.id).order("created_at")) as { user_id: string; role: string }[], ws.id);
+  const members = useQuery(`workspace_members:${ws.id}`, async () => must(await sb.from("workspace_members").select("user_id, role, created_at").eq("workspace_id", ws.id).order("created_at")) as { user_id: string; role: string }[]);
 
   const act = async (fn: () => Promise<unknown>) => {
     setError("");
@@ -175,8 +159,16 @@ export function SettingsView({ sb, session, ws, role, navigate, id }: ViewProps)
                   act(async () => {
                     const name = await askText("Workspace name", { initial: ws.name });
                     if (!name || name === ws.name) return;
-                    must(await sb.from("workspaces").update({ name }).eq("id", ws.id));
-                    window.location.reload();
+                    // The new name shows at once (sidebar and here); it goes back if the save fails.
+                    const was = ws.name;
+                    onWorkspace?.({ name });
+                    try {
+                      must(await sb.from("workspaces").update({ name }).eq("id", ws.id));
+                    } catch (e) {
+                      onWorkspace?.({ name: was });
+                      throw e;
+                    }
+                    if (!onWorkspace) window.location.reload();
                   })
                 }
               >

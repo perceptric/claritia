@@ -4,9 +4,10 @@
 // first things to do. Each task is read from the workspace's data, so it ticks itself; the card hides when all six
 // are done or when closed (kept on this computer), and ⌘K's "Get started" brings it back.
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Check, X } from "../Icons";
-import { useLoad, type Route, type ViewProps } from "./ui";
+import { useAppCounts } from "./appCounts";
+import type { Route, ViewProps } from "./ui";
 
 export type StartTask = { key: string; label: string; done: boolean; go: [Route, string] };
 
@@ -24,7 +25,7 @@ export function startTasks(c: { calendars: number; types: number; liveForms: num
   ];
 }
 
-export function GetStarted({ sb, ws, session, navigate }: Pick<ViewProps, "sb" | "ws" | "session" | "navigate">) {
+export function GetStarted({ sb, ws, navigate }: Pick<ViewProps, "sb" | "ws" | "navigate">) {
   const [hidden, setHidden] = useState(() => {
     try {
       return typeof window !== "undefined" && localStorage.getItem(HIDE_KEY) === "1";
@@ -44,21 +45,9 @@ export function GetStarted({ sb, ws, session, navigate }: Pick<ViewProps, "sb" |
     window.addEventListener("claritia:get-started", show);
     return () => window.removeEventListener("claritia:get-started", show);
   }, []);
-  const data = useLoad(async () => {
-    const count = async (q: PromiseLike<{ count: number | null }>) => (await q).count ?? 0;
-    const head = { count: "exact" as const, head: true };
-    const [calendars, types, liveForms, router, members, invites, sources] = await Promise.all([
-      count(sb.from("calendar_accounts").select("id", head).eq("workspace_id", ws.id).eq("user_id", session.user.id)),
-      count(sb.from("meeting_types").select("id", head).eq("workspace_id", ws.id)),
-      count(sb.from("forms").select("id", head).eq("workspace_id", ws.id).eq("status", "live")),
-      sb.from("routers").select("live_version").eq("workspace_id", ws.id).maybeSingle(),
-      count(sb.from("workspace_members").select("user_id", head).eq("workspace_id", ws.id)),
-      count(sb.from("invites").select("id", head).eq("workspace_id", ws.id)),
-      count(sb.from("sources").select("id", head).eq("workspace_id", ws.id)),
-    ]);
-    return startTasks({ calendars, types, liveForms, routing: !!(router.data as { live_version: number | null } | null)?.live_version, members, invites, sources });
-  }, ws.id);
-  const tasks = data.data;
+  // Read from the same call as the sidebar counts.
+  const counts = useAppCounts(sb, ws.id).data?.start;
+  const tasks = useMemo(() => (counts ? startTasks(counts) : null), [counts]);
   if (hidden || !tasks) return null;
   const done = tasks.filter((t) => t.done).length;
   if (done === tasks.length) return null;

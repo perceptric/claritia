@@ -10,7 +10,7 @@ import { STAGES, type Facts, type Stage } from "@/lib/workflows/lifecycle";
 import type { Brand } from "@/lib/workflows/journeys";
 import { Check, Plus } from "../../Icons";
 import { AiMark } from "../Ai";
-import { Button, Empty, ErrorNote, errorText, Loading, must, Page, postJson, useLoad, type ViewProps } from "../ui";
+import { Button, Empty, ErrorNote, errorText, Loading, must, Page, postJson, useLoad, useQuery, type ViewProps } from "../ui";
 import { Dots } from "../routing/Flow";
 import { loadWorkflow } from "../workflows/data";
 import { WorkflowEditor } from "../workflows/Editor";
@@ -110,12 +110,12 @@ export function JourneysPage(props: ViewProps & { sub: string }) {
 }
 
 function OpenJourney({ sb, session, ws, navigate, id, onChanged }: ViewProps & { id: string; onChanged: () => void }) {
-  const [tick, setTick] = useState(0);
-  const res = useLoad(() => loadWorkflow(sb, ws.id, id), `${id}:${tick}`);
+  const res = useQuery(`workflow:${ws.id}:${id}`, () => loadWorkflow(sb, ws.id, id), { staleMs: 0 });
+  const { reload: again, set } = res;
   const reload = useCallback(async () => {
-    setTick((t) => t + 1);
+    again();
     onChanged();
-  }, [onChanged]);
+  }, [again, onChanged]);
   if (!res.data)
     return (
       <div className="p-5">
@@ -123,10 +123,9 @@ function OpenJourney({ sb, session, ws, navigate, id, onChanged }: ViewProps & {
         {res.error ? null : <Loading />}
       </div>
     );
-  const w = res.data.wf;
   return (
     <WorkflowEditor
-      key={`${w.draft_revision}:${w.status}:${w.live_version}`}
+      patch={set}
       sb={sb}
       session={session}
       ws={ws}
@@ -220,7 +219,7 @@ function BuildScreen({ session, ws, info, onDone }: ViewProps & { info: Loaded; 
   // The sources appear one at a time; the last waits for the build.
   useEffect(() => {
     if (error || shown >= steps.length || (shown === steps.length - 1 && made === null)) return;
-    const t = setTimeout(() => setShown((n) => n + 1), shown === 0 ? 700 : 1100);
+    const t = setTimeout(() => setShown((n) => n + 1), shown === 0 ? 120 : 150);
     return () => clearTimeout(t);
   }, [shown, made, error, steps.length]);
   const done = made !== null && shown >= steps.length;

@@ -8,7 +8,7 @@ import { useState } from "react";
 import type { Form } from "@/lib/forms/schema";
 import { Check, Send } from "../../Icons";
 import { AiMark, Dots } from "../Ai";
-import { Button, errorText, IconButton, postJson, type ViewProps } from "../ui";
+import { Button, errorText, IconButton, invalidate, postJson, type ViewProps } from "../ui";
 
 export type Outcome = { reply: string; lines: string[]; ask?: string } | null;
 
@@ -28,7 +28,11 @@ export function useFormChat({ session, ws, formId, prepare, onResult }: Pick<Vie
       if (rev === null) throw new Error("The draft didn't save. Try again.");
       const r = await postJson<{ form: Form; rev: number; reply: string; lines: string[]; ask: { question: string } | null; styles?: boolean }>(session, "/api/forms/chat", { workspaceId: ws.id, id: formId, rev, message: m, confirmed });
       if (r.lines.length) onResult(r.form, r.rev);
-      if (r.styles) window.dispatchEvent(new Event("claritia:changed"));
+      // New styles changed the brand kit: the form's page and the forms list read it again.
+      if (r.styles) {
+        invalidate(`form:${ws.id}`);
+        invalidate(`forms:${ws.id}`);
+      }
       setLast({ reply: r.reply, lines: r.lines, ...(r.ask ? { ask: m } : {}) });
     } catch (e) {
       setError(errorText(e));

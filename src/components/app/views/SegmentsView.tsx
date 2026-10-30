@@ -12,7 +12,7 @@ import { askConfirm } from "../Dialogs";
 import { FilterEditor, Popover } from "../FilterBar";
 import { Select } from "../Select";
 import { SampleStats, ToolIntro } from "../ToolIntro";
-import { Badge, Button, CardHead, Empty, ErrorNote, errorText, IconButton, Input, Loading, must, Page, Panel, Segmented, Td, Th, timeAgo, useLoad, type ViewProps } from "../ui";
+import { Badge, Button, cache, CardHead, Empty, ErrorNote, errorText, IconButton, Input, invalidate, Loading, must, Page, Panel, Segmented, Td, Th, timeAgo, useQuery, type ViewProps } from "../ui";
 import { useMeta } from "../records/meta";
 
 type Group = { op: "and" | "or"; rules: Node[] };
@@ -62,7 +62,7 @@ export function SegmentsView({ sb, ws, id, navigate }: ViewProps) {
 }
 
 function SegmentList({ sb, ws, navigate }: Pick<ViewProps, "sb" | "ws" | "navigate">) {
-  const list = useLoad(async () => must(await sb.from("segments").select("id, name, kind, count, refreshed_at, error, source_id").eq("workspace_id", ws.id).order("name")) as Segment[], ws.id);
+  const list = useQuery(`segments:${ws.id}`, async () => must(await sb.from("segments").select("id, name, kind, count, refreshed_at, error, source_id").eq("workspace_id", ws.id).order("name")) as Segment[]);
   const add = (
     <Button onClick={() => navigate("segments", "new")}>
       <Plus size={14} />
@@ -122,8 +122,8 @@ function SegmentList({ sb, ws, navigate }: Pick<ViewProps, "sb" | "ws" | "naviga
 
 function SegmentPage({ sb, ws, id, navigate }: Pick<ViewProps, "sb" | "ws" | "navigate"> & { id: string }) {
   const isNew = id === "new";
-  const seg = useLoad(async () => (isNew ? null : (must(await sb.from("segments").select("id, name, kind, rules, count, refreshed_at, error, source_id").eq("id", id).maybeSingle()) as Segment | null)), id);
-  const extra = useLoad(async () => {
+  const seg = useQuery(`segment:${ws.id}:${id}`, async () => (isNew ? null : (must(await sb.from("segments").select("id, name, kind, rules, count, refreshed_at, error, source_id").eq("id", id).maybeSingle()) as Segment | null)));
+  const extra = useQuery(`segments:${ws.id}:ctx`, async () => {
     const [s, o] = await Promise.all([
       sb.from("sources").select("id, name").eq("workspace_id", ws.id).neq("status", "disconnected").order("name"),
       sb.from("objects").select("key, plural").eq("workspace_id", ws.id).order("plural"),
@@ -132,9 +132,10 @@ function SegmentPage({ sb, ws, id, navigate }: Pick<ViewProps, "sb" | "ws" | "na
       sources: ((s.data ?? []) as { id: string; name: string }[]).map((x) => ({ value: x.id, label: x.name })),
       objects: ((o.data ?? []) as { key: string; plural: string }[]).map((x) => ({ value: x.key, label: x.plural })),
     };
-  }, ws.id);
+  });
   const back = { label: "Segments", onClick: () => navigate("segments") };
-  if ((!isNew && seg.data === undefined) || !extra.data)
+  // Loading shows Loading (not "Segment not found"): a null answer only counts once it has come back.
+  if ((!isNew && !seg.loaded && !seg.error) || !extra.data)
     return (
       <Page title={isNew ? "New segment" : "Segment"} back={back}>
         <Loading />
@@ -181,6 +182,8 @@ function Builder({ sb, wsId, seg, ctx, navigate, reload }: { sb: ViewProps["sb"]
     setBusy(true);
     try {
       const sid = must(await sb.rpc("segment_save", { p_ws: wsId, p_id: seg?.id ?? null, p_name: name, p_rules: rules })) as string;
+      invalidate(`segments:${wsId}`);
+      invalidate(`meta:${wsId}:contact`);
       if (!seg) navigate("segments", sid);
       else reload();
     } catch (e) {
@@ -212,7 +215,11 @@ function Builder({ sb, wsId, seg, ctx, navigate, reload }: { sb: ViewProps["sb"]
                 if (!(await askConfirm(`Delete ${seg.name}?`, { ok: "Delete", danger: true }))) return;
                 const { error: e } = await sb.rpc("segment_delete", { p_id: seg.id });
                 if (e) setError(e.message);
-                else navigate("segments");
+                else {
+                  cache.set<Segment[]>(`segments:${wsId}`, (l) => l?.filter((x) => x.id !== seg.id) as Segment[]);
+                  invalidate(`meta:${wsId}:contact`);
+                  navigate("segments");
+                }
               }}
             >
               <Trash size={14} />

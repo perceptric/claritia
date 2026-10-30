@@ -8,7 +8,7 @@ import { useState } from "react";
 import { Trash } from "../../Icons";
 import { askConfirm } from "../Dialogs";
 import { Select } from "../Select";
-import { Avatar, Button, ErrorNote, errorText, must, Panel, Tabs, timeAgo, useLoad, type ViewProps } from "../ui";
+import { Avatar, Button, ErrorNote, errorText, must, Panel, Tabs, timeAgo, useQuery, type ViewProps } from "../ui";
 import { CheckBox } from "./RecordTable";
 
 type Note = { id: string; body: string; author: string | null; created_at: string; updated_at: string };
@@ -16,22 +16,27 @@ type Task = { id: string; title: string; due: string | null; assignee: string | 
 
 /** Notes and tasks on a record. With `show`, one of them alone, for a record page's Notes or Tasks tab. */
 export function RecordWork({ sb, ws, session, role, object, record, people, show }: Pick<ViewProps, "sb" | "ws" | "session" | "role"> & { object: string; record: string; people: { id: string; email: string }[]; show?: "notes" | "tasks" }) {
-  const data = useLoad(async () => {
+  const data = useQuery(`record_work:${ws.id}:${object}:${record}`, async () => {
     const [n, t] = await Promise.all([
       sb.from("notes").select("id, body, author, created_at, updated_at").eq("workspace_id", ws.id).eq("object", object).eq("record_id", record).order("created_at", { ascending: false }).limit(200),
       sb.from("tasks").select("id, title, due, assignee, done, created_at").eq("workspace_id", ws.id).eq("object", object).eq("record_id", record).order("done").order("due", { ascending: true, nullsFirst: false }).limit(200),
     ]);
     return { notes: must(n) as Note[], tasks: must(t) as Task[] };
-  }, `${object}:${record}`);
+  });
   const open = (data.data?.tasks ?? []).filter((t) => !t.done).length;
   const [picked, setTab] = useState<"notes" | "tasks">("notes");
   const tab = show ?? picked;
   const [error, setError] = useState("");
-  const run = async (fn: () => Promise<unknown>) => {
+  /** Run a change; with `change`, the list shows it at once and goes back if the save fails (no reload after). */
+  type Work = { notes: Note[]; tasks: Task[] };
+  const run = async (fn: () => Promise<unknown>, change?: (w: Work) => Work) => {
     setError("");
     try {
-      await fn();
-      data.reload();
+      if (change) await data.mutate(change, fn);
+      else {
+        await fn();
+        data.reload();
+      }
       return true;
     } catch (e) {
       setError(errorText(e));
@@ -54,9 +59,14 @@ export function RecordWork({ sb, ws, session, role, object, record, people, show
                   note={n}
                   author={who(n.author)}
                   mine={n.author === me || role === "owner"}
-                  onSave={(body) => run(async () => must(await sb.rpc("note_save", { p_ws: ws.id, p_object: object, p_record: record, p_id: n.id, p_body: body })))}
+                  onSave={(body) =>
+                    run(
+                      async () => must(await sb.rpc("note_save", { p_ws: ws.id, p_object: object, p_record: record, p_id: n.id, p_body: body })),
+                      (w) => ({ ...w, notes: w.notes.map((x) => (x.id === n.id ? { ...x, body, updated_at: new Date().toISOString() } : x)) }),
+                    )
+                  }
                   onDelete={async () => {
-                    if (await askConfirm("Delete this note?", { ok: "Delete", danger: true })) await run(async () => must(await sb.rpc("note_delete", { p_id: n.id })));
+                    if (await askConfirm("Delete this note?", { ok: "Delete", danger: true })) await run(async () => must(await sb.rpc("note_delete", { p_id: n.id })), (w) => ({ ...w, notes: w.notes.filter((x) => x.id !== n.id) }));
                   }}
                 />
               ))}
@@ -74,7 +84,12 @@ export function RecordWork({ sb, ws, session, role, object, record, people, show
                       round
                       on={t.done}
                       label={t.done ? "Mark not done" : "Mark done"}
-                      onClick={() => void run(async () => must(await sb.rpc("task_save", { p_ws: ws.id, p_object: object, p_record: record, p_id: t.id, p_title: t.title, p_due: t.due, p_assignee: t.assignee, p_done: !t.done })))}
+                      onClick={() =>
+                        void run(
+                          async () => must(await sb.rpc("task_save", { p_ws: ws.id, p_object: object, p_record: record, p_id: t.id, p_title: t.title, p_due: t.due, p_assignee: t.assignee, p_done: !t.done })),
+                          (w) => ({ ...w, tasks: w.tasks.map((x) => (x.id === t.id ? { ...x, done: !t.done } : x)) }),
+                        )
+                      }
                     />
                     <span className={`min-w-0 flex-1 truncate ${t.done ? "text-faint line-through" : ""}`}>{t.title}</span>
                     {t.due ? <span className={`text-[12px] ${late ? "text-rose" : "text-muted"}`}>{new Date(`${t.due}T00:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" })}</span> : null}
@@ -83,7 +98,7 @@ export function RecordWork({ sb, ws, session, role, object, record, people, show
                       type="button"
                       aria-label="Delete task"
                       onClick={async () => {
-                        if (await askConfirm(`Delete "${t.title}"?`, { ok: "Delete", danger: true })) await run(async () => must(await sb.rpc("task_delete", { p_id: t.id })));
+                        if (await askConfirm(`Delete "${t.title}"?`, { ok: "Delete", danger: true })) await run(async () => must(await sb.rpc("task_delete", { p_id: t.id })), (w) => ({ ...w, tasks: w.tasks.filter((x) => x.id !== t.id) }));
                       }}
                       className="press flex size-8 items-center justify-center rounded-full text-muted hover:bg-hover hover:text-rose"
                     >

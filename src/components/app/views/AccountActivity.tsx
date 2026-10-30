@@ -8,7 +8,7 @@ import { decayed } from "@/lib/web/scores";
 import { Badge, CardHead, Empty, ErrorNote, Loading, must, Panel, Td, timeAgo, useLoad, type Tone } from "../ui";
 import { Eye, FormIcon } from "../../Icons";
 import { Sketch } from "../../sketches/Sketch";
-import { activeTime, LEVEL_TONE } from "./VisitorsView";
+import { activeTime, LEVEL_TONE } from "@/lib/visits";
 
 export const STAGE_TONE: Record<string, Tone> = {
   evaluating: "brand",

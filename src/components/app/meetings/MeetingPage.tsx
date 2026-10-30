@@ -7,7 +7,7 @@
 import { useState } from "react";
 import type { Location, MeetingSource, MeetingStatus, TypeSettings } from "@/lib/meetings/types";
 import { CalendarIcon, Contact, Link as LinkIcon } from "../../Icons";
-import { Button, Empty, ErrorNote, errorText, Loading, must, Page, Panel, timeAgo, useLoad, type ViewProps } from "../ui";
+import { Button, Empty, ErrorNote, errorText, invalidate, Loading, must, Page, Panel, timeAgo, useQuery, type ViewProps } from "../ui";
 import { canCancel, canMark, minutesText, SOURCES } from "./model";
 import { guestName, MEETING_COLUMNS, type Meeting } from "./MeetingsView";
 import { AvatarStack, copyText, Detail, meetingsApi, Modal, StatusBadge, useNow, usePeople } from "./parts";
@@ -44,15 +44,16 @@ export function MeetingPage(props: ViewProps) {
   const { sb, session, ws, id, navigate } = props;
   const now = useNow();
   const people = usePeople(sb, ws.id);
-  const data = useLoad(async () => {
+  // The meeting with its type (embedded, one query) and its events, side by side.
+  const data = useQuery(`meeting:${ws.id}:${id}`, async () => {
     const [m, events] = await Promise.all([
-      sb.from("meetings").select(`${MEETING_COLUMNS}, location, answers, cancel_reason, payment, created_at`).eq("id", id).eq("workspace_id", ws.id).maybeSingle(),
+      sb.from("meetings").select(`${MEETING_COLUMNS}, location, answers, cancel_reason, payment, created_at, type:meeting_types!meetings_type_id_fkey(id, name, settings)`).eq("id", id).eq("workspace_id", ws.id).maybeSingle(),
       sb.from("meeting_events").select("id, kind, detail, at").eq("meeting_id", id).order("at", { ascending: false }).order("id", { ascending: false }),
     ]);
-    const meeting = must(m) as unknown as Full | null;
-    const type = meeting?.type_id ? ((must(await sb.from("meeting_types").select("id, name, settings").eq("id", meeting.type_id).maybeSingle()) as { id: string; name: string; settings: TypeSettings } | null) ?? null) : null;
-    return { meeting, type, events: (must(events) ?? []) as Event[] };
-  }, id);
+    const row = must(m) as unknown as (Full & { type: { id: string; name: string; settings: TypeSettings } | null }) | null;
+    const { type = null, ...meeting } = row ?? ({} as NonNullable<typeof row>);
+    return { meeting: row ? (meeting as unknown as Full) : null, type, events: (must(events) ?? []) as Event[] };
+  });
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [canceling, setCanceling] = useState(false);
@@ -62,12 +63,19 @@ export function MeetingPage(props: ViewProps) {
   const act = async (body: Record<string, unknown>) => {
     setError("");
     setBusy(true);
+    // Held and No-show show at once; anything else waits for the server.
+    const before = data.data;
+    const quick = body.action === "held" || body.action === "no_show" ? (body.action as "held" | "no_show") : null;
+    if (quick && before?.meeting) data.set({ ...before, meeting: { ...before.meeting, status: quick } });
     try {
       const r = await meetingsApi<{ refund?: "done" | "failed"; url?: string }>(session, ws.id, "action", { meetingId: id, ...body });
       if (r.refund === "failed") setError("Canceled. The refund didn't go through; refund it in Stripe.");
       data.reload();
+      invalidate(`meetings:${ws.id}`);
+      invalidate("app_counts");
       return r;
     } catch (e) {
+      if (quick && before) data.set(before);
       setError(errorText(e));
       return null;
     } finally {

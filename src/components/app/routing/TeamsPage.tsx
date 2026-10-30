@@ -9,7 +9,7 @@ import { useEffect, useMemo, useState } from "react";
 import { dealPreview } from "@/lib/router/deal";
 import { METHODS, type Method, type Queue } from "@/lib/router/types";
 import { CalendarIcon, Shuffle, Plus } from "../../Icons";
-import { Badge, Button, ErrorNote, Loading, must, Page, Segmented, useLoad, type ViewProps } from "../ui";
+import { Badge, Button, ErrorNote, Loading, must, Page, Segmented, useQuery, type ViewProps } from "../ui";
 import { PersonAvatar, usePeople } from "../meetings/parts";
 import { reducedMotion } from "./parts";
 import { RepsTab } from "./Reps";
@@ -21,24 +21,25 @@ export function TeamsPage(props: ViewProps) {
   const { sb, session, ws, role, navigate } = props;
   const r = useRouterData(session, ws.id);
   const people = usePeople(sb, ws.id);
-  const turns = useLoad(async () => {
+  // Leads each rep took in each team over 30 days, counted by the database.
+  const turns = useQuery(`router_runs:${ws.id}:turns`, async () => {
     const since = new Date(Date.now() - 30 * 86_400_000).toISOString();
-    const rows = (must(await sb.from("router_runs").select("queue_id, owner").eq("workspace_id", ws.id).eq("kind", "owner").is("undone_at", null).not("queue_id", "is", null).gte("created_at", since).limit(20000)) ?? []) as { queue_id: string; owner: string }[];
+    const rows = (must(await sb.rpc("routing_team_turns", { p_ws: ws.id, p_since: since })) ?? []) as { queue_id: string; owner: string; n: number }[];
     const out = new Map<string, Map<string, number>>();
     for (const x of rows) {
       const m = out.get(x.queue_id) ?? new Map<string, number>();
-      m.set(x.owner, (m.get(x.owner) ?? 0) + 1);
+      m.set(x.owner, x.n);
       out.set(x.queue_id, m);
     }
     return out;
-  }, ws.id);
+  });
   // The meeting types each team books (docs/scheduling-plan.md 12.7).
-  const types = useLoad(async () => {
+  const types = useQuery(`meeting_types:${ws.id}:teams`, async () => {
     const rows = (must(await sb.from("meeting_types").select("id, name, settings").eq("workspace_id", ws.id).eq("active", true)) ?? []) as { id: string; name: string; settings: { team?: string } | null }[];
     const out = new Map<string, { id: string; name: string }[]>();
     for (const t of rows) if (t.settings?.team) out.set(t.settings.team, [...(out.get(t.settings.team) ?? []), { id: t.id, name: t.name }]);
     return out;
-  }, ws.id);
+  });
   const owner = role === "owner";
   const queues = r.body?.queues ?? [];
   return (

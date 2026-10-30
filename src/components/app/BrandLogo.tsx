@@ -14,6 +14,6 @@ export function BrandLogo({ domain, name, size = 20 }: { domain: string; name: s
     );
   return (
     // eslint-disable-next-line @next/next/no-img-element
-    <img src={`https://www.google.com/s2/favicons?domain=${encodeURIComponent(domain)}&sz=128`} alt={name} width={size} height={size} className="shrink-0" style={box} onError={() => setFailed(true)} />
+    <img src={`https://www.google.com/s2/favicons?domain=${encodeURIComponent(domain)}&sz=${size > 16 ? 64 : 32}`} alt={name} width={size} height={size} loading="lazy" decoding="async" className="shrink-0" style={box} onError={() => setFailed(true)} />
   );
 }

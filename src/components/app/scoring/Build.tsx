@@ -59,7 +59,7 @@ export function Build({ session, ws, forms, site, model, onDone }: Pick<ViewProp
   useEffect(() => {
     if (!built || shown >= steps.length) return;
     const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    const t = setTimeout(() => setShown((n) => (reduce ? steps.length : n + 1)), reduce ? 0 : steps[shown]?.kind === "finding" ? 520 : 140);
+    const t = setTimeout(() => setShown((n) => (reduce ? steps.length : n + 1)), reduce ? 0 : steps[shown]?.kind === "finding" ? 150 : 60);
     return () => clearTimeout(t);
   }, [built, shown, steps]);
 

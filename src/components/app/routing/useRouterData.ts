@@ -1,59 +1,76 @@
 "use client";
 
-// The router as the pages outside the editor see it (Overview, Teams, Regions, Company types): loaded once with
-// /api/routing load, and changed by saving the draft. Their changes join the editor's draft; nothing goes live until
-// Make live on Rules.
+// The router as the pages outside the editor see it (Overview, Teams, Regions, Company types): loaded with
+// /api/routing load (shared in the cache as `routing_load:<workspace>`), and changed by saving the draft. Their
+// changes join the editor's draft; nothing goes live until Make live on Rules.
 
 import type { Session } from "@supabase/supabase-js";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { cleanBody } from "@/lib/router/check";
-import { emptyBody, type RouterBody } from "@/lib/router/types";
-import { errorText } from "../ui";
+import type { RouterBody } from "@/lib/router/types";
+import { cache, errorText, invalidate, useQuery } from "../ui";
 import { routingApi, type Loaded } from "./api";
+import { changeDraft, draftBase } from "./draftChange";
 
-export function useRouterData(session: Session, ws: string) {
-  const [data, setData] = useState<Loaded | null>(null);
-  const [error, setError] = useState("");
-  const [saving, setSaving] = useState(false);
+export const routingLoadKey = (ws: string) => `routing_load:${ws}`;
+
+/** The routing load, shared by every screen that reads it (fetched again on each visit, painted from the cache). */
+export function useRoutingLoad(session: Session, ws: string) {
   const sessionRef = useRef(session);
   useEffect(() => {
     sessionRef.current = session;
   });
-  const reload = useCallback(async () => {
-    try {
-      setData(await routingApi<Loaded>(sessionRef.current, ws, "load"));
-      setError("");
-    } catch (e) {
-      setError(errorText(e));
-    }
-  }, [ws]);
+  // Slim: the pages outside the editor don't show stats, versions or the chat.
+  return useQuery<Loaded>(routingLoadKey(ws), () => routingApi<Loaded>(sessionRef.current, ws, "load", { slim: true }), { staleMs: 0 });
+}
+
+export function useRouterData(session: Session, ws: string) {
+  const q = useRoutingLoad(session, ws);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState("");
+  const sessionRef = useRef(session);
   useEffect(() => {
-    void reload();
-  }, [reload]);
+    sessionRef.current = session;
+  });
+  const data = q.data;
+  const { reload } = q;
 
   /** The body being worked on: the draft when there is one, else what's live, else a fresh one. */
-  const body: RouterBody | null = data ? (data.draft ?? data.live?.body ?? emptyBody()) : null;
+  const body: RouterBody | null = data ? draftBase(data) : null;
 
-  /** Change the draft with `fn`, from the latest saved draft. A change made elsewhere meanwhile is kept. */
+  /**
+   * Change the draft with `fn`: the screen shows the change at once and one save goes out, from the revision on
+   * screen. If someone changed the draft meanwhile, it reads the latest and applies `fn` to that once more, so their
+   * change is kept. A failed save puts the screen back and shows why.
+   */
   const change = useCallback(
     async (fn: (b: RouterBody) => RouterBody): Promise<boolean> => {
+      const key = routingLoadKey(ws);
       setSaving(true);
-      setError("");
+      setSaveError("");
       try {
-        const fresh = await routingApi<Loaded>(sessionRef.current, ws, "load");
-        const base = fresh.draft ?? fresh.live?.body ?? emptyBody();
-        await routingApi(sessionRef.current, ws, "save_draft", { body: cleanBody(fn(base)), revision: fresh.revision });
-        await reload();
+        await changeDraft<Loaded>(
+          cache,
+          key,
+          {
+            load: () => routingApi<Loaded>(sessionRef.current, ws, "load", { slim: true }),
+            save: (b, revision) => routingApi<{ revision: number; body: RouterBody }>(sessionRef.current, ws, "save_draft", { body: b, revision }),
+            clean: cleanBody,
+          },
+          fn,
+        );
+        // Problems and counts come from the server; read them again without holding up the screen.
+        invalidate(key);
         return true;
       } catch (e) {
-        setError(errorText(e));
+        setSaveError(errorText(e));
         return false;
       } finally {
         setSaving(false);
       }
     },
-    [ws, reload],
+    [ws],
   );
 
-  return { data, body, error, saving, reload, change };
+  return { data, body, error: saveError || q.error, saving, reload, change };
 }

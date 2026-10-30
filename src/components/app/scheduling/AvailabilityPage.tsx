@@ -15,10 +15,10 @@ import { BrandLogo } from "../BrandLogo";
 import { askConfirm, askText } from "../Dialogs";
 import { Select } from "../Select";
 import { MoreMenu } from "../StatCards";
-import { Badge, Button, ErrorNote, errorText, IconButton, Input, Loading, must, Page, postJson, Segmented, Toggle, useLoad, type ViewProps } from "../ui";
+import { Badge, Button, ErrorNote, errorText, IconButton, Input, invalidate, Loading, must, Page, postJson, Segmented, Toggle, useQuery, type ViewProps } from "../ui";
 import { CLOCK_OPTIONS, ClockPick, FROM_OPTIONS, Overrides, ZonePicker } from "../meetings/HoursEditor";
 import { CLOCKS, DAY_LABEL, nextRange } from "../meetings/model";
-import { PROVIDERS, providerOf, type Account, type CalList } from "../meetings/MyCalendar";
+import { PROVIDERS, providerOf, useMyCalendars, type Account, type CalList } from "../meetings/MyCalendar";
 import { meetingsApi, Modal, ownZone } from "../meetings/parts";
 import { TeamCalendars } from "../meetings/TeamCalendars";
 import { routingApi } from "../routing/api";
@@ -26,18 +26,23 @@ import { routingApi } from "../routing/api";
 type ScheduleRow = Availability & { id: string; name: string };
 type Whose = "you" | "team";
 
+/** Your working hours and named schedules, shared by the page and Days off (`availability:<workspace>:me:<you>`). */
+function useMyHours(sb: ViewProps["sb"], ws: string, me: string) {
+  return useQuery(`availability:${ws}:me:${me}`, async () => {
+    const [hours, named] = await Promise.all([
+      sb.from("availability").select("tz, weekly, overrides").eq("workspace_id", ws).eq("user_id", me).maybeSingle(),
+      sb.from("availability_schedules").select("id, name, tz, weekly, overrides").eq("workspace_id", ws).eq("user_id", me).order("name"),
+    ]);
+    return { hours: must(hours) as Availability | null, named: (named.data ?? []) as ScheduleRow[] };
+  });
+}
+
 export function AvailabilityPage(props: ViewProps & { tab: string }) {
   const { sb, session, ws, navigate } = props;
   const me = session.user.id;
   const tab = availabilityPage(props.tab);
   const whose: Whose = tab === "team" ? "team" : "you";
-  const data = useLoad(async () => {
-    const [hours, named] = await Promise.all([
-      sb.from("availability").select("tz, weekly, overrides").eq("workspace_id", ws.id).eq("user_id", me).maybeSingle(),
-      sb.from("availability_schedules").select("id, name, tz, weekly, overrides").eq("workspace_id", ws.id).eq("user_id", me).order("name"),
-    ]);
-    return { hours: must(hours) as Availability | null, named: (named.data ?? []) as ScheduleRow[] };
-  }, ws.id);
+  const data = useMyHours(sb, ws.id, me);
   const [sel, setSel] = useState<string>("default");
   const [daysOff, setDaysOff] = useState(tab === "days-off");
   const [dates, setDates] = useState(false);
@@ -73,6 +78,9 @@ export function AvailabilityPage(props: ViewProps & { tab: string }) {
   const save = async (a: Availability) => {
     if (open) await meetingsApi(session, ws.id, "availability", { action: "schedule_save", id: open.id, name: open.name, availability: a });
     else await meetingsApi(session, ws.id, "availability", { availability: a });
+    // Keep the shared copy in step, so Days off and the other screens start from what was saved.
+    data.set((d) => (open ? { ...d, named: d.named.map((n) => (n.id === open.id ? { ...n, ...a } : n)) } : { ...d, hours: a }));
+    invalidate("meeting_types");
   };
   const add = async () => {
     setError("");
@@ -91,8 +99,10 @@ export function AvailabilityPage(props: ViewProps & { tab: string }) {
     const name = (await askText("Rename schedule", { initial: s.name, ok: "Rename" }))?.trim();
     if (!name || name === s.name) return;
     try {
-      await meetingsApi(session, ws.id, "availability", { action: "schedule_save", id: s.id, name, availability: a });
-      data.reload();
+      await data.mutate(
+        (d) => ({ ...d, named: d.named.map((n) => (n.id === s.id ? { ...n, name } : n)) }),
+        () => meetingsApi(session, ws.id, "availability", { action: "schedule_save", id: s.id, name, availability: a }),
+      );
     } catch (e) {
       setError(errorText(e));
     }
@@ -101,9 +111,9 @@ export function AvailabilityPage(props: ViewProps & { tab: string }) {
     setError("");
     try {
       if (!(await askConfirm(`Delete ${s.name}?`, { body: "Meeting types that use it go back to your working hours.", ok: "Delete", danger: true }))) return;
-      await meetingsApi(session, ws.id, "availability", { action: "schedule_delete", id: s.id });
       setSel("default");
-      data.reload();
+      await data.mutate((d) => ({ ...d, named: d.named.filter((n) => n.id !== s.id) }), () => meetingsApi(session, ws.id, "availability", { action: "schedule_delete", id: s.id }));
+      invalidate("meeting_types");
     } catch (e) {
       setError(errorText(e));
     }
@@ -162,7 +172,7 @@ export function AvailabilityPage(props: ViewProps & { tab: string }) {
             setDaysOff(false);
             if (tab === "days-off") navigate("scheduling", "availability");
           }}
-          onSaved={data.reload}
+          onSaved={() => undefined}
         />
       ) : null}
     </Page>
@@ -205,11 +215,13 @@ function WeekColumn({
   const [draft, setDraft] = useState<Availability>(() => saved ?? DEFAULT_AVAILABILITY(ownZone()));
   const [base, setBase] = useState(() => JSON.stringify(saved ?? DEFAULT_AVAILABILITY(ownZone())));
   const [was, setWas] = useState(saved);
+  // What this column last sent: the shared copy coming back with it isn't a change from outside.
+  const [sending, setSending] = useState("");
   // Read again from outside (Days off changed the hours): start from the new hours.
   if (saved !== was) {
     setWas(saved);
     const next = saved ?? DEFAULT_AVAILABILITY(ownZone());
-    if (JSON.stringify(next) !== JSON.stringify(draft)) {
+    if (JSON.stringify(next) !== JSON.stringify(draft) && JSON.stringify(next) !== sending) {
       setDraft(next);
       setBase(JSON.stringify(next));
     }
@@ -227,6 +239,7 @@ function WeekColumn({
     const t = setTimeout(async () => {
       setState("saving");
       setError("");
+      setSending(sent);
       try {
         await latest.current(draft);
         setBase(sent);
@@ -343,13 +356,10 @@ const dayList = (from: string, to: string) => {
  */
 function DaysOffDialog({ sb, session, ws, onClose, onSaved }: ViewProps & { onClose: () => void; onSaved: () => void }) {
   const me = session.user.id;
-  const data = useLoad(async () => {
-    const [rep, hours] = await Promise.all([
-      sb.from("router_reps").select("out_dates").eq("workspace_id", ws.id).eq("user_id", me).maybeSingle(),
-      sb.from("availability").select("tz, weekly, overrides").eq("workspace_id", ws.id).eq("user_id", me).maybeSingle(),
-    ]);
-    return { out: ((must(rep) as { out_dates: { from: string; to: string }[] } | null)?.out_dates ?? []) as { from: string; to: string }[], hours: must(hours) as Availability | null };
-  }, ws.id);
+  // Hours from the page's own data; only your away dates are read here.
+  const mine = useMyHours(sb, ws.id, me);
+  const rep = useQuery(`routing_reps:${ws.id}:me:${me}:out`, async () => ((must(await sb.from("router_reps").select("out_dates").eq("workspace_id", ws.id).eq("user_id", me).maybeSingle()) as { out_dates: { from: string; to: string }[] } | null)?.out_dates ?? []) as { from: string; to: string }[]);
+  const data = { data: mine.data && rep.data ? { out: rep.data, hours: mine.data.hours } : null, error: mine.error || rep.error };
   const today = new Date().toLocaleDateString("en-CA");
   const [from, setFrom] = useState(today);
   const [to, setTo] = useState(today);
@@ -360,8 +370,19 @@ function DaysOffDialog({ sb, session, ws, onClose, onSaved }: ViewProps & { onCl
     const hours = data.data?.hours ?? DEFAULT_AVAILABILITY(ownZone());
     const keep = hours.overrides.filter((o) => !drop.includes(o.date) && !add.includes(o.date));
     const overrides = [...keep, ...add.map((date) => ({ date, ranges: [] as [string, string][] }))].sort((a, b) => a.date.localeCompare(b.date)).slice(-200);
-    await meetingsApi(session, ws.id, "availability", { availability: { ...hours, overrides } });
-    await routingApi(session, ws.id, "rep", { user: me, patch: { out_dates: out } });
+    const next = { ...hours, overrides };
+    // Both lists change on screen at once, both saves go out together, and both go back if either fails.
+    const was = { out: rep.data, mine: mine.data };
+    rep.set(out);
+    if (mine.data) mine.set({ ...mine.data, hours: next });
+    try {
+      await Promise.all([meetingsApi(session, ws.id, "availability", { availability: next }), routingApi(session, ws.id, "rep", { user: me, patch: { out_dates: out } })]);
+    } catch (e) {
+      if (was.out) rep.set(was.out);
+      if (was.mine) mine.set(was.mine);
+      throw e;
+    }
+    invalidate(`routing_reps:${ws.id}`);
   };
   const add = async () => {
     setBusy(true);
@@ -369,7 +390,6 @@ function DaysOffDialog({ sb, session, ws, onClose, onSaved }: ViewProps & { onCl
     try {
       const [a, b] = from <= to ? [from, to] : [to, from];
       await write([...(data.data?.out ?? []).filter((d) => d.to >= today), { from: a, to: b }], dayList(a, b), []);
-      data.reload();
       onSaved();
     } catch (e) {
       setError(errorText(e));
@@ -383,7 +403,6 @@ function DaysOffDialog({ sb, session, ws, onClose, onSaved }: ViewProps & { onCl
       // Only days this entry turned off come back; a day off set by hand on the hours stays.
       const days = dayList(d.from, d.to).filter((x) => data.data?.hours?.overrides.some((o) => o.date === x && !o.ranges.length));
       await write((data.data?.out ?? []).filter((x) => x.from !== d.from || x.to !== d.to), [], days);
-      data.reload();
       onSaved();
     } catch (e) {
       setError(errorText(e));
@@ -431,12 +450,8 @@ function DaysOffDialog({ sb, session, ws, onClose, onSaved }: ViewProps & { onCl
 
 /** Your calendars: each account, which of its calendars count as busy, and where new bookings go. */
 function Calendars({ sb, session, ws }: ViewProps) {
-  const me = session.user.id;
-  const data = useLoad(async () => {
-    const accounts = (must(await sb.from("calendar_accounts").select("id, user_id, provider, account_email, status, refreshed_at").eq("workspace_id", ws.id).eq("user_id", me).order("created_at")) ?? []) as Account[];
-    const lists = accounts.length ? ((must(await sb.from("calendar_lists").select("account_id, calendar_id, name, busy, write").in("account_id", accounts.map((a) => a.id)).order("name")) ?? []) as CalList[]) : [];
-    return { accounts, lists };
-  }, ws.id);
+  // Shared with the Connect your calendar line, in one query with the calendars.
+  const data = useMyCalendars({ sb, session, ws });
   // Back from a provider's sign-in: /scheduling/availability/calendars?connected=google or ?error=...
   const [back] = useState(() => new URLSearchParams(typeof window === "undefined" ? "" : window.location.search));
   const [error, setError] = useState(() => back.get("error")?.slice(0, 200) ?? "");
@@ -458,11 +473,15 @@ function Calendars({ sb, session, ws }: ViewProps) {
       if (r.url) window.location.assign(r.url);
       else data.reload();
     });
+  // A box or the calendar for new bookings changes on click; it goes back, with the error, if the save fails.
   const saveLists = (a: Account, lists: CalList[], id: string, patch: { busy?: boolean; write?: boolean }) =>
     act(async () => {
       const calendars = lists.map((l) => ({ id: l.calendar_id, busy: l.calendar_id === id && patch.busy !== undefined ? patch.busy : l.busy, write: patch.write ? l.calendar_id === id : l.write }));
-      await postJson(session, "/api/calendar/lists", { workspaceId: ws.id, accountId: a.id, calendars });
-      data.reload();
+      const next = new Map(calendars.map((c) => [c.id, c]));
+      await data.mutate(
+        (d) => ({ ...d, lists: d.lists.map((l) => (l.account_id === a.id && next.has(l.calendar_id) ? { ...l, busy: next.get(l.calendar_id)!.busy, write: next.get(l.calendar_id)!.write } : l)) }),
+        () => postJson(session, "/api/calendar/lists", { workspaceId: ws.id, accountId: a.id, calendars }),
+      );
     });
 
   const accounts = data.data?.accounts ?? [];
@@ -510,8 +529,11 @@ function Calendars({ sb, session, ws }: ViewProps) {
                         run: () =>
                           void act(async () => {
                             if (!(await askConfirm(`Disconnect ${a.account_email}?`, { ok: "Disconnect", danger: true }))) return;
-                            await postJson(session, "/api/calendar/disconnect", { workspaceId: ws.id, accountId: a.id });
-                            data.reload();
+                            await data.mutate(
+                              (d) => ({ accounts: d.accounts.filter((x) => x.id !== a.id), lists: d.lists.filter((l) => l.account_id !== a.id) }),
+                              () => postJson(session, "/api/calendar/disconnect", { workspaceId: ws.id, accountId: a.id }),
+                            );
+                            invalidate("app_counts");
                           }),
                       },
                     ]}

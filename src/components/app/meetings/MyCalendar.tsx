@@ -10,7 +10,7 @@ import { DEFAULT_AVAILABILITY, type Availability } from "@/lib/meetings/types";
 import { Check, Refresh, Trash } from "../../Icons";
 import { BrandLogo } from "../BrandLogo";
 import { askConfirm } from "../Dialogs";
-import { Badge, Button, CardHead, ErrorNote, errorText, IconButton, Input, Loading, must, Panel, postJson, timeAgo, Toggle, useLoad, type ViewProps } from "../ui";
+import { Badge, Button, CardHead, ErrorNote, errorText, IconButton, Input, Loading, must, Panel, postJson, timeAgo, Toggle, useQuery, type ViewProps } from "../ui";
 import { HoursEditor } from "./HoursEditor";
 import { slugify } from "./model";
 import { CopyButton, meetingsApi, ownZone, PersonAvatar, useWorkspaceSlug } from "./parts";
@@ -26,24 +26,55 @@ export const PROVIDERS: { id: Exclude<Provider, "fake">; name: string; domain: s
 ];
 export const providerOf = (p: Provider) => PROVIDERS.find((x) => x.id === p) ?? { id: p, name: "Test calendar", domain: "example.com", connect: "" };
 
+/**
+ * Your calendar accounts in this workspace with their calendars, in one query, shared by the banner, Availability's
+ * Calendars and My calendar (`calendar_accounts:<workspace>:me:<you>`).
+ */
+export function useMyCalendars({ sb, session, ws }: Pick<ViewProps, "sb" | "session" | "ws">) {
+  return useQuery<{ accounts: Account[]; lists: CalList[] }>(`calendar_accounts:${ws.id}:me:${session.user.id}`, async () => {
+    const rows = (must(
+      await sb
+        .from("calendar_accounts")
+        .select("id, user_id, provider, account_email, status, refreshed_at, lists:calendar_lists(account_id, calendar_id, name, busy, write)")
+        .eq("workspace_id", ws.id)
+        .eq("user_id", session.user.id)
+        .order("created_at"),
+    ) ?? []) as (Account & { lists: CalList[] | null })[];
+    return {
+      accounts: rows.map((r) => {
+        const a: Partial<typeof r> = { ...r };
+        delete a.lists;
+        return a as Account;
+      }),
+      lists: rows.flatMap((r) => r.lists ?? []).sort((a, b) => a.name.localeCompare(b.name)),
+    };
+  });
+}
+
 export type CalendarPart = "calendars" | "hours" | "profile";
 
 export function MyCalendar({ sb, session, ws, parts = ["calendars", "hours", "profile"] }: Pick<ViewProps, "sb" | "session" | "ws"> & { parts?: CalendarPart[] }) {
   const me = session.user.id;
-  const data = useLoad(async () => {
-    const accounts = (must(await sb.from("calendar_accounts").select("id, user_id, provider, account_email, status, refreshed_at").eq("workspace_id", ws.id).eq("user_id", me).order("created_at")) ?? []) as Account[];
-    const [lists, hours, profile] = await Promise.all([
-      accounts.length ? sb.from("calendar_lists").select("account_id, calendar_id, name, busy, write").in("account_id", accounts.map((a) => a.id)).order("name") : Promise.resolve({ data: [], error: null }),
+  // Calendars (shared with the banner and Availability) and your hours and profile, side by side.
+  const cals = useMyCalendars({ sb, session, ws });
+  const mine = useQuery(`availability:${ws.id}:me:${me}:profile`, async () => {
+    const [hours, profile] = await Promise.all([
       sb.from("availability").select("tz, weekly, overrides").eq("workspace_id", ws.id).eq("user_id", me).maybeSingle(),
       sb.from("booking_profiles").select("slug, name, headline, photo_url").eq("workspace_id", ws.id).eq("user_id", me).maybeSingle(),
     ]);
     return {
-      accounts,
-      lists: (must(lists) ?? []) as CalList[],
       hours: must(hours) as Availability | null,
       profile: must(profile) as { slug: string; name: string; headline: string | null; photo_url: string | null } | null,
     };
-  }, ws.id);
+  });
+  const data = {
+    data: cals.data && mine.data ? { ...cals.data, ...mine.data } : null,
+    error: cals.error || mine.error,
+    reload: () => {
+      cals.reload();
+      mine.reload();
+    },
+  };
   // Back from a provider's sign-in: /scheduling/availability/calendars?connected=google or ?error=...
   const [back] = useState(() => new URLSearchParams(typeof window === "undefined" ? "" : window.location.search));
   const [error, setError] = useState(() => back.get("error")?.slice(0, 200) ?? "");
@@ -99,10 +130,12 @@ export function MyCalendar({ sb, session, ws, parts = ["calendars", "hours", "pr
                   })
                 }
                 onLists={(calendars) =>
-                  act(async () => {
-                    await postJson(session, "/api/calendar/lists", { workspaceId: ws.id, accountId: a.id, calendars });
-                    data.reload();
-                  })
+                  act(() =>
+                    cals.mutate(
+                      (d) => ({ ...d, lists: d.lists.map((l) => (l.account_id !== a.id ? l : { ...l, ...(calendars.find((c) => c.id === l.calendar_id) ? { busy: calendars.find((c) => c.id === l.calendar_id)!.busy, write: calendars.find((c) => c.id === l.calendar_id)!.write } : {}) })) }),
+                      () => postJson(session, "/api/calendar/lists", { workspaceId: ws.id, accountId: a.id, calendars }),
+                    ),
+                  )
                 }
               />
             ))}

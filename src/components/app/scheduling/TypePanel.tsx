@@ -104,6 +104,7 @@ export function TypePanel({
   data,
   onClose,
   onSaved,
+  onDuplicate,
 }: Pick<ViewProps, "session" | "ws" | "role" | "navigate"> & {
   row: TypeRow | null;
   /** The draft a new type starts from. */
@@ -111,6 +112,8 @@ export function TypePanel({
   data: PanelData;
   onClose: () => void;
   onSaved: () => void;
+  /** Duplicate here, so the copy opens at once. */
+  onDuplicate?: () => Promise<void>;
 }) {
   const me = session.user.id;
   const isNew = !row;
@@ -190,6 +193,7 @@ export function TypePanel({
   };
   const duplicate = async () => {
     if (!row) return;
+    if (onDuplicate) return onDuplicate();
     try {
       const r = await meetingsApi<{ id: string }>(session, ws.id, "types", { action: "duplicate", id: row.id });
       onSaved();

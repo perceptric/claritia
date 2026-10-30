@@ -3,27 +3,18 @@
 // Small pieces shared by Reps, Log and Held: the live router body, a toast with one action (Undo, Block domain),
 // a teammate picker, and the empty-state sketch.
 
-import type { SupabaseClient } from "@supabase/supabase-js";
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { RouterBody } from "@/lib/router/types";
 import { Sketch } from "../../sketches/Sketch";
 import { Check, Search } from "../../Icons";
 import { Popover } from "../FilterBar";
 import { PersonAvatar, type Person } from "../meetings/parts";
-import { Button, Input, must, useLoad, type Route } from "../ui";
+import { Button, Input, type Route } from "../ui";
 
 /** The Routing screen's address; typed loosely so this file doesn't depend on when nav.ts gains it. */
 export const ROUTING = "routing" as Route;
 
-/** The live version's number and body, or null when nothing is published. */
-export function useLiveBody(sb: SupabaseClient, ws: string) {
-  return useLoad(async () => {
-    const r = must(await sb.from("routers").select("live_version").eq("workspace_id", ws).maybeSingle()) as { live_version: number | null } | null;
-    if (!r?.live_version) return null;
-    const v = must(await sb.from("router_versions").select("version, body").eq("workspace_id", ws).eq("version", r.live_version).maybeSingle()) as { version: number; body: RouterBody } | null;
-    return v ? { version: v.version, body: v.body } : null;
-  }, ws);
-}
+/** The live version's number and body, or null when nothing is published (shared, `router_live:<workspace>`). */
+export { useLiveBody } from "../shared";
 
 /** The empty-state sketch for Routing. */
 export function RouteSketch({ size = 160 }: { size?: number }) {

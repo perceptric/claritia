@@ -40,6 +40,14 @@ export function Editor({ session, ws, role, data, model, refresh }: Pick<ViewPro
   const [msgs, setMsgs] = useState<Msg[]>([]);
   const [busy, setBusy] = useState(false);
   const [allMsgs, setAllMsgs] = useState(false);
+  // A publish read back from the server updates the editor in place (selection, view and chat stay).
+  const [seen, setSeen] = useState({ live: model.liveVersion ?? 0, revision: model.revision });
+  if (seen.live !== (model.liveVersion ?? 0) || (seen.revision !== model.revision && !pending)) {
+    setSeen({ live: model.liveVersion ?? 0, revision: model.revision });
+    setHasDraft(!!model.draft);
+    setRevision(model.revision);
+    if (!pending) setBody(model.draft ?? model.live!);
+  }
   const words = useMemo(() => ({ fields: data.fields, forms: Object.fromEntries(data.forms.map((f) => [f.id, f.name])) }), [data.fields, data.forms]);
   const bodyRef = useRef(body);
   bodyRef.current = body;

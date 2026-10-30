@@ -6,12 +6,12 @@ import { useState } from "react";
 import { ruleText, type AlertRule } from "@/lib/web/accountAlerts";
 import { askConfirm } from "../Dialogs";
 import { Select } from "../Select";
-import { Button, CardHead, ErrorNote, errorText, Field, Input, Loading, must, Panel, postJson, useLoad, type ViewProps } from "../ui";
+import { Button, CardHead, ErrorNote, errorText, Field, Input, Loading, must, Panel, postJson, useQuery, type ViewProps } from "../ui";
 
 type Saved = { id: string; rule: AlertRule; slack_hint: string | null; daily_cap: number };
 
 export function AccountAlertsPanel({ sb, session, ws }: Pick<ViewProps, "sb" | "session" | "ws">) {
-  const rules = useLoad(async () => must(await sb.from("account_alert_rules").select("id, rule, slack_hint, daily_cap").eq("workspace_id", ws.id).order("created_at")) as Saved[], ws.id);
+  const rules = useQuery(`account_alert_rules:${ws.id}`, async () => must(await sb.from("account_alert_rules").select("id, rule, slack_hint, daily_cap").eq("workspace_id", ws.id).order("created_at")) as Saved[]);
   const [when, setWhen] = useState<AlertRule["when"]>("hot");
   const [intent, setIntent] = useState("70");
   const [fit, setFit] = useState("");
@@ -40,10 +40,15 @@ export function AccountAlertsPanel({ sb, session, ws }: Pick<ViewProps, "sb" | "
   const remove = (id: string) =>
     run(id, async () => {
       if (!(await askConfirm("Remove this alert?", { ok: "Remove", danger: true }))) return;
-      const res = await fetch("/api/account-alerts", { method: "DELETE", headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` }, body: JSON.stringify({ workspaceId: ws.id, ruleId: id }) });
-      const data = (await res.json().catch(() => ({}))) as { error?: string };
-      if (!res.ok) throw new Error(data.error ?? "Something went wrong.");
-      rules.reload();
+      // The alert leaves at once; it comes back, with the error, if removing fails.
+      await rules.mutate(
+        (l) => l.filter((x) => x.id !== id),
+        async () => {
+          const res = await fetch("/api/account-alerts", { method: "DELETE", headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` }, body: JSON.stringify({ workspaceId: ws.id, ruleId: id }) });
+          const data = (await res.json().catch(() => ({}))) as { error?: string };
+          if (!res.ok) throw new Error(data.error ?? "Something went wrong.");
+        },
+      );
     });
 
   return (

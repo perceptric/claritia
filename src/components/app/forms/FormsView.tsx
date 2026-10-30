@@ -10,7 +10,7 @@ import { applyOp, type Op } from "@/lib/forms/ops";
 import { allFields, checkForm, emptyForm, type Form } from "@/lib/forms/schema";
 import type { CustomField } from "@/lib/records/fields";
 import { askConfirm, tell } from "../Dialogs";
-import { Badge, ErrorNote, errorText, Loading, must, postJson, setLeaveGuard, Tabs, useLoad, type ViewProps } from "../ui";
+import { Badge, cache, ErrorNote, errorText, invalidate, Loading, must, postJson, setLeaveGuard, Tabs, useQuery, type ViewProps } from "../ui";
 import { useLiveBody } from "../routing/screenParts";
 import { Build, type Pick as Picked } from "./Build";
 import { mergeKey } from "./editorModel";
@@ -27,6 +27,7 @@ import type { Destination, FormRow, Kit, SourceRow } from "./shared";
 import { Submissions } from "./Submissions";
 import { Sync } from "./Sync";
 import { useCrm } from "./useCrm";
+import { meetingTypes } from "../meetings/TypesList";
 
 export function FormsView(props: ViewProps) {
   if (props.id === "new") return <FormHome key="new" {...props} startNew />;
@@ -50,47 +51,43 @@ export type FormData = {
 
 function FormPage(props: ViewProps) {
   const { sb, ws, id } = props;
-  const data = useLoad(async (): Promise<FormData | { none: true }> => {
-    const [f, kits, sources, dests, custom, sites, types] = await Promise.all([
+  // Everything the form's page needs, in one round of calls side by side (counts come from form_page_stats).
+  const data = useQuery(`form:${ws.id}:${id}`, async (): Promise<FormData | { none: true }> => {
+    const [f, kits, sources, dests, custom, sites, types, stats] = await Promise.all([
       sb.from("forms").select("id, name, status, kind, draft, draft_rev, version, brand_kit_id, published_at").eq("id", id).maybeSingle(),
       sb.from("brand_kits").select("id, name, tokens, logo_url, notes, source_url, scan_status, scan_error, scanned_at").eq("workspace_id", ws.id).order("created_at"),
       sb.from("sources").select("id, kind, name, status").eq("workspace_id", ws.id).order("name"),
       sb.from("form_destinations").select("id, kind, source_id, name, config, paused, position").eq("form_id", id).order("position"),
       sb.from("fields").select("key, label, type, options").eq("workspace_id", ws.id).eq("object", "contact").order("position"),
       sb.from("sites").select("domain").eq("workspace_id", ws.id).order("created_at").limit(1),
-      sb.from("meeting_types").select("id, name, active, settings").eq("workspace_id", ws.id).order("created_at"),
+      meetingTypes(sb, ws.id),
+      sb.rpc("form_page_stats", { p_form: id }),
     ]);
     const row = must(f) as FormData["row"] | null;
     if (!row) return { none: true };
     const list = (must(dests) ?? []) as Destination[];
-    const weekAgo = new Date(Date.now() - 7 * 86_400_000).toISOString();
-    const [published, subs, failed, pages] = await Promise.all([
-      row.version ? sb.from("form_versions").select("body").eq("form_id", id).eq("version", row.version).maybeSingle() : Promise.resolve({ data: null }),
-      sb.from("submissions").select("id", { count: "exact", head: true }).eq("form_id", id).eq("spam", false).eq("test", false),
-      list.length ? sb.from("deliveries").select("destination_id").in("destination_id", list.map((d) => d.id)).eq("status", "failed").gte("created_at", weekAgo).limit(500) : Promise.resolve({ data: [] }),
-      sb.from("submissions").select("hidden").eq("form_id", id).eq("test", false).eq("spam", false).gte("created_at", new Date(Date.now() - 30 * 86_400_000).toISOString()).limit(500),
-    ]);
-    const byDest: Record<string, number> = {};
-    for (const d of ((failed.data ?? []) as { destination_id: string }[])) byDest[d.destination_id] = (byDest[d.destination_id] ?? 0) + 1;
-    const pageSet = new Set(((pages.data ?? []) as { hidden: Record<string, string> | null }[]).map((s) => s.hidden?.page).filter((p): p is string => !!p && !/\/f\/[0-9a-f-]{36}/.test(p)));
+    const st = must(stats) as { published: Form | null; subs: number; failed: Record<string, number>; pages: number };
     return {
       row,
-      published: ((published.data as { body: Form } | null)?.body ?? null),
+      published: st.published ?? null,
       kits: (must(kits) ?? []) as Kit[],
       sources: (must(sources) ?? []) as SourceRow[],
       dests: list,
       custom: (must(custom) ?? []) as CustomField[],
       site: ((sites.data ?? []) as { domain: string }[])[0]?.domain ?? "",
-      types: ((types.data ?? []) as FormData["types"]),
-      subs: subs.count ?? 0,
-      failed: byDest,
-      pages: pageSet.size,
+      types: types as FormData["types"],
+      subs: st.subs ?? 0,
+      failed: st.failed ?? {},
+      pages: st.pages ?? 0,
     };
-  }, id);
+  });
   if (data.error && !data.data) return <div className="p-[16px]"><ErrorNote message={data.error} /></div>;
   if (!data.data) return <Loading />;
   if ("none" in data.data) return <div className="p-[24px] text-muted">Form not found</div>;
-  return <Editor {...props} data={data.data} reload={data.reload} />;
+  const patchRow = (p: Partial<FormData["row"]>) => data.set((d) => ("none" in d ? d : { ...d, row: { ...d.row, ...p } }));
+  const patchKits = (fn: (kits: Kit[]) => Kit[]) => data.set((d) => ("none" in d ? d : { ...d, kits: fn(d.kits) }));
+  const patchDests = (fn: (d: Destination[]) => Destination[]) => data.set((d) => ("none" in d ? d : { ...d, dests: fn(d.dests) }));
+  return <Editor {...props} data={data.data} reload={data.reload} patchRow={patchRow} patchKits={patchKits} patchDests={patchDests} />;
 }
 
 export type Tab = "build" | "submissions" | "share" | "sync" | "settings";
@@ -104,8 +101,8 @@ function tabOf(search: string): Tab {
 
 type Saving = "saved" | "saving" | "offline";
 
-function Editor(props: ViewProps & { data: FormData; reload: () => void }) {
-  const { sb, session, ws, navigate, data, reload } = props;
+function Editor(props: ViewProps & { data: FormData; reload: () => void; patchRow: (p: Partial<FormData["row"]>) => void; patchKits: (fn: (kits: Kit[]) => Kit[]) => void; patchDests: (fn: (d: Destination[]) => Destination[]) => void }) {
+  const { sb, session, ws, navigate, data, reload, patchRow, patchKits, patchDests } = props;
   const row = data.row;
   const start = useMemo(() => {
     const d = row.draft as Partial<Form>;
@@ -300,17 +297,24 @@ function Editor(props: ViewProps & { data: FormData; reload: () => void }) {
       await postJson(session, "/api/forms/publish", { workspaceId: ws.id, id: row.id });
       setDialog(null);
       reload();
+      invalidate(`forms:${ws.id}`);
+      invalidate("app_counts");
       note.show(data.pages ? `Live. ${data.pages} ${data.pages === 1 ? "page updates" : "pages update"} within a minute.` : "Live.");
     } catch (e) {
       setError(errorText(e));
     }
   };
   const setStatus = async (s: "live" | "paused") => {
+    // The status changes on click; it goes back, with the error, if the save fails.
+    const was = row.status;
+    patchRow({ status: s });
     try {
       must(await sb.rpc("form_set_status", { p_id: row.id, p_status: s }));
-      reload();
+      invalidate(`forms:${ws.id}`);
+      invalidate("app_counts");
       note.show(s === "paused" ? "Offline. Pages show nothing until you publish again." : "Back online");
     } catch (e) {
+      patchRow({ status: was });
       setError(errorText(e));
     }
   };
@@ -321,6 +325,9 @@ function Editor(props: ViewProps & { data: FormData; reload: () => void }) {
       must(await sb.rpc("form_delete", { p_id: row.id }));
       dirty.current = false;
       setLeaveGuard(null);
+      cache.set<{ rows: { id: string }[] } | undefined>(`forms:${ws.id}:home`, (d) => (d ? { ...d, rows: d.rows.filter((x) => x.id !== row.id) } : d));
+      invalidate(`forms:${ws.id}`);
+      invalidate("app_counts");
       navigate("forms");
     } catch (e) {
       setError(errorText(e));
@@ -487,6 +494,7 @@ function Editor(props: ViewProps & { data: FormData; reload: () => void }) {
             kits={data.kits}
             setKit={setKit}
             reloadKits={reload}
+            patchKits={patchKits}
             site={kit?.source_url ?? data.site}
             types={data.types}
             pick={pick}
@@ -509,7 +517,7 @@ function Editor(props: ViewProps & { data: FormData; reload: () => void }) {
         ) : tab === "share" ? (
           <Share {...props} form={form} row={row} apply={apply} kit={kit} site={data.site} />
         ) : tab === "sync" ? (
-          <Sync {...props} form={form} formId={row.id} dests={data.dests} sources={data.sources} crm={crm} failed={data.failed} reload={reload} onFix={(qid) => goto(qid)} issueCtx={issueCtx} />
+          <Sync {...props} form={form} formId={row.id} dests={data.dests} sources={data.sources} crm={crm} failed={data.failed} reload={reload} patchDests={patchDests} onFix={(qid) => goto(qid)} issueCtx={issueCtx} />
         ) : (
           <Setup {...props} form={form} apply={apply} sub={sub} setSub={setSub} formId={row.id} types={data.types} routing={live.data?.body ?? null} onReview={() => setTab("submissions")} subs={data.subs} name={name} />
         )}
@@ -593,7 +601,7 @@ function PublishDialog({ checks, live, onClose, onPublish, onFix, error }: { che
 
 /** Every published version, newest first, and the draft. An older one can be made the draft again. */
 function Versions({ sb, formId, live, changed, onClose, onRestore }: Pick<ViewProps, "sb"> & { formId: string; live: number; changed: boolean; onClose: () => void; onRestore: (body: Form, v: number) => void }) {
-  const list = useLoad(async () => (must(await sb.from("form_versions").select("version, body, at").eq("form_id", formId).order("version", { ascending: false }).limit(50)) ?? []) as { version: number; body: Form; at: string }[], formId);
+  const list = useQuery(`form:${formId}:versions:${live}`, async () => (must(await sb.from("form_versions").select("version, body, at").eq("form_id", formId).order("version", { ascending: false }).limit(50)) ?? []) as { version: number; body: Form; at: string }[]);
   const day = (iso: string) => new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric" });
   const words = (b: Form) => {
     const n = questionsOf(b).filter((q) => q.kind !== "heading" && q.kind !== "para").length;

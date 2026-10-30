@@ -10,7 +10,7 @@ import { AskDock } from "../forms/FormHome";
 import { Button, ErrorNote, errorText, mayLeave, type ViewProps } from "../ui";
 import { routingApi, type ChatOut, type Loaded } from "./api";
 import { Build } from "./Build";
-import { RouterEditor } from "./Editor";
+import { RouterEditor, type EditorHandle } from "./Editor";
 import { FlowSkeleton } from "./Flow";
 import { toast } from "./Toast";
 
@@ -19,19 +19,21 @@ type Props = Pick<ViewProps, "sb" | "session" | "ws" | "role" | "navigate">;
 export function SetupTab(props: Props) {
   const { session, ws, role } = props;
   const owner = role === "owner";
-  const [state, setState] = useState<{ data: Loaded; epoch: number } | null>(null);
+  const [state, setState] = useState<{ data: Loaded } | null>(null);
+  const editor = useRef<EditorHandle>(null);
   const [error, setError] = useState("");
   const sessionRef = useRef(session);
   useEffect(() => {
     sessionRef.current = session;
   });
 
-  /** Load again; `remount` starts the editor over from what's saved. */
+  /** Load again; `remount` starts the editor over from what's saved (in place, keeping selection and scroll). */
   const refresh = useCallback(
     async (remount: boolean) => {
       try {
         const data = await routingApi<Loaded>(sessionRef.current, ws.id, "load");
-        setState((s) => ({ data, epoch: (s?.epoch ?? 0) + (remount ? 1 : 0) }));
+        setState({ data });
+        if (remount) editor.current?.reset(data);
         setError("");
       } catch (e) {
         setError(errorText(e));
@@ -74,7 +76,7 @@ export function SetupTab(props: Props) {
   return (
     <div className="flex h-full min-h-0 flex-col">
       <div className="min-h-0 flex-1">
-        <RouterEditor key={state.epoch} {...props} data={d} refresh={refresh} />
+        <RouterEditor {...props} data={d} refresh={refresh} handle={editor} />
       </div>
       {owner ? <ChatDock session={session} ws={ws.id} data={d} onTurn={() => void refresh(true)} /> : null}
     </div>
@@ -98,8 +100,15 @@ function ChatDock({ session, ws, data, onTurn }: { session: ViewProps["session"]
     setError("");
     setPending(m);
     try {
-      const fresh = await routingApi<Loaded>(session, ws, "load");
-      const r = await routingApi<ChatOut>(session, ws, "chat", { message: m, revision: fresh.revision });
+      // One call with the revision on screen; when another window changed the draft, read it and ask once more.
+      const ask = (revision: number) => routingApi<ChatOut>(session, ws, "chat", { message: m, revision });
+      let r: ChatOut;
+      try {
+        r = await ask(data.revision);
+      } catch (e) {
+        if (!/changed/i.test(errorText(e))) throw e;
+        r = await ask((await routingApi<Loaded>(session, ws, "load")).revision);
+      }
       if (r.reps) toast({ text: r.reps === 1 ? "Rep updated" : `${r.reps} reps updated` });
       onTurn();
     } catch (e) {

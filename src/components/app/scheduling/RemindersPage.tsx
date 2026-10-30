@@ -5,12 +5,13 @@
 // no-show follow-up with the host's next times, and the confirmation (a message or a page). Change one type, or set
 // the same reminders on every type at once. The emails go out from the meeting lifecycle jobs.
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import type { MeetingType, TypeSettings } from "@/lib/meetings/types";
 import { Bell, Check, Plus, X } from "../../Icons";
 import { askConfirm } from "../Dialogs";
 import { Select } from "../Select";
-import { Badge, Button, ErrorNote, errorText, Loading, must, Page, Toggle, useLoad, type ViewProps } from "../ui";
+import { Badge, Button, ErrorNote, errorText, Loading, Page, Toggle, type ViewProps } from "../ui";
+import { useMeetingTypes } from "../meetings/TypesList";
 import { minutesText } from "../meetings/model";
 import { meetingsApi } from "../meetings/parts";
 import { KIND_TONE } from "./model";
@@ -22,7 +23,10 @@ type Row = MeetingType;
 
 export function RemindersPage(props: ViewProps) {
   const { sb, session, ws, navigate } = props;
-  const list = useLoad(async () => (must(await sb.from("meeting_types").select("*").eq("workspace_id", ws.id).order("name")) ?? []) as Row[], ws.id);
+  // The shared meeting types list, by name here.
+  const types = useMeetingTypes(sb, ws.id);
+  const sorted = useMemo(() => (types.data ? [...types.data].sort((a, b) => a.name.localeCompare(b.name)) : null), [types.data]);
+  const list = { data: sorted as Row[] | null, error: types.error };
   const [busy, setBusy] = useState<string | null>(null);
   const [saved, setSaved] = useState<string | null>(null);
   const [error, setError] = useState("");
@@ -31,12 +35,12 @@ export function RemindersPage(props: ViewProps) {
     const { name, slug, kind, hosts, settings, secret, active, locked, owner_user_id } = t;
     await meetingsApi(session, ws.id, "types", { action: "save", id: t.id, type: { name, slug, kind, hosts, settings: { ...settings, ...patch }, secret, active, locked, owner_user_id } });
   };
+  // The change shows at once and goes back, with the error, if the save fails.
   const change = async (t: Row, patch: Partial<TypeSettings>) => {
     setBusy(t.id);
     setError("");
     try {
-      await save(t, patch);
-      list.reload();
+      await types.mutate((rows) => rows.map((x) => (x.id === t.id ? { ...x, settings: { ...x.settings, ...patch } } : x)), () => save(t, patch));
       setSaved(t.id);
       setTimeout(() => setSaved((s) => (s === t.id ? null : s)), 1400);
     } catch (e) {
@@ -51,10 +55,15 @@ export function RemindersPage(props: ViewProps) {
     if (!(await askConfirm(`Use ${from.name}'s reminders on ${others.length} other ${others.length === 1 ? "type" : "types"}?`, { ok: "Use on all" }))) return;
     setBusy("all");
     setError("");
+    const patch = { reminders: from.settings.reminders, noShowFollowUp: from.settings.noShowFollowUp };
+    const ids = new Set(others.map((t) => t.id));
     try {
-      for (const t of others) await save(t, { reminders: from.settings.reminders, noShowFollowUp: from.settings.noShowFollowUp });
-      list.reload();
+      await types.mutate(
+        (rows) => rows.map((x) => (ids.has(x.id) ? { ...x, settings: { ...x.settings, ...patch } } : x)),
+        () => Promise.all(others.map((t) => save(t, patch))),
+      );
     } catch (e) {
+      types.reload();
       setError(errorText(e));
     } finally {
       setBusy(null);
@@ -85,7 +94,7 @@ export function RemindersPage(props: ViewProps) {
               const locked = t.locked?.includes("reminders");
               const left = TIMES.filter((m) => !s.reminders.includes(m));
               return (
-                <li key={t.id} className="anim-rise-sm relative overflow-hidden rounded-2xl border border-line bg-card py-4 pr-4 pl-5" style={{ animationDelay: `${Math.min(i, 10) * 30}ms` }}>
+                <li key={t.id} className="anim-rise-sm relative overflow-hidden rounded-2xl border border-line bg-card py-4 pr-4 pl-5" style={i < 8 ? { animationDelay: `${i * 30}ms` } : undefined}>
                   <span aria-hidden="true" className={`absolute inset-y-0 left-0 w-1.5 ${EDGE[KIND_TONE[t.kind]]}`} />
                   <div className="flex items-center gap-2">
                     <button type="button" onClick={() => navigate("scheduling", `types/${t.id}`)} className="truncate text-left text-[14.5px] font-semibold tracking-[-0.01em] text-ink hover:underline">

@@ -77,6 +77,8 @@ export type SidebarProps = {
   onTheme: () => void;
   onSignOut: () => void;
   onSearch: () => void;
+  /** Load a section's code ahead, when its item is hovered. */
+  onPreload?: (r: Route) => void;
   create: CreateItem[];
   start: React.ReactNode;
 };
@@ -133,7 +135,7 @@ export function Sidebar(p: SidebarProps) {
               )}
               <div className={`flex gap-1 md:flex-col md:gap-0.5 ${open ? "" : "xl:hidden"}`}>
                 {items.map((n) => (
-                  <NavLink key={n.key} n={n} on={active?.key === n.key} count={p.counts[n.key]} navigate={p.navigate} />
+                  <NavLink key={n.key} n={n} on={active?.key === n.key} count={p.counts[n.key]} navigate={p.navigate} preload={p.onPreload} />
                 ))}
                 {g.key === "crm"
                   ? p.objects.map((o) => (
@@ -142,6 +144,7 @@ export function Sidebar(p: SidebarProps) {
                         n={{ key: `objects/${o.key}`, route: "objects", page: o.key, label: o.plural, group: "crm" }}
                         on={p.route === "objects" && (p.id === o.key || p.id.startsWith(`${o.key}/`))}
                         navigate={p.navigate}
+                        preload={p.onPreload}
                         icon={NAV_ICONS.objects}
                       />
                     ))
@@ -166,7 +169,7 @@ export function Sidebar(p: SidebarProps) {
   );
 }
 
-function NavLink({ n, on, count, navigate, icon }: { n: NavItem; on: boolean; count?: number; navigate: SidebarProps["navigate"]; icon?: React.ReactNode }) {
+function NavLink({ n, on, count, navigate, icon, preload }: { n: NavItem; on: boolean; count?: number; navigate: SidebarProps["navigate"]; icon?: React.ReactNode; preload?: SidebarProps["onPreload"] }) {
   const glyph = icon ?? NAV_ICONS[n.key] ?? NAV_ICONS[n.route];
   return (
     <a
@@ -175,6 +178,8 @@ function NavLink({ n, on, count, navigate, icon }: { n: NavItem; on: boolean; co
         e.preventDefault();
         navigate(n.route as Route, n.page);
       }}
+      onPointerEnter={preload ? () => preload(n.route as Route) : undefined}
+      onFocus={preload ? () => preload(n.route as Route) : undefined}
       aria-current={on ? "page" : undefined}
       title={n.label}
       className={`flex h-8 shrink-0 items-center gap-2.5 rounded-[7px] px-2 text-[13px] transition-[background-color,color,box-shadow] duration-[120ms] md:justify-center xl:justify-start ${on ? "bg-card text-ink shadow-[0_0_0_1px_var(--color-line),0_1px_2px_rgb(10_10_10/0.05)]" : "text-muted hover:bg-hover hover:text-ink"}`}

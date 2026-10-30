@@ -6,6 +6,7 @@ import { useState } from "react";
 import { askText } from "../Dialogs";
 import { Badge, Button, CardHead, ErrorNote, errorText, Field, Input, Loading, must, Panel, Tabs, timeAgo, useLoad, type ViewProps } from "../ui";
 import type { SiteHealth } from "./VisitorsView";
+import { useSiteHealth } from "../shared";
 import { CopyButton } from "../CopyButton";
 
 const COLLECT = "https://claritia-collect.fly.dev";
@@ -90,7 +91,9 @@ CLR_PROXY_SECRET=${site.proxy_secret}`;
 }
 
 export function SitesPanel({ sb, ws, role }: Pick<ViewProps, "sb" | "ws" | "role">) {
-  const sites = useLoad(async () => ({ rows: must(await sb.rpc("site_health", { p_ws: ws.id })) as SiteHealth[], at: Date.now() }), ws.id);
+  const health = useSiteHealth<SiteHealth>(sb, ws.id);
+  const [at] = useState(() => Date.now());
+  const sites = { ...health, data: health.data ? { rows: health.data, at } : null };
   const [error, setError] = useState("");
   const [open, setOpen] = useState("");
   const add = async () => {

@@ -7,7 +7,7 @@
 
 import type { Session } from "@supabase/supabase-js";
 import { withSegments } from "@/lib/router/conditions";
-import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
+import { useCallback, useEffect, useImperativeHandle, useMemo, useReducer, useRef, useState } from "react";
 import { problems as checkProblems } from "@/lib/router/check";
 import type { Line } from "@/lib/router/explain";
 import { emptyBody, type RouterBody } from "@/lib/router/types";
@@ -23,6 +23,9 @@ import { ReplayPanel } from "./Replay";
 import { TestPanel } from "./TestPanel";
 import { toast } from "./Toast";
 import { VersionsDrawer } from "./Versions";
+
+/** What Setup can ask of the editor: start from a draft read again (after the assistant or Start over). */
+export type EditorHandle = { reset: (d: Loaded) => void };
 
 type SaveState = "idle" | "saving" | "saved" | "retry" | "conflict";
 
@@ -52,7 +55,8 @@ export function RouterEditor({
   navigate,
   data,
   refresh,
-}: Pick<ViewProps, "sb" | "session" | "ws" | "role" | "navigate"> & { data: Loaded; refresh: (remount: boolean) => Promise<void> }) {
+  handle,
+}: Pick<ViewProps, "sb" | "session" | "ws" | "role" | "navigate"> & { data: Loaded; refresh: (remount: boolean) => Promise<void>; handle?: React.Ref<EditorHandle> }) {
   const readOnly = role !== "owner";
   const [st, dispatch] = useReducer(editorReducer, data.draft ?? data.live?.body ?? emptyBody(), startEditor);
   const [savedN, setSavedN] = useState(0);
@@ -96,6 +100,7 @@ export function RouterEditor({
   useEffect(() => {
     latest.current = { body: st.body, n: st.n };
   });
+
 
   const save = useCallback(async (): Promise<boolean> => {
     if (inflight.current) await inflight.current;
@@ -152,6 +157,19 @@ export function RouterEditor({
       window.removeEventListener("beforeunload", before);
     };
   }, [readOnly, save]);
+
+  // A change from outside (the assistant, Start over) shows in place: the flow keeps its selection and scroll.
+  const reset = useCallback((d: Loaded) => {
+    revRef.current = d.revision;
+    const n = latest.current.n + 1;
+    savedRef.current = n;
+    setSavedN(n);
+    dispatch({ type: "reset", body: d.draft ?? d.live?.body ?? emptyBody() });
+    setHasDraft(!!d.draft);
+    setLists(d.lists);
+    setSaveState("idle");
+  }, []);
+  useImperativeHandle(handle, () => ({ reset }), [reset]);
 
   const loadTheirs = async () => {
     try {

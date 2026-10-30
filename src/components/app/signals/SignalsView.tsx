@@ -12,7 +12,7 @@ import { visitorsPage, VISITORS_TABS } from "@/lib/nav";
 import { Radar } from "../../Icons";
 import { BrandLogo } from "../BrandLogo";
 import { byDay, DayBars, StatCards } from "../StatCards";
-import { Badge, Button, Empty, ErrorNote, Loading, must, Page, Panel, Section, timeAgo, useLoad, type ViewProps } from "../ui";
+import { Badge, Button, Empty, ErrorNote, Loading, must, Page, Panel, Section, timeAgo, useQuery, type ViewProps } from "../ui";
 import { Sketch } from "../../sketches/Sketch";
 import { AccountAlertsPanel } from "../views/AccountAlertsPanel";
 import { IdentityPanel } from "../views/IdentityPanel";
@@ -68,26 +68,28 @@ export function SignalsView(props: ViewProps) {
 }
 
 function Feed({ sb, ws, navigate }: ViewProps) {
-  const data = useLoad(async () => {
+  // The latest 100 signals, and the counts from the database (signals_feed_stats) instead of 40,000 rows.
+  const data = useQuery(`signals:${ws.id}:feed`, async () => {
     const week = new Date(Date.now() - 7 * 86_400_000).toISOString();
     const month = new Date(Date.now() - 30 * 86_400_000).toISOString();
-    const [recent, month30, companies, hot, alerts] = await Promise.all([
+    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+    const [recent, stats, hot, alerts] = await Promise.all([
       sb.from("signals").select("id, kind, at, account:accounts(id, name, domain, temperature)").eq("workspace_id", ws.id).order("at", { ascending: false }).limit(100),
-      sb.from("signals").select("at").eq("workspace_id", ws.id).gte("at", month).limit(20000),
-      sb.from("account_daily").select("account_id").eq("workspace_id", ws.id).gte("day", week.slice(0, 10)).limit(20000),
+      sb.rpc("signals_feed_stats", { p_ws: ws.id, p_month: month, p_week: week, p_tz: tz }),
       sb.from("accounts").select("id", { count: "exact", head: true }).eq("workspace_id", ws.id).eq("temperature", "hot"),
       sb.from("account_alert_log").select("account_id", { count: "exact", head: true }).eq("workspace_id", ws.id).gte("sent_at", week),
     ]);
-    const times = ((must(month30) ?? []) as { at: string }[]).map((r) => r.at);
+    const s = must(stats) as { days: Record<string, number>; week: number; companies: number };
+    const days = byDay([], 30).map((d) => ({ ...d, n: s.days[d.day] ?? 0 }));
     return {
       recent: (must(recent) ?? []) as unknown as SignalRow[],
-      days: byDay(times, 30),
-      week: times.filter((t) => t >= week).length,
-      companies: new Set(((must(companies) ?? []) as { account_id: string }[]).map((r) => r.account_id)).size,
+      days,
+      week: s.week,
+      companies: s.companies,
       hot: hot.count ?? 0,
       alerts: alerts.count ?? 0,
     };
-  }, ws.id);
+  });
   const d = data.data;
   const groups = useMemo(() => {
     const out: { day: string; rows: SignalRow[] }[] = [];
@@ -132,7 +134,7 @@ function Feed({ sb, ws, navigate }: ViewProps) {
               <h3 className="text-[12.5px] font-medium text-muted">{g.day}</h3>
               <ul className="overflow-hidden rounded-2xl border border-line bg-card">
                 {g.rows.map((r, i) => (
-                  <li key={r.id} className={`anim-rise-sm flex items-center gap-3 px-4 py-2.5 ${i ? "border-t border-line" : ""}`} style={{ animationDelay: `${Math.min(i, 12) * 20}ms` }}>
+                  <li key={r.id} className={`anim-rise-sm flex items-center gap-3 px-4 py-2.5 ${i ? "border-t border-line" : ""}`} style={i < 8 ? { animationDelay: `${i * 20}ms` } : undefined}>
                     <span className="flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-paper-deep">
                       {r.account?.domain ? <BrandLogo domain={r.account.domain} name={r.account.name ?? r.account.domain} size={20} /> : <Radar size={14} className="text-faint" />}
                     </span>

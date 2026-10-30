@@ -50,7 +50,7 @@ export function RoutingView(props: ViewProps) {
             flush
           >
             <div className="flex h-full min-h-0 flex-col overflow-y-auto">
-              <LeadNumbers session={session} ws={ws} />
+              <LeadNumbers sb={sb} ws={ws} />
               {review ? <HeldTab {...shared} sub="" /> : <LogTab {...shared} sub={page.sub} />}
             </div>
           </Page>

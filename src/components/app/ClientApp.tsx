@@ -1,7 +1,8 @@
 "use client";
 
-import type { Session } from "@supabase/supabase-js";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import type { Session, SupabaseClient } from "@supabase/supabase-js";
+import dynamic from "next/dynamic";
+import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import { getSupabase, type SupaConfig } from "@/lib/supa";
 import { contactsPage, emailsPage, enrichmentPage, NAV, resolveRoute, routingPage, schedulingPage, scoringPage, visitorsPage } from "@/lib/nav";
 import { Check, LogOut, Moon, Sun } from "../Icons";
@@ -10,23 +11,59 @@ import { AuthScreen } from "./AuthScreen";
 import { Dots } from "./Ai";
 import { CommandBar, type Command } from "./CommandBar";
 import { DialogHost } from "./Dialogs";
-import { ErrorNote, errorText, mayLeave, must, type Role, type Route, type ViewProps, type Workspace } from "./ui";
+import { cache, ErrorNote, errorText, Loading, mayLeave, must, useQuery, type Role, type Route, type ViewProps, type Workspace } from "./ui";
 import { GetStarted } from "./GetStarted";
 import { NAV_ICONS, Sidebar, type CreateItem } from "./Sidebar";
-import { EnrichmentView } from "./enrichment/EnrichmentView";
-import { SchedulingView } from "./scheduling/SchedulingView";
-import { SignalsView } from "./signals/SignalsView";
-import { ContactsView } from "./views/ContactsView";
-import { CompaniesView, ObjectsView, OpportunitiesView } from "./views/RecordsViews";
-import { SegmentsView } from "./views/SegmentsView";
-import { FormsView } from "./forms/FormsView";
-import { MeetingsView } from "./meetings/MeetingsView";
 import { useRoutingCommands } from "./routing/commands";
-import { RoutingView } from "./routing/RoutingView";
-import { EmailsView } from "./nurture/EmailsView";
-import { ScoringView } from "./scoring/ScoringView";
-import { WorkflowsView } from "./workflows/WorkflowsView";
-import { SettingsView } from "./views/SettingsView";
+import { useAppCounts } from "./appCounts";
+
+// Each section loads its own code when first opened (or when its sidebar item is hovered), so the app starts small.
+const LOADERS = {
+  contacts: () => import("./views/ContactsView").then((m) => m.ContactsView),
+  companies: () => import("./views/RecordsViews").then((m) => m.CompaniesView),
+  opportunities: () => import("./views/RecordsViews").then((m) => m.OpportunitiesView),
+  objects: () => import("./views/RecordsViews").then((m) => m.ObjectsView),
+  meetings: () => import("./meetings/MeetingsView").then((m) => m.MeetingsView),
+  routing: () => import("./routing/RoutingView").then((m) => m.RoutingView),
+  scheduling: () => import("./scheduling/SchedulingView").then((m) => m.SchedulingView),
+  visitors: () => import("./signals/SignalsView").then((m) => m.SignalsView),
+  enrichment: () => import("./enrichment/EnrichmentView").then((m) => m.EnrichmentView),
+  segments: () => import("./views/SegmentsView").then((m) => m.SegmentsView),
+  workflows: () => import("./workflows/WorkflowsView").then((m) => m.WorkflowsView),
+  emails: () => import("./nurture/EmailsView").then((m) => m.EmailsView),
+  scoring: () => import("./scoring/ScoringView").then((m) => m.ScoringView),
+  forms: () => import("./forms/FormsView").then((m) => m.FormsView),
+  settings: () => import("./views/SettingsView").then((m) => m.SettingsView),
+} satisfies Partial<Record<Route, () => Promise<React.ComponentType<ViewProps>>>>;
+type ViewRoute = keyof typeof LOADERS;
+
+const loading = () => <Loading />;
+const VIEWS: Record<ViewRoute, React.ComponentType<ViewProps>> = {
+  contacts: dynamic(LOADERS.contacts, { ssr: false, loading }),
+  companies: dynamic(LOADERS.companies, { ssr: false, loading }),
+  opportunities: dynamic(LOADERS.opportunities, { ssr: false, loading }),
+  objects: dynamic(LOADERS.objects, { ssr: false, loading }),
+  meetings: dynamic(LOADERS.meetings, { ssr: false, loading }),
+  routing: dynamic(LOADERS.routing, { ssr: false, loading }),
+  scheduling: dynamic(LOADERS.scheduling, { ssr: false, loading }),
+  visitors: dynamic(LOADERS.visitors, { ssr: false, loading }),
+  enrichment: dynamic(LOADERS.enrichment, { ssr: false, loading }),
+  segments: dynamic(LOADERS.segments, { ssr: false, loading }),
+  workflows: dynamic(LOADERS.workflows, { ssr: false, loading }),
+  emails: dynamic(LOADERS.emails, { ssr: false, loading }),
+  scoring: dynamic(LOADERS.scoring, { ssr: false, loading }),
+  forms: dynamic(LOADERS.forms, { ssr: false, loading }),
+  settings: dynamic(LOADERS.settings, { ssr: false, loading }),
+};
+const viewOf = (r: Route): ViewRoute => (r in LOADERS ? (r as ViewRoute) : "settings");
+const preloadView = (r: Route) => void LOADERS[viewOf(r)]().catch(() => undefined);
+
+/** The open section. Memoized, so the command bar and the sidebar counts don't redraw it. */
+const OpenView = memo(function OpenView({ route, ...props }: ViewProps & { route: Route }) {
+  const View = VIEWS[viewOf(route)];
+  // Custom objects: a different object is a different list.
+  return <View key={route === "objects" ? props.id.split("/")[0] : undefined} {...props} />;
+});
 
 const GROUP_LABEL = { crm: "CRM", automation: "Automation", inbound: "Inbound", nurture: "Nurture", settings: "App" } as const;
 
@@ -131,53 +168,25 @@ export function ClientApp({ config }: { config: SupaConfig }) {
 
   const userId = session?.user.id;
 
-  // Your workspace, made on first sign-in.
+  // Your workspace (made on first sign-in) and your role, in one call.
   useEffect(() => {
     if (!userId) return;
     (async () => {
-      const id = must(await sb.rpc("ensure_workspace")) as string;
-      const w = must(await sb.from("workspaces").select("id, name, features").eq("id", id).single()) as Workspace;
-      const m = must(await sb.from("workspace_members").select("role").eq("workspace_id", id).eq("user_id", userId).single()) as { role: Role };
-      setWs(w);
-      setRole(m.role);
+      const r = must(await sb.rpc("app_start")) as { workspace: Workspace; role: Role };
+      setWs(r.workspace);
+      setRole(r.role);
     })().catch((e) => setError(errorText(e)));
   }, [sb, userId]);
+  // Signing out empties the cache, so the next person starts clean.
+  useEffect(() => {
+    if (session === null) cache.clear();
+  }, [session]);
 
   // The workspace's custom objects, listed in the sidebar after Opportunities.
-  const [customObjects, setCustomObjects] = useState<{ key: string; plural: string }[]>([]);
-  useEffect(() => {
-    if (!ws) return;
-    const load = () =>
-      void sb
-        .from("objects")
-        .select("key, plural")
-        .eq("workspace_id", ws.id)
-        .eq("system", false)
-        .order("created_at")
-        .then(({ data }) => setCustomObjects((data ?? []) as { key: string; plural: string }[]));
-    load();
-    window.addEventListener("claritia:changed", load);
-    return () => window.removeEventListener("claritia:changed", load);
-  }, [sb, ws]);
+  const customObjects = useCustomObjects(sb, ws?.id ?? null);
 
   // Counts in the sidebar: leads waiting in Needs review, and today's meetings.
-  const [counts, setCounts] = useState<Partial<Record<string, number>>>({});
-  useEffect(() => {
-    if (!ws) return;
-    const load = async () => {
-      const start = new Date();
-      start.setHours(0, 0, 0, 0);
-      const end = new Date(start.getTime() + 86_400_000);
-      const [review, today] = await Promise.all([
-        sb.from("contacts").select("id", { count: "exact", head: true }).eq("workspace_id", ws.id).in("route_status", ["held", "unassigned"]).is("deleted_at", null),
-        sb.from("meetings").select("id", { count: "exact", head: true }).eq("workspace_id", ws.id).in("status", ["booked", "held"]).gte("start_at", start.toISOString()).lt("start_at", end.toISOString()),
-      ]);
-      setCounts({ "routing/review": review.count ?? 0, meetings: today.count ?? 0 });
-    };
-    void load();
-    window.addEventListener("claritia:changed", load);
-    return () => window.removeEventListener("claritia:changed", load);
-  }, [sb, ws]);
+  const counts = useAppCounts(sb, ws?.id ?? null).data?.sidebar ?? NO_COUNTS;
 
   // Pages with unsaved changes get to ask first.
   const navigate = useCallback((to: Route, toId = "", query = "") => {
@@ -189,6 +198,7 @@ export function ClientApp({ config }: { config: SupaConfig }) {
       setLoc({ route: r, id });
     });
   }, []);
+  const onWorkspace = useCallback((patch: Partial<Workspace>) => setWs((w) => (w ? { ...w, ...patch } : w)), []);
   const routingCommands = useRoutingCommands({ sb, session, ws: ws?.id ?? null, navigate });
 
   if (session === undefined) return <Splash />;
@@ -204,7 +214,7 @@ export function ClientApp({ config }: { config: SupaConfig }) {
     );
   if (!ws) return <Splash />;
 
-  const props: ViewProps = { sb, session, ws, role, navigate, id: loc.id };
+  const props: ViewProps = { sb, session, ws, role, navigate, id: loc.id, onWorkspace };
   const email = session.user.email ?? "";
 
   const create: CreateItem[] = [
@@ -249,8 +259,9 @@ export function ClientApp({ config }: { config: SupaConfig }) {
         onTheme={flip}
         onSignOut={() => void sb.auth.signOut()}
         onSearch={() => setSearching(true)}
+        onPreload={preloadView}
         create={create}
-        start={<GetStarted sb={sb} ws={ws} session={session} navigate={navigate} />}
+        start={<GetStarted sb={sb} ws={ws} navigate={navigate} />}
       />
       <main className="min-h-0 min-w-0 flex-1 overflow-hidden border-line bg-card md:my-2 md:mr-2 md:rounded-2xl md:border md:shadow-xs">
         {error ? (
@@ -258,38 +269,21 @@ export function ClientApp({ config }: { config: SupaConfig }) {
             <ErrorNote message={error} />
           </div>
         ) : null}
-        {route === "contacts" ? (
-          <ContactsView {...props} />
-        ) : route === "companies" ? (
-          <CompaniesView {...props} />
-        ) : route === "opportunities" ? (
-          <OpportunitiesView {...props} />
-        ) : route === "meetings" ? (
-          <MeetingsView key={loc.id} {...props} />
-        ) : route === "routing" ? (
-          <RoutingView key="routing" {...props} />
-        ) : route === "scheduling" ? (
-          <SchedulingView key={loc.id.split("/")[0]} {...props} />
-        ) : route === "visitors" ? (
-          <SignalsView {...props} />
-        ) : route === "enrichment" ? (
-          <EnrichmentView {...props} />
-        ) : route === "objects" ? (
-          <ObjectsView key={loc.id.split("/")[0]} {...props} />
-        ) : route === "segments" ? (
-          <SegmentsView {...props} />
-        ) : route === "workflows" ? (
-          <WorkflowsView key={loc.id === "new" ? "new" : "wf"} {...props} />
-        ) : route === "emails" ? (
-          <EmailsView {...props} />
-        ) : route === "scoring" ? (
-          <ScoringView {...props} />
-        ) : route === "forms" ? (
-          <FormsView {...props} />
-        ) : (
-          <SettingsView {...props} />
-        )}
+        <OpenView route={route} {...props} />
       </main>
     </div>
   );
 }
+
+const NO_COUNTS: Partial<Record<string, number>> = {};
+
+/** Custom objects for the sidebar and the command bar (`objects:<workspace>:custom`). */
+function useCustomObjects(sb: SupabaseClient, ws: string | null) {
+  const q = useQuery<{ key: string; plural: string }[]>(
+    ws ? `objects:${ws}:custom` : null,
+    async () => (must(await sb.from("objects").select("key, plural").eq("workspace_id", ws!).eq("system", false).order("created_at")) ?? []) as { key: string; plural: string }[],
+    { staleMs: 60_000 },
+  );
+  return q.data ?? NO_OBJECTS;
+}
+const NO_OBJECTS: { key: string; plural: string }[] = [];
