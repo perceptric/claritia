@@ -6,17 +6,10 @@ WORKDIR /app
 COPY worker-intel/package.json worker-intel/package-lock.json ./
 RUN npm ci --omit=dev --no-audit --no-fund && rm -rf /root/.npm
 COPY worker-intel/ ./worker-intel/
-COPY src/lib/jobs.ts src/lib/seal.ts src/lib/site.ts ./src/lib/
-COPY src/lib/identity/ ./src/lib/identity/
-COPY src/lib/company/ ./src/lib/company/
-COPY src/lib/privateNet.ts ./src/lib/
-COPY collect/ids.ts collect/scrub.ts ./collect/
-COPY src/lib/web/signals.ts src/lib/web/scores.ts src/lib/web/accountAlerts.ts src/lib/web/policy.ts ./src/lib/web/
-COPY src/lib/contacts/ ./src/lib/contacts/
-COPY src/lib/records/ ./src/lib/records/
-COPY src/lib/filters.ts ./src/lib/
-COPY src/lib/sources/ ./src/lib/sources/
-COPY src/lib/email/ ./src/lib/email/
+# All of src/lib: the jobs reach routing, forms, meetings, enrichment and the rest, and a file left out crashes the
+# worker at start (tests/workerImage.test.ts checks every import resolves inside this layout).
+COPY src/lib/ ./src/lib/
+COPY collect/*.ts ./collect/
 USER node
 EXPOSE 8080
 CMD ["node", "worker-intel/index.ts"]

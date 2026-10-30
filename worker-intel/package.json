@@ -6,6 +6,7 @@
     "node": ">=22.18"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.133.0",
     "exceljs": "4.4.0",
     "fflate": "0.8.2",
     "free-email-domains": "1.12.14",
