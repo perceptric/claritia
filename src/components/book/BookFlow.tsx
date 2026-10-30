@@ -2,8 +2,8 @@
 
 import { useCallback } from "react";
 import type { BookReply, GuestSlot, GuestType } from "@/lib/meetings/guest";
-import { BookingCalendar, type BookRequest } from "./BookingCalendar";
-import { postToParent } from "./BookShell";
+import { postToParent } from "./browser";
+import { Calendar, type BookRequest } from "./Calendar";
 
 // A booking page's calendar wired to its public route (/api/book/t/<ws>/<slug> or /api/book/l/<token>): times
 // for a length, then the booking.
@@ -39,7 +39,7 @@ export function BookFlow(p: {
     [endpoint, host, ref],
   );
   return (
-    <BookingCalendar
+    <Calendar
       type={p.type}
       load={load}
       initialSlots={p.initialSlots}

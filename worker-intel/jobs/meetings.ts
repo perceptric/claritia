@@ -11,9 +11,9 @@
 // domain is verified, else from MEETINGS_FROM (default meetings@tryclaritia.com, which must be verified in SES).
 
 import { slackNote } from "../../src/lib/delivery/send.ts";
-import { outcomeOf } from "../../src/lib/email/provider.ts";
-import { smtpFromEnv, smtpSend, type SmtpOpts } from "../../src/lib/email/smtp.ts";
-import { enqueueJob, JobError, type Handler, type Rpc } from "../../src/lib/jobs.ts";
+import { outcomeOf, SendError } from "../../src/lib/email/provider.ts";
+import { smtpFromEnv, smtpSend, smtpSession, type SmtpOpts } from "../../src/lib/email/smtp.ts";
+import { enqueueJob, enqueueJobs, JobError, type Handler, type Job, type Rpc } from "../../src/lib/jobs.ts";
 import {
   afterEmail,
   bookLaterEmail,
@@ -45,12 +45,15 @@ const NOT_SET = "Resend isn't set up on the worker (RESEND_API_KEY).";
 // Sending ---------------------------------------------------------------------------------------------------------
 
 export type Mail = { from: string; to: string; raw: string; tags: Record<string, string> };
-/** Sends one raw message; returns the provider's id ("" when it gave none). Throws SendError: retry (not now) or unknown (may have gone). */
-export type Mailer = { send(m: Mail): Promise<string> };
+/**
+ * Sends one raw message; returns the provider's id ("" when it gave none). Throws SendError: retry (not now) or
+ * unknown (may have gone). `session` sends several over one connection; close it when done.
+ */
+export type Mailer = { send(m: Mail): Promise<string>; session?(): { send(m: Mail): Promise<string>; close(): void } };
 
 /** Raw sends through Resend's SMTP relay (the calendar invite needs its own MIME part). */
 export function smtpMailer(o: SmtpOpts): Mailer {
-  return { send: (m) => smtpSend(o, m) };
+  return { send: (m) => smtpSend(o, m), session: () => smtpSession(o) };
 }
 
 export function mailerFromEnv(env: NodeJS.ProcessEnv = process.env): Mailer | null {
@@ -73,7 +76,35 @@ export type MeetingOpts = {
   /** MEETINGS_FROM. */
   from?: string;
   now?: () => number;
+  /** Set for one job by inJob: the provider's wait after a rate limit. */
+  retryAfterS?: number;
+  /** Set for one job by inJob: the answers to record in one call at the end, and the lease's signal. */
+  pending?: { id: string; outcome: string; provider_id: string | null; error: string | null }[];
+  signal?: AbortSignal;
 };
+
+/**
+ * One job's emails: one connection to the relay for all of them, the answers recorded in one call at the end (also
+ * when the job throws), and no new email started once the lease is lost (another worker may hold the job; the
+ * meeting_mails dedupe keeps it from sending what this one did).
+ */
+async function inJob(rpc: Rpc, o: MeetingOpts, signal: AbortSignal | undefined, body: (o: MeetingOpts) => Promise<void>) {
+  const session = o.mailer?.session?.();
+  // One message at a time on the connection, even when a handler starts several at once.
+  let line: Promise<unknown> = Promise.resolve();
+  const send = (m: Mail) => {
+    const next = line.then(() => session!.send(m));
+    line = next.catch(() => undefined);
+    return next;
+  };
+  const x: MeetingOpts = { ...o, mailer: session && o.mailer ? { send } : o.mailer, pending: [], signal };
+  try {
+    await body(x);
+  } finally {
+    session?.close();
+    if (x.pending!.length) await call(rpc, "meeting_mail_done_many", { p_rows: x.pending });
+  }
+}
 
 async function call<T>(rpc: Rpc, fn: string, args: Record<string, unknown>): Promise<T> {
   const { data, error } = await rpc(fn, args);
@@ -102,6 +133,7 @@ type Send = {
 /** Start the email in meeting_mails (once per dedupe key), send it, and record the answer. */
 async function sendOne(rpc: Rpc, o: MeetingOpts, sending: Sending, s: Send): Promise<Outcome> {
   if (!o.mailer) throw new JobError(NOT_SET, { retry: false });
+  if (o.signal?.aborted) throw new Error("Stopped: the job's lease is gone");
   const to = s.to.trim().toLowerCase();
   if (!validAddress(to)) return "skipped";
   const id = await call<string | null>(rpc, "meeting_mail_start", {
@@ -123,18 +155,28 @@ async function sendOne(rpc: Rpc, o: MeetingOpts, sending: Sending, s: Send): Pro
     const raw = mime({ from: { name: s.fromName, email: fromEmail }, to, replyTo: s.replyTo && validAddress(s.replyTo) ? s.replyTo : null, subject: parts.subject, html: parts.html, text: parts.text, ics: s.ics?.() ?? null });
     providerId = await o.mailer.send({ from: fromEmail, to, raw, tags: { meeting_mail: id, kind: s.kind } });
   } catch (e) {
-    const o = outcomeOf(e);
-    outcome = o === "later" ? "retry" : o === "ok" ? "failed" : o;
+    const out = outcomeOf(e);
+    outcome = out === "later" ? "retry" : out === "ok" ? "failed" : out;
     error = (e as Error).message;
+    // A rate limit that said how long to wait.
+    if (e instanceof SendError && e.later && e.retryAfterS) o.retryAfterS = Math.max(o.retryAfterS ?? 0, e.retryAfterS);
   }
-  await call(rpc, "meeting_mail_done", { p_id: id, p_outcome: outcome, p_provider_id: providerId || null, p_error: error });
+  if (o.pending) o.pending.push({ id, outcome, provider_id: providerId || null, error });
+  else await call(rpc, "meeting_mail_done", { p_id: id, p_outcome: outcome, p_provider_id: providerId || null, p_error: error });
   return outcome === "ok" ? "sent" : outcome;
 }
 
-/** After a job's emails: a "not now" from the provider sends the job round again (sent ones are skipped then). */
-function settle(results: Outcome[]) {
-  if (results.includes("retry")) throw new JobError("The email provider said not now; trying again", { retryAfterS: 60 });
+/** A "not now" waits what the provider asked, else 30 seconds doubling each try (up to 30 minutes), with jitter. */
+export function notNowWait(attempts: number, asked?: number, rand: () => number = Math.random): number {
+  if (asked && asked > 0) return Math.min(asked, 3600);
+  return Math.round(Math.min(1800, 30 * 2 ** Math.max(0, attempts - 1)) * (0.8 + 0.4 * rand()));
 }
+
+/** After a job's emails: a "not now" from the provider sends the job round again (sent ones are skipped then). */
+function settle(results: Outcome[], job?: Pick<Job, "attempts">, o?: MeetingOpts) {
+  if (results.includes("retry")) throw new JobError("The email provider said not now; trying again", { retryAfterS: notNowWait(job?.attempts ?? 1, o?.retryAfterS) });
+}
+const settleFor = (job: Pick<Job, "attempts">, o: MeetingOpts, results: Outcome[]) => settle(results, job, o);
 
 // Reading a meeting -----------------------------------------------------------------------------------------------
 
@@ -282,9 +324,7 @@ async function schedule(rpc: Rpc, info: Info, now: number) {
   }
   jobs.push({ key: `after:${m.id}:${endIso}`, kind: "meeting_after", payload: { meeting: m.id, end: endIso }, at: end });
   await call(rpc, "meeting_jobs_drop", { p_meeting: m.id, p_keep: jobs.map((j) => j.key) });
-  for (const j of jobs) {
-    await enqueueJob(rpc, { workspaceId: m.workspace_id, kind: j.kind, key: j.key, payload: j.payload, delayS: Math.max(0, Math.ceil((j.at - now) / 1000)), maxAttempts: 5 });
-  }
+  await enqueueJobs(rpc, jobs.map((j) => ({ workspaceId: m.workspace_id, kind: j.kind, key: j.key, payload: j.payload, delayS: Math.max(0, Math.ceil((j.at - now) / 1000)), maxAttempts: 5 })));
 }
 
 // Handlers --------------------------------------------------------------------------------------------------------
@@ -293,225 +333,228 @@ const EVENTS = ["booked", "moved", "canceled", "held", "no_show"] as const;
 type Event = (typeof EVENTS)[number];
 
 export const meetingNotify =
-  (rpc: Rpc, o: MeetingOpts): Handler =>
-  async (job) => {
-    const meeting = String(job.payload.meeting ?? "");
-    const event = String(job.payload.event ?? "") as Event;
-    if (!/^[0-9a-f-]{36}$/.test(meeting) || !EVENTS.includes(event)) throw new JobError("meeting_notify needs a meeting and an event", { retry: false });
-    if (event === "held") return;
-    const info = await load(rpc, meeting);
-    if (!info) return;
-    const now = o.now?.() ?? Date.now();
-    const m = info.meeting;
-    const ws = m.workspace_id;
-    const results: Outcome[] = [];
+  (rpc: Rpc, base: MeetingOpts): Handler =>
+  (job, signal) =>
+    inJob(rpc, base, signal, async (o) => {
+      const meeting = String(job.payload.meeting ?? "");
+      const event = String(job.payload.event ?? "") as Event;
+      if (!/^[0-9a-f-]{36}$/.test(meeting) || !EVENTS.includes(event)) throw new JobError("meeting_notify needs a meeting and an event", { retry: false });
+      if (event === "held") return;
+      const info = await load(rpc, meeting);
+      if (!info) return;
+      const now = o.now?.() ?? Date.now();
+      const m = info.meeting;
+      const ws = m.workspace_id;
+      const results: Outcome[] = [];
 
-    if (event === "booked" || event === "moved") {
-      // A notify that arrives after the meeting changed again sends nothing old: a canceled meeting gets its cancel.
-      if (m.status !== "booked") return;
-      const manage = manageLink(o, m);
-      const moved = event === "moved";
-      const from = info.moved_from ? ms(info.moved_from) : null;
-      results.push(
-        await sendOne(rpc, o, info.sending, {
-          ws,
-          meeting: m.id,
-          kind: moved ? "update" : "confirm",
-          to: m.guest_email,
-          dedupe: moved ? `update:${m.id}:${info.sequence}` : `confirm:${m.id}`,
-          fromName: fromHost(info),
-          replyTo: info.hosts[0]?.email,
-          parts: () => (moved ? updateEmail(view(info, "guest", now, manage), from) : confirmEmail(view(info, "guest", now, manage))),
-          ics: () => ics(info, "REQUEST", now),
-        }),
-      );
-      // A poll's other voters get the same invite, without the manage link (it changes the meeting for everyone).
-      for (const g of otherGuests(m)) {
+      if (event === "booked" || event === "moved") {
+        // A notify that arrives after the meeting changed again sends nothing old: a canceled meeting gets its cancel.
+        if (m.status !== "booked") return;
+        const manage = manageLink(o, m);
+        const moved = event === "moved";
+        const from = info.moved_from ? ms(info.moved_from) : null;
         results.push(
           await sendOne(rpc, o, info.sending, {
             ws,
             meeting: m.id,
             kind: moved ? "update" : "confirm",
-            to: g,
-            dedupe: moved ? `update:${m.id}:${info.sequence}:${g}` : `confirm:${m.id}:${g}`,
+            to: m.guest_email,
+            dedupe: moved ? `update:${m.id}:${info.sequence}` : `confirm:${m.id}`,
             fromName: fromHost(info),
             replyTo: info.hosts[0]?.email,
-            parts: () => (moved ? updateEmail(view(info, "guest", now, null), from) : confirmEmail(view(info, "guest", now, null))),
+            parts: () => (moved ? updateEmail(view(info, "guest", now, manage), from) : confirmEmail(view(info, "guest", now, manage))),
             ics: () => ics(info, "REQUEST", now),
           }),
         );
+        // A poll's other voters get the same invite, without the manage link (it changes the meeting for everyone).
+        for (const g of otherGuests(m)) {
+          results.push(
+            await sendOne(rpc, o, info.sending, {
+              ws,
+              meeting: m.id,
+              kind: moved ? "update" : "confirm",
+              to: g,
+              dedupe: moved ? `update:${m.id}:${info.sequence}:${g}` : `confirm:${m.id}:${g}`,
+              fromName: fromHost(info),
+              replyTo: info.hosts[0]?.email,
+              parts: () => (moved ? updateEmail(view(info, "guest", now, null), from) : confirmEmail(view(info, "guest", now, null))),
+              ics: () => ics(info, "REQUEST", now),
+            }),
+          );
+        }
+        for (const h of info.hosts) {
+          results.push(
+            await sendOne(rpc, o, info.sending, {
+              ws,
+              meeting: m.id,
+              kind: moved ? "host_moved" : "host_booked",
+              to: h.email,
+              dedupe: moved ? `host_moved:${m.id}:${info.sequence}:${h.id}` : `host_booked:${m.id}:${h.id}`,
+              fromName: fromTeam(info),
+              replyTo: m.guest_email,
+              parts: () => (moved ? hostMovedEmail(view(info, h, now), from) : hostBookedEmail(view(info, h, now))),
+            }),
+          );
+        }
+        await schedule(rpc, info, now);
+        settle(results, job, o);
+        return;
       }
-      for (const h of info.hosts) {
-        results.push(
-          await sendOne(rpc, o, info.sending, {
-            ws,
-            meeting: m.id,
-            kind: moved ? "host_moved" : "host_booked",
-            to: h.email,
-            dedupe: moved ? `host_moved:${m.id}:${info.sequence}:${h.id}` : `host_booked:${m.id}:${h.id}`,
-            fromName: fromTeam(info),
-            replyTo: m.guest_email,
-            parts: () => (moved ? hostMovedEmail(view(info, h, now), from) : hostBookedEmail(view(info, h, now))),
-          }),
-        );
-      }
-      await schedule(rpc, info, now);
-      settle(results);
-      return;
-    }
 
-    if (event === "canceled") {
-      if (m.status !== "canceled") return;
-      await call(rpc, "meeting_jobs_drop", { p_meeting: m.id, p_keep: [] });
-      const t = info.type;
-      const bookAgain = t && t.active && !t.secret ? bookingUrl(o.base, { workspace: info.workspace.slug, type: t.slug, name: m.guest_name, email: m.guest_email }) : null;
-      // The guest who canceled still gets the cancel, so their calendar drops the invite.
-      results.push(
-        await sendOne(rpc, o, info.sending, {
-          ws,
-          meeting: m.id,
-          kind: "cancel",
-          to: m.guest_email,
-          dedupe: `cancel:${m.id}`,
-          fromName: fromHost(info),
-          replyTo: info.hosts[0]?.email,
-          parts: () => cancelEmail(view(info, "guest", now), { reason: m.cancel_reason, bookAgain }),
-          ics: () => ics(info, "CANCEL", now),
-        }),
-      );
-      for (const g of otherGuests(m)) {
+      if (event === "canceled") {
+        if (m.status !== "canceled") return;
+        await call(rpc, "meeting_jobs_drop", { p_meeting: m.id, p_keep: [] });
+        const t = info.type;
+        const bookAgain = t && t.active && !t.secret ? bookingUrl(o.base, { workspace: info.workspace.slug, type: t.slug, name: m.guest_name, email: m.guest_email }) : null;
+        // The guest who canceled still gets the cancel, so their calendar drops the invite.
         results.push(
           await sendOne(rpc, o, info.sending, {
             ws,
             meeting: m.id,
             kind: "cancel",
-            to: g,
-            dedupe: `cancel:${m.id}:${g}`,
+            to: m.guest_email,
+            dedupe: `cancel:${m.id}`,
             fromName: fromHost(info),
             replyTo: info.hosts[0]?.email,
-            parts: () => cancelEmail(view(info, "guest", now), { reason: m.cancel_reason, bookAgain: null }),
+            parts: () => cancelEmail(view(info, "guest", now), { reason: m.cancel_reason, bookAgain }),
             ics: () => ics(info, "CANCEL", now),
           }),
         );
+        for (const g of otherGuests(m)) {
+          results.push(
+            await sendOne(rpc, o, info.sending, {
+              ws,
+              meeting: m.id,
+              kind: "cancel",
+              to: g,
+              dedupe: `cancel:${m.id}:${g}`,
+              fromName: fromHost(info),
+              replyTo: info.hosts[0]?.email,
+              parts: () => cancelEmail(view(info, "guest", now), { reason: m.cancel_reason, bookAgain: null }),
+              ics: () => ics(info, "CANCEL", now),
+            }),
+          );
+        }
+        for (const h of info.hosts) {
+          results.push(
+            await sendOne(rpc, o, info.sending, {
+              ws,
+              meeting: m.id,
+              kind: "host_canceled",
+              to: h.email,
+              dedupe: `host_canceled:${m.id}:${h.id}`,
+              fromName: fromTeam(info),
+              replyTo: m.guest_email,
+              parts: () => hostCanceledEmail(view(info, h, now), m.cancel_reason),
+            }),
+          );
+        }
+        settle(results, job, o);
+        return;
       }
-      for (const h of info.hosts) {
-        results.push(
-          await sendOne(rpc, o, info.sending, {
-            ws,
-            meeting: m.id,
-            kind: "host_canceled",
-            to: h.email,
-            dedupe: `host_canceled:${m.id}:${h.id}`,
-            fromName: fromTeam(info),
-            replyTo: m.guest_email,
-            parts: () => hostCanceledEmail(view(info, h, now), m.cancel_reason),
-          }),
-        );
-      }
-      settle(results);
-      return;
-    }
 
-    // no_show: one follow-up per meeting, with the host's next times, when the type allows it.
-    if (m.status !== "no_show" || !info.type || settingsOf(info.type).noShowFollowUp === false) return;
-    const t = typeOf(info.type);
-    const host = info.hosts[0];
-    let times: number[] = [];
-    try {
-      const got = await offer(rpc, { ws, type: t, length: t.settings.lengths[0] ?? 30, now });
-      times = got.slots.filter((s) => !host || s.hosts.includes(host.id)).slice(0, 5).map((s) => s.start);
-    } catch {
-      times = [];
-    }
-    const link = bookingUrl(o.base, { workspace: info.workspace.slug, type: t.slug, name: m.guest_name, email: m.guest_email, host: t.hosts.length > 1 ? host?.id : null });
-    const tz = tzOr(m.guest_tz, host?.tz);
-    results.push(
-      await sendOne(rpc, o, info.sending, {
-        ws,
-        meeting: m.id,
-        kind: "no_show",
-        to: m.guest_email,
-        dedupe: `no_show:${m.id}`,
-        optional: true,
-        fromName: fromHost(info),
-        replyTo: host?.email,
-        parts: () => noShowEmail({ name: m.guest_name, host: host?.name ?? info.workspace.name, typeName: t.name, times, tz, link, now }),
-      }),
-    );
-    settle(results);
-  };
+      // no_show: one follow-up per meeting, with the host's next times, when the type allows it.
+      if (m.status !== "no_show" || !info.type || settingsOf(info.type).noShowFollowUp === false) return;
+      const t = typeOf(info.type);
+      const host = info.hosts[0];
+      let times: number[] = [];
+      try {
+        const got = await offer(rpc, { ws, type: t, length: t.settings.lengths[0] ?? 30, now });
+        times = got.slots.filter((s) => !host || s.hosts.includes(host.id)).slice(0, 5).map((s) => s.start);
+      } catch {
+        times = [];
+      }
+      const link = bookingUrl(o.base, { workspace: info.workspace.slug, type: t.slug, name: m.guest_name, email: m.guest_email, host: t.hosts.length > 1 ? host?.id : null });
+      const tz = tzOr(m.guest_tz, host?.tz);
+      results.push(
+        await sendOne(rpc, o, info.sending, {
+          ws,
+          meeting: m.id,
+          kind: "no_show",
+          to: m.guest_email,
+          dedupe: `no_show:${m.id}`,
+          optional: true,
+          fromName: fromHost(info),
+          replyTo: host?.email,
+          parts: () => noShowEmail({ name: m.guest_name, host: host?.name ?? info.workspace.name, typeName: t.name, times, tz, link, now }),
+        }),
+      );
+      settle(results, job, o);
+    });
 
 export const meetingRemind =
-  (rpc: Rpc, o: MeetingOpts): Handler =>
-  async (job) => {
-    const meeting = String(job.payload.meeting ?? "");
-    const start = ms(String(job.payload.start ?? ""));
-    const min = Number(job.payload.minutes);
-    if (!/^[0-9a-f-]{36}$/.test(meeting) || !Number.isFinite(start) || !Number.isInteger(min)) throw new JobError("meeting_remind needs a meeting, a start and minutes", { retry: false });
-    const info = await load(rpc, meeting);
-    const now = o.now?.() ?? Date.now();
-    // Only for the time it was scheduled for: a moved meeting has its own reminders, a canceled one none.
-    if (!info || info.meeting.status !== "booked" || ms(info.meeting.start_at) !== start || now >= start) return;
-    const m = info.meeting;
-    const manage = manageLink(o, m);
-    const left = Math.max(1, Math.round((start - now) / MIN));
-    settle([
-      await sendOne(rpc, o, info.sending, {
-        ws: m.workspace_id,
-        meeting: m.id,
-        kind: "reminder",
-        to: m.guest_email,
-        dedupe: `remind:${m.id}:${new Date(start).toISOString()}:${min}`,
-        fromName: fromHost(info),
-        replyTo: info.hosts[0]?.email,
-        // The subject says how long is left now, in case the job ran late.
-        parts: () => reminderEmail(view(info, "guest", now, manage), Math.abs(left - min) <= 5 ? min : left),
-      }),
-      ...(await Promise.all(
-        otherGuests(m).map((g) =>
-          sendOne(rpc, o, info.sending, {
-            ws: m.workspace_id,
-            meeting: m.id,
-            kind: "reminder",
-            to: g,
-            dedupe: `remind:${m.id}:${new Date(start).toISOString()}:${min}:${g}`,
-            fromName: fromHost(info),
-            replyTo: info.hosts[0]?.email,
-            parts: () => reminderEmail(view(info, "guest", now, null), Math.abs(left - min) <= 5 ? min : left),
-          }),
-        ),
-      )),
-    ]);
-  };
-
-export const meetingAfter =
-  (rpc: Rpc, o: MeetingOpts): Handler =>
-  async (job) => {
-    const meeting = String(job.payload.meeting ?? "");
-    const end = ms(String(job.payload.end ?? ""));
-    if (!/^[0-9a-f-]{36}$/.test(meeting) || !Number.isFinite(end)) throw new JobError("meeting_after needs a meeting and an end", { retry: false });
-    const info = await load(rpc, meeting);
-    if (!info || info.meeting.status !== "booked" || ms(info.meeting.end_at) !== end) return;
-    const now = o.now?.() ?? Date.now();
-    const m = info.meeting;
-    const results: Outcome[] = [];
-    for (const h of info.hosts) {
-      const nonce = newNonce();
-      const link = (outcome: "held" | "no_show") => outcomeUrl(o.base, outcomeToken({ meeting: m.id, outcome, nonce }, o.secret));
-      results.push(
+  (rpc: Rpc, base: MeetingOpts): Handler =>
+  (job, signal) =>
+    inJob(rpc, base, signal, async (o) => {
+      const meeting = String(job.payload.meeting ?? "");
+      const start = ms(String(job.payload.start ?? ""));
+      const min = Number(job.payload.minutes);
+      if (!/^[0-9a-f-]{36}$/.test(meeting) || !Number.isFinite(start) || !Number.isInteger(min)) throw new JobError("meeting_remind needs a meeting, a start and minutes", { retry: false });
+      const info = await load(rpc, meeting);
+      const now = o.now?.() ?? Date.now();
+      // Only for the time it was scheduled for: a moved meeting has its own reminders, a canceled one none.
+      if (!info || info.meeting.status !== "booked" || ms(info.meeting.start_at) !== start || now >= start) return;
+      const m = info.meeting;
+      const manage = manageLink(o, m);
+      const left = Math.max(1, Math.round((start - now) / MIN));
+      settleFor(job, o, [
         await sendOne(rpc, o, info.sending, {
           ws: m.workspace_id,
           meeting: m.id,
-          kind: "after",
-          to: h.email,
-          dedupe: `after:${m.id}:${new Date(end).toISOString()}:${h.id}`,
-          fromName: fromTeam(info),
-          parts: () => afterEmail(view(info, h, now), { held: link("held"), noShow: link("no_show") }),
+          kind: "reminder",
+          to: m.guest_email,
+          dedupe: `remind:${m.id}:${new Date(start).toISOString()}:${min}`,
+          fromName: fromHost(info),
+          replyTo: info.hosts[0]?.email,
+          // The subject says how long is left now, in case the job ran late.
+          parts: () => reminderEmail(view(info, "guest", now, manage), Math.abs(left - min) <= 5 ? min : left),
         }),
-      );
-    }
-    settle(results);
-  };
+        ...(await Promise.all(
+          otherGuests(m).map((g) =>
+            sendOne(rpc, o, info.sending, {
+              ws: m.workspace_id,
+              meeting: m.id,
+              kind: "reminder",
+              to: g,
+              dedupe: `remind:${m.id}:${new Date(start).toISOString()}:${min}:${g}`,
+              fromName: fromHost(info),
+              replyTo: info.hosts[0]?.email,
+              parts: () => reminderEmail(view(info, "guest", now, null), Math.abs(left - min) <= 5 ? min : left),
+            }),
+          ),
+        )),
+      ]);
+    });
+
+export const meetingAfter =
+  (rpc: Rpc, base: MeetingOpts): Handler =>
+  (job, signal) =>
+    inJob(rpc, base, signal, async (o) => {
+      const meeting = String(job.payload.meeting ?? "");
+      const end = ms(String(job.payload.end ?? ""));
+      if (!/^[0-9a-f-]{36}$/.test(meeting) || !Number.isFinite(end)) throw new JobError("meeting_after needs a meeting and an end", { retry: false });
+      const info = await load(rpc, meeting);
+      if (!info || info.meeting.status !== "booked" || ms(info.meeting.end_at) !== end) return;
+      const now = o.now?.() ?? Date.now();
+      const m = info.meeting;
+      const results: Outcome[] = [];
+      for (const h of info.hosts) {
+        const nonce = newNonce();
+        const link = (outcome: "held" | "no_show") => outcomeUrl(o.base, outcomeToken({ meeting: m.id, outcome, nonce }, o.secret));
+        results.push(
+          await sendOne(rpc, o, info.sending, {
+            ws: m.workspace_id,
+            meeting: m.id,
+            kind: "after",
+            to: h.email,
+            dedupe: `after:${m.id}:${new Date(end).toISOString()}:${h.id}`,
+            fromName: fromTeam(info),
+            parts: () => afterEmail(view(info, h, now), { held: link("held"), noShow: link("no_show") }),
+          }),
+        );
+      }
+      settle(results, job, o);
+    });
 
 type LaterInfo = {
   submission: { id: string; workspace_id: string; contact_id: string | null; spam: boolean; test: boolean };
@@ -524,60 +567,61 @@ type LaterInfo = {
 };
 
 export const meetingBookLater =
-  (rpc: Rpc, o: MeetingOpts): Handler =>
-  async (job) => {
-    const submission = String(job.payload.submission ?? "");
-    const typeId = String(job.payload.type ?? "");
-    const uuid = /^[0-9a-f-]{36}$/;
-    const hostId = typeof job.payload.host === "string" && uuid.test(job.payload.host) ? job.payload.host : null;
-    const ownerId = typeof job.payload.owner === "string" && uuid.test(job.payload.owner) ? job.payload.owner : null;
-    if (!uuid.test(submission) || !uuid.test(typeId)) throw new JobError("meeting_book_later needs a submission and a type", { retry: false });
-    const info = await call<LaterInfo | null>(rpc, "meeting_book_later_info", { p_submission: submission, p_type: typeId });
-    // The lead booked meanwhile (in the form, or from another link): nothing to do.
-    if (!info || info.booked || info.submission.spam) return;
-    // The mark and the timeline line (056_instant_booking.sql); it skips fills that never saw times. A new mark tells
-    // the form's Slack channels, one job each (062_not_booked_note.sql).
-    if (await call<boolean>(rpc, "submission_not_booked", { p_submission: submission })) {
-      for (const destination of await call<string[]>(rpc, "form_not_booked_targets", { p_submission: submission }))
-        await enqueueJob(rpc, { workspaceId: info.submission.workspace_id, kind: "form_not_booked", key: `not_booked:${submission}:${destination}`, payload: { submission, destination, type: typeId, host: hostId ?? ownerId } });
-    }
-    // One nudge (docs/scheduling-plan.md Part 13.1): a live "Didn't book" journey for this form sends the follow-up.
-    if (await call<boolean>(rpc, "form_journey_follows", { p_submission: submission }).catch(() => false)) return;
-    const c = info.contact;
-    const t = info.type ? typeOf(info.type) : null;
-    if (!c?.email || !t || !t.active) return;
-    const now = o.now?.() ?? Date.now();
-    let slots: { start: number; hosts: string[] }[] = [];
-    let owner: string | undefined;
-    let next: string | undefined;
-    try {
-      const got = await offer(rpc, { ws: info.submission.workspace_id, type: t, length: t.settings.lengths[0] ?? 30, now, owner: ownerId });
-      slots = got.slots;
-      owner = got.owner;
-      next = got.next;
-    } catch {
-      slots = [];
-    }
-    // The same host the lead saw, when there was one.
-    const who = hostId ?? owner ?? next ?? (t.hosts.length === 1 ? t.hosts[0]!.user_id : null);
-    const person = who ? info.people.find((p) => p.id === who) : undefined;
-    const times = slots.filter((s) => !who || s.hosts.includes(who)).slice(0, 5).map((s) => s.start);
-    const name = [c.first_name, c.last_name].filter(Boolean).join(" ") || null;
-    const link = bookingUrl(o.base, { workspace: info.workspace.slug, type: t.slug, name, email: c.email, host: who && t.hosts.length > 1 ? who : null, ref: bookRef(submission, now, o.secret) });
-    settle([
-      await sendOne(rpc, o, info.sending, {
-        ws: info.submission.workspace_id,
-        submission,
-        kind: "book_later",
-        to: c.email,
-        dedupe: `book_later:${submission}`,
-        optional: true,
-        fromName: person?.name ?? info.sending.from_name ?? info.workspace.name,
-        replyTo: person?.email,
-        parts: () => bookLaterEmail({ name, host: person?.name ?? info.workspace.name, typeName: t.name, times, tz: tzOr(c.timezone, person?.tz), link, now }),
-      }),
-    ]);
-  };
+  (rpc: Rpc, base: MeetingOpts): Handler =>
+  (job, signal) =>
+    inJob(rpc, base, signal, async (o) => {
+      const submission = String(job.payload.submission ?? "");
+      const typeId = String(job.payload.type ?? "");
+      const uuid = /^[0-9a-f-]{36}$/;
+      const hostId = typeof job.payload.host === "string" && uuid.test(job.payload.host) ? job.payload.host : null;
+      const ownerId = typeof job.payload.owner === "string" && uuid.test(job.payload.owner) ? job.payload.owner : null;
+      if (!uuid.test(submission) || !uuid.test(typeId)) throw new JobError("meeting_book_later needs a submission and a type", { retry: false });
+      const info = await call<LaterInfo | null>(rpc, "meeting_book_later_info", { p_submission: submission, p_type: typeId });
+      // The lead booked meanwhile (in the form, or from another link): nothing to do.
+      if (!info || info.booked || info.submission.spam) return;
+      // The mark and the timeline line (056_instant_booking.sql); it skips fills that never saw times. A new mark tells
+      // the form's Slack channels, one job each (062_not_booked_note.sql).
+      if (await call<boolean>(rpc, "submission_not_booked", { p_submission: submission })) {
+        for (const destination of await call<string[]>(rpc, "form_not_booked_targets", { p_submission: submission }))
+          await enqueueJob(rpc, { workspaceId: info.submission.workspace_id, kind: "form_not_booked", key: `not_booked:${submission}:${destination}`, payload: { submission, destination, type: typeId, host: hostId ?? ownerId } });
+      }
+      // One nudge (docs/scheduling-plan.md Part 13.1): a live "Didn't book" journey for this form sends the follow-up.
+      if (await call<boolean>(rpc, "form_journey_follows", { p_submission: submission }).catch(() => false)) return;
+      const c = info.contact;
+      const t = info.type ? typeOf(info.type) : null;
+      if (!c?.email || !t || !t.active) return;
+      const now = o.now?.() ?? Date.now();
+      let slots: { start: number; hosts: string[] }[] = [];
+      let owner: string | undefined;
+      let next: string | undefined;
+      try {
+        const got = await offer(rpc, { ws: info.submission.workspace_id, type: t, length: t.settings.lengths[0] ?? 30, now, owner: ownerId });
+        slots = got.slots;
+        owner = got.owner;
+        next = got.next;
+      } catch {
+        slots = [];
+      }
+      // The same host the lead saw, when there was one.
+      const who = hostId ?? owner ?? next ?? (t.hosts.length === 1 ? t.hosts[0]!.user_id : null);
+      const person = who ? info.people.find((p) => p.id === who) : undefined;
+      const times = slots.filter((s) => !who || s.hosts.includes(who)).slice(0, 5).map((s) => s.start);
+      const name = [c.first_name, c.last_name].filter(Boolean).join(" ") || null;
+      const link = bookingUrl(o.base, { workspace: info.workspace.slug, type: t.slug, name, email: c.email, host: who && t.hosts.length > 1 ? who : null, ref: bookRef(submission, now, o.secret) });
+      settleFor(job, o, [
+        await sendOne(rpc, o, info.sending, {
+          ws: info.submission.workspace_id,
+          submission,
+          kind: "book_later",
+          to: c.email,
+          dedupe: `book_later:${submission}`,
+          optional: true,
+          fromName: person?.name ?? info.sending.from_name ?? info.workspace.name,
+          replyTo: person?.email,
+          parts: () => bookLaterEmail({ name, host: person?.name ?? info.workspace.name, typeName: t.name, times, tz: tzOr(c.timezone, person?.tz), link, now }),
+        }),
+      ]);
+    });
 
 // Reconnect -------------------------------------------------------------------------------------------------------
 
@@ -596,25 +640,26 @@ const PROVIDER_NAMES: Record<string, string> = { google: "Google", microsoft: "M
  * 054_calendars.sql). Nothing is sent once they've reconnected; each break sends at most one email.
  */
 export const calendarReconnect =
-  (rpc: Rpc, o: MeetingOpts): Handler =>
-  async (job) => {
-    const account = String(job.payload.account ?? "");
-    if (!/^[0-9a-f-]{36}$/.test(account)) throw new JobError("calendar_reconnect needs an account", { retry: false });
-    const info = await call<ReconnectInfo | null>(rpc, "calendar_reconnect_info", { p_account: account });
-    if (!info || info.account.status !== "reconnect" || !info.person) return;
-    const a = info.account;
-    const provider = PROVIDER_NAMES[a.provider] ?? a.provider;
-    settle([
-      await sendOne(rpc, o, info.sending, {
-        ws: a.workspace_id,
-        kind: "reconnect",
-        to: info.person.email,
-        dedupe: `reconnect:${a.id}:${a.reconnect_at ?? ""}`,
-        fromName: "Claritia",
-        parts: () => reconnectEmail({ name: info.person!.name, provider, account: a.account_email, upcoming: info.upcoming, link: `${o.base.replace(/\/$/, "")}/scheduling/availability/calendars` }),
-      }),
-    ]);
-  };
+  (rpc: Rpc, base: MeetingOpts): Handler =>
+  (job, signal) =>
+    inJob(rpc, base, signal, async (o) => {
+      const account = String(job.payload.account ?? "");
+      if (!/^[0-9a-f-]{36}$/.test(account)) throw new JobError("calendar_reconnect needs an account", { retry: false });
+      const info = await call<ReconnectInfo | null>(rpc, "calendar_reconnect_info", { p_account: account });
+      if (!info || info.account.status !== "reconnect" || !info.person) return;
+      const a = info.account;
+      const provider = PROVIDER_NAMES[a.provider] ?? a.provider;
+      settleFor(job, o, [
+        await sendOne(rpc, o, info.sending, {
+          ws: a.workspace_id,
+          kind: "reconnect",
+          to: info.person.email,
+          dedupe: `reconnect:${a.id}:${a.reconnect_at ?? ""}`,
+          fromName: "Claritia",
+          parts: () => reconnectEmail({ name: info.person!.name, provider, account: a.account_email, upcoming: info.upcoming, link: `${o.base.replace(/\/$/, "")}/scheduling/availability/calendars` }),
+        }),
+      ]);
+    });
 
 // Not booked, in Slack ----------------------------------------------------------------------------------------------
 

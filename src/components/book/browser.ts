@@ -40,3 +40,10 @@ function sundayFirst(): boolean {
 
 /** Whether the guest's calendar starts weeks on Sunday. */
 export const useSundayFirst = () => useSyncExternalStore(never, sundayFirst, () => false);
+
+/** A message to the page around an embed (<claritia-book>). */
+export function postToParent(msg: Record<string, unknown>) {
+  try {
+    if (window.parent !== window) window.parent.postMessage({ claritia: true, ...msg }, "*");
+  } catch {}
+}

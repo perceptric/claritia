@@ -64,6 +64,7 @@ export async function resolveSessions(db: Db, ws: string, sessionIds: string[]):
   const touched = new Set<string>();
   const people = new Map<string, string | null>();
   const nets = new Map<string, Awaited<ReturnType<typeof accountForNetwork>>>();
+  const changes: { id: string; account: string | null; source: string | null; network: string | null }[] = [];
   for (const s of rows) {
     if (s.internal) continue;
     let personAccount: string | null = null;
@@ -79,9 +80,18 @@ export async function resolveSessions(db: Db, ws: string, sessionIds: string[]):
     const account = personAccount ?? network?.account ?? null;
     const source = personAccount ? "email" : (network?.source ?? null);
     if (account === s.account_id && source === s.account_source) continue;
-    await db.query(`update sessions set account_id = $2, account_source = $3, network_account_id = $4 where id = $1`, [s.id, account, source, network?.account ?? null]);
+    changes.push({ id: s.id, account, source, network: network?.account ?? null });
     if (s.account_id) touched.add(s.account_id);
     if (account) touched.add(account);
+  }
+  // Every changed visit in one statement.
+  if (changes.length) {
+    await db.query(
+      `update sessions s set account_id = v.account, account_source = v.source, network_account_id = v.network
+       from unnest($1::uuid[], $2::uuid[], $3::text[], $4::uuid[]) as v(id, account, source, network)
+       where s.id = v.id and s.workspace_id = $5`,
+      [changes.map((c) => c.id), changes.map((c) => c.account), changes.map((c) => c.source), changes.map((c) => c.network), ws],
+    );
   }
   return [...touched];
 }

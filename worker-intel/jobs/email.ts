@@ -86,7 +86,9 @@ export const send =
     let limit = 14;
     while (!signal.aborted) {
       if (Date.now() >= until) {
-        await call(rpc, "enqueue_job", { p_workspace: ws, p_kind: "send", p_key: ws, p_payload: {}, p_delay_s: 0, p_max_attempts: 3 });
+        // The rest of a long send in the bulk lane, a moment later; a new message for the workspace (enqueue_job
+        // from the database) joins this job and takes it back to the normal lane.
+        await call(rpc, "enqueue_job", { p_workspace: ws, p_kind: "send", p_key: ws, p_payload: { lane: "bulk" }, p_delay_s: 1, p_max_attempts: 3 });
         return;
       }
       const started = Date.now();
@@ -95,7 +97,7 @@ export const send =
       limit = batch[0].per_second || limit;
       // A failure to record an answer leaves the message 'sending'; send_claim turns it 'unknown', never resent.
       const results = await sendRound(sender, batch, (m) => renderMessage(m, { base: o.base, secret: o.secret }));
-      await Promise.all(results.map((r) => call(rpc, "send_done", { p_id: r.id, p_outcome: r.outcome, p_provider_id: r.providerId, p_error: r.error, p_delay_s: r.delayS ?? 60 })));
+      await call(rpc, "send_done_many", { p_rows: results.map((r) => ({ id: r.id, outcome: r.outcome, provider_id: r.providerId, error: r.error, delay_s: r.delayS ?? 60 })) });
       const later = results.find((r) => r.outcome === "later");
       if (later) {
         // Rate limited: stop, and come back when Resend said to.

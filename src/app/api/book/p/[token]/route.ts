@@ -35,9 +35,11 @@ export async function POST(request: Request, ctx: Ctx) {
   const body = await readBody(request);
   if (!body) return json({ error: "Bad request." }, 400);
   try {
+    // The spam check runs alongside the read; it's only asked when the poll's workspace uses it.
+    const spam = spamOk(request, true, body.turnstile);
     const x = await load(ctx);
     if ("error" in x) return x.error;
-    if (!(await spamOk(request, x.v.ws.turnstile, body.turnstile))) return json({ error: "The spam check didn't pass. Try again.", code: "spam" }, 400);
+    if (x.v.ws.turnstile && !(await spam)) return json({ error: "The spam check didn't pass. Try again.", code: "spam" }, 400);
     const name = typeof body.name === "string" ? body.name.trim().slice(0, 200) : "";
     const email = typeof body.email === "string" ? body.email.trim().toLowerCase().slice(0, 320) : "";
     if (!name) return json({ error: "Add your name.", code: "guest", field: "name" }, 400);
@@ -46,7 +48,9 @@ export async function POST(request: Request, ctx: Ctx) {
     if (!picks.length) return json({ error: "Pick at least one time.", code: "picks" }, 400);
     const r = await pollVote(x.rpc, x.token, { email, name, picks });
     if (!r.ok) return json({ error: r.error === "link_closed" ? "This poll is closed." : "Pick from the times offered.", code: r.error }, r.error === "link_closed" ? 410 : 400);
-    return json({ ok: true, ...pollView((await loadLink(x.rpc, { token: x.token }))!) });
+    // The vote answers with the poll as it is now (one call, 090); before that, read again.
+    const now = r.view !== undefined ? r.view : await loadLink(x.rpc, { token: x.token });
+    return json({ ok: true, ...pollView(now ?? x.v) });
   } catch {
     return json({ error: "Try again in a moment." }, 503);
   }

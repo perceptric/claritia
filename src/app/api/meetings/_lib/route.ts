@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Rpc } from "@/lib/jobs";
 import { requireUser } from "@/lib/serverAuth";
 import { serviceClient } from "@/lib/serviceClient";
+import { invalidateBookTargets } from "@/lib/meetings/public";
 import { Refused, type Actor } from "./host";
 
 // The routes under /api/meetings: the caller signs in, names the workspace, and the work runs with the service
@@ -18,7 +19,10 @@ export async function handle(request: Request, fn: (c: Ctx) => Promise<object>):
   if (!db) return Response.json({ error: "The server is not set up for this." }, { status: 500 });
   const rpc: Rpc = (fn, args) => db.rpc(fn, args);
   try {
-    return Response.json(await fn({ rpc, db, actor: { ws: body.workspaceId, user: auth.user.id }, body, request }));
+    const out = await fn({ rpc, db, actor: { ws: body.workspaceId, user: auth.user.id }, body, request });
+    // A saved type, profile, handle or look shows on this server's booking pages at once (others within 30 s).
+    if (typeof body.action === "string" && !["load", "check", "list", "times", "free"].includes(body.action)) invalidateBookTargets();
+    return Response.json(out);
   } catch (e) {
     if (e instanceof Refused) return Response.json({ error: e.message, ...(e.errors ? { errors: e.errors } : {}) }, { status: e.status });
     return Response.json({ error: e instanceof Error ? e.message : "Something went wrong." }, { status: 500 });

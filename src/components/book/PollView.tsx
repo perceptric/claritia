@@ -4,7 +4,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Check, Clock, Users } from "@/components/Icons";
 import { byDay, LOCATION_LABEL, lengthLabel } from "@/lib/meetings/guest";
 import type { PollView as Poll } from "@/lib/meetings/public";
-import { Avatar, dayLong, LocationIcon, timeIn } from "./BookingCalendar";
+import { dayLong, timeIn } from "./Calendar";
+import { Avatar, LocationIcon } from "./parts";
 import { use12h, useMounted, useZone } from "./browser";
 import { ZonePicker } from "./ZonePicker";
 

@@ -2,10 +2,10 @@
 
 import type pg from "pg";
 import type { Ctx } from "../../src/lib/contacts/import.ts";
-import { executeImport, type ImportRow } from "../../src/lib/contacts/importJob.ts";
+import { executeImport, type ImportRow, type OpenAt } from "../../src/lib/contacts/importJob.ts";
 import { removeFiles } from "../../src/lib/contacts/storage.ts";
 import type { CustomField } from "../../src/lib/records/fields.ts";
-import { JobError, type Handler, type Rpc } from "../../src/lib/jobs.ts";
+import { enqueueJob, JobError, type Handler, type Rpc } from "../../src/lib/jobs.ts";
 
 async function call<T>(rpc: Rpc, fn: string, args: Record<string, unknown>): Promise<T> {
   const { data, error } = await rpc(fn, args);
@@ -22,15 +22,25 @@ export async function ctxFor(pool: pg.Pool, ws: string): Promise<Ctx> {
   return { custom: fields.rows as CustomField[], own_domains: settings.rows[0]?.own_domains ?? [], partner_domains: settings.rows[0]?.partner_domains ?? [] };
 }
 
-/** import_file: read the stored file from where the last attempt stopped, to the end. */
+/** How long one slice of an import runs before the rest goes back in line. */
+export const IMPORT_SLICE_MS = 45_000;
+
+/**
+ * import_file: read the stored file from where the last slice (or attempt) stopped, for about 45 seconds, then queue
+ * the rest (a CSV opens at the byte after the last row done). The last slice routes the new contacts when asked.
+ */
 export const importFile =
-  (pool: pg.Pool, rpc: Rpc, open?: (path: string) => Promise<ReadableStream<Uint8Array>>): Handler =>
+  (pool: pg.Pool, rpc: Rpc, open?: (path: string) => Promise<ReadableStream<Uint8Array>>, o: { openAt?: OpenAt; sliceMs?: number } = {}): Handler =>
   async (job, signal) => {
     const id = String(job.payload.import_id ?? "");
     if (!/^[0-9a-f-]{36}$/.test(id)) throw new JobError("import_file needs an import", { retry: false });
     const imp = await call<ImportRow | null>(rpc, "import_claim", { p_import: id });
     if (!imp) return;
-    await executeImport(rpc, imp, await ctxFor(pool, imp.workspace_id), { signal, open });
+    const r = await executeImport(rpc, imp, await ctxFor(pool, imp.workspace_id), { signal, open, openAt: o.openAt, budgetMs: o.sliceMs ?? IMPORT_SLICE_MS });
+    if (r.more) {
+      await enqueueJob(rpc, { workspaceId: imp.workspace_id, kind: "import_file", key: id, payload: { import_id: id }, delayS: 1, maxAttempts: job.max_attempts });
+      return;
+    }
     // "Route new contacts" on the import's last step: its new contacts go through the router (docs/router-ux.md W9).
     const done = (await pool.query(`select status, mapping from imports where id = $1`, [id])).rows[0] as { status: string; mapping: { route?: boolean } } | undefined;
     if (done?.status === "done" && done.mapping?.route === true) await call(rpc, "router_queue", { p_ws: imp.workspace_id, p_reason: "import", p_import: id });

@@ -1,7 +1,7 @@
 import { compileWithKit, hasHtmlBlock, loadKits } from "@/lib/design/email/server";
 import { extractLinks } from "@/lib/email/track";
 import { stepEmail } from "@/lib/nurture/email";
-import { requireUser } from "@/lib/serverAuth";
+import { requireUser, roleIn } from "@/lib/serverAuth";
 import { serviceClient } from "@/lib/serviceClient";
 import { cleanBody, problems } from "@/lib/workflows/check";
 import { walk } from "@/lib/workflows/tree";
@@ -33,11 +33,9 @@ export async function POST(request: Request) {
     if (s.kind === "email" && s.email.doc) docs.push(s);
   });
   // Brand kits for emails built with blocks: the one each names, else the workspace's first.
-  const kits = docs.length ? await loadKits(db, w.workspace_id) : [];
-  if (docs.some((s) => hasHtmlBlock(s.email.doc!))) {
-    const { data: me } = await auth.sb.from("workspace_members").select("role").eq("workspace_id", w.workspace_id).eq("user_id", auth.user.id).maybeSingle();
-    if (me?.role !== "owner") return bad("Only owners can make HTML blocks live.");
-  }
+  const html = docs.some((s) => hasHtmlBlock(s.email.doc!));
+  const [kits, role] = await Promise.all([docs.length ? loadKits(db, w.workspace_id, docs.map((s) => s.email.doc!.kitId)) : [], html ? roleIn(auth, w.workspace_id) : null]);
+  if (html && role !== "owner") return bad("Only owners can make HTML blocks live.");
   const compiled = new Map<string, { html: string; text: string; preheader: string }>();
   for (const s of docs) {
     const doc = s.email.doc!;

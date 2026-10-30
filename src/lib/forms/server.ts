@@ -1,6 +1,6 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { PublicForm } from "./submit.ts";
+import type { Ctx, PublicForm } from "./submit.ts";
 
 // What the public form routes share (docs/form-builder.md Part 6): the live form with a short cache, a per-visitor
 // rate limit, the Turnstile check, the visitor's country from the edge, and CORS for any site.
@@ -19,6 +19,39 @@ export async function loadPublic(db: SupabaseClient, id: string, fresh = false):
   if (cache.size > 5000) cache.clear();
   cache.set(id, { at: Date.now(), form });
   return form;
+}
+
+/** Drop a form's cached copy (after a publish on this server). */
+export function forgetPublic(id: string): void {
+  cache.delete(id);
+}
+
+/**
+ * The live form for a send: the cached copy when it's live and on the version the browser sent, else a fresh read
+ * (the form was just published, paused or resumed). A send is always checked against what's live now.
+ */
+export async function loadForSend(db: SupabaseClient, id: string, version: unknown): Promise<PublicForm | null> {
+  const f = await loadPublic(db, id);
+  if (f && f.status === "live" && f.version === version) return f;
+  return loadPublic(db, id, true);
+}
+
+// The workspace's cleaning lists (custom fields, own and partner domains) for sends, kept a minute per workspace.
+// A change shows within CTX_MS. One read at a time per workspace; a failed read is never kept.
+const CTX_MS = 60_000;
+const ctxCache = new Map<string, { at: number; value: Promise<Ctx> }>();
+
+export function sendCtx(ws: string, load: (ws: string) => Promise<Ctx>, now = Date.now()): Promise<Ctx> {
+  const hit = ctxCache.get(ws);
+  if (hit && now - hit.at < CTX_MS) return hit.value;
+  const value = load(ws);
+  const entry = { at: now, value };
+  if (ctxCache.size > 5000) ctxCache.clear();
+  ctxCache.set(ws, entry);
+  value.catch(() => {
+    if (ctxCache.get(ws) === entry) ctxCache.delete(ws);
+  });
+  return value;
 }
 
 export const cors = {

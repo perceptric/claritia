@@ -4,6 +4,7 @@ import { CHAT_MODEL, CHAT_SYSTEM, CHAT_TOOLS, runChat, type ChatCtx, type ChatRe
 import { claudeChat } from "@/lib/forms/claude";
 import { emptyForm, type Form } from "@/lib/forms/schema";
 import { cleanTokens } from "@/lib/forms/brand";
+import { callNewer } from "@/lib/forms/newer";
 import { readSystem } from "@/lib/design/model";
 import { requireUser } from "@/lib/serverAuth";
 import { serviceClient } from "@/lib/serviceClient";
@@ -14,6 +15,16 @@ import { serviceClient } from "@/lib/serviceClient";
 // request on the same form replays from the step cache.
 
 const bad = (error: string, status = 400) => Response.json({ error }, { status });
+
+type Db = NonNullable<ReturnType<typeof serviceClient>>;
+
+/** The answer keys the form's last 300 fills used: the keys alone from the database (090), else read from the fills. */
+async function usedKeysOf(db: Db, rpc: (fn: string, args: Record<string, unknown>) => ReturnType<Db["rpc"]>, form: string): Promise<string[]> {
+  const keys = await callNewer(rpc, "form_submission_keys", { p_form: form });
+  if (keys && !keys.error) return [...((keys.data as string[] | null) ?? [])].sort();
+  const fills = await db.from("submissions").select("values").eq("form_id", form).eq("spam", false).order("created_at", { ascending: false }).limit(300);
+  return [...new Set(((fills.data ?? []) as { values: Record<string, unknown> }[]).flatMap((s) => Object.keys(s.values ?? {})))].sort();
+}
 
 export async function POST(request: Request) {
   const auth = await requireUser(request);
@@ -32,12 +43,13 @@ export async function POST(request: Request) {
   const { data: f } = await db.from("forms").select("id, name, draft, draft_rev, brand_kit_id").eq("id", b.id).eq("workspace_id", ws).maybeSingle();
   if (!f) return bad("Form not found.", 404);
   if (typeof b.rev === "number" && b.rev !== f.draft_rev) return bad("This form changed in another window. Reload to see the latest.", 409);
-  const [custom, kit, sources, dests, fills] = await Promise.all([
+  const rpc = (fn: string, args: Record<string, unknown>) => db.rpc(fn, args);
+  const [custom, kit, sources, dests, usedKeys] = await Promise.all([
     db.from("fields").select("key, label, type").eq("workspace_id", ws).eq("object", "contact"),
     f.brand_kit_id ? db.from("brand_kits").select("name, source_url, site_forms, tokens, design, design_rev").eq("id", f.brand_kit_id).maybeSingle() : Promise.resolve({ data: null }),
     db.from("sources").select("name").eq("workspace_id", ws).neq("status", "disconnected"),
     db.from("form_destinations").select("name").eq("form_id", f.id),
-    db.from("submissions").select("values").eq("form_id", f.id).eq("spam", false).order("created_at", { ascending: false }).limit(300),
+    usedKeysOf(db, rpc, f.id),
   ]);
   const draft = f.draft as Partial<Form>;
   const k = kit.data as { name: string; source_url: string | null; site_forms: unknown; tokens?: unknown; design?: unknown; design_rev?: number } | null;
@@ -52,9 +64,8 @@ export async function POST(request: Request) {
     destinations: ((dests.data ?? []) as { name: string }[]).map((d) => d.name),
     history: [],
     confirmed: b.confirmed === true,
-    usedKeys: [...new Set(((fills.data ?? []) as { values: Record<string, unknown> }[]).flatMap((s) => Object.keys(s.values)))].sort(),
+    usedKeys,
   };
-  const rpc = (fn: string, args: Record<string, unknown>) => db.rpc(fn, args);
   let out: ChatResult;
   try {
     const key = hashKey(CHAT_MODEL, CHAT_SYSTEM, CHAT_TOOLS, ctx, message);

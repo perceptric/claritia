@@ -120,7 +120,7 @@ async function tokenCall(kind: string, params: Record<string, string>, fetcher: 
   const body = new URLSearchParams(c.basic ? scoped : { ...scoped, client_id: clientId(kind), client_secret: clientSecret(kind) });
   const headers: Record<string, string> = { "Content-Type": "application/x-www-form-urlencoded", Accept: "application/json" };
   if (c.basic) headers.Authorization = `Basic ${Buffer.from(`${clientId(kind)}:${clientSecret(kind)}`).toString("base64")}`;
-  const res = await fetcher(c.token, { method: "POST", headers, body });
+  const res = await fetcher(c.token, { method: "POST", headers, body, signal: AbortSignal.timeout(10_000) });
   const t = (await res.json().catch(() => ({}))) as Record<string, unknown>;
   if (!res.ok || typeof t.access_token !== "string") {
     throw new OauthError(String(t.error_description ?? t.message ?? t.error ?? `Sign-in failed (${res.status})`), typeof t.error === "string" ? t.error : "", res.status);

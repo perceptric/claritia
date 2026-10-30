@@ -1,5 +1,6 @@
--- The jobs queue (supabase/migrations/020_foundation.sql): dedupe by key, one at a time per key, leases that run
--- out, retries with backoff, and finishing by the wrong worker. Runs as the server.
+-- The jobs queue (supabase/migrations/020_foundation.sql, 087_job_lanes.sql): dedupe by key, one at a time per key,
+-- leases that run out, retries with backoff, finishing by the wrong worker, lanes, the recovery timer and shutdown.
+-- Runs as the server.
 \set ON_ERROR_STOP on
 set client_min_messages = warning;
 \o /dev/null
@@ -95,6 +96,62 @@ update jobs set finished_at = now() - interval '8 days' where status = 'done';
 select prune_jobs();
 select pg_temp.check(not exists (select 1 from jobs where status = 'done'), 'Old finished jobs weren''t cleared');
 select pg_temp.check(exists (select 1 from jobs where status = 'failed'), 'Recent failed jobs were cleared');
+
+-- Lanes (087): lane 0 first, oldest first within a lane; a lane-0 loop never takes bulk work.
+delete from jobs;
+insert into ids select 'bulk_old', enqueue_job('99999999-0000-0000-0000-000000000000', 'enrich_contact', 'c1', '{}');
+update jobs set run_after = now() - interval '1 hour' where id = (select id from ids where name = 'bulk_old');
+insert into ids select 'normal', enqueue_job('99999999-0000-0000-0000-000000000000', 'stitch', 'd1', '{}');
+insert into ids select 'urgent', enqueue_job('99999999-0000-0000-0000-000000000000', 'route', 'form:1', '{"reason":"form"}');
+select pg_temp.check((select priority from jobs where id = (select id from ids where name = 'urgent')) = 0
+  and (select priority from jobs where id = (select id from ids where name = 'normal')) = 1
+  and (select priority from jobs where id = (select id from ids where name = 'bulk_old')) = 2, 'Jobs didn''t get their lanes');
+select pg_temp.check(not exists (select 1 from claim_job_lane('{enrich_contact,stitch}', 'urgent-only', 60, 5, 0)), 'A lane-0 loop took normal or bulk work');
+insert into ids select 'first', id from claim_job_lane('{enrich_contact,stitch,route}', 'w1', 60, 1, 2);
+select pg_temp.check((select id from ids where name = 'first') = (select id from ids where name = 'urgent'), 'An older bulk job went before a booking''s route');
+insert into ids select 'second', id from claim_job_lane('{enrich_contact,stitch,route}', 'w1', 60, 1, 1);
+select pg_temp.check((select id from ids where name = 'second') = (select id from ids where name = 'normal'), 'Lane 1 didn''t come next');
+select pg_temp.check(not exists (select 1 from claim_job_lane('{enrich_contact,stitch,route}', 'w1', 60, 1, 1)), 'A loop capped at lane 1 took bulk work');
+insert into ids select 'third', id from claim_job_lane('{enrich_contact,stitch,route}', 'w1', 60, 1, 2);
+select pg_temp.check((select id from ids where name = 'third') = (select id from ids where name = 'bulk_old'), 'The bulk job didn''t run last');
+-- Queued again while waiting in bulk: the more urgent lane wins.
+select enqueue_job('99999999-0000-0000-0000-000000000000', 'send', 'ws', '{"lane":"bulk"}', 0, 3);
+select enqueue_job('99999999-0000-0000-0000-000000000000', 'send', 'ws', '{}', 0, 3);
+select pg_temp.check((select priority from jobs where kind = 'send' and status = 'queued') = 1, 'A waiting job lost the more urgent lane');
+
+-- Lease recovery runs on the timer (recover_jobs), not inside the worker's claim.
+delete from jobs;
+insert into ids select 'lapsed', enqueue_job('99999999-0000-0000-0000-000000000000', 'stitch', 'dev-9', '{}');
+select from claim_job_lane('{stitch}', 'dead', 60, 1, 2);
+update jobs set locked_until = now() - interval '1 second' where id = (select id from ids where name = 'lapsed');
+select pg_temp.check(not exists (select 1 from claim_job_lane('{stitch}', 'alive', 60, 1, 2)), 'The worker''s claim recovered a lease');
+select pg_temp.check(recover_jobs() = 1, 'The timer didn''t recover the lapsed lease');
+select pg_temp.check((select status = 'queued' and attempts = 1 from jobs where id = (select id from ids where name = 'lapsed')), 'A recovered job isn''t back in line');
+select pg_temp.check((select id from claim_job_lane('{stitch}', 'alive', 60, 1, 2)) = (select id from ids where name = 'lapsed'), 'The recovered job wasn''t taken again');
+select pg_temp.check(not finish_job((select id from ids where name = 'lapsed'), 'dead', true), 'The worker that lost the lease still finished the job');
+select finish_job((select id from ids where name = 'lapsed'), 'alive', true);
+
+-- Shutdown: a stopped job goes back in line now, and the try doesn't count (it isn't failed on its last attempt).
+insert into ids select 'stopped', enqueue_job('99999999-0000-0000-0000-000000000000', 'import_file', 'imp-1', '{}', 0, 1);
+select from claim_job_lane('{import_file}', 'leaving', 60, 1, 2);
+select pg_temp.check(not release_job((select id from ids where name = 'stopped'), 'someone-else'), 'Another worker released a job it didn''t hold');
+select pg_temp.check(release_job((select id from ids where name = 'stopped'), 'leaving'), 'The worker couldn''t release its job');
+select pg_temp.check((select status = 'queued' and attempts = 0 and run_after <= now() from jobs where id = (select id from ids where name = 'stopped')), 'A job stopped by shutdown used a try or waits');
+select pg_temp.check((select id from claim_job_lane('{import_file}', 'next', 60, 1, 2)) = (select id from ids where name = 'stopped'), 'The released job wasn''t taken again');
+-- Released while a newer job for its key waits: the newer one takes over.
+select enqueue_job('99999999-0000-0000-0000-000000000000', 'import_file', 'imp-1', '{"newer":true}');
+select release_job((select id from ids where name = 'stopped'), 'next');
+select pg_temp.check((select count(*) from jobs where kind = 'import_file' and status = 'queued') = 1, 'Two jobs wait for one key');
+
+-- Pruning: the busiest kinds keep a day, the rest a week, failures a month.
+delete from jobs;
+insert into jobs (workspace_id, kind, key, status, finished_at) values
+  (null, 'calendar_refresh', 'a', 'done', now() - interval '2 days'),
+  (null, 'meeting_notify', 'b', 'done', now() - interval '2 days'),
+  (null, 'meeting_notify', 'c', 'done', now() - interval '8 days'),
+  (null, 'calendar_refresh', 'd', 'failed', now() - interval '2 days');
+select prune_jobs();
+select pg_temp.check((select string_agg(key, ',' order by key) from jobs) = 'b,d', 'Pruning kept or dropped the wrong jobs');
 
 delete from jobs;
 delete from workspaces where id = '99999999-0000-0000-0000-000000000000';

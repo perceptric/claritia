@@ -4,7 +4,8 @@ import { useCallback, useEffect, useState } from "react";
 import { Clock, Dollar, Globe, Users } from "@/components/Icons";
 import { LOCATION_LABEL, priceLabel, type GuestSlot, type GuestType } from "@/lib/meetings/guest";
 import type { GuestMeeting } from "@/lib/meetings/public";
-import { BookingCalendar, go, hostLine, LocationIcon, timeIn, whenLong } from "./BookingCalendar";
+import { Calendar, go, timeIn, whenLong } from "./Calendar";
+import { hostLine, LocationIcon } from "./parts";
 import { use12h, useZone } from "./browser";
 
 // The guest's manage link (docs/meetings-scheduler.md 1.7): the meeting, then reschedule (a new time from the same
@@ -53,7 +54,7 @@ export function ManageView({ token, initial, paid, embed }: { token: string; ini
 
   if (mode === "move")
     return (
-      <BookingCalendar
+      <Calendar
         type={type}
         load={load}
         banner={

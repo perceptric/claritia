@@ -20,7 +20,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const db = serviceClient();
   if (!email || !db) return json({ known: [] });
   try {
-    const f = await loadPublic(db, id, true);
+    // The form from its 10-second cache: this answers field ids only, and the send checks them again.
+    const f = await loadPublic(db, id);
     const e = f?.body.enrich;
     if (!f || f.status !== "live" || !e?.hideKnown || !e.fields.length) return json({ known: [] });
     const fields = allFields(f.body).filter((x) => e.fields.includes(hideKeyOf(x.key)));

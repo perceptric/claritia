@@ -10,6 +10,9 @@ import { countryCode, customValue, type CustomField } from "../contacts/fields.t
 import type { ContactInput } from "../contacts/import.ts";
 import { cleanEmail, isRejected } from "../identity/clean.ts";
 import { enqueueJob, type Rpc } from "../jobs.ts";
+import type { LiveRouter } from "../router/server.ts";
+import { within } from "../meetings/team.ts";
+import { callNewer } from "./newer.ts";
 import { siteAllowed } from "./notify.ts";
 import type { Tokens } from "./brand.ts";
 import { offerForFill, type Booking } from "./booking.ts";
@@ -223,35 +226,83 @@ export function qaOk(formId: string, token: unknown, secret: string | undefined,
  * Take a fill for a live form: check it, save it (form_submit), and work out the booking link when the form books a
  * meeting on an outside scheduler, or the times and booking token when it books with Claritia calendar. Shared by the public route and the tests, so both run the same steps. Answers status and JSON body.
  */
-export async function routeFill(rpc: Rpc, ws: string, contact: string, submission: string): Promise<RoutedAs> {
+/** How long the send waits on routing before a job takes the lead. */
+export const ROUTE_BUDGET_MS = 300;
+/** Once the send's own router_commit has started, how long it may still take before the job is queued as well. */
+export const COMMIT_GRACE_MS = 2000;
+
+export type FillRouting = { routed: RoutedAs; live: LiveRouter | null | undefined };
+
+/**
+ * Route a fill: here within the budget, or by a route job (same key, `form:<submission>`), never both. Whichever side
+ * claims the lead first owns it: the inline run asks `gate` just before router_commit, and once the budget is over
+ * the job is queued only if the inline run hadn't claimed it yet. A commit already under way gets COMMIT_GRACE_MS;
+ * past that the job is queued too, and the key makes its run a repeat that writes nothing. A router whose rules test
+ * the qualify outcome always goes to the job: the send never waits on qualify (Claude). `before` runs first inside
+ * the budget (the cached lookup for fields hidden as known). `live` is the router already read, when there is one.
+ */
+export async function routeFillWith(
+  rpc: Rpc,
+  ws: string,
+  contact: string,
+  submission: string,
+  o: { live?: LiveRouter | null; before?: () => Promise<unknown>; budgetMs?: number; graceMs?: number } = {},
+): Promise<FillRouting> {
   const key = `form:${submission}`;
   const later = () => enqueueJob(rpc, { workspaceId: ws, kind: "route", key, payload: { contact, reason: "form", key } }).catch(() => undefined);
+  let owner: "inline" | "job" | null = null;
+  const gate = () => {
+    if (owner === null) owner = "inline";
+    return owner === "inline";
+  };
+  const toJob = async (live?: LiveRouter | null): Promise<FillRouting> => {
+    owner = "job";
+    await later();
+    return { routed: null, live };
+  };
+  let live: LiveRouter | null | undefined = o.live;
   try {
-    const { liveRouter, route } = await import("../router/server.ts");
-    const { qualifyContact } = await import("../enrich/server.ts");
+    const { liveRouterCached, route, usesQualify } = await import("../router/server.ts");
     const done = (async () => {
-      const live = await liveRouter(rpc, ws);
-      return { live, r: await route(rpc, { ws, contact, key, reason: "form", live, qualify: (c) => qualifyContact(rpc, c, { timeoutMs: 2900 }) }) };
+      if (live === undefined) live = await liveRouterCached(rpc, ws);
+      if (live && !live.paused && usesQualify(live.body)) return { handOff: true as const };
+      if (o.before) await o.before().catch(() => undefined);
+      return { r: await route(rpc, { ws, contact, key, reason: "form", live, gate }) };
     })();
-    const got = await Promise.race([done, new Promise<null>((res) => setTimeout(() => res(null), 300))]);
     done.catch(() => undefined);
+    let got = await within(done, o.budgetMs ?? ROUTE_BUDGET_MS);
     if (!got) {
-      await later();
-      return null;
+      // Out of time. Not claimed yet: the job takes it, and the inline run stops at its gate.
+      if (owner === null) return await toJob(live);
+      // The inline run's commit is under way: it finishes, or the job (a repeat by key) makes sure.
+      got = await within(done, o.graceMs ?? COMMIT_GRACE_MS);
+      if (!got) {
+        await later();
+        return { routed: null, live };
+      }
     }
-    const r = got.r;
-    if (r.status !== "ok" && r.status !== "dup") return null;
+    const v = got.value;
+    if ("handOff" in v) return await toJob(live);
+    const r = v.r;
+    if (r.status === "late") return { routed: null, live };
+    if (r.status !== "ok" && r.status !== "dup") return { routed: null, live };
     const res = r.result;
-    if (res.kind !== "owner") return { kind: res.kind };
+    if (res.kind !== "owner") return { routed: { kind: res.kind }, live };
     // The meeting the rule names (docs/scheduling-plan.md 12.5); a lead no rule matched takes the fallback's.
-    const body = got.live?.body;
+    const body = live?.body;
     const rule = res.rule ? body?.rules.list.find((x) => x.id === res.rule) : undefined;
     const meet = rule ? rule.meet : res.by === "fallback" ? body?.fallback?.meet : undefined;
-    return { kind: "owner", rule: res.rule ?? null, by: res.by, ...(meet ? { meet } : {}) };
+    return { routed: { kind: "owner", rule: res.rule ?? null, by: res.by, ...(meet ? { meet } : {}) }, live };
   } catch {
-    await later();
-    return null;
+    // Failed before it claimed the lead, or while committing: the job routes it (a repeat by key writes nothing).
+    if (owner !== "job") await later();
+    owner = "job";
+    return { routed: null, live };
   }
+}
+
+export async function routeFill(rpc: Rpc, ws: string, contact: string, submission: string): Promise<RoutedAs> {
+  return (await routeFillWith(rpc, ws, contact, submission)).routed;
 }
 
 /**
@@ -277,55 +328,74 @@ async function knownIds(rpc: Rpc, f: PublicForm, raw: Incoming): Promise<Set<str
   }
 }
 
-/** The cached lookup into the new contact, in under 300 ms or not at all (the background job finishes it). */
+/**
+ * The cached lookup into the new contact. It runs first inside the routing budget (so the router reads the lead
+ * with it), never as a wait of its own; slower, the enrich_contact job fills it a moment later.
+ */
 async function fillKnown(rpc: Rpc, contact: string): Promise<void> {
-  try {
-    const { enrichContact } = await import("../enrich/server.ts");
-    const done = enrichContact(rpc, contact, { trigger: "form", cacheOnly: true, budgetMs: 300 });
-    done.catch(() => undefined);
-    await Promise.race([done, new Promise((r) => setTimeout(r, 300))]);
-  } catch {
-    // The enrich_contact job fills it a moment later.
-  }
+  const { enrichContact } = await import("../enrich/server.ts");
+  await enrichContact(rpc, contact, { trigger: "form", cacheOnly: true, budgetMs: ROUTE_BUDGET_MS });
 }
 
+/**
+ * Take a fill. `ctx` (the workspace's cleaning lists) and `turnstileFailed` may come as promises started with the
+ * form's load, so they run alongside the known-fields check. form_submit_all saves the fill, applies the hourly limit
+ * and queues the alerts in one call (090); before that migration, the old calls in order.
+ */
 export async function acceptFill(
   rpc: Rpc,
   f: PublicForm,
   raw: Incoming,
-  ctx: Ctx,
-  o: { country?: string | null; turnstileFailed?: boolean; origin?: string | null; ownHost?: string | null; test?: boolean; secret?: string; now?: number } = {},
+  ctx: Ctx | Promise<Ctx>,
+  o: { country?: string | null; turnstileFailed?: boolean | Promise<boolean>; origin?: string | null; ownHost?: string | null; test?: boolean; secret?: string; now?: number } = {},
 ): Promise<{ status: number; body: Record<string, unknown> }> {
-  const known = await knownIds(rpc, f, raw);
-  const overLimit = f.body.spam.perHour && !o.test ? await pastHourly(rpc, f.id, f.body.spam.perHour) : false;
-  const r = prepareSubmit(f.body, f.version, raw, ctx, { country: o.country, turnstileFailed: o.turnstileFailed, known, origin: o.origin, ownHost: o.ownHost, overLimit });
+  const [known, c, turnstileFailed] = await Promise.all([knownIds(rpc, f, raw), ctx, o.turnstileFailed]);
+  const prepare = (overLimit: boolean) => prepareSubmit(f.body, f.version, raw, c, { country: o.country, turnstileFailed, known, origin: o.origin, ownHost: o.ownHost, overLimit });
+  let r = prepare(false);
   if ("errors" in r) return { status: 400, body: { errors: r.errors } };
   if ("error" in r) return { status: r.status, body: { error: r.error } };
-  const { data, error } = await rpc("form_submit", { p_form: f.id, ...r.args, p_test: o.test === true });
+  let res = await callNewer(rpc, "form_submit_all", { p_form: f.id, ...r.args, p_test: o.test === true });
+  const inOne = !!res;
+  if (!res) {
+    // Before 090: the hourly count first (a fill past it is held as spam), then the save.
+    if (f.body.spam.perHour && !o.test && !r.args.p_spam && (await pastHourly(rpc, f.id, f.body.spam.perHour))) {
+      const held = prepare(true);
+      if ("args" in held) r = held;
+    }
+    res = await rpc("form_submit", { p_form: f.id, ...r.args, p_test: o.test === true });
+  }
+  const { data, error } = res;
   if (error) {
     if (/isn't taking answers|Unknown form version/.test(error.message)) return { status: 409, body: { error: "This form changed. Refresh the page and try again." } };
     // Retryable: the browser keeps the fill and sends it again with the same key.
     return { status: 503, body: { error: "Try again in a moment." } };
   }
-  const sid = (data as { id: string }).id;
+  const saved = data as { id: string; contact_id?: string | null; repeat?: boolean; spam?: string | null };
+  const sid = saved.id;
+  const repeat = !!saved.repeat;
+  // The database may hold it for the hourly limit ('rate'): then it's spam, with no contact.
+  const spam = inOne ? (saved.spam ?? null) : r.args.p_spam;
+  const cid = saved.contact_id;
+  // Alerts and the auto-reply (their job waits for routing, so they name the rep). form_submit_all queued them; the
+  // old way queues them here. The key is the submission's, so a repeat can't send twice.
+  if (!inOne && !spam && !o.test && !repeat) await queueNotify(rpc, f.workspace_id, f.body, sid);
   // The router picks the owner now (docs/router.md Part 7), so the calendar below shows that rep's times. It has
-  // 300 ms; slower, or failing, the lead still books from the meeting type, and a job routes them with the same key.
-  const cid = (data as { contact_id?: string | null }).contact_id;
-  // Fields hidden as known are filled from the lookup the form already made, before the router reads the lead.
-  if (cid && !r.args.p_spam && f.body.enrich?.hideKnown && !(data as { repeat?: boolean }).repeat) await fillKnown(rpc, cid);
-  const routed = cid && !r.args.p_spam && !(data as { repeat?: boolean }).repeat ? await routeFill(rpc, f.workspace_id, cid, sid) : null;
-  // Alerts and the auto-reply go after routing, so they name the rep. The key is the submission's, so a repeat
-  // can't send twice; a queue hiccup costs the alert, never the fill.
-  if (!r.args.p_spam && !o.test && !(data as { repeat?: boolean }).repeat) await queueNotify(rpc, f.workspace_id, f.body, sid);
+  // ROUTE_BUDGET_MS; slower, or failing, the lead still books from the meeting type, and a job routes them with the
+  // same key. Fields hidden as known are filled from the lookup the form already made, before the router reads them.
+  const routing =
+    cid && !spam && !repeat
+      ? await routeFillWith(rpc, f.workspace_id, cid, sid, { before: f.body.enrich?.hideKnown ? () => fillKnown(rpc, cid) : undefined })
+      : null;
+  const routed = routing?.routed ?? null;
   // Book a meeting next: the contact owner's link when the form says so and they have one, else the form's link.
   const sch = f.body.after.schedule;
-  const lead = r.args.p_contact;
+  const lead = spam ? null : r.args.p_contact;
   let schedule: { tool: string; url: string } | null = null;
   // Who sees the calendar is decided here, on the checked answers (a field a rule hid or a skipped one has none) and
   // on the server's email class: a work email is anything but free mail.
   const byId: Record<string, unknown> = {};
   for (const x of allFields(f.body)) if (r.args.p_values[x.key] !== undefined) byId[x.id] = r.args.p_values[x.key];
-  if (sch && lead && !r.args.p_spam && showsMeeting(sch, byId, !!lead.email_class && lead.email_class !== "free") && routedBooks(sch, routed)) {
+  if (sch && lead && !spam && showsMeeting(sch, byId, !!lead.email_class && lead.email_class !== "free") && routedBooks(sch, routed)) {
     if (!outside(sch.tool)) {
       // Claritia calendar: times from the cache with a signed token, or the message when there are none to show. A
       // booking hiccup never loses the fill: it's saved, and the lead gets the message.
@@ -333,7 +403,7 @@ export async function acceptFill(
       const typeId = routed?.meet ?? sch.meetingTypeId;
       if (typeId && o.secret) {
         try {
-          booking = await offerForFill(rpc, { submission: sid, typeId, secret: o.secret, now: o.now });
+          booking = await offerForFill(rpc, { submission: sid, typeId, secret: o.secret, now: o.now, live: routing?.live });
         } catch {
           booking = null;
         }
@@ -381,8 +451,11 @@ async function pastHourly(rpc: Rpc, form: string, perHour: number): Promise<bool
 export const REPLY_DELAY_S = 300;
 
 export async function queueNotify(rpc: Rpc, ws: string, body: Form, submission: string): Promise<void> {
-  if (body.notify?.on) await enqueueJob(rpc, { workspaceId: ws, kind: "form_notify", key: `form_notify:${submission}`, payload: { submission, only: "alerts" } }).catch(() => undefined);
-  if (body.reply?.on) await enqueueJob(rpc, { workspaceId: ws, kind: "form_notify", key: `form_reply:${submission}`, payload: { submission, only: "reply" }, delayS: REPLY_DELAY_S }).catch(() => undefined);
+  // Both at once: a queue hiccup costs the alert, never the fill.
+  await Promise.all([
+    body.notify?.on ? enqueueJob(rpc, { workspaceId: ws, kind: "form_notify", key: `form_notify:${submission}`, payload: { submission, only: "alerts" } }).catch(() => undefined) : null,
+    body.reply?.on ? enqueueJob(rpc, { workspaceId: ws, kind: "form_notify", key: `form_reply:${submission}`, payload: { submission, only: "reply" }, delayS: REPLY_DELAY_S }).catch(() => undefined) : null,
+  ]);
 }
 
 /** A saved fill as releaseFill reads it. */

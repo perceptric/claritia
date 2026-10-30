@@ -1,5 +1,6 @@
 import { seal } from "@/lib/seal";
-import { requireUser } from "@/lib/serverAuth";
+import { requireUser, roleIn } from "@/lib/serverAuth";
+import { later } from "@/lib/later";
 import { serviceClient } from "@/lib/serviceClient";
 
 // A team's own vendor key (docs/enrich-workflows-reports.md 1.2 A): POST { workspaceId, step, key } seals it with
@@ -14,9 +15,9 @@ export async function POST(request: Request) {
   if ("denied" in auth) return auth.denied;
   const body = (await request.json().catch(() => ({}))) as { workspaceId?: unknown; step?: unknown; key?: unknown };
   const ws = typeof body.workspaceId === "string" ? body.workspaceId : "";
-  const { data: m } = ws ? await auth.sb.from("workspace_members").select("role").eq("workspace_id", ws).eq("user_id", auth.user.id).maybeSingle() : { data: null };
-  if (!m) return bad("Workspace not found.", 404);
-  if ((m as { role: string }).role !== "owner") return bad("Only workspace owners can change keys.", 403);
+  const role = await roleIn(auth, ws);
+  if (!role) return bad("Workspace not found.", 404);
+  if (role !== "owner") return bad("Only workspace owners can change keys.", 403);
   const step = typeof body.step === "string" && STEPS.has(body.step) ? body.step : "";
   if (!step) return bad("Pick a provider.");
   const key = typeof body.key === "string" ? body.key.trim() : "";
@@ -31,7 +32,7 @@ export async function POST(request: Request) {
       await db.from("enrich_keys").delete().eq("workspace_id", ws).eq("step", step);
     }
     await db.from("enrich_sources").upsert({ workspace_id: ws, step, has_key: !!key }, { onConflict: "workspace_id,step", ignoreDuplicates: false });
-    await db.from("audit_log").insert({ workspace_id: ws, actor: auth.user.id, action: key ? "enrich.key_set" : "enrich.key_removed", target: step });
+    later(() => db.from("audit_log").insert({ workspace_id: ws, actor: auth.user.id, action: key ? "enrich.key_set" : "enrich.key_removed", target: step }));
     return Response.json({ ok: true, has_key: !!key });
   } catch (e) {
     return bad(e instanceof Error && /SECRETS_KEY/.test(e.message) ? "The server can't seal keys yet." : "Couldn't save the key. Try again.", 500);

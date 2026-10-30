@@ -1,5 +1,8 @@
 import { cleaningCtx, isMember } from "@/lib/contacts/server";
 import { checkForm } from "@/lib/forms/schema";
+import { forgetPublic } from "@/lib/forms/server";
+import { forgetFields } from "@/lib/router/actions";
+import { forgetScoring } from "@/lib/scoring/actions";
 import { requireUser } from "@/lib/serverAuth";
 import { serviceClient } from "@/lib/serviceClient";
 
@@ -23,5 +26,10 @@ export async function POST(request: Request) {
   if ("errors" in r) return bad(r.errors[0], 400, { errors: r.errors });
   const { data, error } = await db.rpc("form_publish", { p_id: body.id, p_user: auth.user.id, p_body: r.form });
   if (error) return bad(error.message, 500);
+  // The new version shows at once on this server (others read it again within 10 seconds, or on the first send).
+  forgetPublic(body.id);
+  // Routing's field list and Scoring's context include the form's questions.
+  forgetFields(body.workspaceId as string);
+  forgetScoring(body.workspaceId as string);
   return Response.json({ version: data as number });
 }

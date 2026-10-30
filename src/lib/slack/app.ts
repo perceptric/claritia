@@ -25,7 +25,7 @@ export type SlackInstall = { team: string; teamName: string; bot: string; token:
 /** Trade the sign-in code for the bot token. */
 export async function slackExchange(code: string, redirect: string, fetcher: typeof fetch = fetch): Promise<SlackInstall> {
   const body = new URLSearchParams({ code, redirect_uri: redirect, client_id: env("SLACK_CLIENT_ID"), client_secret: env("SLACK_CLIENT_SECRET") });
-  const res = await fetcher("https://slack.com/api/oauth.v2.access", { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body });
+  const res = await fetcher("https://slack.com/api/oauth.v2.access", { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body, signal: AbortSignal.timeout(10_000) });
   const j = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string; access_token?: string; bot_user_id?: string; team?: { id?: string; name?: string } };
   if (!j.ok || !j.access_token || !j.team?.id) throw new Error(j.error ? `Slack said ${j.error}.` : "Slack sign-in failed.");
   return { team: j.team.id, teamName: j.team.name ?? "", bot: j.bot_user_id ?? "", token: j.access_token };
@@ -67,6 +67,8 @@ export async function slackApi<T = Record<string, unknown>>(token: string, metho
       method: "POST",
       headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json; charset=utf-8" },
       body: JSON.stringify(args),
+      // No Slack call may hold a request or a job: 10 s each.
+      signal: AbortSignal.timeout(10_000),
     });
   } catch (e) {
     return { ok: false, result: { status: "retry", error: e instanceof Error ? e.message : "Slack didn't answer." } };
@@ -81,19 +83,58 @@ export async function slackApi<T = Record<string, unknown>>(token: string, metho
 }
 
 /** A direct message to the person with this email, from the app. "failed" with users_not_found when they're not in Slack. */
+// Who is who in Slack changes rarely: a person's id by email, and an email by id, kept an hour in this process
+// (found answers only). A message that can't reach a kept id forgets it, so the next one looks it up again.
+const HOUR = 3_600_000;
+const slackIds = new Map<string, { v: string; until: number }>();
+const slackEmails = new Map<string, { v: string; until: number }>();
+const keyOf = (token: string, x: string) => `${createHmac("sha256", "slack").update(token).digest("hex").slice(0, 16)}|${x.toLowerCase()}`;
+function remember(m: Map<string, { v: string; until: number }>, k: string, v: string) {
+  if (m.size >= 5000) m.delete(m.keys().next().value!);
+  m.set(k, { v, until: Date.now() + HOUR });
+}
+const recall = (m: Map<string, { v: string; until: number }>, k: string) => {
+  const hit = m.get(k);
+  if (hit && hit.until > Date.now()) return hit.v;
+  if (hit) m.delete(k);
+  return null;
+};
+/** Tests: forget the kept ids and emails. */
+export const forgetSlackPeople = () => {
+  slackIds.clear();
+  slackEmails.clear();
+};
+
 export async function slackDm(token: string, email: string, text: string, blocks: unknown[], fetcher?: typeof fetch): Promise<SlackResult> {
-  const who = await slackApi<{ user?: { id?: string } }>(token, "users.lookupByEmail", { email }, fetcher);
-  if (!who.ok) return who.result;
-  const id = who.data.user?.id;
-  if (!id) return { status: "failed", error: "users_not_found" };
+  const k = keyOf(token, email);
+  let id = recall(slackIds, k);
+  const kept = !!id;
+  if (!id) {
+    const who = await slackApi<{ user?: { id?: string } }>(token, "users.lookupByEmail", { email }, fetcher);
+    if (!who.ok) return who.result;
+    id = who.data.user?.id ?? null;
+    if (!id) return { status: "failed", error: "users_not_found" };
+    remember(slackIds, k, id);
+  }
   const sent = await slackApi(token, "chat.postMessage", { channel: id, text, blocks, unfurl_links: false }, fetcher);
-  return sent.ok ? { status: "done" } : sent.result;
+  if (sent.ok) return { status: "done" };
+  if (kept && sent.result.status === "failed") {
+    // The kept id may be stale (the person left or was replaced): look up once more, as a first send would have.
+    slackIds.delete(k);
+    return slackDm(token, email, text, blocks, fetcher);
+  }
+  return sent.result;
 }
 
 /** The email of a Slack person, to find their Claritia account. */
 export async function slackEmail(token: string, user: string, fetcher?: typeof fetch): Promise<string | null> {
+  const k = keyOf(token, user);
+  const hit = recall(slackEmails, k);
+  if (hit) return hit;
   const r = await slackApi<{ user?: { profile?: { email?: string } } }>(token, "users.info", { user }, fetcher);
-  return r.ok ? (r.data.user?.profile?.email ?? null) : null;
+  const email = r.ok ? (r.data.user?.profile?.email ?? null) : null;
+  if (email) remember(slackEmails, k, email);
+  return email;
 }
 
 /** Slack mrkdwn: the three characters it reads as control text. */

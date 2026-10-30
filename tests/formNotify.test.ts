@@ -41,13 +41,20 @@ function info(over: Partial<NotifyInfo> = {}, form: Partial<Form> = {}): NotifyI
   };
 }
 
-function harness(start: NotifyInfo | null, failFor: (to: string, n: number) => Error | null = () => null, payload: Record<string, unknown> = {}, fetcher?: typeof fetch) {
+function harness(start: NotifyInfo | null, failFor: (to: string, n: number) => Error | null = () => null, payload: Record<string, unknown> = {}, fetcher?: typeof fetch, batcher?: { batch: (items: { out: { to: string }; key: string }[]) => Promise<string[]> }) {
   const marked = new Set<string>(start?.sent ?? []);
   const mails: { to: string; raw: string }[] = [];
   const tries = new Map<string, number>();
+  const queued: Record<string, unknown>[] = [];
   const rpc = async (fn: string, args: Record<string, unknown>) => {
     if (fn === "form_notify_info") return { data: start ? { ...start, sent: [...marked] } : null, error: null };
-    if (fn === "form_notify_mark") return (marked.add(String(args.p_part)), { data: null, error: null });
+    if (fn === "form_notify_claim") {
+      const got = (args.p_parts as string[]).filter((p) => !marked.has(p));
+      for (const p of got) marked.add(p);
+      return { data: got, error: null };
+    }
+    if (fn === "form_notify_unclaim") return ((args.p_parts as string[]).forEach((p) => marked.delete(p)), { data: null, error: null });
+    if (fn === "enqueue_job") return (queued.push(args), { data: "j2", error: null });
     return { data: null, error: { message: `unexpected ${fn}` } };
   };
   const mailer = {
@@ -60,9 +67,9 @@ function harness(start: NotifyInfo | null, failFor: (to: string, n: number) => E
       return "id";
     },
   };
-  const run = formNotify(rpc as never, { mailer: mailer as never, base: "https://app.test", from: "meetings@tryclaritia.com", fetcher });
-  const job = { id: "j", kind: "form_notify", key: `form_notify:${SID}`, workspace_id: WS, payload: { submission: SID, ...payload }, attempts: 1 } as unknown as Job;
-  return { go: () => run(job, new AbortController().signal), mails, marked };
+  const run = formNotify(rpc as never, { mailer: mailer as never, base: "https://app.test", from: "meetings@tryclaritia.com", fetcher, batcher: batcher as never });
+  const job = { id: "j", kind: "form_notify", key: `form_notify:${SID}`, workspace_id: WS, payload: { submission: SID, ...payload }, attempts: 1, max_attempts: 5 } as unknown as Job;
+  return { go: () => run(job, new AbortController().signal), mails, marked, queued };
 }
 
 test("merge tags fill in, fall back, and drop unknown tags", () => {
@@ -194,10 +201,14 @@ test("alerts go now and the auto-reply 5 minutes later, each its own job", async
   assert.deepEqual(reply.mails.map((m) => m.to), ["maya@linear.app"]);
 });
 
-test("alerts wait for a route job that hasn't finished, then send without a rep", async () => {
+test("alerts wait for a route job that hasn't finished (without using a try), then send without a rep", async () => {
   const young = harness(info({ routing: "pending", owner: null, submission: { ...info().submission, created_at: ago(20) } }));
-  await assert.rejects(young.go(), (e) => e instanceof JobError && /routed/.test(e.message));
+  await young.go();
   assert.equal(young.mails.length, 0, "nothing sent while it waits");
+  assert.equal(young.queued.length, 1, "the job goes back in line instead of failing");
+  assert.equal(young.queued[0]!.p_key, `form_notify:${SID}`);
+  assert.equal(young.queued[0]!.p_delay_s, 30);
+  assert.equal((young.queued[0]!.p_payload as { waiting_route?: boolean }).waiting_route, true, "marked so the route's commit can wake it");
   const old = harness(info({ routing: "pending", owner: null, submission: { ...info().submission, created_at: ago(200) } }));
   await old.go();
   assert.ok(old.mails.length >= 2, "after 2 minutes it sends anyway");
@@ -224,4 +235,34 @@ test("the auto-reply links to the meeting the lead was offered, and leaves the l
   await booked.go();
   assert.equal(booked.mails.length, 1, "the reply still goes");
   assert.doesNotMatch(textOf(booked.mails[0]!.raw), /booking/);
+});
+
+test("two workers holding the same job (a lost lease) send each alert once", async () => {
+  const h = harness(info());
+  // Both run at once against the same claims.
+  await Promise.all([h.go(), h.go()]);
+  assert.deepEqual(h.mails.map((m) => m.to).sort(), ["maya@linear.app", "sam@perceptric.com", "vincent@perceptric.com"]);
+});
+
+test("the teammates' alerts go in one Resend batch; a 'not now' gives every claim back for the retry", async () => {
+  const batches: string[][] = [];
+  let fail = true;
+  const batcher = {
+    batch: async (items: { out: { to: string }; key: string }[]) => {
+      batches.push(items.map((i) => i.out.to));
+      if (fail) {
+        fail = false;
+        throw new SendError("rate", { later: true });
+      }
+      return items.map(() => "id");
+    },
+  };
+  const h = harness(info(), undefined, { only: "alerts" }, undefined, batcher);
+  await assert.rejects(h.go(), (e) => e instanceof JobError);
+  assert.ok(!h.marked.has("alert:sam@perceptric.com") && !h.marked.has("alert:vincent@perceptric.com"), "claims given back");
+  await h.go();
+  assert.deepEqual(batches, [["vincent@perceptric.com", "sam@perceptric.com"], ["vincent@perceptric.com", "sam@perceptric.com"]]);
+  assert.equal(h.mails.length, 0, "no one-by-one sends");
+  await h.go();
+  assert.equal(batches.length, 2, "sent once");
 });

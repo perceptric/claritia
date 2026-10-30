@@ -12,8 +12,24 @@ import type { EmailDoc } from "./doc.ts";
 
 export type KitRow = { id: string; tokens: unknown; logo_url: string | null; design?: unknown; design_live?: unknown };
 
-export async function loadKits(db: SupabaseClient, workspaceId: string): Promise<KitRow[]> {
-  return ((await db.from("brand_kits").select("id, tokens, logo_url, design, design_live").eq("workspace_id", workspaceId).order("created_at")).data ?? []) as KitRow[];
+const KIT_COLS = "id, tokens, logo_url, design, design_live";
+const KIT_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * The workspace's brand kits, in order. With `ids` (the kits the emails name), only those and the workspace's first
+ * kit (the fallback in compileWithKit) are read, in one round trip, instead of every kit's styles. Never cached:
+ * kits change in the browser, and a send must use what the person just saved.
+ */
+export async function loadKits(db: SupabaseClient, workspaceId: string, ids?: (string | undefined)[]): Promise<KitRow[]> {
+  if (!ids) return ((await db.from("brand_kits").select(KIT_COLS).eq("workspace_id", workspaceId).order("created_at")).data ?? []) as KitRow[];
+  const named = [...new Set(ids.filter((x): x is string => !!x && KIT_ID.test(x)))];
+  const [first, rows] = await Promise.all([
+    db.from("brand_kits").select(KIT_COLS).eq("workspace_id", workspaceId).order("created_at").limit(1),
+    named.length ? db.from("brand_kits").select(KIT_COLS).eq("workspace_id", workspaceId).in("id", named) : Promise.resolve({ data: [] }),
+  ]);
+  const head = ((first.data ?? []) as KitRow[])[0];
+  // The first kit leads, so compileWithKit's kits[0] fallback is the same as with every kit read.
+  return [...(head ? [head] : []), ...((rows.data ?? []) as KitRow[]).filter((k) => k.id !== head?.id)];
 }
 
 /** Compile with the document's kit: `live` styles for sends, `draft` for tests. Throws when the compiler does. */

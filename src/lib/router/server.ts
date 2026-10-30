@@ -3,6 +3,7 @@
 // decided again with fresh facts, at most twice. A key seen before returns its first answer and writes nothing. Server
 // only: the form send, the API, the jobs and the Test panel call it.
 
+import { callNewer } from "../forms/newer.ts";
 import type { Rpc } from "../jobs.ts";
 import type { Availability } from "../meetings/types.ts";
 import { addDays, at, dateIn, dayOf, validZone } from "../meetings/time.ts";
@@ -70,6 +71,8 @@ export type RawFacts = {
   reps: Record<string, RawRep>;
   counts: Record<string, Record<string, { n: number; last: string }>>;
   lists: { allow: string[]; block: string[] };
+  /** The columns enrichment and qualify added (router_facts_full; router_facts_more before 090). */
+  more?: { seniority?: string; department?: string; qualify?: string; employees?: number };
 };
 
 /** Whether now is inside someone's hours (weekly ranges, with a date's own hours first). Null when they have none. */
@@ -209,14 +212,18 @@ export async function readFacts(
     const e = cleanEmail(o.email);
     emailClass = "rejected" in e ? null : e.class;
   }
-  const raw = await call<RawFacts | null>(rpc, "router_facts", { p_ws: o.ws, p_contact: o.contact, p_key: o.key, p_users: n.users, p_queues: n.queues, p_email: o.email ?? null, p_email_class: emailClass });
+  const args = { p_ws: o.ws, p_contact: o.contact, p_key: o.key, p_users: n.users, p_queues: n.queues, p_email: o.email ?? null, p_email_class: emailClass };
+  // One read with the enrichment columns (router_facts_full, 090); the two old reads while it isn't there.
+  const full = await callNewer(rpc, "router_facts_full", args);
+  if (full?.error) throw new Error(`router_facts_full: ${full.error.message}`);
+  const raw = full ? (full.data as RawFacts | null) : await call<RawFacts | null>(rpc, "router_facts", args);
   if (!raw) return null;
   if (raw.existing) return { existing: raw.existing };
   const facts = toFacts(raw, o.reason, o.now);
   facts.lead.disposable = await disposable(raw.contact.email_clean ?? raw.contact.email);
   // The columns enrichment and qualify added (068_enrichment.sql).
   if (raw.contact.id) {
-    const more = await call<{ seniority?: string; department?: string; qualify?: string; employees?: number } | null>(rpc, "router_facts_more", { p_contact: raw.contact.id }).catch(() => null);
+    const more = full ? (raw.more ?? null) : await call<RawFacts["more"] | null>(rpc, "router_facts_more", { p_contact: raw.contact.id }).catch(() => null);
     facts.values["contact.seniority"] = more?.seniority ?? null;
     facts.values["contact.department"] = more?.department ?? null;
     facts.values["lead.qualify"] = more?.qualify ?? null;
@@ -227,7 +234,9 @@ export async function readFacts(
 
 export type Routed =
   | { status: "ok" | "dup"; run: string; decision: Decision | null; result: Decision["result"] }
-  | { status: "no_router" | "paused" | "gone" | "spam" };
+  | { status: "no_router" | "paused" | "gone" | "spam" }
+  /** The caller's gate said no just before router_commit (a job took the lead meanwhile): nothing was written. */
+  | { status: "late" };
 
 /** Whether a body's rules or company types test the qualify outcome. */
 export function usesQualify(body: RouterBody): boolean {
@@ -235,10 +244,41 @@ export function usesQualify(body: RouterBody): boolean {
   return (body.rules.on && body.rules.list.some((r) => r.on !== false && test(r.conds))) || !!body.segments?.some((sg) => test(sg.conds));
 }
 
+export type LiveRouter = { version: number; body: RouterBody; paused?: boolean };
+
 /** The live router's body and version, and whether routing is paused. */
-export async function liveRouter(rpc: Rpc, ws: string): Promise<{ version: number; body: RouterBody; paused?: boolean } | null> {
-  const r = await call<{ version: number; body: RouterBody; paused?: boolean } | null>(rpc, "router_live", { p_ws: ws });
+export async function liveRouter(rpc: Rpc, ws: string): Promise<LiveRouter | null> {
+  const r = await call<LiveRouter | null>(rpc, "router_live", { p_ws: ws });
   return r ?? null;
+}
+
+/**
+ * The live router on the visitor's path (form sends, booking pages), kept LIVE_TTL_MS per workspace. A publish or a
+ * pause made on this server shows at once (invalidateRouterLive); on another server within LIVE_TTL_MS. Callers that
+ * arrive together share one read; a failed read is never kept. The Router screens and the jobs read it fresh.
+ */
+export const LIVE_TTL_MS = 10_000;
+const liveCache = new Map<string, { at: number; gen: number; value: Promise<LiveRouter | null> }>();
+let liveGen = 0;
+
+export function liveRouterCached(rpc: Rpc, ws: string, now = Date.now()): Promise<LiveRouter | null> {
+  const hit = liveCache.get(ws);
+  if (hit && now - hit.at < LIVE_TTL_MS) return hit.value;
+  const gen = ++liveGen;
+  const value = liveRouter(rpc, ws);
+  if (liveCache.size > 5000) liveCache.clear();
+  liveCache.set(ws, { at: now, gen, value });
+  // Only this read's own entry goes on a failure, never a newer one.
+  value.catch(() => {
+    if (liveCache.get(ws)?.gen === gen) liveCache.delete(ws);
+  });
+  return value;
+}
+
+/** Forget a workspace's cached live router (all of them with no argument): after router_publish, a rollback, router_pause. */
+export function invalidateRouterLive(ws?: string): void {
+  if (ws === undefined) liveCache.clear();
+  else liveCache.delete(ws);
 }
 
 /**
@@ -262,6 +302,11 @@ export async function route(
     now?: () => number;
     /** Qualify the lead now (enrich/server.ts qualifyContact), for a body whose rules test its outcome. */
     qualify?: (contact: string) => Promise<unknown>;
+    /**
+     * Asked once, just before the first router_commit: false means the caller handed the lead to a job meanwhile, so
+     * nothing is written here ("late"); true means this call owns the commit.
+     */
+    gate?: () => boolean;
   },
 ): Promise<Routed> {
   const live = o.live === undefined ? await liveRouter(rpc, o.ws) : o.live;
@@ -290,6 +335,7 @@ export async function route(
     const decided = decide(body, read.facts);
     const d: Decision = o.before?.length ? { ...decided, steps: [...o.before, ...decided.steps] } : decided;
     const pick = pickFor(body, d);
+    if (o.gate && tries === 0 && !o.gate()) return { status: "late" };
     const res = await call<{ status: string; id?: string; kind?: string; owner?: string | null; steps?: unknown }>(rpc, "router_commit", {
       p_ws: o.ws,
       p_contact: o.contact,

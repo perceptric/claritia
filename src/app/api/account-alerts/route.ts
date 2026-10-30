@@ -1,15 +1,14 @@
 import { SLACK_WEBHOOK } from "@/lib/alerts";
 import { seal, unseal } from "@/lib/seal";
-import { requireUser } from "@/lib/serverAuth";
+import { requireUser, roleIn, type Auth } from "@/lib/serverAuth";
+import { later } from "@/lib/later";
 import { serviceClient } from "@/lib/serviceClient";
 import { parseRule, slackAccountMessage } from "@/lib/web/accountAlerts";
 
 const bad = (error: string, status = 400) => Response.json({ error }, { status });
 
-async function member(auth: Exclude<Awaited<ReturnType<typeof requireUser>>, { denied: Response }>, workspaceId: unknown) {
-  if (typeof workspaceId !== "string") return false;
-  const { data } = await auth.sb.from("workspace_members").select("role").eq("workspace_id", workspaceId).eq("user_id", auth.user.id).maybeSingle();
-  return !!data;
+async function member(auth: Auth, workspaceId: unknown) {
+  return !!(await roleIn(auth, workspaceId));
 }
 
 /**
@@ -29,7 +28,7 @@ export async function POST(request: Request) {
     const rule = r ? parseRule(r.rule) : null;
     if (!r?.slack_sealed || !rule) return bad("Alert not found.", 404);
     const msg = slackAccountMessage({ id: "00000000-0000-0000-0000-000000000000", name: "Acme (sample)", domain: "acme.com", fit: 82, intent: 74, stage: "evaluating", why_now: "This week: 3 people read pricing, and checked security." }, rule);
-    const res = await fetch(unseal(r.slack_sealed), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(msg) }).catch((e: Error) => e);
+    const res = await fetch(unseal(r.slack_sealed), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(msg), signal: AbortSignal.timeout(10_000) }).catch((e: Error) => e);
     if (res instanceof Error) return bad(`Slack: ${res.message}`);
     if (!res.ok) return bad(`Slack answered ${res.status}.`);
     return Response.json({ ok: true });
@@ -55,7 +54,7 @@ export async function POST(request: Request) {
     .select("id")
     .single();
   if (error) return bad(error.message);
-  await sb.from("audit_log").insert({ workspace_id: body.workspaceId, actor: auth.user.id, action: "account_alert.add", target: data.id });
+  later(() => sb.from("audit_log").insert({ workspace_id: body.workspaceId, actor: auth.user.id, action: "account_alert.add", target: data.id }));
   return Response.json({ ok: true, id: data.id });
 }
 
@@ -69,6 +68,6 @@ export async function DELETE(request: Request) {
   if (!sb) return bad("The server is not set up for alerts.", 500);
   const { error } = await sb.from("account_alert_rules").delete().eq("id", String(body.ruleId)).eq("workspace_id", body.workspaceId as string);
   if (error) return bad(error.message);
-  await sb.from("audit_log").insert({ workspace_id: body.workspaceId, actor: auth.user.id, action: "account_alert.remove", target: String(body.ruleId) });
+  later(() => sb.from("audit_log").insert({ workspace_id: body.workspaceId, actor: auth.user.id, action: "account_alert.remove", target: String(body.ruleId) }));
   return Response.json({ ok: true });
 }

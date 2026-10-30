@@ -42,8 +42,13 @@ export async function POST(request: Request) {
     image = { type: kind.type, data: Buffer.from(raw).toString("base64") };
   } else if ((b.doc as { sections?: unknown } | undefined)?.sections === undefined) return bad("Send the email.");
   const doc = readEmailDoc(b.doc, { allowHtml: true });
-  const { data: kits } = await db.from("brand_kits").select("id, name, tokens, notes, brief, design").eq("workspace_id", ws).order("created_at");
-  const kit = (kits ?? []).find((k) => k.id === doc.kitId) ?? (kits ?? [])[0];
+  // The kit the email names, else the workspace's first: only those two rows, read together (not every kit).
+  const cols = "id, name, tokens, notes, brief, design";
+  const [named, first] = await Promise.all([
+    doc.kitId ? db.from("brand_kits").select(cols).eq("workspace_id", ws).eq("id", doc.kitId).maybeSingle() : Promise.resolve({ data: null }),
+    db.from("brand_kits").select(cols).eq("workspace_id", ws).order("created_at").limit(1).maybeSingle(),
+  ]);
+  const kit = named.data ?? first.data;
   const tokens = cleanTokens(kit?.tokens ?? {}).tokens;
   const system = readSystem(kit?.design ?? {}, tokens);
   const history = (Array.isArray(b.history) ? b.history : [])

@@ -11,6 +11,8 @@ import type { Ask } from "../../src/lib/enrich/qualify.ts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const TRIGGERS = new Set(["new", "form", "backfill", "workflow", "again"]);
+/** A backfill pages on while fewer lookups than this wait for the workspace. */
+export const BACKFILL_WAITING = 1000;
 
 async function call<T>(rpc: Rpc, fn: string, args: Record<string, unknown>): Promise<T> {
   const { data, error } = await rpc(fn, args);
@@ -46,6 +48,11 @@ export const enrichBackfill =
     const ws = job.workspace_id;
     if (!ws) throw new JobError("enrich_backfill needs a workspace", { retry: false });
     const after = typeof job.payload.after === "string" && UUID.test(job.payload.after) ? job.payload.after : null;
+    // A page at a time, and only while the lookups already queued are few: a big backfill never floods the queue.
+    if ((await call<number>(rpc, "jobs_waiting", { p_ws: ws, p_kind: "enrich_contact", p_cap: BACKFILL_WAITING })) >= BACKFILL_WAITING) {
+      await call(rpc, "enqueue_job", { p_workspace: ws, p_kind: "enrich_backfill", p_key: job.key, p_payload: job.payload, p_delay_s: 60, p_max_attempts: job.max_attempts });
+      return;
+    }
     const r = await call<{ count: number; last: string | null }>(rpc, "enrich_backfill_page", { p_ws: ws, p_filter: job.payload.filter ?? {}, p_after: after, p_limit: 200 });
     // A page at a time, so a big backfill never holds the queue.
     if (r.count === 200 && r.last) await call(rpc, "enqueue_job", { p_workspace: ws, p_kind: "enrich_backfill", p_key: `bf:${r.last}`, p_payload: { ...job.payload, after: r.last }, p_delay_s: 30, p_max_attempts: 3 });

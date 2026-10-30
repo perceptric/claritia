@@ -1,4 +1,5 @@
 import { briefDomains, claudeDrafter, draftSteps, stepEmail } from "@/lib/nurture/draft";
+import { rpcOr } from "@/lib/rpcCompat";
 import { requireUser } from "@/lib/serverAuth";
 import { serviceClient } from "@/lib/serviceClient";
 
@@ -14,10 +15,13 @@ export async function POST(request: Request) {
   const body = (await request.json().catch(() => ({}))) as { nurtureId?: unknown; count?: unknown; stepId?: unknown };
   const id = typeof body.nurtureId === "string" && /^[0-9a-f-]{36}$/.test(body.nurtureId) ? body.nurtureId : "";
   // Read through the person's own client: no row means not their workspace.
-  const { data: n } = await auth.sb.from("nurtures").select("id, workspace_id, brief, status, workspaces(name)").eq("id", id).maybeSingle();
+  // The nurture and its steps, read together (both through the person's own client).
+  const [{ data: n }, { data: steps }] = await Promise.all([
+    auth.sb.from("nurtures").select("id, workspace_id, brief, status, workspaces(name)").eq("id", id).maybeSingle(),
+    auth.sb.from("nurture_steps").select("id, position, wait_days, emails(subject, text)").eq("nurture_id", id).order("position"),
+  ]);
   if (!n) return Response.json({ error: "Nurture not found." }, { status: 404 });
   if (n.brief.trim().length < 40) return Response.json({ error: "Write a brief first: who it's for, what you offer, and what's true about it." }, { status: 400 });
-  const { data: steps } = await auth.sb.from("nurture_steps").select("id, position, wait_days, emails(subject, text)").eq("nurture_id", id).order("position");
   const list = (steps ?? []) as unknown as { id: string; position: number; wait_days: number; emails: { subject: string; text: string } }[];
   const stepId = typeof body.stepId === "string" ? body.stepId : null;
   const target = stepId ? list.find((s) => s.id === stepId) : null;
@@ -37,25 +41,22 @@ export async function POST(request: Request) {
       count,
       replace: target ? target.position : null,
     });
-    const saved: string[] = [];
-    for (const s of out.steps) {
+    const rows = out.steps.map((s) => {
       const e = stepEmail(s);
-      const { data, error } = await auth.sb.rpc("nurture_step_save", {
-        p_nurture: id,
-        p_step: target?.id ?? null,
-        p_wait_days: target ? target.wait_days : s.wait_days,
-        p_subject: s.subject,
-        p_preheader: s.preheader,
-        p_html: e.html,
-        p_text: e.text,
-        p_links: e.links,
-        p_ai: true,
-        p_notes: s.review_notes,
-      });
-      if (error) return Response.json({ error: error.message }, { status: 400 });
-      saved.push(data as string);
-    }
-    return Response.json({ ok: true, steps: saved, cached: out.cached });
+      return { wait_days: target ? target.wait_days : s.wait_days, subject: s.subject, preheader: s.preheader, html: e.html, text: e.text, links: e.links, notes: s.review_notes };
+    });
+    // Every step in one call, all or none (nurture_steps_save, 088); one call per step before that migration.
+    const saved = await rpcOr<string[]>((fn, args) => auth.sb.rpc(fn, args), "nurture_steps_save", { p_nurture: id, p_step: target?.id ?? null, p_steps: rows }, async () => {
+      const ids: string[] = [];
+      for (const r of rows) {
+        const { data, error } = await auth.sb.rpc("nurture_step_save", { p_nurture: id, p_step: target?.id ?? null, p_wait_days: r.wait_days, p_subject: r.subject, p_preheader: r.preheader, p_html: r.html, p_text: r.text, p_links: r.links, p_ai: true, p_notes: r.notes });
+        if (error) return { data: null, error };
+        ids.push(data as string);
+      }
+      return { data: ids, error: null };
+    });
+    if (saved.error) return Response.json({ error: saved.error.message }, { status: 400 });
+    return Response.json({ ok: true, steps: saved.data ?? [], cached: out.cached });
   } catch (e) {
     return Response.json({ error: (e as Error).message }, { status: 502 });
   }

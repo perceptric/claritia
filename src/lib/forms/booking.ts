@@ -8,6 +8,7 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import type { Rpc } from "../jobs.ts";
 import { book, offer } from "../meetings/server.ts";
+import type { LiveRouter } from "../router/server.ts";
 import { DEFAULT_SETTINGS, type MeetingType, type Slot } from "../meetings/types.ts";
 import type { Booked, Booking } from "./calendar.ts";
 
@@ -78,23 +79,24 @@ function shownHost(t: MeetingType, slots: Slot[]): string | undefined {
   return all.size === 1 ? [...all][0] : undefined;
 }
 
-async function times(rpc: Rpc, ctx: FillCtx, owner: string | null, length: number | undefined, now: number) {
+async function times(rpc: Rpc, ctx: FillCtx, owner: string | null, length: number | undefined, now: number, live?: LiveRouter | null) {
   const t = ctx.type!;
   const lengths = t.settings.lengths;
   const len = length !== undefined && lengths.includes(length) ? length : lengths[0]!;
-  const o = await offer(rpc, { ws: ctx.workspace_id, type: t, length: len, now, owner });
+  const o = await offer(rpc, { ws: ctx.workspace_id, type: t, length: len, now, owner, live });
   return { slots: o.slots.map((s) => s.start), lengths, length: len, host: hostView(ctx, shownHost(t, o.slots)) };
 }
 
 /**
  * Times for a fill that books with Claritia calendar, or null when there are none to show (no calendar connected,
- * no free time, the type gone): the form then shows its message. Marks the times shown the first time.
+ * no free time, the type gone): the form then shows its message. Marks the times shown the first time. `live` is the
+ * router the send already read for routing, so a team type doesn't read it again.
  */
-export async function offerForFill(rpc: Rpc, o: { submission: string; typeId: string; secret: string; now?: number; clock?: number }): Promise<Booking | null> {
+export async function offerForFill(rpc: Rpc, o: { submission: string; typeId: string; secret: string; now?: number; clock?: number; live?: LiveRouter | null }): Promise<Booking | null> {
   const now = o.now ?? Date.now();
   const ctx = await fillCtx(rpc, o.submission, o.typeId);
   if (!ctx?.type || !ctx.contact_id || ctx.spam || !ctx.email) return null;
-  const r = await times(rpc, ctx, ctx.owner, undefined, now);
+  const r = await times(rpc, ctx, ctx.owner, undefined, now, o.live);
   if (!r.slots.length) return null;
   const { data, error } = await rpc("form_booking_shown", { p_submission: o.submission, p_type: o.typeId, p_owner: ctx.owner });
   if (error) throw new Error(error.message);

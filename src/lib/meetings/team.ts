@@ -6,7 +6,7 @@
 // picks and a job writes the run afterward with the same key. Server only.
 
 import { enqueueJob, type Rpc } from "../jobs.ts";
-import { liveRouter } from "../router/server.ts";
+import { liveRouterCached, type LiveRouter } from "../router/server.ts";
 import type { Queue } from "../router/types.ts";
 import { isOpen, pickHost, type Turns } from "./slots.ts";
 import type { MeetingType } from "./types.ts";
@@ -31,11 +31,13 @@ export async function within<T>(p: Promise<T>, ms: number): Promise<{ value: T }
 /**
  * A type's Routing team and the type with the team's members as hosts. With no live queue to read (no router, the
  * queue removed, the router slow or down) the type keeps the members saved with it, so times are still shown.
+ * `live` is the router this request already read (a form send routes first); else the short cache's
+ * (router/server.ts liveRouterCached).
  */
-export async function teamOf(rpc: Rpc, ws: string, type: MeetingType, ms = ROUTER_WAIT_MS): Promise<{ team: Team | null; type: MeetingType }> {
+export async function teamOf(rpc: Rpc, ws: string, type: MeetingType, ms = ROUTER_WAIT_MS, read?: LiveRouter | null): Promise<{ team: Team | null; type: MeetingType }> {
   const id = type.settings.team;
   if (!id || (type.kind !== "round_robin" && type.kind !== "owner_first")) return { team: null, type };
-  const live = await within(liveRouter(rpc, ws), ms);
+  const live = read !== undefined ? { value: read } : await within(liveRouterCached(rpc, ws), ms);
   const queue = live?.value?.body.queues.find((q) => q.id === id);
   if (!live?.value || !queue) return { team: null, type };
   const weights = queue.method === "weighted";

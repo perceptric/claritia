@@ -64,7 +64,9 @@ export async function runPull(o: RunOpts, sourceId: string, retryIds?: string[])
     }
     const r = await pull(d, o.budgetMs);
     for (const [object, c] of Object.entries(r.counts)) if (c.pulled || c.written || c.errors) await finish(o, d, object, "in", started, c, null);
-    const p = await push(d, { budgetMs: o.budgetMs });
+    // The push gets what's left of the round, so a pull and a push together stay within one budget.
+    const left = o.budgetMs === undefined ? undefined : Math.max(1_000, o.budgetMs - (Date.now() - started.getTime()));
+    const p = await push(d, { budgetMs: left });
     if (p.written || p.errors) await finish(o, d, "contacts", "out", started, p, null);
     if (!r.more && !p.more) await call(o.rpc, "source_ran", { p_id: sourceId, p_error: null });
     return { more: r.more || p.more };

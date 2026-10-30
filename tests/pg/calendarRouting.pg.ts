@@ -55,7 +55,9 @@ test("two guests confirming one start at once: one meeting, one run, the other g
   const [a, b] = await Promise.all([go(1), go(2)]);
   assert.equal([a, b].filter((r) => r.ok).length, 1);
   const lost = [a, b].find((r) => !r.ok)!;
-  assert.ok(!lost.ok && lost.error === "slot_taken" && lost.slots.every((x) => x.start !== TEN));
+  // The loser lost at the lock (slot_taken) or, when the winner finished first, at the offer (not_offered): the guest
+  // sees "That time was just taken." with fresh times either way.
+  assert.ok(!lost.ok && ["slot_taken", "not_offered"].includes(lost.error) && lost.slots.every((x) => x.start !== TEN), JSON.stringify(lost.ok ? lost : { error: lost.error, ten: lost.slots.some((x) => x.start === TEN) }));
   // Written at once, or (when the database is slow) by the job with the meeting's key, or both: still one run.
   const queued = await q(`select payload from jobs where workspace_id = $1 and kind = 'meeting_team_run'`, [s.ws]);
   for (const j of queued) await q(`select meeting_team_run($1, $2, $3, $4, $5, $6)`, [s.ws, j.payload.p_meeting, j.payload.p_contact, j.payload.p_queue, j.payload.p_owner, j.payload.p_version]);

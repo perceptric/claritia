@@ -17,19 +17,26 @@ async function owner(rpc: Rpc, a: Actor) {
 // Booking page -------------------------------------------------------------------------------------------------
 
 export async function bookingInfo(rpc: Rpc, a: Actor) {
-  await roleOf(rpc, a);
-  // The team's handle exists from the first visit.
+  // The role and the page, read together. The team's handle exists from the first visit: only when it doesn't yet
+  // is it made, and the page read again.
+  const [, info] = await Promise.all([roleOf(rpc, a), call<Record<string, unknown>>(rpc, "booking_page_info", { p_ws: a.ws, p_user: a.user }).catch((e: unknown) => e as Error)]);
+  if (info instanceof Error) throw info;
+  if (info?.team) return info;
   await call(rpc, "booking_slug_ensure", { p_ws: a.ws });
   return call<Record<string, unknown>>(rpc, "booking_page_info", { p_ws: a.ws, p_user: a.user });
 }
 
 /** Whether a handle is free for you (team: for the team), with what's wrong when it isn't. */
 export async function handleCheck(rpc: Rpc, a: Actor, raw: unknown, team: boolean): Promise<{ handle: string; free: boolean; problem: string | null }> {
-  await roleOf(rpc, a);
   const h = cleanHandle(String(raw ?? ""));
   const problem = handleProblem(h);
-  if (problem) return { handle: h, free: false, problem };
-  const free = await call<boolean>(rpc, "booking_handle_free", { p_handle: h, p_ws: a.ws, p_user: team ? null : a.user });
+  if (problem) {
+    await roleOf(rpc, a);
+    return { handle: h, free: false, problem };
+  }
+  // The role and whether the handle is free, read together; the role's refusal still wins.
+  const [, free] = await Promise.all([roleOf(rpc, a), call<boolean>(rpc, "booking_handle_free", { p_handle: h, p_ws: a.ws, p_user: team ? null : a.user }).catch((e: unknown) => e as Error)]);
+  if (free instanceof Error) throw free;
   return { handle: h, free, problem: free ? null : "That name is taken." };
 }
 

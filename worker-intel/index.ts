@@ -12,7 +12,7 @@
 import { createServer } from "node:http";
 import { hostname } from "node:os";
 import pg from "pg";
-import { jobLoop } from "../src/lib/jobs.ts";
+import { startLoops, Wake } from "../src/lib/jobs.ts";
 import { linkBase } from "../src/lib/email/render.ts";
 import { resendFromEnv } from "../src/lib/email/resend.ts";
 import { domainCheck, domainRemove, send } from "./jobs/email.ts";
@@ -45,7 +45,9 @@ if (!process.env.DATABASE_URL) {
 }
 
 const loops = Math.max(1, Number(process.env.CONCURRENCY || 4));
-const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL, max: loops + 2, statement_timeout: 30_000 });
+// Two connections a loop (a job can hold one while it calls the database through another), plus the timers.
+const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL, max: loops * 2 + 2, statement_timeout: 30_000, connectionTimeoutMillis: 10_000, idleTimeoutMillis: 60_000 });
+pool.on("error", (e) => log("pool error", { error: e.message }));
 const rpc = pgRpc(pool);
 const resend = resendFromEnv();
 const company = { ipinfoToken: process.env.IPINFO_TOKEN, ipinfoCompany: process.env.IPINFO_COMPANY === "1", coresignalKey: process.env.CORESIGNAL_API_KEY };
@@ -85,10 +87,10 @@ const handlers = {
   meeting_after: meetingAfter(rpc, meetings),
   meeting_book_later: meetingBookLater(rpc, meetings),
   form_not_booked: formNotBooked(rpc),
-  form_notify: formNotify(rpc, { mailer: meetings.mailer, base: meetings.base, from: meetings.from }),
+  form_notify: formNotify(rpc, { mailer: meetings.mailer, base: meetings.base, from: meetings.from, batcher: resend }),
   route: routeJob(rpc),
   meeting_team_run: meetingTeamRun(rpc),
-  router_alert: routerAlert(rpc, { mailer: meetings.mailer, base: meetings.base, from: meetings.from }),
+  router_alert: routerAlert(rpc, { mailer: meetings.mailer, base: meetings.base, from: meetings.from, batcher: resend }),
   router_sla: routerSla(rpc, { mailer: meetings.mailer, base: meetings.base, from: meetings.from }),
   calendar_refresh: calendarRefresh(rpc),
   calendar_watch: calendarWatch(rpc),
@@ -98,55 +100,109 @@ const handlers = {
 };
 const stop = new AbortController();
 const worker = `intel-${hostname()}-${process.pid}`;
+// Bulk kinds that run long: one at a time per worker, so two of them never take both of the shared loops.
+const kindMax = { import_file: 1, source_pull: 1, rebuild: 1, score_refresh: 1, enrich_backfill: 1, deliver_held: 1, segment_refresh: 1, import_undo: 1 };
+const reserved = Math.max(0, Math.min(Number(process.env.URGENT_LOOPS ?? 2), loops - 1));
 
-health({ ok: true, worker, kinds: Object.keys(handlers), loops });
-log("intel started", { worker, loops, secrets: !!process.env.SECRETS_KEY, resend: !!resend, ipinfo: !!company.ipinfoToken, coresignal: !!company.coresignalKey });
-const running = Array.from({ length: loops }, (_, i) => jobLoop({ rpc, worker: `${worker}-${i}`, handlers, leaseS: 120, idleMs: 1000, signal: stop.signal, log: (m) => log(m) }));
+health({ ok: true, worker, kinds: Object.keys(handlers), loops, reserved });
+log("intel started", { worker, loops, reserved, secrets: !!process.env.SECRETS_KEY, resend: !!resend, ipinfo: !!company.ipinfoToken, coresignal: !!company.coresignalKey });
 
-// The signals sweep: one instance at a time (session advisory lock), every 30 seconds.
-const sweep = setInterval(async () => {
-  const c = await pool.connect().catch(() => null);
-  if (!c) return;
+// enqueue_job NOTIFYs claritia_jobs when a job is ready now; idle loops wake at once. Without it (a pooler that drops
+// LISTEN, or while reconnecting) they look every second.
+const wake = new Wake();
+let listening = false;
+let listenFailures = 0;
+const listen = async (): Promise<void> => {
+  if (stop.signal.aborted) return;
+  const c = new pg.Client({ connectionString: process.env.DATABASE_URL, connectionTimeoutMillis: 10_000 });
+  let over = false;
+  const again = (e: Error) => {
+    if (over) return;
+    over = true;
+    listening = false;
+    log("job wake listener stopped", { error: e.message });
+    c.end().catch(() => {});
+    listenFailures++;
+    if (!stop.signal.aborted) setTimeout(() => void listen(), Math.min(30_000, 1000 * 2 ** Math.min(listenFailures, 5))).unref();
+  };
+  c.on("error", again);
+  c.on("end", () => again(new Error("The connection ended")));
+  c.on("notification", (n) => wake.ring(Number(n.payload ?? "")));
   try {
-    const got = (await c.query(`select pg_try_advisory_lock(hashtext('claritia:signals_sweep')) as ok`)).rows[0].ok;
-    if (!got) return;
-    try {
-      const n = await sweepSignals(pool);
-      if (n) log("signals sweep", { visits: n });
-    } finally {
-      await c.query(`select pg_advisory_unlock(hashtext('claritia:signals_sweep'))`);
-    }
+    await c.connect();
+    await c.query("listen claritia_jobs");
+    listening = true;
+    listenFailures = 0;
+    // Anything queued while the listener was down.
+    wake.ring();
+    stop.signal.addEventListener("abort", () => {
+      over = true;
+      void c.end().catch(() => {});
+    }, { once: true });
   } catch (e) {
-    log("signals sweep failed", { error: String((e as Error).message ?? e) });
-  } finally {
-    c.release();
+    again(e as Error);
   }
-}, 30_000);
+};
+void listen();
+// Idle loops wait 5 seconds when the listener is up, 1 second when it isn't.
+const running = startLoops({ rpc, worker, handlers, loops, reserved, kindMax, leaseS: 120, idleMs: () => (listening ? 5000 : 1000), wake, signal: stop.signal, log: (m) => log(m) });
+
+// Timers: each runs alone in this process (a slow one is skipped, not stacked) and on one worker at a time.
+const every = (name: string, ms: number, fn: () => Promise<void>) => {
+  let busy = false;
+  const tick = async () => {
+    if (busy || stop.signal.aborted) return;
+    busy = true;
+    try {
+      await fn();
+    } catch (e) {
+      log(`${name} failed`, { error: String((e as Error).message ?? e) });
+    } finally {
+      busy = false;
+    }
+  };
+  setTimeout(() => void tick(), 1000).unref();
+  return setInterval(() => void tick(), ms);
+};
+
+// Leases that ran out go back in line (recover_jobs takes its own lock, so one worker does it).
+const recover = every("job recovery", 30_000, async () => {
+  const { data, error } = await rpc("recover_jobs", {});
+  if (error) throw new Error(error.message);
+  if (Number(data)) log("jobs recovered", { jobs: Number(data) });
+});
+
+// The signals sweep, every 30 seconds: it looks first (no connection held), and only then takes the sweep's lock
+// inside its own transaction (worker-intel/jobs/signals.ts).
+const sweep = every("signals sweep", 30_000, async () => {
+  const n = await sweepSignals(pool);
+  if (n) log("signals sweep", { visits: n });
+});
 
 // Old import files: once an hour, one instance at a time.
-const prune = setInterval(async () => {
+const prune = every("import prune", 3_600_000, async () => {
   if (!process.env.SUPABASE_URL) return;
-  const c = await pool.connect().catch(() => null);
-  if (!c) return;
+  const c = await pool.connect();
   try {
-    const got = (await c.query(`select pg_try_advisory_lock(hashtext('claritia:import_prune')) as ok`)).rows[0].ok;
-    if (!got) return;
-    try {
+    await c.query("begin");
+    const got = (await c.query(`select pg_try_advisory_xact_lock(hashtext('claritia:import_prune')) as ok`)).rows[0].ok;
+    if (got) {
       const n = await pruneImportFiles(rpc);
       if (n) log("import files pruned", { files: n });
-    } finally {
-      await c.query(`select pg_advisory_unlock(hashtext('claritia:import_prune'))`);
     }
+    await c.query("commit");
   } catch (e) {
-    log("import prune failed", { error: String((e as Error).message ?? e) });
+    await c.query("rollback").catch(() => {});
+    throw e;
   } finally {
     c.release();
   }
-}, 3_600_000);
+});
 
 const shutdown = async (sig: string) => {
   log("stopping", { sig });
   stop.abort();
+  clearInterval(recover);
   clearInterval(sweep);
   clearInterval(prune);
   await Promise.race([Promise.all(running), new Promise((r) => setTimeout(r, 25_000))]);

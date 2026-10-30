@@ -7,7 +7,7 @@ import { after, test } from "node:test";
 import pg from "pg";
 import { checkGuest } from "../../src/lib/meetings/guest.ts";
 import { handlePayEvent, startCheckout, type PayEvent, type PayStripe } from "../../src/lib/meetings/pay.ts";
-import { bookOneOff, bookType, cancelByGuest, checkLink, guestSlots, loadLink, loadMeeting, loadTarget, oneOffSlots, pollBookWinner, pollVote, preferredSlots, reschedule, rescheduleSlots } from "../../src/lib/meetings/public.ts";
+import { bookOneOff, bookType, cancelByGuest, checkLink, guestSlots, loadLink, loadMeeting, loadTarget, oneOffSlots, pollBookWinner, pollView, pollVote, preferredSlots, reschedule, rescheduleSlots } from "../../src/lib/meetings/public.ts";
 import { at } from "../../src/lib/meetings/time.ts";
 import { DEFAULT_AVAILABILITY, DEFAULT_SETTINGS, type Kind, type MeetingType } from "../../src/lib/meetings/types.ts";
 import { pgRpc } from "../../worker-intel/rpc.ts";
@@ -200,7 +200,11 @@ test("the guest cancels with a reason: the calendar cancel is queued once, and a
   const r = await bookType(rpc, { ws, type: t, length: 30, start: NY("10:00"), guest: guest(), source: "page", payReady: false, liveBusy: none, now: NOW });
   assert.ok(r.ok);
   const view = (await loadMeeting(rpc, { token: r.token }))!;
-  assert.deepEqual(await cancelByGuest(rpc, { view, reason: "Found a time with the team", now: NOW }), { ok: true });
+  const canceled = await cancelByGuest(rpc, { view, reason: "Found a time with the team", now: NOW });
+  assert.equal(canceled.ok, true);
+  // The cancel answers with the meeting as it is now (meeting_cancel_guest, 090).
+  assert.ok(canceled.ok && canceled.view);
+  assert.deepEqual([canceled.view.meeting.status, canceled.view.meeting.cancel_reason], ["canceled", "Found a time with the team"]);
   const m = (await q(`select status, cancel_reason from meetings where id = $1`, [r.meetingId]))[0];
   assert.equal(m.status, "canceled");
   assert.equal(m.cancel_reason, "Found a time with the team");
@@ -296,9 +300,13 @@ test("polls: guests vote on several times; a winner that's no longer free is ref
   const made = checkLink({ kind: "poll", title: "Planning", offered: [{ start: NY("09:00") }, { start: NY("10:00") }, { start: NY("14:00") }], length: 30 }, { owner: users[0]!, type: null, now: NOW });
   assert.ok("row" in made);
   const linkId = (await q(`insert into meeting_links (workspace_id, kind, owner_user_id, title, offered, length_min, token_hash) values ($1, 'poll', $2, 'Planning', $3, 30, $4) returning id`, [ws, users[0], JSON.stringify(made.row.offered), made.row.token_hash]))[0].id;
-  assert.deepEqual(await pollVote(rpc, made.token, { email: "a@x.io", name: "Ana", picks: [NY("09:00"), NY("10:00")] }), { ok: true });
-  assert.deepEqual(await pollVote(rpc, made.token, { email: "b@x.io", name: "Ben", picks: [NY("10:00")] }), { ok: true });
-  assert.deepEqual(await pollVote(rpc, made.token, { email: "b@x.io", name: "Ben", picks: [NY("10:00"), NY("14:00")] }), { ok: true }, "voting again replaces the vote");
+  const okOnly = (r: Awaited<ReturnType<typeof pollVote>>) => ({ ok: r.ok });
+  assert.deepEqual(okOnly(await pollVote(rpc, made.token, { email: "a@x.io", name: "Ana", picks: [NY("09:00"), NY("10:00")] })), { ok: true });
+  const ben = await pollVote(rpc, made.token, { email: "b@x.io", name: "Ben", picks: [NY("10:00")] });
+  // The vote answers with the poll as it is now (poll_vote_view, 090): both votes are in it.
+  assert.ok(ben.ok && ben.view);
+  assert.deepEqual(pollView(ben.view, NOW).times.find((t) => t.start === NY("10:00"))?.n, 2);
+  assert.deepEqual(okOnly(await pollVote(rpc, made.token, { email: "b@x.io", name: "Ben", picks: [NY("10:00"), NY("14:00")] })), { ok: true }, "voting again replaces the vote");
   assert.deepEqual(await pollVote(rpc, made.token, { email: "c@x.io", name: "Cy", picks: [NY("12:00")] }), { ok: false, error: "bad_pick" });
   const guestView = (await loadLink(rpc, { token: made.token }))!;
   assert.equal(guestView.voters, 2, "guests see a count, not who voted");

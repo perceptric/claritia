@@ -17,7 +17,12 @@ export async function POST(request: Request) {
   if (!body.form || typeof body.form !== "object") return bad("Nothing to save.");
   const sb = serviceClient();
   if (!sb) return bad("The server is not set up for this.", 500);
-  const ctx = await cleaningCtx(sb, ws);
+  const editing = typeof body.id === "string" && /^[0-9a-f-]{36}$/.test(body.id) ? body.id : null;
+  // The cleaning facts, and (for an edit) that the contact is in this workspace, read together.
+  const [ctx, owned] = await Promise.all([
+    cleaningCtx(sb, ws),
+    editing ? sb.from("contacts").select("id").eq("id", editing).eq("workspace_id", ws).is("deleted_at", null).maybeSingle() : null,
+  ]);
 
   if (body.id === undefined) {
     const made = newContact(body.form, ctx.custom, ctx);
@@ -32,12 +37,10 @@ export async function POST(request: Request) {
     }
   }
 
-  if (typeof body.id !== "string" || !/^[0-9a-f-]{36}$/.test(body.id)) return bad("Contact not found.", 404);
-  const owned = await sb.from("contacts").select("id").eq("id", body.id).eq("workspace_id", ws).is("deleted_at", null).maybeSingle();
-  if (!owned.data) return bad("Contact not found.", 404);
+  if (!editing || !owned?.data) return bad("Contact not found.", 404);
   const r = formValues(body.form, ctx.custom, ctx);
   if ("error" in r) return bad(r.error);
-  const { error } = await sb.rpc("contact_update", { p_id: body.id, p_source: "manual", p_values: r.values });
+  const { error } = await sb.rpc("contact_update", { p_id: editing, p_source: "manual", p_values: r.values });
   if (error) return bad(error.message);
-  return Response.json({ id: body.id });
+  return Response.json({ id: editing });
 }

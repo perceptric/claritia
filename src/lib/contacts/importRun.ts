@@ -1,6 +1,8 @@
 // One import run, the same in the web app (small files) and the import_file job (big files): rows in pages of
 // 5,000, each page's unsubscribes and bounces written before its contacts, progress saved after each page. A
-// restart passes `skip` (rows already done) and reads on from there; repeating a page changes nothing.
+// restart passes `skip` (rows already done) and reads on from there; repeating a page changes nothing. A restart
+// that could open the file at the byte after those rows passes `start` too, so they aren't read again. `over` ends
+// the run after a page (a time budget): it returns `more` and the job queues the rest.
 
 import { toCsv } from "./csv.ts";
 import { mappingError, prepareImport, type ContactInput, type Ctx, type Mapping, type RowError, type Suppression } from "./import.ts";
@@ -14,6 +16,10 @@ export type RunDeps = {
   ctx: Ctx;
   /** Data rows already done by an earlier attempt. */
   skip?: number;
+  /** Data rows before the first one `rows` gives (the file was opened past them). */
+  start?: number;
+  /** Checked after each page: true stops the run there, with `more`. */
+  over?: () => boolean;
   write: (contacts: ContactInput[]) => Promise<void>;
   suppress: (rows: Suppression[]) => Promise<void>;
   /** Called after each page with rows done and the totals so far. */
@@ -27,13 +33,13 @@ export type RunDeps = {
 
 export const emptyTotals = (): Totals => ({ rows: 0, merged: 0, no_basis: 0, suppressed: 0, skipped: { missing_email: 0, invalid_email: 0, disposable: 0 } });
 
-export async function runImport(d: RunDeps): Promise<{ totals: Totals; errors: RowError[]; header: string[] }> {
+export async function runImport(d: RunDeps): Promise<{ totals: Totals; errors: RowError[]; header: string[]; more?: boolean; done: number }> {
   const page = d.page ?? 5000;
   const skip = d.skip ?? 0;
   const totals: Totals = d.initial ? structuredClone(d.initial) : emptyTotals();
   const errors: RowError[] = [];
   let header: string[] | null = null;
-  let seen = 0;
+  let seen = Math.min(d.start ?? 0, skip);
   let chunk: string[][] = [];
   let firstRow = skip + 2;
 
@@ -67,11 +73,14 @@ export async function runImport(d: RunDeps): Promise<{ totals: Totals; errors: R
     if (d.maxRows && seen > d.maxRows) throw new Error(`Up to ${d.maxRows.toLocaleString("en-US")} rows at a time.`);
     if (seen <= skip) continue;
     chunk.push(row);
-    if (chunk.length >= page) await flush();
+    if (chunk.length >= page) {
+      await flush();
+      if (d.over?.()) return { totals, errors, header: header!, more: true, done: seen };
+    }
   }
   await flush();
   if (!header) throw new Error("The file is empty.");
-  return { totals, errors, header };
+  return { totals, errors, header, done: seen };
 }
 
 /** The rows that didn't come in, with their reason, as a CSV to download. */
