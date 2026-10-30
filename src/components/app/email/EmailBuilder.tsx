@@ -21,27 +21,24 @@ import { readSystem, type DesignSystem } from "@/lib/design/model";
 import { CLIENT_LABEL, type Client } from "@/lib/design/props";
 import { Select } from "../Select";
 import { cleanTokens } from "@/lib/forms/brand";
-import { ArrowDown, ArrowUp, Copy, FileText, Monitor, Moon, Phone, Redo, Send, Sun, Trash, Undo, X } from "../../Icons";
-import { askConfirm, askLines, tell } from "../Dialogs";
+import { ArrowDown, ArrowUp, Copy, Monitor, Moon, Phone, Redo, Send, Sun, Trash, Undo, X } from "../../Icons";
+import { askLines, tell } from "../Dialogs";
 import { importAny } from "@/lib/design/email/import";
-import { EMAIL_TEMPLATES, TEMPLATE_FOLDERS } from "@/lib/design/email/templates";
 import { Button, ErrorNote, IconButton, postJson, errorText } from "../ui";
-import { VariablesPanel } from "../forms/DesignPanels";
 import { fontUrl } from "../forms/editorModel";
-import { CheckSquare, Diamond, ElementIcon, Layers, PlusSquare } from "../forms/icons";
+import { ElementIcon, Layers, PlusSquare } from "../forms/icons";
 import type { Kit } from "../forms/shared";
 import { useDesignDraft } from "../forms/useDesignDraft";
 import { BlockSettings } from "./BlockSettings";
 import { AiPanel } from "./AiPanel";
 import { Versions } from "./Versions";
 import { AiMark } from "../Ai";
-import { CheckList } from "./CheckList";
 import { checkEmailDesign } from "@/lib/design/check";
 import { EmailCanvas } from "./EmailCanvas";
 import { EmailStylePanel } from "./EmailStyle";
 
 type Snap = { doc: EmailDoc; system: DesignSystem };
-type Rail = "add" | "templates" | "layers" | "variables" | "checks";
+type Rail = "add" | "layers";
 
 const BLOCKS: { type: BlockType; label: string; icon: string }[] = [
   { type: "heading", label: "Heading", icon: "heading" },
@@ -268,10 +265,7 @@ export function EmailBuilder({
 
   const rails: { id: Rail; label: string; icon: React.ReactNode }[] = [
     { id: "add", label: "Add", icon: <PlusSquare size={16} /> },
-    { id: "templates", label: "Templates", icon: <FileText size={16} /> },
     { id: "layers", label: "Layers", icon: <Layers size={16} /> },
-    { id: "variables", label: "Variables", icon: <Diamond size={16} /> },
-    { id: "checks", label: "Checks", icon: <CheckSquare size={16} /> },
   ];
   const width = device === "phone" ? 390 : doc.settings.width + 64;
   const checks = useMemo(() => {
@@ -364,9 +358,8 @@ export function EmailBuilder({
       <div className="grid min-h-0 flex-1 grid-cols-[44px_248px_minmax(0,1fr)_300px]">
         <nav aria-label="Panels" className="flex flex-col items-center gap-1 border-r border-line bg-card py-2">
           {rails.map((r) => (
-            <button key={r.id} type="button" aria-label={r.id === "checks" && checks.length ? `${r.label}, ${checks.length}` : r.label} title={r.label} aria-pressed={rail === r.id} onClick={() => setRail(r.id)} className={`press relative flex size-8 items-center justify-center rounded-full transition-colors duration-[140ms] ${rail === r.id ? "bg-ink text-paper" : "text-muted hover:bg-hover hover:text-ink"}`}>
+            <button key={r.id} type="button" aria-label={r.label} title={r.label} aria-pressed={rail === r.id} onClick={() => setRail(r.id)} className={`press relative flex size-8 items-center justify-center rounded-full transition-colors duration-[140ms] ${rail === r.id ? "bg-ink text-paper" : "text-muted hover:bg-hover hover:text-ink"}`}>
               {r.icon}
-              {r.id === "checks" && checks.length ? <span aria-hidden="true" className="absolute top-0.5 right-0.5 size-2 rounded-full bg-butter" /> : null}
             </button>
           ))}
         </nav>
@@ -415,48 +408,6 @@ export function EmailBuilder({
               </>
             ) : null}
             {rail === "layers" ? <LayerList doc={doc} selected={sel} onSelect={(id) => (setSelected(id), setPart(null))} onNudge={nudge} onDuplicate={duplicate} onRemove={remove} /> : null}
-            {rail === "templates" ? (
-              <div className="flex flex-col gap-3 p-3">
-                {TEMPLATE_FOLDERS.map((g) => (
-                  <div key={g} className="flex flex-col gap-1">
-                    <p className="text-[12px] font-medium text-muted">{g}</p>
-                    {EMAIL_TEMPLATES.filter((t) => t.group === g).map((t) => (
-                      <button
-                        key={t.key}
-                        type="button"
-                        onClick={async () => {
-                          if (!(await askConfirm(`Start from ${t.name}?`, { body: "It takes the place of this email. Undo brings it back.", ok: "Use template" }))) return;
-                          apply({ doc: { ...t.make(), ...(latest.current.kitId ? { kitId: latest.current.kitId } : {}) } });
-                          setSelected(null);
-                        }}
-                        className="press flex h-8 items-center rounded-lg border border-line bg-card px-3 text-left text-[12.5px] text-ink hover:border-line-strong hover:shadow-soft"
-                      >
-                        {t.name}
-                      </button>
-                    ))}
-                  </div>
-                ))}
-              </div>
-            ) : null}
-            {rail === "checks" ? (
-              <CheckList
-                notes={checks}
-                onPick={(id) => {
-                  setSelected(id && findEl(doc, id) ? id : null);
-                  setSide("settings");
-                }}
-              />
-            ) : null}
-            {rail === "variables" ? (
-              <VariablesPanel
-                e={{ system, design: {} }}
-                tokens={tokens}
-                hasKit={!!kit}
-                onEdit={(e, m) => apply({ system: e.system }, m)}
-                onTheme={() => setError("Change the brand kit's colors and fonts in a form's Theme panel.")}
-                live={{ changed: stylesChanged, publish: publishStyles, openGuide: () => setRail("add") }}
-              />
-            ) : null}
           </div>
         </aside>
         <EmailCanvas

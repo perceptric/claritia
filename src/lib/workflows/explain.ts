@@ -43,7 +43,7 @@ export function triggerWords(t: Trigger, n: Names = {}): string {
   }
 }
 
-const EVENT_WORDS: Record<string, string> = { "meeting.booked": "they book a meeting", "email.clicked": "they click an email", "form.submitted": "they send a form", "lead.outcome": "qualify decides", "segment.entered": "they join a segment", "product.used": "they do something in the product" };
+const EVENT_WORDS: Record<string, string> = { "meeting.booked": "a booked meeting", "email.clicked": "a click on an email", "form.submitted": "a form", "lead.outcome": "qualify to decide", "segment.entered": "them to join a segment", "product.used": "something in the product" };
 
 export function waitWords(s: Extract<Step, { kind: "wait" }>): string {
   const parts = [s.days ? plural(s.days, "day") : "", s.hours ? plural(s.hours, "hour") : ""].filter(Boolean);
