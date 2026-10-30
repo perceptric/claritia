@@ -205,11 +205,19 @@ begin
       select s.id, s.device_id, s.started_at, s.ended_at, s.country, s.city, s.ref_class, s.source, s.referrer_host, s.device_type, s.policy,
              s.account_id, a.name as account_name, a.domain as account_domain, s.account_source,
              s.person_id, p.primary_email as person_email, s.person_level, s.pageviews, s.engaged_s,
-             coalesce((select array_agg(x.path order by x.server_at) from (select e.path, e.server_at from events e where e.session_id = s.id and e.kind = 'view' order by e.server_at limit 12) x), '{}') as pages,
-             coalesce((select array_agg(x.server_at order by x.server_at) from (select e.server_at from events e where e.session_id = s.id and e.kind = 'view' order by e.server_at limit 12) x), '{}') as page_times
+             coalesce(pv.pages, '{}') as pages,
+             coalesce(pv.page_times, '{}') as page_times
       from sessions s
       left join accounts a on a.id = s.account_id
       left join persons p on p.id = s.person_id
+      -- Only the session's own day tables, padded by one (as visitors_live in 086).
+      left join lateral (
+        select array_agg(x.path order by x.server_at) as pages, array_agg(x.server_at order by x.server_at) as page_times
+        from (select e.path, e.server_at from events e
+              where e.session_id = s.id and e.kind = 'view'
+                and e.day >= (s.started_at at time zone 'UTC')::date - 1 and e.day <= (s.ended_at at time zone 'UTC')::date + 1
+              order by e.server_at limit 12) x
+      ) pv on true
       where s.workspace_id = p_ws and s.started_at > now() - interval '24 hours' and greatest(s.started_at, coalesce(s.ended_at, s.started_at)) > p_since
         and not s.is_bot and not s.internal
       order by s.started_at desc
@@ -317,3 +325,6 @@ begin
   end loop;
 end;
 $$;
+
+-- Planning over the day tables costs more than the read (as visitors_live in 086).
+alter function public.visitors_live_since(uuid, timestamptz, int) set jit = off;
