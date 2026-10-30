@@ -216,6 +216,111 @@ export const TEMPLATES: Template[] = [
   },
 ];
 
+const opts = (list: string[]) => list.map((v) => ({ value: v, label: v }));
+
+/**
+ * The six cards in the New form dialog: a name, a few words and how many questions. `book` forms book a call after
+ * the submit; the dialog adds the workspace's meeting type when it has one.
+ */
+export type Starter = { key: string; name: string; text: string; questions: number; book?: boolean; form: () => Form };
+export const STARTERS: Starter[] = [
+  {
+    key: "demo",
+    name: "Demo request",
+    text: "Work email, company, size",
+    questions: 5,
+    form: () =>
+      base(
+        [
+          f({ key: "email", type: "email", label: "Work email", required: true, check: "work_email", placeholder: "name@company.com" }),
+          f({ key: "name", type: "text", label: "Full name", required: true }),
+          f({ key: "company", type: "text", label: "Company", required: true }),
+          f({ key: "q.company_size", type: "choice", label: "Company size", required: false, options: SIZES }),
+          f({ key: "q.looking_for", type: "textarea", label: "What are you looking for?", required: false }),
+        ],
+        { title: "Book a demo", submit: { label: "Book a demo", full: true }, after: { end: { kind: "message", title: "Thanks. We'll reach out within a day." } } },
+      ),
+  },
+  {
+    key: "contact",
+    name: "Contact us",
+    text: "Name, email, message",
+    questions: 4,
+    form: () =>
+      base(
+        [
+          f({ key: "name", type: "text", label: "Full name", required: true }),
+          f({ key: "email", type: "email", label: "Email", required: true }),
+          f({ key: "company", type: "text", label: "Company", required: false }),
+          f({ key: "q.message", type: "textarea", label: "How can we help?", required: true }),
+        ],
+        { title: "Contact us", submit: { label: "Send", full: true } },
+      ),
+  },
+  {
+    key: "audit",
+    name: "Free audit",
+    text: "Two steps, then book a call",
+    questions: 6,
+    book: true,
+    form: () => ({
+      ...base([]),
+      title: "Get your free audit",
+      steps: [
+        { id: newId(), title: "You", fields: [f({ key: "email", type: "email", label: "Work email", required: true, check: "work_email", placeholder: "name@company.com" }), f({ key: "name", type: "text", label: "Full name", required: true }), f({ key: "company", type: "text", label: "Company", required: true })] },
+        {
+          id: newId(),
+          title: "Your company",
+          fields: [
+            f({ key: "q.company_size", type: "choice", label: "Company size", required: true, options: SIZES }),
+            f({ key: "website", type: "url", label: "Website", required: false }),
+            f({ key: "q.goal", type: "textarea", label: "What should the audit look at?", required: false }),
+          ],
+        },
+      ],
+      submit: { label: "Get my audit", full: true },
+      after: { end: { kind: "message", title: "Thanks. We'll send your audit within two working days." } },
+    }),
+  },
+  {
+    key: "newsletter",
+    name: "Newsletter",
+    text: "Email and consent",
+    questions: 2,
+    form: () =>
+      base([f({ key: "email", type: "email", label: "Email", required: true })], {
+        title: "Get the newsletter",
+        submit: { label: "Subscribe", full: true },
+        consent: { mode: "always", label: DEFAULT_CONSENT },
+        after: { end: { kind: "message", title: "You're subscribed." } },
+      }),
+  },
+  {
+    key: "event",
+    name: "Event signup",
+    text: "Name, role, session",
+    questions: 5,
+    form: () =>
+      base(
+        [
+          f({ key: "email", type: "email", label: "Work email", required: true }),
+          f({ key: "name", type: "text", label: "Full name", required: true }),
+          f({ key: "company", type: "text", label: "Company", required: false }),
+          f({ key: "title", type: "text", label: "Your role", required: false }),
+          f({ key: "q.session", type: "choice", label: "Which session?", required: true, options: opts(["Morning", "Afternoon"]) }),
+        ],
+        { title: "Save your seat", submit: { label: "Save my seat", full: true }, after: { end: { kind: "message", title: "You're in. The details are on their way." } } },
+      ),
+  },
+  {
+    key: "blank",
+    name: "Blank",
+    text: "Just an email",
+    questions: 1,
+    form: () => base([f({ key: "email", type: "email", label: "Work email", required: true, placeholder: "name@company.com" })], { title: "Untitled form", submit: { label: "Submit", full: true } }),
+  },
+];
+
 /** A captured form starts with the email field mapped to the usual name; the rest is mapped in the builder. */
 export function capturedForm(adapter: NonNullable<Form["capture"]>["adapter"] = "html"): Form {
   return {

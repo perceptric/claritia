@@ -36,6 +36,9 @@ export type Schedule = {
   prefill?: boolean;
 };
 
+/** who "routed": every lead Routing gives a rep, whichever rule (or the rep they already have) did it. */
+export const REP = "rep";
+
 export const WORK_EMAIL = "@work_email";
 /** The routed choices for leads no routing rule matched, and for leads kept with the rep they already have. */
 export const FALLBACK = "fallback";
@@ -55,6 +58,7 @@ export function routedBooks(s: Schedule, routed: RoutedAs): boolean {
   if (!routed) return true;
   if (routed.kind === "held") return false;
   const picked = s.routeRules ?? [];
+  if (picked.includes(REP) && routed.kind === "owner") return true;
   if (routed.rule) return picked.includes(routed.rule);
   if (routed.kind === "owner" && (routed.by === "account" || routed.by === "keep")) return picked.includes(OWNED);
   return picked.includes(FALLBACK);

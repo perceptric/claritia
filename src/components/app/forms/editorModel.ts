@@ -558,6 +558,11 @@ export function mergeKey(op: Op): string {
       .sort()
       .join()}`;
   if (op.op === "update_step") return `s:${op.index}`;
+  // Typing in a settings box (consent words, alert subject, auto-reply, thank-you) is one step too.
+  if (op.op === "set_consent" && op.label !== undefined && Object.keys(op).length === 2) return "consent:label";
+  if (op.op === "set_notify" && Object.keys(op.notify).every((k) => k === "subject")) return "notify:subject";
+  if (op.op === "set_reply" && Object.keys(op.reply).length === 1 && ("subject" in op.reply || "body" in op.reply)) return `reply:${Object.keys(op.reply)[0]}`;
+  if (op.op === "set_after") return `after:${op.end.kind}`;
   if (op.op === "set_rule" && op.rule.id) return `r:${op.rule.id}:${op.rule.when.field}:${op.rule.when.op}`;
   if (op.op === "set_design" && op.merge) return `d:${op.merge}`;
   if (op.op === "set_layout" && typeof op.maxWidth === "number" && !op.width && !op.labels && !op.progress) return "l:max";

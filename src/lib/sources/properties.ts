@@ -348,6 +348,17 @@ export type CrmSkip = { property: string; label: string; reason: string };
 const answered = (v: unknown) => v !== undefined && v !== null && v !== "" && !(Array.isArray(v) && !v.length);
 
 /**
+ * A pick's answer as the CRM's values, through the field's choice map: a mapped choice goes as its CRM value, one
+ * mapped to "" goes as nothing, and one the map doesn't name goes as itself.
+ */
+export function mapChoices(v: unknown, map: Record<string, string> | undefined): unknown {
+  if (!map) return v;
+  const one = (x: unknown) => (typeof x === "string" && Object.prototype.hasOwnProperty.call(map, x) ? map[x] : x);
+  if (Array.isArray(v)) return v.map(one).filter((x) => x !== "");
+  return one(v);
+}
+
+/**
  * The answers a fill sends to one CRM source: fields linked to a property on it, in the form's order. Two fields on
  * one property: the first in the form's order whose answer the property takes goes; the other is skipped and says so. `props` null means the list
  * couldn't be read; then nothing is skipped up front and the CRM's own answer decides.
@@ -360,7 +371,7 @@ export function crmPlan(form: Pick<Form, "steps">, values: Record<string, unknow
   const taken = new Map<string, string>();
   for (const f of allFields(form)) {
     if (isContent(f.type) || !f.crm || f.crm.source !== source) continue;
-    const v = values[f.key];
+    const v = mapChoices(values[f.key], f.crm.map);
     if (!answered(v)) continue;
     const label = f.crm.label || f.crm.property;
     const first = taken.get(f.crm.property);

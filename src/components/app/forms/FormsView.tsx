@@ -1,133 +1,153 @@
 "use client";
 
-// Forms (docs/form-studio.md, docs/forms-plan.md Part 7): the list, the new-form screen (/forms/new), and one form's
-// page. A form's page has five tabs, kept in the address as ?tab=: Build (the form as visitors see it, click a part to
-// edit it in the panel on the right, the AI bar under it), Submissions, Share (the embed code), Sync (where leads go)
-// and Settings (after the submit, team alerts, the auto-reply, consent, spam and security, data). The top bar holds
-// the name, status, undo and redo, Preview and Publish. Drafts save as you go; Publish makes the draft live.
+// Inbound › Forms (docs/forms-plan.md): the list, and one form's screen. A form's screen is a header (the crumb, the
+// name to type in, its state, Saved, undo, redo, Preview, the more menu and Publish) and five tabs with icons, kept in
+// the address as ?tab=: Build (the form as visitors see it, the 400 px panel and the AI bar), Submissions, Share, Sync
+// and Settings. Drafts save as you go; Publish checks the form first and makes the draft live.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { cleanTokens, type Tokens } from "@/lib/forms/brand";
 import { applyOp, type Op } from "@/lib/forms/ops";
-import { ADAPTERS, checkForm, emptyForm, type Form } from "@/lib/forms/schema";
-import { readSystem, type DesignSystem, type FormDesign } from "@/lib/design/model";
-
-type Snap = { form: Form; system: DesignSystem };
+import { allFields, checkForm, emptyForm, type Form } from "@/lib/forms/schema";
 import type { CustomField } from "@/lib/records/fields";
-import { Copy, Inbox, Pause, Play, Redo, Send, Trash, Undo } from "../../Icons";
-import { BrandLogo } from "../BrandLogo";
-import { askConfirm } from "../Dialogs";
-import { Badge, Button, Empty, ErrorNote, errorText, Loading, must, Page, postJson, setLeaveGuard, Tabs, useLoad, type ViewProps } from "../ui";
-import { Popover } from "./controls";
-import { AskBar, useFormChat } from "./FormChat";
-import { AutoReply, DataSettings, MoreSpam, TeamAlerts } from "./FormAlerts";
-import { Editor } from "./Editor";
-import type { ThemeProps } from "./FormDesign";
-import { FormDestinations } from "./FormDestinations";
-import { AfterSubmit, ConsentSettings, KnownSettings, SpamSettings } from "./FormSettings";
-import { mergeKey, type Device } from "./editorModel";
-import { FormChecks } from "./FormChecks";
-import { FormCreate } from "./FormCreate";
-import { FormHome } from "./FormHome";
-import { FormResults } from "./FormFields";
-import { ChevronDown } from "./icons";
+import { askConfirm, tell } from "../Dialogs";
+import { Badge, ErrorNote, errorText, Loading, must, postJson, setLeaveGuard, Tabs, useLoad, type ViewProps } from "../ui";
+import { useLiveBody } from "../routing/screenParts";
+import { Build, type Pick as Picked } from "./Build";
+import { mergeKey } from "./editorModel";
+import { useFormChat } from "./FormChat";
+import { FormHome, MADE_KEY } from "./FormHome";
+import { CONSENT_ID, publishChecks, questionsOf, rulesReading } from "./formModel";
+import { Ic } from "./ic";
+import { Menu } from "./Menu";
+import { BTN, Dialog, DialogHead, EYEBROW, GHOST, GHOST_SM, IB, useNote } from "./parts";
 import { PreviewOverlay } from "./PreviewOverlay";
-import { useDesignDraft } from "./useDesignDraft";
-import { copy, IconButton, STATUS, type Destination, type FormRow, type Kit, type SourceRow } from "./shared";
+import { Setup, type SetupSub } from "./Setup";
+import { Share } from "./Share";
+import type { Destination, FormRow, Kit, SourceRow } from "./shared";
+import { Submissions } from "./Submissions";
+import { Sync } from "./Sync";
+import { useCrm } from "./useCrm";
 
-
-/** Inbound › Forms: the list and the Overview as tabs; a new form and one form open as their own pages. */
 export function FormsView(props: ViewProps) {
-  if (props.id === "new") return <FormCreate key="new" {...props} />;
+  if (props.id === "new") return <FormHome key="new" {...props} startNew />;
   if (props.id && props.id !== "overview") return <FormPage key={props.id} {...props} />;
   return <FormHome {...props} />;
 }
 
+export type FormData = {
+  row: FormRow & { kind?: "built" | "captured" };
+  published: Form | null;
+  kits: Kit[];
+  sources: SourceRow[];
+  dests: Destination[];
+  custom: CustomField[];
+  site: string;
+  types: { id: string; name: string; active: boolean; settings?: { lengths?: number[] } }[];
+  subs: number;
+  failed: Record<string, number>;
+  pages: number;
+};
+
 function FormPage(props: ViewProps) {
   const { sb, ws, id } = props;
-  const data = useLoad(async () => {
-    const [f, kits, sources, dests, custom, sites] = await Promise.all([
-      sb.from("forms").select("id, name, status, draft, draft_rev, version, brand_kit_id, published_at").eq("id", id).maybeSingle(),
-      sb.from("brand_kits").select("id, name, tokens, logo_url, notes, source_url, scan_status, scan_error, scanned_at, design, design_live, design_rev").eq("workspace_id", ws.id).order("created_at"),
+  const data = useLoad(async (): Promise<FormData | { none: true }> => {
+    const [f, kits, sources, dests, custom, sites, types] = await Promise.all([
+      sb.from("forms").select("id, name, status, kind, draft, draft_rev, version, brand_kit_id, published_at").eq("id", id).maybeSingle(),
+      sb.from("brand_kits").select("id, name, tokens, logo_url, notes, source_url, scan_status, scan_error, scanned_at").eq("workspace_id", ws.id).order("created_at"),
       sb.from("sources").select("id, kind, name, status").eq("workspace_id", ws.id).order("name"),
       sb.from("form_destinations").select("id, kind, source_id, name, config, paused, position").eq("form_id", id).order("position"),
       sb.from("fields").select("key, label, type, options").eq("workspace_id", ws.id).eq("object", "contact").order("position"),
       sb.from("sites").select("domain").eq("workspace_id", ws.id).order("created_at").limit(1),
+      sb.from("meeting_types").select("id, name, active, settings").eq("workspace_id", ws.id).order("created_at"),
     ]);
-    const row = must(f) as FormRow | null;
-    const published = row?.version ? ((must(await sb.from("form_versions").select("body").eq("form_id", id).eq("version", row.version).maybeSingle()) as { body: Form } | null)?.body ?? null) : null;
-    const site = ((sites.data ?? []) as { domain: string }[])[0]?.domain ?? "";
-    return { row, published, kits: must(kits) as Kit[], sources: must(sources) as SourceRow[], dests: must(dests) as Destination[], custom: must(custom) as CustomField[], site };
+    const row = must(f) as FormData["row"] | null;
+    if (!row) return { none: true };
+    const list = (must(dests) ?? []) as Destination[];
+    const weekAgo = new Date(Date.now() - 7 * 86_400_000).toISOString();
+    const [published, subs, failed, pages] = await Promise.all([
+      row.version ? sb.from("form_versions").select("body").eq("form_id", id).eq("version", row.version).maybeSingle() : Promise.resolve({ data: null }),
+      sb.from("submissions").select("id", { count: "exact", head: true }).eq("form_id", id).eq("spam", false).eq("test", false),
+      list.length ? sb.from("deliveries").select("destination_id").in("destination_id", list.map((d) => d.id)).eq("status", "failed").gte("created_at", weekAgo).limit(500) : Promise.resolve({ data: [] }),
+      sb.from("submissions").select("hidden").eq("form_id", id).eq("test", false).eq("spam", false).gte("created_at", new Date(Date.now() - 30 * 86_400_000).toISOString()).limit(500),
+    ]);
+    const byDest: Record<string, number> = {};
+    for (const d of ((failed.data ?? []) as { destination_id: string }[])) byDest[d.destination_id] = (byDest[d.destination_id] ?? 0) + 1;
+    const pageSet = new Set(((pages.data ?? []) as { hidden: Record<string, string> | null }[]).map((s) => s.hidden?.page).filter((p): p is string => !!p && !/\/f\/[0-9a-f-]{36}/.test(p)));
+    return {
+      row,
+      published: ((published.data as { body: Form } | null)?.body ?? null),
+      kits: (must(kits) ?? []) as Kit[],
+      sources: (must(sources) ?? []) as SourceRow[],
+      dests: list,
+      custom: (must(custom) ?? []) as CustomField[],
+      site: ((sites.data ?? []) as { domain: string }[])[0]?.domain ?? "",
+      types: ((types.data ?? []) as FormData["types"]),
+      subs: subs.count ?? 0,
+      failed: byDest,
+      pages: pageSet.size,
+    };
   }, id);
-  if (data.error && !data.data) return <ErrorNote message={data.error} />;
-  if (!data.data)
-    return (
-      <Page title="Form" back={{ label: "Forms", onClick: () => props.navigate("forms") }}>
-        <Loading />
-      </Page>
-    );
-  if (!data.data.row) return <Empty title="Form not found" />;
-  return (
-    <Builder
-      {...props}
-      initial={data.data.row}
-      published={data.data.published}
-      kits={data.data.kits}
-      sources={data.data.sources}
-      dests={data.data.dests}
-      custom={data.data.custom}
-      site={data.data.site}
-      reload={data.reload}
-    />
-  );
+  if (data.error && !data.data) return <div className="p-[16px]"><ErrorNote message={data.error} /></div>;
+  if (!data.data) return <Loading />;
+  if ("none" in data.data) return <div className="p-[24px] text-muted">Form not found</div>;
+  return <Editor {...props} data={data.data} reload={data.reload} />;
 }
 
-/** Read and clear a one-time note the create screen left for this form. */
-function takeOnce(key: string): string | null {
-  try {
-    const v = sessionStorage.getItem(key);
-    sessionStorage.removeItem(key);
-    return v;
-  } catch {
-    return null;
-  }
+export type Tab = "build" | "submissions" | "share" | "sync" | "settings";
+const TABS: Tab[] = ["build", "submissions", "share", "sync", "settings"];
+/** The tab in ?tab=, with the old names opening their new homes. */
+function tabOf(search: string): Tab {
+  const t = new URLSearchParams(search).get("tab") ?? "";
+  if ((TABS as string[]).includes(t)) return t as Tab;
+  return t === "results" ? "submissions" : t === "connect" ? "sync" : "build";
 }
 
+type Saving = "saved" | "saving" | "offline";
 
-function Builder({
-  sb,
-  session,
-  ws,
-  role,
-  navigate,
-  initial,
-  published,
-  kits,
-  sources,
-  dests,
-  custom: loadedCustom,
-  site,
-  reload,
-}: ViewProps & { initial: FormRow; published: Form | null; kits: Kit[]; sources: SourceRow[]; dests: Destination[]; custom: CustomField[]; site: string; reload: () => void }) {
-  // Custom fields made from the Saves to picker join the list at once, without a reload.
-  const [added, setAdded] = useState<CustomField[]>([]);
-  const custom = useMemo(() => [...loadedCustom, ...added.filter((a) => !loadedCustom.some((c) => c.key === a.key))], [loadedCustom, added]);
+function Editor(props: ViewProps & { data: FormData; reload: () => void }) {
+  const { sb, session, ws, navigate, data, reload } = props;
+  const row = data.row;
   const start = useMemo(() => {
-    const d = initial.draft as Partial<Form>;
+    const d = row.draft as Partial<Form>;
     return d && Array.isArray(d.steps) ? (d as Form) : emptyForm();
-  }, [initial.draft]);
-  const [form, setForm] = useState<Form>(start);
-  const [name, setName] = useState(initial.name);
-  const [kitId, setKitId] = useState<string | null>(initial.brand_kit_id);
-  const [tokens, setTokens] = useState<Partial<Tokens>>(kits.find((k) => k.id === initial.brand_kit_id)?.tokens ?? {});
-  // One undo stack for the form and its design system's draft: a style edit is one step either way.
-  const [past, setPast] = useState<Snap[]>([]);
-  const [future, setFuture] = useState<Snap[]>([]);
-  const kit = kits.find((k) => k.id === kitId) ?? null;
-  const draft = useDesignDraft(session, ws.id, kit, tokens);
-  // One screen (docs/form-builder.md Part 4): the form, or its results over it. Settings open in sheets.
-  const [tab, setTabRaw] = useState<FormTab>(() => (typeof window === "undefined" ? "build" : tabOf(window.location.search)));
-  const setTab = (t: FormTab) => {
+  }, [row.draft]);
+  const [form, setFormState] = useState<Form>(start);
+  const [name, setName] = useState(row.name);
+  const [kitId, setKitId] = useState<string | null>(row.brand_kit_id);
+  const [custom, setCustom] = useState<CustomField[]>(data.custom);
+  const [past, setPast] = useState<Form[]>([]);
+  const [future, setFuture] = useState<Form[]>([]);
+  const [saving, setSaving] = useState<Saving>("saved");
+  const [error, setError] = useState("");
+  const [tab, setTabRaw] = useState<Tab>(() => (typeof window === "undefined" ? "build" : tabOf(window.location.search)));
+  const [sub, setSub] = useState<SetupSub>("after");
+  const [pick, setPick] = useState<Picked>(null);
+  const [step, setStep] = useState(0);
+  const [dialog, setDialog] = useState<"publish" | "versions" | null>(null);
+  const [menu, setMenu] = useState<HTMLElement | null>(null);
+  const [preview, setPreview] = useState(false);
+  // A form just made from a description says so once.
+  const [said, setSaid] = useState<{ words: string; undo?: boolean; err?: boolean } | null>(() => {
+    try {
+      if (typeof window !== "undefined" && sessionStorage.getItem(`${MADE_KEY}${row.id}`)) {
+        sessionStorage.removeItem(`${MADE_KEY}${row.id}`);
+        return { words: "Made from your words. Change anything here or below." };
+      }
+    } catch {}
+    return null;
+  });
+  const [fresh, setFresh] = useState<string[]>([]);
+  const [busy, setBusy] = useState(false);
+  const note = useNote();
+  const rev = useRef(row.draft_rev);
+  const dirty = useRef(false);
+  const latest = useRef(form);
+  const merge = useRef<{ key: string; at: number } | null>(null);
+  const crm = useCrm(data.sources, session, ws.id);
+  const live = useLiveBody(sb, ws.id);
+  const kit = data.kits.find((k) => k.id === kitId) ?? null;
+
+  const setTab = (t: Tab) => {
     setTabRaw(t);
     try {
       const u = new URL(window.location.href);
@@ -136,115 +156,61 @@ function Builder({
       history.replaceState(null, "", u);
     } catch {}
   };
-  const [sub, setSub] = useState<SettingsSub>("after");
-  const [device] = useState<Device>("desktop");
-  const [zoom] = useState<"fit" | number>("fit");
-  const [previewing, setPreviewing] = useState(false);
-  const [note] = useState(() => takeOnce(`claritia:form-note:${initial.id}`) ?? "");
-  const [saved, setSaved] = useState(true);
-  const [error, setError] = useState("");
-  const [problems, setProblems] = useState<string[]>([]);
-  const [busy, setBusy] = useState("");
-  const [watch, setWatch] = useState(0);
-  const rev = useRef(initial.draft_rev);
-  const dirty = useRef(false);
 
-  // The latest form, so two ops in a row (add a field, then move it) both land.
-  const latest = useRef(form);
   const put = (f: Form) => {
     latest.current = f;
-    setForm(f);
+    setFormState(f);
+    dirty.current = true;
+    setSaving("saving");
   };
-  // Several ops (a drop that also sets widths) are one step on the undo stack, and so is typing in one box.
-  const merge = useRef<{ key: string; at: number } | null>(null);
-  const apply = useCallback((input: Op | Op[]) => {
+
+  /** Apply ops as one undo step. Returns false when one can't apply (the reason shows in the AI bar's line). */
+  const apply = useCallback((input: Op | Op[], words?: string, changed: string[] = []): boolean => {
     const ops = Array.isArray(input) ? input : [input];
-    if (!ops.length) return;
+    if (!ops.length) return true;
     const cur = latest.current;
     let next = cur;
     for (const op of ops) {
       const r = applyOp(next, op);
-      if ("error" in r) return setError(r.error);
+      if ("error" in r) {
+        setSaid({ words: r.error, err: true });
+        return false;
+      }
       next = r.form;
     }
-    setError("");
-    const key = ops.length === 1 ? mergeKey(ops[0]) : "";
+    const key = ops.length === 1 ? mergeKey(ops[0]!) : "";
     const now = Date.now();
     const joins = !!key && merge.current?.key === key && now - merge.current.at < 1000;
     merge.current = key ? { key, at: now } : null;
-    if (!joins) setPast((p) => [...p.slice(-99), { form: cur, system: draft.current() }]);
+    if (!joins) setPast((p) => [...p.slice(-99), cur]);
     setFuture([]);
-    latest.current = next;
-    setForm(next);
-    setSaved(false);
-    dirty.current = true;
-  }, [draft]);
-  /** A style edit: the form's own styles and the design system's draft together, one undo step (typing in one box joins). */
-  const applyStyles = useCallback(
-    (edit: { system: DesignSystem; design: FormDesign }, mergeOn?: string) => {
-      const cur = latest.current;
-      const sys = draft.current();
-      const r = applyOp(cur, { op: "set_design", design: edit.design });
-      if ("error" in r) return setError(r.error);
-      const key = mergeOn ? `d:${mergeOn}` : "";
-      const now = Date.now();
-      const joins = !!key && merge.current?.key === key && now - merge.current.at < 1000;
-      merge.current = key ? { key, at: now } : null;
-      if (!joins) setPast((p) => [...p.slice(-99), { form: cur, system: sys }]);
-      setFuture([]);
-      if (JSON.stringify(r.form.design ?? {}) !== JSON.stringify(cur.design ?? {})) {
-        latest.current = r.form;
-        setForm(r.form);
-        setSaved(false);
-        dirty.current = true;
-      }
-      if (edit.system !== sys) draft.set(edit.system);
-    },
-    [draft],
-  );
-  /** A change to the design system alone (the style guide, the Styles and Variables panels). */
-  const applySystem = useCallback(
-    (system: DesignSystem, mergeOn?: string) => {
-      const key = mergeOn ? `d:${mergeOn}` : "";
-      const now = Date.now();
-      const joins = !!key && merge.current?.key === key && now - merge.current.at < 1000;
-      merge.current = key ? { key, at: now } : null;
-      if (!joins) setPast((p) => [...p.slice(-99), { form: latest.current, system: draft.current() }]);
-      setFuture([]);
-      draft.set(system);
-    },
-    [draft],
-  );
-  const restore = (snap: Snap) => {
-    put(snap.form);
-    if (snap.system && snap.system !== draft.current()) draft.set(snap.system);
-  };
+    put(next);
+    if (words) setSaid({ words, undo: true });
+    if (changed.length) {
+      setFresh(changed);
+      setTimeout(() => setFresh([]), 1900);
+    }
+    return true;
+  }, []);
   const undo = useCallback(() => {
     if (!past.length) return;
     merge.current = null;
-    setFuture((f) => [{ form, system: draft.current() }, ...f]);
-    restore(past[past.length - 1]);
+    setFuture((f) => [latest.current, ...f]);
+    put(past[past.length - 1]!);
     setPast((p) => p.slice(0, -1));
-    setSaved(false);
-    dirty.current = true;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [past, form, draft]);
+    setSaid({ words: "Undone" });
+  }, [past]);
   const redo = useCallback(() => {
     if (!future.length) return;
     merge.current = null;
-    setPast((p) => [...p, { form, system: draft.current() }]);
-    restore(future[0]);
+    setPast((p) => [...p, latest.current]);
+    put(future[0]!);
     setFuture((f) => f.slice(1));
-    setSaved(false);
-    dirty.current = true;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [future, form, draft]);
-
-  // Cmd+Z and Shift+Cmd+Z, except while typing in a field (the browser's own undo works there).
+    setSaid(null);
+  }, [future]);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      const typing = (e.target as HTMLElement)?.closest?.("input, textarea, [contenteditable]");
-      if (typing || !(e.metaKey || e.ctrlKey) || e.key.toLowerCase() !== "z") return;
+      if ((e.target as HTMLElement)?.closest?.("input, textarea, [contenteditable]") || !(e.metaKey || e.ctrlKey) || e.key.toLowerCase() !== "z") return;
       e.preventDefault();
       if (e.shiftKey) redo();
       else undo();
@@ -253,37 +219,38 @@ function Builder({
     return () => window.removeEventListener("keydown", onKey);
   }, [undo, redo]);
 
-  // Save the draft a moment after the last change.
+  // Save the draft a moment after the last change; when it doesn't go, keep it here and try again every 5 seconds.
   const save = useCallback(async () => {
     if (!dirty.current) return true;
     dirty.current = false;
+    const sent = latest.current;
     try {
-      rev.current = must(await sb.rpc("form_save", { p_id: initial.id, p_name: name, p_draft: form, p_rev: rev.current, p_brand_kit: kitId })) as number;
-      setSaved(true);
+      rev.current = must(await sb.rpc("form_save", { p_id: row.id, p_name: name, p_draft: sent, p_rev: rev.current, p_brand_kit: kitId })) as number;
+      if (!dirty.current) setSaving("saved");
       return true;
     } catch (e) {
       dirty.current = true;
-      setError(errorText(e));
+      const msg = errorText(e);
+      if (/fetch|network|failed to|timeout|load failed/i.test(msg)) setSaving("offline");
+      else {
+        setSaving("offline");
+        setError(msg);
+      }
       return false;
     }
-  }, [sb, initial.id, name, form, kitId]);
+  }, [sb, row.id, name, kitId]);
   useEffect(() => {
-    if (saved) return;
-    const t = setTimeout(() => void save(), 800);
+    if (saving !== "saving") return;
+    const t = setTimeout(() => void save(), 700);
     return () => clearTimeout(t);
-  }, [saved, save, form, name, kitId]);
-  // A theme not saved to a kit yet asks before it's left behind.
-  const themeDirty = useRef(false);
+  }, [saving, save, form, name, kitId]);
   useEffect(() => {
-    const kitTokens = kits.find((k) => k.id === kitId)?.tokens ?? {};
-    themeDirty.current = JSON.stringify(cleanTokens(tokens).tokens) !== JSON.stringify(cleanTokens(kitTokens).tokens);
-  }, [tokens, kits, kitId]);
+    if (saving !== "offline") return;
+    const t = setInterval(() => void save(), 5000);
+    return () => clearInterval(t);
+  }, [saving, save]);
   useEffect(() => {
-    setLeaveGuard(async () => {
-      const ok = (!dirty.current || (await save())) && (await draft.flush());
-      if (!ok && !(await askConfirm("Leave without saving?", { ok: "Leave", danger: true }))) return false;
-      return themeDirty.current ? askConfirm("Leave without saving the theme?", { ok: "Leave", danger: true }) : true;
-    });
+    setLeaveGuard(async () => (!dirty.current || (await save()) ? true : askConfirm("Leave without saving?", { ok: "Leave", danger: true })));
     const before = (e: BeforeUnloadEvent) => {
       if (dirty.current) e.preventDefault();
     };
@@ -292,539 +259,384 @@ function Builder({
       setLeaveGuard(null);
       window.removeEventListener("beforeunload", before);
     };
-  }, [save, draft]);
-
+  }, [save]);
+  const rename = (n: string) => {
+    setName(n);
+    dirty.current = true;
+    setSaving("saving");
+  };
+  const setKit = (k: string | null) => {
+    setKitId(k);
+    dirty.current = true;
+    setSaving("saving");
+  };
 
   const checked = useMemo(() => checkForm(form, { custom }), [form, custom]);
-  const changed = !published || JSON.stringify("form" in checked ? checked.form : form) !== JSON.stringify(published);
+  const isLive = row.status === "live";
+  const changed = !data.published || JSON.stringify("form" in checked ? checked.form : form) !== JSON.stringify(data.published);
+  const issueCtx = useMemo(() => ({ custom, crm: crm.ctx }), [custom, crm.ctx]);
+  const failedWeek = Object.values(data.failed).reduce((a, b) => a + b, 0);
+
+  const chat = useFormChat({
+    session,
+    ws,
+    formId: row.id,
+    prepare: async () => ((await save()) ? rev.current : null),
+    onResult: (next, nextRev) => {
+      setPast((p) => [...p.slice(-99), latest.current]);
+      setFuture([]);
+      latest.current = next;
+      setFormState(next);
+      rev.current = nextRev;
+      dirty.current = false;
+      setSaving("saved");
+    },
+  });
 
   const publish = async () => {
-    setBusy("publish");
-    setProblems([]);
     setError("");
     try {
-      if (!(await save())) return;
-      await postJson(session, "/api/forms/publish", { workspaceId: ws.id, id: initial.id });
+      if (!(await save())) throw new Error("The draft didn't save. Try again.");
+      await postJson(session, "/api/forms/publish", { workspaceId: ws.id, id: row.id });
+      setDialog(null);
       reload();
-    } catch (e) {
-      const msg = errorText(e);
-      setProblems("errors" in checked ? checked.errors : [msg]);
-    } finally {
-      setBusy("");
-    }
-  };
-  const test = async () => {
-    setBusy("test");
-    setError("");
-    try {
-      await postJson(session, "/api/forms/test", { workspaceId: ws.id, id: initial.id });
-      setTab("results");
-      setWatch((w) => w + 1);
+      note.show(data.pages ? `Live. ${data.pages} ${data.pages === 1 ? "page updates" : "pages update"} within a minute.` : "Live.");
     } catch (e) {
       setError(errorText(e));
-    } finally {
-      setBusy("");
     }
   };
   const setStatus = async (s: "live" | "paused") => {
     try {
-      must(await sb.rpc("form_set_status", { p_id: initial.id, p_status: s }));
+      must(await sb.rpc("form_set_status", { p_id: row.id, p_status: s }));
       reload();
+      note.show(s === "paused" ? "Offline. Pages show nothing until you publish again." : "Back online");
     } catch (e) {
       setError(errorText(e));
     }
   };
   const remove = async () => {
-    if (!(await askConfirm(`Delete ${name}?`, { body: "Its fills and contacts stay.", ok: "Delete", danger: true }))) return;
+    const body = row.status === "draft" ? "It's a draft, so nothing else changes." : `It comes off every page it's on. Its ${data.subs.toLocaleString("en-US")} submissions stay on your contacts.`;
+    if (!(await askConfirm(`Delete ${name}?`, { body, ok: "Delete", danger: true }))) return;
     try {
-      must(await sb.rpc("form_delete", { p_id: initial.id }));
+      must(await sb.rpc("form_delete", { p_id: row.id }));
       dirty.current = false;
+      setLeaveGuard(null);
       navigate("forms");
     } catch (e) {
       setError(errorText(e));
     }
   };
-  const rename = (n: string) => {
-    setName(n);
-    setSaved(false);
-    dirty.current = true;
-  };
-  // While a scan runs, check the kit every 2 seconds; when it lands, the form takes the new tokens.
-  useEffect(() => {
-    if (kit?.scan_status !== "scanning") return;
-    const t = setInterval(reload, 2000);
-    return () => clearInterval(t);
-  }, [kit?.scan_status, reload]);
-  const scannedAt = useRef(kit?.scanned_at ?? null);
-  useEffect(() => {
-    if (kit && kit.scanned_at && kit.scanned_at !== scannedAt.current) {
-      scannedAt.current = kit.scanned_at;
-      setTokens(kit.tokens);
-    }
-  }, [kit]);
-  // Publish styles (docs/design-system.md Part 8.3): the draft goes to every live form on the kit, after saying which.
-  const stylesChanged = !!kit && JSON.stringify(draft.system) !== JSON.stringify(readSystem(kit.design_live, tokens));
-  const publishStyles = async () => {
-    if (!kit) return;
-    setError("");
+  const duplicate = async () => {
     try {
-      if (!(await draft.flush())) return;
-      const uses = must(await sb.rpc("brand_kit_design_uses", { p_id: kit.id })) as { live_forms: number; forms: { id: string; name: string }[] };
-      const n = uses.live_forms;
-      const names = uses.forms.slice(0, 5).map((f) => f.name);
-      const body = n ? `${n === 1 ? "1 live form" : `${n} live forms`} change: ${names.join(", ")}${n > names.length ? ` and ${n - names.length} more` : ""}.` : "No live forms use these styles yet.";
-      if (!(await askConfirm("Publish styles?", { body, ok: "Publish" }))) return;
-      must(await sb.rpc("brand_kit_design_publish", { p_id: kit.id }));
-      reload();
+      await save();
+      must(await sb.rpc("form_create", { p_ws: ws.id, p_name: `${name} (copy)`.slice(0, 120), p_draft: latest.current, p_brand_kit: kitId, p_kind: row.kind ?? "built" }));
+      note.show("Duplicated as a draft");
     } catch (e) {
       setError(errorText(e));
     }
   };
-  /** Save the theme to the form's kit, or (`own`) to a new kit that only this form uses. */
-  const saveKit = async (kitName: string, t: Partial<Tokens>, own: boolean) => {
-    const r = await postJson<{ id: string; tokens: Tokens; notes: string[] }>(session, "/api/forms/brand", { workspaceId: ws.id, id: own ? null : kitId, name: kitName, tokens: t });
-    setTokens(r.tokens);
-    if (r.id !== kitId) {
-      setKitId(r.id);
-      setSaved(false);
-      dirty.current = true;
-    }
-    reload();
-    return { notes: r.notes };
-  };
-  const scan = async (url: string) => {
-    setError("");
-    try {
-      const r = await postJson<{ kitId: string }>(session, "/api/forms/scan", { workspaceId: ws.id, url, kitId, formId: initial.id });
-      if (r.kitId !== kitId) {
-        setKitId(r.kitId);
-        setSaved(false);
-        dirty.current = true;
-      }
-      reload();
-    } catch (e) {
-      setError(errorText(e));
-    }
-  };
-  const theme: ThemeProps = {
-    tokens,
-    setTokens,
-    kits,
-    kitId,
-    setKit: (k) => {
-      setKitId(k);
-      setSaved(false);
-      dirty.current = true;
-    },
-    saveKit,
-    scan,
-    site: kit?.source_url ?? site,
-    formName: name,
-  };
-  const fromChat = (next: Form, nextRev: number) => {
-    setPast((p) => [...p.slice(-99), { form, system: draft.current() }]);
+  const discard = () => {
+    if (!data.published) return;
+    setPast((p) => [...p.slice(-99), latest.current]);
     setFuture([]);
-    put(next);
-    rev.current = nextRev;
-    dirty.current = false;
-    setSaved(true);
+    put(data.published);
+    note.show("Back to the live version");
   };
-  const chat = useFormChat({ session, ws, formId: initial.id, prepare: async () => ((await save()) ? rev.current : null), onResult: fromChat });
-  const origin = typeof window === "undefined" ? "" : window.location.origin;
-  const sep = <span aria-hidden="true" className="mx-1 h-5 w-px bg-line" />;
+  const restore = (body: Form, version: number) => {
+    setPast((p) => [...p.slice(-99), latest.current]);
+    setFuture([]);
+    put(body);
+    setDialog(null);
+    note.show(`Version ${version} is the draft now`);
+  };
 
-  const routingLive = useLoad(async () => {
-    const r = (await sb.from("routers").select("live_version, paused_at").eq("workspace_id", ws.id).maybeSingle()).data as { live_version: number | null; paused_at: string | null } | null;
-    return !!r?.live_version && !r.paused_at;
-  }, ws.id);
-  const held = useLoad(async () => (await sb.from("submissions").select("id", { count: "exact", head: true }).eq("form_id", initial.id).eq("spam", false).eq("test", false)).count ?? 0, `${initial.id}:${watch}`);
-  const SUBS: { value: SettingsSub; label: string; on?: boolean }[] = [
-    { value: "after", label: "After submit" },
-    { value: "alerts", label: "Team alerts", on: !!form.notify?.on },
-    { value: "reply", label: "Auto-reply", on: !!form.reply?.on },
-    { value: "consent", label: "Consent" },
-    { value: "spam", label: "Spam and security" },
-    { value: "data", label: "Data" },
-  ];
+  /** Open a question on Build, with a section open (Sync's Fix, a check's Fix). */
+  const goto = (qid: string, open = "save") => {
+    const q = questionsOf(latest.current).find((x) => x.id === qid || x.pair?.id === qid);
+    if (!q) return;
+    setDialog(null);
+    setTab("build");
+    setStep(q.step);
+    setPick({ id: q.id, open });
+  };
+  const openSetup = (s: SetupSub) => {
+    setSub(s);
+    setTab("settings");
+  };
+
+  /** Deleting a question: never the last email, and a word first when a Routing rule reads it. */
+  const removeQuestion = async (qid: string) => {
+    const q = questionsOf(latest.current).find((x) => x.id === qid);
+    if (!q) return;
+    if (q.id === CONSENT_ID) {
+      apply({ op: "set_consent", mode: "off" }, "Removed the consent box");
+      if (pick?.id === qid) setPick(null);
+      return;
+    }
+    if (q.kind === "email" && allFields(latest.current).filter((f) => f.key === "email").length <= 1) {
+      await tell("Keep one email question", "Leads need an email to become contacts, get the auto-reply and book a meeting.");
+      return;
+    }
+    const rules = q.field ? rulesReading(live.data?.body, q.field) : [];
+    if (rules.length && !(await askConfirm(`Delete ${q.label || "this question"}?`, { body: `The ${rules[0]} rule in Routing reads it. Leads will skip that part of the rule.`, ok: "Delete", danger: true }))) return;
+    if (pick?.id === qid) setPick(null);
+    apply([...(q.pair ? [{ op: "remove_field" as const, id: q.pair.id }] : []), { op: "remove_field", id: q.id }], `Deleted ${q.label || "the question"}`);
+  };
+
+  const status = !row.version ? (
+    <Badge>Draft</Badge>
+  ) : row.status === "paused" ? (
+    <Badge>Offline</Badge>
+  ) : changed ? (
+    <span title="People see the last published version">
+      <Badge tone="amber" dot>
+        Live, edited
+      </Badge>
+    </span>
+  ) : (
+    <Badge tone="green" dot>
+      Live
+    </Badge>
+  );
+  const checks = useMemo(() => publishChecks(form, "errors" in checked ? checked.errors : [], issueCtx, data.pages), [form, checked, issueCtx, data.pages]);
 
   return (
-    <Page
-      icon={<Inbox size={14} />}
-      title={name}
-      onRename={rename}
-      back={{ label: "Forms", onClick: () => navigate("forms") }}
-      flush
-      actions={
-        <span className="flex items-center gap-1">
-          <span className="hidden pr-1 text-[12px] text-muted sm:inline">{saved && !draft.saving ? "Saved" : "Saving…"}</span>
-          <StatusMenu status={initial.status} live={!!initial.version} busy={!!busy} onStatus={setStatus} onTest={test} onDelete={remove} />
-          {initial.version && changed ? (
-            <span className="hidden 2xl:inline-flex">
-              <Badge tone="amber" dot>
-                Unpublished changes
-              </Badge>
-            </span>
-          ) : null}
-          {sep}
-          <IconButton label="Undo" onClick={undo} disabled={!past.length}>
-            <Undo size={14} />
-          </IconButton>
-          <IconButton label="Redo" onClick={redo} disabled={!future.length}>
-            <Redo size={14} />
-          </IconButton>
-          {sep}
-          <IconButton label="Preview" onClick={() => setPreviewing(true)}>
-            <Play size={14} />
-          </IconButton>
-          <Button disabled={!!busy || (!!initial.version && !changed)} onClick={publish}>
-            {busy === "publish" ? "Publishing…" : initial.version && !changed ? "Published" : "Publish"}
-          </Button>
-        </span>
-      }
-    >
-      <div className="flex h-full min-h-0 flex-col">
-        <Tabs<FormTab>
-          value={tab}
-          onChange={setTab}
-          tabs={[
-            { value: "build", label: "Build" },
-            { value: "results", label: "Submissions", count: held.data ?? undefined },
-            { value: "share", label: "Share" },
-            { value: "sync", label: "Sync" },
-            { value: "settings", label: "Settings" },
+    <div className="relative flex h-full min-h-0 flex-col bg-card">
+      <header className="flex h-[48px] shrink-0 items-center gap-[8px] border-b border-line pr-[12px] pl-[16px] text-[14px] font-medium">
+        <button type="button" onClick={() => navigate("forms")} className="inline-flex shrink-0 items-center gap-[6px] font-normal text-muted transition-colors duration-[120ms] hover:text-ink">
+          <Ic n="form" />
+          <span className="max-[860px]:hidden">Forms</span>
+        </button>
+        <span className="text-faint">/</span>
+        <NameInput value={name} onChange={rename} />
+        <span className="max-[860px]:hidden">{status}</span>
+        <span className="flex-1" />
+        <span className={`text-[12px] font-normal whitespace-nowrap max-[860px]:hidden ${saving === "offline" ? "text-butter" : "text-muted"}`}>{saving === "offline" ? "Not saved. Trying again" : saving === "saving" ? "Saving" : "Saved"}</span>
+        <button type="button" className={`${IB} max-[860px]:hidden`} onClick={undo} disabled={!past.length} title="Undo" aria-label="Undo">
+          <Ic n="undo" />
+        </button>
+        <button type="button" className={`${IB} max-[860px]:hidden`} onClick={redo} disabled={!future.length} title="Redo" aria-label="Redo">
+          <Ic n="redo" />
+        </button>
+        <button type="button" className={`${IB} max-[860px]:hidden`} onClick={() => setPreview(true)} title="Preview" aria-label="Preview">
+          <Ic n="eye" />
+        </button>
+        <button type="button" className={IB} onClick={(e) => setMenu(menu ? null : e.currentTarget)} title="More" aria-label="More" aria-haspopup="menu" aria-expanded={!!menu}>
+          <Ic n="more" />
+        </button>
+        <button type="button" className={BTN} disabled={!!row.version && isLive && !changed} onClick={() => setDialog("publish")}>
+          Publish
+          {row.version ? <span className="-ml-[4px] max-[860px]:hidden">&nbsp;changes</span> : null}
+        </button>
+      </header>
+      {menu ? (
+        <Menu
+          anchor={menu}
+          onClose={() => setMenu(null)}
+          items={[
+            { icon: "clock", label: "Versions", run: () => setDialog("versions") },
+            { icon: "dup", label: "Duplicate", run: () => void duplicate() },
+            { icon: "undo", label: "Discard changes", disabled: !data.published || !changed, run: discard },
+            row.status === "paused" ? { icon: "eye", label: "Put back online", run: () => void setStatus("live") } : { icon: "eye", label: "Take offline", disabled: !isLive, run: () => void setStatus("paused") },
+            "hr",
+            { icon: "trash", label: "Delete form", danger: true, run: () => void remove() },
           ]}
         />
-        {error || draft.error || note || problems.length ? (
-          <div className="border-b border-line bg-card px-4 py-2">
-            <ErrorNote message={error || draft.error || problems[0] || note} />
-            {problems.length > 1 ? (
-              <ul className="mt-1 flex flex-col gap-0.5 px-3.5 text-[12.5px] text-rose">
-                {problems.slice(1).map((p) => (
-                  <li key={p}>{p}</li>
-                ))}
-              </ul>
+      ) : null}
+      <Tabs<Tab>
+        dense
+        value={tab}
+        onChange={setTab}
+        tabs={[
+          { value: "build", label: "Build", icon: <Ic n="build" /> },
+          { value: "submissions", label: "Submissions", icon: <Ic n="inbox" />, count: data.subs },
+          { value: "share", label: "Share", icon: <Ic n="share" /> },
+          { value: "sync", label: "Sync", icon: <Ic n="sync" />, dot: failedWeek ? `${failedWeek} ${failedWeek === 1 ? "lead didn't" : "leads didn't"} reach the CRM` : undefined },
+          { value: "settings", label: "Settings", icon: <Ic n="gear" /> },
+        ]}
+      />
+      {saving === "offline" ? (
+        <div className="flex h-[44px] shrink-0 items-center gap-[10px] border-b border-line bg-paper pr-[12px] pl-[16px] text-[12.5px]">
+          <span className="inline-flex size-[24px] shrink-0 items-center justify-center rounded-[7px] bg-butter-wash text-butter">
+            <Ic n="warn" s={13} />
+          </span>
+          <b className="font-semibold text-ink">Not saved</b>
+          <span className="min-w-0 truncate text-body">{error || "Your changes are kept here and save when the connection comes back"}</span>
+          <span className="flex-1" />
+          <button type="button" className={GHOST_SM} onClick={() => void save()}>
+            Try now
+          </button>
+        </div>
+      ) : error ? (
+        <div className="shrink-0 border-b border-line px-[16px] py-[8px]">
+          <ErrorNote message={error} />
+        </div>
+      ) : null}
+      <div className="relative flex min-h-0 flex-1 flex-col">
+        {tab === "build" ? (
+          <Build
+            {...props}
+            form={form}
+            name={name}
+            apply={apply}
+            custom={custom}
+            onCustom={(c) => setCustom((x) => [...x, c])}
+            crm={crm}
+            routing={live.data?.body ?? null}
+            kit={kit}
+            kits={data.kits}
+            setKit={setKit}
+            reloadKits={reload}
+            site={kit?.source_url ?? data.site}
+            types={data.types}
+            pick={pick}
+            setPick={setPick}
+            step={step}
+            setStep={setStep}
+            said={said}
+            setSaid={setSaid}
+            fresh={fresh}
+            chat={chat}
+            busy={busy}
+            setBusy={setBusy}
+            saving={saving}
+            onUndo={undo}
+            onRemove={(qid) => void removeQuestion(qid)}
+            onSettings={openSetup}
+          />
+        ) : tab === "submissions" ? (
+          <Submissions {...props} form={form} formId={row.id} dests={data.dests} sources={data.sources} onFix={(qid) => goto(qid)} />
+        ) : tab === "share" ? (
+          <Share {...props} form={form} row={row} apply={apply} kit={kit} site={data.site} />
+        ) : tab === "sync" ? (
+          <Sync {...props} form={form} formId={row.id} dests={data.dests} sources={data.sources} crm={crm} failed={data.failed} reload={reload} onFix={(qid) => goto(qid)} issueCtx={issueCtx} />
+        ) : (
+          <Setup {...props} form={form} apply={apply} sub={sub} setSub={setSub} formId={row.id} types={data.types} routing={live.data?.body ?? null} onReview={() => setTab("submissions")} subs={data.subs} name={name} />
+        )}
+      </div>
+      {dialog === "publish" ? <PublishDialog checks={checks} live={!!row.version} onClose={() => setDialog(null)} onPublish={() => void publish()} onFix={(qid) => goto(qid)} error={error} /> : null}
+      {dialog === "versions" ? <Versions {...props} formId={row.id} live={row.version} changed={changed} onClose={() => setDialog(null)} onRestore={restore} /> : null}
+      {preview ? <PreviewOverlay form={form} tokens={kit?.tokens ?? {}} crmName={crm.crms[0]?.name} onClose={() => setPreview(false)} /> : null}
+      {note.node}
+    </div>
+  );
+}
+
+/** The form's name, typed in place in the header. */
+function NameInput({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const [text, setText] = useState(value);
+  return (
+    <input
+      aria-label="Form name"
+      value={text}
+      maxLength={120}
+      size={Math.max(8, text.length)}
+      onChange={(e) => {
+        setText(e.target.value);
+        if (e.target.value.trim()) onChange(e.target.value.trim());
+      }}
+      onBlur={() => !text.trim() && setText(value)}
+      onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
+      className="-mx-[4px] max-w-[40vw] min-w-[60px] rounded-[4px] bg-transparent px-[4px] py-[2px] text-[14px] font-medium text-ink outline-none [field-sizing:content] hover:bg-hover focus:bg-card focus:shadow-[0_0_0_1px_var(--color-ink)] max-[860px]:max-w-[46vw]"
+    />
+  );
+}
+
+/** Publish: what to look at first. A missing email or a form the checker refuses can't go live; the rest can. */
+function PublishDialog({ checks, live, onClose, onPublish, onFix, error }: { checks: ReturnType<typeof publishChecks>; live: boolean; onClose: () => void; onPublish: () => void; onFix: (q: string) => void; error: string }) {
+  const [busy, setBusy] = useState(false);
+  const bad = checks.filter((c) => c.lvl !== "ok");
+  const blocks = checks.some((c) => c.blocks);
+  return (
+    <Dialog label={live ? "Publish changes" : "Publish"} onClose={onClose}>
+      <span className={EYEBROW}>{live ? "Publish changes" : "Publish"}</span>
+      <h2 className="text-[16px] font-semibold tracking-[-0.01em] text-ink">{bad.length ? `${bad.length} ${bad.length === 1 ? "thing" : "things"} to look at` : "Ready to go live"}</h2>
+      <div className="flex flex-col gap-[8px]">
+        {checks.map((c, i) => (
+          <div key={`${c.t}${i}`} className="flex items-start gap-[10px] rounded-lg border border-line px-[12px] py-[10px]">
+            <span className={`inline-flex size-[24px] shrink-0 items-center justify-center rounded-[7px] ${c.lvl === "ok" ? "bg-signal-soft text-signal" : c.lvl === "warn" ? "bg-butter-wash text-butter" : "bg-rose-wash text-rose"}`}>
+              <Ic n={c.lvl === "ok" ? "check" : "warn"} s={12} />
+            </span>
+            <span className="min-w-0 flex-1">
+              <b className="block font-medium text-ink">{c.t}</b>
+              {c.s ? <span className="text-[12.5px] text-muted">{c.s}</span> : null}
+            </span>
+            {c.q ? (
+              <button type="button" className={GHOST_SM} onClick={() => onFix(c.q!)}>
+                Fix
+              </button>
             ) : null}
           </div>
-        ) : null}
-        <div className="relative min-h-0 flex-1">
-          {tab === "build" ? (
-            <>
-              <Editor
-                form={form}
-                apply={apply}
-                custom={custom}
-                sources={sources}
-                tokens={tokens}
-                device={device}
-                zoom={zoom}
-                theme={theme}
-                draft={draft}
-                hasKit={!!kit}
-                applyStyles={applyStyles}
-                applySystem={applySystem}
-                styles={{ changed: stylesChanged, publish: publishStyles }}
-                link={{ session, workspaceId: ws.id, sb, onFieldAdded: (f) => setAdded((x) => [...x, f]) }}
-                startPanel={null}
-              />
-              <AskBar chat={chat} onUndo={undo} inset="left-[44px] right-[280px]" />
-            </>
-          ) : tab === "results" ? (
-            <div className="h-full overflow-auto bg-paper p-4 md:p-8">
-              <div className="mx-auto flex max-w-5xl flex-col gap-8">
-                <FormResults key={watch} sb={sb} session={session} ws={ws} formId={initial.id} destinations={dests} navigate={navigate} watch={watch} books={!!form.after.schedule} />
-                {form.capture ? null : <FormChecks sb={sb} formId={initial.id} live={initial.status === "live"} />}
-              </div>
-            </div>
-          ) : tab === "share" ? (
-            <div className="h-full overflow-auto bg-paper p-4 md:p-8">
-              <div className="mx-auto max-w-3xl">
-                <Embed id={initial.id} origin={origin} live={!!initial.version} form={form} apply={apply} />
-              </div>
-            </div>
-          ) : tab === "sync" ? (
-            <div className="h-full overflow-auto bg-paper p-4 md:p-8">
-              <div className="mx-auto flex max-w-3xl flex-col gap-6">
-                <FormDestinations sb={sb} session={session} ws={ws} formId={initial.id} list={dests} sources={sources} reload={reload} navigate={navigate} form={form} />
-                <KnownSettings form={form} apply={apply} />
-              </div>
-            </div>
-          ) : (
-            <div className="grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)] md:grid-cols-[208px_minmax(0,1fr)] md:grid-rows-1">
-              <nav aria-label="Settings" className="flex gap-1 overflow-x-auto border-b border-line p-2 md:flex-col md:border-r md:border-b-0">
-                {SUBS.map((x) => (
-                  <button
-                    key={x.value}
-                    type="button"
-                    aria-current={sub === x.value ? "page" : undefined}
-                    onClick={() => setSub(x.value)}
-                    className={`flex h-8 shrink-0 items-center gap-2 rounded-lg px-2.5 text-left text-[13px] whitespace-nowrap transition-colors duration-[140ms] ${sub === x.value ? "bg-paper-deep font-medium text-ink" : "text-body hover:bg-hover"}`}
-                  >
-                    {x.label}
-                    {x.on ? <span aria-label="On" className="ml-auto size-1.5 rounded-full bg-signal" /> : null}
-                  </button>
-                ))}
-              </nav>
-              <div className="min-h-0 overflow-y-auto bg-paper p-4 md:p-8">
-                <div className="mx-auto flex max-w-3xl flex-col gap-6">
-                  {sub === "after" ? (
-                    <AfterSubmit form={form} apply={apply} sb={sb} ws={ws} session={session} role={role} />
-                  ) : sub === "alerts" ? (
-                    <TeamAlerts form={form} apply={apply} routingLive={!!routingLive.data} />
-                  ) : sub === "reply" ? (
-                    <AutoReply form={form} apply={apply} />
-                  ) : sub === "consent" ? (
-                    <ConsentSettings form={form} apply={apply} sb={sb} ws={ws} />
-                  ) : sub === "spam" ? (
-                    <>
-                      <SpamSettings form={form} apply={apply} />
-                      <MoreSpam form={form} apply={apply} />
-                    </>
-                  ) : (
-                    <DataSettings form={form} apply={apply} sb={sb} formId={initial.id} onCleared={() => setWatch((w) => w + 1)} />
-                  )}
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-      {previewing ? <PreviewOverlay form={form} tokens={tokens} system={draft.system} device={device} onClose={() => setPreviewing(false)} /> : null}
-    </Page>
-  );
-}
-
-type FormTab = "build" | "results" | "share" | "sync" | "settings";
-type SettingsSub = "after" | "alerts" | "reply" | "consent" | "spam" | "data";
-/** The tab in ?tab=, with the old names (design, connect) opening their new homes. */
-function tabOf(search: string): FormTab {
-  const t = new URLSearchParams(search).get("tab") ?? "";
-  if (t === "results" || t === "share" || t === "sync" || t === "settings") return t;
-  return t === "connect" ? "sync" : "build";
-}
-
-/** Draft, Live or Paused as one pill, with what can be done from here in its menu. */
-function StatusMenu({
-  status,
-  live,
-  busy,
-  onStatus,
-  onTest,
-  onDelete,
-}: {
-  status: FormRow["status"];
-  live: boolean;
-  busy: boolean;
-  onStatus: (s: "live" | "paused") => void;
-  onTest: () => void;
-  onDelete: () => void;
-}) {
-  const btn = useRef<HTMLButtonElement>(null);
-  const [open, setOpen] = useState(false);
-  const [label, tone] = STATUS[status];
-  const dot = tone === "green" ? "bg-sage" : tone === "amber" ? "bg-butter" : "bg-muted";
-  const item = "flex h-8 w-full items-center gap-2 rounded-sm px-2 text-left text-[12.5px] text-ink hover:bg-hover disabled:opacity-40";
-  const run = (fn: () => void) => () => {
-    setOpen(false);
-    fn();
-  };
-  return (
-    <>
-      <button
-        ref={btn}
-        type="button"
-        aria-label={`Status: ${label}`}
-        aria-haspopup="menu"
-        aria-expanded={open}
-        onClick={() => setOpen((o) => !o)}
-        className="press inline-flex h-7 items-center gap-1.5 rounded-full bg-paper-deep pr-2 pl-2.5 text-[12px] font-medium text-ink hover:bg-hover"
-      >
-        <span className={`size-1.5 rounded-full ${dot}`} />
-        {label}
-        <ChevronDown size={12} className="text-muted" />
-      </button>
-      <Popover anchor={btn} open={open} onClose={() => setOpen(false)} label="Form status" width={200}>
-        <div role="menu" aria-label="Form status" className="-m-1 flex flex-col">
-          {live ? (
-            <button type="button" role="menuitem" onClick={run(() => onStatus(status === "paused" ? "live" : "paused"))} className={item}>
-              {status === "paused" ? <Play size={13} /> : <Pause size={13} />}
-              {status === "paused" ? "Turn on" : "Pause"}
-            </button>
-          ) : null}
-          {live ? (
-            <button type="button" role="menuitem" disabled={busy} onClick={run(onTest)} className={item}>
-              <Send size={13} />
-              Send a test fill
-            </button>
-          ) : null}
-          <button type="button" role="menuitem" onClick={run(onDelete)} className={`${item} text-rose hover:bg-rose-wash`}>
-            <Trash size={13} />
-            Delete form
-          </button>
-        </div>
-      </Popover>
-    </>
-  );
-}
-
-// Embed ---------------------------------------------------------------------------------------------------------
-
-type Way = "code" | "link" | "popup" | "wordpress" | "webflow" | "framer" | "react" | "iframe";
-const WAYS: { value: Way; label: string; domain?: string }[] = [
-  { value: "code", label: "Code" },
-  { value: "link", label: "Link" },
-  { value: "popup", label: "Popup" },
-  { value: "wordpress", label: "WordPress", domain: "wordpress.org" },
-  { value: "webflow", label: "Webflow", domain: "webflow.com" },
-  { value: "framer", label: "Framer", domain: "framer.com" },
-  { value: "react", label: "React", domain: "react.dev" },
-  { value: "iframe", label: "Iframe" },
-];
-
-function Embed({ id, origin, live, form, apply }: { id: string; origin: string; live: boolean; form: Form; apply: (op: Op) => void }) {
-  const [way, setWay] = useState<Way>("code");
-  const [trigger, setTrigger] = useState<"click" | "delay" | "exit">("click");
-  const [copied, setCopied] = useState(false);
-  if (form.capture) return <Capture id={id} origin={origin} live={live} form={form} apply={apply} />;
-  const script = `<script src="${origin}/forms/v1.js" async></script>`;
-  const tag = `<claritia-form form-id="${id}"></claritia-form>`;
-  const code = `${script}\n${tag}`;
-  const popupAttr = trigger === "delay" ? "delay:10" : trigger;
-  const text: Record<Way, string> = {
-    code,
-    link: `${origin}/f/${id}`,
-    popup: `${script}\n<claritia-form form-id="${id}" popup="${popupAttr}"></claritia-form>${trigger === "click" ? `\n<button data-claritia-open="${id}">${form.submit.label}</button>` : ""}`,
-    wordpress: code,
-    webflow: code,
-    framer: code,
-    react: `useEffect(() => {\n  const s = document.createElement("script");\n  s.src = "${origin}/forms/v1.js";\n  s.async = true;\n  document.head.append(s);\n}, []);\n\nreturn <claritia-form form-id="${id}" />;`,
-    iframe: `<script src="${origin}/f/embed.js" data-claritia-form="${id}" async></script>`,
-  };
-  const steps: Partial<Record<Way, string[]>> = {
-    wordpress: ["Edit the page and add a Custom HTML block where the form goes.", "Paste the code.", "Update the page."],
-    webflow: ["Drag an Embed element where the form goes.", "Paste the code and save.", "Publish the site."],
-    framer: ["Insert an Embed, and pick HTML.", "Paste the code.", "Publish the site."],
-  };
-  return (
-    <div className="flex flex-col gap-5 p-5">
-      <div className="flex items-center gap-2">
-        <h3 className="text-[15px] font-medium">Put it on your site</h3>
-        {live ? null : <Badge tone="amber">Live after Publish</Badge>}
-      </div>
-      <div className="grid grid-cols-4 gap-1.5">
-        {WAYS.map((w) => (
-          <button
-            key={w.value}
-            type="button"
-            onClick={() => {
-              setWay(w.value);
-              setCopied(false);
-            }}
-            aria-pressed={way === w.value}
-            className={`press flex flex-col items-center justify-center gap-1 rounded-lg border px-1 py-2.5 text-[11.5px] transition-colors ${way === w.value ? "border-ink bg-hover font-medium text-ink ring-1 ring-ink" : "border-line bg-card text-body hover:border-line-strong"}`}
-          >
-            {w.domain ? (
-              <BrandLogo domain={w.domain} name={w.label} size={16} />
-            ) : (
-              <span className="font-mono text-[11px]">{w.value === "code" ? "</>" : w.value === "link" ? "URL" : w.value === "popup" ? "[ ]" : "<if>"}</span>
-            )}
-            {w.label}
-          </button>
         ))}
       </div>
-      {way === "popup" ? (
-        <div className="flex flex-wrap gap-1.5">
-          {(
-            [
-              ["click", "On a button"],
-              ["delay", "After 10 seconds"],
-              ["exit", "When they leave"],
-            ] as const
-          ).map(([v, l]) => (
-            <button
-              key={v}
-              type="button"
-              onClick={() => setTrigger(v)}
-              aria-pressed={trigger === v}
-              className={`press h-8 rounded-full border px-3 text-[12.5px] ${trigger === v ? "border-ink bg-ink font-medium text-paper" : "border-line-strong bg-card hover:border-ink"}`}
-            >
-              {l}
-            </button>
-          ))}
-        </div>
-      ) : null}
-      {steps[way] ? (
-        <ol className="flex flex-col gap-1.5 text-[13px] text-body">
-          {steps[way]!.map((s, i) => (
-            <li key={s} className="flex gap-2">
-              <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-paper-deep font-mono text-[10.5px] text-muted">{i + 1}</span>
-              {s}
-            </li>
-          ))}
-        </ol>
-      ) : null}
-      <div className="flex flex-col">
-        <pre className="max-h-64 overflow-auto rounded-lg bg-ink p-4 font-mono text-[11.5px] leading-relaxed whitespace-pre-wrap text-paper">{text[way]}</pre>
-        <div className="flex gap-2 pt-2">
-          <Button onClick={async () => setCopied(await copy(text[way]))}>
-            <Copy size={14} />
-            {copied ? "Copied" : "Copy"}
-          </Button>
-          {way === "link" && live ? (
-            <Button variant="ghost" onClick={() => window.open(text.link, "_blank", "noopener")}>
-              Open
-            </Button>
-          ) : null}
-        </div>
+      <ErrorNote message={error} />
+      <div className="mt-[4px] flex justify-end gap-[8px]">
+        <button type="button" className={GHOST} onClick={onClose}>
+          Cancel
+        </button>
+        <button
+          type="button"
+          className={BTN}
+          disabled={blocks || busy}
+          onClick={async () => {
+            setBusy(true);
+            await onPublish();
+            setBusy(false);
+          }}
+        >
+          {bad.length && !blocks ? "Publish anyway" : live ? "Publish changes" : "Publish"}
+        </button>
       </div>
-    </div>
+    </Dialog>
   );
 }
 
-function Capture({ id, origin, live, form, apply }: { id: string; origin: string; live: boolean; form: Form; apply: (op: Op) => void }) {
-  const [copied, setCopied] = useState(false);
-  const cap = form.capture!;
-  const snippet = `<script src="${origin}/forms/v1.js" async data-capture="${id}"></script>`;
+/** Every published version, newest first, and the draft. An older one can be made the draft again. */
+function Versions({ sb, formId, live, changed, onClose, onRestore }: Pick<ViewProps, "sb"> & { formId: string; live: number; changed: boolean; onClose: () => void; onRestore: (body: Form, v: number) => void }) {
+  const list = useLoad(async () => (must(await sb.from("form_versions").select("version, body, at").eq("form_id", formId).order("version", { ascending: false }).limit(50)) ?? []) as { version: number; body: Form; at: string }[], formId);
+  const day = (iso: string) => new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  const words = (b: Form) => {
+    const n = questionsOf(b).filter((q) => q.kind !== "heading" && q.kind !== "para").length;
+    return `${b.steps.length > 1 ? `${b.steps.length} steps, ` : ""}${n} ${n === 1 ? "question" : "questions"}${b.after.schedule ? ", books a meeting" : ""}`;
+  };
   return (
-    <div className="flex flex-col gap-5 p-5">
-      <h3 className="text-[15px] font-medium">Your form</h3>
-      <div className="grid grid-cols-2 gap-1.5">
-        {ADAPTERS.map((a) => (
-          <button
-            key={a.value}
-            type="button"
-            aria-pressed={cap.adapter === a.value}
-            onClick={() => apply({ op: "set_capture", adapter: a.value })}
-            className={`press flex items-center gap-2 rounded-lg border px-3 py-2.5 text-left text-[13px] transition-colors ${cap.adapter === a.value ? "border-ink bg-hover font-medium text-ink ring-1 ring-ink" : "border-line bg-card text-body hover:border-line-strong"}`}
-          >
-            {a.domain ? <BrandLogo domain={a.domain} name={a.label} size={18} /> : null}
-            {a.label}
-          </button>
-        ))}
-      </div>
-      {cap.adapter === "html" || cap.adapter === "webflow" || cap.adapter === "framer" ? (
-        <label className="flex flex-col gap-1.5">
-          <span className="label-mono">Form selector</span>
-          <input
-            value={cap.selector ?? ""}
-            onChange={(e) => apply({ op: "set_capture", selector: e.target.value })}
-            placeholder="#demo-form"
-            className="h-9 w-full rounded-sm border border-line-strong bg-card px-3 font-mono text-[12.5px] text-ink outline-none focus:border-ink focus:ring-1 focus:ring-ink"
-          />
-        </label>
-      ) : null}
-      {live ? (
-        <div className="flex flex-col">
-          <pre className="overflow-x-auto rounded-lg bg-ink p-4 font-mono text-[11.5px] leading-relaxed text-paper">{snippet}</pre>
-          <div className="pt-2">
-            <Button onClick={async () => setCopied(await copy(snippet))}>
-              <Copy size={14} />
-              {copied ? "Copied" : "Copy"}
-            </Button>
-          </div>
-        </div>
+    <Dialog label="Versions" onClose={onClose}>
+      <DialogHead title="Versions" onClose={onClose} />
+      {!list.data ? (
+        list.error ? <ErrorNote message={list.error} /> : <Loading />
       ) : (
-        <Badge tone="amber">Live after Publish</Badge>
+        <div className="rounded-[10px] border border-line">
+          {changed || !live ? (
+            <div className="flex min-h-[52px] items-center gap-[12px] px-[16px] py-[12px]">
+              <span className="min-w-0 flex-1">
+                <b className="block font-medium text-ink">Draft</b>
+                <span className="text-[12px] text-muted">Your changes, not live</span>
+              </span>
+              <span className="text-[12px] text-muted">Now</span>
+            </div>
+          ) : null}
+          {list.data.map((v) => (
+            <div key={v.version} className="flex min-h-[52px] items-center gap-[12px] border-t border-line px-[16px] py-[12px] first:border-t-0">
+              <span className="min-w-0 flex-1">
+                <b className="block font-medium text-ink">{`Version ${v.version}`}</b>
+                <span className="text-[12px] text-muted">{v.version === live ? `Live. ${words(v.body)}` : words(v.body)}</span>
+              </span>
+              <span className="text-[12px] text-muted">{day(v.at)}</span>
+              {v.version === live ? (
+                <Badge tone="green" dot>
+                  Live
+                </Badge>
+              ) : (
+                <button type="button" className={GHOST_SM} onClick={() => onRestore(v.body, v.version)}>
+                  Restore
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
       )}
-    </div>
+      <span className="text-[12px] text-muted">Restoring makes it the draft. Publish to make it live.</span>
+    </Dialog>
   );
 }
+
