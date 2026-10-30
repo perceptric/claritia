@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft, Check, ChevronRight, Clock, Dollar, Globe, MapIcon, Monitor, Phone, Users } from "@/components/Icons";
 import { byDay, LOCATION_LABEL, lengthLabel, priceLabel, type BookReply, type GuestHost, type GuestLocation, type GuestSlot, type GuestType } from "@/lib/meetings/guest";
 import { addDays, dateIn, dayOf } from "@/lib/meetings/time";
+import { calendarLinks, partsOfDay, soonest } from "@/lib/meetings/guestTimes";
 import { BOOK_CSS } from "./styles";
 import { compileBook } from "@/lib/design/book";
 import { readSystem } from "@/lib/design/model";
@@ -20,8 +21,9 @@ import { use12h, useMounted, useSundayFirst, useZone } from "./browser";
 import { ZonePicker } from "./ZonePicker";
 
 // The booking calendar (docs/meetings-scheduler.md 1.8 and 1.8b): the type on the left, a month in the middle, the
-// day's times on the right; stacked on phones. The guest's time zone is detected and can be changed, lengths are a
-// pill switch, then name, email and the type's questions, then the confirmation. The booking pages, the embed, the
+// day's times on the right; stacked on phones. The soonest times sit on top, a day's times are grouped by part of
+// the day, the guest's time zone is detected and can be changed, lengths are a pill switch, then name, email and the
+// type's questions, then the confirmation with add-to-calendar links. The booking pages, the embed, the
 // guest's reschedule and the type editor's preview (no `book`: nothing is sent) all use it.
 
 export type BookRequest = { start: number; length: number; tz: string; name: string; email: string; answers: Record<string, string>; turnstile?: string };
@@ -62,6 +64,7 @@ export const dayLong = (date: string) => fmt({ weekday: "long", month: "long", d
 export const whenLong = (ms: number, tz: string) => fmt({ weekday: "long", month: "long", day: "numeric", year: "numeric", timeZone: tz }).format(ms);
 const monthLabel = (ym: string) => fmt({ month: "long", year: "numeric", timeZone: "UTC" }).format(Date.parse(`${ym}-15T12:00:00Z`));
 const monthOf = (date: string) => date.slice(0, 7);
+const dayShort = (date: string, today: string) => (date === today ? "Today" : fmt({ weekday: "short", month: "short", day: "numeric", timeZone: "UTC" }).format(Date.parse(`${date}T12:00:00Z`)));
 const addMonths = (ym: string, n: number) => {
   const [y, m] = ym.split("-").map(Number);
   const d = new Date(Date.UTC(y!, m! - 1 + n, 1));
@@ -155,7 +158,9 @@ function Calendar(p: BookingCalendarProps) {
   const [monthPick, setMonth] = useState<string | null>(null);
   const [dayPick, setDay] = useState<string | null>(null);
   const [timePick, setTime] = useState<number | null>(null);
-  const [step, setStep] = useState<"pick" | "details" | "done">("pick");
+  const [step, setStepRaw] = useState<"pick" | "details" | "done">("pick");
+  const [back, setBack] = useState(false);
+  const setStep = (s: "pick" | "details" | "done") => (setBack(s === "pick"), setStepRaw(s));
   const [notice, setNotice] = useState<string | null>(null);
   const [done, setDone] = useState<Booked | null>(null);
   const [moving, setMoving] = useState(false);
@@ -235,10 +240,12 @@ function Calendar(p: BookingCalendarProps) {
 
   const monthHas = dayList.some((d) => monthOf(d) === shownMonth);
   const nextAvail = dayList.find((d) => monthOf(d) > shownMonth) ?? null;
+  const soon = mounted && slots !== null ? soonest(days, 3) : [];
+  const lengths = !p.move && p.type.lengths.length > 1 ? p.type.lengths : null;
 
   return (
     <div className="cb-grid">
-      <Info type={p.type} logo={p.logo} length={length} setLength={p.move ? undefined : (n) => (setLength(n), setNotice(null))} picked={step === "details" && time !== null ? { start: time, tz, hour12, length } : null} />
+      <Info type={p.type} logo={p.logo} length={length} picked={time !== null ? { start: time, tz, hour12, length } : null} />
       <div className="cb-main">
         {step === "details" && time !== null ? (
           <Details
@@ -277,7 +284,7 @@ function Calendar(p: BookingCalendarProps) {
             }}
           />
         ) : (
-          <div className="cb-step" key="pick">
+          <div className={`cb-step ${back ? "cb-rev" : ""}`} key="pick">
             {p.banner}
             {notice && (
               <div className="cb-note" role="alert">
@@ -286,9 +293,40 @@ function Calendar(p: BookingCalendarProps) {
             )}
             <div className={`cb-pick ${day ? "cb-open" : ""}`}>
               <div>
-                <h2 className="cb-h" style={{ fontSize: "1.15em", marginBottom: 16 }}>
-                  Select a date and time
-                </h2>
+                <div className="cb-phead">
+                  <h2 className="cb-h" style={{ fontSize: "1.15em" }}>
+                    Pick a time
+                  </h2>
+                  {lengths && (
+                    <div className="cb-pills" role="radiogroup" aria-label="Length">
+                      {lengths.map((n) => (
+                        <button key={n} type="button" role="radio" className="cb-pill" aria-checked={n === length} onClick={() => (setLength(n), setNotice(null))}>
+                          {lengthLabel(n)}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                {soon.length > 1 && (
+                  <div className="cb-soon">
+                    <span className="cb-eyebrow">Soonest</span>
+                    {soon.map(([d, s]) => (
+                      <button
+                        key={s.start}
+                        type="button"
+                        className="cb-sc"
+                        onClick={() => {
+                          pickDay(d);
+                          setTime(s.start);
+                          if (!p.move) setStep("details");
+                        }}
+                      >
+                        <b>{timeIn(s.start, tz, hour12)}</b>
+                        {dayShort(d, today)}
+                      </button>
+                    ))}
+                  </div>
+                )}
                 <Month
                   month={shownMonth}
                   today={today}
@@ -305,7 +343,7 @@ function Calendar(p: BookingCalendarProps) {
                     <span className="cb-muted">{loadFailed ? "Times couldn't load." : `No times in ${monthLabel(shownMonth)}`}</span>
                     {nextAvail && (
                       <button type="button" className="cb-btn cb-ghost" onClick={() => (pickMonth(monthOf(nextAvail)), setDay(nextAvail))}>
-                        Next available <ChevronRight size={15} />
+                        Next open day <ChevronRight size={15} />
                       </button>
                     )}
                   </div>
@@ -336,7 +374,11 @@ function Calendar(p: BookingCalendarProps) {
                     {dayLong(day)}
                   </div>
                   <div className="cb-tlist" role="list">
-                    {daySlots.map((s) =>
+                    {partsOfDay(daySlots, tz).map(([part, list]) => [
+                      <span key={part} className="cb-group" role="presentation">
+                        {part}
+                      </span>,
+                      ...list.map((s) =>
                       time === s.start ? (
                         <div className="cb-tpair" key={s.start} role="listitem">
                           <button type="button" className="cb-time cb-on" onClick={() => setTime(null)} aria-pressed="true">
@@ -352,7 +394,8 @@ function Calendar(p: BookingCalendarProps) {
                           {s.seats !== undefined && p.type.seats !== null && <span className="cb-seats">{s.seats === 1 ? "1 seat left" : `${s.seats} seats left`}</span>}
                         </button>
                       ),
-                    )}
+                      ),
+                    ])}
                   </div>
                 </div>
               )}
@@ -364,7 +407,7 @@ function Calendar(p: BookingCalendarProps) {
   );
 }
 
-function Info({ type, logo, length, setLength, picked }: { type: GuestType; logo?: string | null; length: number; setLength?: (n: number) => void; picked: { start: number; tz: string; hour12: boolean; length: number } | null }) {
+function Info({ type, logo, length, picked }: { type: GuestType; logo?: string | null; length: number; picked: { start: number; tz: string; hour12: boolean; length: number } | null }) {
   return (
     <aside className="cb-info">
       {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -381,24 +424,13 @@ function Info({ type, logo, length, setLength, picked }: { type: GuestType; logo
           </span>
         </div>
       )}
-      <h1 className="cb-h" style={{ fontSize: "1.6em" }}>
-        {type.name}
-      </h1>
+      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+        <span className="cb-eyebrow">{lengthLabel(length)}</span>
+        <h1 className="cb-two" style={{ fontSize: "1.75em" }}>
+          {type.name}
+        </h1>
+      </div>
       <div className="cb-meta">
-        <div className="cb-row">
-          <Clock size={16} />
-          {setLength && type.lengths.length > 1 ? (
-            <div className="cb-pills" role="radiogroup" aria-label="Length">
-              {type.lengths.map((n) => (
-                <button key={n} type="button" role="radio" className="cb-pill" aria-checked={n === length} onClick={() => setLength(n)}>
-                  {lengthLabel(n)}
-                </button>
-              ))}
-            </div>
-          ) : (
-            <span>{lengthLabel(length)}</span>
-          )}
-        </div>
         <div className="cb-row">
           <LocationIcon kind={type.location.kind} />
           <span>
@@ -419,10 +451,10 @@ function Info({ type, logo, length, setLength, picked }: { type: GuestType; logo
           </div>
         )}
         {picked && (
-          <div className="cb-when" style={{ marginTop: 6, color: "var(--clr-text)" }}>
-            <span>
+          <div className="cb-when" key={picked.start} style={{ marginTop: 6, color: "var(--clr-text)" }}>
+            <b>
               {timeIn(picked.start, picked.tz, picked.hour12)} to {timeIn(picked.start + picked.length * 60_000, picked.tz, picked.hour12)}
-            </span>
+            </b>
             <span className="cb-muted cb-small">{whenLong(picked.start, picked.tz)}</span>
           </div>
         )}
@@ -561,10 +593,13 @@ function Details(p: {
     <form className="cb-step cb-form" onSubmit={send} noValidate>
       <div>
         <button type="button" className="cb-back" onClick={p.onBack}>
-          <ArrowLeft size={15} /> Back
+          <ArrowLeft size={15} /> Change time
         </button>
-        <h2 className="cb-h" style={{ fontSize: "1.15em" }}>
-          Enter details
+        <h2 className="cb-two" style={{ fontSize: "1.4em" }}>
+          Your details
+          <span className="cb-gray">
+            {timeIn(p.start, p.tz, p.hour12)}, {whenLong(p.start, p.tz)}
+          </span>
         </h2>
       </div>
       <label className="cb-field">
@@ -616,7 +651,7 @@ function Details(p: {
       )}
       <div>
         <button type="submit" className="cb-btn" disabled={busy || p.preview}>
-          {p.type.price ? `Pay ${priceLabel(p.type.price)} and book` : "Book meeting"}
+          {busy ? "Booking" : p.type.price ? `Pay ${priceLabel(p.type.price)} and book` : "Confirm booking"}
         </button>
       </div>
     </form>
@@ -625,13 +660,15 @@ function Details(p: {
 
 function Done({ type, reply, tz, hour12, email }: { type: GuestType; reply: Booked; tz: string; hour12: boolean; email: string }) {
   const hosts = reply.hosts.length ? reply.hosts : type.hosts;
+  const links = calendarLinks({ title: hosts.length ? `${type.name} with ${hostLine(hosts)}` : type.name, start: reply.start, end: reply.end, details: `Reschedule or cancel: ${reply.manage}` });
   return (
     <div className="cb-done cb-step" role="status">
       <span className="cb-tick">
         <Check size={26} />
       </span>
-      <h1 className="cb-h" style={{ fontSize: "1.6em" }}>
+      <h1 className="cb-two" style={{ fontSize: "1.6em" }}>
         You&apos;re booked
+        {email && <span className="cb-gray">The invite is on its way to {email}</span>}
       </h1>
       {reply.confirmation.kind === "message" && reply.confirmation.text ? <p className="cb-muted" style={{ margin: 0, whiteSpace: "pre-line", maxWidth: 460 }}>{reply.confirmation.text}</p> : null}
       <div className="cb-sum">
@@ -657,7 +694,17 @@ function Done({ type, reply, tz, hour12, email }: { type: GuestType; reply: Book
           <span>{type.location.detail ?? LOCATION_LABEL[type.location.kind]}</span>
         </div>
       </div>
-      {email && <p className="cb-muted cb-small" style={{ margin: 0 }}>An invite is on its way to {email}.</p>}
+      <div className="cb-add">
+        <span className="cb-eyebrow">Add to calendar</span>
+        <div className="cb-chips">
+          <a href={links.google} target="_blank" rel="noopener">
+            Google
+          </a>
+          <a href={links.outlook} target="_blank" rel="noopener">
+            Outlook
+          </a>
+        </div>
+      </div>
       <a className="cb-small" href={reply.manage} target="_top" style={{ fontWeight: 500 }}>
         Reschedule or cancel
       </a>

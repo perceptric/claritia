@@ -16,9 +16,9 @@ import { Badge, Button, ErrorNote, errorText, Input, Loading, must, Page, Toggle
 import { LinkDialog } from "../meetings/LinkDialog";
 import { copyText, meetingsApi, ownZone, PersonAvatar, usePeople, useWorkspaceSlug } from "../meetings/parts";
 import type { TypeRow } from "../meetings/TypesList";
-import { groupTypes, KIND_TONE, KIND_WORDS, typeSummary, weeklyWords } from "./model";
+import { ConnectCalendar } from "./ConnectCalendar";
+import { groupTypes, KIND_WORDS, typeParts, weeklyWords } from "./model";
 
-const EDGE: Record<string, string> = { sky: "bg-sky", sage: "bg-sage", clay: "bg-clay", butter: "bg-butter", rose: "bg-rose", lilac: "bg-lilac" };
 
 export function TypesPage(props: ViewProps) {
   const { sb, session, ws, navigate } = props;
@@ -94,6 +94,9 @@ export function TypesPage(props: ViewProps) {
   if (types && !types.length)
     return (
       <Page title="Meeting types" actions={actions}>
+        <div className="mx-auto w-full max-w-5xl">
+          <ConnectCalendar sb={sb} session={session} ws={ws} />
+        </div>
         <ToolIntro
           sketch="calendar"
           title={"Share one link\nand let leads pick a time"}
@@ -114,6 +117,7 @@ export function TypesPage(props: ViewProps) {
     <Page title="Meeting types" count={types?.length} actions={actions}>
       {linkFor ? <LinkDialog sb={sb} session={session} ws={ws} types={(types ?? []).map((t) => ({ ...t, lengths: t.settings.lengths }))} initialType={linkFor} onClose={() => setLinkFor(null)} /> : null}
       <div className="mx-auto flex max-w-5xl flex-col gap-5">
+        <ConnectCalendar sb={sb} session={session} ws={ws} />
         <div className="flex flex-wrap items-center gap-2">
           <label className="relative flex min-w-[220px] flex-1 items-center sm:max-w-sm">
             <Search size={14} className="pointer-events-none absolute left-3 text-faint" />
@@ -152,10 +156,10 @@ export function TypesPage(props: ViewProps) {
             return (
               <section key={g.key} className="flex flex-col gap-2.5">
                 <header className="flex items-center gap-2.5">
-                  {g.person ? <PersonAvatar person={person} label={nameOf(g.person)} size={30} /> : <span className="flex size-[30px] items-center justify-center rounded-full bg-sage-wash text-[11px] font-semibold text-sage">{ws.name.slice(0, 2).toUpperCase()}</span>}
+                  {g.person ? <PersonAvatar person={person} label={nameOf(g.person)} size={30} /> : <span className="flex size-[30px] items-center justify-center rounded-full bg-paper-deep text-[11px] font-semibold text-body">{ws.name.slice(0, 2).toUpperCase()}</span>}
                   <span className="text-[14px] font-semibold tracking-[-0.01em] text-ink">{g.person ? (g.person === me ? "You" : nameOf(g.person)) : "Team"}</span>
                   {pageUrl ? (
-                    <a href={pageUrl} target="_blank" rel="noreferrer" className="ml-auto inline-flex items-center gap-1 text-[12.5px] font-medium text-sky hover:underline">
+                    <a href={pageUrl} target="_blank" rel="noreferrer" className="ml-auto inline-flex items-center gap-1 text-[12.5px] font-medium text-ink underline decoration-line-strong underline-offset-[3px] hover:decoration-ink">
                       View booking page
                       <ExternalLink size={12} />
                     </a>
@@ -169,10 +173,9 @@ export function TypesPage(props: ViewProps) {
                     return (
                       <li
                         key={t.id}
-                        className={`group lift anim-rise-sm relative flex items-center gap-3 overflow-hidden rounded-2xl border bg-card py-4 pr-3 pl-5 transition-colors duration-[140ms] ${on ? "border-ink" : "border-line hover:border-line-strong"} ${t.active ? "" : "opacity-60"}`}
+                        className={`group anim-rise-sm relative flex items-center gap-3 overflow-hidden rounded-[10px] border bg-card py-3.5 pr-3 pl-4 transition-colors duration-[140ms] ${on ? "border-ink" : "border-line hover:border-line-strong"} ${t.active ? "" : "opacity-60"}`}
                         style={{ animationDelay: `${Math.min(i, 8) * 40}ms` }}
                       >
-                        <span aria-hidden="true" className={`absolute inset-y-0 left-0 w-1.5 ${EDGE[KIND_TONE[t.kind]]}`} />
                         <button
                           type="button"
                           role="checkbox"
@@ -186,11 +189,17 @@ export function TypesPage(props: ViewProps) {
                         <button type="button" onClick={() => navigate("scheduling", `types/${t.id}`)} className="flex min-w-0 flex-1 flex-col gap-0.5 text-left after:absolute after:inset-0">
                           <span className="flex items-center gap-2">
                             <span className="truncate text-[15px] font-semibold tracking-[-0.01em] text-ink">{t.name}</span>
-                            {t.secret ? <Badge tone="violet">Secret</Badge> : null}
-                            {t.template_id ? <Badge tone="amber">Managed</Badge> : null}
-                            {t.settings.price ? <Badge tone="green">Paid</Badge> : null}
+                            {t.secret ? <Badge>Secret</Badge> : null}
+                            {t.template_id ? <Badge>Managed</Badge> : null}
+                            {t.settings.price ? <Badge>Paid</Badge> : null}
                           </span>
-                          <span className="truncate text-[12.5px] text-muted">{typeSummary(t)}</span>
+                          <span className="mt-1 flex flex-wrap gap-1.5">
+                            {typeParts(t).map((x) => (
+                              <span key={x} className="inline-flex h-6 items-center rounded-full border border-line px-2.5 text-[12px] text-body">
+                                {x}
+                              </span>
+                            ))}
+                          </span>
                           <span className="truncate text-[12.5px] text-faint">{first ? weeklyWords(data.data?.hours.get(first)) : "No hosts"}</span>
                         </button>
                         <span className="relative z-10 flex shrink-0 items-center gap-1.5">

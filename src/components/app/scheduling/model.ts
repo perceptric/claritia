@@ -37,14 +37,17 @@ export const LOCATION_WORDS: Record<Location["kind"], string> = {
 const minutes = (n: number) => (n >= 60 && n % 60 === 0 ? `${n / 60} h` : n > 60 ? `${Math.floor(n / 60)} h ${n % 60} min` : `${n} min`);
 
 /** "30 min · Google Meet · Take turns · 3 hosts". */
-export function typeSummary(t: Pick<MeetingType, "kind" | "hosts" | "settings">): string {
+/** A type's length, place and who takes it, as short parts (the list shows each as a pill). */
+export function typeParts(t: Pick<MeetingType, "kind" | "hosts" | "settings">): string[] {
   const lengths = [...t.settings.lengths].sort((a, b) => a - b);
   const len = lengths.length > 1 ? `${minutes(lengths[0]!)} to ${minutes(lengths[lengths.length - 1]!)}` : minutes(lengths[0] ?? 30);
   const parts = [len, LOCATION_WORDS[t.settings.location.kind] ?? "Video", KIND_WORDS[t.kind]];
   if (t.kind !== "one" && t.hosts.length > 1) parts.push(`${t.hosts.length} hosts`);
   if (t.kind === "group" && t.settings.seats > 1) parts.push(`${t.settings.seats} seats`);
-  return parts.join(" · ");
+  return parts;
 }
+
+export const typeSummary = (t: Pick<MeetingType, "kind" | "hosts" | "settings">): string => typeParts(t).join(", ");
 
 const WEEKDAYS: Day[] = ["mon", "tue", "wed", "thu", "fri"];
 const DAY_NAME: Record<Day, string> = { mon: "Mon", tue: "Tue", wed: "Wed", thu: "Thu", fri: "Fri", sat: "Sat", sun: "Sun" };
