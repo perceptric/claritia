@@ -75,7 +75,7 @@ export function diffBodies(from: RouterBody | null, to: RouterBody, o: { names?:
   for (const q of from.queues) if (!to.queues.some((x) => x.id === q.id)) out.push({ sign: "-", text: `Team ${q.name}` });
 
   const fb = (b: RouterBody) => (!b.fallback ? "none" : b.fallback.kind === "user" ? who(b.fallback.id) : qName(b, b.fallback.id));
-  if (fb(from) !== fb(to)) out.push({ sign: "~", text: `Leads no rule matched go to ${fb(from)} → ${fb(to)}` });
+  if (fb(from) !== fb(to)) out.push({ sign: "~", text: `Fallback: ${fb(from)} → ${fb(to)}` });
 
   const ft = new Map(from.territories.map((t) => [t.id, t]));
   for (const t of to.territories) {

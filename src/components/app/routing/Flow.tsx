@@ -54,7 +54,16 @@ export function Flow(p: FlowProps) {
 
   const spamOn = [body.spam.disposable && "throwaway emails", "blocked domains", body.spam.fakeName && "fake names", body.spam.tooMany && "too many fills", body.spam.freeMail && "personal email"].filter(Boolean) as string[];
   const fb = body.fallback;
-  const fbName = !fb ? "None" : fb.kind === "user" ? (names.get(fb.id) ?? "Former teammate") : (body.queues.find((q) => q.id === fb.id)?.name ?? "A removed queue");
+  const fbQueue = fb?.kind === "queue" ? body.queues.find((q) => q.id === fb.id) : undefined;
+  const fbPeople = (fbQueue?.members ?? []).map((m) => names.get(m.user) ?? "Former teammate");
+  const fbList = fbPeople.length > 3 ? `${fbPeople.slice(0, 3).join(", ")} and ${fbPeople.length - 3} more` : fbPeople.length > 1 ? `${fbPeople.slice(0, -1).join(", ")} and ${fbPeople[fbPeople.length - 1]}` : (fbPeople[0] ?? "no reps yet");
+  const fbSummary = !fb
+    ? "Pick a rep or team"
+    : fb.kind === "user"
+      ? `Assign to ${names.get(fb.id) ?? "Former teammate"}`
+      : !fbQueue
+        ? "Pick a rep or team"
+        : `${{ rr: "Round robin", weighted: "Weighted round robin", load: "Load balanced" }[fbQueue.method]}: ${fbList}`;
 
   return (
     <div className="relative min-h-full">
@@ -115,8 +124,8 @@ export function Flow(p: FlowProps) {
         </Row>
         <Connector label={body.rules.on && body.rules.list.length ? "No match" : undefined} lit={lit("fallback")} runKey={p.runKey} />
         <StepCard
-          title="No rule matched"
-          summary={!fb ? "Pick a rep or team" : fb.kind === "user" ? `Goes to ${fbName}` : `Shared by ${fbName}`}
+          title="Fallback"
+          summary={fbSummary}
           selected={sameSelection(sel, { kind: "fallback" })}
           onClick={() => onSelect({ kind: "fallback" })}
           mark={path?.marks.fallback}
