@@ -218,3 +218,122 @@ the place. Connecting a calendar sits three clicks away, at Calendar → Availab
 ### 10.4 Running cost
 
 No new services or AI calls. $0 at Beta (50 teams) and Growth (500 teams).
+
+## Part 11. Calendar as simple as Calendly (plan)
+
+The aim: every Calendar screen fits a 1280 by 800 laptop with nothing to scroll but a list. One list on the left, one
+panel on the right, sections closed until opened, one line in each saying what's set. Calendly's event type panel is
+the model: its sections (Duration, Location, Limits and buffers, Invitee form, Notifications) each show a one-line
+summary, open one at a time, and the panel ends in Preview and Save changes.
+
+### 11.1 Rules for every Calendar screen
+
+1. **No page scroll at 1280 by 800.** The app chrome takes about 140 px; the work area is about 660 px tall. A screen
+   that needs more puts it behind a closed section, never below the fold.
+2. **One list, one panel.** The list (meeting types, schedules, links) stays where it is; clicking a row opens a 400 px
+   panel on the right that slides in (220 ms, ease-out) over the list's right side. The list never reloads.
+3. **Sections, closed by default.** Each section is a 56 px row: a title, one gray line saying what's set ("30 min",
+   "Google Meet", "Weekdays, 9:00 to 17:00"), and a chevron. Only one opens at a time; opening one closes the last.
+4. **One primary button per screen.** In a panel it's Save changes in a footer pinned to the panel's bottom, with
+   Preview beside it. The button is off until something changed; leaving with changes asks once.
+5. **Connect your calendar is a slim banner.** One 52 px line across the top of the work area, never a card inside a
+   narrow column (that's what broke the Booking page: the card's words wrapped one per line). It shows the reason and
+   Google Calendar and Outlook buttons, and goes away when a calendar is connected.
+6. **You and Team.** Meeting types, Availability and Booking page each open on You. Team holds the shared types and
+   everyone else's. The switch is a pill pair at the top left of the list.
+7. **Plain words, short lines.** No help text on working screens; a summary line is at most 48 characters.
+
+### 11.2 Meeting types
+
+- **Top row:** You | Team on the left, the search box, and on the right "0 booked this week". The Any kind filter goes
+  (a kind shows as a pill on the row).
+- **Row (72 px):** the name; pills for length, place and who takes it; the hours in gray; on the right the on switch,
+  Copy link and the more menu. Secret and Managed show as gray pills. No colored bars.
+- **Click a row:** the panel opens. Header: the name (edited in place), the kind ("One person"), the more menu (Duplicate,
+  Delete). Sections, each with its summary:
+  1. Duration: "30 min". Chips 15, 30, 45, 60, Other; more than one picked lets guests choose.
+  2. Location: "Google Meet". Logo chips: Google Meet, Zoom, Phone, In person, Custom link.
+  3. Availability: "Weekdays, 9:00 to 17:00". A schedule pick (Working hours, Demo hours, New) and the week in small rows.
+  4. Host: "Vincent Nguyen (you)". Hosts and how they take turns.
+  5. Limits and buffers: "10 min after, 4 h notice". Before and after, minimum notice, daily limit, how far ahead.
+  6. Booking questions: "Name, email, 1 more". Questions in order, add, require.
+  7. Notifications: "Confirmation, 2 reminders". Links to Reminders for the rest.
+  8. Confirmation page: "Message" or "Redirect to acme.com".
+  9. Payment: "Off" or "$100, Stripe".
+- **Footer:** Preview (opens the booking page for this type in a new tab) and Save changes.
+- **New meeting type:** opens the same panel with Duration and Location open and a name typed; nothing else to fill.
+
+### 11.3 Booking page tab (the screen that scrolled)
+
+What it is: the page people land on at tryclaritia.com/booking/<handle>, shown as it is, with the few things that change
+it in the panel on the right.
+
+**Layout at 1280 by 800**
+- Work area 1080 by 660 (sidebar 200 px).
+- **Left, the preview (about 660 px wide):** a slim bar with the address in mono, Copy and Open, and Desktop | Phone.
+  Under it the real page drawn at a scale that fits the height, so the whole page shows without scrolling (Desktop
+  scales to fit; Phone shows a 390 px frame at full size).
+- **Right, the panel (400 px):** You | Team at the top, then closed sections, then the footer.
+
+**Sections (one open at a time, summaries in gray)**
+1. **Link** — "tryclaritia.com/booking/vincent". Open: the handle box with the fixed part in gray, a live check (a green
+   check when it's free, "Taken" in red when it isn't, checked 400 ms after typing stops), and Copy. Changing it warns
+   once that old links keep working for 90 days (they redirect).
+2. **Profile** — "Vincent Nguyen, Founder of Perceptric". Open: the photo as a 64 px circle you click or drop onto
+   (upload, crop to a circle, no URL box), Name, Headline. Initials show until a photo is added.
+3. **Meetings shown** — "1 of 2 shown". Open: each type with its switch and a drag handle for the order. Two with the
+   same name show their address under the name, so they can be told apart, and a Rename link.
+4. **Welcome line** — "None" or its first words. Open: one line, 140 characters at most, shown under the headline.
+5. **Look** — "Claritia" or "Your brand kit". Open: Claritia's look or the brand kit (logo, color, font), and Show
+   Booked with Claritia (on; off on paid plans).
+
+**Footer (pinned):** "Saved" in gray when nothing changed; otherwise Discard and Save changes. Save updates the preview
+at once; the public page follows in a few seconds.
+
+**States**
+- No calendar: the banner at the top (11.1 rule 5); the preview shows "No open times yet" on the type cards' calendar.
+- No meetings shown: the preview shows "Nothing to book yet" and the Meetings shown section opens.
+- Handle taken or bad: the Link section opens with the reason; Save stays off.
+- Team page without a team handle: the Link section asks for one first.
+
+**Phone width:** the preview hides behind a Preview button; the panel takes the width.
+
+### 11.4 The public booking page (what guests see)
+
+Fits a laptop screen with no page scroll; only the list of times scrolls inside its own column.
+
+- One card, 1000 px wide at most, 600 px tall, centered, on Claritia's gray (or the brand kit's background).
+- **Left (300 px):** the host's photo and name, the meeting name as a two-tone title with the length in mono above it,
+  place and length, the welcome line. When a time is picked, a green box shows it.
+- **Middle:** "Pick a time", the length pills if there are several, the month with Monday first, open days filled with
+  a green dot, today marked, the arrows, and the time zone at the bottom with 12h | 24h.
+- **Right (220 px, appears when a day is picked, 220 ms slide):** the day's name, then the times grouped Morning,
+  Afternoon and Evening, each a pill; the picked one splits into the time and Next. Only this column scrolls.
+- The first day with times opens by itself, so guests never land on an empty month; a month with none shows "Next open
+  day" in its place.
+- **Details:** the middle and right columns become the form (Change time, name and email side by side, questions,
+  Confirm booking). **Booked:** the check, the summary card with the corner brackets, Add to calendar (Google,
+  Outlook), Reschedule and Cancel.
+- **Phone:** one column, the info folded to one line at the top (photo, name, length), the month, then the times.
+
+### 11.5 Availability
+
+- You | Team. **You** has three parts side by side at 1280 px: Schedules (the list: Working hours, Demo hours, New),
+  the open schedule's week (each day a row: switch, the times, add), and Calendars (connected accounts, which count as
+  busy, where new bookings go). **Date-specific hours** and **Days off** are buttons that open the panel.
+- **Team** shows everyone's week as a grid, read only, with each person's name opening their schedule.
+
+### 11.6 Build order
+
+1. The panel parts: Panel, Section (title, summary, open), the pinned footer, and the banner.
+2. Meeting types: You | Team (done), the row, the panel with the nine sections; the old editor page goes.
+3. Booking page: the scaled preview, the panel with five sections, the photo upload, the handle check.
+4. The public page layout of 11.4.
+5. Availability.
+
+Each step ships on its own; nothing is half-moved.
+
+### 11.7 Running cost
+
+No new services, jobs or AI calls. Photo uploads go to the existing Supabase storage bucket (under 100 KB each after
+resizing in the browser). **$0 more a month at Beta (50 teams) and Growth (500 teams).**
