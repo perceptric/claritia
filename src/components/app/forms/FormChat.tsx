@@ -40,7 +40,7 @@ export function useFormChat({ session, ws, formId, prepare, onResult }: Pick<Vie
 }
 
 /** The bar: what the last ask did (with Undo), then the box. */
-export function AskBar({ chat, onUndo }: { chat: ReturnType<typeof useFormChat>; onUndo: () => void }) {
+export function AskBar({ chat, onUndo, inset = "inset-x-0" }: { chat: ReturnType<typeof useFormChat>; onUndo: () => void; /** Where it sits: over the canvas, between the editor's rail and panel. */ inset?: string }) {
   const { last, busy, error, send, clear } = chat;
   const [text, setText] = useState("");
   const go = (t: string) => {
@@ -50,7 +50,7 @@ export function AskBar({ chat, onUndo }: { chat: ReturnType<typeof useFormChat>;
   };
   const said = last?.lines.length ? (last.lines.length === 1 ? last.lines[0]! : `${last.lines[0]}, and ${last.lines.length - 1} more`) : last?.reply;
   return (
-    <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 flex flex-col items-center gap-2 px-4 pt-6 pb-4">
+    <div className={`pointer-events-none absolute ${inset} bottom-0 z-10 flex flex-col items-center gap-2 px-4 pt-6 pb-4`}>
       {busy || error || last ? (
         <div role="status" className={`anim-rise-sm pointer-events-auto flex max-w-full items-center gap-2 rounded-full border bg-card py-1 pr-1 pl-3 text-[12.5px] shadow-[0_4px_16px_rgb(0_0_0/0.08)] ${error ? "border-rose/40 text-rose" : "border-line text-body"}`}>
           {busy ? (
