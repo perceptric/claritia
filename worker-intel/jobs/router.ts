@@ -3,11 +3,14 @@
 //                 import row, a lead that crossed the score threshold, Route again for many, and a lead passed on
 //                 after a missed response time (to the next rep, or to the manager).
 //   router_alert  tell the rep (Slack app message, else the Slack channel, else email), or the workspace owners when
-//                 no one could take the lead.
+//                 no one could take the lead. Each part (the message, the channel post, each address) is claimed in
+//                 router_alert_sent before it goes, so a retry or a second worker never tells anyone twice.
 //   router_sla    nudge the rep before the response time ends, or tell them it ran out.
 //   meeting_team_run  write a team meeting as its queue's run when the booking couldn't (src/lib/meetings/team.ts).
 
 import { slackNote } from "../../src/lib/delivery/send.ts";
+import { fromHeader, outcomeOf, SendError } from "../../src/lib/email/provider.ts";
+import type { Resend } from "../../src/lib/email/resend.ts";
 import { JobError, type Handler, type Rpc } from "../../src/lib/jobs.ts";
 import { leadRoutedEmail, mime, slaEmail, validAddress } from "../../src/lib/meetings/emails.ts";
 import { buttons, esc, fields, section, slackDm, tokenOf } from "../../src/lib/slack/app.ts";
@@ -48,7 +51,10 @@ export const routeJob =
     if (reason === "sla") return passOn(rpc, ws, contact, key, String(p.sla ?? ""));
     if (p.undo === true) await call(rpc, "router_undo", { p_ws: ws, p_contact: contact });
     const byUser = typeof p.byUser === "string" && UUID.test(p.byUser) ? p.byUser : null;
-    await route(rpc, { ws, contact, key, reason: reason as Reason, byUser, force: p.undo === true, qualify: (c) => qualifyContact(rpc, c, { timeoutMs: 2900 }) });
+    // An import or a CRM sync has its own qualify job for each lead: no waiting on Claude here (docs/router.md 3.8).
+    const inline = reason !== "import" && reason !== "crm";
+    // Held's "let through" for many leads queues them with skipSpam: the spam check doesn't hold them again.
+    await route(rpc, { ws, contact, key, reason: reason as Reason, byUser, force: p.undo === true, skipSpam: p.skipSpam === true, ...(inline ? { qualify: (c: string) => qualifyContact(rpc, c, { timeoutMs: 2900 }) } : {}) });
   };
 
 type SlaInfo = {
@@ -149,7 +155,7 @@ type AlertInfo = {
   sending: { from_name: string | null; from_email: string | null };
 };
 
-export type AlertOpts = { mailer: Mailer | null; base: string; from: string; fetcher?: typeof fetch };
+export type AlertOpts = { mailer: Mailer | null; base: string; from: string; fetcher?: typeof fetch; batcher?: Pick<Resend, "batch"> | null };
 
 /** One alert per run: Slack when the router has a channel, else email. Held leads wait in Held instead. */
 export const routerAlert =
@@ -175,39 +181,75 @@ export const routerAlert =
     const detail = [company, [size, country].filter(Boolean).join(", ")].filter(Boolean).join(" ");
     const text = unassigned ? `A lead needs an owner: ${lead}${detail ? `, ${detail}` : ""} from ${from}` : `New lead for ${who}: ${lead}${detail ? `, ${detail}` : ""} from ${from}`;
 
+    // Parts this job may send; one another worker (or an earlier try) claimed is theirs.
+    const claim = async (parts: string[]) => new Set(parts.length ? await call<string[]>(rpc, "router_alert_claim", { p_run: r.id, p_parts: parts }) : []);
+    const giveBack = (parts: string[]) => (parts.length ? call(rpc, "router_alert_unclaim", { p_run: r.id, p_parts: parts }) : Promise.resolve());
+
     const token = tokenOf(info.slack);
     if (token && !unassigned && info.owner?.email && r.contact_id) {
+      if (!(await claim(["dm"])).has("dm")) return;
       const lines = explain(decision, f).filter((l) => l.mark === "ok" || l.step === "queue" || l.step === "sla");
       const res = await slackDm(token, info.owner.email, text, [
         section(`*${esc(text)}*`),
         ...fields([{ label: "Why", value: why }, ...lines.slice(-2).map((l) => ({ label: l.title, value: l.parts.map(partText).join("") }))]),
         buttons([{ text: "Open lead", url: link }, { text: "Mark contacted", action: "sla_done", value: r.contact_id, primary: true }]),
       ], o.fetcher);
+      if (res.status !== "done") await giveBack(["dm"]);
       if (res.status === "retry") throw new JobError(res.error, { retryAfterS: res.retryAfterS ?? 60 });
       // Sent: the channel still hears when the router has one. Not in Slack: the channel or email below.
       if (res.status === "done" && !info.sealed) return;
       if (res.status === "done") {
-        await slackNote(info.sealed, text, [{ label: "Why", value: why }, { label: "Open", value: `<${link}|Open in Claritia>` }], o.fetcher).catch(() => undefined);
+        if ((await claim(["channel"])).has("channel"))
+          await slackNote(info.sealed, text, [{ label: "Why", value: why }, { label: "Open", value: `<${link}|Open in Claritia>` }], o.fetcher).catch(() => undefined);
         return;
       }
     }
     if (info.sealed) {
+      if (!(await claim(["channel"])).has("channel")) return;
       const lines = explain(decision, f).filter((l) => l.mark === "ok" || l.step === "queue");
       const res = await slackNote(info.sealed, text, [
         { label: "Why", value: why },
         ...lines.slice(-2).map((l) => ({ label: l.title, value: l.parts.map(partText).join("") })),
         { label: "Open", value: `<${link}|Open in Claritia>` },
       ], o.fetcher);
-      if (res.status === "retry") throw new JobError(res.error, { retryAfterS: res.retryAfterS ?? 60 });
+      if (res.status === "retry") {
+        await giveBack(["channel"]);
+        throw new JobError(res.error, { retryAfterS: res.retryAfterS ?? 60 });
+      }
       if (res.status === "done") return;
       // A broken webhook falls back to email, so the rep still hears.
     }
     if (!o.mailer) return;
     const to = unassigned ? info.admins : info.owner?.email ? [info.owner.email] : [];
     const fromEmail = info.sending.from_email ?? o.from;
-    for (const addr of to.filter((a) => validAddress(a)).slice(0, 10)) {
-      const parts = leadRoutedEmail({ lead, company, from, why, link, unassigned });
+    const want = [...new Set(to.filter((a) => validAddress(a)).map((a) => a.trim().toLowerCase()))].slice(0, 10);
+    const mine = await claim(want.map((a) => `email:${a}`));
+    const go = want.filter((a) => mine.has(`email:${a}`));
+    if (!go.length) return;
+    const parts = leadRoutedEmail({ lead, company, from, why, link, unassigned });
+    const again: string[] = [];
+    let failed: string | null = null;
+    const settle = async (addrs: string[], e: unknown) => {
+      const out = outcomeOf(e);
+      if (out === "later" || out === "retry") {
+        again.push(...addrs);
+        await giveBack(addrs.map((a) => `email:${a}`));
+      } else if (out === "failed") failed = (e as Error).message;
+      // unknown: it may have gone, so the claim stays.
+    };
+    const one = async (addr: string) => {
       const raw = mime({ from: { name: "Claritia", email: fromEmail }, to: addr, subject: parts.subject, html: parts.html, text: parts.text });
-      await o.mailer.send({ from: fromEmail, to: addr, raw, tags: { router_run: r.id } });
-    }
+      await o.mailer!.send({ from: fromEmail, to: addr, raw, tags: { router_run: r.id } }).catch((e) => settle([addr], e));
+    };
+    if (o.batcher && go.length > 1) {
+      // Several owners to tell: one call to Resend's batch API (no attachment here), keyed so a repeat is harmless.
+      try {
+        await o.batcher.batch(go.map((addr) => ({ out: { from: fromHeader("Claritia", fromEmail), to: addr, subject: parts.subject, html: parts.html, text: parts.text, headers: [], tags: { router_run: r.id } }, key: `router_alert:${r.id}:${addr}` })));
+      } catch (e) {
+        if (e instanceof SendError && e.invalid) for (const addr of go) await one(addr);
+        else await settle(go, e);
+      }
+    } else for (const addr of go) await one(addr);
+    if (again.length) throw new JobError("The email provider said not now; trying again", { retryAfterS: 60 });
+    if (failed) throw new JobError(failed, { retry: false });
   };

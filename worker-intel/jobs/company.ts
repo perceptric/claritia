@@ -23,7 +23,10 @@ const retry = (e: unknown) => {
 };
 
 async function scoreLater(pool: pg.Pool, ws: string, accounts: string[]) {
-  for (const a of accounts) await pool.query(`select enqueue_job($1, 'score_account', $2, $3, 60)`, [ws, a, JSON.stringify({ account_id: a })]);
+  if (!accounts.length) return;
+  await pool.query(`select enqueue_jobs($1::jsonb)`, [
+    JSON.stringify(accounts.map((a) => ({ workspace_id: ws, kind: "score_account", key: a, payload: { account_id: a }, delay_s: 60, max_attempts: 5 }))),
+  ]);
 }
 
 /** ip_lookup: who owns a network (cached 30 days, shared), then the account on that network's recent visits. */

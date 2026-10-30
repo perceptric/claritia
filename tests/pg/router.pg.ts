@@ -296,6 +296,20 @@ test("today's routing moved over gives the same owners for 200 sample leads", as
 const job = (ws: string, kind: string, key: string, payload: Record<string, unknown>): Job => ({ id: randomUUID(), workspace_id: ws, kind, key, payload, attempts: 1, max_attempts: 5 });
 const signal = new AbortController().signal;
 
+test("a let-through route job (Held, many leads at once) passes the spam check it was let through from", async () => {
+  const { ws, users } = await team(2);
+  await publish(ws, rrBody(users));
+  await q(`select router_lists_save($1, null, '{spammy.io}')`, [ws]);
+  const held = await lead(ws, { email: "x@spammy.io" });
+  await routeJob(rpc)(job(ws, "route", `form:${held}`, { contact: held, reason: "form", key: `form:${held}` }), signal);
+  assert.equal((await q(`select route_status from contacts where id = $1`, [held]))[0].route_status, "held");
+  // Without skipSpam the block list would hold it again.
+  await routeJob(rpc)(job(ws, "route", `again1:${held}`, { contact: held, reason: "let_through", key: `again1:${held}` }), signal);
+  assert.equal((await q(`select owner_user_id from contacts where id = $1`, [held]))[0].owner_user_id, null);
+  await routeJob(rpc)(job(ws, "route", `again2:${held}`, { contact: held, reason: "let_through", key: `again2:${held}`, skipSpam: true }), signal);
+  assert.ok((await q(`select owner_user_id from contacts where id = $1`, [held]))[0].owner_user_id, "let through: routed to a rep");
+});
+
 test("the route job routes once; the alert goes to Slack, or by email when Slack is down for good", async () => {
   process.env.SECRETS_KEY ||= "router-test-secret-key-0123456789abcdef";
   const { ws, users } = await team(2);
@@ -324,9 +338,17 @@ test("the route job routes once; the alert goes to Slack, or by email when Slack
   assert.equal(posts.length, 2);
   assert.match(posts[1]!.text, /^New lead for Rep 1: Dana Lee, US from A form$/);
   assert.equal(sent.length, 0);
-  // A removed webhook: the rep hears by email instead.
+  // The same alert again (a retry, or a second worker after a lost lease): the channel already heard.
+  await alert(job(ws, "router_alert", run, { run }), signal);
+  assert.equal(posts.length, 2, "no second post");
+  // A removed webhook: the rep hears by email instead, once.
+  const c2 = await lead(ws, { first: "Eli", last: "Park" });
+  await routeJob(rpc)(job(ws, "route", `form:${c2}`, { contact: c2, reason: "form", key: `form:${c2}` }), signal);
+  const run2 = (await q(`select id from router_runs where workspace_id = $1 and contact_id = $2`, [ws, c2]))[0].id;
   const gone = (async () => new Response("no_service", { status: 404 })) as unknown as typeof fetch;
-  await routerAlert(rpc, { mailer, base: "https://app.test", from: "meetings@tryclaritia.com", fetcher: gone })(job(ws, "router_alert", run, { run }), signal);
-  assert.equal(sent.length, 1);
+  const viaMail = routerAlert(rpc, { mailer, base: "https://app.test", from: "meetings@tryclaritia.com", fetcher: gone });
+  await viaMail(job(ws, "router_alert", run2, { run: run2 }), signal);
+  await viaMail(job(ws, "router_alert", run2, { run: run2 }), signal);
+  assert.equal(sent.length, 1, "each address hears once");
   assert.match(sent[0]!.to, /^rep1-/);
 });

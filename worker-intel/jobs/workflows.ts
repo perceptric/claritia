@@ -268,17 +268,26 @@ export async function advance(rpc: Rpc, ws: string, run: Claimed, d: WorkflowDep
   return "active";
 }
 
+/** Runs claimed at a time: few enough that a slow step can't keep the rest past their claim. */
+const CLAIM = 25;
+
 export const workflowRun =
   (rpc: Rpc, d: WorkflowDeps = {}): Handler =>
   async (job, signal) => {
     const ws = job.workspace_id;
     if (!ws) throw new JobError("workflow_run needs a workspace", { retry: false });
     const until = Date.now() + (d.roundMs ?? 50_000);
+    const more = () => call(rpc, "enqueue_job", { p_workspace: ws, p_kind: "workflow_run", p_key: ws, p_payload: { lane: "bulk" }, p_delay_s: 1, p_max_attempts: 3 });
     while (!signal.aborted) {
-      const runs = await call<Claimed[]>(rpc, "workflow_claim", { p_ws: ws, p_limit: 100 });
+      const runs = await call<Claimed[]>(rpc, "workflow_claim", { p_ws: ws, p_limit: CLAIM });
       if (!runs?.length) return;
-      for (const r of runs) {
-        if (signal.aborted) return;
+      for (const [i, r] of runs.entries()) {
+        // Out of time (or stopping) between runs: the rest go back unclaimed, and the next round takes them.
+        if (signal.aborted || Date.now() >= until) {
+          await call(rpc, "workflow_unclaim", { p_runs: runs.slice(i).map((x) => x.id) }).catch(() => undefined);
+          if (!signal.aborted) await more();
+          return;
+        }
         try {
           await advance(rpc, ws, r, d);
         } catch (e) {
@@ -287,7 +296,7 @@ export const workflowRun =
         }
       }
       if (Date.now() >= until) {
-        await call(rpc, "enqueue_job", { p_workspace: ws, p_kind: "workflow_run", p_key: ws, p_payload: {}, p_delay_s: 0, p_max_attempts: 3 });
+        await more();
         return;
       }
     }

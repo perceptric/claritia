@@ -36,7 +36,16 @@ export type CalendarOpts = {
   /** Where pushes go; null skips them. Defaults to APP_URL's /api/calendar/hook when it's https. */
   hook?: string | null;
   now?: () => number;
+  /** Set by meetingSync: each account read once per run. */
+  load?: (id: string) => Promise<AccountRow | null>;
 };
+
+/** An account by id, through the run's cache when there is one. */
+const accountById = (rpc: Rpc, o: CalendarOpts, id: string) => (o.load ? o.load(id) : loadAccount(rpc, id));
+
+/** While another change to the meeting runs: 15, 30, 60... seconds (up to 5 minutes, with jitter), then real tries. */
+export const BUSY_TRIES = 10;
+export const busyWait = (n: number, rand: () => number = Math.random) => Math.round(Math.min(300, 15 * 2 ** n) * (0.8 + 0.4 * rand()));
 
 async function call<T>(rpc: Rpc, fn: string, args: Record<string, unknown>): Promise<T> {
   const { data, error } = await rpc(fn, args);
@@ -184,17 +193,26 @@ class Final extends Error {}
 const EVENT = { create: "booked", move: "moved", cancel: "canceled" } as const;
 
 export const meetingSync =
-  (rpc: Rpc, o: CalendarOpts = {}): Handler =>
+  (rpc: Rpc, base: CalendarOpts = {}): Handler =>
   async (job, signal) => {
+    let o = base;
     const meeting = String(job.payload.meeting ?? "");
     const action = job.payload.action as keyof typeof EVENT;
     if (!UUID.test(meeting) || !(action in EVENT)) throw new JobError("meeting_sync needs a meeting and an action", { retry: false });
 
-    // One change at a time per meeting. While another runs, this one goes back in line without using up a try.
+    // One change at a time per meeting. While another runs, this one goes back in line without using up a try, a
+    // little later each time; after BUSY_TRIES it waits like a failed try instead.
+    const busy = Number.isInteger(job.payload.busy) ? (job.payload.busy as number) : 0;
+    const wait = async () => {
+      if (busy >= BUSY_TRIES) throw new JobError("Another change to this meeting is still running", { retryAfterS: 300 });
+      await enqueueJob(rpc, { workspaceId: job.workspace_id, kind: "meeting_sync", key: job.key, payload: { ...job.payload, busy: busy + 1 }, delayS: busyWait(busy), maxAttempts: job.max_attempts });
+    };
     if (!(await call<boolean>(rpc, "meeting_sync_lease", { p_meeting: meeting, p_job: job.id, p_s: 300 }))) {
-      await enqueueJob(rpc, { workspaceId: job.workspace_id, kind: "meeting_sync", key: job.key, payload: job.payload, delayS: 15, maxAttempts: job.max_attempts });
+      await wait();
       return;
     }
+    const cache = new Map<string, Promise<AccountRow | null>>();
+    o = { ...o, load: (id) => cache.get(id) ?? (cache.set(id, loadAccount(rpc, id)), cache.get(id)!) };
     const notify = (event: string) =>
       enqueueJob(rpc, { workspaceId: job.workspace_id, kind: "meeting_notify", key: event === "booked" ? `booked:${meeting}` : `${event}:${job.id}`, payload: { meeting, event } });
     let anchor: string | null = null;
@@ -204,7 +222,7 @@ export const meetingSync =
       // A group seat also takes its start's first seat's lease, so two seats never each make an event.
       if (inp.anchor && inp.anchor !== meeting) {
         if (!(await call<boolean>(rpc, "meeting_sync_lease", { p_meeting: inp.anchor, p_job: job.id, p_s: 300 }))) {
-          await enqueueJob(rpc, { workspaceId: job.workspace_id, kind: "meeting_sync", key: job.key, payload: job.payload, delayS: 15, maxAttempts: job.max_attempts });
+          await wait();
           return;
         }
         anchor = inp.anchor;
@@ -276,7 +294,7 @@ async function run(rpc: Rpc, o: CalendarOpts, job: Job, inp: Inputs, action: key
 
   if (action === "move" && events[org.user_id]?.event) {
     const r = events[org.user_id]!;
-    const acc = r.account === org.cal.id ? org.cal : await loadAccount(rpc, r.account);
+    const acc = r.account === org.cal.id ? org.cal : await accountById(rpc, o, r.account);
     if (acc && acc.status === "ok") {
       await guarded(rpc, acc, () => providerOf(rpc, o, acc, signal).update(r.calendar, r.event!, { start, end, guests, leads: leadsOf(m) }));
       if (r.zoom) await moveZoom(rpc, o, r.zoom, start, end, signal);
@@ -341,7 +359,7 @@ async function reseat(rpc: Rpc, o: CalendarOpts, inp: Inputs, placed: [string, R
   const at = rest[0]!;
   for (const [u, r] of placed) {
     if (!r.event) continue;
-    const acc = await loadAccount(rpc, r.account);
+    const acc = await accountById(rpc, o, r.account);
     if (acc && acc.status === "ok")
       await guarded(rpc, acc, () => providerOf(rpc, o, acc, signal).update(r.calendar, r.event!, { start: Date.parse(at.start_at), end: Date.parse(at.end_at), guests: coHosts(inp, u), leads: seatLeads(rest) }));
   }
@@ -353,7 +371,7 @@ async function join(rpc: Rpc, o: CalendarOpts, inp: Inputs, host: Seat, signal: 
   const all = [...(inp.session ?? []), m];
   for (const [u, r] of Object.entries(host.events)) {
     if (!r.event) continue;
-    const acc = await loadAccount(rpc, r.account);
+    const acc = await accountById(rpc, o, r.account);
     if (acc && acc.status === "ok")
       await guarded(rpc, acc, () => providerOf(rpc, o, acc, signal).update(r.calendar, r.event!, { start: Date.parse(m.start_at), end: Date.parse(m.end_at), guests: coHosts(inp, u), leads: seatLeads(all) }));
   }
@@ -362,16 +380,16 @@ async function join(rpc: Rpc, o: CalendarOpts, inp: Inputs, host: Seat, signal: 
 
 /** Cancel an event and its Zoom meeting. A calendar since disconnected is skipped. */
 async function takeDown(rpc: Rpc, o: CalendarOpts, r: Ref, signal: AbortSignal) {
-  const acc = await loadAccount(rpc, r.account);
+  const acc = await accountById(rpc, o, r.account);
   if (acc && acc.status === "ok" && r.event) await guarded(rpc, acc, () => providerOf(rpc, o, acc, signal).cancel(r.calendar, r.event!));
   if (r.zoom) {
-    const z = await loadAccount(rpc, r.zoom.account);
+    const z = await accountById(rpc, o, r.zoom.account);
     if (z && z.status === "ok") await guarded(rpc, z, () => zoomOf(rpc, o, z, signal).cancel(r.zoom!.id));
   }
 }
 
 async function moveZoom(rpc: Rpc, o: CalendarOpts, zoom: NonNullable<Ref["zoom"]>, start: number, end: number, signal: AbortSignal) {
-  const z = await loadAccount(rpc, zoom.account);
+  const z = await accountById(rpc, o, zoom.account);
   if (z && z.status === "ok") await guarded(rpc, z, () => zoomOf(rpc, o, z, signal).move(zoom.id, start, end));
 }
 

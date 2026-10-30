@@ -1,15 +1,27 @@
 import type pg from "pg";
-import { JobError, type Handler } from "../../src/lib/jobs.ts";
+import { JobError, type Handler, type Job } from "../../src/lib/jobs.ts";
 import { erasePerson, exportPerson } from "../../src/lib/identity/erase.ts";
 import { rebuildWorkspace } from "../../src/lib/identity/rebuild.ts";
-import { stitchDevice, stitchOne, workspaceLock } from "../../src/lib/identity/stitch.ts";
+import { stitchDevice, stitchOne, tryWorkspaceLock, WorkspaceBusy } from "../../src/lib/identity/stitch.ts";
 import { settingsFor } from "../settings.ts";
+
+/** While a rebuild holds the workspace, stitching waits its turn in the queue (without using a try), not in a loop. */
+export const BUSY_WAIT_S = 10;
+
+async function later(pool: pg.Pool, job: Job) {
+  await pool.query(`select enqueue_job($1, $2, $3, $4, $5, $6)`, [job.workspace_id, job.kind, job.key, JSON.stringify(job.payload), BUSY_WAIT_S, job.max_attempts]);
+}
 
 /** stitch: every waiting evidence row for one device (the job key). */
 export const stitch = (pool: pg.Pool): Handler => async (job) => {
   const device = String(job.payload.device_id ?? job.key ?? "");
   if (!job.workspace_id || !/^[0-9a-f-]{36}$/.test(device)) throw new JobError("stitch needs a workspace and a device", { retry: false });
-  await stitchDevice(pool, job.workspace_id, device, await settingsFor(pool, job.workspace_id));
+  try {
+    await stitchDevice(pool, job.workspace_id, device, await settingsFor(pool, job.workspace_id));
+  } catch (e) {
+    if (!(e instanceof WorkspaceBusy)) throw e;
+    await later(pool, job);
+  }
 };
 
 /** device_reset: claritia.reset() on the site. The old device's open link closes at that moment (docs/identity.md 4.5). */
@@ -34,7 +46,11 @@ export const stitchEvidence = (pool: pg.Pool): Handler => async (job) => {
   const c = await pool.connect();
   try {
     await c.query("begin");
-    await workspaceLock(c, job.workspace_id);
+    if (!(await tryWorkspaceLock(c, job.workspace_id))) {
+      await c.query("rollback");
+      await later(pool, job);
+      return;
+    }
     const e = (
       await c.query(
         `select id, workspace_id, site_id, device_id, session_id, source, level, identifiers, hard_edge, extra, server_at

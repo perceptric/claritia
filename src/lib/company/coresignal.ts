@@ -32,7 +32,7 @@ export function readCoresignal(d: any): Firmo {
 export async function enrichDomain(domain: string, opts: { apiKey?: string; fetcher?: typeof fetch; signal?: AbortSignal }): Promise<Firmo | null> {
   const headers: Record<string, string> = { accept: "application/json" };
   if (opts.apiKey) headers.apikey = opts.apiKey;
-  const res = await (opts.fetcher ?? fetch)(`https://api.coresignal.com/cdapi/v2/company_clean/enrich?website=${encodeURIComponent(domain)}`, { headers, signal: opts.signal ?? AbortSignal.timeout(20_000) });
+  const res = await (opts.fetcher ?? fetch)(`https://api.coresignal.com/cdapi/v2/company_clean/enrich?website=${encodeURIComponent(domain)}`, { headers, signal: opts.signal ? AbortSignal.any([opts.signal, AbortSignal.timeout(5_000)]) : AbortSignal.timeout(5_000) });
   if (res.status === 404) return null;
   if (res.status === 429 || res.status === 402) throw Object.assign(new Error(`Coresignal ${res.status}`), { retryAfterS: 3600 });
   if (!res.ok) throw new Error(`Coresignal ${res.status}`);
