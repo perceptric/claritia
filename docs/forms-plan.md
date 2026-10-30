@@ -325,3 +325,26 @@ Changed from the plan:
 - Region lists come with the form instead of a separate request.
 - Not tested in a browser here: the app screens' end-to-end run (`scripts/screens-check.ts`) needs PostgREST, which
   wasn't available. The Results views and the builder panels were checked in Chromium against a stand-in client.
+
+## Part 7. Settings, alerts and the AI bar (built)
+
+What every form now has, after the Web3Forms-style settings (src/lib/forms/notify.ts, supabase/migrations/083_form_notify.sql):
+
+- **Team alerts.** An email to each teammate picked, with the subject's merge tags and every answer (or none), and a post in the Routing Slack channel. Sent by the `form_notify` job (worker-intel/jobs/forms.ts) after routing, so it names the rep.
+- **Auto-reply.** To the person who sent the form, from the routed rep (reply-to the rep) or the team, with the rep's booking link and "only to work emails". Never while sending is paused.
+- **Spam and security.** On top of the timer and Turnstile: refuse free email addresses, take submissions only from listed sites (the form's own hosted page always works), and an hourly limit. Off-site and over-limit submissions are held as spam with the reason, never lost.
+- **Data.** Keep submissions 30 days, 1 year, 3 years or forever (pruned nightly at 03:37 UTC, contacts stay), and delete every submission.
+- **Submissions** is the old Results view, with the reason each one was held.
+- **The AI bar.** The chat panel is gone. One box under the form: type what to change, the form changes, one line says what changed with Undo. No conversation is stored (form_chats is no longer written).
+- **Workflows** left the sidebar: every workflow is listed in Emails › Journeys, under its stage or "Workflows". Old /workflows links open there; New workflow is at the bottom of the list.
+
+Reliability: each alert, the Slack post and the reply are noted in form_notify_sent once they went (or may have gone), so a retried job sends only what's left (tests/formNotify.test.ts covers the provider saying not now, a timeout that may have sent, and spam, test and paused cases).
+
+### Running cost
+
+| | Beta (50 teams) | Growth (500 teams) |
+| --- | --- | --- |
+| Emails (alerts and replies, about 2 per submission, 300 submissions a team a month: 30,000 and 300,000 a month) | $0 more inside Resend Pro's 50,000 ($20, already paid for meetings, check) | about $90 more for Resend Scale past 50,000 (check) |
+| Claude (the AI bar) | $0 more: the same calls as the old chat, with no history sent, so slightly fewer tokens | $0 more |
+| Database and cron | $0 more (one small table, one nightly job) | $0 more |
+| **Total added** | **$0 a month** | **about $90 a month (check)** |

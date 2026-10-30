@@ -180,7 +180,9 @@ export function ClientApp({ config }: { config: SupaConfig }) {
   }, [sb, ws]);
 
   // Pages with unsaved changes get to ask first.
-  const navigate = useCallback((r: Route, id = "", query = "") => {
+  const navigate = useCallback((to: Route, toId = "", query = "") => {
+    // Moved pages open their new home (a workflow opens in Emails › Journeys).
+    const { route: r, id } = to === "workflows" ? resolveRoute(to, toId) : { route: to, id: toId };
     mayLeave().then((ok) => {
       if (!ok) return;
       window.history.pushState(null, "", `/${r}${id ? `/${id}` : ""}${query ? `?${query}` : ""}`);

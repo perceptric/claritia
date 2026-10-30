@@ -2,13 +2,13 @@
 
 // Emails › Journeys (docs/email-plan.md Part 8). The first visit is the build screen, with no questions: Claritia
 // reads the brand, the product's events and the CRM, then makes one journey per lifecycle moment, its emails in the
-// brand's voice and waiting for approval. After that, the journeys by stage on the left and the open one in the
-// workflow editor on the right.
+// brand's voice and waiting for approval. After that, the journeys by stage on the left, then every other workflow
+// (Workflows left the sidebar: they live here), and the open one in the workflow editor on the right.
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { STAGES, type Facts, type Stage } from "@/lib/workflows/lifecycle";
 import type { Brand } from "@/lib/workflows/journeys";
-import { Check } from "../../Icons";
+import { Check, Plus } from "../../Icons";
 import { AiMark } from "../Ai";
 import { Button, Empty, ErrorNote, errorText, Loading, must, Page, postJson, useLoad, type ViewProps } from "../ui";
 import { Dots } from "../routing/Flow";
@@ -18,7 +18,7 @@ import { WorkflowEditor } from "../workflows/Editor";
 type Plan = {
   key: string;
   name: string;
-  stage: Stage;
+  stage: Stage | null;
   line: string;
   emails: number;
 };
@@ -39,7 +39,7 @@ export function JourneysPage(props: ViewProps & { sub: string }) {
   const data = useLoad(async () => {
     const [info, rows] = await Promise.all([
       emailsApi<Loaded>(session, ws.id, "load"),
-      sb.from("workflows").select("id, name, status, stage, journey").eq("workspace_id", ws.id).not("stage", "is", null).order("created_at"),
+      sb.from("workflows").select("id, name, status, stage, journey").eq("workspace_id", ws.id).order("created_at"),
     ]);
     return { info, rows: (must(rows) ?? []) as Row[] };
   }, `${ws.id}:${tick}`);
@@ -72,11 +72,11 @@ export function JourneysPage(props: ViewProps & { sub: string }) {
     <Page title="Journeys" flush>
       <div className="grid h-full min-h-0 md:grid-cols-[232px_minmax(0,1fr)]">
         <nav aria-label="Journeys" className="flex min-h-0 gap-1 overflow-auto border-line p-2 md:flex-col md:border-r">
-          {STAGES.map((st) => {
+          {[...STAGES, { value: null, label: "Workflows" }].map((st) => {
             const mine = rows.filter((r) => r.stage === st.value);
             if (!mine.length) return null;
             return (
-              <div key={st.value} className="flex shrink-0 gap-1 md:flex-col">
+              <div key={st.value ?? "other"} className="flex shrink-0 gap-1 md:flex-col">
                 <p className="hidden px-2 pt-3 pb-1 text-[11.5px] text-faint md:block">{st.label}</p>
                 {mine.map((r) => (
                   <button
@@ -94,6 +94,12 @@ export function JourneysPage(props: ViewProps & { sub: string }) {
             );
           })}
           {missing.length ? <BuildMore session={session} ws={ws.id} count={missing.length} onDone={reload} /> : null}
+          <div className="mt-1 shrink-0 px-1">
+            <Button variant="ghost" size="sm" onClick={() => navigate("workflows", "new")}>
+              <Plus size={13} />
+              New workflow
+            </Button>
+          </div>
         </nav>
         <div className="min-h-0 min-w-0">
           <OpenJourney key={open.id} {...props} id={open.id} onChanged={reload} />

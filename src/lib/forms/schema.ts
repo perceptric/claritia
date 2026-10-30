@@ -6,6 +6,7 @@
 import { readFormDesign, type FormDesign } from "../design/model.ts";
 import { evalFormula, parseFormula, type Ast } from "./formula.ts";
 import { linkProblem, SCHEDULERS, WORK_EMAIL, type MatchRule, type Schedule } from "./schedule.ts";
+import { cleanKeep, cleanNotify, cleanReply, cleanSites, type Keep, type Notify, type Reply } from "./notify.ts";
 
 export type FieldType =
   | "text"
@@ -228,8 +229,14 @@ export type Form = {
   submit: { label: string; full?: boolean };
   /** notice: no box, the label shows under the button and the lead is kept on legitimate interest. */
   consent: { mode: "off" | "by_region" | "always" | "notice"; label: string; /** An opt-in joins this email topic. */ topicId?: string };
-  spam: { minSeconds: number; turnstile: boolean };
+  /** blockFree: free email addresses are refused. sites: the only pages that may send it. perHour: the most a form takes in an hour. */
+  spam: { minSeconds: number; turnstile: boolean; blockFree?: boolean; sites?: string[]; perHour?: number };
   after: After;
+  /** Team alerts and the auto-reply (src/lib/forms/notify.ts). */
+  notify?: Notify;
+  reply?: Reply;
+  /** How long submissions are kept. */
+  keep?: Keep;
   capture?: Capture;
   /** Fill before submit (docs/enrich-workflows-reports.md 1.2 B): fields hidden when enrichment already knows them. */
   enrich?: { hideKnown: boolean; fields: string[] };
@@ -778,8 +785,17 @@ export function checkForm(raw: unknown, ctx: Ctx = {}): { form: Form } | { error
     ...(str(r.intro, LIMITS.text) ? { intro: str(r.intro, LIMITS.text) } : {}),
     submit: { label: str(submit.label, 60) || "Submit", ...(submit.full === true ? { full: true } : {}) },
     consent: { mode: consentMode, label: consentLabel, ...(topicId ? { topicId } : {}) },
-    spam: { minSeconds: Number.isFinite(minSeconds) ? Math.min(Math.max(minSeconds, 0), 30) : 2, turnstile: spam.turnstile === true },
+    spam: {
+      minSeconds: Number.isFinite(minSeconds) ? Math.min(Math.max(minSeconds, 0), 30) : 2,
+      turnstile: spam.turnstile === true,
+      ...(spam.blockFree === true ? { blockFree: true } : {}),
+      ...((s) => (s.length ? { sites: s } : {}))(cleanSites(spam.sites)),
+      ...(Number.isFinite(Number(spam.perHour)) && Number(spam.perHour) >= 1 ? { perHour: Math.min(Math.round(Number(spam.perHour)), 10000) } : {}),
+    },
     after: { end, ...(schedule ? { schedule } : {}) },
+    ...((n) => (n ? { notify: n } : {}))(cleanNotify(r.notify, errors)),
+    ...((n) => (n ? { reply: n } : {}))(cleanReply(r.reply, errors, flat.some((f) => f.key === "email"))),
+    ...((n) => (n ? { keep: n } : {}))(cleanKeep(r.keep)),
     ...(capture ? { capture } : {}),
     ...(en.hideKnown === true || enrichFields.length ? { enrich: { hideKnown: en.hideKnown === true, fields: enrichFields } } : {}),
     ...((d) => (Object.keys(d).length ? { design: d } : {}))(readFormDesign(r.design, new Set(flat.map((f) => f.id)))),

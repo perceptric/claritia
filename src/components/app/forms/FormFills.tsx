@@ -57,6 +57,8 @@ function meetingState(s: Pick<Fill, "booking_shown_at" | "not_booked_at" | "meet
 /** The columns a form shows before anyone picks: the first three answers after the email. */
 const defaultColumns = (cols: Column[]) => cols.filter((c) => c.key !== "email" && c.field?.type !== "hidden").slice(0, 3).map((c) => c.key);
 
+
+const SPAM_WORDS: Record<string, string> = { trap: "Trap", too_fast: "Too fast", marked: "Marked", turnstile: "Failed captcha", site: "Other site", rate: "Over the hourly limit" };
 export function FormFills({
   sb,
   session,
@@ -395,7 +397,7 @@ export function FormFills({
                             </Badge>
                           ))}
                           {meeting ? <Badge tone={meeting.tone}>{meeting.label}</Badge> : null}
-                          {s.spam ? <Badge tone="amber">{s.spam_reason === "trap" ? "Trap" : s.spam_reason === "too_fast" ? "Too fast" : s.spam_reason === "marked" ? "Marked" : "Spam"}</Badge> : null}
+                          {s.spam ? <Badge tone="amber">{SPAM_WORDS[s.spam_reason ?? ""] ?? "Spam"}</Badge> : null}
                           {s.deliveries.map((d) => (
                             <Badge key={d.id} tone={DELIVERY[d.status]?.[1] ?? "gray"}>
                               {DELIVERY[d.status]?.[0] ?? d.status}

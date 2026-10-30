@@ -14,13 +14,13 @@ import type { DesignSystem } from "@/lib/design/model";
 
 type Snap = { form: Form; system: DesignSystem };
 import type { CustomField } from "@/lib/records/fields";
-import { BarChart, Copy, Inbox, Pause, Play, Redo, Send, Trash, Undo, Upload } from "../../Icons";
+import { BarChart, Copy, Inbox, Pause, Play, Redo, Send, Settings as SettingsIcon, Trash, Undo, Upload } from "../../Icons";
 import { BrandLogo } from "../BrandLogo";
 import { askConfirm } from "../Dialogs";
 import { Badge, Button, Empty, ErrorNote, errorText, hostOf, Loading, must, Page, postJson, setLeaveGuard, useLoad, type ViewProps } from "../ui";
 import { Popover } from "./controls";
-import { ChatHistory, useFormChat } from "./FormChat";
-import { AskDock } from "./FormHome";
+import { AskBar, useFormChat } from "./FormChat";
+import { FormRules } from "./FormAlerts";
 import { QuestionList } from "./QuestionList";
 import { FormDestinations } from "./FormDestinations";
 import { AfterSubmit, KnownSettings } from "./FormSettings";
@@ -126,7 +126,7 @@ function Builder({
   const draft = useDesignDraft(session, ws.id, kit, tokens);
   // One screen (docs/form-builder.md Part 4): the form, or its results over it. Settings open in sheets.
   const [view, setView] = useState<"edit" | "results">(() => (typeof window !== "undefined" && pickTab(window.location.search) === "results" ? "results" : "edit"));
-  const [sheet, setSheet] = useState<null | "submit" | "sync" | "share">(null);
+  const [sheet, setSheet] = useState<null | "submit" | "sync" | "share" | "settings">(null);
   const [device] = useState<Device>("desktop");
   const [previewing, setPreviewing] = useState(false);
   const [note] = useState(() => takeOnce(`claritia:form-note:${initial.id}`) ?? "");
@@ -323,9 +323,10 @@ function Builder({
     dirty.current = false;
     setSaved(true);
   };
-  const chat = useFormChat({ sb, session, ws, formId: initial.id, prepare: async () => ((await save()) ? rev.current : null), onResult: fromChat });
+  const chat = useFormChat({ session, ws, formId: initial.id, prepare: async () => ((await save()) ? rev.current : null), onResult: fromChat });
   const origin = typeof window === "undefined" ? "" : window.location.origin;
   const sep = <span aria-hidden="true" className="mx-1 h-5 w-px bg-line" />;
+  const alertWords = [form.notify?.on ? `Email ${form.notify.to.length === 1 ? form.notify.to[0] : `${form.notify.to.length} people`}${form.notify.slack ? " and Slack" : ""}` : "", form.reply?.on ? "Auto-reply" : ""].filter(Boolean).join(", ") || "Off";
   const sch = form.after.schedule;
   const submitWords = sch
     ? sch.who === "routed"
@@ -365,7 +366,11 @@ function Builder({
           {sep}
           <Button variant="ghost" aria-pressed={view === "results"} onClick={() => setView(view === "results" ? "edit" : "results")} className={view === "results" ? "border-ink bg-ink text-paper hover:bg-ink" : ""}>
             <BarChart size={13} />
-            Results
+            Submissions
+          </Button>
+          <Button variant="ghost" onClick={() => setSheet("settings")}>
+            <SettingsIcon size={13} />
+            Settings
           </Button>
           <Button variant="ghost" onClick={() => setSheet("share")}>
             <Upload size={13} />
@@ -382,10 +387,7 @@ function Builder({
       }
     >
       <div className="flex h-full min-h-0 flex-col">
-      <div className="grid min-h-0 flex-1 grid-rows-[minmax(0,1fr)] lg:grid-cols-[340px_minmax(0,1fr)]">
-        <aside aria-label="Assistant" className="hidden min-h-0 border-r border-line lg:block">
-          <ChatHistory chat={chat} />
-        </aside>
+      <div className="grid min-h-0 flex-1 grid-rows-[minmax(0,1fr)]">
         <div className="flex min-h-0 min-w-0 flex-col">
           <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-line bg-card px-3 py-2">
             <PathButton label="On submission" onClick={() => setSheet("submit")}>
@@ -393,6 +395,9 @@ function Builder({
             </PathButton>
             <PathButton label="Sync leads to" onClick={() => setSheet("sync")}>
               {["Claritia contacts", ...dests.filter((d) => !d.paused).map((d) => d.name)].join(", ")}
+            </PathButton>
+            <PathButton label="Alerts" onClick={() => setSheet("settings")}>
+              {alertWords}
             </PathButton>
           </div>
           {error || draft.error || note || problems.length ? (
@@ -407,11 +412,14 @@ function Builder({
               ) : null}
             </div>
           ) : null}
-          <div className="min-h-0 flex-1">
+          <div className="relative min-h-0 flex-1">
             {view === "edit" ? (
-              <div className="h-full overflow-auto bg-paper px-4 py-8 md:px-8">
-                <QuestionList form={form} apply={apply} />
-              </div>
+              <>
+                <div className="h-full overflow-auto bg-paper px-4 pt-8 pb-40 md:px-8">
+                  <QuestionList form={form} apply={apply} />
+                </div>
+                <AskBar chat={chat} onUndo={undo} />
+              </>
             ) : (
               <div className="h-full overflow-auto bg-paper p-4 md:p-8">
                 <div className="mx-auto flex max-w-5xl flex-col gap-8">
@@ -423,7 +431,6 @@ function Builder({
           </div>
         </div>
       </div>
-      <AskDock wide placeholder="Ask the assistant to change the form" busy={chat.busy} onSend={(t) => void chat.send(t)} />
       </div>
       {sheet === "submit" ? (
         <Sheet title="On submission" onClose={() => setSheet(null)}>
@@ -437,6 +444,10 @@ function Builder({
             <FormDestinations sb={sb} session={session} ws={ws} formId={initial.id} list={dests} sources={sources} reload={reload} navigate={navigate} form={form} />
             <KnownSettings form={form} apply={apply} />
           </div>
+        </Sheet>
+      ) : sheet === "settings" ? (
+        <Sheet title="Settings" onClose={() => setSheet(null)}>
+          <FormRules form={form} apply={apply} sb={sb} formId={initial.id} onCleared={() => setWatch((w) => w + 1)} />
         </Sheet>
       ) : sheet === "share" ? (
         <Sheet title="Share" onClose={() => setSheet(null)}>

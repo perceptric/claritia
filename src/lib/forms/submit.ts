@@ -10,6 +10,7 @@ import { countryCode, customValue, type CustomField } from "../contacts/fields.t
 import type { ContactInput } from "../contacts/import.ts";
 import { cleanEmail, isRejected } from "../identity/clean.ts";
 import { enqueueJob, type Rpc } from "../jobs.ts";
+import { siteAllowed } from "./notify.ts";
 import type { Tokens } from "./brand.ts";
 import { offerForFill, type Booking } from "./booking.ts";
 import { bookingUrl, outside, routedBooks, showsMeeting, type RoutedAs } from "./schedule.ts";
@@ -91,7 +92,7 @@ export function prepareSubmit(
   version: number,
   raw: Incoming,
   ctx: Ctx,
-  opts: { country?: string | null; turnstileFailed?: boolean; known?: Set<string> } = {},
+  opts: { country?: string | null; turnstileFailed?: boolean; known?: Set<string>; origin?: string | null; ownHost?: string | null; overLimit?: boolean } = {},
 ): { errors: Record<string, string> } | { error: string; status: number } | { args: SubmitArgs } {
   if (raw.v !== 1 || typeof raw.key !== "string" || !KEY.test(raw.key)) return { error: "Bad request.", status: 400 };
   if (raw.version !== version) return { error: "This form changed. Refresh the page and try again.", status: 409 };
@@ -105,8 +106,19 @@ export function prepareSubmit(
   const ms = typeof raw.ms === "number" ? raw.ms : 0;
   // A captured form is the team's own, with its own spam checks, and its timer starts when our script loads, not
   // when the visitor starts typing: no timing check there.
+  // A page off the form's list of sites, or past its hourly limit, is held the same way (docs/forms-plan.md Part 6).
   const spam =
-    typeof raw.trap === "string" && raw.trap.trim() ? "trap" : !form.capture && ms < form.spam.minSeconds * 1000 ? "too_fast" : opts.turnstileFailed ? "turnstile" : null;
+    typeof raw.trap === "string" && raw.trap.trim()
+      ? "trap"
+      : !form.capture && ms < form.spam.minSeconds * 1000
+        ? "too_fast"
+        : opts.turnstileFailed
+          ? "turnstile"
+          : !ownPage(opts.origin, opts.ownHost) && !siteAllowed(form.spam.sites, opts.origin ?? pageOnly(raw.page) ?? null)
+            ? "site"
+            : opts.overLimit
+              ? "rate"
+              : null;
 
   const checked = checkAnswers(form, answers, { hidden, known: opts.known, today: visitorDay(raw.today), regions: regionsOf });
   const errors = { ...checked.errors };
@@ -115,7 +127,7 @@ export function prepareSubmit(
   const e = cleanEmail(parts.email ?? "", ctx);
   if (emailField && !errors[emailField.id]) {
     if (isRejected(e)) errors[emailField.id] = e.rejected === "disposable" ? "Use an email address you'll keep." : "Enter a valid email.";
-    else if (emailField.check === "work_email" && e.class === "free") errors[emailField.id] = "Use your work email.";
+    else if ((emailField.check === "work_email" || form.spam.blockFree) && e.class === "free") errors[emailField.id] = "Use your work email.";
   }
   if (Object.keys(errors).length && !spam) return { errors };
 
@@ -265,10 +277,11 @@ export async function acceptFill(
   f: PublicForm,
   raw: Incoming,
   ctx: Ctx,
-  o: { country?: string | null; turnstileFailed?: boolean; origin?: string | null; test?: boolean; secret?: string; now?: number } = {},
+  o: { country?: string | null; turnstileFailed?: boolean; origin?: string | null; ownHost?: string | null; test?: boolean; secret?: string; now?: number } = {},
 ): Promise<{ status: number; body: Record<string, unknown> }> {
   const known = await knownIds(rpc, f, raw);
-  const r = prepareSubmit(f.body, f.version, raw, ctx, { country: o.country, turnstileFailed: o.turnstileFailed, known });
+  const overLimit = f.body.spam.perHour && !o.test ? await pastHourly(rpc, f.id, f.body.spam.perHour) : false;
+  const r = prepareSubmit(f.body, f.version, raw, ctx, { country: o.country, turnstileFailed: o.turnstileFailed, known, origin: o.origin, ownHost: o.ownHost, overLimit });
   if ("errors" in r) return { status: 400, body: { errors: r.errors } };
   if ("error" in r) return { status: r.status, body: { error: r.error } };
   const { data, error } = await rpc("form_submit", { p_form: f.id, ...r.args, p_test: o.test === true });
@@ -284,6 +297,9 @@ export async function acceptFill(
   // Fields hidden as known are filled from the lookup the form already made, before the router reads the lead.
   if (cid && !r.args.p_spam && f.body.enrich?.hideKnown && !(data as { repeat?: boolean }).repeat) await fillKnown(rpc, cid);
   const routed = cid && !r.args.p_spam && !(data as { repeat?: boolean }).repeat ? await routeFill(rpc, f.workspace_id, cid, sid) : null;
+  // Alerts and the auto-reply go after routing, so they name the rep. The key is the submission's, so a repeat
+  // can't send twice; a queue hiccup costs the alert, never the fill.
+  if (!r.args.p_spam && !o.test && !(data as { repeat?: boolean }).repeat) await queueNotify(rpc, f.workspace_id, f.body, sid);
   // Book a meeting next: the contact owner's link when the form says so and they have one, else the form's link.
   const sch = f.body.after.schedule;
   const lead = r.args.p_contact;
@@ -319,6 +335,30 @@ export async function acceptFill(
     if (url) schedule = { tool: sch.tool, url };
   }
   return { status: 200, body: { id: sid, schedule } };
+}
+
+/** The form's own hosted page (/f/<id>) is always allowed. */
+function ownPage(origin: string | null | undefined, ownHost: string | null | undefined): boolean {
+  if (!origin || !ownHost) return false;
+  try {
+    return new URL(origin).host.toLowerCase() === ownHost.toLowerCase();
+  } catch {
+    return false;
+  }
+}
+
+/** Whether a form already took its hourly limit (submissions in the last hour, spam and tests aside). */
+async function pastHourly(rpc: Rpc, form: string, perHour: number): Promise<boolean> {
+  const { data, error } = await rpc("form_hour_count", { p_form: form });
+  // Can't count: take it. A missing limit costs less than a lost lead.
+  if (error || typeof data !== "number") return false;
+  return data >= perHour;
+}
+
+/** One form_notify job per submission when the form alerts the team or replies (worker-intel/jobs/forms.ts). */
+export async function queueNotify(rpc: Rpc, ws: string, body: Form, submission: string): Promise<void> {
+  if (!body.notify?.on && !body.reply?.on) return;
+  await enqueueJob(rpc, { workspaceId: ws, kind: "form_notify", key: `form_notify:${submission}`, payload: { submission } }).catch(() => undefined);
 }
 
 /** A saved fill as releaseFill reads it. */
