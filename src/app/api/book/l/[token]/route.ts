@@ -43,10 +43,12 @@ export async function POST(request: Request, ctx: Ctx) {
   const body = await readBody(request);
   if (!body) return json({ error: "Bad request." }, 400);
   try {
+    // The spam check runs alongside the read; it's only asked when the link's workspace uses it.
+    const spam = spamOk(request, true, body.turnstile);
     const x = await load(ctx);
     if ("error" in x) return x.error;
     const { v, rpc } = x;
-    if (!(await spamOk(request, v.ws.turnstile, body.turnstile))) return json({ error: "The spam check didn't pass. Try again.", code: "spam" }, 400);
+    if (v.ws.turnstile && !(await spam)) return json({ error: "The spam check didn't pass. Try again.", code: "spam" }, 400);
     const gt = linkGuestType(v);
     const g = checkGuest(body, gt.questions, gt.location);
     if ("error" in g) return json({ error: g.error, code: "guest", field: g.field }, 400);

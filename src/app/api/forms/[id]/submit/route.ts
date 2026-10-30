@@ -1,11 +1,12 @@
 import { cleaningCtx } from "@/lib/contacts/server";
-import { allowed, clientIp, cors, edgeCountry, json, loadPublic, turnstileOk } from "@/lib/forms/server";
+import { allowed, clientIp, cors, edgeCountry, json, loadForSend, sendCtx, turnstileOk } from "@/lib/forms/server";
 import { acceptFill, qaOk, type Incoming } from "@/lib/forms/submit";
 import { serviceClient } from "@/lib/serviceClient";
 
 // A fill from <claritia-form> (docs/form-builder.md Part 2). Checks everything again, then form_submit saves the
 // submission, the contact, the consent and one delivery per destination in one transaction. The same idem key
-// sent again answers with the first submission (and, for Claritia calendar, the same booking token).
+// sent again answers with the first submission (and, for Claritia calendar, the same booking token). Once the form
+// is loaded, the spam check, the cleaning lists and the known-fields check run together.
 
 const ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const MAX_BODY = 64 * 1024;
@@ -26,13 +27,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const db = serviceClient();
   if (!db) return json({ error: "Not set up." }, 503);
   try {
-    const f = await loadPublic(db, id, true);
+    const f = await loadForSend(db, id, raw.version);
     if (!f || f.status !== "live") return json({ error: "This form isn't taking answers." }, 410);
-    const ctx = await cleaningCtx(db, f.workspace_id);
-    const turnstileFailed = f.body.spam.turnstile ? !(await turnstileOk(raw.turnstile, ip)) : false;
-    const r = await acceptFill((fn, args) => db.rpc(fn, args), f, raw, ctx, {
+    const r = await acceptFill((fn, args) => db.rpc(fn, args), f, raw, sendCtx(f.workspace_id, (ws) => cleaningCtx(db, ws)), {
       country: edgeCountry(request),
-      turnstileFailed,
+      turnstileFailed: f.body.spam.turnstile ? turnstileOk(raw.turnstile, ip).then((ok) => !ok) : false,
       origin: request.headers.get("origin"),
       ownHost: request.headers.get("x-forwarded-host") ?? request.headers.get("host"),
       test: qaOk(id, raw.qa, process.env.SECRETS_KEY),

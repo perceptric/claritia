@@ -1,6 +1,8 @@
 import "server-only";
+import { cache } from "react";
 import { turnstileSiteKey } from "@/lib/forms/server";
 import type { Rpc } from "@/lib/jobs";
+import { loadTargetCached } from "@/lib/meetings/public";
 import { serviceClient } from "@/lib/serviceClient";
 
 // What the booking pages share on the server: the service client as an Rpc and the address's options.
@@ -9,6 +11,17 @@ export function pageRpc(): Rpc | null {
   const db = serviceClient();
   return db ? (fn, args) => db.rpc(fn, args) : null;
 }
+
+/**
+ * /book/<ws> and /book/<ws>/<slug>: the page's target in one read (book_page), shared by the page and its metadata
+ * (React cache within the request, the short target cache across requests). Null when nothing is there.
+ */
+export const pageTarget = cache(async (ws: string, slug: string | null, form: string | null) => {
+  const rpc = pageRpc();
+  if (!rpc) return null;
+  const t = await loadTargetCached(rpc, ws, slug, form).catch(() => null);
+  return t ? { rpc, t } : null;
+});
 
 export type Search = Promise<Record<string, string | string[] | undefined>>;
 export const one = (v: string | string[] | undefined) => (typeof v === "string" ? v : undefined);

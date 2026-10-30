@@ -5,9 +5,10 @@
 
 import { createHash, randomBytes } from "node:crypto";
 import { cleanDomain } from "../company/domains.ts";
+import { callNewer } from "../forms/newer.ts";
 import { enqueueJob, type Rpc } from "../jobs.ts";
 import { keepManageToken } from "./links.ts";
-import { book, hostStates, liveAt, newToken, offer, tokenHash, turnsFor, type BookResult } from "./server.ts";
+import { book, hostStates, liveAt, newToken, offer, quiet, sealedToken, tokenHash, turnsFor, type BookResult } from "./server.ts";
 import { cut, pickHost, pickPair } from "./slots.ts";
 import { cleanLook, ordered, type PageLook } from "./look.ts";
 import { validZone } from "./time.ts";
@@ -47,24 +48,93 @@ export type Target = {
 const SLUG = /^[a-z0-9][a-z0-9-]{0,58}[a-z0-9]$/;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
-/** /book/<ws> or /book/<ws>/<slug>: a type first, then a person. Null when nothing is there. */
+const HANDLE = /^[a-z0-9][a-z0-9-]{1,38}[a-z0-9]$/;
+export type Handle = { ws: string; person: string | null; handle: string };
+
+const finish = (t: Target & { look?: unknown }, look: unknown): Target => {
+  // A missing look never stops the page: it shows in the default look.
+  const l = cleanLook(look);
+  return { ...t, type: t.type ? withDefaults(t.type) : null, types: ordered((t.types ?? []).map(withDefaults), l.order), look: l };
+};
+
+/** /book/<ws> or /book/<ws>/<slug>: a type first, then a person. Null when nothing is there. One read (book_page). */
 export async function loadTarget(rpc: Rpc, ws: string, slug: string | null, form?: string | null): Promise<Target | null> {
   const w = ws.toLowerCase();
   const s = slug?.toLowerCase() ?? null;
   if (!SLUG.test(w) || (s !== null && !SLUG.test(s))) return null;
-  const t = await call<Target | null>(rpc, "book_target", { p_ws: w, p_slug: s, p_form: form && UUID.test(form) ? form : null });
+  const p_form = form && UUID.test(form) ? form : null;
+  const page = await callNewer(rpc, "book_page", { p_ws: w, p_slug: s, p_form, p_handle: null });
+  if (page) {
+    if (page.error) throw new Error(page.error.message);
+    const t = page.data as (Target & { look?: unknown }) | null;
+    return t ? finish(t, t.look) : null;
+  }
+  // Before 090: the target, then its look.
+  const t = await call<Target | null>(rpc, "book_target", { p_ws: w, p_slug: s, p_form });
   if (!t) return null;
-  // A missing look never stops the page: it shows in the default look.
-  const look = cleanLook(await call<unknown>(rpc, "booking_look", { p_ws: t.ws.id, p_user: t.profile?.user_id ?? null }).catch(() => null));
-  const types = ordered((t.types ?? []).map(withDefaults), look.order);
-  return { ...t, type: t.type ? withDefaults(t.type) : null, types, look };
+  return finish(t, await call<unknown>(rpc, "booking_look", { p_ws: t.ws.id, p_user: t.profile?.user_id ?? null }).catch(() => null));
 }
 
 /** A /booking/<handle> name: the workspace's booking name and, for a person, their link name. Null when it's free. */
-export async function resolveHandle(rpc: Rpc, handle: string): Promise<{ ws: string; person: string | null; handle: string } | null> {
+export async function resolveHandle(rpc: Rpc, handle: string): Promise<Handle | null> {
   const h = handle.toLowerCase();
-  if (!/^[a-z0-9][a-z0-9-]{1,38}[a-z0-9]$/.test(h)) return null;
-  return call<{ ws: string; person: string | null; handle: string } | null>(rpc, "booking_resolve", { p_handle: h });
+  if (!HANDLE.test(h)) return null;
+  return call<Handle | null>(rpc, "booking_resolve", { p_handle: h });
+}
+
+/**
+ * /booking/<handle> and /booking/<handle>/<type>: the handle and its page in one read (book_page). Under a handle the
+ * second part is only ever a type. Null when nothing is there.
+ */
+export async function loadHandleTarget(rpc: Rpc, handle: string, type: string | null, form?: string | null): Promise<{ h: Handle; t: Target } | null> {
+  const hh = handle.toLowerCase();
+  const ty = type?.toLowerCase() ?? null;
+  if (!HANDLE.test(hh) || (ty !== null && !SLUG.test(ty))) return null;
+  const p_form = form && UUID.test(form) ? form : null;
+  const page = await callNewer(rpc, "book_page", { p_ws: null, p_slug: ty, p_form, p_handle: hh });
+  let out: { h: Handle; t: Target } | null;
+  if (page) {
+    if (page.error) throw new Error(page.error.message);
+    const t = page.data as (Target & { look?: unknown; handle?: Handle | null }) | null;
+    out = t?.handle ? { h: t.handle, t: finish(t, t.look) } : null;
+  } else {
+    const h = await resolveHandle(rpc, hh);
+    const t = h ? await loadTarget(rpc, h.ws, ty ?? h.person, form) : null;
+    out = h && t ? { h, t } : null;
+  }
+  if (!out || (ty && !out.t.type)) return null;
+  return out;
+}
+
+/**
+ * The booking pages' reads, kept TARGET_TTL_MS per address on this server (a page view and its metadata, the times
+ * for another week or length). Bookings read fresh. One read at a time per address; a failed read is never kept.
+ */
+export const TARGET_TTL_MS = 30_000;
+const targets = new Map<string, { at: number; value: Promise<unknown> }>();
+
+function kept<T>(key: string, load: () => Promise<T>, now = Date.now()): Promise<T> {
+  const hit = targets.get(key);
+  if (hit && now - hit.at < TARGET_TTL_MS) return hit.value as Promise<T>;
+  const value = load();
+  if (targets.size > 5000) targets.clear();
+  const entry = { at: now, value: value as Promise<unknown> };
+  targets.set(key, entry);
+  value.catch(() => {
+    if (targets.get(key) === entry) targets.delete(key);
+  });
+  return value;
+}
+
+export const loadTargetCached = (rpc: Rpc, ws: string, slug: string | null, form?: string | null) =>
+  kept(`t:${ws.toLowerCase()}/${slug?.toLowerCase() ?? ""}?${form ?? ""}`, () => loadTarget(rpc, ws, slug, form));
+
+export const loadHandleCached = (rpc: Rpc, handle: string, type: string | null, form?: string | null) =>
+  kept(`h:${handle.toLowerCase()}/${type?.toLowerCase() ?? ""}?${form ?? ""}`, () => loadHandleTarget(rpc, handle, type, form));
+
+/** Forget the booking pages kept on this server (after a type, profile or look is saved here). */
+export function invalidateBookTargets(): void {
+  targets.clear();
 }
 
 /** A type as stored, with any setting it doesn't have taken from the defaults. */
@@ -116,14 +186,34 @@ export function preferHost(t: MeetingType, host: string | null | undefined, prof
   return { ...t, hosts: [h], ...(t.kind === "round_robin" && t.settings.rrMode === "strict" ? { settings: { ...t.settings, rrMode: "flexible" as const } } : {}) };
 }
 
-/** The times for a page that prefers a host: theirs when they have any, else the whole type's. */
+/**
+ * An Rpc that answers meeting_inputs for some of the hosts from an earlier read of more of them over the same span,
+ * so the preferred host's times and the whole type's come from one read.
+ */
+function sharedInputs(rpc: Rpc): Rpc {
+  const seen: { key: string; users: Set<string>; rows: { id: string }[] }[] = [];
+  return async (fn, args) => {
+    if (fn !== "meeting_inputs") return rpc(fn, args);
+    const key = JSON.stringify([args.p_ws, args.p_from, args.p_to, args.p_schedule ?? null]);
+    const want = (args.p_users as string[]) ?? [];
+    const hit = seen.find((x) => x.key === key && want.every((u) => x.users.has(u)));
+    if (hit) return { data: hit.rows.filter((r) => want.includes(r.id)), error: null };
+    const r = await rpc(fn, args);
+    if (!r.error && Array.isArray(r.data)) seen.push({ key, users: new Set(want), rows: r.data as { id: string }[] });
+    return r;
+  };
+}
+
+/** The times for a page that prefers a host: theirs when they have any, else the whole type's. One calendar read. */
 export async function preferredSlots(rpc: Rpc, o: { ws: string; type: MeetingType; length: number; host?: string | null; profiles: Profile[]; now?: number; from?: number; to?: number }): Promise<GuestSlot[]> {
   const narrow = preferHost(o.type, o.host, o.profiles);
-  if (narrow) {
-    const mine = await guestSlots(rpc, { ...o, type: narrow });
-    if (mine.length) return mine;
-  }
-  return guestSlots(rpc, o);
+  if (!narrow) return guestSlots(rpc, o);
+  // The whole type first (its hosts include the preferred one), at one `now`, so the narrow offer reuses its read.
+  const one = sharedInputs(rpc);
+  const at = { ...o, now: o.now ?? Date.now() };
+  const all = await guestSlots(one, at);
+  const mine = await guestSlots(one, { ...at, type: narrow });
+  return mine.length ? mine : all;
 }
 
 export type BookOutcome =
@@ -136,14 +226,15 @@ const guestSlotsOf = (slots: Slot[], from?: number) => slots.filter((s) => from 
  * The guest becomes a contact once the booking stands (meeting_contact_make, 061_meeting_contacts.sql), when the CRM
  * doesn't have them yet. The meeting stands without it.
  */
-export async function guestContact(rpc: Rpc, meetingId: string, g: { email: string; name?: string | null; tz?: string | null }): Promise<void> {
+/** The guest as a new contact's row, or null for an address that can't be one (rejected, or the team's own). */
+export async function guestContactRow(g: { email: string; name?: string | null; tz?: string | null }): Promise<Record<string, unknown> | null> {
   // Loaded here: the booking pages import this file, and the cleaner reads its lists from disk when it loads.
   const { cleanEmail, isRejected } = await import("../identity/clean.ts");
   const e = cleanEmail(g.email);
-  if (isRejected(e) || e.class === "own") return;
+  if (isRejected(e) || e.class === "own") return null;
   const [first, ...rest] = (g.name ?? "").trim().split(/\s+/).filter(Boolean);
   const domain = (e.class === "work" || e.class === "role") && e.domain ? cleanDomain(e.domain)?.domain : undefined;
-  const row = {
+  return {
     email: e.raw,
     email_clean: e.clean,
     email_class: e.class,
@@ -152,6 +243,11 @@ export async function guestContact(rpc: Rpc, meetingId: string, g: { email: stri
     ...(g.tz && validZone(g.tz) ? { timezone: g.tz } : {}),
     ...(domain ? { company_domain: domain } : {}),
   };
+}
+
+export async function guestContact(rpc: Rpc, meetingId: string, g: { email: string; name?: string | null; tz?: string | null }): Promise<void> {
+  const row = await guestContactRow(g);
+  if (!row) return;
   try {
     await rpc("meeting_contact_make", { p_meeting: meetingId, p_row: row });
   } catch {
@@ -165,17 +261,36 @@ export async function guestContact(rpc: Rpc, meetingId: string, g: { email: stri
  */
 export async function bookType(
   rpc: Rpc,
-  o: { ws: string; type: MeetingType; length: number; start: number; guest: GuestIn; source: MeetingSource; linkId?: string | null; submissionId?: string | null; prefer?: { host: string; profiles: Profile[] } | null; payReady: boolean; liveBusy: LiveBusy; now?: number },
+  o: {
+    ws: string;
+    type: MeetingType;
+    length: number;
+    start: number;
+    guest: GuestIn;
+    source: MeetingSource;
+    linkId?: string | null;
+    submissionId?: string | null;
+    prefer?: { host: string; profiles: Profile[] } | null;
+    payReady: boolean;
+    liveBusy: LiveBusy;
+    now?: number;
+    /** The guest's contact read (book_contact), when a narrower try already started it. */
+    contact?: Promise<string | null>;
+    guestRow?: Promise<Record<string, unknown> | null>;
+  },
 ): Promise<BookOutcome> {
+  const pending = isPaid(o.type);
+  if (pending && !o.payReady) return { ok: false, error: "no_payments", slots: [] };
+  // The contact (and the guest's row, for a new one) is read while the times are checked; book() waits for it only
+  // before writing.
+  const contact = o.contact ?? quiet(call<string | null>(rpc, "book_contact", { p_ws: o.ws, p_email: o.guest.email }));
+  const guestRow = o.guestRow ?? quiet(guestContactRow(o.guest).catch(() => null));
   const narrow = o.prefer ? preferHost(o.type, o.prefer.host, o.prefer.profiles) : null;
   if (narrow) {
     // The preferred host's time first; a time only the rest of the team had books with the whole type.
-    const r = await bookType(rpc, { ...o, type: narrow, prefer: null });
+    const r = await bookType(rpc, { ...o, type: narrow, prefer: null, contact, guestRow });
     if (r.ok || r.error !== "not_offered") return r;
   }
-  const pending = isPaid(o.type);
-  if (pending && !o.payReady) return { ok: false, error: "no_payments", slots: [] };
-  const contactId = await call<string | null>(rpc, "book_contact", { p_ws: o.ws, p_email: o.guest.email });
   const r: BookResult = await book(rpc, {
     ws: o.ws,
     type: o.type,
@@ -183,7 +298,8 @@ export async function bookType(
     start: o.start,
     guest: { email: o.guest.email, name: o.guest.name, tz: o.guest.tz, answers: o.guest.answers },
     source: o.source,
-    contactId,
+    contactId: contact,
+    guestRow,
     linkId: o.linkId ?? null,
     submissionId: o.submissionId ?? null,
     pending,
@@ -195,7 +311,7 @@ export async function bookType(
     const slots = r.error.startsWith("link") ? [] : o.type.kind === "group" ? await guestSlots(rpc, { ws: o.ws, type: o.type, length: o.length, now: o.now }) : guestSlotsOf(r.slots);
     return { ok: false, error: r.error, slots: slots.filter((s) => s.start !== o.start) };
   }
-  if (!contactId) await guestContact(rpc, r.meetingId, o.guest);
+  if (!r.tail && !(await contact)) await guestContact(rpc, r.meetingId, o.guest);
   return { ok: true, meetingId: r.meetingId, token: r.token, start: r.start, end: r.end, hosts: r.hosts, pending };
 }
 
@@ -295,6 +411,9 @@ export async function bookOneOff(rpc: Rpc, o: { view: LinkView; start: number; g
   if (v.link.used) return { ok: false, error: "link_used", slots: [] };
   if (v.link.closed) return { ok: false, error: "link_closed", slots: [] };
   const length = linkLength(v.link);
+  // The guest's contact and their row are read while the time is checked.
+  const contact = quiet(call<string | null>(rpc, "book_contact", { p_ws: v.link.workspace_id, p_email: o.guest.email }));
+  const guestRow = quiet(guestContactRow(o.guest));
   const open = await oneOffSlots(rpc, v, now);
   const rest = () => open.filter((s) => s.start !== o.start);
   if (!open.some((s) => s.start === o.start)) return { ok: false, error: "not_offered", slots: open };
@@ -303,9 +422,9 @@ export async function bookOneOff(rpc: Rpc, o: { view: LinkView; start: number; g
   const end = o.start + length * MIN;
   const live = await o.liveBusy([host], o.start - b.before * MIN, end + b.after * MIN);
   if (live.has(host)) return { ok: false, error: "slot_taken", slots: rest() };
-  const contactId = await call<string | null>(rpc, "book_contact", { p_ws: v.link.workspace_id, p_email: o.guest.email });
+  const contactId = await contact;
   const token = newToken();
-  const { data, error } = await rpc("meeting_book", {
+  const args = {
     p_ws: v.link.workspace_id,
     p_type: v.link.type_id,
     p_hosts: [host],
@@ -324,12 +443,20 @@ export async function bookOneOff(rpc: Rpc, o: { view: LinkView; start: number; g
     p_rr: false,
     p_location: linkLocation(v),
     p_booked_by: null,
-  });
-  if (error) {
-    const code = codeOf(error.message, ["slot_taken", "link_used", "link_closed"] as const);
-    if (!code) throw new Error(error.message);
+  };
+  const refused = (message: string): BookOutcome => {
+    const code = codeOf(message, ["slot_taken", "link_used", "link_closed"] as const);
+    if (!code) throw new Error(message);
     return { ok: false, error: code, slots: code === "slot_taken" ? rest() : [] };
+  };
+  // The meeting with its manage token, the guest's contact and meeting_sync, in one transaction (090).
+  const all = await callNewer(rpc, "meeting_book_all", { ...args, p_sealed: sealedToken(token), p_contact_row: contactId ? null : await guestRow.catch(() => null), p_sync: true });
+  if (all) {
+    if (all.error) return refused(all.error.message);
+    return { ok: true, meetingId: (all.data as { id: string }).id, token, start: o.start, end, hosts: [host], pending: false };
   }
+  const { data, error } = await rpc("meeting_book", args);
+  if (error) return refused(error.message);
   const meetingId = data as string;
   await keepManageToken(rpc, meetingId, token).catch(() => undefined);
   if (!contactId) await guestContact(rpc, meetingId, o.guest);
@@ -355,9 +482,15 @@ export function pollView(v: LinkView, now = Date.now()) {
 }
 export type PollView = ReturnType<typeof pollView>;
 
-export async function pollVote(rpc: Rpc, token: string, vote: { email: string; name: string; picks: number[] }): Promise<{ ok: true } | { ok: false; error: "link_closed" | "bad_pick" }> {
-  const { error } = await rpc("poll_vote", { p_hash: tokenHash(token), p_email: vote.email, p_name: vote.name, p_picks: vote.picks.map((t) => new Date(t).toISOString()) });
-  if (!error) return { ok: true };
+/** A guest's vote. `view` is the poll as it is after the vote (poll_vote_view, 090), when the database answers it. */
+export async function pollVote(rpc: Rpc, token: string, vote: { email: string; name: string; picks: number[] }): Promise<{ ok: true; view?: LinkView | null } | { ok: false; error: "link_closed" | "bad_pick" }> {
+  const args = { p_hash: tokenHash(token), p_email: vote.email, p_name: vote.name, p_picks: vote.picks.map((t) => new Date(t).toISOString()) };
+  const viewed = await callNewer(rpc, "poll_vote_view", args);
+  const { error } = viewed ?? (await rpc("poll_vote", args));
+  if (!error) {
+    const v = viewed?.data as LinkView | null | undefined;
+    return { ok: true, ...(viewed ? { view: v ? { ...v, type: v.type ? withDefaults(v.type) : null } : null } : {}) };
+  }
   const code = codeOf(error.message, ["link_closed", "bad_pick"] as const);
   if (!code) throw new Error(error.message);
   return { ok: false, error: code };
@@ -381,20 +514,23 @@ export async function pollBookWinner(rpc: Rpc, o: { view: LinkView; start: numbe
   const starts = v.link.offered.map((x) => Date.parse(x.start)).filter((t) => t > now);
   const host = v.link.owner_user_id;
   const b = buffers(v);
-  const free = async (except?: number) => [...(await freeStarts(rpc, v.link.workspace_id, host, starts, length, b))].filter((t) => t !== except).sort((x, y) => x - y);
+  const read = () => freeStarts(rpc, v.link.workspace_id, host, starts, length, b);
+  const list = (set: Set<number>, except?: number) => [...set].filter((t) => t !== except).sort((x, y) => x - y);
+  const free = async (except?: number) => list(await read(), except);
   if (v.link.kind !== "poll") return { ok: false, error: "not_offered", free: [] };
   if (v.link.closed || v.link.meeting_id) return { ok: false, error: "link_closed", free: [] };
   if (!starts.includes(o.start)) return { ok: false, error: "not_offered", free: await free() };
   if (!voters.length) return { ok: false, error: "no_votes", free: await free() };
-  const cached = await freeStarts(rpc, v.link.workspace_id, host, [o.start], length, b);
+  // One read of the cached times for every start (the picked one among them), and the live check.
+  const cached = await read();
   const end = o.start + length * MIN;
-  if (!cached.has(o.start) || (await o.liveBusy([host], o.start - b.before * MIN, end + b.after * MIN)).has(host)) return { ok: false, error: "slot_taken", free: await free(o.start) };
+  if (!cached.has(o.start) || (await o.liveBusy([host], o.start - b.before * MIN, end + b.after * MIN)).has(host)) return { ok: false, error: "slot_taken", free: list(cached, o.start) };
   const iso = new Date(o.start).toISOString();
   const pickedIt = voters.filter((x) => x.picks.some((p) => Date.parse(p) === o.start));
   const lead = pickedIt[0] ?? voters[0]!;
   const guests = [...new Set(voters.map((x) => x.email))];
   const token = newToken();
-  const { data, error } = await rpc("poll_book", {
+  const args = {
     p_link: v.link.id,
     p_hosts: [host],
     p_start: iso,
@@ -405,12 +541,20 @@ export async function pollBookWinner(rpc: Rpc, o: { view: LinkView; start: numbe
     p_token_hash: tokenHash(token),
     p_location: linkLocation(v),
     p_booked_by: o.bookedBy,
-  });
-  if (error) {
-    const code = codeOf(error.message, ["slot_taken", "link_closed", "not_offered"] as const);
-    if (!code) throw new Error(error.message);
+  };
+  const refused = async (message: string): Promise<PollBook> => {
+    const code = codeOf(message, ["slot_taken", "link_closed", "not_offered"] as const);
+    if (!code) throw new Error(message);
     return { ok: false, error: code, free: code === "slot_taken" ? await free(o.start) : [] };
+  };
+  // The meeting, its manage token, the lead's contact and meeting_sync in one transaction (090).
+  const all = await callNewer(rpc, "poll_book_all", { ...args, p_sealed: sealedToken(token), p_contact_row: await guestContactRow({ email: lead.email, name: lead.name }).catch(() => null) });
+  if (all) {
+    if (all.error) return refused(all.error.message);
+    return { ok: true, meetingId: (all.data as { id: string }).id, token, guests };
   }
+  const { data, error } = await rpc("poll_book", args);
+  if (error) return refused(error.message);
   const meetingId = data as string;
   await keepManageToken(rpc, meetingId, token).catch(() => undefined);
   await guestContact(rpc, meetingId, { email: lead.email, name: lead.name });
@@ -496,6 +640,11 @@ export type MeetingView = {
   profiles: Profile[];
 };
 
+const viewOf = (data: unknown): MeetingView | null => {
+  const v = data as MeetingView | null;
+  return v ? { ...v, type: v.type ? withDefaults(v.type) : null } : null;
+};
+
 export async function loadMeeting(rpc: Rpc, by: { token: string } | { id: string }): Promise<MeetingView | null> {
   if ("token" in by && !/^[A-Za-z0-9_-]{20,64}$/.test(by.token)) return null;
   if ("id" in by && !UUID.test(by.id)) return null;
@@ -570,7 +719,8 @@ export async function rescheduleSlots(rpc: Rpc, v: MeetingView, now = Date.now()
   return (await moveSlots(rpc, v, now)).map((s) => ({ start: s.start }));
 }
 
-export type MoveOutcome = { ok: true; start: number; end: number; hosts: string[] } | { ok: false; error: "slot_taken" | "not_offered" | "not_movable"; slots: GuestSlot[] };
+/** view: the meeting after the move (meeting_move_guest, 090), when the database answers it. */
+export type MoveOutcome = { ok: true; start: number; end: number; hosts: string[]; view?: MeetingView | null } | { ok: false; error: "slot_taken" | "not_offered" | "not_movable"; slots: GuestSlot[] };
 
 /**
  * The guest moves their meeting. The new time must be offered for this meeting (same type and length); the hosts
@@ -605,20 +755,24 @@ export async function reschedule(rpc: Rpc, o: { view: MeetingView; start: number
     }
   }
   if (!hosts.length) return { ok: false, error: "slot_taken", slots: rest() };
-  const { error } = await rpc("meeting_move", {
+  const args = {
     p_id: v.meeting.id,
     p_hosts: hosts,
     p_start: new Date(o.start).toISOString(),
     p_end: new Date(end).toISOString(),
     p_block_start: new Date(blockStart).toISOString(),
     p_block_end: new Date(blockEnd).toISOString(),
-  });
+  };
+  // The move, meeting_sync and the meeting as it is now, in one call (090).
+  const moved = await callNewer(rpc, "meeting_move_guest", args);
+  const { error } = moved ?? (await rpc("meeting_move", args));
   if (error) {
     const found = codeOf(error.message, ["slot_taken", "full", "not_movable"] as const);
     if (!found) throw new Error(error.message);
     const code = found === "full" ? "slot_taken" : found;
     return { ok: false, error: code, slots: code === "slot_taken" ? (await moveSlots(rpc, v, now)).filter((x) => x.start !== o.start).map((x) => ({ start: x.start })) : [] };
   }
+  if (moved) return { ok: true, start: o.start, end, hosts, view: viewOf(moved.data) };
   await enqueueJob(rpc, { workspaceId: v.meeting.workspace_id, kind: "meeting_sync", key: `move:${v.meeting.id}:${Date.now()}`, payload: { meeting: v.meeting.id, action: "move" } });
   return { ok: true, start: o.start, end, hosts };
 }
@@ -627,15 +781,19 @@ export async function reschedule(rpc: Rpc, o: { view: MeetingView; start: number
  * The guest cancels, with an optional reason. A booked meeting's calendar event is canceled by meeting_sync; a time
  * held for payment just lets go (no event was made). Guests aren't refunded here: refunds follow a host's cancel.
  */
-export async function cancelByGuest(rpc: Rpc, o: { view: MeetingView; reason?: string; now?: number }): Promise<{ ok: true } | { ok: false; error: "not_cancelable" }> {
+export async function cancelByGuest(rpc: Rpc, o: { view: MeetingView; reason?: string; now?: number }): Promise<{ ok: true; view?: MeetingView | null } | { ok: false; error: "not_cancelable" }> {
   const v = o.view;
   if (!canChange(v, o.now).cancel) return { ok: false, error: "not_cancelable" };
   const was = v.meeting.status;
-  const { error } = await rpc("meeting_status", { p_id: v.meeting.id, p_status: "canceled", p_reason: o.reason?.trim().slice(0, 500) || null, p_by: null });
+  const reason = o.reason?.trim().slice(0, 500) || null;
+  // The cancel, meeting_sync and the meeting as it is now, in one call (090).
+  const done = await callNewer(rpc, "meeting_cancel_guest", { p_id: v.meeting.id, p_reason: reason });
+  const { error } = done ?? (await rpc("meeting_status", { p_id: v.meeting.id, p_status: "canceled", p_reason: reason, p_by: null }));
   if (error) {
     if (error.message.includes("bad_change")) return { ok: false, error: "not_cancelable" };
     throw new Error(error.message);
   }
+  if (done) return { ok: true, view: viewOf(done.data) };
   if (was === "booked") await enqueueJob(rpc, { workspaceId: v.meeting.workspace_id, kind: "meeting_sync", key: `cancel:${v.meeting.id}:${Date.now()}`, payload: { meeting: v.meeting.id, action: "cancel" } });
   return { ok: true };
 }

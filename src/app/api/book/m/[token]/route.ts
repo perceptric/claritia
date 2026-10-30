@@ -40,14 +40,15 @@ export async function POST(request: Request, ctx: Ctx) {
     if (body.action === "cancel") {
       const r = await cancelByGuest(x.rpc, { view: x.v, reason: typeof body.reason === "string" ? body.reason : "" });
       if (!r.ok) return json({ error: "This meeting can't be canceled.", code: r.error }, 409);
-      return json({ ok: true, meeting: guestMeeting((await loadMeeting(x.rpc, { id: x.v.meeting.id }))!) });
+      // The cancel answers with the meeting as it is now (one call, 090); before that, read again.
+      return json({ ok: true, meeting: guestMeeting((r.view ?? (await loadMeeting(x.rpc, { id: x.v.meeting.id })))!) });
     }
     if (body.action === "reschedule") {
       const start = startOf(body.start);
       if (start === null) return json({ error: "Pick a time.", code: "time" }, 400);
       const r = await reschedule(x.rpc, { view: x.v, start, liveBusy: liveFor(x.rpc, x.v.meeting.workspace_id) });
       if (!r.ok) return r.error === "not_movable" ? json({ error: "This meeting can't be moved.", code: r.error }, 409) : failed(r);
-      return json({ ok: true, meeting: guestMeeting((await loadMeeting(x.rpc, { id: x.v.meeting.id }))!) });
+      return json({ ok: true, meeting: guestMeeting((r.view ?? (await loadMeeting(x.rpc, { id: x.v.meeting.id })))!) });
     }
     return json({ error: "Bad request." }, 400);
   } catch {
