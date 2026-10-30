@@ -1,31 +1,31 @@
 "use client";
 
-// Forms (docs/form-studio.md): the list, the new-form screen (/forms/new), and one form's page. A form's page has
-// four tabs, kept in the address as ?tab=: Design (the canvas editor, docs/form-studio.md Part 2), Settings (what
-// happens after the submit, where leads go, consent and spam), Share (the embed code) and Results (fills, deliveries
-// and the daily check). The top bar holds the name, status, undo and redo, the device and zoom, Preview and Publish.
-// Drafts save as you go; Publish checks the draft on the server and makes it live.
+// Forms (docs/form-studio.md, docs/forms-plan.md Part 7): the list, the new-form screen (/forms/new), and one form's
+// page. A form's page has five tabs, kept in the address as ?tab=: Build (the form as visitors see it, click a part to
+// edit it in the panel on the right, the AI bar under it), Submissions, Share (the embed code), Sync (where leads go)
+// and Settings (after the submit, team alerts, the auto-reply, consent, spam and security, data). The top bar holds
+// the name, status, undo and redo, Preview and Publish. Drafts save as you go; Publish makes the draft live.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { cleanTokens, type Tokens } from "@/lib/forms/brand";
 import { applyOp, type Op } from "@/lib/forms/ops";
 import { ADAPTERS, checkForm, emptyForm, type Form } from "@/lib/forms/schema";
-import type { DesignSystem } from "@/lib/design/model";
+import { readSystem, type DesignSystem, type FormDesign } from "@/lib/design/model";
 
 type Snap = { form: Form; system: DesignSystem };
 import type { CustomField } from "@/lib/records/fields";
-import { BarChart, Copy, Inbox, Pause, Play, Redo, Send, Settings as SettingsIcon, Trash, Undo, Upload } from "../../Icons";
+import { Copy, Inbox, Pause, Play, Redo, Send, Trash, Undo } from "../../Icons";
 import { BrandLogo } from "../BrandLogo";
 import { askConfirm } from "../Dialogs";
-import { Badge, Button, Empty, ErrorNote, errorText, hostOf, Loading, must, Page, postJson, setLeaveGuard, useLoad, type ViewProps } from "../ui";
+import { Badge, Button, Empty, ErrorNote, errorText, Loading, must, Page, postJson, setLeaveGuard, Tabs, useLoad, type ViewProps } from "../ui";
 import { Popover } from "./controls";
 import { AskBar, useFormChat } from "./FormChat";
-import { FormRules } from "./FormAlerts";
-import { QuestionList } from "./QuestionList";
+import { AutoReply, DataSettings, MoreSpam, TeamAlerts } from "./FormAlerts";
+import { Editor } from "./Editor";
+import type { ThemeProps } from "./FormDesign";
 import { FormDestinations } from "./FormDestinations";
-import { AfterSubmit, KnownSettings } from "./FormSettings";
-import { Sheet } from "../Sheet";
-import { mergeKey, pickTab, type Device } from "./editorModel";
+import { AfterSubmit, ConsentSettings, KnownSettings, SpamSettings } from "./FormSettings";
+import { mergeKey, type Device } from "./editorModel";
 import { FormChecks } from "./FormChecks";
 import { FormCreate } from "./FormCreate";
 import { FormHome } from "./FormHome";
@@ -106,10 +106,11 @@ function Builder({
   sources,
   dests,
   custom: loadedCustom,
+  site,
   reload,
 }: ViewProps & { initial: FormRow; published: Form | null; kits: Kit[]; sources: SourceRow[]; dests: Destination[]; custom: CustomField[]; site: string; reload: () => void }) {
   // Custom fields made from the Saves to picker join the list at once, without a reload.
-  const [added] = useState<CustomField[]>([]);
+  const [added, setAdded] = useState<CustomField[]>([]);
   const custom = useMemo(() => [...loadedCustom, ...added.filter((a) => !loadedCustom.some((c) => c.key === a.key))], [loadedCustom, added]);
   const start = useMemo(() => {
     const d = initial.draft as Partial<Form>;
@@ -117,7 +118,7 @@ function Builder({
   }, [initial.draft]);
   const [form, setForm] = useState<Form>(start);
   const [name, setName] = useState(initial.name);
-  const [kitId] = useState<string | null>(initial.brand_kit_id);
+  const [kitId, setKitId] = useState<string | null>(initial.brand_kit_id);
   const [tokens, setTokens] = useState<Partial<Tokens>>(kits.find((k) => k.id === initial.brand_kit_id)?.tokens ?? {});
   // One undo stack for the form and its design system's draft: a style edit is one step either way.
   const [past, setPast] = useState<Snap[]>([]);
@@ -125,9 +126,19 @@ function Builder({
   const kit = kits.find((k) => k.id === kitId) ?? null;
   const draft = useDesignDraft(session, ws.id, kit, tokens);
   // One screen (docs/form-builder.md Part 4): the form, or its results over it. Settings open in sheets.
-  const [view, setView] = useState<"edit" | "results">(() => (typeof window !== "undefined" && pickTab(window.location.search) === "results" ? "results" : "edit"));
-  const [sheet, setSheet] = useState<null | "submit" | "sync" | "share" | "settings">(null);
+  const [tab, setTabRaw] = useState<FormTab>(() => (typeof window === "undefined" ? "build" : tabOf(window.location.search)));
+  const setTab = (t: FormTab) => {
+    setTabRaw(t);
+    try {
+      const u = new URL(window.location.href);
+      if (t === "build") u.searchParams.delete("tab");
+      else u.searchParams.set("tab", t);
+      history.replaceState(null, "", u);
+    } catch {}
+  };
+  const [sub, setSub] = useState<SettingsSub>("after");
   const [device] = useState<Device>("desktop");
+  const [zoom] = useState<"fit" | number>("fit");
   const [previewing, setPreviewing] = useState(false);
   const [note] = useState(() => takeOnce(`claritia:form-note:${initial.id}`) ?? "");
   const [saved, setSaved] = useState(true);
@@ -168,6 +179,42 @@ function Builder({
     setSaved(false);
     dirty.current = true;
   }, [draft]);
+  /** A style edit: the form's own styles and the design system's draft together, one undo step (typing in one box joins). */
+  const applyStyles = useCallback(
+    (edit: { system: DesignSystem; design: FormDesign }, mergeOn?: string) => {
+      const cur = latest.current;
+      const sys = draft.current();
+      const r = applyOp(cur, { op: "set_design", design: edit.design });
+      if ("error" in r) return setError(r.error);
+      const key = mergeOn ? `d:${mergeOn}` : "";
+      const now = Date.now();
+      const joins = !!key && merge.current?.key === key && now - merge.current.at < 1000;
+      merge.current = key ? { key, at: now } : null;
+      if (!joins) setPast((p) => [...p.slice(-99), { form: cur, system: sys }]);
+      setFuture([]);
+      if (JSON.stringify(r.form.design ?? {}) !== JSON.stringify(cur.design ?? {})) {
+        latest.current = r.form;
+        setForm(r.form);
+        setSaved(false);
+        dirty.current = true;
+      }
+      if (edit.system !== sys) draft.set(edit.system);
+    },
+    [draft],
+  );
+  /** A change to the design system alone (the style guide, the Styles and Variables panels). */
+  const applySystem = useCallback(
+    (system: DesignSystem, mergeOn?: string) => {
+      const key = mergeOn ? `d:${mergeOn}` : "";
+      const now = Date.now();
+      const joins = !!key && merge.current?.key === key && now - merge.current.at < 1000;
+      merge.current = key ? { key, at: now } : null;
+      if (!joins) setPast((p) => [...p.slice(-99), { form: latest.current, system: draft.current() }]);
+      setFuture([]);
+      draft.set(system);
+    },
+    [draft],
+  );
   const restore = (snap: Snap) => {
     put(snap.form);
     if (snap.system && snap.system !== draft.current()) draft.set(snap.system);
@@ -271,7 +318,7 @@ function Builder({
     setError("");
     try {
       await postJson(session, "/api/forms/test", { workspaceId: ws.id, id: initial.id });
-      setView("results");
+      setTab("results");
       setWatch((w) => w + 1);
     } catch (e) {
       setError(errorText(e));
@@ -315,6 +362,65 @@ function Builder({
       setTokens(kit.tokens);
     }
   }, [kit]);
+  // Publish styles (docs/design-system.md Part 8.3): the draft goes to every live form on the kit, after saying which.
+  const stylesChanged = !!kit && JSON.stringify(draft.system) !== JSON.stringify(readSystem(kit.design_live, tokens));
+  const publishStyles = async () => {
+    if (!kit) return;
+    setError("");
+    try {
+      if (!(await draft.flush())) return;
+      const uses = must(await sb.rpc("brand_kit_design_uses", { p_id: kit.id })) as { live_forms: number; forms: { id: string; name: string }[] };
+      const n = uses.live_forms;
+      const names = uses.forms.slice(0, 5).map((f) => f.name);
+      const body = n ? `${n === 1 ? "1 live form" : `${n} live forms`} change: ${names.join(", ")}${n > names.length ? ` and ${n - names.length} more` : ""}.` : "No live forms use these styles yet.";
+      if (!(await askConfirm("Publish styles?", { body, ok: "Publish" }))) return;
+      must(await sb.rpc("brand_kit_design_publish", { p_id: kit.id }));
+      reload();
+    } catch (e) {
+      setError(errorText(e));
+    }
+  };
+  /** Save the theme to the form's kit, or (`own`) to a new kit that only this form uses. */
+  const saveKit = async (kitName: string, t: Partial<Tokens>, own: boolean) => {
+    const r = await postJson<{ id: string; tokens: Tokens; notes: string[] }>(session, "/api/forms/brand", { workspaceId: ws.id, id: own ? null : kitId, name: kitName, tokens: t });
+    setTokens(r.tokens);
+    if (r.id !== kitId) {
+      setKitId(r.id);
+      setSaved(false);
+      dirty.current = true;
+    }
+    reload();
+    return { notes: r.notes };
+  };
+  const scan = async (url: string) => {
+    setError("");
+    try {
+      const r = await postJson<{ kitId: string }>(session, "/api/forms/scan", { workspaceId: ws.id, url, kitId, formId: initial.id });
+      if (r.kitId !== kitId) {
+        setKitId(r.kitId);
+        setSaved(false);
+        dirty.current = true;
+      }
+      reload();
+    } catch (e) {
+      setError(errorText(e));
+    }
+  };
+  const theme: ThemeProps = {
+    tokens,
+    setTokens,
+    kits,
+    kitId,
+    setKit: (k) => {
+      setKitId(k);
+      setSaved(false);
+      dirty.current = true;
+    },
+    saveKit,
+    scan,
+    site: kit?.source_url ?? site,
+    formName: name,
+  };
   const fromChat = (next: Form, nextRev: number) => {
     setPast((p) => [...p.slice(-99), { form, system: draft.current() }]);
     setFuture([]);
@@ -326,17 +432,16 @@ function Builder({
   const chat = useFormChat({ session, ws, formId: initial.id, prepare: async () => ((await save()) ? rev.current : null), onResult: fromChat });
   const origin = typeof window === "undefined" ? "" : window.location.origin;
   const sep = <span aria-hidden="true" className="mx-1 h-5 w-px bg-line" />;
-  const alertWords = [form.notify?.on ? `Email ${form.notify.to.length === 1 ? form.notify.to[0] : `${form.notify.to.length} people`}${form.notify.slack ? " and Slack" : ""}` : "", form.reply?.on ? "Auto-reply" : ""].filter(Boolean).join(", ") || "Off";
-  const sch = form.after.schedule;
-  const submitWords = sch
-    ? sch.who === "routed"
-      ? `Book a meeting, for ${sch.routeRules?.length ?? 0} routing ${sch.routeRules?.length === 1 ? "rule" : "rules"}`
-      : sch.who === "match"
-        ? "Book a meeting, for leads that match"
-        : "Book a meeting"
-    : form.after.end.kind === "redirect"
-      ? `Redirect to ${hostOf(form.after.end.url) || "another page"}`
-      : "Pop-up message";
+
+  const held = useLoad(async () => (await sb.from("submissions").select("id", { count: "exact", head: true }).eq("form_id", initial.id).eq("spam", false).eq("test", false)).count ?? 0, `${initial.id}:${watch}`);
+  const SUBS: { value: SettingsSub; label: string; on?: boolean }[] = [
+    { value: "after", label: "After submit" },
+    { value: "alerts", label: "Team alerts", on: !!form.notify?.on },
+    { value: "reply", label: "Auto-reply", on: !!form.reply?.on },
+    { value: "consent", label: "Consent" },
+    { value: "spam", label: "Spam and security" },
+    { value: "data", label: "Data" },
+  ];
 
   return (
     <Page
@@ -364,22 +469,9 @@ function Builder({
             <Redo size={14} />
           </IconButton>
           {sep}
-          <Button variant="ghost" aria-pressed={view === "results"} onClick={() => setView(view === "results" ? "edit" : "results")} className={view === "results" ? "border-ink bg-ink text-paper hover:bg-ink" : ""}>
-            <BarChart size={13} />
-            Submissions
-          </Button>
-          <Button variant="ghost" onClick={() => setSheet("settings")}>
-            <SettingsIcon size={13} />
-            Settings
-          </Button>
-          <Button variant="ghost" onClick={() => setSheet("share")}>
-            <Upload size={13} />
-            Share
-          </Button>
-          <Button variant="ghost" onClick={() => setPreviewing(true)}>
-            <Play size={13} />
-            Preview
-          </Button>
+          <IconButton label="Preview" onClick={() => setPreviewing(true)}>
+            <Play size={14} />
+          </IconButton>
           <Button disabled={!!busy || (!!initial.version && !changed)} onClick={publish}>
             {busy === "publish" ? "Publishing…" : initial.version && !changed ? "Published" : "Publish"}
           </Button>
@@ -387,86 +479,123 @@ function Builder({
       }
     >
       <div className="flex h-full min-h-0 flex-col">
-      <div className="grid min-h-0 flex-1 grid-rows-[minmax(0,1fr)]">
-        <div className="flex min-h-0 min-w-0 flex-col">
-          <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-line bg-card px-3 py-2">
-            <PathButton label="On submission" onClick={() => setSheet("submit")}>
-              {submitWords}
-            </PathButton>
-            <PathButton label="Sync leads to" onClick={() => setSheet("sync")}>
-              {["Claritia contacts", ...dests.filter((d) => !d.paused).map((d) => d.name)].join(", ")}
-            </PathButton>
-            <PathButton label="Alerts" onClick={() => setSheet("settings")}>
-              {alertWords}
-            </PathButton>
+        <Tabs<FormTab>
+          value={tab}
+          onChange={setTab}
+          tabs={[
+            { value: "build", label: "Build" },
+            { value: "results", label: "Submissions", count: held.data ?? undefined },
+            { value: "share", label: "Share" },
+            { value: "sync", label: "Sync" },
+            { value: "settings", label: "Settings" },
+          ]}
+        />
+        {error || draft.error || note || problems.length ? (
+          <div className="border-b border-line bg-card px-4 py-2">
+            <ErrorNote message={error || draft.error || problems[0] || note} />
+            {problems.length > 1 ? (
+              <ul className="mt-1 flex flex-col gap-0.5 px-3.5 text-[12.5px] text-rose">
+                {problems.slice(1).map((p) => (
+                  <li key={p}>{p}</li>
+                ))}
+              </ul>
+            ) : null}
           </div>
-          {error || draft.error || note || problems.length ? (
-            <div className="border-b border-line bg-card px-4 py-2">
-              <ErrorNote message={error || draft.error || problems[0] || note} />
-              {problems.length > 1 ? (
-                <ul className="mt-1 flex flex-col gap-0.5 px-3.5 text-[12.5px] text-rose">
-                  {problems.slice(1).map((p) => (
-                    <li key={p}>{p}</li>
-                  ))}
-                </ul>
-              ) : null}
+        ) : null}
+        <div className="relative min-h-0 flex-1">
+          {tab === "build" ? (
+            <>
+              <Editor
+                form={form}
+                apply={apply}
+                custom={custom}
+                sources={sources}
+                tokens={tokens}
+                device={device}
+                zoom={zoom}
+                theme={theme}
+                draft={draft}
+                hasKit={!!kit}
+                applyStyles={applyStyles}
+                applySystem={applySystem}
+                styles={{ changed: stylesChanged, publish: publishStyles }}
+                link={{ session, workspaceId: ws.id, sb, onFieldAdded: (f) => setAdded((x) => [...x, f]) }}
+                startPanel={null}
+              />
+              <AskBar chat={chat} onUndo={undo} inset="left-[44px] right-[280px]" />
+            </>
+          ) : tab === "results" ? (
+            <div className="h-full overflow-auto bg-paper p-4 md:p-8">
+              <div className="mx-auto flex max-w-5xl flex-col gap-8">
+                <FormResults key={watch} sb={sb} session={session} ws={ws} formId={initial.id} destinations={dests} navigate={navigate} watch={watch} books={!!form.after.schedule} />
+                {form.capture ? null : <FormChecks sb={sb} formId={initial.id} live={initial.status === "live"} />}
+              </div>
             </div>
-          ) : null}
-          <div className="relative min-h-0 flex-1">
-            {view === "edit" ? (
-              <>
-                <div className="h-full overflow-auto bg-paper px-4 pt-8 pb-40 md:px-8">
-                  <QuestionList form={form} apply={apply} />
-                </div>
-                <AskBar chat={chat} onUndo={undo} />
-              </>
-            ) : (
-              <div className="h-full overflow-auto bg-paper p-4 md:p-8">
-                <div className="mx-auto flex max-w-5xl flex-col gap-8">
-                  <FormResults key={watch} sb={sb} session={session} ws={ws} formId={initial.id} destinations={dests} navigate={navigate} watch={watch} books={!!form.after.schedule} />
-                  {form.capture ? null : <FormChecks sb={sb} formId={initial.id} live={initial.status === "live"} />}
+          ) : tab === "share" ? (
+            <div className="h-full overflow-auto bg-paper p-4 md:p-8">
+              <div className="mx-auto max-w-3xl">
+                <Embed id={initial.id} origin={origin} live={!!initial.version} form={form} apply={apply} />
+              </div>
+            </div>
+          ) : tab === "sync" ? (
+            <div className="h-full overflow-auto bg-paper p-4 md:p-8">
+              <div className="mx-auto flex max-w-3xl flex-col gap-6">
+                <FormDestinations sb={sb} session={session} ws={ws} formId={initial.id} list={dests} sources={sources} reload={reload} navigate={navigate} form={form} />
+                <KnownSettings form={form} apply={apply} />
+              </div>
+            </div>
+          ) : (
+            <div className="grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)] md:grid-cols-[208px_minmax(0,1fr)] md:grid-rows-1">
+              <nav aria-label="Settings" className="flex gap-1 overflow-x-auto border-b border-line p-2 md:flex-col md:border-r md:border-b-0">
+                {SUBS.map((x) => (
+                  <button
+                    key={x.value}
+                    type="button"
+                    aria-current={sub === x.value ? "page" : undefined}
+                    onClick={() => setSub(x.value)}
+                    className={`flex h-8 shrink-0 items-center gap-2 rounded-lg px-2.5 text-left text-[13px] whitespace-nowrap transition-colors duration-[140ms] ${sub === x.value ? "bg-paper-deep font-medium text-ink" : "text-body hover:bg-hover"}`}
+                  >
+                    {x.label}
+                    {x.on ? <span aria-label="On" className="ml-auto size-1.5 rounded-full bg-signal" /> : null}
+                  </button>
+                ))}
+              </nav>
+              <div className="min-h-0 overflow-y-auto bg-paper p-4 md:p-8">
+                <div className="mx-auto flex max-w-3xl flex-col gap-6">
+                  {sub === "after" ? (
+                    <AfterSubmit form={form} apply={apply} sb={sb} ws={ws} session={session} role={role} />
+                  ) : sub === "alerts" ? (
+                    <TeamAlerts form={form} apply={apply} />
+                  ) : sub === "reply" ? (
+                    <AutoReply form={form} apply={apply} />
+                  ) : sub === "consent" ? (
+                    <ConsentSettings form={form} apply={apply} sb={sb} ws={ws} />
+                  ) : sub === "spam" ? (
+                    <>
+                      <SpamSettings form={form} apply={apply} />
+                      <MoreSpam form={form} apply={apply} />
+                    </>
+                  ) : (
+                    <DataSettings form={form} apply={apply} sb={sb} formId={initial.id} onCleared={() => setWatch((w) => w + 1)} />
+                  )}
                 </div>
               </div>
-            )}
-          </div>
+            </div>
+          )}
         </div>
       </div>
-      </div>
-      {sheet === "submit" ? (
-        <Sheet title="On submission" onClose={() => setSheet(null)}>
-          <div className="flex flex-col gap-6">
-            <AfterSubmit form={form} apply={apply} sb={sb} ws={ws} session={session} role={role} />
-          </div>
-        </Sheet>
-      ) : sheet === "sync" ? (
-        <Sheet title="Sync leads to" onClose={() => setSheet(null)}>
-          <div className="flex flex-col gap-6">
-            <FormDestinations sb={sb} session={session} ws={ws} formId={initial.id} list={dests} sources={sources} reload={reload} navigate={navigate} form={form} />
-            <KnownSettings form={form} apply={apply} />
-          </div>
-        </Sheet>
-      ) : sheet === "settings" ? (
-        <Sheet title="Settings" onClose={() => setSheet(null)}>
-          <FormRules form={form} apply={apply} sb={sb} formId={initial.id} onCleared={() => setWatch((w) => w + 1)} />
-        </Sheet>
-      ) : sheet === "share" ? (
-        <Sheet title="Share" onClose={() => setSheet(null)}>
-          <Embed id={initial.id} origin={origin} live={!!initial.version} form={form} apply={apply} />
-        </Sheet>
-      ) : null}
       {previewing ? <PreviewOverlay form={form} tokens={tokens} system={draft.system} device={device} onClose={() => setPreviewing(false)} /> : null}
     </Page>
   );
 }
 
-/** One step of the lead's path above the canvas: what it does now, in a few words. */
-function PathButton({ label, onClick, children }: { label: string; onClick: () => void; children: React.ReactNode }) {
-  return (
-    <button type="button" onClick={onClick} className="press flex h-9 min-w-0 max-w-full items-center gap-2 rounded-full border border-line bg-card px-3 text-left text-[12.5px] transition-colors duration-[120ms] hover:border-ink">
-      <span className="shrink-0 font-mono text-[10.5px] tracking-[0.06em] text-faint uppercase">{label}</span>
-      <span className="flex min-w-0 items-center gap-1.5 truncate text-ink">{children}</span>
-    </button>
-  );
+type FormTab = "build" | "results" | "share" | "sync" | "settings";
+type SettingsSub = "after" | "alerts" | "reply" | "consent" | "spam" | "data";
+/** The tab in ?tab=, with the old names (design, connect) opening their new homes. */
+function tabOf(search: string): FormTab {
+  const t = new URLSearchParams(search).get("tab") ?? "";
+  if (t === "results" || t === "share" || t === "sync" || t === "settings") return t;
+  return t === "connect" ? "sync" : "build";
 }
 
 /** Draft, Live or Paused as one pill, with what can be done from here in its menu. */
