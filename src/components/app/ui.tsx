@@ -92,10 +92,18 @@ export function timeAgo(iso: string | null) {
 
 /** A page in the app: a crumb and a title, then the content. `onRename` makes the title an input you can type in. */
 /** A section with tabs (Routing, Scheduling, Visitors...): every page inside it shows the section's title and tabs. */
-export type SectionNav = { title: string; tabs: { value: string; label: string }[]; current: string; onPick: (v: string) => void };
+/** `banner` is one slim line across the top of the work area, under the tabs (Calendar's Connect your calendar). */
+export type SectionNav = { title: string; tabs: { value: string; label: string; icon?: React.ReactNode }[]; current: string; onPick: (v: string) => void; banner?: React.ReactNode };
 const SectionCtx = createContext<SectionNav | null>(null);
 export function Section({ nav, children }: { nav: SectionNav; children: React.ReactNode }) {
   return <SectionCtx.Provider value={nav}>{children}</SectionCtx.Provider>;
+}
+
+// A page shown inside another page (Calendar › Settings shows Reminders and Webhooks on its right): no title or
+// tabs of its own, only its actions and its body.
+const InsetCtx = createContext(false);
+export function Inset({ children }: { children: React.ReactNode }) {
+  return <InsetCtx.Provider value>{children}</InsetCtx.Provider>;
 }
 
 /**
@@ -123,8 +131,21 @@ export function Page({
   children: React.ReactNode;
 }) {
   const section = useContext(SectionCtx);
+  const inset = useContext(InsetCtx);
   const tabs = section && !back ? section : null;
   const heading = tabs ? tabs.title : title;
+  if (inset)
+    return (
+      <div className="flex h-full min-h-0 flex-col">
+        {actions ? (
+          <div className="flex h-12 shrink-0 items-center gap-2 border-b border-line px-4 md:px-6">
+            <h2 className="min-w-0 flex-1 truncate text-[13px] font-medium text-ink">{title}</h2>
+            {actions}
+          </div>
+        ) : null}
+        <div className={`min-h-0 flex-1 overflow-auto ${flush ? "" : "p-4 md:p-6"}`}>{children}</div>
+      </div>
+    );
   return (
     <div className="flex h-full min-h-0 flex-col bg-card">
       <header className="flex h-12 shrink-0 items-center gap-1 border-b border-line px-3">
@@ -152,6 +173,7 @@ export function Page({
         {actions ? <div className="ml-auto flex shrink-0 items-center gap-2">{actions}</div> : null}
       </header>
       {tabs ? <Tabs value={tabs.current} tabs={tabs.tabs} onChange={tabs.onPick} /> : null}
+      {tabs?.banner ?? null}
       <div className={`min-h-0 flex-1 overflow-auto ${flush ? "" : "p-4 md:p-6"}`}>{children}</div>
     </div>
   );
@@ -390,14 +412,15 @@ function useSlide(index: number, deps: unknown[]) {
 }
 
 /** A row of choices where one is picked: a pill track with a sliding pill thumb. */
-export function Segmented<T extends string>({ value, options, onChange, label }: { value: T; options: { value: T; label: string }[]; onChange: (v: T) => void; label?: string }) {
+export function Segmented<T extends string>({ value, options, onChange, label, size = "md" }: { value: T; options: { value: T; label: string; disabled?: boolean }[]; onChange: (v: T) => void; label?: string; size?: "sm" | "md" }) {
   const { box, at } = useSlide(
     options.findIndex((o) => o.value === value),
-    [options.map((o) => o.label).join()],
+    [options.map((o) => o.label).join(), size],
   );
+  const sm = size === "sm";
   return (
-    <div ref={box} role="radiogroup" aria-label={label} className="relative inline-flex h-9 items-center gap-0.5 rounded-full bg-paper-deep p-1">
-      {at ? <span aria-hidden="true" className="absolute top-1 bottom-1 rounded-full bg-ink transition-[transform,width] duration-[320ms] ease-out" style={{ left: 0, width: at.width, transform: `translateX(${at.left}px)` }} /> : null}
+    <div ref={box} role="radiogroup" aria-label={label} className={`relative inline-flex max-w-full shrink-0 items-center gap-0.5 rounded-full bg-paper-deep ${sm ? "h-8 p-[3px]" : "h-9 p-1"}`}>
+      {at ? <span aria-hidden="true" className={`absolute rounded-full bg-ink transition-[transform,width] duration-[320ms] ease-out ${sm ? "top-[3px] bottom-[3px]" : "top-1 bottom-1"}`} style={{ left: 0, width: at.width, transform: `translateX(${at.left}px)` }} /> : null}
       {options.map((o) => (
         <button
           key={o.value}
@@ -405,8 +428,9 @@ export function Segmented<T extends string>({ value, options, onChange, label }:
           type="button"
           role="radio"
           aria-checked={value === o.value}
+          disabled={o.disabled}
           onClick={() => onChange(o.value)}
-          className={`relative inline-flex h-7 items-center rounded-full px-3 text-[12.5px] font-medium transition-colors duration-[320ms] ${value === o.value ? "text-paper" : "text-muted hover:text-ink"} ${at ? "" : value === o.value ? "bg-ink" : ""}`}
+          className={`relative inline-flex items-center rounded-full px-3 text-[12.5px] font-medium whitespace-nowrap transition-colors duration-[320ms] disabled:cursor-default disabled:opacity-45 ${sm ? "h-[26px]" : "h-7"} ${value === o.value ? "text-paper" : "text-muted hover:text-ink"} ${at ? "" : value === o.value ? "bg-ink" : ""}`}
         >
           {o.label}
         </button>
@@ -416,7 +440,7 @@ export function Segmented<T extends string>({ value, options, onChange, label }:
 }
 
 /** Tabs under a page header, with an ink underline that slides to the open one. */
-export function Tabs<T extends string>({ value, tabs, onChange, bare = false }: { value: T; tabs: { value: T; label: string; count?: number }[]; onChange: (v: T) => void; bare?: boolean }) {
+export function Tabs<T extends string>({ value, tabs, onChange, bare = false }: { value: T; tabs: { value: T; label: string; count?: number; icon?: React.ReactNode }[]; onChange: (v: T) => void; bare?: boolean }) {
   const { box, at } = useSlide(
     tabs.findIndex((t) => t.value === value),
     [tabs.map((t) => `${t.label}${t.count ?? ""}`).join()],
@@ -433,6 +457,7 @@ export function Tabs<T extends string>({ value, tabs, onChange, bare = false }: 
           onClick={() => onChange(t.value)}
           className={`relative flex h-10 shrink-0 items-center gap-1.5 px-2 text-[13px] whitespace-nowrap transition-colors duration-[120ms] ${value === t.value ? "font-medium text-ink" : "text-muted hover:text-ink"}`}
         >
+          {t.icon ? <span className="flex shrink-0 items-center [&_svg]:size-3.5">{t.icon}</span> : null}
           {t.label}
           {t.count != null ? <span className={`text-[12px] tabular-nums ${value === t.value ? "font-medium text-ink" : "text-faint"}`}>{t.count}</span> : null}
         </button>

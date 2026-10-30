@@ -2,7 +2,7 @@
 // tested: a type's kind in plain words, its one-line summary, a week of hours as a sentence, how types group by
 // person, and a link's state.
 
-import { DAYS, type Availability, type Day, type Kind, type Location, type MeetingType } from "../../../lib/meetings/types.ts";
+import { DAYS, type Availability, type Day, type Kind, type Location, type MeetingType, type TypeSettings } from "../../../lib/meetings/types.ts";
 
 /** The kinds in plain words (Calendly's One-on-One, Round Robin, Collective, Group, plus ours). */
 export const KIND_WORDS: Record<Kind, string> = {
@@ -139,3 +139,83 @@ export const LINK_STATE: Record<LinkState, { label: string; tone: "gray" | "gree
 };
 
 export const LINK_KIND: Record<LinkRow["kind"], string> = { single_use: "Single-use link", one_off: "One-off meeting", poll: "Meeting poll" };
+
+// The meeting type panel's one-line summaries (docs/scheduling-plan.md 11.2) ---------------------------------------
+
+/** Where the meeting happens, as the panel and the list say it. */
+export const PLACE_WORDS: Record<Location["kind"], string> = {
+  google_meet: "Google Meet",
+  teams: "Microsoft Teams",
+  zoom: "Zoom",
+  phone_guest: "Phone call",
+  phone_host: "Phone call",
+  in_person: "In person",
+  link: "Custom link",
+};
+
+/** How a Routing team shares leads. */
+export const METHOD_WORDS: Record<"rr" | "weighted" | "load", string> = { rr: "Take turns", weighted: "Some get more", load: "Fewest meetings first" };
+
+/** "30 min", "30, 45 min", or "30 min, 1 h" once an hour is in it. */
+export function lengthWords(lengths: number[]): string {
+  const l = [...lengths].sort((a, b) => a - b);
+  if (!l.length) return "30 min";
+  return l.every((n) => n < 60) ? `${l.join(", ")} min` : l.map(minutes).join(", ");
+}
+
+const span = (n: number) => (n >= 1440 && n % 1440 === 0 ? (n === 1440 ? "1 day" : `${n / 1440} days`) : minutes(n));
+
+/** "10 min after, 4 h notice"; with no buffers just the notice, "No notice" when there's none. */
+export function limitsWords(s: Pick<TypeSettings, "bufferBefore" | "bufferAfter" | "notice">): string {
+  const parts = [s.bufferBefore ? `${minutes(s.bufferBefore)} before` : "", s.bufferAfter ? `${minutes(s.bufferAfter)} after` : "", s.notice ? `${span(s.notice)} notice` : "No notice"];
+  return parts.filter(Boolean).join(", ");
+}
+
+/** "Name, email, 1 more". */
+export const questionsWords = (questions: unknown[]): string => `Name, email${questions.length ? `, ${questions.length} more` : ""}`;
+
+/** "Confirmation, 2 reminders". */
+export const remindersWords = (reminders: number[]): string => (reminders.length ? `Confirmation, ${reminders.length} ${reminders.length === 1 ? "reminder" : "reminders"}` : "Confirmation only");
+
+/** Who takes the meeting, as the Host section picks it: one person, a Routing team, or everyone together. */
+export type HostMode = "one" | "team" | "everyone";
+export const hostMode = (kind: Kind): HostMode => (kind === "one" || kind === "group" ? "one" : kind === "collective" ? "everyone" : "team");
+
+/** The Routing team a type books for (settings.team), if it has one. */
+export const teamOf = (settings: object): string | null => {
+  const t = (settings as { team?: unknown }).team;
+  return typeof t === "string" && t ? t : null;
+};
+
+/** A day or days off in short words: "Off Nov 3" or "Off Nov 3 to Nov 5". */
+export function offWords(o: { from: string; to: string }): string {
+  const d = (x: string) => new Date(`${x}T12:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
+  return o.from === o.to ? `Off ${d(o.from)}` : `Off ${d(o.from)} to ${d(o.to)}`;
+}
+
+/** The next days off that haven't ended, from a rep's out dates. */
+export function nextOff(out: { from: string; to: string }[] | null | undefined, today: string): { from: string; to: string } | null {
+  return [...(out ?? [])].filter((o) => o.to >= today).sort((a, b) => a.from.localeCompare(b.from))[0] ?? null;
+}
+
+/** "$100, Stripe" or "Off". */
+export function priceWords(price: TypeSettings["price"]): string {
+  if (!price || !price.amount) return "Off";
+  const zero = ["jpy"].includes(price.currency);
+  try {
+    const n = new Intl.NumberFormat("en-US", { style: "currency", currency: price.currency.toUpperCase(), minimumFractionDigits: 0, maximumFractionDigits: zero ? 0 : 2 }).format(zero ? price.amount : price.amount / 100);
+    return `${n}, Stripe`;
+  } catch {
+    return `${price.amount / 100} ${price.currency.toUpperCase()}, Stripe`;
+  }
+}
+
+/** "Message", or "Redirect to acme.com". */
+export function confirmationWords(c: TypeSettings["confirmation"]): string {
+  if (c.kind === "message") return "Message";
+  try {
+    return `Redirect to ${new URL(c.url).host.replace(/^www\./, "")}`;
+  } catch {
+    return "Redirect";
+  }
+}

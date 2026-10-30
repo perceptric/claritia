@@ -2,7 +2,7 @@
 // spans, routing's company types, Deal 20 leads and Read it back.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { daysWords, groupTypes, linkState, typeSummary, weeklyWords } from "../src/components/app/scheduling/model.ts";
+import { confirmationWords, daysWords, groupTypes, hostMode, lengthWords, limitsWords, linkState, METHOD_WORDS, nextOff, offWords, priceWords, questionsWords, remindersWords, teamOf, typeSummary, weeklyWords } from "../src/components/app/scheduling/model.ts";
 import { outsideBusy, presetSpan } from "../src/components/app/meetings/model.ts";
 import { decide } from "../src/lib/router/engine.ts";
 import { dealPreview } from "../src/lib/router/deal.ts";
@@ -26,6 +26,38 @@ test("scheduling words: a type's summary and a week of hours as Calendly says th
   assert.equal(weeklyWords(null), "No hours set");
   assert.equal(daysWords(["sat", "sun"]), "Weekends");
   assert.equal(daysWords(["mon", "wed"]), "Mon, Wed");
+});
+
+test("the meeting type panel's one-line summaries stay short and plain", () => {
+  assert.equal(lengthWords([30]), "30 min");
+  assert.equal(lengthWords([45, 30]), "30, 45 min");
+  assert.equal(lengthWords([30, 60]), "30 min, 1 h");
+  assert.equal(limitsWords({ bufferBefore: 0, bufferAfter: 10, notice: 240 }), "10 min after, 4 h notice");
+  assert.equal(limitsWords({ bufferBefore: 5, bufferAfter: 0, notice: 1440 }), "5 min before, 1 day notice");
+  assert.equal(limitsWords({ bufferBefore: 0, bufferAfter: 0, notice: 0 }), "No notice");
+  assert.equal(questionsWords([]), "Name, email");
+  assert.equal(questionsWords([{}]), "Name, email, 1 more");
+  assert.equal(remindersWords([1440, 60]), "Confirmation, 2 reminders");
+  assert.equal(remindersWords([60]), "Confirmation, 1 reminder");
+  assert.equal(remindersWords([]), "Confirmation only");
+  assert.equal(priceWords(undefined), "Off");
+  assert.equal(priceWords({ amount: 10000, currency: "usd" }), "$100, Stripe");
+  assert.equal(confirmationWords({ kind: "message" }), "Message");
+  assert.equal(confirmationWords({ kind: "redirect", url: "https://www.acme.com/thanks" }), "Redirect to acme.com");
+  assert.equal(offWords({ from: "2026-11-03", to: "2026-11-05" }), "Off Nov 3 to Nov 5");
+  assert.equal(offWords({ from: "2026-11-03", to: "2026-11-03" }), "Off Nov 3");
+  assert.deepEqual(nextOff([{ from: "2026-10-01", to: "2026-10-02" }, { from: "2026-12-01", to: "2026-12-02" }, { from: "2026-11-03", to: "2026-11-05" }], "2026-10-30"), { from: "2026-11-03", to: "2026-11-05" });
+  assert.equal(nextOff(null, "2026-10-30"), null);
+  // Who hosts: one person, a Routing team (the old round robin, owner-first and two-team kinds), or everyone.
+  assert.equal(hostMode("one"), "one");
+  assert.equal(hostMode("group"), "one");
+  assert.equal(hostMode("round_robin"), "team");
+  assert.equal(hostMode("owner_first"), "team");
+  assert.equal(hostMode("collective"), "everyone");
+  assert.equal(teamOf({ team: "q_all" }), "q_all");
+  assert.equal(teamOf({}), null);
+  assert.equal(METHOD_WORDS.load, "Fewest meetings first");
+  for (const s of [limitsWords({ bufferBefore: 15, bufferAfter: 15, notice: 10080 }), remindersWords([1, 2, 3, 4]), lengthWords([15, 30, 45, 60, 90, 120])]) assert.ok(s.length <= 48, s);
 });
 
 test("meeting types group like Calendly: yours, the team's, then each teammate's by name", () => {

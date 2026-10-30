@@ -21,15 +21,15 @@ import { minutesText, slugify } from "./model";
 import { CopyButton, meetingsApi, Modal, ownZone, PersonAvatar, useNow, usePeople, useWorkspaceSlug, type Person } from "./parts";
 import type { TypeRow } from "./TypesList";
 
-type Draft = Pick<MeetingType, "name" | "slug" | "kind" | "hosts" | "settings" | "secret" | "active" | "locked" | "owner_user_id">;
+export type Draft = Pick<MeetingType, "name" | "slug" | "kind" | "hosts" | "settings" | "secret" | "active" | "locked" | "owner_user_id">;
 type LockKey = MeetingType["locked"][number];
 
-const POOL_KINDS: Kind[] = ["round_robin", "owner_first", "double"];
+export const POOL_KINDS: Kind[] = ["round_robin", "owner_first", "double"];
 const LENGTHS = [15, 30, 45, 60, 90];
 const NOTICE = [0, 30, 60, 120, 240, 480, 720, 1440, 2880, 4320, 10080];
 const REMINDERS = [10, 15, 30, 60, 120, 240, 1440, 2880, 10080];
-const CURRENCIES = ["usd", "eur", "gbp", "cad", "aud", "chf", "sek", "nok", "dkk", "nzd", "sgd", "jpy", "inr"];
-const PLACES: { value: Location["kind"]; label: string }[] = [
+export const CURRENCIES = ["usd", "eur", "gbp", "cad", "aud", "chf", "sek", "nok", "dkk", "nzd", "sgd", "jpy", "inr"];
+export const PLACES: { value: Location["kind"]; label: string }[] = [
   { value: "google_meet", label: "Google Meet" },
   { value: "teams", label: "Microsoft Teams" },
   { value: "zoom", label: "Zoom" },
@@ -57,8 +57,8 @@ const LOCKABLE: { key: LockKey; label: string }[] = [
   { key: "price", label: "Price" },
 ];
 
-const fresh = (me: string): Draft => ({ name: "", slug: "", kind: "one", hosts: [{ user_id: me }], settings: { ...DEFAULT_SETTINGS }, secret: false, active: true, locked: [], owner_user_id: null });
-const draftOf = (t: TypeRow): Draft => ({ name: t.name, slug: t.slug, kind: t.kind, hosts: t.hosts, settings: { ...DEFAULT_SETTINGS, ...t.settings }, secret: t.secret, active: t.active, locked: t.locked ?? [], owner_user_id: t.owner_user_id });
+export const fresh = (me: string): Draft => ({ name: "", slug: "", kind: "one", hosts: [{ user_id: me }], settings: { ...DEFAULT_SETTINGS }, secret: false, active: true, locked: [], owner_user_id: null });
+export const draftOf = (t: TypeRow): Draft => ({ name: t.name, slug: t.slug, kind: t.kind, hosts: t.hosts, settings: { ...DEFAULT_SETTINGS, ...t.settings }, secret: t.secret, active: t.active, locked: t.locked ?? [], owner_user_id: t.owner_user_id });
 
 export function TypeEditor(props: ViewProps) {
   const { sb, session, ws, role, navigate, id } = props;
@@ -176,7 +176,7 @@ export function TypeEditor(props: ViewProps) {
       setSavedAt(Date.now());
       if (isNew) {
         setLeaveGuard(null);
-        navigate("scheduling", `types/${r.id}`);
+        navigate("scheduling", `types/${r.id}/all`);
       } else data.reload();
     } catch (e) {
       setErrors([errorText(e)]);
@@ -669,7 +669,7 @@ const Q_TYPES: { value: TypeSettings["questions"][number]["type"]; label: string
   { value: "choice", label: "Choice" },
 ];
 
-function Questions({ value, disabled, onChange }: { value: TypeSettings["questions"]; disabled: boolean; onChange: (v: TypeSettings["questions"]) => void }) {
+export function Questions({ value, disabled, onChange }: { value: TypeSettings["questions"]; disabled: boolean; onChange: (v: TypeSettings["questions"]) => void }) {
   const put = (i: number, patch: Partial<TypeSettings["questions"][number]>) => onChange(value.map((q, j) => (j === i ? { ...q, ...patch } : q)));
   if (!value.length) return null;
   return (
@@ -700,7 +700,7 @@ function Questions({ value, disabled, onChange }: { value: TypeSettings["questio
   );
 }
 
-function Reminders({ value, disabled, onChange }: { value: number[]; disabled: boolean; onChange: (v: number[]) => void }) {
+export function Reminders({ value, disabled, onChange }: { value: number[]; disabled: boolean; onChange: (v: number[]) => void }) {
   const left = REMINDERS.filter((n) => !value.includes(n));
   return (
     <span className="flex flex-wrap items-center gap-1.5">

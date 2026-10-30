@@ -305,6 +305,19 @@ body {
   transform-origin: left;
   animation: grow-x var(--duration-slow) var(--ease-out) both;
 }
+/* A panel that slides in from the right (Calendar's meeting type panel). */
+@keyframes panel-in {
+  from {
+    transform: translateX(100%);
+  }
+}
+.anim-panel {
+  animation: panel-in var(--duration-calm) var(--ease-out) both;
+}
+/* A booking page drawn inside the app (Calendar › Booking page): as tall as its content, not the window. */
+.cal-preview .cb-page {
+  min-height: 0;
+}
 .sketch-draw path,
 .sketch-draw line,
 .sketch-draw circle,

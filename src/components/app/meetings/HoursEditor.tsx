@@ -13,8 +13,8 @@ import { IconButton, Toggle } from "../ui";
 import { Popover } from "../forms/controls";
 import { CLOCKS, copyToAll, DAY_LABEL, nextRange, zones } from "./model";
 
-const CLOCK_OPTIONS = CLOCKS.map((c) => ({ value: c, label: c }));
-const FROM_OPTIONS = CLOCK_OPTIONS.slice(0, -1);
+export const CLOCK_OPTIONS = CLOCKS.map((c) => ({ value: c, label: c }));
+export const FROM_OPTIONS = CLOCK_OPTIONS.slice(0, -1);
 
 export function HoursEditor({ value, onChange }: { value: Availability; onChange: (a: Availability) => void }) {
   const setDay = (d: Day, ranges: Range[]) => onChange({ ...value, weekly: { ...value.weekly, [d]: ranges } });
@@ -80,7 +80,7 @@ function Ranges({ ranges, onChange, extra }: { ranges: Range[]; onChange: (r: Ra
   );
 }
 
-function ClockPick({ label, value, options, onChange }: { label: string; value: string; options: { value: string; label: string }[]; onChange: (v: string) => void }) {
+export function ClockPick({ label, value, options, onChange }: { label: string; value: string; options: { value: string; label: string }[]; onChange: (v: string) => void }) {
   return (
     <Select<string>
       value={value}
@@ -143,7 +143,7 @@ export function ZonePicker({ value, onChange }: { value: string; onChange: (tz: 
 }
 
 /** Date overrides: a day off or other hours on one date, picked from a small month. */
-function Overrides({ value, onChange }: { value: Availability; onChange: (a: Availability) => void }) {
+export function Overrides({ value, onChange, bare = false }: { value: Availability; onChange: (a: Availability) => void; bare?: boolean }) {
   const anchor = useRef<HTMLButtonElement>(null);
   const [open, setOpen] = useState(false);
   const [now] = useState(() => Date.now());
@@ -151,9 +151,9 @@ function Overrides({ value, onChange }: { value: Availability; onChange: (a: Ava
   const list = value.overrides.filter((o) => o.date >= today);
   const put = (date: string, ranges: Range[]) => onChange({ ...value, overrides: value.overrides.map((o) => (o.date === date ? { date, ranges } : o)) });
   return (
-    <div className="flex flex-col gap-2 border-t border-line pt-5">
+    <div className={`flex flex-col gap-2 ${bare ? "" : "border-t border-line pt-5"}`}>
       <div className="flex items-center gap-2">
-        <span className="flex-1 text-[13px] font-semibold tracking-[-0.01em] text-ink">Date changes</span>
+        <span className="flex-1 text-[13px] font-semibold tracking-[-0.01em] text-ink">{bare ? "" : "Date changes"}</span>
         <button ref={anchor} type="button" onClick={() => setOpen((o) => !o)} className="press inline-flex h-8 items-center gap-1.5 rounded-full border border-line-strong bg-card px-3 text-[12.5px] font-medium text-ink hover:bg-hover">
           <Plus size={13} />
           Add a date
