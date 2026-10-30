@@ -41,13 +41,14 @@ export type FlowProps = {
   setup?: { text: string; at: Selection }[];
 };
 
-const WHEN_OUT = { keep: "When away: wait for them", backup: "When away: their backup", route: "When away: use the rules" } as const;
+const WHEN_OUT = { keep: "If that rep is away: wait for them", backup: "If that rep is away: their backup", route: "If that rep is away: use the rules" } as const;
 const SLA_NEXT_WORDS = { route: "then the next rep", manager: "then the manager", nudge: "then a reminder" } as const;
 
 export function Flow(p: FlowProps) {
   const { body, counts, path, sel, onSelect, edit } = p;
   const names = new Map(p.members.map((m) => [m.id, m.name]));
-  const problemFor = (kind: Problem["where"]["kind"], id?: string) => p.problems.find((x) => x.where.kind === kind && (id === undefined || x.where.id === id));
+  // Nothing is marked red while someone builds; what is missing is shown when they publish.
+  const problemFor: (kind: Problem["where"]["kind"], id?: string) => Problem | undefined = () => undefined;
   const reached = (s: FlowStep) => !path || path.reached.has(s);
   const lit = (s: FlowStep) => !!path && path.reached.has(s);
   const toggle = (step: "spam" | "account" | "keep" | "rules") => (edit ? (on: boolean) => edit((b) => ({ ...b, [step]: { ...b[step], on } })) : undefined);
@@ -58,12 +59,12 @@ export function Flow(p: FlowProps) {
   const fbPeople = (fbQueue?.members ?? []).map((m) => names.get(m.user) ?? "Former teammate");
   const fbList = fbPeople.length > 3 ? `${fbPeople.slice(0, 3).join(", ")} and ${fbPeople.length - 3} more` : fbPeople.length > 1 ? `${fbPeople.slice(0, -1).join(", ")} and ${fbPeople[fbPeople.length - 1]}` : (fbPeople[0] ?? "no reps yet");
   const fbSummary = !fb
-    ? "Pick a rep or team"
+    ? "No rep yet"
     : fb.kind === "user"
-      ? `Assign to ${names.get(fb.id) ?? "Former teammate"}`
+      ? `Send to ${names.get(fb.id) ?? "Former teammate"}`
       : !fbQueue
-        ? "Pick a rep or team"
-        : `${{ rr: "Round robin", weighted: "Weighted round robin", load: "Load balanced" }[fbQueue.method]}: ${fbList}`;
+        ? "No rep yet"
+        : `${{ rr: "Take turns", weighted: "Some get more", load: "Fewest meetings first" }[fbQueue.method]}: ${fbList}`;
 
   return (
     <div className="relative min-h-full">
@@ -90,8 +91,8 @@ export function Flow(p: FlowProps) {
         />
         <Connector label={body.spam.on ? "No" : undefined} lit={lit("account")} runKey={p.runKey} />
         <StepCard
-          title="Is the company already in your CRM?"
-          summary={body.account.oppFirst ? "Deal owner first, then company owner" : "Company owner"}
+          title="Does their company already have a rep?"
+          summary={body.account.oppFirst ? "The open deal's rep first, then the company's" : "The company's rep"}
           on={body.account.on}
           onToggle={toggle("account")}
           selected={sameSelection(sel, { kind: "account" })}
@@ -99,13 +100,13 @@ export function Flow(p: FlowProps) {
           mark={path?.marks.account}
           faded={!reached("account")}
           problem={problemFor("account")?.text}
-          branch={body.account.on ? { text: body.account.oppFirst ? "Deal or company owner" : "Company owner", count: counts?.matched } : null}
+          branch={body.account.on ? { text: "Send to that rep", count: counts?.matched } : null}
           branchLit={path?.marks.account === "ok" && !path.reached.has("keep")}
           runKey={p.runKey}
         />
         <Connector label={body.account.on ? "No" : undefined} lit={lit("keep")} runKey={p.runKey} />
         <StepCard
-          title="Does the lead already have a rep?"
+          title="Does this person already have a rep?"
           summary={WHEN_OUT[body.keep.whenOut]}
           on={body.keep.on}
           onToggle={toggle("keep")}
@@ -114,7 +115,7 @@ export function Flow(p: FlowProps) {
           mark={path?.marks.keep}
           faded={!reached("keep")}
           problem={problemFor("keep")?.text}
-          branch={body.keep.on ? { text: "Keep that rep", count: counts?.kept } : null}
+          branch={body.keep.on ? { text: "Send to that rep", count: counts?.kept } : null}
           branchLit={path?.marks.keep === "ok" && !path.reached.has("rules")}
           runKey={p.runKey}
         />
@@ -122,9 +123,9 @@ export function Flow(p: FlowProps) {
         <Row>
           <RulesCard {...p} faded={!reached("rules")} problemFor={problemFor} />
         </Row>
-        <Connector label={body.rules.on && body.rules.list.length ? "No match" : undefined} lit={lit("fallback")} runKey={p.runKey} />
+        <Connector label={body.rules.on && body.rules.list.length ? "None fit" : undefined} lit={lit("fallback")} runKey={p.runKey} />
         <StepCard
-          title="Fallback"
+          title="Everyone else"
           summary={fbSummary}
           selected={sameSelection(sel, { kind: "fallback" })}
           onClick={() => onSelect({ kind: "fallback" })}
@@ -135,7 +136,7 @@ export function Flow(p: FlowProps) {
         />
         <Connector dashed lit={false} runKey={p.runKey} />
         <StepCard
-          title="Time to reach out"
+          title="Reach out within"
           summary={body.sla ? `${minutesWords(body.sla.minutes)}, ${SLA_NEXT_WORDS[body.sla.next]}` : ""}
           on={!!body.sla?.on}
           onToggle={edit ? (on: boolean) => edit((b) => ({ ...b, sla: { ...(b.sla ?? defaultSla()), on } })) : undefined}
@@ -299,7 +300,7 @@ function RulesCard(p: FlowProps & { faded: boolean; problemFor: (k: Problem["whe
       <div className="flex items-center gap-2.5 px-4 pt-3 pb-1.5">
         <MarkDot mark={path?.marks.rules} />
         <button type="button" onClick={() => onSelect({ kind: "rules" })} aria-pressed={selected} className="min-w-0 flex-1 text-left outline-none focus-visible:underline">
-          <span className="block text-[13.5px] font-medium text-ink">Does it match a rule?</span>
+          <span className="block text-[13.5px] font-medium text-ink">Which rule fits them?</span>
         </button>
         {edit ? <Toggle label="Use rules" on={!off} onChange={(on) => edit((b) => ({ ...b, rules: { ...b.rules, on } }))} /> : null}
       </div>
@@ -405,7 +406,7 @@ function RuleRow({
         </button>
         {problem ? <span className="size-1.5 shrink-0 rounded-full bg-rose" aria-label={problem} title={problem} /> : null}
         {off ? <Badge>Off</Badge> : unused ? <Badge>Unused</Badge> : null}
-        <span className={`max-w-[120px] truncate text-[12px] ${queue || rule.then === "hold" || rule.then === "owner" ? "text-muted" : "text-rose"}`}>{rule.then === "hold" ? "Held" : rule.then === "owner" ? "Company owner" : (queue ?? "Pick a team")}</span>
+        <span className={`max-w-[120px] truncate text-[12px] text-muted`}>{rule.then === "hold" ? "Held" : rule.then === "owner" ? "Their rep" : (queue ?? "No team yet")}</span>
         {count ? <span className="w-9 text-right text-[12px] text-muted tabular-nums">{fmt(count)}</span> : null}
         {edit ? (
           <button

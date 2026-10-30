@@ -8,7 +8,7 @@
 import type { Session } from "@supabase/supabase-js";
 import { withSegments } from "@/lib/router/conditions";
 import { useCallback, useEffect, useImperativeHandle, useMemo, useReducer, useRef, useState } from "react";
-import { problems as checkProblems } from "@/lib/router/check";
+import { problems as checkProblems, problemWords } from "@/lib/router/check";
 import type { Line } from "@/lib/router/explain";
 import { emptyBody, type RouterBody } from "@/lib/router/types";
 import { BarChart, Bell, History, Pause, Play, Redo, Undo } from "../../Icons";
@@ -233,6 +233,13 @@ export function RouterEditor({
 
   const openPublish = async () => {
     setReplaying(false);
+    // What's missing is shown here, once, on the part that needs it.
+    if (probs.length) {
+      const w = probs[0]!.where;
+      if (w.kind !== "segment") setSel((w.id ? { kind: w.kind, id: w.id } : { kind: w.kind }) as Selection);
+      toast({ text: problemWords(probs[0]!.text) });
+      return;
+    }
     if (!(await save())) return setError("Not saved. Try again.");
     setPublishing(true);
   };
@@ -305,7 +312,7 @@ export function RouterEditor({
   const draft = hasDraft || dirty;
   const moved = !!data.live && hasDraft && data.draftBase !== null && data.live.version > data.draftBase;
   const next = Math.max(0, ...data.versions.map((v) => v.version), data.live?.version ?? 0) + 1;
-  const canPublish = !readOnly && draft && !probs.length;
+  const canPublish = !readOnly && draft;
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -356,11 +363,9 @@ export function RouterEditor({
             </IconButton>
           ) : null}
           {!readOnly ? (
-            <span title={probs.length ? `${probs.length} to fix` : undefined}>
-              <Button size="sm" disabled={!canPublish} onClick={() => void openPublish()}>
-                Publish
-              </Button>
-            </span>
+            <Button size="sm" disabled={!canPublish} onClick={() => void openPublish()}>
+              Publish
+            </Button>
           ) : null}
         </div>
       </div>
