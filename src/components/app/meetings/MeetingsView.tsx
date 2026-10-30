@@ -1,7 +1,7 @@
 "use client";
 
-// CRM › Meetings (docs/app-structure.md 3.1): the calendar of every meeting (Calendar.tsx), and one meeting at
-// /meetings/<id>. Meeting types moved to Scheduling (/scheduling/types).
+// One meeting at its own page (/meetings/<id>); the calendar of every meeting (Calendar.tsx) is Meetings › Upcoming.
+// Meeting types are Meetings › Meetings (/scheduling/types).
 
 import { meetingsPage } from "@/lib/nav";
 import type { ViewProps } from "../ui";

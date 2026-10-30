@@ -47,6 +47,7 @@ export async function POST(request: Request) {
             email: str("email"),
             contact: str("contact"),
             changes: body.changes && typeof body.changes === "object" ? (body.changes as Record<string, unknown>) : undefined,
+            owners: tryOwners(body.owners),
             which: body.which === "live" || body.which === "both" ? body.which : "draft",
             whyNot: str("whyNot"),
             draft: body.draft,
@@ -87,4 +88,15 @@ export async function POST(request: Request) {
     if (e instanceof A.Refused) return Response.json({ error: e.message }, { status: e.status });
     return Response.json({ error: e instanceof Error ? e.message.slice(0, 300) : "Something went wrong." }, { status: 502 });
   }
+}
+
+/** "Try a lead"'s owners: each a rep's id, null (nobody yet), or left out. */
+function tryOwners(raw: unknown): { company?: string | null; contact?: string | null } | undefined {
+  if (!raw || typeof raw !== "object") return undefined;
+  const r = raw as Record<string, unknown>;
+  const one = (v: unknown) => (v === null ? null : typeof v === "string" && /^[0-9a-f-]{36}$/.test(v) ? v : undefined);
+  const out: { company?: string | null; contact?: string | null } = {};
+  if (one(r.company) !== undefined) out.company = one(r.company);
+  if (one(r.contact) !== undefined) out.contact = one(r.contact);
+  return out;
 }

@@ -1,22 +1,22 @@
 "use client";
 
-// Routing › Setup, in the same spirit as Scoring: on the first visit the assistant builds the setup (Build.tsx); after
-// that, the flowchart editor with the side panel, and the assistant's box at the bottom. The assistant never makes
+// Routing › Rules, in the same spirit as Scoring: on the first visit the assistant builds the setup (Build.tsx); after
+// that, the rules as sentences with Try a lead (or the flowchart, /routing/flow), and the assistant's box at the bottom. The assistant never makes
 // anything live: Publish does, after a check of the setup.
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AiAvatar } from "../Ai";
 import { AskDock } from "../forms/FormHome";
-import { Button, ErrorNote, errorText, mayLeave, type ViewProps } from "../ui";
+import { Button, ErrorNote, errorText, mayLeave, Page, type ViewProps } from "../ui";
 import { routingApi, type ChatOut, type Loaded } from "./api";
 import { Build } from "./Build";
 import { RouterEditor, type EditorHandle } from "./Editor";
 import { FlowSkeleton } from "./Flow";
 import { toast } from "./Toast";
 
-type Props = Pick<ViewProps, "sb" | "session" | "ws" | "role" | "navigate">;
+type Props = Pick<ViewProps, "sb" | "session" | "ws" | "role" | "navigate"> & { layout?: "rules" | "flow" };
 
-export function SetupTab(props: Props) {
+export function SetupTab({ layout = "rules", ...props }: Props) {
   const { session, ws, role } = props;
   const owner = role === "owner";
   const [state, setState] = useState<{ data: Loaded } | null>(null);
@@ -47,6 +47,7 @@ export function SetupTab(props: Props) {
 
   if (!state)
     return (
+      <Frame>
       <div className="flex h-full min-h-0 flex-col">
         {error ? (
           <div className="p-4 md:p-6">
@@ -59,29 +60,47 @@ export function SetupTab(props: Props) {
           <FlowSkeleton />
         )}
       </div>
+      </Frame>
     );
 
   const d = state.data;
   if (!d.live && !d.draft) {
     if (!owner)
       return (
-        <div className="flex flex-col items-center gap-1 px-4 py-20 text-center">
-          <h2 className="text-[18px] font-semibold tracking-[-0.02em] text-ink">No routing yet</h2>
-          <p className="text-[13px] text-muted">A workspace owner can set it up here.</p>
-        </div>
+        <Frame>
+          <div className="flex flex-col items-center gap-1 px-4 py-20 text-center">
+            <h2 className="text-[18px] font-semibold tracking-[-0.02em] text-ink">No routing yet</h2>
+            <p className="text-[13px] text-muted">A workspace owner can set it up here.</p>
+          </div>
+        </Frame>
       );
-    return <Build session={session} ws={ws} data={d} onDone={() => void refresh(true)} />;
+    return (
+      <Frame>
+        <Build session={session} ws={ws} data={d} onDone={() => void refresh(true)} />
+      </Frame>
+    );
   }
 
+  const dock = owner ? <ChatDock session={session} ws={ws.id} data={d} onTurn={() => void refresh(true)} /> : null;
+  if (layout === "rules") return <RouterEditor {...props} data={d} refresh={refresh} handle={editor} dock={dock} />;
   return (
-    <div className="flex h-full min-h-0 flex-col">
-      <div className="min-h-0 flex-1">
-        <RouterEditor {...props} data={d} refresh={refresh} handle={editor} />
+    <Page title="Flowchart" back={{ label: "Routing", onClick: () => props.navigate("routing") }} flush>
+      <div className="flex h-full min-h-0 flex-col">
+        <div className="min-h-0 flex-1">
+          <RouterEditor {...props} data={d} refresh={refresh} handle={editor} layout="flow" />
+        </div>
+        {dock}
       </div>
-      {owner ? <ChatDock session={session} ws={ws.id} data={d} onTurn={() => void refresh(true)} /> : null}
-    </div>
+    </Page>
   );
 }
+
+/** The title row and tabs while there's no editor yet (loading, the first build). */
+const Frame = ({ children }: { children: React.ReactNode }) => (
+  <Page title="Routing" flush>
+    {children}
+  </Page>
+);
 
 /** The assistant's box at the bottom, with its latest reply above it and one-tap answers when it asks. */
 function ChatDock({ session, ws, data, onTurn }: { session: ViewProps["session"]; ws: string; data: Loaded; onTurn: () => void }) {

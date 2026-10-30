@@ -366,7 +366,7 @@ export function TypePanel({
             />
           ) : null}
           <Week hours={hours} />
-          <TextLink onClick={() => navigate("scheduling", "availability")}>Edit hours</TextLink>
+          <TextLink onClick={() => navigate("reps", "availability")}>Edit hours</TextLink>
         </PanelSection>
 
         <PanelSection icon={<Users />} title="Host" summary={hostSummary} open={open === "host"} onToggle={() => toggle("host")} locked={copy}>
@@ -388,14 +388,14 @@ export function TypePanel({
                       <Bolt size={12} />
                     </span>
                     <span className="min-w-0 flex-1 text-body">Routing picks the rep, {METHOD_WORDS[queue.method].toLowerCase()}</span>
-                    <TextLink onClick={() => navigate("routing", "team")}>Edit in Routing</TextLink>
+                    <TextLink onClick={() => navigate("routing", "teams")}>Edit in Routing</TextLink>
                   </div>
                 ) : null}
               </>
             ) : (
               <div className="flex items-center gap-2 text-[12.5px] text-muted">
                 <span className="flex-1">No Routing teams yet</span>
-                <TextLink onClick={() => navigate("routing", "team")}>Open Routing</TextLink>
+                <TextLink onClick={() => navigate("routing", "teams")}>Open Routing</TextLink>
               </div>
             )
           ) : null}

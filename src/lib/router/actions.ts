@@ -13,7 +13,7 @@ import { BASE_FIELDS, type FieldDef } from "./conditions.ts";
 import { diffBodies } from "./diff.ts";
 import { decide, whyNot } from "./engine.ts";
 import { explain, pathWords, resultWords, type Line } from "./explain.ts";
-import { invalidateRouterLive, liveRouter, route, testRoute } from "./server.ts";
+import { invalidateRouterLive, liveRouter, route, testRoute, type TryOwners } from "./server.ts";
 import { fromLeadSettings, type OldRouting } from "./templates.ts";
 import { slackInstallUrl, slackReady } from "../slack/app.ts";
 import { signState } from "../sources/oauth.ts";
@@ -307,10 +307,10 @@ export async function changes(rpc: Rpc, db: Q, c: Caller, o: { from?: number | n
   return { changes: diffBodies(a, b, { names: Object.fromEntries(members.map((m) => [m.id, m.name])), fields: f.fields }) };
 }
 
-type Tested = { result: Decision["result"]; owner: string; path: string; lines: Line[]; whyNot?: ReturnType<typeof whyNot> & { words: string } };
+type Tested = { result: Decision["result"]; owner: string; path: string; lines: Line[]; steps: Decision["steps"]; whyNot?: ReturnType<typeof whyNot> & { words: string } };
 
 function shown(d: Decision, f: Facts, body: RouterBody, fields: FieldDef[], why?: string | null): Tested {
-  const out: Tested = { result: d.result, owner: resultWords(d, f), path: pathWords(d), lines: explain(d, f, { fields, territories: body.territories }) };
+  const out: Tested = { result: d.result, owner: resultWords(d, f), path: pathWords(d), lines: explain(d, f, { fields, territories: body.territories }), steps: d.steps };
   if (why) {
     const w = whyNot(body, f, d, why);
     const name = f.reps[why]?.name ?? "They";
@@ -347,7 +347,7 @@ function explainWhy(why: string, until: number | null | undefined, f: Facts, use
 }
 
 /** The Test panel: an email or a contact, with changed fields, against the draft, live or both. Writes nothing. */
-export async function test(rpc: Rpc, db: Q, c: Caller, o: { email?: string | null; contact?: string | null; changes?: Record<string, unknown>; which: "draft" | "live" | "both"; whyNot?: string | null; draft?: unknown }) {
+export async function test(rpc: Rpc, db: Q, c: Caller, o: { email?: string | null; contact?: string | null; changes?: Record<string, unknown>; owners?: TryOwners; which: "draft" | "live" | "both"; whyNot?: string | null; draft?: unknown }) {
   const given = o.contact && /^[0-9a-f-]{36}$/.test(o.contact) ? o.contact : null;
   if (!given && !o.email) throw new Refused(400, "Type an email or pick a contact.");
   // The router row, the live version, the fields and (for an email) the contact, side by side. The row is only read
@@ -361,7 +361,7 @@ export async function test(rpc: Rpc, db: Q, c: Caller, o: { email?: string | nul
   const contact = given ?? ((found?.data as { id: string } | null)?.id ?? null);
   const run = async (body: RouterBody | null) => {
     if (!body) return null;
-    const r = await testRoute(rpc, { ws: c.ws, contact, email: contact ? null : o.email, body, changes: o.changes });
+    const r = await testRoute(rpc, { ws: c.ws, contact, email: contact ? null : o.email, body, changes: o.changes, owners: o.owners });
     return r ? shown(r.decision, r.facts, body, f.fields, o.whyNot) : null;
   };
   // The editor sends its unsaved draft so the test follows every edit at once.

@@ -16,7 +16,7 @@ const HIDE_KEY = "claritia:start-hidden";
 /** The tasks and whether each is done, from counts the page reads. */
 export function startTasks(c: { calendars: number; types: number; liveForms: number; routing: boolean; members: number; invites: number; sources: number }): StartTask[] {
   return [
-    { key: "calendar", label: "Connect your calendar", done: c.calendars > 0, go: ["scheduling", "availability/calendars"] },
+    { key: "calendar", label: "Connect your calendar", done: c.calendars > 0, go: ["reps", "availability/calendars"] },
     { key: "type", label: "Make a meeting type", done: c.types > 0, go: ["scheduling", "types/new"] },
     { key: "form", label: "Put a form live", done: c.liveForms > 0, go: ["forms", ""] },
     { key: "routing", label: "Turn on routing", done: c.routing, go: ["routing", ""] },
