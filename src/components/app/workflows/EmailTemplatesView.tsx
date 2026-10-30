@@ -15,7 +15,8 @@ import { EmailForm } from "./Inspector";
 
 type Template = { id: string; name: string; body: EmailBody; updated_at: string };
 
-export function EmailTemplatesView({ sb, ws, session }: ViewProps) {
+/** `above`: shown first on the page (the Library's built-in templates). */
+export function EmailTemplatesView({ sb, ws, session, above }: ViewProps & { above?: React.ReactNode }) {
   const list = useLoad(async () => (must(await sb.from("email_templates").select("id, name, body, updated_at").eq("workspace_id", ws.id).order("updated_at", { ascending: false })) ?? []) as Template[], ws.id);
   const [open, setOpen] = useState<Template | null>(null);
   const [saved, setSaved] = useState(true);
@@ -74,7 +75,8 @@ export function EmailTemplatesView({ sb, ws, session }: ViewProps) {
   const gaps = open ? [open.body.subject, open.body.preheader, ...open.body.paragraphs, open.body.cta_label].flatMap(mergeGaps) : [];
 
   return (
-    <Page icon={<Mail size={14} />} title="Templates" count={list.data?.length} actions={list.data?.length ? add : undefined}>
+    <Page icon={<Mail size={14} />} title="Templates" count={above ? undefined : list.data?.length} actions={list.data?.length ? add : undefined}>
+      {above}
       <ErrorNote message={error || list.error} />
       {!list.data ? (
         <Loading />

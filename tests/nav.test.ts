@@ -126,8 +126,11 @@ test("scheduling, visitors, enrichment, emails and lead scoring tabs", () => {
   assert.deepEqual(visitorsPage("alerts"), { tab: "alerts", id: "alerts" });
   assert.deepEqual(enrichmentPage("providers"), { tab: "providers", id: "providers" });
   assert.deepEqual(enrichmentPage("nope"), { tab: "overview", id: "" });
-  assert.deepEqual(emailsPage(""), { tab: "emails", id: "" });
-  assert.deepEqual(emailsPage("templates"), { tab: "templates", id: "templates" });
+  assert.deepEqual(emailsPage(""), { tab: "journeys", sub: "", id: "" });
+  assert.deepEqual(emailsPage("emails"), { tab: "emails", sub: "", id: "emails" });
+  assert.deepEqual(emailsPage("templates"), { tab: "library", sub: "", id: "library" }, "the old Templates tab opens the Library");
+  assert.deepEqual(emailsPage("journeys/123e4567-e89b-12d3-a456-426614174000"), { tab: "journeys", sub: "123e4567-e89b-12d3-a456-426614174000", id: "journeys/123e4567-e89b-12d3-a456-426614174000" });
+  assert.deepEqual(emailsPage("journeys/nope"), { tab: "journeys", sub: "", id: "" });
   assert.deepEqual(scoringPage(""), { tab: "model", id: "" });
   assert.deepEqual(scoringPage("leads"), { tab: "leads", id: "leads" });
   assert.deepEqual(scoringPage("ideal"), { tab: "ideal", id: "ideal" });

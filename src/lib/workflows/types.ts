@@ -5,7 +5,7 @@
 import type { Cond } from "../router/types.ts";
 import type { EmailDoc } from "../design/email/doc.ts";
 
-export type TriggerKind = "form" | "meeting" | "not_booked" | "outcome" | "band" | "routed" | "segment" | "field" | "clicked" | "date" | "broadcast" | "manual";
+export type TriggerKind = "form" | "meeting" | "not_booked" | "outcome" | "band" | "routed" | "segment" | "field" | "clicked" | "product" | "date" | "broadcast" | "manual";
 
 export type Trigger =
   | { kind: "form"; forms: string[] }
@@ -17,6 +17,8 @@ export type Trigger =
   | { kind: "segment"; segment: string; on: "entered" | "left" }
   | { kind: "field"; key: string; to?: string }
   | { kind: "clicked"; emails: string[] }
+  /** Did something in the product: a claritia.track() event, by name. */
+  | { kind: "product"; events: string[] }
   | { kind: "date"; field: string; days: number; time: string }
   | { kind: "broadcast"; segment: string; at: string }
   | { kind: "manual" };
@@ -27,12 +29,12 @@ export type Trigger =
  */
 export type EmailBody = { subject: string; preheader: string; paragraphs: string[]; cta_label: string; cta_url: string; doc?: EmailDoc };
 
-export type WaitEvent = "meeting.booked" | "email.clicked" | "form.submitted" | "lead.outcome" | "segment.entered";
+export type WaitEvent = "meeting.booked" | "email.clicked" | "form.submitted" | "lead.outcome" | "segment.entered" | "product.used";
 
 export type Step =
   | { id: string; kind: "email"; email: EmailBody; from: "team" | "owner"; approved: boolean; ai?: boolean; notes?: string[] }
   | { id: string; kind: "wait"; days: number; hours: number; weekday?: number[]; at?: string }
-  | { id: string; kind: "wait_until"; event: WaitEvent; days: number; yes: Step[]; no: Step[] }
+  | { id: string; kind: "wait_until"; event: WaitEvent; /** For product.used: the event's name. */ name?: string; days: number; yes: Step[]; no: Step[] }
   | { id: string; kind: "branch"; match: "all" | "any"; conds: Cond[]; yes: Step[]; no: Step[] }
   | { id: string; kind: "split"; percent: number; a: Step[]; b: Step[] }
   | { id: string; kind: "enrich" }
@@ -83,6 +85,7 @@ export const TRIGGERS: { kind: TriggerKind; label: string }[] = [
   { kind: "segment", label: "Joined or left a segment" },
   { kind: "field", label: "Field changed" },
   { kind: "clicked", label: "Email clicked" },
+  { kind: "product", label: "Did something in the product" },
   { kind: "date", label: "A date on the contact" },
   { kind: "broadcast", label: "Once, to a segment" },
   { kind: "manual", label: "Added by hand" },

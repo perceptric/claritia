@@ -33,10 +33,14 @@ export function WorkflowEditor({
   navigate,
   data,
   reload,
+  home,
 }: Pick<ViewProps, "sb" | "session" | "ws" | "navigate"> & {
   data: Loaded;
   reload: () => Promise<void>;
+  /** Where Back and Delete lead: Workflows, or the screen this editor sits in (Emails › Journeys). */
+  home?: { label: string; go: () => void };
 }) {
+  const goHome = home?.go ?? (() => navigate("workflows"));
   const id = data.wf.id;
   const [st, dispatch] = useReducer(editorReducer, data.draft, startEditor);
   const [name, setName] = useState(data.wf.name);
@@ -190,7 +194,7 @@ export function WorkflowEditor({
     const { error: e } = await sb.rpc("workflow_delete", { p_id: id });
     if (e) return setError(e.message);
     savedRef.current = latest.current.n;
-    navigate("workflows");
+    goHome();
   };
   const openPublish = async () => {
     if (!(await save())) return setError("Not saved. Try again.");
@@ -285,7 +289,7 @@ export function WorkflowEditor({
         setName(v);
         setNameN((x) => x + 1);
       }}
-      back={{ label: "Workflows", onClick: () => navigate("workflows") }}
+      back={{ label: home?.label ?? "Workflows", onClick: goHome }}
       actions={actions}
       flush
     >

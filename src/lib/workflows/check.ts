@@ -34,6 +34,7 @@ export function problems(body: Body): Problem[] {
   if (t.kind === "date") need(!!t.field, "Pick the date field");
   if (t.kind === "outcome") need(t.outcomes.length > 0, "Pick the outcomes that start it");
   if (t.kind === "meeting") need(t.events.length > 0, "Pick the meeting events that start it");
+  if (t.kind === "product") need(t.events.length > 0, "Pick the product events that start it");
   if (!body.steps.length) out.push({ step: null, text: "Add a step" });
   if (countSteps(body.steps) > LIMITS.steps) out.push({ step: null, text: `Up to ${LIMITS.steps} steps` });
   if (maxDepth(body.steps) > LIMITS.depth) out.push({ step: null, text: `Paths can go ${LIMITS.depth} levels deep` });
@@ -80,6 +81,7 @@ export function stepProblems(s: Step): string[] {
       break;
     case "wait_until":
       if (s.days <= 0) out.push("Set the longest wait");
+      if (s.event === "product.used" && !s.name) out.push("Pick the product event to wait for");
       break;
     case "branch":
       if (!s.conds.length) out.push("Add a condition");
@@ -156,6 +158,8 @@ function cleanTrigger(t: Record<string, unknown>): Body["trigger"] | null {
       return { kind: "field", key: str(t.key, 60), ...(typeof t.to === "string" && t.to ? { to: str(t.to, 200) } : {}) };
     case "clicked":
       return { kind: "clicked", emails: ids(t.emails) };
+    case "product":
+      return { kind: "product", events: (Array.isArray(t.events) ? t.events : []).map((e) => str(e, 64)).filter(Boolean).slice(0, 20) };
     case "date":
       return { kind: "date", field: str(t.field, 60), days: num(t.days, -365, 365, 0), time: /^\d{2}:\d{2}$/.test(String(t.time)) ? String(t.time) : "09:00" };
     case "broadcast":
@@ -168,7 +172,7 @@ function cleanTrigger(t: Record<string, unknown>): Body["trigger"] | null {
 }
 
 const KINDS = new Set(["email", "wait", "wait_until", "branch", "split", "enrich", "qualify", "route", "update", "list", "task", "slack", "webhook", "crm", "exit"]);
-const WAIT_EVENTS = new Set(["meeting.booked", "email.clicked", "form.submitted", "lead.outcome", "segment.entered"]);
+const WAIT_EVENTS = new Set(["meeting.booked", "email.clicked", "form.submitted", "lead.outcome", "segment.entered", "product.used"]);
 
 function cleanSteps(raw: unknown, depth: number): Step[] {
   if (!Array.isArray(raw) || depth > 4) return [];
@@ -206,7 +210,15 @@ function cleanStep(x: unknown, depth: number): Step | null {
     case "wait":
       return { id, kind: "wait", days: num(s.days, 0, 365, 1), hours: num(s.hours, 0, 23, 0), ...(Array.isArray(s.weekday) && s.weekday.length ? { weekday: s.weekday.map(Number).filter((d) => d >= 0 && d <= 6) } : {}), ...(typeof s.at === "string" && /^\d{2}:\d{2}$/.test(s.at) ? { at: s.at } : {}) };
     case "wait_until":
-      return { id, kind: "wait_until", event: (WAIT_EVENTS.has(String(s.event)) ? s.event : "meeting.booked") as "meeting.booked", days: num(s.days, 0, 90, 3), yes: cleanSteps(s.yes, depth + 1), no: cleanSteps(s.no, depth + 1) };
+      return {
+        id,
+        kind: "wait_until",
+        event: (WAIT_EVENTS.has(String(s.event)) ? s.event : "meeting.booked") as "meeting.booked",
+        ...(s.event === "product.used" && typeof s.name === "string" && s.name.trim() ? { name: str(s.name, 64) } : {}),
+        days: num(s.days, 0, 90, 3),
+        yes: cleanSteps(s.yes, depth + 1),
+        no: cleanSteps(s.no, depth + 1),
+      };
     case "branch":
       return { id, kind: "branch", match: s.match === "any" ? "any" : "all", conds: (Array.isArray(s.conds) ? (s.conds as Cond[]) : []).slice(0, 10), yes: cleanSteps(s.yes, depth + 1), no: cleanSteps(s.no, depth + 1) };
     case "split":

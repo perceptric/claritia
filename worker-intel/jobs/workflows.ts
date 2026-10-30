@@ -214,7 +214,8 @@ export async function advance(rpc: Rpc, ws: string, run: Claimed, d: WorkflowDep
     }
     if (step.kind === "wait_until") {
       if (wait?.step === step.id && wait.since && wait.until) {
-        const happened = await call<boolean>(rpc, "workflow_event_since", { p_run: run.id, p_kind: step.event, p_since: wait.since });
+        // A named product event needs migration 082's four-argument form; every other wait keeps the original call.
+        const happened = await call<boolean>(rpc, "workflow_event_since", { p_run: run.id, p_kind: step.event, p_since: wait.since, ...(step.event === "product.used" ? { p_name: step.name ?? null } : {}) });
         const over = now() >= Date.parse(wait.until);
         if (!happened && !over) {
           await done(null, "running", null, step.id, Math.min(Date.parse(wait.until), now() + 5 * 60_000), wait, "waiting");
