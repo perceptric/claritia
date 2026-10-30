@@ -1,5 +1,6 @@
 // Sources on claritia-intel (docs/conversion-weeks.md weeks 3 to 7): scheduled pulls with a push after, pushes
-// when contacts change here, and staged webhooks. A long pull stops after 4 minutes and queues the rest.
+// when contacts change here, and staged webhooks. A long pull or push stops after about 45 seconds and queues the
+// rest a moment later in the bulk lane, so it never holds a worker loop for minutes.
 
 import type pg from "pg";
 import { enqueueJob, JobError, type Handler, type Job, type Rpc } from "../../src/lib/jobs.ts";
@@ -13,7 +14,16 @@ const idOf = (job: Job) => {
   return id;
 };
 
-const opts = (pool: pg.Pool, rpc: Rpc, signal: AbortSignal, extra: Partial<RunOpts> = {}): RunOpts => ({ rpc, clean: (ws) => ctxFor(pool, ws), signal, budgetMs: 240_000, ...extra });
+/** One round's time. run.ts gives it to the pull and again to the push after it. */
+export const SOURCE_ROUND_MS = 45_000;
+/** The rest of a long round waits this long, so other work gets the loop first. */
+export const SOURCE_REST_S = 5;
+
+const opts = (pool: pg.Pool, rpc: Rpc, signal: AbortSignal, extra: Partial<RunOpts> = {}): RunOpts => ({ rpc, clean: (ws) => ctxFor(pool, ws), signal, budgetMs: SOURCE_ROUND_MS, ...extra });
+
+/** The rest of a round, in the bulk lane. */
+const rest = (rpc: Rpc, job: Job, id: string) =>
+  enqueueJob(rpc, { workspaceId: job.workspace_id, kind: job.kind, key: id, payload: { source_id: id, lane: "bulk" }, delayS: SOURCE_REST_S, maxAttempts: job.max_attempts });
 
 async function guarded<T>(fn: () => Promise<T>): Promise<T> {
   try {
@@ -31,7 +41,7 @@ export const sourcePull =
     const id = idOf(job);
     const retry = Array.isArray(job.payload.retry) ? (job.payload.retry as unknown[]).filter((x): x is string => typeof x === "string") : undefined;
     const r = await guarded(() => runPull(opts(pool, rpc, signal, extra), id, retry));
-    if (r?.more) await enqueueJob(rpc, { workspaceId: job.workspace_id, kind: "source_pull", key: id, payload: { source_id: id } });
+    if (r?.more) await rest(rpc, job, id);
   };
 
 export const crmPush =
@@ -39,7 +49,7 @@ export const crmPush =
   async (job, signal) => {
     const id = idOf(job);
     const r = await guarded(() => runPush(opts(pool, rpc, signal, extra), id));
-    if (r?.more) await enqueueJob(rpc, { workspaceId: job.workspace_id, kind: "crm_push", key: id, payload: { source_id: id } });
+    if (r?.more) await rest(rpc, job, id);
   };
 
 export const crmActivity =
@@ -47,7 +57,7 @@ export const crmActivity =
   async (job, signal) => {
     const id = idOf(job);
     const r = await guarded(() => runActivity(opts(pool, rpc, signal, extra), id));
-    if (r?.more) await enqueueJob(rpc, { workspaceId: job.workspace_id, kind: "crm_activity", key: id, payload: { source_id: id } });
+    if (r?.more) await rest(rpc, job, id);
   };
 
 export const sourceHook =

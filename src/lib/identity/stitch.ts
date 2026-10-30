@@ -7,7 +7,7 @@ import { uuid7 } from "../../../collect/ids.ts";
 import { cleanIdentifier, isRejected, type Cleaned } from "./clean.ts";
 
 export type Db = { query: (sql: string, params?: unknown[]) => Promise<{ rows: Record<string, any>[]; rowCount: number | null }> }; // eslint-disable-line @typescript-eslint/no-explicit-any
-export type Client = Db & { release: () => void };
+export type Client = Db & { release: (err?: Error | boolean) => void };
 export type Pool = { connect: () => Promise<Client> };
 
 export type Settings = {
@@ -78,6 +78,18 @@ export async function workspaceLock(db: Db, ws: string, exclusive = false) {
   await db.query(`select ${exclusive ? "pg_advisory_xact_lock" : "pg_advisory_xact_lock_shared"}(hashtextextended($1, 0))`, [`ws:${ws}`]);
 }
 
+/** A rebuild holds the workspace (stitch waits instead of blocking a worker loop). */
+export class WorkspaceBusy extends Error {
+  constructor() {
+    super("The workspace is being rebuilt");
+  }
+}
+
+/** The workspace lock shared, without waiting: false while a rebuild holds it. */
+export async function tryWorkspaceLock(db: Db, ws: string): Promise<boolean> {
+  return !!(await db.query(`select pg_try_advisory_xact_lock_shared(hashtextextended($1, 0)) as ok`, [`ws:${ws}`])).rows[0]?.ok;
+}
+
 async function lock(db: Db, ws: string, keys: string[]) {
   for (const k of [...new Set(keys)].sort()) await db.query(`select pg_advisory_xact_lock(hashtextextended($1, 0))`, [`${ws}:${k}`]);
 }
@@ -96,36 +108,60 @@ async function resolve(db: Db, id: string | null): Promise<string | null> {
 
 // The job ----------------------------------------------------------------------------------------------------
 
-/** Stitches every waiting evidence row for one device, oldest first. Returns what happened to each. */
+/**
+ * Stitches every waiting evidence row for one device, oldest first. Returns what happened to each. One connection
+ * for the whole device: its lock is taken once (a session lock, so two jobs for one device never interleave), its
+ * waiting rows are read once, and each row is still its own transaction with the workspace lock shared, so locks on
+ * identifiers never pile up across rows. While a rebuild holds the workspace this throws WorkspaceBusy at once.
+ */
 export async function stitchDevice(pool: Pool, workspaceId: string, deviceId: string, settings: Settings, limit = 200): Promise<Outcome[]> {
   const out: Outcome[] = [];
-  for (let i = 0; i < limit; i++) {
-    const c = await pool.connect();
-    try {
-      await c.query("begin");
-      await workspaceLock(c, workspaceId);
-      await lock(c, workspaceId, [`dev:${deviceId}`]);
-      const r = await c.query(
-        `select id, workspace_id, site_id, device_id, session_id, source, level, identifiers, hard_edge, extra, server_at
-         from identity_evidence where workspace_id = $1 and device_id = $2 and stitched_at is null and revoked_at is null
-         order by server_at, id limit 1`,
-        [workspaceId, deviceId],
-      );
-      const e = r.rows[0] as Evidence | undefined;
-      if (!e) {
+  const c = await pool.connect();
+  const key = `${workspaceId}:dev:${deviceId}`;
+  let locked = false;
+  let broken: Error | null = null;
+  try {
+    await c.query(`select pg_advisory_lock(hashtextextended($1, 0))`, [key]);
+    locked = true;
+    const rows = (
+      await c.query(
+        `select id from identity_evidence where workspace_id = $1 and device_id = $2 and stitched_at is null and revoked_at is null
+         order by server_at, id limit $3`,
+        [workspaceId, deviceId, limit],
+      )
+    ).rows as { id: string }[];
+    for (const { id } of rows) {
+      try {
+        await c.query("begin");
+        if (!(await tryWorkspaceLock(c, workspaceId))) throw new WorkspaceBusy();
+        // Read again inside the transaction: a rebuild between rows may have stitched it already.
+        const r = await c.query(
+          `select id, workspace_id, site_id, device_id, session_id, source, level, identifiers, hard_edge, extra, server_at
+           from identity_evidence where workspace_id = $1 and id = $2 and stitched_at is null and revoked_at is null`,
+          [workspaceId, id],
+        );
+        const e = r.rows[0] as Evidence | undefined;
+        if (e) out.push(await stitchOne(c, e, settings));
         await c.query("commit");
-        break;
+      } catch (err) {
+        await c.query("rollback").catch(() => {});
+        throw err;
       }
-      out.push(await stitchOne(c, e, settings));
-      await c.query("commit");
-    } catch (err) {
-      await c.query("rollback").catch(() => {});
-      throw err;
-    } finally {
-      c.release();
+    }
+    return out;
+  } catch (err) {
+    broken = err as Error;
+    throw err;
+  } finally {
+    if (locked) {
+      // A session lock must not go back to the pool with the connection: unlock, or drop the connection.
+      const ok = await c.query(`select pg_advisory_unlock(hashtextextended($1, 0))`, [key]).then(() => true, () => false);
+      if (!ok) broken ??= new Error("couldn't unlock the device");
+      c.release(ok ? undefined : (broken as never));
+    } else {
+      c.release(broken as never);
     }
   }
-  return out;
 }
 
 async function finish(db: Db, e: Evidence, fields: { ignored?: string | null; level?: string; source?: string; hard_edge?: boolean }) {

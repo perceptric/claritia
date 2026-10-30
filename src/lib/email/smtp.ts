@@ -27,59 +27,70 @@ export function dotStuff(raw: string): string {
     .join("\r\n");
 }
 
-/** Send one raw message. Returns the relay's message id when its answer holds one, else "". */
-export async function smtpSend(o: SmtpOpts, m: { from: string; to: string; raw: string }): Promise<string> {
-  const timeout = o.timeoutMs ?? 20_000;
-  let buf = "";
-  let waiting: ((r: Reply | Error) => void) | null = null;
-  let closed: Error | null = null;
-  let afterData = false;
+type Msg = { from: string; to: string; raw: string };
 
-  const fail = (msg: string, code = 0) => {
+/** One connection to the relay: signed in once, then one message after another. */
+class Connection {
+  private buf = "";
+  private waiting: ((r: Reply | Error) => void) | null = null;
+  private closed: Error | null = null;
+  private afterData = false;
+  private socket: net.Socket | null = null;
+  private readonly o: SmtpOpts;
+  constructor(o: SmtpOpts) {
+    this.o = o;
+  }
+
+  get open() {
+    return !!this.socket && !this.closed;
+  }
+
+  private fail(msg: string, code = 0) {
     // Before the last line went out, nothing was delivered.
-    if (!afterData) return new SendError(`SMTP: ${msg}`, { status: code, retry: true });
+    if (!this.afterData) return new SendError(`SMTP: ${msg}`, { status: code, retry: true });
     return new SendError(`SMTP: ${msg}`, { status: code, unknown: true });
-  };
+  }
 
-  const onData = (chunk: Buffer) => {
-    buf += chunk.toString("utf8");
+  private onData = (chunk: Buffer) => {
+    this.buf += chunk.toString("utf8");
     // A reply ends on a line "NNN text" (a space after the code); "NNN-text" lines continue it.
-    const lines = buf.split("\r\n");
+    const lines = this.buf.split("\r\n");
     for (let i = 0; i < lines.length - 1; i++) {
       if (/^\d{3} /.test(lines[i]) || /^\d{3}$/.test(lines[i])) {
         const text = lines.slice(0, i + 1).join("\n");
-        buf = lines.slice(i + 1).join("\r\n");
-        const w = waiting;
-        waiting = null;
+        this.buf = lines.slice(i + 1).join("\r\n");
+        const w = this.waiting;
+        this.waiting = null;
         w?.({ code: Number(lines[i].slice(0, 3)), text });
         return;
       }
     }
   };
 
-  const read = () =>
-    new Promise<Reply>((resolve, reject) => {
-      if (closed) return reject(closed);
+  private read() {
+    return new Promise<Reply>((resolve, reject) => {
+      if (this.closed) return reject(this.closed);
       const timer = setTimeout(() => {
-        waiting = null;
-        reject(fail("the server stopped answering"));
-      }, timeout);
-      waiting = (r) => {
+        this.waiting = null;
+        reject(this.fail("the server stopped answering"));
+      }, this.o.timeoutMs ?? 20_000);
+      this.waiting = (r) => {
         clearTimeout(timer);
         if (r instanceof Error) reject(r);
         else resolve(r);
       };
-      onData(Buffer.alloc(0));
+      this.onData(Buffer.alloc(0));
     });
+  }
 
-  const write = (line: string) => {
-    if (closed) throw closed;
-    socket.write(line);
-  };
+  private write(line: string) {
+    if (this.closed || !this.socket) throw this.closed ?? this.fail("not connected");
+    this.socket.write(line);
+  }
 
-  const step = async (line: string | null, ok: number[]): Promise<Reply> => {
-    if (line !== null) write(`${line}\r\n`);
-    const r = await read();
+  private async step(line: string | null, ok: number[]): Promise<Reply> {
+    if (line !== null) this.write(`${line}\r\n`);
+    const r = await this.read();
     if (!ok.includes(r.code)) {
       const text = r.text.replace(/\s+/g, " ").slice(0, 300);
       if (r.code >= 500) throw new SendError(`SMTP ${text}`, { status: r.code });
@@ -87,56 +98,123 @@ export async function smtpSend(o: SmtpOpts, m: { from: string; to: string; raw: 
       throw new SendError(`SMTP ${text}`, { status: r.code, retry: true });
     }
     return r;
-  };
+  }
 
-  const socket = await new Promise<net.Socket>((resolve, reject) => {
-    const s = o.secure === false ? net.connect({ host: o.host, port: o.port }) : tls.connect({ host: o.host, port: o.port, servername: o.host });
-    const timer = setTimeout(() => {
-      s.destroy();
-      reject(fail("couldn't connect"));
-    }, timeout);
-    s.once(o.secure === false ? "connect" : "secureConnect", () => {
-      clearTimeout(timer);
-      resolve(s);
+  async connect() {
+    const o = this.o;
+    const timeout = o.timeoutMs ?? 20_000;
+    this.afterData = false;
+    const socket = await new Promise<net.Socket>((resolve, reject) => {
+      const s = o.secure === false ? net.connect({ host: o.host, port: o.port }) : tls.connect({ host: o.host, port: o.port, servername: o.host });
+      const timer = setTimeout(() => {
+        s.destroy();
+        reject(this.fail("couldn't connect"));
+      }, timeout);
+      s.once(o.secure === false ? "connect" : "secureConnect", () => {
+        clearTimeout(timer);
+        resolve(s);
+      });
+      s.once("error", (e) => {
+        clearTimeout(timer);
+        reject(this.fail(e.message));
+      });
     });
-    s.once("error", (e) => {
-      clearTimeout(timer);
-      reject(fail(e.message));
+    this.socket = socket;
+    socket.on("data", this.onData);
+    socket.on("error", (e) => {
+      this.closed = this.fail(e.message);
+      this.waiting?.(this.closed);
     });
-  });
-  socket.on("data", onData);
-  socket.on("error", (e) => {
-    closed = fail(e.message);
-    waiting?.(closed);
-  });
-  socket.on("close", () => {
-    closed ??= fail("the connection closed");
-    waiting?.(closed);
-  });
+    socket.on("close", () => {
+      this.closed ??= this.fail("the connection closed");
+      this.waiting?.(this.closed);
+    });
+    await this.step(null, [220]);
+    await this.step(`EHLO ${o.helo ?? hostname() ?? "claritia"}`, [250]);
+    await this.step(`AUTH PLAIN ${Buffer.from(`\0${o.user}\0${o.pass}`, "utf8").toString("base64")}`, [235]);
+  }
 
-  try {
-    await step(null, [220]);
-    await step(`EHLO ${o.helo ?? hostname() ?? "claritia"}`, [250]);
-    await step(`AUTH PLAIN ${Buffer.from(`\0${o.user}\0${o.pass}`, "utf8").toString("base64")}`, [235]);
-    await step(`MAIL FROM:<${m.from}>`, [250]);
-    await step(`RCPT TO:<${m.to}>`, [250, 251]);
-    await step("DATA", [354]);
-    write(`${dotStuff(m.raw).replace(/(\r\n)?$/, "")}\r\n.\r\n`);
-    afterData = true;
-    const r = await read();
+  /** One message on the open connection. Returns the relay's message id when its answer holds one, else "". */
+  async send(m: Msg): Promise<string> {
+    this.afterData = false;
+    await this.step(`MAIL FROM:<${m.from}>`, [250]);
+    await this.step(`RCPT TO:<${m.to}>`, [250, 251]);
+    await this.step("DATA", [354]);
+    this.write(`${dotStuff(m.raw).replace(/(\r\n)?$/, "")}\r\n.\r\n`);
+    this.afterData = true;
+    const r = await this.read();
     if (r.code >= 500) throw new SendError(`SMTP ${r.text.replace(/\s+/g, " ").slice(0, 300)}`, { status: r.code });
     if (r.code >= 400) throw new SendError(`SMTP ${r.text.replace(/\s+/g, " ").slice(0, 300)}`, { status: r.code, retry: true });
-    if (r.code !== 250) throw fail(`unexpected answer ${r.code}`, r.code);
+    if (r.code !== 250) throw this.fail(`unexpected answer ${r.code}`, r.code);
+    return r.text.match(UUID)?.[0] ?? "";
+  }
+
+  close() {
+    const socket = this.socket;
+    if (!socket) return;
     try {
-      write("QUIT\r\n");
+      if (!this.closed) socket.write("QUIT\r\n");
     } catch {
       // Sent already; a failed goodbye changes nothing.
     }
-    return r.text.match(UUID)?.[0] ?? "";
-  } finally {
     socket.end();
     setTimeout(() => socket.destroy(), 1000).unref();
+    this.socket = null;
   }
+}
+
+/** Send one raw message on its own connection. Returns the relay's message id when its answer holds one, else "". */
+export async function smtpSend(o: SmtpOpts, m: Msg): Promise<string> {
+  const c = new Connection(o);
+  try {
+    await c.connect();
+    return await c.send(m);
+  } finally {
+    c.close();
+  }
+}
+
+/**
+ * Several messages over one connection (a meeting's guest and hosts): signed in once. A connection the relay closed
+ * between messages is opened again before the next one is started; an error that leaves the connection unsure
+ * closes it, so the next message starts on a fresh one. Call close() when done.
+ */
+export function smtpSession(o: SmtpOpts): { send(m: Msg): Promise<string>; close(): void } {
+  let c: Connection | null = null;
+  return {
+    async send(m) {
+      // A connection that went quiet since the last message: start over, nothing of this one was sent.
+      if (c && !c.open) {
+        c.close();
+        c = null;
+      }
+      const fresh = !c;
+      if (!c) {
+        c = new Connection(o);
+        try {
+          await c.connect();
+        } catch (e) {
+          c.close();
+          c = null;
+          throw e;
+        }
+      }
+      try {
+        return await c.send(m);
+      } catch (e) {
+        const se = e instanceof SendError ? e : null;
+        c.close();
+        c = null;
+        // A reused connection that the relay had dropped before this message started: once more on a new one.
+        if (!fresh && se?.retry && !se.status) return await this.send(m);
+        throw e;
+      }
+    },
+    close() {
+      c?.close();
+      c = null;
+    },
+  };
 }
 
 export function smtpFromEnv(env: NodeJS.ProcessEnv = process.env): SmtpOpts | null {

@@ -4,7 +4,7 @@
 // deliver_held: a destination turned back on sends what it held, oldest first.
 
 import type pg from "pg";
-import { enqueueJob, JobError, type Handler, type Rpc } from "../../src/lib/jobs.ts";
+import { enqueueJob, enqueueJobs, JobError, type Handler, type Rpc } from "../../src/lib/jobs.ts";
 import { sendDelivery, type SendDeps, type Taken } from "../../src/lib/delivery/send.ts";
 import { call } from "../../src/lib/sources/sync.ts";
 import type { RunOpts } from "../../src/lib/sources/run.ts";
@@ -44,20 +44,30 @@ export const deliver =
     if (r.retry) throw new JobError(r.retry.error, { retryAfterS: r.retry.retryAfterS });
   };
 
+/** How long one round of held deliveries runs before the rest goes back in line. */
+export const HELD_ROUND_MS = 45_000;
+
 export const deliverHeld =
-  (pool: pg.Pool, rpc: Rpc, extra: Extra = {}): Handler =>
+  (pool: pg.Pool, rpc: Rpc, extra: Extra & { roundMs?: number } = {}): Handler =>
   async (job, signal) => {
     const dest = String(job.payload.destination_id ?? "");
     if (!UUID.test(dest)) throw new JobError("deliver_held needs a destination", { retry: false });
     const send = sendDeps(pool, rpc, signal, extra);
+    const until = Date.now() + (extra.roundMs ?? HELD_ROUND_MS);
     for (;;) {
       const list = (await call<string[] | null>(rpc, "deliveries_held", { p_destination: dest, p_limit: 100 })) ?? [];
       if (!list.length) return;
       for (const [i, id] of list.entries()) {
+        if (Date.now() >= until) {
+          // Out of time: the rest of the destination's held deliveries in the next round, a moment later.
+          await enqueueJob(rpc, { workspaceId: job.workspace_id, kind: "deliver_held", key: job.key, payload: { destination_id: dest }, delayS: 2, maxAttempts: job.max_attempts });
+          return;
+        }
         const r = await deliverOnce(rpc, send, id, false);
         if (r.retry) {
-          // The tool is struggling: this one and the rest of the batch go to their own jobs with backoff, in order.
-          for (const [j, rest] of list.slice(i).entries()) await enqueueJob(rpc, { workspaceId: job.workspace_id, kind: "deliver", key: rest, payload: { delivery_id: rest }, delayS: 60 + j, maxAttempts: 6 });
+          // The tool is struggling: this one and the rest of the batch go to their own jobs with backoff, in order,
+          // in one call and in the bulk lane (a backlog never crowds out new form deliveries).
+          await enqueueJobs(rpc, list.slice(i).map((rest, j) => ({ workspaceId: job.workspace_id, kind: "deliver", key: rest, payload: { delivery_id: rest, lane: "bulk" }, delayS: 60 + j, maxAttempts: 6 })));
           return;
         }
         if (signal.aborted) throw new Error("Stopped");
