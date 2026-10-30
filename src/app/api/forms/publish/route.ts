@@ -1,5 +1,6 @@
 import { cleaningCtx, isMember } from "@/lib/contacts/server";
 import { checkForm } from "@/lib/forms/schema";
+import { forgetPublic } from "@/lib/forms/server";
 import { requireUser } from "@/lib/serverAuth";
 import { serviceClient } from "@/lib/serviceClient";
 
@@ -23,5 +24,7 @@ export async function POST(request: Request) {
   if ("errors" in r) return bad(r.errors[0], 400, { errors: r.errors });
   const { data, error } = await db.rpc("form_publish", { p_id: body.id, p_user: auth.user.id, p_body: r.form });
   if (error) return bad(error.message, 500);
+  // The new version shows at once on this server (others read it again within 10 seconds, or on the first send).
+  forgetPublic(body.id);
   return Response.json({ version: data as number });
 }

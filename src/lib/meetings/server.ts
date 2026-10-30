@@ -3,7 +3,10 @@
 // Server only: it reads through service-role functions and takes a live free/busy check from the caller.
 
 import { createHash, randomBytes } from "node:crypto";
+import { callNewer } from "../forms/newer.ts";
 import { enqueueJob, type Rpc } from "../jobs.ts";
+import type { LiveRouter } from "../router/server.ts";
+import { seal } from "../seal.ts";
 import { keepManageToken } from "./links.ts";
 import { cut, pickHost, pickPair, slots as engine, type HostInput, type Turns } from "./slots.ts";
 import { pickTeamHost, recordTeamRun, teamOf, type Team } from "./team.ts";
@@ -105,9 +108,12 @@ export type Offer = {
  * The times a meeting type can be booked now, for one length. `owner` is the contact's owner for owner-first. A type
  * hosted by a Routing team is offered over the team's members (teamOf); `team` passes one already read.
  */
-export async function offer(rpc: Rpc, o: { ws: string; type: MeetingType; length: number; now?: number; owner?: string | null; team?: { team: Team | null; type: MeetingType } }): Promise<Offer> {
+export async function offer(
+  rpc: Rpc,
+  o: { ws: string; type: MeetingType; length: number; now?: number; owner?: string | null; team?: { team: Team | null; type: MeetingType }; live?: LiveRouter | null },
+): Promise<Offer> {
   const now = o.now ?? Date.now();
-  if (o.type.settings.team && !o.team) return offer(rpc, { ...o, team: await teamOf(rpc, o.ws, o.type) });
+  if (o.type.settings.team && !o.team) return offer(rpc, { ...o, team: await teamOf(rpc, o.ws, o.type, undefined, o.live) });
   if (o.team) o = { ...o, type: o.team.type };
   const s = o.type.settings;
   const hostIds = o.type.hosts.map((h) => h.user_id);
@@ -161,7 +167,10 @@ export type BookInput = {
   guest: Guest;
   source: MeetingSource;
   owner?: string | null;
-  contactId?: string | null;
+  /** The guest's contact, or a read of it already under way (book_contact), awaited just before the write. */
+  contactId?: string | null | Promise<string | null>;
+  /** A new guest as a contact row (guestContactRow), made with the meeting when the CRM doesn't have them. */
+  guestRow?: Record<string, unknown> | null | Promise<Record<string, unknown> | null>;
   submissionId?: string | null;
   linkId?: string | null;
   bookedBy?: string | null;
@@ -176,11 +185,27 @@ export type BookInput = {
 };
 
 export type BookResult =
-  | { ok: true; meetingId: string; token: string; hosts: string[]; start: number; end: number }
+  /** tail: the manage token, team run, guest contact and meeting_sync were written with the meeting (090). */
+  | { ok: true; meetingId: string; token: string; hosts: string[]; start: number; end: number; tail?: boolean }
   | { ok: false; error: "slot_taken" | "full" | "link_used" | "link_closed" | "not_offered"; slots: Slot[] };
 
 export const tokenHash = (token: string) => createHash("sha256").update(token).digest("hex");
 export const newToken = () => randomBytes(24).toString("base64url");
+
+/** The sealed copy of a manage token, or null without SECRETS_KEY (the emails then go without the manage links). */
+export function sealedToken(token: string): string | null {
+  try {
+    return seal(token);
+  } catch {
+    return null;
+  }
+}
+
+/** A promise that may be awaited later or never: its failure is never an unhandled rejection. */
+export function quiet<T>(p: Promise<T>): Promise<T> {
+  p.catch(() => undefined);
+  return p;
+}
 
 /**
  * Book one start. The start must still be offered; the hosts free at it are checked live; the round robin picks
@@ -200,24 +225,28 @@ export async function book(rpc: Rpc, b0: BookInput): Promise<BookResult> {
   const end = b.start + b.length * MIN;
   const blockStart = b.start - s.bufferBefore * MIN;
   const blockEnd = end + s.bufferAfter * MIN;
+  const kind = b.type.kind;
+  // The round robin's turns are read alongside the live check (a team reads them only when the router can't answer).
+  const rotates = kind === "double" || (!team && (kind === "round_robin" || (kind === "owner_first" && !offered.owner)));
+  const turns = rotates ? quiet(turnsFor(rpc, b.type.id)) : null;
   const busy = await liveAt(b.liveBusy, slot.hosts, { start: blockStart, end: blockEnd }, offered.seated?.includes(b.start) ? { start: b.start, end } : null);
   const free = slot.hosts.filter((h) => !busy.has(h));
   let hosts: string[];
   let teamPick: Awaited<ReturnType<typeof pickTeamHost>> = null;
-  const kind = b.type.kind;
   if (kind === "collective") hosts = free.length === slot.hosts.length ? free : [];
-  else if (kind === "double") hosts = pickPair(free, b.type.hosts, await turnsFor(rpc, b.type.id));
+  else if (kind === "double") hosts = pickPair(free, b.type.hosts, await turns!);
   else if (team && (kind === "round_robin" || (kind === "owner_first" && !offered.owner))) {
     // A Routing team: the owner when free, else the queue's turn (src/lib/meetings/team.ts).
     teamPick = await pickTeamHost(rpc, { ws: b.ws, team: team.team, type: b.type, free, owner: b.owner, turns: () => turnsFor(rpc, b.type.id) });
     hosts = teamPick ? [teamPick.user] : [];
   } else if (kind === "round_robin" || (kind === "owner_first" && !offered.owner)) {
-    const one = pickHost(free, b.type.hosts, await turnsFor(rpc, b.type.id));
+    const one = pickHost(free, b.type.hosts, await turns!);
     hosts = one ? [one] : [];
   } else hosts = free.slice(0, 1);
   if (!hosts.length) return { ok: false, error: "slot_taken", slots: (await fresh()).filter((x) => x.start !== b.start) };
   const token = newToken();
-  const { data, error } = await rpc("meeting_book", {
+  const contactId = (await b.contactId) ?? null;
+  const args = {
     p_ws: b.ws,
     p_type: b.type.id,
     p_hosts: hosts,
@@ -229,21 +258,33 @@ export async function book(rpc: Rpc, b0: BookInput): Promise<BookResult> {
     p_source: b.source,
     p_token_hash: tokenHash(token),
     p_status: b.pending ? "pending_payment" : "booked",
-    p_contact: b.contactId ?? null,
+    p_contact: contactId,
     p_submission: b.submissionId ?? null,
     p_link: b.linkId ?? null,
     p_seats: kind === "group" ? s.seats : 0,
     p_rr: kind === "round_robin" || kind === "double" || (kind === "owner_first" && !offered.owner),
     p_location: s.location,
     p_booked_by: b.bookedBy ?? null,
-  });
-  if (error) {
-    const code = (["slot_taken", "full", "link_used", "link_closed"] as const).find((c) => error.message.includes(c));
-    if (!code) throw new Error(error.message);
+  };
+  const refused = async (message: string): Promise<BookResult> => {
+    const code = (["slot_taken", "full", "link_used", "link_closed"] as const).find((c) => message.includes(c));
+    if (!code) throw new Error(message);
     return { ok: false, error: code, slots: code.startsWith("link") ? [] : (await fresh()).filter((x) => x.start !== b.start) };
+  };
+  // One transaction (090): the meeting, its sealed manage token, the team's run (the owner's pick isn't a new turn),
+  // the new guest's contact and meeting_sync, so the guest's link and the confirmation exist exactly when it does.
+  const queue = team?.team?.queue.id ?? b.type.settings.team;
+  const teamArg = teamPick && teamPick.by !== "owner" && queue ? { queue, owner: teamPick.user, version: team?.team?.version ?? null } : null;
+  const all = await callNewer(rpc, "meeting_book_all", { ...args, p_sealed: sealedToken(token), p_team: teamArg, p_contact_row: contactId ? null : ((await b.guestRow) ?? null), p_sync: !b.pending });
+  if (all) {
+    if (all.error) return refused(all.error.message);
+    return { ok: true, meetingId: (all.data as { id: string }).id, token, hosts, start: b.start, end, tail: true };
   }
+  // Before 090: the same steps, one call each.
+  const { data, error } = await rpc("meeting_book", args);
+  if (error) return refused(error.message);
   const meetingId = data as string;
-  if (teamPick) await recordTeamRun(rpc, { ws: b.ws, type: b.type, team: team!.team, meetingId, contactId: b.contactId, pick: teamPick }).catch(() => undefined);
+  if (teamPick) await recordTeamRun(rpc, { ws: b.ws, type: b.type, team: team!.team, meetingId, contactId, pick: teamPick }).catch(() => undefined);
   // A sealed copy of the guest's link, so the emails sent later can carry it (only its hash is the key). The meeting
   // stands without it: the emails then go without the manage links.
   await keepManageToken(rpc, meetingId, token).catch(() => undefined);

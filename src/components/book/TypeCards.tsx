@@ -1,6 +1,6 @@
 import { ChevronRight, Dollar, Users } from "@/components/Icons";
 import { LOCATION_LABEL, lengthLabel, priceLabel, type GuestHost, type GuestType } from "@/lib/meetings/guest";
-import { Avatar, LocationIcon } from "./BookingCalendar";
+import { Avatar, LocationIcon } from "./parts";
 
 // The team page's and a person's page's meeting types, as cards (docs/meetings-scheduler.md 1.8b).
 
@@ -12,7 +12,7 @@ export function PageHead({ title, line, hosts, logo, big, welcome }: { title: st
       {hosts?.length ? <Avatar host={hosts[0]!} size={big ? "lg" : undefined} /> : null}
       <div className="cb-head-t">
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        {logo && <img className="cb-logo" src={logo} alt="" referrerPolicy="no-referrer" />}
+        {logo && <img className="cb-logo" src={logo} alt="" height={28} decoding="async" referrerPolicy="no-referrer" />}
         <h1 className="cb-two" style={{ fontSize: "1.9em" }}>
           {title}
           {line && <span className="cb-gray">{line}</span>}

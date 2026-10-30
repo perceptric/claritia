@@ -1,3 +1,4 @@
+import { after } from "next/server";
 import { allowed, clientIp, cors, json } from "@/lib/forms/server";
 import { isBotUa } from "@/lib/reports/bots";
 import { serviceClient } from "@/lib/serviceClient";
@@ -7,6 +8,7 @@ import { serviceClient } from "@/lib/serviceClient";
 // 60 a minute, and the database counts each visitor once per form and kind every 30 minutes. Always answers 204.
 // kind "fields" is the visit's field summary (docs/forms-plan.md 1.2): which fields it reached, answered and got wrong,
 // and the time in each, sent when the visitor leaves or sends the form. A later one in the same visit replaces it.
+// The answer goes at once; the write follows it (after()), so the visitor's page never waits on the database.
 
 const ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const VID = /^[A-Za-z0-9_-]{8,64}$/;
@@ -28,20 +30,23 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const vid = typeof b.vid === "string" && VID.test(b.vid) ? b.vid : null;
   const db = serviceClient();
   if (b.kind === "fields" && vid && db && Number.isInteger(b.version) && b.fields && typeof b.fields === "object" && !Array.isArray(b.fields)) {
-    await db
-      .rpc("form_field_seen", { p_form: id, p_vid: vid, p_version: b.version, p_fields: b.fields, p_left: typeof b.left === "string" ? b.left : null, p_step: typeof b.step === "number" ? b.step : 0, p_sent: b.sent === true })
-      .then(
+    const args = { p_form: id, p_vid: vid, p_version: b.version, p_fields: b.fields, p_left: typeof b.left === "string" ? b.left : null, p_step: typeof b.step === "number" ? b.step : 0, p_sent: b.sent === true };
+    after(async () => {
+      await db.rpc("form_field_seen", args).then(
         () => null,
         () => null,
       );
+    });
     return done();
   }
   const kind = b.kind === "view" || b.kind === "start" ? b.kind : null;
   if (!kind || !vid || !db) return done();
-  await db.rpc("form_seen", { p_form: id, p_vid: vid, p_kind: kind }).then(
-    () => null,
-    () => null,
-  );
+  after(async () => {
+    await db.rpc("form_seen", { p_form: id, p_vid: vid, p_kind: kind }).then(
+      () => null,
+      () => null,
+    );
+  });
   return done();
 }
 

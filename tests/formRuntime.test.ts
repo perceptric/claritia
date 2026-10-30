@@ -98,7 +98,7 @@ async function fill(form: Form, answers: Record<string, unknown>) {
   const calls: string[] = [];
   const rpc: Rpc = async (fn) => {
     calls.push(fn);
-    if (fn === "form_submit") return { data: { id: SID }, error: null };
+    if (fn === "form_submit_all") return { data: { id: SID, notified: true }, error: null };
     return { data: null, error: null };
   };
   const pub: PublicForm = { id: "0192f3a1-0000-7000-8000-0000000000ff", workspace_id: "w", version: 1, status: "live", body: form, tokens: {}, logo_url: null };

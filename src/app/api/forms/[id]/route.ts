@@ -30,8 +30,29 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   }
 }
 
+type Css = { css?: string; fonts?: string[] };
+type Live = { id: string; version: number; body: Parameters<typeof formCss>[0]; tokens: Parameters<typeof formCss>[1]; design?: unknown };
+
+// Compiled once per form version and kit look: by the cached form itself, then by id, version and the kit's tokens
+// and design (a kit change compiles again).
+const byForm = new WeakMap<object, Css>();
+const byVersion = new Map<string, { look: string; out: Css }>();
+
+function cssOf(f: Live): Css {
+  const hit = byForm.get(f);
+  if (hit) return hit;
+  const key = `${f.id}:${f.version}`;
+  const look = JSON.stringify([f.tokens ?? null, f.design ?? null]);
+  const kept = byVersion.get(key);
+  const out = kept && kept.look === look ? kept.out : compiled(f);
+  if (byVersion.size > 2000) byVersion.clear();
+  byVersion.set(key, { look, out });
+  byForm.set(f, out);
+  return out;
+}
+
 /** The design system's CSS for the form, checked and compiled here so the form script only places it. */
-function cssOf(f: { body: Parameters<typeof formCss>[0]; tokens: Parameters<typeof formCss>[1]; design?: unknown }) {
+function compiled(f: Live): Css {
   try {
     const css = formCss(f.body, f.tokens, f.design);
     if (!css) return {};

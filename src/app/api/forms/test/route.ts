@@ -19,9 +19,9 @@ export async function POST(request: Request) {
   if (typeof b.id !== "string" || !/^[0-9a-f-]{36}$/.test(b.id)) return bad("Form not found.", 404);
   const db = serviceClient();
   if (!db) return bad("The server is not set up for this.", 500);
-  const f = await loadPublic(db, b.id, true);
+  // Fresh (the Test button often follows a publish), with the cleaning lists read alongside.
+  const [f, ctx] = await Promise.all([loadPublic(db, b.id, true), cleaningCtx(db, b.workspaceId as string)]);
   if (!f || f.workspace_id !== b.workspaceId) return bad("Publish the form first.");
-  const ctx = await cleaningCtx(db, f.workspace_id);
   const domain = ctx.own_domains?.[0] || "example.com";
   const tag = randomBytes(4).toString("hex");
   const key = `test_${randomBytes(16).toString("base64url")}`;

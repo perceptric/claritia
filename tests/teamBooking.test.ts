@@ -9,6 +9,8 @@ import type { Rpc } from "../src/lib/jobs.ts";
 import { checkSettings } from "../src/lib/meetings/check.ts";
 import { book, offer, withDaysOff } from "../src/lib/meetings/server.ts";
 import { pickTeamHost, ROUTER_WAIT_MS, within } from "../src/lib/meetings/team.ts";
+import { resetNewer } from "../src/lib/forms/newer.ts";
+import { invalidateRouterLive } from "../src/lib/router/server.ts";
 import { at } from "../src/lib/meetings/time.ts";
 import { DEFAULT_AVAILABILITY, DEFAULT_SETTINGS, type MeetingType } from "../src/lib/meetings/types.ts";
 
@@ -49,10 +51,17 @@ type Opt = {
   bookFails?: "slot_taken";
 };
 
+// These cover the calls one at a time (the database before 090); meeting_book_all is covered on Postgres.
+const OLD_PATH = new Set(["meeting_book_all", "router_facts_full"]);
+
 function db(o: Opt = {}) {
+  // Each case reads the router afresh.
+  invalidateRouterLive();
+  resetNewer();
   const calls: { fn: string; args: Record<string, unknown> }[] = [];
   const rpc: Rpc = async (fn, args = {}) => {
     calls.push({ fn, args });
+    if (OLD_PATH.has(fn)) return { data: null, error: { message: `Could not find the function public.${fn}(...) in the schema cache` } };
     if (fn === "router_live") {
       if (o.live === "slow") await new Promise((r) => setTimeout(r, ROUTER_WAIT_MS + 200));
       if (o.live === "down") return { data: null, error: { message: "connection reset" } };
@@ -256,13 +265,16 @@ test("a form offers the meeting its routing rule names, and the router slow give
     rules: { on: true, list: [{ id: "r1", name: "Big", match: "all", conds: [], queue: "q1", meet: M }] },
     fallback: { kind: "queue", id: "q1", meet: "0192f3a1-0000-7000-8000-0000000000ef" },
   };
-  const make = (existing: Record<string, unknown>, slow = false): Rpc => async (fn) => {
-    if (fn === "router_live") {
-      if (slow) await new Promise((r) => setTimeout(r, 500));
-      return { data: { version: 1, body }, error: null };
-    }
-    if (fn === "router_facts") return { data: { existing }, error: null };
-    return { data: "x", error: null };
+  const make = (existing: Record<string, unknown>, slow = false): Rpc => {
+    invalidateRouterLive();
+    return async (fn) => {
+      if (fn === "router_live") {
+        if (slow) await new Promise((r) => setTimeout(r, 500));
+        return { data: { version: 1, body }, error: null };
+      }
+      if (fn === "router_facts" || fn === "router_facts_full") return { data: { existing }, error: null };
+      return { data: "x", error: null };
+    };
   };
   const byRule = await routeFill(make({ id: "run", kind: "owner", owner: ANA, by: "queue", queue: "q1", rule: "r1" }), WS, "c", "s");
   assert.equal(byRule?.meet, M);

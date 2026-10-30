@@ -124,7 +124,8 @@ test("a lead who matches the rules sees times, with the host, from the cache onl
   assert.deepEqual(big.booking.lengths, [30]);
   assert.deepEqual(big.booking.host, { name: "Host 0", photo: "https://img.acme.com/0.png" });
   // Only the database on this path: no calendar provider, no live check.
-  assert.deepEqual([...new Set(calls)].sort(), ["form_booking_ctx", "form_booking_shown", "form_submit", "meeting_inputs", "router_live"]);
+  // One call saves the fill (form_submit_all); the router is read once per workspace (warmed above) and shared.
+  assert.deepEqual([...new Set(calls)].sort(), ["form_booking_ctx", "form_booking_shown", "form_submit_all", "meeting_inputs"]);
   const no = await fill(f, { em: "cy@acme.com", size: "10" });
   assert.equal(no.booking, undefined, "too small: the message");
   const skipped = await fill(f, { em: "di@acme.com" });
