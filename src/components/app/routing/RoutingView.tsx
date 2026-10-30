@@ -1,18 +1,18 @@
 "use client";
 
-// Automation › Routing (docs/routing-chat-plan.md 1.4): one sidebar item, with three tabs.
-//   Setup   the chat that writes the setup, the plan card (Plan and Flow), and Publish (/routing, /routing/versions/<n>)
-//   Leads   every lead routed and why, and the ones held for review (/routing/leads, /routing/leads/<run>, /routing/leads/review)
-//   Team    teams and every rep's status and limits (/routing/team)
+// Inbound › Routing: one sidebar item with three tabs.
+//   Rules    who gets each new lead, as five steps in sentences, with Try a lead; Publish (/routing); one past version
+//            read-only (/routing/versions/<n>); the flowchart (/routing/flow)
+//   Teams    the teams that share leads, their people and how they share (/routing/teams)
+//   History  every lead and where it went (/routing/history, /routing/history/<run>, /routing/history/review)
+// The people themselves (status, limits, backup, calendars) are Inbound › Reps.
 
 import { routingPage, ROUTING_TABS } from "@/lib/nav";
-import { Page, Section, Segmented, type ViewProps } from "../ui";
-import { HeldTab } from "./Held";
-import { LeadNumbers } from "./LeadNumbers";
-import { LogTab } from "./Log";
+import { Page, Section, type ViewProps } from "../ui";
+import { HistoryTab } from "./History";
 import { RouterTab } from "./Router";
 import { SetupTab } from "./Setup";
-import { TeamsPage } from "./TeamsPage";
+import { TeamsTab } from "./Teams";
 import { ToastHost } from "./Toast";
 
 export function RoutingView(props: ViewProps) {
@@ -27,37 +27,12 @@ export function RoutingView(props: ViewProps) {
             <RouterTab {...shared} version={page.version} />
           </Page>
         ) : (
-          <Page title="Setup" flush>
-            <SetupTab {...shared} />
-          </Page>
+          <SetupTab key={page.sub} {...shared} layout={page.sub === "flow" ? "flow" : "rules"} />
         );
-      case "leads": {
-        const review = page.sub === "review";
-        return (
-          <Page
-            title="Leads"
-            actions={
-              <Segmented
-                label="Show"
-                value={review ? "review" : "all"}
-                onChange={(v) => navigate("routing", v === "review" ? "leads/review" : "leads")}
-                options={[
-                  { value: "all", label: "All" },
-                  { value: "review", label: "Needs review" },
-                ]}
-              />
-            }
-            flush
-          >
-            <div className="flex h-full min-h-0 flex-col overflow-y-auto">
-              <LeadNumbers sb={sb} ws={ws} />
-              {review ? <HeldTab {...shared} sub="" /> : <LogTab {...shared} sub={page.sub} />}
-            </div>
-          </Page>
-        );
-      }
-      case "team":
-        return <TeamsPage {...props} />;
+      case "teams":
+        return <TeamsTab {...props} />;
+      case "history":
+        return <HistoryTab {...shared} sub={page.sub} />;
     }
   })();
   const nav = { title: "Routing", tabs: ROUTING_TABS, current: page.page, onPick: (t: string) => navigate("routing", t) };

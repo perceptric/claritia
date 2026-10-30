@@ -58,7 +58,7 @@ export function MeetingPage(props: ViewProps) {
   const [busy, setBusy] = useState(false);
   const [canceling, setCanceling] = useState(false);
   const [copied, setCopied] = useState(false);
-  const back = { label: "Meetings", onClick: () => navigate("meetings") };
+  const back = { label: "Meetings", onClick: () => navigate("scheduling", "upcoming") };
 
   const act = async (body: Record<string, unknown>) => {
     setError("");

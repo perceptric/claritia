@@ -609,3 +609,23 @@ export const PhoneCall = (p: P) => (
     <path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2" />
   </Svg>
 );
+
+export const Warn = (p: P) => (
+  <Svg {...p}>
+    <path d="M12 3 2 20h20z" />
+    <path d="M12 10v4M12 17v.5" />
+  </Svg>
+);
+
+export const Video = (p: P) => (
+  <Svg {...p}>
+    <rect x="3" y="6" width="13" height="12" rx="2" />
+    <path d="m16 10 5-3v10l-5-3" />
+  </Svg>
+);
+
+export const ArrowRight = (p: P) => (
+  <Svg {...p}>
+    <path d="M5 12h14M13 6l6 6-6 6" />
+  </Svg>
+);

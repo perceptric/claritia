@@ -1,6 +1,6 @@
 "use client";
 
-// CRM › Meetings (docs/app-structure.md 3.1), after Calendly's Calendar page: whose meetings, a search, filters, All
+// Inbound › Meetings › Upcoming (once CRM › Meetings, docs/app-structure.md 3.1), after Calendly's Calendar page: whose meetings, a search, filters, All
 // meetings or Booked in Claritia (All adds the busy times on connected calendars), Today, Upcoming, This week, Last
 // week or a picked day, and "Showing 31 meetings". Then numbers first (booked this week, held, from forms), and the
 // meetings by day with a Today pill and a line at the current time. Each meeting shows its time, type, guest, company
@@ -121,7 +121,7 @@ export function MeetingsCalendar(props: ViewProps) {
 
   if (data.data && !types.length && !data.data.meetings.length && preset === "upcoming")
     return (
-      <Page icon={<CalendarIcon size={14} />} title="Meetings">
+      <Page title="Meetings">
         <ToolIntro
           sketch="calendar"
           title={"Leads book time with your team\nwithout the back and forth"}
@@ -130,9 +130,9 @@ export function MeetingsCalendar(props: ViewProps) {
             <>
               <Button onClick={() => navigate("scheduling", "types/new")}>
                 <Plus size={14} />
-                New meeting type
+                New meeting
               </Button>
-              <Button variant="ghost" onClick={() => navigate("scheduling", "availability/calendars")}>
+              <Button variant="ghost" onClick={() => navigate("reps", "availability/calendars")}>
                 <CalendarIcon size={14} />
                 Connect your calendar
               </Button>
@@ -158,14 +158,10 @@ export function MeetingsCalendar(props: ViewProps) {
 
   return (
     <Page
-      icon={<CalendarIcon size={14} />}
       title="Meetings"
       flush
       actions={
         <>
-          <Button variant="ghost" onClick={() => navigate("scheduling", "types")}>
-            Meeting types
-          </Button>
           <Button onClick={() => setLinking(true)}>
             <LinkIcon size={14} />
             New link

@@ -289,6 +289,7 @@ export function Page({
   icon,
   title,
   count,
+  badge,
   actions,
   back,
   flush = false,
@@ -297,6 +298,8 @@ export function Page({
 }: {
   icon?: React.ReactNode;
   title: string;
+  /** A state beside the title (Routing's Draft or Live). */
+  badge?: React.ReactNode;
   onRename?: (name: string) => void;
   count?: number | string;
   actions?: React.ReactNode;
@@ -342,6 +345,7 @@ export function Page({
               </h1>
             )}
             {count != null ? <span className="text-[13px] text-faint tabular-nums">{count}</span> : null}
+            {badge ? <span className="ml-1 flex shrink-0 items-center">{badge}</span> : null}
           </span>
         </nav>
         {actions ? <div className="ml-auto flex shrink-0 items-center gap-2">{actions}</div> : null}

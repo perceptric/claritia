@@ -1,4 +1,4 @@
-// The sidebar (docs/unify-plan.md Part 1): CRM, Automation, Inbound and Nurture, then Settings. Each item is one
+// The sidebar (docs/unify-plan.md Part 1): Inbound, CRM and Nurture, then Settings. Each item is one
 // route; pages inside a route are tabs under its title, each with its own address. The app opens on Contacts. Old
 // addresses keep working: they forward to their new page.
 
@@ -7,6 +7,7 @@ export type Route =
   | "companies"
   | "opportunities"
   | "meetings"
+  | "reps"
   | "objects"
   | "workflows"
   | "routing"
@@ -41,26 +42,35 @@ export type NavItem = {
 
 const item = (group: GroupKey, route: Route, label: string): NavItem => ({ key: route, route, page: "", label, group });
 
+/**
+ * Inbound is set up the way a sales team works (docs/unify-plan.md): Forms, the people who take leads (Reps), what
+ * leads book (Meetings, once Calendar, with the upcoming meetings), who gets which lead (Routing), and Scoring.
+ */
 export const NAV: NavItem[] = [
   item("inbound", "forms", "Forms"),
-  item("inbound", "scheduling", "Calendar"),
+  item("inbound", "reps", "Reps"),
+  item("inbound", "scheduling", "Meetings"),
   item("inbound", "routing", "Routing"),
   item("inbound", "scoring", "Scoring"),
   item("crm", "contacts", "Contacts"),
   item("crm", "companies", "Companies"),
   item("crm", "opportunities", "Opportunities"),
-  item("crm", "meetings", "Meetings"),
   item("nurture", "emails", "Emails"),
   item("nurture", "segments", "Segments"),
   item("settings", "settings", "Settings"),
 ];
 
-const ROUTES = new Set<string>([...NAV.map((n) => n.route), "objects", "enrichment", "workflows"]);
+const ROUTES = new Set<string>([...NAV.map((n) => n.route), "meetings", "objects", "enrichment", "workflows"]);
 
 export const defaultRoute: Route = "contacts";
 
-/** The sidebar item an address belongs to: each route has one. A new workflow is made under Emails. */
-export const activeItem = (route: Route): NavItem | null => NAV.find((n) => n.route === (route === "workflows" ? "emails" : route)) ?? null;
+/** The sidebar item an address belongs to: each route has one. A new workflow is made under Emails; one meeting's page under Meetings. */
+export const activeItem = (route: Route): NavItem | null => NAV.find((n) => n.route === (route === "workflows" ? "emails" : route === "meetings" ? "scheduling" : route)) ?? null;
+
+/** Reps: someone has no calendar. Routing: not live, paused, or a draft that isn't published. */
+export function inboundDots(r: { routing: boolean; no_calendar?: number; routing_draft?: boolean; routing_paused?: boolean }): { reps: boolean; routing: boolean } {
+  return { reps: (r.no_calendar ?? 0) > 0, routing: !r.routing || !!r.routing_draft || !!r.routing_paused };
+}
 
 // Tabs inside a route -----------------------------------------------------------------------------------------------
 
@@ -81,33 +91,42 @@ export const CONTACTS_TABS: Tab[] = [
 
 /** Forms: the list (""), the Overview (views, fills and booked per form), a new form ("new") and one form (<id>). */
 
-/** Meetings: the list ("") and one meeting (<id>). Anything else opens the list. */
+/** One meeting (<id>); the list of upcoming meetings lives in Meetings › Upcoming. Anything else opens the list. */
 export function meetingsPage(id: string): { page: "list" | "meeting"; id: string } {
   const [a = ""] = id.split("/");
   return UUID.test(a) ? { page: "meeting", id: a } : { page: "list", id: "" };
 }
 
-export type RoutingPageKey = "" | "leads" | "team";
+export type RoutingPageKey = "" | "teams" | "history";
 export const ROUTING_TABS: Tab<RoutingPageKey>[] = [
-  { value: "", label: "Setup" },
-  { value: "leads", label: "Leads" },
-  { value: "team", label: "Team" },
+  { value: "", label: "Rules" },
+  { value: "teams", label: "Teams" },
+  { value: "history", label: "History" },
 ];
 
 /**
- * Routing's tabs (docs/routing-chat-plan.md 1.4): Setup (""), Leads with one run open ("leads/<run>") or the ones
- * held for review ("leads/review"), Team, and one past version read-only ("versions/<n>", on Setup). Older names
- * forward: rules, overview, regions and company-types to Setup; history, log, review and held to Leads; teams and
- * reps to Team.
+ * Routing's tabs: Rules (""), Teams, History with one run open ("history/<run>") or the leads held for review
+ * ("history/review"), one past version read-only ("versions/<n>", on Rules) and the flowchart ("flow", on Rules).
+ * Older names forward: setup, rules, overview, regions and company-types to Rules; team to Teams; leads, log, review
+ * and held to History. (Reps has its own page: /routing/reps opens it, see resolveRoute.)
  */
 export function routingPage(id: string): { page: RoutingPageKey; sub: string; version: number | null; id: string } {
   const [raw = "", b = ""] = id.split("/");
-  const a = ({ history: "leads", log: "leads", review: "held", teams: "team", reps: "team" } as Record<string, string>)[raw] ?? raw;
-  if (a === "team") return { page: "team", sub: "", version: null, id: "team" };
-  if (a === "held" || (a === "leads" && b === "review")) return { page: "leads", sub: "review", version: null, id: "leads/review" };
-  if (a === "leads") return UUID.test(b) ? { page: "leads", sub: b, version: null, id: `leads/${b}` } : { page: "leads", sub: "", version: null, id: "leads" };
+  const a = ({ leads: "history", log: "history", review: "held", team: "teams" } as Record<string, string>)[raw] ?? raw;
+  if (a === "teams") return { page: "teams", sub: "", version: null, id: "teams" };
+  if (a === "held" || (a === "history" && b === "review")) return { page: "history", sub: "review", version: null, id: "history/review" };
+  if (a === "history") return UUID.test(b) ? { page: "history", sub: b, version: null, id: `history/${b}` } : { page: "history", sub: "", version: null, id: "history" };
   if (a === "versions" && /^[1-9]\d{0,6}$/.test(b)) return { page: "", sub: "", version: Number(b), id: `versions/${b}` };
+  if (a === "flow") return { page: "", sub: "flow", version: null, id: "flow" };
   return { page: "", sub: "", version: null, id: "" };
+}
+
+/** Reps: the table ("") and the availability editor with its views ("availability", "availability/calendars"...). */
+export function repsPage(id: string): { page: "list" | "availability"; sub: string; id: string } {
+  const [a = "", b = ""] = id.split("/");
+  if (a !== "availability") return { page: "list", sub: "", id: "" };
+  const tab = (["calendars", "team", "days-off"] as string[]).includes(b) ? b : "";
+  return { page: "availability", sub: tab, id: tab ? `availability/${tab}` : "availability" };
 }
 
 export type EnrichmentTab = "overview" | "providers" | "rules" | "history";
@@ -124,19 +143,19 @@ export function enrichmentPage(id: string): { tab: EnrichmentTab; id: string } {
   return a === "providers" || a === "rules" || a === "history" ? { tab: a, id: a } : { tab: "overview", id: "" };
 }
 
-export type SchedulingPageKey = "types" | "booking" | "availability" | "links" | "settings";
+export type SchedulingPageKey = "types" | "upcoming" | "booking" | "links" | "settings";
 export type AvailabilityTab = "schedules" | "calendars" | "team" | "days-off";
-/** The icon beside each Calendar tab (the screen draws it, from src/components/Icons.tsx). */
+/** The icon beside each Meetings tab (the screen draws it, from src/components/Icons.tsx). */
 export type SchedulingTabIcon = "grid" | "monitor" | "calendar" | "link" | "gear";
 export const SCHEDULING_TABS: (Tab<SchedulingPageKey> & { icon: SchedulingTabIcon })[] = [
-  { value: "types", label: "Meeting types", icon: "grid" },
+  { value: "types", label: "Meetings", icon: "grid" },
+  { value: "upcoming", label: "Upcoming", icon: "calendar" },
   { value: "booking", label: "Booking page", icon: "monitor" },
-  { value: "availability", label: "Availability", icon: "calendar" },
   { value: "links", label: "Links and polls", icon: "link" },
   { value: "settings", label: "Settings", icon: "gear" },
 ];
 
-/** Calendar › Settings: the things set once, listed on the left. */
+/** Meetings › Settings: the things set once, listed on the left. */
 export type CalendarSettingsKey = "reminders" | "payments" | "webhooks";
 export const CALENDAR_SETTINGS: Tab<CalendarSettingsKey>[] = [
   { value: "reminders", label: "Reminders" },
@@ -146,11 +165,11 @@ export const CALENDAR_SETTINGS: Tab<CalendarSettingsKey>[] = [
 const SETTINGS_KEYS = new Set<string>(CALENDAR_SETTINGS.map((t) => t.value));
 
 /**
- * Calendar's tabs (docs/scheduling-plan.md Part 11): Meeting types with one type open in the panel ("types/<id>" or
- * "types/new") or in the full editor ("types/<id>/all"), Booking page, Availability with its views
- * ("availability/calendars"...), Links and polls, and Settings with Reminders, Payments and Webhooks
- * ("settings/payments"). The old Reminders, Payments and Webhooks tabs open inside Settings. Anything else opens
- * Meeting types.
+ * Meetings' tabs (route "scheduling", once Calendar): Meetings with one type open in the panel ("types/<id>" or
+ * "types/new") or in the full editor ("types/<id>/all"), Upcoming (the meetings on the calendar, once CRM ›
+ * Meetings), Booking page, Links and polls, and Settings with Reminders, Payments and Webhooks ("settings/payments").
+ * The old Reminders, Payments and Webhooks tabs open inside Settings; Availability moved to Reps (see resolveRoute).
+ * Anything else opens Meetings.
  */
 export function schedulingPage(id: string): { page: SchedulingPageKey; sub: string; id: string } {
   const [a = "", b = "", c = ""] = id.split("/");
@@ -158,13 +177,9 @@ export function schedulingPage(id: string): { page: SchedulingPageKey; sub: stri
     if (UUID.test(b) && c === "all") return { page: "types", sub: `${b}/all`, id: `types/${b}/all` };
     return UUID.test(b) || b === "new" ? { page: "types", sub: b, id: `types/${b}` } : { page: "types", sub: "", id: "types" };
   }
-  if (a === "availability") {
-    const tab = (["calendars", "team", "days-off"] as string[]).includes(b) ? b : "";
-    return { page: "availability", sub: tab, id: tab ? `availability/${tab}` : "availability" };
-  }
   if (a === "settings") return SETTINGS_KEYS.has(b) ? { page: "settings", sub: b, id: `settings/${b}` } : { page: "settings", sub: "reminders", id: "settings" };
   if (SETTINGS_KEYS.has(a)) return { page: "settings", sub: a, id: `settings/${a}` };
-  if (a === "booking" || a === "links") return { page: a, sub: "", id: a };
+  if (a === "booking" || a === "links" || a === "upcoming") return { page: a, sub: "", id: a };
   return { page: "types", sub: "", id: "types" };
 }
 
@@ -232,8 +247,8 @@ const REPORTS: Record<string, { route: Route; id: string }> = {
 
 /** Settings and Scheduling pages that moved. */
 const SETTINGS_MOVED: Record<string, { route: Route; id: string }> = {
-  calendar: { route: "scheduling", id: "availability/calendars" },
-  calendars: { route: "scheduling", id: "availability/team" },
+  calendar: { route: "reps", id: "availability/calendars" },
+  calendars: { route: "reps", id: "availability/team" },
   payments: { route: "scheduling", id: "settings/payments" },
   lead_scoring: { route: "scoring", id: "" },
   icp: { route: "scoring", id: "ideal" },
@@ -246,9 +261,14 @@ const SETTINGS_MOVED: Record<string, { route: Route; id: string }> = {
  */
 export function resolveRoute(first: string, id: string): { route: Route; id: string } {
   const [a = "", ...rest] = id.split("/");
-  // Meeting types lived under Meetings; booking forms under Scheduling.
+  // Meeting types lived under Meetings; booking forms under Scheduling. The list of meetings is Meetings › Upcoming;
+  // one meeting keeps its own page. Availability lives in Reps, and so do Routing's reps.
   if (first === "meetings" && a === "types") return { route: "scheduling", id: ["types", ...rest].join("/") };
+  if (first === "meetings") return UUID.test(a) ? { route: "meetings", id: a } : { route: "scheduling", id: "upcoming" };
   if (first === "scheduling" && a === "forms") return { route: "forms", id: "" };
+  if (first === "scheduling" && a === "availability") return { route: "reps", id: ["availability", ...rest].join("/") };
+  if (first === "availability") return { route: "reps", id: ["availability", ...(a ? [a] : [])].join("/") };
+  if (first === "routing" && a === "reps") return { route: "reps", id: "" };
   if (first === "companies" && a === "visits") return { route: "companies", id: "" };
   if (first === "settings" && SETTINGS_MOVED[a]) return SETTINGS_MOVED[a];
   if (first === "reports") return REPORTS[a] ?? REPORTS[""]!;

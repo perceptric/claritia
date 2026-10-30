@@ -37,7 +37,7 @@ export type Loaded = {
 export type ChatMessage = { role: "user" | "assistant"; text: string; lines?: string[]; ask?: { question: string; choices: string[] } | null; at: string };
 export type ChatOut = { reply: string; lines: string[]; ask: { question: string; choices: string[] } | null; revision: number; changed: boolean; reps: number };
 
-export type Tested = { result: Decision["result"]; owner: string; path: string; lines: Line[]; whyNot?: { why: string; words: string } };
+export type Tested = { result: Decision["result"]; owner: string; path: string; lines: Line[]; steps?: Decision["steps"]; whyNot?: { why: string; words: string } };
 export type TestOut = { contact: string | null; draft: Tested | null; live: Tested | null };
 
 export type ReplayOut = {

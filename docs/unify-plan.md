@@ -56,6 +56,30 @@ at a cleared one, it stops and changes nothing. You run it in the Supabase SQL e
 
 ## Part 1. The sidebar
 
+Today (Inbound set up like a sales team, `src/lib/nav.ts`):
+
+```
+Inbound
+  Forms
+  Reps             everyone who takes leads: calendar, hours, In / Away / Paused, most leads a day, backup
+                   (/reps; the availability editor at /reps/availability)
+  Meetings         tabs: Meetings · Upcoming · Booking page · Links and polls · Settings   (route "scheduling")
+  Routing          tabs: Rules · Teams · History   (/routing, /routing/teams, /routing/history)
+  Scoring
+CRM
+  Contacts · Companies · Opportunities     (one meeting keeps /meetings/<id>)
+Nurture
+  Emails · Segments
+Settings
+```
+
+Reps and Routing show a small amber dot when a rep has no calendar, or routing has changes that aren't live. Old
+addresses forward: `/meetings` → `/scheduling/upcoming`, `/scheduling/availability/*` → `/reps/availability/*`,
+`/settings/calendar(s)` → `/reps/availability/calendars` (`team`), `/routing/setup` → `/routing`, `/routing/team` →
+`/routing/teams`, `/routing/leads/*` → `/routing/history/*`, `/routing/reps` → `/reps`.
+
+The first plan, for the record:
+
 ```
 CRM
   Contacts

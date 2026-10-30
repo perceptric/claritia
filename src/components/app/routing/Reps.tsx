@@ -15,7 +15,7 @@ import { PersonPicker, ROUTING, RouteSketch, useLiveBody, useToast } from "./scr
 import { dayStart, endOfDay, localDate, meter, parseCap, pauseUntil, queuesByRep, rangeWords, repStatus, repWarnings, WARNING_WORDS, weekStart, type PauseChoice, type RepRow, type Status } from "./screensModel";
 
 type Props = Pick<ViewProps, "sb" | "session" | "ws" | "role" | "navigate"> & { sub: string };
-type Patch = { paused_until?: string; out_dates?: { from: string; to: string }[]; backup?: string; cap_day?: number | null; cap_week?: number | null };
+export type Patch = { paused_until?: string; out_dates?: { from: string; to: string }[]; backup?: string; cap_day?: number | null; cap_week?: number | null };
 
 const STATUS_TONE: Record<Status["kind"], Tone> = { in: "green", paused: "amber", out: "gray" };
 
@@ -252,7 +252,7 @@ export function RepsTab({ sb, session, ws, role, navigate }: Props) {
                       {qs.length ? (
                         <span className="flex flex-wrap gap-1">
                           {qs.map((x) => (
-                            <button key={x.id} type="button" onClick={() => navigate(ROUTING, "team")} className="press rounded-full">
+                            <button key={x.id} type="button" onClick={() => navigate(ROUTING, "teams")} className="press rounded-full">
                               <Badge>{x.name}</Badge>
                             </button>
                           ))}
@@ -382,7 +382,7 @@ function CapMeter({ n, cap, max, label, edit, out, onSave }: { n: number; cap: n
 }
 
 /** Pause for a while, out of office for some dates, or back in. */
-function StatusPopover({ anchor, rep, onClose, onSave }: { anchor: HTMLElement; rep: RepRow | undefined; onClose: () => void; onSave: (p: Patch) => Promise<void> }) {
+export function StatusPopover({ anchor, rep, onClose, onSave }: { anchor: HTMLElement; rep: RepRow | undefined; onClose: () => void; onSave: (p: Patch) => Promise<void> }) {
   const [today] = useState(() => localDate(Date.now()));
   const [until, setUntil] = useState("");
   const [from, setFrom] = useState(today);

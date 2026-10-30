@@ -4,7 +4,7 @@ import type { Session, SupabaseClient } from "@supabase/supabase-js";
 import dynamic from "next/dynamic";
 import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import { getSupabase, type SupaConfig } from "@/lib/supa";
-import { contactsPage, emailsPage, enrichmentPage, NAV, resolveRoute, routingPage, schedulingPage, scoringPage } from "@/lib/nav";
+import { contactsPage, emailsPage, enrichmentPage, NAV, repsPage, resolveRoute, routingPage, schedulingPage, scoringPage } from "@/lib/nav";
 import { Check, LogOut, Moon, Sun } from "../Icons";
 import { Logo } from "../Logo";
 import { AuthScreen } from "./AuthScreen";
@@ -24,6 +24,7 @@ const LOADERS = {
   opportunities: () => import("./views/RecordsViews").then((m) => m.OpportunitiesView),
   objects: () => import("./views/RecordsViews").then((m) => m.ObjectsView),
   meetings: () => import("./meetings/MeetingsView").then((m) => m.MeetingsView),
+  reps: () => import("./reps/RepsView").then((m) => m.RepsView),
   routing: () => import("./routing/RoutingView").then((m) => m.RoutingView),
   scheduling: () => import("./scheduling/SchedulingView").then((m) => m.SchedulingView),
   enrichment: () => import("./enrichment/EnrichmentView").then((m) => m.EnrichmentView),
@@ -43,6 +44,7 @@ const VIEWS: Record<ViewRoute, React.ComponentType<ViewProps>> = {
   opportunities: dynamic(LOADERS.opportunities, { ssr: false, loading }),
   objects: dynamic(LOADERS.objects, { ssr: false, loading }),
   meetings: dynamic(LOADERS.meetings, { ssr: false, loading }),
+  reps: dynamic(LOADERS.reps, { ssr: false, loading }),
   routing: dynamic(LOADERS.routing, { ssr: false, loading }),
   scheduling: dynamic(LOADERS.scheduling, { ssr: false, loading }),
   enrichment: dynamic(LOADERS.enrichment, { ssr: false, loading }),
@@ -83,6 +85,7 @@ const readLoc = (): Loc => {
   if (r.route === "meetings") return { route: r.route, id: uuid(a) ? a : "" };
   // Pages inside a route (src/lib/nav.ts).
   if (r.route === "routing") return { route: r.route, id: routingPage(r.id).id };
+  if (r.route === "reps") return { route: r.route, id: repsPage(r.id).id };
   if (r.route === "scheduling") return { route: r.route, id: schedulingPage(r.id).id };
   if (r.route === "enrichment") return { route: r.route, id: enrichmentPage(r.id).id };
   if (r.route === "emails") return { route: r.route, id: emailsPage(r.id).id };
@@ -182,13 +185,15 @@ export function ClientApp({ config }: { config: SupaConfig }) {
   // The workspace's custom objects, listed in the sidebar after Opportunities.
   const customObjects = useCustomObjects(sb, ws?.id ?? null);
 
-  // Counts in the sidebar: leads waiting in Needs review, and today's meetings.
-  const counts = useAppCounts(sb, ws?.id ?? null).data?.sidebar ?? NO_COUNTS;
+  // Counts in the sidebar (today's meetings) and its dots (a rep with no calendar, routing not live).
+  const appCounts = useAppCounts(sb, ws?.id ?? null).data;
+  const counts = appCounts?.sidebar ?? NO_COUNTS;
+  const dots = appCounts?.dots ?? NO_DOTS;
 
   // Pages with unsaved changes get to ask first.
   const navigate = useCallback((to: Route, toId = "", query = "") => {
-    // Moved pages open their new home (a workflow opens in Emails › Journeys).
-    const { route: r, id } = to === "workflows" ? resolveRoute(to, toId) : { route: to, id: toId };
+    // Moved pages open their new home (a workflow opens in Emails › Journeys, availability in Reps).
+    const { route: r, id } = resolveRoute(to, toId);
     mayLeave().then((ok) => {
       if (!ok) return;
       window.history.pushState(null, "", `/${r}${id ? `/${id}` : ""}${query ? `?${query}` : ""}`);
@@ -219,9 +224,9 @@ export function ClientApp({ config }: { config: SupaConfig }) {
     { group: "CRM", label: "Opportunity", run: () => navigate("opportunities", "", "create=1") },
     { group: "Automation", label: "Workflow", run: () => navigate("workflows", "new") },
     { group: "Automation", label: "Routing rule", run: () => navigate("routing", "") },
-    { group: "Automation", label: "Team", run: () => navigate("routing", "team", "create=1") },
+    { group: "Automation", label: "Team", run: () => navigate("routing", "teams", "create=1") },
     { group: "Inbound", label: "Form", run: () => navigate("forms", "new") },
-    { group: "Inbound", label: "Meeting type", run: () => navigate("scheduling", "types/new") },
+    { group: "Inbound", label: "Meeting", run: () => navigate("scheduling", "types/new") },
     { group: "Inbound", label: "Single-use link", run: () => navigate("scheduling", "links", "create=single_use") },
     { group: "Inbound", label: "Poll", run: () => navigate("scheduling", "links", "create=poll") },
     { group: "Nurture", label: "Broadcast", run: () => navigate("workflows", "new", "template=broadcast") },
@@ -250,6 +255,7 @@ export function ClientApp({ config }: { config: SupaConfig }) {
         navigate={navigate}
         objects={customObjects}
         counts={counts}
+        dots={dots}
         wsName={ws.name}
         email={email}
         theme={theme}
@@ -273,6 +279,7 @@ export function ClientApp({ config }: { config: SupaConfig }) {
 }
 
 const NO_COUNTS: Partial<Record<string, number>> = {};
+const NO_DOTS: Partial<Record<string, boolean>> = {};
 
 /** Custom objects for the sidebar and the command bar (`objects:<workspace>:custom`). */
 function useCustomObjects(sb: SupabaseClient, ws: string | null) {

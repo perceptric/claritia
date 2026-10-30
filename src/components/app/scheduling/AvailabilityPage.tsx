@@ -1,6 +1,6 @@
 "use client";
 
-// Calendar › Availability (docs/scheduling-plan.md 11.5), Calendly's "Manage availability" on one screen. You has
+// Reps › Availability (once Calendar › Availability) (docs/scheduling-plan.md 11.5), Calendly's "Manage availability" on one screen. You has
 // three columns side by side: Schedules (your working hours, the default, and named schedules a meeting type can
 // pick, like "Demo hours"), the open schedule's week (each day a row: switch, the times, add), and Calendars (the
 // connected accounts, which count as busy and where new bookings go). Date-specific hours and Days off open dialogs.
@@ -37,7 +37,7 @@ function useMyHours(sb: ViewProps["sb"], ws: string, me: string) {
   });
 }
 
-export function AvailabilityPage(props: ViewProps & { tab: string }) {
+export function AvailabilityPage(props: ViewProps & { tab: string; back?: { label: string; onClick: () => void } }) {
   const { sb, session, ws, navigate } = props;
   const me = session.user.id;
   const tab = availabilityPage(props.tab);
@@ -48,7 +48,7 @@ export function AvailabilityPage(props: ViewProps & { tab: string }) {
   const [dates, setDates] = useState(false);
   const [error, setError] = useState("");
 
-  const pickWhose = (w: Whose) => navigate("scheduling", w === "team" ? "availability/team" : "availability");
+  const pickWhose = (w: Whose) => navigate("reps", w === "team" ? "availability/team" : "availability");
   const switcher = (
     <Segmented<Whose>
       size="sm"
@@ -64,7 +64,7 @@ export function AvailabilityPage(props: ViewProps & { tab: string }) {
 
   if (whose === "team")
     return (
-      <Page title="Availability" flush>
+      <Page title="Availability" back={props.back} flush>
         <div className="flex h-full min-h-0 flex-col gap-4 overflow-y-auto p-4">
           <div>{switcher}</div>
           <TeamCalendars sb={sb} ws={ws} role={props.role} session={session} />
@@ -120,7 +120,7 @@ export function AvailabilityPage(props: ViewProps & { tab: string }) {
   };
 
   return (
-    <Page title="Availability" flush>
+    <Page title="Availability" back={props.back} flush>
       <div className="h-full min-h-0 overflow-y-auto md:grid md:grid-cols-[220px_minmax(0,1fr)_300px] md:overflow-hidden">
         <div className="flex flex-col gap-3 p-4 md:min-h-0 md:overflow-y-auto">
           <div>{switcher}</div>
@@ -170,7 +170,7 @@ export function AvailabilityPage(props: ViewProps & { tab: string }) {
           {...props}
           onClose={() => {
             setDaysOff(false);
-            if (tab === "days-off") navigate("scheduling", "availability");
+            if (tab === "days-off") navigate("reps", "availability");
           }}
           onSaved={() => undefined}
         />

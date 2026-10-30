@@ -1,10 +1,13 @@
 "use client";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { inboundDots } from "@/lib/nav";
 import { must, useQuery } from "./ui";
 
 export type AppCounts = {
   sidebar: Partial<Record<string, number>>;
+  /** The small amber dots: Reps when a teammate has no calendar, Routing when it has changes that aren't live. */
+  dots: Partial<Record<string, boolean>>;
   start: { calendars: number; types: number; liveForms: number; routing: boolean; members: number; invites: number; sources: number };
 };
 
@@ -29,12 +32,18 @@ export function useAppCounts(sb: SupabaseClient, ws: string | null) {
         members: number;
         invites: number;
         sources: number;
+        /** From 093: teammates with no working calendar, and the routing draft and pause. */
+        no_calendar?: number;
+        routing_draft?: boolean;
+        routing_paused?: boolean;
       };
       return {
-        sidebar: { "routing/review": r.review, meetings: r.meetings_today },
+        sidebar: { "routing/review": r.review, scheduling: r.meetings_today },
+        dots: inboundDots(r),
         start: { calendars: r.calendars, types: r.types, liveForms: r.live_forms, routing: r.routing, members: r.members, invites: r.invites, sources: r.sources },
       };
     },
     { staleMs: 30_000 },
   );
 }
+
