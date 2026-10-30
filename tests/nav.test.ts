@@ -16,7 +16,6 @@ import {
   SCHEDULING_TABS,
   schedulingPage,
   scoringPage,
-  visitorsPage,
 } from "../src/lib/nav.ts";
 
 test("the sidebar is Inbound, CRM and Nurture, then Settings, with at most five items a group", () => {
@@ -26,7 +25,7 @@ test("the sidebar is Inbound, CRM and Nurture, then Settings, with at most five 
   );
   const by = (g: string) => NAV.filter((n) => n.group === g).map((n) => n.label);
   assert.deepEqual(by("crm"), ["Contacts", "Companies", "Opportunities", "Meetings"]);
-  assert.deepEqual(by("inbound"), ["Forms", "Calendar", "Routing", "Scoring", "Visitors"]);
+  assert.deepEqual(by("inbound"), ["Forms", "Calendar", "Routing", "Scoring"]);
   assert.deepEqual(by("nurture"), ["Emails", "Segments"]);
   for (const g of GROUPS) assert.ok(by(g.key).length <= 5, g.key);
   assert.equal(defaultRoute, "contacts");
@@ -42,12 +41,11 @@ test("old addresses open their new home", () => {
   assert.deepEqual(resolveRoute("workflows", ""), { route: "emails", id: "" });
   assert.deepEqual(resolveRoute("workflows", "11111111-1111-4111-8111-111111111111"), { route: "emails", id: "journeys/11111111-1111-4111-8111-111111111111" });
   assert.deepEqual(resolveRoute("workflows", "new"), { route: "workflows", id: "new" });
-  assert.deepEqual(resolveRoute("companies", "visits"), { route: "visitors", id: "visits" });
-  // Signals became Visitors.
-  assert.deepEqual(resolveRoute("signals", ""), { route: "visitors", id: "" });
-  assert.deepEqual(resolveRoute("signals", "visitors"), { route: "visitors", id: "visits" });
-  assert.deepEqual(resolveRoute("signals", "alerts"), { route: "visitors", id: "alerts" });
-  assert.deepEqual(resolveRoute("visitors", "visitors"), { route: "visitors", id: "visits" });
+  assert.deepEqual(resolveRoute("companies", "visits"), { route: "companies", id: "" });
+  // Visitors (once Signals) was removed: its addresses open Contacts.
+  assert.deepEqual(resolveRoute("signals", ""), { route: "contacts", id: "" });
+  assert.deepEqual(resolveRoute("visitors", ""), { route: "contacts", id: "" });
+  assert.deepEqual(resolveRoute("visitors", "setup"), { route: "contacts", id: "" });
   // Reports moved into their sections.
   assert.deepEqual(resolveRoute("reports", ""), { route: "contacts", id: "overview" });
   assert.deepEqual(resolveRoute("reports", "reps"), { route: "contacts", id: "overview" });
@@ -67,9 +65,6 @@ test("old addresses open their new home", () => {
   assert.deepEqual(resolveRoute("settings", "calendar"), { route: "scheduling", id: "availability/calendars" });
   assert.deepEqual(resolveRoute("settings", "calendars"), { route: "scheduling", id: "availability/team" });
   assert.deepEqual(resolveRoute("settings", "payments"), { route: "scheduling", id: "settings/payments" });
-  assert.deepEqual(resolveRoute("settings", "sites"), { route: "visitors", id: "setup" });
-  assert.deepEqual(resolveRoute("settings", "identity"), { route: "visitors", id: "setup" });
-  assert.deepEqual(resolveRoute("settings", "account_alerts"), { route: "visitors", id: "alerts" });
   assert.deepEqual(resolveRoute("settings", "lead_scoring"), { route: "scoring", id: "" });
   assert.deepEqual(resolveRoute("settings", "icp"), { route: "scoring", id: "ideal" });
   assert.deepEqual(resolveRoute("settings", "team"), { route: "settings", id: "team" });
@@ -112,7 +107,7 @@ test("routing: three tabs, a run in Leads, the review list, a past version, and 
   for (const bad of ["handoffs", "versions/0", "versions/x", "versions", "nope", "nope/1"]) assert.deepEqual(routingPage(bad), { page: "", sub: "", version: null, id: "" });
 });
 
-test("scheduling, visitors, enrichment, emails and lead scoring tabs", () => {
+test("scheduling, enrichment, emails and lead scoring tabs", () => {
   const id = "0b7c6a8e-1f2d-4c3b-9a8e-7d6c5b4a3f21";
   assert.deepEqual(schedulingPage(""), { page: "types", sub: "", id: "types" });
   assert.deepEqual(schedulingPage(`types/${id}`), { page: "types", sub: id, id: `types/${id}` });
@@ -134,9 +129,6 @@ test("scheduling, visitors, enrichment, emails and lead scoring tabs", () => {
     assert.deepEqual(schedulingPage(`settings/${p}`), { page: "settings", sub: p, id: `settings/${p}` });
   }
   for (const gone of ["forms", "ai", "notetaker"]) assert.equal(schedulingPage(gone).page, "types");
-  assert.deepEqual(visitorsPage(""), { tab: "feed", id: "" });
-  assert.deepEqual(visitorsPage("visits"), { tab: "visits", id: "visits" });
-  assert.deepEqual(visitorsPage("alerts"), { tab: "alerts", id: "alerts" });
   assert.deepEqual(enrichmentPage("providers"), { tab: "providers", id: "providers" });
   assert.deepEqual(enrichmentPage("nope"), { tab: "overview", id: "" });
   assert.deepEqual(emailsPage(""), { tab: "journeys", sub: "", id: "" });
@@ -152,7 +144,6 @@ test("scheduling, visitors, enrichment, emails and lead scoring tabs", () => {
 test("every page lights its one sidebar item", () => {
   assert.equal(activeItem("routing")?.label, "Routing");
   assert.equal(activeItem("scheduling")?.label, "Calendar");
-  assert.equal(activeItem("visitors")?.label, "Visitors");
   assert.equal(activeItem("emails")?.label, "Emails");
   assert.equal(activeItem("scoring")?.label, "Scoring");
   assert.equal(activeItem("enrichment"), null, "off the sidebar, still at its address");

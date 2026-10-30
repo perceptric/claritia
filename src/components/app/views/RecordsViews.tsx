@@ -7,7 +7,7 @@
 import { useEffect, useState } from "react";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { shown, type AnyField } from "@/lib/records/fields";
-import { Box, Dollar, Eye, Plus, Users } from "../../Icons";
+import { Box, Dollar, Plus, Users } from "../../Icons";
 import { askConfirm, askText } from "../Dialogs";
 import { Avatar, Badge, Button, ErrorNote, errorText, invalidate, Loading, must, Page, Tabs, timeAgo, useQuery, type ViewProps } from "../ui";
 import type { Link } from "../records/FieldInput";
@@ -51,12 +51,6 @@ export function CompaniesView(props: ViewProps) {
         { name: "Intent 50+", filters: [{ field: "intent", op: "gte", values: ["50"] }] },
         { name: "No owner", filters: [{ field: "owner", op: "empty", values: [] }] },
       ]}
-      actions={
-        <Button variant="ghost" size="sm" onClick={() => navigate("visitors", "visits")}>
-          <Eye size={13} />
-          Visits
-        </Button>
-      }
       intro={
         <ToolIntro
           sketch="cards"

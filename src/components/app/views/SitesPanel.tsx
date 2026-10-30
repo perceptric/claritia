@@ -5,13 +5,27 @@
 import { useState } from "react";
 import { askText } from "../Dialogs";
 import { Badge, Button, CardHead, ErrorNote, errorText, Field, Input, Loading, must, Panel, Tabs, timeAgo, useLoad, type ViewProps } from "../ui";
-import type { SiteHealth } from "./VisitorsView";
 import { useSiteHealth } from "../shared";
 import { CopyButton } from "../CopyButton";
 
 const COLLECT = "https://claritia-collect.fly.dev";
 
 /** A snippet in a box with the shared copy button beside it. */
+
+export type SiteHealth = {
+  id: string;
+  domain: string;
+  extra_domains: string[];
+  site_key: string;
+  proxy_secret: string;
+  install_mode: string | null;
+  last_event_at: string | null;
+  paused: boolean;
+  sessions_24h: number;
+  identified_24h: number;
+  with_account_24h: number;
+};
+
 export function Copy({ text }: { text: string }) {
   return (
     <div className="flex items-start gap-2">
