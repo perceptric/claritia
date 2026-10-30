@@ -1,4 +1,4 @@
-// The plain helpers behind Inbound › Reps: working hours in short words and the usual presets, a rep's status as
+// The plain helpers behind Routing › Sales reps: working hours in short words and the usual presets, a rep's status as
 // In, Away or Paused with the words under their name, the daily limits offered, and the calendar's short name. No
 // React, so the tests can run them (tests/inboundSetup.test.ts).
 
@@ -54,21 +54,13 @@ export function repState(r: Pick<RepRow, "paused_until" | "out_dates"> | null | 
 }
 
 export const STATE_WORDS: Record<RepState, { label: string; hint: string; tone: "green" | "amber" | "gray" }> = {
-  in: { label: "In", hint: "Gets new leads", tone: "green" },
-  away: { label: "Away", hint: "Their backup gets their leads", tone: "amber" },
-  paused: { label: "Paused", hint: "Gets no new leads", tone: "gray" },
+  in: { label: "Available", hint: "Receives new leads", tone: "green" },
+  away: { label: "Away", hint: "Their backup receives their leads", tone: "amber" },
+  paused: { label: "Paused", hint: "Receives no new leads", tone: "gray" },
 };
 
 /** "Mon, Nov 2" for a time, in the browser's zone. */
 export const dayWords = (ms: number) => new Date(ms).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
-
-/** The line under a rep's name in a team: why they're skipped, or "Taking leads". */
-export function teamLine(o: { state: RepState; until: number | null; today: number; cap: number | null }): string {
-  if (o.state === "away") return o.until ? `Away until ${dayWords(o.until)}, skipped` : "Away, skipped";
-  if (o.state === "paused") return o.until && Number.isFinite(o.until) ? `Paused until ${dayWords(o.until)}, skipped` : "Paused, skipped";
-  if (o.cap !== null && o.today >= o.cap) return "Full for today, skipped";
-  return "Taking leads";
-}
 
 /** The daily limits offered; a limit set elsewhere shows too. */
 export function capOptions(current: number | null): (number | null)[] {
@@ -76,7 +68,14 @@ export function capOptions(current: number | null): (number | null)[] {
   return current !== null && !base.includes(current) ? [...base, current].sort((a, b) => (a ?? 0) - (b ?? 0)) : base;
 }
 
-export const capWords = (c: number | null) => (c === null ? "No limit" : `${c} a day`);
+export const capWords = (c: number | null) => (c === null ? "No limit" : `${c} per day`);
+
+/** A status as its badge reads: "Available", "Away until Nov 2", "Paused". */
+export function stateBadge(s: { state: RepState; until: number | null }): string {
+  const w = STATE_WORDS[s.state].label;
+  if (s.state === "away" && s.until) return `${w} until ${new Date(s.until - 1).toLocaleDateString("en-US", { month: "short", day: "numeric" })}`;
+  return w;
+}
 
 /** The calendar's short name for its badge. */
 export const calendarWords = (provider: string) => (provider === "google" ? "Google" : provider === "microsoft" ? "Outlook" : "Calendar");

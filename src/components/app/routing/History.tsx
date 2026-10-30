@@ -1,42 +1,45 @@
 "use client";
 
-// Routing › History: every lead and where it went, newest first. Filters are dropdown chips (dashed until set, then
-// solid with the value and an ×): Rep, Team, Why, Result and Date. Each row reads Lead, Went to, Because (the step
-// that decided, in the Rules tab's words), Result (Booked with the meeting, No time picked, Held...) and When. A row
-// opens the run in the side panel; "Needs review" under Result lists the leads held or with no rep (Held.tsx).
+// Routing › History: every lead and where it went, newest first. A search over the leads shown, then filters as
+// dropdown chips (dashed until set, then solid with the value and an ×): Rep, Rule, Result and Date. Each row reads
+// Lead, Assigned to, Rule (as Assignment names it), Result (Booked with the meeting, No time selected, Held...) and
+// Time. A row opens the run in the side panel; "Needs review" under Result lists the leads held or with no rep.
 
 import { useMemo, useState } from "react";
 import { withSegments } from "@/lib/router/conditions";
-import { Check, ChevronDown, X } from "../../Icons";
+import { Check, ChevronDown, Search, X } from "../../Icons";
 import { Popover } from "../FilterBar";
 import { usePeople } from "../meetings/parts";
 import { useMeetingTypes } from "../meetings/TypesList";
 import { Badge, Button, Empty, ErrorNote, errorText, Loading, must, Page, timeAgo, useKept, useQuery, type Tone, type ViewProps } from "../ui";
-import { Card, Column, TD, TH, Title, Who } from "../inbound/parts";
+import { Card, TD, TH, Who } from "../inbound/parts";
+import { ruleColumn } from "./assignModel";
+import { ruleTitle } from "./editorModel";
 import { HeldTab } from "./Held";
 import { RunPanel } from "./Log";
 import { RouteSketch, useLiveBody } from "./screenParts";
-import { decisionOf, leadOf, type RunRow } from "./screensModel";
-import { becauseWords } from "./setupModel";
+import { decisionOf, leadOf, matchesSearch, type RunRow } from "./screensModel";
 import { useRoutingLoad } from "./useRouterData";
 
 type Props = Pick<ViewProps, "sb" | "session" | "ws" | "role" | "navigate"> & { sub: string };
-type Filters = { owner: string; queue: string; why: string; result: string; days: string };
-const NONE: Filters = { owner: "", queue: "", why: "", result: "", days: "" };
+type Filters = { owner: string; why: string; result: string; days: string };
+const NONE: Filters = { owner: "", why: "", result: "", days: "" };
 const COLS = "id, contact_id, reason, version, kind, owner, by, queue_id, rule_id, steps, ms, created_at, undone_at, f_lead:facts->lead, f_company:facts->company";
 type Slim = Omit<RunRow, "facts"> & { f_lead: unknown; f_company: unknown };
 const slim = (rows: Slim[]): RunRow[] => rows.map(({ f_lead, f_company, ...r }) => ({ ...r, facts: { lead: f_lead ?? undefined, company: f_company ?? undefined } as RunRow["facts"] }));
 const PAGE = 100;
 const UUID = /^[0-9a-f-]{36}$/;
-/** "Why" filter values for the steps that aren't a rule. */
-const STEP_WHY: Record<string, string> = { "by:account": "Same company, same rep", "by:keep": "Returning lead, same rep", "by:fallback": "When no rule fits", "kind:held": "Stop junk", "by:hand": "Given by hand" };
+/** Rule filter values for the steps that aren't a rule. */
+const STEP_WHY: Record<string, string> = { "by:fallback": "Default rule", owner: "Owner", "kind:held": "Spam", "by:hand": "By hand" };
 
 export function HistoryTab({ sb, session, ws, role, navigate, sub }: Props) {
   const people = usePeople(sb, ws.id);
   const live = useLiveBody(sb, ws.id);
   const routing = useRoutingLoad(session, ws.id);
   const types = useMeetingTypes(sb, ws.id);
-  const [f, setF] = useKept<Filters>(`routing-history:${ws.id}:filters`, NONE);
+  const [kept, setF] = useKept<Filters>(`routing-history:${ws.id}:filters`, NONE);
+  const f: Filters = { ...NONE, ...kept };
+  const [search, setSearch] = useState("");
   const review = sub === "review";
   const [more, setMore] = useState<{ key: string; rows: RunRow[]; done: boolean } | null>(null);
   const [busy, setBusy] = useState(false);
@@ -45,8 +48,8 @@ export function HistoryTab({ sb, session, ws, role, navigate, sub }: Props) {
   const query = (x: Filters) => {
     let q = sb.from("router_runs").select(COLS).eq("workspace_id", ws.id);
     if (x.owner) q = q.eq("owner", x.owner);
-    if (x.queue) q = q.eq("queue_id", x.queue);
     if (x.why.startsWith("rule:")) q = q.eq("rule_id", x.why.slice(5));
+    else if (x.why === "owner") q = q.in("by", ["account", "keep"]).is("rule_id", null);
     else if (x.why.startsWith("by:")) q = q.eq("by", x.why.slice(3)).is("rule_id", null);
     else if (x.why === "kind:held") q = q.eq("kind", "held");
     if (x.result === "owner" || x.result === "held" || x.result === "unassigned") q = q.eq("kind", x.result);
@@ -78,15 +81,14 @@ export function HistoryTab({ sb, session, ws, role, navigate, sub }: Props) {
   const body = live.data?.body ?? null;
   const draft = routing.data?.draft ?? null;
   const fields = withSegments(routing.data?.fields ?? [], body?.segments);
-  const queues = [...new Map([...(body?.queues ?? []), ...(draft?.queues ?? [])].map((q) => [q.id, q])).values()];
   const ruleList = [...new Map([...(body?.rules.list ?? []), ...(draft?.rules.list ?? [])].map((r) => [r.id, r])).values()];
   const typeName = (id: string | null) => (id ? types.data?.find((t) => t.id === id)?.name : undefined);
   const result = (r: RunRow): { words: string; tone: Tone; meet?: string } => {
     if (r.kind === "held") return { words: "Held", tone: "amber" };
-    if (r.kind === "unassigned") return { words: "No rep", tone: "red" };
+    if (r.kind === "unassigned") return { words: "No rep", tone: "amber" };
     const m = (booked.data ?? []).filter((x) => x.contact_id === r.contact_id && x.created_at >= r.created_at && x.status !== "canceled").sort((a, b) => a.created_at.localeCompare(b.created_at))[0];
     if (m) return { words: "Booked", tone: "green", meet: typeName(m.type_id) };
-    return r.reason === "form" ? { words: "No time picked", tone: "gray" } : { words: "Routed", tone: "gray" };
+    return r.reason === "form" ? { words: "No time selected", tone: "gray" } : { words: "Routed", tone: "gray" };
   };
   const setFilter = (k: keyof Filters) => (v: string) => {
     if (k === "result" && v === "review") return navigate("routing", "history/review");
@@ -94,20 +96,22 @@ export function HistoryTab({ sb, session, ws, role, navigate, sub }: Props) {
     setF({ ...f, [k]: v });
   };
   const openId = UUID.test(sub) ? sub : "";
-  const list = rows ?? [];
+  const list = (rows ?? []).filter((r) => matchesSearch(r, search));
 
   return (
-    <Page title="Routing" badge={routing.data ? routing.data.live && !routing.data.draft && !routing.data.paused ? <Badge tone="green" dot>Live</Badge> : <Badge tone="amber" dot>Draft</Badge> : null} flush>
-      <Column>
-        <Title>Every lead and where it went</Title>
-        <div className="flex flex-wrap gap-2">
+    <Page title="Routing" flush>
+      <div className="mx-auto flex w-full max-w-[1120px] flex-col gap-3 px-4 pt-5 pb-12 text-[13px] md:px-6">
+        <div className="flex flex-wrap items-center gap-2">
+          <label className="flex h-[30px] w-[220px] items-center gap-1.5 rounded-sm border border-line px-2.5 text-muted focus-within:border-ink max-sm:w-full">
+            <Search size={13} />
+            <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search" aria-label="Search leads" className="min-w-0 flex-1 bg-transparent text-[13px] text-ink outline-none placeholder:text-muted" />
+          </label>
           <FilterPill label="Rep" value={f.owner} onChange={setFilter("owner")} options={(people.data?.list ?? []).map((p) => ({ value: p.id, label: p.name }))} />
-          <FilterPill label="Team" value={f.queue} onChange={setFilter("queue")} options={queues.map((q) => ({ value: q.id, label: q.name }))} />
           <FilterPill
-            label="Why"
+            label="Rule"
             value={f.why}
             onChange={setFilter("why")}
-            options={[...Object.entries(STEP_WHY).map(([value, label]) => ({ value, label })), ...ruleList.map((r) => ({ value: `rule:${r.id}`, label: r.name }))]}
+            options={[...ruleList.map((r) => ({ value: `rule:${r.id}`, label: ruleTitle(r, fields, (body ?? draft)?.territories ?? []) })), ...Object.entries(STEP_WHY).map(([value, label]) => ({ value, label }))]}
           />
           <FilterPill
             label="Result"
@@ -141,17 +145,17 @@ export function HistoryTab({ sb, session, ws, role, navigate, sub }: Props) {
             {!rows ? (
               first.error ? null : <Loading />
             ) : !list.length ? (
-              Object.values(f).some(Boolean) ? <Empty title="No matches" /> : <Empty sketch={<RouteSketch />} title="No leads routed yet" />
+              Object.values(f).some(Boolean) || search.trim() ? <Empty title="No matches" /> : <Empty sketch={<RouteSketch />} title="No leads routed yet" />
             ) : (
               <Card className="overflow-x-auto">
                 <table className="w-full border-collapse [&_tbody_tr:last-child_td]:border-b-0">
                   <thead>
                     <tr>
                       <th className={TH}>Lead</th>
-                      <th className={TH}>Went to</th>
-                      <th className={TH}>Because</th>
+                      <th className={TH}>Assigned to</th>
+                      <th className={TH}>Rule</th>
                       <th className={TH}>Result</th>
-                      <th className={`${TH} max-md:hidden`}>When</th>
+                      <th className={`${TH} max-md:hidden`}>Time</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -178,8 +182,8 @@ export function HistoryTab({ sb, session, ws, role, navigate, sub }: Props) {
                               {l.email && l.email !== l.name ? <span className="truncate text-[11.5px] text-muted">{l.email}</span> : null}
                             </span>
                           </td>
-                          <td className={TD}>{owner ? <Who person={people.data?.byId.get(owner)} name={people.data?.byId.get(owner)?.name ?? "Former teammate"} size={20} /> : <span className="text-muted">Nobody</span>}</td>
-                          <td className={`${TD} max-w-[280px] truncate text-muted`}>{becauseWords(decisionOf(r), { body: body ?? draft, fields })}</td>
+                          <td className={TD}>{owner ? <Who person={people.data?.byId.get(owner)} name={people.data?.byId.get(owner)?.name ?? "Former teammate"} size={20} /> : <span className="text-muted">None</span>}</td>
+                          <td className={`${TD} max-w-[280px] truncate text-muted`}>{ruleColumn(decisionOf(r), { body: body ?? draft, fields })}</td>
                           <td className={TD}>
                             <Badge tone={res.tone} dot>
                               <span>
@@ -207,7 +211,7 @@ export function HistoryTab({ sb, session, ws, role, navigate, sub }: Props) {
             )}
           </>
         )}
-      </Column>
+      </div>
       {openId ? <RunPanel sb={sb} session={session} ws={ws} role={role} navigate={navigate} runId={openId} onClose={() => navigate("routing", "history")} /> : null}
     </Page>
   );

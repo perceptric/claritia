@@ -76,6 +76,16 @@ export function claritiaPlan(s: Schedule, routed: RoutedAs, live: { paused?: boo
 }
 
 /**
+ * When the lead's rep has no free times: whether the lead gets the rep's times by email later (meeting_book_later).
+ * The form's own "Email times later", or Routing's "Alert the rep when there is no availability" (the live body's
+ * `notify.noTimes`), for every Claritia-calendar form. A booking that failed to load counts as no times: the fill is
+ * kept and the lead still hears.
+ */
+export function emailsTimesLater(s: Pick<Schedule, "none">, live: { body?: { notify?: { noTimes?: boolean } } } | null | undefined): boolean {
+  return s.none === "later" || live?.body?.notify?.noTimes === true;
+}
+
+/**
  * Whether routing lets this lead book (who "routed"). A lead routed by a picked rule books; one no rule matched
  * books when Everyone else is picked; a held lead never books. When routing didn't answer in time the lead books
  * anyway: a missed booking costs more than one made with the meeting type's own host.
