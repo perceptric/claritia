@@ -5,8 +5,9 @@ import { Avatar, LocationIcon } from "./BookingCalendar";
 // The team page's and a person's page's meeting types, as cards (docs/meetings-scheduler.md 1.8b).
 
 /** The page's title in two tones: the title, then the line in gray. */
-export function PageHead({ title, line, hosts, logo, big }: { title: string; line?: string | null; hosts?: GuestHost[]; logo?: string | null; big?: boolean }) {
+export function PageHead({ title, line, hosts, logo, big, welcome }: { title: string; line?: string | null; hosts?: GuestHost[]; logo?: string | null; big?: boolean; welcome?: string | null }) {
   return (
+    <>
     <header className="cb-head">
       {hosts?.length ? <Avatar host={hosts[0]!} size={big ? "lg" : undefined} /> : null}
       <div className="cb-head-t">
@@ -18,6 +19,8 @@ export function PageHead({ title, line, hosts, logo, big }: { title: string; lin
         </h1>
       </div>
     </header>
+    {welcome ? <p className="cb-muted cb-welcome">{welcome}</p> : null}
+    </>
   );
 }
 

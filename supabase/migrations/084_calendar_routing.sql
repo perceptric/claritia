@@ -207,11 +207,51 @@ drop trigger if exists contacts_owner_meeting_task on public.contacts;
 create trigger contacts_owner_meeting_task after update on public.contacts
   for each row when (new.owner_user_id is distinct from old.owner_user_id) execute function public.contacts_owner_meeting_task();
 
+-- The booking page's look (docs/scheduling-plan.md 11.3, src/lib/meetings/look.ts): a person's on their profile, the
+-- team page's on the workspace. Cleaned by the server before it's saved; the public pages read it with booking_look.
+alter table public.booking_profiles add column if not exists page jsonb not null default '{}' check (jsonb_typeof(page) = 'object' and length(page::text) <= 8000);
+alter table public.workspaces add column if not exists booking_page jsonb not null default '{}' check (jsonb_typeof(booking_page) = 'object' and length(booking_page::text) <= 8000);
+
+create or replace function public.booking_look(p_ws uuid, p_user uuid) returns jsonb
+language sql stable security definer set search_path = public as $$
+  select case when p_user is null then (select booking_page from workspaces where id = p_ws)
+              else coalesce((select page from booking_profiles where workspace_id = p_ws and user_id = p_user), '{}') end;
+$$;
+
+create or replace function public.booking_look_save(p_ws uuid, p_user uuid, p_look jsonb) returns void
+language plpgsql security definer set search_path = public as $$
+begin
+  if p_user is null then
+    update workspaces set booking_page = coalesce(p_look, '{}') where id = p_ws;
+  else
+    update booking_profiles set page = coalesce(p_look, '{}') where workspace_id = p_ws and user_id = p_user;
+    if not found then raise exception 'no_profile'; end if;
+  end if;
+end;
+$$;
+
+-- booking_page_info from 081, with both looks.
+create or replace function public.booking_page_info(p_ws uuid, p_user uuid) returns jsonb
+language sql stable security definer set search_path = public as $$
+  select jsonb_build_object(
+    'team', (select booking_slug from workspaces where id = p_ws),
+    'team_page', (select booking_page from workspaces where id = p_ws),
+    'profile', (select jsonb_build_object('slug', slug, 'name', name, 'headline', headline, 'photo_url', photo_url, 'handle', handle, 'page', page)
+                from booking_profiles where workspace_id = p_ws and user_id = p_user),
+    'types', coalesce((
+      select jsonb_agg(jsonb_build_object('id', t.id, 'name', t.name, 'slug', t.slug, 'kind', t.kind, 'secret', t.secret,
+                                          'team', t.owner_user_id is null and t.kind not in ('one', 'group'),
+                                          'mine', t.owner_user_id = p_user or (t.owner_user_id is null and t.kind in ('one', 'group') and t.hosts->0->>'user_id' = p_user::text),
+                                          'length', t.settings->'lengths'->0) order by t.name)
+      from meeting_types t where t.workspace_id = p_ws and t.active), '[]')
+  );
+$$;
+
 do $$
 declare
   f text;
 begin
-  foreach f in array array['meeting_inputs(uuid, uuid[], timestamptz, timestamptz, text)', 'meeting_team_run(uuid, uuid, uuid, text, uuid, int, jsonb)', 'meeting_upcoming_for(uuid, uuid)', 'form_notify_info(uuid)', 'form_journey_follows(uuid)', 'router_recent(uuid, uuid, int)'] loop
+  foreach f in array array['meeting_inputs(uuid, uuid[], timestamptz, timestamptz, text)', 'meeting_team_run(uuid, uuid, uuid, text, uuid, int, jsonb)', 'meeting_upcoming_for(uuid, uuid)', 'form_notify_info(uuid)', 'form_journey_follows(uuid)', 'router_recent(uuid, uuid, int)', 'booking_look(uuid, uuid)', 'booking_look_save(uuid, uuid, jsonb)', 'booking_page_info(uuid, uuid)'] loop
     execute format('revoke execute on function public.%s from public, anon, authenticated', f);
     execute format('grant execute on function public.%s to service_role', f);
   end loop;

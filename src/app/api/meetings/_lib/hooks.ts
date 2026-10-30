@@ -1,6 +1,7 @@
 import type { Rpc } from "@/lib/jobs";
 import { cleanHandle, handleProblem } from "@/lib/meetings/handles";
 import { checkEndpoint, newSecret, openEndpoint, sampleBody, sealEndpoint, sendWebhook, WEBHOOK_EVENTS, isEvent } from "@/lib/meetings/webhooks";
+import { cleanLook, type PageLook } from "../../../../lib/meetings/look.ts";
 import { call, Refused, roleOf, saveProfile, type Actor } from "./host";
 
 // The Booking page and Webhooks tabs (docs/scheduling-plan.md Parts 4 and 5). Everyone sets their own page; owners
@@ -137,4 +138,13 @@ export async function resendWebhook(rpc: Rpc, a: Actor, send: unknown) {
   if (typeof send !== "string" || !UUID.test(send)) throw new Refused(404, "Not found.");
   await call(rpc, "webhook_resend", { p_ws: a.ws, p_id: send });
   return { ok: true };
+}
+
+/** The page's look: yours, or (owners) the team page's. Cleaned before it's saved. */
+export async function saveLook(rpc: Rpc, a: Actor, raw: unknown, team: boolean): Promise<{ look: PageLook }> {
+  if (team) await owner(rpc, a);
+  const look = cleanLook(raw);
+  const { error } = await rpc("booking_look_save", { p_ws: a.ws, p_user: team ? null : a.user, p_look: look });
+  if (error) throw error.message.includes("no_profile") ? new Refused(400, "Save your profile first.") : new Error(error.message);
+  return { look };
 }

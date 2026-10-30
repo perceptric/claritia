@@ -4,14 +4,14 @@
 // left as it is (the real page's parts, with what you're typing) and scaled to fit the height, and the few things that
 // change it in a 400 px panel on the right: You | Team, then closed sections (Link, Profile, Meetings shown, Welcome
 // line, Styling) and a pinned footer, Saved or Discard and Save changes.
-//
-// The welcome line, the accent, the button shape and Show Booked with Claritia have no field to be saved in yet, so
-// they show and stay off until the booking profile can hold them.
+// The look (welcome line, Claritia or the brand kit, accent, buttons, "Booked with Claritia", the meetings' order) is
+// saved per page: yours on your profile, the team's on the workspace (src/lib/meetings/look.ts).
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { toGuestType, type Profile as GuestProfile } from "@/lib/meetings/guest";
 import { bookingOrigin, bookingUrl, cleanHandle, handleProblem } from "@/lib/meetings/handles";
-import { Check, ExternalLink, Grid, Link as LinkIcon, Message, Monitor, Palette, Phone, Upload, User } from "../../Icons";
+import { ACCENTS, cleanLook, lookTokens, lookWords, ordered, usesKit, type Accent, type PageLook } from "@/lib/meetings/look";
+import { Check, ExternalLink, Grid, Grip, Link as LinkIcon, Message, Monitor, Palette, Phone, Upload, User } from "../../Icons";
 import { BookShell } from "@/components/book/BookShell";
 import { PageHead, TypeCards } from "@/components/book/TypeCards";
 import { askConfirm } from "../Dialogs";
@@ -22,9 +22,10 @@ import { IconSeg, Labeled, PanelFooter, PanelSection } from "./panel";
 
 type Info = {
   team: string | null;
-  profile: { slug: string; name: string; headline: string | null; photo_url: string | null; handle: string | null } | null;
+  team_page?: unknown;
+  profile: { slug: string; name: string; headline: string | null; photo_url: string | null; handle: string | null; page?: unknown } | null;
 };
-type Draft = { handle: string; team: string; name: string; headline: string; photo_url: string; slug: string; hidden: Record<string, boolean> };
+type Draft = { handle: string; team: string; name: string; headline: string; photo_url: string; slug: string; hidden: Record<string, boolean>; mineLook: PageLook; teamLook: PageLook };
 type Which = "mine" | "team";
 type SectionKey = "link" | "profile" | "shown" | "welcome" | "styling";
 
@@ -47,6 +48,8 @@ function draftOf(info: Info, types: TypeRow[], email: string): Draft {
     photo_url: p?.photo_url ?? "",
     slug: p?.slug ?? (cleanHandle(name).replace(/^-+|-+$/g, "") || "me"),
     hidden: Object.fromEntries(types.map((t) => [t.id, t.secret])),
+    mineLook: cleanLook(p?.page),
+    teamLook: cleanLook(info.team_page),
   };
 }
 
@@ -107,7 +110,12 @@ export function BookingPage(props: ViewProps) {
     );
   const { info, types, kit } = data.data;
   const set = (patch: Partial<Draft>) => setDraft((d) => (d ? { ...d, ...patch } : d));
-  const list = types.filter((t) => (which === "mine" ? isMine(t, me) : isTeam(t)));
+  const look = which === "mine" ? draft.mineLook : draft.teamLook;
+  const setLook = (patch: Partial<PageLook>) => set(which === "mine" ? { mineLook: { ...draft.mineLook, ...patch } } : { teamLook: { ...draft.teamLook, ...patch } });
+  const list = ordered(
+    types.filter((t) => (which === "mine" ? isMine(t, me) : isTeam(t))),
+    look.order,
+  );
   const visible = list.filter((t) => !draft.hidden[t.id]);
   const handle = which === "mine" ? draft.handle : draft.team;
   const savedHandle = which === "mine" ? (info.profile?.handle ?? null) : info.team;
@@ -123,6 +131,8 @@ export function BookingPage(props: ViewProps) {
       if (profileChanged)
         await meetingsApi(session, ws.id, "booking", { action: "save", handle: draft.handle, profile: { slug: draft.slug, name: draft.name, headline: draft.headline, photo_url: draft.photo_url } });
       if (owner && draft.team && draft.team !== (info.team ?? "")) await meetingsApi(session, ws.id, "booking", { action: "team", handle: draft.team });
+      if (JSON.stringify(draft.mineLook) !== JSON.stringify(start.mineLook)) await meetingsApi(session, ws.id, "booking", { action: "look", look: draft.mineLook });
+      if (owner && JSON.stringify(draft.teamLook) !== JSON.stringify(start.teamLook)) await meetingsApi(session, ws.id, "booking", { action: "look", look: draft.teamLook, team: true });
       for (const t of types) {
         if (!!draft.hidden[t.id] === t.secret) continue;
         const { name, slug, kind, hosts, settings, active, locked, owner_user_id } = t;
@@ -137,16 +147,17 @@ export function BookingPage(props: ViewProps) {
   };
 
   const profiles: GuestProfile[] = (people.data?.list ?? []).map((p) => (p.id === me ? { user_id: p.id, slug: draft.slug, name: draft.name, headline: draft.headline, photo_url: draft.photo_url || null } : { user_id: p.id, slug: p.slug ?? "", name: p.name, headline: p.headline, photo_url: p.photo }));
+  const shell = lookTokens(look, kit?.tokens ?? null);
   const cards = visible.map((t) => ({ href: handle ? bookingUrl(origin, handle, t.slug) : "#", type: toGuestType(t, profiles, { pay: true }) }));
   const preview =
     which === "mine" ? (
-      <BookShell tokens={kit?.tokens ?? null} narrow>
-        <PageHead title={`Book time with ${draft.name.split(/\s+/)[0] || draft.name || "me"}`} line={draft.headline || draft.name} hosts={[{ name: draft.name || email, photo: draft.photo_url || null }]} big />
+      <BookShell tokens={shell.tokens} vars={shell.vars} badge={look.badge} narrow>
+        <PageHead title={`Book time with ${draft.name.split(/\s+/)[0] || draft.name || "me"}`} line={draft.headline || draft.name} hosts={[{ name: draft.name || email, photo: draft.photo_url || null }]} big welcome={look.welcome} />
         <TypeCards types={cards} />
       </BookShell>
     ) : (
-      <BookShell tokens={kit?.tokens ?? null} narrow>
-        <PageHead title={ws.name} logo={kit?.logo_url ?? null} />
+      <BookShell tokens={shell.tokens} vars={shell.vars} badge={look.badge} narrow>
+        <PageHead title={ws.name} logo={usesKit(look, !!kit) ? (kit?.logo_url ?? null) : null} welcome={look.welcome} />
         <TypeCards types={cards} />
       </BookShell>
     );
@@ -226,7 +237,26 @@ export function BookingPage(props: ViewProps) {
               {list.length ? (
                 <ul className="flex flex-col gap-3">
                   {list.map((t) => (
-                    <li key={t.id} className="flex items-center gap-2.5">
+                    <li
+                      key={t.id}
+                      draggable={canEdit}
+                      onDragStart={(e) => (e.dataTransfer.setData("text/plain", t.id), (e.dataTransfer.effectAllowed = "move"))}
+                      onDragOver={(e) => canEdit && e.preventDefault()}
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        const from = e.dataTransfer.getData("text/plain");
+                        if (!from || from === t.id) return;
+                        const ids = list.map((x) => x.id).filter((id) => id !== from);
+                        ids.splice(ids.indexOf(t.id), 0, from);
+                        setLook({ order: ids });
+                      }}
+                      className="flex items-center gap-2.5"
+                    >
+                      {canEdit ? (
+                        <span className="flex size-5 shrink-0 cursor-grab items-center justify-center text-faint" aria-hidden="true">
+                          <Grip size={13} />
+                        </span>
+                      ) : null}
                       <span className="flex min-w-0 flex-1 flex-col">
                         <span className="truncate text-[13px] font-medium text-ink">{t.name}</span>
                         <span className="truncate font-mono text-[11px] text-muted">/{t.slug}</span>
@@ -239,11 +269,11 @@ export function BookingPage(props: ViewProps) {
                 <span className="text-[12.5px] text-muted">No meeting types yet</span>
               )}
             </PanelSection>
-            <PanelSection icon={<Message />} title="Welcome line" summary="None" open={open === "welcome"} onToggle={() => toggle("welcome")}>
-              <Input disabled maxLength={140} placeholder="Pick a time that works for you." className="h-[34px] text-[13px] disabled:opacity-60" />
+            <PanelSection icon={<Message />} title="Welcome line" summary={look.welcome || "None"} open={open === "welcome"} onToggle={() => toggle("welcome")}>
+              <Input value={look.welcome} disabled={!canEdit} maxLength={140} placeholder="Pick a time that works for you." onChange={(e) => setLook({ welcome: e.target.value })} className="h-[34px] text-[13px]" />
             </PanelSection>
-            <PanelSection icon={<Palette />} title="Styling" summary={kit ? "Your brand kit" : "Claritia, round buttons"} open={open === "styling"} onToggle={() => toggle("styling")}>
-              <Styling kit={!!kit} />
+            <PanelSection icon={<Palette />} title="Styling" summary={lookWords(look, !!kit)} open={open === "styling"} onToggle={() => toggle("styling")}>
+              <Styling kit={!!kit} look={look} disabled={!canEdit} onChange={setLook} />
             </PanelSection>
           </div>
           <PanelFooter>
@@ -384,16 +414,32 @@ async function squareJpeg(file: File, size: number): Promise<Blob> {
 }
 
 /** Claritia's look or the brand kit, the accent, the buttons and the Booked with Claritia line. */
-function Styling({ kit }: { kit: boolean }) {
-  const swatches = ["bg-ink", "bg-signal", "bg-sky", "bg-lilac", "bg-rose", "bg-butter"];
+function Styling({ kit, look, disabled, onChange }: { kit: boolean; look: PageLook; disabled: boolean; onChange: (p: Partial<PageLook>) => void }) {
+  const swatches: { key: Accent; tone: string }[] = [
+    { key: "ink", tone: "bg-ink" },
+    { key: "emerald", tone: "bg-signal" },
+    { key: "sky", tone: "bg-sky" },
+    { key: "lilac", tone: "bg-lilac" },
+    { key: "rose", tone: "bg-rose" },
+    { key: "butter", tone: "bg-butter" },
+  ];
+  const onKit = usesKit(look, kit);
+  const buttons = look.buttons ?? (onKit ? "soft" : "round");
   return (
     <>
       <div className="grid grid-cols-2 gap-2">
         {[
-          { key: "claritia", label: "Claritia", tone: "bg-ink", on: !kit },
-          { key: "brand", label: "Your brand kit", tone: "bg-sky", on: kit },
+          { key: "claritia" as const, label: "Claritia", tone: "bg-ink", on: !onKit, off: false },
+          { key: "brand" as const, label: "Your brand kit", tone: "bg-sky", on: onKit, off: !kit },
         ].map((c) => (
-          <button key={c.key} type="button" disabled aria-pressed={c.on} className={`flex flex-col gap-2 rounded-[10px] border p-2.5 text-left disabled:cursor-default ${c.on ? "border-ink shadow-[0_0_0_1px_var(--color-ink)]" : "border-line opacity-60"}`}>
+          <button
+            key={c.key}
+            type="button"
+            disabled={disabled || c.off}
+            aria-pressed={c.on}
+            onClick={() => onChange({ look: c.key })}
+            className={`press flex flex-col gap-2 rounded-[10px] border p-2.5 text-left disabled:cursor-default ${c.on ? "border-ink shadow-[0_0_0_1px_var(--color-ink)]" : "border-line hover:border-line-strong"} ${c.off ? "opacity-50" : ""}`}
+          >
             <span className="flex h-[54px] flex-col justify-center gap-[5px] rounded-sm border border-line bg-paper px-2.5">
               <i className="block h-[5px] w-3/5 rounded-full bg-line-strong" />
               <i className="block h-[5px] w-2/5 rounded-full bg-line-strong" />
@@ -405,8 +451,17 @@ function Styling({ kit }: { kit: boolean }) {
       </div>
       <Labeled label="Accent">
         <div className="flex flex-wrap gap-2">
-          {swatches.map((s, i) => (
-            <button key={s} type="button" disabled aria-label={`Accent ${i + 1}`} aria-pressed={i === 0} className={`size-7 rounded-full border-2 border-card disabled:cursor-default ${s} ${i === 0 ? "shadow-[0_0_0_2px_var(--color-ink)]" : "opacity-50 shadow-[0_0_0_1px_var(--color-line)]"}`} />
+          {swatches.map((s) => (
+            <button
+              key={s.key}
+              type="button"
+              disabled={disabled}
+              aria-label={`Accent ${s.key}`}
+              title={ACCENTS[s.key]}
+              aria-pressed={look.accent === s.key}
+              onClick={() => onChange({ accent: s.key })}
+              className={`press size-7 rounded-full border-2 border-card ${s.tone} ${look.accent === s.key ? "shadow-[0_0_0_2px_var(--color-ink)]" : "shadow-[0_0_0_1px_var(--color-line)]"}`}
+            />
           ))}
         </div>
       </Labeled>
@@ -414,17 +469,17 @@ function Styling({ kit }: { kit: boolean }) {
         <Segmented<"round" | "soft">
           size="sm"
           label="Buttons"
-          value="round"
+          value={buttons}
           options={[
-            { value: "round", label: "Round", disabled: true },
-            { value: "soft", label: "Soft corners", disabled: true },
+            { value: "round", label: "Round", disabled },
+            { value: "soft", label: "Soft corners", disabled },
           ]}
-          onChange={() => undefined}
+          onChange={(v) => !disabled && onChange({ buttons: v })}
         />
       </Labeled>
       <span className="flex items-center justify-between gap-2 text-[13px] text-ink">
         Show Booked with Claritia
-        <Toggle label="Show Booked with Claritia" on disabled onChange={() => undefined} />
+        <Toggle label="Show Booked with Claritia" on={look.badge} disabled={disabled} onChange={(badge) => onChange({ badge })} />
       </span>
     </>
   );
