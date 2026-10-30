@@ -541,6 +541,8 @@ export const meetingBookLater =
       for (const destination of await call<string[]>(rpc, "form_not_booked_targets", { p_submission: submission }))
         await enqueueJob(rpc, { workspaceId: info.submission.workspace_id, kind: "form_not_booked", key: `not_booked:${submission}:${destination}`, payload: { submission, destination, type: typeId, host: hostId ?? ownerId } });
     }
+    // One nudge (docs/scheduling-plan.md Part 13.1): a live "Didn't book" journey for this form sends the follow-up.
+    if (await call<boolean>(rpc, "form_journey_follows", { p_submission: submission }).catch(() => false)) return;
     const c = info.contact;
     const t = info.type ? typeOf(info.type) : null;
     if (!c?.email || !t || !t.active) return;

@@ -1,15 +1,18 @@
 "use client";
 
-// The card that opens Calendar's pages until your calendar is connected (docs/scheduling-plan.md Part 10): one
-// click to Google or Outlook, so nobody hits "Connect your calendar first" without a way to fix it. A calendar
-// that needs signing in again shows Reconnect. Nothing shows once every account is fine.
+// Connect your calendar (docs/scheduling-plan.md 11.1 rule 5): one slim 52 px line across the top of Calendar's work
+// area, never a card inside a narrow column. It says why, has Google Calendar and Outlook, and goes away once a
+// calendar is connected. A calendar that needs signing in again shows Reconnect.
 
 import { useState } from "react";
+import { CalendarIcon } from "../../Icons";
 import { BrandLogo } from "../BrandLogo";
 import { Button, ErrorNote, errorText, must, postJson, useLoad, type ViewProps } from "../ui";
-import { PROVIDERS, providerOf, type Account } from "../meetings/MyCalendar";
+import { PROVIDERS, type Account } from "../meetings/MyCalendar";
 
 const CALENDARS = PROVIDERS.filter((p) => p.id !== "zoom");
+/** The short names the banner uses. */
+const SHORT: Record<string, string> = { google: "Google Calendar", microsoft: "Outlook" };
 
 /** Your calendar accounts in this workspace, or null while they load. */
 export function useCalendarAccounts({ sb, session, ws }: Pick<ViewProps, "sb" | "session" | "ws">) {
@@ -25,14 +28,16 @@ export async function connectCalendar(session: ViewProps["session"], ws: string,
   if (r.url) window.location.assign(r.url);
 }
 
+/** The banner: nothing while the accounts load or once a calendar is connected and fine. */
 export function ConnectCalendar(props: Pick<ViewProps, "sb" | "session" | "ws">) {
   const accounts = useCalendarAccounts(props);
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
   const list = accounts.data;
   if (!list) return null;
-  const stale = list.find((a) => a.status === "reconnect");
-  if (list.length && !stale) return null;
+  const cals = list.filter((a) => a.provider !== "zoom");
+  const stale = cals.find((a) => a.status === "reconnect");
+  if (cals.some((a) => a.status === "ok") && !stale) return null;
   const go = async (provider: string) => {
     setBusy(provider);
     setError("");
@@ -43,23 +48,27 @@ export function ConnectCalendar(props: Pick<ViewProps, "sb" | "session" | "ws">)
       setBusy("");
     }
   };
+  const shown = stale ? CALENDARS.filter((p) => p.id === stale.provider) : CALENDARS;
   return (
-    <div className="anim-rise-sm relative flex flex-col gap-4 rounded-[10px] border border-line bg-card px-5 py-5 sm:flex-row sm:items-center sm:px-6">
-      <span aria-hidden="true" className="pointer-events-none absolute -top-px -left-px size-3.5 rounded-tl-[10px] border-t-[1.5px] border-l-[1.5px] border-ink" />
-      <span aria-hidden="true" className="pointer-events-none absolute -right-px -bottom-px size-3.5 rounded-br-[10px] border-r-[1.5px] border-b-[1.5px] border-ink" />
-      <div className="min-w-0 flex-1">
-        <h2 className="text-[16px] font-semibold tracking-[-0.015em] text-ink">{stale ? `Reconnect ${providerOf(stale.provider).name}` : "Connect your calendar"}</h2>
-        <p className="mt-0.5 text-[13px] text-muted">{stale ? stale.account_email : "Bookings need your free times."}</p>
-        <ErrorNote message={error} />
-      </div>
-      <div className="flex flex-wrap gap-2">
-        {(stale ? CALENDARS.filter((p) => p.id === stale.provider) : CALENDARS).map((p) => (
-          <Button key={p.id} variant="ghost" disabled={!!busy} onClick={() => void go(p.id)}>
-            <BrandLogo domain={p.domain} name={p.name} size={16} />
-            {busy === p.id ? "Opening" : stale ? "Reconnect" : p.name}
-          </Button>
-        ))}
-      </div>
+    <div role="region" aria-label="Connect your calendar" className="anim-fade flex h-[52px] shrink-0 items-center gap-2.5 border-b border-line bg-paper pr-3 pl-4">
+      <span className="flex size-[30px] shrink-0 items-center justify-center rounded-lg bg-butter-wash text-butter">
+        <CalendarIcon size={14} />
+      </span>
+      <span className="min-w-0 shrink-0 truncate text-[13px] font-semibold text-ink">{stale ? `Reconnect ${SHORT[stale.provider] ?? "your calendar"}` : "Connect your calendar"}</span>
+      {error ? (
+        <span role="alert" className="min-w-0 truncate text-[13px] text-rose">
+          {error}
+        </span>
+      ) : (
+        <span className="hidden min-w-0 truncate text-[13px] text-body sm:inline">{stale ? stale.account_email : "Bookings need your free times."}</span>
+      )}
+      <span className="flex-1" />
+      {shown.map((p) => (
+        <Button key={p.id} variant="ghost" size="sm" className="h-[30px] shrink-0 !border-line px-2 sm:px-3" disabled={!!busy} onClick={() => void go(p.id)} aria-label={stale ? `Reconnect ${p.name}` : p.name}>
+          <BrandLogo domain={p.domain} name={p.name} size={16} />
+          <span className="hidden sm:inline">{busy === p.id ? "Opening" : stale ? "Reconnect" : SHORT[p.id]}</span>
+        </Button>
+      ))}
     </div>
   );
 }

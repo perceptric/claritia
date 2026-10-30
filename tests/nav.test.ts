@@ -32,7 +32,7 @@ test("the sidebar is Inbound, CRM and Nurture, then Settings, with at most five 
   assert.equal(defaultRoute, "contacts");
   assert.equal(new Set(NAV.map((n) => n.route)).size, NAV.length, "one item per route");
   assert.deepEqual(ROUTING_TABS.map((t) => t.label), ["Setup", "Leads", "Team"]);
-  assert.deepEqual(SCHEDULING_TABS.map((t) => t.label), ["Meeting types", "Booking page", "Availability", "Links and polls", "Reminders", "Payments", "Webhooks"]);
+  assert.deepEqual(SCHEDULING_TABS.map((t) => t.label), ["Meeting types", "Booking page", "Availability", "Links and polls", "Settings"]);
 });
 
 test("old addresses open their new home", () => {
@@ -66,7 +66,7 @@ test("old addresses open their new home", () => {
   assert.deepEqual(resolveRoute("meetings", `types/${id}`), { route: "scheduling", id: `types/${id}` });
   assert.deepEqual(resolveRoute("settings", "calendar"), { route: "scheduling", id: "availability/calendars" });
   assert.deepEqual(resolveRoute("settings", "calendars"), { route: "scheduling", id: "availability/team" });
-  assert.deepEqual(resolveRoute("settings", "payments"), { route: "scheduling", id: "payments" });
+  assert.deepEqual(resolveRoute("settings", "payments"), { route: "scheduling", id: "settings/payments" });
   assert.deepEqual(resolveRoute("settings", "sites"), { route: "visitors", id: "setup" });
   assert.deepEqual(resolveRoute("settings", "identity"), { route: "visitors", id: "setup" });
   assert.deepEqual(resolveRoute("settings", "account_alerts"), { route: "visitors", id: "alerts" });
@@ -122,7 +122,17 @@ test("scheduling, visitors, enrichment, emails and lead scoring tabs", () => {
   assert.deepEqual(schedulingPage("availability/nope"), { page: "availability", sub: "", id: "availability" });
   assert.equal(availabilityPage(""), "schedules");
   assert.equal(availabilityPage("days-off"), "days-off");
-  for (const p of ["booking", "links", "reminders", "payments", "webhooks"]) assert.equal(schedulingPage(p).page, p);
+  assert.deepEqual(schedulingPage(`types/${id}/all`), { page: "types", sub: `${id}/all`, id: `types/${id}/all` }, "the full editor");
+  assert.deepEqual(schedulingPage("types/new/all"), { page: "types", sub: "new", id: "types/new" });
+  for (const p of ["booking", "links"]) assert.equal(schedulingPage(p).page, p);
+  assert.ok(SCHEDULING_TABS.every((t) => t.icon), "every tab has its icon");
+  // Reminders, Payments and Webhooks moved into Settings; their old addresses open there.
+  assert.deepEqual(schedulingPage("settings"), { page: "settings", sub: "reminders", id: "settings" });
+  assert.deepEqual(schedulingPage("settings/nope"), { page: "settings", sub: "reminders", id: "settings" });
+  for (const p of ["reminders", "payments", "webhooks"]) {
+    assert.deepEqual(schedulingPage(p), { page: "settings", sub: p, id: `settings/${p}` });
+    assert.deepEqual(schedulingPage(`settings/${p}`), { page: "settings", sub: p, id: `settings/${p}` });
+  }
   for (const gone of ["forms", "ai", "notetaker"]) assert.equal(schedulingPage(gone).page, "types");
   assert.deepEqual(visitorsPage(""), { tab: "feed", id: "" });
   assert.deepEqual(visitorsPage("visits"), { tab: "visits", id: "visits" });

@@ -85,6 +85,11 @@ export type TypeSettings = {
   price?: { amount: number; currency: string };
   /** A named schedule (availability_schedules): each host's schedule of this name, else their default hours. */
   schedule?: string;
+  /**
+   * Round robin and owner first: a Routing team (a live router queue's id). Its members are the hosts and the confirm
+   * takes the queue's turn (src/lib/meetings/team.ts); `hosts` keeps the last members seen, for when the router is down.
+   */
+  team?: string;
   /** Extra questions on the booking page: the form studio's fields. */
   questions: { id: string; label: string; type: "text" | "textarea" | "phone" | "choice"; required: boolean; options?: string[] }[];
 };

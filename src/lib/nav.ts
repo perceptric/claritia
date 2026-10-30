@@ -126,31 +126,47 @@ export function enrichmentPage(id: string): { tab: EnrichmentTab; id: string } {
   return a === "providers" || a === "rules" || a === "history" ? { tab: a, id: a } : { tab: "overview", id: "" };
 }
 
-export type SchedulingPageKey = "types" | "booking" | "availability" | "links" | "reminders" | "payments" | "webhooks";
+export type SchedulingPageKey = "types" | "booking" | "availability" | "links" | "settings";
 export type AvailabilityTab = "schedules" | "calendars" | "team" | "days-off";
-export const SCHEDULING_TABS: Tab<SchedulingPageKey>[] = [
-  { value: "types", label: "Meeting types" },
-  { value: "booking", label: "Booking page" },
-  { value: "availability", label: "Availability" },
-  { value: "links", label: "Links and polls" },
+/** The icon beside each Calendar tab (the screen draws it, from src/components/Icons.tsx). */
+export type SchedulingTabIcon = "grid" | "monitor" | "calendar" | "link" | "gear";
+export const SCHEDULING_TABS: (Tab<SchedulingPageKey> & { icon: SchedulingTabIcon })[] = [
+  { value: "types", label: "Meeting types", icon: "grid" },
+  { value: "booking", label: "Booking page", icon: "monitor" },
+  { value: "availability", label: "Availability", icon: "calendar" },
+  { value: "links", label: "Links and polls", icon: "link" },
+  { value: "settings", label: "Settings", icon: "gear" },
+];
+
+/** Calendar › Settings: the things set once, listed on the left. */
+export type CalendarSettingsKey = "reminders" | "payments" | "webhooks";
+export const CALENDAR_SETTINGS: Tab<CalendarSettingsKey>[] = [
   { value: "reminders", label: "Reminders" },
   { value: "payments", label: "Payments" },
   { value: "webhooks", label: "Webhooks" },
 ];
+const SETTINGS_KEYS = new Set<string>(CALENDAR_SETTINGS.map((t) => t.value));
 
 /**
- * Scheduling's tabs: Meeting types with one type ("types/<id>" or "types/new"), Booking page, Availability with its
- * views ("availability/calendars"...), Links and polls, Reminders, Payments and Webhooks. Anything else opens Meeting
- * types.
+ * Calendar's tabs (docs/scheduling-plan.md Part 11): Meeting types with one type open in the panel ("types/<id>" or
+ * "types/new") or in the full editor ("types/<id>/all"), Booking page, Availability with its views
+ * ("availability/calendars"...), Links and polls, and Settings with Reminders, Payments and Webhooks
+ * ("settings/payments"). The old Reminders, Payments and Webhooks tabs open inside Settings. Anything else opens
+ * Meeting types.
  */
 export function schedulingPage(id: string): { page: SchedulingPageKey; sub: string; id: string } {
-  const [a = "", b = ""] = id.split("/");
-  if (a === "types") return UUID.test(b) || b === "new" ? { page: "types", sub: b, id: `types/${b}` } : { page: "types", sub: "", id: "types" };
+  const [a = "", b = "", c = ""] = id.split("/");
+  if (a === "types") {
+    if (UUID.test(b) && c === "all") return { page: "types", sub: `${b}/all`, id: `types/${b}/all` };
+    return UUID.test(b) || b === "new" ? { page: "types", sub: b, id: `types/${b}` } : { page: "types", sub: "", id: "types" };
+  }
   if (a === "availability") {
     const tab = (["calendars", "team", "days-off"] as string[]).includes(b) ? b : "";
     return { page: "availability", sub: tab, id: tab ? `availability/${tab}` : "availability" };
   }
-  if (a === "booking" || a === "links" || a === "reminders" || a === "payments" || a === "webhooks") return { page: a, sub: "", id: a };
+  if (a === "settings") return SETTINGS_KEYS.has(b) ? { page: "settings", sub: b, id: `settings/${b}` } : { page: "settings", sub: "reminders", id: "settings" };
+  if (SETTINGS_KEYS.has(a)) return { page: "settings", sub: a, id: `settings/${a}` };
+  if (a === "booking" || a === "links") return { page: a, sub: "", id: a };
   return { page: "types", sub: "", id: "types" };
 }
 
@@ -233,7 +249,7 @@ const REPORTS: Record<string, { route: Route; id: string }> = {
 const SETTINGS_MOVED: Record<string, { route: Route; id: string }> = {
   calendar: { route: "scheduling", id: "availability/calendars" },
   calendars: { route: "scheduling", id: "availability/team" },
-  payments: { route: "scheduling", id: "payments" },
+  payments: { route: "scheduling", id: "settings/payments" },
   sites: { route: "visitors", id: "setup" },
   identity: { route: "visitors", id: "setup" },
   account_alerts: { route: "visitors", id: "alerts" },

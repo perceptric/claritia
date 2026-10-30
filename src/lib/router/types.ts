@@ -33,7 +33,8 @@ export type Cond = { field: string; op: Op; value?: string | number | (string | 
  */
 export type Then = "queue" | "owner" | "hold";
 
-export type Rule = { id: string; name: string; match: "all" | "any"; conds: Cond[]; queue: string; on?: boolean; then?: Then };
+/** `meet`: the meeting type a form offers the lead this rule routes (docs/scheduling-plan.md 12.5), else the form's own. */
+export type Rule = { id: string; name: string; match: "all" | "any"; conds: Cond[]; queue: string; on?: boolean; then?: Then; meet?: string };
 
 export type Method = "rr" | "weighted" | "load";
 
@@ -80,7 +81,7 @@ export type RouterBody = {
   keep: { on: boolean; whenOut: WhenOut };
   rules: { on: boolean; list: Rule[] };
   queues: Queue[];
-  fallback: { kind: "user" | "queue"; id: string } | null;
+  fallback: { kind: "user" | "queue"; id: string; meet?: string } | null;
   territories: Territory[];
   /** Left out by versions made before company types. */
   segments?: Segment[];
@@ -219,7 +220,7 @@ export type Run = {
   created_at: string;
 };
 
-export type Reason = "form" | "import" | "crm" | "api" | "again" | "let_through" | "score" | "manual" | "sla";
+export type Reason = "form" | "import" | "crm" | "api" | "again" | "let_through" | "score" | "manual" | "sla" | "booking";
 
 export const REASONS: Record<Reason, string> = {
   form: "Form",
@@ -231,4 +232,5 @@ export const REASONS: Record<Reason, string> = {
   score: "Lead score",
   manual: "By hand",
   sla: "Response time",
+  booking: "Meeting booked",
 };

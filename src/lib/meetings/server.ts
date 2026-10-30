@@ -6,13 +6,39 @@ import { createHash, randomBytes } from "node:crypto";
 import { enqueueJob, type Rpc } from "../jobs.ts";
 import { keepManageToken } from "./links.ts";
 import { cut, pickHost, pickPair, slots as engine, type HostInput, type Turns } from "./slots.ts";
+import { pickTeamHost, recordTeamRun, teamOf, type Team } from "./team.ts";
 import { dateIn, weekOf } from "./time.ts";
 import type { Availability, MeetingSource, MeetingType, Slot } from "./types.ts";
 
 const MIN = 60_000;
 
-type Raw = { id: string; availability: Availability | null; connected: boolean; reconnect: boolean; busy: [string, string][]; booked: [string, string, string | null, string, string][] };
-export type HostState = { id: string; bookable: boolean; why?: "no_calendar" | "reconnect" | "no_hours"; input: HostInput };
+type Raw = {
+  id: string;
+  availability: Availability | null;
+  connected: boolean;
+  reconnect: boolean;
+  busy: [string, string][];
+  booked: [string, string, string | null, string, string][];
+  /** Routing's days off and pause (router_reps). */
+  out_dates?: { from: string; to: string }[];
+  paused_until?: string | null;
+};
+export type HostState = { id: string; bookable: boolean; why?: "no_calendar" | "reconnect" | "no_hours"; paused?: boolean; input: HostInput };
+
+const DAY = 86_400_000;
+
+/** A rep's days off as a day off on each date (an empty override), on top of the hours' own overrides. */
+export function withDaysOff(a: Availability, out: { from: string; to: string }[] | undefined): Availability {
+  const dates = new Set<string>();
+  for (const d of out ?? []) {
+    const from = Date.parse(`${d.from}T00:00:00Z`);
+    const to = Date.parse(`${d.to}T00:00:00Z`);
+    if (!Number.isFinite(from) || !Number.isFinite(to)) continue;
+    for (let t = from, n = 0; t <= to && n < 400; t += DAY, n++) dates.add(new Date(t).toISOString().slice(0, 10));
+  }
+  if (!dates.size) return a;
+  return { ...a, overrides: [...a.overrides.filter((o) => !dates.has(o.date)), ...[...dates].sort().map((date) => ({ date, ranges: [] as Availability["overrides"][number]["ranges"] }))] };
+}
 
 async function call<T>(rpc: Rpc, fn: string, args: Record<string, unknown>): Promise<T> {
   const { data, error } = await rpc(fn, args);
@@ -24,19 +50,21 @@ async function call<T>(rpc: Rpc, fn: string, args: Record<string, unknown>): Pro
  * The hosts' state and engine input over a span. A host is bookable only with a working calendar to write to, no
  * calendar waiting on a reconnect, and hours set: times are never shown for someone whose calendar can't be checked.
  */
-export async function hostStates(rpc: Rpc, ws: string, users: string[], from: number, to: number, schedule?: string | null): Promise<HostState[]> {
+export async function hostStates(rpc: Rpc, ws: string, users: string[], from: number, to: number, schedule?: string | null, now = Date.now()): Promise<HostState[]> {
   if (!users.length) return [];
   const raw = await call<Raw[]>(rpc, "meeting_inputs", { p_ws: ws, p_users: users, p_from: new Date(from).toISOString(), p_to: new Date(to).toISOString(), ...(schedule ? { p_schedule: schedule } : {}) });
   return (raw ?? []).map((r) => {
     const why = r.reconnect ? "reconnect" : !r.connected ? "no_calendar" : !r.availability ? "no_hours" : undefined;
     const ms = (s: string) => new Date(s).getTime();
+    const paused = !!r.paused_until && Date.parse(r.paused_until) > now;
     return {
       id: r.id,
       bookable: !why,
       ...(why ? { why } : {}),
+      ...(paused ? { paused } : {}),
       input: {
         id: r.id,
-        availability: r.availability ?? { tz: "UTC", weekly: { mon: [], tue: [], wed: [], thu: [], fri: [], sat: [], sun: [] }, overrides: [] },
+        availability: withDaysOff(r.availability ?? { tz: "UTC", weekly: { mon: [], tue: [], wed: [], thu: [], fri: [], sat: [], sun: [] }, overrides: [] }, r.out_dates),
         busy: r.busy.map(([s, e]) => ({ start: ms(s), end: ms(e) })),
         booked: r.booked.map(([s, e, typeId, at, id]) => ({ start: ms(s), end: ms(e), typeId, at: ms(at), id })),
       },
@@ -73,15 +101,21 @@ export type Offer = {
   seated?: number[];
 };
 
-/** The times a meeting type can be booked now, for one length. `owner` is the contact's owner for owner-first. */
-export async function offer(rpc: Rpc, o: { ws: string; type: MeetingType; length: number; now?: number; owner?: string | null }): Promise<Offer> {
+/**
+ * The times a meeting type can be booked now, for one length. `owner` is the contact's owner for owner-first. A type
+ * hosted by a Routing team is offered over the team's members (teamOf); `team` passes one already read.
+ */
+export async function offer(rpc: Rpc, o: { ws: string; type: MeetingType; length: number; now?: number; owner?: string | null; team?: { team: Team | null; type: MeetingType } }): Promise<Offer> {
   const now = o.now ?? Date.now();
+  if (o.type.settings.team && !o.team) return offer(rpc, { ...o, team: await teamOf(rpc, o.ws, o.type) });
+  if (o.team) o = { ...o, type: o.team.type };
   const s = o.type.settings;
   const hostIds = o.type.hosts.map((h) => h.user_id);
   // Owner first: the contact's owner (often the router's pick, docs/router.md Part 7) is offered first even when
   // they aren't one of the type's hosts; the round robin after them stays among the hosts.
   const extra = o.type.kind === "owner_first" && o.owner && !hostIds.includes(o.owner) ? o.owner : null;
-  const states = await hostStates(rpc, o.ws, extra ? [...hostIds, extra] : hostIds, now, now + (s.window + 1) * 86_400_000, s.schedule);
+  // A paused rep takes no new team meetings; their own types are untouched.
+  const states = (await hostStates(rpc, o.ws, extra ? [...hostIds, extra] : hostIds, now, now + (s.window + 1) * 86_400_000, s.schedule, now)).filter((h) => !(s.team && h.paused && h.id !== extra));
   const out = states.filter((h) => !h.bookable && h.id !== extra).map((h) => ({ id: h.id, why: h.why! }));
   const all = states.filter((h) => h.bookable).map((h) => withCounts(h.input, o.type.id));
   const inputs = all.filter((h) => h.id !== extra);
@@ -153,12 +187,14 @@ export const newToken = () => randomBytes(24).toString("base64url");
  * among those still free; then meeting_book locks the hosts and refuses an overlap. Losing any of those races gives
  * back the fresh times, so the guest can pick again at once.
  */
-export async function book(rpc: Rpc, b: BookInput): Promise<BookResult> {
-  const now = b.now ?? Date.now();
+export async function book(rpc: Rpc, b0: BookInput): Promise<BookResult> {
+  const now = b0.now ?? Date.now();
+  const team = b0.type.settings.team ? await teamOf(rpc, b0.ws, b0.type) : undefined;
+  const b = team ? { ...b0, type: team.type } : b0;
   const s = b.type.settings;
-  const fresh = async () => (await offer(rpc, { ws: b.ws, type: b.type, length: b.length, now, owner: b.owner })).slots;
+  const fresh = async () => (await offer(rpc, { ws: b.ws, type: b.type, length: b.length, now, owner: b.owner, ...(team ? { team } : {}) })).slots;
   if (!s.lengths.includes(b.length)) return { ok: false, error: "not_offered", slots: [] };
-  const offered = await offer(rpc, { ws: b.ws, type: b.type, length: b.length, now, owner: b.owner });
+  const offered = await offer(rpc, { ws: b.ws, type: b.type, length: b.length, now, owner: b.owner, ...(team ? { team } : {}) });
   const slot = offered.slots.find((x) => x.start === b.start);
   if (!slot) return { ok: false, error: "not_offered", slots: offered.slots };
   const end = b.start + b.length * MIN;
@@ -167,10 +203,15 @@ export async function book(rpc: Rpc, b: BookInput): Promise<BookResult> {
   const busy = await liveAt(b.liveBusy, slot.hosts, { start: blockStart, end: blockEnd }, offered.seated?.includes(b.start) ? { start: b.start, end } : null);
   const free = slot.hosts.filter((h) => !busy.has(h));
   let hosts: string[];
+  let teamPick: Awaited<ReturnType<typeof pickTeamHost>> = null;
   const kind = b.type.kind;
   if (kind === "collective") hosts = free.length === slot.hosts.length ? free : [];
   else if (kind === "double") hosts = pickPair(free, b.type.hosts, await turnsFor(rpc, b.type.id));
-  else if (kind === "round_robin" || (kind === "owner_first" && !offered.owner)) {
+  else if (team && (kind === "round_robin" || (kind === "owner_first" && !offered.owner))) {
+    // A Routing team: the owner when free, else the queue's turn (src/lib/meetings/team.ts).
+    teamPick = await pickTeamHost(rpc, { ws: b.ws, team: team.team, type: b.type, free, owner: b.owner, turns: () => turnsFor(rpc, b.type.id) });
+    hosts = teamPick ? [teamPick.user] : [];
+  } else if (kind === "round_robin" || (kind === "owner_first" && !offered.owner)) {
     const one = pickHost(free, b.type.hosts, await turnsFor(rpc, b.type.id));
     hosts = one ? [one] : [];
   } else hosts = free.slice(0, 1);
@@ -202,6 +243,7 @@ export async function book(rpc: Rpc, b: BookInput): Promise<BookResult> {
     return { ok: false, error: code, slots: code.startsWith("link") ? [] : (await fresh()).filter((x) => x.start !== b.start) };
   }
   const meetingId = data as string;
+  if (teamPick) await recordTeamRun(rpc, { ws: b.ws, type: b.type, team: team!.team, meetingId, contactId: b.contactId, pick: teamPick }).catch(() => undefined);
   // A sealed copy of the guest's link, so the emails sent later can carry it (only its hash is the key). The meeting
   // stands without it: the emails then go without the manage links.
   await keepManageToken(rpc, meetingId, token).catch(() => undefined);

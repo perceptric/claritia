@@ -8,6 +8,7 @@ import { checkAvailability, checkType } from "../../../../lib/meetings/check.ts"
 import { manageToken, manageUrl } from "../../../../lib/meetings/links.ts";
 import { hostStates, offer } from "../../../../lib/meetings/server.ts";
 import { slots as engine } from "../../../../lib/meetings/slots.ts";
+import { liveRouter } from "../../../../lib/router/server.ts";
 import { DEFAULT_SETTINGS, type MeetingType } from "../../../../lib/meetings/types.ts";
 import { bookUrl, canEditType, checkProfile, slugify, timesText, uniqueSlug } from "../../../../components/app/meetings/model.ts";
 
@@ -88,6 +89,14 @@ export async function saveType(rpc: Rpc, a: Actor, raw: unknown, id?: string | n
   if (cur?.template_id) {
     r.hosts = cur.hosts;
     r.owner_user_id = cur.owner_user_id;
+  }
+  // A Routing team: its members are saved as the hosts, kept for when the router can't be read.
+  const st = (r.settings && typeof r.settings === "object" ? r.settings : {}) as Record<string, unknown>;
+  if (typeof st.team === "string" && st.team) {
+    const queue = (await liveRouter(rpc, a.ws))?.body.queues.find((q) => q.id === st.team);
+    if (!queue) throw new Refused(400, "That Routing team isn't live. Make Routing live first.");
+    if (r.kind !== "owner_first") r.kind = "round_robin";
+    r.hosts = queue.members.map((m) => ({ user_id: m.user, weight: m.weight }));
   }
   const checked = checkType(r, ids);
   if ("errors" in checked) throw new Refused(400, checked.errors[0]!, checked.errors);

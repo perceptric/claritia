@@ -9,6 +9,7 @@ import { enqueueJob, type Rpc } from "../jobs.ts";
 import { keepManageToken } from "./links.ts";
 import { book, hostStates, liveAt, newToken, offer, tokenHash, turnsFor, type BookResult } from "./server.ts";
 import { cut, pickHost, pickPair } from "./slots.ts";
+import { cleanLook, ordered, type PageLook } from "./look.ts";
 import { validZone } from "./time.ts";
 import { checkSettings } from "./check.ts";
 import { guestLocation, toGuestType, type GuestIn, type GuestSlot, type GuestType, type Profile } from "./guest.ts";
@@ -39,6 +40,8 @@ export type Target = {
   profile: Profile | null;
   types: MeetingType[];
   profiles: Profile[];
+  /** The page's look: the person's, else the team page's (src/lib/meetings/look.ts). */
+  look: PageLook;
 };
 
 const SLUG = /^[a-z0-9][a-z0-9-]{0,58}[a-z0-9]$/;
@@ -51,7 +54,10 @@ export async function loadTarget(rpc: Rpc, ws: string, slug: string | null, form
   if (!SLUG.test(w) || (s !== null && !SLUG.test(s))) return null;
   const t = await call<Target | null>(rpc, "book_target", { p_ws: w, p_slug: s, p_form: form && UUID.test(form) ? form : null });
   if (!t) return null;
-  return { ...t, type: t.type ? withDefaults(t.type) : null, types: (t.types ?? []).map(withDefaults) };
+  // A missing look never stops the page: it shows in the default look.
+  const look = cleanLook(await call<unknown>(rpc, "booking_look", { p_ws: t.ws.id, p_user: t.profile?.user_id ?? null }).catch(() => null));
+  const types = ordered((t.types ?? []).map(withDefaults), look.order);
+  return { ...t, type: t.type ? withDefaults(t.type) : null, types, look };
 }
 
 /** A /booking/<handle> name: the workspace's booking name and, for a person, their link name. Null when it's free. */

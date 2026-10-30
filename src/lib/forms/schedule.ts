@@ -42,7 +42,8 @@ export const FALLBACK = "fallback";
 export const OWNED = "owned";
 
 /** How routing placed the lead, as far as the booking step needs it. null: routing didn't answer in time. */
-export type RoutedAs = { kind: "owner" | "held" | "unassigned"; rule?: string | null; by?: string | null } | null;
+/** `meet`: the meeting type the routing rule (or the fallback) names, offered instead of the form's own. */
+export type RoutedAs = { kind: "owner" | "held" | "unassigned"; rule?: string | null; by?: string | null; meet?: string | null } | null;
 
 /**
  * Whether routing lets this lead book (who "routed"). A lead routed by a picked rule books; one no rule matched

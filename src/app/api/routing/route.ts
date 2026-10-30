@@ -52,7 +52,7 @@ export async function POST(request: Request) {
         case "rep":
           return A.saveRep(rpc, c, str("user") ?? c.user, (body.patch as Record<string, unknown>) ?? {});
         case "held":
-          return A.heldAction(rpc, db, c, { op: str("op") ?? "", contacts: Array.isArray(body.contacts) ? (body.contacts as string[]) : [], domain: str("domain") ?? undefined, user: str("user") ?? undefined });
+          return A.heldAction(rpc, db, c, { op: str("op") ?? "", contacts: Array.isArray(body.contacts) ? (body.contacts as string[]) : [], domain: str("domain") ?? undefined, user: str("user") ?? undefined, moveMeetings: body.moveMeetings === true });
         case "lists":
           return A.saveLists(rpc, c, body.allow, body.block);
         case "alert":

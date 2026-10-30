@@ -152,7 +152,7 @@ export function VersionView({
         </div>
         <aside className="relative min-h-0 overflow-y-auto border-line lg:border-l">
           {row.data ? (
-            <Inspector sel={sel} body={row.data.body} edit={() => {}} readOnly members={data.members} fields={data.fields} forms={data.forms} counts={null} problems={[]} lists={data.lists} onSelect={setSel} />
+            <Inspector sel={sel} body={row.data.body} edit={() => {}} readOnly members={data.members} fields={data.fields} forms={data.forms} meetings={data.meetings ?? []} counts={null} problems={[]} lists={data.lists} onSelect={setSel} />
           ) : null}
         </aside>
       </div>

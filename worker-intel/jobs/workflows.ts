@@ -70,6 +70,8 @@ async function runStep(rpc: Rpc, ws: string, run: Claimed, step: Step, f: Facts,
       return { status: r.status === "decided" || r.status === "same" ? "done" : "skipped", result: { outcome: r.decision?.outcome ?? null, why: r.status === "decided" || r.status === "same" ? undefined : r.status } };
     }
     case "route": {
+      // No second routing (docs/scheduling-plan.md Part 13.5): a lead Routing just routed keeps that rep.
+      if (await call<boolean>(rpc, "router_recent", { p_ws: ws, p_contact: c.id, p_minutes: 10 })) return { status: "skipped", result: { why: "Already routed" } };
       const r = await (d.route ?? route)(rpc, { ws, contact: c.id, key: `wf:${run.id}:${step.id}`, reason: "api" });
       return { status: "done", result: { routed: r.status, owner: "result" in r && r.result.kind === "owner" ? r.result.user : null } };
     }

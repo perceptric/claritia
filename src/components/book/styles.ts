@@ -17,6 +17,7 @@ export const BOOK_CSS = `
 :where(.cb-root) a{color:inherit}
 .cb-h{font-family:var(--clr-heading-font);font-weight:600;letter-spacing:-.02em;line-height:1.15;margin:0}
 .cb-muted{color:var(--clr-muted)}
+.cb-welcome{margin:-6px 0 18px;font-size:1em;line-height:1.5}
 .cb-small{font-size:.85em}
 .cb-label{font-size:12px;font-weight:500;color:var(--clr-muted)}
 .cb-eyebrow{font-family:var(--cb-mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--clr-muted);font-weight:400}

@@ -10,6 +10,7 @@ import { Search } from "../../Icons";
 import { BrandLogo } from "../BrandLogo";
 import { askConfirm } from "../Dialogs";
 import { PersonAvatar, usePeople, type Person } from "../meetings/parts";
+import { Select } from "../Select";
 import { Sheet } from "../Sheet";
 import { announceChange, Badge, Button, Empty, ErrorNote, errorText, Input, Loading, must, Td, Th, timeAgo, useLoad, type ViewProps } from "../ui";
 import { routingApi } from "./api";
@@ -358,7 +359,7 @@ function dueWords(d: Date): string {
  * One run in a side panel: who the lead is, where it came from, the sentences with names as links, the owner, and
  * Open contact, Route again and Test draft.
  */
-export function RunPanel({ sb, session, ws, navigate, runId, onClose, onRouted }: Pick<ViewProps, "sb" | "session" | "ws" | "role" | "navigate"> & { runId: string; onClose: () => void; onRouted?: (run: string) => void }) {
+export function RunPanel({ sb, session, ws, role, navigate, runId, onClose, onRouted }: Pick<ViewProps, "sb" | "session" | "ws" | "role" | "navigate"> & { runId: string; onClose: () => void; onRouted?: (run: string) => void }) {
   const [id, setId] = useState(runId);
   const [was, setWas] = useState(runId);
   if (runId !== was) {
@@ -403,6 +404,26 @@ export function RunPanel({ sb, session, ws, navigate, runId, onClose, onRouted }
     }
   };
 
+  // Give the lead to another rep; with a meeting coming up, ask once whether it moves too (docs/scheduling-plan.md 12.6).
+  const giveTo = async (user: string) => {
+    if (!r?.contact_id) return;
+    setBusy(true);
+    setError("");
+    try {
+      const soon = await sb.from("meetings").select("id", { count: "exact", head: true }).eq("workspace_id", ws.id).eq("contact_id", r.contact_id).eq("status", "booked").gt("start_at", new Date().toISOString());
+      const moveMeetings = (soon.count ?? 0) > 0 && (await askConfirm("Move their upcoming meeting too?", { ok: "Move it" }));
+      const out = await routingApi<{ moved?: number; kept?: number }>(session, ws.id, "held", { op: "assign", contacts: [r.contact_id], user, moveMeetings });
+      const name = people.data?.byId.get(user)?.name ?? "them";
+      if (moveMeetings && out.kept) setError(`${name} isn't free at that time. The meeting stays where it is.`);
+      announceChange();
+      onRouted?.(id);
+    } catch (e) {
+      setError(errorText(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
     <Sheet
       title={lead ? [lead.name, lead.company].filter(Boolean).join(" · ") : "Run"}
@@ -416,6 +437,18 @@ export function RunPanel({ sb, session, ws, navigate, runId, onClose, onRouted }
             <Button variant="ghost" size="sm" onClick={() => navigate(ROUTING, "", `test=${r.contact_id}`)}>
               Test draft
             </Button>
+            {role === "owner" ? (
+              <Select<string>
+                value=""
+                options={(people.data?.list ?? []).map((p) => ({ value: p.id, label: p.name }))}
+                onChange={(u) => void giveTo(u)}
+                ariaLabel="Give to"
+                placeholder="Give to"
+                plainPlaceholder
+                disabled={busy}
+                className="h-8 rounded-full border border-line px-3 text-[12.5px]"
+              />
+            ) : null}
             <Button size="sm" onClick={again} disabled={busy}>
               {busy ? "Routing…" : "Route again"}
             </Button>

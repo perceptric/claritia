@@ -37,7 +37,8 @@ function Tags({ onAdd }: { onAdd: (tag: string) => void }) {
   );
 }
 
-export function TeamAlerts({ form, apply }: { form: Form; apply: (op: Op) => void }) {
+/** `routingLive`: Routing posts each new lead in its Slack channel, so the form's own post is skipped. */
+export function TeamAlerts({ form, apply, routingLive = false }: { form: Form; apply: (op: Op) => void; routingLive?: boolean }) {
   const n = { ...DEFAULT_NOTIFY, ...form.notify };
   const [adding, setAdding] = useState("");
   const add = () => {
@@ -87,9 +88,15 @@ export function TeamAlerts({ form, apply }: { form: Form; apply: (op: Op) => voi
               </Row>
             </div>
             <div className="py-2">
-              <Row label="Post in the Routing Slack channel">
-                <Toggle label="Post in the Routing Slack channel" on={n.slack} onChange={(v) => apply({ op: "set_notify", notify: { slack: v } })} />
-              </Row>
+              {routingLive ? (
+                <Row label="Post in the Routing Slack channel">
+                  <span className="text-[12.5px] text-muted">Routing posts new leads here</span>
+                </Row>
+              ) : (
+                <Row label="Post in the Routing Slack channel">
+                  <Toggle label="Post in the Routing Slack channel" on={n.slack} onChange={(v) => apply({ op: "set_notify", notify: { slack: v } })} />
+                </Row>
+              )}
             </div>
           </div>
         </>

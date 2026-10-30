@@ -3,7 +3,7 @@
 import { useEffect } from "react";
 import { KitScope } from "./BookingCalendar";
 
-// The frame around every booking page: the kit's look, the card, and "Powered by Claritia". In an embed
+// The frame around every booking page: the kit's look, the card, and "Booked with Claritia" (unless the page hides it). In an embed
 // (<claritia-book>, ?embed=1) it sits flush and tells the page around it its height, so the frame fits.
 
 export function postToParent(msg: Record<string, unknown>) {
@@ -12,7 +12,8 @@ export function postToParent(msg: Record<string, unknown>) {
   } catch {}
 }
 
-export function BookShell({ tokens, design, embed, narrow, children }: { tokens: Record<string, unknown> | null; design?: unknown; embed?: boolean; narrow?: boolean; children: React.ReactNode }) {
+/** `vars`: the page look's overrides (src/lib/meetings/look.ts). `badge`: show "Booked with Claritia". */
+export function BookShell({ tokens, design, embed, narrow, vars, badge = true, children }: { tokens: Record<string, unknown> | null; design?: unknown; embed?: boolean; narrow?: boolean; vars?: Record<string, string>; badge?: boolean; children: React.ReactNode }) {
   useEffect(() => {
     if (!embed) return;
     let last = 0;
@@ -30,14 +31,16 @@ export function BookShell({ tokens, design, embed, narrow, children }: { tokens:
     return () => ro.disconnect();
   }, [embed]);
   return (
-    <KitScope tokens={tokens ?? {}} design={design} className={`cb-page ${embed ? "cb-embed" : ""}`}>
+    <KitScope tokens={tokens ?? {}} design={design} vars={vars} className={`cb-page ${embed ? "cb-embed" : ""}`}>
       <div className={`cb-wrap ${narrow ? "cb-narrow" : ""}`}>
         <main className="cb-card">{children}</main>
-        <footer className="cb-foot">
-          <a href="https://tryclaritia.com" target="_blank" rel="noopener">
-            Powered by Claritia
-          </a>
-        </footer>
+        {badge ? (
+          <footer className="cb-foot">
+            <a href="https://tryclaritia.com" target="_blank" rel="noopener">
+              Booked with Claritia
+            </a>
+          </footer>
+        ) : null}
       </div>
     </KitScope>
   );

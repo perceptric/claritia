@@ -220,17 +220,27 @@ export async function routeFill(rpc: Rpc, ws: string, contact: string, submissio
   const key = `form:${submission}`;
   const later = () => enqueueJob(rpc, { workspaceId: ws, kind: "route", key, payload: { contact, reason: "form", key } }).catch(() => undefined);
   try {
-    const { route } = await import("../router/server.ts");
+    const { liveRouter, route } = await import("../router/server.ts");
     const { qualifyContact } = await import("../enrich/server.ts");
-    const done = route(rpc, { ws, contact, key, reason: "form", qualify: (c) => qualifyContact(rpc, c, { timeoutMs: 2900 }) });
-    const r = await Promise.race([done, new Promise<null>((res) => setTimeout(() => res(null), 300))]);
+    const done = (async () => {
+      const live = await liveRouter(rpc, ws);
+      return { live, r: await route(rpc, { ws, contact, key, reason: "form", live, qualify: (c) => qualifyContact(rpc, c, { timeoutMs: 2900 }) }) };
+    })();
+    const got = await Promise.race([done, new Promise<null>((res) => setTimeout(() => res(null), 300))]);
     done.catch(() => undefined);
-    if (!r) {
+    if (!got) {
       await later();
       return null;
     }
+    const r = got.r;
     if (r.status !== "ok" && r.status !== "dup") return null;
-    return r.result.kind === "owner" ? { kind: "owner", rule: r.result.rule ?? null, by: r.result.by } : { kind: r.result.kind };
+    const res = r.result;
+    if (res.kind !== "owner") return { kind: res.kind };
+    // The meeting the rule names (docs/scheduling-plan.md 12.5); a lead no rule matched takes the fallback's.
+    const body = got.live?.body;
+    const rule = res.rule ? body?.rules.list.find((x) => x.id === res.rule) : undefined;
+    const meet = rule ? rule.meet : res.by === "fallback" ? body?.fallback?.meet : undefined;
+    return { kind: "owner", rule: res.rule ?? null, by: res.by, ...(meet ? { meet } : {}) };
   } catch {
     await later();
     return null;
@@ -313,9 +323,10 @@ export async function acceptFill(
       // Claritia calendar: times from the cache with a signed token, or the message when there are none to show. A
       // booking hiccup never loses the fill: it's saved, and the lead gets the message.
       let booking: Booking | null = null;
-      if (sch.meetingTypeId && o.secret) {
+      const typeId = routed?.meet ?? sch.meetingTypeId;
+      if (typeId && o.secret) {
         try {
-          booking = await offerForFill(rpc, { submission: sid, typeId: sch.meetingTypeId, secret: o.secret, now: o.now });
+          booking = await offerForFill(rpc, { submission: sid, typeId, secret: o.secret, now: o.now });
         } catch {
           booking = null;
         }
@@ -356,9 +367,15 @@ async function pastHourly(rpc: Rpc, form: string, perHour: number): Promise<bool
 }
 
 /** One form_notify job per submission when the form alerts the team or replies (worker-intel/jobs/forms.ts). */
+/**
+ * The alerts go now (they wait for routing in the job); the auto-reply goes 5 minutes later, so a lead who books in
+ * the meantime gets it without a booking link (docs/scheduling-plan.md Part 13.1).
+ */
+export const REPLY_DELAY_S = 300;
+
 export async function queueNotify(rpc: Rpc, ws: string, body: Form, submission: string): Promise<void> {
-  if (!body.notify?.on && !body.reply?.on) return;
-  await enqueueJob(rpc, { workspaceId: ws, kind: "form_notify", key: `form_notify:${submission}`, payload: { submission } }).catch(() => undefined);
+  if (body.notify?.on) await enqueueJob(rpc, { workspaceId: ws, kind: "form_notify", key: `form_notify:${submission}`, payload: { submission, only: "alerts" } }).catch(() => undefined);
+  if (body.reply?.on) await enqueueJob(rpc, { workspaceId: ws, kind: "form_notify", key: `form_reply:${submission}`, payload: { submission, only: "reply" }, delayS: REPLY_DELAY_S }).catch(() => undefined);
 }
 
 /** A saved fill as releaseFill reads it. */

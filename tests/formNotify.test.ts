@@ -41,7 +41,7 @@ function info(over: Partial<NotifyInfo> = {}, form: Partial<Form> = {}): NotifyI
   };
 }
 
-function harness(start: NotifyInfo | null, failFor: (to: string, n: number) => Error | null = () => null) {
+function harness(start: NotifyInfo | null, failFor: (to: string, n: number) => Error | null = () => null, payload: Record<string, unknown> = {}, fetcher?: typeof fetch) {
   const marked = new Set<string>(start?.sent ?? []);
   const mails: { to: string; raw: string }[] = [];
   const tries = new Map<string, number>();
@@ -60,8 +60,8 @@ function harness(start: NotifyInfo | null, failFor: (to: string, n: number) => E
       return "id";
     },
   };
-  const run = formNotify(rpc as never, { mailer: mailer as never, base: "https://app.test", from: "meetings@tryclaritia.com" });
-  const job = { id: "j", kind: "form_notify", key: `form_notify:${SID}`, workspace_id: WS, payload: { submission: SID }, attempts: 1 } as unknown as Job;
+  const run = formNotify(rpc as never, { mailer: mailer as never, base: "https://app.test", from: "meetings@tryclaritia.com", fetcher });
+  const job = { id: "j", kind: "form_notify", key: `form_notify:${SID}`, workspace_id: WS, payload: { submission: SID, ...payload }, attempts: 1 } as unknown as Job;
   return { go: () => run(job, new AbortController().signal), mails, marked };
 }
 
@@ -175,4 +175,53 @@ test("form_notify sends nothing for spam, tests, gone submissions or a paused wo
   const free = harness(info({ contact: { ...info().contact!, email: "maya@gmail.com", email_class: "free" } }));
   await free.go();
   assert.ok(!free.mails.some((m) => m.to === "maya@gmail.com"));
+});
+
+const textOf = (raw: string) => Buffer.from(raw.split("Content-Transfer-Encoding: base64\r\n\r\n")[1]!.split("\r\n--")[0]!.replace(/\r\n/g, ""), "base64").toString("utf8");
+const ago = (s: number) => new Date(Date.now() - s * 1000).toISOString();
+
+test("alerts go now and the auto-reply 5 minutes later, each its own job", async () => {
+  const { queueNotify, REPLY_DELAY_S } = await import("../src/lib/forms/submit.ts");
+  const jobs: Record<string, unknown>[] = [];
+  const rpc = async (fn: string, args: Record<string, unknown>) => (fn === "enqueue_job" && jobs.push(args), { data: "j", error: null });
+  await queueNotify(rpc as never, WS, info().body!, SID);
+  assert.deepEqual(jobs.map((j) => [j.p_key, (j.p_payload as { only: string }).only, j.p_delay_s]), [[`form_notify:${SID}`, "alerts", 0], [`form_reply:${SID}`, "reply", REPLY_DELAY_S]]);
+  const alerts = harness(info(), undefined, { only: "alerts" });
+  await alerts.go();
+  assert.ok(!alerts.mails.some((m) => m.to === "maya@linear.app"));
+  const reply = harness(info(), undefined, { only: "reply" });
+  await reply.go();
+  assert.deepEqual(reply.mails.map((m) => m.to), ["maya@linear.app"]);
+});
+
+test("alerts wait for a route job that hasn't finished, then send without a rep", async () => {
+  const young = harness(info({ routing: "pending", owner: null, submission: { ...info().submission, created_at: ago(20) } }));
+  await assert.rejects(young.go(), (e) => e instanceof JobError && /routed/.test(e.message));
+  assert.equal(young.mails.length, 0, "nothing sent while it waits");
+  const old = harness(info({ routing: "pending", owner: null, submission: { ...info().submission, created_at: ago(200) } }));
+  await old.go();
+  assert.ok(old.mails.length >= 2, "after 2 minutes it sends anyway");
+  const done = harness(info({ routing: "done", submission: { ...info().submission, created_at: ago(5) } }));
+  await done.go();
+  assert.ok(done.mails.length >= 2);
+});
+
+test("the form's Slack post is left to Routing when the router is live", async () => {
+  const posts: string[] = [];
+  const fetcher = (async (url: string) => (posts.push(String(url)), new Response("ok", { status: 200 }))) as unknown as typeof fetch;
+  const withSlack = (routing: NotifyInfo["routing"]) => info({ routing, sealed: "sealed" }, { notify: { on: true, to: ["vincent@perceptric.com"], subject: "New", answers: false, slack: true } });
+  const live = harness(withSlack("done"), undefined, { only: "alerts" }, fetcher);
+  await live.go();
+  assert.ok(!live.marked.has("slack"));
+  assert.equal(posts.length, 0);
+});
+
+test("the auto-reply links to the meeting the lead was offered, and leaves the link out once they booked", async () => {
+  const offered = harness(info({ meet: { id: "t", slug: "enterprise-demo" } }), undefined, { only: "reply" });
+  await offered.go();
+  assert.match(textOf(offered.mails[0]!.raw), /https:\/\/app.test\/booking\/sam\/enterprise-demo/);
+  const booked = harness(info({ booked: true }), undefined, { only: "reply" });
+  await booked.go();
+  assert.equal(booked.mails.length, 1, "the reply still goes");
+  assert.doesNotMatch(textOf(booked.mails[0]!.raw), /booking/);
 });

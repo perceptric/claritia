@@ -95,7 +95,7 @@ async function routerRow(db: Q, ws: string): Promise<RouterRow | null> {
 
 /** Everything the Router screen opens with. */
 export async function load(rpc: Rpc, db: Q, c: Caller) {
-  const [row, live, members, f, stats, slack, chatRow] = await Promise.all([
+  const [row, live, members, f, stats, slack, chatRow, meetings] = await Promise.all([
     routerRow(db, c.ws),
     liveRouter(rpc, c.ws),
     membersOf(rpc, db, c.ws),
@@ -103,6 +103,7 @@ export async function load(rpc: Rpc, db: Q, c: Caller) {
     call<Record<string, unknown>>(rpc, "router_stats", { p_ws: c.ws, p_days: 7 }),
     db.from("slack_installs").select("team_name, created_at").eq("workspace_id", c.ws).maybeSingle(),
     db.from("router_chats").select("messages").eq("workspace_id", c.ws).maybeSingle(),
+    db.from("meeting_types").select("id, name, settings").eq("workspace_id", c.ws).eq("active", true).is("template_id", null).order("name"),
   ]);
   const versions = ((await db.from("router_versions").select("version, note, published_by, published_at").eq("workspace_id", c.ws).order("version", { ascending: false }).limit(100)).data ?? []) as unknown[];
   let legacy: { body: RouterBody; unmapped: string[] } | null = null;
@@ -126,6 +127,8 @@ export async function load(rpc: Rpc, db: Q, c: Caller) {
     members,
     fields: f.fields,
     forms: f.forms,
+    // The meeting types a rule can offer (docs/scheduling-plan.md 12.5): name and first length.
+    meetings: ((meetings.data ?? []) as { id: string; name: string; settings: { lengths?: number[] } | null }[]).map((m) => ({ id: m.id, name: m.name, minutes: m.settings?.lengths?.[0] ?? null })),
     stats,
     lists: { allow: row?.allow ?? [], block: row?.block ?? [] },
     alert: { label: row?.alert_label ?? null },
@@ -362,7 +365,7 @@ export async function saveRep(rpc: Rpc, c: Caller, user: string, patch: Record<s
 const domainOf = (s: string) => s.trim().toLowerCase().replace(/^@/, "").split("@").pop()!;
 
 /** Held and Unassigned (docs/router-ux.md 4.9). */
-export async function heldAction(rpc: Rpc, db: Q, c: Caller, o: { op: string; contacts?: string[]; domain?: string; user?: string }) {
+export async function heldAction(rpc: Rpc, db: Q, c: Caller, o: { op: string; contacts?: string[]; domain?: string; user?: string; moveMeetings?: boolean }) {
   ownerOnly(c);
   const ids = (o.contacts ?? []).filter((x) => /^[0-9a-f-]{36}$/.test(x)).slice(0, 1000);
   const row = await routerRow(db, c.ws);
@@ -404,7 +407,19 @@ export async function heldAction(rpc: Rpc, db: Q, c: Caller, o: { op: string; co
     case "assign": {
       if (!o.user || !/^[0-9a-f-]{36}$/.test(o.user)) throw new Refused(400, "Pick a rep.");
       for (const id of ids) await call(rpc, "router_assign", { p_ws: c.ws, p_contact: id, p_owner: o.user, p_by: c.user });
-      return { done: ids.length };
+      // "Move their upcoming meeting too?" (docs/scheduling-plan.md 12.6): only when the person said yes.
+      if (!o.moveMeetings) return { done: ids.length };
+      const { handOffMeetings } = await import("../meetings/team.ts");
+      const { liveBusyFor } = await import("../meetings/live.ts");
+      const liveBusy = liveBusyFor(rpc, c.ws);
+      let moved = 0;
+      let kept = 0;
+      for (const id of ids) {
+        const r = await handOffMeetings(rpc, { ws: c.ws, contact: id, user: o.user, liveBusy });
+        moved += r.moved;
+        kept += r.kept;
+      }
+      return { done: ids.length, moved, kept };
     }
   }
   throw new Refused(400, "Unknown action.");

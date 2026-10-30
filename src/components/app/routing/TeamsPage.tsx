@@ -8,7 +8,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { dealPreview } from "@/lib/router/deal";
 import { METHODS, type Method, type Queue } from "@/lib/router/types";
-import { Shuffle, Plus } from "../../Icons";
+import { CalendarIcon, Shuffle, Plus } from "../../Icons";
 import { Badge, Button, ErrorNote, Loading, must, Page, Segmented, useLoad, type ViewProps } from "../ui";
 import { PersonAvatar, usePeople } from "../meetings/parts";
 import { reducedMotion } from "./parts";
@@ -30,6 +30,13 @@ export function TeamsPage(props: ViewProps) {
       m.set(x.owner, (m.get(x.owner) ?? 0) + 1);
       out.set(x.queue_id, m);
     }
+    return out;
+  }, ws.id);
+  // The meeting types each team books (docs/scheduling-plan.md 12.7).
+  const types = useLoad(async () => {
+    const rows = (must(await sb.from("meeting_types").select("id, name, settings").eq("workspace_id", ws.id).eq("active", true)) ?? []) as { id: string; name: string; settings: { team?: string } | null }[];
+    const out = new Map<string, { id: string; name: string }[]>();
+    for (const t of rows) if (t.settings?.team) out.set(t.settings.team, [...(out.get(t.settings.team) ?? []), { id: t.id, name: t.name }]);
     return out;
   }, ws.id);
   const owner = role === "owner";
@@ -72,6 +79,8 @@ export function TeamsPage(props: ViewProps) {
                 i={i}
                 people={people.data?.byId}
                 counts={turns.data?.get(q.id)}
+                meetings={types.data?.get(q.id) ?? []}
+                onMeeting={(id) => navigate("scheduling", `types/${id}`)}
                 canEdit={owner}
                 saving={r.saving}
                 onMethod={(method) => void r.change((b) => ({ ...b, queues: b.queues.map((x) => (x.id === q.id ? { ...x, method } : x)) }))}
@@ -87,7 +96,27 @@ export function TeamsPage(props: ViewProps) {
   );
 }
 
-function TeamCard({ q, i, people, counts, canEdit, saving, onMethod }: { q: Queue; i: number; people?: Map<string, import("../meetings/parts").Person>; counts?: Map<string, number>; canEdit: boolean; saving: boolean; onMethod: (m: Method) => void }) {
+function TeamCard({
+  q,
+  i,
+  people,
+  counts,
+  meetings,
+  onMeeting,
+  canEdit,
+  saving,
+  onMethod,
+}: {
+  q: Queue;
+  i: number;
+  people?: Map<string, import("../meetings/parts").Person>;
+  counts?: Map<string, number>;
+  meetings: { id: string; name: string }[];
+  onMeeting: (id: string) => void;
+  canEdit: boolean;
+  saving: boolean;
+  onMethod: (m: Method) => void;
+}) {
   const [dealt, setDealt] = useState<string[] | null>(null);
   const [shown, setShown] = useState(0);
   const name = (id: string) => people?.get(id)?.name ?? "Former teammate";
@@ -143,6 +172,16 @@ function TeamCard({ q, i, people, counts, canEdit, saving, onMethod }: { q: Queu
           );
         })}
       </ul>
+      {meetings.length ? (
+        <div className="flex flex-wrap items-center gap-1.5">
+          <CalendarIcon size={13} className="text-muted" aria-hidden="true" />
+          {meetings.map((m) => (
+            <button key={m.id} type="button" onClick={() => onMeeting(m.id)} className="press rounded-full border border-line px-2.5 py-0.5 text-[12px] text-body hover:bg-hover">
+              {m.name}
+            </button>
+          ))}
+        </div>
+      ) : null}
       <footer className="flex items-center gap-2 text-[12.5px] text-muted">
         <span className="flex-1">{dealt ? `${Math.min(shown, dealt.length)} of 20 dealt` : next ? `Next in line: ${name(next)}` : "No reps yet"}</span>
         {q.members.length ? (
