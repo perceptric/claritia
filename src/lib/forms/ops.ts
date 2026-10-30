@@ -4,6 +4,7 @@
 // the server.
 
 import { readFormDesign, type FormDesign } from "../design/model.ts";
+import { DEFAULT_KEEP, DEFAULT_NOTIFY, DEFAULT_REPLY, type Keep, type Notify, type Reply } from "./notify.ts";
 import { allFields, checkForm, CONTACT_KEYS, isChoice, isContent, newId, questionKey, type After, type Choice, type Cond, type Field, type FieldKey, type FieldType, type Form, type Rule, type Step } from "./schema.ts";
 
 export type FieldInput = Partial<Omit<Field, "id">> & { type: FieldType; label: string };
@@ -21,7 +22,10 @@ export type Op =
   | { op: "set_layout"; labels?: Form["layout"]["labels"]; width?: Form["layout"]["width"]; progress?: Form["layout"]["progress"]; maxWidth?: number | null }
   | { op: "set_copy"; title?: string; intro?: string; submit?: string; submitFull?: boolean }
   | { op: "set_consent"; mode?: Form["consent"]["mode"]; label?: string; topicId?: string | null }
-  | { op: "set_spam"; minSeconds?: number; turnstile?: boolean }
+  | { op: "set_spam"; minSeconds?: number; turnstile?: boolean; blockFree?: boolean; sites?: string[]; perHour?: number | null }
+  | { op: "set_notify"; notify: Partial<Notify> }
+  | { op: "set_reply"; reply: Partial<Reply> }
+  | { op: "set_keep"; keep: Partial<Keep> }
   | { op: "set_enrich"; hideKnown?: boolean; fields?: string[] }
   | { op: "set_after"; end: After["end"] }
   | { op: "set_schedule"; schedule: After["schedule"] | null }
@@ -182,7 +186,26 @@ export function applyOp(input: Form, op: Op): { form: Form } | { error: string }
       if (op.topicId === null || form.consent.mode === "off" || form.consent.mode === "notice") delete form.consent.topicId;
       return { form };
     case "set_spam":
-      form.spam = { ...form.spam, ...(op.minSeconds !== undefined ? { minSeconds: op.minSeconds } : {}), ...(op.turnstile !== undefined ? { turnstile: op.turnstile } : {}) };
+      form.spam = {
+        ...form.spam,
+        ...(op.minSeconds !== undefined ? { minSeconds: op.minSeconds } : {}),
+        ...(op.turnstile !== undefined ? { turnstile: op.turnstile } : {}),
+        ...(op.blockFree !== undefined ? { blockFree: op.blockFree } : {}),
+        ...(op.sites !== undefined ? { sites: op.sites } : {}),
+      };
+      if (op.perHour === null) delete form.spam.perHour;
+      else if (op.perHour !== undefined) form.spam.perHour = op.perHour;
+      if (form.spam.sites && !form.spam.sites.length) delete form.spam.sites;
+      if (form.spam.blockFree === false) delete form.spam.blockFree;
+      return { form };
+    case "set_notify":
+      form.notify = { ...DEFAULT_NOTIFY, ...form.notify, ...op.notify };
+      return { form };
+    case "set_reply":
+      form.reply = { ...DEFAULT_REPLY, ...form.reply, ...op.reply };
+      return { form };
+    case "set_keep":
+      form.keep = { ...DEFAULT_KEEP, ...form.keep, ...op.keep };
       return { form };
     case "set_enrich": {
       const cur = form.enrich ?? { hideKnown: false, fields: [] };
@@ -287,6 +310,12 @@ export function describeOp(op: Op, before: Form): string {
       return op.mode === "off" ? "Turned off the consent box" : "Changed the consent box";
     case "set_spam":
       return "Changed spam checks";
+    case "set_notify":
+      return op.notify.on === false ? "Turned off team alerts" : op.notify.on ? "Turned on team alerts" : "Changed team alerts";
+    case "set_reply":
+      return op.reply.on === false ? "Turned off the auto-reply" : op.reply.on ? "Turned on the auto-reply" : "Changed the auto-reply";
+    case "set_keep":
+      return "Changed how long submissions are kept";
     case "set_enrich":
       return op.hideKnown === false ? "Shows every field" : "Hides fields we already know";
     case "set_after":

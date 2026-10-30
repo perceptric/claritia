@@ -8,9 +8,10 @@ import { readSystem } from "@/lib/design/model";
 import { requireUser } from "@/lib/serverAuth";
 import { serviceClient } from "@/lib/serviceClient";
 
-// One chat turn on a form: POST { workspaceId, id, rev, message, confirmed? } (docs/form-builder.md 4.2). The editor
-// saves its draft first and sends the draft_rev it holds; the chat's changes are saved as the next draft and come
-// back with the new rev. The same request on the same form replays from the step cache.
+// One change asked of a form: POST { workspaceId, id, rev, message, confirmed? } (docs/form-builder.md 4.2). The
+// builder's AI bar saves its draft first and sends the draft_rev it holds; the changes are saved as the next draft and
+// come back with the new rev. Nothing of the conversation is kept: each ask reads the form as it is now. The same
+// request on the same form replays from the step cache.
 
 const bad = (error: string, status = 400) => Response.json({ error }, { status });
 
@@ -31,12 +32,11 @@ export async function POST(request: Request) {
   const { data: f } = await db.from("forms").select("id, name, draft, draft_rev, brand_kit_id").eq("id", b.id).eq("workspace_id", ws).maybeSingle();
   if (!f) return bad("Form not found.", 404);
   if (typeof b.rev === "number" && b.rev !== f.draft_rev) return bad("This form changed in another window. Reload to see the latest.", 409);
-  const [custom, kit, sources, dests, chat, fills] = await Promise.all([
+  const [custom, kit, sources, dests, fills] = await Promise.all([
     db.from("fields").select("key, label, type").eq("workspace_id", ws).eq("object", "contact"),
     f.brand_kit_id ? db.from("brand_kits").select("name, source_url, site_forms, tokens, design, design_rev").eq("id", f.brand_kit_id).maybeSingle() : Promise.resolve({ data: null }),
     db.from("sources").select("name").eq("workspace_id", ws).neq("status", "disconnected"),
     db.from("form_destinations").select("name").eq("form_id", f.id),
-    db.from("form_chats").select("messages").eq("form_id", f.id).maybeSingle(),
     db.from("submissions").select("values").eq("form_id", f.id).eq("spam", false).order("created_at", { ascending: false }).limit(300),
   ]);
   const draft = f.draft as Partial<Form>;
@@ -50,7 +50,7 @@ export async function POST(request: Request) {
     ...(k ? { system: readSystem(k.design ?? {}, tokens), tokens } : { tokens }),
     tools: ((sources.data ?? []) as { name: string }[]).map((s) => s.name),
     destinations: ((dests.data ?? []) as { name: string }[]).map((d) => d.name),
-    history: (((chat.data?.messages as { role: "user" | "assistant"; text: string }[] | undefined) ?? []).filter((m) => m.text)).slice(-10),
+    history: [],
     confirmed: b.confirmed === true,
     usedKeys: [...new Set(((fills.data ?? []) as { values: Record<string, unknown> }[]).flatMap((s) => Object.keys(s.values)))].sort(),
   };
@@ -80,13 +80,5 @@ export async function POST(request: Request) {
     if (saved.error) return bad(saved.error.message, 409);
     rev = saved.data as number;
   }
-  const at = new Date().toISOString();
-  await db.rpc("form_chat_add", {
-    p_form: f.id,
-    p_messages: [
-      { role: "user", text: message, at },
-      { role: "assistant", text: out.reply, ...(out.lines.length ? { lines: out.lines } : {}), ...(out.ask ? { ask: out.ask } : {}), at },
-    ],
-  });
   return Response.json({ form: out.form, rev, reply: out.reply, lines: out.lines, ask: out.ask ?? null, styles: !!out.system });
 }

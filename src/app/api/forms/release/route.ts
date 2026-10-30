@@ -1,5 +1,5 @@
 import { cleaningCtx, isMember } from "@/lib/contacts/server";
-import { releaseFill, type HeldFill } from "@/lib/forms/submit";
+import { queueNotify, releaseFill, type HeldFill } from "@/lib/forms/submit";
 import type { Form } from "@/lib/forms/schema";
 import { requireUser } from "@/lib/serverAuth";
 import { serviceClient } from "@/lib/serviceClient";
@@ -47,7 +47,11 @@ export async function POST(request: Request) {
     }
     const r = await releaseFill(rpc, s, body, ctx);
     if ("error" in r) errors[s.id] = r.error;
-    else released++;
+    else {
+      released++;
+      // Let through, it alerts the team and replies like any submission.
+      await queueNotify(rpc, ws, body, s.id);
+    }
   }
   return Response.json({ released, errors });
 }

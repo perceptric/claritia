@@ -1,116 +1,116 @@
 "use client";
 
-// The assistant beside the form (docs/form-builder.md 4.4). useFormChat loads the conversation saved with the form
-// (form_chats) and sends new messages to /api/forms/chat with the saved draft's revision, so a change lands on what's
-// on screen. ChatHistory shows it on the left; the box that sends is at the bottom of the page (AskDock).
+// The AI bar under the form (docs/form-builder.md 4.4): type what to change and the form changes. Nothing is kept
+// as a chat; the bar shows what the last ask did, with Undo, or the one question it needs answered. useFormChat
+// sends to /api/forms/chat with the saved draft's revision, so a change lands on what's on screen.
 
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import type { Form } from "@/lib/forms/schema";
-import { AiAvatar, AiTag, Dots } from "../Ai";
-import { Button, ErrorNote, errorText, postJson, type ViewProps } from "../ui";
+import { Check, Send } from "../../Icons";
+import { AiMark, Dots } from "../Ai";
+import { Button, errorText, IconButton, postJson, type ViewProps } from "../ui";
 
-export type Msg = { role: "user" | "assistant"; text: string; lines?: string[]; ask?: string };
+export type Outcome = { reply: string; lines: string[]; ask?: string } | null;
 
-export function useFormChat({ sb, session, ws, formId, prepare, onResult }: Pick<ViewProps, "sb" | "session" | "ws"> & { formId: string; prepare: () => Promise<number | null>; onResult: (f: Form, rev: number) => void }) {
-  const [msgs, setMsgs] = useState<Msg[]>([]);
+export function useFormChat({ session, ws, formId, prepare, onResult }: Pick<ViewProps, "session" | "ws"> & { formId: string; prepare: () => Promise<number | null>; onResult: (f: Form, rev: number) => void }) {
+  const [last, setLast] = useState<Outcome>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  useEffect(() => {
-    let on = true;
-    void sb
-      .from("form_chats")
-      .select("messages")
-      .eq("form_id", formId)
-      .maybeSingle()
-      .then(({ data }) => {
-        const saved = ((data as { messages?: Msg[] } | null)?.messages ?? []).filter((m) => m.text).map((m) => ({ role: m.role, text: m.text, lines: m.lines }));
-        if (on) setMsgs((x) => (x.length ? x : saved));
-      });
-    return () => {
-      on = false;
-    };
-  }, [sb, formId]);
 
   const send = async (message: string, confirmed = false) => {
     const m = message.trim();
     if (!m || busy) return;
     setBusy(true);
     setError("");
-    if (!confirmed) setMsgs((x) => [...x, { role: "user", text: m }]);
+    setLast(null);
     try {
       const rev = await prepare();
       if (rev === null) throw new Error("The draft didn't save. Try again.");
       const r = await postJson<{ form: Form; rev: number; reply: string; lines: string[]; ask: { question: string } | null; styles?: boolean }>(session, "/api/forms/chat", { workspaceId: ws.id, id: formId, rev, message: m, confirmed });
       if (r.lines.length) onResult(r.form, r.rev);
       if (r.styles) window.dispatchEvent(new Event("claritia:changed"));
-      setMsgs((x) => [...x.map((y) => ({ ...y, ask: undefined })), { role: "assistant", text: r.reply, lines: r.lines, ...(r.ask ? { ask: m } : {}) }]);
+      setLast({ reply: r.reply, lines: r.lines, ...(r.ask ? { ask: m } : {}) });
     } catch (e) {
       setError(errorText(e));
     } finally {
       setBusy(false);
     }
   };
-  const decline = (m: Msg) => setMsgs((x) => x.map((y) => (y === m ? { ...y, ask: undefined } : y)));
-  return { msgs, busy, error, send, decline };
+  return { last, busy, error, send, clear: () => (setLast(null), setError("")) };
 }
 
-export function ChatHistory({ chat }: { chat: ReturnType<typeof useFormChat> }) {
-  const { msgs, busy, error, send, decline } = chat;
-  const end = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    // Braces matter: Chrome now returns a promise from scrollIntoView, and an effect must return nothing or a cleanup.
-    end.current?.scrollIntoView({ block: "end" });
-  }, [msgs.length, busy]);
+/** The bar: what the last ask did (with Undo), then the box. */
+export function AskBar({ chat, onUndo }: { chat: ReturnType<typeof useFormChat>; onUndo: () => void }) {
+  const { last, busy, error, send, clear } = chat;
+  const [text, setText] = useState("");
+  const go = (t: string) => {
+    if (!t.trim() || busy) return;
+    setText("");
+    void send(t);
+  };
+  const said = last?.lines.length ? (last.lines.length === 1 ? last.lines[0]! : `${last.lines[0]}, and ${last.lines.length - 1} more`) : last?.reply;
   return (
-    <div className="h-full min-h-0 overflow-y-auto bg-card px-4 py-4">
-      <div className="flex flex-col gap-3">
-        {!msgs.length ? (
-          <div className="flex items-center gap-2.5 text-[13px] text-muted">
-            <AiAvatar size={24} />
-            Ask for any change below, or edit a question on the right.
-          </div>
-        ) : null}
-        {msgs.map((m, i) =>
-          m.role === "user" ? (
-            <div key={i} className="ml-auto max-w-[85%] rounded-[14px] rounded-br-[4px] bg-ink px-3 py-2 text-[13px] text-paper">
-              {m.text}
-            </div>
+    <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 flex flex-col items-center gap-2 px-4 pt-6 pb-4">
+      {busy || error || last ? (
+        <div role="status" className={`anim-rise-sm pointer-events-auto flex max-w-full items-center gap-2 rounded-full border bg-card py-1 pr-1 pl-3 text-[12.5px] shadow-[0_4px_16px_rgb(0_0_0/0.08)] ${error ? "border-rose/40 text-rose" : "border-line text-body"}`}>
+          {busy ? (
+            <>
+              <Dots />
+              <span className="pr-2 text-muted">Editing the form</span>
+            </>
+          ) : error ? (
+            <span className="truncate py-1 pr-2">{error}</span>
+          ) : last?.ask ? (
+            <>
+              <span className="truncate">{last.reply}</span>
+              <Button size="sm" onClick={() => void send(last.ask!, true)}>
+                Yes
+              </Button>
+              <Button size="sm" variant="plain" onClick={clear}>
+                No
+              </Button>
+            </>
           ) : (
-            <div key={i} className="anim-rise-sm flex gap-2.5">
-              <AiAvatar size={24} />
-              <div className="flex min-w-0 flex-1 flex-col gap-1.5 pt-0.5 text-[13px] text-ink">
-                <p>{m.text}</p>
-                {m.lines?.length ? (
-                  <ul className="flex flex-col gap-0.5 border-l border-line pl-3 text-[12.5px] text-muted">
-                    {m.lines.map((l) => (
-                      <li key={l}>{l}</li>
-                    ))}
-                  </ul>
-                ) : null}
-                {m.ask ? (
-                  <div className="flex gap-1.5">
-                    <Button size="sm" onClick={() => void send(m.ask!, true)} disabled={busy}>
-                      Yes
-                    </Button>
-                    <Button size="sm" variant="ghost" onClick={() => decline(m)}>
-                      No
-                    </Button>
-                  </div>
-                ) : null}
-                {m.lines?.length ? <AiTag /> : null}
-              </div>
-            </div>
-          ),
-        )}
-        {busy ? (
-          <div className="flex items-center gap-2.5">
-            <AiAvatar size={24} working />
-            <Dots />
-          </div>
-        ) : null}
-        <ErrorNote message={error} />
-        <div ref={end} />
-      </div>
+            <>
+              {last?.lines.length ? (
+                <span className="flex size-4 shrink-0 items-center justify-center rounded-full bg-sage-wash text-sage">
+                  <Check size={10} />
+                </span>
+              ) : null}
+              <span className="truncate" title={last?.lines.join("\n") || undefined}>
+                {said}
+              </span>
+              {last?.lines.length ? (
+                <Button size="sm" variant="plain" onClick={() => (onUndo(), clear())}>
+                  Undo
+                </Button>
+              ) : (
+                <span className="pr-2" />
+              )}
+            </>
+          )}
+        </div>
+      ) : null}
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          go(text);
+        }}
+        className="pointer-events-auto flex w-full max-w-[600px] items-center gap-2 rounded-full border border-line-strong bg-card py-1.5 pr-1.5 pl-4 shadow-[0_8px_28px_rgb(0_0_0/0.12)] transition-[border-color] duration-[140ms] focus-within:border-ink"
+      >
+        <AiMark size={15} working={busy} />
+        <input
+          aria-label="Tell AI what to change"
+          value={text}
+          disabled={busy}
+          onChange={(e) => setText(e.target.value)}
+          placeholder="Tell AI what to change"
+          className="h-9 min-w-0 flex-1 bg-transparent text-[13.5px] text-ink outline-none placeholder:text-faint disabled:text-muted"
+        />
+        <IconButton label="Send" type="submit" disabled={busy || !text.trim()} className="rounded-full bg-ink text-paper hover:bg-ink hover:opacity-90">
+          <Send size={15} />
+        </IconButton>
+      </form>
     </div>
   );
 }

@@ -54,16 +54,15 @@ export const NAV: NavItem[] = [
   item("crm", "meetings", "Meetings"),
   item("nurture", "emails", "Emails"),
   item("nurture", "segments", "Segments"),
-  item("nurture", "workflows", "Workflows"),
   item("settings", "settings", "Settings"),
 ];
 
-const ROUTES = new Set<string>([...NAV.map((n) => n.route), "objects", "enrichment"]);
+const ROUTES = new Set<string>([...NAV.map((n) => n.route), "objects", "enrichment", "workflows"]);
 
 export const defaultRoute: Route = "contacts";
 
-/** The sidebar item an address belongs to: each route has one. */
-export const activeItem = (route: Route): NavItem | null => NAV.find((n) => n.route === route) ?? null;
+/** The sidebar item an address belongs to: each route has one. A new workflow is made under Emails. */
+export const activeItem = (route: Route): NavItem | null => NAV.find((n) => n.route === (route === "workflows" ? "emails" : route)) ?? null;
 
 // Tabs inside a route -----------------------------------------------------------------------------------------------
 
@@ -212,8 +211,8 @@ const MOVED: Record<string, { route: Route; id?: string; keepId?: boolean }> = {
   leads: { route: "contacts", keepId: true },
   people: { route: "contacts" },
   accounts: { route: "companies", id: "account", keepId: true },
-  journeys: { route: "workflows" },
-  nurture: { route: "workflows", keepId: true },
+  journeys: { route: "emails" },
+  nurture: { route: "emails" },
   templates: { route: "emails", id: "templates" },
   analytics: { route: "emails" },
 };
@@ -258,6 +257,8 @@ export function resolveRoute(first: string, id: string): { route: Route; id: str
   if (first === "reports") return REPORTS[a] ?? REPORTS[""]!;
   // /visitors/visitors was Signals' visitor list.
   if (first === "visitors" && a === "visitors") return { route: "visitors", id: "visits" };
+  // Workflows live in Emails › Journeys (docs/email-plan.md Part 8); only a new one keeps its own screen.
+  if (first === "workflows" && a !== "new") return { route: "emails", id: UUID.test(a) ? `journeys/${a}` : "" };
   if (ROUTES.has(first)) return { route: first as Route, id };
   const m = MOVED[first];
   if (!m) return { route: defaultRoute, id: "" };

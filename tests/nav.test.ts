@@ -27,7 +27,7 @@ test("the sidebar is Inbound, CRM and Nurture, then Settings, with at most five 
   const by = (g: string) => NAV.filter((n) => n.group === g).map((n) => n.label);
   assert.deepEqual(by("crm"), ["Contacts", "Companies", "Opportunities", "Meetings"]);
   assert.deepEqual(by("inbound"), ["Forms", "Calendar", "Routing", "Scoring", "Visitors"]);
-  assert.deepEqual(by("nurture"), ["Emails", "Segments", "Workflows"]);
+  assert.deepEqual(by("nurture"), ["Emails", "Segments"]);
   for (const g of GROUPS) assert.ok(by(g.key).length <= 5, g.key);
   assert.equal(defaultRoute, "contacts");
   assert.equal(new Set(NAV.map((n) => n.route)).size, NAV.length, "one item per route");
@@ -38,7 +38,10 @@ test("the sidebar is Inbound, CRM and Nurture, then Settings, with at most five 
 test("old addresses open their new home", () => {
   assert.deepEqual(resolveRoute("leads", "abc"), { route: "contacts", id: "abc" });
   assert.deepEqual(resolveRoute("accounts", "abc"), { route: "companies", id: "account/abc" });
-  assert.deepEqual(resolveRoute("journeys", ""), { route: "workflows", id: "" });
+  assert.deepEqual(resolveRoute("journeys", ""), { route: "emails", id: "" });
+  assert.deepEqual(resolveRoute("workflows", ""), { route: "emails", id: "" });
+  assert.deepEqual(resolveRoute("workflows", "11111111-1111-4111-8111-111111111111"), { route: "emails", id: "journeys/11111111-1111-4111-8111-111111111111" });
+  assert.deepEqual(resolveRoute("workflows", "new"), { route: "workflows", id: "new" });
   assert.deepEqual(resolveRoute("companies", "visits"), { route: "visitors", id: "visits" });
   // Signals became Visitors.
   assert.deepEqual(resolveRoute("signals", ""), { route: "visitors", id: "" });

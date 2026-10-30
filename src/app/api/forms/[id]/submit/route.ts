@@ -34,6 +34,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       country: edgeCountry(request),
       turnstileFailed,
       origin: request.headers.get("origin"),
+      ownHost: request.headers.get("x-forwarded-host") ?? request.headers.get("host"),
       test: qaOk(id, raw.qa, process.env.SECRETS_KEY),
       // Signs the booking token when the form books with Claritia calendar.
       secret: process.env.SECRETS_KEY,
