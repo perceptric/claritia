@@ -337,3 +337,69 @@ Each step ships on its own; nothing is half-moved.
 
 No new services, jobs or AI calls. Photo uploads go to the existing Supabase storage bucket (under 100 KB each after
 resizing in the browser). **$0 more a month at Beta (50 teams) and Growth (500 teams).**
+
+## Part 12. Calendar and Routing as one system (plan)
+
+**The problem.** Routing's teams (queues) rotate leads, and a team meeting type in Calendar has its own host list and its
+own round robin. The two can disagree: Routing gives a lead to Sam while the Demo type books them with Ana. There must be
+one answer to "who takes this lead".
+
+**The rule: Routing decides who, Calendar decides when.**
+
+### 12.1 Teams live only in Routing
+- A team meeting type's Host section picks **A Routing team** ("All reps", "Enterprise AEs") instead of listing hosts.
+  Its summary reads "Enterprise AEs, round robin", with Edit in Routing. The kinds become One person, A Routing team
+  and Everyone (all hosts join); the old round robin and owner-first kinds map onto A Routing team.
+- Routing's team card shows what books it: "Books: Demo, 30 min".
+
+### 12.2 One rotation
+- **A routed lead** (a form, an import, the API) sees only the rep Routing picked. This exists today (preferHost).
+- **A visitor on a team page** sees every time at least one team member is free (pooled times). On Confirm, Routing
+  picks among the members free at that time, with the team's method (round robin, weighted, load balanced) and the
+  same counters it uses for every lead, then the meeting books with that rep. The run is recorded like any routing run
+  (reason "booking"), so Routing › Leads shows it.
+- **A known lead keeps their owner.** When the contact (or its company) already has an owner who is on the team, the
+  owner's times show first; the rest of the team only shows when the owner has none in the next 14 days.
+
+### 12.3 One set of hours, one set of days off
+- A rep's working hours are their Calendar schedule (Routing already reads them for "only in working hours").
+- Days off are set once, in Availability › Days off (or come from an out-of-office in Google or Outlook): Routing skips
+  the rep and their times leave every booking page.
+- A rep with no calendar connected can't be booked. Routing › Team flags them "Can't take bookings" with Connect, and
+  pooled times leave them out.
+
+### 12.4 Meetings count as load
+- A booked meeting counts toward the rep's daily and weekly caps, and Load balanced weighs meetings this week, so a rep
+  with a full calendar gets fewer new leads.
+
+### 12.5 Rules pick the meeting
+- A Routing rule's result can name the meeting to offer: "Company size over 200 → Enterprise AEs, offer Enterprise
+  demo (45 min)"; everyone else → All reps, Intro call (30 min). A form that books after the submit uses the rule's
+  meeting; a form's own meeting type is the fallback.
+
+### 12.6 Reassigning
+- Moving a lead to another rep (Routing › Leads, or the contact's owner) asks once: "Move their upcoming meeting too?"
+  Yes moves it to the new rep if they're free at that time, else it offers the new rep's nearest times to the guest by
+  email. It never moves a meeting without asking.
+
+### 12.7 What each side shows
+- **Calendar:** the Host section with the Routing team, its method and its members (with calendar status).
+- **Routing › Team:** each rep's calendar status, hours (from Calendar, with a link), days off, meetings and leads this
+  week against their cap, and the meeting types the team books.
+
+### 12.8 Reliability
+- No one free at a time: the time doesn't show. Two guests pick the same time: the slot lock books one, the other sees
+  fresh times. Routing slow or down at Confirm (over 300 ms or an error): the booking goes to the next member in the
+  team's rotation who is free, and a route job records it afterwards with the same key, so the counters stay right.
+- Tests prove each on a flaky case: a member who goes busy between showing and confirming, two confirms on one slot,
+  the router timing out, an owner with no times, and a rep with a disconnected calendar.
+
+### 12.9 Build order
+1. Host: A Routing team on meeting types, mapping the old kinds (migration, both directions read).
+2. Pooled times and pick-at-confirm through the router, with the run recorded.
+3. Calendar status, hours and days off in Routing › Team; no-calendar reps left out.
+4. Meetings in caps and load; rules that name a meeting; Move their upcoming meeting too.
+
+### 12.10 Running cost
+No new services, jobs or AI calls; it reads the router and the calendars Claritia already holds. One router call per
+team booking, a few milliseconds of database time. **$0 more a month at Beta (50 teams) and Growth (500 teams).**
