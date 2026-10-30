@@ -1,29 +1,22 @@
-import { ChevronRight, Clock, Dollar, Users } from "@/components/Icons";
+import { ChevronRight, Dollar, Users } from "@/components/Icons";
 import { LOCATION_LABEL, lengthLabel, priceLabel, type GuestHost, type GuestType } from "@/lib/meetings/guest";
 import { Avatar, LocationIcon } from "./BookingCalendar";
 
 // The team page's and a person's page's meeting types, as cards (docs/meetings-scheduler.md 1.8b).
 
+/** The page's title in two tones: the title, then the line in gray. */
 export function PageHead({ title, line, hosts, logo, big }: { title: string; line?: string | null; hosts?: GuestHost[]; logo?: string | null; big?: boolean }) {
   return (
     <header className="cb-head">
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      {logo && <img className="cb-logo" src={logo} alt="" referrerPolicy="no-referrer" />}
-      {hosts?.length ? (
-        <span className="cb-stack">
-          {hosts.slice(0, 1).map((h, i) => (
-            <Avatar key={i} host={h} size={big ? "lg" : undefined} />
-          ))}
-        </span>
-      ) : null}
-      <h1 className="cb-h" style={{ fontSize: "1.6em" }}>
-        {title}
-      </h1>
-      {line && (
-        <p className="cb-muted" style={{ margin: 0, maxWidth: 520 }}>
-          {line}
-        </p>
-      )}
+      {hosts?.length ? <Avatar host={hosts[0]!} size={big ? "lg" : undefined} /> : null}
+      <div className="cb-head-t">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        {logo && <img className="cb-logo" src={logo} alt="" referrerPolicy="no-referrer" />}
+        <h1 className="cb-two" style={{ fontSize: "1.9em" }}>
+          {title}
+          {line && <span className="cb-gray">{line}</span>}
+        </h1>
+      </div>
     </header>
   );
 }
@@ -39,14 +32,11 @@ export function TypeCards({ types }: { types: { href: string; type: GuestType }[
     <div className="cb-types">
       {types.map(({ href, type: t }) => (
         <a key={href} href={href} className="cb-type">
+          <span className="cb-eyebrow">{t.lengths.map(lengthLabel).join(", ")}</span>
           <span className="cb-h" style={{ fontSize: "1.1em" }}>
             {t.name}
           </span>
           <span className="cb-chips cb-muted cb-small">
-            <span className="cb-tag">
-              <Clock size={13} />
-              {t.lengths.map(lengthLabel).join(", ")}
-            </span>
             <span className="cb-tag">
               <LocationIcon kind={t.location.kind} size={13} />
               {LOCATION_LABEL[t.location.kind]}
@@ -65,8 +55,10 @@ export function TypeCards({ types }: { types: { href: string; type: GuestType }[
             )}
           </span>
           <span className="cb-go cb-small">
-            {t.hosts.length ? t.hosts.map((h) => h.name).slice(0, 3).join(", ") : "Book"}
-            <ChevronRight size={16} />
+            <span>{t.hosts.length ? t.hosts.map((h) => h.name).slice(0, 3).join(", ") : ""}</span>
+            <span className="cb-arr" aria-hidden="true">
+              <ChevronRight size={15} />
+            </span>
           </span>
         </a>
       ))}

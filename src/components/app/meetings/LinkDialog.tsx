@@ -6,11 +6,12 @@
 
 import type { Session, SupabaseClient } from "@supabase/supabase-js";
 import { useMemo, useState } from "react";
-import { postJson, Button, ErrorNote, errorText, Loading, useLoad, type Workspace } from "../ui";
+import { postJson, Button, errorText, Loading, useLoad, type Workspace } from "../ui";
 import { Pick, Seg, TextIn } from "../forms/controls";
 import { lengthsText } from "./model";
 import { CopyButton, meetingsApi, Modal } from "./parts";
 import type { TypeLite } from "./MeetingsView";
+import { TimesError } from "../scheduling/ConnectCalendar";
 
 type Kind = "single_use" | "one_off" | "poll";
 const KINDS: { value: Kind; label: string }[] = [
@@ -110,7 +111,7 @@ export function LinkDialog({ session, ws, types, initialType, initialKind = "sin
       )}
       {error ? (
         <div className="mt-3">
-          <ErrorNote message={error} />
+          <TimesError message={error} session={session} ws={ws.id} />
         </div>
       ) : null}
     </Modal>
@@ -141,7 +142,7 @@ export function TimePicker({ session, ws, typeId, length, picked, onChange, max 
   const open = days.find(([d]) => d === day) ?? days[0];
   const toggle = (s: number) => onChange(picked.includes(s) ? picked.filter((x) => x !== s) : picked.length >= max ? picked : [...picked, s]);
 
-  if (free.error) return <ErrorNote message={free.error} />;
+  if (free.error) return <TimesError message={free.error} session={session} ws={ws} />;
   if (!free.data) return <Loading />;
   if (!days.length) return <p className="py-6 text-center text-[13.5px] text-muted">No free times in the next two weeks</p>;
   return (

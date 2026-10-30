@@ -81,14 +81,17 @@ test("the embed only frames Claritia's own booking pages", () => {
   assert.ok(bookUrl(`${base}/book/l/${"a".repeat(24)}`, base));
 });
 
-test("the kit's look: checked values only, dark kits read as dark, Geist without a kit", () => {
+test("the kit's look: checked values only, dark kits read as dark, Claritia's look without a kit", () => {
   const light = themeOf(null);
-  assert.match(light.vars["--clr-font"]!, /^Geist/);
+  assert.match(light.vars["--clr-font"]!, /^Inter/);
+  assert.equal(light.vars["--cb-dot"], "#059669");
   assert.equal(light.dark, false);
   const dark = themeOf({ background: "#0b0b0f", text: "#f4f4f5", accent: "#7c5cff", font: "Inter", fontUrl: "https://fonts.googleapis.com/css2?family=Inter" });
   assert.equal(dark.dark, true);
   assert.equal(dark.vars["--clr-font"], "Inter");
   assert.equal(dark.fontUrl, "https://fonts.googleapis.com/css2?family=Inter");
+  // A kit's own accent marks the open days.
+  assert.equal(dark.vars["--cb-dot"], dark.vars["--clr-accent"]);
   const evil = themeOf({ background: "red;}body{display:none", font: "x;}*{}", fontUrl: "https://evil.com/x.css" });
   assert.equal(evil.vars["--clr-bg"], "#ffffff");
   assert.equal(evil.fontUrl, "");

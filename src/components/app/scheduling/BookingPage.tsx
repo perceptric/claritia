@@ -6,6 +6,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { bookingOrigin, bookingUrl, cleanHandle, handleProblem } from "@/lib/meetings/handles";
 import { ExternalLink } from "../../Icons";
+import { ConnectCalendar } from "./ConnectCalendar";
 import { Button, CardHead, ErrorNote, errorText, Input, Loading, must, Page, Panel, Segmented, Toggle, useLoad, type ViewProps } from "../ui";
 import { CopyButton, meetingsApi } from "../meetings/parts";
 import type { TypeRow } from "../meetings/TypesList";
@@ -120,6 +121,7 @@ export function BookingPage(props: ViewProps) {
               onChange={setWhich}
             />
           </div>
+          <ConnectCalendar sb={props.sb} session={props.session} ws={props.ws} />
           <ErrorNote message={error} />
           {which === "mine" ? (
             <MinePanel key={`mine:${info.profile?.handle ?? ""}`} {...props} info={info} origin={origin} onSaved={() => (data.reload(), setStamp((n) => n + 1))} />

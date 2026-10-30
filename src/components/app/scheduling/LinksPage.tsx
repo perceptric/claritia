@@ -9,6 +9,7 @@ import { Link as LinkIcon, Plus, Search } from "../../Icons";
 import { askConfirm } from "../Dialogs";
 import { MoreMenu } from "../StatCards";
 import { ToolIntro } from "../ToolIntro";
+import { ConnectCalendar } from "./ConnectCalendar";
 import { Badge, Button, ErrorNote, errorText, Input, Loading, must, Page, postJson, Tabs, useLoad, type ViewProps } from "../ui";
 import { LinkDialog } from "../meetings/LinkDialog";
 import { copyText, PersonAvatar, usePeople } from "../meetings/parts";
@@ -108,6 +109,9 @@ export function LinksPage(props: ViewProps) {
     return (
       <Page title="Links and polls" actions={newButtons}>
         {dialog}
+        <div className="mx-auto w-full max-w-5xl">
+          <ConnectCalendar sb={sb} session={session} ws={ws} />
+        </div>
         <ToolIntro
           sketch="envelopes"
           title={"One link for one lead,\nor let a group vote"}
@@ -134,6 +138,7 @@ export function LinksPage(props: ViewProps) {
           <Search size={14} className="pointer-events-none absolute left-3 text-faint" />
           <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search links" aria-label="Search links" className="h-9 pl-8" />
         </label>
+        <ConnectCalendar sb={sb} session={session} ws={ws} />
         <ErrorNote message={error || data.error} />
         {!data.data ? (
           <Loading />

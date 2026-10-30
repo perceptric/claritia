@@ -35,7 +35,7 @@ export function PersonView({ t, o, href }: { t: Target; o: Opts; href: (slug: st
   const types = t.types.map((x) => ({ href: keep(href(x.slug), o.embed), type: guestTypeOf(x, t.profiles, t.pay) }));
   return (
     <BookShell tokens={t.kit.tokens} design={t.kit.design} embed={o.embed} narrow>
-      <PageHead title={p.name} line={p.headline} hosts={[{ name: p.name, photo: p.photo_url }]} big />
+      <PageHead title={`Book time with ${p.name.split(/\s+/)[0] || p.name}`} line={p.headline || p.name} hosts={[{ name: p.name, photo: p.photo_url }]} big />
       <TypeCards types={types} />
     </BookShell>
   );
