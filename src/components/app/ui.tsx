@@ -439,14 +439,29 @@ export function Segmented<T extends string>({ value, options, onChange, label, s
   );
 }
 
-/** Tabs under a page header, with an ink underline that slides to the open one. */
-export function Tabs<T extends string>({ value, tabs, onChange, bare = false }: { value: T; tabs: { value: T; label: string; count?: number; icon?: React.ReactNode }[]; onChange: (v: T) => void; bare?: boolean }) {
+/**
+ * Tabs under a page header, with an ink underline that slides to the open one. `dense` is the 38 px row a record's
+ * own tabs use (a form's Build, Submissions...); a tab's `dot` is an amber point when something there needs a look.
+ */
+export function Tabs<T extends string>({
+  value,
+  tabs,
+  onChange,
+  bare = false,
+  dense = false,
+}: {
+  value: T;
+  tabs: { value: T; label: string; count?: number; icon?: React.ReactNode; dot?: string }[];
+  onChange: (v: T) => void;
+  bare?: boolean;
+  dense?: boolean;
+}) {
   const { box, at } = useSlide(
     tabs.findIndex((t) => t.value === value),
-    [tabs.map((t) => `${t.label}${t.count ?? ""}`).join()],
+    [tabs.map((t) => `${t.label}${t.count ?? ""}${t.dot ?? ""}`).join()],
   );
   return (
-    <div ref={box} role="tablist" className={`relative flex h-10 shrink-0 items-end gap-2 overflow-x-auto ${bare ? "-mb-px" : "border-b border-line px-3"}`}>
+    <div ref={box} role="tablist" className={`relative flex shrink-0 items-end overflow-x-auto [scrollbar-width:none] ${dense ? "h-[38px] gap-[4px]" : "h-10 gap-2"} ${bare ? "-mb-px" : `border-b border-line ${dense ? "px-[10px]" : "px-3"}`}`}>
       {tabs.map((t) => (
         <button
           key={t.value}
@@ -455,11 +470,12 @@ export function Tabs<T extends string>({ value, tabs, onChange, bare = false }: 
           role="tab"
           aria-selected={value === t.value}
           onClick={() => onChange(t.value)}
-          className={`relative flex h-10 shrink-0 items-center gap-1.5 px-2 text-[13px] whitespace-nowrap transition-colors duration-[120ms] ${value === t.value ? "font-medium text-ink" : "text-muted hover:text-ink"}`}
+          className={`relative flex shrink-0 items-center text-[13px] whitespace-nowrap transition-colors duration-[120ms] ${dense ? "h-[38px] gap-[7px] px-[8px]" : "h-10 gap-1.5 px-2"} ${value === t.value ? "font-medium text-ink" : "text-muted hover:text-ink"}`}
         >
           {t.icon ? <span className="flex shrink-0 items-center [&_svg]:size-3.5">{t.icon}</span> : null}
           {t.label}
-          {t.count != null ? <span className={`text-[12px] tabular-nums ${value === t.value ? "font-medium text-ink" : "text-faint"}`}>{t.count}</span> : null}
+          {t.count != null ? <span className={`tabular-nums ${dense ? "text-[11.5px] font-normal text-faint" : `text-[12px] ${value === t.value ? "font-medium text-ink" : "text-faint"}`}`}>{t.count}</span> : null}
+          {t.dot ? <span title={t.dot} aria-label={t.dot} className="size-1.5 rounded-full bg-butter" /> : null}
         </button>
       ))}
       {at ? <span aria-hidden="true" className="absolute bottom-0 left-0 h-0.5 bg-ink transition-[transform,width] duration-[200ms] ease-out" style={{ width: at.width, transform: `translateX(${at.left}px)` }} /> : null}

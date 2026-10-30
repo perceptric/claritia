@@ -639,3 +639,42 @@ input[type="radio"] {
   .sc-dot { opacity: 1; transform: none; }
   .sc-bar { transition: none; }
 }
+
+/* Forms (src/components/app/forms): the form on the canvas is the customer's, so its frame keeps the light look in
+   dark mode; the canvas is a dotted sheet; a question just added flashes once; dots blink while AI edits. */
+[data-theme="dark"] .keep-light {
+  color-scheme: light;
+  --color-paper: #f7f7f5;
+  --color-paper-deep: #f2f2f0;
+  --color-card: #ffffff;
+  --color-ink: #0a0a0a;
+  --color-body: #404040;
+  --color-muted: #6b6b6b;
+  --color-faint: #a3a3a3;
+  --color-line: #e7e7e4;
+  --color-line-strong: #d4d4d0;
+  --color-hover: rgb(10 10 10 / 0.04);
+  --color-signal: #0c8c5e;
+  --color-signal-text: #0a7a52;
+  --color-signal-soft: #e8f5ef;
+  --color-sage: #0a7a52;
+  --color-sage-wash: #e8f5ef;
+  --color-lilac: #5230c2;
+  --color-lilac-wash: #f1ecfe;
+  --color-butter: #b25a09;
+  --color-butter-wash: #fff1e2;
+  --color-rose: #b23a26;
+  --color-rose-wash: #fdecea;
+}
+.fm-dots {
+  background-color: var(--color-paper);
+  background-image: radial-gradient(var(--color-line) 1px, transparent 1px);
+  background-size: 18px 18px;
+}
+@keyframes fm-flash { 0%, 60% { background-color: var(--color-signal-soft); } }
+.fm-flash { animation: fm-flash 1800ms var(--ease-out); }
+@keyframes fm-blink { 50% { opacity: 0.25; } }
+.fm-blink { animation: fm-blink 900ms infinite; }
+@media (prefers-reduced-motion: reduce) {
+  .fm-flash, .fm-blink { animation: none; }
+}

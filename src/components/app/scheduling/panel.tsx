@@ -11,8 +11,8 @@ import { ChevronDown, Lock } from "../../Icons";
 export function Corners({ r = 10 }: { r?: number }) {
   return (
     <>
-      <span aria-hidden="true" className="anim-fade pointer-events-none absolute -top-px -left-px z-[1] size-3 border-t-[1.5px] border-l-[1.5px] border-ink" style={{ borderTopLeftRadius: r }} />
-      <span aria-hidden="true" className="anim-fade pointer-events-none absolute -right-px -bottom-px z-[1] size-3 border-r-[1.5px] border-b-[1.5px] border-ink" style={{ borderBottomRightRadius: r }} />
+      <span aria-hidden="true" className="anim-fade pointer-events-none absolute -top-px -left-px z-[1] size-[12px] border-t-[1.5px] border-l-[1.5px] border-ink" style={{ borderTopLeftRadius: r }} />
+      <span aria-hidden="true" className="anim-fade pointer-events-none absolute -right-px -bottom-px z-[1] size-[12px] border-r-[1.5px] border-b-[1.5px] border-ink" style={{ borderBottomRightRadius: r }} />
     </>
   );
 }
@@ -25,6 +25,7 @@ export function PanelSection({
   open,
   onToggle,
   locked = false,
+  tone,
   children,
 }: {
   icon: React.ReactNode;
@@ -33,29 +34,37 @@ export function PanelSection({
   open: boolean;
   onToggle: () => void;
   locked?: boolean;
+  /** The summary says something needs a look (amber) or is wrong (red). */
+  tone?: "warn" | "bad";
   children: React.ReactNode;
 }) {
   const box = useRef<HTMLElement>(null);
   // The section that opens comes into view, so its body is never below the fold.
+  // Only a section opened by a click: one open when the panel first shows stays where it is.
+  const mounted = useRef(false);
   useEffect(() => {
+    if (!mounted.current) {
+      mounted.current = true;
+      return;
+    }
     if (!open) return;
     const still = typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
     box.current?.scrollIntoView?.({ block: "nearest", behavior: still ? "auto" : "smooth" });
   }, [open]);
   return (
     <section ref={box} className="scroll-my-2 border-b border-line">
-      <button type="button" aria-expanded={open} onClick={onToggle} className="flex min-h-[58px] w-full items-center gap-3 px-4 py-[9px] text-left transition-colors duration-[120ms] hover:bg-paper">
-        <span className={`flex size-[30px] shrink-0 items-center justify-center rounded-lg transition-colors duration-[120ms] [&_svg]:size-3.5 ${open ? "bg-ink text-paper" : "bg-paper-deep text-body"}`}>{icon}</span>
+      <button type="button" aria-expanded={open} onClick={onToggle} className="flex min-h-[58px] w-full items-center gap-[12px] px-[16px] py-[9px] text-left transition-colors duration-[120ms] hover:bg-paper">
+        <span className={`flex size-[30px] shrink-0 items-center justify-center rounded-lg transition-colors duration-[120ms] [&_svg]:size-[14px] ${open ? "bg-ink text-paper" : "bg-paper-deep text-body"}`}>{icon}</span>
         <span className="flex min-w-0 flex-1 flex-col">
-          <span className="flex items-center gap-1.5 text-[13px] font-medium text-ink">
+          <span className="flex items-center gap-[6px] text-[13px] font-medium text-ink">
             {title}
             {locked ? <Lock size={11} className="text-faint" /> : null}
           </span>
-          <span className="truncate text-[12px] text-muted">{summary}</span>
+          <span className={`truncate text-[12px] ${tone === "bad" ? "text-rose" : tone === "warn" ? "text-butter" : "text-muted"}`}>{summary}</span>
         </span>
         <ChevronDown size={14} className={`text-faint transition-transform duration-[200ms] ease-out ${open ? "rotate-180" : ""}`} />
       </button>
-      {open ? <div className={`anim-rise-sm flex flex-col gap-3.5 pt-0.5 pr-5 pb-[18px] pl-[58px] ${locked ? "pointer-events-none opacity-60" : ""}`}>{children}</div> : null}
+      {open ? <div className={`anim-rise-sm flex flex-col gap-[14px] pt-[2px] pr-[20px] pb-[18px] pl-[58px] ${locked ? "pointer-events-none opacity-60" : ""}`}>{children}</div> : null}
     </section>
   );
 }
@@ -69,7 +78,7 @@ export function Chip({ on, onClick, disabled, children, label }: { on: boolean; 
       aria-label={label}
       disabled={disabled}
       onClick={onClick}
-      className={`press inline-flex h-[30px] items-center gap-1.5 rounded-full border px-[11px] text-[12.5px] whitespace-nowrap transition-colors duration-[120ms] disabled:cursor-default disabled:opacity-45 ${on ? "border-ink bg-paper-deep font-medium text-ink" : "border-line text-body hover:border-line-strong"}`}
+      className={`press inline-flex h-[30px] items-center gap-[6px] rounded-full border px-[11px] text-[12.5px] whitespace-nowrap transition-colors duration-[120ms] disabled:cursor-default disabled:opacity-45 ${on ? "border-ink bg-paper-deep font-medium text-ink" : "border-line text-body hover:border-line-strong"}`}
     >
       {children}
     </button>
@@ -79,7 +88,7 @@ export function Chip({ on, onClick, disabled, children, label }: { on: boolean; 
 /** A small label over a control, inside a section. */
 export function Labeled({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="flex flex-col gap-1.5">
+    <div className="flex flex-col gap-[6px]">
       <span className="text-[12px] text-muted">{label}</span>
       {children}
     </div>
@@ -89,7 +98,7 @@ export function Labeled({ label, children }: { label: string; children: React.Re
 /** An underlined link that does something in the app. */
 export function TextLink({ onClick, children }: { onClick: () => void; children: React.ReactNode }) {
   return (
-    <button type="button" onClick={onClick} className="inline-flex items-center gap-1 self-start text-[12.5px] font-medium text-ink underline decoration-line-strong underline-offset-[3px] hover:decoration-ink">
+    <button type="button" onClick={onClick} className="inline-flex items-center gap-[4px] self-start text-[12.5px] font-medium text-ink underline decoration-line-strong underline-offset-[3px] hover:decoration-ink">
       {children}
     </button>
   );
@@ -97,13 +106,13 @@ export function TextLink({ onClick, children }: { onClick: () => void; children:
 
 /** The footer pinned to a panel's bottom. */
 export function PanelFooter({ children }: { children: React.ReactNode }) {
-  return <div className="flex shrink-0 items-center gap-2 border-t border-line bg-card px-4 py-3">{children}</div>;
+  return <div className="flex shrink-0 items-center gap-[8px] border-t border-line bg-card px-[16px] py-[12px]">{children}</div>;
 }
 
 /** A pill pair of icon buttons, one picked. */
 export function IconSeg<T extends string>({ value, options, onChange, label }: { value: T; options: { value: T; label: string; icon: React.ReactNode }[]; onChange: (v: T) => void; label: string }) {
   return (
-    <div role="radiogroup" aria-label={label} className="inline-flex h-8 shrink-0 items-center gap-0.5 rounded-full bg-paper-deep p-[3px]">
+    <div role="radiogroup" aria-label={label} className="inline-flex h-[32px] shrink-0 items-center gap-[2px] rounded-full bg-paper-deep p-[3px]">
       {options.map((o) => (
         <button
           key={o.value}
@@ -113,7 +122,7 @@ export function IconSeg<T extends string>({ value, options, onChange, label }: {
           aria-label={o.label}
           title={o.label}
           onClick={() => onChange(o.value)}
-          className={`inline-flex h-[26px] w-[38px] items-center justify-center rounded-full transition-colors duration-[200ms] [&_svg]:size-3.5 ${value === o.value ? "bg-ink text-paper" : "text-muted hover:text-ink"}`}
+          className={`inline-flex h-[26px] w-[38px] items-center justify-center rounded-full transition-colors duration-[200ms] [&_svg]:size-[14px] ${value === o.value ? "bg-ink text-paper" : "text-muted hover:text-ink"}`}
         >
           {o.icon}
         </button>
