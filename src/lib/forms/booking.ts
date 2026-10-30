@@ -8,6 +8,7 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import type { Rpc } from "../jobs.ts";
 import { book, offer } from "../meetings/server.ts";
+import { callNewer } from "./newer.ts";
 import type { LiveRouter } from "../router/server.ts";
 import { DEFAULT_SETTINGS, type MeetingType, type Slot } from "../meetings/types.ts";
 import type { Booked, Booking } from "./calendar.ts";
@@ -17,14 +18,18 @@ export type { Booked, Booking };
 export const BOOK_TTL = 2 * 3_600_000;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
-/** What a booking token stands for. `owner` is the contact's owner when the times were shown, or null. */
-export type Claim = { submission: string; type: string; owner: string | null; exp: number };
+/**
+ * What a booking token stands for. `owner` is the contact's owner when the times were shown, or null. `only`: the
+ * owner is the rep Routing gave the lead, and the meeting is booked with them alone (the confirm refuses any other).
+ */
+export type Claim = { submission: string; type: string; owner: string | null; exp: number; only?: boolean };
 
 const mac = (body: string, secret: string) => createHmac("sha256", secret).update(`form-book:${body}`).digest("base64url").slice(0, 32);
 
-/** submission.type.owner.expiry(base36 seconds).mac: short enough to carry in an address. */
+/** submission.type.owner.expiry(base36 seconds).mac: short enough to carry in an address. "~" before the owner: only. */
 export function signBooking(c: Claim, secret: string): string {
-  const body = `${c.submission}.${c.type}.${c.owner ?? "-"}.${Math.floor(c.exp / 1000).toString(36)}`;
+  const who = c.owner ? `${c.only ? "~" : ""}${c.owner}` : "-";
+  const body = `${c.submission}.${c.type}.${who}.${Math.floor(c.exp / 1000).toString(36)}`;
   return `${body}.${mac(body, secret)}`;
 }
 
@@ -34,13 +39,15 @@ export function readBooking(token: unknown, secret: string | undefined, now = Da
   const p = token.split(".");
   if (p.length !== 5) return null;
   const [s, t, o, e, sig] = p as [string, string, string, string, string];
-  if (!UUID.test(s) || !UUID.test(t) || (o !== "-" && !UUID.test(o)) || !/^[0-9a-z]{1,10}$/.test(e)) return null;
+  const only = o.startsWith("~");
+  const owner = only ? o.slice(1) : o;
+  if (!UUID.test(s) || !UUID.test(t) || (o !== "-" && !UUID.test(owner)) || !/^[0-9a-z]{1,10}$/.test(e)) return null;
   const want = Buffer.from(mac(`${s}.${t}.${o}.${e}`, secret));
   const got = Buffer.from(sig);
   if (want.length !== got.length || !timingSafeEqual(want, got)) return null;
   const exp = parseInt(e, 36) * 1000;
   if (exp <= now) return "expired";
-  return { submission: s, type: t, owner: o === "-" ? null : o, exp };
+  return { submission: s, type: t, owner: o === "-" ? null : owner, exp, ...(only ? { only: true } : {}) };
 }
 
 type Profile = { name: string; photo?: string | null };
@@ -79,31 +86,35 @@ function shownHost(t: MeetingType, slots: Slot[]): string | undefined {
   return all.size === 1 ? [...all][0] : undefined;
 }
 
-async function times(rpc: Rpc, ctx: FillCtx, owner: string | null, length: number | undefined, now: number, live?: LiveRouter | null) {
+async function times(rpc: Rpc, ctx: FillCtx, owner: string | null, length: number | undefined, now: number, live?: LiveRouter | null, only?: string | null) {
   const t = ctx.type!;
   const lengths = t.settings.lengths;
   const len = length !== undefined && lengths.includes(length) ? length : lengths[0]!;
-  const o = await offer(rpc, { ws: ctx.workspace_id, type: t, length: len, now, owner, live });
-  return { slots: o.slots.map((s) => s.start), lengths, length: len, host: hostView(ctx, shownHost(t, o.slots)) };
+  const o = await offer(rpc, { ws: ctx.workspace_id, type: t, length: len, now, owner, live, only });
+  return { slots: o.slots.map((s) => s.start), lengths, length: len, host: hostView(ctx, only ?? shownHost(t, o.slots)) };
 }
 
 /**
  * Times for a fill that books with Claritia calendar, or null when there are none to show (no calendar connected,
  * no free time, the type gone): the form then shows its message. Marks the times shown the first time. `live` is the
- * router the send already read for routing, so a team type doesn't read it again.
+ * router the send already read for routing, so a team type doesn't read it again. `rep`: the rep Routing gave the
+ * lead; the times are theirs alone, whatever the type's kind, and the token books with them only.
  */
-export async function offerForFill(rpc: Rpc, o: { submission: string; typeId: string; secret: string; now?: number; clock?: number; live?: LiveRouter | null }): Promise<Booking | null> {
+export async function offerForFill(rpc: Rpc, o: { submission: string; typeId: string; secret: string; now?: number; clock?: number; live?: LiveRouter | null; rep?: string | null }): Promise<Booking | null> {
   const now = o.now ?? Date.now();
   const ctx = await fillCtx(rpc, o.submission, o.typeId);
   if (!ctx?.type || !ctx.contact_id || ctx.spam || !ctx.email) return null;
-  const r = await times(rpc, ctx, ctx.owner, undefined, now, o.live);
+  const owner = o.rep ?? ctx.owner;
+  const r = await times(rpc, ctx, owner, undefined, now, o.live, o.rep);
   if (!r.slots.length) return null;
-  const { data, error } = await rpc("form_booking_shown", { p_submission: o.submission, p_type: o.typeId, p_owner: ctx.owner });
+  // With a rep, the book-later email offers that rep's times only (092); before 092, the plain call.
+  const shown = o.rep ? await callNewer(rpc, "form_booking_shown_rep", { p_submission: o.submission, p_type: o.typeId, p_owner: owner }) : null;
+  const { data, error } = shown ?? (await rpc("form_booking_shown", { p_submission: o.submission, p_type: o.typeId, p_owner: owner }));
   if (error) throw new Error(error.message);
   // The token's time runs from the first showing, so a retried send gets the same token.
   const exp = new Date(data as string).getTime() + BOOK_TTL;
   if (!(exp > (o.clock ?? Date.now()))) return null;
-  const token = signBooking({ submission: o.submission, type: o.typeId, owner: ctx.owner, exp }, o.secret);
+  const token = signBooking({ submission: o.submission, type: o.typeId, owner, exp, ...(o.rep ? { only: true } : {}) }, o.secret);
   return { token, slots: r.slots, lengths: r.lengths, length: r.length, ...(r.host ? { host: r.host } : {}) };
 }
 
@@ -116,7 +127,7 @@ export async function timesForClaim(rpc: Rpc, token: string, c: Claim, o: { leng
   const ctx = await fillCtx(rpc, c.submission, c.type);
   if (!ctx?.type || !ctx.contact_id || !ctx.email) return gone;
   if (ctx.meeting) return { status: 200, body: { booked: bookedView(ctx, ctx.meeting) } };
-  const r = await times(rpc, ctx, c.owner, o.length, o.now ?? Date.now());
+  const r = await times(rpc, ctx, c.owner, o.length, o.now ?? Date.now(), undefined, c.only ? c.owner : null);
   return { status: 200, body: { booking: { token, slots: r.slots, lengths: r.lengths, length: r.length, ...(r.host ? { host: r.host } : {}) } } };
 }
 
@@ -151,6 +162,7 @@ export async function bookForClaim(
       guest: { email: ctx.email, ...(name ? { name } : {}), ...(o.tz ? { tz: o.tz } : {}) },
       source: "form",
       owner: c.owner,
+      only: c.only ? c.owner : null,
       contactId: ctx.contact_id,
       submissionId: c.submission,
       now: o.now,
@@ -168,6 +180,6 @@ export async function bookForClaim(
     return { status: 200, body: { booked: bookedView(ctx, { start: new Date(r.start).toISOString(), end: new Date(r.end).toISOString(), hosts: r.hosts }, manage) } };
   }
   if (r.error === "link_used" || r.error === "link_closed") return gone;
-  const host = hostView(ctx, shownHost(t, r.slots));
+  const host = hostView(ctx, c.only && c.owner ? c.owner : shownHost(t, r.slots));
   return { status: 409, body: { taken: true, booking: { token, slots: r.slots.map((s) => s.start), lengths: t.settings.lengths, length, ...(host ? { host } : {}) } } };
 }

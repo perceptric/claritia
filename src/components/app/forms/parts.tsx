@@ -76,14 +76,14 @@ export const SegN = ({ n }: { n: number | string }) => <span className="opacity-
 
 export type DdItem =
   | { kind: "group"; label: React.ReactNode }
-  | { kind: "option"; key: string; label: React.ReactNode; on?: boolean; why?: string | null; onPick: () => void; search?: string }
+  | { kind: "option"; key: string; label: React.ReactNode; on?: boolean; why?: string | null; onPick: () => void; search?: string; hint?: string }
   | { kind: "add"; key: string; label: React.ReactNode; hint?: string; onPick: () => void };
 
 /**
  * A button that opens a list in its own layer: options with a check on the picked one, groups, options that can't be
  * picked with the reason on the right, a search box and an add row at the bottom.
  */
-export function Dd({ label, items, sm = false, search, onSearch, ariaLabel, searchLabel = "Search fields" }: { label: React.ReactNode; items: DdItem[]; sm?: boolean; search?: string; onSearch?: (q: string) => void; ariaLabel: string; searchLabel?: string }) {
+export function Dd({ label, items, sm = false, search, onSearch, ariaLabel, searchLabel = "Search fields", menuWidth }: { label: React.ReactNode; items: DdItem[]; sm?: boolean; search?: string; onSearch?: (q: string) => void; ariaLabel: string; searchLabel?: string; menuWidth?: number }) {
   const [open, setOpen] = useState(false);
   const btn = useRef<HTMLButtonElement>(null);
   const menu = useRef<HTMLDivElement>(null);
@@ -99,7 +99,8 @@ export function Dd({ label, items, sm = false, search, onSearch, ariaLabel, sear
       const below = window.innerHeight - r.bottom - 12;
       const up = below < 200 && r.top > below;
       const max = Math.min(300, Math.max(140, up ? r.top - 12 : below));
-      setPos({ left: r.left, width: r.width, max, top: up ? r.top - 4 - Math.min(max, menu.current?.scrollHeight ?? max) : r.bottom + 4 });
+      const width = Math.max(r.width, menuWidth ?? 0);
+      setPos({ left: Math.max(8, Math.min(r.left, r.right - width)), width, max, top: up ? r.top - 4 - Math.min(max, menu.current?.scrollHeight ?? max) : r.bottom + 4 });
     };
     place();
     const raf = requestAnimationFrame(place);
@@ -110,7 +111,7 @@ export function Dd({ label, items, sm = false, search, onSearch, ariaLabel, sear
       window.removeEventListener("resize", place);
       window.removeEventListener("scroll", place, true);
     };
-  }, [open, items.length]);
+  }, [open, items.length, menuWidth]);
   useEffect(() => {
     if (!open) return;
     const away = (e: MouseEvent) => {
@@ -192,6 +193,7 @@ export function Dd({ label, items, sm = false, search, onSearch, ariaLabel, sear
                     className={`flex min-h-[30px] shrink-0 items-center justify-between gap-[8px] rounded-md px-[8px] py-[4px] text-left enabled:hover:bg-hover disabled:cursor-default disabled:text-faint ${i.on ? "font-medium" : ""}`}
                   >
                     <span className="inline-flex min-w-0 items-center gap-[7px] truncate">{i.label}</span>
+                    {i.hint ? <span className="ml-auto text-[12px] whitespace-nowrap text-muted">{i.hint}</span> : null}
                     {i.why ? <em className="text-[11.5px] whitespace-nowrap text-faint not-italic">{i.why}</em> : i.on ? <Ic n="check" /> : null}
                   </button>
                 ),

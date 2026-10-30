@@ -785,6 +785,7 @@ export function checkForm(raw: unknown, ctx: Ctx = {}): { form: Form } | { error
       }
       const heading = str(sch.heading, LIMITS.label);
       if (heading) schedule.heading = heading;
+      if (tool === "claritia" && sch.none === "later") schedule.none = "later";
       if (sch.prefill === false && tool !== "claritia") schedule.prefill = false;
     }
     if (end.kind === "redirect") errors.push("A form can book a meeting or open a page after the submit, not both.");

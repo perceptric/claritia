@@ -105,13 +105,26 @@ export type Offer = {
 };
 
 /**
+ * The type as one rep's own meeting (a lead Routing gave that rep books with them alone): that rep is the only host,
+ * whatever the type's kind, with no Routing team, so no round robin or queue turn is ever taken for it. A group type
+ * stays a group (its seats), on the rep's calendar.
+ */
+export function soloType(t: MeetingType, rep: string): MeetingType {
+  const settings = { ...t.settings };
+  delete settings.team;
+  return { ...t, kind: t.kind === "group" ? "group" : "one", hosts: [{ user_id: rep }], settings };
+}
+
+/**
  * The times a meeting type can be booked now, for one length. `owner` is the contact's owner for owner-first. A type
  * hosted by a Routing team is offered over the team's members (teamOf); `team` passes one already read.
  */
 export async function offer(
   rpc: Rpc,
-  o: { ws: string; type: MeetingType; length: number; now?: number; owner?: string | null; team?: { team: Team | null; type: MeetingType }; live?: LiveRouter | null },
+  o: { ws: string; type: MeetingType; length: number; now?: number; owner?: string | null; team?: { team: Team | null; type: MeetingType }; live?: LiveRouter | null; only?: string | null },
 ): Promise<Offer> {
+  // Only one rep's times (the rep Routing gave the lead).
+  if (o.only) return offer(rpc, { ws: o.ws, type: soloType(o.type, o.only), length: o.length, now: o.now, owner: o.only });
   const now = o.now ?? Date.now();
   if (o.type.settings.team && !o.team) return offer(rpc, { ...o, team: await teamOf(rpc, o.ws, o.type, undefined, o.live) });
   if (o.team) o = { ...o, type: o.team.type };
@@ -167,6 +180,8 @@ export type BookInput = {
   guest: Guest;
   source: MeetingSource;
   owner?: string | null;
+  /** Book with this rep alone (the rep Routing gave the lead): only their times count, and no turn is taken. */
+  only?: string | null;
   /** The guest's contact, or a read of it already under way (book_contact), awaited just before the write. */
   contactId?: string | null | Promise<string | null>;
   /** A new guest as a contact row (guestContactRow), made with the meeting when the CRM doesn't have them. */
@@ -212,7 +227,8 @@ export function quiet<T>(p: Promise<T>): Promise<T> {
  * among those still free; then meeting_book locks the hosts and refuses an overlap. Losing any of those races gives
  * back the fresh times, so the guest can pick again at once.
  */
-export async function book(rpc: Rpc, b0: BookInput): Promise<BookResult> {
+export async function book(rpc: Rpc, bIn: BookInput): Promise<BookResult> {
+  const b0 = bIn.only ? { ...bIn, type: soloType(bIn.type, bIn.only), owner: bIn.only, only: null } : bIn;
   const now = b0.now ?? Date.now();
   const team = b0.type.settings.team ? await teamOf(rpc, b0.ws, b0.type) : undefined;
   const b = team ? { ...b0, type: team.type } : b0;
