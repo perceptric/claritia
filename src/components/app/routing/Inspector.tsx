@@ -6,7 +6,7 @@
 
 import { useState } from "react";
 import { BASE_FIELDS, countryName, needsValue, opsFor, REGIONS, ruleWords, type FieldDef } from "@/lib/router/conditions";
-import { newId, problemWords, type Problem } from "@/lib/router/check";
+import { newId, type Problem } from "@/lib/router/check";
 import { minutesWords } from "@/lib/router/explain";
 import { defaultSla, METHODS, OPS, SLA_MINUTES, type Cond, type Method, type Op, type Rule, type RouterBody, type Sla, type WhenOut } from "@/lib/router/types";
 import { COUNTRY_CODES } from "@/lib/forms/countries";
@@ -54,7 +54,7 @@ export type InspectorProps = {
   onSelect: (s: Selection) => void;
 };
 
-const TITLES = { spam: "Spam check", account: "Existing company", keep: "Current rep", rules: "Rules", fallback: "Fallback", sla: "Time to reach out" } as const;
+const TITLES = { spam: "Spam check", account: "Company's rep", keep: "Person's rep", rules: "Rules", fallback: "Everyone else", sla: "Reach out within" } as const;
 
 export function Inspector(p: InspectorProps) {
   const { sel, body } = p;
@@ -62,7 +62,6 @@ export function Inspector(p: InspectorProps) {
   const queue = sel.kind === "queue" ? body.queues.find((q) => q.id === sel.id) : undefined;
   const crumb =
     sel.kind === "rule" ? ["Rules", rule ? ruleTitle(rule, p.fields, body.territories) : ""] : sel.kind === "queue" ? ["Teams", queue?.name ?? ""] : [TITLES[sel.kind]];
-  const mine = p.problems.filter((x) => x.where.kind === sel.kind && (!("id" in sel) || x.where.id === sel.id));
   return (
     <div className="flex flex-col">
       <div className="flex h-12 items-center gap-1.5 border-b border-line px-5 text-[13px]">
@@ -73,16 +72,6 @@ export function Inspector(p: InspectorProps) {
           </span>
         ))}
       </div>
-      {mine.length ? (
-        <ul className="flex flex-col gap-1 px-5 pt-4" role="alert">
-          {mine.map((x, i) => (
-            <li key={i} className="flex items-center gap-2 text-[12.5px] text-rose">
-              <span className="size-1.5 shrink-0 rounded-full bg-rose" />
-              {problemWords(x.text)}
-            </li>
-          ))}
-        </ul>
-      ) : null}
       <fieldset disabled={p.readOnly} className="m-0 min-w-0 border-0 p-0">
         {sel.kind === "spam" ? <SpamInspector {...p} /> : null}
         {sel.kind === "account" ? <AccountInspector {...p} /> : null}
@@ -151,35 +140,35 @@ function AccountInspector({ body, edit, readOnly }: InspectorProps) {
   const set = (patch: Partial<RouterBody["account"]>) => edit((b) => ({ ...b, account: { ...b.account, ...patch } }));
   return (
     <Block first>
-      <Line label="Same company, same rep">
-        <Toggle label="Same company, same rep" on={a.on} onChange={(on) => set({ on })} disabled={readOnly} />
+      <Line label="Send to the company's rep">
+        <Toggle label="Send to the company's rep" on={a.on} onChange={(on) => set({ on })} disabled={readOnly} />
       </Line>
-      <Line label="Open opportunity owner first">
-        <Toggle label="Open opportunity owner first" on={a.oppFirst} onChange={(oppFirst) => set({ oppFirst })} disabled={readOnly || !a.on} />
+      <Line label="Open deal's rep first">
+        <Toggle label="Open deal's rep first" on={a.oppFirst} onChange={(oppFirst) => set({ oppFirst })} disabled={readOnly || !a.on} />
       </Line>
-      <Line label="Set the company owner">
-        <Toggle label="Set the company owner" on={a.setCompanyOwner} onChange={(setCompanyOwner) => set({ setCompanyOwner })} disabled={readOnly || !a.on} />
+      <Line label="Make them the company's rep">
+        <Toggle label="Make them the company's rep" on={a.setCompanyOwner} onChange={(setCompanyOwner) => set({ setCompanyOwner })} disabled={readOnly || !a.on} />
       </Line>
     </Block>
   );
 }
 
 const WHEN_OUT: { value: WhenOut; label: string }[] = [
-  { value: "keep", label: "Keep them" },
-  { value: "backup", label: "Backup" },
-  { value: "route", label: "Route on" },
+  { value: "keep", label: "Wait for them" },
+  { value: "backup", label: "Their backup" },
+  { value: "route", label: "Use the rules" },
 ];
 
 function KeepInspector({ body, edit, readOnly }: InspectorProps) {
   const k = body.keep;
   return (
     <Block first>
-      <Line label="Keep their rep">
-        <Toggle label="Keep their rep" on={k.on} onChange={(on) => edit((b) => ({ ...b, keep: { ...b.keep, on } }))} disabled={readOnly} />
+      <Line label="Send to their rep">
+        <Toggle label="Send to their rep" on={k.on} onChange={(on) => edit((b) => ({ ...b, keep: { ...b.keep, on } }))} disabled={readOnly} />
       </Line>
       <div className="flex flex-col gap-2 pt-1">
         <span className="text-[12.5px] text-body">When the owner is out</span>
-        <Segmented<WhenOut> label="When the owner is out" value={k.whenOut} options={WHEN_OUT} onChange={(whenOut) => !readOnly && edit((b) => ({ ...b, keep: { ...b.keep, whenOut } }))} />
+        <Segmented<WhenOut> label="If that rep is away" value={k.whenOut} options={WHEN_OUT} onChange={(whenOut) => !readOnly && edit((b) => ({ ...b, keep: { ...b.keep, whenOut } }))} />
       </div>
     </Block>
   );
@@ -279,9 +268,9 @@ function FallbackInspector({ body, edit, members, meetings, readOnly }: Inspecto
 }
 
 const SLA_NEXT: { value: Sla["next"]; label: string }[] = [
-  { value: "route", label: "Route again" },
+  { value: "route", label: "Next rep" },
   { value: "manager", label: "Manager" },
-  { value: "nudge", label: "Tell the rep" },
+  { value: "nudge", label: "Remind them" },
 ];
 
 function SlaInspector({ body, edit, members, readOnly }: InspectorProps) {
@@ -290,10 +279,10 @@ function SlaInspector({ body, edit, members, readOnly }: InspectorProps) {
   const nudges = SLA_MINUTES.filter((m) => m < s.minutes);
   return (
     <Block first>
-      <Line label="Follow-up time">
-        <Toggle label="Follow-up time" on={s.on} onChange={(on) => set({ on })} disabled={readOnly} />
+      <Line label="Reach out within">
+        <Toggle label="Reach out within" on={s.on} onChange={(on) => set({ on })} disabled={readOnly} />
       </Line>
-      <Line label="Act within">
+      <Line label="Time">
         <Select<string>
           value={String(s.minutes)}
           options={SLA_MINUTES.map((m) => ({ value: String(m), label: minutesWords(m) }))}
@@ -301,24 +290,24 @@ function SlaInspector({ body, edit, members, readOnly }: InspectorProps) {
             const minutes = Number(v);
             set({ minutes, nudge: s.nudge !== null && s.nudge < minutes ? s.nudge : (nudges.filter((m) => m < minutes).at(-1) ?? null) });
           }}
-          ariaLabel="Act within"
+          ariaLabel="Time"
           disabled={readOnly || !s.on}
           className={`${PICK} h-8 w-36`}
         />
       </Line>
-      <Line label="Nudge at">
+      <Line label="Remind at">
         <Select<string>
           value={s.nudge === null ? "none" : String(s.nudge)}
-          options={[{ value: "none", label: "No nudge" }, ...nudges.map((m) => ({ value: String(m), label: minutesWords(m) }))]}
+          options={[{ value: "none", label: "No reminder" }, ...nudges.map((m) => ({ value: String(m), label: minutesWords(m) }))]}
           onChange={(v) => set({ nudge: v === "none" ? null : Number(v) })}
-          ariaLabel="Nudge at"
+          ariaLabel="Remind at"
           disabled={readOnly || !s.on}
           className={`${PICK} h-8 w-36`}
         />
       </Line>
       <div className="flex flex-col gap-2 pt-1">
         <span className="text-[12.5px] text-body">If the rep doesn&apos;t act</span>
-        <Segmented<Sla["next"]> label="If the rep doesn't act" value={s.next} options={SLA_NEXT} onChange={(next) => !readOnly && s.on && set({ next })} />
+        <Segmented<Sla["next"]> label="If they don't reach out" value={s.next} options={SLA_NEXT} onChange={(next) => !readOnly && s.on && set({ next })} />
       </div>
       {s.next === "manager" ? (
         <Select<string>
@@ -368,13 +357,13 @@ function RuleInspector({ body, edit, rule, fields, forms, meetings, readOnly, co
         <Line label="On">
           <Toggle label="Rule on" on={rule.on !== false} onChange={(on) => set({ on: on ? undefined : false })} disabled={readOnly} />
         </Line>
-        <Line label="Match">
+        <Line label="Needs">
           <Segmented<"all" | "any">
-            label="Match"
+            label="Needs"
             value={rule.match}
             options={[
-              { value: "all", label: "All" },
-              { value: "any", label: "Any" },
+              { value: "all", label: "All conditions" },
+              { value: "any", label: "Any condition" },
             ]}
             onChange={(match) => !readOnly && set({ match })}
           />
@@ -593,8 +582,8 @@ function QueueInspector({ body, edit, id, members, readOnly, counts, onSelect }:
           <span className="text-[12.5px] text-body">Method</span>
           <Segmented<Method> label="Method" value={q.method} options={METHODS} onChange={(method) => !readOnly && edit((b) => setQueue(b, q.id, { method }))} />
         </div>
-        <Line label="Keep the order">
-          <Toggle label="Keep the order" on={q.strict} onChange={(strict) => edit((b) => setQueue(b, q.id, { strict }))} disabled={readOnly} />
+        <Line label="Strict turns">
+          <Toggle label="Strict turns" on={q.strict} onChange={(strict) => edit((b) => setQueue(b, q.id, { strict }))} disabled={readOnly} />
         </Line>
         <Line label="Only during working hours">
           <Toggle label="Only during working hours" on={q.hoursOnly} onChange={(hoursOnly) => edit((b) => setQueue(b, q.id, { hoursOnly }))} disabled={readOnly} />
