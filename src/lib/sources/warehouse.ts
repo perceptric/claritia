@@ -84,6 +84,7 @@ async function runClickhouse(ctx: Ctx, sql: string, cursor: string, limit: numbe
     method: "POST",
     auth: false,
     headers: { "x-clickhouse-user": ctx.secret("user"), "x-clickhouse-key": ctx.secret("password"), "content-type": "text/plain" },
+    timeoutMs: TIMEOUT_MS + 10_000,
     body: b.sql,
   });
   const columns = d.meta.map((m) => m.name);
@@ -126,6 +127,7 @@ async function runBigquery(ctx: Ctx, sql: string, cursor: string, limit: number)
       ...(b.count ? { parameterMode: "NAMED", queryParameters: [{ name: "cursor", parameterType: { type: "STRING" }, parameterValue: { value: cursor } }] } : {}),
       ...(ctx.secret("location") ? { location: ctx.secret("location") } : {}),
     }),
+    timeoutMs: 75_000,
   });
   const start = Date.now();
   while (!d.jobComplete && d.jobReference && Date.now() - start < TIMEOUT_MS) {
@@ -133,6 +135,7 @@ async function runBigquery(ctx: Ctx, sql: string, cursor: string, limit: number)
     d = await ctx.api<BqOut>(`https://bigquery.googleapis.com/bigquery/v2/projects/${encodeURIComponent(project)}/queries/${d.jobReference.jobId}?timeoutMs=30000&maxResults=${limit}${loc}`, {
       auth: false,
       headers: { authorization: `Bearer ${tok.access_token}` },
+      timeoutMs: 45_000,
     });
   }
   if (!d.jobComplete) throw new Error("The query took over 2 minutes.");
@@ -163,6 +166,7 @@ async function runSnowflake(ctx: Ctx, sql: string, cursor: string, limit: number
     auth: false,
     headers,
     body: JSON.stringify({ statement: b.sql, timeout: TIMEOUT_MS / 1000, warehouse: ctx.secret("warehouse") || undefined, database: ctx.secret("database") || undefined, role: ctx.secret("role") || undefined, bindings }),
+    timeoutMs: TIMEOUT_MS + 10_000,
   });
   const start = Date.now();
   while (!d.resultSetMetaData && d.statementHandle && Date.now() - start < TIMEOUT_MS) {
@@ -192,6 +196,7 @@ async function runDatabricks(ctx: Ctx, sql: string, cursor: string, limit: numbe
       row_limit: limit,
       ...(b.count ? { parameters: [{ name: "cursor", value: cursor, type: "STRING" }] } : {}),
     }),
+    timeoutMs: 65_000,
   });
   const start = Date.now();
   while (["PENDING", "RUNNING"].includes(d.status.state) && Date.now() - start < TIMEOUT_MS) d = await ctx.api<DbOut>(`https://${host}/api/2.0/sql/statements/${d.statement_id}`, { auth: false, headers });

@@ -77,7 +77,7 @@ export type Ctx = {
   source: SourceRow;
   creds: Creds;
   /** JSON from the tool, with retries on 429 and 5xx, and the token refreshed once on a 401. */
-  api<T = unknown>(url: string, init?: RequestInit & { auth?: boolean }): Promise<T>;
+  api<T = unknown>(url: string, init?: RequestInit & { auth?: boolean; timeoutMs?: number }): Promise<T>;
   /** A key the person pasted, or a value saved at connect. */
   secret(name: string): string;
   /** The access token, refreshed when it's about to expire. */

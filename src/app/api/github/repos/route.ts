@@ -13,16 +13,22 @@ export async function POST(request: Request) {
   // Row level security: only the caller's own workspace's installations come back.
   const { data: installs, error } = await auth.sb.from("github_installations").select("id, account_login").eq("workspace_id", body.workspaceId);
   if (error) return Response.json({ error: error.message }, { status: 500 });
-  const repos: { id: number; full_name: string; installation_id: number }[] = [];
+  let repos: { id: number; full_name: string; installation_id: number }[] = [];
   try {
-    for (const inst of (installs ?? []) as { id: number }[]) {
-      const token = await installationToken(inst.id);
-      for (let page = 1; page <= 5; page++) {
-        const data = await gh<{ repositories: Repo[] }>("GET", `/installation/repositories?per_page=100&page=${page}`, token);
-        repos.push(...data.repositories.map((r) => ({ id: r.id, full_name: r.full_name, installation_id: inst.id })));
-        if (data.repositories.length < 100) break;
-      }
-    }
+    // Every installation at once (each GitHub call has its own 10 s limit in gh); pages within one stay in order.
+    const per = await Promise.all(
+      ((installs ?? []) as { id: number }[]).map(async (inst) => {
+        const token = await installationToken(inst.id);
+        const out: { id: number; full_name: string; installation_id: number }[] = [];
+        for (let page = 1; page <= 5; page++) {
+          const data = await gh<{ repositories: Repo[] }>("GET", `/installation/repositories?per_page=100&page=${page}`, token);
+          out.push(...data.repositories.map((r) => ({ id: r.id, full_name: r.full_name, installation_id: inst.id })));
+          if (data.repositories.length < 100) break;
+        }
+        return out;
+      }),
+    );
+    repos = per.flat();
   } catch (e) {
     return Response.json({ error: e instanceof Error ? e.message : String(e) }, { status: 502 });
   }

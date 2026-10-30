@@ -9,6 +9,8 @@ import { manageToken, manageUrl } from "../../../../lib/meetings/links.ts";
 import { hostStates, offer } from "../../../../lib/meetings/server.ts";
 import { slots as engine } from "../../../../lib/meetings/slots.ts";
 import { liveRouter } from "../../../../lib/router/server.ts";
+import { roles } from "../../../../lib/roleCache.ts";
+import { rpcOr } from "../../../../lib/rpcCompat.ts";
 import { DEFAULT_SETTINGS, type MeetingType } from "../../../../lib/meetings/types.ts";
 import { bookUrl, canEditType, checkProfile, slugify, timesText, uniqueSlug } from "../../../../components/app/meetings/model.ts";
 
@@ -60,12 +62,35 @@ export async function members(rpc: Rpc, ws: string): Promise<{ id: string; role:
   return (await call<{ id: string; role: Role }[] | null>(rpc, "meetings_members", { p_ws: ws })) ?? [];
 }
 
-/** The caller's role, or a refusal when they aren't in the workspace. */
-export async function roleOf(rpc: Rpc, a: Actor): Promise<{ role: Role; ids: Set<string> }> {
-  const all = await members(rpc, a.ws);
-  const me = all.find((m) => m.id === a.user);
-  if (!me) throw new Refused(404, "Workspace not found.");
-  return { role: me.role, ids: new Set(all.map((m) => m.id)) };
+/** Everyone in the workspace, by id: read only where hosts or another person are checked. */
+export async function memberIds(rpc: Rpc, ws: string): Promise<Set<string>> {
+  return new Set((await members(rpc, ws)).map((m) => m.id));
+}
+
+/**
+ * The caller's role, or a refusal when they aren't in the workspace. One row (meetings_role, 088), kept up to 60 s
+ * in this process (src/lib/roleCache.ts), so a request that checks it twice reads it at most once.
+ */
+export async function roleOf(rpc: Rpc, a: Actor): Promise<{ role: Role }> {
+  if (!UUID.test(a.ws) || !UUID.test(a.user)) throw new Refused(404, "Workspace not found.");
+  const role = await roles.get(a.ws, a.user, async () => {
+    const r = await rpcOr<string | null>(rpc, "meetings_role", { p_ws: a.ws, p_user: a.user }, async () => {
+      const all = await rpc("meetings_members", { p_ws: a.ws });
+      if (all.error) return { data: null, error: all.error };
+      return { data: ((all.data as { id: string; role: Role }[] | null) ?? []).find((m) => m.id === a.user)?.role ?? null, error: null };
+    });
+    if (r.error) throw new Error(r.error.message);
+    return r.data ?? null;
+  });
+  if (!role) throw new Refused(404, "Workspace not found.");
+  return { role: role === "owner" ? "owner" : "member" };
+}
+
+/** Wait for every read, then give the first refusal in the order asked (so the caller's role is checked first). */
+async function inOrder<T extends readonly unknown[]>(ps: { [K in keyof T]: Promise<T[K]> }): Promise<T> {
+  const settled = await Promise.allSettled(ps);
+  for (const s of settled) if (s.status === "rejected") throw s.reason;
+  return settled.map((s) => (s as PromiseFulfilledResult<unknown>).value) as unknown as T;
 }
 
 async function typeOf(rpc: Rpc, ws: string, id: unknown): Promise<TypeRow> {
@@ -82,18 +107,25 @@ async function typeOf(rpc: Rpc, ws: string, id: unknown): Promise<TypeRow> {
  * a personal copy keeps its owner as host and its template's locked settings (the database holds that line too).
  */
 export async function saveType(rpc: Rpc, a: Actor, raw: unknown, id?: string | null): Promise<{ id: string }> {
-  const { role, ids } = await roleOf(rpc, a);
-  const cur = id ? await typeOf(rpc, a.ws, id) : null;
-  if (cur && !canEditType(role, a.user, cur)) throw new Refused(403, "Only its hosts and owners can change this type.");
   const r = (raw && typeof raw === "object" ? { ...(raw as Record<string, unknown>) } : {}) as Record<string, unknown>;
+  const st = (r.settings && typeof r.settings === "object" ? r.settings : {}) as Record<string, unknown>;
+  const team = typeof st.team === "string" && st.team ? st.team : null;
+  // The caller's role, the members (hosts must be members), the type and the live router, read side by side; the
+  // role's refusal still comes first.
+  const [{ role }, ids, cur, router] = await inOrder([
+    roleOf(rpc, a),
+    memberIds(rpc, a.ws),
+    id ? typeOf(rpc, a.ws, id) : Promise.resolve(null),
+    team ? liveRouter(rpc, a.ws) : Promise.resolve(null),
+  ] as const);
+  if (cur && !canEditType(role, a.user, cur)) throw new Refused(403, "Only its hosts and owners can change this type.");
   if (cur?.template_id) {
     r.hosts = cur.hosts;
     r.owner_user_id = cur.owner_user_id;
   }
   // A Routing team: its members are saved as the hosts, kept for when the router can't be read.
-  const st = (r.settings && typeof r.settings === "object" ? r.settings : {}) as Record<string, unknown>;
-  if (typeof st.team === "string" && st.team) {
-    const queue = (await liveRouter(rpc, a.ws))?.body.queues.find((q) => q.id === st.team);
+  if (team) {
+    const queue = router?.body.queues.find((q) => q.id === team);
     if (!queue) throw new Refused(400, "That Routing team isn't live. Make Routing live first.");
     if (r.kind !== "owner_first") r.kind = "round_robin";
     r.hosts = queue.members.map((m) => ({ user_id: m.user, weight: m.weight }));
@@ -108,8 +140,7 @@ export async function saveType(rpc: Rpc, a: Actor, raw: unknown, id?: string | n
 }
 
 export async function deleteType(rpc: Rpc, a: Actor, id: unknown): Promise<void> {
-  const { role } = await roleOf(rpc, a);
-  const cur = await typeOf(rpc, a.ws, id);
+  const [{ role }, cur] = await inOrder([roleOf(rpc, a), typeOf(rpc, a.ws, id)] as const);
   if (!canEditType(role, a.user, cur)) throw new Refused(403, "Only its hosts and owners can delete this type.");
   if (cur.template_id && role !== "owner") throw new Refused(403, "An owner gave you this type; ask them to remove it.");
   await call(rpc, "meeting_type_delete", { p_ws: a.ws, p_id: cur.id });
@@ -117,8 +148,7 @@ export async function deleteType(rpc: Rpc, a: Actor, id: unknown): Promise<void>
 
 /** A copy of a type with a free link name, as a plain type of its own (not managed). */
 export async function duplicateType(rpc: Rpc, a: Actor, id: unknown): Promise<{ id: string }> {
-  const { role } = await roleOf(rpc, a);
-  const cur = await typeOf(rpc, a.ws, id);
+  const [{ role }, cur] = await inOrder([roleOf(rpc, a), typeOf(rpc, a.ws, id)] as const);
   const hosts = cur.template_id ? [{ user_id: a.user }] : cur.hosts;
   const base = slugify(`${cur.slug}-copy`);
   const taken = new Set<string>();
@@ -139,9 +169,8 @@ export async function duplicateType(rpc: Rpc, a: Actor, id: unknown): Promise<{ 
 
 /** Owners give a template to people: each gets their own copy, kept in step; people no longer picked lose theirs. */
 export async function pushType(rpc: Rpc, a: Actor, id: unknown, users: unknown): Promise<{ made: number; kept: number; removed: number }> {
-  const { role, ids } = await roleOf(rpc, a);
+  const [{ role }, ids, cur] = await inOrder([roleOf(rpc, a), memberIds(rpc, a.ws), typeOf(rpc, a.ws, id)] as const);
   if (role !== "owner") throw new Refused(403, "Only owners can give types to people.");
-  const cur = await typeOf(rpc, a.ws, id);
   const list = [...new Set(Array.isArray(users) ? users.filter((u): u is string => typeof u === "string") : [])];
   if (list.some((u) => !ids.has(u))) throw new Refused(400, "Someone picked isn't in this workspace.");
   return call(rpc, "meeting_type_push", { p_ws: a.ws, p_template: cur.id, p_users: list });
@@ -149,11 +178,20 @@ export async function pushType(rpc: Rpc, a: Actor, id: unknown, users: unknown):
 
 // Hours and profile ------------------------------------------------------------------------------------------------
 
+/** The caller's role and whose hours: their own, or (checked) another member's. */
+async function personIn(rpc: Rpc, a: Actor, user: unknown): Promise<{ role: Role; who: string }> {
+  const who = typeof user === "string" && user ? user : a.user;
+  const [{ role }, there] = await inOrder([
+    roleOf(rpc, a),
+    who === a.user ? Promise.resolve(true) : roleOf(rpc, { ws: a.ws, user: who }).then(() => true, () => false),
+  ] as const);
+  if (!there) throw new Refused(404, "Person not found.");
+  return { role, who };
+}
+
 /** Your own hours; owners can set anyone's. */
 export async function saveAvailability(rpc: Rpc, a: Actor, user: unknown, raw: unknown): Promise<void> {
-  const { role, ids } = await roleOf(rpc, a);
-  const who = typeof user === "string" && user ? user : a.user;
-  if (!ids.has(who)) throw new Refused(404, "Person not found.");
+  const { role, who } = await personIn(rpc, a, user);
   if (who !== a.user && role !== "owner") throw new Refused(403, "Only owners can change someone else's hours.");
   const r = checkAvailability(raw);
   if ("errors" in r) throw new Refused(400, r.errors[0]!, r.errors);
@@ -165,9 +203,7 @@ export async function saveAvailability(rpc: Rpc, a: Actor, user: unknown, raw: u
  * checked like the default hours. Returns the schedule's id.
  */
 export async function saveSchedule(rpc: Rpc, a: Actor, user: unknown, id: unknown, name: unknown, raw: unknown): Promise<string> {
-  const { role, ids } = await roleOf(rpc, a);
-  const who = typeof user === "string" && user ? user : a.user;
-  if (!ids.has(who)) throw new Refused(404, "Person not found.");
+  const { role, who } = await personIn(rpc, a, user);
   if (who !== a.user && role !== "owner") throw new Refused(403, "Only owners can change someone else's hours.");
   const n = typeof name === "string" ? name.trim().slice(0, 60) : "";
   if (!n) throw new Refused(400, "Name the schedule.");
@@ -179,9 +215,7 @@ export async function saveSchedule(rpc: Rpc, a: Actor, user: unknown, id: unknow
 }
 
 export async function deleteSchedule(rpc: Rpc, a: Actor, user: unknown, id: unknown): Promise<void> {
-  const { role, ids } = await roleOf(rpc, a);
-  const who = typeof user === "string" && user ? user : a.user;
-  if (!ids.has(who)) throw new Refused(404, "Person not found.");
+  const { role, who } = await personIn(rpc, a, user);
   if (who !== a.user && role !== "owner") throw new Refused(403, "Only owners can change someone else's hours.");
   if (typeof id !== "string" || !UUID.test(id)) throw new Refused(404, "Schedule not found.");
   await call(rpc, "schedule_delete", { p_ws: a.ws, p_user: who, p_id: id });
@@ -234,11 +268,11 @@ export async function hostLink(rpc: Rpc, a: Actor, meeting: unknown, origin: str
 
 /** The type's next free times as text for an email, each with a link that opens the booking page at that time. */
 export async function copyTimes(rpc: Rpc, a: Actor, o: { type: unknown; length?: unknown; tz?: unknown; origin: string; now?: number; max?: number; hour12?: boolean }): Promise<{ text: string; count: number }> {
+  // The role first (it's kept, and the booking address is made on first use), then the type and the address together.
   await roleOf(rpc, a);
-  const t = await typeOf(rpc, a.ws, o.type);
+  const [t, ws] = await inOrder([typeOf(rpc, a.ws, o.type), call<string>(rpc, "booking_slug_ensure", { p_ws: a.ws })] as const);
   const length = t.settings.lengths.includes(Number(o.length)) ? Number(o.length) : t.settings.lengths[0]!;
   const tz = typeof o.tz === "string" && o.tz.length <= 60 && isZone(o.tz) ? o.tz : "UTC";
-  const ws = await call<string>(rpc, "booking_slug_ensure", { p_ws: a.ws });
   const { slots } = await offer(rpc, { ws: a.ws, type: t, length, now: o.now });
   const starts = slots.map((s) => s.start);
   const text = timesText({ name: t.name, length, starts, tz, max: o.max, hour12: o.hour12, url: (start) => bookUrl(o.origin, ws, t.slug, { start, length }) });
@@ -259,10 +293,11 @@ function isZone(tz: string) {
  * free times for a length over the next two weeks (their hours, calendars and meetings).
  */
 export async function freeStarts(rpc: Rpc, a: Actor, o: { type?: unknown; length?: unknown; now?: number }): Promise<{ starts: number[]; length: number }> {
-  await roleOf(rpc, a);
+  // The role and (when one is named) the type, read together.
+  const [, named] = await inOrder([roleOf(rpc, a), o.type ? typeOf(rpc, a.ws, o.type) : Promise.resolve(null)] as const);
   const now = o.now ?? Date.now();
-  if (o.type) {
-    const t = await typeOf(rpc, a.ws, o.type);
+  if (named) {
+    const t = named;
     const length = t.settings.lengths.includes(Number(o.length)) ? Number(o.length) : t.settings.lengths[0]!;
     return { starts: (await offer(rpc, { ws: a.ws, type: t, length, now })).slots.map((s) => s.start), length };
   }

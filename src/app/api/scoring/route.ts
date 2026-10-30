@@ -1,7 +1,7 @@
 import type { Rpc } from "@/lib/jobs";
 import { Refused, type Caller } from "@/lib/router/actions";
 import * as A from "@/lib/scoring/actions";
-import { requireUser } from "@/lib/serverAuth";
+import { requireUser, roleIn } from "@/lib/serverAuth";
 import { serviceClient } from "@/lib/serviceClient";
 
 // The Scoring screens' server side (docs/scoring-plan.md): POST { workspaceId, action, ... }. The caller signs in and
@@ -13,12 +13,12 @@ export async function POST(request: Request) {
   if ("denied" in auth) return auth.denied;
   const body = (await request.json().catch(() => ({}))) as Record<string, unknown>;
   const ws = typeof body.workspaceId === "string" && /^[0-9a-f-]{36}$/.test(body.workspaceId) ? body.workspaceId : "";
-  const { data: member } = ws ? await auth.sb.from("workspace_members").select("role").eq("workspace_id", ws).eq("user_id", auth.user.id).maybeSingle() : { data: null };
-  if (!member) return Response.json({ error: "Workspace not found." }, { status: 404 });
+  const role = await roleIn(auth, ws);
+  if (!role) return Response.json({ error: "Workspace not found." }, { status: 404 });
   const db = serviceClient();
   if (!db) return Response.json({ error: "The server is not set up for this." }, { status: 500 });
   const rpc: Rpc = (f, args) => db.rpc(f, args);
-  const c: Caller = { ws, user: auth.user.id, role: member.role === "owner" ? "owner" : "member" };
+  const c: Caller = { ws, user: auth.user.id, role };
   const str = (k: string) => (typeof body[k] === "string" ? (body[k] as string) : "");
   const revision = typeof body.revision === "number" ? body.revision : null;
   const ai = async () => (await import("@/lib/forms/claude")).claudeChat();

@@ -33,6 +33,8 @@ export async function gh<T = Record<string, unknown>>(method: string, path: stri
       ...(body ? { "Content-Type": "application/json" } : {}),
     },
     body: body ? JSON.stringify(body) : undefined,
+    // No GitHub call may hold a request: 10 s each.
+    signal: AbortSignal.timeout(10_000),
   });
   const data = (await res.json().catch(() => ({}))) as T & { message?: string };
   if (!res.ok) throw new GitHubError(`GitHub ${method} ${path}: ${res.status} ${data.message ?? ""}`.trim(), res.status);
@@ -76,6 +78,7 @@ export async function userToken(code: string): Promise<string> {
     method: "POST",
     headers: { Accept: "application/json", "Content-Type": "application/json", "User-Agent": "Claritia" },
     body: JSON.stringify({ client_id: c.clientId, client_secret: c.clientSecret, code }),
+    signal: AbortSignal.timeout(10_000),
   });
   const data = (await res.json().catch(() => ({}))) as { access_token?: string; error_description?: string };
   if (!data.access_token) throw new GitHubError(data.error_description ?? "GitHub didn't confirm the install.", 400);

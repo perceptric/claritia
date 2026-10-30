@@ -3,6 +3,7 @@ import { randomBytes } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { appBase } from "../billing.ts";
 import { seal } from "../seal.ts";
+import { roleIn } from "../serverAuth.ts";
 import { entryOf } from "./catalog.ts";
 import { makeCtx } from "./ctx.ts";
 import { connectorFor } from "./registry.ts";
@@ -11,9 +12,8 @@ import type { Creds, Settings, SourceRow } from "./types.ts";
 // What the sources routes share: the owner check, and connecting a tool once its credentials are in hand.
 
 export async function isOwner(sb: SupabaseClient, userId: string, ws: unknown): Promise<boolean> {
-  if (typeof ws !== "string" || !/^[0-9a-f-]{36}$/.test(ws)) return false;
-  const { data } = await sb.from("workspace_members").select("role").eq("workspace_id", ws).eq("user_id", userId).maybeSingle();
-  return data?.role === "owner";
+  // The shared role lookup (kept up to 60 s, src/lib/roleCache.ts).
+  return (await roleIn({ user: { id: userId }, sb }, ws)) === "owner";
 }
 
 export const hookUrl = (kind: string, id: string, token?: string) => `${appBase()}/api/hooks/${kind}/${id}${token ? `?t=${token}` : ""}`;
