@@ -3,10 +3,10 @@
 // Settings › Imports: every import in the workspace with its state and counts, the rows that didn't come in, and
 // undo for 30 days (docs/conversion-weeks.md week 2).
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Download } from "../../Icons";
 import { askConfirm } from "../Dialogs";
-import { Badge, Button, CardHead, ErrorNote, errorText, Loading, must, Panel, Td, Th, timeAgo, useLoad, type Tone, type ViewProps } from "../ui";
+import { Badge, Button, CardHead, ErrorNote, errorText, Loading, must, Panel, Td, Th, timeAgo, type Tone, useLoad, usePoll, type ViewProps } from "../ui";
 
 type Imp = {
   id: string;
@@ -42,14 +42,25 @@ export function ImportsSettings({ sb, ws }: Pick<ViewProps, "sb" | "ws">) {
     ws.id,
   );
   const [error, setError] = useState("");
-  const busy = list.data?.some((i) => BUSY.has(i.status)) ?? false;
+  const busyIds = (list.data ?? []).filter((i) => BUSY.has(i.status)).map((i) => i.id);
+  const busy = busyIds.length > 0;
   const reload = list.reload;
-
-  useEffect(() => {
-    if (!busy) return;
-    const t = setInterval(reload, 3000);
-    return () => clearInterval(t);
-  }, [busy, reload]);
+  // While imports run, read only those rows every 3 seconds and put them in place.
+  const setList = list.set;
+  const watching = busyIds.join();
+  usePoll(
+    () =>
+      void sb
+        .from("imports")
+        .select("id, file_name, kind, status, counts, progress, rows_done, errors_path, error, undo_until, created_at")
+        .in("id", watching.split(","))
+        .then(({ data }) => {
+          const fresh = new Map(((data ?? []) as Imp[]).map((i) => [i.id, i]));
+          if (fresh.size) setList((l) => l.map((i) => fresh.get(i.id) ?? i));
+        }),
+    busy,
+    { every: 3000, backoff: 1.2, max: 15_000 },
+  );
 
   const run = async (fn: () => Promise<unknown>) => {
     setError("");

@@ -10,11 +10,12 @@ import { TEMPLATES, templateByKey } from "@/lib/workflows/templates";
 import { emptyBody, type Body } from "@/lib/workflows/types";
 import { Branch, Plus } from "../../Icons";
 import { SampleStats, ToolIntro } from "../ToolIntro";
-import { Badge, Button, ErrorNote, errorText, Loading, must, Page, Panel, timeAgo, useLoad, type Tone, type ViewProps } from "../ui";
+import { Badge, Button, ErrorNote, errorText, Loading, must, Page, Panel, timeAgo, type Tone, useQuery, type ViewProps } from "../ui";
 import { loadNames, loadWorkflow, wordsOf } from "./data";
 import { WorkflowEditor } from "./Editor";
 
 type Row = { id: string; name: string; status: "draft" | "live" | "paused"; draft: unknown; updated_at: string };
+type ListRow = Omit<Row, "draft"> & { trigger: unknown };
 type Overview = Record<string, { active: number; days: number[] }>;
 
 const STATUS: Record<Row["status"], [string, Tone]> = { draft: ["Draft", "gray"], live: ["Live", "green"], paused: ["Paused", "amber"] };
@@ -26,14 +27,15 @@ export function WorkflowsView(p: ViewProps) {
 }
 
 function WorkflowList({ sb, ws, navigate }: ViewProps) {
-  const list = useLoad(async () => {
+  // The list reads each draft's trigger only (not every whole draft).
+  const list = useQuery(`workflows:${ws.id}:list`, async () => {
     const [rows, over, names] = await Promise.all([
-      sb.from("workflows").select("id, name, status, draft, updated_at").eq("workspace_id", ws.id).order("updated_at", { ascending: false }),
+      sb.from("workflows").select("id, name, status, trigger:draft->trigger, updated_at").eq("workspace_id", ws.id).order("updated_at", { ascending: false }),
       sb.rpc("workflows_overview", { p_ws: ws.id }),
       loadNames(sb, ws.id),
     ]);
-    return { rows: (must(rows) ?? []) as Row[], over: (over.data ?? {}) as Overview, words: wordsOf(names) };
-  }, ws.id);
+    return { rows: ((must(rows) ?? []) as ListRow[]).map(({ trigger, ...r }): Row => ({ ...r, draft: { trigger } })), over: (over.data ?? {}) as Overview, words: wordsOf(names) };
+  });
   const add = (
     <Button onClick={() => navigate("workflows", "new")}>
       <Plus size={14} /> New workflow
@@ -157,9 +159,9 @@ function Card({ name, line, onClick, disabled }: { name: string; line: string; o
 }
 
 function EditorPage({ sb, session, ws, navigate, id }: ViewProps) {
-  const [tick, setTick] = useState(0);
-  const res = useLoad(() => loadWorkflow(sb, ws.id, id), `${id}:${tick}`);
-  const reload = useCallback(async () => setTick((t) => t + 1), []);
+  const res = useQuery(`workflow:${ws.id}:${id}`, () => loadWorkflow(sb, ws.id, id), { staleMs: 0 });
+  const { reload: again, set } = res;
+  const reload = useCallback(async () => again(), [again]);
   if (res.error && !res.data)
     return (
       <Page icon={<Branch size={16} />} title="Workflows">
@@ -172,6 +174,6 @@ function EditorPage({ sb, session, ws, navigate, id }: ViewProps) {
         <Loading />
       </Page>
     );
-  const w = res.data.wf;
-  return <WorkflowEditor key={`${w.draft_revision}:${w.status}:${w.live_version}`} sb={sb} session={session} ws={ws} navigate={navigate} data={res.data} reload={reload} />;
+  // A reload (a status change, a publish, Load theirs) updates the editor in place, keeping the selection and panel.
+  return <WorkflowEditor sb={sb} session={session} ws={ws} navigate={navigate} data={res.data} reload={reload} patch={set} />;
 }

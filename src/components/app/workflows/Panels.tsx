@@ -12,7 +12,7 @@ import { Search } from "../../Icons";
 import { askConfirm } from "../Dialogs";
 import { Modal } from "../meetings/parts";
 import { Sheet } from "../Sheet";
-import { Badge, Button, ErrorNote, errorText, Input, must, postJson, Tabs, timeAgo, useLoad, type Tone } from "../ui";
+import { Badge, Button, ErrorNote, errorText, Input, must, postJson, Tabs, timeAgo, type Tone, useQuery } from "../ui";
 import type { Version } from "./data";
 
 /** A sheet from the right, over the editor. */
@@ -131,7 +131,7 @@ export function TryPanel({ sb, session, ws, body, names, onPath, onClose }: { sb
               {out.lines.map((l, i) => {
                 const s = find(body.steps, l.step)?.step;
                 return (
-                  <li key={`${l.step}-${i}`} className="anim-rise-sm flex flex-col gap-2" style={{ animationDelay: `${Math.min(i, 10) * 30}ms` }}>
+                  <li key={`${l.step}-${i}`} className="anim-rise-sm flex flex-col gap-2" style={i < 8 ? { animationDelay: `${i * 30}ms` } : undefined}>
                     <span className="flex items-baseline gap-2 text-[13.5px] text-ink">
                       <span className="w-5 shrink-0 text-right text-[12px] text-faint tabular-nums">{i + 1}</span>
                       <span>
@@ -180,13 +180,14 @@ export function HistoryDrawer({ sb, id, versions, live, names, onClose }: { sb: 
   const [open, setOpen] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [tick, setTick] = useState(0);
-  const runs = useLoad(async () => {
+  const runs = useQuery(`workflow_runs:${id}:${filter}:${tick}`, async () => {
     let q = sb.from("workflow_runs").select("id, version, status, exit_reason, error, started_at, ended_at, next_at, contacts(email, first_name, last_name)").eq("workflow_id", id).order("started_at", { ascending: false }).limit(100);
     if (filter === "active") q = q.in("status", ["active", "waiting"]);
     else if (filter !== "all") q = q.eq("status", filter);
     return (must(await q) ?? []) as unknown as Run[];
-  }, `${id}:${filter}:${tick}`);
-  const steps = useLoad(async () => (open ? ((must(await sb.from("workflow_steps_done").select("run_id, step_id, visit, status, result, at").eq("run_id", open).order("at")) ?? []) as Done[]) : []), `${open}:${tick}`);
+  });
+  // Opening a run again shows its steps at once.
+  const steps = useQuery(`workflow_runs:${id}:steps:${open}:${tick}`, async () => (open ? ((must(await sb.from("workflow_steps_done").select("run_id, step_id, visit, status, result, at").eq("run_id", open).order("at")) ?? []) as Done[]) : []));
   const bodies = useMemo(() => new Map(versions.map((v) => [v.version, cleanBody(v.body)])), [versions]);
 
   const retry = async (run: string) => {

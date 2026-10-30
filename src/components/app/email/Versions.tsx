@@ -4,11 +4,11 @@
 // first one, to bring back. Bringing one back is an undoable change like any other.
 
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { readEmailDoc, type EmailDoc } from "@/lib/design/email/doc";
 import { History } from "../../Icons";
 import { AiTag } from "../Ai";
-import { IconButton, timeAgo } from "../ui";
+import { IconButton, timeAgo, useQuery } from "../ui";
 import { Popover } from "../forms/controls";
 
 type Version = { id: string; doc: unknown; note: string; by_ai: boolean; created_at: string };
@@ -16,22 +16,13 @@ type Version = { id: string; doc: unknown; note: string; by_ai: boolean; created
 export function Versions({ sb, workspaceId, versionRef, onRestore }: { sb: SupabaseClient; workspaceId: string; versionRef: string; onRestore: (doc: EmailDoc) => void }) {
   const btn = useRef<HTMLSpanElement>(null);
   const [open, setOpen] = useState(false);
-  const [list, setList] = useState<Version[]>([]);
-  useEffect(() => {
-    if (!open) return;
-    let live = true;
-    void sb
-      .from("email_versions")
-      .select("id, doc, note, by_ai, created_at")
-      .eq("workspace_id", workspaceId)
-      .eq("ref", versionRef)
-      .order("created_at", { ascending: false })
-      .limit(50)
-      .then(({ data }) => live && setList((data ?? []) as Version[]));
-    return () => {
-      live = false;
-    };
-  }, [open, sb, workspaceId, versionRef]);
+  // Read when opened; opened again within seconds, it shows at once.
+  const versions = useQuery(
+    open ? `email_versions:${workspaceId}:${versionRef}` : null,
+    async () => ((await sb.from("email_versions").select("id, doc, note, by_ai, created_at").eq("workspace_id", workspaceId).eq("ref", versionRef).order("created_at", { ascending: false }).limit(50)).data ?? []) as Version[],
+    { staleMs: 5_000 },
+  );
+  const list = versions.data ?? [];
   return (
     <>
       <span ref={btn}>

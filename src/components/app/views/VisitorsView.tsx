@@ -2,11 +2,11 @@
 
 // Visitors (docs/m1-website-intelligence.md 8.4): the last day's visits, refreshed every 10 seconds.
 
-import { useEffect, useState } from "react";
+import { memo, useEffect, useState } from "react";
 import { Eye } from "../../Icons";
 import { applyFilters, cleanFilters, type Filter, type FilterField } from "@/lib/filters";
 import { persona } from "@/lib/web/names";
-import { Badge, Button, Empty, ErrorNote, Loading, must, Page, Panel, Td, Th, timeAgo, useLoad, type Tone, type ViewProps } from "../ui";
+import { Badge, Button, Empty, ErrorNote, Loading, must, Page, Panel, Td, Th, timeAgo, useQuery, type ViewProps } from "../ui";
 import { FilterBar, useFilters } from "../FilterBar";
 import { Sketch } from "../../sketches/Sketch";
 import { VisitorsIntro } from "./VisitorsIntro";
@@ -50,7 +50,6 @@ export type SiteHealth = {
   with_account_24h: number;
 };
 
-export const LEVEL_TONE: Record<string, Tone> = { verified: "green", asserted: "brand", probable: "amber" };
 const REF_LABEL: Record<string, string> = {
   search: "Search",
   ai_assistant: "AI",
@@ -63,7 +62,9 @@ const REF_LABEL: Record<string, string> = {
   other: "Referral",
 };
 
-export const activeTime = (s: number) => (s < 60 ? `${s}s` : `${Math.floor(s / 60)}m ${String(s % 60).padStart(2, "0")}s`);
+import { activeTime, LEVEL_TONE } from "@/lib/visits";
+import { useSiteHealth } from "../shared";
+export { activeTime, LEVEL_TONE };
 
 const VISIT_FIELDS: FilterField<Visit>[] = [
   { key: "company", label: "Company", type: "text", get: (v) => v.account_name ?? v.account_domain },
@@ -129,17 +130,45 @@ const clock = (iso: string) => new Date(iso).toLocaleTimeString("en-US", { hour:
 /** Visitors, inside Signals (docs/app-structure.md 4.2): `head` is Signals' tab row, shown under the title. */
 export function VisitorsView({ sb, ws, navigate, head }: ViewProps & { head?: React.ReactNode }) {
   const pageProps = head ? { title: "Signals" } : { icon: <Eye size={14} />, title: "Visits", back: { label: "Companies", onClick: () => navigate("companies") } };
-  const sites = useLoad(async () => must(await sb.rpc("site_health", { p_ws: ws.id })) as SiteHealth[], ws.id);
-  const visits = useLoad(async () => must(await sb.rpc("visitors_live", { p_ws: ws.id, p_hours: 24, p_limit: 200 })) as Visit[], ws.id);
-  const reload = visits.reload;
+  const sites = useSiteHealth<SiteHealth>(sb, ws.id);
+  const visits = useQuery(`visitors_live:${ws.id}`, async () => must(await sb.rpc("visitors_live", { p_ws: ws.id, p_hours: 24, p_limit: 200 })) as Visit[]);
+  const { reload, set: setVisits } = visits;
   const [stored, setFilters] = useFilters("visitors", ws.id);
   const filters = cleanFilters(stored, VISIT_FIELDS as FilterField<never>[]);
   const [openId, setOpenId] = useState<string | null>(null);
 
+  // New and moving visits every 10 seconds while the tab is visible: only what changed since the last look, merged
+  // in. Hidden, it stops; back after a minute away, it reads the whole list again.
   useEffect(() => {
-    const t = setInterval(reload, 10_000);
-    return () => clearInterval(t);
-  }, [reload]);
+    let last = Date.now();
+    let hiddenAt = 0;
+    const tick = async () => {
+      if (document.visibilityState !== "visible") return;
+      const since = new Date(last - 15_000).toISOString();
+      last = Date.now();
+      const { data } = await sb.rpc("visitors_live_since", { p_ws: ws.id, p_since: since, p_limit: 200 });
+      const fresh = (data ?? []) as Visit[];
+      if (!fresh.length) return;
+      const byId = new Map(fresh.map((v) => [v.id, v]));
+      setVisits((cur) => {
+        const kept = (cur ?? []).filter((v) => !byId.has(v.id));
+        return [...fresh, ...kept].sort((a, b) => b.started_at.localeCompare(a.started_at)).slice(0, 200);
+      });
+    };
+    const t = setInterval(() => void tick(), 10_000);
+    const vis = () => {
+      if (document.visibilityState === "hidden") hiddenAt = Date.now();
+      else if (hiddenAt && Date.now() - hiddenAt > 60_000) {
+        last = Date.now();
+        reload();
+      } else void tick();
+    };
+    document.addEventListener("visibilitychange", vis);
+    return () => {
+      clearInterval(t);
+      document.removeEventListener("visibilitychange", vis);
+    };
+  }, [sb, ws.id, reload, setVisits]);
 
   if (sites.error || visits.error) {
     return (
@@ -198,37 +227,7 @@ export function VisitorsView({ sb, ws, navigate, head }: ViewProps & { head?: Re
             </thead>
             <tbody>
               {rows.map((v) => (
-                <tr key={v.id} onClick={() => setOpenId(v.id)} className={`anim-rise-sm cursor-pointer hover:bg-hover ${v.id === openId ? "bg-hover" : ""}`}>
-                  <Td>
-                    <span className="flex items-center gap-2.5">
-                      <VisitorAvatar code={codeOf(v)} />
-                      <span className="truncate font-medium">{nameOf(v)}</span>
-                      {v.person_level ? <Badge tone={LEVEL_TONE[v.person_level] ?? "gray"}>{v.person_level}</Badge> : null}
-                    </span>
-                  </Td>
-                  <Td>
-                    {v.account_id ? (
-                      <span className="flex items-center gap-2">
-                        <span>{v.account_name ?? v.account_domain}</span>
-                        {v.account_source === "vendor_network" || v.account_source === "learned_network" ? <Badge>By network</Badge> : null}
-                      </span>
-                    ) : (
-                      <span className="text-muted">Unknown{v.country ? ` · ${v.country}` : ""}</span>
-                    )}
-                  </Td>
-                  <Td className="max-w-[300px] truncate font-mono text-[12px]">
-                    {v.pages.slice(0, 3).join("  ")}
-                    {v.pageviews > 3 ? <span className="text-faint">{`  +${v.pageviews - 3}`}</span> : null}
-                  </Td>
-                  <Td className="text-right text-[13px] tabular-nums">{activeTime(v.engaged_s)}</Td>
-                  <Td>
-                    <span className="flex items-center gap-2">
-                      <Badge tone={v.ref_class === "ai_assistant" ? "brand" : "gray"}>{REF_LABEL[v.ref_class ?? "direct"] ?? v.ref_class}</Badge>
-                      <span className="truncate text-[12px] text-muted">{v.referrer_host ?? v.source ?? ""}</span>
-                    </span>
-                  </Td>
-                  <Td className="text-[13px] text-muted">{timeAgo(v.started_at)}</Td>
-                </tr>
+                <VisitRow key={v.id} v={v} on={v.id === openId} onOpen={setOpenId} />
               ))}
             </tbody>
           </table>
@@ -238,6 +237,43 @@ export function VisitorsView({ sb, ws, navigate, head }: ViewProps & { head?: Re
     </Page>
   );
 }
+
+/** One visit in the list. Memoized: a poll that changes one visit redraws only that row. */
+const VisitRow = memo(function VisitRow({ v, on, onOpen }: { v: Visit; on: boolean; onOpen: (id: string) => void }) {
+  return (
+    <tr onClick={() => onOpen(v.id)} className={`anim-rise-sm cursor-pointer hover:bg-hover ${on ? "bg-hover" : ""}`}>
+                      <Td>
+                        <span className="flex items-center gap-2.5">
+                          <VisitorAvatar code={codeOf(v)} />
+                          <span className="truncate font-medium">{nameOf(v)}</span>
+                          {v.person_level ? <Badge tone={LEVEL_TONE[v.person_level] ?? "gray"}>{v.person_level}</Badge> : null}
+                        </span>
+                      </Td>
+                      <Td>
+                        {v.account_id ? (
+                          <span className="flex items-center gap-2">
+                            <span>{v.account_name ?? v.account_domain}</span>
+                            {v.account_source === "vendor_network" || v.account_source === "learned_network" ? <Badge>By network</Badge> : null}
+                          </span>
+                        ) : (
+                          <span className="text-muted">Unknown{v.country ? ` · ${v.country}` : ""}</span>
+                        )}
+                      </Td>
+                      <Td className="max-w-[300px] truncate font-mono text-[12px]">
+                        {v.pages.slice(0, 3).join("  ")}
+                        {v.pageviews > 3 ? <span className="text-faint">{`  +${v.pageviews - 3}`}</span> : null}
+                      </Td>
+                      <Td className="text-right text-[13px] tabular-nums">{activeTime(v.engaged_s)}</Td>
+                      <Td>
+                        <span className="flex items-center gap-2">
+                          <Badge tone={v.ref_class === "ai_assistant" ? "brand" : "gray"}>{REF_LABEL[v.ref_class ?? "direct"] ?? v.ref_class}</Badge>
+                          <span className="truncate text-[12px] text-muted">{v.referrer_host ?? v.source ?? ""}</span>
+                        </span>
+                      </Td>
+                      <Td className="text-[13px] text-muted">{timeAgo(v.started_at)}</Td>
+                    </tr>
+  );
+});
 
 /** One visit: who, from where, and every page in order. */
 function VisitPanel({ v, onClose, onAccount }: { v: Visit; onClose: () => void; onAccount: (id: string) => void }) {

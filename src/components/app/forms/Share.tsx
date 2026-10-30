@@ -9,7 +9,7 @@ import type { Op } from "@/lib/forms/ops";
 import { allFields, type Form } from "@/lib/forms/schema";
 import { capturedForm } from "@/lib/forms/templates";
 import { BrandLogo } from "../BrandLogo";
-import { Badge, ErrorNote, errorText, must, useLoad, type ViewProps } from "../ui";
+import { Badge, ErrorNote, errorText, must, useQuery, type ViewProps } from "../ui";
 import { ago, daysAgo, saveName } from "./formModel";
 
 /** "Yesterday" and "Just now" read lower case after other words; dates and counts keep theirs. */
@@ -130,19 +130,8 @@ function EmbedPane({ sb, form, row, kit }: Parameters<typeof Share>[0]) {
       : mode === "popup"
         ? `${script}\n<claritia-form form-id="${row.id}" popup="click"${once ? " once" : ""}></claritia-form>\n<button data-claritia-open="${row.id}">${button.replace(/[<>&"]/g, "")}</button>`
         : `${script}\n<claritia-form form-id="${row.id}" popup="${after === "exit" ? "exit" : `delay:${after}`}" slide${once ? " once" : ""}></claritia-form>`;
-  const seen = useLoad(async () => {
-    const since = daysAgo(90);
-    const rows = (must(await sb.from("submissions").select("created_at, hidden, spam, spam_reason").eq("form_id", row.id).eq("test", false).gte("created_at", since).order("created_at", { ascending: false }).limit(500)) ?? []) as { created_at: string; hidden: Record<string, string> | null; spam: boolean; spam_reason: string | null }[];
-    const pages = new Map<string, { last: string; blocked: boolean }>();
-    for (const s of rows) {
-      const p = (s.hidden?.page ?? "").replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/\/$/, "");
-      if (!p || /\/f\/[0-9a-f-]{36}/.test(p)) continue;
-      const blocked = s.spam && s.spam_reason === "site";
-      const key = blocked ? p.split("/")[0]! : p;
-      if (!pages.has(key)) pages.set(key, { last: s.created_at, blocked });
-    }
-    return [...pages.entries()].sort((a, b) => Number(a[1].blocked) - Number(b[1].blocked)).slice(0, 12);
-  }, row.id);
+  // The pages it was filled on, found by the database (form_seen_pages).
+  const seen = useQuery(`form:${row.id}:seen`, async () => (must(await sb.rpc("form_seen_pages", { p_form: row.id, p_since: daysAgo(90) })) ?? []) as [string, { last: string; blocked: boolean }][]);
   const cards: [Mode, string, string][] = [
     ["inline", "In the page", "left-[10%] right-[10%] top-[22%] bottom-[22%]"],
     ["popup", "Popup", "left-[28%] right-[28%] top-[16%] bottom-[16%]"],

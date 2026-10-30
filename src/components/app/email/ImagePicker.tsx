@@ -4,10 +4,10 @@
 // workspace's images to pick from, or a link typed in. Uploads go through /api/assets, which checks each file.
 
 import type { Session, SupabaseClient } from "@supabase/supabase-js";
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { Trash, Upload } from "../../Icons";
 import { askConfirm } from "../Dialogs";
-import { errorText } from "../ui";
+import { errorText, useQuery } from "../ui";
 import { Popover, Row, TextIn } from "../forms/controls";
 
 export type AssetCtx = { session: Session; sb: SupabaseClient; workspaceId: string };
@@ -19,22 +19,11 @@ export function ImagePicker({ label, value, onChange, ctx, placeholder }: { labe
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const [list, setList] = useState<Asset[]>([]);
-  const [tick, setTick] = useState(0);
-  useEffect(() => {
-    if (!open || !ctx) return;
-    let live = true;
-    void ctx.sb
-      .from("design_assets")
-      .select("id, url, name, width, height")
-      .eq("workspace_id", ctx.workspaceId)
-      .order("created_at", { ascending: false })
-      .limit(60)
-      .then(({ data }) => live && setList((data ?? []) as Asset[]));
-    return () => {
-      live = false;
-    };
-  }, [open, ctx, tick]);
+  // The library, from the cache when opened again.
+  const assets = useQuery(open && ctx ? `design_assets:${ctx.workspaceId}` : null, async () =>
+    ((await ctx!.sb.from("design_assets").select("id, url, name, width, height").eq("workspace_id", ctx!.workspaceId).order("created_at", { ascending: false }).limit(60)).data ?? []) as Asset[],
+  );
+  const list = assets.data ?? [];
 
   const upload = async (f: File) => {
     if (!ctx) return;
@@ -48,7 +37,7 @@ export function ImagePicker({ label, value, onChange, ctx, placeholder }: { labe
       const data = (await res.json().catch(() => ({}))) as { url?: string; error?: string };
       if (!res.ok || !data.url) throw new Error(data.error ?? "Try again in a moment.");
       onChange(data.url);
-      setTick((t) => t + 1);
+      assets.reload();
     } catch (e) {
       setError(errorText(e));
     } finally {
@@ -59,7 +48,7 @@ export function ImagePicker({ label, value, onChange, ctx, placeholder }: { labe
     if (!ctx || !(await askConfirm(`Delete ${a.name || "this image"}?`, { body: "Emails already sent with it stop showing it.", ok: "Delete", danger: true }))) return;
     const res = await fetch(`/api/assets?id=${a.id}`, { method: "DELETE", headers: { Authorization: `Bearer ${ctx.session.access_token}` } });
     if (!res.ok) setError("Try again in a moment.");
-    setTick((t) => t + 1);
+    assets.reload();
   };
 
   return (
@@ -106,7 +95,7 @@ export function ImagePicker({ label, value, onChange, ctx, placeholder }: { labe
                       className="block aspect-square w-full overflow-hidden rounded-sm border border-line hover:border-ink"
                     >
                       {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={a.url} alt={a.name} className="size-full object-cover" />
+                      <img src={a.url} alt={a.name} loading="lazy" decoding="async" className="size-full object-cover" />
                     </button>
                     <button type="button" aria-label={`Delete ${a.name || "image"}`} title="Delete" onClick={() => void remove(a)} className="press absolute top-1 right-1 flex size-6 items-center justify-center rounded-full bg-card text-muted opacity-0 shadow-float group-hover:opacity-100 hover:text-rose focus:opacity-100">
                       <Trash size={11} />

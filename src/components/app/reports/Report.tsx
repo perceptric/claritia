@@ -11,9 +11,10 @@ import { Download } from "../../Icons";
 import { DayLine, FunnelBars, type FunnelStep } from "../charts/Charts";
 import { Modal } from "../meetings/parts";
 import { Select } from "../Select";
+import { workspacePeople } from "../shared";
 import { StatCards, type StatCard } from "../StatCards";
 import { ToolIntro } from "../ToolIntro";
-import { ErrorNote, IconButton, Loading, must, Panel, Segmented, Td, Th, useLoad, type ViewProps } from "../ui";
+import { ErrorNote, IconButton, Loading, must, Panel, Segmented, Td, Th, useQuery, type ViewProps } from "../ui";
 
 export type ReportKind = "funnel" | "reps" | "speed" | "rules" | "forms" | "email";
 const TITLE: Record<ReportKind, string> = {
@@ -90,27 +91,26 @@ export function Report({
 }) {
   const [preset, setPreset] = useState<Preset>(readPreset);
   const [drill, setDrill] = useState<Drill | null>(null);
-  const names = useLoad(async (): Promise<Names> => {
+  // Names for the reports, cached: the second visit draws the reports at once. Rule names come from each version's
+  // rule list only, not whole bodies.
+  const names = useQuery(`report_names:${ws}`, async (): Promise<Names> => {
     const [forms, people, profiles, versions, settings] = await Promise.all([
       sb.from("forms").select("id, name").eq("workspace_id", ws),
-      sb.rpc("workspace_people", { p_ws: ws }),
+      workspacePeople(sb, ws).then((data) => ({ data })),
       sb.from("booking_profiles").select("user_id, name").eq("workspace_id", ws),
-      sb.from("router_versions").select("version, body").eq("workspace_id", ws).order("version", { ascending: false }).limit(20),
+      sb.from("router_versions").select("version, list:body->rules->list").eq("workspace_id", ws).order("version", { ascending: false }).limit(20),
       sb.from("send_settings").select("timezone").eq("workspace_id", ws).maybeSingle(),
     ]);
     const named = new Map(((profiles.data ?? []) as { user_id: string; name: string }[]).map((p) => [p.user_id, p.name]));
     const rules: Record<string, string> = {};
-    for (const v of (versions.data ?? []) as {
-      body: { rules?: { list?: { id: string; name: string }[] } };
-    }[])
-      for (const r of v.body.rules?.list ?? []) rules[r.id] ??= r.name;
+    for (const v of (versions.data ?? []) as { list: { id: string; name: string }[] | null }[]) for (const r of v.list ?? []) rules[r.id] ??= r.name;
     return {
       forms: Object.fromEntries(((must(forms) ?? []) as { id: string; name: string }[]).map((f) => [f.id, f.name])),
       people: Object.fromEntries(((people.data ?? []) as { id: string; email: string }[]).map((p) => [p.id, named.get(p.id) || p.email.replace(/@.*/, "")])),
       rules,
       tz: (settings.data as { timezone?: string } | null)?.timezone || "UTC",
     };
-  }, ws);
+  });
   const range = useMemo(() => presetRange(preset, todayIn(names.data?.tz ?? "UTC")), [preset, names.data?.tz]);
   const pick = (p: Preset) => {
     setPreset(p);
@@ -226,9 +226,12 @@ const groupName = (by: By, key: string, n: Names) => {
   return key;
 };
 
+/** A report's numbers, cached per report and range, so switching tabs and ranges back paints at once. */
+const useReport = <T,>(kind: string, fn: () => Promise<T>, key: string) => useQuery<T>(`report:${kind}:${key}`, fn);
+
 function FunnelPage({ sb, ws, range, names, onDrill, title }: PageProps) {
   const [by, setBy] = useState<By>("source");
-  const r = useLoad(
+  const r = useReport("r1", 
     async () =>
       must(
         await sb.rpc("report_funnel", {
@@ -415,7 +418,7 @@ const faster = (now: number | null, before: number | null) => {
 };
 
 function SpeedPage({ sb, ws, range, title }: PageProps) {
-  const r = useLoad(
+  const r = useReport("r2", 
     async () =>
       must(
         await sb.rpc("report_speed", {
@@ -543,7 +546,7 @@ type Rep = {
 };
 
 function RepsPage({ sb, ws, range, names, onDrill, title }: PageProps) {
-  const r = useLoad(
+  const r = useReport("r3", 
     async () =>
       must(
         await sb.rpc("report_reps", {
@@ -648,7 +651,7 @@ type RuleRow = {
 type DropRow = { form_id: string; visits: number; left: number; field: string | null; n: number | null; label: string | null };
 
 function FormsPage({ sb, ws, range, onDrill, title, onField }: PageProps & { onField: (formId: string) => void }) {
-  const r = useLoad(async () => {
+  const r = useReport("r4", async () => {
     const [forms, drop] = await Promise.all([
       sb.rpc("report_forms", { p_ws: ws, p_from: range.from, p_to: range.to }),
       sb.rpc("report_form_dropoff", { p_ws: ws, p_from: range.from, p_to: range.to }),
@@ -748,7 +751,7 @@ function FormsPage({ sb, ws, range, onDrill, title, onField }: PageProps & { onF
 }
 
 function RulesPage({ sb, ws, range, names, title }: PageProps) {
-  const r = useLoad(
+  const r = useReport("r5", 
     async () =>
       must(
         await sb.rpc("report_forms", {
@@ -818,7 +821,7 @@ type Mail = {
 
 function EmailPage({ sb, ws, range, onDrill, title }: PageProps) {
   const [view, setView] = useState<"emails" | "workflows">("emails");
-  const r = useLoad(
+  const r = useReport("r6", 
     async () =>
       must(
         await sb.rpc("report_email", {
@@ -931,7 +934,7 @@ function EmailPage({ sb, ws, range, onDrill, title }: PageProps) {
 // The contacts behind a number ----------------------------------------------------------------------------------------
 
 function People({ sb, ws, range, drill, onOpen, onClose }: { sb: ViewProps["sb"]; ws: string; range: Range; drill: Drill; onOpen: (id: string) => void; onClose: () => void }) {
-  const r = useLoad(
+  const r = useReport("r7", 
     async () =>
       must(
         await sb.rpc("report_people", {

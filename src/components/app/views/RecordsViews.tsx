@@ -9,7 +9,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { shown, type AnyField } from "@/lib/records/fields";
 import { Box, Dollar, Eye, Plus, Users } from "../../Icons";
 import { askConfirm, askText } from "../Dialogs";
-import { Avatar, Badge, Button, ErrorNote, errorText, Loading, must, Page, Tabs, timeAgo, useLoad, type ViewProps } from "../ui";
+import { Avatar, Badge, Button, ErrorNote, errorText, invalidate, Loading, must, Page, Tabs, timeAgo, useQuery, type ViewProps } from "../ui";
 import type { Link } from "../records/FieldInput";
 import { useMeta } from "../records/meta";
 import { FieldDialog } from "../records/FieldDialog";
@@ -108,17 +108,17 @@ const OPPORTUNITIES_BASE: ViewState = {
 export function OpportunitiesView(props: ViewProps) {
   const { sb, ws, session, navigate, id } = props;
   const [error, setError] = useState("");
-  const [tick, setTick] = useState(0);
   if (id) return <RecordPage {...props} object="opportunity" />;
   const add = async () => {
     const name = await askText("New opportunity", { placeholder: "Name", ok: "Create" });
     if (!name) return;
     try {
       const rid = must(await sb.rpc("record_create", { p_ws: ws.id, p_object: "opportunity", p_name: name, p_fields: { stage: "qualification" } })) as string;
+      invalidate(`records:${ws.id}:opportunity`);
       navigate("opportunities", rid);
     } catch (e) {
       setError(errorText(e));
-      setTick((t) => t + 1);
+      invalidate(`records:${ws.id}`);
     }
   };
   return (
@@ -129,7 +129,6 @@ export function OpportunitiesView(props: ViewProps) {
         </div>
       ) : null}
       <RecordsList
-        key={tick}
         sb={sb}
         session={session}
         ws={ws}
@@ -169,7 +168,7 @@ type Opp = { id: string; name: string; amount: number | null; stage: string | nu
 /** The same opportunities as a short list in a record page's right rail. */
 export function OpportunitiesRail({ sb, ws, object, id, navigate }: { sb: SupabaseClient; ws: { id: string }; object: "company" | "contact"; id: string; navigate: ViewProps["navigate"] }) {
   const meta = useMeta(sb, ws.id, "opportunity");
-  const list = useLoad(async () => must(await sb.rpc("opportunities_for", { p_object: object, p_id: id })) as Opp[], `${object}:${id}`);
+  const list = useQuery(`records:${ws.id}:opportunity:for:${object}:${id}`, async () => must(await sb.rpc("opportunities_for", { p_object: object, p_id: id })) as Opp[]);
   const amount = meta.data?.fields.find((f) => f.key === "f.amount");
   const stage = meta.data?.fields.find((f) => f.key === "f.stage");
   const rows: RelatedRow[] = (list.data ?? []).map((o) => {
@@ -196,7 +195,6 @@ export function ObjectsView(props: ViewProps) {
 function ObjectList({ sb, ws, session, navigate, objectKey }: ViewProps & { objectKey: string }) {
   const meta = useMeta(sb, ws.id, objectKey);
   const [error, setError] = useState("");
-  const [tick, setTick] = useState(0);
   const obj = meta.data?.object;
   if (meta.error || (meta.data && !obj)) {
     return (
@@ -210,10 +208,11 @@ function ObjectList({ sb, ws, session, navigate, objectKey }: ViewProps & { obje
     if (!name) return;
     try {
       const rid = must(await sb.rpc("record_create", { p_ws: ws.id, p_object: objectKey, p_name: name, p_fields: {} })) as string;
+      invalidate(`records:${ws.id}:${objectKey}`);
       navigate("objects", `${objectKey}/${rid}`);
     } catch (e) {
       setError(errorText(e));
-      setTick((t) => t + 1);
+      invalidate(`records:${ws.id}`);
     }
   };
   const base: ViewState = {
@@ -232,7 +231,6 @@ function ObjectList({ sb, ws, session, navigate, objectKey }: ViewProps & { obje
         </div>
       ) : null}
       <RecordsList
-        key={tick}
         sb={sb}
         session={session}
         ws={ws}
@@ -268,7 +266,7 @@ function RecordPage({ sb, ws, session, role, id, navigate, object }: ViewProps &
   const company = object === "company";
   const opportunity = object === "opportunity";
   const meta = useMeta(sb, ws.id, object);
-  const detail = useLoad(async () => must(await sb.rpc(company ? "company_detail" : "record_detail", { p_id: id })) as Detail, `${object}:${id}`);
+  const detail = useQuery(`record:${ws.id}:${object}:${id}`, async () => must(await sb.rpc(company ? "company_detail" : "record_detail", { p_id: id })) as Detail);
   const [error, setError] = useState("");
   const listRoute = company ? () => navigate("companies") : opportunity ? () => navigate("opportunities") : () => navigate("objects", object);
   const label = company ? "Companies" : opportunity ? "Opportunities" : (meta.data?.object?.plural ?? "Records");
@@ -285,14 +283,29 @@ function RecordPage({ sb, ws, session, role, id, navigate, object }: ViewProps &
   const rec = (company ? d.company : d.record) as Row;
   const name = (company ? d.company?.name || d.company?.domain : d.record?.name) ?? "—";
   const record: Row = company ? { ...rec, fit: d.account?.fit ?? null, intent: d.account?.intent ?? null, stage: d.account?.stage ?? null, contacts: d.contacts?.length ?? 0 } : rec;
+  // A field shows its new value at once and goes back if the save fails; relations and names read the record again.
   const save = async (f: AnyField, v: unknown) => {
-    must(await sb.rpc("record_set", { p_object: object, p_id: id, p_key: f.key, p_value: v ?? null }));
-    detail.reload();
+    const write = async () => must(await sb.rpc("record_set", { p_object: object, p_id: id, p_key: f.key, p_value: v ?? null }));
+    const custom = f.key.startsWith("f.");
+    const simple = f.kind !== "relation" && (custom || !["name", "domain", "owner", "fit", "intent", "stage", "contacts"].includes(f.key));
+    if (simple)
+      await detail.mutate((x) => {
+        const key = company ? "company" : "record";
+        const cur = (x[key] ?? {}) as Row & { fields?: Record<string, unknown> };
+        const next = custom ? { ...cur, fields: { ...(cur.fields ?? {}), [f.key.slice(2)]: v ?? null } } : { ...cur, [f.key]: v ?? null };
+        return { ...x, [key]: next };
+      }, write);
+    else {
+      await write();
+      detail.reload();
+    }
+    invalidate(`records:${ws.id}:${object}`);
   };
   const remove = async () => {
     if (!(await askConfirm(`Remove ${name}?`, { ok: "Remove", danger: true }))) return;
     try {
       must(await sb.rpc("records_delete", { p_ws: ws.id, p_object: object, p_ids: [id] }));
+      invalidate(`records:${ws.id}`);
       listRoute();
     } catch (e) {
       setError(errorText(e));

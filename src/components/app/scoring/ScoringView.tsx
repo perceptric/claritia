@@ -4,7 +4,7 @@
 // Leads (scores and why), and Ideal customer (the account fit that Visitors uses).
 
 import { scoringPage, SCORING_TABS } from "@/lib/nav";
-import { ErrorNote, Loading, Page, Section, useLoad, type ViewProps } from "../ui";
+import { ErrorNote, Loading, Page, Section, useQuery, type ViewProps } from "../ui";
 import { ToastHost } from "../routing/Toast";
 import { IcpPanel } from "../views/SitesPanel";
 import { scoringApi, type Loaded } from "./api";
@@ -27,7 +27,7 @@ export function ScoringView(props: ViewProps) {
 }
 
 function ModelTab({ session, ws, role }: Pick<ViewProps, "session" | "ws" | "role">) {
-  const data = useLoad(() => scoringApi<Loaded>(session, ws.id, "load"), ws.id);
+  const data = useQuery(`scoring:${ws.id}`, () => scoringApi<Loaded>(session, ws.id, "load"), { staleMs: 0 });
   if (data.error) return <div className="p-4 md:p-6"><ErrorNote message={data.error} /></div>;
   if (!data.data) return <Loading />;
   const d = data.data;
@@ -42,5 +42,5 @@ function ModelTab({ session, ws, role }: Pick<ViewProps, "session" | "ws" | "rol
       );
     return <Build session={session} ws={ws} forms={d.forms} site={d.site} model={m?.id ?? null} onDone={data.reload} />;
   }
-  return <Editor key={`${m.id}:${m.liveVersion ?? 0}`} session={session} ws={ws} role={role} data={d} model={m} refresh={data.reload} />;
+  return <Editor key={m.id} session={session} ws={ws} role={role} data={d} model={m} refresh={data.reload} />;
 }

@@ -493,9 +493,12 @@ export function StepPanel(p: {
             <Select
               value=""
               options={p.names.templates.map((t) => ({ value: t.id, label: t.name }))}
-              onChange={(id) => {
+              onChange={async (id) => {
                 const t = p.names.templates.find((x) => x.id === id);
-                if (t) p.onPatch({ email: t.body as EmailBody, approved: false } as Partial<Step>);
+                if (!t) return;
+                // The list holds names only; the picked template's body is read now.
+                const body = t.body ?? (p.sb ? ((await p.sb.from("email_templates").select("body").eq("id", id).maybeSingle()).data as { body: unknown } | null)?.body : undefined);
+                if (body) p.onPatch({ email: body as EmailBody, approved: false } as Partial<Step>);
               }}
               ariaLabel="Use a template"
               placeholder="Use a template"

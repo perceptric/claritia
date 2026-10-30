@@ -4,7 +4,8 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { allFields, type AnyField, type CustomField, type FieldSetting, type ObjectDef, type Option, type Person } from "@/lib/records/fields";
-import { must, useLoad } from "../ui";
+import { invalidate, must, useQuery } from "../ui";
+import { workspacePeople } from "../shared";
 
 export type Meta = { fields: AnyField[]; custom: CustomField[]; people: Person[]; lists: Option[]; object: ObjectDef | null; layout: { name: string; keys: string[] }[] };
 
@@ -17,13 +18,13 @@ export async function loadMeta(sb: SupabaseClient, wsId: string, object: string)
   const [custom, settings, people, lists, obj, layout] = await Promise.all([
     sb.from("fields").select("key, label, type, options, config, required, group_name, position, system").eq("workspace_id", wsId).eq("object", object).order("position"),
     sb.from("field_settings").select("key, label, hidden, options").eq("workspace_id", wsId).eq("object", object),
-    sb.rpc("workspace_people", { p_ws: wsId }),
+    workspacePeople(sb, wsId),
     object === "contact" ? sb.from("segments").select("id, name").eq("workspace_id", wsId).order("name") : Promise.resolve({ data: [], error: null }),
     OBJECT_LABELS[object] ? Promise.resolve({ data: OBJECT_LABELS[object], error: null }) : sb.from("objects").select("id, key, label, plural, icon").eq("workspace_id", wsId).eq("key", object).maybeSingle(),
     sb.from("object_layouts").select("sections").eq("workspace_id", wsId).eq("object", object).maybeSingle(),
   ]);
   const c = must(custom) as CustomField[];
-  const p = (must(people) ?? []) as Person[];
+  const p = people as Person[];
   const l = ((must(lists) ?? []) as { id: string; name: string }[]).map((x) => ({ value: x.id, label: x.name }));
   return {
     custom: c,
@@ -35,6 +36,14 @@ export async function loadMeta(sb: SupabaseClient, wsId: string, object: string)
   };
 }
 
+/** An object's fields and what they need, shared by its list, its record pages and segment rules (`meta:<ws>:<object>`). */
 export function useMeta(sb: SupabaseClient, wsId: string, object: string) {
-  return useLoad(() => loadMeta(sb, wsId, object), `${wsId}:${object}`);
+  return useQuery(`meta:${wsId}:${object}`, () => loadMeta(sb, wsId, object), { staleMs: 60_000 });
+}
+
+/** After a field is added, changed, moved or deleted: every screen showing that object's fields reads them again. */
+export function fieldsChanged(wsId: string, object?: string) {
+  invalidate(object ? `meta:${wsId}:${object}` : `meta:${wsId}`);
+  invalidate(`records:${wsId}`);
+  invalidate(`field_order:${wsId}`);
 }

@@ -40,7 +40,7 @@ export function BrandPage({ sb, session, ws, role }: ViewProps) {
                 <div className="flex flex-col gap-4 px-5 py-4">
                   <div className="flex items-center gap-3">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
-                    {k.logo_url ? <img src={k.logo_url} alt={`${k.name} logo`} className="h-7 max-w-[140px] object-contain" /> : null}
+                    {k.logo_url ? <img src={k.logo_url} alt={`${k.name} logo`} width={140} height={28} decoding="async" className="h-7 w-auto max-w-[140px] object-contain" /> : null}
                     <span className="text-[14px] font-medium text-ink">{k.name}</span>
                   </div>
                   <div className="flex flex-wrap gap-1.5">

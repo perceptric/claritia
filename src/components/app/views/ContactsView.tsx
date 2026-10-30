@@ -4,6 +4,7 @@
 // records list (src/components/app/records): views, filters, table or board, columns, inline edits and bulk
 // actions. Leads are a view on Contacts (contacts with a lead status). The add and edit forms live here.
 
+import dynamic from "next/dynamic";
 import { useState } from "react";
 import { contactsPage, CONTACTS_TABS } from "@/lib/nav";
 import { BASES, BASIS_LABEL, type Basis } from "@/lib/contacts/consent";
@@ -15,22 +16,24 @@ import { Popover } from "../FilterBar";
 import { Select } from "../Select";
 import { SampleRows, SampleStats, SampleTags, ToolIntro } from "../ToolIntro";
 import { Sketch } from "../../sketches/Sketch";
-import { Avatar, Badge, Button, Empty, ErrorNote, errorText, Field, Input, Loading, must, Page, postJson, Section, Tabs, timeAgo, useLoad, type Tone, type ViewProps } from "../ui";
-import { Report } from "../reports/Report";
+import { Avatar, Badge, Button, Empty, ErrorNote, errorText, Field, Input, invalidate, Loading, must, Page, postJson, Section, Tabs, timeAgo, type Tone, useQuery, type ViewProps } from "../ui";
 import type { Link } from "../records/FieldInput";
 import { useMeta, type Meta } from "../records/meta";
 import { FieldDialog } from "../records/FieldDialog";
 import { FieldsPanel, HistoryPanel, sourceLabel, type Change } from "../records/RecordParts";
 import { RecordWork } from "../records/RecordWork";
-import { ImportPanel } from "../records/ImportPanel";
 import { RecordsList, type Preset, type ViewState } from "../records/RecordsList";
 import { Sheet } from "../Sheet";
 import { DEFAULT_WIDTH, type Row } from "../records/RecordTable";
 import { OpportunitiesRail } from "./RecordsViews";
 import { FieldGroup, RailRow, RecordHead, RecordLayout, RelatedList, StagePath, StatStrip } from "../records/RecordLayout";
 import { routingApi } from "../routing/api";
-import { RoutedBy } from "../routing/Log";
-import { activeTime } from "./VisitorsView";
+import { activeTime } from "@/lib/visits";
+
+// Loaded when first shown, so the contacts list opens without them.
+const Report = dynamic(() => import("../reports/Report").then((m) => m.Report), { ssr: false, loading: () => <Loading /> });
+const ImportPanel = dynamic(() => import("../records/ImportPanel").then((m) => m.ImportPanel), { ssr: false });
+const RoutedBy = dynamic(() => import("../routing/Log").then((m) => m.RoutedBy), { ssr: false });
 
 const LIFECYCLE_LABEL = Object.fromEntries(LIFECYCLES.map((l) => [l.value, l.label]));
 const LIFECYCLE_TONE: Record<string, Tone> = { customer: "green", opportunity: "brand", sql: "brand", mql: "violet" };
@@ -76,7 +79,6 @@ export function ContactsView(props: ViewProps) {
 
 function ContactsList({ sb, ws, session, role, navigate }: ViewProps) {
   const [panel, setPanel] = useState<"import" | "add" | null>(null);
-  const [tick, setTick] = useState(0);
   const custom = useMeta(sb, ws.id, "contact");
   const actions = (
     <>
@@ -93,7 +95,6 @@ function ContactsList({ sb, ws, session, role, navigate }: ViewProps) {
   return (
     <>
       <RecordsList
-        key={tick}
         sb={sb}
         session={session}
         ws={ws}
@@ -118,7 +119,10 @@ function ContactsList({ sb, ws, session, role, navigate }: ViewProps) {
           fieldsChanged={custom.reload}
           onClose={(changed) => {
             setPanel(null);
-            if (changed) setTick((t) => t + 1);
+            if (changed) {
+              invalidate(`records:${ws.id}:contact`);
+              invalidate("app_counts");
+            }
           }}
         />
       ) : null}
@@ -410,11 +414,10 @@ function EnrichedGroup({ c }: { c: Detail["contact"] }) {
 
 function ContactPage({ sb, ws, session, role, id, navigate }: ViewProps) {
   const [addingField, setAddingField] = useState(false);
-  const detail = useLoad(async () => must(await sb.rpc("contact_detail", { p_id: id })) as Detail, id);
+  const detail = useQuery(`contact:${ws.id}:${id}`, async () => must(await sb.rpc("contact_detail", { p_id: id })) as Detail);
   const meta = useMeta(sb, ws.id, "contact");
   const [editing, setEditing] = useState(false);
   const [error, setError] = useState("");
-  const [routed, setRouted] = useState(0);
   const [tab, setTab] = useState<ContactTab>("timeline");
   const back = { label: "Contacts", onClick: () => navigate("contacts") };
 
@@ -443,7 +446,9 @@ function ContactPage({ sb, ws, session, role, id, navigate }: ViewProps) {
     try {
       await routingApi(session, ws.id, "route", { contacts: [id] });
       detail.reload();
-      setRouted((n) => n + 1);
+      invalidate(`router_runs:${ws.id}`);
+      invalidate(`router_slas:${ws.id}`);
+      invalidate("app_counts");
     } catch (e) {
       setError(errorText(e));
     }
@@ -452,14 +457,28 @@ function ContactPage({ sb, ws, session, role, id, navigate }: ViewProps) {
     if (!(await askConfirm(`Remove ${name}?`, { ok: "Remove", danger: true }))) return;
     try {
       must(await sb.rpc("contacts_delete", { p_ws: ws.id, p_ids: [id] }));
+      invalidate(`records:${ws.id}:contact`);
+      invalidate("app_counts");
       navigate("contacts");
     } catch (e) {
       setError(errorText(e));
     }
   }
+  // A field (or a stage on the path) shows its new value at once and goes back if the save fails; fields the page
+  // can't show without the server (relations, the name) read the contact again.
   const save = async (f: AnyField, v: unknown) => {
-    must(await sb.rpc("record_set", { p_object: "contact", p_id: id, p_key: f.key, p_value: v ?? null }));
-    detail.reload();
+    const write = async () => must(await sb.rpc("record_set", { p_object: "contact", p_id: id, p_key: f.key, p_value: v ?? null }));
+    const simple = !f.key.startsWith("f.") ? !["name", "company", "known", "owner", "segment"].includes(f.key) && f.kind !== "relation" : f.kind !== "relation";
+    if (simple)
+      await detail.mutate((x) => {
+        const contact = f.key.startsWith("f.") ? { ...x.contact, fields: { ...((x.contact as { fields?: Record<string, unknown> }).fields ?? {}), [f.key.slice(2)]: v ?? null } } : { ...x.contact, [f.key]: v ?? null };
+        return { ...x, contact: contact as typeof x.contact };
+      }, write);
+    else {
+      await write();
+      detail.reload();
+    }
+    invalidate(`records:${ws.id}:contact`);
   };
 
   const timeline = [
@@ -593,7 +612,7 @@ function ContactPage({ sb, ws, session, role, id, navigate }: ViewProps) {
               onSave={save}
               onCustomize={() => navigate("settings", "fields")}
               onAddField={() => setAddingField(true)}
-              under={{ owner: <RoutedBy key={routed} sb={sb} session={session} ws={ws} role={role} navigate={navigate} contact={id} /> }}
+              under={{ owner: <RoutedBy sb={sb} session={session} ws={ws} role={role} navigate={navigate} contact={id} /> }}
             />
             {c.seniority || c.department || c.linkedin_url ? <EnrichedGroup c={c} /> : null}
             <RelatedList id="contact:company" title="Company" rows={companyRows} />

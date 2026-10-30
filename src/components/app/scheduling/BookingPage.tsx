@@ -15,9 +15,9 @@ import { Check, ExternalLink, Grid, Grip, Link as LinkIcon, Message, Monitor, Pa
 import { BookShell } from "@/components/book/BookShell";
 import { PageHead, TypeCards } from "@/components/book/TypeCards";
 import { askConfirm } from "../Dialogs";
-import { Button, ErrorNote, errorText, Input, Loading, must, Page, Segmented, setLeaveGuard, Toggle, useLoad, type ViewProps } from "../ui";
+import { Button, ErrorNote, errorText, Input, invalidate, Loading, Page, Segmented, setLeaveGuard, Toggle, useQuery, type ViewProps } from "../ui";
 import { CopyButton, meetingsApi, usePeople } from "../meetings/parts";
-import type { TypeRow } from "../meetings/TypesList";
+import { useMeetingTypes, type TypeRow } from "../meetings/TypesList";
 import { IconSeg, Labeled, PanelFooter, PanelSection } from "./panel";
 
 type Info = {
@@ -66,22 +66,26 @@ export function BookingPage(props: ViewProps) {
   const me = session.user.id;
   const owner = role === "owner";
   const people = usePeople(sb, ws.id);
-  const data = useLoad(async () => {
-    const [info, types, kit] = await Promise.all([
+  // The page's settings and the brand kit; the types come from the shared list (active ones, by name).
+  const page = useQuery(`booking_page:${ws.id}`, async () => {
+    const [info, kit] = await Promise.all([
       meetingsApi<Info>(session, ws.id, "booking", { action: "load" }),
-      sb.from("meeting_types").select("*").eq("workspace_id", ws.id).eq("active", true).order("name"),
       sb.from("brand_kits").select("tokens, logo_url").eq("workspace_id", ws.id).order("created_at").limit(1),
     ]);
     const k = ((kit.data ?? []) as { tokens: Record<string, unknown> | null; logo_url: string | null }[])[0] ?? null;
-    return { info, types: (must(types) ?? []) as TypeRow[], kit: k && k.tokens && Object.keys(k.tokens).length ? k : null };
-  }, ws.id);
+    return { info, kit: k && k.tokens && Object.keys(k.tokens).length ? k : null };
+  });
+  const allTypes = useMeetingTypes(sb, ws.id);
+  const activeTypes = useMemo(() => (allTypes.data ? allTypes.data.filter((t) => t.active).sort((a, b) => a.name.localeCompare(b.name)) : null), [allTypes.data]);
+  const data = useMemo(() => ({ data: page.data && activeTypes ? { ...page.data, types: activeTypes } : null, error: page.error || allTypes.error }), [page.data, page.error, activeTypes, allTypes.error]);
   const email = session.user.email ?? "";
   const start = useMemo(() => (data.data ? draftOf(data.data.info, data.data.types, email) : null), [data.data, email]);
   const [draft, setDraft] = useState<Draft | null>(null);
   const [was, setWas] = useState<Draft | null>(null);
+  // Fresh data starts the draft over, unless you have changes not saved yet (a read in the background keeps them).
   if (start !== was) {
     setWas(start);
-    setDraft(start);
+    if (!draft || !was || JSON.stringify(draft) === JSON.stringify(was)) setDraft(start);
   }
   const [which, setWhich] = useState<Which>("mine");
   const [open, setOpen] = useState<SectionKey | null>(null);
@@ -128,17 +132,22 @@ export function BookingPage(props: ViewProps) {
     setError("");
     try {
       const profileChanged = ["handle", "name", "headline", "photo_url", "slug"].some((k) => draft[k as keyof Draft] !== start[k as keyof Draft]) || !info.profile?.handle;
+      // The addresses first (a look needs the page to exist), then the looks and the types together.
       if (profileChanged)
         await meetingsApi(session, ws.id, "booking", { action: "save", handle: draft.handle, profile: { slug: draft.slug, name: draft.name, headline: draft.headline, photo_url: draft.photo_url } });
       if (owner && draft.team && draft.team !== (info.team ?? "")) await meetingsApi(session, ws.id, "booking", { action: "team", handle: draft.team });
-      if (JSON.stringify(draft.mineLook) !== JSON.stringify(start.mineLook)) await meetingsApi(session, ws.id, "booking", { action: "look", look: draft.mineLook });
-      if (owner && JSON.stringify(draft.teamLook) !== JSON.stringify(start.teamLook)) await meetingsApi(session, ws.id, "booking", { action: "look", look: draft.teamLook, team: true });
-      for (const t of types) {
-        if (!!draft.hidden[t.id] === t.secret) continue;
-        const { name, slug, kind, hosts, settings, active, locked, owner_user_id } = t;
-        await meetingsApi(session, ws.id, "types", { action: "save", id: t.id, type: { name, slug, kind, hosts, settings, secret: !!draft.hidden[t.id], active, locked, owner_user_id } });
-      }
-      data.reload();
+      const hidden = types.filter((t) => !!draft.hidden[t.id] !== t.secret);
+      await Promise.all([
+        JSON.stringify(draft.mineLook) !== JSON.stringify(start.mineLook) ? meetingsApi(session, ws.id, "booking", { action: "look", look: draft.mineLook }) : null,
+        owner && JSON.stringify(draft.teamLook) !== JSON.stringify(start.teamLook) ? meetingsApi(session, ws.id, "booking", { action: "look", look: draft.teamLook, team: true }) : null,
+        ...hidden.map((t) => {
+          const { name, slug, kind, hosts, settings, active, locked, owner_user_id } = t;
+          return meetingsApi(session, ws.id, "types", { action: "save", id: t.id, type: { name, slug, kind, hosts, settings, secret: !!draft.hidden[t.id], active, locked, owner_user_id } });
+        }),
+      ]);
+      if (hidden.length) allTypes.set((rows) => rows.map((t) => (hidden.some((h) => h.id === t.id) ? { ...t, secret: !!draft.hidden[t.id] } : t)));
+      page.reload();
+      if (profileChanged) invalidate("people");
     } catch (e) {
       setError(errorText(e));
     } finally {
@@ -381,7 +390,7 @@ function Photo({ session, ws, name, value, onChange, onError }: { session: ViewP
         className={`press relative flex size-16 shrink-0 items-center justify-center overflow-hidden rounded-full bg-ink text-[18px] font-semibold text-paper transition-shadow duration-[120ms] ${over ? "ring-2 ring-ink ring-offset-2 ring-offset-card" : ""} ${busy ? "opacity-60" : ""}`}
       >
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        {value ? <img src={value} alt="" className="size-full object-cover" /> : initials(name)}
+        {value ? <img src={value} alt="" width={64} height={64} decoding="async" className="size-full object-cover" /> : initials(name)}
       </button>
       <span className="flex flex-col items-start gap-1">
         <Button variant="ghost" size="sm" className="h-[30px] !border-line" disabled={busy} onClick={() => input.current?.click()}>

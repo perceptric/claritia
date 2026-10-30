@@ -2,13 +2,13 @@
 
 // The top of Routing › Leads (docs/routing-chat-plan.md Part 6): this week's numbers, from router_stats.
 
-import { Stat, useLoad, type ViewProps } from "../ui";
-import { routingApi, type Loaded } from "./api";
+import { must, Stat, useQuery, type ViewProps } from "../ui";
+import type { Loaded } from "./api";
 import { fmt } from "./parts";
 
-export function LeadNumbers({ session, ws }: Pick<ViewProps, "session" | "ws">) {
-  const r = useLoad(() => routingApi<Loaded>(session, ws.id, "load"), ws.id);
-  const s = r.data?.stats;
+export function LeadNumbers({ sb, ws }: Pick<ViewProps, "sb" | "ws">) {
+  const r = useQuery(`router_runs:${ws.id}:week`, async () => must(await sb.rpc("routing_week_stats", { p_ws: ws.id })) as Loaded["stats"] | null);
+  const s = r.data;
   if (!s) return null;
   const routed = Math.max(0, s.total - s.held - s.unassigned);
   return (

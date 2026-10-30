@@ -9,7 +9,7 @@ import { CalendarIcon, Clock, Search, X } from "../../Icons";
 import { Popover } from "../FilterBar";
 import { Modal, PersonAvatar, usePeople } from "../meetings/parts";
 import { CheckBox } from "../records/RecordTable";
-import { Badge, Button, Empty, ErrorNote, errorText, Field, Input, Loading, must, Td, Th, useLoad, type Tone, type ViewProps } from "../ui";
+import { Badge, Button, Empty, ErrorNote, errorText, Field, Input, invalidate, Loading, must, Td, Th, useQuery, type Tone, type ViewProps } from "../ui";
 import { routingApi } from "./api";
 import { PersonPicker, ROUTING, RouteSketch, useLiveBody, useToast } from "./screenParts";
 import { dayStart, endOfDay, localDate, meter, parseCap, pauseUntil, queuesByRep, rangeWords, repStatus, repWarnings, WARNING_WORDS, weekStart, type PauseChoice, type RepRow, type Status } from "./screensModel";
@@ -25,34 +25,34 @@ const undoPatch = (r: RepRow | undefined, keys: ("paused_until" | "caps")[]): Pa
   ...(keys.includes("caps") ? { cap_day: r?.cap_day ?? null, cap_week: r?.cap_week ?? null } : {}),
 });
 
+/** A rep's row with a patch applied ("" clears a value), as the server will store it. */
+function withPatch(r: RepRow | undefined, user: string, patch: Patch): RepRow {
+  const base = (r ?? { user_id: user, paused_until: null, out_dates: [], backup: null, cap_day: null, cap_week: null }) as RepRow;
+  const next = { ...base } as Record<string, unknown>;
+  for (const [k, v] of Object.entries(patch)) next[k] = v === "" ? null : v;
+  return next as RepRow;
+}
+
 export function RepsTab({ sb, session, ws, role, navigate }: Props) {
   const me = session.user.id;
   const owner = role === "owner";
   const people = usePeople(sb, ws.id);
   const live = useLiveBody(sb, ws.id);
-  const data = useLoad(async () => {
-    const since = new Date(Math.min(weekStart(), dayStart())).toISOString();
-    const [reps, cals, hours, runs] = await Promise.all([
-      sb.from("router_reps").select("user_id, paused_until, out_dates, backup, cap_day, cap_week").eq("workspace_id", ws.id),
-      sb.from("calendar_accounts").select("user_id, provider, status").eq("workspace_id", ws.id),
-      sb.from("availability").select("user_id, weekly").eq("workspace_id", ws.id),
-      sb.from("router_runs").select("owner, created_at").eq("workspace_id", ws.id).eq("kind", "owner").in("by", ["queue", "fallback"]).is("undone_at", null).gte("created_at", since).limit(10000),
-    ]);
-    const day = dayStart();
-    const counts = new Map<string, { today: number; week: number }>();
-    for (const r of (must(runs) ?? []) as { owner: string; created_at: string }[]) {
-      const c = counts.get(r.owner) ?? { today: 0, week: 0 };
-      c.week++;
-      if (Date.parse(r.created_at) >= day) c.today++;
-      counts.set(r.owner, c);
-    }
-    return {
-      reps: new Map(((must(reps) ?? []) as RepRow[]).map((r) => [r.user_id, r])),
-      calendar: new Set(((must(cals) ?? []) as { user_id: string; provider: string; status: string }[]).filter((c) => c.provider !== "zoom" && c.status === "ok").map((c) => c.user_id)),
-      hours: new Map(((must(hours) ?? []) as { user_id: string; weekly: Record<string, unknown[]> }[]).map((h) => [h.user_id, h.weekly])),
-      counts,
+  // Reps, calendars, hours and this week's lead counts in one call (routing_reps_screen); the database counts.
+  const data = useQuery(`routing_reps:${ws.id}:screen`, async () => {
+    const r = must(await sb.rpc("routing_reps_screen", { p_ws: ws.id, p_day: new Date(dayStart()).toISOString(), p_since: new Date(Math.min(weekStart(), dayStart())).toISOString() })) as {
+      reps: RepRow[];
+      calendar: string[];
+      hours: { user_id: string; weekly: Record<string, unknown[]> }[];
+      counts: { owner: string; today: number; week: number }[];
     };
-  }, ws.id);
+    return {
+      reps: new Map((r.reps ?? []).map((x) => [x.user_id, x])),
+      calendar: new Set(r.calendar ?? []),
+      hours: new Map((r.hours ?? []).map((h) => [h.user_id, h.weekly])),
+      counts: new Map((r.counts ?? []).map((c) => [c.owner, { today: c.today, week: c.week }])),
+    };
+  });
   const toast = useToast();
   const [q, setQ] = useState("");
   const [picked, setPicked] = useState<Set<string>>(new Set());
@@ -66,12 +66,21 @@ export function RepsTab({ sb, session, ws, role, navigate }: Props) {
   const list = (people.data?.list ?? []).filter((p) => !q.trim() || p.name.toLowerCase().includes(q.trim().toLowerCase()) || p.email.toLowerCase().includes(q.trim().toLowerCase()));
   const canEdit = (user: string) => owner || user === me;
 
-  /** Save one rep; the row shows the error if it fails. */
+  /** The reps with a patch applied here, before the server answers. */
+  type Data = NonNullable<typeof data.data>;
+  const patched = (d: Data, users: string[], patch: Patch): Data => {
+    const reps = new Map(d.reps);
+    for (const u of users) reps.set(u, withPatch(reps.get(u), u, patch));
+    return { ...d, reps };
+  };
+  const changedReps = () => invalidate(`routing_reps:${ws.id}:me`);
+
+  /** Save one rep: the row changes at once and goes back, with the error, if the save fails. */
   const save = async (user: string, patch: Patch) => {
     setErrors((e) => ({ ...e, [user]: "" }));
     try {
-      await routingApi(session, ws.id, "rep", { user, patch });
-      data.reload();
+      await data.mutate((d) => patched(d, [user], patch), () => routingApi(session, ws.id, "rep", { user, patch }));
+      changedReps();
       return true;
     } catch (e) {
       setErrors((x) => ({ ...x, [user]: errorText(e) }));
@@ -84,14 +93,22 @@ export function RepsTab({ sb, session, ws, role, navigate }: Props) {
     const before = new Map(users.map((u) => [u, data.data?.reps.get(u)]));
     setError("");
     try {
-      await Promise.all(users.map((user) => routingApi(session, ws.id, "rep", { user, patch })));
       setPicked(new Set());
-      data.reload();
+      await data.mutate((d) => patched(d, users, patch), () => Promise.all(users.map((user) => routingApi(session, ws.id, "rep", { user, patch }))));
+      changedReps();
       toast.show(words, {
         label: "Undo",
         run: () =>
-          void Promise.all(users.map((user) => routingApi(session, ws.id, "rep", { user, patch: undoPatch(before.get(user), keys) })))
-            .then(data.reload)
+          void data
+            .mutate(
+              (d) => {
+                const reps = new Map(d.reps);
+                for (const u of users) reps.set(u, withPatch(reps.get(u), u, undoPatch(before.get(u), keys)));
+                return { ...d, reps };
+              },
+              () => Promise.all(users.map((user) => routingApi(session, ws.id, "rep", { user, patch: undoPatch(before.get(user), keys) }))),
+            )
+            .then(changedReps)
             .catch((e) => setError(errorText(e))),
       });
     } catch (e) {

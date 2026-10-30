@@ -7,7 +7,7 @@ import { useState } from "react";
 import { DEFAULT_AVAILABILITY, type Availability, type MeetingType } from "@/lib/meetings/types";
 import { Pencil } from "../../Icons";
 import { BrandLogo } from "../BrandLogo";
-import { Badge, Button, CardHead, ErrorNote, errorText, IconButton, Loading, must, Panel, Td, Th, useLoad, type Role, type ViewProps } from "../ui";
+import { Badge, Button, CardHead, ErrorNote, errorText, IconButton, invalidate, Loading, must, Panel, type Role, Td, Th, useQuery, type ViewProps } from "../ui";
 import { HoursEditor } from "./HoursEditor";
 import { hoursSummary } from "./model";
 import { providerOf, type Account } from "./MyCalendar";
@@ -25,7 +25,7 @@ function capsOf(user: string, types: Pick<MeetingType, "hosts" | "settings">[]):
 
 export function TeamCalendars({ sb, session, ws, role }: Pick<ViewProps, "sb" | "session" | "ws"> & { role: Role }) {
   const people = usePeople(sb, ws.id);
-  const data = useLoad(async () => {
+  const data = useQuery(`calendar_accounts:${ws.id}:team`, async () => {
     const [accounts, hours, types] = await Promise.all([
       sb.from("calendar_accounts").select("id, user_id, provider, account_email, status, refreshed_at").eq("workspace_id", ws.id).order("created_at"),
       sb.from("availability").select("user_id, tz, weekly, overrides").eq("workspace_id", ws.id),
@@ -36,14 +36,19 @@ export function TeamCalendars({ sb, session, ws, role }: Pick<ViewProps, "sb" | 
       hours: new Map(((must(hours) ?? []) as ({ user_id: string } & Availability)[]).map((h) => [h.user_id, h])),
       types: (must(types) ?? []) as Pick<MeetingType, "hosts" | "settings">[],
     };
-  }, ws.id);
+  });
   const [editing, setEditing] = useState<Person | null>(null);
   const owner = role === "owner";
 
   return (
     <Panel className="overflow-hidden">
       <CardHead label="Calendars" count={people.data?.list.length} />
-      {editing ? <EditHours session={session} ws={ws.id} person={editing} saved={data.data?.hours.get(editing.id) ?? null} onClose={() => setEditing(null)} onSaved={() => (setEditing(null), data.reload())} /> : null}
+      {editing ? <EditHours session={session} ws={ws.id} person={editing} saved={data.data?.hours.get(editing.id) ?? null} onClose={() => setEditing(null)} onSaved={(a: Availability) => {
+            const who = editing.id;
+            setEditing(null);
+            data.set((d) => ({ ...d, hours: new Map(d.hours).set(who, { user_id: who, ...a }) }));
+            invalidate("meeting_types");
+          }} /> : null}
       {data.error || people.error ? (
         <div className="p-4">
           <ErrorNote message={data.error || people.error} />
@@ -127,7 +132,7 @@ export function TeamCalendars({ sb, session, ws, role }: Pick<ViewProps, "sb" | 
   );
 }
 
-function EditHours({ session, ws, person, saved, onClose, onSaved }: { session: ViewProps["session"]; ws: string; person: Person; saved: Availability | null; onClose: () => void; onSaved: () => void }) {
+function EditHours({ session, ws, person, saved, onClose, onSaved }: { session: ViewProps["session"]; ws: string; person: Person; saved: Availability | null; onClose: () => void; onSaved: (a: Availability) => void }) {
   const [draft, setDraft] = useState<Availability>(() => (saved ? { tz: saved.tz, weekly: saved.weekly, overrides: saved.overrides } : DEFAULT_AVAILABILITY(ownZone())));
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -148,7 +153,7 @@ function EditHours({ session, ws, person, saved, onClose, onSaved }: { session: 
               setBusy(true);
               try {
                 await meetingsApi(session, ws, "availability", { userId: person.id, availability: draft });
-                onSaved();
+                onSaved(draft);
               } catch (e) {
                 setError(errorText(e));
               } finally {

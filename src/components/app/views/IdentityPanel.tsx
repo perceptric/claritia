@@ -9,6 +9,7 @@ import { Badge, Button, CardHead, ErrorNote, errorText, Field, Input, Loading, m
 import { domainList } from "@/lib/identity/domainList";
 import { Copy } from "./SitesPanel";
 import type { SiteHealth } from "./VisitorsView";
+import { useSiteHealth } from "../shared";
 
 type Domains = { own_domains: string[]; partner_domains: string[] };
 
@@ -92,7 +93,7 @@ function Secret({ sb, session, ws }: Pick<ViewProps, "sb" | "session" | "ws">) {
     if (!res.ok) throw new Error(data.error ?? "Something went wrong.");
     return { secret: data.secret ?? null, old: !!data.old };
   }, ws.id);
-  const sites = useLoad(async () => must(await sb.rpc("site_health", { p_ws: ws.id })) as SiteHealth[], ws.id);
+  const sites = useSiteHealth<SiteHealth>(sb, ws.id);
   const [site, setSite] = useState("");
   const [shown, setShown] = useState(false);
   const [busy, setBusy] = useState("");

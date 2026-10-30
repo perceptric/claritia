@@ -6,7 +6,8 @@
 import type { Session, SupabaseClient } from "@supabase/supabase-js";
 import { useEffect, useState } from "react";
 import { X } from "../../Icons";
-import { Avatar, Badge, IconButton, must, postJson, useLoad } from "../ui";
+import { Avatar, Badge, IconButton, must, postJson, useQuery } from "../ui";
+import { workspacePeople } from "../shared";
 import { STATUS } from "./model";
 import type { MeetingStatus } from "@/lib/meetings/types";
 
@@ -14,22 +15,22 @@ export type Person = { id: string; email: string; role: "owner" | "member"; name
 
 /** Teammates, with their booking page name, photo and link where they've set one. */
 export function usePeople(sb: SupabaseClient, ws: string) {
-  return useLoad(async () => {
-    const [people, profiles] = await Promise.all([sb.rpc("workspace_people", { p_ws: ws }), sb.from("booking_profiles").select("user_id, slug, name, headline, photo_url").eq("workspace_id", ws)]);
+  return useQuery(`people:${ws}`, async () => {
+    const [people, profiles] = await Promise.all([workspacePeople(sb, ws), sb.from("booking_profiles").select("user_id, slug, name, headline, photo_url").eq("workspace_id", ws)]);
     const prof = new Map(((must(profiles) ?? []) as { user_id: string; slug: string; name: string; headline: string | null; photo_url: string | null }[]).map((p) => [p.user_id, p]));
-    const list = ((must(people) ?? []) as { id: string; email: string; role: "owner" | "member" }[]).map((p): Person => {
+    const list = people.map((p): Person => {
       const b = prof.get(p.id);
       return { ...p, name: b?.name || p.email.replace(/@.*/, ""), photo: b?.photo_url ?? null, slug: b?.slug ?? null, headline: b?.headline ?? null };
     });
     return { list, byId: new Map(list.map((p) => [p.id, p])) };
-  }, ws);
+  }, { staleMs: 60_000 });
 }
 
 /** A person's photo, or their initials. */
 export function PersonAvatar({ person, label, size = 24 }: { person?: Person | null; label?: string; size?: number }) {
   if (person?.photo)
     // eslint-disable-next-line @next/next/no-img-element
-    return <img src={person.photo} alt="" width={size} height={size} className="shrink-0 rounded-full object-cover ring-2 ring-paper" style={{ width: size, height: size }} />;
+    return <img src={person.photo} alt="" width={size} height={size} loading="lazy" decoding="async" className="shrink-0 rounded-full object-cover ring-2 ring-paper" style={{ width: size, height: size }} />;
   return <Avatar label={person?.name || person?.email || label || "?"} size={size} />;
 }
 
@@ -89,7 +90,7 @@ export const meetingsApi = <T = Record<string, unknown>,>(session: Session, ws: 
 
 /** The workspace's booking address (/book/<slug>), made the first time it's asked for. */
 export function useWorkspaceSlug(session: Session, ws: string) {
-  return useLoad(async () => (await meetingsApi<{ workspaceSlug: string }>(session, ws, "profile", {})).workspaceSlug, ws);
+  return useQuery(`workspace_slug:${ws}`, async () => (await meetingsApi<{ workspaceSlug: string }>(session, ws, "profile", {})).workspaceSlug, { staleMs: Infinity });
 }
 
 /** The time now, moving on each minute, so Held and No-show appear when a meeting starts. */

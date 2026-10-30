@@ -6,20 +6,21 @@
 // meetings by day with a Today pill and a line at the current time. Each meeting shows its time, type, guest, company
 // and hosts; Held and No-show once it has started. A meeting opens on its own page.
 
-import { useMemo, useState } from "react";
+import { memo, useCallback, useMemo, useState } from "react";
 import type { MeetingStatus } from "@/lib/meetings/types";
 import { CalendarIcon, Link as LinkIcon, Plus, Search } from "../../Icons";
 import { BrandLogo } from "../BrandLogo";
 import { Select } from "../Select";
 import { StatCards } from "../StatCards";
 import { ToolIntro } from "../ToolIntro";
-import { Badge, Button, Empty, ErrorNote, errorText, Input, Loading, must, Page, Segmented, useLoad, type ViewProps } from "../ui";
+import { Badge, Button, Empty, ErrorNote, errorText, Input, invalidate, Loading, must, Page, Segmented, useQuery, type ViewProps } from "../ui";
 import { Sketch } from "../../sketches/Sketch";
 import { KIND_TONE } from "../scheduling/model";
 import { LinkDialog } from "./LinkDialog";
-import { guestName, MEETING_COLUMNS, type Meeting, type TypeLite } from "./MeetingsView";
+import { guestName, MEETING_COLUMNS, type Meeting } from "./MeetingsView";
 import { canMark, outsideBusy, presetSpan, SOURCES, STATUS, type Preset } from "./model";
 import { AvatarStack, meetingsApi, StatusBadge, useNow, usePeople } from "./parts";
+import { useMeetingTypes } from "./TypesList";
 
 const EDGE: Record<string, string> = { sky: "bg-sky", sage: "bg-sage", clay: "bg-clay", butter: "bg-butter", rose: "bg-rose", lilac: "bg-lilac" };
 const PRESETS: { value: Exclude<Preset, "day">; label: string }[] = [
@@ -54,30 +55,26 @@ export function MeetingsCalendar(props: ViewProps) {
   const span = useMemo(() => presetSpan(preset, now, day), [preset, day, now]);
   // Reload when the span moves to another day, not every minute.
   const spanKey = `${new Date(span.from).toDateString()}-${preset}-${day}`;
-  const data = useLoad(async () => {
-    const weekAgo = new Date(now - 7 * 86_400_000).toISOString();
-    const [meetings, types, week] = await Promise.all([
-      sb.from("meetings").select(MEETING_COLUMNS).eq("workspace_id", ws.id).gte("end_at", new Date(span.from).toISOString()).lt("start_at", new Date(span.to).toISOString()).order("start_at").limit(1000),
-      sb.from("meeting_types").select("id, name, slug, kind, lengths:settings->lengths").eq("workspace_id", ws.id).order("name"),
-      sb.from("meetings").select("status, source, start_at").eq("workspace_id", ws.id).gte("created_at", weekAgo).limit(5000),
-    ]);
-    return {
-      meetings: (must(meetings) ?? []) as unknown as Meeting[],
-      types: (must(types) ?? []) as (TypeLite & { kind: string })[],
-      week: (must(week) ?? []) as { status: MeetingStatus; source: string; start_at: string }[],
-    };
-  }, `${ws.id}-${spanKey}`);
-  const busy = useLoad(async () => {
+  // The span's meetings (cached per span, so going back to a span paints at once), the shared types, and this week's
+  // numbers counted by the database.
+  const list = useQuery(`meetings:${ws.id}:span:${spanKey}`, async () =>
+    (must(await sb.from("meetings").select(MEETING_COLUMNS).eq("workspace_id", ws.id).gte("end_at", new Date(span.from).toISOString()).lt("start_at", new Date(span.to).toISOString()).order("start_at").limit(1000)) ?? []) as unknown as Meeting[],
+  );
+  const allTypes = useMeetingTypes(sb, ws.id);
+  const stats = useQuery(`meetings:${ws.id}:week`, async () => must(await sb.rpc("meetings_week_stats", { p_ws: ws.id, p_since: new Date(Date.now() - 7 * 86_400_000).toISOString() })) as WeekStats);
+  const typeList = useMemo(() => (allTypes.data ? [...allTypes.data].sort((a, b) => a.name.localeCompare(b.name)).map((t) => ({ id: t.id, name: t.name, slug: t.slug, kind: t.kind as string, lengths: t.settings.lengths })) : null), [allTypes.data]);
+  const data = { data: list.data && typeList ? { meetings: list.data, types: typeList } : null, error: list.error || allTypes.error };
+  const busy = useQuery(`meetings:${ws.id}:busy:${spanKey}:${scope}:${whose}`, async () => {
     if (scope !== "all" || whose === "everyone") return [] as Busy[];
     const { data: rows } = await sb.rpc("meeting_calendar_busy", { p_ws: ws.id, p_user: whose, p_from: new Date(span.from).toISOString(), p_to: new Date(span.to).toISOString() });
     return ((rows ?? []) as Busy[]) ?? [];
-  }, `${ws.id}-${spanKey}-${scope}-${whose}`);
+  });
 
-  const types = useMemo(() => data.data?.types ?? [], [data.data]);
+  const types = useMemo(() => typeList ?? [], [typeList]);
   const typeOf = useMemo(() => new Map(types.map((t) => [t.id, t])), [types]);
   const items = useMemo((): Item[] => {
     const q = query.trim().toLowerCase();
-    const ms = (data.data?.meetings ?? []).filter(
+    const ms = (list.data ?? []).filter(
       (m) =>
         (whose === "everyone" || m.hosts.includes(whose)) &&
         (!type || m.type_id === type) &&
@@ -86,9 +83,9 @@ export function MeetingsCalendar(props: ViewProps) {
         (!q || [guestName(m), m.guest_email, m.contact?.company?.name ?? "", m.type_id ? (typeOf.get(m.type_id)?.name ?? "") : ""].some((x) => x.toLowerCase().includes(q))),
     );
     const out: Item[] = ms.map((m) => ({ kind: "meeting", at: Date.parse(m.start_at), m }));
-    if (scope === "all" && whose !== "everyone" && !q && !type && !status && !source) for (const b of outsideBusy(busy.data ?? [], data.data?.meetings ?? [], whose)) out.push({ kind: "busy", at: Date.parse(b.start), b });
+    if (scope === "all" && whose !== "everyone" && !q && !type && !status && !source) for (const b of outsideBusy(busy.data ?? [], list.data ?? [], whose)) out.push({ kind: "busy", at: Date.parse(b.start), b });
     return out.sort((a, b) => a.at - b.at);
-  }, [data.data, busy.data, whose, type, status, source, query, scope, typeOf]);
+  }, [list.data, busy.data, whose, type, status, source, query, scope, typeOf]);
 
   const groups = useMemo(() => {
     const out: { key: string; date: Date; rows: Item[] }[] = [];
@@ -102,18 +99,25 @@ export function MeetingsCalendar(props: ViewProps) {
     return out;
   }, [items]);
 
-  const mark = async (m: Meeting, action: "held" | "no_show") => {
-    setError("");
-    setBusyId(m.id);
-    try {
-      await meetingsApi(session, ws.id, "action", { meetingId: m.id, action });
-      data.reload();
-    } catch (e) {
-      setError(errorText(e));
-    } finally {
-      setBusyId(null);
-    }
-  };
+  // Held and No-show change on click; the row goes back, with the error, if the save fails.
+  const mutateList = list.mutate;
+  const mark = useCallback(
+    async (m: Meeting, action: "held" | "no_show") => {
+      setError("");
+      setBusyId(m.id);
+      try {
+        await mutateList((ms) => ms.map((x) => (x.id === m.id ? { ...x, status: action } : x)), () => meetingsApi(session, ws.id, "action", { meetingId: m.id, action }));
+        invalidate(`meetings:${ws.id}:week`);
+        invalidate("app_counts");
+      } catch (e) {
+        setError(errorText(e));
+      } finally {
+        setBusyId(null);
+      }
+    },
+    [mutateList, session, ws.id],
+  );
+  const open = useCallback((id: string) => navigate("meetings", id), [navigate]);
 
   if (data.data && !types.length && !data.data.meetings.length && preset === "upcoming")
     return (
@@ -138,11 +142,12 @@ export function MeetingsCalendar(props: ViewProps) {
       </Page>
     );
 
-  const week = data.data?.week ?? [];
-  const past = week.filter((m) => Date.parse(m.start_at) < now && m.status !== "canceled");
-  const held = past.filter((m) => m.status === "held").length;
-  const noShow = past.filter((m) => m.status === "no_show").length;
-  const fromForms = week.filter((m) => m.source === "form").length;
+  const w = stats.data;
+  const held = w?.held ?? 0;
+  const noShow = w?.no_show ?? 0;
+  const fromForms = w?.from_forms ?? 0;
+  const past = { length: w?.past ?? 0 };
+  const week = { length: w?.total ?? 0 };
   const count = items.filter((x) => x.kind === "meeting").length;
   const whoseOptions = [
     { value: me, label: "My meetings" },
@@ -216,9 +221,9 @@ export function MeetingsCalendar(props: ViewProps) {
 
         <StatCards
           cards={[
-            { label: "Booked this week", value: data.data ? week.filter((m) => m.status !== "canceled").length : null, note: "Across the team" },
-            { label: "Held", value: data.data ? held : null, note: past.length ? `${Math.round((noShow / past.length) * 100)}% no-shows` : "No meetings yet this week", tone: "sage" },
-            { label: "Booked from forms", value: data.data ? fromForms : null, note: week.length ? `${Math.round((fromForms / week.length) * 100)}% of this week's bookings` : "This week" },
+            { label: "Booked this week", value: w ? w.booked : null, note: "Across the team" },
+            { label: "Held", value: w ? held : null, note: past.length ? `${Math.round((noShow / past.length) * 100)}% no-shows` : "No meetings yet this week", tone: "sage" },
+            { label: "Booked from forms", value: w ? fromForms : null, note: week.length ? `${Math.round((fromForms / week.length) * 100)}% of this week's bookings` : "This week" },
           ]}
         />
 
@@ -247,10 +252,20 @@ export function MeetingsCalendar(props: ViewProps) {
                   </h2>
                   <ul className="flex flex-col gap-2">
                     {g.rows.map((it, i) => (
-                      <li key={it.kind === "meeting" ? it.m.id : `b-${it.b.start}-${i}`} className="flex flex-col gap-2">
+                      <li key={it.kind === "meeting" ? it.m.id : `b-${it.b.start}-${i}`} className="flex flex-col gap-2 [contain-intrinsic-size:auto_68px] [content-visibility:auto]">
                         {i === nowAt ? <NowLine /> : null}
                         {it.kind === "meeting" ? (
-                          <MeetingRow m={it.m} now={now} kind={it.m.type_id ? typeOf.get(it.m.type_id)?.kind : undefined} typeName={it.m.type_id ? typeOf.get(it.m.type_id)?.name : undefined} people={people.data?.byId} busy={busyId === it.m.id} onOpen={() => navigate("meetings", it.m.id)} onMark={(a) => void mark(it.m, a)} />
+                          <MeetingRow
+                            m={it.m}
+                            live={Date.parse(it.m.start_at) <= now && Date.parse(it.m.end_at) > now && it.m.status === "booked"}
+                            markable={canMark(it.m, now)}
+                            kind={it.m.type_id ? typeOf.get(it.m.type_id)?.kind : undefined}
+                            typeName={it.m.type_id ? typeOf.get(it.m.type_id)?.name : undefined}
+                            people={people.data?.byId}
+                            busy={busyId === it.m.id}
+                            onOpen={open}
+                            onMark={mark}
+                          />
                         ) : (
                           <div className="flex items-center gap-4 rounded-2xl border border-dashed border-line bg-paper px-5 py-3 text-[13px] text-muted">
                             <span className="w-28 shrink-0 tabular-nums">
@@ -282,10 +297,34 @@ function NowLine() {
   );
 }
 
-function MeetingRow({ m, now, kind, typeName, people, busy, onOpen, onMark }: { m: Meeting; now: number; kind?: string; typeName?: string; people?: Map<string, import("./parts").Person>; busy: boolean; onOpen: () => void; onMark: (a: "held" | "no_show") => void }) {
+type WeekStats = { total: number; booked: number; past: number; held: number; no_show: number; from_forms: number };
+
+/** One meeting card. Memoized: the minute ticking only redraws a card whose live or Held/No-show state changes. */
+const MeetingRow = memo(function MeetingRow({
+  m,
+  live,
+  markable,
+  kind,
+  typeName,
+  people,
+  busy,
+  onOpen: openId,
+  onMark: markIt,
+}: {
+  m: Meeting;
+  live: boolean;
+  markable: boolean;
+  kind?: string;
+  typeName?: string;
+  people?: Map<string, import("./parts").Person>;
+  busy: boolean;
+  onOpen: (id: string) => void;
+  onMark: (m: Meeting, a: "held" | "no_show") => void;
+}) {
+  const onOpen = () => openId(m.id);
+  const onMark = (a: "held" | "no_show") => void markIt(m, a);
   const company = m.contact?.company?.name || m.contact?.company?.domain || "";
   const domain = m.contact?.company?.domain || (m.guest_email.split("@")[1] ?? "");
-  const live = Date.parse(m.start_at) <= now && Date.parse(m.end_at) > now && m.status === "booked";
   const tone = kind ? KIND_TONE[kind as keyof typeof KIND_TONE] : "sky";
   return (
     <div
@@ -313,7 +352,7 @@ function MeetingRow({ m, now, kind, typeName, people, busy, onOpen, onMark }: { 
       <AvatarStack ids={m.hosts} people={people} />
       <StatusBadge status={m.status} />
       <span onClick={(e) => e.stopPropagation()} className="flex shrink-0 gap-1.5">
-        {canMark(m, now) ? (
+        {markable ? (
           <>
             <Button size="sm" variant={m.status === "held" ? "primary" : "ghost"} disabled={busy || m.status === "held"} onClick={() => onMark("held")}>
               Held
@@ -326,4 +365,4 @@ function MeetingRow({ m, now, kind, typeName, people, busy, onOpen, onMark }: { 
       </span>
     </div>
   );
-}
+});

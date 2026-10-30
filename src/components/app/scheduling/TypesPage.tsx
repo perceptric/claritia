@@ -12,10 +12,10 @@ import { CalendarIcon, Check, Clock, Copy, ExternalLink, Plus, Search, User, Use
 import { askConfirm } from "../Dialogs";
 import { MoreMenu } from "../StatCards";
 import { ToolIntro } from "../ToolIntro";
-import { Badge, Button, ErrorNote, errorText, IconButton, Loading, must, Page, Segmented, Toggle, useLoad, type ViewProps } from "../ui";
+import { Badge, Button, ErrorNote, errorText, IconButton, invalidate, Loading, must, Page, Segmented, Toggle, useQuery, type ViewProps } from "../ui";
 import { LinkDialog } from "../meetings/LinkDialog";
 import { copyText, meetingsApi, ownZone, PersonAvatar, usePeople, useWorkspaceSlug } from "../meetings/parts";
-import type { TypeRow } from "../meetings/TypesList";
+import { TYPE_COLS, useMeetingTypes, type TypeRow } from "../meetings/TypesList";
 import { useLiveBody } from "../routing/screenParts";
 import { groupTypes, lengthWords, PLACE_WORDS, weeklyWords } from "./model";
 import { Corners } from "./panel";
@@ -32,13 +32,14 @@ export function TypesPage(props: ViewProps & { open: string }) {
   const people = usePeople(sb, ws.id);
   const slug = useWorkspaceSlug(session, ws.id);
   const live = useLiveBody(sb, ws.id);
-  const data = useLoad(async () => {
+  const list = useMeetingTypes(sb, ws.id);
+  // Hours, schedules, this week's bookings and who can host, for the rows' gray words and the panel.
+  const extra = useQuery(`meeting_types:${ws.id}:page`, async () => {
     const weekAgo = new Date(Date.now() - 7 * 86_400_000).toISOString();
-    const [types, hours, named, booked, cals, reps] = await Promise.all([
-      sb.from("meeting_types").select("*").eq("workspace_id", ws.id).order("created_at"),
+    const [hours, named, booked, cals, reps] = await Promise.all([
       sb.from("availability").select("user_id, tz, weekly, overrides").eq("workspace_id", ws.id),
       sb.from("availability_schedules").select("user_id, name, tz, weekly, overrides").eq("workspace_id", ws.id),
-      sb.from("meetings").select("status, type_id").eq("workspace_id", ws.id).not("type_id", "is", null).gte("created_at", weekAgo),
+      sb.from("meetings").select("id", { count: "exact", head: true }).eq("workspace_id", ws.id).not("type_id", "is", null).gte("created_at", weekAgo),
       sb.from("calendar_accounts").select("user_id, provider, status").eq("workspace_id", ws.id),
       sb.from("router_reps").select("user_id, out_dates").eq("workspace_id", ws.id),
     ]);
@@ -46,15 +47,16 @@ export function TypesPage(props: ViewProps & { open: string }) {
     const at = (u: string) => status.get(u) ?? (status.set(u, { cal: false, out: [] }), status.get(u)!);
     for (const c of (cals.data ?? []) as { user_id: string; provider: string; status: string }[]) if (c.provider !== "zoom" && c.status === "ok") at(c.user_id).cal = true;
     for (const r of (reps.data ?? []) as { user_id: string; out_dates: { from: string; to: string }[] | null }[]) at(r.user_id).out = r.out_dates ?? [];
+    if (booked.error) throw new Error(booked.error.message);
     return {
-      types: (must(types) ?? []) as TypeRow[],
       hours: new Map(((must(hours) ?? []) as ({ user_id: string } & Availability)[]).map((h) => [h.user_id, h])),
       // Named schedules; a table missing before 066 reads as none.
       named: (named.data ?? []) as Named[],
-      week: (must(booked) ?? []) as { status: string; type_id: string }[],
+      week: booked.count ?? 0,
       status,
     };
-  }, ws.id);
+  });
+  const data = { data: list.data && extra.data ? { ...extra.data, types: list.data } : null, error: list.error || extra.error };
   const [whose, setWhose] = useState<Whose>("you");
   const [query, setQuery] = useState("");
   const [error, setError] = useState("");
@@ -81,7 +83,7 @@ export function TypesPage(props: ViewProps & { open: string }) {
   };
   const nameOf = (id: string) => people.data?.byId.get(id)?.name ?? "Former teammate";
   const queues = useMemo(() => live.data?.body.queues ?? [], [live.data]);
-  const shown = useMemo(() => (types ?? []).filter((t) => (whose === "you" ? isMine(t, me) : !isMine(t, me)) && (!query.trim() || t.name.toLowerCase().includes(query.trim().toLowerCase()))), [types, whose, me, query]);
+  const shown = useMemo(() => (extra.data && list.data ? list.data : []).filter((t) => (whose === "you" ? isMine(t, me) : !isMine(t, me)) && (!query.trim() || t.name.toLowerCase().includes(query.trim().toLowerCase()))), [extra.data, list.data, whose, me, query]);
   const groups = whose === "you" ? (shown.length ? [{ key: "me", person: me as string | null, types: shown }] : []) : groupTypes(shown, me, nameOf);
   const origin = typeof window === "undefined" ? "" : window.location.origin;
   const typeUrl = (s: string) => (slug.data ? `${origin}/book/${slug.data}/${s}` : "");
@@ -89,19 +91,39 @@ export function TypesPage(props: ViewProps & { open: string }) {
     setCopied(id);
     setTimeout(() => setCopied((c) => (c === id ? null : c)), 1600);
   };
+  // The switch moves on click; it goes back, with the error, if the save fails.
   const setActive = (t: TypeRow, active: boolean) =>
     act(async () => {
       const { name, slug: s, kind: k, hosts, settings, secret, locked, owner_user_id } = t;
-      await meetingsApi(session, ws.id, "types", { action: "save", id: t.id, type: { name, slug: s, kind: k, hosts, settings, secret, active, locked, owner_user_id } });
-      data.reload();
+      await list.mutate(
+        (rows) => rows.map((x) => (x.id === t.id ? { ...x, active } : x)),
+        () => meetingsApi(session, ws.id, "types", { action: "save", id: t.id, type: { name, slug: s, kind: k, hosts, settings, secret, active, locked, owner_user_id } }),
+      );
     });
   const remove = (t: TypeRow) =>
     act(async () => {
       if (!(await askConfirm(`Delete ${t.name}?`, { body: "Its booking link stops working. Booked meetings stay.", ok: "Delete", danger: true }))) return;
-      await meetingsApi(session, ws.id, "types", { action: "delete", id: t.id });
       if (open === t.id) navigate("scheduling", "types");
-      data.reload();
+      await list.mutate(
+        (rows) => rows.filter((x) => x.id !== t.id),
+        () => meetingsApi(session, ws.id, "types", { action: "delete", id: t.id }),
+      );
+      invalidate("app_counts");
     });
+  // A copy opens at once: it shows as the server names it, then the saved row replaces it.
+  const duplicate = (t: TypeRow) =>
+    act(async () => {
+      const r = await meetingsApi<{ id: string }>(session, ws.id, "types", { action: "duplicate", id: t.id });
+      list.set((rows) => [...rows.filter((x) => x.id !== r.id), { ...t, id: r.id, name: `${t.name} copy`.slice(0, 120), slug: `${t.slug}-copy`, owner_user_id: t.template_id ? me : t.owner_user_id }]);
+      navigate("scheduling", `types/${r.id}`);
+      const saved = must(await sb.from("meeting_types").select(TYPE_COLS).eq("id", r.id).maybeSingle()) as TypeRow | null;
+      if (saved) list.set((rows) => rows.map((x) => (x.id === saved.id ? saved : x)));
+    });
+  // After the panel saves, only the types list is read again.
+  const saved = () => {
+    list.reload();
+    invalidate("app_counts");
+  };
 
   const panelData: PanelData | null =
     data.data && people.data
@@ -110,9 +132,9 @@ export function TypesPage(props: ViewProps & { open: string }) {
   const close = () => navigate("scheduling", "types");
   const panel =
     panelData && open === "new" ? (
-      <TypePanel key="new" {...props} row={null} start={newDraft(me, whose === "team")} data={panelData} onClose={close} onSaved={data.reload} />
+      <TypePanel key="new" {...props} row={null} start={newDraft(me, whose === "team")} data={panelData} onClose={close} onSaved={saved} />
     ) : panelData && row ? (
-      <TypePanel key={row.id} {...props} row={row} start={newDraft(me, false)} data={panelData} onClose={close} onSaved={data.reload} />
+      <TypePanel key={row.id} {...props} row={row} start={newDraft(me, false)} data={panelData} onClose={close} onSaved={saved} onDuplicate={() => duplicate(row)} />
     ) : null;
 
   const actions = (
@@ -173,7 +195,7 @@ export function TypesPage(props: ViewProps & { open: string }) {
             <span className="flex-1" />
             {data.data ? (
               <span className="text-[12.5px] text-muted">
-                {data.data.week.length} booked this week
+                {data.data.week} booked this week
               </span>
             ) : null}
           </div>
@@ -270,7 +292,7 @@ export function TypesPage(props: ViewProps & { open: string }) {
                                       if (await copyText(r.text)) flash(t.id);
                                     }),
                                 },
-                                { label: "Duplicate", run: () => void act(async () => { const r = await meetingsApi<{ id: string }>(session, ws.id, "types", { action: "duplicate", id: t.id }); data.reload(); navigate("scheduling", `types/${r.id}`); }) },
+                                { label: "Duplicate", run: () => void duplicate(t) },
                                 { label: "All settings", run: () => navigate("scheduling", `types/${t.id}/all`) },
                                 { label: "Delete", danger: true, run: () => void remove(t) },
                               ]}

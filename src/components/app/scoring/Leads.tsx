@@ -5,7 +5,7 @@
 
 import { useState } from "react";
 import { Search } from "../../Icons";
-import { Badge, ErrorNote, Loading, must, timeAgo, useLoad, type ViewProps } from "../ui";
+import { Badge, ErrorNote, Loading, must, timeAgo, useDebounced, useQuery, type ViewProps } from "../ui";
 import { BAND } from "./api";
 
 type Reasons = { fit: number; act: number; removed?: string; hits: { g: string; w: string; p: number; n?: number; at?: string; cap?: boolean }[] };
@@ -15,16 +15,18 @@ type Filter = "all" | keyof typeof BAND;
 export function Leads({ sb, ws, navigate }: Pick<ViewProps, "sb" | "ws" | "navigate">) {
   const [filter, setFilter] = useState<Filter>("all");
   const [query, setQuery] = useState("");
+  // The server is asked once typing stops.
+  const q = useDebounced(query.trim(), 250);
   const [open, setOpen] = useState<string | null>(null);
-  const list = useLoad(async () => {
-    let q = sb.from("contacts").select("id, first_name, last_name, email, title, score, score_band, score_grade, fit_score, engagement_score, score_reasons, scored_at, company:companies(name)").eq("workspace_id", ws.id).is("deleted_at", null).not("score_model", "is", null);
-    if (filter !== "all") q = q.eq("score_band", filter);
-    if (query.trim()) {
-      const s = query.trim().replace(/[%,()]/g, " ");
-      q = q.or(`first_name.ilike.%${s}%,last_name.ilike.%${s}%,email.ilike.%${s}%`);
+  const list = useQuery(`scoring:${ws.id}:leads:${filter}:${q}`, async () => {
+    let x = sb.from("contacts").select("id, first_name, last_name, email, title, score, score_band, score_grade, fit_score, engagement_score, score_reasons, scored_at, company:companies(name)").eq("workspace_id", ws.id).is("deleted_at", null).not("score_model", "is", null);
+    if (filter !== "all") x = x.eq("score_band", filter);
+    if (q) {
+      const s = q.replace(/[%,()]/g, " ");
+      x = x.or(`first_name.ilike.%${s}%,last_name.ilike.%${s}%,email.ilike.%${s}%`);
     }
-    return must(await q.order("score", { ascending: false, nullsFirst: false }).limit(200)) as unknown as Row[];
-  }, `${ws.id}:${filter}:${query}`);
+    return must(await x.order("score", { ascending: false, nullsFirst: false }).limit(200)) as unknown as Row[];
+  });
   const rows = list.data ?? [];
   const sel = rows.find((r) => r.id === open) ?? rows[0] ?? null;
   const name = (r: Row) => [r.first_name, r.last_name].filter(Boolean).join(" ") || r.email || "Unnamed lead";

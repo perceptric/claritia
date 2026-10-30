@@ -9,18 +9,31 @@ import type { MeetingType } from "@/lib/meetings/types";
 import { CalendarIcon, Clock, Copy, Link as LinkIcon, Lock, Plus, Trash } from "../../Icons";
 import { askConfirm } from "../Dialogs";
 import { ToolIntro } from "../ToolIntro";
-import { Badge, Button, ErrorNote, errorText, IconButton, Loading, must, Page, useLoad, type ViewProps } from "../ui";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import { Badge, Button, cached, ErrorNote, errorText, IconButton, Loading, must, Page, useQuery, type ViewProps } from "../ui";
 import { LinkDialog } from "./LinkDialog";
 import { kindLabel, lengthsText } from "./model";
 import { AvatarStack, copyText, CopyButton, meetingsApi, ownZone, usePeople, useWorkspaceSlug } from "./parts";
 
 export type TypeRow = MeetingType & { created_by: string | null; updated_at: string };
 
+export const TYPE_COLS = "id, workspace_id, slug, name, kind, hosts, settings, secret, active, owner_user_id, template_id, locked, created_by, updated_at";
+
+/** The workspace's meeting types, oldest first, shared by every screen (`meeting_types:<workspace>`). */
+export function useMeetingTypes(sb: SupabaseClient, ws: string) {
+  return useQuery<TypeRow[]>(`meeting_types:${ws}`, () => fetchMeetingTypes(sb, ws));
+}
+
+export const fetchMeetingTypes = async (sb: SupabaseClient, ws: string) => (must(await sb.from("meeting_types").select(TYPE_COLS).eq("workspace_id", ws).order("created_at")) ?? []) as TypeRow[];
+
+/** The shared list for loaders: from the cache when fresh. */
+export const meetingTypes = (sb: SupabaseClient, ws: string) => cached(`meeting_types:${ws}`, () => fetchMeetingTypes(sb, ws));
+
 export function TypesList(props: ViewProps) {
   const { sb, session, ws, navigate } = props;
   const people = usePeople(sb, ws.id);
   const slug = useWorkspaceSlug(session, ws.id);
-  const list = useLoad(async () => (must(await sb.from("meeting_types").select("*").eq("workspace_id", ws.id).order("created_at")) ?? []) as TypeRow[], ws.id);
+  const list = useMeetingTypes(sb, ws.id);
   const [error, setError] = useState("");
   const [linkFor, setLinkFor] = useState<string | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
@@ -85,7 +98,7 @@ export function TypesList(props: ViewProps) {
             {list.data.map((t, i) => {
               const url = slug.data ? `${origin}/book/${slug.data}/${t.slug}` : "";
               return (
-                <div key={t.id} className="group lift anim-rise-sm relative flex flex-col gap-5 rounded-2xl border border-line bg-card p-5 hover:border-line-strong" style={{ animationDelay: `${Math.min(i, 8) * 40}ms` }}>
+                <div key={t.id} className="group lift anim-rise-sm relative flex flex-col gap-5 rounded-2xl border border-line bg-card p-5 hover:border-line-strong" style={i < 8 ? { animationDelay: `${i * 40}ms` } : undefined}>
                   <div className="flex items-start gap-2">
                     <button type="button" onClick={() => navigate("scheduling", `types/${t.id}`)} className="flex min-w-0 flex-1 flex-col gap-1 text-left after:absolute after:inset-0 after:rounded-2xl">
                       <span className="truncate text-[15px] font-semibold tracking-[-0.01em] text-ink">{t.name}</span>

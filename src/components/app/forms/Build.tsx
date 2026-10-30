@@ -41,6 +41,8 @@ export type BuildProps = ViewProps & {
   kits: Kit[];
   setKit: (id: string | null) => void;
   reloadKits: () => void;
+  /** Change the kits on screen before the server answers. */
+  patchKits?: (fn: (kits: Kit[]) => Kit[]) => void;
   site: string;
   types: { id: string; name: string; active: boolean; settings?: { lengths?: number[] } }[];
   pick: Pick;

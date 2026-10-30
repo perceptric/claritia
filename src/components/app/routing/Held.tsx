@@ -8,7 +8,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { askConfirm } from "../Dialogs";
 import { usePeople } from "../meetings/parts";
 import { CheckBox } from "../records/RecordTable";
-import { Badge, Button, Empty, ErrorNote, errorText, Loading, must, Segmented, timeAgo, useLoad, type ViewProps } from "../ui";
+import { Badge, Button, Empty, ErrorNote, errorText, invalidate, Loading, must, Segmented, timeAgo, useQuery, type ViewProps } from "../ui";
 import { routingApi } from "./api";
 import { PersonPicker, RouteSketch, useToast } from "./screenParts";
 import { domainOf, heldWords, type RunRow } from "./screensModel";
@@ -34,21 +34,8 @@ export function HeldTab({ sb, session, ws, role, navigate }: Props) {
   const owner = role === "owner";
   const people = usePeople(sb, ws.id);
   const [mode, setMode] = useState<Mode>("held");
-  const counts = useLoad(async () => {
-    const [h, u] = await Promise.all([
-      sb.from("contacts").select("id", { count: "exact", head: true }).eq("workspace_id", ws.id).eq("route_status", "held").is("deleted_at", null),
-      sb.from("contacts").select("id", { count: "exact", head: true }).eq("workspace_id", ws.id).eq("route_status", "unassigned").is("deleted_at", null),
-    ]);
-    if (h.error || u.error) throw new Error((h.error ?? u.error)!.message);
-    return { held: h.count ?? 0, unassigned: u.count ?? 0 };
-  }, ws.id);
-  const list = useLoad(async () => {
-    const leads = must(await sb.from("contacts").select("id, first_name, last_name, email, updated_at").eq("workspace_id", ws.id).eq("route_status", mode).is("deleted_at", null).order("updated_at", { ascending: false }).limit(200)) as Lead[];
-    const runs = leads.length ? (must(await sb.from("router_runs").select("id, contact_id, kind, steps, created_at").eq("workspace_id", ws.id).in("contact_id", leads.map((l) => l.id)).order("created_at", { ascending: false }).limit(1000)) as (Item["run"] & { contact_id: string })[]) : [];
-    const latest = new Map<string, Item["run"]>();
-    for (const r of runs) if (!latest.has(r.contact_id)) latest.set(r.contact_id, r);
-    return leads.map((l): Item => ({ ...l, run: latest.get(l.id) ?? null }));
-  }, `${ws.id}:${mode}`);
+  // The list and both counts in one call (routing_held), cached per list so switching back paints at once.
+  const list = useQuery(`routing_held:${ws.id}:${mode}`, async () => must(await sb.rpc("routing_held", { p_ws: ws.id, p_mode: mode, p_limit: 200 })) as { held: number; unassigned: number; rows: Item[] });
   const toast = useToast();
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [focus, setFocus] = useState(0);
@@ -60,7 +47,7 @@ export function HeldTab({ sb, session, ws, role, navigate }: Props) {
   const [assign, setAssign] = useState<{ ids: string[]; anchor: HTMLElement } | null>(null);
   const rowsRef = useRef<HTMLTableSectionElement>(null);
 
-  const items = useMemo(() => (list.data ?? []).filter((i) => !gone.has(i.id)), [list.data, gone]);
+  const items = useMemo(() => (list.data?.rows ?? []).filter((i) => !gone.has(i.id)), [list.data, gone]);
   const switchMode = (m: Mode) => {
     setMode(m);
     setPicked(new Set());
@@ -70,17 +57,25 @@ export function HeldTab({ sb, session, ws, role, navigate }: Props) {
     setLeaving(new Set());
   };
 
-  /** Rows that leave: the new owner (or word) shows, then they slide out. */
-  const leave = useCallback((words: Record<string, string>) => {
-    setDone((d) => ({ ...d, ...words }));
-    const ids = Object.keys(words);
-    setTimeout(() => setLeaving((s) => new Set([...s, ...ids])), 900);
-    setTimeout(() => {
-      setGone((s) => new Set([...s, ...ids]));
-      setPicked((s) => new Set([...s].filter((x) => !ids.includes(x))));
-      counts.reload();
-    }, 1250);
-  }, [counts]);
+  /** Rows that leave: the new owner (or word) shows, then they slide out quickly; the counts drop at once. */
+  const setList = list.set;
+  const leave = useCallback(
+    (words: Record<string, string>) => {
+      setDone((d) => ({ ...d, ...words }));
+      const ids = Object.keys(words);
+      setList((cur) => (cur ? { ...cur, [mode]: Math.max(0, cur[mode] - ids.filter((id) => cur.rows.some((r) => r.id === id)).length) } : cur));
+      setTimeout(() => setLeaving((s) => new Set([...s, ...ids])), 450);
+      setTimeout(() => {
+        setGone((s) => new Set([...s, ...ids]));
+        setPicked((s) => new Set([...s].filter((x) => !ids.includes(x))));
+        setList((cur) => (cur ? { ...cur, rows: cur.rows.filter((r) => !ids.includes(r.id)) } : cur));
+        invalidate(`routing_held:${ws.id}`);
+        invalidate(`router_runs:${ws.id}`);
+        invalidate("app_counts");
+      }, 650);
+    },
+    [mode, setList, ws.id],
+  );
 
   const act = async (fn: () => Promise<void>) => {
     setBusy(true);
@@ -100,8 +95,14 @@ export function HeldTab({ sb, session, ws, role, navigate }: Props) {
     act(async () => {
       const chosen = target(ids);
       if (!chosen.length) return;
-      const out = await routingApi<{ done: { contact: string; owner: string | null; kind: string }[] }>(session, ws.id, "held", { op: "let_through", contacts: chosen });
-      leave(Object.fromEntries(out.done.map((d) => [d.contact, d.owner ? `→ ${people.data?.byId.get(d.owner)?.name ?? "Routed"}` : d.kind === "unassigned" ? "→ Unassigned" : "→ Held"])));
+      const out = await routingApi<{ done?: { contact: string; owner: string | null; kind: string }[]; queued?: number }>(session, ws.id, "held", { op: "let_through", contacts: chosen });
+      const done = out.done ?? [];
+      // Many at once are routed in the background: those rows say Routing… and leave like the rest.
+      const words: Record<string, string> = out.queued && !done.length ? Object.fromEntries(chosen.map((id) => [id, "Routing…"])) : {};
+      for (const d of done) words[d.contact] = d.owner ? `→ ${people.data?.byId.get(d.owner)?.name ?? "Routed"}` : d.kind === "unassigned" ? "→ Unassigned" : "→ Held";
+      if (out.queued && done.length) for (const id of chosen) if (!words[id]) words[id] = "Routing…";
+      if (out.queued) toast.show(`Routing ${out.queued}`);
+      leave(words);
     });
 
   const spam = (ids?: string[]) =>
@@ -120,10 +121,8 @@ export function HeldTab({ sb, session, ws, role, navigate }: Props) {
       const domains = [...new Set(chosen.map((i) => domainOf(i.email)).filter(Boolean))];
       if (!domains.length || !(await askConfirm(domains.length === 1 ? `Allow ${domains[0]}?` : `Allow ${domains.length} domains?`, { body: domains.join(", "), ok: "Allow" }))) return;
       const words: Record<string, string> = {};
-      for (const d of domains) {
-        const out = await routingApi<{ done?: { contact: string; owner: string | null; kind: string }[] }>(session, ws.id, "held", { op: "allow_domain", domain: d });
-        for (const x of out.done ?? []) words[x.contact] = x.owner ? `→ ${people.data?.byId.get(x.owner)?.name ?? "Routed"}` : "→ Unassigned";
-      }
+      const outs = await Promise.all(domains.map((d) => routingApi<{ done?: { contact: string; owner: string | null; kind: string }[] }>(session, ws.id, "held", { op: "allow_domain", domain: d })));
+      for (const out of outs) for (const x of out.done ?? []) words[x.contact] = x.owner ? `→ ${people.data?.byId.get(x.owner)?.name ?? "Routed"}` : "→ Unassigned";
       if (Object.keys(words).length) leave(words);
       toast.show(domains.length === 1 ? `${domains[0]} allowed` : `${domains.length} domains allowed`);
     });
@@ -179,9 +178,9 @@ export function HeldTab({ sb, session, ws, role, navigate }: Props) {
     return () => window.removeEventListener("keydown", key);
   });
 
-  const n = counts.data;
+  const n = list.data;
   const allPicked = items.length > 0 && items.every((i) => picked.has(i.id));
-  const err = list.error || counts.error || people.error;
+  const err = list.error || people.error;
 
   return (
     <div className="flex min-h-0 flex-col">
@@ -270,7 +269,7 @@ export function HeldTab({ sb, session, ws, role, navigate }: Props) {
                     tabIndex={idx === focus ? 0 : -1}
                     onFocus={() => setFocus(idx)}
                     aria-selected={picked.has(i.id)}
-                    className={`outline-none transition-[transform,opacity] duration-[320ms] ease-out focus-visible:bg-hover ${picked.has(i.id) ? "bg-hover" : ""} ${leaving.has(i.id) ? "translate-x-6 opacity-0" : ""}`}
+                    className={`outline-none transition-[transform,opacity] duration-[200ms] ease-out focus-visible:bg-hover ${picked.has(i.id) ? "bg-hover" : ""} ${leaving.has(i.id) ? "translate-x-6 opacity-0" : ""}`}
                   >
                     <td className="w-10 border-b border-line py-3 pl-5 align-middle">
                       {owner ? (
