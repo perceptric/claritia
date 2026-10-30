@@ -26,7 +26,6 @@ import {
   Settings,
   Signpost,
   Sun,
-  User,
   Users,
 } from "../Icons";
 import { Logo } from "../Logo";
@@ -39,7 +38,6 @@ export const NAV_ICONS: Record<string, React.ReactNode> = {
   companies: <Users size={14} />,
   opportunities: <Dollar size={14} />,
   meetings: <CalendarIcon size={14} />,
-  reps: <User size={14} />,
   objects: <Box size={14} />,
   workflows: <Branch size={14} />,
   routing: <Signpost size={14} />,

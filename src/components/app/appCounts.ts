@@ -6,7 +6,7 @@ import { must, useQuery } from "./ui";
 
 export type AppCounts = {
   sidebar: Partial<Record<string, number>>;
-  /** The small amber dots: Reps when a teammate has no calendar, Routing when it has changes that aren't live. */
+  /** The small amber dot on Routing while Assignment's Action required has something. */
   dots: Partial<Record<string, boolean>>;
   start: { calendars: number; types: number; liveForms: number; routing: boolean; members: number; invites: number; sources: number };
 };
@@ -36,6 +36,8 @@ export function useAppCounts(sb: SupabaseClient, ws: string | null) {
         no_calendar?: number;
         routing_draft?: boolean;
         routing_paused?: boolean;
+        /** From 094: what Routing › Assignment lists under Action required. */
+        routing_action?: number;
       };
       return {
         sidebar: { "routing/review": r.review, scheduling: r.meetings_today },

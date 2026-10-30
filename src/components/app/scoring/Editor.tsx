@@ -525,7 +525,7 @@ function Crumb({ back, title, right }: { back: () => void; title: string; right?
   );
 }
 
-const OP_WORDS: Record<Op, string> = { is: "is", is_not: "is not", one_of: "is any of", not_one_of: "is none of", contains: "contains", starts_with: "starts with", filled: "has a value", empty: "has no value", gt: "is more than", lt: "is less than", between: "is between" };
+const OP_WORDS: Record<Op, string> = { is: "is", is_not: "is not", one_of: "is any of", not_one_of: "is none of", contains: "contains", starts_with: "starts with", filled: "has a value", empty: "has no value", gt: "is more than", gte: "is at least", lt: "is less than", between: "is between" };
 
 function RuleEditor({ r, group, edit, owner, data, words, stat, base, back, onDelete, onDuplicate }: { r: ScoreRule; group: ScoreGroup | null; edit: (fn: (b: ScoreBody) => void) => void; owner: boolean; data: Loaded; words: Words; stat?: { n: number; rate: number }; base?: number; back: () => void; onDelete: () => void; onDuplicate: (id: string) => void }) {
   const set = (fn: (x: ScoreRule) => void) => edit((b) => { const x = [...b.groups.flatMap((g) => g.rules), ...b.minus].find((y) => y.id === r.id); if (x) fn(x); });

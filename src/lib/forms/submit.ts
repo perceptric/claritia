@@ -16,7 +16,7 @@ import { callNewer } from "./newer.ts";
 import { siteAllowed } from "./notify.ts";
 import type { Tokens } from "./brand.ts";
 import { offerForFill, type Booking } from "./booking.ts";
-import { bookingUrl, claritiaPlan, outside, routedBooks, showsMeeting, type RoutedAs } from "./schedule.ts";
+import { bookingUrl, claritiaPlan, emailsTimesLater, outside, routedBooks, showsMeeting, type RoutedAs } from "./schedule.ts";
 import { regionOf } from "../web/policy.ts";
 import { contactPolicy } from "./overwrite.ts";
 import { regionsOf } from "./regions.ts";
@@ -413,9 +413,10 @@ export async function acceptFill(
       } catch {
         booking = null;
       }
-      // Their rep has no free times: the message, and with "Email times later" the rep's times by email once they
-      // have some (meeting_book_later, the same key as a shown booking's, so it's queued once).
-      if (!booking && plan.rep && sch.none === "later" && !o.test)
+      // Their rep has no free times: the message, and with "Email times later" (the form's, or Routing's alert when
+      // there's no availability) the rep's times by email once they have some (meeting_book_later, the same key as a
+      // shown booking's, so it's queued once).
+      if (!booking && plan.rep && emailsTimesLater(sch, routing?.live) && !o.test)
         await enqueueJob(rpc, { workspaceId: f.workspace_id, kind: "meeting_book_later", key: `book_later:${sid}`, payload: { submission: sid, type: plan.type, owner: plan.rep, only: true }, delayS: LATER_S, maxAttempts: 3 }).catch(() => undefined);
     }
     return { status: 200, body: { id: sid, schedule: null, ...(booking ? { booking } : {}) } };

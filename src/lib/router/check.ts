@@ -137,6 +137,8 @@ export function cleanBody(raw: unknown): RouterBody {
       .filter((x, i, all): x is Segment => !!x && all.findIndex((y) => y?.name.toLowerCase() === x.name.toLowerCase()) === i)
       .slice(0, 50),
     sla: r.sla === undefined ? defaultSla() : cleanSla(r.sla),
+    // Only a body that has it keeps it, so older versions come back exactly as they were saved.
+    ...(r.notify !== undefined ? { notify: { noTimes: b(obj(r.notify).noTimes, false) } } : {}),
   };
 }
 
