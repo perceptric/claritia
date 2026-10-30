@@ -21,6 +21,7 @@ import {
   addQueue,
   addRule,
   madeName,
+  ruleTitle,
   removeMember,
   removeQueue,
   removeRule,
@@ -52,14 +53,14 @@ export type InspectorProps = {
   onSelect: (s: Selection) => void;
 };
 
-const TITLES = { spam: "Spam check", account: "Existing company", keep: "Current rep", rules: "Rules", fallback: "Everyone else", sla: "Time to reach out" } as const;
+const TITLES = { spam: "Spam check", account: "Existing company", keep: "Current rep", rules: "Rules", fallback: "No rule matched", sla: "Time to reach out" } as const;
 
 export function Inspector(p: InspectorProps) {
   const { sel, body } = p;
   const rule = sel.kind === "rule" ? body.rules.list.find((r) => r.id === sel.id) : undefined;
   const queue = sel.kind === "queue" ? body.queues.find((q) => q.id === sel.id) : undefined;
   const crumb =
-    sel.kind === "rule" ? ["Rules", rule?.name ?? ""] : sel.kind === "queue" ? ["Teams", queue?.name ?? ""] : [TITLES[sel.kind]];
+    sel.kind === "rule" ? ["Rules", rule ? ruleTitle(rule, p.fields, body.territories) : ""] : sel.kind === "queue" ? ["Teams", queue?.name ?? ""] : [TITLES[sel.kind]];
   const mine = p.problems.filter((x) => x.where.kind === sel.kind && (!("id" in sel) || x.where.id === sel.id));
   return (
     <div className="flex flex-col">
@@ -228,7 +229,7 @@ function FallbackInspector({ body, edit, members, readOnly }: InspectorProps) {
   return (
     <Block first>
       <Segmented<"user" | "queue">
-        label="Everyone else goes to"
+        label="Goes to"
         value={kind}
         options={[
           { value: "user", label: "A rep" },
@@ -334,7 +335,7 @@ function RuleInspector({ body, edit, rule, fields, forms, readOnly, counts, onSe
     <>
       <Block first>
         <Line label="Name">
-          <input aria-label="Rule name" value={rule.name} maxLength={80} onChange={(e) => set({ name: e.target.value }, `rule:${rule.id}:name`)} className={`${INPUT} h-8 w-52`} />
+          <input aria-label="Rule name" value={madeName(rule.name, ruleWords(rule, fields, body.territories).slice(0, 80)) ? "" : rule.name} placeholder={ruleTitle(rule, fields, body.territories)} maxLength={80} onChange={(e) => set({ name: e.target.value }, `rule:${rule.id}:name`)} className={`${INPUT} h-8 w-52`} />
         </Line>
         <Line label="On">
           <Toggle label="Rule on" on={rule.on !== false} onChange={(on) => set({ on: on ? undefined : false })} disabled={readOnly} />
@@ -405,7 +406,7 @@ function RuleInspector({ body, edit, rule, fields, forms, readOnly, counts, onSe
           <button
             type="button"
             onClick={async () => {
-              if (!(await askConfirm(`Delete the rule "${rule.name}"?`, { ok: "Delete", danger: true }))) return;
+              if (!(await askConfirm(`Delete the rule "${ruleTitle(rule, fields, body.territories)}"?`, { ok: "Delete", danger: true }))) return;
               edit((b) => removeRule(b, rule.id));
               onSelect({ kind: "rules" });
             }}

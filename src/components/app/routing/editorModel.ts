@@ -2,10 +2,10 @@
 // reducer, the body edits the inspector makes, condition values that follow their test, the flow's 7-day counts, the
 // Finish setup list, and which cards a test lead's path lights up.
 
-import { opsFor, needsValue, type FieldDef, type FieldType } from "../../../lib/router/conditions.ts";
+import { opsFor, needsValue, ruleWords, type FieldDef, type FieldType } from "../../../lib/router/conditions.ts";
 import type { Problem } from "../../../lib/router/check.ts";
 import type { Line } from "../../../lib/router/explain.ts";
-import type { Cond, Op, Queue, Rule, RouterBody } from "../../../lib/router/types.ts";
+import type { Cond, Op, Queue, Rule, RouterBody, Territory } from "../../../lib/router/types.ts";
 
 // Undo ------------------------------------------------------------------------------------------------------------
 
@@ -81,7 +81,14 @@ export function addRule(b: RouterBody, id: string, queue?: string): RouterBody {
 }
 
 /** Whether a rule's name was made for it (so it may follow its conditions), or a person chose it. */
-export const madeName = (name: string, sentence: string) => /^(New rule( \d+)?|Rule \d+)$/.test(name) || name === sentence;
+export const madeName = (name: string, sentence: string) => !name.trim() || /^(New rule( \d+)?|Rule( \d+)?)$/.test(name) || name === sentence;
+
+/** What a rule is called on screen: the name someone gave it, else what it matches, else "New rule". */
+export function ruleTitle(rule: Rule, fields: FieldDef[], territories: Territory[]): string {
+  const words = ruleWords(rule, fields, territories).slice(0, 80);
+  if (!madeName(rule.name, words)) return rule.name;
+  return !rule.conds.length || words.includes("(no value yet)") ? "New rule" : words;
+}
 
 export function removeRule(b: RouterBody, id: string): RouterBody {
   return { ...b, rules: { ...b.rules, list: b.rules.list.filter((r) => r.id !== id) } };

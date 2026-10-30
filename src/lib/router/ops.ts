@@ -327,13 +327,13 @@ export function applyOp(body: RouterBody, op: RouterOp, ctx: OpCtx): Applied {
         const m = findMember(ctx, op.person);
         if ("error" in m) return m;
         b.fallback = { kind: "user", id: m.id };
-        return done(`Everyone else goes to ${ctx.members.find((x) => x.id === m.id)?.name ?? "them"}`);
+        return done(`Leads no rule matched go to ${ctx.members.find((x) => x.id === m.id)?.name ?? "them"}`);
       }
       if (op.team) {
         const q = findTeam(b, op.team);
         if (!q) return { error: `No team ${op.team}. Call add_team first.` };
         b.fallback = { kind: "queue", id: q.id };
-        return done(`Everyone else goes to the ${q.name} team`);
+        return done(`Leads no rule matched go to the ${q.name} team`);
       }
       return { error: "Say which team or person gets everyone else." };
     }

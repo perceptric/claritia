@@ -17,7 +17,7 @@ const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(
 /** A template's body. `reps`: the members to start the shared queue with. `regions`: names from REGIONS. */
 export function fromTemplate(id: TemplateId, o: { reps?: string[]; regions?: string[] } = {}): RouterBody {
   const b = emptyBody();
-  const everyone: Queue = { id: "q_everyone", name: "Everyone", method: "rr", strict: false, hoursOnly: false, members: (o.reps ?? []).map((user) => ({ user, weight: 1 })) };
+  const everyone: Queue = { id: "q_everyone", name: "All reps", method: "rr", strict: false, hoursOnly: false, members: (o.reps ?? []).map((user) => ({ user, weight: 1 })) };
   if (id === "round_robin") {
     b.account.on = false;
     b.queues = [everyone];

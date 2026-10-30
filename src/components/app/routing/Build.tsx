@@ -19,7 +19,7 @@ type Source = "team" | "crm" | "leads";
 const SOURCES: Source[] = ["team", "crm", "leads"];
 const NAME: Record<Source, string> = { team: "Your team", crm: "CRM owners", leads: "Past leads" };
 const READING: Record<Source, string> = { team: "Reading your team", crm: "Reading who owns which companies", leads: "Checking where the last 90 days of leads came from" };
-const STEP: Record<PlanLine["kind"], string> = { spam: "Is it spam?", account: "Is the company already in your CRM?", keep: "Does the lead already have a rep?", rule: "Rule", fallback: "Everyone else", sla: "Time to reach out" };
+const STEP: Record<PlanLine["kind"], string> = { spam: "Is it spam?", account: "Is the company already in your CRM?", keep: "Does the lead already have a rep?", rule: "Rule", fallback: "No rule matched", sla: "Time to reach out" };
 const ASK = "Set it up for me from my team and the leads of the last 90 days. Don't ask me anything; pick sensible defaults that I can change later.";
 
 export function Build({ session, ws, data, onDone }: Pick<ViewProps, "session" | "ws"> & { data: Loaded; onDone: () => void }) {
@@ -63,7 +63,7 @@ export function Build({ session, ws, data, onDone }: Pick<ViewProps, "session" |
   const basic = async () => {
     setBusy(true);
     try {
-      let b = addQueue(emptyBody(), "q_everyone", "Everyone");
+      let b = addQueue(emptyBody(), "q_everyone", "All reps");
       b = { ...b, queues: b.queues.map((q) => ({ ...q, members: data.members.map((m) => ({ user: m.id, weight: 1 })) })), fallback: { kind: "queue", id: "q_everyone" } };
       await routingApi(session, ws.id, "save_draft", { body: b, revision: data.revision });
       onDone();

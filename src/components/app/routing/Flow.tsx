@@ -11,13 +11,14 @@ import { CSS } from "@dnd-kit/utilities";
 import { useState } from "react";
 import { newId, type Problem } from "@/lib/router/check";
 import { minutesWords, type Line as RunLine } from "@/lib/router/explain";
-import { defaultSla, type RouterBody, type Rule } from "@/lib/router/types";
+import { BASE_FIELDS } from "@/lib/router/conditions";
+import { defaultSla, type RouterBody, type Rule, type Territory } from "@/lib/router/types";
 import { ArrowDown, ArrowUp, Check, Grip, MoreHorizontal, Plus, Trash, X } from "../../Icons";
 import { askConfirm } from "../Dialogs";
 import { Popover } from "../FilterBar";
 import { Badge, Toggle } from "../ui";
 import type { Member } from "./api";
-import { addQueue, addRule, moveRule, moveRuleTo, removeRule, sameSelection, type FlowCounts, type FlowStep, type pathOf, type Selection } from "./editorModel";
+import { addQueue, addRule, moveRule, moveRuleTo, removeRule, ruleTitle, sameSelection, type FlowCounts, type FlowStep, type pathOf, type Selection } from "./editorModel";
 import type { Edit } from "./Inspector";
 import { fmt } from "./parts";
 
@@ -114,8 +115,8 @@ export function Flow(p: FlowProps) {
         </Row>
         <Connector label={body.rules.on && body.rules.list.length ? "No match" : undefined} lit={lit("fallback")} runKey={p.runKey} />
         <StepCard
-          title="Everyone else"
-          summary={fb ? `Goes to ${fbName}` : "Pick a rep or team"}
+          title="No rule matched"
+          summary={!fb ? "Pick a rep or team" : fb.kind === "user" ? `Goes to ${fbName}` : `Shared by ${fbName}`}
           selected={sameSelection(sel, { kind: "fallback" })}
           onClick={() => onSelect({ kind: "fallback" })}
           mark={path?.marks.fallback}
@@ -300,6 +301,7 @@ function RulesCard(p: FlowProps & { faded: boolean; problemFor: (k: Problem["whe
               <RuleRow
                 key={r.id}
                 rule={r}
+                territories={body.territories}
                 index={i}
                 last={i === body.rules.list.length - 1}
                 queue={body.queues.find((q) => q.id === r.queue)?.name ?? null}
@@ -340,6 +342,7 @@ function RulesCard(p: FlowProps & { faded: boolean; problemFor: (k: Problem["whe
 
 function RuleRow({
   rule,
+  territories,
   index,
   last,
   queue,
@@ -352,6 +355,7 @@ function RuleRow({
   edit,
 }: {
   rule: Rule;
+  territories: Territory[];
   index: number;
   last: boolean;
   queue: string | null;
@@ -366,6 +370,7 @@ function RuleRow({
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: rule.id, disabled: !edit });
   const [menu, setMenu] = useState<HTMLButtonElement | null>(null);
   const off = rule.on === false;
+  const title = ruleTitle(rule, BASE_FIELDS, territories);
   const close = () => {
     const m = menu;
     setMenu(null);
@@ -379,7 +384,7 @@ function RuleRow({
     >
       <div className="flex h-9 items-center gap-1.5 pr-1">
         {edit ? (
-          <button type="button" {...attributes} {...listeners} tabIndex={-1} aria-label={`Drag rule ${rule.name}`} className="flex h-7 w-4 shrink-0 cursor-grab items-center justify-center text-faint hover:text-ink active:cursor-grabbing">
+          <button type="button" {...attributes} {...listeners} tabIndex={-1} aria-label={`Drag rule ${title}`} className="flex h-7 w-4 shrink-0 cursor-grab items-center justify-center text-faint hover:text-ink active:cursor-grabbing">
             <Grip size={12} />
           </button>
         ) : (
@@ -387,7 +392,7 @@ function RuleRow({
         )}
         <span className="w-4 shrink-0 text-right text-[12px] text-faint tabular-nums">{index + 1}</span>
         <button type="button" onClick={onSelect} aria-pressed={selected} className={`min-w-0 flex-1 truncate text-left text-[13px] outline-none focus-visible:underline ${off ? "text-muted" : "text-ink"}`}>
-          {rule.name}
+          {title}
         </button>
         {problem ? <span className="size-1.5 shrink-0 rounded-full bg-rose" aria-label={problem} title={problem} /> : null}
         {off ? <Badge>Off</Badge> : unused ? <Badge>Unused</Badge> : null}

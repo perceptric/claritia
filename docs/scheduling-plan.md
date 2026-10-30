@@ -177,3 +177,44 @@ Headers:
 | **Total** | **about $21 a month (check)** | **about $205 a month (check)** |
 
 What this change adds now (booking page and webhooks): $0 at both stages.
+
+## Part 10. A shorter meeting type editor (next)
+
+Today the editor is one long column of 25 settings in 8 sections. Most people only change the name, the length and
+the place. Connecting a calendar sits three clicks away, at Calendar → Availability → Calendars.
+
+### 10.1 The editor
+
+- **Always shown:** Name, Length (the pills), Location and Host. These four fit without scrolling.
+- **Everything else is one line each,** in plain words, and opens in place when clicked. One opens at a time.
+
+| Line | Says, for example | Opens to |
+| --- | --- | --- |
+| Times | "Working hours, 4 h notice, up to 14 days ahead" | Schedule, notice, window |
+| Limits | "No buffers, no daily cap" | Buffer before and after on one row, per day and per week on one row |
+| Questions | "Name, email and 1 question" | The questions |
+| Reminders | "1 day and 1 hour before" | The reminders |
+| After booking | "Shows a message, no-show follow-up on" | Message or page, follow-up |
+| Price | "Free" | Price and currency |
+| Who can book | "Anyone with the link" | One choice: on your page, link only, or off |
+
+- **Fewer settings:** "Start every" follows the length unless changed under Times. "Secret" and "Bookable" become the
+  one "Who can book" choice.
+- **Link:** the short public link `tryclaritia.com/booking/<name>/<type>` with Copy. Link names come from the type's
+  name (`intro-call`) and never get random endings.
+
+### 10.2 The preview
+
+- The real booking page in a frame that fills the right side, starting at the top, with Desktop and Phone switches.
+- It updates as settings change.
+
+### 10.3 Connect first
+
+- **No calendar yet:** the Host line shows "Connect Google Calendar" and "Connect Outlook Calendar" right in the
+  editor, and "Connect calendar" is the main button at the top of Calendar until one is connected.
+- **First visit:** the build screen starts with the same two buttons, so the hours come from real meetings. "Skip"
+  builds with 9 to 5.
+
+### 10.4 Running cost
+
+No new services or AI calls. $0 at Beta (50 teams) and Growth (500 teams).

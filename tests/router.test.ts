@@ -230,7 +230,7 @@ test("diff: changes between versions in words", () => {
   assert.ok(t.includes(`+ Rule "EMEA" (3rd) → Enterprise`));
   assert.ok(t.includes("~ US mid-market: take turns → some get more"));
   assert.ok(t.includes("~ Lee Park weight 1 → 2 in US mid-market"));
-  assert.ok(t.includes("~ Everyone else goes to Sam Lee → Lee Park"));
+  assert.ok(t.includes("~ Leads no rule matched go to Sam Lee → Lee Park"));
   assert.deepEqual(diffBodies(a, structuredClone(a)), []);
 });
 
