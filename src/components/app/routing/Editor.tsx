@@ -405,6 +405,7 @@ export function RouterEditor({
               members={data.members}
               fields={withSegments(data.fields, st.body.segments)}
               forms={data.forms}
+              meetings={data.meetings ?? []}
               counts={data.stats ? counts : null}
               problems={probs}
               lists={lists}

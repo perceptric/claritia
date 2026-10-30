@@ -46,6 +46,7 @@ export type InspectorProps = {
   members: Member[];
   fields: FieldDef[];
   forms: { id: string; name: string }[];
+  meetings: { id: string; name: string; minutes: number | null }[];
   counts: FlowCounts | null;
   problems: Problem[];
   lists: { allow: string[]; block: string[] };
@@ -222,7 +223,25 @@ function RulesInspector({ body, edit, readOnly, onSelect, counts }: InspectorPro
   );
 }
 
-function FallbackInspector({ body, edit, members, readOnly }: InspectorProps) {
+/** The meeting a form offers the leads a rule (or the fallback) routes; none keeps the form's own. */
+function MeetPick({ value, meetings, readOnly, onChange }: { value: string | undefined; meetings: InspectorProps["meetings"]; readOnly: boolean; onChange: (v: string | undefined) => void }) {
+  return (
+    <Line label="Meeting">
+      <span className="w-52">
+        <Select<string>
+          value={value ?? ""}
+          options={[{ value: "", label: "The form's meeting" }, ...meetings.map((m) => ({ value: m.id, label: m.minutes ? `${m.name}, ${m.minutes} min` : m.name }))]}
+          onChange={(v) => onChange(v || undefined)}
+          ariaLabel="Meeting"
+          disabled={readOnly}
+          className={`${PICK} h-8`}
+        />
+      </span>
+    </Line>
+  );
+}
+
+function FallbackInspector({ body, edit, members, meetings, readOnly }: InspectorProps) {
   const fb = body.fallback;
   const [kind, setKind] = useState<"user" | "queue">(fb?.kind ?? "user");
   const options = kind === "user" ? members.map((m) => ({ value: m.id, label: m.name })) : body.queues.map((q) => ({ value: q.id, label: q.name }));
@@ -240,12 +259,20 @@ function FallbackInspector({ body, edit, members, readOnly }: InspectorProps) {
       <Select<string>
         value={fb?.kind === kind ? fb.id : ""}
         options={options}
-        onChange={(id) => edit((b) => ({ ...b, fallback: { kind, id } }))}
+        onChange={(id) => edit((b) => ({ ...b, fallback: { kind, id, ...(b.fallback?.meet ? { meet: b.fallback.meet } : {}) } }))}
         ariaLabel={kind === "user" ? "Rep" : "Team"}
         placeholder={kind === "user" ? "Pick a rep" : "Pick a team"}
         disabled={readOnly}
         className={`${PICK} h-8`}
       />
+      {fb && meetings.length ? (
+        <MeetPick
+          value={fb.meet}
+          meetings={meetings}
+          readOnly={readOnly}
+          onChange={(meet) => edit((b) => (b.fallback ? { ...b, fallback: { kind: b.fallback.kind, id: b.fallback.id, ...(meet ? { meet } : {}) } } : b))}
+        />
+      ) : null}
     </Block>
   );
 }
@@ -309,7 +336,7 @@ function SlaInspector({ body, edit, members, readOnly }: InspectorProps) {
 
 // Rule ------------------------------------------------------------------------------------------------------------
 
-function RuleInspector({ body, edit, rule, fields, forms, readOnly, counts, onSelect }: InspectorProps & { rule: Rule }) {
+function RuleInspector({ body, edit, rule, fields, forms, meetings, readOnly, counts, onSelect }: InspectorProps & { rule: Rule }) {
   // A rule's made name follows its conditions: "Country is Germany or France", until someone renames it.
   const sentence = (conds: Cond[]) => (conds.length && conds.every((c) => !needsValue(c.op) || (Array.isArray(c.value) ? c.value.length : c.value !== undefined && c.value !== "")) ? ruleWords({ ...rule, conds }, fields, body.territories).slice(0, 80) : null);
   const set = (patch: Partial<Rule>, key?: string) => {
@@ -396,6 +423,7 @@ function RuleInspector({ body, edit, rule, fields, forms, readOnly, counts, onSe
             />
           </span>
         </Line>
+        {rule.then !== "hold" && meetings.length ? <MeetPick value={rule.meet} meetings={meetings} readOnly={readOnly} onChange={(meet) => set({ meet })} /> : null}
       </Block>
       <Block>
         <div className="flex items-center justify-between text-[12.5px]">

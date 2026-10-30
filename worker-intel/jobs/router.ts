@@ -5,6 +5,7 @@
 //   router_alert  tell the rep (Slack app message, else the Slack channel, else email), or the workspace owners when
 //                 no one could take the lead.
 //   router_sla    nudge the rep before the response time ends, or tell them it ran out.
+//   meeting_team_run  write a team meeting as its queue's run when the booking couldn't (src/lib/meetings/team.ts).
 
 import { slackNote } from "../../src/lib/delivery/send.ts";
 import { JobError, type Handler, type Rpc } from "../../src/lib/jobs.ts";
@@ -18,13 +19,22 @@ import { REASONS } from "../../src/lib/router/types.ts";
 import type { Mailer } from "./meetings.ts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
-const REASON_SET = new Set(Object.keys(REASONS));
+// A booking's run is written by meeting_team_run, never routed here.
+const REASON_SET = new Set(Object.keys(REASONS).filter((r) => r !== "booking"));
 
 async function call<T>(rpc: Rpc, fn: string, args: Record<string, unknown>): Promise<T> {
   const { data, error } = await rpc(fn, args);
   if (error) throw new Error(`${fn}: ${error.message}`);
   return data as T;
 }
+
+export const meetingTeamRun =
+  (rpc: Rpc): Handler =>
+  async (job) => {
+    const p = job.payload;
+    if (!job.workspace_id || !UUID.test(String(p.p_meeting ?? "")) || !UUID.test(String(p.p_owner ?? "")) || typeof p.p_queue !== "string") throw new JobError("meeting_team_run needs a meeting, an owner and a queue", { retry: false });
+    await call(rpc, "meeting_team_run", { ...p, p_ws: job.workspace_id });
+  };
 
 export const routeJob =
   (rpc: Rpc): Handler =>

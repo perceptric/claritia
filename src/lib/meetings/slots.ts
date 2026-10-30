@@ -44,6 +44,19 @@ export function hostStarts(h: HostInput, length: number, s: TypeSettings, now: n
   return [...new Set(out)].sort((x, y) => x - y);
 }
 
+/**
+ * Whether a host can take a meeting at a set time: it sits inside their hours that day (a date's own hours first)
+ * and nothing on their calendar or in Claritia overlaps its block. For moving a booked meeting to another rep.
+ */
+export function isOpen(h: HostInput, block: Span, meeting: Span): boolean {
+  const tz = h.availability.tz;
+  const date = dateIn(meeting.start, tz);
+  const override = h.availability.overrides.find((o) => o.date === date);
+  const ranges = override ? override.ranges : (h.availability.weekly[dayOf(date)] ?? []);
+  if (!ranges.some(([a, b]) => at(date, a, tz) <= meeting.start && meeting.end <= at(date, b, tz))) return false;
+  return !h.busy.some((x) => overlaps(x, block)) && !h.booked.some((x) => overlaps(x, block));
+}
+
 /** Spans with one hole cut out of them: what's left before and after it. */
 export function cut(spans: Span[], hole: Span): Span[] {
   return spans.flatMap((x) =>

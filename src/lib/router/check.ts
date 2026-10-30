@@ -107,12 +107,14 @@ export function cleanBody(raw: unknown): RouterBody {
       queue: s(o.queue, 40),
       ...(o.on === false ? { on: false } : {}),
       ...(o.then === "owner" || o.then === "hold" ? { then: o.then } : {}),
+      ...(o.then !== "hold" && UUID.test(s(o.meet, 36)) ? { meet: s(o.meet, 36) } : {}),
     });
   }
   const fb = obj(r.fallback);
   const fbId = s(fb.id, 40);
+  const fbMeet = UUID.test(s(fb.meet, 36)) ? { meet: s(fb.meet, 36) } : {};
   const fallback =
-    fb.kind === "user" && UUID.test(fbId) ? ({ kind: "user", id: fbId } as const) : fb.kind === "queue" && qids.has(fbId) ? ({ kind: "queue", id: fbId } as const) : null;
+    fb.kind === "user" && UUID.test(fbId) ? ({ kind: "user", id: fbId, ...fbMeet } as const) : fb.kind === "queue" && qids.has(fbId) ? ({ kind: "queue", id: fbId, ...fbMeet } as const) : null;
   const max = typeof spam.maxPerHour === "number" ? Math.round(spam.maxPerHour) : d.spam.maxPerHour;
   return {
     v: 1,
