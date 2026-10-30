@@ -1,7 +1,9 @@
 "use client";
 
-// The Router editor (docs/router-ux.md 4.2 and 7.2): the top bar, the flow on the left and the inspector on the right,
-// with the Test panel sliding over the inspector. One reducer holds the draft body and its undo history; problems are
+// The Router editor (docs/router-ux.md 4.2 and 7.2). Two layouts over one state: Rules (Routing's first tab: the five
+// steps as sentences with Try a lead, a step's full settings in a side sheet, Publish and a More menu in the title
+// row), and the flowchart (/routing/flow): the top bar, the flow on the left and the inspector on the right, with the
+// Test panel sliding over the inspector. One reducer holds the draft body and its undo history; problems are
 // checked in the browser on every change; the draft saves itself 800 ms after the last change, with the revision so a
 // second owner's save shows as a conflict instead of being overwritten.
 
@@ -13,7 +15,10 @@ import type { Line } from "@/lib/router/explain";
 import { emptyBody, type RouterBody } from "@/lib/router/types";
 import { BarChart, Bell, History, Pause, Play, Redo, Undo } from "../../Icons";
 import { askConfirm } from "../Dialogs";
-import { Badge, Button, ErrorNote, errorText, IconButton, setLeaveGuard, type ViewProps } from "../ui";
+import { Badge, Button, ErrorNote, errorText, IconButton, invalidate, Page, setLeaveGuard, type ViewProps } from "../ui";
+import { Sheet } from "../Sheet";
+import { MoreMenu } from "../StatCards";
+import { RulesView } from "./Rules";
 import { routingApi, type Loaded, type ReplayOut } from "./api";
 import { editorReducer, flowCounts, pathOf, setupItems, startEditor, type Selection } from "./editorModel";
 import { Flow } from "./Flow";
@@ -56,7 +61,17 @@ export function RouterEditor({
   data,
   refresh,
   handle,
-}: Pick<ViewProps, "sb" | "session" | "ws" | "role" | "navigate"> & { data: Loaded; refresh: (remount: boolean) => Promise<void>; handle?: React.Ref<EditorHandle> }) {
+  layout = "rules",
+  dock,
+}: Pick<ViewProps, "sb" | "session" | "ws" | "role" | "navigate"> & {
+  data: Loaded;
+  refresh: (remount: boolean) => Promise<void>;
+  handle?: React.Ref<EditorHandle>;
+  /** Rules (the sentences and Try a lead, the default) or the flowchart with its side panel (/routing/flow). */
+  layout?: "rules" | "flow";
+  /** Shown under the rules: the assistant's box. */
+  dock?: React.ReactNode;
+}) {
   const readOnly = role !== "owner";
   const [st, dispatch] = useReducer(editorReducer, data.draft ?? data.live?.body ?? emptyBody(), startEditor);
   const [savedN, setSavedN] = useState(0);
@@ -67,6 +82,8 @@ export function RouterEditor({
   const [lists, setLists] = useState(data.lists);
   const memberSet = useMemo(() => new Set(data.members.map((m) => m.id)), [data.members]);
   const probs = useMemo(() => checkProblems(st.body, { members: memberSet, fields: data.fields }), [st.body, memberSet, data.fields]);
+  // Rules: the side sheet with a step's full settings ("More"), or nothing.
+  const [sheet, setSheet] = useState<Selection | null>(null);
   const [sel, setSel] = useState<Selection>(() => {
     const first = !data.live ? setupItems(checkProblems(data.draft ?? emptyBody(), { members: new Set(data.members.map((m) => m.id)), fields: data.fields }))[0] : undefined;
     return first?.at ?? { kind: "rules" };
@@ -116,6 +133,7 @@ export function RouterEditor({
         setHasDraft(true);
         setAttempt(0);
         setSaveState("saved");
+        invalidate("app_counts");
         return true;
       }
       if (r.status === 409) {
@@ -236,7 +254,11 @@ export function RouterEditor({
     // What's missing is shown here, once, on the part that needs it.
     if (probs.length) {
       const w = probs[0]!.where;
-      if (w.kind !== "segment") setSel((w.id ? { kind: w.kind, id: w.id } : { kind: w.kind }) as Selection);
+      if (w.kind !== "segment") {
+        const at = (w.id ? { kind: w.kind, id: w.id } : { kind: w.kind }) as Selection;
+        setSel(at);
+        if (layout === "rules") setSheet(at);
+      }
       toast({ text: problemWords(probs[0]!.text) });
       return;
     }
@@ -265,6 +287,7 @@ export function RouterEditor({
           }
         : undefined,
     });
+    invalidate("app_counts");
     await refresh(true);
   };
 
@@ -313,6 +336,159 @@ export function RouterEditor({
   const moved = !!data.live && hasDraft && data.draftBase !== null && data.live.version > data.draftBase;
   const next = Math.max(0, ...data.versions.map((v) => v.version), data.live?.version ?? 0) + 1;
   const canPublish = !readOnly && draft;
+
+  const bars = (
+    <>
+      {saveState === "conflict" ? (
+        <Bar text="Someone else changed the draft.">
+          <Button variant="ghost" size="sm" onClick={() => void loadTheirs()}>
+            Load theirs
+          </Button>
+          <Button size="sm" onClick={() => void keepMine()}>
+            Keep mine
+          </Button>
+        </Bar>
+      ) : moved && data.live ? (
+        <Bar text={`v${data.live.version} is live. Your draft is based on v${data.draftBase}.`}>
+          <Button variant="ghost" size="sm" onClick={() => setReviewing(true)}>
+            Review changes
+          </Button>
+          {!readOnly ? (
+            <Button size="sm" onClick={() => void startOver()}>
+              Start over from v{data.live.version}
+            </Button>
+          ) : null}
+        </Bar>
+      ) : null}
+      {error ? (
+        <div className="flex items-center gap-2 px-4 pt-3 md:px-6">
+          <div className="flex-1">
+            <ErrorNote message={error} />
+          </div>
+          <Button variant="plain" size="sm" onClick={() => setError("")}>
+            Dismiss
+          </Button>
+        </div>
+      ) : null}
+    </>
+  );
+  const dialogs = (
+    <>
+      {versions ? (
+        <VersionsDrawer
+          data={data}
+          current={null}
+          onClose={() => setVersions(false)}
+          onOpen={(n) => {
+            setVersions(false);
+            navigate("routing", `versions/${n}`);
+          }}
+        />
+      ) : null}
+      {replaying ? (
+        <ReplayPanel session={session} ws={ws.id} body={st.body} last={replay} canPublish={canPublish} onDone={setReplay} onPublish={() => void openPublish()} onClose={() => setReplaying(false)} />
+      ) : null}
+      {publishing ? (
+        <PublishDialog
+          session={session}
+          ws={ws.id}
+          next={next}
+          replay={replay ? { days: replay.days, total: replay.total, changed: replay.changed } : null}
+          onReplay={() => {
+            setPublishing(false);
+            setReplaying(true);
+          }}
+          onPublished={(v) => void onPublished(v)}
+          onClose={() => setPublishing(false)}
+        />
+      ) : null}
+      {alerts ? <AlertsDialog session={session} ws={ws.id} label={data.alert.label} slack={data.slack ?? { ready: false, team: null }} onSaved={() => void refresh(false)} onClose={() => setAlerts(false)} /> : null}
+      {reviewing && data.live && data.draftBase ? <CompareDialog session={session} ws={ws.id} from={data.draftBase} to={data.live.version} onClose={() => setReviewing(false)} /> : null}
+    </>
+  );
+
+  if (layout === "rules") {
+    const live = !!data.live && !draft && !data.paused;
+    return (
+      <Page
+        title="Routing"
+        badge={live ? <Badge tone="green" dot>Live</Badge> : data.paused && !draft ? <Badge dot>Paused</Badge> : <Badge tone="amber" dot>Draft</Badge>}
+        actions={
+          <>
+            {saveState === "retry" ? (
+              <span role="status" className="text-[12.5px] text-rose">
+                Not saved. Retrying…
+              </span>
+            ) : null}
+            <MoreMenu
+              label="More"
+              items={[
+                readOnly || !st.past.length ? null : { label: "Undo", run: () => dispatch({ type: "undo" }) },
+                readOnly || !st.future.length ? null : { label: "Redo", run: () => dispatch({ type: "redo" }) },
+                { label: "Versions", run: () => setVersions(true) },
+                readOnly ? null : { label: "Test on past leads", run: () => setReplaying(true) },
+                readOnly ? null : { label: "Response time", run: () => setSheet({ kind: "sla" }) },
+                readOnly ? null : { label: data.alert.label ? `Alerts: ${data.alert.label}` : "Alerts", run: () => setAlerts(true) },
+                !readOnly && data.live ? { label: data.paused ? "Turn routing on" : "Pause routing", run: () => void pause(!data.paused) } : null,
+                { label: "Flowchart", run: () => navigate("routing", "flow") },
+              ]}
+            />
+            {!readOnly ? (
+              <Button disabled={!canPublish} onClick={() => void openPublish()}>
+                {canPublish ? "Publish" : "Published"}
+              </Button>
+            ) : null}
+          </>
+        }
+        flush
+      >
+        <div className="flex h-full min-h-0 flex-col">
+          {bars}
+          <div className="min-h-0 flex-1 overflow-y-auto">
+            <RulesView
+              sb={sb}
+              session={session}
+              navigate={navigate}
+              ws={ws.id}
+              body={st.body}
+              edit={edit}
+              readOnly={readOnly}
+              members={data.members}
+              fields={withSegments(data.fields, st.body.segments)}
+              forms={data.forms}
+              meetings={data.meetings ?? []}
+              live={!!data.live && !data.paused}
+              draft={draft}
+              onPublish={() => void openPublish()}
+              onMore={setSheet}
+              onUndo={() => dispatch({ type: "undo" })}
+            />
+          </div>
+          {dock}
+        </div>
+        {sheet ? (
+          <Sheet title="Settings" onClose={() => setSheet(null)}>
+            <Inspector
+              sel={sheet}
+              body={st.body}
+              edit={edit}
+              readOnly={readOnly}
+              members={data.members}
+              fields={withSegments(data.fields, st.body.segments)}
+              forms={data.forms}
+              meetings={data.meetings ?? []}
+              counts={data.stats ? counts : null}
+              problems={probs}
+              lists={lists}
+              onLists={readOnly ? undefined : onLists}
+              onSelect={setSheet}
+            />
+          </Sheet>
+        ) : null}
+        {dialogs}
+      </Page>
+    );
+  }
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -370,37 +546,7 @@ export function RouterEditor({
         </div>
       </div>
 
-      {saveState === "conflict" ? (
-        <Bar text="Someone else changed the draft.">
-          <Button variant="ghost" size="sm" onClick={() => void loadTheirs()}>
-            Load theirs
-          </Button>
-          <Button size="sm" onClick={() => void keepMine()}>
-            Keep mine
-          </Button>
-        </Bar>
-      ) : moved && data.live ? (
-        <Bar text={`v${data.live.version} is live. Your draft is based on v${data.draftBase}.`}>
-          <Button variant="ghost" size="sm" onClick={() => setReviewing(true)}>
-            Review changes
-          </Button>
-          {!readOnly ? (
-            <Button size="sm" onClick={() => void startOver()}>
-              Start over from v{data.live.version}
-            </Button>
-          ) : null}
-        </Bar>
-      ) : null}
-      {error ? (
-        <div className="flex items-center gap-2 px-4 pt-3 md:px-6">
-          <div className="flex-1">
-            <ErrorNote message={error} />
-          </div>
-          <Button variant="plain" size="sm" onClick={() => setError("")}>
-            Dismiss
-          </Button>
-        </div>
-      ) : null}
+      {bars}
 
       <div className="grid min-h-0 flex-1 lg:grid-cols-[minmax(0,1fr)_400px]">
         <div className="min-h-0 overflow-y-auto">
@@ -444,36 +590,7 @@ export function RouterEditor({
         </aside>
       </div>
 
-      {versions ? (
-        <VersionsDrawer
-          data={data}
-          current={null}
-          onClose={() => setVersions(false)}
-          onOpen={(n) => {
-            setVersions(false);
-            navigate("routing", `versions/${n}`);
-          }}
-        />
-      ) : null}
-      {replaying ? (
-        <ReplayPanel session={session} ws={ws.id} body={st.body} last={replay} canPublish={canPublish} onDone={setReplay} onPublish={() => void openPublish()} onClose={() => setReplaying(false)} />
-      ) : null}
-      {publishing ? (
-        <PublishDialog
-          session={session}
-          ws={ws.id}
-          next={next}
-          replay={replay ? { days: replay.days, total: replay.total, changed: replay.changed } : null}
-          onReplay={() => {
-            setPublishing(false);
-            setReplaying(true);
-          }}
-          onPublished={(v) => void onPublished(v)}
-          onClose={() => setPublishing(false)}
-        />
-      ) : null}
-      {alerts ? <AlertsDialog session={session} ws={ws.id} label={data.alert.label} slack={data.slack ?? { ready: false, team: null }} onSaved={() => void refresh(false)} onClose={() => setAlerts(false)} /> : null}
-      {reviewing && data.live && data.draftBase ? <CompareDialog session={session} ws={ws.id} from={data.draftBase} to={data.live.version} onClose={() => setReviewing(false)} /> : null}
+      {dialogs}
     </div>
   );
 }

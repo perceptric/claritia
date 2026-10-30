@@ -203,9 +203,11 @@ export function namesOf(body: RouterBody): { users: string[]; queues: string[] }
 /** Read one lead's facts for a body. Null when the contact is gone; `existing` when the key was routed already. */
 export async function readFacts(
   rpc: Rpc,
-  o: { ws: string; contact: string | null; email?: string | null; key: string | null; body: RouterBody; reason: Reason; now?: number },
+  o: { ws: string; contact: string | null; email?: string | null; key: string | null; body: RouterBody; reason: Reason; now?: number; users?: string[] },
 ): Promise<{ facts: Facts; raw: RawFacts } | { existing: NonNullable<RawFacts["existing"]> } | null> {
   const n = namesOf(o.body);
+  // More reps to read (and their backups), for "Try a lead" when it says who the lead already works with.
+  if (o.users?.length) n.users = [...new Set([...n.users, ...o.users])];
   let emailClass: string | null = null;
   if (!o.contact && o.email) {
     const { cleanEmail } = await import("../identity/clean.ts");
@@ -382,10 +384,42 @@ export function pickFor(body: RouterBody, d: Decision): { queue: string; method:
 }
 
 /** Test a lead against a body without writing anything (docs/router-ux.md 4.3). Changed fields override the lead's. */
-export async function testRoute(rpc: Rpc, o: { ws: string; contact?: string | null; email?: string | null; body: RouterBody; changes?: Record<string, unknown>; now?: number }): Promise<{ decision: Decision; facts: Facts } | null> {
-  const read = await readFacts(rpc, { ws: o.ws, contact: o.contact ?? null, email: o.email, key: null, body: o.body, reason: "form", now: o.now });
+export async function testRoute(
+  rpc: Rpc,
+  o: { ws: string; contact?: string | null; email?: string | null; body: RouterBody; changes?: Record<string, unknown>; owners?: TryOwners; now?: number },
+): Promise<{ decision: Decision; facts: Facts } | null> {
+  const users = [o.owners?.company, o.owners?.contact].filter((u): u is string => typeof u === "string" && UUID_RE.test(u));
+  const read = await readFacts(rpc, { ws: o.ws, contact: o.contact ?? null, email: o.email, key: null, body: o.body, reason: "form", now: o.now, users });
   if (!read || "existing" in read) return null;
-  const facts = read.facts;
+  const facts = withTryOwners(read.facts, o.owners);
   for (const [k, v] of Object.entries(o.changes ?? {})) facts.values[k] = v;
   return { decision: decide(o.body, facts), facts };
+}
+
+const UUID_RE = /^[0-9a-f-]{36}$/;
+
+/**
+ * "Try a lead": who the lead's company and the lead already work with, as typed in the panel. Left out (undefined),
+ * the facts stay as read; a rep's id or null (nobody yet) replaces them. A company that doesn't exist yet is made up
+ * from the email's domain, so "Same company, same rep" can be tried before the company is in the CRM. Writes nothing.
+ */
+export type TryOwners = { company?: string | null; contact?: string | null };
+
+export function withTryOwners(f: Facts, o: TryOwners | undefined): Facts {
+  if (!o) return f;
+  const out: Facts = { ...f };
+  if (o.company !== undefined) {
+    const owner = o.company && UUID_RE.test(o.company) ? o.company : null;
+    const domain = f.company?.domain ?? f.lead.domain ?? null;
+    out.company = f.company
+      ? { ...f.company, owner, ownerCrm: null, oppOwner: null, oppName: null }
+      : owner && domain
+        ? { id: "try", name: domain, domain, owner, ownerCrm: null, oppOwner: null, oppName: null }
+        : null;
+  }
+  if (o.contact !== undefined) {
+    const user = o.contact && UUID_RE.test(o.contact) ? o.contact : null;
+    out.owner = { user, crm: null };
+  }
+  return out;
 }

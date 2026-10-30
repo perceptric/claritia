@@ -11,7 +11,6 @@ import {
   Branch,
   CalendarIcon,
   ChevronDown,
-  Clock,
   Contact,
   Dollar,
   FormIcon,
@@ -27,6 +26,7 @@ import {
   Settings,
   Signpost,
   Sun,
+  User,
   Users,
 } from "../Icons";
 import { Logo } from "../Logo";
@@ -39,12 +39,13 @@ export const NAV_ICONS: Record<string, React.ReactNode> = {
   companies: <Users size={14} />,
   opportunities: <Dollar size={14} />,
   meetings: <CalendarIcon size={14} />,
+  reps: <User size={14} />,
   objects: <Box size={14} />,
   workflows: <Branch size={14} />,
   routing: <Signpost size={14} />,
   enrichment: <Layers size={14} />,
   forms: <FormIcon size={14} />,
-  scheduling: <Clock size={14} />,
+  scheduling: <CalendarIcon size={14} />,
   visitors: <Radar size={14} />,
   emails: <Mail size={14} />,
   segments: <ListIcon size={14} />,
@@ -71,6 +72,8 @@ export type SidebarProps = {
   navigate: (r: Route, id?: string, query?: string) => void;
   objects: { key: string; plural: string }[];
   counts: Partial<Record<string, number>>;
+  /** A small amber dot when an item needs a step (a rep with no calendar, routing not live). */
+  dots?: Partial<Record<string, boolean>>;
   wsName: string;
   email: string;
   theme: "light" | "dark";
@@ -135,7 +138,7 @@ export function Sidebar(p: SidebarProps) {
               )}
               <div className={`flex gap-1 md:flex-col md:gap-0.5 ${open ? "" : "xl:hidden"}`}>
                 {items.map((n) => (
-                  <NavLink key={n.key} n={n} on={active?.key === n.key} count={p.counts[n.key]} navigate={p.navigate} preload={p.onPreload} />
+                  <NavLink key={n.key} n={n} on={active?.key === n.key} count={p.counts[n.key]} dot={!!p.dots?.[n.key]} navigate={p.navigate} preload={p.onPreload} />
                 ))}
                 {g.key === "crm"
                   ? p.objects.map((o) => (
@@ -169,7 +172,7 @@ export function Sidebar(p: SidebarProps) {
   );
 }
 
-function NavLink({ n, on, count, navigate, icon, preload }: { n: NavItem; on: boolean; count?: number; navigate: SidebarProps["navigate"]; icon?: React.ReactNode; preload?: SidebarProps["onPreload"] }) {
+function NavLink({ n, on, count, dot, navigate, icon, preload }: { n: NavItem; on: boolean; count?: number; dot?: boolean; navigate: SidebarProps["navigate"]; icon?: React.ReactNode; preload?: SidebarProps["onPreload"] }) {
   const glyph = icon ?? NAV_ICONS[n.key] ?? NAV_ICONS[n.route];
   return (
     <a
@@ -184,12 +187,14 @@ function NavLink({ n, on, count, navigate, icon, preload }: { n: NavItem; on: bo
       title={n.label}
       className={`flex h-8 shrink-0 items-center gap-2.5 rounded-[7px] px-2 text-[13px] transition-[background-color,color,box-shadow] duration-[120ms] md:justify-center xl:justify-start ${on ? "bg-card text-ink shadow-[0_0_0_1px_var(--color-line),0_1px_2px_rgb(10_10_10/0.05)]" : "text-muted hover:bg-hover hover:text-ink"}`}
     >
-      <span aria-hidden="true" className={`flex size-5 shrink-0 items-center justify-center ${on ? "text-ink" : ""}`}>
+      <span aria-hidden="true" className={`relative flex size-5 shrink-0 items-center justify-center ${on ? "text-ink" : ""}`}>
         {glyph}
+        {dot ? <span className="absolute -top-0.5 -right-0.5 hidden size-1.5 rounded-full bg-butter md:block xl:hidden" /> : null}
       </span>
       <span className="truncate md:hidden xl:inline">{n.label}</span>
+      {dot ? <span role="img" aria-label="Needs a step" title="Needs a step" className="ml-auto size-1.5 shrink-0 rounded-full bg-butter md:hidden xl:block" /> : null}
       {count ? (
-        <span className="ml-auto rounded-full bg-hover px-1.5 font-mono text-[11px] tabular-nums text-muted md:hidden xl:inline">{count > 99 ? "99+" : count}</span>
+        <span className={`${dot ? "ml-1.5" : "ml-auto"} rounded-full bg-hover px-1.5 font-mono text-[11px] tabular-nums text-muted md:hidden xl:inline`}>{count > 99 ? "99+" : count}</span>
       ) : null}
     </a>
   );

@@ -37,7 +37,7 @@ export function TypesList(props: ViewProps) {
   const [error, setError] = useState("");
   const [linkFor, setLinkFor] = useState<string | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
-  const back = { label: "Meetings", onClick: () => navigate("meetings") };
+  const back = { label: "Meetings", onClick: () => navigate("scheduling", "upcoming") };
 
   const act = async (fn: () => Promise<unknown>) => {
     setError("");

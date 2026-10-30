@@ -1,27 +1,30 @@
 "use client";
 
-// Calendar › Meeting types (docs/scheduling-plan.md 11.2), after Calendly's Event types: You | Team, a search box and
-// how many were booked this week; then each person's types (yours, the team's, each teammate's) as 68 px rows with
-// their length, place, who takes it and hours in gray, an on switch, Copy link and the more menu. Clicking a row
-// opens its panel on the right (/scheduling/types/<id>); the list stays where it is. New meeting type opens the same
-// panel (/scheduling/types/new).
+// Inbound › Meetings › Meetings (once Calendar › Meeting types): "What people can book", one card per meeting with
+// its length and video tool, the routing steps that book it ("Booked by leads from", read from the live router) and
+// "Who hosts" as one dropdown: Team (a Routing team; from a form each lead gets the rep Routing picks, from the plain
+// link the team takes turns) or Individual (one rep, always them). Clicking a card opens its panel on the right
+// (/scheduling/types/<id>); New meeting opens the same panel (/scheduling/types/new). Copy link, single-use links,
+// times for an email, on and off, duplicate, all settings and delete sit in each card's more menu.
 
 import { useMemo, useState } from "react";
 import type { Availability } from "@/lib/meetings/types";
-import { CalendarIcon, Check, Clock, Copy, ExternalLink, Plus, Search, User, Users } from "../../Icons";
+import { Clock, Plus } from "../../Icons";
 import { askConfirm } from "../Dialogs";
 import { MoreMenu } from "../StatCards";
 import { ToolIntro } from "../ToolIntro";
-import { Badge, Button, ErrorNote, errorText, IconButton, invalidate, Loading, must, Page, Segmented, Toggle, useQuery, type ViewProps } from "../ui";
+import { Badge, Button, ErrorNote, errorText, invalidate, Loading, must, Page, useQuery, type ViewProps } from "../ui";
+import { Column, Choice, Title } from "../inbound/parts";
+import { useRoutingLoad } from "../routing/useRouterData";
+import { draftBase } from "../routing/draftChange";
+import { bookedBy, hostChoice, withHostChoice } from "./hosts";
 import { LinkDialog } from "../meetings/LinkDialog";
-import { copyText, meetingsApi, ownZone, PersonAvatar, usePeople, useWorkspaceSlug } from "../meetings/parts";
+import { copyText, meetingsApi, ownZone, usePeople, useWorkspaceSlug } from "../meetings/parts";
 import { TYPE_COLS, useMeetingTypes, type TypeRow } from "../meetings/TypesList";
 import { useLiveBody } from "../routing/screenParts";
-import { groupTypes, lengthWords, PLACE_WORDS, weeklyWords } from "./model";
+import { lengthWords, PLACE_WORDS } from "./model";
 import { Corners } from "./panel";
 import { newDraft, placeIcon, TypePanel, whoWords, type HostStatus, type Named, type PanelData } from "./TypePanel";
-
-type Whose = "you" | "team";
 
 /** Yours: types you own, and one-person types with no owner that you host. */
 export const isMine = (t: Pick<TypeRow, "owner_user_id" | "kind" | "hosts">, me: string) => t.owner_user_id === me || (!t.owner_user_id && (t.kind === "one" || t.kind === "group") && t.hosts[0]?.user_id === me);
@@ -57,21 +60,12 @@ export function TypesPage(props: ViewProps & { open: string }) {
     };
   });
   const data = { data: list.data && extra.data ? { ...extra.data, types: list.data } : null, error: list.error || extra.error };
-  const [whose, setWhose] = useState<Whose>("you");
-  const [query, setQuery] = useState("");
   const [error, setError] = useState("");
   const [linkFor, setLinkFor] = useState<string | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
 
   const types = data.data?.types;
   const row = open && open !== "new" ? (types?.find((t) => t.id === open) ?? null) : null;
-  // A type opened by its address shows in its own list.
-  const [shownFor, setShownFor] = useState<string | null>(null);
-  if (row && shownFor !== row.id) {
-    setShownFor(row.id);
-    const w: Whose = isMine(row, me) ? "you" : "team";
-    if (w !== whose) setWhose(w);
-  }
 
   const act = async (fn: () => Promise<unknown>) => {
     setError("");
@@ -83,8 +77,9 @@ export function TypesPage(props: ViewProps & { open: string }) {
   };
   const nameOf = (id: string) => people.data?.byId.get(id)?.name ?? "Former teammate";
   const queues = useMemo(() => live.data?.body.queues ?? [], [live.data]);
-  const shown = useMemo(() => (extra.data && list.data ? list.data : []).filter((t) => (whose === "you" ? isMine(t, me) : !isMine(t, me)) && (!query.trim() || t.name.toLowerCase().includes(query.trim().toLowerCase()))), [extra.data, list.data, whose, me, query]);
-  const groups = whose === "you" ? (shown.length ? [{ key: "me", person: me as string | null, types: shown }] : []) : groupTypes(shown, me, nameOf);
+  // Teams to host from, as Routing › Teams shows them (the draft when there is one).
+  const routing = useRoutingLoad(session, ws.id);
+  const routingQueues = useMemo(() => (routing.data ? draftBase(routing.data).queues : queues), [routing.data, queues]);
   const origin = typeof window === "undefined" ? "" : window.location.origin;
   const typeUrl = (s: string) => (slug.data ? `${origin}/book/${slug.data}/${s}` : "");
   const flash = (id: string) => {
@@ -132,35 +127,43 @@ export function TypesPage(props: ViewProps & { open: string }) {
   const close = () => navigate("scheduling", "types");
   const panel =
     panelData && open === "new" ? (
-      <TypePanel key="new" {...props} row={null} start={newDraft(me, whose === "team")} data={panelData} onClose={close} onSaved={saved} />
+      <TypePanel key="new" {...props} row={null} start={newDraft(me, false)} data={panelData} onClose={close} onSaved={saved} />
     ) : panelData && row ? (
       <TypePanel key={row.id} {...props} row={row} start={newDraft(me, false)} data={panelData} onClose={close} onSaved={saved} onDuplicate={() => duplicate(row)} />
     ) : null;
 
+  const canEdit = (t: TypeRow) => props.role === "owner" || t.owner_user_id === me || (!t.owner_user_id && t.hosts.some((h) => h.user_id === me));
+  /** Who hosts, from the card's dropdown: saved at once, and put back with the error if the save fails. */
+  const setHost = (t: TypeRow, choice: string) =>
+    act(async () => {
+      const next = withHostChoice(t, choice, routingQueues, new Set(people.data?.list.map((p) => p.id) ?? []));
+      if (next === t) return;
+      const { name, slug: s, kind: k, hosts, settings, secret, active, locked, owner_user_id } = next;
+      await list.mutate(
+        (rows) => rows.map((x) => (x.id === t.id ? next : x)),
+        () => meetingsApi(session, ws.id, "types", { action: "save", id: t.id, type: { name, slug: s, kind: k, hosts, settings, secret, active, locked, owner_user_id } }),
+      );
+    });
+
   const actions = (
-    <>
-      <Button variant="ghost" size="sm" className="max-sm:!hidden" onClick={() => navigate("scheduling", "availability")}>
-        Manage availability
-      </Button>
-      <Button size="sm" onClick={() => navigate("scheduling", "types/new")}>
-        <Plus size={14} />
-        New meeting type
-      </Button>
-    </>
+    <Button onClick={() => navigate("scheduling", "types/new")}>
+      <Plus size={14} />
+      New meeting
+    </Button>
   );
 
   if (types && !types.length)
     return (
-      <Page title="Meeting types" actions={actions} flush>
+      <Page title="Meetings" actions={actions} flush>
         <div className="relative h-full min-h-0 overflow-y-auto">
           <ToolIntro
             sketch="calendar"
             title={"Share one link\nand let leads pick a time"}
-            lead="A meeting type sets who hosts, how long, when and where. Share it as a page, a one-time link or times in an email; every booking lands on the lead."
+            lead="A meeting sets who hosts, how long, when and where. Share it as a page, a one-time link or times in an email; every booking lands on the lead."
             action={
               <Button onClick={() => navigate("scheduling", "types/new")}>
                 <Plus size={14} />
-                New meeting type
+                New meeting
               </Button>
             }
           />
@@ -170,162 +173,126 @@ export function TypesPage(props: ViewProps & { open: string }) {
     );
 
   return (
-    <Page title="Meeting types" actions={actions} flush>
+    <Page title="Meetings" actions={actions} flush>
       {linkFor ? <LinkDialog sb={sb} session={session} ws={ws} types={(types ?? []).map((t) => ({ ...t, lengths: t.settings.lengths }))} initialType={linkFor} onClose={() => setLinkFor(null)} /> : null}
       <div className="relative h-full min-h-0 overflow-hidden">
-        <div className={`h-full overflow-y-auto px-4 pt-4 pb-6 transition-[padding] duration-[320ms] ease-out sm:px-7 ${panel ? "md:pr-[428px]" : ""}`}>
-          <div className="mb-3.5 flex flex-wrap items-center gap-2.5">
-            <Segmented<Whose>
-              size="sm"
-              label="Whose"
-              value={whose}
-              options={[
-                { value: "you", label: "You" },
-                { value: "team", label: "Team" },
-              ]}
-              onChange={(w) => {
-                setWhose(w);
-                if (open) close();
-              }}
-            />
-            <label className="flex h-8 w-[260px] max-w-full min-w-0 items-center gap-2 rounded-sm border border-line px-2.5 text-muted focus-within:border-ink">
-              <Search size={14} />
-              <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search meeting types" aria-label="Search meeting types" className="min-w-0 flex-1 bg-transparent text-[13px] text-ink outline-none placeholder:text-faint" />
-            </label>
-            <span className="flex-1" />
-            {data.data ? (
-              <span className="text-[12.5px] text-muted">
-                {data.data.week} booked this week
-              </span>
-            ) : null}
-          </div>
-          <ErrorNote message={error || data.error || slug.error} />
-          {!data.data ? (
-            <Loading />
-          ) : !groups.length ? (
-            <p className="py-10 text-center text-[13.5px] text-muted">{query.trim() ? "No matches" : whose === "you" ? "No meeting types of yours yet" : "No team meeting types yet"}</p>
-          ) : (
-            groups.map((g) => {
-              const person = g.person ? people.data?.byId.get(g.person) : null;
-              const pageUrl = slug.data ? (g.person ? (person?.slug ? `${origin}/book/${slug.data}/${person.slug}` : "") : `${origin}/book/${slug.data}`) : "";
-              return (
-                <section key={g.key} className="mb-[18px]">
-                  <header className="mt-1.5 mb-2 flex items-center gap-2.5">
-                    {g.person === me && !person?.photo ? (
-                      <span className="flex size-[26px] shrink-0 items-center justify-center rounded-full bg-ink text-[10.5px] font-semibold text-paper">{initials(nameOf(me))}</span>
-                    ) : g.person ? (
-                      <PersonAvatar person={person} label={nameOf(g.person)} size={26} />
-                    ) : (
-                      <span className="flex size-[26px] shrink-0 items-center justify-center rounded-full bg-paper-deep text-[10.5px] font-semibold text-body">{ws.name.slice(0, 1).toUpperCase()}</span>
-                    )}
-                    <span className="min-w-0 truncate text-[13px] font-semibold text-ink">{g.person ? (g.person === me ? "You" : nameOf(g.person)) : `${ws.name} team`}</span>
-                    <span className="flex-1" />
-                    {pageUrl ? (
-                      <a href={pageUrl} target="_blank" rel="noreferrer" className="inline-flex shrink-0 items-center gap-1 text-[12.5px] font-medium text-ink underline decoration-line-strong underline-offset-[3px] hover:decoration-ink">
-                        View booking page
-                        <ExternalLink size={12} />
-                      </a>
-                    ) : null}
-                  </header>
-                  <ul className="rounded-[10px] border border-line">
-                    {g.types.map((t) => {
-                      const url = typeUrl(t.slug);
-                      const sel = open === t.id;
-                      const host = t.hosts[0]?.user_id;
-                      return (
-                        <li
-                          key={t.id}
-                          className={`relative flex h-[68px] items-center gap-2.5 border-t border-line pr-2.5 pl-4 transition-colors duration-[120ms] first:rounded-t-[10px] first:border-t-0 last:rounded-b-[10px] hover:bg-paper ${sel ? "bg-paper" : ""}`}
-                        >
-                          {sel ? <Corners /> : null}
-                          <button type="button" onClick={() => navigate("scheduling", `types/${t.id}`)} className={`flex min-w-0 flex-1 flex-col gap-[5px] text-left after:absolute after:inset-0 ${t.active ? "" : "opacity-50"}`}>
-                            <span className="flex min-w-0 items-center gap-1.5">
-                              <span className="truncate text-[13.5px] font-medium text-ink">{t.name}</span>
-                              {t.secret ? <Badge>Secret</Badge> : null}
-                              {t.template_id ? <Badge>Managed</Badge> : null}
-                            </span>
-                            <span className="flex min-w-0 items-center gap-3.5 overflow-hidden text-[12.5px] whitespace-nowrap text-muted">
-                              <span className="inline-flex shrink-0 items-center gap-[5px]">
-                                <Clock size={14} />
-                                {lengthWords(t.settings.lengths)}
-                              </span>
-                              <span className="inline-flex shrink-0 items-center gap-[5px]">
-                                {placeIcon(t.settings.location.kind, 14)}
-                                {PLACE_WORDS[t.settings.location.kind]}
-                              </span>
-                              <span className="inline-flex shrink-0 items-center gap-[5px]">
-                                {t.kind === "one" || t.kind === "group" ? <User size={14} /> : <Users size={14} />}
-                                {whoWords(t, queues)}
-                              </span>
-                              <span className="inline-flex min-w-0 items-center gap-[5px]">
-                                <CalendarIcon size={14} />
-                                <span className="truncate">{host ? weeklyWords(hoursFor(host, t.settings.schedule, data.data!)) : "No hosts"}</span>
-                              </span>
-                            </span>
-                          </button>
-                          <span className="relative z-10 flex shrink-0 items-center gap-0.5">
-                            <span className="mr-1.5 flex items-center">
-                              <Toggle label={t.active ? `Turn off ${t.name}` : `Turn on ${t.name}`} on={t.active} onChange={(v) => void setActive(t, v)} />
-                            </span>
-                            {url ? (
-                              <IconButton
-                                label={copied === t.id ? "Copied" : "Copy link"}
-                                onClick={() =>
-                                  void copyText(url).then((ok) => {
-                                    if (ok) flash(t.id);
-                                  })
-                                }
-                              >
-                                {copied === t.id ? <Check size={14} className="text-signal-text" /> : <Copy size={14} />}
-                              </IconButton>
-                            ) : null}
-                            <MoreMenu
-                              items={[
-                                url ? { label: "Open booking page", run: () => window.open(url, "_blank", "noopener") } : null,
-                                { label: "New single-use link", run: () => setLinkFor(t.id) },
-                                {
-                                  label: "Copy times for an email",
-                                  run: () =>
-                                    void act(async () => {
-                                      const r = await meetingsApi<{ text: string }>(session, ws.id, "times", { typeId: t.id, tz: ownZone() });
-                                      if (!r.text) throw new Error(`${t.name} has no free times in its window.`);
-                                      if (await copyText(r.text)) flash(t.id);
-                                    }),
-                                },
-                                { label: "Duplicate", run: () => void duplicate(t) },
-                                { label: "All settings", run: () => navigate("scheduling", `types/${t.id}/all`) },
-                                { label: "Delete", danger: true, run: () => void remove(t) },
-                              ]}
-                            />
-                          </span>
-                        </li>
-                      );
-                    })}
-                  </ul>
-                </section>
-              );
-            })
-          )}
+        <div className={`h-full overflow-y-auto transition-[padding] duration-[320ms] ease-out ${panel ? "md:pr-[400px]" : ""}`}>
+          <Column>
+            <Title>What people can book</Title>
+            <ErrorNote message={error || data.error || slug.error} />
+            {!data.data ? (
+              <Loading />
+            ) : (
+              <div className="grid gap-3 md:grid-cols-2">
+                {(types ?? []).map((t) => {
+                  const url = typeUrl(t.slug);
+                  const used = bookedBy(live.data?.body, t.id);
+                  const choice = hostChoice(t);
+                  const q = choice.startsWith("team:") ? routingQueues.find((x) => `team:${x.id}` === choice) : undefined;
+                  const host = choice.startsWith("rep:") ? choice.slice(4) : null;
+                  const first = (id: string) => nameOf(id).split(" ")[0];
+                  const line = q
+                    ? `Team: the rep Routing picks for each lead, with their own calendar. From the booking link, the ${q.name} takes turns.`
+                    : host
+                      ? `Individual: always ${nameOf(host)}, with ${first(host)}'s calendar.`
+                      : choice === "everyone"
+                        ? `Everyone: all ${t.hosts.length} hosts join each meeting.`
+                        : whoWords(t, routingQueues);
+                  const shownAs = q ? `Team, ${q.name}` : host ? `Individual, ${first(host)}` : choice === "everyone" ? "Everyone" : choice.startsWith("team:") ? "Routing team" : whoWords(t, routingQueues);
+                  const sel = open === t.id;
+                  return (
+                    <article key={t.id} className={`relative flex flex-col gap-2.5 rounded-[10px] border bg-card p-4 transition-colors duration-[140ms] ${sel ? "border-ink" : "border-line hover:border-line-strong"}`}>
+                      {sel ? <Corners /> : null}
+                      <div className="flex items-start gap-2">
+                        <button type="button" onClick={() => navigate("scheduling", `types/${t.id}`)} className={`min-w-0 flex-1 text-left after:absolute after:inset-0 ${t.active ? "" : "opacity-50"}`}>
+                          <h3 className="truncate text-[15px] font-semibold text-ink">{t.name}</h3>
+                        </button>
+                        {!t.active ? <Badge>Off</Badge> : null}
+                        {t.secret ? <Badge>Secret</Badge> : null}
+                        <span className="relative z-10 -mt-1.5 -mr-2">
+                          <MoreMenu
+                            items={[
+                              url ? { label: copied === t.id ? "Copied" : "Copy link", run: () => void copyText(url).then((ok) => ok && flash(t.id)) } : null,
+                              url ? { label: "Open booking page", run: () => window.open(url, "_blank", "noopener") } : null,
+                              { label: "New single-use link", run: () => setLinkFor(t.id) },
+                              {
+                                label: "Copy times for an email",
+                                run: () =>
+                                  void act(async () => {
+                                    const r = await meetingsApi<{ text: string }>(session, ws.id, "times", { typeId: t.id, tz: ownZone() });
+                                    if (!r.text) throw new Error(`${t.name} has no free times in its window.`);
+                                    if (await copyText(r.text)) flash(t.id);
+                                  }),
+                              },
+                              { label: t.active ? "Turn off" : "Turn on", run: () => void setActive(t, !t.active) },
+                              { label: "Duplicate", run: () => void duplicate(t) },
+                              { label: "All settings", run: () => navigate("scheduling", `types/${t.id}/all`) },
+                              { label: "Delete", danger: true, run: () => void remove(t) },
+                            ]}
+                          />
+                        </span>
+                      </div>
+                      <div className="flex flex-wrap gap-3.5 text-[12.5px] text-muted">
+                        <span className="inline-flex items-center gap-[5px]">
+                          <Clock size={12} />
+                          {lengthWords(t.settings.lengths)}
+                        </span>
+                        <span className="inline-flex items-center gap-[5px]">
+                          {placeIcon(t.settings.location.kind, 12)}
+                          {PLACE_WORDS[t.settings.location.kind]}
+                        </span>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-1.5 text-[12px] text-muted">
+                        {used.length ? (
+                          <>
+                            <span>Booked by leads from</span>
+                            {used.map((u) => (
+                              <Badge key={u}>{u}</Badge>
+                            ))}
+                          </>
+                        ) : (
+                          <span>No routing step books this yet</span>
+                        )}
+                      </div>
+                      <div className="relative z-10 flex items-start gap-3 border-t border-line pt-2.5">
+                        <div className="flex min-w-0 flex-1 flex-col">
+                          <span className="font-medium text-ink">Who hosts</span>
+                          <span className="text-[12px] text-muted">{line}</span>
+                        </div>
+                        <Choice<string>
+                          label={`Who hosts ${t.name}`}
+                          value={choice}
+                          shown={shownAs}
+                          disabled={!canEdit(t)}
+                          align="right"
+                          menuWidth={240}
+                          options={[
+                            ...(choice === "own" ? [{ value: "own", label: whoWords(t, routingQueues), group: "Now" }] : []),
+                            ...(choice.startsWith("team:") && !q ? [{ value: choice, label: "Routing team", group: "Team" }] : []),
+                            ...routingQueues.map((x) => ({ value: `team:${x.id}`, label: x.name, hint: "Each lead gets the rep Routing picks", group: "Team" })),
+                            ...(choice === "everyone" ? [{ value: "everyone", label: `Everyone, ${t.hosts.length} hosts`, group: "Team" }] : []),
+                            ...(people.data?.list ?? []).map((p) => ({ value: `rep:${p.id}`, label: p.name, group: "Individual" })),
+                          ]}
+                          onChange={(v) => void setHost(t, v)}
+                        />
+                      </div>
+                    </article>
+                  );
+                })}
+                <button
+                  type="button"
+                  onClick={() => navigate("scheduling", "types/new")}
+                  className="flex min-h-[160px] flex-col items-center justify-center gap-1.5 rounded-[10px] border border-dashed border-line-strong text-muted transition-colors duration-[140ms] hover:border-faint hover:text-ink"
+                >
+                  <Plus size={16} />
+                  New meeting
+                </button>
+              </div>
+            )}
+          </Column>
         </div>
         {panel}
       </div>
     </Page>
   );
-}
-
-const initials = (name: string) =>
-  name
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((w) => w[0]!.toUpperCase())
-    .join("") || "?";
-
-/** A host's hours for a type: their schedule of the type's name, else their working hours. */
-function hoursFor(user: string, schedule: string | undefined, d: { hours: Map<string, Availability>; named: Named[] }): Availability | null {
-  if (schedule) {
-    const n = d.named.find((x) => x.user_id === user && x.name.toLowerCase() === schedule.toLowerCase());
-    if (n) return n;
-  }
-  return d.hours.get(user) ?? null;
 }
