@@ -46,3 +46,16 @@ test("meeting types: each kind's host rules, and settings kept in range", () => 
   const paid = checkType({ name: "Audit", slug: "audit", kind: "one", hosts: [{ user_id: A }], settings: { price: { amount: 15000, currency: "USD" } } }, members);
   assert.ok("type" in paid && paid.type.settings.price?.currency === "usd");
 });
+
+test("a form's own meeting keeps the form it belongs to; anything else in that place is dropped", () => {
+  const members = new Set([A]);
+  const FORM = "0192f3a1-0000-7000-8000-0000000000f1";
+  const own = checkType({ name: "Intro call", slug: "intro-call-0192f3", kind: "one", hosts: [{ user_id: A }], secret: true, settings: { form: FORM } }, members);
+  assert.ok("type" in own);
+  assert.equal(own.type.settings.form, FORM);
+  for (const bad of ["", "not-a-form", 42, { id: FORM }, `${FORM}'; drop table forms;--`]) {
+    const r = checkType({ name: "Intro call", slug: "intro-call", kind: "one", hosts: [{ user_id: A }], settings: { form: bad } }, members);
+    assert.ok("type" in r);
+    assert.equal("form" in r.type.settings, false, `dropped: ${JSON.stringify(bad)}`);
+  }
+});

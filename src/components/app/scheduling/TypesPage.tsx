@@ -10,7 +10,7 @@
 
 import { useMemo, useState } from "react";
 import type { Availability } from "@/lib/meetings/types";
-import { Clock, Plus } from "../../Icons";
+import { Clock, FormIcon, Plus } from "../../Icons";
 import { askConfirm } from "../Dialogs";
 import { MoreMenu } from "../StatCards";
 import { ToolIntro } from "../ToolIntro";
@@ -20,7 +20,7 @@ import { useRoutingLoad } from "../routing/useRouterData";
 import { draftBase } from "../routing/draftChange";
 import { bookedBy, hostChoice, withHostChoice } from "./hosts";
 import { LinkDialog } from "../meetings/LinkDialog";
-import { copyText, meetingsApi, ownZone, usePeople, useWorkspaceSlug } from "../meetings/parts";
+import { copyText, meetingsApi, Modal, ownZone, usePeople, useWorkspaceSlug } from "../meetings/parts";
 import { TYPE_COLS, useMeetingTypes, type TypeRow } from "../meetings/TypesList";
 import { useLiveBody } from "../routing/screenParts";
 import { lengthWords, PLACE_WORDS } from "./model";
@@ -61,13 +61,18 @@ export function TypesPage(props: ViewProps & { open: string }) {
     };
   });
   // The forms that book each meeting on submission.
-  const forms = useQuery(`meeting_types:${ws.id}:forms`, async () => (must(await sb.from("forms").select("id, name, meeting:draft->after->schedule->>meetingTypeId").eq("workspace_id", ws.id).order("name")) ?? []) as { id: string; name: string; meeting: string | null }[]);
+  const forms = useQuery(`meeting_types:${ws.id}:forms`, async () => (must(await sb.from("forms").select("id, name, status, meeting:draft->after->schedule->>meetingTypeId").eq("workspace_id", ws.id).order("name")) ?? []) as { id: string; name: string; status: string; meeting: string | null }[]);
+  const [useFor, setUseFor] = useState<string | null>(null);
   const data = { data: list.data && extra.data ? { ...extra.data, types: list.data } : null, error: list.error || extra.error };
   const [error, setError] = useState("");
   const [linkFor, setLinkFor] = useState<string | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
 
   const types = data.data?.types;
+  // A form's own meeting is set up in its form: it shows under In forms, never with the standalone meetings. One whose
+  // form is gone shows with the rest, so it can still be deleted.
+  const standalone = types?.filter((t) => !t.settings.form || (forms.data && !forms.data.some((f) => f.id === t.settings.form)));
+  const inForms = (forms.data ?? []).filter((f) => f.meeting).map((f) => ({ form: f, type: types?.find((t) => t.id === f.meeting) ?? null }));
   const row = open && open !== "new" ? (types?.find((t) => t.id === open) ?? null) : null;
 
   const act = async (fn: () => Promise<unknown>) => {
@@ -155,7 +160,7 @@ export function TypesPage(props: ViewProps & { open: string }) {
     </Button>
   );
 
-  if (types && !types.length)
+  if (standalone && !standalone.length && !inForms.length)
     return (
       <Page title="Meetings" actions={actions} flush>
         <div className="relative h-full min-h-0 overflow-y-auto">
@@ -177,17 +182,77 @@ export function TypesPage(props: ViewProps & { open: string }) {
 
   return (
     <Page title="Meetings" actions={actions} flush>
+      {useFor ? (
+        <Modal title="Use in a form" onClose={() => setUseFor(null)}>
+          <div className="flex flex-col">
+            {(forms.data ?? []).length ? (
+              (forms.data ?? []).map((f) => (
+                <button key={f.id} type="button" onClick={() => navigate("forms", f.id, `open=submission&use=${useFor}`)} className="flex min-h-[44px] items-center gap-2.5 border-b border-line px-1 text-left text-ink last:border-b-0 hover:bg-hover">
+                  <FormIcon size={14} />
+                  <span className="min-w-0 flex-1 truncate">{f.name}</span>
+                  {f.meeting === useFor ? <Badge>Uses it</Badge> : null}
+                </button>
+              ))
+            ) : (
+              <span className="text-muted">No forms yet</span>
+            )}
+          </div>
+        </Modal>
+      ) : null}
       {linkFor ? <LinkDialog sb={sb} session={session} ws={ws} types={(types ?? []).map((t) => ({ ...t, lengths: t.settings.lengths }))} initialType={linkFor} onClose={() => setLinkFor(null)} /> : null}
       <div className="relative h-full min-h-0 overflow-hidden">
         <div className={`h-full overflow-y-auto transition-[padding] duration-[320ms] ease-out ${panel ? "md:pr-[400px]" : ""}`}>
           <Column>
-            <Title>What people can book</Title>
             <ErrorNote message={error || data.error || slug.error} />
+            {inForms.length ? (
+              <>
+                <Title>In forms</Title>
+                <div className="grid gap-3 md:grid-cols-2">
+                  {inForms.map(({ form: f, type: t }) => (
+                    <article key={f.id} className="relative flex flex-col gap-2.5 rounded-[10px] border border-line bg-card p-4 transition-colors duration-[140ms] hover:border-line-strong">
+                      <div className="flex items-start gap-2">
+                        <button type="button" onClick={() => navigate("forms", f.id, "open=submission")} className="min-w-0 flex-1 text-left after:absolute after:inset-0">
+                          <h3 className="truncate text-[15px] font-semibold text-ink">{t?.name ?? "No meeting"}</h3>
+                        </button>
+                        {f.status === "live" ? (
+                          <Badge tone="green" dot>
+                            Live
+                          </Badge>
+                        ) : (
+                          <Badge>Draft</Badge>
+                        )}
+                      </div>
+                      {t ? (
+                        <div className="flex flex-wrap gap-3.5 text-[12.5px] text-muted">
+                          <span className="inline-flex items-center gap-[5px]">
+                            <Clock size={12} />
+                            {lengthWords(t.settings.lengths)}
+                          </span>
+                          <span className="inline-flex items-center gap-[5px]">
+                            {placeIcon(t.settings.location.kind, 12)}
+                            {PLACE_WORDS[t.settings.location.kind]}
+                          </span>
+                        </div>
+                      ) : null}
+                      <div className="flex flex-wrap items-center gap-1.5 text-[12px] text-muted">
+                        <FormIcon size={12} />
+                        <span className="text-ink">{f.name}</span>
+                        <span aria-hidden="true">→</span>
+                        <span>{t?.settings.form ? "This form's own meeting" : "A standalone meeting"}, with the rep its If → Then picks</span>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+                <Title>Standalone</Title>
+              </>
+            ) : (
+              <Title>What people can book</Title>
+            )}
             {!data.data ? (
               <Loading />
             ) : (
               <div className="grid gap-3 md:grid-cols-2">
-                {(types ?? []).map((t) => {
+                {(standalone ?? []).map((t) => {
                   const url = typeUrl(t.slug);
                   const used = bookedBy(live.data?.body, t.id);
                   const usedBy = (forms.data ?? []).filter((f) => f.meeting === t.id);
@@ -229,6 +294,7 @@ export function TypesPage(props: ViewProps & { open: string }) {
                                   }),
                               },
                               { label: t.active ? "Turn off" : "Turn on", run: () => void setActive(t, !t.active) },
+                              { label: "Use in a form", run: () => setUseFor(t.id) },
                               { label: "Duplicate", run: () => void duplicate(t) },
                               { label: "All settings", run: () => navigate("scheduling", `types/${t.id}/all`) },
                               { label: "Delete", danger: true, run: () => void remove(t) },

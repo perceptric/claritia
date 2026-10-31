@@ -15,19 +15,18 @@ import { countryName, type FieldDef } from "@/lib/router/conditions";
 import { blankCond, matchRow, newRow, rowProblem, testsFor, type Row, type Then } from "@/lib/routing/formRules";
 import { fieldOf } from "@/lib/routing/screenModel";
 import type { Cond } from "@/lib/router/types";
-import { Badge, ErrorNote, type ViewProps } from "../ui";
+import type { Location } from "@/lib/meetings/types";
+import { Chip } from "../scheduling/panel";
+import { Badge, ErrorNote, errorText, type ViewProps } from "../ui";
+import type { TypeRow } from "../meetings/TypesList";
+import { isOwn, makeOwnMeeting, noticeWords, placeLabel, PLACES, useOwnMeeting } from "./FormMeeting";
 import { Ic } from "./ic";
 import { Menu } from "./Menu";
-import { AREA, Dd, Dots, GHOST_SM, IB_SM, IN, IN_SM, Seg, type DdItem } from "./parts";
+import { AREA, Dd, Dots, GHOST_SM, IB_SM, IN, IN_SM, Seg, Tg, type DdItem } from "./parts";
 import { typeLabel } from "./routes";
 import type { FormRouting } from "./useFormRouting";
 
-type Types = {
-  id: string;
-  name: string;
-  active: boolean;
-  settings?: { lengths?: number[] };
-}[];
+type Types = TypeRow[];
 export type Outcome = "msg" | "url" | "book";
 /** Try a lead: the answers typed in, or null when it's closed. */
 export type Trial = Record<string, string> | null;
@@ -208,8 +207,11 @@ export function SubmitResult({ form, types, routing, trial }: { form: Form; type
 
 // The panel ------------------------------------------------------------------------------------------------------------
 
-type PanelProps = Pick<ViewProps, "navigate"> & {
+type PanelProps = Pick<ViewProps, "navigate" | "session" | "ws"> & {
   form: Form;
+  formId: string;
+  /** Read the meeting types again, after the form's own meeting is made or saved. */
+  reloadTypes: () => void;
   apply: (ops: Op | Op[], words?: string) => boolean;
   types: Types;
   routing: FormRouting;
@@ -223,51 +225,51 @@ const Label = ({ children, htmlFor }: { children: React.ReactNode; htmlFor?: str
   </label>
 );
 
+/** A section of the panel that opens and closes: icon, title and a one-line summary, the body full width. */
+function Fold({ icon, title, summary, open, onToggle, children }: { icon: string; title: string; summary: string; open: boolean; onToggle: () => void; children: React.ReactNode }) {
+  return (
+    <section className="border-b border-line">
+      <button type="button" aria-expanded={open} onClick={onToggle} className="flex min-h-[58px] w-full items-center gap-[12px] px-[20px] py-[9px] text-left transition-colors duration-[120ms] hover:bg-paper">
+        <span className={`flex size-[30px] shrink-0 items-center justify-center rounded-lg transition-colors duration-[120ms] ${open ? "bg-ink text-card" : "bg-paper-deep text-body"}`}>
+          <Ic n={icon} />
+        </span>
+        <span className="flex min-w-0 flex-1 flex-col">
+          <span className="text-[13px] font-medium text-ink">{title}</span>
+          <span className="truncate text-[12px] text-muted">{summary}</span>
+        </span>
+        <Ic n="chev" className={`text-faint transition-transform duration-[200ms] ease-out ${open ? "rotate-180" : ""}`} />
+      </button>
+      {open ? <div className="anim-rise-sm flex flex-col gap-[14px] px-[20px] pt-[2px] pb-[18px]">{children}</div> : null}
+    </section>
+  );
+}
+
 export function OnSubmissionPanel(p: PanelProps) {
   const { form, apply, types, routing } = p;
   const kind = outcomeOf(form);
-  const s = form.after.schedule;
   const end = form.after.end;
-  const active = types.filter((t) => t.active);
   const lastMsg = end.kind === "message" ? end : { kind: "message" as const, title: "Thanks, we got it." };
+  const [error, setError] = useState("");
 
-  const pick = (k: Outcome) => {
+  const pick = async (k: Outcome) => {
     if (k === kind) return;
     if (k === "book") {
-      const meeting = active[0]?.id ?? null;
-      apply(
-        [
-          ...(end.kind === "redirect" ? [{ op: "set_after" as const, end: lastMsg }] : []),
-          {
-            op: "set_schedule",
-            schedule: {
-              tool: "claritia",
-              url: "",
-              perOwner: false,
-              ...(meeting ? { meetingTypeId: meeting } : {}),
-            },
-          },
-        ],
-        "Books a meeting",
-      );
+      // A new booking starts on the form's own meeting, made the first time.
+      setError("");
+      let meeting = types.find((t) => isOwn(t, p.formId))?.id ?? null;
+      if (!meeting) {
+        try {
+          meeting = await makeOwnMeeting(p.session, p.ws.id, p.formId);
+          p.reloadTypes();
+        } catch (e) {
+          setError(errorText(e));
+          return;
+        }
+      }
+      apply([...(end.kind === "redirect" ? [{ op: "set_after" as const, end: lastMsg }] : []), { op: "set_schedule", schedule: { tool: "claritia", url: "", perOwner: false, meetingTypeId: meeting } }], "Books a meeting");
       void routing.stage(true, meeting);
     } else {
-      apply(
-        [
-          { op: "set_schedule", schedule: null },
-          {
-            op: "set_after",
-            end:
-              k === "url"
-                ? {
-                    kind: "redirect",
-                    url: end.kind === "redirect" ? end.url : "https://",
-                  }
-                : lastMsg,
-          },
-        ],
-        k === "url" ? "Goes to a page" : "Shows a message",
-      );
+      apply([{ op: "set_schedule", schedule: null }, { op: "set_after", end: k === "url" ? { kind: "redirect", url: end.kind === "redirect" ? end.url : "https://" } : lastMsg }], k === "url" ? "Goes to a page" : "Shows a message");
       void routing.stage(false, null);
     }
   };
@@ -277,7 +279,7 @@ export function OnSubmissionPanel(p: PanelProps) {
       key={v}
       type="button"
       aria-pressed={kind === v}
-      onClick={() => pick(v)}
+      onClick={() => void pick(v)}
       className={`flex min-w-0 flex-col items-start gap-[8px] rounded-[10px] border p-[10px] text-left text-[12.5px] font-medium text-ink transition-colors duration-[120ms] ${kind === v ? "border-ink ring-1 ring-ink" : "border-line hover:border-line-strong"}`}
     >
       <span className={`inline-flex size-[28px] items-center justify-center rounded-lg ${kind === v ? "bg-ink text-card" : "bg-paper-deep text-body"}`}>
@@ -285,6 +287,19 @@ export function OnSubmissionPanel(p: PanelProps) {
       </span>
       {label}
     </button>
+  );
+
+  const message = (
+    <>
+      <div className="flex flex-col gap-[6px]">
+        <Label htmlFor="os-title">Title</Label>
+        <input id="os-title" className={IN} value={lastMsg.title} onChange={(e) => apply({ op: "set_after", end: { ...lastMsg, title: e.target.value } })} onBlur={(e) => !e.target.value.trim() && apply({ op: "set_after", end: { ...lastMsg, title: "Thanks, we got it." } })} />
+      </div>
+      <div className="flex flex-col gap-[6px]">
+        <Label htmlFor="os-text">Message</Label>
+        <textarea id="os-text" className={AREA} rows={3} value={end.kind === "message" ? (end.text ?? "") : ""} onChange={(e) => apply({ op: "set_after", end: { kind: "message", title: lastMsg.title, ...(e.target.value ? { text: e.target.value } : {}) } })} />
+      </div>
+    </>
   );
 
   return (
@@ -295,136 +310,175 @@ export function OnSubmissionPanel(p: PanelProps) {
         </span>
         <b className="text-[16px] font-semibold tracking-[-0.015em] text-ink">On Submission</b>
       </div>
-      <div className="flex min-h-0 flex-1 flex-col gap-[20px] overflow-y-auto px-[20px] pt-[16px] pb-[28px]">
-        <div className="grid grid-cols-3 gap-[8px]">
-          {choice("msg", "msg", "Show a message")}
-          {choice("url", "ext", "Go to a page")}
-          {choice("book", "meet", "Book a meeting")}
-        </div>
-
-        {kind === "url" && end.kind === "redirect" ? (
-          <div className="flex flex-col gap-[6px]">
-            <Label htmlFor="os-url">Page</Label>
-            <input
-              id="os-url"
-              className={IN}
-              value={end.url}
-              onChange={(e) =>
-                apply({
-                  op: "set_after",
-                  end: { kind: "redirect", url: e.target.value.trim() },
-                })
-              }
-            />
-            {/^https:\/\/[^/\s]+\.[^/\s]+/.test(end.url) ? null : <span className="text-[12px] text-rose">The page needs https://</span>}
+      <div className="min-h-0 flex-1 overflow-y-auto pb-[28px]">
+        <div className="flex flex-col gap-[16px] border-b border-line px-[20px] py-[16px]">
+          <div className="grid grid-cols-3 gap-[8px]">
+            {choice("msg", "msg", "Show a message")}
+            {choice("url", "ext", "Go to a page")}
+            {choice("book", "meet", "Book a meeting")}
           </div>
-        ) : null}
-
-        {kind === "book" && s ? <Booking {...p} /> : null}
-
-        {kind !== "url" ? (
-          <>
+          {error ? <ErrorNote message={error} /> : null}
+          {kind === "url" && end.kind === "redirect" ? (
             <div className="flex flex-col gap-[6px]">
-              <Label htmlFor="os-title">{kind === "book" ? "Message title" : "Title"}</Label>
-              <input
-                id="os-title"
-                className={IN}
-                value={lastMsg.title}
-                onChange={(e) =>
-                  apply({
-                    op: "set_after",
-                    end: { ...lastMsg, title: e.target.value },
-                  })
-                }
-                onBlur={(e) =>
-                  !e.target.value.trim() &&
-                  apply({
-                    op: "set_after",
-                    end: { ...lastMsg, title: "Thanks, we got it." },
-                  })
-                }
-              />
+              <Label htmlFor="os-url">Page</Label>
+              <input id="os-url" className={IN} value={end.url} onChange={(e) => apply({ op: "set_after", end: { kind: "redirect", url: e.target.value.trim() } })} />
+              {/^https:\/\/[^/\s]+\.[^/\s]+/.test(end.url) ? null : <span className="text-[12px] text-rose">The page needs https://</span>}
             </div>
-            <div className="flex flex-col gap-[6px]">
-              <Label htmlFor="os-text">Message</Label>
-              <textarea
-                id="os-text"
-                className={AREA}
-                rows={3}
-                value={end.kind === "message" ? (end.text ?? "") : ""}
-                onChange={(e) =>
-                  apply({
-                    op: "set_after",
-                    end: {
-                      kind: "message",
-                      title: lastMsg.title,
-                      ...(e.target.value ? { text: e.target.value } : {}),
-                    },
-                  })
-                }
-              />
-            </div>
-          </>
-        ) : null}
+          ) : null}
+          {kind === "msg" ? message : null}
+        </div>
+        {kind === "book" && form.after.schedule ? <Booking {...p} message={message} /> : null}
       </div>
     </aside>
   );
 }
 
-function Booking(p: PanelProps) {
+const NOTICE = [60, 240, 1440, 2880];
+const WINDOW = [7, 14, 30, 60, 90];
+const AFTER = [0, 5, 10, 15, 30];
+const PER_DAY = [0, 2, 4, 6, 8, 10];
+
+function Booking(p: PanelProps & { message: React.ReactNode }) {
   const { form, apply, types, routing, navigate } = p;
   const s = form.after.schedule!;
-  const active = types.filter((t) => t.active);
-  const type = s.tool === "claritia" ? types.find((t) => t.id === s.meetingTypeId) : null;
+  const [open, setOpen] = useState<Set<string>>(() => new Set(["who", "meeting"]));
+  const [error, setError] = useState("");
+  const toggle = (k: string) => setOpen((o) => (o.has(k) ? new Set([...o].filter((x) => x !== k)) : new Set([...o, k])));
+  const row = s.tool === "claritia" ? (types.find((t) => t.id === s.meetingTypeId) ?? null) : null;
+  const own = row && isOwn(row, p.formId) ? row : null;
+  const m = useOwnMeeting(p.session, p.ws.id, own, p.reloadTypes);
+  const d = own ? (m.draft ?? own) : null;
+  const ds = d?.settings;
+  const standalone = types.filter((t) => t.active && !t.settings?.form);
+
   const setMeeting = (id: string) => {
-    apply(
-      {
-        op: "set_schedule",
-        schedule: {
-          ...s,
-          tool: "claritia",
-          url: "",
-          perOwner: false,
-          meetingTypeId: id,
-        },
-      },
-      "Changed the meeting",
-    );
+    apply({ op: "set_schedule", schedule: { ...s, tool: "claritia", url: "", perOwner: false, meetingTypeId: id } }, "Changed the meeting");
     void routing.stage(true, id);
   };
+  const pickOwn = async () => {
+    setError("");
+    try {
+      const have = types.find((t) => isOwn(t, p.formId))?.id ?? (await makeOwnMeeting(p.session, p.ws.id, p.formId));
+      if (!types.some((t) => t.id === have)) p.reloadTypes();
+      setMeeting(have);
+    } catch (e) {
+      setError(errorText(e));
+    }
+  };
   const items: DdItem[] = [
-    ...active.map(
-      (t): DdItem => ({
-        kind: "option",
-        key: t.id,
-        label: typeLabel(t),
-        on: t.id === s.meetingTypeId,
-        onPick: () => setMeeting(t.id),
-      }),
-    ),
-    {
-      kind: "add",
-      key: "new",
-      label: "New meeting",
-      onPick: () => navigate("scheduling", "types/new"),
-    },
+    { kind: "option", key: "own", label: "This form's own", on: !!own, onPick: () => void pickOwn() },
+    ...(standalone.length ? [{ kind: "group" as const, label: "Standalone meetings" }] : []),
+    ...standalone.map((t): DdItem => ({ kind: "option", key: t.id, label: t.name, hint: t.settings?.lengths?.length ? `${t.settings.lengths.join(", ")} min` : undefined, on: t.id === s.meetingTypeId, onPick: () => setMeeting(t.id) })),
+    { kind: "add", key: "new", label: "New meeting", onPick: () => navigate("scheduling", "types/new") },
   ];
+  const pickNumber = (label: string, values: number[], value: number, words: (n: number) => string, set: (n: number) => void) => (
+    <div className="flex min-w-0 flex-col gap-[6px]">
+      <Label>{label}</Label>
+      <Dd ariaLabel={label} label={words(value)} items={values.map((n): DdItem => ({ kind: "option", key: String(n), label: words(n), on: n === value, onPick: () => set(n) }))} />
+    </div>
+  );
+  const inMeetings = row && !own ? (
+    <div className="flex items-center gap-[8px] text-[12.5px] text-muted">
+      <span className="flex-1">Set in Meetings</span>
+      <button type="button" className={GHOST_SM} onClick={() => navigate("scheduling", `types/${row.id}`)}>
+        <Ic n="ext" s={12} />
+        Edit in Meetings
+      </button>
+    </div>
+  ) : null;
+  const reminderOn = (min: number) => !!ds?.reminders.includes(min);
+  const setReminder = (min: number, on: boolean) => ds && m.change({ settings: { reminders: on ? [...new Set([...ds.reminders, min])].sort((a, b) => b - a) : ds.reminders.filter((x) => x !== min) } });
+
   return (
     <>
-      <div className="flex flex-col gap-[6px]">
-        <Label>Meeting</Label>
-        <div className="flex items-center gap-[6px]">
-          <Dd ariaLabel="Meeting" label={type ? typeLabel(type) : <span className="text-faint">Pick a meeting</span>} items={items} />
-          {type ? (
-            <button type="button" className={IB_SM} title="Edit in Meetings" aria-label="Edit in Meetings" onClick={() => navigate("scheduling", `types/${type.id}`)}>
-              <Ic n="ext" />
-            </button>
-          ) : null}
+      {s.tool === "claritia" ? (
+        <Fold icon="user" title="Who they meet" summary={routing.rows.length ? `${routing.rows.length} ${routing.rows.length === 1 ? "if" : "ifs"}, then Otherwise` : "Otherwise"} open={open.has("who")} onToggle={() => toggle("who")}>
+          <WhoTheyMeet {...p} />
+        </Fold>
+      ) : null}
+      <Fold icon="meet" title="Meeting" summary={d ? `${d.name}, ${ds!.lengths.join(" or ")} min, ${placeLabel(ds!.location)}` : row ? typeLabel(row) : "Pick a meeting"} open={open.has("meeting")} onToggle={() => toggle("meeting")}>
+        <div className="flex flex-col gap-[6px]">
+          <Label>Meeting</Label>
+          <Dd ariaLabel="Meeting" label={own ? "This form's own" : row ? row.name : <span className="text-faint">Pick a meeting</span>} items={items} />
         </div>
-      </div>
-      {s.tool === "claritia" ? <WhoTheyMeet {...p} /> : null}
-      <div className="flex flex-col gap-[6px]">
-        <Label>When no times are open</Label>
+        {error || m.error ? <ErrorNote message={error || m.error} /> : null}
+        {d && ds ? (
+          <>
+            <div className="flex flex-col gap-[6px]">
+              <Label htmlFor="os-mname">Name</Label>
+              <input id="os-mname" className={IN} value={d.name} maxLength={120} onChange={(e) => m.change({ name: e.target.value })} onBlur={(e) => !e.target.value.trim() && m.change({ name: "Intro call" })} />
+            </div>
+            <div className="flex flex-col gap-[6px]">
+              <Label>Length</Label>
+              <div className="flex flex-wrap gap-[6px]">
+                {[15, 30, 45, 60].map((n) => {
+                  const on = ds.lengths.includes(n);
+                  return (
+                    <Chip key={n} on={on} onClick={() => m.change({ settings: { lengths: on ? (ds.lengths.length > 1 ? ds.lengths.filter((x) => x !== n) : ds.lengths) : [...ds.lengths, n].sort((a, b) => a - b) } })}>
+                      {`${n} min`}
+                    </Chip>
+                  );
+                })}
+              </div>
+            </div>
+            <div className="flex flex-col gap-[6px]">
+              <Label>Where</Label>
+              <div className="flex flex-wrap gap-[6px]">
+                {PLACES.map((x) => (
+                  <Chip key={x.kind} on={ds.location.kind === x.kind} onClick={() => m.change({ settings: { location: { kind: x.kind } as Location } })}>
+                    <Ic n={x.icon} s={12} />
+                    {x.label}
+                  </Chip>
+                ))}
+              </div>
+            </div>
+            {m.saving ? <span className="text-[12px] text-faint">Saving</span> : null}
+          </>
+        ) : row ? (
+          <span className="text-[12.5px] text-muted">{`${typeLabel(row)}, ${placeLabel(row.settings?.location)}`}</span>
+        ) : null}
+        {inMeetings}
+      </Fold>
+      <Fold icon="clock" title="When they can book" summary={ds ? `${noticeWords(ds.notice)} ahead, up to ${ds.window} days` : "Set in Meetings"} open={open.has("when")} onToggle={() => toggle("when")}>
+        {ds ? (
+          <>
+            <div className="grid grid-cols-2 gap-[10px] max-[480px]:grid-cols-1">
+              {pickNumber("Earliest booking", NOTICE, ds.notice, (n) => `${noticeWords(n)} ahead`, (n) => m.change({ settings: { notice: n } }))}
+              {pickNumber("Booking window", WINDOW, ds.window, (n) => `${n} days`, (n) => m.change({ settings: { window: n } }))}
+              {pickNumber("Free time after", AFTER, ds.bufferAfter, (n) => (n ? `${n} min` : "None"), (n) => m.change({ settings: { bufferAfter: n } }))}
+              {pickNumber("Daily limit", PER_DAY, ds.perDay, (n) => (n ? `${n} a day` : "No limit"), (n) => m.change({ settings: { perDay: n } }))}
+            </div>
+            <div className="flex items-center gap-[8px]">
+              <span className="flex-1 text-ink">Hours</span>
+              <span className="text-[12.5px] text-muted">Each rep&apos;s own</span>
+              <button type="button" className={GHOST_SM} onClick={() => navigate("scheduling", "availability/team")}>
+                <Ic n="clock" s={12} />
+                Team hours
+              </button>
+            </div>
+          </>
+        ) : (
+          inMeetings
+        )}
+      </Fold>
+      <Fold icon="bell" title="Emails and reminders" summary={ds ? `${ds.reminders.length} ${ds.reminders.length === 1 ? "reminder" : "reminders"}` : "Set in Meetings"} open={open.has("mail")} onToggle={() => toggle("mail")}>
+        {ds ? (
+          <>
+            <Line label="Reminder 24 hours before">
+              <Tg label="Reminder 24 hours before" on={reminderOn(1440)} onChange={(v) => setReminder(1440, v)} />
+            </Line>
+            <Line label="Reminder 1 hour before">
+              <Tg label="Reminder 1 hour before" on={reminderOn(60)} onChange={(v) => setReminder(60, v)} />
+            </Line>
+            <Line label="Email after a no-show">
+              <Tg label="Email after a no-show" on={ds.noShowFollowUp} onChange={(v) => m.change({ settings: { noShowFollowUp: v } })} />
+            </Line>
+          </>
+        ) : (
+          inMeetings
+        )}
+      </Fold>
+      <Fold icon="msg" title="When no times are open" summary={s.none === "later" ? "Email times later" : "Show the message"} open={open.has("none")} onToggle={() => toggle("none")}>
         <Seg
           label="When no times are open"
           value={s.none === "later" ? "later" : "message"}
@@ -439,10 +493,18 @@ function Booking(p: PanelProps) {
             { value: "later", label: "Email times later" },
           ]}
         />
-      </div>
+        {p.message}
+      </Fold>
     </>
   );
 }
+
+const Line = ({ label, children }: { label: string; children: React.ReactNode }) => (
+  <div className="flex min-h-[28px] items-center justify-between gap-[12px] text-[13px] text-ink">
+    <span className="min-w-0">{label}</span>
+    {children}
+  </div>
+);
 
 function WhoTheyMeet(p: PanelProps) {
   const { routing: r, trial, setTrial } = p;

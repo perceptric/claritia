@@ -137,6 +137,7 @@ export function checkSettings(raw: unknown, kind: Kind): { settings: TypeSetting
     ...(price ? { price } : {}),
     ...(str(r.schedule, 60) ? { schedule: str(r.schedule, 60) } : {}),
     ...((kind === "round_robin" || kind === "owner_first") && typeof r.team === "string" && /^[a-z0-9_-]{1,40}$/i.test(r.team) ? { team: r.team } : {}),
+    ...(typeof r.form === "string" && UUID.test(r.form) ? { form: r.form } : {}),
     questions,
   };
   return { settings, errors };

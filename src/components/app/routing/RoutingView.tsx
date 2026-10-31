@@ -4,7 +4,8 @@
 //   Policies  named policies, their state, live sources, destination and last run (/routing); one policy's editor
 //             with its tester, publish review, versions and Route & book (/routing/policies/<id>)
 //   Teams     reusable teams, their members' status, today's count and cap, calendar and the round robin
-//             (/routing/teams, /routing/teams/<id>), with the working-hours editor (/routing/teams/availability)
+//             (/routing/teams, /routing/teams/<id>); working hours are Meetings › Availability (an old
+//             /routing/teams/availability address opens there, and still draws here if reached in the app)
 //   Activity  real runs, the review list and errors (/routing/activity, /routing/activity/<run>)
 // Every tab reads one shared screen read (routing_screen:<ws>), so moving between them keeps what's on screen.
 

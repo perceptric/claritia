@@ -11,6 +11,7 @@ import { Button, Empty, ErrorNote, errorText, invalidate, Loading, must, Page, P
 import { canCancel, canMark, minutesText, SOURCES } from "./model";
 import { guestName, MEETING_COLUMNS, type Meeting } from "./MeetingsView";
 import { AvatarStack, copyText, Detail, meetingsApi, Modal, StatusBadge, useNow, usePeople } from "./parts";
+import { RoutedBy } from "../routing/Log";
 
 type Full = Meeting & { location: Partial<Location> & { url?: string }; answers: Record<string, string>; cancel_reason: string | null; payment: { amount?: number; currency?: string } | null; created_at: string };
 type Event = { id: number; kind: string; detail: Record<string, unknown>; at: string };
@@ -47,12 +48,16 @@ export function MeetingPage(props: ViewProps) {
   // The meeting with its type (embedded, one query) and its events, side by side.
   const data = useQuery(`meeting:${ws.id}:${id}`, async () => {
     const [m, events] = await Promise.all([
-      sb.from("meetings").select(`${MEETING_COLUMNS}, location, answers, cancel_reason, payment, created_at, type:meeting_types!meetings_type_id_fkey(id, name, settings)`).eq("id", id).eq("workspace_id", ws.id).maybeSingle(),
+      sb.from("meetings").select(`${MEETING_COLUMNS}, submission_id, location, answers, cancel_reason, payment, created_at, type:meeting_types!meetings_type_id_fkey(id, name, settings)`).eq("id", id).eq("workspace_id", ws.id).maybeSingle(),
       sb.from("meeting_events").select("id, kind, detail, at").eq("meeting_id", id).order("at", { ascending: false }).order("id", { ascending: false }),
     ]);
     const row = must(m) as unknown as (Full & { type: { id: string; name: string; settings: TypeSettings } | null }) | null;
     const { type = null, ...meeting } = row ?? ({} as NonNullable<typeof row>);
-    return { meeting: row ? (meeting as unknown as Full) : null, type, events: (must(events) ?? []) as Event[] };
+    // The form it was booked through, when it came from one. A read that fails only leaves the plain source.
+    const sid = (row as { submission_id?: string | null } | null)?.submission_id;
+    const fill = sid ? await sb.from("submissions").select("form:forms(id, name)").eq("id", sid).maybeSingle() : null;
+    const form = ((fill?.data as { form?: { id: string; name: string } | null } | null)?.form ?? null) as { id: string; name: string } | null;
+    return { meeting: row ? (meeting as unknown as Full) : null, type, form, events: (must(events) ?? []) as Event[] };
   });
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -204,7 +209,20 @@ export function MeetingPage(props: ViewProps) {
                     </span>
                   </Detail>
                 ) : null}
-                <Detail label="Source">{SOURCES[m.source as MeetingSource] ?? m.source}</Detail>
+                {data.data.form ? (
+                  <Detail label="Booked from">
+                    <button type="button" className="text-left text-ink underline decoration-line-strong underline-offset-[3px] hover:decoration-ink" onClick={() => navigate("forms", data.data!.form!.id, "open=submission")}>
+                      {`${data.data.form.name} form`}
+                    </button>
+                  </Detail>
+                ) : (
+                  <Detail label="Source">{SOURCES[m.source as MeetingSource] ?? m.source}</Detail>
+                )}
+                {m.source === "form" && m.contact_id ? (
+                  <Detail label="Why this rep">
+                    <RoutedBy sb={sb} session={session} ws={ws} role={props.role} navigate={navigate} contact={m.contact_id} />
+                  </Detail>
+                ) : null}
                 {m.payment?.amount ? (
                   <Detail label="Paid">
                     <span className="tabular-nums">{(m.payment.amount / 100).toLocaleString(undefined, { style: "currency", currency: (m.payment.currency ?? "usd").toUpperCase() })}</span>

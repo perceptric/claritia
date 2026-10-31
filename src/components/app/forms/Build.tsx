@@ -23,6 +23,7 @@ import { IB_SM, Seg } from "./parts";
 import { Arrow, ArrowDown, OnSubmissionPanel, SubmitNode, SubmitResult, type Trial } from "./OnSubmission";
 import { ButtonPanel, FormPanel, QuestionPanel } from "./Panels";
 import type { FormRouting } from "./useFormRouting";
+import type { TypeRow } from "../meetings/TypesList";
 import type { SetupSub } from "./Setup";
 import type { Kit } from "./shared";
 import type { useCrm } from "./useCrm";
@@ -51,7 +52,10 @@ export type BuildProps = ViewProps & {
   /** Change the kits on screen before the server answers. */
   patchKits?: (fn: (kits: Kit[]) => Kit[]) => void;
   site: string;
-  types: { id: string; name: string; active: boolean; settings?: { lengths?: number[] } }[];
+  types: TypeRow[];
+  formId: string;
+  /** Read the meeting types again, after the form's own meeting is made or saved. */
+  reloadTypes: () => void;
   pick: Pick;
   setPick: (p: Pick) => void;
   step: number;
@@ -198,7 +202,7 @@ export function Build(p: BuildProps) {
 
   const panel =
     onSubmit ? (
-      <OnSubmissionPanel form={form} apply={apply} types={p.types} routing={p.formRouting} navigate={p.navigate} trial={trial} setTrial={setTrial} />
+      <OnSubmissionPanel form={form} apply={apply} types={p.types} routing={p.formRouting} navigate={p.navigate} session={p.session} ws={p.ws} formId={p.formId} reloadTypes={p.reloadTypes} trial={trial} setTrial={setTrial} />
     ) : pick?.id === "button" ? (
       <ButtonPanel {...p} />
     ) : picked ? (

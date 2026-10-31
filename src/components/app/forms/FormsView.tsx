@@ -28,7 +28,7 @@ import type { Destination, FormRow, Kit, SourceRow } from "./shared";
 import { Submissions } from "./Submissions";
 import { Sync } from "./Sync";
 import { useCrm } from "./useCrm";
-import { meetingTypes } from "../meetings/TypesList";
+import { meetingTypes, type TypeRow } from "../meetings/TypesList";
 
 export function FormsView(props: ViewProps) {
   if (props.id === "new") return <FormHome key="new" {...props} startNew />;
@@ -44,7 +44,7 @@ export type FormData = {
   dests: Destination[];
   custom: CustomField[];
   site: string;
-  types: { id: string; name: string; active: boolean; settings?: { lengths?: number[] } }[];
+  types: TypeRow[];
   subs: number;
   failed: Record<string, number>;
   pages: number;
@@ -225,6 +225,21 @@ function Editor(props: ViewProps & { data: FormData; reload: () => void; patchRo
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [undo, redo]);
+
+  // Opened from a meeting's "Use in a form": this form books that meeting from now on (a change to publish like any other).
+  useEffect(() => {
+    const u = new URL(window.location.href);
+    const use = u.searchParams.get("use");
+    if (!use) return;
+    u.searchParams.delete("use");
+    history.replaceState(null, "", u);
+    if (!data.types.some((t) => t.id === use)) return;
+    const cur = latest.current.after;
+    apply([...(cur.end.kind === "redirect" ? [{ op: "set_after" as const, end: { kind: "message" as const, title: "Thanks, we got it." } }] : []), { op: "set_schedule", schedule: { ...(cur.schedule ?? {}), tool: "claritia", url: "", perOwner: false, meetingTypeId: use } }], "Books this meeting now");
+    void formRouting.stage(true, use);
+    // Once, when the form opens.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Save the draft a moment after the last change; when it doesn't go, keep it here and try again every 5 seconds.
   const save = useCallback(async () => {
@@ -517,6 +532,8 @@ function Editor(props: ViewProps & { data: FormData; reload: () => void; patchRo
             crm={crm}
             routing={live.data?.body ?? null}
             formRouting={formRouting}
+            formId={row.id}
+            reloadTypes={reload}
             kit={kit}
             kits={data.kits}
             setKit={setKit}

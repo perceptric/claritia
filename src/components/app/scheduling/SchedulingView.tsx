@@ -2,13 +2,15 @@
 
 // Inbound › Meetings (route "scheduling", once Calendar): Meetings (what people can book, one card each; a card opens
 // its panel, or the full editor at types/<id>/all), Upcoming (every meeting on the calendar, once CRM › Meetings),
-// Booking page, Links and polls, and Settings (Reminders, Payments and Webhooks). Connect your calendar is one slim
-// line under the tabs until a calendar is connected. Working hours and days off live in Reps.
+// Availability (everyone's hours, calendars and who's away, which forms and booking pages both read), Booking page,
+// Links and polls, and Settings (Reminders, Payments and Webhooks). Connect your calendar is one slim line under the
+// tabs until a calendar is connected.
 
 import { schedulingPage, SCHEDULING_TABS } from "@/lib/nav";
 import { Section, type ViewProps } from "../ui";
 import { MeetingsCalendar } from "../meetings/Calendar";
 import { TypeEditor } from "../meetings/TypeEditor";
+import { AvailabilityPage } from "./AvailabilityPage";
 import { BookingPage } from "./BookingPage";
 import { ConnectCalendar } from "./ConnectCalendar";
 import { LinksPage } from "./LinksPage";
@@ -29,6 +31,8 @@ function body(props: ViewProps, p: ReturnType<typeof schedulingPage>) {
       return p.sub.endsWith("/all") ? <TypeEditor key={p.sub} {...props} id={p.sub.slice(0, -4)} /> : <TypesPage {...props} open={p.sub} />;
     case "upcoming":
       return <MeetingsCalendar {...props} />;
+    case "availability":
+      return <AvailabilityPage {...props} tab={p.sub} />;
     case "booking":
       return <BookingPage {...props} />;
     case "links":
