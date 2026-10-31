@@ -20,9 +20,9 @@ import { AskPill } from "./FormHome";
 import { CONSENT_ID, consentBox, GROUP_WORDS, isContentKind, issuesOf, KINDS, known, newQuestion, questionsOf, showRules, type Kind, type Q } from "./formModel";
 import { Ic } from "./ic";
 import { IB_SM, Seg } from "./parts";
-import { Arrow, ArrowDown, OnSubmissionPanel, SubmitNode, SubmitResult, type Trial } from "./OnSubmission";
+import { ArrowDown, OnSubmissionPanel, SubmitNode, SubmitResult, type Trial } from "./OnSubmission";
 import { ButtonPanel, FormPanel, QuestionPanel } from "./Panels";
-import type { FormRouting } from "./useFormRouting";
+import type { RoutingFacts } from "./formRouting";
 import type { TypeRow } from "../meetings/TypesList";
 import type { SetupSub } from "./Setup";
 import type { Kit } from "./shared";
@@ -44,7 +44,8 @@ export type BuildProps = ViewProps & {
   crm: ReturnType<typeof useCrm>;
   routing: RouterBody | null;
   /** The form's own If → Then routing, edited in On Submission. */
-  formRouting: FormRouting;
+  /** The fields, people and teams the form's Routing reads. */
+  facts: RoutingFacts;
   kit: Kit | null;
   kits: Kit[];
   setKit: (id: string | null) => void;
@@ -114,11 +115,7 @@ export function Build(p: BuildProps) {
   const cur = Math.min(step, steps - 1);
   const onSubmit = pick?.id === SUBMIT;
   const [trial, setTrial] = useState<Trial>(null);
-  const nodeRef = useRef<HTMLDivElement>(null);
-  const toSubmit = () => {
-    setPick({ id: SUBMIT, open: null });
-    requestAnimationFrame(() => nodeRef.current?.scrollIntoView({ block: "center", behavior: "smooth" }));
-  };
+  const toSubmit = () => setPick({ id: SUBMIT, open: null });
   const qs = useMemo(() => questionsOf(form), [form]);
   const shown = qs.filter((q) => q.step === cur);
   const issueCtx = useMemo(() => ({ custom: p.custom, crm: p.crm.ctx }), [p.custom, p.crm.ctx]);
@@ -183,11 +180,11 @@ export function Build(p: BuildProps) {
         {form.steps.map((s, i) => (
           <span key={s.id} className="contents">
             {i ? <span aria-hidden="true" className="h-px w-[12px] shrink-0 bg-line-strong" /> : null}
-            <StepPill n={String(i + 1)} on={step === i} onClick={() => (setStep(i), setPick(null))} label={s.title || `Step ${i + 1}`} />
+            <StepPill n={String(i + 1)} on={!onSubmit && step === i} onClick={() => (setStep(i), setPick(null))} label={s.title || `Step ${i + 1}`} />
           </span>
         ))}
         <span aria-hidden="true" className="h-px w-[12px] shrink-0 bg-line-strong" />
-        <StepPill n={<Arrow className="h-[8px] w-[12px]" />} on={onSubmit} onClick={toSubmit} label="On Submission" />
+        <StepPill n={String(steps + 1)} on={onSubmit} onClick={toSubmit} label="On Submission" />
         <button type="button" className={IB_SM} onClick={() => apply({ op: "add_step", title: `Step ${steps + 1}` }, "Added a step") && (setStep(steps), setPick(null))} title="Add a step" aria-label="Add a step">
           <Ic n="plus" />
         </button>
@@ -196,13 +193,13 @@ export function Build(p: BuildProps) {
       <>
         <StepPill n="1" on={!onSubmit} onClick={() => (setStep(0), setPick(null))} label="Form" />
         <span aria-hidden="true" className="h-px w-[12px] shrink-0 bg-line-strong" />
-        <StepPill n={<Arrow className="h-[8px] w-[12px]" />} on={onSubmit} onClick={toSubmit} label="On Submission" />
+        <StepPill n="2" on={onSubmit} onClick={toSubmit} label="On Submission" />
       </>
     );
 
   const panel =
     onSubmit ? (
-      <OnSubmissionPanel form={form} apply={apply} types={p.types} routing={p.formRouting} navigate={p.navigate} session={p.session} ws={p.ws} formId={p.formId} reloadTypes={p.reloadTypes} trial={trial} setTrial={setTrial} />
+      <OnSubmissionPanel form={form} apply={apply} types={p.types} facts={p.facts} navigate={p.navigate} trial={trial} setTrial={setTrial} />
     ) : pick?.id === "button" ? (
       <ButtonPanel {...p} />
     ) : picked ? (
@@ -229,6 +226,18 @@ export function Build(p: BuildProps) {
           }}
         >
           <KitFont kit={p.kit} />
+          {onSubmit ? (
+            <>
+              <SubmitNode form={form} types={p.types} facts={p.facts} trial={trial} />
+              <ArrowDown />
+              <div
+                className="keep-light w-[375px] max-w-full shrink-0 rounded-[14px] bg-[var(--b-bg)] p-[24px] font-[family-name:var(--b-font)] text-[length:var(--b-size)] text-[var(--b-ink)] shadow-[0_1px_2px_rgb(0_0_0/0.05),0_0_0_1px_rgb(0_0_0/0.06)]"
+                style={brandVars(p.kit)}
+              >
+                <SubmitResult form={form} types={p.types} facts={p.facts} trial={trial} />
+              </div>
+            </>
+          ) : (
           <div
             className={`keep-light flex max-w-full shrink-0 flex-col gap-[2px] rounded-[14px] bg-[var(--b-bg)] font-[family-name:var(--b-font)] text-[length:var(--b-size)] text-[var(--b-ink)] shadow-[0_1px_2px_rgb(0_0_0/0.05),0_0_0_1px_rgb(0_0_0/0.06)] transition-[width] duration-[320ms] ease-out ${device === "phone" ? "w-[375px] p-[22px]" : form.layout.width === "wide" ? "w-[720px] p-[32px]" : "w-[560px] p-[32px]"} max-[860px]:p-[22px]`}
             style={brandVars(p.kit)}
@@ -276,18 +285,7 @@ export function Build(p: BuildProps) {
                 {cur > 0 ? <div className="mt-[10px] text-center text-[13px] text-[var(--b-muted)]">Back</div> : null}
               </>
           </div>
-          <ArrowDown />
-          <div ref={nodeRef} className="max-w-full shrink-0">
-            <SubmitNode form={form} types={p.types} routing={p.formRouting} trial={trial} picked={onSubmit} onPick={toSubmit} />
-          </div>
-          <ArrowDown />
-          <div
-            onClick={(e) => (e.stopPropagation(), toSubmit())}
-            className="keep-light w-[375px] max-w-full shrink-0 cursor-pointer rounded-[14px] bg-[var(--b-bg)] p-[24px] font-[family-name:var(--b-font)] text-[length:var(--b-size)] text-[var(--b-ink)] shadow-[0_1px_2px_rgb(0_0_0/0.05),0_0_0_1px_rgb(0_0_0/0.06)]"
-            style={brandVars(p.kit)}
-          >
-            <SubmitResult form={form} types={p.types} routing={p.formRouting} trial={trial} />
-          </div>
+          )}
         </div>
         {insert ? <InsertMenu form={form} anchor={insert.el} onClose={() => setInsert(null)} onAdd={(k) => add(k, insert.at)} /> : null}
         <div className="pointer-events-none absolute inset-x-0 bottom-0 flex flex-col items-center gap-[8px] px-[16px] pt-[16px] pb-[18px]">
