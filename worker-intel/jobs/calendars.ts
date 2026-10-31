@@ -234,8 +234,11 @@ export const meetingSync =
         const msg = e instanceof Error ? e.message : String(e);
         const final = e instanceof Final || job.attempts >= job.max_attempts;
         if (!final) throw new JobError(msg, { retryAfterS: RETRY_S[Math.min(Math.max(job.attempts, 1), RETRY_S.length) - 1] });
-        // The meeting stands; the history says the calendar side failed, and the emails still go.
-        await call(rpc, "meeting_calendar_failed", { p_meeting: meeting, p_detail: { action, error: msg.slice(0, 300), attempts: job.attempts } });
+        // The meeting stands; the history says the calendar side failed, and the emails still go. `outcome` says
+        // whether the provider may hold the event anyway (a timeout, a 5xx after the request went out: unknown) or
+        // surely doesn't (no calendar to write to, a refused sign-in: failed), so a routed run is reconciled, never
+        // booked again blindly (097 routing_meeting_failed).
+        await call(rpc, "meeting_calendar_failed", { p_meeting: meeting, p_detail: { action, error: msg.slice(0, 300), attempts: job.attempts, outcome: e instanceof Final ? "failed" : "unknown" } });
         await notify(EVENT[action]);
         throw new JobError(msg, { retry: false });
       }

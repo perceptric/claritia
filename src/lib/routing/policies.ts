@@ -188,12 +188,12 @@ export async function saveTeam(
 export async function stageSource(
   rpc: Rpc,
   c: Caller,
-  o: { form: string; policy: string | null; enabled: boolean; outcome: Outcome; meetingTypeId: string | null; mappings?: unknown[]; noSlots?: Record<string, unknown>; revision: number | null },
+  o: { form: string; policy: string | null; enabled: boolean; outcome: Outcome; meetingTypeId: string | null; mappings?: unknown[]; noSlots?: Record<string, unknown>; whenOff?: "none" | "review"; revision: number | null },
 ): Promise<{ id: string; revision: number; live_revision: number; live_policy: string | null }> {
   return call(rpc, "routing_source_stage", {
     p_ws: c.ws,
     p_form: o.form,
-    p_draft: { policy_id: o.policy, enabled: o.enabled, outcome: o.outcome, meeting_type_id: o.meetingTypeId, ...(o.mappings ? { mappings: o.mappings } : {}), ...(o.noSlots ? { no_slots: o.noSlots } : {}) },
+    p_draft: { policy_id: o.policy, enabled: o.enabled, outcome: o.outcome, meeting_type_id: o.meetingTypeId, ...(o.mappings ? { mappings: o.mappings } : {}), ...(o.noSlots ? { no_slots: o.noSlots } : {}), ...(o.whenOff ? { when_off: o.whenOff } : {}) },
     p_revision: o.revision,
     p_user: c.user,
   });

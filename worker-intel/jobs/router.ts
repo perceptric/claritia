@@ -7,11 +7,14 @@
 //                 router_alert_sent before it goes, so a retry or a second worker never tells anyone twice.
 //   router_sla    nudge the rep before the response time ends, or tell them it ran out.
 //   meeting_team_run  write a team meeting as its queue's run when the booking couldn't (src/lib/meetings/team.ts).
+//   routing_abandon   a routed booking session with no sign of life for its window (30 minutes unless the connection
+//                 says otherwise) is marked abandoned: the owner stays, and the owner gets one linked follow-up only
+//                 when the connection asks for it (docs/routing-workflow.md Section 13; 097 routing_booking_abandon).
 
 import { slackNote } from "../../src/lib/delivery/send.ts";
 import { fromHeader, outcomeOf, SendError } from "../../src/lib/email/provider.ts";
 import type { Resend } from "../../src/lib/email/resend.ts";
-import { JobError, type Handler, type Rpc } from "../../src/lib/jobs.ts";
+import { enqueueJob, JobError, type Handler, type Rpc } from "../../src/lib/jobs.ts";
 import { leadRoutedEmail, mime, slaEmail, validAddress } from "../../src/lib/meetings/emails.ts";
 import { buttons, esc, fields, section, slackDm, tokenOf } from "../../src/lib/slack/app.ts";
 import { explain, minutesWords, partText, pathWords } from "../../src/lib/router/explain.ts";
@@ -37,6 +40,16 @@ export const meetingTeamRun =
     const p = job.payload;
     if (!job.workspace_id || !UUID.test(String(p.p_meeting ?? "")) || !UUID.test(String(p.p_owner ?? "")) || typeof p.p_queue !== "string") throw new JobError("meeting_team_run needs a meeting, an owner and a queue", { retry: false });
     await call(rpc, "meeting_team_run", { ...p, p_ws: job.workspace_id });
+  };
+
+export const routingAbandon =
+  (rpc: Rpc): Handler =>
+  async (job) => {
+    const run = String(job.payload.run ?? "");
+    if (!job.workspace_id || !UUID.test(run)) throw new JobError("routing_abandon needs a run", { retry: false });
+    const r = await call<{ state: string | null; wait_s?: number; done?: boolean } | null>(rpc, "routing_booking_abandon", { p_run: run });
+    // Active since this check was queued: look again when the new window ends (this job is running, so the key is free).
+    if (r?.wait_s && r.wait_s > 0) await enqueueJob(rpc, { workspaceId: job.workspace_id, kind: "routing_abandon", key: run, payload: { run }, delayS: Math.min(r.wait_s + 1, 86_400), maxAttempts: 3 });
   };
 
 export const routeJob =

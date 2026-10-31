@@ -143,6 +143,8 @@ export async function timesForClaim(rpc: Rpc, token: string, c: Claim, o: { leng
   const ctx = await fillCtx(rpc, c.submission, c.type);
   if (!ctx?.type || !ctx.contact_id || !ctx.email) return gone;
   if (ctx.meeting) return { status: 200, body: { booked: bookedView(ctx, ctx.meeting) } };
+  // The visitor is still choosing (or came back to choose): the booking session is alive (Section 13).
+  await callNewer(rpc, "routing_booking_touch", { p_ws: ctx.workspace_id, p_key: `form:${c.submission}` }).catch(() => null);
   const r = await times(rpc, ctx, c.owner, o.length, o.now ?? Date.now(), undefined, c.only ? c.owner : null);
   return { status: 200, body: { booking: { token, slots: r.slots, lengths: r.lengths, length: r.length, ...(r.host ? { host: r.host } : {}) } } };
 }
@@ -192,13 +194,17 @@ export async function bookForClaim(
     throw e;
   }
   if (r.ok) {
-    // The routed run's booking is confirmed (and its scheduling follow-up resolved). A failure here never undoes the
-    // meeting: it's only the run's record (Section 15).
-    await callNewer(rpc, "routing_run_booking", { p_ws: ctx.workspace_id, p_key: `form:${c.submission}`, p_state: "confirmed", p_reason: null }).catch(() => null);
+    // The routed run follows the meeting (097): linked when the meeting is made, pending until the calendar holds the
+    // event, then confirmed with its scheduling follow-ups resolved. Before 097, the run is marked confirmed here. A
+    // failure here never undoes the meeting: it's only the run's record (Section 15).
+    const linked = await callNewer(rpc, "routing_booking_touch", { p_ws: ctx.workspace_id, p_key: `form:${c.submission}` }).catch(() => null);
+    if (!linked) await callNewer(rpc, "routing_run_booking", { p_ws: ctx.workspace_id, p_key: `form:${c.submission}`, p_state: "confirmed", p_reason: null }).catch(() => null);
     const manage = o.base ? `${o.base}/book/m/${r.token}` : undefined;
     return { status: 200, body: { booked: bookedView(ctx, { start: new Date(r.start).toISOString(), end: new Date(r.end).toISOString(), hosts: r.hosts }, manage) } };
   }
   if (r.error === "link_used" || r.error === "link_closed") return gone;
+  // A taken slot is a sign of life from the session (the owner stays; fresh times go back).
+  await callNewer(rpc, "routing_booking_touch", { p_ws: ctx.workspace_id, p_key: `form:${c.submission}` }).catch(() => null);
   const host = hostView(ctx, c.only && c.owner ? c.owner : shownHost(t, r.slots));
   return { status: 409, body: { taken: true, booking: { token, slots: r.slots.map((s) => s.start), lengths: t.settings.lengths, length, ...(host ? { host } : {}) } } };
 }

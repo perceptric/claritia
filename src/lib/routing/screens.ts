@@ -14,6 +14,7 @@ import { archivePolicy, createPolicy, duplicatePolicy, getPolicy, publishPolicy,
 import { releaseFingerprint, releaseSources, semanticsChanges, type PolicyRow, type SourceRow } from "./screenModel.ts";
 import { failure, RoutingFailure, type Outcome } from "./states.ts";
 import { validatePolicy, type Issue } from "./validate.ts";
+import { DENIED, may } from "./access.ts";
 
 export type Caller = { ws: string; user: string; role: "owner" | "member" };
 
@@ -33,8 +34,9 @@ export class Refusal extends Error {
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
-const ownerOnly = (c: Caller) => {
-  if (c.role !== "owner") throw new Refusal(403, "permission_denied", "Only workspace owners can change routing.");
+// Section 20 through access.ts: editing, publishing and teams are a workspace owner's.
+const ownerOnly = (c: Caller, cap: "edit_policy" | "publish" | "team" = "edit_policy") => {
+  if (!may(c, cap)) throw new Refusal(403, "permission_denied", DENIED[cap]);
 };
 const id = (v: unknown, what = "id"): string => {
   if (typeof v !== "string" || !UUID.test(v)) throw new Refusal(400, "invalid_configuration", `Bad ${what}.`);
@@ -186,7 +188,7 @@ export async function restore(rpc: Rpc, c: Caller, o: { policy: unknown; version
  * Stage a source connection from the editor's Sources drawer (Section 8): the same row Forms edits, live with this
  * policy's next publish. A form already live on another policy moves when this one publishes.
  */
-export async function stage(rpc: Rpc, c: Caller, o: { policy: unknown; source: unknown; enabled?: unknown; outcome?: unknown; meeting?: unknown; mappings?: unknown; noSlots?: unknown; revision?: unknown }) {
+export async function stage(rpc: Rpc, c: Caller, o: { policy: unknown; source: unknown; enabled?: unknown; outcome?: unknown; meeting?: unknown; mappings?: unknown; noSlots?: unknown; whenOff?: unknown; revision?: unknown }) {
   ownerOnly(c);
   const policy = id(o.policy, "policy");
   const outcome: Outcome = o.outcome === "assign_and_calendar" ? "assign_and_calendar" : "assign_only";
@@ -203,8 +205,10 @@ export async function stage(rpc: Rpc, c: Caller, o: { policy: unknown; source: u
           .slice(0, 40)
           .map((m) => ({ field: m.field.slice(0, 80), target: m.target.slice(0, 80), type: ["email", "integer", "range", "country", "text", "enum"].includes(m.type) ? m.type : "text", ...(m.required ? { required: true } : {}) }))
       : undefined;
-    const noSlots = o.noSlots && typeof o.noSlots === "object" ? { message: "form", task: (o.noSlots as { task?: unknown }).task !== false } : undefined;
-    return await stageSource(rpc, c, { form: id(src?.form, "form"), policy, enabled, outcome, meetingTypeId: meeting, mappings, noSlots, revision });
+    const noSlots = o.noSlots && typeof o.noSlots === "object" ? followUps(o.noSlots as Record<string, unknown>) : undefined;
+    const whenOff = o.whenOff === "review" || o.whenOff === "none" ? o.whenOff : undefined;
+    if (!enabled && !whenOff) throw new Refusal(400, "invalid_configuration", "Choose what happens to new leads.");
+    return await stageSource(rpc, c, { form: id(src?.form, "form"), policy, enabled, outcome, meetingTypeId: meeting, mappings, noSlots, whenOff, revision });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "";
     if (/draft_conflict/.test(msg)) throw new Refusal(409, "draft_conflict", "Someone else changed this source.");
@@ -214,10 +218,38 @@ export async function stage(rpc: Rpc, c: Caller, o: { policy: unknown; source: u
   }
 }
 
+/**
+ * A connection's follow-up settings (Sections 13 and 19): the no-slots task, the email-times-later choice, and the
+ * abandoned-booking follow-up with its inactivity window (30 minutes unless set, 5 to 1440).
+ */
+function followUps(n: Record<string, unknown>) {
+  const after = typeof n.abandonAfter === "number" && Number.isInteger(n.abandonAfter) ? Math.min(1440, Math.max(5, n.abandonAfter)) : undefined;
+  return { message: "form", task: n.task !== false, ...(n.email_later === true ? { email_later: true } : {}), abandonTask: n.abandonTask === true, ...(after ? { abandonAfter: after } : {}) };
+}
+
+/**
+ * A form's canonical connection for Forms › After submit (Section 8): the same row Routing's Sources drawer stages,
+ * with the policies it can route with and the meeting types. Forms changes it through `stage`, never a copy.
+ */
+export async function formSource(rpc: Rpc, c: Caller, o: { form: unknown }) {
+  const form = id(o.form, "form");
+  const [src, policies] = await Promise.all([
+    call<{ sources: SourceRow[]; forms: { id: string }[]; meeting_types: Screen["meetingTypes"] }>(rpc, "routing_screen_sources", { p_ws: c.ws }),
+    call<PolicyRow[]>(rpc, "routing_screen_policies", { p_ws: c.ws }),
+  ]);
+  if (!src.forms.some((f) => f.id === form)) throw new Refusal(404, "not_found", "That form isn't in this workspace.");
+  return {
+    source: src.sources.find((s) => s.kind === "form" && s.form_id === form) ?? null,
+    policies: policies.filter((p) => !p.archived).map((p) => ({ id: p.id, name: p.draft_name ?? p.name, active_version: p.active_version, is_default: p.is_default })),
+    meetingTypes: src.meeting_types,
+    role: c.role,
+  };
+}
+
 // Teams (Section 12) --------------------------------------------------------------------------------------------------
 
 export async function team(rpc: Rpc, c: Caller, o: { team?: unknown; name: unknown; members: unknown; revision?: unknown }) {
-  ownerOnly(c);
+  ownerOnly(c, "team");
   const members = (Array.isArray(o.members) ? o.members : []).filter((u): u is string => typeof u === "string" && UUID.test(u)).slice(0, 100);
   const name = typeof o.name === "string" ? o.name.trim() : "";
   if (!name || name.length > 80) throw new Refusal(400, "invalid_configuration", name ? "Keep the name to 80 characters." : "Name the team.");
@@ -261,9 +293,12 @@ export async function test(
   rpc: Rpc,
   c: Caller,
   deps: Deps,
-  o: { policy: unknown; version: unknown; revision?: unknown; source?: unknown; email?: unknown; values?: unknown; overrides?: TestOverrides; now?: number },
+  o: { policy: unknown; version: unknown; revision?: unknown; source?: unknown; email?: unknown; contact?: unknown; values?: unknown; overrides?: TestOverrides; now?: number },
 ) {
+  if (!may(c, "test")) throw new Refusal(403, "permission_denied", DENIED.test);
   const policy = id(o.policy, "policy");
+  // An existing contact, looked up in this workspace only (Section 16): its CRM facts are read, nothing is written.
+  const contact = o.contact === undefined || o.contact === null || o.contact === "" ? null : id(o.contact, "contact");
   const which = o.version === "live" ? "live" : "draft";
   const [row, teams, src, fields] = await Promise.all([getPolicy(rpc, c, policy), teamsOf(rpc, c.ws), call<{ sources: SourceRow[] }>(rpc, "routing_screen_sources", { p_ws: c.ws }), deps.fields()]);
   const body = which === "draft" ? (row.draft ?? row.live) : row.live;
@@ -276,9 +311,14 @@ export async function test(
 
   const ov = o.overrides ?? {};
   const user = (u: unknown) => (typeof u === "string" && UUID.test(u) ? u : null);
-  const owners = { contact: user(ov.contactOwner), company: user(ov.companyOwner) };
+  // A looked-up contact keeps the owners the CRM has unless an override says otherwise; a typed lead starts with none.
+  const owners = {
+    contact: contact && ov.contactOwner === undefined ? undefined : user(ov.contactOwner),
+    company: contact && ov.companyOwner === undefined ? undefined : user(ov.companyOwner),
+  };
   const email = typeof o.email === "string" ? o.email.trim().slice(0, 200) : "";
-  const read = await readFacts(rpc, { ws: c.ws, contact: null, email: email || null, key: null, body, reason: "form", now: o.now, users: [owners.contact, owners.company].filter((u): u is string => !!u) });
+  const read = await readFacts(rpc, { ws: c.ws, contact, email: contact ? null : email || null, key: null, body, reason: "form", now: o.now, users: [owners.contact, owners.company].filter((u): u is string => !!u) });
+  if (contact && !read) throw new Refusal(404, "not_found", "That contact isn't in this workspace.");
   if (!read || "existing" in read) throw new Refusal(400, "invalid_configuration", "Couldn't read this lead.");
   const facts = withTryOwners(read.facts, owners);
   const values = o.values && typeof o.values === "object" ? (o.values as Record<string, unknown>) : {};
@@ -397,7 +437,7 @@ export async function review(rpc: Rpc, c: Caller, deps: Deps, o: { policy: unkno
  * staged sources, keyed by the operation id, so a lost answer is looked up instead of published twice.
  */
 export async function publish(rpc: Rpc, c: Caller, deps: Deps, o: { policy: unknown; revision: unknown; key: unknown; fingerprint?: unknown; note?: unknown }) {
-  ownerOnly(c);
+  ownerOnly(c, "publish");
   const policy = id(o.policy, "policy");
   const key = typeof o.key === "string" && /^[A-Za-z0-9_-]{8,100}$/.test(o.key) ? o.key : null;
   if (!key || typeof o.revision !== "number") throw new Refusal(400, "invalid_configuration", "Bad request.");

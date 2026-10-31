@@ -188,7 +188,7 @@ export type TeamFacts = {
 };
 
 /** Where a value came from: this submission's answer, the CRM, enrichment, or a test override. */
-export type Provenance = { source: "form" | "crm" | "enrichment" | "test" | "handoff"; field?: string };
+export type Provenance = { source: "form" | "crm" | "enrichment" | "test" | "handoff" | "review"; field?: string; by?: string; at?: number };
 
 /** Something wrong with the input itself that a person has to look at. */
 export type InputIssue = { code: "source_mapping_mismatch"; field: string; detail?: string };

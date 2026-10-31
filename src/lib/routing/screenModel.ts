@@ -274,8 +274,12 @@ export type SourceRow = {
   meeting_type_id: string | null;
   mappings: { field: string; target: string; type: string; required?: boolean }[];
   no_slots: Record<string, unknown>;
+  /** A disconnected form's new leads: kept as before ("none") or sent to review (097). */
+  when_off?: "none" | "review";
+  /** Made for a new form and never edited: it follows the form's own after-submit setting at each form publish (097). */
+  auto?: boolean;
   live_revision: number;
-  draft: { policy_id?: string | null; enabled?: boolean; outcome?: Outcome; meeting_type_id?: string | null; mappings?: SourceRow["mappings"]; no_slots?: Record<string, unknown> } | null;
+  draft: { policy_id?: string | null; enabled?: boolean; outcome?: Outcome; meeting_type_id?: string | null; mappings?: SourceRow["mappings"]; no_slots?: Record<string, unknown>; when_off?: "none" | "review" } | null;
   draft_revision: number;
 };
 
@@ -429,7 +433,7 @@ export function bookingBadge(state: string | null, reason: string | null): { lab
     case "awaiting_selection":
       return { label: "Awaiting selection", tone: "gray" };
     case "pending_confirmation":
-      return { label: "Pending confirmation", tone: "amber" };
+      return reason === "outcome_unknown" ? { label: "Outcome unknown", tone: "amber" } : { label: "Pending confirmation", tone: "amber" };
     case "confirmed":
       return { label: "Confirmed", tone: "green" };
     case "unavailable":
@@ -439,10 +443,60 @@ export function bookingBadge(state: string | null, reason: string | null): { lab
     case "cancelled":
       return { label: "Cancelled", tone: "gray" };
     case "failed":
-      return { label: "Failed", tone: "red" };
+      return { label: reason === "provider_error" ? "Calendar event failed" : "Failed", tone: "red" };
     default:
       return { label: "Not requested", tone: "gray" };
   }
+}
+
+/** A run's CRM sync (Section 22), only when it matters. */
+export function syncBadge(state: string | null): { label: string; tone: Tone } | null {
+  if (state === "pending") return { label: "Sync pending", tone: "gray" };
+  if (state === "complete") return { label: "Synced", tone: "green" };
+  if (state === "failed") return { label: "Sync failed", tone: "red" };
+  return null;
+}
+
+/** What can be done about a real run (Section 18's error table), for the person looking at it. */
+export type Recovery = "approve" | "resume_child" | "assign" | "dismiss" | "reopen" | "reassign" | "reconnect" | "resume_booking" | "reconcile" | "retry_sync";
+
+export type RecoveryRun = {
+  kind: string;
+  owner: string | null;
+  review: { state: string; reviewer: string } | null;
+  booking_state: string | null;
+  booking_reason: string | null;
+  sync_state: string | null;
+  meeting: { id: string } | null;
+  owner_calendar: { status: string } | null;
+  submission_id: string | null;
+};
+
+/**
+ * Each failure gets its own step's recovery, never a blind reallocation: a review item is approved and routed by an
+ * explicit child attempt (or resumed while one runs), assigned by hand, dismissed or reopened; a disconnected calendar
+ * is reconnected before its booking resumes with the same owner; an unknown calendar outcome is checked with the same
+ * provider key; a failed CRM sync is pushed again. The server checks each again (src/lib/routing/access.ts).
+ */
+export function recoveryActions(r: RecoveryRun, who: { me: string; role: "owner" | "member" }): Recovery[] {
+  const out: Recovery[] = [];
+  const reviewer = !!r.review && (who.role === "owner" || r.review.reviewer === who.me);
+  if (r.review && reviewer) {
+    if (r.review.state === "open" || r.review.state === "approved_pending_execution") out.push("approve", "assign", "dismiss");
+    else if (r.review.state === "in_progress") out.push("resume_child");
+    else if (r.review.state === "dismissed") out.push("reopen");
+  }
+  const recover = who.role === "owner" || (!!r.owner && r.owner === who.me);
+  const calendarOk = r.owner_calendar?.status === "ok";
+  if (recover && r.kind === "owner" && r.owner) {
+    const unknown = (r.booking_state === "pending_confirmation" && r.booking_reason === "outcome_unknown") || (r.booking_state === "failed" && !!r.meeting);
+    if (unknown) out.push(calendarOk ? "reconcile" : "reconnect");
+    else if (!r.meeting && r.submission_id && (r.booking_state === "unavailable" || r.booking_state === "abandoned" || r.booking_state === "failed"))
+      out.push(calendarOk ? "resume_booking" : "reconnect");
+    if (r.sync_state === "failed") out.push("retry_sync");
+  }
+  if (who.role === "owner" && r.kind === "owner" && !out.includes("assign")) out.push("reassign");
+  return out;
 }
 
 export const REVIEW_WORDS: Record<string, string> = { open: "Open", approved_pending_execution: "Approved, not run yet", in_progress: "In progress", resolved: "Resolved", dismissed: "Dismissed" };

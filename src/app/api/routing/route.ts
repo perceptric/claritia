@@ -1,6 +1,7 @@
 import { appBase } from "@/lib/billing";
 import * as A from "@/lib/router/actions";
 import * as H from "@/lib/routing/handoff";
+import * as R from "@/lib/routing/recovery";
 import * as S from "@/lib/routing/screens";
 import { liveBusyFor } from "@/lib/meetings/live";
 import type { Rpc } from "@/lib/jobs";
@@ -44,11 +45,11 @@ export async function POST(request: Request) {
         case "rt_restore":
           return S.restore(rpc, c, { policy: body.policy, version: body.version, revision: body.revision });
         case "rt_stage":
-          return S.stage(rpc, c, { policy: body.policy, source: body.source, enabled: body.enabled, outcome: body.outcome, meeting: body.meeting, mappings: body.mappings, noSlots: body.noSlots, revision: body.revision });
+          return S.stage(rpc, c, { policy: body.policy, source: body.source, enabled: body.enabled, outcome: body.outcome, meeting: body.meeting, mappings: body.mappings, noSlots: body.noSlots, whenOff: body.whenOff, revision: body.revision });
         case "rt_team":
           return S.team(rpc, c, { team: body.team, name: body.name, members: body.members, revision: body.revision });
         case "rt_test":
-          return S.test(rpc, c, deps, { policy: body.policy, version: body.version, revision: body.revision, source: body.source, email: body.email, values: body.values, overrides: (body.overrides ?? {}) as S.TestOverrides });
+          return S.test(rpc, c, deps, { policy: body.policy, version: body.version, revision: body.revision, source: body.source, email: body.email, contact: body.contact, values: body.values, overrides: (body.overrides ?? {}) as S.TestOverrides });
         case "rt_review":
           return S.review(rpc, c, deps, { policy: body.policy });
         case "rt_publish":
@@ -59,6 +60,33 @@ export async function POST(request: Request) {
           return S.activity(rpc, c, { filter: body.filter, before: body.before });
         case "rt_run":
           return S.run(rpc, c, { run: body.run });
+        case "rt_contacts": {
+          // The tester's optional lookup: this workspace's contacts only, by name or email.
+          const text = (str("q") ?? "").trim().replace(/[%_,()]/g, "").slice(0, 80);
+          if (text.length < 2) return { contacts: [] };
+          const like = `%${text}%`;
+          const r = await db.from("contacts").select("id, first_name, last_name, email").eq("workspace_id", ws).is("deleted_at", null).or(`email.ilike.${like},first_name.ilike.${like},last_name.ilike.${like}`).limit(8);
+          if (r.error) throw new Error(r.error.message);
+          return { contacts: (r.data ?? []).map((x) => ({ id: x.id as string, name: [x.first_name, x.last_name].filter(Boolean).join(" "), email: (x.email as string | null) ?? null })) };
+        }
+        case "rt_form_source":
+          return S.formSource(rpc, c, { form: body.form });
+        case "rt_review_act":
+          return R.reviewAct(rpc, c, { run: body.run, action: body.op, reason: body.reason, revision: body.revision });
+        case "rt_child_preview":
+          return R.childPreview(rpc, c, deps, { run: body.run, choice: body.choice, corrections: body.corrections, clearHold: body.clearHold });
+        case "rt_child_run":
+          return R.childRun(rpc, c, deps, { run: body.run, choice: body.choice, corrections: body.corrections, clearHold: body.clearHold, op: body.op, ref: body.ref });
+        case "rt_reassign_preview":
+          return R.reassignPreview(rpc, c, { run: body.run, contact: body.contact, user: body.user });
+        case "rt_reassign":
+          return R.reassign(rpc, c, { run: body.run, contact: body.contact, user: body.user, reason: body.reason, op: body.op, expectOwner: body.expectOwner });
+        case "rt_sync_retry":
+          return R.retrySync(rpc, c, { run: body.run });
+        case "rt_reconcile":
+          return R.reconcile(rpc, c, { run: body.run });
+        case "rt_resume_booking":
+          return R.resumeBooking(rpc, c, { run: body.run });
         case "rt_handoff_preview":
           return H.preview(rpc, c, { contact: body.contact, values: body.values });
         case "rt_handoff_confirm":
