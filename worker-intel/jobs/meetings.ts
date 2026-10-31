@@ -316,6 +316,19 @@ const fromTeam = (info: Info) => info.sending.from_name ?? info.workspace.name;
 
 // Timed steps -----------------------------------------------------------------------------------------------------
 
+/**
+ * Whether a live workflow sends this workspace's meeting reminders (docs/workflows.md, migration 101). Then the
+ * meeting's own reminders don't go, so nobody gets two. Before 101, or when the read fails, they go as before.
+ */
+export async function remindersByWorkflow(rpc: Rpc, ws: string): Promise<boolean> {
+  try {
+    const { data, error } = await rpc("workflow_reminders_live", { p_ws: ws });
+    return !error && data === true;
+  } catch {
+    return false;
+  }
+}
+
 /** Reminder and after-meeting jobs for the meeting's time now; any waiting for an earlier time are dropped. */
 async function schedule(rpc: Rpc, info: Info, now: number) {
   const m = info.meeting;
@@ -324,7 +337,8 @@ async function schedule(rpc: Rpc, info: Info, now: number) {
   const startIso = new Date(start).toISOString();
   const endIso = new Date(end).toISOString();
   const jobs: { key: string; kind: string; payload: object; at: number }[] = [];
-  for (const min of [...new Set(settingsOf(info.type).reminders ?? [])]) {
+  const byWorkflow = await remindersByWorkflow(rpc, m.workspace_id);
+  for (const min of byWorkflow ? [] : [...new Set(settingsOf(info.type).reminders ?? [])]) {
     if (!Number.isInteger(min) || min <= 0) continue;
     const at = start - min * MIN;
     if (at > now) jobs.push({ key: `remind:${m.id}:${startIso}:${min}`, kind: "meeting_remind", payload: { meeting: m.id, start: startIso, minutes: min }, at });
@@ -503,6 +517,8 @@ export const meetingRemind =
       // Only for the time it was scheduled for: a moved meeting has its own reminders, a canceled one none.
       if (!info || info.meeting.status !== "booked" || ms(info.meeting.start_at) !== start || now >= start) return;
       const m = info.meeting;
+      // A reminder workflow went live after this was scheduled: it sends the reminders now.
+      if (await remindersByWorkflow(rpc, m.workspace_id)) return;
       const manage = manageLink(o, m);
       const left = Math.max(1, Math.round((start - now) / MIN));
       settleFor(job, o, [

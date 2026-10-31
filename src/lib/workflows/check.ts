@@ -77,7 +77,7 @@ export function stepProblems(s: Step): string[] {
       break;
     }
     case "wait":
-      if (s.days <= 0 && s.hours <= 0 && !s.at && !s.weekday?.length) out.push("Set how long to wait");
+      if (s.before === "meeting" ? s.days <= 0 && s.hours <= 0 : s.days <= 0 && s.hours <= 0 && !s.at && !s.weekday?.length) out.push(s.before === "meeting" ? "Set how long before the meeting" : "Set how long to wait");
       break;
     case "wait_until":
       if (s.days <= 0) out.push("Set the longest wait");
@@ -208,6 +208,8 @@ function cleanStep(x: unknown, depth: number): Step | null {
       };
     }
     case "wait":
+      // Before the meeting: days and hours only (a weekday or an hour of the day would move the reminder off its time).
+      if (s.before === "meeting") return { id, kind: "wait", days: num(s.days, 0, 30, 1), hours: num(s.hours, 0, 23, 0), before: "meeting" };
       return { id, kind: "wait", days: num(s.days, 0, 365, 1), hours: num(s.hours, 0, 23, 0), ...(Array.isArray(s.weekday) && s.weekday.length ? { weekday: s.weekday.map(Number).filter((d) => d >= 0 && d <= 6) } : {}), ...(typeof s.at === "string" && /^\d{2}:\d{2}$/.test(s.at) ? { at: s.at } : {}) };
     case "wait_until":
       return {

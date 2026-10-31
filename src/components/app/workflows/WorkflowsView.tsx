@@ -1,102 +1,18 @@
 "use client";
 
-// Workflows (docs/enrich-workflows-reports.md 2.4): the list, the template picker that creates one, and the editor.
-// /workflows lists them, /workflows/new picks a template (?template=broadcast opens that one), /workflows/<id> edits.
+// Workflows (docs/workflows.md): /workflows and /workflows/<id> are the folders with one workflow open (Home.tsx);
+// /workflows/new picks a template (?template=broadcast opens that one).
 
 import { useCallback, useEffect, useState } from "react";
-import { triggerWords } from "@/lib/workflows/explain";
-import { cleanBody } from "@/lib/workflows/check";
 import { TEMPLATES, templateByKey } from "@/lib/workflows/templates";
 import { emptyBody, type Body } from "@/lib/workflows/types";
-import { Branch, Plus } from "../../Icons";
-import { SampleStats, ToolIntro } from "../ToolIntro";
-import { Badge, Button, ErrorNote, errorText, Loading, must, Page, Panel, timeAgo, type Tone, useQuery, type ViewProps } from "../ui";
-import { loadNames, loadWorkflow, wordsOf } from "./data";
-import { WorkflowEditor } from "./Editor";
-
-type Row = { id: string; name: string; status: "draft" | "live" | "paused"; draft: unknown; updated_at: string };
-type ListRow = Omit<Row, "draft"> & { trigger: unknown };
-type Overview = Record<string, { active: number; days: number[] }>;
-
-const STATUS: Record<Row["status"], [string, Tone]> = { draft: ["Draft", "gray"], live: ["Live", "green"], paused: ["Paused", "amber"] };
+import { Branch } from "../../Icons";
+import { ErrorNote, errorText, Loading, Page, type ViewProps } from "../ui";
+import { WorkflowsHome } from "./Home";
 
 export function WorkflowsView(p: ViewProps) {
   if (p.id === "new") return <TemplatePicker {...p} />;
-  if (p.id) return <EditorPage key={p.id} {...p} />;
-  return <WorkflowList {...p} />;
-}
-
-function WorkflowList({ sb, ws, navigate }: ViewProps) {
-  // The list reads each draft's trigger only (not every whole draft).
-  const list = useQuery(`workflows:${ws.id}:list`, async () => {
-    const [rows, over, names] = await Promise.all([
-      sb.from("workflows").select("id, name, status, trigger:draft->trigger, updated_at").eq("workspace_id", ws.id).order("updated_at", { ascending: false }),
-      sb.rpc("workflows_overview", { p_ws: ws.id }),
-      loadNames(sb, ws.id),
-    ]);
-    return { rows: ((must(rows) ?? []) as ListRow[]).map(({ trigger, ...r }): Row => ({ ...r, draft: { trigger } })), over: (over.data ?? {}) as Overview, words: wordsOf(names) };
-  });
-  const add = (
-    <Button onClick={() => navigate("workflows", "new")}>
-      <Plus size={14} /> New workflow
-    </Button>
-  );
-  return (
-    <Page icon={<Branch size={16} />} title="Workflows" count={list.data?.rows.length} actions={list.data?.rows.length ? add : undefined}>
-      <ErrorNote message={list.error} />
-      {!list.data ? (
-        <Loading />
-      ) : !list.data.rows.length ? (
-        <ToolIntro
-          sketch="plane"
-          action={add}
-          title={"Follow up with every lead,\nthe moment they act"}
-          lead="A workflow starts when someone sends a form, books, doesn't book or changes stage. It sends emails you approved, waits, branches, routes and creates tasks, and stops as soon as they reach the goal."
-          features={[
-            { title: "Never twice", text: "Each step runs once per person, even when a server restarts mid-send." },
-            { title: "Try a contact first", text: "See the exact path someone would take and each email as they'd read it. Nothing is sent." },
-            { title: "Stops at the goal", text: "People leave the moment they book, reach a stage or unsubscribe.", visual: <SampleStats items={[["in it now", "412"], ["booked", "96"], ["sent", "1,830"]]} /> },
-          ]}
-        />
-      ) : (
-        <Panel className="overflow-hidden">
-          <ul className="divide-y divide-line">
-            {list.data.rows.map((w) => {
-              const o = list.data!.over[w.id];
-              return (
-                <li key={w.id}>
-                  <button type="button" onClick={() => navigate("workflows", w.id)} className="flex w-full items-center gap-4 px-5 py-3.5 text-left hover:bg-hover">
-                    <span className="flex min-w-0 flex-1 flex-col">
-                      <span className="truncate text-[13.5px] font-medium text-ink">{w.name}</span>
-                      <span className="truncate text-[12.5px] text-muted">{triggerWords(cleanBody(w.draft).trigger, list.data!.words)}</span>
-                    </span>
-                    <Spark days={o?.days ?? []} />
-                    <span className="hidden w-20 text-right text-[12.5px] text-muted tabular-nums sm:block">{o?.active ? `${o.active.toLocaleString("en-US")} in it` : ""}</span>
-                    <span className="hidden w-16 text-right text-[12px] text-faint md:block">{timeAgo(w.updated_at)}</span>
-                    <Badge tone={STATUS[w.status][1]} dot>
-                      {STATUS[w.status][0]}
-                    </Badge>
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
-        </Panel>
-      )}
-    </Page>
-  );
-}
-
-/** Entries per day for 30 days, as a thin line. */
-function Spark({ days }: { days: number[] }) {
-  const max = Math.max(1, ...days);
-  if (!days.some((d) => d > 0)) return <span className="hidden w-24 sm:block" />;
-  const pts = days.map((d, i) => `${(i / (days.length - 1)) * 96},${22 - (d / max) * 20}`).join(" ");
-  return (
-    <svg width="96" height="24" viewBox="0 0 96 24" aria-label="Entries, 30 days" className="hidden shrink-0 text-ink sm:block">
-      <polyline points={pts} fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round" />
-    </svg>
-  );
+  return <WorkflowsHome {...p} />;
 }
 
 function TemplatePicker({ sb, ws, navigate }: ViewProps) {
@@ -156,24 +72,4 @@ function Card({ name, line, onClick, disabled }: { name: string; line: string; o
       <span className="text-[12.5px] text-muted">{line}</span>
     </button>
   );
-}
-
-function EditorPage({ sb, session, ws, navigate, id }: ViewProps) {
-  const res = useQuery(`workflow:${ws.id}:${id}`, () => loadWorkflow(sb, ws.id, id), { staleMs: 0 });
-  const { reload: again, set } = res;
-  const reload = useCallback(async () => again(), [again]);
-  if (res.error && !res.data)
-    return (
-      <Page icon={<Branch size={16} />} title="Workflows">
-        <ErrorNote message={res.error} />
-      </Page>
-    );
-  if (!res.data)
-    return (
-      <Page title="Workflow" back={{ label: "Workflows", onClick: () => navigate("workflows") }}>
-        <Loading />
-      </Page>
-    );
-  // A reload (a status change, a publish, Load theirs) updates the editor in place, keeping the selection and panel.
-  return <WorkflowEditor sb={sb} session={session} ws={ws} navigate={navigate} data={res.data} reload={reload} patch={set} />;
 }

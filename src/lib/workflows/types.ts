@@ -33,7 +33,8 @@ export type WaitEvent = "meeting.booked" | "email.clicked" | "form.submitted" | 
 
 export type Step =
   | { id: string; kind: "email"; email: EmailBody; from: "team" | "owner"; approved: boolean; ai?: boolean; notes?: string[] }
-  | { id: string; kind: "wait"; days: number; hours: number; weekday?: number[]; at?: string }
+  /** With `before: "meeting"`: until that long before the contact's next booked meeting (a reminder), not after the step before. */
+  | { id: string; kind: "wait"; days: number; hours: number; weekday?: number[]; at?: string; before?: "meeting" }
   | { id: string; kind: "wait_until"; event: WaitEvent; /** For product.used: the event's name. */ name?: string; days: number; yes: Step[]; no: Step[] }
   | { id: string; kind: "branch"; match: "all" | "any"; conds: Cond[]; yes: Step[]; no: Step[] }
   | { id: string; kind: "split"; percent: number; a: Step[]; b: Step[] }

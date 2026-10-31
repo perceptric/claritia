@@ -2,7 +2,7 @@
 // spans, routing's company types, Deal 20 leads and Read it back.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { confirmationWords, daysWords, groupTypes, hostMode, lengthWords, limitsWords, linkState, METHOD_WORDS, nextOff, offWords, priceWords, questionsWords, remindersWords, teamOf, typeSummary, weeklyWords } from "../src/components/app/scheduling/model.ts";
+import { confirmationWords, daysWords, groupTypes, hostMode, lengthWords, limitsWords, linkState, METHOD_WORDS, nextOff, offWords, priceWords, questionsWords, teamOf, typeSummary, weeklyWords } from "../src/components/app/scheduling/model.ts";
 import { outsideBusy, presetSpan } from "../src/components/app/meetings/model.ts";
 import { decide } from "../src/lib/router/engine.ts";
 import { dealPreview } from "../src/lib/router/deal.ts";
@@ -37,9 +37,6 @@ test("the meeting type panel's one-line summaries stay short and plain", () => {
   assert.equal(limitsWords({ bufferBefore: 0, bufferAfter: 0, notice: 0 }), "No notice");
   assert.equal(questionsWords([]), "Name, email");
   assert.equal(questionsWords([{}]), "Name, email, 1 more");
-  assert.equal(remindersWords([1440, 60]), "Confirmation, 2 reminders");
-  assert.equal(remindersWords([60]), "Confirmation, 1 reminder");
-  assert.equal(remindersWords([]), "Confirmation only");
   assert.equal(priceWords(undefined), "Off");
   assert.equal(priceWords({ amount: 10000, currency: "usd" }), "$100, Stripe");
   assert.equal(confirmationWords({ kind: "message" }), "Message");
@@ -57,7 +54,7 @@ test("the meeting type panel's one-line summaries stay short and plain", () => {
   assert.equal(teamOf({ team: "q_all" }), "q_all");
   assert.equal(teamOf({}), null);
   assert.equal(METHOD_WORDS.load, "Fewest meetings first");
-  for (const s of [limitsWords({ bufferBefore: 15, bufferAfter: 15, notice: 10080 }), remindersWords([1, 2, 3, 4]), lengthWords([15, 30, 45, 60, 90, 120])]) assert.ok(s.length <= 48, s);
+  for (const s of [limitsWords({ bufferBefore: 15, bufferAfter: 15, notice: 10080 }), lengthWords([15, 30, 45, 60, 90, 120])]) assert.ok(s.length <= 48, s);
 });
 
 test("meeting types group like Calendly: yours, the team's, then each teammate's by name", () => {

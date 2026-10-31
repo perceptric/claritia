@@ -210,7 +210,7 @@ export function Build(p: BuildProps) {
 
   const busy = chat.busy;
   return (
-    <div className="grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_400px] grid-rows-[minmax(0,1fr)] max-[1100px]:grid-cols-[minmax(0,1fr)_340px] max-[860px]:grid-cols-1">
+    <div className="grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_480px] grid-rows-[minmax(0,1fr)] max-[1100px]:grid-cols-[minmax(0,1fr)_440px] max-[860px]:grid-cols-1">
       <div className="fm-dots relative flex min-w-0 flex-col">
         <div className="flex h-[44px] shrink-0 items-center gap-[6px] overflow-x-auto border-b border-line bg-card px-[12px] [scrollbar-width:none]">
           {stepBar}

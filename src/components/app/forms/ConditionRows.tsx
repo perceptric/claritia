@@ -118,7 +118,7 @@ export function ConditionRows({ conds, onChange, fields, readOnly = false }: { c
             </div>
           );
         return (
-          <div key={i} className="grid grid-cols-[30px_minmax(0,1fr)_auto_minmax(0,1fr)_24px] items-center gap-[5px]">
+          <div key={i} className="grid grid-cols-[30px_minmax(112px,1fr)_auto_minmax(112px,1fr)_24px] items-center gap-[5px]">
             {kw}
             <Dd sm ariaLabel="Field" label={f.label} menuWidth={240} search={q} onSearch={setQ} items={groupItems(pickable, (nf) => set(i, blankCond(nf)), c.field)} />
             <span className="w-[96px]">

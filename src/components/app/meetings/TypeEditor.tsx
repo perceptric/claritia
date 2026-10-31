@@ -10,7 +10,7 @@ import { toGuestType, type Profile as GuestProfile } from "@/lib/meetings/guest"
 import { sampleSlots } from "@/lib/meetings/guest";
 import { slots as engine } from "@/lib/meetings/slots";
 import { DEFAULT_SETTINGS, KINDS, type Availability, type Host, type Kind, type Location, type MeetingType, type TypeSettings } from "@/lib/meetings/types";
-import { CalendarIcon, Check, Clock, Link as LinkIcon, Lock, Plus, Trash, Users, X } from "../../Icons";
+import { CalendarIcon, Check, Link as LinkIcon, Lock, Plus, Trash, Users, X } from "../../Icons";
 import { askConfirm } from "../Dialogs";
 import { Select } from "../Select";
 import { AreaIn, INPUT, LabelWidth, NumIn, NumRow, Pick, Row, Seg, Switch, TagInput, TextIn } from "../forms/controls";
@@ -27,7 +27,6 @@ type LockKey = MeetingType["locked"][number];
 export const POOL_KINDS: Kind[] = ["round_robin", "owner_first", "double"];
 const LENGTHS = [15, 30, 45, 60, 90];
 const NOTICE = [0, 30, 60, 120, 240, 480, 720, 1440, 2880, 4320, 10080];
-const REMINDERS = [10, 15, 30, 60, 120, 240, 1440, 2880, 10080];
 export const CURRENCIES = ["usd", "eur", "gbp", "cad", "aud", "chf", "sek", "nok", "dkk", "nzd", "sgd", "jpy", "inr"];
 export const PLACES: { value: Location["kind"]; label: string }[] = [
   { value: "google_meet", label: "Google Meet" },
@@ -51,7 +50,6 @@ const LOCKABLE: { key: LockKey; label: string }[] = [
   { key: "perDay", label: "Per day" },
   { key: "perWeek", label: "Per week" },
   { key: "questions", label: "Questions" },
-  { key: "reminders", label: "Reminders" },
   { key: "confirmation", label: "After booking" },
   { key: "noShowFollowUp", label: "No-show follow-up" },
   { key: "price", label: "Price" },
@@ -334,10 +332,6 @@ export function TypeEditor(props: ViewProps) {
               }
             >
               <Questions value={s.questions} disabled={isLocked("questions")} onChange={(v) => setS("questions", v)} />
-            </Block>
-
-            <Block title="Reminders" locked={isLocked("reminders")}>
-              <Reminders value={s.reminders} disabled={isLocked("reminders")} onChange={(v) => setS("reminders", v)} />
             </Block>
 
             <Block title="After booking" locked={isLocked("confirmation") || isLocked("noShowFollowUp")}>
@@ -699,38 +693,6 @@ export function Questions({ value, disabled, onChange }: { value: TypeSettings["
         </li>
       ))}
     </ul>
-  );
-}
-
-export function Reminders({ value, disabled, onChange }: { value: number[]; disabled: boolean; onChange: (v: number[]) => void }) {
-  const left = REMINDERS.filter((n) => !value.includes(n));
-  return (
-    <span className="flex flex-wrap items-center gap-1.5">
-      {[...value]
-        .sort((a, b) => b - a)
-        .map((n) => (
-          <span key={n} className="inline-flex h-7 items-center gap-1.5 rounded-full bg-paper-deep pr-1 pl-2.5 text-[12px] font-medium text-ink">
-            <Clock size={11} className="text-muted" />
-            {minutesText(n)} before
-            {!disabled ? (
-              <button type="button" aria-label={`Remove ${minutesText(n)}`} onClick={() => onChange(value.filter((x) => x !== n))} className="inline-flex size-5 items-center justify-center rounded-full text-faint hover:bg-hover hover:text-ink">
-                <X size={10} />
-              </button>
-            ) : null}
-          </span>
-        ))}
-      {!disabled && value.length < 4 && left.length ? (
-        <Select<number>
-          value={-1}
-          options={left.map((n) => ({ value: n, label: `${minutesText(n)} before` }))}
-          onChange={(n) => onChange([...value, n].sort((a, b) => b - a))}
-          ariaLabel="Add reminder"
-          placeholder="Add"
-          plainPlaceholder
-          className="h-7 rounded-full border border-dashed border-line-strong px-2.5 text-[12px] font-medium text-body hover:border-ink/40 hover:text-ink"
-        />
-      ) : null}
-    </span>
   );
 }
 

@@ -4,7 +4,7 @@ import type { Session, SupabaseClient } from "@supabase/supabase-js";
 import dynamic from "next/dynamic";
 import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import { getSupabase, type SupaConfig } from "@/lib/supa";
-import { contactsPage, emailsPage, enrichmentPage, NAV, resolveRoute, routingPage, schedulingPage, scoringPage } from "@/lib/nav";
+import { contactsPage, enrichmentPage, NAV, resolveRoute, routingPage, schedulingPage, scoringPage } from "@/lib/nav";
 import { Check, LogOut, Moon, Sun } from "../Icons";
 import { Logo } from "../Logo";
 import { AuthScreen } from "./AuthScreen";
@@ -29,7 +29,6 @@ const LOADERS = {
   enrichment: () => import("./enrichment/EnrichmentView").then((m) => m.EnrichmentView),
   segments: () => import("./views/SegmentsView").then((m) => m.SegmentsView),
   workflows: () => import("./workflows/WorkflowsView").then((m) => m.WorkflowsView),
-  emails: () => import("./nurture/EmailsView").then((m) => m.EmailsView),
   scoring: () => import("./scoring/ScoringView").then((m) => m.ScoringView),
   forms: () => import("./forms/FormsView").then((m) => m.FormsView),
   settings: () => import("./views/SettingsView").then((m) => m.SettingsView),
@@ -48,7 +47,6 @@ const VIEWS: Record<ViewRoute, React.ComponentType<ViewProps>> = {
   enrichment: dynamic(LOADERS.enrichment, { ssr: false, loading }),
   segments: dynamic(LOADERS.segments, { ssr: false, loading }),
   workflows: dynamic(LOADERS.workflows, { ssr: false, loading }),
-  emails: dynamic(LOADERS.emails, { ssr: false, loading }),
   scoring: dynamic(LOADERS.scoring, { ssr: false, loading }),
   forms: dynamic(LOADERS.forms, { ssr: false, loading }),
   settings: dynamic(LOADERS.settings, { ssr: false, loading }),
@@ -85,7 +83,6 @@ const readLoc = (): Loc => {
   if (r.route === "routing") return { route: r.route, id: routingPage(r.id).id };
   if (r.route === "scheduling") return { route: r.route, id: schedulingPage(r.id).id };
   if (r.route === "enrichment") return { route: r.route, id: enrichmentPage(r.id).id };
-  if (r.route === "emails") return { route: r.route, id: emailsPage(r.id).id };
   if (r.route === "scoring") return { route: r.route, id: scoringPage(r.id).id };
   if (r.route === "contacts" && !uuid(a)) return { route: r.route, id: contactsPage(r.id).id };
   // Companies: an old account link that finds its company.
@@ -225,7 +222,6 @@ export function ClientApp({ config }: { config: SupaConfig }) {
     { group: "Inbound", label: "Single-use link", run: () => navigate("scheduling", "links", "create=single_use") },
     { group: "Inbound", label: "Poll", run: () => navigate("scheduling", "links", "create=poll") },
     { group: "Nurture", label: "Broadcast", run: () => navigate("workflows", "new", "template=broadcast") },
-    { group: "Nurture", label: "Email template", run: () => navigate("emails", "library", "create=1") },
     { group: "Nurture", label: "Segment", run: () => navigate("segments", "new") },
   ];
 

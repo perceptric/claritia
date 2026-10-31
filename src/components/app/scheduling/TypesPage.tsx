@@ -22,6 +22,7 @@ import { useLiveBody } from "../routing/screenParts";
 import { KIND_WORDS, lengthWords, PLACE_WORDS } from "./model";
 import { Corners } from "./panel";
 import { newDraft, placeIcon, TypePanel, type HostStatus, type Named, type PanelData } from "./TypePanel";
+import { KindTip } from "../meetings/KindTip";
 
 /** Yours: types you own, and one-person types with no owner that you host. */
 export const isMine = (t: Pick<TypeRow, "owner_user_id" | "kind" | "hosts">, me: string) => t.owner_user_id === me || (!t.owner_user_id && (t.kind === "one" || t.kind === "group") && t.hosts[0]?.user_id === me);
@@ -247,7 +248,9 @@ export function TypesPage(props: ViewProps & { open: string }) {
                         </div>
                       ) : null}
                       <div className="mt-auto flex items-center gap-2 border-t border-line pt-2.5 text-[12.5px]">
-                        <Badge tone={dyn ? "violet" : "gray"}>{dyn ? "Dynamic" : t.kind === "one" || t.kind === "group" ? "Individual" : KIND_WORDS[t.kind]}</Badge>
+                        <KindTip kind={dyn ? "dynamic" : "individual"}>
+                          <Badge tone={dyn ? "violet" : "gray"}>{dyn ? "Dynamic" : t.kind === "one" || t.kind === "group" ? "Individual" : KIND_WORDS[t.kind]}</Badge>
+                        </KindTip>
                         <span className="min-w-0 truncate text-muted">{dyn ? `${t.hosts.length} ${t.hosts.length === 1 ? "rep" : "reps"}, ${dyn.rules.length} ${dyn.rules.length === 1 ? "rule" : "rules"}` : t.hosts.map((h) => nameOf(h.user_id)).join(", ")}</span>
                       </div>
                     </article>

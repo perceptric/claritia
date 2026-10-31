@@ -47,6 +47,7 @@ const EVENT_WORDS: Record<string, string> = { "meeting.booked": "a booked meetin
 
 export function waitWords(s: Extract<Step, { kind: "wait" }>): string {
   const parts = [s.days ? plural(s.days, "day") : "", s.hours ? plural(s.hours, "hour") : ""].filter(Boolean);
+  if (s.before === "meeting") return `Wait until ${parts.join(" and ") || "the time"} before the meeting`;
   const days = s.weekday?.length ? ` until ${s.weekday.length === 5 && !s.weekday.includes(0) && !s.weekday.includes(6) ? "a weekday" : "the next allowed day"}` : "";
   return `Wait ${parts.join(" and ") || "a moment"}${days}${s.at ? ` at ${s.at}` : ""}`;
 }

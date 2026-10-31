@@ -13,7 +13,9 @@ import { hostIsPrivate } from "../../src/lib/privateNet.ts";
 import { route } from "../../src/lib/router/server.ts";
 import { slackDm, tokenOf } from "../../src/lib/slack/app.ts";
 import { cleanBody } from "../../src/lib/workflows/check.ts";
-import { branchYes, goalMet, mayEnter, splitSide, waitUntil } from "../../src/lib/workflows/engine.ts";
+import { branchYes, goalMet, mayEnter, meetingFor, nextReminder, reminderMove, splitSide, waitUntil } from "../../src/lib/workflows/engine.ts";
+import { keptManageToken, manageUrl } from "../../src/lib/meetings/links.ts";
+import { validZone } from "../../src/lib/meetings/time.ts";
 import { enterPath, find, nextAfter, type PathName } from "../../src/lib/workflows/tree.ts";
 import type { Body, Step } from "../../src/lib/workflows/types.ts";
 import { valuesOf, webhookSecret, type Facts } from "../../src/lib/workflows/facts.ts";
@@ -24,10 +26,26 @@ async function call<T>(rpc: Rpc, fn: string, args: Record<string, unknown>): Pro
   return data as T;
 }
 
-type Claimed = { id: string; workflow_id: string; workflow_name: string; version: number; contact_id: string; at_step: string | null; wait: { step: string; event?: string; since?: string; until?: string } | null; started_at: string; next_at: string; body: unknown };
+type Claimed = { id: string; workflow_id: string; workflow_name: string; version: number; contact_id: string; at_step: string | null; wait: { step: string; event?: string; since?: string; until?: string; meeting?: string; start?: string } | null; started_at: string; next_at: string; body: unknown };
+
+/** A booked meeting of the run's contact (migration 101's workflow_meetings). */
+type MeetingRow = { id: string; start_at: string; type_id: string | null; guest_tz: string | null; url: string | null; token_hash: string; token_sealed: string | null };
+
+const meetingsOf = (rpc: Rpc, run: string) => call<MeetingRow[]>(rpc, "workflow_meetings", { p_run: run });
+
+/** The meeting's merge fields for an email: its time in the guest's zone, its join link and the guest's reschedule link. */
+export function meetingVars(m: MeetingRow | null, o: { base?: string; secret?: string; tz?: string | null }): Record<string, string | null> {
+  if (!m) return { meeting_time: null, meeting_link: null, reschedule_link: null };
+  const zone = [m.guest_tz, o.tz].find((z) => z && validZone(z)) ?? "UTC";
+  const when = new Intl.DateTimeFormat("en-US", { timeZone: zone, weekday: "long", month: "long", day: "numeric", hour: "numeric", minute: "2-digit", timeZoneName: "short" }).format(Date.parse(m.start_at));
+  const token = o.base ? keptManageToken({ token_hash: m.token_hash, token_sealed: m.token_sealed }, o.secret) : null;
+  return { meeting_time: when, meeting_link: m.url && /^https:\/\//.test(m.url) ? m.url : null, reschedule_link: token && o.base ? manageUrl(o.base, token) : null };
+}
 
 export type WorkflowDeps = {
   keys?: Keys;
+  /** The app's address, for the reschedule link in reminder emails. */
+  base?: string;
   /** SECRETS_KEY: signs webhooks per workflow. */
   secret?: string;
   fetcher?: typeof fetch;
@@ -56,7 +74,11 @@ async function runStep(rpc: Rpc, ws: string, run: Claimed, step: Step, f: Facts,
     case "email": {
       if (c.suppressed) return { status: "skipped", result: { why: "the address is suppressed" } };
       if (!c.email) return { status: "skipped", result: { why: "no email" } };
-      const vars = { first_name: c.first_name, last_name: c.last_name, company: (f.company?.name as string | undefined) ?? null, title: c.title };
+      // The meeting's fields (reminders): the meeting the workflow counts back from, when it has one.
+      const meeting = await meetingsOf(rpc, run.id)
+        .then((ms) => meetingFor(ms, cleanBody(run.body).trigger, now))
+        .catch(() => null);
+      const vars = { first_name: c.first_name, last_name: c.last_name, company: (f.company?.name as string | undefined) ?? null, title: c.title, ...meetingVars(meeting, { base: d.base, secret: d.secret, tz: f.tz }) };
       const owner = step.from === "owner" ? f.owner : null;
       const id = await call<string | null>(rpc, "workflow_email", { p_run: run.id, p_step: step.id, p_vars: vars, p_from_name: owner?.name ?? null, p_reply_to: owner?.email ?? null });
       return { status: "done", result: id ? { message: id } : { message: null, why: "queued before" } };
@@ -196,6 +218,34 @@ export async function advance(rpc: Rpc, ws: string, run: Claimed, d: WorkflowDep
       return "done";
     }
     const step = w.step;
+
+    // Before the meeting (a reminder): parks until that long before the contact's next booked meeting, checked again
+    // each time it wakes, and a meeting that moves or is canceled wakes it (migration 101). A reminder too late to send
+    // skips to the next one; with no meeting left the run ends.
+    if (step.kind === "wait" && step.before === "meeting") {
+      if (wait?.step !== step.id) await call(rpc, "workflow_step_begin", { p_run: run.id, p_step: step.id, p_visit: 1 });
+      const m = meetingFor(await meetingsOf(rpc, run.id), body.trigger, now());
+      if (!m) {
+        await done(step.id, "skipped", { why: "no booked meeting" }, null, null, null, "exited", "no meeting");
+        return "exited";
+      }
+      const move = reminderMove(step, Date.parse(m.start_at), now());
+      if (move.kind === "park") {
+        await done(null, "running", null, step.id, move.at, { step: step.id, meeting: m.id, start: m.start_at }, "waiting");
+        return "waiting";
+      }
+      const next = move.kind === "late" ? nextReminder(body.steps, step.id) : nextAfter(body.steps, step.id);
+      if (move.kind === "late" && !next) {
+        await done(step.id, "skipped", { why: "too close to the meeting" }, null, null, null, "done");
+        return "done";
+      }
+      const live = await done(step.id, move.kind === "late" ? "skipped" : "done", move.kind === "late" ? { why: "too close to the meeting" } : null, next, null, null, next ? "active" : "done");
+      if (!next) return "done";
+      if (!live) return "active";
+      wait = null;
+      at = next;
+      continue;
+    }
 
     // Waits park the run; the ledger row stays 'running' until the time comes.
     if (step.kind === "wait") {

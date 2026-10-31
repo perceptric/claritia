@@ -11,6 +11,32 @@ export type Template = { key: string; name: string; line: string; body: () => Bo
 
 export const TEMPLATES: Template[] = [
   {
+    key: "reminders",
+    name: "Meeting reminders",
+    line: "A day before and an hour before, following any reschedule",
+    body: () => ({
+      trigger: { kind: "meeting", events: ["booked"], types: [] },
+      goals: [],
+      entry: { mode: "repeat", gapDays: 1 },
+      steps: [
+        s({ kind: "wait", days: 1, hours: 0, before: "meeting" }),
+        s({
+          kind: "email",
+          from: "owner",
+          approved: false,
+          email: email("See you tomorrow", ["Hi {{first_name|there}},", "A reminder: we meet {{meeting_time|tomorrow}}.", "Join here: {{meeting_link|the link in your invite}}", "Need another time? {{reschedule_link|Reply to this email}}"]),
+        }),
+        s({ kind: "wait", days: 0, hours: 1, before: "meeting" }),
+        s({
+          kind: "email",
+          from: "owner",
+          approved: false,
+          email: email("Starting in an hour", ["Hi {{first_name|there}},", "We meet in an hour, {{meeting_time|soon}}.", "Join here: {{meeting_link|the link in your invite}}"]),
+        }),
+      ],
+    }),
+  },
+  {
     key: "demo_request",
     name: "Demo request follow-up",
     line: "Qualify, route, and nudge until they book",
