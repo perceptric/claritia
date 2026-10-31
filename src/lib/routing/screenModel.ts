@@ -239,7 +239,7 @@ export function changesBetween(live: RouterBody | null, draft: RouterBody, o: { 
     out.push(`Everyone else goes to ${destName(fallbackDest(draft), o.names)}`);
     return out;
   }
-  if (live.spam.on !== draft.spam.on) out.push(draft.spam.on ? "Spam is now held" : "Spam is no longer held");
+  if (live.spam.on !== draft.spam.on) out.push(draft.spam.on ? "Spam check turned on" : "Spam check turned off");
   const order = (b: RouterBody) => (b.v === 2 ? (b.ownership?.order ?? []) : [...(b.account.on ? ["company"] : []), ...(b.keep.on ? ["contact"] : [])]).join(",");
   if (order(live) !== order(draft)) out.push(!draft.ownership?.order.length ? "Existing owners are no longer kept" : draft.ownership.order[0] === "contact" ? "Contact owner is kept first" : "Company owner is kept first");
   live.rules.list.forEach((r, i) => {
@@ -255,7 +255,7 @@ export function changesBetween(live: RouterBody | null, draft: RouterBody, o: { 
   for (const r of draft.rules.list) if (!live.rules.list.some((x) => x.id === r.id)) out.push(`Added rule ${r.name || "Untitled rule"}`);
   if (destValue(fallbackDest(live)) !== destValue(fallbackDest(draft))) out.push(`Everyone else now goes to ${destName(fallbackDest(draft), o.names)}`);
   if (destValue(backupDest(live)) !== destValue(backupDest(draft)) && draft.v === 2) out.push(`Backup is now ${destName(backupDest(draft), o.names)}`);
-  if ((live.review?.owner ?? null) !== (draft.review?.owner ?? null) && draft.review?.owner) out.push(`${o.names.people[draft.review.owner] ?? "Someone"} now reviews held leads`);
+  if ((live.review?.owner ?? null) !== (draft.review?.owner ?? null) && draft.review?.owner) out.push(`${o.names.people[draft.review.owner] ?? "Someone"} now reviews leads`);
   if (live.v !== 2 && draft.v === 2) out.push("Moves to the new routing rules");
   return out;
 }
@@ -334,10 +334,10 @@ const WHY: Record<string, string> = {
 export const whyWords = (w: string | undefined) => (w ? (WHY[w] ?? w.replace(/_/g, " ")) : "");
 
 const CHECK_WORDS: Record<string, string> = {
-  spam: "Held as suspected spam",
-  rule: "Held by a rule",
-  source_mapping_mismatch: "Held: a form answer doesn't fit its routing field",
-  multiple_companies: "Held: several companies match this email",
+  spam: "Sent to Spam",
+  rule: "For review: matched a review rule",
+  source_mapping_mismatch: "For review: a form answer doesn't fit its routing field",
+  multiple_companies: "For review: several companies match this email",
 };
 
 export type TraceWords = { k: string; v: { t: string; faint?: boolean }[] }[];
@@ -503,7 +503,7 @@ export const REVIEW_WORDS: Record<string, string> = { open: "Open", approved_pen
 
 /** Why a run went where it did, in a few words. */
 export function reasonWords(r: { kind: string; by: string | null; rule_name: string | null; held: unknown; review?: { reason: string } | null; effect?: string | null }): string {
-  if (r.kind === "held") return r.review?.reason === "rule" ? "Held by a rule" : r.review?.reason === "source_mapping_mismatch" ? "Form answer doesn't fit" : r.review?.reason === "multiple_companies" ? "Several companies match" : "Suspected spam";
+  if (r.kind === "held") return r.review?.reason === "rule" ? "Matched a review rule" : r.review?.reason === "source_mapping_mismatch" ? "Form answer doesn't fit" : r.review?.reason === "multiple_companies" ? "Several companies match" : "Spam";
   if (r.kind === "unassigned") return "Nobody available";
   switch (r.by) {
     case "account":

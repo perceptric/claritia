@@ -21,8 +21,8 @@ import { Initials, namesOf, PersonChoice, timeOf } from "./parts";
 type Mode = null | "child" | "assign";
 
 const REASON_WORDS: Record<string, string> = {
-  spam: "Suspected spam",
-  rule: "Held by a rule",
+  spam: "Spam",
+  rule: "Matched a review rule",
   source_mapping_mismatch: "Form answer doesn't fit",
   multiple_companies: "Several companies match",
   no_eligible_recipient: "Nobody available",
@@ -238,8 +238,8 @@ function timeline(r: RunDetail, who: (u: string | null | undefined) => string) {
   lines.push({ tone: "ok", text: r.key.startsWith("handoff:") ? `Handoff started by ${who(r.by_user)}` : r.reason === "form" ? "Submission saved" : manual ? `Reassigned by ${who(manual.by)}` : child ? `Child attempt by ${who(child.by)}` : "Routing started", at: t });
   if (r.parent_run_id) lines.push({ tone: "", text: "Child attempt of an earlier run", at: t, open: r.parent_run_id });
   if (child && Object.keys(child.corrections ?? {}).length) lines.push({ tone: "", text: `Corrected ${Object.keys(child.corrections).length === 1 ? "one value" : `${Object.keys(child.corrections).length} values`}`, at: t });
-  if (child?.clearHold) lines.push({ tone: "", text: "Hold cleared", at: t });
-  if (held) lines.push({ tone: "warn", text: `Held: ${(r.review ? (REASON_WORDS[r.review.reason] ?? reasonWords(r)) : reasonWords(r)).toLowerCase()}`, at: t });
+  if (child?.clearHold) lines.push({ tone: "", text: "Spam check skipped", at: t });
+  if (held) lines.push({ tone: "warn", text: r.review?.reason === "spam" || (!r.review && reasonWords(r) === "Spam") ? "Sent to Spam" : `For review: ${(r.review ? (REASON_WORDS[r.review.reason] ?? reasonWords(r)) : reasonWords(r)).toLowerCase()}`, at: t });
   if (r.kind === "unassigned") lines.push({ tone: "warn", text: r.review ? (REASON_WORDS[r.review.reason] ?? "No eligible recipient") : "No eligible recipient", at: t });
   if (r.review) lines.push({ tone: "", text: `Review item opened for ${who(r.review.reviewer)}`, at: timeOf(r.review.at) });
   const la = r.review?.latest_action;

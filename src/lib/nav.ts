@@ -42,13 +42,13 @@ export type NavItem = {
 const item = (group: GroupKey, route: Route, label: string): NavItem => ({ key: route, route, page: "", label, group });
 
 /**
- * Inbound is set up the way a sales team works (docs/unify-plan.md): Forms, what leads book (Meetings, once Calendar,
- * with the upcoming meetings), who gets which lead (Routing, with the sales reps who take them), and Scoring.
+ * Inbound is set up the way a sales team works (docs/unify-plan.md): Forms (each form's Routing picks the meeting),
+ * Meetings (a Dynamic meeting picks the rep; Availability holds hours, teams and who's away; docs/on-submission.md),
+ * and Scoring. Routing has no item of its own: its old addresses open where its parts went (resolveRoute).
  */
 export const NAV: NavItem[] = [
   item("inbound", "forms", "Forms"),
   item("inbound", "scheduling", "Meetings"),
-  item("inbound", "routing", "Routing"),
   item("inbound", "scoring", "Scoring"),
   item("crm", "contacts", "Contacts"),
   item("crm", "companies", "Companies"),
@@ -58,12 +58,12 @@ export const NAV: NavItem[] = [
   item("settings", "settings", "Settings"),
 ];
 
-const ROUTES = new Set<string>([...NAV.map((n) => n.route), "meetings", "objects", "enrichment", "workflows"]);
+const ROUTES = new Set<string>([...NAV.map((n) => n.route), "meetings", "routing", "objects", "enrichment", "workflows"]);
 
 export const defaultRoute: Route = "contacts";
 
 /** The sidebar item an address belongs to: each route has one. A new workflow is made under Emails; one meeting's page under Meetings. */
-export const activeItem = (route: Route): NavItem | null => NAV.find((n) => n.route === (route === "workflows" ? "emails" : route === "meetings" ? "scheduling" : route)) ?? null;
+export const activeItem = (route: Route): NavItem | null => NAV.find((n) => n.route === (route === "workflows" ? "emails" : route === "meetings" || route === "routing" ? "scheduling" : route)) ?? null;
 
 /**
  * Routing's amber dot: the default policy has something to fix (a rep who gets leads has no calendar, or a rule's
@@ -257,7 +257,7 @@ const MOVED: Record<string, { route: Route; id?: string; keepId?: boolean }> = {
 const REPORTS: Record<string, { route: Route; id: string }> = {
   "": { route: "contacts", id: "overview" },
   reps: { route: "contacts", id: "overview" },
-  speed: { route: "routing", id: "" },
+  speed: { route: "scheduling", id: "upcoming" },
   forms: { route: "forms", id: "" },
   email: { route: "emails", id: "" },
 };
@@ -288,7 +288,10 @@ export function resolveRoute(first: string, id: string): { route: Route; id: str
   if (first === "availability") return availability(a);
   if (first === "routing" && a === "teams" && rest[0] === "availability") return availability(rest[1]);
   if (first === "reps" && a === "availability") return availability(rest[0]);
-  if (first === "reps") return { route: "routing", id: routingPage(["teams", ...(id ? [id] : [])].join("/")).id };
+  // Routing's parts moved (docs/on-submission.md): its policies are meetings now, its teams and reps are in
+  // Availability › Team. One policy's page and the activity log still open where they were.
+  if (first === "reps" || (first === "routing" && (routingPage(id).page === "teams" || ["reps", "team"].includes(a)))) return availability("team");
+  if (first === "routing" && routingPage(id).page === "" && !routingPage(id).sub) return { route: "scheduling", id: "types" };
   if (first === "companies" && a === "visits") return { route: "companies", id: "" };
   if (first === "settings" && SETTINGS_MOVED[a]) return SETTINGS_MOVED[a];
   if (first === "reports") return REPORTS[a] ?? REPORTS[""]!;

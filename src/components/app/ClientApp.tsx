@@ -220,7 +220,6 @@ export function ClientApp({ config }: { config: SupaConfig }) {
     { group: "CRM", label: "Contact", run: () => navigate("contacts", "", "create=1") },
     { group: "CRM", label: "Opportunity", run: () => navigate("opportunities", "", "create=1") },
     { group: "Automation", label: "Workflow", run: () => navigate("workflows", "new") },
-    { group: "Automation", label: "Routing rule", run: () => navigate("routing", "") },
     { group: "Inbound", label: "Form", run: () => navigate("forms", "new") },
     { group: "Inbound", label: "Meeting", run: () => navigate("scheduling", "types/new") },
     { group: "Inbound", label: "Single-use link", run: () => navigate("scheduling", "links", "create=single_use") },

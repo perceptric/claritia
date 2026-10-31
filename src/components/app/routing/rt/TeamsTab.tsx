@@ -45,7 +45,11 @@ export function usedBy(t: Team, policies: Screen["policies"]): { name: string; u
   return out;
 }
 
-export function TeamsTab({ session, ws, navigate, screen, teamId }: ViewProps & { screen: Q; teamId: string | null }) {
+/**
+ * `pick`: switch the open team here instead of by address, and draw without a page of its own (inside Meetings ›
+ * Availability › Team, docs/on-submission.md).
+ */
+export function TeamsTab({ session, ws, navigate, screen, teamId, pick }: ViewProps & { screen: Q; teamId: string | null; pick?: (id: string) => void }) {
   const d = screen.data!;
   const owner = d.role === "owner";
   const [creating, setCreating] = useState(false);
@@ -83,20 +87,29 @@ export function TeamsTab({ session, ws, navigate, screen, teamId }: ViewProps & 
   };
 
   const zone = d.people.find((p) => p.id === d.me)?.tz ?? "UTC";
-  return (
-    <Page
-      title="Routing"
-      flush
-      actions={
-        owner ? (
-          <Button size="sm" onClick={() => setCreating(true)}>
-            <Plus size={13} />
-            Create team
-          </Button>
-        ) : null
-      }
-    >
-      <div className="mx-auto flex w-full max-w-[1120px] flex-col gap-3.5 px-4 py-5 text-[13px] md:px-6">
+  const create = owner ? (
+    <Button size="sm" onClick={() => setCreating(true)}>
+      <Plus size={13} />
+      Create team
+    </Button>
+  ) : null;
+  const frame = (children: React.ReactNode) =>
+    pick ? (
+      <section className="flex flex-col gap-2">
+        <div className="flex items-center justify-between gap-2">
+          <h2 className="m-0 text-[15px] font-semibold text-ink">Teams</h2>
+          {create}
+        </div>
+        {children}
+      </section>
+    ) : (
+      <Page title="Routing" flush actions={create}>
+        {children}
+      </Page>
+    );
+  return frame(
+    <>
+      <div className={`flex w-full flex-col gap-3.5 text-[13px] ${pick ? "" : "mx-auto max-w-[1120px] px-4 py-5 md:px-6"}`}>
         <ErrorNote message={error} />
         {!team ? (
           <Empty sketch={<RouteSketch size={120} />} title="Add your first team">
@@ -104,7 +117,7 @@ export function TeamsTab({ session, ws, navigate, screen, teamId }: ViewProps & 
           </Empty>
         ) : (
           <>
-            <Pills label="Teams" value={team.id} options={d.teams.map((t) => ({ value: t.id, label: t.name, count: t.members.length }))} onChange={(id) => navigate("routing", `teams/${id}`)} />
+            <Pills label="Teams" value={team.id} options={d.teams.map((t) => ({ value: t.id, label: t.name, count: t.members.length }))} onChange={(id) => (pick ? pick(id) : navigate("routing", `teams/${id}`))} />
             <TeamCard
               t={team}
               d={d}
@@ -161,11 +174,12 @@ export function TeamsTab({ session, ws, navigate, screen, teamId }: ViewProps & 
             invalidate(`routing_screen:${ws.id}`);
             setCreating(false);
             toast({ text: `Created ${name}` });
-            navigate("routing", `teams/${out.id}`);
+            if (pick) pick(out.id);
+            else navigate("routing", `teams/${out.id}`);
           }}
         />
       ) : null}
-    </Page>
+    </>,
   );
 }
 

@@ -281,8 +281,8 @@ function Spam({ sb, form, apply, formId, onReview }: Props) {
           />
         </div>
         <div className={CROW}>
-          <RowText title="Throwaway email addresses" sub={s.throwaway === "hold" ? "Held in Spam" : "Asked for an address they'll keep"} />
-          <Seg label="Throwaway email addresses" value={s.throwaway === "hold" ? "hold" : "refuse"} onChange={(v) => apply({ op: "set_spam", throwaway: v })} options={[{ value: "refuse", label: "Refuse" }, { value: "hold", label: "Hold" }]} />
+          <RowText title="Throwaway email addresses" sub={s.throwaway === "hold" ? "Sent to Spam" : "Asked for an address they'll keep"} />
+          <Seg label="Throwaway email addresses" value={s.throwaway === "hold" ? "hold" : "refuse"} onChange={(v) => apply({ op: "set_spam", throwaway: v })} options={[{ value: "refuse", label: "Refuse" }, { value: "hold", label: "Send to Spam" }]} />
         </div>
         <div className={CROW}>
           <RowText title="Free email addresses" sub="Gmail, Yahoo, Outlook" />
@@ -314,7 +314,7 @@ function Spam({ sb, form, apply, formId, onReview }: Props) {
               }}
             />
           </div>
-          {bad ? <span className="text-[12px] text-rose">{bad}</span> : <span className="text-[12px] text-muted">{sites.length ? "The link page always works. Fills from other sites are held." : "Any site can show the form"}</span>}
+          {bad ? <span className="text-[12px] text-rose">{bad}</span> : <span className="text-[12px] text-muted">{sites.length ? "The link page always works. Fills from other sites go to Spam." : "Any site can show the form"}</span>}
         </div>
         <div className={CROW}>
           <RowText title="Most fills in an hour" />
@@ -331,16 +331,16 @@ function Spam({ sb, form, apply, formId, onReview }: Props) {
           />
         </div>
         <div className={CROW}>
-          <RowText title="Faster than a person can type" sub={s.minSeconds > 0 ? `Held when sent in under ${s.minSeconds} ${s.minSeconds === 1 ? "second" : "seconds"}` : "Off"} />
+          <RowText title="Faster than a person can type" sub={s.minSeconds > 0 ? `Spam when sent in under ${s.minSeconds} ${s.minSeconds === 1 ? "second" : "seconds"}` : "Off"} />
           <Seg label="Faster than a person can type" value={speed} onChange={(v) => apply({ op: "set_spam", minSeconds: Number(v) })} options={[{ value: "0", label: "Off" }, { value: "3", label: "3 s" }, { value: "5", label: "5 s" }]} />
         </div>
       </div>
       <div className={CARD}>
         <div className={CROW}>
-          <RowText title="Held this month" sub="Held fills make no contact, alert or email" />
+          <RowText title="Spam this month" />
           <Badge tone="amber">{held.data ?? 0}</Badge>
           <button type="button" className={GHOST_SM} onClick={onReview}>
-            Review
+            Open Spam
           </button>
         </div>
       </div>

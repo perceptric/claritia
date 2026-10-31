@@ -3,13 +3,15 @@ import { checkGuest } from "@/lib/meetings/guest";
 import { startCheckout } from "@/lib/meetings/pay";
 import { payStripe } from "@/lib/meetings/payServer";
 import { readBookRef } from "@/lib/meetings/links";
+import { answersOf, routedType } from "@/lib/meetings/dynamicServer";
 import { bookType, loadTarget, loadTargetCached, preferredSlots } from "@/lib/meetings/public";
 import { stripeClient } from "@/lib/billing";
 import { base, booked, failed, json, limited, liveFor, readBody, rpcOrNull, spamOk, startOf } from "../../../_shared";
 
 // A meeting type's booking page, for guests (docs/meetings-scheduler.md 1.8): GET the times for one length
-// (?len=30, optional ?from= and ?to= in ms, ?host= to prefer one host; the page already has the type); POST a
-// booking (with the link's host and ref when it came from a booking email). Only what a guest may see goes back.
+// (?len=30, optional ?from= and ?to= in ms, ?host= to prefer one host, ?a= a Dynamic meeting's answers; the page
+// already has the type); POST a booking (with the link's host and ref when it came from a booking email, and `route`,
+// the Dynamic meeting's answers: the times and the booking use the same reps, src/lib/meetings/dynamicServer.ts). Only what a guest may see goes back.
 // The times read the page's target from its short cache, so another week or length doesn't read it again; a booking
 // reads it fresh, with the spam check running alongside.
 
@@ -35,7 +37,8 @@ export async function GET(request: Request, ctx: Ctx) {
     const len = Number(sp.get("len") ?? x.type.settings.lengths[0]);
     const from = sp.get("from") ? Number(sp.get("from")) : undefined;
     const to = sp.get("to") ? Number(sp.get("to")) : undefined;
-    const slots = await preferredSlots(x.rpc, { ws: x.t.ws.id, type: x.type, length: len, from, to, host: sp.get("host"), profiles: x.t.profiles });
+    const type = await routedType(x.rpc, x.db, { ws: x.t.ws.id, type: x.type, answers: answersOf(sp.get("a")) });
+    const slots = await preferredSlots(x.rpc, { ws: x.t.ws.id, type, length: len, from, to, host: sp.get("host"), profiles: x.t.profiles });
     return json({ slots }, 200, { "Cache-Control": "no-store" });
   } catch {
     return json({ error: "Try again in a moment." }, 503);
@@ -61,9 +64,10 @@ export async function POST(request: Request, ctx: Ctx) {
     // A booking link from a "pick a time" email: the host it named first, and the meeting joins that form fill.
     const host = typeof body.host === "string" ? body.host.slice(0, 64) : null;
     const submissionId = typeof body.ref === "string" ? readBookRef(body.ref) : null;
+    const type = await routedType(x.rpc, x.db, { ws: x.t.ws.id, type: x.type, answers: answersOf(body.route) });
     const r = await bookType(x.rpc, {
       ws: x.t.ws.id,
-      type: x.type,
+      type,
       length,
       start,
       guest: g.guest,

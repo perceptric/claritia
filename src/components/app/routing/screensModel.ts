@@ -85,7 +85,7 @@ export function leadOf(r: Pick<RunRow, "facts">): { name: string; email: string;
 /** "Routed by US mid-market", "Kept owner", "Matched Acme" for the contact page. */
 export function routedBy(r: RunRow): string {
   const d = decisionOf(r);
-  if (d.result.kind === "held") return "Held";
+  if (d.result.kind === "held") return d.result.signals.includes("rule") ? "For review" : "Spam";
   if (d.result.kind === "unassigned") return "Unassigned";
   switch (d.result.by) {
     case "account": {

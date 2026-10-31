@@ -5,10 +5,11 @@
 // Location, Availability, Host, Limits and buffers, Booking questions, Notifications, Confirmation page and Payment.
 // The footer is pinned: Saved, Preview and Save changes, which is off until something changed. Saving goes through
 // /api/meetings/types like the full editor (checkType on the server); anything the panel doesn't show is in All
-// settings (/scheduling/types/<id>/all). A Routing team host stores the router's queue id as settings.team.
+// settings (/scheduling/types/<id>/all). A meeting is Individual (one host) or Dynamic (reps, rules to a rep or a team,
+// and Otherwise, kept as settings.dynamic; docs/on-submission.md). Saving one publishes again the forms that book it.
 
 import { useEffect, useRef, useState } from "react";
-import { DEFAULT_SETTINGS, type Availability, type Host, type Location, type TypeSettings } from "@/lib/meetings/types";
+import { DEFAULT_SETTINGS, type Availability, type Location, type TypeSettings } from "@/lib/meetings/types";
 import type { Queue } from "@/lib/router/types";
 import { Bell, Bolt, CalendarIcon, Card, Check, Clock, Copy, Eye, Hourglass, Link as LinkIcon, ListIcon, MapPin, PhoneCall, Plus, Users, X } from "../../Icons";
 import { BrandLogo } from "../BrandLogo";
@@ -20,8 +21,12 @@ import { slugify } from "../meetings/model";
 import { copyText, meetingsApi, PersonAvatar, type Person } from "../meetings/parts";
 import { CURRENCIES, draftOf, Questions, Reminders, type Draft } from "../meetings/TypeEditor";
 import type { TypeRow } from "../meetings/TypesList";
-import { confirmationWords, hostMode, KIND_WORDS, lengthWords, limitsWords, METHOD_WORDS, nextOff, offWords, PLACE_WORDS, priceWords, questionsWords, remindersWords, teamOf, weeklyWords, type HostMode } from "./model";
+import { confirmationWords, KIND_WORDS, lengthWords, limitsWords, nextOff, offWords, PLACE_WORDS, priceWords, questionsWords, remindersWords, teamOf, weeklyWords } from "./model";
 import { Chip, Eyebrow, Labeled, PanelFooter, PanelSection, TextLink } from "./panel";
+import type { Dest, Dynamic } from "@/lib/routing/compile";
+import { blankCond, ConditionRows, newRowId, usable } from "../forms/ConditionRows";
+import { useRoutingFacts } from "../forms/formRouting";
+import { Arrow } from "../forms/OnSubmission";
 
 export type HostStatus = { cal: boolean; out: { from: string; to: string }[] };
 export type Named = { user_id: string; name: string } & Availability;
@@ -166,9 +171,11 @@ export function TypePanel({
     setBusy(true);
     const sent = draft;
     try {
-      const r = await meetingsApi<{ id: string }>(session, ws.id, "types", { action: "save", id: row?.id ?? null, type: sent });
+      const r = await meetingsApi<{ id: string; formsError?: string }>(session, ws.id, "types", { action: "save", id: row?.id ?? null, type: sent });
       setBase(JSON.stringify(sent));
       onSaved();
+      // The server publishes again the routing of the live forms that book this meeting.
+      if (r.formsError) setError(`Saved. Forms that book it didn't update: ${r.formsError}`);
       if (isNew) {
         setLeaveGuard(null);
         navigate("scheduling", `types/${r.id}`);
@@ -203,50 +210,46 @@ export function TypePanel({
     }
   };
 
-  // Host -----------------------------------------------------------------------------------------------------------
-  const mode = hostMode(draft.kind);
-  const team = teamOf(s);
-  const queue = team ? data.queues.find((q) => q.id === team) : undefined;
-  const personal = !!draft.owner_user_id;
-  const modes: { value: HostMode; label: string }[] = [
-    { value: "one", label: "One person" },
-    { value: "team", label: "A Routing team" },
-    ...(personal ? [] : [{ value: "everyone" as const, label: "Everyone" }]),
+  // Host: Individual (one host) or Dynamic (reps and rules) ---------------------------------------------------------
+  const facts = useRoutingFacts(session, ws.id);
+  const dyn = s.dynamic;
+  const dynamic = !!dyn;
+  const legacyTeam = teamOf(s);
+  const destValue = (d: Dest) => `${d.kind === "user" ? "u" : "t"}:${d.id}`;
+  const destFrom = (v: string): Dest => (v.startsWith("t:") ? { kind: "team", id: v.slice(2) } : { kind: "user", id: v.slice(2) });
+  const destOptions = [
+    ...facts.teams.filter((t) => t.keys.length).map((t) => ({ value: `t:${t.keys[0]}`, label: t.name, hint: "Take turns", group: "Teams" })),
+    ...draft.hosts.map((h) => ({ value: `u:${h.user_id}`, label: nameOf(h.user_id), group: "Reps" })),
   ];
+  const firstField = usable(facts.fields).find((f) => f.key === "lead.country") ?? usable(facts.fields)[0];
   const withoutTeam = (x: TypeSettings): TypeSettings => {
-    const { team: _t, ...rest } = x as TypeSettings & { team?: string };
+    const { team: _t, dynamic: _d, ...rest } = x as TypeSettings & { team?: string };
     void _t;
+    void _d;
     return rest;
   };
-  const membersOf = (q: Queue): Host[] => q.members.filter((m) => data.byId.has(m.user)).map((m) => ({ user_id: m.user, weight: Math.min(10, Math.max(1, Math.round(m.weight || 1))), tier: 0 }));
-  const pickTeam = (q: Queue) => setDraft((d) => ({ ...d, kind: d.kind === "owner_first" ? "owner_first" : "round_robin", hosts: membersOf(q).length ? membersOf(q) : d.hosts, settings: { ...d.settings, team: q.id } as TypeSettings }));
-  const setMode = (m: HostMode) =>
+  const setDyn = (d: Dynamic) => setDraft((x) => ({ ...x, settings: { ...x.settings, dynamic: d } }));
+  const setType = (m: "one" | "dynamic") =>
     setDraft((d) => {
       const first = d.hosts[0]?.user_id ?? d.owner_user_id ?? me;
       if (m === "one") return { ...d, kind: d.kind === "group" ? "group" : "one", hosts: [{ user_id: first }], settings: withoutTeam(d.settings) };
-      if (m === "everyone") return { ...d, kind: "collective", hosts: d.hosts.map((h) => ({ user_id: h.user_id })), settings: withoutTeam(d.settings) };
-      const q = data.queues.find((x) => x.id === teamOf(d.settings)) ?? data.queues[0];
-      return q ? { ...d, kind: "round_robin", hosts: membersOf(q).length ? membersOf(q) : d.hosts, settings: { ...d.settings, team: q.id } as TypeSettings } : { ...d, kind: "round_robin" };
+      const teamKey = legacyTeam ?? facts.teams.find((t) => t.keys.length)?.keys[0];
+      const otherwise: Dest = teamKey ? { kind: "team", id: teamKey } : { kind: "user", id: first };
+      return { ...d, kind: "round_robin", hosts: d.hosts.length ? d.hosts.map((h) => ({ user_id: h.user_id })) : [{ user_id: first }], settings: { ...withoutTeam(d.settings), dynamic: { rules: [], otherwise } } };
     });
-  const hostSummary =
-    mode === "one"
-      ? draft.hosts[0]
-        ? `${nameOf(draft.hosts[0].user_id)}${draft.hosts[0].user_id === me ? " (you)" : ""}`
-        : "Pick a host"
-      : mode === "team"
-        ? queue
-          ? `${queue.name}, ${METHOD_WORDS[queue.method].toLowerCase()}`
-          : team
-            ? "Routing team"
-            : `${KIND_WORDS[draft.kind]}, ${draft.hosts.length} ${draft.hosts.length === 1 ? "host" : "hosts"}`
-        : `Everyone, ${draft.hosts.length} hosts`;
+  const destWords = (x: Dest | null) => (!x ? "nobody" : x.kind === "user" ? nameOf(x.id) : (facts.teams.find((t) => t.keys.includes(x.id))?.name ?? "a removed team"));
+  const hostSummary = dynamic
+    ? `${draft.hosts.length} ${draft.hosts.length === 1 ? "rep" : "reps"}, ${dyn!.rules.length} ${dyn!.rules.length === 1 ? "rule" : "rules"}, otherwise ${destWords(dyn!.otherwise)}`
+    : draft.hosts[0]
+      ? `${nameOf(draft.hosts[0].user_id)}${draft.hosts[0].user_id === me ? " (you)" : ""}`
+      : "Pick a host";
   const others = data.people.filter((p) => !draft.hosts.some((h) => h.user_id === p.id));
 
   // Availability ---------------------------------------------------------------------------------------------------
   const schedules = [...new Set(data.named.filter((n) => draft.hosts.some((h) => h.user_id === n.user_id)).map((n) => n.name))].sort();
   const hours = hoursOf(draft.hosts[0]?.user_id, s.schedule, data);
   const today = new Date().toLocaleDateString("en-CA");
-  const kindWord = team ? "Routing team" : draft.kind === "collective" ? "Everyone" : KIND_WORDS[draft.kind];
+  const kindWord = dynamic ? "Dynamic" : draft.kind === "one" || draft.kind === "group" ? "Individual" : KIND_WORDS[draft.kind];
 
   return (
     <aside aria-label="Meeting type" className="anim-panel absolute inset-y-0 right-0 z-20 flex w-full flex-col border-l border-line bg-card shadow-[-12px_0_32px_-16px_var(--color-scrim)] md:w-[400px]">
@@ -369,37 +372,18 @@ export function TypePanel({
           <TextLink onClick={() => navigate("scheduling", "availability")}>Edit hours</TextLink>
         </PanelSection>
 
-        <PanelSection icon={<Users />} title="Host" summary={hostSummary} open={open === "host"} onToggle={() => toggle("host")} locked={copy}>
-          <Segmented<HostMode> size="sm" label="Who hosts" value={mode} options={modes} onChange={setMode} />
-          {mode === "team" ? (
-            data.queues.length ? (
-              <>
-                <div className="flex flex-wrap gap-1.5">
-                  {data.queues.map((q) => (
-                    <Chip key={q.id} on={q.id === team} onClick={() => pickTeam(q)}>
-                      <Users size={13} />
-                      {q.name}
-                    </Chip>
-                  ))}
-                </div>
-                {queue ? (
-                  <div className="flex items-center gap-2 rounded-lg border border-line bg-paper px-2.5 py-2 text-[12.5px]">
-                    <span className="flex size-6 shrink-0 items-center justify-center rounded-md bg-ink text-paper">
-                      <Bolt size={12} />
-                    </span>
-                    <span className="min-w-0 flex-1 text-body">Routing picks the rep, {METHOD_WORDS[queue.method].toLowerCase()}</span>
-                    <TextLink onClick={() => navigate("routing", "teams")}>Edit in Routing</TextLink>
-                  </div>
-                ) : null}
-              </>
-            ) : (
-              <div className="flex items-center gap-2 text-[12.5px] text-muted">
-                <span className="flex-1">No Routing teams yet</span>
-                <TextLink onClick={() => navigate("routing", "teams")}>Open Routing</TextLink>
-              </div>
-            )
-          ) : null}
-          {mode === "one" && !personal ? (
+        <PanelSection icon={dynamic ? <Bolt /> : <Users />} title={dynamic ? "Dynamic" : "Individual"} summary={hostSummary} open={open === "host"} onToggle={() => toggle("host")} locked={copy}>
+          <Segmented<"one" | "dynamic">
+            size="sm"
+            label="Meeting type"
+            value={dynamic ? "dynamic" : "one"}
+            options={[
+              { value: "one", label: "Individual" },
+              { value: "dynamic", label: "Dynamic" },
+            ]}
+            onChange={setType}
+          />
+          {!dynamic ? (
             <Select<string>
               value={draft.hosts[0]?.user_id ?? ""}
               options={data.people.map((p) => ({ value: p.id, label: p.name }))}
@@ -408,44 +392,68 @@ export function TypePanel({
               placeholder="Pick a host"
               className="h-[34px] w-full rounded-sm border border-line-strong bg-card px-2.5 text-[13px] text-ink"
             />
-          ) : null}
-          <ul className="flex flex-col gap-2">
-            {(mode === "team" && queue ? membersOf(queue).map((h) => h.user_id) : draft.hosts.map((h) => h.user_id)).map((id) => {
-              const st = data.status.get(id);
-              const off = nextOff(st?.out, today);
-              return (
-                <li key={id} className="flex items-center gap-2.5 text-[12.5px]">
-                  <PersonAvatar person={data.byId.get(id)} label={id} size={26} />
-                  <span className="min-w-0 flex-1 truncate text-ink">{nameOf(id)}</span>
-                  {!st?.cal ? (
-                    <Badge tone="amber">No calendar</Badge>
-                  ) : off ? (
-                    <Badge>{offWords(off)}</Badge>
-                  ) : (
-                    <Badge tone="green" dot>
-                      Calendar
-                    </Badge>
-                  )}
-                  {mode === "everyone" ? (
-                    <IconButton label={`Remove ${nameOf(id)}`} className="size-7" onClick={() => set({ hosts: draft.hosts.filter((h) => h.user_id !== id) })}>
-                      <X size={12} />
-                    </IconButton>
+          ) : (
+            <>
+              <Labeled label="Reps">
+                <ul className="flex flex-col gap-2">
+                  {draft.hosts.map((h) => {
+                    const st = data.status.get(h.user_id);
+                    const off = nextOff(st?.out, today);
+                    return (
+                      <li key={h.user_id} className="flex items-center gap-2.5 text-[12.5px]">
+                        <PersonAvatar person={data.byId.get(h.user_id)} label={h.user_id} size={26} />
+                        <span className="min-w-0 flex-1 truncate text-ink">{nameOf(h.user_id)}</span>
+                        {!st?.cal ? <Badge tone="amber">No calendar</Badge> : off ? <Badge>{offWords(off)}</Badge> : null}
+                        {draft.hosts.length > 1 ? (
+                          <IconButton label={`Remove ${nameOf(h.user_id)}`} className="size-7" onClick={() => set({ hosts: draft.hosts.filter((x) => x.user_id !== h.user_id) })}>
+                            <X size={12} />
+                          </IconButton>
+                        ) : null}
+                      </li>
+                    );
+                  })}
+                </ul>
+                {others.length ? (
+                  <Select<string>
+                    value=""
+                    options={others.map((p) => ({ value: p.id, label: p.name }))}
+                    onChange={(v) => set({ hosts: [...draft.hosts, { user_id: v }] })}
+                    ariaLabel="Add rep"
+                    placeholder="Add rep"
+                    plainPlaceholder
+                    className="h-8 self-start rounded-full border border-dashed border-line-strong px-3 text-[12.5px] font-medium text-body hover:text-ink"
+                  />
+                ) : null}
+              </Labeled>
+              <Labeled label="Routing">
+                <div className="flex flex-col gap-2">
+                  {dyn!.rules.map((rule, i) => (
+                    <div key={rule.id} className="flex flex-col gap-2 rounded-[10px] border border-line p-2.5">
+                      <ConditionRows conds={rule.conds} fields={facts.fields} onChange={(conds) => setDyn({ ...dyn!, rules: dyn!.rules.map((x, n) => (n === i ? { ...x, conds } : x)) })} />
+                      <div className="flex items-center gap-2 pl-[35px]">
+                        <Arrow className="text-ink" />
+                        <Select<string> value={destValue(rule.to)} options={destOptions} onChange={(v) => setDyn({ ...dyn!, rules: dyn!.rules.map((x, n) => (n === i ? { ...x, to: destFrom(v) } : x)) })} ariaLabel="Then" className="h-[30px] min-w-0 flex-1 rounded-sm border border-line-strong bg-card px-2.5 text-[12.5px] text-ink" />
+                        <IconButton label="Delete rule" className="size-7" onClick={() => setDyn({ ...dyn!, rules: dyn!.rules.filter((_, n) => n !== i) })}>
+                          <X size={12} />
+                        </IconButton>
+                      </div>
+                    </div>
+                  ))}
+                  <div className="flex items-center gap-2 rounded-[10px] border border-line p-2.5">
+                    <span className="text-[12.5px] font-semibold text-ink">Otherwise</span>
+                    <Arrow className="text-ink" />
+                    <Select<string> value={dyn!.otherwise ? destValue(dyn!.otherwise) : ""} options={destOptions} placeholder="Pick who" onChange={(v) => setDyn({ ...dyn!, otherwise: destFrom(v) })} ariaLabel="Otherwise" className="h-[30px] min-w-0 flex-1 rounded-sm border border-line-strong bg-card px-2.5 text-[12.5px] text-ink" />
+                  </div>
+                  {firstField ? (
+                    <button type="button" className="inline-flex h-7 items-center gap-1.5 self-start rounded-full border border-line px-2.5 text-[12px] text-body hover:border-line-strong hover:text-ink" onClick={() => setDyn({ ...dyn!, rules: [...dyn!.rules, { id: newRowId("m"), conds: [blankCond(firstField)], to: dyn!.otherwise ?? { kind: "user", id: draft.hosts[0]?.user_id ?? me } }] })}>
+                      <Plus size={12} />
+                      Add rule
+                    </button>
                   ) : null}
-                </li>
-              );
-            })}
-          </ul>
-          {mode === "everyone" && others.length ? (
-            <Select<string>
-              value=""
-              options={others.map((p) => ({ value: p.id, label: p.name }))}
-              onChange={(v) => set({ hosts: [...draft.hosts, { user_id: v }] })}
-              ariaLabel="Add host"
-              placeholder="Add host"
-              plainPlaceholder
-              className="h-8 self-start rounded-full border border-dashed border-line-strong px-3 text-[12.5px] font-medium text-body hover:text-ink"
-            />
-          ) : null}
+                </div>
+              </Labeled>
+            </>
+          )}
         </PanelSection>
 
         <PanelSection icon={<Hourglass />} title="Limits and buffers" summary={limitsWords(s)} open={open === "limits"} onToggle={() => toggle("limits")} locked={isLocked("bufferBefore", "bufferAfter", "notice", "window", "perDay")}>

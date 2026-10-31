@@ -47,6 +47,7 @@ export const SPAM_WORDS: Record<string, string> = {
   site: "Not on your site list",
   rate: "Over the hourly limit",
   throwaway: "Throwaway email",
+  routing: "Failed the spam check",
 };
 const SPAM_WHY: Record<string, string> = {
   trap: "It filled a box people never see.",
@@ -56,13 +57,14 @@ const SPAM_WHY: Record<string, string> = {
   site: "It came from a site that isn't on the form's list.",
   rate: "The form took more fills than its hourly limit.",
   throwaway: "The email is a throwaway inbox.",
+  routing: "It failed the spam check before routing.",
 };
 
 const slot = (iso: string) => new Date(iso).toLocaleString("en-US", { weekday: "short", hour: "2-digit", minute: "2-digit", hour12: false });
 
-export function Submissions(props: ViewProps & { form: Form; formId: string; dests: Destination[]; sources: SourceRow[]; onFix: (fieldId: string) => void }) {
+export function Submissions(props: ViewProps & { form: Form; formId: string; dests: Destination[]; sources: SourceRow[]; onFix: (fieldId: string) => void; start?: View }) {
   const { sb, session, ws, form, formId, dests, sources, navigate } = props;
-  const [view, setView] = useState<View>("leads");
+  const [view, setView] = useState<View>(props.start ?? "leads");
   const [text, setText] = useState("");
   const [q, setQ] = useState("");
   const [range, setRange] = useState("30");
@@ -216,10 +218,14 @@ export function Submissions(props: ViewProps & { form: Form; formId: string; des
           async () => {
             if (spam) must(await sb.rpc("submissions_mark_spam", { p_ids: list.map((r) => r.id), p_spam: true }));
             else {
-              must(await sb.rpc("submissions_mark_spam", { p_ids: list.filter((r) => r.contact_id).map((r) => r.id), p_spam: false }));
-              const held = list.filter((r) => !r.contact_id).map((r) => r.id);
-              if (held.length) {
-                const r = await postJson<{ released: number; errors: Record<string, string> }>(session, "/api/forms/release", { workspaceId: ws.id, ids: held });
+              // A lead from before (marked by hand) only leaves Spam. A fill with no lead yet, or one the routing spam
+              // check caught, goes through the server: it becomes a lead and is routed.
+              const server = (r: Fill) => !r.contact_id || r.spam_reason === "routing";
+              const marked = list.filter((r) => !server(r)).map((r) => r.id);
+              if (marked.length) must(await sb.rpc("submissions_mark_spam", { p_ids: marked, p_spam: false }));
+              const rest = list.filter(server).map((r) => r.id);
+              if (rest.length) {
+                const r = await postJson<{ released: number; errors: Record<string, string> }>(session, "/api/forms/release", { workspaceId: ws.id, ids: rest });
                 const first = Object.values(r.errors)[0];
                 if (first) throw new Error(first);
               }
@@ -268,7 +274,7 @@ export function Submissions(props: ViewProps & { form: Form; formId: string; des
   ];
   const openRow = rows?.find((r) => r.id === open) ?? null;
   const all = rows ?? [];
-  const head = view === "spam" ? ["Sent", "Name", "Why held", "From"] : ["Sent", "Name", ...(hasCompany ? ["Company"] : []), ...shownCols.map((c) => c.label), "Rep", "Meeting", "Sync"];
+  const head = view === "spam" ? ["Sent", "Name", "Why", "From"] : ["Sent", "Name", ...(hasCompany ? ["Company"] : []), ...shownCols.map((c) => c.label), "Rep", "Meeting", "Sync"];
   const leftLabel = (id: string | null) => (id ? (fields.find((x) => x.id === id)?.label || "A question that's gone") : "Before the first question");
 
   return (
@@ -589,8 +595,8 @@ function RowPanel({ s, form, name, rep, dests, destName, destLogo, onClose, onCo
           ))}
         </PanelSection>
         {s.spam ? (
-          <PanelSection icon={<Ic n="shield" />} title="Why it was held" summary={SPAM_WORDS[s.spam_reason ?? ""] ?? "Spam"} open={open === "why"} onToggle={() => toggle("why")}>
-            <p className="m-0 text-muted">{`${SPAM_WHY[s.spam_reason ?? ""] ?? "It looked like spam."} Held fills don't make contacts, alerts or emails.`}</p>
+          <PanelSection icon={<Ic n="shield" />} title="Why it's spam" summary={SPAM_WORDS[s.spam_reason ?? ""] ?? "Spam"} open={open === "why"} onToggle={() => toggle("why")}>
+            <p className="m-0 text-muted">{SPAM_WHY[s.spam_reason ?? ""] ?? "It looked like spam."}</p>
             <button type="button" className={`${GHOST_SM} self-start`} onClick={() => onSpam(false)}>
               Not spam, let it in
             </button>

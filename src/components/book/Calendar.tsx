@@ -39,6 +39,8 @@ export type BookingCalendarProps = {
   onBooked?: (r: Booked) => void;
   /** Shown above the times (e.g. a meeting being moved). */
   banner?: React.ReactNode;
+  /** Shown in place of the times until it's done (a Dynamic meeting's questions). */
+  before?: React.ReactNode;
 };
 
 const fmt = (o: Intl.DateTimeFormatOptions) => {
@@ -182,7 +184,9 @@ export function Calendar(p: BookingCalendarProps) {
     <div className="cb-grid">
       <Info type={p.type} logo={p.logo} length={length} picked={time !== null ? { start: time, tz, hour12, length } : null} />
       <div className="cb-main">
-        {step === "details" && time !== null ? (
+        {p.before ? (
+          p.before
+        ) : step === "details" && time !== null ? (
           <Details
             key="details"
             type={p.type}

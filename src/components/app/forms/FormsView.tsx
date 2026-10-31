@@ -22,7 +22,7 @@ import { Menu } from "./Menu";
 import { BTN, Dialog, DialogHead, EYEBROW, GHOST, GHOST_SM, IB, useNote } from "./parts";
 import { PreviewOverlay } from "./PreviewOverlay";
 import { Setup, type SetupSub } from "./Setup";
-import { useFormRouting } from "./useFormRouting";
+import { useRoutingFacts } from "./formRouting";
 import { Share } from "./Share";
 import type { Destination, FormRow, Kit, SourceRow } from "./shared";
 import { Submissions } from "./Submissions";
@@ -125,6 +125,7 @@ function Editor(props: ViewProps & { data: FormData; reload: () => void; patchRo
   const [dialog, setDialog] = useState<"publish" | "versions" | null>(null);
   const [menu, setMenu] = useState<HTMLElement | null>(null);
   const [preview, setPreview] = useState(false);
+  const [subsView, setSubsView] = useState<"leads" | "spam">("leads");
   // A form just made from a description says so once.
   const [said, setSaid] = useState<{ words: string; undo?: boolean; err?: boolean } | null>(() => {
     try {
@@ -145,7 +146,7 @@ function Editor(props: ViewProps & { data: FormData; reload: () => void; patchRo
   const crm = useCrm(data.sources, session, ws.id);
   const live = useLiveBody(sb, ws.id);
   const kit = data.kits.find((k) => k.id === kitId) ?? null;
-  const formRouting = useFormRouting(session, ws.id, row.id, name, { book: !!form.after.schedule, meeting: form.after.schedule?.meetingTypeId ?? null });
+  const facts = useRoutingFacts(session, ws.id);
   // While the site is being read, check back every 2 seconds so the form takes the brand as soon as it's ready.
   const scanning = data.kits.some((k) => k.scan_status === "scanning");
   useEffect(() => {
@@ -235,8 +236,7 @@ function Editor(props: ViewProps & { data: FormData; reload: () => void; patchRo
     history.replaceState(null, "", u);
     if (!data.types.some((t) => t.id === use)) return;
     const cur = latest.current.after;
-    apply([...(cur.end.kind === "redirect" ? [{ op: "set_after" as const, end: { kind: "message" as const, title: "Thanks, we got it." } }] : []), { op: "set_schedule", schedule: { ...(cur.schedule ?? {}), tool: "claritia", url: "", perOwner: false, meetingTypeId: use } }], "Books this meeting now");
-    void formRouting.stage(true, use);
+    apply([...(cur.end.kind === "redirect" ? [{ op: "set_after" as const, end: { kind: "message" as const, title: "Thanks, we got it." } }] : []), { op: "set_schedule", schedule: { ...(cur.schedule ?? {}), tool: "claritia", url: "", perOwner: false, meetingTypeId: use, routes: cur.schedule?.routes ?? [] } }], "Books this meeting now");
     // Once, when the form opens.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -295,7 +295,7 @@ function Editor(props: ViewProps & { data: FormData; reload: () => void; patchRo
 
   const checked = useMemo(() => checkForm(form, { custom }), [form, custom]);
   const isLive = row.status === "live";
-  const changed = !data.published || JSON.stringify("form" in checked ? checked.form : form) !== JSON.stringify(data.published) || formRouting.changed;
+  const changed = !data.published || JSON.stringify("form" in checked ? checked.form : form) !== JSON.stringify(data.published);
   const issueCtx = useMemo(() => ({ custom, crm: crm.ctx }), [custom, crm.ctx]);
   const failedWeek = Object.values(data.failed).reduce((a, b) => a + b, 0);
 
@@ -321,16 +321,11 @@ function Editor(props: ViewProps & { data: FormData; reload: () => void; patchRo
       if (!(await save())) throw new Error("The draft didn't save. Try again.");
       // The brand's styles go live with the form, so the published form looks like the one in Build.
       if (kit && JSON.stringify(kit.design ?? null) !== JSON.stringify(kit.design_live ?? null)) must(await sb.rpc("brand_kit_design_publish", { p_id: kit.id }));
-      await postJson(session, "/api/forms/publish", { workspaceId: ws.id, id: row.id });
-      // The If → Then list goes live with the form.
-      try {
-        await formRouting.publish();
-      } catch (e) {
-        setDialog(null);
-        reload();
-        setError(`The form is live. ${errorText(e)}`);
-        return;
-      }
+      // The form's routing goes live with it, on the server: compiled with its meetings into the form's routing policy.
+      const { routing } = await postJson<{ routing?: { problems: string[]; error?: string } }>(session, "/api/forms/publish", { workspaceId: ws.id, id: row.id });
+      if (routing?.error) setError(`The form is live. ${routing.error}`);
+      else if (routing?.problems.length) setError(`The form is live. Routing left out: ${routing.problems.join(", ")}.`);
+      invalidate(`routing_screen:${ws.id}`);
       setDialog(null);
       reload();
       invalidate(`forms:${ws.id}`);
@@ -531,7 +526,7 @@ function Editor(props: ViewProps & { data: FormData; reload: () => void; patchRo
             onCustom={(c) => setCustom((x) => [...x, c])}
             crm={crm}
             routing={live.data?.body ?? null}
-            formRouting={formRouting}
+            facts={facts}
             formId={row.id}
             reloadTypes={reload}
             kit={kit}
@@ -557,13 +552,13 @@ function Editor(props: ViewProps & { data: FormData; reload: () => void; patchRo
             onSettings={openSetup}
           />
         ) : tab === "submissions" ? (
-          <Submissions {...props} form={form} formId={row.id} dests={data.dests} sources={data.sources} onFix={(qid) => goto(qid)} />
+          <Submissions key={subsView} {...props} form={form} formId={row.id} dests={data.dests} sources={data.sources} onFix={(qid) => goto(qid)} start={subsView} />
         ) : tab === "share" ? (
           <Share {...props} form={form} row={row} apply={apply} kit={kit} site={data.site} />
         ) : tab === "sync" ? (
           <Sync {...props} form={form} formId={row.id} dests={data.dests} sources={data.sources} crm={crm} failed={data.failed} reload={reload} patchDests={patchDests} onFix={(qid) => goto(qid)} issueCtx={issueCtx} />
         ) : (
-          <Setup {...props} form={form} apply={apply} sub={sub} setSub={setSub} formId={row.id} types={data.types} routing={live.data?.body ?? null} onReview={() => setTab("submissions")} subs={data.subs} name={name} />
+          <Setup {...props} form={form} apply={apply} sub={sub} setSub={setSub} formId={row.id} types={data.types} routing={live.data?.body ?? null} onReview={() => (setSubsView("spam"), setTab("submissions"))} subs={data.subs} name={name} />
         )}
       </div>
       {dialog === "publish" ? <PublishDialog checks={checks} live={!!row.version} onClose={() => setDialog(null)} onPublish={() => void publish()} onFix={(qid) => goto(qid)} error={error} /> : null}

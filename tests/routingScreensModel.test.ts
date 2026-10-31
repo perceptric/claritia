@@ -133,7 +133,7 @@ test("the publish review's changes: moves, adds, removes, renames, Everyone else
   assert.deepEqual(out, [
     "Renamed to Inbound EU",
     "Contact sales: disconnects",
-    "Spam is no longer held",
+    "Spam check turned off",
     "Contact owner is kept first",
     "Moved US big to position 2",
     "Renamed rule US enterprise to US big",
@@ -159,7 +159,7 @@ test("the tester's trace in words: seven stages, later rules faint, retention, r
   assert.equal(kept[2]!.v[1]!.t, "Contact owner Vincent Nguyen: selected");
   assert.equal(kept[5]!.v[0]!.t, "Would retain Vincent Nguyen. No new quota, no team turn");
   const held = traceWords(evaluate(b, maya({ lead: { ...maya().lead, disposable: true } })).trace, { names, fields: BASE_FIELDS, reviewer: VIN, test: true });
-  assert.equal(held[1]!.v[0]!.t, "Held as suspected spam");
+  assert.equal(held[1]!.v[0]!.t, "Sent to Spam");
   assert.equal(held[5]!.v[0]!.t, "No new assignment; needs review by Vincent Nguyen");
   const real = traceWords(ev.trace, { names, fields: BASE_FIELDS, reviewer: VIN, test: false });
   assert.equal(real[5]!.v[0]!.t, "Assigned to Ana Silva. Quota +1, team turn advances", "a real run never says Would");

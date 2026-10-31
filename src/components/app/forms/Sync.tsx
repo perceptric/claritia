@@ -119,7 +119,7 @@ function Start({ logo, name, button, onClick, busy = false }: { logo: React.Reac
   );
 }
 
-function ClaritiaPane({ navigate }: Props) {
+function ClaritiaPane({ navigate, formId }: Props) {
   return (
     <>
       <H3>Claritia CRM</H3>
@@ -134,9 +134,9 @@ function ClaritiaPane({ navigate }: Props) {
           <Badge>No company</Badge>
         </div>
         <div className={CROW}>
-          <RowText title="Then" sub="Routing picks the rep, Scoring scores the lead" />
-          <button type="button" className={LINK} onClick={() => navigate("routing")}>
-            Open Routing
+          <RowText title="Then" sub="On Submission picks the meeting and the rep, Scoring scores the lead" />
+          <button type="button" className={LINK} onClick={() => navigate("forms", formId, "open=submission")}>
+            Open On Submission
           </button>
         </div>
       </div>

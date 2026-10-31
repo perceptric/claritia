@@ -59,3 +59,36 @@ test("a form's own meeting keeps the form it belongs to; anything else in that p
     assert.equal("form" in r.type.settings, false, `dropped: ${JSON.stringify(bad)}`);
   }
 });
+
+test("a Dynamic meeting keeps checked rules: bad destinations, ids and conditions are dropped", () => {
+  const members = new Set([A]);
+  const r = checkType(
+    {
+      name: "Sales demo",
+      slug: "sales-demo",
+      kind: "round_robin",
+      hosts: [{ user_id: A }],
+      settings: {
+        dynamic: {
+          rules: [
+            { id: "uk", conds: [{ field: "lead.country", op: "is", value: "GB" }, { field: "not a field", op: "is", value: "x" }], to: { kind: "user", id: A } },
+            { id: "big", conds: [{ field: "company.employees", op: "gte", value: 1000 }], to: { kind: "team", id: "q_ent" } },
+            { id: "bad", conds: [], to: { kind: "user", id: "nobody" } },
+            { id: "bad team", conds: [], to: { kind: "team", id: "a team; drop" } },
+            { id: "x".repeat(40), conds: [], to: { kind: "user", id: A } },
+          ],
+          otherwise: { kind: "team", id: "q_sales" },
+        },
+      },
+    },
+    members,
+  );
+  assert.ok("type" in r);
+  const d = r.type.settings.dynamic!;
+  assert.deepEqual(d.rules.map((x) => x.id), ["uk", "big"]);
+  assert.deepEqual(d.rules[0]!.conds, [{ field: "lead.country", op: "is", value: "GB" }]);
+  assert.deepEqual(d.otherwise, { kind: "team", id: "q_sales" });
+  const plain = checkType({ name: "Intro call", slug: "intro-call", kind: "one", hosts: [{ user_id: A }], settings: { dynamic: "yes" } }, members);
+  assert.ok("type" in plain);
+  assert.equal("dynamic" in plain.type.settings, false, "an Individual meeting stays Individual");
+});

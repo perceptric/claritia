@@ -3,6 +3,8 @@
 
 import { validZone } from "./time.ts";
 import { DAYS, DEFAULT_SETTINGS, KINDS, type Availability, type Host, type Kind, type Location, type MeetingType, type Range, type TypeSettings } from "./types.ts";
+import { cleanCondition } from "../router/check.ts";
+import type { Dest, Dynamic, DynamicRule } from "../routing/compile.ts";
 
 const CLOCK = /^([01]\d|2[0-3]):[0-5]\d$|^24:00$/;
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
@@ -138,9 +140,33 @@ export function checkSettings(raw: unknown, kind: Kind): { settings: TypeSetting
     ...(str(r.schedule, 60) ? { schedule: str(r.schedule, 60) } : {}),
     ...((kind === "round_robin" || kind === "owner_first") && typeof r.team === "string" && /^[a-z0-9_-]{1,40}$/i.test(r.team) ? { team: r.team } : {}),
     ...(typeof r.form === "string" && UUID.test(r.form) ? { form: r.form } : {}),
+    ...(cleanDynamic(r.dynamic) ? { dynamic: cleanDynamic(r.dynamic)! } : {}),
     questions,
   };
   return { settings, errors };
+}
+
+/**
+ * A Dynamic meeting's routing (docs/on-submission.md): rules of checked conditions, each to one member or a team key,
+ * and Otherwise. A rule with a bad destination is dropped; its conditions go through the router's own check.
+ */
+function cleanDynamic(raw: unknown): Dynamic | null {
+  if (!raw || typeof raw !== "object") return null;
+  const r = raw as Record<string, unknown>;
+  const dest = (d: unknown): Dest | null => {
+    const o = (d && typeof d === "object" ? d : {}) as Record<string, unknown>;
+    if (o.kind === "user" && typeof o.id === "string" && UUID.test(o.id)) return { kind: "user", id: o.id };
+    if (o.kind === "team" && typeof o.id === "string" && /^[a-z0-9_-]{1,40}$/i.test(o.id)) return { kind: "team", id: o.id };
+    return null;
+  };
+  const rules: DynamicRule[] = [];
+  for (const x of (Array.isArray(r.rules) ? r.rules : []).slice(0, 30)) {
+    const o = (x && typeof x === "object" ? x : {}) as Record<string, unknown>;
+    const to = dest(o.to);
+    if (!to || typeof o.id !== "string" || !/^[\w-]{1,24}$/.test(o.id)) continue;
+    rules.push({ id: o.id, to, conds: (Array.isArray(o.conds) ? o.conds : []).slice(0, 10).map(cleanCondition).filter((c): c is NonNullable<typeof c> => !!c) });
+  }
+  return { rules, otherwise: dest(r.otherwise) };
 }
 
 /** A meeting type as saved: name, slug, kind, hosts and settings, with the rules each kind needs. */
