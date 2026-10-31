@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { appShellPath } from "./lib/appPaths";
 
 // One app on two domains: the marketing site on tryclaritia.com and the app on app.tryclaritia.com.
 // Any other host (localhost, the onrender.com address) serves every page, so nothing changes there.
@@ -19,6 +20,9 @@ export function proxy(request: NextRequest) {
   if (host === SITE && !MARKETING.has(pathname) && !SHARED(pathname)) return go(APP, pathname);
   // The app opens on Forms. Temporary (307), so a browser never keeps the start page.
   if (host === APP && (pathname === "/" || pathname === "/start")) return NextResponse.redirect(`https://${APP}/forms${search}`, 307);
+  // A form's own page (/forms/<id>) would be caught by the form script's route: show the app there instead.
+  const shell = appShellPath(pathname);
+  if (shell) return NextResponse.rewrite(new URL(`${shell}${search}`, request.url));
   return NextResponse.next();
 }
 
