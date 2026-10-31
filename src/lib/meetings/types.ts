@@ -90,6 +90,11 @@ export type TypeSettings = {
    * takes the queue's turn (src/lib/meetings/team.ts); `hosts` keeps the last members seen, for when the router is down.
    */
   team?: string;
+  /**
+   * A form's own meeting (docs/on-submission.md): the form it belongs to. It's set up in the form's On Submission,
+   * kept off booking pages (secret) and listed under "In forms" in Meetings, not with the standalone meetings.
+   */
+  form?: string;
   /** Extra questions on the booking page: the form studio's fields. */
   questions: { id: string; label: string; type: "text" | "textarea" | "phone" | "choice"; required: boolean; options?: string[] }[];
 };

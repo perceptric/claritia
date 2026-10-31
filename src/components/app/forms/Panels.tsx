@@ -21,8 +21,7 @@ import { Eyebrow, Labeled, PanelFooter, PanelSection, TextLink } from "../schedu
 import type { BuildProps } from "./Build";
 import { autoMap, choiceRows, claritiaDests, crmDests, earlierChoices, isChoiceKind, issuesOf, kindInfo, kindOf, kindPatch, KINDS, known, knownOp, paramOf, questionsOf, rulesReading, saveName, showOps, showRules, splitNameOps, submissionKey, type Q } from "./formModel";
 import { Ic } from "./ic";
-import { AREA, Box, Dd, GHOST_SM, IB, IN, IN_SM, Seg, type DdItem, Tg } from "./parts";
-import { RouteList, typeLabel } from "./routes";
+import { AREA, Box, Dd, Dots, GHOST_SM, IB, IN, IN_SM, Seg, type DdItem, Tg } from "./parts";
 
 /** The panel's frame: the eyebrow and title, its buttons, the sections that scroll, and the footer. */
 function Shell({ eyebrow, title, actions, footer, children, label }: { eyebrow: string; title: string; actions?: React.ReactNode; footer?: React.ReactNode; children: React.ReactNode; label: string }) {
@@ -507,6 +506,14 @@ function ConsentSection(p: BuildProps & { open: boolean; onToggle: () => void })
 // Nothing picked: the form ---------------------------------------------------------------------------------------------
 
 /** Kit colors offered as the accent: the kit's own, then the app's plain set, read from its tokens. */
+const host = (u: string | null | undefined) => {
+  try {
+    return u ? new URL(/^https?:\/\//.test(u) ? u : `https://${u}`).hostname.replace(/^www\./, "") : "";
+  } catch {
+    return "";
+  }
+};
+
 const SWATCHES = ["--color-ink", "--color-signal", "--color-sky", "--color-rose", "--color-butter"];
 const cornerOf = (r: number) => (r <= 3 ? "square" : r >= 16 ? "round" : "soft");
 const CORNERS = { square: { radius: 2, buttonRadius: 2 }, soft: { radius: 8, buttonRadius: 8 }, round: { radius: 20, buttonRadius: 60 } } as const;
@@ -517,7 +524,6 @@ export function FormPanel(p: BuildProps & { open: string | null; setOpen: (k: st
   const [error, setError] = useState("");
   const n = questionsOf(form).filter((q) => q.kind !== "heading" && q.kind !== "para").length;
   const steps = form.steps.length;
-  const s = form.after.schedule;
   const site = (() => {
     try {
       return p.site ? new URL(/^https?:\/\//.test(p.site) ? p.site : `https://${p.site}`).hostname.replace(/^www\./, "") : "";
@@ -543,7 +549,19 @@ export function FormPanel(p: BuildProps & { open: string | null; setOpen: (k: st
       setError(errorText(e));
     }
   };
-  const brandKit = kits.find((k) => k.scan_status === "done") ?? kits[0] ?? null;
+  // The kit to offer: one read from the site with real values, else one still being read. Never a failed or empty one.
+  const brandKit = kits.find((k) => k.scan_status === "done" && Object.keys(k.tokens ?? {}).length) ?? kits.find((k) => k.scan_status === "scanning") ?? null;
+  const [siteText, setSiteText] = useState("");
+  const scan = async (url: string) => {
+    setError("");
+    try {
+      const r = await postJson<{ kitId: string }>(session, "/api/forms/scan", { workspaceId: ws.id, url, kitId: kit?.id ?? null });
+      if (r.kitId !== kit?.id) p.setKit(r.kitId);
+      p.reloadKits();
+    } catch (e) {
+      setError(errorText(e));
+    }
+  };
   return (
     <Shell label="Form" eyebrow="Form" title={p.name}>
       <PanelSection icon={<Ic n="text" />} title="Content" summary={`${form.title || p.name}, button ${form.submit.label}`} open={open === "content"} onToggle={() => toggle("content")}>
@@ -638,63 +656,40 @@ export function FormPanel(p: BuildProps & { open: string | null; setOpen: (k: st
             </Labeled>
           </>
         ) : null}
-        {site ? (
+        {kit?.scan_status === "scanning" ? (
+          <span className="inline-flex items-center gap-[8px] text-[12.5px] text-muted">
+            <Dots />
+            {`Reading ${host(kit.source_url) || site}`}
+          </span>
+        ) : kit?.scan_status === "failed" ? (
+          <Box tone="bad" title={`Couldn't read ${host(kit.source_url) || site}`}>
+            {kit.scan_error ? <span>{kit.scan_error}</span> : null}
+            <button type="button" className={GHOST_SM} onClick={() => void scan(kit.source_url || site)}>
+              Read it again
+            </button>
+          </Box>
+        ) : site ? (
           <span className="text-[12px] text-muted">
             {`Read from ${site}. `}
-            <button
-              type="button"
-              className="text-[12.5px] font-medium text-ink underline decoration-line-strong underline-offset-[3px] hover:decoration-ink"
-              onClick={async () => {
-                setError("");
-                try {
-                  const r = await postJson<{ kitId: string }>(session, "/api/forms/scan", { workspaceId: ws.id, url: site, kitId: kit?.id ?? null });
-                  if (r.kitId !== kit?.id) p.setKit(r.kitId);
-                  p.reloadKits();
-                } catch (e) {
-                  setError(errorText(e));
-                }
-              }}
-            >
+            <button type="button" className="text-[12.5px] font-medium text-ink underline decoration-line-strong underline-offset-[3px] hover:decoration-ink" onClick={() => void scan(site)}>
               Read it again
             </button>
           </span>
-        ) : null}
-        {error ? <Box tone="bad" title={error} /> : null}
-      </PanelSection>
-      <PanelSection
-        icon={<Ic n="check" />}
-        title="After submit"
-        summary={s ? (s.tool === "claritia" ? (p.routes.on ? "Book a meeting, Routing decides" : `Book a meeting, ${typeLabel(p.types.find((t) => t.id === s.meetingTypeId))}`) : `Book a meeting, ${s.who === "routed" ? "for routed leads" : s.who === "match" ? "for leads that match" : "for everyone"}`) : form.after.end.kind === "redirect" ? "Goes to a page" : "Shows a message"}
-        open={open === "after"}
-        onToggle={() => toggle("after")}
-      >
-        {s?.tool === "claritia" ? (
-          <>
-            {p.routes.on ? (
-              <RouteList routes={{ ...p.routes, setPv: (id) => (p.routes.setPv(id), p.setStep(form.steps.length), p.setPick(null)) }} formType={s.meetingTypeId} />
-            ) : (
-              <Line label="Times are for">
-                <span className="text-muted">The meeting&apos;s hosts</span>
-              </Line>
-            )}
-            <div className="flex flex-wrap gap-[6px]">
-              <button type="button" className={GHOST_SM} onClick={p.routes.open}>
-                <Ic n="branch" s={12} />
-                {p.routes.on ? "Edit in Routing" : "Set up Routing"}
-              </button>
-              <button type="button" className={GHOST_SM} onClick={() => p.onSettings("after")}>
-                Edit in Settings
-              </button>
-            </div>
-          </>
         ) : (
-          <>
-            {s ? <p className="m-0 text-muted">{s.who === "routed" ? "Leads Routing sends to a rep pick a time with them. Others see the thank-you message." : "Leads pick a time after they send it."}</p> : null}
-            <button type="button" className={`${GHOST_SM} self-start`} onClick={() => p.onSettings("after")}>
-              Edit in Settings
+          <form
+            className="flex gap-[6px]"
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (siteText.trim()) void scan(siteText.trim());
+            }}
+          >
+            <input className={IN} aria-label="Your website" placeholder="yourcompany.com" value={siteText} onChange={(e) => setSiteText(e.target.value)} />
+            <button type="submit" className={GHOST_SM} disabled={!siteText.trim()}>
+              Read
             </button>
-          </>
+          </form>
         )}
+        {error ? <Box tone="bad" title={error} /> : null}
       </PanelSection>
     </Shell>
   );

@@ -131,7 +131,7 @@ export function TeamsTab({ session, ws, navigate, screen, teamId }: ViewProps & 
                 if (v === "accepting") void saveMember(u, { paused_until: "", out_dates: withoutToday(p.out_dates, localDate(Date.now())) }, "Saved");
                 else if (v === "paused") void saveMember(u, { paused_until: "infinity" }, `${p.name} is paused in every team`);
                 else if (v === "ooo" && anchor) setAway({ user: u, anchor });
-                else if (v === "hours") navigate("routing", u === d.me ? "teams/availability" : "teams/availability/team");
+                else if (v === "hours") navigate("scheduling", u === d.me ? "availability" : "availability/team");
               }}
               onCap={(u, cap) => void saveMember(u, { cap_day: cap }, "Saved")}
             />

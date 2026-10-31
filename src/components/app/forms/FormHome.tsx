@@ -377,7 +377,9 @@ function NewForm({ sb, session, ws, navigate, kits, onClose, start }: ViewProps 
   const [error, setError] = useState("");
   const started = useRef(false);
   const site = ctx.data?.site ?? "";
-  const kit = kits.find((k) => k.scan_status === "done" && site && host(k.source_url) === host(site)) ?? kits.find((k) => k.scan_status === "done") ?? null;
+  // A kit for this site, read or still being read, is used as is: another scan would only make a second kit.
+  const usable = (k: KitLite) => k.scan_status === "scanning" || (k.scan_status === "done" && Object.keys(k.tokens ?? {}).length > 0);
+  const kit = kits.find((k) => usable(k) && site && host(k.source_url) === host(site)) ?? kits.find((k) => k.scan_status === "done" && Object.keys(k.tokens ?? {}).length > 0) ?? null;
   const siteName = host(kit?.source_url) || host(site);
 
   const make = async (how: { text: string } | { starter: string }) => {
@@ -399,7 +401,7 @@ function NewForm({ sb, session, ws, navigate, kits, onClose, start }: ViewProps 
         kitId = r?.kitId ?? null;
       }
       await wait(120);
-      say(siteName ? `Read ${siteName} and took its look` : "Took Claritia's look");
+      say(kitId ? (kit?.scan_status === "done" ? `Took the look of ${siteName}` : `Reading ${siteName} for its look`) : "Took Claritia's look");
       let name: string;
       let form: Form;
       let sources: string[] = [];

@@ -32,7 +32,7 @@ test("the sidebar is Inbound, CRM and Nurture, then Settings, with at most five 
   assert.equal(defaultRoute, "contacts");
   assert.equal(new Set(NAV.map((n) => n.route)).size, NAV.length, "one item per route");
   assert.deepEqual(ROUTING_TABS.map((t) => t.label), ["Policies", "Teams", "Activity"]);
-  assert.deepEqual(SCHEDULING_TABS.map((t) => t.label), ["Meetings", "Upcoming", "Booking page", "Links and polls", "Settings"]);
+  assert.deepEqual(SCHEDULING_TABS.map((t) => t.label), ["Meetings", "Upcoming", "Availability", "Booking page", "Links and polls", "Settings"]);
   assert.equal(NAV.find((n) => n.route === "scheduling")?.label, "Meetings", "Calendar is now Meetings, at its old address");
 });
 
@@ -64,8 +64,8 @@ test("old addresses open their new home", () => {
   const id = "0b7c6a8e-1f2d-4c3b-9a8e-7d6c5b4a3f21";
   assert.deepEqual(resolveRoute("meetings", "types"), { route: "scheduling", id: "types" });
   assert.deepEqual(resolveRoute("meetings", `types/${id}`), { route: "scheduling", id: `types/${id}` });
-  assert.deepEqual(resolveRoute("settings", "calendar"), { route: "routing", id: "teams/availability/calendars" });
-  assert.deepEqual(resolveRoute("settings", "calendars"), { route: "routing", id: "teams/availability/team" });
+  assert.deepEqual(resolveRoute("settings", "calendar"), { route: "scheduling", id: "availability/calendars" });
+  assert.deepEqual(resolveRoute("settings", "calendars"), { route: "scheduling", id: "availability/team" });
   assert.deepEqual(resolveRoute("settings", "payments"), { route: "scheduling", id: "settings/payments" });
   assert.deepEqual(resolveRoute("settings", "lead_scoring"), { route: "scoring", id: "" });
   assert.deepEqual(resolveRoute("settings", "icp"), { route: "scoring", id: "ideal" });
@@ -79,18 +79,19 @@ test("Inbound's old addresses open their new home", () => {
   assert.deepEqual(resolveRoute("meetings", "nope"), { route: "scheduling", id: "upcoming" });
   assert.deepEqual(resolveRoute("meetings", id), { route: "meetings", id });
   assert.equal(activeItem("meetings")?.label, "Meetings", "one meeting lights Inbound › Meetings");
-  // Calendar (scheduling) keeps its address and tabs; Availability moved to Routing › Teams.
+  // Calendar (scheduling) keeps its address and tabs; Availability is a Meetings tab again (it was Routing › Teams').
   assert.deepEqual(resolveRoute("scheduling", "types"), { route: "scheduling", id: "types" });
-  assert.deepEqual(resolveRoute("scheduling", "availability"), { route: "routing", id: "teams/availability" });
-  assert.deepEqual(resolveRoute("scheduling", "availability/calendars"), { route: "routing", id: "teams/availability/calendars" });
-  assert.deepEqual(resolveRoute("scheduling", "availability/team"), { route: "routing", id: "teams/availability/team" });
-  assert.deepEqual(resolveRoute("scheduling", "availability/days-off"), { route: "routing", id: "teams/availability/days-off" });
-  assert.deepEqual(resolveRoute("availability", "team"), { route: "routing", id: "teams/availability/team" });
-  // The Reps page, then Routing › Sales reps, is Routing › Teams; its availability editor came with it.
+  assert.deepEqual(resolveRoute("scheduling", "availability"), { route: "scheduling", id: "availability" });
+  assert.deepEqual(schedulingPage("availability/calendars"), { page: "availability", sub: "calendars", id: "availability/calendars" });
+  assert.deepEqual(schedulingPage("availability/team"), { page: "availability", sub: "team", id: "availability/team" });
+  assert.deepEqual(schedulingPage("availability/nope"), { page: "availability", sub: "", id: "availability" });
+  assert.deepEqual(resolveRoute("availability", "team"), { route: "scheduling", id: "availability/team" });
+  assert.deepEqual(resolveRoute("routing", "teams/availability"), { route: "scheduling", id: "availability" });
+  assert.deepEqual(resolveRoute("routing", "teams/availability/days-off"), { route: "scheduling", id: "availability/days-off" });
+  // The Reps page, then Routing › Sales reps, is Routing › Teams; its availability editor is in Meetings.
   assert.deepEqual(resolveRoute("reps", ""), { route: "routing", id: "teams" });
-  assert.deepEqual(resolveRoute("reps", "availability"), { route: "routing", id: "teams/availability" });
-  assert.deepEqual(resolveRoute("reps", "availability/calendars"), { route: "routing", id: "teams/availability/calendars" });
-  assert.equal(routingPage(resolveRoute("reps", "availability/days-off").id).id, "teams/availability/days-off");
+  assert.deepEqual(resolveRoute("reps", "availability"), { route: "scheduling", id: "availability" });
+  assert.deepEqual(resolveRoute("reps", "availability/calendars"), { route: "scheduling", id: "availability/calendars" });
   assert.equal(routingPage(resolveRoute("reps", "nope").id).id, "teams");
   // Routing's old tabs forward inside Routing: Assignment to Policies, Sales reps to Teams, History to Activity.
   for (const old of ["setup", "rules", "flow", "versions/3"]) assert.equal(routingPage(old).id, "");
@@ -108,7 +109,7 @@ test("Inbound's old addresses open their new home", () => {
   assert.deepEqual(teamsPage("availability/nope"), { page: "availability", sub: "" });
   assert.deepEqual(teamsPage("nope"), { page: "list", sub: "" });
   assert.deepEqual(schedulingPage("upcoming"), { page: "upcoming", sub: "", id: "upcoming" });
-  assert.equal(schedulingPage("availability").page, "types", "Availability isn't a Meetings tab any more");
+  assert.equal(schedulingPage("availability").page, "availability", "Availability is a Meetings tab");
 });
 
 test("the testing screens and unknown addresses open Contacts", () => {

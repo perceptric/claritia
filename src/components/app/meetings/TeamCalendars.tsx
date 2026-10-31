@@ -1,17 +1,22 @@
 "use client";
 
-// Team calendars (Settings → Team → Calendars; docs/meetings-scheduler.md 1.9): each person's calendar connection,
-// hours and caps, so an owner sees at a glance who can be booked. Owners can change anyone's hours.
+// Team calendars (Meetings › Availability › Team; docs/meetings-scheduler.md 1.9): each person's calendar connection,
+// hours, caps and whether they're away, so an owner sees at a glance who can be booked. Away is the same switch
+// Routing reads: someone away gets no leads from forms and no times on booking pages. Owners change anyone's hours
+// and away; everyone can change their own away.
 
 import { useState } from "react";
 import { DEFAULT_AVAILABILITY, type Availability, type MeetingType } from "@/lib/meetings/types";
 import { Pencil } from "../../Icons";
 import { BrandLogo } from "../BrandLogo";
-import { Badge, Button, CardHead, ErrorNote, errorText, IconButton, invalidate, Loading, must, Panel, type Role, Td, Th, useQuery, type ViewProps } from "../ui";
+import { Badge, Button, CardHead, ErrorNote, errorText, IconButton, invalidate, Loading, must, Panel, type Role, Td, Th, Toggle, useQuery, type ViewProps } from "../ui";
+import { withoutToday } from "../reps/model";
+import { routingApi } from "../routing/api";
+import { localDate } from "../routing/screensModel";
 import { HoursEditor } from "./HoursEditor";
 import { hoursSummary } from "./model";
 import { providerOf, type Account } from "./MyCalendar";
-import { meetingsApi, Modal, ownZone, PersonAvatar, usePeople, type Person } from "./parts";
+import { meetingsApi, Modal, ownZone, PersonAvatar, useNow, usePeople, type Person } from "./parts";
 
 /** The tightest caps across the types someone hosts: "3 a day, 10 a week". */
 function capsOf(user: string, types: Pick<MeetingType, "hosts" | "settings">[]): string {
@@ -23,22 +28,47 @@ function capsOf(user: string, types: Pick<MeetingType, "hosts" | "settings">[]):
   return parts.length ? parts.join(", ") : "None";
 }
 
+type Rep = { user_id: string; paused_until: string | null; out_dates: { from: string; to: string }[] | null };
+
 export function TeamCalendars({ sb, session, ws, role }: Pick<ViewProps, "sb" | "session" | "ws"> & { role: Role }) {
   const people = usePeople(sb, ws.id);
   const data = useQuery(`calendar_accounts:${ws.id}:team`, async () => {
-    const [accounts, hours, types] = await Promise.all([
+    const [accounts, hours, types, reps] = await Promise.all([
       sb.from("calendar_accounts").select("id, user_id, provider, account_email, status, refreshed_at").eq("workspace_id", ws.id).order("created_at"),
       sb.from("availability").select("user_id, tz, weekly, overrides").eq("workspace_id", ws.id),
       sb.from("meeting_types").select("hosts, settings").eq("workspace_id", ws.id).eq("active", true),
+      sb.from("router_reps").select("user_id, paused_until, out_dates").eq("workspace_id", ws.id),
     ]);
     return {
       accounts: (must(accounts) ?? []) as Account[],
       hours: new Map(((must(hours) ?? []) as ({ user_id: string } & Availability)[]).map((h) => [h.user_id, h])),
       types: (must(types) ?? []) as Pick<MeetingType, "hosts" | "settings">[],
+      // Read with the rest; a workspace without the routing tables reads as nobody away.
+      reps: new Map(((reps.data ?? []) as Rep[]).map((r) => [r.user_id, r])),
     };
   });
   const [editing, setEditing] = useState<Person | null>(null);
+  const [error, setError] = useState("");
   const owner = role === "owner";
+  const now = useNow();
+  const today = localDate(now);
+  /** Away now: paused with no end or one still ahead, or out of office today. */
+  const awayNow = (r: Rep | undefined) => !!r && ((!!r.paused_until && (r.paused_until === "infinity" || new Date(r.paused_until).getTime() > now)) || (r.out_dates ?? []).some((d) => d.from <= today && today <= d.to));
+  const setAway = async (u: string, away: boolean) => {
+    setError("");
+    const r = data.data?.reps.get(u);
+    const patch = away ? { paused_until: "infinity" } : { paused_until: "", out_dates: withoutToday(r?.out_dates, today) };
+    try {
+      await data.mutate(
+        (d) => ({ ...d, reps: new Map(d.reps).set(u, { user_id: u, paused_until: away ? "infinity" : null, out_dates: away ? (r?.out_dates ?? []) : withoutToday(r?.out_dates, today) }) }),
+        () => routingApi(session, ws.id, "rep", { user: u, patch }),
+      );
+      invalidate(`routing_screen:${ws.id}`);
+      invalidate(`routing_reps:${ws.id}`);
+    } catch (e) {
+      setError(errorText(e));
+    }
+  };
 
   return (
     <Panel className="overflow-hidden">
@@ -49,6 +79,11 @@ export function TeamCalendars({ sb, session, ws, role }: Pick<ViewProps, "sb" | 
             data.set((d) => ({ ...d, hours: new Map(d.hours).set(who, { user_id: who, ...a }) }));
             invalidate("meeting_types");
           }} /> : null}
+      {error ? (
+        <div className="px-4 pt-3">
+          <ErrorNote message={error} />
+        </div>
+      ) : null}
       {data.error || people.error ? (
         <div className="p-4">
           <ErrorNote message={data.error || people.error} />
@@ -64,6 +99,7 @@ export function TeamCalendars({ sb, session, ws, role }: Pick<ViewProps, "sb" | 
                 <Th>Calendar</Th>
                 <Th>Hours</Th>
                 <Th>Caps</Th>
+                <Th>Away</Th>
                 {owner ? <Th className="w-12">{""}</Th> : null}
               </tr>
             </thead>
@@ -114,6 +150,12 @@ export function TeamCalendars({ sb, session, ws, role }: Pick<ViewProps, "sb" | 
                       )}
                     </Td>
                     <Td className="text-body">{capsOf(p.id, data.data!.types)}</Td>
+                    <Td>
+                      <span className="flex items-center gap-2">
+                        <Toggle label={`${p.name} away`} on={awayNow(data.data!.reps.get(p.id))} disabled={!owner && p.id !== session.user.id} onChange={(v) => void setAway(p.id, v)} />
+                        {awayNow(data.data!.reps.get(p.id)) ? <Badge>No leads</Badge> : null}
+                      </span>
+                    </Td>
                     {owner ? (
                       <Td className="pr-3">
                         <IconButton label="Change hours" onClick={() => setEditing(p)}>

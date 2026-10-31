@@ -366,7 +366,7 @@ export function TypePanel({
             />
           ) : null}
           <Week hours={hours} />
-          <TextLink onClick={() => navigate("routing", "teams/availability")}>Edit hours</TextLink>
+          <TextLink onClick={() => navigate("scheduling", "availability")}>Edit hours</TextLink>
         </PanelSection>
 
         <PanelSection icon={<Users />} title="Host" summary={hostSummary} open={open === "host"} onToggle={() => toggle("host")} locked={copy}>
