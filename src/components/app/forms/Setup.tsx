@@ -15,6 +15,7 @@ import { askText } from "../Dialogs";
 import { Badge, ErrorNote, errorText, must, useLoad, type ViewProps } from "../ui";
 import { Ic } from "./ic";
 import { RouteList, typeLabel, type Routes } from "./routes";
+import { matchOutcome, RoutingConnection, useConnection } from "./RoutingConnection";
 import { AREA, Box, CARD, CROW, CSTACK, Dd, GHOST_SM, GHOST_SM_RED, IN, IN_FIT, RowText, Seg, useNote, type DdItem, Tg } from "./parts";
 
 export type SetupSub = "after" | "alerts" | "reply" | "consent" | "spam" | "data";
@@ -129,7 +130,11 @@ function DemoAnim({ v }: { v: "msg" | "url" | "book" }) {
   );
 }
 
-function After({ form, apply, types, routes }: Props) {
+function After(p: Props) {
+  const { form, apply, types, routes } = p;
+  // The form's canonical Routing connection (the same row Routing edits).
+  const conn = useConnection(p.session, p.ws.id, p.formId);
+  const explicit = !!conn.c?.source && !conn.c.source.auto;
   const s = form.after.schedule;
   const end = form.after.end;
   const kind = s ? "book" : end.kind === "redirect" ? "url" : "msg";
@@ -138,6 +143,7 @@ function After({ form, apply, types, routes }: Props) {
   const lastMsg = end.kind === "message" ? end : { kind: "message" as const, title: "Thanks, we got it." };
   const pick = (k: "msg" | "url" | "book") => {
     if (k === kind) return;
+    void matchOutcome(p.session, p.ws.id, p.formId, conn, k, active[0]?.id);
     if (k === "book") apply([...(end.kind === "redirect" ? [{ op: "set_after" as const, end: lastMsg }] : []), { op: "set_schedule", schedule: { tool: "claritia", url: "", perOwner: false, ...(active[0] ? { meetingTypeId: active[0].id } : {}) } }], "Books a meeting after the submit");
     else if (k === "url") apply([{ op: "set_schedule", schedule: null }, { op: "set_after", end: { kind: "redirect", url: end.kind === "redirect" ? end.url : "https://" } }], "Goes to a page after the submit");
     else apply([{ op: "set_schedule", schedule: null }, { op: "set_after", end: lastMsg }], "Shows a message after the submit");
@@ -184,15 +190,9 @@ function After({ form, apply, types, routes }: Props) {
           </div>
         </div>
       ) : null}
+      <RoutingConnection session={p.session} ws={p.ws.id} navigate={p.navigate} form={p.formId} conn={conn} onOpenRouting={routes.open} />
       {kind === "book" && on ? (
         <div className={CARD}>
-          <div className={CROW}>
-            <RowText title="Routing decides" sub="Each lead books with the rep Routing gives them" />
-            <button type="button" className={GHOST_SM} onClick={routes.open}>
-              <Ic n="branch" s={12} />
-              Edit in Routing
-            </button>
-          </div>
           <div className={CSTACK}>
             <RouteList routes={routes} formType={s?.meetingTypeId} />
           </div>
@@ -200,6 +200,7 @@ function After({ form, apply, types, routes }: Props) {
       ) : null}
       {kind === "book" && s ? (
         <div className={CARD}>
+          {explicit ? null : (
           <div className={CSTACK}>
             <Label>{on ? "Meeting when the rule names none" : "Meeting"}</Label>
             <Dd
@@ -208,6 +209,7 @@ function After({ form, apply, types, routes }: Props) {
               items={active.length ? active.map((t): DdItem => ({ kind: "option", key: t.id, label: typeLabel(t), on: t.id === s.meetingTypeId, onPick: () => apply({ op: "set_schedule", schedule: { ...base(), tool: "claritia", url: "", perOwner: false, meetingTypeId: t.id } }) })) : [{ kind: "option", key: "none", label: "No meeting types yet", why: " ", onPick: () => {} }]}
             />
           </div>
+          )}
           {claritia && !on ? (
             <div className={CROW}>
               <RowText title="Times are for" sub="The meeting's hosts" />

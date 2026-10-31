@@ -168,7 +168,7 @@ test("P07 P08 P09 G05 drafts: delete then undo restores the order; a stale or fa
   assert.deepEqual(after.live, live0);
   // P09: a fresh read has the saved draft and the staged rename and connection.
   await S.save(rpc, w.owner, { policy: id, body, name: "Inbound sales EU", revision: other });
-  await S.stage(rpc, w.owner, { policy: id, source: { kind: "form", form: w.sales }, outcome: "assign_only", enabled: false, revision: (await S.screen(rpc, w.owner, w.deps)).sources.find((s) => s.form_id === w.sales)!.draft_revision });
+  await S.stage(rpc, w.owner, { policy: id, source: { kind: "form", form: w.sales }, outcome: "assign_only", enabled: false, whenOff: "review", revision: (await S.screen(rpc, w.owner, w.deps)).sources.find((s) => s.form_id === w.sales)!.draft_revision });
   const again = await S.screen(rpc, w.owner, w.deps);
   const p = again.policies.find((x) => x.id === id)!;
   assert.equal(p.draft_name, "Inbound sales EU");
@@ -235,7 +235,7 @@ test("G03 G04 the published version tests with its own sources; editing after a 
   const scr = await S.screen(rpc, w.owner, w.deps);
   const sales = scr.sources.find((s) => s.form_id === w.sales)!;
   // The draft disconnects Contact sales; the published version still has it.
-  await S.stage(rpc, w.owner, { policy: id, source: { kind: "form", form: w.sales }, outcome: "assign_only", enabled: false, revision: sales.draft_revision });
+  await S.stage(rpc, w.owner, { policy: id, source: { kind: "form", form: w.sales }, outcome: "assign_only", enabled: false, whenOff: "review", revision: sales.draft_revision });
   await assert.rejects(S.test(rpc, w.owner, w.deps, { policy: id, version: "draft", source: sales.id, email: "a@b.co", values }), /isn't connected/);
   const live = await S.test(rpc, w.owner, w.deps, { policy: id, version: "live", source: sales.id, email: "a@b.co", values });
   assert.equal(live.trace.booking.outcome, "not_requested", "Contact sales assigns only");

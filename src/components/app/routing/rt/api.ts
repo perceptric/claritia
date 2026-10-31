@@ -136,10 +136,46 @@ export type RunDetail = RunRow & {
   steps: unknown[];
   parent_run_id: string | null;
   current_owner: string | null;
-  review: { id: string; state: string; reason: string; reviewer: string; at: string; latest_action: unknown; child_run_id: string | null } | null;
-  meeting: { id: string; start: string; hosts: string[]; status: string; confirmed: boolean } | null;
+  review: {
+    id: string;
+    state: string;
+    reason: string;
+    reviewer: string;
+    at: string;
+    latest_action: { action?: string; by?: string; at?: string; reason?: string; op?: string; run?: string; from?: string; to?: string; owner?: string } | null;
+    child_run_id: string | null;
+    revision: number;
+    updated_at: string;
+  } | null;
+  meeting: { id: string; start: string; end: string; hosts: string[]; status: string; confirmed: boolean; reference: string; failed: { error?: string; outcome?: string; at: string } | null } | null;
   task: { id: string; title: string; done: boolean; assignee: string | null; at: string } | null;
+  tasks: { id: string; title: string; done: boolean; assignee: string | null; at: string; purpose: string }[];
+  children: { id: string; at: string; kind: string; owner: string | null; by: string | null; version: number | null }[];
+  owner_calendar: { provider: string; status: string } | null;
+  sync: { crms: number; error: string | null } | null;
+  history: { kind: string; at: string }[];
+  submission_id: string | null;
+  source_kind: string | null;
+  booking_active_at: string | null;
 };
+
+export type VersionChoice = { policy: string; version: number; name: string; original: boolean; valid: boolean; why: string | null };
+
+export type ChildPreview = {
+  options: VersionChoice[];
+  chosen: VersionChoice | null;
+  fields: { key: string; value: unknown; source: string }[];
+  trace: Trace | null;
+  state: string | null;
+  recipient: string | null;
+  ref: { policy: string; version: number; owner: string | null; recipient: string | null } | null;
+};
+
+export type ChildResult = { status: "resolved"; run: string; owner: string | null; repeat: boolean } | { status: "review"; run: string; state: string } | { status: "changed"; preview: ChildPreview };
+
+export type ReassignPreview = { contact: { id: string; name: string; email: string | null; owner: string | null; company: string | null }; proposed: string; eligible: boolean; why: string | null; today: number; cap: number | null; meetings: number };
+
+export type ReassignResult = { status: "assigned"; run: string; owner: string; effect: string; repeat: boolean } | { status: "changed"; reason: string; owner: string | null };
 
 export type Preview = {
   contact: { id: string; name: string; email: string | null; company: string | null; owner: string | null };

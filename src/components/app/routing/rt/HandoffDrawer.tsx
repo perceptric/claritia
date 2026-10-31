@@ -15,7 +15,7 @@ import { Search } from "../../../Icons";
 import { Sheet } from "../../Sheet";
 import { Badge, Button, ErrorNote, Loading, type ViewProps } from "../../ui";
 import { rt, newKey, useScreen, type Confirmed, type Preview, type Screen } from "./api";
-import { Initials, namesOf, slotWords } from "./parts";
+import { Initials, namesOf, PersonChoice, slotWords } from "./parts";
 
 type Step = "start" | "found" | "assigned" | "pending" | "booked" | "failed";
 
@@ -72,6 +72,9 @@ function Handoff({ session, ws, d, contact, onClose, onDone }: Pick<ViewProps, "
   const [error, setError] = useState("");
   const [done, setDone] = useState<{ run: string; owner: string; start: number | null } | null>(null);
   const [slots, setSlots] = useState<number[] | null>(null);
+  // A workspace owner may choose someone else than the suggestion (Section 14): in scope, eligible, with a reason.
+  const [other, setOther] = useState<string | null>(null);
+  const [reason, setReason] = useState("");
 
   const show = (v: unknown, key: string) => {
     if (v === null || v === undefined || v === "") return "";
@@ -103,6 +106,8 @@ function Handoff({ session, ws, d, contact, onClose, onDone }: Pick<ViewProps, "
       setRes(p);
       setSlots(p.availability?.slots ?? null);
       setSlot(null);
+      setOther(null);
+      setReason("");
       setStep("found");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Couldn't find a recipient.");
@@ -124,7 +129,8 @@ function Handoff({ session, ws, d, contact, onClose, onDone }: Pick<ViewProps, "
     setError("");
     try {
       const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
-      const out = await rt<Confirmed>(session, ws.id, "rt_handoff_confirm", { contact, op: op.current, ref: res.ref, values: local(), ...(book && slot ? { book: { start: slot, tz } } : {}) });
+      const override = other && other !== res.recipient ? { user: other, reason: reason.trim() } : null;
+      const out = await rt<Confirmed>(session, ws.id, "rt_handoff_confirm", { contact, op: op.current, ref: res.ref, values: local(), ...(book && slot && !override ? { book: { start: slot, tz } } : {}), ...(override ? { override } : {}) });
       if (out.status === "changed") {
         setRes(out.preview);
         setSlots(out.preview.availability?.slots ?? null);
@@ -279,6 +285,21 @@ function Handoff({ session, ws, d, contact, onClose, onDone }: Pick<ViewProps, "
                 <div className="text-[12px] text-muted">{why}</div>
               </div>
               {step === "found" ? <div className="border-t border-line px-4 py-2.5 font-medium text-ink">{ownerLine}</div> : null}
+              {step === "found" && d.role === "owner" ? (
+                <div className="flex flex-wrap items-center gap-2.5 border-t border-line px-4 py-2.5">
+                  <span className="flex-1 font-medium text-ink">Recipient</span>
+                  <PersonChoice label="Recipient" value={other ?? recipient} people={d.people} align="right" onChange={(u) => setOther(u && u !== recipient ? u : null)} />
+                  {other ? (
+                    <input
+                      aria-label="Reason"
+                      placeholder="Reason"
+                      value={reason}
+                      onChange={(e) => setReason(e.target.value.slice(0, 300))}
+                      className="h-[30px] w-full rounded-sm border border-line-strong bg-card px-2.5 text-ink outline-none placeholder:text-faint focus:border-ink"
+                    />
+                  ) : null}
+                </div>
+              ) : null}
             </div>
           ) : (
             <div className="flex items-center gap-2.5 rounded-[10px] border border-line bg-paper px-3.5 py-3">
@@ -289,7 +310,7 @@ function Handoff({ session, ws, d, contact, onClose, onDone }: Pick<ViewProps, "
             </div>
           )
         ) : null}
-        {res && recipient && pickable && res.meetingType ? (
+        {res && recipient && pickable && res.meetingType && !other ? (
           res.availability?.state === "ok" || (slots && slots.length) ? (
             <>
               <div className="text-[12px] font-medium text-muted">
@@ -333,11 +354,11 @@ function Handoff({ session, ws, d, contact, onClose, onDone }: Pick<ViewProps, "
       <div className="flex shrink-0 items-center justify-end gap-2 border-t border-line bg-paper px-5 py-3">
         {step === "found" && recipient ? (
           <>
-            <Button variant="ghost" disabled={busy || blocked} onClick={() => void confirm(false)}>
+            <Button variant="ghost" disabled={busy || blocked || (!!other && !reason.trim())} onClick={() => void confirm(false)}>
               Assign without booking
             </Button>
             {res?.meetingType ? (
-              <Button disabled={busy || blocked || !slot || !canBook} onClick={() => void confirm(true)}>
+              <Button disabled={busy || blocked || !slot || !canBook || !!other} onClick={() => void confirm(true)}>
                 Confirm handoff &amp; book
               </Button>
             ) : null}

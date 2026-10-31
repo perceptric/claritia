@@ -1318,7 +1318,7 @@ select pg_temp.check((select count(*) from routing_policies) = 1 and (select nam
 select pg_temp.check((select count(*) from routing_policy_versions where workspace_id = '22222222-0000-0000-0000-000000000000') = 0, 'Ben reads Cat''s policy versions');
 select pg_temp.check((select count(*) from routing_teams) = 0 and (select count(*) from routing_team_members) = 0 and (select count(*) from routing_team_keys) = 0, 'Ben reads Cat''s teams');
 select pg_temp.check((select count(*) from routing_quota) = 0, 'Ben reads Cat''s quota');
-select pg_temp.check((select count(*) from routing_sources) = 0 and (select count(*) from routing_assignments) = 0 and (select count(*) from routing_reviews) = 0, 'Ben reads Cat''s routing rows');
+select pg_temp.check((select count(*) from routing_sources where workspace_id = '22222222-0000-0000-0000-000000000000') = 0 and (select count(*) from routing_assignments) = 0 and (select count(*) from routing_reviews) = 0, 'Ben reads Cat''s routing rows');
 select pg_temp.fails($$insert into routing_policies (workspace_id, name) values ('11111111-0000-0000-0000-000000000000', 'x')$$, 'Ben writes a policy directly');
 select pg_temp.fails($$update routing_policies set draft = '{}' where workspace_id = '11111111-0000-0000-0000-000000000000'$$, 'Ben writes a draft directly');
 select pg_temp.fails($$update routing_teams set next_position = 0$$, 'Ben moves a queue directly');
@@ -1333,6 +1333,19 @@ select pg_temp.fails($$select routing_source_resolve(id) from forms limit 1$$, '
 select pg_temp.fails($$select routing_followup('22222222-0000-0000-0000-000000000000', gen_random_uuid(), 'schedule')$$, 'Ben makes a follow-up task');
 select pg_temp.fails($$select routing_migrate('22222222-0000-0000-0000-000000000000')$$, 'Ben runs the routing migration');
 select pg_temp.check(router_live_screen('22222222-0000-0000-0000-000000000000') is null, 'Ben reads Cat''s live routing');
+-- Recovery and review (097): every action is the server's; members can't call them, in their workspace or Cat's.
+select pg_temp.fails($$select routing_review_act('22222222-0000-0000-0000-000000000000', gen_random_uuid(), 'approve', null)$$, 'Ben approves a review item');
+select pg_temp.fails($$select routing_review_act('11111111-0000-0000-0000-000000000000', gen_random_uuid(), 'dismiss', null, 'x')$$, 'Ben dismisses a review item directly');
+select pg_temp.fails($$select routing_sync_retry('22222222-0000-0000-0000-000000000000', gen_random_uuid(), null)$$, 'Ben retries a CRM sync');
+select pg_temp.fails($$select routing_booking_reconcile('22222222-0000-0000-0000-000000000000', gen_random_uuid(), null)$$, 'Ben reconciles a booking');
+select pg_temp.fails($$select routing_booking_touch('22222222-0000-0000-0000-000000000000', 'form:x')$$, 'Ben touches a booking session');
+select pg_temp.fails($$select routing_booking_abandon(gen_random_uuid())$$, 'Ben abandons a booking');
+select pg_temp.fails($$select routing_run_meeting('22222222-0000-0000-0000-000000000000', gen_random_uuid(), null, 'confirmed')$$, 'Ben confirms a run''s meeting');
+select pg_temp.fails($$select routing_screen_run('22222222-0000-0000-0000-000000000000', gen_random_uuid())$$, 'Ben reads a run''s drawer directly');
+select pg_temp.fails($$select routing_screen_sources('22222222-0000-0000-0000-000000000000')$$, 'Ben reads Cat''s connections directly');
+select pg_temp.fails($$select meeting_team_run('22222222-0000-0000-0000-000000000000', gen_random_uuid(), null, 'q', gen_random_uuid(), 1)$$, 'Ben writes a team booking run');
+select pg_temp.fails($$update routing_reviews set state = 'resolved'$$, 'Ben resolves a review item directly');
+select pg_temp.fails($$update routing_sources set when_off = 'none'$$, 'Ben changes a disconnected form''s outcome directly');
 reset role;
 select set_config('request.jwt.claim.sub', '', false);
 set role anon;

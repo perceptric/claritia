@@ -97,7 +97,7 @@ Slack/email delivery, CRM two-way owner sync.
 | Company found by domain, several match | the first by owner/length/age | review (`multiple_companies`) |
 | Mapped form value of the wrong type | read as is | review (`source_mapping_mismatch`) |
 
-## 4. Built in stages A to G
+## 4. Built in stages A to I
 
 | Stage | What exists now |
 | --- | --- |
@@ -118,25 +118,34 @@ at-most comparison, scope, the v1 move, the change list, the trace in words and 
 (`tests/routingScreensModel.test.ts`); G02, G15, G16 and P07's Undo in a browser against the real screens with a mocked
 server (render harness, not in the repository).
 
-## 5. Left for stages H and I
+| Stage | Built in H and I |
+| --- | --- |
+| H | Recovery and review (`supabase/migrations/097_routing_recovery.sql`, `src/lib/routing/recovery.ts`, `src/lib/routing/access.ts`, the Activity drawer `rt/RunDrawer.tsx`). The review lifecycle goes through one call with a revision check (`routing_review_act`: approve, start, back, dismiss with a reason, reopen; never "resolve"). Approve and route runs a child attempt with its own key `review:<item>:<op>` and `parent_run_id`, on the original version when it's still valid (else a chosen published version, with the reason), with corrections as new facts (`provenance.source = review`), previewed then confirmed; its owner resolves the parent in the committer's transaction (trigger `routing_runs_after`); a child that lands in review again reopens the parent's item (trigger `routing_reviews_child`), so one lead has one item. A reviewer who leaves hands their items to a workspace owner (`routing_reviewer_left`). Assign by hand and Reassign go through `routing_commit` with a reason, a conflict check on the owner the person saw and the cap rechecked under the lock; a new owner counts once, no team turn, company and meetings untouched, audited (`routing.assign_by_hand`). Bookings: a routed meeting links to its run when it's made and the run stays `pending_confirmation` until the calendar holds the event (`routing_meeting_made` / `routing_meeting_changed`); a calendar create that stopped trying is `outcome_unknown` (may exist) or `failed` with `provider_error` (surely not), from the worker's new `outcome` detail; Check calendar re-runs the same `meeting_sync` key, so the provider finds the first event. Cancelled meetings set the booking only; no-show is attendance. Abandonment: each sign of life from a booking session (`routing_booking_touch`) queues `routing_abandon` for the end of its window (30 minutes, or the connection's `no_slots.abandonAfter`); the owner stays; a task only when `no_slots.abandonTask`; a later booking confirms and resolves both follow-ups. External sync: a new owner is `pending` while a two-way CRM has to learn it; the sync log settles it (`complete` / `failed`); Retry sync pushes that contact again (`routing_sync_retry`). |
+| I | Forms › Settings › After submit shows and edits the form's canonical connection (`forms/RoutingConnection.tsx`, `rt_form_source`, `rt_stage`): policy, outcome, meeting type, state (Live, Waiting to publish, Disconnected), Disconnect and Connect. The form's own meeting picker shows only while the connection still follows the form. A new form gets its connection on creation (`routing_form_made`); while nobody has edited it, it follows the form's "Book a meeting" choice at each form publish (`routing_form_published`). Disconnecting stages `enabled = false` with `when_off = review`: after the publish, new leads are kept and open one review item (`source_disconnected`) with the admin reviewer; no calendar is shown. Roles (`access.ts`) on every new action; members can hand off only their own or unowned leads. The tester looks up an existing contact of the workspace (server-side search `rt_contacts`). Route & book has the override picker for owners (reason required). A booking-first team meeting that gives an unowned contact its owner counts once in the quota (`meeting_team_run`). |
 
-- Not built in F/G: an optional lookup of an existing contact in the tester (the tester builds the lead from what's
-  typed and the CRM's company for the email's domain); an override picker in the Route & book drawer (the server
-  supports it, for workspace owners, with a reason); Forms › After submission still edits its own schedule setting,
-  not the shared connection (Stage I).
-- H: Activity and the review lifecycle (approve, child attempt with `parent_run_id`, resolve), booking abandonment
-  after 30 minutes, provider event reconciliation (no provider-side dedupe exists yet: an unknown create outcome is
-  not modelled beyond `pending_confirmation`), CRM sync state, escalation when a reviewer leaves.
-- I: writing a connection when a form is created, archive and duplicate, pooled team meeting types counting toward the
-  owner-first quota and queue, role-scoped permissions beyond "workspace owner edits".
+Acceptance added in H and I (all passing, `tests/pg/routingRecovery.pg.ts`, `tests/routingRecoveryModel.test.ts`): G09, G10 (twice: original
+version and a chosen version with corrections), G11, G12, G13, G14, B06, B07, B09 (an unknown outcome and a surely failed create), B10,
+B11, B12, B15, H10 regression, reviewer escalation, manual reassignment, resume booking, the tester's lookup, a new form's connection,
+the pooled team quota. B01 and B08 now expect `pending_confirmation` until the calendar holds the event. O12 and O13 were already covered
+in `tests/routingPolicy.test.ts` and `tests/pg/routingPolicies.pg.ts`.
+
+## 5. What is still open
+
+- The public visitor still sees the scheduler's own "booked" confirmation as soon as Claritia holds the time; the run says
+  `pending_confirmation` until the calendar has the event. The spec's "We're confirming your meeting" message isn't shown to visitors.
+- Real Google, Microsoft and Zoom calendars, HubSpot/Salesforce pushes, Slack and email delivery were not run here; only the fake
+  calendar and the database sync log were.
+- Scoped managers and read-only members don't exist as roles yet (only owner and member).
 
 ## 6. Running cost
 
-Stages F and G add no service and no AI call: the screens read the database, the tester runs the evaluator in the
-API server, and Route & book uses the existing calendar reads. Beta (50 teams): $0 a month. Growth (500 teams): $0 a
-month (a few hundred small rows of test evidence per team a month, inside the existing database plan).
+Stages F to I add no service and no AI call: the screens read the database, the tester runs the evaluator in the API
+server, Route & book uses the existing calendar reads, and recovery uses the existing jobs (`meeting_sync`, `source_pull`,
+`meeting_book_later`) plus one small `routing_abandon` job per calendar-showing fill. Beta (50 teams): $0 a month. Growth
+(500 teams): $0 a month (a few thousand extra small job and audit rows a month, inside the existing database plan).
 
 ## 7. Rollback
 
-095 and 096 add tables and columns and replace functions; they delete nothing. The `routers` / `router_versions` mirror is
+095, 096 and 097 add tables, columns and triggers and replace functions; they delete nothing. 097's triggers can be dropped
+on their own (`drop trigger routing_meeting_made ...`) to stop its live effects. The `routers` / `router_versions` mirror is
 complete, so restoring 094's function bodies brings back the old path with every version intact.

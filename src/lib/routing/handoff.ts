@@ -12,6 +12,7 @@ import { eligibleWhy, inScope } from "../router/engine.ts";
 import { commit, pickFor, readFacts, type LiveRouter } from "../router/server.ts";
 import type { Decision, Facts, RouterBody } from "../router/types.ts";
 import { evaluate, fieldsUsed, type Trace } from "./evaluate.ts";
+import { DENIED, may, mayHandOff } from "./access.ts";
 import { Refusal, type Caller } from "./screens.ts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
@@ -120,6 +121,7 @@ async function previewOf(rpc: Rpc, c: Caller, o: { contact: string; values?: unk
 /** Find recipient (Section 14): read only. No owner, count, turn, task, invitation or event changes. */
 export async function preview(rpc: Rpc, c: Caller, o: { contact: unknown; values?: unknown; now?: number }): Promise<Preview> {
   if (typeof o.contact !== "string" || !UUID.test(o.contact)) throw new Refusal(400, "invalid_configuration", "Pick a contact.");
+  // A preview reads what a member can already see in the CRM; who may commit is checked at confirm (Section 20).
   return (await previewOf(rpc, c, { contact: o.contact, values: o.values, now: o.now })).p;
 }
 
@@ -171,7 +173,7 @@ export async function confirm(
 
   const override = o.override && typeof o.override.user === "string" && UUID.test(o.override.user) ? { user: o.override.user, reason: typeof o.override.reason === "string" ? o.override.reason.trim().slice(0, 300) : "" } : null;
   if (o.override && !override) throw new Refusal(400, "invalid_configuration", "Pick who gets the lead.");
-  if (override && c.role !== "owner") throw new Refusal(403, "permission_denied", "Only workspace owners can choose another recipient.");
+  if (override && !may(c, "override")) throw new Refusal(403, "permission_denied", DENIED.override);
   if (override && !override.reason) throw new Refusal(400, "invalid_configuration", "Add a reason.");
 
   const now = o.now ?? Date.now();
@@ -179,6 +181,7 @@ export async function confirm(
   if (ref.policy !== p.ref.policy || ref.version !== p.ref.version) return { status: "changed", reason: "policy_changed", preview: p };
   if ((ref.owner ?? null) !== p.ref.owner) return { status: "changed", reason: "ownership_changed", preview: p };
   if (!override && (ref.recipient ?? null) !== p.ref.recipient) return { status: "changed", reason: "recipient_changed", preview: p };
+  if (!mayHandOff(c, p.ref.owner)) throw new Refusal(403, "permission_denied", DENIED.handoff);
 
   const body = src.live.body;
   let d: Decision = decision;
@@ -279,8 +282,10 @@ export async function bookRun(
   o: { run: unknown; start: unknown; tz?: unknown; now?: number; liveBusy?: (hosts: string[], from: number, to: number) => Promise<Set<string>> },
 ): Promise<{ state: "pending_confirmation"; meeting: string; start: number } | { state: "slot_taken"; slots: number[] }> {
   if (typeof o.run !== "string" || !UUID.test(o.run) || typeof o.start !== "number") throw new Refusal(400, "invalid_configuration", "Bad request.");
-  const r = await call<{ id: string; key: string; owner: string | null; contact_id: string | null; meeting: { id: string } | null; lead: { name: string | null; email: string | null } } | null>(rpc, "routing_screen_run", { p_ws: c.ws, p_run: o.run });
+  const r = await call<{ id: string; key: string; owner: string | null; by_user: string | null; contact_id: string | null; meeting: { id: string } | null; lead: { name: string | null; email: string | null } } | null>(rpc, "routing_screen_run", { p_ws: c.ws, p_run: o.run });
   if (!r || !r.key.startsWith("handoff:") || !r.owner || !r.contact_id) throw new Refusal(404, "not_found", "That handoff is gone.");
+  // The person who made the handoff, the lead's owner, or a workspace owner books it again.
+  if (c.role !== "owner" && r.by_user !== c.user && r.owner !== c.user) throw new Refusal(403, "permission_denied", DENIED.recover);
   if (r.meeting) return { state: "pending_confirmation", meeting: r.meeting.id, start: o.start };
   const src = await handoffSource(rpc, c.ws);
   const type = src.meetingTypeId ? await call<MeetingType | null>(rpc, "meeting_type_get", { p_ws: c.ws, p_id: src.meetingTypeId }) : null;
