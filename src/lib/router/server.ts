@@ -4,11 +4,12 @@
 // only: the form send, the API, the jobs and the Test panel call it.
 
 import { callNewer } from "../forms/newer.ts";
+import { forgetSources } from "../routing/sources.ts";
 import type { Rpc } from "../jobs.ts";
 import type { Availability } from "../meetings/types.ts";
 import { addDays, at, dateIn, dayOf, validZone } from "../meetings/time.ts";
 import { decide } from "./engine.ts";
-import type { Decision, Facts, Reason, RepFacts, RouterBody, StepResult } from "./types.ts";
+import type { Decision, Facts, InputIssue, Provenance, Reason, RepFacts, RouterBody, StepResult, TeamFacts } from "./types.ts";
 
 async function call<T>(rpc: Rpc, fn: string, args: Record<string, unknown>): Promise<T> {
   const { data, error } = await rpc(fn, args);
@@ -73,6 +74,9 @@ export type RawFacts = {
   lists: { allow: string[]; block: string[] };
   /** The columns enrichment and qualify added (router_facts_full; router_facts_more before 090). */
   more?: { seniority?: string; department?: string; qualify?: string; employees?: number };
+  /** routing_facts (095): the body's teams as the database has them, and how the company was found. */
+  teams?: Record<string, TeamFacts>;
+  company_match?: Facts["companyMatch"];
 };
 
 /** Whether now is inside someone's hours (weekly ranges, with a date's own hours first). Null when they have none. */
@@ -181,6 +185,8 @@ export function toFacts(raw: RawFacts, reason: Reason, now = Date.now()): Facts 
     reps,
     counts,
     lists: raw.lists ?? { allow: [], block: [] },
+    ...(raw.teams ? { teams: raw.teams } : {}),
+    ...(raw.company_match ? { companyMatch: raw.company_match } : {}),
   };
 }
 
@@ -192,12 +198,26 @@ async function disposable(email: string | null): Promise<boolean> {
   return "rejected" in e && e.rejected === "disposable";
 }
 
-/** The reps and queues a body names, for router_facts. */
+/**
+ * The reps and queues a body names, for the facts read: its queues (and the teams a v2 body only names: rule teams,
+ * Everyone else, the backup and the scope's teams), and the people it names.
+ */
 export function namesOf(body: RouterBody): { users: string[]; queues: string[] } {
   const users = new Set<string>();
+  const queues = new Set<string>(body.queues.map((q) => q.id));
   for (const q of body.queues) for (const m of q.members) users.add(m.user);
   if (body.fallback?.kind === "user") users.add(body.fallback.id);
-  return { users: [...users], queues: body.queues.map((q) => q.id) };
+  if (body.fallback?.kind === "queue") queues.add(body.fallback.id);
+  for (const r of body.rules.list) {
+    if ((r.then ?? "queue") === "queue" && r.queue) queues.add(r.queue);
+    if (r.then === "user" && r.user) users.add(r.user);
+  }
+  if (body.backup?.kind === "user") users.add(body.backup.id);
+  if (body.backup?.kind === "queue") queues.add(body.backup.id);
+  for (const u of body.scope?.people ?? []) users.add(u);
+  for (const t of body.scope?.teams ?? []) queues.add(t);
+  if (body.review?.owner) users.add(body.review.owner);
+  return { users: [...users], queues: [...queues] };
 }
 
 /** Read one lead's facts for a body. Null when the contact is gone; `existing` when the key was routed already. */
@@ -215,9 +235,10 @@ export async function readFacts(
     emailClass = "rejected" in e ? null : e.class;
   }
   const args = { p_ws: o.ws, p_contact: o.contact, p_key: o.key, p_users: n.users, p_queues: n.queues, p_email: o.email ?? null, p_email_class: emailClass };
-  // One read with the enrichment columns (router_facts_full, 090); the two old reads while it isn't there.
-  const full = await callNewer(rpc, "router_facts_full", args);
-  if (full?.error) throw new Error(`router_facts_full: ${full.error.message}`);
+  // One read with teams and quota counts (routing_facts, 095), else with the enrichment columns (router_facts_full,
+  // 090); the two old reads while neither is there.
+  const full = (await callNewer(rpc, "routing_facts", args)) ?? (await callNewer(rpc, "router_facts_full", args));
+  if (full?.error) throw new Error(`routing facts: ${full.error.message}`);
   const raw = full ? (full.data as RawFacts | null) : await call<RawFacts | null>(rpc, "router_facts", args);
   if (!raw) return null;
   if (raw.existing) return { existing: raw.existing };
@@ -246,7 +267,14 @@ export function usesQualify(body: RouterBody): boolean {
   return (body.rules.on && body.rules.list.some((r) => r.on !== false && test(r.conds))) || !!body.segments?.some((sg) => test(sg.conds));
 }
 
-export type LiveRouter = { version: number; body: RouterBody; paused?: boolean };
+/** A live policy: its config (a router body), version, and whether routing is paused. `policy_id` from 095 on. */
+export type LiveRouter = { version: number; body: RouterBody; paused?: boolean; policy_id?: string };
+
+/** The source a run is for (routing_sources): its id and live revision, stored on the run. */
+export type SourceRef = { id: string; revision: number };
+
+/** Answers a person or a test gives, by routing field, with where they came from (form mappings). */
+export type Inputs = { values: Record<string, unknown>; provenance: Record<string, Provenance>; issues: InputIssue[] };
 
 /** The live router's body and version, and whether routing is paused. */
 export async function liveRouter(rpc: Rpc, ws: string): Promise<LiveRouter | null> {
@@ -281,6 +309,7 @@ export function liveRouterCached(rpc: Rpc, ws: string, now = Date.now()): Promis
 export function invalidateRouterLive(ws?: string): void {
   if (ws === undefined) liveCache.clear();
   else liveCache.delete(ws);
+  forgetSources();
 }
 
 /**
@@ -309,6 +338,15 @@ export async function route(
      * nothing is written here ("late"); true means this call owns the commit.
      */
     gate?: () => boolean;
+    /** The source connection this run is for, stored on the run with its revision. */
+    source?: SourceRef | null;
+    /** A submission's mapped answers (routing/mapping.ts): values with their origin, and answers that don't fit. */
+    inputs?: Inputs | null;
+    /** The run's first booking state: awaiting_selection when its source shows a calendar. */
+    booking?: "not_requested" | "awaiting_selection";
+    submission?: string | null;
+    /** A child attempt's parent run (an approved review). */
+    parent?: string | null;
   },
 ): Promise<Routed> {
   const live = o.live === undefined ? await liveRouter(rpc, o.ws) : o.live;
@@ -334,23 +372,29 @@ export async function route(
     const body = o.skipSpam ? { ...live.body, spam: { ...live.body.spam, on: false } } : live.body;
     if (o.skipSpam) read.facts.lists = { ...read.facts.lists, block: [] };
     if (o.passed?.length) read.facts.passed = o.passed;
-    const decided = decide(body, read.facts);
+    if (o.inputs) withInputs(read.facts, o.inputs);
+    const { evaluate } = await import("../routing/evaluate.ts");
+    const ev = evaluate(body, read.facts);
+    const decided = ev.decision;
     const d: Decision = o.before?.length ? { ...decided, steps: [...o.before, ...decided.steps] } : decided;
     const pick = pickFor(body, d);
     if (o.gate && tries === 0 && !o.gate()) return { status: "late" };
-    const res = await call<{ status: string; id?: string; kind?: string; owner?: string | null; steps?: unknown }>(rpc, "router_commit", {
-      p_ws: o.ws,
-      p_contact: o.contact,
-      p_key: o.key,
-      p_reason: o.reason,
-      p_version: live.version,
-      p_result: d.result.kind === "owner" ? d.result : { kind: d.result.kind },
-      p_steps: d.steps,
-      p_facts: read.facts,
-      p_ms: Date.now() - t0,
-      p_set_company: live.body.account.setCompanyOwner,
-      p_by_user: o.byUser ?? null,
-      p_pick: pick,
+    const res = await commit(rpc, {
+      ws: o.ws,
+      contact: o.contact,
+      key: o.key,
+      reason: o.reason,
+      live,
+      decision: d,
+      trace: ev.trace,
+      facts: read.facts,
+      ms: Date.now() - t0,
+      byUser: o.byUser ?? null,
+      pick,
+      source: o.source ?? null,
+      booking: d.result.kind === "owner" ? (o.booking ?? "not_requested") : "not_requested",
+      submission: o.submission ?? null,
+      parent: o.parent ?? null,
     });
     if (res.status === "ok") {
       // The queue's turn was taken under the lock: the run's lines and owner are as written.
@@ -358,7 +402,13 @@ export async function route(
       return { status: "ok", run: res.id!, decision, result: decision.result };
     }
     if (res.status === "dup") {
-      const result: Decision["result"] = res.kind === "owner" ? { kind: "owner", user: res.owner!, by: "queue" } : res.kind === "held" ? { kind: "held", signals: [] } : { kind: "unassigned" };
+      const x = res as Committed & { by?: string; queue?: string | null; rule?: string | null };
+      const result: Decision["result"] =
+        res.kind === "owner"
+          ? { kind: "owner", user: res.owner!, by: (x.by ?? "queue") as "queue", ...(x.queue ? { queue: x.queue } : {}), ...(x.rule ? { rule: x.rule } : {}) }
+          : res.kind === "held"
+            ? { kind: "held", signals: [] }
+            : { kind: "unassigned" };
       return { status: "dup", run: res.id!, decision: null, result };
     }
     if (res.status === "gone") return { status: "gone" };
@@ -367,20 +417,111 @@ export async function route(
   throw new Error("The router couldn't settle on a rep; trying again later.");
 }
 
+/** A submission's mapped answers over the facts: this submission's answers win for this decision (Section 9). */
+export function withInputs(f: Facts, i: Inputs): Facts {
+  Object.assign(f.values, i.values);
+  f.provenance = { ...(f.provenance ?? {}), ...i.provenance };
+  if (i.issues.length) f.issues = [...(f.issues ?? []), ...i.issues];
+  return f;
+}
+
 /**
- * For a pick from a queue (a rule's, or the fallback's), the reps who could take it, in the queue's order, so
- * router_commit can take the turn under the queue's lock with fresh counts. Reps the engine left out for their status
- * or hours stay out; caps are checked again there.
+ * For a pick from a queue (a rule's, Everyone else's or the backup's), the reps who could take it, so the committer
+ * can take the turn under the team's lock. Reps the engine left out (status, scope, hours, a missed response time)
+ * stay out; pause, out of office and caps are checked again there. A v1 fallback pick names only the rep it picked,
+ * as before.
  */
 export function pickFor(body: RouterBody, d: Decision): { queue: string; method: string; candidates: { user: string; weight: number }[] } | null {
   const r = d.result;
-  if (r.kind !== "owner" || !r.queue || (r.by !== "queue" && r.by !== "fallback")) return null;
+  if (r.kind !== "owner" || !r.queue || (r.by !== "queue" && r.by !== "fallback" && r.by !== "backup")) return null;
   const q = body.queues.find((x) => x.id === r.queue);
-  if (!q) return null;
-  const step = d.steps.find((s): s is Extract<Decision["steps"][number], { step: "queue" }> => s.step === "queue" && s.queue.id === q.id);
+  const step = d.steps.find((s): s is Extract<Decision["steps"][number], { step: "queue" }> => s.step === "queue" && s.queue.id === r.queue);
+  const members = q?.members ?? [...(step?.others ?? []).map((o) => ({ user: o.user, weight: 1 })), { user: r.user, weight: 1 }];
+  if (!q && !step && r.by !== "backup") return null;
   const out = new Set((step?.others ?? []).filter((o) => o.why).map((o) => o.user));
-  if (r.by === "fallback") for (const m of q.members) if (m.user !== r.user) out.add(m.user);
-  return { queue: q.id, method: q.method, candidates: q.members.filter((m) => m.user === r.user || !out.has(m.user)).map((m) => ({ user: m.user, weight: m.weight })) };
+  if ((r.by === "fallback" && body.v !== 2) || (r.by === "backup" && !step)) for (const m of members) if (m.user !== r.user) out.add(m.user);
+  return { queue: r.queue, method: q?.method ?? step?.queue.method ?? "rr", candidates: members.filter((m) => m.user === r.user || !out.has(m.user)).map((m) => ({ user: m.user, weight: m.weight })) };
+}
+
+type Committed = { status: string; id?: string; kind?: string; owner?: string | null; steps?: unknown; effect?: string; reason?: string };
+
+/**
+ * The committer (routing_commit, 095): one transaction that rechecks what may have changed and writes the owner, the
+ * run with its trace, the assignment event, the count and the queue turn, or the review item. Before 095, the old
+ * router_commit.
+ */
+async function commit(
+  rpc: Rpc,
+  c: {
+    ws: string;
+    contact: string;
+    key: string;
+    reason: Reason;
+    live: LiveRouter;
+    decision: Decision;
+    trace: unknown;
+    facts: Facts;
+    ms: number;
+    byUser: string | null;
+    pick: ReturnType<typeof pickFor>;
+    source: SourceRef | null;
+    booking: "not_requested" | "awaiting_selection";
+    submission: string | null;
+    parent: string | null;
+  },
+): Promise<Committed> {
+  const body = c.live.body;
+  const r = c.decision.result;
+  const by = r.kind === "owner" ? r.by : null;
+  const v2 = body.v === 2;
+  // What the committer checks again (Section 22): v2 rechecks pause, out of office and the cap for every new owner;
+  // v1 as before (queue picks and the fallback checked for pause, queue picks for caps).
+  const recheck = v2
+    ? { away: by !== "hand", caps: by !== "hand" && (by === "account" || by === "keep" ? body.ownership?.capBlocksNew !== false : true) }
+    : { away: by === "queue" || by === "fallback", caps: by === "queue" };
+  const p = {
+    ws: c.ws,
+    contact: c.contact,
+    key: c.key,
+    reason: c.reason,
+    policy_id: c.live.policy_id ?? null,
+    policy_version: c.live.version,
+    source_id: c.source?.id ?? null,
+    source_revision: c.source?.revision ?? null,
+    parent_run: c.parent,
+    submission: c.submission,
+    decision: r.kind === "owner" ? r : r.kind === "held" ? { kind: "held", signals: r.signals, ...(r.reason ? { reason: r.reason } : {}) } : { kind: "unassigned", reason: r.reason ?? "no_eligible_recipient" },
+    steps: c.decision.steps,
+    trace: c.trace,
+    facts: c.facts,
+    ms: c.ms,
+    by_user: c.byUser,
+    set_company: body.account.setCompanyOwner,
+    reviewer: body.review?.owner ?? null,
+    booking_state: c.booking,
+    expect_owner: c.facts.owner?.user ?? null,
+    recheck,
+    ...(c.pick ? { pick: c.pick } : {}),
+  };
+  const res = await callNewer(rpc, "routing_commit", { p });
+  if (res) {
+    if (res.error) throw new Error(`routing_commit: ${res.error.message}`);
+    return res.data as Committed;
+  }
+  return call<Committed>(rpc, "router_commit", {
+    p_ws: c.ws,
+    p_contact: c.contact,
+    p_key: c.key,
+    p_reason: c.reason,
+    p_version: c.live.version,
+    p_result: r.kind === "owner" ? r : { kind: r.kind },
+    p_steps: c.decision.steps,
+    p_facts: c.facts,
+    p_ms: c.ms,
+    p_set_company: body.account.setCompanyOwner,
+    p_by_user: c.byUser,
+    p_pick: c.pick,
+  });
 }
 
 /** Test a lead against a body without writing anything (docs/router-ux.md 4.3). Changed fields override the lead's. */

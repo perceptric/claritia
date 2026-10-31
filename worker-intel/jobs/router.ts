@@ -15,7 +15,7 @@ import { JobError, type Handler, type Rpc } from "../../src/lib/jobs.ts";
 import { leadRoutedEmail, mime, slaEmail, validAddress } from "../../src/lib/meetings/emails.ts";
 import { buttons, esc, fields, section, slackDm, tokenOf } from "../../src/lib/slack/app.ts";
 import { explain, minutesWords, partText, pathWords } from "../../src/lib/router/explain.ts";
-import { route } from "../../src/lib/router/server.ts";
+import { route, type Inputs, type LiveRouter, type SourceRef } from "../../src/lib/router/server.ts";
 import { qualifyContact } from "../../src/lib/enrich/server.ts";
 import type { Facts, Reason, StepResult } from "../../src/lib/router/types.ts";
 import { REASONS } from "../../src/lib/router/types.ts";
@@ -53,9 +53,47 @@ export const routeJob =
     const byUser = typeof p.byUser === "string" && UUID.test(p.byUser) ? p.byUser : null;
     // An import or a CRM sync has its own qualify job for each lead: no waiting on Claude here (docs/router.md 3.8).
     const inline = reason !== "import" && reason !== "crm";
+    // A form send the router was too slow for carries what the send captured: its connection, its mapped answers,
+    // the run's first booking state and the policy it resolved (docs/routing-workflow.md Section 13).
+    const captured = formCapture(p);
+    const live = captured.policy ? await call<LiveRouter | null>(rpc, "routing_live", { p_ws: ws, p_policy: captured.policy }) : undefined;
     // Held's "let through" for many leads queues them with skipSpam: the spam check doesn't hold them again.
-    await route(rpc, { ws, contact, key, reason: reason as Reason, byUser, force: p.undo === true, skipSpam: p.skipSpam === true, ...(inline ? { qualify: (c: string) => qualifyContact(rpc, c, { timeoutMs: 2900 }) } : {}) });
+    await route(rpc, {
+      ws,
+      contact,
+      key,
+      reason: reason as Reason,
+      byUser,
+      force: p.undo === true,
+      skipSpam: p.skipSpam === true,
+      ...(inline ? { qualify: (c: string) => qualifyContact(rpc, c, { timeoutMs: 2900 }) } : {}),
+      ...(live !== undefined ? { live } : {}),
+      source: captured.source,
+      inputs: captured.inputs,
+      booking: captured.booking,
+      submission: captured.submission,
+    });
   };
+
+/** A route job's captured form inputs, checked: anything malformed is left out, never guessed. */
+export function formCapture(p: Record<string, unknown>): { source: SourceRef | null; inputs: Inputs | null; booking: "not_requested" | "awaiting_selection" | undefined; policy: string | null; submission: string | null } {
+  const src = p.source as { id?: unknown; revision?: unknown } | undefined;
+  const source = src && typeof src.id === "string" && UUID.test(src.id) && typeof src.revision === "number" ? { id: src.id, revision: src.revision } : null;
+  const i = p.inputs as { values?: unknown; provenance?: unknown; issues?: unknown } | undefined;
+  const obj = (v: unknown) => (v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : null);
+  const inputs =
+    i && obj(i.values)
+      ? {
+          values: obj(i.values)!,
+          provenance: (obj(i.provenance) ?? {}) as Inputs["provenance"],
+          issues: (Array.isArray(i.issues) ? i.issues : []).filter((x): x is Inputs["issues"][number] => !!obj(x) && (x as { code?: unknown }).code === "source_mapping_mismatch" && typeof (x as { field?: unknown }).field === "string"),
+        }
+      : null;
+  const booking = p.booking === "awaiting_selection" || p.booking === "not_requested" ? p.booking : undefined;
+  const policy = typeof p.policy === "string" && UUID.test(p.policy) ? p.policy : null;
+  const submission = typeof p.submission === "string" && UUID.test(p.submission) ? p.submission : null;
+  return { source, inputs, booking, policy, submission };
+}
 
 type SlaInfo = {
   sla: { run_id: string; workspace_id: string; contact_id: string; user_id: string; status: string; next: "route" | "manager" | "nudge"; manager: string | null; due_at: string };

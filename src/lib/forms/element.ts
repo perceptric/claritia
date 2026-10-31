@@ -551,6 +551,8 @@ export class ClaritiaForm extends Base {
   private seed = (Math.random() * 2 ** 31) | 0;
   // Claritia calendar after the send: the times, the booked meeting, the day picked, the visitor's zone, a line to say.
   private bk: Booking | null = null;
+  /** The server saved the details and is still finishing (Routing hasn't committed an owner yet): its words. */
+  private waiting = "";
   private bkDone: Booked | null = null;
   private bkDay = "";
   private bkTz = localZone();
@@ -1222,6 +1224,7 @@ export class ClaritiaForm extends Base {
     if (this.isPreview && form.after.schedule?.tool === "claritia" && !this.bk) this.bk = { token: "", slots: sampleSlots(Date.now()), lengths: [30], length: 30 };
     if (this.bkDone) return this.booked();
     if (this.bk) return this.calendar(form, this.bk);
+    if (this.waiting) return el("div", { class: "f dn", role: "status", "aria-live": "polite" }, el("p", { class: "i", text: this.waiting }));
     // A meeting to book: the scheduler opens in the form, with the lead filled in. In the builder, its link stands in.
     const book = this.schedule ?? (this.isPreview && form.after.schedule?.url ? { tool: form.after.schedule.tool, url: form.after.schedule.url } : null);
     if (book && (!this.isPreview || safeUrl(book.url))) {
@@ -1470,7 +1473,21 @@ export class ClaritiaForm extends Base {
       writeQueue([...readQueue().filter((x) => x.key !== this.key), { url, body, key: this.key, at: Date.now(), tries: 1 }]);
       setTimeout(() => void flushQueue(), 15_000);
     } else {
-      const j = (await res.json().catch(() => ({}))) as { id?: string; schedule?: { tool: string; url: string } | null; booking?: Booking };
+      type Answer = { id?: string; schedule?: { tool: string; url: string } | null; booking?: Booking; pending?: boolean; message?: string };
+      let j = (await res.json().catch(() => ({}))) as Answer;
+      // Saved, still finishing: say so, and send the same request again (the same key, so the same submission and
+      // routing request) until the server has the answer, for about 12 seconds.
+      if (j.pending) {
+        this.waiting = typeof j.message === "string" && j.message ? j.message.slice(0, 200) : "Your details are saved. We're finishing your request.";
+        this.done = true;
+        this.render();
+        for (let i = 0; i < 8 && j.pending; i++) {
+          await new Promise((r) => setTimeout(r, 1500));
+          const again = await fetch(url, { method: "POST", headers: { "content-type": "application/json" }, body, credentials: "omit" }).catch(() => null);
+          if (again?.ok) j = (await again.json().catch(() => j)) as Answer;
+        }
+        this.waiting = "";
+      }
       if (j.schedule && /^https:\/\//.test(j.schedule.url)) this.schedule = j.schedule;
       if (j.booking?.token && Array.isArray(j.booking.slots)) this.bk = j.booking;
       this.dispatchEvent(new CustomEvent("claritia:submitted", { bubbles: true, composed: true, detail: { formId: d.id, submissionId: j.id ?? null } }));

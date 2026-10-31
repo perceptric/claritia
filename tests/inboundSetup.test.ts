@@ -84,7 +84,7 @@ test("try a lead through testRoute: the reps typed are read too (with their back
   let fail = 1;
   const rpc: Rpc = async (fn, args) => {
     calls.push({ fn, users: args.p_users });
-    if (fn === "router_facts_full") {
+    if (fn === "routing_facts" || fn === "router_facts_full") {
       if (fail-- > 0) return { data: null, error: { message: "connection reset" } };
       const r = (n: string, o: Record<string, unknown> = {}) => ({ name: n, member: true, tz: "UTC", availability: null, paused_until: null, out_dates: [], calendar_out_until: null, backup: null, cap_day: null, cap_week: null, today: 0, week: 0, meetings_week: 0, ...o });
       return {
@@ -115,7 +115,7 @@ test("try a lead through testRoute: the reps typed are read too (with their back
   assert.ok((calls.at(-1)!.users as string[]).includes(VIN), "the rep typed is read with the team's");
   assert.deepEqual(r!.decision.result, { kind: "owner", user: PRIYA, by: "account" }, "away, so their backup takes it");
   assert.equal(whyOf(r!.decision, { body: b, fields: BASE_FIELDS, name }), "Known lead, assigned to their owner Vincent Nguyen. Vincent is away, so the backup Priya Nair takes it");
-  assert.ok(!calls.some((c) => c.fn === "router_commit" || c.fn === "enqueue_job"), "trying writes nothing");
+  assert.ok(!calls.some((c) => c.fn === "router_commit" || c.fn === "routing_commit" || c.fn === "enqueue_job"), "trying writes nothing");
 });
 
 // Meetings ----------------------------------------------------------------------------------------------------------

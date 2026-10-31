@@ -81,15 +81,59 @@ export function listOf(value: Cond["value"], territories: Territory[]): string[]
   return out.map(norm).filter(Boolean);
 }
 
-/** Whether one condition holds for a value. A list value (a multi-choice answer) holds when any item does. */
-export function holds(c: Cond, actual: unknown, territories: Territory[] = []): boolean {
+/** v1 keeps every body made before policies exactly as it ran; v2 is the spec's typed semantics. */
+export type CondMode = "v1" | "v2";
+
+const WHOLE = /^-?(\d{1,3}(,\d{3})+|\d+)(\.\d+)?$/;
+const RANGE = /^(\d{1,3}(?:,\d{3})+|\d+)\s*(?:-|\u2013|\u2014|to)\s*(\d{1,3}(?:,\d{3})+|\d+)$/i;
+const PLUS = /^(\d{1,3}(?:,\d{3})+|\d+)\s*\+$/;
+const num = (s: string) => Number(s.replace(/,/g, ""));
+
+/**
+ * v2: a number or a range from a value, never made up. 800, "800", "1,200" are numbers; "51-200", "51 to 200" are
+ * ranges; "10,000+" is at least 10000. Anything else ("about 50", "lots") is unknown: null.
+ */
+export function numberOrRange(v: unknown): { lo: number; hi: number } | null {
+  if (typeof v === "number") return Number.isFinite(v) ? { lo: v, hi: v } : null;
+  if (typeof v !== "string") return null;
+  const t = v.trim();
+  if (WHOLE.test(t)) {
+    const n = num(t);
+    return Number.isFinite(n) ? { lo: n, hi: n } : null;
+  }
+  const r = t.match(RANGE);
+  if (r) {
+    const a = num(r[1]!);
+    const b = num(r[2]!);
+    return { lo: Math.min(a, b), hi: Math.max(a, b) };
+  }
+  const p = t.match(PLUS);
+  if (p) return { lo: num(p[1]!), hi: Infinity };
+  return null;
+}
+
+/** A condition that still needs its value (an incomplete draft row): it never holds, so it can't become a catch-all. */
+export const incomplete = (c: Cond) => needsValue(c.op) && (c.value === undefined || c.value === null || c.value === "" || (Array.isArray(c.value) && !c.value.length));
+
+/**
+ * Whether one condition holds for a value. A list value (a multi-choice answer) holds when any item does.
+ *
+ * v1 (every body made before policies, kept as it ran): "is not" and "not one of" hold for an unknown value, and a
+ * number test reads the first number in the text (a range's low end). v2 (docs/routing-workflow.md Section 11): an
+ * unknown value only answers "is known" / "is unknown"; numbers are compared as numbers; a range passes a number test
+ * only when the whole range does ("51-200" is at least 51, never "at least 100"); text that isn't a number is unknown.
+ */
+export function holds(c: Cond, actual: unknown, territories: Territory[] = [], mode: CondMode = "v1"): boolean {
   if (c.op === "filled") return !blank(actual);
   if (c.op === "empty") return blank(actual);
+  if (incomplete(c)) return false;
   if (Array.isArray(actual)) {
-    if (c.op === "is_not" || c.op === "not_one_of") return actual.every((a) => holds(c, a, territories));
-    return actual.some((a) => holds(c, a, territories));
+    if (!actual.length) return mode === "v1" && (c.op === "is_not" || c.op === "not_one_of");
+    if (c.op === "is_not" || c.op === "not_one_of") return actual.every((a) => holds(c, a, territories, mode));
+    return actual.some((a) => holds(c, a, territories, mode));
   }
-  if (blank(actual)) return c.op === "is_not" || c.op === "not_one_of";
+  if (blank(actual)) return mode === "v1" && (c.op === "is_not" || c.op === "not_one_of");
+  if (mode === "v2") return holdsV2(c, actual, territories);
   const a = norm(actual);
   switch (c.op) {
     case "is": {
@@ -125,10 +169,59 @@ export function holds(c: Cond, actual: unknown, territories: Territory[] = []): 
   return false;
 }
 
-/** Whether a rule matches the lead's values; when it doesn't, the first condition that failed and its value. */
-export function ruleMatches(r: Rule, values: Record<string, unknown>, territories: Territory[]): { ok: boolean; failed: { cond: Cond; actual: unknown } | null } {
+/** v2 for a known, single value. */
+function holdsV2(c: Cond, actual: unknown, territories: Territory[]): boolean {
+  const numeric = c.op === "gt" || c.op === "gte" || c.op === "lt" || c.op === "between" || ((c.op === "is" || c.op === "is_not") && typeof c.value === "number");
+  if (numeric) {
+    const r = numberOrRange(actual);
+    if (!r) return false;
+    const lim = (x: unknown) => (typeof x === "number" && Number.isFinite(x) ? x : typeof x === "string" && WHOLE.test(x.trim()) ? num(x.trim()) : null);
+    if (c.op === "between") {
+      const [a, b] = Array.isArray(c.value) ? c.value.map(lim) : [null, null];
+      if (a === null || a === undefined || b === null || b === undefined) return false;
+      return r.lo >= Math.min(a, b) && r.hi <= Math.max(a, b);
+    }
+    const n = lim(Array.isArray(c.value) ? c.value[0] : c.value);
+    if (n === null) return false;
+    switch (c.op) {
+      case "gt":
+        return r.lo > n;
+      case "gte":
+        return r.lo >= n;
+      case "lt":
+        return r.hi < n;
+      case "is":
+        return r.lo === n && r.hi === n;
+      case "is_not":
+        return n < r.lo || n > r.hi;
+    }
+    return false;
+  }
+  const a = norm(actual);
+  switch (c.op) {
+    case "is":
+      return a === norm(c.value);
+    case "is_not":
+      return a !== norm(c.value);
+    case "one_of":
+      return listOf(c.value, territories).includes(a);
+    case "not_one_of":
+      return !listOf(c.value, territories).includes(a);
+    case "contains":
+      return listOf(c.value, territories).some((v) => a.includes(v));
+    case "starts_with":
+      return listOf(c.value, territories).some((v) => a.startsWith(v));
+  }
+  return false;
+}
+
+/**
+ * Whether a rule matches the lead's values; when it doesn't, the first condition that failed and its value. A rule
+ * with no conditions never matches (an empty "all" isn't a catch-all).
+ */
+export function ruleMatches(r: Rule, values: Record<string, unknown>, territories: Territory[], mode: CondMode = "v1"): { ok: boolean; failed: { cond: Cond; actual: unknown } | null } {
   if (!r.conds.length) return { ok: false, failed: null };
-  const results = r.conds.map((c) => ({ cond: c, actual: values[c.field], ok: holds(c, values[c.field], territories) }));
+  const results = r.conds.map((c) => ({ cond: c, actual: values[c.field], ok: holds(c, values[c.field], territories, mode) }));
   const ok = r.match === "any" ? results.some((x) => x.ok) : results.every((x) => x.ok);
   if (ok) return { ok, failed: null };
   const f = results.find((x) => !x.ok)!;
@@ -136,8 +229,8 @@ export function ruleMatches(r: Rule, values: Record<string, unknown>, territorie
 }
 
 /** The company types a lead's company is, by name, from the other values (a type's conditions can't use types). */
-export function segmentsOf(segments: Segment[] | undefined, values: Record<string, unknown>, territories: Territory[]): string[] {
-  return (segments ?? []).filter((s) => ruleMatches({ id: s.id, name: s.name, match: s.match, conds: s.conds.filter((c) => c.field !== "company.type"), queue: "" }, values, territories).ok).map((s) => s.name);
+export function segmentsOf(segments: Segment[] | undefined, values: Record<string, unknown>, territories: Territory[], mode: CondMode = "v1"): string[] {
+  return (segments ?? []).filter((s) => ruleMatches({ id: s.id, name: s.name, match: s.match, conds: s.conds.filter((c) => c.field !== "company.type"), queue: "" }, values, territories, mode).ok).map((s) => s.name);
 }
 
 /** The fields with Company type's choices filled in from a body's types. */

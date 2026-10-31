@@ -11,6 +11,7 @@ import { book, offer } from "../meetings/server.ts";
 import { callNewer } from "./newer.ts";
 import type { LiveRouter } from "../router/server.ts";
 import { DEFAULT_SETTINGS, type MeetingType, type Slot } from "../meetings/types.ts";
+import type { AvailabilityFailure } from "../routing/states.ts";
 import type { Booked, Booking } from "./calendar.ts";
 
 export type { Booked, Booking };
@@ -91,7 +92,13 @@ async function times(rpc: Rpc, ctx: FillCtx, owner: string | null, length: numbe
   const lengths = t.settings.lengths;
   const len = length !== undefined && lengths.includes(length) ? length : lengths[0]!;
   const o = await offer(rpc, { ws: ctx.workspace_id, type: t, length: len, now, owner, live, only });
-  return { slots: o.slots.map((s) => s.start), lengths, length: len, host: hostView(ctx, only ?? shownHost(t, o.slots)) };
+  return { slots: o.slots.map((s) => s.start), lengths, length: len, host: hostView(ctx, only ?? shownHost(t, o.slots)), out: o.out };
+}
+
+/** Why a rep's times came back empty: a calendar to connect or sign in again is not "no free times" (Section 15). */
+function whyNone(out: { id: string; why: string }[], rep: string | null | undefined): AvailabilityFailure {
+  const w = out.find((x) => !rep || x.id === rep)?.why;
+  return w === "reconnect" || w === "no_calendar" ? "calendar_disconnected" : "no_slots";
 }
 
 /**
@@ -100,13 +107,22 @@ async function times(rpc: Rpc, ctx: FillCtx, owner: string | null, length: numbe
  * router the send already read for routing, so a team type doesn't read it again. `rep`: the rep Routing gave the
  * lead; the times are theirs alone, whatever the type's kind, and the token books with them only.
  */
-export async function offerForFill(rpc: Rpc, o: { submission: string; typeId: string; secret: string; now?: number; clock?: number; live?: LiveRouter | null; rep?: string | null }): Promise<Booking | null> {
+export async function offerForFill(
+  rpc: Rpc,
+  o: { submission: string; typeId: string; secret: string; now?: number; clock?: number; live?: LiveRouter | null; rep?: string | null; report?: (why: AvailabilityFailure) => void },
+): Promise<Booking | null> {
   const now = o.now ?? Date.now();
   const ctx = await fillCtx(rpc, o.submission, o.typeId);
-  if (!ctx?.type || !ctx.contact_id || ctx.spam || !ctx.email) return null;
+  if (!ctx?.type || !ctx.contact_id || ctx.spam || !ctx.email) {
+    o.report?.("unknown");
+    return null;
+  }
   const owner = o.rep ?? ctx.owner;
   const r = await times(rpc, ctx, owner, undefined, now, o.live, o.rep);
-  if (!r.slots.length) return null;
+  if (!r.slots.length) {
+    o.report?.(whyNone(r.out, o.rep));
+    return null;
+  }
   // With a rep, the book-later email offers that rep's times only (092); before 092, the plain call.
   const shown = o.rep ? await callNewer(rpc, "form_booking_shown_rep", { p_submission: o.submission, p_type: o.typeId, p_owner: owner }) : null;
   const { data, error } = shown ?? (await rpc("form_booking_shown", { p_submission: o.submission, p_type: o.typeId, p_owner: owner }));
@@ -176,6 +192,9 @@ export async function bookForClaim(
     throw e;
   }
   if (r.ok) {
+    // The routed run's booking is confirmed (and its scheduling follow-up resolved). A failure here never undoes the
+    // meeting: it's only the run's record (Section 15).
+    await callNewer(rpc, "routing_run_booking", { p_ws: ctx.workspace_id, p_key: `form:${c.submission}`, p_state: "confirmed", p_reason: null }).catch(() => null);
     const manage = o.base ? `${o.base}/book/m/${r.token}` : undefined;
     return { status: 200, body: { booked: bookedView(ctx, { start: new Date(r.start).toISOString(), end: new Date(r.end).toISOString(), hosts: r.hosts }, manage) } };
   }

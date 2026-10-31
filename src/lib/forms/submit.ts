@@ -10,7 +10,10 @@ import { countryCode, customValue, type CustomField } from "../contacts/fields.t
 import type { ContactInput } from "../contacts/import.ts";
 import { cleanEmail, isRejected } from "../identity/clean.ts";
 import { enqueueJob, type Rpc } from "../jobs.ts";
-import type { LiveRouter } from "../router/server.ts";
+import type { Inputs, LiveRouter, SourceRef } from "../router/server.ts";
+import { applyMappings } from "../routing/mapping.ts";
+import { resolveSource, type SourceRow } from "../routing/sources.ts";
+import { VISITOR, type AvailabilityFailure } from "../routing/states.ts";
 import { within } from "../meetings/team.ts";
 import { callNewer } from "./newer.ts";
 import { siteAllowed } from "./notify.ts";
@@ -233,7 +236,8 @@ export const ROUTE_BUDGET_MS = 300;
 /** Once the send's own router_commit has started, how long it may still take before the job is queued as well. */
 export const COMMIT_GRACE_MS = 2000;
 
-export type FillRouting = { routed: RoutedAs; live: LiveRouter | null | undefined };
+/** `run`: the routing run's id once it's committed (inline, or found by its key). */
+export type FillRouting = { routed: RoutedAs; live: LiveRouter | null | undefined; run?: string };
 
 /**
  * Route a fill: here within the budget, or by a route job (same key, `form:<submission>`), never both. Whichever side
@@ -248,10 +252,27 @@ export async function routeFillWith(
   ws: string,
   contact: string,
   submission: string,
-  o: { live?: LiveRouter | null; before?: () => Promise<unknown>; budgetMs?: number; graceMs?: number } = {},
+  o: {
+    live?: LiveRouter | null;
+    before?: () => Promise<unknown>;
+    budgetMs?: number;
+    graceMs?: number;
+    /** The form's connection (stored on the run), its mapped answers, and the run's first booking state. */
+    source?: SourceRef | null;
+    inputs?: Inputs | null;
+    booking?: "not_requested" | "awaiting_selection";
+  } = {},
 ): Promise<FillRouting> {
   const key = `form:${submission}`;
-  const later = () => enqueueJob(rpc, { workspaceId: ws, kind: "route", key, payload: { contact, reason: "form", key } }).catch(() => undefined);
+  // The job routes with what this send captured: the connection, its mapped answers and the policy (Section 13).
+  const captured = () => ({
+    ...(o.source ? { source: o.source } : {}),
+    ...(o.inputs ? { inputs: o.inputs } : {}),
+    ...(o.booking ? { booking: o.booking } : {}),
+    ...(live?.policy_id ? { policy: live.policy_id } : {}),
+    submission,
+  });
+  const later = () => enqueueJob(rpc, { workspaceId: ws, kind: "route", key, payload: { contact, reason: "form", key, ...captured() } }).catch(() => undefined);
   let owner: "inline" | "job" | null = null;
   const gate = () => {
     if (owner === null) owner = "inline";
@@ -269,7 +290,7 @@ export async function routeFillWith(
       if (live === undefined) live = await liveRouterCached(rpc, ws);
       if (live && !live.paused && usesQualify(live.body)) return { handOff: true as const };
       if (o.before) await o.before().catch(() => undefined);
-      return { r: await route(rpc, { ws, contact, key, reason: "form", live, gate }) };
+      return { r: await route(rpc, { ws, contact, key, reason: "form", live, gate, source: o.source, inputs: o.inputs, booking: o.booking, submission }) };
     })();
     done.catch(() => undefined);
     let got = await within(done, o.budgetMs ?? ROUTE_BUDGET_MS);
@@ -287,14 +308,17 @@ export async function routeFillWith(
     if ("handOff" in v) return await toJob(live);
     const r = v.r;
     if (r.status === "late") return { routed: null, live };
+    // A lead marked spam before isn't routed: it's held. A contact that's gone has no owner to book with.
+    if (r.status === "spam") return { routed: { kind: "held" }, live };
+    if (r.status === "gone") return { routed: { kind: "unassigned" }, live };
     if (r.status !== "ok" && r.status !== "dup") return { routed: null, live };
     const res = r.result;
-    if (res.kind !== "owner") return { routed: { kind: res.kind }, live };
+    if (res.kind !== "owner") return { routed: { kind: res.kind }, live, run: r.run };
     // The meeting the rule names (docs/scheduling-plan.md 12.5); a lead no rule matched takes the fallback's.
     const body = live?.body;
     const rule = res.rule ? body?.rules.list.find((x) => x.id === res.rule) : undefined;
     const meet = rule ? rule.meet : res.by === "fallback" ? body?.fallback?.meet : undefined;
-    return { routed: { kind: "owner", rule: res.rule ?? null, by: res.by, user: res.user, ...(meet ? { meet } : {}) }, live };
+    return { routed: { kind: "owner", rule: res.rule ?? null, by: res.by, user: res.user, ...(meet ? { meet } : {}) }, live, run: r.run };
   } catch {
     // Failed before it claimed the lead, or while committing: the job routes it (a repeat by key writes nothing).
     if (owner !== "job") await later();
@@ -381,41 +405,62 @@ export async function acceptFill(
   // Alerts and the auto-reply (their job waits for routing, so they name the rep). form_submit_all queued them; the
   // old way queues them here. The key is the submission's, so a repeat can't send twice.
   if (!inOne && !spam && !o.test && !repeat) await queueNotify(rpc, f.workspace_id, f.body, sid);
+  // The submission is saved: everything below may fail or be slow, and the fill is kept (Section 13).
+  const sch = f.body.after.schedule;
+  const lead = spam ? null : r.args.p_contact;
+  // The checked answers by field id (a field a rule hid or a skipped one has none): who sees the calendar, and the
+  // connection's mappings, read these, never what the browser claimed.
+  const byId: Record<string, unknown> = {};
+  for (const x of allFields(f.body)) if (r.args.p_values[x.key] !== undefined) byId[x.id] = r.args.p_values[x.key];
+  // The form's connection and its live policy, resolved together (095): the run records both. Before 095, or when
+  // the read fails, the workspace's router as before.
+  const resolved = cid && !spam ? await resolveSource(rpc, f.id).catch(() => null) : null;
+  const src: SourceRow | null = resolved?.source ?? null;
+  const calendar = src ? src.outcome === "assign_and_calendar" : sch?.tool === "claritia";
+  const inputs = src?.mappings?.length ? applyMappings(src.mappings, byId) : null;
   // The router picks the owner now (docs/router.md Part 7), so the calendar below shows that rep's times. It has
-  // ROUTE_BUDGET_MS; slower, or failing, the lead still books from the meeting type, and a job routes them with the
-  // same key. Fields hidden as known are filled from the lookup the form already made, before the router reads them.
-  // A repeat send asks again too: the key makes it read the first run back (nothing new is written), so a retried
-  // send shows the same rep's times.
+  // ROUTE_BUDGET_MS; slower, or failing, a job routes the lead with the same key and a calendar form says it's
+  // finishing (the browser sends the same request again). Fields hidden as known are filled from the lookup the form
+  // already made, before the router reads them. A repeat send asks again too: the key makes it read the first run
+  // back (nothing new is written), so a retried send shows the same rep's times.
   const routing =
     cid && !spam
-      ? await routeFillWith(rpc, f.workspace_id, cid, sid, { before: f.body.enrich?.hideKnown && !repeat ? () => fillKnown(rpc, cid) : undefined })
+      ? await routeFillWith(rpc, f.workspace_id, cid, sid, {
+          ...(resolved ? { live: resolved.live } : {}),
+          before: f.body.enrich?.hideKnown && !repeat ? () => fillKnown(rpc, cid) : undefined,
+          source: src ? { id: src.id, revision: src.revision } : null,
+          inputs,
+          booking: calendar ? "awaiting_selection" : "not_requested",
+        })
       : null;
   const routed = routing?.routed ?? null;
   // Book a meeting next: the contact owner's link when the form says so and they have one, else the form's link.
-  const sch = f.body.after.schedule;
-  const lead = spam ? null : r.args.p_contact;
   let schedule: { tool: string; url: string } | null = null;
-  // Who sees the calendar is decided here, on the checked answers (a field a rule hid or a skipped one has none) and
-  // on the server's email class: a work email is anything but free mail.
-  const byId: Record<string, unknown> = {};
-  for (const x of allFields(f.body)) if (r.args.p_values[x.key] !== undefined) byId[x.id] = r.args.p_values[x.key];
+  // Who sees the calendar is decided here, on the server's email class: a work email is anything but free mail.
   const shows = () => !!lead && showsMeeting(sch!, byId, !!lead.email_class && lead.email_class !== "free");
   if (sch && lead && !spam && !outside(sch.tool)) {
-    // Claritia calendar: Routing decides who, the form shows the result (claritiaPlan). Times from the cache with a
-    // signed token, or the message when there are none to show. A booking hiccup never loses the fill: it's saved,
-    // and the lead gets the message. With Routing not live, an older form's "who sees times" still holds.
+    // Claritia calendar: Routing decides who, the form shows the result (claritiaPlan): the committed owner's times
+    // for the connection's meeting type (a rule's own meeting first), or the message. A booking hiccup never loses
+    // the fill: it's saved, and the lead gets the message. With Routing not live, an older form's "who sees times"
+    // still holds.
     const routingOn = !!routing?.live && !routing.live.paused;
-    const plan = routingOn || shows() ? claritiaPlan(sch, routed, routing?.live) : ({ kind: "message" } as const);
+    const own = src?.meeting_type_id ? { ...sch, meetingTypeId: src.meeting_type_id } : sch;
+    const plan = routingOn && !calendar ? ({ kind: "message" } as const) : routingOn || shows() ? claritiaPlan(own, routed, routing?.live) : ({ kind: "message" } as const);
+    if (plan.kind === "pending") return { status: 200, body: { id: sid, schedule: null, pending: true, message: VISITOR.slow } };
     let booking: Booking | null = null;
     if (plan.kind === "times" && o.secret) {
+      let why: AvailabilityFailure | null = null;
       try {
-        booking = await offerForFill(rpc, { submission: sid, typeId: plan.type, secret: o.secret, now: o.now, live: routing?.live, rep: plan.rep });
+        booking = await offerForFill(rpc, { submission: sid, typeId: plan.type, secret: o.secret, now: o.now, live: routing?.live, rep: plan.rep, report: (w) => (why = w) });
       } catch {
         booking = null;
+        why = "unknown";
       }
-      // Their rep has no free times: the message, and with "Email times later" (the form's, or Routing's alert when
-      // there's no availability) the rep's times by email once they have some (meeting_book_later, the same key as a
-      // shown booking's, so it's queued once).
+      // Their rep has no free times: the owner stays, the lead sees the message, the run says why (a calendar that
+      // can't be read is never "no free times"), and the owner gets one scheduling follow-up for this run.
+      if (!booking && plan.rep && routing?.run) await noTimes(rpc, f.workspace_id, routing.run, sid, why ?? "unknown", src, !!o.test);
+      // With "Email times later" (the form's, or Routing's alert when there's no availability) the rep's times by
+      // email once they have some (meeting_book_later, the same key as a shown booking's, so it's queued once).
       if (!booking && plan.rep && emailsTimesLater(sch, routing?.live) && !o.test)
         await enqueueJob(rpc, { workspaceId: f.workspace_id, kind: "meeting_book_later", key: `book_later:${sid}`, payload: { submission: sid, type: plan.type, owner: plan.rep, only: true }, delayS: LATER_S, maxAttempts: 3 }).catch(() => undefined);
     }
@@ -435,6 +480,19 @@ export async function acceptFill(
     if (url) schedule = { tool: sch.tool, url };
   }
   return { status: 200, body: { id: sid, schedule } };
+}
+
+/**
+ * The committed owner has no times to show (Sections 13 and 19): the run's booking is unavailable, with the internal
+ * reason, and the owner gets one scheduling follow-up task for this run (a retry reuses it). Never fails the send.
+ */
+async function noTimes(rpc: Rpc, ws: string, run: string, submission: string, why: AvailabilityFailure, src: SourceRow | null, test: boolean): Promise<void> {
+  try {
+    await callNewer(rpc, "routing_run_booking", { p_ws: ws, p_key: `form:${submission}`, p_state: "unavailable", p_reason: why });
+    if (!test && src?.no_slots?.task !== false) await callNewer(rpc, "routing_followup", { p_ws: ws, p_run: run, p_purpose: "schedule" });
+  } catch {
+    // The owner is kept either way; the run keeps its earlier state.
+  }
 }
 
 /** The form's own hosted page (/f/<id>) is always allowed. */

@@ -32,10 +32,13 @@ export type Cond = { field: string; op: Op; value?: string | number | (string | 
  * versions without `then` mean), send to the company's owner (the rep on its open deal first when the account step
  * says so, else the company's owner, else the contact's owner), or hold the lead for review.
  */
-export type Then = "queue" | "owner" | "hold";
+export type Then = "queue" | "owner" | "hold" | "user";
 
-/** `meet`: the meeting type a form offers the lead this rule routes (docs/scheduling-plan.md 12.5), else the form's own. */
-export type Rule = { id: string; name: string; match: "all" | "any"; conds: Cond[]; queue: string; on?: boolean; then?: Then; meet?: string };
+/**
+ * `meet`: the meeting type a form offers the lead this rule routes (docs/scheduling-plan.md 12.5), else the form's own.
+ * `then: "user"` (v2): straight to one person, `user`.
+ */
+export type Rule = { id: string; name: string; match: "all" | "any"; conds: Cond[]; queue: string; on?: boolean; then?: Then; meet?: string; user?: string };
 
 export type Method = "rr" | "weighted" | "load";
 
@@ -75,8 +78,29 @@ export const SLA_MINUTES = [5, 15, 30, 60, 120, 240, 480, 1440, 2880];
 
 export const defaultSla = (): Sla => ({ on: false, minutes: 60, nudge: 30, next: "route", manager: null });
 
+/** Whose ownership is kept first (docs/routing-workflow.md Section 10). */
+export type OwnerKind = "company" | "contact";
+
+/**
+ * The unavailable-recipient fallback (docs/routing-workflow.md Section 7): what happens when a rule or Everyone else
+ * chose a destination that has nobody who can take the lead. One hop, then review. `default`: Everyone else's
+ * destination (how v1 bodies have always worked).
+ */
+export type Backup = { kind: "review" } | { kind: "user"; id: string } | { kind: "queue"; id: string } | { kind: "default" };
+
+/**
+ * Who this policy may assign to (docs/routing-workflow.md Section 10): `everyone` is every workspace member (every v1
+ * body); otherwise the people named and the current members of the teams named.
+ */
+export type Scope = { everyone: boolean; people: string[]; teams: string[] };
+
 export type RouterBody = {
-  v: 1;
+  /**
+   * 1: every body made before policies, with its exact live semantics kept (docs/routing-current-to-target.md Part 3).
+   * 2: the spec's semantics: "is not" is false on unknown, ranges are ranges, ownership follows `ownership.order` and
+   * `scope`, and a destination with nobody goes to `backup` once, then review.
+   */
+  v: 1 | 2;
   spam: { on: boolean; disposable: boolean; fakeName: boolean; tooMany: boolean; freeMail: boolean; maxPerHour: number };
   account: { on: boolean; oppFirst: boolean; setCompanyOwner: boolean };
   keep: { on: boolean; whenOut: WhenOut };
@@ -94,6 +118,14 @@ export type RouterBody = {
    * form, as a form's own "Email times later" does.
    */
   notify?: { noTimes: boolean };
+  /** v2. Left out: every member (v1). */
+  scope?: Scope;
+  /** v2. The order existing owners are kept in; empty keeps none. `capBlocksNew`: a member at their cap can't become a new owner. */
+  ownership?: { order: OwnerKind[]; capBlocksNew: boolean };
+  /** v2. Left out: review (v2), Everyone else then Unassigned (v1). */
+  backup?: Backup;
+  /** The person responsible for this policy's review items; left out, a workspace owner. */
+  review?: { owner: string | null };
 };
 
 export const emptyBody = (): RouterBody => ({
@@ -107,6 +139,18 @@ export const emptyBody = (): RouterBody => ({
   territories: [],
   sla: defaultSla(),
   notify: { noTimes: true },
+});
+
+/** A new policy with the spec's semantics (v2): company owner then contact owner, a named scope, review as backup. */
+export const specBody = (o: { people?: string[]; teams?: string[]; reviewer?: string | null } = {}): RouterBody => ({
+  ...emptyBody(),
+  v: 2,
+  account: { on: true, oppFirst: false, setCompanyOwner: false },
+  keep: { on: true, whenOut: "route" },
+  scope: { everyone: false, people: [...(o.people ?? [])], teams: [...(o.teams ?? [])] },
+  ownership: { order: ["company", "contact"], capBlocksNew: true },
+  backup: { kind: "review" },
+  review: { owner: o.reviewer ?? null },
 });
 
 // Facts --------------------------------------------------------------------------------------------------------
@@ -129,6 +173,24 @@ export type RepFacts = {
   /** Inside their working hours now (from their meeting hours); null when they have none set. */
   inHours: boolean | null;
 };
+
+/** A team as the database has it now (routing_teams): stable member order and the persisted next position. */
+export type TeamFacts = {
+  id: string;
+  name: string;
+  method: Method;
+  strict: boolean;
+  hoursOnly: boolean;
+  /** The position the next turn starts from. */
+  next: number;
+  members: { user: string; weight: number; position: number }[];
+};
+
+/** Where a value came from: this submission's answer, the CRM, enrichment, or a test override. */
+export type Provenance = { source: "form" | "crm" | "enrichment" | "test" | "handoff"; field?: string };
+
+/** Something wrong with the input itself that a person has to look at. */
+export type InputIssue = { code: "source_mapping_mismatch"; field: string; detail?: string };
 
 export type Facts = {
   now: number;
@@ -157,12 +219,19 @@ export type Facts = {
   lists: { allow: string[]; block: string[] };
   /** Reps who let this lead wait past its response time: routing it again skips them. */
   passed?: string[];
+  /** Teams by the body's queue id, as the database has them (members, order, next position). Left out: the body's own. */
+  teams?: Record<string, TeamFacts>;
+  /** How the company was found: the contact's own link, one domain match, several (ambiguous) or none. */
+  companyMatch?: { kind: "linked" | "domain" | "ambiguous" | "none"; count: number };
+  /** Where each value came from, by field name. */
+  provenance?: Record<string, Provenance>;
+  issues?: InputIssue[];
 };
 
 // Results ------------------------------------------------------------------------------------------------------
 
 /** Why a rep can't take a lead now. */
-export type Why = "not_member" | "paused" | "out" | "cap_day" | "cap_week" | "hours" | "passed";
+export type Why = "not_member" | "paused" | "out" | "cap_day" | "cap_week" | "hours" | "passed" | "out_of_scope";
 
 export type SpamSignal = "disposable" | "blocked" | "fake_name" | "too_many" | "free_mail" | "rule";
 
@@ -191,7 +260,17 @@ export type StepResult =
       action?: WhenOut;
       backup?: string;
     }
-  | { step: "rules"; ok: boolean; off?: boolean; rule?: { id: string; name: string; queue: string; then?: Then }; owner?: string; unavailable?: { user: string; why: Why; until?: number | null }; skipped: { id: string; name: string; failed: { cond: Cond; actual: unknown } | null }[] }
+  | {
+      step: "rules";
+      ok: boolean;
+      off?: boolean;
+      rule?: { id: string; name: string; queue: string; then?: Then; user?: string };
+      owner?: string;
+      unavailable?: { user: string; why: Why; until?: number | null };
+      skipped: { id: string; name: string; failed: { cond: Cond; actual: unknown } | null }[];
+      /** Rules after the one that matched: never looked at (docs/routing-workflow.md Section 11). */
+      notEvaluated?: { id: string; name: string }[];
+    }
   | {
       step: "queue";
       ok: boolean;
@@ -200,17 +279,41 @@ export type StepResult =
       others: { user: string; n: number; why?: Why; until?: number | null }[];
       pickedN?: number;
       window: number;
+      /** The team's persisted next position when it takes turns from the database's queue. */
+      next?: number;
+      /** The picked member already owns the contact: kept, no turn taken. */
+      retained?: boolean;
     }
+  /** v2: a held input problem (a form value of the wrong type, several companies that could be this one). */
+  | { step: "check"; ok: false; reason: HoldReason; field?: string; count?: number }
+  /** v2: existing owners in the policy's order, each picked or skipped with a reason. */
+  | {
+      step: "owners";
+      ok: boolean;
+      off?: boolean;
+      order: OwnerKind[];
+      candidates: { kind: OwnerKind; user: string | null; via?: "opp" | "company"; miss?: "no_owner" | "unmapped" | "no_company" | "same_person"; why?: Why; until?: number | null; picked?: boolean }[];
+      owner?: string;
+    }
+  /** v2: the destination had nobody; its one backup hop, or review. */
+  | { step: "backup"; ok: boolean; from: { kind: "queue" | "user"; id: string }; to?: { kind: "queue" | "user"; id: string; name: string }; picked?: string; why?: Why | "same_destination" | "review" | "none" }
   | { step: "fallback"; ok: boolean; picked?: string; queue?: { id: string; name: string }; why?: Why | "none" }
   /** The rep before didn't act within the response time; the lead was passed on. */
   | { step: "sla"; ok: false; user: string; minutes: number }
   /** Assigned by hand from Unassigned (router_assign), or to the manager after a missed response time. */
   | { step: "hand"; ok: true; user: string; by_user: string | null };
 
+/** Why a lead waits for a person: junk, a rule that holds, a form value of the wrong type, several possible companies. */
+export type HoldReason = "spam" | "rule" | "source_mapping_mismatch" | "multiple_companies";
+
+/**
+ * `effect`: a new owner (a quota charge, and a queue turn when a team picked them) or the same owner kept (neither).
+ * `by` "rule": a rule's own person (v2); "backup": the unavailable-recipient fallback (v2).
+ */
 export type Result =
-  | { kind: "owner"; user: string; by: "account" | "keep" | "queue" | "fallback" | "hand"; queue?: string; rule?: string }
-  | { kind: "held"; signals: SpamSignal[] }
-  | { kind: "unassigned" };
+  | { kind: "owner"; user: string; by: "account" | "keep" | "queue" | "fallback" | "hand" | "rule" | "backup"; queue?: string; rule?: string; effect?: "new" | "retained" }
+  | { kind: "held"; signals: SpamSignal[]; reason?: HoldReason }
+  | { kind: "unassigned"; reason?: "no_eligible_recipient" | "no_default" };
 
 export type Decision = { result: Result; steps: StepResult[] };
 

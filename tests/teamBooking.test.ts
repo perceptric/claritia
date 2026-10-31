@@ -52,7 +52,7 @@ type Opt = {
 };
 
 // These cover the calls one at a time (the database before 090); meeting_book_all is covered on Postgres.
-const OLD_PATH = new Set(["meeting_book_all", "router_facts_full"]);
+const OLD_PATH = new Set(["meeting_book_all", "router_facts_full", "routing_facts", "routing_commit"]);
 
 function db(o: Opt = {}) {
   // Each case reads the router afresh.
@@ -272,7 +272,7 @@ test("a form offers the meeting its routing rule names, and the router slow give
         if (slow) await new Promise((r) => setTimeout(r, 500));
         return { data: { version: 1, body }, error: null };
       }
-      if (fn === "router_facts" || fn === "router_facts_full") return { data: { existing }, error: null };
+      if (fn === "router_facts" || fn === "router_facts_full" || fn === "routing_facts") return { data: { existing }, error: null };
       return { data: "x", error: null };
     };
   };

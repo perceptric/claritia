@@ -269,17 +269,27 @@ export async function dropDraft(rpc: Rpc, c: Caller) {
   return { ok: true };
 }
 
+/**
+ * Publish the workspace's routing (its default policy, Inbound) through the one publish service
+ * (src/lib/routing/policies.ts): the draft at the revision on the router row, checked, as the next immutable version.
+ * The operation id is the policy and that revision, so a retried click can't make a second version.
+ */
 export async function publish(rpc: Rpc, db: Q, c: Caller, note: string | null) {
   ownerOnly(c);
   // The draft, the team and the fields side by side; the team and fields read fresh, since this check guards a write.
   const [row, members, f] = await Promise.all([routerRow(db, c.ws), membersOf(rpc, db, c.ws, { fresh: true }), fieldsFor(db, c.ws, { fresh: true })]);
   if (!row?.draft) throw new Refused(400, "There's no draft to publish.");
-  const body = cleanBody(row.draft);
-  const ps = problems(body, { members: new Set(members.map((m) => m.id)), fields: f.fields });
-  if (ps.length) throw new Refused(400, ps.map((p) => p.text).join(". "));
-  const version = await call<number>(rpc, "router_publish", { p_ws: c.ws, p_body: body, p_note: note?.trim().slice(0, 300) || null, p_user: c.user, p_clear_draft: true });
-  invalidateRouterLive(c.ws);
-  return { version };
+  const { defaultPolicy, publishPolicy } = await import("../routing/policies.ts");
+  const { RoutingFailure } = await import("../routing/states.ts");
+  const policy = await defaultPolicy(rpc, c.ws);
+  if (!policy) throw new Refused(400, "There's no draft to publish.");
+  try {
+    const out = await publishPolicy(rpc, c, { policy, revision: row.draft_revision, key: `publish:${policy}:${row.draft_revision}`, note, ctx: { members: new Set(members.map((m) => m.id)), fields: f.fields } });
+    return { version: out.version };
+  } catch (e) {
+    if (e instanceof RoutingFailure) throw new Refused(e.error.code === "draft_conflict" ? 409 : 400, e.error.code === "draft_conflict" ? "Someone else changed the draft." : e.message);
+    throw e;
+  }
 }
 
 export async function rollback(rpc: Rpc, db: Q, c: Caller, version: number) {
