@@ -57,7 +57,7 @@ function FormPage(props: ViewProps) {
   const data = useQuery(`form:${ws.id}:${id}`, async (): Promise<FormData | { none: true }> => {
     const [f, kits, sources, dests, custom, sites, types, stats] = await Promise.all([
       sb.from("forms").select("id, name, status, kind, draft, draft_rev, version, brand_kit_id, published_at").eq("id", id).maybeSingle(),
-      sb.from("brand_kits").select("id, name, tokens, logo_url, notes, source_url, scan_status, scan_error, scanned_at").eq("workspace_id", ws.id).order("created_at"),
+      sb.from("brand_kits").select("id, name, tokens, logo_url, notes, source_url, scan_status, scan_error, scanned_at, design, design_live, design_rev").eq("workspace_id", ws.id).order("created_at"),
       sb.from("sources").select("id, kind, name, status").eq("workspace_id", ws.id).order("name"),
       sb.from("form_destinations").select("id, kind, source_id, name, config, paused, position").eq("form_id", id).order("position"),
       sb.from("fields").select("key, label, type, options").eq("workspace_id", ws.id).eq("object", "contact").order("position"),
@@ -155,6 +155,13 @@ function Editor(props: ViewProps & { data: FormData; reload: () => void; patchRo
     return { on: !!body && !!l?.live && !l.paused, rows, pv: pick?.id ?? "", setPv, types: data.types, open: () => navigate("routing") };
   }, [rload.data, live.data, pv, data.types, navigate]);
   const kit = data.kits.find((k) => k.id === kitId) ?? null;
+  // While the site is being read, check back every 2 seconds so the form takes the brand as soon as it's ready.
+  const scanning = data.kits.some((k) => k.scan_status === "scanning");
+  useEffect(() => {
+    if (!scanning) return;
+    const t = setInterval(reload, 2000);
+    return () => clearInterval(t);
+  }, [scanning, reload]);
 
   const setTab = (t: Tab) => {
     setTabRaw(t);
@@ -306,6 +313,8 @@ function Editor(props: ViewProps & { data: FormData; reload: () => void; patchRo
     setError("");
     try {
       if (!(await save())) throw new Error("The draft didn't save. Try again.");
+      // The brand's styles go live with the form, so the published form looks like the one in Build.
+      if (kit && JSON.stringify(kit.design ?? null) !== JSON.stringify(kit.design_live ?? null)) must(await sb.rpc("brand_kit_design_publish", { p_id: kit.id }));
       await postJson(session, "/api/forms/publish", { workspaceId: ws.id, id: row.id });
       setDialog(null);
       reload();

@@ -65,10 +65,19 @@ export type BuildProps = ViewProps & {
   onSettings: (s: SetupSub) => void;
 };
 
-/** The brand kit as the canvas draws it: the customer's colors and corners, Inter for every word. */
+/** The brand kit as the canvas draws it: the customer's colors, corners, fonts, sizes and button. */
 export function brandVars(kit: Kit | null): React.CSSProperties {
   const t = cleanTokens(kit?.tokens ?? {}).tokens;
   return {
+    "--b-font": t.font,
+    "--b-hfont": t.headingFont || t.font,
+    "--b-size": `${t.fontSize}px`,
+    "--b-label": `${t.labelSize}px`,
+    "--b-label-w": t.labelWeight,
+    "--b-in-h": `${t.inputHeight}px`,
+    "--b-bw": `${t.borderWidth}px`,
+    "--b-btn-w": t.buttonWeight,
+    "--b-btn-case": t.buttonCase,
     "--b-bg": t.background,
     "--b-ink": t.text,
     "--b-muted": t.muted,
@@ -82,6 +91,12 @@ export function brandVars(kit: Kit | null): React.CSSProperties {
     "--b-pick": `color-mix(in srgb, ${t.text} 3%, ${t.background})`,
     "--b-box": `color-mix(in srgb, ${t.muted} 75%, ${t.background})`,
   } as React.CSSProperties;
+}
+
+/** The kit's web fonts, when they come from Google Fonts (cleanTokens drops any other address). */
+export function KitFont({ kit }: { kit: Kit | null }) {
+  const url = cleanTokens(kit?.tokens ?? {}).tokens.fontUrl;
+  return url ? <link rel="stylesheet" href={url} precedence="default" /> : null;
 }
 
 export function Build(p: BuildProps) {
@@ -215,16 +230,17 @@ export function Build(p: BuildProps) {
           }}
         >
           <div
-            className={`keep-light flex max-w-full flex-col gap-[2px] rounded-[14px] bg-[var(--b-bg)] font-sans text-[var(--b-ink)] shadow-[0_1px_2px_rgb(0_0_0/0.05),0_0_0_1px_rgb(0_0_0/0.06)] transition-[width] duration-[320ms] ease-out ${device === "phone" ? "w-[375px] p-[22px]" : form.layout.width === "wide" ? "w-[720px] p-[32px]" : "w-[560px] p-[32px]"} max-[860px]:p-[22px]`}
+            className={`keep-light flex max-w-full flex-col gap-[2px] rounded-[14px] bg-[var(--b-bg)] font-[family-name:var(--b-font)] text-[length:var(--b-size)] text-[var(--b-ink)] shadow-[0_1px_2px_rgb(0_0_0/0.05),0_0_0_1px_rgb(0_0_0/0.06)] transition-[width] duration-[320ms] ease-out ${device === "phone" ? "w-[375px] p-[22px]" : form.layout.width === "wide" ? "w-[720px] p-[32px]" : "w-[560px] p-[32px]"} max-[860px]:p-[22px]`}
             style={brandVars(p.kit)}
           >
+            <KitFont kit={p.kit} />
             {isEnd ? (
               <EndView {...p} />
             ) : (
               <>
                 {cur === 0 ? (
                   <>
-                    <h2 className={`m-0 font-semibold tracking-[-0.02em] text-balance ${device === "phone" ? "text-[20px]" : "text-[24px] max-[860px]:text-[20px]"} leading-[1.2]`} onClick={() => setPick(null)}>
+                    <h2 className={`m-0 font-[family-name:var(--b-hfont)] font-semibold tracking-[-0.02em] text-balance ${device === "phone" ? "text-[20px]" : "text-[24px] max-[860px]:text-[20px]"} leading-[1.2]`} onClick={() => setPick(null)}>
                       {form.title || p.name}
                     </h2>
                     {form.intro ? (
@@ -236,7 +252,7 @@ export function Build(p: BuildProps) {
                     )}
                   </>
                 ) : (
-                  <h2 className="m-0 mb-[12px] text-[19px] leading-[1.2] font-semibold tracking-[-0.02em]" onClick={() => setPick(null)}>
+                  <h2 className="m-0 mb-[12px] font-[family-name:var(--b-hfont)] text-[19px] leading-[1.2] font-semibold tracking-[-0.02em]" onClick={() => setPick(null)}>
                     {form.steps[cur]!.title || `Step ${cur + 1}`}
                   </h2>
                 )}
@@ -256,7 +272,8 @@ export function Build(p: BuildProps) {
                 <button
                   type="button"
                   onClick={() => setPick({ id: "button", open: "q" })}
-                  className={`mt-[14px] flex h-[44px] items-center justify-center rounded-[var(--b-btn-r)] bg-[var(--b-acc)] px-[22px] text-[14px] font-medium text-[var(--b-on)] ${form.submit.full ? "w-full" : "w-fit"} ${pick?.id === "button" ? "outline-[1.5px] outline-offset-[3px] outline-[var(--b-ink)] outline-solid" : ""}`}
+                  style={{ height: "max(40px, var(--b-in-h))", fontWeight: "var(--b-btn-w)" as unknown as number, textTransform: "var(--b-btn-case)" as React.CSSProperties["textTransform"] }}
+                  className={`mt-[14px] flex items-center justify-center rounded-[var(--b-btn-r)] bg-[var(--b-acc)] px-[22px] text-[length:var(--b-size)] text-[var(--b-on)] ${form.submit.full ? "w-full" : "w-fit"} ${pick?.id === "button" ? "outline-[1.5px] outline-offset-[3px] outline-[var(--b-ink)] outline-solid" : ""}`}
                 >
                   {steps > 1 && cur < steps - 1 ? "Next" : form.submit.label}
                 </button>
@@ -425,13 +442,13 @@ function QView({ q, form, picked, fresh, issueCtx, onPick, onDuplicate, onRemove
   for (const i of issues) tags.push(<span key={i.t} className={`${TAG} ${i.lvl === "bad" ? "bg-rose-wash text-rose" : "bg-butter-wash text-butter"}`}><Ic n="warn" s={10} />{i.t}</span>);
   const optional = f && !f.required && kind !== "hidden" && !isContentKind(kind) ? <i className="text-[12.5px] font-normal text-[var(--b-muted)] not-italic">Optional</i> : null;
   const label = (text: string) => (
-    <div className="mb-[7px] flex items-baseline gap-[6px] text-[13.5px] font-medium">
+    <div className="mb-[7px] flex items-baseline gap-[6px]" style={{ fontSize: "var(--b-label)", fontWeight: "var(--b-label-w)" as unknown as number }}>
       {text}
       {optional}
     </div>
   );
   const input = (ph: string, tall = false, chev = false) => (
-    <div className={`flex justify-between rounded-[var(--b-r)] border border-[var(--b-line)] bg-[var(--b-in)] px-[12px] text-[14px] text-[var(--b-muted)] ${tall ? "h-[84px] items-start pt-[10px]" : "h-[40px] items-center"}`}>
+    <div style={{ borderWidth: "var(--b-bw)", ...(tall ? {} : { height: "var(--b-in-h)" }) }} className={`flex justify-between rounded-[var(--b-r)] border-solid border-[var(--b-line)] bg-[var(--b-in)] px-[12px] text-[length:var(--b-size)] text-[var(--b-muted)] ${tall ? "h-[84px] items-start pt-[10px]" : "items-center"}`}>
       {ph}
       {chev ? <Ic n="chev" /> : null}
     </div>
