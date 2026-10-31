@@ -37,7 +37,7 @@ Slack/email delivery, CRM two-way owner sync.
 | Policy version | `routing_policy_versions` (095): immutable (an update trigger refuses changes), `publish_key` unique per policy (a lost publish response is looked up, not repeated). |
 | Default policy | Every workspace with a `routers` row gets one policy named **Inbound** with all its `router_versions` copied (same numbers, same bodies) and its draft. `routers` / `router_versions` stay as a **mirror** written in the same transaction by the publish and draft services, so every older reader (app counts, SLA, reports, the current Routing screens) keeps working. `router_live` reads the policy. |
 | Policy config | The existing `RouterBody`, extended (no second format): `v: 2` turns on the spec's semantics; every existing body is `v: 1`, which keeps its exact live condition and owner semantics (see 3). New fields: `scope`, `ownership.order`, `ownership.capBlocksNew`, `backup`, `review.owner`, rule `then: "user"`. |
-| Source connection | `routing_sources` (095): source kind form/handoff, form id, `policy_id`, `enabled`, `outcome` assign_only / assign_and_calendar, `meeting_type_id`, `mappings` (by stable form field id), completion (the form's own after-submit setting), `no_slots`, `live_revision`, staged `draft` + `draft_revision`. One row per form (unique), so a form has one primary live policy. |
+| Source connection | `routing_sources` (095): source kind form/handoff, form id, `policy_id`, `enabled`, `follows_default` (routes with the workspace's default policy, as every form did before), `outcome` assign_only / assign_and_calendar, `meeting_type_id`, `mappings` (by stable form field id, `src/lib/routing/mapping.ts`), completion (the form's own after-submit setting), `no_slots`, `live_revision`, staged `draft` + `draft_revision`. One row per form (unique), so a form has one primary live policy. `routing_source_resolve` reads the connection's live revision and the policy's active version together. |
 | Team / membership | `routing_teams` + `routing_team_members` (stable `position`) + `routing_team_keys` (the body's queue ids). One persisted `next_position` per team: one shared queue per team, whichever rules or policies point at it. |
 | Member preferences | `router_reps` (unchanged): pause, out dates, backup, caps. |
 | Quota period | `routing_quota` (095): one row per member and period with its own start, end and zone, so a zone change takes effect at the next boundary. |
@@ -72,8 +72,9 @@ Slack/email delivery, CRM two-way owner sync.
    (spam, route again) no longer refunds a count (spec §12: a transfer doesn't refund).
 5. **Sources.** Every form gets an explicit connection: forms whose after-submit step books with Claritia calendar get
    `assign_and_calendar` with their meeting type; everything else `assign_only` (an outside scheduler link keeps
-   working as before). Enabled only where the workspace's router is live. A form made later with no row uses the
-   workspace's default policy (today's behavior) until Stage F writes its row.
+   working as before). Each `follows_default`: it routes whenever the default policy is live and not paused, exactly
+   as before. Publishing a staged connection to a policy turns `follows_default` off for it. A form made later with no
+   row also uses the default policy until Stage F writes its row on create.
 6. **Slow routing.** A form whose connection shows a calendar no longer falls back to the meeting type's own hosts
    when routing is slow: the visitor sees "Your details are saved. We're finishing your request." and the form sends
    the same request again (same key), so the times shown are always the committed owner's.
@@ -96,7 +97,33 @@ Slack/email delivery, CRM two-way owner sync.
 | Company found by domain, several match | the first by owner/length/age | review (`multiple_companies`) |
 | Mapped form value of the wrong type | read as is | review (`source_mapping_mismatch`) |
 
-## 4. Rollback
+## 4. Built in stages A to E
+
+| Stage | What exists now |
+| --- | --- |
+| A | This map. |
+| B | `src/lib/routing/states.ts` (assignment, booking, sync and review states as separate lists; typed errors; visitor copy), `src/lib/routing/evaluate.ts` (the one evaluator's spec trace: input, checks, ownership, rules, distribution, assignment, booking; a configuration fingerprint), `src/lib/routing/validate.ts` (blocking errors and warnings), `src/lib/routing/mapping.ts` (field mappings by id, ranges kept as ranges, countries as codes). The engine (`src/lib/router/engine.ts`) gained v2: input checks, ownership in order and scope, typed conditions (`conditions.ts`), first match with later rules "not evaluated", one backup hop then review, and turns from a team's persisted next position. |
+| C | Policies, immutable versions, durable drafts with revisions, publish keys, source connections, `routing_migrate` (the default policy Inbound, teams, connections, quota seed). The current Routing screens keep working on the mirror; `actions.publish` goes through `src/lib/routing/policies.ts` `publishPolicy` (validated, revision-checked, keyed by the draft revision). |
+| D | Teams (`routing_team_save`, stable positions, one queue each), the quota, `routing_commit` (Section 22's order, consistent lock order: request key, contact, team, quota rows by user id), `routing_assignments`, `routing_reviews`, `tasks.dedupe_key`. `route()` (forms, jobs, the SLA job, manual assign through `router_commit`) commits through it. The Assignment screen no longer makes a queue per rule. |
+| E | `acceptFill`: the submission is saved first; the connection and policy are resolved together and stored on the run with the mapped answers; assign-only shows its completion; a calendar connection shows the committed owner's times only; held, no-slots, calendar-disconnected and failed reads keep the owner and record a distinct reason, with one scheduling task; a taken slot refreshes times; a slow send answers "Your details are saved. We're finishing your request." and the form element sends the same request again; the `route` job carries what the send captured. |
+
+Acceptance scenarios run (all passing): R01-R15, O01-O14 and P03-P06 at the evaluator (`tests/routingPolicy.test.ts`);
+T01-T12, O01-O14 at commit, R11-R13 facts, G05, G07, P02, P06, B13 and the migration (`tests/pg/routingPolicies.pg.ts`);
+B01-B05, B08, B13, B14, B16, public tampering and two flaky cases (`tests/pg/routingForms.pg.ts`); T05 in validation.
+
+## 5. Left for stages F to I
+
+- F: the Policies / Teams / Activity screens, the tester with saved evidence and the publish review screen (the
+  services exist: `createPolicy`, `saveDraft`, `publishPolicy`, `saveTeam`, `stageSource`, `evaluate`, `validatePolicy`);
+  turning a migrated policy to v2 as a reviewed release; evidence storage and the "one dry run before publish" gate.
+- G: internal handoff (Route & book): preview, `expect_owner` conflicts shown to the person, override with reason.
+- H: Activity and the review lifecycle (approve, child attempt with `parent_run_id`, resolve), booking abandonment
+  after 30 minutes, provider event reconciliation (no provider-side dedupe exists yet: an unknown create outcome is
+  not modelled beyond `pending_confirmation`), CRM sync state, escalation when a reviewer leaves.
+- I: writing a connection when a form is created, archive and duplicate, pooled team meeting types counting toward the
+  owner-first quota and queue, role-scoped permissions beyond "workspace owner edits".
+
+## 6. Rollback
 
 095 adds tables and columns and replaces functions; it deletes nothing. The `routers` / `router_versions` mirror is
 complete, so restoring 094's function bodies brings back the old path with every version intact.
