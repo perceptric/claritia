@@ -18,6 +18,7 @@ export function Sheet({
   head,
   actions,
   wide = false,
+  width,
 }: {
   title: string;
   onClose: () => void;
@@ -27,6 +28,8 @@ export function Sheet({
   head?: React.ReactNode;
   actions?: React.ReactNode;
   wide?: boolean;
+  /** Its own width in px (Routing's drawers are 620), instead of the two standard ones. */
+  width?: number;
 }) {
   const ref = useRef<HTMLElement>(null);
   useLayoutEffect(() => {
@@ -53,7 +56,8 @@ export function Sheet({
         role="dialog"
         aria-modal="true"
         aria-label={title}
-        className={`fixed inset-y-2 right-2 z-[81] flex w-[calc(100%-1rem)] flex-col overflow-hidden rounded-2xl border border-line bg-card shadow-float ${wide ? "max-w-[760px]" : "max-w-[480px]"}`}
+        style={width ? { maxWidth: width } : undefined}
+        className={`fixed inset-y-2 right-2 z-[81] flex w-[calc(100%-1rem)] flex-col overflow-hidden rounded-2xl border border-line bg-card shadow-float ${width ? "" : wide ? "max-w-[760px]" : "max-w-[480px]"}`}
       >
         <div className="flex min-h-14 shrink-0 items-center gap-2 border-b border-line px-5 py-2">
           <div className="min-w-0 flex-1">{head ?? <h2 className="truncate text-[16px] font-semibold tracking-[-0.02em] text-ink">{title}</h2>}</div>

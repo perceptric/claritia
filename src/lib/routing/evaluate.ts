@@ -177,10 +177,11 @@ export function evaluate(body: RouterBody, f: Facts, o: { source?: SourceView | 
 /**
  * A short fingerprint of a policy and the team setup it was tested with (Section 16's test evidence): any change to
  * either gives a new one. Live queue positions and counts are left out, so normal traffic never makes evidence stale.
+ * `extra`: more of the release that a test covers (its sources' outcomes and mappings).
  */
-export function fingerprint(body: RouterBody, teams?: Facts["teams"]): string {
+export function fingerprint(body: RouterBody, teams?: Facts["teams"], extra?: unknown): string {
   const t = Object.fromEntries(Object.entries(teams ?? {}).sort(([a], [b]) => (a < b ? -1 : 1)).map(([k, v]) => [k, { id: v.id, method: v.method, strict: v.strict, hoursOnly: v.hoursOnly, members: v.members.map((m) => [m.user, m.weight, m.position]) }]));
-  const text = stable({ body, teams: t });
+  const text = stable(extra === undefined ? { body, teams: t } : { body, teams: t, extra });
   let h1 = 0x811c9dc5;
   let h2 = 0x01000193;
   for (let i = 0; i < text.length; i++) {
