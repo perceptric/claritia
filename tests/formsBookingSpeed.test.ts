@@ -56,6 +56,8 @@ function db(o: { old?: boolean; spam?: string | null } = {}) {
     if (fn === "form_submit") return { data: { id: SID, contact_id: args.p_spam ? null : "c1", repeat: false }, error: null };
     if (fn === "form_hour_count") return { data: 5, error: null };
     if (fn === "router_live") return { data: null, error: null };
+    // The form's connection and live policy in one read (095); a database before it doesn't have the function.
+    if (fn === "routing_source_resolve") return o.old ? MISSING(fn) : { data: { source: null, live: null }, error: null };
     return { data: "x", error: null };
   };
   return { rpc, calls, names: () => calls.map((c) => c.fn) };
@@ -68,7 +70,7 @@ test("the send's checks run together: the cleaning lists and Turnstile, each slo
   const took = Date.now() - t0;
   assert.equal(r.status, 200);
   assert.ok(took < 280, `took ${took} ms`);
-  assert.deepEqual(d.names(), ["form_submit_all", "router_live"], "one call saves the fill and queues its alerts");
+  assert.deepEqual(d.names(), ["form_submit_all", "routing_source_resolve"], "one call saves the fill and queues its alerts; one reads its routing");
 });
 
 test("Turnstile failing holds the fill as spam: saved, no contact, never routed", async () => {
@@ -77,7 +79,7 @@ test("Turnstile failing holds the fill as spam: saved, no contact, never routed"
   assert.equal(r.status, 200);
   const saved = d.calls.find((c) => c.fn === "form_submit_all")!.args;
   assert.deepEqual([saved.p_spam, saved.p_contact], ["turnstile", null]);
-  assert.ok(!d.names().includes("router_live"), "spam is never routed");
+  assert.ok(!d.names().includes("router_live") && !d.names().includes("routing_source_resolve"), "spam is never routed");
 });
 
 test("the hourly limit held by the database: the answer names no booking and nothing is routed", async () => {
@@ -96,7 +98,7 @@ test("before 090: the hourly count, form_submit and the alert job, as before; th
   assert.equal(d.calls.find((c) => c.fn === "form_submit")!.args.p_spam, "rate");
   const again = await acceptFill(d.rpc, pub(form({ perHour: 10, notify: true })), fill, { custom: [] }, {});
   assert.equal(again.status, 200);
-  assert.deepEqual(d.names().slice(3), ["form_hour_count", "form_submit", "enqueue_job", "router_live"], "under it: the alert job, then routing");
+  assert.deepEqual(d.names().slice(3), ["form_hour_count", "form_submit", "enqueue_job", "routing_source_resolve", "router_live"], "under it: the alert job, then routing (the old read)");
   assert.equal(d.names().filter((n) => n === "form_submit_all").length, 1, "remembered as missing");
   assert.ok(isMissingFn({ message: "function public.x(p_a => uuid) does not exist" }));
   assert.ok(isMissingFn({ message: "nope", code: "PGRST202" }));

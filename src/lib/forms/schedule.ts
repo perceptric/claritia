@@ -56,20 +56,23 @@ export type RoutedAs = { kind: "owner" | "held" | "unassigned"; rule?: string | 
  * What a Claritia-calendar form does after the send (docs/inbound.md: Routing decides, the form shows the result).
  *   message: the form's message, no times (held, unassigned, nothing to book).
  *   times:   times for `type`; with `rep`, only that rep's times, and the booking is made with them alone.
+ *   pending: Routing hasn't committed an owner yet: "Your details are saved. We're finishing your request." The form
+ *            sends the same request again (same key) until it has; it never shows another host's times meanwhile.
  */
-export type BookPlan = { kind: "message" } | { kind: "times"; type: string; rep: string | null };
+export type BookPlan = { kind: "message" } | { kind: "times"; type: string; rep: string | null } | { kind: "pending" };
 
 /**
  * With Routing live (a live router, not paused) the lead books the meeting their rule names (else the form's own)
- * with the rep Routing gave them, and only that rep. Held and unassigned leads see the message. When routing didn't
- * answer in time (`routed` null) the lead books from the meeting type's own hosts: a missed booking costs more. With
- * Routing not live, everyone books the form's meeting with its hosts. The form's old who / rules / routeRules are
- * not read here.
+ * with the rep Routing gave them, and only that rep: the host is the committed owner (docs/routing-workflow.md
+ * Section 2). Held and unassigned leads see the message. When routing hasn't answered yet (`routed` null) the plan is
+ * pending. With Routing not live, or its read failed, everyone books the form's meeting with its hosts. The form's old
+ * who / rules / routeRules are not read here.
  */
 export function claritiaPlan(s: Schedule, routed: RoutedAs, live: { paused?: boolean } | null | undefined): BookPlan {
   const own = s.meetingTypeId;
   const on = !!live && !live.paused;
-  if (!on || !routed) return own ? { kind: "times", type: own, rep: null } : { kind: "message" };
+  if (!on) return own ? { kind: "times", type: own, rep: null } : { kind: "message" };
+  if (!routed) return own ? { kind: "pending" } : { kind: "message" };
   if (routed.kind !== "owner" || !routed.user) return { kind: "message" };
   const type = routed.meet || own;
   return type ? { kind: "times", type, rep: routed.user } : { kind: "message" };

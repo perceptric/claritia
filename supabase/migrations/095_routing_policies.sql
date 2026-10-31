@@ -1216,7 +1216,7 @@ begin
     'routing_source_stage(uuid, uuid, jsonb, int, uuid)', 'routing_commit(jsonb)',
     'router_commit(uuid, uuid, text, text, int, jsonb, jsonb, jsonb, int, boolean, uuid, jsonb)',
     'routing_policy_get(uuid, uuid)', 'routing_team_list(uuid)', 'routing_publish_lookup(uuid, text)',
-    'routing_facts(uuid, uuid, text, uuid[], text[], text, text)', 'routing_team_save(uuid, uuid, text, text, jsonb, int, text)', 'routing_followup(uuid, uuid, text)', 'routing_run_booking(uuid, text, text, text)'
+    'routing_facts(uuid, uuid, text, uuid[], text[], text, text)', 'routing_team_save(uuid, uuid, text, text, jsonb, int, text)', 'routing_followup(uuid, uuid, text)', 'routing_run_booking(uuid, text, text, text)', 'routing_migrate(uuid)'
   ] loop
     execute format('revoke execute on function public.%s from public, anon, authenticated', f);
     execute format('grant execute on function public.%s to service_role', f);
@@ -1224,6 +1224,6 @@ begin
 end;
 $$;
 revoke execute on function public.routing_versions_frozen() from public, anon, authenticated;
-revoke execute on function public.routing_zone(text) from public, anon;
+revoke execute on function public.routing_zone(text) from public, anon, authenticated;
 revoke execute on function public.router_live_screen(uuid) from public, anon;
 grant execute on function public.router_live_screen(uuid) to authenticated;

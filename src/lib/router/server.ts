@@ -4,6 +4,7 @@
 // only: the form send, the API, the jobs and the Test panel call it.
 
 import { callNewer } from "../forms/newer.ts";
+import { forgetSources } from "../routing/sources.ts";
 import type { Rpc } from "../jobs.ts";
 import type { Availability } from "../meetings/types.ts";
 import { addDays, at, dateIn, dayOf, validZone } from "../meetings/time.ts";
@@ -308,6 +309,7 @@ export function liveRouterCached(rpc: Rpc, ws: string, now = Date.now()): Promis
 export function invalidateRouterLive(ws?: string): void {
   if (ws === undefined) liveCache.clear();
   else liveCache.delete(ws);
+  forgetSources();
 }
 
 /**

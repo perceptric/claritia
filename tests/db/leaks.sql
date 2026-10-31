@@ -1305,6 +1305,42 @@ select pg_temp.fails($$update contacts set first_touch = '{}' where workspace_id
 reset role;
 select set_config('request.jwt.claim.sub', '', false);
 
+-- Routing policies (095): members read their own workspace's policies, versions, teams, connections, quota,
+-- assignments and reviews; nobody writes them directly; every function that writes is the server's.
+select routing_policy_create('22222222-0000-0000-0000-000000000000', 'Cat''s policy', '{"v":2}'::jsonb, 'cat-1', 'c0000000-0000-0000-0000-000000000000');
+select routing_policy_create('11111111-0000-0000-0000-000000000000', 'Acme policy', '{"v":2}'::jsonb, 'acme-1', 'a0000000-0000-0000-0000-000000000000');
+select routing_publish('22222222-0000-0000-0000-000000000000', (select id from routing_policies where name = 'Cat''s policy'), '{"v":2}'::jsonb, 'v1', null, 'cat-pub');
+select routing_team_save('22222222-0000-0000-0000-000000000000', null, 'Cat team', 'rr', '[{"user":"c0000000-0000-0000-0000-000000000000"}]'::jsonb, null, 'cat_team');
+select routing_quota_current('22222222-0000-0000-0000-000000000000', 'c0000000-0000-0000-0000-000000000000');
+select pg_temp.as_user('b0000000-0000-0000-0000-000000000000');
+set role authenticated;
+select pg_temp.check((select count(*) from routing_policies) = 1 and (select name from routing_policies) = 'Acme policy', 'Ben reads another workspace''s policy');
+select pg_temp.check((select count(*) from routing_policy_versions where workspace_id = '22222222-0000-0000-0000-000000000000') = 0, 'Ben reads Cat''s policy versions');
+select pg_temp.check((select count(*) from routing_teams) = 0 and (select count(*) from routing_team_members) = 0 and (select count(*) from routing_team_keys) = 0, 'Ben reads Cat''s teams');
+select pg_temp.check((select count(*) from routing_quota) = 0, 'Ben reads Cat''s quota');
+select pg_temp.check((select count(*) from routing_sources) = 0 and (select count(*) from routing_assignments) = 0 and (select count(*) from routing_reviews) = 0, 'Ben reads Cat''s routing rows');
+select pg_temp.fails($$insert into routing_policies (workspace_id, name) values ('11111111-0000-0000-0000-000000000000', 'x')$$, 'Ben writes a policy directly');
+select pg_temp.fails($$update routing_policies set draft = '{}' where workspace_id = '11111111-0000-0000-0000-000000000000'$$, 'Ben writes a draft directly');
+select pg_temp.fails($$update routing_teams set next_position = 0$$, 'Ben moves a queue directly');
+select pg_temp.fails($$update routing_quota set n = 0$$, 'Ben resets a quota directly');
+select pg_temp.fails($$select routing_commit('{"ws":"22222222-0000-0000-0000-000000000000"}'::jsonb)$$, 'Ben commits a routing decision');
+select pg_temp.fails($$select routing_draft_save('22222222-0000-0000-0000-000000000000', (select id from routing_policies limit 1), '{}'::jsonb, null, null)$$, 'Ben saves a draft');
+select pg_temp.fails($$select routing_publish('11111111-0000-0000-0000-000000000000', (select id from routing_policies limit 1), '{}'::jsonb, null, null)$$, 'Ben publishes a policy');
+select pg_temp.fails($$select routing_policy_create('22222222-0000-0000-0000-000000000000', 'x', null, null, null)$$, 'Ben creates a policy in Cat''s workspace');
+select pg_temp.fails($$select routing_team_save('22222222-0000-0000-0000-000000000000', null, 'x', 'rr', '[]'::jsonb)$$, 'Ben saves a team');
+select pg_temp.fails($$select routing_facts('22222222-0000-0000-0000-000000000000', null, null, '{}', '{}')$$, 'Ben reads routing facts');
+select pg_temp.fails($$select routing_source_resolve(id) from forms limit 1$$, 'Ben resolves a form''s connection');
+select pg_temp.fails($$select routing_followup('22222222-0000-0000-0000-000000000000', gen_random_uuid(), 'schedule')$$, 'Ben makes a follow-up task');
+select pg_temp.fails($$select routing_migrate('22222222-0000-0000-0000-000000000000')$$, 'Ben runs the routing migration');
+select pg_temp.check(router_live_screen('22222222-0000-0000-0000-000000000000') is null, 'Ben reads Cat''s live routing');
+reset role;
+select set_config('request.jwt.claim.sub', '', false);
+set role anon;
+select pg_temp.fails($$select count(*) from routing_policies$$, 'Anyone reads policies');
+select pg_temp.fails($$select routing_commit('{}'::jsonb)$$, 'Anyone commits a routing decision');
+reset role;
+select pg_temp.fails_with($$update routing_policy_versions set note = 'x'$$, '%immutable%', 'A published version changes');
+
 -- Cloud minutes: once Acme has used its 2,000, nobody there can start a run.
 insert into runs (workspace_id, project_id, test_name, test_version, environment_name, base_url, lock, status, duration_ms)
 values ('11111111-0000-0000-0000-000000000000', 'a1000000-0000-0000-0000-000000000000', 'long', 1, 'staging', 'https://x.com', '', 'passed', 2000 * 60000);

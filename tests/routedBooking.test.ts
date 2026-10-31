@@ -32,8 +32,9 @@ test("Routing live: held and unassigned leads see the message; an owner with no 
   assert.deepEqual(claritiaPlan({ ...sch, meetingTypeId: undefined }, { kind: "owner", by: "queue", user: REP }, live), { kind: "message" }, "nothing to book");
 });
 
-test("flaky cases fall back to the type's own hosts: no answer in time, paused, no router", () => {
-  assert.deepEqual(claritiaPlan(sch, null, live), { kind: "times", type: TYPE, rep: null }, "routing didn't answer in time");
+test("no answer in time waits for the committed owner; paused or no router falls back to the type's own hosts", () => {
+  assert.deepEqual(claritiaPlan(sch, null, live), { kind: "pending" }, "routing didn't answer in time: never another host's times");
+  assert.deepEqual(claritiaPlan({ ...sch, meetingTypeId: undefined }, null, live), { kind: "message" });
   assert.deepEqual(claritiaPlan(sch, null, { paused: true }), { kind: "times", type: TYPE, rep: null });
   assert.deepEqual(claritiaPlan(sch, { kind: "held" }, { paused: true }), { kind: "times", type: TYPE, rep: null }, "paused: the old answer isn't read");
   assert.deepEqual(claritiaPlan(sch, null, null), { kind: "times", type: TYPE, rep: null });
