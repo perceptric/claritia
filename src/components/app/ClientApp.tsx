@@ -222,7 +222,7 @@ export function ClientApp({ config }: { config: SupaConfig }) {
     { group: "Inbound", label: "Single-use link", run: () => navigate("scheduling", "links", "create=single_use") },
     { group: "Inbound", label: "Poll", run: () => navigate("scheduling", "links", "create=poll") },
     { group: "Nurture", label: "Broadcast", run: () => navigate("workflows", "new", "template=broadcast") },
-    { group: "Nurture", label: "Segment", run: () => navigate("segments", "new") },
+    { group: "CRM", label: "Segment", run: () => navigate("contacts", "segments/new") },
   ];
 
   const commands: Command[] = [

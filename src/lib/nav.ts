@@ -54,7 +54,6 @@ export const NAV: NavItem[] = [
   item("crm", "companies", "Companies"),
   item("crm", "opportunities", "Opportunities"),
   item("nurture", "workflows", "Workflows"),
-  item("nurture", "segments", "Segments"),
   item("nurture", "scoring", "Scoring"),
   item("settings", "settings", "Settings"),
 ];
@@ -81,13 +80,16 @@ export type Tab<T extends string = string> = { value: T; label: string };
 const UUID = /^[0-9a-f-]{36}$/;
 
 /** Contacts: the table (""), the Overview (funnel and reps), and one contact (<id>). */
-export function contactsPage(id: string): { page: "list" | "overview" | "contact"; id: string } {
-  const [a = ""] = id.split("/");
+export function contactsPage(id: string): { page: "list" | "overview" | "contact" | "segments"; id: string; sub?: string } {
+  const [a = "", b = ""] = id.split("/");
   if (a === "overview") return { page: "overview", id: a };
+  // Segments live in Contacts: the list ("segments"), a new one ("segments/new") and one ("segments/<id>").
+  if (a === "segments") return UUID.test(b) || b === "new" ? { page: "segments", id: `segments/${b}`, sub: b } : { page: "segments", id: "segments", sub: "" };
   return UUID.test(a) ? { page: "contact", id: a } : { page: "list", id: "" };
 }
 export const CONTACTS_TABS: Tab[] = [
   { value: "", label: "Contacts" },
+  { value: "segments", label: "Segments" },
   { value: "overview", label: "Overview" },
 ];
 
@@ -275,6 +277,8 @@ export function resolveRoute(first: string, id: string): { route: Route; id: str
   if (first === "routing" && routingPage(id).page === "" && !routingPage(id).sub) return { route: "scheduling", id: "types" };
   if (first === "companies" && a === "visits") return { route: "companies", id: "" };
   if (first === "settings" && SETTINGS_MOVED[a]) return SETTINGS_MOVED[a];
+  // Segments moved into Contacts.
+  if (first === "segments") return { route: "contacts", id: UUID.test(a) || a === "new" ? `segments/${a}` : "segments" };
   // Meeting reminders are a workflow now.
   if (first === "scheduling" && (a === "reminders" || (a === "settings" && rest[0] === "reminders"))) return { route: "workflows", id: "" };
   if (first === "reports") return REPORTS[a] ?? REPORTS[""]!;

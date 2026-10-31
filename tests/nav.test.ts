@@ -26,7 +26,10 @@ test("the sidebar is Inbound, CRM and Nurture, then Settings, with at most five 
   const by = (g: string) => NAV.filter((n) => n.group === g).map((n) => n.label);
   assert.deepEqual(by("crm"), ["Contacts", "Companies", "Opportunities"]);
   assert.deepEqual(by("inbound"), ["Forms", "Meetings"], "Routing lives in forms and meetings now");
-  assert.deepEqual(by("nurture"), ["Workflows", "Segments", "Scoring"], "Emails became Workflows; Scoring moved here");
+  assert.deepEqual(by("nurture"), ["Workflows", "Scoring"], "Emails became Workflows; Scoring moved here; Segments live in Contacts");
+  assert.deepEqual(resolveRoute("segments", ""), { route: "contacts", id: "segments" });
+  assert.deepEqual(resolveRoute("segments", "new"), { route: "contacts", id: "segments/new" });
+  assert.deepEqual(resolveRoute("segments", "11111111-1111-4111-8111-111111111111"), { route: "contacts", id: "segments/11111111-1111-4111-8111-111111111111" });
   for (const g of GROUPS) assert.ok(by(g.key).length <= 5, g.key);
   assert.equal(defaultRoute, "forms");
   assert.equal(new Set(NAV.map((n) => n.route)).size, NAV.length, "one item per route");

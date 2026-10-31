@@ -1,6 +1,6 @@
 "use client";
 
-// Segments (docs/conversion-parity.md Part 10): groups of contacts by any rule, AND and OR up to 3 levels deep,
+// Contacts › Segments (docs/conversion-parity.md Part 10): groups of contacts by any rule, AND and OR up to 3 levels deep,
 // with a live count and ten of the people while editing. Dynamic segments refresh hourly; lists from a tool are
 // static segments and show here too.
 
@@ -64,7 +64,7 @@ export function SegmentsView({ sb, ws, id, navigate }: ViewProps) {
 function SegmentList({ sb, ws, navigate }: Pick<ViewProps, "sb" | "ws" | "navigate">) {
   const list = useQuery(`segments:${ws.id}`, async () => must(await sb.from("segments").select("id, name, kind, count, refreshed_at, error, source_id").eq("workspace_id", ws.id).order("name")) as Segment[]);
   const add = (
-    <Button onClick={() => navigate("segments", "new")}>
+    <Button onClick={() => navigate("contacts", "segments/new")}>
       <Plus size={14} />
       New segment
     </Button>
@@ -98,7 +98,7 @@ function SegmentList({ sb, ws, navigate }: Pick<ViewProps, "sb" | "ws" | "naviga
             </thead>
             <tbody>
               {list.data.map((s) => (
-                <tr key={s.id} className="cursor-pointer border-t border-line hover:bg-hover" onClick={() => navigate("segments", s.id)}>
+                <tr key={s.id} className="cursor-pointer border-t border-line hover:bg-hover" onClick={() => navigate("contacts", `segments/${s.id}`)}>
                   <Td className="font-medium">
                     <span className="flex items-center gap-2">
                       {s.name}
@@ -133,7 +133,7 @@ function SegmentPage({ sb, ws, id, navigate }: Pick<ViewProps, "sb" | "ws" | "na
       objects: ((o.data ?? []) as { key: string; plural: string }[]).map((x) => ({ value: x.key, label: x.plural })),
     };
   });
-  const back = { label: "Segments", onClick: () => navigate("segments") };
+  const back = { label: "Segments", onClick: () => navigate("contacts", "segments") };
   // Loading shows Loading (not "Segment not found"): a null answer only counts once it has come back.
   if ((!isNew && !seg.loaded && !seg.error) || !extra.data)
     return (
@@ -184,7 +184,7 @@ function Builder({ sb, wsId, seg, ctx, navigate, reload }: { sb: ViewProps["sb"]
       const sid = must(await sb.rpc("segment_save", { p_ws: wsId, p_id: seg?.id ?? null, p_name: name, p_rules: rules })) as string;
       invalidate(`segments:${wsId}`);
       invalidate(`meta:${wsId}:contact`);
-      if (!seg) navigate("segments", sid);
+      if (!seg) navigate("contacts", `segments/${sid}`);
       else reload();
     } catch (e) {
       setError(errorText(e));
@@ -199,7 +199,7 @@ function Builder({ sb, wsId, seg, ctx, navigate, reload }: { sb: ViewProps["sb"]
       title={seg?.name ?? "New segment"}
       actions={
         <span className="flex gap-1.5">
-          <Button variant="ghost" onClick={() => navigate("segments")}>
+          <Button variant="ghost" onClick={() => navigate("contacts", "segments")}>
             Segments
           </Button>
           {seg && !isList ? (
@@ -218,7 +218,7 @@ function Builder({ sb, wsId, seg, ctx, navigate, reload }: { sb: ViewProps["sb"]
                 else {
                   cache.set<Segment[]>(`segments:${wsId}`, (l) => l?.filter((x) => x.id !== seg.id) as Segment[]);
                   invalidate(`meta:${wsId}:contact`);
-                  navigate("segments");
+                  navigate("contacts", "segments");
                 }
               }}
             >
