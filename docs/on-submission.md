@@ -38,8 +38,13 @@ open Availability › Team.
 - Each card says Individual or Dynamic and **Used by** the forms whose Routing books it.
 - An older meeting hosted by a Routing team takes that team's turns. One with several hosts and no team isn't used by a
   form until it's set up as Individual or Dynamic.
-- A Dynamic meeting's own booking link takes turns among its reps for now. Asking its questions first, then showing the
-  picked rep's times, comes next.
+- A Dynamic meeting's own booking link asks the questions its rules test first (a rule on the email's domain or type
+  asks for the email), then shows the times of the rep or team the answers pick, by the same rules. The answers go
+  with each read of times and with the booking, so the server offers and books the same reps
+  (`src/lib/meetings/dynamic.ts`, `dynamicServer.ts`, the page's step in `src/components/book/RouteQuestions.tsx`).
+  A matched rule whose rep isn't among the meeting's reps, or whose team is gone or empty, keeps every rep; it never
+  falls through to a later rule. A booking link that already names the host skips the questions. Tested in
+  `tests/dynamicBooking.test.ts`.
 
 ## How it runs
 
