@@ -64,11 +64,57 @@ export async function createPolicy(rpc: Rpc, c: Caller, o: { name: string; start
   return call(rpc, "routing_policy_create", { p_ws: c.ws, p_name: o.name.trim(), p_config: body, p_key: o.key.slice(0, 100), p_user: c.user });
 }
 
-/** Save a draft (Section 4): the revision the editor read, or draft_conflict. Returns the saved revision and body. */
-export async function saveDraft(rpc: Rpc, c: Caller, policy: string, body: unknown, revision: number | null): Promise<{ revision: number; body: RouterBody }> {
-  const clean = cleanBody(body);
-  const rev = await call<number>(rpc, "routing_draft_save", { p_ws: c.ws, p_policy: policy, p_config: clean, p_revision: revision, p_user: c.user });
+/**
+ * Save a draft (Section 4): the revision the editor read, or draft_conflict. Returns the saved revision and body. A
+ * `name` is staged with it (live with the next publish); a null body with a name saves a rename alone.
+ */
+export async function saveDraft(rpc: Rpc, c: Caller, policy: string, body: unknown, revision: number | null, name?: string | null): Promise<{ revision: number; body: RouterBody | null }> {
+  if (name !== undefined && name !== null) {
+    const bad = nameProblem(name);
+    if (bad) throw failure("invalid_configuration", bad, { field: "name", retryable: false });
+  }
+  const clean = body === null || body === undefined ? null : cleanBody(body);
+  if (name === undefined && clean) {
+    const rev = await call<number>(rpc, "routing_draft_save", { p_ws: c.ws, p_policy: policy, p_config: clean, p_revision: revision, p_user: c.user });
+    return { revision: rev, body: clean };
+  }
+  const rev = await call<number>(rpc, "routing_policy_draft", { p_ws: c.ws, p_policy: policy, p_config: clean, p_name: name ? name.trim() : null, p_revision: revision, p_user: c.user });
   return { revision: rev, body: clean };
+}
+
+/**
+ * Duplicate a policy (Section 5): a new draft with the same rules and references, named "<name> — copy", connected to
+ * no source. Teams, people, meetings and connections are referenced, never copied. `key` makes a double click make one.
+ */
+export async function duplicatePolicy(rpc: Rpc, c: Caller, o: { policy: string; key: string }): Promise<{ id: string; created: boolean }> {
+  if (!c.user) throw failure("permission_denied", "Sign in to duplicate a policy.", { retryable: false });
+  const row = await getPolicy(rpc, c, o.policy);
+  const body = row.draft ?? row.live;
+  if (!body) throw failure("invalid_configuration", "There's nothing to copy yet.", { retryable: false });
+  const base = row.name.length > 73 ? row.name.slice(0, 73).trimEnd() : row.name;
+  return call(rpc, "routing_policy_create", { p_ws: c.ws, p_name: `${base} — copy`, p_config: cleanBody(body), p_key: o.key.slice(0, 100), p_user: c.user });
+}
+
+/**
+ * Archive a policy (Section 5): refused while a live source routes with it; the sources that do come back so the
+ * person can move them first. `archive: false` restores it as a draft with no source connected.
+ */
+export async function archivePolicy(rpc: Rpc, c: Caller, o: { policy: string; archive: boolean }): Promise<{ archived: boolean; sources?: { id: string; name: string }[] }> {
+  return call(rpc, "routing_policy_archive", { p_ws: c.ws, p_policy: o.policy, p_archive: o.archive, p_user: c.user });
+}
+
+/** Stage the internal handoff's connection (Contacts › Route & book): live after the next publish of its policy. */
+export async function stageHandoff(
+  rpc: Rpc,
+  c: Caller,
+  o: { policy: string | null; enabled: boolean; outcome: Outcome; meetingTypeId: string | null; revision: number | null },
+): Promise<{ id: string; revision: number; live_revision: number; live_policy: string | null }> {
+  return call(rpc, "routing_handoff_stage", {
+    p_ws: c.ws,
+    p_draft: { policy_id: o.policy, enabled: o.enabled, outcome: o.outcome, meeting_type_id: o.meetingTypeId },
+    p_revision: o.revision,
+    p_user: c.user,
+  });
 }
 
 export async function teamsOf(rpc: Rpc, ws: string): Promise<Record<string, TeamFacts & { revision: number }>> {
@@ -142,12 +188,12 @@ export async function saveTeam(
 export async function stageSource(
   rpc: Rpc,
   c: Caller,
-  o: { form: string; policy: string | null; enabled: boolean; outcome: Outcome; meetingTypeId: string | null; mappings?: unknown[]; revision: number | null },
+  o: { form: string; policy: string | null; enabled: boolean; outcome: Outcome; meetingTypeId: string | null; mappings?: unknown[]; noSlots?: Record<string, unknown>; revision: number | null },
 ): Promise<{ id: string; revision: number; live_revision: number; live_policy: string | null }> {
   return call(rpc, "routing_source_stage", {
     p_ws: c.ws,
     p_form: o.form,
-    p_draft: { policy_id: o.policy, enabled: o.enabled, outcome: o.outcome, meeting_type_id: o.meetingTypeId, ...(o.mappings ? { mappings: o.mappings } : {}) },
+    p_draft: { policy_id: o.policy, enabled: o.enabled, outcome: o.outcome, meeting_type_id: o.meetingTypeId, ...(o.mappings ? { mappings: o.mappings } : {}), ...(o.noSlots ? { no_slots: o.noSlots } : {}) },
     p_revision: o.revision,
     p_user: c.user,
   });

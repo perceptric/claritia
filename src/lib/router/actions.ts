@@ -135,7 +135,7 @@ async function buildFields(db: Q, ws: string): Promise<Fields> {
 }
 
 /** The workspace's people: one call (router_members, 088), kept a minute; `fresh` for checks before a write. */
-async function membersOf(rpc: Rpc, db: Q, ws: string, o: { fresh?: boolean } = {}): Promise<Member[]> {
+export async function membersOf(rpc: Rpc, db: Q, ws: string, o: { fresh?: boolean } = {}): Promise<Member[]> {
   const read = async () => {
     const r = await rpcOr<{ id: string; name: string; email: string }[]>(
       rpc,

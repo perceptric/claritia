@@ -97,7 +97,7 @@ Slack/email delivery, CRM two-way owner sync.
 | Company found by domain, several match | the first by owner/length/age | review (`multiple_companies`) |
 | Mapped form value of the wrong type | read as is | review (`source_mapping_mismatch`) |
 
-## 4. Built in stages A to E
+## 4. Built in stages A to G
 
 | Stage | What exists now |
 | --- | --- |
@@ -107,23 +107,36 @@ Slack/email delivery, CRM two-way owner sync.
 | D | Teams (`routing_team_save`, stable positions, one queue each), the quota, `routing_commit` (Section 22's order, consistent lock order: request key, contact, team, quota rows by user id), `routing_assignments`, `routing_reviews`, `tasks.dedupe_key`. `route()` (forms, jobs, the SLA job, manual assign through `router_commit`) commits through it. The Assignment screen no longer makes a queue per rule. |
 | E | `acceptFill`: the submission is saved first; the connection and policy are resolved together and stored on the run with the mapped answers; assign-only shows its completion; a calendar connection shows the committed owner's times only; held, no-slots, calendar-disconnected and failed reads keep the owner and record a distinct reason, with one scheduling task; a taken slot refreshes times; a slow send answers "Your details are saved. We're finishing your request." and the form element sends the same request again; the `route` job carries what the send captured. |
 
+| F | The Routing section is **Policies / Teams / Activity** (`src/components/app/routing/RoutingView.tsx` and `rt/`), on one screen read (`routing_screen_*`, 096). Policies list with each policy's state (`screenModel.policyState`: Draft, Published vN, draft changes, not connected, Archived), live sources, destination and last real run; the empty workspace's two starts; Create policy (`createPolicy`, one per click). The editor autosaves the durable draft at its revision (`saveDraft`, now with a staged name, `routing_policy_draft`) and shows Saving, Saved or Couldn't save; a conflict offers Reload, Compare and Reapply mine. Sources are staged through `stageSource` and the new `routing_handoff_stage`. Rules edit typed conditions (numbers gained "at most", `lte`), All/Any, destinations (team, person or review), move up/down by keyboard, delete with Undo; Everyone else, the backup and the review owner; the scope follows the destinations. A migrated v1 policy opens on the spec's rules (`toV2`) and only goes live through the publish review, which lists what changes (`semanticsChanges`). The tester runs the shared evaluator on the saved draft or the published version with labeled overrides and keeps evidence (`routing_test_evidence`: the release fingerprint of the draft, the teams it names and its sources' settings); publish needs evidence for exactly the current release, is checked on the server (`screens.review`) and goes through `publishPolicy` with the dialog's operation id (a lost answer is looked up). Versions (restore as draft), Duplicate (a disconnected copy) and Archive (refused while a live source uses the policy). Teams: members' status (Accepting leads, Paused, Out of office with dates and zone), today's count of the cap, calendar, next in the round robin, add/remove (`saveTeam`, positions kept), Create team. Activity: real runs with separate assignment and booking states, review items, a run drawer from the stored trace. |
+| G | Route & book from a contact (and the policy header): `src/lib/routing/handoff.ts`. Find recipient previews with the shared evaluator and the recipient's real times (`offer`, read only). Assign without booking and Confirm handoff & book recheck the live version, the contact's owner (`expect_owner`) and the recipient (the team's turn is taken under its lock for that person only) and commit once by the drawer's operation id through `commit` (the 095 committer); booking goes through `book` with the committed owner alone, `routing_run_meeting` links the meeting and keeps it pending until the calendar has the event. A failed booking keeps the assignment; `bookRun` books again without routing again. An owner's override is checked for scope and eligibility, needs a reason and is audited in the trace; members can't override. |
+
 Acceptance scenarios run (all passing): R01-R15, O01-O14 and P03-P06 at the evaluator (`tests/routingPolicy.test.ts`);
 T01-T12, O01-O14 at commit, R11-R13 facts, G05, G07, P02, P06, B13 and the migration (`tests/pg/routingPolicies.pg.ts`);
 B01-B05, B08, B13, B14, B16, public tampering and two flaky cases (`tests/pg/routingForms.pg.ts`); T05 in validation.
+Stages F and G: P01, P02, P07-P10, G01, G03-G08, H01-H10 and archive (`tests/pg/routingScreens.pg.ts`); P03-P06, the
+at-most comparison, scope, the v1 move, the change list, the trace in words and the release fingerprint
+(`tests/routingScreensModel.test.ts`); G02, G15, G16 and P07's Undo in a browser against the real screens with a mocked
+server (render harness, not in the repository).
 
-## 5. Left for stages F to I
+## 5. Left for stages H and I
 
-- F: the Policies / Teams / Activity screens, the tester with saved evidence and the publish review screen (the
-  services exist: `createPolicy`, `saveDraft`, `publishPolicy`, `saveTeam`, `stageSource`, `evaluate`, `validatePolicy`);
-  turning a migrated policy to v2 as a reviewed release; evidence storage and the "one dry run before publish" gate.
-- G: internal handoff (Route & book): preview, `expect_owner` conflicts shown to the person, override with reason.
+- Not built in F/G: an optional lookup of an existing contact in the tester (the tester builds the lead from what's
+  typed and the CRM's company for the email's domain); an override picker in the Route & book drawer (the server
+  supports it, for workspace owners, with a reason); Forms › After submission still edits its own schedule setting,
+  not the shared connection (Stage I).
 - H: Activity and the review lifecycle (approve, child attempt with `parent_run_id`, resolve), booking abandonment
   after 30 minutes, provider event reconciliation (no provider-side dedupe exists yet: an unknown create outcome is
   not modelled beyond `pending_confirmation`), CRM sync state, escalation when a reviewer leaves.
 - I: writing a connection when a form is created, archive and duplicate, pooled team meeting types counting toward the
   owner-first quota and queue, role-scoped permissions beyond "workspace owner edits".
 
-## 6. Rollback
+## 6. Running cost
 
-095 adds tables and columns and replaces functions; it deletes nothing. The `routers` / `router_versions` mirror is
+Stages F and G add no service and no AI call: the screens read the database, the tester runs the evaluator in the
+API server, and Route & book uses the existing calendar reads. Beta (50 teams): $0 a month. Growth (500 teams): $0 a
+month (a few hundred small rows of test evidence per team a month, inside the existing database plan).
+
+## 7. Rollback
+
+095 and 096 add tables and columns and replace functions; they delete nothing. The `routers` / `router_versions` mirror is
 complete, so restoring 094's function bodies brings back the old path with every version intact.

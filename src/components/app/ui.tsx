@@ -267,7 +267,7 @@ export function timeAgo(iso: string | null) {
 /** A page in the app: a crumb and a title, then the content. `onRename` makes the title an input you can type in. */
 /** A section with tabs (Routing, Scheduling, Visitors...): every page inside it shows the section's title and tabs. */
 /** `banner` is one slim line across the top of the work area, under the tabs (Calendar's Connect your calendar). */
-export type SectionNav = { title: string; tabs: { value: string; label: string; icon?: React.ReactNode; count?: number; dot?: string }[]; current: string; onPick: (v: string) => void; banner?: React.ReactNode };
+export type SectionNav = { title: string; tabs: { value: string; label: string; icon?: React.ReactNode; count?: number; dot?: string; badge?: number }[]; current: string; onPick: (v: string) => void; banner?: React.ReactNode };
 const SectionCtx = createContext<SectionNav | null>(null);
 export function Section({ nav, children }: { nav: SectionNav; children: React.ReactNode }) {
   return <SectionCtx.Provider value={nav}>{children}</SectionCtx.Provider>;
@@ -629,14 +629,14 @@ export function Tabs<T extends string>({
   dense = false,
 }: {
   value: T;
-  tabs: { value: T; label: string; count?: number; icon?: React.ReactNode; dot?: string }[];
+  tabs: { value: T; label: string; count?: number; icon?: React.ReactNode; dot?: string; badge?: number }[];
   onChange: (v: T) => void;
   bare?: boolean;
   dense?: boolean;
 }) {
   const { box, at } = useSlide(
     tabs.findIndex((t) => t.value === value),
-    [tabs.map((t) => `${t.label}${t.count ?? ""}${t.dot ?? ""}`).join()],
+    [tabs.map((t) => `${t.label}${t.count ?? ""}${t.dot ?? ""}${t.badge ?? ""}`).join()],
   );
   return (
     <div ref={box} role="tablist" className={`relative flex shrink-0 items-end overflow-x-auto [scrollbar-width:none] ${dense ? "h-[38px] gap-[4px]" : "h-10 gap-2"} ${bare ? "-mb-px" : `border-b border-line ${dense ? "px-[10px]" : "px-3"}`}`}>
@@ -654,6 +654,7 @@ export function Tabs<T extends string>({
           {t.label}
           {t.count != null ? <span className={`tabular-nums ${dense ? "text-[11.5px] font-normal text-faint" : `text-[12px] ${value === t.value ? "font-medium text-ink" : "text-faint"}`}`}>{t.count}</span> : null}
           {t.dot ? <span title={t.dot} aria-label={t.dot} className="size-1.5 rounded-full bg-butter" /> : null}
+          {t.badge ? <span className="inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-butter-wash px-1.5 text-[11px] font-medium text-butter tabular-nums">{t.badge}</span> : null}
         </button>
       ))}
       {at ? <span aria-hidden="true" className="absolute bottom-0 left-0 h-0.5 bg-ink transition-[transform,width] duration-[200ms] ease-out" style={{ width: at.width, transform: `translateX(${at.left}px)` }} /> : null}
