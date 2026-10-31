@@ -12,6 +12,7 @@ import { book, hostStates, liveAt, newToken, offer, quiet, sealedToken, tokenHas
 import { cut, pickHost, pickPair } from "./slots.ts";
 import { cleanLook, ordered, type PageLook } from "./look.ts";
 import { validZone } from "./time.ts";
+import { dynamicOf } from "./dynamic.ts";
 import { checkSettings } from "./check.ts";
 import { guestLocation, toGuestType, type GuestIn, type GuestSlot, type GuestType, type Profile } from "./guest.ts";
 import { DEFAULT_SETTINGS, type Location, type MeetingSource, type MeetingStatus, type MeetingType, type Slot, type Span } from "./types.ts";
@@ -699,6 +700,12 @@ async function liveForMove(live: LiveBusy, v: MeetingView, hosts: string[], bloc
   return new Set(sets.flatMap((x) => [...x]));
 }
 
+/**
+ * Whether a reschedule keeps the meeting's own hosts. A Dynamic meeting always does: its rep was picked by its rules
+ * (the lead's country, size...), and another rep from the pool could be the wrong one.
+ */
+export const keepsHost = (t: Pick<MeetingType, "settings">) => t.settings.reschedule !== "pool" || !!dynamicOf(t);
+
 const meetingLength = (v: MeetingView) => Math.round((Date.parse(v.meeting.end_at) - Date.parse(v.meeting.start_at)) / MIN);
 
 /** The times this meeting can move to: same length, same type; only its own hosts' when the type keeps the host. */
@@ -709,7 +716,7 @@ async function moveSlots(rpc: Rpc, v: MeetingView, now: number): Promise<Slot[] 
   const t: MeetingType = type.settings.lengths.includes(length) ? type : { ...type, settings: { ...type.settings, lengths: [...type.settings.lengths, length] } };
   const off = await offer(without(rpc, v), { ws: v.meeting.workspace_id, type: t, length, now });
   const mine = v.meeting.hosts;
-  const out: Slot[] & { seated?: number[] } = off.slots.filter((s) => s.start !== Date.parse(v.meeting.start_at) && (type.settings.reschedule !== "same_host" || mine.every((h) => s.hosts.includes(h))));
+  const out: Slot[] & { seated?: number[] } = off.slots.filter((s) => s.start !== Date.parse(v.meeting.start_at) && (!keepsHost(type) || mine.every((h) => s.hosts.includes(h))));
   if (off.seated) out.seated = off.seated;
   return out;
 }
@@ -746,7 +753,7 @@ export async function reschedule(rpc: Rpc, o: { view: MeetingView; start: number
   const mine = v.meeting.hosts;
   let hosts: string[] = [];
   if (mine.every((h) => free.includes(h))) hosts = mine;
-  else if (s.reschedule === "pool") {
+  else if (!keepsHost(type)) {
     if (type.kind === "collective") hosts = free.length === slot.hosts.length ? free : [];
     else if (type.kind === "double") hosts = pickPair(free, type.hosts, await turnsFor(rpc, type.id));
     else if (type.kind === "round_robin" || type.kind === "owner_first") {

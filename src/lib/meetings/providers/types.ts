@@ -11,7 +11,8 @@ import type { BusySpan, Calendar, CalendarProvider, EventInput } from "../provid
  */
 export type Lead = { email: string; name?: string | null };
 export type FullEventInput = EventInput & { leads?: Lead[] };
-export type EventUpdate = { start: number; end: number; guests?: string[]; leads?: Lead[] };
+/** A change to an event. `description` replaces its text (a move writes it again, so its links stay current). */
+export type EventUpdate = { start: number; end: number; guests?: string[]; leads?: Lead[]; description?: string };
 
 /** A listed calendar; `own` when the person owns it (theirs count as busy by default, others' shared ones don't). */
 export type OwnCalendar = Calendar & { own?: boolean };

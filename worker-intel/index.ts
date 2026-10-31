@@ -96,7 +96,7 @@ const handlers = {
   calendar_refresh: calendarRefresh(rpc),
   calendar_watch: calendarWatch(rpc),
   calendar_reconnect: calendarReconnect(rpc, meetings),
-  meeting_sync: meetingSync(rpc),
+  meeting_sync: meetingSync(rpc, { base: meetings.base }),
   meeting_webhook: meetingWebhook(rpc, { base: meetings.base }),
 };
 const stop = new AbortController();

@@ -70,8 +70,8 @@ Settings
 [Get started  ▰▰▰▱]                     checklist, until done
 ```
 
-- **CRM first, and the app opens on Contacts.** `defaultRoute` becomes `contacts`. An old address that used to open
-  Forms opens Forms; only `/` changes.
+- **The app opens on Forms.** `defaultRoute` is `forms`, and `/` sends people there with a temporary redirect, so a
+  browser never keeps the start page.
 - **Groups fold.** Each group title is a button that folds the group; the fold is remembered per person in
   `localStorage` (a convenience, safe to lose). The group of the open page never folds.
 - **Icon tiles.** Every item gets a small square tile (20 px, `rounded-md`) in its group's wash with the icon in the
@@ -409,7 +409,7 @@ Later items, for when they're planned:
 - CLAUDE.md: the sidebar line becomes "CRM (Contacts, Companies, Opportunities, Meetings), Automation (Workflows,
   Forms, Signals, Enrichment), Routing, Scheduling, Reports (Funnel, Speed to lead, Reps, Forms, Email), Email (Segments,
   Templates), Site (Pages), Ads,
-  Settings. The app opens on Contacts."
+  Settings. The app opens on Forms."
 - `docs/brand.md`: sidebar group tiles (sky, clay, sage, butter), the side sheet with folding sections, stat cards.
 - `docs/meetings-scheduler.md`: Part 1.9 Screens points here; named schedules and reminder templates added to Data.
 - `docs/router-ux-v2.md`: Part 16.1 is replaced by Part 5 here.
