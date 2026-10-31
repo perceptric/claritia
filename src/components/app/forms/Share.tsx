@@ -194,7 +194,7 @@ function EmbedPane({ sb, form, row, kit }: Parameters<typeof Share>[0]) {
             <div key={page} className="flex items-center gap-[10px] border-t border-line px-[16px] py-[10px] text-[12.5px]">
               {s.blocked ? <Badge tone="amber">Blocked</Badge> : <Badge tone="green" dot>Live</Badge>}
               <code className="min-w-0 flex-1 truncate font-mono text-[12px] text-ink">{page}</code>
-              <span className="text-muted">{s.blocked ? "Not on your site list, fills held as spam" : `Last fill ${lower(ago(s.last))}`}</span>
+              <span className="text-muted">{s.blocked ? "Not on your site list, fills go to Spam" : `Last fill ${lower(ago(s.last))}`}</span>
             </div>
           ))
         ) : (

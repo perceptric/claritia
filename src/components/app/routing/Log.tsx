@@ -21,9 +21,9 @@ const COLS = "id, contact_id, reason, version, kind, owner, by, queue_id, rule_i
 /** The names of teammates by id, for runs whose facts don't hold them. */
 const namesOf = (people: Person[] | undefined) => Object.fromEntries((people ?? []).map((p) => [p.id, p.name]));
 
-/** The result cell: the owner's avatar and name, or a Held or Unassigned pill. */
-export function ResultCell({ row, people }: { row: Pick<RunRow, "kind" | "owner" | "facts">; people?: Map<string, Person> }) {
-  if (row.kind === "held") return <Badge tone="amber">Held</Badge>;
+/** The result cell: the owner's avatar and name, or a Spam, For review or Unassigned pill. */
+export function ResultCell({ row, people }: { row: RunRow; people?: Map<string, Person> }) {
+  if (row.kind === "held") return <Badge tone="amber">{routedBy(row)}</Badge>;
   if (row.kind === "unassigned" || !row.owner) return <Badge tone="red">Unassigned</Badge>;
   const p = people?.get(row.owner);
   const name = p?.name ?? row.facts?.reps?.[row.owner]?.name ?? "Former teammate";

@@ -287,7 +287,7 @@ export function whyOf(d: Pick<Decision, "result" | "steps">, o: { body: RouterBo
   if (r.kind === "held") {
     const rules = step("rules");
     if (r.signals.includes("rule") && rules?.rule) return `Matches ${ruleName(o.body, rules.rule.id, rules.rule.name, o.fields)}, which holds leads for review`;
-    return "Held for review as spam";
+    return "Spam";
   }
   if (r.kind === "owner" && (r.by === "account" || r.by === "keep") && !r.rule) {
     const s = step(r.by);

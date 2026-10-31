@@ -209,7 +209,7 @@ export function TestDrawer({ session, ws, d, row, body, flush, onClose }: Pick<V
           <div className="flex flex-col gap-1.5">
             {(
               [
-                ["spam", "Suspected spam"],
+                ["spam", "Spam"],
                 ["unavailable", "Recipients unavailable"],
                 ["noSlots", "No bookable slots"],
               ] as const

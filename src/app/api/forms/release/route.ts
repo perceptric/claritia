@@ -3,9 +3,12 @@ import { queueNotify, releaseFill, type HeldFill } from "@/lib/forms/submit";
 import type { Form } from "@/lib/forms/schema";
 import { requireUser } from "@/lib/serverAuth";
 import { serviceClient } from "@/lib/serviceClient";
+import { routeSpamLead, routedSpam } from "@/lib/routing/spamRelease";
 
 // Not spam (docs/forms-plan.md 1.1): fills held as spam become leads, through the same checks and steps as on the way
-// in (src/lib/forms/submit.ts releaseFill). POST { workspaceId, ids } → { released, errors: { id: reason } }.
+// in (src/lib/forms/submit.ts releaseFill). A lead the routing spam check caught is routed first, with that check
+// skipped (src/lib/routing/spamRelease.ts), and stays in Spam if it can't be. POST { workspaceId, ids } →
+// { released, errors: { id: reason } }.
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
@@ -21,13 +24,13 @@ export async function POST(request: Request) {
   if (!db) return Response.json({ error: "The server is not set up for this." }, { status: 500 });
   const { data: rows, error } = await db
     .from("submissions")
-    .select("id, workspace_id, form_id, form_version, idem_key, values, consent, country, created_at, contact_id")
+    .select("id, workspace_id, form_id, form_version, idem_key, values, consent, country, created_at, contact_id, spam_reason")
     .in("id", ids)
     .eq("workspace_id", ws)
     .eq("spam", true)
     .eq("test", false);
   if (error) return Response.json({ error: "Try again in a moment." }, { status: 503 });
-  const fills = (rows ?? []) as (HeldFill & { form_id: string | null })[];
+  const fills = (rows ?? []) as (HeldFill & { form_id: string | null; spam_reason: string | null })[];
   const versions = new Map<string, Form>();
   for (const s of fills) {
     const k = `${s.form_id}:${s.form_version}`;
@@ -44,6 +47,13 @@ export async function POST(request: Request) {
     if (!body) {
       errors[s.id] = "The form for this fill is gone.";
       continue;
+    }
+    if (routedSpam(s)) {
+      const routed = await routeSpamLead(rpc, db, { ws, user: auth.user.id, submission: s.id }).catch((e: unknown) => ({ error: e instanceof Error ? e.message : "Try again in a moment." }));
+      if ("error" in routed) {
+        errors[s.id] = routed.error;
+        continue;
+      }
     }
     const r = await releaseFill(rpc, s, body, ctx);
     if ("error" in r) errors[s.id] = r.error;

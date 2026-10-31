@@ -125,6 +125,7 @@ function Editor(props: ViewProps & { data: FormData; reload: () => void; patchRo
   const [dialog, setDialog] = useState<"publish" | "versions" | null>(null);
   const [menu, setMenu] = useState<HTMLElement | null>(null);
   const [preview, setPreview] = useState(false);
+  const [subsView, setSubsView] = useState<"leads" | "spam">("leads");
   // A form just made from a description says so once.
   const [said, setSaid] = useState<{ words: string; undo?: boolean; err?: boolean } | null>(() => {
     try {
@@ -551,13 +552,13 @@ function Editor(props: ViewProps & { data: FormData; reload: () => void; patchRo
             onSettings={openSetup}
           />
         ) : tab === "submissions" ? (
-          <Submissions {...props} form={form} formId={row.id} dests={data.dests} sources={data.sources} onFix={(qid) => goto(qid)} />
+          <Submissions key={subsView} {...props} form={form} formId={row.id} dests={data.dests} sources={data.sources} onFix={(qid) => goto(qid)} start={subsView} />
         ) : tab === "share" ? (
           <Share {...props} form={form} row={row} apply={apply} kit={kit} site={data.site} />
         ) : tab === "sync" ? (
           <Sync {...props} form={form} formId={row.id} dests={data.dests} sources={data.sources} crm={crm} failed={data.failed} reload={reload} patchDests={patchDests} onFix={(qid) => goto(qid)} issueCtx={issueCtx} />
         ) : (
-          <Setup {...props} form={form} apply={apply} sub={sub} setSub={setSub} formId={row.id} types={data.types} routing={live.data?.body ?? null} onReview={() => setTab("submissions")} subs={data.subs} name={name} />
+          <Setup {...props} form={form} apply={apply} sub={sub} setSub={setSub} formId={row.id} types={data.types} routing={live.data?.body ?? null} onReview={() => (setSubsView("spam"), setTab("submissions"))} subs={data.subs} name={name} />
         )}
       </div>
       {dialog === "publish" ? <PublishDialog checks={checks} live={!!row.version} onClose={() => setDialog(null)} onPublish={() => void publish()} onFix={(qid) => goto(qid)} error={error} /> : null}

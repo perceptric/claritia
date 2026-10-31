@@ -9,7 +9,7 @@ where it's used, and the routing engine underneath runs both steps.
 | Which rep a lead gets | The meeting: Individual is its host; Dynamic has its own rules |
 | Teams that take turns | Meetings › Availability › Team |
 | Hours, calendars, away, caps | Meetings › Availability |
-| Spam check | Form › Settings › Spam |
+| Spam check | Form › Settings › Spam; caught leads go to Form › Submissions › Spam |
 | Why a rep got a lead | Meetings › Upcoming and the meeting's page; one policy and the activity log still open at their old addresses |
 
 Old Routing addresses forward (`resolveRoute` in `src/lib/nav.ts`): the policies list opens Meetings, teams and reps
@@ -65,6 +65,15 @@ the booking shows the picked rep's times for the rule's meeting.
 - Anyone who can publish the form publishes its routing. It only ever touches that form's own policy, so it runs with
   an owner's rights for them. Anything left out shows as an error after the form goes live. Tested in
   `tests/formPublish.test.ts`.
+
+## Spam
+
+- A lead any spam check catches goes to its form's **Spam** list (Form › Submissions › Spam): the form's own checks,
+  and the routing spam check (reason `routing`, "Failed the spam check"). There is no review step and no "held" wording.
+- The routing spam check's review item is kept, dismissed (`supabase/migrations/098_spam_to_spam.sql`), so
+  **Not spam** routes the lead through that item with the spam check skipped (`src/lib/routing/spamRelease.ts`, called
+  from `/api/forms/release`). If routing refuses, the item goes back to dismissed and the lead stays in Spam.
+- Leads from the handoff or the API keep their review item. Tested in `tests/spamToSpam.test.ts`.
 
 ## Sharing
 
