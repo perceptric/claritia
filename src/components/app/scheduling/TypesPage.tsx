@@ -1,7 +1,8 @@
 "use client";
 
 // Inbound › Meetings › Meetings (once Calendar › Meeting types): "What people can book", one card per meeting with
-// its length and video tool, the routing steps that book it ("Booked by leads from", read from the live router) and
+// its length and video tool, what books it ("Used by": the forms whose On Submission books it, which open there, and
+// the routing steps that name it in the live router) and
 // "Who hosts" as one dropdown: Team (a Routing team; from a form each lead gets the rep Routing picks, from the plain
 // link the team takes turns) or Individual (one rep, always them). Clicking a card opens its panel on the right
 // (/scheduling/types/<id>); New meeting opens the same panel (/scheduling/types/new). Copy link, single-use links,
@@ -59,6 +60,8 @@ export function TypesPage(props: ViewProps & { open: string }) {
       status,
     };
   });
+  // The forms that book each meeting on submission.
+  const forms = useQuery(`meeting_types:${ws.id}:forms`, async () => (must(await sb.from("forms").select("id, name, meeting:draft->after->schedule->>meetingTypeId").eq("workspace_id", ws.id).order("name")) ?? []) as { id: string; name: string; meeting: string | null }[]);
   const data = { data: list.data && extra.data ? { ...extra.data, types: list.data } : null, error: list.error || extra.error };
   const [error, setError] = useState("");
   const [linkFor, setLinkFor] = useState<string | null>(null);
@@ -187,6 +190,7 @@ export function TypesPage(props: ViewProps & { open: string }) {
                 {(types ?? []).map((t) => {
                   const url = typeUrl(t.slug);
                   const used = bookedBy(live.data?.body, t.id);
+                  const usedBy = (forms.data ?? []).filter((f) => f.meeting === t.id);
                   const choice = hostChoice(t);
                   const q = choice.startsWith("team:") ? routingQueues.find((x) => `team:${x.id}` === choice) : undefined;
                   const host = choice.startsWith("rep:") ? choice.slice(4) : null;
@@ -242,18 +246,19 @@ export function TypesPage(props: ViewProps & { open: string }) {
                           {PLACE_WORDS[t.settings.location.kind]}
                         </span>
                       </div>
-                      <div className="flex flex-wrap items-center gap-1.5 text-[12px] text-muted">
-                        {used.length ? (
-                          <>
-                            <span>Booked by leads from</span>
-                            {used.map((u) => (
-                              <Badge key={u}>{u}</Badge>
-                            ))}
-                          </>
-                        ) : (
-                          <span>No routing step books this yet</span>
-                        )}
-                      </div>
+                      {usedBy.length || used.length ? (
+                        <div className="relative z-10 flex flex-wrap items-center gap-1.5 text-[12px] text-muted">
+                          <span>Used by</span>
+                          {usedBy.map((f) => (
+                            <button key={f.id} type="button" title={`Open ${f.name}`} onClick={() => navigate("forms", f.id, "open=submission")} className="rounded-full hover:opacity-80">
+                              <Badge>{f.name}</Badge>
+                            </button>
+                          ))}
+                          {used.map((u) => (
+                            <Badge key={u}>{u}</Badge>
+                          ))}
+                        </div>
+                      ) : null}
                       <div className="relative z-10 flex items-start gap-3 border-t border-line pt-2.5">
                         <div className="flex min-w-0 flex-1 flex-col">
                           <span className="font-medium text-ink">Who hosts</span>

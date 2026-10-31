@@ -119,7 +119,8 @@ function Editor(props: ViewProps & { data: FormData; reload: () => void; patchRo
   const [error, setError] = useState("");
   const [tab, setTabRaw] = useState<Tab>(() => (typeof window === "undefined" ? "build" : tabOf(window.location.search)));
   const [sub, setSub] = useState<SetupSub>("alerts");
-  const [pick, setPick] = useState<Picked>(null);
+  // Opened from a meeting's "Used by": straight to On Submission.
+  const [pick, setPick] = useState<Picked>(() => (typeof window !== "undefined" && new URLSearchParams(window.location.search).get("open") === "submission" ? { id: SUBMIT, open: null } : null));
   const [step, setStep] = useState(0);
   const [dialog, setDialog] = useState<"publish" | "versions" | null>(null);
   const [menu, setMenu] = useState<HTMLElement | null>(null);
