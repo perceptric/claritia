@@ -15,6 +15,7 @@ export type Route =
   | "scheduling"
   | "emails"
   | "segments"
+  | "visitors"
   | "scoring"
   | "settings";
 
@@ -44,7 +45,8 @@ const item = (group: GroupKey, route: Route, label: string): NavItem => ({ key: 
 /**
  * Inbound is set up the way a sales team works (docs/unify-plan.md): Forms (each form's Routing picks the meeting) and
  * Meetings (a Dynamic meeting picks the rep; Availability holds hours, teams and who's away; docs/on-submission.md).
- * Nurture is Workflows (folders of workflows, reminders included; docs/workflows.md), Segments and Scoring. Routing
+ * Nurture is Workflows (folders of workflows, reminders included; docs/workflows.md), Visitors (docs/visitors.md) and
+ * Scoring; Segments live in Contacts. Routing
  * has no item of its own: its old addresses open where its parts went (resolveRoute).
  */
 export const NAV: NavItem[] = [
@@ -54,7 +56,7 @@ export const NAV: NavItem[] = [
   item("crm", "companies", "Companies"),
   item("crm", "opportunities", "Opportunities"),
   item("nurture", "workflows", "Workflows"),
-  item("nurture", "segments", "Segments"),
+  item("nurture", "visitors", "Visitors"),
   item("nurture", "scoring", "Scoring"),
   item("settings", "settings", "Settings"),
 ];
@@ -81,13 +83,16 @@ export type Tab<T extends string = string> = { value: T; label: string };
 const UUID = /^[0-9a-f-]{36}$/;
 
 /** Contacts: the table (""), the Overview (funnel and reps), and one contact (<id>). */
-export function contactsPage(id: string): { page: "list" | "overview" | "contact"; id: string } {
-  const [a = ""] = id.split("/");
+export function contactsPage(id: string): { page: "list" | "overview" | "contact" | "segments"; id: string; sub?: string } {
+  const [a = "", b = ""] = id.split("/");
   if (a === "overview") return { page: "overview", id: a };
+  // Segments live in Contacts: the list ("segments"), a new one ("segments/new") and one ("segments/<id>").
+  if (a === "segments") return UUID.test(b) || b === "new" ? { page: "segments", id: `segments/${b}`, sub: b } : { page: "segments", id: "segments", sub: "" };
   return UUID.test(a) ? { page: "contact", id: a } : { page: "list", id: "" };
 }
 export const CONTACTS_TABS: Tab[] = [
   { value: "", label: "Contacts" },
+  { value: "segments", label: "Segments" },
   { value: "overview", label: "Overview" },
 ];
 
@@ -221,9 +226,8 @@ export function scoringPage(id: string): { tab: ScoringTab; id: string } {
 
 /** Old first parts of an address and where they open now: the route, and the page inside it. */
 const MOVED: Record<string, { route: Route; id?: string; keepId?: boolean }> = {
-  // Visitors (once Signals) was removed; its addresses open Contacts.
-  visitors: { route: "contacts" },
-  signals: { route: "contacts" },
+  // Signals was Visitors; Visitors is back in Nurture (docs/visitors.md).
+  signals: { route: "visitors" },
   leads: { route: "contacts", keepId: true },
   people: { route: "contacts" },
   accounts: { route: "companies", id: "account", keepId: true },
@@ -275,6 +279,8 @@ export function resolveRoute(first: string, id: string): { route: Route; id: str
   if (first === "routing" && routingPage(id).page === "" && !routingPage(id).sub) return { route: "scheduling", id: "types" };
   if (first === "companies" && a === "visits") return { route: "companies", id: "" };
   if (first === "settings" && SETTINGS_MOVED[a]) return SETTINGS_MOVED[a];
+  // Segments moved into Contacts.
+  if (first === "segments") return { route: "contacts", id: UUID.test(a) || a === "new" ? `segments/${a}` : "segments" };
   // Meeting reminders are a workflow now.
   if (first === "scheduling" && (a === "reminders" || (a === "settings" && rest[0] === "reminders"))) return { route: "workflows", id: "" };
   if (first === "reports") return REPORTS[a] ?? REPORTS[""]!;

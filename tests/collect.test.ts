@@ -547,6 +547,22 @@ test("identity: forms and identify become evidence and a stitch job, only with f
   assert.equal(store.evidence.length, before, "GPC, no evidence");
 });
 
+test("identity: a booking on the site is evidence like a form; it needs an email and full policy", async () => {
+  const { send, batch, ev, store } = setup(US);
+  const r = await send("/e", batch([ev("view")]));
+  const cookie = r.cookies[0].split(";")[0];
+  assert.deepEqual((await send("/i", { ...batch([]), kind: "booking", source: "native", email: "Dana@Lead.io" }, { cookie })).json, { p: "full" });
+  const e = store.evidence.at(-1)!;
+  assert.equal(e.source, "booking");
+  assert.equal(e.level, "asserted");
+  assert.deepEqual(e.identifiers, [{ kind: "email", value: "dana@lead.io" }]);
+  assert.ok(store.jobs.some((j) => j.kind === "stitch" && j.key === e.device_id));
+  assert.equal((await send("/i", { ...batch([]), kind: "booking", userId: "u_1" }, { cookie })).status, 400, "a booking without an email proves nothing");
+  const before = store.evidence.length;
+  await send("/i", { ...batch([], { gpc: true }), kind: "booking", email: "dana@lead.io" }, { cookie });
+  assert.equal(store.evidence.length, before, "GPC, no evidence");
+});
+
 test("hutk rides the batch as evidence", async () => {
   const { send, batch, ev, store } = setup(US);
   await send("/e", batch([ev("view")], { hutk: "abc123" }));

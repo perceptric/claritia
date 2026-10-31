@@ -28,6 +28,7 @@ const LOADERS = {
   scheduling: () => import("./scheduling/SchedulingView").then((m) => m.SchedulingView),
   enrichment: () => import("./enrichment/EnrichmentView").then((m) => m.EnrichmentView),
   segments: () => import("./views/SegmentsView").then((m) => m.SegmentsView),
+  visitors: () => import("./views/VisitorsView").then((m) => m.VisitorsView),
   workflows: () => import("./workflows/WorkflowsView").then((m) => m.WorkflowsView),
   scoring: () => import("./scoring/ScoringView").then((m) => m.ScoringView),
   forms: () => import("./forms/FormsView").then((m) => m.FormsView),
@@ -46,6 +47,7 @@ const VIEWS: Record<ViewRoute, React.ComponentType<ViewProps>> = {
   scheduling: dynamic(LOADERS.scheduling, { ssr: false, loading }),
   enrichment: dynamic(LOADERS.enrichment, { ssr: false, loading }),
   segments: dynamic(LOADERS.segments, { ssr: false, loading }),
+  visitors: dynamic(LOADERS.visitors, { ssr: false, loading }),
   workflows: dynamic(LOADERS.workflows, { ssr: false, loading }),
   scoring: dynamic(LOADERS.scoring, { ssr: false, loading }),
   forms: dynamic(LOADERS.forms, { ssr: false, loading }),
@@ -64,7 +66,7 @@ const OpenView = memo(function OpenView({ route, ...props }: ViewProps & { route
 const GROUP_LABEL = { crm: "CRM", automation: "Automation", inbound: "Inbound", nurture: "Nurture", settings: "App" } as const;
 
 type Loc = { route: Route; id: string };
-const WITH_ID = new Set<Route>(["contacts", "companies", "opportunities", "segments", "forms", "workflows"]);
+const WITH_ID = new Set<Route>(["contacts", "companies", "opportunities", "segments", "forms", "workflows", "visitors"]);
 
 const readLoc = (): Loc => {
   const [, first = "", id = "", rest = ""] = window.location.pathname.split("/");
@@ -222,7 +224,7 @@ export function ClientApp({ config }: { config: SupaConfig }) {
     { group: "Inbound", label: "Single-use link", run: () => navigate("scheduling", "links", "create=single_use") },
     { group: "Inbound", label: "Poll", run: () => navigate("scheduling", "links", "create=poll") },
     { group: "Nurture", label: "Broadcast", run: () => navigate("workflows", "new", "template=broadcast") },
-    { group: "Nurture", label: "Segment", run: () => navigate("segments", "new") },
+    { group: "CRM", label: "Segment", run: () => navigate("contacts", "segments/new") },
   ];
 
   const commands: Command[] = [

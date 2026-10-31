@@ -26,7 +26,12 @@ test("the sidebar is Inbound, CRM and Nurture, then Settings, with at most five 
   const by = (g: string) => NAV.filter((n) => n.group === g).map((n) => n.label);
   assert.deepEqual(by("crm"), ["Contacts", "Companies", "Opportunities"]);
   assert.deepEqual(by("inbound"), ["Forms", "Meetings"], "Routing lives in forms and meetings now");
-  assert.deepEqual(by("nurture"), ["Workflows", "Segments", "Scoring"], "Emails became Workflows; Scoring moved here");
+  assert.deepEqual(by("nurture"), ["Workflows", "Visitors", "Scoring"], "Emails became Workflows; Scoring moved here; Segments live in Contacts");
+  assert.deepEqual(resolveRoute("visitors", ""), { route: "visitors", id: "" });
+  assert.deepEqual(resolveRoute("signals", ""), { route: "visitors", id: "" });
+  assert.deepEqual(resolveRoute("segments", ""), { route: "contacts", id: "segments" });
+  assert.deepEqual(resolveRoute("segments", "new"), { route: "contacts", id: "segments/new" });
+  assert.deepEqual(resolveRoute("segments", "11111111-1111-4111-8111-111111111111"), { route: "contacts", id: "segments/11111111-1111-4111-8111-111111111111" });
   for (const g of GROUPS) assert.ok(by(g.key).length <= 5, g.key);
   assert.equal(defaultRoute, "forms");
   assert.equal(new Set(NAV.map((n) => n.route)).size, NAV.length, "one item per route");
@@ -48,10 +53,6 @@ test("old addresses open their new home", () => {
   assert.deepEqual(resolveRoute("emails", "library"), { route: "workflows", id: "" });
   assert.deepEqual(resolveRoute("emails", "journeys/11111111-1111-4111-8111-111111111111"), { route: "workflows", id: "11111111-1111-4111-8111-111111111111" });
   assert.deepEqual(resolveRoute("companies", "visits"), { route: "companies", id: "" });
-  // Visitors (once Signals) was removed: its addresses open Contacts.
-  assert.deepEqual(resolveRoute("signals", ""), { route: "contacts", id: "" });
-  assert.deepEqual(resolveRoute("visitors", ""), { route: "contacts", id: "" });
-  assert.deepEqual(resolveRoute("visitors", "setup"), { route: "contacts", id: "" });
   // Reports moved into their sections.
   assert.deepEqual(resolveRoute("reports", ""), { route: "contacts", id: "overview" });
   assert.deepEqual(resolveRoute("reports", "reps"), { route: "contacts", id: "overview" });

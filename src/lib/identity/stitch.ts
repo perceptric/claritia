@@ -218,7 +218,7 @@ export async function stitchOne(db: Db, e: Evidence, settings: Settings): Promis
     const c = cleanIdentifier(i.kind, i.value, settings);
     if (isRejected(c)) continue;
     // Typed emails only: CRM and signed identities came from a system that already had them.
-    if (c.kind === "email" && c.domain && settings.checkDomain && (source === "form" || source === "identify") && !(await settings.checkDomain(c.domain))) continue;
+    if (c.kind === "email" && c.domain && settings.checkDomain && (source === "form" || source === "booking" || source === "identify") && !(await settings.checkDomain(c.domain))) continue;
     cleaned.push(c);
   }
   if (!cleaned.length) return (await finish(db, e, { ignored: "invalid", level, source }), { ignored: "invalid" });

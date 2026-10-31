@@ -141,11 +141,16 @@ const reviewOf = async (run: string) => (await q(`select * from routing_reviews 
 const refused = (status: number) => (e: unknown) => e instanceof S.Refusal && e.status === status;
 const placeEvent = (meeting: string, user: string) => q(`select meeting_calendar_save($1, $2, '{}')`, [meeting, { [user]: { provider: "fake", account: "a", calendar: "primary", event: `ev_${meeting.slice(0, 6)}` } }]);
 
-/** A held (suspected spam) Demo request, with its open review item. */
+/**
+ * A held (suspected spam) Demo request, with its review item open. Since migration 098 the fill goes to Spam with its
+ * item dismissed; Not spam reopens it (src/lib/routing/spamRelease.ts), which is where these tests start.
+ */
 async function held(w: W) {
   const { body } = await fill(w.demo, { first: "asdf" });
   const run = await runOf(body.id);
   assert.equal(run.kind, "held");
+  assert.equal((await reviewOf(run.id)).state, "dismissed", "the fill went to Spam");
+  await q(`select routing_review_act($1, $2, 'reopen', $3, null, null, null)`, [w.ws, (await reviewOf(run.id)).id, w.owner.user]);
   return { sub: body.id, run };
 }
 
@@ -173,8 +178,9 @@ test("G09 approving without running the child keeps the item in Needs review; di
   assert.equal(r!.state, "open");
   assert.equal(await inReview(), true);
   const log = await q(`select action, data->>'reason' reason from audit_log where workspace_id = $1 and action like 'routing.review.%' order by at`, [w.ws]);
-  assert.deepEqual(log.map((l) => l.action), ["routing.review.approve", "routing.review.dismiss", "routing.review.reopen"]);
-  assert.equal(log[1].reason, "A test from our agency");
+  // The first reopen is Not spam taking it out of Spam (held()).
+  assert.deepEqual(log.map((l) => l.action), ["routing.review.reopen", "routing.review.approve", "routing.review.dismiss", "routing.review.reopen"]);
+  assert.equal(log[2].reason, "A test from our agency");
   // Never resolved by an action: only a child's owner resolves it.
   await assert.rejects(q(`select routing_review_act($1, $2, 'resolve', $3)`, [w.ws, v0.id, VIN]), /invalid_configuration/);
 });

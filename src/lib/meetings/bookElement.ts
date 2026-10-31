@@ -17,7 +17,7 @@ const BOOK_BASE = (() => {
   }
 })();
 
-type Msg = { claritia?: boolean; type?: string; height?: number; start?: number; end?: number };
+type Msg = { claritia?: boolean; type?: string; height?: number; start?: number; end?: number; email?: string };
 
 /** The frame's address for a `type` value, on Claritia's own origin only. */
 export function bookUrl(type: string, base: string, extra: Record<string, string | null> = {}): string | null {
@@ -59,7 +59,16 @@ function listen(f: HTMLIFrameElement, from: Element, onHeight?: (h: number) => v
       if (onHeight) onHeight(h);
       else f.style.height = `${h}px`;
     }
-    if (d.type === "book:booked") from.dispatchEvent(new CustomEvent("claritia:booked", { bubbles: true, composed: true, detail: { start: d.start, end: d.end } }));
+    if (d.type === "book:booked") {
+      from.dispatchEvent(new CustomEvent("claritia:booked", { bubbles: true, composed: true, detail: { start: d.start, end: d.end } }));
+      // The site's own tracking links this visitor to the guest (docs/visitors.md): a booking is the same proof as a form.
+      const claritia = (window as unknown as { claritia?: (m: string, v: string) => void }).claritia;
+      if (typeof d.email === "string" && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(d.email) && typeof claritia === "function") {
+        try {
+          claritia("booking", d.email);
+        } catch {}
+      }
+    }
   };
   window.addEventListener("message", on);
   return () => window.removeEventListener("message", on);

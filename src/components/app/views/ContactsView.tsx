@@ -30,6 +30,7 @@ import { FieldGroup, RailRow, RecordHead, RecordLayout, RelatedList, StagePath, 
 import { routingApi } from "../routing/api";
 import { HandoffDrawer } from "../routing/rt/HandoffDrawer";
 import { activeTime } from "@/lib/visits";
+import { SegmentsView } from "./SegmentsView";
 
 // Loaded when first shown, so the contacts list opens without them.
 const Report = dynamic(() => import("../reports/Report").then((m) => m.Report), { ssr: false, loading: () => <Loading /> });
@@ -64,10 +65,14 @@ const CONTACT_PRESETS: Preset[] = [
 export function ContactsView(props: ViewProps) {
   const page = contactsPage(props.id);
   if (page.page === "contact") return <ContactPage {...props} />;
-  const nav = { title: "Contacts", tabs: CONTACTS_TABS, current: page.id, onPick: (t: string) => props.navigate("contacts", t) };
+  // One segment (or a new one) opens as its own page, like one contact.
+  if (page.page === "segments" && page.sub) return <SegmentsView {...props} id={page.sub} />;
+  const nav = { title: "Contacts", tabs: CONTACTS_TABS, current: page.page === "segments" ? "segments" : page.id, onPick: (t: string) => props.navigate("contacts", t) };
   return (
     <Section nav={nav}>
-      {page.page === "overview" ? (
+      {page.page === "segments" ? (
+        <SegmentsView {...props} id="" />
+      ) : page.page === "overview" ? (
         <Page title="Contacts">
           <Report sb={props.sb} ws={props.ws.id} navigate={props.navigate} show={["funnel", "reps"]} />
         </Page>
