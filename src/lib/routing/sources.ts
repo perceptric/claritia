@@ -19,7 +19,9 @@ export type SourceRow = {
   meeting_type_id: string | null;
   mappings: Mapping[];
   completion: Record<string, unknown>;
-  no_slots: { message?: string; task?: boolean; email_later?: boolean };
+  no_slots: { message?: string; task?: boolean; email_later?: boolean; abandonTask?: boolean; abandonAfter?: number };
+  /** A disconnected connection's new leads: as before ("none") or into review (097). */
+  when_off?: "none" | "review";
 };
 
 export type Resolved = { source: SourceRow | null; live: LiveRouter | null };
@@ -52,4 +54,34 @@ export function resolveSource(rpc: Rpc, form: string, now = Date.now()): Promise
 /** Forget every cached connection: after a publish or a pause on this server. */
 export function forgetSources(): void {
   cache.clear();
+}
+
+/**
+ * A submission on a form whose routing was disconnected with "send new leads to review" (Section 8): one unallocated
+ * run through the committer (its review item gets the workspace's admin reviewer), keyed by the submission like any
+ * routed fill, so a retried send opens one item. The existing owner is never cleared. Never fails the send.
+ */
+export async function captureDisconnected(rpc: Rpc, o: { ws: string; contact: string; submission: string; source: SourceRow; lead: { name: string | null; email: string | null } }): Promise<string | null> {
+  try {
+    const { data, error } = await rpc("routing_commit", {
+      p: {
+        ws: o.ws,
+        contact: o.contact,
+        key: `form:${o.submission}`,
+        reason: "form",
+        decision: { kind: "unassigned", reason: "source_disconnected" },
+        steps: [],
+        facts: { lead: o.lead },
+        ms: 0,
+        source_id: o.source.id,
+        source_revision: o.source.revision,
+        submission: o.submission,
+        booking_state: "not_requested",
+      },
+    });
+    if (error) return null;
+    return (data as { id?: string } | null)?.id ?? null;
+  } catch {
+    return null;
+  }
 }

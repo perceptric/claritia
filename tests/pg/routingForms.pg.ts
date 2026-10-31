@@ -136,7 +136,11 @@ test("B01 Demo request: the lead is saved, the owner committed, and the assigned
   assert.deepEqual(body.booking!.host, { name: "Ana" });
   const ok = await bookForClaim(rpc, body.booking!.token, c, { start: body.booking!.slots[0]!, now: NOW, liveBusyFor: free });
   assert.equal(ok.status, 200, JSON.stringify(ok.body));
-  assert.deepEqual((await q(`select hosts from meetings where submission_id = $1`, [body.id]))[0].hosts, [ANA]);
+  const m = (await q(`select id, hosts from meetings where submission_id = $1`, [body.id]))[0];
+  assert.deepEqual(m.hosts, [ANA]);
+  // Never "booked" before the calendar holds the event (Section 15): pending, then confirmed by the calendar side.
+  assert.deepEqual([(await runOf(body.id)).booking_state, (await runOf(body.id)).meeting_id], ["pending_confirmation", m.id]);
+  await q(`select meeting_calendar_save($1, $2, '{}')`, [m.id, { [ANA]: { provider: "fake", account: "a", calendar: "primary", event: "ev_1" } }]);
   assert.equal((await runOf(body.id)).booking_state, "confirmed");
 });
 
@@ -205,7 +209,7 @@ test("B08 the chosen time is taken before the confirm: fresh times, the same own
   assert.deepEqual([run.owner, run.booking_state], [ANA, "awaiting_selection"]);
   const ok = await bookForClaim(rpc, body.booking!.token, c, { start: taken.body.booking!.slots[1]!, now: NOW, liveBusyFor: free });
   assert.equal(ok.status, 200);
-  assert.equal((await runOf(body.id)).booking_state, "confirmed");
+  assert.equal((await runOf(body.id)).booking_state, "pending_confirmation", "booked in Claritia; the calendar confirms it");
 });
 
 test("B13 a policy published after a run was accepted: that run keeps its version and owner; the next uses the new one", async () => {

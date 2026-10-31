@@ -11,6 +11,7 @@ import { X } from "../../../Icons";
 import { Choice } from "../../inbound/parts";
 import type { Option } from "../../Select";
 import { Sheet } from "../../Sheet";
+import { askConfirm } from "../../Dialogs";
 import { Badge, ErrorNote, IconButton, type ViewProps } from "../../ui";
 import { rt, type FormInfo, type Screen } from "./api";
 import { Row } from "./parts";
@@ -51,7 +52,7 @@ export function SourcesDrawer({ session, ws, d, policyId, ro, onClose, onStaged 
   const meetings: Option<string>[] = d.meetingTypes.map((m) => ({ value: m.id, label: `${m.name}${m.minutes ? ` · ${m.minutes} min` : ""}` }));
   const policyName = (id: string | null) => d.policies.find((p) => p.id === id)?.name ?? null;
 
-  const stage = async (o: { s?: SourceRow; form?: string; handoff?: boolean; enabled: boolean; outcome: "assign_only" | "assign_and_calendar"; meeting: string | null; mappings?: Mapping[] }) => {
+  const stage = async (o: { s?: SourceRow; form?: string; handoff?: boolean; enabled: boolean; outcome: "assign_only" | "assign_and_calendar"; meeting: string | null; mappings?: Mapping[]; noSlots?: Record<string, unknown> }) => {
     setError("");
     setBusy(true);
     try {
@@ -62,6 +63,9 @@ export function SourcesDrawer({ session, ws, d, policyId, ro, onClose, onStaged 
         outcome: o.outcome,
         meeting: o.meeting,
         ...(o.mappings ? { mappings: o.mappings } : {}),
+        ...(o.noSlots ? { noSlots: o.noSlots } : {}),
+        // A disconnected form keeps a safe outcome: its new leads go to Needs review (Section 8).
+        ...(!o.enabled && !(o.handoff || o.s?.kind === "handoff") ? { whenOff: "review" } : {}),
         revision: o.s ? o.s.draft_revision : null,
       });
       onStaged();
@@ -90,8 +94,10 @@ export function SourcesDrawer({ session, ws, d, policyId, ro, onClose, onStaged 
         {mine.map(({ s, eff }) => {
           const form = d.forms.find((f) => f.id === s.form_id);
           const calendar = eff.outcome === "assign_and_calendar";
-          const set = (p: Partial<{ enabled: boolean; outcome: "assign_only" | "assign_and_calendar"; meeting: string | null; mappings: Mapping[] }>) =>
-            void stage({ s, enabled: p.enabled ?? eff.enabled, outcome: p.outcome ?? eff.outcome, meeting: p.meeting !== undefined ? p.meeting : eff.meetingTypeId, mappings: p.mappings ?? (s.kind === "form" ? eff.mappings : undefined) });
+          const set = (p: Partial<{ enabled: boolean; outcome: "assign_only" | "assign_and_calendar"; meeting: string | null; mappings: Mapping[]; noSlots: Record<string, unknown> }>) =>
+            void stage({ s, enabled: p.enabled ?? eff.enabled, outcome: p.outcome ?? eff.outcome, meeting: p.meeting !== undefined ? p.meeting : eff.meetingTypeId, mappings: p.mappings ?? (s.kind === "form" ? eff.mappings : undefined), noSlots: p.noSlots ?? (s.kind === "form" ? eff.noSlots : undefined) });
+          const ns = eff.noSlots as { abandonTask?: boolean; abandonAfter?: number };
+          const unfinished = ns.abandonTask ? String(ns.abandonAfter ?? 30) : "off";
           return (
             <section key={s.id} className={`rounded-[10px] border border-line bg-card ${eff.enabled ? "" : "opacity-60"}`}>
               <header className="flex items-center gap-2 border-b border-line px-4 py-2.5">
@@ -121,7 +127,14 @@ export function SourcesDrawer({ session, ws, d, policyId, ro, onClose, onStaged 
                   />
                 )}
                 {!ro ? (
-                  <IconButton label={eff.enabled ? `Disconnect ${s.name}` : `Connect ${s.name}`} disabled={busy} onClick={() => set({ enabled: !eff.enabled })}>
+                  <IconButton
+                    label={eff.enabled ? `Disconnect ${s.name}` : `Connect ${s.name}`}
+                    disabled={busy}
+                    onClick={async () => {
+                      if (eff.enabled && s.kind === "form" && !(await askConfirm(`Disconnect ${s.name}?`, { body: "New leads from this form go to Needs review.", ok: "Disconnect" }))) return;
+                      set({ enabled: !eff.enabled });
+                    }}
+                  >
                     <X size={12} />
                   </IconButton>
                 ) : null}
@@ -145,6 +158,21 @@ export function SourcesDrawer({ session, ws, d, policyId, ro, onClose, onStaged 
                   </Row>
                   <Row label="No slots" line="Thanks — your rep will contact you to arrange a time.">
                     <Badge>Follow-up task</Badge>
+                  </Row>
+                  <Row label="Unfinished booking">
+                    <Choice<string>
+                      label={`${s.name} unfinished booking`}
+                      value={unfinished}
+                      align="right"
+                      disabled={ro || busy}
+                      options={[
+                        { value: "off", label: "No follow-up" },
+                        { value: "30", label: "Follow-up task after 30 min" },
+                        { value: "60", label: "Follow-up task after 1 hour" },
+                        { value: "120", label: "Follow-up task after 2 hours" },
+                      ]}
+                      onChange={(v) => set({ noSlots: { ...eff.noSlots, abandonTask: v !== "off", abandonAfter: v === "off" ? 30 : Number(v) } })}
+                    />
                   </Row>
                 </>
               ) : null}

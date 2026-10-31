@@ -5,21 +5,22 @@
 // simulation overrides; then the server runs the shared evaluator and shows the seven stages. Changing an input after
 // a result marks it stale. A draft's test is kept as evidence for the publish review. Nothing real changes.
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { countryName } from "@/lib/router/conditions";
 import { COUNTRY_CODES } from "@/lib/forms/countries";
 import type { RouterBody } from "@/lib/router/types";
 import { fieldsUsed } from "@/lib/routing/evaluate";
 import { fieldOf, releaseSources, traceWords, type PolicyRow } from "@/lib/routing/screenModel";
 import { PREVIEW_FOOTER } from "@/lib/routing/states";
-import { Play } from "../../../Icons";
+import { Play, Search, X } from "../../../Icons";
 import { Choice } from "../../inbound/parts";
 import { Sheet } from "../../Sheet";
-import { Badge, Button, ErrorNote, Toggle, type ViewProps } from "../../ui";
+import { Badge, Button, ErrorNote, IconButton, Toggle, type ViewProps } from "../../ui";
 import { rt, type Screen, type TestOut } from "./api";
 import { Initials, namesOf, PersonChoice } from "./parts";
 
-type Inputs = { email: string; values: Record<string, string>; contactOwner: string | null; companyOwner: string | null; spam: boolean; unavailable: boolean; noSlots: boolean };
+type Found = { id: string; name: string; email: string | null };
+type Inputs = { email: string; contact?: Found | null; values: Record<string, string>; contactOwner: string | null; companyOwner: string | null; spam: boolean; unavailable: boolean; noSlots: boolean };
 
 const COUNTRIES = COUNTRY_CODES.map((c: string) => ({ value: c, label: countryName(c) })).sort((x, y) => x.label.localeCompare(y.label));
 
@@ -85,9 +86,17 @@ export function TestDrawer({ session, ws, d, row, body, flush, onClose }: Pick<V
         version: ver,
         revision,
         source: src || null,
-        email: t.email,
+        email: t.contact ? null : t.email,
+        ...(t.contact ? { contact: t.contact.id } : {}),
         values: t.values,
-        overrides: { contactOwner: t.contactOwner, companyOwner: t.companyOwner, spam: t.spam, unavailable: t.unavailable, noSlots: t.noSlots },
+        // A looked-up contact keeps its CRM owners unless one is set here.
+        overrides: {
+          ...(t.contact && !t.contactOwner ? {} : { contactOwner: t.contactOwner }),
+          ...(t.contact && !t.companyOwner ? {} : { companyOwner: t.companyOwner }),
+          spam: t.spam,
+          unavailable: t.unavailable,
+          noSlots: t.noSlots,
+        },
       });
       setRes(out);
       setStale(false);
@@ -141,8 +150,11 @@ export function TestDrawer({ session, ws, d, row, body, flush, onClose }: Pick<V
               }}
             />
           </Lbl>
-          <Lbl label="Work email" full>
-            <input value={t.email} onChange={(e) => edit({ email: e.target.value })} className="h-[30px] w-full rounded-sm border border-line-strong bg-card px-2.5 text-ink outline-none focus:border-ink" />
+          <Lbl label="Existing contact">
+            <ContactLookup session={session} ws={ws.id} value={t.contact ?? null} onChange={(c) => edit({ contact: c, ...(c?.email ? { email: c.email } : {}) })} />
+          </Lbl>
+          <Lbl label="Work email">
+            <input value={t.email} disabled={!!t.contact} onChange={(e) => edit({ email: e.target.value })} className="h-[30px] w-full rounded-sm border border-line-strong bg-card px-2.5 text-ink outline-none focus:border-ink disabled:opacity-60" />
           </Lbl>
           {used.map((f) => (
             <Lbl key={f.key} label={f.label}>
@@ -188,10 +200,10 @@ export function TestDrawer({ session, ws, d, row, body, flush, onClose }: Pick<V
           <span className="text-[12px] font-medium text-muted">Simulation overrides</span>
           <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
             <Lbl label="Contact owner">
-              <PersonChoice label="Contact owner" value={t.contactOwner} none="None" people={d.people} full onChange={(u) => edit({ contactOwner: u })} />
+              <PersonChoice label="Contact owner" value={t.contactOwner} none={t.contact ? "From the CRM" : "None"} people={d.people} full onChange={(u) => edit({ contactOwner: u })} />
             </Lbl>
             <Lbl label="Company owner">
-              <PersonChoice label="Company owner" value={t.companyOwner} none="None" people={d.people} full onChange={(u) => edit({ companyOwner: u })} />
+              <PersonChoice label="Company owner" value={t.companyOwner} none={t.contact ? "From the CRM" : "None"} people={d.people} full onChange={(u) => edit({ companyOwner: u })} />
             </Lbl>
           </div>
           <div className="flex flex-col gap-1.5">
@@ -268,6 +280,57 @@ function Lbl({ label, full, children }: { label: string; full?: boolean; childre
     <div className={`flex min-w-0 flex-col gap-1 text-[12px] font-medium text-muted ${full ? "sm:col-span-2" : ""}`}>
       <span>{label}</span>
       {children}
+    </div>
+  );
+}
+
+/** An existing contact of this workspace, found by name or email on the server (Section 16). Optional. */
+function ContactLookup({ session, ws, value, onChange }: Pick<ViewProps, "session"> & { ws: string; value: Found | null; onChange: (c: Found | null) => void }) {
+  const [text, setText] = useState("");
+  const [rows, setRows] = useState<Found[]>([]);
+  useEffect(() => {
+    if (value || text.trim().length < 2) return;
+    const t = setTimeout(() => {
+      rt<{ contacts: Found[] }>(session, ws, "rt_contacts", { q: text.trim() })
+        .then((r) => setRows(r.contacts))
+        .catch(() => setRows([]));
+    }, 200);
+    return () => clearTimeout(t);
+  }, [session, ws, text, value]);
+  if (value)
+    return (
+      <div className="flex h-[30px] items-center gap-2 rounded-sm border border-line-strong bg-card pr-1 pl-2.5">
+        <span className="min-w-0 flex-1 truncate font-normal text-ink">{value.name || value.email}</span>
+        <IconButton label="Clear contact" onClick={() => onChange(null)}>
+          <X size={11} />
+        </IconButton>
+      </div>
+    );
+  return (
+    <div className="flex flex-col gap-1">
+      <label className="flex h-[30px] items-center gap-2 rounded-sm border border-line-strong bg-card px-2.5 focus-within:border-ink">
+        <Search size={12} className="text-muted" />
+        <input aria-label="Find a contact" placeholder="None" value={text} onChange={(e) => setText(e.target.value)} className="min-w-0 flex-1 bg-transparent font-normal text-ink outline-none placeholder:text-faint" />
+      </label>
+      {text.trim().length >= 2 && rows.length ? (
+        <div className="flex flex-col rounded-[10px] border border-line bg-card py-1">
+          {rows.map((c) => (
+            <button
+              key={c.id}
+              type="button"
+              onClick={() => {
+                setText("");
+                setRows([]);
+                onChange(c);
+              }}
+              className="flex flex-col px-2.5 py-1 text-left font-normal hover:bg-hover"
+            >
+              <span className="text-ink">{c.name || c.email}</span>
+              {c.name ? <span className="text-[11.5px] text-muted">{c.email}</span> : null}
+            </button>
+          ))}
+        </div>
+      ) : null}
     </div>
   );
 }

@@ -12,7 +12,7 @@ import { cleanEmail, isRejected } from "../identity/clean.ts";
 import { enqueueJob, type Rpc } from "../jobs.ts";
 import type { Inputs, LiveRouter, SourceRef } from "../router/server.ts";
 import { applyMappings } from "../routing/mapping.ts";
-import { resolveSource, type SourceRow } from "../routing/sources.ts";
+import { captureDisconnected, resolveSource, type SourceRow } from "../routing/sources.ts";
 import { VISITOR, type AvailabilityFailure } from "../routing/states.ts";
 import { within } from "../meetings/team.ts";
 import { callNewer } from "./newer.ts";
@@ -434,6 +434,10 @@ export async function acceptFill(
         })
       : null;
   const routed = routing?.routed ?? null;
+  // A form whose routing was disconnected with "send new leads to review" (Section 8): the lead is kept and one
+  // review item with a responsible reviewer is opened, never a dangling form. Its calendar step is off (no owner).
+  const off = !!src && !src.enabled && !src.follows_default;
+  if (off && src!.when_off === "review" && cid && !spam && !o.test) await captureDisconnected(rpc, { ws: f.workspace_id, contact: cid, submission: sid, source: src!, lead: { name: [lead?.first_name, lead?.last_name].filter(Boolean).join(" ") || null, email: lead?.email ?? null } });
   // Book a meeting next: the contact owner's link when the form says so and they have one, else the form's link.
   let schedule: { tool: string; url: string } | null = null;
   // Who sees the calendar is decided here, on the server's email class: a work email is anything but free mail.
@@ -445,7 +449,7 @@ export async function acceptFill(
     // still holds.
     const routingOn = !!routing?.live && !routing.live.paused;
     const own = src?.meeting_type_id ? { ...sch, meetingTypeId: src.meeting_type_id } : sch;
-    const plan = routingOn && !calendar ? ({ kind: "message" } as const) : routingOn || shows() ? claritiaPlan(own, routed, routing?.live) : ({ kind: "message" } as const);
+    const plan = off || (routingOn && !calendar) ? ({ kind: "message" } as const) : routingOn || shows() ? claritiaPlan(own, routed, routing?.live) : ({ kind: "message" } as const);
     if (plan.kind === "pending") return { status: 200, body: { id: sid, schedule: null, pending: true, message: VISITOR.slow } };
     let booking: Booking | null = null;
     if (plan.kind === "times" && o.secret) {
@@ -459,6 +463,8 @@ export async function acceptFill(
       // Their rep has no free times: the owner stays, the lead sees the message, the run says why (a calendar that
       // can't be read is never "no free times"), and the owner gets one scheduling follow-up for this run.
       if (!booking && plan.rep && routing?.run) await noTimes(rpc, f.workspace_id, routing.run, sid, why ?? "unknown", src, !!o.test);
+      // Times shown: the booking session starts now, and is marked abandoned after its quiet window (Section 13).
+      if (booking && routing?.run && !o.test) await callNewer(rpc, "routing_booking_touch", { p_ws: f.workspace_id, p_key: `form:${sid}` }).catch(() => null);
       // With "Email times later" (the form's, or Routing's alert when there's no availability) the rep's times by
       // email once they have some (meeting_book_later, the same key as a shown booking's, so it's queued once).
       if (!booking && plan.rep && emailsTimesLater(sch, routing?.live) && !o.test)
