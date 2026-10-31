@@ -25,7 +25,7 @@ import { confirmationWords, KIND_WORDS, lengthWords, limitsWords, nextOff, offWo
 import { Chip, Eyebrow, Labeled, PanelFooter, PanelSection, TextLink } from "./panel";
 import type { Dest, Dynamic } from "@/lib/routing/compile";
 import { blankCond, ConditionRows, newRowId, usable } from "../forms/ConditionRows";
-import { republishFormsUsing, useRoutingFacts } from "../forms/formRouting";
+import { useRoutingFacts } from "../forms/formRouting";
 import { Arrow } from "../forms/OnSubmission";
 
 export type HostStatus = { cal: boolean; out: { from: string; to: string }[] };
@@ -100,7 +100,6 @@ function hoursOf(user: string | undefined, schedule: string | undefined, d: Pane
 }
 
 export function TypePanel({
-  sb,
   session,
   ws,
   role,
@@ -111,7 +110,7 @@ export function TypePanel({
   onClose,
   onSaved,
   onDuplicate,
-}: Pick<ViewProps, "sb" | "session" | "ws" | "role" | "navigate"> & {
+}: Pick<ViewProps, "session" | "ws" | "role" | "navigate"> & {
   row: TypeRow | null;
   /** The draft a new type starts from. */
   start: Draft;
@@ -172,11 +171,11 @@ export function TypePanel({
     setBusy(true);
     const sent = draft;
     try {
-      const r = await meetingsApi<{ id: string }>(session, ws.id, "types", { action: "save", id: row?.id ?? null, type: sent });
+      const r = await meetingsApi<{ id: string; formsError?: string }>(session, ws.id, "types", { action: "save", id: row?.id ?? null, type: sent });
       setBase(JSON.stringify(sent));
       onSaved();
-      // Forms that book this meeting route with its new settings from now on.
-      if (row) void republishFormsUsing(session, sb, ws.id, row.id).catch((e) => setError(`Saved. Forms that book it didn't update: ${errorText(e)}`));
+      // The server publishes again the routing of the live forms that book this meeting.
+      if (r.formsError) setError(`Saved. Forms that book it didn't update: ${r.formsError}`);
       if (isNew) {
         setLeaveGuard(null);
         navigate("scheduling", `types/${r.id}`);

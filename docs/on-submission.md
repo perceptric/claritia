@@ -54,14 +54,17 @@ open Availability › Team.
 The router then runs it like any policy: the spam check, existing owners, away, caps and turns all work as before, and
 the booking shows the picked rep's times for the rule's meeting.
 
-**Publishing** (`src/components/app/forms/formRouting.ts`):
+**Publishing** (`src/lib/routing/formPublish.ts`, on the server):
 
 - Publishing a form compiles its routing and publishes it as the form's own policy: `rt_save`, the form's connection
   staged on it, the test the router asks for (`rt_test` with a lead that matches the first rule), then `rt_publish`.
 - A form that shared a policy, or used the default one, gets its own at its first publish.
 - A form that never used this routing (no `routes`) keeps the policy it had.
-- Saving a meeting publishes again every live form that books it, so a Dynamic meeting's new rules reach them at once.
-- Only owners can publish routing; anything left out shows as an error after the form goes live.
+- Saving a meeting publishes again every live form that books it (`/api/meetings/types`), so a Dynamic meeting's new
+  rules reach them at once.
+- Anyone who can publish the form publishes its routing. It only ever touches that form's own policy, so it runs with
+  an owner's rights for them. Anything left out shows as an error after the form goes live. Tested in
+  `tests/formPublish.test.ts`.
 
 ## Sharing
 

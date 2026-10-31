@@ -22,7 +22,7 @@ import { Menu } from "./Menu";
 import { BTN, Dialog, DialogHead, EYEBROW, GHOST, GHOST_SM, IB, useNote } from "./parts";
 import { PreviewOverlay } from "./PreviewOverlay";
 import { Setup, type SetupSub } from "./Setup";
-import { publishFormRouting, useRoutingFacts } from "./formRouting";
+import { useRoutingFacts } from "./formRouting";
 import { Share } from "./Share";
 import type { Destination, FormRow, Kit, SourceRow } from "./shared";
 import { Submissions } from "./Submissions";
@@ -320,19 +320,11 @@ function Editor(props: ViewProps & { data: FormData; reload: () => void; patchRo
       if (!(await save())) throw new Error("The draft didn't save. Try again.");
       // The brand's styles go live with the form, so the published form looks like the one in Build.
       if (kit && JSON.stringify(kit.design ?? null) !== JSON.stringify(kit.design_live ?? null)) must(await sb.rpc("brand_kit_design_publish", { p_id: kit.id }));
-      await postJson(session, "/api/forms/publish", { workspaceId: ws.id, id: row.id });
-      // The form's routing goes live with it: compiled with its meetings into the form's routing policy.
-      let skipped: string[] = [];
-      try {
-        const out = checkForm(latest.current, { custom });
-        skipped = (await publishFormRouting(session, ws.id, { formId: row.id, formName: name, schedule: "form" in out ? out.form.after.schedule : latest.current.after.schedule, types: data.types })).problems;
-      } catch (e) {
-        setDialog(null);
-        reload();
-        setError(`The form is live. ${errorText(e)}`);
-        return;
-      }
-      if (skipped.length) setError(`The form is live. Routing left out: ${skipped.join(", ")}.`);
+      // The form's routing goes live with it, on the server: compiled with its meetings into the form's routing policy.
+      const { routing } = await postJson<{ routing?: { problems: string[]; error?: string } }>(session, "/api/forms/publish", { workspaceId: ws.id, id: row.id });
+      if (routing?.error) setError(`The form is live. ${routing.error}`);
+      else if (routing?.problems.length) setError(`The form is live. Routing left out: ${routing.problems.join(", ")}.`);
+      invalidate(`routing_screen:${ws.id}`);
       setDialog(null);
       reload();
       invalidate(`forms:${ws.id}`);
