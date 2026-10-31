@@ -48,7 +48,7 @@ export function AvailabilityPage(props: ViewProps & { tab: string; back?: { labe
   const [dates, setDates] = useState(false);
   const [error, setError] = useState("");
 
-  const pickWhose = (w: Whose) => navigate("routing", w === "team" ? "reps/availability/team" : "reps/availability");
+  const pickWhose = (w: Whose) => navigate("routing", w === "team" ? "teams/availability/team" : "teams/availability");
   const switcher = (
     <Segmented<Whose>
       size="sm"
@@ -170,7 +170,7 @@ export function AvailabilityPage(props: ViewProps & { tab: string; back?: { labe
           {...props}
           onClose={() => {
             setDaysOff(false);
-            if (tab === "days-off") navigate("routing", "reps/availability");
+            if (tab === "days-off") navigate("routing", "teams/availability");
           }}
           onSaved={() => undefined}
         />

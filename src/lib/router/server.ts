@@ -443,14 +443,14 @@ export function pickFor(body: RouterBody, d: Decision): { queue: string; method:
   return { queue: r.queue, method: q?.method ?? step?.queue.method ?? "rr", candidates: members.filter((m) => m.user === r.user || !out.has(m.user)).map((m) => ({ user: m.user, weight: m.weight })) };
 }
 
-type Committed = { status: string; id?: string; kind?: string; owner?: string | null; steps?: unknown; effect?: string; reason?: string };
+export type Committed = { status: string; id?: string; kind?: string; owner?: string | null; steps?: unknown; effect?: string; reason?: string; previous_owner?: string | null };
 
 /**
  * The committer (routing_commit, 095): one transaction that rechecks what may have changed and writes the owner, the
  * run with its trace, the assignment event, the count and the queue turn, or the review item. Before 095, the old
  * router_commit.
  */
-async function commit(
+export async function commit(
   rpc: Rpc,
   c: {
     ws: string;
@@ -468,6 +468,10 @@ async function commit(
     booking: "not_requested" | "awaiting_selection";
     submission: string | null;
     parent: string | null;
+    /** The owner the caller saw (a handoff's preview); left out, the owner in the facts. */
+    expectOwner?: string | null;
+    /** What to check again under the lock; left out, what the decision's kind needs. A handoff's override checks all. */
+    recheck?: { away: boolean; caps: boolean };
   },
 ): Promise<Committed> {
   const body = c.live.body;
@@ -476,9 +480,9 @@ async function commit(
   const v2 = body.v === 2;
   // What the committer checks again (Section 22): v2 rechecks pause, out of office and the cap for every new owner;
   // v1 as before (queue picks and the fallback checked for pause, queue picks for caps).
-  const recheck = v2
+  const recheck = c.recheck ?? (v2
     ? { away: by !== "hand", caps: by !== "hand" && (by === "account" || by === "keep" ? body.ownership?.capBlocksNew !== false : true) }
-    : { away: by === "queue" || by === "fallback", caps: by === "queue" };
+    : { away: by === "queue" || by === "fallback", caps: by === "queue" });
   const p = {
     ws: c.ws,
     contact: c.contact,
@@ -499,7 +503,7 @@ async function commit(
     set_company: body.account.setCompanyOwner,
     reviewer: body.review?.owner ?? null,
     booking_state: c.booking,
-    expect_owner: c.facts.owner?.user ?? null,
+    expect_owner: c.expectOwner !== undefined ? c.expectOwner : (c.facts.owner?.user ?? null),
     recheck,
     ...(c.pick ? { pick: c.pick } : {}),
   };

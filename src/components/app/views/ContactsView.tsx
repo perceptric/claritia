@@ -28,6 +28,7 @@ import { DEFAULT_WIDTH, type Row } from "../records/RecordTable";
 import { OpportunitiesRail } from "./RecordsViews";
 import { FieldGroup, RailRow, RecordHead, RecordLayout, RelatedList, StagePath, StatStrip } from "../records/RecordLayout";
 import { routingApi } from "../routing/api";
+import { HandoffDrawer } from "../routing/rt/HandoffDrawer";
 import { activeTime } from "@/lib/visits";
 
 // Loaded when first shown, so the contacts list opens without them.
@@ -417,6 +418,7 @@ function ContactPage({ sb, ws, session, role, id, navigate }: ViewProps) {
   const detail = useQuery(`contact:${ws.id}:${id}`, async () => must(await sb.rpc("contact_detail", { p_id: id })) as Detail);
   const meta = useMeta(sb, ws.id, "contact");
   const [editing, setEditing] = useState(false);
+  const [handoff, setHandoff] = useState(false);
   const [error, setError] = useState("");
   const [tab, setTab] = useState<ContactTab>("timeline");
   const back = { label: "Contacts", onClick: () => navigate("contacts") };
@@ -565,6 +567,9 @@ function ContactPage({ sb, ws, session, role, id, navigate }: ViewProps) {
           <Button variant="ghost" size="sm" onClick={() => setEditing(true)}>
             Edit
           </Button>
+          <Button variant="ghost" size="sm" onClick={() => setHandoff(true)}>
+            Route &amp; book
+          </Button>
           <Button variant="ghost" size="sm" onClick={routeAgain}>
             Route again
           </Button>
@@ -684,6 +689,18 @@ function ContactPage({ sb, ws, session, role, id, navigate }: ViewProps) {
           ) : null}
         </div>
       </RecordLayout>
+      {handoff ? (
+        <HandoffDrawer
+          session={session}
+          ws={ws}
+          contactId={id}
+          onClose={() => setHandoff(false)}
+          onDone={() => {
+            detail.reload();
+            invalidate(`routing_activity:${ws.id}`);
+          }}
+        />
+      ) : null}
       {editing ? (
         <ContactPanel
           session={session}

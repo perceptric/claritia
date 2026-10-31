@@ -3,7 +3,7 @@
 // the server.
 
 /** A condition's test. "between" takes [low, high]; "one_of" and "not_one_of" take a list. */
-export type Op = "is" | "is_not" | "one_of" | "not_one_of" | "contains" | "starts_with" | "filled" | "empty" | "gt" | "gte" | "lt" | "between";
+export type Op = "is" | "is_not" | "one_of" | "not_one_of" | "contains" | "starts_with" | "filled" | "empty" | "gt" | "gte" | "lt" | "lte" | "between";
 
 export const OPS: { value: Op; label: string }[] = [
   { value: "is", label: "is" },
@@ -17,6 +17,7 @@ export const OPS: { value: Op; label: string }[] = [
   { value: "gt", label: "is more than" },
   { value: "gte", label: "is at least" },
   { value: "lt", label: "is less than" },
+  { value: "lte", label: "is at most" },
   { value: "between", label: "is between" },
 ];
 

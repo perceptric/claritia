@@ -41,7 +41,7 @@ export const BASE_FIELDS: FieldDef[] = [
 export function opsFor(type: FieldType): Op[] {
   switch (type) {
     case "number":
-      return ["is", "is_not", "gt", "gte", "lt", "between", "filled", "empty"];
+      return ["is", "is_not", "gt", "gte", "lt", "lte", "between", "filled", "empty"];
     case "country":
     case "choice":
       return ["one_of", "not_one_of", "filled", "empty"];
@@ -153,11 +153,12 @@ export function holds(c: Cond, actual: unknown, territories: Territory[] = [], m
       return listOf(c.value, territories).some((v) => a.startsWith(v));
     case "gt":
     case "gte":
-    case "lt": {
+    case "lt":
+    case "lte": {
       const n = toNumber(actual);
       const lim = toNumber(Array.isArray(c.value) ? c.value[0] : c.value);
       if (n === null || lim === null) return false;
-      return c.op === "gt" ? n > lim : c.op === "gte" ? n >= lim : n < lim;
+      return c.op === "gt" ? n > lim : c.op === "gte" ? n >= lim : c.op === "lte" ? n <= lim : n < lim;
     }
     case "between": {
       const n = toNumber(actual);
@@ -171,7 +172,7 @@ export function holds(c: Cond, actual: unknown, territories: Territory[] = [], m
 
 /** v2 for a known, single value. */
 function holdsV2(c: Cond, actual: unknown, territories: Territory[]): boolean {
-  const numeric = c.op === "gt" || c.op === "gte" || c.op === "lt" || c.op === "between" || ((c.op === "is" || c.op === "is_not") && typeof c.value === "number");
+  const numeric = c.op === "gt" || c.op === "gte" || c.op === "lt" || c.op === "lte" || c.op === "between" || ((c.op === "is" || c.op === "is_not") && typeof c.value === "number");
   if (numeric) {
     const r = numberOrRange(actual);
     if (!r) return false;
@@ -190,6 +191,8 @@ function holdsV2(c: Cond, actual: unknown, territories: Territory[]): boolean {
         return r.lo >= n;
       case "lt":
         return r.hi < n;
+      case "lte":
+        return r.hi <= n;
       case "is":
         return r.lo === n && r.hi === n;
       case "is_not":
@@ -291,6 +294,7 @@ const OPS_WORDS: Record<Op, string> = {
   gt: "is more than",
   gte: "is at least",
   lt: "is less than",
+  lte: "is at most",
   between: "is between",
 };
 

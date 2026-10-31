@@ -1,5 +1,8 @@
 import { appBase } from "@/lib/billing";
 import * as A from "@/lib/router/actions";
+import * as H from "@/lib/routing/handoff";
+import * as S from "@/lib/routing/screens";
+import { liveBusyFor } from "@/lib/meetings/live";
 import type { Rpc } from "@/lib/jobs";
 import { seal } from "@/lib/seal";
 import { requireUser, roleIn } from "@/lib/serverAuth";
@@ -21,9 +24,57 @@ export async function POST(request: Request) {
   const rpc: Rpc = (f, args) => db.rpc(f, args);
   const c: A.Caller = { ws, user: auth.user.id, role };
   const str = (k: string) => (typeof body[k] === "string" ? (body[k] as string) : null);
+  // The Policies, Teams and Activity screens and Route & book (src/lib/routing/screens.ts, handoff.ts).
+  const deps: S.Deps = { members: () => A.membersOf(rpc, db, ws, { fresh: true }), fields: async () => (await A.fieldsFor(db, ws)).fields };
   try {
     const out = await (async () => {
       switch (body.action) {
+        case "rt_screen":
+          return S.screen(rpc, c, deps);
+        case "rt_versions":
+          return S.versions(rpc, c, { policy: body.policy });
+        case "rt_create":
+          return S.create(rpc, c, { name: body.name, start: body.start, key: body.key });
+        case "rt_save":
+          return S.save(rpc, c, { policy: body.policy, body: body.body, name: body.name, revision: body.revision });
+        case "rt_duplicate":
+          return S.duplicate(rpc, c, { policy: body.policy, key: body.key });
+        case "rt_archive":
+          return S.archive(rpc, c, { policy: body.policy, archive: body.archive });
+        case "rt_restore":
+          return S.restore(rpc, c, { policy: body.policy, version: body.version, revision: body.revision });
+        case "rt_stage":
+          return S.stage(rpc, c, { policy: body.policy, source: body.source, enabled: body.enabled, outcome: body.outcome, meeting: body.meeting, mappings: body.mappings, noSlots: body.noSlots, revision: body.revision });
+        case "rt_team":
+          return S.team(rpc, c, { team: body.team, name: body.name, members: body.members, revision: body.revision });
+        case "rt_test":
+          return S.test(rpc, c, deps, { policy: body.policy, version: body.version, revision: body.revision, source: body.source, email: body.email, values: body.values, overrides: (body.overrides ?? {}) as S.TestOverrides });
+        case "rt_review":
+          return S.review(rpc, c, deps, { policy: body.policy });
+        case "rt_publish":
+          return S.publish(rpc, c, deps, { policy: body.policy, revision: body.revision, key: body.key, fingerprint: body.fingerprint, note: body.note });
+        case "rt_publish_status":
+          return S.publishStatus(rpc, c, { policy: body.policy, key: body.key });
+        case "rt_activity":
+          return S.activity(rpc, c, { filter: body.filter, before: body.before });
+        case "rt_run":
+          return S.run(rpc, c, { run: body.run });
+        case "rt_handoff_preview":
+          return H.preview(rpc, c, { contact: body.contact, values: body.values });
+        case "rt_handoff_confirm":
+          return H.confirm(rpc, c, {
+            contact: body.contact,
+            op: body.op,
+            ref: body.ref,
+            values: body.values,
+            book: (body.book ?? null) as { start?: unknown; tz?: unknown } | null,
+            override: (body.override ?? null) as { user?: unknown; reason?: unknown } | null,
+            liveBusy: liveBusyFor(rpc, ws),
+          });
+        case "rt_handoff_book":
+          return H.bookRun(rpc, c, { run: body.run, start: body.start, tz: body.tz, liveBusy: liveBusyFor(rpc, ws) });
+        case "rt_handoff_status":
+          return H.status(rpc, c, { run: body.run });
         case "load":
           return A.load(rpc, db, c, { slim: body.slim === true });
         case "stats":
@@ -86,6 +137,8 @@ export async function POST(request: Request) {
     return Response.json(out);
   } catch (e) {
     if (e instanceof A.Refused) return Response.json({ error: e.message }, { status: e.status });
+    const r = S.refusalOf(e);
+    if (r) return Response.json({ error: r.message, code: r.code, ...(r.state !== undefined ? { state: r.state } : {}) }, { status: r.status });
     return Response.json({ error: e instanceof Error ? e.message.slice(0, 300) : "Something went wrong." }, { status: 502 });
   }
 }
