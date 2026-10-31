@@ -1,89 +1,77 @@
-# On Submission
+# Forms, meetings and routing
 
-What happens after someone sends a form is set on the form's Build tab, under the form itself. It used to live under
-Forms › Settings › After submit. This replaces that section and the Routing connection card that sat inside it
-(`forms/RoutingConnection.tsx`).
+The form picks the meeting. The meeting picks the rep. There is no Routing section of its own: each part of it lives
+where it's used, and the routing engine underneath runs both steps.
 
-## The screen
+| Part | Where |
+|---|---|
+| Which meeting a lead books | Form › Build › On Submission › Routing (a Default meeting and conditions) |
+| Which rep a lead gets | The meeting: Individual is its host; Dynamic has its own rules |
+| Teams that take turns | Meetings › Availability › Team |
+| Hours, calendars, away, caps | Meetings › Availability |
+| Spam check | Form › Settings › Spam |
+| Why a rep got a lead | Meetings › Upcoming and the meeting's page; one policy and the activity log still open at their old addresses |
 
-- The canvas shows the path top to bottom: **Form → On Submission → what the visitor sees**. One arrow joins them
-  (`Arrow` and `ArrowDown` in `src/components/app/forms/OnSubmission.tsx`). The same arrow marks every If → Then row
-  and Otherwise.
-- Click On Submission (or the "On Submission" step at the top) and the panel picks one of:
-  - **Show a message**: title and message.
-  - **Go to a page**: the page, which must start with https://.
-  - **Book a meeting**: the meeting is part of the form. Its panel has five sections: **Who they meet** (the If → Then
-    list), **Meeting**, **When they can book**, **Emails and reminders**, and **When no times are open** (with the
-    message for leads who see no times).
-- The form and everything the visitor sees use the brand kit read from the customer's site: colors, corners, fonts,
-  sizes, field height, border and button.
+Old Routing addresses forward (`resolveRoute` in `src/lib/nav.ts`): the policies list opens Meetings, teams and reps
+open Availability › Team.
 
-## Who they meet
+## The form
 
-A list of If → Then rows, then Otherwise. Rows have no names.
-
-- **If** a field test a value, with more conditions added by **+ and**. All conditions in a row have to hold.
-- **Then** a person, a team (its members take turns) or the company's owner.
-- **Otherwise** a person or a team.
-- The first finished row that matches wins. A row with a missing value, no Then, a deleted team or a word in a number
-  field never matches anyone.
-- **Try a lead** takes answers for the fields the rows test. The matching row turns green on the panel and on the
-  canvas.
-
-### How it saves
-
-The rows are the router's own rules (`src/lib/routing/formRules.ts`, tested in `tests/formRules.test.ts`).
-
-- Each row is a rule whose conditions all have to hold, named from those conditions.
-- Rules held for review, a rule's own meeting and rules turned off in Routing are kept as they are.
-- Edits save to the draft of the policy this form routes with, through `rt_save` at the revision read
-  (`src/components/app/forms/useFormRouting.ts`). If someone else saved first, their version is shown.
-- When the form shares its policy with other sources, or uses the default policy, its first edit makes a copy named
-  after the form and moves the form onto it (`rt_duplicate` or `rt_create`, then `rt_stage`). Other forms keep
-  their routing.
-- **Publish** on the form also publishes this policy. It runs `rt_review`, runs `rt_test` with a lead that matches the
-  first finished row when the draft has no test yet, then runs `rt_publish` at the checked fingerprint. If that
-  fails, the form is still live and the error says what's wrong with the routing.
-- Members see the rows read-only. Only owners can change routing, as in Routing.
-
-## The form's own meeting
-
-A form books **This form's own** meeting by default, or a standalone meeting picked from Meetings.
-
-- The form's own meeting is a meeting type with `settings.form` set to the form's id (`src/lib/meetings/types.ts`,
-  checked in `src/lib/meetings/check.ts`). It's secret, so it never shows on a booking page. It's made the first
-  time the form books a meeting (`makeOwnMeeting` in `src/components/app/forms/FormMeeting.tsx`), hosted by whoever
-  made it (those are the times shown while Routing isn't live).
-- On Submission edits it in place: name, length, where, earliest booking, booking window, free time after, daily
-  limit, the 24-hour and 1-hour reminders and the email after a no-show. Each change saves 600 ms after the last one
-  through the meetings API.
-- Hours are each rep's own, from Meetings › Availability. The rep comes from the If → Then list.
-- A standalone meeting shows its summary and an "Edit in Meetings" button instead.
-
-## Sharing
-
-The form's Share tab has both ways in, and they behave the same: the questions, then If → Then picks the rep, then
-that rep's calendar, then booked.
-
-- **On your website**: the embed code for the customer's site.
-- **Link**: the form's own page on Claritia (`/f/<form>`), for ads, emails and social posts.
+- **Build** has two screens: **1 Form** (questions, layout, the brand's look) and **2 On Submission**.
+- **On Submission** picks Show a message, Go to a page or Book a meeting (`src/components/app/forms/OnSubmission.tsx`).
+- **Book a meeting** only picks meetings, it never edits them:
+  - **Routing**: a **Default** meeting, then **Add condition** rows. A row is one or more conditions (more with
+    **+ and**, all needed) and the meeting it books. The first row that matches wins; anyone else gets the Default.
+  - **Try a lead** runs the compiled routing on answers typed in and shows the meeting and the rep or team.
+  - **When no times are open**: show the message, or email times later.
+  - With no meetings yet, **Create a meeting** opens Meetings.
+- The rows live in the form's draft as `after.schedule.routes`; `meetingTypeId` is the Default meeting
+  (`src/lib/forms/schedule.ts`, checked in `src/lib/forms/schema.ts`).
 
 ## Meetings
 
-- **Meetings** lists **In forms** first: each form that books a meeting, with its meeting. A card opens that form on
-  On Submission (`?open=submission`). The standalone meetings follow, each with **Use in a form** in its menu, which
-  opens the picked form with that meeting set (`?use=<meeting>`). A form's own meeting whose form was deleted shows
-  with the standalone ones, so it can be removed.
-- **Availability** is a Meetings tab again (it was under Routing › Teams; old addresses forward). **Team** shows each
-  person's calendar, hours, caps and an **Away** switch. Away is the same setting Routing reads, so someone away gets
-  no leads from forms and no times.
-- A booked meeting's page shows **Booked from** (the form, which opens on On Submission) and **Why this rep** (the
-  Routing run that picked them).
+- **Individual**: one host. The lead always books with that person.
+- **Dynamic**: a group of reps and rules. A rule is conditions (the same editor as the form's,
+  `src/components/app/forms/ConditionRows.tsx`) and one rep or a team that takes turns. **Otherwise** catches the rest.
+  It's kept as `settings.dynamic` on the meeting type (`src/lib/meetings/types.ts`, checked in
+  `src/lib/meetings/check.ts`). The panel is `src/components/app/scheduling/TypePanel.tsx`.
+- Each card says Individual or Dynamic and **Used by** the forms whose Routing books it.
+- An older meeting hosted by a Routing team takes that team's turns. One with several hosts and no team isn't used by a
+  form until it's set up as Individual or Dynamic.
+- A Dynamic meeting's own booking link takes turns among its reps for now. Asking its questions first, then showing the
+  picked rep's times, comes next.
+
+## How it runs
+
+`src/lib/routing/compile.ts` turns the form's routing and its meetings into one routing policy:
+
+1. Each form row expands into one rule per rule of its meeting (the row's conditions and the meeting's, together),
+   then one for the meeting's Otherwise (or its host). Each rule names its rep or team and the meeting it books (`meet`).
+2. The Default meeting's rules come next, and its Otherwise (or host) is Everyone else.
+3. Paths that can't route are left out and listed: a value missing, a meeting deleted or off, a team that's gone, a
+   meeting with no host. A half-made row never catches a lead. Tested in `tests/routingCompile.test.ts`.
+
+The router then runs it like any policy: the spam check, existing owners, away, caps and turns all work as before, and
+the booking shows the picked rep's times for the rule's meeting.
+
+**Publishing** (`src/components/app/forms/formRouting.ts`):
+
+- Publishing a form compiles its routing and publishes it as the form's own policy: `rt_save`, the form's connection
+  staged on it, the test the router asks for (`rt_test` with a lead that matches the first rule), then `rt_publish`.
+- A form that shared a policy, or used the default one, gets its own at its first publish.
+- A form that never used this routing (no `routes`) keeps the policy it had.
+- Saving a meeting publishes again every live form that books it, so a Dynamic meeting's new rules reach them at once.
+- Only owners can publish routing; anything left out shows as an error after the form goes live.
+
+## Sharing
+
+The form's Share tab has the embed code for the customer's site and the form's own link on Claritia (`/f/<form>`).
+Both run the same steps: questions, routing, the rep's calendar, booked.
 
 ## Monthly cost
 
-Nothing is added to the monthly bill. There is no new service and no AI call. The form editor reads the routing screen
-data once when it opens and saves through the existing routing calls.
+Nothing is added to the monthly bill. There is no new service and no AI call; publishing makes a few more routing
+calls than before, once per publish.
 
 | Stage | Added per month |
 |---|---|

@@ -1,12 +1,11 @@
 "use client";
 
-// Inbound › Meetings › Meetings (once Calendar › Meeting types): "What people can book", one card per meeting with
-// its length and video tool, what books it ("Used by": the forms whose On Submission books it, which open there, and
-// the routing steps that name it in the live router) and
-// "Who hosts" as one dropdown: Team (a Routing team; from a form each lead gets the rep Routing picks, from the plain
-// link the team takes turns) or Individual (one rep, always them). Clicking a card opens its panel on the right
-// (/scheduling/types/<id>); New meeting opens the same panel (/scheduling/types/new). Copy link, single-use links,
-// times for an email, on and off, duplicate, all settings and delete sit in each card's more menu.
+// Inbound › Meetings › Meetings (once Calendar › Meeting types): "What people can book", one card per meeting with its
+// length and video tool, what books it ("Used by": the forms whose Routing picks it, which open on On Submission, and
+// routing steps that name it in the live router) and whether it's Individual (one host) or Dynamic (reps and rules).
+// Clicking a card opens its panel on the right (/scheduling/types/<id>); New meeting opens the same panel
+// (/scheduling/types/new). Copy link, single-use links, times for an email, on and off, Use in a form, duplicate, all
+// settings and delete sit in each card's more menu.
 
 import { useMemo, useState } from "react";
 import type { Availability } from "@/lib/meetings/types";
@@ -15,17 +14,15 @@ import { askConfirm } from "../Dialogs";
 import { MoreMenu } from "../StatCards";
 import { ToolIntro } from "../ToolIntro";
 import { Badge, Button, ErrorNote, errorText, invalidate, Loading, must, Page, useQuery, type ViewProps } from "../ui";
-import { Column, Choice, Title } from "../inbound/parts";
-import { useRoutingLoad } from "../routing/useRouterData";
-import { draftBase } from "../routing/draftChange";
-import { bookedBy, hostChoice, withHostChoice } from "./hosts";
+import { Column, Title } from "../inbound/parts";
+import { bookedBy } from "./hosts";
 import { LinkDialog } from "../meetings/LinkDialog";
 import { copyText, meetingsApi, Modal, ownZone, usePeople, useWorkspaceSlug } from "../meetings/parts";
 import { TYPE_COLS, useMeetingTypes, type TypeRow } from "../meetings/TypesList";
 import { useLiveBody } from "../routing/screenParts";
-import { lengthWords, PLACE_WORDS } from "./model";
+import { KIND_WORDS, lengthWords, PLACE_WORDS } from "./model";
 import { Corners } from "./panel";
-import { newDraft, placeIcon, TypePanel, whoWords, type HostStatus, type Named, type PanelData } from "./TypePanel";
+import { newDraft, placeIcon, TypePanel, type HostStatus, type Named, type PanelData } from "./TypePanel";
 
 /** Yours: types you own, and one-person types with no owner that you host. */
 export const isMine = (t: Pick<TypeRow, "owner_user_id" | "kind" | "hosts">, me: string) => t.owner_user_id === me || (!t.owner_user_id && (t.kind === "one" || t.kind === "group") && t.hosts[0]?.user_id === me);
@@ -61,7 +58,7 @@ export function TypesPage(props: ViewProps & { open: string }) {
     };
   });
   // The forms that book each meeting on submission.
-  const forms = useQuery(`meeting_types:${ws.id}:forms`, async () => (must(await sb.from("forms").select("id, name, status, meeting:draft->after->schedule->>meetingTypeId").eq("workspace_id", ws.id).order("name")) ?? []) as { id: string; name: string; status: string; meeting: string | null }[]);
+  const forms = useQuery(`meeting_types:${ws.id}:forms`, async () => (must(await sb.from("forms").select("id, name, status, meeting:draft->after->schedule->>meetingTypeId, routes:draft->after->schedule->routes").eq("workspace_id", ws.id).order("name")) ?? []) as { id: string; name: string; status: string; meeting: string | null; routes: { meet: string }[] | null }[]);
   const [useFor, setUseFor] = useState<string | null>(null);
   const data = { data: list.data && extra.data ? { ...extra.data, types: list.data } : null, error: list.error || extra.error };
   const [error, setError] = useState("");
@@ -69,10 +66,6 @@ export function TypesPage(props: ViewProps & { open: string }) {
   const [copied, setCopied] = useState<string | null>(null);
 
   const types = data.data?.types;
-  // A form's own meeting is set up in its form: it shows under In forms, never with the standalone meetings. One whose
-  // form is gone shows with the rest, so it can still be deleted.
-  const standalone = types?.filter((t) => !t.settings.form || (forms.data && !forms.data.some((f) => f.id === t.settings.form)));
-  const inForms = (forms.data ?? []).filter((f) => f.meeting).map((f) => ({ form: f, type: types?.find((t) => t.id === f.meeting) ?? null }));
   const row = open && open !== "new" ? (types?.find((t) => t.id === open) ?? null) : null;
 
   const act = async (fn: () => Promise<unknown>) => {
@@ -85,9 +78,6 @@ export function TypesPage(props: ViewProps & { open: string }) {
   };
   const nameOf = (id: string) => people.data?.byId.get(id)?.name ?? "Former teammate";
   const queues = useMemo(() => live.data?.body.queues ?? [], [live.data]);
-  // Teams to host from, as Routing › Teams shows them (the draft when there is one).
-  const routing = useRoutingLoad(session, ws.id);
-  const routingQueues = useMemo(() => (routing.data ? draftBase(routing.data).queues : queues), [routing.data, queues]);
   const origin = typeof window === "undefined" ? "" : window.location.origin;
   const typeUrl = (s: string) => (slug.data ? `${origin}/book/${slug.data}/${s}` : "");
   const flash = (id: string) => {
@@ -140,19 +130,6 @@ export function TypesPage(props: ViewProps & { open: string }) {
       <TypePanel key={row.id} {...props} row={row} start={newDraft(me, false)} data={panelData} onClose={close} onSaved={saved} onDuplicate={() => duplicate(row)} />
     ) : null;
 
-  const canEdit = (t: TypeRow) => props.role === "owner" || t.owner_user_id === me || (!t.owner_user_id && t.hosts.some((h) => h.user_id === me));
-  /** Who hosts, from the card's dropdown: saved at once, and put back with the error if the save fails. */
-  const setHost = (t: TypeRow, choice: string) =>
-    act(async () => {
-      const next = withHostChoice(t, choice, routingQueues, new Set(people.data?.list.map((p) => p.id) ?? []));
-      if (next === t) return;
-      const { name, slug: s, kind: k, hosts, settings, secret, active, locked, owner_user_id } = next;
-      await list.mutate(
-        (rows) => rows.map((x) => (x.id === t.id ? next : x)),
-        () => meetingsApi(session, ws.id, "types", { action: "save", id: t.id, type: { name, slug: s, kind: k, hosts, settings, secret, active, locked, owner_user_id } }),
-      );
-    });
-
   const actions = (
     <Button onClick={() => navigate("scheduling", "types/new")}>
       <Plus size={14} />
@@ -160,7 +137,7 @@ export function TypesPage(props: ViewProps & { open: string }) {
     </Button>
   );
 
-  if (standalone && !standalone.length && !inForms.length)
+  if (types && !types.length)
     return (
       <Page title="Meetings" actions={actions} flush>
         <div className="relative h-full min-h-0 overflow-y-auto">
@@ -204,70 +181,16 @@ export function TypesPage(props: ViewProps & { open: string }) {
         <div className={`h-full overflow-y-auto transition-[padding] duration-[320ms] ease-out ${panel ? "md:pr-[400px]" : ""}`}>
           <Column>
             <ErrorNote message={error || data.error || slug.error} />
-            {inForms.length ? (
-              <>
-                <Title>In forms</Title>
-                <div className="grid gap-3 md:grid-cols-2">
-                  {inForms.map(({ form: f, type: t }) => (
-                    <article key={f.id} className="relative flex flex-col gap-2.5 rounded-[10px] border border-line bg-card p-4 transition-colors duration-[140ms] hover:border-line-strong">
-                      <div className="flex items-start gap-2">
-                        <button type="button" onClick={() => navigate("forms", f.id, "open=submission")} className="min-w-0 flex-1 text-left after:absolute after:inset-0">
-                          <h3 className="truncate text-[15px] font-semibold text-ink">{t?.name ?? "No meeting"}</h3>
-                        </button>
-                        {f.status === "live" ? (
-                          <Badge tone="green" dot>
-                            Live
-                          </Badge>
-                        ) : (
-                          <Badge>Draft</Badge>
-                        )}
-                      </div>
-                      {t ? (
-                        <div className="flex flex-wrap gap-3.5 text-[12.5px] text-muted">
-                          <span className="inline-flex items-center gap-[5px]">
-                            <Clock size={12} />
-                            {lengthWords(t.settings.lengths)}
-                          </span>
-                          <span className="inline-flex items-center gap-[5px]">
-                            {placeIcon(t.settings.location.kind, 12)}
-                            {PLACE_WORDS[t.settings.location.kind]}
-                          </span>
-                        </div>
-                      ) : null}
-                      <div className="flex flex-wrap items-center gap-1.5 text-[12px] text-muted">
-                        <FormIcon size={12} />
-                        <span className="text-ink">{f.name}</span>
-                        <span aria-hidden="true">→</span>
-                        <span>{t?.settings.form ? "This form's own meeting" : "A standalone meeting"}, with the rep its If → Then picks</span>
-                      </div>
-                    </article>
-                  ))}
-                </div>
-                <Title>Standalone</Title>
-              </>
-            ) : (
-              <Title>What people can book</Title>
-            )}
+            <Title>What people can book</Title>
             {!data.data ? (
               <Loading />
             ) : (
               <div className="grid gap-3 md:grid-cols-2">
-                {(standalone ?? []).map((t) => {
+                {(types ?? []).map((t) => {
                   const url = typeUrl(t.slug);
                   const used = bookedBy(live.data?.body, t.id);
-                  const usedBy = (forms.data ?? []).filter((f) => f.meeting === t.id);
-                  const choice = hostChoice(t);
-                  const q = choice.startsWith("team:") ? routingQueues.find((x) => `team:${x.id}` === choice) : undefined;
-                  const host = choice.startsWith("rep:") ? choice.slice(4) : null;
-                  const first = (id: string) => nameOf(id).split(" ")[0];
-                  const line = q
-                    ? `Team: the rep Routing picks for each lead, with their own calendar. From the booking link, the ${q.name} takes turns.`
-                    : host
-                      ? `Individual: always ${nameOf(host)}, with ${first(host)}'s calendar.`
-                      : choice === "everyone"
-                        ? `Everyone: all ${t.hosts.length} hosts join each meeting.`
-                        : whoWords(t, routingQueues);
-                  const shownAs = q ? `Team, ${q.name}` : host ? `Individual, ${first(host)}` : choice === "everyone" ? "Everyone" : choice.startsWith("team:") ? "Routing team" : whoWords(t, routingQueues);
+                  const usedBy = (forms.data ?? []).filter((f) => f.meeting === t.id || (f.routes ?? []).some((r) => r.meet === t.id));
+                  const dyn = t.settings.dynamic;
                   const sel = open === t.id;
                   return (
                     <article key={t.id} className={`relative flex flex-col gap-2.5 rounded-[10px] border bg-card p-4 transition-colors duration-[140ms] ${sel ? "border-ink" : "border-line hover:border-line-strong"}`}>
@@ -325,27 +248,9 @@ export function TypesPage(props: ViewProps & { open: string }) {
                           ))}
                         </div>
                       ) : null}
-                      <div className="relative z-10 flex items-start gap-3 border-t border-line pt-2.5">
-                        <div className="flex min-w-0 flex-1 flex-col">
-                          <span className="font-medium text-ink">Who hosts</span>
-                          <span className="text-[12px] text-muted">{line}</span>
-                        </div>
-                        <Choice<string>
-                          label={`Who hosts ${t.name}`}
-                          value={choice}
-                          shown={shownAs}
-                          disabled={!canEdit(t)}
-                          align="right"
-                          menuWidth={240}
-                          options={[
-                            ...(choice === "own" ? [{ value: "own", label: whoWords(t, routingQueues), group: "Now" }] : []),
-                            ...(choice.startsWith("team:") && !q ? [{ value: choice, label: "Routing team", group: "Team" }] : []),
-                            ...routingQueues.map((x) => ({ value: `team:${x.id}`, label: x.name, hint: "Each lead gets the rep Routing picks", group: "Team" })),
-                            ...(choice === "everyone" ? [{ value: "everyone", label: `Everyone, ${t.hosts.length} hosts`, group: "Team" }] : []),
-                            ...(people.data?.list ?? []).map((p) => ({ value: `rep:${p.id}`, label: p.name, group: "Individual" })),
-                          ]}
-                          onChange={(v) => void setHost(t, v)}
-                        />
+                      <div className="flex items-center gap-2 border-t border-line pt-2.5 text-[12.5px]">
+                        <Badge tone={dyn ? "violet" : "gray"}>{dyn ? "Dynamic" : t.kind === "one" || t.kind === "group" ? "Individual" : KIND_WORDS[t.kind]}</Badge>
+                        <span className="min-w-0 truncate text-muted">{dyn ? `${t.hosts.length} ${t.hosts.length === 1 ? "rep" : "reps"}, ${dyn.rules.length} ${dyn.rules.length === 1 ? "rule" : "rules"}` : t.hosts.map((h) => nameOf(h.user_id)).join(", ")}</span>
                       </div>
                     </article>
                   );

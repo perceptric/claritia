@@ -155,7 +155,7 @@ export function SalesReps({ sb, session, ws, role, navigate, assigned }: Pick<Vi
                   rules={assigned.get(p.id) ?? []}
                   onSave={(patch) => void save(p.id, patch)}
                   onHours={(w) => void saveHours(p.id, w)}
-                  onEditHours={() => navigate("routing", p.id === me ? "reps/availability" : "reps/availability/team")}
+                  onEditHours={() => navigate("scheduling", p.id === me ? "availability" : "availability/team")}
                   onAway={(anchor) => setAwayFor({ user: p.id, anchor })}
                   onConnect={() => void askToConnect(p)}
                   session={session}

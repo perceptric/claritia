@@ -17,7 +17,7 @@ export type DynamicRule = { id: string; conds: Cond[]; to: Dest };
 /** A Dynamic meeting's routing, kept in its settings. */
 export type Dynamic = { rules: DynamicRule[]; otherwise: Dest | null };
 /** What the compile needs of a meeting type. */
-export type MeetingLite = { id: string; name: string; active: boolean; hosts: { user_id: string }[]; settings: { dynamic?: Dynamic } };
+export type MeetingLite = { id: string; name: string; active: boolean; hosts: { user_id: string }[]; settings: { dynamic?: Dynamic; team?: string } };
 
 export const isDynamic = (t: Pick<MeetingLite, "settings">) => !!t.settings?.dynamic;
 
@@ -43,10 +43,12 @@ export function compileRouting(base: RouterBody, o: { def: string | null | undef
 
   /** The rules one meeting makes under `when` (the form row's conditions, or none for the Default meeting). */
   const expand = (t: MeetingLite, when: Cond[], id: string, label: string): { rules: Rule[]; rest: Dest | null } => {
-    const dyn = t.settings.dynamic;
+    // A meeting from before Individual and Dynamic: hosted by a Routing team, it takes that team's turns; with several
+    // hosts and no team it can't say who gets the lead, so it isn't used until it's set up.
+    const dyn = t.settings.dynamic ?? (t.settings.team ? { rules: [], otherwise: { kind: "team" as const, id: t.settings.team } } : undefined);
     if (!dyn) {
-      const host = t.hosts[0]?.user_id;
-      if (!host) problems.push(`${t.name} has no host`);
+      const host = t.hosts.length === 1 ? t.hosts[0]!.user_id : null;
+      if (!host) problems.push(t.hosts.length ? `${t.name} needs one host, or Dynamic routing` : `${t.name} has no host`);
       return { rules: [], rest: host ? { kind: "user", id: host } : null };
     }
     const rules: Rule[] = [];

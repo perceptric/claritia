@@ -105,3 +105,13 @@ test("the publish test's sample lead matches the first compiled rule", () => {
   assert.deepEqual(lead, { "company.employees": "49" });
   assert.equal(traceLead(body, lead, BASE_FIELDS).rule?.id, "f_r1");
 });
+
+test("older meetings: a Routing team host takes that team's turns; several hosts and no team isn't used", () => {
+  const teamHosted: MeetingLite = { id: "m_team", name: "Team call", active: true, hosts: [{ user_id: LEE }, { user_id: PRIYA }], settings: { team: "q_sales" } };
+  const crowd: MeetingLite = { id: "m_crowd", name: "Everyone call", active: true, hosts: [{ user_id: LEE }, { user_id: PRIYA }], settings: {} };
+  const a = compileRouting(base, { def: "m_team", routes: [], types: [teamHosted], teamKeys: TEAMS });
+  assert.deepEqual(a.body.fallback, { kind: "queue", id: "q_sales", meet: "m_team" });
+  const b = compileRouting(base, { def: "m_crowd", routes: [], types: [crowd], teamKeys: TEAMS });
+  assert.equal(b.body.fallback, null, "never the first host by accident");
+  assert.deepEqual(b.problems, ["Everyone call needs one host, or Dynamic routing"]);
+});

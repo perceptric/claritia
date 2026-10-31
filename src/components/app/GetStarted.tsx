@@ -19,7 +19,7 @@ export function startTasks(c: { calendars: number; types: number; liveForms: num
     { key: "calendar", label: "Connect your calendar", done: c.calendars > 0, go: ["scheduling", "availability/calendars"] },
     { key: "type", label: "Make a meeting type", done: c.types > 0, go: ["scheduling", "types/new"] },
     { key: "form", label: "Put a form live", done: c.liveForms > 0, go: ["forms", ""] },
-    { key: "routing", label: "Turn on routing", done: c.routing, go: ["routing", ""] },
+    { key: "routing", label: "Book meetings from a form", done: c.routing, go: ["forms", ""] },
     { key: "team", label: "Invite a teammate", done: c.members > 1 || c.invites > 0, go: ["settings", "team"] },
     { key: "crm", label: "Connect your CRM", done: c.sources > 0, go: ["settings", "sources"] },
   ];
