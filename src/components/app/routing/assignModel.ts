@@ -3,10 +3,12 @@
 // nothing reaches the server until Save, which saves and publishes in one step.
 //
 //   Round robin       rules off (or none): every lead goes to the fallback queue, the reps picked on it.
-//   Assignment rules  each rule owns its own queue (the reps picked on the rule, by Round robin or Fewest meetings
-//                     first); the Default rule is the fallback queue.
-//   Shared teams      a body where several rules (or a rule and the fallback) share one queue shows that queue's reps
-//                     on each; the queue is split only when someone changes the reps or method on one of them, so an
+//   Assignment rules  each rule sends to a team (the reps picked on the rule, by Round robin or Fewest meetings
+//                     first); the Default rule is the fallback's team.
+//   Shared teams      one shared queue per team (docs/routing-workflow.md Section 12): a team several rules (or a rule
+//                     and the fallback) send to shows its reps on each. Changing the reps or method on one of them
+//                     points it at a team that already has exactly those reps and method, or at one new team named
+//                     "Team N" (never a private copy per rule); a team only this place uses changes in place. An
 //                     untouched body comes back as it was.
 //   Safeguards        Hold spam = spam.on. Known leads = account.on and keep.on (on when either is; a toggle sets
 //                     both). Skip away or full reps = keep.whenOut not "keep" (an away owner's lead goes to their
@@ -91,14 +93,6 @@ export function viewOf(b: RouterBody, fields: FieldDef[]): AssignView {
 
 const sameList = (a: string[], b: string[]) => a.length === b.length && a.every((x, i) => x === b[i]);
 
-/** A free queue id, from the rule's own id when it can be. */
-function freeId(b: RouterBody, base: string): string {
-  const ids = new Set(b.queues.map((q) => q.id));
-  const stem = `q_${base}`.replace(/[^a-z0-9_-]/gi, "").slice(0, 36);
-  if (!ids.has(stem)) return stem;
-  for (let i = 2; ; i++) if (!ids.has(`${stem}_${i}`)) return `${stem}_${i}`;
-}
-
 /** The members for `reps`: those kept keep their weight and order, new ones join at the end. */
 function membersFor(before: Member[], reps: string[]): Member[] {
   const want = new Set(reps);
@@ -107,27 +101,36 @@ function membersFor(before: Member[], reps: string[]): Member[] {
   return [...kept, ...reps.filter((u, i) => !have.has(u) && reps.indexOf(u) === i).map((user) => ({ user, weight: 1 }))];
 }
 
-/**
- * Give a rule a queue of its own: its queue when nothing else uses it, else a copy of it (or a new empty one) that
- * only this rule sends to. A queue left with nobody sending to it stays: a meeting type may host by it.
- */
-function ownQueue(b: RouterBody, ruleId: string): { body: RouterBody; queue: Queue } {
-  const r = b.rules.list.find((x) => x.id === ruleId)!;
-  const q = thenOf(r) === "queue" ? queueOf(b, r.queue) : undefined;
-  if (q && usersOf(b, q.id) === 1) return { body: b, queue: q };
-  const own: Queue = { id: freeId(b, r.id), name: r.name.slice(0, 80) || "Rule", method: q?.method ?? "rr", strict: q?.strict ?? false, hoursOnly: q?.hoursOnly ?? false, members: q ? q.members.map((m) => ({ ...m })) : [] };
-  const body = { ...b, queues: [...b.queues, own], rules: { ...b.rules, list: b.rules.list.map((x) => (x.id === ruleId ? { ...x, queue: own.id } : x)) } };
-  return { body, queue: own };
+const sameReps = (q: Queue, reps: string[]) => sameList(q.members.map((m) => m.user), reps);
+
+/** A free team id and name: t_1 "Team 1", t_2 "Team 2"... */
+function newTeam(b: RouterBody): { id: string; name: string } {
+  const ids = new Set(b.queues.map((q) => q.id));
+  const names = new Set(b.queues.map((q) => q.name));
+  for (let i = 1; ; i++) if (!ids.has(`t_${i}`) && !names.has(`Team ${i}`)) return { id: `t_${i}`, name: `Team ${i}` };
 }
 
-/** The fallback's own queue: as for rules, and a fallback to one rep (or none) becomes a queue. */
-function ownDefault(b: RouterBody): { body: RouterBody; queue: Queue } {
+/**
+ * The team a place (a rule, or "default") should send to once its reps or method are `reps` / `method`: its own team
+ * changed in place when nothing else uses it; else a team that already has exactly those reps and that method; else
+ * one new team, keeping the old team's other settings. Returns the body with the place pointing at it.
+ */
+function retarget(b: RouterBody, place: string, reps: string[], method: Method | null): RouterBody {
+  const isDefault = place === "default";
   const fb = b.fallback;
-  const q = fb?.kind === "queue" ? queueOf(b, fb.id) : undefined;
-  if (q && usersOf(b, q.id) === 1) return { body: b, queue: q };
-  const members: Member[] = q ? q.members.map((m) => ({ ...m })) : fb?.kind === "user" ? [{ user: fb.id, weight: 1 }] : [];
-  const own: Queue = { id: freeId(b, "default"), name: "Default rule", method: q?.method ?? "rr", strict: q?.strict ?? false, hoursOnly: q?.hoursOnly ?? false, members };
-  return { body: { ...b, queues: [...b.queues, own], fallback: { kind: "queue", id: own.id, ...(fb?.meet ? { meet: fb.meet } : {}) } }, queue: own };
+  const r = isDefault ? undefined : b.rules.list.find((x) => x.id === place);
+  if (!isDefault && !r) return b;
+  const cur = isDefault ? (fb?.kind === "queue" ? queueOf(b, fb.id) : undefined) : r && thenOf(r) === "queue" ? queueOf(b, r.queue) : undefined;
+  const m = method ?? cur?.method ?? "rr";
+  const point = (body: RouterBody, id: string): RouterBody =>
+    isDefault ? { ...body, fallback: { kind: "queue", id, ...(fb?.meet ? { meet: fb.meet } : {}) } } : { ...body, rules: { ...body.rules, list: body.rules.list.map((x) => (x.id === place ? { ...x, queue: id } : x)) } };
+  if (cur && usersOf(b, cur.id) === 1) return withQueue(b, { ...cur, method: m, members: membersFor(cur.members, reps) });
+  const found = b.queues.find((q) => q.id !== cur?.id && sameReps(q, reps) && q.method === m);
+  if (found) return point(b, found.id);
+  const t = newTeam(b);
+  const before = cur?.members ?? (isDefault && fb?.kind === "user" ? [{ user: fb.id, weight: 1 }] : []);
+  const team: Queue = { id: t.id, name: t.name, method: m, strict: cur?.strict ?? false, hoursOnly: cur?.hoursOnly ?? false, members: membersFor(before, reps) };
+  return point({ ...b, queues: [...b.queues, team] }, team.id);
 }
 
 const withQueue = (b: RouterBody, q: Queue): RouterBody => ({ ...b, queues: b.queues.map((x) => (x.id === q.id ? q : x)) });
@@ -139,8 +142,7 @@ export function setRuleReps(b: RouterBody, ruleId: string, reps: string[]): Rout
   const q = thenOf(r) === "queue" ? queueOf(b, r.queue) : undefined;
   if (q && sameList(q.members.map((m) => m.user), reps)) return b;
   const base = thenOf(r) === "queue" ? b : setRule(b, ruleId, { then: undefined });
-  const own = ownQueue(base, ruleId);
-  return withQueue(own.body, { ...own.queue, members: membersFor(own.queue.members, reps) });
+  return retarget(base, ruleId, reps, null);
 }
 
 export function setRuleMethod(b: RouterBody, ruleId: string, method: Method): RouterBody {
@@ -148,22 +150,19 @@ export function setRuleMethod(b: RouterBody, ruleId: string, method: Method): Ro
   if (!r || thenOf(r) !== "queue") return b;
   const q = queueOf(b, r.queue);
   if ((q?.method ?? "rr") === method && q) return b;
-  const own = ownQueue(b, ruleId);
-  return withQueue(own.body, { ...own.queue, method });
+  return retarget(b, ruleId, q?.members.map((m) => m.user) ?? [], method);
 }
 
 export function setDefaultReps(b: RouterBody, reps: string[]): RouterBody {
   const now = viewOf(b, []).def;
   if (now.kind !== "none" && sameList(now.reps, reps)) return b;
-  const own = ownDefault(b);
-  return withQueue(own.body, { ...own.queue, members: membersFor(own.queue.members, reps) });
+  return retarget(b, "default", reps, null);
 }
 
 export function setDefaultMethod(b: RouterBody, method: Method): RouterBody {
   const now = viewOf(b, []).def;
   if (now.kind === "queue" && now.method === method) return b;
-  const own = ownDefault(b);
-  return withQueue(own.body, { ...own.queue, method });
+  return retarget(b, "default", now.reps, method);
 }
 
 /** The meeting type a rule (or the Default rule, "default") offers; null is the form's own. */
@@ -171,10 +170,7 @@ export function setMeet(b: RouterBody, target: string, meet: string | null): Rou
   if (target === "default") {
     const fb = b.fallback;
     if ((fb?.meet ?? null) === meet) return b;
-    if (!fb) {
-      const own = ownDefault(b);
-      return setMeet(own.body, "default", meet);
-    }
+    if (!fb) return setMeet(retarget(b, "default", [], null), "default", meet);
     const { meet: _drop, ...rest } = fb;
     void _drop;
     return { ...b, fallback: meet ? { ...rest, meet } : rest };

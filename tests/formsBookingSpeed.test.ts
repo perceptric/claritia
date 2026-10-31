@@ -162,7 +162,7 @@ test("routing is the inline run's or the job's, never both: a late inline run st
     const rpc: Rpc = async (fn, args) => {
       calls.push(fn);
       if (fn === "router_live") return { data: { version: 1, body }, error: null };
-      if (fn === "router_facts_full") {
+      if (fn === "routing_facts" || fn === "router_facts_full") {
         await sleep(o.factsMs ?? 0);
         if (runs.has(args.p_key as string)) return { data: { existing: { id: "run", kind: "owner", owner: ANA, by: "queue", queue: "q1", rule: null } }, error: null };
         return {
@@ -170,9 +170,9 @@ test("routing is the inline run's or the job's, never both: a late inline run st
           error: null,
         };
       }
-      if (fn === "router_commit") {
+      if (fn === "routing_commit" || fn === "router_commit") {
         await sleep(o.commitMs ?? 0);
-        const k = args.p_key as string;
+        const k = (args.p_key ?? (args.p as { key: string }).key) as string;
         if (runs.has(k)) return { data: { status: "dup", id: "run", kind: "owner", owner: ANA }, error: null };
         runs.set(k, ANA);
         return { data: { status: "ok", id: "run", owner: ANA, steps: [] }, error: null };
@@ -186,13 +186,13 @@ test("routing is the inline run's or the job's, never both: a late inline run st
   const r = await routeFillWith(late.rpc, WS, "c1", "s1", { budgetMs: 40 });
   assert.equal(r.routed, null);
   await sleep(200);
-  assert.deepEqual([late.calls.filter((c) => c === "enqueue_job").length, late.calls.filter((c) => c === "router_commit").length], [1, 0], "the job has it; the inline run wrote nothing");
+  assert.deepEqual([late.calls.filter((c) => c === "enqueue_job").length, late.calls.filter((c) => c === "router_commit" || c === "routing_commit").length], [1, 0], "the job has it; the inline run wrote nothing");
   const claimed = make({ commitMs: 120 });
   const c = await routeFillWith(claimed.rpc, WS, "c1", "s2", { budgetMs: 40 });
   assert.equal(c.routed?.kind, "owner");
   assert.deepEqual([claimed.calls.filter((x) => x === "enqueue_job").length, claimed.runs.size], [0, 1], "no job: the inline commit owned it");
   const failing = make({});
-  const broken: Rpc = (fn, args) => (fn === "router_facts_full" ? Promise.resolve({ data: null, error: { message: "connection reset" } }) : failing.rpc(fn, args));
+  const broken: Rpc = (fn, args) => (fn === "routing_facts" || fn === "router_facts_full" ? Promise.resolve({ data: null, error: { message: "connection reset" } }) : failing.rpc(fn, args));
   assert.equal((await routeFillWith(broken, WS, "c1", "s3")).routed, null);
   assert.equal(failing.calls.filter((x) => x === "enqueue_job").length, 1, "a failing read hands it to the job, once");
 });
