@@ -2,6 +2,8 @@
 // jobs. Times inside the engine are epoch milliseconds; days and clock times are in a person's own time zone. Runs in
 // the browser and on the server.
 
+import type { Dynamic } from "../routing/compile.ts";
+
 export type Day = "mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun";
 export const DAYS: Day[] = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
 
@@ -95,6 +97,11 @@ export type TypeSettings = {
    * kept off booking pages (secret) and listed under "In forms" in Meetings, not with the standalone meetings.
    */
   form?: string;
+  /**
+   * A Dynamic meeting (docs/on-submission.md): its own routing, rules to a rep or a team and Otherwise. Left out, the
+   * meeting is Individual (or one of the older kinds). Forms compile it into their routing policy at publish.
+   */
+  dynamic?: Dynamic;
   /** Extra questions on the booking page: the form studio's fields. */
   questions: { id: string; label: string; type: "text" | "textarea" | "phone" | "choice"; required: boolean; options?: string[] }[];
 };

@@ -3,6 +3,8 @@
 // links to its fill for sure. Where a tool takes the id (Calendly's utm_content, Cal.com's metadata) is noted per
 // tool; the rest are linked by email as a maybe. Runs in the browser and on the server.
 
+import type { FormRoute } from "../routing/compile.ts";
+
 export type SchedulerTool = "calendly" | "calcom" | "hubspot_meetings" | "savvycal" | "link";
 /** Where the lead books: Claritia's own calendar (a meeting type, booked in the form) or an outside scheduler. */
 export type ScheduleTool = "claritia" | SchedulerTool;
@@ -35,6 +37,12 @@ export type Schedule = {
   /** Claritia calendar with Routing live: when the lead's rep has no free times, show the message (the default) or
    * email the rep's times later. */
   none?: "message" | "later";
+  /**
+   * Claritia calendar: the form's routing (docs/on-submission.md). `meetingTypeId` is the Default meeting; each row
+   * sends leads whose answers meet all its conditions to another meeting. Set (even empty) once the form's routing is
+   * edited this way: publishing then compiles it into the form's routing policy (src/lib/routing/compile.ts).
+   */
+  routes?: FormRoute[];
   /** Fill in the lead's name and email on the scheduler. On unless turned off. */
   prefill?: boolean;
 };

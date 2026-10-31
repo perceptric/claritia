@@ -6,6 +6,7 @@
 import { readFormDesign, type FormDesign } from "../design/model.ts";
 import { evalFormula, parseFormula, type Ast } from "./formula.ts";
 import { linkProblem, SCHEDULERS, WORK_EMAIL, type MatchRule, type Schedule } from "./schedule.ts";
+import { cleanCondition } from "../router/check.ts";
 import { cleanKeep, cleanNotify, cleanReply, cleanSites, type Keep, type Notify, type Reply } from "./notify.ts";
 
 export type FieldType =
@@ -786,6 +787,15 @@ export function checkForm(raw: unknown, ctx: Ctx = {}): { form: Form } | { error
       const heading = str(sch.heading, LIMITS.label);
       if (heading) schedule.heading = heading;
       if (tool === "claritia" && sch.none === "later") schedule.none = "later";
+      // The form's routing: rows of conditions, each to a meeting. A row with a value missing is kept as a draft;
+      // the compile leaves it out, so it never routes anyone.
+      if (tool === "claritia" && Array.isArray(sch.routes)) {
+        schedule.routes = sch.routes
+          .slice(0, 30)
+          .map((x) => (x && typeof x === "object" ? (x as Record<string, unknown>) : {}))
+          .filter((x) => typeof x.id === "string" && /^[\w-]{1,24}$/.test(x.id) && typeof x.meet === "string" && /^[0-9a-f-]{36}$/.test(x.meet))
+          .map((x) => ({ id: x.id as string, meet: x.meet as string, conds: (Array.isArray(x.conds) ? x.conds : []).slice(0, 10).map(cleanCondition).filter((c): c is NonNullable<typeof c> => !!c) }));
+      }
       if (sch.prefill === false && tool !== "claritia") schedule.prefill = false;
     }
     if (end.kind === "redirect") errors.push("A form can book a meeting or open a page after the submit, not both.");

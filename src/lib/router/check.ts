@@ -14,6 +14,9 @@ const arr = (v: unknown): unknown[] => (Array.isArray(v) ? v : []);
 
 export const newId = (prefix: string) => `${prefix}${Math.random().toString(36).slice(2, 10)}`;
 
+/** One condition, checked: a known field name, a known test and a value of the right kind (else null). */
+export const cleanCondition = (raw: unknown): Cond | null => cleanCond(raw);
+
 function cleanCond(raw: unknown): Cond | null {
   const r = obj(raw);
   const field = s(r.field, 80);
