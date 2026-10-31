@@ -12,9 +12,7 @@ import type { CustomField } from "@/lib/records/fields";
 import { askConfirm, tell } from "../Dialogs";
 import { Badge, cache, ErrorNote, errorText, invalidate, Loading, must, postJson, setLeaveGuard, Tabs, useQuery, type ViewProps } from "../ui";
 import { useLiveBody } from "../routing/screenParts";
-import { useRoutingLoad } from "../routing/useRouterData";
-import { firstRow, routeRows, type Routes } from "./routes";
-import { Build, type Pick as Picked } from "./Build";
+import { Build, SUBMIT, type Pick as Picked } from "./Build";
 import { mergeKey } from "./editorModel";
 import { useFormChat } from "./FormChat";
 import { FormHome, MADE_KEY } from "./FormHome";
@@ -24,6 +22,7 @@ import { Menu } from "./Menu";
 import { BTN, Dialog, DialogHead, EYEBROW, GHOST, GHOST_SM, IB, useNote } from "./parts";
 import { PreviewOverlay } from "./PreviewOverlay";
 import { Setup, type SetupSub } from "./Setup";
+import { useFormRouting } from "./useFormRouting";
 import { Share } from "./Share";
 import type { Destination, FormRow, Kit, SourceRow } from "./shared";
 import { Submissions } from "./Submissions";
@@ -119,7 +118,7 @@ function Editor(props: ViewProps & { data: FormData; reload: () => void; patchRo
   const [saving, setSaving] = useState<Saving>("saved");
   const [error, setError] = useState("");
   const [tab, setTabRaw] = useState<Tab>(() => (typeof window === "undefined" ? "build" : tabOf(window.location.search)));
-  const [sub, setSub] = useState<SetupSub>("after");
+  const [sub, setSub] = useState<SetupSub>("alerts");
   const [pick, setPick] = useState<Picked>(null);
   const [step, setStep] = useState(0);
   const [dialog, setDialog] = useState<"publish" | "versions" | null>(null);
@@ -144,17 +143,8 @@ function Editor(props: ViewProps & { data: FormData; reload: () => void; patchRo
   const merge = useRef<{ key: string; at: number } | null>(null);
   const crm = useCrm(data.sources, session, ws.id);
   const live = useLiveBody(sb, ws.id);
-  // Routing as the After submit step reads it: live when a version is published and not paused.
-  const rload = useRoutingLoad(session, ws.id);
-  const [pv, setPv] = useState("");
-  const routes = useMemo((): Routes => {
-    const l = rload.data;
-    const body = l?.live?.body ?? live.data?.body ?? null;
-    const rows = body ? routeRows(body, l?.members ?? [], l?.fields ?? []) : [];
-    const pick = rows.find((r) => r.id === pv) ?? firstRow(rows);
-    return { on: !!body && !!l?.live && !l.paused, rows, pv: pick?.id ?? "", setPv, types: data.types, open: () => navigate("routing") };
-  }, [rload.data, live.data, pv, data.types, navigate]);
   const kit = data.kits.find((k) => k.id === kitId) ?? null;
+  const formRouting = useFormRouting(session, ws.id, row.id, name, { book: !!form.after.schedule, meeting: form.after.schedule?.meetingTypeId ?? null });
   // While the site is being read, check back every 2 seconds so the form takes the brand as soon as it's ready.
   const scanning = data.kits.some((k) => k.scan_status === "scanning");
   useEffect(() => {
@@ -289,7 +279,7 @@ function Editor(props: ViewProps & { data: FormData; reload: () => void; patchRo
 
   const checked = useMemo(() => checkForm(form, { custom }), [form, custom]);
   const isLive = row.status === "live";
-  const changed = !data.published || JSON.stringify("form" in checked ? checked.form : form) !== JSON.stringify(data.published);
+  const changed = !data.published || JSON.stringify("form" in checked ? checked.form : form) !== JSON.stringify(data.published) || formRouting.changed;
   const issueCtx = useMemo(() => ({ custom, crm: crm.ctx }), [custom, crm.ctx]);
   const failedWeek = Object.values(data.failed).reduce((a, b) => a + b, 0);
 
@@ -316,6 +306,15 @@ function Editor(props: ViewProps & { data: FormData; reload: () => void; patchRo
       // The brand's styles go live with the form, so the published form looks like the one in Build.
       if (kit && JSON.stringify(kit.design ?? null) !== JSON.stringify(kit.design_live ?? null)) must(await sb.rpc("brand_kit_design_publish", { p_id: kit.id }));
       await postJson(session, "/api/forms/publish", { workspaceId: ws.id, id: row.id });
+      // The If → Then list goes live with the form.
+      try {
+        await formRouting.publish();
+      } catch (e) {
+        setDialog(null);
+        reload();
+        setError(`The form is live. ${errorText(e)}`);
+        return;
+      }
       setDialog(null);
       reload();
       invalidate(`forms:${ws.id}`);
@@ -387,7 +386,12 @@ function Editor(props: ViewProps & { data: FormData; reload: () => void; patchRo
     setStep(q.step);
     setPick({ id: q.id, open });
   };
-  const openSetup = (s: SetupSub) => {
+  const openSetup = (s: SetupSub | "after") => {
+    if (s === "after") {
+      setTab("build");
+      setPick({ id: SUBMIT, open: null });
+      return;
+    }
     setSub(s);
     setTab("settings");
   };
@@ -511,7 +515,7 @@ function Editor(props: ViewProps & { data: FormData; reload: () => void; patchRo
             onCustom={(c) => setCustom((x) => [...x, c])}
             crm={crm}
             routing={live.data?.body ?? null}
-            routes={routes}
+            formRouting={formRouting}
             kit={kit}
             kits={data.kits}
             setKit={setKit}
@@ -541,7 +545,7 @@ function Editor(props: ViewProps & { data: FormData; reload: () => void; patchRo
         ) : tab === "sync" ? (
           <Sync {...props} form={form} formId={row.id} dests={data.dests} sources={data.sources} crm={crm} failed={data.failed} reload={reload} patchDests={patchDests} onFix={(qid) => goto(qid)} issueCtx={issueCtx} />
         ) : (
-          <Setup {...props} form={form} apply={apply} sub={sub} setSub={setSub} formId={row.id} types={data.types} routing={live.data?.body ?? null} routes={routes} onReview={() => setTab("submissions")} subs={data.subs} name={name} />
+          <Setup {...props} form={form} apply={apply} sub={sub} setSub={setSub} formId={row.id} types={data.types} routing={live.data?.body ?? null} onReview={() => setTab("submissions")} subs={data.subs} name={name} />
         )}
       </div>
       {dialog === "publish" ? <PublishDialog checks={checks} live={!!row.version} onClose={() => setDialog(null)} onPublish={() => void publish()} onFix={(qid) => goto(qid)} error={error} /> : null}

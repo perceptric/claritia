@@ -22,7 +22,6 @@ import type { BuildProps } from "./Build";
 import { autoMap, choiceRows, claritiaDests, crmDests, earlierChoices, isChoiceKind, issuesOf, kindInfo, kindOf, kindPatch, KINDS, known, knownOp, paramOf, questionsOf, rulesReading, saveName, showOps, showRules, splitNameOps, submissionKey, type Q } from "./formModel";
 import { Ic } from "./ic";
 import { AREA, Box, Dd, Dots, GHOST_SM, IB, IN, IN_SM, Seg, type DdItem, Tg } from "./parts";
-import { RouteList, typeLabel } from "./routes";
 
 /** The panel's frame: the eyebrow and title, its buttons, the sections that scroll, and the footer. */
 function Shell({ eyebrow, title, actions, footer, children, label }: { eyebrow: string; title: string; actions?: React.ReactNode; footer?: React.ReactNode; children: React.ReactNode; label: string }) {
@@ -525,7 +524,6 @@ export function FormPanel(p: BuildProps & { open: string | null; setOpen: (k: st
   const [error, setError] = useState("");
   const n = questionsOf(form).filter((q) => q.kind !== "heading" && q.kind !== "para").length;
   const steps = form.steps.length;
-  const s = form.after.schedule;
   const site = (() => {
     try {
       return p.site ? new URL(/^https?:\/\//.test(p.site) ? p.site : `https://${p.site}`).hostname.replace(/^www\./, "") : "";
@@ -692,41 +690,6 @@ export function FormPanel(p: BuildProps & { open: string | null; setOpen: (k: st
           </form>
         )}
         {error ? <Box tone="bad" title={error} /> : null}
-      </PanelSection>
-      <PanelSection
-        icon={<Ic n="check" />}
-        title="After submit"
-        summary={s ? (s.tool === "claritia" ? (p.routes.on ? "Book a meeting, Routing decides" : `Book a meeting, ${typeLabel(p.types.find((t) => t.id === s.meetingTypeId))}`) : `Book a meeting, ${s.who === "routed" ? "for routed leads" : s.who === "match" ? "for leads that match" : "for everyone"}`) : form.after.end.kind === "redirect" ? "Goes to a page" : "Shows a message"}
-        open={open === "after"}
-        onToggle={() => toggle("after")}
-      >
-        {s?.tool === "claritia" ? (
-          <>
-            {p.routes.on ? (
-              <RouteList routes={{ ...p.routes, setPv: (id) => (p.routes.setPv(id), p.setStep(form.steps.length), p.setPick(null)) }} formType={s.meetingTypeId} />
-            ) : (
-              <Line label="Times are for">
-                <span className="text-muted">The meeting&apos;s hosts</span>
-              </Line>
-            )}
-            <div className="flex flex-wrap gap-[6px]">
-              <button type="button" className={GHOST_SM} onClick={p.routes.open}>
-                <Ic n="branch" s={12} />
-                {p.routes.on ? "Edit in Routing" : "Set up Routing"}
-              </button>
-              <button type="button" className={GHOST_SM} onClick={() => p.onSettings("after")}>
-                Edit in Settings
-              </button>
-            </div>
-          </>
-        ) : (
-          <>
-            {s ? <p className="m-0 text-muted">{s.who === "routed" ? "Leads Routing sends to a rep pick a time with them. Others see the thank-you message." : "Leads pick a time after they send it."}</p> : null}
-            <button type="button" className={`${GHOST_SM} self-start`} onClick={() => p.onSettings("after")}>
-              Edit in Settings
-            </button>
-          </>
-        )}
       </PanelSection>
     </Shell>
   );

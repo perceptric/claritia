@@ -1,24 +1,21 @@
 "use client";
 
-// Settings (docs/forms-plan.md Part 6): a list on the left with icons (After submit, Team alerts, Auto-reply,
-// Consent, Spam and security, Data), the one picked on the right. Every change is an op on the draft, so it saves,
+// Settings (docs/forms-plan.md Part 6): a list on the left with icons (Team alerts, Auto-reply, Consent, Spam and
+// security, Data; what happens after a submit is On Submission on Build), the one picked on the right. Every change is an op on the draft, so it saves,
 // undoes and publishes like the rest of the form.
 
 import { useState } from "react";
 import { DEFAULT_NOTIFY, DEFAULT_REPLY, merge } from "@/lib/forms/notify";
 import type { Op } from "@/lib/forms/ops";
-import { SCHEDULERS } from "@/lib/forms/schedule";
 import { DEFAULT_CONSENT, type Form } from "@/lib/forms/schema";
 import type { RouterBody } from "@/lib/router/types";
 import { BrandLogo } from "../BrandLogo";
 import { askText } from "../Dialogs";
 import { Badge, ErrorNote, errorText, must, useLoad, type ViewProps } from "../ui";
 import { Ic } from "./ic";
-import { RouteList, typeLabel, type Routes } from "./routes";
-import { matchOutcome, RoutingConnection, useConnection } from "./RoutingConnection";
-import { AREA, Box, CARD, CROW, CSTACK, Dd, GHOST_SM, GHOST_SM_RED, IN, IN_FIT, RowText, Seg, useNote, type DdItem, Tg } from "./parts";
+import { AREA, Box, CARD, CROW, CSTACK, GHOST_SM, GHOST_SM_RED, IN, IN_FIT, RowText, Seg, useNote, Tg } from "./parts";
 
-export type SetupSub = "after" | "alerts" | "reply" | "consent" | "spam" | "data";
+export type SetupSub = "alerts" | "reply" | "consent" | "spam" | "data";
 
 type Props = ViewProps & {
   form: Form;
@@ -28,7 +25,6 @@ type Props = ViewProps & {
   formId: string;
   types: { id: string; name: string; active: boolean; settings?: { lengths?: number[] } }[];
   routing: RouterBody | null;
-  routes: Routes;
   onReview: () => void;
   subs: number;
   name: string;
@@ -37,7 +33,6 @@ type Props = ViewProps & {
 export function Setup(p: Props) {
   const { form, sub, setSub } = p;
   const items: [SetupSub, string, string, boolean?][] = [
-    ["after", "check", "After submit"],
     ["alerts", "bell", "Team alerts", !!form.notify?.on],
     ["reply", "reply", "Auto-reply", !!form.reply?.on],
     ["consent", "shield", "Consent"],
@@ -63,7 +58,7 @@ export function Setup(p: Props) {
       </nav>
       <div className="min-w-0 overflow-y-auto px-[16px] pt-[20px] pb-[32px] sm:px-[clamp(16px,3vw,32px)]">
         <div className="flex max-w-[760px] flex-col gap-[16px]">
-          {sub === "after" ? <After {...p} /> : sub === "alerts" ? <Alerts {...p} /> : sub === "reply" ? <Reply {...p} /> : sub === "consent" ? <Consent {...p} /> : sub === "spam" ? <Spam {...p} /> : <Data {...p} />}
+          {sub === "alerts" ? <Alerts {...p} /> : sub === "reply" ? <Reply {...p} /> : sub === "consent" ? <Consent {...p} /> : sub === "spam" ? <Spam {...p} /> : <Data {...p} />}
         </div>
       </div>
     </div>
@@ -74,192 +69,8 @@ const H3 = ({ children }: { children: React.ReactNode }) => <h3 className="m-0 t
 const Sub = ({ children }: { children: React.ReactNode }) => <p className="-mt-[10px] mb-0 text-[12.5px] text-muted">{children}</p>;
 const Label = ({ children }: { children: React.ReactNode }) => <label className="text-[12px] font-medium text-muted">{children}</label>;
 
-/** The thank-you message as one box: the title, then a blank line and the rest. */
-const messageText = (form: Form) => (form.after.end.kind === "message" ? [form.after.end.title, form.after.end.text].filter(Boolean).join("\n\n") : "");
-const messageOp = (text: string): Op => {
-  const [title, ...rest] = text.split(/\n\s*\n/);
-  return { op: "set_after", end: { kind: "message", title: (title ?? "").trim() || "Thanks, we got it.", ...(rest.join("\n\n").trim() ? { text: rest.join("\n\n").trim() } : {}) } };
-};
 
-/** A small loop under each choice: the form is sent, then what the visitor sees (the .da styles in globals.css). */
-function DemoAnim({ v }: { v: "msg" | "url" | "book" }) {
-  return (
-    <span className="da w-full" aria-hidden="true">
-      <span className="da-f">
-        <i className="da-l" />
-        <i className="da-in" />
-        <i className="da-in" />
-        <i className="da-btn" />
-      </span>
-      {v === "msg" ? (
-        <span className="da-r">
-          <i className="da-ok">
-            <Ic n="check" s={10} />
-          </i>
-          <i className="da-l w70" />
-          <i className="da-l w50 lt" />
-        </span>
-      ) : v === "url" ? (
-        <span className="da-r da-page">
-          <i className="da-bar" />
-          <i className="da-hero" />
-          <i className="da-l w60 lt" />
-          <i className="da-l w40 lt" />
-        </span>
-      ) : (
-        <span className="da-r">
-          <span className="da-who">
-            <i className="da-av">DR</i>
-            <i className="da-l w50" />
-          </span>
-          <span className="da-t">
-            <i />
-            <i className="pick" />
-            <i />
-            <i />
-            <i />
-            <i />
-          </span>
-          <i className="da-done">
-            <Ic n="check" s={9} />
-            Booked
-          </i>
-        </span>
-      )}
-    </span>
-  );
-}
 
-function After(p: Props) {
-  const { form, apply, types, routes } = p;
-  // The form's canonical Routing connection (the same row Routing edits).
-  const conn = useConnection(p.session, p.ws.id, p.formId);
-  const explicit = !!conn.c?.source && !conn.c.source.auto;
-  const s = form.after.schedule;
-  const end = form.after.end;
-  const kind = s ? "book" : end.kind === "redirect" ? "url" : "msg";
-  const active = types.filter((t) => t.active);
-  const [msg, setMsg] = useState(messageText(form));
-  const lastMsg = end.kind === "message" ? end : { kind: "message" as const, title: "Thanks, we got it." };
-  const pick = (k: "msg" | "url" | "book") => {
-    if (k === kind) return;
-    void matchOutcome(p.session, p.ws.id, p.formId, conn, k, active[0]?.id);
-    if (k === "book") apply([...(end.kind === "redirect" ? [{ op: "set_after" as const, end: lastMsg }] : []), { op: "set_schedule", schedule: { tool: "claritia", url: "", perOwner: false, ...(active[0] ? { meetingTypeId: active[0].id } : {}) } }], "Books a meeting after the submit");
-    else if (k === "url") apply([{ op: "set_schedule", schedule: null }, { op: "set_after", end: { kind: "redirect", url: end.kind === "redirect" ? end.url : "https://" } }], "Goes to a page after the submit");
-    else apply([{ op: "set_schedule", schedule: null }, { op: "set_after", end: lastMsg }], "Shows a message after the submit");
-  };
-  const type = s?.tool === "claritia" ? types.find((t) => t.id === s.meetingTypeId) : null;
-  const claritia = s?.tool === "claritia";
-  const on = claritia && routes.on;
-  // Routing decides who sees times now: an older form's "who sees times" goes when the meeting changes here.
-  const base = (): NonNullable<typeof s> => {
-    const b = { ...s! };
-    delete b.who;
-    delete b.rules;
-    delete b.routeRules;
-    delete b.any;
-    return b;
-  };
-  return (
-    <>
-      <H3>After submit</H3>
-      <Sub>What people see once they send it</Sub>
-      <div className="grid grid-cols-3 gap-[10px]">
-        {(
-          [
-            ["msg", "msg", "Show a message"],
-            ["url", "ext", "Go to a page"],
-            ["book", "meet", "Book a meeting"],
-          ] as const
-        ).map(([v, i, l]) => (
-          <button key={v} type="button" aria-pressed={kind === v} onClick={() => pick(v)} className={`flex min-w-0 flex-col items-start gap-[8px] rounded-[10px] border p-[10px] text-left transition-colors duration-[120ms] ${kind === v ? "border-ink ring-1 ring-ink" : "border-line hover:border-line-strong"}`}>
-            <span className="inline-flex size-[30px] items-center justify-center rounded-lg bg-paper-deep text-body">
-              <Ic n={i} />
-            </span>
-            <b className="text-[12.5px] font-medium text-ink">{l}</b>
-            <DemoAnim v={v} />
-          </button>
-        ))}
-      </div>
-      {kind === "url" && end.kind === "redirect" ? (
-        <div className={CARD}>
-          <div className={CSTACK}>
-            <Label>Page</Label>
-            <input className={IN} value={end.url} onChange={(e) => apply({ op: "set_after", end: { kind: "redirect", url: e.target.value.trim() } })} />
-            {/^https:\/\/[^/\s]+\.[^/\s]+/.test(end.url) ? null : <span className="text-[12px] text-rose">The page needs https://</span>}
-          </div>
-        </div>
-      ) : null}
-      <RoutingConnection session={p.session} ws={p.ws.id} navigate={p.navigate} form={p.formId} conn={conn} onOpenRouting={routes.open} />
-      {kind === "book" && on ? (
-        <div className={CARD}>
-          <div className={CSTACK}>
-            <RouteList routes={routes} formType={s?.meetingTypeId} />
-          </div>
-        </div>
-      ) : null}
-      {kind === "book" && s ? (
-        <div className={CARD}>
-          {explicit ? null : (
-          <div className={CSTACK}>
-            <Label>{on ? "Meeting when the rule names none" : "Meeting"}</Label>
-            <Dd
-              ariaLabel="Meeting"
-              label={type ? typeLabel(type) : s.tool !== "claritia" ? (SCHEDULERS.find((x) => x.value === s.tool)?.label ?? "Scheduler") : "Pick a meeting type"}
-              items={active.length ? active.map((t): DdItem => ({ kind: "option", key: t.id, label: typeLabel(t), on: t.id === s.meetingTypeId, onPick: () => apply({ op: "set_schedule", schedule: { ...base(), tool: "claritia", url: "", perOwner: false, meetingTypeId: t.id } }) })) : [{ kind: "option", key: "none", label: "No meeting types yet", why: " ", onPick: () => {} }]}
-            />
-          </div>
-          )}
-          {claritia && !on ? (
-            <div className={CROW}>
-              <RowText title="Times are for" sub="The meeting's hosts" />
-              <button type="button" className={GHOST_SM} onClick={routes.open}>
-                <Ic n="branch" s={12} />
-                Set up Routing
-              </button>
-            </div>
-          ) : null}
-          <div className={CSTACK}>
-            <Label>Heading</Label>
-            <input className={IN} aria-label="Heading" value={s.heading ?? "Pick a time"} onChange={(e) => apply({ op: "set_schedule", schedule: { ...s, heading: e.target.value.slice(0, 120) } })} onBlur={(e) => !e.target.value.trim() && apply({ op: "set_schedule", schedule: { ...s, heading: "Pick a time" } })} />
-          </div>
-          {claritia ? (
-            <div className={CSTACK}>
-              <Label>When their rep has no times</Label>
-              <Seg
-                label="When their rep has no times"
-                value={s.none === "later" ? "later" : "message"}
-                onChange={(v) => {
-                  const next = { ...s };
-                  if (v === "later") next.none = "later";
-                  else delete next.none;
-                  apply({ op: "set_schedule", schedule: next });
-                }}
-                options={[{ value: "message", label: "Show the message" }, { value: "later", label: "Email times later" }]}
-              />
-            </div>
-          ) : null}
-        </div>
-      ) : null}
-      {kind !== "url" ? (
-        <div className={CARD}>
-          <div className={CSTACK}>
-            <Label>{kind === "book" ? "Message for people who don't see times" : "Message"}</Label>
-            <textarea
-              className={AREA}
-              rows={2}
-              value={msg}
-              onChange={(e) => {
-                setMsg(e.target.value);
-                apply(messageOp(e.target.value));
-              }}
-            />
-          </div>
-        </div>
-      ) : null}
-    </>
-  );
-}
 
 const EMAIL = /^[^\s@<>()",;:]{1,64}@[a-z0-9-]+(\.[a-z0-9-]+)+$/i;
 

@@ -9,7 +9,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { cleanTokens } from "@/lib/forms/brand";
-import { localZone, zoneName } from "@/lib/forms/calendar";
 import type { Op } from "@/lib/forms/ops";
 import { condText } from "@/lib/forms/ops";
 import { allFields, newId, questionKey, type Field, type Form } from "@/lib/forms/schema";
@@ -20,14 +19,18 @@ import type { useFormChat } from "./FormChat";
 import { AskPill } from "./FormHome";
 import { CONSENT_ID, consentBox, GROUP_WORDS, isContentKind, issuesOf, KINDS, known, newQuestion, questionsOf, showRules, type Kind, type Q } from "./formModel";
 import { Ic } from "./ic";
-import { Dd, GHOST_SM, IB_SM, Seg } from "./parts";
-import { typeLabel, type Routes } from "./routes";
+import { IB_SM, Seg } from "./parts";
+import { Arrow, ArrowDown, OnSubmissionPanel, SubmitNode, SubmitResult, type Trial } from "./OnSubmission";
 import { ButtonPanel, FormPanel, QuestionPanel } from "./Panels";
+import type { FormRouting } from "./useFormRouting";
 import type { SetupSub } from "./Setup";
 import type { Kit } from "./shared";
 import type { useCrm } from "./useCrm";
 
-/** What's picked on the canvas: a question (or "button"), with the panel section that's open. */
+/** On Submission's card, as a pick. */
+export const SUBMIT = "submit";
+
+/** What's picked on the canvas: a question, "button" or On Submission, with the panel section that's open. */
 export type Pick = { id: string; open: string | null } | null;
 type Said = { words: string; undo?: boolean; err?: boolean } | null;
 
@@ -39,8 +42,8 @@ export type BuildProps = ViewProps & {
   onCustom: (c: CustomField) => void;
   crm: ReturnType<typeof useCrm>;
   routing: RouterBody | null;
-  /** Routing as After submit reads it, and which of its rows the preview shows. */
-  routes: Routes;
+  /** The form's own If → Then routing, edited in On Submission. */
+  formRouting: FormRouting;
   kit: Kit | null;
   kits: Kit[];
   setKit: (id: string | null) => void;
@@ -104,8 +107,14 @@ export function Build(p: BuildProps) {
   const [device, setDevice] = useState<"desktop" | "phone">("desktop");
   const [insert, setInsert] = useState<{ at: number; el: HTMLElement } | null>(null);
   const steps = form.steps.length;
-  const isEnd = step >= steps;
   const cur = Math.min(step, steps - 1);
+  const onSubmit = pick?.id === SUBMIT;
+  const [trial, setTrial] = useState<Trial>(null);
+  const nodeRef = useRef<HTMLDivElement>(null);
+  const toSubmit = () => {
+    setPick({ id: SUBMIT, open: null });
+    requestAnimationFrame(() => nodeRef.current?.scrollIntoView({ block: "center", behavior: "smooth" }));
+  };
   const qs = useMemo(() => questionsOf(form), [form]);
   const shown = qs.filter((q) => q.step === cur);
   const issueCtx = useMemo(() => ({ custom: p.custom, crm: p.crm.ctx }), [p.custom, p.crm.ctx]);
@@ -174,21 +183,23 @@ export function Build(p: BuildProps) {
           </span>
         ))}
         <span aria-hidden="true" className="h-px w-[12px] shrink-0 bg-line-strong" />
-        <StepPill n={<Ic n="check" s={10} />} on={isEnd} onClick={() => (setStep(steps), setPick(null))} label="After submit" />
-        <button type="button" className={IB_SM} onClick={() => apply({ op: "add_step", title: `Step ${steps + 1}` }, "Added a step") && setStep(steps)} title="Add a step" aria-label="Add a step">
+        <StepPill n={<Arrow className="h-[8px] w-[12px]" />} on={onSubmit} onClick={toSubmit} label="On Submission" />
+        <button type="button" className={IB_SM} onClick={() => apply({ op: "add_step", title: `Step ${steps + 1}` }, "Added a step") && (setStep(steps), setPick(null))} title="Add a step" aria-label="Add a step">
           <Ic n="plus" />
         </button>
       </>
     ) : (
       <>
-        <StepPill n="1" on={!isEnd} onClick={() => (setStep(0), setPick(null))} label="Form" />
+        <StepPill n="1" on={!onSubmit} onClick={() => (setStep(0), setPick(null))} label="Form" />
         <span aria-hidden="true" className="h-px w-[12px] shrink-0 bg-line-strong" />
-        <StepPill n={<Ic n="check" s={10} />} on={isEnd} onClick={() => (setStep(1), setPick(null))} label="After submit" />
+        <StepPill n={<Arrow className="h-[8px] w-[12px]" />} on={onSubmit} onClick={toSubmit} label="On Submission" />
       </>
     );
 
   const panel =
-    pick?.id === "button" ? (
+    onSubmit ? (
+      <OnSubmissionPanel form={form} apply={apply} types={p.types} routing={p.formRouting} navigate={p.navigate} trial={trial} setTrial={setTrial} />
+    ) : pick?.id === "button" ? (
       <ButtonPanel {...p} />
     ) : picked ? (
       <QuestionPanel key={picked.id} {...p} q={picked} qs={qs} issueCtx={issueCtx} onDuplicate={() => duplicate(picked)} />
@@ -203,40 +214,21 @@ export function Build(p: BuildProps) {
         <div className="flex h-[44px] shrink-0 items-center gap-[6px] overflow-x-auto border-b border-line bg-card px-[12px] [scrollbar-width:none]">
           {stepBar}
           <span className="flex-1" />
-          {isEnd && form.after.schedule?.tool === "claritia" && p.routes.on && p.routes.rows.length ? (
-            <span className="mr-[8px] w-[230px] shrink-0">
-              <Dd
-                sm
-                ariaLabel="Preview as"
-                menuWidth={280}
-                label={
-                  <>
-                    <span className="text-muted">Preview as</span>
-                    <span className="truncate">{p.routes.rows.find((r) => r.id === p.routes.pv)?.name}</span>
-                  </>
-                }
-                items={p.routes.rows.map((r) => ({ kind: "option" as const, key: r.id, label: r.name, hint: r.lead.email, on: r.id === p.routes.pv, onPick: () => (p.routes.setPv(r.id), setPick(null)) }))}
-              />
-            </span>
-          ) : null}
           <span className="max-[860px]:hidden">
             <Seg icons label="Device" value={device} onChange={setDevice} options={[{ value: "desktop", label: <Ic n="monitor" />, title: "Desktop" }, { value: "phone", label: <Ic n="phone" />, title: "Phone" }]} />
           </span>
         </div>
         <div
-          className="flex min-h-0 flex-1 items-start justify-center overflow-y-auto px-[16px] pt-[28px] pb-[140px]"
+          className="flex min-h-0 flex-1 flex-col items-center overflow-y-auto px-[16px] pt-[28px] pb-[140px]"
           onClick={(e) => {
             if (e.target === e.currentTarget && pick) setPick(null);
           }}
         >
+          <KitFont kit={p.kit} />
           <div
-            className={`keep-light flex max-w-full flex-col gap-[2px] rounded-[14px] bg-[var(--b-bg)] font-[family-name:var(--b-font)] text-[length:var(--b-size)] text-[var(--b-ink)] shadow-[0_1px_2px_rgb(0_0_0/0.05),0_0_0_1px_rgb(0_0_0/0.06)] transition-[width] duration-[320ms] ease-out ${device === "phone" ? "w-[375px] p-[22px]" : form.layout.width === "wide" ? "w-[720px] p-[32px]" : "w-[560px] p-[32px]"} max-[860px]:p-[22px]`}
+            className={`keep-light flex max-w-full shrink-0 flex-col gap-[2px] rounded-[14px] bg-[var(--b-bg)] font-[family-name:var(--b-font)] text-[length:var(--b-size)] text-[var(--b-ink)] shadow-[0_1px_2px_rgb(0_0_0/0.05),0_0_0_1px_rgb(0_0_0/0.06)] transition-[width] duration-[320ms] ease-out ${device === "phone" ? "w-[375px] p-[22px]" : form.layout.width === "wide" ? "w-[720px] p-[32px]" : "w-[560px] p-[32px]"} max-[860px]:p-[22px]`}
             style={brandVars(p.kit)}
           >
-            <KitFont kit={p.kit} />
-            {isEnd ? (
-              <EndView {...p} />
-            ) : (
               <>
                 {cur === 0 ? (
                   <>
@@ -279,7 +271,18 @@ export function Build(p: BuildProps) {
                 </button>
                 {cur > 0 ? <div className="mt-[10px] text-center text-[13px] text-[var(--b-muted)]">Back</div> : null}
               </>
-            )}
+          </div>
+          <ArrowDown />
+          <div ref={nodeRef} className="max-w-full shrink-0">
+            <SubmitNode form={form} types={p.types} routing={p.formRouting} trial={trial} picked={onSubmit} onPick={toSubmit} />
+          </div>
+          <ArrowDown />
+          <div
+            onClick={(e) => (e.stopPropagation(), toSubmit())}
+            className="keep-light w-[375px] max-w-full shrink-0 cursor-pointer rounded-[14px] bg-[var(--b-bg)] p-[24px] font-[family-name:var(--b-font)] text-[length:var(--b-size)] text-[var(--b-ink)] shadow-[0_1px_2px_rgb(0_0_0/0.05),0_0_0_1px_rgb(0_0_0/0.06)]"
+            style={brandVars(p.kit)}
+          >
+            <SubmitResult form={form} types={p.types} routing={p.formRouting} trial={trial} />
           </div>
         </div>
         {insert ? <InsertMenu form={form} anchor={insert.el} onClose={() => setInsert(null)} onAdd={(k) => add(k, insert.at)} /> : null}
@@ -542,128 +545,3 @@ function QView({ q, form, picked, fresh, issueCtx, onPick, onDuplicate, onRemove
   );
 }
 
-/** Days and times for the booking view: the next three weekdays, two times each. */
-function sampleTimes(): string[] {
-  const days: string[] = [];
-  const d = new Date();
-  while (days.length < 3) {
-    d.setDate(d.getDate() + 1);
-    if (d.getDay() !== 0 && d.getDay() !== 6) days.push(d.toLocaleDateString("en-US", { weekday: "short" }));
-  }
-  return ["10:00", "14:30", "09:00", "11:30", "15:00", "10:30"].map((t, i) => `${days[Math.floor(i / 2)]} ${t}`);
-}
-
-/** After submit, as the visitor sees it: with Routing live, as the lead of the row picked in "Preview as" sees it. */
-function EndView({ form, types, onSettings, routes }: BuildProps) {
-  const s = form.after.schedule;
-  const end = form.after.end;
-  const tag = (t: string) => (
-    <span className={`${TAG} bg-lilac-wash text-lilac`}>
-      <Ic n="branch" s={10} />
-      {t}
-    </span>
-  );
-  const edit = (
-    <button type="button" className={GHOST_SM} onClick={() => onSettings("after")}>
-      Edit in Settings
-    </button>
-  );
-  const toRouting = (
-    <button type="button" className={GHOST_SM} onClick={routes.open}>
-      Edit in Routing
-    </button>
-  );
-  if (!s && end.kind === "redirect")
-    return (
-      <div className="flex flex-col items-start gap-[12px]">
-        <span className="font-mono text-[10.5px] tracking-[0.06em] text-[var(--b-muted)] uppercase">After submit</span>
-        <h2 className="m-0 text-[19px] font-semibold tracking-[-0.02em]">Goes to a page</h2>
-        <div className="flex h-[40px] w-full items-center rounded-[var(--b-r)] border border-[var(--b-line)] px-[12px] text-[14px]">{end.url}</div>
-        {edit}
-      </div>
-    );
-  const check = (
-    <span className="inline-flex size-[36px] items-center justify-center rounded-full bg-signal-soft text-signal">
-      <Ic n="check" s={18} />
-    </span>
-  );
-  const h2 = (t: string) => <h2 className="m-0 text-[20px] leading-[1.2] font-semibold tracking-[-0.02em]">{t}</h2>;
-  const message = (t: React.ReactNode, after: React.ReactNode) => (
-    <div className="flex flex-col items-start gap-[12px]">
-      {check}
-      {h2(end.kind === "message" ? end.title : "")}
-      {end.kind === "message" && end.text ? <p className="m-0 text-[14px] text-[var(--b-muted)]">{end.text}</p> : null}
-      {t}
-      {after}
-    </div>
-  );
-  if (!s) return message(tag("Everyone sees this"), edit);
-  const times = (
-    <div className="grid w-full grid-cols-3 gap-[6px]">
-      {sampleTimes().map((t) => (
-        <span key={t} className="flex h-[36px] items-center justify-center rounded-full border border-[var(--b-line)] text-[13px]">
-          {t}
-        </span>
-      ))}
-    </div>
-  );
-  const heading = s.heading || "Pick a time";
-  const zone = `Times in your zone, ${zoneName(localZone())}.`;
-  const lede = (t: string) => <p className="m-0 text-[14px] text-[var(--b-muted)]">{t}</p>;
-  if (s.tool !== "claritia") {
-    return (
-      <div className="flex flex-col items-start gap-[12px]">
-        {check}
-        {h2(heading)}
-        {lede("A meeting. Times in their own zone.")}
-        {times}
-        {tag(s.who === "routed" ? "Only for leads Routing sends to a rep. Others see the message" : s.who === "match" ? "Only for leads that match. Others see the message" : "Everyone sees times")}
-        {edit}
-      </div>
-    );
-  }
-  const own = types.find((t) => t.id === s.meetingTypeId);
-  const r = routes.on ? routes.rows.find((x) => x.id === routes.pv) : undefined;
-  // Routing isn't live: everyone books the form's meeting with its hosts.
-  if (!r)
-    return (
-      <div className="flex flex-col items-start gap-[12px]">
-        {check}
-        {h2(`Thanks, Maya. ${heading}.`)}
-        {lede(`${typeLabel(own)}. ${zone}`)}
-        {times}
-        {tag("Times from the meeting's hosts")}
-        {edit}
-      </div>
-    );
-  if (r.held) return message(tag(`${r.name} in Routing`), toRouting);
-  const rep = r.rep?.name ?? "your rep";
-  const meet = r.meet ? types.find((t) => t.id === r.meet) : own;
-  return (
-    <div className="flex flex-col items-start gap-[12px]">
-      {check}
-      {h2(`Thanks, ${r.lead.first}. ${heading} with ${rep.split(" ")[0]}.`)}
-      <div className="flex items-center gap-[10px]">
-        <span aria-hidden="true" className="inline-flex size-[36px] shrink-0 items-center justify-center rounded-full bg-ink text-[12px] font-semibold text-card">
-          {initials(rep)}
-        </span>
-        <span className="flex flex-col leading-[1.3]">
-          <b className="text-[14px] font-semibold">{r.rep?.name ?? "Their rep"}</b>
-          <span className="text-[12.5px] text-[var(--b-muted)]">{typeLabel(meet)}</span>
-        </span>
-      </div>
-      {lede(zone)}
-      {times}
-      {tag(`${r.name} in Routing${r.meet ? "" : ", this form's meeting"}`)}
-      {toRouting}
-    </div>
-  );
-}
-
-const initials = (name: string) =>
-  name
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((w) => w[0]!.toUpperCase())
-    .join("") || "?";
