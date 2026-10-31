@@ -1,6 +1,7 @@
 // Routing › Assignment over the saved router body (src/components/app/routing/assignModel.ts): each rule owns its
-// own queue, the Default rule is the fallback, Round robin is the rules off, a team shared by several rules is shown on
-// each and split only when one of them is changed (an untouched body is never sent again), the four safeguards map
+// team, the Default rule is the fallback, Round robin is the rules off, a team shared by several rules is shown on
+// each and is one shared queue: changing one of them points it at a team with exactly those reps, or one new team,
+// never a private copy per rule (an untouched body is never sent again), the four safeguards map
 // onto the body and the engine honours them, Save saves then publishes (and a failed save publishes nothing), and
 // Test a lead is the real engine through the `test` action, with a flaky facts read shown as an error, never an answer.
 import assert from "node:assert/strict";
@@ -140,7 +141,7 @@ test("is at least: 200 holds for 200 and more, never for a missing size", () => 
   assert.deepEqual(cleanBody({ ...demo() }).rules.list[0]!.conds, [c], "gte survives a save");
 });
 
-test("a team shared by several rules shows on each, and is split only when one of them changes", () => {
+test("a team shared by several rules shows on each; a change points one rule at another team, never a copy of its own", () => {
   const b = shared();
   const before = JSON.stringify(b);
   const v = viewOf(b, BASE_FIELDS);
@@ -157,44 +158,51 @@ test("a team shared by several rules shows on each, and is split only when one o
   assert.equal(setDefaultReps(b, [DAN, SAM]), b);
   assert.equal(changed(b, cleanBody(JSON.parse(before))), false, "an untouched body isn't saved again");
 
-  // Changing one rule's reps gives it its own queue (a copy, keeping weights and settings); the rest stay as they were.
+  // Changing one rule's reps points it at one new team (keeping weights and settings); the rest stay as they were.
   const e = setRuleReps(b, "r_us", [SAM, VIN]);
-  const own = e.queues.find((q) => q.id === "q_r_us")!;
-  assert.deepEqual(own, { id: "q_r_us", name: "US", method: "load", strict: true, hoursOnly: true, members: [{ user: SAM, weight: 1 }, { user: VIN, weight: 1 }] });
-  assert.equal(e.rules.list.find((r) => r.id === "r_us")!.queue, "q_r_us");
+  const own = e.queues.find((q) => q.id === "t_1")!;
+  assert.deepEqual(own, { id: "t_1", name: "Team 1", method: "load", strict: true, hoursOnly: true, members: [{ user: SAM, weight: 1 }, { user: VIN, weight: 1 }] });
+  assert.equal(e.rules.list.find((r) => r.id === "r_us")!.queue, "t_1");
+  assert.ok(!e.queues.some((q) => q.id.startsWith("q_r_")), "no queue per rule");
+  // Another rule given the same reps shares that team's queue instead of making a second one.
+  const both = setRuleReps(e, "r_de", [SAM, VIN]);
+  assert.equal(both.rules.list.find((r) => r.id === "r_de")!.queue, "t_1");
+  assert.equal(both.queues.length, e.queues.length);
   assert.equal(e.rules.list.find((r) => r.id === "r_de")!.queue, "q_sales", "the other rule keeps the team");
   assert.deepEqual(e.queues.find((q) => q.id === "q_sales"), b.queues[0], "the shared team is untouched");
   assert.deepEqual(e.fallback, b.fallback);
   assert.deepEqual(cleanBody(e), e, "the split body is a valid body");
   // The engine follows: a US lead goes to the new reps, a German one to the old team.
   const us = decide(e, facts({ values: { "lead.country": "US" } }));
-  assert.ok(us.result.kind === "owner" && [SAM, VIN].includes(us.result.user) && us.result.queue === "q_r_us");
+  assert.ok(us.result.kind === "owner" && [SAM, VIN].includes(us.result.user) && us.result.queue === "t_1");
   const de = decide(e, facts({ values: { "lead.country": "DE" } }));
   assert.ok(de.result.kind === "owner" && de.result.queue === "q_sales");
 
-  // The method alone splits too; the Default rule splits off the same way.
+  // The method alone moves it to a team with that method too; the Default rule the same way.
   const m = setRuleMethod(b, "r_de", "rr");
-  assert.equal(m.queues.find((q) => q.id === "q_r_de")?.method, "rr");
+  assert.equal(m.queues.find((q) => q.id === "t_1")?.method, "rr");
   assert.equal(m.queues.find((q) => q.id === "q_sales")?.method, "load");
   const d = setDefaultMethod(b, "rr");
-  assert.equal(d.fallback?.kind === "queue" && d.fallback.id, "q_default");
-  assert.deepEqual(d.queues.find((q) => q.id === "q_default")?.members, b.queues[0]!.members, "same reps, own queue");
+  assert.equal(d.fallback?.kind === "queue" && d.fallback.id, "t_1");
+  assert.deepEqual(d.queues.find((q) => q.id === "t_1")?.members, b.queues[0]!.members, "same reps, another team");
   assert.ok(d.rules.list.every((r) => r.queue === "q_sales"));
   // The last one still on the team then changes it in place: no copy is needed.
   const last = setRuleReps(setRuleReps(e, "r_de", [VIN]), "r_de", [VIN, DAN]);
-  assert.equal(last.rules.list.find((r) => r.id === "r_de")!.queue, "q_r_de");
+  assert.equal(last.rules.list.find((r) => r.id === "r_de")!.queue, "t_2");
   const inPlace = setDefaultReps(setRuleReps(e, "r_de", [VIN]), [PRIYA]);
   assert.equal(inPlace.fallback?.kind === "queue" && inPlace.fallback.id, "q_sales", "the fallback is now the only one on the team");
   assert.deepEqual(inPlace.queues.find((q) => q.id === "q_sales")?.members, [{ user: PRIYA, weight: 1 }]);
 });
 
-test("a fallback to one rep, or none, becomes the Default rule's own queue when its reps change", () => {
+test("a fallback to one rep, or none, becomes a team when its reps change", () => {
   const b = { ...demo(), fallback: { kind: "user" as const, id: SAM, meet: INTRO } };
   assert.deepEqual(viewOf(b, BASE_FIELDS).def.reps, [SAM]);
   assert.equal(setDefaultReps(b, [SAM]), b);
   const e = setDefaultReps(b, [SAM, VIN]);
-  assert.deepEqual(e.fallback, { kind: "queue", id: "q_default", meet: INTRO });
-  assert.deepEqual(e.queues.find((q) => q.id === "q_default")?.members, [{ user: SAM, weight: 1 }, { user: VIN, weight: 1 }]);
+  assert.deepEqual(e.fallback, { kind: "queue", id: "q_def", meet: INTRO }, "the team that already has Sam and Vincent");
+  const f = setDefaultReps(b, [SAM, PRIYA]);
+  assert.deepEqual(f.fallback, { kind: "queue", id: "t_1", meet: INTRO });
+  assert.deepEqual(f.queues.find((q) => q.id === "t_1")?.members, [{ user: SAM, weight: 1 }, { user: PRIYA, weight: 1 }]);
   const none = setMeet({ ...demo(), fallback: null }, "default", INTRO);
   assert.equal(none.fallback?.meet, INTRO);
   const same = demo();
@@ -226,7 +234,7 @@ test("a new rule waits for its reps: it can't go live until they're picked, and 
     ["Vincent Nguyen has no calendar connected", "Rule 2 has no reps"],
   );
   const picked = setRuleReps(b, "r_new", [DAN]);
-  assert.equal(picked.rules.list.at(-1)!.queue, "q_r_new");
+  assert.equal(picked.rules.list.at(-1)!.queue, "t_1");
   assert.deepEqual(issuesOf(viewOf(picked, BASE_FIELDS), { calendar: () => true, name }), []);
 });
 
@@ -293,7 +301,7 @@ test("first-time setup: the reps, the mode and the meeting type, the rest of the
   const b = emptyBody();
   const out = setupBody(b, { reps: [DAN, SAM], mode: "rr", meet: INTRO });
   assert.equal(out.rules.on, false);
-  assert.deepEqual(out.fallback, { kind: "queue", id: "q_default", meet: INTRO });
+  assert.deepEqual(out.fallback, { kind: "queue", id: "t_1", meet: INTRO });
   assert.deepEqual(out.queues[0]?.members.map((m) => m.user), [DAN, SAM]);
   assert.deepEqual(out.spam, b.spam);
   assert.deepEqual(cleanBody(out), cleanBody(cleanBody(out)));
@@ -340,7 +348,7 @@ test("Test a lead runs the body on screen through the real engine, writes nothin
   let fail = 1;
   const rpc: Rpc = async (fn) => {
     calls.push(fn);
-    if (fn === "router_facts_full") {
+    if (fn === "routing_facts" || fn === "router_facts_full") {
       if (fail-- > 0) return { data: null, error: { message: "connection reset" } };
       const r = (n: string) => ({ name: n, member: true, tz: "UTC", availability: null, paused_until: null, out_dates: [], calendar_out_until: null, backup: null, cap_day: null, cap_week: null, today: 0, week: 0, meetings_week: 0 });
       return {
@@ -376,6 +384,6 @@ test("Test a lead runs the body on screen through the real engine, writes nothin
   assert.deepEqual(out.draft?.result, { kind: "owner", user: PRIYA, by: "queue", queue: "q_ent", rule: "r1" }, "the unsaved edit decides");
   assert.equal(hitOf(out.draft as never), "r1");
   assert.deepEqual(testResult({ ok: true, out }), { out: out.draft, error: "" });
-  assert.ok(!calls.some((f) => f === "router_commit" || f === "enqueue_job" || f === "router_draft_save" || f === "router_publish"), "testing writes nothing");
+  assert.ok(!calls.some((f) => f === "router_commit" || f === "routing_commit" || f === "enqueue_job" || f === "router_draft_save" || f === "router_publish"), "testing writes nothing");
   assert.deepEqual(testResult({ ok: true, out: { draft: null } }), { out: null, error: "Couldn't test this lead." }, "no lead found is an error too");
 });

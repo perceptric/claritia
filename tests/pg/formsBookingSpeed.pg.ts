@@ -182,11 +182,11 @@ test("routing slower than its budget goes to the job; the inline run finishing l
   const calls: string[] = [];
   const sLate = randomUUID();
   // The facts take 250 ms, past a 100 ms budget: the job is queued, and the inline run reaches its gate after.
-  const r = await routeFillWith(slow("router_facts_full", 250, calls), ws, c, sLate, { budgetMs: 100 });
+  const r = await routeFillWith(slow("routing_facts", 250, calls), ws, c, sLate, { budgetMs: 100 });
   assert.equal(r.routed, null);
   assert.equal(await count(`select count(*)::int n from jobs where kind = 'route' and key = 'form:${sLate}'`, []), 1, "the job has it");
   await sleep(400);
-  assert.ok(!calls.includes("router_commit"), "the late inline run stopped at its gate");
+  assert.ok(!calls.includes("routing_commit") && !calls.includes("router_commit"), "the late inline run stopped at its gate");
   assert.equal(await count(`select count(*)::int n from router_runs where workspace_id = $1`, [ws]), 0);
   // The job runs (twice, as a retry would): one run, one owner.
   for (let i = 0; i < 2; i++) await route(rpc, { ws, contact: c, key: `form:${sLate}`, reason: "form" });
@@ -203,13 +203,13 @@ test("a commit under way at the deadline finishes inline and no job is queued; o
   const c1 = await lead("c1@client.io");
   const [sCommit, sGrace] = [randomUUID(), randomUUID()];
   // The commit takes 200 ms; the budget is 100 ms: it had claimed the lead, so it finishes.
-  const r = await routeFillWith(slow("router_commit", 200), ws, c1, sCommit, { budgetMs: 100 });
+  const r = await routeFillWith(slow("routing_commit", 200), ws, c1, sCommit, { budgetMs: 100 });
   assert.equal(r.routed?.kind, "owner");
   assert.equal(await count(`select count(*)::int n from jobs where kind = 'route' and key = 'form:${sCommit}'`, []), 0, "no job: the inline run owned it");
   assert.equal(await count(`select count(*)::int n from router_runs where key = 'form:${sCommit}'`, []), 1);
   // The commit takes 300 ms with only 50 ms of grace: the job is queued too, and finds the run already written.
   const c2 = await lead("c2@client.io");
-  const late = await routeFillWith(slow("router_commit", 300), ws, c2, sGrace, { budgetMs: 50, graceMs: 50 });
+  const late = await routeFillWith(slow("routing_commit", 300), ws, c2, sGrace, { budgetMs: 50, graceMs: 50 });
   assert.equal(late.routed, null);
   assert.equal(await count(`select count(*)::int n from jobs where kind = 'route' and key = 'form:${sGrace}'`, []), 1);
   await sleep(400);
@@ -231,7 +231,7 @@ test("a router whose rules test qualify: the send never waits on it; the job rou
   const r = await routeFillWith(slow("none", 0, calls), ws, c, sQ);
   assert.equal(r.routed, null);
   assert.ok(Date.now() - t0 < 300);
-  assert.ok(!calls.includes("router_facts_full") && !calls.some((x) => x.startsWith("qualify")));
+  assert.ok(!calls.includes("routing_facts") && !calls.includes("router_facts_full") && !calls.some((x) => x.startsWith("qualify")));
   assert.equal(await count(`select count(*)::int n from jobs where kind = 'route' and key = 'form:${sQ}'`, []), 1);
 });
 

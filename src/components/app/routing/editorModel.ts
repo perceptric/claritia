@@ -260,6 +260,13 @@ export function pathOf(lines: Line[] | null | undefined): { marks: Partial<Recor
       continue;
     }
     if (l.step === "hand" || l.step === "sla") continue;
+    // v2 lines map onto the flow's cards: checks onto the filter, owners onto the account card, the backup onto the fallback.
+    if (l.step === "check" || l.step === "owners" || l.step === "backup") {
+      const card: FlowStep = l.step === "check" ? "spam" : l.step === "owners" ? "account" : "fallback";
+      marks[card] = l.mark;
+      reached.add(card);
+      continue;
+    }
     marks[l.step] = l.mark;
     reached.add(l.step);
     if (l.step === "rules" && l.mark === "ok") {

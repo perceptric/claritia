@@ -201,17 +201,26 @@ test("a held lead sees the message, never times", async () => {
   assert.equal((await q(`select booking_shown_at from submissions where id = $1`, [b.id]))[0].booking_shown_at, null);
 });
 
-test("routing too slow to answer: times from the meeting type's own hosts, and a job routes the lead", async () => {
+test("routing too slow to answer: the details are saved, the form waits, and the same request again shows the committed owner's times", async () => {
   const s = await setup();
   const slow: Rpc = async (fn, args) => {
-    if (fn === "router_facts_full" || fn === "router_facts") await new Promise((r) => setTimeout(r, 2600));
+    if (fn === "routing_facts" || fn === "router_facts_full" || fn === "router_facts") await new Promise((r) => setTimeout(r, 2600));
     return rpc(fn, args);
   };
-  const b = await fill(s.form, 800, { rpc: slow });
-  assert.ok(b.booking?.slots.includes(TEN), "the team's times, 10:00 included");
-  const c = claimOf(b.booking!);
-  assert.ok(!c.only, "not tied to one rep");
-  assert.equal((await q(`select count(*)::int n from jobs where workspace_id = $1 and kind = 'route'`, [s.ws]))[0].n, 1);
+  const raw = { v: 1, version: s.form.version, key: `k${randomUUID().replace(/-/g, "")}`.slice(0, 32), answers: { em: `slow-${randomUUID().slice(0, 6)}@globex.com`, fn: "Maya", size: 800 }, ms: 5000, trap: "" };
+  const first = await acceptFill(slow, s.form, raw, await ctxFor(pool, s.form.workspace_id), { secret: SECRET, now: NOW });
+  assert.equal(first.status, 200);
+  assert.deepEqual([first.body.pending, first.body.message, first.body.booking], [true, "Your details are saved. We're finishing your request.", undefined], "never another host's times");
+  assert.equal((await q(`select count(*)::int n from submissions where id = $1`, [first.body.id]))[0].n, 1, "the fill is saved first");
+  assert.equal((await q(`select count(*)::int n from jobs where workspace_id = $1 and kind = 'route'`, [s.ws]))[0].n, 1, "a job routes it");
+  // The browser sends the same request again (same key): the same submission, the committed owner's times.
+  const again = await acceptFill(rpc, s.form, raw, await ctxFor(pool, s.form.workspace_id), { secret: SECRET, now: NOW });
+  assert.equal(again.body.id, first.body.id);
+  const c = claimOf(again.body.booking as Booking);
+  const owner = (await q(`select c.owner_user_id from submissions x join contacts c on c.id = x.contact_id where x.id = $1`, [first.body.id]))[0].owner_user_id;
+  assert.deepEqual([c.owner, c.only], [owner, true]);
+  await new Promise((r) => setTimeout(r, 2800));
+  assert.equal((await q(`select count(*)::int n from router_runs where workspace_id = $1`, [s.ws]))[0].n, 1, "one routing run for the one request");
 });
 
 test("Routing paused: everyone books the form's meeting with its hosts", async () => {

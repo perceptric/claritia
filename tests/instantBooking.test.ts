@@ -8,6 +8,7 @@ import { BOOK_TTL, readBooking, signBooking, type Claim } from "../src/lib/forms
 import { byDay, dayKey, sampleSlots, zoneName, zones } from "../src/lib/forms/calendar.ts";
 import { linkProblem, outside } from "../src/lib/forms/schedule.ts";
 import { checkForm, emptyForm, type Form } from "../src/lib/forms/schema.ts";
+import { resetNewer } from "../src/lib/forms/newer.ts";
 import { acceptFill, type PublicForm } from "../src/lib/forms/submit.ts";
 import type { Rpc } from "../src/lib/jobs.ts";
 import { at } from "../src/lib/meetings/time.ts";
@@ -113,8 +114,9 @@ function demo(schedule: Record<string, unknown>): Form {
 }
 
 function db(o: { slots?: boolean; ctxFails?: boolean } = {}) {
-  // Each case reads the router afresh.
+  // Each case reads the router afresh, on a database that may or may not have the newer functions.
   invalidateRouterLive();
+  resetNewer();
   const calls: string[] = [];
   const rpc: Rpc = async (fn) => {
     calls.push(fn);
@@ -143,8 +145,9 @@ function db(o: { slots?: boolean; ctxFails?: boolean } = {}) {
       return { data: [{ id: HOST, availability: o.slots === false ? null : a, connected: true, reconnect: false, busy: [], booked: [] }], error: null };
     }
     if (fn === "form_booking_shown") return { data: new Date().toISOString(), error: null };
-    // No router set up: the fill isn't routed.
+    // No router set up: the fill isn't routed (a database before 095 has no connections).
     if (fn === "router_live") return { data: null, error: null };
+    if (fn === "routing_source_resolve") return { data: null, error: { message: `Could not find the function public.${fn}` } };
     return { data: null, error: { message: `unexpected ${fn}` } };
   };
   return { rpc, calls };
@@ -164,11 +167,11 @@ test("a lead who matches gets times, the host and a token for this fill; one who
   assert.deepEqual(b.host, { name: "Sam Lee" }, "a photo that isn't https is left out");
   assert.deepEqual(readBooking(b.token, SECRET), { ...(readBooking(b.token, SECRET) as Claim), submission: SID, type: TYPE, owner: OWNER });
   assert.equal(r.body.schedule, null);
-  assert.deepEqual(yes.calls, ["form_submit_all", "router_live", "form_booking_ctx", "meeting_inputs", "form_booking_shown"]);
+  assert.deepEqual(yes.calls, ["form_submit_all", "routing_source_resolve", "router_live", "form_booking_ctx", "meeting_inputs", "form_booking_shown"]);
   const no = db();
   const m = await send(no.rpc, demo({ who: "match", rules: [{ field: "size", op: "gte", value: "50" }] }), { em: "ana@acme.com", size: "5" });
   assert.equal(m.body.booking, undefined);
-  assert.deepEqual(no.calls, ["form_submit_all", "router_live"], "nothing read for a lead who doesn't match");
+  assert.deepEqual(no.calls, ["form_submit_all", "routing_source_resolve", "router_live"], "nothing read for a lead who doesn't match");
   const skipped = db();
   assert.equal((await send(skipped.rpc, demo({ who: "match", rules: [{ field: "size", op: "gte", value: "50" }] }), { em: "ana@acme.com" })).body.booking, undefined);
 });
@@ -185,7 +188,7 @@ test("no times, a failing read or no secret: the fill is kept and the lead gets 
   const unsigned = db();
   const u = await send(unsigned.rpc, demo({}), { em: "ana@acme.com" }, "");
   assert.deepEqual([u.status, u.body.booking], [200, undefined]);
-  assert.deepEqual(unsigned.calls, ["form_submit_all", "router_live"]);
+  assert.deepEqual(unsigned.calls, ["form_submit_all", "routing_source_resolve", "router_live"]);
 });
 
 // Booking by routing rule (docs/form-builder.md 8): the form books only leads routed by the picked rules.

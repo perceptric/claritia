@@ -3,7 +3,7 @@
 // live, each tied to the card it belongs to. Both run in the browser and on the server.
 
 import { BASE_FIELDS, needsValue, opsFor, type FieldDef } from "./conditions.ts";
-import { defaultSla, emptyBody, METHODS, OPS, type Cond, type Member, type Queue, type Rule, type RouterBody, type Segment, type Sla, type Territory, type WhenOut } from "./types.ts";
+import { defaultSla, emptyBody, METHODS, OPS, type Backup, type Cond, type Member, type OwnerKind, type Queue, type Rule, type RouterBody, type Scope, type Segment, type Sla, type Territory, type WhenOut } from "./types.ts";
 
 const ID = /^[a-z0-9_-]{1,40}$/i;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
@@ -79,9 +79,26 @@ export function cleanSla(raw: unknown): Sla {
   return { on: b(r.on, false), minutes, nudge, next, manager: UUID.test(manager) ? manager : null };
 }
 
+const uuids = (v: unknown, max: number) => [...new Set(arr(v).filter((x): x is string => typeof x === "string" && UUID.test(x)))].slice(0, max);
+
+function cleanScope(raw: unknown): Scope {
+  const r = obj(raw);
+  return { everyone: b(r.everyone, false), people: uuids(r.people, 200), teams: [...new Set(arr(r.teams).filter((x): x is string => typeof x === "string" && ID.test(x)))].slice(0, 50) };
+}
+
+function cleanBackup(raw: unknown): Backup {
+  const r = obj(raw);
+  const id = s(r.id, 40);
+  if (r.kind === "user" && UUID.test(id)) return { kind: "user", id };
+  if (r.kind === "queue" && ID.test(id)) return { kind: "queue", id };
+  if (r.kind === "default") return { kind: "default" };
+  return { kind: "review" };
+}
+
 /** Any input to a valid body. Unknown parts are dropped; numbers are kept in range. */
 export function cleanBody(raw: unknown): RouterBody {
   const r = obj(raw);
+  const v2 = r.v === 2;
   const d = emptyBody();
   const spam = obj(r.spam);
   const account = obj(r.account);
@@ -106,7 +123,8 @@ export function cleanBody(raw: unknown): RouterBody {
       conds: arr(o.conds).map(cleanCond).filter((c): c is Cond => !!c).slice(0, 30),
       queue: s(o.queue, 40),
       ...(o.on === false ? { on: false } : {}),
-      ...(o.then === "owner" || o.then === "hold" ? { then: o.then } : {}),
+      ...(o.then === "owner" || o.then === "hold" || (o.then === "user" && v2) ? { then: o.then } : {}),
+      ...(o.then === "user" && v2 && UUID.test(s(o.user, 36)) ? { user: s(o.user, 36) } : {}),
       ...(o.then !== "hold" && UUID.test(s(o.meet, 36)) ? { meet: s(o.meet, 36) } : {}),
     });
   }
@@ -114,10 +132,15 @@ export function cleanBody(raw: unknown): RouterBody {
   const fbId = s(fb.id, 40);
   const fbMeet = UUID.test(s(fb.meet, 36)) ? { meet: s(fb.meet, 36) } : {};
   const fallback =
-    fb.kind === "user" && UUID.test(fbId) ? ({ kind: "user", id: fbId, ...fbMeet } as const) : fb.kind === "queue" && qids.has(fbId) ? ({ kind: "queue", id: fbId, ...fbMeet } as const) : null;
+    fb.kind === "user" && UUID.test(fbId)
+      ? ({ kind: "user", id: fbId, ...fbMeet } as const)
+      : fb.kind === "queue" && (qids.has(fbId) || (v2 && ID.test(fbId)))
+        ? ({ kind: "queue", id: fbId, ...fbMeet } as const)
+        : null;
+  const own = obj(r.ownership);
   const max = typeof spam.maxPerHour === "number" ? Math.round(spam.maxPerHour) : d.spam.maxPerHour;
   return {
-    v: 1,
+    v: v2 ? 2 : 1,
     spam: {
       on: b(spam.on, d.spam.on),
       disposable: b(spam.disposable, d.spam.disposable),
@@ -139,6 +162,18 @@ export function cleanBody(raw: unknown): RouterBody {
     sla: r.sla === undefined ? defaultSla() : cleanSla(r.sla),
     // Only a body that has it keeps it, so older versions come back exactly as they were saved.
     ...(r.notify !== undefined ? { notify: { noTimes: b(obj(r.notify).noTimes, false) } } : {}),
+    // Policy settings (v2, and kept on any body that has them).
+    ...(r.scope !== undefined || v2 ? { scope: r.scope === undefined ? { everyone: false, people: [], teams: [] } : cleanScope(r.scope) } : {}),
+    ...(r.ownership !== undefined || v2
+      ? {
+          ownership: {
+            order: r.ownership === undefined ? (["company", "contact"] as OwnerKind[]) : [...new Set(arr(own.order).filter((x): x is OwnerKind => x === "company" || x === "contact"))],
+            capBlocksNew: b(own.capBlocksNew, true),
+          },
+        }
+      : {}),
+    ...(r.backup !== undefined || v2 ? { backup: cleanBackup(r.backup) } : {}),
+    ...(r.review !== undefined || v2 ? { review: { owner: UUID.test(s(obj(r.review).owner, 36)) ? s(obj(r.review).owner, 36) : null } } : {}),
   };
 }
 
