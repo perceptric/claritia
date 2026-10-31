@@ -1,7 +1,7 @@
 // Merge fields in an email: {{first_name|there}}. Unknown keys and blanks take the fallback. Kept apart from the
 // engine (which needs node:crypto) so the browser can use it.
 
-export const MERGE_KEYS = ["first_name", "last_name", "company", "title"] as const;
+export const MERGE_KEYS = ["first_name", "last_name", "company", "title", "meeting_time", "meeting_link", "reschedule_link"] as const;
 export const MERGE = /\{\{\s*([a-z_]+)\s*(?:\|([^}]*))?\}\}/g;
 
 export function fillMerge(text: string, vars: Record<string, string | null | undefined>): string {

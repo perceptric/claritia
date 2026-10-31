@@ -66,7 +66,7 @@ const handlers = {
   enrich_contact: enrichContactJob(rpc, { keys: keysFromEnv() }),
   enrich_backfill: enrichBackfill(rpc),
   qualify: qualifyJob(rpc),
-  workflow_run: workflowRun(rpc, { keys: keysFromEnv(), secret: process.env.SECRETS_KEY }),
+  workflow_run: workflowRun(rpc, { keys: keysFromEnv(), secret: process.env.SECRETS_KEY, base: linkBase() }),
   score_account: scoreAccount(pool),
   account_alert: accountAlert(pool),
   import_file: importFile(pool, rpc),

@@ -1,19 +1,18 @@
 "use client";
 
-// Calendar › Settings (docs/scheduling-plan.md Part 11): the things set once, out of the way. Reminders, Payments and
-// Webhooks as a list on the left; the open one on the right, the same screens they were as tabs.
+// Calendar › Settings (docs/scheduling-plan.md Part 11): the things set once, out of the way. Payments and Webhooks as
+// a list on the left; the open one on the right. Reminders are a workflow now (docs/workflows.md).
 
 import { CALENDAR_SETTINGS, type CalendarSettingsKey } from "@/lib/nav";
-import { Bell, Card, Webhook } from "../../Icons";
+import { Card, Webhook } from "../../Icons";
 import { Inset, Page, type ViewProps } from "../ui";
 import { Payments } from "../meetings/Payments";
-import { RemindersPage } from "./RemindersPage";
 import { WebhooksPage } from "./WebhooksPage";
 
-const ICONS: Record<CalendarSettingsKey, React.ReactNode> = { reminders: <Bell size={14} />, payments: <Card size={14} />, webhooks: <Webhook size={14} /> };
+const ICONS: Record<CalendarSettingsKey, React.ReactNode> = { payments: <Card size={14} />, webhooks: <Webhook size={14} /> };
 
 export function SettingsPage(props: ViewProps & { sub: string }) {
-  const sub = (CALENDAR_SETTINGS.find((s) => s.value === props.sub)?.value ?? "reminders") as CalendarSettingsKey;
+  const sub = (CALENDAR_SETTINGS.find((s) => s.value === props.sub)?.value ?? "payments") as CalendarSettingsKey;
   return (
     <Page title="Settings" flush>
       <div className="grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)] md:grid-cols-[200px_minmax(0,1fr)] md:grid-rows-1">
@@ -33,9 +32,7 @@ export function SettingsPage(props: ViewProps & { sub: string }) {
         </nav>
         <div className="min-h-0 min-w-0">
           <Inset>
-            {sub === "reminders" ? (
-              <RemindersPage {...props} />
-            ) : sub === "webhooks" ? (
+            {sub === "webhooks" ? (
               <WebhooksPage {...props} />
             ) : (
               <Page title="Payments">

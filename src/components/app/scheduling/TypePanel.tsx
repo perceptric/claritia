@@ -19,9 +19,9 @@ import { MoreMenu } from "../StatCards";
 import { Badge, Button, ErrorNote, errorText, IconButton, Input, Segmented, setLeaveGuard, Toggle, type ViewProps } from "../ui";
 import { slugify } from "../meetings/model";
 import { copyText, meetingsApi, PersonAvatar, type Person } from "../meetings/parts";
-import { CURRENCIES, draftOf, Questions, Reminders, type Draft } from "../meetings/TypeEditor";
+import { CURRENCIES, draftOf, Questions, type Draft } from "../meetings/TypeEditor";
 import type { TypeRow } from "../meetings/TypesList";
-import { confirmationWords, KIND_WORDS, lengthWords, limitsWords, nextOff, offWords, PLACE_WORDS, priceWords, questionsWords, remindersWords, teamOf, weeklyWords } from "./model";
+import { confirmationWords, KIND_WORDS, lengthWords, limitsWords, nextOff, offWords, PLACE_WORDS, priceWords, questionsWords, teamOf, weeklyWords } from "./model";
 import { Chip, Eyebrow, Labeled, PanelFooter, PanelSection, TextLink } from "./panel";
 import type { Dest, Dynamic } from "@/lib/routing/compile";
 import { blankCond, ConditionRows, newRowId, usable } from "../forms/ConditionRows";
@@ -493,17 +493,16 @@ export function TypePanel({
           ) : null}
         </PanelSection>
 
-        <PanelSection icon={<Bell />} title="Notifications" summary={remindersWords(s.reminders)} open={open === "notify"} onToggle={() => toggle("notify")} locked={isLocked("reminders")}>
+        <PanelSection icon={<Bell />} title="Notifications" summary={s.noShowFollowUp !== false ? "Confirmation, no-show follow-up" : "Confirmation"} open={open === "notify"} onToggle={() => toggle("notify")} locked={isLocked("noShowFollowUp")}>
           <span className="flex items-center gap-2 text-[12.5px] text-ink">
             <Check size={13} className="text-muted" />
             Confirmation email
           </span>
-          <Reminders value={s.reminders} disabled={isLocked("reminders")} onChange={(v) => setS("reminders", v)} />
           <span className="flex items-center gap-2.5 text-[12.5px] text-ink">
             <Toggle label="No-show follow-up" on={s.noShowFollowUp !== false} disabled={isLocked("noShowFollowUp")} onChange={(v) => setS("noShowFollowUp", v)} />
             No-show follow-up
           </span>
-          <TextLink onClick={() => navigate("scheduling", "settings/reminders")}>Edit reminders</TextLink>
+          <TextLink onClick={() => navigate("workflows")}>Reminders</TextLink>
         </PanelSection>
 
         <PanelSection icon={<Check />} title="Confirmation page" summary={confirmationWords(s.confirmation)} open={open === "confirm"} onToggle={() => toggle("confirm")} locked={isLocked("confirmation")}>

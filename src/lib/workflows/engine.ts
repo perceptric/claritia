@@ -52,6 +52,40 @@ export function waitUntil(s: Extract<Step, { kind: "wait" }>, from: number, tz: 
   return base;
 }
 
+/** How long before the meeting a "before the meeting" Wait ends. */
+export const beforeMs = (s: Pick<Extract<Step, { kind: "wait" }>, "days" | "hours">) => (Math.max(0, s.days) * 24 + Math.max(0, s.hours)) * 3_600_000;
+
+/** A reminder due less than this long ago still goes (a worker a few minutes behind); later than this, it's skipped. */
+export const REMINDER_GRACE_MS = 30 * 60_000;
+
+/**
+ * The meeting a "before the meeting" Wait counts back from: the contact's soonest booked meeting still ahead, of the
+ * trigger's meeting types when it names some. Null when there's none (canceled, or never booked).
+ */
+export function meetingFor<M extends { start_at: string; type_id: string | null }>(meetings: M[], trigger: Body["trigger"], now: number): M | null {
+  const types = trigger.kind === "meeting" && trigger.types.length ? new Set(trigger.types) : null;
+  return meetings.filter((m) => Date.parse(m.start_at) > now && (!types || (m.type_id !== null && types.has(m.type_id)))).sort((a, b) => Date.parse(a.start_at) - Date.parse(b.start_at))[0] ?? null;
+}
+
+/**
+ * Where a reminder too late to send goes: the next "before the meeting" Wait in the same flow (the next reminder),
+ * skipping the steps between; null when there's none, and the run ends.
+ */
+export function nextReminder(steps: Step[], id: string): string | null {
+  for (let at = nextAfter(steps, id), guard = 0; at && guard < 200; at = nextAfter(steps, at), guard++) {
+    const s = find(steps, at)?.step;
+    if (s?.kind === "wait" && s.before === "meeting") return s.id;
+  }
+  return null;
+}
+
+/** What a "before the meeting" Wait does now: park until `at`, go on, or skip a reminder that's too late. */
+export function reminderMove(s: Extract<Step, { kind: "wait" }>, start: number, now: number): { kind: "park"; at: number } | { kind: "go" } | { kind: "late" } {
+  const due = start - beforeMs(s);
+  if (due > now) return { kind: "park", at: due };
+  return now - due <= REMINDER_GRACE_MS ? { kind: "go" } : { kind: "late" };
+}
+
 export function goalMet(goals: Goal[], f: Pick<Facts, "booked" | "lifecycle" | "outcome">): Goal | null {
   for (const g of goals) {
     if (g.kind === "meeting_booked" && f.booked) return g;

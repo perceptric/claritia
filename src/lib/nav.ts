@@ -42,28 +42,29 @@ export type NavItem = {
 const item = (group: GroupKey, route: Route, label: string): NavItem => ({ key: route, route, page: "", label, group });
 
 /**
- * Inbound is set up the way a sales team works (docs/unify-plan.md): Forms (each form's Routing picks the meeting),
- * Meetings (a Dynamic meeting picks the rep; Availability holds hours, teams and who's away; docs/on-submission.md),
- * and Scoring. Routing has no item of its own: its old addresses open where its parts went (resolveRoute).
+ * Inbound is set up the way a sales team works (docs/unify-plan.md): Forms (each form's Routing picks the meeting) and
+ * Meetings (a Dynamic meeting picks the rep; Availability holds hours, teams and who's away; docs/on-submission.md).
+ * Nurture is Workflows (folders of workflows, reminders included; docs/workflows.md), Segments and Scoring. Routing
+ * has no item of its own: its old addresses open where its parts went (resolveRoute).
  */
 export const NAV: NavItem[] = [
   item("inbound", "forms", "Forms"),
   item("inbound", "scheduling", "Meetings"),
-  item("inbound", "scoring", "Scoring"),
   item("crm", "contacts", "Contacts"),
   item("crm", "companies", "Companies"),
   item("crm", "opportunities", "Opportunities"),
-  item("nurture", "emails", "Emails"),
+  item("nurture", "workflows", "Workflows"),
   item("nurture", "segments", "Segments"),
+  item("nurture", "scoring", "Scoring"),
   item("settings", "settings", "Settings"),
 ];
 
-const ROUTES = new Set<string>([...NAV.map((n) => n.route), "meetings", "routing", "objects", "enrichment", "workflows"]);
+const ROUTES = new Set<string>([...NAV.map((n) => n.route), "meetings", "routing", "objects", "enrichment"]);
 
 export const defaultRoute: Route = "forms";
 
 /** The sidebar item an address belongs to: each route has one. A new workflow is made under Emails; one meeting's page under Meetings. */
-export const activeItem = (route: Route): NavItem | null => NAV.find((n) => n.route === (route === "workflows" ? "emails" : route === "meetings" || route === "routing" ? "scheduling" : route)) ?? null;
+export const activeItem = (route: Route): NavItem | null => NAV.find((n) => n.route === (route === "emails" ? "workflows" : route === "meetings" || route === "routing" ? "scheduling" : route)) ?? null;
 
 /**
  * Routing's amber dot: the default policy has something to fix (a rep who gets leads has no calendar, or a rule's
@@ -167,9 +168,9 @@ export const SCHEDULING_TABS: (Tab<SchedulingPageKey> & { icon: SchedulingTabIco
 ];
 
 /** Meetings › Settings: the things set once, listed on the left. */
-export type CalendarSettingsKey = "reminders" | "payments" | "webhooks";
+/** Meetings › Settings. Reminders moved to Workflows (docs/workflows.md); their old addresses open there. */
+export type CalendarSettingsKey = "payments" | "webhooks";
 export const CALENDAR_SETTINGS: Tab<CalendarSettingsKey>[] = [
-  { value: "reminders", label: "Reminders" },
   { value: "payments", label: "Payments" },
   { value: "webhooks", label: "Webhooks" },
 ];
@@ -194,7 +195,7 @@ export function schedulingPage(id: string): { page: SchedulingPageKey; sub: stri
     const tab = (["calendars", "team", "days-off"] as string[]).includes(b) ? b : "";
     return { page: "availability", sub: tab, id: tab ? `availability/${tab}` : "availability" };
   }
-  if (a === "settings") return SETTINGS_KEYS.has(b) ? { page: "settings", sub: b, id: `settings/${b}` } : { page: "settings", sub: "reminders", id: "settings" };
+  if (a === "settings") return SETTINGS_KEYS.has(b) ? { page: "settings", sub: b, id: `settings/${b}` } : { page: "settings", sub: "payments", id: "settings" };
   if (SETTINGS_KEYS.has(a)) return { page: "settings", sub: a, id: `settings/${a}` };
   if (a === "booking" || a === "links" || a === "upcoming") return { page: a, sub: "", id: a };
   return { page: "types", sub: "", id: "types" };
@@ -202,26 +203,6 @@ export function schedulingPage(id: string): { page: SchedulingPageKey; sub: stri
 
 /** Availability's view from its address part ("" is Schedules). */
 export const availabilityPage = (sub: string): AvailabilityTab => (sub === "calendars" || sub === "team" || sub === "days-off" ? sub : "schedules");
-
-export type EmailsTab = "journeys" | "emails" | "library" | "brand";
-export const EMAILS_TABS: Tab<EmailsTab>[] = [
-  { value: "journeys", label: "Journeys" },
-  { value: "emails", label: "Emails" },
-  { value: "library", label: "Library" },
-  { value: "brand", label: "Brand" },
-];
-
-/**
- * Emails' tabs (docs/email-plan.md Part 8): Journeys ("", one open as "journeys/<id>"), every email sent ("emails"),
- * the Library ("library") and Brand ("brand"). The old Templates tab ("templates") opens the Library.
- */
-export function emailsPage(id: string): { tab: EmailsTab; sub: string; id: string } {
-  const [a = "", b = ""] = id.split("/");
-  if (a === "emails" || a === "brand") return { tab: a, sub: "", id: a };
-  if (a === "library" || a === "templates") return { tab: "library", sub: "", id: "library" };
-  if (a === "journeys" && UUID.test(b)) return { tab: "journeys", sub: b, id: `journeys/${b}` };
-  return { tab: "journeys", sub: "", id: "" };
-}
 
 export type ScoringTab = "model" | "leads" | "ideal";
 export const SCORING_TABS: Tab<ScoringTab>[] = [
@@ -246,10 +227,10 @@ const MOVED: Record<string, { route: Route; id?: string; keepId?: boolean }> = {
   leads: { route: "contacts", keepId: true },
   people: { route: "contacts" },
   accounts: { route: "companies", id: "account", keepId: true },
-  journeys: { route: "emails" },
-  nurture: { route: "emails" },
-  templates: { route: "emails", id: "templates" },
-  analytics: { route: "emails" },
+  journeys: { route: "workflows" },
+  nurture: { route: "workflows" },
+  templates: { route: "workflows" },
+  analytics: { route: "workflows" },
 };
 
 
@@ -259,7 +240,7 @@ const REPORTS: Record<string, { route: Route; id: string }> = {
   reps: { route: "contacts", id: "overview" },
   speed: { route: "scheduling", id: "upcoming" },
   forms: { route: "forms", id: "" },
-  email: { route: "emails", id: "" },
+  email: { route: "workflows", id: "" },
 };
 
 /** Settings and Scheduling pages that moved. */
@@ -294,9 +275,13 @@ export function resolveRoute(first: string, id: string): { route: Route; id: str
   if (first === "routing" && routingPage(id).page === "" && !routingPage(id).sub) return { route: "scheduling", id: "types" };
   if (first === "companies" && a === "visits") return { route: "companies", id: "" };
   if (first === "settings" && SETTINGS_MOVED[a]) return SETTINGS_MOVED[a];
+  // Meeting reminders are a workflow now.
+  if (first === "scheduling" && (a === "reminders" || (a === "settings" && rest[0] === "reminders"))) return { route: "workflows", id: "" };
   if (first === "reports") return REPORTS[a] ?? REPORTS[""]!;
-  // Workflows live in Emails › Journeys (docs/email-plan.md Part 8); only a new one keeps its own screen.
-  if (first === "workflows" && a !== "new") return { route: "emails", id: UUID.test(a) ? `journeys/${a}` : "" };
+  // Emails became Workflows: folders of workflows, one open beside them (/workflows/<id>); /workflows/new picks a
+  // template. Emails' old addresses open there.
+  if (first === "workflows") return { route: "workflows", id: a === "new" || UUID.test(a) ? a : "" };
+  if (first === "emails") return { route: "workflows", id: a === "journeys" && UUID.test(rest[0] ?? "") ? rest[0]! : "" };
   if (ROUTES.has(first)) return { route: first as Route, id };
   const m = MOVED[first];
   if (!m) return { route: defaultRoute, id: "" };

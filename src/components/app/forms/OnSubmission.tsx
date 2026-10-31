@@ -17,6 +17,7 @@ import { emptyBody, type Cond } from "@/lib/router/types";
 import { compileRouting, isDynamic, traceLead, type Dest, type FormRoute } from "@/lib/routing/compile";
 import { fieldOf } from "@/lib/routing/screenModel";
 import { Badge, ErrorNote, type ViewProps } from "../ui";
+import { KindTip } from "../meetings/KindTip";
 import type { TypeRow } from "../meetings/TypesList";
 import { blankCond, condWords, ConditionRows, newRowId, usable, ValueInput } from "./ConditionRows";
 import type { RoutingFacts } from "./formRouting";
@@ -348,7 +349,11 @@ function Booking(p: PanelProps & { message: React.ReactNode }) {
       <div className="flex items-center gap-[8px] pl-[35px] max-[480px]:pl-0">
         <Arrow className={hit ? "text-signal" : "text-ink"} />
         <Dd sm ariaLabel="Meeting" label={t ? t.name : <span className="text-faint">Pick a meeting</span>} items={items(cur, onPick)} menuWidth={260} />
-        {t ? <Badge>{meetingSub(t, facts)}</Badge> : null}
+        {t ? (
+          <KindTip kind={isDynamic(t) ? "dynamic" : "individual"}>
+            <Badge>{meetingSub(t, facts)}</Badge>
+          </KindTip>
+        ) : null}
         {t ? (
           <button type="button" className={IB_SM} title="Open in Meetings" aria-label="Open in Meetings" onClick={() => navigate("scheduling", `types/${t.id}`)}>
             <Ic n="ext" />

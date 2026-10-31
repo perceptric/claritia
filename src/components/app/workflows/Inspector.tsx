@@ -538,6 +538,14 @@ export function StepPanel(p: {
 
       {s.kind === "wait" ? (
         <>
+          <Segmented
+            value={s.before === "meeting" ? "meeting" : "after"}
+            options={[
+              { value: "after", label: "After the step before" },
+              { value: "meeting", label: "Before the meeting" },
+            ]}
+            onChange={(v) => p.onPatch((v === "meeting" ? { before: "meeting", weekday: undefined, at: undefined } : { before: undefined }) as Partial<Step>)}
+          />
           <div className="grid grid-cols-2 gap-3">
             <Row name="Days">
               <Input type="number" min={0} value={s.days} onChange={(e) => p.onPatch({ days: Math.max(0, Math.round(Number(e.target.value) || 0)) } as Partial<Step>, "days")} className="h-9" disabled={p.readOnly} />
@@ -546,12 +554,16 @@ export function StepPanel(p: {
               <Input type="number" min={0} max={23} value={s.hours} onChange={(e) => p.onPatch({ hours: Math.min(23, Math.max(0, Math.round(Number(e.target.value) || 0))) } as Partial<Step>, "hours")} className="h-9" disabled={p.readOnly} />
             </Row>
           </div>
-          <Row name="Then on">
-            <Pills options={WEEK} value={(s.weekday ?? []).map(String)} onChange={(v) => p.onPatch({ weekday: v.length ? v.map(Number).sort() : undefined } as Partial<Step>)} disabled={p.readOnly} />
-          </Row>
-          <Row name="At">
-            <Input type="time" value={s.at ?? ""} onChange={(e) => p.onPatch({ at: e.target.value || undefined } as Partial<Step>)} className="h-9 w-32" disabled={p.readOnly} />
-          </Row>
+          {s.before === "meeting" ? null : (
+            <>
+              <Row name="Then on">
+                <Pills options={WEEK} value={(s.weekday ?? []).map(String)} onChange={(v) => p.onPatch({ weekday: v.length ? v.map(Number).sort() : undefined } as Partial<Step>)} disabled={p.readOnly} />
+              </Row>
+              <Row name="At">
+                <Input type="time" value={s.at ?? ""} onChange={(e) => p.onPatch({ at: e.target.value || undefined } as Partial<Step>)} className="h-9 w-32" disabled={p.readOnly} />
+              </Row>
+            </>
+          )}
         </>
       ) : null}
 

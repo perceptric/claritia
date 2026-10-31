@@ -5,7 +5,6 @@ import {
   availabilityPage,
   contactsPage,
   defaultRoute,
-  emailsPage,
   enrichmentPage,
   GROUPS,
   meetingsPage,
@@ -26,8 +25,8 @@ test("the sidebar is Inbound, CRM and Nurture, then Settings, with at most five 
   );
   const by = (g: string) => NAV.filter((n) => n.group === g).map((n) => n.label);
   assert.deepEqual(by("crm"), ["Contacts", "Companies", "Opportunities"]);
-  assert.deepEqual(by("inbound"), ["Forms", "Meetings", "Scoring"], "Routing lives in forms and meetings now");
-  assert.deepEqual(by("nurture"), ["Emails", "Segments"]);
+  assert.deepEqual(by("inbound"), ["Forms", "Meetings"], "Routing lives in forms and meetings now");
+  assert.deepEqual(by("nurture"), ["Workflows", "Segments", "Scoring"], "Emails became Workflows; Scoring moved here");
   for (const g of GROUPS) assert.ok(by(g.key).length <= 5, g.key);
   assert.equal(defaultRoute, "forms");
   assert.equal(new Set(NAV.map((n) => n.route)).size, NAV.length, "one item per route");
@@ -39,10 +38,15 @@ test("the sidebar is Inbound, CRM and Nurture, then Settings, with at most five 
 test("old addresses open their new home", () => {
   assert.deepEqual(resolveRoute("leads", "abc"), { route: "contacts", id: "abc" });
   assert.deepEqual(resolveRoute("accounts", "abc"), { route: "companies", id: "account/abc" });
-  assert.deepEqual(resolveRoute("journeys", ""), { route: "emails", id: "" });
-  assert.deepEqual(resolveRoute("workflows", ""), { route: "emails", id: "" });
-  assert.deepEqual(resolveRoute("workflows", "11111111-1111-4111-8111-111111111111"), { route: "emails", id: "journeys/11111111-1111-4111-8111-111111111111" });
+  assert.deepEqual(resolveRoute("journeys", ""), { route: "workflows", id: "" });
+  assert.deepEqual(resolveRoute("workflows", ""), { route: "workflows", id: "" });
+  assert.deepEqual(resolveRoute("workflows", "11111111-1111-4111-8111-111111111111"), { route: "workflows", id: "11111111-1111-4111-8111-111111111111" });
   assert.deepEqual(resolveRoute("workflows", "new"), { route: "workflows", id: "new" });
+  assert.deepEqual(resolveRoute("workflows", "nope"), { route: "workflows", id: "" });
+  // Emails became Workflows: its old addresses open there, one journey as that workflow.
+  assert.deepEqual(resolveRoute("emails", ""), { route: "workflows", id: "" });
+  assert.deepEqual(resolveRoute("emails", "library"), { route: "workflows", id: "" });
+  assert.deepEqual(resolveRoute("emails", "journeys/11111111-1111-4111-8111-111111111111"), { route: "workflows", id: "11111111-1111-4111-8111-111111111111" });
   assert.deepEqual(resolveRoute("companies", "visits"), { route: "companies", id: "" });
   // Visitors (once Signals) was removed: its addresses open Contacts.
   assert.deepEqual(resolveRoute("signals", ""), { route: "contacts", id: "" });
@@ -53,9 +57,9 @@ test("old addresses open their new home", () => {
   assert.deepEqual(resolveRoute("reports", "reps"), { route: "contacts", id: "overview" });
   assert.deepEqual(resolveRoute("reports", "speed"), { route: "scheduling", id: "upcoming" });
   assert.deepEqual(resolveRoute("reports", "forms"), { route: "forms", id: "" });
-  assert.deepEqual(resolveRoute("reports", "email"), { route: "emails", id: "" });
-  assert.deepEqual(resolveRoute("analytics", ""), { route: "emails", id: "" });
-  assert.deepEqual(resolveRoute("templates", ""), { route: "emails", id: "templates" });
+  assert.deepEqual(resolveRoute("reports", "email"), { route: "workflows", id: "" });
+  assert.deepEqual(resolveRoute("analytics", ""), { route: "workflows", id: "" });
+  assert.deepEqual(resolveRoute("templates", ""), { route: "workflows", id: "" });
   // Pages and Ads are gone.
   assert.deepEqual(resolveRoute("pages", ""), { route: "forms", id: "" });
   assert.deepEqual(resolveRoute("ads", "x"), { route: "forms", id: "" });
@@ -172,21 +176,18 @@ test("scheduling, enrichment, emails and lead scoring tabs", () => {
   assert.deepEqual(schedulingPage("types/new/all"), { page: "types", sub: "new", id: "types/new" });
   for (const p of ["booking", "links", "upcoming"]) assert.equal(schedulingPage(p).page, p);
   assert.ok(SCHEDULING_TABS.every((t) => t.icon), "every tab has its icon");
-  // Reminders, Payments and Webhooks moved into Settings; their old addresses open there.
-  assert.deepEqual(schedulingPage("settings"), { page: "settings", sub: "reminders", id: "settings" });
-  assert.deepEqual(schedulingPage("settings/nope"), { page: "settings", sub: "reminders", id: "settings" });
-  for (const p of ["reminders", "payments", "webhooks"]) {
+  // Payments and Webhooks moved into Settings; their old addresses open there. Reminders are a workflow now.
+  assert.deepEqual(schedulingPage("settings"), { page: "settings", sub: "payments", id: "settings" });
+  assert.deepEqual(schedulingPage("settings/nope"), { page: "settings", sub: "payments", id: "settings" });
+  assert.deepEqual(resolveRoute("scheduling", "settings/reminders"), { route: "workflows", id: "" });
+  assert.deepEqual(resolveRoute("scheduling", "reminders"), { route: "workflows", id: "" });
+  for (const p of ["payments", "webhooks"]) {
     assert.deepEqual(schedulingPage(p), { page: "settings", sub: p, id: `settings/${p}` });
     assert.deepEqual(schedulingPage(`settings/${p}`), { page: "settings", sub: p, id: `settings/${p}` });
   }
   for (const gone of ["forms", "ai", "notetaker"]) assert.equal(schedulingPage(gone).page, "types");
   assert.deepEqual(enrichmentPage("providers"), { tab: "providers", id: "providers" });
   assert.deepEqual(enrichmentPage("nope"), { tab: "overview", id: "" });
-  assert.deepEqual(emailsPage(""), { tab: "journeys", sub: "", id: "" });
-  assert.deepEqual(emailsPage("emails"), { tab: "emails", sub: "", id: "emails" });
-  assert.deepEqual(emailsPage("templates"), { tab: "library", sub: "", id: "library" }, "the old Templates tab opens the Library");
-  assert.deepEqual(emailsPage("journeys/123e4567-e89b-12d3-a456-426614174000"), { tab: "journeys", sub: "123e4567-e89b-12d3-a456-426614174000", id: "journeys/123e4567-e89b-12d3-a456-426614174000" });
-  assert.deepEqual(emailsPage("journeys/nope"), { tab: "journeys", sub: "", id: "" });
   assert.deepEqual(scoringPage(""), { tab: "model", id: "" });
   assert.deepEqual(scoringPage("leads"), { tab: "leads", id: "leads" });
   assert.deepEqual(scoringPage("ideal"), { tab: "ideal", id: "ideal" });
@@ -195,7 +196,8 @@ test("scheduling, enrichment, emails and lead scoring tabs", () => {
 test("every page lights its one sidebar item", () => {
   assert.equal(activeItem("routing")?.label, "Meetings", "a policy or the activity log lights Meetings");
   assert.equal(activeItem("scheduling")?.label, "Meetings");
-  assert.equal(activeItem("emails")?.label, "Emails");
+  assert.equal(activeItem("emails")?.label, "Workflows");
+  assert.equal(activeItem("workflows")?.label, "Workflows");
   assert.equal(activeItem("scoring")?.label, "Scoring");
   assert.equal(activeItem("enrichment"), null, "off the sidebar, still at its address");
   assert.equal(activeItem("objects"), null);

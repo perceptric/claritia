@@ -3,7 +3,7 @@
 // Inbound › Meetings (route "scheduling", once Calendar): Meetings (what people can book, one card each; a card opens
 // its panel, or the full editor at types/<id>/all), Upcoming (every meeting on the calendar, once CRM › Meetings),
 // Availability (everyone's hours, calendars and who's away, which forms and booking pages both read), Booking page,
-// Links and polls, and Settings (Reminders, Payments and Webhooks). Connect your calendar is one slim line under the
+// Links and polls, and Settings (Payments and Webhooks). Connect your calendar is one slim line under the
 // tabs until a calendar is connected.
 
 import { schedulingPage, SCHEDULING_TABS } from "@/lib/nav";

@@ -175,7 +175,6 @@ export function limitsWords(s: Pick<TypeSettings, "bufferBefore" | "bufferAfter"
 export const questionsWords = (questions: unknown[]): string => `Name, email${questions.length ? `, ${questions.length} more` : ""}`;
 
 /** "Confirmation, 2 reminders". */
-export const remindersWords = (reminders: number[]): string => (reminders.length ? `Confirmation, ${reminders.length} ${reminders.length === 1 ? "reminder" : "reminders"}` : "Confirmation only");
 
 /** Who takes the meeting, as the Host section picks it: one person, a Routing team, or everyone together. */
 export type HostMode = "one" | "team" | "everyone";
