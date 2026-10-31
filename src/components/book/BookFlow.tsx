@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import type { RouteQuestion } from "@/lib/meetings/dynamic";
 import type { BookReply, GuestSlot, GuestType } from "@/lib/meetings/guest";
 import { postToParent } from "./browser";
@@ -47,8 +47,13 @@ export function BookFlow(p: {
     },
     [endpoint, host, route, waiting],
   );
+  // The guest's email, for the page around an embed: its tracking links the visitor to them (bookElement.ts).
+  const guest = useRef("");
   const book = useCallback(
-    async (req: BookRequest) => readReply(await fetch(endpoint, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...req, host, ref, ...(route ? { route } : {}) }) })),
+    async (req: BookRequest) => {
+      guest.current = req.email;
+      return readReply(await fetch(endpoint, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...req, host, ref, ...(route ? { route } : {}) }) }));
+    },
     [endpoint, host, ref, route],
   );
   return (
@@ -71,7 +76,7 @@ export function BookFlow(p: {
       turnstileKey={p.turnstileKey}
       embedded={p.embed}
       prefill={route?.email ? { ...p.prefill, email: route.email } : p.prefill}
-      onBooked={(r) => postToParent({ type: "book:booked", start: r.start, end: r.end })}
+      onBooked={(r) => postToParent({ type: "book:booked", start: r.start, end: r.end, email: guest.current })}
     />
   );
 }

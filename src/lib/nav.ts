@@ -15,6 +15,7 @@ export type Route =
   | "scheduling"
   | "emails"
   | "segments"
+  | "visitors"
   | "scoring"
   | "settings";
 
@@ -44,7 +45,8 @@ const item = (group: GroupKey, route: Route, label: string): NavItem => ({ key: 
 /**
  * Inbound is set up the way a sales team works (docs/unify-plan.md): Forms (each form's Routing picks the meeting) and
  * Meetings (a Dynamic meeting picks the rep; Availability holds hours, teams and who's away; docs/on-submission.md).
- * Nurture is Workflows (folders of workflows, reminders included; docs/workflows.md), Segments and Scoring. Routing
+ * Nurture is Workflows (folders of workflows, reminders included; docs/workflows.md), Visitors (docs/visitors.md) and
+ * Scoring; Segments live in Contacts. Routing
  * has no item of its own: its old addresses open where its parts went (resolveRoute).
  */
 export const NAV: NavItem[] = [
@@ -54,6 +56,7 @@ export const NAV: NavItem[] = [
   item("crm", "companies", "Companies"),
   item("crm", "opportunities", "Opportunities"),
   item("nurture", "workflows", "Workflows"),
+  item("nurture", "visitors", "Visitors"),
   item("nurture", "scoring", "Scoring"),
   item("settings", "settings", "Settings"),
 ];
@@ -223,9 +226,8 @@ export function scoringPage(id: string): { tab: ScoringTab; id: string } {
 
 /** Old first parts of an address and where they open now: the route, and the page inside it. */
 const MOVED: Record<string, { route: Route; id?: string; keepId?: boolean }> = {
-  // Visitors (once Signals) was removed; its addresses open Contacts.
-  visitors: { route: "contacts" },
-  signals: { route: "contacts" },
+  // Signals was Visitors; Visitors is back in Nurture (docs/visitors.md).
+  signals: { route: "visitors" },
   leads: { route: "contacts", keepId: true },
   people: { route: "contacts" },
   accounts: { route: "companies", id: "account", keepId: true },

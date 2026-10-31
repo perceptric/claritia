@@ -309,6 +309,11 @@ function main() {
     const e = clean(email, 254);
     if (e.includes("@")) ident({ kind: "form", source: "native", email: e, form: "" }, true);
   };
+  // A booking on this site (the booking embed calls it): the same proof as a form.
+  api.booking = (email: unknown) => {
+    const e = clean(email, 254);
+    if (e.includes("@")) ident({ kind: "booking", source: "native", email: e, form: "" }, true);
+  };
   api.track = (name: unknown, props?: unknown) => {
     if (typeof name !== "string" || !name || curPriv) return;
     const p = scrubProps(props);

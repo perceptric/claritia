@@ -413,11 +413,12 @@ export function createApp(deps: Deps) {
     const device = readDevice(c, x.site, x.mode, b.did);
     if (!device || (await store.isOptedOut(x.site.id, device))) return c.json({ p: x.decision.mode });
 
-    const kind = body.kind === "identify" ? "identify" : body.kind === "form" || body.kind === "adapter" ? "form" : null;
+    // A booking made on the site (the booking embed) is the same proof as a form: the guest typed their email.
+    const kind = body.kind === "identify" ? "identify" : body.kind === "form" || body.kind === "adapter" ? "form" : body.kind === "booking" ? "booking" : null;
     const src = body.source === "hubspot" || body.source === "marketo" ? body.source : "native";
     const email = typeof body.email === "string" && body.email.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(body.email.trim()) ? body.email.trim().toLowerCase() : null;
     const userId = typeof body.userId === "string" && body.userId.trim() && body.userId.length <= 200 ? body.userId.trim() : null;
-    if (!kind || (!email && !userId) || (kind === "form" && !email)) return c.body(null, 400);
+    if (!kind || (!email && !userId) || ((kind === "form" || kind === "booking") && !email)) return c.body(null, 400);
 
     const ids: { kind: string; value: string }[] = [];
     if (email) ids.push({ kind: "email", value: email });
@@ -445,7 +446,8 @@ export function createApp(deps: Deps) {
       },
     });
     await store.enqueue(x.site.workspace_id, "stitch", device, { device_id: device });
-    if (prior) {
+    // A booking has no event kind of its own: the journey reads it from the evidence.
+    if (prior && kind !== "booking") {
       buffer.push([
         {
           id,

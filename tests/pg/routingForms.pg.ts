@@ -154,13 +154,15 @@ test("B02 Contact sales: the owner is committed and the thank-you shown, with no
   assert.equal((await q(`select count(*)::int n from jobs where workspace_id = $1 and kind = 'meeting_book_later'`, [s.ws]))[0].n, 0);
 });
 
-test("B03 suspected spam with hold on: one review item; no owner, count, turn or calendar", async () => {
+test("B03 suspected spam with hold on: the fill goes to Spam (its review item kept, dismissed); no owner, count, turn or calendar", async () => {
   const s = await setup();
   const { body } = await fill(s.demo, { first: "asdf" });
   assert.equal(body.booking, undefined, "the safe completion");
   const run = await runOf(body.id);
   assert.deepEqual([run.kind, run.assignment_state, run.owner, run.booking_state], ["held", "held_for_review", null, "not_requested"]);
-  assert.deepEqual(await q(`select reason, reviewer, state from routing_reviews where run_id = $1`, [run.id]), [{ reason: "spam", reviewer: VIN, state: "open" }]);
+  // Spam goes to Spam (migration 098): the form's Spam list holds it; the item is kept, dismissed, for Not spam.
+  assert.deepEqual(await q(`select reason, reviewer, state from routing_reviews where run_id = $1`, [run.id]), [{ reason: "spam", reviewer: VIN, state: "dismissed" }]);
+  assert.deepEqual(await q(`select spam, spam_reason from submissions where id = $1`, [body.id]), [{ spam: true, spam_reason: "routing" }]);
   assert.deepEqual([await quota(s.ws, ANA), (await q(`select next_position from routing_teams t join routing_team_keys k on k.team_id = t.id where k.workspace_id = $1 and k.key = 'eus'`, [s.ws]))[0].next_position], [0, 0]);
 });
 
