@@ -1,6 +1,6 @@
 "use client";
 
-// Inbound › Meetings › Meetings (once Calendar › Meeting types): "What people can book", one card per meeting with its
+// Inbound › Meetings › Meetings (once Calendar › Meeting types): one card per meeting, in an even grid, with its
 // length and video tool, what books it ("Used by": the forms whose Routing picks it, which open on On Submission, and
 // routing steps that name it in the live router) and whether it's Individual (one host) or Dynamic (reps and rules).
 // Clicking a card opens its panel on the right (/scheduling/types/<id>); New meeting opens the same panel
@@ -14,7 +14,6 @@ import { askConfirm } from "../Dialogs";
 import { MoreMenu } from "../StatCards";
 import { ToolIntro } from "../ToolIntro";
 import { Badge, Button, ErrorNote, errorText, invalidate, Loading, must, Page, useQuery, type ViewProps } from "../ui";
-import { Column, Title } from "../inbound/parts";
 import { bookedBy } from "./hosts";
 import { LinkDialog } from "../meetings/LinkDialog";
 import { copyText, meetingsApi, Modal, ownZone, usePeople, useWorkspaceSlug } from "../meetings/parts";
@@ -179,13 +178,12 @@ export function TypesPage(props: ViewProps & { open: string }) {
       {linkFor ? <LinkDialog sb={sb} session={session} ws={ws} types={(types ?? []).map((t) => ({ ...t, lengths: t.settings.lengths }))} initialType={linkFor} onClose={() => setLinkFor(null)} /> : null}
       <div className="relative h-full min-h-0 overflow-hidden">
         <div className={`h-full overflow-y-auto transition-[padding] duration-[320ms] ease-out ${panel ? "md:pr-[400px]" : ""}`}>
-          <Column>
+          <div className="flex flex-col gap-3 px-[16px] pt-[16px] pb-[24px] sm:px-[clamp(16px,2.5vw,28px)]">
             <ErrorNote message={error || data.error || slug.error} />
-            <Title>What people can book</Title>
             {!data.data ? (
               <Loading />
             ) : (
-              <div className="grid gap-3 md:grid-cols-2">
+              <div className="grid auto-rows-fr gap-3 sm:grid-cols-2 xl:grid-cols-3">
                 {(types ?? []).map((t) => {
                   const url = typeUrl(t.slug);
                   const used = bookedBy(live.data?.body, t.id);
@@ -248,7 +246,7 @@ export function TypesPage(props: ViewProps & { open: string }) {
                           ))}
                         </div>
                       ) : null}
-                      <div className="flex items-center gap-2 border-t border-line pt-2.5 text-[12.5px]">
+                      <div className="mt-auto flex items-center gap-2 border-t border-line pt-2.5 text-[12.5px]">
                         <Badge tone={dyn ? "violet" : "gray"}>{dyn ? "Dynamic" : t.kind === "one" || t.kind === "group" ? "Individual" : KIND_WORDS[t.kind]}</Badge>
                         <span className="min-w-0 truncate text-muted">{dyn ? `${t.hosts.length} ${t.hosts.length === 1 ? "rep" : "reps"}, ${dyn.rules.length} ${dyn.rules.length === 1 ? "rule" : "rules"}` : t.hosts.map((h) => nameOf(h.user_id)).join(", ")}</span>
                       </div>
@@ -258,14 +256,14 @@ export function TypesPage(props: ViewProps & { open: string }) {
                 <button
                   type="button"
                   onClick={() => navigate("scheduling", "types/new")}
-                  className="flex min-h-[160px] flex-col items-center justify-center gap-1.5 rounded-[10px] border border-dashed border-line-strong text-muted transition-colors duration-[140ms] hover:border-faint hover:text-ink"
+                  className="flex min-h-[148px] flex-col items-center justify-center gap-1.5 rounded-[10px] border border-dashed border-line-strong text-muted transition-colors duration-[140ms] hover:border-faint hover:text-ink"
                 >
                   <Plus size={16} />
                   New meeting
                 </button>
               </div>
             )}
-          </Column>
+          </div>
         </div>
         {panel}
       </div>

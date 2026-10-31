@@ -29,7 +29,7 @@ test("the sidebar is Inbound, CRM and Nurture, then Settings, with at most five 
   assert.deepEqual(by("inbound"), ["Forms", "Meetings", "Scoring"], "Routing lives in forms and meetings now");
   assert.deepEqual(by("nurture"), ["Emails", "Segments"]);
   for (const g of GROUPS) assert.ok(by(g.key).length <= 5, g.key);
-  assert.equal(defaultRoute, "contacts");
+  assert.equal(defaultRoute, "forms");
   assert.equal(new Set(NAV.map((n) => n.route)).size, NAV.length, "one item per route");
   assert.deepEqual(ROUTING_TABS.map((t) => t.label), ["Policies", "Teams", "Activity"]);
   assert.deepEqual(SCHEDULING_TABS.map((t) => t.label), ["Meetings", "Upcoming", "Availability", "Booking page", "Links and polls", "Settings"]);
@@ -57,8 +57,8 @@ test("old addresses open their new home", () => {
   assert.deepEqual(resolveRoute("analytics", ""), { route: "emails", id: "" });
   assert.deepEqual(resolveRoute("templates", ""), { route: "emails", id: "templates" });
   // Pages and Ads are gone.
-  assert.deepEqual(resolveRoute("pages", ""), { route: "contacts", id: "" });
-  assert.deepEqual(resolveRoute("ads", "x"), { route: "contacts", id: "" });
+  assert.deepEqual(resolveRoute("pages", ""), { route: "forms", id: "" });
+  assert.deepEqual(resolveRoute("ads", "x"), { route: "forms", id: "" });
   // Booking forms are forms.
   assert.deepEqual(resolveRoute("scheduling", "forms"), { route: "forms", id: "" });
   const id = "0b7c6a8e-1f2d-4c3b-9a8e-7d6c5b4a3f21";
@@ -119,8 +119,8 @@ test("Inbound's old addresses open their new home", () => {
   assert.equal(schedulingPage("availability").page, "availability", "Availability is a Meetings tab");
 });
 
-test("the testing screens and unknown addresses open Contacts", () => {
-  for (const old of ["tests", "blocks", "map", "runs", "environments", "schedules", "approvals", "insights", "nope", ""]) assert.deepEqual(resolveRoute(old, "x"), { route: "contacts", id: "" });
+test("the testing screens and unknown addresses open Forms, where the app starts", () => {
+  for (const old of ["tests", "blocks", "map", "runs", "environments", "schedules", "approvals", "insights", "nope", ""]) assert.deepEqual(resolveRoute(old, "x"), { route: "forms", id: "" });
 });
 
 test("current addresses keep their record", () => {

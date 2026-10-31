@@ -53,7 +53,12 @@ export function microsoftProvider(token: Tok | null, o: HttpOpts = {}): FullProv
   };
 
   const update: FullProvider["update"] = async (_calendarId, eventId, c) => {
-    const body = { start: at(c.start), end: at(c.end), ...(c.guests ? { attendees: people(c.guests) } : {}) };
+    const body = {
+      start: at(c.start),
+      end: at(c.end),
+      ...(c.guests ? { attendees: people(c.guests) } : {}),
+      ...(c.description !== undefined ? { body: { contentType: "text", content: [leadLine(c.leads ?? []), c.description].filter(Boolean).join("\n\n") } } : {}),
+    };
     await http(`${API}/me/events/${enc(eventId)}`, { method: "PATCH", body: JSON.stringify(body) });
   };
 

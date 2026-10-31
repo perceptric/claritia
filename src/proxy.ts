@@ -17,7 +17,8 @@ export function proxy(request: NextRequest) {
 
   if (host === `www.${SITE}`) return go(SITE, pathname);
   if (host === SITE && !MARKETING.has(pathname) && !SHARED(pathname)) return go(APP, pathname);
-  if (host === APP && (pathname === "/" || pathname === "/start")) return go(APP, "/contacts");
+  // The app opens on Forms. Temporary (307), so a browser never keeps the start page.
+  if (host === APP && (pathname === "/" || pathname === "/start")) return NextResponse.redirect(`https://${APP}/forms${search}`, 307);
   return NextResponse.next();
 }
 

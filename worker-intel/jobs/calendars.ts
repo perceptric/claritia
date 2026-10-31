@@ -22,6 +22,8 @@ import {
   type ProviderKind,
   type ZoomClient,
 } from "../../src/lib/meetings/providers/index.ts";
+import { meetingDescription } from "../../src/lib/meetings/description.ts";
+import { inviteExtras } from "../../src/lib/meetings/inviteInfo.ts";
 
 const DAY = 86_400_000;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
@@ -38,6 +40,9 @@ export type CalendarOpts = {
   now?: () => number;
   /** Set by meetingSync: each account read once per run. */
   load?: (id: string) => Promise<AccountRow | null>;
+  /** The app's address and SECRETS_KEY, for the guest's reschedule and cancel link in the description. */
+  base?: string;
+  secret?: string;
 };
 
 /** An account by id, through the run's cache when there is one. */
@@ -299,7 +304,9 @@ async function run(rpc: Rpc, o: CalendarOpts, job: Job, inp: Inputs, action: key
     const r = events[org.user_id]!;
     const acc = r.account === org.cal.id ? org.cal : await accountById(rpc, o, r.account);
     if (acc && acc.status === "ok") {
-      await guarded(rpc, acc, () => providerOf(rpc, o, acc, signal).update(r.calendar, r.event!, { start, end, guests, leads: leadsOf(m) }));
+      // The description is written again, so a rescheduled meeting's links and answers stay current.
+      const description = inp.group ? undefined : await describe(rpc, o, inp);
+      await guarded(rpc, acc, () => providerOf(rpc, o, acc, signal).update(r.calendar, r.event!, { start, end, guests, leads: leadsOf(m), description }));
       if (r.zoom) await moveZoom(rpc, o, r.zoom, start, end, signal);
       // Anyone else's old event (an earlier lead host) comes off.
       for (const [u, x] of placed) if (u !== org.user_id) await takeDown(rpc, o, x, signal);
@@ -336,13 +343,21 @@ async function place(rpc: Rpc, o: CalendarOpts, job: Job, inp: Inputs, org: Host
     // No Zoom connected: the calendar's own video link stands in.
     else conference = true;
   }
-  const answers = (inp.questions ?? []).filter((q) => m.answers?.[q.id]).map((q) => `${q.label}: ${m.answers[q.id]}`);
-  const made = await guarded(rpc, cal, () =>
-    providerOf(rpc, o, cal, signal).create(cal.write, { title, description: answers.join("\n"), start, end, guests, leads: leadsOf(m), conference, where, key: `${job.key}|${org.user_id}` }),
-  );
+  // A group event is shared by every seat: no one guest's answers or links on it.
+  const description = inp.group ? "" : await describe(rpc, o, inp);
+  const made = await guarded(rpc, cal, () => providerOf(rpc, o, cal, signal).create(cal.write, { title, description, start, end, guests, leads: leadsOf(m), conference, where, key: `${job.key}|${org.user_id}` }));
   const ref: Ref = { provider: cal.provider, account: cal.id, calendar: cal.write, event: made.id, ...(zoom ? { zoom } : {}) };
   const url = zoom?.url ?? made.joinUrl;
   await call(rpc, "meeting_calendar_save", { p_meeting: m.id, p_events: { [org.user_id]: ref }, p_location: url ? { url } : {} });
+}
+
+/** The meeting description (src/lib/meetings/description.ts): who booked, the form, their answers and their links. */
+async function describe(rpc: Rpc, o: CalendarOpts, inp: Inputs): Promise<string> {
+  const m = inp.meeting;
+  const x = await inviteExtras(rpc, m.id, { base: o.base, secret: o.secret });
+  const own = (inp.questions ?? []).filter((q) => m.answers?.[q.id]).map((q) => ({ label: q.label, value: String(m.answers[q.id]) }));
+  const join = typeof m.location?.url === "string" && /^https:\/\//.test(m.location.url) ? m.location.url : null;
+  return meetingDescription({ typeName: inp.title, guest: { name: m.guest_name, email: m.guest_email }, form: x.form, answers: [...x.formAnswers, ...own], join, manage: x.manage });
 }
 
 /** Every seat's guests, once each, for a shared group event. */

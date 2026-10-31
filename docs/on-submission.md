@@ -80,6 +80,22 @@ the booking shows the picked rep's times for the rule's meeting.
   from `/api/forms/release`). If routing refuses, the item goes back to dismissed and the lead stays in Spam.
 - Leads from the handoff or the API keep their review item. Tested in `tests/spamToSpam.test.ts`.
 
+## The meeting description
+
+Every booked meeting's calendar event and invite file get a description made from the meeting
+(`src/lib/meetings/description.ts`): who booked and from which form, their answers (the form's and the meeting's own
+questions), the join link and the guest's reschedule and cancel link. The guest sees it too, so it holds nothing
+internal (no score, no routing reason). A group event carries none of one guest's details.
+
+- `meeting_sync` writes it when the event is made and again on every reschedule, so the links never go stale
+  (`worker-intel/jobs/calendars.ts`). The invite file in the confirmation and update emails uses the same text.
+- The form, its answers and the sealed manage token come from `meeting_invite_info`
+  (`supabase/migrations/099_meeting_description.sql`). If that read fails, the event is still made with what the
+  meeting has.
+- A reschedule keeps the meeting's host. A Dynamic meeting always does, even when set to the pool, since its rules
+  picked that rep (`keepsHost` in `src/lib/meetings/public.ts`). A cancel takes the event down.
+- Tested in `tests/meetingDescription.test.ts` and `tests/dynamicBooking.test.ts`.
+
 ## Sharing
 
 The form's Share tab has the embed code for the customer's site and the form's own link on Claritia (`/f/<form>`).

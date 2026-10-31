@@ -87,3 +87,15 @@ test("narrowing keeps the meeting as it is for all or none, and loosens strict t
   assert.deepEqual(two.hosts.map((h) => h.user_id), [LEE, SAM]);
   assert.equal(two.settings.rrMode, "strict", "a team keeps its turns");
 });
+
+test("flaky: a Dynamic meeting's reschedule always keeps the rep its rules picked", async () => {
+  const { keepsHost } = await import("../src/lib/meetings/public.ts");
+  const pool = (dynamic: unknown) => meeting(dynamic, {}) as MeetingType;
+  const individualPool = pool(null);
+  individualPool.settings.reschedule = "pool";
+  assert.equal(keepsHost(individualPool), false, "an Individual meeting set to the pool may move to another host");
+  const dyn = pool({ rules: [], otherwise: { kind: "user", id: LEE } });
+  dyn.settings.reschedule = "pool";
+  assert.equal(keepsHost(dyn), true);
+  assert.equal(keepsHost(pool(null)), true, "same host is the default");
+});

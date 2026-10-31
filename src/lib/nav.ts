@@ -60,7 +60,7 @@ export const NAV: NavItem[] = [
 
 const ROUTES = new Set<string>([...NAV.map((n) => n.route), "meetings", "routing", "objects", "enrichment", "workflows"]);
 
-export const defaultRoute: Route = "contacts";
+export const defaultRoute: Route = "forms";
 
 /** The sidebar item an address belongs to: each route has one. A new workflow is made under Emails; one meeting's page under Meetings. */
 export const activeItem = (route: Route): NavItem | null => NAV.find((n) => n.route === (route === "workflows" ? "emails" : route === "meetings" || route === "routing" ? "scheduling" : route)) ?? null;

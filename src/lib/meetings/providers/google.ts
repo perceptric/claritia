@@ -48,7 +48,12 @@ export function googleProvider(token: Tok | null, o: HttpOpts = {}): FullProvide
   };
 
   const update: FullProvider["update"] = async (calendarId, eventId, c) => {
-    const body = { start: { dateTime: iso(c.start) }, end: { dateTime: iso(c.end) }, ...(c.guests || c.leads ? { attendees: attendees(c.guests ?? [], c.leads) } : {}) };
+    const body = {
+      start: { dateTime: iso(c.start) },
+      end: { dateTime: iso(c.end) },
+      ...(c.guests || c.leads ? { attendees: attendees(c.guests ?? [], c.leads) } : {}),
+      ...(c.description !== undefined ? { description: c.description } : {}),
+    };
     await http(`${API}/calendars/${enc(calendarId)}/events/${enc(eventId)}?sendUpdates=none`, { method: "PATCH", body: JSON.stringify(body) });
   };
 

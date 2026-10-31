@@ -34,6 +34,8 @@ import {
   type MeetingView,
 } from "../../src/lib/meetings/emails.ts";
 import { buildIcs } from "../../src/lib/meetings/ics.ts";
+import { meetingDescription } from "../../src/lib/meetings/description.ts";
+import { inviteExtras, type InviteExtras } from "../../src/lib/meetings/inviteInfo.ts";
 import { bookingUrl, bookRef, keptManageToken, manageUrl, newNonce, outcomeToken, outcomeUrl } from "../../src/lib/meetings/links.ts";
 import { offer } from "../../src/lib/meetings/server.ts";
 import { validZone } from "../../src/lib/meetings/time.ts";
@@ -271,9 +273,14 @@ function view(info: Info, reader: "guest" | Person, now: number, manage?: string
   };
 }
 
-function ics(info: Info, method: "REQUEST" | "CANCEL", now: number) {
+/** The invite file. With `x`, it carries the meeting description (src/lib/meetings/description.ts); `manage` only for the guest it's under. */
+function ics(info: Info, method: "REQUEST" | "CANCEL", now: number, x?: InviteExtras, manage?: string | null) {
   const m = info.meeting;
   const v = view(info, "guest", now);
+  const description =
+    x && method === "REQUEST"
+      ? meetingDescription({ typeName: v.typeName, guest: { name: m.guest_name, email: m.guest_email }, form: x.form, answers: [...x.formAnswers, ...v.answers], join: v.where.url, manage: manage ?? null })
+      : [v.where.url ? `Join: ${v.where.url}` : "", ...v.answers.map((a) => `${a.label}: ${a.value}`)].filter(Boolean).join("\n");
   const organizer = info.hosts[0] ? { name: info.hosts[0].name, email: info.hosts[0].email } : { name: info.workspace.name, email: info.sending.from_email ?? "meetings@tryclaritia.com" };
   return {
     method,
@@ -285,7 +292,7 @@ function ics(info: Info, method: "REQUEST" | "CANCEL", now: number) {
       end: ms(m.end_at),
       stamp: now,
       summary: `${v.typeName} with ${info.hosts.map((h) => h.name).join(", ") || info.workspace.name}`,
-      description: [v.where.url ? `Join: ${v.where.url}` : "", ...v.answers.map((a) => `${a.label}: ${a.value}`)].filter(Boolean).join("\n"),
+      description,
       location: whereLine(v.where),
       url: v.where.url,
       organizer,
@@ -351,6 +358,7 @@ export const meetingNotify =
         // A notify that arrives after the meeting changed again sends nothing old: a canceled meeting gets its cancel.
         if (m.status !== "booked") return;
         const manage = manageLink(o, m);
+        const extras = await inviteExtras(rpc, m.id, { base: o.base, secret: o.secret });
         const moved = event === "moved";
         const from = info.moved_from ? ms(info.moved_from) : null;
         results.push(
@@ -363,7 +371,7 @@ export const meetingNotify =
             fromName: fromHost(info),
             replyTo: info.hosts[0]?.email,
             parts: () => (moved ? updateEmail(view(info, "guest", now, manage), from) : confirmEmail(view(info, "guest", now, manage))),
-            ics: () => ics(info, "REQUEST", now),
+            ics: () => ics(info, "REQUEST", now, extras, manage),
           }),
         );
         // A poll's other voters get the same invite, without the manage link (it changes the meeting for everyone).
@@ -378,7 +386,7 @@ export const meetingNotify =
               fromName: fromHost(info),
               replyTo: info.hosts[0]?.email,
               parts: () => (moved ? updateEmail(view(info, "guest", now, null), from) : confirmEmail(view(info, "guest", now, null))),
-              ics: () => ics(info, "REQUEST", now),
+              ics: () => ics(info, "REQUEST", now, extras, null),
             }),
           );
         }
