@@ -18,7 +18,19 @@ export type Line = {
   more?: Part[][];
 };
 
-const TITLES: Record<StepResult["step"], string> = { sla: "Follow-up time", spam: "Filter out junk", account: "Same company, same rep", keep: "Keep their rep", rules: "Who gets which leads", queue: "Team", fallback: "Fallback", hand: "By hand" };
+const TITLES: Record<StepResult["step"], string> = {
+  sla: "Follow-up time",
+  spam: "Filter out junk",
+  check: "Checks",
+  account: "Same company, same rep",
+  keep: "Keep their rep",
+  owners: "Existing owner",
+  rules: "Who gets which leads",
+  queue: "Team",
+  fallback: "Fallback",
+  backup: "If nobody can receive it",
+  hand: "By hand",
+};
 const METHOD_WORDS: Record<Method, string> = { rr: "take turns", weighted: "some get more", load: "fewest meetings first" };
 
 export function dateWords(ms: number, tz = "UTC", now = Date.now()): string {
@@ -45,6 +57,8 @@ export function whyWords(why: Why | "none", until?: number | null, rep?: { capDa
       return rep?.capWeek ? `is at their weekly cap of ${rep.capWeek}` : "is at their weekly cap";
     case "hours":
       return "is outside their working hours";
+    case "out_of_scope":
+      return "isn't someone this policy assigns to";
     case "passed":
       return "already let this lead wait";
     default:
@@ -126,6 +140,37 @@ export function explain(d: Decision, f: Facts, o: { fields?: FieldDef[]; territo
         const had = s.queue.method === "load" ? ` has ${s.pickedN ?? 0} ${unit}.` : s.window === 0 ? " takes the queue's first lead." : ` had ${s.pickedN ?? 0} ${unit}.`;
         return { step: s.step, mark: "ok", title, parts: [q, `, ${METHOD_WORDS[s.queue.method]}. `, user(s.picked), had], ...(more.length ? { more } : {}) };
       }
+      case "check":
+        return {
+          step: s.step,
+          mark: "miss",
+          title,
+          parts: [s.reason === "multiple_companies" ? `${s.count ?? "Several"} companies could be this lead's. Held for review.` : `A form answer doesn't fit its mapping${s.field ? ` (${s.field})` : ""}. Held for review.`],
+        };
+      case "owners": {
+        if (s.off) return { step: s.step, mark: "skip", title, parts: ["Off."] };
+        const kindWords = (k: "company" | "contact") => (k === "company" ? "The company" : "The contact");
+        const more = s.candidates
+          .filter((c) => !c.picked)
+          .map((c): Part[] =>
+            !c.user
+              ? [`${kindWords(c.kind)} ${c.miss === "no_company" ? "isn't known" : c.miss === "unmapped" ? "is owned by someone not linked to a teammate" : "has no owner"}.`]
+              : c.miss === "same_person"
+                ? [`${kindWords(c.kind)}'s owner is the same person.`]
+                : [user(c.user), ` ${whyWords(c.why ?? "none", c.until, f.reps[c.user], f.now)}. Skipped.`],
+          );
+        const picked = s.candidates.find((c) => c.picked);
+        if (!picked?.user) return { step: s.step, mark: "skip", title, parts: ["No existing owner can take it."], ...(more.length ? { more } : {}) };
+        const kept = picked.user === f.owner?.user;
+        return { step: s.step, mark: "ok", title, parts: [user(picked.user), kept ? " already owns this contact." : ` owns ${picked.kind === "company" ? "the company" : "the contact"}. New owner.`], ...(more.length ? { more } : {}) };
+      }
+      case "backup": {
+        if (s.ok && s.picked) return { step: s.step, mark: "ok", title, parts: ["Backup: ", user(s.picked), "."] };
+        if (s.why === "review") return { step: s.step, mark: "miss", title, parts: ["Nobody can receive it. Sent to review."] };
+        if (s.why === "same_destination") return { step: s.step, mark: "miss", title, parts: ["The backup is the destination that has nobody. Sent to review."] };
+        if (s.to?.kind === "user" && s.why && s.why !== "none") return { step: s.step, mark: "miss", title, parts: ["The backup, ", user(s.to.id), ` ${whyWords(s.why, null, f.reps[s.to.id], f.now)}. Sent to review.`] };
+        return { step: s.step, mark: "miss", title, parts: [`Nobody in ${s.to?.name ?? "the backup"} can take it. Sent to review.`] };
+      }
       case "hand":
         return { step: s.step, mark: "ok", title, parts: s.by_user ? ["Assigned to ", user(s.user), " by ", user(s.by_user), "."] : ["Assigned to ", user(s.user), "."] };
       case "fallback": {
@@ -163,6 +208,8 @@ export function resultWords(d: Pick<Decision, "result">, f: Pick<Facts, "reps">)
 /** The deciding step as a short phrase for the Log's Path column: "Matched Acme", "Rule: EMEA → round robin". */
 export function pathWords(d: Decision): string {
   const r = d.result;
+  if (r.kind === "held" && r.reason === "source_mapping_mismatch") return "Held: form answer doesn't fit its mapping";
+  if (r.kind === "held" && r.reason === "multiple_companies") return "Held: several possible companies";
   if (r.kind === "held") return `Held: ${r.signals.map((s) => SIGNAL_WORDS[s].toLowerCase()).join(", ")}`;
   if (r.kind === "unassigned") return "No one could take it";
   if (r.by === "account" && r.rule) return `Rule: ${d.steps.find((s): s is Extract<StepResult, { step: "rules" }> => s.step === "rules")?.rule?.name ?? "?"} → owner`;
@@ -172,6 +219,8 @@ export function pathWords(d: Decision): string {
   }
   if (r.by === "keep") return "Kept owner";
   if (r.by === "fallback") return "Fallback";
+  if (r.by === "backup") return "Backup";
+  if (r.by === "rule") return `Rule: ${d.steps.find((s): s is Extract<StepResult, { step: "rules" }> => s.step === "rules")?.rule?.name ?? "?"} → person`;
   if (r.by === "hand") return d.steps.some((s) => s.step === "sla") ? "Response time missed: manager" : "By hand";
   const rule = d.steps.find((s): s is Extract<StepResult, { step: "rules" }> => s.step === "rules")?.rule;
   const q = d.steps.find((s): s is Extract<StepResult, { step: "queue" }> => s.step === "queue");
