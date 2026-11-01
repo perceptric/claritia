@@ -23,6 +23,7 @@ import { Ic } from "./ic";
 import { Menu } from "./Menu";
 import { BTN, Dialog, DialogHead, EYEBROW, GHOST, GHOST_SM, IB, useNote } from "./parts";
 import { PreviewOverlay } from "./PreviewOverlay";
+import { skinForKit } from "@/lib/brand/skin";
 import { Setup, type SetupSub } from "./Setup";
 import { useRoutingFacts } from "./formRouting";
 import { Share } from "./Share";
@@ -59,7 +60,8 @@ function FormPage(props: ViewProps) {
     const [f, kits, sources, dests, custom, sites, types, stats] = await Promise.all([
       // "*": live_kit_id (109) when the database has it, and the rest as before when it doesn't yet.
       sb.from("forms").select("*").eq("id", id).maybeSingle(),
-      sb.from("brand_kits").select("id, name, tokens, logo_url, notes, source_url, scan_status, scan_error, scanned_at, design, design_live, design_rev").eq("workspace_id", ws.id).order("created_at"),
+      // "*": the skin (111) and the brand book (108) when the database has them.
+      sb.from("brand_kits").select("*").eq("workspace_id", ws.id).order("created_at"),
       sb.from("sources").select("id, kind, name, status").eq("workspace_id", ws.id).order("name"),
       sb.from("form_destinations").select("id, kind, source_id, name, config, paused, position").eq("form_id", id).order("position"),
       sb.from("fields").select("key, label, type, options").eq("workspace_id", ws.id).eq("object", "contact").order("position"),
@@ -613,7 +615,7 @@ function Editor(props: ViewProps & { data: FormData; reload: () => void; patchRo
       </div>
       {dialog === "publish" ? <PublishDialog checks={checks} live={!!row.version} onClose={() => setDialog(null)} onPublish={publish} onFix={(qid) => goto(qid)} error={error} /> : null}
       {dialog === "versions" ? <Versions {...props} formId={row.id} live={row.version} changed={changed} onClose={() => setDialog(null)} onRestore={restore} /> : null}
-      {preview ? <PreviewOverlay form={form} tokens={kit?.tokens ?? {}} logo={kit?.logo_url ?? null} system={kit?.design ?? undefined} crmName={crm.crms[0]?.name} onClose={() => setPreview(false)} /> : null}
+      {preview ? <PreviewOverlay form={form} tokens={kit?.tokens ?? {}} logo={kit?.logo_url ?? null} skin={skinForKit(kit, typeof window === "undefined" ? "" : window.location.origin)} system={kit?.design ?? undefined} crmName={crm.crms[0]?.name} onClose={() => setPreview(false)} /> : null}
       {note.node}
     </div>
   );

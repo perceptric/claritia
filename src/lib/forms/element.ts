@@ -18,7 +18,7 @@ import { checkAnswers, OTHER, stepPath, type Answers } from "./values.ts";
 
 /** regions: the region lists, sent with the form when a list follows a country field (src/lib/forms/regions.ts). */
 /** css: the design system's styles compiled for this form (src/lib/design/web.ts); it starts with the layer order. */
-type Loaded = { id: string; version: number; status: "live" | "paused"; body: Form; tokens: Partial<Tokens>; logo_url?: string | null; strict?: boolean; turnstile?: string; regions?: Record<string, string[]>; css?: string; fonts?: string[] };
+type Loaded = { id: string; version: number; status: "live" | "paused"; body: Form; tokens: Partial<Tokens>; logo_url?: string | null; skin?: { css: string; fonts?: string } | null; strict?: boolean; turnstile?: string; regions?: Record<string, string[]>; css?: string; fonts?: string[] };
 type Queued = { url: string; body: string; key: string; at: number; tries: number };
 
 /** Field types drawn by many(): answers with parts. */
@@ -130,8 +130,8 @@ textarea.in{min-height:calc(var(--clr-input-h)*2.4);padding:10px 12px;resize:ver
 .sc .h{font-size:2em}
 .cv{justify-content:center}
 .mn{display:flex;flex-direction:column;gap:8px}
-.lg{display:block;height:28px;width:auto;max-width:180px;object-fit:contain;object-position:left}
-.cv .lg{margin:0 auto}
+.lo{display:block;height:28px;width:auto;max-width:180px;object-fit:contain;object-position:left}
+.cv .lo{margin:0 auto}
 .py{display:flex;justify-content:space-between;align-items:baseline;padding:12px 14px;border:1px solid var(--clr-border);border-radius:var(--clr-radius)}.py b{font-size:1.3em}
 .lk{border:0;background:none;color:var(--clr-muted);text-decoration:underline;cursor:pointer;font:inherit;padding:0}
 .r2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
@@ -563,9 +563,22 @@ async function flushQueue() {
 
 const fontsAdded = new Set<string>();
 function addFont(url: string) {
-  if (!url || fontsAdded.has(url) || !/^https:\/\/fonts\.googleapis\.com\//.test(url)) return;
+  // Google Fonts, or the brand's own fonts served by Claritia (docs/brand-capture.md).
+  if (!url || fontsAdded.has(url) || !/^https:\/\/(fonts\.googleapis\.com\/|(app\.)?tryclaritia\.com\/api\/brand\/fonts\/[0-9a-f-]{36}$|localhost(:\d+)?\/api\/brand\/fonts\/)/.test(url)) return;
   fontsAdded.add(url);
   document.head.append(el("link", { rel: "stylesheet", href: url }));
+}
+
+/**
+ * A skin's fonts (docs/brand-skin.md): @font-face rules whose files Claritia serves. Fonts declared inside a shadow root
+ * don't load, so they go in the page's head, once. Anything else in the text is refused.
+ */
+function addFaces(css: string, base: string) {
+  if (!css || fontsAdded.has(css)) return;
+  const rules = css.match(/@font-face\{[^{}]*\}/g) ?? [];
+  if (rules.join("\n") !== css.trim() || rules.some((r) => [...r.matchAll(/url\("([^"]+)"\)/g)].some((m) => !m[1]!.startsWith(`${base}/api/brand/fontfile/`)))) return;
+  fontsAdded.add(css);
+  document.head.append(el("style", { text: css }));
 }
 
 /** Whether a change to this field can change what the form shows: a rule, a skip, a calc or a list reads it. */
@@ -701,12 +714,12 @@ export class ClaritiaForm extends Base {
   }
 
   /** The app's builder shows a draft without loading or sending anything. */
-  set preview(p: { form: Form; tokens?: Partial<Tokens>; logo?: string | null; step?: number; done?: boolean; regions?: Record<string, string[]>; css?: string; fonts?: string[]; edit?: boolean; answers?: Record<string, unknown> }) {
+  set preview(p: { form: Form; tokens?: Partial<Tokens>; logo?: string | null; skin?: { css: string; fonts?: string } | null; step?: number; done?: boolean; regions?: Record<string, string[]>; css?: string; fonts?: string[]; edit?: boolean; answers?: Record<string, unknown> }) {
     this.isPreview = true;
     this.edit = !!p.edit;
     const fresh = !this.data || this.done !== !!p.done;
     if (fresh || p.form.after.schedule?.tool !== "claritia") this.bk = this.bkDone = null;
-    this.data = { id: "preview", version: 0, status: "live", body: p.form, tokens: p.tokens ?? {}, logo_url: p.logo ?? null, strict: true, regions: p.regions, css: p.css, fonts: p.fonts };
+    this.data = { id: "preview", version: 0, status: "live", body: p.form, tokens: p.tokens ?? {}, logo_url: p.logo ?? null, skin: p.skin ?? null, strict: true, regions: p.regions, css: p.css, fonts: p.fonts };
     this.step = Math.min(p.step ?? this.step, p.form.steps.length - 1);
     this.done = !!p.done;
     if (fresh) this.errors = {};
@@ -847,7 +860,7 @@ export class ClaritiaForm extends Base {
   private logo(form: Form): HTMLElement | null {
     const u = this.data?.logo_url ?? "";
     if (form.layout.logo === false || !(/^https:\/\//.test(u) ? safeUrl(u) : /^data:image\/svg\+xml[;,]/.test(u))) return null;
-    return el("img", { class: "lg", src: u, alt: "" });
+    return el("img", { class: "lo", src: u, alt: "" });
   }
 
   private draw() {
@@ -857,7 +870,9 @@ export class ClaritiaForm extends Base {
     for (const u of [d.tokens.fontUrl ?? "", ...(d.fonts ?? [])]) addFont(u);
     const width = form.layout.maxWidth ? `${form.layout.maxWidth}px` : form.layout.side || form.steps.some((st) => st.image) ? "1040px" : form.layout.width === "wide" ? "720px" : "480px";
     // The form's own stylesheet is the lowest layer; the design system's layers (in d.css) sit above it.
-    const style = el("style", { text: `${d.css ?? ""}\n:host{${tokensCss(d.tokens)}--clr-width:${width}}\n@layer base{${STYLES}}` });
+    // The brand's skin (docs/brand-skin.md) comes last: the site's own look, over the form's base styles.
+    if (d.skin?.fonts) addFaces(d.skin.fonts, this.base);
+    const style = el("style", { text: `${d.css ?? ""}\n:host{${tokensCss(d.tokens)}--clr-width:${width}}\n@layer base{${STYLES}}${d.skin?.css ? `\n${d.skin.css.replace(/<\//g, "")}` : ""}` });
     if (d.status === "paused") return this.put(style, el("div", { class: "f" }, el("p", { class: "i", text: "This form is closed." })));
     if (this.done) {
       const res = this.resultPanel(form);
