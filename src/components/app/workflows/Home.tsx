@@ -1,7 +1,7 @@
 "use client";
 
 // Workflows (docs/workflows.md): folders on the left, each holding workflows, and the open one in the workflow editor
-// on the right. Folders are made, renamed, moved and deleted here; a workflow moves between them from its menu. The
+// on the right. Folders are made, renamed, moved and deleted here; a workflow moves between them by drag and drop. The
 // first visit, with no workflows, is the build screen: Claritia reads the brand, the product's events and the CRM,
 // then makes one journey per lifecycle moment, its emails in the brand's voice and waiting for approval. Before
 // migration 100 there are no folders: the workflows show by stage, as they did.
@@ -68,6 +68,11 @@ export function WorkflowsHome(props: ViewProps) {
   const [closed, setClosed] = useState<Set<string>>(() => new Set());
   /** The folder being named in place: its key, or "new" for a new one. */
   const [naming, setNaming] = useState<string | null>(null);
+  /** Drag and drop: the workflow being dragged, the folder under it, and moves shown before the reload lands. */
+  const [drag, setDrag] = useState<string | null>(null);
+  const [over, setOver] = useState<string | null>(null);
+  // Kept with the data it was made on: once the reload brings the saved folders, the moves drop away.
+  const [moved, setMoved] = useState<{ on: unknown; map: Record<string, string | null> }>({ on: null, map: {} });
   const act = async (fn: () => PromiseLike<{ error: { message: string } | null }>) => {
     setError("");
     const { error: e } = await fn();
@@ -82,7 +87,9 @@ export function WorkflowsHome(props: ViewProps) {
         {data.error ? null : <Loading />}
       </Page>
     );
-  const { info, rows, folders } = data.data;
+  const { info, folders } = data.data;
+  const shown = moved.on === data.data ? moved.map : {};
+  const rows = data.data.rows.map((r) => (r.id in shown ? { ...r, folder_id: shown[r.id] } : r));
   if (!rows.length) {
     if (!info.owner)
       return (
@@ -100,6 +107,15 @@ export function WorkflowsHome(props: ViewProps) {
   const missing = info.owner ? info.plan.filter((p) => !rows.some((r) => r.journey === p.key)) : [];
   const groups = groupsOf(rows, folders);
   const saveFolder = (id: string | null, name: string) => act(() => sb.rpc("workflow_folder_save", { p_ws: ws.id, p_id: id, p_name: name }));
+  const dropOn = (folder: string | null) => {
+    const id = drag;
+    setDrag(null);
+    setOver(null);
+    const row = rows.find((r) => r.id === id);
+    if (!id || !row || (row.folder_id ?? null) === folder) return;
+    setMoved({ on: data.data, map: { ...shown, [id]: folder } });
+    void act(() => sb.rpc("workflow_set_folder", { p_ws: ws.id, p_id: id, p_folder: folder }));
+  };
   const newIn = (folder: string | null) => navigate("workflows", "new", folder ? `folder=${folder}` : undefined);
   return (
     <Page title="Workflows" flush>
@@ -118,7 +134,24 @@ export function WorkflowsHome(props: ViewProps) {
           {groups.map((g, gi) => {
             const shut = closed.has(g.key) && !g.rows.some((r) => r.id === open.id);
             return (
-              <div key={g.key} className="flex shrink-0 flex-col">
+              <div
+                key={g.key}
+                className={`flex shrink-0 flex-col rounded-lg transition-[background-color,box-shadow] duration-[140ms] ${over === g.key ? "bg-hover shadow-[inset_0_0_0_1.5px_var(--color-ink)]" : ""}`}
+                onDragOver={(e) => {
+                  if (!drag || !folders) return;
+                  e.preventDefault();
+                  e.dataTransfer.dropEffect = "move";
+                  if (over !== g.key) setOver(g.key);
+                  if (closed.has(g.key)) setClosed((c) => { const n = new Set(c); n.delete(g.key); return n; });
+                }}
+                onDragLeave={(e) => {
+                  if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setOver((o) => (o === g.key ? null : o));
+                }}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  dropOn(g.folder?.id ?? null);
+                }}
+              >
                 {naming === g.key && g.folder ? (
                   <NameRow initial={g.label} onDone={(name) => (setNaming(null), name && name !== g.label ? void saveFolder(g.folder!.id, name) : undefined)} />
                 ) : (
@@ -164,7 +197,20 @@ export function WorkflowsHome(props: ViewProps) {
                 {shut ? null : (
                   <div className="ml-[13px] flex flex-col gap-px border-l border-line py-0.5 pl-1.5">
                     {g.rows.map((r) => (
-                      <div key={r.id} className={`group/w flex h-8 items-center rounded-lg pr-0.5 transition-colors duration-[140ms] ${r.id === open.id ? "bg-paper-deep" : "hover:bg-hover"}`}>
+                      <div
+                        key={r.id}
+                        draggable={!!folders}
+                        onDragStart={(e) => {
+                          e.dataTransfer.setData("text/plain", r.id);
+                          e.dataTransfer.effectAllowed = "move";
+                          setDrag(r.id);
+                        }}
+                        onDragEnd={() => {
+                          setDrag(null);
+                          setOver(null);
+                        }}
+                        className={`group/w flex h-8 items-center rounded-lg pr-0.5 transition-[background-color,opacity] duration-[140ms] ${folders ? "cursor-grab active:cursor-grabbing" : ""} ${drag === r.id ? "opacity-40" : ""} ${r.id === open.id ? "bg-paper-deep" : "hover:bg-hover"}`}
+                      >
                         <button
                           type="button"
                           onClick={() => navigate("workflows", r.id)}
@@ -174,11 +220,6 @@ export function WorkflowsHome(props: ViewProps) {
                           <span className="truncate">{r.name}</span>
                           {r.status === "live" ? <span className="size-1.5 shrink-0 rounded-full bg-signal" aria-label="Live" /> : null}
                         </button>
-                        {folders && folders.length > 1 ? (
-                          <span className="hidden group-hover/w:flex focus-within:flex">
-                            <MoreMenu small label={`Move ${r.name}`} items={folders.filter((f) => f.id !== r.folder_id).map((f) => ({ label: `Move to ${f.name}`, run: () => void act(() => sb.rpc("workflow_set_folder", { p_ws: ws.id, p_id: r.id, p_folder: f.id })) }))} />
-                          </span>
-                        ) : null}
                       </div>
                     ))}
                     {g.folder ? (
