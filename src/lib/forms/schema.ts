@@ -219,9 +219,18 @@ export type Rule = {
   then: { action: "show" | "hide" | "require"; field: string };
 };
 
-/** skip: when the condition holds at the end of this step, jump forward to step `to` (0-based). */
+/**
+ * skip: when the condition holds at the end of this step, jump forward to step `to` (0-based). jumps: paths by
+ * answer, checked in order before skip; `to` equal to the number of steps sends the form now (end early). image: the
+ * picture beside this step on a split screen (over layout.side).
+ */
 /** result: a result screen, worked out live from the answers so far; it holds result blocks, text and calcs only. */
-export type Step = { id: string; title?: string; fields: Field[]; skip?: { when: Cond; to: number }; result?: true };
+export type Jump = { when: Cond; to: number };
+export type Step = { id: string; title?: string; fields: Field[]; skip?: Jump; jumps?: Jump[]; result?: true; image?: string };
+
+/** What a form is for (docs/form-kinds-plan.md): the AI builds each kind from its own recipe. */
+export const FORM_KINDS = ["lead", "quote", "order", "booking", "qualify", "quiz", "survey", "testimonial", "registration", "application", "support", "consent", "internal"] as const;
+export type FormKind = (typeof FORM_KINDS)[number];
 
 /** What each op compares: any answer, text, a number, a date, or picks from a list. */
 export const OP_KIND: Record<Op, "any" | "text" | "number" | "date" | "list"> = {
@@ -280,7 +289,13 @@ export type Form = {
     auto?: true;
     /** A first screen with a title, a line and a Start button. */
     cover?: { title: string; text?: string; button?: string };
+    /** Split screen: a picture beside every step (a step's own image wins), on the left unless at is "right". */
+    side?: { image: string; at?: "right" };
   };
+  /** What the form is for; the builder shows it and the AI keeps to its recipe. */
+  kind?: FormKind;
+  /** No email needed: polls, anonymous surveys and internal forms. A fill without one is kept with no contact. */
+  emailOptional?: true;
   title?: string;
   intro?: string;
   /** full: the button spans the form's width. */
@@ -721,10 +736,11 @@ export function checkForm(raw: unknown, ctx: Ctx = {}): { form: Form } | { error
       fields.push(f);
     }
     if (so.result === true && fields.some((x) => !isContent(x.type) && x.type !== "calc")) errors.push("A result screen holds results, text and calculations only.");
-    steps.push({ id: sid, ...(str(so.title, LIMITS.label) ? { title: str(so.title, LIMITS.label) } : {}), fields, ...(so.result === true ? { result: true as const } : {}) });
+    const img = typeof so.image === "string" && so.image.startsWith("https://") && safeUrl(so.image) ? so.image.slice(0, 1000) : "";
+    steps.push({ id: sid, ...(str(so.title, LIMITS.label) ? { title: str(so.title, LIMITS.label) } : {}), fields, ...(so.result === true ? { result: true as const } : {}), ...(img ? { image: img } : {}) });
   }
   if (count > LIMITS.fields) errors.push(`Up to ${LIMITS.fields} fields.`);
-  if (!keys.has("email")) errors.push("Add an email field, so each answer reaches a contact.");
+  if (!keys.has("email") && r.emailOptional !== true) errors.push("Add an email field, so each answer reaches a contact.");
   steps.forEach((s, i) => {
     if (s.result ? !s.fields.some((f) => f.type === "result") : !s.fields.some((f) => f.type !== "hidden" && !isContent(f.type))) errors.push(s.result ? `Step ${i + 1} has no results to show.` : `Step ${i + 1} has no fields.`);
   });
@@ -829,6 +845,22 @@ export function checkForm(raw: unknown, ctx: Ctx = {}): { form: Form } | { error
     else if (!Number.isFinite(to) || to <= i + 1 || to >= steps.length) errors.push(`Step ${i + 1} skips to a step that isn't after the next one.`);
     else steps[i].skip = { when, to };
   });
+  // Paths by answer: to a later step (past the next one) or, at the number of steps, the end (send now).
+  rawSteps.slice(0, LIMITS.steps).forEach((raw, i) => {
+    const js = (raw && typeof raw === "object" ? (raw as Record<string, unknown>).jumps : null) as unknown;
+    if (!Array.isArray(js) || !js.length || !steps[i]) return;
+    const out: Jump[] = [];
+    for (const j of js.slice(0, 10) as { when?: Record<string, unknown>; to?: unknown }[]) {
+      const field = str(j?.when?.field, 24) ?? "";
+      const to = Math.round(Number(j?.to));
+      const earlier = steps.slice(0, i + 1).some((st) => st.fields.some((f) => f.id === field && !isContent(f.type)));
+      const when = readCond(j?.when, types);
+      if (!earlier || typeof when === "string") errors.push(earlier && typeof when === "string" && when !== "A rule is incomplete." ? `Step ${i + 1}: ${when}` : `Step ${i + 1} has a path on a field that isn't on it or before it.`);
+      else if (!Number.isFinite(to) || to <= i || to > steps.length || (to === i + 1 && to < steps.length)) errors.push(`Step ${i + 1} has a path to a step that isn't after it.`);
+      else out.push({ when, to });
+    }
+    if (out.length) steps[i].jumps = out;
+  });
   const emailField = steps.flatMap((s) => s.fields).find((f) => f.key === "email");
   if (emailField && rules.some((x) => x.then.field === emailField.id && x.then.action !== "require")) errors.push("The email field can't be hidden by a rule.");
 
@@ -925,7 +957,10 @@ export function checkForm(raw: unknown, ctx: Ctx = {}): { form: Form } | { error
       ...(layout.mode === "screens" ? { mode: "screens" as const } : {}),
       ...(layout.auto === true ? { auto: true as const } : {}),
       ...((c) => (c ? { cover: c } : {}))(cleanCover(layout.cover)),
+      ...((x) => (x ? { side: x } : {}))(cleanSide(layout.side)),
     },
+    ...(FORM_KINDS.includes(r.kind as FormKind) ? { kind: r.kind as FormKind } : {}),
+    ...(r.emailOptional === true ? { emailOptional: true as const } : {}),
     ...(str(r.title, LIMITS.label) ? { title: str(r.title, LIMITS.label) } : {}),
     ...(str(r.intro, LIMITS.text) ? { intro: str(r.intro, LIMITS.text) } : {}),
     submit: { label: str(submit.label, 60) || "Submit", ...(submit.full === true ? { full: true } : {}) },
@@ -955,6 +990,14 @@ export function checkForm(raw: unknown, ctx: Ctx = {}): { form: Form } | { error
     ...((x) => (x ? { results: x } : {}))(cleanResults(r.results, byId, errors)),
   };
   return errors.length ? { errors: [...new Set(errors)] } : { form };
+}
+
+/** A split screen's picture: https only. */
+function cleanSide(raw: unknown): NonNullable<Form["layout"]["side"]> | undefined {
+  if (!raw || typeof raw !== "object") return undefined;
+  const x = raw as Record<string, unknown>;
+  const image = typeof x.image === "string" && x.image.startsWith("https://") && safeUrl(x.image) ? x.image.slice(0, 1000) : "";
+  return image ? { image, ...(x.at === "right" ? { at: "right" as const } : {}) } : undefined;
 }
 
 /** https only (http for localhost while testing), no credentials in the address. */
@@ -1229,11 +1272,19 @@ export function whenHits(when: Cond, v: unknown, ctx: RunCtx = {}): boolean {
 export function nextStep(form: Pick<Form, "steps" | "rules" | "constants" | "results">, from: number, answers: Record<string, unknown>, ctx: RunCtx = {}): number {
   const skip = form.steps[from]?.skip;
   let to = from + 1;
+  const vals = () => withCalcs(form, answers, ctx);
+  const before = (field: string) => form.steps.slice(0, from + 1).some((s) => s.fields.some((f) => f.id === field));
+  // Paths first, in order; one at the number of steps ends the form here.
+  const hit = (form.steps[from]?.jumps ?? []).find((j) => j.to > from && j.to <= form.steps.length && before(j.when.field) && whenHits(j.when, vals()[j.when.field], ctx));
+  if (hit) return hit.to >= form.steps.length ? form.steps.length : skipHidden(form, hit.to);
   if (skip && skip.to > from + 1 && skip.to < form.steps.length) {
-    const before = form.steps.slice(0, from + 1).some((s) => s.fields.some((f) => f.id === skip.when.field));
-    if (before && whenHits(skip.when, withCalcs(form, answers, ctx)[skip.when.field], ctx)) to = skip.to;
+    if (before(skip.when.field) && whenHits(skip.when, vals()[skip.when.field], ctx)) to = skip.to;
   }
-  // A result screen shows live only when results show right away; otherwise its blocks show after the send.
+  return skipHidden(form, to);
+}
+
+/** A result screen shows live only when results show right away; otherwise its blocks show after the send. */
+function skipHidden(form: Pick<Form, "steps" | "results">, to: number): number {
   while (to < form.steps.length && !stepShows(form, to)) to++;
   return to;
 }
@@ -1316,6 +1367,7 @@ export function usedBy(form: Pick<Form, "steps" | "rules" | "results"> & { after
   if (form.rules.some((r) => reads(r.when) || !!r.group?.when.some(reads))) out.push("a show or hide rule");
   form.steps.forEach((s, i) => {
     if (s.skip && reads(s.skip.when)) out.push(`the skip after step ${i + 1}`);
+    if (s.jumps?.some((j) => reads(j.when))) out.push(`a path after step ${i + 1}`);
   });
   for (const o of form.results?.outcomes ?? []) if (o.when?.conds.some(reads)) out.push(`the outcome ${o.title}`);
   return [...new Set(out)];

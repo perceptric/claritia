@@ -8,7 +8,8 @@
 import { useState } from "react";
 import { parseFormula } from "@/lib/forms/formula";
 import { htmlText } from "@/lib/forms/html";
-import { allFields, FILE_KINDS, RESULT_KINDS, type FileKind, type Choice, type Cond, type Constant, type Field, type Form, type Op as CondOp, type Outcome, type ResultBlock, type Results } from "@/lib/forms/schema";
+import { allFields, FILE_KINDS, RESULT_KINDS, type FileKind, type Choice, type Cond, type Constant, type Field, type Form, type Jump, type Op as CondOp, type Outcome, type ResultBlock, type Results } from "@/lib/forms/schema";
+import { KINDS } from "@/lib/forms/aiBuild";
 import { Labeled, PanelSection } from "../scheduling/panel";
 import type { BuildProps } from "./Build";
 import { Ic } from "./ic";
@@ -245,6 +246,27 @@ export function ScreensSection(p: BuildProps & { open: boolean; onToggle: () => 
           </Labeled>
         </>
       ) : null}
+      <div className={ROW}>
+        Picture beside each step
+        <Tg label="Picture beside each step" on={!!l.side} onChange={(v) => apply({ op: "set_layout", side: v ? { image: form.steps.find((x) => x.image)?.image ?? "https://" } : null })} />
+      </div>
+      {l.side ? (
+        <>
+          <Labeled label="Picture address">
+            <input className={IN_SM} aria-label="Picture address" placeholder="https://" value={l.side.image} onChange={(e) => apply({ op: "set_layout", side: { ...l.side!, image: e.target.value } })} />
+          </Labeled>
+          <Labeled label="Picture side">
+            <Seg label="Picture side" value={l.side.at ?? "left"} onChange={(v) => apply({ op: "set_layout", side: { image: l.side!.image, ...(v === "right" ? { at: "right" as const } : {}) } })} options={[{ value: "left", label: "Left" }, { value: "right", label: "Right" }]} />
+          </Labeled>
+          <Labeled label="Step pictures">
+            <div className="flex flex-col gap-[4px]">
+              {form.steps.map((s, i) => (
+                <input key={s.id} className={IN_SM} aria-label={`Picture for step ${i + 1}`} placeholder={`${s.title || `Step ${i + 1}`}: same picture`} value={s.image ?? ""} onChange={(e) => apply({ op: "update_step", index: i, image: e.target.value || null })} />
+              ))}
+            </div>
+          </Labeled>
+        </>
+      ) : null}
       <Labeled label="Result screens">
         <div className="flex flex-col gap-[4px]">
           {form.steps.map((s, i) => (
@@ -432,6 +454,104 @@ export function HtmlSection(p: SectionProps) {
   return (
     <PanelSection icon={<Ic n="code" />} title="Section" summary={htmlText(html).slice(0, 60) || "Empty"} open={p.open} onToggle={p.onToggle}>
       <textarea className={`${AREA} font-mono text-[12px]`} rows={12} aria-label="Section HTML" value={html} onChange={(e) => apply({ op: "update_field", id: f.id, patch: { content: { ...f.content, html: e.target.value } } })} />
+    </PanelSection>
+  );
+}
+
+// Kind and email -----------------------------------------------------------------------------------------------------
+
+/** What the form is for, and whether it needs an email (docs/form-kinds-plan.md). */
+export function KindSection(p: BuildProps & { open: boolean; onToggle: () => void }) {
+  const { form, apply } = p;
+  const email = allFields(form).find((f) => f.key === "email");
+  const label = KINDS.find((k) => k.value === form.kind)?.label;
+  const setOptional = (on: boolean) => {
+    if (on) apply([{ op: "set_kind", emailOptional: true }, ...(email?.required ? [{ op: "update_field" as const, id: email.id, patch: { required: false } }] : [])], "Email is optional now");
+    else apply([{ op: "set_kind", emailOptional: false }, ...(email ? [{ op: "update_field" as const, id: email.id, patch: { required: true } }] : [{ op: "add_field" as const, field: { key: "email" as const, type: "email" as const, label: "Email", required: true } }])], "Email is required now");
+  };
+  return (
+    <PanelSection icon={<Ic n="form" />} title="Kind" summary={`${label ?? "Form"}, ${form.emailOptional ? "email optional" : "email required"}`} open={p.open} onToggle={p.onToggle}>
+      <div className="flex flex-wrap gap-[6px]">
+        {KINDS.map((k) => (
+          <button key={k.value} type="button" title={k.text} aria-pressed={form.kind === k.value} onClick={() => apply({ op: "set_kind", kind: form.kind === k.value ? null : k.value })} className={form.kind === k.value ? "press inline-flex h-[26px] items-center rounded-full border border-ink bg-ink px-[10px] text-[12px] text-card" : GHOST_SM}>
+            {k.label}
+          </button>
+        ))}
+      </div>
+      <div className={ROW}>
+        Email optional
+        <Tg label="Email optional" on={!!form.emailOptional} onChange={setOptional} />
+      </div>
+    </PanelSection>
+  );
+}
+
+// Paths ---------------------------------------------------------------------------------------------------------------
+
+const PATH_FIELDS = new Set(["choice", "dropdown", "multi", "number", "rating", "calc", "checkbox"]);
+
+/** Paths by answer: after a step, go to a later step or send the form there (end early). */
+export function PathsSection(p: BuildProps & { open: boolean; onToggle: () => void }) {
+  const { form, apply } = p;
+  const n = form.steps.length;
+  const count = form.steps.reduce((a, s) => a + (s.jumps?.length ?? 0), 0);
+  const fieldsTo = (i: number) => form.steps.slice(0, i + 1).flatMap((s) => s.fields).filter((f) => PATH_FIELDS.has(f.type));
+  const setJumps = (i: number, jumps: Jump[]) => apply({ op: "update_step", index: i, jumps: jumps.length ? jumps : null });
+  const condFor = (f: Field): Cond => (f.type === "number" || f.type === "rating" || f.type === "calc" ? { field: f.id, op: "gte", value: "1" } : f.type === "checkbox" ? { field: f.id, op: "filled" } : f.type === "multi" ? { field: f.id, op: "any_of", values: [f.options?.[0]?.value ?? ""] } : { field: f.id, op: "is", value: f.options?.[0]?.value ?? "" });
+  const targets = (i: number) => [...Array.from({ length: n - i - 2 > 0 ? n - i - 2 : 0 }, (_, k) => i + 2 + k), n];
+  const where = (to: number) => (to >= n ? "End the form" : form.steps[to]?.title || `Step ${to + 1}`);
+  if (n < 2)
+    return (
+      <PanelSection icon={<Ic n="branch" />} title="Paths" summary="Add a step first" open={p.open} onToggle={p.onToggle}>
+        <span className="text-[12.5px] text-muted">Add a step first</span>
+      </PanelSection>
+    );
+  return (
+    <PanelSection icon={<Ic n="branch" />} title="Paths" summary={count ? `${count} ${count === 1 ? "path" : "paths"}` : "Steps in order"} open={p.open} onToggle={p.onToggle}>
+      {form.steps.slice(0, n).map((st, i) => {
+        const fs = fieldsTo(i);
+        const jumps = st.jumps ?? [];
+        if (!fs.length) return null;
+        return (
+          <div key={st.id} className="flex flex-col gap-[6px] border-t border-line pt-[8px] first:border-t-0 first:pt-0">
+            <span className="text-[12px] text-muted">{`After ${st.title || `step ${i + 1}`}`}</span>
+            {jumps.map((j, ji) => {
+              const f = fs.find((x) => x.id === j.when.field) ?? fs[0]!;
+              const num = f.type === "number" || f.type === "rating" || f.type === "calc";
+              const edit = (x: Partial<Jump>) => setJumps(i, jumps.map((y, k) => (k === ji ? { ...y, ...x } : y)));
+              const val = j.when.op === "any_of" ? (j.when.values?.[0] ?? "") : (j.when.value ?? "");
+              return (
+                <div key={ji} className="flex flex-wrap items-center gap-[4px]">
+                  <Dd sm label={f.label || "Question"} ariaLabel="Answer" items={fs.map((x): DdItem => ({ kind: "option", key: x.id, label: x.label || x.key, on: x.id === f.id, onPick: () => edit({ when: condFor(x) }) }))} />
+                  {num ? (
+                    <>
+                      <Dd sm label={j.when.op === "lt" ? "under" : "at least"} ariaLabel="Compare" items={(["gte", "lt"] as const).map((o): DdItem => ({ kind: "option", key: o, label: o === "lt" ? "under" : "at least", on: j.when.op === o, onPick: () => edit({ when: { ...j.when, op: o } }) }))} />
+                      <NumBox className={`${IN_SM} w-[70px]`} aria-label="Value" value={Number(val) || 0} onChange={(v) => edit({ when: { ...j.when, value: String(v ?? 0) } })} />
+                    </>
+                  ) : f.type === "checkbox" ? (
+                    <span className="text-[12.5px] text-muted">is ticked</span>
+                  ) : (
+                    <Dd
+                      sm
+                      label={`is ${f.options?.find((o) => o.value === val)?.label ?? val}`}
+                      ariaLabel="Value"
+                      items={(f.options ?? []).map((o): DdItem => ({ kind: "option", key: o.value, label: o.label, on: o.value === val, onPick: () => edit({ when: f.type === "multi" ? { field: f.id, op: "any_of", values: [o.value] } : { field: f.id, op: "is", value: o.value } }) }))}
+                    />
+                  )}
+                  <Dd sm label={`go to ${where(j.to)}`} ariaLabel="Go to" items={targets(i).map((t): DdItem => ({ kind: "option", key: String(t), label: where(t), on: t === j.to, onPick: () => edit({ to: t }) }))} />
+                  <button type="button" className="press inline-flex size-[24px] items-center justify-center rounded-full text-muted hover:bg-hover hover:text-ink" aria-label="Remove path" title="Remove" onClick={() => setJumps(i, jumps.filter((_, k) => k !== ji))}>
+                    <Ic n="x" s={12} />
+                  </button>
+                </div>
+              );
+            })}
+            <button type="button" className={`${GHOST_SM} self-start`} onClick={() => setJumps(i, [...jumps, { when: condFor(fs[fs.length - 1]!), to: targets(i)[0]! }])}>
+              <Ic n="plus" />
+              Add a path
+            </button>
+          </div>
+        );
+      })}
     </PanelSection>
   );
 }

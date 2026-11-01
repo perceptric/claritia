@@ -134,7 +134,9 @@ export function prepareSubmit(
   const e = cleanEmail(parts.email ?? "", ctx);
   // A throwaway address on a form that holds them: kept in Spam with its reason, never a contact or a delivery.
   const throwaway = form.spam.throwaway === "hold" && isRejected(e) && e.rejected === "disposable";
-  if (emailField && !errors[emailField.id] && !throwaway) {
+  // An empty email that wasn't required (an optional email, or a step a path skipped) is no error: the fill is kept
+  // with no contact. checkAnswers already refused an empty email the form needs.
+  if (emailField && !errors[emailField.id] && !throwaway && (parts.email ?? "").trim()) {
     if (isRejected(e)) errors[emailField.id] = e.rejected === "disposable" ? "Use an email address you'll keep." : "Enter a valid email.";
     else if ((emailField.check === "work_email" || form.spam.blockFree) && e.class === "free") errors[emailField.id] = "Use your work email.";
   }

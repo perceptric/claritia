@@ -219,6 +219,7 @@ export function Build(p: BuildProps) {
     );
 
   const busy = chat.busy;
+  const sideImg = ((u) => (/^https:\/\/[^\s"'<>]+$/.test(u) ? u : null))(form.steps[cur]?.image ?? form.layout.side?.image ?? "");
   return (
     <div className="grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_480px] grid-rows-[minmax(0,1fr)] max-[1100px]:grid-cols-[minmax(0,1fr)_440px] max-[860px]:grid-cols-1">
       <div className="fm-dots relative flex min-w-0 flex-col">
@@ -230,7 +231,7 @@ export function Build(p: BuildProps) {
           </span>
         </div>
         <div
-          className="flex min-h-0 flex-1 flex-col items-center overflow-y-auto px-[16px] pt-[28px] pb-[140px]"
+          className={`flex min-h-0 flex-1 overflow-y-auto px-[16px] pt-[28px] pb-[140px] ${!onSubmit && device !== "phone" && sideImg ? "flex-row items-start justify-center gap-[16px]" : "flex-col items-center"}`}
           onClick={(e) => {
             if (e.target === e.currentTarget && pick) setPick(null);
           }}
@@ -296,6 +297,11 @@ export function Build(p: BuildProps) {
               </>
           </div>
           )}
+          {/* A split screen's picture beside the step (docs/form-kinds-plan.md); on a phone it sits above in the live form. */}
+          {!onSubmit && device !== "phone" && sideImg ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={sideImg} alt="" className={`keep-light w-[320px] shrink-0 self-stretch rounded-[14px] object-cover max-[1100px]:hidden ${form.layout.side?.at === "right" ? "order-2" : "-order-1"}`} />
+          ) : null}
         </div>
         {insert ? <InsertMenu form={form} anchor={insert.el} onClose={() => setInsert(null)} onAdd={(k) => add(k, insert.at)} /> : null}
         <div className="pointer-events-none absolute inset-x-0 bottom-0 flex flex-col items-center gap-[8px] px-[16px] pt-[16px] pb-[18px]">

@@ -21,7 +21,7 @@ import { Eyebrow, Labeled, PanelFooter, PanelSection, TextLink } from "../schedu
 import type { BuildProps } from "./Build";
 import { autoMap, choiceRows, claritiaDests, crmDests, earlierChoices, isChoiceKind, issuesOf, kindInfo, kindOf, kindPatch, KINDS, known, knownOp, paramOf, questionsOf, rulesReading, saveName, showOps, showRules, splitNameOps, submissionKey, type Q } from "./formModel";
 import { Ic } from "./ic";
-import { ChoiceExtrasSection, FileSection, FormulaSection, HtmlSection, NumberExtrasSection, ResultSection, ResultsSection, ScreensSection, SettingsSection } from "./InteractivePanels";
+import { ChoiceExtrasSection, FileSection, FormulaSection, HtmlSection, NumberExtrasSection, ResultSection, ResultsSection, KindSection, PathsSection, ScreensSection, SettingsSection } from "./InteractivePanels";
 import { AREA, Box, Dd, Dots, GHOST_SM, IB, IN, IN_SM, Seg, type DdItem, Tg } from "./parts";
 
 /** The panel's frame: the eyebrow and title, its buttons, the sections that scroll, and the footer. */
@@ -210,7 +210,7 @@ function TypeSection(p: SectionProps) {
   const info = kindInfo(q.kind, f.type);
   const otherEmail = allFields(form).some((x) => x.key === "email" && x.id !== f.id);
   // The form's only email question stays an email question (a form that needs an email can't lose it).
-  const onlyEmail = f.key === "email" && !otherEmail;
+  const onlyEmail = f.key === "email" && !otherEmail && !form.emailOptional;
   return (
     <PanelSection icon={<Ic n={info.i} />} title="Type" summary={info.l} open={p.open} onToggle={p.onToggle}>
       <div className="-ml-[8px] grid grid-cols-2 gap-[2px]">
@@ -628,7 +628,9 @@ export function FormPanel(p: BuildProps & { open: string | null; setOpen: (k: st
           <Seg label="Width" value={form.layout.width} onChange={(v) => apply({ op: "set_layout", width: v })} options={[{ value: "narrow", label: "Narrow" }, { value: "wide", label: "Wide" }]} />
         </Labeled>
       </PanelSection>
+      <KindSection {...p} open={open === "kind"} onToggle={() => toggle("kind")} />
       <ScreensSection {...p} open={open === "screens"} onToggle={() => toggle("screens")} />
+      <PathsSection {...p} open={open === "paths"} onToggle={() => toggle("paths")} />
       <SettingsSection {...p} open={open === "settings"} onToggle={() => toggle("settings")} />
       <ResultsSection {...p} open={open === "results"} onToggle={() => toggle("results")} />
       <PanelSection icon={<Ic n="palette" />} title="Styling" summary={kit ? `Your brand kit, ${corner} corners` : "Claritia"} open={open === "style"} onToggle={() => toggle("style")}>

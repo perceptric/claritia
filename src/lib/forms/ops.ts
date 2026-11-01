@@ -15,7 +15,7 @@ export type Op =
   | { op: "remove_field"; id: string }
   | { op: "move_field"; id: string; step: number; index: number }
   | { op: "add_step"; title?: string }
-  | { op: "update_step"; index: number; title?: string; skip?: Step["skip"] | null; result?: boolean }
+  | { op: "update_step"; index: number; title?: string; skip?: Step["skip"] | null; jumps?: Step["jumps"] | null; image?: string | null; result?: boolean }
   | { op: "remove_step"; index: number }
   | { op: "set_rule"; rule: Omit<Rule, "id"> & { id?: string } }
   | { op: "remove_rule"; id: string }
@@ -29,7 +29,10 @@ export type Op =
       mode?: "screens" | null;
       auto?: boolean;
       cover?: Form["layout"]["cover"] | null;
+      /** Split screen (docs/form-kinds-plan.md): the picture beside every step. */
+      side?: Form["layout"]["side"] | null;
     }
+  | { op: "set_kind"; kind?: Form["kind"] | null; emailOptional?: boolean }
   /** The owner's settings formulas read as {@id}, whole. */
   | { op: "set_constants"; constants: Constant[] }
   /** One setting: add or change it (value null: the owner sets it), or remove it. */
@@ -182,9 +185,13 @@ export function applyOp(input: Form, op: Op): { form: Form } | { error: string }
       form.steps[op.step].fields.splice(Math.max(0, Math.min(op.index, form.steps[op.step].fields.length)), 0, f);
       return { form };
     }
-    case "add_step":
+    case "add_step": {
+      // A path to the end still ends the form after the new last step.
+      const end = form.steps.length;
+      for (const st of form.steps) if (st.jumps) st.jumps = st.jumps.map((j) => (j.to === end ? { ...j, to: end + 1 } : j));
       form.steps.push({ id: newId(), ...(op.title ? { title: op.title } : {}), fields: [] });
       return { form };
+    }
     case "update_step":
       if (!form.steps[op.index]) return { error: "That step doesn't exist." };
       if (op.title !== undefined) {
@@ -193,6 +200,10 @@ export function applyOp(input: Form, op: Op): { form: Form } | { error: string }
       }
       if (op.skip === null) delete form.steps[op.index].skip;
       else if (op.skip) form.steps[op.index].skip = op.skip;
+      if (op.jumps === null || (op.jumps && !op.jumps.length)) delete form.steps[op.index].jumps;
+      else if (op.jumps) form.steps[op.index].jumps = op.jumps;
+      if (op.image === null || op.image === "") delete form.steps[op.index].image;
+      else if (op.image) form.steps[op.index].image = op.image;
       if (op.result === true) form.steps[op.index].result = true;
       else if (op.result === false) delete form.steps[op.index].result;
       return { form };
@@ -202,12 +213,20 @@ export function applyOp(input: Form, op: Op): { form: Form } | { error: string }
       // Its fields join the step before (or after, for the first).
       const [gone] = form.steps.splice(op.index, 1);
       form.steps[Math.max(0, op.index - 1)].fields.push(...gone.fields);
-      // Skips past the removed step move down one; a skip that no longer jumps past the next step comes off.
+      // Skips past the removed step move down one; a skip that no longer jumps past the next step comes off. Paths
+      // move the same way; one to the end stays at the end.
+      const n = form.steps.length;
       form.steps.forEach((st, i) => {
-        if (!st.skip) return;
-        const to = st.skip.to > op.index ? st.skip.to - 1 : st.skip.to;
-        if (to <= i + 1 || to >= form.steps.length) delete st.skip;
-        else st.skip = { ...st.skip, to };
+        if (st.skip) {
+          const to = st.skip.to > op.index ? st.skip.to - 1 : st.skip.to;
+          if (to <= i + 1 || to >= n) delete st.skip;
+          else st.skip = { ...st.skip, to };
+        }
+        if (st.jumps) {
+          const js = st.jumps.map((j) => ({ ...j, to: j.to > op.index ? j.to - 1 : j.to })).filter((j) => j.to > i && j.to <= n && !(j.to === i + 1 && j.to < n));
+          if (js.length) st.jumps = js;
+          else delete st.jumps;
+        }
       });
       return { form };
     }
@@ -231,6 +250,14 @@ export function applyOp(input: Form, op: Op): { form: Form } | { error: string }
       else if (op.auto === false) delete form.layout.auto;
       if (op.cover === null) delete form.layout.cover;
       else if (op.cover) form.layout.cover = op.cover;
+      if (op.side === null) delete form.layout.side;
+      else if (op.side) form.layout.side = op.side;
+      return { form };
+    case "set_kind":
+      if (op.kind === null) delete form.kind;
+      else if (op.kind) form.kind = op.kind;
+      if (op.emailOptional === true) form.emailOptional = true;
+      else if (op.emailOptional === false) delete form.emailOptional;
       return { form };
     case "set_constants":
       if (op.constants.length) form.constants = op.constants;
@@ -399,6 +426,8 @@ export function describeOp(op: Op, before: Form): string {
       return "Removed a rule";
     case "set_layout":
       return op.mode === "screens" ? "One question per screen" : op.mode === null ? "All questions on one page" : op.cover !== undefined ? (op.cover ? "Changed the cover" : "Removed the cover") : "Changed the layout";
+    case "set_kind":
+      return op.emailOptional === true ? "Email is optional now" : op.emailOptional === false ? "Email is required now" : "Changed the kind of form";
     case "set_constants":
       return "Changed the settings";
     case "set_constant":
@@ -445,6 +474,7 @@ export function renameValues(form: Form, fields: string[], map: Map<string, stri
   };
   walk(form.rules);
   walk(form.steps.map((s) => s.skip));
+  walk(form.steps.map((s) => s.jumps));
   for (const f of form.steps.flatMap((s) => s.fields)) {
     const by = f.optionsBy;
     if (by?.map && want.has(by.field)) by.map = Object.fromEntries(Object.entries(by.map).map(([k, v]) => [map.get(k) ?? k, v]));
