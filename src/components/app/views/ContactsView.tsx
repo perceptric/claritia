@@ -230,7 +230,7 @@ function ContactBulk({ sb, session, wsId, owner, ids, done, meta }: { sb: ViewPr
 function ContactsIntro({ action }: { action: React.ReactNode }) {
   return (
     <ToolIntro
-      sketch="cards"
+      sketch="megaphone"
       action={action}
       title={"Every contact\nin one place"}
       lead="Bring in your contacts from a CSV, or add them one by one. Claritia cleans each email, merges duplicates, keeps each person's email consent, and ties them to their visits."
