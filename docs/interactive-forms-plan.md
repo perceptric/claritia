@@ -1,6 +1,6 @@
 # Interactive forms: more than forms
 
-Status: proposed, 1 November 2026. Builds on `docs/forms-plan.md`, `docs/form-studio.md`, `docs/form-builder-v2.md`
+Status: step 1 built (see "Status" at the end); the rest proposed. 1 November 2026. Builds on `docs/forms-plan.md`, `docs/form-studio.md`, `docs/form-builder-v2.md`
 and `docs/on-submission.md`. Replaces the outside draft "Claritia: Static and Interactive Form Templates, revision 1",
 lined up with what is in the repo today.
 
@@ -249,6 +249,24 @@ Every interactive template ends with a Book step that uses On Submission. Bookin
 
 ---
 
+## Part 6b. Editing
+
+Owners change interactive forms without touching code (shown in the Forms demo):
+
+| Way | What it does |
+|---|---|
+| Click to edit | Click a title, question, card or result text on the canvas and type; the side panel holds a card's image, score and price |
+| Flow map | Screens as cards on the dotted canvas with arrows (`FlowLines.tsx`); drag an arrow to make a skip; outcomes are cards in order |
+| Numbers tab | Settings and the price list as tables; Private is a switch; a blank value is marked Set before publishing |
+| Formula chips | A formula is built by picking questions and settings; Show formula opens the text for power users |
+| Try each outcome | Fills answers that reach each outcome, so every result is checked in a few clicks |
+| AI bar | "Make the rush fee 30%" changes the form, says what changed, and offers Undo |
+| Safety | Deleting a field lists what uses it first; live forms keep the published version while the draft changes |
+
+Adds about 6 days to Part 9 (flow map 3, Numbers tab 2, Try each outcome 1) and $0 a month.
+
+---
+
 ## Part 7. Data
 
 | Migration | Adds |
@@ -329,3 +347,25 @@ Later: PDF of results, payments on a quote, live benchmark feeds, AI-written adv
 | **Added monthly total** | **about $77** | **about $796** |
 
 Results never call a model per visitor, so costs don't grow with traffic.
+
+---
+
+## Status
+
+### Step 1 built: settings, new functions and outcomes
+
+| Piece | Where |
+|---|---|
+| `sum`, `ceil`, `floor`; settings read as `{@name}` | `src/lib/forms/formula.ts` |
+| `constants` and `results` on the form, cleaned by the checker: unknown settings, two with one name, bad numbers, one default outcome last, conditions on real fields | `cleanConstants`, `cleanResults` in `src/lib/forms/schema.ts` |
+| Calcs read settings; a setting not set leaves the result empty | `calcs` in `schema.ts` |
+| `pickOutcome`: first match wins, else the default; a hidden answer never picks a result; browser and server run the same function | `schema.ts` |
+| Private settings stripped from the public form | `publicForm` in `schema.ts`, `src/app/api/forms/[id]/route.ts` |
+| Publish refuses a form with a setting not set, in the app and over MCP | `src/app/api/forms/publish/route.ts`, `src/lib/forms/mcp.ts` |
+| Tests: the I02 quote ($500 and $400, server ignores a posted total), I02 outcomes, private settings, I04 readiness (50%, Developing; unfinished stays unfinished), old forms unchanged | `tests/interactiveForms.test.ts` |
+
+Not yet: the "used by" list before a delete, types on calcs (money with a period), the result screen in the form
+script, and storing the outcome with each submission (step 2). The form script is 23,116 bytes gzipped of its 23,552
+limit, so step 3 raises the limit as planned.
+
+Running cost of step 1: $0 at Beta and Growth (no new service, no model calls).

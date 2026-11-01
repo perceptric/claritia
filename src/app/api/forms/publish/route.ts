@@ -1,5 +1,5 @@
 import { cleaningCtx, isMember } from "@/lib/contacts/server";
-import { checkForm } from "@/lib/forms/schema";
+import { checkForm, unsetConstants } from "@/lib/forms/schema";
 import { forgetPublic } from "@/lib/forms/server";
 import { forgetFields } from "@/lib/router/actions";
 import { publishFormRouting } from "@/lib/routing/formPublish";
@@ -26,6 +26,9 @@ export async function POST(request: Request) {
   const ctx = await cleaningCtx(db, body.workspaceId as string);
   const r = checkForm(form.draft, { custom: ctx.custom });
   if ("errors" in r) return bad(r.errors[0], 400, { errors: r.errors });
+  // A price or rate left blank would make every result empty; the owner sets it first.
+  const unset = unsetConstants(r.form).map((c) => `Set ${c.name} before publishing.`);
+  if (unset.length) return bad(unset[0], 400, { errors: unset });
   const { data, error } = await db.rpc("form_publish", { p_id: body.id, p_user: auth.user.id, p_body: r.form });
   if (error) return bad(error.message, 500);
   // The new version shows at once on this server (others read it again within 10 seconds, or on the first send).

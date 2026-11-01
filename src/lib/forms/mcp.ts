@@ -3,7 +3,7 @@ import type { ApiCaller } from "../apiAuth.ts";
 import { ToolError, type Tool } from "../mcpProtocol.ts";
 import { APP_URL } from "../site.ts";
 import { applyStrict, describeOp, type Op } from "./ops.ts";
-import { checkForm, emptyForm, type Form } from "./schema.ts";
+import { checkForm, emptyForm, unsetConstants, type Form } from "./schema.ts";
 import { TEMPLATES } from "./templates.ts";
 
 // Forms on the MCP server (docs/form-builder.md 4.3): the same ops the chat and the builder use, so a team can build
@@ -99,6 +99,8 @@ export const formTools: Tool<ApiCaller>[] = [
       if (m?.role !== "owner") throw new ToolError("Publishing needs a key made by a workspace owner. Publish it in the app instead.");
       const check = checkForm(f.draft, { custom: await customOf(ctx) });
       if ("errors" in check) throw new ToolError(`Fix these first: ${check.errors.join(" ")}`);
+      const unset = unsetConstants(check.form);
+      if (unset.length) throw new ToolError(`Set these first: ${unset.map((c) => c.name).join(", ")}.`);
       const { data, error } = await ctx.sb.rpc("form_publish", { p_id: f.id, p_user: key!.created_by, p_body: check.form });
       if (error) throw new Error(error.message);
       const embed = `<script src="${APP_URL}/forms/v1.js" async></script>\n<claritia-form form-id="${f.id}"></claritia-form>`;
