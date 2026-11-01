@@ -13,7 +13,8 @@ Journeys, Emails, Library and Brand tabs are gone, and the senders stay in Setti
   renames it in place (or double-click), moves it up or down, or deletes it (its workflows stay, under No folder). A
   workflow's menu moves it to another folder.
 - The workflow sits on a dotted canvas (`flow-dots`), like Scoring's flowchart. Scoring's lines are measured from the
-  cards (`src/components/app/FlowLines.tsx`): right-angle bends with round corners and an arrowhead into each card.
+  cards (`src/components/app/FlowLines.tsx`): one near-black weight, smooth S-curves and an arrowhead into each card. The
+  first column is ICP fit.
 - The first visit makes folders from the old groups: one per lifecycle stage in use (Trial, Pipeline, Customer), then
   Workflows for the rest (`workflow_folders_start`, `supabase/migrations/100_workflow_folders.sql`). Before 100 runs,
   the page groups by stage as it did, without folder actions.
