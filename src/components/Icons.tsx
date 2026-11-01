@@ -93,6 +93,12 @@ export const Folder = (p: P) => (
   </Svg>
 );
 
+export const FolderPlus = (p: P) => (
+  <Svg {...p}>
+    <path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2zM12 10.5v5M9.5 13h5" />
+  </Svg>
+);
+
 export const Trash = (p: P) => (
   <Svg {...p}>
     <path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6" />

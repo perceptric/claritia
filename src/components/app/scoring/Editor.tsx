@@ -18,6 +18,7 @@ import { AskDock } from "../forms/FormHome";
 import { Select } from "../Select";
 import { Badge, Button, ErrorNote, errorText, IconButton, Input, Segmented, Toggle, type ViewProps } from "../ui";
 import { Dots as DotCanvas } from "../routing/Flow";
+import { FlowLines, type Edge } from "../FlowLines";
 import { toast } from "../routing/Toast";
 import { BAND, scoringApi, type Loaded, type ModelData, type Results } from "./api";
 import { Points } from "./Build";
@@ -244,38 +245,24 @@ export function Editor({ session, ws, role, data, model, refresh }: Pick<ViewPro
 type Edit = ((fn: (b: ScoreBody) => void) => void) | undefined;
 type Words = Parameters<typeof ruleWords>[1];
 
-/** A centered arrow down to the next card. */
-function Arrow() {
-  return (
-    <div className="flex h-6 justify-center" aria-hidden="true">
-      <svg width="12" height="24" viewBox="0 0 12 24" className="overflow-visible">
-        <path d="M6 0V20M3 17l3 3 3-3" stroke="var(--color-line-strong)" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round" />
-      </svg>
-    </div>
-  );
+/** True at the width where Fit and Activity sit side by side (Tailwind xl). */
+function useWide() {
+  const [wide, setWide] = useState(false);
+  useEffect(() => {
+    const m = window.matchMedia("(min-width: 1280px)");
+    const on = () => setWide(m.matches);
+    on();
+    m.addEventListener("change", on);
+    return () => m.removeEventListener("change", on);
+  }, []);
+  return wide;
 }
 
-/**
- * The lines where the flow splits into its two columns, or joins again. Drawn by the same grid as the columns, so
- * each line meets the center of its column at any width.
- */
-function Branch({ join = false }: { join?: boolean }) {
-  const line = "absolute bg-line-strong";
-  return (
-    <div className="relative hidden h-7 grid-cols-[340px_340px] gap-8 xl:grid" aria-hidden="true">
-      <span className={`${line} left-1/2 w-[1.5px] -translate-x-1/2 ${join ? "top-1/2 bottom-0" : "top-0 h-1/2"}`} />
-      {[0, 1].map((i) => (
-        <span key={i} className="relative">
-          <span className={`${line} left-1/2 w-[1.5px] -translate-x-1/2 ${join ? "top-0 h-1/2" : "top-1/2 bottom-0"}`} />
-          <span className={`${line} top-1/2 h-[1.5px] -translate-y-1/2 ${i === 0 ? "left-1/2 -right-4" : "right-1/2 -left-4"}`} />
-        </span>
-      ))}
-    </div>
-  );
-}
-
-function Flow({ body, res, sel, setSel, edit, words }: { body: ScoreBody; res: Results | null; sel: Sel; setSel: (s: Sel) => void; edit: Edit; words: Words }) {
+/** The flowchart: New lead splits into Fit and Activity, each a chain of groups, joining at Points taken away, which
+ * splits into the three bands. The lines are measured from the cards (FlowLines), so they always meet them. */
+export function Flow({ body, res, sel, setSel, edit, words }: { body: ScoreBody; res: Results | null; sel: Sel; setSel: (s: Sel) => void; edit: Edit; words: Words }) {
   const s = res?.stats;
+  const wide = useWide();
   const ends: [keyof typeof BAND, string][] =
     body.style === "grades"
       ? [["hot", body.mql.join(", ") || "No grades picked"], ["warm", "Grade A or B, or level 1 or 2"], ["cold", "Everyone else"]]
@@ -285,23 +272,42 @@ function Flow({ body, res, sel, setSel, edit, words }: { body: ScoreBody; res: R
     edit?.((b) => b.groups.push({ id, name: side === "fit" ? "New fit group" : "New activity group", side, max: 20, rules: [] }));
     setSel({ kind: "group", id });
   };
+  const chain = (side: "fit" | "act") => [side, ...body.groups.filter((g) => g.side === side).map((g) => g.id), ...(edit ? [`add-${side}`] : [])];
+  const fit = chain("fit");
+  const act = chain("act");
+  const links = (ids: string[]): Edge[] => ids.slice(1).map((id, i) => ({ from: ids[i], to: id, dashed: id.startsWith("add-") }));
+  const edges: Edge[] = [
+    ...links(fit),
+    ...links(act),
+    ...(wide
+      ? [
+          { from: "lead", to: "fit", bend: "from" as const },
+          { from: "lead", to: "act", bend: "from" as const },
+          { from: fit[fit.length - 1], to: "minus", bend: "to" as const },
+          { from: act[act.length - 1], to: "minus", bend: "to" as const },
+        ]
+      : [
+          { from: "lead", to: "fit" },
+          { from: fit[fit.length - 1], to: "act" },
+          { from: act[act.length - 1], to: "minus" },
+        ]),
+    ...ends.map(([band]) => ({ from: "minus", to: `band-${band}`, bend: "from" as const })),
+  ];
   const column = (side: "fit" | "act") => (
-    <div className="flex min-w-0 flex-col">
-      <span className="flex h-6 items-center justify-center font-mono text-[11px] tracking-[0.06em] text-muted uppercase">{side === "fit" ? "Fit" : "Activity"}</span>
+    <div className="flex min-w-0 flex-col items-center gap-8">
+      <span data-node={side} className="relative inline-flex h-6 items-center rounded-full border border-line bg-card px-2.5 font-mono text-[10.5px] tracking-[0.06em] text-muted uppercase">
+        {side === "fit" ? "Fit" : "Activity"}
+      </span>
       {body.groups.filter((g) => g.side === side).map((g) => (
-        <div key={g.id} className="flex flex-col">
-          <Arrow />
+        <div key={g.id} data-node={g.id} className="relative w-full">
           <GroupCard g={g} sel={sel} setSel={setSel} edit={edit} words={words} />
         </div>
       ))}
       {edit ? (
-        <>
-          <Arrow />
-          <button type="button" onClick={() => addGroup(side)} className="press inline-flex h-7 items-center gap-1 self-center rounded-full border border-line bg-card px-3 text-[12px] text-body hover:border-line-strong hover:text-ink">
-            <Plus size={12} />
-            Add group
-          </button>
-        </>
+        <button type="button" data-node={`add-${side}`} onClick={() => addGroup(side)} className="press relative inline-flex h-7 items-center gap-1 rounded-full border border-dashed border-line-strong bg-card px-3 text-[12px] text-body hover:border-ink hover:text-ink">
+          <Plus size={12} />
+          Add group
+        </button>
       ) : null}
     </div>
   );
@@ -309,33 +315,20 @@ function Flow({ body, res, sel, setSel, edit, words }: { body: ScoreBody; res: R
     <div className="relative min-h-full">
       <DotCanvas />
       <div className="relative flex flex-col items-center px-4 py-7 md:px-6">
-        <button type="button" onClick={() => setSel({ kind: "model" })} className={`flex h-[34px] items-center rounded-full bg-ink px-4 text-[13px] font-medium text-paper ${sel.kind === "model" ? "outline-2 outline-offset-[3px] outline-ink" : ""}`}>
+        <FlowLines edges={edges} deps={body} />
+        <button type="button" data-node="lead" onClick={() => setSel({ kind: "model" })} className={`relative flex h-[34px] items-center rounded-full bg-ink px-4 text-[13px] font-medium text-paper ${sel.kind === "model" ? "outline-2 outline-offset-[3px] outline-ink" : ""}`}>
           New lead
         </button>
-        <Branch />
-        <div className="grid w-full max-w-[340px] gap-y-2 xl:max-w-none xl:w-auto xl:grid-cols-[340px_340px] xl:gap-x-8">
-          <div className="flex flex-col">
-            <span className="xl:hidden">
-              <Arrow />
-            </span>
-            {column("fit")}
-          </div>
-          <div className="flex flex-col">
-            <span className="xl:hidden">
-              <Arrow />
-            </span>
-            {column("act")}
-          </div>
+        <div className="mt-10 grid w-full max-w-[360px] gap-y-8 xl:w-auto xl:max-w-none xl:grid-cols-[360px_360px] xl:gap-x-16">
+          {column("fit")}
+          {column("act")}
         </div>
-        <Branch join />
-        <div className="w-full max-w-[420px]">
-          <Arrow />
+        <div data-node="minus" className="relative mt-12 w-full max-w-[420px]">
           <GroupCard g={{ id: "minus", name: "Points taken away", side: "fit", max: 0, rules: body.minus }} sel={sel} setSel={setSel} edit={edit} words={words} minus />
         </div>
-        <Arrow />
-        <div className="grid w-full max-w-[560px] gap-2.5 sm:grid-cols-3">
+        <div className="mt-10 grid w-full max-w-[600px] gap-3 sm:grid-cols-3">
           {ends.map(([band, d]) => (
-            <button key={band} type="button" onClick={() => setSel({ kind: "model" })} className={`flex flex-col gap-0.5 rounded-[10px] border bg-card px-3 py-2.5 text-left ${band === "hot" ? "border-signal" : "border-line"}`}>
+            <button key={band} type="button" data-node={`band-${band}`} onClick={() => setSel({ kind: "model" })} className={`relative flex flex-col gap-0.5 rounded-[10px] border bg-card px-3 py-2.5 text-left ${band === "hot" ? "border-signal" : "border-line"}`}>
               <b className="flex items-center gap-1.5 text-[13px] font-medium text-ink">
                 <span className={`size-[7px] rounded-full ${band === "hot" ? "bg-signal" : band === "warm" ? "bg-butter" : "bg-line-strong"}`} />
                 {BAND[band].label}

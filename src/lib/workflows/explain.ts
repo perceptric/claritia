@@ -8,18 +8,27 @@ import type { Body, Goal, Step, Trigger } from "./types.ts";
 export type Names = { forms?: Record<string, string>; segments?: Record<string, string>; types?: Record<string, string>; people?: Record<string, string>; emails?: Record<string, string> };
 
 const list = (xs: string[]) => (xs.length <= 1 ? (xs[0] ?? "") : `${xs.slice(0, -1).join(", ")} or ${xs[xs.length - 1]}`);
-const named = (ids: string[], by: Record<string, string> | undefined, any: string) => (ids.length ? list(ids.map((id) => by?.[id] ?? "a removed one")) : any);
+/** The names of the picked ids. Deleted ones drop out; when all are gone, `gone` says so. */
+const named = (ids: string[], by: Record<string, string> | undefined, any: string, gone: string) => {
+  if (!ids.length) return any;
+  const known = ids.map((id) => by?.[id]).filter((x): x is string => !!x);
+  return known.length ? list(known) : gone;
+};
 const EVENT: Record<string, string> = { booked: "booked", canceled: "canceled", held: "held", no_show: "a no-show" };
 const plural = (n: number, one: string) => `${n} ${one}${n === 1 ? "" : "s"}`;
 
 export function triggerWords(t: Trigger, n: Names = {}): string {
   switch (t.kind) {
     case "form":
-      return `When ${named(t.forms, n.forms, "any form")} is sent`;
-    case "meeting":
-      return `When a ${named(t.types, n.types, "")} meeting is ${list(t.events.map((e) => EVENT[e] ?? e)) || "booked"}`.replace("a  meeting", "a meeting");
+      return `When ${named(t.forms, n.forms, "any form", "a deleted form")} is sent`;
+    case "meeting": {
+      const what = list(t.events.map((e) => EVENT[e] ?? e)) || "booked";
+      if (!t.types.length) return `When a meeting is ${what}`;
+      const w = named(t.types, n.types, "", "");
+      return w ? `When ${/^[aeiou]/i.test(w) ? "an" : "a"} ${w} meeting is ${what}` : `When a meeting of a deleted type is ${what}`;
+    }
     case "not_booked":
-      return `When a lead doesn't book after ${named(t.forms, n.forms, "a form")}`;
+      return `When a lead doesn't book after ${named(t.forms, n.forms, "a form", "a deleted form")}`;
     case "outcome":
       return `When qualify says ${list(t.outcomes) || "anything"}`;
     case "band":
@@ -31,7 +40,7 @@ export function triggerWords(t: Trigger, n: Names = {}): string {
     case "field":
       return `When ${t.key.replace(/^f\./, "").replace(/_/g, " ") || "a field"} changes${t.to ? ` to ${t.to}` : ""}`;
     case "clicked":
-      return `When someone clicks ${named(t.emails, n.emails, "an email")}`;
+      return `When someone clicks ${named(t.emails, n.emails, "an email", "a deleted email")}`;
     case "product":
       return `When someone does ${list(t.events.map((x) => `"${x}"`)) || "something"} in the product`;
     case "date":

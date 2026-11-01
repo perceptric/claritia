@@ -98,15 +98,15 @@ export function byDay(isoTimes: string[], n: number, now = Date.now()): { day: s
 }
 
 /** A ⋯ button that opens a short menu of actions. */
-export function MoreMenu({ label = "More", items }: { label?: string; items: ({ label: string; run: () => void; danger?: boolean } | null)[] }) {
+export function MoreMenu({ label = "More", items, icon, small = false }: { label?: string; items: ({ label: string; run: () => void; danger?: boolean } | null)[]; icon?: React.ReactNode; small?: boolean }) {
   const [anchor, setAnchor] = useState<HTMLElement | null>(null);
   const open = !!anchor;
   const setOpen = (v: boolean) => (v ? null : setAnchor(null));
   const list = items.filter(Boolean) as { label: string; run: () => void; danger?: boolean }[];
   return (
     <>
-      <button type="button" aria-label={label} title={label} aria-haspopup="menu" aria-expanded={open} onClick={(e) => { e.stopPropagation(); setAnchor(anchor ? null : e.currentTarget); }} className="press inline-flex size-8 shrink-0 items-center justify-center rounded-full text-muted hover:bg-hover hover:text-ink">
-        <MoreHorizontal size={15} />
+      <button type="button" aria-label={label} title={label} aria-haspopup="menu" aria-expanded={open} onClick={(e) => { e.stopPropagation(); setAnchor(anchor ? null : e.currentTarget); }} className={`press inline-flex ${small ? "size-6" : "size-8"} shrink-0 items-center justify-center rounded-full text-muted hover:bg-hover hover:text-ink`}>
+        {icon ?? <MoreHorizontal size={small ? 14 : 15} />}
       </button>
       {open ? (
         <Popover anchor={anchor} onClose={() => setOpen(false)} width={200}>

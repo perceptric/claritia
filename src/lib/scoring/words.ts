@@ -19,7 +19,11 @@ export function condWords(c: Cond, ctx: WordsCtx): string {
   const v = c.op === "filled" ? [] : vals(c);
   switch (f?.event) {
     case "form":
-      return v.length ? `Filled in the ${or(v.map((id) => ctx.forms?.[id] ?? "a removed"))} form` : "Filled in any form";
+      {
+      if (!v.length) return "Filled in any form";
+      const known = v.map((id) => ctx.forms?.[id]).filter((x): x is string => !!x);
+      return known.length ? `Filled in the ${or(known)} form` : "Filled in a deleted form";
+    }
     case "page":
       return v.length ? `Visited ${or(v)}` : "Visited any page";
     case "product":
