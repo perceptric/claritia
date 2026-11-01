@@ -283,7 +283,10 @@ test("builder ops: screens and a cover, settings, results and a result screen, e
   const added = applyOp(fm, { op: "add_step" });
   assert.ok("form" in added);
   fm = added.form;
-  run({ op: "add_field", step: 1, field: { type: "result", label: "", required: false, result: { kind: "metric", field: "t" } }, id: "r1" });
+  // A new step is checked once it holds something: here a result block, on a step marked as a result screen.
+  const withBlock = applyOp(fm, { op: "add_field", step: 1, field: { type: "result", label: "", required: false, result: { kind: "metric", field: "t" } }, id: "r1" });
+  assert.ok("form" in withBlock);
+  fm = withBlock.form;
   run({ op: "update_step", index: 1, result: true });
   assert.equal(fm.steps[1]!.result, true);
   run({ op: "set_results", results: { show: "instant", outcomes: [{ id: "big", title: "Big", when: { logic: "all", conds: [{ field: "t", op: "gte", value: "10" }] } }, { id: "everyone", title: "Everyone else" }] } });
@@ -294,6 +297,9 @@ test("builder ops: screens and a cover, settings, results and a result screen, e
   assert.equal(fm.layout.cover, undefined);
   run({ op: "set_results", results: null });
   assert.equal(fm.results, undefined);
-  run({ op: "update_step", index: 1, result: false });
-  assert.equal(fm.steps[1]!.result, undefined);
+  // Unmarking a step that holds only results is refused by the checker: it would ask nothing.
+  const back = applyOp(fm, { op: "update_step", index: 1, result: false });
+  assert.ok("form" in back);
+  assert.equal(back.form.steps[1]!.result, undefined);
+  assert.ok("errors" in checkForm(back.form));
 });
