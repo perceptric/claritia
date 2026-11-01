@@ -3,7 +3,7 @@
 // What the Forms screens share: the row shapes, the live preview (the real <claritia-form>, so the builder shows
 // exactly what visitors get), and small controls.
 
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { designFonts, formCss } from "@/lib/design/form";
 import { fontUrl } from "./editorModel";
 import type { Breakpoint } from "@/lib/design/model";
@@ -32,8 +32,10 @@ export const DELIVERY: Record<string, [string, Tone]> = {
  * The form as visitors see it, from a draft that may not be finished yet. `system` is the design system's draft;
  * `device` draws that breakpoint's styles whatever the window's width is.
  */
-export function FormPreview({ form, tokens, step = 0, done = false, system, device, answers }: { form: Form; tokens: Partial<Tokens>; step?: number; done?: boolean; system?: unknown; device?: Breakpoint; answers?: Record<string, unknown> }) {
+export function FormPreview({ form, tokens, logo, step = 0, done = false, system, device, answers }: { form: Form; tokens: Partial<Tokens>; logo?: string | null; step?: number; done?: boolean; system?: unknown; device?: Breakpoint; answers?: Record<string, unknown> }) {
   const ref = useRef<HTMLElement>(null);
+  // After a deploy, a page opened before it can't load the form script's new file: say so instead of a blank box.
+  const [failed, setFailed] = useState(false);
   const css = useMemo(() => {
     try {
       return formCss(form, tokens, system, { device });
@@ -44,13 +46,25 @@ export function FormPreview({ form, tokens, step = 0, done = false, system, devi
   const fontKey = fontUrl(designFonts(system, form.design));
   useEffect(() => {
     let live = true;
-    void import("@/lib/forms/element").then(() => {
-      if (live && ref.current) (ref.current as unknown as { preview: unknown }).preview = { form, tokens, step, done, css, ...(fontKey ? { fonts: [fontKey] } : {}), ...(usesRegions(form) ? { regions: allRegions() } : {}), ...(answers ? { answers } : {}) };
-    });
+    import("@/lib/forms/element").then(
+      () => {
+        if (live && ref.current) (ref.current as unknown as { preview: unknown }).preview = { form, tokens, logo: logo ?? null, step, done, css, ...(fontKey ? { fonts: [fontKey] } : {}), ...(usesRegions(form) ? { regions: allRegions() } : {}), ...(answers ? { answers } : {}) };
+      },
+      () => live && setFailed(true),
+    );
     return () => {
       live = false;
     };
-  }, [form, tokens, step, done, css, fontKey, answers]);
+  }, [form, tokens, logo, step, done, css, fontKey, answers]);
+  if (failed)
+    return (
+      <div role="alert" className="flex flex-col items-start gap-[8px] text-[13px] text-muted">
+        Claritia was just updated. Refresh to see the preview.
+        <button type="button" className="press inline-flex h-[28px] items-center rounded-full border border-line-strong bg-card px-[12px] text-[12.5px] font-medium text-ink" onClick={() => location.reload()}>
+          Refresh
+        </button>
+      </div>
+    );
   return <claritia-form ref={ref} />;
 }
 

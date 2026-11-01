@@ -247,6 +247,10 @@ export function ScreensSection(p: BuildProps & { open: boolean; onToggle: () => 
         </>
       ) : null}
       <div className={ROW}>
+        Show the logo
+        <Tg label="Show the logo" on={l.logo !== false} onChange={(v) => apply({ op: "set_layout", logo: v })} />
+      </div>
+      <div className={ROW}>
         Picture beside each step
         <Tg label="Picture beside each step" on={!!l.side} onChange={(v) => apply({ op: "set_layout", side: v ? { image: form.steps.find((x) => x.image)?.image ?? "https://" } : null })} />
       </div>

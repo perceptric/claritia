@@ -320,6 +320,8 @@ export type Form = {
     auto?: true;
     /** A first screen with a title, a line and a Start button. */
     cover?: { title: string; text?: string; button?: string };
+    /** false hides the brand's logo over the form (it shows by default when the brand kit has one). */
+    logo?: false;
     /** Split screen: a picture beside every step (a step's own image wins), on the left unless at is "right". */
     side?: { image: string; at?: "right" };
   };
@@ -1052,6 +1054,7 @@ export function checkForm(raw: unknown, ctx: Ctx = {}): { form: Form } | { error
       ...(layout.auto === true ? { auto: true as const } : {}),
       ...((c) => (c ? { cover: c } : {}))(cleanCover(layout.cover)),
       ...((x) => (x ? { side: x } : {}))(cleanSide(layout.side)),
+      ...(layout.logo === false ? { logo: false as const } : {}),
     },
     ...(FORM_KINDS.includes(r.kind as FormKind) ? { kind: r.kind as FormKind } : {}),
     ...(r.emailOptional === true ? { emailOptional: true as const } : {}),

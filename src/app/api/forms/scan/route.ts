@@ -45,5 +45,5 @@ export async function POST(request: Request) {
   // 2. The deep read and the brand book, after this answers: the rest of the site, every color, font, button and
   // word, and Claude's book from them. The runner's browser scan still follows and fills what the book left out.
   if (home) after(() => writeKitBook(db, b.workspaceId as string, kitId, home).then(() => undefined, () => undefined));
-  return Response.json({ kitId, reading: !!home, ...(quick?.found.length ? { tokens: quick.tokens, found: quick.found } : {}) });
+  return Response.json({ kitId, reading: !!home, ...(quick?.found.length ? { tokens: quick.tokens, found: quick.found } : {}), ...(quick?.logo ? { logo: quick.logo } : {}) });
 }

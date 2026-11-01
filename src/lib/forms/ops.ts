@@ -31,6 +31,8 @@ export type Op =
       cover?: Form["layout"]["cover"] | null;
       /** Split screen (docs/form-kinds-plan.md): the picture beside every step. */
       side?: Form["layout"]["side"] | null;
+      /** false hides the brand's logo over the form; true shows it again. */
+      logo?: boolean;
     }
   | { op: "set_kind"; kind?: Form["kind"] | null; emailOptional?: boolean; resume?: boolean; copy?: boolean }
   /** The owner's settings formulas read as {@id}, whole. */
@@ -260,6 +262,8 @@ export function applyOp(input: Form, op: Op): { form: Form } | { error: string }
       else if (op.cover) form.layout.cover = op.cover;
       if (op.side === null) delete form.layout.side;
       else if (op.side) form.layout.side = op.side;
+      if (op.logo === false) form.layout.logo = false;
+      else if (op.logo === true) delete form.layout.logo;
       return { form };
     case "set_kind":
       if (op.kind === null) delete form.kind;

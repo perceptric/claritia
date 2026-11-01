@@ -18,7 +18,7 @@ import { checkAnswers, OTHER, stepPath, type Answers } from "./values.ts";
 
 /** regions: the region lists, sent with the form when a list follows a country field (src/lib/forms/regions.ts). */
 /** css: the design system's styles compiled for this form (src/lib/design/web.ts); it starts with the layer order. */
-type Loaded = { id: string; version: number; status: "live" | "paused"; body: Form; tokens: Partial<Tokens>; strict?: boolean; turnstile?: string; regions?: Record<string, string[]>; css?: string; fonts?: string[] };
+type Loaded = { id: string; version: number; status: "live" | "paused"; body: Form; tokens: Partial<Tokens>; logo_url?: string | null; strict?: boolean; turnstile?: string; regions?: Record<string, string[]>; css?: string; fonts?: string[] };
 type Queued = { url: string; body: string; key: string; at: number; tries: number };
 
 /** Field types drawn by many(): answers with parts. */
@@ -130,6 +130,8 @@ textarea.in{min-height:calc(var(--clr-input-h)*2.4);padding:10px 12px;resize:ver
 .sc .h{font-size:2em}
 .cv{justify-content:center}
 .mn{display:flex;flex-direction:column;gap:8px}
+.lg{display:block;height:28px;width:auto;max-width:180px;object-fit:contain;object-position:left}
+.cv .lg{margin:0 auto}
 .py{display:flex;justify-content:space-between;align-items:baseline;padding:12px 14px;border:1px solid var(--clr-border);border-radius:var(--clr-radius)}.py b{font-size:1.3em}
 .lk{border:0;background:none;color:var(--clr-muted);text-decoration:underline;cursor:pointer;font:inherit;padding:0}
 .r2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
@@ -699,12 +701,12 @@ export class ClaritiaForm extends Base {
   }
 
   /** The app's builder shows a draft without loading or sending anything. */
-  set preview(p: { form: Form; tokens?: Partial<Tokens>; step?: number; done?: boolean; regions?: Record<string, string[]>; css?: string; fonts?: string[]; edit?: boolean; answers?: Record<string, unknown> }) {
+  set preview(p: { form: Form; tokens?: Partial<Tokens>; logo?: string | null; step?: number; done?: boolean; regions?: Record<string, string[]>; css?: string; fonts?: string[]; edit?: boolean; answers?: Record<string, unknown> }) {
     this.isPreview = true;
     this.edit = !!p.edit;
     const fresh = !this.data || this.done !== !!p.done;
     if (fresh || p.form.after.schedule?.tool !== "claritia") this.bk = this.bkDone = null;
-    this.data = { id: "preview", version: 0, status: "live", body: p.form, tokens: p.tokens ?? {}, strict: true, regions: p.regions, css: p.css, fonts: p.fonts };
+    this.data = { id: "preview", version: 0, status: "live", body: p.form, tokens: p.tokens ?? {}, logo_url: p.logo ?? null, strict: true, regions: p.regions, css: p.css, fonts: p.fonts };
     this.step = Math.min(p.step ?? this.step, p.form.steps.length - 1);
     this.done = !!p.done;
     if (fresh) this.errors = {};
@@ -831,7 +833,24 @@ export class ClaritiaForm extends Base {
     });
   }
 
+  /** Draws the form; a form that can't be drawn says so in place of a blank box. */
   private render() {
+    try {
+      this.draw();
+    } catch (e) {
+      console.error("claritia-form:", e);
+      this.root.replaceChildren(el("p", { class: "al", role: "alert", text: "This form couldn't be shown. Refresh the page to try again." }));
+    }
+  }
+
+  /** The brand's logo over the form, unless the form hides it. https or an inline SVG picture only. */
+  private logo(form: Form): HTMLElement | null {
+    const u = this.data?.logo_url ?? "";
+    if (form.layout.logo === false || !(/^https:\/\//.test(u) ? safeUrl(u) : /^data:image\/svg\+xml[;,]/.test(u))) return null;
+    return el("img", { class: "lg", src: u, alt: "" });
+  }
+
+  private draw() {
     const d = this.data;
     if (!d) return;
     const form = d.body;
@@ -855,7 +874,7 @@ export class ClaritiaForm extends Base {
         this.render();
         (this.root.querySelector(".in, .bx, input") as HTMLElement | null)?.focus();
       });
-      return this.put(style, this.split(form, 0, el("div", { class: `f cv${screens ? " sc" : ""}` }, el("h2", { class: "h", text: form.layout.cover.title }), form.layout.cover.text ? el("p", { class: "i", text: form.layout.cover.text }) : null, el("div", { class: "ac" }, go))));
+      return this.put(style, this.split(form, 0, el("div", { class: `f cv${screens ? " sc" : ""}` }, this.logo(form), el("h2", { class: "h", text: form.layout.cover.title }), form.layout.cover.text ? el("p", { class: "i", text: form.layout.cover.text }) : null, el("div", { class: "ac" }, go))));
     }
 
     const { shown, required } = visibility(form, this.answers, this.ctx);
@@ -866,6 +885,8 @@ export class ClaritiaForm extends Base {
     this.drawn = this.step;
     // A result screen with a result on it counts once in the form's funnel (Reports' Forms page).
     if (step.result) this.beacon("result");
+    const lg = this.logo(form);
+    if (lg) wrap.append(lg);
     if (form.title) wrap.append(el("h2", { class: "h", text: form.title }));
     if (form.intro) wrap.append(el("p", { class: "i", text: form.intro }));
     if (form.steps.length > 1) wrap.append(this.progress(form));

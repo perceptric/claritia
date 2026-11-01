@@ -254,6 +254,11 @@ export function Build(p: BuildProps) {
             style={brandVars(p.kit)}
           >
               <>
+                {/* The brand's logo, as the live form shows it over the questions. */}
+                {form.layout.logo !== false && /^https:\/\//.test(p.kit?.logo_url ?? "") ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={p.kit!.logo_url!} alt="" className="mb-[14px] h-[28px] w-auto max-w-[180px] object-contain object-left" />
+                ) : null}
                 {cur === 0 ? (
                   <>
                     <h2 className={`m-0 font-[family-name:var(--b-hfont)] font-semibold tracking-[-0.02em] text-balance ${device === "phone" ? "text-[20px]" : "text-[24px] max-[860px]:text-[20px]"} leading-[1.2]`} onClick={() => setPick(null)}>

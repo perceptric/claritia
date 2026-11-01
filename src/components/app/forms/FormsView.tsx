@@ -613,7 +613,7 @@ function Editor(props: ViewProps & { data: FormData; reload: () => void; patchRo
       </div>
       {dialog === "publish" ? <PublishDialog checks={checks} live={!!row.version} onClose={() => setDialog(null)} onPublish={publish} onFix={(qid) => goto(qid)} error={error} /> : null}
       {dialog === "versions" ? <Versions {...props} formId={row.id} live={row.version} changed={changed} onClose={() => setDialog(null)} onRestore={restore} /> : null}
-      {preview ? <PreviewOverlay form={form} tokens={kit?.tokens ?? {}} system={kit?.design ?? undefined} crmName={crm.crms[0]?.name} onClose={() => setPreview(false)} /> : null}
+      {preview ? <PreviewOverlay form={form} tokens={kit?.tokens ?? {}} logo={kit?.logo_url ?? null} system={kit?.design ?? undefined} crmName={crm.crms[0]?.name} onClose={() => setPreview(false)} /> : null}
       {note.node}
     </div>
   );
