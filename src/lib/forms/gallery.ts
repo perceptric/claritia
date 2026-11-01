@@ -810,3 +810,26 @@ export function withExampleConstants(form: Form, ex: Example): Form {
   if (!ex.constants) return form;
   return { ...form, constants: (form.constants ?? []).map((c: Constant) => (c.id in ex.constants! ? { ...c, value: ex.constants![c.id]! } : c)) };
 }
+
+// Words that point at an interactive template, most specific first (the New form box: "a quote calculator for...").
+const MATCH: [RegExp, string][] = [
+  [/\b(roi|return on investment|savings?|payback)\b/i, "roi"],
+  [/\b(configur|build your (own )?package|bundle)/i, "configurator"],
+  [/\b(quote|estimat|pricing calculator|price calculator|instant price|cost calculator)/i, "instant_quote"],
+  [/\b(quiz|trivia|test (your|their) knowledge)\b/i, "quiz"],
+  [/\b(self[- ]?audit|audit checklist)\b/i, "self_audit"],
+  [/\b(readiness|maturity|assessment|scorecard)\b/i, "readiness"],
+  [/\b(eligib|qualify for|do i qualify)/i, "eligibility"],
+  [/\b(benchmark|compare (my|your) (rate|conversion))/i, "benchmark"],
+  [/\b(bottleneck|diagnos)/i, "bottleneck"],
+  [/\b(plan (finder|recommend|picker)|which plan|recommend(er)?)\b/i, "plan_finder"],
+  [/\b(project planner|timeline estimat|how long will)/i, "planner"],
+  [/\b(guided booking|route .* to the right (rep|person))/i, "guided_booking"],
+  [/\bcalculator\b/i, "instant_quote"],
+];
+
+/** The interactive template a request asks for, if it clearly asks for one. */
+export function matchTemplate(text: string): GalleryTemplate | null {
+  const hit = MATCH.find(([re]) => re.test(text));
+  return hit ? (galleryByKey(hit[1]) ?? null) : null;
+}

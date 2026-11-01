@@ -8,7 +8,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { Tokens } from "@/lib/forms/brand";
 import { buildForm, formName, readSentence, type Copy } from "@/lib/forms/interview";
-import { galleryByKey } from "@/lib/forms/gallery";
+import { galleryByKey, matchTemplate } from "@/lib/forms/gallery";
 import { STARTERS } from "@/lib/forms/templates";
 import type { Form } from "@/lib/forms/schema";
 import { CATALOG } from "@/lib/sources/catalog";
@@ -547,7 +547,13 @@ function NewForm({ sb, session, ws, navigate, kits, onClose, start }: ViewProps 
       let form: Form;
       let sources: string[] = [];
       let made = false;
-      if ("text" in how) {
+      const asked = "text" in how ? matchTemplate(how.text) : null;
+      if (asked) {
+        // A calculator, quiz or assessment: its template, in the brand kit, ready to change with the AI bar.
+        form = asked.form();
+        if (asked.book && c.type) form.after.schedule = { tool: "claritia", url: "", perOwner: false, meetingTypeId: c.type };
+        name = asked.name;
+      } else if ("text" in how) {
         const read = readSentence(how.text, c.tools);
         const a = read.answers;
         if (a.after.kind === "meeting") a.after = c.type ? { kind: "meeting", tool: "claritia", url: "", perOwner: false, meetingTypeId: c.type } : { kind: "message" };

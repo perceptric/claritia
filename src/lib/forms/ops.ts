@@ -32,6 +32,8 @@ export type Op =
     }
   /** The owner's settings formulas read as {@id}, whole. */
   | { op: "set_constants"; constants: Constant[] }
+  /** One setting: add or change it (value null: the owner sets it), or remove it. */
+  | { op: "set_constant"; id: string; name?: string; value?: number | null; format?: Constant["format"] | "number"; private?: boolean; remove?: boolean }
   /** The outcomes and when results show, whole; null removes them. */
   | { op: "set_results"; results: Results | null }
   | { op: "set_copy"; title?: string; intro?: string; submit?: string; submitFull?: boolean }
@@ -198,6 +200,20 @@ export function applyOp(input: Form, op: Op): { form: Form } | { error: string }
       if (op.constants.length) form.constants = op.constants;
       else delete form.constants;
       return { form };
+    case "set_constant": {
+      const list = form.constants ?? [];
+      const cur = list.find((c) => c.id === op.id);
+      if (op.remove) form.constants = list.filter((c) => c.id !== op.id);
+      else {
+        const next: Constant = { id: op.id, name: op.name ?? cur?.name ?? op.id, value: op.value === undefined ? (cur?.value ?? null) : op.value };
+        const format = op.format === undefined ? cur?.format : op.format === "number" ? undefined : op.format;
+        if (format) next.format = format;
+        if (op.private ?? cur?.private) next.private = true;
+        form.constants = cur ? list.map((c) => (c.id === op.id ? next : c)) : [...list, next];
+      }
+      if (!form.constants?.length) delete form.constants;
+      return { form };
+    }
     case "set_results":
       if (op.results) form.results = op.results;
       else delete form.results;
@@ -349,6 +365,8 @@ export function describeOp(op: Op, before: Form): string {
       return op.mode === "screens" ? "One question per screen" : op.mode === null ? "All questions on one page" : op.cover !== undefined ? (op.cover ? "Changed the cover" : "Removed the cover") : "Changed the layout";
     case "set_constants":
       return "Changed the settings";
+    case "set_constant":
+      return op.remove ? `Removed ${op.id}` : op.value === null ? `Added ${op.name ?? op.id} to set before publishing` : `Set ${op.name ?? op.id}${typeof op.value === "number" ? ` to ${op.value}` : ""}`;
     case "set_results":
       return op.results ? "Changed the results" : "Removed the results";
     case "set_copy":

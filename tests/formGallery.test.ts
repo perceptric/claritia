@@ -87,3 +87,42 @@ test("a result screen waiting for the send is skipped before it", async () => {
   const contact = fm.steps.findIndex((s) => s.fields.some((x) => x.key === "email"));
   assert.equal(nextStep(fm, contact, {}), fm.steps.length, "the contact step is the last one shown");
 });
+
+test("a typed request picks the interactive template it clearly asks for, and nothing for a plain form", async () => {
+  const { matchTemplate } = await import("../src/lib/forms/gallery.ts");
+  const want: [string, string | null][] = [
+    ["An ROI calculator for our reporting tool", "roi"],
+    ["Instant quote for a cleaning company", "instant_quote"],
+    ["A pricing calculator", "instant_quote"],
+    ["A 5 question quiz about security", "quiz"],
+    ["Readiness assessment with three levels", "readiness"],
+    ["Let people configure their package with modules", "configurator"],
+    ["Check if a business is eligible for our grant", "eligibility"],
+    ["Which plan fits them", "plan_finder"],
+    ["A demo request form with company size", null],
+    ["Newsletter signup", null],
+  ];
+  for (const [text, key] of want) assert.equal(matchTemplate(text)?.key ?? null, key, text);
+});
+
+test("the AI bar's tools: set_setting adds a value to set, set_layout turns on screens and a cover", async () => {
+  const { toOp } = await import("../src/lib/forms/chat.ts");
+  const { applyOp } = await import("../src/lib/forms/ops.ts");
+  let fm = checked(GALLERY.find((t) => t.key === "instant_quote")!.form());
+  const step = (name: string, input: Record<string, unknown>) => {
+    const op = toOp(name, input);
+    assert.ok(!("error" in op), JSON.stringify(op));
+    const r = applyOp(fm, op as Parameters<typeof applyOp>[1]);
+    assert.ok("form" in r);
+    fm = checked(r.form);
+  };
+  step("set_setting", { id: "rush_pct", value: 30 });
+  assert.equal(fm.constants!.find((c) => c.id === "rush_pct")!.value, 30);
+  step("set_setting", { id: "travel_fee", name: "Travel fee", format: "money" });
+  assert.deepEqual(unsetConstants(fm).map((c) => c.id), ["travel_fee"]);
+  step("set_layout", { screens: false });
+  assert.equal(fm.layout.mode, undefined);
+  step("set_layout", { screens: true, cover: { title: "" } });
+  assert.equal(fm.layout.mode, "screens");
+  assert.equal(fm.layout.cover, undefined);
+});
