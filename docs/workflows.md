@@ -10,8 +10,8 @@ Journeys, Emails, Library and Brand tabs are gone, and the senders stay in Setti
 - The left column is a folder tree: each folder opens and closes, and its workflows hang under it on a guide line.
   Creating lives in the tree: the **+** beside Folders, a folder's **+** on hover, the **New workflow** row at the end of
   each folder (filed there, `?folder=<id>`), and the **New folder** row at the bottom, named in place. A folder's menu
-  renames it in place (or double-click), moves it up or down, or deletes it (its workflows stay, under No folder). A
-  workflow's menu moves it to another folder.
+  renames it in place (or double-click), moves it up or down, or deletes it (its workflows stay, under No folder). Drag a
+  workflow onto a folder to move it there; the folder opens and outlines while it's under the pointer.
 - The workflow sits on a dotted canvas (`flow-dots`), like Scoring's flowchart. Scoring's lines are measured from the
   cards (`src/components/app/FlowLines.tsx`): one near-black weight, smooth S-curves and an arrowhead into each card. The
   first column is ICP fit.
