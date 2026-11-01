@@ -28,7 +28,7 @@ export const SUMMARY_KEY = "claritia:form-ai-summary:";
 
 const STEPS = ["Reading what you sell", "Writing the questions", "Adding prices, scores and results", "Checking every path and outcome", "Fixing what didn't pass"];
 
-export function AiCreate({ sb, session, ws, navigate, site, kits, meetingType, onClose, note: initialNote = "" }: Pick<ViewProps, "sb" | "session" | "ws" | "navigate"> & { site: string; kits: { id: string; source_url: string | null; scan_status: string | null; tokens?: object | null }[]; meetingType: string | null; onClose: () => void; note?: string }) {
+export function AiCreate({ sb, session, ws, navigate, site, kits, meetingType, onClose, onBlank, note: initialNote = "" }: Pick<ViewProps, "sb" | "session" | "ws" | "navigate"> & { site: string; kits: { id: string; source_url: string | null; scan_status: string | null; tokens?: object | null }[]; meetingType: string | null; onClose: () => void; onBlank?: () => void; note?: string }) {
   const [stage, setStage] = useState<Stage>("start");
   const [url, setUrl] = useState(site);
   const [goal, setGoal] = useState<Goal | null>(null);
@@ -176,6 +176,12 @@ export function AiCreate({ sb, session, ws, navigate, site, kits, meetingType, o
       </label>
       <ErrorNote message={error} />
       <div className="flex flex-wrap items-center justify-end gap-[8px]">
+        {onBlank ? (
+          <button type="button" className={`${GHOST} mr-auto`} onClick={onBlank}>
+            <Ic n="plus" />
+            Blank form
+          </button>
+        ) : null}
         <button type="button" className={GHOST} onClick={onClose}>
           Cancel
         </button>

@@ -376,6 +376,12 @@ export async function acceptFill(
   ctx: Ctx | Promise<Ctx>,
   o: { country?: string | null; turnstileFailed?: boolean | Promise<boolean>; origin?: string | null; ownHost?: string | null; test?: boolean; secret?: string; now?: number } = {},
 ): Promise<{ status: number; body: Record<string, unknown> }> {
+  // A fill started on an older version (the form was published while they filled it, or it waited offline) is
+  // checked against that version's questions. Before 109 there's no way to read it, so it's refused as before.
+  if (typeof raw.version === "number" && Number.isInteger(raw.version) && raw.version >= 1 && raw.version < f.version) {
+    const old = await Promise.resolve(rpc("form_version_body", { p_form: f.id, p_version: raw.version })).catch(() => null);
+    if (old && !old.error && old.data && typeof old.data === "object") f = { ...f, body: old.data as Form, version: raw.version };
+  }
   const [known, c, turnstileFailed] = await Promise.all([knownIds(rpc, f, raw), ctx, o.turnstileFailed]);
   const prepare = (overLimit: boolean) => prepareSubmit(f.body, f.version, raw, c, { country: o.country, turnstileFailed, known, origin: o.origin, ownHost: o.ownHost, overLimit });
   let r = prepare(false);

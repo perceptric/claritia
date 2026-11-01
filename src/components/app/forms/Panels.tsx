@@ -209,6 +209,8 @@ function TypeSection(p: SectionProps) {
   const { q, f, form, apply } = p;
   const info = kindInfo(q.kind, f.type);
   const otherEmail = allFields(form).some((x) => x.key === "email" && x.id !== f.id);
+  // The form's only email question stays an email question (a form that needs an email can't lose it).
+  const onlyEmail = f.key === "email" && !otherEmail;
   return (
     <PanelSection icon={<Ic n={info.i} />} title="Type" summary={info.l} open={p.open} onToggle={p.onToggle}>
       <div className="-ml-[8px] grid grid-cols-2 gap-[2px]">
@@ -219,7 +221,7 @@ function TypeSection(p: SectionProps) {
             <button
               key={k.v}
               type="button"
-              disabled={!on && (!patch || (k.v === "email" && otherEmail))}
+              disabled={!on && (!patch || (k.v === "email" && otherEmail) || (onlyEmail && k.v !== "email"))}
               onClick={() => patch && apply({ op: "update_field", id: f.id, patch }, `${f.label || "The question"} is ${k.l.toLowerCase()} now`)}
               className={`flex h-[34px] items-center gap-[8px] rounded-lg px-[8px] text-left text-[12.5px] text-ink disabled:text-faint ${on ? "bg-hover" : "enabled:hover:bg-hover"}`}
             >
@@ -246,7 +248,7 @@ function ChoicesSection(p: SectionProps & { bad: boolean }) {
       <div className="flex flex-col gap-[4px]">
         {opts.map((o, i) => (
           <div
-            key={`${i}:${o.value}`}
+            key={i}
             className={`flex items-center gap-[6px] ${drag === i ? "opacity-50" : ""}`}
             draggable
             onDragStart={() => setDrag(i)}

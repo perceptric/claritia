@@ -190,7 +190,7 @@ export function Build(p: BuildProps) {
         {form.steps.map((s, i) => (
           <span key={s.id} className="contents">
             {i ? <span aria-hidden="true" className="h-px w-[12px] shrink-0 bg-line-strong" /> : null}
-            <StepPill n={String(i + 1)} on={!onSubmit && step === i} onClick={() => (setStep(i), setPick(null))} label={s.title || `Step ${i + 1}`} />
+            <StepPill n={String(i + 1)} on={!onSubmit && cur === i} onClick={() => (setStep(i), setPick(null))} label={s.title || `Step ${i + 1}`} />
           </span>
         ))}
         <span aria-hidden="true" className="h-px w-[12px] shrink-0 bg-line-strong" />

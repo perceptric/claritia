@@ -10,7 +10,7 @@ import { Ic } from "./ic";
 import { GHOST_SM, IB, Seg } from "./parts";
 import { FormPreview } from "./shared";
 
-export function PreviewOverlay({ form, tokens, crmName, onClose, banner, action, examples }: { form: Form; tokens: Partial<Tokens>; crmName?: string; onClose: () => void; banner?: string; action?: React.ReactNode; examples?: { label: string; answers: Record<string, unknown> }[] }) {
+export function PreviewOverlay({ form, tokens, system, crmName, onClose, banner, action, examples }: { form: Form; tokens: Partial<Tokens>; system?: unknown; crmName?: string; onClose: () => void; banner?: string; action?: React.ReactNode; examples?: { label: string; answers: Record<string, unknown> }[] }) {
   const [device, setDevice] = useState<"desktop" | "phone">("desktop");
   const [example, setExample] = useState<number | null>(null);
   // Try example opens on the first result screen, with the example's answers in.
@@ -55,7 +55,7 @@ export function PreviewOverlay({ form, tokens, crmName, onClose, banner, action,
           className={`keep-light max-w-full rounded-[14px] shadow-[0_1px_2px_rgb(0_0_0/0.05),0_0_0_1px_rgb(0_0_0/0.06)] transition-[width] duration-[320ms] ease-out ${device === "phone" ? "w-[375px] p-[22px]" : form.layout.width === "wide" ? "w-[720px] p-[32px]" : "w-[560px] p-[32px]"}`}
           style={{ background: cleanTokens(tokens).tokens.background }}
         >
-          <FormPreview key={`${run}:${device}`} form={form} tokens={tokens} device={device === "phone" ? "phone" : "base"} {...(example !== null && examples?.[example] ? { answers: examples[example].answers, step: resultStep } : {})} />
+          <FormPreview key={`${run}:${device}`} form={form} tokens={tokens} system={system} device={device === "phone" ? "phone" : "base"} {...(example !== null && examples?.[example] ? { answers: examples[example].answers, step: resultStep } : {})} />
         </div>
       </div>
     </div>

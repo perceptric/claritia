@@ -12,7 +12,7 @@ import { allFields, FILE_KINDS, RESULT_KINDS, type FileKind, type Choice, type C
 import { Labeled, PanelSection } from "../scheduling/panel";
 import type { BuildProps } from "./Build";
 import { Ic } from "./ic";
-import { AREA, Dd, GHOST_SM, IN_SM, Seg, Tg, type DdItem } from "./parts";
+import { AREA, Dd, GHOST_SM, IN_SM, NumBox, Seg, Tg, type DdItem } from "./parts";
 
 type SectionProps = BuildProps & { f: Field; open: boolean; onToggle: () => void };
 const ROW = "flex items-center justify-between gap-[10px] text-[12.5px] text-body";
@@ -117,7 +117,7 @@ export function ResultSection(p: SectionProps) {
       ) : null}
       {r.kind === "meter" ? (
         <Labeled label="Top value">
-          <input className={IN_SM} inputMode="decimal" aria-label="Top value" value={r.max ?? ""} onChange={(e) => set({ max: Number(e.target.value) || undefined })} />
+          <NumBox aria-label="Top value" value={r.max} onChange={(n) => set({ max: n || undefined })} />
         </Labeled>
       ) : null}
       {many ? (
@@ -162,7 +162,7 @@ export function ChoiceExtrasSection(p: SectionProps) {
           <div key={`${i}:${o.value}`} className="flex flex-col gap-[4px] rounded-sm border border-line p-[8px]">
             <div className="flex items-center gap-[6px]">
               <span className="min-w-0 flex-1 truncate text-[12.5px] text-ink">{o.label}</span>
-              <input className={`${IN_SM} w-[84px]`} inputMode="decimal" aria-label={`Score for ${o.label}`} placeholder="Score" value={o.score ?? ""} onChange={(e) => edit(i, { score: e.target.value.trim() === "" || !Number.isFinite(Number(e.target.value)) ? undefined : Number(e.target.value) })} />
+              <NumBox className={`${IN_SM} w-[84px]`} aria-label={`Score for ${o.label}`} placeholder="Score" value={o.score} onChange={(n) => edit(i, { score: n ?? undefined })} />
             </div>
             {f.cards ? <input className={IN_SM} aria-label={`Picture for ${o.label}`} placeholder="Picture, https://" value={o.image ?? ""} onChange={(e) => edit(i, { image: e.target.value.trim() || undefined })} /> : null}
             {f.type === "multi" && opts.length > 1 ? (
@@ -200,7 +200,7 @@ export function NumberExtrasSection(p: SectionProps) {
       <div className="grid grid-cols-3 gap-[6px]">
         {(["min", "max", "step"] as const).map((k) => (
           <Labeled key={k} label={{ min: "Lowest", max: "Highest", step: "Step" }[k]}>
-            <input className={IN_SM} inputMode="decimal" aria-label={{ min: "Lowest", max: "Highest", step: "Step" }[k]} value={v[k] ?? ""} onChange={(e) => apply({ op: "update_field", id: f.id, patch: { valid: { ...v, [k]: e.target.value.trim() === "" ? undefined : Number(e.target.value) } } })} />
+            <NumBox aria-label={{ min: "Lowest", max: "Highest", step: "Step" }[k]} value={v[k]} onChange={(n) => apply({ op: "update_field", id: f.id, patch: { valid: { ...v, [k]: n ?? undefined } } })} />
           </Labeled>
         ))}
       </div>
@@ -292,7 +292,7 @@ export function SettingsSection(p: BuildProps & { open: boolean; onToggle: () =>
                     <input className={IN_SM} aria-label="Name" value={c.name} onChange={(e) => edit(i, { name: e.target.value })} />
                   </td>
                   <td className="py-[4px] pr-[6px]">
-                    <input className={`${IN_SM} tabular-nums ${c.value === null ? "border-butter bg-butter-wash" : ""}`} inputMode="decimal" aria-label={`${c.name} value`} placeholder="Set before publishing" value={c.value ?? ""} onChange={(e) => edit(i, { value: e.target.value.trim() === "" || !Number.isFinite(Number(e.target.value)) ? null : Number(e.target.value) })} />
+                    <NumBox className={`${IN_SM} tabular-nums ${c.value === null ? "border-butter bg-butter-wash" : ""}`} aria-label={`${c.name} value`} placeholder="Set before publishing" value={c.value} onChange={(n) => edit(i, { value: n })} />
                   </td>
                   <td className="py-[4px]">
                     <Tg label={`${c.name} is private`} on={!!c.private} onChange={(v) => edit(i, { private: v ? true : undefined })} />

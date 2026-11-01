@@ -6,7 +6,7 @@
 
 import { applyOp, type FieldInput, type Op } from "../../../lib/forms/ops.ts";
 import { customFit, takenKeys } from "../../../lib/forms/savesTo.ts";
-import { allFields, CONTACT_KEYS, FIELD_TYPES, HIDE_KEYS, hideKeyOf, isChoice, questionKey, type Choice, type Field, type FieldKey, type FieldType, type Form, type Rule } from "../../../lib/forms/schema.ts";
+import { allFields, CONTACT_KEYS, FIELD_TYPES, HIDE_KEYS, hideKeyOf, isChoice, questionKey, unsetConstants, type Choice, type Field, type FieldKey, type FieldType, type Form, type Rule } from "../../../lib/forms/schema.ts";
 import type { CustomField } from "../../../lib/records/fields.ts";
 import type { RouterBody } from "../../../lib/router/types.ts";
 import { propertyFit, type CrmProperty } from "../../../lib/sources/properties.ts";
@@ -380,6 +380,8 @@ export function publishChecks(form: Form, errors: string[], ctx: Parameters<type
       out.push({ lvl: p.lvl, t: `${f.label || kindInfo(kindOf(f), f.type).l}: ${p.t}`, s: p.lvl === "bad" ? "Those answers stay on the submission only" : "Unmatched answers stay on the submission", q: f.id });
     }
   for (const e of errors) if (!/email field/i.test(e)) out.push({ lvl: "bad", t: e.replace(/\.$/, ""), blocks: true });
+  // The server refuses a form with a setting left to fill in; say so here first.
+  for (const c of unsetConstants(form)) out.push({ lvl: "bad", t: `Set ${c.name} before publishing`, blocks: true });
   if (!out.length) out.push({ lvl: "ok", t: "Ready to publish", s: pages ? `${pages} ${pages === 1 ? "page shows" : "pages show"} this form. ${pages === 1 ? "It updates" : "They update"} within a minute.` : "Its page updates within a minute." });
   return out;
 }

@@ -57,7 +57,8 @@ function FormPage(props: ViewProps) {
   // Everything the form's page needs, in one round of calls side by side (counts come from form_page_stats).
   const data = useQuery(`form:${ws.id}:${id}`, async (): Promise<FormData | { none: true }> => {
     const [f, kits, sources, dests, custom, sites, types, stats] = await Promise.all([
-      sb.from("forms").select("id, name, status, kind, draft, draft_rev, version, brand_kit_id, published_at").eq("id", id).maybeSingle(),
+      // "*": live_kit_id (109) when the database has it, and the rest as before when it doesn't yet.
+      sb.from("forms").select("*").eq("id", id).maybeSingle(),
       sb.from("brand_kits").select("id, name, tokens, logo_url, notes, source_url, scan_status, scan_error, scanned_at, design, design_live, design_rev").eq("workspace_id", ws.id).order("created_at"),
       sb.from("sources").select("id, kind, name, status").eq("workspace_id", ws.id).order("name"),
       sb.from("form_destinations").select("id, kind, source_id, name, config, paused, position").eq("form_id", id).order("position"),
@@ -156,6 +157,11 @@ function Editor(props: ViewProps & { data: FormData; reload: () => void; patchRo
   const dirty = useRef(false);
   const latest = useRef(form);
   const merge = useRef<{ key: string; at: number } | null>(null);
+  // While the AI is changing the form, edits here wait: its answer replaces the draft it was sent.
+  const aiBusy = useRef(false);
+  // One save at a time, so a slow save never sends an old revision next to a new one.
+  const inflight = useRef<Promise<boolean> | null>(null);
+  const saveErr = useRef(false);
   const crm = useCrm(data.sources, session, ws.id);
   const live = useLiveBody(sb, ws.id);
   const kit = data.kits.find((k) => k.id === kitId) ?? null;
@@ -189,6 +195,10 @@ function Editor(props: ViewProps & { data: FormData; reload: () => void; patchRo
   const apply = useCallback((input: Op | Op[], words?: string, changed: string[] = []): boolean => {
     const ops = Array.isArray(input) ? input : [input];
     if (!ops.length) return true;
+    if (aiBusy.current) {
+      setSaid({ words: "Wait for the AI to finish.", err: true });
+      return false;
+    }
     const cur = latest.current;
     let next = cur;
     for (const op of ops) {
@@ -214,7 +224,7 @@ function Editor(props: ViewProps & { data: FormData; reload: () => void; patchRo
     return true;
   }, []);
   const undo = useCallback(() => {
-    if (!past.length) return;
+    if (!past.length || aiBusy.current) return;
     merge.current = null;
     setFuture((f) => [latest.current, ...f]);
     put(past[past.length - 1]!);
@@ -222,7 +232,7 @@ function Editor(props: ViewProps & { data: FormData; reload: () => void; patchRo
     setSaid({ words: "Undone" });
   }, [past]);
   const redo = useCallback(() => {
-    if (!future.length) return;
+    if (!future.length || aiBusy.current) return;
     merge.current = null;
     setPast((p) => [...p, latest.current]);
     put(future[0]!);
@@ -255,23 +265,36 @@ function Editor(props: ViewProps & { data: FormData; reload: () => void; patchRo
   }, []);
 
   // Save the draft a moment after the last change; when it doesn't go, keep it here and try again every 5 seconds.
-  const save = useCallback(async () => {
+  const save = useCallback(async (): Promise<boolean> => {
+    while (inflight.current) await inflight.current;
     if (!dirty.current) return true;
     dirty.current = false;
     const sent = latest.current;
-    try {
-      rev.current = must(await sb.rpc("form_save", { p_id: row.id, p_name: name, p_draft: sent, p_rev: rev.current, p_brand_kit: kitId })) as number;
-      if (!dirty.current) setSaving("saved");
-      return true;
-    } catch (e) {
-      dirty.current = true;
-      const msg = errorText(e);
-      if (/fetch|network|failed to|timeout|load failed/i.test(msg)) setSaving("offline");
-      else {
+    const run = (async () => {
+      try {
+        rev.current = must(await sb.rpc("form_save", { p_id: row.id, p_name: name, p_draft: sent, p_rev: rev.current, p_brand_kit: kitId })) as number;
+        if (!dirty.current) setSaving("saved");
+        if (saveErr.current) {
+          saveErr.current = false;
+          setError("");
+        }
+        return true;
+      } catch (e) {
+        dirty.current = true;
+        const msg = errorText(e);
         setSaving("offline");
-        setError(msg);
+        if (!/fetch|network|failed to|timeout|load failed/i.test(msg)) {
+          saveErr.current = true;
+          setError(msg);
+        }
+        return false;
       }
-      return false;
+    })();
+    inflight.current = run;
+    try {
+      return await run;
+    } finally {
+      if (inflight.current === run) inflight.current = null;
     }
   }, [sb, row.id, name, kitId]);
   useEffect(() => {
@@ -308,7 +331,9 @@ function Editor(props: ViewProps & { data: FormData; reload: () => void; patchRo
 
   const checked = useMemo(() => checkForm(form, { custom }), [form, custom]);
   const isLive = row.status === "live";
-  const changed = !data.published || JSON.stringify("form" in checked ? checked.form : form) !== JSON.stringify(data.published);
+  // Another brand kit is a change to publish too: the live form keeps the kit it was published with (109).
+  const liveKit = (row as { live_kit_id?: string | null }).live_kit_id;
+  const changed = !data.published || JSON.stringify("form" in checked ? checked.form : form) !== JSON.stringify(data.published) || (liveKit !== undefined && (liveKit ?? null) !== (kitId ?? null));
   const issueCtx = useMemo(() => ({ custom, crm: crm.ctx }), [custom, crm.ctx]);
   const failedWeek = Object.values(data.failed).reduce((a, b) => a + b, 0);
 
@@ -316,7 +341,10 @@ function Editor(props: ViewProps & { data: FormData; reload: () => void; patchRo
     session,
     ws,
     formId: row.id,
-    prepare: async () => ((await save()) ? rev.current : null),
+    prepare: async () => {
+      aiBusy.current = true;
+      return (await save()) ? rev.current : null;
+    },
     onResult: (next, nextRev) => {
       setPast((p) => [...p.slice(-99), latest.current]);
       setFuture([]);
@@ -328,6 +356,10 @@ function Editor(props: ViewProps & { data: FormData; reload: () => void; patchRo
     },
   });
 
+  useEffect(() => {
+    if (!chat.busy) aiBusy.current = false;
+  }, [chat.busy]);
+
   const publish = async () => {
     setError("");
     try {
@@ -336,6 +368,8 @@ function Editor(props: ViewProps & { data: FormData; reload: () => void; patchRo
       if (kit && JSON.stringify(kit.design ?? null) !== JSON.stringify(kit.design_live ?? null)) must(await sb.rpc("brand_kit_design_publish", { p_id: kit.id }));
       // The form's routing goes live with it, on the server: compiled with its meetings into the form's routing policy.
       const { routing } = await postJson<{ routing?: { problems: string[]; error?: string } }>(session, "/api/forms/publish", { workspaceId: ws.id, id: row.id });
+      // Publishing an offline form puts it back online, as the Take offline note says.
+      if (row.status === "paused") must(await sb.rpc("form_set_status", { p_id: row.id, p_status: "live" }));
       if (routing?.error) setError(`The form is live. ${routing.error}`);
       else if (routing?.problems.length) setError(`The form is live. Routing left out: ${routing.problems.join(", ")}.`);
       invalidate(`routing_screen:${ws.id}`);
@@ -577,9 +611,9 @@ function Editor(props: ViewProps & { data: FormData; reload: () => void; patchRo
           <Setup {...props} form={form} apply={apply} sub={sub} setSub={setSub} formId={row.id} types={data.types} routing={live.data?.body ?? null} onReview={() => (setSubsView("spam"), setTab("submissions"))} subs={data.subs} name={name} />
         )}
       </div>
-      {dialog === "publish" ? <PublishDialog checks={checks} live={!!row.version} onClose={() => setDialog(null)} onPublish={() => void publish()} onFix={(qid) => goto(qid)} error={error} /> : null}
+      {dialog === "publish" ? <PublishDialog checks={checks} live={!!row.version} onClose={() => setDialog(null)} onPublish={publish} onFix={(qid) => goto(qid)} error={error} /> : null}
       {dialog === "versions" ? <Versions {...props} formId={row.id} live={row.version} changed={changed} onClose={() => setDialog(null)} onRestore={restore} /> : null}
-      {preview ? <PreviewOverlay form={form} tokens={kit?.tokens ?? {}} crmName={crm.crms[0]?.name} onClose={() => setPreview(false)} /> : null}
+      {preview ? <PreviewOverlay form={form} tokens={kit?.tokens ?? {}} system={kit?.design ?? undefined} crmName={crm.crms[0]?.name} onClose={() => setPreview(false)} /> : null}
       {note.node}
     </div>
   );
@@ -606,7 +640,7 @@ function NameInput({ value, onChange }: { value: string; onChange: (v: string) =
 }
 
 /** Publish: what to look at first. A missing email or a form the checker refuses can't go live; the rest can. */
-function PublishDialog({ checks, live, onClose, onPublish, onFix, error }: { checks: ReturnType<typeof publishChecks>; live: boolean; onClose: () => void; onPublish: () => void; onFix: (q: string) => void; error: string }) {
+function PublishDialog({ checks, live, onClose, onPublish, onFix, error }: { checks: ReturnType<typeof publishChecks>; live: boolean; onClose: () => void; onPublish: () => Promise<void>; onFix: (q: string) => void; error: string }) {
   const [busy, setBusy] = useState(false);
   const bad = checks.filter((c) => c.lvl !== "ok");
   const blocks = checks.some((c) => c.blocks);
