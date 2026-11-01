@@ -1,6 +1,6 @@
 # Interactive forms: more than forms
 
-Status: step 1 built (see "Status" at the end); the rest proposed. 1 November 2026. Builds on `docs/forms-plan.md`, `docs/form-studio.md`, `docs/form-builder-v2.md`
+Status: built, with the gaps listed under "Status" at the end. 1 November 2026. Builds on `docs/forms-plan.md`, `docs/form-studio.md`, `docs/form-builder-v2.md`
 and `docs/on-submission.md`. Replaces the outside draft "Claritia: Static and Interactive Form Templates, revision 1",
 lined up with what is in the repo today.
 
@@ -352,20 +352,41 @@ Results never call a model per visitor, so costs don't grow with traffic.
 
 ## Status
 
-### Step 1 built: settings, new functions and outcomes
+Built on this branch, in order. Migrations 103 to 106 are new; run them after 102.
 
-| Piece | Where |
-|---|---|
-| `sum`, `ceil`, `floor`; settings read as `{@name}` | `src/lib/forms/formula.ts` |
-| `constants` and `results` on the form, cleaned by the checker: unknown settings, two with one name, bad numbers, one default outcome last, conditions on real fields | `cleanConstants`, `cleanResults` in `src/lib/forms/schema.ts` |
-| Calcs read settings; a setting not set leaves the result empty | `calcs` in `schema.ts` |
-| `pickOutcome`: first match wins, else the default; a hidden answer never picks a result; browser and server run the same function | `schema.ts` |
-| Private settings stripped from the public form | `publicForm` in `schema.ts`, `src/app/api/forms/[id]/route.ts` |
-| Publish refuses a form with a setting not set, in the app and over MCP | `src/app/api/forms/publish/route.ts`, `src/lib/forms/mcp.ts` |
-| Tests: the I02 quote ($500 and $400, server ignores a posted total), I02 outcomes, private settings, I04 readiness (50%, Developing; unfinished stays unfinished), old forms unchanged | `tests/interactiveForms.test.ts` |
+| Step | What's built | Where |
+|---|---|---|
+| 1 | Settings read as `{@name}` (private ones stripped from the public form), `sum`, `ceil`, `floor`, outcomes picked in order with a default, publish refused while a setting is blank | `formula.ts`, `schema.ts` (`cleanConstants`, `cleanResults`, `pickOutcome`, `publicForm`, `unsetConstants`), `api/forms/publish`, `mcp.ts` |
+| 2 | The server works out each fill's calcs and outcome and saves them once; a new version never rewrites an old result; the outcome's meeting goes to booking first | `103_form_results.sql`, `resultOf` in `schema.ts`, `acceptFill` in `submit.ts` |
+| 3 | Screens: cover, one step a screen, slide-in, auto-advance on a single pick, picture cards, sliders with a number box, units | `schema.ts` (`layout.mode`, `cover`, `cards`, `slider`, `unit`), `element.ts` |
+| 4 | Result screens and blocks (number, meter, breakdown, bars, outcome), live from the answers and from the server after the send; Email my results, checked against the fill's own key and sent once | `element.ts`, `104_form_results_email.sql`, `api/forms/[id]/results-email`, `resultsEmail` in `notify.ts`, `worker-intel/jobs/forms.ts` |
+| 6 | Options that need other options (configurators), quiz answer keys kept on the server | `Choice.needs`, `Field.secret`, `values.ts` |
+| 7 | The gallery in New form: All, Static, Interactive, goal filters, search, a drawing per card, a preview that runs the real form, Use template | `components/app/forms/FormGallery.tsx`, `FormHome.tsx`, `PreviewOverlay.tsx` |
+| 8 | File uploads: PDF, pictures and Office files up to 20 MB, checked by their bytes, private bucket, linked to the fill, opened by members through a 5-minute link | `106_form_uploads.sql`, `files.ts`, `api/forms/[id]/upload`, `api/forms/uploads/[uid]`, `Submissions.tsx` |
+| 9, 10 | All 24 templates, every interactive example tested in the browser's run and the server's | `gallery.ts`, `tests/formGallery.test.ts` |
+| 6b | Builder: formulas as chips with Show formula, result blocks, scores, pictures and needs on choices, slider and unit on numbers, file settings, Screens, Settings and Results sections, "used by" before a delete | `InteractivePanels.tsx`, `Panels.tsx`, `Build.tsx`, `FormsView.tsx`, `ops.ts` |
+| 11 | New form picks the interactive template a request asks for; the AI bar has `set_setting` and screens in `set_layout`; MCP lists all 24 templates and the new ops | `matchTemplate` in `gallery.ts`, `chat.ts`, `mcp.ts` |
+| 12 | Results on the contact's timeline; a result seen counts in `form_daily.results` | `ContactsView.tsx`, `105_form_result_events.sql` |
 
-Not yet: the "used by" list before a delete, types on calcs (money with a period), the result screen in the form
-script, and storing the outcome with each submission (step 2). The form script is 23,116 bytes gzipped of its 23,552
-limit, so step 3 raises the limit as planned.
+Tests: `tests/interactiveForms.test.ts`, `tests/formGallery.test.ts`, `tests/formUploads.test.ts`,
+`tests/pg/formResultSnapshots.pg.ts`. The form script is 25.6 KB gzipped of its new 32 KB limit.
 
-Running cost of step 1: $0 at Beta and Growth (no new service, no model calls).
+Not built yet:
+
+- Repeat rows ("Add another") and save-and-resume (`docs/forms-plan.md` 3.2 and 3.3).
+- The flow map and Try each outcome in the builder.
+- Anonymous feedback: every fill still needs an email to land on a contact.
+- The funnel's result count isn't shown on a screen yet (it's stored).
+- Unused uploads are cleared now and then by the upload route, not by a nightly job.
+- Not checked in a browser: the gallery, the builder panels and the contact timeline (the app needs Supabase to run).
+  The form script's screens, cards, slider, live result and send were checked in Chromium.
+
+### Running cost of what's built
+
+| Item | Beta (50 teams) | Growth (500 teams) |
+|---|---|---|
+| Claude: none added per visitor; the AI bar's calls are the same as before | $0 | $0 |
+| Upload storage (about 2 GB a team, Supabase Storage at $0.021/GB, check) | $2 | $21 |
+| Result emails (inside Resend, already paid for, check) | $0 | $0 |
+| Database rows for results, uploads and the result count (check) | $0 | $25 |
+| **Added monthly total** | **about $2** | **about $46** |
