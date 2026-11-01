@@ -126,9 +126,19 @@ export async function POST(request: Request) {
     if (!model) return bad("The AI builder isn't set up on this server.", 503);
     const answers = b.answers && typeof b.answers === "object" ? (b.answers as Record<string, string | string[]>) : {};
     const site = typeof b.site === "string" ? b.site.slice(0, 200) : "";
+    // The kit's brand book (docs/brand-capture.md), when the site has been read deeply.
+    const kitId = typeof b.kitId === "string" && /^[0-9a-f-]{36}$/.test(b.kitId) ? b.kitId : null;
+    // A book still being written is waited for, up to 45 seconds, so the form is built in the brand.
+    let book: unknown = null;
+    for (let i = 0; kitId && i < 15; i++) {
+      const k = (await db.from("brand_kits").select("book, book_status").eq("id", kitId).eq("workspace_id", ws).maybeSingle()).data as { book?: unknown; book_status?: string } | null;
+      book = k?.book ?? null;
+      if (!k || k.book_status !== "reading") break;
+      await new Promise((r) => setTimeout(r, 3000));
+    }
     try {
-      const r = await cachedStep(rpc, ws, "form_ai_build", hashKey(BUILD_MODEL, "build-1", brief, goal, note, answers, site), async () => {
-        const built = await buildForm(model, { brief, goal, note, answers, site });
+      const r = await cachedStep(rpc, ws, "form_ai_build", hashKey(BUILD_MODEL, "build-2", brief, book, goal, note, answers, site), async () => {
+        const built = await buildForm(model, { brief, goal, note, answers, site, book });
         const usage = (built?.usage ?? []).reduce((a, u) => addUsage(a, usageOf(u)), ZERO);
         return { result: built ? { name: built.name, form: built.form, summary: built.summary } : null, model: BUILD_MODEL, usage, keep: !!built };
       });

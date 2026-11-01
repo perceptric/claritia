@@ -1,13 +1,16 @@
 import { isMember } from "@/lib/contacts/server";
-import { quickBrand } from "@/lib/brand/fetchSite";
+import { after } from "next/server";
+import { writeKitBook } from "@/lib/brand/bookServer";
+import { fetchHome, quickFrom } from "@/lib/brand/fetchSite";
 import { hostIsPrivate } from "@/lib/privateNet";
 import { requireUser } from "@/lib/serverAuth";
 import { serviceClient } from "@/lib/serviceClient";
 
-// Scan a site into a brand kit: POST { workspaceId, url, kitId?, formId? } (docs/form-builder.md 5.1). The quick read
-// fills the kit within seconds (docs/brand-capture.md); the runner's full scan follows and replaces it. A form with
-// no kit yet takes the new one, and the workspace's first kit becomes its brand.
+// Read a site's brand into a brand kit: POST { workspaceId, url, kitId?, formId? } (docs/brand-capture.md). The quick
+// read fills the kit within seconds; the deep read and the brand book follow in the background, then the runner's
+// browser scan fills anything left. A form with no kit yet takes the new one; the workspace's first kit is its brand.
 
+export const maxDuration = 300;
 const bad = (error: string, status = 400) => Response.json({ error }, { status });
 
 export async function POST(request: Request) {
@@ -30,9 +33,17 @@ export async function POST(request: Request) {
   const { data, error } = await db.rpc("brand_scan_start", { p_user: auth.user.id, p_ws: b.workspaceId, p_url: u.href, p_kit: uuid(b.kitId), p_form: uuid(b.formId) });
   if (error) return bad(error.message);
   const kitId = data as string;
-  // The quick read (docs/brand-capture.md): the look from the site's HTML and stylesheets now, so the kit is ready in
-  // seconds whatever the runner is doing. The runner's full scan replaces it when it finishes.
-  const quick = await quickBrand(u.href).catch(() => null);
-  if (quick && quick.found.length) await db.rpc("brand_kit_quick", { p_kit: kitId, p_tokens: quick.tokens, p_logo_url: quick.logo });
-  return Response.json({ kitId, ...(quick?.found.length ? { tokens: quick.tokens, found: quick.found } : {}) });
+  // 1. The quick read (docs/brand-capture.md): the look from the home page and its stylesheets now, so the kit is
+  // ready in seconds whatever the runner is doing.
+  const home = await fetchHome(u.href).catch(() => null);
+  const quick = home ? quickFrom(home) : null;
+  if (quick && quick.found.length) {
+    const saved = await db.rpc("brand_kit_quick", { p_kit: kitId, p_tokens: quick.tokens, p_logo_url: quick.logo });
+    // Before 107 the function isn't there: save the look straight onto the kit, so it's never lost.
+    if (saved.error) await db.from("brand_kits").update({ tokens: quick.tokens, ...(quick.logo ? { logo_url: quick.logo } : {}), scan_status: "done", updated_at: new Date().toISOString() }).eq("id", kitId);
+  }
+  // 2. The deep read and the brand book, after this answers: the rest of the site, every color, font, button and
+  // word, and Claude's book from them. The runner's browser scan still follows and fills what the book left out.
+  if (home) after(() => writeKitBook(db, b.workspaceId as string, kitId, home).then(() => undefined, () => undefined));
+  return Response.json({ kitId, reading: !!home, ...(quick?.found.length ? { tokens: quick.tokens, found: quick.found } : {}) });
 }

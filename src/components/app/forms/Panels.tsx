@@ -682,6 +682,9 @@ export function FormPanel(p: BuildProps & { open: string | null; setOpen: (k: st
           <span className="inline-flex items-center gap-[8px] text-[12.5px] text-muted">
             <Dots />
             {`Reading ${host(kit.source_url) || site}`}
+            <button type="button" className="text-[12.5px] font-medium text-ink underline decoration-line-strong underline-offset-[3px] hover:decoration-ink" onClick={() => void scan(kit.source_url || site)}>
+              Read it again
+            </button>
           </span>
         ) : kit?.scan_status === "failed" ? (
           <Box tone="bad" title={`Couldn't read ${host(kit.source_url) || site}`}>
