@@ -552,7 +552,7 @@ function RowPanel({ s, form, name, rep, dests, destName, destLogo, onClose, onCo
     })
     .filter(([, v]) => v);
   // Uploaded files by question, so their answers open the file.
-  const fileOf = new Map(fields.filter((f) => f.type === "file" && typeof s.values[f.key] === "string").map((f) => [f.label || f.key, String(s.values[f.key]).slice(3, 39)]));
+  const fileOf = new Map(fields.filter((f) => (f.type === "file" || f.type === "signature") && typeof s.values[f.key] === "string").map((f) => [f.label || f.key, String(s.values[f.key]).slice(3, 39)]));
   const failed = s.deliveries.filter((d) => d.status === "failed");
   const m = s.meetings?.find((x) => x.status !== "canceled");
   const fix = failed.map((d) => fields.find((f) => f.crm && d.error && (d.error.includes(f.crm.label ?? "\u0000") || d.error.includes(f.crm.property)))).find(Boolean);

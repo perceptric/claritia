@@ -3,7 +3,7 @@
 // Runs in the browser and on the server.
 
 import { calcText } from "./formula.ts";
-import { allFields, everyOption, isContent, type Field, type Form } from "./schema.ts";
+import { ADDRESS_PARTS, allFields, everyOption, isContent, type Field, type Form } from "./schema.ts";
 
 export type FillKind = "leads" | "tests" | "spam";
 export type FillStatus = "sent" | "waiting" | "failed";
@@ -66,7 +66,15 @@ export function answerText(col: Column | undefined, v: unknown): string {
   if (v === undefined || v === null || v === "") return "";
   if (col?.field?.type === "calc" && typeof v === "number") return calcText(col.field.calc, v);
   // A file answer is "up_<id>:<name>": its name is what people read.
-  if (col?.field?.type === "file" && typeof v === "string" && v.startsWith("up_")) return v.slice(v.indexOf(":") + 1);
+  if ((col?.field?.type === "file" || col?.field?.type === "signature") && typeof v === "string" && v.startsWith("up_")) return col.field.type === "signature" ? "Signed" : v.slice(v.indexOf(":") + 1);
+  const f = col?.field;
+  // Answers with parts (docs/form-kinds-plan.md step 2), as one line each.
+  if (f?.type === "ranking" && Array.isArray(v)) return v.map((x, i) => `${i + 1}. ${f.options?.find((o) => o.value === x)?.label ?? x}`).join(", ");
+  if (f?.type === "address" && v && typeof v === "object") return ADDRESS_PARTS.map((k) => (v as Record<string, string>)[k]).filter(Boolean).join(", ");
+  if (f?.type === "daterange" && v && typeof v === "object") return `${(v as Record<string, string>).from} to ${(v as Record<string, string>).to}`;
+  if (f?.type === "grid" && v && typeof v === "object")
+    return (f.grid?.rows ?? []).filter((r) => (v as Record<string, string>)[r.value]).map((r) => `${r.label}: ${f.grid?.cols.find((c) => c.value === (v as Record<string, string>)[r.value])?.label ?? (v as Record<string, string>)[r.value]}`).join("; ");
+  if (f?.type === "group" && Array.isArray(v)) return v.map((row) => (f.group?.fields ?? []).map((sf) => (row as Record<string, string>)[sf.id]).filter(Boolean).join(", ")).join("; ");
   const label = (x: string) => (col?.field ? everyOption(col.field).find((o) => o.value === x)?.label : undefined) ?? x;
   if (Array.isArray(v)) return v.map((x) => label(String(x))).join(", ");
   if (typeof v === "boolean") return v ? "Yes" : "No";

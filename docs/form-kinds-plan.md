@@ -5,7 +5,7 @@ should know those parts and put them together for any kind of form, from what th
 Today it offers six goals (quote, assess, recommend, quiz, book, leads). This plan replaces the goals with kinds and
 fills in the parts that are missing.
 
-Status: step 0 and step 1 are built. Steps 2 and 3 are next.
+Status: steps 0, 1 and 2 are built. Step 3 is next.
 
 Step 1 as built:
 - Kinds: `KINDS` in `src/lib/forms/aiBuild.ts`, each with its recipe and whether it needs an email; `form.kind` in the
@@ -17,6 +17,15 @@ Step 1 as built:
   pictures from the brief.
 - Paths: `step.jumps` (to a later step, or the number of steps to end the form there), in the engine, the checker,
   the ops (removing and adding steps keep them right) and the Paths panel.
+
+Step 2 as built:
+- New types: ranking, address, grid, time, daterange, group ("add another") and signature, plus the 0 to 10 scale
+  (rating with `zero`). Each is checked in `values.ts` (browser and server), drawn by `many()` in the form script,
+  shown as one line by `answerText` (Submissions, CSV, team emails), listed in the builder's question menu with its
+  own panel (Scale, Rows and columns, Each row), and drawn on the Build canvas.
+- Answers with parts stay on the fill (`STRUCTURED`, q. keys only). A signature is drawn on a canvas and uploaded
+  through the form's upload route as a small PNG, like a file.
+- The AI builder knows every type, the recipes use them, and a consent form must have a signature.
 
 ## 1. The parts
 

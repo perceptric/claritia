@@ -21,6 +21,8 @@ import { checkAnswers, OTHER, stepPath, type Answers } from "./values.ts";
 type Loaded = { id: string; version: number; status: "live" | "paused"; body: Form; tokens: Partial<Tokens>; strict?: boolean; turnstile?: string; regions?: Record<string, string[]>; css?: string; fonts?: string[] };
 type Queued = { url: string; body: string; key: string; at: number; tries: number };
 
+/** Field types drawn by many(): answers with parts. */
+const MANY = new Set(["ranking", "address", "grid", "daterange", "group", "signature"]);
 const QUEUE = "clr_form_queue";
 const DAY = 86_400_000;
 const SCRIPT_BASE = (() => {
@@ -127,6 +129,16 @@ textarea.in{min-height:calc(var(--clr-input-h)*2.4);padding:10px 12px;resize:ver
 .sc .lb{font-family:var(--clr-heading-font);font-size:1.4em;font-weight:600;line-height:1.25}
 .sc .h{font-size:2em}
 .cv{justify-content:center}
+.mn{display:flex;flex-direction:column;gap:8px}
+.r2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.rk{display:flex;align-items:center;gap:10px;padding:8px 10px;border:1px solid var(--clr-border);border-radius:var(--clr-radius)}
+.rk b{width:20px;color:var(--clr-muted);font-weight:600}.rk span{flex:1}
+.mv{width:28px;height:28px;border:1px solid var(--clr-border);border-radius:50%;background:var(--clr-bg);color:var(--clr-text);cursor:pointer;font:inherit}
+.mv:disabled{opacity:.35;cursor:default}
+.gw{overflow-x:auto}.gd{border-collapse:collapse;width:100%}.gd th,.gd td{padding:8px;text-align:center;border-bottom:1px solid var(--clr-border);font-weight:400}.gd th[scope=row]{text-align:left}
+.gr{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:10px;border:1px solid var(--clr-border);border-radius:var(--clr-radius)}.gr>.in{flex:1 1 140px}.gf{display:flex;flex-direction:column;gap:4px}
+.pk{padding:6px 12px;border:1px solid var(--clr-border);border-radius:99px;background:var(--clr-bg);color:var(--clr-text);cursor:pointer;font:inherit}.pk.on{background:var(--clr-btn-bg);color:var(--clr-btn-text);border-color:var(--clr-btn-bg)}
+.sg{width:100%;height:auto;aspect-ratio:10/3;border:1px dashed var(--clr-border);border-radius:var(--clr-radius);background:#fff;touch-action:none}
 .sp{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);min-height:480px;border:1px solid var(--clr-border);border-radius:var(--clr-radius);overflow:hidden;background:var(--clr-bg)}
 .sp.sr>.spi{order:2}
 .spi{min-height:200px;background:color-mix(in srgb,var(--clr-accent) 8%,var(--clr-bg))}
@@ -1002,7 +1014,7 @@ export class ClaritiaForm extends Base {
       return box;
     }
     const inside = (f.labels ?? form.layout.labels) === "inside" && ["text", "email", "phone", "number", "url", "textarea", "date", "dropdown", "country"].includes(f.type);
-    const group = f.type === "choice" || f.type === "multi" || f.type === "rating";
+    const group = f.type === "choice" || f.type === "multi" || f.type === "rating" || MANY.has(f.type);
     const star = req ? el("span", { class: "rq", "aria-hidden": "true", text: "*" }) : null;
     // A hidden label, or one shown inside the box, stays for screen readers.
     const label = group
@@ -1045,6 +1057,7 @@ export class ClaritiaForm extends Base {
       box.append(this.listbox(f, common, set, inside));
       if (this.otherText(f) !== undefined) box.append(this.otherBox(f, id, set));
     } else if (f.type === "file") box.append(this.filePick(f, id, common, set));
+    else if (MANY.has(f.type)) box.append(this.many(f, id, common, set));
     else if (f.type === "choice" || f.type === "multi") box.append(this.picks(f, id, common, set));
     else if (f.type === "rating") box.append(this.rating(f, id, common, set));
     else if (f.type === "checkbox") {
@@ -1053,7 +1066,7 @@ export class ClaritiaForm extends Base {
       c.addEventListener("change", () => set(c.checked));
       box.append(el("label", { class: "ck" }, c, el("span", { class: f.hideLabel ? "sr" : undefined, text: f.label }, star)));
     } else {
-      const types: Record<string, string> = { email: "email", phone: "tel", number: "text", url: "url", date: "date" };
+      const types: Record<string, string> = { email: "email", phone: "tel", number: "text", url: "url", date: "date", time: "time" };
       const auto: Record<string, string> = { email: "email", first_name: "given-name", last_name: "family-name", name: "name", phone: "tel", company: "organization", title: "organization-title", website: "url" };
       const input = (f.type === "textarea" ? el("textarea", { class: "in", ...common, ...inputAttrs(f) }) : el("input", { class: "in", type: types[f.type] ?? "text", ...common, ...inputAttrs(f) })) as
         | HTMLInputElement
@@ -1266,6 +1279,151 @@ export class ClaritiaForm extends Base {
     return el("div", { class: "ch" }, input, state);
   }
 
+  /**
+   * The answers with parts (docs/form-kinds-plan.md step 2): ranking (up and down buttons), address, grid (one radio
+   * per row), date range, group rows ("add another") and a signature drawn on a canvas, uploaded as a picture.
+   */
+  private many(f: Field, id: string, common: Record<string, string | undefined>, set: (v: unknown, picked?: boolean) => void): HTMLElement {
+    const box = el("div", { class: "mn", role: "group", "aria-labelledby": `${id}-l`, "aria-invalid": common["aria-invalid"], "aria-describedby": common["aria-describedby"] });
+    const cur = this.answers[f.id];
+    const o = (cur && typeof cur === "object" && !Array.isArray(cur) ? cur : {}) as Record<string, string>;
+    const text = (label: string, value: string, on: (v: string) => void, type = "text", auto?: string) => {
+      const i = el("input", { class: "in", type, "aria-label": label, placeholder: label, value, ...(auto ? { autocomplete: auto } : {}) }) as HTMLInputElement;
+      i.addEventListener("input", () => on(i.value));
+      return i;
+    };
+    if (f.type === "ranking") {
+      const all = this.optionsOf(f);
+      const order = Array.isArray(cur) && cur.length === all.length ? (cur as string[]) : all.map((x) => x.value);
+      // The order shown is the answer until it's changed.
+      if (!Array.isArray(cur)) this.answers[f.id] = order;
+      const move = (i: number, by: number) => {
+        const next = [...order];
+        [next[i], next[i + by]] = [next[i + by]!, next[i]!];
+        set(next, true);
+        this.render();
+      };
+      order.forEach((v, i) => {
+        const up = el("button", { type: "button", class: "mv", "aria-label": "Move up", text: "↑", disabled: i === 0 });
+        const dn = el("button", { type: "button", class: "mv", "aria-label": "Move down", text: "↓", disabled: i === order.length - 1 });
+        up.addEventListener("click", () => move(i, -1));
+        dn.addEventListener("click", () => move(i, 1));
+        box.append(el("div", { class: "rk" }, el("b", { text: String(i + 1) }), el("span", { text: all.find((x) => x.value === v)?.label ?? v }), up, dn));
+      });
+    } else if (f.type === "address") {
+      const part = (k: string) => (v: string) => set({ ...((this.answers[f.id] as Record<string, string>) ?? {}), [k]: v });
+      box.append(
+        text("Street", o.line1 ?? "", part("line1"), "text", "address-line1"),
+        text("Apartment, suite (optional)", o.line2 ?? "", part("line2"), "text", "address-line2"),
+        el("div", { class: "r2" }, text("City", o.city ?? "", part("city"), "text", "address-level2"), text("State or region", o.region ?? "", part("region"), "text", "address-level1")),
+        el("div", { class: "r2" }, text("Postcode", o.postal ?? "", part("postal"), "text", "postal-code"), text("Country", o.country ?? "", part("country"), "text", "country-name")),
+      );
+    } else if (f.type === "grid" && f.grid) {
+      const t = el("table", { class: "gd" });
+      t.append(el("tr", {}, el("th", {}), ...f.grid.cols.map((c) => el("th", { scope: "col", text: c.label }))));
+      f.grid.rows.forEach((r, ri) => {
+        const tr = el("tr", {}, el("th", { scope: "row", text: r.label }));
+        for (const c of f.grid!.cols) {
+          const x = el("input", { type: "radio", name: `${id}-${ri}`, value: c.value, "aria-label": `${r.label}: ${c.label}` }) as HTMLInputElement;
+          x.checked = o[r.value] === c.value;
+          x.addEventListener("change", () => set({ ...((this.answers[f.id] as Record<string, string>) ?? {}), [r.value]: c.value }, Object.keys((this.answers[f.id] as object) ?? {}).length + 1 >= f.grid!.rows.length));
+          tr.append(el("td", {}, x));
+        }
+        t.append(tr);
+      });
+      box.append(el("div", { class: "gw" }, t));
+    } else if (f.type === "daterange") {
+      const part = (k: string) => (v: string) => set({ ...((this.answers[f.id] as Record<string, string>) ?? {}), [k]: v });
+      box.append(el("div", { class: "r2" }, text("From", o.from ?? "", part("from"), "date"), text("To", o.to ?? "", part("to"), "date")));
+    } else if (f.type === "group" && f.group) {
+      const g = f.group;
+      const rows = (Array.isArray(cur) ? cur : [{}]) as Record<string, string>[];
+      if (!Array.isArray(cur)) this.answers[f.id] = rows;
+      rows.forEach((row, ri) => {
+        const line = el("div", { class: "gr" });
+        for (const sf of g.fields) {
+          const on = (v: string) => {
+            const next = (this.answers[f.id] as Record<string, string>[]).map((x, j) => (j === ri ? { ...x, [sf.id]: v } : x));
+            set(next);
+          };
+          if (sf.type === "dropdown") {
+            const sel = el("div", { class: "ch" });
+            for (const opt of sf.options ?? []) {
+              const b = el("button", { type: "button", class: `pk${row[sf.id] === opt.value ? " on" : ""}`, "aria-pressed": String(row[sf.id] === opt.value), text: opt.label });
+              b.addEventListener("click", () => (on(opt.value), this.render()));
+              sel.append(b);
+            }
+            line.append(el("div", { class: "gf" }, el("span", { class: "hp", text: sf.label }), sel));
+          } else line.append(text(sf.label + (sf.required ? " *" : ""), row[sf.id] ?? "", on, { email: "email", phone: "tel", number: "text", date: "date" }[sf.type as string] ?? "text"));
+        }
+        if (rows.length > 1) {
+          const x = el("button", { type: "button", class: "mv", "aria-label": `Remove row ${ri + 1}`, text: "×" });
+          x.addEventListener("click", () => (set((this.answers[f.id] as Record<string, string>[]).filter((_, j) => j !== ri), true), this.render()));
+          line.append(x);
+        }
+        box.append(line);
+      });
+      if (rows.length < g.max) {
+        const add = el("button", { type: "button", class: "bt bk", text: g.add || "Add another" });
+        add.addEventListener("click", () => (set([...(this.answers[f.id] as Record<string, string>[]), {}]), this.render()));
+        box.append(add);
+      }
+    } else if (f.type === "signature") {
+      const pad = el("canvas", { class: "sg", width: "600", height: "180", "aria-label": `${f.label}: draw your signature` }) as HTMLCanvasElement;
+      const ctx = pad.getContext("2d");
+      const state = el("p", { class: "hp", "aria-live": "polite", text: typeof cur === "string" && cur ? "Signed" : "" });
+      let drawing = false;
+      let drawn = false;
+      const at = (e: PointerEvent) => {
+        const r = pad.getBoundingClientRect();
+        return [((e.clientX - r.left) / r.width) * pad.width, ((e.clientY - r.top) / r.height) * pad.height] as const;
+      };
+      pad.addEventListener("pointerdown", (e) => {
+        if (!ctx) return;
+        drawing = drawn = true;
+        pad.setPointerCapture(e.pointerId);
+        ctx.lineWidth = 2.5;
+        ctx.lineCap = "round";
+        ctx.strokeStyle = "#111";
+        ctx.beginPath();
+        ctx.moveTo(...at(e));
+      });
+      pad.addEventListener("pointermove", (e) => {
+        if (!drawing || !ctx) return;
+        ctx.lineTo(...at(e));
+        ctx.stroke();
+      });
+      const done = () => {
+        if (!drawing) return;
+        drawing = false;
+        if (!drawn) return;
+        if (this.isPreview) return set("up_00000000-0000-4000-8000-000000000000:signature.png", true);
+        state.textContent = "Saving…";
+        pad.toBlob(async (blob) => {
+          if (!blob) return;
+          const body = new FormData();
+          body.append("field", f.id);
+          body.append("file", blob, "signature.png");
+          const res = await fetch(`${this.base}/api/forms/${this.data!.id}/upload`, { method: "POST", body, credentials: "omit" }).catch(() => null);
+          const j = (await res?.json().catch(() => ({}))) as { token?: string; error?: string } | undefined;
+          state.textContent = res?.ok && j?.token ? "Signed" : (j?.error ?? "Didn't save. Sign again.");
+          if (res?.ok && j?.token) set(j.token, true);
+        }, "image/png");
+      };
+      pad.addEventListener("pointerup", done);
+      pad.addEventListener("pointerleave", done);
+      const clear = el("button", { type: "button", class: "bt bk", text: "Clear" });
+      clear.addEventListener("click", () => {
+        ctx?.clearRect(0, 0, pad.width, pad.height);
+        drawn = false;
+        state.textContent = "";
+        set(undefined);
+      });
+      box.append(pad, el("div", { class: "ac" }, clear), state);
+    }
+    return box;
+  }
+
   /** Pick one or pick many: radios or check boxes, with "Other" and its text box last. */
   private picks(f: Field, id: string, common: Record<string, string | undefined>, set: (v: unknown, picked?: boolean) => void): HTMLElement {
     const multi = f.type === "multi";
@@ -1313,7 +1471,8 @@ export class ClaritiaForm extends Base {
   /** A rating: a radio group of stars or numbers, so arrows move and screen readers say "3 of 5". */
   private rating(f: Field, id: string, common: Record<string, string | undefined>, set: (v: unknown, picked?: boolean) => void): HTMLElement {
     const r = f.rating ?? { scale: 5, style: "stars" };
-    const cur = Number(this.answers[f.id]) || 0;
+    const has = this.answers[f.id] !== undefined && this.answers[f.id] !== "";
+    const cur = has ? Number(this.answers[f.id]) : -1;
     const stars = r.style !== "numbers";
     const group = el("div", {
       class: `rt ${stars ? "rs" : "rn"}`,
@@ -1323,12 +1482,13 @@ export class ClaritiaForm extends Base {
       "aria-describedby": common["aria-describedby"],
       "aria-required": common["aria-required"],
     });
-    for (let n = 1; n <= r.scale; n++) {
-      const words = n === 1 && r.low ? `, ${r.low}` : n === r.scale && r.high ? `, ${r.high}` : "";
+    const low = !stars && r.zero ? 0 : 1;
+    for (let n = low; n <= r.scale; n++) {
+      const words = n === low && r.low ? `, ${r.low}` : n === r.scale && r.high ? `, ${r.high}` : "";
       const c = el("input", { type: "radio", name: id, value: String(n), id: `${id}-${n}`, "aria-label": `${n} of ${r.scale}${words}` }) as HTMLInputElement;
       c.checked = cur === n;
       c.addEventListener("change", () => set(n, true));
-      group.append(el("label", { class: (stars ? n <= cur : n === cur) ? "on" : undefined }, c, el("span", { "aria-hidden": "true", text: stars ? "★" : String(n) })));
+      group.append(el("label", { class: (stars ? n <= cur && cur > 0 : n === cur) ? "on" : undefined }, c, el("span", { "aria-hidden": "true", text: stars ? "★" : String(n) })));
     }
     if (!r.low && !r.high) return group;
     return el("div", { class: "ch" }, group, el("div", { class: "rl", "aria-hidden": "true" }, el("span", { text: r.low ?? "" }), el("span", { text: r.high ?? "" })));

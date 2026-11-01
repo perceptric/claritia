@@ -16,6 +16,7 @@ import { fromHeader, outcomeOf, SendError, type Outgoing } from "../../src/lib/e
 import type { Resend } from "../../src/lib/email/resend.ts";
 import { calcText } from "../../src/lib/forms/formula.ts";
 import { allFields, type Form } from "../../src/lib/forms/schema.ts";
+import { answerText } from "../../src/lib/forms/results.ts";
 import { alertEmail, replyEmail, replyGoes, resultsEmail, type MergeValues } from "../../src/lib/forms/notify.ts";
 import { enqueueJob, JobError, type Handler, type Rpc } from "../../src/lib/jobs.ts";
 import { mime, validAddress } from "../../src/lib/meetings/emails.ts";
@@ -57,7 +58,7 @@ const show = (v: unknown): string => (Array.isArray(v) ? v.map(String).join(", "
 export function answersOf(body: Form, values: Record<string, unknown>): { label: string; value: string }[] {
   return allFields(body)
     .filter((f) => !["heading", "paragraph", "divider", "image", "hidden"].includes(f.type))
-    .map((f) => ({ label: f.label || f.key, value: show(values[f.key]) }))
+    .map((f) => ({ label: f.label || f.key, value: (["ranking", "address", "grid", "daterange", "group", "signature"].includes(f.type) ? answerText({ key: f.key, label: f.label, field: f }, values[f.key]) : show(values[f.key])).slice(0, 2000) }))
     .filter((a) => a.value);
 }
 

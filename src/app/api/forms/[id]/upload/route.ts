@@ -21,9 +21,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const f = await loadPublic(db, id).catch(() => null);
   if (!f || f.status !== "live") return json({ error: "This form isn't taking answers." }, 410);
   const body = await request.formData().catch(() => null);
-  const field = allFields(f.body).find((x) => x.id === body?.get("field") && x.type === "file");
+  const found = allFields(f.body).find((x) => x.id === body?.get("field") && (x.type === "file" || x.type === "signature"));
   const file = body?.get("file");
-  if (!field?.file) return json({ error: "Field not found." }, 404);
+  // A signature is a small picture the form draws (docs/form-kinds-plan.md step 2).
+  const rule = found?.type === "signature" ? { maxMb: 1, kinds: ["image"] as const } : found?.file;
+  if (!found || !rule) return json({ error: "Field not found." }, 404);
+  const field = { id: found.id, file: { maxMb: rule.maxMb, kinds: [...rule.kinds] as string[] } };
   if (!(file instanceof Blob) || !file.size) return json({ error: "Pick a file." }, 400);
   if (file.size > field.file.maxMb * MB) return json({ error: `Files can be up to ${field.file.maxMb} MB.` }, 413);
   const name = cleanName(file instanceof File ? file.name : "file");

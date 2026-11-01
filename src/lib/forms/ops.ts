@@ -149,10 +149,18 @@ export function applyOp(input: Form, op: Op): { form: Form } | { error: string }
         next.key = `c.${cur.id}`;
         next.required = false;
       } else if (isContent(cur.type)) next.key = keyFor({ ...next, key: undefined }, form);
-      if (!isChoice(next.type)) {
+      if (next.type === "ranking") {
+        delete next.optionsBy;
+        if ((next.options?.length ?? 0) < 2) next.options = [{ value: "Option 1", label: "Option 1" }, { value: "Option 2", label: "Option 2" }];
+      } else if (!isChoice(next.type)) {
         delete next.options;
         delete next.optionsBy;
       } else if (!next.options?.length && !next.optionsBy) next.options = [{ value: "Option 1", label: "Option 1" }];
+      if (next.type !== "grid") delete next.grid;
+      else next.grid ??= { rows: [{ value: "Row 1", label: "Row 1" }], cols: [{ value: "Poor", label: "Poor" }, { value: "Good", label: "Good" }, { value: "Great", label: "Great" }] };
+      if (next.type !== "group") delete next.group;
+      else next.group ??= { fields: [{ id: newId(), key: "q.name" as FieldKey, type: "text", label: "Name", required: true }], max: 5, add: "Add another" };
+      if (next.type !== "rating") delete next.rating;
       if (next.type !== "calc") delete next.calc;
       else {
         next.calc ??= { formula: "0" };

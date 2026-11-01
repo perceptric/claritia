@@ -19,17 +19,17 @@ export type KindInfo = { value: Kind; label: string; text: string; email: "requi
 export const KINDS: KindInfo[] = [
   { value: "lead", label: "Lead", text: "Contact, demo, waitlist or gated content", email: "required", recipe: "Short: what they need, a qualifying question or two, contact details. Book a call or say what happens next." },
   { value: "quote", label: "Quote", text: "A price or cost calculator", email: "required", recipe: "Settings for every rate or price, sliders and picture cards for what drives the price, a calc for the total, a result step with a metric and a summary, outcomes by size of job." },
-  { value: "order", label: "Order", text: "Products, custom orders, donations or tickets", email: "required", recipe: "Picture cards for products with prices as settings, numbers for quantities, a calc for the total, a result step with a summary, delivery or pickup details, contact details last." },
+  { value: "order", label: "Order", text: "Products, custom orders, donations or tickets", email: "required", recipe: "Picture cards for products with prices as settings, numbers for quantities, a calc for the total, a result step with a summary, delivery or pickup (an address for delivery, a date and time), contact details last." },
   { value: "booking", label: "Booking", text: "Meetings, appointments, classes or rentals", email: "required", recipe: "What they want booked (picture cards), when (date), a few details, contact details; the booking step follows." },
   { value: "qualify", label: "Qualify", text: "Score a lead or find the right plan", email: "required", recipe: "Choices with scores, a calc for the score, outcomes by score or answer (each with specific advice), a result step with a meter and the outcome, paths that end early for a clear no." },
   { value: "quiz", label: "Quiz", text: "Graded or personality quiz", email: "optional", recipe: "One question per screen with picture cards, scores on the right or matching answers, a calc for the score, outcomes for each result type, a result step with the outcome; email optional to get the result sent." },
-  { value: "survey", label: "Survey", text: "NPS, feedback, polls or research", email: "optional", recipe: "A rating or 0 to 10 choice first, short follow-ups by the answer (paths or show rules), one open text question, email optional. No result step." },
+  { value: "survey", label: "Survey", text: "NPS, feedback, polls or research", email: "optional", recipe: "A rating first (for NPS: numbers 0 to 10), a grid to rate several things at once, ranking for priorities, short follow-ups by the answer (paths or show rules), one open text question, email optional. No result step." },
   { value: "testimonial", label: "Testimonial", text: "Reviews and customer quotes", email: "required", recipe: "A rating, an open text question for the quote, name, title and company, a photo upload (file), consent to publish it." },
-  { value: "registration", label: "Registration", text: "Events, courses, memberships or intake", email: "required", recipe: "Which session or option (cards), attendee details, dietary or access needs, consent; one step per topic." },
+  { value: "registration", label: "Registration", text: "Events, courses, memberships or intake", email: "required", recipe: "Which session or option (cards), attendee details, a group to add guests, dietary or access needs, consent; one step per topic." },
   { value: "application", label: "Application", text: "Jobs, grants, vendors or speakers", email: "required", recipe: "Several steps: about you, experience, the role or program questions, a file upload for a resume or deck, links. Long text where it counts." },
   { value: "support", label: "Support", text: "Tickets, returns, bugs or complaints", email: "required", recipe: "What it's about (cards), details by type (show rules), order or account number, a file upload for a screenshot or photo, how urgent." },
-  { value: "consent", label: "Consent", text: "Releases, waivers or patient intake", email: "required", recipe: "The terms in a section, details of the person, the specific permissions as checkboxes, a required consent box (consent mode always, required)." },
-  { value: "internal", label: "Internal", text: "Reports, time off, expenses or IT requests", email: "optional", recipe: "Plain and quick: who, what, dates, numbers, a file upload when receipts or screenshots help. No hero, no result step." },
+  { value: "consent", label: "Consent", text: "Releases, waivers or patient intake", email: "required", recipe: "The terms in a section, details of the person, the specific permissions as checkboxes, a required signature, a required consent box (consent mode always, required)." },
+  { value: "internal", label: "Internal", text: "Reports, time off, expenses or IT requests", email: "optional", recipe: "Plain and quick: who, what, a date range for time off, numbers, a group for expense lines, a file upload when receipts or screenshots help. No hero, no result step." },
 ];
 const OLD_GOALS: Record<string, Kind> = { leads: "lead", assess: "qualify", recommend: "qualify", book: "booking" };
 /** A kind from what a client sent, old goal names included. */
@@ -252,7 +252,9 @@ step = {id, title?, fields: [field], result?: true, image?, jumps?: [{when: cond
 - emailOptional: true when the kind doesn't need an email (polls, anonymous surveys, quizzes, internal forms); the email question is then optional or left out.
 field = {id, key, type, label, required, ...}
 - keys: "email", "name", "first_name", "last_name", "phone", "company", "website", "title", "country" for contact details; "q.<snake_case>" for answers; "c.<id>" for sections and results.
-- types: text, email, phone, textarea, number, choice, multi, dropdown, checkbox, date, url, rating, calc, html, result, heading, paragraph.
+- types: text, email, phone, textarea, number, choice, multi, dropdown, checkbox, date, url, rating, calc, html, result, heading, paragraph, file, ranking, address, grid, time, daterange, group, signature.
+- rating: rating {scale: 3 to 10, style: "stars"|"numbers", zero?: true (numbers from 0, for NPS 0 to 10), low?, high?}.
+- ranking: options to put in order. grid: grid {rows: [{value, label}], cols: [{value, label}]} (one column per row, e.g. rate each from Poor to Great). address: street, city, region, postcode, country. time, daterange: a time of day, a first and last date. group: group {fields: [{id, type: text|email|phone|number|dropdown|date, label, required, options?}], max: 1 to 20, add?: "Add a guest"} for "add another" rows. signature: a drawn signature. file: file {maxMb, kinds: ["pdf"|"image"|"office"]}. These keep their answer on the fill: key "q.<snake_case>".
 - choice and multi: options [{value, label, score?, image?}], cards: true for picture cards. value is snake_case. score is the number formulas read.
 - number: valid {min, max, step}; slider: true needs min and max; unit: "money" | "percent".
 - calc: calc {formula, format?: "money"|"percent", decimals?, show?: false}. A formula reads fields as {id} and settings as {@id}: + - * / ( ), comparisons, and, or, min, max, sum, round, ceil, floor, abs, if(c,a,b), ifempty(a,b). An empty answer stays empty; divide by zero is empty.
@@ -303,6 +305,7 @@ export function kindProblems(form: Form, kind: Kind): string[] {
   if (kind === "testimonial" && !has("textarea")) out.push("A testimonial form needs a long text question for the quote.");
   if (kind === "application" && !has("file")) out.push("An application needs a file upload.");
   if (kind === "consent" && form.consent.mode !== "always") out.push('A consent form needs consent mode "always" with required: true.');
+  if (kind === "consent" && !has("signature")) out.push("A consent form needs a required signature field.");
   if (info(kind).email === "required" && form.emailOptional) out.push(`A ${kind} form needs the email: leave emailOptional out.`);
   return out;
 }
