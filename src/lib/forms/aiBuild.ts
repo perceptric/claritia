@@ -206,6 +206,7 @@ HOW TO BUILD IT WELL
 - Use prices from the brief as setting values. A price the site doesn't show: value null, and list it under replace.
 - Contact details last, just before or after the result, with as few fields as possible.
 - Plain, specific words in the business's voice. Sentence case. No emoji, no hype, no filler.
+- When there's a brand_book, follow it: write in its voice and words, use its real call-to-action labels for buttons, describe pictures the way its imagery does, and follow its rules. A hero may use the primary button's gradient exactly as given (as a background), and the brand book's colors by role through the variables above.
 - Never invent testimonials, customer names, ratings or statistics as facts. If a proof section helps, write it and list each such item under replace.
 
 summary = {built: [short lines on what you made], assumptions: [what you assumed], replace: [each placeholder price, quote or number awaiting the owner's real one]}.`;
@@ -225,8 +226,8 @@ export type Built = { name: string; form: Form; summary: BuildSummary; rounds: n
  * Build, check, fix: the draft goes through checkForm, and its problems go back to the model (up to `fixes` times).
  * Returns only a form that passes, or null.
  */
-export async function buildForm(call: Caller, input: { brief: Brief | null; goal: Goal; note: string; answers: Record<string, string | string[]>; site: string }, fixes = 2): Promise<Built | null> {
-  const user = JSON.stringify({ goal: GOALS.find((g) => g.value === input.goal)?.text, site: input.site, brief: input.brief, owner_note: input.note, owner_answers: input.answers });
+export async function buildForm(call: Caller, input: { brief: Brief | null; goal: Goal; note: string; answers: Record<string, string | string[]>; site: string; book?: unknown }, fixes = 2): Promise<Built | null> {
+  const user = JSON.stringify({ goal: GOALS.find((g) => g.value === input.goal)?.text, site: input.site, brief: input.brief, brand_book: input.book ?? null, owner_note: input.note, owner_answers: input.answers });
   const history: Anthropic.Beta.BetaMessageParam[] = [{ role: "user", content: user }];
   const usage: Anthropic.Beta.BetaUsage[] = [];
   for (let round = 0; round <= fixes; round++) {

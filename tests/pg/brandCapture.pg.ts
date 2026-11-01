@@ -43,3 +43,28 @@ test("brand: first scan is the brand, quick look now, full scan replaces it, a f
   await q(`select workspace_brand_set($1, $2)`, [ws, other]);
   assert.equal((await q(`select book_kit($1) as k`, [ws]))[0].k.tokens.accent, "#123456");
 });
+
+test("brand book: saved with its fonts and logo, and the browser scan only fills what it left out", async () => {
+  const ws = uuid7();
+  const user = uuid7();
+  await q(`insert into workspaces (id, name) values ($1, 'Momos')`, [ws]);
+  await q(`insert into auth.users (id, email) values ($1, $2)`, [user, `${user}@t.io`]);
+  await q(`insert into workspace_members (workspace_id, user_id, role) values ($1, $2, 'owner')`, [ws, user]);
+  const kit = (await q(`select brand_scan_start($1, $2, 'https://momos.com') as id`, [user, ws]))[0].id as string;
+  await q(`select brand_kit_reading($1)`, [kit]);
+  assert.equal((await q(`select book_status from brand_kits where id = $1`, [kit]))[0].book_status, "reading");
+  const book = { name: "Momos", type: { heading: { family: "Poppins" }, body: { family: "Poppins" } } };
+  const faces = [{ family: "Poppins", weight: "600", style: "normal", src: "https://cdn.example.com/p.woff2" }];
+  await q(`select brand_kit_book($1, $2, $3, $4, '<svg/>', null)`, [kit, book, JSON.stringify(faces), { buttonBg: "#d73e33", font: "Poppins, sans-serif" }]);
+  let k = (await q(`select book_status, scan_status, tokens, logo_svg from brand_kits where id = $1`, [kit]))[0];
+  assert.equal(k.book_status, "done");
+  assert.equal(k.scan_status, "done");
+  assert.equal(k.tokens.buttonBg, "#d73e33");
+  assert.equal(k.logo_svg, "<svg/>");
+  assert.deepEqual((await q(`select brand_kit_fonts($1) as f`, [kit]))[0].f, { faces, heading: "Poppins", body: "Poppins" });
+  // The browser scan: the book's values win, gaps are filled.
+  await q(`select brand_scan_finish($1, $2, null, '{}', '[]', null)`, [kit, { buttonBg: "#000000", radius: 12 }]);
+  k = (await q(`select tokens from brand_kits where id = $1`, [kit]))[0];
+  assert.equal(k.tokens.buttonBg, "#d73e33");
+  assert.equal(k.tokens.radius, 12);
+});

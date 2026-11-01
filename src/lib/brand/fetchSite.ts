@@ -1,5 +1,7 @@
 import "server-only";
 import { hostIsPrivate } from "../privateNet.ts";
+import { pickPages, readPage } from "../forms/aiBuild.ts";
+import type { Page, Sheet } from "./deep.ts";
 import { readBrand, stylesheets, type QuickBrand } from "./quick.ts";
 
 // Fetching a customer's site from the web server (docs/brand-capture.md): private addresses refused at every
@@ -31,11 +33,32 @@ export async function fetchText(url: string, accept: string, maxBytes: number, m
   return null;
 }
 
-/** The site's look from its home page and up to six stylesheets, in about eight seconds at most. */
-export async function quickBrand(raw: string): Promise<QuickBrand | null> {
+export type Fetched = { pages: Page[]; sheets: Sheet[] };
+
+/** The home page and its stylesheets. */
+export async function fetchHome(raw: string): Promise<Fetched | null> {
   const url = /^https?:\/\//i.test(raw) ? raw : `https://${raw}`;
   const page = await fetchText(url, "text/html", 3_000_000, 8000);
   if (!page || !/<html|<body|<head/i.test(page.text)) return null;
   const sheets = await Promise.all(stylesheets(page.text, page.url).map((s) => fetchText(s, "text/css", 2_000_000, 5000)));
-  return readBrand(page.text, sheets.map((s) => s?.text ?? ""), page.url);
+  return { pages: [{ url: page.url, html: page.text }], sheets: sheets.filter((x): x is { url: string; text: string } => !!x) };
+}
+
+/** The site's look from the home page alone, in seconds. */
+export const quickFrom = (f: Fetched): QuickBrand => readBrand(f.pages[0]!.html, f.sheets.map((s) => s.text), f.pages[0]!.url);
+
+/** Up to four more pages (pricing, services, product, about) and the stylesheets they add, at most ten in all. */
+export async function fetchMore(f: Fetched): Promise<Fetched> {
+  const home = f.pages[0]!;
+  const more = (await Promise.all(pickPages(readPage(home.html, home.url).links).map((u) => fetchText(u, "text/html", 2_000_000, 8000)))).filter((x): x is { url: string; text: string } => !!x && /<html|<body/i.test(x.text));
+  const seen = new Set(f.sheets.map((s) => s.url));
+  const extra = [...new Set(more.flatMap((p) => stylesheets(p.text, p.url)))].filter((u) => !seen.has(u)).slice(0, Math.max(0, 10 - f.sheets.length));
+  const sheets = (await Promise.all(extra.map((u) => fetchText(u, "text/css", 2_000_000, 5000)))).filter((x): x is { url: string; text: string } => !!x);
+  return { pages: [...f.pages, ...more.map((p) => ({ url: p.url, html: p.text }))], sheets: [...f.sheets, ...sheets] };
+}
+
+/** The site's look from its home page, in about eight seconds at most. */
+export async function quickBrand(raw: string): Promise<QuickBrand | null> {
+  const f = await fetchHome(raw);
+  return f ? quickFrom(f) : null;
 }

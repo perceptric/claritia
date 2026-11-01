@@ -77,7 +77,7 @@ export function AiCreate({ sb, session, ws, navigate, site, kits, meetingType, o
     setTick(0);
     setStage("building");
     try {
-      const r = await postJson<{ name: string; form: Form; summary: BuildSummary }>(session, "/api/forms/ai", { workspaceId: ws.id, mode: "build", brief, goal, note, answers, site: url.trim() });
+      const r = await postJson<{ name: string; form: Form; summary: BuildSummary }>(session, "/api/forms/ai", { workspaceId: ws.id, mode: "build", brief, goal, note, answers, site: url.trim(), kitId: kit });
       const form = r.form;
       if (goal === "book" && meetingType && !form.after.schedule) form.after.schedule = { tool: "claritia", url: "", perOwner: false, meetingTypeId: meetingType };
       const id = must(await sb.rpc("form_create", { p_ws: ws.id, p_name: r.name, p_draft: form, p_brand_kit: kit, p_kind: "built" })) as string;

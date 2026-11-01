@@ -92,7 +92,11 @@ export function cleanFontUrl(raw: unknown): string | null {
   if (typeof raw !== "string" || !raw) return null;
   try {
     const u = new URL(raw);
-    return u.protocol === "https:" && u.hostname === "fonts.googleapis.com" && /^\/css2?$/.test(u.pathname) && !u.username ? u.href.slice(0, 500) : null;
+    if (u.protocol !== "https:" || u.username) return null;
+    if (u.hostname === "fonts.googleapis.com" && /^\/css2?$/.test(u.pathname)) return u.href.slice(0, 500);
+    // A brand kit's own fonts, served by Claritia (docs/brand-capture.md).
+    if (/^(app\.)?tryclaritia\.com$/.test(u.hostname) && /^\/api\/brand\/fonts\/[0-9a-f-]{36}(\.css)?$/.test(u.pathname) && !u.search) return u.href;
+    return null;
   } catch {
     return null;
   }
