@@ -25,7 +25,7 @@ import { keysFromEnv } from "../src/lib/enrich/server.ts";
 import { accountAlert, scoreAccount, sweepSignals } from "./jobs/signals.ts";
 import { importFile, importUndo, pruneImportFiles } from "./jobs/imports.ts";
 import { meetingTeamRun, routeJob, routerAlert, routerSla, routingAbandon } from "./jobs/router.ts";
-import { formNotify } from "./jobs/forms.ts";
+import { formNotify, formResume } from "./jobs/forms.ts";
 import { segmentRefresh } from "./jobs/segments.ts";
 import { scoreRefresh } from "./jobs/scoring.ts";
 import { deliver, deliverHeld } from "./jobs/deliver.ts";
@@ -88,6 +88,7 @@ const handlers = {
   meeting_book_later: meetingBookLater(rpc, meetings),
   form_not_booked: formNotBooked(rpc),
   form_notify: formNotify(rpc, { mailer: meetings.mailer, base: meetings.base, from: meetings.from, batcher: resend }),
+  form_resume: formResume(rpc, { mailer: meetings.mailer, base: meetings.base, from: meetings.from }),
   route: routeJob(rpc),
   meeting_team_run: meetingTeamRun(rpc),
   routing_abandon: routingAbandon(rpc),

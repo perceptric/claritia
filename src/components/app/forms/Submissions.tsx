@@ -435,6 +435,18 @@ export function Submissions(props: ViewProps & { form: Form; formId: string; des
                 })
                 .catch(() => undefined)
             }
+            onPdf={() =>
+              void run(async () => {
+                const res = await fetch(`/api/forms/submissions/${openRow.id}/pdf`, { headers: { Authorization: `Bearer ${session.access_token}` } });
+                if (!res.ok) throw new Error("The PDF didn't download. Try again.");
+                download(await res.blob(), `fill-${openRow.id.slice(0, 8)}.pdf`);
+              }, "PDF downloaded")
+            }
+            loadPay={async () => {
+              // Before 110 there's no payment column: nothing shows.
+              const r = await sb.from("submissions").select("payment").eq("id", openRow.id).maybeSingle();
+              return r.error ? null : ((r.data as { payment?: Pay | null } | null)?.payment ?? null);
+            }}
             key={`${openRow.id}:${openRow.spam}`}
             s={openRow}
             form={form}
@@ -522,8 +534,13 @@ function BulkBtn({ children, onClick, label }: { children: React.ReactNode; onCl
 }
 
 /** One fill: its answers, the lead, where it went, where it came from. */
-function RowPanel({ s, form, name, rep, dests, destName, destLogo, onClose, onContact, onReplay, onSpam, onDelete, onFix, onOpenFile }: {
+type Pay = { status?: string; amount?: number; currency?: string };
+const PAY_WORDS: Record<string, [string, "green" | "amber" | "gray" | "red"]> = { paid: ["Paid", "green"], open: ["Not paid yet", "amber"], expired: ["Payment not finished", "gray"], failed: ["Payment failed", "red"], refunded: ["Refunded", "gray"] };
+
+function RowPanel({ s, form, name, rep, dests, destName, destLogo, onClose, onContact, onReplay, onSpam, onDelete, onFix, onOpenFile, onPdf, loadPay }: {
   s: Fill;
+  onPdf: () => void;
+  loadPay: () => Promise<Pay | null>;
   /** Open a file the visitor uploaded, by its upload id. */
   onOpenFile: (uploadId: string) => void;
   form: Form;
@@ -540,6 +557,17 @@ function RowPanel({ s, form, name, rep, dests, destName, destLogo, onClose, onCo
   onFix: (fieldId: string) => void;
 }) {
   const [open, setOpen] = useState<string | null>(s.spam ? "why" : "answers");
+  const [pay, setPay] = useState<Pay | null>(null);
+  useEffect(() => {
+    if (!form.steps.some((st) => st.fields.some((f) => f.type === "payment"))) return;
+    let on = true;
+    void loadPay().then((p) => on && setPay(p)).catch(() => undefined);
+    return () => {
+      on = false;
+    };
+    // Once for this fill.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [s.id]);
   const toggle = (k: string) => setOpen(open === k ? null : k);
   const fields = allFields(form);
   const asked = fields.filter((f) => f.type !== "heading" && f.type !== "paragraph" && f.type !== "hidden");
@@ -571,8 +599,12 @@ function RowPanel({ s, form, name, rep, dests, destName, destLogo, onClose, onCo
                 {`Booked ${slot(m.start_at)}`}
               </Badge>
             ) : null}
+            {pay?.status && PAY_WORDS[pay.status] ? <Badge tone={PAY_WORDS[pay.status]![1]}>{`${PAY_WORDS[pay.status]![0]}${pay.amount && pay.currency ? ` ${new Intl.NumberFormat("en-US", { style: "currency", currency: pay.currency.toUpperCase() }).format(pay.amount / (pay.currency === "jpy" ? 1 : 100))}` : ""}`}</Badge> : null}
           </div>
         </div>
+        <button type="button" className={IB} onClick={onPdf} aria-label="Download PDF" title="Download PDF">
+          <Ic n="down" />
+        </button>
         <button type="button" className={IB} onClick={onClose} aria-label="Close" title="Close">
           <Ic n="x" />
         </button>

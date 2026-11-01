@@ -487,6 +487,13 @@ function QView({ q, form, picked, fresh, issueCtx, onPick, onDuplicate, onRemove
         {kind === "calc" ? f?.label || "Calculation" : f?.label || ({ metric: "Number", meter: "Meter", summary: "Breakdown", bars: "Bars", outcome: "Outcome", email: "Email my results" } as const)[f?.result?.kind ?? "outcome"]}
       </div>
     );
+  else if (kind === "payment" && f?.pay)
+    body = (
+      <div className="flex items-baseline justify-between rounded-[var(--b-r)] border border-solid border-[var(--b-line)] px-[14px] py-[12px] text-[14px]">
+        {f.label || "Total"}
+        <b className="text-[18px]">{f.pay.field ? `${f.pay.currency} from ${allFields(form).find((x) => x.id === f.pay!.field)?.label || "the total"}` : new Intl.NumberFormat("en-US", { style: "currency", currency: f.pay.currency }).format(f.pay.amount ?? 0)}</b>
+      </div>
+    );
   else if (kind === "consent")
     body = (
       <div className="flex items-start gap-[9px] text-[13px]">

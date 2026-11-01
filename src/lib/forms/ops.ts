@@ -32,7 +32,7 @@ export type Op =
       /** Split screen (docs/form-kinds-plan.md): the picture beside every step. */
       side?: Form["layout"]["side"] | null;
     }
-  | { op: "set_kind"; kind?: Form["kind"] | null; emailOptional?: boolean }
+  | { op: "set_kind"; kind?: Form["kind"] | null; emailOptional?: boolean; resume?: boolean; copy?: boolean }
   /** The owner's settings formulas read as {@id}, whole. */
   | { op: "set_constants"; constants: Constant[] }
   /** One setting: add or change it (value null: the owner sets it), or remove it. */
@@ -266,6 +266,10 @@ export function applyOp(input: Form, op: Op): { form: Form } | { error: string }
       else if (op.kind) form.kind = op.kind;
       if (op.emailOptional === true) form.emailOptional = true;
       else if (op.emailOptional === false) delete form.emailOptional;
+      if (op.resume === true) form.resume = true;
+      else if (op.resume === false) delete form.resume;
+      if (op.copy === true) form.copy = true;
+      else if (op.copy === false) delete form.copy;
       return { form };
     case "set_constants":
       if (op.constants.length) form.constants = op.constants;
@@ -435,7 +439,7 @@ export function describeOp(op: Op, before: Form): string {
     case "set_layout":
       return op.mode === "screens" ? "One question per screen" : op.mode === null ? "All questions on one page" : op.cover !== undefined ? (op.cover ? "Changed the cover" : "Removed the cover") : "Changed the layout";
     case "set_kind":
-      return op.emailOptional === true ? "Email is optional now" : op.emailOptional === false ? "Email is required now" : "Changed the kind of form";
+      return op.emailOptional === true ? "Email is optional now" : op.emailOptional === false ? "Email is required now" : op.resume !== undefined ? (op.resume ? "People can save and finish later" : "Save and finish later is off") : op.copy !== undefined ? (op.copy ? "People get a PDF copy" : "PDF copy is off") : "Changed the kind of form";
     case "set_constants":
       return "Changed the settings";
     case "set_constant":

@@ -156,3 +156,14 @@ export function resultsEmail(v: ResultsView): MailParts {
   const text = [...(v.outcome ? [v.outcome.title, v.outcome.text ?? ""] : []), ...v.lines.map((l) => `${l.label}: ${l.value}`), "", v.sender].filter((x, i, a) => x || a[i - 1]).join("\n");
   return { subject, html, text };
 }
+
+/** "Save and finish later" (docs/form-kinds-plan.md step 3): the link that opens the form where they stopped. */
+export function resumeEmail(v: { form: string; sender: string; link: string }): MailParts {
+  const subject = `Finish ${v.form}`.slice(0, 200);
+  const html = page(
+    `<p style="margin:0 0 6px;font-size:18px;font-weight:600">Pick up where you left off</p><p style="margin:0 0 18px">Your answers to ${esc(v.form)} are saved for 30 days.</p><p style="margin:0 0 18px"><a href="${esc(v.link)}" style="display:inline-block;background:#0a0a0a;color:#ffffff;text-decoration:none;padding:10px 18px;border-radius:99px;font-weight:600">Finish the form</a></p><p style="margin:8px 0 0;color:#71717a">${esc(v.sender)}</p>`,
+    "Your answers are saved",
+  );
+  const text = `Pick up where you left off.\nYour answers to ${v.form} are saved for 30 days.\n\nFinish the form: ${v.link}\n\n${v.sender}`;
+  return { subject, html, text };
+}

@@ -141,7 +141,7 @@ export async function POST(request: Request) {
     }
     try {
       const kind = asked ?? guessKind(note);
-      const r = await cachedStep(rpc, ws, "form_ai_build", hashKey(BUILD_MODEL, "build-4", brief, book, kind, note, answers, site), async () => {
+      const r = await cachedStep(rpc, ws, "form_ai_build", hashKey(BUILD_MODEL, "build-5", brief, book, kind, note, answers, site), async () => {
         const built = await buildForm(model, { brief, kind, note, answers, site, book });
         const usage = (built?.usage ?? []).reduce((a, u) => addUsage(a, usageOf(u)), ZERO);
         return { result: built ? { name: built.name, form: built.form, summary: built.summary } : null, model: BUILD_MODEL, usage, keep: !!built };

@@ -376,7 +376,17 @@ export async function acceptFill(
   f: PublicForm,
   raw: Incoming,
   ctx: Ctx | Promise<Ctx>,
-  o: { country?: string | null; turnstileFailed?: boolean | Promise<boolean>; origin?: string | null; ownHost?: string | null; test?: boolean; secret?: string; now?: number } = {},
+  o: {
+    country?: string | null;
+    turnstileFailed?: boolean | Promise<boolean>;
+    origin?: string | null;
+    ownHost?: string | null;
+    test?: boolean;
+    secret?: string;
+    now?: number;
+    /** Opens Stripe Checkout for a form with a payment block (src/lib/forms/pay.ts); the route passes the real one. */
+    pay?: (p: { submissionId: string; answers: Record<string, unknown>; email: string | null; page?: string }) => Promise<{ url: string } | null>;
+  } = {},
 ): Promise<{ status: number; body: Record<string, unknown> }> {
   // A fill started on an older version (the form was published while they filled it, or it waited offline) is
   // checked against that version's questions. Before 109 there's no way to read it, so it's refused as before.
@@ -436,7 +446,17 @@ export async function acceptFill(
       p_values: result.values,
       p_constants: result.constants,
     }).catch(() => null);
-  const shown = result ? { result: { values: result.values, ...(result.outcome ? { outcome: { id: result.outcome.id, title: result.outcome.title, ...(result.outcome.text ? { text: result.outcome.text } : {}) } } : {}) } } : {};
+  // A payment block: Checkout on the team's own Stripe account, for the amount worked out here. A failure to reach
+  // Stripe never loses the fill; the visitor is told the payment didn't open.
+  let pay: { url: string } | { error: string } | null = null;
+  if (o.pay && !spam && !o.test && allFields(f.body).some((x) => x.type === "payment"))
+    pay = await o.pay({ submissionId: sid, answers: byId, email: r.args.p_contact?.email ?? null, page: pageOnly(raw.page) }).catch(() => ({ error: "The payment page didn't open. We have your answers; we'll be in touch." }));
+  const shown = {
+    ...(result ? { result: { values: result.values, ...(result.outcome ? { outcome: { id: result.outcome.id, title: result.outcome.title, ...(result.outcome.text ? { text: result.outcome.text } : {}) } } : {}) } } : {}),
+    ...(pay ? { pay } : {}),
+    // A PDF copy of the answers, by a link only this fill knows (src/app/api/forms/[id]/copy).
+    ...(f.body.copy && o.secret && !spam ? { copy: `/api/forms/${f.id}/copy/${sid}?k=${copyKey(f.id, sid, o.secret)}` } : {}),
+  };
   // The form's connection and its live policy, resolved together (095): the run records both. Before 095, or when
   // the read fails, the workspace's router as before.
   const resolved = cid && !spam ? await resolveSource(rpc, f.id).catch(() => null) : null;
@@ -606,3 +626,6 @@ export async function releaseFill(rpc: Rpc, s: HeldFill, body: Form, ctx: Ctx): 
   if (contact && args) await routeFill(rpc, s.workspace_id, contact, s.id);
   return { contact };
 }
+
+/** The key in a fill's PDF copy link: only someone sent it can open that fill's copy. */
+export const copyKey = (form: string, sid: string, secret: string) => createHmac("sha256", secret).update(`copy:${form}:${sid}`).digest("base64url").slice(0, 32);
