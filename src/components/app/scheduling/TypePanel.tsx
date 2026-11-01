@@ -466,11 +466,11 @@ export function TypePanel({
 
         <PanelSection icon={<Hourglass />} title="Limits and buffers" summary={limitsWords(s)} open={open === "limits"} onToggle={() => toggle("limits")} locked={isLocked("bufferBefore", "bufferAfter", "notice", "window", "perDay")}>
           <div className="grid grid-cols-2 gap-3.5">
-            <Labeled label="Free time before">
-              <Choice values={BUFFERS} value={s.bufferBefore} word={(n) => (n ? `${n} min` : "None")} onChange={(v) => setS("bufferBefore", v)} label="Free time before" short />
+            <Labeled label="Break before each meeting">
+              <Choice values={BUFFERS} value={s.bufferBefore} word={(n) => (n ? `${n} min` : "None")} onChange={(v) => setS("bufferBefore", v)} label="Break before each meeting" short />
             </Labeled>
-            <Labeled label="Free time after">
-              <Choice values={BUFFERS} value={s.bufferAfter} word={(n) => (n ? `${n} min` : "None")} onChange={(v) => setS("bufferAfter", v)} label="Free time after" short />
+            <Labeled label="Break after each meeting">
+              <Choice values={BUFFERS} value={s.bufferAfter} word={(n) => (n ? `${n} min` : "None")} onChange={(v) => setS("bufferAfter", v)} label="Break after each meeting" short />
             </Labeled>
           </div>
           <Labeled label="Earliest booking">
