@@ -5,14 +5,13 @@ import dynamic from "next/dynamic";
 import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import { getSupabase, type SupaConfig } from "@/lib/supa";
 import { contactsPage, enrichmentPage, NAV, resolveRoute, routingPage, schedulingPage, scoringPage } from "@/lib/nav";
-import { Check, LogOut, Moon, Sun } from "../Icons";
+import { LogOut, Moon, Sun } from "../Icons";
 import { Logo } from "../Logo";
 import { AuthScreen } from "./AuthScreen";
 import { Dots } from "./Ai";
 import { CommandBar, type Command } from "./CommandBar";
 import { DialogHost } from "./Dialogs";
 import { cache, ErrorNote, errorText, Loading, mayLeave, must, useQuery, type Role, type Route, type ViewProps, type Workspace } from "./ui";
-import { GetStarted } from "./GetStarted";
 import { NAV_ICONS, Sidebar, type CreateItem } from "./Sidebar";
 import { useRoutingCommands } from "./routing/commands";
 import { useAppCounts } from "./appCounts";
@@ -231,7 +230,6 @@ export function ClientApp({ config }: { config: SupaConfig }) {
     ...NAV.map((n) => ({ id: n.key, label: n.label, group: GROUP_LABEL[n.group], icon: NAV_ICONS[n.key] ?? NAV_ICONS[n.route], run: () => navigate(n.route, n.page) })),
     ...customObjects.map((o) => ({ id: `o-${o.key}`, label: o.plural, group: "CRM", icon: NAV_ICONS.objects, run: () => navigate("objects", o.key) })),
     ...create.map((c) => ({ id: `create-${c.label}`, label: `New ${c.label.toLowerCase()}`, group: "Create", icon: NAV_ICONS.objects, run: c.run })),
-    { id: "get-started", label: "Get started", group: "App", icon: <Check size={15} />, run: () => window.dispatchEvent(new Event("claritia:get-started")) },
     ...routingCommands,
     { id: "theme", label: theme === "dark" ? "Light mode" : "Dark mode", group: "Look", icon: theme === "dark" ? <Sun size={15} /> : <Moon size={15} />, run: flip },
     { id: "out", label: "Sign out", group: "Account", icon: <LogOut size={15} />, run: () => void sb.auth.signOut() },
@@ -257,7 +255,6 @@ export function ClientApp({ config }: { config: SupaConfig }) {
         onSearch={() => setSearching(true)}
         onPreload={preloadView}
         create={create}
-        start={<GetStarted sb={sb} ws={ws} navigate={navigate} />}
       />
       <main className="min-h-0 min-w-0 flex-1 overflow-hidden border-line bg-card md:my-2 md:mr-2 md:rounded-2xl md:border md:shadow-xs">
         {error ? (

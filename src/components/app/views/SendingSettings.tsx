@@ -48,7 +48,7 @@ const SKIP: Record<string, string> = {
 };
 const HOURS = Array.from({ length: 24 }, (_, h) => ({ value: h, label: `${String(h).padStart(2, "0")}:00` }));
 
-export function SendingSettings({ sb, session, ws, role }: Pick<ViewProps, "sb" | "session" | "ws" | "role">) {
+export function SendingSettings({ sb, session, ws, role , part = "domains" }: Pick<ViewProps, "sb" | "session" | "ws" | "role"> & { part?: "domains" | "sender" }) {
   const owner = role === "owner";
   const domains = useLoad(async () => must(await sb.from("sending_domains").select("id, domain, status, records, error, checked_at").eq("workspace_id", ws.id).order("created_at")) as Domain[], `${ws.id}:domains`);
   const settings = useLoad(
@@ -102,11 +102,16 @@ export function SendingSettings({ sb, session, ws, role }: Pick<ViewProps, "sb" 
         </Panel>
       ) : null}
 
-      {!domains.data.length ? (
+      {part === "sender" ? (
+        <>
+          <SenderForm key={JSON.stringify(s)} sb={sb} ws={ws} owner={owner} saved={s} onSaved={settings.reload} />
+          <Topics sb={sb} ws={ws} owner={owner} onError={setError} />
+        </>
+      ) : !domains.data.length ? (
         <ToolIntro
-          sketch="plane"
+          sketch="domain"
           title={"Send from\nyour own domain"}
-          lead="Add the domain you send from, then add the DNS records it shows. Sending opens once DKIM, SPF and DMARC check out, and every marketing email carries one-click unsubscribe."
+          lead="Add the domain, then the DNS records it shows. Sending opens once DKIM, SPF and DMARC check out."
           action={owner ? <AddDomain sb={sb} ws={ws} onAdded={domains.reload} onError={setError} /> : undefined}
           features={[
             { title: "Records checked for you", text: "Each DNS record shows Verified, Waiting or Wrong, checked every few minutes until it's right.", visual: <SampleTags rows={[["DKIM", "Verified"], ["SPF", "Waiting"], ["DMARC", "Wrong"]]} /> },
@@ -130,9 +135,7 @@ export function SendingSettings({ sb, session, ws, role }: Pick<ViewProps, "sb" 
         </Panel>
       )}
 
-      <SenderForm key={JSON.stringify(s)} sb={sb} ws={ws} owner={owner} saved={s} onSaved={settings.reload} />
-      <Topics sb={sb} ws={ws} owner={owner} onError={setError} />
-      <Recent sb={sb} session={session} ws={ws} canTest={!!s?.from_email && domains.data.some((d) => d.status === "verified")} />
+      {part === "domains" ? <Recent sb={sb} session={session} ws={ws} canTest={!!s?.from_email && domains.data.some((d) => d.status === "verified")} /> : null}
     </div>
   );
 }

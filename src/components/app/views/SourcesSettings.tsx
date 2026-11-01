@@ -12,8 +12,8 @@ import { Copy, Pause, Play, Plug, Refresh } from "../../Icons";
 import { BrandLogo } from "../BrandLogo";
 import { askConfirm } from "../Dialogs";
 import { Select } from "../Select";
-import { SampleStats, ToolIntro } from "../ToolIntro";
-import { Badge, Button, CardHead, ErrorNote, errorText, Field, Input, Loading, must, Panel, postJson, Td, Th, timeAgo, Toggle, type Tone, useLoad, useQuery, type ViewProps } from "../ui";
+import { ToolIntro } from "../ToolIntro";
+import { Badge, Button, CardHead, ErrorNote, errorText, Field, Input, Loading, must, Panel, postJson, Td, Th, timeAgo, Toggle, type Tone, useLoad, usePoll, useQuery, type ViewProps } from "../ui";
 import { usePeople } from "../meetings/parts";
 import { routingApi } from "../routing/api";
 import { CheckBox } from "../records/RecordTable";
@@ -78,18 +78,6 @@ export function SourcesSettings({ sb, session, ws, role }: Pick<ViewProps, "sb" 
   return (
     <div className="flex flex-col gap-5">
       <ErrorNote message={error} />
-      {sources.data && !list.length ? (
-        <ToolIntro
-          sketch="gear"
-          title={"Contacts from\nevery tool you use"}
-          lead="Connect your CRM, email tools, forms and billing. Contacts come in with their consent and unsubscribes, duplicates merge, and two-way CRMs get changes back within minutes."
-          features={[
-            { title: "Two-way CRM sync", text: "HubSpot, Salesforce and Omniscient stay in step with Claritia. A person's edit wins over a sync by default.", visual: <SampleStats items={[["in", "12,408"], ["out", "1,930"], ["loops", "0"]]} /> },
-            { title: "Email tools", text: "Mailchimp, Klaviyo, ActiveCampaign, Brevo, Kit and MailerLite: lists, unsubscribes and bounces come first." },
-            { title: "Forms and meetings", text: "Typeform, Tally, Webflow, Calendly, Cal.com or any tool that posts JSON: a signup lands on a contact in seconds." },
-          ]}
-        />
-      ) : null}
       {list.length ? (
         <Panel className="overflow-hidden">
           <CardHead label="Connected" count={list.length} />
@@ -116,7 +104,7 @@ export function SourcesSettings({ sb, session, ws, role }: Pick<ViewProps, "sb" 
         </Panel>
       ) : null}
       <div className="flex items-center gap-3">
-        <span className="label-mono">Add a tool</span>
+        <span className="label-mono">{list.length ? "Add a tool" : "Connect a tool"}</span>
         <div className="ml-auto w-56">
           <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search" aria-label="Search tools" />
         </div>
@@ -813,7 +801,7 @@ function MappingPanel({ sb, session, wsId, source, owner, hasCompanies, twoWay }
 type LogRow = { id: number; source_id: string; direction: string; object: string; local_id: string | null; external_id: string | null; action: string; fields: string[]; error: string | null; retried_at: string | null; at: string };
 const ACTION: Record<string, [string, Tone]> = { create: ["Created", "green"], update: ["Updated", "brand"], delete: ["Deleted", "gray"], suppress: ["Unsubscribed", "amber"], error: ["Error", "red"] };
 
-export function SyncLog({ sb, ws, navigate }: Pick<ViewProps, "sb" | "ws" | "navigate">) {
+export function SyncLog({ sb, ws, navigate, onConnect }: Pick<ViewProps, "sb" | "ws" | "navigate"> & { onConnect?: () => void }) {
   const [source, setSource] = useState("");
   const [direction, setDirection] = useState("");
   const [action, setAction] = useState("");
@@ -828,6 +816,10 @@ export function SyncLog({ sb, ws, navigate }: Pick<ViewProps, "sb" | "ws" | "nav
     return must(await q) as LogRow[];
   }, `${ws.id}:${source}:${direction}:${action}`);
   const byId = new Map((sources.data ?? []).map((s) => [s.id, s]));
+  // A live feed: new changes slide in while the page is open.
+  usePoll(rows.reload, true, { every: 15_000, backoff: 1.2, max: 60_000, stopAfter: 30 * 60_000 });
+  const [seen] = useState(() => Date.now());
+  const today = (rows.data ?? []).filter((r) => new Date(r.at).getTime() > seen - 86_400_000);
   const retry = async () => {
     setError("");
     try {
@@ -838,9 +830,31 @@ export function SyncLog({ sb, ws, navigate }: Pick<ViewProps, "sb" | "ws" | "nav
       setError(errorText(e));
     }
   };
+  if (rows.data && !rows.data.length && !source && !direction && !action)
+    return (
+      <ToolIntro
+        sketch="sync"
+        title={"Every change\nbetween your tools"}
+        lead="Contacts moving in and out of Claritia show here, live."
+        action={
+          onConnect ? (
+            <Button onClick={onConnect}>
+              <Plug size={14} />
+              Connect a tool
+            </Button>
+          ) : undefined
+        }
+      />
+    );
   return (
     <div className="flex flex-col gap-4">
       <ErrorNote message={error} />
+      {today.length ? (
+        <p className="flex items-center gap-2 text-[13px] text-muted tabular-nums">
+          <span className="size-1.5 animate-pulse rounded-full bg-signal motion-reduce:animate-none" aria-hidden="true" />
+          {today.filter((r) => r.direction === "in").length.toLocaleString("en-US")} in, {today.filter((r) => r.direction === "out").length.toLocaleString("en-US")} out today
+        </p>
+      ) : null}
       <div className="flex flex-wrap items-center gap-2">
         <Select className={`${SEL} !w-48`} value={source} onChange={setSource} options={[{ value: "", label: "All sources" }, ...(sources.data ?? []).map((s) => ({ value: s.id, label: s.name }))]} />
         <Select className={`${SEL} !w-36`} value={direction} onChange={setDirection} options={[{ value: "", label: "In and out" }, { value: "in", label: "In" }, { value: "out", label: "Out" }]} />
@@ -876,7 +890,7 @@ export function SyncLog({ sb, ws, navigate }: Pick<ViewProps, "sb" | "ws" | "nav
                   const [label, tone] = ACTION[r.action] ?? [r.action, "gray" as Tone];
                   const canRetry = r.action === "error" && r.direction === "out" && !r.retried_at;
                   return (
-                    <tr key={r.id} className="border-t border-line">
+                    <tr key={r.id} className={`border-t border-line ${new Date(r.at).getTime() > seen ? "anim-rise-sm" : ""}`}>
                       <Td className="w-8">
                         {canRetry ? (
                           <CheckBox
