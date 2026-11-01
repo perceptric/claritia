@@ -334,3 +334,32 @@ export function Tg({ on, onChange, label, disabled = false }: { on: boolean; onC
     </button>
   );
 }
+
+/**
+ * A number box that lets people type "0.", "-" or "1e" on the way to a number: the text stays as typed, and the number
+ * is saved each time it reads as one (empty saves null). A change from outside (undo, the AI) shows the new number.
+ */
+export function NumBox({ value, onChange, className = IN_SM, ...rest }: { value: number | null | undefined; onChange: (n: number | null) => void; className?: string; "aria-label": string; placeholder?: string }) {
+  const [text, setText] = useState(value === null || value === undefined ? "" : String(value));
+  const [seen, setSeen] = useState(value);
+  if (seen !== value) {
+    setSeen(value);
+    const now = text.trim() === "" ? null : Number(text);
+    if (now !== (value ?? null)) setText(value === null || value === undefined ? "" : String(value));
+  }
+  return (
+    <input
+      {...rest}
+      className={className}
+      inputMode="decimal"
+      value={text}
+      onChange={(e) => {
+        const t = e.target.value;
+        setText(t);
+        if (t.trim() === "") return onChange(null);
+        const n = Number(t);
+        if (Number.isFinite(n)) onChange(n);
+      }}
+    />
+  );
+}

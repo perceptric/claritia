@@ -1272,11 +1272,15 @@ export const ENGINE = 1;
  * calc by field key. Settings are listed too, for the saved copy only; never send them to the browser.
  */
 export function resultOf(form: Form, answers: Record<string, unknown>, ctx: RunCtx = {}): { outcome: Outcome | null; values: Record<string, number | null>; constants: Record<string, number | null> } | null {
-  const calcFields = allFields(form).filter((f) => f.type === "calc");
-  if (!form.results && !calcFields.length) return null;
+  const all = allFields(form);
+  const calcFields = all.filter((f) => f.type === "calc");
+  // Plain number questions a result block shows count too.
+  const shown = new Set(all.flatMap((f) => (f.result ? [f.result.field, ...(f.result.fields ?? [])] : [])).filter((x): x is string => !!x));
+  const nums = all.filter((f) => f.type === "number" && shown.has(f.id));
+  if (!form.results && !calcFields.length && !nums.length) return null;
   const vals = withCalcs(form, answers, ctx);
   const values: Record<string, number | null> = {};
-  for (const f of calcFields) values[f.key] = typeof vals[f.id] === "number" ? (vals[f.id] as number) : null;
+  for (const f of [...calcFields, ...nums]) values[f.key] = numOf(vals[f.id]);
   const constants: Record<string, number | null> = {};
   for (const c of form.constants ?? []) constants[c.id] = c.value;
   return { outcome: pickOutcome(form, answers, ctx), values, constants };
@@ -1286,7 +1290,7 @@ export function resultOf(form: Form, answers: Record<string, unknown>, ctx: RunC
  * What reads a field, in plain words, so a delete can say what it breaks first: calculations, rules, skips, result
  * blocks and outcomes (docs/interactive-forms-plan.md 6b).
  */
-export function usedBy(form: Pick<Form, "steps" | "rules" | "results">, id: string): string[] {
+export function usedBy(form: Pick<Form, "steps" | "rules" | "results"> & { after?: Form["after"] }, id: string): string[] {
   const out: string[] = [];
   const reads = (c: { field: string }) => c.field === id;
   for (const f of allFields(form)) {
@@ -1296,11 +1300,33 @@ export function usedBy(form: Pick<Form, "steps" | "rules" | "results">, id: stri
       if ("refs" in p && p.refs.includes(id)) out.push(`the calculation ${f.label || "Total"}`);
     }
     if (f.result && (f.result.field === id || f.result.fields?.includes(id))) out.push(`a result block${f.label ? ` (${f.label})` : ""}`);
+    if (f.optionsBy?.field === id) out.push(`the choices of ${f.label || "a dropdown"}`);
   }
+  // Booking: which meeting or who sees the calendar, by this answer.
+  let books = false;
+  const walk = (v: unknown) => {
+    if (books || !v || typeof v !== "object") return;
+    if (Array.isArray(v)) return v.forEach(walk);
+    const o = v as Record<string, unknown>;
+    if (o.field === id) books = true;
+    else Object.values(o).forEach(walk);
+  };
+  walk(form.after?.schedule);
+  if (books) out.push("the booking step");
   if (form.rules.some((r) => reads(r.when) || !!r.group?.when.some(reads))) out.push("a show or hide rule");
   form.steps.forEach((s, i) => {
     if (s.skip && reads(s.skip.when)) out.push(`the skip after step ${i + 1}`);
   });
   for (const o of form.results?.outcomes ?? []) if (o.when?.conds.some(reads)) out.push(`the outcome ${o.title}`);
   return [...new Set(out)];
+}
+
+/** A number answer as a number: typed answers arrive as text ("42"). */
+export function numOf(v: unknown): number | null {
+  if (typeof v === "number") return Number.isFinite(v) ? v : null;
+  if (typeof v === "string" && v.trim() !== "") {
+    const n = Number(v);
+    return Number.isFinite(n) ? n : null;
+  }
+  return null;
 }

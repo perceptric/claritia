@@ -112,6 +112,35 @@ export function applyOp(input: Form, op: Op): { form: Form } | { error: string }
       const cur = form.steps[at.step].fields[at.index];
       const next = { ...cur, ...op.patch, id: cur.id } as Field;
       if (op.patch.options) next.options = choices(op.patch.options);
+      // A choice whose value changed in place (same spot, same count) keeps every rule, skip, outcome and default
+      // that used the old value.
+      const was = cur.options ?? [];
+      if (op.patch.options && next.options && was.length === next.options.length) {
+        const map = new Map<string, string>();
+        const before = new Set(was.map((o) => o.value));
+        const after = new Set(next.options.map((o) => o.value));
+        // A value that's gone, at the spot where a new one appeared. Moving choices around renames nothing.
+        was.forEach((o, i) => {
+          const to = next.options![i]!.value;
+          if (o.value !== to && !after.has(o.value) && !before.has(to)) map.set(o.value, to);
+        });
+        if (map.size) {
+          renameValues(form, [cur.id, cur.key].filter((x): x is string => !!x), map);
+          if (next.default && map.has(next.default)) next.default = map.get(next.default);
+          next.options = next.options.map((o) => (o.needs ? { ...o, needs: o.needs.map((n) => map.get(n) ?? n) } : o));
+        }
+      }
+      // A removed choice comes off the others' needs.
+      if (next.options) {
+        const have = new Set(next.options.map((o) => o.value));
+        next.options = next.options.map((o) => {
+          if (!o.needs) return o;
+          const needs = o.needs.filter((n) => have.has(n));
+          const c: Choice = { ...o, needs };
+          if (!needs.length) delete c.needs;
+          return c;
+        });
+      }
       for (const k of Object.keys(next) as (keyof Field)[]) if (next[k] === undefined || next[k] === null) delete next[k];
       if (isContent(next.type)) {
         next.key = `c.${cur.id}`;
@@ -173,6 +202,13 @@ export function applyOp(input: Form, op: Op): { form: Form } | { error: string }
       // Its fields join the step before (or after, for the first).
       const [gone] = form.steps.splice(op.index, 1);
       form.steps[Math.max(0, op.index - 1)].fields.push(...gone.fields);
+      // Skips past the removed step move down one; a skip that no longer jumps past the next step comes off.
+      form.steps.forEach((st, i) => {
+        if (!st.skip) return;
+        const to = st.skip.to > op.index ? st.skip.to - 1 : st.skip.to;
+        if (to <= i + 1 || to >= form.steps.length) delete st.skip;
+        else st.skip = { ...st.skip, to };
+      });
       return { form };
     }
     case "set_rule": {
@@ -392,4 +428,27 @@ export function describeOp(op: Op, before: Form): string {
     case "set_design":
       return "Changed the styles";
   }
+}
+
+/** Every condition on these fields (rules, skips, outcomes, results) that names an old choice value names the new one. */
+export function renameValues(form: Form, fields: string[], map: Map<string, string>) {
+  const want = new Set(fields);
+  const walk = (v: unknown) => {
+    if (Array.isArray(v)) return v.forEach(walk);
+    if (!v || typeof v !== "object") return;
+    const o = v as Record<string, unknown>;
+    if (typeof o.field === "string" && want.has(o.field)) {
+      if (typeof o.value === "string" && map.has(o.value)) o.value = map.get(o.value);
+      if (Array.isArray(o.values)) o.values = o.values.map((x) => (typeof x === "string" ? (map.get(x) ?? x) : x));
+    }
+    for (const k of Object.keys(o)) walk(o[k]);
+  };
+  walk(form.rules);
+  walk(form.steps.map((s) => s.skip));
+  for (const f of form.steps.flatMap((s) => s.fields)) {
+    const by = f.optionsBy;
+    if (by?.map && want.has(by.field)) by.map = Object.fromEntries(Object.entries(by.map).map(([k, v]) => [map.get(k) ?? k, v]));
+  }
+  walk((form as { results?: unknown }).results);
+  walk(form.after);
 }

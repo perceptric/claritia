@@ -13,7 +13,7 @@ import { byDay, dayText, localZone, sampleSlots, timeText, zoneName, zones, type
 import { countryNames } from "./countries.ts";
 import { calcText } from "./formula.ts";
 import { cleanHtml } from "./html.ts";
-import { allFields, isContent, nextStep, optionsFor, pickOutcome, safeUrl, visibility, withCalcs, type Choice, type Field, type FieldWidth, type Form, type RunCtx } from "./schema.ts";
+import { allFields, isContent, nextStep, numOf, optionsFor, pickOutcome, safeUrl, visibility, withCalcs, type Choice, type Field, type FieldWidth, type Form, type RunCtx } from "./schema.ts";
 import { checkAnswers, OTHER, stepPath, type Answers } from "./values.ts";
 
 /** regions: the region lists, sent with the form when a list follows a country field (src/lib/forms/regions.ts). */
@@ -1063,7 +1063,13 @@ export class ClaritiaForm extends Base {
       if (f.slider && f.valid?.min !== undefined && f.valid.max !== undefined) {
         // A slider with the number box beside it: either one sets the answer; dragging updates results in place.
         const range = el("input", { type: "range", min: String(f.valid.min), max: String(f.valid.max), step: String(f.valid.step ?? 1), "aria-label": f.label, tabindex: "-1" }) as HTMLInputElement;
-        range.value = input.value || String(f.valid.min);
+        // A slider always shows a number, so that number is the answer until it's moved.
+        if (!input.value) {
+          const start = f.default !== undefined && Number.isFinite(Number(f.default)) ? String(f.default) : String(f.valid.min);
+          input.value = start;
+          this.answers[f.id] = start;
+        }
+        range.value = input.value;
         range.addEventListener("input", () => {
           input.value = range.value;
           this.answers[f.id] = range.value;
@@ -1098,7 +1104,7 @@ export class ClaritiaForm extends Base {
     if (f.type === "result") {
       const form = this.data!.body;
       const vals = withCalcs(form, this.answers, this.ctx);
-      return this.resultBlock(f, form, (id) => (typeof vals[id] === "number" ? (vals[id] as number) : null), pickOutcome(form, this.answers, this.ctx));
+      return this.resultBlock(f, form, (id) => numOf(vals[id]), pickOutcome(form, this.answers, this.ctx));
     }
     return null;
   }
