@@ -45,8 +45,8 @@ const item = (group: GroupKey, route: Route, label: string): NavItem => ({ key: 
 /**
  * Inbound is set up the way a sales team works (docs/unify-plan.md): Forms (each form's Routing picks the meeting) and
  * Meetings (a Dynamic meeting picks the rep; Availability holds hours, teams and who's away; docs/on-submission.md).
- * Nurture is Workflows (folders of workflows, reminders included; docs/workflows.md), Visitors (docs/visitors.md) and
- * Scoring; Segments live in Contacts. Routing
+ * Nurture is Workflows (folders of workflows, reminders included; docs/workflows.md) and Scoring. Visitors
+ * (docs/visitors.md) is off the sidebar until launch and still opens at /visitors; Segments live in Contacts. Routing
  * has no item of its own: its old addresses open where its parts went (resolveRoute).
  */
 export const NAV: NavItem[] = [
@@ -56,12 +56,11 @@ export const NAV: NavItem[] = [
   item("crm", "companies", "Companies"),
   item("crm", "opportunities", "Opportunities"),
   item("nurture", "workflows", "Workflows"),
-  item("nurture", "visitors", "Visitors"),
   item("nurture", "scoring", "Scoring"),
   item("settings", "settings", "Settings"),
 ];
 
-const ROUTES = new Set<string>([...NAV.map((n) => n.route), "meetings", "routing", "objects", "enrichment"]);
+const ROUTES = new Set<string>([...NAV.map((n) => n.route), "meetings", "routing", "objects", "enrichment", "visitors"]);
 
 export const defaultRoute: Route = "forms";
 
