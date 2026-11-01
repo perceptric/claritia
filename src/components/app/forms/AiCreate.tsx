@@ -13,6 +13,8 @@ import { Ic } from "./ic";
 import { BTN, Dialog, Dots, EYEBROW, GHOST, GHOST_SM, IN } from "./parts";
 
 type Stage = "start" | "reading" | "questions" | "building";
+/** A picked answer: black with white text, and it stays white on hover. */
+const PICKED = "press inline-flex h-[26px] shrink-0 items-center gap-[6px] rounded-full border border-ink bg-ink px-[10px] text-[12px] whitespace-nowrap text-card";
 /** The summary the builder shows once, the first time the form opens. */
 export const SUMMARY_KEY = "claritia:form-ai-summary:";
 
@@ -28,6 +30,8 @@ export function AiCreate({ sb, session, ws, navigate, site, kitId, meetingType, 
   const [answers, setAnswers] = useState<Record<string, string | string[]>>({});
   const [error, setError] = useState("");
   const [tick, setTick] = useState(0);
+  // The brand kit the form takes: the workspace's, or one scanned from this site now (it fills in while Claude builds).
+  const [kit, setKit] = useState<string | null>(kitId);
 
   useEffect(() => {
     if (stage !== "building") return;
@@ -40,6 +44,10 @@ export function AiCreate({ sb, session, ws, navigate, site, kitId, meetingType, 
     setError("");
     setStage("reading");
     try {
+      if (!kit && url.trim()) {
+        const scan = await postJson<{ kitId: string }>(session, "/api/forms/scan", { workspaceId: ws.id, url: url.trim() }).catch(() => null);
+        if (scan?.kitId) setKit(scan.kitId);
+      }
       const read = url.trim() ? await postJson<{ brief: Brief | null; error?: string }>(session, "/api/forms/ai", { workspaceId: ws.id, mode: "read", url: url.trim() }).catch(() => ({ brief: null })) : { brief: null };
       setBrief(read.brief);
       const ask = await postJson<{ questions: AskQuestion[] }>(session, "/api/forms/ai", { workspaceId: ws.id, mode: "ask", brief: read.brief, goal, note });
@@ -59,7 +67,7 @@ export function AiCreate({ sb, session, ws, navigate, site, kitId, meetingType, 
       const r = await postJson<{ name: string; form: Form; summary: BuildSummary }>(session, "/api/forms/ai", { workspaceId: ws.id, mode: "build", brief, goal, note, answers, site: url.trim() });
       const form = r.form;
       if (goal === "book" && meetingType && !form.after.schedule) form.after.schedule = { tool: "claritia", url: "", perOwner: false, meetingTypeId: meetingType };
-      const id = must(await sb.rpc("form_create", { p_ws: ws.id, p_name: r.name, p_draft: form, p_brand_kit: kitId, p_kind: "built" })) as string;
+      const id = must(await sb.rpc("form_create", { p_ws: ws.id, p_name: r.name, p_draft: form, p_brand_kit: kit, p_kind: "built" })) as string;
       try {
         sessionStorage.setItem(`${SUMMARY_KEY}${id}`, JSON.stringify(r.summary));
       } catch {}
@@ -111,7 +119,7 @@ export function AiCreate({ sb, session, ws, navigate, site, kitId, meetingType, 
               ) : (
                 <div className="flex flex-wrap gap-[6px]">
                   {q.options.map((o) => (
-                    <button key={o} type="button" aria-pressed={on(q, o)} onClick={() => pick(q, o)} className={`${GHOST_SM} ${on(q, o) ? "border-ink bg-ink text-card hover:text-card" : ""}`}>
+                    <button key={o} type="button" aria-pressed={on(q, o)} onClick={() => pick(q, o)} className={on(q, o) ? PICKED : GHOST_SM}>
                       {o}
                     </button>
                   ))}
