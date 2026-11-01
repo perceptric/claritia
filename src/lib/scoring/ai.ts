@@ -4,7 +4,7 @@
 
 import type Anthropic from "@anthropic-ai/sdk";
 import { addUsage, usageOf, type Usage } from "../ai/cache.ts";
-import type { Model } from "../forms/chat.ts";
+import type { Model } from "../ai/chatModel.ts";
 import type { FieldDef } from "../router/conditions.ts";
 import { cleanBody, EVENT_FIELDS, type ScoreBody } from "./model.ts";
 import type { Stats } from "./engine.ts";

@@ -1,4 +1,4 @@
-// HTML sections (docs/ai-form-builder.md): whatever the AI or a person writes, a section keeps only words, pictures and
+// HTML sections (docs/forms.md): whatever the AI or a person writes, a section keeps only words, pictures and
 // layout. Scripts, frames, event handlers, javascript: and data: links, remote CSS and private addresses never pass.
 import assert from "node:assert/strict";
 import { test } from "node:test";

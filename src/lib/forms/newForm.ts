@@ -1,73 +1,37 @@
-// The live New form (docs/new-form-studio.md): the changes that need no AI. One page or steps, what happens after the
-// send, and the form the preview shows before there's a sketch. Each returns a form that passes checkForm.
+// New form's last two screens (docs/forms.md, Screens 4 and 5): where the answers go and what the visitor sees after
+// the send, set on the saved form the spec is laid over. No AI here.
 
-import { allFields, checkForm, emptyForm, isContent, newId, type Field, type Form } from "./schema.ts";
+import { DEFAULT_NOTIFY } from "./notify.ts";
+import { DEFAULT_CONSENT, emptyForm, type Form } from "./schema.ts";
+import type { Plan } from "./specAi.ts";
 
-const ok = (f: Form): Form => {
-  const r = checkForm(f);
-  return "form" in r ? r.form : f;
-};
+/** Screen 4: the CRMs that get each lead, the team alert, the spam guard and the consent box. */
+export type Submission = { crms: string[]; alert: boolean; to: string[]; spam: boolean; consent: boolean };
+/** Screen 5: a thank-you, a page, or a meeting (a type, or one to make once the form is created). */
+export type End = { kind: "thanks"; title: string; text: string } | { kind: "page"; url: string } | { kind: "meeting"; typeId: string | null };
 
-/** Everything on one page: the question steps join into the first; result screens stay after it. */
-export function toOnePage(form: Form): Form {
-  const asks = form.steps.filter((s) => !s.result);
-  const results = form.steps.filter((s) => s.result);
-  if (asks.length <= 1) return form;
-  const first = { ...asks[0]!, fields: asks.flatMap((s) => s.fields) };
-  delete first.skip;
-  delete first.jumps;
-  delete first.title;
-  return ok({ ...form, steps: [first, ...results], layout: { ...form.layout, mode: undefined, auto: undefined } });
-}
+export const defaultSubmission = (me: string | null | undefined): Submission => ({ crms: [], alert: true, to: me ? [me] : [], spam: true, consent: true });
+export const PAGE_URL = /^https:\/\/[^\s/$.?#][^\s]*\.[^\s]+$/;
 
-/** Steps: the questions in groups of three (contact details together, last), result screens after them. */
-export function toSteps(form: Form): Form {
-  const asks = form.steps.filter((s) => !s.result);
-  const results = form.steps.filter((s) => s.result);
-  if (asks.length > 1) return form;
-  const fields = asks.flatMap((s) => s.fields);
-  const contact = (f: Field) => !f.key.startsWith("q.") && !f.key.startsWith("c.") && !isContent(f.type);
-  const lead = fields.filter((f) => isContent(f.type) && fields.indexOf(f) === 0);
-  const qs = fields.filter((f) => !contact(f) && !lead.includes(f));
-  const groups: Field[][] = [];
-  for (let i = 0; i < qs.length; i += 3) groups.push(qs.slice(i, i + 3));
-  const people = fields.filter(contact);
-  if (people.length) groups.push(people);
-  if (groups.length < 2) return form;
-  // A group of only text blocks would be a step with no questions: it joins the next one.
-  const steps = groups.reduce<Field[][]>((out, g) => (out.length && out[out.length - 1]!.every((f) => isContent(f.type)) ? [...out.slice(0, -1), [...out[out.length - 1]!, ...g]] : [...out, g]), []);
-  steps[0] = [...lead, ...steps[0]!];
-  return ok({ ...form, steps: [...steps.map((f) => ({ id: newId(), fields: f })), ...results] });
-}
-
-export type AfterChoice = { kind: "thanks" } | { kind: "page"; url: string } | { kind: "results" } | { kind: "meeting"; meetingTypeId: string | null };
-
-/** What happens after the send, set on the draft. A meeting with no type yet is chosen in On Submission later. */
-export function applyAfter(form: Form, a: AfterChoice): Form {
-  const after = { ...form.after };
-  delete after.schedule;
-  if (a.kind === "page") after.end = { kind: "redirect", url: a.url };
-  else if (after.end.kind === "redirect") after.end = { kind: "message", title: "Thanks, we got it." };
-  if (a.kind === "meeting" && a.meetingTypeId) after.schedule = { tool: "claritia", url: "", perOwner: false, meetingTypeId: a.meetingTypeId };
-  let steps = form.steps;
-  if (a.kind === "results" && !allFields(form).some((f) => f.result?.kind === "email")) {
-    const email: Field = { id: newId(), key: `c.${newId()}` as Field["key"], type: "result", label: "", required: false, result: { kind: "email" } };
-    const at = form.steps.findIndex((s) => s.result);
-    steps = at >= 0 ? form.steps.map((s, i) => (i === at ? { ...s, fields: [...s.fields, email] } : s)) : form.steps;
-  }
-  return ok({ ...form, steps, after });
-}
-
-/** The form the preview shows before the sketch: a title and an email box, in the chosen brand. */
-export function placeholderForm(title: string): Form {
+/** The saved form a new spec is laid over: the screens' choices as settings. */
+export function baseForm(o: { submission: Submission; end: End; needEmail: boolean; thanks?: { title: string; text: string } }): Form {
   const f = emptyForm();
-  return ok({ ...f, title: title.slice(0, 120) || "Your form" });
+  f.consent = { mode: o.submission.consent ? "by_region" : "off", label: DEFAULT_CONSENT };
+  f.spam = { ...f.spam, turnstile: o.submission.spam };
+  f.notify = { ...DEFAULT_NOTIFY, on: o.submission.alert && o.submission.to.length > 0, to: o.submission.to.slice(0, 10) };
+  if (!o.needEmail) f.emailOptional = true;
+  const thanks = o.end.kind === "thanks" ? o.end : o.thanks;
+  f.after = { end: o.end.kind === "page" && PAGE_URL.test(o.end.url) ? { kind: "redirect", url: o.end.url } : { kind: "message", title: thanks?.title?.trim() || "Thanks, we got it.", ...(thanks?.text?.trim() ? { text: thanks.text.trim() } : {}) } };
+  if (o.end.kind === "meeting" && o.end.typeId) f.after.schedule = { tool: "claritia", url: "", perOwner: false, meetingTypeId: o.end.typeId };
+  return f;
 }
 
-/** The sketch as the left side lists it: each step's title (or its first question) and how many questions. */
-export function outline(form: Form): { title: string; questions: number; result: boolean }[] {
-  return form.steps.map((s, i) => {
-    const qs = s.fields.filter((f) => !isContent(f.type) && f.type !== "hidden");
-    return { title: s.title || (s.result ? "Results" : qs[0]?.label || `Step ${i + 1}`), questions: qs.length, result: !!s.result };
-  });
+/** The plan as one page or steps, when the owner flips the switch on Screen 2 (no AI): about four questions a step. */
+export function planLayout(p: Plan, layout: "page" | "steps"): Plan {
+  if (layout === p.layout) return p;
+  const items = p.steps.flatMap((s) => s.items);
+  if (layout === "page") return { ...p, layout, steps: [{ title: p.steps[0]?.title || p.name, items }], changed: undefined };
+  const per = items.length > 8 ? 4 : Math.max(2, Math.ceil(items.length / 2));
+  const steps = Array.from({ length: Math.max(1, Math.ceil(items.length / per)) }, (_, i) => ({ title: `Step ${i + 1}`, items: items.slice(i * per, i * per + per) }));
+  return { ...p, layout, steps, changed: undefined };
 }

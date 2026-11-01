@@ -384,28 +384,6 @@ test("edits keep a rule's group, and removing a field clears it from groups and 
   assert.ok("form" in back && back.form.steps[0].fields.find((x) => x.id === "t")!.calc === undefined);
 });
 
-test("the chat's set_rule and add_field tools carry groups, scores, calcs and lists that follow", async () => {
-  const { toOp } = await import("../src/lib/forms/chat.ts");
-  const rule = toOp("set_rule", {
-    target_field_id: "x",
-    action: "show",
-    when_field_id: "co",
-    op: "any_of",
-    values: ["US", "CA"],
-    group: { logic: "any", conditions: [{ field_id: "sz", op: "between", value: "10", value2: "50" }] },
-  });
-  assert.deepEqual(rule, {
-    op: "set_rule",
-    rule: { when: { field: "co", op: "any_of", values: ["US", "CA"] }, group: { logic: "any", when: [{ field: "sz", op: "between", value: "10", value2: "50" }] }, then: { action: "show", field: "x" } },
-  });
-  const add = toOp("add_field", { field: { type: "dropdown", label: "Plan", options: ["Basic", "Pro"], option_scores: [10, 30], follows: { field_id: "ind", options_by_answer: { saas: ["B2B"] } } } });
-  assert.ok("op" in add && add.op === "add_field");
-  assert.deepEqual(add.field.options, [{ value: "Basic", label: "Basic", score: 10 }, { value: "Pro", label: "Pro", score: 30 }]);
-  assert.deepEqual(add.field.optionsBy, { field: "ind", map: { saas: [{ value: "B2B", label: "B2B" }] } });
-  const calc = toOp("add_field", { field: { type: "calc", label: "Total", calc: { formula: "{a} * 2", format: "money", currency: "EUR" } } });
-  assert.ok("op" in calc && calc.op === "add_field" && calc.field.calc?.formula === "{a} * 2");
-});
-
 test("the new templates pass the checker and work out on submit", async () => {
   const { TEMPLATES } = await import("../src/lib/forms/templates.ts");
   const quote = checkForm(TEMPLATES.find((t) => t.key === "quote")!.form());

@@ -3,7 +3,7 @@
 Status: Parts 1 and 2 built (see "Status" at the end); Parts 3 to 6 proposed. October 2026.
 
 Forms already go from a fill to a lead, a qualify, a route and a booked meeting (`docs/form-builder.md`,
-`docs/form-builder-v2.md`, `docs/form-studio.md`). This plan closes the gaps found in a side-by-side check against
+`docs/forms.md`, `docs/form-studio.md`). This plan closes the gaps found in a side-by-side check against
 FormAssembly. It keeps the same rule as the rest of the product: a form that loses or mangles a lead is worse than a
 form that lacks a feature. So every part ships with tests on the flaky case, and every new field type passes the one
 checker in `src/lib/forms/schema.ts` before it can go live.

@@ -8,7 +8,7 @@ import { cleanBody, problems } from "../src/lib/workflows/check.ts";
 import { journeyEmails, pickSignals, planJourneys, type Facts } from "../src/lib/workflows/lifecycle.ts";
 import { cleanRewrite } from "../src/lib/workflows/voice.ts";
 import { build } from "../src/lib/workflows/journeys.ts";
-import type { Model } from "../src/lib/forms/chat.ts";
+import type { Model } from "../src/lib/ai/chatModel.ts";
 
 const facts = (events: string[], journeys: Facts["journeys"] = []): Facts => ({ events: events.map((name, i) => ({ name, people: 100 - i })), stages: {}, contacts: 10, meetings: 2, journeys });
 const opts = { brand: "Lumen", site: "https://lumen.io", booking: "https://app.tryclaritia.com/booking/lumen" };

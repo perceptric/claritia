@@ -5,7 +5,7 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Rpc } from "../jobs.ts";
-import type { Model } from "../forms/chat.ts";
+import type { Model } from "../ai/chatModel.ts";
 import { Refused, type Caller } from "../router/actions.ts";
 import { journeyEmails, planJourneys, type Facts, type Journey } from "./lifecycle.ts";
 import type { EmailBody } from "./types.ts";
@@ -62,7 +62,7 @@ export async function build(rpc: Rpc, db: Q, c: Caller, o: { base: string; ai: M
   if (o.ai && todo.length) {
     const { cachedStep, hashKey } = await import("../ai/cache.ts");
     const { cleanRewrite, rewriteInVoice, VOICE_SYSTEM, VOICE_TOOLS } = await import("./voice.ts");
-    const { CHAT_MODEL } = await import("../forms/chat.ts");
+    const { CHAT_MODEL } = await import("../ai/chatModel.ts");
     const emails = todo.flatMap((j) => journeyEmails(j.body.steps).map((s, i) => ({ id: `${j.key}:${i}`, moment: `${j.name}, email ${i + 1}`, step: s, email: s.email })));
     const input = { brand: brand.name, brief: [brand.brief, ...brand.notes].filter(Boolean).join("\n"), emails: emails.map(({ id, moment, email }) => ({ id, moment, email })) };
     try {

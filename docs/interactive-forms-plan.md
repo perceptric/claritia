@@ -1,6 +1,6 @@
 # Interactive forms: more than forms
 
-Status: built, with the gaps listed under "Status" at the end. 1 November 2026. Builds on `docs/forms-plan.md`, `docs/form-studio.md`, `docs/form-builder-v2.md`
+Status: built, with the gaps listed under "Status" at the end. 1 November 2026. Builds on `docs/forms-plan.md`, `docs/form-studio.md`, `docs/forms.md`
 and `docs/on-submission.md`. Replaces the outside draft "Claritia: Static and Interactive Form Templates, revision 1",
 lined up with what is in the repo today.
 
