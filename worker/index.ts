@@ -22,6 +22,7 @@ import { claudeWriter, type Writer } from "./writer.ts";
 import Anthropic from "@anthropic-ai/sdk";
 import { claudeLooker } from "../src/lib/brand/look.ts";
 import { claudeBriefer } from "../src/lib/brand/brief.ts";
+import { claudeSkinner } from "../src/lib/brand/skin.ts";
 import { runJob, type Job } from "../src/lib/jobs.ts";
 import { formCodeFrom, handleBrandScan } from "./brandScan.ts";
 import { handleFormQa } from "./formQa.ts";
@@ -150,7 +151,8 @@ async function slot(sb: SupabaseClient, n: number, writer: Writer | undefined, j
               j.kind === "form_qa"
                 ? void (await handleFormQa(sb, j, { appUrl, secret: env("SECRETS_KEY"), chromiumPath, log }))
                 : handleBrandScan(sb, j, { chromiumPath, log, looker: key ? claudeLooker(new Anthropic({ apiKey: key, maxRetries: 2, timeout: 60_000 })) : undefined,
-                    briefer: key ? claudeBriefer(new Anthropic({ apiKey: key, maxRetries: 2, timeout: 60_000 })) : undefined, formCode: formCodeFrom(appUrl) }),
+                    briefer: key ? claudeBriefer(new Anthropic({ apiKey: key, maxRetries: 2, timeout: 60_000 })) : undefined, formCode: formCodeFrom(appUrl),
+                    skinner: key ? claudeSkinner(new Anthropic({ apiKey: key, maxRetries: 2, timeout: 150_000 })) : undefined }),
             300,
           );
           log(`${job!.kind} ${job!.key}: ${outcome}`);

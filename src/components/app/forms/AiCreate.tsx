@@ -9,6 +9,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { KINDS, type AskQuestion, type Brief, type BuildSummary, type Kind } from "@/lib/forms/aiBuild";
 import type { Tokens } from "@/lib/forms/brand";
+import { skinForKit } from "@/lib/brand/skin";
 import { applyAfter, outline, placeholderForm, toOnePage, toSteps, type AfterChoice } from "@/lib/forms/newForm";
 import type { Form } from "@/lib/forms/schema";
 import { AiMark } from "../Ai";
@@ -20,7 +21,7 @@ import { Ic } from "./ic";
 import { BTN, EYEBROW, GHOST, GHOST_SM, IB, IN, Seg } from "./parts";
 import { FormPreview } from "./shared";
 
-export type KitLite = { id: string; tokens?: Partial<Tokens> | null; source_url: string | null; scan_status: string | null; logo_url?: string | null; logo_svg?: string | null };
+export type KitLite = { id: string; tokens?: Partial<Tokens> | null; source_url: string | null; scan_status: string | null; logo_url?: string | null; logo_svg?: string | null; skin?: unknown };
 
 /** A brand's logo as a picture address: its https logo, or its SVG drawn as a picture (no scripts run in one). */
 export const logoOf = (k: KitLite | null | undefined): string | null =>
@@ -98,13 +99,16 @@ export function AiCreate({ sb, session, ws, navigate, site, kits: start, onClose
   const [run, setRun] = useState(0);
 
   const kit = kits.find((k) => k.id === style) ?? null;
+  // The site's own look (docs/brand-skin.md), once the runner has copied it.
+  const skin = useMemo(() => skinForKit(kit, typeof window === "undefined" ? "" : window.location.origin), [kit]);
   const tokens: Partial<Tokens> = (kit?.tokens as Partial<Tokens> | null) ?? {};
   const siteUrl = kit ? (kit.source_url ?? "") : style === "learn" ? url.trim() : "";
   // A website already learned shows as the pick to use, with no message.
   const known = style === "learn" && hostOf(url) ? kits.find((k) => hostOf(k.source_url) === hostOf(url) && (hasLook(k) || k.scan_status === "scanning")) : undefined;
 
   // While a brand is being read, check back so the preview takes it as soon as it's ready.
-  const reading = kit?.scan_status === "scanning" || !kit || !hasLook(kit);
+  // Also while the skin is still being written (it comes a minute or two after the colors).
+  const reading = kit?.scan_status === "scanning" || !kit || !hasLook(kit) || !kit.skin;
   useEffect(() => {
     if (!kit || !reading) return;
     let n = 0;
@@ -422,7 +426,7 @@ export function AiCreate({ sb, session, ws, navigate, site, kits: start, onClose
           ) : (
             <div className={`keep-light w-full max-w-[1040px] transition-opacity duration-[200ms] ${thinking ? "opacity-40" : ""}`}>
               <div className="rounded-[14px] p-[24px] shadow-[0_1px_2px_rgb(0_0_0/0.05),0_0_0_1px_rgb(0_0_0/0.06)]" style={{ background: (tokens as { background?: string }).background }}>
-                <FormPreview key={run} form={shown} tokens={tokens} logo={logoOf(kit)} />
+                <FormPreview key={run} form={shown} tokens={tokens} logo={logoOf(kit)} skin={skin} />
               </div>
             </div>
           )}

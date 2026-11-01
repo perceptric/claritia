@@ -6,6 +6,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { cachedStep, hashKey, usageOf } from "../src/lib/ai/cache.ts";
 import { applyFixes, drawForm, LOOK_MODEL, type Looker } from "../src/lib/brand/look.ts";
 import { scanSite, ScanBlocked, type BrandExtras, type Scan } from "../src/lib/brand/scan.ts";
+import { SKIN_MODEL, writeSkin, type SkinCaller } from "../src/lib/brand/skin.ts";
 import { BRIEF_MODEL, type Brief, type Briefer } from "../src/lib/brand/brief.ts";
 import { brandColors, brandDesign } from "../src/lib/brand/design.ts";
 import type { Tokens } from "../src/lib/forms/brand.ts";
@@ -13,7 +14,7 @@ import { checkForm } from "../src/lib/forms/schema.ts";
 import { TEMPLATES } from "../src/lib/forms/templates.ts";
 import { JobError, type Job } from "../src/lib/jobs.ts";
 
-export type ScanOpts = { chromiumPath?: string; looker?: Looker; briefer?: Briefer; formCode?: () => Promise<string | null>; allowPrivate?: boolean; scan?: typeof scanSite; log?: (...a: unknown[]) => void };
+export type ScanOpts = { chromiumPath?: string; looker?: Looker; briefer?: Briefer; skinner?: SkinCaller; formCode?: () => Promise<string | null>; allowPrivate?: boolean; scan?: typeof scanSite; log?: (...a: unknown[]) => void };
 
 export async function handleBrandScan(sb: SupabaseClient, job: Job, o: ScanOpts) {
   const kit = String(job.payload.kit_id ?? "");
@@ -61,6 +62,27 @@ export async function handleBrandScan(sb: SupabaseClient, job: Job, o: ScanOpts)
   }
   await finish({ tokens, logo: scan.logo, notes: notes.slice(0, 20), forms: scan.forms }, null);
   if (scan.brand) await brandSetup(sb, ws, kit, url, scan.brand, tokens, o);
+  if (scan.skin && o.skinner) await skinSetup(sb, ws, kit, scan.skin, o);
+}
+
+/**
+ * The brand skin (docs/brand-skin.md): Claude writes the form's stylesheet from the site's real controls, once per
+ * look (through the step cache), and it's saved on the kit with the fonts it uses. Before 111 there's nowhere to keep
+ * it, and the scan stands without it.
+ */
+async function skinSetup(sb: SupabaseClient, ws: string, kit: string, src: NonNullable<Scan["skin"]>, o: ScanOpts) {
+  try {
+    const rpc = (fn: string, args: Record<string, unknown>) => sb.rpc(fn, args);
+    const r = await cachedStep(rpc, ws, "brand_skin", hashKey(SKIN_MODEL, "skin-1", src), async () => {
+      const out = await writeSkin(o.skinner!, src);
+      return { result: out ? { css: out.css, notes: out.notes } : null, model: SKIN_MODEL, usage: out ? usageOf(out.usage) : usageOf(undefined), keep: !!out };
+    });
+    if (!r.result) return;
+    const { error } = await sb.rpc("brand_kit_skin", { p_kit: kit, p_skin: { css: r.result.css, faces: src.faces, at: new Date().toISOString(), from: src.url, notes: r.result.notes } });
+    if (error) throw new Error(error.message);
+  } catch (e) {
+    o.log?.(`Brand skin skipped: ${(e as Error).message}`);
+  }
 }
 
 /**

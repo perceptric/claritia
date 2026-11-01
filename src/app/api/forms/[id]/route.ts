@@ -1,3 +1,5 @@
+import { appBase } from "@/lib/billing";
+import { readSkin, skinFontCss } from "@/lib/brand/skin";
 import { designFonts, formCss } from "@/lib/design/form";
 import { fontUrl } from "@/components/app/forms/editorModel";
 import { allRegions, usesRegions } from "@/lib/forms/regions";
@@ -22,7 +24,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     if (!f) return json({ error: "Form not found." }, 404);
     const country = edgeCountry(request);
     return json(
-      { id: f.id, version: f.version, status: f.status, body: publicForm(f.body), tokens: f.tokens, logo_url: f.logo_url, strict: regionOf(country ?? "", "") === "strict", turnstile: turnstileSiteKey() || undefined, ...(usesRegions(f.body) ? { regions: allRegions() } : {}), ...cssOf(f) },
+      { id: f.id, version: f.version, status: f.status, body: publicForm(f.body), tokens: f.tokens, logo_url: f.logo_url, ...skinOf(f), strict: regionOf(country ?? "", "") === "strict", turnstile: turnstileSiteKey() || undefined, ...(usesRegions(f.body) ? { regions: allRegions() } : {}), ...cssOf(f) },
       200,
       { "Cache-Control": "public, max-age=30", Vary: "cf-ipcountry" },
     );
@@ -32,6 +34,12 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
 }
 
 type Css = { css?: string; fonts?: string[] };
+
+/** The brand's skin (docs/brand-skin.md): its stylesheet, and its fonts served from Claritia. */
+function skinOf(f: { kit_id?: string | null; skin?: unknown }): { skin?: { css: string; fonts: string } } {
+  const s = readSkin(f.skin);
+  return s && f.kit_id ? { skin: { css: s.css, fonts: skinFontCss(f.kit_id, s.faces, appBase()) } } : {};
+}
 type Live = { id: string; version: number; body: Parameters<typeof formCss>[0]; tokens: Parameters<typeof formCss>[1]; design?: unknown };
 
 // Compiled once per form version and kit look: by the cached form itself, then by id, version and the kit's tokens
