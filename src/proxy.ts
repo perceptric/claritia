@@ -7,8 +7,8 @@ import { appShellPath } from "./lib/appPaths";
 const SITE = process.env.SITE_HOST?.trim() || "tryclaritia.com";
 const APP = process.env.APP_HOST?.trim() || "app.tryclaritia.com";
 const MARKETING = new Set(["/"]);
-// Booking pages answer on the site's short address too: tryclaritia.com/booking/<handle>.
-const SHARED = (path: string) => path === "/booking" || path.startsWith("/booking/");
+// Booking pages answer on the site's short address: tryclaritia.com/booking/<handle> and tryclaritia.com/book/....
+const SHARED = (path: string) => path === "/booking" || path.startsWith("/booking/") || path.startsWith("/book/");
 
 export function proxy(request: NextRequest) {
   const raw = request.headers.get("x-forwarded-host") ?? request.headers.get("host") ?? "";

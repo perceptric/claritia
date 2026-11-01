@@ -103,7 +103,7 @@ export type TypeSettings = {
    */
   dynamic?: Dynamic;
   /** Extra questions on the booking page: the form studio's fields. */
-  questions: { id: string; label: string; type: "text" | "textarea" | "phone" | "choice"; required: boolean; options?: string[] }[];
+  questions: { id: string; label: string; type: QuestionType; required: boolean; options?: string[] }[];
 };
 
 export const DEFAULT_SETTINGS: TypeSettings = {
@@ -124,6 +124,9 @@ export const DEFAULT_SETTINGS: TypeSettings = {
   confirmation: { kind: "message" },
   questions: [],
 };
+
+/** Booking question kinds (src/lib/meetings/questions.ts). */
+export type QuestionType = "text" | "textarea" | "email" | "phone" | "number" | "url" | "date" | "choice" | "multi" | "yesno" | "rating" | "country" | "checkbox";
 
 export type MeetingType = {
   id: string;

@@ -27,6 +27,7 @@ import type { Dest, Dynamic } from "@/lib/routing/compile";
 import { blankCond, ConditionRows, newRowId, usable } from "../forms/ConditionRows";
 import { useRoutingFacts } from "../forms/formRouting";
 import { Arrow } from "../forms/OnSubmission";
+import { bookingBase } from "@/lib/meetings/handles";
 
 export type HostStatus = { cal: boolean; out: { from: string; to: string }[] };
 export type Named = { user_id: string; name: string } & Availability;
@@ -164,7 +165,7 @@ export function TypePanel({
   const toggle = (k: SectionKey) => setOpen((o) => (o === k ? null : k));
   const nameOf = (id: string) => data.byId.get(id)?.name ?? "Former teammate";
   const origin = typeof window === "undefined" ? "" : window.location.origin;
-  const url = data.wsSlug && draft.slug ? `${origin}/book/${data.wsSlug}/${draft.slug}` : "";
+  const url = data.wsSlug && draft.slug ? `${bookingBase(origin)}/book/${data.wsSlug}/${draft.slug}` : "";
 
   const save = async () => {
     setError("");

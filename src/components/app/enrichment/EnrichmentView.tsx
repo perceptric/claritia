@@ -23,7 +23,6 @@ import { AiMark, AiTag } from "../Ai";
 import { BrandLogo } from "../BrandLogo";
 import { askConfirm, askText } from "../Dialogs";
 import { Select } from "../Select";
-import { StatCards } from "../StatCards";
 import { Badge, Button, Empty, ErrorNote, errorText, IconButton, Input, Loading, must, Page, Panel, postJson, Section, Segmented, timeAgo, Toggle, useLoad, useQuery, type ViewProps } from "../ui";
 import { Sketch } from "../../sketches/Sketch";
 
@@ -85,14 +84,6 @@ function Overview({ sb, ws, navigate, role }: ViewProps) {
   if (data.error) return <ErrorNote message={data.error} />;
   return (
     <>
-      <StatCards
-        cards={[
-          { label: "Fields filled this month", value: d ? d.filled : null },
-          { label: "Match rate", value: d ? pct(d.usage.matches, d.usage.lookups) : null, format: (x) => `${x}%`, note: d ? `${n(d.usage.matches)} of ${n(d.usage.lookups)} lookups` : undefined },
-          { label: "Credits used", value: d ? d.usage.credits : null, note: d ? `of ${n(d.cap)} this month` : undefined },
-          { label: "Leads qualified", value: d ? d.qualified : null, note: "This month" },
-        ]}
-      />
       <Panel className="overflow-hidden">
         <div className="flex items-baseline justify-between border-b border-line px-5 py-3">
           <h2 className="text-[14px] font-semibold tracking-[-0.01em] text-ink">Fields</h2>

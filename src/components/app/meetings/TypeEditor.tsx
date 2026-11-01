@@ -20,6 +20,8 @@ import { LinkDialog } from "./LinkDialog";
 import { minutesText, slugify } from "./model";
 import { CopyButton, meetingsApi, Modal, ownZone, PersonAvatar, useNow, usePeople, useWorkspaceSlug, type Person } from "./parts";
 import { TYPE_COLS, type TypeRow } from "./TypesList";
+import { bookingBase } from "@/lib/meetings/handles";
+import { hasOptions, QUESTION_TYPES } from "@/lib/meetings/questions";
 
 export type Draft = Pick<MeetingType, "name" | "slug" | "kind" | "hosts" | "settings" | "secret" | "active" | "locked" | "owner_user_id">;
 type LockKey = MeetingType["locked"][number];
@@ -162,7 +164,7 @@ export function TypeEditor(props: ViewProps) {
   const pool = POOL_KINDS.includes(draft.kind);
   const owner = role === "owner";
   const canManage = owner && !copy && !isNew && (draft.kind === "one" || draft.kind === "group");
-  const url = slug.data && draft.slug ? `${window.location.origin}/book/${slug.data}/${draft.slug}` : "";
+  const url = slug.data && draft.slug ? `${bookingBase(window.location.origin)}/book/${slug.data}/${draft.slug}` : "";
 
   const save = async () => {
     setErrors([]);
@@ -658,12 +660,7 @@ function Place({ value, disabled, onChange }: { value: Location; disabled: boole
   );
 }
 
-const Q_TYPES: { value: TypeSettings["questions"][number]["type"]; label: string }[] = [
-  { value: "text", label: "Short text" },
-  { value: "textarea", label: "Long text" },
-  { value: "phone", label: "Phone" },
-  { value: "choice", label: "Choice" },
-];
+const Q_TYPES = QUESTION_TYPES.map(({ value, label }) => ({ value, label }));
 
 export function Questions({ value, disabled, onChange }: { value: TypeSettings["questions"]; disabled: boolean; onChange: (v: TypeSettings["questions"]) => void }) {
   const put = (i: number, patch: Partial<TypeSettings["questions"][number]>) => onChange(value.map((q, j) => (j === i ? { ...q, ...patch } : q)));
@@ -681,15 +678,15 @@ export function Questions({ value, disabled, onChange }: { value: TypeSettings["
             ) : null}
           </span>
           <span className="flex items-center gap-2">
-            <span className="w-[120px]">
-              <Pick label="Answer" value={q.type} options={Q_TYPES} onChange={(type) => !disabled && put(i, { type, ...(type === "choice" ? { options: q.options ?? [] } : {}) })} />
+            <span className="w-[150px]">
+              <Pick label="Answer" value={q.type} options={Q_TYPES} onChange={(type) => !disabled && put(i, { type, ...(hasOptions(type) ? { options: q.options ?? [] } : {}) })} />
             </span>
             <span className="ml-auto flex items-center gap-2 text-[12px] text-muted">
               Required
               <Toggle label="Required" on={q.required} disabled={disabled} onChange={(required) => put(i, { required })} />
             </span>
           </span>
-          {q.type === "choice" ? <TagInput label="Choices" values={q.options ?? []} placeholder="Add choices" onChange={(options) => !disabled && put(i, { options })} clean={(x) => x.trim().slice(0, 100) || null} /> : null}
+          {hasOptions(q.type) ? <TagInput label="Choices" values={q.options ?? []} placeholder="Add choices" onChange={(options) => !disabled && put(i, { options })} clean={(x) => x.trim().slice(0, 100) || null} /> : null}
         </li>
       ))}
     </ul>

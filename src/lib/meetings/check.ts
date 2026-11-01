@@ -5,6 +5,7 @@ import { validZone } from "./time.ts";
 import { DAYS, DEFAULT_SETTINGS, KINDS, type Availability, type Host, type Kind, type Location, type MeetingType, type Range, type TypeSettings } from "./types.ts";
 import { cleanCondition } from "../router/check.ts";
 import type { Dest, Dynamic, DynamicRule } from "../routing/compile.ts";
+import { hasOptions, QUESTION_KINDS } from "./questions.ts";
 
 const CLOCK = /^([01]\d|2[0-3]):[0-5]\d$|^24:00$/;
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
@@ -108,16 +109,16 @@ export function checkSettings(raw: unknown, kind: Kind): { settings: TypeSetting
     price = { amount: int(p.amount, 50, 10_000_000, 0), currency };
   }
   const questions: TypeSettings["questions"] = [];
-  for (const q of Array.isArray(r.questions) ? r.questions.slice(0, 10) : []) {
+  for (const q of Array.isArray(r.questions) ? r.questions.slice(0, 20) : []) {
     const qo = (q && typeof q === "object" ? q : {}) as Record<string, unknown>;
     const label = str(qo.label, 200);
-    const type = ["text", "textarea", "phone", "choice"].includes(qo.type as string) ? (qo.type as TypeSettings["questions"][number]["type"]) : "text";
+    const type = QUESTION_KINDS.has(qo.type as string) ? (qo.type as TypeSettings["questions"][number]["type"]) : "text";
     if (!label) {
       errors.push("Every question needs a label.");
       continue;
     }
-    const options = type === "choice" ? (Array.isArray(qo.options) ? qo.options : []).map((o) => str(o, 100)).filter(Boolean).slice(0, 30) : undefined;
-    if (type === "choice" && !options?.length) errors.push(`${label} needs choices.`);
+    const options = hasOptions(type) ? (Array.isArray(qo.options) ? qo.options : []).map((o) => str(o, 100).replace(/\s*\n\s*/g, " ")).filter(Boolean).slice(0, 30) : undefined;
+    if (hasOptions(type) && !options?.length) errors.push(`${label} needs choices.`);
     questions.push({ id: /^[a-z0-9]{1,24}$/.test(str(qo.id, 24)) ? str(qo.id, 24) : Math.random().toString(36).slice(2, 10), label, type, required: qo.required === true, ...(options ? { options } : {}) });
   }
   const settings: TypeSettings = {

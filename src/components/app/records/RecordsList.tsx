@@ -498,7 +498,7 @@ export function RecordsList({
         {!list.data || !meta.data ? (
           <Loading />
         ) : !rows.length ? (
-          <Empty icon={icon} sketch={effective.length ? undefined : <Sketch name="cards" size={160} />} title={effective.length ? "Nothing matches" : `No ${title.toLowerCase()} yet`} />
+          <Empty icon={icon} sketch={effective.length ? undefined : <Sketch name={object === "contact" ? "megaphone" : object === "company" ? "browser" : "cards"} size={160} />} title={effective.length ? "Nothing matches" : `No ${title.toLowerCase()} yet`} />
         ) : board && groupField ? (
           <div className="min-h-0 flex-1 overflow-auto">
             <RecordBoard

@@ -264,14 +264,6 @@ export function Submissions(props: ViewProps & { form: Form; formId: string; des
       }
     });
 
-  const f = funnel.data;
-  const pct = (a: number, b: number) => (b ? `${Math.round((a / b) * 100)}% of` : "");
-  const steps: [string, number | undefined, string, number][] = [
-    ["Saw the form", f?.views, "Last 30 days", 100],
-    ["Started", f?.starts, f && f.views ? `${pct(f.starts, f.views)} views` : "", f && f.views ? (f.starts / f.views) * 100 : 0],
-    ["Sent", f?.sent, f && f.starts ? `${pct(f.sent, f.starts)} starts` : "", f && f.views ? (f.sent / f.views) * 100 : 0],
-    ["Booked", f?.booked, f && f.sent ? `${pct(f.booked, f.sent)} sends` : "", f && f.views ? (f.booked / f.views) * 100 : 0],
-  ];
   const openRow = rows?.find((r) => r.id === open) ?? null;
   const all = rows ?? [];
   const head = view === "spam" ? ["Sent", "Name", "Why", "From"] : ["Sent", "Name", ...(hasCompany ? ["Company"] : []), ...shownCols.map((c) => c.label), "Rep", "Meeting", "Sync"];
@@ -279,18 +271,6 @@ export function Submissions(props: ViewProps & { form: Form; formId: string; des
 
   return (
     <>
-      <div className="grid shrink-0 grid-cols-4 border-b border-line max-[860px]:grid-cols-2">
-        {steps.map(([label, n, sub, w], i) => (
-          <div key={label} className={`relative flex flex-col gap-[2px] border-line px-[16px] py-[12px] ${i ? "border-l" : ""} max-[860px]:[&:nth-child(3)]:border-l-0 max-[860px]:[&:nth-child(n+3)]:border-t`}>
-            <span className="text-[12px] text-muted">{label}</span>
-            <b className="text-[20px] font-semibold tracking-[-0.02em] text-ink tabular-nums">{n === undefined ? "–" : n.toLocaleString("en-US")}</b>
-            <em className={`text-[11.5px] font-medium not-italic ${i ? "text-signal" : "text-muted"}`}>{sub || " "}</em>
-            <div className="mt-[6px] h-[3px] overflow-hidden rounded-full bg-paper-deep">
-              <i className="block h-full bg-ink" style={{ width: `${Math.min(100, Math.max(w ? 1 : 0, w))}%` }} />
-            </div>
-          </div>
-        ))}
-      </div>
       <div className={`relative grid min-h-0 flex-1 grid-rows-[minmax(0,1fr)] ${openRow ? "grid-cols-[minmax(0,1fr)_400px] max-[860px]:grid-cols-1" : "grid-cols-[minmax(0,1fr)]"}`}>
         <div className="flex min-h-0 min-w-0 flex-col">
           {sel.size && view !== "partial" ? (

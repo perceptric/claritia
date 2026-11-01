@@ -12,6 +12,7 @@ import { lengthsText } from "./model";
 import { CopyButton, meetingsApi, Modal } from "./parts";
 import type { TypeLite } from "./MeetingsView";
 import { TimesError } from "../scheduling/ConnectCalendar";
+import { bookingBase } from "@/lib/meetings/handles";
 
 type Kind = "single_use" | "one_off" | "poll";
 const KINDS: { value: Kind; label: string }[] = [
@@ -25,7 +26,7 @@ const OWN_LENGTHS = [15, 30, 45, 60, 90];
 async function makeLink(session: Session, body: Record<string, unknown>): Promise<string> {
   const r = await postJson<{ url?: string; token?: string }>(session, "/api/book/links", body);
   if (r.url) return r.url;
-  if (r.token) return `${window.location.origin}/book/${body.kind === "poll" ? "p" : "l"}/${r.token}`;
+  if (r.token) return `${bookingBase(window.location.origin)}/book/${body.kind === "poll" ? "p" : "l"}/${r.token}`;
   throw new Error("The link wasn't made.");
 }
 

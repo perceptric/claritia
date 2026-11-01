@@ -2,6 +2,7 @@
 // routes and the tests use the same ones. Times are ISO strings or epoch ms; days and clocks are in a person's zone.
 
 import { DAYS, KINDS, type Availability, type Day, type Kind, type MeetingSource, type MeetingStatus, type MeetingType, type Range } from "../../../lib/meetings/types.ts";
+import { bookingBase } from "../../../lib/meetings/handles.ts";
 
 export type Tone = "gray" | "brand" | "violet" | "green" | "amber" | "red" | "sky";
 
@@ -135,7 +136,7 @@ export function timesText(o: { name: string; length: number; starts: number[]; t
 
 /** A type's booking page, optionally opened at one time. */
 export function bookUrl(origin: string, wsSlug: string, typeSlug: string, at?: { start: number; length: number }): string {
-  const base = `${origin.replace(/\/+$/, "")}/book/${wsSlug}/${typeSlug}`;
+  const base = `${bookingBase(origin)}/book/${wsSlug}/${typeSlug}`;
   return at ? `${base}?start=${encodeURIComponent(new Date(at.start).toISOString())}&length=${at.length}` : base;
 }
 

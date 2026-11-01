@@ -340,6 +340,54 @@ body {
   }
 }
 
+/* Empty-state scenes (src/components/sketches/Sketch.tsx): gentle loops in the homepage's style. Each loop runs about
+   six seconds and rests before it starts again; under reduced motion everything stands still (the rule above). */
+.sk * {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+.sk-type { transform-origin: left center; animation: sk-type 6s var(--ease-out) infinite; }
+.sk-type-1 { animation-delay: 0.5s; }
+@keyframes sk-type { 0%, 8% { transform: scaleX(0); } 28%, 88% { transform: scaleX(1); } 100% { transform: scaleX(0); } }
+.sk-pop { animation: sk-pop 6s var(--ease-out) infinite; }
+@keyframes sk-pop { 0%, 30% { opacity: 0; transform: scale(0.6); } 40%, 88% { opacity: 1; transform: scale(1); } 100% { opacity: 0; transform: scale(0.6); } }
+.sk-d1 { animation-delay: 0.25s; }
+.sk-d2 { animation-delay: 0.5s; }
+.sk-d3 { animation-delay: 0.75s; }
+.sk-press { animation: sk-press 6s var(--ease-out) infinite; }
+@keyframes sk-press { 0%, 52% { transform: scale(1); } 56% { transform: scale(0.94); } 62%, 100% { transform: scale(1); } }
+.sk-drift { animation: sk-drift 7s var(--ease-in-out, ease-in-out) infinite; }
+@keyframes sk-drift { 0%, 10% { transform: translate(0, 0); opacity: 0.9; } 55% { transform: translate(calc(var(--dx) * 0.55), calc(var(--dy) * 0.55)); opacity: 0.9; } 70%, 100% { transform: translate(calc(var(--dx) * 0.55), calc(var(--dy) * 0.55)); opacity: 0; } }
+.sk-drift-1 { animation-delay: 0.4s; } .sk-drift-2 { animation-delay: 0.8s; } .sk-drift-3 { animation-delay: 1.2s; } .sk-drift-4 { animation-delay: 1.6s; } .sk-drift-5 { animation-delay: 2s; } .sk-drift-6 { animation-delay: 2.4s; }
+.sk-land { animation: sk-land 7s var(--ease-out) infinite; }
+@keyframes sk-land { 0%, 50% { transform: scale(0); } 60% { transform: scale(1.4); } 68%, 92% { transform: scale(1); } 100% { transform: scale(0); } }
+.sk-slide { animation: sk-slide 6s var(--ease-in-out, ease-in-out) infinite; }
+@keyframes sk-slide { 0%, 15% { transform: translate(0, 0); } 40%, 50% { transform: translate(34px, -16px); } 75%, 92% { transform: translate(68px, -16px); } 100% { transform: translate(0, 0); } }
+.sk-won { animation: sk-won 6s linear infinite; }
+@keyframes sk-won { 0%, 74% { opacity: 0; } 78%, 92% { opacity: 1; } 100% { opacity: 0; } }
+.sk-travel { animation: sk-travel 6s var(--ease-in-out, ease-in-out) infinite; }
+@keyframes sk-travel { 0%, 8% { transform: translateX(0); } 30%, 36% { transform: translateX(33px); } 56%, 62% { transform: translateX(67px); } 80%, 100% { transform: translateX(100px); opacity: 1; } }
+.sk-goal { animation: sk-goal 6s linear infinite; }
+@keyframes sk-goal { 0%, 78% { fill: var(--color-card); stroke: var(--color-ink); } 82%, 96% { fill: var(--color-signal); stroke: var(--color-signal); } 100% { fill: var(--color-card); } }
+.sk-tick { animation: sk-won 6s linear infinite; animation-delay: 0.3s; }
+.sk-route { offset-distance: 0%; animation: sk-route 5s var(--ease-in-out, ease-in-out) infinite; }
+@keyframes sk-route { 0%, 10% { offset-distance: 0%; opacity: 1; } 55%, 80% { offset-distance: 100%; opacity: 1; } 90%, 100% { offset-distance: 100%; opacity: 0; } }
+.sk-pick { animation: sk-pick 5s linear infinite; }
+@keyframes sk-pick { 0%, 54% { transform: scale(1); } 58% { transform: scale(1.15); } 64%, 100% { transform: scale(1); } }
+.sk-rise { animation: sk-rise 900ms var(--ease-out) both; }
+.sk-rise.sk-d1 { animation-delay: 120ms; } .sk-rise.sk-d2 { animation-delay: 240ms; } .sk-rise.sk-d3 { animation-delay: 360ms; }
+@keyframes sk-rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+.sk-pulse { animation: sk-pulse 2.4s var(--ease-out) infinite; }
+@keyframes sk-pulse { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.5); opacity: 0.55; } }
+.sk-switch-bg { animation: sk-switch-bg 5s linear infinite; }
+@keyframes sk-switch-bg { 0%, 30% { fill: var(--color-line); } 38%, 88% { fill: var(--color-signal); } 96%, 100% { fill: var(--color-line); } }
+.sk-switch { animation: sk-switch 5s var(--ease-out) infinite; }
+@keyframes sk-switch { 0%, 30% { transform: translateX(0); } 38%, 88% { transform: translateX(8px); } 96%, 100% { transform: translateX(0); } }
+.sk-cursor { animation: sk-cursor 6s var(--ease-in-out, ease-in-out) infinite; }
+@keyframes sk-cursor { 0% { transform: translate(18px, 98px); } 40%, 46% { transform: translate(105px, 77px); } 50% { transform: translate(105px, 77px) scale(0.85); } 54%, 90% { transform: translate(105px, 77px); } 100% { transform: translate(18px, 98px); } }
+.sk-book { animation: sk-book 6s linear infinite; }
+@keyframes sk-book { 0%, 50% { opacity: 0; } 54%, 92% { opacity: 1; } 100% { opacity: 0; } }
+
 /* The Catch (src/components/app/Catch.tsx), the same picture as tryclaritia.com's hero. 8 seconds, loops. */
 .catch {
   width: 100%;

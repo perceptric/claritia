@@ -11,7 +11,6 @@ import type { MeetingStatus } from "@/lib/meetings/types";
 import { CalendarIcon, Link as LinkIcon, Plus, Search } from "../../Icons";
 import { BrandLogo } from "../BrandLogo";
 import { Select } from "../Select";
-import { StatCards } from "../StatCards";
 import { ToolIntro } from "../ToolIntro";
 import { Badge, Button, Empty, ErrorNote, errorText, Input, invalidate, Loading, must, Page, Segmented, useQuery, type ViewProps } from "../ui";
 import { Sketch } from "../../sketches/Sketch";
@@ -61,7 +60,6 @@ export function MeetingsCalendar(props: ViewProps) {
     (must(await sb.from("meetings").select(MEETING_COLUMNS).eq("workspace_id", ws.id).gte("end_at", new Date(span.from).toISOString()).lt("start_at", new Date(span.to).toISOString()).order("start_at").limit(1000)) ?? []) as unknown as Meeting[],
   );
   const allTypes = useMeetingTypes(sb, ws.id);
-  const stats = useQuery(`meetings:${ws.id}:week`, async () => must(await sb.rpc("meetings_week_stats", { p_ws: ws.id, p_since: new Date(Date.now() - 7 * 86_400_000).toISOString() })) as WeekStats);
   const typeList = useMemo(() => (allTypes.data ? [...allTypes.data].sort((a, b) => a.name.localeCompare(b.name)).map((t) => ({ id: t.id, name: t.name, slug: t.slug, kind: t.kind as string, lengths: t.settings.lengths })) : null), [allTypes.data]);
   const data = { data: list.data && typeList ? { meetings: list.data, types: typeList } : null, error: list.error || allTypes.error };
   const busy = useQuery(`meetings:${ws.id}:busy:${spanKey}:${scope}:${whose}`, async () => {
@@ -142,12 +140,6 @@ export function MeetingsCalendar(props: ViewProps) {
       </Page>
     );
 
-  const w = stats.data;
-  const held = w?.held ?? 0;
-  const noShow = w?.no_show ?? 0;
-  const fromForms = w?.from_forms ?? 0;
-  const past = { length: w?.past ?? 0 };
-  const week = { length: w?.total ?? 0 };
   const count = items.filter((x) => x.kind === "meeting").length;
   const whoseOptions = [
     { value: me, label: "My meetings" },
@@ -215,13 +207,6 @@ export function MeetingsCalendar(props: ViewProps) {
           </span>
         </div>
 
-        <StatCards
-          cards={[
-            { label: "Booked this week", value: w ? w.booked : null, note: "Across the team" },
-            { label: "Held", value: w ? held : null, note: past.length ? `${Math.round((noShow / past.length) * 100)}% no-shows` : "No meetings yet this week", tone: "sage" },
-            { label: "Booked from forms", value: w ? fromForms : null, note: week.length ? `${Math.round((fromForms / week.length) * 100)}% of this week's bookings` : "This week" },
-          ]}
-        />
 
         <ErrorNote message={error || data.error} />
         {!data.data ? (
@@ -293,7 +278,6 @@ function NowLine() {
   );
 }
 
-type WeekStats = { total: number; booked: number; past: number; held: number; no_show: number; from_forms: number };
 
 /** One meeting card. Memoized: the minute ticking only redraws a card whose live or Held/No-show state changes. */
 const MeetingRow = memo(function MeetingRow({
