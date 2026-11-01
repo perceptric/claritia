@@ -27,6 +27,8 @@ export type FieldType =
   | "consent"
   // Worked out from other answers by a formula (docs/forms-plan.md 2.3); the server works it out again.
   | "calc"
+  // A file the visitor uploads (docs/forms-plan.md 3.1): kept private, the answer is the upload's token.
+  | "file"
   // Content blocks: shown on the form, they take no answer and save nothing (docs/form-studio.md 2.4).
   | "heading"
   | "paragraph"
@@ -151,12 +153,19 @@ export type Field = {
   result?: ResultBlock;
   /** Pick one and pick many: the choices' scores stay on the server (a quiz's answer key). */
   secret?: true;
+  /** File upload: the biggest file in MB (up to 20) and the kinds it takes. */
+  file?: { maxMb: number; kinds: FileKind[] };
 };
 
 /**
  * What a result block shows. metric: one calc. meter: a calc out of max. summary: the listed calcs as lines, the last
  * as the total. bars: the listed calcs side by side. outcome: the outcome's title and text. email: "Email my results".
  */
+export type FileKind = "pdf" | "image" | "office";
+export const FILE_KINDS: FileKind[] = ["pdf", "image", "office"];
+/** A file answer: the upload's id and the name it was sent with. */
+export const FILE_ANSWER = /^up_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}:[^\n/\\]{1,120}$/;
+
 export type ResultBlock = { kind: "metric" | "meter" | "summary" | "bars" | "outcome" | "email"; field?: string; fields?: string[]; max?: number };
 export const RESULT_KINDS: ResultBlock["kind"][] = ["metric", "meter", "summary", "bars", "outcome", "email"];
 
@@ -324,6 +333,7 @@ export const FIELD_TYPES: { value: FieldType; label: string }[] = [
   { value: "rating", label: "Rating" },
   { value: "hidden", label: "Hidden" },
   { value: "calc", label: "Calculation" },
+  { value: "file", label: "File upload" },
   { value: "result", label: "Result" },
   { value: "heading", label: "Heading" },
   { value: "paragraph", label: "Text" },
@@ -659,6 +669,12 @@ export function checkForm(raw: unknown, ctx: Ctx = {}): { form: Form } | { error
       if (type === "multi" && f.options?.some((o) => o.needs?.some((n) => !f.options!.some((x) => x.value === n)))) errors.push(`${name} has a choice that needs one it doesn't have.`);
       if (type === "number" || type === "calc") {
         if (fo.unit === "money" || fo.unit === "percent") f.unit = fo.unit;
+      }
+      if (type === "file") {
+        const fl = (fo.file && typeof fo.file === "object" ? fo.file : {}) as Record<string, unknown>;
+        const mb = Math.round(Number(fl.maxMb ?? 10));
+        const kinds = Array.isArray(fl.kinds) ? [...new Set(fl.kinds.filter((k): k is FileKind => FILE_KINDS.includes(k as FileKind)))] : [];
+        f.file = { maxMb: Number.isFinite(mb) ? Math.min(Math.max(mb, 1), 20) : 10, kinds: kinds.length ? kinds : ["pdf", "image", "office"] };
       }
       if (type === "number" && fo.slider === true) {
         f.slider = true;

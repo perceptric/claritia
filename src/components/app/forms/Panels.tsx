@@ -21,7 +21,7 @@ import { Eyebrow, Labeled, PanelFooter, PanelSection, TextLink } from "../schedu
 import type { BuildProps } from "./Build";
 import { autoMap, choiceRows, claritiaDests, crmDests, earlierChoices, isChoiceKind, issuesOf, kindInfo, kindOf, kindPatch, KINDS, known, knownOp, paramOf, questionsOf, rulesReading, saveName, showOps, showRules, splitNameOps, submissionKey, type Q } from "./formModel";
 import { Ic } from "./ic";
-import { ChoiceExtrasSection, FormulaSection, NumberExtrasSection, ResultSection, ResultsSection, ScreensSection, SettingsSection } from "./InteractivePanels";
+import { ChoiceExtrasSection, FileSection, FormulaSection, NumberExtrasSection, ResultSection, ResultsSection, ScreensSection, SettingsSection } from "./InteractivePanels";
 import { AREA, Box, Dd, Dots, GHOST_SM, IB, IN, IN_SM, Seg, type DdItem, Tg } from "./parts";
 
 /** The panel's frame: the eyebrow and title, its buttons, the sections that scroll, and the footer. */
@@ -102,6 +102,7 @@ export function QuestionPanel(p: BuildProps & { q: Q; qs: Q[]; issueCtx: Paramet
         {isChoiceKind(q.kind) ? <ChoicesSection {...p} f={f} open={open === "opts"} onToggle={() => toggle("opts")} bad={issues.some((i) => i.where === "opts")} /> : null}
         {isChoiceKind(q.kind) ? <ChoiceExtrasSection {...p} f={f} open={open === "scores"} onToggle={() => toggle("scores")} /> : null}
         {f.type === "number" ? <NumberExtrasSection {...p} f={f} open={open === "num"} onToggle={() => toggle("num")} /> : null}
+        {f.type === "file" ? <FileSection {...p} f={f} open={open === "files"} onToggle={() => toggle("files")} /> : null}
         <SavesSection {...p} f={f} open={open === "save"} onToggle={() => toggle("save")} issues={issues.filter((i) => i.where === "save")} />
         {q.kind === "email" || q.kind === "hidden" ? null : <ShowSection {...p} f={f} open={open === "show"} onToggle={() => toggle("show")} />}
         <FillSection {...p} f={f} open={open === "fill"} onToggle={() => toggle("fill")} />

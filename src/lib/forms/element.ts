@@ -1020,7 +1020,8 @@ export class ClaritiaForm extends Base {
     if (f.type === "dropdown" || f.type === "country") {
       box.append(this.listbox(f, common, set, inside));
       if (this.otherText(f) !== undefined) box.append(this.otherBox(f, id, set));
-    } else if (f.type === "choice" || f.type === "multi") box.append(this.picks(f, id, common, set));
+    } else if (f.type === "file") box.append(this.filePick(f, id, common, set));
+    else if (f.type === "choice" || f.type === "multi") box.append(this.picks(f, id, common, set));
     else if (f.type === "rating") box.append(this.rating(f, id, common, set));
     else if (f.type === "checkbox") {
       const c = el("input", { type: "checkbox", ...common }) as HTMLInputElement;
@@ -1198,6 +1199,35 @@ export class ClaritiaForm extends Base {
     });
     t.addEventListener("change", () => set(this.compose(f)));
     return t;
+  }
+
+  /** A file upload: sent the moment it's picked, so the answer is the upload's token (docs/forms-plan.md 3.1). */
+  private filePick(f: Field, id: string, common: Record<string, string | undefined>, set: (v: unknown, picked?: boolean) => void): HTMLElement {
+    const accept = { pdf: ".pdf,application/pdf", image: "image/png,image/jpeg,image/gif,image/webp", office: ".doc,.docx,.xls,.xlsx,.ppt,.pptx" };
+    const input = el("input", { type: "file", class: "in", ...common, accept: (f.file?.kinds ?? []).map((k) => accept[k]).join(",") }) as HTMLInputElement;
+    const cur = typeof this.answers[f.id] === "string" ? (this.answers[f.id] as string) : "";
+    const state = el("p", { class: "hp", "aria-live": "polite", text: cur ? cur.slice(cur.indexOf(":") + 1) : "" });
+    input.addEventListener("change", async () => {
+      const file = input.files?.[0];
+      if (!file) return;
+      if (f.file && file.size > f.file.maxMb * 1024 * 1024) {
+        this.errors[f.id] = `Files can be up to ${f.file.maxMb} MB.`;
+        return this.later();
+      }
+      if (this.isPreview) return set(`up_00000000-0000-4000-8000-000000000000:${file.name.slice(0, 120)}`, true);
+      state.textContent = "Uploading…";
+      const body = new FormData();
+      body.append("field", f.id);
+      body.append("file", file);
+      const res = await fetch(`${this.base}/api/forms/${this.data!.id}/upload`, { method: "POST", body, credentials: "omit" }).catch(() => null);
+      const j = (await res?.json().catch(() => ({}))) as { token?: string; error?: string } | undefined;
+      if (res?.ok && j?.token) set(j.token, true);
+      else {
+        this.errors[f.id] = j?.error ?? "Upload didn't go through. Try again.";
+        this.later();
+      }
+    });
+    return el("div", { class: "ch" }, input, state);
   }
 
   /** Pick one or pick many: radios or check boxes, with "Other" and its text box last. */

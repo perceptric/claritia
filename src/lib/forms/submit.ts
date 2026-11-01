@@ -23,6 +23,7 @@ import { bookingUrl, claritiaPlan, emailsTimesLater, outside, routedBooks, shows
 import { regionOf } from "../web/policy.ts";
 import { contactPolicy } from "./overwrite.ts";
 import { regionsOf } from "./regions.ts";
+import { uploadIds } from "./files.ts";
 import { allFields, ENGINE, hideKeyOf, resultOf, utcDay, type Form, type Overwrite } from "./schema.ts";
 import { checkAnswers, contactParts } from "./values.ts";
 
@@ -412,6 +413,9 @@ export async function acceptFill(
   // connection's mappings, read these, never what the browser claimed.
   const byId: Record<string, unknown> = {};
   for (const x of allFields(f.body)) if (r.args.p_values[x.key] !== undefined) byId[x.id] = r.args.p_values[x.key];
+  // Files the visitor uploaded: linked to this submission (only this form's uploads, never one already linked).
+  const files = spam ? [] : uploadIds(Object.values(byId));
+  if (files.length && !repeat) await callNewer(rpc, "form_uploads_attach", { p_sid: sid, p_ids: files }).catch(() => null);
   // The result this fill reached, worked out here from the checked answers, never taken from the browser
   // (docs/interactive-forms-plan.md 3.6). Saved once per submission; a repeat keeps the first.
   const result = spam ? null : resultOf(f.body, byId);

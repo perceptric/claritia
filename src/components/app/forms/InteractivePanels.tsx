@@ -7,7 +7,7 @@
 
 import { useState } from "react";
 import { parseFormula } from "@/lib/forms/formula";
-import { allFields, RESULT_KINDS, type Choice, type Cond, type Constant, type Field, type Form, type Op as CondOp, type Outcome, type ResultBlock, type Results } from "@/lib/forms/schema";
+import { allFields, FILE_KINDS, RESULT_KINDS, type FileKind, type Choice, type Cond, type Constant, type Field, type Form, type Op as CondOp, type Outcome, type ResultBlock, type Results } from "@/lib/forms/schema";
 import { Labeled, PanelSection } from "../scheduling/panel";
 import type { BuildProps } from "./Build";
 import { Ic } from "./ic";
@@ -399,3 +399,26 @@ function AreaOrText({ value, onChange }: { value: string; onChange: (v: string) 
 
 
 
+
+// Files: the biggest size and the kinds taken ---------------------------------------------------------------------------
+
+const FILE_WORDS: Record<FileKind, string> = { pdf: "PDF", image: "Pictures", office: "Office files" };
+
+export function FileSection(p: SectionProps) {
+  const { f, apply } = p;
+  const cur = f.file ?? { maxMb: 10, kinds: FILE_KINDS };
+  const set = (x: Partial<typeof cur>) => apply({ op: "update_field", id: f.id, patch: { file: { ...cur, ...x } } });
+  return (
+    <PanelSection icon={<Ic n="ext" />} title="Files" summary={`${cur.kinds.map((k) => FILE_WORDS[k]).join(", ")}, up to ${cur.maxMb} MB`} open={p.open} onToggle={p.onToggle}>
+      {FILE_KINDS.map((k) => (
+        <div key={k} className={ROW}>
+          {FILE_WORDS[k]}
+          <Tg label={FILE_WORDS[k]} on={cur.kinds.includes(k)} onChange={(v) => set({ kinds: v ? [...cur.kinds, k] : cur.kinds.filter((x) => x !== k) })} />
+        </div>
+      ))}
+      <Labeled label="Biggest file, MB">
+        <input className={IN_SM} inputMode="numeric" aria-label="Biggest file in MB" value={cur.maxMb} onChange={(e) => set({ maxMb: Math.min(20, Math.max(1, Number(e.target.value) || 1)) })} />
+      </Labeled>
+    </PanelSection>
+  );
+}

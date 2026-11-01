@@ -107,3 +107,40 @@ test("Email my results: only the browser that sent the fill can ask, and it queu
   const got = (await q(`select submission_result_get($1) as r`, [sid]))[0].r;
   assert.equal(got.values["q.total"], 145);
 });
+
+test("uploads: a fill links only its own form's uploads, once, and only members read where they are", async () => {
+  const ws = uuid7();
+  const user = uuid7();
+  await q(`insert into workspaces (id, name) values ($1, 'Acme')`, [ws]);
+  await q(`insert into auth.users (id, email) values ($1, $2)`, [user, `${user}@t.io`]);
+  await q(`insert into workspace_members (workspace_id, user_id, role) values ($1, $2, 'owner')`, [ws, user]);
+  const body = (() => {
+    const r = checkForm({ ...emptyForm(), spam: { minSeconds: 0, turnstile: false }, steps: [{ id: "s1", fields: [{ id: "e", key: "email", type: "email", label: "Email", required: true }, { id: "cv", key: "q.cv", type: "file", label: "CV", required: true, file: { maxMb: 5, kinds: ["pdf"] } }] }] });
+    if ("errors" in r) throw new Error(r.errors.join(" "));
+    return r.form;
+  })();
+  const mk = async () => {
+    const id = (await q(`insert into forms (workspace_id, name, draft) values ($1, 'Apply', $2) returning id`, [ws, body]))[0].id as string;
+    return { id, version: (await q(`select form_publish($1, $2, $3) as v`, [id, user, body]))[0].v as number };
+  };
+  const a = await mk();
+  const other = await mk();
+  const up = async (form: string) => (await q(`select form_upload_add($1, 'cv', $2, 'cv.pdf', 'application/pdf', 1000) as id`, [form, `${ws}/${form}/${uuid7()}`]))[0].id as string;
+  const mine = await up(a.id);
+  const theirs = await up(other.id);
+  const send = async (token: string) =>
+    acceptFill(rpc, { id: a.id, workspace_id: ws, version: a.version, status: "live", body, tokens: {}, logo_url: null }, { v: 1, version: a.version, key: "f".repeat(16) + uuid7().replace(/-/g, "").slice(0, 20), answers: { e: "cy@acme.com", cv: token }, ms: 5000 }, { custom: [] });
+  const one = await send(`up_${mine}:cv.pdf`);
+  assert.equal(one.status, 200, JSON.stringify(one.body));
+  assert.equal((await q(`select submission_id from form_uploads where id = $1`, [mine]))[0].submission_id, one.body.id);
+  // Another form's upload is never linked, and a linked one isn't taken by a second fill.
+  await send(`up_${theirs}:cv.pdf`);
+  assert.equal((await q(`select submission_id from form_uploads where id = $1`, [theirs]))[0].submission_id, null);
+  await send(`up_${mine}:cv.pdf`);
+  assert.equal((await q(`select submission_id from form_uploads where id = $1`, [mine]))[0].submission_id, one.body.id);
+  // Old loose uploads are cleared with their paths handed back.
+  await q(`update form_uploads set created_at = now() - interval '2 days' where id = $1`, [theirs]);
+  const stale = (await q(`select form_uploads_stale() as p`))[0].p as string[];
+  assert.equal(stale.length >= 1, true);
+  assert.equal((await q(`select count(*)::int as n from form_uploads where id = $1`, [theirs]))[0].n, 0);
+});

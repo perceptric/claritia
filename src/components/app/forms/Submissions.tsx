@@ -427,6 +427,14 @@ export function Submissions(props: ViewProps & { form: Form; formId: string; des
         </div>
         {openRow ? (
           <RowPanel
+            onOpenFile={(uid) =>
+              void fetch(`/api/forms/uploads/${uid}`, { headers: { Authorization: `Bearer ${session.access_token}` } })
+                .then((r) => r.json() as Promise<{ url?: string }>)
+                .then((j) => {
+                  if (j.url) window.open(j.url, "_blank", "noopener");
+                })
+                .catch(() => undefined)
+            }
             key={`${openRow.id}:${openRow.spam}`}
             s={openRow}
             form={form}
@@ -514,8 +522,10 @@ function BulkBtn({ children, onClick, label }: { children: React.ReactNode; onCl
 }
 
 /** One fill: its answers, the lead, where it went, where it came from. */
-function RowPanel({ s, form, name, rep, dests, destName, destLogo, onClose, onContact, onReplay, onSpam, onDelete, onFix }: {
+function RowPanel({ s, form, name, rep, dests, destName, destLogo, onClose, onContact, onReplay, onSpam, onDelete, onFix, onOpenFile }: {
   s: Fill;
+  /** Open a file the visitor uploaded, by its upload id. */
+  onOpenFile: (uploadId: string) => void;
   form: Form;
   name: string;
   rep: string;
@@ -541,6 +551,8 @@ function RowPanel({ s, form, name, rep, dests, destName, destLogo, onClose, onCo
       return [[f.label || f.key, answerText({ key: f.key, label: f.label, field: f }, s.values[f.key])] as const];
     })
     .filter(([, v]) => v);
+  // Uploaded files by question, so their answers open the file.
+  const fileOf = new Map(fields.filter((f) => f.type === "file" && typeof s.values[f.key] === "string").map((f) => [f.label || f.key, String(s.values[f.key]).slice(3, 39)]));
   const failed = s.deliveries.filter((d) => d.status === "failed");
   const m = s.meetings?.find((x) => x.status !== "canceled");
   const fix = failed.map((d) => fields.find((f) => f.crm && d.error && (d.error.includes(f.crm.label ?? "\u0000") || d.error.includes(f.crm.property)))).find(Boolean);
@@ -570,7 +582,14 @@ function RowPanel({ s, form, name, rep, dests, destName, destLogo, onClose, onCo
           {answers.map(([q, a]) => (
             <div key={q} className="flex flex-col gap-[2px]">
               <span className="text-[12px] text-muted">{q}</span>
-              <p className="m-0 break-words whitespace-pre-wrap text-ink">{a}</p>
+              {fileOf.has(q) ? (
+                <button type="button" className={`${GHOST_SM} self-start`} onClick={() => onOpenFile(fileOf.get(q)!)}>
+                  <Ic n="ext" />
+                  {a}
+                </button>
+              ) : (
+                <p className="m-0 break-words whitespace-pre-wrap text-ink">{a}</p>
+              )}
             </div>
           ))}
         </PanelSection>
