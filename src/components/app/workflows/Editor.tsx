@@ -352,7 +352,7 @@ export function WorkflowEditor({
         ) : null}
 
         <div className="grid min-h-0 flex-1 lg:grid-cols-[minmax(0,1fr)_400px]">
-          <div className="min-h-0 overflow-y-auto px-4 pt-8 md:px-14">
+          <div className="flow-dots min-h-0 overflow-y-auto px-4 pt-8 md:px-14">
             <Flow
               body={shown}
               names={data.words}

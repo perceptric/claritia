@@ -714,6 +714,13 @@ input[type="radio"] {
   --color-rose: #b23a26;
   --color-rose-wash: #fdecea;
 }
+/* Workflows and Scoring: the automation canvas, dots that scroll with the cards. */
+.flow-dots {
+  background-color: var(--color-paper);
+  background-image: radial-gradient(var(--color-line-strong) 1px, transparent 1px);
+  background-size: 16px 16px;
+  background-attachment: local;
+}
 .fm-dots {
   background-color: var(--color-paper);
   background-image: radial-gradient(var(--color-line) 1px, transparent 1px);

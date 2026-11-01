@@ -9,11 +9,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { STAGES, type Facts, type Stage } from "@/lib/workflows/lifecycle";
 import type { Brand } from "@/lib/workflows/journeys";
-import { Check, Folder, Plus } from "../../Icons";
+import { Check, ChevronRight, Folder, FolderPlus, Plus } from "../../Icons";
 import { AiMark } from "../Ai";
-import { askConfirm, askText } from "../Dialogs";
+import { askConfirm } from "../Dialogs";
 import { MoreMenu } from "../StatCards";
-import { Button, Empty, ErrorNote, errorText, Loading, must, Page, postJson, useLoad, useQuery, type ViewProps } from "../ui";
+import { Button, Empty, ErrorNote, errorText, IconButton, Loading, must, Page, postJson, useLoad, useQuery, type ViewProps } from "../ui";
 import { Dots } from "../routing/Flow";
 import { loadWorkflow } from "./data";
 import { WorkflowEditor } from "./Editor";
@@ -65,6 +65,9 @@ export function WorkflowsHome(props: ViewProps) {
   }, `${ws.id}:${tick}`);
   const reload = useCallback(() => setTick((n) => n + 1), []);
   const [error, setError] = useState("");
+  const [closed, setClosed] = useState<Set<string>>(() => new Set());
+  /** The folder being named in place: its key, or "new" for a new one. */
+  const [naming, setNaming] = useState<string | null>(null);
   const act = async (fn: () => PromiseLike<{ error: { message: string } | null }>) => {
     setError("");
     const { error: e } = await fn();
@@ -96,82 +99,147 @@ export function WorkflowsHome(props: ViewProps) {
   const open = rows.find((r) => r.id === props.id) ?? rows[0]!;
   const missing = info.owner ? info.plan.filter((p) => !rows.some((r) => r.journey === p.key)) : [];
   const groups = groupsOf(rows, folders);
-  const newFolder = async () => {
-    const name = await askText("New folder", { placeholder: "Folder name", ok: "Create" });
-    if (name?.trim()) await act(() => sb.rpc("workflow_folder_save", { p_ws: ws.id, p_id: null, p_name: name.trim() }));
-  };
+  const saveFolder = (id: string | null, name: string) => act(() => sb.rpc("workflow_folder_save", { p_ws: ws.id, p_id: id, p_name: name }));
+  const newIn = (folder: string | null) => navigate("workflows", "new", folder ? `folder=${folder}` : undefined);
   return (
     <Page title="Workflows" flush>
-      <div className="grid h-full min-h-0 md:grid-cols-[248px_minmax(0,1fr)]">
-        <nav aria-label="Folders" className="flex min-h-0 gap-1 overflow-auto border-line p-2 md:flex-col md:border-r">
-          <ErrorNote message={error} />
-          {groups.map((g, gi) => (
-            <div key={g.key} className="flex shrink-0 gap-1 md:flex-col">
-              <div className="group/f hidden min-h-[30px] items-center gap-1.5 pt-2 pr-0.5 pl-2 md:flex">
-                {g.folder ? <Folder size={13} className="shrink-0 text-faint" /> : null}
-                <p className="min-w-0 flex-1 truncate text-[12px] font-medium text-muted">{g.label}</p>
-                {g.folder ? (
-                  <span className="opacity-0 transition-opacity duration-[140ms] group-hover/f:opacity-100 focus-within:opacity-100">
-                    <MoreMenu
-                      label={`${g.label} folder`}
-                      items={[
-                        {
-                          label: "Rename",
-                          run: () =>
-                            void askText("Rename folder", { initial: g.label, ok: "Save" }).then((name) => (name?.trim() ? act(() => sb.rpc("workflow_folder_save", { p_ws: ws.id, p_id: g.folder!.id, p_name: name.trim() })) : undefined)),
-                        },
-                        gi > 0 ? { label: "Move up", run: () => void act(() => sb.rpc("workflow_folder_move", { p_ws: ws.id, p_id: g.folder!.id, p_by: -1 })) } : null,
-                        gi < (folders?.length ?? 0) - 1 ? { label: "Move down", run: () => void act(() => sb.rpc("workflow_folder_move", { p_ws: ws.id, p_id: g.folder!.id, p_by: 1 })) } : null,
-                        {
-                          label: "Delete",
-                          danger: true,
-                          run: () =>
-                            void askConfirm(`Delete ${g.label}?`, { body: g.rows.length ? "Its workflows stay, outside any folder." : undefined, ok: "Delete", danger: true }).then((ok) => (ok ? act(() => sb.rpc("workflow_folder_delete", { p_ws: ws.id, p_id: g.folder!.id })) : undefined)),
-                        },
-                      ]}
-                    />
-                  </span>
-                ) : null}
-              </div>
-              {g.rows.map((r) => (
-                <div key={r.id} className={`group/w flex min-w-[160px] items-center rounded-lg transition-colors duration-[140ms] md:min-w-0 ${r.id === open.id ? "bg-paper-deep" : "hover:bg-hover"}`}>
-                  <button
-                    type="button"
-                    onClick={() => navigate("workflows", r.id)}
-                    aria-current={r.id === open.id ? "page" : undefined}
-                    className={`flex min-w-0 flex-1 items-center gap-2 px-2.5 py-2 text-left text-[13px] ${r.id === open.id ? "font-medium text-ink" : "text-body"}`}
-                  >
-                    {r.status === "live" ? <span className="size-1.5 shrink-0 rounded-full bg-signal" aria-label="Live" /> : <span className="size-1.5 shrink-0" />}
-                    <span className="truncate">{r.name}</span>
-                  </button>
-                  {folders && folders.length > 1 ? (
-                    <span className="opacity-0 transition-opacity duration-[140ms] group-hover/w:opacity-100 focus-within:opacity-100">
-                      <MoreMenu label={`Move ${r.name}`} items={folders.filter((f) => f.id !== r.folder_id).map((f) => ({ label: `Move to ${f.name}`, run: () => void act(() => sb.rpc("workflow_set_folder", { p_ws: ws.id, p_id: r.id, p_folder: f.id })) }))} />
-                    </span>
-                  ) : null}
-                </div>
-              ))}
-            </div>
-          ))}
-          {missing.length ? <BuildMore session={session} ws={ws.id} count={missing.length} onDone={reload} /> : null}
-          <div className="mt-1 flex shrink-0 flex-wrap gap-1 px-1">
-            <Button variant="ghost" size="sm" onClick={() => navigate("workflows", "new")}>
-              <Plus size={13} />
-              New workflow
-            </Button>
-            {folders ? (
-              <Button variant="ghost" size="sm" onClick={() => void newFolder()}>
-                <Folder size={13} />
-                New folder
-              </Button>
-            ) : null}
+      <div className="grid h-full min-h-0 md:grid-cols-[256px_minmax(0,1fr)]">
+        <nav aria-label="Folders" className="flex max-h-64 min-h-0 flex-col overflow-auto border-b border-line px-2 pt-2 pb-6 md:max-h-none md:border-r md:border-b-0">
+          <div className="flex h-8 shrink-0 items-center gap-1 pr-0.5 pl-2">
+            <p className="label-mono flex-1">Folders</p>
+            <MoreMenu
+              small
+              label="New"
+              icon={<Plus size={14} />}
+              items={[{ label: "New workflow", run: () => newIn(null) }, folders ? { label: "New folder", run: () => setNaming("new") } : null]}
+            />
           </div>
+          <ErrorNote message={error} />
+          {groups.map((g, gi) => {
+            const shut = closed.has(g.key) && !g.rows.some((r) => r.id === open.id);
+            return (
+              <div key={g.key} className="flex shrink-0 flex-col">
+                {naming === g.key && g.folder ? (
+                  <NameRow initial={g.label} onDone={(name) => (setNaming(null), name && name !== g.label ? void saveFolder(g.folder!.id, name) : undefined)} />
+                ) : (
+                  <div className="group/f flex h-8 items-center rounded-lg pr-0.5 transition-colors duration-[140ms] hover:bg-hover">
+                    <button
+                      type="button"
+                      aria-expanded={!shut}
+                      onClick={() => setClosed((c) => { const n = new Set(c); if (n.has(g.key)) n.delete(g.key); else n.add(g.key); return n; })}
+                      onDoubleClick={() => g.folder && setNaming(g.key)}
+                      className="flex h-full min-w-0 flex-1 items-center gap-1.5 pl-1.5 text-left"
+                    >
+                      <ChevronRight size={12} className={`shrink-0 text-faint transition-transform duration-[140ms] motion-reduce:transition-none ${shut ? "" : "rotate-90"}`} />
+                      <Folder size={14} className="shrink-0 text-muted" />
+                      <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-ink">{g.label}</span>
+                      <span className="pr-1 text-[11.5px] text-faint tabular-nums group-hover/f:hidden">{g.rows.length}</span>
+                    </button>
+                    {g.folder || !folders ? (
+                      <span className="hidden items-center group-hover/f:flex focus-within:flex">
+                        <IconButton label={`New workflow in ${g.label}`} className="size-6" onClick={() => newIn(g.folder?.id ?? null)}>
+                          <Plus size={13} />
+                        </IconButton>
+                        {g.folder ? (
+                          <MoreMenu
+                            small
+                            label={`${g.label} folder`}
+                            items={[
+                              { label: "Rename", run: () => setNaming(g.key) },
+                              gi > 0 ? { label: "Move up", run: () => void act(() => sb.rpc("workflow_folder_move", { p_ws: ws.id, p_id: g.folder!.id, p_by: -1 })) } : null,
+                              gi < (folders?.length ?? 0) - 1 ? { label: "Move down", run: () => void act(() => sb.rpc("workflow_folder_move", { p_ws: ws.id, p_id: g.folder!.id, p_by: 1 })) } : null,
+                              {
+                                label: "Delete",
+                                danger: true,
+                                run: () =>
+                                  void askConfirm(`Delete ${g.label}?`, { body: g.rows.length ? "Its workflows stay, outside any folder." : undefined, ok: "Delete", danger: true }).then((ok) => (ok ? act(() => sb.rpc("workflow_folder_delete", { p_ws: ws.id, p_id: g.folder!.id })) : undefined)),
+                              },
+                            ]}
+                          />
+                        ) : null}
+                      </span>
+                    ) : null}
+                  </div>
+                )}
+                {shut ? null : (
+                  <div className="ml-[13px] flex flex-col gap-px border-l border-line py-0.5 pl-1.5">
+                    {g.rows.map((r) => (
+                      <div key={r.id} className={`group/w flex h-8 items-center rounded-lg pr-0.5 transition-colors duration-[140ms] ${r.id === open.id ? "bg-paper-deep" : "hover:bg-hover"}`}>
+                        <button
+                          type="button"
+                          onClick={() => navigate("workflows", r.id)}
+                          aria-current={r.id === open.id ? "page" : undefined}
+                          className={`flex h-full min-w-0 flex-1 items-center gap-2 px-2 text-left text-[13px] ${r.id === open.id ? "font-medium text-ink" : "text-body"}`}
+                        >
+                          <span className="truncate">{r.name}</span>
+                          {r.status === "live" ? <span className="size-1.5 shrink-0 rounded-full bg-signal" aria-label="Live" /> : null}
+                        </button>
+                        {folders && folders.length > 1 ? (
+                          <span className="hidden group-hover/w:flex focus-within:flex">
+                            <MoreMenu small label={`Move ${r.name}`} items={folders.filter((f) => f.id !== r.folder_id).map((f) => ({ label: `Move to ${f.name}`, run: () => void act(() => sb.rpc("workflow_set_folder", { p_ws: ws.id, p_id: r.id, p_folder: f.id })) }))} />
+                          </span>
+                        ) : null}
+                      </div>
+                    ))}
+                    {g.folder ? (
+                      <button type="button" onClick={() => newIn(g.folder!.id)} className="flex h-8 items-center gap-2 rounded-lg px-2 text-left text-[13px] text-faint transition-colors duration-[140ms] hover:bg-hover hover:text-ink">
+                        <Plus size={12} />
+                        New workflow
+                      </button>
+                    ) : null}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+          {naming === "new" ? (
+            <NameRow initial="" onDone={(name) => (setNaming(null), name ? void saveFolder(null, name) : undefined)} />
+          ) : folders ? (
+            <button type="button" onClick={() => setNaming("new")} className="flex h-8 shrink-0 items-center gap-1.5 rounded-lg pl-1.5 text-left text-[13px] text-faint transition-colors duration-[140ms] hover:bg-hover hover:text-ink">
+              <span className="w-3" />
+              <FolderPlus size={14} />
+              New folder
+            </button>
+          ) : null}
+          {missing.length ? <BuildMore session={session} ws={ws.id} count={missing.length} onDone={reload} /> : null}
         </nav>
         <div className="min-h-0 min-w-0">
           <OpenJourney key={open.id} {...props} id={open.id} onChanged={reload} />
         </div>
       </div>
     </Page>
+  );
+}
+
+/** A folder name typed in place: Enter or leaving the box saves, Escape drops it. */
+function NameRow({ initial, onDone }: { initial: string; onDone: (name: string) => void }) {
+  const [v, setV] = useState(initial);
+  const done = useRef(false);
+  const finish = (name: string) => {
+    if (done.current) return;
+    done.current = true;
+    onDone(name.trim());
+  };
+  return (
+    <div className="flex h-8 shrink-0 items-center gap-1.5 rounded-lg bg-hover pr-1 pl-1.5">
+      <span className="w-3" />
+      <Folder size={14} className="shrink-0 text-muted" />
+      <input
+        autoFocus
+        value={v}
+        maxLength={80}
+        placeholder="Folder name"
+        aria-label="Folder name"
+        onChange={(e) => setV(e.target.value)}
+        onFocus={(e) => e.currentTarget.select()}
+        onBlur={() => finish(v)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") finish(v);
+          if (e.key === "Escape") finish("");
+        }}
+        className="h-6 min-w-0 flex-1 rounded-[6px] border border-ink bg-card px-1.5 text-[13px] font-medium text-ink outline-none placeholder:text-faint"
+      />
+    </div>
   );
 }
 

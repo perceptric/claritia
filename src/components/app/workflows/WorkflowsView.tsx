@@ -1,7 +1,7 @@
 "use client";
 
 // Workflows (docs/workflows.md): /workflows and /workflows/<id> are the folders with one workflow open (Home.tsx);
-// /workflows/new picks a template (?template=broadcast opens that one).
+// /workflows/new picks a template (?template=broadcast opens that one; ?folder=<id> files it in that folder).
 
 import { useCallback, useEffect, useState } from "react";
 import { TEMPLATES, templateByKey } from "@/lib/workflows/templates";
@@ -22,7 +22,11 @@ function TemplatePicker({ sb, ws, navigate }: ViewProps) {
     async (name: string, body: Body) => {
       const { data, error: e } = await sb.rpc("workflow_save", { p_ws: ws.id, p_id: null, p_name: name, p_draft: body, p_revision: null });
       if (e) throw new Error(e.message);
-      navigate("workflows", (data as { id: string }).id);
+      const id = (data as { id: string }).id;
+      // ?folder=<id> (a folder's + in the tree) files it there.
+      const folder = typeof window === "undefined" ? null : new URLSearchParams(window.location.search).get("folder");
+      if (folder) await sb.rpc("workflow_set_folder", { p_ws: ws.id, p_id: id, p_folder: folder });
+      navigate("workflows", id);
     },
     [sb, ws.id, navigate],
   );

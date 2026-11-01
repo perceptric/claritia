@@ -7,8 +7,13 @@ Journeys, Emails, Library and Brand tabs are gone, and the senders stay in Setti
 
 - Folders on the left, each holding workflows, and the open workflow in the editor on the right
   (`src/components/app/workflows/Home.tsx`). `/workflows/<id>` opens one; `/workflows/new` picks a template.
-- **New folder** makes one. A folder's menu renames it, moves it up or down, or deletes it (its workflows stay, under
-  No folder). A workflow's menu moves it to another folder.
+- The left column is a folder tree: each folder opens and closes, and its workflows hang under it on a guide line.
+  Creating lives in the tree: the **+** beside Folders, a folder's **+** on hover, the **New workflow** row at the end of
+  each folder (filed there, `?folder=<id>`), and the **New folder** row at the bottom, named in place. A folder's menu
+  renames it in place (or double-click), moves it up or down, or deletes it (its workflows stay, under No folder). A
+  workflow's menu moves it to another folder.
+- The workflow sits on a dotted canvas (`flow-dots`), like Scoring's flowchart. Scoring's lines are measured from the
+  cards (`src/components/app/FlowLines.tsx`): right-angle bends with round corners and an arrowhead into each card.
 - The first visit makes folders from the old groups: one per lifecycle stage in use (Trial, Pipeline, Customer), then
   Workflows for the rest (`workflow_folders_start`, `supabase/migrations/100_workflow_folders.sql`). Before 100 runs,
   the page groups by stage as it did, without folder actions.
