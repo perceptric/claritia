@@ -10,8 +10,11 @@ import { Ic } from "./ic";
 import { GHOST_SM, IB, Seg } from "./parts";
 import { FormPreview } from "./shared";
 
-export function PreviewOverlay({ form, tokens, crmName, onClose, banner, action }: { form: Form; tokens: Partial<Tokens>; crmName?: string; onClose: () => void; banner?: string; action?: React.ReactNode }) {
+export function PreviewOverlay({ form, tokens, crmName, onClose, banner, action, examples }: { form: Form; tokens: Partial<Tokens>; crmName?: string; onClose: () => void; banner?: string; action?: React.ReactNode; examples?: { label: string; answers: Record<string, unknown> }[] }) {
   const [device, setDevice] = useState<"desktop" | "phone">("desktop");
+  const [example, setExample] = useState<number | null>(null);
+  // Try example opens on the first result screen, with the example's answers in.
+  const resultStep = Math.max(0, form.steps.findIndex((s) => s.result));
   const [run, setRun] = useState(0);
   const closeBtn = useRef<HTMLButtonElement>(null);
   useEffect(() => {
@@ -34,7 +37,12 @@ export function PreviewOverlay({ form, tokens, crmName, onClose, banner, action 
         </span>
         <span className="flex-1" />
         <Seg icons label="Device" value={device} onChange={setDevice} options={[{ value: "desktop", label: <Ic n="monitor" />, title: "Desktop" }, { value: "phone", label: <Ic n="phone" />, title: "Phone" }]} />
-        <button type="button" className={GHOST_SM} onClick={() => setRun((r) => r + 1)}>
+        {examples?.map((x, i) => (
+          <button key={x.label} type="button" className={GHOST_SM} aria-pressed={example === i} onClick={() => (setExample(i), setRun((r) => r + 1))}>
+            {x.label}
+          </button>
+        ))}
+        <button type="button" className={GHOST_SM} onClick={() => (setExample(null), setRun((r) => r + 1))}>
           Start over
         </button>
         {action}
@@ -47,7 +55,7 @@ export function PreviewOverlay({ form, tokens, crmName, onClose, banner, action 
           className={`keep-light max-w-full rounded-[14px] shadow-[0_1px_2px_rgb(0_0_0/0.05),0_0_0_1px_rgb(0_0_0/0.06)] transition-[width] duration-[320ms] ease-out ${device === "phone" ? "w-[375px] p-[22px]" : form.layout.width === "wide" ? "w-[720px] p-[32px]" : "w-[560px] p-[32px]"}`}
           style={{ background: cleanTokens(tokens).tokens.background }}
         >
-          <FormPreview key={`${run}:${device}`} form={form} tokens={tokens} device={device === "phone" ? "phone" : "base"} />
+          <FormPreview key={`${run}:${device}`} form={form} tokens={tokens} device={device === "phone" ? "phone" : "base"} {...(example !== null && examples?.[example] ? { answers: examples[example].answers, step: resultStep } : {})} />
         </div>
       </div>
     </div>

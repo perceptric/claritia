@@ -668,7 +668,7 @@ export class ClaritiaForm extends Base {
   }
 
   /** The app's builder shows a draft without loading or sending anything. */
-  set preview(p: { form: Form; tokens?: Partial<Tokens>; step?: number; done?: boolean; regions?: Record<string, string[]>; css?: string; fonts?: string[]; edit?: boolean }) {
+  set preview(p: { form: Form; tokens?: Partial<Tokens>; step?: number; done?: boolean; regions?: Record<string, string[]>; css?: string; fonts?: string[]; edit?: boolean; answers?: Record<string, unknown> }) {
     this.isPreview = true;
     this.edit = !!p.edit;
     const fresh = !this.data || this.done !== !!p.done;
@@ -678,6 +678,11 @@ export class ClaritiaForm extends Base {
     this.done = !!p.done;
     if (fresh) this.errors = {};
     this.applyDefaults(p.form);
+    // Try example: the example's answers, past the cover, on the step asked for (the result screen).
+    if (p.answers) {
+      this.answers = { ...p.answers };
+      this.covered = true;
+    }
     this.render();
   }
 

@@ -5,7 +5,7 @@
 
 import { useMemo, useState } from "react";
 import type { Tokens } from "@/lib/forms/brand";
-import { GALLERY, GOALS, type GalleryTemplate, type Goal } from "@/lib/forms/gallery";
+import { exampleAnswers, GALLERY, GOALS, type GalleryTemplate, type Goal } from "@/lib/forms/gallery";
 import type { Form } from "@/lib/forms/schema";
 import { Badge } from "../ui";
 import { Ic } from "./ic";
@@ -113,6 +113,7 @@ export function FormGallery({ tokens, onUse, onBlank, busy }: { tokens?: Partial
             form={open.form}
             tokens={tokens ?? {}}
             banner="Example. Nothing is saved, sent or booked."
+            examples={(open.t.examples ?? []).filter((x) => !x.constants && x.outcome).slice(0, 3).map((x, i) => ({ label: open.t.examples!.length > 1 ? `Try example ${i + 1}` : "Try example", answers: exampleAnswers(open.form, x) }))}
             action={
               <button type="button" className={BTN} disabled={busy} onClick={() => onUse(open.t)}>
                 Use template

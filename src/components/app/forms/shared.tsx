@@ -32,7 +32,7 @@ export const DELIVERY: Record<string, [string, Tone]> = {
  * The form as visitors see it, from a draft that may not be finished yet. `system` is the design system's draft;
  * `device` draws that breakpoint's styles whatever the window's width is.
  */
-export function FormPreview({ form, tokens, step = 0, done = false, system, device }: { form: Form; tokens: Partial<Tokens>; step?: number; done?: boolean; system?: unknown; device?: Breakpoint }) {
+export function FormPreview({ form, tokens, step = 0, done = false, system, device, answers }: { form: Form; tokens: Partial<Tokens>; step?: number; done?: boolean; system?: unknown; device?: Breakpoint; answers?: Record<string, unknown> }) {
   const ref = useRef<HTMLElement>(null);
   const css = useMemo(() => {
     try {
@@ -45,12 +45,12 @@ export function FormPreview({ form, tokens, step = 0, done = false, system, devi
   useEffect(() => {
     let live = true;
     void import("@/lib/forms/element").then(() => {
-      if (live && ref.current) (ref.current as unknown as { preview: unknown }).preview = { form, tokens, step, done, css, ...(fontKey ? { fonts: [fontKey] } : {}), ...(usesRegions(form) ? { regions: allRegions() } : {}) };
+      if (live && ref.current) (ref.current as unknown as { preview: unknown }).preview = { form, tokens, step, done, css, ...(fontKey ? { fonts: [fontKey] } : {}), ...(usesRegions(form) ? { regions: allRegions() } : {}), ...(answers ? { answers } : {}) };
     });
     return () => {
       live = false;
     };
-  }, [form, tokens, step, done, css, fontKey]);
+  }, [form, tokens, step, done, css, fontKey, answers]);
   return <claritia-form ref={ref} />;
 }
 
