@@ -9,7 +9,7 @@ create table if not exists public.submission_results (
   form_version int not null,
   -- The formula engine's version, so a result can be read the way it was worked out.
   engine int not null default 1,
-  outcome_id text check (outcome_id ~ '^[a-z0-9]{1,24}$'),
+  outcome_id text check (outcome_id ~ '^[a-z0-9_]{1,24}$'),
   outcome_title text check (length(outcome_title) <= 300),
   -- Each calc by field key, as numbers (null when it couldn't be worked out).
   "values" jsonb not null default '{}' check (jsonb_typeof("values") = 'object' and length("values"::text) <= 16000),

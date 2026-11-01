@@ -49,6 +49,11 @@ function base(f: Field, raw: unknown, opts: Choice[]): { value?: string | number
     const value = [...new Set(list)];
     if (value.length && c.min !== undefined && value.length < c.min) return { error: `Pick at least ${c.min}.` };
     if (c.max !== undefined && value.length > c.max) return { error: `Pick up to ${c.max}.` };
+    // A pick that needs another (a module that only works with another one) needs that one picked too.
+    for (const o of opts) {
+      const miss = value.includes(o.value) ? o.needs?.find((n) => !value.includes(n)) : undefined;
+      if (miss !== undefined) return { error: `${o.label} needs ${opts.find((x) => x.value === miss)?.label ?? miss}.` };
+    }
     return { value };
   }
   const v = typeof raw === "string" ? raw.trim().slice(0, MAX) : typeof raw === "number" ? String(raw) : "";

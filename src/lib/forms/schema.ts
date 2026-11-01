@@ -47,7 +47,8 @@ export const isChoice = (t: FieldType) => t === "choice" || t === "multi" || t =
 export type FieldKey = "email" | "first_name" | "last_name" | "name" | "title" | "phone" | "company" | "website" | "country" | "region" | `f.${string}` | `q.${string}` | `c.${string}`;
 
 /** score: the number a formula reads when this choice is picked. */
-export type Choice = { value: string; label: string; score?: number; /** Picture cards: the picture's https address. */ image?: string };
+/** image: a picture card's https address. needs: other options (pick many) that must be picked with this one. */
+export type Choice = { value: string; label: string; score?: number; image?: string; needs?: string[] };
 
 /**
  * Options that follow another field's answer (docs/forms-plan.md 2.2): a list per answer of the parent, or the
@@ -148,6 +149,8 @@ export type Field = {
   unit?: "money" | "percent";
   /** A result block's settings. */
   result?: ResultBlock;
+  /** Pick one and pick many: the choices' scores stay on the server (a quiz's answer key). */
+  secret?: true;
 };
 
 /**
@@ -412,7 +415,8 @@ function choices(raw: unknown, max: number): Choice[] {
     seen.add(val);
     const score = typeof oo.score === "number" && Number.isFinite(oo.score) ? oo.score : typeof oo.score === "string" && oo.score.trim() !== "" && Number.isFinite(Number(oo.score)) ? Number(oo.score) : undefined;
     const image = str(oo.image, 1000);
-    opts.push({ value: val, label: lab || val, ...(score !== undefined ? { score } : {}), ...(image && image.startsWith("https://") && safeUrl(image) ? { image } : {}) });
+    const needs = Array.isArray(oo.needs) ? [...new Set(oo.needs.filter((x): x is string => typeof x === "string" && x !== val))].slice(0, 10) : [];
+    opts.push({ value: val, label: lab || val, ...(score !== undefined ? { score } : {}), ...(image && image.startsWith("https://") && safeUrl(image) ? { image } : {}), ...(needs.length ? { needs } : {}) });
   }
   return opts;
 }
@@ -651,6 +655,8 @@ export function checkForm(raw: unknown, ctx: Ctx = {}): { form: Form } | { error
         else if (!f.options.length) errors.push(`${name} needs at least one option.`);
       }
       if ((type === "choice" || type === "multi") && fo.cards === true) f.cards = true;
+      if ((type === "choice" || type === "multi") && fo.secret === true) f.secret = true;
+      if (type === "multi" && f.options?.some((o) => o.needs?.some((n) => !f.options!.some((x) => x.value === n)))) errors.push(`${name} has a choice that needs one it doesn't have.`);
       if (type === "number" || type === "calc") {
         if (fo.unit === "money" || fo.unit === "percent") f.unit = fo.unit;
       }
@@ -981,7 +987,7 @@ function cleanResults(raw: unknown, byId: Map<string, Field>, errors: string[]):
     const o = (x && typeof x === "object" ? x : {}) as Record<string, unknown>;
     const id = str(o.id, 24) ?? "";
     const title = str(o.title, LIMITS.label) ?? "";
-    if (!ID.test(id) || ids.has(id)) {
+    if (!/^[a-z0-9_]{1,24}$/.test(id) || ids.has(id)) {
       errors.push("An outcome has a bad id.");
       continue;
     }
@@ -1015,10 +1021,15 @@ function cleanResults(raw: unknown, byId: Map<string, Field>, errors: string[]):
 /** Settings the owner still has to set; the form can't be published until there are none. */
 export const unsetConstants = (form: Pick<Form, "constants">): Constant[] => (form.constants ?? []).filter((c) => c.value === null);
 
-/** The form as the browser gets it: private settings have no value, so they stay on the server. */
-export function publicForm<T extends Pick<Form, "constants">>(form: T): T {
-  if (!form.constants?.some((c) => c.private)) return form;
-  return { ...form, constants: form.constants.map((c) => (c.private ? { ...c, value: null } : c)) };
+/** The form as the browser gets it: private settings have no value and secret scores are gone, so both stay on the server. */
+export function publicForm<T extends Pick<Form, "constants" | "steps">>(form: T): T {
+  const secret = form.steps.some((st) => st.fields.some((x) => x.secret));
+  if (!form.constants?.some((c) => c.private) && !secret) return form;
+  return {
+    ...form,
+    ...(form.constants ? { constants: form.constants.map((c) => (c.private ? { ...c, value: null } : c)) } : {}),
+    steps: form.steps.map((st) => ({ ...st, fields: st.fields.map((x) => (x.secret && x.options ? { ...x, options: x.options.map((o) => ({ value: o.value, label: o.label, ...(o.image ? { image: o.image } : {}), ...(o.needs ? { needs: o.needs } : {}) })) } : x)) })),
+  };
 }
 
 export function safeUrl(raw: string): boolean {
@@ -1190,14 +1201,20 @@ export function whenHits(when: Cond, v: unknown, ctx: RunCtx = {}): boolean {
  * The step to show after `from` given the answers: the step's skip target when its condition holds (and the field
  * it reads is on a step already passed), else the next one. Returns form.steps.length when the form is done.
  */
-export function nextStep(form: Pick<Form, "steps" | "rules" | "constants">, from: number, answers: Record<string, unknown>, ctx: RunCtx = {}): number {
+export function nextStep(form: Pick<Form, "steps" | "rules" | "constants" | "results">, from: number, answers: Record<string, unknown>, ctx: RunCtx = {}): number {
   const skip = form.steps[from]?.skip;
+  let to = from + 1;
   if (skip && skip.to > from + 1 && skip.to < form.steps.length) {
     const before = form.steps.slice(0, from + 1).some((s) => s.fields.some((f) => f.id === skip.when.field));
-    if (before && whenHits(skip.when, withCalcs(form, answers, ctx)[skip.when.field], ctx)) return skip.to;
+    if (before && whenHits(skip.when, withCalcs(form, answers, ctx)[skip.when.field], ctx)) to = skip.to;
   }
-  return from + 1;
+  // A result screen shows live only when results show right away; otherwise its blocks show after the send.
+  while (to < form.steps.length && !stepShows(form, to)) to++;
+  return to;
 }
+
+/** Whether a step is shown before the send: every step, except a result screen when results wait for the send. */
+export const stepShows = (form: Pick<Form, "steps" | "results">, i: number): boolean => !(form.steps[i]?.result && form.results?.show !== "instant");
 
 /**
  * The outcome these answers reach: the first whose conditions hold, else the default. Calcs are worked out first, and
