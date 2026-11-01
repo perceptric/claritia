@@ -37,7 +37,7 @@ export type FieldType =
   | "image"
   // A result block (docs/interactive-forms-plan.md Part 4): a number, a meter, a breakdown, bars or the outcome.
   | "result"
-  // An HTML section the AI writes (docs/ai-form-builder.md): a hero, pictures and words, cleaned by html.ts.
+  // An HTML section the AI writes (docs/forms.md): a hero, pictures and words, cleaned by html.ts.
   | "html"
   // docs/form-kinds-plan.md step 2: put the options in order; street, city, postcode and country; one choice per row
   // of a grid; a time of day; a first and last date; "add another" rows of small questions; a drawn signature.

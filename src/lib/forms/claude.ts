@@ -1,8 +1,10 @@
 import "server-only";
 import Anthropic from "@anthropic-ai/sdk";
-import { CHAT_MODEL, type Model } from "./chat.ts";
+import { CHAT_MODEL, type Model } from "../ai/chatModel.ts";
 
-// The chat's model call: Claude Sonnet 5.5 with adaptive thinking at medium effort, and the server-side fallback for
+export { CHAT_MODEL, type Model };
+
+// The app's chat model call: Claude Sonnet 5.5 with adaptive thinking at medium effort, and the server-side fallback for
 // a declined request. Null when ANTHROPIC_API_KEY isn't set.
 // One client per process (and per key): 45 s a call and one retry, so a chat turn can't hold a request for minutes.
 let shared: { apiKey: string; client: Anthropic } | null = null;

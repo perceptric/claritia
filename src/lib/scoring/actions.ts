@@ -5,7 +5,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { enqueueJob, type Rpc } from "../jobs.ts";
 import { fieldsFor, Refused, type Caller } from "../router/actions.ts";
-import type { Model } from "../forms/chat.ts";
+import type { Model } from "../ai/chatModel.ts";
 import { buildModel, type Finding } from "./build.ts";
 import { beforeMeeting, fitToCapacity, peakOf, rulePoints, statsOf, scoreLead, type LeadFacts, type Stats } from "./engine.ts";
 import { ttlCache } from "../roleCache.ts";

@@ -1,4 +1,4 @@
-// HTML sections on forms (docs/ai-form-builder.md): the hero, picture-and-text and proof sections the AI writes.
+// HTML sections on forms (docs/forms.md): the hero, picture-and-text and proof sections the AI writes.
 // The HTML is cleaned to a short list of tags and attributes, the same way in the browser and on the server, so a
 // section can never run a script, load a frame, post a form or reach a private address. Questions, sliders and
 // results stay native fields; sections are only words, pictures and layout.

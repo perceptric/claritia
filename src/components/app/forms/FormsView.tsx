@@ -1,24 +1,21 @@
 "use client";
 
-// Inbound › Forms (docs/forms-plan.md): the list, and one form's screen. A form's screen is a header (the crumb, the
-// name to type in, its state, Saved, undo, redo, Preview, the more menu and Publish) and five tabs with icons, kept in
-// the address as ?tab=: Build (the form as visitors see it, the 400 px panel and the AI bar), Submissions, Share, Sync
-// and Settings. Drafts save as you go; Publish checks the form first and makes the draft live.
+// Inbound › Forms (docs/forms.md): the list, and one form's screen. A form's screen is a header (the crumb, the name to
+// type in, its state, Saved, undo, redo, Preview, the more menu and Publish) and five tabs with icons, kept in the
+// address as ?tab=: Build (the outline, the live form and its panel, build/Builder.tsx), Submissions, Share, Sync and
+// Settings. Drafts save as you go; Publish checks the form first and makes the draft live.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { applyOp, type Op } from "@/lib/forms/ops";
-import { allFields, checkForm, emptyForm, usedBy, type Form } from "@/lib/forms/schema";
+import { checkForm, emptyForm, type Form } from "@/lib/forms/schema";
 import type { CustomField } from "@/lib/records/fields";
-import { askConfirm, tell } from "../Dialogs";
+import { askConfirm } from "../Dialogs";
 import { Badge, cache, ErrorNote, errorText, invalidate, Loading, must, postJson, setLeaveGuard, Tabs, useQuery, type ViewProps } from "../ui";
 import { useLiveBody } from "../routing/screenParts";
-import { Build, SUBMIT, type Pick as Picked } from "./Build";
+import { Builder, SUBMIT, type Pick as Picked } from "./build/Builder";
 import { mergeKey } from "./editorModel";
-import { useFormChat } from "./FormChat";
 import { FormHome, MADE_KEY } from "./FormHome";
-import { SUMMARY_KEY } from "./AiCreate";
-import type { BuildSummary } from "@/lib/forms/aiBuild";
-import { CONSENT_ID, publishChecks, questionsOf, rulesReading } from "./formModel";
+import { publishChecks, questionsOf } from "./formModel";
 import { Ic } from "./ic";
 import { Menu } from "./Menu";
 import { BTN, Dialog, DialogHead, EYEBROW, GHOST, GHOST_SM, IB, useNote } from "./parts";
@@ -108,7 +105,7 @@ function tabOf(search: string): Tab {
 type Saving = "saved" | "saving" | "offline";
 
 function Editor(props: ViewProps & { data: FormData; reload: () => void; patchRow: (p: Partial<FormData["row"]>) => void; patchKits: (fn: (kits: Kit[]) => Kit[]) => void; patchDests: (fn: (d: Destination[]) => Destination[]) => void }) {
-  const { sb, session, ws, navigate, data, reload, patchRow, patchKits, patchDests } = props;
+  const { sb, session, ws, navigate, data, reload, patchRow, patchDests } = props;
   const row = data.row;
   const start = useMemo(() => {
     const d = row.draft as Partial<Form>;
@@ -117,7 +114,7 @@ function Editor(props: ViewProps & { data: FormData; reload: () => void; patchRo
   const [form, setFormState] = useState<Form>(start);
   const [name, setName] = useState(row.name);
   const [kitId, setKitId] = useState<string | null>(row.brand_kit_id);
-  const [custom, setCustom] = useState<CustomField[]>(data.custom);
+  const [custom] = useState<CustomField[]>(data.custom);
   const [past, setPast] = useState<Form[]>([]);
   const [future, setFuture] = useState<Form[]>([]);
   const [saving, setSaving] = useState<Saving>("saved");
@@ -141,26 +138,11 @@ function Editor(props: ViewProps & { data: FormData; reload: () => void; patchRo
     } catch {}
     return null;
   });
-  // A form the AI just built: what it assumed, and what to replace before publishing, once (docs/ai-form-builder.md).
-  useEffect(() => {
-    try {
-      const raw = sessionStorage.getItem(`${SUMMARY_KEY}${row.id}`);
-      if (!raw) return;
-      sessionStorage.removeItem(`${SUMMARY_KEY}${row.id}`);
-      const s = JSON.parse(raw) as BuildSummary;
-      const lines = [...(s.replace.length ? ["Replace before publishing:", ...s.replace.map((x) => `- ${x}`)] : []), ...(s.assumptions.length ? ["", "Assumed:", ...s.assumptions.map((x) => `- ${x}`)] : [])];
-      if (lines.length) void tell("Your form is ready", lines.join("\n"));
-    } catch {}
-  }, [row.id]);
-  const [fresh, setFresh] = useState<string[]>([]);
-  const [busy, setBusy] = useState(false);
   const note = useNote();
   const rev = useRef(row.draft_rev);
   const dirty = useRef(false);
   const latest = useRef(form);
   const merge = useRef<{ key: string; at: number } | null>(null);
-  // While the AI is changing the form, edits here wait: its answer replaces the draft it was sent.
-  const aiBusy = useRef(false);
   // One save at a time, so a slow save never sends an old revision next to a new one.
   const inflight = useRef<Promise<boolean> | null>(null);
   const saveErr = useRef(false);
@@ -194,13 +176,9 @@ function Editor(props: ViewProps & { data: FormData; reload: () => void; patchRo
   };
 
   /** Apply ops as one undo step. Returns false when one can't apply (the reason shows in the AI bar's line). */
-  const apply = useCallback((input: Op | Op[], words?: string, changed: string[] = []): boolean => {
+  const apply = useCallback((input: Op | Op[], words?: string): boolean => {
     const ops = Array.isArray(input) ? input : [input];
     if (!ops.length) return true;
-    if (aiBusy.current) {
-      setSaid({ words: "Wait for the AI to finish.", err: true });
-      return false;
-    }
     const cur = latest.current;
     let next = cur;
     for (const op of ops) {
@@ -219,14 +197,20 @@ function Editor(props: ViewProps & { data: FormData; reload: () => void; patchRo
     setFuture([]);
     put(next);
     if (words) setSaid({ words, undo: true });
-    if (changed.length) {
-      setFresh(changed);
-      setTimeout(() => setFresh([]), 1900);
-    }
     return true;
   }, []);
+  /** A whole new form from the builder, as one undo step; typing in one box within a second stays one step. */
+  const replace = useCallback((next: Form, words?: string) => {
+    const now = Date.now();
+    const joins = !words && merge.current?.key === "replace" && now - merge.current.at < 1000;
+    merge.current = words ? null : { key: "replace", at: now };
+    if (!joins) setPast((p) => [...p.slice(-99), latest.current]);
+    setFuture([]);
+    put(next);
+    if (words) setSaid({ words, undo: true });
+  }, []);
   const undo = useCallback(() => {
-    if (!past.length || aiBusy.current) return;
+    if (!past.length) return;
     merge.current = null;
     setFuture((f) => [latest.current, ...f]);
     put(past[past.length - 1]!);
@@ -234,7 +218,7 @@ function Editor(props: ViewProps & { data: FormData; reload: () => void; patchRo
     setSaid({ words: "Undone" });
   }, [past]);
   const redo = useCallback(() => {
-    if (!future.length || aiBusy.current) return;
+    if (!future.length) return;
     merge.current = null;
     setPast((p) => [...p, latest.current]);
     put(future[0]!);
@@ -339,29 +323,6 @@ function Editor(props: ViewProps & { data: FormData; reload: () => void; patchRo
   const issueCtx = useMemo(() => ({ custom, crm: crm.ctx }), [custom, crm.ctx]);
   const failedWeek = Object.values(data.failed).reduce((a, b) => a + b, 0);
 
-  const chat = useFormChat({
-    session,
-    ws,
-    formId: row.id,
-    prepare: async () => {
-      aiBusy.current = true;
-      return (await save()) ? rev.current : null;
-    },
-    onResult: (next, nextRev) => {
-      setPast((p) => [...p.slice(-99), latest.current]);
-      setFuture([]);
-      latest.current = next;
-      setFormState(next);
-      rev.current = nextRev;
-      dirty.current = false;
-      setSaving("saved");
-    },
-  });
-
-  useEffect(() => {
-    if (!chat.busy) aiBusy.current = false;
-  }, [chat.busy]);
-
   const publish = async () => {
     setError("");
     try {
@@ -446,37 +407,7 @@ function Editor(props: ViewProps & { data: FormData; reload: () => void; patchRo
     setStep(q.step);
     setPick({ id: q.id, open });
   };
-  const openSetup = (s: SetupSub | "after") => {
-    if (s === "after") {
-      setTab("build");
-      setPick({ id: SUBMIT, open: null });
-      return;
-    }
-    setSub(s);
-    setTab("settings");
-  };
 
-  /** Deleting a question: never the last email, and a word first when a Routing rule reads it. */
-  const removeQuestion = async (qid: string) => {
-    const q = questionsOf(latest.current).find((x) => x.id === qid);
-    if (!q) return;
-    if (q.id === CONSENT_ID) {
-      apply({ op: "set_consent", mode: "off" }, "Removed the consent box");
-      if (pick?.id === qid) setPick(null);
-      return;
-    }
-    if (q.kind === "email" && allFields(latest.current).filter((f) => f.key === "email").length <= 1) {
-      await tell("Keep one email question", "Leads need an email to become contacts, get the auto-reply and book a meeting.");
-      return;
-    }
-    const rules = q.field ? rulesReading(live.data?.body, q.field) : [];
-    if (rules.length && !(await askConfirm(`Delete ${q.label || "this question"}?`, { body: `The ${rules[0]} rule in Routing reads it. Leads will skip that part of the rule.`, ok: "Delete", danger: true }))) return;
-    // Formulas, result blocks, outcomes and rules on the form that read it: named first, so nothing breaks unseen.
-    const uses = q.field ? usedBy(latest.current, q.field.id) : [];
-    if (uses.length && !(await askConfirm(`Delete ${q.label || "this question"}?`, { body: `Used by ${uses.join(", ")}. Fix those after, or the form can't be published.`, ok: "Delete", danger: true }))) return;
-    if (pick?.id === qid) setPick(null);
-    apply([...(q.pair ? [{ op: "remove_field" as const, id: q.pair.id }] : []), { op: "remove_field", id: q.id }], `Deleted ${q.label || "the question"}`);
-  };
 
   const status = !row.version ? (
     <Badge>Draft</Badge>
@@ -569,39 +500,29 @@ function Editor(props: ViewProps & { data: FormData; reload: () => void; patchRo
       ) : null}
       <div className="relative flex min-h-0 flex-1 flex-col">
         {tab === "build" ? (
-          <Build
-            {...props}
+          <Builder
+            session={session}
+            ws={ws}
+            navigate={navigate}
             form={form}
             name={name}
+            replace={replace}
             apply={apply}
             custom={custom}
-            onCustom={(c) => setCustom((x) => [...x, c])}
-            crm={crm}
-            routing={live.data?.body ?? null}
-            facts={facts}
             formId={row.id}
-            reloadTypes={reload}
             kit={kit}
             kits={data.kits}
             setKit={setKit}
             reloadKits={reload}
-            patchKits={patchKits}
-            site={kit?.source_url ?? data.site}
             types={data.types}
+            facts={facts}
             pick={pick}
             setPick={setPick}
             step={step}
             setStep={setStep}
             said={said}
             setSaid={setSaid}
-            fresh={fresh}
-            chat={chat}
-            busy={busy}
-            setBusy={setBusy}
-            saving={saving}
             onUndo={undo}
-            onRemove={(qid) => void removeQuestion(qid)}
-            onSettings={openSetup}
           />
         ) : tab === "submissions" ? (
           <Submissions key={subsView} {...props} form={form} formId={row.id} dests={data.dests} sources={data.sources} onFix={(qid) => goto(qid)} start={subsView} />

@@ -4,7 +4,7 @@
 
 import type Anthropic from "@anthropic-ai/sdk";
 import { usageOf, type Usage } from "../ai/cache.ts";
-import type { Model } from "../forms/chat.ts";
+import type { Model } from "../ai/chatModel.ts";
 import { mergeGaps } from "./merge.ts";
 import type { EmailBody } from "./types.ts";
 
