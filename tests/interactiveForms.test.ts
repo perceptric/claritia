@@ -303,3 +303,12 @@ test("builder ops: screens and a cover, settings, results and a result screen, e
   assert.equal(back.form.steps[1]!.result, undefined);
   assert.ok("errors" in checkForm(back.form));
 });
+
+test("usedBy names what reads a field before it's deleted", async () => {
+  const { usedBy } = await import("../src/lib/forms/schema.ts");
+  const fm = quote();
+  const rooms = fm.steps.flatMap((s) => s.fields).find((x) => x.id === "rooms")!;
+  assert.deepEqual(usedBy(fm, rooms.id), ["the calculation sub"]);
+  assert.deepEqual(usedBy(fm, "total").sort(), ["the calculation visit", "the outcome Priced by hand"].sort());
+  assert.deepEqual(usedBy(fm, "rush"), ["the calculation total"]);
+});

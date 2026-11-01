@@ -1272,3 +1272,26 @@ export function resultOf(form: Form, answers: Record<string, unknown>, ctx: RunC
   for (const c of form.constants ?? []) constants[c.id] = c.value;
   return { outcome: pickOutcome(form, answers, ctx), values, constants };
 }
+
+/**
+ * What reads a field, in plain words, so a delete can say what it breaks first: calculations, rules, skips, result
+ * blocks and outcomes (docs/interactive-forms-plan.md 6b).
+ */
+export function usedBy(form: Pick<Form, "steps" | "rules" | "results">, id: string): string[] {
+  const out: string[] = [];
+  const reads = (c: { field: string }) => c.field === id;
+  for (const f of allFields(form)) {
+    if (f.id === id) continue;
+    if (f.calc) {
+      const p = parseFormula(f.calc.formula);
+      if ("refs" in p && p.refs.includes(id)) out.push(`the calculation ${f.label || "Total"}`);
+    }
+    if (f.result && (f.result.field === id || f.result.fields?.includes(id))) out.push(`a result block${f.label ? ` (${f.label})` : ""}`);
+  }
+  if (form.rules.some((r) => reads(r.when) || !!r.group?.when.some(reads))) out.push("a show or hide rule");
+  form.steps.forEach((s, i) => {
+    if (s.skip && reads(s.skip.when)) out.push(`the skip after step ${i + 1}`);
+  });
+  for (const o of form.results?.outcomes ?? []) if (o.when?.conds.some(reads)) out.push(`the outcome ${o.title}`);
+  return [...new Set(out)];
+}
