@@ -26,7 +26,7 @@ test("the sidebar is Inbound, CRM and Nurture, then Settings, with at most five 
   const by = (g: string) => NAV.filter((n) => n.group === g).map((n) => n.label);
   assert.deepEqual(by("crm"), ["Contacts", "Companies", "Opportunities"]);
   assert.deepEqual(by("inbound"), ["Forms", "Meetings"], "Routing lives in forms and meetings now");
-  assert.deepEqual(by("nurture"), ["Workflows", "Visitors", "Scoring"], "Emails became Workflows; Scoring moved here; Segments live in Contacts");
+  assert.deepEqual(by("nurture"), ["Workflows", "Scoring"], "Emails became Workflows; Scoring moved here; Segments live in Contacts; Visitors is hidden for launch");
   assert.deepEqual(resolveRoute("visitors", ""), { route: "visitors", id: "" });
   assert.deepEqual(resolveRoute("signals", ""), { route: "visitors", id: "" });
   assert.deepEqual(resolveRoute("segments", ""), { route: "contacts", id: "segments" });
