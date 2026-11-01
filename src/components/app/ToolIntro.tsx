@@ -2,42 +2,26 @@
 
 import { Sketch, type SketchName } from "../sketches/Sketch";
 
-// The first screen of a tool, before there's anything to show: what it does, and cards with small sample visuals.
-// The one place in the app that explains; working screens hold labels, buttons and real errors only.
-// Same pattern as Omniscient's and Arrowsterr's ToolIntro.
+// The first screen of a tool, before there's anything to show. Like Omniscient's (and Twenty's): the page stays blank,
+// with the tool's animated scene in the middle, a short two-tone title, one line under it and the button that makes
+// the first one. The one place in the app that explains; working screens hold labels, buttons and real errors only.
+// `features` is kept for older callers and no longer shown.
 
 type Feature = { title: string; text: string; visual?: React.ReactNode };
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export function ToolIntro({ title, lead, action, features, sketch = "cards" }: { title: string; lead?: string; action?: React.ReactNode; features?: Feature[]; sketch?: SketchName }) {
-  // Big headings take two tones: a line break in the title turns the rest gray.
+  // A line break in the title turns the rest gray.
   const [first, rest = ""] = title.split("\n");
   return (
-    <section className="mx-auto flex max-w-6xl flex-col gap-8 py-2">
-      <div className="wash relative grid items-center gap-6 overflow-hidden rounded-2xl border border-line px-7 py-9 md:grid-cols-[1fr_auto] md:px-10">
-        <div className="anim-rise flex flex-col gap-4">
-          <span className="font-mono text-[11.5px] font-medium tracking-[0.08em] text-muted uppercase">Start here</span>
-          <h2 className="max-w-2xl text-[31px] leading-[1.08] font-medium tracking-[-0.035em] text-ink md:text-[38px]">
-            {first}
-            {rest ? <span className="block text-faint">{rest}</span> : null}
-          </h2>
-          {lead ? <p className="max-w-xl text-[15px] leading-relaxed text-body">{lead}</p> : null}
-          {action ? <div className="mt-1 flex flex-wrap gap-2">{action}</div> : null}
-        </div>
-        <Sketch name={sketch} size={240} className="hidden md:block" />
-      </div>
-      {features?.length ? (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {features.map((f, i) => (
-            <div key={f.title} className="lift anim-rise flex flex-col rounded-lg border border-line bg-card" style={{ animationDelay: `${120 + i * 80}ms` }}>
-              <div className="flex flex-1 flex-col gap-3 p-6">
-                {f.visual ? <div className="flex h-20 items-center">{f.visual}</div> : null}
-                <h3 className="mt-2 text-[16px] leading-tight font-medium tracking-[-0.015em] text-ink">{f.title}</h3>
-                <p className="text-[13.5px] leading-relaxed text-muted">{f.text}</p>
-              </div>
-            </div>
-          ))}
-        </div>
-      ) : null}
+    <section className="anim-rise flex min-h-[calc(100dvh-180px)] flex-col items-center justify-center px-6 py-12 text-center">
+      <Sketch name={sketch} size={300} className="max-w-full" />
+      <h2 className="mt-8 max-w-md text-[22px] leading-[1.15] font-medium tracking-[-0.025em] text-ink text-balance">
+        {first}
+        {rest ? <span className="text-faint"> {rest}</span> : null}
+      </h2>
+      {lead ? <p className="mt-2 max-w-md text-[13.5px] leading-relaxed text-muted text-balance">{lead}</p> : null}
+      {action ? <div className="mt-6 flex flex-wrap items-center justify-center gap-2">{action}</div> : null}
     </section>
   );
 }
