@@ -116,7 +116,20 @@ export function NewForm({ sb, session, ws, navigate, site, kits: start, onClose,
   const accent = (tokens.buttonBg || tokens.accent || "") as string;
   const siteUrl = kit ? (kit.source_url ?? "") : style === "learn" ? url.trim() : "";
   const known = style === "learn" && hostOf(url) ? kits.find((k) => hostOf(k.source_url) === hostOf(url) && (hasLook(k) || k.scan_status === "scanning")) : undefined;
-  const brandLoading = learning || (!!kit && (kit.scan_status === "scanning" || !hasLook(kit)));
+  // The site's look, copied from its page source (/api/forms/skin) once a brand with a site is picked and has none.
+  const asked = useRef(new Set<string>());
+  const [failed, setFailed] = useState<string[]>([]);
+  const needsSkin = !!kit && !!kit.source_url && !kit.skin && !failed.includes(kit.id);
+  useEffect(() => {
+    if (!kit || !kit.source_url || kit.skin || asked.current.has(kit.id)) return;
+    const id = kit.id;
+    asked.current.add(id);
+    postJson<{ skin: unknown }>(session, "/api/forms/skin", { workspaceId: ws.id, kitId: id }).then(
+      (r) => (r.skin ? setKits((ks) => ks.map((k) => (k.id === id ? { ...k, skin: r.skin } : k))) : setFailed((f) => [...f, id])),
+      () => setFailed((f) => [...f, id]),
+    );
+  }, [kit, session, ws.id]);
+  const brandLoading = learning || (!!kit && (kit.scan_status === "scanning" || !hasLook(kit) || needsSkin));
 
   // While a brand is being read, check back so the preview takes it as soon as it's ready (the skin comes a little after).
   const waiting = !!kit && (kit.scan_status === "scanning" || !hasLook(kit) || !kit.skin);
@@ -564,9 +577,9 @@ export function NewForm({ sb, session, ws, navigate, site, kits: start, onClose,
           ) : null}
         </div>
         <div className="relative flex min-h-0 flex-1 items-start justify-center overflow-y-auto px-[16px] py-[28px]">
-          {brandLoading && !spec ? (
+          {brandLoading && stage === "describe" ? (
             <div className="self-center">
-              <Throbber color={accent} label={learning ? "Reading the website's brand" : "Getting the brand"} />
+              <Throbber color={accent} label={learning ? "Reading the website's brand" : needsSkin ? `Copying ${hostOf(kit?.source_url) || "the site"}'s look` : "Getting the brand"} />
             </div>
           ) : stage === "planning" ? (
             <div className="self-center">

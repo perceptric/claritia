@@ -8,7 +8,7 @@
 // A bar under the form takes plain words and makes small changes. Every change goes through the spec's edits, so it
 // either applies cleanly or not at all.
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { Op } from "@/lib/forms/ops";
 import { CONTACT_KEYS, type Form } from "@/lib/forms/schema";
 import {
@@ -87,6 +87,15 @@ export function Builder(p: BuilderProps) {
   const [ask, setAsk] = useState("");
   const [asking, setAsking] = useState(false);
   const needEmail = !form.emailOptional;
+
+  // A brand with a site and no copied look yet: copy it from the site's page source, then read the kits again.
+  const askedSkin = useRef(new Set<string>());
+  const { kit, reloadKits, session, ws } = p;
+  useEffect(() => {
+    if (!kit || !kit.source_url || kit.skin || askedSkin.current.has(kit.id)) return;
+    askedSkin.current.add(kit.id);
+    postJson(session, "/api/forms/skin", { workspaceId: ws.id, kitId: kit.id }).then(reloadKits, () => undefined);
+  }, [kit, reloadKits, session, ws.id]);
 
   // Back from making a meeting (?step=submit): open Submission where they left off.
   useEffect(() => {

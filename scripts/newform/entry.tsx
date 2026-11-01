@@ -68,6 +68,10 @@ window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
   const path = typeof input === "string" ? input : input instanceof URL ? input.pathname : input.url;
   const body = init?.body ? (JSON.parse(String(init.body)) as Record<string, unknown>) : {};
   w.calls.push({ path, body });
+  if (path === "/api/forms/skin") {
+    await sleep(300);
+    return json({ skin: { css: ".bt{border-radius:12px;box-shadow:0 4px 0 #b84d0a}", faces: [], at: "", from: "https://acme.com/" } });
+  }
   if (path === "/api/forms/scan") return json({ kitId: "k1", tokens: { buttonBg: "#e8590c", accent: "#e8590c", background: "#fffaf5" } });
   if (path === "/api/forms/new") {
     if (body.mode === "brief") return json({ brief: { name: "Acme", offer: "Sales software", audience: "Sales teams", services: [], prices: [], proof: [], tone: "plain", images: [] } });

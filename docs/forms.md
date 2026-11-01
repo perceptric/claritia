@@ -27,6 +27,14 @@ progress bar with the five screens at the top.
 - The preview shows the throbber (`Throbber.tsx`) while the brand loads: seven dots in a ring, in the brand's color,
   chasing each other, with one hopping out and back every few laps. It stands still under reduced motion.
 - Continue reads the website into a short brief (`brief`), kept per site and day.
+- The site's look, copied (`/api/forms/skin`, `src/lib/brand/sourceSkin.ts`). When the picked brand has a website and
+  no copied look yet, New form (and the builder) sends the page source and every stylesheet to Claude, with the colors
+  already read from the site. Claude writes the form's stylesheet: the site's fonts, its main and secondary buttons
+  with their pressed states, inputs, option cards, headings and labels. It's cleaned (no links, imports or scripts)
+  and kept on the brand, so every form in that brand wears it, live and in previews. The preview waits for it with the
+  throbber. Sites built by scripts show little in their source, so Claude may also draw a well-known brand's controls
+  the way that brand does. The runner's browser read (`docs/brand-skin.md`) measures the real controls and replaces
+  this when it finishes; it runs on the Fly runner, which must be deployed for it.
 
 ### Screen 2. One page or steps
 
@@ -144,9 +152,9 @@ fix round, 3 follow-up answers about $0.07. About $0.22 a form. Each builder edi
 | --- | --- | --- |
 | Claude: new forms | about $110 | about $1,100 |
 | Claude: builder edits | about $20 | about $200 |
+| Claude: copying a site's look (about $0.15 a brand, 2 brands a team) | about $15 | about $150 |
 | Servers (no new ones: the route runs on the web app) | $0 | $0 |
 | Turnstile | $0 (free plan, check) | $0 (free plan, check) |
-| **Total** | **about $130** | **about $1,300** |
+| **Total** | **about $145** | **about $1,450** |
 
-This is a little under the old New form (about $150 and $1,500), since answers send small edits in place of the whole
-form.
+Copying a site's look sends up to about 70,000 tokens of page source once per brand (about $0.15 at the price above).
