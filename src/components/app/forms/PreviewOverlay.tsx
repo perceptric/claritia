@@ -10,7 +10,7 @@ import { Ic } from "./ic";
 import { GHOST_SM, IB, Seg } from "./parts";
 import { FormPreview } from "./shared";
 
-export function PreviewOverlay({ form, tokens, crmName, onClose }: { form: Form; tokens: Partial<Tokens>; crmName?: string; onClose: () => void }) {
+export function PreviewOverlay({ form, tokens, crmName, onClose, banner, action }: { form: Form; tokens: Partial<Tokens>; crmName?: string; onClose: () => void; banner?: string; action?: React.ReactNode }) {
   const [device, setDevice] = useState<"desktop" | "phone">("desktop");
   const [run, setRun] = useState(0);
   const closeBtn = useRef<HTMLButtonElement>(null);
@@ -30,13 +30,14 @@ export function PreviewOverlay({ form, tokens, crmName, onClose }: { form: Form;
       <div className="flex h-[44px] shrink-0 items-center gap-[6px] border-b border-line bg-card px-[12px]">
         <span className="inline-flex h-[24px] min-w-0 items-center gap-[6px] truncate rounded-full bg-butter-wash px-[10px] text-[12px] font-medium text-butter">
           <Ic n="eye" s={12} />
-          <span className="truncate">{`Test fill. It won't count or reach ${crmName ?? "your CRM"}.`}</span>
+          <span className="truncate">{banner ?? `Test fill. It won't count or reach ${crmName ?? "your CRM"}.`}</span>
         </span>
         <span className="flex-1" />
         <Seg icons label="Device" value={device} onChange={setDevice} options={[{ value: "desktop", label: <Ic n="monitor" />, title: "Desktop" }, { value: "phone", label: <Ic n="phone" />, title: "Phone" }]} />
         <button type="button" className={GHOST_SM} onClick={() => setRun((r) => r + 1)}>
           Start over
         </button>
+        {action}
         <button ref={closeBtn} type="button" className={IB} onClick={onClose} aria-label="Close preview" title="Close">
           <Ic n="x" />
         </button>
