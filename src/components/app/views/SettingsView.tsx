@@ -1,5 +1,6 @@
 "use client";
 
+import { BrandSettings } from "./BrandSettings";
 import { useState } from "react";
 import { Key, LogOut, Plus, Settings } from "../../Icons";
 import { APP_URL } from "@/lib/site";
@@ -236,6 +237,7 @@ export function SettingsView({ sb, session, ws, role, navigate, id, onWorkspace 
         </Panel>
     ),
     keys: <KeysPanel sb={sb} session={session} ws={ws} />,
+    brand: <BrandSettings sb={sb} session={session} ws={ws} />,
     profile: (
         <Panel>
           <CardHead label="Account" />

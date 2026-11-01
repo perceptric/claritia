@@ -71,8 +71,11 @@ export const MADE_KEY = "claritia:form-made:";
 export function FormHome(props: ViewProps & { startNew?: boolean }) {
   const { sb, ws, navigate } = props;
   const list = useQuery(`forms:${ws.id}:home`, async () => {
-    const [rows, kits] = await Promise.all([sb.rpc("forms_list", { p_ws: ws.id }), sb.from("brand_kits").select("id, tokens, source_url, scan_status").eq("workspace_id", ws.id)]);
-    return { rows: must(rows) as ListRow[], kits: ((kits.data ?? []) as KitLite[]) };
+    const [rows, kits, w] = await Promise.all([sb.rpc("forms_list", { p_ws: ws.id }), sb.from("brand_kits").select("id, tokens, source_url, scan_status").eq("workspace_id", ws.id), sb.from("workspaces").select("brand_kit_id").eq("id", ws.id).maybeSingle()]);
+    // The workspace's brand first (docs/brand-capture.md), so everything that picks "a kit" picks it.
+    const brand = (w.data as { brand_kit_id: string | null } | null)?.brand_kit_id ?? null;
+    const all = (kits.data ?? []) as KitLite[];
+    return { rows: must(rows) as ListRow[], kits: [...all.filter((k) => k.id === brand), ...all.filter((k) => k.id !== brand)] };
   });
   // What New form needs, read with the list so the dialog opens ready.
   useNewFormContext(sb, ws.id);
@@ -351,9 +354,10 @@ function BrandStep({ sb, session, ws, onDone }: ViewProps & { onDone: (build: bo
     setBusy(true);
     setError("");
     try {
-      const { kitId } = await postJson<{ kitId: string }>(session, "/api/forms/scan", { workspaceId: ws.id, url: url.trim() });
+      const { kitId, tokens } = await postJson<{ kitId: string; tokens?: Record<string, unknown> }>(session, "/api/forms/scan", { workspaceId: ws.id, url: url.trim() });
       setTick(0);
-      setKit({ id: kitId, tokens: {}, source_url: url.trim(), scan_status: "scanning", scan_error: null });
+      // The quick read found the look already: done now; the full scan polishes it later.
+      setKit({ id: kitId, tokens: tokens ?? {}, source_url: url.trim(), scan_status: tokens ? "done" : "scanning", scan_error: null });
     } catch (e) {
       setError(errorText(e));
     } finally {
