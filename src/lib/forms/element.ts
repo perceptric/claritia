@@ -639,8 +639,8 @@ export class ClaritiaForm extends Base {
   }
 
   /** One view (half on screen for a second) and one start per load; the server counts each visitor every 30 minutes. */
-  private sent = new Set<"view" | "start">();
-  private beacon(kind: "view" | "start") {
+  private sent = new Set<"view" | "start" | "result">();
+  private beacon(kind: "view" | "start" | "result") {
     const id = this.getAttribute("form-id");
     if (this.isPreview || this.sent.has(kind) || !this.data || this.data.status !== "live" || !id) return;
     this.sent.add(kind);
@@ -815,6 +815,8 @@ export class ClaritiaForm extends Base {
     const step = form.steps[this.step];
     const wrap = el("form", { class: `f${screens ? " sc" : ""}${this.drawn !== this.step && this.drawn >= 0 ? " an" : ""}`, novalidate: true, "aria-label": form.title || "Form" });
     this.drawn = this.step;
+    // A result screen with a result on it counts once in the form's funnel (Reports' Forms page).
+    if (step.result) this.beacon("result");
     if (form.title) wrap.append(el("h2", { class: "h", text: form.title }));
     if (form.intro) wrap.append(el("p", { class: "i", text: form.intro }));
     if (form.steps.length > 1) wrap.append(this.progress(form));
@@ -1635,7 +1637,10 @@ export class ClaritiaForm extends Base {
         this.waiting = "";
       }
       if (j.schedule && /^https:\/\//.test(j.schedule.url)) this.schedule = j.schedule;
-      if (j.result && typeof j.result.values === "object") this.result = j.result;
+      if (j.result && typeof j.result.values === "object") {
+        this.result = j.result;
+        if (!d.body.steps.some((st) => st.result) || d.body.results?.show !== "instant") this.beacon("result");
+      }
       if (typeof j.id === "string") this.sid = j.id;
       if (j.booking?.token && Array.isArray(j.booking.slots)) this.bk = j.booking;
       this.dispatchEvent(new CustomEvent("claritia:submitted", { bubbles: true, composed: true, detail: { formId: d.id, submissionId: j.id ?? null } }));

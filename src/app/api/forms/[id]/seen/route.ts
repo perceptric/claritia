@@ -39,7 +39,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     });
     return done();
   }
-  const kind = b.kind === "view" || b.kind === "start" ? b.kind : null;
+  const kind = b.kind === "view" || b.kind === "start" || b.kind === "result" ? b.kind : null;
   if (!kind || !vid || !db) return done();
   after(async () => {
     await db.rpc("form_seen", { p_form: id, p_vid: vid, p_kind: kind }).then(
