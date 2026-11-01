@@ -123,7 +123,7 @@ test("a booked meeting's event gets the description; a reschedule writes it agai
   assert.match(ev.description, /^Dana Lee \(dana@acme\.com\) booked Intro call from Demo request\./);
   assert.match(ev.description, /Company size: 51-200/);
   assert.match(ev.description, /Notes: Pricing for 50 seats/);
-  assert.match(ev.description, new RegExp(`Reschedule or cancel: ${BASE}/book/m/tok-1`));
+  assert.match(ev.description, new RegExp(`Reschedule or cancel: https://tryclaritia.com/book/m/tok-1`), "the guest's link is on the site's short address");
   // Rescheduled: same event, moved, with its description written again.
   w.meeting.start_at = new Date(Date.UTC(2026, 10, 3, 15)).toISOString();
   w.meeting.end_at = new Date(Date.UTC(2026, 10, 3, 15, 30)).toISOString();

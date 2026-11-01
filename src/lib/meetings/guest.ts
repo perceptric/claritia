@@ -4,6 +4,7 @@
 
 import { addDays, at, dateIn, validZone } from "./time.ts";
 import type { Location, MeetingType, TypeSettings } from "./types.ts";
+import { checkAnswer } from "./questions.ts";
 
 export type Profile = { user_id: string; slug: string; name: string; headline: string | null; photo_url: string | null };
 export type GuestHost = { name: string; photo: string | null; slug?: string };
@@ -105,14 +106,13 @@ export function checkGuest(raw: unknown, questions: Question[], location?: Guest
   const given = (r.answers && typeof r.answers === "object" ? r.answers : {}) as Record<string, unknown>;
   const answers: Record<string, string> = {};
   for (const q of questions) {
-    const v = s(given[q.id], q.type === "textarea" ? 2000 : 300);
-    if (!v) {
-      if (q.required) return { error: `${q.label} is required.`, field: q.id };
+    const a = checkAnswer(q, given[q.id]);
+    if ("error" in a) return { error: a.error, field: q.id };
+    if (!a.value) {
+      if (q.required) return { error: q.type === "checkbox" ? `Tick ${q.label}.` : `${q.label} is required.`, field: q.id };
       continue;
     }
-    if (q.type === "choice" && !(q.options ?? []).includes(v)) return { error: `Pick an answer for ${q.label}.`, field: q.id };
-    if (q.type === "phone" && !/^\+?[\d\s().-]{6,40}$/.test(v)) return { error: `${q.label} needs a phone number.`, field: q.id };
-    answers[q.id] = v;
+    answers[q.id] = a.value;
   }
   if (location?.kind === "phone_guest") {
     const phone = s(given.phone, 40);

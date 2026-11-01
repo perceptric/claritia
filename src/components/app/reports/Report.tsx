@@ -6,13 +6,12 @@
 // for each block, and the contacts behind any number. The counting rules are on the first screen, before there's data.
 
 import { useMemo, useState } from "react";
-import { compact, daysIn, delta, duration, money, pct, presetRange, previous, PRESETS, rangeWords, todayIn, toCsv, type Preset, type Range } from "@/lib/reports/range";
+import { compact, daysIn, duration, money, pct, presetRange, PRESETS, rangeWords, todayIn, toCsv, type Preset, type Range } from "@/lib/reports/range";
 import { Download } from "../../Icons";
 import { DayLine, FunnelBars, type FunnelStep } from "../charts/Charts";
 import { Modal } from "../meetings/parts";
 import { Select } from "../Select";
 import { workspacePeople } from "../shared";
-import { StatCards, type StatCard } from "../StatCards";
 import { ToolIntro } from "../ToolIntro";
 import { ErrorNote, IconButton, Loading, must, Panel, Segmented, Td, Th, useQuery, type ViewProps } from "../ui";
 
@@ -158,11 +157,6 @@ type PageProps = {
   title?: string;
 };
 
-/** "vs Sep 1 – 30: +12%" under a stat card. */
-const vs = (range: Range, now: number, before: number) => {
-  const d = delta(now, before);
-  return d ? `${d} vs ${rangeWords(previous(range))}` : `None in ${rangeWords(previous(range))} either`;
-};
 
 /** A number that opens the contacts behind it. */
 function Num({ value, onClick, format = (n: number) => n.toLocaleString("en-US") }: { value: number; onClick?: () => void; format?: (n: number) => string }) {
@@ -284,30 +278,6 @@ function FunnelPage({ sb, ws, range, names, onDrill, title }: PageProps) {
     value: d.now[s.key],
     pickable: s.cohort,
   }));
-  const cards: StatCard[] = [
-    {
-      label: "Leads",
-      value: d.now.submitted,
-      note: vs(range, d.now.submitted, d.before.submitted),
-    },
-    {
-      label: "Booked",
-      value: d.now.booked,
-      note: `${pct(d.now.booked, d.now.submitted)} of leads, ${delta(d.now.booked, d.before.booked) ?? "none before"}`,
-    },
-    {
-      label: "Won",
-      value: d.now.won_amount,
-      format: money,
-      note: `${d.now.won} deals, ${delta(d.now.won_amount, d.before.won_amount) ?? "none before"}`,
-    },
-    {
-      label: "Visits",
-      value: d.now.visits,
-      format: compact,
-      note: vs(range, d.now.visits, d.before.visits),
-    },
-  ];
   const groups = d.now.groups ?? [];
   const hasVisits = by === "source" || by === "campaign";
   const hasViews = by === "form";
@@ -323,7 +293,6 @@ function FunnelPage({ sb, ws, range, names, onDrill, title }: PageProps) {
   return (
     <div className="flex flex-col gap-5">
       <Head title={title} csv={csv} />
-      <StatCards cards={cards} />
       <Panel className="p-5">
         <FunnelBars steps={steps} onPick={(k) => drillTo(k)} />
       </Panel>
@@ -411,11 +380,6 @@ type SpeedOut = {
   }[];
 };
 
-const faster = (now: number | null, before: number | null) => {
-  if (now == null || before == null || !before) return "";
-  const p = Math.round(((now - before) / before) * 100);
-  return p === 0 ? ", same as before" : p < 0 ? `, ${Math.abs(p)}% faster` : `, ${p}% slower`;
-};
 
 function SpeedPage({ sb, ws, range, title }: PageProps) {
   const r = useReport("r2", 
@@ -463,38 +427,9 @@ function SpeedPage({ sb, ws, range, title }: PageProps) {
         ]}
       />
     );
-  const cards = (
-    [
-      {
-        label: "To a rep",
-        value: d.now.assigned.median,
-        format: duration,
-        note: `90% within ${duration(d.now.assigned.p90)}${faster(d.now.assigned.median, d.before.assigned.median)}`,
-      },
-      {
-        label: "To first touch",
-        value: d.now.touched.median,
-        format: duration,
-        note: `90% within ${duration(d.now.touched.p90)}${faster(d.now.touched.median, d.before.touched.median)}`,
-      },
-      {
-        label: "To a meeting",
-        value: d.now.booked.median,
-        format: duration,
-        note: `${d.now.booked.n} of ${d.now.leads} leads booked`,
-      },
-      {
-        label: "Reached on time",
-        value: d.now.on_time.total ? Math.round((d.now.on_time.met / d.now.on_time.total) * 100) : null,
-        format: (n) => `${n}%`,
-        note: `${d.now.on_time.met} of ${d.now.on_time.total} timed leads`,
-      },
-    ] as StatCard[]
-  ).map((c): StatCard => (c.value == null ? { ...c, value: 0, format: () => "–" } : c));
   return (
     <div className="flex flex-col gap-5">
       <Head title={title} csv={csv} />
-      <StatCards cards={cards} />
       {daysIn(range) > 1 ? (
         <Panel className="p-5">
           <span className="mb-3 block text-[13px] font-medium text-ink">Median to first touch, by day</span>

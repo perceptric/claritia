@@ -20,5 +20,8 @@ export function bookingOrigin(loc: { protocol: string; host: string; origin: str
   return loc.host.startsWith("app.") ? `${loc.protocol}//${loc.host.slice(4)}` : loc.origin;
 }
 
+/** The same for an address as a string, on the server (APP_URL): https://app.tryclaritia.com → https://tryclaritia.com. */
+export const bookingBase = (base: string) => base.replace(/^(https?:\/\/)app\./, "$1").replace(/\/+$/, "");
+
 /** The public addresses for a handle and one of its types. */
 export const bookingUrl = (origin: string, handle: string, type?: string) => `${origin}/booking/${handle}${type ? `/${type}` : ""}`;

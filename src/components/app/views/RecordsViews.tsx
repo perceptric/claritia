@@ -19,7 +19,7 @@ import { RecordsList, type ViewState } from "../records/RecordsList";
 import { DEFAULT_WIDTH, type Row } from "../records/RecordTable";
 import { AccountActivity } from "./AccountActivity";
 import { ToolIntro } from "../ToolIntro";
-import { FieldGroup, RailRow, RecordHead, RecordLayout, RelatedList, StagePath, StatStrip, type RelatedRow } from "../records/RecordLayout";
+import { FieldGroup, RailRow, RecordHead, RecordLayout, RelatedList, StagePath, type RelatedRow } from "../records/RecordLayout";
 
 const cols = (...keys: string[]) => keys.map((key) => ({ key, width: DEFAULT_WIDTH }));
 
@@ -317,19 +317,6 @@ function RecordPage({ sb, ws, session, role, id, navigate, object }: ViewProps &
   const f = (rec.fields ?? {}) as Record<string, unknown>;
   const stage = field("f.stage")?.options.find((o) => o.value === f.stage);
   const late = opportunity && stage?.kind === "open" && typeof f.close_date === "string" && f.close_date < new Date().toISOString().slice(0, 10);
-  const stats: [string, React.ReactNode][] = company
-    ? [
-        ["Fit", d.account?.fit ?? "—"],
-        ["Intent", d.account?.intent ?? "—"],
-        ["Contacts", d.contacts?.length ?? "—"],
-      ]
-    : opportunity
-      ? [
-          ["Amount", f.amount != null && field("f.amount") ? shown(field("f.amount")!, f.amount) : "—"],
-          ["Win chance", f.probability != null ? `${f.probability}%` : "—"],
-          ["Close date", f.close_date && field("f.close_date") ? shown(field("f.close_date")!, f.close_date) : "—"],
-        ]
-      : [];
   // Opportunities have their own panel on a company page.
   const backlinks = (d.backlinks ?? []).filter((l) => !(company && l.object === "opportunity"));
 
@@ -395,7 +382,6 @@ function RecordPage({ sb, ws, session, role, id, navigate, object }: ViewProps &
         }
         top={
           <>
-            <StatStrip items={stats} />
             {opportunity && field("f.stage") ? <StagePath stages={field("f.stage")!.options} value={typeof f.stage === "string" ? f.stage : null} onPick={(v) => void save(field("f.stage")!, v).catch((e) => setError(errorText(e)))} /> : null}
           </>
         }

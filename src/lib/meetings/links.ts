@@ -11,6 +11,7 @@ import { createHash, createHmac, randomBytes, timingSafeEqual } from "node:crypt
 import type { Rpc } from "../jobs.ts";
 import { seal, unseal } from "../seal.ts";
 import { newToken, tokenHash } from "./server.ts";
+import { bookingBase } from "./handles.ts";
 
 function key(label: string, secret = process.env.SECRETS_KEY): Buffer {
   const s = secret?.trim();
@@ -94,7 +95,8 @@ export function readBookRef(ref: string, now = Date.now(), secret?: string): str
 
 // URLs ----------------------------------------------------------------------------------------------------------
 
-export const manageUrl = (base: string, token: string) => `${base}/book/m/${encodeURIComponent(token)}`;
+// Booking pages live on the site's short address (tryclaritia.com/book/...), never the app's.
+export const manageUrl = (base: string, token: string) => `${bookingBase(base)}/book/m/${encodeURIComponent(token)}`;
 export const outcomeUrl = (base: string, token: string) => `${base}/api/meetings/outcome/${encodeURIComponent(token)}`;
 
 /**
@@ -108,7 +110,7 @@ export function bookingUrl(base: string, o: { workspace: string; type: string; n
   if (o.host) q.set("host", o.host);
   if (o.ref) q.set("ref", o.ref);
   const s = q.toString();
-  return `${base}/book/${encodeURIComponent(o.workspace)}/${encodeURIComponent(o.type)}${s ? `?${s}` : ""}`;
+  return `${bookingBase(base)}/book/${encodeURIComponent(o.workspace)}/${encodeURIComponent(o.type)}${s ? `?${s}` : ""}`;
 }
 
 // Manage tokens -------------------------------------------------------------------------------------------------

@@ -14,6 +14,7 @@ import { Badge, Button, CardHead, ErrorNote, errorText, IconButton, Input, Loadi
 import { HoursEditor } from "./HoursEditor";
 import { slugify } from "./model";
 import { CopyButton, meetingsApi, ownZone, PersonAvatar, useWorkspaceSlug } from "./parts";
+import { bookingBase } from "@/lib/meetings/handles";
 
 type Provider = "google" | "microsoft" | "zoom" | "fake";
 export type Account = { id: string; user_id: string; provider: Provider; account_email: string; status: "ok" | "reconnect"; refreshed_at: string | null };
@@ -284,7 +285,7 @@ function ProfilePanel({ session, ws, email, saved, onSaved }: { session: ViewPro
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const dirty = !saved || JSON.stringify({ ...draft }) !== JSON.stringify({ ...saved, headline: saved.headline ?? "", photo_url: saved.photo_url ?? "" });
-  const url = wsSlug.data ? `${typeof window === "undefined" ? "" : window.location.origin}/book/${wsSlug.data}/${draft.slug}` : "";
+  const url = wsSlug.data ? `${typeof window === "undefined" ? "" : bookingBase(window.location.origin)}/book/${wsSlug.data}/${draft.slug}` : "";
   return (
     <Panel className="overflow-hidden">
       <CardHead label="Booking page">

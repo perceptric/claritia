@@ -2,12 +2,14 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft, Check, ChevronRight, Clock, Dollar, Globe, Users } from "@/components/Icons";
-import { byDay, LOCATION_LABEL, lengthLabel, priceLabel, type BookReply, type GuestSlot, type GuestType } from "@/lib/meetings/guest";
+import { byDay, LOCATION_LABEL, lengthLabel, priceLabel, type BookReply, type GuestSlot, type GuestType, type Question } from "@/lib/meetings/guest";
 import { addDays, dateIn, dayOf } from "@/lib/meetings/time";
 import { calendarLinks, partsOfDay, soonest } from "@/lib/meetings/guestTimes";
 import { use12h, useMounted, useSundayFirst, useZone } from "./browser";
 import { Avatar, hostLine, LocationIcon } from "./parts";
 import { ZonePicker } from "./ZonePicker";
+import { countryNames } from "@/lib/forms/countries";
+import { checkAnswer } from "@/lib/meetings/questions";
 
 // The booking calendar (docs/meetings-scheduler.md 1.8 and 1.8b): the type on the left, a month in the middle, the
 // day's times on the right; stacked on phones. The soonest times sit on top, a day's times are grouped by part of
@@ -516,7 +518,11 @@ function Details(p: {
     setErr(null);
     if (!name.trim()) return setErr({ error: "Add your name.", field: "name" });
     if (!/^\S+@\S+\.\S+$/.test(email.trim())) return setErr({ error: "Add a valid email.", field: "email" });
-    for (const q of questions) if (q.required && !answers[q.id]?.trim()) return setErr({ error: `${q.label} is required.`, field: q.id });
+    for (const q of questions) {
+      const a = checkAnswer(q, answers[q.id]);
+      if ("error" in a) return setErr({ error: a.error, field: q.id });
+      if (q.required && !a.value) return setErr({ error: q.type === "checkbox" ? `Tick ${q.label}.` : `${q.label} is required.`, field: q.id });
+    }
     setBusy(true);
     try {
       const r = await p.submit({ name: name.trim(), email: email.trim(), answers, ...(tsToken ? { turnstile: tsToken } : {}) });
@@ -553,32 +559,13 @@ function Details(p: {
       </label>
       {questions.map((q) => (
         <div className="cb-field" key={q.id}>
-          <span id={`cb-q-${q.id}`}>
-            {q.label}
-            {!q.required && <span className="cb-muted"> (optional)</span>}
-          </span>
-          {q.type === "choice" ? (
-            <div className="cb-choices" role="radiogroup" aria-labelledby={`cb-q-${q.id}`}>
-              {(q.options ?? []).map((o) => (
-                <button key={o} type="button" role="radio" className="cb-choice" aria-checked={answers[q.id] === o} onClick={() => set(q.id, answers[q.id] === o && !q.required ? "" : o)}>
-                  {o}
-                </button>
-              ))}
-            </div>
-          ) : q.type === "textarea" ? (
-            <textarea className="cb-in" aria-labelledby={`cb-q-${q.id}`} value={answers[q.id] ?? ""} onChange={(e) => set(q.id, e.target.value)} maxLength={2000} aria-invalid={!!fieldErr(q.id)} />
-          ) : (
-            <input
-              className="cb-in"
-              aria-labelledby={`cb-q-${q.id}`}
-              type={q.type === "phone" ? "tel" : "text"}
-              autoComplete={q.type === "phone" ? "tel" : undefined}
-              value={answers[q.id] ?? ""}
-              onChange={(e) => set(q.id, e.target.value)}
-              maxLength={q.type === "phone" ? 40 : 300}
-              aria-invalid={!!fieldErr(q.id)}
-            />
+          {q.type === "checkbox" ? null : (
+            <span id={`cb-q-${q.id}`}>
+              {q.label}
+              {!q.required && <span className="cb-muted"> (optional)</span>}
+            </span>
           )}
+          <Answer q={q} value={answers[q.id] ?? ""} onChange={(v) => set(q.id, v)} invalid={!!fieldErr(q.id)} />
           {fieldErr(q.id) && <p className="cb-err">{fieldErr(q.id)}</p>}
         </div>
       ))}
@@ -594,6 +581,94 @@ function Details(p: {
         </button>
       </div>
     </form>
+  );
+}
+
+const COUNTRIES = countryNames();
+
+/** One booking question's input, by its kind (src/lib/meetings/questions.ts). Choices are buttons, never a browser dropdown. */
+function Answer({ q, value, onChange, invalid }: { q: Question; value: string; onChange: (v: string) => void; invalid: boolean }) {
+  const label = `cb-q-${q.id}`;
+  const chips = (opts: string[], on: (o: string) => boolean, pick: (o: string) => void, role: "radio" | "checkbox" = "radio", show: (o: string) => React.ReactNode = (o) => o) => (
+    <div className="cb-choices" role={role === "radio" ? "radiogroup" : "group"} aria-labelledby={label}>
+      {opts.map((o) => (
+        <button key={o} type="button" role={role} className="cb-choice" aria-checked={on(o)} onClick={() => pick(o)}>
+          {show(o)}
+        </button>
+      ))}
+    </div>
+  );
+  switch (q.type) {
+    case "choice":
+      return chips(q.options ?? [], (o) => value === o, (o) => onChange(value === o && !q.required ? "" : o));
+    case "multi": {
+      const picked = value ? value.split("\n") : [];
+      return chips(q.options ?? [], (o) => picked.includes(o), (o) => onChange((picked.includes(o) ? picked.filter((x) => x !== o) : [...picked, o]).join("\n")), "checkbox");
+    }
+    case "yesno":
+      return chips(["Yes", "No"], (o) => value === o, (o) => onChange(value === o && !q.required ? "" : o));
+    case "rating":
+      return chips(["1", "2", "3", "4", "5"], (o) => !!value && Number(o) <= Number(value), (o) => onChange(value === o && !q.required ? "" : o), "radio", (o) => <span aria-label={`${o} of 5`}>{o}</span>);
+    case "checkbox":
+      return (
+        <button type="button" role="checkbox" aria-checked={value === "Yes"} id={label} className="cb-check" onClick={() => onChange(value === "Yes" ? "" : "Yes")}>
+          <span className="cb-box" aria-hidden="true">{value === "Yes" ? <Check size={12} /> : null}</span>
+          <span>
+            {q.label}
+            {!q.required && <span className="cb-muted"> (optional)</span>}
+          </span>
+        </button>
+      );
+    case "country":
+      return <CountryPick label={label} value={value} onChange={onChange} />;
+    case "textarea":
+      return <textarea className="cb-in" aria-labelledby={label} value={value} onChange={(e) => onChange(e.target.value)} maxLength={2000} aria-invalid={invalid} />;
+    default: {
+      const kind = { email: "email", phone: "tel", number: "text", url: "url", date: "date" } as Record<string, string>;
+      return (
+        <input
+          className="cb-in"
+          aria-labelledby={label}
+          type={kind[q.type] ?? "text"}
+          inputMode={q.type === "number" ? "decimal" : q.type === "email" ? "email" : q.type === "phone" ? "tel" : q.type === "url" ? "url" : undefined}
+          autoComplete={q.type === "phone" ? "tel" : q.type === "email" ? "email" : q.type === "url" ? "url" : undefined}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          maxLength={q.type === "phone" ? 40 : 300}
+          aria-invalid={invalid}
+        />
+      );
+    }
+  }
+}
+
+/** A country: typed, then picked from the matches. */
+function CountryPick({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
+  const [q, setQ] = useState("");
+  const picked = COUNTRIES.find((c) => c.value === value);
+  const t = q.trim().toLowerCase();
+  const matches = t ? COUNTRIES.filter((c) => c.label.toLowerCase().includes(t) || c.value.toLowerCase() === t).slice(0, 6) : [];
+  if (picked)
+    return (
+      <div className="cb-choices">
+        <button type="button" role="radio" className="cb-choice" aria-checked="true" onClick={() => onChange("")}>
+          {picked.label}
+        </button>
+      </div>
+    );
+  return (
+    <>
+      <input className="cb-in" aria-labelledby={label} value={q} onChange={(e) => setQ(e.target.value)} maxLength={60} autoComplete="country-name" />
+      {matches.length ? (
+        <div className="cb-choices" role="radiogroup" aria-labelledby={label}>
+          {matches.map((c) => (
+            <button key={c.value} type="button" role="radio" aria-checked="false" className="cb-choice" onClick={() => (onChange(c.value), setQ(""))}>
+              {c.label}
+            </button>
+          ))}
+        </div>
+      ) : null}
+    </>
   );
 }
 

@@ -26,7 +26,7 @@ import { RecordsList, type Preset, type ViewState } from "../records/RecordsList
 import { Sheet } from "../Sheet";
 import { DEFAULT_WIDTH, type Row } from "../records/RecordTable";
 import { OpportunitiesRail } from "./RecordsViews";
-import { FieldGroup, RailRow, RecordHead, RecordLayout, RelatedList, StagePath, StatStrip } from "../records/RecordLayout";
+import { FieldGroup, RailRow, RecordHead, RecordLayout, RelatedList, StagePath } from "../records/RecordLayout";
 import { routingApi } from "../routing/api";
 import { HandoffDrawer } from "../routing/rt/HandoffDrawer";
 import { activeTime } from "@/lib/visits";
@@ -597,13 +597,6 @@ function ContactPage({ sb, ws, session, role, id, navigate }: ViewProps) {
         }
         top={
           <>
-            <StatStrip
-              items={[
-                ["Score", c.score],
-                ["Fit", d.company?.fit ?? null],
-                ["Intent", d.company?.intent ?? null],
-              ]}
-            />
             {stage ? <StagePath stages={stage.options} value={c.lead_status} onPick={(v) => void save(stage, v).catch((e) => setError(errorText(e)))} /> : null}
           </>
         }

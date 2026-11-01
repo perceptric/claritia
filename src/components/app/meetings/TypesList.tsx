@@ -14,6 +14,7 @@ import { Badge, Button, cached, ErrorNote, errorText, IconButton, Loading, must,
 import { LinkDialog } from "./LinkDialog";
 import { kindLabel, lengthsText } from "./model";
 import { AvatarStack, copyText, CopyButton, meetingsApi, ownZone, usePeople, useWorkspaceSlug } from "./parts";
+import { bookingBase } from "@/lib/meetings/handles";
 
 export type TypeRow = MeetingType & { created_by: string | null; updated_at: string };
 
@@ -96,7 +97,7 @@ export function TypesList(props: ViewProps) {
         ) : (
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
             {list.data.map((t, i) => {
-              const url = slug.data ? `${origin}/book/${slug.data}/${t.slug}` : "";
+              const url = slug.data ? `${bookingBase(origin)}/book/${slug.data}/${t.slug}` : "";
               return (
                 <div key={t.id} className="group lift anim-rise-sm relative flex flex-col gap-5 rounded-2xl border border-line bg-card p-5 hover:border-line-strong" style={i < 8 ? { animationDelay: `${i * 40}ms` } : undefined}>
                   <div className="flex items-start gap-2">

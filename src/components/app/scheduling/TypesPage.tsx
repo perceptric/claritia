@@ -23,6 +23,7 @@ import { KIND_WORDS, lengthWords, PLACE_WORDS } from "./model";
 import { Corners } from "./panel";
 import { newDraft, placeIcon, TypePanel, type HostStatus, type Named, type PanelData } from "./TypePanel";
 import { KindTip } from "../meetings/KindTip";
+import { bookingBase } from "@/lib/meetings/handles";
 
 /** Yours: types you own, and one-person types with no owner that you host. */
 export const isMine = (t: Pick<TypeRow, "owner_user_id" | "kind" | "hosts">, me: string) => t.owner_user_id === me || (!t.owner_user_id && (t.kind === "one" || t.kind === "group") && t.hosts[0]?.user_id === me);
@@ -79,7 +80,7 @@ export function TypesPage(props: ViewProps & { open: string }) {
   const nameOf = (id: string) => people.data?.byId.get(id)?.name ?? "Former teammate";
   const queues = useMemo(() => live.data?.body.queues ?? [], [live.data]);
   const origin = typeof window === "undefined" ? "" : window.location.origin;
-  const typeUrl = (s: string) => (slug.data ? `${origin}/book/${slug.data}/${s}` : "");
+  const typeUrl = (s: string) => (slug.data ? `${bookingBase(origin)}/book/${slug.data}/${s}` : "");
   const flash = (id: string) => {
     setCopied(id);
     setTimeout(() => setCopied((c) => (c === id ? null : c)), 1600);

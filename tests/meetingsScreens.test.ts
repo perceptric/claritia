@@ -96,7 +96,7 @@ test("copy times: grouped by the reader's day, a few a day, each with its own li
   const lines = text.split("\n");
   assert.equal(lines[0], "Intro call, 30 min (times in New York)");
   assert.equal(lines[2], "Tue 3 Nov");
-  assert.equal(lines[3], `9:00 https://app.x.io/book/acme/intro?start=2026-11-03T14%3A00%3A00.000Z&length=30`);
+  assert.equal(lines[3], `9:00 https://x.io/book/acme/intro?start=2026-11-03T14%3A00%3A00.000Z&length=30`);
   assert.equal(lines.filter((l) => l.startsWith("1") || l.startsWith("9")).length, 4, "three on the first day, one on the next");
   assert.ok(lines.includes("Wed 4 Nov"));
   assert.ok(timesText({ name: "x", length: 30, starts, tz, url: () => "u", hour12: true }).includes("9:00 AM u"));
