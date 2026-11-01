@@ -7,6 +7,7 @@
 
 import { useState } from "react";
 import { parseFormula } from "@/lib/forms/formula";
+import { htmlText } from "@/lib/forms/html";
 import { allFields, FILE_KINDS, RESULT_KINDS, type FileKind, type Choice, type Cond, type Constant, type Field, type Form, type Op as CondOp, type Outcome, type ResultBlock, type Results } from "@/lib/forms/schema";
 import { Labeled, PanelSection } from "../scheduling/panel";
 import type { BuildProps } from "./Build";
@@ -419,6 +420,18 @@ export function FileSection(p: SectionProps) {
       <Labeled label="Biggest file, MB">
         <input className={IN_SM} inputMode="numeric" aria-label="Biggest file in MB" value={cur.maxMb} onChange={(e) => set({ maxMb: Math.min(20, Math.max(1, Number(e.target.value) || 1)) })} />
       </Labeled>
+    </PanelSection>
+  );
+}
+
+// An HTML section: the code, cleaned the way visitors get it -------------------------------------------------------------
+
+export function HtmlSection(p: SectionProps) {
+  const { f, apply } = p;
+  const html = f.content?.html ?? "";
+  return (
+    <PanelSection icon={<Ic n="code" />} title="Section" summary={htmlText(html).slice(0, 60) || "Empty"} open={p.open} onToggle={p.onToggle}>
+      <textarea className={`${AREA} font-mono text-[12px]`} rows={12} aria-label="Section HTML" value={html} onChange={(e) => apply({ op: "update_field", id: f.id, patch: { content: { ...f.content, html: e.target.value } } })} />
     </PanelSection>
   );
 }

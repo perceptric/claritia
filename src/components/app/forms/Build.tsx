@@ -6,6 +6,7 @@
 // a question say what logic it has, that it's skipped when known, where the consent box shows and what's wrong. The
 // AI bar sits at the bottom with what it last did and Undo.
 
+import { cleanHtml } from "@/lib/forms/html";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { cleanTokens } from "@/lib/forms/brand";
@@ -470,6 +471,9 @@ function QView({ q, form, picked, fresh, issueCtx, onPick, onDuplicate, onRemove
   let body: React.ReactNode;
   if (kind === "heading") body = <div className="text-[16px] font-semibold">{f?.content?.text || f?.label}</div>;
   else if (kind === "para") body = <div className="text-[14px] text-[var(--b-muted)]">{f?.content?.text || f?.label}</div>;
+  else if (kind === "html")
+    // The same cleaning the form script uses, so the canvas shows exactly what visitors get.
+    body = <div className="min-w-0 [&_img]:h-auto [&_img]:max-w-full" dangerouslySetInnerHTML={{ __html: cleanHtml(f?.content?.html ?? "") }} />;
   else if (kind === "calc" || kind === "result")
     body = (
       <div className="flex items-center gap-[8px] rounded-[6px] border border-dashed border-[var(--b-box)] px-[10px] py-[8px] text-[13px] text-[var(--b-muted)]">

@@ -8,7 +8,6 @@ import type Anthropic from "@anthropic-ai/sdk";
 import { addUsage, usageOf, type Usage } from "../ai/cache.ts";
 import { applyStrict, describeOp, type FieldInput, type Op } from "./ops.ts";
 import { allFields, CONTACT_KEYS, FIELD_TYPES, OP_KIND, type Cond, type FieldType, type Form, type Rule } from "./schema.ts";
-import { GALLERY } from "./gallery.ts";
 import { TEMPLATES } from "./templates.ts";
 import type { Tokens } from "./brand.ts";
 import { addClass, setProp, type Level } from "../design/edit.ts";
@@ -163,8 +162,8 @@ export const CHAT_TOOLS: Anthropic.Beta.BetaTool[] = [
   },
   {
     name: "use_template",
-    description: `Replace the whole form with a template: ${[...GALLERY.map((t) => `${t.key} (${t.name})`), ...TEMPLATES.filter((t) => !GALLERY.some((g) => g.key === t.key)).map((t) => `${t.key} (${t.name})`)].join(", ")}.`,
-    input_schema: { type: "object", properties: { template: { type: "string", enum: [...GALLERY.map((t) => t.key), ...TEMPLATES.map((t) => t.key).filter((k) => !GALLERY.some((g) => g.key === k))] } }, required: ["template"] },
+    description: `Replace the whole form with a starting point: ${TEMPLATES.map((t) => `${t.key} (${t.name})`).join(", ")}.`,
+    input_schema: { type: "object", properties: { template: { type: "string", enum: TEMPLATES.map((t) => t.key) } }, required: ["template"] },
   },
   {
     name: "ask",
@@ -381,7 +380,7 @@ export async function runChat(model: Model, message: string, ctx: ChatCtx): Prom
         continue;
       }
       if (c.name === "use_template") {
-        const t = GALLERY.find((x) => x.key === input.template) ?? TEMPLATES.find((x) => x.key === input.template);
+        const t = TEMPLATES.find((x) => x.key === input.template);
         if (!t) {
           fail("Unknown template.");
           continue;
