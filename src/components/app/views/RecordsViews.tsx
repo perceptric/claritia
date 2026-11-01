@@ -54,8 +54,8 @@ export function CompaniesView(props: ViewProps) {
       intro={
         <ToolIntro
           sketch="browser"
-          title={"Every company\nyour leads work at"}
-          lead="Companies are made from your contacts' work emails and your CRM, then filled in by enrichment and scored for fit and intent from their visits."
+          title={"No companies yet"}
+          lead="They appear on their own from your contacts' work emails and your CRM."
           action={
             <Button onClick={() => navigate("contacts", "", "create=1")}>
               <Plus size={14} /> Add contact
@@ -142,8 +142,8 @@ export function OpportunitiesView(props: ViewProps) {
         intro={
           <ToolIntro
             sketch="cards"
-            title={"Every deal\nfrom first meeting to won"}
-            lead="Opportunities come from your CRM, or you add them here. Each one links to its company and contacts, so reports can follow a lead to the deal it became."
+            title={"Add your first opportunity"}
+            lead="Track each deal from first meeting to won, with its company and contacts."
             action={
               <Button onClick={() => void add()}>
                 <Plus size={14} /> New opportunity

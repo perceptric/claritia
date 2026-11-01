@@ -410,8 +410,8 @@ export function CardHead({ label, count, children }: { label: string; count?: nu
 export function Empty({ icon, sketch, title, children }: { icon?: React.ReactNode; sketch?: React.ReactNode; title: string; children?: React.ReactNode }) {
   return (
     <div className="anim-rise-sm flex flex-col items-center gap-2 px-6 py-16 text-center">
-      {sketch || icon ? <div className="mb-3">{sketch ?? <span className="flex size-12 items-center justify-center rounded-lg border border-line bg-card text-ink">{icon}</span>}</div> : null}
-      <p className="font-semibold tracking-[-0.02em] text-[18px] text-ink">{title}</p>
+      {sketch || icon ? <div className="mb-4">{sketch ?? <span className="flex size-12 items-center justify-center rounded-lg border border-line bg-card text-ink">{icon}</span>}</div> : null}
+      <p className="text-[16px] font-medium tracking-[-0.01em] text-ink">{title}</p>
       {children ? <div className="max-w-sm text-[13.5px] text-muted">{children}</div> : null}
     </div>
   );

@@ -232,8 +232,8 @@ function ContactsIntro({ action }: { action: React.ReactNode }) {
     <ToolIntro
       sketch="megaphone"
       action={action}
-      title={"Every contact\nin one place"}
-      lead="Bring in your contacts from a CSV, or add them one by one. Claritia cleans each email, merges duplicates, keeps each person's email consent, and ties them to their visits."
+      title={"Add your first contact"}
+      lead="Import a CSV or add one. Duplicates merge and each person keeps their visits."
       features={[
         {
           title: "Import a CSV",

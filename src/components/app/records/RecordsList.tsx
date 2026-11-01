@@ -181,6 +181,11 @@ export function RecordsList({
         }),
       ) as { total: number; rows: Row[] },
   );
+  // Whether there's anything at all, whatever the filters: with nothing, the page is the first screen.
+  const filtered = effective.length > 0 || activeId !== "all";
+  const any = useQuery(filtered && list.data && list.data.total === 0 ? `records:${ws.id}:${object}:any` : null, async () =>
+    (must(await sb.rpc("records_list", { p_ws: ws.id, p_object: object, p_filters: [], p_sort: view.sort.key, p_desc: view.sort.desc, p_limit: 1, p_offset: 0 })) as { total: number }).total,
+  );
   const counts = useQuery(`records:${ws.id}:${object}:counts:${key}:${groupField?.key}`, async () =>
     board && groupField ? (must(await sb.rpc("records_group_counts", { p_ws: ws.id, p_object: object, p_filters: effective, p_group: groupField.key })) as Record<string, number>) : {},
   );
@@ -340,7 +345,7 @@ export function RecordsList({
       </Page>
     );
   }
-  if (list.data && total === 0 && !effective.length && intro && activeId === "all") {
+  if (list.data && total === 0 && intro && (!filtered || any.data === 0)) {
     return (
       <Page icon={icon} title={title} actions={actions}>
         {intro}
