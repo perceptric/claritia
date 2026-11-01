@@ -5,6 +5,7 @@
 
 import { readFormDesign, type FormDesign } from "../design/model.ts";
 import { CONST_ID, evalFormula, parseFormula, type Ast } from "./formula.ts";
+import { cleanHtml } from "./html.ts";
 import { linkProblem, SCHEDULERS, WORK_EMAIL, type MatchRule, type Schedule } from "./schedule.ts";
 import { cleanCondition } from "../router/check.ts";
 import { cleanKeep, cleanNotify, cleanReply, cleanSites, type Keep, type Notify, type Reply } from "./notify.ts";
@@ -35,9 +36,11 @@ export type FieldType =
   | "divider"
   | "image"
   // A result block (docs/interactive-forms-plan.md Part 4): a number, a meter, a breakdown, bars or the outcome.
-  | "result";
+  | "result"
+  // An HTML section the AI writes (docs/ai-form-builder.md): a hero, pictures and words, cleaned by html.ts.
+  | "html";
 
-export const CONTENT_TYPES: FieldType[] = ["heading", "paragraph", "divider", "image", "result"];
+export const CONTENT_TYPES: FieldType[] = ["heading", "paragraph", "divider", "image", "result", "html"];
 export const isContent = (t: FieldType) => CONTENT_TYPES.includes(t);
 /** Types that hold one choice from a list: cards or a dropdown. */
 export const isChoice = (t: FieldType) => t === "choice" || t === "multi" || t === "dropdown";
@@ -141,7 +144,7 @@ export type Field = {
   /** How this field's rules combine for each action: any one of them (the default) or all of them. */
   logic?: "all";
   /** Content blocks: the heading or paragraph text, the heading level, the picture and its words. */
-  content?: { text?: string; level?: 1 | 2 | 3; src?: string; alt?: string; align?: "left" | "center" };
+  content?: { text?: string; level?: 1 | 2 | 3; src?: string; alt?: string; align?: "left" | "center"; html?: string };
   optionsBy?: OptionsBy;
   calc?: Calc;
   /** Pick one and pick many: big cards (with pictures when the options have them) in place of a list. */
@@ -335,6 +338,7 @@ export const FIELD_TYPES: { value: FieldType; label: string }[] = [
   { value: "calc", label: "Calculation" },
   { value: "file", label: "File upload" },
   { value: "result", label: "Result" },
+  { value: "html", label: "Section" },
   { value: "heading", label: "Heading" },
   { value: "paragraph", label: "Text" },
   { value: "divider", label: "Divider" },
@@ -492,6 +496,11 @@ function contentBlock(id: string, type: FieldType, fo: Record<string, unknown>, 
     content.src = src;
     const alt = str(c.alt, 200);
     if (alt) content.alt = alt;
+  }
+  if (type === "html") {
+    const html = cleanHtml(typeof c.html === "string" ? c.html : "");
+    if (!html) errors.push(`${name === "A field" ? "A section" : name} is empty or too long.`);
+    content.html = html;
   }
   if (type === "result") {
     const ro = (fo.result && typeof fo.result === "object" ? fo.result : {}) as Record<string, unknown>;

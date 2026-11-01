@@ -12,6 +12,7 @@ import { tokensCss, type Tokens } from "./brand.ts";
 import { byDay, dayText, localZone, sampleSlots, timeText, zoneName, zones, type Booked, type Booking } from "./calendar.ts";
 import { countryNames } from "./countries.ts";
 import { calcText } from "./formula.ts";
+import { cleanHtml } from "./html.ts";
 import { allFields, isContent, nextStep, optionsFor, pickOutcome, safeUrl, visibility, withCalcs, type Choice, type Field, type FieldWidth, type Form, type RunCtx } from "./schema.ts";
 import { checkAnswers, OTHER, stepPath, type Answers } from "./values.ts";
 
@@ -117,6 +118,11 @@ textarea.in{min-height:calc(var(--clr-input-h)*2.4);padding:10px 12px;resize:ver
 .tm{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:8px}
 .tm .pl{border-radius:var(--clr-radius)}
 .tz{display:flex;flex-direction:column;gap:6px;max-width:320px}
+.hx{display:block;min-width:0}
+.hx img{max-width:100%;height:auto;display:block;border-radius:var(--clr-radius)}
+.hx h1,.hx h2,.hx h3{font-family:var(--clr-heading-font);line-height:1.15;margin:0 0 .4em}
+.hx h1{font-size:2.2em}.hx h2{font-size:1.6em}.hx h3{font-size:1.2em}
+.hx p{margin:0 0 .8em}.hx a{color:var(--clr-accent)}
 .sc{min-height:360px;gap:calc(var(--clr-gap)*1.4)}
 .sc .lb{font-family:var(--clr-heading-font);font-size:1.4em;font-weight:600;line-height:1.25}
 .sc .h{font-size:2em}
@@ -1083,6 +1089,12 @@ export class ClaritiaForm extends Base {
     if (f.type === "paragraph") return el("p", { class: "tx", text: c.text ?? "" });
     if (f.type === "divider") return el("hr", { class: "dv" });
     if (f.type === "image" && c.src && /^https:\/\//.test(c.src) && safeUrl(c.src)) return el("img", { class: "im", src: c.src, alt: c.alt ?? "", loading: "lazy", decoding: "async" });
+    if (f.type === "html") {
+      // Cleaned again here: the browser never trusts what it's sent.
+      const box = el("div", { class: "hx" });
+      box.innerHTML = cleanHtml(c.html ?? "");
+      return box;
+    }
     if (f.type === "result") {
       const form = this.data!.body;
       const vals = withCalcs(form, this.answers, this.ctx);

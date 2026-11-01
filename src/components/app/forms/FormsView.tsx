@@ -16,6 +16,8 @@ import { Build, SUBMIT, type Pick as Picked } from "./Build";
 import { mergeKey } from "./editorModel";
 import { useFormChat } from "./FormChat";
 import { FormHome, MADE_KEY } from "./FormHome";
+import { SUMMARY_KEY } from "./AiCreate";
+import type { BuildSummary } from "@/lib/forms/aiBuild";
 import { CONSENT_ID, publishChecks, questionsOf, rulesReading } from "./formModel";
 import { Ic } from "./ic";
 import { Menu } from "./Menu";
@@ -136,6 +138,17 @@ function Editor(props: ViewProps & { data: FormData; reload: () => void; patchRo
     } catch {}
     return null;
   });
+  // A form the AI just built: what it assumed, and what to replace before publishing, once (docs/ai-form-builder.md).
+  useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem(`${SUMMARY_KEY}${row.id}`);
+      if (!raw) return;
+      sessionStorage.removeItem(`${SUMMARY_KEY}${row.id}`);
+      const s = JSON.parse(raw) as BuildSummary;
+      const lines = [...(s.replace.length ? ["Replace before publishing:", ...s.replace.map((x) => `- ${x}`)] : []), ...(s.assumptions.length ? ["", "Assumed:", ...s.assumptions.map((x) => `- ${x}`)] : [])];
+      if (lines.length) void tell("Your form is ready", lines.join("\n"));
+    } catch {}
+  }, [row.id]);
   const [fresh, setFresh] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const note = useNote();

@@ -13,7 +13,7 @@ import { propertyFit, type CrmProperty } from "../../../lib/sources/properties.t
 
 // Kinds ----------------------------------------------------------------------------------------------------------
 
-export type Kind = "email" | "name" | "phone" | "company" | "country" | "text" | "long" | "number" | "date" | "choice" | "dropdown" | "multi" | "consent" | "hidden" | "heading" | "para" | "calc" | "result" | "file" | "other";
+export type Kind = "email" | "name" | "phone" | "company" | "country" | "text" | "long" | "number" | "date" | "choice" | "dropdown" | "multi" | "consent" | "hidden" | "heading" | "para" | "calc" | "result" | "file" | "html" | "other";
 export type KindGroup = "Contact" | "Answer" | "Other";
 
 /** The question types, as the insert menu and the Type section list them, with their icon names (ic.tsx). */
@@ -37,6 +37,7 @@ export const KINDS: { v: Kind; l: string; i: string; g: KindGroup }[] = [
   { v: "para", l: "Text", i: "para", g: "Other" },
   { v: "calc", l: "Calculation", i: "hash", g: "Other" },
   { v: "result", l: "Result", i: "data", g: "Other" },
+  { v: "html", l: "Section", i: "code", g: "Other" },
 ];
 export const GROUP_WORDS: Record<KindGroup, string> = { Contact: "About them", Answer: "Questions", Other: "More" };
 
@@ -47,7 +48,7 @@ export function kindOf(f: Pick<Field, "type" | "key">): Kind {
   if (f.type === "email") return "email";
   if (f.type === "text" && NAME_KEYS.has(f.key)) return "name";
   if (f.type === "text" && f.key === "company") return "company";
-  const by: Partial<Record<FieldType, Kind>> = { phone: "phone", country: "country", textarea: "long", number: "number", date: "date", choice: "choice", dropdown: "dropdown", multi: "multi", hidden: "hidden", heading: "heading", paragraph: "para", text: "text", url: "text", calc: "calc", result: "result", file: "file" };
+  const by: Partial<Record<FieldType, Kind>> = { phone: "phone", country: "country", textarea: "long", number: "number", date: "date", choice: "choice", dropdown: "dropdown", multi: "multi", hidden: "hidden", heading: "heading", paragraph: "para", text: "text", url: "text", calc: "calc", result: "result", file: "file", html: "html" };
   return by[f.type] ?? "other";
 }
 
@@ -125,6 +126,8 @@ export function newQuestion(kind: Kind, form: Form): FieldInput | null {
       return { type: "paragraph", label: "Text", required: false, content: { text: "Some text" } };
     case "calc":
       return { type: "calc", label: "Total", required: false, calc: { formula: "0" } };
+    case "html":
+      return { type: "html", label: "Section", required: false, content: { html: '<section style="padding:32px 0"><h2>A heading</h2><p>A line about what they get.</p></section>' } };
     case "file":
       return { type: "file", label: "Upload a file", required: false, file: { maxMb: 10, kinds: ["pdf", "image", "office"] } };
     case "result":

@@ -21,7 +21,7 @@ import { Eyebrow, Labeled, PanelFooter, PanelSection, TextLink } from "../schedu
 import type { BuildProps } from "./Build";
 import { autoMap, choiceRows, claritiaDests, crmDests, earlierChoices, isChoiceKind, issuesOf, kindInfo, kindOf, kindPatch, KINDS, known, knownOp, paramOf, questionsOf, rulesReading, saveName, showOps, showRules, splitNameOps, submissionKey, type Q } from "./formModel";
 import { Ic } from "./ic";
-import { ChoiceExtrasSection, FileSection, FormulaSection, NumberExtrasSection, ResultSection, ResultsSection, ScreensSection, SettingsSection } from "./InteractivePanels";
+import { ChoiceExtrasSection, FileSection, FormulaSection, HtmlSection, NumberExtrasSection, ResultSection, ResultsSection, ScreensSection, SettingsSection } from "./InteractivePanels";
 import { AREA, Box, Dd, Dots, GHOST_SM, IB, IN, IN_SM, Seg, type DdItem, Tg } from "./parts";
 
 /** The panel's frame: the eyebrow and title, its buttons, the sections that scroll, and the footer. */
@@ -75,6 +75,13 @@ export function QuestionPanel(p: BuildProps & { q: Q; qs: Q[]; issueCtx: Paramet
   let sections: React.ReactNode;
   if (q.kind === "consent") sections = <ConsentSection {...p} open={open === "q"} onToggle={() => toggle("q")} />;
   else if (!f) sections = null;
+  else if (f.type === "html")
+    sections = (
+      <>
+        <HtmlSection {...p} f={f} open={open !== "show"} onToggle={() => toggle("q")} />
+        <ShowSection {...p} f={f} open={open === "show"} onToggle={() => toggle("show")} />
+      </>
+    );
   else if (f.type === "calc" || f.type === "result")
     sections = (
       <>
