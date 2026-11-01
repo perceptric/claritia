@@ -12,7 +12,7 @@ import { tokensCss, type Tokens } from "./brand.ts";
 import { byDay, dayText, localZone, sampleSlots, timeText, zoneName, zones, type Booked, type Booking } from "./calendar.ts";
 import { countryNames } from "./countries.ts";
 import { calcText } from "./formula.ts";
-import { allFields, isContent, nextStep, optionsFor, safeUrl, visibility, withCalcs, type Choice, type Field, type FieldWidth, type Form, type RunCtx } from "./schema.ts";
+import { allFields, isContent, nextStep, optionsFor, pickOutcome, safeUrl, visibility, withCalcs, type Choice, type Field, type FieldWidth, type Form, type RunCtx } from "./schema.ts";
 import { checkAnswers, OTHER, stepPath, type Answers } from "./values.ts";
 
 /** regions: the region lists, sent with the form when a list follows a country field (src/lib/forms/regions.ts). */
@@ -117,6 +117,30 @@ textarea.in{min-height:calc(var(--clr-input-h)*2.4);padding:10px 12px;resize:ver
 .tm{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:8px}
 .tm .pl{border-radius:var(--clr-radius)}
 .tz{display:flex;flex-direction:column;gap:6px;max-width:320px}
+.sc{min-height:360px;gap:calc(var(--clr-gap)*1.4)}
+.sc .lb{font-family:var(--clr-heading-font);font-size:1.4em;font-weight:600;line-height:1.25}
+.sc .h{font-size:2em}
+.cv{justify-content:center}
+.cv .h{font-size:2.2em}
+.cd{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px}
+.cd label{position:relative;display:flex;flex-direction:column;gap:8px;padding:14px;border:var(--clr-border-w) solid var(--clr-border);border-radius:var(--clr-radius);background:var(--clr-input-bg);cursor:pointer}
+.cd label:has(input:checked){border-color:var(--clr-accent);background:color-mix(in srgb,var(--clr-accent) 10%,var(--clr-input-bg))}
+.cd label:has(input:focus-visible){outline:2px solid var(--clr-accent);outline-offset:2px}
+.cd input{position:absolute;opacity:0;width:1px;height:1px}
+.cd img{width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:calc(var(--clr-radius)*.7)}
+.sv{display:grid;grid-template-columns:minmax(0,1fr) 96px;gap:12px;align-items:center}
+.sv input[type=range]{width:100%;accent-color:var(--clr-accent)}
+.rm{display:flex;flex-direction:column;gap:4px}
+.rv{font-family:var(--clr-heading-font);font-size:2.2em;font-weight:600;line-height:1.1;font-variant-numeric:tabular-nums}
+.mt{height:8px;border-radius:8px;overflow:hidden;background:color-mix(in srgb,var(--clr-muted) 22%,transparent)}
+.mt i{display:block;height:100%;background:var(--clr-accent)}
+.rs2{border:var(--clr-border-w) solid var(--clr-border);border-radius:var(--clr-radius)}
+.rs2 div{display:flex;justify-content:space-between;gap:12px;padding:8px 12px;font-variant-numeric:tabular-nums}
+.rs2 div+div{border-top:var(--clr-border-w) solid var(--clr-border)}
+.rs2 div:last-child{font-weight:600}
+.br{display:grid;grid-template-columns:minmax(0,1fr) 2fr auto;gap:8px 12px;align-items:center;font-variant-numeric:tabular-nums}
+.br i{display:block;height:10px;border-radius:4px;background:var(--clr-accent)}
+@media (prefers-reduced-motion:no-preference){.an{animation:clr-in .2s cubic-bezier(.22,1,.36,1)}@keyframes clr-in{from{opacity:0;transform:translateX(12px)}to{opacity:1;transform:none}}}
 @media (prefers-reduced-motion:no-preference){.f{transition:opacity .15s ease}.pb i{transition:transform .2s cubic-bezier(.2,0,0,1)}}
 `;
 
@@ -562,6 +586,13 @@ export class ClaritiaForm extends Base {
   /** Field ids hidden because enrichment already knows them (fill before submit), and the email they're for. */
   private known = new Set<string>();
   private knownFor = "";
+  /** Past the cover screen; the step last drawn (a new one slides in); the server's result after the send. */
+  private covered = false;
+  private drawn = -1;
+  private result: { values: Record<string, number | null>; outcome?: { id: string; title: string; text?: string } } | null = null;
+  private sid = "";
+  private mailed = "";
+  private mailFail = false;
   private get ctx(): RunCtx {
     return { today: localDay(), regions: (c) => this.data?.regions?.[c] };
   }
@@ -760,13 +791,30 @@ export class ClaritiaForm extends Base {
     // The form's own stylesheet is the lowest layer; the design system's layers (in d.css) sit above it.
     const style = el("style", { text: `${d.css ?? ""}\n:host{${tokensCss(d.tokens)}--clr-width:${width}}\n@layer base{${STYLES}}` });
     if (d.status === "paused") return this.put(style, el("div", { class: "f" }, el("p", { class: "i", text: "This form is closed." })));
-    if (this.done) return this.put(style, this.endScreen(form));
+    if (this.done) {
+      const res = this.resultPanel(form);
+      const end = this.endScreen(form);
+      // The full result reads before the thanks; a lone "Email my results" (the result showed already) goes after it.
+      const after = !!res && form.steps.some((st) => st.result) && form.results?.show === "instant";
+      return this.put(style, ...(res && !after ? [res] : []), end, ...(res && after ? [res] : []));
+    }
+    const screens = form.layout.mode === "screens";
+    if (form.layout.cover && !this.covered && !this.edit && this.step === 0) {
+      const go = el("button", { type: "button", class: "bt", text: form.layout.cover.button || "Start" });
+      go.addEventListener("click", () => {
+        this.covered = true;
+        this.render();
+        (this.root.querySelector(".in, .bx, input") as HTMLElement | null)?.focus();
+      });
+      return this.put(style, el("div", { class: `f cv${screens ? " sc" : ""}` }, el("h2", { class: "h", text: form.layout.cover.title }), form.layout.cover.text ? el("p", { class: "i", text: form.layout.cover.text }) : null, el("div", { class: "ac" }, go)));
+    }
 
     const { shown, required } = visibility(form, this.answers, this.ctx);
     // The last step is the one whose next step (after any skip) is the end.
     const last = this.edit ? this.step === form.steps.length - 1 : nextStep(form, this.step, this.answers, this.ctx) >= form.steps.length;
     const step = form.steps[this.step];
-    const wrap = el("form", { class: "f", novalidate: true, "aria-label": form.title || "Form" });
+    const wrap = el("form", { class: `f${screens ? " sc" : ""}${this.drawn !== this.step && this.drawn >= 0 ? " an" : ""}`, novalidate: true, "aria-label": form.title || "Form" });
+    this.drawn = this.step;
     if (form.title) wrap.append(el("h2", { class: "h", text: form.title }));
     if (form.intro) wrap.append(el("p", { class: "i", text: form.intro }));
     if (form.steps.length > 1) wrap.append(this.progress(form));
@@ -994,10 +1042,23 @@ export class ClaritiaForm extends Base {
           input.removeAttribute("aria-invalid");
           box.querySelector(".er")?.remove();
         }
+        if (f.type === "number") this.refreshLive();
       });
       input.addEventListener("change", () => set(input.value));
       input.addEventListener("blur", blur);
-      box.append(input);
+      if (f.slider && f.valid?.min !== undefined && f.valid.max !== undefined) {
+        // A slider with the number box beside it: either one sets the answer; dragging updates results in place.
+        const range = el("input", { type: "range", min: String(f.valid.min), max: String(f.valid.max), step: String(f.valid.step ?? 1), "aria-label": f.label, tabindex: "-1" }) as HTMLInputElement;
+        range.value = input.value || String(f.valid.min);
+        range.addEventListener("input", () => {
+          input.value = range.value;
+          this.answers[f.id] = range.value;
+          this.refreshLive();
+        });
+        range.addEventListener("change", () => set(range.value));
+        input.addEventListener("input", () => (range.value = input.value));
+        box.append(el("div", { class: "sv" }, range, input));
+      } else box.append(input);
     }
     if (f.help) box.append(el("p", { class: "hp", id: `${id}-h`, text: f.help }));
     if (err) box.append(el("p", { class: "er", id: `${id}-e`, text: err }));
@@ -1014,7 +1075,86 @@ export class ClaritiaForm extends Base {
     if (f.type === "paragraph") return el("p", { class: "tx", text: c.text ?? "" });
     if (f.type === "divider") return el("hr", { class: "dv" });
     if (f.type === "image" && c.src && /^https:\/\//.test(c.src) && safeUrl(c.src)) return el("img", { class: "im", src: c.src, alt: c.alt ?? "", loading: "lazy", decoding: "async" });
+    if (f.type === "result") {
+      const form = this.data!.body;
+      const vals = withCalcs(form, this.answers, this.ctx);
+      return this.resultBlock(f, form, (id) => (typeof vals[id] === "number" ? (vals[id] as number) : null), pickOutcome(form, this.answers, this.ctx));
+    }
     return null;
+  }
+
+  /** A result block from numbers by field id: live from the answers on a result screen, or the server's after the send. */
+  private resultBlock(f: Field, form: Form, get: (id: string) => number | null, outcome: { title: string; text?: string } | null): HTMLElement | null {
+    const r = f.result;
+    if (!r) return null;
+    const byId = new Map(allFields(form).map((x) => [x.id, x]));
+    const text = (id: string) => {
+      const x = byId.get(id);
+      return calcText(x?.calc ?? (x?.unit ? { format: x.unit } : undefined), get(id));
+    };
+    const name = (id: string) => byId.get(id)?.label ?? "";
+    const box = el("div", { class: "rm", "data-res": f.id, "aria-live": "polite" });
+    if (r.kind === "outcome") {
+      if (!outcome) return null;
+      box.append(el("h3", { class: "k2", text: outcome.title }));
+      if (outcome.text) box.append(el("p", { class: "tx", text: outcome.text }));
+    } else if (r.kind === "metric" || r.kind === "meter") {
+      box.append(el("span", { class: "lb", text: f.label || name(r.field!) }), el("strong", { class: "rv", text: text(r.field!) }));
+      if (r.kind === "meter") {
+        const pct = Math.max(0, Math.min(100, ((get(r.field!) ?? 0) / (r.max ?? 100)) * 100));
+        box.append(el("div", { class: "mt", role: "meter", "aria-valuemin": "0", "aria-valuemax": String(r.max ?? 100), "aria-valuenow": String(get(r.field!) ?? 0), "aria-label": f.label || name(r.field!) }, el("i", { style: `width:${pct}%` })));
+      }
+    } else if (r.kind === "summary") {
+      box.append(el("div", { class: "rs2" }, ...(r.fields ?? []).map((id) => el("div", {}, el("span", { text: name(id) }), el("span", { text: text(id) })))));
+    } else if (r.kind === "bars") {
+      const top = Math.max(1, ...(r.fields ?? []).map((id) => Math.abs(get(id) ?? 0)));
+      box.append(el("div", { class: "br" }, ...(r.fields ?? []).flatMap((id) => [el("span", { text: name(id) }), el("i", { style: `width:${(Math.abs(get(id) ?? 0) / top) * 100}%` }), el("span", { text: text(id) })])));
+    } else if (r.kind === "email") {
+      if (!this.sid || this.isPreview) return null;
+      const b = el("button", { type: "button", class: "bt bk", disabled: !!this.mailed, text: this.mailed || (this.mailFail ? "Couldn't send. Try again" : "Email my results") });
+      b.addEventListener("click", () => void this.mailResults());
+      box.append(b);
+    }
+    return box;
+  }
+
+  /** After the send: the outcome and the result blocks with the server's numbers. */
+  private resultPanel(form: Form): HTMLElement | null {
+    const r = this.result;
+    if (!r) return null;
+    const byKey = new Map(allFields(form).map((x) => [x.id, x.key]));
+    const get = (id: string) => r.values[byKey.get(id) ?? ""] ?? null;
+    const blocks = allFields(form).filter((x) => x.type === "result");
+    // A live result screen already showed it: then only Email my results, if the form has it.
+    const live = form.steps.some((s) => s.result) && form.results?.show === "instant";
+    const nodes = blocks.filter((x) => !live || x.result?.kind === "email").map((x) => this.resultBlock(x, form, get, r.outcome ?? null)).filter((x): x is HTMLElement => !!x);
+    return nodes.length ? el("div", { class: "f" }, ...nodes) : null;
+  }
+
+  /** Update the result blocks and calc boxes in place (a slider being dragged must not be drawn again). */
+  private refreshLive() {
+    const form = this.data?.body;
+    if (!form) return;
+    for (const node of Array.from(this.root.querySelectorAll("[data-res]"))) {
+      const f = allFields(form).find((x) => x.id === (node as HTMLElement).dataset.res);
+      const fresh = f && this.content(f);
+      if (fresh) node.replaceWith(fresh);
+    }
+    const vals = withCalcs(form, this.answers, this.ctx);
+    for (const f of allFields(form)) if (f.type === "calc") {
+      const out = this.root.getElementById(`clr-${f.id}`);
+      if (out) out.textContent = calcText(f.calc, vals[f.id]);
+    }
+  }
+
+  private async mailResults() {
+    const d = this.data!;
+    this.mailed = "Sending…";
+    this.render();
+    const res = await fetch(`${this.base}/api/forms/${d.id}/results-email`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ submission: this.sid, key: this.key }), credentials: "omit" }).catch(() => null);
+    this.mailed = res?.ok ? "Sent to your email" : "";
+    this.mailFail = !res?.ok;
+    this.render();
   }
 
   /** The options in the order this visitor sees them. */
@@ -1071,20 +1211,26 @@ export class ClaritiaForm extends Base {
     });
     const other = this.otherText(f);
     const cur = listOf(this.answers[f.id]).filter((v) => !v.startsWith(OTHER));
-    const item = (value: string, text: string, n: string, on: boolean, change: (checked: boolean) => void) => {
+    if (f.cards) list.className = "cd";
+    const item = (value: string, text: string, n: string, on: boolean, change: (checked: boolean) => void, image?: string) => {
       const c = el("input", { type: multi ? "checkbox" : "radio", name: id, value, id: `${id}-${n}` }) as HTMLInputElement;
       c.checked = on;
       c.addEventListener("change", () => change(c.checked));
-      list.append(el("label", { class: "ck" }, c, el("span", { text })));
+      list.append(el("label", { class: f.cards ? undefined : "ck" }, c, f.cards && image && safeUrl(image) ? el("img", { src: image, alt: "", loading: "lazy" }) : null, el("span", { text })));
     };
+    // Screens with auto on: a single pick that is the step's only question moves on by itself.
+    const form = this.data!.body;
+    const alone = !multi && !!form.layout.auto && !this.edit && form.steps[this.step]?.fields.filter((x) => !isContent(x.type) && x.type !== "hidden" && x.type !== "calc").length === 1;
     this.optionsOf(f).forEach((o, i) =>
       item(o.value, o.label, String(i), cur.includes(o.value) && (multi || other === undefined), (checked) => {
         if (!multi) {
           this.other[f.id] = undefined;
-          return set(o.value, true);
+          set(o.value, true);
+          if (alone) setTimeout(() => void this.next(), 180);
+          return;
         }
         set(this.compose(f, checked ? [...cur, o.value] : cur.filter((v) => v !== o.value)), true);
-      }),
+      }, o.image),
     );
     if (f.other) {
       item("", "Other", "o", other !== undefined, (checked) => {
@@ -1473,7 +1619,7 @@ export class ClaritiaForm extends Base {
       writeQueue([...readQueue().filter((x) => x.key !== this.key), { url, body, key: this.key, at: Date.now(), tries: 1 }]);
       setTimeout(() => void flushQueue(), 15_000);
     } else {
-      type Answer = { id?: string; schedule?: { tool: string; url: string } | null; booking?: Booking; pending?: boolean; message?: string };
+      type Answer = { id?: string; schedule?: { tool: string; url: string } | null; booking?: Booking; pending?: boolean; message?: string; result?: ClaritiaForm["result"] };
       let j = (await res.json().catch(() => ({}))) as Answer;
       // Saved, still finishing: say so, and send the same request again (the same key, so the same submission and
       // routing request) until the server has the answer, for about 12 seconds.
@@ -1489,6 +1635,8 @@ export class ClaritiaForm extends Base {
         this.waiting = "";
       }
       if (j.schedule && /^https:\/\//.test(j.schedule.url)) this.schedule = j.schedule;
+      if (j.result && typeof j.result.values === "object") this.result = j.result;
+      if (typeof j.id === "string") this.sid = j.id;
       if (j.booking?.token && Array.isArray(j.booking.slots)) this.bk = j.booking;
       this.dispatchEvent(new CustomEvent("claritia:submitted", { bubbles: true, composed: true, detail: { formId: d.id, submissionId: j.id ?? null } }));
       this.tellPage();

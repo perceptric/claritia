@@ -142,3 +142,17 @@ export function replyGoes(reply: Reply | undefined, email: string | null | undef
   if (!reply?.on || !reply.body.trim() || !email || !EMAIL.test(email)) return false;
   return !reply.workOnly || (emailClass !== "free" && emailClass !== "disposable");
 }
+
+export type ResultsView = { form: string; sender: string; outcome?: { title: string; text?: string } | null; lines: { label: string; value: string }[] };
+
+/** "Email my results": the outcome and the numbers the visitor saw, as the server saved them. */
+export function resultsEmail(v: ResultsView): MailParts {
+  const subject = `Your results: ${v.form}`.slice(0, 200);
+  const rows = v.lines.map((l) => `<tr><td style="padding:8px 0;color:#52525b">${esc(l.label)}</td><td style="padding:8px 0;text-align:right;font-weight:600">${esc(l.value)}</td></tr>`).join("");
+  const html = page(
+    `${v.outcome ? `<p style="margin:0 0 6px;font-size:18px;font-weight:600">${esc(v.outcome.title)}</p>${v.outcome.text ? `<p style="margin:0 0 14px">${esc(v.outcome.text)}</p>` : ""}` : ""}${rows ? `<table style="width:100%;border-collapse:collapse;margin:0 0 14px">${rows}</table>` : ""}<p style="margin:8px 0 0;color:#71717a">${esc(v.sender)}</p>`,
+    v.outcome?.title ?? subject,
+  );
+  const text = [...(v.outcome ? [v.outcome.title, v.outcome.text ?? ""] : []), ...v.lines.map((l) => `${l.label}: ${l.value}`), "", v.sender].filter((x, i, a) => x || a[i - 1]).join("\n");
+  return { subject, html, text };
+}

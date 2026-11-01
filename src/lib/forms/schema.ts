@@ -31,9 +31,11 @@ export type FieldType =
   | "heading"
   | "paragraph"
   | "divider"
-  | "image";
+  | "image"
+  // A result block (docs/interactive-forms-plan.md Part 4): a number, a meter, a breakdown, bars or the outcome.
+  | "result";
 
-export const CONTENT_TYPES: FieldType[] = ["heading", "paragraph", "divider", "image"];
+export const CONTENT_TYPES: FieldType[] = ["heading", "paragraph", "divider", "image", "result"];
 export const isContent = (t: FieldType) => CONTENT_TYPES.includes(t);
 /** Types that hold one choice from a list: cards or a dropdown. */
 export const isChoice = (t: FieldType) => t === "choice" || t === "multi" || t === "dropdown";
@@ -45,7 +47,7 @@ export const isChoice = (t: FieldType) => t === "choice" || t === "multi" || t =
 export type FieldKey = "email" | "first_name" | "last_name" | "name" | "title" | "phone" | "company" | "website" | "country" | "region" | `f.${string}` | `q.${string}` | `c.${string}`;
 
 /** score: the number a formula reads when this choice is picked. */
-export type Choice = { value: string; label: string; score?: number };
+export type Choice = { value: string; label: string; score?: number; /** Picture cards: the picture's https address. */ image?: string };
 
 /**
  * Options that follow another field's answer (docs/forms-plan.md 2.2): a list per answer of the parent, or the
@@ -139,7 +141,21 @@ export type Field = {
   content?: { text?: string; level?: 1 | 2 | 3; src?: string; alt?: string; align?: "left" | "center" };
   optionsBy?: OptionsBy;
   calc?: Calc;
+  /** Pick one and pick many: big cards (with pictures when the options have them) in place of a list. */
+  cards?: true;
+  /** Number: a slider with a box beside it (needs a min and a max); unit: shown with the number. */
+  slider?: true;
+  unit?: "money" | "percent";
+  /** A result block's settings. */
+  result?: ResultBlock;
 };
+
+/**
+ * What a result block shows. metric: one calc. meter: a calc out of max. summary: the listed calcs as lines, the last
+ * as the total. bars: the listed calcs side by side. outcome: the outcome's title and text. email: "Email my results".
+ */
+export type ResultBlock = { kind: "metric" | "meter" | "summary" | "bars" | "outcome" | "email"; field?: string; fields?: string[]; max?: number };
+export const RESULT_KINDS: ResultBlock["kind"][] = ["metric", "meter", "summary", "bars", "outcome", "email"];
 
 export type FieldWidth = "full" | "half" | "third" | "two_thirds";
 export const WIDTHS: FieldWidth[] = ["full", "half", "third", "two_thirds"];
@@ -189,7 +205,8 @@ export type Rule = {
 };
 
 /** skip: when the condition holds at the end of this step, jump forward to step `to` (0-based). */
-export type Step = { id: string; title?: string; fields: Field[]; skip?: { when: Cond; to: number } };
+/** result: a result screen, worked out live from the answers so far; it holds result blocks, text and calcs only. */
+export type Step = { id: string; title?: string; fields: Field[]; skip?: { when: Cond; to: number }; result?: true };
 
 /** What each op compares: any answer, text, a number, a date, or picks from a list. */
 export const OP_KIND: Record<Op, "any" | "text" | "number" | "date" | "list"> = {
@@ -238,7 +255,17 @@ export type Form = {
   steps: Step[];
   rules: Rule[];
   /** progress: how steps show where you are (a bar unless set). maxWidth: px, over the narrow or wide width. */
-  layout: { labels: "above" | "inside"; width: "narrow" | "wide"; progress?: "bar" | "dots" | "none"; maxWidth?: number };
+  layout: {
+    labels: "above" | "inside";
+    width: "narrow" | "wide";
+    progress?: "bar" | "dots" | "none";
+    maxWidth?: number;
+    /** screens: one step at a time, full size, big type (docs/interactive-forms-plan.md Part 2). auto: a single pick moves on. */
+    mode?: "screens";
+    auto?: true;
+    /** A first screen with a title, a line and a Start button. */
+    cover?: { title: string; text?: string; button?: string };
+  };
   title?: string;
   intro?: string;
   /** full: the button spans the form's width. */
@@ -294,6 +321,7 @@ export const FIELD_TYPES: { value: FieldType; label: string }[] = [
   { value: "rating", label: "Rating" },
   { value: "hidden", label: "Hidden" },
   { value: "calc", label: "Calculation" },
+  { value: "result", label: "Result" },
   { value: "heading", label: "Heading" },
   { value: "paragraph", label: "Text" },
   { value: "divider", label: "Divider" },
@@ -383,7 +411,8 @@ function choices(raw: unknown, max: number): Choice[] {
     if (!val || seen.has(val)) continue;
     seen.add(val);
     const score = typeof oo.score === "number" && Number.isFinite(oo.score) ? oo.score : typeof oo.score === "string" && oo.score.trim() !== "" && Number.isFinite(Number(oo.score)) ? Number(oo.score) : undefined;
-    opts.push({ value: val, label: lab || val, ...(score !== undefined ? { score } : {}) });
+    const image = str(oo.image, 1000);
+    opts.push({ value: val, label: lab || val, ...(score !== undefined ? { score } : {}), ...(image && image.startsWith("https://") && safeUrl(image) ? { image } : {}) });
   }
   return opts;
 }
@@ -449,6 +478,17 @@ function contentBlock(id: string, type: FieldType, fo: Record<string, unknown>, 
     content.src = src;
     const alt = str(c.alt, 200);
     if (alt) content.alt = alt;
+  }
+  if (type === "result") {
+    const ro = (fo.result && typeof fo.result === "object" ? fo.result : {}) as Record<string, unknown>;
+    const kind = RESULT_KINDS.includes(ro.kind as ResultBlock["kind"]) ? (ro.kind as ResultBlock["kind"]) : "metric";
+    const field = str(ro.field, 24);
+    const fields = Array.isArray(ro.fields) ? [...new Set(ro.fields.filter((x): x is string => typeof x === "string" && ID.test(x)))].slice(0, 12) : [];
+    const max = Number(ro.max);
+    f.result = { kind, ...(field && ID.test(field) ? { field } : {}), ...(fields.length ? { fields } : {}), ...(Number.isFinite(max) && max > 0 ? { max } : {}) };
+    if ((kind === "metric" || kind === "meter") && !f.result.field) errors.push(`${name === "A field" ? "A result" : name} needs the number it shows.`);
+    if ((kind === "summary" || kind === "bars") && !fields.length) errors.push(`${name === "A field" ? "A result" : name} needs the numbers it shows.`);
+    if (kind === "meter" && !f.result.max) errors.push(`${name === "A field" ? "A meter" : name} needs its top value.`);
   }
   if (c.align === "center") content.align = "center";
   if (Object.keys(content).length) f.content = content;
@@ -610,6 +650,14 @@ export function checkForm(raw: unknown, ctx: Ctx = {}): { form: Form } | { error
         if (by) f.optionsBy = by;
         else if (!f.options.length) errors.push(`${name} needs at least one option.`);
       }
+      if ((type === "choice" || type === "multi") && fo.cards === true) f.cards = true;
+      if (type === "number" || type === "calc") {
+        if (fo.unit === "money" || fo.unit === "percent") f.unit = fo.unit;
+      }
+      if (type === "number" && fo.slider === true) {
+        f.slider = true;
+        if (f.valid?.min === undefined || f.valid?.max === undefined || f.valid.max <= f.valid.min) errors.push(`${name}: a slider needs a lowest and a highest value.`);
+      }
       if (type === "calc") {
         const co = (fo.calc && typeof fo.calc === "object" ? fo.calc : {}) as Record<string, unknown>;
         const formula = str(co.formula, 500) ?? "";
@@ -641,12 +689,13 @@ export function checkForm(raw: unknown, ctx: Ctx = {}): { form: Form } | { error
       }
       fields.push(f);
     }
-    steps.push({ id: sid, ...(str(so.title, LIMITS.label) ? { title: str(so.title, LIMITS.label) } : {}), fields });
+    if (so.result === true && fields.some((x) => !isContent(x.type) && x.type !== "calc")) errors.push("A result screen holds results, text and calculations only.");
+    steps.push({ id: sid, ...(str(so.title, LIMITS.label) ? { title: str(so.title, LIMITS.label) } : {}), fields, ...(so.result === true ? { result: true as const } : {}) });
   }
   if (count > LIMITS.fields) errors.push(`Up to ${LIMITS.fields} fields.`);
   if (!keys.has("email")) errors.push("Add an email field, so each answer reaches a contact.");
   steps.forEach((s, i) => {
-    if (!s.fields.some((f) => f.type !== "hidden" && !isContent(f.type))) errors.push(`Step ${i + 1} has no fields.`);
+    if (s.result ? !s.fields.some((f) => f.type === "result") : !s.fields.some((f) => f.type !== "hidden" && !isContent(f.type))) errors.push(s.result ? `Step ${i + 1} has no results to show.` : `Step ${i + 1} has no fields.`);
   });
   const fieldIds = new Set(steps.flatMap((s) => s.fields.map((f) => f.id)));
   const contentIds = new Set(steps.flatMap((s) => s.fields.filter((f) => isContent(f.type)).map((f) => f.id)));
@@ -667,6 +716,10 @@ export function checkForm(raw: unknown, ctx: Ctx = {}): { form: Form } | { error
         const ok = new Set((parent.options ?? []).map((o) => o.value));
         if (Object.keys(by.map ?? {}).some((k) => !ok.has(k))) errors.push(`${name} has options for an answer ${parent.label || "the field it follows"} doesn't have.`);
       }
+    }
+    if (f.result) {
+      const refs = [f.result.field, ...(f.result.fields ?? [])].filter((x): x is string => !!x);
+      if (refs.some((x) => !["calc", "number"].includes(byId.get(x)?.type ?? ""))) errors.push(`${name} shows a number that's gone.`);
     }
     if (f.calc) {
       const parsed = parseFormula(f.calc.formula);
@@ -838,6 +891,9 @@ export function checkForm(raw: unknown, ctx: Ctx = {}): { form: Form } | { error
       width: layout.width === "wide" ? "wide" : "narrow",
       ...(layout.progress === "dots" || layout.progress === "none" ? { progress: layout.progress } : {}),
       ...(Number.isFinite(Number(layout.maxWidth)) && Number(layout.maxWidth) >= 280 ? { maxWidth: Math.min(Math.round(Number(layout.maxWidth)), 1200) } : {}),
+      ...(layout.mode === "screens" ? { mode: "screens" as const } : {}),
+      ...(layout.auto === true ? { auto: true as const } : {}),
+      ...((c) => (c ? { cover: c } : {}))(cleanCover(layout.cover)),
     },
     ...(str(r.title, LIMITS.label) ? { title: str(r.title, LIMITS.label) } : {}),
     ...(str(r.intro, LIMITS.text) ? { intro: str(r.intro, LIMITS.text) } : {}),
@@ -871,6 +927,16 @@ export function checkForm(raw: unknown, ctx: Ctx = {}): { form: Form } | { error
 }
 
 /** https only (http for localhost while testing), no credentials in the address. */
+function cleanCover(raw: unknown): NonNullable<Form["layout"]["cover"]> | undefined {
+  if (!raw || typeof raw !== "object") return undefined;
+  const c = raw as Record<string, unknown>;
+  const title = str(c.title, LIMITS.label);
+  if (!title) return undefined;
+  const text = str(c.text, LIMITS.text);
+  const button = str(c.button, 40);
+  return { title, ...(text ? { text } : {}), ...(button ? { button } : {}) };
+}
+
 /** The owner's settings, cleaned: a unique name for each, a number or not set yet. */
 function cleanConstants(raw: unknown, errors: string[]): Constant[] {
   if (!Array.isArray(raw)) return [];

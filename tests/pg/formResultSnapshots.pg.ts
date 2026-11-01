@@ -85,3 +85,25 @@ test("a result is saved once, a repeat keeps the first, and a new version leaves
   assert.equal(await as(user), 1);
   assert.equal(await as(stranger), 0);
 });
+
+test("Email my results: only the browser that sent the fill can ask, and it queues one email", async () => {
+  const ws = uuid7();
+  const user = uuid7();
+  await q(`insert into workspaces (id, name) values ($1, 'Acme')`, [ws]);
+  await q(`insert into auth.users (id, email) values ($1, $2)`, [user, `${user}@t.io`]);
+  await q(`insert into workspace_members (workspace_id, user_id, role) values ($1, $2, 'owner')`, [ws, user]);
+  const body = quote(100);
+  const id = (await q(`insert into forms (workspace_id, name, draft) values ($1, 'Quote', $2) returning id`, [ws, body]))[0].id as string;
+  const version = (await q(`select form_publish($1, $2, $3) as v`, [id, user, body]))[0].v as number;
+  const key = "m".repeat(16) + uuid7().replace(/-/g, "").slice(0, 20);
+  const r = await acceptFill(rpc, { id, workspace_id: ws, version, status: "live", body, tokens: {}, logo_url: null }, { v: 1, version, key, answers: { e: "bo@acme.com", rooms: "3" }, ms: 5000 }, { custom: [] });
+  const sid = r.body.id as string;
+  const ask = async (k: string, form = id) => (await q(`select form_results_request($1, $2, $3) as r`, [form, sid, k]))[0].r as string;
+  assert.equal(await ask("x".repeat(20)), "not_found");
+  assert.equal(await ask(key, uuid7()), "not_found");
+  assert.equal(await ask(key), "queued");
+  assert.equal(await ask(key), "queued");
+  assert.equal((await q(`select count(*)::int as n from jobs where key = $1`, [`form_results:${sid}`]))[0].n, 1);
+  const got = (await q(`select submission_result_get($1) as r`, [sid]))[0].r;
+  assert.equal(got.values["q.total"], 145);
+});

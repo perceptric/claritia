@@ -217,3 +217,48 @@ test("step 2: test fills aren't saved, an older database still takes the fill, a
   assert.equal(plain.body.result, undefined);
   assert.equal(plain.saves.length, 0);
 });
+
+// Steps 3 and 4: screens, cards, sliders and result blocks pass the checker only when they can work ------------------
+
+test("screens, a cover, cards with pictures, a slider and result screens are kept; broken ones are refused", () => {
+  const svc = f({ id: "svc", type: "choice", cards: true, options: [{ value: "a", label: "A", image: "https://img.acme.com/a.jpg" }, { value: "b", label: "B", image: "http://bad.com/b.jpg" }] });
+  const rooms = f({ id: "rooms", type: "number", slider: true, valid: { min: 1, max: 60 } });
+  const total = f({ id: "total", type: "calc", calc: { formula: "{rooms} * 15", format: "money" } });
+  const ok = checkForm({
+    ...emptyForm(),
+    layout: { labels: "above", width: "wide", mode: "screens", auto: true, cover: { title: "Get your price", button: "Start" } },
+    steps: [
+      { id: "s1", fields: [EMAIL, svc, rooms, total] },
+      { id: "s2", result: true, fields: [f({ id: "r1", type: "result", result: { kind: "meter", field: "total", max: 900 } }), f({ id: "r2", type: "result", result: { kind: "outcome" } })] },
+    ],
+  });
+  assert.ok("form" in ok, "errors" in ok ? ok.errors.join(" ") : "");
+  const fm = ok.form;
+  assert.equal(fm.layout.mode, "screens");
+  assert.equal(fm.layout.cover?.title, "Get your price");
+  assert.equal(fm.steps[1]!.result, true);
+  const cards = fm.steps[0]!.fields.find((x) => x.id === "svc")!;
+  assert.equal(cards.cards, true);
+  assert.equal(cards.options![0]!.image, "https://img.acme.com/a.jpg");
+  assert.equal(cards.options![1]!.image, undefined, "only https pictures");
+
+  const errs = (steps: unknown[]) => {
+    const r = checkForm({ ...emptyForm(), steps });
+    return "errors" in r ? r.errors.join(" ") : "";
+  };
+  assert.match(errs([{ id: "s1", fields: [EMAIL, f({ id: "n", type: "number", slider: true })] }]), /lowest and a highest/);
+  assert.match(errs([{ id: "s1", fields: [EMAIL, f({ id: "r", type: "result", result: { kind: "metric", field: "gone" } })] }]), /number that's gone/);
+  assert.match(errs([{ id: "s1", fields: [EMAIL, total, f({ id: "r", type: "result", result: { kind: "meter", field: "total" } })] }]), /top value/);
+  assert.match(errs([{ id: "s1", fields: [EMAIL] }, { id: "s2", result: true, fields: [f({ id: "q", type: "text" })] }]), /results, text and calculations only/);
+  assert.match(errs([{ id: "s1", fields: [EMAIL] }, { id: "s2", result: true, fields: [] }]), /no results to show/);
+});
+
+test("the results email lists the outcome and the numbers, with nothing unescaped", async () => {
+  const { resultsEmail } = await import("../src/lib/forms/notify.ts");
+  const m = resultsEmail({ form: "Quote", sender: "Acme <Cleaning>", outcome: { title: "Lock in this price", text: "Valid for 7 days." }, lines: [{ label: "Estimate", value: "$500.00" }] });
+  assert.equal(m.subject, "Your results: Quote");
+  assert.match(m.html, /Lock in this price/);
+  assert.match(m.html, /\$500\.00/);
+  assert.match(m.html, /Acme &lt;Cleaning&gt;/);
+  assert.match(m.text, /Estimate: \$500\.00/);
+});

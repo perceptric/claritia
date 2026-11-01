@@ -8,7 +8,8 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { gzipSync } from "node:zlib";
 
-const LIMIT = 23 * 1024;
+// 32 KB with screens and result blocks (docs/interactive-forms-plan.md Part 2).
+const LIMIT = 32 * 1024;
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const out = process.argv.includes("--dev") ? join(root, ".forms") : join(root, ".next", "static", "forms");
 

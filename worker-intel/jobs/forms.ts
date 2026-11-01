@@ -14,8 +14,9 @@
 import { slackNote } from "../../src/lib/delivery/send.ts";
 import { fromHeader, outcomeOf, SendError, type Outgoing } from "../../src/lib/email/provider.ts";
 import type { Resend } from "../../src/lib/email/resend.ts";
+import { calcText } from "../../src/lib/forms/formula.ts";
 import { allFields, type Form } from "../../src/lib/forms/schema.ts";
-import { alertEmail, replyEmail, replyGoes, type MergeValues } from "../../src/lib/forms/notify.ts";
+import { alertEmail, replyEmail, replyGoes, resultsEmail, type MergeValues } from "../../src/lib/forms/notify.ts";
 import { enqueueJob, JobError, type Handler, type Rpc } from "../../src/lib/jobs.ts";
 import { mime, validAddress } from "../../src/lib/meetings/emails.ts";
 import type { Mailer } from "./meetings.ts";
@@ -68,11 +69,11 @@ export const formNotify =
     const info = await call<NotifyInfo | null>(rpc, "form_notify_info", { p_sid: sid });
     // Gone, held as spam since, or a test: nothing to send.
     if (!info || info.submission.spam || info.submission.test || !info.body) return;
-    const only = job.payload.only === "alerts" || job.payload.only === "reply" ? job.payload.only : null;
+    const only = job.payload.only === "alerts" || job.payload.only === "reply" || job.payload.only === "results" ? job.payload.only : null;
     // Routing took longer than the form waited: its job routes the lead a moment later, so wait for the rep's name,
     // back in line without using a try. The route's commit pulls the wait short.
     const age = (Date.now() - Date.parse(info.submission.created_at ?? "")) / 1000;
-    if (info.routing === "pending" && age < ROUTE_WAIT_S) {
+    if (info.routing === "pending" && age < ROUTE_WAIT_S && only !== "results") {
       await enqueueJob(rpc, { workspaceId: job.workspace_id, kind: "form_notify", key: job.key, payload: { ...job.payload, waiting_route: true }, delayS: ROUTE_LOOK_S, maxAttempts: job.max_attempts });
       return;
     }
@@ -147,6 +148,20 @@ export const formNotify =
     };
 
     const n = body.notify;
+    // "Email my results": the saved result to the contact's own address, from the team (docs/interactive-forms-plan.md).
+    if (only === "results") {
+      const res = await call<{ outcome_title: string | null; values: Record<string, number | null> } | null>(rpc, "submission_result_get", { p_sid: sid });
+      if (!res || !c?.email || info.sending.paused) return;
+      const outcome = body.results?.outcomes.find((x) => x.title === res.outcome_title);
+      const lines = allFields(body)
+        .filter((x) => x.type === "calc" && x.calc?.show !== false && x.key in res.values)
+        .map((x) => ({ label: x.label, value: calcText(x.calc, res.values[x.key]) }));
+      const sender = info.sending.from_name || info.workspace || "The team";
+      await send("results", c.email.trim().toLowerCase(), resultsEmail({ form, sender, outcome: res.outcome_title ? { title: res.outcome_title, ...(outcome?.text ? { text: outcome.text } : {}) } : null, lines }), sender, info.sending.reply_to);
+      if (later) throw new JobError("The email provider said not now; trying again", { retryAfterS: 120 });
+      return;
+    }
+
     if (n?.on && only !== "reply") {
       const answers = answersOf(body, info.submission.values);
       const parts = alertEmail({ form, lead, answers, showAnswers: n.answers, subject: n.subject, link, owner: info.owner?.name ?? null });
