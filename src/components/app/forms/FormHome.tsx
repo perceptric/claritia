@@ -3,11 +3,10 @@
 // Inbound › Forms (docs/forms-plan.md): one list of forms as 72 px rows, like Calendar's meeting types. Each row has
 // its thumbnail, where it lives, its last fill and send rate, the last 7 days as bars, this week's count and its
 // state; the more menu opens, copies, takes offline and deletes. With no forms yet, the first screen asks what the
-// form is for. New form opens a dialog: describe it, or start from one of six templates.
+// form is for. New form opens the AI builder; Blank form asks for a name, then makes an empty form.
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import type { Tokens } from "@/lib/forms/brand";
-import { buildForm, formName, readSentence, type Copy } from "@/lib/forms/interview";
 import { STARTERS } from "@/lib/forms/templates";
 import type { Form } from "@/lib/forms/schema";
 import { CATALOG } from "@/lib/sources/catalog";
@@ -19,7 +18,7 @@ import { Badge, ErrorNote, errorText, IconButton, invalidate, Loading, must, pos
 import { meetingTypes } from "../meetings/TypesList";
 import { ago, whereWords } from "./formModel";
 import { Ic } from "./ic";
-import { BTN, copyText, Dialog, Dots, EYEBROW, GHOST, IB, Seg, SegN, Thumb, useNote } from "./parts";
+import { BTN, copyText, Dialog, Dots, EYEBROW, GHOST, IB, IN, Seg, SegN, Thumb, useNote } from "./parts";
 import { AiCreate } from "./AiCreate";
 import { Menu } from "./Menu";
 
@@ -82,7 +81,7 @@ export function FormHome(props: ViewProps & { startNew?: boolean }) {
   const [error, setError] = useState("");
   const [filter, setFilter] = useKept<"all" | "live" | "draft">(`forms:${ws.id}:filter`, "all");
   const [q, setQ] = useKept(`forms:${ws.id}:q`, "");
-  const [dialog, setDialog] = useState(!!props.startNew);
+  const [dialog, setDialog] = useState<boolean | "blank">(!!props.startNew);
   const [aiNote, setAiNote] = useState("");
   // Onboarding: the brand step is done (read, or skipped on this computer), and a starter to open right after.
   const [brandDone, setBrandDone] = useState(() => {
@@ -92,7 +91,6 @@ export function FormHome(props: ViewProps & { startNew?: boolean }) {
       return false;
     }
   });
-  const [starter, setStarter] = useState<string | null>(null);
   const [menu, setMenu] = useState<{ id: string; at: HTMLElement } | null>(null);
   const note = useNote();
 
@@ -160,9 +158,9 @@ export function FormHome(props: ViewProps & { startNew?: boolean }) {
       <Loading />
     )
   ) : !rows!.length && !brandDone && !list.data.kits.some((k) => k.scan_status === "done" && Object.keys(k.tokens ?? {}).length > 0) ? (
-    <BrandStep {...props} onDone={(build) => (list.reload(), setBrandDone(true), build ? setStarter("demo") : undefined)} />
+    <BrandStep {...props} onDone={(build) => (list.reload(), setBrandDone(true), build ? (setAiNote(""), setDialog(true)) : undefined)} />
   ) : !rows!.length ? (
-    <FirstScreen {...props} onTemplates={(n?: string) => (setAiNote(n ?? ""), setDialog(true))} kits={list.data.kits} />
+    <FirstScreen onAi={(n?: string) => (setAiNote(n ?? ""), setDialog(true))} onBlank={() => setDialog("blank")} />
   ) : (
     <div className="min-h-0 flex-1 overflow-y-auto px-[16px] pt-[16px] pb-[24px] sm:px-[clamp(16px,2.5vw,28px)]">
       <div className="mb-[14px] flex flex-wrap items-center gap-[10px]">
@@ -227,8 +225,7 @@ export function FormHome(props: ViewProps & { startNew?: boolean }) {
           ]}
         />
       ) : null}
-      {dialog ? <NewForm {...props} note={aiNote} kits={list.data?.kits ?? []} onClose={() => setDialog(false)} /> : null}
-      {starter ? <NewForm {...props} kits={list.data?.kits ?? []} start={{ starter }} onClose={() => setStarter(null)} /> : null}
+      {dialog ? <NewForm {...props} note={aiNote} blank={dialog === "blank"} kits={list.data?.kits ?? []} onClose={() => setDialog(false)} /> : null}
       {note.node}
     </div>
   );
@@ -450,10 +447,8 @@ function BrandStep({ sb, session, ws, onDone }: ViewProps & { onDone: (build: bo
 
 // First screen -------------------------------------------------------------------------------------------------------
 
-function FirstScreen(props: ViewProps & { onTemplates: (note?: string) => void; kits: KitLite[] }) {
+function FirstScreen({ onAi, onBlank }: { onAi: (note?: string) => void; onBlank: () => void }) {
   const [text, setText] = useState("");
-  const [making, setMaking] = useState<string | null>(null);
-  const [blank, setBlank] = useState(false);
   return (
     <div className="flex flex-1 flex-col items-center justify-center gap-[14px] overflow-y-auto px-[16px] py-[24px] text-center">
       <FormSketch />
@@ -463,18 +458,17 @@ function FirstScreen(props: ViewProps & { onTemplates: (note?: string) => void; 
         <span className="text-faint">It takes your website&apos;s look.</span>
       </h1>
       <p className="max-w-[420px] text-muted">Say what it&apos;s for. Claritia picks the questions, saves the answers to your contacts and sends leads to the right rep.</p>
-      <AskPill value={text} onChange={setText} placeholder="A demo request for work emails, then book a call" onSend={() => text.trim() && props.onTemplates(text.trim())} shadow />
+      <AskPill value={text} onChange={setText} placeholder="A demo request for work emails, then book a call" onSend={() => text.trim() && onAi(text.trim())} shadow />
       <div className="flex flex-wrap items-center justify-center gap-[6px]">
-        <button type="button" className={GHOST} onClick={() => props.onTemplates()}>
+        <button type="button" className={GHOST} onClick={() => onAi()}>
           <AiMark size={13} />
           Build with AI
         </button>
-        <button type="button" className={GHOST} onClick={() => setBlank(true)}>
+        <button type="button" className={GHOST} onClick={onBlank}>
           <Ic n="plus" />
           Blank form
         </button>
       </div>
-      {making || blank ? <NewForm {...props} start={making ? { text: making } : { starter: "blank" }} onClose={() => (setMaking(null), setBlank(false))} /> : null}
     </div>
   );
 }
@@ -502,7 +496,6 @@ export function AskPill({ value, onChange, placeholder, onSend, busy = false, sh
 
 type Tool = { id: string; kind: string; name: string; status: string };
 const PUSHES = new Set(CATALOG.filter((e) => e.twoWay || e.pushes).map((e) => e.kind));
-const CRM_KINDS = new Set(["hubspot", "salesforce", "omniscient", "pipedrive"]);
 const host = (u: string | null | undefined) => {
   try {
     return u ? new URL(/^https?:\/\//.test(u) ? u : `https://${u}`).hostname.replace(/^www\./, "") : "";
@@ -512,122 +505,73 @@ const host = (u: string | null | undefined) => {
 };
 
 /**
- * New form: the AI builder (AiCreate) asks for the site and the goal, then builds it. `start` makes one at once from
- * the first screen's box or Blank form, a line at a time, then the form opens in Build.
+ * New form: the AI builder (AiCreate) asks for the site and the goal, then builds it. Blank form asks for a name
+ * first, then makes an empty form (just the email) in the workspace's look and opens it in Build.
  */
-function NewForm({ sb, session, ws, navigate, kits, onClose, start, note = "" }: ViewProps & { kits: KitLite[]; onClose: () => void; start?: { text: string } | { starter: string }; note?: string }) {
+function NewForm({ sb, session, ws, navigate, kits, onClose, blank = false, note = "" }: ViewProps & { kits: KitLite[]; onClose: () => void; blank?: boolean; note?: string }) {
   const ctx = useNewFormContext(sb, ws.id);
-  const [lines, setLines] = useState<string[] | null>(null);
-  const [error, setError] = useState("");
-  const started = useRef(false);
-  const site = ctx.data?.site ?? "";
-  // A kit for this site, read or still being read, is used as is: another scan would only make a second kit.
-  const usable = (k: KitLite) => k.scan_status === "scanning" || (k.scan_status === "done" && Object.keys(k.tokens ?? {}).length > 0);
-  const kit = kits.find((k) => usable(k) && site && host(k.source_url) === host(site)) ?? kits.find((k) => k.scan_status === "done" && Object.keys(k.tokens ?? {}).length > 0) ?? null;
-  const siteName = host(kit?.source_url) || host(site);
+  const [asBlank, setAsBlank] = useState(blank);
+  // The site to build for: the workspace's site, else the one its brand was read from.
+  const site = ctx.data?.site || host(lookKit(kits)?.source_url);
+  if (asBlank) return <BlankForm sb={sb} ws={ws} navigate={navigate} kits={kits} onClose={onClose} />;
+  // AiCreate fills its boxes once, so it waits for what New form reads.
+  if (!ctx.data && !ctx.error) return null;
+  // New form is built by AI from the site and the goal (docs/ai-form-builder.md); no templates.
+  return <AiCreate sb={sb} session={session} ws={ws} navigate={navigate} site={site} kits={kits} meetingType={ctx.data?.type ?? null} note={note} onClose={onClose} onBlank={() => setAsBlank(true)} />;
+}
 
-  const make = async (how: { text: string } | { starter: string }) => {
-    if (!ctx.data || lines) return;
+/** The kit a new form takes: the workspace's brand (listed first) when it has a look, else none. */
+export const lookKit = (kits: KitLite[]) => kits.find((k) => k.scan_status === "done" && Object.keys(k.tokens ?? {}).length > 0) ?? kits.find((k) => k.scan_status === "scanning") ?? null;
+
+/** Blank form: a name, then Create. Nothing is made until Create is clicked. */
+function BlankForm({ sb, ws, navigate, kits, onClose }: Pick<ViewProps, "sb" | "ws" | "navigate"> & { kits: KitLite[]; onClose: () => void }) {
+  const [name, setName] = useState("Untitled form");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const create = async () => {
+    const n = name.trim();
+    if (!n || busy) return;
+    setBusy(true);
     setError("");
-    const c = ctx.data;
-    const crm = c.tools.find((t) => CRM_KINDS.has(t.kind));
-    const out: string[] = [];
-    const say = (l: string) => {
-      out.push(l);
-      setLines([...out]);
-    };
-    const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
-    setLines([]);
     try {
-      let kitId = kit?.id ?? null;
-      if (!kit && site) {
-        const r = await postJson<{ kitId: string }>(session, "/api/forms/scan", { workspaceId: ws.id, url: host(site) }).catch(() => null);
-        kitId = r?.kitId ?? null;
-      }
-      await wait(120);
-      say(kitId ? (kit?.scan_status === "done" ? `Took the look of ${siteName}` : `Reading ${siteName} for its look`) : "Took Claritia's look");
-      let name: string;
-      let form: Form;
-      let sources: string[] = [];
-      let made = false;
-      if ("text" in how) {
-        const read = readSentence(how.text, c.tools);
-        const a = read.answers;
-        if (a.after.kind === "meeting") a.after = c.type ? { kind: "meeting", tool: "claritia", url: "", perOwner: false, meetingTypeId: c.type } : { kind: "message" };
-        const copy = await Promise.race([
-          postJson<{ copy: Copy }>(session, "/api/forms/interview", { workspaceId: ws.id, mode: "copy", answers: a, site: siteName })
-            .then((r) => r.copy)
-            .catch(() => ({})),
-          new Promise<Copy>((r) => setTimeout(() => r({}), 12_000)),
-        ]);
-        form = buildForm(a, copy);
-        name = formName(a);
-        sources = a.send.sources;
-        made = true;
-      } else {
-        // The gallery's templates first (docs/interactive-forms-plan.md Part 6), then the older starters.
-        const s = STARTERS.find((x) => x.key === how.starter) ?? STARTERS[0]!;
-        form = s.form();
-        if (s.book && c.type) form.after.schedule = { tool: "claritia", url: "", perOwner: false, meetingTypeId: c.type };
-        name = s.key === "blank" ? "Untitled form" : s.name;
-      }
-      const n = form.steps.reduce((sum, s) => sum + s.fields.length, 0);
-      say(`Picked ${n} ${n === 1 ? "question" : "questions"} for ${/^[aeiou]/i.test(name) ? "an" : "a"} ${name.toLowerCase()}`);
-      const id = must(await sb.rpc("form_create", { p_ws: ws.id, p_name: name, p_draft: form, p_brand_kit: kitId, p_kind: "built" })) as string;
-      for (const s of sources) {
-        const t = c.tools.find((x) => x.id === s);
-        await postJson(session, "/api/forms/destination", { workspaceId: ws.id, formId: id, kind: "source", sourceId: s, name: t?.name ?? "Tool" }).catch(() => undefined);
-      }
-      await wait(100);
-      say(`Matched them to your contact fields${crm && sources.includes(crm.id) ? ` and ${crm.name}` : ""}`);
-      await wait(120);
-      say(form.after.schedule ? (c.routing ? "Leads go to Routing, then book a call" : "Leads book a call") : c.routing ? "Leads go to Routing" : "Leads become contacts");
-      await wait(150);
-      try {
-        if (made) sessionStorage.setItem(`${MADE_KEY}${id}`, "1");
-      } catch {}
+      const form = STARTERS.find((x) => x.key === "blank")!.form();
+      form.title = n.slice(0, 120);
+      const id = must(await sb.rpc("form_create", { p_ws: ws.id, p_name: n.slice(0, 120), p_draft: form, p_brand_kit: lookKit(kits)?.id ?? null, p_kind: "built" })) as string;
+      invalidate(`forms:${ws.id}:home`);
+      invalidate("app_counts");
       navigate("forms", id);
     } catch (e) {
-      setLines(null);
       setError(errorText(e));
+      setBusy(false);
     }
   };
-
-  useEffect(() => {
-    if (!start || !ctx.data || started.current) return;
-    started.current = true;
-    void make(start);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ctx.data]);
-
-  if (lines || start)
-    return (
-      <Dialog label="Making the form" onClose={() => (lines ? undefined : onClose())}>
-        <span className={EYEBROW}>New form</span>
-        <h2 className="text-[16px] font-semibold tracking-[-0.01em] text-ink">Making your form</h2>
-        <div className="flex flex-col gap-[8px] py-[6px]">
-          {(lines ?? []).map((l, i) => (
-            <div key={l} className="anim-rise-sm flex items-center gap-[10px] text-ink" style={{ animationDelay: `${i * 40}ms` }}>
-              <span className="inline-flex size-[18px] shrink-0 items-center justify-center rounded-full bg-signal-soft text-signal">
-                <Ic n="check" s={11} />
-              </span>
-              {l}
-            </div>
-          ))}
-          {error ? <ErrorNote message={error} /> : (lines?.length ?? 0) < 4 ? <span className="text-muted"><Dots /></span> : null}
+  return (
+    <Dialog label="Blank form" onClose={() => (busy ? undefined : onClose())}>
+      <span className={EYEBROW}>New form</span>
+      <h2 className="text-[16px] font-semibold tracking-[-0.01em] text-ink">Blank form</h2>
+      <form
+        className="flex flex-col gap-[12px]"
+        onSubmit={(e) => {
+          e.preventDefault();
+          void create();
+        }}
+      >
+        <label className="flex flex-col gap-[6px]">
+          <span className="text-[12px] text-muted">Name</span>
+          <input autoFocus className={IN} value={name} maxLength={120} onChange={(e) => setName(e.target.value)} onFocus={(e) => e.currentTarget.select()} aria-label="Form name" />
+        </label>
+        <ErrorNote message={error} />
+        <div className="flex flex-wrap items-center justify-end gap-[8px]">
+          <button type="button" className={GHOST} onClick={onClose} disabled={busy}>
+            Cancel
+          </button>
+          <button type="submit" className={BTN} disabled={!name.trim() || busy}>
+            {busy ? "Creating" : "Create form"}
+          </button>
         </div>
-        {error ? (
-          <div className="flex justify-end">
-            <button type="button" className={GHOST} onClick={onClose}>
-              Close
-            </button>
-          </div>
-        ) : null}
-      </Dialog>
-    );
-
-  // New form is built by AI from the site and the goal (docs/ai-form-builder.md); no templates.
-  return <AiCreate sb={sb} session={session} ws={ws} navigate={navigate} site={site} kits={kits} meetingType={ctx.data?.type ?? null} note={note} onClose={onClose} />;
+      </form>
+    </Dialog>
+  );
 }
 
 // The assistant's box at the bottom of Routing and Scoring screens ------------------------------------------------------
