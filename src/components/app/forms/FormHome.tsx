@@ -623,7 +623,7 @@ function NewForm({ sb, session, ws, navigate, kits, onClose, start, note = "" }:
     );
 
   // New form is built by AI from the site and the goal (docs/ai-form-builder.md); no templates.
-  return <AiCreate sb={sb} session={session} ws={ws} navigate={navigate} site={site} kitId={kit?.id ?? null} meetingType={ctx.data?.type ?? null} note={note} onClose={onClose} />;
+  return <AiCreate sb={sb} session={session} ws={ws} navigate={navigate} site={site} kits={kits} meetingType={ctx.data?.type ?? null} note={note} onClose={onClose} />;
 }
 
 // The assistant's box at the bottom of Routing and Scoring screens ------------------------------------------------------

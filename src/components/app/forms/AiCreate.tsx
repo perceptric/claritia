@@ -12,6 +12,14 @@ import { ErrorNote, errorText, must, postJson, type ViewProps } from "../ui";
 import { Ic } from "./ic";
 import { BTN, Dialog, Dots, EYEBROW, GHOST, GHOST_SM, IN } from "./parts";
 
+const hostOf = (u: string | null | undefined) => {
+  try {
+    return u?.trim() ? new URL(/^https?:\/\//.test(u.trim()) ? u.trim() : `https://${u.trim()}`).hostname.replace(/^www\./, "") : "";
+  } catch {
+    return "";
+  }
+};
+
 type Stage = "start" | "reading" | "questions" | "building";
 /** A picked answer: black with white text, and it stays white on hover. */
 const PICKED = "press inline-flex h-[26px] shrink-0 items-center gap-[6px] rounded-full border border-ink bg-ink px-[10px] text-[12px] whitespace-nowrap text-card";
@@ -20,7 +28,7 @@ export const SUMMARY_KEY = "claritia:form-ai-summary:";
 
 const STEPS = ["Reading what you sell", "Writing the questions", "Adding prices, scores and results", "Checking every path and outcome", "Fixing what didn't pass"];
 
-export function AiCreate({ sb, session, ws, navigate, site, kitId, meetingType, onClose, note: initialNote = "" }: Pick<ViewProps, "sb" | "session" | "ws" | "navigate"> & { site: string; kitId: string | null; meetingType: string | null; onClose: () => void; note?: string }) {
+export function AiCreate({ sb, session, ws, navigate, site, kits, meetingType, onClose, note: initialNote = "" }: Pick<ViewProps, "sb" | "session" | "ws" | "navigate"> & { site: string; kits: { id: string; source_url: string | null; scan_status: string | null; tokens?: object | null }[]; meetingType: string | null; onClose: () => void; note?: string }) {
   const [stage, setStage] = useState<Stage>("start");
   const [url, setUrl] = useState(site);
   const [goal, setGoal] = useState<Goal | null>(null);
@@ -30,8 +38,9 @@ export function AiCreate({ sb, session, ws, navigate, site, kitId, meetingType, 
   const [answers, setAnswers] = useState<Record<string, string | string[]>>({});
   const [error, setError] = useState("");
   const [tick, setTick] = useState(0);
-  // The brand kit the form takes: the workspace's, or one scanned from this site now (it fills in while Claude builds).
-  const [kit, setKit] = useState<string | null>(kitId);
+  // The brand kit the form takes: one made from this exact site, or a scan of it started now (it fills in while Claude
+  // builds). Never another site's kit.
+  const [kit, setKit] = useState<string | null>(null);
 
   useEffect(() => {
     if (stage !== "building") return;
@@ -44,10 +53,13 @@ export function AiCreate({ sb, session, ws, navigate, site, kitId, meetingType, 
     setError("");
     setStage("reading");
     try {
-      if (!kit && url.trim()) {
+      const want = hostOf(url);
+      const mine = want ? kits.find((k) => hostOf(k.source_url) === want && (k.scan_status === "scanning" || (k.scan_status === "done" && Object.keys(k.tokens ?? {}).length > 0))) : undefined;
+      if (mine) setKit(mine.id);
+      else if (want) {
         const scan = await postJson<{ kitId: string }>(session, "/api/forms/scan", { workspaceId: ws.id, url: url.trim() }).catch(() => null);
-        if (scan?.kitId) setKit(scan.kitId);
-      }
+        setKit(scan?.kitId ?? null);
+      } else setKit(null);
       const read = url.trim() ? await postJson<{ brief: Brief | null; error?: string }>(session, "/api/forms/ai", { workspaceId: ws.id, mode: "read", url: url.trim() }).catch(() => ({ brief: null })) : { brief: null };
       setBrief(read.brief);
       const ask = await postJson<{ questions: AskQuestion[] }>(session, "/api/forms/ai", { workspaceId: ws.id, mode: "ask", brief: read.brief, goal, note });
