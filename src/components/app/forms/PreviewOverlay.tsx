@@ -16,6 +16,8 @@ export function PreviewOverlay({ form, tokens, system, crmName, onClose, banner,
   // Try example opens on the first result screen, with the example's answers in.
   const resultStep = Math.max(0, form.steps.findIndex((s) => s.result));
   const [run, setRun] = useState(0);
+  // A split screen (a picture beside each step) needs the room the live form gives it.
+  const split = !!form.layout.side || form.steps.some((s) => s.image);
   const closeBtn = useRef<HTMLButtonElement>(null);
   useEffect(() => {
     closeBtn.current?.focus();
@@ -52,7 +54,7 @@ export function PreviewOverlay({ form, tokens, system, crmName, onClose, banner,
       </div>
       <div className="flex min-h-0 flex-1 items-start justify-center overflow-y-auto px-[16px] pt-[28px] pb-[40px]">
         <div
-          className={`keep-light max-w-full rounded-[14px] shadow-[0_1px_2px_rgb(0_0_0/0.05),0_0_0_1px_rgb(0_0_0/0.06)] transition-[width] duration-[320ms] ease-out ${device === "phone" ? "w-[375px] p-[22px]" : form.layout.width === "wide" ? "w-[720px] p-[32px]" : "w-[560px] p-[32px]"}`}
+          className={`keep-light max-w-full rounded-[14px] shadow-[0_1px_2px_rgb(0_0_0/0.05),0_0_0_1px_rgb(0_0_0/0.06)] transition-[width] duration-[320ms] ease-out ${device === "phone" ? "w-[375px] p-[22px]" : split ? "w-[1040px] p-[24px]" : form.layout.width === "wide" ? "w-[720px] p-[32px]" : "w-[560px] p-[32px]"}`}
           style={{ background: cleanTokens(tokens).tokens.background }}
         >
           <FormPreview key={`${run}:${device}`} form={form} tokens={tokens} system={system} device={device === "phone" ? "phone" : "base"} {...(example !== null && examples?.[example] ? { answers: examples[example].answers, step: resultStep } : {})} />

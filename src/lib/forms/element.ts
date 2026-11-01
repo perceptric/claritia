@@ -35,7 +35,7 @@ const SCRIPT_BASE = (() => {
 })();
 
 const STYLES = `
-:host{display:block;all:initial;font-family:var(--clr-font);font-size:var(--clr-size);color:var(--clr-text);line-height:1.45}
+:host{all:initial;display:block;container-type:inline-size;font-family:var(--clr-font);font-size:var(--clr-size);color:var(--clr-text);line-height:1.45}
 *{box-sizing:border-box;font:inherit;color:inherit}
 .f{background:var(--clr-bg);display:flex;flex-direction:column;gap:var(--clr-gap);max-width:var(--clr-width,480px);container-type:inline-size}
 .h{font-family:var(--clr-heading-font);font-size:1.45em;font-weight:600;margin:0;line-height:1.2}
@@ -146,7 +146,7 @@ textarea.in{min-height:calc(var(--clr-input-h)*2.4);padding:10px 12px;resize:ver
 .spi{min-height:200px;background:color-mix(in srgb,var(--clr-accent) 8%,var(--clr-bg))}
 .spi img{display:block;width:100%;height:100%;object-fit:cover}
 .sp>.f{align-self:center;padding:clamp(20px,4vw,48px)}
-@media (max-width:640px){.sp{grid-template-columns:1fr}.sp.sr>.spi{order:0}.spi{max-height:200px}}
+@container (max-width:640px){.sp{grid-template-columns:1fr}.sp.sr>.spi{order:0}.spi{max-height:200px}.r2{grid-template-columns:1fr}}
 .cv .h{font-size:2.2em}
 .cd{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px}
 .cd label{position:relative;display:flex;flex-direction:column;gap:8px;padding:14px;border:var(--clr-border-w) solid var(--clr-border);border-radius:var(--clr-radius);background:var(--clr-input-bg);cursor:pointer}

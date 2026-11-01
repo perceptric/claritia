@@ -311,27 +311,33 @@ export function kindProblems(form: Form, kind: Kind): string[] {
   return out;
 }
 
-export async function buildForm(call: Caller, input: { brief: Brief | null; kind: Kind; note: string; answers: Record<string, string | string[]>; site: string; book?: unknown }, fixes = 2): Promise<Built | null> {
-  const k = info(input.kind);
-  const user = JSON.stringify({ kind: k.value, kind_is: k.text, recipe: k.recipe, email: k.email, site: input.site, brief: input.brief, brand_book: input.book ?? null, owner_note: input.note, owner_answers: input.answers });
+/** The draft loop every build shares: ask, check, send the problems back, up to `fixes` times. */
+async function draftLoop(
+  call: Caller,
+  system: string,
+  user: string,
+  kindFrom: (raw: Record<string, unknown>) => Kind,
+  o: { fixes: number; effort: "low" | "medium"; maxTokens: number },
+): Promise<(Built & { kind: Kind; raw: Record<string, unknown> }) | null> {
   const history: Anthropic.Beta.BetaMessageParam[] = [{ role: "user", content: user }];
   const usage: Anthropic.Beta.BetaUsage[] = [];
-  for (let round = 0; round <= fixes; round++) {
-    const out = await call({ system: BUILD_SYSTEM, user, effort: "medium", maxTokens: 20000, history }).catch(() => null);
+  for (let round = 0; round <= o.fixes; round++) {
+    const out = await call({ system, user, effort: o.effort, maxTokens: o.maxTokens, history }).catch(() => null);
     if (!out) return null;
     usage.push(out.usage);
     let problems: string[];
     try {
-      const raw = firstJson(out.text) as { name?: unknown; form?: unknown; summary?: Partial<BuildSummary> };
-      const r = checkForm({ ...emptyForm(), ...(raw.form && typeof raw.form === "object" ? raw.form : {}), kind: input.kind });
-      const missing = "form" in r ? kindProblems(r.form, input.kind) : [];
+      const raw = firstJson(out.text) as Record<string, unknown> & { name?: unknown; form?: unknown; summary?: Partial<BuildSummary> };
+      const kind = kindFrom(raw);
+      const r = checkForm({ ...emptyForm(), ...(raw.form && typeof raw.form === "object" ? raw.form : {}), kind });
+      const missing = "form" in r ? kindProblems(r.form, kind) : [];
       // The kind's must-haves count only while there are rounds left to fix them; the last round keeps a valid form.
-      if ("form" in r && (!missing.length || round === fixes)) {
+      if ("form" in r && (!missing.length || round === o.fixes)) {
         const s = raw.summary ?? {};
         const list = (x: unknown) => (Array.isArray(x) ? x.map(String).filter(Boolean).slice(0, 12) : []);
         // Settings left blank are always in the list, whatever the model wrote.
         const replace = [...new Set([...list(s.replace), ...unsetConstants(r.form).map((c) => `${c.name}: set the real value`)])];
-        return { name: typeof raw.name === "string" && raw.name.trim() ? raw.name.trim().slice(0, 120) : "New form", form: r.form, summary: { built: list(s.built), assumptions: list(s.assumptions), replace }, rounds: round + 1, usage };
+        return { name: typeof raw.name === "string" && raw.name.trim() ? raw.name.trim().slice(0, 120) : "New form", form: r.form, summary: { built: list(s.built), assumptions: list(s.assumptions), replace }, rounds: round + 1, usage, kind, raw };
       }
       problems = "errors" in r ? r.errors : missing;
     } catch (e) {
@@ -340,4 +346,58 @@ export async function buildForm(call: Caller, input: { brief: Brief | null; kind
     history.push({ role: "assistant", content: out.text }, { role: "user", content: `The checker refused it:\n- ${problems.slice(0, 20).join("\n- ")}\nFix every problem and answer with the whole JSON object again.` });
   }
   return null;
+}
+
+export async function buildForm(call: Caller, input: { brief: Brief | null; kind: Kind; note: string; answers: Record<string, string | string[]>; site: string; book?: unknown }, fixes = 2): Promise<Built | null> {
+  const k = info(input.kind);
+  const user = JSON.stringify({ kind: k.value, kind_is: k.text, recipe: k.recipe, email: k.email, site: input.site, brief: input.brief, brand_book: input.book ?? null, owner_note: input.note, owner_answers: input.answers });
+  const r = await draftLoop(call, BUILD_SYSTEM, user, () => input.kind, { fixes, effort: "medium", maxTokens: 20000 });
+  if (!r) return null;
+  return { name: r.name, form: r.form, summary: r.summary, rounds: r.rounds, usage: r.usage };
+}
+
+// The live New form (docs/new-form-studio.md): a first sketch from one line and the site, then one change per answer.
+
+const SKETCH_ADD = `
+
+THIS CALL: THE FIRST SKETCH
+The owner gave one line about the form and maybe their website. Pick the kind that fits best from the list given (kinds), build the whole form with that kind's recipe, and set form.kind. Answer with {"name", "kind", "form", "summary", "questions"}.
+questions: 0 to 5 follow-up questions for the owner, only about what you couldn't infer and that would change the form (what drives a price, which options to offer, who reviews it). A simple form (a contact form, a newsletter) needs none. Each is {id, question, kind: "choice"|"multi"|"text", options}: short choices (2 to 6) when the answers are a known list. Never ask what happens after the form is sent, how it looks, or whether it's one page or several steps: those are asked separately.`;
+
+const REFINE_ADD = `
+
+THIS CALL: ONE CHANGE
+You get the current draft and one of the owner's answers to a question about it. Change the draft so it fits the answer: add, change or remove what the answer calls for, and keep everything else exactly as it is (the same ids, keys, wording and layout). Answer with {"name", "form", "summary"}.`;
+
+export type Sketch = Built & { kind: Kind; questions: AskQuestion[] };
+
+/** The first sketch: the kind, the whole draft and the questions still worth asking. */
+export async function sketchForm(call: Caller, input: { brief: Brief | null; note: string; site: string; book?: unknown; kind?: Kind | null }): Promise<Sketch | null> {
+  const user = JSON.stringify({
+    kinds: KINDS.map((k) => ({ kind: k.value, is: k.text, recipe: k.recipe, email: k.email })),
+    ...(input.kind ? { kind_chosen: input.kind } : {}),
+    owner_line: input.note,
+    site: input.site,
+    brief: input.brief,
+    brand_book: input.book ?? null,
+  });
+  const fallback = input.kind ?? guessKind(input.note);
+  const r = await draftLoop(call, BUILD_SYSTEM + SKETCH_ADD, user, (raw) => input.kind ?? kindOf(raw.kind) ?? fallback, { fixes: 2, effort: "medium", maxTokens: 20000 });
+  if (!r) return null;
+  const qs = Array.isArray(r.raw.questions) ? (r.raw.questions as AskQuestion[]) : [];
+  const questions = qs
+    .filter((q) => q && typeof q.question === "string" && q.question.trim())
+    .slice(0, 5)
+    .map((q, i) => ({ id: typeof q.id === "string" && /^[a-z0-9_]{1,24}$/.test(q.id) ? q.id : `q${i + 1}`, question: q.question.slice(0, 200), kind: q.kind === "multi" || q.kind === "text" ? q.kind : "choice", options: (Array.isArray(q.options) ? q.options : []).map(String).slice(0, 6) }) as AskQuestion)
+    .map((q) => (q.kind !== "text" && q.options.length < 2 ? { ...q, kind: "text" as const, options: [] } : q));
+  return { name: r.name, form: r.form, summary: r.summary, rounds: r.rounds, usage: r.usage, kind: r.kind, questions };
+}
+
+/** One answer folded into the draft. The draft that comes back passed the checker; null keeps the old one. */
+export async function refineForm(call: Caller, input: { form: Form; kind: Kind; question: string; answer: string | string[]; brief: Brief | null; book?: unknown }): Promise<Built | null> {
+  const k = info(input.kind);
+  const user = JSON.stringify({ kind: k.value, recipe: k.recipe, email: k.email, brief: input.brief, brand_book: input.book ?? null, current_draft: input.form, question: input.question, answer: input.answer });
+  const r = await draftLoop(call, BUILD_SYSTEM + REFINE_ADD, user, () => input.kind, { fixes: 1, effort: "low", maxTokens: 16000 });
+  if (!r) return null;
+  return { name: r.name, form: r.form, summary: r.summary, rounds: r.rounds, usage: r.usage };
 }
