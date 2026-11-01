@@ -20,7 +20,11 @@ import { Ic } from "./ic";
 import { BTN, EYEBROW, GHOST, GHOST_SM, IB, IN, Seg } from "./parts";
 import { FormPreview } from "./shared";
 
-export type KitLite = { id: string; tokens?: Partial<Tokens> | null; source_url: string | null; scan_status: string | null };
+export type KitLite = { id: string; tokens?: Partial<Tokens> | null; source_url: string | null; scan_status: string | null; logo_url?: string | null; logo_svg?: string | null };
+
+/** A brand's logo as a picture address: its https logo, or its SVG drawn as a picture (no scripts run in one). */
+export const logoOf = (k: KitLite | null | undefined): string | null =>
+  k?.logo_url && /^https:\/\//.test(k.logo_url) ? k.logo_url : k?.logo_svg && /^\s*<svg[\s>]/i.test(k.logo_svg) ? `data:image/svg+xml;utf8,${encodeURIComponent(k.logo_svg)}` : null;
 
 const hostOf = (u: string | null | undefined) => {
   try {
@@ -106,7 +110,7 @@ export function AiCreate({ sb, session, ws, navigate, site, kits: start, onClose
     let n = 0;
     const t = setInterval(async () => {
       if (++n > 60) return clearInterval(t);
-      const { data } = await sb.from("brand_kits").select("id, tokens, source_url, scan_status").eq("id", kit.id).maybeSingle();
+      const { data } = await sb.from("brand_kits").select("*").eq("id", kit.id).maybeSingle();
       if (data) setKits((ks) => ks.map((k) => (k.id === kit.id ? (data as KitLite) : k)));
     }, 3000);
     return () => clearInterval(t);
@@ -117,8 +121,8 @@ export function AiCreate({ sb, session, ws, navigate, site, kits: start, onClose
     setLearning(true);
     setError("");
     try {
-      const r = await postJson<{ kitId: string; tokens?: Partial<Tokens> }>(session, "/api/forms/scan", { workspaceId: ws.id, url: url.trim() });
-      setKits((ks) => [{ id: r.kitId, tokens: r.tokens ?? {}, source_url: url.trim(), scan_status: r.tokens ? "done" : "scanning" }, ...ks.filter((k) => k.id !== r.kitId)]);
+      const r = await postJson<{ kitId: string; tokens?: Partial<Tokens>; logo?: string }>(session, "/api/forms/scan", { workspaceId: ws.id, url: url.trim() });
+      setKits((ks) => [{ id: r.kitId, tokens: r.tokens ?? {}, source_url: url.trim(), scan_status: r.tokens ? "done" : "scanning", logo_url: r.logo ?? null }, ...ks.filter((k) => k.id !== r.kitId)]);
       setStyle(r.kitId);
     } catch (e) {
       setError(errorText(e));
@@ -254,6 +258,22 @@ export function AiCreate({ sb, session, ws, navigate, site, kits: start, onClose
           <div className="flex flex-col gap-[6px]">
             <span className="text-[12px] text-muted">Styling</span>
             <Select value={style} options={styleOptions} onChange={(v) => setStyle(v)} ariaLabel="Styling" disabled={stage !== "start"} />
+            {kit ? (
+              <div className="anim-rise-sm flex items-center gap-[10px] rounded-[10px] border border-line px-[12px] py-[10px]">
+                {logoOf(kit) ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={logoOf(kit)!} alt="" className="h-[22px] w-auto max-w-[120px] object-contain" />
+                ) : (
+                  <span className="inline-flex size-[22px] items-center justify-center rounded-full bg-paper-deep text-[11px] font-semibold text-muted uppercase">{(hostOf(kit.source_url) || "B").slice(0, 1)}</span>
+                )}
+                <span className="min-w-0 flex-1 truncate text-[13px] text-ink">{hostOf(kit.source_url) || "Your brand"}</span>
+                {[tokens.buttonBg, tokens.accent, tokens.text, tokens.background]
+                  .filter((c, i, a): c is string => !!c && a.indexOf(c) === i)
+                  .map((c) => (
+                    <span key={c} className="size-[14px] rounded-full border border-line" style={{ background: c }} title={c} />
+                  ))}
+              </div>
+            ) : null}
             {style === "learn" && stage === "start" ? (
               <form
                 className="flex flex-col gap-[6px]"
@@ -402,7 +422,7 @@ export function AiCreate({ sb, session, ws, navigate, site, kits: start, onClose
           ) : (
             <div className={`keep-light w-full max-w-[1040px] transition-opacity duration-[200ms] ${thinking ? "opacity-40" : ""}`}>
               <div className="rounded-[14px] p-[24px] shadow-[0_1px_2px_rgb(0_0_0/0.05),0_0_0_1px_rgb(0_0_0/0.06)]" style={{ background: (tokens as { background?: string }).background }}>
-                <FormPreview key={run} form={shown} tokens={tokens} />
+                <FormPreview key={run} form={shown} tokens={tokens} logo={logoOf(kit)} />
               </div>
             </div>
           )}

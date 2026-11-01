@@ -42,7 +42,7 @@ export type ListRow = {
   edited?: boolean;
   brand_kit_id?: string | null;
 };
-type KitLite = { id: string; tokens: Partial<Tokens>; source_url: string | null; scan_status: string | null };
+type KitLite = { id: string; tokens: Partial<Tokens>; source_url: string | null; scan_status: string | null; logo_url?: string | null; logo_svg?: string | null };
 
 /** What New form starts from: the tools that take leads, the site, a meeting type and whether routing is on. */
 function useNewFormContext(sb: ViewProps["sb"], ws: string) {
@@ -70,7 +70,7 @@ export const MADE_KEY = "claritia:form-made:";
 export function FormHome(props: ViewProps & { startNew?: boolean }) {
   const { sb, ws, navigate } = props;
   const list = useQuery(`forms:${ws.id}:home`, async () => {
-    const [rows, kits, w] = await Promise.all([sb.rpc("forms_list", { p_ws: ws.id }), sb.from("brand_kits").select("id, tokens, source_url, scan_status").eq("workspace_id", ws.id), sb.from("workspaces").select("brand_kit_id").eq("id", ws.id).maybeSingle()]);
+    const [rows, kits, w] = await Promise.all([sb.rpc("forms_list", { p_ws: ws.id }), sb.from("brand_kits").select("*").eq("workspace_id", ws.id), sb.from("workspaces").select("brand_kit_id").eq("id", ws.id).maybeSingle()]);
     // The workspace's brand first (docs/brand-capture.md), so everything that picks "a kit" picks it.
     const brand = (w.data as { brand_kit_id: string | null } | null)?.brand_kit_id ?? null;
     const all = (kits.data ?? []) as KitLite[];
