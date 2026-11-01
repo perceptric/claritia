@@ -13,7 +13,7 @@ import { propertyFit, type CrmProperty } from "../../../lib/sources/properties.t
 
 // Kinds ----------------------------------------------------------------------------------------------------------
 
-export type Kind = "email" | "name" | "phone" | "company" | "country" | "text" | "long" | "number" | "date" | "choice" | "dropdown" | "multi" | "consent" | "hidden" | "heading" | "para" | "calc" | "result" | "file" | "html" | "rating" | "scale" | "ranking" | "address" | "grid" | "time" | "daterange" | "group" | "signature" | "other";
+export type Kind = "email" | "name" | "phone" | "company" | "country" | "text" | "long" | "number" | "date" | "choice" | "dropdown" | "multi" | "consent" | "hidden" | "heading" | "para" | "calc" | "result" | "file" | "html" | "rating" | "scale" | "ranking" | "address" | "grid" | "time" | "daterange" | "group" | "signature" | "payment" | "other";
 export type KindGroup = "Contact" | "Answer" | "Other";
 
 /** The question types, as the insert menu and the Type section list them, with their icon names (ic.tsx). */
@@ -40,6 +40,7 @@ export const KINDS: { v: Kind; l: string; i: string; g: KindGroup }[] = [
   { v: "address", l: "Address", i: "globe", g: "Contact" },
   { v: "group", l: "Add another", i: "dup", g: "Answer" },
   { v: "signature", l: "Signature", i: "wand", g: "Answer" },
+  { v: "payment", l: "Payment", i: "lock", g: "Other" },
   { v: "consent", l: "Consent", i: "shield", g: "Other" },
   { v: "hidden", l: "Hidden field", i: "hide", g: "Other" },
   { v: "heading", l: "Heading", i: "head", g: "Other" },
@@ -58,7 +59,7 @@ export function kindOf(f: Pick<Field, "type" | "key"> & { rating?: Field["rating
   if (f.type === "text" && NAME_KEYS.has(f.key)) return "name";
   if (f.type === "text" && f.key === "company") return "company";
   if (f.type === "rating") return (f as Field).rating?.zero ? "scale" : "rating";
-  const by: Partial<Record<FieldType, Kind>> = { phone: "phone", country: "country", textarea: "long", number: "number", date: "date", choice: "choice", dropdown: "dropdown", multi: "multi", hidden: "hidden", heading: "heading", paragraph: "para", text: "text", url: "text", calc: "calc", result: "result", file: "file", html: "html", ranking: "ranking", address: "address", grid: "grid", time: "time", daterange: "daterange", group: "group", signature: "signature" };
+  const by: Partial<Record<FieldType, Kind>> = { phone: "phone", country: "country", textarea: "long", number: "number", date: "date", choice: "choice", dropdown: "dropdown", multi: "multi", hidden: "hidden", heading: "heading", paragraph: "para", text: "text", url: "text", calc: "calc", result: "result", file: "file", html: "html", ranking: "ranking", address: "address", grid: "grid", time: "time", daterange: "daterange", group: "group", signature: "signature", payment: "payment" };
   return by[f.type] ?? "other";
 }
 
@@ -160,6 +161,11 @@ export function newQuestion(kind: Kind, form: Form): FieldInput | null {
       return { type: "group", label: "Who's coming?", required: false, group: { fields: [{ id: newId(), key: "q.name" as FieldKey, type: "text", label: "Name", required: true }, { id: newId(), key: "q.email" as FieldKey, type: "email", label: "Email", required: false }], max: 5, add: "Add another" } };
     case "signature":
       return { type: "signature", label: "Signature", required: true };
+    case "payment": {
+      if (allFields(form).some((f) => f.type === "payment")) return null;
+      const total = allFields(form).find((f) => f.type === "calc");
+      return { type: "payment", label: "Total", required: false, pay: total ? { field: total.id, currency: "USD" } : { amount: 49, currency: "USD" } };
+    }
     default:
       return null;
   }

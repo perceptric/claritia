@@ -5,7 +5,7 @@ should know those parts and put them together for any kind of form, from what th
 Today it offers six goals (quote, assess, recommend, quiz, book, leads). This plan replaces the goals with kinds and
 fills in the parts that are missing.
 
-Status: steps 0, 1 and 2 are built. Step 3 is next.
+Status: steps 0 to 3 are built. Run migrations 109 and 110 in Supabase.
 
 Step 1 as built:
 - Kinds: `KINDS` in `src/lib/forms/aiBuild.ts`, each with its recipe and whether it needs an email; `form.kind` in the
@@ -26,6 +26,20 @@ Step 2 as built:
 - Answers with parts stay on the fill (`STRUCTURED`, q. keys only). A signature is drawn on a canvas and uploaded
   through the form's upload route as a small PNG, like a file.
 - The AI builder knows every type, the recipes use them, and a consent form must have a signature.
+
+Step 3 as built (migration 110):
+- Payment block (`type: "payment"`, `pay`): the total shows live on the form; after the send the server works the
+  amount out again and opens Stripe Checkout on the workspace's connected account (the Connect Standard account paid
+  meetings use, Settings, Payments). `submissions.payment` keeps its state; the Connect webhook marks it paid,
+  expired or failed (`src/lib/forms/pay.ts`). Publish is refused until the account is ready. Submissions shows the
+  state.
+- PDF copy: `src/lib/forms/pdf.ts` writes the PDF by hand (no browser, no service), with a signature drawn as its
+  picture. `form.copy` adds "Download a copy" after the send (a link with a key only that fill has); the team
+  downloads any fill's PDF from Submissions.
+- Save and finish later: `form.resume`. The visitor's email gets a link (the `form_resume` job) that opens the form
+  with their answers on the step they stopped at. Saves last 30 days.
+- Running cost: as planned, about $0 added. PDFs are made on the web server, not the runner, so the $15 runner
+  upgrade isn't needed. Stripe charges each team directly.
 
 ## 1. The parts
 

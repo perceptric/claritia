@@ -1,6 +1,9 @@
 import { cleaningCtx } from "@/lib/contacts/server";
 import { allowed, clientIp, cors, edgeCountry, json, loadForSend, sendCtx, turnstileOk } from "@/lib/forms/server";
+import { appBase, stripeClient } from "@/lib/billing";
+import { startFormCheckout } from "@/lib/forms/pay";
 import { acceptFill, qaOk, type Incoming } from "@/lib/forms/submit";
+import { formPayStripe } from "@/lib/meetings/payServer";
 import { serviceClient } from "@/lib/serviceClient";
 
 // A fill from <claritia-form> (docs/form-builder.md Part 2). Checks everything again, then form_submit saves the
@@ -37,6 +40,30 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       test: qaOk(id, raw.qa, process.env.SECRETS_KEY),
       // Signs the booking token when the form books with Claritia calendar.
       secret: process.env.SECRETS_KEY,
+      // A payment block: Checkout on the workspace's connected Stripe account (docs/form-kinds-plan.md step 3).
+      pay: async (p) => {
+        const stripe = stripeClient();
+        if (!stripe) return null;
+        const [acct, cur] = await Promise.all([
+          db.from("payment_accounts").select("stripe_account, ready").eq("workspace_id", f.workspace_id).maybeSingle(),
+          db.from("submissions").select("payment").eq("id", p.submissionId).maybeSingle(),
+        ]);
+        const a = acct.data as { stripe_account: string; ready: boolean } | null;
+        const name = ((await db.from("forms").select("name").eq("id", id).maybeSingle()).data as { name?: string } | null)?.name ?? "Payment";
+        return startFormCheckout((fn, args) => db.rpc(fn, args), formPayStripe(stripe), {
+          form: f.body,
+          formId: id,
+          formName: name,
+          workspaceId: f.workspace_id,
+          submissionId: p.submissionId,
+          answers: p.answers,
+          email: p.email,
+          page: p.page,
+          hosted: `${appBase()}/f/${id}`,
+          account: a?.ready ? a.stripe_account : null,
+          existing: ((cur.data as { payment?: { url?: string; status?: string } | null } | null)?.payment ?? null),
+        });
+      },
     });
     return json(r.body, r.status);
   } catch {

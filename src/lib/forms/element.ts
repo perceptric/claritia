@@ -130,6 +130,8 @@ textarea.in{min-height:calc(var(--clr-input-h)*2.4);padding:10px 12px;resize:ver
 .sc .h{font-size:2em}
 .cv{justify-content:center}
 .mn{display:flex;flex-direction:column;gap:8px}
+.py{display:flex;justify-content:space-between;align-items:baseline;padding:12px 14px;border:1px solid var(--clr-border);border-radius:var(--clr-radius)}.py b{font-size:1.3em}
+.lk{border:0;background:none;color:var(--clr-muted);text-decoration:underline;cursor:pointer;font:inherit;padding:0}
 .r2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .rk{display:flex;align-items:center;gap:10px;padding:8px 10px;border:1px solid var(--clr-border);border-radius:var(--clr-radius)}
 .rk b{width:20px;color:var(--clr-muted);font-weight:600}.rk span{flex:1}
@@ -615,6 +617,11 @@ export class ClaritiaForm extends Base {
   private drawn = -1;
   private result: { values: Record<string, number | null>; outcome?: { id: string; title: string; text?: string } } | null = null;
   private sid = "";
+  /** Step 3 (docs/form-kinds-plan.md): Checkout to finish, a PDF copy link, back from paying, the save-later box. */
+  private pay: { url?: string; error?: string } | null = null;
+  private copy = "";
+  private paid = false;
+  private later_: "" | "ask" | "sent" = "";
   private mailed = "";
   private mailFail = false;
   private get ctx(): RunCtx {
@@ -765,6 +772,19 @@ export class ClaritiaForm extends Base {
       const fromKey = params.get(f.key.replace(/^[fq]\./, ""));
       if (f.prefill && fromKey) this.answers[f.id] = fromText(f, fromKey);
     }
+    // Back from Stripe after paying: the thanks, not the form again.
+    if (params.get("clr_pay") === "done") this.done = this.paid = true;
+    // A saved fill's link: the answers and the step it stopped on.
+    const resume = params.get("clr_resume");
+    if (resume && /^[A-Za-z0-9_-]{24,64}$/.test(resume)) {
+      const r = await fetch(`${this.base}/api/forms/${id}/resume?t=${resume}`, { credentials: "omit" }).catch(() => null);
+      const j = r?.ok ? ((await r.json().catch(() => null)) as { answers?: Record<string, unknown>; step?: number } | null) : null;
+      if (j?.answers) {
+        this.answers = { ...this.answers, ...j.answers };
+        this.step = Math.min(Math.max(Number(j.step) || 0, 0), this.data.body.steps.length - 1);
+        this.covered = true;
+      }
+    }
     this.started = Date.now();
     this.render();
     this.watchView();
@@ -884,6 +904,7 @@ export class ClaritiaForm extends Base {
     }
     actions.append(el("button", { type: "submit", class: form.submit.full ? "bt fw" : "bt", disabled: this.sending, text: this.sending ? "Sending…" : last ? form.submit.label : "Next" }));
     wrap.append(actions);
+    if (form.resume && form.steps.length > 1 && !this.edit && !this.isPreview) wrap.append(this.saveLater(form));
     wrap.addEventListener("submit", (e) => {
       e.preventDefault();
       void this.next();
@@ -896,6 +917,28 @@ export class ClaritiaForm extends Base {
     const src = form.steps[at]?.image ?? form.layout.side?.image;
     if (!src || !/^https:\/\//.test(src) || !safeUrl(src)) return node;
     return el("div", { class: `sp${form.layout.side?.at === "right" ? " sr" : ""}` }, el("div", { class: "spi" }, el("img", { src, alt: "", loading: "lazy", decoding: "async" })), node);
+  }
+
+  /** "Save and finish later": their email, then a link that opens the form where they stopped. */
+  private saveLater(form: Form): HTMLElement {
+    if (this.later_ === "sent") return el("p", { class: "hp", role: "status", text: "We emailed you a link to finish later." });
+    if (this.later_ !== "ask") {
+      const b = el("button", { type: "button", class: "lk", text: "Save and finish later" });
+      b.addEventListener("click", () => ((this.later_ = "ask"), this.render()));
+      return el("div", { class: "ac" }, b);
+    }
+    const emailField = allFields(form).find((f) => f.key === "email");
+    const mail = el("input", { class: "in", type: "email", "aria-label": "Your email", placeholder: "Your email", value: emailField && typeof this.answers[emailField.id] === "string" ? (this.answers[emailField.id] as string) : "" }) as HTMLInputElement;
+    const go = el("button", { type: "button", class: "bt bk", text: "Email me a link" });
+    go.addEventListener("click", async () => {
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(mail.value.trim())) return mail.focus();
+      go.setAttribute("disabled", "");
+      const res = await fetch(`${this.base}/api/forms/${this.data!.id}/resume`, { method: "POST", headers: { "content-type": "application/json" }, credentials: "omit", body: JSON.stringify({ email: mail.value.trim(), answers: this.answers, step: this.step, page: location.href }) }).catch(() => null);
+      if (res?.ok) this.later_ = "sent";
+      else this.alert = "Couldn't save it. Try again.";
+      this.render();
+    });
+    return el("div", { class: "r2" }, mail, go);
   }
 
   /** Where the visitor is in a form of several steps: a bar, dots, or only words for screen readers. */
@@ -1120,6 +1163,12 @@ export class ClaritiaForm extends Base {
     }
     if (f.type === "paragraph") return el("p", { class: "tx", text: c.text ?? "" });
     if (f.type === "divider") return el("hr", { class: "dv" });
+    if (f.type === "payment" && f.pay) {
+      // The total, live from the answers; the server works it out again before it charges.
+      const v = f.pay.field ? numOf(withCalcs(this.data?.body ?? ({ steps: [], rules: [] } as unknown as Form), this.answers, this.ctx)[f.pay.field]) : (f.pay.amount ?? null);
+      const money = v === null ? "—" : new Intl.NumberFormat(undefined, { style: "currency", currency: f.pay.currency }).format(v);
+      return el("div", { class: "py" }, el("span", { text: f.label || "Total" }), el("b", { text: money }));
+    }
     if (f.type === "image" && c.src && /^https:\/\//.test(c.src) && safeUrl(c.src)) return el("img", { class: "im", src: c.src, alt: c.alt ?? "", loading: "lazy", decoding: "async" });
     if (f.type === "html") {
       // Cleaned again here: the browser never trusts what it's sent.
@@ -1609,6 +1658,12 @@ export class ClaritiaForm extends Base {
         el("iframe", { src: book.url, title: "Book a meeting", style: "width:100%;min-height:680px;border:0", loading: "lazy", allow: "payment" }),
       );
     }
+    if (this.paid) return el("div", { class: "f dn", role: "status" }, el("span", { class: "ok", "aria-hidden": "true" }), el("h2", { class: "h", text: "Payment received" }), el("p", { class: "i", text: "Thank you. A receipt is on its way." }));
+    if (this.pay?.url && /^https:\/\/checkout\.stripe\.com\//.test(this.pay.url)) {
+      // Checkout opens on the page; in the embed's frame, in a new tab.
+      if (!embedFrame()) location.assign(this.pay.url);
+      return el("div", { class: "f dn", role: "status" }, el("h2", { class: "h", text: "One more step" }), el("p", { class: "i", text: "Finish your payment to complete it." }), el("div", { class: "ac" }, el("a", { class: "bt", href: this.pay.url, target: "_blank", rel: "noopener", text: "Pay now" })));
+    }
     const end = form.after.end;
     if (end.kind === "redirect" && !this.isPreview && safeUrl(end.url)) {
       // In the embed's frame, the page around it opens the address.
@@ -1617,7 +1672,15 @@ export class ClaritiaForm extends Base {
     }
     const title = end.kind === "message" ? end.title : "Thanks, we got it.";
     const text = end.kind === "message" ? end.text : `Then we open ${end.url}`;
-    const box = el("div", { class: "f dn", role: "status", tabindex: "-1" }, el("span", { class: "ok", "aria-hidden": "true" }), el("h2", { class: "h", text: title }), text ? el("p", { class: "i", text }) : null);
+    const box = el(
+      "div",
+      { class: "f dn", role: "status", tabindex: "-1" },
+      el("span", { class: "ok", "aria-hidden": "true" }),
+      el("h2", { class: "h", text: title }),
+      text ? el("p", { class: "i", text }) : null,
+      this.pay?.error ? el("p", { class: "al", text: this.pay.error }) : null,
+      this.copy ? el("div", { class: "ac" }, el("a", { class: "bt bk", href: `${this.base}${this.copy}`, target: "_blank", rel: "noopener", text: "Download a copy" })) : null,
+    );
     queueMicrotask(() => box.focus());
     return box;
   }
@@ -1847,7 +1910,7 @@ export class ClaritiaForm extends Base {
       writeQueue([...readQueue().filter((x) => x.key !== this.key), { url, body, key: this.key, at: Date.now(), tries: 1 }]);
       setTimeout(() => void flushQueue(), 15_000);
     } else {
-      type Answer = { id?: string; schedule?: { tool: string; url: string } | null; booking?: Booking; pending?: boolean; message?: string; result?: ClaritiaForm["result"] };
+      type Answer = { id?: string; schedule?: { tool: string; url: string } | null; booking?: Booking; pending?: boolean; message?: string; result?: ClaritiaForm["result"]; pay?: { url?: string; error?: string }; copy?: string };
       let j = (await res.json().catch(() => ({}))) as Answer;
       // Saved, still finishing: say so, and send the same request again (the same key, so the same submission and
       // routing request) until the server has the answer, for about 12 seconds.
@@ -1868,6 +1931,8 @@ export class ClaritiaForm extends Base {
         if (!d.body.steps.some((st) => st.result) || d.body.results?.show !== "instant") this.beacon("result");
       }
       if (typeof j.id === "string") this.sid = j.id;
+      if (j.pay && typeof j.pay === "object") this.pay = { ...(typeof j.pay.url === "string" ? { url: j.pay.url } : {}), ...(typeof j.pay.error === "string" ? { error: j.pay.error.slice(0, 200) } : {}) };
+      if (typeof j.copy === "string" && /^\/api\/forms\/[0-9a-f-]{36}\/copy\/[0-9a-f-]{36}\?k=[\w-]{16,64}$/.test(j.copy)) this.copy = j.copy;
       if (j.booking?.token && Array.isArray(j.booking.slots)) this.bk = j.booking;
       this.dispatchEvent(new CustomEvent("claritia:submitted", { bubbles: true, composed: true, detail: { formId: d.id, submissionId: j.id ?? null } }));
       this.tellPage();

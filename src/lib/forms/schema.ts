@@ -47,7 +47,15 @@ export type FieldType =
   | "time"
   | "daterange"
   | "group"
-  | "signature";
+  | "signature"
+  // A payment block (docs/form-kinds-plan.md step 3): the total shows on the form, and Stripe Checkout opens after the
+  // send, on the workspace's own account.
+  | "payment";
+
+/** Currencies a payment block takes (Stripe's, by its code). */
+export const PAY_CURRENCIES = ["USD", "EUR", "GBP", "CAD", "AUD", "NZD", "SGD", "INR", "JPY", "CHF", "SEK", "NOK", "DKK", "BRL", "MXN", "ZAR", "AED"];
+/** Currencies Stripe counts in whole units (no cents). */
+const ZERO_DECIMAL = new Set(["JPY"]);
 
 /** Answers that are more than one value (an address, a grid, a date range, group rows): kept on the fill only. */
 export const STRUCTURED: FieldType[] = ["ranking", "address", "grid", "daterange", "group", "signature"];
@@ -56,7 +64,7 @@ export const ADDRESS_PARTS = ["line1", "line2", "city", "region", "postal", "cou
 /** The question types a group row can hold. */
 export const GROUP_TYPES: FieldType[] = ["text", "email", "phone", "number", "dropdown", "date"];
 
-export const CONTENT_TYPES: FieldType[] = ["heading", "paragraph", "divider", "image", "result", "html"];
+export const CONTENT_TYPES: FieldType[] = ["heading", "paragraph", "divider", "image", "result", "html", "payment"];
 export const isContent = (t: FieldType) => CONTENT_TYPES.includes(t);
 /** Types that hold one choice from a list: cards or a dropdown. */
 export const isChoice = (t: FieldType) => t === "choice" || t === "multi" || t === "dropdown";
@@ -160,6 +168,8 @@ export type Field = {
   rating?: { scale: number; style: "stars" | "numbers"; low?: string; high?: string; zero?: true };
   /** Grid: the rows asked about, each answered with one of the columns. */
   grid?: { rows: Choice[]; cols: Choice[] };
+  /** Payment: the amount from a calc (its value, in the currency's main unit) or a fixed amount, and the currency. */
+  pay?: { field?: string; amount?: number; currency: string };
   /** Group: the small questions in each row, and how many rows. */
   group?: { fields: Field[]; min?: number; max: number; add?: string };
   /** How this field's rules combine for each action: any one of them (the default) or all of them. */
@@ -317,6 +327,10 @@ export type Form = {
   kind?: FormKind;
   /** No email needed: polls, anonymous surveys and internal forms. A fill without one is kept with no contact. */
   emailOptional?: true;
+  /** "Save and finish later": a link by email that opens the form where they stopped. */
+  resume?: true;
+  /** After the send, a link to download a PDF copy of the answers. */
+  copy?: true;
   title?: string;
   intro?: string;
   /** full: the button spans the form's width. */
@@ -380,6 +394,7 @@ export const FIELD_TYPES: { value: FieldType; label: string }[] = [
   { value: "daterange", label: "Date range" },
   { value: "group", label: "Repeating group" },
   { value: "signature", label: "Signature" },
+  { value: "payment", label: "Payment" },
   { value: "result", label: "Result" },
   { value: "html", label: "Section" },
   { value: "heading", label: "Heading" },
@@ -555,6 +570,14 @@ function contentBlock(id: string, type: FieldType, fo: Record<string, unknown>, 
     if ((kind === "metric" || kind === "meter") && !f.result.field) errors.push(`${name === "A field" ? "A result" : name} needs the number it shows.`);
     if ((kind === "summary" || kind === "bars") && !fields.length) errors.push(`${name === "A field" ? "A result" : name} needs the numbers it shows.`);
     if (kind === "meter" && !f.result.max) errors.push(`${name === "A field" ? "A meter" : name} needs its top value.`);
+  }
+  if (type === "payment") {
+    const po = (fo.pay && typeof fo.pay === "object" ? fo.pay : {}) as Record<string, unknown>;
+    const field = str(po.field, 24);
+    const amount = Number(po.amount);
+    const currency = (str(po.currency, 3) ?? "USD").toUpperCase();
+    f.pay = { currency: PAY_CURRENCIES.includes(currency) ? currency : "USD", ...(field && ID.test(field) ? { field } : Number.isFinite(amount) && amount > 0 ? { amount: Math.min(Math.round(amount * 100) / 100, 100000) } : {}) };
+    if (!f.pay.field && !f.pay.amount) errors.push(`${name === "A field" ? "A payment" : name} needs an amount or a calculation to charge.`);
   }
   if (c.align === "center") content.align = "center";
   if (Object.keys(content).length) f.content = content;
@@ -929,6 +952,10 @@ export function checkForm(raw: unknown, ctx: Ctx = {}): { form: Form } | { error
     if (out.length) steps[i].jumps = out;
   });
   const emailField = steps.flatMap((s) => s.fields).find((f) => f.key === "email");
+  // One payment block, charging a calculation the form has.
+  const pays = steps.flatMap((s) => s.fields).filter((f) => f.type === "payment");
+  if (pays.length > 1) errors.push("A form takes one payment.");
+  for (const p of pays) if (p.pay?.field && !steps.some((s) => s.fields.some((f) => f.id === p.pay!.field && f.type === "calc"))) errors.push("The payment charges a calculation that's gone.");
   if (emailField && rules.some((x) => x.then.field === emailField.id && x.then.action !== "require")) errors.push("The email field can't be hidden by a rule.");
 
   const layout = (r.layout && typeof r.layout === "object" ? r.layout : {}) as Record<string, unknown>;
@@ -1028,6 +1055,8 @@ export function checkForm(raw: unknown, ctx: Ctx = {}): { form: Form } | { error
     },
     ...(FORM_KINDS.includes(r.kind as FormKind) ? { kind: r.kind as FormKind } : {}),
     ...(r.emailOptional === true ? { emailOptional: true as const } : {}),
+    ...(r.resume === true ? { resume: true as const } : {}),
+    ...(r.copy === true ? { copy: true as const } : {}),
     ...(str(r.title, LIMITS.label) ? { title: str(r.title, LIMITS.label) } : {}),
     ...(str(r.intro, LIMITS.text) ? { intro: str(r.intro, LIMITS.text) } : {}),
     submit: { label: str(submit.label, 60) || "Submit", ...(submit.full === true ? { full: true } : {}) },
@@ -1419,6 +1448,7 @@ export function usedBy(form: Pick<Form, "steps" | "rules" | "results"> & { after
     }
     if (f.result && (f.result.field === id || f.result.fields?.includes(id))) out.push(`a result block${f.label ? ` (${f.label})` : ""}`);
     if (f.optionsBy?.field === id) out.push(`the choices of ${f.label || "a dropdown"}`);
+    if (f.pay?.field === id) out.push("the payment");
   }
   // Booking: which meeting or who sees the calendar, by this answer.
   let books = false;
@@ -1448,4 +1478,19 @@ export function numOf(v: unknown): number | null {
     return Number.isFinite(n) ? n : null;
   }
   return null;
+}
+
+/**
+ * What a fill pays: the payment block's amount (a fixed one, or its calc worked out on the server from the checked
+ * answers), in the currency's smallest unit for Stripe. Null with no payment block, or nothing to charge.
+ */
+export function payAmount(form: Form, answers: Record<string, unknown>, ctx: RunCtx = {}): { amount: number; currency: string } | null {
+  const block = allFields(form).find((f) => f.type === "payment" && f.pay);
+  if (!block?.pay) return null;
+  const major = block.pay.field ? numOf(withCalcs(form, answers, ctx)[block.pay.field]) : (block.pay.amount ?? null);
+  if (major === null || !Number.isFinite(major) || major <= 0) return null;
+  const minor = Math.round(major * (ZERO_DECIMAL.has(block.pay.currency) ? 1 : 100));
+  // Stripe's smallest charge is about 50 cents; anything less isn't charged.
+  if (minor < 50) return null;
+  return { amount: Math.min(minor, 99_999_999), currency: block.pay.currency.toLowerCase() };
 }

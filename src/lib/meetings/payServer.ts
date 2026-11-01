@@ -3,6 +3,7 @@ import type Stripe from "stripe";
 import { appBase, stripeClient } from "../billing.ts";
 import type { Rpc } from "../jobs.ts";
 import { serviceClient } from "../serviceClient.ts";
+import { handleFormPayEvent, type FormPayStripe } from "../forms/pay.ts";
 import { handlePayEvent, refundFor, type PayEvent, type PayResult, type PayStripe } from "./pay.ts";
 import { loadMeeting } from "./public.ts";
 
@@ -41,6 +42,30 @@ export function payStripe(stripe: Stripe): PayStripe {
     async refund(account, paymentIntent, key) {
       const r = await stripe.refunds.create({ payment_intent: paymentIntent, metadata: { reason: "meeting" } }, { stripeAccount: account, idempotencyKey: key });
       return r.id;
+    },
+  };
+}
+
+/** Checkout for a form's fill (src/lib/forms/pay.ts), on the workspace's connected account. */
+export function formPayStripe(stripe: Stripe): FormPayStripe {
+  return {
+    async checkout(account, p) {
+      const meta = { submission_id: p.submissionId, workspace_id: p.workspaceId, form_id: p.formId };
+      const s = await stripe.checkout.sessions.create(
+        {
+          mode: "payment",
+          allowed_payment_method_types: ["card", "link"],
+          line_items: [{ quantity: 1, price_data: { currency: p.currency, unit_amount: p.amount, product_data: { name: p.name } } }],
+          ...(p.email ? { customer_email: p.email } : {}),
+          metadata: meta,
+          payment_intent_data: { metadata: meta },
+          success_url: p.successUrl,
+          cancel_url: p.cancelUrl,
+        },
+        { stripeAccount: account, idempotencyKey: `form-checkout-${p.submissionId}` },
+      );
+      if (!s.url) throw new Error("No checkout page.");
+      return { id: s.id, url: s.url };
     },
   };
 }
@@ -105,6 +130,14 @@ export async function handleConnectWebhook(stripe: Stripe, rpc: Rpc, body: strin
   if (typeof raw.id !== "string" || !/^evt_[A-Za-z0-9]+$/.test(raw.id)) return { ok: false, reason: "No event id." };
   if (typeof raw.account !== "string" || !/^acct_[A-Za-z0-9]+$/.test(raw.account)) return { ok: true, did: "skipped" };
   const event = await stripe.events.retrieve(raw.id, {}, { stripeAccount: raw.account });
+  // A form's payment (src/lib/forms/pay.ts) carries the submission, a meeting's the meeting.
+  const meta = (event.data.object as { metadata?: Record<string, string> | null }).metadata;
+  if (event.type.startsWith("checkout.session.") && meta?.submission_id) {
+    const db = serviceClient();
+    const accountOf = async (ws: string) => ((await db?.from("payment_accounts").select("stripe_account").eq("workspace_id", ws).maybeSingle())?.data as { stripe_account?: string } | null)?.stripe_account ?? null;
+    const did = await handleFormPayEvent(rpc, { ...(event as unknown as PayEvent), account: raw.account }, accountOf);
+    return { ok: true, did: did === "paid" ? "booked" : did === "closed" ? "released" : "skipped" };
+  }
   return handlePayEvent(rpc, payStripe(stripe), { ...(event as unknown as PayEvent), account: raw.account });
 }
 

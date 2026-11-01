@@ -17,7 +17,7 @@ import type { Resend } from "../../src/lib/email/resend.ts";
 import { calcText } from "../../src/lib/forms/formula.ts";
 import { allFields, type Form } from "../../src/lib/forms/schema.ts";
 import { answerText } from "../../src/lib/forms/results.ts";
-import { alertEmail, replyEmail, replyGoes, resultsEmail, type MergeValues } from "../../src/lib/forms/notify.ts";
+import { alertEmail, replyEmail, replyGoes, resultsEmail, resumeEmail, type MergeValues } from "../../src/lib/forms/notify.ts";
 import { enqueueJob, JobError, type Handler, type Rpc } from "../../src/lib/jobs.ts";
 import { mime, validAddress } from "../../src/lib/meetings/emails.ts";
 import type { Mailer } from "./meetings.ts";
@@ -190,4 +190,35 @@ export const formNotify =
     }
 
     if (later) throw new JobError("The email provider or Slack said not now; trying again", { retryAfterS: Math.round(Math.min(1800, 60 * 2 ** Math.max(0, (job.attempts ?? 1) - 1)) * (0.8 + 0.4 * Math.random())) });
+  };
+
+/**
+ * "Save and finish later" (docs/form-kinds-plan.md step 3): one email with the link that opens the saved fill. The
+ * job's key is the draft's, so it's sent once; a "not now" from the provider tries again.
+ */
+export const formResume =
+  (rpc: Rpc, o: Pick<FormJobOpts, "mailer" | "base" | "from">): Handler =>
+  async (job) => {
+    const id = String(job.payload.draft ?? "");
+    if (!UUID.test(id)) throw new JobError("form_resume needs a draft", { retry: false });
+    const d = await call<{ form: string; form_id: string; email: string; token: string; page: string | null; workspace: string | null; sending: { from_email?: string | null; from_name?: string | null; reply_to?: string | null; paused?: boolean } } | null>(rpc, "form_draft_info", { p_id: id });
+    if (!d || !o.mailer || d.sending?.paused || !validAddress(d.email)) return;
+    let link: string;
+    try {
+      const u = new URL(d.page && /^https?:\/\//.test(d.page) ? d.page : `${o.base.replace(/\/$/, "")}/f/${d.form_id}`);
+      u.searchParams.set("clr_resume", d.token);
+      link = u.href;
+    } catch {
+      return;
+    }
+    const fromEmail = d.sending?.from_email ?? o.from;
+    const sender = d.sending?.from_name || d.workspace || "The team";
+    const parts = resumeEmail({ form: d.form, sender, link });
+    try {
+      const raw = mime({ from: { name: sender, email: fromEmail }, to: d.email, replyTo: d.sending?.reply_to && validAddress(d.sending.reply_to) ? d.sending.reply_to : null, subject: parts.subject, html: parts.html, text: parts.text });
+      await o.mailer.send({ from: fromEmail, to: d.email, raw, tags: { form_resume: id } });
+    } catch (e) {
+      const out = outcomeOf(e);
+      if (out === "later" || out === "retry") throw new JobError("The email provider said not now; trying again", { retryAfterS: 120 });
+    }
   };

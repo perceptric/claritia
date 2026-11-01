@@ -8,7 +8,7 @@
 import { useState } from "react";
 import { parseFormula } from "@/lib/forms/formula";
 import { htmlText } from "@/lib/forms/html";
-import { allFields, FILE_KINDS, RESULT_KINDS, type FileKind, type Choice, type Cond, type Constant, type Field, type Form, type Jump, type Op as CondOp, type Outcome, type ResultBlock, type Results } from "@/lib/forms/schema";
+import { allFields, FILE_KINDS, PAY_CURRENCIES, RESULT_KINDS, type FileKind, type Choice, type Cond, type Constant, type Field, type Form, type Jump, type Op as CondOp, type Outcome, type ResultBlock, type Results } from "@/lib/forms/schema";
 import { KINDS } from "@/lib/forms/aiBuild";
 import { Labeled, PanelSection } from "../scheduling/panel";
 import type { BuildProps } from "./Build";
@@ -482,6 +482,14 @@ export function KindSection(p: BuildProps & { open: boolean; onToggle: () => voi
         Email optional
         <Tg label="Email optional" on={!!form.emailOptional} onChange={setOptional} />
       </div>
+      <div className={ROW}>
+        Save and finish later
+        <Tg label="Save and finish later" on={!!form.resume} onChange={(v) => apply({ op: "set_kind", resume: v })} />
+      </div>
+      <div className={ROW}>
+        PDF copy after sending
+        <Tg label="PDF copy after sending" on={!!form.copy} onChange={(v) => apply({ op: "set_kind", copy: v })} />
+      </div>
     </PanelSection>
   );
 }
@@ -665,6 +673,43 @@ export function GroupSection(p: SectionProps) {
       </Labeled>
       <Labeled label="Add button">
         <input className={IN_SM} aria-label="Add button" value={g.add ?? ""} placeholder="Add another" onChange={(e) => set({ add: e.target.value || undefined })} />
+      </Labeled>
+    </PanelSection>
+  );
+}
+
+/** Payment: what it charges (a calculation or a fixed amount) and the currency. */
+export function PaymentSection(p: SectionProps) {
+  const { f, form, apply } = p;
+  const pay = f.pay ?? { currency: "USD" };
+  const calcs = allFields(form).filter((x) => x.type === "calc");
+  const set = (x: Partial<NonNullable<Field["pay"]>>) => {
+    const next = { ...pay, ...x };
+    if (x.field) delete next.amount;
+    if (x.amount !== undefined) delete next.field;
+    apply({ op: "update_field", id: f.id, patch: { pay: next } });
+  };
+  const from = pay.field ? calcs.find((c) => c.id === pay.field) : null;
+  return (
+    <PanelSection icon={<Ic n="lock" />} title="Payment" summary={from ? `${from.label || "Total"}, ${pay.currency}` : `${pay.amount ?? 0} ${pay.currency}`} open={p.open} onToggle={p.onToggle}>
+      <Labeled label="Charge">
+        <Dd
+          sm
+          label={from ? from.label || "Total" : "A fixed amount"}
+          ariaLabel="Charge"
+          items={[{ kind: "option", key: "fixed", label: "A fixed amount", on: !pay.field, onPick: () => set({ amount: pay.amount ?? 49 }) }, ...calcs.map((c): DdItem => ({ kind: "option", key: c.id, label: c.label || "Total", on: c.id === pay.field, onPick: () => set({ field: c.id }) }))]}
+        />
+      </Labeled>
+      {pay.field ? null : (
+        <Labeled label="Amount">
+          <NumBox aria-label="Amount" value={pay.amount} onChange={(n) => n !== null && n > 0 && set({ amount: n })} />
+        </Labeled>
+      )}
+      <Labeled label="Currency">
+        <Dd sm label={pay.currency} ariaLabel="Currency" items={PAY_CURRENCIES.map((c): DdItem => ({ kind: "option", key: c, label: c, on: c === pay.currency, onPick: () => set({ currency: c }) }))} />
+      </Labeled>
+      <Labeled label="Label">
+        <input className={IN_SM} aria-label="Label" value={f.label} onChange={(e) => apply({ op: "update_field", id: f.id, patch: { label: e.target.value } })} />
       </Labeled>
     </PanelSection>
   );

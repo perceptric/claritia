@@ -1,5 +1,5 @@
 import { cleaningCtx, isMember } from "@/lib/contacts/server";
-import { checkForm, unsetConstants } from "@/lib/forms/schema";
+import { allFields, checkForm, unsetConstants } from "@/lib/forms/schema";
 import { forgetPublic } from "@/lib/forms/server";
 import { forgetFields } from "@/lib/router/actions";
 import { publishFormRouting } from "@/lib/routing/formPublish";
@@ -29,6 +29,11 @@ export async function POST(request: Request) {
   // A price or rate left blank would make every result empty; the owner sets it first.
   const unset = unsetConstants(r.form).map((c) => `Set ${c.name} before publishing.`);
   if (unset.length) return bad(unset[0], 400, { errors: unset });
+  // A form that takes payment needs the workspace's Stripe account connected and ready (Settings, Payments).
+  if (allFields(r.form).some((f) => f.type === "payment")) {
+    const acct = (await db.from("payment_accounts").select("ready").eq("workspace_id", body.workspaceId as string).maybeSingle()).data as { ready?: boolean } | null;
+    if (!acct?.ready) return bad("Connect Stripe in Settings, Payments before publishing a form that takes payment.", 400, { errors: ["Connect Stripe before publishing a form that takes payment."] });
+  }
   const { data, error } = await db.rpc("form_publish", { p_id: body.id, p_user: auth.user.id, p_body: r.form });
   if (error) return bad(error.message, 500);
   // The new version shows at once on this server (others read it again within 10 seconds, or on the first send).
