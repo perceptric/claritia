@@ -167,7 +167,7 @@ const span = (n: number) => (n >= 1440 && n % 1440 === 0 ? (n === 1440 ? "1 day"
 
 /** "10 min after, 4 h notice"; with no buffers just the notice, "No notice" when there's none. */
 export function limitsWords(s: Pick<TypeSettings, "bufferBefore" | "bufferAfter" | "notice">): string {
-  const parts = [s.notice ? `Book ${span(s.notice)} ahead` : "Book any time", s.bufferBefore || s.bufferAfter ? `${minutes(Math.max(s.bufferBefore, s.bufferAfter))} gaps` : ""];
+  const parts = [s.notice ? `Book ${span(s.notice)} ahead` : "Book any time", s.bufferBefore || s.bufferAfter ? `${minutes(Math.max(s.bufferBefore, s.bufferAfter))} breaks` : ""];
   return parts.filter(Boolean).join(", ");
 }
 
