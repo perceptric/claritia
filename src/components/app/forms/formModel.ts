@@ -6,14 +6,14 @@
 
 import { applyOp, type FieldInput, type Op } from "../../../lib/forms/ops.ts";
 import { customFit, takenKeys } from "../../../lib/forms/savesTo.ts";
-import { allFields, CONTACT_KEYS, FIELD_TYPES, HIDE_KEYS, hideKeyOf, isChoice, questionKey, unsetConstants, type Choice, type Field, type FieldKey, type FieldType, type Form, type Rule } from "../../../lib/forms/schema.ts";
+import { allFields, CONTACT_KEYS, FIELD_TYPES, HIDE_KEYS, hideKeyOf, isChoice, newId, questionKey, unsetConstants, type Choice, type Field, type FieldKey, type FieldType, type Form, type Rule } from "../../../lib/forms/schema.ts";
 import type { CustomField } from "../../../lib/records/fields.ts";
 import type { RouterBody } from "../../../lib/router/types.ts";
 import { propertyFit, type CrmProperty } from "../../../lib/sources/properties.ts";
 
 // Kinds ----------------------------------------------------------------------------------------------------------
 
-export type Kind = "email" | "name" | "phone" | "company" | "country" | "text" | "long" | "number" | "date" | "choice" | "dropdown" | "multi" | "consent" | "hidden" | "heading" | "para" | "calc" | "result" | "file" | "html" | "other";
+export type Kind = "email" | "name" | "phone" | "company" | "country" | "text" | "long" | "number" | "date" | "choice" | "dropdown" | "multi" | "consent" | "hidden" | "heading" | "para" | "calc" | "result" | "file" | "html" | "rating" | "scale" | "ranking" | "address" | "grid" | "time" | "daterange" | "group" | "signature" | "other";
 export type KindGroup = "Contact" | "Answer" | "Other";
 
 /** The question types, as the insert menu and the Type section list them, with their icon names (ic.tsx). */
@@ -31,6 +31,15 @@ export const KINDS: { v: Kind; l: string; i: string; g: KindGroup }[] = [
   { v: "dropdown", l: "Dropdown", i: "drop", g: "Answer" },
   { v: "multi", l: "Many choices", i: "box", g: "Answer" },
   { v: "file", l: "File upload", i: "ext", g: "Answer" },
+  { v: "rating", l: "Rating", i: "check", g: "Answer" },
+  { v: "scale", l: "0 to 10 scale", i: "hash", g: "Answer" },
+  { v: "ranking", l: "Ranking", i: "steps", g: "Answer" },
+  { v: "grid", l: "Grid", i: "data", g: "Answer" },
+  { v: "time", l: "Time", i: "clock", g: "Answer" },
+  { v: "daterange", l: "Date range", i: "cal", g: "Answer" },
+  { v: "address", l: "Address", i: "globe", g: "Contact" },
+  { v: "group", l: "Add another", i: "dup", g: "Answer" },
+  { v: "signature", l: "Signature", i: "wand", g: "Answer" },
   { v: "consent", l: "Consent", i: "shield", g: "Other" },
   { v: "hidden", l: "Hidden field", i: "hide", g: "Other" },
   { v: "heading", l: "Heading", i: "head", g: "Other" },
@@ -44,11 +53,12 @@ export const GROUP_WORDS: Record<KindGroup, string> = { Contact: "About them", A
 const NAME_KEYS = new Set(["name", "first_name", "last_name"]);
 
 /** A field's kind as the builder shows it. */
-export function kindOf(f: Pick<Field, "type" | "key">): Kind {
+export function kindOf(f: Pick<Field, "type" | "key"> & { rating?: Field["rating"] }): Kind {
   if (f.type === "email") return "email";
   if (f.type === "text" && NAME_KEYS.has(f.key)) return "name";
   if (f.type === "text" && f.key === "company") return "company";
-  const by: Partial<Record<FieldType, Kind>> = { phone: "phone", country: "country", textarea: "long", number: "number", date: "date", choice: "choice", dropdown: "dropdown", multi: "multi", hidden: "hidden", heading: "heading", paragraph: "para", text: "text", url: "text", calc: "calc", result: "result", file: "file", html: "html" };
+  if (f.type === "rating") return (f as Field).rating?.zero ? "scale" : "rating";
+  const by: Partial<Record<FieldType, Kind>> = { phone: "phone", country: "country", textarea: "long", number: "number", date: "date", choice: "choice", dropdown: "dropdown", multi: "multi", hidden: "hidden", heading: "heading", paragraph: "para", text: "text", url: "text", calc: "calc", result: "result", file: "file", html: "html", ranking: "ranking", address: "address", grid: "grid", time: "time", daterange: "daterange", group: "group", signature: "signature" };
   return by[f.type] ?? "other";
 }
 
@@ -60,7 +70,7 @@ export function kindInfo(k: Kind, type?: FieldType): { l: string; i: string } {
 }
 
 export const isContentKind = (k: Kind) => k === "heading" || k === "para";
-export const isChoiceKind = (k: Kind) => k === "choice" || k === "dropdown" || k === "multi";
+export const isChoiceKind = (k: Kind) => k === "choice" || k === "dropdown" || k === "multi" || k === "ranking";
 
 // Questions ------------------------------------------------------------------------------------------------------
 
@@ -132,6 +142,24 @@ export function newQuestion(kind: Kind, form: Form): FieldInput | null {
       return { type: "file", label: "Upload a file", required: false, file: { maxMb: 10, kinds: ["pdf", "image", "office"] } };
     case "result":
       return { type: "result", label: "", required: false, result: { kind: "outcome" } };
+    case "rating":
+      return { type: "rating", label: "How would you rate it?", required: false, rating: { scale: 5, style: "stars" } };
+    case "scale":
+      return { type: "rating", label: "How likely are you to recommend us?", required: false, rating: { scale: 10, style: "numbers", zero: true, low: "Not likely", high: "Very likely" } };
+    case "ranking":
+      return { type: "ranking", label: "Put these in order", required: false, options: [opt("Option 1"), opt("Option 2"), opt("Option 3")] };
+    case "grid":
+      return { type: "grid", label: "How would you rate each?", required: false, grid: { rows: [opt("Price"), opt("Quality"), opt("Support")], cols: [opt("Poor"), opt("Okay"), opt("Good"), opt("Great")] } };
+    case "time":
+      return { type: "time", label: "What time?", required: false };
+    case "daterange":
+      return { type: "daterange", label: "Which dates?", required: false };
+    case "address":
+      return { type: "address", label: "Address", required: false };
+    case "group":
+      return { type: "group", label: "Who's coming?", required: false, group: { fields: [{ id: newId(), key: "q.name" as FieldKey, type: "text", label: "Name", required: true }, { id: newId(), key: "q.email" as FieldKey, type: "email", label: "Email", required: false }], max: 5, add: "Add another" } };
+    case "signature":
+      return { type: "signature", label: "Signature", required: true };
     default:
       return null;
   }
@@ -175,6 +203,21 @@ export function kindPatch(form: Form, f: Field, kind: Kind): Partial<Field> | nu
       return { type: kind, key: own(kind), options: choices };
     case "hidden":
       return { type: "hidden", key: own("hidden"), required: false, hidden: { from: "param", name: f.hidden?.name ?? "utm_source" } };
+    case "rating":
+    case "scale":
+    case "ranking":
+    case "grid":
+    case "time":
+    case "daterange":
+    case "address":
+    case "group":
+    case "signature": {
+      // Answers with parts keep to the fill, under a question key of their own.
+      const n = newQuestion(kind, form);
+      if (!n) return null;
+      const key = f.key.startsWith("q.") ? f.key : questionKey(f.label || "answer", taken);
+      return { ...n, key, label: f.label || n.label, required: f.required, ...(kind === "ranking" ? { options: choices.length >= 2 ? choices : n.options } : {}) } as Partial<Field>;
+    }
     default:
       return null;
   }

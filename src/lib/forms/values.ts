@@ -2,12 +2,14 @@
 // as people type; the server runs it again on every submit and trusts nothing the browser sent. Answers to fields
 // that rules hid are dropped. Runs in the browser and on the server.
 
-import { allFields, FILE_ANSWER, isChoice, isContent, nextStep, optionsFor, visibility, withCalcs, type Choice, type Field, type FieldKey, type Form, type RunCtx } from "./schema.ts";
+import { ADDRESS_PARTS, allFields, FILE_ANSWER, isChoice, isContent, nextStep, optionsFor, visibility, withCalcs, type Choice, type Field, type FieldKey, type Form, type RunCtx } from "./schema.ts";
 
 export type Answers = Record<string, unknown>;
+/** One clean answer: a value, a list, or for an address, a grid, a date range or group rows, words by part. */
+export type Value = string | number | boolean | string[] | Record<string, string> | Record<string, string>[];
 export type Checked = {
   /** Clean answers by field key, ready to save on the submission. */
-  values: Partial<Record<FieldKey, string | number | boolean | string[]>>;
+  values: Partial<Record<FieldKey, Value>>;
   /** Errors by field id. */
   errors: Record<string, string>;
 };
@@ -33,14 +35,94 @@ export function cleanWebsite(raw: string): string | null {
 export const OTHER = "Other: ";
 const isOther = (f: Field, v: string) => !!f.other && v.startsWith(OTHER) && v.length > OTHER.length && v.length <= OTHER.length + 200;
 
-function one(f: Field, raw: unknown, opts: Choice[]): { value?: string | number | boolean | string[]; error?: string } {
+function one(f: Field, raw: unknown, opts: Choice[]): { value?: Value; error?: string } {
   const r = base(f, raw, opts);
   // A field's own words for a failed check win over the default ones.
   return r.error && f.valid?.message ? { error: f.valid.message } : r;
 }
 
-function base(f: Field, raw: unknown, opts: Choice[]): { value?: string | number | boolean | string[]; error?: string } {
+const TIME = /^([01]\d|2[0-3]):[0-5]\d$/;
+const obj = (raw: unknown): Record<string, unknown> => (raw && typeof raw === "object" && !Array.isArray(raw) ? (raw as Record<string, unknown>) : {});
+const words = (v: unknown, n = 200) => (typeof v === "string" ? v.trim().slice(0, n) : typeof v === "number" ? String(v) : "");
+
+/** The answers that are more than one value. Missing parts make no value, so "required" catches them. */
+function structured(f: Field, raw: unknown, opts: Choice[]): { value?: Value; error?: string } | null {
   const c = f.valid ?? {};
+  switch (f.type) {
+    case "ranking": {
+      if (!Array.isArray(raw) || !raw.length) return {};
+      const list = raw.map(String);
+      const want = opts.map((o) => o.value);
+      return list.length === want.length && new Set(list).size === list.length && list.every((x) => want.includes(x)) ? { value: list } : { error: "Put every choice in order." };
+    }
+    case "address": {
+      const o = obj(raw);
+      const v: Record<string, string> = {};
+      for (const k of ADDRESS_PARTS) if (words(o[k])) v[k] = words(o[k]);
+      if (!Object.keys(v).length) return {};
+      return v.line1 && v.city && v.country ? { value: v } : { error: "Fill in the street, city and country." };
+    }
+    case "grid": {
+      const o = obj(raw);
+      const rows = f.grid?.rows ?? [];
+      const cols = new Set((f.grid?.cols ?? []).map((x) => x.value));
+      const v: Record<string, string> = {};
+      for (const r of rows) {
+        const a = words(o[r.value]);
+        if (!a) continue;
+        if (!cols.has(a)) return { error: "Pick from the columns." };
+        v[r.value] = a;
+      }
+      if (!Object.keys(v).length) return {};
+      return Object.keys(v).length === rows.length ? { value: v } : { error: "Answer every row." };
+    }
+    case "time": {
+      const t = words(raw, 5);
+      return !t ? {} : TIME.test(t) ? { value: t } : { error: "Enter a time." };
+    }
+    case "daterange": {
+      const o = obj(raw);
+      const from = words(o.from, 10);
+      const to = words(o.to, 10);
+      if (!from && !to) return {};
+      if (!DATE.test(from) || !DATE.test(to) || Number.isNaN(Date.parse(from)) || Number.isNaN(Date.parse(to))) return { error: "Pick both dates." };
+      if (to < from) return { error: "The end date comes after the start." };
+      if (c.earliest && from < c.earliest) return { error: `Pick ${c.earliest} or later.` };
+      if (c.latest && to > c.latest) return { error: `Pick ${c.latest} or earlier.` };
+      return { value: { from, to } };
+    }
+    case "group": {
+      const g = f.group;
+      if (!g || !Array.isArray(raw)) return {};
+      const rows: Record<string, string>[] = [];
+      for (const r of raw.slice(0, g.max + 1)) {
+        const o = obj(r);
+        const row: Record<string, string> = {};
+        for (const sf of g.fields) {
+          const x = base(sf, o[sf.id], sf.options ?? []);
+          if (x.error) return { error: `${sf.label}: ${x.error}` };
+          if (x.value !== undefined && x.value !== "") row[sf.id] = String(x.value);
+          else if (sf.required) return { error: `Fill in ${sf.label.toLowerCase()} on every row.` };
+        }
+        if (Object.keys(row).length) rows.push(row);
+      }
+      if (rows.length > g.max) return { error: `Up to ${g.max} rows.` };
+      if (!rows.length) return {};
+      if (g.min && rows.length < g.min) return { error: `Add at least ${g.min}.` };
+      return { value: rows };
+    }
+    case "signature": {
+      const t = words(raw, 200);
+      return !t ? {} : FILE_ANSWER.test(t) ? { value: t } : { error: "Sign again." };
+    }
+  }
+  return null;
+}
+
+function base(f: Field, raw: unknown, opts: Choice[]): { value?: Value; error?: string } {
+  const c = f.valid ?? {};
+  const st = structured(f, raw, opts);
+  if (st) return st;
   if (f.type === "checkbox") return { value: raw === true || raw === "true" || raw === "on" };
   if (f.type === "multi") {
     const list = (Array.isArray(raw) ? raw : raw === undefined || raw === null || raw === "" ? [] : [raw]).map(String);
@@ -80,7 +162,8 @@ function base(f: Field, raw: unknown, opts: Choice[]): { value?: string | number
       if (!Number.isFinite(n)) return { error: "Enter a number." };
       if (f.type === "rating") {
         const scale = f.rating?.scale ?? 5;
-        return Number.isInteger(n) && n >= 1 && n <= scale ? { value: n } : { error: `Pick 1 to ${scale}.` };
+        const low = f.rating?.zero ? 0 : 1;
+        return Number.isInteger(n) && n >= low && n <= scale ? { value: n } : { error: `Pick ${low} to ${scale}.` };
       }
       if (c.min !== undefined && n < c.min) return { error: `Enter ${c.min} or more.` };
       if (c.max !== undefined && n > c.max) return { error: `Enter ${c.max} or less.` };

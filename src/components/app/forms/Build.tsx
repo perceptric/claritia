@@ -535,7 +535,83 @@ function QView({ q, form, picked, fresh, issueCtx, onPick, onDuplicate, onRemove
         </div>
       </>
     );
-  else
+  else if (f && ["rating", "scale", "ranking", "grid", "time", "daterange", "address", "group", "signature"].includes(kind)) {
+    // Answers with parts, drawn the way the live form lays them out (docs/form-kinds-plan.md step 2).
+    const box = "rounded-[var(--b-r)] border border-solid border-[var(--b-line)] bg-[var(--b-in)]";
+    const r = f.rating ?? { scale: 5, style: "stars" as const };
+    body = (
+      <>
+        {label(f.label)}
+        {kind === "rating" || kind === "scale" ? (
+          <div className="flex flex-wrap gap-[6px]">
+            {Array.from({ length: r.scale - (r.zero ? -1 : 0) }, (_, i) => (r.zero ? i : i + 1)).map((n) =>
+              r.style === "numbers" ? (
+                <span key={n} className={`${box} inline-flex size-[34px] items-center justify-center text-[13px]`}>{n}</span>
+              ) : (
+                <span key={n} className="text-[22px] leading-none text-[var(--b-box)]">★</span>
+              ),
+            )}
+          </div>
+        ) : kind === "ranking" ? (
+          <div className="flex flex-col gap-[6px]">
+            {(f.options ?? []).map((o, i) => (
+              <span key={o.value} className={`${box} flex items-center gap-[10px] px-[10px] py-[7px] text-[14px]`}>
+                <b className="w-[16px] text-[var(--b-muted)]">{i + 1}</b>
+                {o.label}
+              </span>
+            ))}
+          </div>
+        ) : kind === "grid" ? (
+          <table className="w-full border-collapse text-[13px]">
+            <tbody>
+              <tr>
+                <td />
+                {(f.grid?.cols ?? []).map((c) => (
+                  <td key={c.value} className="px-[6px] pb-[6px] text-center text-[var(--b-muted)]">{c.label}</td>
+                ))}
+              </tr>
+              {(f.grid?.rows ?? []).map((row) => (
+                <tr key={row.value} className="border-t border-[var(--b-line)]">
+                  <td className="py-[7px]">{row.label}</td>
+                  {(f.grid?.cols ?? []).map((c) => (
+                    <td key={c.value} className="text-center">
+                      <span className="inline-block size-[14px] rounded-full border-[1.5px] border-[var(--b-box)]" />
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ) : kind === "address" ? (
+          <div className="grid grid-cols-2 gap-[8px]">
+            <div className="col-span-2">{input("Street")}</div>
+            {input("City")}
+            {input("State or region")}
+            {input("Postcode")}
+            {input("Country")}
+          </div>
+        ) : kind === "daterange" ? (
+          <div className="grid grid-cols-2 gap-[8px]">
+            {input("From")}
+            {input("To")}
+          </div>
+        ) : kind === "group" ? (
+          <div className="flex flex-col gap-[8px]">
+            <div className={`${box} flex flex-wrap gap-[8px] p-[10px]`}>
+              {(f.group?.fields ?? []).map((sf) => (
+                <span key={sf.id} className="min-w-[120px] flex-1">{input(sf.label)}</span>
+              ))}
+            </div>
+            <span className="self-start rounded-full border border-[var(--b-line)] px-[12px] py-[5px] text-[13px]">{f.group?.add || "Add another"}</span>
+          </div>
+        ) : kind === "signature" ? (
+          <div className="flex h-[96px] items-end rounded-[var(--b-r)] border border-dashed border-[var(--b-box)] bg-white px-[12px] pb-[10px] text-[12.5px] text-[var(--b-muted)]">Sign here</div>
+        ) : (
+          input("--:--")
+        )}
+      </>
+    );
+  } else
     body = (
       <>
         {labels === "inside" ? null : label(f!.label)}

@@ -38,7 +38,23 @@ export type FieldType =
   // A result block (docs/interactive-forms-plan.md Part 4): a number, a meter, a breakdown, bars or the outcome.
   | "result"
   // An HTML section the AI writes (docs/ai-form-builder.md): a hero, pictures and words, cleaned by html.ts.
-  | "html";
+  | "html"
+  // docs/form-kinds-plan.md step 2: put the options in order; street, city, postcode and country; one choice per row
+  // of a grid; a time of day; a first and last date; "add another" rows of small questions; a drawn signature.
+  | "ranking"
+  | "address"
+  | "grid"
+  | "time"
+  | "daterange"
+  | "group"
+  | "signature";
+
+/** Answers that are more than one value (an address, a grid, a date range, group rows): kept on the fill only. */
+export const STRUCTURED: FieldType[] = ["ranking", "address", "grid", "daterange", "group", "signature"];
+/** The parts of an address answer, in order. */
+export const ADDRESS_PARTS = ["line1", "line2", "city", "region", "postal", "country"] as const;
+/** The question types a group row can hold. */
+export const GROUP_TYPES: FieldType[] = ["text", "email", "phone", "number", "dropdown", "date"];
 
 export const CONTENT_TYPES: FieldType[] = ["heading", "paragraph", "divider", "image", "result", "html"];
 export const isContent = (t: FieldType) => CONTENT_TYPES.includes(t);
@@ -140,7 +156,12 @@ export type Field = {
   /** Pick one, pick many and dropdown: an "Other" choice with a text box, and a shuffled order. */
   other?: boolean;
   shuffle?: boolean;
-  rating?: { scale: number; style: "stars" | "numbers"; low?: string; high?: string };
+  /** zero: the scale starts at 0 (0 to 10 for NPS). */
+  rating?: { scale: number; style: "stars" | "numbers"; low?: string; high?: string; zero?: true };
+  /** Grid: the rows asked about, each answered with one of the columns. */
+  grid?: { rows: Choice[]; cols: Choice[] };
+  /** Group: the small questions in each row, and how many rows. */
+  group?: { fields: Field[]; min?: number; max: number; add?: string };
   /** How this field's rules combine for each action: any one of them (the default) or all of them. */
   logic?: "all";
   /** Content blocks: the heading or paragraph text, the heading level, the picture and its words. */
@@ -352,6 +373,13 @@ export const FIELD_TYPES: { value: FieldType; label: string }[] = [
   { value: "hidden", label: "Hidden" },
   { value: "calc", label: "Calculation" },
   { value: "file", label: "File upload" },
+  { value: "ranking", label: "Ranking" },
+  { value: "address", label: "Address" },
+  { value: "grid", label: "Grid" },
+  { value: "time", label: "Time" },
+  { value: "daterange", label: "Date range" },
+  { value: "group", label: "Repeating group" },
+  { value: "signature", label: "Signature" },
   { value: "result", label: "Result" },
   { value: "html", label: "Section" },
   { value: "heading", label: "Heading" },
@@ -670,9 +698,11 @@ export function checkForm(raw: unknown, ctx: Ctx = {}): { form: Form } | { error
       if (type === "rating") {
         const ro = (fo.rating && typeof fo.rating === "object" ? fo.rating : {}) as Record<string, unknown>;
         const scale = Math.round(Number(ro.scale ?? 5));
+        const zero = ro.zero === true && ro.style === "numbers";
         f.rating = {
           scale: Number.isFinite(scale) ? Math.min(Math.max(scale, 3), 10) : 5,
           style: ro.style === "numbers" ? "numbers" : "stars",
+          ...(zero ? { zero: true as const } : {}),
           ...(str(ro.low, 60) ? { low: str(ro.low, 60) } : {}),
           ...(str(ro.high, 60) ? { high: str(ro.high, 60) } : {}),
         };
@@ -700,6 +730,43 @@ export function checkForm(raw: unknown, ctx: Ctx = {}): { form: Form } | { error
         const kinds = Array.isArray(fl.kinds) ? [...new Set(fl.kinds.filter((k): k is FileKind => FILE_KINDS.includes(k as FileKind)))] : [];
         f.file = { maxMb: Number.isFinite(mb) ? Math.min(Math.max(mb, 1), 20) : 10, kinds: kinds.length ? kinds : ["pdf", "image", "office"] };
       }
+      if (STRUCTURED.includes(type) && !key.startsWith("q.")) errors.push(`${name} keeps its answer on the fill: use a q. key.`);
+      if (type === "ranking") {
+        f.options = choices(fo.options, 12);
+        if (f.options.length < 2) errors.push(`${name} needs at least two things to rank.`);
+      }
+      if (type === "grid") {
+        const g = (fo.grid && typeof fo.grid === "object" ? fo.grid : {}) as Record<string, unknown>;
+        f.grid = { rows: choices(g.rows, 12), cols: choices(g.cols, 7) };
+        if (!f.grid.rows.length || f.grid.cols.length < 2) errors.push(`${name} needs rows and at least two columns.`);
+      }
+      if (type === "group") {
+        const g = (fo.group && typeof fo.group === "object" ? fo.group : {}) as Record<string, unknown>;
+        const sub: Field[] = [];
+        const subIds = new Set<string>();
+        for (const x of (Array.isArray(g.fields) ? g.fields : []).slice(0, 6)) {
+          const so = (x && typeof x === "object" ? x : {}) as Record<string, unknown>;
+          const sid = str(so.id, 24) ?? "";
+          const st = GROUP_TYPES.includes(so.type as FieldType) ? (so.type as FieldType) : null;
+          const sl = str(so.label, LIMITS.label) ?? "";
+          if (!ID.test(sid) || subIds.has(sid) || !st || !sl) {
+            errors.push(`${name} has a row question that can't be read.`);
+            continue;
+          }
+          subIds.add(sid);
+          const sf: Field = { id: sid, key: `q.${sid}` as FieldKey, type: st, label: sl, required: so.required === true };
+          if (st === "dropdown") {
+            sf.options = choices(so.options, LIMITS.options);
+            if (!sf.options.length) errors.push(`${name}: ${sl} needs options.`);
+          }
+          sub.push(sf);
+        }
+        if (!sub.length) errors.push(`${name} needs at least one question in each row.`);
+        const max = Math.round(Number(g.max ?? 5));
+        const min = Math.round(Number(g.min ?? 0));
+        f.group = { fields: sub, max: Number.isFinite(max) ? Math.min(Math.max(max, 1), 20) : 5, ...(Number.isFinite(min) && min > 0 ? { min: Math.min(min, 20) } : {}), ...(str(g.add, 40) ? { add: str(g.add, 40) } : {}) };
+        if (f.group.min && f.group.min > f.group.max) errors.push(`${name} needs more rows than it allows.`);
+      }
       if (type === "number" && fo.slider === true) {
         f.slider = true;
         if (f.valid?.min === undefined || f.valid?.max === undefined || f.valid.max <= f.valid.min) errors.push(`${name}: a slider needs a lowest and a highest value.`);
@@ -721,7 +788,7 @@ export function checkForm(raw: unknown, ctx: Ctx = {}): { form: Form } | { error
         };
       }
       const def = str(fo.default, LIMITS.label);
-      if (def && type !== "hidden" && type !== "checkbox" && type !== "calc" && !f.optionsBy) {
+      if (def && type !== "hidden" && type !== "checkbox" && type !== "calc" && !f.optionsBy && !STRUCTURED.includes(type)) {
         if (isChoice(type) && !(f.options ?? []).some((o) => o.value === def)) errors.push(`${name} starts on a choice it doesn't have.`);
         else f.default = def;
       }

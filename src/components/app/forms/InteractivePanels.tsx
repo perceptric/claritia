@@ -555,3 +555,117 @@ export function PathsSection(p: BuildProps & { open: boolean; onToggle: () => vo
     </PanelSection>
   );
 }
+
+// Answers with parts (docs/form-kinds-plan.md step 2) ---------------------------------------------------------------
+
+const lines = (list: Choice[]) => list.map((c) => c.label).join("\n");
+/** One choice per line, keeping each line's value when its words didn't change. */
+const fromLines = (text: string, was: Choice[]): Choice[] =>
+  text
+    .split("\n")
+    .map((l) => l.trim().slice(0, 120))
+    .filter(Boolean)
+    .slice(0, 12)
+    .map((l) => was.find((c) => c.label === l) ?? { value: l, label: l });
+
+/** Rating and the 0 to 10 scale: how many points, stars or numbers, and the words at each end. */
+export function RatingSection(p: SectionProps) {
+  const { f, apply } = p;
+  const r = f.rating ?? { scale: 5, style: "stars" as const };
+  const set = (x: Partial<NonNullable<Field["rating"]>>) => {
+    const next = { ...r, ...x };
+    if (next.style === "stars") delete next.zero;
+    apply({ op: "update_field", id: f.id, patch: { rating: next } });
+  };
+  return (
+    <PanelSection icon={<Ic n="hash" />} title="Scale" summary={`${r.zero ? 0 : 1} to ${r.scale}, ${r.style === "numbers" ? "numbers" : "stars"}`} open={p.open} onToggle={p.onToggle}>
+      <Labeled label="Show as">
+        <Seg label="Show as" value={r.style} onChange={(v) => set({ style: v })} options={[{ value: "stars", label: "Stars" }, { value: "numbers", label: "Numbers" }]} />
+      </Labeled>
+      <Labeled label="Highest">
+        <NumBox aria-label="Highest" value={r.scale} onChange={(n) => n !== null && n >= 3 && n <= 10 && set({ scale: Math.round(n) })} />
+      </Labeled>
+      {r.style === "numbers" ? (
+        <div className={ROW}>
+          Start at 0
+          <Tg label="Start at 0" on={!!r.zero} onChange={(v) => set({ zero: v || undefined })} />
+        </div>
+      ) : null}
+      <Labeled label="Low end">
+        <input className={IN_SM} aria-label="Low end" value={r.low ?? ""} placeholder="Not likely" onChange={(e) => set({ low: e.target.value || undefined })} />
+      </Labeled>
+      <Labeled label="High end">
+        <input className={IN_SM} aria-label="High end" value={r.high ?? ""} placeholder="Very likely" onChange={(e) => set({ high: e.target.value || undefined })} />
+      </Labeled>
+    </PanelSection>
+  );
+}
+
+/** Grid: the rows asked about and the columns to answer with, one per line. */
+export function GridSection(p: SectionProps) {
+  const { f, apply } = p;
+  const g = f.grid ?? { rows: [], cols: [] };
+  const [rows, setRows] = useState(lines(g.rows));
+  const [cols, setCols] = useState(lines(g.cols));
+  return (
+    <PanelSection icon={<Ic n="data" />} title="Rows and columns" summary={`${g.rows.length} rows, ${g.cols.length} columns`} open={p.open} onToggle={p.onToggle}>
+      <Labeled label="Rows">
+        <textarea className={AREA} rows={4} aria-label="Rows" value={rows} onChange={(e) => (setRows(e.target.value), apply({ op: "update_field", id: f.id, patch: { grid: { ...g, rows: fromLines(e.target.value, g.rows) } } }))} />
+      </Labeled>
+      <Labeled label="Columns">
+        <textarea className={AREA} rows={4} aria-label="Columns" value={cols} onChange={(e) => (setCols(e.target.value), apply({ op: "update_field", id: f.id, patch: { grid: { ...g, cols: fromLines(e.target.value, g.cols) } } }))} />
+      </Labeled>
+    </PanelSection>
+  );
+}
+
+const GROUP_KINDS: { v: Field["type"]; l: string }[] = [
+  { v: "text", l: "Short text" },
+  { v: "email", l: "Email" },
+  { v: "phone", l: "Phone" },
+  { v: "number", l: "Number" },
+  { v: "date", l: "Date" },
+  { v: "dropdown", l: "Choices" },
+];
+
+/** Add another: the questions in each row, how many rows, and the add button's words. */
+export function GroupSection(p: SectionProps) {
+  const { f, apply } = p;
+  const g = f.group ?? { fields: [], max: 5 };
+  const set = (x: Partial<NonNullable<Field["group"]>>) => apply({ op: "update_field", id: f.id, patch: { group: { ...g, ...x } } });
+  const edit = (i: number, x: Partial<Field>) => set({ fields: g.fields.map((sf, j) => (j === i ? { ...sf, ...x } : sf)) });
+  return (
+    <PanelSection icon={<Ic n="dup" />} title="Each row" summary={`${g.fields.length} ${g.fields.length === 1 ? "question" : "questions"}, up to ${g.max} rows`} open={p.open} onToggle={p.onToggle}>
+      <div className="flex flex-col gap-[6px]">
+        {g.fields.map((sf, i) => (
+          <div key={sf.id} className="flex flex-col gap-[4px] rounded-[6px] border border-line p-[8px]">
+            <div className="flex items-center gap-[6px]">
+              <input className={IN_SM} aria-label={`Row question ${i + 1}`} value={sf.label} onChange={(e) => edit(i, { label: e.target.value })} />
+              <Dd sm label={GROUP_KINDS.find((k) => k.v === sf.type)?.l ?? "Short text"} ariaLabel="Type" items={GROUP_KINDS.map((k): DdItem => ({ kind: "option", key: k.v, label: k.l, on: k.v === sf.type, onPick: () => edit(i, { type: k.v, ...(k.v === "dropdown" ? { options: sf.options?.length ? sf.options : [{ value: "Option 1", label: "Option 1" }, { value: "Option 2", label: "Option 2" }] } : { options: undefined }) }) }))} />
+              <button type="button" className={X} aria-label={`Remove ${sf.label}`} title="Remove" disabled={g.fields.length < 2} onClick={() => set({ fields: g.fields.filter((_, j) => j !== i) })}>
+                <Ic n="x" s={12} />
+              </button>
+            </div>
+            {sf.type === "dropdown" ? <textarea className={AREA} rows={2} aria-label={`${sf.label} choices`} defaultValue={lines(sf.options ?? [])} onBlur={(e) => edit(i, { options: fromLines(e.target.value, sf.options ?? []) })} /> : null}
+            <div className={ROW}>
+              Required
+              <Tg label={`${sf.label} required`} on={sf.required} onChange={(v) => edit(i, { required: v })} />
+            </div>
+          </div>
+        ))}
+        {g.fields.length < 6 ? (
+          <button type="button" className={`${GHOST_SM} self-start`} onClick={() => set({ fields: [...g.fields, { id: `g${Date.now().toString(36).slice(-6)}`, key: "q.answer" as Field["key"], type: "text", label: "Question", required: false }] })}>
+            <Ic n="plus" />
+            Add a question
+          </button>
+        ) : null}
+      </div>
+      <Labeled label="Most rows">
+        <NumBox aria-label="Most rows" value={g.max} onChange={(n) => n !== null && n >= 1 && n <= 20 && set({ max: Math.round(n) })} />
+      </Labeled>
+      <Labeled label="Add button">
+        <input className={IN_SM} aria-label="Add button" value={g.add ?? ""} placeholder="Add another" onChange={(e) => set({ add: e.target.value || undefined })} />
+      </Labeled>
+    </PanelSection>
+  );
+}

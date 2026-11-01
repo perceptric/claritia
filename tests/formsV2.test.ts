@@ -157,7 +157,9 @@ test("questions as the builder shows them: a first and last name are one, and th
   assert.deepEqual(qs.map((q) => [q.id, q.kind]), [[allFields(f)[0]!.id, "email"], ["fn", "name"], ["co", "company"], [CONSENT_ID, "consent"]]);
   assert.equal(qs[1]!.pair?.id, "ln");
   assert.equal(kindOf({ type: "textarea", key: "q.x" }), "long");
-  assert.equal(kindOf({ type: "rating", key: "q.x" }), "other");
+  assert.equal(kindOf({ type: "rating", key: "q.x" }), "rating");
+  assert.equal(kindOf({ type: "rating", key: "q.x", rating: { scale: 10, style: "numbers", zero: true } }), "scale");
+  assert.equal(kindOf({ type: "url", key: "q.x" }), "text");
   // Joined back into one box, then apart again: the same keys each time.
   const joined = run(f, splitNameOps(f, qs[1]!, false));
   assert.deepEqual(allFields(joined).map((x) => x.key), ["email", "name", "company"]);
