@@ -275,7 +275,7 @@ export function Flow({ body, res, sel, setSel, edit, words }: { body: ScoreBody;
   const chain = (side: "fit" | "act") => [side, ...body.groups.filter((g) => g.side === side).map((g) => g.id), ...(edit ? [`add-${side}`] : [])];
   const fit = chain("fit");
   const act = chain("act");
-  const links = (ids: string[]): Edge[] => ids.slice(1).map((id, i) => ({ from: ids[i], to: id, dashed: id.startsWith("add-") }));
+  const links = (ids: string[]): Edge[] => ids.slice(1).map((id, i) => ({ from: ids[i], to: id }));
   const edges: Edge[] = [
     ...links(fit),
     ...links(act),
@@ -296,7 +296,7 @@ export function Flow({ body, res, sel, setSel, edit, words }: { body: ScoreBody;
   const column = (side: "fit" | "act") => (
     <div className="flex min-w-0 flex-col items-center gap-8">
       <span data-node={side} className="relative inline-flex h-6 items-center rounded-full border border-line bg-card px-2.5 font-mono text-[10.5px] tracking-[0.06em] text-muted uppercase">
-        {side === "fit" ? "Fit" : "Activity"}
+        {side === "fit" ? "ICP fit" : "Activity"}
       </span>
       {body.groups.filter((g) => g.side === side).map((g) => (
         <div key={g.id} data-node={g.id} className="relative w-full">
@@ -304,7 +304,7 @@ export function Flow({ body, res, sel, setSel, edit, words }: { body: ScoreBody;
         </div>
       ))}
       {edit ? (
-        <button type="button" data-node={`add-${side}`} onClick={() => addGroup(side)} className="press relative inline-flex h-7 items-center gap-1 rounded-full border border-dashed border-line-strong bg-card px-3 text-[12px] text-body hover:border-ink hover:text-ink">
+        <button type="button" data-node={`add-${side}`} onClick={() => addGroup(side)} className="press relative inline-flex h-7 items-center gap-1 rounded-full border border-line-strong bg-card px-3 text-[12px] text-body hover:border-ink hover:text-ink">
           <Plus size={12} />
           Add group
         </button>
@@ -319,14 +319,14 @@ export function Flow({ body, res, sel, setSel, edit, words }: { body: ScoreBody;
         <button type="button" data-node="lead" onClick={() => setSel({ kind: "model" })} className={`relative flex h-[34px] items-center rounded-full bg-ink px-4 text-[13px] font-medium text-paper ${sel.kind === "model" ? "outline-2 outline-offset-[3px] outline-ink" : ""}`}>
           New lead
         </button>
-        <div className="mt-10 grid w-full max-w-[360px] gap-y-8 xl:w-auto xl:max-w-none xl:grid-cols-[360px_360px] xl:gap-x-16">
+        <div className="mt-16 grid w-full max-w-[360px] gap-y-8 xl:w-auto xl:max-w-none xl:grid-cols-[360px_360px] xl:gap-x-16">
           {column("fit")}
           {column("act")}
         </div>
-        <div data-node="minus" className="relative mt-12 w-full max-w-[420px]">
+        <div data-node="minus" className="relative mt-16 w-full max-w-[420px]">
           <GroupCard g={{ id: "minus", name: "Points taken away", side: "fit", max: 0, rules: body.minus }} sel={sel} setSel={setSel} edit={edit} words={words} minus />
         </div>
-        <div className="mt-10 grid w-full max-w-[600px] gap-3 sm:grid-cols-3">
+        <div className="mt-16 grid w-full max-w-[600px] gap-3 sm:grid-cols-3">
           {ends.map(([band, d]) => (
             <button key={band} type="button" data-node={`band-${band}`} onClick={() => setSel({ kind: "model" })} className={`relative flex flex-col gap-0.5 rounded-[10px] border bg-card px-3 py-2.5 text-left ${band === "hot" ? "border-signal" : "border-line"}`}>
               <b className="flex items-center gap-1.5 text-[13px] font-medium text-ink">
