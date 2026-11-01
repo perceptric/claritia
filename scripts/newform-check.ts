@@ -62,6 +62,11 @@ try {
   await page.getByRole("button", { name: "Learn" }).click();
   await page.waitForTimeout(200);
   check((await calls()).some((c) => c.path === "/api/forms/scan"), "Styling: Learn reads the website's brand");
+  await page.waitForFunction(() => (window as unknown as { calls: { path: string }[] }).calls.some((c) => c.path === "/api/forms/skin"), null, { timeout: 5000 });
+  check(true, "Styling: the site's look is copied from its page source");
+  await page.waitForTimeout(500);
+  const skinned = await page.evaluate(() => document.querySelector("claritia-form")?.shadowRoot?.querySelector("style")?.textContent?.includes("box-shadow:0 4px 0 #b84d0a") ?? false);
+  check(skinned, "the preview wears the copied look");
   await page.getByLabel("Describe your form").fill("A demo request that asks team size and books bigger teams");
   await page.getByRole("button", { name: "Continue" }).click();
   await page.getByText("Bigger teams need more questions").waitFor({ timeout: 5000 });
