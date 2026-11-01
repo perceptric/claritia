@@ -777,15 +777,3 @@ input[type="radio"] {
   .da-t i.pick { background: var(--color-ink); border-color: var(--color-ink); }
 }
 
-/* New form's waiting animation (AiCreate Throbber): a wave going round eight dots. */
-@keyframes nf-wave {
-  0%, 70%, 100% { scale: 0.55; opacity: 0.25; }
-  25% { scale: 1.25; opacity: 1; }
-}
-.nf-dot {
-  margin: -4.5px 0 0 -4.5px;
-  animation: nf-wave 880ms cubic-bezier(0.2, 0, 0, 1) infinite;
-}
-@media (prefers-reduced-motion: reduce) {
-  .nf-dot { animation: none; opacity: 0.5; }
-}
