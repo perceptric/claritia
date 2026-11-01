@@ -52,7 +52,7 @@ const READ = () => {
   const css = (el: Element) => getComputedStyle(el);
   const clear = (c: string) => c === "transparent" || /rgba\([^)]*,\s*0\)$/.test(c);
   const text = (document.title + " " + (document.body?.innerText ?? "").slice(0, 2000)).toLowerCase();
-  const blocked = /just a moment|attention required|access denied|verify you are (a )?human|captcha|are you a robot|enable javascript and cookies/.test(text) && (document.body?.innerText ?? "").length < 3000;
+  const blocked = /just a moment|checking your browser|attention required|access denied|verify you are (a )?human|captcha|are you a robot|enable javascript and cookies/.test(text) && (document.body?.innerText ?? "").length < 3000;
   const body = document.body;
   let background = css(body).backgroundColor;
   if (clear(background)) background = css(document.documentElement).backgroundColor;
@@ -229,6 +229,15 @@ export function tokensFrom(home: Raw, form: Raw | null): { tokens: Tokens; notes
   return { tokens: fixed.tokens, notes: [...notes, ...fixed.notes] };
 }
 
+/** Whether the page is a bot check's waiting screen rather than the site. */
+export const CHALLENGE = /just a moment|checking your browser|verifying you are human|attention required|please wait while we/i;
+async function isChallenge(page: { title(): Promise<string>; evaluate<T>(fn: () => T): Promise<T> }): Promise<boolean> {
+  const title = await page.title().catch(() => "");
+  if (CHALLENGE.test(title)) return true;
+  const short = await page.evaluate(() => (document.body?.innerText ?? "").slice(0, 400)).catch(() => "");
+  return short.length < 400 && CHALLENGE.test(short);
+}
+
 /**
  * Scan a site. Throws ScanBlocked when the site turns the browser away (a bot wall, an error page, a private address).
  * `allowPrivate` is for tests on localhost only.
@@ -256,10 +265,25 @@ export async function scanSite(rawUrl: string, opts: { chromiumPath?: string; al
     const page = await ctx.newPage();
     const visit = async (href: string): Promise<Raw> => {
       const res = await page.goto(href, { waitUntil: "load", timeout });
+      // Bot checks that clear themselves with JavaScript (Cloudflare, Hostinger): wait up to 12 s for the real page.
+      let challenged = await isChallenge(page);
+      const wasChallenged = challenged;
+      for (let i = 0; i < 12 && challenged; i++) {
+        await page.waitForTimeout(1000);
+        await page.waitForLoadState("load", { timeout: 5000 }).catch(() => undefined);
+        challenged = await isChallenge(page);
+      }
       await page.waitForLoadState("networkidle", { timeout: 5000 }).catch(() => undefined);
+      await page.waitForFunction(() => !!document.body, undefined, { timeout: 10_000 }).catch(() => undefined);
       await page.evaluate(() => document.fonts?.ready).catch(() => undefined);
-      const r = (await page.evaluate(READ)) as Raw;
-      if (res && res.status() >= 400 && !r.forms.length) r.blocked = r.blocked || res.status() === 403 || res.status() === 503;
+      // A check that reloads the page can land mid-read: read again once the new page has loaded.
+      const r = (await page.evaluate(READ).catch(async () => {
+        await page.waitForLoadState("load", { timeout: 10_000 }).catch(() => undefined);
+        await page.waitForFunction(() => !!document.body, undefined, { timeout: 10_000 }).catch(() => undefined);
+        return page.evaluate(READ);
+      })) as Raw;
+      // The first answer's status only counts when no check cleared in between (a check answers 403, then the page loads).
+      if (res && res.status() >= 400 && !r.forms.length && !(wasChallenged && !challenged)) r.blocked = r.blocked || res.status() === 403 || res.status() === 503;
       return r;
     };
     const home = await visit(u.href);
