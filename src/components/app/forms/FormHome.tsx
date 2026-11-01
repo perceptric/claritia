@@ -79,6 +79,15 @@ export function FormHome(props: ViewProps & { startNew?: boolean }) {
   const [filter, setFilter] = useKept<"all" | "live" | "draft">(`forms:${ws.id}:filter`, "all");
   const [q, setQ] = useKept(`forms:${ws.id}:q`, "");
   const [dialog, setDialog] = useState(!!props.startNew);
+  // Onboarding: the brand step is done (read, or skipped on this computer), and a starter to open right after.
+  const [brandDone, setBrandDone] = useState(() => {
+    try {
+      return localStorage.getItem(`claritia:brand-step:${ws.id}`) === "done";
+    } catch {
+      return false;
+    }
+  });
+  const [starter, setStarter] = useState<string | null>(null);
   const [menu, setMenu] = useState<{ id: string; at: HTMLElement } | null>(null);
   const note = useNote();
 
@@ -145,6 +154,8 @@ export function FormHome(props: ViewProps & { startNew?: boolean }) {
     ) : (
       <Loading />
     )
+  ) : !rows!.length && !brandDone && !list.data.kits.some((k) => k.scan_status === "done" && Object.keys(k.tokens ?? {}).length > 0) ? (
+    <BrandStep {...props} onDone={(build) => (list.reload(), setBrandDone(true), build ? setStarter("demo") : undefined)} />
   ) : !rows!.length ? (
     <FirstScreen {...props} onTemplates={() => setDialog(true)} kits={list.data.kits} />
   ) : (
@@ -212,6 +223,7 @@ export function FormHome(props: ViewProps & { startNew?: boolean }) {
         />
       ) : null}
       {dialog ? <NewForm {...props} kits={list.data?.kits ?? []} onClose={() => setDialog(false)} /> : null}
+      {starter ? <NewForm {...props} kits={list.data?.kits ?? []} start={{ starter }} onClose={() => setStarter(null)} /> : null}
       {note.node}
     </div>
   );
@@ -299,6 +311,162 @@ export function CatchCorners({ r = 10, inset = "-1px" }: { r?: number; inset?: s
       <span aria-hidden="true" className="anim-fade pointer-events-none absolute z-[1] size-[12px] border-t-[1.5px] border-l-[1.5px] border-ink" style={{ top: inset, left: inset, borderTopLeftRadius: r }} />
       <span aria-hidden="true" className="anim-fade pointer-events-none absolute z-[1] size-[12px] border-r-[1.5px] border-b-[1.5px] border-ink" style={{ bottom: inset, right: inset, borderBottomRightRadius: r }} />
     </>
+  );
+}
+
+/** A real, small preview of a starter form: its title, first questions and button, in the brand kit's look. */
+function MiniForm({ form, tokens }: { form: ReturnType<(typeof STARTERS)[number]["form"]>; tokens?: { buttonBg?: string; buttonText?: string; buttonRadius?: number; font?: string; radius?: number } }) {
+  const fields = form.steps.flatMap((st) => st.fields).filter((f) => !["heading", "paragraph", "divider", "image"].includes(f.type));
+  const box = { borderRadius: Math.min(tokens?.radius ?? 4, 6) };
+  return (
+    <span aria-hidden="true" className="relative flex h-[150px] flex-col gap-[6px] overflow-hidden rounded-[6px] border border-line bg-card px-[10px] pt-[9px] text-left" style={tokens?.font ? { fontFamily: `${tokens.font}, var(--font-sans)` } : undefined}>
+      {form.title ? <b className="text-[10px] leading-tight font-semibold text-ink">{form.title}</b> : null}
+      {fields.slice(0, 3).map((f) => (
+        <span key={f.id} className="flex flex-col gap-[2px]">
+          <span className="text-[7.5px] leading-none text-body">{f.label}</span>
+          {f.type === "choice" || f.type === "multi" ? (
+            <span className="flex flex-wrap gap-[3px]">
+              {(f.options ?? []).slice(0, 3).map((o) => (
+                <span key={o.value} className="rounded-full border border-line px-[4px] text-[6.5px] leading-[11px] text-muted">{o.label}</span>
+              ))}
+            </span>
+          ) : (
+            <span className={`block border border-line bg-paper ${f.type === "textarea" ? "h-[18px]" : "h-[11px]"}`} style={box} />
+          )}
+        </span>
+      ))}
+      <span className="mt-[2px] flex h-[13px] shrink-0 items-center justify-center bg-ink px-[8px] text-[7px] font-medium text-paper" style={{ borderRadius: tokens?.buttonRadius ?? 99, background: tokens?.buttonBg, color: tokens?.buttonText, alignSelf: form.submit.full ? "stretch" : "flex-start" }}>
+        {form.submit.label}
+      </span>
+    </span>
+  );
+}
+
+// Onboarding: learn the brand -------------------------------------------------------------------------------------
+
+type KitRow = { id: string; tokens: Partial<Tokens>; source_url: string | null; scan_status: string | null; scan_error: string | null };
+const READING = ["Opening the site", "Reading fonts", "Reading colors", "Reading buttons and fields", "Finding its forms"];
+
+/**
+ * The first visit: the site's address, then Claritia reads its look live (fonts, colors, buttons, its forms) and the
+ * first form is built in it. Skipping is kept on this computer. A scan that never ends says so after 90 seconds.
+ */
+function BrandStep({ sb, session, ws, onDone }: ViewProps & { onDone: (build: boolean) => void }) {
+  const [url, setUrl] = useState("");
+  const [kit, setKit] = useState<KitRow | null>(null);
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [tick, setTick] = useState(0);
+  const finish = (build: boolean) => {
+    try {
+      localStorage.setItem(`claritia:brand-step:${ws.id}`, "done");
+    } catch {}
+    onDone(build);
+  };
+  const scanning = kit?.scan_status === "scanning";
+  useEffect(() => {
+    if (!kit || !scanning) return;
+    const t = setInterval(async () => {
+      setTick((n) => n + 1);
+      const { data } = await sb.from("brand_kits").select("id, tokens, source_url, scan_status, scan_error").eq("id", kit.id).maybeSingle();
+      if (data) setKit(data as KitRow);
+    }, 2000);
+    return () => clearInterval(t);
+  }, [sb, kit, scanning]);
+  const start = async () => {
+    setBusy(true);
+    setError("");
+    try {
+      const { kitId } = await postJson<{ kitId: string }>(session, "/api/forms/scan", { workspaceId: ws.id, url: url.trim() });
+      setTick(0);
+      setKit({ id: kitId, tokens: {}, source_url: url.trim(), scan_status: "scanning", scan_error: null });
+    } catch (e) {
+      setError(errorText(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+  const t = kit?.tokens ?? {};
+  const name = host(kit?.source_url) || url.trim();
+  const done = kit?.scan_status === "done";
+  const failed = kit?.scan_status === "failed";
+  const slow = scanning && tick > 45;
+  const shown = done ? READING.length : Math.min(READING.length - 1, Math.floor(tick / 2));
+  return (
+    <div className="flex flex-1 flex-col items-center justify-center gap-[16px] overflow-y-auto px-[16px] py-[24px] text-center">
+      <FormSketch />
+      <h1 className="text-[28px] leading-[1.15] font-semibold tracking-[-0.025em] text-balance text-ink">
+        {done ? "Got your look." : "First, your website."}
+        <br />
+        <span className="text-faint">{done ? "Your forms will match it." : "Claritia learns its look."}</span>
+      </h1>
+      {!kit ? (
+        <form
+          className="flex w-[min(460px,100%)] items-center gap-[8px] rounded-full border border-line-strong bg-card py-[6px] pr-[6px] pl-[16px] focus-within:border-ink"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (url.trim() && !busy) void start();
+          }}
+        >
+          <input autoFocus value={url} onChange={(e) => setUrl(e.target.value)} placeholder="yourcompany.com" aria-label="Your website" className="min-w-0 flex-1 bg-transparent text-[14px] text-ink outline-none placeholder:text-faint" />
+          <button type="submit" className={BTN} disabled={!url.trim() || busy}>
+            <AiMark />
+            {busy ? "Starting" : "Learn my brand"}
+          </button>
+        </form>
+      ) : (
+        <div className="flex w-[min(460px,100%)] flex-col gap-[10px] rounded-[10px] border border-line bg-card p-[16px] text-left">
+          <span className="font-mono text-[11px] tracking-[0.06em] text-muted uppercase">{name}</span>
+          <ul className="flex flex-col gap-[6px]">
+            {READING.slice(0, shown + 1).map((r, i) => (
+              <li key={r} className="anim-rise-sm flex items-center gap-[8px] text-[13px] text-ink">
+                {i < shown || done ? (
+                  <span className="flex size-[16px] items-center justify-center rounded-full bg-signal-soft text-signal-text">
+                    <Ic n="check" />
+                  </span>
+                ) : failed ? (
+                  <span className="size-[16px] rounded-full border border-rose" />
+                ) : (
+                  <span className="size-[14px] animate-spin rounded-full border-2 border-line border-t-ink motion-reduce:animate-none" aria-label="Working" />
+                )}
+                {r}
+              </li>
+            ))}
+          </ul>
+          {done ? (
+            <div className="anim-rise-sm flex flex-wrap items-center gap-[8px] border-t border-line pt-[10px]">
+              {t.font ? <Badge>{t.font}</Badge> : null}
+              {[t.buttonBg, t.text, t.background, t.border].filter(Boolean).map((c, i) => (
+                <span key={i} className="size-[18px] rounded-full border border-line" style={{ background: c }} title={c} />
+              ))}
+              <span className="ml-auto inline-flex h-[28px] items-center px-[12px] text-[12px] font-medium" style={{ background: t.buttonBg ?? "var(--color-ink)", color: t.buttonText ?? "var(--color-paper)", borderRadius: t.buttonRadius ?? 99 }}>
+                Their button
+              </span>
+            </div>
+          ) : null}
+          {failed ? <ErrorNote message={kit.scan_error || `Couldn't read ${name}.`} /> : null}
+          {slow ? <span className="text-[12.5px] text-muted">Still reading. This can take a minute when the reader is busy.</span> : null}
+        </div>
+      )}
+      <ErrorNote message={error} />
+      <div className="flex flex-wrap items-center justify-center gap-[6px]">
+        {done ? (
+          <button type="button" className={BTN} onClick={() => finish(true)}>
+            <AiMark />
+            Build my first form
+          </button>
+        ) : failed ? (
+          <button type="button" className={GHOST} onClick={() => setKit(null)}>
+            Try again
+          </button>
+        ) : null}
+        {!done ? (
+          <button type="button" className={GHOST} onClick={() => finish(false)}>
+            Skip
+          </button>
+        ) : null}
+      </div>
+    </div>
   );
 }
 
@@ -496,12 +664,7 @@ function NewForm({ sb, session, ws, navigate, kits, onClose, start }: ViewProps 
             onDoubleClick={() => void make({ starter: s.key })}
             className={`flex flex-col gap-[8px] rounded-[10px] border p-[10px] text-left transition-colors duration-[120ms] ${pick === s.key ? "border-ink ring-1 ring-ink" : "border-line hover:border-line-strong"}`}
           >
-            <span aria-hidden="true" className="flex h-[70px] flex-col gap-[5px] rounded-[6px] border border-line bg-paper p-[9px]">
-              {Array.from({ length: Math.min(3, s.questions) }, (_, i) => (
-                <i key={i} className="block h-[6px] rounded-[3px] bg-line-strong" />
-              ))}
-              <em className="mt-auto block h-[9px] w-[46%] rounded-full bg-ink" style={kit?.tokens.buttonBg ? { background: kit.tokens.buttonBg } : undefined} />
-            </span>
+            <MiniForm form={s.form()} tokens={kit?.tokens} />
             <b className="font-medium text-ink">{s.name}</b>
             <span className="text-[12px] text-muted">{s.text}</span>
           </button>
@@ -509,7 +672,7 @@ function NewForm({ sb, session, ws, navigate, kits, onClose, start }: ViewProps 
       </div>
       <ErrorNote message={error || ctx.error} />
       <div className="mt-[4px] flex flex-wrap items-center justify-end gap-[8px]">
-        <span className="mr-auto text-[12px] text-muted">{siteName ? `In your brand kit, from ${siteName}` : "In Claritia's look"}</span>
+        <span className="mr-auto text-[12px] text-muted">{siteName ? `In your brand kit, from ${siteName}` : null}</span>
         <button type="button" className={GHOST} onClick={onClose}>
           Cancel
         </button>
