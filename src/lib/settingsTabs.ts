@@ -3,7 +3,7 @@
 // Nurture › Lead scoring (src/lib/nav.ts forwards them).
 
 export type SettingsTab =
-  | "sources" | "imports" | "sync_log" | "data_model" | "fields" | "objects" | "sending" | "sender" | "team" | "calendars" | "sites" | "identity" | "icp" | "lead_scoring" | "account_alerts" | "workspace" | "payments" | "keys" | "profile" | "calendar";
+  | "sources" | "imports" | "sync_log" | "data_model" | "fields" | "objects" | "sending" | "sender" | "team" | "calendars" | "sites" | "identity" | "icp" | "lead_scoring" | "account_alerts" | "workspace" | "payments" | "keys" | "profile" | "calendar" | "brand";
 /** `line` sits under the page title: one short line, like Twenty. */
 export type SettingsGroup = { label: string; tabs: { id: SettingsTab; label: string; line: string }[] };
 
@@ -29,6 +29,7 @@ export const SETTINGS_GROUPS: SettingsGroup[] = [
     label: "Workspace",
     tabs: [
       { id: "workspace", label: "General", line: "Your workspace's name" },
+      { id: "brand", label: "Brand", line: "Your website's look, used by your forms and booking pages" },
       { id: "keys", label: "API keys", line: "Keys for your own code and the CLI" },
     ],
   },

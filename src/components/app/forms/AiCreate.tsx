@@ -56,10 +56,11 @@ export function AiCreate({ sb, session, ws, navigate, site, kits, meetingType, o
       const want = hostOf(url);
       const mine = want ? kits.find((k) => hostOf(k.source_url) === want && (k.scan_status === "scanning" || (k.scan_status === "done" && Object.keys(k.tokens ?? {}).length > 0))) : undefined;
       if (mine) setKit(mine.id);
+      else if (!want) setKit(kits[0]?.id ?? null);
       else if (want) {
         const scan = await postJson<{ kitId: string }>(session, "/api/forms/scan", { workspaceId: ws.id, url: url.trim() }).catch(() => null);
         setKit(scan?.kitId ?? null);
-      } else setKit(null);
+      }
       const read = url.trim() ? await postJson<{ brief: Brief | null; error?: string }>(session, "/api/forms/ai", { workspaceId: ws.id, mode: "read", url: url.trim() }).catch(() => ({ brief: null })) : { brief: null };
       setBrief(read.brief);
       const ask = await postJson<{ questions: AskQuestion[] }>(session, "/api/forms/ai", { workspaceId: ws.id, mode: "ask", brief: read.brief, goal, note });

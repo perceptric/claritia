@@ -7,6 +7,7 @@
 // The look (welcome line, Claritia or the brand kit, accent, buttons, "Booked with Claritia", the meetings' order) is
 // saved per page: yours on your profile, the team's on the workspace (src/lib/meetings/look.ts).
 
+import { workspaceKit } from "@/lib/brand/workspaceKit";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { toGuestType, type Profile as GuestProfile } from "@/lib/meetings/guest";
 import { bookingOrigin, bookingUrl, cleanHandle, handleProblem } from "@/lib/meetings/handles";
@@ -70,7 +71,7 @@ export function BookingPage(props: ViewProps) {
   const page = useQuery(`booking_page:${ws.id}`, async () => {
     const [info, kit] = await Promise.all([
       meetingsApi<Info>(session, ws.id, "booking", { action: "load" }),
-      sb.from("brand_kits").select("tokens, logo_url").eq("workspace_id", ws.id).order("created_at").limit(1),
+      workspaceKit<{ tokens: Record<string, unknown> | null; logo_url: string | null }>(sb, ws.id, "tokens, logo_url"),
     ]);
     const k = ((kit.data ?? []) as { tokens: Record<string, unknown> | null; logo_url: string | null }[])[0] ?? null;
     return { info, kit: k && k.tokens && Object.keys(k.tokens).length ? k : null };

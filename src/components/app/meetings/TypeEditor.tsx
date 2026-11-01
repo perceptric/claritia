@@ -5,6 +5,7 @@
 // on the server); a personal copy of a managed type shows its locked settings with a lock and can't change them.
 // Owners can lock settings on a one-person or group type and give it to people.
 
+import { workspaceKit } from "@/lib/brand/workspaceKit";
 import { useCallback, useEffect, useState } from "react";
 import { toGuestType, type Profile as GuestProfile } from "@/lib/meetings/guest";
 import { sampleSlots } from "@/lib/meetings/guest";
@@ -71,7 +72,7 @@ export function TypeEditor(props: ViewProps) {
       isNew ? Promise.resolve({ data: null, error: null }) : sb.from("meeting_types").select(TYPE_COLS).eq("id", id).eq("workspace_id", ws.id).maybeSingle(),
       sb.from("availability").select("user_id, tz, weekly, overrides").eq("workspace_id", ws.id),
       isNew ? Promise.resolve({ data: [], error: null }) : sb.from("meeting_types").select("owner_user_id").eq("template_id", id),
-      sb.from("brand_kits").select("tokens").eq("workspace_id", ws.id).order("created_at").limit(1),
+      workspaceKit<{ tokens: Record<string, unknown> | null }>(sb, ws.id, "tokens"),
       sb.from("availability_schedules").select("user_id, name, tz, weekly, overrides").eq("workspace_id", ws.id),
     ]);
     const t = must(row) as TypeRow | null;
