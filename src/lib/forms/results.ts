@@ -65,6 +65,8 @@ export function fillColumns(versions: { version: number; body: Form }[]): Column
 export function answerText(col: Column | undefined, v: unknown): string {
   if (v === undefined || v === null || v === "") return "";
   if (col?.field?.type === "calc" && typeof v === "number") return calcText(col.field.calc, v);
+  // A file answer is "up_<id>:<name>": its name is what people read.
+  if (col?.field?.type === "file" && typeof v === "string" && v.startsWith("up_")) return v.slice(v.indexOf(":") + 1);
   const label = (x: string) => (col?.field ? everyOption(col.field).find((o) => o.value === x)?.label : undefined) ?? x;
   if (Array.isArray(v)) return v.map((x) => label(String(x))).join(", ");
   if (typeof v === "boolean") return v ? "Yes" : "No";

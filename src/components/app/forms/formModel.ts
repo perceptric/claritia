@@ -13,7 +13,7 @@ import { propertyFit, type CrmProperty } from "../../../lib/sources/properties.t
 
 // Kinds ----------------------------------------------------------------------------------------------------------
 
-export type Kind = "email" | "name" | "phone" | "company" | "country" | "text" | "long" | "number" | "date" | "choice" | "dropdown" | "multi" | "consent" | "hidden" | "heading" | "para" | "other";
+export type Kind = "email" | "name" | "phone" | "company" | "country" | "text" | "long" | "number" | "date" | "choice" | "dropdown" | "multi" | "consent" | "hidden" | "heading" | "para" | "calc" | "result" | "file" | "other";
 export type KindGroup = "Contact" | "Answer" | "Other";
 
 /** The question types, as the insert menu and the Type section list them, with their icon names (ic.tsx). */
@@ -30,10 +30,13 @@ export const KINDS: { v: Kind; l: string; i: string; g: KindGroup }[] = [
   { v: "choice", l: "One choice", i: "radio", g: "Answer" },
   { v: "dropdown", l: "Dropdown", i: "drop", g: "Answer" },
   { v: "multi", l: "Many choices", i: "box", g: "Answer" },
+  { v: "file", l: "File upload", i: "ext", g: "Answer" },
   { v: "consent", l: "Consent", i: "shield", g: "Other" },
   { v: "hidden", l: "Hidden field", i: "hide", g: "Other" },
   { v: "heading", l: "Heading", i: "head", g: "Other" },
   { v: "para", l: "Text", i: "para", g: "Other" },
+  { v: "calc", l: "Calculation", i: "hash", g: "Other" },
+  { v: "result", l: "Result", i: "data", g: "Other" },
 ];
 export const GROUP_WORDS: Record<KindGroup, string> = { Contact: "About them", Answer: "Questions", Other: "More" };
 
@@ -44,7 +47,7 @@ export function kindOf(f: Pick<Field, "type" | "key">): Kind {
   if (f.type === "email") return "email";
   if (f.type === "text" && NAME_KEYS.has(f.key)) return "name";
   if (f.type === "text" && f.key === "company") return "company";
-  const by: Partial<Record<FieldType, Kind>> = { phone: "phone", country: "country", textarea: "long", number: "number", date: "date", choice: "choice", dropdown: "dropdown", multi: "multi", hidden: "hidden", heading: "heading", paragraph: "para", text: "text", url: "text" };
+  const by: Partial<Record<FieldType, Kind>> = { phone: "phone", country: "country", textarea: "long", number: "number", date: "date", choice: "choice", dropdown: "dropdown", multi: "multi", hidden: "hidden", heading: "heading", paragraph: "para", text: "text", url: "text", calc: "calc", result: "result", file: "file" };
   return by[f.type] ?? "other";
 }
 
@@ -120,6 +123,12 @@ export function newQuestion(kind: Kind, form: Form): FieldInput | null {
       return { type: "heading", label: "Heading", required: false, content: { text: "A heading", level: 2 } };
     case "para":
       return { type: "paragraph", label: "Text", required: false, content: { text: "Some text" } };
+    case "calc":
+      return { type: "calc", label: "Total", required: false, calc: { formula: "0" } };
+    case "file":
+      return { type: "file", label: "Upload a file", required: false, file: { maxMb: 10, kinds: ["pdf", "image", "office"] } };
+    case "result":
+      return { type: "result", label: "", required: false, result: { kind: "outcome" } };
     default:
       return null;
   }

@@ -4,7 +4,7 @@
 // read as HTML. Runs in the browser and on the server.
 
 import { readFormDesign, type FormDesign } from "../design/model.ts";
-import { evalFormula, parseFormula, type Ast } from "./formula.ts";
+import { CONST_ID, evalFormula, parseFormula, type Ast } from "./formula.ts";
 import { linkProblem, SCHEDULERS, WORK_EMAIL, type MatchRule, type Schedule } from "./schedule.ts";
 import { cleanCondition } from "../router/check.ts";
 import { cleanKeep, cleanNotify, cleanReply, cleanSites, type Keep, type Notify, type Reply } from "./notify.ts";
@@ -27,13 +27,17 @@ export type FieldType =
   | "consent"
   // Worked out from other answers by a formula (docs/forms-plan.md 2.3); the server works it out again.
   | "calc"
+  // A file the visitor uploads (docs/forms-plan.md 3.1): kept private, the answer is the upload's token.
+  | "file"
   // Content blocks: shown on the form, they take no answer and save nothing (docs/form-studio.md 2.4).
   | "heading"
   | "paragraph"
   | "divider"
-  | "image";
+  | "image"
+  // A result block (docs/interactive-forms-plan.md Part 4): a number, a meter, a breakdown, bars or the outcome.
+  | "result";
 
-export const CONTENT_TYPES: FieldType[] = ["heading", "paragraph", "divider", "image"];
+export const CONTENT_TYPES: FieldType[] = ["heading", "paragraph", "divider", "image", "result"];
 export const isContent = (t: FieldType) => CONTENT_TYPES.includes(t);
 /** Types that hold one choice from a list: cards or a dropdown. */
 export const isChoice = (t: FieldType) => t === "choice" || t === "multi" || t === "dropdown";
@@ -45,7 +49,8 @@ export const isChoice = (t: FieldType) => t === "choice" || t === "multi" || t =
 export type FieldKey = "email" | "first_name" | "last_name" | "name" | "title" | "phone" | "company" | "website" | "country" | "region" | `f.${string}` | `q.${string}` | `c.${string}`;
 
 /** score: the number a formula reads when this choice is picked. */
-export type Choice = { value: string; label: string; score?: number };
+/** image: a picture card's https address. needs: other options (pick many) that must be picked with this one. */
+export type Choice = { value: string; label: string; score?: number; image?: string; needs?: string[] };
 
 /**
  * Options that follow another field's answer (docs/forms-plan.md 2.2): a list per answer of the parent, or the
@@ -55,6 +60,18 @@ export type OptionsBy = { field: string; map?: Record<string, Choice[]>; preset?
 
 /** A calculated field: the formula, how its result shows, and whether it shows at all. */
 export type Calc = { formula: string; format?: "number" | "money" | "percent"; decimals?: number; currency?: string; show?: false };
+
+/**
+ * A setting the owner sets once and formulas read as {@id} (docs/interactive-forms-plan.md 3.2): a base fee, a rate.
+ * value null: not set yet, so formulas that read it stay empty and the form can't be published. private: the value
+ * never leaves the server, so the browser can't work out what reads it before the submit.
+ */
+export type Constant = { id: string; name: string; value: number | null; format?: "number" | "money" | "percent"; private?: true };
+
+/** One result a visitor can reach. The first whose conditions hold wins; the last has none and is the default. */
+export type Outcome = { id: string; title: string; text?: string; when?: { logic: "all" | "any"; conds: Cond[] }; meeting?: string };
+/** instant: the result shows before contact details. after_contact: only after them. summary_first: a summary, then the rest. */
+export type Results = { outcomes: Outcome[]; show: "instant" | "after_contact" | "summary_first" };
 
 /** Checks on an answer (docs/form-studio.md 2.1). min and max are characters for text, the value for numbers and
  * ratings, and picks for "pick many". */
@@ -127,7 +144,30 @@ export type Field = {
   content?: { text?: string; level?: 1 | 2 | 3; src?: string; alt?: string; align?: "left" | "center" };
   optionsBy?: OptionsBy;
   calc?: Calc;
+  /** Pick one and pick many: big cards (with pictures when the options have them) in place of a list. */
+  cards?: true;
+  /** Number: a slider with a box beside it (needs a min and a max); unit: shown with the number. */
+  slider?: true;
+  unit?: "money" | "percent";
+  /** A result block's settings. */
+  result?: ResultBlock;
+  /** Pick one and pick many: the choices' scores stay on the server (a quiz's answer key). */
+  secret?: true;
+  /** File upload: the biggest file in MB (up to 20) and the kinds it takes. */
+  file?: { maxMb: number; kinds: FileKind[] };
 };
+
+/**
+ * What a result block shows. metric: one calc. meter: a calc out of max. summary: the listed calcs as lines, the last
+ * as the total. bars: the listed calcs side by side. outcome: the outcome's title and text. email: "Email my results".
+ */
+export type FileKind = "pdf" | "image" | "office";
+export const FILE_KINDS: FileKind[] = ["pdf", "image", "office"];
+/** A file answer: the upload's id and the name it was sent with. */
+export const FILE_ANSWER = /^up_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}:[^\n/\\]{1,120}$/;
+
+export type ResultBlock = { kind: "metric" | "meter" | "summary" | "bars" | "outcome" | "email"; field?: string; fields?: string[]; max?: number };
+export const RESULT_KINDS: ResultBlock["kind"][] = ["metric", "meter", "summary", "bars", "outcome", "email"];
 
 export type FieldWidth = "full" | "half" | "third" | "two_thirds";
 export const WIDTHS: FieldWidth[] = ["full", "half", "third", "two_thirds"];
@@ -177,7 +217,8 @@ export type Rule = {
 };
 
 /** skip: when the condition holds at the end of this step, jump forward to step `to` (0-based). */
-export type Step = { id: string; title?: string; fields: Field[]; skip?: { when: Cond; to: number } };
+/** result: a result screen, worked out live from the answers so far; it holds result blocks, text and calcs only. */
+export type Step = { id: string; title?: string; fields: Field[]; skip?: { when: Cond; to: number }; result?: true };
 
 /** What each op compares: any answer, text, a number, a date, or picks from a list. */
 export const OP_KIND: Record<Op, "any" | "text" | "number" | "date" | "list"> = {
@@ -226,7 +267,17 @@ export type Form = {
   steps: Step[];
   rules: Rule[];
   /** progress: how steps show where you are (a bar unless set). maxWidth: px, over the narrow or wide width. */
-  layout: { labels: "above" | "inside"; width: "narrow" | "wide"; progress?: "bar" | "dots" | "none"; maxWidth?: number };
+  layout: {
+    labels: "above" | "inside";
+    width: "narrow" | "wide";
+    progress?: "bar" | "dots" | "none";
+    maxWidth?: number;
+    /** screens: one step at a time, full size, big type (docs/interactive-forms-plan.md Part 2). auto: a single pick moves on. */
+    mode?: "screens";
+    auto?: true;
+    /** A first screen with a title, a line and a Start button. */
+    cover?: { title: string; text?: string; button?: string };
+  };
   title?: string;
   intro?: string;
   /** full: the button spans the form's width. */
@@ -255,6 +306,9 @@ export type Form = {
   enrich?: { hideKnown: boolean; fields: string[] };
   /** The form's own styles and classes on its elements (docs/design-system.md Part 3.1). */
   design?: FormDesign;
+  /** Settings formulas read as {@id}, and the results a visitor can reach (docs/interactive-forms-plan.md). */
+  constants?: Constant[];
+  results?: Results;
 };
 
 /** The fields fill before submit may hide (src/lib/enrich/types.ts HIDEABLE). */
@@ -279,6 +333,8 @@ export const FIELD_TYPES: { value: FieldType; label: string }[] = [
   { value: "rating", label: "Rating" },
   { value: "hidden", label: "Hidden" },
   { value: "calc", label: "Calculation" },
+  { value: "file", label: "File upload" },
+  { value: "result", label: "Result" },
   { value: "heading", label: "Heading" },
   { value: "paragraph", label: "Text" },
   { value: "divider", label: "Divider" },
@@ -299,7 +355,7 @@ export const CONTACT_KEYS: { key: FieldKey; label: string; types: FieldType[] }[
   { key: "region", label: "State or region", types: ["text", "choice", "dropdown"] },
 ];
 
-export const LIMITS = { steps: 10, fields: 40, options: 100, rules: 50, label: 300, text: 1000, value: 5000 };
+export const LIMITS = { steps: 10, fields: 40, options: 100, rules: 50, label: 300, text: 1000, value: 5000, constants: 50, outcomes: 12, conds: 10 };
 export const DEFAULT_CONSENT = "I agree to receive emails. I can unsubscribe at any time.";
 export const DEFAULT_NOTICE = "By sending this, you agree we may email you about our products. You can unsubscribe at any time.";
 
@@ -368,7 +424,9 @@ function choices(raw: unknown, max: number): Choice[] {
     if (!val || seen.has(val)) continue;
     seen.add(val);
     const score = typeof oo.score === "number" && Number.isFinite(oo.score) ? oo.score : typeof oo.score === "string" && oo.score.trim() !== "" && Number.isFinite(Number(oo.score)) ? Number(oo.score) : undefined;
-    opts.push({ value: val, label: lab || val, ...(score !== undefined ? { score } : {}) });
+    const image = str(oo.image, 1000);
+    const needs = Array.isArray(oo.needs) ? [...new Set(oo.needs.filter((x): x is string => typeof x === "string" && x !== val))].slice(0, 10) : [];
+    opts.push({ value: val, label: lab || val, ...(score !== undefined ? { score } : {}), ...(image && image.startsWith("https://") && safeUrl(image) ? { image } : {}), ...(needs.length ? { needs } : {}) });
   }
   return opts;
 }
@@ -434,6 +492,17 @@ function contentBlock(id: string, type: FieldType, fo: Record<string, unknown>, 
     content.src = src;
     const alt = str(c.alt, 200);
     if (alt) content.alt = alt;
+  }
+  if (type === "result") {
+    const ro = (fo.result && typeof fo.result === "object" ? fo.result : {}) as Record<string, unknown>;
+    const kind = RESULT_KINDS.includes(ro.kind as ResultBlock["kind"]) ? (ro.kind as ResultBlock["kind"]) : "metric";
+    const field = str(ro.field, 24);
+    const fields = Array.isArray(ro.fields) ? [...new Set(ro.fields.filter((x): x is string => typeof x === "string" && ID.test(x)))].slice(0, 12) : [];
+    const max = Number(ro.max);
+    f.result = { kind, ...(field && ID.test(field) ? { field } : {}), ...(fields.length ? { fields } : {}), ...(Number.isFinite(max) && max > 0 ? { max } : {}) };
+    if ((kind === "metric" || kind === "meter") && !f.result.field) errors.push(`${name === "A field" ? "A result" : name} needs the number it shows.`);
+    if ((kind === "summary" || kind === "bars") && !fields.length) errors.push(`${name === "A field" ? "A result" : name} needs the numbers it shows.`);
+    if (kind === "meter" && !f.result.max) errors.push(`${name === "A field" ? "A meter" : name} needs its top value.`);
   }
   if (c.align === "center") content.align = "center";
   if (Object.keys(content).length) f.content = content;
@@ -595,6 +664,22 @@ export function checkForm(raw: unknown, ctx: Ctx = {}): { form: Form } | { error
         if (by) f.optionsBy = by;
         else if (!f.options.length) errors.push(`${name} needs at least one option.`);
       }
+      if ((type === "choice" || type === "multi") && fo.cards === true) f.cards = true;
+      if ((type === "choice" || type === "multi") && fo.secret === true) f.secret = true;
+      if (type === "multi" && f.options?.some((o) => o.needs?.some((n) => !f.options!.some((x) => x.value === n)))) errors.push(`${name} has a choice that needs one it doesn't have.`);
+      if (type === "number" || type === "calc") {
+        if (fo.unit === "money" || fo.unit === "percent") f.unit = fo.unit;
+      }
+      if (type === "file") {
+        const fl = (fo.file && typeof fo.file === "object" ? fo.file : {}) as Record<string, unknown>;
+        const mb = Math.round(Number(fl.maxMb ?? 10));
+        const kinds = Array.isArray(fl.kinds) ? [...new Set(fl.kinds.filter((k): k is FileKind => FILE_KINDS.includes(k as FileKind)))] : [];
+        f.file = { maxMb: Number.isFinite(mb) ? Math.min(Math.max(mb, 1), 20) : 10, kinds: kinds.length ? kinds : ["pdf", "image", "office"] };
+      }
+      if (type === "number" && fo.slider === true) {
+        f.slider = true;
+        if (f.valid?.min === undefined || f.valid?.max === undefined || f.valid.max <= f.valid.min) errors.push(`${name}: a slider needs a lowest and a highest value.`);
+      }
       if (type === "calc") {
         const co = (fo.calc && typeof fo.calc === "object" ? fo.calc : {}) as Record<string, unknown>;
         const formula = str(co.formula, 500) ?? "";
@@ -626,18 +711,21 @@ export function checkForm(raw: unknown, ctx: Ctx = {}): { form: Form } | { error
       }
       fields.push(f);
     }
-    steps.push({ id: sid, ...(str(so.title, LIMITS.label) ? { title: str(so.title, LIMITS.label) } : {}), fields });
+    if (so.result === true && fields.some((x) => !isContent(x.type) && x.type !== "calc")) errors.push("A result screen holds results, text and calculations only.");
+    steps.push({ id: sid, ...(str(so.title, LIMITS.label) ? { title: str(so.title, LIMITS.label) } : {}), fields, ...(so.result === true ? { result: true as const } : {}) });
   }
   if (count > LIMITS.fields) errors.push(`Up to ${LIMITS.fields} fields.`);
   if (!keys.has("email")) errors.push("Add an email field, so each answer reaches a contact.");
   steps.forEach((s, i) => {
-    if (!s.fields.some((f) => f.type !== "hidden" && !isContent(f.type))) errors.push(`Step ${i + 1} has no fields.`);
+    if (s.result ? !s.fields.some((f) => f.type === "result") : !s.fields.some((f) => f.type !== "hidden" && !isContent(f.type))) errors.push(s.result ? `Step ${i + 1} has no results to show.` : `Step ${i + 1} has no fields.`);
   });
   const fieldIds = new Set(steps.flatMap((s) => s.fields.map((f) => f.id)));
   const contentIds = new Set(steps.flatMap((s) => s.fields.filter((f) => isContent(f.type)).map((f) => f.id)));
   const flat = steps.flatMap((s) => s.fields);
   const types = new Map(flat.filter((f) => !isContent(f.type)).map((f) => [f.id, f.type]));
   const byId = new Map(flat.map((f) => [f.id, f]));
+  const constants = cleanConstants(r.constants, errors);
+  const constIds = new Set(constants.map((c) => c.id));
   for (const f of flat) {
     const name = f.label || "A field";
     const by = f.optionsBy;
@@ -651,12 +739,18 @@ export function checkForm(raw: unknown, ctx: Ctx = {}): { form: Form } | { error
         if (Object.keys(by.map ?? {}).some((k) => !ok.has(k))) errors.push(`${name} has options for an answer ${parent.label || "the field it follows"} doesn't have.`);
       }
     }
+    if (f.result) {
+      const refs = [f.result.field, ...(f.result.fields ?? [])].filter((x): x is string => !!x);
+      if (refs.some((x) => !["calc", "number"].includes(byId.get(x)?.type ?? ""))) errors.push(`${name} shows a number that's gone.`);
+    }
     if (f.calc) {
       const parsed = parseFormula(f.calc.formula);
       if ("refs" in parsed)
         for (const ref of parsed.refs) {
           const t = types.get(ref);
-          if (ref === f.id) errors.push(`${name} can't use its own answer.`);
+          if (ref.startsWith("@")) {
+            if (!constIds.has(ref.slice(1))) errors.push(`${name} uses a setting that's gone: ${ref.slice(1)}.`);
+          } else if (ref === f.id) errors.push(`${name} can't use its own answer.`);
           else if (!t || !CALC_INPUTS.includes(t)) errors.push(`${name} uses a field that's gone or isn't a number, pick or checkbox.`);
         }
     }
@@ -819,6 +913,9 @@ export function checkForm(raw: unknown, ctx: Ctx = {}): { form: Form } | { error
       width: layout.width === "wide" ? "wide" : "narrow",
       ...(layout.progress === "dots" || layout.progress === "none" ? { progress: layout.progress } : {}),
       ...(Number.isFinite(Number(layout.maxWidth)) && Number(layout.maxWidth) >= 280 ? { maxWidth: Math.min(Math.round(Number(layout.maxWidth)), 1200) } : {}),
+      ...(layout.mode === "screens" ? { mode: "screens" as const } : {}),
+      ...(layout.auto === true ? { auto: true as const } : {}),
+      ...((c) => (c ? { cover: c } : {}))(cleanCover(layout.cover)),
     },
     ...(str(r.title, LIMITS.label) ? { title: str(r.title, LIMITS.label) } : {}),
     ...(str(r.intro, LIMITS.text) ? { intro: str(r.intro, LIMITS.text) } : {}),
@@ -845,12 +942,112 @@ export function checkForm(raw: unknown, ctx: Ctx = {}): { form: Form } | { error
     ...((n) => (n ? { keep: n } : {}))(cleanKeep(r.keep)),
     ...(capture ? { capture } : {}),
     ...(en.hideKnown === true || enrichFields.length ? { enrich: { hideKnown: en.hideKnown === true, fields: enrichFields } } : {}),
-    ...((d) => (Object.keys(d).length ? { design: d } : {}))(readFormDesign(r.design, new Set(flat.map((f) => f.id)))),
+    ...((d) => (Object.keys(d).length ? { design: d } : {}))(readFormDesign(r.design, new Set(flat.map((f) => f.id)))),    ...(constants.length ? { constants } : {}),
+    ...((x) => (x ? { results: x } : {}))(cleanResults(r.results, byId, errors)),
   };
   return errors.length ? { errors: [...new Set(errors)] } : { form };
 }
 
 /** https only (http for localhost while testing), no credentials in the address. */
+function cleanCover(raw: unknown): NonNullable<Form["layout"]["cover"]> | undefined {
+  if (!raw || typeof raw !== "object") return undefined;
+  const c = raw as Record<string, unknown>;
+  const title = str(c.title, LIMITS.label);
+  if (!title) return undefined;
+  const text = str(c.text, LIMITS.text);
+  const button = str(c.button, 40);
+  return { title, ...(text ? { text } : {}), ...(button ? { button } : {}) };
+}
+
+/** The owner's settings, cleaned: a unique name for each, a number or not set yet. */
+function cleanConstants(raw: unknown, errors: string[]): Constant[] {
+  if (!Array.isArray(raw)) return [];
+  if (raw.length > LIMITS.constants) errors.push(`Up to ${LIMITS.constants} settings.`);
+  const out: Constant[] = [];
+  for (const x of raw.slice(0, LIMITS.constants)) {
+    const o = (x && typeof x === "object" ? x : {}) as Record<string, unknown>;
+    const id = typeof o.id === "string" ? o.id.trim() : "";
+    const name = str(o.name, 80) || id;
+    if (!CONST_ID.test(id)) {
+      errors.push(`${name || "A setting"} needs a short name of letters, numbers and _.`);
+      continue;
+    }
+    if (out.some((c) => c.id === id)) {
+      errors.push(`Two settings are called ${id}.`);
+      continue;
+    }
+    const v = o.value === null || o.value === undefined || o.value === "" ? null : Number(o.value);
+    if (v !== null && !Number.isFinite(v)) {
+      errors.push(`${name} needs a number.`);
+      continue;
+    }
+    const format = o.format === "money" || o.format === "percent" ? o.format : undefined;
+    out.push({ id, name, value: v, ...(format ? { format } : {}), ...(o.private === true ? { private: true as const } : {}) });
+  }
+  return out;
+}
+
+/** The results section, cleaned: outcomes with conditions on real fields, and exactly one default at the end. */
+function cleanResults(raw: unknown, byId: Map<string, Field>, errors: string[]): Results | undefined {
+  if (!raw || typeof raw !== "object") return undefined;
+  const r = raw as Record<string, unknown>;
+  const list = Array.isArray(r.outcomes) ? r.outcomes : [];
+  if (!list.length) {
+    errors.push("Results need at least one outcome.");
+    return undefined;
+  }
+  if (list.length > LIMITS.outcomes) errors.push(`Up to ${LIMITS.outcomes} outcomes.`);
+  const outcomes: Outcome[] = [];
+  const ids = new Set<string>();
+  for (const x of list.slice(0, LIMITS.outcomes)) {
+    const o = (x && typeof x === "object" ? x : {}) as Record<string, unknown>;
+    const id = str(o.id, 24) ?? "";
+    const title = str(o.title, LIMITS.label) ?? "";
+    if (!/^[a-z0-9_]{1,24}$/.test(id) || ids.has(id)) {
+      errors.push("An outcome has a bad id.");
+      continue;
+    }
+    ids.add(id);
+    if (!title) errors.push("Each outcome needs a title.");
+    const text = str(o.text, LIMITS.text);
+    // A meeting type's id: the outcome books that meeting; who hosts still comes from the meeting's own rules.
+    const meeting = typeof o.meeting === "string" && /^[0-9a-f-]{36}$/.test(o.meeting) ? o.meeting : undefined;
+    if (o.meeting !== undefined && o.meeting !== null && o.meeting !== "" && !meeting) errors.push(`${title || "An outcome"} books a meeting that's gone.`);
+    const w = (o.when && typeof o.when === "object" ? o.when : null) as { logic?: unknown; conds?: unknown } | null;
+    let when: Outcome["when"];
+    if (w && Array.isArray(w.conds) && w.conds.length) {
+      if (w.conds.length > LIMITS.conds) errors.push(`${title || "An outcome"}: up to ${LIMITS.conds} conditions.`);
+      const conds: Cond[] = [];
+      for (const c of w.conds.slice(0, LIMITS.conds)) {
+        const t = byId.get((c as Record<string, unknown>)?.field as string)?.type;
+        const got = t ? readCond(c, new Map([[(c as Cond).field, t]])) : `${title || "An outcome"} reads a field that's gone.`;
+        if (typeof got === "string") errors.push(got);
+        else conds.push(got);
+      }
+      when = { logic: w.logic === "any" ? "any" : "all", conds };
+    }
+    outcomes.push({ id, title, ...(text ? { text } : {}), ...(when ? { when } : {}), ...(meeting ? { meeting } : {}) });
+  }
+  const defaults = outcomes.filter((o) => !o.when);
+  if (defaults.length !== 1 || outcomes[outcomes.length - 1]?.when) errors.push("Results need one default outcome, last in the list.");
+  const show = r.show === "after_contact" || r.show === "summary_first" ? r.show : "instant";
+  return { outcomes, show };
+}
+
+/** Settings the owner still has to set; the form can't be published until there are none. */
+export const unsetConstants = (form: Pick<Form, "constants">): Constant[] => (form.constants ?? []).filter((c) => c.value === null);
+
+/** The form as the browser gets it: private settings have no value and secret scores are gone, so both stay on the server. */
+export function publicForm<T extends Pick<Form, "constants" | "steps">>(form: T): T {
+  const secret = form.steps.some((st) => st.fields.some((x) => x.secret));
+  if (!form.constants?.some((c) => c.private) && !secret) return form;
+  return {
+    ...form,
+    ...(form.constants ? { constants: form.constants.map((c) => (c.private ? { ...c, value: null } : c)) } : {}),
+    steps: form.steps.map((st) => ({ ...st, fields: st.fields.map((x) => (x.secret && x.options ? { ...x, options: x.options.map((o) => ({ value: o.value, label: o.label, ...(o.image ? { image: o.image } : {}), ...(o.needs ? { needs: o.needs } : {}) })) } : x)) })),
+  };
+}
+
 export function safeUrl(raw: string): boolean {
   try {
     const u = new URL(raw);
@@ -893,11 +1090,13 @@ function astOf(formula: string): Ast | null {
 const hasCalc = (form: Pick<Form, "steps">) => form.steps.some((s) => s.fields.some((f) => f.type === "calc"));
 
 /** Each calc field's result from the answers given; a calc's own answer is never read. */
-function calcs(form: Pick<Form, "steps">, answers: Record<string, unknown>): Record<string, number | null> {
+function calcs(form: Pick<Form, "steps" | "constants">, answers: Record<string, unknown>): Record<string, number | null> {
   const byId = new Map(allFields(form).map((f) => [f.id, f]));
+  const consts = new Map((form.constants ?? []).map((c) => [c.id, c.value]));
   const out: Record<string, number | null> = {};
   const busy = new Set<string>();
   const numOf = (id: string): number | null => {
+    if (id.startsWith("@")) return consts.get(id.slice(1)) ?? null;
     const f = byId.get(id);
     if (!f) return null;
     if (f.type === "calc") {
@@ -929,7 +1128,7 @@ function calcs(form: Pick<Form, "steps">, answers: Record<string, unknown>): Rec
  * The answers with every calc worked out. Twice: once from all the answers, then again from only the fields that
  * show, so a field a rule hid never counts. The browser and the server run this same function.
  */
-export function withCalcs(form: Pick<Form, "steps" | "rules">, answers: Record<string, unknown>, ctx: RunCtx = {}): Record<string, unknown> {
+export function withCalcs(form: Pick<Form, "steps" | "rules" | "constants">, answers: Record<string, unknown>, ctx: RunCtx = {}): Record<string, unknown> {
   if (!hasCalc(form)) return answers;
   const first = { ...answers, ...calcs(form, answers) };
   const { shown } = rawVisibility(form, first, ctx);
@@ -939,7 +1138,7 @@ export function withCalcs(form: Pick<Form, "steps" | "rules">, answers: Record<s
 }
 
 /** Which fields show, and which are required, given the answers so far. Rules run in order; later ones win. */
-export function visibility(form: Pick<Form, "steps" | "rules">, answers: Record<string, unknown>, ctx: RunCtx = {}): { shown: Set<string>; required: Set<string> } {
+export function visibility(form: Pick<Form, "steps" | "rules" | "constants">, answers: Record<string, unknown>, ctx: RunCtx = {}): { shown: Set<string>; required: Set<string> } {
   return rawVisibility(form, withCalcs(form, answers, ctx), ctx);
 }
 
@@ -1018,11 +1217,81 @@ export function whenHits(when: Cond, v: unknown, ctx: RunCtx = {}): boolean {
  * The step to show after `from` given the answers: the step's skip target when its condition holds (and the field
  * it reads is on a step already passed), else the next one. Returns form.steps.length when the form is done.
  */
-export function nextStep(form: Pick<Form, "steps" | "rules">, from: number, answers: Record<string, unknown>, ctx: RunCtx = {}): number {
+export function nextStep(form: Pick<Form, "steps" | "rules" | "constants" | "results">, from: number, answers: Record<string, unknown>, ctx: RunCtx = {}): number {
   const skip = form.steps[from]?.skip;
+  let to = from + 1;
   if (skip && skip.to > from + 1 && skip.to < form.steps.length) {
     const before = form.steps.slice(0, from + 1).some((s) => s.fields.some((f) => f.id === skip.when.field));
-    if (before && whenHits(skip.when, withCalcs(form, answers, ctx)[skip.when.field], ctx)) return skip.to;
+    if (before && whenHits(skip.when, withCalcs(form, answers, ctx)[skip.when.field], ctx)) to = skip.to;
   }
-  return from + 1;
+  // A result screen shows live only when results show right away; otherwise its blocks show after the send.
+  while (to < form.steps.length && !stepShows(form, to)) to++;
+  return to;
+}
+
+/** Whether a step is shown before the send: every step, except a result screen when results wait for the send. */
+export const stepShows = (form: Pick<Form, "steps" | "results">, i: number): boolean => !(form.steps[i]?.result && form.results?.show !== "instant");
+
+/**
+ * The outcome these answers reach: the first whose conditions hold, else the default. Calcs are worked out first, and
+ * a condition on a field the visitor didn't see never holds, so a hidden answer can't pick a result. The browser shows
+ * this live; the server runs it again on submit and keeps its own answer.
+ */
+export function pickOutcome(form: Pick<Form, "steps" | "rules" | "constants" | "results">, answers: Record<string, unknown>, ctx: RunCtx = {}): Outcome | null {
+  const outs = form.results?.outcomes;
+  if (!outs?.length) return null;
+  const vals = withCalcs(form, answers, ctx);
+  const { shown } = rawVisibility(form, vals, ctx);
+  const byId = new Map(allFields(form).map((f) => [f.id, f]));
+  const holds = (c: Cond) => {
+    const src = byId.get(c.field);
+    return !!src && (src.type === "hidden" || src.type === "calc" || shown.has(src.id)) && whenHits(c, vals[src.id], ctx);
+  };
+  for (const o of outs) {
+    if (!o.when) return o;
+    const hit = o.when.logic === "any" ? o.when.conds.some(holds) : o.when.conds.every(holds);
+    if (hit) return o;
+  }
+  return outs[outs.length - 1]!;
+}
+
+/** The formula engine's version, kept with every saved result. */
+export const ENGINE = 1;
+
+/**
+ * What a submission reached, worked out on the server from the checked answers (by field id): the outcome and every
+ * calc by field key. Settings are listed too, for the saved copy only; never send them to the browser.
+ */
+export function resultOf(form: Form, answers: Record<string, unknown>, ctx: RunCtx = {}): { outcome: Outcome | null; values: Record<string, number | null>; constants: Record<string, number | null> } | null {
+  const calcFields = allFields(form).filter((f) => f.type === "calc");
+  if (!form.results && !calcFields.length) return null;
+  const vals = withCalcs(form, answers, ctx);
+  const values: Record<string, number | null> = {};
+  for (const f of calcFields) values[f.key] = typeof vals[f.id] === "number" ? (vals[f.id] as number) : null;
+  const constants: Record<string, number | null> = {};
+  for (const c of form.constants ?? []) constants[c.id] = c.value;
+  return { outcome: pickOutcome(form, answers, ctx), values, constants };
+}
+
+/**
+ * What reads a field, in plain words, so a delete can say what it breaks first: calculations, rules, skips, result
+ * blocks and outcomes (docs/interactive-forms-plan.md 6b).
+ */
+export function usedBy(form: Pick<Form, "steps" | "rules" | "results">, id: string): string[] {
+  const out: string[] = [];
+  const reads = (c: { field: string }) => c.field === id;
+  for (const f of allFields(form)) {
+    if (f.id === id) continue;
+    if (f.calc) {
+      const p = parseFormula(f.calc.formula);
+      if ("refs" in p && p.refs.includes(id)) out.push(`the calculation ${f.label || "Total"}`);
+    }
+    if (f.result && (f.result.field === id || f.result.fields?.includes(id))) out.push(`a result block${f.label ? ` (${f.label})` : ""}`);
+  }
+  if (form.rules.some((r) => reads(r.when) || !!r.group?.when.some(reads))) out.push("a show or hide rule");
+  form.steps.forEach((s, i) => {
+    if (s.skip && reads(s.skip.when)) out.push(`the skip after step ${i + 1}`);
+  });
+  for (const o of form.results?.outcomes ?? []) if (o.when?.conds.some(reads)) out.push(`the outcome ${o.title}`);
+  return [...new Set(out)];
 }

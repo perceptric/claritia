@@ -2,6 +2,7 @@ import { designFonts, formCss } from "@/lib/design/form";
 import { fontUrl } from "@/components/app/forms/editorModel";
 import { allRegions, usesRegions } from "@/lib/forms/regions";
 import { regionOf } from "@/lib/web/policy";
+import { publicForm } from "@/lib/forms/schema";
 import { cors, edgeCountry, json, loadPublic, turnstileSiteKey } from "@/lib/forms/server";
 import { serviceClient } from "@/lib/serviceClient";
 
@@ -21,7 +22,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     if (!f) return json({ error: "Form not found." }, 404);
     const country = edgeCountry(request);
     return json(
-      { id: f.id, version: f.version, status: f.status, body: f.body, tokens: f.tokens, logo_url: f.logo_url, strict: regionOf(country ?? "", "") === "strict", turnstile: turnstileSiteKey() || undefined, ...(usesRegions(f.body) ? { regions: allRegions() } : {}), ...cssOf(f) },
+      { id: f.id, version: f.version, status: f.status, body: publicForm(f.body), tokens: f.tokens, logo_url: f.logo_url, strict: regionOf(country ?? "", "") === "strict", turnstile: turnstileSiteKey() || undefined, ...(usesRegions(f.body) ? { regions: allRegions() } : {}), ...cssOf(f) },
       200,
       { "Cache-Control": "public, max-age=30", Vary: "cf-ipcountry" },
     );

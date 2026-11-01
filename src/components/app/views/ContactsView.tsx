@@ -421,6 +421,11 @@ function EnrichedGroup({ c }: { c: Detail["contact"] }) {
 function ContactPage({ sb, ws, session, role, id, navigate }: ViewProps) {
   const [addingField, setAddingField] = useState(false);
   const detail = useQuery(`contact:${ws.id}:${id}`, async () => must(await sb.rpc("contact_detail", { p_id: id })) as Detail);
+  // Results this contact reached on interactive forms (docs/interactive-forms-plan.md Part 7), kept as they were.
+  const results = useQuery(`contact_results:${ws.id}:${id}`, async () => {
+    const { data } = await sb.from("submission_results").select("submission_id, created_at, outcome_title, form_version, forms(name), submissions!inner(contact_id)").eq("submissions.contact_id", id).order("created_at", { ascending: false }).limit(50);
+    return (data ?? []) as unknown as { submission_id: string; created_at: string; outcome_title: string | null; form_version: number; forms: { name: string } | null }[];
+  });
   const meta = useMeta(sb, ws.id, "contact");
   const [editing, setEditing] = useState(false);
   const [handoff, setHandoff] = useState(false);
@@ -490,6 +495,17 @@ function ContactPage({ sb, ws, session, role, id, navigate }: ViewProps) {
 
   const timeline = [
     ...d.events.map((e) => ({ at: e.at, key: `e${e.at}${e.kind}`, visit: false, node: <span>{`${EVENT_LABEL[e.kind] ?? e.kind} · ${sourceLabel(e.source)}`}</span> })),
+    ...(results.data ?? []).map((r) => ({
+      at: r.created_at,
+      key: `r${r.submission_id}`,
+      visit: false,
+      node: (
+        <span className="flex flex-col gap-1">
+          <span>{`Completed ${r.forms?.name ?? "a form"} · version ${r.form_version}`}</span>
+          {r.outcome_title ? <span className="text-body">{r.outcome_title}</span> : null}
+        </span>
+      ),
+    })),
     ...d.visits.map((v) => ({
       at: v.started_at,
       key: v.id,

@@ -7,7 +7,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { applyOp, type Op } from "@/lib/forms/ops";
-import { allFields, checkForm, emptyForm, type Form } from "@/lib/forms/schema";
+import { allFields, checkForm, emptyForm, usedBy, type Form } from "@/lib/forms/schema";
 import type { CustomField } from "@/lib/records/fields";
 import { askConfirm, tell } from "../Dialogs";
 import { Badge, cache, ErrorNote, errorText, invalidate, Loading, must, postJson, setLeaveGuard, Tabs, useQuery, type ViewProps } from "../ui";
@@ -422,6 +422,9 @@ function Editor(props: ViewProps & { data: FormData; reload: () => void; patchRo
     }
     const rules = q.field ? rulesReading(live.data?.body, q.field) : [];
     if (rules.length && !(await askConfirm(`Delete ${q.label || "this question"}?`, { body: `The ${rules[0]} rule in Routing reads it. Leads will skip that part of the rule.`, ok: "Delete", danger: true }))) return;
+    // Formulas, result blocks, outcomes and rules on the form that read it: named first, so nothing breaks unseen.
+    const uses = q.field ? usedBy(latest.current, q.field.id) : [];
+    if (uses.length && !(await askConfirm(`Delete ${q.label || "this question"}?`, { body: `Used by ${uses.join(", ")}. Fix those after, or the form can't be published.`, ok: "Delete", danger: true }))) return;
     if (pick?.id === qid) setPick(null);
     apply([...(q.pair ? [{ op: "remove_field" as const, id: q.pair.id }] : []), { op: "remove_field", id: q.id }], `Deleted ${q.label || "the question"}`);
   };

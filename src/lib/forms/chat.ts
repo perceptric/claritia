@@ -8,6 +8,7 @@ import type Anthropic from "@anthropic-ai/sdk";
 import { addUsage, usageOf, type Usage } from "../ai/cache.ts";
 import { applyStrict, describeOp, type FieldInput, type Op } from "./ops.ts";
 import { allFields, CONTACT_KEYS, FIELD_TYPES, OP_KIND, type Cond, type FieldType, type Form, type Rule } from "./schema.ts";
+import { GALLERY } from "./gallery.ts";
 import { TEMPLATES } from "./templates.ts";
 import type { Tokens } from "./brand.ts";
 import { addClass, setProp, type Level } from "../design/edit.ts";
@@ -128,7 +129,25 @@ export const CHAT_TOOLS: Anthropic.Beta.BetaTool[] = [
     },
   },
   { name: "remove_rule", description: "Remove a rule by its id.", input_schema: { type: "object", properties: { rule_id: { type: "string" } }, required: ["rule_id"] } },
-  { name: "set_layout", description: "Labels above or inside the fields, and the form's width.", input_schema: { type: "object", properties: { labels: { type: "string", enum: ["above", "inside"] }, width: { type: "string", enum: ["narrow", "wide"] } } } },
+  {
+    name: "set_layout",
+    description: "Labels above or inside the fields, the form's width, one step per screen, moving on after a single pick, and a cover screen.",
+    input_schema: {
+      type: "object",
+      properties: {
+        labels: { type: "string", enum: ["above", "inside"] },
+        width: { type: "string", enum: ["narrow", "wide"] },
+        screens: { type: "boolean" },
+        auto: { type: "boolean" },
+        cover: { type: "object", description: "A first screen; pass an empty title to remove it.", properties: { title: { type: "string" }, text: { type: "string" }, button: { type: "string" } } },
+      },
+    },
+  },
+  {
+    name: "set_setting",
+    description: "Set or add a value formulas read as {@id}: a price, a fee, a rate. private keeps it on the server. Never make up a price; leave value out to mark it as one the owner sets.",
+    input_schema: { type: "object", properties: { id: { type: "string", pattern: "^[a-z0-9_]{1,24}$" }, name: { type: "string" }, value: { type: "number" }, format: { type: "string", enum: ["number", "money", "percent"] }, private: { type: "boolean" }, remove: { type: "boolean" } }, required: ["id"] },
+  },
   { name: "set_text", description: "The form's title, intro line and button label. An empty string clears the title or intro.", input_schema: { type: "object", properties: { title: { type: "string" }, intro: { type: "string" }, button: { type: "string" } } } },
   { name: "set_consent", description: "The email consent box: by_region shows it where the law asks, always, off, or notice (a line under the button and no box).", input_schema: { type: "object", properties: { mode: { type: "string", enum: ["by_region", "always", "off", "notice"] }, label: { type: "string" } } } },
   { name: "set_spam", description: "Spam checks: the fastest a person could fill it, and Cloudflare Turnstile.", input_schema: { type: "object", properties: { min_seconds: { type: "integer", minimum: 0, maximum: 30 }, turnstile: { type: "boolean" } } } },
@@ -142,7 +161,11 @@ export const CHAT_TOOLS: Anthropic.Beta.BetaTool[] = [
     description: "Book a meeting after the submit on Calendly, Cal.com, HubSpot Meetings, SavvyCal or another link; per_owner books with the contact's owner when they have a link. Pass off: true to stop booking.",
     input_schema: { type: "object", properties: { tool: { type: "string", enum: ["calendly", "calcom", "hubspot_meetings", "savvycal", "link"] }, url: { type: "string" }, per_owner: { type: "boolean" }, off: { type: "boolean" } } },
   },
-  { name: "use_template", description: `Replace the whole form with a template: ${TEMPLATES.map((t) => `${t.key} (${t.name})`).join(", ")}.`, input_schema: { type: "object", properties: { template: { type: "string", enum: TEMPLATES.map((t) => t.key) } }, required: ["template"] } },
+  {
+    name: "use_template",
+    description: `Replace the whole form with a template: ${[...GALLERY.map((t) => `${t.key} (${t.name})`), ...TEMPLATES.filter((t) => !GALLERY.some((g) => g.key === t.key)).map((t) => `${t.key} (${t.name})`)].join(", ")}.`,
+    input_schema: { type: "object", properties: { template: { type: "string", enum: [...GALLERY.map((t) => t.key), ...TEMPLATES.map((t) => t.key).filter((k) => !GALLERY.some((g) => g.key === k))] } }, required: ["template"] },
+  },
   {
     name: "ask",
     description: "Ask the person one question with 2 to 4 short answers to click. Use it before turning off consent, removing a field past fills used, or replacing the form, and when the request is unclear.",
@@ -162,6 +185,8 @@ Claritia sends every lead to its contacts; other tools are added in the form's D
 
 Looks come from the brand kit's design system. To change how something looks, call set_style with a variable ($id) first; use a raw color only when the person asks for that color. Style one field unless the person means every form.
 
+Interactive forms work out a price, score or match from answers: calcs read settings as {@id}, result blocks show them on a step marked as a result screen, and outcomes pick what to say. Never invent prices, rates, thresholds or benchmarks; add them with set_setting and no value so the owner sets them.
+
 After your changes, reply in one or two short sentences of plain words that say what changed. No emoji, no lists, no field ids.`;
 
 const str = (v: unknown) => (typeof v === "string" ? v : undefined);
@@ -175,6 +200,11 @@ function fieldInput(raw: Record<string, unknown>): Partial<FieldInput> {
     out.options = raw.options.filter((o) => typeof o === "string").map((o, i) => ({ value: o, label: o, ...(typeof scores[i] === "number" ? { score: scores[i] } : {}) }));
   }
   if (raw.hidden && typeof raw.hidden === "object") out.hidden = raw.hidden;
+  // Interactive forms: cards, sliders, units, result blocks and a secret answer key (the checker cleans each one).
+  for (const k of ["cards", "slider", "secret"] as const) if (raw[k] === true) out[k] = true;
+  if (raw.unit === "money" || raw.unit === "percent") out.unit = raw.unit;
+  if (raw.result && typeof raw.result === "object") out.result = raw.result;
+  if (raw.valid && typeof raw.valid === "object") out.valid = raw.valid;
   if (raw.calc && typeof raw.calc === "object") {
     const c = raw.calc as Record<string, unknown>;
     out.calc = { formula: str(c.formula) ?? "", ...(c.format === "money" || c.format === "percent" ? { format: c.format } : {}), ...(str(c.currency) ? { currency: str(c.currency) } : {}), ...(typeof c.decimals === "number" ? { decimals: c.decimals } : {}), ...(c.show === false ? { show: false } : {}) };
@@ -238,8 +268,30 @@ export function toOp(name: string, input: Record<string, unknown>): Op | { error
     }
     case "remove_rule":
       return { op: "remove_rule", id: str(input.rule_id) ?? "" };
-    case "set_layout":
-      return { op: "set_layout", ...(input.labels === "above" || input.labels === "inside" ? { labels: input.labels } : {}), ...(input.width === "narrow" || input.width === "wide" ? { width: input.width } : {}) };
+    case "set_layout": {
+      const c = input.cover && typeof input.cover === "object" ? (input.cover as Record<string, unknown>) : null;
+      return {
+        op: "set_layout",
+        ...(input.labels === "above" || input.labels === "inside" ? { labels: input.labels } : {}),
+        ...(input.width === "narrow" || input.width === "wide" ? { width: input.width } : {}),
+        ...(typeof input.screens === "boolean" ? { mode: input.screens ? ("screens" as const) : null } : {}),
+        ...(typeof input.auto === "boolean" ? { auto: input.auto } : {}),
+        ...(c ? { cover: str(c.title) ? { title: str(c.title)!, ...(str(c.text) ? { text: str(c.text) } : {}), ...(str(c.button) ? { button: str(c.button) } : {}) } : null } : {}),
+      };
+    }
+    case "set_setting": {
+      const id = str(input.id) ?? "";
+      if (!/^[a-z0-9_]{1,24}$/.test(id)) return { error: "id must be lowercase letters, numbers and _." };
+      return {
+        op: "set_constant",
+        id,
+        ...(str(input.name) ? { name: str(input.name) } : {}),
+        ...(typeof input.value === "number" && Number.isFinite(input.value) ? { value: input.value } : input.value === undefined && !input.remove ? {} : {}),
+        ...(input.format === "number" || input.format === "money" || input.format === "percent" ? { format: input.format } : {}),
+        ...(typeof input.private === "boolean" ? { private: input.private } : {}),
+        ...(input.remove === true ? { remove: true } : {}),
+      };
+    }
     case "set_text":
       return { op: "set_copy", ...(str(input.title) !== undefined ? { title: str(input.title) } : {}), ...(str(input.intro) !== undefined ? { intro: str(input.intro) } : {}), ...(str(input.button) ? { submit: str(input.button) } : {}) };
     case "set_consent":
@@ -329,7 +381,7 @@ export async function runChat(model: Model, message: string, ctx: ChatCtx): Prom
         continue;
       }
       if (c.name === "use_template") {
-        const t = TEMPLATES.find((x) => x.key === input.template);
+        const t = GALLERY.find((x) => x.key === input.template) ?? TEMPLATES.find((x) => x.key === input.template);
         if (!t) {
           fail("Unknown template.");
           continue;

@@ -470,6 +470,13 @@ function QView({ q, form, picked, fresh, issueCtx, onPick, onDuplicate, onRemove
   let body: React.ReactNode;
   if (kind === "heading") body = <div className="text-[16px] font-semibold">{f?.content?.text || f?.label}</div>;
   else if (kind === "para") body = <div className="text-[14px] text-[var(--b-muted)]">{f?.content?.text || f?.label}</div>;
+  else if (kind === "calc" || kind === "result")
+    body = (
+      <div className="flex items-center gap-[8px] rounded-[6px] border border-dashed border-[var(--b-box)] px-[10px] py-[8px] text-[13px] text-[var(--b-muted)]">
+        <Ic n={kind === "calc" ? "hash" : "data"} s={13} />
+        {kind === "calc" ? f?.label || "Calculation" : f?.label || ({ metric: "Number", meter: "Meter", summary: "Breakdown", bars: "Bars", outcome: "Outcome", email: "Email my results" } as const)[f?.result?.kind ?? "outcome"]}
+      </div>
+    );
   else if (kind === "consent")
     body = (
       <div className="flex items-start gap-[9px] text-[13px]">

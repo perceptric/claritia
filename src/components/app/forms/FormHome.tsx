@@ -8,6 +8,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { Tokens } from "@/lib/forms/brand";
 import { buildForm, formName, readSentence, type Copy } from "@/lib/forms/interview";
+import { galleryByKey, matchTemplate } from "@/lib/forms/gallery";
 import { STARTERS } from "@/lib/forms/templates";
 import type { Form } from "@/lib/forms/schema";
 import { CATALOG } from "@/lib/sources/catalog";
@@ -20,6 +21,7 @@ import { meetingTypes } from "../meetings/TypesList";
 import { ago, whereWords } from "./formModel";
 import { Ic } from "./ic";
 import { BTN, copyText, Dialog, DialogHead, Dots, EYEBROW, GHOST, IB, Seg, SegN, Thumb, useNote } from "./parts";
+import { FormGallery } from "./FormGallery";
 import { Menu } from "./Menu";
 
 export type ListRow = {
@@ -314,34 +316,6 @@ export function CatchCorners({ r = 10, inset = "-1px" }: { r?: number; inset?: s
   );
 }
 
-/** A real, small preview of a starter form: its title, first questions and button, in the brand kit's look. */
-function MiniForm({ form, tokens }: { form: ReturnType<(typeof STARTERS)[number]["form"]>; tokens?: { buttonBg?: string; buttonText?: string; buttonRadius?: number; font?: string; radius?: number } }) {
-  const fields = form.steps.flatMap((st) => st.fields).filter((f) => !["heading", "paragraph", "divider", "image"].includes(f.type));
-  const box = { borderRadius: Math.min(tokens?.radius ?? 4, 6) };
-  return (
-    <span aria-hidden="true" className="relative flex h-[150px] flex-col gap-[6px] overflow-hidden rounded-[6px] border border-line bg-card px-[10px] pt-[9px] text-left" style={tokens?.font ? { fontFamily: `${tokens.font}, var(--font-sans)` } : undefined}>
-      {form.title ? <b className="text-[10px] leading-tight font-semibold text-ink">{form.title}</b> : null}
-      {fields.slice(0, 3).map((f) => (
-        <span key={f.id} className="flex flex-col gap-[2px]">
-          <span className="text-[7.5px] leading-none text-body">{f.label}</span>
-          {f.type === "choice" || f.type === "multi" ? (
-            <span className="flex flex-wrap gap-[3px]">
-              {(f.options ?? []).slice(0, 3).map((o) => (
-                <span key={o.value} className="rounded-full border border-line px-[4px] text-[6.5px] leading-[11px] text-muted">{o.label}</span>
-              ))}
-            </span>
-          ) : (
-            <span className={`block border border-line bg-paper ${f.type === "textarea" ? "h-[18px]" : "h-[11px]"}`} style={box} />
-          )}
-        </span>
-      ))}
-      <span className="mt-[2px] flex h-[13px] shrink-0 items-center justify-center bg-ink px-[8px] text-[7px] font-medium text-paper" style={{ borderRadius: tokens?.buttonRadius ?? 99, background: tokens?.buttonBg, color: tokens?.buttonText, alignSelf: form.submit.full ? "stretch" : "flex-start" }}>
-        {form.submit.label}
-      </span>
-    </span>
-  );
-}
-
 // Onboarding: learn the brand -------------------------------------------------------------------------------------
 
 type KitRow = { id: string; tokens: Partial<Tokens>; source_url: string | null; scan_status: string | null; scan_error: string | null };
@@ -540,7 +514,6 @@ const host = (u: string | null | undefined) => {
 function NewForm({ sb, session, ws, navigate, kits, onClose, start }: ViewProps & { kits: KitLite[]; onClose: () => void; start?: { text: string } | { starter: string } }) {
   const ctx = useNewFormContext(sb, ws.id);
   const [text, setText] = useState("");
-  const [pick, setPick] = useState("demo");
   const [lines, setLines] = useState<string[] | null>(null);
   const [error, setError] = useState("");
   const started = useRef(false);
@@ -574,7 +547,13 @@ function NewForm({ sb, session, ws, navigate, kits, onClose, start }: ViewProps 
       let form: Form;
       let sources: string[] = [];
       let made = false;
-      if ("text" in how) {
+      const asked = "text" in how ? matchTemplate(how.text) : null;
+      if (asked) {
+        // A calculator, quiz or assessment: its template, in the brand kit, ready to change with the AI bar.
+        form = asked.form();
+        if (asked.book && c.type) form.after.schedule = { tool: "claritia", url: "", perOwner: false, meetingTypeId: c.type };
+        name = asked.name;
+      } else if ("text" in how) {
         const read = readSentence(how.text, c.tools);
         const a = read.answers;
         if (a.after.kind === "meeting") a.after = c.type ? { kind: "meeting", tool: "claritia", url: "", perOwner: false, meetingTypeId: c.type } : { kind: "message" };
@@ -589,7 +568,8 @@ function NewForm({ sb, session, ws, navigate, kits, onClose, start }: ViewProps 
         sources = a.send.sources;
         made = true;
       } else {
-        const s = STARTERS.find((x) => x.key === how.starter) ?? STARTERS[0]!;
+        // The gallery's templates first (docs/interactive-forms-plan.md Part 6), then the older starters.
+        const s = galleryByKey(how.starter) ?? STARTERS.find((x) => x.key === how.starter) ?? STARTERS[0]!;
         form = s.form();
         if (s.book && c.type) form.after.schedule = { tool: "claritia", url: "", perOwner: false, meetingTypeId: c.type };
         name = s.key === "blank" ? "Untitled form" : s.name;
@@ -653,31 +633,13 @@ function NewForm({ sb, session, ws, navigate, kits, onClose, start }: ViewProps 
     <Dialog label="New form" onClose={onClose} wide>
       <DialogHead title="New form" onClose={onClose} />
       <AskPill full value={text} onChange={setText} placeholder="Describe the form" onSend={() => void make({ text: text.trim() })} autoFocus />
-      <span className={`${EYEBROW} mt-[4px]`}>Or start from</span>
-      <div className="grid grid-cols-2 gap-[10px] sm:grid-cols-3">
-        {STARTERS.map((s) => (
-          <button
-            key={s.key}
-            type="button"
-            aria-pressed={pick === s.key}
-            onClick={() => setPick(s.key)}
-            onDoubleClick={() => void make({ starter: s.key })}
-            className={`flex flex-col gap-[8px] rounded-[10px] border p-[10px] text-left transition-colors duration-[120ms] ${pick === s.key ? "border-ink ring-1 ring-ink" : "border-line hover:border-line-strong"}`}
-          >
-            <MiniForm form={s.form()} tokens={kit?.tokens} />
-            <b className="font-medium text-ink">{s.name}</b>
-            <span className="text-[12px] text-muted">{s.text}</span>
-          </button>
-        ))}
-      </div>
+      <span className={`${EYEBROW} mt-[4px]`}>Or start from a template</span>
+      <FormGallery tokens={kit?.tokens} busy={!ctx.data} onUse={(t) => void make({ starter: t.key })} onBlank={() => void make({ starter: "blank" })} />
       <ErrorNote message={error || ctx.error} />
       <div className="mt-[4px] flex flex-wrap items-center justify-end gap-[8px]">
         <span className="mr-auto text-[12px] text-muted">{siteName ? `In your brand kit, from ${siteName}` : null}</span>
         <button type="button" className={GHOST} onClick={onClose}>
           Cancel
-        </button>
-        <button type="button" className={BTN} disabled={!ctx.data} onClick={() => void make({ starter: pick })}>
-          Create
         </button>
       </div>
     </Dialog>

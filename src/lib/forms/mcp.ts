@@ -3,7 +3,8 @@ import type { ApiCaller } from "../apiAuth.ts";
 import { ToolError, type Tool } from "../mcpProtocol.ts";
 import { APP_URL } from "../site.ts";
 import { applyStrict, describeOp, type Op } from "./ops.ts";
-import { checkForm, emptyForm, type Form } from "./schema.ts";
+import { checkForm, emptyForm, unsetConstants, type Form } from "./schema.ts";
+import { GALLERY } from "./gallery.ts";
 import { TEMPLATES } from "./templates.ts";
 
 // Forms on the MCP server (docs/form-builder.md 4.3): the same ops the chat and the builder use, so a team can build
@@ -53,11 +54,11 @@ export const formTools: Tool<ApiCaller>[] = [
   {
     name: "create_form",
     title: "Create a form",
-    description: `Make a draft form, blank or from a template: ${TEMPLATES.map((t) => t.key).join(", ")}. Edit it with edit_form, then publish_form.`,
-    inputSchema: { type: "object", properties: { name: { type: "string" }, template: { type: "string", enum: TEMPLATES.map((t) => t.key) } }, required: ["name"] },
+    description: `Make a draft form, blank or from a template. Static: ${GALLERY.filter((t) => t.kind === "static").map((t) => t.key).join(", ")}. Interactive (a price, score or match): ${GALLERY.filter((t) => t.kind === "interactive").map((t) => t.key).join(", ")}. Older: ${TEMPLATES.map((t) => t.key).join(", ")}. Edit it with edit_form, then publish_form.`,
+    inputSchema: { type: "object", properties: { name: { type: "string" }, template: { type: "string", enum: [...GALLERY.map((t) => t.key), ...TEMPLATES.map((t) => t.key).filter((k) => !GALLERY.some((g) => g.key === k))] } }, required: ["name"] },
     async run(ctx, args) {
       const name = typeof args.name === "string" && args.name.trim() ? args.name.trim().slice(0, 120) : "Untitled form";
-      const t = TEMPLATES.find((x) => x.key === args.template);
+      const t = GALLERY.find((x) => x.key === args.template) ?? TEMPLATES.find((x) => x.key === args.template);
       const { data, error } = await ctx.sb.from("forms").insert({ workspace_id: ctx.workspaceId, name, draft: t ? t.form() : emptyForm() }).select("id").single();
       if (error) throw new Error(error.message);
       return { text: `Made ${name}: ${APP_URL}/forms/${data.id}`, data: { id: data.id } };
@@ -67,7 +68,7 @@ export const formTools: Tool<ApiCaller>[] = [
     name: "edit_form",
     title: "Edit a form",
     description:
-      "Change a form's draft with ops, applied in order. Each op is one of: add_field {field: {type, label, key?, required?, options?: [{value, label, score?}], calc?: {formula, format?, currency?, decimals?}, optionsBy?: {field, map?: {answer: [{value, label}]}, preset?: regions}}}, update_field {id, patch}, remove_field {id}, move_field {id, step, index}, add_step {title?}, update_step {index, title, skip?: {when, to}}, remove_step {index}, set_rule {rule: {when: {field, op, value?, value2?, values?}, group?: {logic: all|any, when: [conditions]}, then: {action, field}}}, remove_rule {id}, set_layout {labels?, width?}, set_copy {title?, intro?, submit?}, set_consent {mode?, label?}, set_spam {minSeconds?, turnstile?}, set_after {end}. Rule ops: is, is_not, filled, empty, contains, not_contains, starts_with, ends_with, gt, gte, lt, lte, between (value and value2), before, after, within_days (value is days), any_of, none_of (values). A calc formula reads other fields as {id}: + - * / ( ), comparisons, and, or, min, max, round, abs, if, ifempty. An op that would add a problem is refused and nothing after it applies.",
+      "Change a form's draft with ops, applied in order. Each op is one of: add_field {field: {type, label, key?, required?, options?: [{value, label, score?}], calc?: {formula, format?, currency?, decimals?}, optionsBy?: {field, map?: {answer: [{value, label}]}, preset?: regions}}}, update_field {id, patch}, remove_field {id}, move_field {id, step, index}, add_step {title?}, update_step {index, title, skip?: {when, to}}, remove_step {index}, set_rule {rule: {when: {field, op, value?, value2?, values?}, group?: {logic: all|any, when: [conditions]}, then: {action, field}}}, remove_rule {id}, set_layout {labels?, width?, mode?: screens|null, auto?, cover?: {title, text?, button?}|null}, set_constants {constants: [{id, name, value|null, format?: money|percent, private?}]}, set_results {results: {show: instant|after_contact, outcomes: [{id, title, text?, when?: {logic: all|any, conds: [conditions]}, meeting?}]} | null} (the last outcome has no when: everyone else), set_copy {title?, intro?, submit?}, set_consent {mode?, label?}, set_spam {minSeconds?, turnstile?}, set_after {end}. Rule ops: is, is_not, filled, empty, contains, not_contains, starts_with, ends_with, gt, gte, lt, lte, between (value and value2), before, after, within_days (value is days), any_of, none_of (values). A calc formula reads other fields as {id} and settings as {@id}: + - * / ( ), comparisons, and, or, min, max, sum, round, ceil, floor, abs, if, ifempty. Fields can also be type result (result: {kind: metric|meter|summary|bars|outcome|email, field?, fields?, max?}) on a step with result: true; choices can take cards: true, image and needs; numbers can take slider: true with valid min and max, and unit money|percent. An op that would add a problem is refused and nothing after it applies.",
     inputSchema: { type: "object", properties: { form: { type: "string" }, ops: { type: "array", items: { type: "object" }, minItems: 1, maxItems: 50 } }, required: ["form", "ops"] },
     async run(ctx, args) {
       const f = await findForm(ctx, args.form);
@@ -99,6 +100,8 @@ export const formTools: Tool<ApiCaller>[] = [
       if (m?.role !== "owner") throw new ToolError("Publishing needs a key made by a workspace owner. Publish it in the app instead.");
       const check = checkForm(f.draft, { custom: await customOf(ctx) });
       if ("errors" in check) throw new ToolError(`Fix these first: ${check.errors.join(" ")}`);
+      const unset = unsetConstants(check.form);
+      if (unset.length) throw new ToolError(`Set these first: ${unset.map((c) => c.name).join(", ")}.`);
       const { data, error } = await ctx.sb.rpc("form_publish", { p_id: f.id, p_user: key!.created_by, p_body: check.form });
       if (error) throw new Error(error.message);
       const embed = `<script src="${APP_URL}/forms/v1.js" async></script>\n<claritia-form form-id="${f.id}"></claritia-form>`;
