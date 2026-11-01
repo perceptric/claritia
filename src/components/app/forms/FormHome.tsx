@@ -157,7 +157,7 @@ export function FormHome(props: ViewProps & { startNew?: boolean }) {
     ) : (
       <Loading />
     )
-  ) : !rows!.length && !brandDone && !list.data.kits.some((k) => k.scan_status === "done" && Object.keys(k.tokens ?? {}).length > 0) ? (
+  ) : !rows!.length && !brandDone && !list.data.kits.some((k) => Object.keys(k.tokens ?? {}).length > 0) ? (
     <BrandStep {...props} onDone={(build) => (list.reload(), setBrandDone(true), build ? (setAiNote(""), setDialog(true)) : undefined)} />
   ) : !rows!.length ? (
     <FirstScreen onAi={(n?: string) => (setAiNote(n ?? ""), setDialog(true))} onBlank={() => setDialog("blank")} />
@@ -521,7 +521,8 @@ function NewForm({ sb, session, ws, navigate, kits, onClose, blank = false, note
 }
 
 /** The kit a new form takes: the workspace's brand (listed first) when it has a look, else none. */
-export const lookKit = (kits: KitLite[]) => kits.find((k) => k.scan_status === "done" && Object.keys(k.tokens ?? {}).length > 0) ?? kits.find((k) => k.scan_status === "scanning") ?? null;
+// A kit with tokens has a look even while a later scan is still running (or never picked up by the runner).
+export const lookKit = (kits: KitLite[]) => kits.find((k) => k.scan_status !== "failed" && Object.keys(k.tokens ?? {}).length > 0) ?? kits.find((k) => k.scan_status === "scanning") ?? null;
 
 /** Blank form: a name, then Create. Nothing is made until Create is clicked. */
 function BlankForm({ sb, ws, navigate, kits, onClose }: Pick<ViewProps, "sb" | "ws" | "navigate"> & { kits: KitLite[]; onClose: () => void }) {
