@@ -1,7 +1,8 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { addUsage, cachedStep, hashKey, usageOf, type Usage } from "@/lib/ai/cache";
 import { isMember } from "@/lib/contacts/server";
-import { askQuestions, BUILD_MODEL, buildForm, defaultQuestions, guessKind, kindOf, pickPages, readPage, writeBrief, type Brief, type Caller } from "@/lib/forms/aiBuild";
+import { askQuestions, BUILD_MODEL, buildForm, defaultQuestions, guessKind, kindOf, pickPages, readPage, refineForm, sketchForm, writeBrief, type Brief, type Caller } from "@/lib/forms/aiBuild";
+import { checkForm, type Form } from "@/lib/forms/schema";
 import { hostIsPrivate } from "@/lib/privateNet";
 import { requireUser } from "@/lib/serverAuth";
 import { serviceClient } from "@/lib/serviceClient";
@@ -11,6 +12,9 @@ import { serviceClient } from "@/lib/serviceClient";
 //   ask    { brief, note, kind? }               → { kind, questions }  the kind (picked when not given) and 3 to 5
 //                                                  questions for this business and kind (docs/form-kinds-plan.md)
 //   build  { brief, kind, note, answers, site } → { name, form, summary }  built, checked and fixed until it passes
+//   sketch { note, url?, kitId?, kind? }        → { brief, kind, name, form, summary, questions }  the live New form's
+//                                                  first draft from one line and the site (docs/new-form-studio.md)
+//   refine { form, kind, brief, question, answer, kitId? } → { name, form, summary }  one answer folded in
 // Every model call goes through the step cache. Without a key, read answers no brief, ask answers set questions, and
 // build says it can't, so New form never hangs.
 
@@ -73,21 +77,21 @@ export async function POST(request: Request) {
   const note = typeof b.note === "string" ? b.note.trim().slice(0, 1000) : "";
   const brief = b.brief && typeof b.brief === "object" ? (b.brief as Brief) : null;
 
-  if (b.mode === "read") {
-    const raw = typeof b.url === "string" ? b.url.trim() : "";
+  /** The site's business brief (home page and up to 4 more), through the step cache. */
+  const readSite = async (raw: string): Promise<{ brief: Brief | null; pages: number; error?: string; bad?: string }> => {
     let url: URL;
     try {
       url = new URL(/^https?:\/\//i.test(raw) ? raw : `https://${raw}`);
     } catch {
-      return bad("Enter the site's address, like acme.com.");
+      return { brief: null, pages: 0, bad: "Enter the site's address, like acme.com." };
     }
-    if (!url.hostname.includes(".") || url.username) return bad("Enter the site's address, like acme.com.");
+    if (!url.hostname.includes(".") || url.username) return { brief: null, pages: 0, bad: "Enter the site's address, like acme.com." };
     const home = await fetchPage(url.href);
-    if (!home) return Response.json({ brief: null, error: "Couldn't read that site. You can go on without it." });
+    if (!home) return { brief: null, pages: 0, error: "Couldn't read that site. You can go on without it." };
     const first = readPage(home.html, home.url);
     const more = (await Promise.all(pickPages(first.links).map((u) => fetchPage(u)))).filter((x): x is { url: string; html: string } => !!x).map((p) => ({ url: p.url, ...readPage(p.html, p.url) }));
     const pages = [{ url: home.url, ...first }, ...more];
-    if (!model) return Response.json({ brief: null, pages: pages.length });
+    if (!model) return { brief: null, pages: pages.length };
     const input = { url: home.url, pages: pages.map((p) => ({ url: p.url, title: p.title, text: p.text })), images: [...new Set(pages.flatMap((p) => p.images))].slice(0, 20) };
     try {
       const r = await cachedStep(rpc, ws, "form_ai_brief", hashKey(BUILD_MODEL, "brief-1", input), async () => {
@@ -100,9 +104,73 @@ export async function POST(request: Request) {
         const brief = await writeBrief(wrapped, input);
         return { result: brief, model: BUILD_MODEL, usage, keep: !!brief };
       });
-      return Response.json({ brief: r.result, pages: pages.length });
+      return { brief: r.result, pages: pages.length };
     } catch {
-      return Response.json({ brief: null, pages: pages.length });
+      return { brief: null, pages: pages.length };
+    }
+  };
+  /** The kit's brand book, when the site has been read deeply (docs/brand-capture.md). */
+  const bookOf = async (raw: unknown, wait: boolean): Promise<unknown> => {
+    const kitId = typeof raw === "string" && /^[0-9a-f-]{36}$/.test(raw) ? raw : null;
+    let book: unknown = null;
+    for (let i = 0; kitId && i < (wait ? 15 : 1); i++) {
+      const k = (await db.from("brand_kits").select("book, book_status").eq("id", kitId).eq("workspace_id", ws).maybeSingle()).data as { book?: unknown; book_status?: string } | null;
+      book = k?.book ?? null;
+      if (!k || k.book_status !== "reading") break;
+      await new Promise((r) => setTimeout(r, 3000));
+    }
+    return book;
+  };
+  const counted = (usage: { value: Usage }): Caller => async (p) => {
+    const out = await model!(p);
+    if (out) usage.value = addUsage(usage.value, usageOf(out.usage));
+    return out;
+  };
+
+  if (b.mode === "read") {
+    const r = await readSite(typeof b.url === "string" ? b.url.trim() : "");
+    if (r.bad) return bad(r.bad);
+    return Response.json({ brief: r.brief, pages: r.pages, ...(r.error ? { error: r.error } : {}) });
+  }
+
+  if (b.mode === "sketch") {
+    if (!model) return bad("The AI builder isn't set up on this server.", 503);
+    if (!note) return bad("Say what the form is for.");
+    const url = typeof b.url === "string" ? b.url.trim().slice(0, 200) : "";
+    const read = url ? await readSite(url) : { brief: null };
+    const book = await bookOf(b.kitId, false);
+    try {
+      const r = await cachedStep(rpc, ws, "form_ai_sketch", hashKey(BUILD_MODEL, "sketch-1", read.brief, book, asked, note, url), async () => {
+        const usage = { value: ZERO };
+        const out = await sketchForm(counted(usage), { brief: read.brief, note, site: url, book, kind: asked });
+        return { result: out ? { kind: out.kind, name: out.name, form: out.form, summary: out.summary, questions: out.questions } : null, model: BUILD_MODEL, usage: usage.value, keep: !!out };
+      });
+      if (!r.result) return bad("Couldn't sketch a form that passes the checks. Try again, or say a little more.", 422);
+      return Response.json({ brief: read.brief, ...r.result });
+    } catch {
+      return bad("The builder didn't answer. Try again in a moment.", 503);
+    }
+  }
+
+  if (b.mode === "refine") {
+    if (!model) return bad("The AI builder isn't set up on this server.", 503);
+    const checked = checkForm(b.form);
+    if (!("form" in checked)) return bad("The draft can't be read.");
+    const kind = asked ?? checked.form.kind ?? "lead";
+    const question = typeof b.question === "string" ? b.question.slice(0, 300) : "";
+    const answer = Array.isArray(b.answer) ? b.answer.map(String).slice(0, 10).map((x) => x.slice(0, 300)) : typeof b.answer === "string" ? b.answer.slice(0, 1000) : "";
+    if (!question || !answer.length) return bad("Answer the question first.");
+    const book = await bookOf(b.kitId, false);
+    try {
+      const r = await cachedStep(rpc, ws, "form_ai_refine", hashKey(BUILD_MODEL, "refine-1", checked.form, kind, question, answer, brief, book), async () => {
+        const usage = { value: ZERO };
+        const out = await refineForm(counted(usage), { form: checked.form as Form, kind, question, answer, brief, book });
+        return { result: out ? { name: out.name, form: out.form, summary: out.summary } : null, model: BUILD_MODEL, usage: usage.value, keep: !!out };
+      });
+      if (!r.result) return bad("Couldn't fold that in. Try saying it another way.", 422);
+      return Response.json(r.result);
+    } catch {
+      return bad("The builder didn't answer. Try again in a moment.", 503);
     }
   }
 
