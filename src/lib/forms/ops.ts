@@ -5,7 +5,7 @@
 
 import { readFormDesign, type FormDesign } from "../design/model.ts";
 import { DEFAULT_KEEP, DEFAULT_NOTIFY, DEFAULT_REPLY, type Keep, type Notify, type Reply } from "./notify.ts";
-import { allFields, checkForm, CONTACT_KEYS, isChoice, isContent, newId, questionKey, type After, type Choice, type Cond, type Field, type FieldKey, type FieldType, type Form, type Rule, type Step } from "./schema.ts";
+import { allFields, checkForm, CONTACT_KEYS, isChoice, isContent, newId, questionKey, type After, type Choice, type Cond, type Constant, type Field, type FieldKey, type FieldType, type Form, type Results, type Rule, type Step } from "./schema.ts";
 
 export type FieldInput = Partial<Omit<Field, "id">> & { type: FieldType; label: string };
 
@@ -15,11 +15,25 @@ export type Op =
   | { op: "remove_field"; id: string }
   | { op: "move_field"; id: string; step: number; index: number }
   | { op: "add_step"; title?: string }
-  | { op: "update_step"; index: number; title?: string; skip?: Step["skip"] | null }
+  | { op: "update_step"; index: number; title?: string; skip?: Step["skip"] | null; result?: boolean }
   | { op: "remove_step"; index: number }
   | { op: "set_rule"; rule: Omit<Rule, "id"> & { id?: string } }
   | { op: "remove_rule"; id: string }
-  | { op: "set_layout"; labels?: Form["layout"]["labels"]; width?: Form["layout"]["width"]; progress?: Form["layout"]["progress"]; maxWidth?: number | null }
+  | {
+      op: "set_layout";
+      labels?: Form["layout"]["labels"];
+      width?: Form["layout"]["width"];
+      progress?: Form["layout"]["progress"];
+      maxWidth?: number | null;
+      /** Interactive forms (docs/interactive-forms-plan.md Part 2): screens, auto-advance and the cover screen. */
+      mode?: "screens" | null;
+      auto?: boolean;
+      cover?: Form["layout"]["cover"] | null;
+    }
+  /** The owner's settings formulas read as {@id}, whole. */
+  | { op: "set_constants"; constants: Constant[] }
+  /** The outcomes and when results show, whole; null removes them. */
+  | { op: "set_results"; results: Results | null }
   | { op: "set_copy"; title?: string; intro?: string; submit?: string; submitFull?: boolean }
   | { op: "set_consent"; mode?: Form["consent"]["mode"]; label?: string; topicId?: string | null; required?: boolean; confirm?: boolean }
   | { op: "set_spam"; minSeconds?: number; turnstile?: boolean; blockFree?: boolean; sites?: string[]; perHour?: number | null; bot?: "auto" | "always"; throwaway?: "refuse" | "hold" }
@@ -148,6 +162,8 @@ export function applyOp(input: Form, op: Op): { form: Form } | { error: string }
       }
       if (op.skip === null) delete form.steps[op.index].skip;
       else if (op.skip) form.steps[op.index].skip = op.skip;
+      if (op.result === true) form.steps[op.index].result = true;
+      else if (op.result === false) delete form.steps[op.index].result;
       return { form };
     case "remove_step": {
       if (!form.steps[op.index]) return { error: "That step doesn't exist." };
@@ -171,6 +187,20 @@ export function applyOp(input: Form, op: Op): { form: Form } | { error: string }
       form.layout = { ...form.layout, ...(op.labels ? { labels: op.labels } : {}), ...(op.width ? { width: op.width } : {}), ...(op.progress ? { progress: op.progress } : {}) };
       if (op.maxWidth === null) delete form.layout.maxWidth;
       else if (op.maxWidth !== undefined) form.layout.maxWidth = op.maxWidth;
+      if (op.mode === null) delete form.layout.mode;
+      else if (op.mode) form.layout.mode = op.mode;
+      if (op.auto === true) form.layout.auto = true;
+      else if (op.auto === false) delete form.layout.auto;
+      if (op.cover === null) delete form.layout.cover;
+      else if (op.cover) form.layout.cover = op.cover;
+      return { form };
+    case "set_constants":
+      if (op.constants.length) form.constants = op.constants;
+      else delete form.constants;
+      return { form };
+    case "set_results":
+      if (op.results) form.results = op.results;
+      else delete form.results;
       return { form };
     case "set_copy":
       if (op.title !== undefined) form.title = op.title || undefined;
@@ -308,7 +338,7 @@ export function describeOp(op: Op, before: Form): string {
     case "add_step":
       return `Added a step${op.title ? `: ${op.title}` : ""}`;
     case "update_step":
-      return op.title !== undefined ? `Renamed step ${op.index + 1}` : `Changed where step ${op.index + 1} goes next`;
+      return op.title !== undefined ? `Renamed step ${op.index + 1}` : op.result !== undefined ? (op.result ? `Step ${op.index + 1} shows results` : `Step ${op.index + 1} asks questions again`) : `Changed where step ${op.index + 1} goes next`;
     case "remove_step":
       return `Removed step ${op.index + 1}`;
     case "set_rule":
@@ -316,7 +346,11 @@ export function describeOp(op: Op, before: Form): string {
     case "remove_rule":
       return "Removed a rule";
     case "set_layout":
-      return "Changed the layout";
+      return op.mode === "screens" ? "One question per screen" : op.mode === null ? "All questions on one page" : op.cover !== undefined ? (op.cover ? "Changed the cover" : "Removed the cover") : "Changed the layout";
+    case "set_constants":
+      return "Changed the settings";
+    case "set_results":
+      return op.results ? "Changed the results" : "Removed the results";
     case "set_copy":
       return op.submit ? `Button now says ${op.submit}` : "Changed the text";
     case "set_consent":

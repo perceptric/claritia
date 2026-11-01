@@ -262,3 +262,38 @@ test("the results email lists the outcome and the numbers, with nothing unescape
   assert.match(m.html, /Acme &lt;Cleaning&gt;/);
   assert.match(m.text, /Estimate: \$500\.00/);
 });
+
+// The builder's ops for interactive forms ------------------------------------------------------------------------------
+
+test("builder ops: screens and a cover, settings, results and a result screen, each one checked and undone cleanly", async () => {
+  const { applyOp } = await import("../src/lib/forms/ops.ts");
+  let fm = build([f({ id: "n", type: "number" }), f({ id: "t", type: "calc", calc: { formula: "{n} * {@rate}" } })], { constants: [{ id: "rate", name: "Rate", value: 2 }] });
+  const run = (op: Parameters<typeof applyOp>[1]) => {
+    const r = applyOp(fm, op);
+    assert.ok("form" in r, "error" in r ? r.error : "");
+    const c = checkForm(r.form);
+    assert.ok("form" in c, "errors" in c ? c.errors.join(" ") : "");
+    fm = c.form;
+  };
+  run({ op: "set_layout", mode: "screens", auto: true, cover: { title: "Hi", button: "Go" } });
+  assert.equal(fm.layout.mode, "screens");
+  assert.equal(fm.layout.cover?.button, "Go");
+  run({ op: "set_constants", constants: [{ id: "rate", name: "Rate", value: 3, private: true }] });
+  assert.equal(withCalcs(fm, { n: "2" }).t, 6);
+  const added = applyOp(fm, { op: "add_step" });
+  assert.ok("form" in added);
+  fm = added.form;
+  run({ op: "add_field", step: 1, field: { type: "result", label: "", required: false, result: { kind: "metric", field: "t" } }, id: "r1" });
+  run({ op: "update_step", index: 1, result: true });
+  assert.equal(fm.steps[1]!.result, true);
+  run({ op: "set_results", results: { show: "instant", outcomes: [{ id: "big", title: "Big", when: { logic: "all", conds: [{ field: "t", op: "gte", value: "10" }] } }, { id: "everyone", title: "Everyone else" }] } });
+  assert.equal(pickOutcome(fm, { n: "4" })?.id, "big");
+  assert.equal(pickOutcome(fm, { n: "1" })?.id, "everyone");
+  run({ op: "set_layout", mode: null, cover: null });
+  assert.equal(fm.layout.mode, undefined);
+  assert.equal(fm.layout.cover, undefined);
+  run({ op: "set_results", results: null });
+  assert.equal(fm.results, undefined);
+  run({ op: "update_step", index: 1, result: false });
+  assert.equal(fm.steps[1]!.result, undefined);
+});

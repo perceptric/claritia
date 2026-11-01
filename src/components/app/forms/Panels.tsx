@@ -21,6 +21,7 @@ import { Eyebrow, Labeled, PanelFooter, PanelSection, TextLink } from "../schedu
 import type { BuildProps } from "./Build";
 import { autoMap, choiceRows, claritiaDests, crmDests, earlierChoices, isChoiceKind, issuesOf, kindInfo, kindOf, kindPatch, KINDS, known, knownOp, paramOf, questionsOf, rulesReading, saveName, showOps, showRules, splitNameOps, submissionKey, type Q } from "./formModel";
 import { Ic } from "./ic";
+import { ChoiceExtrasSection, FormulaSection, NumberExtrasSection, ResultSection, ResultsSection, ScreensSection, SettingsSection } from "./InteractivePanels";
 import { AREA, Box, Dd, Dots, GHOST_SM, IB, IN, IN_SM, Seg, type DdItem, Tg } from "./parts";
 
 /** The panel's frame: the eyebrow and title, its buttons, the sections that scroll, and the footer. */
@@ -74,6 +75,14 @@ export function QuestionPanel(p: BuildProps & { q: Q; qs: Q[]; issueCtx: Paramet
   let sections: React.ReactNode;
   if (q.kind === "consent") sections = <ConsentSection {...p} open={open === "q"} onToggle={() => toggle("q")} />;
   else if (!f) sections = null;
+  else if (f.type === "calc" || f.type === "result")
+    sections = (
+      <>
+        {f.type === "calc" ? <QuestionSection {...p} f={f} open={open === "q"} onToggle={() => toggle("q")} bad={issues.some((i) => i.where === "q")} /> : null}
+        {f.type === "calc" ? <FormulaSection {...p} f={f} open={open === "formula"} onToggle={() => toggle("formula")} /> : <ResultSection {...p} f={f} open={open === "result"} onToggle={() => toggle("result")} />}
+        <ShowSection {...p} f={f} open={open === "show"} onToggle={() => toggle("show")} />
+      </>
+    );
   else if (q.kind === "heading" || q.kind === "para")
     sections = (
       <>
@@ -91,6 +100,8 @@ export function QuestionPanel(p: BuildProps & { q: Q; qs: Q[]; issueCtx: Paramet
         <QuestionSection {...p} f={f} open={open === "q"} onToggle={() => toggle("q")} bad={issues.some((i) => i.where === "q")} />
         {q.pair ? null : <TypeSection {...p} f={f} open={open === "type"} onToggle={() => toggle("type")} />}
         {isChoiceKind(q.kind) ? <ChoicesSection {...p} f={f} open={open === "opts"} onToggle={() => toggle("opts")} bad={issues.some((i) => i.where === "opts")} /> : null}
+        {isChoiceKind(q.kind) ? <ChoiceExtrasSection {...p} f={f} open={open === "scores"} onToggle={() => toggle("scores")} /> : null}
+        {f.type === "number" ? <NumberExtrasSection {...p} f={f} open={open === "num"} onToggle={() => toggle("num")} /> : null}
         <SavesSection {...p} f={f} open={open === "save"} onToggle={() => toggle("save")} issues={issues.filter((i) => i.where === "save")} />
         {q.kind === "email" || q.kind === "hidden" ? null : <ShowSection {...p} f={f} open={open === "show"} onToggle={() => toggle("show")} />}
         <FillSection {...p} f={f} open={open === "fill"} onToggle={() => toggle("fill")} />
@@ -607,6 +618,9 @@ export function FormPanel(p: BuildProps & { open: string | null; setOpen: (k: st
           <Seg label="Width" value={form.layout.width} onChange={(v) => apply({ op: "set_layout", width: v })} options={[{ value: "narrow", label: "Narrow" }, { value: "wide", label: "Wide" }]} />
         </Labeled>
       </PanelSection>
+      <ScreensSection {...p} open={open === "screens"} onToggle={() => toggle("screens")} />
+      <SettingsSection {...p} open={open === "settings"} onToggle={() => toggle("settings")} />
+      <ResultsSection {...p} open={open === "results"} onToggle={() => toggle("results")} />
       <PanelSection icon={<Ic n="palette" />} title="Styling" summary={kit ? `Your brand kit, ${corner} corners` : "Claritia"} open={open === "style"} onToggle={() => toggle("style")}>
         <div className="grid grid-cols-2 gap-[8px]">
           {[
