@@ -5,7 +5,8 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { evalFormula, parseFormula } from "../src/lib/forms/formula.ts";
 import { checkForm, emptyForm, pickOutcome, publicForm, unsetConstants, withCalcs, type Constant, type Field, type Form, type Results } from "../src/lib/forms/schema.ts";
-import { prepareSubmit } from "../src/lib/forms/submit.ts";
+import { acceptFill, prepareSubmit, type PublicForm } from "../src/lib/forms/submit.ts";
+import type { Rpc } from "../src/lib/jobs.ts";
 
 const f = (x: Partial<Field> & Pick<Field, "id" | "type">): Field => ({ key: `q.${x.id}`, label: x.id, required: false, ...x }) as Field;
 const EMAIL: Field = { id: "e", key: "email", type: "email", label: "Email", required: true };
@@ -92,8 +93,8 @@ const quote = (consts = QUOTE_CONSTS) =>
         show: "instant",
         outcomes: [
           { id: "review", title: "Priced by hand", when: { logic: "all", conds: [{ field: "total", op: "empty" }] } },
-          { id: "site", title: "Book a site visit", when: { logic: "all", conds: [{ field: "visit", op: "gte", value: "1" }] }, meeting: "site-visit" },
-          { id: "call", title: "Lock in this price", meeting: "quote-call" },
+          { id: "site", title: "Book a site visit", when: { logic: "all", conds: [{ field: "visit", op: "gte", value: "1" }] }, meeting: "00000000-0000-4000-8000-000000000001" },
+          { id: "call", title: "Lock in this price", meeting: "00000000-0000-4000-8000-000000000002" },
         ],
       },
     },
@@ -172,4 +173,47 @@ test("old forms with no settings or results work as before", () => {
   assert.equal(fm.results, undefined);
   assert.equal(pickOutcome(fm, { n: "3" }), null);
   assert.equal(withCalcs(fm, { n: "3" }).t, 6);
+});
+
+// Step 2: the server saves the result it worked out, once, and tells the browser ------------------------------------
+
+async function accept(fm: Form, answers: Record<string, unknown>, opts: { repeat?: boolean; test?: boolean; missing?: boolean } = {}) {
+  const saves: Record<string, unknown>[] = [];
+  const rpc: Rpc = async (fn, args) => {
+    if (fn === "form_submit_all") return { data: { id: "0192f3a1-0000-7000-8000-00000000abcd", repeat: !!opts.repeat }, error: null };
+    if (fn === "submission_result_save") {
+      if (opts.missing) return { data: null, error: { message: "Could not find the function public.submission_result_save", code: "PGRST202" } };
+      saves.push(args as Record<string, unknown>);
+      return { data: true, error: null };
+    }
+    return { data: null, error: null };
+  };
+  const pub: PublicForm = { id: "0192f3a1-0000-7000-8000-0000000000ff", workspace_id: "w", version: 1, status: "live", body: fm, tokens: {}, logo_url: null };
+  const r = await acceptFill(rpc, pub, { v: 1, version: 1, key: "k".repeat(20), answers: { e: "ana@acme.com", ...answers }, ms: 5000, trap: "" }, { custom: [] }, { test: opts.test });
+  assert.equal(r.status, 200, JSON.stringify(r.body));
+  return { body: r.body as { result?: { values: Record<string, number | null>; outcome?: { id: string; title: string } } }, saves };
+}
+
+test("step 2: the quote's total and outcome are saved from the server's own math, never the browser's", async () => {
+  const fm = quote();
+  const { body, saves } = await accept(fm, { svc: "std", rooms: "20", rush: true, total: 9, visit: 1 });
+  assert.equal(body.result?.values["q.total"], 500);
+  assert.equal(body.result?.outcome?.id, "call");
+  assert.equal(saves.length, 1);
+  assert.equal(saves[0]!.p_outcome_id, "call");
+  assert.deepEqual((saves[0]!.p_values as Record<string, number>)["q.total"], 500);
+  // The saved copy keeps the private setting; the browser's answer never shows any setting.
+  assert.equal((saves[0]!.p_constants as Record<string, number>).site_from, 1000);
+  assert.equal(JSON.stringify(body).includes("site_from"), false);
+  const big = await accept(fm, { svc: "deep", rooms: "40" });
+  assert.equal(big.body.result?.outcome?.id, "site");
+});
+
+test("step 2: test fills aren't saved, an older database still takes the fill, and a form with no calcs has no result", async () => {
+  assert.equal((await accept(quote(), { svc: "std", rooms: "20" }, { test: true })).saves.length, 0);
+  const old = await accept(quote(), { svc: "std", rooms: "20" }, { missing: true });
+  assert.equal(old.body.result?.values["q.total"], 400);
+  const plain = await accept(build([f({ id: "n", type: "number" })]), { n: "3" });
+  assert.equal(plain.body.result, undefined);
+  assert.equal(plain.saves.length, 0);
 });

@@ -922,7 +922,9 @@ function cleanResults(raw: unknown, byId: Map<string, Field>, errors: string[]):
     ids.add(id);
     if (!title) errors.push("Each outcome needs a title.");
     const text = str(o.text, LIMITS.text);
-    const meeting = str(o.meeting, 64);
+    // A meeting type's id: the outcome books that meeting; who hosts still comes from the meeting's own rules.
+    const meeting = typeof o.meeting === "string" && /^[0-9a-f-]{36}$/.test(o.meeting) ? o.meeting : undefined;
+    if (o.meeting !== undefined && o.meeting !== null && o.meeting !== "" && !meeting) errors.push(`${title || "An outcome"} books a meeting that's gone.`);
     const w = (o.when && typeof o.when === "object" ? o.when : null) as { logic?: unknown; conds?: unknown } | null;
     let when: Outcome["when"];
     if (w && Array.isArray(w.conds) && w.conds.length) {
@@ -1152,4 +1154,22 @@ export function pickOutcome(form: Pick<Form, "steps" | "rules" | "constants" | "
     if (hit) return o;
   }
   return outs[outs.length - 1]!;
+}
+
+/** The formula engine's version, kept with every saved result. */
+export const ENGINE = 1;
+
+/**
+ * What a submission reached, worked out on the server from the checked answers (by field id): the outcome and every
+ * calc by field key. Settings are listed too, for the saved copy only; never send them to the browser.
+ */
+export function resultOf(form: Form, answers: Record<string, unknown>, ctx: RunCtx = {}): { outcome: Outcome | null; values: Record<string, number | null>; constants: Record<string, number | null> } | null {
+  const calcFields = allFields(form).filter((f) => f.type === "calc");
+  if (!form.results && !calcFields.length) return null;
+  const vals = withCalcs(form, answers, ctx);
+  const values: Record<string, number | null> = {};
+  for (const f of calcFields) values[f.key] = typeof vals[f.id] === "number" ? (vals[f.id] as number) : null;
+  const constants: Record<string, number | null> = {};
+  for (const c of form.constants ?? []) constants[c.id] = c.value;
+  return { outcome: pickOutcome(form, answers, ctx), values, constants };
 }

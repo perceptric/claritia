@@ -23,7 +23,7 @@ import { bookingUrl, claritiaPlan, emailsTimesLater, outside, routedBooks, shows
 import { regionOf } from "../web/policy.ts";
 import { contactPolicy } from "./overwrite.ts";
 import { regionsOf } from "./regions.ts";
-import { allFields, hideKeyOf, utcDay, type Form, type Overwrite } from "./schema.ts";
+import { allFields, ENGINE, hideKeyOf, resultOf, utcDay, type Form, type Overwrite } from "./schema.ts";
 import { checkAnswers, contactParts } from "./values.ts";
 
 export type Incoming = {
@@ -412,6 +412,19 @@ export async function acceptFill(
   // connection's mappings, read these, never what the browser claimed.
   const byId: Record<string, unknown> = {};
   for (const x of allFields(f.body)) if (r.args.p_values[x.key] !== undefined) byId[x.id] = r.args.p_values[x.key];
+  // The result this fill reached, worked out here from the checked answers, never taken from the browser
+  // (docs/interactive-forms-plan.md 3.6). Saved once per submission; a repeat keeps the first.
+  const result = spam ? null : resultOf(f.body, byId);
+  if (result && !o.test)
+    await callNewer(rpc, "submission_result_save", {
+      p_sid: sid,
+      p_engine: ENGINE,
+      p_outcome_id: result.outcome?.id ?? null,
+      p_outcome_title: result.outcome?.title ?? null,
+      p_values: result.values,
+      p_constants: result.constants,
+    }).catch(() => null);
+  const shown = result ? { result: { values: result.values, ...(result.outcome ? { outcome: { id: result.outcome.id, title: result.outcome.title, ...(result.outcome.text ? { text: result.outcome.text } : {}) } } : {}) } } : {};
   // The form's connection and its live policy, resolved together (095): the run records both. Before 095, or when
   // the read fails, the workspace's router as before.
   const resolved = cid && !spam ? await resolveSource(rpc, f.id).catch(() => null) : null;
@@ -448,9 +461,11 @@ export async function acceptFill(
     // the fill: it's saved, and the lead gets the message. With Routing not live, an older form's "who sees times"
     // still holds.
     const routingOn = !!routing?.live && !routing.live.paused;
-    const own = src?.meeting_type_id ? { ...sch, meetingTypeId: src.meeting_type_id } : sch;
+    // The outcome's meeting first (a quote over the line books a site visit), then the connection's, then the form's.
+    const typeId = result?.outcome?.meeting ?? src?.meeting_type_id;
+    const own = typeId ? { ...sch, meetingTypeId: typeId } : sch;
     const plan = off || (routingOn && !calendar) ? ({ kind: "message" } as const) : routingOn || shows() ? claritiaPlan(own, routed, routing?.live) : ({ kind: "message" } as const);
-    if (plan.kind === "pending") return { status: 200, body: { id: sid, schedule: null, pending: true, message: VISITOR.slow } };
+    if (plan.kind === "pending") return { status: 200, body: { id: sid, schedule: null, pending: true, message: VISITOR.slow, ...shown } };
     let booking: Booking | null = null;
     if (plan.kind === "times" && o.secret) {
       let why: AvailabilityFailure | null = null;
@@ -470,7 +485,7 @@ export async function acceptFill(
       if (!booking && plan.rep && emailsTimesLater(sch, routing?.live) && !o.test)
         await enqueueJob(rpc, { workspaceId: f.workspace_id, kind: "meeting_book_later", key: `book_later:${sid}`, payload: { submission: sid, type: plan.type, owner: plan.rep, only: true }, delayS: LATER_S, maxAttempts: 3 }).catch(() => undefined);
     }
-    return { status: 200, body: { id: sid, schedule: null, ...(booking ? { booking } : {}) } };
+    return { status: 200, body: { id: sid, schedule: null, ...(booking ? { booking } : {}), ...shown } };
   }
   if (sch && lead && !spam && shows() && routedBooks(sch, routed)) {
     let base = sch.url;
@@ -485,7 +500,7 @@ export async function acceptFill(
     const url = base && outside(sch.tool) ? bookingUrl(sch.tool, base, { first: lead.first_name, last: lead.last_name, email: lead.email }, sid, host, sch.prefill !== false) : null;
     if (url) schedule = { tool: sch.tool, url };
   }
-  return { status: 200, body: { id: sid, schedule } };
+  return { status: 200, body: { id: sid, schedule, ...shown } };
 }
 
 /**
