@@ -32,9 +32,9 @@ test("the meeting type panel's one-line summaries stay short and plain", () => {
   assert.equal(lengthWords([30]), "30 min");
   assert.equal(lengthWords([45, 30]), "30, 45 min");
   assert.equal(lengthWords([30, 60]), "30 min, 1 h");
-  assert.equal(limitsWords({ bufferBefore: 0, bufferAfter: 10, notice: 240 }), "10 min after, 4 h notice");
-  assert.equal(limitsWords({ bufferBefore: 5, bufferAfter: 0, notice: 1440 }), "5 min before, 1 day notice");
-  assert.equal(limitsWords({ bufferBefore: 0, bufferAfter: 0, notice: 0 }), "No notice");
+  assert.equal(limitsWords({ bufferBefore: 0, bufferAfter: 10, notice: 240 }), "Book 4 h ahead, 10 min gaps");
+  assert.equal(limitsWords({ bufferBefore: 5, bufferAfter: 0, notice: 1440 }), "Book 1 day ahead, 5 min gaps");
+  assert.equal(limitsWords({ bufferBefore: 0, bufferAfter: 0, notice: 0 }), "Book any time");
   assert.equal(questionsWords([]), "Name, email");
   assert.equal(questionsWords([{}]), "Name, email, 1 more");
   assert.equal(priceWords(undefined), "Off");

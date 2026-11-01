@@ -199,6 +199,8 @@ export function SubmitResult({ form, types, facts, trial }: { form: Form; types:
 
 type PanelProps = Pick<ViewProps, "navigate"> & {
   form: Form;
+  /** The form being built: a meeting made from here comes back to it. */
+  formId?: string;
   apply: (ops: Op | Op[], words?: string) => boolean;
   types: TypeRow[];
   facts: RoutingFacts;
@@ -325,7 +327,7 @@ function Booking(p: PanelProps & { message: React.ReactNode }) {
           <Ic n="meet" s={18} />
         </span>
         <b className="text-[14px] font-semibold text-ink">No meetings yet</b>
-        <button type="button" className={BTN} onClick={() => navigate("scheduling", "types/new")}>
+        <button type="button" className={BTN} onClick={() => navigate("scheduling", "types/new", p.formId ? `back=${p.formId}` : undefined)}>
           <Ic n="plus" />
           Create a meeting
         </button>
@@ -340,7 +342,7 @@ function Booking(p: PanelProps & { message: React.ReactNode }) {
       ...ind.map((t): DdItem => ({ kind: "option", key: t.id, label: t.name, hint: hostName(t, facts), on: t.id === cur, onPick: () => onPick(t.id) })),
       ...(dyn.length ? [{ kind: "group" as const, label: "Dynamic" }] : []),
       ...dyn.map((t): DdItem => ({ kind: "option", key: t.id, label: t.name, hint: `${t.hosts.length} reps`, on: t.id === cur, onPick: () => onPick(t.id) })),
-      { kind: "add", key: "new", label: "Create a meeting", onPick: () => navigate("scheduling", "types/new") },
+      { kind: "add", key: "new", label: "Create a meeting", onPick: () => navigate("scheduling", "types/new", p.formId ? `back=${p.formId}` : undefined) },
     ];
   };
   const meetingPick = (cur: string | undefined, onPick: (id: string) => void, hit: boolean) => {

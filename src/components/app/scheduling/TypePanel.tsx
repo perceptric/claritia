@@ -9,15 +9,16 @@
 // and Otherwise, kept as settings.dynamic; docs/on-submission.md). Saving one publishes again the forms that book it.
 
 import { useEffect, useRef, useState } from "react";
-import { DEFAULT_SETTINGS, type Availability, type Location, type TypeSettings } from "@/lib/meetings/types";
+import { DEFAULT_AVAILABILITY, DEFAULT_SETTINGS, type Availability, type Location, type TypeSettings } from "@/lib/meetings/types";
 import type { Queue } from "@/lib/router/types";
 import { Bell, Bolt, CalendarIcon, Card, Check, Clock, Copy, Eye, Hourglass, Link as LinkIcon, ListIcon, MapPin, PhoneCall, Plus, Users, X } from "../../Icons";
 import { BrandLogo } from "../BrandLogo";
 import { askConfirm } from "../Dialogs";
 import { Select } from "../Select";
 import { MoreMenu } from "../StatCards";
-import { Badge, Button, ErrorNote, errorText, IconButton, Input, Segmented, setLeaveGuard, Toggle, type ViewProps } from "../ui";
+import { Badge, Button, ErrorNote, errorText, IconButton, Input, Segmented, setLeaveGuard, Toggle, invalidate, type ViewProps } from "../ui";
 import { slugify } from "../meetings/model";
+import { HoursEditor } from "../meetings/HoursEditor";
 import { copyText, meetingsApi, PersonAvatar, type Person } from "../meetings/parts";
 import { CURRENCIES, draftOf, Questions, type Draft } from "../meetings/TypeEditor";
 import type { TypeRow } from "../meetings/TypesList";
@@ -369,8 +370,14 @@ export function TypePanel({
               className="h-[34px] w-full rounded-sm border border-line-strong bg-card px-2.5 text-[13px] text-ink"
             />
           ) : null}
-          <Week hours={hours} />
-          <TextLink onClick={() => navigate("scheduling", "availability")}>Edit hours</TextLink>
+          {!s.schedule && (draft.hosts[0]?.user_id ?? me) === me ? (
+            <InlineHours session={session} ws={ws.id} hours={hours} onSaved={(a) => data.hours.set(me, a)} />
+          ) : (
+            <>
+              <Week hours={hours} />
+              <TextLink onClick={() => navigate("scheduling", "availability")}>Edit hours</TextLink>
+            </>
+          )}
         </PanelSection>
 
         <PanelSection icon={dynamic ? <Bolt /> : <Users />} title={dynamic ? "Dynamic" : "Individual"} summary={hostSummary} open={open === "host"} onToggle={() => toggle("host")} locked={copy}>
@@ -459,21 +466,21 @@ export function TypePanel({
 
         <PanelSection icon={<Hourglass />} title="Limits and buffers" summary={limitsWords(s)} open={open === "limits"} onToggle={() => toggle("limits")} locked={isLocked("bufferBefore", "bufferAfter", "notice", "window", "perDay")}>
           <div className="grid grid-cols-2 gap-3.5">
-            <Labeled label="Before">
-              <Choice values={BUFFERS} value={s.bufferBefore} word={(n) => (n ? `${n} min` : "None")} onChange={(v) => setS("bufferBefore", v)} label="Buffer before" short />
+            <Labeled label="Free time before">
+              <Choice values={BUFFERS} value={s.bufferBefore} word={(n) => (n ? `${n} min` : "None")} onChange={(v) => setS("bufferBefore", v)} label="Free time before" short />
             </Labeled>
-            <Labeled label="After">
-              <Choice values={BUFFERS} value={s.bufferAfter} word={(n) => (n ? `${n} min` : "None")} onChange={(v) => setS("bufferAfter", v)} label="Buffer after" short />
+            <Labeled label="Free time after">
+              <Choice values={BUFFERS} value={s.bufferAfter} word={(n) => (n ? `${n} min` : "None")} onChange={(v) => setS("bufferAfter", v)} label="Free time after" short />
             </Labeled>
           </div>
-          <Labeled label="Book at least">
+          <Labeled label="Earliest booking">
             <Choice values={NOTICE} value={s.notice} word={(n) => (n ? `${n >= 1440 ? (n === 1440 ? "1 day" : `${n / 1440} days`) : n >= 60 ? `${n / 60} h` : `${n} min`} ahead` : "Any time")} onChange={(v) => setS("notice", v)} label="Notice" />
           </Labeled>
-          <Labeled label="Book up to">
-            <Choice values={WINDOW} value={s.window} word={(n) => `${n} days`} onChange={(v) => setS("window", v)} label="Window" />
+          <Labeled label="Furthest booking">
+            <Choice values={WINDOW} value={s.window} word={(n) => `${n} days out`} onChange={(v) => setS("window", v)} label="Furthest booking" />
           </Labeled>
-          <Labeled label="Per day">
-            <Choice values={PER_DAY} value={s.perDay} word={(n) => (n ? String(n) : "No limit")} onChange={(v) => setS("perDay", v)} label="Per day" />
+          <Labeled label="Most meetings a day">
+            <Choice values={PER_DAY} value={s.perDay} word={(n) => (n ? String(n) : "No limit")} onChange={(v) => setS("perDay", v)} label="Most meetings a day" />
           </Labeled>
         </PanelSection>
 
@@ -495,13 +502,13 @@ export function TypePanel({
         </PanelSection>
 
         <PanelSection icon={<Bell />} title="Notifications" summary={s.noShowFollowUp !== false ? "Confirmation, no-show follow-up" : "Confirmation"} open={open === "notify"} onToggle={() => toggle("notify")} locked={isLocked("noShowFollowUp")}>
-          <span className="flex items-center gap-2 text-[12.5px] text-ink">
-            <Check size={13} className="text-muted" />
-            Confirmation email
+          <span className="flex items-center gap-2.5 text-[12.5px] text-ink">
+            <span className="flex-1">Confirmation email</span>
+            <Badge>Always on</Badge>
           </span>
           <span className="flex items-center gap-2.5 text-[12.5px] text-ink">
+            <span className="flex-1">No-show follow-up</span>
             <Toggle label="No-show follow-up" on={s.noShowFollowUp !== false} disabled={isLocked("noShowFollowUp")} onChange={(v) => setS("noShowFollowUp", v)} />
-            No-show follow-up
           </span>
           <TextLink onClick={() => navigate("workflows")}>Reminders</TextLink>
         </PanelSection>
@@ -639,6 +646,44 @@ function Choice({ values, value, word, onChange, label, short = false }: { value
       />
     );
   return <Segmented<string> size="sm" label={label} value={String(value)} options={all.map((n) => ({ value: String(n), label: word(n) }))} onChange={(v) => onChange(Number(v))} />;
+}
+
+/** Your own hours, edited right in the meeting: the same hours every meeting of yours uses. */
+function InlineHours({ session, ws, hours, onSaved }: { session: ViewProps["session"]; ws: string; hours: Availability | null; onSaved: (a: Availability) => void }) {
+  const [draft, setDraft] = useState<Availability>(() => hours ?? DEFAULT_AVAILABILITY(Intl.DateTimeFormat().resolvedOptions().timeZone));
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [base, setBase] = useState(() => (hours ? JSON.stringify(hours) : ""));
+  const dirty = JSON.stringify(draft) !== base;
+  return (
+    <div className="flex flex-col gap-3">
+      <HoursEditor value={draft} onChange={setDraft} />
+      <ErrorNote message={error} />
+      {dirty ? (
+        <Button
+          size="sm"
+          className="self-start"
+          disabled={busy}
+          onClick={async () => {
+            setBusy(true);
+            setError("");
+            try {
+              await meetingsApi(session, ws, "availability", { availability: draft });
+              onSaved(draft);
+              setBase(JSON.stringify(draft));
+              invalidate("meeting_types");
+            } catch (e) {
+              setError(errorText(e));
+            } finally {
+              setBusy(false);
+            }
+          }}
+        >
+          {busy ? "Saving" : "Save hours"}
+        </Button>
+      ) : null}
+    </div>
+  );
 }
 
 /** A week of hours in small rows: Mon 09:00 to 17:00. */

@@ -114,9 +114,12 @@ export function TypesPage(props: ViewProps & { open: string }) {
       if (saved) list.set((rows) => rows.map((x) => (x.id === saved.id ? saved : x)));
     });
   // After the panel saves, only the types list is read again.
+  // Made from a form's On Submission (?back=<form id>): once saved, back to that form where they left off.
+  const [back] = useState(() => (typeof window === "undefined" ? null : new URLSearchParams(window.location.search).get("back")));
   const saved = () => {
     list.reload();
     invalidate("app_counts");
+    if (back && open === "new") navigate("forms", back, "step=submit");
   };
 
   const panelData: PanelData | null =

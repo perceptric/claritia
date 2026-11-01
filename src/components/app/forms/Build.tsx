@@ -116,6 +116,15 @@ export function Build(p: BuildProps) {
   const onSubmit = pick?.id === SUBMIT;
   const [trial, setTrial] = useState<Trial>(null);
   const toSubmit = () => setPick({ id: SUBMIT, open: null });
+  // Back from making a meeting (?step=submit): open On Submission where they left off.
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("step") !== "submit") return;
+    setPick({ id: SUBMIT, open: null });
+    try {
+      window.history.replaceState(null, "", window.location.pathname);
+    } catch {}
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const qs = useMemo(() => questionsOf(form), [form]);
   const shown = qs.filter((q) => q.step === cur);
   const issueCtx = useMemo(() => ({ custom: p.custom, crm: p.crm.ctx }), [p.custom, p.crm.ctx]);
@@ -199,7 +208,7 @@ export function Build(p: BuildProps) {
 
   const panel =
     onSubmit ? (
-      <OnSubmissionPanel form={form} apply={apply} types={p.types} facts={p.facts} navigate={p.navigate} trial={trial} setTrial={setTrial} />
+      <OnSubmissionPanel formId={p.formId} form={form} apply={apply} types={p.types} facts={p.facts} navigate={p.navigate} trial={trial} setTrial={setTrial} />
     ) : pick?.id === "button" ? (
       <ButtonPanel {...p} />
     ) : picked ? (
