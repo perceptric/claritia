@@ -373,7 +373,7 @@ export type Check = { lvl: "bad" | "warn" | "ok"; t: string; s?: string; q?: str
 export function publishChecks(form: Form, errors: string[], ctx: Parameters<typeof issuesOf>[1], pages: number): Check[] {
   const out: Check[] = [];
   const fields = allFields(form);
-  if (!fields.some((f) => f.key === "email")) out.push({ lvl: "bad", t: "Add an email question", s: "Without an email, a lead can't become a contact or get emails", blocks: true });
+  if (!form.emailOptional && !fields.some((f) => f.key === "email")) out.push({ lvl: "bad", t: "Add an email question", s: "Without an email, a lead can't become a contact or get emails", blocks: true });
   for (const f of fields)
     for (const p of issuesOf(f, ctx)) {
       if (p.where !== "save") continue;

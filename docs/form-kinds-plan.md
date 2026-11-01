@@ -5,7 +5,18 @@ should know those parts and put them together for any kind of form, from what th
 Today it offers six goals (quote, assess, recommend, quiz, book, leads). This plan replaces the goals with kinds and
 fills in the parts that are missing.
 
-Status: plan only. Nothing here is built.
+Status: step 0 and step 1 are built. Steps 2 and 3 are next.
+
+Step 1 as built:
+- Kinds: `KINDS` in `src/lib/forms/aiBuild.ts`, each with its recipe and whether it needs an email; `form.kind` in the
+  schema. New form asks "What's it for?" and the website; the ask call picks the kind and writes its questions in one
+  go, and the kind shows as a pill to change. `kindProblems` sends a build back when it misses the kind's must-have.
+- Email optional: `form.emailOptional`. A fill with no email is kept with no contact (routing, booking and the
+  auto-reply need one, so they don't run). Kind panel in the builder.
+- Split screen: `layout.side` and `step.image`, in the live form, Preview and the Build canvas. The AI uses the site's
+  pictures from the brief.
+- Paths: `step.jumps` (to a later step, or the number of steps to end the form there), in the engine, the checker,
+  the ops (removing and adding steps keep them right) and the Paths panel.
 
 ## 1. The parts
 

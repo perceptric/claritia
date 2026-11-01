@@ -1,15 +1,16 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { addUsage, cachedStep, hashKey, usageOf, type Usage } from "@/lib/ai/cache";
 import { isMember } from "@/lib/contacts/server";
-import { askQuestions, BUILD_MODEL, buildForm, defaultQuestions, GOALS, pickPages, readPage, writeBrief, type Brief, type Caller, type Goal } from "@/lib/forms/aiBuild";
+import { askQuestions, BUILD_MODEL, buildForm, defaultQuestions, guessKind, kindOf, pickPages, readPage, writeBrief, type Brief, type Caller } from "@/lib/forms/aiBuild";
 import { hostIsPrivate } from "@/lib/privateNet";
 import { requireUser } from "@/lib/serverAuth";
 import { serviceClient } from "@/lib/serviceClient";
 
 // The AI form builder (docs/ai-form-builder.md). POST { workspaceId, mode, ... }:
 //   read   { url }                              → { brief }       the site's home page and up to 4 more, into a brief
-//   ask    { brief, goal, note }                → { questions }   3 to 5 questions for this business and goal
-//   build  { brief, goal, note, answers, site } → { name, form, summary }  built, checked and fixed until it passes
+//   ask    { brief, note, kind? }               → { kind, questions }  the kind (picked when not given) and 3 to 5
+//                                                  questions for this business and kind (docs/form-kinds-plan.md)
+//   build  { brief, kind, note, answers, site } → { name, form, summary }  built, checked and fixed until it passes
 // Every model call goes through the step cache. Without a key, read answers no brief, ask answers set questions, and
 // build says it can't, so New form never hangs.
 
@@ -67,7 +68,8 @@ export async function POST(request: Request) {
   if (!db) return bad("The server is not set up for this.", 500);
   const rpc = (fn: string, args: Record<string, unknown>) => db.rpc(fn, args);
   const model = claude();
-  const goal = GOALS.some((g) => g.value === b.goal) ? (b.goal as Goal) : "leads";
+  // The kind asked for (old clients send goal); none: the model picks it in ask.
+  const asked = kindOf(b.kind) ?? kindOf(b.goal);
   const note = typeof b.note === "string" ? b.note.trim().slice(0, 1000) : "";
   const brief = b.brief && typeof b.brief === "object" ? (b.brief as Brief) : null;
 
@@ -105,20 +107,21 @@ export async function POST(request: Request) {
   }
 
   if (b.mode === "ask") {
-    if (!model) return Response.json({ questions: defaultQuestions(goal) });
+    const fallback = asked ?? guessKind(note);
+    if (!model) return Response.json({ kind: fallback, questions: defaultQuestions(fallback) });
     try {
-      const r = await cachedStep(rpc, ws, "form_ai_ask", hashKey(BUILD_MODEL, "ask-1", brief, goal, note), async () => {
+      const r = await cachedStep(rpc, ws, "form_ai_ask", hashKey(BUILD_MODEL, "ask-2", brief, asked, note), async () => {
         let usage = ZERO;
-        const questions = await askQuestions(async (p) => {
-          const out = await model(p);
-          if (out) usage = addUsage(usage, usageOf(out.usage));
-          return out;
-        }, brief, goal, note);
-        return { result: questions, model: BUILD_MODEL, usage };
+        const out = await askQuestions(async (p) => {
+          const res = await model(p);
+          if (res) usage = addUsage(usage, usageOf(res.usage));
+          return res;
+        }, brief, asked, note);
+        return { result: out, model: BUILD_MODEL, usage };
       });
-      return Response.json({ questions: r.result });
+      return Response.json(r.result);
     } catch {
-      return Response.json({ questions: defaultQuestions(goal) });
+      return Response.json({ kind: fallback, questions: defaultQuestions(fallback) });
     }
   }
 
@@ -137,8 +140,9 @@ export async function POST(request: Request) {
       await new Promise((r) => setTimeout(r, 3000));
     }
     try {
-      const r = await cachedStep(rpc, ws, "form_ai_build", hashKey(BUILD_MODEL, "build-2", brief, book, goal, note, answers, site), async () => {
-        const built = await buildForm(model, { brief, goal, note, answers, site, book });
+      const kind = asked ?? guessKind(note);
+      const r = await cachedStep(rpc, ws, "form_ai_build", hashKey(BUILD_MODEL, "build-3", brief, book, kind, note, answers, site), async () => {
+        const built = await buildForm(model, { brief, kind, note, answers, site, book });
         const usage = (built?.usage ?? []).reduce((a, u) => addUsage(a, usageOf(u)), ZERO);
         return { result: built ? { name: built.name, form: built.form, summary: built.summary } : null, model: BUILD_MODEL, usage, keep: !!built };
       });

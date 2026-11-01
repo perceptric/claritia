@@ -127,6 +127,12 @@ textarea.in{min-height:calc(var(--clr-input-h)*2.4);padding:10px 12px;resize:ver
 .sc .lb{font-family:var(--clr-heading-font);font-size:1.4em;font-weight:600;line-height:1.25}
 .sc .h{font-size:2em}
 .cv{justify-content:center}
+.sp{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);min-height:480px;border:1px solid var(--clr-border);border-radius:var(--clr-radius);overflow:hidden;background:var(--clr-bg)}
+.sp.sr>.spi{order:2}
+.spi{min-height:200px;background:color-mix(in srgb,var(--clr-accent) 8%,var(--clr-bg))}
+.spi img{display:block;width:100%;height:100%;object-fit:cover}
+.sp>.f{align-self:center;padding:clamp(20px,4vw,48px)}
+@media (max-width:640px){.sp{grid-template-columns:1fr}.sp.sr>.spi{order:0}.spi{max-height:200px}}
 .cv .h{font-size:2.2em}
 .cd{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px}
 .cd label{position:relative;display:flex;flex-direction:column;gap:8px;padding:14px;border:var(--clr-border-w) solid var(--clr-border);border-radius:var(--clr-radius);background:var(--clr-input-bg);cursor:pointer}
@@ -798,7 +804,7 @@ export class ClaritiaForm extends Base {
     if (!d) return;
     const form = d.body;
     for (const u of [d.tokens.fontUrl ?? "", ...(d.fonts ?? [])]) addFont(u);
-    const width = form.layout.maxWidth ? `${form.layout.maxWidth}px` : form.layout.width === "wide" ? "720px" : "480px";
+    const width = form.layout.maxWidth ? `${form.layout.maxWidth}px` : form.layout.side || form.steps.some((st) => st.image) ? "1040px" : form.layout.width === "wide" ? "720px" : "480px";
     // The form's own stylesheet is the lowest layer; the design system's layers (in d.css) sit above it.
     const style = el("style", { text: `${d.css ?? ""}\n:host{${tokensCss(d.tokens)}--clr-width:${width}}\n@layer base{${STYLES}}` });
     if (d.status === "paused") return this.put(style, el("div", { class: "f" }, el("p", { class: "i", text: "This form is closed." })));
@@ -817,7 +823,7 @@ export class ClaritiaForm extends Base {
         this.render();
         (this.root.querySelector(".in, .bx, input") as HTMLElement | null)?.focus();
       });
-      return this.put(style, el("div", { class: `f cv${screens ? " sc" : ""}` }, el("h2", { class: "h", text: form.layout.cover.title }), form.layout.cover.text ? el("p", { class: "i", text: form.layout.cover.text }) : null, el("div", { class: "ac" }, go)));
+      return this.put(style, this.split(form, 0, el("div", { class: `f cv${screens ? " sc" : ""}` }, el("h2", { class: "h", text: form.layout.cover.title }), form.layout.cover.text ? el("p", { class: "i", text: form.layout.cover.text }) : null, el("div", { class: "ac" }, go))));
     }
 
     const { shown, required } = visibility(form, this.answers, this.ctx);
@@ -870,7 +876,14 @@ export class ClaritiaForm extends Base {
       e.preventDefault();
       void this.next();
     });
-    this.put(style, wrap);
+    this.put(style, this.split(form, this.step, wrap));
+  }
+
+  /** A split screen: the step's picture (or the form's) beside it; with no picture, the step alone. */
+  private split(form: Form, at: number, node: HTMLElement): HTMLElement {
+    const src = form.steps[at]?.image ?? form.layout.side?.image;
+    if (!src || !/^https:\/\//.test(src) || !safeUrl(src)) return node;
+    return el("div", { class: `sp${form.layout.side?.at === "right" ? " sr" : ""}` }, el("div", { class: "spi" }, el("img", { src, alt: "", loading: "lazy", decoding: "async" })), node);
   }
 
   /** Where the visitor is in a form of several steps: a bar, dots, or only words for screen readers. */

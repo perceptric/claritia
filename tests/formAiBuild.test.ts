@@ -3,7 +3,7 @@
 // blank prices are always listed to replace; and without a model the questions still come.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { askQuestions, buildForm, defaultQuestions, firstJson, pickPages, readPage, type Caller } from "../src/lib/forms/aiBuild.ts";
+import { askQuestions, buildForm, defaultQuestions, firstJson, guessKind, kindOf, kindProblems, pickPages, readPage, type Caller } from "../src/lib/forms/aiBuild.ts";
 
 const BASE = "https://momos.example.com/";
 
@@ -53,7 +53,7 @@ test("a draft the checker refuses goes back with its problems, and the fixed one
     seen.push(String(p.history?.[p.history.length - 1]?.content ?? ""));
     return { text: replies.shift()!, usage: { input_tokens: 10, output_tokens: 10 } as never };
   };
-  const built = await buildForm(call, { brief: null, goal: "quote", note: "", answers: {}, site: "momos.example.com" });
+  const built = await buildForm(call, { brief: null, kind: "quote", note: "", answers: {}, site: "momos.example.com" });
   assert.ok(built);
   assert.equal(built.rounds, 3);
   assert.match(seen[1]!, /checker refused it/);
@@ -67,7 +67,7 @@ test("a draft the checker refuses goes back with its problems, and the fixed one
 
 test("a model that never passes gives nothing, so no broken form is saved", async () => {
   const call: Caller = async () => ({ text: JSON.stringify({ form: { steps: [] } }), usage: {} as never });
-  assert.equal(await buildForm(call, { brief: null, goal: "leads", note: "", answers: {}, site: "" }), null);
+  assert.equal(await buildForm(call, { brief: null, kind: "lead", note: "", answers: {}, site: "" }), null);
 });
 
 test("questions: cleaned from the model, and set ones when it's down", async () => {
@@ -75,10 +75,47 @@ test("questions: cleaned from the model, and set ones when it's down", async () 
     text: JSON.stringify({ questions: [{ id: "Bad Id!", question: "What drives the price?", kind: "choice", options: ["Locations"] }, { id: "who", question: "Who fills it in?", kind: "multi", options: ["Owners", "Managers"] }, { id: "x", question: "  ", kind: "text", options: [] }] }),
     usage: {} as never,
   });
-  const qs = await askQuestions(call, null, "quote", "");
+  const { kind, questions: qs } = await askQuestions(call, null, "quote", "");
+  assert.equal(kind, "quote");
   assert.deepEqual(qs.map((q) => [q.id, q.kind]), [["q1", "text"], ["who", "multi"]]);
   const down: Caller = async () => {
     throw new Error("down");
   };
-  assert.deepEqual(await askQuestions(down, null, "quiz", ""), defaultQuestions("quiz"));
+  assert.deepEqual(await askQuestions(down, null, "quiz", ""), { kind: "quiz", questions: defaultQuestions("quiz") });
+});
+
+// Kinds (docs/form-kinds-plan.md) ------------------------------------------------------------------------------------
+
+test("kinds: the model picks one from the owner's line; down, the words pick it", async () => {
+  const call: Caller = async (p) => {
+    assert.match(p.system, /pick what kind of form/);
+    return { text: JSON.stringify({ kind: "survey", questions: [{ id: "measure", question: "What do you measure?", kind: "choice", options: ["NPS", "CSAT"] }] }), usage: {} as never };
+  };
+  assert.equal((await askQuestions(call, null, null, "NPS for our customers")).kind, "survey");
+  const down: Caller = async () => null;
+  assert.equal((await askQuestions(down, null, null, "a job application for designers")).kind, "application");
+  assert.equal(guessKind("quote for kitchen remodels"), "quote");
+  assert.equal(guessKind("flower orders"), "order");
+  assert.equal(guessKind("anything"), "lead");
+  assert.equal(kindOf("leads"), "lead");
+  assert.equal(kindOf("nope"), null);
+});
+
+test("kinds: a build missing the kind's must-have goes back to be fixed", async () => {
+  const noCalc = { ...GOOD, form: { ...GOOD.form, steps: [GOOD.form.steps[2]], results: undefined, constants: undefined } };
+  const replies = [JSON.stringify(noCalc), JSON.stringify(GOOD)];
+  const seen: string[] = [];
+  const call: Caller = async (p) => {
+    seen.push(String(p.history?.[p.history.length - 1]?.content ?? ""));
+    return { text: replies.shift()!, usage: {} as never };
+  };
+  const built = await buildForm(call, { brief: null, kind: "quote", note: "", answers: {}, site: "" });
+  assert.ok(built);
+  assert.equal(built.rounds, 2);
+  assert.match(seen[1]!, /calc field for the total/);
+  assert.equal(built.form.kind, "quote");
+});
+
+test("kinds: a quote can't drop the email", () => {
+  assert.deepEqual(kindProblems({ ...(GOOD.form as never), emailOptional: true }, "quote"), ["A quote form needs the email: leave emailOptional out."]);
 });

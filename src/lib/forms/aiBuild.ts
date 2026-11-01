@@ -6,19 +6,55 @@
 // left blank or listed under "Replace before publishing", never made up as facts.
 
 import type Anthropic from "@anthropic-ai/sdk";
-import { checkForm, emptyForm, unsetConstants, type Form } from "./schema.ts";
+import { allFields, checkForm, emptyForm, FORM_KINDS, unsetConstants, type Form, type FormKind } from "./schema.ts";
 
 export const BUILD_MODEL = "claude-sonnet-5-5";
 
-export type Goal = "quote" | "assess" | "recommend" | "quiz" | "book" | "leads";
-export const GOALS: { value: Goal; label: string; text: string }[] = [
-  { value: "quote", label: "Give a price", text: "A quote or cost calculator" },
-  { value: "assess", label: "Score or assess", text: "A score with a level and next steps" },
-  { value: "recommend", label: "Recommend", text: "The plan, product or service that fits" },
-  { value: "quiz", label: "Quiz", text: "Questions with right answers" },
-  { value: "book", label: "Book a meeting", text: "The right meeting with the right person" },
-  { value: "leads", label: "Capture leads", text: "Contact, demo or signup" },
+/**
+ * What a form is for (docs/form-kinds-plan.md). The AI picks one from the site and the owner's line, and builds with
+ * its recipe: the parts it leans on, whether it needs an email, and what it must have.
+ */
+export type Kind = FormKind;
+export type KindInfo = { value: Kind; label: string; text: string; email: "required" | "optional"; recipe: string };
+export const KINDS: KindInfo[] = [
+  { value: "lead", label: "Lead", text: "Contact, demo, waitlist or gated content", email: "required", recipe: "Short: what they need, a qualifying question or two, contact details. Book a call or say what happens next." },
+  { value: "quote", label: "Quote", text: "A price or cost calculator", email: "required", recipe: "Settings for every rate or price, sliders and picture cards for what drives the price, a calc for the total, a result step with a metric and a summary, outcomes by size of job." },
+  { value: "order", label: "Order", text: "Products, custom orders, donations or tickets", email: "required", recipe: "Picture cards for products with prices as settings, numbers for quantities, a calc for the total, a result step with a summary, delivery or pickup details, contact details last." },
+  { value: "booking", label: "Booking", text: "Meetings, appointments, classes or rentals", email: "required", recipe: "What they want booked (picture cards), when (date), a few details, contact details; the booking step follows." },
+  { value: "qualify", label: "Qualify", text: "Score a lead or find the right plan", email: "required", recipe: "Choices with scores, a calc for the score, outcomes by score or answer (each with specific advice), a result step with a meter and the outcome, paths that end early for a clear no." },
+  { value: "quiz", label: "Quiz", text: "Graded or personality quiz", email: "optional", recipe: "One question per screen with picture cards, scores on the right or matching answers, a calc for the score, outcomes for each result type, a result step with the outcome; email optional to get the result sent." },
+  { value: "survey", label: "Survey", text: "NPS, feedback, polls or research", email: "optional", recipe: "A rating or 0 to 10 choice first, short follow-ups by the answer (paths or show rules), one open text question, email optional. No result step." },
+  { value: "testimonial", label: "Testimonial", text: "Reviews and customer quotes", email: "required", recipe: "A rating, an open text question for the quote, name, title and company, a photo upload (file), consent to publish it." },
+  { value: "registration", label: "Registration", text: "Events, courses, memberships or intake", email: "required", recipe: "Which session or option (cards), attendee details, dietary or access needs, consent; one step per topic." },
+  { value: "application", label: "Application", text: "Jobs, grants, vendors or speakers", email: "required", recipe: "Several steps: about you, experience, the role or program questions, a file upload for a resume or deck, links. Long text where it counts." },
+  { value: "support", label: "Support", text: "Tickets, returns, bugs or complaints", email: "required", recipe: "What it's about (cards), details by type (show rules), order or account number, a file upload for a screenshot or photo, how urgent." },
+  { value: "consent", label: "Consent", text: "Releases, waivers or patient intake", email: "required", recipe: "The terms in a section, details of the person, the specific permissions as checkboxes, a required consent box (consent mode always, required)." },
+  { value: "internal", label: "Internal", text: "Reports, time off, expenses or IT requests", email: "optional", recipe: "Plain and quick: who, what, dates, numbers, a file upload when receipts or screenshots help. No hero, no result step." },
 ];
+const OLD_GOALS: Record<string, Kind> = { leads: "lead", assess: "qualify", recommend: "qualify", book: "booking" };
+/** A kind from what a client sent, old goal names included. */
+export const kindOf = (v: unknown): Kind | null => (typeof v === "string" ? (FORM_KINDS.includes(v as Kind) ? (v as Kind) : (OLD_GOALS[v] ?? null)) : null);
+const info = (k: Kind) => KINDS.find((x) => x.value === k)!;
+
+/** The kind from the owner's words, when the model isn't there to pick. */
+export function guessKind(note: string): Kind {
+  const t = note.toLowerCase();
+  const by: [Kind, RegExp][] = [
+    ["survey", /\b(nps|survey|feedback|poll|csat|satisfaction|research)\b/],
+    ["quiz", /\b(quiz|trivia|personality|test your)\b/],
+    ["quote", /\b(quote|estimate|calculat|pricing|cost|roi)\w*/],
+    ["order", /\b(order|buy|purchase|donat|ticket|pre-?order)\w*/],
+    ["booking", /\b(book|appointment|reserv|schedul|rental|rent)\w*/],
+    ["qualify", /\b(qualif|score|assess|readiness|which plan|plan finder|recommend)\w*/],
+    ["testimonial", /\b(testimonial|review|case study)\b/],
+    ["registration", /\b(regist|enrol|sign ?up for|rsvp|attend|membership|intake)\w*/],
+    ["application", /\b(appl(y|ication)|job|hiring|grant|scholarship|vendor|speaker)\w*/],
+    ["support", /\b(support|ticket|bug|return|refund|warranty|complain)\w*/],
+    ["consent", /\b(consent|waiver|release|nda|liability|patient)\w*/],
+    ["internal", /\b(time off|leave request|expense|daily report|weekly report|incident|it request|employee)\b/],
+  ];
+  return by.find(([, re]) => re.test(t))?.[0] ?? "lead";
+}
 
 export type Brief = {
   name: string;
@@ -145,37 +181,62 @@ const ASK_SCHEMA = {
 };
 
 /** The questions when the model isn't there: still useful, never blocking. */
-export function defaultQuestions(goal: Goal): AskQuestion[] {
+export function defaultQuestions(kind: Kind): AskQuestion[] {
   const who: AskQuestion = { id: "audience", question: "Who will fill it in?", kind: "choice", options: ["New customers", "Existing customers", "Both"] };
   const next: AskQuestion = { id: "next", question: "What should happen at the end?", kind: "choice", options: ["Book a call", "Email them the result", "Show a thank-you"] };
-  const by: Record<Goal, AskQuestion> = {
+  const by: Record<Kind, AskQuestion> = {
+    lead: { id: "need", question: "What do you need to know about each lead?", kind: "text", options: [] },
     quote: { id: "price", question: "What drives the price?", kind: "text", options: [] },
-    assess: { id: "levels", question: "What should the score measure?", kind: "text", options: [] },
-    recommend: { id: "options", question: "What can it recommend?", kind: "text", options: [] },
-    quiz: { id: "topic", question: "What is the quiz about?", kind: "text", options: [] },
-    book: { id: "meetings", question: "Which meetings can they book?", kind: "text", options: [] },
-    leads: { id: "need", question: "What do you need to know about each lead?", kind: "text", options: [] },
+    order: { id: "items", question: "What can people order, and at what prices?", kind: "text", options: [] },
+    booking: { id: "meetings", question: "What can people book?", kind: "text", options: [] },
+    qualify: { id: "levels", question: "What makes a good fit?", kind: "text", options: [] },
+    quiz: { id: "topic", question: "What is the quiz about, and what results can people get?", kind: "text", options: [] },
+    survey: { id: "measure", question: "What do you want to measure?", kind: "choice", options: ["How likely they are to recommend you", "How happy they are", "What to build next", "One quick question"] },
+    testimonial: { id: "about", question: "What should the quote be about?", kind: "text", options: [] },
+    registration: { id: "event", question: "What are people signing up for?", kind: "text", options: [] },
+    application: { id: "role", question: "What are people applying for?", kind: "text", options: [] },
+    support: { id: "topics", question: "What do people usually need help with?", kind: "text", options: [] },
+    consent: { id: "terms", question: "What are people agreeing to?", kind: "text", options: [] },
+    internal: { id: "request", question: "What does the team send in with it?", kind: "text", options: [] },
   };
-  return [by[goal], who, next];
+  return kind === "internal" ? [by.internal] : [by[kind], who, ...(info(kind).email === "required" ? [next] : [])];
 }
 
-export async function askQuestions(call: Caller, brief: Brief | null, goal: Goal, note: string): Promise<AskQuestion[]> {
+const ASK_KIND_SCHEMA = {
+  type: "object",
+  properties: { kind: { type: "string", enum: [...FORM_KINDS] }, questions: (ASK_SCHEMA as { properties: { questions: object } }).properties.questions },
+  required: ["kind", "questions"],
+  additionalProperties: false,
+};
+
+/**
+ * The questions for the person building it, written for this business and kind. With no kind given, the model picks
+ * the kind from the brief and the owner's line in the same call.
+ */
+export async function askQuestions(call: Caller, brief: Brief | null, kind: Kind | null, note: string): Promise<{ kind: Kind; questions: AskQuestion[] }> {
+  const kinds = KINDS.map((k) => `${k.value}: ${k.text}`).join("\n");
   const out = await call({
-    system:
-      "You help a business owner set up an interactive web form. From their brief and goal, ask 3 to 5 short questions whose answers you need to build it well: what drives the price or score, which options to compare, who fills it in, what happens at the end. Never ask what the brief already says. Offer choices (2 to 6, short) when the answers are a known list; use text otherwise. Plain words, no jargon.",
-    user: JSON.stringify({ goal: GOALS.find((g) => g.value === goal)?.text, note, brief }),
-    schema: ASK_SCHEMA,
+    system: `You help a business owner set up a web form. ${kind ? "" : `First pick what kind of form it is from their line and their business:\n${kinds}\nThen `}ask 3 to 5 short questions whose answers you need to build it well for that kind: what drives the price or score, which options to offer, who fills it in, what happens at the end. Never ask what the brief or their line already says. Offer choices (2 to 6, short) when the answers are a known list; use text otherwise. Plain words, no jargon.`,
+    user: JSON.stringify({ ...(kind ? { kind: `${kind}: ${info(kind).text}` } : {}), owner_line: note, brief }),
+    schema: kind ? ASK_SCHEMA : ASK_KIND_SCHEMA,
     effort: "low",
     maxTokens: 2000,
   }).catch(() => null);
-  if (!out) return defaultQuestions(goal);
-  const qs = (JSON.parse(out.text) as { questions: AskQuestion[] }).questions ?? [];
-  const clean = qs
+  const fallback = kind ?? guessKind(note);
+  if (!out) return { kind: fallback, questions: defaultQuestions(fallback) };
+  let parsed: { kind?: unknown; questions?: AskQuestion[] };
+  try {
+    parsed = JSON.parse(out.text) as typeof parsed;
+  } catch {
+    return { kind: fallback, questions: defaultQuestions(fallback) };
+  }
+  const picked = kind ?? kindOf(parsed.kind) ?? fallback;
+  const clean = (parsed.questions ?? [])
     .filter((q) => q && typeof q.question === "string" && q.question.trim())
     .slice(0, 5)
     .map((q, i) => ({ id: /^[a-z0-9_]{1,24}$/.test(q.id) ? q.id : `q${i + 1}`, question: q.question.slice(0, 200), kind: q.kind === "multi" || q.kind === "text" ? q.kind : "choice", options: (q.options ?? []).map(String).slice(0, 6) }) as AskQuestion)
     .map((q) => (q.kind !== "text" && q.options.length < 2 ? { ...q, kind: "text" as const, options: [] } : q));
-  return clean.length ? clean : defaultQuestions(goal);
+  return { kind: picked, questions: clean.length ? clean : defaultQuestions(picked) };
 }
 
 // Building the form --------------------------------------------------------------------------------------------------
@@ -183,9 +244,12 @@ export async function askQuestions(call: Caller, brief: Brief | null, goal: Goal
 export const BUILD_SYSTEM = `You build an interactive web form for a business, as JSON in Claritia's form format. Answer with one JSON object {"name", "form", "summary"} and nothing else.
 
 THE FORMAT
-form = { steps, rules: [], layout, submit: {label}, consent: {mode: "by_region", label}, spam: {minSeconds: 2, turnstile: false}, after: {end: {kind: "message", title, text?}}, constants?, results? }
-layout = {labels: "above", width: "wide", mode: "screens", auto: true, cover?: {title, text?, button?}}
-step = {id, title?, fields: [field], result?: true}   (ids: 1 to 24 lowercase letters or digits)
+form = { kind, steps, rules: [], layout, submit: {label}, consent: {mode: "by_region", label}, spam: {minSeconds: 2, turnstile: false}, after: {end: {kind: "message", title, text?}}, constants?, results?, emailOptional? }
+layout = {labels: "above", width: "wide", mode: "screens", auto: true, cover?: {title, text?, button?}, side?: {image, at?: "right"}}
+step = {id, title?, fields: [field], result?: true, image?, jumps?: [{when: cond, to}]}   (ids: 1 to 24 lowercase letters or digits)
+- side: a split screen, the picture beside every step (image: an https address from the brief's pictures only). A step's image replaces it for that step.
+- jumps: paths by answer after this step, checked in order: to is a later step's index (0-based, past the next one), or the number of steps to send the form right there (end early, for a clear "not a fit").
+- emailOptional: true when the kind doesn't need an email (polls, anonymous surveys, quizzes, internal forms); the email question is then optional or left out.
 field = {id, key, type, label, required, ...}
 - keys: "email", "name", "first_name", "last_name", "phone", "company", "website", "title", "country" for contact details; "q.<snake_case>" for answers; "c.<id>" for sections and results.
 - types: text, email, phone, textarea, number, choice, multi, dropdown, checkbox, date, url, rating, calc, html, result, heading, paragraph.
@@ -197,9 +261,11 @@ field = {id, key, type, label, required, ...}
 - result: result {kind: "metric"|"meter"|"summary"|"bars"|"outcome"|"email", field?, fields?, max?} on a step with result: true, which holds only result, html, heading, paragraph and calc fields.
 constants = [{id, name, value: number|null, format?: "money"|"percent", private?: true}]
 results = {show: "instant"|"after_contact", outcomes: [{id, title, text?, when?: {logic: "all"|"any", conds: [{field, op, value?, value2?, values?}]}}]} - first match wins; the LAST outcome has no when (everyone else). ops: is, is_not, filled, empty, gt, gte, lt, lte, between (value, value2), any_of (values).
-There must be exactly one field with key "email", and every step except result steps needs at least one question.
+There must be exactly one field with key "email" (unless emailOptional is true; then at most one, not required), and every step except result steps needs at least one question.
 
 HOW TO BUILD IT WELL
+- Build the kind you're given, following its recipe. Set form.kind to it.
+- When the brief has pictures and the kind is visual (quiz, quote, order, booking, qualify, lead), use a split screen (layout.side) with the best picture, and step images where a different picture fits a step better.
 - Start with a cover (layout.cover) or a first-step html hero tailored to this business: its offer, its audience, its words, and one picture from the brief when there is one.
 - Ask only what changes the result. One idea per step. Use picture cards (cards: true) for short visual choices such as goals, types or categories, sliders for ranges, numbers for counts. Keep long lists and ordered scales as plain choices.
 - For a price, score, recommendation or quiz: settings for every rate or price, calculations that read the answers, a result step with result blocks and an outcome block, and outcomes that say something specific and useful for each case. Make answers change the outcome, not only repeat it.
@@ -226,8 +292,24 @@ export type Built = { name: string; form: Form; summary: BuildSummary; rounds: n
  * Build, check, fix: the draft goes through checkForm, and its problems go back to the model (up to `fixes` times).
  * Returns only a form that passes, or null.
  */
-export async function buildForm(call: Caller, input: { brief: Brief | null; goal: Goal; note: string; answers: Record<string, string | string[]>; site: string; book?: unknown }, fixes = 2): Promise<Built | null> {
-  const user = JSON.stringify({ goal: GOALS.find((g) => g.value === input.goal)?.text, site: input.site, brief: input.brief, brand_book: input.book ?? null, owner_note: input.note, owner_answers: input.answers });
+/** What each kind must have, so the fix loop catches a quote with no price or a survey with nothing to rate. */
+export function kindProblems(form: Form, kind: Kind): string[] {
+  const fields = allFields(form);
+  const has = (t: string) => fields.some((f) => f.type === t);
+  const out: string[] = [];
+  if ((kind === "quote" || kind === "order") && !has("calc")) out.push(`A ${kind} form needs a calc field for the total.`);
+  if ((kind === "qualify" || kind === "quiz") && !form.results?.outcomes?.length) out.push(`A ${kind} form needs results with outcomes.`);
+  if (kind === "survey" && !fields.some((f) => f.type === "rating" || f.type === "choice")) out.push("A survey needs a rating or a choice to answer.");
+  if (kind === "testimonial" && !has("textarea")) out.push("A testimonial form needs a long text question for the quote.");
+  if (kind === "application" && !has("file")) out.push("An application needs a file upload.");
+  if (kind === "consent" && form.consent.mode !== "always") out.push('A consent form needs consent mode "always" with required: true.');
+  if (info(kind).email === "required" && form.emailOptional) out.push(`A ${kind} form needs the email: leave emailOptional out.`);
+  return out;
+}
+
+export async function buildForm(call: Caller, input: { brief: Brief | null; kind: Kind; note: string; answers: Record<string, string | string[]>; site: string; book?: unknown }, fixes = 2): Promise<Built | null> {
+  const k = info(input.kind);
+  const user = JSON.stringify({ kind: k.value, kind_is: k.text, recipe: k.recipe, email: k.email, site: input.site, brief: input.brief, brand_book: input.book ?? null, owner_note: input.note, owner_answers: input.answers });
   const history: Anthropic.Beta.BetaMessageParam[] = [{ role: "user", content: user }];
   const usage: Anthropic.Beta.BetaUsage[] = [];
   for (let round = 0; round <= fixes; round++) {
@@ -237,15 +319,17 @@ export async function buildForm(call: Caller, input: { brief: Brief | null; goal
     let problems: string[];
     try {
       const raw = firstJson(out.text) as { name?: unknown; form?: unknown; summary?: Partial<BuildSummary> };
-      const r = checkForm({ ...emptyForm(), ...(raw.form && typeof raw.form === "object" ? raw.form : {}) });
-      if ("form" in r) {
+      const r = checkForm({ ...emptyForm(), ...(raw.form && typeof raw.form === "object" ? raw.form : {}), kind: input.kind });
+      const missing = "form" in r ? kindProblems(r.form, input.kind) : [];
+      // The kind's must-haves count only while there are rounds left to fix them; the last round keeps a valid form.
+      if ("form" in r && (!missing.length || round === fixes)) {
         const s = raw.summary ?? {};
         const list = (x: unknown) => (Array.isArray(x) ? x.map(String).filter(Boolean).slice(0, 12) : []);
         // Settings left blank are always in the list, whatever the model wrote.
         const replace = [...new Set([...list(s.replace), ...unsetConstants(r.form).map((c) => `${c.name}: set the real value`)])];
         return { name: typeof raw.name === "string" && raw.name.trim() ? raw.name.trim().slice(0, 120) : "New form", form: r.form, summary: { built: list(s.built), assumptions: list(s.assumptions), replace }, rounds: round + 1, usage };
       }
-      problems = r.errors;
+      problems = "errors" in r ? r.errors : missing;
     } catch (e) {
       problems = [e instanceof Error ? e.message : "The answer wasn't valid JSON."];
     }
