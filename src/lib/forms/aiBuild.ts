@@ -343,6 +343,8 @@ async function draftLoop(
     } catch (e) {
       problems = [e instanceof Error ? e.message : "The answer wasn't valid JSON."];
     }
+    // In the server's log, so a form that keeps failing can be looked into.
+    console.warn(`form ai: round ${round + 1} refused: ${problems.slice(0, 5).join(" | ")}`);
     history.push({ role: "assistant", content: out.text }, { role: "user", content: `The checker refused it:\n- ${problems.slice(0, 20).join("\n- ")}\nFix every problem and answer with the whole JSON object again.` });
   }
   return null;
@@ -397,7 +399,7 @@ export async function sketchForm(call: Caller, input: { brief: Brief | null; not
 export async function refineForm(call: Caller, input: { form: Form; kind: Kind; question: string; answer: string | string[]; brief: Brief | null; book?: unknown }): Promise<Built | null> {
   const k = info(input.kind);
   const user = JSON.stringify({ kind: k.value, recipe: k.recipe, email: k.email, brief: input.brief, brand_book: input.book ?? null, current_draft: input.form, question: input.question, answer: input.answer });
-  const r = await draftLoop(call, BUILD_SYSTEM + REFINE_ADD, user, () => input.kind, { fixes: 1, effort: "low", maxTokens: 16000 });
+  const r = await draftLoop(call, BUILD_SYSTEM + REFINE_ADD, user, () => input.kind, { fixes: 2, effort: "medium", maxTokens: 32000 });
   if (!r) return null;
   return { name: r.name, form: r.form, summary: r.summary, rounds: r.rounds, usage: r.usage };
 }

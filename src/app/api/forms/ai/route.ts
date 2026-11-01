@@ -162,7 +162,7 @@ export async function POST(request: Request) {
     if (!question || !answer.length) return bad("Answer the question first.");
     const book = await bookOf(b.kitId, false);
     try {
-      const r = await cachedStep(rpc, ws, "form_ai_refine", hashKey(BUILD_MODEL, "refine-1", checked.form, kind, question, answer, brief, book), async () => {
+      const r = await cachedStep(rpc, ws, "form_ai_refine", hashKey(BUILD_MODEL, "refine-2", checked.form, kind, question, answer, brief, book), async () => {
         const usage = { value: ZERO };
         const out = await refineForm(counted(usage), { form: checked.form as Form, kind, question, answer, brief, book });
         return { result: out ? { name: out.name, form: out.form, summary: out.summary } : null, model: BUILD_MODEL, usage: usage.value, keep: !!out };

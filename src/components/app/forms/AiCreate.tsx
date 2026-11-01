@@ -15,6 +15,7 @@ import { AiMark } from "../Ai";
 import { Select, type Option } from "../Select";
 import { ErrorNote, errorText, must, postJson, type ViewProps } from "../ui";
 import { useMeetingTypes } from "../meetings/TypesList";
+import { FormSketch } from "../../sketches/FormSketch";
 import { Ic } from "./ic";
 import { BTN, EYEBROW, GHOST, GHOST_SM, IB, IN, Seg } from "./parts";
 import { FormPreview } from "./shared";
@@ -38,19 +39,34 @@ export const SUMMARY_KEY = "claritia:form-ai-summary:";
 type Stage = "start" | "sketching" | "questions" | "after" | "creating";
 type Style = string | "claritia" | "learn";
 
-/** The waiting animation: dots going round, each one swelling as the wave passes. Still under reduced motion. */
-function Throbber({ label }: { label: string }) {
+/**
+ * Progress while the AI works: a thin bar, the percent and what it's doing. The work has no real percent, so it runs
+ * on the time the step usually takes, slowing as it nears the end and never passing 95% until the answer is in.
+ */
+function Progress({ phases, expectMs }: { phases: string[]; expectMs: number }) {
+  const [start] = useState(() => Date.now());
+  const [now, setNow] = useState(start);
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 200);
+    return () => clearInterval(t);
+  }, []);
+  const pct = Math.min(95, Math.round(95 * (1 - Math.exp(((now - start) / expectMs) * -2.3))));
+  const phase = phases[Math.min(phases.length - 1, Math.floor((pct / 96) * phases.length))]!;
   return (
-    <div role="status" aria-live="polite" className="flex flex-col items-center gap-[14px] text-muted">
-      <span className="relative block size-[64px]" aria-hidden="true">
-        {Array.from({ length: 8 }, (_, i) => (
-          <span key={i} className="nf-dot absolute top-1/2 left-1/2 block size-[9px] rounded-full bg-ink" style={{ transform: `rotate(${i * 45}deg) translate(26px) rotate(${-i * 45}deg)`, animationDelay: `${i * 110}ms` }} />
-        ))}
-      </span>
-      <span className="text-[13px]">{label}</span>
+    <div role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct} aria-label={phase} className="flex w-[min(320px,80%)] flex-col gap-[8px] rounded-[10px] border border-line bg-card p-[14px] shadow-[0_8px_28px_rgb(0_0_0/0.08)]">
+      <div className="flex items-baseline justify-between gap-[8px] text-[13px]">
+        <span className="text-ink">{phase}</span>
+        <span className="font-mono text-[12px] text-muted tabular-nums">{pct}%</span>
+      </div>
+      <div className="h-[4px] overflow-hidden rounded-full bg-paper-deep">
+        <div className="h-full origin-left rounded-full bg-ink transition-transform duration-[200ms] ease-out motion-reduce:transition-none" style={{ transform: `scaleX(${pct / 100})` }} />
+      </div>
     </div>
   );
 }
+
+const SKETCH_PHASES = ["Reading your website", "Choosing the questions", "Adding logic and results", "Checking every path"];
+const REFINE_PHASES = ["Reading your answer", "Changing the form", "Checking every path"];
 
 export function AiCreate({ sb, session, ws, navigate, site, kits: start, onClose, onBlank, note: initialNote = "" }: Pick<ViewProps, "sb" | "session" | "ws" | "navigate"> & { site: string; kits: KitLite[]; meetingType?: string | null; onClose: () => void; onBlank?: () => void; note?: string }) {
   const [kits, setKits] = useState<KitLite[]>(start);
@@ -69,11 +85,13 @@ export function AiCreate({ sb, session, ws, navigate, site, kits: start, onClose
   const [questions, setQuestions] = useState<AskQuestion[]>([]);
   const [at, setAt] = useState(0);
   const [answer, setAnswer] = useState<string | string[]>("");
-  const [said, setSaid] = useState<{ q: string; a: string }[]>([]);
+  const [said, setSaid] = useState<{ q: string; a: string; kept?: true }[]>([]);
   const [busy, setBusy] = useState(false);
   const [after, setAfter] = useState<AfterChoice>({ kind: "thanks" });
   const [afterUrl, setAfterUrl] = useState("");
   const types = useMeetingTypes(sb, ws.id).data ?? [];
+  // Start over: the preview drawn fresh, back on its first step with no answers.
+  const [run, setRun] = useState(0);
 
   const kit = kits.find((k) => k.id === style) ?? null;
   const tokens: Partial<Tokens> = (kit?.tokens as Partial<Tokens> | null) ?? {};
@@ -150,8 +168,11 @@ export function AiCreate({ sb, session, ws, navigate, site, kits: start, onClose
       setSummary(r.summary);
       setSaid((s) => [...s, { q: q.question, a: Array.isArray(a) ? a.join(", ") : a }]);
       next();
-    } catch (e) {
-      setError(errorText(e));
+    } catch {
+      // The answer is kept for the builder's summary, and the questions go on.
+      setSaid((s) => [...s, { q: q.question, a: Array.isArray(a) ? a.join(", ") : a, kept: true }]);
+      setSummary((sm) => ({ built: sm?.built ?? [], assumptions: sm?.assumptions ?? [], replace: [...(sm?.replace ?? []), `Add to the form: ${q.question} ${Array.isArray(a) ? a.join(", ") : a}`] }));
+      next();
     } finally {
       setBusy(false);
     }
@@ -289,7 +310,10 @@ export function AiCreate({ sb, session, ws, navigate, site, kits: start, onClose
               {said.map((x, i) => (
                 <div key={i} className="flex flex-col gap-[2px]">
                   <span className="text-[12px] text-muted">{x.q}</span>
-                  <span className="text-[13px] text-ink">{x.a}</span>
+                  <span className="text-[13px] text-ink">
+                    {x.a}
+                    {x.kept ? <span className="text-muted"> (to add in the builder)</span> : null}
+                  </span>
                 </div>
               ))}
               {stage === "questions" && q ? (
@@ -362,22 +386,29 @@ export function AiCreate({ sb, session, ws, navigate, site, kits: start, onClose
       <section aria-label="Live preview" className="relative flex min-h-0 flex-col bg-paper">
         <div className="flex h-[48px] shrink-0 items-center border-b border-line bg-card px-[16px]">
           <span className={EYEBROW}>Live preview</span>
+          <span className="flex-1" />
+          {draft ? (
+            <button type="button" className={GHOST_SM} onClick={() => setRun((r) => r + 1)}>
+              Start over
+            </button>
+          ) : null}
         </div>
         <div className="relative flex min-h-0 flex-1 items-start justify-center overflow-y-auto px-[16px] py-[28px]">
-          {!draft && style === "learn" && !kit ? (
-            <div className="self-center">
-              <Throbber label={stage === "sketching" ? "Sketching your form" : "Waiting for your brand"} />
+          {!draft && style === "learn" && !kit && stage !== "sketching" ? (
+            <div className="flex flex-col items-center gap-[10px] self-center text-center">
+              <FormSketch />
+              <span className="text-muted">{learning ? "Reading the website's brand" : "Pick a styling to see it here"}</span>
             </div>
           ) : (
             <div className={`keep-light w-full max-w-[1040px] transition-opacity duration-[200ms] ${thinking ? "opacity-40" : ""}`}>
               <div className="rounded-[14px] p-[24px] shadow-[0_1px_2px_rgb(0_0_0/0.05),0_0_0_1px_rgb(0_0_0/0.06)]" style={{ background: (tokens as { background?: string }).background }}>
-                <FormPreview form={shown} tokens={tokens} />
+                <FormPreview key={run} form={shown} tokens={tokens} />
               </div>
             </div>
           )}
-          {thinking && (draft || kit || style !== "learn") ? (
+          {thinking ? (
             <div className="absolute inset-0 flex items-center justify-center">
-              <Throbber label={stage === "sketching" ? "Sketching your form" : stage === "creating" ? "Creating it" : "Adding your answer"} />
+              {stage === "sketching" ? <Progress key="sketch" phases={SKETCH_PHASES} expectMs={45_000} /> : stage === "creating" ? <Progress key="create" phases={["Saving your form"]} expectMs={2_000} /> : <Progress key={`refine-${at}`} phases={REFINE_PHASES} expectMs={25_000} />}
             </div>
           ) : null}
         </div>
