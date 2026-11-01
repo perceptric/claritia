@@ -374,6 +374,10 @@ body {
 @keyframes sk-route { 0%, 10% { offset-distance: 0%; opacity: 1; } 55%, 80% { offset-distance: 100%; opacity: 1; } 90%, 100% { offset-distance: 100%; opacity: 0; } }
 .sk-pick { animation: sk-pick 5s linear infinite; }
 @keyframes sk-pick { 0%, 54% { transform: scale(1); } 58% { transform: scale(1.15); } 64%, 100% { transform: scale(1); } }
+.sk-sync-r { animation: sk-sync-r 4s var(--ease-in-out, ease-in-out) infinite; }
+.sk-sync-l { animation: sk-sync-l 4s var(--ease-in-out, ease-in-out) infinite; animation-delay: 1s; }
+@keyframes sk-sync-r { 0%, 10% { transform: translateX(0); opacity: 0; } 20% { opacity: 1; } 70% { transform: translateX(34px); opacity: 1; } 85%, 100% { transform: translateX(34px); opacity: 0; } }
+@keyframes sk-sync-l { 0%, 10% { transform: translateX(0); opacity: 0; } 20% { opacity: 1; } 70% { transform: translateX(-34px); opacity: 1; } 85%, 100% { transform: translateX(-34px); opacity: 0; } }
 .sk-rise { animation: sk-rise 900ms var(--ease-out) both; }
 .sk-rise.sk-d1 { animation-delay: 120ms; } .sk-rise.sk-d2 { animation-delay: 240ms; } .sk-rise.sk-d3 { animation-delay: 360ms; }
 @keyframes sk-rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }

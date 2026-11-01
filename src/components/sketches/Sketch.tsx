@@ -195,7 +195,60 @@ function Week() {
   );
 }
 
-const SCENES = { clipboard: Form, funnel: Catch, cards: Pipeline, road: Chain, plane: Branch, signpost: Branch, envelopes: Mail, browser: Feed, megaphone: People, gear: Toggles, calendar: Week } as const;
+/** Two tools trading contacts: rows travel each way along the lines, one in emerald. */
+function Sync() {
+  return (
+    <g>
+      {[0, 1].map((side) => (
+        <g key={side}>
+          <rect x={side ? 102 : 22} y="30" width="36" height="60" rx="5" fill={CARD} stroke={INK} strokeWidth="1.1" />
+          <text x={side ? 120 : 40} y="40" textAnchor="middle" style={MONO}>{side ? "CLARITIA" : "CRM"}</text>
+          {[0, 1, 2].map((i) => <Bar key={i} x={side ? 108 : 28} y={48 + i * 11} w={24 - i * 4} h={2} c={i === 0 ? INK : LINE} />)}
+        </g>
+      ))}
+      <line x1="60" y1="52" x2="100" y2="52" stroke={LINE} strokeWidth="0.8" strokeDasharray="2 2" />
+      <line x1="60" y1="68" x2="100" y2="68" stroke={LINE} strokeWidth="0.8" strokeDasharray="2 2" />
+      <rect x="58" y="49" width="10" height="6" rx="2" fill={SIGNAL} className="sk-sync-r" />
+      <rect x="92" y="65" width="10" height="6" rx="2" fill={CARD} stroke={INK} strokeWidth="0.8" className="sk-sync-l" />
+    </g>
+  );
+}
+
+/** An envelope with its three checks turning on, one after another. */
+function Domain() {
+  return (
+    <g>
+      <rect x="40" y="24" width="80" height="50" rx="5" fill={CARD} stroke={INK} strokeWidth="1.1" />
+      <path d="M40 28l40 26 40-26" stroke={INK} strokeWidth="1.1" fill="none" strokeLinejoin="round" />
+      {["DKIM", "SPF", "DMARC"].map((t, i) => (
+        <g key={t}>
+          <rect x={34 + i * 32} y="84" width="28" height="12" rx="6" fill={CARD} stroke={LINE} strokeWidth="0.8" />
+          <circle cx={41 + i * 32} cy="90" r="2.6" fill={SIGNAL} className={`sk-pop sk-d${i + 1}`} />
+          <text x={52 + i * 32} y="91.8" textAnchor="middle" style={{ ...MONO, fontSize: 4.2 }}>{t}</text>
+        </g>
+      ))}
+    </g>
+  );
+}
+
+/** A key and a line of code that types itself. */
+function Key() {
+  return (
+    <g>
+      <rect x="30" y="58" width="100" height="34" rx="5" fill={CARD} stroke={INK} strokeWidth="1.1" />
+      <text x="38" y="70" style={MONO}>CURL</text>
+      <Bar x={38} y={76} w={70} h={2} c={LINE} cls="sk-type" />
+      <Bar x={38} y={82} w={46} h={2} c={LINE} cls="sk-type sk-type-1" />
+      <g className="sk-pick">
+        <circle cx="62" cy="38" r="10" fill={CARD} stroke={INK} strokeWidth="1.1" />
+        <circle cx="62" cy="38" r="3.2" fill={SIGNAL} />
+        <path d="M72 38h28v6M90 38v5" stroke={INK} strokeWidth="1.1" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+      </g>
+    </g>
+  );
+}
+
+const SCENES = { clipboard: Form, funnel: Catch, cards: Pipeline, road: Chain, plane: Branch, signpost: Branch, envelopes: Mail, browser: Feed, megaphone: People, gear: Toggles, calendar: Week, sync: Sync, domain: Domain, key: Key } as const;
 
 export type SketchName = keyof typeof SCENES;
 

@@ -19,6 +19,31 @@ import { ImportsSettings } from "./ImportsSettings";
 import { SourcesSettings, SyncLog } from "./SourcesSettings";
 import { Avatar, Badge, Button, CardHead, ErrorNote, errorText, Loading, must, Page, Panel, postJson, timeAgo, useQuery, type ViewProps } from "../ui";
 import { CopyButton } from "../CopyButton";
+import { ToolIntro } from "../ToolIntro";
+
+/** Data model: the objects and the fields of each, as two tabs on one page. */
+function DataModel({ sb, ws, role, navigate, start }: Pick<ViewProps, "sb" | "ws" | "role" | "navigate"> & { start: "fields" | "objects" }) {
+  const [tab, setTab] = useState<"fields" | "objects">(start);
+  return (
+    <div className="flex flex-col gap-4">
+      <div role="tablist" aria-label="Data model" className="flex gap-1 border-b border-line">
+        {(["fields", "objects"] as const).map((t) => (
+          <button
+            key={t}
+            type="button"
+            role="tab"
+            aria-selected={tab === t}
+            onClick={() => setTab(t)}
+            className={`-mb-px h-9 border-b-2 px-3 text-[13px] font-medium transition-colors duration-[140ms] ${tab === t ? "border-ink text-ink" : "border-transparent text-muted hover:text-ink"}`}
+          >
+            {t === "fields" ? "Contact fields" : "Objects"}
+          </button>
+        ))}
+      </div>
+      {tab === "fields" ? <FieldsSettings sb={sb} ws={ws} role={role} /> : <ObjectsSettings sb={sb} ws={ws} role={role} navigate={navigate} />}
+    </div>
+  );
+}
 
 /** A label, a line to copy, and the shared copy button. */
 function CopyRow({ label, text }: { label: string; text: string }) {
@@ -47,21 +72,40 @@ function KeysPanel({ sb, session, ws }: Pick<ViewProps, "sb" | "session" | "ws">
     }
   };
 
+  const create = () =>
+    act(async () => {
+      const name = await askText("Key name", { placeholder: "GitHub Actions", ok: "Create key" });
+      if (!name) return;
+      const { key } = await postJson<{ key: string }>(session, "/api/keys", { workspaceId: ws.id, name });
+      setFresh({ name, key });
+      keys.reload();
+    });
+
+  if (keys.data && !keys.data.length && !fresh)
+    return (
+      <>
+        <ToolIntro
+          sketch="key"
+          title={"Connect\nyour own code"}
+          lead="Use a key with the REST API, the CLI or Claude Code."
+          action={
+            <Button onClick={create}>
+              <Plus size={13} />
+              New key
+            </Button>
+          }
+        />
+        <ErrorNote message={error} />
+      </>
+    );
+
   return (
     <Panel>
       <CardHead label="API keys" count={keys.data?.length}>
         <Button
           variant="plain"
           className="h-7 px-2"
-          onClick={() =>
-            act(async () => {
-              const name = await askText("Key name", { placeholder: "GitHub Actions", ok: "Create key" });
-              if (!name) return;
-              const { key } = await postJson<{ key: string }>(session, "/api/keys", { workspaceId: ws.id, name });
-              setFresh({ name, key });
-              keys.reload();
-            })
-          }
+          onClick={create}
         >
           <Plus size={13} />
           New key
@@ -132,13 +176,22 @@ export function SettingsView({ sb, session, ws, role, navigate, id, onWorkspace 
     }
   };
 
+  const pick = (t: SettingsTab) => {
+    setTab(t);
+    try {
+      history.replaceState(null, "", `/settings/${t}`);
+    } catch {}
+  };
+
   const pages: Record<SettingsTab, React.ReactNode> = {
+    data_model: <DataModel sb={sb} ws={ws} role={role} navigate={navigate} start={id === "objects" ? "objects" : "fields"} />,
     fields: <FieldsSettings sb={sb} ws={ws} role={role} />,
     objects: <ObjectsSettings sb={sb} ws={ws} role={role} navigate={navigate} />,
     sources: <SourcesSettings sb={sb} session={session} ws={ws} role={role} />,
     imports: <ImportsSettings sb={sb} ws={ws} />,
-    sync_log: <SyncLog sb={sb} ws={ws} navigate={navigate} />,
+    sync_log: <SyncLog sb={sb} ws={ws} navigate={navigate} onConnect={() => pick("sources")} />,
     sending: <SendingSettings sb={sb} session={session} ws={ws} role={role} />,
+    sender: <SendingSettings sb={sb} session={session} ws={ws} role={role} part="sender" />,
     sites: <SitesPanel sb={sb} ws={ws} role={role} />,
     identity: <IdentityPanel sb={sb} session={session} ws={ws} role={role} />,
     icp: <IcpPanel sb={sb} ws={ws} />,
@@ -200,17 +253,11 @@ export function SettingsView({ sb, session, ws, role, navigate, id, onWorkspace 
   const groups = SETTINGS_GROUPS;
   const tabs = groups.flatMap((g) => g.tabs);
   const current = tabs.find((t) => t.id === tab) ?? tabs[0];
-  const pick = (t: SettingsTab) => {
-    setTab(t);
-    try {
-      history.replaceState(null, "", `/settings/${t}`);
-    } catch {}
-  };
 
   return (
     <Page icon={<Settings size={14} />} title="Settings" flush>
       <div className="min-h-full bg-paper p-5 md:p-7">
-        <div className="mx-auto flex max-w-5xl flex-col gap-6 md:flex-row md:gap-10">
+        <div className="mx-auto flex max-w-6xl flex-col gap-6 md:flex-row md:gap-10">
           <nav className="flex shrink-0 flex-col gap-4 md:sticky md:top-0 md:w-48 md:self-start" aria-label="Settings">
             {groups.map((g) => (
               <div key={g.label} className="flex flex-col gap-0.5">
@@ -230,6 +277,10 @@ export function SettingsView({ sb, session, ws, role, navigate, id, onWorkspace 
             ))}
           </nav>
           <div className="flex min-w-0 flex-1 flex-col gap-5">
+            <header className="flex flex-col gap-1">
+              <h2 className="text-[20px] leading-tight font-semibold tracking-[-0.02em] text-ink">{current.label}</h2>
+              <p className="text-[13px] text-muted">{current.line}</p>
+            </header>
             <ErrorNote message={error} />
             {pages[current.id]}
           </div>

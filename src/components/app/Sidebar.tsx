@@ -81,7 +81,7 @@ export type SidebarProps = {
   /** Load a section's code ahead, when its item is hovered. */
   onPreload?: (r: Route) => void;
   create: CreateItem[];
-  start: React.ReactNode;
+  start?: React.ReactNode;
 };
 
 export function Sidebar(p: SidebarProps) {
