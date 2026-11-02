@@ -81,7 +81,117 @@ The panel on the right, short and icon-led (like Webflow's Style panel):
 Also fixed on the way: double-clicking in Edit no longer selects the Studio's own words (the green wash in the
 screenshot), and the Show if box is empty until set.
 
-## Part 6. Build order
+## Part 6. Every industry, every edge case
+
+The Studio has one job in every industry: a form that looks like the brand made it, works on any phone, keeps the
+law, and puts the lead in the CRM with the right meeting. Tia writes the layout and the words. Claritia owns
+everything that has to work the same everywhere: the hard inputs, the checks, consent, spam, the send and booking.
+
+### 6.1 Tia knows the industry before the first question
+
+- The site read that already gives the brand's look also gives its industry, its language and its country (from the
+  page's words, its `lang`, its currency and its phone formats). Tia says it once ("A dental clinic in Canada,
+  English and French") and the owner can fix it with one click. It's kept on the brand.
+- Each industry has a recipe Tia follows: the usual forms, the questions that matter, what to never ask, the default
+  After the send, and which checks are on. Recipes are data in one file, so a new industry is a few lines.
+
+| Industry | Common forms | Tia adds by default | Guardrail |
+| --- | --- | --- | --- |
+| SaaS and B2B | Demo request, trial, contact sales | Work email, team size, routes 200+ to the enterprise meeting | Free email blocked only if the owner turns it on |
+| Agencies and services | Project brief, quote request | Budget range, timeline, file upload for briefs | Budget as ranges, never an open "how much" |
+| Healthcare and dental | New patient, booking, intake | Reason for visit, insurance yes or no, booking | No diagnosis, medication or record fields unless the workspace has health data turned on (needs a signed agreement first) |
+| Legal | Case review, consultation | Case type, conflict check names, booking | A notice that sending the form doesn't make them a client |
+| Real estate | Buyer, seller, rental, valuation | Buy, sell or rent first, area, budget, timeline | Address with country format |
+| Finance and insurance | Quote, callback, application | Income and amount as ranges, callback time | Never asks for full card, bank or ID numbers in a text box |
+| Education | Enrollment, open day, course interest | Student or parent first, program, start term | Under 13 asks for a parent's details and consent |
+| Home services and trades | Estimate, service call | Address, service area check, photo upload, preferred time | Service area answer shown before the send |
+| Hospitality and events | RSVP, booking, catering | Guest count, plus-ones as "add another", dietary needs | Guest list rows capped |
+| Recruiting and HR | Job application, referral | Résumé upload, links, work rights | No age, religion, health or other protected questions |
+| Retail and e-commerce | Wholesale, returns, waitlist | Order number, product picker, photo upload | Order lookups stay read-only |
+| Nonprofits | Volunteer, donation, newsletter | Availability, interests, Stripe donation | Payments only through the payment block |
+
+### 6.2 Hard inputs are Claritia's, styled by the brand
+
+Tia's HTML handles layout and words. Anything that must work the same on every form is a Claritia block Tia drops in
+as `<div data-cl-field="...">`. The form script draws it with the brand's classes, and its answer goes through the
+usual send:
+
+- File upload (résumés, photos, briefs): today a file input in a studio page turns into a text box on publish. That
+  gets fixed by this block.
+- Phone with country, address with the country's format, date and time pickers in the visitor's language, budget and
+  range sliders, rating, signature, payment (Stripe), "add another" rows, the booking calendar, and consent.
+- Each block is accessible and tested once, so every industry gets the same working parts.
+
+### 6.3 The law and trust, built in
+
+- Consent: studio forms publish with consent off today. That changes: the form's region setting comes back
+  (by region, always, or notice), and the consent line is a block Tia places where it reads well.
+- Sensitive data check at publish: questions that look like passwords, full card numbers, bank numbers, ID or tax
+  numbers, or health records are stopped with a plain reason and a fix (the payment block, a range, or turning the
+  question off). Tia won't write them in the first place.
+- Phishing guard: a form can only wear a brand the workspace added and confirmed. A form that asks for logins or
+  copies a bank's or a big company's look can't be published. A brand's site that isn't the workspace's own needs the
+  owner to confirm they work for it, and the live form names the brand on its page.
+- Spam: the hidden trap field and the bot check come back for studio pages (turned off today), plus the timer.
+- Kids: education and events with an age question ask for a parent when the answer is under 13.
+
+### 6.4 Every visitor: phones, languages, access
+
+- Phone first: every build is checked at 390px wide before it shows. Inputs use the right keyboard (email, number,
+  phone), browser autofill names (`autocomplete`), and taps of at least 44px. Submit stays in reach on long steps.
+- Languages: Tia writes in the site's language. A form can have more languages; the visitor's browser picks, with a
+  switch on the form. Right-to-left languages flip the layout. Dates, numbers, phone and address follow the country.
+- Names and addresses don't assume one country: one full-name box unless the owner wants two, and no forced state
+  or zip outside countries that use them.
+- Access (WCAG 2.2 AA): every question has a real label, errors are tied to their question and read out, the keyboard
+  reaches every choice card, focus is always visible, and motion stops when the visitor asks for less. Brand colors
+  that are too light on white are darkened for text only, and Tia says so.
+
+### 6.5 The form check: no broken form goes live
+
+Before showing a build and again at Publish, the Studio runs one check and shows what it found in one list, each with
+a Fix button (Tia fixes it as a small patch):
+
+- Contract: every question has a unique name, steps have a way forward, the send button exists, show-if points at a
+  real question and a real answer, routes point at real answers and meeting types, the booking spot exists when the
+  form books a meeting.
+- Layout: no sideways scroll at 390px, 768px and 1100px, nothing overlaps, no text cut off, the logo loads.
+- Brand: only the brand's fonts and colors, contrast passes.
+- Access and law: the list in 6.3 and 6.4.
+
+Warnings let the owner publish; errors don't. Code edits run the same check, so hand-written HTML can't break it.
+
+### 6.6 Edge cases in the Studio itself
+
+| Case | What happens |
+| --- | --- |
+| A question is renamed after the form has answers | Its field id stays the same, so past answers, the CRM link and reports keep working. Today the id follows the name; that changes |
+| An option is renamed or removed and a route or show-if used it | The check names the route or condition and offers to move it to the new option |
+| A meeting type used by the form is deleted or turned off | The form falls back to its default meeting, the owner gets a note, and the check flags it |
+| No meeting types yet | On submission offers "Create a meeting type" in place of the list |
+| Tia stops partway or the network drops | What was written stays as a draft change with Undo; Retry sends the same ask |
+| Tia's answer breaks the contract | The check runs on it before it's applied; Tia gets the problem back once and fixes it |
+| Two teammates edit the same form | The second sees "Maya is editing" and a read-only copy until they take over; nothing is lost |
+| Editing a live form | Changes stay a draft until Publish changes; the live form doesn't move. Each publish is a version you can restore |
+| The brand's site changes or the read fails | The brand keeps its last good look. Read again shows a before and after to accept |
+| A brand with no logo, or a white logo | The name shows in the brand's font; a light logo gets a dark plate behind it in light forms |
+| Fonts the site uses that aren't free to embed | The closest free font is used, and Tia says which |
+| A huge form (40 questions) | Tia splits it into steps and turns on save and finish later |
+| A one-field form (email only) | Allowed, with no steps or progress bar |
+| Embedded on another site | Sized to its content (not the full screen), works in Webflow, WordPress, Shopify and plain HTML, and the site's CSS can't reach it |
+| The visitor is offline when they send | Kept in the browser and sent when they're back (today's queue) |
+| Typos in email | "Did you mean gmail.com?" under the box |
+| Agencies with many clients | One workspace per client, or many brands in one; the chat list filters by brand |
+
+### 6.7 How we know it's working
+
+- Time from New form to first publish (goal: under 5 minutes).
+- Forms that pass the check with no errors at first build (goal: 9 in 10).
+- How often owners undo Tia's change (a high rate means Tia misread them).
+- Fill rate and drop-off by step for studio forms, the same as other forms.
+- A test set of 30 brands across the 12 industries in 6.1, built by Tia every week in CI with the check run on each.
+
+## Part 7. Build order
 
 | Step | What | Done when |
 | --- | --- | --- |
@@ -90,20 +200,29 @@ screenshot), and the Show if box is empty until set.
 | 3 | Chats: migration 112, save and load, the chat dropdown, New chat, delete | Two forms, two chats, switching keeps each; reload and another browser show them |
 | 4 | Edit on the form: hover tags, inline text, floating bar, drag to move, keys | A browser check edits a heading, moves a choice and undoes both |
 | 5 | The panel: Style and Settings tabs, Navigator, spacing box, icons, the pickers for Show if | Every property sets and clears; the published form matches the Studio |
+| 6 | The form check (6.5) and stable field ids (6.6); consent, trap field and bot check back on studio pages | A broken route, a renamed question and a missing consent line are each caught in tests |
+| 7 | Claritia blocks in studio pages (6.2), file upload first | A résumé upload and an address send and land on the contact |
+| 8 | Industry recipes and the sensitive data check (6.1, 6.3) | The 30-brand set builds with no errors and no blocked questions slip through |
+| 9 | Languages, right-to-left and the access checks (6.4) | A French and an Arabic form pass the check at all three widths |
 
-## Part 7. Running cost
+## Part 8. Running cost
 
 Nothing new is bought. Chats are a few rows per form in the database (Supabase, already paid).
 
 "Built is built" makes changes cheaper: a change becomes a patch of a few hundred tokens out in place of the whole
-form again (about 10,000). Today's Studio estimate stays as the ceiling.
+form again (about 10,000), so the first line is a ceiling. The form check, the access checks, phone and address
+formats run in the browser and cost nothing. Address search is the browser's own autofill; paid address lookup
+(Google Places, about $17 per 1,000 searches, check) stays off unless a workspace asks for it.
 
 | Item | Beta (50 teams) | Growth (500 teams) |
 | --- | --- | --- |
 | Claude Opus (Tia), as today, at most | about $640 | about $6,400 |
+| Claude Opus: Fix buttons from the form check (about 10 fixes per team a month, about $0.05 each) | about $25 | about $250 |
+| Claude Opus: extra languages (about 2 per team a month, about $0.20 each) | about $20 | about $200 |
+| Claude Opus: the weekly 30-brand test in CI (30 builds, about $0.90 each, 4 a month) | about $110 | about $110 |
 | Chats in the database | $0 new | $0 new |
 | Servers | $0 new | $0 new |
-| **Total** | **about $640 or less** | **about $6,400 or less** |
+| **Total** | **about $795** | **about $6,960** |
 
 Opus at $4 in and $20 out per million tokens: check (from this repo's price table, not confirmed on Anthropic's
 page from here).
