@@ -83,6 +83,8 @@ export function Builder(p: BuilderProps) {
   const spec = useMemo(() => fromForm(form), [form]);
   const fields = useMemo(() => specFields(spec), [spec]);
   const [device, setDevice] = useState<"desktop" | "phone">("desktop");
+  // The frame around the live form takes the form's own background.
+  const [formBg, setFormBg] = useState("");
   const [trial, setTrial] = useState<Trial>(null);
   const [ask, setAsk] = useState("");
   const [asking, setAsking] = useState(false);
@@ -184,8 +186,8 @@ export function Builder(p: BuilderProps) {
           <Seg icons label="Device" value={device} onChange={setDevice} options={[{ value: "desktop", label: <Ic n="monitor" />, title: "Desktop" }, { value: "phone", label: <Ic n="phone" />, title: "Phone" }]} />
         </div>
         <div className="flex min-h-0 flex-1 justify-center overflow-y-auto px-[16px] pt-[28px] pb-[120px]" onClick={(e) => e.target === e.currentTarget && pick && setPick(null)}>
-          <div className={`keep-light h-fit shrink-0 rounded-[14px] p-[24px] shadow-[0_1px_2px_rgb(0_0_0/0.05),0_0_0_1px_rgb(0_0_0/0.06)] transition-[width] duration-[320ms] ease-out ${device === "phone" ? "w-[375px]" : "w-full max-w-[760px]"}`} style={{ background: (p.kit?.tokens as { background?: string } | undefined)?.background }}>
-            <FormPreview form={form} tokens={p.kit?.tokens ?? {}} logo={logoOf(p.kit)} skin={skinForKit(p.kit, typeof window === "undefined" ? "" : window.location.origin)} step={onSubmit ? 0 : cur} done={onSubmit} system={p.kit?.design ?? undefined} device={device === "phone" ? "phone" : undefined} />
+          <div className={`keep-light h-fit shrink-0 rounded-[14px] p-[24px] shadow-[0_1px_2px_rgb(0_0_0/0.05),0_0_0_1px_rgb(0_0_0/0.06)] transition-[width] duration-[320ms] ease-out ${device === "phone" ? "w-[375px]" : "w-full max-w-[760px]"}`} style={{ background: formBg || (p.kit?.tokens as { background?: string } | undefined)?.background || "#fff" }}>
+            <FormPreview form={form} tokens={p.kit?.tokens ?? {}} logo={logoOf(p.kit)} skin={skinForKit(p.kit, typeof window === "undefined" ? "" : window.location.origin)} step={onSubmit ? 0 : cur} done={onSubmit} system={p.kit?.design ?? undefined} device={device === "phone" ? "phone" : undefined} onBackground={setFormBg} />
           </div>
         </div>
         <div className="pointer-events-none absolute inset-x-0 bottom-0 flex flex-col items-center gap-[8px] px-[16px] pt-[16px] pb-[16px]">

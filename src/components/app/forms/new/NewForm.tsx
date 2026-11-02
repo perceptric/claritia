@@ -16,16 +16,19 @@ import type { Brief, FollowUp, Plan, Thanks } from "@/lib/forms/specAi";
 import { isCrmVendor } from "@/lib/sources/properties";
 import { skinForKit } from "@/lib/brand/skin";
 import { AiMark } from "../../Ai";
-import { Select, type Option } from "../../Select";
+import { Select } from "../../Select";
+import { askConfirm } from "../../Dialogs";
+import { brandName } from "@/lib/brand/name";
 import { ErrorNote, errorText, invalidate, must, postJson, useQuery, type ViewProps } from "../../ui";
 import { useMeetingTypes } from "../../meetings/TypesList";
 import { Ic } from "../ic";
 import { BTN, EYEBROW, GHOST, GHOST_SM, IB, IN, Seg, Tg } from "../parts";
 import { FormPreview } from "../shared";
-import { Throbber } from "./Throbber";
+import { BrandPicker, LEARN, type PickerKit } from "./BrandPicker";
+import { PreviewLoading, Working } from "./PreviewLoading";
 import { Wireframe } from "./Wireframe";
 
-export type KitLite = { id: string; tokens?: Partial<Tokens> | null; source_url: string | null; scan_status: string | null; logo_url?: string | null; logo_svg?: string | null; skin?: unknown };
+export type KitLite = { id: string; name?: string | null; tokens?: Partial<Tokens> | null; source_url: string | null; scan_status: string | null; logo_url?: string | null; logo_svg?: string | null; skin?: unknown; book?: { name?: string } | null };
 
 /** A brand's logo as a picture address: its https logo, or its SVG drawn as a picture (no scripts run in one). */
 export const logoOf = (k: KitLite | null | undefined): string | null =>
@@ -76,7 +79,7 @@ export function NewForm({ sb, session, ws, navigate, site, kits: start, onClose,
   const [error, setError] = useState("");
   // 1. Describe and Styling
   const [note, setNote] = useState(initialNote);
-  const [style, setStyle] = useState<string>(() => usable[0]?.id ?? "learn");
+  const [style, setStyle] = useState<string>(() => usable[0]?.id ?? LEARN);
   const [url, setUrl] = useState(usable.length ? "" : site);
   const [learning, setLearning] = useState(false);
   // 2. Layout
@@ -95,6 +98,8 @@ export function NewForm({ sb, session, ws, navigate, site, kits: start, onClose,
   const [said, setSaid] = useState<{ q: string; a: string; note?: string }[]>([]);
   const [editing, setEditing] = useState(false);
   const [run, setRun] = useState(0);
+  // The frame around the preview takes the form's own background, so the form never sits in a box of another color.
+  const [formBg, setFormBg] = useState("");
   // 4 and 5
   const [submission, setSubmission] = useState<Submission>(() => defaultSubmission(session.user.email));
   const [addTo, setAddTo] = useState("");
@@ -114,8 +119,8 @@ export function NewForm({ sb, session, ws, navigate, site, kits: start, onClose,
   const skin = useMemo(() => skinForKit(kit, typeof window === "undefined" ? "" : window.location.origin), [kit]);
   const tokens: Partial<Tokens> = (kit?.tokens as Partial<Tokens> | null) ?? {};
   const accent = (tokens.buttonBg || tokens.accent || "") as string;
-  const siteUrl = kit ? (kit.source_url ?? "") : style === "learn" ? url.trim() : "";
-  const known = style === "learn" && hostOf(url) ? kits.find((k) => hostOf(k.source_url) === hostOf(url) && (hasLook(k) || k.scan_status === "scanning")) : undefined;
+  const siteUrl = kit ? (kit.source_url ?? "") : style === LEARN ? url.trim() : "";
+  const known = style === LEARN && hostOf(url) ? kits.find((k) => hostOf(k.source_url) === hostOf(url) && (hasLook(k) || k.scan_status === "scanning")) : undefined;
   // The site's look (/api/forms/skin): the page-source copy at once, and the browser's measured read on its way. Asked
   // once per brand while New form is open, or again with Try again or Copy again.
   type Look = { state: "copying" | "done" | "error"; error?: string; measuring?: boolean };
@@ -144,7 +149,8 @@ export function NewForm({ sb, session, ws, navigate, site, kits: start, onClose,
     copyLook(kitId);
   }, [kitId, kitSite, kitMeasured, copyLook]);
   const look = kit ? looks[kit.id] : undefined;
-  const brandLoading = learning || (!!kit && (!hasLook(kit) || (look?.state === "copying" && !kit.skin)));
+  // The preview waits only while something is running that ends: learning a site, or copying its look.
+  const brandLoading = learning || (!!kit && look?.state === "copying" && !kit.skin);
 
   // While a brand is being read or measured, check back so the preview takes it as soon as it lands: the quick look,
   // then the browser's measured look over the page-source one.
@@ -163,6 +169,20 @@ export function NewForm({ sb, session, ws, navigate, site, kits: start, onClose,
     }, 3000);
     return () => clearInterval(t);
   }, [sb, kit, waiting]);
+
+  /** Delete a brand: forms in it go back to Claritia's look. */
+  const removeKit = async (k: PickerKit) => {
+    if (!(await askConfirm(`Delete ${brandName(k)}?`, { body: "Forms in this brand go back to Claritia's look.", ok: "Delete", danger: true }))) return;
+    setError("");
+    try {
+      must(await sb.rpc("brand_kit_delete", { p_id: k.id }));
+      setKits((ks) => ks.filter((x) => x.id !== k.id));
+      if (style === k.id) setStyle(usable.find((x) => x.id !== k.id)?.id ?? LEARN);
+      invalidate(`forms:${ws.id}:home`);
+    } catch (e) {
+      setError(errorText(e));
+    }
+  };
 
   const learn = async () => {
     if (!hostOf(url) || learning) return;
@@ -288,11 +308,6 @@ export function NewForm({ sb, session, ws, navigate, site, kits: start, onClose,
     }
   };
 
-  const styleOptions: Option<string>[] = [
-    ...usable.map((k) => ({ value: k.id, label: hostOf(k.source_url) || "Your brand", group: "Your brands" })),
-    { value: "claritia", label: "Claritia", group: "More" },
-    { value: "learn", label: "Learn from a website", group: "More" },
-  ];
   const screen = screenOf(stage);
   const busy = stage === "planning" || stage === "building" || editing || stage === "saving";
   const layout = spec ? layoutOf(spec) : null;
@@ -337,32 +352,20 @@ export function NewForm({ sb, session, ws, navigate, site, kits: start, onClose,
               </label>
               <div className="flex flex-col gap-[6px]">
                 <span className="text-[12px] text-muted">Styling</span>
-                <Select value={style} options={styleOptions} onChange={(v) => setStyle(v)} ariaLabel="Styling" disabled={busy} />
-                {kit ? (
-                  <div className="anim-rise-sm flex items-center gap-[10px] rounded-[10px] border border-line px-[12px] py-[10px]">
-                    {logoOf(kit) ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={logoOf(kit)!} alt="" className="h-[22px] w-auto max-w-[120px] object-contain" />
-                    ) : (
-                      <span className="inline-flex size-[22px] items-center justify-center rounded-full bg-paper-deep text-[11px] font-semibold text-muted uppercase">{(hostOf(kit.source_url) || "B").slice(0, 1)}</span>
-                    )}
-                    <span className="min-w-0 flex-1 truncate text-[13px] text-ink">{hostOf(kit.source_url) || "Your brand"}</span>
-                    {[tokens.buttonBg, tokens.accent, tokens.text, tokens.background]
-                      .filter((c, i, a): c is string => !!c && a.indexOf(c) === i)
-                      .map((c) => (
-                        <span key={c} className="size-[14px] rounded-full border border-line" style={{ background: c }} title={c} />
-                      ))}
-                    {kit.source_url ? (
-                      <button type="button" className={IB} aria-label="Copy the look again" title="Copy the look again" disabled={look?.state === "copying"} onClick={() => copyLook(kit.id, true)}>
-                        <Ic n="undo" />
-                      </button>
-                    ) : null}
+                <div className="flex items-center gap-[6px]">
+                  <div className="min-w-0 flex-1">
+                    <BrandPicker kits={usable as PickerKit[]} value={style} onChange={setStyle} onDelete={(k) => void removeKit(k)} disabled={busy} />
                   </div>
-                ) : null}
+                  {kit?.source_url ? (
+                    <button type="button" className={IB} aria-label="Copy the look again" title="Copy the look again" disabled={look?.state === "copying"} onClick={() => copyLook(kit.id, true)}>
+                      <Ic n="undo" />
+                    </button>
+                  ) : null}
+                </div>
                 {kit && look?.state === "copying" ? (
                   <span role="status" className="flex items-center gap-[6px] text-[12.5px] text-muted">
                     <AiMark size={12} working />
-                    {`Copying ${hostOf(kit.source_url) || "the site"}'s look`}
+                    {`Copying ${brandName(kit)}'s look`}
                   </span>
                 ) : kit && !kitMeasured && (look?.measuring || kit.scan_status === "scanning") ? (
                   <span role="status" className="flex items-center gap-[6px] text-[12.5px] text-muted">
@@ -378,7 +381,7 @@ export function NewForm({ sb, session, ws, navigate, site, kits: start, onClose,
                     </button>
                   </span>
                 ) : null}
-                {style === "learn" ? (
+                {style === LEARN ? (
                   <form
                     className="flex flex-col gap-[6px]"
                     onSubmit={(e) => {
@@ -455,7 +458,7 @@ export function NewForm({ sb, session, ws, navigate, site, kits: start, onClose,
                 {name || "Your form"}
                 <span className="text-faint">{spec ? ` ${questionCount(spec)} questions.` : ""}</span>
               </h2>
-              {stage === "building" ? <Throbber color={accent} label="Writing every question" /> : null}
+              {stage === "building" ? <Working label="Writing every question" /> : null}
               {spec ? (
                 <div className="flex flex-col gap-[10px]">
                   <Seg label="Layout" value={layout ?? "page"} onChange={flip} options={[{ value: "page", label: "One page" }, { value: "steps", label: "Steps" }]} />
@@ -623,11 +626,11 @@ export function NewForm({ sb, session, ws, navigate, site, kits: start, onClose,
         <div className="relative flex min-h-0 flex-1 items-start justify-center overflow-y-auto px-[16px] py-[28px]">
           {brandLoading && stage === "describe" ? (
             <div className="self-center">
-              <Throbber color={accent} label={learning ? "Reading the website's brand" : look?.state === "copying" ? `Copying ${hostOf(kit?.source_url) || "the site"}'s look` : "Getting the brand"} />
+              <PreviewLoading color={accent} label={learning ? "Reading the website's brand" : `Copying ${brandName(kit)}'s look`} />
             </div>
           ) : stage === "planning" ? (
             <div className="self-center">
-              <Throbber color={accent} label={reading ? "Reading your website" : "Thinking about the layout"} />
+              <PreviewLoading color={accent} label={reading ? "Reading your website" : "Thinking about the layout"} />
             </div>
           ) : (stage === "plan" || stage === "building") && plan ? (
             <div className={`flex w-full justify-center transition-opacity duration-[200ms] ${stage === "building" ? "opacity-40" : ""}`}>
@@ -635,14 +638,16 @@ export function NewForm({ sb, session, ws, navigate, site, kits: start, onClose,
             </div>
           ) : (
             <div className={`keep-light w-full max-w-[1040px] transition-opacity duration-[200ms] ${editing ? "opacity-40" : ""}`}>
-              <div className="rounded-[14px] p-[24px] shadow-[0_1px_2px_rgb(0_0_0/0.05),0_0_0_1px_rgb(0_0_0/0.06)]" style={{ background: (tokens as { background?: string }).background }}>
-                <FormPreview key={run} form={preview} tokens={tokens} logo={logoOf(kit)} skin={skin} />
+              <div className="rounded-[14px] p-[24px] shadow-[0_1px_2px_rgb(0_0_0/0.05),0_0_0_1px_rgb(0_0_0/0.06)]" style={{ background: formBg || (tokens as { background?: string }).background || "#fff" }}>
+                <FormPreview key={run} form={preview} tokens={tokens} logo={logoOf(kit)} skin={skin} onBackground={setFormBg} />
               </div>
             </div>
           )}
           {stage === "building" || editing ? (
             <div className="absolute inset-0 flex items-center justify-center">
-              <Throbber color={accent} label={editing ? "Changing the form" : "Writing every question"} />
+              <span className="rounded-full border border-line bg-card px-[14px] py-[8px] shadow-float">
+                <Working label={editing ? "Changing the form" : "Writing every question"} />
+              </span>
             </div>
           ) : null}
         </div>

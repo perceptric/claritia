@@ -24,8 +24,12 @@ progress bar with the five screens at the top.
 
 - "Let's build something exciting", the Describe your form box, and Styling: the workspace's brands by website,
   Claritia, or Learn from a website (the quick brand read, `/api/forms/scan`, then the deep read after).
-- The preview shows the throbber (`Throbber.tsx`) while the brand loads: seven dots in a ring, in the brand's color,
-  chasing each other, with one hopping out and back every few laps. It stands still under reduced motion.
+- Styling is the brand itself (`BrandPicker.tsx`): its logo and name as the button, opening the brands (each with a
+  delete), Claritia and Learn from a website. Brands can also be deleted in Settings › Brand; forms in a deleted brand
+  go back to Claritia's look.
+- While something runs, the preview shows a skeleton of a form that shimmers, its button in the brand's color, with one
+  line on what's happening (`PreviewLoading.tsx`). It waits only while a read or copy is running, never forever.
+- The frame around the preview takes the form's own background, so the form never sits in a box of another color.
 - Continue reads the website into a short brief (`brief`), kept per site and day.
 - The site's look, copied (`/api/forms/skin`, `src/lib/brand/sourceSkin.ts`). When the picked brand has a website and
   no copied look yet, New form (and the builder) sends the page source and every stylesheet to Claude, with the colors

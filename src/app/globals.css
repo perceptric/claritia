@@ -777,59 +777,9 @@ input[type="radio"] {
   .da-t i.pick { background: var(--color-ink); border-color: var(--color-ink); }
 }
 
-
-/* New form's throbber (docs/forms.md, Screen 1): a ring of dots that chase each other, and every few laps one hops out
-   and drops back in. Transform and opacity only; it stands still under reduced motion. */
-@keyframes thr-chase {
-  0%, 100% {
-    opacity: 0.25;
-    transform: scale(0.7);
-  }
-  20% {
-    opacity: 1;
-    transform: scale(1.15);
-  }
-  45% {
-    opacity: 0.25;
-    transform: scale(0.7);
-  }
-}
-@keyframes thr-hop {
-  0%, 72%, 100% {
-    transform: translateY(0) rotate(0deg);
-  }
-  78% {
-    transform: translateY(-16px) rotate(-20deg);
-  }
-  84% {
-    transform: translateY(-22px) rotate(160deg);
-  }
-  90% {
-    transform: translateY(2px) rotate(360deg);
-  }
-  94% {
-    transform: translateY(-3px) rotate(360deg);
-  }
-}
-@keyframes thr-spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-.thr-ring {
-  animation: thr-spin 9s linear infinite;
-}
-.thr-dot {
-  animation: thr-chase 1.4s var(--ease-out) infinite;
-}
-.thr-hop {
-  animation: thr-hop 4.2s var(--ease-spring) infinite;
-}
+/* The shimmer stops under reduced motion and shows its last frame. */
 @media (prefers-reduced-motion: reduce) {
-  .thr-ring,
-  .thr-dot,
-  .thr-hop {
+  .anim-shimmer {
     animation: none;
-    opacity: 1;
   }
 }

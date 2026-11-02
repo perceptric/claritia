@@ -90,6 +90,13 @@ try {
   await page.getByText("Ask for their phone?").waitFor({ timeout: 5000 });
   await page.waitForTimeout(400);
   check((await formText()).includes("Team size"), "screen 3: the built form shows in the real form script");
+  const seam = await page.evaluate(() => {
+    const host = document.querySelector("section[aria-label='Live preview'] claritia-form")!;
+    const f = host.shadowRoot!.querySelector(".f")!;
+    const frame = host.parentElement!;
+    return [getComputedStyle(f).backgroundColor, getComputedStyle(frame).backgroundColor];
+  });
+  check(seam[0] === seam[1], `the frame around the preview takes the form's own background (${seam.join(" vs ")})`);
   await shot("5-form");
   // The logic works in the preview: picking 11+ shows Budget.
   const hasBudget = () => page.evaluate(() => {
@@ -137,11 +144,26 @@ try {
   const nav = await page.evaluate(() => (window as unknown as { nav: unknown[][] }).nav[0]);
   check(JSON.stringify(nav) === JSON.stringify(["forms", "00000000-0000-4000-8000-000000000009", "tab=share"]), "then the form opens on Share");
 
+  // ── Brands: the picker is the brand's own card, and a brand can be deleted ──
+  await page.goto(`${base}/?view=new`);
+  await page.getByLabel("Website to learn from").fill("acme.com");
+  await page.getByRole("button", { name: "Learn" }).click();
+  const picker = page.getByRole("button", { name: "Styling" });
+  await page.waitForFunction(() => document.querySelector("button[aria-label='Styling']")?.textContent?.includes("Acme"), null, { timeout: 5000 });
+  check(true, "the picker shows the brand's name, capitalized");
+  await picker.click();
+  await page.waitForTimeout(300);
+  await shot("8-brands");
+  await page.getByRole("button", { name: "Delete Acme" }).click();
+  await page.getByRole("button", { name: "Delete", exact: true }).click();
+  await page.waitForFunction(() => (window as unknown as { rpcs: [string][] }).rpcs.some(([fn]) => fn === "brand_kit_delete"), null, { timeout: 5000 });
+  check(await page.getByLabel("Website to learn from").isVisible(), "deleting the picked brand goes back to Learn from a website");
+
   // ── The builder ──
   await page.goto(`${base}/?view=build`);
   await page.getByRole("navigation", { name: "Outline" }).waitFor();
   await page.waitForTimeout(300);
-  await shot("8-builder");
+  await shot("9-builder");
   const outline = page.getByRole("navigation", { name: "Outline" });
   await outline.getByRole("button", { name: /Tools you use/ }).click();
   const label = page.getByRole("complementary", { name: "Settings" }).getByLabel("Question", { exact: true });
@@ -151,7 +173,7 @@ try {
   check((await formText()).includes("Tools your team uses"), "a new label shows in the live form at once");
   await outline.getByRole("button", { name: /Budget/ }).click();
   check(await page.getByRole("complementary", { name: "Settings" }).getByText("Show this question").isVisible(), "a question with logic shows it");
-  await shot("9-logic");
+  await shot("10-logic");
   await outline.getByRole("button", { name: "Add a question" }).first().click();
   await page.getByRole("button", { name: "Question type" }).click();
   await page.getByRole("option", { name: "Yes or no" }).click();
@@ -163,7 +185,7 @@ try {
   await page.getByText("Added phone").waitFor({ timeout: 5000 });
   const phone = await page.evaluate(() => (window as unknown as { form: { steps: { fields: { key: string }[] }[] } }).form.steps.some((s) => s.fields.some((f) => f.key === "phone")));
   check(phone, "the bar's words change the form");
-  await shot("10-bar");
+  await shot("11-bar");
 } catch (e) {
   check(false, `the run finished (${(e as Error).message.split("\n")[0]})`);
   await shot("error");

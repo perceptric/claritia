@@ -32,7 +32,7 @@ export const DELIVERY: Record<string, [string, Tone]> = {
  * The form as visitors see it, from a draft that may not be finished yet. `system` is the design system's draft;
  * `device` draws that breakpoint's styles whatever the window's width is.
  */
-export function FormPreview({ form, tokens, logo, skin, step = 0, done = false, system, device, answers }: { form: Form; tokens: Partial<Tokens>; logo?: string | null; skin?: { css: string; fonts: string } | null; step?: number; done?: boolean; system?: unknown; device?: Breakpoint; answers?: Record<string, unknown> }) {
+export function FormPreview({ form, tokens, logo, skin, step = 0, done = false, system, device, answers, onBackground }: { form: Form; tokens: Partial<Tokens>; logo?: string | null; skin?: { css: string; fonts: string } | null; step?: number; done?: boolean; system?: unknown; device?: Breakpoint; answers?: Record<string, unknown>; /** The form's own background once drawn ("" when it has none), for the frame around it. */ onBackground?: (color: string) => void }) {
   const ref = useRef<HTMLElement>(null);
   // After a deploy, a page opened before it can't load the form script's new file: say so instead of a blank box.
   const [failed, setFailed] = useState(false);
@@ -49,13 +49,21 @@ export function FormPreview({ form, tokens, logo, skin, step = 0, done = false, 
     import("@/lib/forms/element").then(
       () => {
         if (live && ref.current) (ref.current as unknown as { preview: unknown }).preview = { form, tokens, logo: logo ?? null, skin: skin ?? null, step, done, css, ...(fontKey ? { fonts: [fontKey] } : {}), ...(usesRegions(form) ? { regions: allRegions() } : {}), ...(answers ? { answers } : {}) };
+        if (live && onBackground)
+          requestAnimationFrame(() =>
+            requestAnimationFrame(() => {
+              const f = ref.current?.shadowRoot?.querySelector(".f");
+              const bg = f ? getComputedStyle(f).backgroundColor : "";
+              if (live) onBackground(!bg || bg === "transparent" || /rgba\([^)]*,\s*0\)$/.test(bg) ? "" : bg);
+            }),
+          );
       },
       () => live && setFailed(true),
     );
     return () => {
       live = false;
     };
-  }, [form, tokens, logo, skin, step, done, css, fontKey, answers]);
+  }, [form, tokens, logo, skin, step, done, css, fontKey, answers, onBackground]);
   if (failed)
     return (
       <div role="alert" className="flex flex-col items-start gap-[8px] text-[13px] text-muted">
