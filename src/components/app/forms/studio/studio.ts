@@ -166,6 +166,9 @@ input, textarea { user-select: text; -webkit-user-select: text; }
 .pill { height: 30px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--line); background: var(--bg); color: var(--body); font-size: 12.5px; display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
 .pill:hover:not(:disabled) { border-color: var(--line-strong); color: var(--ink); }
 .pill.on, .pill.primary { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+.pill.on:hover:not(:disabled), .pill.primary:hover:not(:disabled) { color: var(--bg); border-color: var(--ink); opacity: .9; }
+.pill .logo { width: 16px; height: 16px; border-radius: 4px; flex: none; object-fit: contain; }
+.pill .logo.mark { background: #0c8c5e; padding: 2px; }
 .after { flex: 1; min-height: 0; overflow: auto; padding: 24px; display: flex; justify-content: center; background: var(--paper); }
 .after .inner { width: min(600px, 100%); display: flex; flex-direction: column; gap: 14px; }
 .card2 { border: 1px solid var(--line); border-radius: 10px; background: var(--bg); padding: 16px; display: flex; flex-direction: column; gap: 12px; }
@@ -269,7 +272,7 @@ input, textarea { user-select: text; -webkit-user-select: text; }
 
 const SVG = (d, w = 16) => `<svg width="${w}" height="${w}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
 const P = {
-  back: '<path d="m15 18-6-6 6-6"/>', eye: '<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>', cursor: '<path d="m4 4 7 17 2.5-7.5L21 11z"/>',
+  back: '<path d="m15 18-6-6 6-6"/>', link: '<path d="M10 14a4 4 0 0 0 5.66 0l3-3a4 4 0 0 0-5.66-5.66l-1 1"/><path d="M14 10a4 4 0 0 0-5.66 0l-3 3a4 4 0 0 0 5.66 5.66l1-1"/>', eye: '<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>', cursor: '<path d="m4 4 7 17 2.5-7.5L21 11z"/>',
   code: '<path d="m8 7-5 5 5 5M16 7l5 5-5 5"/>', cal: '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4M9 15l2 2 4-4"/>', layers: '<path d="m12 3 9 5-9 5-9-5z"/><path d="m3 13 9 5 9-5"/>',
   desk: '<rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/>', tab: '<rect x="5" y="3" width="14" height="18" rx="2"/><path d="M11 18h2"/>', phone: '<rect x="7" y="3" width="10" height="18" rx="2"/><path d="M11 18h2"/>',
   undo: '<path d="M9 14 4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-3"/>', redo: '<path d="m15 14 5-5-5-5"/><path d="M20 9H9a5 5 0 0 0 0 10h3"/>', restart: '<path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/>',
@@ -1137,7 +1140,10 @@ ${CAL_CSS}
     if (a.kind !== "meeting") return;
     // Where they book: Claritia's own calendar, or an outside scheduler opened in the form.
     const tool = a.tool || "claritia";
-    const cS = h("div", { class: "card2" }, h("h3", { text: "Book with" }), pills([["claritia", "Claritia calendar"], ...SCHEDULERS.map((x) => [x.value, x.label])], tool, (t) => set({ tool: t === "claritia" ? "" : t })));
+    // Each scheduler shows its logo beside its name; Claritia its own mark, Other link a link icon.
+    const logo = (x) => (x === "claritia" ? `<svg class="logo mark" viewBox="0 0 32 32" aria-hidden="true"><path d="M7 12V7h5M20 7h5v5M25 20v5h-5M12 25H7v-5" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/><path d="M11.5 16.5l3 3 6-7" fill="none" stroke="#fff" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/></svg>` : x.domain ? `<img class="logo" alt="" src="https://www.google.com/s2/favicons?domain=${encodeURIComponent(x.domain)}&sz=64" loading="lazy">` : SVG(P.link, 14));
+    const toolPill = ([v, label, x]) => h("button", { class: `pill${v === tool ? " on" : ""}`, html: `${logo(x)}<span></span>`, onclick: () => set({ tool: v === "claritia" ? "" : v }) });
+    const cS = h("div", { class: "card2" }, h("h3", { text: "Book with" }), h("div", { class: "chips" }, ...[["claritia", "Claritia calendar", "claritia"], ...SCHEDULERS.map((x) => [x.value, x.label, x])].map((t) => { const b = toolPill(t); b.lastChild.textContent = t[1]; return b; })));
     if (tool !== "claritia") {
       const i = h("input", { class: "in", placeholder: SCHEDULERS.find((x) => x.value === tool)?.domain ? `https://${SCHEDULERS.find((x) => x.value === tool).domain}/your-team/demo` : "https://", value: a.link || "", "aria-label": "Scheduler link", style: "height:34px" });
       i.addEventListener("change", () => set({ link: i.value.trim() }));
