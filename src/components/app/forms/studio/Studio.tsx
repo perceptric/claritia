@@ -11,6 +11,7 @@ import { logoOf, type KitLite } from "../new/NewForm";
 import { fetchMeetingTypes } from "../../meetings/TypesList";
 import { brandName } from "@/lib/brand/name";
 import { readProfile } from "@/lib/studio/industries";
+import { alwaysOf } from "@/lib/studio/page";
 import { invalidate, must, postJson, type ViewProps } from "../../ui";
 import { mountStudio, STUDIO_CSS, STUDIO_HTML, type StudioApi } from "./studio";
 import { readLines as readStream } from "../../streamLines";
@@ -119,6 +120,11 @@ export function Studio({ sb, session, ws, navigate, formId = "", fresh = false }
         if (!local) {
           const res = await sb.from("form_chats").select("id, name, state, brand_kit_id, form_id, updated_at, body").eq("id", id).maybeSingle();
           const r = res.data as { id: string; name: string; state: Chat["state"]; brand_kit_id: string | null; form_id: string | null; updated_at: string; body: Chat["body"] } | null;
+          if (r && r.form_id && r.body?.after) {
+            // The team alert changed in the form's Settings after this chat: Always do shows it as it is now.
+            const f = (await sb.from("forms").select("draft, updated_at").eq("id", r.form_id).maybeSingle()).data as { draft?: { notify?: unknown }; updated_at: string } | null;
+            if (f?.draft?.notify && f.updated_at > r.updated_at) r.body = { ...r.body, after: { ...r.body.after, always: alwaysOf(f.draft.notify) } };
+          }
           if (r) return { id: r.id, name: r.name, state: r.state, brandId: r.brand_kit_id ?? "", formId: r.form_id ?? "", updatedAt: r.updated_at, body: r.body };
         }
         return localChats().find((c) => c.id === id) ?? null;
@@ -128,7 +134,7 @@ export function Studio({ sb, session, ws, navigate, formId = "", fresh = false }
         const pg = row?.draft?.page;
         if (!row || !pg) return null;
         if (row.brand_kit_id && pg.brand && !read<string>(cssKey(row.brand_kit_id), "")) write(cssKey(row.brand_kit_id), pg.brand);
-        return { id: crypto.randomUUID(), name: row.name, state: row.status === "live" ? "live" : "draft", brandId: row.brand_kit_id ?? "", formId: row.id, brandCss: pg.brand, body: { html: pg.html, css: pg.css, after: { kind: "thanks", url: "", meeting: "", routes: [], ...(pg.after ?? {}) }, turns: [], log: [] } };
+        return { id: crypto.randomUUID(), name: row.name, state: row.status === "live" ? "live" : "draft", brandId: row.brand_kit_id ?? "", formId: row.id, brandCss: pg.brand, body: { html: pg.html, css: pg.css, after: { kind: "thanks", url: "", meeting: "", routes: [], ...(pg.after ?? {}), ...((row.draft as { notify?: unknown }).notify ? { always: alwaysOf((row.draft as { notify?: unknown }).notify) } : {}) }, turns: [], log: [] } };
       },
       saveChat: async (c) => {
         keepLocal(c);

@@ -7,7 +7,7 @@ import type { Session, SupabaseClient } from "@supabase/supabase-js";
 import { docFromBody, newBlock, newSection } from "@/lib/design/email/doc";
 import { EmailBuilder } from "../email/EmailBuilder";
 import { useState } from "react";
-import { BASE_FIELDS, needsValue, opsFor } from "@/lib/router/conditions";
+import { BASE_FIELDS, isPast, needsValue, opsFor } from "@/lib/router/conditions";
 import { OPS, type Cond } from "@/lib/router/types";
 import { stepProblems } from "@/lib/workflows/check";
 import { MERGE_KEYS } from "@/lib/workflows/merge";
@@ -240,7 +240,8 @@ export function TriggerPanel({ body, names, onChange, readOnly }: { body: Body; 
 
 // Conditions -------------------------------------------------------------------------------------------------------
 
-const FIELDS = BASE_FIELDS.filter((f) => f.key !== "lead.form" && f.key !== "company.type");
+// Past fills are read only when a lead is routed, so a workflow branch can't test them.
+const FIELDS = BASE_FIELDS.filter((f) => f.key !== "lead.form" && f.key !== "company.type" && !isPast(f.key));
 
 export function Conditions({ conds, onChange, readOnly }: { conds: Cond[]; onChange: (c: Cond[]) => void; readOnly: boolean }) {
   return (

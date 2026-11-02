@@ -10,7 +10,7 @@ import { BASE_FIELDS, condWords, ruleMatches } from "../src/lib/router/condition
 import { readFacts, readPast } from "../src/lib/router/server.ts";
 import { emptyBody, type Rule } from "../src/lib/router/types.ts";
 import { checkStudioPage } from "../src/lib/studio/check.ts";
-import { cleanPage, pageForm, type PageAfter } from "../src/lib/studio/page.ts";
+import { alwaysOf, cleanPage, pageForm, teamAlert, type PageAfter } from "../src/lib/studio/page.ts";
 import { cleanRoute, routeCond, routeKind, routeMeeting, routeWords, type StudioRoute } from "../src/lib/studio/routes.ts";
 
 const DEMO = "11111111-1111-4111-8111-111111111111";
@@ -196,4 +196,24 @@ test("rules read in plain words: past fills, Who books it, and each route", () =
   assert.equal(routeWords({ field: "locations", op: "between", value: [1, 5], meeting: ENT }, q("locations"), "Locations"), "Locations is between 1 and 5");
   assert.equal(routeWords({ field: "plan", op: "one_of", value: ["team", "ent"], meeting: ENT }, q("plan"), "Plan"), "Plan is Team or Enterprise");
   assert.equal(routeWords({ field: "past.days_since_booked", op: "lte", value: 7, meeting: ENT }, undefined, ""), "Booked in the last 7 days");
+});
+
+test("an older policy never takes a past fill it couldn't read as an answer, even for 'is not'", () => {
+  const rule: Rule = { id: "x", name: "x", match: "all", conds: [{ field: "past.days_since_booked", op: "is_not", value: 5 }], queue: "q" };
+  assert.equal(ruleMatches(rule, { "past.days_since_booked": null }, [], "v1").ok, false);
+  assert.equal(ruleMatches(rule, { "past.days_since_booked": 9 }, [], "v1").ok, true);
+  const old: Rule = { ...rule, conds: [{ field: "lead.country", op: "is_not", value: "US" }] };
+  assert.equal(ruleMatches(old, {}, [], "v1").ok, true, "other fields run as they always did");
+});
+
+test("the team alert: the last place it changed wins, and Settings' subject stays", () => {
+  const settings = { on: true, to: ["ops@acme.com"], subject: "New lead: {{name}}", answers: false, slack: false };
+  const studio = { on: true, to: ["sam@acme.com"], subject: "New submission: {{form}} from {{name}}", answers: true, slack: true };
+  const was = { email: true, to: ["sam@acme.com"], slack: true };
+  assert.deepEqual(teamAlert(settings, studio, was, was), settings, "Always do untouched: Settings' change stays");
+  assert.deepEqual(teamAlert(settings, studio, { email: true, to: ["sam@acme.com", "kim@acme.com"], slack: true }, was), { ...settings, to: ["sam@acme.com"], slack: true }, "changed here: the change wins, the subject stays");
+  assert.deepEqual(teamAlert(settings, undefined, undefined, undefined), settings, "no Always do: the alert stays");
+  assert.deepEqual(teamAlert(undefined, studio, was, undefined), studio);
+  assert.deepEqual(alwaysOf(settings), { email: true, to: ["ops@acme.com"], slack: false });
+  assert.deepEqual(alwaysOf({ on: false, to: ["ops@acme.com"], slack: true }), { email: false, to: ["ops@acme.com"], slack: false });
 });

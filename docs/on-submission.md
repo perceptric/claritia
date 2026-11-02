@@ -66,11 +66,15 @@ the form picks the meeting type, the meeting picks the person.
   (`routing_past`, `supabase/migrations/115_routing_past.sql`; `readPast` in `src/lib/router/server.ts`). The send
   being routed never counts as "sent before"; spam and test sends never count. A Dynamic meeting's own booking link
   reads them by the guest's email (any form, since a booking page has none). A past fill that can't be read is
-  unknown, so no rule on it holds by mistake.
+  unknown, so no rule on it holds by mistake, in older policies too ("is not" included). Workflow branches and
+  Enrichment's qualify rules don't offer them, since only routing reads them.
 - **Always do**, on every send whatever it books: **Email the team** and **Post to Slack** (the form's team alert,
   `form.notify`); **Send to** a connected CRM or a webhook (the form's destinations); **Follow-up** workflows that
   start on this form (**New follow-up**: when they send it, or when they don't book). Send to and New follow-up save
-  the form once as a draft first, since they need its id. A form with no Always do keeps the alert it had.
+  the form once as a draft first, since they need its id. Email the team and Post to Slack are the same team alert as
+  the form's Settings, so the last place it changed wins (`teamAlert` in `src/lib/studio/page.ts`), the alert's subject
+  stays, and a chat opened after a Settings change shows the alert as it is now. A form with no Always do keeps the
+  alert it had.
 - **The form check** (`src/lib/studio/check.ts`) stops Publish on a route that reads a deleted question or answer, a
   past fill that's gone, a blank value, a deleted meeting, a page or part shown by a question asked on a later page,
   and Email the team with no emails.
