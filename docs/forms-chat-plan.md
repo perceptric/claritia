@@ -19,8 +19,10 @@ One screen for making and changing a form, at `/forms/<id>`.
 - Claude decides what to ask. It may ask for the website, the goal, who fills it in, what happens after, or nothing
   more. Its questions come as cards with click answers (like today's follow-up questions), and typing always works.
 - The form appears on the right as Claude writes it, streaming in, and changes as the chat goes on.
-- Tabs over the right side: **Design** (the live form, plus the Webflow editor, Part 5), **Submissions**, **Share**,
-  **Sync** and **Settings**. The last four are today's tabs, unchanged.
+- Tabs over the right side: **Design** (the live form, plus the Webflow editor, Part 5), **On submission** (Part 6),
+  **Submissions**, **Share**, **Sync** and **Settings**. The last four are today's tabs, unchanged.
+- **Restart** clears the chat and the form and starts again.
+- Demo: https://claude.ai/artifact/4n553Fp1CdHxVDt5KoVXeA (example meeting types; nothing is saved).
 - **Publish** in the header, as today.
 
 ## Part 2. The chat
@@ -64,7 +66,8 @@ visual is free.
 | `data-cl-progress` | The form script sets `--cl-progress` (0 to 1) on it, for any progress design. |
 | `data-cl-error-for="email"` | Where that question's error shows. |
 | `<section data-cl-thanks>` | What shows after the send. |
-| `data-cl-book` | Where the meeting calendar opens after the send. |
+| `data-cl-book` | Where Claritia's booking calendar opens after the send (Part 6). The form's CSS styles its classes: `.cl-cal`, `.cl-day`, `.cl-time` and the brand's `.btn` to confirm. |
+| `<img data-cl-logo>` | The brand's real logo, filled in from the brand (Part 4). Claude never draws or types out a logo. |
 | `data-cl-captcha` | Where the spam check goes. |
 
 - The form script turns `<select>` into its own list, so no browser dropdown shows.
@@ -104,6 +107,9 @@ The form runs on customers' sites and on Claritia's hosted page, so nothing in i
 - Every form in that brand loads it first, then its own CSS. A change to the brand's CSS changes every form in it.
 - It's editable two ways: in the chat ("make the buttons rounder"), and as code in the editor's CSS tab, with a
   preview of every form in that brand.
+- **The real logo:** the brand's logo file (`brand_kits.logo_url` or `logo_svg`, read from the site) fills every
+  `img[data-cl-logo]` in its forms. The chat also takes a logo the owner drops or pastes, saved on the brand, and
+  Claude sees the picture once so the design takes its colors.
 - Settings › Brand shows the CSS section next to the brand book, with delete as today.
 
 ## Part 5. The Webflow-style editor
@@ -125,7 +131,22 @@ builder (`src/lib/experiences/nodes.ts`, `styles.ts`, `src/components/site/SiteB
 The chat stays docked on the left in the editor too. "Change anything" works on the picked element when one is
 picked.
 
-## Part 6. What goes and what stays
+## Part 6. On submission and Meetings
+
+The On submission tab is today's `OnSubmission.tsx`, unchanged in what it does: the form picks the meeting, the
+meeting picks the rep (`docs/on-submission.md`).
+
+- **After they send it:** show the thank-you section, go to a page, or book a meeting.
+- **Book a meeting:** the default meeting type, then routes by answer ("When `team_size` is `200+`, book Enterprise
+  demo"). The routes read the form's pick-one and dropdown questions from its HTML, by `name` and option value.
+- Saved as today's `after.schedule` (`meetingTypeId`, `routes`). Publishing compiles them into the form's routing
+  policy (`src/lib/routing/formPublish.ts`), so Routing, owners, round robin and the rep's calendar all work as now.
+- After the send, the form script opens the booking calendar at `data-cl-book` (or under the thank-you when there's
+  none), with the server's meeting and rep for that lead, through today's booking path (`src/lib/forms/booking.ts`).
+- Claude can set it from the chat too (`set_after`), using the workspace's real meeting types; a new meeting type is
+  made in Meetings and comes back here, as today.
+
+## Part 7. What goes and what stays
 
 | Goes | Stays |
 | --- | --- |
@@ -135,7 +156,7 @@ picked.
 | The skin route (`/api/forms/skin`), folded into the brand's CSS | The runner's browser read and `sourceSkin.ts`, feeding the brand's CSS |
 | | Brand delete and Settings › Brand |
 
-## Part 7. Old forms
+## Part 8. Old forms
 
 - Forms made before this keep their saved format and keep running as they do now.
 - Opening one shows it in the live preview with a **Turn into HTML** button. The form script draws it, and that
@@ -143,7 +164,7 @@ picked.
   that, it's a chat-and-HTML form like any other.
 - Each published version keeps its format, so the server checks a send against the version that was shown.
 
-## Part 8. Data (migration 112)
+## Part 9. Data (migration 112)
 
 - `forms`: `html text`, `css text` (the draft), and `format` (`schema` or `html`).
 - `form_versions.body`: for an HTML form, `{ format: "html", html, css, fields }`, where `fields` is the question list
@@ -152,7 +173,7 @@ picked.
 - `form_chats (form_id, workspace_id, messages jsonb, updated_at)`: the chat, one row a form.
 - Size limits: HTML 200 KB, CSS 100 KB a form, brand CSS 60 KB.
 
-## Part 9. Tests (reliability rule)
+## Part 10. Tests (reliability rule)
 
 - **Safety:** a list of attacks the cleaner must stop (scripts, `on*` attributes, `javascript:` and `data:` links,
   `<iframe>`, SVG with script, CSS with `expression()`, `url(javascript:)` and `@import` from other hosts), in the
@@ -166,19 +187,22 @@ picked.
 - **Round trip:** every template turned into HTML sends the same answers as before.
 - **Browser check:** a chat builds a form with steps, logic and an upload; a send reaches the contact; an editor change
   (class style, text, a moved element) shows live and saves.
+- **Meetings:** a route on an answer books the routed meeting type with the rep Routing picks; a lead no route matches
+  books the default; a flaky case where the calendar can't load still keeps the submission and shows the thank-you.
 
-## Part 10. Build order
+## Part 11. Build order
 
 | Step | What | Done when |
 | --- | --- | --- |
 | 1 | The HTML contract: cleaner, question reader, condition engine, server check | Safety and contract tests pass |
 | 2 | The form script draws HTML forms: steps, show-if, errors, uploads, select lists, thanks, calendar | A browser check sends an HTML form end to end |
 | 3 | The chat: Opus with the tools, streaming into the preview, saved per form | A described form builds and changes in chat |
-| 4 | The brand's CSS section: written from the site, shared by forms, edited in chat and as code | Two forms in one brand change together |
+| 4 | The brand's CSS section and real logo: written from the site, shared by forms, edited in chat and as code | Two forms in one brand change together; the logo shows |
+| 4b | On submission: thank-you, page or meeting, routes by answer, the booking calendar at `data-cl-book` | A routed lead books the right meeting with the right rep |
 | 5 | The Webflow editor, from Omniscient's builder | Pick, style by class, type, move, add and undo work on a real form |
 | 6 | Old forms: Turn into HTML. Delete the old New form, spec and Build tab | Every template converts and sends the same answers |
 
-## Part 11. Running cost
+## Part 12. Running cost
 
 Claude Opus 5.5 at $4 in and $20 out per million tokens (check: from this repo's price table in `src/lib/ai/cache.ts`,
 not confirmed on Anthropic's page from here). Cached prompt reads at a tenth of the input price.
