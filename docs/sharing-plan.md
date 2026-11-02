@@ -25,8 +25,9 @@ Every way a form or a meeting gets in front of people, after Typeform and Fillou
 - The code: `src/lib/share/embed.ts` writes it for every mode (tested in `tests/shareEmbed.test.ts`). The element reads
   the attributes (`src/lib/forms/element.ts`, `put` and `launcher`); the meeting calendar is `<claritia-book>`
   (`src/lib/meetings/bookElement.ts`).
-- Form › Share › On your website: six tiles (In the page, Full page, Popup, Slider, Popover, Side tab), the picked
-  one's few settings, the code, and steps for Webflow, WordPress, Framer, Squarespace and any site.
+- Form › Share › Website: six tiles (In the page, Full page, Popup, Slider, Popover, Side tab), a live preview, the
+  picked one's few settings, and the code with a builder dropdown (Webflow, WordPress, Framer, Squarespace, any site;
+  each one's steps in the dropdown). See docs/form-ui-plan.md step 3.
 - Form Studio: the form page's header (docs/form-ui-plan.md) shows Share once the form is live and unchanged.
 - Meetings: Share on each meeting type's card and in its panel (`src/components/app/scheduling/ShareMeeting.tsx`):
   the link, its calendar on a website (in the page, a floating button, the site's own link or button), and for an

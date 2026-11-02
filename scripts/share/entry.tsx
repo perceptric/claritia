@@ -46,7 +46,8 @@ const sb = {
   },
   rpc: (fn: string, args: Record<string, unknown>) => {
     w.rpcs.push([fn, args]);
-    if (fn === "form_link") return Promise.resolve({ data: { ws: "acme", slug: qs.get("ending") ?? "demo-request" }, error: null });
+    if (fn === "form_link")
+      return Promise.resolve(qs.get("nolinks") ? { data: null, error: { message: "Could not find the function public.form_link(p_form) in the schema cache", code: "PGRST202" } } : { data: { ws: "acme", slug: qs.get("ending") ?? "demo-request" }, error: null });
     if (fn === "form_set_slug") return Promise.resolve({ data: { ws: "acme", slug: args.p_slug || null }, error: null });
     if (fn === "form_seen_pages") return Promise.resolve({ data: qs.get("seen") === "0" ? [] : [["acme.com/pricing", { last: new Date(Date.now() - 3600_000).toISOString(), blocked: false }], ["acme.com/contact", { last: new Date(Date.now() - 86400_000 * 2).toISOString(), blocked: false }], ["staging.acme.dev/contact", { last: new Date(Date.now() - 86400_000 * 5).toISOString(), blocked: true }]], error: null });
     return Promise.resolve({ data: null, error: null });

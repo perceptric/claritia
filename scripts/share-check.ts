@@ -8,6 +8,9 @@ import { build } from "esbuild";
 import postcss from "postcss";
 import tailwind from "@tailwindcss/postcss";
 import pw from "playwright-core";
+import { buildForms } from "./build-forms.mts";
+import { checkForm, emptyForm } from "../src/lib/forms/schema.ts";
+import { toForm } from "../src/lib/forms/spec.ts";
 
 const failures: string[] = [];
 const check = (ok: boolean, what: string) => {
@@ -20,7 +23,19 @@ const bundle = await build({ entryPoints: [`${root}scripts/share/entry.tsx`], bu
 const js = bundle.outputFiles[0]!.contents;
 const globals = `${root}src/app/globals.css`;
 const css = (await postcss([tailwind()]).process(readFileSync(globals, "utf8"), { from: globals })).css;
+const formsJs = await buildForms();
+// The live form the preview loads (the same as the harness's), and every send the preview makes: there must be none.
+const FORM_ID = "6f1c2a90-4b7e-4d2a-9c1e-2b8f4a7d1e03";
+const live = checkForm(toForm({ title: "Book a demo", submit: "Book my demo", steps: [{ id: "s1", title: "Your team", fields: [{ id: "size", type: "radio", label: "How big is your team?", required: true, options: [{ value: "1", label: "1-10" }, { value: "2", label: "11-50" }] }, { id: "em", type: "email", label: "Work email", key: "email", required: true }] }] } as never, emptyForm()), { custom: [] });
+const sends: string[] = [];
 const server = createServer((req, res) => {
+  if (req.url?.startsWith("/book/")) return void res.writeHead(200, { "content-type": "text/html" }).end(`<!doctype html><body style="margin:0;font:14px system-ui"><h2 style="margin:16px">Pick a time</h2></body>`);
+  if (req.url === "/forms/v1.js") return void res.writeHead(200, { "content-type": "text/javascript" }).end(formsJs);
+  if (req.url === `/api/forms/${FORM_ID}`) return void res.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify({ id: FORM_ID, version: 3, status: "live", body: "form" in live ? live.form : null, tokens: {}, logo_url: null }));
+  if (req.url?.startsWith(`/api/forms/${FORM_ID}/`)) {
+    sends.push(req.url);
+    return void res.writeHead(200, { "content-type": "application/json" }).end("{}");
+  }
   if (req.url?.startsWith("/app.css")) return void res.writeHead(200, { "content-type": "text/css" }).end(css);
   if (req.url?.startsWith("/app.js")) return void res.writeHead(200, { "content-type": "text/javascript" }).end(js);
   res.writeHead(200, { "content-type": "text/html" }).end(`<!doctype html><link rel="stylesheet" href="/app.css"><body style="margin:0"><div id="root"></div><script type="module" src="/app.js"></script>`);
@@ -45,14 +60,16 @@ async function run(width: number, tag: string) {
   await page.context().grantPermissions(["clipboard-read", "clipboard-write"]);
   page.on("pageerror", (e) => check(false, `${tag}: no page errors (${e.message})`));
   const shot = (name: string) => (shots ? page.screenshot({ path: `${shots}/${tag}-${name}.png`, fullPage: true }) : Promise.resolve());
+  const way = (label: string) => page.getByRole("button", { name: label, exact: true }).first().click();
   await page.goto(`${base}/?view=form`);
   await page.locator("[data-share-link]").waitFor();
+  await page.waitForTimeout(200);
   await shot("form-default");
-  check((await page.locator("[data-share-link]").textContent())?.endsWith("/f/acme/demo-request") ?? false, `${tag}: Share opens on Link, with the link ending in full`);
+  check((await page.locator("[data-share-link]").getAttribute("data-share-link"))?.endsWith("/f/acme/demo-request") ?? false, `${tag}: Share opens on Link, with the link ending`);
+  check((await page.getByLabel("Link ending").inputValue()) === "demo-request", `${tag}: the ending is typed in the link itself`);
   await page.getByRole("button", { name: "Copy link" }).click();
   check(await page.getByRole("button", { name: "Copied" }).first().waitFor({ timeout: 3000 }).then(() => true, () => false), `${tag}: Copy link says Copied`);
-  const clip = await page.evaluate(() => navigator.clipboard.readText());
-  check(clip.endsWith("/f/acme/demo-request"), `${tag}: the copied link is the one shown`);
+  check((await page.evaluate(() => navigator.clipboard.readText())).endsWith("/f/acme/demo-request"), `${tag}: the copied link is the one shown`);
   // The ending: Enter saves, Escape puts it back.
   await page.getByLabel("Link ending").fill("book-a-demo");
   await page.getByLabel("Link ending").press("Enter");
@@ -61,26 +78,84 @@ async function run(width: number, tag: string) {
   await page.getByLabel("Link ending").fill("other");
   await page.getByLabel("Link ending").press("Escape");
   check((await page.getByLabel("Link ending").inputValue()) === "book-a-demo", `${tag}: Escape puts the saved ending back`);
-  // The preview follows the title as it's typed.
+  // ⋯ holds the id link and Your own domain.
+  await page.getByRole("button", { name: "More link options" }).click();
+  check((await page.getByText("Copy the id link").isVisible()) && (await page.getByText("Your own domain").isVisible()), `${tag}: ⋯ has the id link and Your own domain`);
+  await page.keyboard.press("Escape");
+  await page.mouse.click(5, 880);
+  // The preview card is the editor: the title typed on the card.
   await page.getByLabel("Title").fill("Talk to sales");
-  check(((await page.getByLabel("Link preview").textContent()) ?? "").includes("Talk to sales"), `${tag}: the link preview shows the title as it's typed`);
-  for (const [name, label] of [["link", "Link"], ["embed", "On your website"], ["email", "Email"], ["qr", "QR code"], ["own", "Your own form"]] as const) {
-    await page.getByRole("button", { name: new RegExp(`^${label}`) }).first().click();
-    await page.waitForTimeout(300);
-    await shot(`form-${name}`);
-    if (name === "embed") {
-      check(await copyClear(page), `${tag}: the code's Copy button sits above the code`);
-      await page.getByRole("radio", { name: "WordPress" }).click();
-      check(await page.getByText("In WordPress").isVisible(), `${tag}: a site builder shows its steps`);
+  check(((await page.getByLabel("Link preview").textContent()) ?? "").includes("Talk to sales") || (await page.getByLabel("Title").inputValue()) === "Talk to sales", `${tag}: the title is typed on the preview card`);
+  await page.getByLabel("Title").blur();
+  check((await page.evaluate(() => (window as unknown as { ops?: { op: string; share?: { title?: string } }[] }).ops ?? [])).some((o) => o.op === "set_share" && o.share?.title === "Talk to sales"), `${tag}: the card's title is kept`);
+  check(!(await page.getByText("Fill in from the link").isVisible()), `${tag}: Fill in from the link moved to Settings`);
+  check((await page.locator(".text-\\[12px\\].text-muted").filter({ hasText: /Its own page|In the page or a popup/ }).count()) === 0, `${tag}: the left list has no gray lines`);
+
+  await way("Website");
+  await page.waitForTimeout(300);
+  check((await page.getByText("Seen on").count()) === 0, `${tag}: no Seen on`);
+  check((await page.getByRole("button", { name: "Site builder" }).count()) === 1 && (await page.getByRole("radio", { name: "WordPress" }).count()) === 0, `${tag}: the site builders are one dropdown`);
+  const frame = page.frameLocator("iframe[data-site-preview]");
+  await frame.locator("claritia-form").waitFor({ state: "attached", timeout: 8000 });
+  await page.waitForFunction(() => !!(document.querySelector("iframe[data-site-preview]") as HTMLIFrameElement | null)?.contentDocument?.querySelector("claritia-form")?.shadowRoot?.textContent?.includes("How big is your team?"), null, { timeout: 8000 });
+  check(true, `${tag}: the preview shows the real form on a sample page`);
+  await shot("form-embed");
+  // The preview sends nothing, even a filled form.
+  const inside = (sel: string) => page.evaluate((q) => ((document.querySelector("iframe[data-site-preview]") as HTMLIFrameElement).contentDocument!.querySelector("claritia-form")!.shadowRoot!.querySelector(q) as HTMLElement | null)?.click(), sel);
+  await inside("input[type=radio]");
+  await page.waitForTimeout(300);
+  await page.evaluate(() => {
+    const r = (document.querySelector("iframe[data-site-preview]") as HTMLIFrameElement).contentDocument!.querySelector("claritia-form")!.shadowRoot!;
+    const em = r.querySelector("input[type=email]") as HTMLInputElement | null;
+    if (em) {
+      em.value = "ana@acme.com";
+      em.dispatchEvent(new Event("input", { bubbles: true }));
     }
-    if (name === "email") {
-      await page.getByLabel("To").fill("ana@acme.com, not-an-email");
-      check(await page.getByText("Not an email: not-an-email").isVisible(), `${tag}: a wrong address is named`);
-      check(await page.getByRole("button", { name: "Send", exact: true }).isDisabled(), `${tag}: Send waits for good addresses`);
-      await page.getByLabel("To").fill("ana@acme.com, bo@acme.com");
-      check(await page.getByText("2 addresses").isVisible(), `${tag}: the count of addresses`);
-    }
-  }
+  });
+  await inside("button[type=submit]");
+  await page.waitForTimeout(1500);
+  check(sends.length === 0, `${tag}: the preview sends nothing (no view, start or fill) (${sends.join(", ")})`);
+  // A popup opens in the preview to be seen.
+  await page.getByRole("radio", { name: "Popup" }).click();
+  await page.waitForFunction(() => {
+    const f = (document.querySelector("iframe[data-site-preview]") as HTMLIFrameElement | null)?.contentDocument?.querySelector("claritia-form");
+    const box = f?.shadowRoot?.querySelector(".pbox") as HTMLElement | null;
+    return !!box && box.getBoundingClientRect().width > 0;
+  }, null, { timeout: 8000 });
+  check(true, `${tag}: Popup opens in the preview`);
+  await shot("form-popup");
+  check(await copyClear(page), `${tag}: the code's Copy button sits above the code`);
+  await page.getByRole("button", { name: "Site builder" }).click();
+  check(await page.getByText("In WordPress: add a Custom HTML block and paste.").isVisible(), `${tag}: each builder's steps are in the dropdown`);
+  await page.getByRole("option", { name: /WordPress/ }).click();
+  check(((await page.getByRole("button", { name: "Site builder" }).textContent()) ?? "").includes("WordPress"), `${tag}: picking a builder shows it`);
+
+  await way("Email");
+  await page.waitForTimeout(200);
+  await shot("form-email");
+  await page.getByLabel("To").fill("ana@acme.com, not-an-email");
+  check(await page.getByText("Not an email: not-an-email").isVisible(), `${tag}: a wrong address is named`);
+  check(await page.getByRole("button", { name: "Send", exact: true }).isDisabled(), `${tag}: Send waits for good addresses`);
+  await page.getByLabel("To").fill("ana@acme.com, bo@acme.com");
+  check(await page.getByText("2 addresses").isVisible(), `${tag}: the count of addresses`);
+  await page.getByRole("radio", { name: "The form in an email" }).click();
+  check(await page.getByRole("button", { name: "Copy for Gmail or Outlook" }).isVisible(), `${tag}: the form in an email is its own picture`);
+
+  await way("QR code");
+  await page.waitForTimeout(300);
+  await shot("form-qr");
+  check(await page.getByRole("img", { name: /QR code for/ }).isVisible(), `${tag}: the QR code`);
+  await way("Own form");
+  await page.waitForTimeout(200);
+  await shot("form-own");
+
+  // Before 117 the ending's function isn't there: the ending hides, no raw error shows.
+  await page.goto(`${base}/?view=form&nolinks=1`);
+  await page.locator("[data-share-link]").waitFor();
+  await page.waitForTimeout(300);
+  check((await page.getByLabel("Link ending").count()) === 0 && (await page.getByText(/schema cache|Could not find/).count()) === 0, `${tag}: a missing ending function hides the ending, with no raw error`);
+  check((await page.locator("[data-share-link]").getAttribute("data-share-link"))?.includes(`/f/${FORM_ID}`) ?? false, `${tag}: and the id link is the link`);
+
   await page.goto(`${base}/?view=meeting`);
   await page.locator("[data-share-link]").waitFor();
   await page.getByRole("img", { name: /QR code for/ }).waitFor();
@@ -88,18 +163,40 @@ async function run(width: number, tag: string) {
   await shot("meeting-link");
   for (const label of ["On your website", "In an email"]) {
     await page.getByRole("radio", { name: label }).or(page.getByRole("button", { name: label })).or(page.getByRole("tab", { name: label })).first().click();
-    await page.waitForTimeout(200);
+    await page.waitForTimeout(300);
     await shot(`meeting-${label.replace(/\W+/g, "-").toLowerCase()}`);
-    if (label === "On your website") check(await copyClear(page), `${tag}: the meeting code's Copy button sits above the code`);
+    if (label === "On your website") {
+      check(await copyClear(page), `${tag}: the meeting code's Copy button sits above the code`);
+      // The calendar's frames, in the sample page and inside <claritia-book>'s shadow root.
+      const frames = () =>
+        page.evaluate(() => {
+          const d = (document.querySelector("iframe[data-site-preview]") as HTMLIFrameElement | null)?.contentDocument;
+          if (!d) return [] as { src: string; w: number }[];
+          const all = [...d.querySelectorAll("iframe"), ...[...d.querySelectorAll("claritia-book")].flatMap((b) => [...(b.shadowRoot?.querySelectorAll("iframe") ?? [])])];
+          return all.map((f) => ({ src: f.src, w: f.getBoundingClientRect().width }));
+        });
+      await page.waitForFunction(() => {
+        const d = (document.querySelector("iframe[data-site-preview]") as HTMLIFrameElement | null)?.contentDocument;
+        return !!d && [...d.querySelectorAll("claritia-book")].some((b) => !!b.shadowRoot?.querySelector("iframe"));
+      }, null, { timeout: 8000 });
+      const src = (await frames()).find((f) => f.src.includes("/book/"))?.src ?? "";
+      check(src.includes("/book/acme/demo") && src.includes("embed=1"), `${tag}: the meeting preview shows the real calendar on a sample page`);
+      check((await page.locator("iframe[data-site-preview]").evaluate((f) => getComputedStyle(f).pointerEvents)) === "none", `${tag}: and it's look only, so nobody books from the preview`);
+      await page.getByRole("radio", { name: "Your own button" }).or(page.getByRole("button", { name: "Your own button" })).first().click();
+      await page.waitForTimeout(1200);
+      const opened = (await frames()).some((f) => f.src.includes("/book/acme/demo") && f.w > 0);
+      check(opened, `${tag}: Your own button opens the calendar in the preview`);
+      await shot("meeting-own-button");
+    }
   }
   await page.getByRole("button", { name: "Copy signature" }).click();
   check(await page.getByRole("button", { name: "Copied" }).waitFor({ timeout: 3000 }).then(() => true, () => false), `${tag}: Copy signature says Copied`);
-  for (const s of ["none", "pending", "active", "failed"]) {
-    await page.goto(`${base}/?view=domain&state=${s}&subs=1`);
+  for (const st of ["none", "pending", "active", "failed"]) {
+    await page.goto(`${base}/?view=domain&state=${st}&subs=1`);
     await page.waitForTimeout(300);
-    await shot(`domain-${s}`);
-    if (s === "pending") check(await page.getByRole("button", { name: "Copy name" }).isVisible(), `${tag}: the DNS record's name has its copy`);
-    if (s === "failed") check(await page.getByText("Checked just now").isVisible(), `${tag}: when it was last checked`);
+    await shot(`domain-${st}`);
+    if (st === "pending") check(await page.getByRole("button", { name: "Copy name" }).isVisible(), `${tag}: the DNS record's name has its copy`);
+    if (st === "failed") check(await page.getByText("Checked just now").isVisible(), `${tag}: when it was last checked`);
   }
   await page.close();
 }
