@@ -53,26 +53,24 @@ export const TEMPLATES: Template[] = [
   {
     key: "demo_request",
     name: "Demo request follow-up",
-    line: "Qualify, route, and nudge until they book",
+    line: "Route, and nudge until they book",
     body: () => ({
       trigger: { kind: "form", forms: [] },
       goals: [{ kind: "meeting_booked" }],
       entry: { mode: "once", gapDays: 30 },
       steps: [
-        s({ kind: "enrich" }),
-        s({ kind: "qualify" }),
         s({ kind: "route" }),
         s({ kind: "wait", days: 1, hours: 0 }),
         s({ kind: "email", from: "owner", approved: false, email: email("Picking a time", ["Hi {{first_name|there}},", "Thanks for asking about a demo. Pick a time that works and we'll show you around."], ["Pick a time", "https://"]) }),
         s({ kind: "wait", days: 2, hours: 0 }),
-        s({ kind: "task", title: "Call about the demo request", assignee: "owner", dueDays: 1 }),
+        s({ kind: "slack", to: "owner", text: "A demo request hasn't booked yet." }),
       ],
     }),
   },
   {
     key: "no_show",
     name: "No-show follow-up",
-    line: "An email, a task and a Slack note for their owner",
+    line: "An email and a Slack note for their owner",
     body: () => ({
       trigger: { kind: "meeting", events: ["no_show"], types: [] },
       goals: [{ kind: "meeting_booked" }],
@@ -80,7 +78,6 @@ export const TEMPLATES: Template[] = [
       steps: [
         s({ kind: "wait", days: 0, hours: 1 }),
         s({ kind: "email", from: "owner", approved: false, email: email("Sorry we missed you", ["Hi {{first_name|there}},", "We missed you earlier. Pick another time and we'll keep it short."], ["Pick a new time", "https://"]) }),
-        s({ kind: "task", title: "Reach out after the missed meeting", assignee: "owner", dueDays: 1 }),
         s({ kind: "slack", to: "owner", text: "A lead missed their meeting. They got a note with a link to pick a new time." }),
       ],
     }),
@@ -97,23 +94,7 @@ export const TEMPLATES: Template[] = [
         s({ kind: "wait", days: 0, hours: 2 }),
         s({ kind: "email", from: "owner", approved: false, email: email("Still want to talk?", ["Hi {{first_name|there}},", "You were picking a time earlier. Here's the link again."], ["Pick a time", "https://"]) }),
         s({ kind: "wait", days: 2, hours: 0 }),
-        s({ kind: "task", title: "Follow up on the form", assignee: "owner", dueDays: 1 }),
-      ],
-    }),
-  },
-  {
-    key: "not_a_fit",
-    name: "Not a fit nurture",
-    line: "Monthly emails for leads that aren't ready",
-    body: () => ({
-      trigger: { kind: "outcome", outcomes: ["Not a fit"] },
-      goals: [{ kind: "meeting_booked" }],
-      entry: { mode: "once", gapDays: 30 },
-      steps: [
-        s({ kind: "wait", days: 3, hours: 0 }),
-        s({ kind: "email", from: "team", approved: false, email: email("A few things we wrote for you", ["Hi {{first_name|there}},", "Here are a few guides teams like yours read first."]) }),
-        s({ kind: "wait", days: 30, hours: 0 }),
-        s({ kind: "email", from: "team", approved: false, email: email("What changed this month", ["Hi {{first_name|there}},", "A short note on what's new."]) }),
+        s({ kind: "slack", to: "owner", text: "A lead sent a form and hasn't booked yet." }),
       ],
     }),
   },
@@ -147,28 +128,6 @@ export const TEMPLATES: Template[] = [
         s({ kind: "wait", days: 10, hours: 0 }),
         s({ kind: "email", from: "team", approved: false, email: email("Questions?", ["Hi {{first_name|there}},", "Reply to this email and a person will answer."]) }),
       ],
-    }),
-  },
-  {
-    key: "customer",
-    name: "New customer handoff",
-    line: "When a lead becomes a customer: a task, the CRM and a list",
-    body: () => ({
-      trigger: { kind: "field", key: "lifecycle", to: "customer" },
-      goals: [],
-      entry: { mode: "once", gapDays: 30 },
-      steps: [s({ kind: "crm" }), s({ kind: "task", title: "Introduce their success contact", assignee: "owner", dueDays: 2 }), s({ kind: "slack", to: "owner", text: "A new customer. Their success contact needs an intro." })],
-    }),
-  },
-  {
-    key: "broadcast",
-    name: "Broadcast",
-    line: "One email to a segment, once",
-    body: () => ({
-      trigger: { kind: "broadcast", segment: "", at: "" },
-      goals: [],
-      entry: { mode: "once", gapDays: 30 },
-      steps: [s({ kind: "email", from: "team", approved: false, email: email("", ["Hi {{first_name|there}},", ""]) })],
     }),
   },
 ];

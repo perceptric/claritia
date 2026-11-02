@@ -24,7 +24,7 @@ import * as R from "../../src/lib/routing/recovery.ts";
 import * as S from "../../src/lib/routing/screens.ts";
 import { forgetSources } from "../../src/lib/routing/sources.ts";
 import { meetingSync } from "../../worker-intel/jobs/calendars.ts";
-import { ctxFor } from "../../worker-intel/jobs/imports.ts";
+import { ctxFor } from "../../worker-intel/jobs/ctx.ts";
 import { routingAbandon } from "../../worker-intel/jobs/router.ts";
 import { pgRpc } from "../../worker-intel/rpc.ts";
 import { ANA, KAI, policy, VIN } from "../fixtures/routingSpec.ts";
@@ -428,30 +428,6 @@ test("B09 a create that surely failed (no calendar to write to) is failed, not u
   await meetingSync(rpc, { provider: () => fake })(job("meeting_sync", `create:${m}`, { meeting: m, action: "create" }, w.ws), signal);
   assert.equal(fake.events.size, before + 1);
   assert.equal((await runOf(body.id)).booking_state, "confirmed");
-});
-
-test("B10 the event is confirmed but the CRM sync fails: the booking stays confirmed; Retry sync pushes only that contact again", async () => {
-  const w = await setup();
-  const src = (await q(`insert into sources (workspace_id, kind, name, status, settings) values ($1, 'hubspot', 'HubSpot', 'active', '{"objects": {"contacts": "both"}}') returning id`, [w.ws]))[0].id;
-  const { body } = await fill(w.demo);
-  const run = await runOf(body.id);
-  assert.equal(run.sync_state, "pending", "a two-way CRM has to learn the new owner");
-  assert.equal((await bookForClaim(rpc, body.booking!.token, claimOf(body.booking!), { start: body.booking!.slots[0]!, now: NOW, liveBusyFor: free })).status, 200);
-  await placeEvent((await runOf(body.id)).meeting_id, ANA);
-  await q(`select sync_log_add($1, $2)`, [src, JSON.stringify([{ direction: "out", object: "contact", local_id: run.contact_id, action: "error", error: "HubSpot said 502" }])]);
-  const r1 = await runOf(body.id);
-  assert.deepEqual([r1.booking_state, r1.sync_state], ["confirmed", "failed"]);
-  const meetingsBefore = (await q(`select count(*)::int n from meetings where workspace_id = $1`, [w.ws]))[0].n;
-  const runsBefore = (await q(`select count(*)::int n from router_runs where workspace_id = $1`, [w.ws]))[0].n;
-  const out = await R.retrySync(rpc, w.owner, { run: run.id });
-  assert.deepEqual(out, { state: "pending", queued: 1 });
-  const j = (await q(`select payload from jobs where kind = 'source_pull' and key = $1`, [`${src}:route:${run.id}`]))[0];
-  assert.deepEqual(j.payload.retry, [run.contact_id], "that contact only");
-  assert.deepEqual([(await q(`select count(*)::int n from meetings where workspace_id = $1`, [w.ws]))[0].n, (await q(`select count(*)::int n from router_runs where workspace_id = $1`, [w.ws]))[0].n], [meetingsBefore, runsBefore], "no new meeting, no new routing");
-  await q(`select sync_log_add($1, $2)`, [src, JSON.stringify([{ direction: "out", object: "contact", local_id: run.contact_id, external_id: "hs_1", action: "update" }])]);
-  assert.deepEqual([(await runOf(body.id)).sync_state, (await runOf(body.id)).booking_state], ["complete", "confirmed"]);
-  // The lead's owner may retry their own; another member can't.
-  await assert.rejects(R.retrySync(rpc, w.kai, { run: run.id }), refused(403));
 });
 
 test("B12 cancellation updates the booking only; a no-show is attendance: owner, quota and queue stay", async () => {

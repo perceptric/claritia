@@ -10,7 +10,7 @@ import { stepProblems } from "@/lib/workflows/check";
 import { stepWords, triggerWords, waitWords, type Names as WordNames } from "@/lib/workflows/explain";
 import { pathsOf, type At, type PathName } from "@/lib/workflows/tree";
 import { STEP_KINDS, type Body, type Step, type StepKind } from "@/lib/workflows/types";
-import { ArrowDown, ArrowUp, Bell, Branch, Building, Check, Clock, Code, Contact, Copy, Flag, Mail, Pencil, Plus, Send, Shuffle, Signpost, Sparkle, Trash } from "../../Icons";
+import { ArrowDown, ArrowUp, Bell, Branch, Clock, Code, Copy, Flag, Mail, Plus, Shuffle, Signpost, Trash } from "../../Icons";
 import { Popover } from "../FilterBar";
 import { Badge } from "../ui";
 
@@ -22,15 +22,9 @@ const ICON: Record<StepKind, (p: { size?: number }) => React.ReactNode> = {
   wait_until: Clock,
   branch: Branch,
   split: Shuffle,
-  enrich: Building,
-  qualify: Sparkle,
   route: Signpost,
-  update: Pencil,
-  list: Contact,
-  task: Check,
   slack: Bell,
   webhook: Code,
-  crm: Send,
   exit: Flag,
 };
 

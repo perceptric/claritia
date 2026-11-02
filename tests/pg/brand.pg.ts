@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import { after, test } from "node:test";
 import pg from "pg";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { uuid7 } from "../../collect/ids.ts";
+import { uuid7 } from "./ids.ts";
 import { DEFAULT_TOKENS } from "../../src/lib/forms/brand.ts";
 import { ScanBlocked, type Scan } from "../../src/lib/brand/scan.ts";
 import type { Job } from "../../src/lib/jobs.ts";

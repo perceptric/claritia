@@ -5,7 +5,7 @@
 import assert from "node:assert/strict";
 import { after, test } from "node:test";
 import pg from "pg";
-import { uuid7 } from "../../collect/ids.ts";
+import { uuid7 } from "./ids.ts";
 import { labeled, signature, type Taken } from "../../src/lib/delivery/send.ts";
 import { checkForm, type Form } from "../../src/lib/forms/schema.ts";
 import { prepareSubmit } from "../../src/lib/forms/submit.ts";
@@ -14,7 +14,7 @@ import { seal } from "../../src/lib/seal.ts";
 import type { RunOpts } from "../../src/lib/sources/run.ts";
 import { pgRpc } from "../../worker-intel/rpc.ts";
 import { deliverHeld, deliverOnce } from "../../worker-intel/jobs/deliver.ts";
-import { ctxFor } from "../../worker-intel/jobs/imports.ts";
+import { ctxFor } from "../../worker-intel/jobs/ctx.ts";
 import { FakeHubspot, rng } from "../sources/fakeHubspot.ts";
 
 process.env.SECRETS_KEY ||= "test-secrets-key-that-is-long-enough-1234";

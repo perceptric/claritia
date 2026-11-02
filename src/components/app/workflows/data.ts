@@ -22,35 +22,25 @@ export type Loaded = { wf: Workflow; draft: Body; live: Body | null; versions: V
 export const loadNames = (sb: SupabaseClient, ws: string): Promise<Names> => cached(`workflow_names:${ws}`, () => readNames(sb, ws));
 
 async function readNames(sb: SupabaseClient, ws: string): Promise<Names> {
-  const [forms, segments, typeRows, people, profiles, qualify, fields, templates, product] = await Promise.all([
+  const [forms, typeRows, people, profiles, templates] = await Promise.all([
     sb.from("forms").select("id, name").eq("workspace_id", ws).order("name"),
-    sb.from("segments").select("id, name, kind").eq("workspace_id", ws).order("name"),
     meetingTypes(sb, ws),
     workspacePeople(sb, ws),
     sb.from("booking_profiles").select("user_id, name").eq("workspace_id", ws),
-    sb.from("qualify_settings").select("outcomes").eq("workspace_id", ws).maybeSingle(),
-    sb.from("fields").select("key, label, type").eq("workspace_id", ws).eq("object", "contact").order("position"),
     // Names only; a template's body is read when it's picked.
     sb.from("email_templates").select("id, name").eq("workspace_id", ws).order("name"),
-    sb.rpc("product_event_names", { p_ws: ws }),
   ]);
   const types = { data: [...typeRows].sort((a, b) => a.name.localeCompare(b.name)).map((t) => ({ id: t.id, name: t.name })), error: null };
   const named = new Map(((profiles.data ?? []) as { user_id: string; name: string }[]).map((p) => [p.user_id, p.name]));
-  const outcomes = (((qualify.data as { outcomes?: { label?: string }[] } | null)?.outcomes ?? []) as { label?: string }[]).map((o) => o.label ?? "").filter(Boolean);
   return {
     forms: (must(forms) ?? []) as Names["forms"],
-    segments: (must(segments) ?? []) as Names["segments"],
     types: (must(types) ?? []) as Names["types"],
     members: people.map((p) => ({ id: p.id, email: p.email, name: named.get(p.id) || p.email.replace(/@.*/, "") })),
-    outcomes: outcomes.length ? outcomes : ["Sales ready", "Nurture", "Not a fit"],
-    dateFields: ((fields.data ?? []) as { key: string; label: string; type: string }[]).filter((f) => f.type === "date").map((f) => ({ key: `f.${f.key}`, label: f.label })),
     templates: (must(templates) ?? []) as Names["templates"],
-    // Missing before the migration runs: the pickers then take typed names.
-    productEvents: ((product.data ?? []) as string[]).filter(Boolean),
   };
 }
 
-export const wordsOf = (n: Names): WordNames => ({ forms: byId(n.forms), segments: byId(n.segments), types: byId(n.types), people: { owner: "their owner", ...byId(n.members) } });
+export const wordsOf = (n: Names): WordNames => ({ forms: byId(n.forms), types: byId(n.types), people: { owner: "their owner", ...byId(n.members) } });
 
 /** A workflow with its versions, names and counts, all asked for at once. */
 export async function loadWorkflow(sb: SupabaseClient, ws: string, id: string): Promise<Loaded> {

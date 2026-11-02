@@ -29,30 +29,14 @@ export function triggerWords(t: Trigger, n: Names = {}): string {
     }
     case "not_booked":
       return `When a lead doesn't book after ${named(t.forms, n.forms, "a form", "a deleted form")}`;
-    case "outcome":
-      return `When qualify says ${list(t.outcomes) || "anything"}`;
-    case "band":
-      return `When the score turns ${list(t.bands) || "any band"}`;
     case "routed":
       return t.result === "unassigned" ? "When no one is found for a lead" : t.result === "routed" ? "When a lead is assigned" : "When a lead is routed";
-    case "segment":
-      return `When someone ${t.on === "left" ? "leaves" : "joins"} ${n.segments?.[t.segment] ?? "a segment"}`;
-    case "field":
-      return `When ${t.key.replace(/^f\./, "").replace(/_/g, " ") || "a field"} changes${t.to ? ` to ${t.to}` : ""}`;
     case "clicked":
       return `When someone clicks ${named(t.emails, n.emails, "an email", "a deleted email")}`;
-    case "product":
-      return `When someone does ${list(t.events.map((x) => `"${x}"`)) || "something"} in the product`;
-    case "date":
-      return t.days === 0 ? `On each contact's ${t.field.replace(/_/g, " ")}` : `${plural(Math.abs(t.days), "day")} ${t.days < 0 ? "before" : "after"} each contact's ${t.field.replace(/_/g, " ")}`;
-    case "broadcast":
-      return `Once, to ${n.segments?.[t.segment] ?? "a segment"}${t.at ? `, on ${new Date(t.at).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}` : ""}`;
-    case "manual":
-      return "When someone is added by hand";
   }
 }
 
-const EVENT_WORDS: Record<string, string> = { "meeting.booked": "a booked meeting", "email.clicked": "a click on an email", "form.submitted": "a form", "lead.outcome": "qualify to decide", "segment.entered": "them to join a segment", "product.used": "something in the product" };
+const EVENT_WORDS: Record<string, string> = { "meeting.booked": "a booked meeting", "email.clicked": "a click on an email", "form.submitted": "a form" };
 
 export function waitWords(s: Extract<Step, { kind: "wait" }>): string {
   const parts = [s.days ? plural(s.days, "day") : "", s.hours ? plural(s.hours, "hour") : ""].filter(Boolean);
@@ -69,29 +53,17 @@ export function stepWords(s: Step, n: Names = {}): string {
     case "wait":
       return waitWords(s);
     case "wait_until":
-      return `Wait up to ${plural(s.days, "day")} for ${s.event === "product.used" && s.name ? `"${s.name}" in the product` : (EVENT_WORDS[s.event] ?? s.event)}`;
+      return `Wait up to ${plural(s.days, "day")} for ${EVENT_WORDS[s.event] ?? s.event}`;
     case "branch":
       return s.conds.length ? `If ${s.conds.map((c) => ruleWords({ id: s.id, name: "", match: s.match, conds: [c], queue: "" }, BASE_FIELDS, []).replace(/^./, (x) => x.toLowerCase())).join(s.match === "any" ? " or " : " and ")}` : "If…";
     case "split":
       return `Split ${s.percent}% and ${100 - s.percent}%`;
-    case "enrich":
-      return "Fill in their details";
-    case "qualify":
-      return "Qualify the lead";
     case "route":
       return "Find the right person";
-    case "update":
-      return `Set ${s.field.replace(/^f\./, "").replace(/_/g, " ")} to ${s.value || "blank"}`;
-    case "list":
-      return `${s.action === "add" ? "Add to" : "Remove from"} ${n.segments?.[s.segment] ?? "a list"}`;
-    case "task":
-      return `Task for ${s.assignee === "owner" ? "their owner" : (n.people?.[s.assignee] ?? "a teammate")}: ${s.title}`;
     case "slack":
       return `Slack ${s.to === "owner" ? "their owner" : (n.people?.[s.to] ?? "a teammate")}`;
     case "webhook":
       return s.url ? `Send to ${hostOf(s.url)}` : "Send to a webhook";
-    case "crm":
-      return "Push to the CRM";
     case "exit":
       return "End here";
   }
@@ -106,9 +78,8 @@ const hostOf = (u: string) => {
 };
 
 export function goalWords(g: Goal): string {
-  if (g.kind === "meeting_booked") return "they book a meeting";
-  if (g.kind === "lifecycle") return `their stage is ${list(g.stages)}`;
-  return `qualify says ${list(g.outcomes)}`;
+  void g;
+  return "they book a meeting";
 }
 
 /** Make live's list: what changed between the live version and the draft, as sentences. */

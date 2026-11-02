@@ -11,7 +11,7 @@ import { BASE_FIELDS, isPast, needsValue, opsFor } from "@/lib/router/conditions
 import { OPS, type Cond } from "@/lib/router/types";
 import { stepProblems } from "@/lib/workflows/check";
 import { MERGE_KEYS } from "@/lib/workflows/merge";
-import { STEP_KINDS, TRIGGERS, UPDATABLE, type Body, type EmailBody, type Goal, type Step, type Trigger, type TriggerKind } from "@/lib/workflows/types";
+import { STEP_KINDS, TRIGGERS, type Body, type EmailBody, type Goal, type Step, type Trigger, type TriggerKind } from "@/lib/workflows/types";
 import { Copy, Plus, Trash } from "../../Icons";
 import { AiMark } from "../Ai";
 import { askLines } from "../Dialogs";
@@ -56,9 +56,6 @@ function Pills({ options, value, onChange, disabled }: { options: { value: strin
 
 // Trigger ----------------------------------------------------------------------------------------------------------
 
-const LIFECYCLES = ["subscriber", "lead", "mql", "sql", "opportunity", "customer", "evangelist"].map((v) => ({ value: v, label: v.length <= 3 ? v.toUpperCase() : v[0]!.toUpperCase() + v.slice(1) }));
-const FIELD_KEYS = [...UPDATABLE].map((k) => ({ value: k, label: k.replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase()) }));
-
 function blankTrigger(kind: TriggerKind): Trigger {
   switch (kind) {
     case "form":
@@ -66,35 +63,12 @@ function blankTrigger(kind: TriggerKind): Trigger {
       return { kind, forms: [] };
     case "meeting":
       return { kind, events: ["booked"], types: [] };
-    case "outcome":
-      return { kind, outcomes: [] };
-    case "band":
-      return { kind, bands: ["hot"] };
     case "routed":
       return { kind, result: "routed" };
-    case "segment":
-      return { kind, segment: "", on: "entered" };
-    case "field":
-      return { kind, key: "lifecycle" };
-    case "clicked":
-      return { kind, emails: [] };
-    case "product":
-      return { kind, events: [] };
-    case "date":
-      return { kind, field: "", days: 0, time: "09:00" };
-    case "broadcast":
-      return { kind, segment: "", at: "" };
     default:
-      return { kind: "manual" };
+      return { kind: "clicked", emails: [] };
   }
 }
-
-/** A local datetime-local value from an ISO time, and back. */
-const toLocal = (iso: string) => {
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return "";
-  return new Date(d.getTime() - d.getTimezoneOffset() * 60_000).toISOString().slice(0, 16);
-};
 
 export function TriggerPanel({ body, names, onChange, readOnly }: { body: Body; names: Names; onChange: (b: Body, key?: string) => void; readOnly: boolean }) {
   const t = body.trigger;
@@ -131,65 +105,10 @@ export function TriggerPanel({ body, names, onChange, readOnly }: { body: Body; 
           </Row>
         </>
       ) : null}
-      {t.kind === "outcome" ? (
-        <Row name="Outcomes">
-          <Pills options={names.outcomes.map((o) => ({ value: o, label: o }))} value={t.outcomes} onChange={(outcomes) => set({ outcomes })} disabled={readOnly} />
-        </Row>
-      ) : null}
-      {t.kind === "band" ? (
-        <Row name="Turns">
-          <Pills options={["hot", "warm", "cold"].map((b) => ({ value: b, label: b[0]!.toUpperCase() + b.slice(1) }))} value={t.bands} onChange={(bands) => set({ bands })} disabled={readOnly} />
-        </Row>
-      ) : null}
       {t.kind === "routed" ? (
         <Row name="When">
           <Segmented value={t.result} options={[{ value: "routed", label: "Gets assigned" }, { value: "unassigned", label: "No one found" }, { value: "any", label: "Either" }]} onChange={(result) => set({ result })} />
         </Row>
-      ) : null}
-      {t.kind === "segment" || t.kind === "broadcast" ? (
-        <Row name="Segment">
-          <Select value={t.segment} options={names.segments.map((s) => ({ value: s.id, label: s.name }))} onChange={(segment) => set({ segment })} ariaLabel="Segment" className="h-9 w-full" placeholder="Pick a segment" disabled={readOnly} />
-        </Row>
-      ) : null}
-      {t.kind === "segment" ? <Segmented value={t.on} options={[{ value: "entered", label: "Joins" }, { value: "left", label: "Leaves" }]} onChange={(on) => set({ on })} /> : null}
-      {t.kind === "broadcast" ? (
-        <Row name="Goes">
-          <Input type="datetime-local" value={toLocal(t.at)} onChange={(e) => set({ at: e.target.value ? new Date(e.target.value).toISOString() : "" })} className="h-9" disabled={readOnly} />
-        </Row>
-      ) : null}
-      {t.kind === "field" ? (
-        <>
-          <Row name="Field">
-            <Select value={t.key} options={FIELD_KEYS} onChange={(key) => set({ key })} ariaLabel="Field" className="h-9 w-full" disabled={readOnly} />
-          </Row>
-          <Row name="Changes to">
-            {t.key === "lifecycle" ? (
-              <Select value={t.to ?? ""} options={[{ value: "", label: "Anything" }, ...LIFECYCLES]} onChange={(to) => set({ to: to || undefined })} ariaLabel="Changes to" className="h-9 w-full" disabled={readOnly} />
-            ) : (
-              <Input value={t.to ?? ""} onChange={(e) => set({ to: e.target.value || undefined })} placeholder="Anything" className="h-9" disabled={readOnly} />
-            )}
-          </Row>
-        </>
-      ) : null}
-      {t.kind === "product" ? (
-        <Row name="Events">
-          <ProductEvents known={names.productEvents} value={t.events} onChange={(events) => set({ events })} disabled={readOnly} />
-        </Row>
-      ) : null}
-      {t.kind === "date" ? (
-        <>
-          <Row name="Date field">
-            <Select value={t.field} options={names.dateFields.map((d) => ({ value: d.key, label: d.label }))} onChange={(field) => set({ field })} ariaLabel="Date field" className="h-9 w-full" placeholder="Pick a date field" disabled={readOnly} />
-          </Row>
-          <div className="grid grid-cols-2 gap-3">
-            <Row name="Days from it">
-              <Input type="number" value={t.days} onChange={(e) => set({ days: Math.round(Number(e.target.value) || 0) })} className="h-9" disabled={readOnly} />
-            </Row>
-            <Row name="At">
-              <Input type="time" value={t.time} onChange={(e) => set({ time: e.target.value || "09:00" })} className="h-9" disabled={readOnly} />
-            </Row>
-          </div>
-        </>
       ) : null}
 
       <div className="flex flex-col gap-3 border-t border-line pt-4">
@@ -215,24 +134,6 @@ export function TriggerPanel({ body, names, onChange, readOnly }: { body: Body; 
           They book a meeting
           <Toggle label="Ends when they book a meeting" on={!!goal("meeting_booked")} onChange={(v) => setGoal("meeting_booked", v ? { kind: "meeting_booked" } : null)} disabled={readOnly} />
         </div>
-        <Row name="Their stage is">
-          <Pills
-            options={LIFECYCLES}
-            value={(goal("lifecycle") as Extract<Goal, { kind: "lifecycle" }> | undefined)?.stages ?? []}
-            onChange={(stages) => setGoal("lifecycle", stages.length ? { kind: "lifecycle", stages } : null)}
-            disabled={readOnly}
-          />
-        </Row>
-        {names.outcomes.length ? (
-          <Row name="Qualify says">
-            <Pills
-              options={names.outcomes.map((o) => ({ value: o, label: o }))}
-              value={(goal("outcome") as Extract<Goal, { kind: "outcome" }> | undefined)?.outcomes ?? []}
-              onChange={(outcomes) => setGoal("outcome", outcomes.length ? { kind: "outcome", outcomes } : null)}
-              disabled={readOnly}
-            />
-          </Row>
-        ) : null}
       </div>
     </div>
   );
@@ -391,29 +292,7 @@ const EVENTS = [
   { value: "meeting.booked", label: "They book a meeting" },
   { value: "email.clicked", label: "They click an email" },
   { value: "form.submitted", label: "They send a form" },
-  { value: "lead.outcome", label: "Qualify decides" },
-  { value: "segment.entered", label: "They join a segment" },
-  { value: "product.used", label: "They do something in the product" },
 ];
-
-/** Product events by name: the ones seen in the last 30 days as pills, and any other typed in. */
-function ProductEvents({ known, value, onChange, disabled }: { known: string[]; value: string[]; onChange: (v: string[]) => void; disabled?: boolean }) {
-  const [typed, setTyped] = useState("");
-  const names = [...new Set([...known, ...value])];
-  const add = () => {
-    const n = typed.trim().slice(0, 64);
-    if (n && !value.includes(n)) onChange([...value, n]);
-    setTyped("");
-  };
-  return (
-    <div className="flex flex-col gap-2">
-      {names.length ? <Pills options={names.map((n) => ({ value: n, label: n }))} value={value} onChange={onChange} disabled={disabled} /> : null}
-      {disabled ? null : (
-        <Input value={typed} onChange={(e) => setTyped(e.target.value)} onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), add())} onBlur={add} placeholder="Event name" className="h-9" />
-      )}
-    </div>
-  );
-}
 
 export function StepPanel(p: {
   step: Step;
@@ -573,15 +452,6 @@ export function StepPanel(p: {
           <Row name="Until">
             <Select value={s.event} options={EVENTS} onChange={(event) => p.onPatch({ event } as Partial<Step>)} ariaLabel="Until" className="h-9 w-full" disabled={p.readOnly} />
           </Row>
-          {s.event === "product.used" ? (
-            <Row name="Event">
-              {p.names.productEvents.length ? (
-                <Select value={s.name ?? ""} options={[...new Set([...p.names.productEvents, ...(s.name ? [s.name] : [])])].map((n) => ({ value: n, label: n }))} onChange={(name) => p.onPatch({ name } as Partial<Step>)} ariaLabel="Event" className="h-9 w-full" placeholder="Pick an event" disabled={p.readOnly} />
-              ) : (
-                <Input value={s.name ?? ""} onChange={(e) => p.onPatch({ name: e.target.value } as Partial<Step>, "name")} placeholder="Event name" className="h-9" disabled={p.readOnly} />
-              )}
-            </Row>
-          ) : null}
           <Row name="At most, days">
             <Input type="number" min={1} value={s.days} onChange={(e) => p.onPatch({ days: Math.max(1, Math.round(Number(e.target.value) || 1)) } as Partial<Step>, "days")} className="h-9 w-28" disabled={p.readOnly} />
           </Row>
@@ -599,46 +469,6 @@ export function StepPanel(p: {
         <Row name="Share on A, %">
           <Input type="number" min={1} max={99} value={s.percent} onChange={(e) => p.onPatch({ percent: Math.min(99, Math.max(1, Math.round(Number(e.target.value) || 50))) } as Partial<Step>, "pct")} className="h-9 w-28" disabled={p.readOnly} />
         </Row>
-      ) : null}
-
-      {s.kind === "update" ? (
-        <>
-          <Row name="Field">
-            <Select value={s.field} options={FIELD_KEYS} onChange={(field) => p.onPatch({ field, value: "" } as Partial<Step>)} ariaLabel="Field" className="h-9 w-full" disabled={p.readOnly} />
-          </Row>
-          <Row name="Set to">
-            {s.field === "lifecycle" ? (
-              <Select value={s.value} options={LIFECYCLES} onChange={(value) => p.onPatch({ value } as Partial<Step>)} ariaLabel="Set to" className="h-9 w-full" disabled={p.readOnly} />
-            ) : (
-              <Input value={s.value} onChange={(e) => p.onPatch({ value: e.target.value } as Partial<Step>, "value")} className="h-9" disabled={p.readOnly} />
-            )}
-          </Row>
-        </>
-      ) : null}
-
-      {s.kind === "list" ? (
-        <>
-          <Segmented value={s.action} options={[{ value: "add", label: "Add" }, { value: "remove", label: "Remove" }]} onChange={(action) => p.onPatch({ action } as Partial<Step>)} />
-          <Row name="List">
-            <Select value={s.segment} options={p.names.segments.filter((g) => g.kind === "static").map((g) => ({ value: g.id, label: g.name }))} onChange={(segment) => p.onPatch({ segment } as Partial<Step>)} ariaLabel="List" className="h-9 w-full" placeholder="Pick a list" disabled={p.readOnly} />
-          </Row>
-        </>
-      ) : null}
-
-      {s.kind === "task" ? (
-        <>
-          <Row name="Task">
-            <Input value={s.title} onChange={(e) => p.onPatch({ title: e.target.value } as Partial<Step>, "title")} className="h-9" disabled={p.readOnly} />
-          </Row>
-          <div className="grid grid-cols-[2fr_1fr] gap-3">
-            <Row name="For">
-              <Select value={s.assignee} options={people} onChange={(assignee) => p.onPatch({ assignee } as Partial<Step>)} ariaLabel="For" className="h-9 w-full" disabled={p.readOnly} />
-            </Row>
-            <Row name="Due in days">
-              <Input type="number" min={0} value={s.dueDays} onChange={(e) => p.onPatch({ dueDays: Math.max(0, Math.round(Number(e.target.value) || 0)) } as Partial<Step>, "due")} className="h-9" disabled={p.readOnly} />
-            </Row>
-          </div>
-        </>
       ) : null}
 
       {s.kind === "slack" ? (

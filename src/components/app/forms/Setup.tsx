@@ -362,10 +362,6 @@ function Data({ sb, session, form, apply, formId, subs, name }: Props) {
           <Seg label="Keep submissions" value={String(days ?? "forever")} onChange={(v) => apply({ op: "set_keep", keep: { days: v === "forever" ? null : Number(v) } })} options={[{ value: "30", label: "30 days" }, { value: "365", label: "1 year" }, { value: "1095", label: "3 years" }, { value: "forever", label: "Forever" }]} />
         </div>
         <div className={CROW}>
-          <RowText title="Contacts stay when answers go" sub="Their fields keep the saved values" />
-          <Tg label="Contacts stay when answers go" on disabled onChange={() => {}} />
-        </div>
-        <div className={CROW}>
           <RowText title="Export every submission" />
           <button
             type="button"
@@ -398,7 +394,7 @@ function Data({ sb, session, form, apply, formId, subs, name }: Props) {
             type="button"
             className={GHOST_SM_RED}
             onClick={async () => {
-              const typed = await askText(`Delete every submission? All ${subs.toLocaleString("en-US")} go for good. Contacts stay. Type the form's name to go ahead.`, { placeholder: name, ok: "Delete all" });
+              const typed = await askText(`Delete every submission? All ${subs.toLocaleString("en-US")} go for good. Type the form's name to go ahead.`, { placeholder: name, ok: "Delete all" });
               if (!typed) return;
               if (typed.trim() !== name.trim()) return setError("The name didn't match, so nothing was deleted.");
               setError("");

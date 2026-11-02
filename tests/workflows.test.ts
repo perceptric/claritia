@@ -60,8 +60,8 @@ test("Try a contact: branches by the contact's values, splits the same way every
   assert.deepEqual(tracePath(body, f({}), "run-1").lines.map((l) => l.path), tracePath(body, f({}), "run-1").lines.map((l) => l.path), "a run always splits the same way");
   const withExit: Body = { ...body, steps: [email("e1"), { id: "x", kind: "exit" }, email("e9")] };
   assert.deepEqual(tracePath(withExit, f({})).lines.map((l) => l.step.id), ["e1", "x"]);
-  const goal: Body = { ...body, goals: [{ kind: "lifecycle", stages: ["customer"] }] };
-  assert.equal(tracePath(goal, f({}, { lifecycle: "customer" })).goal?.kind, "lifecycle");
+  const goal: Body = { ...body, goals: [{ kind: "meeting_booked" }] };
+  assert.equal(tracePath(goal, f({}, { booked: true })).goal?.kind, "meeting_booked");
   const only: Body = { ...body, only: { match: "all", conds: [{ field: "contact.email_class", op: "one_of", value: ["work"] }] } };
   assert.equal(tracePath(only, f({ "contact.email_class": "free" })).entered, false);
 });
@@ -87,7 +87,7 @@ test("a wait across the end of daylight saving lands on the right local hour; we
 
 test("goals and branches read the contact as it is now", () => {
   assert.equal(goalMet([{ kind: "meeting_booked" }], { booked: true, lifecycle: null, outcome: null })?.kind, "meeting_booked");
-  assert.equal(goalMet([{ kind: "outcome", outcomes: ["Qualified"] }], { booked: false, lifecycle: null, outcome: "Not a fit" }), null);
+  assert.equal(goalMet([{ kind: "meeting_booked" }], { booked: false, lifecycle: "customer", outcome: "Qualified" }), null);
   const br = find(tree(), "br")!.step as Extract<Step, { kind: "branch" }>;
   assert.equal(branchYes(br, { "contact.seniority": "C-level" }), true);
   assert.equal(branchYes({ ...br, conds: [] }, {}), false, "no conditions never matches");

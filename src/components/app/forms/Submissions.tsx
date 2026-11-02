@@ -63,7 +63,7 @@ const SPAM_WHY: Record<string, string> = {
 const slot = (iso: string) => new Date(iso).toLocaleString("en-US", { weekday: "short", hour: "2-digit", minute: "2-digit", hour12: false });
 
 export function Submissions(props: ViewProps & { form: Form; formId: string; dests: Destination[]; sources: SourceRow[]; onFix: (fieldId: string) => void; start?: View }) {
-  const { sb, session, ws, form, formId, dests, sources, navigate } = props;
+  const { sb, session, ws, form, formId, dests, sources } = props;
   const [view, setView] = useState<View>(props.start ?? "leads");
   const [text, setText] = useState("");
   const [q, setQ] = useState("");
@@ -456,7 +456,6 @@ export function Submissions(props: ViewProps & { form: Form; formId: string; des
             destName={destName}
             destLogo={destLogo}
             onClose={() => setOpen(null)}
-            onContact={() => openRow.contact_id && navigate("contacts", openRow.contact_id)}
             onReplay={() => void replay([openRow])}
             onSpam={(v) => void markSpam([openRow], v)}
             onDelete={() => void remove([openRow])}
@@ -537,7 +536,7 @@ function BulkBtn({ children, onClick, label }: { children: React.ReactNode; onCl
 type Pay = { status?: string; amount?: number; currency?: string };
 const PAY_WORDS: Record<string, [string, "green" | "amber" | "gray" | "red"]> = { paid: ["Paid", "green"], open: ["Not paid yet", "amber"], expired: ["Payment not finished", "gray"], failed: ["Payment failed", "red"], refunded: ["Refunded", "gray"] };
 
-function RowPanel({ s, form, name, rep, dests, destName, destLogo, onClose, onContact, onReplay, onSpam, onDelete, onFix, onOpenFile, onPdf, loadPay }: {
+function RowPanel({ s, form, name, rep, dests, destName, destLogo, onClose, onReplay, onSpam, onDelete, onFix, onOpenFile, onPdf, loadPay }: {
   s: Fill;
   onPdf: () => void;
   loadPay: () => Promise<Pay | null>;
@@ -550,7 +549,6 @@ function RowPanel({ s, form, name, rep, dests, destName, destLogo, onClose, onCo
   destName: (id: string) => string;
   destLogo: (id: string) => React.ReactNode;
   onClose: () => void;
-  onContact: () => void;
   onReplay: () => void;
   onSpam: (spam: boolean) => void;
   onDelete: () => void;
@@ -635,16 +633,8 @@ function RowPanel({ s, form, name, rep, dests, destName, destLogo, onClose, onCo
         ) : (
           <PanelSection icon={<Ic n="user" />} title="Lead" summary={rep && rep !== "Not routed" ? `Routed to ${rep}` : "Not routed"} open={open === "lead"} onToggle={() => toggle("lead")}>
             <div className="grid grid-cols-[110px_minmax(0,1fr)] gap-x-[10px] gap-y-[6px] text-[12.5px]">
-              <span className="text-muted">Contact</span>
-              <span>
-                {s.contact_id ? (
-                  <button type="button" className={LINK} onClick={onContact}>
-                    {name}
-                  </button>
-                ) : (
-                  "None"
-                )}
-              </span>
+              <span className="text-muted">Person</span>
+              <span>{name || "None"}</span>
               <span className="text-muted">Routed to</span>
               <span>{rep || "Not yet"}</span>
               <span className="text-muted">Score</span>

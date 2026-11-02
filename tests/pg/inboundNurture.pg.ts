@@ -1,20 +1,17 @@
-// The SQL behind Visitors, booking stitching, workflow folders, workflow reminders and Spam goes to Spam, against a
+// The SQL behind workflow folders, workflow reminders and Spam goes to Spam, against a
 // real database built from every migration (scripts/test-db.sh). Migrations 098 to 102.
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import pg from "pg";
-import { uuid7 } from "../../collect/ids.ts";
-import { stitchDevice, type Settings } from "../../src/lib/identity/stitch.ts";
+import { uuid7 } from "./ids.ts";
 
 const url = process.env.PG_URL;
 if (!url) throw new Error("PG_URL is not set");
 const pool = new pg.Pool({ connectionString: url, max: 6 });
 const q = async (sql: string, p: unknown[] = []) => (await pool.query(sql, p)).rows;
-const settings: Settings = { own_domains: ["team-test.io"], partner_domains: [], secrets: [] };
 const H = 3600_000;
 let ws = "";
 let user = "";
-let site = "";
 after(() => pool.end());
 
 async function asUser<T>(who: string, sql: string, params: unknown[]): Promise<T> {
@@ -34,63 +31,6 @@ before(async () => {
   await q(`insert into workspaces (id, name) values ($1, 'inbound nurture')`, [ws]);
   await q(`insert into auth.users (id, email) values ($1, $2)`, [user, `${user}@t.io`]);
   await q(`insert into workspace_members (workspace_id, user_id, role) values ($1, $2, 'owner')`, [ws, user]);
-  site = (await q(`insert into sites (workspace_id, domain) values ($1, 'nurture-test.com') returning id`, [ws]))[0].id;
-});
-
-async function device(state = "fresh") {
-  const id = uuid7();
-  await q(`insert into devices (id, workspace_id, site_id, state, last_seen) values ($1, $2, $3, $4, now())`, [id, ws, site, state]);
-  return id;
-}
-async function visit(dev: string, at: number, o: { bot?: boolean; source?: string } = {}) {
-  const id = uuid7(at);
-  await q(`insert into sessions (id, workspace_id, site_id, device_id, started_at, ended_at, policy, is_bot, source, pageviews, landing_path) values ($1, $2, $3, $4, $5, $6, 'notice', $7, $8, 2, '/pricing')`, [
-    id, ws, site, dev, new Date(at), new Date(at + 5 * 60_000), o.bot ?? false, o.source ?? null,
-  ]);
-  await q(`insert into events (id, workspace_id, session_id, day, kind, path, title, server_at) values ($1, $2, $3, $4, 'view', '/pricing', 'Pricing', $5)`, [uuid7(at + 1000), ws, id, new Date(at).toISOString().slice(0, 10), new Date(at + 1000)]);
-  return id;
-}
-
-test("visitors: everyone with a real visit, known ones marked; internal and bot-only devices never show", async () => {
-  const now = Date.now();
-  const anon = await device();
-  await visit(anon, now - 2 * H, { source: "google" });
-  const internal = await device("internal");
-  await visit(internal, now - H);
-  const bot = await device();
-  await visit(bot, now - H, { bot: true });
-  // A booking on the site links this device to Dana (the same proof as a form).
-  const dana = await device();
-  const s = await visit(dana, now - 3 * H);
-  await q(`insert into identity_evidence (id, workspace_id, site_id, device_id, session_id, source, level, identifiers, extra, server_at) values ($1, $2, $3, $4, $5, 'booking', 'asserted', $6, '{}', now())`, [
-    uuid7(), ws, site, dana, s, JSON.stringify([{ kind: "email", value: "dana@lead-test.io" }]),
-  ]);
-  const r = await stitchDevice(pool, ws, dana, settings);
-  assert.ok(r.some((x) => "person" in x), "a booking links the device");
-  await q(`insert into contacts (workspace_id, email, email_clean, first_name, last_name, person_id) select $1, 'dana@lead-test.io', 'dana@lead-test.io', 'Dana', 'Lee', person_id from identifiers where workspace_id = $1 and value_clean = 'dana@lead-test.io' on conflict do nothing`, [ws]);
-  await q(`update contacts set person_id = (select person_id from identifiers where workspace_id = $1 and value_clean = 'dana@lead-test.io') where workspace_id = $1 and email_clean = 'dana@lead-test.io'`, [ws]);
-
-  type V = { id: string; contact_id: string | null; first_name: string | null; source: string | null; views: number };
-  const all = await asUser<V[]>(user, `select visitors_list($1, 'all', null, 50) as r`, [ws]);
-  assert.deepEqual(new Set(all.map((v) => v.id)), new Set([anon, dana]));
-  assert.equal(all.find((v) => v.id === dana)!.first_name, "Dana");
-  assert.equal(all.find((v) => v.id === anon)!.source, "google");
-  assert.deepEqual((await asUser<V[]>(user, `select visitors_list($1, 'known', null, 50) as r`, [ws])).map((v) => v.id), [dana]);
-  assert.deepEqual((await asUser<V[]>(user, `select visitors_list($1, 'unknown', null, 50) as r`, [ws])).map((v) => v.id), [anon]);
-  assert.deepEqual(await asUser(user, `select visitors_counts($1) as r`, [ws]), { all: 2, known: 1 });
-
-  type J = { contact: { first_name: string } | null; sessions: { events: { kind: string; path: string }[] }[]; proof: { source: string; email: string }[] };
-  const j = await asUser<J>(user, `select visitor_journey($1, $2) as r`, [ws, dana]);
-  assert.equal(j.contact?.first_name, "Dana");
-  assert.equal(j.sessions[0]!.events[0]!.path, "/pricing");
-  assert.deepEqual(j.proof.map((p) => [p.source, p.email]), [["booking", "dana@lead-test.io"]]);
-  assert.equal(await asUser(user, `select visitor_journey($1, $2) as r`, [ws, internal]), null, "an internal device has no journey");
-
-  // Someone outside the workspace sees nothing.
-  const stranger = uuid7();
-  await q(`insert into auth.users (id, email) values ($1, $2)`, [stranger, `${stranger}@t.io`]);
-  await assert.rejects(asUser(stranger, `select visitors_list($1) as r`, [ws]), /Workspace not found/);
-  await assert.rejects(asUser(stranger, `select visitor_journey($1, $2) as r`, [ws, dana]), /Workspace not found/);
 });
 
 test("workflow folders: made from the old groups once; rename, move, file and delete keep every workflow", async () => {

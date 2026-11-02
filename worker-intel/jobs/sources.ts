@@ -1,12 +1,11 @@
-// Sources on claritia-intel (docs/conversion-weeks.md weeks 3 to 7): scheduled pulls with a push after, pushes
-// when contacts change here, and staged webhooks. A long pull or push stops after about 45 seconds and queues the
-// rest a moment later in the bulk lane, so it never holds a worker loop for minutes.
+// Staged webhooks on claritia-intel: fills from outside form tools and bookings from outside schedulers
+// (src/lib/sources/hooks.ts), applied a round at a time.
 
 import type pg from "pg";
-import { enqueueJob, JobError, type Handler, type Job, type Rpc } from "../../src/lib/jobs.ts";
-import { runActivity, runHooks, runPull, runPush, type RunOpts } from "../../src/lib/sources/run.ts";
+import { JobError, type Handler, type Job, type Rpc } from "../../src/lib/jobs.ts";
+import { runHooks, type RunOpts } from "../../src/lib/sources/run.ts";
 import { AuthError, RateLimited } from "../../src/lib/sources/types.ts";
-import { ctxFor } from "./imports.ts";
+import { ctxFor } from "./ctx.ts";
 
 const idOf = (job: Job) => {
   const id = String(job.payload.source_id ?? "");
@@ -14,54 +13,17 @@ const idOf = (job: Job) => {
   return id;
 };
 
-/** One round's time. run.ts gives it to the pull and again to the push after it. */
+/** One round's time. */
 export const SOURCE_ROUND_MS = 45_000;
-/** The rest of a long round waits this long, so other work gets the loop first. */
-export const SOURCE_REST_S = 5;
-
-const opts = (pool: pg.Pool, rpc: Rpc, signal: AbortSignal, extra: Partial<RunOpts> = {}): RunOpts => ({ rpc, clean: (ws) => ctxFor(pool, ws), signal, budgetMs: SOURCE_ROUND_MS, ...extra });
-
-/** The rest of a round, in the bulk lane. */
-const rest = (rpc: Rpc, job: Job, id: string) =>
-  enqueueJob(rpc, { workspaceId: job.workspace_id, kind: job.kind, key: id, payload: { source_id: id, lane: "bulk" }, delayS: SOURCE_REST_S, maxAttempts: job.max_attempts });
-
-async function guarded<T>(fn: () => Promise<T>): Promise<T> {
-  try {
-    return await fn();
-  } catch (e) {
-    if (e instanceof AuthError) throw new JobError(e.message, { retry: false });
-    if (e instanceof RateLimited) throw new JobError(e.message, { retryAfterS: e.retryAfterS });
-    throw e;
-  }
-}
-
-export const sourcePull =
-  (pool: pg.Pool, rpc: Rpc, extra: Partial<RunOpts> = {}): Handler =>
-  async (job, signal) => {
-    const id = idOf(job);
-    const retry = Array.isArray(job.payload.retry) ? (job.payload.retry as unknown[]).filter((x): x is string => typeof x === "string") : undefined;
-    const r = await guarded(() => runPull(opts(pool, rpc, signal, extra), id, retry));
-    if (r?.more) await rest(rpc, job, id);
-  };
-
-export const crmPush =
-  (pool: pg.Pool, rpc: Rpc, extra: Partial<RunOpts> = {}): Handler =>
-  async (job, signal) => {
-    const id = idOf(job);
-    const r = await guarded(() => runPush(opts(pool, rpc, signal, extra), id));
-    if (r?.more) await rest(rpc, job, id);
-  };
-
-export const crmActivity =
-  (pool: pg.Pool, rpc: Rpc, extra: Partial<RunOpts> = {}): Handler =>
-  async (job, signal) => {
-    const id = idOf(job);
-    const r = await guarded(() => runActivity(opts(pool, rpc, signal, extra), id));
-    if (r?.more) await rest(rpc, job, id);
-  };
 
 export const sourceHook =
   (pool: pg.Pool, rpc: Rpc, extra: Partial<RunOpts> = {}): Handler =>
   async (job, signal) => {
-    await guarded(() => runHooks(opts(pool, rpc, signal, extra), idOf(job)));
+    try {
+      await runHooks({ rpc, clean: (ws) => ctxFor(pool, ws), signal, budgetMs: SOURCE_ROUND_MS, ...extra }, idOf(job));
+    } catch (e) {
+      if (e instanceof AuthError) throw new JobError(e.message, { retry: false });
+      if (e instanceof RateLimited) throw new JobError(e.message, { retryAfterS: e.retryAfterS });
+      throw e;
+    }
   };

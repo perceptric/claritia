@@ -2,11 +2,11 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { SETTINGS_GROUPS, settingsTab } from "../src/lib/settingsTabs.ts";
 
-test("settings lead with the CRM connection, sending domains and the team", () => {
+test("settings lead with integrations, sending domains and the team", () => {
   assert.deepEqual(
     SETTINGS_GROUPS.slice(0, 3).map((g) => [g.label, g.tabs[0].id]),
     [
-      ["CRM", "sources"],
+      ["Integrations", "sources"],
       ["Email", "sending"],
       ["Team", "team"],
     ],
@@ -26,5 +26,7 @@ test("old and unknown settings addresses land on a real page", () => {
 
 test("pages that moved out of Settings aren't listed there", () => {
   const ids = SETTINGS_GROUPS.flatMap((g) => g.tabs.map((t) => t.id)) as string[];
-  for (const moved of ["calendar", "calendars", "payments", "sites", "identity", "account_alerts"]) assert.ok(!ids.includes(moved), `${moved} moved`);
+  for (const moved of ["calendar", "calendars", "payments", "sites", "identity", "account_alerts", "imports", "sync_log", "data_model", "lead_scoring", "icp"]) assert.ok(!ids.includes(moved), `${moved} isn't listed`);
+  assert.equal(settingsTab("data_model"), "sources", "the CRM's old pages open Integrations");
+  assert.equal(settingsTab("lead_scoring"), "sources");
 });

@@ -18,7 +18,7 @@ import { at } from "../../src/lib/meetings/time.ts";
 import { DEFAULT_AVAILABILITY, DEFAULT_SETTINGS, type Kind, type MeetingType } from "../../src/lib/meetings/types.ts";
 import { invalidateRouterLive, route } from "../../src/lib/router/server.ts";
 import { emptyBody, type RouterBody } from "../../src/lib/router/types.ts";
-import { ctxFor } from "../../worker-intel/jobs/imports.ts";
+import { ctxFor } from "../../worker-intel/jobs/ctx.ts";
 import { pgRpc } from "../../worker-intel/rpc.ts";
 
 process.env.SECRETS_KEY ??= "forms-booking-speed-test-secret-0123456789";
@@ -216,23 +216,6 @@ test("a commit under way at the deadline finishes inline and no job is queued; o
   const again = await route(rpc, { ws, contact: c2, key: `form:${sGrace}`, reason: "form" });
   assert.equal(again.status, "dup");
   assert.equal(await count(`select count(*)::int n from router_runs where key = 'form:${sGrace}'`, []), 1);
-});
-
-test("a router whose rules test qualify: the send never waits on it; the job routes", async () => {
-  const { ws, users } = await team(1);
-  const b = rrBody(users);
-  b.rules.list = [{ id: "r1", name: "Fit", match: "all", conds: [{ field: "lead.qualify", op: "is", value: "fit" }], queue: "q1" }];
-  await q(`select router_publish($1, $2, 'test', null)`, [ws, b]);
-  invalidateRouterLive(ws);
-  const c = (await q(`insert into contacts (workspace_id, email, email_clean, email_class) values ($1, 'q@client.io', 'q@client.io', 'work') returning id`, [ws]))[0].id as string;
-  const calls: string[] = [];
-  const sQ = randomUUID();
-  const t0 = Date.now();
-  const r = await routeFillWith(slow("none", 0, calls), ws, c, sQ);
-  assert.equal(r.routed, null);
-  assert.ok(Date.now() - t0 < 300);
-  assert.ok(!calls.includes("routing_facts") && !calls.includes("router_facts_full") && !calls.some((x) => x.startsWith("qualify")));
-  assert.equal(await count(`select count(*)::int n from jobs where kind = 'route' and key = 'form:${sQ}'`, []), 1);
 });
 
 // Booking pages -------------------------------------------------------------------------------------------------------

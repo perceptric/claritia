@@ -1,167 +1,114 @@
 "use client";
 
-// Settings › Sources and Settings › Sync log (docs/conversion-weeks.md weeks 3 to 7): every tool contacts come
-// from, connected in one click where the tool allows it, with its objects, schedule, consent, mapping and runs.
+// Settings › Integrations: the tools a form sends its leads to (Form › Sync and Form Studio's Send to), and the form
+// and meeting tools whose webhooks come in (fills from Typeform, Tally and Webflow; bookings from Calendly and Cal.com,
+// linked to the fill they followed). Connected in one click where the tool allows it, and disconnected here.
 
 import { useState } from "react";
-import { BASES, type Basis } from "@/lib/contacts/consent";
-import { TARGETS, type Target } from "@/lib/contacts/fields";
-import { CATALOG, GROUPS, entryOf, type Entry } from "@/lib/sources/catalog";
-import { queryError, type WhQuery } from "@/lib/sources/sql";
-import { Copy, Pause, Play, Plug, Refresh } from "../../Icons";
+import { CATALOG, entryOf, type Entry } from "@/lib/sources/catalog";
+import { CopyButton } from "../CopyButton";
+import { Plug } from "../../Icons";
 import { BrandLogo } from "../BrandLogo";
 import { askConfirm } from "../Dialogs";
-import { Select } from "../Select";
-import { ToolIntro } from "../ToolIntro";
-import { Badge, Button, CardHead, ErrorNote, errorText, Field, Input, Loading, must, Panel, postJson, Td, Th, timeAgo, Toggle, type Tone, useLoad, usePoll, useQuery, type ViewProps } from "../ui";
-import { usePeople } from "../meetings/parts";
-import { routingApi } from "../routing/api";
-import { CheckBox } from "../records/RecordTable";
+import { Badge, Button, ErrorNote, errorText, Field, Input, must, postJson, useLoad, type ViewProps } from "../ui";
 import { Sheet } from "../Sheet";
 
-type Source = {
-  id: string;
-  kind: string;
-  name: string;
-  account: string | null;
-  status: string;
-  settings: { objects?: Record<string, string>; every_min?: number; basis?: Basis; push_new?: string; follow_deletes?: boolean; activity?: boolean; query?: WhQuery; route_new?: boolean };
-  last_run_at: string | null;
-  last_error: string | null;
-  created_at: string;
-};
-type Run = { id: string; object: string; direction: string; started_at: string; finished_at: string | null; pulled: number; written: number; skipped: number; errors: number; error: string | null };
-type Wins = "claritia" | "crm" | "newest";
-type MapRow = { col: string; sample: string; target: string; wins: Wins };
-const OUT_ONLY = new Set(["score", "score_band"]);
+type Source = { id: string; kind: string; name: string; account: string | null; status: string };
 
-const STATE: Record<string, [string, Tone]> = { active: ["Active", "green"], paused: ["Paused", "gray"], error: ["Error", "red"], disconnected: ["Disconnected", "gray"] };
-const EVERY = [
-  { value: 5, label: "Every 5 minutes" },
-  { value: 15, label: "Every 15 minutes" },
-  { value: 60, label: "Every hour" },
-  { value: 360, label: "Every 6 hours" },
-  { value: 1440, label: "Every day" },
-];
-const SEL = "h-9 w-full rounded-sm border border-line-strong bg-card px-3 text-[13px] outline-none focus:border-ink";
-const OBJECT_LABEL: Record<string, string> = { contacts: "Contacts", companies: "Companies", opportunities: "Opportunities", opportunity: "Opportunities", lists: "Lists", suppressions: "Unsubscribes", events: "Activity", records: "Records" };
+/** The tools a form can send to, then the form and meeting tools whose webhooks come in. */
+const SENDS = [...CATALOG.filter((e) => e.twoWay || e.pushes), ...CATALOG.filter((e) => e.hook && (e.group === "form" || e.group === "event") && !(e.twoWay || e.pushes))];
 
-async function getJson<T>(session: ViewProps["session"], path: string): Promise<T> {
-  const res = await fetch(path, { headers: { Authorization: `Bearer ${session.access_token}` } });
+async function hookUrlOf(session: ViewProps["session"], id: string): Promise<string> {
+  const res = await fetch(`/api/sources/hook-url?id=${id}`, { headers: { Authorization: `Bearer ${session.access_token}` } });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data.error ?? "Something went wrong.");
-  return data as T;
+  return data.url as string;
 }
 
 const search = () => (typeof window === "undefined" ? new URLSearchParams() : new URLSearchParams(window.location.search));
 
 export function SourcesSettings({ sb, session, ws, role }: Pick<ViewProps, "sb" | "session" | "ws" | "role">) {
-  const sources = useLoad(async () => must(await sb.from("sources").select("id, kind, name, account, status, settings, last_run_at, last_error, created_at").eq("workspace_id", ws.id).order("created_at")) as Source[], ws.id);
-  const [open, setOpen] = useState<string | null>(() => search().get("connected") ?? search().get("source"));
+  const sources = useLoad(async () => must(await sb.from("sources").select("id, kind, name, account, status").eq("workspace_id", ws.id).neq("status", "disconnected").order("created_at")) as Source[], ws.id);
   // Omniscient's own Connect button sends people to /settings/suite?connect=omniscient.
   const [connect, setConnect] = useState<Entry | null>(() => entryOf(search().get("connect") ?? "") ?? null);
-  const [q, setQ] = useState("");
   const [error, setError] = useState(() => search().get("error") ?? "");
   const owner = role === "owner";
-  const list = sources.data ?? [];
-  const connected = new Map(list.filter((s) => s.status !== "disconnected").map((s) => [s.kind, s]));
-  const shown = CATALOG.filter((e) => !q.trim() || e.label.toLowerCase().includes(q.trim().toLowerCase()));
-  const pick = (id: string | null) => {
-    setOpen(id);
+  const connected = new Map((sources.data ?? []).map((s) => [s.kind, s]));
+  const [hooks, setHooks] = useState<Record<string, string>>({});
+  const showHook = async (s: Source) => {
+    setError("");
     try {
-      window.history.replaceState(null, "", id ? `/settings/sources?source=${id}` : "/settings/sources");
-    } catch {
-      // Not on the app's own address (a preview); the panel still opens.
+      const url = await hookUrlOf(session, s.id);
+      setHooks((h) => ({ ...h, [s.id]: url }));
+    } catch (e) {
+      setError(errorText(e));
+    }
+  };
+  const disconnect = async (s: Source) => {
+    setError("");
+    try {
+      if (!(await askConfirm(`Disconnect ${s.name}?`, { body: "Forms stop sending leads to it.", ok: "Disconnect", danger: true }))) return;
+      must(await sb.rpc("source_disconnect", { p_id: s.id }));
+      sources.reload();
+    } catch (e) {
+      setError(errorText(e));
     }
   };
 
   return (
     <div className="flex flex-col gap-5">
       <ErrorNote message={error} />
-      {list.length ? (
-        <Panel className="overflow-hidden">
-          <CardHead label="Connected" count={list.length} />
-          <ul className="divide-y divide-line">
-            {list.map((s) => {
-              const e = entryOf(s.kind);
-              const [label, tone] = STATE[s.status] ?? [s.status, "gray" as Tone];
-              return (
-                <li key={s.id}>
-                  <button type="button" onClick={() => pick(s.id)} className="flex w-full items-center gap-3 px-5 py-3.5 text-left text-[13px] transition-colors duration-[140ms] hover:bg-hover">
-                    <BrandLogo domain={e?.domain ?? ""} name={s.name} size={22} />
-                    <span className="font-medium">{s.name}</span>
-                    {s.account ? <span className="truncate font-mono text-[11px] text-faint">{s.account}</span> : null}
-                    <span className="ml-auto flex items-center gap-3">
-                      {s.last_error && s.status !== "disconnected" ? <span className="max-w-[280px] truncate text-[12px] text-rose">{s.last_error}</span> : null}
-                      <span className="text-[12px] text-faint">{timeAgo(s.last_run_at)}</span>
-                      <Badge tone={tone}>{label}</Badge>
-                    </span>
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
-        </Panel>
-      ) : null}
-      <div className="flex items-center gap-3">
-        <span className="label-mono">{list.length ? "Add a tool" : "Connect a tool"}</span>
-        <div className="ml-auto w-56">
-          <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search" aria-label="Search tools" />
-        </div>
-      </div>
-      {GROUPS.map((g) => {
-        const items = shown.filter((e) => e.group === g.id);
-        if (!items.length) return null;
-        return (
-          <section key={g.id} className="flex flex-col gap-2">
-            <h3 className="label-mono">{g.label}</h3>
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
-              {items.map((e) => {
-                const on = connected.get(e.kind);
-                return (
-                  <button
-                    key={e.kind}
-                    type="button"
-                    disabled={!owner && !on}
-                    onClick={() => (on ? pick(on.id) : setConnect(e))}
-                    className={`flex min-w-0 items-center gap-3 rounded-lg border bg-card px-4 py-3.5 text-left text-[13px] disabled:cursor-default ${on ? "border-line-strong" : "border-line"} ${!owner && !on ? "" : "lift hover:border-line-strong"}`}
-                  >
-                    <BrandLogo domain={e.domain} name={e.label} size={24} />
-                    <span className="truncate font-medium">{e.label}</span>
-                    <span className="ml-auto flex shrink-0 gap-1">
-                      {on ? <Badge tone={STATE[on.status]?.[1] ?? "gray"} dot>{STATE[on.status]?.[0] ?? on.status}</Badge> : e.twoWay ? <Badge>Two-way</Badge> : null}
-                    </span>
-                  </button>
-                );
-              })}
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+        {SENDS.map((e) => {
+          const on = connected.get(e.kind);
+          return (
+            <div key={e.kind} className="flex min-w-0 flex-wrap items-center gap-3 rounded-lg border border-line bg-card px-4 py-3.5 text-[13px]">
+              <BrandLogo domain={e.domain} name={e.label} size={24} />
+              <span className="flex min-w-0 flex-col">
+                <span className="truncate font-medium">{e.label}</span>
+                {on?.account ? <span className="truncate font-mono text-[11px] text-faint">{on.account}</span> : null}
+              </span>
+              <span className="ml-auto flex shrink-0 items-center gap-2">
+                {on ? <Badge tone={on.status === "error" ? "red" : "green"} dot>{on.status === "error" ? "Error" : "Connected"}</Badge> : null}
+                {on && owner && e.hook && !hooks[on.id] ? (
+                  <Button variant="ghost" size="sm" onClick={() => void showHook(on)}>
+                    Webhook URL
+                  </Button>
+                ) : null}
+                {on && owner ? (
+                  <Button variant="ghost" size="sm" onClick={() => void disconnect(on)}>
+                    Disconnect
+                  </Button>
+                ) : !on && owner ? (
+                  <Button variant="ghost" size="sm" onClick={() => setConnect(e)}>
+                    Connect
+                  </Button>
+                ) : null}
+              </span>
+              {on && hooks[on.id] ? (
+                <div className="flex w-full min-w-0 items-center gap-2">
+                  <code className="min-w-0 flex-1 truncate rounded-sm border border-line bg-paper px-2.5 py-1.5 font-mono text-[12px]">{hooks[on.id]}</code>
+                  <CopyButton text={hooks[on.id]!} label="Copy" />
+                </div>
+              ) : null}
             </div>
-          </section>
-        );
-      })}
+          );
+        })}
+      </div>
       {connect ? (
         <ConnectPanel
           session={session}
           wsId={ws.id}
           entry={connect}
           onClose={(id) => {
+            const e = connect;
             setConnect(null);
-            if (id) {
-              sources.reload();
-              pick(id);
-            }
+            if (!id) return;
+            sources.reload();
+            // A webhook tool: its address to paste into the tool, at once.
+            if (e?.hook) void showHook({ id, kind: e.kind, name: e.label, account: null, status: "active" });
           }}
           onError={setError}
-        />
-      ) : null}
-      {open && list.some((s) => s.id === open) ? (
-        <SourcePanel
-          sb={sb}
-          session={session}
-          wsId={ws.id}
-          source={list.find((s) => s.id === open)!}
-          owner={owner}
-          onClose={() => pick(null)}
-          changed={sources.reload}
         />
       ) : null}
     </div>
@@ -274,669 +221,5 @@ function ConnectPanel({ session, wsId, entry, onClose, onError }: { session: Vie
         )}
       </div>
     </Sheet>
-  );
-}
-
-// One source -------------------------------------------------------------------------------------------------
-
-function SourcePanel({ sb, session, wsId, source, owner, onClose, changed }: { sb: ViewProps["sb"]; session: ViewProps["session"]; wsId: string; source: Source; owner: boolean; onClose: () => void; changed: () => void }) {
-  const e = entryOf(source.kind);
-  const [settings, setSettings] = useState(source.settings);
-  const [error, setError] = useState("");
-  const [saved, setSaved] = useState(false);
-  // Opening a source again shows its runs and hook address at once, from the cache.
-  const runs = useQuery(`source_runs:${source.id}`, async () => must(await sb.from("source_runs").select("id, object, direction, started_at, finished_at, pulled, written, skipped, errors, error").eq("source_id", source.id).order("started_at", { ascending: false }).limit(20)) as Run[]);
-  const hook = useQuery(`source_hook:${source.id}:${source.status}`, async () => (e?.hook && owner && source.status !== "disconnected" ? (await getJson<{ url: string }>(session, `/api/sources/hook-url?id=${source.id}`)).url : null), { staleMs: 300_000 });
-  const [state, tone] = STATE[source.status] ?? [source.status, "gray" as Tone];
-  const act = async (fn: () => Promise<unknown>) => {
-    setError("");
-    try {
-      await fn();
-      changed();
-      runs.reload();
-    } catch (err) {
-      setError(errorText(err));
-    }
-  };
-  const objects = settings.objects ?? {};
-  const setObject = (o: string, v: string) => setSettings({ ...settings, objects: { ...objects, [o]: v } });
-
-  return (
-    <Sheet title={source.name} wide onClose={onClose} footer={null}>
-      <div className="flex flex-col gap-5 p-5">
-        <div className="flex flex-wrap items-center gap-3">
-          <BrandLogo domain={e?.domain ?? ""} name={source.name} size={32} />
-          <div className="flex flex-col">
-            <span className="text-[15px] font-medium">{source.name}</span>
-            {source.account ? <span className="font-mono text-[11px] text-faint">{source.account}</span> : null}
-          </div>
-          <Badge tone={tone}>{state}</Badge>
-          <span className="ml-auto flex gap-1.5">
-            {source.status !== "disconnected" && !e?.hook ? (
-              <Button variant="ghost" size="sm" onClick={() => act(async () => must(await sb.rpc("source_sync_now", { p_id: source.id })))} disabled={source.status === "paused"}>
-                <Refresh size={14} />
-                Sync now
-              </Button>
-            ) : null}
-            {owner && source.status !== "disconnected" ? (
-              <Button variant="ghost" size="sm" onClick={() => act(async () => must(await sb.rpc("source_pause", { p_id: source.id, p_paused: source.status !== "paused" })))}>
-                {source.status === "paused" ? <Play size={14} /> : <Pause size={14} />}
-                {source.status === "paused" ? "Resume" : "Pause"}
-              </Button>
-            ) : null}
-            {owner && source.status !== "disconnected" ? (
-              <Button
-                variant="danger"
-                size="sm"
-                onClick={() =>
-                  act(async () => {
-                    if (!(await askConfirm(`Disconnect ${source.name}?`, { ok: "Disconnect", danger: true }))) return;
-                    must(await sb.rpc("source_disconnect", { p_id: source.id }));
-                  })
-                }
-              >
-                Disconnect
-              </Button>
-            ) : null}
-          </span>
-        </div>
-        <ErrorNote message={error || (source.status !== "disconnected" ? (source.last_error ?? "") : "")} />
-
-        {hook.data ? (
-          <Field label="Webhook URL">
-            <div className="flex gap-1.5">
-              <Input readOnly value={hook.data} className="font-mono text-[12px]" onFocus={(ev) => ev.currentTarget.select()} />
-              <Button variant="ghost" className="!h-10 w-10 shrink-0 !px-0" onClick={() => void navigator.clipboard.writeText(hook.data!)} aria-label="Copy">
-                <Copy size={14} />
-              </Button>
-            </div>
-          </Field>
-        ) : null}
-
-        {owner && source.status !== "disconnected" ? (
-          <Panel>
-            <CardHead label="Sync" />
-            <div className="grid gap-4 p-5 sm:grid-cols-2">
-              {(e?.warehouse ? [] : (e?.objects ?? [])).map((o) => (
-                <Field key={o} label={OBJECT_LABEL[o] ?? o}>
-                  <Select
-                    className={SEL}
-                    value={objects[o] ?? (o === "companies" ? "off" : "in")}
-                    onChange={(v) => setObject(o, v)}
-                    options={[...(o === "contacts" && e?.twoWay ? [{ value: "both", label: "Both ways" }] : []), { value: "in", label: "In only" }, { value: "off", label: "Off" }]}
-                  />
-                </Field>
-              ))}
-              {!e?.hook ? (
-                <Field label="Schedule">
-                  <Select className={SEL} value={settings.every_min ?? 60} onChange={(v) => setSettings({ ...settings, every_min: v })} options={EVERY} />
-                </Field>
-              ) : null}
-              <Field label="Email consent when the tool doesn't say">
-                <Select className={SEL} value={settings.basis ?? "none"} onChange={(v) => setSettings({ ...settings, basis: v })} options={BASES} />
-              </Field>
-              {e?.twoWay && objects.contacts === "both" ? (
-                <Field label={`New contacts to ${source.name}`}>
-                  <Select
-                    className={SEL}
-                    value={settings.push_new ?? "lifecycle"}
-                    onChange={(v) => setSettings({ ...settings, push_new: v })}
-                    options={[
-                      { value: "all", label: "All contacts" },
-                      { value: "lifecycle", label: "With a lifecycle stage" },
-                      { value: "none", label: "Only ones already there" },
-                    ]}
-                  />
-                </Field>
-              ) : null}
-              {e?.twoWay && objects.contacts === "both" ? (
-                <Field label={`Email and form activity to ${source.name}`}>
-                  <Select
-                    className={SEL}
-                    value={settings.activity === false ? "off" : "on"}
-                    onChange={(v) => setSettings({ ...settings, activity: v === "on" })}
-                    options={[
-                      { value: "on", label: "On" },
-                      { value: "off", label: "Off" },
-                    ]}
-                  />
-                </Field>
-              ) : null}
-              {e?.group === "crm" ? (
-                <div className="flex items-center justify-between gap-3 sm:col-span-2">
-                  <span className="text-[12.5px] font-medium text-body">Route new contacts with no owner</span>
-                  <Toggle label="Route new contacts with no owner" on={settings.route_new === true} onChange={(v) => setSettings({ ...settings, route_new: v })} />
-                </div>
-              ) : null}
-              {!e?.hook && !e?.warehouse ? (
-                <Field label="When a contact is deleted there">
-                  <Select
-                    className={SEL}
-                    value={settings.follow_deletes ? "delete" : "keep"}
-                    onChange={(v) => setSettings({ ...settings, follow_deletes: v === "delete" })}
-                    options={[
-                      { value: "keep", label: "Keep it here" },
-                      { value: "delete", label: "Delete it here" },
-                    ]}
-                  />
-                </Field>
-              ) : null}
-            </div>
-            <div className="flex items-center gap-3 border-t border-line px-5 py-3">
-              <Button
-                onClick={() =>
-                  act(async () => {
-                    must(await sb.rpc("source_settings_save", { p_id: source.id, p_name: source.name, p_settings: settings }));
-                    setSaved(true);
-                  })
-                }
-              >
-                Save
-              </Button>
-              {saved ? <span className="text-[12px] text-faint">Saved</span> : null}
-            </div>
-          </Panel>
-        ) : null}
-
-        {e?.group === "crm" && source.status !== "disconnected" ? <CrmOwnersPanel sb={sb} session={session} wsId={wsId} source={source} owner={owner} /> : null}
-
-        {e?.warehouse && source.status !== "disconnected" ? <QueryPanel sb={sb} session={session} wsId={wsId} source={source} owner={owner} changed={changed} /> : null}
-
-        {source.status !== "disconnected" && (!e?.warehouse || (source.settings.query && ["contacts", "companies"].includes(source.settings.query.target))) ? (
-          <MappingPanel sb={sb} session={session} wsId={wsId} source={source} owner={owner} hasCompanies={!!e?.objects.includes("companies")} twoWay={!!e?.twoWay && source.settings.objects?.contacts === "both"} />
-        ) : null}
-
-        <Panel className="overflow-hidden">
-          <CardHead label="Runs" count={runs.data?.length} />
-          {!runs.data ? (
-            <Loading />
-          ) : !runs.data.length ? (
-            <p className="px-5 py-3 text-[13px] text-faint">—</p>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full border-collapse [&_tbody_tr:last-child_td]:border-b-0">
-                <thead>
-                  <tr>
-                    <Th>When</Th>
-                    <Th>What</Th>
-                    <Th className="text-right">Read</Th>
-                    <Th className="text-right">Written</Th>
-                    <Th className="text-right">Unchanged</Th>
-                    <Th className="text-right">Errors</Th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {runs.data.map((r) => (
-                    <tr key={r.id} className="border-t border-line">
-                      <Td className="whitespace-nowrap text-faint">{timeAgo(r.started_at)}</Td>
-                      <Td>
-                        <span className="flex items-center gap-2">
-                          <Badge tone={r.direction === "out" ? "violet" : "brand"}>{r.direction === "out" ? "Out" : "In"}</Badge>
-                          {OBJECT_LABEL[r.object] ?? r.object}
-                          {r.error ? <span className="max-w-[240px] truncate text-[12px] text-rose">{r.error}</span> : null}
-                        </span>
-                      </Td>
-                      <Td className="text-right tabular-nums">{r.pulled.toLocaleString("en-US")}</Td>
-                      <Td className="text-right tabular-nums">{r.written.toLocaleString("en-US")}</Td>
-                      <Td className="text-right tabular-nums">{r.skipped.toLocaleString("en-US")}</Td>
-                      <Td className="text-right tabular-nums">{r.errors.toLocaleString("en-US")}</Td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </Panel>
-      </div>
-    </Sheet>
-  );
-}
-
-type OwnerLink = { source_id: string; crm_owner_id: string; label: string | null; user_id: string | null };
-
-/** CRM owners (docs/router-ux.md 4.10): each owner id seen on contacts and companies, linked to a teammate. */
-function CrmOwnersPanel({ sb, session, wsId, source, owner }: { sb: ViewProps["sb"]; session: ViewProps["session"]; wsId: string; source: Source; owner: boolean }) {
-  const people = usePeople(sb, wsId);
-  // The links and every owner id the CRM sent (distinct, from the database).
-  const data = useQuery(`crm_owners:${wsId}:${source.id}`, async () => {
-    const [links, ids] = await Promise.all([routingApi<{ links: OwnerLink[] }>(session, wsId, "crm_owners"), sb.rpc("crm_owner_ids", { p_ws: wsId })]);
-    const mine = links.links.filter((l) => l.source_id === source.id);
-    const seen = new Set(((must(ids) ?? []) as string[]).filter(Boolean));
-    for (const l of mine) seen.delete(l.crm_owner_id);
-    return [...mine, ...[...seen].sort().map((id): OwnerLink => ({ source_id: source.id, crm_owner_id: id, label: null, user_id: null }))];
-  });
-  const [error, setError] = useState("");
-  const link = async (row: OwnerLink, user: string) => {
-    setError("");
-    try {
-      // The picker shows the teammate at once; it goes back, with the error, if the save fails.
-      await data.mutate(
-        (l) => l.map((x) => (x.crm_owner_id === row.crm_owner_id && x.source_id === row.source_id ? { ...x, user_id: user || null } : x)),
-        () => routingApi(session, wsId, "save_crm_owners", { rows: [{ ...row, user_id: user || null }] }),
-      );
-    } catch (e) {
-      setError(errorText(e));
-    }
-  };
-  const options = [{ value: "", label: "Not linked" }, ...(people.data?.list ?? []).map((p) => ({ value: p.id, label: p.name }))];
-  return (
-    <Panel className="overflow-hidden">
-      <CardHead label="CRM owners" count={data.data?.length} />
-      {error || data.error || people.error ? (
-        <div className="px-5 pt-4">
-          <ErrorNote message={error || data.error || people.error} />
-        </div>
-      ) : null}
-      {!data.data || !people.data ? (
-        data.error ? null : <Loading />
-      ) : !data.data.length ? (
-        <p className="px-5 py-3 text-[13px] text-faint">—</p>
-      ) : (
-        <table className="w-full border-collapse [&_tbody_tr:last-child_td]:border-b-0">
-          <thead>
-            <tr>
-              <Th>{source.name}</Th>
-              <Th>Teammate</Th>
-            </tr>
-          </thead>
-          <tbody>
-            {data.data.map((r) => (
-              <tr key={r.crm_owner_id} className="border-t border-line">
-                <Td className="max-w-[260px] truncate">
-                  {r.label ? <span className="mr-2">{r.label}</span> : null}
-                  <span className="font-mono text-[11.5px] text-muted">{r.crm_owner_id}</span>
-                </Td>
-                <Td className="w-56">
-                  <Select className={`${SEL} h-8 ${r.user_id ? "" : "text-faint"}`} value={r.user_id ?? ""} onChange={(v) => void link(r, v)} options={options} disabled={!owner} ariaLabel={`Teammate for ${r.label ?? r.crm_owner_id}`} />
-                </Td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
-    </Panel>
-  );
-}
-
-function QueryPanel({ sb, session, wsId, source, owner, changed }: { sb: ViewProps["sb"]; session: ViewProps["session"]; wsId: string; source: Source; owner: boolean; changed: () => void }) {
-  const start: WhQuery = source.settings.query ?? { sql: "select email, first_name, last_name, company, updated_at\nfrom users\nwhere updated_at >= :cursor", key: "email", cursor: "updated_at", target: "contacts" };
-  const [q, setQ] = useState<WhQuery>(start);
-  const [test, setTest] = useState<{ columns: string[]; rows: Record<string, unknown>[] } | null>(null);
-  const [busy, setBusy] = useState("");
-  const [error, setError] = useState("");
-  const [saved, setSaved] = useState(false);
-  const objects = useLoad(async () => must(await sb.from("objects").select("key, plural").eq("workspace_id", wsId).order("plural")) as { key: string; plural: string }[], wsId);
-  const targets = [
-    { value: "contacts", label: "Contacts" },
-    { value: "companies", label: "Companies" },
-    { value: "events", label: "Activity on contacts" },
-    ...(objects.data ?? []).map((o) => ({ value: `object:${o.key}`, label: o.plural })),
-  ];
-  const wrong = queryError(q);
-  const run = async (label: string, fn: () => Promise<void>) => {
-    setError("");
-    setBusy(label);
-    try {
-      await fn();
-    } catch (e) {
-      setError(errorText(e));
-    } finally {
-      setBusy("");
-    }
-  };
-  const set = (patch: Partial<WhQuery>) => {
-    setQ({ ...q, ...patch });
-    setSaved(false);
-  };
-  return (
-    <Panel className="overflow-hidden">
-      <CardHead label="Query" />
-      <div className="flex flex-col gap-3 p-5">
-        <textarea
-          value={q.sql}
-          onChange={(e) => set({ sql: e.target.value })}
-          rows={7}
-          spellCheck={false}
-          disabled={!owner}
-          aria-label="Query"
-          className="w-full rounded-sm border border-line-strong bg-card px-3 py-2 font-mono text-[12.5px] leading-relaxed outline-none focus:border-ink focus:ring-1 focus:ring-ink"
-        />
-        <div className="grid gap-3 sm:grid-cols-2">
-          <Field label="Rows become">
-            <Select className={SEL} value={q.target} onChange={(t) => set({ target: t as WhQuery["target"] })} options={targets} disabled={!owner} />
-          </Field>
-          <Field label="Key column">
-            <Input value={q.key} onChange={(e) => set({ key: e.target.value.trim() })} disabled={!owner} className="font-mono" />
-          </Field>
-          <Field label="Cursor column">
-            <Input value={q.cursor} onChange={(e) => set({ cursor: e.target.value.trim() })} disabled={!owner} className="font-mono" />
-          </Field>
-          {q.target === "events" ? (
-            <Field label="Activity name">
-              <Input value={q.event ?? ""} onChange={(e) => set({ event: e.target.value.trim() })} placeholder="product.signup" disabled={!owner} className="font-mono" />
-            </Field>
-          ) : null}
-          {q.target !== "contacts" && q.target !== "companies" ? (
-            <Field label="Email column">
-              <Input value={q.email ?? ""} onChange={(e) => set({ email: e.target.value.trim() || undefined })} placeholder="email" disabled={!owner} className="font-mono" />
-            </Field>
-          ) : null}
-        </div>
-        <ErrorNote message={error || (q.sql.trim() ? (wrong ?? "") : "")} />
-        {owner ? (
-          <div className="flex items-center gap-2">
-            <Button
-              variant="ghost"
-              disabled={!!wrong || !!busy}
-              onClick={() => run("test", async () => setTest(await postJson<{ columns: string[]; rows: Record<string, unknown>[] }>(session, "/api/sources/test-query", { id: source.id, query: q })))}
-            >
-              <Play size={14} />
-              {busy === "test" ? "Running…" : "Test"}
-            </Button>
-            <Button
-              disabled={!!wrong || !!busy}
-              onClick={() =>
-                run("save", async () => {
-                  must(await sb.rpc("source_settings_save", { p_id: source.id, p_name: source.name, p_settings: { ...source.settings, query: q } }));
-                  setSaved(true);
-                  changed();
-                })
-              }
-            >
-              Save query
-            </Button>
-            {saved ? <span className="text-[12px] text-faint">Saved</span> : null}
-          </div>
-        ) : null}
-      </div>
-      {test ? (
-        <div className="overflow-x-auto border-t border-line">
-          <table className="w-full border-collapse [&_tbody_tr:last-child_td]:border-b-0">
-            <thead>
-              <tr>
-                {test.columns.map((c) => (
-                  <Th key={c}>{c}</Th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {test.rows.map((r, i) => (
-                <tr key={i} className="border-t border-line">
-                  {test.columns.map((c) => (
-                    <Td key={c} className="max-w-[220px] truncate font-mono text-[12px]">
-                      {r[c] == null ? "—" : typeof r[c] === "object" ? JSON.stringify(r[c]) : String(r[c])}
-                    </Td>
-                  ))}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      ) : null}
-    </Panel>
-  );
-}
-
-const COMPANY_TARGETS = [
-  { value: "skip", label: "Skip" },
-  { value: "name", label: "Name" },
-  { value: "domain", label: "Domain" },
-  { value: "industry", label: "Industry" },
-  { value: "size", label: "Size" },
-  { value: "country", label: "Country" },
-];
-
-const WINS: { value: Wins; label: string }[] = [
-  { value: "claritia", label: "Claritia" },
-  { value: "crm", label: "CRM" },
-  { value: "newest", label: "Newest" },
-];
-
-function MappingPanel({ sb, session, wsId, source, owner, hasCompanies, twoWay }: { sb: ViewProps["sb"]; session: ViewProps["session"]; wsId: string; source: Source; owner: boolean; hasCompanies: boolean; twoWay: boolean }) {
-  const [object, setObject] = useState<"contact" | "company">("contact");
-  const data = useQuery(`source_mapping:${source.id}`, async () => getJson<{ contact: MapRow[]; company: MapRow[] }>(session, `/api/sources/mapping?id=${source.id}`));
-  const custom = useQuery(`meta:${wsId}:contact:names`, async () => must(await sb.from("fields").select("key, label").eq("workspace_id", wsId).eq("object", "contact").order("position")) as { key: string; label: string }[]);
-  const [edits, setEdits] = useState<Record<string, Record<string, string>>>({});
-  const [winEdits, setWinEdits] = useState<Record<string, Wins>>({});
-  const [error, setError] = useState("");
-  const rows = (data.data?.[object] ?? []).map((r) => ({ ...r, target: edits[object]?.[r.col] ?? r.target, wins: (object === "contact" ? winEdits[r.col] : undefined) ?? r.wins ?? "claritia" }));
-  const options =
-    object === "contact"
-      ? [
-          ...TARGETS.filter((t) => t.value !== "basis"),
-          ...(twoWay ? [{ value: "score", label: "Claritia score" }, { value: "score_band", label: "Claritia band" }, { value: "owner_crm", label: "Owner" }] : []),
-          ...(custom.data ?? []).map((f) => ({ value: `f.${f.key}` as Target, label: f.label })),
-        ]
-      : COMPANY_TARGETS;
-  const showWins = twoWay && object === "contact";
-  const dirty = Object.keys(edits[object] ?? {}).length > 0 || (object === "contact" && Object.keys(winEdits).length > 0);
-  const choose = (col: string, t: string) => {
-    const mine = { ...(edits[object] ?? {}), [col]: t };
-    // One column per field.
-    if (t !== "skip") for (const r of rows) if (r.col !== col && (mine[r.col] ?? r.target) === t) mine[r.col] = "skip";
-    setEdits({ ...edits, [object]: mine });
-  };
-  const save = async () => {
-    setError("");
-    try {
-      // Saved rows become the mapping on screen; no need to read it again.
-      must(await sb.rpc("mapping_save", { p_source: source.id, p_object: object, p_rows: rows.filter((r) => r.target !== "skip").map((r) => ({ col: r.col, target: r.target, wins: r.wins })) }));
-      data.set((d) => ({ ...d, [object]: (d[object] ?? []).map((r) => {
-        const s = rows.find((x) => x.col === r.col);
-        return s ? { ...r, target: s.target, wins: s.wins } : r;
-      }) }));
-      setEdits({ ...edits, [object]: {} });
-      if (object === "contact") setWinEdits({});
-    } catch (e) {
-      setError(errorText(e));
-    }
-  };
-  return (
-    <Panel className="overflow-hidden">
-      <CardHead label="Fields">
-        {hasCompanies ? (
-          <span className="ml-auto flex gap-0.5 rounded-full bg-paper-deep p-0.5">
-            {(["contact", "company"] as const).map((o) => (
-              <button key={o} type="button" onClick={() => setObject(o)} className={`h-6 rounded-full px-2.5 text-[12px] font-medium transition-colors duration-[140ms] ${object === o ? "bg-ink text-paper" : "text-muted hover:text-ink"}`}>
-                {o === "contact" ? "Contacts" : "Companies"}
-              </button>
-            ))}
-          </span>
-        ) : null}
-      </CardHead>
-      {error ? (
-        <div className="px-5 pt-4">
-          <ErrorNote message={error} />
-        </div>
-      ) : null}
-      {!data.data ? (
-        <Loading />
-      ) : !rows.length ? (
-        <p className="px-5 py-3 text-[13px] text-faint">—</p>
-      ) : (
-        <table className="w-full border-collapse [&_tbody_tr:last-child_td]:border-b-0">
-          <thead>
-            <tr>
-              <Th>{source.name}</Th>
-              <Th>Sample</Th>
-              <Th>Field</Th>
-              {showWins ? <Th>Wins</Th> : null}
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((r) => (
-              <tr key={r.col} className="border-t border-line">
-                <Td className="font-mono text-[12px]">{r.col}</Td>
-                <Td className="max-w-[220px] truncate text-muted">{r.sample || "—"}</Td>
-                <Td className="w-56">
-                  <Select className={`${SEL} h-8 ${r.target === "skip" ? "text-faint" : ""}`} value={r.target} onChange={(v) => choose(r.col, v)} options={options as { value: string; label: string }[]} disabled={!owner} />
-                </Td>
-                {showWins ? (
-                  <Td className="w-36">
-                    {r.target === "skip" || r.target === "email" ? null : OUT_ONLY.has(r.target) ? (
-                      <Badge>Out only</Badge>
-                    ) : r.target === "owner_crm" ? (
-                      <Badge>CRM</Badge>
-                    ) : (
-                      <Select className={`${SEL} h-8`} value={r.wins} onChange={(v) => setWinEdits({ ...winEdits, [r.col]: v })} options={WINS} disabled={!owner} ariaLabel={`Who wins ${r.col}`} />
-                    )}
-                  </Td>
-                ) : null}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
-      {owner && dirty ? (
-        <div className="border-t border-line px-5 py-3">
-          <Button onClick={save}>Save fields</Button>
-        </div>
-      ) : null}
-    </Panel>
-  );
-}
-
-// Sync log ---------------------------------------------------------------------------------------------------
-
-type LogRow = { id: number; source_id: string; direction: string; object: string; local_id: string | null; external_id: string | null; action: string; fields: string[]; error: string | null; retried_at: string | null; at: string };
-const ACTION: Record<string, [string, Tone]> = { create: ["Created", "green"], update: ["Updated", "brand"], delete: ["Deleted", "gray"], suppress: ["Unsubscribed", "amber"], error: ["Error", "red"] };
-
-export function SyncLog({ sb, ws, navigate, onConnect }: Pick<ViewProps, "sb" | "ws" | "navigate"> & { onConnect?: () => void }) {
-  const [source, setSource] = useState("");
-  const [direction, setDirection] = useState("");
-  const [action, setAction] = useState("");
-  const [picked, setPicked] = useState<Set<number>>(new Set());
-  const [error, setError] = useState("");
-  const sources = useLoad(async () => must(await sb.from("sources").select("id, kind, name").eq("workspace_id", ws.id).order("created_at")) as { id: string; kind: string; name: string }[], ws.id);
-  const rows = useLoad(async () => {
-    let q = sb.from("sync_log").select("id, source_id, direction, object, local_id, external_id, action, fields, error, retried_at, at").eq("workspace_id", ws.id).order("id", { ascending: false }).limit(300);
-    if (source) q = q.eq("source_id", source);
-    if (direction) q = q.eq("direction", direction);
-    if (action) q = q.eq("action", action);
-    return must(await q) as LogRow[];
-  }, `${ws.id}:${source}:${direction}:${action}`);
-  const byId = new Map((sources.data ?? []).map((s) => [s.id, s]));
-  // A live feed: new changes slide in while the page is open.
-  usePoll(rows.reload, true, { every: 15_000, backoff: 1.2, max: 60_000, stopAfter: 30 * 60_000 });
-  const [seen] = useState(() => Date.now());
-  const today = (rows.data ?? []).filter((r) => new Date(r.at).getTime() > seen - 86_400_000);
-  const retry = async () => {
-    setError("");
-    try {
-      must(await sb.rpc("sync_retry", { p_ids: [...picked] }));
-      setPicked(new Set());
-      rows.reload();
-    } catch (e) {
-      setError(errorText(e));
-    }
-  };
-  if (rows.data && !rows.data.length && !source && !direction && !action)
-    return (
-      <ToolIntro
-        sketch="sync"
-        title={"Every change\nbetween your tools"}
-        lead="Contacts moving in and out of Claritia show here, live."
-        action={
-          onConnect ? (
-            <Button onClick={onConnect}>
-              <Plug size={14} />
-              Connect a tool
-            </Button>
-          ) : undefined
-        }
-      />
-    );
-  return (
-    <div className="flex flex-col gap-4">
-      <ErrorNote message={error} />
-      {today.length ? (
-        <p className="flex items-center gap-2 text-[13px] text-muted tabular-nums">
-          <span className="size-1.5 animate-pulse rounded-full bg-signal motion-reduce:animate-none" aria-hidden="true" />
-          {today.filter((r) => r.direction === "in").length.toLocaleString("en-US")} in, {today.filter((r) => r.direction === "out").length.toLocaleString("en-US")} out today
-        </p>
-      ) : null}
-      <div className="flex flex-wrap items-center gap-2">
-        <Select className={`${SEL} !w-48`} value={source} onChange={setSource} options={[{ value: "", label: "All sources" }, ...(sources.data ?? []).map((s) => ({ value: s.id, label: s.name }))]} />
-        <Select className={`${SEL} !w-36`} value={direction} onChange={setDirection} options={[{ value: "", label: "In and out" }, { value: "in", label: "In" }, { value: "out", label: "Out" }]} />
-        <Select className={`${SEL} !w-40`} value={action} onChange={setAction} options={[{ value: "", label: "Every change" }, ...Object.entries(ACTION).map(([value, [label]]) => ({ value, label }))]} />
-        {picked.size ? (
-          <Button className="ml-auto" onClick={retry}>
-            <Refresh size={14} />
-            Retry {picked.size}
-          </Button>
-        ) : null}
-      </div>
-      <Panel className="overflow-hidden">
-        {!rows.data ? (
-          <Loading />
-        ) : !rows.data.length ? (
-          <p className="px-5 py-3 text-[13px] text-faint">—</p>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full border-collapse [&_tbody_tr:last-child_td]:border-b-0">
-              <thead>
-                <tr>
-                  <Th>{""}</Th>
-                  <Th>When</Th>
-                  <Th>Source</Th>
-                  <Th>Change</Th>
-                  <Th>Fields</Th>
-                  <Th>Record</Th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.data.map((r) => {
-                  const s = byId.get(r.source_id);
-                  const [label, tone] = ACTION[r.action] ?? [r.action, "gray" as Tone];
-                  const canRetry = r.action === "error" && r.direction === "out" && !r.retried_at;
-                  return (
-                    <tr key={r.id} className={`border-t border-line ${new Date(r.at).getTime() > seen ? "anim-rise-sm" : ""}`}>
-                      <Td className="w-8">
-                        {canRetry ? (
-                          <CheckBox
-                            label="Pick"
-                            on={picked.has(r.id)}
-                            onClick={() => {
-                              const n = new Set(picked);
-                              if (n.has(r.id)) n.delete(r.id);
-                              else n.add(r.id);
-                              setPicked(n);
-                            }}
-                          />
-                        ) : null}
-                      </Td>
-                      <Td className="whitespace-nowrap text-faint">{timeAgo(r.at)}</Td>
-                      <Td>
-                        <span className="flex items-center gap-2">
-                          <BrandLogo domain={entryOf(s?.kind ?? "")?.domain ?? ""} name={s?.name ?? "?"} size={16} />
-                          {s?.name ?? "—"}
-                        </span>
-                      </Td>
-                      <Td>
-                        <span className="flex items-center gap-2">
-                          <Badge tone={r.direction === "out" ? "violet" : "brand"}>{r.direction === "out" ? "Out" : "In"}</Badge>
-                          <Badge tone={tone}>{label}</Badge>
-                          {r.error ? <span className="max-w-[260px] truncate text-[12px] text-rose">{r.error}</span> : null}
-                        </span>
-                      </Td>
-                      <Td className="max-w-[260px] truncate font-mono text-[11px] text-muted">{r.fields.join(", ") || "—"}</Td>
-                      <Td>
-                        {r.local_id && r.object === "contact" ? (
-                          <button type="button" className="text-[12px] underline-offset-2 hover:underline" onClick={() => navigate("contacts", r.local_id!)}>
-                            Open
-                          </button>
-                        ) : (
-                          <span className="font-mono text-[11px] text-faint">{r.external_id ?? "—"}</span>
-                        )}
-                      </Td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </Panel>
-    </div>
   );
 }

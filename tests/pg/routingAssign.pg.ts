@@ -5,7 +5,7 @@
 import assert from "node:assert/strict";
 import { after, test } from "node:test";
 import pg from "pg";
-import { uuid7 } from "../../collect/ids.ts";
+import { uuid7 } from "./ids.ts";
 
 const url = process.env.PG_URL;
 if (!url) throw new Error("PG_URL is not set");

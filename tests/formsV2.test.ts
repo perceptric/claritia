@@ -19,7 +19,6 @@ import {
   issuesOf,
   kindOf,
   kindPatch,
-  knownOp,
   newQuestion,
   publishChecks,
   questionsOf,
@@ -243,15 +242,13 @@ test("Show when edits one rule, and Always takes every show rule away", () => {
   assert.equal(run(moved, showOps(moved, "rv", null)).rules.length, 0);
 });
 
-test("Routing rules that read a question, skip when known, and where a form lives", () => {
+test("Routing rules that read a question, and where a form lives", () => {
   const body = { rules: { on: true, list: [{ id: "r1", name: "Enterprise", match: "all", conds: [{ field: "answer.q.size", op: "one_of", value: ["500+"] }], queue: "q" }, { id: "r2", name: "Europe", match: "all", conds: [{ field: "lead.country", op: "one_of", value: ["DE"] }], queue: "q" }] } } as never;
   assert.deepEqual(rulesReading(body, { key: "q.size" }), ["Enterprise"]);
   assert.deepEqual(rulesReading(body, { key: "country" }), ["Europe"]);
   assert.deepEqual(rulesReading(null, { key: "q.size" }), []);
   const f = emptyForm();
-  const co = { id: "co", key: "company", type: "text", label: "Company", required: false } as Field;
-  assert.deepEqual(knownOp(f, co, true), { op: "set_enrich", hideKnown: true, fields: ["company"] });
-  assert.deepEqual(knownOp({ ...f, enrich: { hideKnown: true, fields: ["company"] } }, co, false), { op: "set_enrich", hideKnown: false, fields: [] });
+  void f;
   assert.equal(whereWords({ status: "draft", version: 0, pages: 0, page: null, hosted: false }), "Not on any page yet");
   assert.equal(whereWords({ status: "live", version: 2, pages: 3, page: null, hosted: true }), "Hosted page and 3 pages");
   assert.equal(whereWords({ status: "live", version: 2, pages: 1, page: "https://www.acme.com/pricing", hosted: false }), "acme.com/pricing");

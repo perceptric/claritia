@@ -5,10 +5,10 @@
 import assert from "node:assert/strict";
 import { after, test } from "node:test";
 import pg from "pg";
-import { uuid7 } from "../../collect/ids.ts";
+import { uuid7 } from "./ids.ts";
 import { checkForm, emptyForm, type Form } from "../../src/lib/forms/schema.ts";
 import { prepareSubmit, type SubmitArgs } from "../../src/lib/forms/submit.ts";
-import { ctxFor } from "../../worker-intel/jobs/imports.ts";
+import { ctxFor } from "../../worker-intel/jobs/ctx.ts";
 
 const url = process.env.PG_URL;
 if (!url) throw new Error("PG_URL is not set");

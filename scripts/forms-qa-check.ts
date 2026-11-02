@@ -17,7 +17,7 @@ import { seal } from "../src/lib/seal.ts";
 import type { Job } from "../src/lib/jobs.ts";
 import { pgRpc } from "../worker-intel/rpc.ts";
 import { deliverOnce } from "../worker-intel/jobs/deliver.ts";
-import { ctxFor } from "../worker-intel/jobs/imports.ts";
+import { ctxFor } from "../worker-intel/jobs/ctx.ts";
 import { handleFormQa } from "../worker/formQa.ts";
 
 process.env.SECRETS_KEY ||= "test-secrets-key-that-is-long-enough-1234";

@@ -1,7 +1,7 @@
 "use client";
 
 // Workflows (docs/workflows.md): /workflows and /workflows/<id> are the folders with one workflow open (Home.tsx);
-// /workflows/new picks a template (?template=broadcast opens that one; ?folder=<id> files it in that folder; ?form=<id>
+// /workflows/new picks a template (?template=<key> opens that one; ?folder=<id> files it in that folder; ?form=<id>
 // starts a form template on that form).
 
 import { useCallback, useEffect, useState } from "react";
@@ -39,7 +39,7 @@ function TemplatePicker({ sb, ws, navigate }: ViewProps) {
       setBusy(false);
     });
   };
-  // ?template=broadcast (the Create menu's Broadcast) makes that one at once; ?form=<id> (Form Studio's New follow-up)
+  // ?template=<key> makes that one at once; ?form=<id> (Form Studio's New follow-up)
   // starts it on that form.
   const [asked] = useState(() => (typeof window === "undefined" ? null : new URLSearchParams(window.location.search).get("template")));
   const [form] = useState(() => (typeof window === "undefined" ? null : new URLSearchParams(window.location.search).get("form")));

@@ -144,7 +144,6 @@ export function RunPanel({ sb, session, ws, role, navigate, runId, onClose, onRo
   const lead = r ? leadOf(r) : null;
   const onLink: LinkTo = (p) => {
     if (p.kind === "user") navigate(ROUTING, "teams");
-    else if (p.kind === "company") navigate("companies", p.id);
     else navigate(ROUTING, "");
   };
 
@@ -194,9 +193,6 @@ export function RunPanel({ sb, session, ws, role, navigate, runId, onClose, onRo
       footer={
         r?.contact_id ? (
           <>
-            <Button variant="ghost" size="sm" onClick={() => navigate("contacts", r.contact_id!)}>
-              Open contact
-            </Button>
             <Button variant="ghost" size="sm" onClick={() => navigate(ROUTING, "", `test=${r.contact_id}`)}>
               Test draft
             </Button>

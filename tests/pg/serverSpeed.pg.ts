@@ -179,26 +179,6 @@ test("router_members and router_fields_src: the team in one call; fields, forms 
   assert.deepEqual(src.latest, [{ form_id: f, version: 2, body: { v: 2 } }]);
 });
 
-test("hook_stage_many: a delivery's events in one call, a repeat staged once, one job", async () => {
-  const { ws } = await team(1);
-  const sid = (await q(`insert into sources (workspace_id, kind, name, status) values ($1, 'webhook', 'Hook', 'active') returning id`, [ws]))[0].id;
-  const ev = (d: string) => ({ dedupe: d, body: { dedupe: d, kind: "contact" } });
-  assert.equal((await rpc("hook_stage_many", { p_source: sid, p_events: [ev("a"), ev("b"), ev("a")] })).data, 2);
-  assert.equal((await rpc("hook_stage_many", { p_source: sid, p_events: [ev("a"), ev("c")] })).data, 1);
-  assert.equal((await q(`select count(*)::int n from hook_events where source_id = $1`, [sid]))[0].n, 3);
-  assert.equal((await jobsOf(ws, "source_hook")).length, 1);
-});
-
-test("journeys_create: in order, one per journey key, a second build makes none", async () => {
-  const { ws, users } = await team(1);
-  const items = ["welcome", "trial"].map((k) => ({ name: k, stage: "trial", journey: k, draft: { trigger: { kind: "manual" }, steps: [] } }));
-  const ids = (await rpc("journeys_create", { p_ws: ws, p_user: users[0], p_items: items })).data as string[];
-  assert.equal(ids.length, 2);
-  const again = (await rpc("journeys_create", { p_ws: ws, p_user: users[0], p_items: items })).data as string[];
-  assert.deepEqual(again, ids);
-  assert.ok((await rpc("journeys_create", { p_ws: ws, p_user: randomUUID(), p_items: items })).error, "only members");
-});
-
 test("nurture_steps_save: as the person, all or none", async () => {
   const { ws, users } = await team(1);
   const n = (await q(`insert into nurtures (workspace_id, name) values ($1, 'Trial') returning id`, [ws]))[0].id;

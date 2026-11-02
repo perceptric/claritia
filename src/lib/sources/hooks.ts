@@ -3,13 +3,19 @@ import { timingSafeEqual } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { rpcOr } from "../rpcCompat.ts";
 import { unseal } from "../seal.ts";
-import { appSecret } from "./oauth.ts";
+import { entryOf } from "./catalog.ts";
 import { connectorFor } from "./registry.ts";
 import type { HookEvent, HookRequest } from "./types.ts";
 
-// Webhooks in. Each delivery is checked (the URL's token, and the tool's signature when it signs), turned into
-// events, and staged; the source_hook job applies them. Staging is all a hook does, so it answers fast and a
-// delivery sent twice is kept once.
+// Webhooks in, from the form and meeting tools around Claritia's forms: fills from Typeform, Tally and Webflow, and
+// bookings from Calendly and Cal.com, which link to the fill they followed. Each delivery is checked (the URL's token,
+// and the tool's signature when it signs), turned into events, and staged; the source_hook job applies them. Staging
+// is all a hook does, so it answers fast and a delivery sent twice is kept once. CRMs and other tools aren't taken:
+// Claritia has no CRM to sync into.
+
+/** The tool groups whose webhooks come in. */
+const HOOK_GROUPS = new Set(["form", "event", "api"]);
+export const takesHooks = (kind: string) => HOOK_GROUPS.has(entryOf(kind)?.group ?? "");
 
 const MAX_BODY = 1_000_000;
 const sameText = (a: string, b: string) => a.length === b.length && timingSafeEqual(Buffer.from(a), Buffer.from(b));
@@ -54,7 +60,7 @@ const parseJson = (body: string): unknown => {
 /** A hook for one source: /api/hooks/<kind>/<source id>?t=<token>. */
 export async function sourceHook(db: SupabaseClient, kind: string, id: string, req: HookRequest): Promise<Response> {
   const c = connectorFor(kind);
-  if (!c?.parse || !/^[0-9a-f-]{36}$/.test(id)) return Response.json({ error: "Not found." }, { status: 404 });
+  if (!c?.parse || !takesHooks(kind) || !/^[0-9a-f-]{36}$/.test(id)) return Response.json({ error: "Not found." }, { status: 404 });
   const [{ data: src }, { data: sec }] = await Promise.all([
     db.from("sources").select("kind, status").eq("id", id).maybeSingle(),
     db.from("source_secrets").select("hook_sealed").eq("source_id", id).maybeSingle(),
@@ -68,23 +74,4 @@ export async function sourceHook(db: SupabaseClient, kind: string, id: string, r
   const events = c.parse(parseJson(req.body), req.headers);
   const n = await stage(db, id, events);
   return Response.json({ ok: true, staged: n });
-}
-
-/** One hook for every account of a tool (HubSpot's app webhooks): /api/hooks/<kind>. */
-export async function appHook(db: SupabaseClient, kind: string, req: HookRequest): Promise<Response> {
-  const c = connectorFor(kind);
-  if (!c?.parse || !c.verify) return Response.json({ error: "Not found." }, { status: 404 });
-  if (!c.verify(req, appSecret(kind))) return Response.json({ error: "Not allowed." }, { status: 401 });
-  const events = c.parse(parseJson(req.body), req.headers) as (HookEvent & { account?: string })[];
-  const byAccount = new Map<string, HookEvent[]>();
-  for (const e of events) byAccount.set(e.account ?? "", [...(byAccount.get(e.account ?? "") ?? []), e]);
-  // Accounts side by side; each source's events in one call.
-  const counts = await Promise.all(
-    [...byAccount].filter(([account]) => account).map(async ([account, list]) => {
-      const { data: ids } = await db.rpc("source_by_account", { p_kind: kind, p_account: account });
-      const per = await Promise.all(((ids as string[] | null) ?? []).map((sid) => stage(db, sid, list)));
-      return per.reduce((a, b) => a + b, 0);
-    }),
-  );
-  return Response.json({ ok: true, staged: counts.reduce((a, b) => a + b, 0) });
 }

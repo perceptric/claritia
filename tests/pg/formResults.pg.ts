@@ -5,13 +5,13 @@
 import assert from "node:assert/strict";
 import { after, test } from "node:test";
 import pg from "pg";
-import { uuid7 } from "../../collect/ids.ts";
+import { uuid7 } from "./ids.ts";
 import { checkForm, type Form } from "../../src/lib/forms/schema.ts";
 import { prepareSubmit, releaseFill, type HeldFill } from "../../src/lib/forms/submit.ts";
 import { TEMPLATES } from "../../src/lib/forms/templates.ts";
 import { seal } from "../../src/lib/seal.ts";
 import { pgRpc } from "../../worker-intel/rpc.ts";
-import { ctxFor } from "../../worker-intel/jobs/imports.ts";
+import { ctxFor } from "../../worker-intel/jobs/ctx.ts";
 
 process.env.SECRETS_KEY ||= "test-secrets-key-that-is-long-enough-1234";
 const url = process.env.PG_URL;

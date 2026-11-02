@@ -4,7 +4,7 @@
 import assert from "node:assert/strict";
 import { after, test } from "node:test";
 import pg from "pg";
-import { uuid7 } from "../../collect/ids.ts";
+import { uuid7 } from "./ids.ts";
 import { checkForm } from "../../src/lib/forms/schema.ts";
 import { TEMPLATES } from "../../src/lib/forms/templates.ts";
 

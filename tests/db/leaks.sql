@@ -548,13 +548,13 @@ insert into audit_log (workspace_id, actor, action, target) values
 insert into privacy_requests (workspace_id, kind, subject_hash, source) values
   ('11111111-0000-0000-0000-000000000000', 'erase', '\x00', 'app'),
   ('22222222-0000-0000-0000-000000000000', 'erase', '\x01', 'app');
-select enqueue_job('11111111-0000-0000-0000-000000000000', 'stitch', 'dev-acme', '{}');
+select enqueue_job('11111111-0000-0000-0000-000000000000', 'workflow_run', 'dev-acme', '{}');
 select pg_temp.as_user('b0000000-0000-0000-0000-000000000000');
 set role authenticated;
 select pg_temp.check(pg_temp.visible($$select count(*) from jobs$$) = 0, 'Ben sees the jobs queue');
-select pg_temp.fails($$insert into jobs (kind) values ('stitch')$$, 'Ben adds a job');
-select pg_temp.fails($$select enqueue_job('11111111-0000-0000-0000-000000000000', 'stitch', 'x', '{}')$$, 'Ben queues a job through the function');
-select pg_temp.fails($$select * from claim_job('{stitch}', 'ben', 60, 1)$$, 'Ben claims a job');
+select pg_temp.fails($$insert into jobs (kind) values ('workflow_run')$$, 'Ben adds a job');
+select pg_temp.fails($$select enqueue_job('11111111-0000-0000-0000-000000000000', 'workflow_run', 'x', '{}')$$, 'Ben queues a job through the function');
+select pg_temp.fails($$select * from claim_job('{workflow_run}', 'ben', 60, 1)$$, 'Ben claims a job');
 select pg_temp.fails($$update workspaces set features = '{testing,marketing}'$$, 'Ben turns on features for his workspace');
 select pg_temp.check((select count(*) from suite_connections) = 1 and (select key_hint from suite_connections) = '…a1b2', 'Ben can''t see only his own suite connection');
 select pg_temp.fails($$select key_sealed from suite_connections$$, 'Ben reads a sealed suite key');
@@ -670,7 +670,8 @@ create temp table pr as select privacy_request('ab000000-0000-0000-0000-00000000
 reset role;
 select set_config('request.jwt.claim.sub', '', false);
 insert into privacy_exports (request_id, workspace_id, data) values ((select id from pr), '11111111-0000-0000-0000-000000000000', '{"person":"jane"}');
-select pg_temp.check((select count(*) from jobs where kind = 'privacy') = 1, 'The export wasn''t queued');
+-- Visitors' privacy jobs aren't run any more (116): the queue drops them.
+select pg_temp.check((select count(*) from jobs where kind = 'privacy') = 0, 'A removed job kind was queued');
 select pg_temp.as_user('b0000000-0000-0000-0000-000000000000');
 set role authenticated;
 select pg_temp.check((select count(*) from privacy_exports) = 0, 'Ben, a member, reads a privacy export');

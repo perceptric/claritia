@@ -9,7 +9,7 @@ import { anyoneOn, count, OLD_WHOLE_TEAM, WHOLE_TEAM } from "../src/lib/words.ts
 import { cleanBody } from "../src/lib/router/check.ts";
 
 const root = new URL("../src/", import.meta.url).pathname;
-const DIRS = ["components/app/meetings", "components/app/scheduling", "components/app/routing", "components/app/workflows", "components/app/reports", "components/app/forms", "components/book", "lib/router", "lib/routing", "lib/workflows", "lib/meetings"];
+const DIRS = ["components/app/meetings", "components/app/scheduling", "components/app/routing", "components/app/workflows", "components/app/forms", "components/book", "lib/router", "lib/routing", "lib/workflows", "lib/meetings"];
 const files = (d: string): string[] => readdirSync(d).flatMap((f) => (statSync(join(d, f)).isDirectory() ? files(join(d, f)) : /\.tsx?$/.test(f) ? [join(d, f)] : []));
 const WORD = /\b[Rr]eps?\b/;
 

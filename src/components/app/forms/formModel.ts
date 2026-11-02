@@ -6,7 +6,7 @@
 
 import { applyOp, type FieldInput, type Op } from "../../../lib/forms/ops.ts";
 import { customFit, takenKeys } from "../../../lib/forms/savesTo.ts";
-import { allFields, CONTACT_KEYS, FIELD_TYPES, HIDE_KEYS, hideKeyOf, isChoice, newId, questionKey, unsetConstants, type Choice, type Field, type FieldKey, type FieldType, type Form, type Rule } from "../../../lib/forms/schema.ts";
+import { allFields, CONTACT_KEYS, FIELD_TYPES, isChoice, newId, questionKey, unsetConstants, type Choice, type Field, type FieldKey, type FieldType, type Form, type Rule } from "../../../lib/forms/schema.ts";
 import type { CustomField } from "../../../lib/records/fields.ts";
 import type { RouterBody } from "../../../lib/router/types.ts";
 import { propertyFit, type CrmProperty } from "../../../lib/sources/properties.ts";
@@ -457,24 +457,6 @@ export function earlierChoices(form: Form, id: string): Field[] {
   const all = allFields(form);
   const at = all.findIndex((f) => f.id === id);
   return (at < 0 ? all : all.slice(0, at)).filter((f) => f.type === "choice" || f.type === "dropdown" || f.type === "multi");
-}
-
-// Fill in for them ----------------------------------------------------------------------------------------------------
-
-/** Whether "Skip it when Claritia already knows the answer" can apply, and whether it's on. */
-export function known(form: Form, f: Field): { can: boolean; on: boolean } {
-  const k = hideKeyOf(f.key);
-  const can = HIDE_KEYS.includes(k) && f.type !== "hidden";
-  return { can, on: can && !!form.enrich?.hideKnown && (form.enrich?.fields ?? []).includes(k) };
-}
-
-/** The op that turns skipping a known answer on or off for one question. */
-export function knownOp(form: Form, f: Field, on: boolean): Op {
-  const k = hideKeyOf(f.key);
-  const list = new Set(form.enrich?.fields ?? []);
-  if (on) list.add(k);
-  else list.delete(k);
-  return { op: "set_enrich", hideKnown: list.size > 0, fields: [...list] };
 }
 
 /** The page address parameter a question fills from: its own name for a hidden field, else its key's name. */

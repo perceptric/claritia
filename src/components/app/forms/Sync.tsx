@@ -1,9 +1,9 @@
 "use client";
 
-// Sync (docs/form-builder.md Part 7): where each lead goes. On the left: Claritia CRM (always), each CRM with its
-// state, and webhooks. A CRM this form sends to shows the leads that didn't reach it with Send again, what a lead is
-// made as, what happens when the email is already there, the owner and consent, then every question and the field it
-// goes to with Fix or Check choices. A CRM that's connected but not used here, or not connected at all, has one
+// Sync (docs/form-builder.md Part 7): where each lead goes. On the left: each CRM with its state, and webhooks. A CRM
+// this form sends to shows the leads that didn't reach it with Send again, what a lead is made as, what happens when
+// the email is already there, the owner and consent, then every question and the field it goes to with Fix or Check
+// choices. A CRM that's connected but not used here, or not connected at all, has one
 // button that starts it.
 
 import { useState } from "react";
@@ -15,7 +15,7 @@ import { askConfirm, askText, tell } from "../Dialogs";
 import { Badge, ErrorNote, errorText, must, postJson, useQuery, type ViewProps } from "../ui";
 import { daysAgo, issuesOf } from "./formModel";
 import { Ic } from "./ic";
-import { BTN, CARD, CROW, GHOST_SM, GHOST_SM_RED, LINK, RowText, Seg, useNote, Tg } from "./parts";
+import { BTN, CARD, CROW, GHOST_SM, GHOST_SM_RED, RowText, Seg, useNote, Tg } from "./parts";
 import { LeftItem } from "./Share";
 import type { Destination, SourceRow } from "./shared";
 import type { useCrm } from "./useCrm";
@@ -50,7 +50,6 @@ export function Sync(props: Props) {
     crmDests.length ? ((must(await sb.rpc("form_deliveries_by_dest", { p_form: formId, p_status: "done", p_since: daysAgo(30) })) ?? {}) as Record<string, number>) : ({} as Record<string, number>),
   );
   const items: { key: string; logo: React.ReactNode; title: string; sub: string; bad?: boolean; on?: boolean }[] = [
-    { key: "claritia", logo: <BrandLogo domain="tryclaritia.com" name="Claritia" size={28} />, title: "Claritia CRM", sub: "Every lead becomes a contact", on: true },
     ...tools.map((s) => {
       const d = crmDests.find((x) => x.source_id === s.id);
       const n = d ? (failed[d.id] ?? 0) : 0;
@@ -66,7 +65,7 @@ export function Sync(props: Props) {
     ...OFFER.filter((k) => !tools.some((s) => s.kind === k)).map((k) => ({ key: `connect:${k}`, logo: <BrandLogo domain={entryOf(k)?.domain ?? ""} name={entryOf(k)?.label ?? k} size={28} />, title: entryOf(k)?.label ?? k, sub: "Not connected" })),
     { key: "webhook", logo: <span className="inline-flex size-[28px] items-center justify-center rounded-lg bg-paper-deep text-body"><Ic n="code" /></span>, title: "Webhook", sub: hooks.length ? `${hooks.filter((h) => !h.paused).length} on` : "Off", on: hooks.some((h) => !h.paused) },
   ];
-  const [pick, setPick] = useState<string>(() => crmDests[0]?.source_id ?? "claritia");
+  const [pick, setPick] = useState<string>(() => crmDests[0]?.source_id ?? items[0]!.key);
   const cur = items.find((i) => i.key === pick) ?? items[0]!;
   return (
     <div className="grid min-h-0 flex-1 grid-cols-[260px_minmax(0,1fr)] grid-rows-[minmax(0,1fr)] max-[860px]:grid-cols-1 max-[860px]:grid-rows-[auto_minmax(0,1fr)]">
@@ -86,9 +85,7 @@ export function Sync(props: Props) {
       </div>
       <div className="min-w-0 overflow-y-auto px-[16px] pt-[20px] pb-[32px] sm:px-[clamp(16px,3vw,32px)]">
         <div className="flex max-w-[760px] flex-col gap-[16px]">
-          {cur.key === "claritia" ? (
-            <ClaritiaPane {...props} />
-          ) : cur.key === "webhook" ? (
+          {cur.key === "webhook" ? (
             <WebhookPane {...props} hooks={hooks} />
           ) : cur.key.startsWith("connect:") ? (
             <Start logo={cur.logo} name={cur.title} button={`Connect ${cur.title}`} onClick={() => props.navigate("settings", "sources")} />
@@ -115,31 +112,6 @@ function Start({ logo, name, button, onClick, busy = false }: { logo: React.Reac
       <button type="button" className={`${BTN} self-start`} onClick={onClick} disabled={busy}>
         {button}
       </button>
-    </>
-  );
-}
-
-function ClaritiaPane({ navigate, formId }: Props) {
-  return (
-    <>
-      <H3>Claritia CRM</H3>
-      <Sub>Always on. Each fill makes or updates a contact and its company.</Sub>
-      <div className={CARD}>
-        <div className={CROW}>
-          <RowText title="Same person sends it twice" sub="Matched by email. New answers follow each question's rule." />
-          <Badge>One contact</Badge>
-        </div>
-        <div className={CROW}>
-          <RowText title="Free email addresses" sub="The contact is made without a company" />
-          <Badge>No company</Badge>
-        </div>
-        <div className={CROW}>
-          <RowText title="Then" sub="On Submission picks the meeting and the person, Scoring scores the lead" />
-          <button type="button" className={LINK} onClick={() => navigate("forms", formId, "open=submission")}>
-            Open On Submission
-          </button>
-        </div>
-      </div>
     </>
   );
 }
