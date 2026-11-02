@@ -15,7 +15,9 @@ import { BrandLogo } from "../BrandLogo";
 import { askConfirm, askText } from "../Dialogs";
 import { Select } from "../Select";
 import { MoreMenu } from "../StatCards";
-import { Badge, Button, ErrorNote, errorText, IconButton, Input, invalidate, Loading, must, Page, postJson, Segmented, Toggle, useQuery, type ViewProps } from "../ui";
+import { Badge, Button, ErrorNote, errorText, IconButton, invalidate, Loading, must, Page, postJson, Segmented, Toggle, useQuery, type ViewProps } from "../ui";
+import { DatePick } from "../DatePick";
+import { PaintWeek } from "./PaintWeek";
 import { CLOCK_OPTIONS, ClockPick, FROM_OPTIONS, Overrides, ZonePicker } from "../meetings/HoursEditor";
 import { CLOCKS, DAY_LABEL, nextRange } from "../meetings/model";
 import { PROVIDERS, providerOf, useMyCalendars, type Account, type CalList } from "../meetings/MyCalendar";
@@ -72,7 +74,7 @@ export function AvailabilityPage(props: ViewProps & { tab: string; back?: { labe
       <Page title="Availability" back={props.back} flush>
         <div className="flex h-full min-h-0 flex-col gap-4 overflow-y-auto p-4">
           <div>{switcher}</div>
-          <TeamCalendars sb={sb} ws={ws} role={props.role} session={session} />
+          <TeamCalendars sb={sb} ws={ws} role={props.role} session={session} onFix={() => pickWhose("you")} />
           {teams.data ? <TeamsTab {...props} screen={teams} teamId={teamId} pick={setTeamId} /> : teams.error ? <ErrorNote message={teams.error} /> : null}
         </div>
       </Page>
@@ -153,6 +155,8 @@ export function AvailabilityPage(props: ViewProps & { tab: string; back?: { labe
           {!data.data ? (
             <Loading />
           ) : (
+            <>
+            {sel === "default" ? <HealthLine session={session} ws={ws.id} version={JSON.stringify(data.data.hours)} /> : null}
             <WeekColumn
               key={sel}
               name={open?.name ?? "Working hours"}
@@ -164,6 +168,7 @@ export function AvailabilityPage(props: ViewProps & { tab: string; back?: { labe
               datesOpen={dates}
               onDatesClose={() => setDates(false)}
             />
+            </>
           )}
         </div>
 
@@ -260,6 +265,19 @@ function WeekColumn({
   }, [draft, base, failed]);
 
   const setDay = (d: Day, ranges: Range[]) => setDraft((a) => ({ ...a, weekly: { ...a.weekly, [d]: ranges } }));
+  const [mode, setModeRaw] = useState<"paint" | "times">(() => {
+    try {
+      return localStorage.getItem("claritia:hours-mode") === "times" ? "times" : "paint";
+    } catch {
+      return "paint";
+    }
+  });
+  const setMode = (m: "paint" | "times") => {
+    setModeRaw(m);
+    try {
+      localStorage.setItem("claritia:hours-mode", m);
+    } catch {}
+  };
   const today = new Date().toLocaleDateString("en-CA");
   const changes = draft.overrides.filter((o) => o.date >= today && o.ranges.length).length;
   return (
@@ -274,7 +292,20 @@ function WeekColumn({
         <ZonePicker value={draft.tz} onChange={(tz) => setDraft((a) => ({ ...a, tz }))} />
       </div>
       {error ? <ErrorNote message={error} /> : null}
-      <ul className="flex flex-col">
+      <div className="mb-2">
+        <Segmented<"paint" | "times">
+          size="sm"
+          label="Edit hours"
+          value={mode}
+          options={[
+            { value: "paint", label: "Paint" },
+            { value: "times", label: "Exact times" },
+          ]}
+          onChange={setMode}
+        />
+      </div>
+      {mode === "paint" ? <PaintWeek weekly={draft.weekly} onChange={(weekly) => setDraft((a) => ({ ...a, weekly }))} /> : null}
+      <ul className={`flex flex-col ${mode === "paint" ? "hidden" : ""}`}>
         {DAYS.map((d) => {
           const ranges = draft.weekly[d] ?? [];
           const next = nextRange(ranges);
@@ -420,14 +451,14 @@ function DaysOffDialog({ sb, session, ws, onClose, onSaved }: ViewProps & { onCl
     <Modal title="Days off" onClose={onClose}>
       <div className="flex flex-col gap-4">
         <div className="flex flex-wrap items-end gap-2.5">
-          <label className="flex flex-col gap-1">
+          <span className="flex flex-col gap-1">
             <span className="text-[12px] text-muted">From</span>
-            <Input type="date" value={from} min={today} onChange={(e) => setFrom(e.target.value)} className="h-9 w-36" />
-          </label>
-          <label className="flex flex-col gap-1">
+            <DatePick label="From" value={from} min={today} onChange={(d) => (setFrom(d), d > to && setTo(d))} />
+          </span>
+          <span className="flex flex-col gap-1">
             <span className="text-[12px] text-muted">To</span>
-            <Input type="date" value={to} min={from} onChange={(e) => setTo(e.target.value)} className="h-9 w-36" />
-          </label>
+            <DatePick label="To" value={to} min={from} onChange={setTo} />
+          </span>
           <Button onClick={() => void add()} disabled={busy || !from || !to}>
             Add
           </Button>
@@ -588,5 +619,30 @@ function Calendars({ sb, session, ws }: ViewProps) {
         </div>
       )}
     </>
+  );
+}
+
+/**
+ * The health line over your hours: how many 30-minute times your booking page shows in the next 7 days, read from the
+ * same engine the page uses. Amber under 5, or with what's missing (a calendar to connect, hours to set), so a broken
+ * calendar shows here before leads find it.
+ */
+function HealthLine({ session, ws, version }: { session: ViewProps["session"]; ws: string; version: string }) {
+  const q = useQuery(`availability:${ws}:health:${version}`, async () => {
+    try {
+      const r = await postJson<{ starts: number[] }>(session, "/api/meetings/times", { workspaceId: ws, pick: true, length: 30 });
+      const end = Date.now() + 7 * 86_400_000;
+      return { n: r.starts.filter((t) => t < end).length, why: "" };
+    } catch (e) {
+      return { n: 0, why: errorText(e) };
+    }
+  });
+  if (!q.data) return <span className="anim-shimmer mb-3 h-8 w-64 rounded-full bg-paper-deep" />;
+  const low = q.data.why || q.data.n < 5;
+  return (
+    <div role="status" className={`mb-3 flex min-h-8 items-center gap-2 self-start rounded-full px-3 text-[12.5px] font-medium ${low ? "bg-butter-wash text-butter" : "bg-signal-soft text-signal-text"}`}>
+      <span aria-hidden="true" className={`size-1.5 rounded-full ${low ? "bg-butter" : "bg-signal"}`} />
+      {q.data.why || `Your page shows ${q.data.n} open ${q.data.n === 1 ? "time" : "times"} next week`}
+    </div>
   );
 }
