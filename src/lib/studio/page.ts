@@ -4,7 +4,7 @@
 // routing and meetings work as for every form), and the page rides along on the form as `page`.
 // The same code runs in the browser and on the server: no DOM, a small tokenizer.
 
-import { DEFAULT_CONSENT } from "../forms/schema.ts";
+import { CONTACT_KEYS, DEFAULT_CONSENT, type FieldKey, type FieldType } from "../forms/schema.ts";
 
 export type PageAfter = { kind: "thanks" | "page" | "meeting"; url?: string; meeting?: string; routes?: { field: string; value: string; meeting: string }[] };
 /** The page on a published form: its HTML, its own CSS, the brand's CSS, each question's name to its field id. */
@@ -23,7 +23,31 @@ export type PageQuestion = {
   twice?: true;
   /** The id the question keeps across renames (data-cl-id), when the page gives one. */
   fixed?: string;
+  /** A Claritia block (docs/studio-v2-plan.md 6.2): an input the form script draws, in the brand's look. */
+  block?: Block;
 };
+
+/** The inputs that must work the same on every form: Tia places them as <div data-cl-field="...">. */
+export const BLOCKS = ["file", "phone", "address", "date", "time", "daterange", "rating", "signature", "country"] as const;
+export type Block = { type: (typeof BLOCKS)[number]; kinds?: ("pdf" | "image" | "office")[]; maxMb?: number; scale?: number; style?: "stars" | "numbers" };
+
+function readBlock(attrs: Record<string, string>): Block | null {
+  const type = BLOCKS.find((b) => b === attrs["data-cl-field"]);
+  if (!type) return null;
+  const b: Block = { type };
+  if (type === "file") {
+    const kinds = (attrs["data-cl-kinds"] ?? "").split(/[\s,]+/).filter((k): k is "pdf" | "image" | "office" => k === "pdf" || k === "image" || k === "office");
+    if (kinds.length) b.kinds = [...new Set(kinds)];
+    const mb = Math.round(Number(attrs["data-cl-max"]));
+    if (Number.isFinite(mb) && mb > 0) b.maxMb = Math.min(mb, 20);
+  }
+  if (type === "rating") {
+    const sc = Math.round(Number(attrs["data-cl-scale"]));
+    if (Number.isFinite(sc) && sc >= 3) b.scale = Math.min(sc, 10);
+    if (attrs["data-cl-style"] === "numbers") b.style = "numbers";
+  }
+  return b;
+}
 
 const MAX_HTML = 200_000;
 const MAX_CSS = 200_000;
@@ -214,6 +238,18 @@ export function cleanPage(raw: string, prevIds: Record<string, string> = {}): { 
     if (name === "button" && !("type" in attrs)) kept.push('type="button"');
     if (name === "form") kept.push("novalidate");
     const qName = /^[A-Za-z][\w-]{0,60}$/.test(attrs.name ?? "") ? attrs.name! : "";
+    // A Claritia block: its question's name, label and rules are on the block.
+    const block = readBlock(attrs);
+    const bName = /^[A-Za-z][\w-]{0,60}$/.test(attrs["data-cl-name"] ?? "") ? attrs["data-cl-name"]! : "";
+    if (block && bName) {
+      const battrs: Record<string, string> = { ...(attrs["data-cl-save"] ? { "data-cl-save": attrs["data-cl-save"] } : {}), ...(attrs["data-cl-id"] ? { "data-cl-id": attrs["data-cl-id"] } : {}), ...("data-cl-required" in attrs ? { required: "" } : {}), ...("data-cl-show-if" in attrs ? { "data-cl-show-if": "" } : {}) };
+      const q = question(bName, `block:${block.type}`, battrs);
+      q.block = block;
+      if (attrs["data-cl-label"]?.trim() && q.labelFrom !== "label") {
+        q.label = attrs["data-cl-label"].trim().slice(0, 300);
+        q.labelFrom = "label";
+      }
+    }
     // Questions
     if (qName && (name === "input" || name === "textarea" || name === "select")) {
       const t = name === "input" ? (TYPES.has((attrs.type ?? "text").toLowerCase()) ? (attrs.type ?? "text").toLowerCase() : "text") : name;
@@ -286,12 +322,26 @@ export function pageForm(p: { html: string; css: string; brand: string; after: P
   const { html, questions } = cleanPage(p.html, p.prevIds);
   const keys = new Set<string>();
   const fields = questions.map((q) => {
-    let key = q.save && !keys.has(q.save) ? q.save : q.type === "email" && !keys.has("email") ? "email" : `q.${q.id.replace(/^[^a-z]+/, "") || "q"}`;
+    let type = (q.block ? q.block.type : q.type === "dropdown" ? "dropdown" : (KIND[q.type] ?? "text")) as FieldType;
+    // A contact field only takes the types it can hold (Company can't be a dropdown); anything else stays on the form.
+    const fits = (k: string) => CONTACT_KEYS.some((c) => c.key === k && (c.types.includes(type) || (k === "email" && type === "text") || (k === "phone" && type === "text")));
+    let key: string = q.save && !keys.has(q.save) && fits(q.save) ? q.save : (q.type === "email" || q.save === "email") && !keys.has("email") && fits("email") ? "email" : `q.${q.id}`;
     if (keys.has(key)) key = `q.${q.id}`;
     keys.add(key);
-    const type = q.type === "dropdown" ? "dropdown" : KIND[q.type] ?? "text";
+    if (key === "email") type = "email";
+    if (key === "phone" && type === "text") type = "phone";
     const opts = type === "choice" || type === "multi" || type === "dropdown";
-    return { id: q.id, key, type: key === "email" ? "email" : key === "phone" ? "phone" : type, label: q.label, required: q.required, ...(opts ? { options: q.options.length ? q.options : [{ value: "yes", label: "Yes" }] } : {}) };
+    const b = q.block;
+    return {
+      id: q.id,
+      key: key as FieldKey,
+      type,
+      label: q.label,
+      required: q.required,
+      ...(opts ? { options: q.options.length ? q.options : [{ value: "yes", label: "Yes" }] } : {}),
+      ...(b?.type === "file" ? { file: { maxMb: b.maxMb ?? 10, kinds: b.kinds ?? ["pdf", "image", "office"] } } : {}),
+      ...(b?.type === "rating" ? { rating: { scale: b.scale ?? 5, style: b.style ?? "stars" } } : {}),
+    };
   });
   const ids = Object.fromEntries(questions.map((q) => [q.name, q.id]));
   const keyOf = new Map(fields.map((f) => [f.id, f.key]));

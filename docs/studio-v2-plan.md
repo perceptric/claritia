@@ -9,7 +9,9 @@ Status: Parts 1 to 5 are built (`src/components/app/forms/studio/studio.ts`, `St
 is applied (Supabase, SQL editor); until then they stay in the browser and move to the server by themselves after.
 Part 6: step 6 is built (the form check in `src/lib/studio/check.ts`, run in the Studio and again at Publish; question
 ids kept with `data-cl-id`; consent by region, the spam trap and the bot check on studio pages; tests in
-`tests/studioCheck.test.ts`). Steps 7 to 9 are next.
+`tests/studioCheck.test.ts`). Step 7 is built: Claritia blocks (file, phone, address, date, time, date range, rating,
+signature, country) that Tia places with `data-cl-field` and the form script draws with its own inputs in the brand's
+classes. Steps 8 and 9 are next.
 
 ## Part 1. Room: the sidebar and the chat fold away
 

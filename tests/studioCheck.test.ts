@@ -85,3 +85,35 @@ test("a published studio form asks for consent by region and keeps its ids", () 
   assert.equal(f.spam.turnstile, true);
   assert.equal(f.page!.ids.email, "mail");
 });
+
+test("Claritia blocks publish as the form's own inputs: file, address, phone and the rest", () => {
+  const page = `<form><label for="em">Email</label><input id="em" name="email" type="email" required>
+<div data-cl-field="file" data-cl-name="brief" data-cl-label="Your brief" data-cl-kinds="pdf office" data-cl-max="15" data-cl-required id="brief"></div>
+<div data-cl-field="address" data-cl-name="site" data-cl-label="Job address" id="addr"></div>
+<div data-cl-field="phone" data-cl-name="tel" data-cl-label="Phone" data-cl-save="phone" id="tel"></div>
+<div data-cl-field="rating" data-cl-name="score" data-cl-label="How likely?" data-cl-scale="10" data-cl-style="numbers" id="score"></div>
+<label for="co">Company</label><select id="co" name="co" data-cl-save="company"><option>Acme</option><option>Other</option></select>
+<button type="submit">Send</button><section data-cl-thanks hidden>Thanks</section></form>`;
+  assert.deepEqual(errorsIn(checkStudioPage({ html: page, after: { kind: "thanks" }, meetings: null })), []);
+  const { form } = pageForm({ html: page, css: "", brand: "", after: { kind: "thanks" } });
+  const r = checkForm(form);
+  assert.ok("form" in r, JSON.stringify("errors" in r ? r.errors : null));
+  const by = Object.fromEntries((r as { form: Form }).form.steps[0]!.fields.map((f) => [f.label, f]));
+  assert.equal(by["Your brief"]!.type, "file");
+  assert.deepEqual(by["Your brief"]!.file, { maxMb: 15, kinds: ["pdf", "office"] });
+  assert.equal(by["Your brief"]!.required, true);
+  assert.equal(by["Job address"]!.type, "address");
+  assert.ok(by["Job address"]!.key.startsWith("q."));
+  assert.equal(by["Phone"]!.key, "phone");
+  assert.equal(by["Phone"]!.type, "phone");
+  assert.deepEqual(by["How likely?"]!.rating, { scale: 10, style: "numbers" });
+  // Company can't be a dropdown on the contact, so the answer stays on the form.
+  assert.ok(by["Company"]!.key.startsWith("q."));
+});
+
+test("a block needs a label, and a file box of the page's own is stopped", () => {
+  const base = `<form><label for="em">Email</label><input id="em" name="email" type="email">BLOCK<button type="submit">Send</button><section data-cl-thanks hidden>t</section></form>`;
+  const run = (b: string) => checkStudioPage({ html: base.replace("BLOCK", b), after: { kind: "thanks" }, meetings: null }).map((i) => `${i.level}:${i.code}`);
+  assert.ok(run('<div data-cl-field="file" data-cl-name="cv"></div>').includes("error:no-label"));
+  assert.ok(run('<label for="f">CV</label><input id="f" type="file" name="cv">').includes("error:file-input"));
+});
