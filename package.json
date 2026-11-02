@@ -11,7 +11,8 @@
     "test": "node --conditions=react-server --test tests/*.test.ts",
     "test:db": "bash scripts/test-db.sh",
     "pack:extension": "node scripts/pack-extension.ts",
-    "build:forms": "node scripts/build-forms.mts --dev"
+    "build:forms": "node scripts/build-forms.mts --dev",
+    "build:embed": "tsc -p packages/embed/tsconfig.json"
   },
   "engines": {
     "node": ">=22"

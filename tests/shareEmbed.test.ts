@@ -46,3 +46,20 @@ test("the meeting calendar: in the page, a floating button, or the site's own li
   assert.equal(tag(meetingEmbedCode(O, "acme/demo", { mode: "link", text: "", phoneFull: false })), `<a href="#" data-claritia-book="acme/demo" data-mobile="keep">Book a meeting</a>`);
   assert.ok(meetingEmbedCode(O, "acme/demo", { mode: "button", phoneFull: false }).includes(`mobile="keep"`));
 });
+
+test("the npm package writes the same attributes as the Share tab, for every mode", async () => {
+  const { formAttributes, bookAttributes } = await import("../packages/embed/src/index.ts");
+  const html = (tag: string, a: Record<string, string>) => `<${tag} ${Object.entries(a).map(([k, v]) => (v === "" ? k : `${k}="${v}"`)).join(" ")}></${tag}>`;
+  const cases: [Parameters<typeof formEmbedCode>[2], Parameters<typeof formAttributes>[1]][] = [
+    [{ mode: "inline" }, { mode: "inline" }],
+    [{ mode: "full" }, { mode: "full" }],
+    [{ mode: "popup", opens: "click", size: "l" }, { mode: "popup", opens: "click", size: "l" }],
+    [{ mode: "popup", opens: "30", once: true, phoneFull: false }, { mode: "popup", opens: 30, once: true, phoneFull: false }],
+    [{ mode: "slider", side: "left", opens: "exit", once: true }, { mode: "slider", side: "left", opens: "exit", once: true }],
+    [{ mode: "popover", icon: "calendar", note: "Questions?" }, { mode: "popover", icon: "calendar", note: "Questions?" }],
+    [{ mode: "sidetab", text: "Talk to us" }, { mode: "sidetab", text: "Talk to us" }],
+  ];
+  for (const [share, pkg] of cases) assert.equal(html("claritia-form", formAttributes(ID, pkg)), tag(formEmbedCode(O, ID, share)), JSON.stringify(pkg));
+  assert.equal(html("claritia-book", bookAttributes("acme/demo")), tag(meetingEmbedCode(O, "acme/demo", { mode: "inline" })));
+  assert.equal(html("claritia-book", bookAttributes("acme/demo", { mode: "button", text: "Book a demo", phoneFull: false })), tag(meetingEmbedCode(O, "acme/demo", { mode: "button", text: "Book a demo", phoneFull: false })));
+});

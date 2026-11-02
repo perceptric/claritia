@@ -42,6 +42,7 @@
     "tests",
     "collect",
     "worker-intel",
-    "scripts"
+    "scripts",
+    "packages/*/dist"
   ]
 }

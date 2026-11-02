@@ -71,6 +71,10 @@ function listen(f: HTMLIFrameElement, from: Element, onHeight?: (h: number) => v
 /** Whether the calendar over the page fills a phone's screen: yes, unless the element or link says mobile="keep". */
 export const phoneFull = (keep: string | null, width: number) => keep !== "keep" && width <= 640;
 
+/** The calendar open over the page now, to close from Claritia.close(). */
+let closeOpen: (() => void) | null = null;
+export const closeBooking = () => closeOpen?.();
+
 /** The calendar over the page. On a phone it fills the screen (unless `keep`). */
 export function openBooking(type: string, from: Element = document.body, extra: Record<string, string | null> = {}, keep: string | null = null) {
   const src = bookUrl(type, BOOK_BASE, extra);
@@ -95,6 +99,7 @@ export function openBooking(type: string, from: Element = document.body, extra: 
   const stop = listen(f, from);
   const prev = document.activeElement as HTMLElement | null;
   const done = () => {
+    if (closeOpen === done) closeOpen = null;
     stop();
     back.remove();
     document.removeEventListener("keydown", esc);
@@ -106,6 +111,8 @@ export function openBooking(type: string, from: Element = document.body, extra: 
   document.addEventListener("keydown", esc);
   box.append(close, f);
   back.append(box);
+  closeOpen?.();
+  closeOpen = done;
   document.body.append(back);
   requestAnimationFrame(() => (back.style.opacity = "1"));
   close.focus();
