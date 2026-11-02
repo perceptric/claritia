@@ -53,6 +53,20 @@ const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export type PageRun = { done(): void; errors(byName: Record<string, string>): void; busy(on: boolean): void; alert(text: string): void };
 
+/** What sits around the thank-you on a one-page form, to hide once it's sent; anything holding the logo stays. */
+export function around(thanks: Element, w: Element): HTMLElement[] {
+  const out: HTMLElement[] = [];
+  for (let n: Element | null = thanks; n && n !== w && n.parentElement; n = n.parentElement)
+    for (const sib of n.parentElement.children) if (sib !== n && !sib.contains(thanks) && !sib.querySelector("img[data-cl-logo]") && !sib.matches("img[data-cl-logo]")) out.push(sib as HTMLElement);
+  return out;
+}
+
+/** Where the consent line goes: above the row of buttons the send button sits in, else right above the button. */
+export function consentSpot(send: Element, w: Element): Element {
+  const row = send.parentElement;
+  return row && row !== w && row.querySelectorAll("button,a").length > 1 && !row.matches("form,section,[data-cl-step]") ? row : send;
+}
+
 /** Errors are tied to their question and read out as they appear (docs/studio-v2-plan.md 6.4). */
 export function linkErrors(w: ParentNode) {
   w.querySelectorAll<HTMLElement>("[data-cl-error-for]").forEach((e, i) => {
@@ -85,6 +99,8 @@ export function runPage(w: HTMLElement, onSend: (v: Vals) => void): PageRun {
     const shown = steps.filter((s) => !s.hasAttribute("data-cl-show-if") || holds(s.getAttribute("data-cl-show-if")!, v));
     steps.forEach((s, i) => (s.hidden = finished || i !== at));
     if (thanks) thanks.hidden = !finished;
+    // A one-page form: the thank-you takes its place (the logo stays).
+    if (finished && thanks && !steps.length) for (const x of around(thanks, w)) x.hidden = true;
     const pos = shown.indexOf(steps[at]!);
     const p = steps.length ? (finished ? 1 : (Math.max(0, pos) + 1) / Math.max(1, shown.length)) : finished ? 1 : 0;
     w.querySelectorAll<HTMLElement>("[data-cl-progress]").forEach((el) => el.style.setProperty("--cl-progress", String(p)));

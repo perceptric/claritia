@@ -20,6 +20,12 @@ right-to-left languages flip, contact answers get the right keyboard and autofil
 and read out, focus always shows and motion stops for people who ask for less (`tests/studioLangs.test.ts`). The plan
 is built.
 
+After launch: steps in Edit (a step bar with each step, the thank-you and All; one step at a time; tools to add, copy,
+move and delete steps with Next and send kept in order; "Shown if ..." on conditional parts) and a safer brand switch
+(a built form asks first, keeps its look until the new one is read, then Tia moves the words and CSS over in one
+change, about $0.10 a switch: about $15 a month at Beta, $150 at Growth, Opus price "check"). A one-page form's
+thank-you now takes the form's place after the send, and the consent line sits above the row of buttons.
+
 ## Part 1. Room: the sidebar and the chat fold away
 
 - The app sidebar gets a collapse button at its foot. Collapsed, it's the icon rail it already is on mid-size

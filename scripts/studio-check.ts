@@ -135,6 +135,27 @@ try {
   // 6. Edit: pick, type in place, the floating bar, undo, and nothing covers anything
   await $("#t-edit").click();
   check(await $("#chat").evaluate((e) => e.classList.contains("folded")), "the chat folds the first time Edit opens");
+  // Steps: one at a time, the thank-you, or all with dividers
+  check((await $("#stepBar .sp").count()) === 4 && (await $("#stepBar .sp").nth(2).textContent()) === "Thank-you", "the step bar lists each step, the thank-you and All");
+  check((await $("#stepBar .sp").nth(2).getAttribute("aria-pressed")) === "true", "Edit opens on the step the preview was showing (here the thank-you)");
+  await $("#stepBar .sp").nth(0).click();
+  check((await form.locator("#nm").isVisible()) && !(await form.locator('input[name="email"]').isVisible()) && !(await form.locator("#thanks").isVisible()), "Edit shows one step at a time");
+  check(((await form.locator("#soft").getAttribute("data-cl-if")) ?? "").includes("Tender"), "a part shown only for some answers says so in words");
+  await $("#stepBar .sp").nth(1).click();
+  check((await form.locator('input[name="email"]').isVisible()) && !(await form.locator("#nm").isVisible()), "picking step 2 shows step 2");
+  await $("#stepBar .sp").nth(2).click();
+  check((await form.locator("#thanks").isVisible()) && (await form.locator(".cl-bookph").isVisible()), "the thank-you shows on its own, with its booking spot");
+  await $("#stepBar .sp").nth(3).click();
+  check((await form.locator(".cl-divider").count()) === 3, "All shows every step with a divider");
+  await $("#stepBar .sp").nth(0).click();
+  await $("#stepBar button[aria-label='Add a step after']").click();
+  check((await $("#stepBar .sp").count()) === 5 && (await form.locator("section[data-cl-step]").nth(1).locator("[data-cl-next]").count()) === 1 && (await form.locator("section[data-cl-step]").nth(2).locator("[type=submit]").count()) === 1, "a new step goes in with Next, and the send button stays on the last step");
+  await $("#stepBar button[aria-label='Move later']").click();
+  check((await form.locator("section[data-cl-step]").nth(2).locator("[type=submit]").count()) === 1 && (await form.locator("section[data-cl-step]").nth(1).locator("[type=submit]").count()) === 0, "moving a step keeps Next and send in order");
+  await $("#undo").click();
+  await $("#undo").click();
+  check((await $("#stepBar .sp").count()) === 4, "undo takes the new step back out");
+  await $("#stepBar .sp").nth(0).click();
   await form.locator("#title").click();
   check((await $("#seltag").textContent()) === "Heading" && (await $("#fbar").isVisible()), "picking shows its name and the floating bar");
   await form.locator("#title").click();
@@ -153,9 +174,11 @@ try {
   check(!!pubBox && !!panelBox && pubBox.y + pubBox.height <= panelBox.y, "the panel sits below the bar and never covers Publish");
   for (const id of ["t-preview", "t-edit", "t-code", "t-after", "d-desk", "d-tab", "d-phone"]) if (!(await $(`#${id}`).getAttribute("data-tip"))) check(false, `${id} has a tooltip`);
   check((await $("#t-edit").textContent())!.trim() === "", "views are icons with tooltips");
+  await $("#stepBar .sp").nth(1).click();
   await form.locator("#photo").click();
   await $("#p-set").click();
   check((await $("#pscroll").textContent())!.includes("File upload") && (await $("#pscroll").textContent())!.includes("Takes"), "a block's settings show its kind, label and the files it takes");
+  await $("#stepBar .sp").nth(0).click();
   await form.locator('label:has(input[value="tender"])').first().click();
   check((await $("#pscroll").textContent())!.includes("Question") && (await $("#pscroll").textContent())!.includes("Options"), "Settings shows the question and its options");
   check((await $("#pscroll").textContent())!.includes("Saves to"), "Settings shows where the answer saves");
@@ -280,6 +303,22 @@ try {
   await $("#layer .menu .mi").filter({ hasText: "Daily check-in" }).click();
   await form.locator("#title").waitFor();
   check((await form.locator("#title").textContent()) === "How was today?", "switching back keeps the first chat's form");
+
+  // 9b. A built form switches brand only when asked, keeps its look until the new one is ready, then Tia moves it
+  await $("#brandBtn").click();
+  await $("#layer .menu .mi").filter({ hasText: "Add a brand" }).click();
+  await $("#dlgSite").fill("acme.dev");
+  await $("#dlgBody button[type=submit]").click();
+  await $("#dlgBody button").filter({ hasText: "Yes, use this brand" }).click();
+  await $("#brandDlg h2").filter({ hasText: "Switch this form to Acme?" }).waitFor();
+  check(true, "adding a brand on a built form asks before switching it");
+  const tiaN = (await calls()).filter((c) => c.mode === "tia").length;
+  await $("#brandDlg button").filter({ hasText: "Switch" }).click();
+  await p.waitForFunction((n) => (window as unknown as { calls: { mode: string }[] }).calls.filter((c) => c.mode === "tia").length > n, tiaN);
+  await idle();
+  const sw = ((await calls()).filter((c) => c.mode === "tia")[tiaN]!.body as { content: string }[]).at(-1)!.content;
+  check(sw.startsWith("Switch this form to Acme") && sw.includes("[The brand just changed from Finch to Acme."), "Tia moves the form to the new brand in one change");
+  check((await $("#brandBtn").textContent())!.trim() === "Acme", "the form is on the new brand");
 
   // 10. Delete a brand from the menu
   await $("#brandBtn").click();

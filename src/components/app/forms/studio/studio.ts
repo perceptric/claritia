@@ -3,7 +3,7 @@
 import { DEFAULT_CONSENT } from "../../../../lib/forms/schema";
 import { checkStudioPage } from "../../../../lib/studio/check";
 import { INDUSTRIES, industryOf, isRtl, languageName, profileWords, recipeText } from "../../../../lib/studio/industries";
-import { ACCESS_CSS, linkErrors } from "../../../../lib/studio/runtime";
+import { ACCESS_CSS, around, consentSpot, linkErrors } from "../../../../lib/studio/runtime";
 import { TIA_STYLE, tiaSvg } from "../../../../lib/studio/tia";
 
 // Form Studio (docs/forms-chat-plan.md, docs/studio-v2-plan.md): every form is one chat with Tia on the left and the
@@ -115,6 +115,13 @@ input, textarea { user-select: text; -webkit-user-select: text; }
 .tipright[data-tip]::after { left: 0; transform: translateY(-2px); }
 .tipright[data-tip]:hover::after, .tipright[data-tip]:focus-visible::after { transform: none; }
 .work { flex: 1; min-height: 0; display: flex; }
+.stepbar { flex: none; display: flex; align-items: center; gap: 6px; padding: 8px 12px; border-bottom: 1px solid var(--line); overflow-x: auto; }
+.stepbar .sp { height: 28px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--line); background: var(--bg); color: var(--body); font-size: 12.5px; white-space: nowrap; display: inline-flex; align-items: center; gap: 6px; flex: none; max-width: 220px; }
+.stepbar .sp span:last-child { overflow: hidden; text-overflow: ellipsis; }
+.stepbar .sp:hover { border-color: var(--line-strong); color: var(--ink); }
+.stepbar .sp[aria-pressed="true"] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+.stepbar .sp .n { font: 500 11px var(--mono); opacity: .65; }
+.stepbar .tools { margin-left: auto; display: flex; gap: 2px; flex: none; padding-left: 8px; }
 .navi { flex: none; width: 220px; border-right: 1px solid var(--line); display: flex; flex-direction: column; min-height: 0; }
 .ptitle { height: 38px; flex: none; display: flex; align-items: center; padding: 0 12px; font-size: 11px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; color: var(--muted); }
 .tree { flex: 1; min-height: 0; overflow-y: auto; padding: 0 6px 10px; display: flex; flex-direction: column; }
@@ -312,6 +319,7 @@ export const STUDIO_HTML = `
       <span class="pubnote" id="pubNote"></span>
       <button class="publish" id="publish" disabled>Publish</button>
     </div>
+    <div class="stepbar" id="stepBar" role="toolbar" aria-label="Steps" hidden></div>
     <div class="work" id="work">
       <aside class="navi" id="navi" aria-label="Layers" hidden><div class="ptitle">Layers</div><div class="tree" id="tree"></div></aside>
       <div class="canvas" id="canvas">
@@ -400,7 +408,7 @@ export function mountStudio(shell: ShadowRoot, api: StudioApi): () => void {
   let cur = null;
   let loaded = false;
   const looking = new Set();
-  const S = { lang: "", translating: "", mode: "preview", device: "desk", sel: null, about: null, busy: false, ptab: "style", scope: "class", nav: false, file: "html", publishing: false, pubMsg: "" };
+  const S = { view: 0, hold: "", lang: "", translating: "", mode: "preview", device: "desk", sel: null, about: null, busy: false, ptab: "style", scope: "class", nav: false, file: "html", publishing: false, pubMsg: "" };
   const hist = {};
   const H = () => (hist[cur?.id || "-"] ||= { past: [], future: [] });
   const brandOf = (c) => brands.find((b) => b.id === c?.brandId) || null;
@@ -471,7 +479,7 @@ export function mountStudio(shell: ShadowRoot, api: StudioApi): () => void {
   // ── Drawing ───────────────────────────────────────────────────────────────────────────────────────────
   const host = $("host");
   const root = host.attachShadow({ mode: "open" });
-  const BASE = `${ACCESS_CSS}.cl-block{display:flex;flex-direction:column;gap:8px}.cl-two{display:grid;grid-template-columns:1fr 1fr;gap:8px}.cl-addr{display:flex;flex-direction:column;gap:8px}.cl-rate{display:flex;gap:6px;font-size:26px;line-height:1;opacity:.6}.cl-num{font-size:14px;border:1px solid currentColor;border-radius:8px;padding:8px 12px}.cl-sign{min-height:110px}
+  const BASE = `${ACCESS_CSS}.cl-bookph{border:1px dashed rgba(127,127,127,.6);border-radius:10px;padding:18px;text-align:center;font:500 12px system-ui,sans-serif;opacity:.7}.cl-divider{font:600 11px/1 system-ui,sans-serif;letter-spacing:.06em;text-transform:uppercase;color:#7a7a7a;border-top:1px dashed rgba(127,127,127,.55);padding:10px 0 0;margin:20px 0 10px}.cl-edit [data-cl-if]{outline:1px dashed rgba(109,40,217,.55);outline-offset:3px}.cl-edit [data-cl-if]::before{content:attr(data-cl-if);display:block;width:max-content;max-width:100%;font:500 11px/1.7 system-ui,sans-serif;color:#6d28d9;background:rgba(109,40,217,.08);border-radius:4px;padding:0 6px;margin-bottom:6px;white-space:normal}.cl-block{display:flex;flex-direction:column;gap:8px}.cl-two{display:grid;grid-template-columns:1fr 1fr;gap:8px}.cl-addr{display:flex;flex-direction:column;gap:8px}.cl-rate{display:flex;gap:6px;font-size:26px;line-height:1;opacity:.6}.cl-num{font-size:14px;border:1px solid currentColor;border-radius:8px;padding:8px 12px}.cl-sign{min-height:110px}
 .cl-consent{display:flex;gap:8px;align-items:flex-start;font-size:13px;line-height:1.4;opacity:.85}.cl-consent input{margin:2px 0 0}
 :host{all:initial;display:flex;flex-direction:column;flex:1}*,*::before,*::after{box-sizing:border-box}[hidden]{display:none!important}.cl-root{flex:1;min-height:560px;display:flex;flex-direction:column}.cl-root>*{flex:1 0 auto}
 .cl-cal{display:flex;flex-direction:column;gap:12px;margin-top:6px}.cl-days{display:flex;gap:6px;flex-wrap:wrap}.cl-times{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}.cl-day,.cl-time{font:inherit;padding:8px 10px;border-radius:10px;border:1.5px solid rgba(127,127,127,.35);background:transparent;color:inherit;cursor:pointer}.cl-day[aria-pressed=true],.cl-time[aria-pressed=true]{border-color:currentColor}
@@ -484,7 +492,7 @@ export function mountStudio(shell: ShadowRoot, api: StudioApi): () => void {
     root.innerHTML = "";
     if (!has) { runCheck(); return overlay(); }
     const st = document.createElement("style");
-    st.textContent = `${BASE}\n/* brand */\n${cssFor(brandOf(cur)?.css)}\n/* form */\n${cssFor(body().css)}`;
+    st.textContent = `${BASE}\n/* brand */\n${cssFor(brandOf(cur)?.css || S.hold)}\n/* form */\n${cssFor(body().css)}`;
     const wrap = h("div", { class: S.mode === "edit" ? "cl-root cl-edit" : "cl-root" });
     // Another language shows as written (Preview only; Edit and Code work on the form's own language).
     const other = S.mode !== "edit" && S.lang && body().langs?.[S.lang];
@@ -499,8 +507,20 @@ export function mountStudio(shell: ShadowRoot, api: StudioApi): () => void {
     wrap.querySelectorAll("[data-cl-field]").forEach((hd) => hd.replaceChildren(blockPreview(hd)));
     // The consent line every form shows where the law asks for it, as the live form draws it.
     const sendBtn = [...wrap.querySelectorAll("[type=submit]")].find((b) => !b.closest("[data-cl-thanks]"));
-    if (sendBtn) sendBtn.before(h("label", { class: "check cl-consent" }, h("input", { type: "checkbox", tabindex: "-1" }), h("span", { text: DEFAULT_CONSENT })));
+    if (sendBtn) consentSpot(sendBtn, wrap).before(h("label", { class: "check cl-consent" }, h("input", { type: "checkbox", tabindex: "-1" }), h("span", { text: DEFAULT_CONSENT })));
+    if (S.mode === "edit") {
+      // Each part shown only if an answer says so wears its condition in words.
+      wrap.querySelectorAll("[data-cl-show-if]").forEach((el) => { if (!el.hasAttribute("data-cl-step")) el.setAttribute("data-cl-if", ifWords(el.getAttribute("data-cl-show-if"))); });
+      // The booking spot, which the calendar fills after the send.
+      wrap.querySelectorAll("[data-cl-book]").forEach((x) => x.replaceChildren(h("div", { class: "cl-bookph", text: "Booking calendar" })));
+      // All steps at once: a divider names each.
+      if (S.view === "all") {
+        stepsIn(wrap).forEach((st, i) => st.before(h("div", { class: "cl-divider", text: `Step ${i + 1}: ${stepName(st, i)}` })));
+        wrap.querySelector("[data-cl-thanks]")?.before(h("div", { class: "cl-divider", text: "Thank-you" }));
+      }
+    }
     run(wrap);
+    stepUi();
     requestAnimationFrame(overlay);
     runCheck();
   }
@@ -548,8 +568,12 @@ export function mountStudio(shell: ShadowRoot, api: StudioApi): () => void {
       w.querySelectorAll("[data-cl-show-if]").forEach((el) => { if (!el.hasAttribute("data-cl-step")) el.hidden = !editing && !holds(el.getAttribute("data-cl-show-if"), v); });
       const shown = steps.filter((s) => !s.hasAttribute("data-cl-show-if") || holds(s.getAttribute("data-cl-show-if"), v));
       if (stepAt >= steps.length) stepAt = 0;
-      steps.forEach((s, i) => (s.hidden = editing ? false : done || i !== stepAt));
-      if (thanks) thanks.hidden = editing ? false : !done;
+      // Edit shows the step picked in the step bar (or all of them); Preview runs the form.
+      const view = S.view;
+      steps.forEach((s, i) => (s.hidden = editing ? !(view === "all" || view === i) : done || i !== stepAt));
+      if (thanks) thanks.hidden = editing ? !(view === "all" || view === "thanks") : !done;
+      // A one-page form: its thank-you takes its place once sent, and in Edit when the thank-you is picked.
+      if (thanks && !steps.length && ((editing && view === "thanks") || (!editing && done))) for (const x of around(thanks, w)) x.hidden = true;
       const pos = shown.indexOf(steps[stepAt]);
       const p = steps.length ? (done ? 1 : (Math.max(0, pos) + 1) / Math.max(1, shown.length)) : done ? 1 : 0;
       w.querySelectorAll("[data-cl-progress]").forEach((el) => el.style.setProperty("--cl-progress", String(editing ? 0.5 : p)));
@@ -662,7 +686,18 @@ export function mountStudio(shell: ShadowRoot, api: StudioApi): () => void {
     fb.style.left = `${Math.max(0, Math.min(box.left + box.width - w, $("frame").clientWidth - w))}px`;
     fb.style.top = `${box.top > 62 ? box.top - 58 : box.top + box.height + 8}px`;
   }
-  function select(k) { S.sel = k; if (S.mode === "edit") { panel(); tree(); overlay(); } $("hov").hidden = true; }
+  function select(k) {
+    S.sel = k;
+    // Picked in Layers inside another step: show that step.
+    const el = byK(k);
+    if (S.mode === "edit" && el && S.view !== "all") {
+      const steps = stepsIn(src), st = steps.findIndex((x) => x.contains(el));
+      const v = el.closest("[data-cl-thanks]") ? "thanks" : st >= 0 ? st : S.view;
+      if (v !== S.view && (st >= 0 || v === "thanks")) { S.view = v; draw(); }
+    }
+    if (S.mode === "edit") { panel(); tree(); overlay(); }
+    $("hov").hidden = true;
+  }
   function move(dir) { const el = byK(S.sel); if (!el) return; const sib = dir < 0 ? el.previousElementSibling : el.nextElementSibling; if (!sib) return toast(dir < 0 ? "Already first" : "Already last"); snap(); dir < 0 ? sib.before(el) : sib.after(el); commit(); }
   function dup() { const el = byK(S.sel); if (!el || el === src.firstElementChild) return; snap(); const c = el.cloneNode(true); [c, ...c.querySelectorAll("[data-k]")].forEach((x) => x.setAttribute("data-k", String(++kSeq))); if (c.id) c.id = `${c.id}-2`; c.querySelectorAll("[id]").forEach((x) => (x.id = `${x.id}-2`)); el.after(c); S.sel = c.getAttribute("data-k"); commit(); }
   function del() { const el = byK(S.sel); if (!el || el === src.firstElementChild) return; snap(); const p = el.parentElement; el.remove(); S.sel = p && p !== src ? p.getAttribute("data-k") : null; commit(); toast("Deleted. Undo with Cmd+Z."); }
@@ -687,6 +722,92 @@ export function mountStudio(shell: ShadowRoot, api: StudioApi): () => void {
   listen(document, "keydown", (e) => { const mod = e.metaKey || e.ctrlKey; if (!alive || !mod || e.key.toLowerCase() !== "z") return; const t = e.composedPath()[0]; if (t?.closest?.("input,textarea,[contenteditable]")) return; if (!shell.host.isConnected) return; e.preventDefault(); e.shiftKey ? redo() : undo(); });
   $("canvas").addEventListener("scroll", () => { overlay(); $("hov").hidden = true; });
   listen(window, "resize", () => overlay());
+
+  // ── Steps (multi-page forms): pills to see one step at a time, the thank-you and all of them; tools to add,
+  // copy, move and remove steps. Next and send buttons follow the order. ──────────────────────────────────────
+  const stepsIn = (r) => [...r.querySelectorAll("[data-cl-step]")].filter((x) => !x.parentElement?.closest("[data-cl-thanks]"));
+  const stepName = (st, i) => (st.querySelector("h1,h2,h3,h4,legend,.heading,.title,label")?.textContent || "").replace(/\s+/g, " ").trim().slice(0, 28) || `Step ${i + 1}`;
+  function ifWords(expr) {
+    const qs = questions();
+    const label = (n) => { const el = src.querySelector(`[name="${CSS.escape(n)}"]`); const lab = el?.id ? src.querySelector(`label[for="${CSS.escape(el.id)}"]`) : null; return (lab?.textContent || n.replace(/[_-]+/g, " ")).trim(); };
+    const opt = (n, v) => qs.find((q) => q.name === n)?.options.find((o) => o.value === v)?.label || v;
+    return `Shown if ${String(expr).split(/\s+(and|or)\s+/i).map((c) => {
+      if (/^(and|or)$/i.test(c)) return c.toLowerCase();
+      let m = /^([\w-]+)\s+(filled|empty)$/i.exec(c.trim());
+      if (m) return `${label(m[1])} is ${m[2].toLowerCase() === "filled" ? "answered" : "empty"}`;
+      m = /^([\w-]+)\s+in\s+\((.*)\)$/i.exec(c.trim());
+      if (m) return `${label(m[1])} is ${[...m[2].matchAll(/'([^']*)'|"([^"]*)"/g)].map((y) => opt(m[1], y[1] ?? y[2])).join(" or ")}`;
+      m = /^([\w-]+)\s*(==|!=|>=|<=|>|<)\s*(?:'([^']*)'|"([^"]*)"|(\S+))$/.exec(c.trim());
+      if (!m) return c;
+      const v = m[3] ?? m[4] ?? m[5];
+      return `${label(m[1])} ${{ "==": "is", "!=": "is not", ">": "is over", "<": "is under", ">=": "is at least", "<=": "is at most" }[m[2]]} ${opt(m[1], v)}`;
+    }).join(" ")}`;
+  }
+  function stepUi() {
+    const bar = $("stepBar");
+    const steps = stepsIn(src), thanks = src.querySelector("[data-cl-thanks]");
+    bar.hidden = !cur || !built() || S.mode === "code" || S.mode === "after" || (!thanks && steps.length < 2);
+    if (bar.hidden) return;
+    const editing = S.mode === "edit";
+    if (editing && typeof S.view === "number" && S.view >= Math.max(1, steps.length)) S.view = 0;
+    bar.innerHTML = "";
+    const pill = (n, text, on, fn) => h("button", { class: "sp", "aria-pressed": String(on), onclick: fn }, n ? h("span", { class: "n", text: n }) : null, h("span", { text }));
+    const go = (v) => { if (editing) { S.view = v; S.sel = null; draw(); panel(); tree(); } else { if (v === "thanks") done = true; else { done = false; stepAt = v; } draw(); } };
+    if (steps.length) steps.forEach((st, i) => bar.append(pill(String(i + 1), stepName(st, i), editing ? S.view === i : !done && stepAt === i, () => go(i))));
+    else bar.append(pill("", "Form", editing ? S.view === 0 : !done, () => go(0)));
+    if (thanks) bar.append(pill("", "Thank-you", editing ? S.view === "thanks" : done, () => go("thanks")));
+    if (editing && (steps.length > 1 || thanks)) bar.append(pill("", "All", S.view === "all", () => go("all")));
+    if (editing && typeof S.view === "number" && steps.length) {
+      const i = S.view;
+      const tool = (tip, ic, fn, off) => h("button", { class: "ib", "data-tip": tip, "aria-label": tip, html: SVG(ic, 15), disabled: off || null, onclick: fn });
+      bar.append(h("div", { class: "tools" },
+        tool("Move earlier", '<path d="m15 18-6-6 6-6"/>', () => moveStep(i, -1), i === 0),
+        tool("Move later", '<path d="m9 18 6-6-6-6"/>', () => moveStep(i, 1), i === steps.length - 1),
+        tool("Add a step after", P.plus, () => addStep(i)),
+        tool("Duplicate the step", P.dup, () => dupStep(i)),
+        tool("Delete the step", P.del, () => delStep(i), steps.length < 2)));
+      bar.lastChild.lastChild.classList.add("tipleft");
+    }
+  }
+  // Next on every step but the last, the send button on the last, no Back on the first.
+  function normalizeSteps() {
+    const steps = stepsIn(src);
+    if (!steps.length) return;
+    const sendBtn = [...src.querySelectorAll("[type=submit]")].find((b) => !b.closest("[data-cl-thanks]"));
+    const sendText = (sendBtn?.textContent || "Send").trim();
+    const nextText = (src.querySelector("[data-cl-next]")?.textContent || "Next").trim();
+    const btnClass = (sendBtn || src.querySelector("[data-cl-next]"))?.getAttribute("class") || "btn";
+    steps.forEach((st, i) => {
+      const last = i === steps.length - 1;
+      if (!last) st.querySelectorAll("[type=submit]").forEach((b) => { b.setAttribute("type", "button"); b.setAttribute("data-cl-next", ""); b.textContent = nextText; });
+      if (!last && !st.querySelector("[data-cl-next]")) { const b = document.createElement("button"); b.type = "button"; b.className = btnClass; b.textContent = nextText; b.setAttribute("data-cl-next", ""); st.append(b); }
+      if (last && !st.querySelector("[type=submit]")) {
+        const n = st.querySelector("[data-cl-next]");
+        if (n) { n.removeAttribute("data-cl-next"); n.setAttribute("type", "submit"); n.textContent = sendText; }
+        else { const b = document.createElement("button"); b.type = "submit"; b.className = btnClass; b.textContent = sendText; st.append(b); }
+      }
+      if (last) st.querySelectorAll("[data-cl-next]").forEach((b) => b.remove());
+      if (i === 0) st.querySelectorAll("[data-cl-back]").forEach((b) => b.remove());
+    });
+    src.querySelectorAll("*:not([data-k])").forEach((el) => el.setAttribute("data-k", String(++kSeq)));
+  }
+  const copyStep = (st) => { const c = st.cloneNode(true); const n = Date.now().toString(36).slice(-4); [c, ...c.querySelectorAll("[id]")].forEach((x) => x.id && (x.id = `${x.id}-${n}`)); c.querySelectorAll("[for]").forEach((x) => x.setAttribute("for", `${x.getAttribute("for")}-${n}`)); c.querySelectorAll("[name]").forEach((x) => x.setAttribute("name", `${x.getAttribute("name")}_${n}`)); c.querySelectorAll("[data-cl-error-for]").forEach((x) => x.setAttribute("data-cl-error-for", `${x.getAttribute("data-cl-error-for")}_${n}`)); c.querySelectorAll("[data-cl-id]").forEach((x) => x.removeAttribute("data-cl-id")); [c, ...c.querySelectorAll("*")].forEach((x) => x.setAttribute("data-k", String(++kSeq))); return c; };
+  function addStep(i) {
+    const st = stepsIn(src)[i]; if (!st) return;
+    snap();
+    const c = st.cloneNode(false); c.removeAttribute("data-cl-show-if"); c.id = `step${Date.now().toString(36).slice(-4)}`;
+    const head = st.querySelector("h1,h2,h3,.heading");
+    c.append(head ? Object.assign(head.cloneNode(false), { textContent: "New step" }) : Object.assign(document.createElement("h2"), { textContent: "New step" }));
+    const nav = [...st.querySelectorAll("[data-cl-back],[data-cl-next],[type=submit]")].at(-1)?.parentElement;
+    if (nav && nav !== st) { const row = nav.cloneNode(true); row.querySelectorAll("[id]").forEach((x) => x.removeAttribute("id")); c.append(row); }
+    else { const back = st.querySelector("[data-cl-back]"); if (back) c.append(back.cloneNode(true)); }
+    st.after(c);
+    normalizeSteps(); ensureIds();
+    S.view = i + 1; commit();
+  }
+  function dupStep(i) { const st = stepsIn(src)[i]; if (!st) return; snap(); st.after(copyStep(st)); normalizeSteps(); ensureIds(); S.view = i + 1; commit(); }
+  function moveStep(i, dir) { const steps = stepsIn(src), st = steps[i], other = steps[i + dir]; if (!st || !other) return; snap(); dir < 0 ? other.before(st) : other.after(st); normalizeSteps(); S.view = i + dir; commit(); }
+  function delStep(i) { const steps = stepsIn(src); if (steps.length < 2) return; snap(); steps[i].remove(); normalizeSteps(); S.view = Math.max(0, i - 1); commit(); toast("Step deleted. Undo with Cmd+Z."); }
 
   // ── Layers ────────────────────────────────────────────────────────────────────────────────────────────
   function tree() {
@@ -929,6 +1050,7 @@ export function mountStudio(shell: ShadowRoot, api: StudioApi): () => void {
     $("navBtn").hidden = m !== "edit";
     $("navi").hidden = m !== "edit" || !S.nav;
     if (m !== "edit") { S.sel = null; $("hov").hidden = true; }
+    if (m === "edit") S.view = done ? (src.querySelector("[data-cl-thanks]") ? "thanks" : 0) : stepAt;
     if ((m === "edit" || m === "code") && S.lang) { S.lang = ""; langUi(); toast(`${m === "edit" ? "Edit" : "Code"} works on the form's own language`); }
     if (m === "edit" && !store.get("clr-studio-edit-folded", false)) { store.set("clr-studio-edit-folded", true); setChatFold(true); }
     draw();
@@ -1230,9 +1352,30 @@ export function mountStudio(shell: ShadowRoot, api: StudioApi): () => void {
   };
   function useBrand(id) {
     const b = brands.find((x) => x.id === id); if (!b || !cur) return;
+    const old = brandOf(cur);
+    // A built form asks first, keeps its look until the new one is ready, then Tia moves it over in one change.
+    if (built() && old && old.id !== id) return switchDialog(old, b);
     if (cur.brandId !== id) { snap(); cur.brandId = id; changed(); }
     brandUi(); chatHead(); draw(); renderLog();
     if (!b.css) void readLook(b);
+  }
+  function switchDialog(old, b) {
+    closeDialog();
+    const box = h("div", { class: "dlgbox" }, h("h2", { text: `Switch this form to ${b.name}?` }), h("p", { class: "hint0", text: `Tia changes its look and ${old.name}'s name in its words.` }),
+      h("div", { class: "acts" }, h("button", { class: "pill", text: `Keep ${old.name}`, onclick: closeDialog }), h("button", { class: "pill primary", text: "Switch", onclick: () => { closeDialog(); void switchBrand(old, b); } })));
+    $("layer").append(h("div", { class: "dlg", id: "brandDlg", role: "dialog", "aria-modal": "true", "aria-label": "Switch brand", onmousedown: (e) => { if (e.target.id === "brandDlg") closeDialog(); } }, box));
+  }
+  async function switchBrand(old, b) {
+    const c = cur;
+    S.hold = old.css || "";
+    snap(); c.brandId = b.id; changed();
+    brandUi(); chatHead(); draw(); renderLog();
+    if (!b.css) await readLook(b);
+    S.hold = "";
+    if (!alive || cur !== c) return;
+    if (!b.css) { draw(); return; }
+    draw();
+    void send(`Switch this form to ${b.name}`, { from: old.name });
   }
   async function readLook(b, fresh = false) {
     if (looking.has(b.id)) return;
@@ -1366,7 +1509,7 @@ export function mountStudio(shell: ShadowRoot, api: StudioApi): () => void {
   function tagOf(t, n) { const o = t.lastIndexOf(`<${n}>`); if (o < 0) return null; const s = o + n.length + 2, c = t.indexOf(`</${n}>`, s); return { body: c < 0 ? t.slice(s) : t.slice(s, c), closed: c >= 0 }; }
   const patches = (t) => [...t.matchAll(/<patch id="([^"]+)">([\s\S]*?)<\/patch>/g)].map((m) => ({ id: m[1], html: m[2] }));
   let ctl = null, lastPaint = 0;
-  async function send(text) {
+  async function send(text, extra) {
     text = String(text || "").trim();
     const c = cur, b = brandOf(c);
     if (!text || S.busy || !b || !b.css || looking.has(b.id)) return;
@@ -1379,7 +1522,7 @@ export function mountStudio(shell: ShadowRoot, api: StudioApi): () => void {
     S.busy = true; busyUi(true); renderLog();
     const wasBuilt = built();
     snap();
-    const ctx = `\n\n[${wasBuilt ? "THE FORM IS BUILT" : "NOTHING BUILT YET"}]\n[Brand: ${b.name} (${b.site}), confirmed. Its brand CSS follows; build only with it.]${b.profile ? `\n${recipeText(b.profile)}` : ""}\n<brand_css>${b.css}</brand_css>\n[The form now]\n<form_html>${sourceHtml()}</form_html>\n<form_css>${c.body.css}</form_css>\n<after>${JSON.stringify(c.body.after)}</after>\n[Meeting types (id: name)] ${MEETINGS.length ? MEETINGS.map((m) => `${m.id}: ${m.name}, ${m.length} min`).join("; ") : "none yet"}${b.logo ? "\n[The brand's logo is set; the form shows it in img[data-cl-logo].]" : "\n[No logo yet. Use img[data-cl-logo] anyway; it hides until one is added.]"}${about ? `\n[This message is about the element with id="${about.id}" (${about.label}). Change only that element unless the owner asks for more.]` : ""}`;
+    const ctx = `\n\n[${wasBuilt ? "THE FORM IS BUILT" : "NOTHING BUILT YET"}]\n[Brand: ${b.name} (${b.site}), confirmed. Its brand CSS follows; build only with it.]${b.profile ? `\n${recipeText(b.profile)}` : ""}\n<brand_css>${b.css}</brand_css>\n[The form now]\n<form_html>${sourceHtml()}</form_html>\n<form_css>${c.body.css}</form_css>\n<after>${JSON.stringify(c.body.after)}</after>\n[Meeting types (id: name)] ${MEETINGS.length ? MEETINGS.map((m) => `${m.id}: ${m.name}, ${m.length} min`).join("; ") : "none yet"}${b.logo ? "\n[The brand's logo is set; the form shows it in img[data-cl-logo].]" : "\n[No logo yet. Use img[data-cl-logo] anyway; it hides until one is added.]"}${about ? `\n[This message is about the element with id="${about.id}" (${about.label}). Change only that element unless the owner asks for more.]` : ""}${extra?.from ? `\n[The brand just changed from ${extra.from} to ${b.name}. Put ${b.name} in place of ${extra.from} everywhere in the words, change any form CSS that used ${extra.from}'s own colors, fonts or variables to the brand CSS above, and keep every question, name, value and id.]` : ""}`;
     const turns = [...c.body.turns, { role: "user", content: text + ctx }];
     ctl = new AbortController();
     try {

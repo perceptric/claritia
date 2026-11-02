@@ -20,14 +20,14 @@ const api: StudioApi = {
     calls.push({ mode: "site", body: host });
     await wait(300);
     if (host === "nope.dev") throw Object.assign(new Error("Couldn't open nope.dev. Check the address and try again."), { browser: true });
-    return { url: `https://${host}/`, site: host, name: "Finch", logo: fx.logo, logoUrl: `https://${host}/logo.png`, logoSvg: null };
+    return { url: `https://${host}/`, site: host, name: host === "acme.dev" ? "Acme" : "Finch", logo: fx.logo, logoUrl: `https://${host}/logo.png`, logoSvg: null };
   },
   scan: async () => ({ kitId: "kit-scan" }),
   kit: async () => null,
   confirm: async (b) => {
     calls.push({ mode: "confirm", body: b });
     await wait(200);
-    return { kitId: "44444444-4444-4444-8444-444444444444" };
+    return { kitId: (b as { name: string }).name === "Acme" ? "55555555-5555-4555-8555-555555555555" : "44444444-4444-4444-8444-444444444444" };
   },
   look: async (kitId, fresh) => {
     calls.push({ mode: "look", body: { kitId, fresh } });

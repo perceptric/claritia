@@ -15,7 +15,7 @@ import { calcText } from "./formula.ts";
 import { cleanHtml } from "./html.ts";
 import { allFields, isContent, nextStep, numOf, optionsFor, pickOutcome, safeUrl, visibility, withCalcs, type Choice, type Field, type FieldWidth, type Form, type RunCtx } from "./schema.ts";
 import { checkAnswers, OTHER, stepPath, type Answers } from "./values.ts";
-import { ACCESS_CSS, pageValues, runPage, type PageRun, type Vals } from "../studio/runtime.ts";
+import { ACCESS_CSS, consentSpot, pageValues, runPage, type PageRun, type Vals } from "../studio/runtime.ts";
 
 /** regions: the region lists, sent with the form when a list follows a country field (src/lib/forms/regions.ts). */
 /** css: the design system's styles compiled for this form (src/lib/design/web.ts); it starts with the layer order. */
@@ -926,7 +926,7 @@ export class ClaritiaForm extends Base {
       if (form.consent.mode === "notice") extras.push(el("p", { class: "text cl-notice", text: form.consent.label }));
       extras.push(el("div", { class: "trap", "aria-hidden": "true", style: "position:absolute;left:-10000px;width:1px;height:1px;overflow:hidden" }, el("input", { type: "text", name: "company_url", tabindex: "-1", autocomplete: "off" })));
       if (this.data?.turnstile && form.spam.turnstile) extras.push(el("div", { class: "ts" }));
-      if (send) send.before(...extras);
+      if (send) consentSpot(send, wrap).before(...extras);
       else wrap.append(...extras);
       // Claritia blocks (file, phone, address, dates, rating, signature, country): the form's own inputs, in the page.
       const byId = new Map(allFields(form).map((f) => [f.id, f]));
