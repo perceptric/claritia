@@ -71,7 +71,25 @@ Under the header, only while Build is open:
   Layers.
 - From 19 controls and a second row to 11 controls in one row.
 
-## Step 3: Share, more pictures, less text
+## Step 3: Share, more pictures, less text (built)
+
+Built in `src/components/app/forms/Share.tsx` and `src/components/app/SharePieces.tsx`; checked by
+`scripts/share-check.ts` at desktop and phone width.
+
+- The left list is Link, Website, Email, QR code, Own form: an icon and a word or two.
+- Link: the link in one box, the ending typed in place (Enter saves, Escape puts it back), Copy link and Open; ⋯
+  has Copy the id link, Remove the ending and Your own domain. The preview card is the editor: the title and line
+  typed on it, the picture clicked or dropped on it. Fill in from the link moved to Settings › Data.
+- Website: the six ways as pictures, then a live preview (`SitePreview`): a sample page in a browser frame with the
+  real code, the form in `demo` mode (it loads and opens as on a site, and sends no view, start, fill, upload or
+  booking; `quiet` in `src/lib/forms/element.ts`), a popup or slider opened to be seen. The check proves the preview
+  sends nothing, and that without `demo` it would. The code's bar has the builder dropdown (`BuilderPick`, the app's
+  own Select) with each builder's steps under its name and For developers last. Seen on is gone.
+- Email: two picture tiles, Send the link and The form in an email.
+- QR code: big and centered. Own form: the code and the field table.
+- Before 117 the ending's function isn't there: the ending hides, with no raw error.
+
+What was planned:
 
 - **Left list**: an icon and one or two words each: Link, Website, Email, QR code, Own form. No gray lines.
 - **Link**
@@ -100,7 +118,13 @@ Under the header, only while Build is open:
 - Checks: `scripts/share-check.ts` covers the dropdown, the ending typed in place, the preview card editing, each
   way shown in the live preview at desktop and phone width, no Seen on, and a missing function hiding its part.
 
-## Step 4: the same pieces in Meetings › Share
+## Step 4: the same pieces in Meetings › Share (built)
+
+`src/components/app/scheduling/ShareMeeting.tsx`: the builder dropdown, the live preview of the calendar in the
+picked way (look only, so nobody books from it; Your own button opens it), and the link with its QR code, big and
+centered. Checked in `scripts/share-check.ts`.
+
+What was planned:
 
 - The builder dropdown and Copy code from step 3.
 - The live preview of the calendar in the picked way (in the page, floating button, your own button).

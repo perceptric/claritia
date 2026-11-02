@@ -96,18 +96,18 @@ function useQr(url: string, name: string) {
   return { svg, error, setError, png, saveSvg };
 }
 
-function QrImage({ svg, url }: { svg: string; url: string }) {
+function QrImage({ svg, url, big = false }: { svg: string; url: string; big?: boolean }) {
   // The SVG is made here from the link, never from outside text.
-  return <div aria-label={`QR code for ${url}`} role="img" className="size-56 rounded-lg border border-line bg-white p-2 [&_svg]:size-full" dangerouslySetInnerHTML={{ __html: svg }} />;
+  return <div aria-label={`QR code for ${url}`} role="img" className={`${big ? "size-64" : "size-56"} rounded-lg border border-line bg-white p-2 [&_svg]:size-full`} dangerouslySetInnerHTML={{ __html: svg }} />;
 }
 
-/** A QR code in the page with its downloads (a form's Share › QR code). */
-export function QrCode({ url, name }: { url: string; name: string }) {
+/** A QR code in the page with its downloads (a form's Share › QR code, a meeting's Share). `center`: big, centered. */
+export function QrCode({ url, name, center = false }: { url: string; name: string; center?: boolean }) {
   const q = useQr(url, name);
   return (
-    <div className="flex flex-col items-start gap-3">
+    <div className={`flex flex-col gap-3 ${center ? "items-center" : "items-start"}`}>
       <ErrorNote message={q.error} />
-      <QrImage svg={q.svg} url={url} />
+      <QrImage svg={q.svg} url={url} big={center} />
       <code className="max-w-full truncate font-mono text-[11.5px] text-muted">{url.replace(/^https?:\/\//, "")}</code>
       <div className="flex gap-2">
         <Button variant="ghost" size="sm" disabled={!q.svg} onClick={() => void q.png().catch((e) => q.setError(errorText(e)))}>

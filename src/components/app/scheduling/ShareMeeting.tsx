@@ -6,14 +6,13 @@
 
 import { useState } from "react";
 import { bookingBase } from "@/lib/meetings/handles";
-import { meetingEmbedCode, PLATS, type MeetingEmbed, type MeetingMode, type Plat } from "@/lib/share/embed";
+import { meetingEmbedCode, type MeetingEmbed, type MeetingMode, type Plat } from "@/lib/share/embed";
 import { Copy } from "../../Icons";
-import { BrandLogo } from "../BrandLogo";
 import { Button, ErrorNote, errorText, Segmented, Toggle, type ViewProps } from "../ui";
 import { copyText, meetingsApi, Modal, ownZone } from "../meetings/parts";
 import { useLinkBase } from "../views/LinkDomainSettings";
 import { QrCode, signatureHtml } from "../meetings/Share";
-import { CodeBox, LinkRow, PillPicks } from "../SharePieces";
+import { BuilderPick, CodeBox, LinkRow, SitePreview } from "../SharePieces";
 
 type Pane = "link" | "site" | "email";
 
@@ -79,7 +78,9 @@ export function ShareMeeting({ session, ws, type, wsSlug, onClose, onSingleUse }
         {pane === "link" ? (
           <div className="flex flex-col gap-4">
             <LinkRow url={url} disabled={!type.active} />
-            <QrCode url={url} name={type.name} />
+            <div className="flex justify-center rounded-[10px] border border-line bg-paper py-[20px]">
+              <QrCode url={url} name={type.name} center />
+            </div>
           </div>
         ) : null}
         {pane === "site" ? (
@@ -107,8 +108,8 @@ export function ShareMeeting({ session, ws, type, wsSlug, onClose, onSingleUse }
                 </div>
               </div>
             ) : null}
-            <CodeBox code={code} bar={<PillPicks label="Site builder" value={plat} onChange={setPlat} options={PLATS.map((p) => ({ v: p.v, l: p.l, icon: p.domain ? <BrandLogo domain={p.domain} name={p.l} size={18} /> : <span className="inline-flex size-4 items-center justify-center rounded-[4px] bg-paper-deep font-mono text-[8px] text-body">&lt;/&gt;</span> }))} />} />
-            <span className="text-[12.5px] text-muted">{PLATS.find((p) => p.v === plat)!.how}</span>
+            <SitePreview key={o.mode} code={code} after={o.mode === "link" ? `var a=document.querySelector("[data-claritia-book]");a&&a.click();` : ""} still label="How it looks on a site" height={340} />
+            <CodeBox code={code} bar={<BuilderPick value={plat} onChange={setPlat} />} />
           </>
         ) : null}
         {pane === "email" ? (

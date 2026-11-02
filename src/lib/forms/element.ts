@@ -637,6 +637,10 @@ export class ClaritiaForm extends Base {
   private done = false;
   private alert = "";
   private isPreview = false;
+  /** demo: the live form in the app's Share preview; it loads and opens as on a site, and sends nothing. */
+  private get quiet() {
+    return this.isPreview || this.hasAttribute("demo");
+  }
   /** The builder's canvas: every field shows (logic and hidden ones too), so each can be picked. */
   private edit = false;
   private openList: string | null = null;
@@ -711,7 +715,7 @@ export class ClaritiaForm extends Base {
   /** One summary when the visitor leaves the page or sends the form; a later one replaces it on the server. */
   private summary(sent: boolean) {
     const id = this.getAttribute("form-id");
-    if (this.isPreview || !this.sent.has("start") || !this.data || this.data.status !== "live" || !id || this.told === "sent") return;
+    if (this.quiet || !this.sent.has("start") || !this.data || this.data.status !== "live" || !id || this.told === "sent") return;
     for (const [k, r] of Object.entries(this.seenFields)) r[1] = listOf(this.answers[k]).length || this.answers[k] === true ? 1 : 0;
     const body = JSON.stringify({ kind: "fields", vid: visitorId(), version: this.data.version, fields: this.seenFields, left: this.at?.[0] ?? this.last, step: this.maxStep, sent });
     if (body === this.told) return;
@@ -723,13 +727,13 @@ export class ClaritiaForm extends Base {
   private sent = new Set<"view" | "start" | "result">();
   private beacon(kind: "view" | "start" | "result") {
     const id = this.getAttribute("form-id");
-    if (this.isPreview || this.sent.has(kind) || !this.data || this.data.status !== "live" || !id) return;
+    if (this.quiet || this.sent.has(kind) || !this.data || this.data.status !== "live" || !id) return;
     this.sent.add(kind);
     fetch(`${this.base}/api/forms/${id}/seen`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ kind, vid: visitorId() }), credentials: "omit", keepalive: true }).catch(() => {});
   }
 
   private watchView() {
-    if (this.isPreview || typeof IntersectionObserver === "undefined") return;
+    if (this.quiet || typeof IntersectionObserver === "undefined") return;
     let timer: ReturnType<typeof setTimeout> | null = null;
     const io = new IntersectionObserver(
       ([e]) => {
@@ -1064,7 +1068,7 @@ export class ClaritiaForm extends Base {
       (this.root.querySelector("#clr-consent") as HTMLElement | null)?.focus();
       return;
     }
-    if (this.isPreview) {
+    if (this.quiet) {
       this.done = true;
       return this.render();
     }
@@ -1157,7 +1161,7 @@ export class ClaritiaForm extends Base {
     }
     actions.append(el("button", { type: "submit", class: form.submit.full ? "bt fw" : "bt", disabled: this.sending, text: this.sending ? "Sending…" : last ? form.submit.label : "Next" }));
     wrap.append(actions);
-    if (form.resume && form.steps.length > 1 && !this.edit && !this.isPreview) wrap.append(this.saveLater(form));
+    if (form.resume && form.steps.length > 1 && !this.edit && !this.quiet) wrap.append(this.saveLater(form));
     wrap.addEventListener("submit", (e) => {
       e.preventDefault();
       void this.next();
@@ -1541,7 +1545,7 @@ export class ClaritiaForm extends Base {
       const top = Math.max(1, ...(r.fields ?? []).map((id) => Math.abs(get(id) ?? 0)));
       box.append(el("div", { class: "br" }, ...(r.fields ?? []).flatMap((id) => [el("span", { text: name(id) }), el("i", { style: `width:${(Math.abs(get(id) ?? 0) / top) * 100}%` }), el("span", { text: text(id) })])));
     } else if (r.kind === "email") {
-      if (!this.sid || this.isPreview) return null;
+      if (!this.sid || this.quiet) return null;
       const b = el("button", { type: "button", class: "bt bk", disabled: !!this.mailed, text: this.mailed || (this.mailFail ? "Couldn't send. Try again" : "Email my results") });
       b.addEventListener("click", () => void this.mailResults());
       box.append(b);
@@ -1642,7 +1646,7 @@ export class ClaritiaForm extends Base {
         this.errors[f.id] = `Files can be up to ${f.file.maxMb} MB.`;
         return this.later();
       }
-      if (this.isPreview) return set(`up_00000000-0000-4000-8000-000000000000:${file.name.slice(0, 120)}`, true);
+      if (this.quiet) return set(`up_00000000-0000-4000-8000-000000000000:${file.name.slice(0, 120)}`, true);
       state.textContent = "Uploading…";
       const body = new FormData();
       body.append("field", f.id);
@@ -1776,7 +1780,7 @@ export class ClaritiaForm extends Base {
         if (!drawing) return;
         drawing = false;
         if (!drawn) return;
-        if (this.isPreview) return set("up_00000000-0000-4000-8000-000000000000:signature.png", true);
+        if (this.quiet) return set("up_00000000-0000-4000-8000-000000000000:signature.png", true);
         state.textContent = "Saving…";
         pad.toBlob(async (blob) => {
           if (!blob) return;
@@ -1974,7 +1978,7 @@ export class ClaritiaForm extends Base {
 
   private endScreen(form: Form): HTMLElement {
     // Claritia calendar: the times in place of the form. In the builder, sample times and no network.
-    if (this.isPreview && form.after.schedule?.tool === "claritia" && !this.bk) this.bk = { token: "", slots: sampleSlots(Date.now()), lengths: [30], length: 30 };
+    if (this.quiet && form.after.schedule?.tool === "claritia" && !this.bk) this.bk = { token: "", slots: sampleSlots(Date.now()), lengths: [30], length: 30 };
     if (this.bkDone) return this.booked();
     if (this.bk) return this.calendar(form, this.bk);
     if (this.waiting) return el("div", { class: "f dn", role: "status", "aria-live": "polite" }, el("p", { class: "i", text: this.waiting }));
@@ -1995,7 +1999,7 @@ export class ClaritiaForm extends Base {
       return el("div", { class: "f dn", role: "status" }, el("h2", { class: "h", text: "One more step" }), el("p", { class: "i", text: "Finish your payment to complete it." }), el("div", { class: "ac" }, el("a", { class: "bt", href: this.pay.url, target: "_blank", rel: "noopener", text: "Pay now" })));
     }
     const end = form.after.end;
-    if (end.kind === "redirect" && !this.isPreview && safeUrl(end.url)) {
+    if (end.kind === "redirect" && !this.quiet && safeUrl(end.url)) {
       // In the embed's frame, the page around it opens the address.
       if (!embedFrame()) location.assign(end.url);
       return el("div", { class: "f" }, el("p", { class: "i", text: "One moment…" }));
@@ -2194,7 +2198,7 @@ export class ClaritiaForm extends Base {
   private async pick(start: number) {
     const b = this.bk!;
     if (this.bkBusy) return;
-    if (this.isPreview) {
+    if (this.quiet) {
       this.bkDone = { start, end: start + b.length * 60_000, ...(b.host ? { host: b.host } : {}) };
       return this.render();
     }
@@ -2234,7 +2238,7 @@ export class ClaritiaForm extends Base {
       (this.root.querySelector("#clr-consent") as HTMLElement | null)?.focus();
       return;
     }
-    if (this.isPreview) {
+    if (this.quiet) {
       this.done = true;
       return this.render();
     }

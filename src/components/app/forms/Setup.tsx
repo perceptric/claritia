@@ -7,7 +7,7 @@
 import { useState } from "react";
 import { DEFAULT_NOTIFY, DEFAULT_REPLY, merge } from "@/lib/forms/notify";
 import type { Op } from "@/lib/forms/ops";
-import { DEFAULT_CONSENT, type Form } from "@/lib/forms/schema";
+import { allFields, DEFAULT_CONSENT, type Form } from "@/lib/forms/schema";
 import type { RouterBody } from "@/lib/router/types";
 import { BrandLogo } from "../BrandLogo";
 import { askText } from "../Dialogs";
@@ -350,6 +350,9 @@ function Spam({ sb, form, apply, formId, onReview }: Props) {
 
 function Data({ sb, session, form, apply, formId, subs, name }: Props) {
   const days = form.keep?.days ?? null;
+  // Moved here from Share (docs/form-ui-plan.md step 3): ?email= and the rest fill those questions.
+  const fill = allFields(form).filter((f) => f.type !== "hidden" && f.type !== "heading" && f.type !== "paragraph");
+  const prefillOn = fill.length > 0 && fill.every((f) => f.prefill);
   const [error, setError] = useState("");
   const note = useNote();
   return (
@@ -357,6 +360,10 @@ function Data({ sb, session, form, apply, formId, subs, name }: Props) {
       <H3>Data</H3>
       <Sub>How long answers are kept</Sub>
       <div className={CARD}>
+        <div className={CROW}>
+          <RowText title="Fill in from the link" sub="?email= and ?company= fill those questions" />
+          <Tg label="Fill in from the link" on={prefillOn} onChange={(v) => apply(fill.map((f): Op => ({ op: "update_field", id: f.id, patch: { prefill: v || undefined } })), v ? "Questions fill in from the link" : "Questions start empty")} />
+        </div>
         <div className={CROW}>
           <RowText title="Keep submissions" />
           <Seg label="Keep submissions" value={String(days ?? "forever")} onChange={(v) => apply({ op: "set_keep", keep: { days: v === "forever" ? null : Number(v) } })} options={[{ value: "30", label: "30 days" }, { value: "365", label: "1 year" }, { value: "1095", label: "3 years" }, { value: "forever", label: "Forever" }]} />
