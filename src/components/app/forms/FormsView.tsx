@@ -29,8 +29,10 @@ import { Submissions } from "./Submissions";
 import { Sync } from "./Sync";
 import { useCrm } from "./useCrm";
 import { meetingTypes, type TypeRow } from "../meetings/TypesList";
+import { Studio } from "./studio/Studio";
 
 export function FormsView(props: ViewProps) {
+  if (props.id === "studio") return <Studio {...props} />;
   if (props.id === "new") return <FormHome key="new" {...props} startNew />;
   if (props.id && props.id !== "overview") return <FormPage key={props.id} {...props} />;
   return <FormHome {...props} />;
