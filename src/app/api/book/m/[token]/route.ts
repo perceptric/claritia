@@ -1,4 +1,5 @@
 import { cors } from "@/lib/forms/server";
+import { buildIcs } from "@/lib/meetings/ics";
 import { cancelByGuest, guestMeeting, loadMeeting, reschedule, rescheduleSlots } from "@/lib/meetings/public";
 import { failed, json, limited, liveFor, readBody, rpcOrNull, startOf } from "../../_shared";
 
@@ -22,7 +23,28 @@ export async function GET(request: Request, ctx: Ctx) {
   try {
     const x = await load(ctx);
     if ("error" in x) return x.error;
-    const wantSlots = new URL(request.url).searchParams.get("slots") === "1";
+    const sp = new URL(request.url).searchParams;
+    // ?ics=1: the meeting as a calendar file, for Apple Calendar and any app that opens .ics.
+    if (sp.get("ics") === "1") {
+      const g = guestMeeting(x.v);
+      if (g.status === "canceled") return json({ error: "This meeting was canceled." }, 410);
+      const file = buildIcs({
+        meetingId: x.v.meeting.id,
+        sequence: 0,
+        method: "PUBLISH",
+        start: g.start,
+        end: g.end,
+        stamp: Date.now(),
+        summary: g.hosts.length ? `${g.name} with ${g.hosts.map((h) => h.name).join(", ")}` : g.name,
+        description: `Reschedule or cancel: ${new URL(request.url).origin}/book/m/${(await ctx.params).token}`,
+        location: g.join ?? g.location?.detail ?? null,
+        url: g.join,
+        organizer: { email: "meetings@tryclaritia.com", name: g.hosts[0]?.name ?? "Claritia" },
+        attendees: [{ email: g.guest.email, name: g.guest.name || null }],
+      });
+      return new Response(file, { headers: { "content-type": "text/calendar; charset=utf-8", "content-disposition": 'attachment; filename="meeting.ics"', "cache-control": "no-store" } });
+    }
+    const wantSlots = sp.get("slots") === "1";
     return json({ meeting: guestMeeting(x.v), ...(wantSlots ? { slots: await rescheduleSlots(x.rpc, x.v) } : {}) }, 200, { "Cache-Control": "no-store" });
   } catch {
     return json({ error: "Try again in a moment." }, 503);

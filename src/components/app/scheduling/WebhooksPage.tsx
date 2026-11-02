@@ -140,7 +140,7 @@ export function WebhooksPage({ session, ws }: ViewProps) {
   return (
     <Page title="Webhooks" actions={d.endpoints.length < 10 ? add : undefined}>
       {dialogs}
-      <div className="mx-auto flex w-full max-w-4xl flex-col gap-3">
+      <div className="flex w-full max-w-[720px] flex-col gap-3">
         <ErrorNote message={error} />
         {d.endpoints.map((e, i) => {
           const st = state(e);

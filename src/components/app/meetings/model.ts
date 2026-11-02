@@ -261,3 +261,83 @@ export function outsideBusy<B extends { start: string; end: string }>(busy: B[],
     return !mine.some(([ms, me]) => s >= ms - 60_000 && e <= me + 60_000);
   });
 }
+
+/** "8:00 to 8:30 PM" on one line: the am/pm said once when both ends share it. */
+export function timeRange(start: string | number, end: string | number): string {
+  const f = (t: string | number) => new Date(t).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+  const [a, b] = [f(start), f(end)];
+  const [am, bm] = [a.slice(-2), b.slice(-2)];
+  return am === bm ? `${a.slice(0, -3)} to ${b}` : `${a} to ${b}`;
+}
+
+/** Join shows from 10 minutes before a booked meeting until it ends. */
+export const joinOpen = (m: Pick<MeetingRow, "status" | "start_at" | "end_at">, now = Date.now()) => m.status === "booked" && Date.parse(m.start_at) - now <= 10 * 60_000 && Date.parse(m.end_at) > now;
+
+/** A meeting's join link, when its place has one (a video link added by the calendar, or a set link). */
+export const joinUrl = (location: unknown): string | null => {
+  const u = location && typeof location === "object" ? (location as { url?: unknown }).url : null;
+  return typeof u === "string" && /^https:\/\/\S+$/.test(u) ? u : null;
+};
+
+export type StatRow = Pick<MeetingRow, "status" | "source" | "start_at"> & { created_at: string };
+
+/**
+ * Upcoming's numbers: meetings booked since Monday, the show rate and no-shows over the last 30 days (held over held
+ * plus no-shows; null with none marked yet), and where this week's bookings came from most.
+ */
+export function meetingStats(rows: StatRow[], now = Date.now()): { booked: number; showRate: number | null; noShows: number; topSource: MeetingSource | null } {
+  const d = new Date(now);
+  const monday = new Date(d.getFullYear(), d.getMonth(), d.getDate() - ((d.getDay() + 6) % 7)).getTime();
+  const week = rows.filter((r) => Date.parse(r.created_at) >= monday && r.status !== "canceled");
+  const recent = rows.filter((r) => Date.parse(r.start_at) >= now - 30 * 86_400_000 && Date.parse(r.start_at) <= now);
+  const held = recent.filter((r) => r.status === "held").length;
+  const noShows = recent.filter((r) => r.status === "no_show").length;
+  const count = new Map<MeetingSource, number>();
+  for (const r of week) count.set(r.source, (count.get(r.source) ?? 0) + 1);
+  const topSource = [...count.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
+  return { booked: week.length, showRate: held + noShows ? Math.round((held / (held + noShows)) * 100) : null, noShows, topSource };
+}
+
+/** The hours a week grid shows: 8 to 18, stretched to fit every meeting in it. */
+export function weekHours(items: { start: number; end: number }[]): { from: number; to: number } {
+  let from = 8;
+  let to = 18;
+  for (const it of items) {
+    const s = new Date(it.start);
+    const e = new Date(it.end);
+    from = Math.min(from, s.getHours());
+    to = Math.max(to, e.getHours() + (e.getMinutes() ? 1 : 0) || 24);
+  }
+  return { from: Math.max(0, from), to: Math.min(24, to) };
+}
+
+/** Paint your hours: a day's ranges as the half-hour cells they cover (cell i is i*30 minutes into the day). */
+export function rangesToCells(ranges: Range[], step = 30): Set<number> {
+  const out = new Set<number>();
+  for (const [a, b] of ranges) for (let m = Math.floor(toMin(a) / step) * step; m < toMin(b); m += step) out.add(m / step);
+  return out;
+}
+
+/** Cells back to ranges, joined where they touch. */
+export function cellsToRanges(cells: Iterable<number>, step = 30): Range[] {
+  const sorted = [...new Set(cells)].filter((c) => c >= 0 && c * step < 1440).sort((a, b) => a - b);
+  const out: Range[] = [];
+  for (const c of sorted) {
+    const last = out[out.length - 1];
+    if (last && toMin(last[1]) === c * step) last[1] = toClock((c + 1) * step);
+    else out.push([toClock(c * step), toClock((c + 1) * step)]);
+  }
+  return out;
+}
+
+/** The rows a paint grid shows: 7:00 to 19:00, stretched to fit every range in the week. */
+export function paintRows(weekly: Availability["weekly"], step = 30): { from: number; to: number } {
+  let from = 7 * 60;
+  let to = 19 * 60;
+  for (const d of DAYS)
+    for (const [a, b] of weekly[d] ?? []) {
+      from = Math.min(from, toMin(a));
+      to = Math.max(to, toMin(b));
+    }
+  return { from: Math.floor(from / step), to: Math.ceil(to / step) };
+}

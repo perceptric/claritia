@@ -3,8 +3,8 @@
 // Inbound › Meetings (route "scheduling", once Calendar): Meetings (what people can book, one card each; a card opens
 // its panel, or the full editor at types/<id>/all), Upcoming (every meeting on the calendar, once CRM › Meetings),
 // Availability (everyone's hours, calendars and who's away, which forms and booking pages both read), Booking page,
-// Links and polls, and Settings (Payments and Webhooks). Connect your calendar is one slim line under the
-// tabs until a calendar is connected.
+// Links and polls, and Settings (Payments and Webhooks). Get set up (then Connect your calendar) is one slim line
+// under the tabs until it's done.
 
 import { schedulingPage, SCHEDULING_TABS } from "@/lib/nav";
 import { Section, type ViewProps } from "../ui";
@@ -12,7 +12,7 @@ import { MeetingsCalendar } from "../meetings/Calendar";
 import { TypeEditor } from "../meetings/TypeEditor";
 import { AvailabilityPage } from "./AvailabilityPage";
 import { BookingPage } from "./BookingPage";
-import { ConnectCalendar } from "./ConnectCalendar";
+import { SetupLine } from "./Setup";
 import { LinksPage } from "./LinksPage";
 import { SettingsPage } from "./SettingsPage";
 import { TypesPage } from "./TypesPage";
@@ -21,7 +21,7 @@ const TABS = SCHEDULING_TABS.map((t) => ({ value: t.value, label: t.label }));
 
 export function SchedulingView(props: ViewProps) {
   const p = schedulingPage(props.id);
-  const nav = { title: "Meetings", tabs: TABS, current: p.page, onPick: (t: string) => props.navigate("scheduling", t), banner: <ConnectCalendar sb={props.sb} session={props.session} ws={props.ws} /> };
+  const nav = { title: "Meetings", tabs: TABS, current: p.page, onPick: (t: string) => props.navigate("scheduling", t), banner: <SetupLine sb={props.sb} session={props.session} ws={props.ws} navigate={props.navigate} /> };
   return <Section nav={nav}>{body(props, p)}</Section>;
 }
 

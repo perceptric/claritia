@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, Check, ChevronRight, Clock, Dollar, Globe, Users } from "@/components/Icons";
+import { createPortal } from "react-dom";
+import { ArrowLeft, Check, ChevronRight, Clock, Dollar, Globe, Users, Video } from "@/components/Icons";
 import { byDay, LOCATION_LABEL, lengthLabel, priceLabel, type BookReply, type GuestSlot, type GuestType, type Question } from "@/lib/meetings/guest";
 import { addDays, dateIn, dayOf } from "@/lib/meetings/time";
 import { calendarLinks, partsOfDay, soonest } from "@/lib/meetings/guestTimes";
@@ -43,7 +44,39 @@ export type BookingCalendarProps = {
   banner?: React.ReactNode;
   /** Shown in place of the times until it's done (a Dynamic meeting's questions). */
   before?: React.ReactNode;
+  /** The Styling preview: open on a step (details or the thank-you) with a time already picked. Nothing is sent. */
+  preview?: { step?: "details" | "done"; time?: number; done?: Booked };
 };
+
+/** The guest's name and email, kept in their own browser after a booking so the next one is filled in. */
+const GUEST_KEY = "claritia:guest";
+const rememberedGuest = (): { name?: string; email?: string } => {
+  try {
+    const g = JSON.parse(localStorage.getItem(GUEST_KEY) ?? "null") as { name?: unknown; email?: unknown } | null;
+    return { name: typeof g?.name === "string" ? g.name.slice(0, 200) : undefined, email: typeof g?.email === "string" ? g.email.slice(0, 320) : undefined };
+  } catch {
+    return {};
+  }
+};
+const rememberGuest = (name: string, email: string) => {
+  try {
+    localStorage.setItem(GUEST_KEY, JSON.stringify({ name, email }));
+  } catch {}
+};
+
+/** Phones: a narrow screen, where Next sits in a bar at the bottom of the screen. */
+function usePhone() {
+  const [phone, setPhone] = useState(false);
+  useEffect(() => {
+    const m = window.matchMedia?.("(max-width: 640px)");
+    if (!m) return;
+    const on = () => setPhone(m.matches);
+    on();
+    m.addEventListener?.("change", on);
+    return () => m.removeEventListener?.("change", on);
+  }, []);
+  return phone;
+}
 
 const fmt = (o: Intl.DateTimeFormatOptions) => {
   try {
@@ -96,12 +129,14 @@ export function Calendar(p: BookingCalendarProps) {
   const loadFailed = loaded.key === key && !!loaded.failed;
   const [monthPick, setMonth] = useState<string | null>(null);
   const [dayPick, setDay] = useState<string | null>(null);
-  const [timePick, setTime] = useState<number | null>(null);
-  const [step, setStepRaw] = useState<"pick" | "details" | "done">("pick");
+  const [timePick, setTime] = useState<number | null>(p.preview?.time ?? null);
+  const [step, setStepRaw] = useState<"pick" | "details" | "done">(p.preview?.step ?? "pick");
   const [back, setBack] = useState(false);
   const setStep = (s: "pick" | "details" | "done") => (setBack(s === "pick"), setStepRaw(s));
   const [notice, setNotice] = useState<string | null>(null);
-  const [done, setDone] = useState<Booked | null>(null);
+  const [done, setDone] = useState<Booked | null>(p.preview?.done ?? null);
+  const phone = usePhone();
+  const pickRef = useRef<HTMLDivElement>(null);
   const [moving, setMoving] = useState(false);
   const [now] = useState(() => Date.now());
   const timesRef = useRef<HTMLDivElement>(null);
@@ -175,7 +210,7 @@ export function Calendar(p: BookingCalendarProps) {
     }
   };
 
-  if (step === "done" && done) return <Done type={p.type} reply={done} tz={tz} hour12={hour12} email={doneEmail} />;
+  if (step === "done" && done) return <Done type={p.type} reply={done} tz={tz} hour12={hour12} email={doneEmail} preview={!!p.preview} />;
 
   const monthHas = dayList.some((d) => monthOf(d) === shownMonth);
   const nextAvail = dayList.find((d) => monthOf(d) > shownMonth) ?? null;
@@ -196,7 +231,7 @@ export function Calendar(p: BookingCalendarProps) {
             length={length}
             tz={tz}
             hour12={hour12}
-            prefill={p.prefill}
+            prefill={p.prefill ?? (p.book && !p.preview ? rememberedGuest() : undefined)}
             turnstileKey={p.turnstileKey}
             preview={!p.book}
             onBack={() => setStep("pick")}
@@ -213,6 +248,7 @@ export function Calendar(p: BookingCalendarProps) {
                   return { ok: true };
                 }
                 setDoneEmail(g.email);
+                rememberGuest(g.name, g.email);
                 setDone(r);
                 setStep("done");
                 return { ok: true };
@@ -225,7 +261,7 @@ export function Calendar(p: BookingCalendarProps) {
             }}
           />
         ) : (
-          <div className={`cb-step ${back ? "cb-rev" : ""}`} key="pick">
+          <div className={`cb-step ${back ? "cb-rev" : ""}`} key="pick" ref={pickRef}>
             {p.banner}
             {notice && (
               <div className="cb-note" role="alert">
@@ -325,9 +361,11 @@ export function Calendar(p: BookingCalendarProps) {
                           <button type="button" className="cb-time cb-on" onClick={() => setTime(null)} aria-pressed="true">
                             {timeIn(s.start, tz, hour12)}
                           </button>
-                          <button type="button" className="cb-btn" onClick={next} disabled={moving} autoFocus>
-                            {p.move ? "Move here" : "Next"}
-                          </button>
+                          {phone ? null : (
+                            <button type="button" className="cb-btn" onClick={next} disabled={moving} autoFocus>
+                              {p.move ? "Move here" : "Next"}
+                            </button>
+                          )}
                         </div>
                       ) : (
                         <button type="button" key={s.start} role="listitem" className="cb-time" onClick={() => setTime(s.start)}>
@@ -341,10 +379,47 @@ export function Calendar(p: BookingCalendarProps) {
                 </div>
               )}
             </div>
+            {phone && time !== null ? (
+              <PhoneBar from={pickRef}>
+                <span className="cb-pbw">
+                  <b>{timeIn(time, tz, hour12)}</b>
+                  <span className="cb-muted cb-small">{dayShort(day!, today)}</span>
+                </span>
+                <button type="button" className="cb-btn" onClick={next} disabled={moving}>
+                  {p.move ? "Move here" : "Next"}
+                </button>
+              </PhoneBar>
+            ) : null}
           </div>
         )}
       </div>
     </div>
+  );
+}
+
+/**
+ * Next on a phone: a bar fixed to the bottom of the screen, so the guest never scrolls to find it. It's drawn on the
+ * page's body (the card's containment would pin it inside the card), wrapped in the booking root's look.
+ */
+function PhoneBar({ from, children }: { from: React.RefObject<HTMLElement | null>; children: React.ReactNode }) {
+  const [root, setRoot] = useState<{ cls: string; style: string; dark: boolean } | null>(null);
+  useEffect(() => {
+    // Read the root's look once it's on the page (a frame later, after it drew).
+    const t = requestAnimationFrame(() => {
+      const r = from.current?.closest<HTMLElement>(".cb-root");
+      if (r) setRoot({ cls: [...r.classList].filter((c) => c === "cb-root" || c === "cb-ds" || c === "cb-brand").join(" "), style: r.getAttribute("style") ?? "", dark: r.hasAttribute("data-dark") });
+    });
+    return () => cancelAnimationFrame(t);
+  }, [from]);
+  if (!root) return null;
+  return createPortal(
+    // container-type off: a container would hold the fixed bar inside this wrapper instead of the screen.
+    <div className={root.cls} ref={(el) => el?.setAttribute("style", `${root.style};container-type:normal;min-height:0`)} data-dark={root.dark || undefined}>
+      <div className="cb-phonebar" role="region" aria-label="Your time">
+        {children}
+      </div>
+    </div>,
+    document.body,
   );
 }
 
@@ -406,6 +481,10 @@ function Info({ type, logo, length, picked }: { type: GuestType; logo?: string |
 
 function Month(p: { month: string; today: string; days: Map<string, GuestSlot[]>; day: string | null; loading: boolean; canBack: boolean; canNext: boolean; onMonth: (n: number) => void; onDay: (d: string) => void }) {
   const sundayFirst = useSundayFirst();
+  // The day the keyboard is on: the picked day, else the first open day, else the 1st.
+  const [focusRaw, setFocusDay] = useState<string | null>(null);
+  const firstOpen = [...p.days.keys()].find((d) => monthOf(d) === p.month);
+  const focusDay = focusRaw && monthOf(focusRaw) === p.month ? focusRaw : (p.day && monthOf(p.day) === p.month ? p.day : (firstOpen ?? `${p.month}-01`));
   if (!p.month) return <div className="cb-days" style={{ minHeight: 280 }} />;
   const first = `${p.month}-01`;
   const lead = (["mon", "tue", "wed", "thu", "fri", "sat", "sun"].indexOf(dayOf(first)) + (sundayFirst ? 1 : 0)) % 7;
@@ -434,19 +513,41 @@ function Month(p: { month: string; today: string; days: Map<string, GuestSlot[]>
           </span>
         ))}
       </div>
-      <div className="cb-days" role="grid" aria-busy={p.loading || undefined}>
+      <div
+        className="cb-days"
+        role="grid"
+        aria-label={monthLabel(p.month)}
+        aria-busy={p.loading || undefined}
+        onKeyDown={(e) => {
+          // Arrow keys move between days (into the next or last month at the edges); Enter or Space picks one.
+          const step = ({ ArrowLeft: -1, ArrowRight: 1, ArrowUp: -7, ArrowDown: 7 } as Record<string, number>)[e.key];
+          if (!step) return;
+          e.preventDefault();
+          const next = addDays(focusDay, step);
+          if (monthOf(next) !== p.month) {
+            if ((step < 0 && !p.canBack) || (step > 0 && !p.canNext)) return;
+            p.onMonth(step < 0 ? -1 : 1);
+          }
+          setFocusDay(next);
+          requestAnimationFrame(() => document.querySelector<HTMLElement>(`[data-cb-day="${next}"]`)?.focus());
+        }}
+      >
         {cells.map((d, i) => {
           if (!d) return <span key={`x${i}`} />;
           const has = !p.loading && p.days.has(d);
+          const n = has ? p.days.get(d)!.length : 0;
           return (
             <button
               key={d}
               type="button"
+              data-cb-day={d}
               className={`cb-day ${has ? "cb-has" : ""} ${d === p.today ? "cb-today" : ""}`}
-              disabled={!has}
+              aria-disabled={!has || undefined}
+              tabIndex={d === focusDay ? 0 : -1}
               aria-pressed={d === p.day}
-              aria-label={`${dayLong(d)}${has ? "" : ", no times"}`}
-              onClick={() => p.onDay(d)}
+              aria-label={`${dayLong(d)}, ${has ? `${n} open ${n === 1 ? "time" : "times"}` : "no times"}`}
+              onFocus={() => setFocusDay(d)}
+              onClick={() => has && p.onDay(d)}
             >
               {Number(d.slice(8))}
             </button>
@@ -672,14 +773,40 @@ function CountryPick({ label, value, onChange }: { label: string; value: string;
   );
 }
 
-function Done({ type, reply, tz, hour12, email }: { type: GuestType; reply: Booked; tz: string; hour12: boolean; email: string }) {
+/** Where a guest adds the meeting to Apple Calendar (or any app that opens .ics): the manage link's calendar file. */
+export function icsUrl(manage: string): string | null {
+  try {
+    const u = new URL(manage);
+    const m = /^\/book\/m\/([^/]+)$/.exec(u.pathname);
+    return m ? `${u.origin}/api/book/m/${m[1]}?ics=1` : null;
+  } catch {
+    return null;
+  }
+}
+
+function Done({ type, reply, tz, hour12, email, preview }: { type: GuestType; reply: Booked; tz: string; hour12: boolean; email: string; preview?: boolean }) {
   const hosts = reply.hosts.length ? reply.hosts : type.hosts;
   const links = calendarLinks({ title: hosts.length ? `${type.name} with ${hostLine(hosts)}` : type.name, start: reply.start, end: reply.end, details: `Reschedule or cancel: ${reply.manage}` });
+  const ics = preview ? "#" : icsUrl(reply.manage);
+  const join = type.location.detail && /^https:\/\/\S+$/.test(type.location.detail) ? type.location.detail : null;
+  const video = type.location.kind === "google_meet" || type.location.kind === "zoom" || type.location.kind === "teams";
+  const manage = (to: "move" | "cancel") => (preview ? "#" : `${reply.manage}${reply.manage.includes("?") ? "&" : "?"}do=${to}`);
   return (
     <div className="cb-done cb-step" role="status">
-      <span className="cb-tick">
-        <Check size={26} />
-      </span>
+      {hosts.length ? (
+        <span className="cb-stack cb-donehosts">
+          {hosts.slice(0, 3).map((h, i) => (
+            <Avatar key={i} host={h} size="lg" />
+          ))}
+          <span className="cb-tick cb-ticksm">
+            <Check size={16} />
+          </span>
+        </span>
+      ) : (
+        <span className="cb-tick">
+          <Check size={26} />
+        </span>
+      )}
       <h1 className="cb-two" style={{ fontSize: "1.6em" }}>
         You&apos;re booked
         {email && <span className="cb-gray">The invite is on its way to {email}</span>}
@@ -705,8 +832,15 @@ function Done({ type, reply, tz, hour12, email }: { type: GuestType; reply: Book
         </div>
         <div className="cb-row cb-muted">
           <LocationIcon kind={type.location.kind} />
-          <span>{type.location.detail ?? LOCATION_LABEL[type.location.kind]}</span>
+          <span>{join ? LOCATION_LABEL[type.location.kind] : (type.location.detail ?? LOCATION_LABEL[type.location.kind])}</span>
         </div>
+        {join ? (
+          <a className="cb-btn" href={join} target="_blank" rel="noopener" style={{ textDecoration: "none", alignSelf: "flex-start" }}>
+            <Video size={15} /> Join link
+          </a>
+        ) : video ? (
+          <span className="cb-small cb-muted">The join link is in your invite.</span>
+        ) : null}
       </div>
       <div className="cb-add">
         <span className="cb-eyebrow">Add to calendar</span>
@@ -717,11 +851,21 @@ function Done({ type, reply, tz, hour12, email }: { type: GuestType; reply: Book
           <a href={links.outlook} target="_blank" rel="noopener">
             Outlook
           </a>
+          {ics ? (
+            <a href={ics} download>
+              Apple
+            </a>
+          ) : null}
         </div>
       </div>
-      <a className="cb-small" href={reply.manage} target="_top" style={{ fontWeight: 500 }}>
-        Reschedule or cancel
-      </a>
+      <div className="cb-chips" style={{ justifyContent: "center" }}>
+        <a className="cb-btn cb-ghost" href={manage("move")} target="_top" style={{ textDecoration: "none" }}>
+          Reschedule
+        </a>
+        <a className="cb-btn cb-ghost" href={manage("cancel")} target="_top" style={{ textDecoration: "none" }}>
+          Cancel
+        </a>
+      </div>
     </div>
   );
 }

@@ -36,7 +36,7 @@ test("the sidebar is Inbound, CRM and Nurture, then Settings, with at most five 
   assert.equal(defaultRoute, "forms");
   assert.equal(new Set(NAV.map((n) => n.route)).size, NAV.length, "one item per route");
   assert.deepEqual(ROUTING_TABS.map((t) => t.label), ["Policies", "Teams", "Activity"]);
-  assert.deepEqual(SCHEDULING_TABS.map((t) => t.label), ["Meetings", "Upcoming", "Availability", "Booking page", "Links and polls", "Settings"]);
+  assert.deepEqual(SCHEDULING_TABS.map((t) => t.label), ["Meeting types", "Upcoming", "Availability", "Booking page", "Links and polls", "Settings"]);
   assert.equal(NAV.find((n) => n.route === "scheduling")?.label, "Meetings", "Calendar is now Meetings, at its old address");
 });
 

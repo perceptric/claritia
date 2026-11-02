@@ -163,7 +163,7 @@ export type AvailabilityTab = "schedules" | "calendars" | "team" | "days-off";
 /** The icon beside each Meetings tab (the screen draws it, from src/components/Icons.tsx). */
 export type SchedulingTabIcon = "grid" | "monitor" | "calendar" | "link" | "gear";
 export const SCHEDULING_TABS: (Tab<SchedulingPageKey> & { icon: SchedulingTabIcon })[] = [
-  { value: "types", label: "Meetings", icon: "grid" },
+  { value: "types", label: "Meeting types", icon: "grid" },
   { value: "upcoming", label: "Upcoming", icon: "calendar" },
   { value: "availability", label: "Availability", icon: "calendar" },
   { value: "booking", label: "Booking page", icon: "monitor" },

@@ -168,6 +168,39 @@ Everything a rep does in Calendly works in Claritia without a form:
 
 All screens follow `docs/brand.md`. First screens use `ToolIntro` with a calendar sketch.
 
+**The Meetings section today** (Inbound › Meetings, tabs Meeting types, Upcoming, Availability, Booking page, Links
+and polls, Settings):
+
+- **One frame.** Every tab's body starts at the tabs' left edge and runs full width (`TabBody` and `TAB_X` in
+  `src/components/app/scheduling/frame.tsx`); Settings pages keep one 720 px reading width. Each tab has at most one
+  primary button. Dates use the app's own picker (`DatePick`), never the browser's. `tests/meetingsFrame.test.ts`.
+- **Get set up.** Under the tabs until it's done or closed, once per browser: Connect a calendar, Make a meeting
+  type, Set your link (`Setup.tsx`). Then the Connect your calendar line takes its place when a calendar needs it.
+- **Meeting types.** Cards with length, place logo, host faces, "4 booked this week", a share menu and an on/off
+  switch. One-click starters (Intro call 30 min, Demo 45 min, Team round robin) open the new panel already filled in.
+- **Upcoming.** Numbers first (booked this week, show rate and no-shows over 30 days, top source), then one row of
+  controls: the span, Pick a day, search, filter pills (host, type, status, source, booked in Claritia) and List or
+  Week. Times sit on one line; busy times are thin gray rows. A meeting opens in a side panel with its actions; Join
+  shows 10 minutes before; J and K move, Enter opens.
+- **Availability.** Paint your hours on a half-hour week grid (drag across days and times; keyboard too), or Exact
+  times. A health line says how many 30-minute times your page shows next week, amber under 5 or with what's
+  missing. Team shows each person's calendar state with Connect, Reconnect or Ask.
+- **Booking page.** Styling is a brand picker: Claritia, or any brand imported in Form Studio (logo and name), plus
+  Import a brand. Each page saves its own brand (`PageLook.brand`); the server reads the form's brand, then the
+  page's, then the workspace's. Accent and button choices are gone, since the brand sets them. The preview switches
+  between Page, Meeting, Details, Booked and Reschedule, drawn by the real calendar.
+- **Links and polls.** One table with Open or All and search, a New menu (single-use link, one-off meeting, poll), a
+  share menu (Copy link, QR code drawn in the browser, Email signature) and a poll grid with Book this time.
+- **⌘K.** Copy my booking link and New meeting type.
+- **Guests.** On a phone, Next sits in a bar at the bottom of the screen. Arrow keys move through the month, Enter
+  picks a day, and each day reads out its open times. The thank-you screen shows the host, Google, Outlook and
+  Apple (`/api/book/m/<token>?ics=1`), the join link or where to find it, and its own Reschedule and Cancel
+  (`?do=move`, `?do=cancel`). A returning guest's name and email are filled in from their own browser.
+  `scripts/book-guest-check.ts`, `scripts/book-brand-check.ts`.
+
+Running cost of this work: no new AI calls or paid services. About $0 a month at Beta (50 teams) and $0 at Growth
+(500 teams). The QR code library adds about 25 KB to the Links tab, loaded only when a QR code opens.
+
 ### 1.10 Data
 
 | Table | Holds |

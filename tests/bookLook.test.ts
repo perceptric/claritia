@@ -29,8 +29,11 @@ test("the kit is used only when there is one; Claritia's look ignores it", () =>
   const brand = lookTokens(cleanLook({}), kit);
   assert.equal(brand.tokens, kit);
   assert.deepEqual(brand.vars, {}, "a kit keeps its own accent and corners until changed");
-  assert.equal(lookWords(cleanLook({}), false), "Claritia, round buttons");
-  assert.equal(lookWords(cleanLook({ buttons: "soft" }), true), "Your brand kit, soft corners");
+  assert.equal(lookWords(cleanLook({}), false), "Claritia");
+  assert.equal(lookWords(cleanLook({ buttons: "soft" }), true), "Your brand");
+  assert.equal(lookWords(cleanLook({}), true, "Acme"), "Acme");
+  assert.equal(cleanLook({ brand: A }).brand, A, "a page keeps its picked brand");
+  assert.equal(cleanLook({ brand: "nope" }).brand, undefined);
 });
 
 test("meetings follow the page's order; the rest by name", () => {

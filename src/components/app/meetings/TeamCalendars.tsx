@@ -30,7 +30,7 @@ function capsOf(user: string, types: Pick<MeetingType, "hosts" | "settings">[]):
 
 type Rep = { user_id: string; paused_until: string | null; out_dates: { from: string; to: string }[] | null };
 
-export function TeamCalendars({ sb, session, ws, role }: Pick<ViewProps, "sb" | "session" | "ws"> & { role: Role }) {
+export function TeamCalendars({ sb, session, ws, role, onFix }: Pick<ViewProps, "sb" | "session" | "ws"> & { role: Role; onFix?: () => void }) {
   const people = usePeople(sb, ws.id);
   const data = useQuery(`calendar_accounts:${ws.id}:team`, async () => {
     const [accounts, hours, types, reps] = await Promise.all([
@@ -137,6 +137,22 @@ export function TeamCalendars({ sb, session, ws, role }: Pick<ViewProps, "sb" | 
                         ) : (
                           <Badge>Not connected</Badge>
                         )}
+                        {!cal.length || cal.some((a) => a.status === "reconnect") ? (
+                          p.id === session.user.id ? (
+                            onFix ? (
+                              <Button size="sm" variant="ghost" className="h-7" onClick={onFix}>
+                                {cal.length ? "Reconnect" : "Connect"}
+                              </Button>
+                            ) : null
+                          ) : (
+                            <a
+                              href={`mailto:${p.email}?subject=${encodeURIComponent("Connect your calendar in Claritia")}&body=${encodeURIComponent(`Hi ${p.name.split(/\s+/)[0] || p.name}, please ${cal.length ? "reconnect" : "connect"} your calendar in Claritia (Meetings, Availability) so leads can book time with you.`)}`}
+                              className="press inline-flex h-7 items-center rounded-full border border-line-strong px-2.5 text-[12px] font-medium text-ink hover:border-ink/40"
+                            >
+                              Ask
+                            </a>
+                          )
+                        ) : null}
                       </span>
                     </Td>
                     <Td className="max-w-[280px] whitespace-normal">
