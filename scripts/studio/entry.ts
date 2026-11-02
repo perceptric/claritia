@@ -1,18 +1,20 @@
-// Form Studio with a stand-in server (scripts/studio-check.ts): the real screen (studio.ts), fake brands, a fake site
-// read and a canned Claude answer streamed in small pieces.
-import { mountStudio, STUDIO_CSS, STUDIO_HTML, type StudioApi } from "../../src/components/app/forms/studio/studio.ts";
+// Form Studio with a stand-in server (scripts/studio-check.ts): the real screen (studio.ts), fake brands and chats, a
+// fake site read, and canned Tia answers streamed in small pieces (the first builds, the second changes a built form).
+import { mountStudio, STUDIO_CSS, STUDIO_HTML, type StudioApi, type StudioChat } from "../../src/components/app/forms/studio/studio.ts";
 import fx from "./fixtures.json";
 
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const calls: { mode: string; body: unknown }[] = [];
-(window as unknown as { calls: typeof calls }).calls = calls;
-let kits = 0;
+const w = window as unknown as { calls: typeof calls; saved: Record<string, StudioChat> };
+w.calls = calls;
+w.saved = {};
+let tiaCalls = 0;
 const api: StudioApi = {
-  key: "clr-form-studio:test",
+  start: {},
   brands: async () => [],
   meetings: async () => [
-    { id: "11111111-1111-4111-8111-111111111111", name: "Intro call", length: 15, host: "the host" },
-    { id: "22222222-2222-4222-8222-222222222222", name: "Product demo", length: 30, host: "the team, round robin" },
+    { id: "11111111-1111-4111-8111-111111111111", name: "Intro call", length: 15 },
+    { id: "22222222-2222-4222-8222-222222222222", name: "Product demo", length: 30 },
   ],
   readSite: async (host) => {
     calls.push({ mode: "site", body: host });
@@ -25,33 +27,44 @@ const api: StudioApi = {
   confirm: async (b) => {
     calls.push({ mode: "confirm", body: b });
     await wait(200);
-    return { kitId: `kit-${++kits}` };
+    return { kitId: "44444444-4444-4444-8444-444444444444" };
   },
   look: async (kitId, fresh) => {
     calls.push({ mode: "look", body: { kitId, fresh } });
     await wait(600);
     return { css: fx.brand, say: "Finch uses a soft green and rounded buttons." };
   },
-  chat: async (turns, onText, signal) => {
-    calls.push({ mode: "chat", body: turns });
+  keepCss: (id) => void calls.push({ mode: "keepCss", body: id }),
+  deleteBrand: async (id) => void calls.push({ mode: "delete", body: id }),
+  chats: async () => Object.values(w.saved),
+  chat: async (id) => w.saved[id] ?? null,
+  fromForm: async () => null,
+  saveChat: async (c) => {
+    calls.push({ mode: "saveChat", body: JSON.parse(JSON.stringify(c)) });
+    w.saved[c.id] = JSON.parse(JSON.stringify(c));
+  },
+  deleteChat: async (id) => {
+    calls.push({ mode: "deleteChat", body: id });
+    delete w.saved[id];
+  },
+  tia: async (turns, onText, signal) => {
+    calls.push({ mode: "tia", body: turns });
+    const reply = tiaCalls++ === 0 ? fx.reply : fx.reply2;
     let all = "";
-    for (let i = 0; i < fx.reply.length; i += 400) {
+    for (let i = 0; i < reply.length; i += 400) {
       if (signal.aborted) throw Object.assign(new DOMException("stop", "AbortError"), { text: all });
-      all += fx.reply.slice(i, i + 400);
+      all += reply.slice(i, i + 400);
       onText(all);
       await wait(40);
     }
     return { text: all, cut: false };
   },
-  form: async () => null,
   publish: async (p) => {
     calls.push({ mode: "publish", body: p });
     await wait(200);
     return { formId: "33333333-3333-4333-8333-333333333333" };
   },
   formUrl: (id) => `/f/${id}`,
-  started: () => undefined,
-  deleteBrand: async (id) => void calls.push({ mode: "delete", body: id }),
   openMeetings: () => void calls.push({ mode: "openMeetings", body: null }),
   back: () => void calls.push({ mode: "back", body: null }),
 };

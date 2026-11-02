@@ -2,7 +2,12 @@
 
 What the owner asked for after using the live Studio (Nov 2): more room, one chat per form kept in the Studio,
 icons in place of words, nothing covering anything, an editor that works like Webflow or Framer right on the form,
-and a Tia that stops asking setup questions once the form is built. Status: plan only.
+and a Tia that stops asking setup questions once the form is built.
+
+Status: Parts 1 to 5 are built (`src/components/app/forms/studio/studio.ts`, `Studio.tsx`, `Sidebar.tsx`, checked by
+`scripts/studio-check.ts`). Chats and the brand's CSS are kept on the server once `supabase/migrations/112_form_chats.sql`
+is applied (Supabase, SQL editor); until then they stay in the browser and move to the server by themselves after.
+Part 6 is next.
 
 ## Part 1. Room: the sidebar and the chat fold away
 

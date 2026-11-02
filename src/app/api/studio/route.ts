@@ -19,6 +19,9 @@ import { serviceClient } from "@/lib/serviceClient";
 //   look    { kitId, fresh? }        → stream: { say, css }     the confirmed site's page source read into its brand CSS
 //                                                               (fresh: read again, past the cache)
 //   chat    { turns }                → stream: { t } deltas, then { done }   the form designer (Tia, on Claude Opus)
+//   chat-save { chat: { id, name, state, brandId, formId, body } } → { ok }   one chat with Tia (112)
+//   chat-delete { id }               → { ok }
+//   brand-css { kitId, css }         → { ok }                  the brand's CSS, edited in Code
 //   save    { formId?, name, html, css, brand, after, kitId } → { formId }   the studio form as a real form's draft;
 //                                                               /api/forms/publish then makes it live
 // Streams are lines of JSON with a heartbeat, so no proxy ends a long Opus answer. Every Claude call goes through the
@@ -125,6 +128,44 @@ export async function POST(request: Request) {
     return Response.json({ kitId });
   }
 
+  if (b.mode === "chat-save") {
+    // One chat with Tia (docs/studio-v2-plan.md, Part 2): its page, what was said, and its form once published.
+    const c = (b.chat && typeof b.chat === "object" ? b.chat : {}) as Record<string, unknown>;
+    const id = typeof c.id === "string" && UUID.test(c.id) ? c.id : "";
+    if (!id) return bad("The chat can't be read.");
+    const body = c.body && typeof c.body === "object" ? (c.body as Record<string, unknown>) : {};
+    if (JSON.stringify(body).length > 1_900_000) return bad("This chat is too long to save. Start a new chat for big changes.");
+    const kit = typeof c.brandId === "string" && UUID.test(c.brandId) ? c.brandId : null;
+    const form = typeof c.formId === "string" && UUID.test(c.formId) ? c.formId : null;
+    if (kit && !(await db.from("brand_kits").select("id").eq("id", kit).eq("workspace_id", ws).maybeSingle()).data) return bad("Brand not found.", 404);
+    if (form && !(await db.from("forms").select("id").eq("id", form).eq("workspace_id", ws).maybeSingle()).data) return bad("Form not found.", 404);
+    const had = await db.from("form_chats").select("workspace_id").eq("id", id).maybeSingle();
+    if (had.error) return Response.json({ error: "Chats aren't set up on this server yet.", missing: true }, { status: 503 });
+    if (had.data && (had.data as { workspace_id: string }).workspace_id !== ws) return bad("Chat not found.", 404);
+    const state = ["new", "draft", "live", "changed"].includes(c.state as string) ? (c.state as string) : "draft";
+    const row = { id, workspace_id: ws, form_id: form, brand_kit_id: kit, name: String(c.name ?? "").trim().slice(0, 120) || "New form", state, body, updated_at: new Date().toISOString() };
+    const up = had.data ? await db.from("form_chats").update(row).eq("id", id) : await db.from("form_chats").insert({ ...row, created_by: auth.user.id });
+    if (up.error) return bad(up.error.message, 500);
+    return Response.json({ ok: true });
+  }
+
+  if (b.mode === "brand-css") {
+    const kitId = typeof b.kitId === "string" && UUID.test(b.kitId) ? b.kitId : "";
+    const css = typeof b.css === "string" ? b.css.slice(0, 200_000) : "";
+    if (!kitId || !css.trim()) return bad("Brand not found.", 404);
+    const up = await db.from("brand_kits").update({ studio_css: css }).eq("id", kitId).eq("workspace_id", ws);
+    if (up.error) return Response.json({ error: "Brand CSS isn't kept on this server yet.", missing: true }, { status: 503 });
+    return Response.json({ ok: true });
+  }
+
+  if (b.mode === "chat-delete") {
+    const id = typeof b.id === "string" && UUID.test(b.id) ? b.id : "";
+    if (!id) return bad("Chat not found.", 404);
+    const del = await db.from("form_chats").delete().eq("id", id).eq("workspace_id", ws);
+    if (del.error) return Response.json({ error: "Chats aren't set up on this server yet.", missing: true }, { status: 503 });
+    return Response.json({ ok: true });
+  }
+
   if (b.mode === "save") {
     // The studio form as a real form: its page cleaned, its questions read into fields, checked like every form.
     const html = typeof b.html === "string" ? b.html : "";
@@ -179,8 +220,10 @@ export async function POST(request: Request) {
         const css = tag(out.text, "brand_css");
         return { result: css ? { css, say: tag(out.text, "say") ?? "" } : null, model: STUDIO_MODEL, usage, keep: !!css };
       });
-      if (!r.result) send({ error: `Couldn't read ${k.name}'s look. Try again.` });
-      else send({ css: r.result.css, say: r.result.say, faces: src?.faces ?? [] });
+      if (!r.result) return send({ error: `Couldn't read ${k.name}'s look. Try again.` });
+      // Kept on the brand (112), so every chat and teammate shares it. Before 112, the page keeps it.
+      await db.from("brand_kits").update({ studio_css: r.result.css }).eq("id", k.id).eq("workspace_id", ws);
+      send({ css: r.result.css, say: r.result.say, faces: src?.faces ?? [] });
     });
   }
 
