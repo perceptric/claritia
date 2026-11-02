@@ -272,4 +272,9 @@ page from here).
 - On submission's "Book with" offers Claritia calendar or an outside scheduler (Calendly, Cal.com, HubSpot Meetings,
   SavvyCal, any link). An outside scheduler's link is checked and opens in the form's booking spot, live and in the
   preview; routes stay with Claritia's calendar.
+- In a studio page the calendar is its own design (CAL_CSS in `src/lib/studio/runtime.ts`, the same in the Studio
+  preview): no second thank-you or check mark over it, the host and length on one line, day chips (weekday over date)
+  that scroll in their row, up to 9 times in a grid of 3 (2 on phones) with "more times", and the zone in words
+  ("Saigon (GMT+7)") with Change to open the list. It sits on the page with no box of its own. Buttons wear the
+  brand's .btn and .btn-secondary; a soft outline shows when the brand has none.
 
