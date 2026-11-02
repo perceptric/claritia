@@ -912,6 +912,45 @@ select pg_temp.check((select name from segments where id = '5e000000-0000-0000-0
 select set_config('request.jwt.claim.sub', '', false);
 delete from jobs;
 
+-- Forms (039): members read their own forms and submissions and write nothing directly; submitting, the tailor
+-- cache and the files bucket are the server's.
+insert into forms (id, workspace_id, name, slug, status, schema) values
+  ('f0000000-0000-0000-0000-0000000000a1', '11111111-0000-0000-0000-000000000000', 'Acme demo', 'acme-demo-aaaaaa', 'live', '{"v":1}'),
+  ('f0000000-0000-0000-0000-0000000000c1', '22222222-0000-0000-0000-000000000000', 'Cat demo', 'cat-demo-cccccc', 'live', '{"v":1}');
+insert into form_submissions (workspace_id, form_id, answers) values
+  ('11111111-0000-0000-0000-000000000000', 'f0000000-0000-0000-0000-0000000000a1', '{"email":"a@acme.com"}'),
+  ('22222222-0000-0000-0000-000000000000', 'f0000000-0000-0000-0000-0000000000c1', '{"email":"c@other.com"}');
+insert into form_tailor_cache (key, result) values (repeat('a', 64), '{}');
+insert into storage.objects (bucket_id, name) values
+  ('form-files', '11111111-0000-0000-0000-000000000000/f0000000-0000-0000-0000-0000000000a1/u1/cv.pdf'),
+  ('form-files', '22222222-0000-0000-0000-000000000000/f0000000-0000-0000-0000-0000000000c1/u2/cv.pdf');
+select pg_temp.as_user('b0000000-0000-0000-0000-000000000000');
+set role authenticated;
+select pg_temp.check((select count(*) from forms) = 1 and exists (select 1 from forms where name = 'Acme demo'), 'Ben sees only Acme''s forms');
+select pg_temp.check((select count(*) from form_submissions) = 1, 'Ben sees Cat''s submissions');
+select pg_temp.check(pg_temp.visible($$select count(*) from form_tailor_cache$$) = 0, 'Ben reads the tailor cache');
+select pg_temp.check((select count(*) from storage.objects where bucket_id = 'form-files') = 1, 'Ben sees Cat''s uploaded files');
+select pg_temp.fails($$insert into forms (workspace_id, name, slug, schema) values ('11111111-0000-0000-0000-000000000000', 'x', 'x-bbbbbb', '{}')$$, 'Ben writes a form without the server');
+select pg_temp.fails($$update forms set status = 'closed' where id = 'f0000000-0000-0000-0000-0000000000c1'$$, 'Ben closes Cat''s form');
+select pg_temp.fails($$update forms set name = 'x' where id = 'f0000000-0000-0000-0000-0000000000a1'$$, 'Ben edits a form without the server');
+select pg_temp.fails($$delete from form_submissions where form_id = 'f0000000-0000-0000-0000-0000000000a1'$$, 'Ben deletes submissions without the server');
+select pg_temp.fails($$insert into form_submissions (workspace_id, form_id, answers) values ('11111111-0000-0000-0000-000000000000', 'f0000000-0000-0000-0000-0000000000a1', '{}')$$, 'Ben plants a submission');
+select pg_temp.fails($$select form_submit('f0000000-0000-0000-0000-0000000000a1', null, '{}', null, '{}', null, null)$$, 'Ben submits as the server');
+select pg_temp.fails($$select form_create('11111111-0000-0000-0000-000000000000', 'b0000000-0000-0000-0000-000000000000', 'x', 'x-dddddd', '{}', '{}', null, null, false, 'draft', '[]', '[]')$$, 'Ben creates a form as the server');
+select pg_temp.fails($$select form_save('f0000000-0000-0000-0000-0000000000c1', 'b0000000-0000-0000-0000-000000000000', 'x', '{}', '{}', '[]', '[]')$$, 'Ben saves Cat''s form');
+select pg_temp.fails($$select form_fields_apply('22222222-0000-0000-0000-000000000000', '[{"key":"x","label":"X","type":"text"}]', '[]')$$, 'Ben adds fields to Cat''s workspace');
+select pg_temp.fails($$insert into storage.objects (bucket_id, name) values ('form-files', '11111111-0000-0000-0000-000000000000/x/y/z.pdf')$$, 'Ben uploads into form files');
+reset role;
+set role anon;
+select pg_temp.check(pg_temp.visible($$select count(*) from forms$$) = 0, 'A visitor lists forms');
+select pg_temp.check(pg_temp.visible($$select count(*) from form_submissions$$) = 0, 'A visitor reads submissions');
+select pg_temp.fails($$select form_submit('f0000000-0000-0000-0000-0000000000a1', null, '{}', null, '{}', null, null)$$, 'A visitor calls form_submit');
+reset role;
+select pg_temp.fails($$update forms set status = 'live', phi = true where id = 'f0000000-0000-0000-0000-0000000000a1'$$, 'A health form goes live without a BAA');
+select pg_temp.fails_with($$select form_save('f0000000-0000-0000-0000-0000000000c1', 'b0000000-0000-0000-0000-000000000000', 'x', '{}', '{}', '[]', '[]')$$, '%Form not found%', 'The server saves Cat''s form for Ben');
+select pg_temp.fails_with($$select form_create('22222222-0000-0000-0000-000000000000', 'b0000000-0000-0000-0000-000000000000', 'x', 'x-eeeeee', '{"v":1}', '{}', null, null, false, 'draft', '[]', '[]')$$, '%Workspace not found%', 'The server creates a form in Cat''s workspace for Ben');
+select set_config('request.jwt.claim.sub', '', false);
+
 -- Cloud minutes: once Acme has used its 2,000, nobody there can start a run.
 insert into runs (workspace_id, project_id, test_name, test_version, environment_name, base_url, lock, status, duration_ms)
 values ('11111111-0000-0000-0000-000000000000', 'a1000000-0000-0000-0000-000000000000', 'long', 1, 'staging', 'https://x.com', '', 'passed', 2000 * 60000);
