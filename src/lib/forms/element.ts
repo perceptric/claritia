@@ -15,6 +15,7 @@ import { calcText } from "./formula.ts";
 import { cleanHtml } from "./html.ts";
 import { allFields, isContent, nextStep, numOf, optionsFor, pickOutcome, safeUrl, visibility, withCalcs, type Choice, type Field, type FieldWidth, type Form, type RunCtx } from "./schema.ts";
 import { checkAnswers, OTHER, stepPath, type Answers } from "./values.ts";
+import { runPage, type PageRun, type Vals } from "../studio/runtime.ts";
 
 /** regions: the region lists, sent with the form when a list follows a country field (src/lib/forms/regions.ts). */
 /** css: the design system's styles compiled for this form (src/lib/design/web.ts); it starts with the layer order. */
@@ -856,6 +857,59 @@ export class ClaritiaForm extends Base {
     }
   }
 
+  // A studio page (docs/forms-chat-plan.md): the page's own HTML in the brand's CSS, drawn once and kept, so answers
+  // stay put while the send and the booking draw again. The answers go by field id through the usual send.
+  private pg: { wrap: HTMLElement; run: PageRun } | null = null;
+  private drawPage(form: Form, style: HTMLStyleElement) {
+    const p = form.page!;
+    if (!this.pg) {
+      this.setAttribute("data-page", "");
+      const css = `${p.brand}\n${p.css}`.replace(/@import\s+url\(\s*["']?([^"')]+)["']?\s*\)[^;\n]*;?|@import\s+["']([^"']+)["'][^;\n]*;?/gi, (_m, a?: string, b?: string) => (addFont((a || b || "").trim()), ""));
+      const st = el("style", { text: `${style.textContent}\n:host{display:block}.cl-root{min-height:inherit;display:flex;flex-direction:column}.cl-root>*{flex:1 0 auto}[hidden]{display:none!important}.cl-alert{color:#b23a26}\n${css.replace(/(^|[\s,{}])(?::root|html|body)(?=[\s,{:.[])/g, "$1:host")}` });
+      const wrap = el("div", { class: "cl-root" });
+      wrap.innerHTML = p.html;
+      const logo = this.data?.logo_url ?? "";
+      const ok = /^https:\/\//.test(logo) ? !!safeUrl(logo) : /^data:image\/svg\+xml[;,]/.test(logo);
+      wrap.querySelectorAll("img[data-cl-logo]").forEach((img) => (ok ? img.setAttribute("src", logo) : ((img as HTMLElement).hidden = true)));
+      const run = runPage(wrap, (v) => void this.pageSend(form, v));
+      this.pg = { wrap, run };
+      this.root.replaceChildren(st, wrap);
+    }
+    const { wrap, run } = this.pg;
+    const names = Object.fromEntries(Object.entries(p.ids).map(([n, id]) => [id, n]));
+    run.busy(this.sending);
+    run.alert(this.alert);
+    if (Object.keys(this.errors).length) run.errors(Object.fromEntries(Object.entries(this.errors).filter(([id]) => names[id]).map(([id, m]) => [names[id]!, m])));
+    if (!this.done) return;
+    run.done();
+    // A meeting to book, a page to open, a payment or a wait: the form's own end, in the page's booking spot.
+    if (this.bk || this.bkDone || this.waiting || this.schedule || this.pay || form.after.end.kind === "redirect") {
+      const spot = wrap.querySelector<HTMLElement>("[data-cl-book]") ?? wrap.querySelector<HTMLElement>("[data-cl-thanks]") ?? wrap;
+      spot.hidden = false;
+      spot.replaceChildren(this.endScreen(form));
+    }
+  }
+
+  private async pageSend(form: Form, v: Vals) {
+    if (this.sending || this.done) return;
+    const types = new Map(allFields(form).map((f) => [f.id, f.type]));
+    const answers: Answers = {};
+    for (const [name, id] of Object.entries(form.page!.ids)) {
+      const x = v[name];
+      const t = types.get(id);
+      if (x === undefined || (Array.isArray(x) ? !x.length : x === "")) continue;
+      answers[id] = t === "checkbox" ? true : t === "multi" ? (Array.isArray(x) ? x : [x]) : Array.isArray(x) ? String(x[0]) : x;
+    }
+    this.answers = answers;
+    this.errors = {};
+    this.alert = "";
+    if (this.isPreview) {
+      this.done = true;
+      return this.render();
+    }
+    await this.send();
+  }
+
   /** The brand's logo over the form, unless the form hides it. https or an inline SVG picture only. */
   private logo(form: Form): HTMLElement | null {
     const u = this.data?.logo_url ?? "";
@@ -874,6 +928,7 @@ export class ClaritiaForm extends Base {
     if (d.skin?.fonts) addFaces(d.skin.fonts, this.base);
     const style = el("style", { text: `${d.css ?? ""}\n:host{${tokensCss(d.tokens)}--clr-width:${width}}\n@layer base{${STYLES}}${d.skin?.css ? `\n${d.skin.css.replace(/<\//g, "")}` : ""}` });
     if (d.status === "paused") return this.put(style, el("div", { class: "f" }, el("p", { class: "i", text: "This form is closed." })));
+    if (form.page) return this.drawPage(form, style);
     if (this.done) {
       const res = this.resultPanel(form);
       const end = this.endScreen(form);

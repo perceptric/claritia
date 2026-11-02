@@ -32,8 +32,9 @@ import { meetingTypes, type TypeRow } from "../meetings/TypesList";
 import { Studio } from "./studio/Studio";
 
 export function FormsView(props: ViewProps) {
-  if (props.id === "studio") return <Studio {...props} />;
-  if (props.id === "new") return <FormHome key="new" {...props} startNew />;
+  // New form is Form Studio (docs/forms-chat-plan.md): chat with Tia on the left, the live form on the right.
+  if (props.id === "studio") return <Studio key="studio" {...props} />;
+  if (props.id === "new") return <Studio key="new" {...props} fresh />;
   if (props.id && props.id !== "overview") return <FormPage key={props.id} {...props} />;
   return <FormHome {...props} />;
 }
@@ -89,6 +90,8 @@ function FormPage(props: ViewProps) {
   if (data.error && !data.data) return <div className="p-[16px]"><ErrorNote message={data.error} /></div>;
   if (!data.data) return <Loading />;
   if ("none" in data.data) return <div className="p-[24px] text-muted">Form not found</div>;
+  // A studio form opens in Form Studio; its other tabs (?tab=submissions and the rest) open here as for every form.
+  if (data.data.row.draft && "page" in (data.data.row.draft as object) && typeof window !== "undefined" && !new URLSearchParams(window.location.search).get("tab")) return <Studio {...props} formId={id} />;
   const patchRow = (p: Partial<FormData["row"]>) => data.set((d) => ("none" in d ? d : { ...d, row: { ...d.row, ...p } }));
   const patchKits = (fn: (kits: Kit[]) => Kit[]) => data.set((d) => ("none" in d ? d : { ...d, kits: fn(d.kits) }));
   const patchDests = (fn: (d: Destination[]) => Destination[]) => data.set((d) => ("none" in d ? d : { ...d, dests: fn(d.dests) }));
