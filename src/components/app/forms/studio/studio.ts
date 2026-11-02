@@ -2,6 +2,7 @@
 // @ts-nocheck
 import { DEFAULT_CONSENT } from "../../../../lib/forms/schema";
 import { checkStudioPage } from "../../../../lib/studio/check";
+import { linkProblem, SCHEDULERS } from "../../../../lib/forms/schedule";
 import { INDUSTRIES, industryOf, isRtl, languageName, profileWords, recipeText } from "../../../../lib/studio/industries";
 import { ACCESS_CSS, around, consentSpot, linkErrors } from "../../../../lib/studio/runtime";
 import { TIA_STYLE, tiaSvg } from "../../../../lib/studio/tia";
@@ -380,6 +381,8 @@ export type StudioApi = {
   deleteChat(id: string): Promise<void>;
   /** brand: the chat's brand block (cached on the server); built: a change to a built form; files: attached to this message. */
   tia(turns: { role: "user" | "assistant"; content: string }[], onText: (all: string) => void, signal: AbortSignal, o?: { brand?: string; built?: boolean; files?: { name: string; type: string; data: string }[] }): Promise<{ text: string; cut: boolean }>;
+  /** A meeting type's real open times (epoch ms starts) and its length, for the preview's calendar. */
+  times(typeId: string): Promise<{ starts: number[]; length: number }>;
   /** The form's words in another language, in the same order. */
   translate(texts: string[], lang: string): Promise<string[]>;
   publish(p: { formId: string | null; name: string; html: string; css: string; brand: string; after: unknown; kitId: string; lang?: string; langs?: Record<string, string> }): Promise<{ formId: string; problem?: string }>;
@@ -491,7 +494,7 @@ export function mountStudio(shell: ShadowRoot, api: StudioApi): () => void {
   const BASE = `${ACCESS_CSS}.cl-bookph{border:1px dashed rgba(127,127,127,.6);border-radius:10px;padding:18px;text-align:center;font:500 12px system-ui,sans-serif;opacity:.7}.cl-divider{font:600 11px/1 system-ui,sans-serif;letter-spacing:.06em;text-transform:uppercase;color:#7a7a7a;border-top:1px dashed rgba(127,127,127,.55);padding:10px 0 0;margin:20px 0 10px}.cl-edit [data-cl-if]{outline:1px dashed rgba(109,40,217,.55);outline-offset:3px}.cl-edit [data-cl-if]::before{content:attr(data-cl-if);display:block;width:max-content;max-width:100%;font:500 11px/1.7 system-ui,sans-serif;color:#6d28d9;background:rgba(109,40,217,.08);border-radius:4px;padding:0 6px;margin-bottom:6px;white-space:normal}.cl-block{display:flex;flex-direction:column;gap:8px}.cl-two{display:grid;grid-template-columns:1fr 1fr;gap:8px}.cl-addr{display:flex;flex-direction:column;gap:8px}.cl-rate{display:flex;gap:6px;font-size:26px;line-height:1;opacity:.6}.cl-num{font-size:14px;border:1px solid currentColor;border-radius:8px;padding:8px 12px}.cl-sign{min-height:110px}
 .cl-consent{display:flex;gap:8px;align-items:flex-start;font-size:13px;line-height:1.4;opacity:.85}.cl-consent input{margin:2px 0 0}
 :host{all:initial;display:flex;flex-direction:column;flex:1}*,*::before,*::after{box-sizing:border-box}[hidden]{display:none!important}.cl-root{flex:1;min-height:560px;display:flex;flex-direction:column}.cl-root>*{flex:1 0 auto}
-.cl-cal{display:flex;flex-direction:column;gap:12px;margin-top:6px}.cl-days{display:flex;gap:6px;flex-wrap:wrap}.cl-times{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}.cl-day,.cl-time{font:inherit;padding:8px 10px;border-radius:10px;border:1.5px solid rgba(127,127,127,.35);background:transparent;color:inherit;cursor:pointer}.cl-day[aria-pressed=true],.cl-time[aria-pressed=true]{border-color:currentColor}
+.cl-cal{display:flex;flex-direction:column;gap:12px;margin-top:6px}.cl-days{flex-wrap:wrap}.cl-days .cl-day{width:auto;flex:0 0 auto;padding-left:14px;padding-right:14px;white-space:nowrap}.cl-times .cl-time{width:100%;min-width:0;padding-left:8px;padding-right:8px;white-space:nowrap}.cl-days{display:flex;gap:6px;flex-wrap:wrap}.cl-times{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}.cl-day,.cl-time{font:inherit;padding:8px 10px;border-radius:10px;border:1.5px solid rgba(127,127,127,.35);background:transparent;color:inherit;cursor:pointer}.cl-day[aria-pressed=true],.cl-time[aria-pressed=true]{border-color:currentColor}
 .cl-edit [data-k]{cursor:default}.cl-edit [contenteditable]{outline:none;cursor:text}`;
   let stepAt = 0, done = false;
   function draw() {
@@ -617,23 +620,54 @@ export function mountStudio(shell: ShadowRoot, api: StudioApi): () => void {
     if (done && !editing) booking(w, values(w));
   }
   // After the send in the preview: the page, or a sample of the booking calendar for the meeting the answers pick.
+  // Real open times per meeting type, read once a minute at most.
+  const timesCache = new Map();
+  const timesFor = (id) => { const hit = timesCache.get(id); if (hit && Date.now() - hit.at < 60_000) return hit.p; const p = api.times(id).catch(() => null); timesCache.set(id, { at: Date.now(), p }); return p; };
   function booking(w, v) {
+    const a0 = body().after;
+    const spot0 = w.querySelector("[data-cl-book]") || w.querySelector("[data-cl-thanks]");
+    // An outside scheduler opens in the form, as it will live.
+    if (a0.kind === "meeting" && a0.tool && a0.tool !== "claritia" && spot0) {
+      spot0.hidden = false;
+      spot0.replaceChildren(!linkProblem(a0.tool, a0.link || "") ? h("iframe", { src: a0.link, title: "Book a meeting", style: "width:100%;min-height:640px;border:0", loading: "lazy" }) : h("p", { class: "text", text: "Add the scheduler's link in On submission." }));
+      return;
+    }
+    if (a0.kind === "meeting" && spot0) return realCalendar(w, v, spot0);
+    return sampleCalendar(w);
+  }
+  // Claritia's calendar with the meeting type's real open times, in the brand's classes, as the live form draws it.
+  async function realCalendar(w, v, spot) {
     const a = body().after;
-    const spot = w.querySelector("[data-cl-book]") || w.querySelector("[data-cl-thanks]");
-    if (a.kind === "page") { if (spot) spot.append(h("p", { class: "cl-sub", text: `Then the visitor opens ${a.url || "your page"}` })); return; }
-    if (a.kind !== "meeting" || !spot) return;
     const r = (a.routes || []).find((x) => [].concat(v[x.field] ?? []).includes(x.value));
     const m = MEETINGS.find((x) => x.id === (r ? r.meeting : a.meeting)) || MEETINGS[0];
-    if (!m) return spot.replaceChildren(h("p", { text: "No meeting types yet." }));
-    const cal = h("div", { class: "cl-cal" }, h("strong", { text: `${m.name}, ${m.length} min` }));
-    const days = h("div", { class: "cl-days" }), times = h("div", { class: "cl-times" });
-    let d0 = new Date(); const list = []; while (list.length < 5) { d0 = new Date(d0.getTime() + 864e5); if (d0.getDay() % 6) list.push(d0); }
-    list.forEach((d, i) => days.append(h("button", { type: "button", class: "cl-day", "aria-pressed": String(i === 0), text: d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" }), onclick: (e) => days.querySelectorAll("button").forEach((b) => b.setAttribute("aria-pressed", String(b === e.currentTarget))) })));
-    ["9:00 AM", "10:30 AM", "1:00 PM", "2:30 PM", "4:00 PM", "4:30 PM"].forEach((t) => times.append(h("button", { type: "button", class: "cl-time", text: t, onclick: () => cal.replaceChildren(h("strong", { text: `Booked: ${m.name} at ${t}. The invite is on its way.` })) })));
-    cal.append(days, times);
     spot.hidden = false;
+    if (!m) return spot.replaceChildren(h("p", { class: "text", text: "No meeting types yet." }));
+    spot.replaceChildren(h("p", { class: "text", text: "\u2026" }));
+    const t = await timesFor(m.id);
+    if (!spot.isConnected) return;
+    const zone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    const dayKey = (ms) => new Date(ms).toLocaleDateString("en-CA", { timeZone: zone });
+    const days = [];
+    for (const s of t?.starts || []) { const k = dayKey(s); let d = days.find((x) => x.k === k); if (!d) { if (days.length >= 7) continue; d = { k, starts: [] }; days.push(d); } d.starts.push(s); }
+    const cal = h("div", { class: "cl-cal" }, h("h3", { class: "heading", text: `${m.name}, ${t?.length || m.length} min` }));
+    if (!days.length) { cal.append(h("p", { class: "text", text: t ? "No open times right now." : "Couldn't read the open times." })); return spot.replaceChildren(cal); }
+    let pick = days[0];
+    const dayRow = h("div", { class: "cl-days" }), timeRow = h("div", { class: "cl-times" });
+    const fmtDay = (ms) => new Date(ms).toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric", timeZone: zone });
+    const fmtTime = (ms) => new Date(ms).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit", timeZone: zone });
+    const drawTimes = () => { timeRow.replaceChildren(...pick.starts.slice(0, 24).map((s) => h("button", { type: "button", class: "btn-secondary cl-time", text: fmtTime(s), onclick: () => cal.replaceChildren(h("h3", { class: "heading", text: `Booked: ${fmtDay(s)}, ${fmtTime(s)}` }), h("p", { class: "text", text: "Preview only: nothing was booked." })) }))); };
+    days.forEach((d) => dayRow.append(h("button", { type: "button", class: `${d === pick ? "btn" : "btn-secondary"} cl-day`, "aria-pressed": String(d === pick), text: fmtDay(d.starts[0]), onclick: () => { pick = d; dayRow.querySelectorAll("button").forEach((b, i) => { const on = days[i] === d; b.setAttribute("aria-pressed", String(on)); b.className = `${on ? "btn" : "btn-secondary"} cl-day`; }); drawTimes(); } })));
+    drawTimes();
+    cal.append(h("p", { class: "text", text: zone.replace(/_/g, " ") }), dayRow, timeRow);
     spot.replaceChildren(cal);
   }
+  // After the send to a page: the preview says where it goes.
+  function sampleCalendar(w) {
+    const a = body().after;
+    const spot = w.querySelector("[data-cl-book]") || w.querySelector("[data-cl-thanks]");
+    if (a.kind === "page" && spot) spot.append(h("p", { class: "text", text: `Then the visitor opens ${a.url || "your page"}` }));
+  }
+
 
   // ── Edit on the form: hover tags, pick, type in place, the floating bar ─────────────────────────────────
   const NAMES = { H1: "Heading", H2: "Heading", H3: "Heading", H4: "Heading", P: "Text", SPAN: "Text", LABEL: "Label", BUTTON: "Button", INPUT: "Input", TEXTAREA: "Text box", SELECT: "Dropdown", IMG: "Logo", FORM: "Form", SECTION: "Step", DIV: "Box", I: "Fill", B: "Text", STRONG: "Text", EM: "Text", A: "Link", UL: "List", LI: "Item", FIELDSET: "Group", LEGEND: "Heading" };
@@ -1095,6 +1129,19 @@ export function mountStudio(shell: ShadowRoot, api: StudioApi): () => void {
     if (a.kind === "page") { const i = h("input", { class: "in", placeholder: "https://yourcompany.com/thanks", value: a.url || "", "aria-label": "Page address", style: "height:34px" }); i.addEventListener("change", () => set({ url: i.value.trim() })); c1.append(i); }
     box.append(c1);
     if (a.kind !== "meeting") return;
+    // Where they book: Claritia's own calendar, or an outside scheduler opened in the form.
+    const tool = a.tool || "claritia";
+    const cS = h("div", { class: "card2" }, h("h3", { text: "Book with" }), pills([["claritia", "Claritia calendar"], ...SCHEDULERS.map((x) => [x.value, x.label])], tool, (t) => set({ tool: t === "claritia" ? "" : t })));
+    if (tool !== "claritia") {
+      const i = h("input", { class: "in", placeholder: SCHEDULERS.find((x) => x.value === tool)?.domain ? `https://${SCHEDULERS.find((x) => x.value === tool).domain}/your-team/demo` : "https://", value: a.link || "", "aria-label": "Scheduler link", style: "height:34px" });
+      i.addEventListener("change", () => set({ link: i.value.trim() }));
+      cS.append(i);
+      const problem = a.link ? linkProblem(tool, a.link) : null;
+      if (problem) cS.append(h("p", { class: "err", text: problem }));
+      box.append(cS);
+      return;
+    }
+    box.append(cS);
     if (!MEETINGS.length) { box.append(h("div", { class: "card2" }, h("h3", { text: "No meeting types yet" }), h("div", {}, h("button", { class: "pill", text: "Open Meetings", onclick: () => api.openMeetings() })))); return; }
     box.append(h("div", { class: "card2" }, h("h3", { text: "Meeting" }), pills(MEETINGS.map((m) => [m.id, `${m.name}, ${m.length} min`]), a.meeting, (id) => set({ meeting: id }))));
     const qs = questions().filter((q) => q.options.length);
@@ -1589,7 +1636,7 @@ export function mountStudio(shell: ShadowRoot, api: StudioApi): () => void {
       changedSomething = true;
     }
     if (add?.closed && add.body.trim()) { const css = c.body.css; const i = css.indexOf(EDIT); c.body.css = i >= 0 ? `${css.slice(0, i).trimEnd()}\n${add.body.trim()}\n${css.slice(i)}` : `${css.trimEnd()}\n${add.body.trim()}`; changedSomething = true; }
-    if (af?.closed) { try { const a = JSON.parse(af.body); if (["thanks", "page", "meeting"].includes(a.kind)) { c.body.after = { kind: a.kind, url: String(a.url || ""), meeting: MEETINGS.some((m) => m.id === a.meeting) ? a.meeting : c.body.after.meeting || MEETINGS[0]?.id || "", routes: Array.isArray(a.routes) ? a.routes.filter((r) => r && r.field && MEETINGS.some((m) => m.id === r.meeting)).map((r) => ({ field: String(r.field), value: String(r.value ?? ""), meeting: r.meeting })) : [] }; changedSomething = true; } } catch {} }
+    if (af?.closed) { try { const a = JSON.parse(af.body); if (["thanks", "page", "meeting"].includes(a.kind)) { c.body.after = { kind: a.kind, url: String(a.url || ""), ...(a.tool && a.tool !== "claritia" && SCHEDULERS.some((x) => x.value === a.tool) ? { tool: a.tool, link: String(a.link || "") } : {}), meeting: MEETINGS.some((m) => m.id === a.meeting) ? a.meeting : c.body.after.meeting || MEETINGS[0]?.id || "", routes: Array.isArray(a.routes) ? a.routes.filter((r) => r && r.field && MEETINGS.some((m) => m.id === r.meeting)).map((r) => ({ field: String(r.field), value: String(r.value ?? ""), meeting: r.meeting })) : [] }; changedSomething = true; } } catch {} }
     // Built is built: a question only stands when nothing changed.
     if (ask?.closed && !(wasBuilt && changedSomething)) { try { const a = JSON.parse(ask.body); if (a.question) reply.ask = { question: String(a.question), options: (a.options || []).map(String).slice(0, 5) }; } catch {} }
     if (changedSomething) reply.did = (did?.closed && did.body.trim().slice(0, 60)) || (wasBuilt ? "Changed the form" : "Built the form");

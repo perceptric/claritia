@@ -182,6 +182,7 @@ export function Studio({ sb, session, ws, navigate, formId = "", fresh = false }
         if (!out) throw new Error(err || "Couldn't read the brand's look. Try again.");
         return out;
       },
+      times: (typeId) => postJson<{ starts: number[]; length: number }>(sessionRef.current, "/api/meetings/times", { workspaceId: ws.id, typeId, pick: true }),
       translate: async (texts, lang) => (await postJson<{ texts: string[] }>(sessionRef.current, "/api/studio", { workspaceId: ws.id, mode: "translate", texts, lang })).texts,
       tia: async (turns, onText, signal, o) => {
         let all = "";

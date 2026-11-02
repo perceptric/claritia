@@ -143,8 +143,10 @@ try {
   await form.locator("[data-cl-next]").click();
   await form.locator('input[name="email"]').fill("sam@example.com");
   await form.locator("[type=submit]").click();
-  await form.locator(".cl-cal").waitFor();
-  check((await form.locator(".cl-cal strong").first().textContent())!.includes("Intro call"), "the route books the right meeting");
+  await form.locator(".cl-cal .cl-time").first().waitFor();
+  check((await form.locator(".cl-cal h3").first().textContent())!.includes("Intro call"), "the route books the right meeting");
+  check((await calls()).some((c) => c.mode === "times" && String(c.body).startsWith("1111")) && (await form.locator(".cl-cal .cl-day").count()) === 2 && (await form.locator(".cl-cal .cl-time").count()) === 3, "the preview shows the meeting type's real open times");
+  check((await form.locator(".cl-cal .cl-day").first().getAttribute("class"))!.includes("btn") && (await form.locator(".cl-cal .cl-time").first().getAttribute("class"))!.includes("btn-secondary"), "the calendar wears the brand's button classes");
 
   // 6. Edit: pick, type in place, the floating bar, undo, and nothing covers anything
   await $("#t-edit").click();
@@ -206,6 +208,21 @@ try {
   await $("#t-after").click();
   const after = (await $("#afterInner").textContent())!;
   check(after.includes("Intro call") && after.includes("Product demo"), "On submission lists the workspace's meeting types");
+  // An outside scheduler: its link, checked, and opened in the form's booking spot
+  await $("#afterInner .pill").filter({ hasText: "Calendly" }).click();
+  await $("#afterInner input[aria-label='Scheduler link']").fill("https://evil.example/x");
+  await $("#afterInner input[aria-label='Scheduler link']").press("Enter");
+  await $("#afterInner .err").waitFor();
+  check(true, "a scheduler link that isn't the scheduler's is caught");
+  await $("#afterInner input[aria-label='Scheduler link']").fill("https://calendly.com/finch/coach");
+  await $("#afterInner input[aria-label='Scheduler link']").press("Enter");
+  await $("#t-preview").click();
+  await $("#stepBar .sp").filter({ hasText: "Thank-you" }).click();
+  await form.locator("#book iframe").waitFor({ state: "attached" });
+  check((await form.locator("#book iframe").getAttribute("src")) === "https://calendly.com/finch/coach", "Calendly opens in the form's booking spot");
+  await $("#t-after").click();
+  await $("#afterInner .pill").filter({ hasText: "Claritia calendar" }).click();
+  check((await $("#afterInner").textContent())!.includes("Route by answer"), "back to Claritia's calendar with its routes");
 
   // 7b. The form check: a sound form is ready; a broken one can't be published, and Tia gets the fix
   await p.waitForFunction(() => !document.querySelector("#studio")!.shadowRoot!.getElementById("checkBtn")!.hidden);
@@ -306,6 +323,7 @@ try {
   check(sent[ids.name!] === "Sam" && sent[ids.email!] === "sam@example.com" && sent[ids.mood!] === "tender" && sent[ids.why!] === "A long week", "the live form sends each answer by its field id");
   check(sent[ids.photo!] === "up_11111111-1111-4111-8111-111111111111:day.png", "the uploaded file goes with the answers");
   check((await lf.locator("[data-cl-book] .tm .pl").count()) > 0, "the booking calendar opens in the page's booking spot");
+  check((await lf.locator("[data-cl-book] .tm .pl.btn-secondary").count()) > 0 && (await lf.locator("[data-cl-book] .h.heading").count()) > 0, "the live calendar wears the brand's classes");
   check((await lf.locator("#clr-consent").count()) === 1 && (await lf.locator('input[name="company_url"]').count()) === 1, "the live form has the consent line and the spam trap");
   if (shots) await lp.screenshot({ path: `${shots}/5-live.png` });
 
