@@ -32,9 +32,10 @@ const api: StudioApi = {
   look: async (kitId, fresh) => {
     calls.push({ mode: "look", body: { kitId, fresh } });
     await wait(600);
-    return { css: fx.brand, say: "Finch uses a soft green and rounded buttons." };
+    return { css: fx.brand, say: "Finch uses a soft green and rounded buttons.", profile: { industry: "health", language: "en", country: "US", languages: ["en", "es"] } };
   },
   keepCss: (id) => void calls.push({ mode: "keepCss", body: id }),
+  keepProfile: (id, profile) => void calls.push({ mode: "keepProfile", body: { id, profile } }),
   deleteBrand: async (id) => void calls.push({ mode: "delete", body: id }),
   chats: async () => Object.values(w.saved),
   chat: async (id) => w.saved[id] ?? null,

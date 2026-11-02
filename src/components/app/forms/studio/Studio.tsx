@@ -10,10 +10,11 @@ import { useEffect, useRef } from "react";
 import { logoOf, type KitLite } from "../new/NewForm";
 import { fetchMeetingTypes } from "../../meetings/TypesList";
 import { brandName } from "@/lib/brand/name";
+import { readProfile } from "@/lib/studio/industries";
 import { invalidate, must, postJson, type ViewProps } from "../../ui";
 import { mountStudio, STUDIO_CSS, STUDIO_HTML, type StudioApi } from "./studio";
 
-type Line = { t?: string; done?: string; cut?: boolean; css?: string; say?: string; error?: string; working?: number; beat?: number };
+type Line = { t?: string; done?: string; cut?: boolean; css?: string; say?: string; profile?: unknown; error?: string; working?: number; beat?: number };
 
 /** Read a stream of JSON lines from /api/studio, one line at a time. */
 async function readLines(res: Response, onLine: (l: Line) => void) {
@@ -83,6 +84,7 @@ export function Studio({ sb, session, ws, navigate, formId = "", fresh = false }
       fetch("/api/studio", { method: "POST", signal, headers: { "Content-Type": "application/json", Authorization: `Bearer ${sessionRef.current.access_token}` }, body: JSON.stringify({ workspaceId: ws.id, ...b }) });
     const LOCAL = `clr-studio-chats:${ws.id}`;
     const cssKey = (id: string) => `clr-studio-css:${id}`;
+    const profileKey = (id: string) => `clr-studio-profile:${id}`;
     // Before 112 the chats live in this browser; the browser copy stays as a backup after.
     let local = false;
     const localChats = () => read<Chat[]>(LOCAL, []);
@@ -91,10 +93,14 @@ export function Studio({ sb, session, ws, navigate, formId = "", fresh = false }
     const api: StudioApi = {
       start: { formId, fresh },
       brands: async () => {
-        let res = await sb.from("brand_kits").select(`${KIT_COLS}, studio_css`).eq("workspace_id", ws.id).order("created_at");
+        // The brand's CSS (112) and industry (113), falling back as the database catches up.
+        let res = await sb.from("brand_kits").select(`${KIT_COLS}, studio_css, studio_profile`).eq("workspace_id", ws.id).order("created_at");
+        if (res.error) res = (await sb.from("brand_kits").select(`${KIT_COLS}, studio_css`).eq("workspace_id", ws.id).order("created_at")) as typeof res;
         if (res.error) res = (await sb.from("brand_kits").select(KIT_COLS).eq("workspace_id", ws.id).order("created_at")) as typeof res;
-        const kits = (must(res) ?? []) as (KitLite & { name?: string | null; studio_css?: string | null })[];
-        return kits.filter((k) => k.source_url).map((k) => ({ id: k.id, name: brandName(k), site: hostOf(k.source_url), logo: logoOf(k), css: k.studio_css || read<string>(cssKey(k.id), "") }));
+        const kits = (must(res) ?? []) as (KitLite & { name?: string | null; studio_css?: string | null; studio_profile?: unknown })[];
+        return kits
+          .filter((k) => k.source_url)
+          .map((k) => ({ id: k.id, name: brandName(k), site: hostOf(k.source_url), logo: logoOf(k), css: k.studio_css || read<string>(cssKey(k.id), ""), profile: readProfile(k.studio_profile) ?? readProfile(read(profileKey(k.id), null)) }));
       },
       meetings: async () => (await fetchMeetingTypes(sb, ws.id)).filter((t) => t.active).map((t) => ({ id: t.id, name: t.name, length: t.settings?.lengths?.[0] ?? 30 })),
       chats: async () => {
@@ -134,6 +140,10 @@ export function Studio({ sb, session, ws, navigate, formId = "", fresh = false }
         write(LOCAL, localChats().filter((x) => x.id !== id));
         if (!local) await post({ mode: "chat-delete", id });
       },
+      keepProfile: (id, profile) => {
+        write(profileKey(id), profile);
+        void post({ mode: "brand-profile", kitId: id, profile }).catch(() => undefined);
+      },
       keepCss: (id, css) => {
         write(cssKey(id), css);
         void post({ mode: "brand-css", kitId: id, css }).catch(() => undefined);
@@ -163,11 +173,11 @@ export function Studio({ sb, session, ws, navigate, formId = "", fresh = false }
         return r;
       },
       look: async (kitId, again) => {
-        let out: { css: string; say: string } | null = null;
+        let out: { css: string; say: string; profile: ReturnType<typeof readProfile> } | null = null;
         let err = "";
         await readLines(await post({ mode: "look", kitId, fresh: again }), (l) => {
           if (l.error) err = l.error;
-          if (l.css) out = { css: l.css, say: l.say ?? "" };
+          if (l.css) out = { css: l.css, say: l.say ?? "", profile: readProfile(l.profile) };
         });
         if (!out) throw new Error(err || "Couldn't read the brand's look. Try again.");
         return out;

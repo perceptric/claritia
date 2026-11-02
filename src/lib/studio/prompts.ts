@@ -56,6 +56,8 @@ export const BRAND_RULES = `You read a company's website and write its brand sty
 
 Answer with only:
 <say>One short sentence on what you found (fonts, main color, button style).</say>
+<profile>{"industry":"KEY","language":"en","country":"US","languages":["en"]}</profile>
+(KEY is one of saas, agency, health, legal, realestate, finance, education, homeservices, events, recruiting, retail, nonprofit, general, from what the business does. language is the site's main language code, country its two-letter country from its address, phone numbers, currency or domain, empty when unsure, and languages every language the site offers.)
 <brand_css>
 1. Google Fonts @import first, only https://fonts.googleapis.com, and only fonts the site uses. When the site's own font isn't on Google Fonts, name it with the site's fallbacks; its files are loaded for you when listed under FONTS.
 2. :root variables for the site's colors (--brand-primary, --brand-text, --brand-muted, --brand-bg, --brand-surface, --brand-line, and any others it uses), font families and corner radius.

@@ -111,7 +111,7 @@ export function sensitiveIssues(questions: PageQuestion[], html: string): Issue[
  * step, a send button, conditions and routes that point at real questions, answers and meetings, a thank-you, and
  * nothing the form must never ask for. `meetings` is the workspace's meeting types (null when unknown).
  */
-export function checkStudioPage(p: { html: string; after: PageAfter; meetings: { id: string; name: string }[] | null }): Issue[] {
+export function checkStudioPage(p: { html: string; after: PageAfter; meetings: { id: string; name: string }[] | null; industry?: string | null }): Issue[] {
   const { html, questions } = cleanPage(p.html);
   const tree = pageTree(html);
   const out: Issue[] = [];
@@ -178,7 +178,15 @@ export function checkStudioPage(p: { html: string; after: PageAfter; meetings: {
   // A file box of the page's own can't upload: uploads are the file block.
   if (/<input[^>]*type\s*=\s*["']?file/i.test(p.html)) add("error", "file-input", "A file box on the page can't upload files. Use the file upload block.", 'Replace the file input with the Claritia file block: <div data-cl-field="file" data-cl-name="..." data-cl-label="..."></div>.');
   // The page as written: the cleaner turns a password box into a text box, so it's read before cleaning.
-  out.push(...sensitiveIssues(questions, p.html));
+  const sens = sensitiveIssues(questions, p.html);
+  // Hiring, lending and housing laws: protected questions are stopped there, not just noted.
+  if (p.industry === "recruiting" || p.industry === "finance" || p.industry === "realestate") for (const i of sens) if (i.code === "protected") i.level = "error";
+  out.push(...sens);
+  const words = textOf(tree).toLowerCase();
+  if (p.industry === "legal" && !/(doesn'?t|does not|won'?t|will not) (make|create|form)|not legal advice|attorney.client|no lawyer.client/.test(words))
+    add("warning", "legal-notice", "Law firms usually say that sending the form doesn't make someone a client.", "Add a short line near the send button that sending the form doesn't make them a client or give legal advice.");
+  if (p.industry === "education" && questions.some((q) => /\b(age|grade|year|date of birth)\b/i.test(q.label)) && !/(parent|guardian)/.test(words))
+    add("warning", "parent", "Students may be under 13: ask for a parent or guardian's details.", "Add a parent or guardian name and email, shown when the student is under 13.");
   // One line per problem.
   const seen = new Set<string>();
   return out.filter((i) => (seen.has(i.text) ? false : (seen.add(i.text), true)));
