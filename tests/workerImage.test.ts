@@ -4,7 +4,7 @@
 // each package it needs is in worker-intel/package.json.
 import assert from "node:assert/strict";
 import { builtinModules } from "node:module";
-import { cpSync, globSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync } from "node:fs";
+import { cpSync, existsSync, globSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
@@ -20,6 +20,9 @@ test("every import the worker reaches is in its image", async () => {
       if (!m) continue;
       const parts = m[1]!.split(/\s+/);
       const dest = join(dir, parts.pop()!);
+      // Docker refuses a COPY whose files are gone (a pattern that matches nothing, a folder that was removed), and
+      // the deploy fails; so does this.
+      for (const p of parts) assert.ok(p.includes("*") ? globSync(p, { cwd: root }).length > 0 : existsSync(join(root, p)), `worker-intel/Dockerfile copies ${p}, which isn't there`);
       for (const src of parts.flatMap((p) => (p.includes("*") ? globSync(p, { cwd: root }) : [p]))) {
         const from = join(root, src);
         const isDir = statSync(from).isDirectory();
