@@ -41,6 +41,7 @@ const server = createServer((req, res) => {
   if (req.url === `/api/forms/${LIVE_ID}`) return json({ id: LIVE_ID, version: 1, status: "live", body: live, tokens: {}, logo_url: "https://cdn.example/logo.svg" });
   if (req.url === `/api/forms/${LIVE_ID}/submit`) return void body().then((b) => (sends.push(JSON.parse(b)), json({ id: "s1", booking: { token: "t", slots: sampleSlots(Date.now()), lengths: [30], length: 30 } })));
   if (req.url?.startsWith(`/api/forms/${LIVE_ID}/seen`)) return json({});
+  if (req.url === `/api/forms/${LIVE_ID}/upload`) return void body().then(() => json({ token: "up_11111111-1111-4111-8111-111111111111:day.png" }));
   if (req.url?.startsWith("/app.css")) return void res.writeHead(200, { "content-type": "text/css" }).end(css);
   if (req.url?.startsWith("/app.js")) return void res.writeHead(200, { "content-type": "text/javascript" }).end(js);
   res.writeHead(200, { "content-type": "text/html" }).end(page);
@@ -93,6 +94,7 @@ try {
   const first = (await calls()).find((c) => c.mode === "tia")!.body as { content: string }[];
   check(first.at(-1)!.content.includes("[NOTHING BUILT YET]") && first.at(-1)!.content.includes("11111111-1111-4111-8111-111111111111: Intro call, 15 min"), "the first message says nothing is built and carries the meeting types");
   check(await form.locator("#title").isVisible(), "the form draws in the preview");
+  check((await form.locator('#photo input[type="file"]').count()) === 1 && (await form.locator("#photo .label").textContent())!.includes("A photo of your day"), "a Claritia block shows in the preview with its label");
   const logo = await p.evaluate(() => (document.querySelector("#studio")!.shadowRoot!.getElementById("host")!.shadowRoot!.querySelector("img[data-cl-logo]") as HTMLImageElement | null)?.src ?? "");
   check(logo.startsWith("data:image/png"), "the form shows the brand's real logo");
   check((await $("#chatPick").textContent())!.includes("Daily check-in"), "the chat takes the form's name");
@@ -145,8 +147,10 @@ try {
   check(!!pubBox && !!panelBox && pubBox.y + pubBox.height <= panelBox.y, "the panel sits below the bar and never covers Publish");
   for (const id of ["t-preview", "t-edit", "t-code", "t-after", "d-desk", "d-tab", "d-phone"]) if (!(await $(`#${id}`).getAttribute("data-tip"))) check(false, `${id} has a tooltip`);
   check((await $("#t-edit").textContent())!.trim() === "", "views are icons with tooltips");
-  await form.locator('label:has(input[value="tender"])').first().click();
+  await form.locator("#photo").click();
   await $("#p-set").click();
+  check((await $("#pscroll").textContent())!.includes("File upload") && (await $("#pscroll").textContent())!.includes("Takes"), "a block's settings show its kind, label and the files it takes");
+  await form.locator('label:has(input[value="tender"])').first().click();
   check((await $("#pscroll").textContent())!.includes("Question") && (await $("#pscroll").textContent())!.includes("Options"), "Settings shows the question and its options");
   check((await $("#pscroll").textContent())!.includes("Saves to"), "Settings shows where the answer saves");
   if (shots) await p.screenshot({ path: `${shots}/3-edit.png` });
@@ -206,12 +210,16 @@ try {
   await lf.locator("#why").fill("A long week");
   await lf.locator("[data-cl-next]").click();
   await lf.locator('input[name="email"]').fill("sam@example.com");
+  check((await lf.locator('#photo input[type="file"]').count()) === 1, "the live form draws the file block");
+  await lf.locator('#photo input[type="file"]').setInputFiles({ name: "day.png", mimeType: "image/png", buffer: Buffer.from("89504e470d0a1a0a", "hex") });
+  await lf.locator("#photo").getByText("day.png").waitFor();
   await lf.locator("#clr-consent").check();
   await lf.locator("[type=submit]").click();
   await lf.locator("[data-cl-book] .tm .pl").first().waitFor();
   const sent = sends[0]?.answers ?? {};
   const ids = live?.page?.ids ?? {};
   check(sent[ids.name!] === "Sam" && sent[ids.email!] === "sam@example.com" && sent[ids.mood!] === "tender" && sent[ids.why!] === "A long week", "the live form sends each answer by its field id");
+  check(sent[ids.photo!] === "up_11111111-1111-4111-8111-111111111111:day.png", "the uploaded file goes with the answers");
   check((await lf.locator("[data-cl-book] .tm .pl").count()) > 0, "the booking calendar opens in the page's booking spot");
   check((await lf.locator("#clr-consent").count()) === 1 && (await lf.locator('input[name="company_url"]').count()) === 1, "the live form has the consent line and the spam trap");
   if (shots) await lp.screenshot({ path: `${shots}/5-live.png` });

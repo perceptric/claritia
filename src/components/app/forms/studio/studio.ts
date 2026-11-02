@@ -434,6 +434,7 @@ export function mountStudio(shell: ShadowRoot, api: StudioApi): () => void {
     const used = new Set([...src.querySelectorAll("[data-cl-id]")].map((e) => e.getAttribute("data-cl-id")));
     const groups = new Map();
     src.querySelectorAll("input[name],textarea[name],select[name]").forEach((el) => { if (el.type === "hidden" || el.type === "submit") return; if (!groups.has(el.name)) groups.set(el.name, []); groups.get(el.name).push(el); });
+    src.querySelectorAll("[data-cl-field][data-cl-name]").forEach((el) => { const n = el.getAttribute("data-cl-name"); if (!groups.has(n)) groups.set(n, []); groups.get(n).push(el); });
     const make = (name) => { let base = name.toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 20) || "q"; if (!/^[a-z]/.test(base)) base = `q${base}`.slice(0, 20); let id = base; for (let i = 2; used.has(id); i++) id = `${base.slice(0, 18)}${i}`; return id; };
     for (const [name, els] of groups) {
       let id = els.map((e) => e.getAttribute("data-cl-id")).find((x) => /^[a-z][a-z0-9]{0,23}$/.test(x || ""));
@@ -460,7 +461,8 @@ export function mountStudio(shell: ShadowRoot, api: StudioApi): () => void {
   // ── Drawing ───────────────────────────────────────────────────────────────────────────────────────────
   const host = $("host");
   const root = host.attachShadow({ mode: "open" });
-  const BASE = `.cl-consent{display:flex;gap:8px;align-items:flex-start;font-size:13px;line-height:1.4;opacity:.85}.cl-consent input{margin:2px 0 0}
+  const BASE = `.cl-block{display:flex;flex-direction:column;gap:8px}.cl-two{display:grid;grid-template-columns:1fr 1fr;gap:8px}.cl-addr{display:flex;flex-direction:column;gap:8px}.cl-rate{display:flex;gap:6px;font-size:26px;line-height:1;opacity:.6}.cl-num{font-size:14px;border:1px solid currentColor;border-radius:8px;padding:8px 12px}.cl-sign{min-height:110px}
+.cl-consent{display:flex;gap:8px;align-items:flex-start;font-size:13px;line-height:1.4;opacity:.85}.cl-consent input{margin:2px 0 0}
 :host{all:initial;display:flex;flex-direction:column;flex:1}*,*::before,*::after{box-sizing:border-box}[hidden]{display:none!important}.cl-root{flex:1;min-height:560px;display:flex;flex-direction:column}.cl-root>*{flex:1 0 auto}
 .cl-cal{display:flex;flex-direction:column;gap:12px;margin-top:6px}.cl-days{display:flex;gap:6px;flex-wrap:wrap}.cl-times{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}.cl-day,.cl-time{font:inherit;padding:8px 10px;border-radius:10px;border:1.5px solid rgba(127,127,127,.35);background:transparent;color:inherit;cursor:pointer}.cl-day[aria-pressed=true],.cl-time[aria-pressed=true]{border-color:currentColor}
 .cl-edit [data-k]{cursor:default}.cl-edit [contenteditable]{outline:none;cursor:text}`;
@@ -478,6 +480,8 @@ export function mountStudio(shell: ShadowRoot, api: StudioApi): () => void {
     root.append(st, wrap);
     const logo = brandOf(cur)?.logo;
     wrap.querySelectorAll("img[data-cl-logo]").forEach((img) => { if (logo) img.setAttribute("src", logo); else img.hidden = true; });
+    // Claritia blocks, as the live form draws them (the form script fills them with its own inputs).
+    wrap.querySelectorAll("[data-cl-field]").forEach((hd) => hd.replaceChildren(blockPreview(hd)));
     // The consent line every form shows where the law asks for it, as the live form draws it.
     const sendBtn = [...wrap.querySelectorAll("[type=submit]")].find((b) => !b.closest("[data-cl-thanks]"));
     if (sendBtn) sendBtn.before(h("label", { class: "check cl-consent" }, h("input", { type: "checkbox", tabindex: "-1" }), h("span", { text: DEFAULT_CONSENT })));
@@ -486,6 +490,23 @@ export function mountStudio(shell: ShadowRoot, api: StudioApi): () => void {
     runCheck();
   }
   const live = (k) => root.querySelector(`[data-k="${k}"]`);
+  const BLOCK_NAMES = { file: "File upload", phone: "Phone", address: "Address", date: "Date", time: "Time", daterange: "Date range", rating: "Rating", signature: "Signature", country: "Country" };
+  function blockPreview(hd) {
+    const type = hd.getAttribute("data-cl-field");
+    const label = hd.getAttribute("data-cl-label") || hd.getAttribute("data-cl-name") || BLOCK_NAMES[type] || "";
+    const inp = (a) => h("input", { class: "field", tabindex: "-1", ...a });
+    const box = h("div", { class: "cl-block" }, h("label", { class: "label", text: `${label}${hd.hasAttribute("data-cl-required") ? " *" : ""}` }));
+    if (type === "file") box.append(inp({ type: "file" }));
+    else if (type === "phone") box.append(inp({ type: "tel", placeholder: "+1 555 123 4567" }));
+    else if (type === "date") box.append(inp({ type: "date" }));
+    else if (type === "time") box.append(inp({ type: "time" }));
+    else if (type === "daterange") box.append(h("div", { class: "cl-two" }, inp({ type: "date" }), inp({ type: "date" })));
+    else if (type === "address") box.append(h("div", { class: "cl-addr" }, inp({ placeholder: "Street address" }), h("div", { class: "cl-two" }, inp({ placeholder: "City" }), inp({ placeholder: "Postcode" })), inp({ placeholder: "Country" })));
+    else if (type === "country") box.append(inp({ placeholder: "Country" }));
+    else if (type === "rating") { const n = Math.min(10, Math.max(3, Number(hd.getAttribute("data-cl-scale")) || 5)); const nums = hd.getAttribute("data-cl-style") === "numbers"; box.append(h("div", { class: "cl-rate" }, ...Array.from({ length: n }, (_, i) => h("span", { class: nums ? "cl-num" : "", text: nums ? String(i + 1) : "\u2605" })))); }
+    else if (type === "signature") box.append(h("div", { class: "field cl-sign" }));
+    return box;
+  }
 
   // The form's own rules, the same contract the form script runs (src/lib/studio/runtime.ts).
   function values(w) { const v = {}; w.querySelectorAll("input[name],textarea[name],select[name]").forEach((el) => { const n = el.name; if (el.type === "radio") { if (el.checked) v[n] = el.value; else if (!(n in v)) v[n] = ""; } else if (el.type === "checkbox") { v[n] = v[n] || []; if (el.checked) v[n].push(el.value === "on" ? "yes" : el.value); } else v[n] = el.value.trim(); }); return v; }
@@ -567,7 +588,7 @@ export function mountStudio(shell: ShadowRoot, api: StudioApi): () => void {
 
   // ── Edit on the form: hover tags, pick, type in place, the floating bar ─────────────────────────────────
   const NAMES = { H1: "Heading", H2: "Heading", H3: "Heading", H4: "Heading", P: "Text", SPAN: "Text", LABEL: "Label", BUTTON: "Button", INPUT: "Input", TEXTAREA: "Text box", SELECT: "Dropdown", IMG: "Logo", FORM: "Form", SECTION: "Step", DIV: "Box", I: "Fill", B: "Text", STRONG: "Text", EM: "Text", A: "Link", UL: "List", LI: "Item", FIELDSET: "Group", LEGEND: "Heading" };
-  const nameOf = (el) => { if (!el) return ""; if (el.matches?.("label.choice,label.check")) return "Choice"; if (el.hasAttribute?.("data-cl-step")) return "Step"; if (el.hasAttribute?.("data-cl-thanks")) return "Thanks"; if (el.hasAttribute?.("data-cl-book")) return "Booking"; return NAMES[el.tagName] || "Box"; };
+  const nameOf = (el) => { if (!el) return ""; if (el.hasAttribute?.("data-cl-field")) return BLOCK_NAMES[el.getAttribute("data-cl-field")] || "Block"; if (el.matches?.("label.choice,label.check")) return "Choice"; if (el.hasAttribute?.("data-cl-step")) return "Step"; if (el.hasAttribute?.("data-cl-thanks")) return "Thanks"; if (el.hasAttribute?.("data-cl-book")) return "Booking"; return NAMES[el.tagName] || "Box"; };
   const leaf = (el) => el && !el.children.length && !["INPUT", "IMG", "TEXTAREA", "SELECT", "BR", "HR"].includes(el.tagName) && el.textContent.trim();
   const kOf = (e) => e.composedPath().find((n) => n instanceof Element && n.hasAttribute?.("data-k"));
   let editingK = null;
@@ -748,7 +769,37 @@ export function mountStudio(shell: ShadowRoot, api: StudioApi): () => void {
   }
   function questions() { const out = []; src.querySelectorAll("input[name],textarea[name],select[name]").forEach((el) => { let q = out.find((x) => x.name === el.name); if (!q) { q = { name: el.name, options: [] }; out.push(q); } if (el.type === "radio" || el.type === "checkbox") { if (!q.options.some((o) => o.value === el.value)) q.options.push({ value: el.value, label: (el.closest("label")?.textContent || el.value).trim() }); } else if (el.tagName === "SELECT") for (const o of el.options) if (o.value) q.options.push({ value: o.value, label: o.textContent.trim() }); }); return out; }
   const pick = (text, items) => { const b = h("button", { class: "dd" }, h("span", { text }), h("span", { html: SVG(P.chev, 12) })); b.onclick = () => openMenu(b, items.map(([t, fn, on]) => h("button", { class: "mi small", role: "menuitemradio", "aria-checked": String(!!on), text: t, onclick: () => { closeMenu(); fn(); } }))); return b; };
+  function blockSettings(p, bl) {
+    const type = bl.getAttribute("data-cl-field"), name = bl.getAttribute("data-cl-name") || "";
+    const B = h("div", { class: "sec" }, h("h4", { text: BLOCK_NAMES[type] || "Block" }));
+    const txt = (label, attr, ph) => { const i = h("input", { class: "in", value: bl.getAttribute(attr) || "", placeholder: ph || "", "aria-label": label }); i.addEventListener("change", () => { const v = i.value.trim(); if (attr === "data-cl-name" && !/^[A-Za-z][\w-]{0,60}$/.test(v)) return; snap(); if (attr === "data-cl-name" && body().ids?.[name]) { body().ids[v] = body().ids[name]; delete body().ids[name]; } v ? bl.setAttribute(attr, v) : bl.removeAttribute(attr); commit(); }); return h("div", { class: "row2" }, h("span", { class: "lbl", text: label }), i); };
+    B.append(txt("Label", "data-cl-label"), txt("Name", "data-cl-name"));
+    const req = bl.hasAttribute("data-cl-required");
+    B.append(h("div", { class: "row2" }, h("span", { class: "lbl", text: "Required" }), h("div", {}, h("button", { class: "sw", role: "switch", "aria-checked": String(req), "aria-label": "Required", onclick: () => { snap(); req ? bl.removeAttribute("data-cl-required") : bl.setAttribute("data-cl-required", ""); commit(); } }))));
+    if (type === "phone" || type === "country") {
+      const sv = bl.getAttribute("data-cl-save") || "";
+      const opts = [["", "Just this form"], [type, type === "phone" ? "Phone" : "Country"]];
+      B.append(h("div", { class: "row2" }, h("span", { class: "lbl", text: "Saves to" }), pick((opts.find((o) => o[0] === sv) || opts[0])[1], opts.map(([v, t]) => [t, () => { snap(); v ? bl.setAttribute("data-cl-save", v) : bl.removeAttribute("data-cl-save"); commit(); }, v === sv]))));
+    }
+    if (type === "file") {
+      const kinds = (bl.getAttribute("data-cl-kinds") || "pdf image office").split(/\s+/);
+      const k = h("div", { class: "icons", role: "group", "aria-label": "File kinds" });
+      for (const [v, t] of [["pdf", "PDF"], ["image", "Images"], ["office", "Office"]]) k.append(h("button", { class: "ib", "aria-pressed": String(kinds.includes(v)), text: t, style: "font-size:12px", onclick: () => { const next = kinds.includes(v) ? kinds.filter((x) => x !== v) : [...kinds, v]; if (!next.length) return; snap(); bl.setAttribute("data-cl-kinds", next.join(" ")); commit(); } }));
+      const mb = h("input", { class: "in", value: bl.getAttribute("data-cl-max") || "", placeholder: "10", "aria-label": "Largest file in MB" });
+      mb.addEventListener("change", () => { const n = Math.round(Number(mb.value)); snap(); n > 0 ? bl.setAttribute("data-cl-max", String(Math.min(n, 20))) : bl.removeAttribute("data-cl-max"); commit(); });
+      B.append(h("div", { class: "row2" }, h("span", { class: "lbl", text: "Takes" }), k), h("div", { class: "row2" }, h("span", { class: "lbl", text: "Up to MB" }), mb));
+    }
+    if (type === "rating") {
+      const sc = h("input", { class: "in", value: bl.getAttribute("data-cl-scale") || "", placeholder: "5", "aria-label": "Scale" });
+      sc.addEventListener("change", () => { const n = Math.round(Number(sc.value)); snap(); n >= 3 ? bl.setAttribute("data-cl-scale", String(Math.min(n, 10))) : bl.removeAttribute("data-cl-scale"); commit(); });
+      const nums = bl.getAttribute("data-cl-style") === "numbers";
+      B.append(h("div", { class: "row2" }, h("span", { class: "lbl", text: "Out of" }), sc), h("div", { class: "row2" }, h("span", { class: "lbl", text: "Shown as" }), pick(nums ? "Numbers" : "Stars", [["Stars", () => { snap(); bl.removeAttribute("data-cl-style"); commit(); }, !nums], ["Numbers", () => { snap(); bl.setAttribute("data-cl-style", "numbers"); commit(); }, nums]])));
+    }
+    p.append(B);
+  }
   function settings(p, el) {
+    const bl = el.closest?.("[data-cl-field]");
+    if (bl) return blockSettings(p, bl);
     const input = el.matches("input,textarea,select") ? el : el.querySelector("input[name],textarea[name],select[name]") || el.closest("label")?.querySelector("input[name],textarea[name],select[name]");
     if (input?.name) {
       const isChoice = input.type === "radio" || input.type === "checkbox";
@@ -1193,7 +1244,7 @@ export function mountStudio(shell: ShadowRoot, api: StudioApi): () => void {
   }
 
   // ── The chat with Tia ─────────────────────────────────────────────────────────────────────────────────
-  const STARTS = ["A demo request that asks team size", "A new patient booking form", "An event sign-up with a plus-one", "A quote request with a budget range"];
+  const STARTS = ["A demo request that asks team size", "A new patient booking form", "An event sign-up with a plus-one", "A quote request with a file upload"];
   function renderLog() {
     const boxEl = $("msgs"); boxEl.innerHTML = "";
     if (!cur) return;
