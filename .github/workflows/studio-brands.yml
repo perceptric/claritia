@@ -1,0 +1,23 @@
+# The weekly 30-brand test for Form Studio (docs/studio-v2-plan.md 6.7): Tia reads 30 real sites across 12 industries
+# and builds each one's first form; the form check runs on every build. Skips when ANTHROPIC_API_KEY isn't set.
+name: Studio brands
+
+on:
+  schedule:
+    - cron: "23 13 * * 1"
+  workflow_dispatch: {}
+
+jobs:
+  brands:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: node --conditions=react-server scripts/studio-brands.ts
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}

@@ -2,6 +2,7 @@
 // @ts-nocheck
 import { DEFAULT_CONSENT } from "../../../../lib/forms/schema";
 import { checkStudioPage } from "../../../../lib/studio/check";
+import { INDUSTRIES, industryOf, profileWords, recipeText } from "../../../../lib/studio/industries";
 import { TIA_STYLE, tiaSvg } from "../../../../lib/studio/tia";
 
 // Form Studio (docs/forms-chat-plan.md, docs/studio-v2-plan.md): every form is one chat with Tia on the left and the
@@ -53,6 +54,9 @@ input, textarea { user-select: text; -webkit-user-select: text; }
 .brandbtn:hover { border-color: var(--line-strong); }
 .brandbtn .nm { flex: 1; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .bstatus { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); }
+.profile { align-self: flex-start; max-width: 100%; height: 24px; padding: 0 10px; border-radius: 999px; border: 0; background: var(--paper-deep); color: var(--body); font-size: 12px; display: inline-flex; align-items: center; gap: 6px; }
+.profile span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.profile:hover { color: var(--ink); }
 .bstatus.err { color: var(--rose); }
 .bstatus .pill { margin-left: auto; }
 .msgs { flex: 1; min-height: 0; overflow-y: auto; padding: 16px 14px; display: flex; flex-direction: column; gap: 14px; }
@@ -271,7 +275,7 @@ export const STUDIO_HTML = `
       <button class="chatpick" id="chatPick" aria-haspopup="menu" aria-expanded="false" aria-label="Chats"></button>
       <button class="ib foldbtn tipleft" id="chatFold"></button>
     </div>
-    <div class="brandrow"><button class="brandbtn" id="brandBtn" aria-haspopup="menu" aria-label="Brand"></button><div class="bstatus" id="brandStatus" hidden></div></div>
+    <div class="brandrow"><button class="brandbtn" id="brandBtn" aria-haspopup="menu" aria-label="Brand"></button><button class="profile" id="profileBtn" aria-haspopup="menu" aria-label="Industry, country and language" hidden></button><div class="bstatus" id="brandStatus" hidden></div></div>
     <div class="msgs" id="msgs" aria-live="polite"></div>
     <div class="compose">
       <div class="about" id="about" hidden><span id="aboutText"></span><button id="aboutX" aria-label="Not about this element">${SVG(P.x, 12)}</button></div>
@@ -333,7 +337,7 @@ export const STUDIO_HTML = `
 </div>
 <div id="layer"></div>`;
 
-export type StudioBrand = { id: string; name: string; site: string; logo: string | null; css: string };
+export type StudioBrand = { id: string; name: string; site: string; logo: string | null; css: string; profile?: { industry: string; language: string; country: string; languages: string[] } | null };
 export type StudioMeeting = { id: string; name: string; length: number };
 export type StudioChat = { id: string; name: string; state: "new" | "draft" | "live" | "changed"; brandId: string; formId: string; updatedAt?: string; brandCss?: string; body?: { html: string; css: string; after: unknown; turns: unknown[]; log: unknown[] } };
 export type StudioApi = {
@@ -343,7 +347,8 @@ export type StudioApi = {
   scan(host: string): Promise<{ kitId: string }>;
   kit(id: string): Promise<{ name: string; logo: string | null; logoUrl: string | null; logoSvg: string | null; scanStatus: string | null } | null>;
   confirm(b: { url: string; name: string; logoUrl: string | null; logoSvg: string | null }): Promise<{ kitId: string }>;
-  look(kitId: string, fresh: boolean): Promise<{ css: string; say: string }>;
+  look(kitId: string, fresh: boolean): Promise<{ css: string; say: string; profile?: StudioBrand["profile"] }>;
+  keepProfile(kitId: string, profile: NonNullable<StudioBrand["profile"]>): void;
   keepCss(kitId: string, css: string): void;
   deleteBrand(id: string): Promise<void>;
   /** Every chat, newest first, with or without its body. */
@@ -969,10 +974,10 @@ export function mountStudio(shell: ShadowRoot, api: StudioApi): () => void {
     checkT = setTimeout(async () => {
       if (!alive || !cur) return;
       if (!built()) { issues = []; layoutFound = []; return checkUi(); }
-      const key = `${sourceHtml()}\n${body().css}\n${brandOf(cur)?.css || ""}\n${JSON.stringify(body().after)}\n${MEETINGS.length}`;
+      const key = `${sourceHtml()}\n${body().css}\n${brandOf(cur)?.css || ""}\n${JSON.stringify(body().after)}\n${MEETINGS.length}\n${brandOf(cur)?.profile?.industry || ""}`;
       if (key === checkKey) return;
       checkKey = key;
-      const base = checkStudioPage({ html: sourceHtml(), after: body().after, meetings: loaded ? MEETINGS : null });
+      const base = checkStudioPage({ html: sourceHtml(), after: body().after, meetings: loaded ? MEETINGS : null, industry: brandOf(cur)?.profile?.industry ?? null });
       issues = [...base, ...layoutFound]; checkUi();
       const run = ++checkRun;
       const lay = await layoutIssues().catch(() => []);
@@ -1058,7 +1063,7 @@ export function mountStudio(shell: ShadowRoot, api: StudioApi): () => void {
   }
   $("publish").onclick = async () => {
     if (S.publishing || !built() || !brandOf(cur)) return;
-    const now = [...checkStudioPage({ html: sourceHtml(), after: body().after, meetings: loaded ? MEETINGS : null }), ...layoutFound];
+    const now = [...checkStudioPage({ html: sourceHtml(), after: body().after, meetings: loaded ? MEETINGS : null, industry: brandOf(cur)?.profile?.industry ?? null }), ...layoutFound];
     const errs = now.filter((i) => i.level === "error");
     if (errs.length) { issues = now; checkUi(); S.pubMsg = `Fix ${errs.length === 1 ? "1 problem" : `${errs.length} problems`} first`; pubUi(); return checkMenu(); }
     const c = cur;
@@ -1127,6 +1132,9 @@ export function mountStudio(shell: ShadowRoot, api: StudioApi): () => void {
     const btn = $("brandBtn"); btn.innerHTML = "";
     const b = brandOf(cur);
     btn.append(mark(b), h("span", { class: "nm", text: b ? b.name : loaded ? "Pick a brand" : "Loading brands" }), h("span", { html: SVG(P.chev, 14), style: "color:var(--muted);display:inline-flex" }));
+    const pb = $("profileBtn");
+    pb.hidden = !b?.profile;
+    if (b?.profile) { pb.innerHTML = ""; pb.append(h("span", { text: profileWords(b.profile) }), h("span", { html: SVG(P.chev, 12), style: "display:inline-flex;color:var(--muted)" })); }
     const st = $("brandStatus"); st.innerHTML = ""; st.hidden = true;
     if (b && looking.has(b.id)) { st.hidden = false; st.className = "bstatus"; st.innerHTML = tiaSvg(16, true); st.append(h("span", { text: `Reading ${b.name}'s look` })); }
     else if (b?.lookErr) { st.hidden = false; st.className = "bstatus err"; st.append(h("span", { text: b.lookErr }), h("button", { class: "pill", text: "Try again", onclick: () => void readLook(b, true) })); }
@@ -1143,6 +1151,13 @@ export function mountStudio(shell: ShadowRoot, api: StudioApi): () => void {
     openMenu($("brandBtn"), [...rows, rows.length ? h("div", { class: "msep" }) : null, h("button", { class: "mi small", html: `${SVG(P.plus, 14)}<span class="nm">Add a brand</span>`, onclick: () => { closeMenu(); openDialog(); } })].filter(Boolean), $("brandBtn").offsetWidth);
   }
   $("brandBtn").onclick = () => (menuEl && menuFor === $("brandBtn") ? closeMenu() : brandMenu());
+  // One click fixes what the site told Tia about the brand.
+  $("profileBtn").onclick = () => {
+    const b = brandOf(cur);
+    if (!b?.profile) return;
+    if (menuEl && menuFor === $("profileBtn")) return closeMenu();
+    openMenu($("profileBtn"), INDUSTRIES.map((i) => h("button", { class: "mi small", role: "menuitemradio", "aria-checked": String(i.key === b.profile.industry), text: i.name, onclick: () => { closeMenu(); b.profile = { ...b.profile, industry: i.key }; api.keepProfile(b.id, b.profile); brandUi(); renderLog(); runCheck(); } })), 260);
+  };
   function useBrand(id) {
     const b = brands.find((x) => x.id === id); if (!b || !cur) return;
     if (cur.brandId !== id) { snap(); cur.brandId = id; changed(); }
@@ -1156,6 +1171,7 @@ export function mountStudio(shell: ShadowRoot, api: StudioApi): () => void {
     try {
       const r = await api.look(b.id, fresh);
       b.css = r.css; api.keepCss(b.id, r.css);
+      if (r.profile && !b.profile) { b.profile = r.profile; api.keepProfile(b.id, r.profile); }
       if (r.say && cur?.brandId === b.id && !cur.body.log.length) cur.body.log.push({ who: "ai", text: r.say });
       if (cur?.brandId === b.id) { draw(); if (S.mode === "code") showCode(); }
     } catch (e) {
@@ -1255,7 +1271,7 @@ export function mountStudio(shell: ShadowRoot, api: StudioApi): () => void {
       const g = h("div", { class: "msg ai" }, h("div", { class: "who", html: `${tiaSvg(18)}<span>Tia</span>` }));
       for (const m of log) if (m.who === "ai" && m.text) g.append(h("div", { class: "text", text: m.text }));
       g.append(h("div", { class: "text", text: !b ? "Pick a brand to start. Forms use its logo and its look." : built() ? `What should we change on ${cur.name}?` : `What do you want to build for ${b.name}?` }));
-      if (b && !built() && ready) g.append(h("div", { class: "starts" }, ...STARTS.map((s) => h("button", { text: s, onclick: () => send(s) }))));
+      if (b && !built() && ready) g.append(h("div", { class: "starts" }, ...(b.profile ? industryOf(b.profile.industry).forms : STARTS).map((s) => h("button", { text: s, onclick: () => send(s) }))));
       boxEl.append(g);
     }
     if (log.some((m) => m.who === "me")) log.forEach((m, i) => {
@@ -1293,7 +1309,7 @@ export function mountStudio(shell: ShadowRoot, api: StudioApi): () => void {
     S.busy = true; busyUi(true); renderLog();
     const wasBuilt = built();
     snap();
-    const ctx = `\n\n[${wasBuilt ? "THE FORM IS BUILT" : "NOTHING BUILT YET"}]\n[Brand: ${b.name} (${b.site}), confirmed. Its brand CSS follows; build only with it.]\n<brand_css>${b.css}</brand_css>\n[The form now]\n<form_html>${sourceHtml()}</form_html>\n<form_css>${c.body.css}</form_css>\n<after>${JSON.stringify(c.body.after)}</after>\n[Meeting types (id: name)] ${MEETINGS.length ? MEETINGS.map((m) => `${m.id}: ${m.name}, ${m.length} min`).join("; ") : "none yet"}${b.logo ? "\n[The brand's logo is set; the form shows it in img[data-cl-logo].]" : "\n[No logo yet. Use img[data-cl-logo] anyway; it hides until one is added.]"}${about ? `\n[This message is about the element with id="${about.id}" (${about.label}). Change only that element unless the owner asks for more.]` : ""}`;
+    const ctx = `\n\n[${wasBuilt ? "THE FORM IS BUILT" : "NOTHING BUILT YET"}]\n[Brand: ${b.name} (${b.site}), confirmed. Its brand CSS follows; build only with it.]${b.profile ? `\n${recipeText(b.profile)}` : ""}\n<brand_css>${b.css}</brand_css>\n[The form now]\n<form_html>${sourceHtml()}</form_html>\n<form_css>${c.body.css}</form_css>\n<after>${JSON.stringify(c.body.after)}</after>\n[Meeting types (id: name)] ${MEETINGS.length ? MEETINGS.map((m) => `${m.id}: ${m.name}, ${m.length} min`).join("; ") : "none yet"}${b.logo ? "\n[The brand's logo is set; the form shows it in img[data-cl-logo].]" : "\n[No logo yet. Use img[data-cl-logo] anyway; it hides until one is added.]"}${about ? `\n[This message is about the element with id="${about.id}" (${about.label}). Change only that element unless the owner asks for more.]` : ""}`;
     const turns = [...c.body.turns, { role: "user", content: text + ctx }];
     ctl = new AbortController();
     try {

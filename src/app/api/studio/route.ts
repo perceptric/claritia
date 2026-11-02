@@ -5,6 +5,7 @@ import { isMember } from "@/lib/contacts/server";
 import { checkForm } from "@/lib/forms/schema";
 import { cleaningCtx } from "@/lib/contacts/server";
 import { checkStudioPage, errorsIn } from "@/lib/studio/check";
+import { readProfile } from "@/lib/studio/industries";
 import { pageForm, type PageAfter } from "@/lib/studio/page";
 import { turnstileSiteKey } from "@/lib/forms/server";
 import { BRAND_RULES, CHAT_RULES, STUDIO_MODEL } from "@/lib/studio/prompts";
@@ -24,6 +25,7 @@ import { serviceClient } from "@/lib/serviceClient";
 //   chat-save { chat: { id, name, state, brandId, formId, body } } → { ok }   one chat with Tia (112)
 //   chat-delete { id }               → { ok }
 //   brand-css { kitId, css }         → { ok }                  the brand's CSS, edited in Code
+//   brand-profile { kitId, profile } → { ok }                  the brand's industry, language and country (113)
 //   save    { formId?, name, html, css, brand, after, kitId } → { formId }   the studio form as a real form's draft;
 //                                                               /api/forms/publish then makes it live
 // Streams are lines of JSON with a heartbeat, so no proxy ends a long Opus answer. Every Claude call goes through the
@@ -160,6 +162,15 @@ export async function POST(request: Request) {
     return Response.json({ ok: true });
   }
 
+  if (b.mode === "brand-profile") {
+    const kitId = typeof b.kitId === "string" && UUID.test(b.kitId) ? b.kitId : "";
+    const profile = readProfile(b.profile);
+    if (!kitId || !profile) return bad("Brand not found.", 404);
+    const up = await db.from("brand_kits").update({ studio_profile: profile }).eq("id", kitId).eq("workspace_id", ws);
+    if (up.error) return Response.json({ error: "The brand's industry isn't kept on this server yet.", missing: true }, { status: 503 });
+    return Response.json({ ok: true });
+  }
+
   if (b.mode === "chat-delete") {
     const id = typeof b.id === "string" && UUID.test(b.id) ? b.id : "";
     if (!id) return bad("Chat not found.", 404);
@@ -176,7 +187,9 @@ export async function POST(request: Request) {
     const name = String(b.name ?? "").trim().slice(0, 120) || "New form";
     // The form check, again on the server (docs/studio-v2-plan.md 6.5): no broken form goes live.
     const types = await db.from("meeting_types").select("id, name").eq("workspace_id", ws).eq("active", true);
-    const issues = checkStudioPage({ html, after, meetings: types.error ? null : ((types.data ?? []) as { id: string; name: string }[]) });
+    const kitIn = typeof b.kitId === "string" && UUID.test(b.kitId) ? b.kitId : "";
+    const prof = kitIn ? ((await db.from("brand_kits").select("studio_profile").eq("id", kitIn).eq("workspace_id", ws).maybeSingle()).data as { studio_profile?: unknown } | null) : null;
+    const issues = checkStudioPage({ html, after, meetings: types.error ? null : ((types.data ?? []) as { id: string; name: string }[]), industry: readProfile(prof?.studio_profile)?.industry ?? null });
     const errs = errorsIn(issues);
     if (errs.length) return Response.json({ error: errs[0]!.text, issues: errs }, { status: 400 });
     // A question keeps its field id when it's renamed or Tia writes the page again: the ids the form had last time.
@@ -229,12 +242,15 @@ export async function POST(request: Request) {
         const out = await opus(c, BRAND_RULES, [{ role: "user", content: user }], 16000, "medium", () => send({ working: 1 }));
         usage = out.usage;
         const css = tag(out.text, "brand_css");
-        return { result: css ? { css, say: tag(out.text, "say") ?? "" } : null, model: STUDIO_MODEL, usage, keep: !!css };
+        return { result: css ? { css, say: tag(out.text, "say") ?? "", profile: readProfile(tag(out.text, "profile")) } : null, model: STUDIO_MODEL, usage, keep: !!css };
       });
       if (!r.result) return send({ error: `Couldn't read ${k.name}'s look. Try again.` });
       // Kept on the brand (112), so every chat and teammate shares it. Before 112, the page keeps it.
       await db.from("brand_kits").update({ studio_css: r.result.css }).eq("id", k.id).eq("workspace_id", ws);
-      send({ css: r.result.css, say: r.result.say, faces: src?.faces ?? [] });
+      // The industry, language and country (113), kept unless the owner already set them.
+      const profile = (r.result as { profile?: ReturnType<typeof readProfile> }).profile ?? null;
+      if (profile) await db.from("brand_kits").update({ studio_profile: profile }).eq("id", k.id).eq("workspace_id", ws).is("studio_profile", null);
+      send({ css: r.result.css, say: r.result.say, profile, faces: src?.faces ?? [] });
     });
   }
 

@@ -85,7 +85,12 @@ try {
   await p.waitForFunction(() => !document.querySelector("#studio")!.shadowRoot!.getElementById("send")!.hasAttribute("disabled"));
   check((await calls()).some((c) => c.mode === "look"), "the look is read after confirming");
   check((await $("#msgs").textContent())!.includes("soft green"), "what Tia found in the look shows in the chat");
-  check((await $(".starts button").count()) > 0, "an empty chat offers starting ideas");
+  check((await $(".starts button").first().textContent()) === "A new patient booking form", "an empty chat offers the industry's starting ideas");
+  check((await $("#profileBtn").textContent())!.includes("Healthcare and dental in United States, English and Spanish"), "the site's industry, country and languages show under the brand");
+  await $("#profileBtn").click();
+  await $("#layer .menu .mi").filter({ hasText: "Hospitality and events" }).click();
+  check((await $("#profileBtn").textContent())!.startsWith("Hospitality and events") && (await calls()).some((c) => c.mode === "keepProfile" && (c.body as { profile: { industry: string } }).profile.industry === "events"), "one click changes the industry, and it's kept on the brand");
+  check((await $(".starts button").first().textContent()) === "An RSVP with a plus-one", "the ideas follow the industry");
 
   // 3. Tia builds the form; the chat is saved with it
   await $("#input").fill("A daily check-in");
@@ -93,6 +98,7 @@ try {
   await idle();
   const first = (await calls()).find((c) => c.mode === "tia")!.body as { content: string }[];
   check(first.at(-1)!.content.includes("[NOTHING BUILT YET]") && first.at(-1)!.content.includes("11111111-1111-4111-8111-111111111111: Intro call, 15 min"), "the first message says nothing is built and carries the meeting types");
+  check(first.at(-1)!.content.includes("[Industry: Hospitality and events, US. Write the form in English"), "Tia gets the industry's recipe");
   check(await form.locator("#title").isVisible(), "the form draws in the preview");
   check((await form.locator('#photo input[type="file"]').count()) === 1 && (await form.locator("#photo .label").textContent())!.includes("A photo of your day"), "a Claritia block shows in the preview with its label");
   const logo = await p.evaluate(() => (document.querySelector("#studio")!.shadowRoot!.getElementById("host")!.shadowRoot!.querySelector("img[data-cl-logo]") as HTMLImageElement | null)?.src ?? "");
