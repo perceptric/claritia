@@ -14,6 +14,7 @@ create table if not exists public.link_domains (
   created_at timestamptz not null default now()
 );
 alter table public.link_domains enable row level security;
+drop policy if exists "members read" on public.link_domains;
 create policy "members read" on public.link_domains for select using (is_member(workspace_id));
 revoke all on public.link_domains from anon;
 revoke insert, update, delete on public.link_domains from authenticated;
