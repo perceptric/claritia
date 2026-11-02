@@ -5,9 +5,16 @@
 // The same code runs in the browser and on the server: no DOM, a small tokenizer.
 
 import { CONTACT_KEYS, DEFAULT_CONSENT, type FieldKey, type FieldType } from "../forms/schema.ts";
+import { DEFAULT_NOTIFY } from "../forms/notify.ts";
+import { cleanRoute, routeCond, routeField, routeKind, type StudioRoute } from "./routes.ts";
 
 /** After the send. A meeting books with Claritia's own calendar (`meeting`, with `routes`) or an outside scheduler (`tool` and its `link`). */
-export type PageAfter = { kind: "thanks" | "page" | "meeting"; url?: string; meeting?: string; routes?: { field: string; value: string; meeting: string }[]; tool?: string; link?: string };
+/**
+ * What happens after the send. `routes`: Route by answer, read top to bottom, Otherwise `meeting`
+ * (src/lib/studio/routes.ts). `always`: what every send does, whatever it books: email the team, post to Slack.
+ */
+export type PageAfter = { kind: "thanks" | "page" | "meeting"; url?: string; meeting?: string; routes?: StudioRoute[]; tool?: string; link?: string; always?: PageAlways };
+export type PageAlways = { email?: boolean; to?: string[]; slack?: boolean };
 const OUTSIDE = ["calendly", "calcom", "hubspot_meetings", "savvycal", "link"];
 /** The page on a published form: its HTML, its own CSS, the brand's CSS, each question's name to its field id. */
 /**
@@ -374,13 +381,22 @@ export function pageForm(p: { html: string; css: string; brand: string; after: P
           tool: "claritia",
           url: "",
           meetingTypeId: a.meeting,
-          routes: (a.routes ?? [])
-            .filter((r) => ids[r.field] && r.meeting && r.value)
-            .map((r, i) => ({ id: `r${i + 1}`, meet: r.meeting, conds: [{ field: `answer.${keyOf.get(ids[r.field]!)}`, op: "is", value: r.value }] })),
+          // Each row is one condition; a row whose question is gone or whose value is missing never routes anyone.
+          routes: (a.routes ?? []).flatMap((raw, i) => {
+            const r = cleanRoute(raw);
+            if (!r || !r.meeting) return [];
+            const field = routeField(r, (name) => (ids[name] ? keyOf.get(ids[name]!) : null));
+            const c = field ? routeCond(r, field, routeKind(r.field, questions.find((q) => q.name === r.field))) : null;
+            return c ? [{ id: `r${i + 1}`, meet: r.meeting, conds: [c] }] : [];
+          }),
         }
       : null);
   const end = a.kind === "page" && a.url ? { kind: "redirect", url: a.url } : { kind: "message", title: "Thanks, we got it." };
-  const after: PageAfter = { kind: a.kind, ...(a.url ? { url: a.url.slice(0, 500) } : {}), ...(a.meeting ? { meeting: a.meeting } : {}), ...(a.routes?.length ? { routes: a.routes.slice(0, 30) } : {}), ...(outside ? { tool: outside.tool, link: outside.url } : {}) };
+  const routes = (a.routes ?? []).map(cleanRoute).filter((r): r is StudioRoute => !!r).slice(0, 30);
+  const always = cleanAlways(a.always);
+  const after: PageAfter = { kind: a.kind, ...(a.url ? { url: a.url.slice(0, 500) } : {}), ...(a.meeting ? { meeting: a.meeting } : {}), ...(routes.length ? { routes } : {}), ...(outside ? { tool: outside.tool, link: outside.url } : {}), ...(always ? { always } : {}) };
+  // Email the team and post to Slack: the form's team alert (src/lib/forms/notify.ts), sent on every real send.
+  const notify = always ? { ...DEFAULT_NOTIFY, on: !!(always.email && always.to?.length) || !!always.slack, to: always.email ? (always.to ?? []) : [], slack: !!always.slack } : null;
   return {
     questions,
     form: {
@@ -394,6 +410,7 @@ export function pageForm(p: { html: string; css: string; brand: string; after: P
       consent: { mode: "by_region", label: DEFAULT_CONSENT },
       spam: { minSeconds: 2, turnstile: p.turnstile === true },
       after: { end, ...(schedule ? { schedule } : {}) },
+      ...(notify ? { notify } : {}),
       page: { html, css: cleanPageCss(p.css), brand: cleanPageCss(p.brand), ids, after, ...pageLangs(p.lang, p.langs) },
     },
   };
@@ -423,10 +440,20 @@ export function checkPage(raw: unknown, fieldIds: Set<string>): Page | null {
   const kind = af.kind === "page" || af.kind === "meeting" ? af.kind : "thanks";
   const routes = (Array.isArray(af.routes) ? af.routes : [])
     .slice(0, 30)
-    .map((x) => (x && typeof x === "object" ? (x as Record<string, unknown>) : {}))
-    .filter((x) => typeof x.field === "string" && typeof x.value === "string" && typeof x.meeting === "string")
-    .map((x) => ({ field: String(x.field).slice(0, 60), value: String(x.value).slice(0, 200), meeting: String(x.meeting).slice(0, 40) }));
+    .map(cleanRoute)
+    .filter((r): r is StudioRoute => !!r);
+  const always = cleanAlways(af.always);
   const tool = typeof af.tool === "string" && OUTSIDE.includes(af.tool) ? af.tool : "";
-  const after: PageAfter = { kind, ...(tool ? { tool, ...(typeof af.link === "string" && /^https:\/\//.test(af.link) ? { link: af.link.slice(0, 500) } : {}) } : {}), ...(typeof af.url === "string" && af.url ? { url: af.url.slice(0, 500) } : {}), ...(typeof af.meeting === "string" && af.meeting ? { meeting: af.meeting.slice(0, 40) } : {}), ...(routes.length ? { routes } : {}) };
+  const after: PageAfter = { kind, ...(tool ? { tool, ...(typeof af.link === "string" && /^https:\/\//.test(af.link) ? { link: af.link.slice(0, 500) } : {}) } : {}), ...(typeof af.url === "string" && af.url ? { url: af.url.slice(0, 500) } : {}), ...(typeof af.meeting === "string" && af.meeting ? { meeting: af.meeting.slice(0, 40) } : {}), ...(routes.length ? { routes } : {}), ...(always ? { always } : {}) };
   return { html, css: cleanPageCss(String(r.css ?? "")), brand: cleanPageCss(String(r.brand ?? "")), ids, after, ...pageLangs(r.lang, r.langs) };
+}
+
+const EMAIL = /^[^\s@<>()",;:]{1,64}@[a-z0-9-]+(\.[a-z0-9-]+)+$/i;
+
+/** Always do, cleaned: up to 10 team emails. Null when it was never set (the form keeps the alerts it had). */
+export function cleanAlways(raw: unknown): PageAlways | null {
+  if (!raw || typeof raw !== "object") return null;
+  const r = raw as Record<string, unknown>;
+  const to = [...new Set((Array.isArray(r.to) ? r.to : []).filter((x): x is string => typeof x === "string").map((x) => x.trim().toLowerCase()).filter((x) => EMAIL.test(x)))].slice(0, 10);
+  return { email: r.email === true, to, slack: r.slack === true };
 }

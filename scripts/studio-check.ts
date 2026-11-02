@@ -230,10 +230,42 @@ try {
   await $("#t-after").click();
   await $("#afterInner .pill").filter({ hasText: "Claritia calendar" }).click();
   check((await $("#afterInner").textContent())!.includes("Route by answer"), "back to Claritia's calendar with its routes");
+  // Who books it: the picked meeting is Dynamic, so its rules show in one line, with Edit routing.
+  const who = (await $("#afterInner").textContent())!;
+  check(who.includes("Who books it") && who.includes("Locations is at least 50 → Enterprise, otherwise anyone on the team"), "a Dynamic meeting shows who books it in one line");
+  await $("#afterInner .pill").filter({ hasText: "Edit routing" }).click();
+  check((await calls()).some((c) => c.mode === "openMeeting" && c.body === "22222222-2222-4222-8222-222222222222"), "Edit routing opens that meeting type");
+  check(who.includes("Otherwise, book") && who.includes("Tender"), "a route saved before tests still reads, with Otherwise");
+  // Route by answer: a past fill, and a number test on a text question changes the value box.
+  await $("#afterInner .pill").filter({ hasText: "Add a route" }).click();
+  await $("#afterInner [aria-label='Question']").nth(1).click();
+  await $(".menu .mi").filter({ hasText: "Has sent this form before" }).click();
+  check((await $("#afterInner .rule").nth(1).textContent())!.includes("Has sent this form before") && (await $("#afterInner .rule").nth(1).textContent())!.includes("Yes"), "a route can test a past fill");
+  await $("#afterInner [aria-label='Test']").first().click();
+  await $(".menu .mi").filter({ hasText: "is not" }).click();
+  check((await $("#afterInner .rule").first().textContent())!.includes("is not"), "a route can use any test that fits its question");
+  // Always do
+  await $("#afterInner .pill").filter({ hasText: "Email the team" }).click();
+  await $("#afterInner input[aria-label='Team emails']").fill("coach@finch.care");
+  await $("#afterInner input[aria-label='Team emails']").press("Enter");
+  await $("#afterInner .pill").filter({ hasText: "Post to Slack" }).click();
+  await $("#afterInner [aria-label='Send to']").click();
+  await $(".menu .mi").filter({ hasText: "Webhook" }).click();
+  await $("#afterInner .pill").filter({ hasText: "hooks.acme.dev" }).waitFor();
+  const cs = await calls();
+  check(cs.some((c) => c.mode === "saveDraft") && cs.some((c) => c.mode === "addSend"), "Send to saves the form once, then adds the webhook");
+  await $("#afterInner [aria-label='New follow-up']").click();
+  await $(".menu .mi").filter({ hasText: "When they don't book" }).click();
+  check((await calls()).some((c) => c.mode === "newFollowUp" && (c.body as { when: string }).when === "not_booked"), "New follow-up starts a workflow on this form");
+  if (shots) await p.screenshot({ path: `${shots}/4b-after.png` });
+  const kept = Object.values(await p.evaluate(() => (window as unknown as { saved: Record<string, { body: { after: { always?: { to?: string[]; slack?: boolean } } } }> }).saved));
+  check(kept.some((c) => c.body.after.always?.to?.[0] === "coach@finch.care" && c.body.after.always.slack === true), "Always do is kept on the chat");
 
   // 7b. The form check: a sound form is ready; a broken one can't be published, and Tia gets the fix
   await p.waitForFunction(() => !document.querySelector("#studio")!.shadowRoot!.getElementById("checkBtn")!.hidden);
   await p.waitForTimeout(900);
+  // Turning on Email the team before typing the emails is a problem for a moment; the check runs again on the emails.
+  await p.waitForFunction(() => !document.querySelector("#studio")!.shadowRoot!.getElementById("checkBtn")!.className.includes("err"), null, { timeout: 5000 }).catch(() => undefined);
   check(!(await $("#checkBtn").getAttribute("class"))!.includes("err"), "the form check finds nothing to fix on a sound form");
   await $("#t-code").click();
   await $("#c-html").click();

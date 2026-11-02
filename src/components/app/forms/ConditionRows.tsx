@@ -6,7 +6,7 @@
 
 import { useState } from "react";
 import { countryNames } from "@/lib/forms/countries";
-import { countryName, type FieldDef } from "@/lib/router/conditions";
+import { countryName, isPast, type FieldDef } from "@/lib/router/conditions";
 import type { Cond } from "@/lib/router/types";
 import { fieldOf } from "@/lib/routing/screenModel";
 import { Ic } from "./ic";
@@ -14,6 +14,13 @@ import { Dd, IB_SM, IN_SM, type DdItem } from "./parts";
 
 /** The tests a row offers for a field, in plain words. */
 export function testsFor(f: FieldDef): { value: Cond["op"]; label: string }[] {
+  // Past fills: yes or no, and "booked in the last N days" (days since they last booked, at most N).
+  if (f.type === "bool") return [{ value: "is", label: "is" }];
+  if (f.key === "past.days_since_booked")
+    return [
+      { value: "lte", label: "is at most" },
+      { value: "gt", label: "is more than" },
+    ];
   if (f.type === "number")
     return [
       { value: "gte", label: "is at least" },
@@ -33,14 +40,14 @@ export function testsFor(f: FieldDef): { value: Cond["op"]; label: string }[] {
 }
 
 /** A new condition: the field's first test and no value yet. */
-export const blankCond = (f: FieldDef): Cond => ({ field: f.key, op: testsFor(f)[0]!.value, value: "" });
+export const blankCond = (f: FieldDef): Cond => ({ field: f.key, op: testsFor(f)[0]!.value, value: f.type === "bool" ? "true" : "" });
 
 /** The fields a row can test: the router's, without the ones that need setting up elsewhere. */
-export const usable = (fields: FieldDef[]) => fields.filter((f) => f.type !== "bool" && f.key !== "company.type" && f.key !== "lead.form" && (f.type !== "choice" || (f.options?.length ?? 0) > 0));
+export const usable = (fields: FieldDef[]) => fields.filter((f) => (f.type !== "bool" || isPast(f.key)) && f.key !== "company.type" && f.key !== "lead.form" && (f.type !== "choice" || (f.options?.length ?? 0) > 0));
 
 const valueWords = (c: Cond, f: FieldDef) => {
   const v = Array.isArray(c.value) ? c.value[0] : c.value;
-  return v === undefined || v === "" ? "…" : f.type === "country" ? countryName(String(v)) : String(v);
+  return v === undefined || v === "" ? "…" : f.type === "country" ? countryName(String(v)) : f.type === "bool" ? (String(v) === "false" ? "No" : "Yes") : String(v);
 };
 
 /** A condition in short words: "Country is United States". */
@@ -81,6 +88,8 @@ export function ValueInput({ field, value, onChange, search, onSearch }: { field
         items={COUNTRIES.map((c): DdItem => ({ kind: "option", key: c.value, label: c.label, search: c.label, on: c.value === value, onPick: () => onChange(c.value) }))}
       />
     );
+  if (field.type === "bool")
+    return <Dd sm ariaLabel={field.label} label={String(value) === "false" ? "No" : "Yes"} items={[["true", "Yes"], ["false", "No"]].map(([v, l]): DdItem => ({ kind: "option", key: v!, label: l!, on: String(value || "true") === v, onPick: () => onChange(v!) }))} />;
   if (field.type === "choice") return <Dd sm ariaLabel={field.label} label={value ? String(value) : <span className="text-faint">Pick</span>} items={(field.options ?? []).map((o): DdItem => ({ kind: "option", key: o, label: o, on: o === value, onPick: () => onChange(o) }))} />;
   if (field.type === "number")
     return (

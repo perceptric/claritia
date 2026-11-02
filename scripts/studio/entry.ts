@@ -9,12 +9,13 @@ const w = window as unknown as { calls: typeof calls; saved: Record<string, Stud
 w.calls = calls;
 w.saved = {};
 let tiaCalls = 0;
+const sends: { id: string; kind: string; name: string; domain: string | null }[] = [];
 const api: StudioApi = {
   start: {},
   brands: async () => [],
   meetings: async () => [
     { id: "11111111-1111-4111-8111-111111111111", name: "Intro call", length: 15 },
-    { id: "22222222-2222-4222-8222-222222222222", name: "Product demo", length: 30 },
+    { id: "22222222-2222-4222-8222-222222222222", name: "Product demo", length: 30, dynamic: true, who: "Locations is at least 50 → Enterprise, otherwise anyone on the team" },
   ],
   readSite: async (host) => {
     calls.push({ mode: "site", body: host });
@@ -84,6 +85,26 @@ const api: StudioApi = {
   },
   formUrl: (id) => `/f/${id}`,
   openMeetings: () => void calls.push({ mode: "openMeetings", body: null }),
+  openMeeting: (id) => void calls.push({ mode: "openMeeting", body: id }),
+  saveDraft: async (p) => {
+    calls.push({ mode: "saveDraft", body: p });
+    return { formId: "33333333-3333-4333-8333-333333333333" };
+  },
+  sends: async () => sends,
+  tools: async () => [{ id: "src-1", kind: "hubspot", name: "HubSpot", domain: "hubspot.com" }],
+  addSend: async (id, to) => {
+    calls.push({ mode: "addSend", body: { id, to } });
+    sends.push(to === "webhook" ? { id: `d${sends.length}`, kind: "webhook", name: "hooks.acme.dev", domain: null } : { ...to, id: `d${sends.length}` });
+    return true;
+  },
+  removeSend: async (d) => {
+    calls.push({ mode: "removeSend", body: d.id });
+    sends.splice(sends.findIndex((x) => x.id === d.id), 1);
+    return true;
+  },
+  followUps: async () => [{ id: "wf-1", name: "Form follow-up", status: "draft" }],
+  newFollowUp: (id, when) => void calls.push({ mode: "newFollowUp", body: { id, when } }),
+  openWorkflow: (id) => void calls.push({ mode: "openWorkflow", body: id }),
   back: () => void calls.push({ mode: "back", body: null }),
 };
 const el = document.getElementById("studio")!;

@@ -4,7 +4,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Rpc } from "../jobs.ts";
 import { fieldsFor } from "../router/actions.ts";
-import { dynamicHosts, dynamicOf, narrowTo, routeQuestions, routeValues, type RouteQuestion } from "./dynamic.ts";
+import { readPast } from "../router/server.ts";
+import { dynamicHosts, dynamicOf, narrowTo, routeQuestions, routeValues, testsPastFill, type RouteQuestion } from "./dynamic.ts";
 import type { MeetingType } from "./types.ts";
 
 export async function questionsFor(db: SupabaseClient, ws: string, t: MeetingType): Promise<RouteQuestion[]> {
@@ -33,13 +34,18 @@ export async function routedType(rpc: Rpc, db: SupabaseClient, o: { ws: string; 
   const qs = await questionsFor(db, o.ws, o.type);
   if (!qs.length) return o.type;
   let fromEmail: { domain: string | null; class: string | null } | undefined;
+  let past: Record<string, unknown> | undefined;
   if (qs[0]!.key === "email" && typeof o.answers.email === "string") {
     const { cleanEmail, isRejected } = await import("../identity/clean.ts");
     const e = cleanEmail(o.answers.email);
-    if (!isRejected(e)) fromEmail = { domain: e.domain, class: e.class };
+    if (!isRejected(e)) {
+      fromEmail = { domain: e.domain, class: e.class };
+      // Past fills by the email: any form, since a booking page has none.
+      if (testsPastFill(o.type)) past = await readPast(rpc, { ws: o.ws, contact: null, email: e.clean, form: null, skip: null });
+    }
   }
   const { data, error } = await rpc("routing_team_list", { p_ws: o.ws });
   if (error) throw new Error(error.message);
   const teams = (data ?? {}) as Record<string, { members: { user: string }[] }>;
-  return narrowTo(o.type, dynamicHosts(o.type, routeValues(o.answers, qs, fromEmail), teams));
+  return narrowTo(o.type, dynamicHosts(o.type, routeValues(o.answers, qs, fromEmail, past), teams));
 }

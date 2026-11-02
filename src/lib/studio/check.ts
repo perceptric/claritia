@@ -7,6 +7,7 @@
 import { linkProblem, type ScheduleTool } from "../forms/schedule.ts";
 import { languageName } from "./industries.ts";
 import { cleanPage, type PageAfter, type PageQuestion } from "./page.ts";
+import { cleanRoute, PAST_ROUTES, routeIncomplete, routeKind } from "./routes.ts";
 
 export type Issue = { level: "error" | "warning"; code: string; text: string; fix?: string };
 
@@ -155,6 +156,25 @@ export function checkStudioPage(p: { html: string; after: PageAfter; meetings: {
     }
   }
 
+  // Pages: a page or part shown by an answer reads a question on an earlier page, never one that comes after it.
+  const pageOf = new Map<string, number>();
+  steps.forEach((st, i) => {
+    for (const n of all(st, (x) => !!(x.attrs.name || x.attrs["data-cl-name"]))) {
+      const name = n.attrs.name || n.attrs["data-cl-name"]!;
+      if (!pageOf.has(name)) pageOf.set(name, i);
+    }
+  });
+  steps.forEach((st, i) => {
+    const readers = [...("data-cl-show-if" in st.attrs ? [{ n: st, self: true }] : []), ...all(st, (x) => "data-cl-show-if" in x.attrs).map((n) => ({ n, self: false }))];
+    for (const { n, self } of readers)
+      for (const r of showIfRefs(n.attrs["data-cl-show-if"]!)) {
+        const at = pageOf.get(r.name);
+        if (at === undefined || (self ? at < i : at <= i)) continue;
+        const q = byName.get(r.name);
+        add("error", "show-if-later", self ? `Page ${i + 1} shows by "${q?.label ?? r.name}", which is asked on page ${at + 1}, so it never shows.` : `A part of page ${i + 1} shows by "${q?.label ?? r.name}", which is asked on a later page, so it never shows.`, `Move the "${r.name}" question before what it shows, or fix the show-if that reads it.`);
+      }
+  });
+
   // After the send: a page, or a meeting with routes that point at real answers and meetings.
   const a = p.after;
   const known = (id: string | undefined) => !p.meetings || p.meetings.some((m) => m.id === id);
@@ -166,13 +186,25 @@ export function checkStudioPage(p: { html: string; after: PageAfter; meetings: {
     if (p.meetings && !p.meetings.length) add("error", "no-meetings", "On submission books a meeting, but the workspace has no meeting types yet.");
     else if (!a.meeting || !known(a.meeting)) add("error", "meeting-gone", "On submission books a meeting that isn't there any more. Pick one in On submission.");
     if (!all(tree, (n) => "data-cl-book" in n.attrs).length) add("warning", "no-book-spot", "There's no booking spot, so the calendar shows at the end of the thank-you.", "Add <div data-cl-book id=\"book\"></div> inside the thank-you section.");
-    for (const r of a.routes ?? []) {
+    (a.routes ?? []).forEach((raw, i) => {
+      const r = cleanRoute(raw);
+      const n = `Route ${i + 1}`;
+      if (!r) return add("error", "route-gone", `${n} can't be read. Fix it in On submission.`);
+      const past = r.field.startsWith("past.");
       const q = byName.get(r.field);
-      if (!q) add("error", "route-gone", `A route reads "${r.field}", which isn't a question any more. Fix it in On submission.`);
-      else if (q.options.length && !q.options.some((o) => o.value === r.value)) add("error", "route-value", `A route waits for "${r.value}" on "${q.label}", which isn't one of its answers any more. Fix it in On submission.`);
-      if (!known(r.meeting)) add("error", "route-meeting", "A route books a meeting that isn't there any more. Fix it in On submission.");
-    }
+      if (past && !PAST_ROUTES.some((p) => p.field === r.field)) add("error", "route-gone", `${n} reads a past fill that isn't there any more. Fix it in On submission.`);
+      else if (!past && !q) add("error", "route-gone", `${n} reads "${r.field}", which isn't a question any more. Fix it in On submission.`);
+      else {
+        const kind = routeKind(r.field, q);
+        const vals = Array.isArray(r.value) ? r.value.map(String) : r.value === undefined ? [] : [String(r.value)];
+        const gone = kind === "choice" && (r.op === "one_of" || r.op === "not_one_of" || r.op === "is" || r.op === "is_not") ? vals.filter((v) => !q!.options.some((o) => o.value === v)) : [];
+        if (gone.length) add("error", "route-value", `${n} waits for "${gone[0]}" on "${q!.label}", which isn't one of its answers any more. Fix it in On submission.`);
+        else if (routeIncomplete(r, kind)) add("error", "route-empty", `${n} has no value yet. Fill it in or remove it in On submission.`);
+      }
+      if (!r.meeting || !known(r.meeting)) add("error", "route-meeting", `${n} books a meeting that isn't there any more. Fix it in On submission.`);
+    });
   }
+  if (a.always?.email && !a.always.to?.length) add("error", "always-email", "Always do emails the team, but has no emails yet. Add them in On submission.");
 
   // Without an email, answers can't become contacts.
   if (!questions.some((q) => q.type === "email" || q.save === "email")) add("warning", "no-email", "There's no email question, so answers won't become contacts.", "Add an email question saved to the contact's email (data-cl-save=\"email\").");

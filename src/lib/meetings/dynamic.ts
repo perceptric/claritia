@@ -4,7 +4,7 @@
 // (not among the meeting's reps, a team that's gone or empty) never narrows the page to the wrong person: the page
 // keeps every rep, who take turns as before. Runs in the browser and on the server.
 
-import { incomplete, ruleMatches, toNumber, type FieldDef, type FieldType } from "../router/conditions.ts";
+import { incomplete, isPast, ruleMatches, toNumber, type FieldDef, type FieldType } from "../router/conditions.ts";
 import type { Cond, Rule } from "../router/types.ts";
 import type { Dest, Dynamic } from "../routing/compile.ts";
 import type { MeetingType } from "./types.ts";
@@ -12,8 +12,9 @@ import type { MeetingType } from "./types.ts";
 /** One question the page asks before its times: a field a rule tests, or the email for the email's domain and type. */
 export type RouteQuestion = { key: string; label: string; type: FieldType; options?: string[] };
 
-/** Fields the page works out from the email instead of asking. */
+/** Fields the page works out from the email instead of asking: its domain and type, and past fills (read by email). */
 const FROM_EMAIL = new Set(["contact.email_domain", "contact.email_class"]);
+const fromEmail = (field: string) => FROM_EMAIL.has(field) || isPast(field);
 const complete = (conds: Cond[]) => conds.length > 0 && !conds.some(incomplete);
 
 export const dynamicOf = (t: Pick<MeetingType, "settings">): Dynamic | null => (t.settings as { dynamic?: Dynamic }).dynamic ?? null;
@@ -28,8 +29,8 @@ export function routeQuestions(t: Pick<MeetingType, "settings">, fields: FieldDe
   for (const r of d.rules) {
     if (!complete(r.conds)) continue;
     for (const c of r.conds) {
-      if (FROM_EMAIL.has(c.field)) email = true;
-      if (FROM_EMAIL.has(c.field) || seen.has(c.field)) continue;
+      if (fromEmail(c.field)) email = true;
+      if (fromEmail(c.field) || seen.has(c.field)) continue;
       seen.add(c.field);
       const f = fields.find((x) => x.key === c.field);
       if (f) out.push({ key: f.key, label: f.label, type: f.type, ...(f.options?.length ? { options: f.options.slice(0, 60) } : {}) });
@@ -38,11 +39,17 @@ export function routeQuestions(t: Pick<MeetingType, "settings">, fields: FieldDe
   return email ? [{ key: "email", label: "Work email", type: "text" }, ...out] : out;
 }
 
+/** Whether the meeting's rules test a past fill (then the server reads it by the guest's email). */
+export function testsPastFill(t: Pick<MeetingType, "settings">): boolean {
+  return !!dynamicOf(t)?.rules.some((r) => complete(r.conds) && r.conds.some((c) => isPast(c.field)));
+}
+
 /**
  * The guest's answers as rule values: only the questions asked, trimmed, numbers as numbers, blanks left out. The
- * email's domain and type come in `fromEmail` (worked out on the server by the identity cleaner).
+ * email's domain and type come in `fromEmail` (worked out on the server by the identity cleaner), and past fills in
+ * `past` (read on the server by the email).
  */
-export function routeValues(raw: unknown, questions: RouteQuestion[], fromEmail?: { domain: string | null; class: string | null }): Record<string, unknown> {
+export function routeValues(raw: unknown, questions: RouteQuestion[], fromEmail?: { domain: string | null; class: string | null }, past?: Record<string, unknown>): Record<string, unknown> {
   const a = raw && typeof raw === "object" && !Array.isArray(raw) ? (raw as Record<string, unknown>) : {};
   const out: Record<string, unknown> = {};
   for (const q of questions) {
@@ -59,6 +66,7 @@ export function routeValues(raw: unknown, questions: RouteQuestion[], fromEmail?
   }
   if (fromEmail?.domain) out["contact.email_domain"] = fromEmail.domain;
   if (fromEmail?.class) out["contact.email_class"] = fromEmail.class;
+  for (const [k, v] of Object.entries(past ?? {})) if (isPast(k)) out[k] = v;
   return out;
 }
 
