@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { BookShell, Notice } from "@/components/book/BookShell";
 import { ManageView } from "@/components/book/ManageView";
 import { guestMeeting, loadMeeting } from "@/lib/meetings/public";
-import { options, pageRpc, type Search } from "../../load";
+import { linkShell, options, pageRpc, type Search } from "../../load";
 
 // The guest's manage link (docs/meetings-scheduler.md 1.7): see the meeting, reschedule or cancel. Stripe sends paid
 // guests back here (?paid=1) while the payment is confirmed.
@@ -23,8 +23,9 @@ export default async function ManagePage({ params, searchParams }: Props) {
         <Notice title="This meeting isn't here" />
       </BookShell>
     );
+  const s = await linkShell(v.ws);
   return (
-    <BookShell tokens={v.ws.kit.tokens} design={v.ws.kit.design} embed={o.embed} narrow>
+    <BookShell tokens={s.tokens} design={s.design} brand={s.brand} embed={o.embed} narrow>
       <ManageView token={token} initial={guestMeeting(v)} paid={o.paid} embed={o.embed} />
     </BookShell>
   );

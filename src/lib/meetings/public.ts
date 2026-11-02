@@ -11,6 +11,7 @@ import { keepManageToken } from "./links.ts";
 import { book, hostStates, liveAt, newToken, offer, quiet, sealedToken, tokenHash, turnsFor, type BookResult } from "./server.ts";
 import { cut, pickHost, pickPair } from "./slots.ts";
 import { cleanLook, ordered, type PageLook } from "./look.ts";
+import type { BookBrand } from "./brandPage.ts";
 import { validZone } from "./time.ts";
 import { dynamicOf } from "./dynamic.ts";
 import { checkSettings } from "./check.ts";
@@ -44,6 +45,8 @@ export type Target = {
   profiles: Profile[];
   /** The page's look: the person's, else the team page's (src/lib/meetings/look.ts). */
   look: PageLook;
+  /** The plan check and the brand's stylesheet, added by the page's loader (src/lib/meetings/brandServer.ts). */
+  brand?: BookBrand;
 };
 
 const SLUG = /^[a-z0-9][a-z0-9-]{0,58}[a-z0-9]$/;

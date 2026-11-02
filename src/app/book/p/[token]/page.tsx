@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { BookShell, Notice } from "@/components/book/BookShell";
 import { PollView } from "@/components/book/PollView";
 import { loadLink, pollView } from "@/lib/meetings/public";
-import { options, pageRpc, turnstileFor, type Search } from "../../load";
+import { linkShell, options, pageRpc, turnstileFor, type Search } from "../../load";
 
 // A meeting poll (docs/meetings-scheduler.md 1.8b): guests pick the times that work; the host books the winner.
 
@@ -22,8 +22,9 @@ export default async function PollPage({ params, searchParams }: Props) {
         <Notice title="This poll isn't here" />
       </BookShell>
     );
+  const s = await linkShell(v.ws);
   return (
-    <BookShell tokens={v.ws.kit.tokens} design={v.ws.kit.design} embed={o.embed} narrow>
+    <BookShell tokens={s.tokens} design={s.design} brand={s.brand} embed={o.embed} narrow>
       <PollView token={token} initial={pollView(v)} turnstileKey={turnstileFor(v.ws.turnstile)} />
     </BookShell>
   );

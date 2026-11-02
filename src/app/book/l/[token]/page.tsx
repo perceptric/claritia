@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { BookFlow } from "@/components/book/BookFlow";
 import { BookShell, Notice } from "@/components/book/BookShell";
 import { guestSlots, linkGuestType, loadLink, oneOffSlots } from "@/lib/meetings/public";
-import { keep, options, pageRpc, turnstileFor, type Search } from "../../load";
+import { keep, linkShell, options, pageRpc, turnstileFor, type Search } from "../../load";
 
 // A one-off meeting or a single-use link (docs/meetings-scheduler.md 1.8b). Either books once; a second visit says
 // it's used and points to the host's page.
@@ -23,11 +23,11 @@ export default async function LinkPage({ params, searchParams }: Props) {
         <Notice title="This link isn't here" />
       </BookShell>
     );
-  const tokens = v.ws.kit.tokens;
+  const s = await linkShell(v.ws);
   if (v.link.used || v.link.closed) {
     const page = v.owner && v.ws.slug ? keep(`/book/${v.ws.slug}/${v.owner.slug}`, o.embed) : null;
     return (
-      <BookShell tokens={tokens} design={v.ws.kit.design} embed={o.embed} narrow>
+      <BookShell tokens={s.tokens} design={s.design} brand={s.brand} embed={o.embed} narrow>
         <Notice title={v.link.used ? "This link has already been used" : "This link is closed"}>
           {page && (
             <a className="cb-btn" href={page} style={{ textDecoration: "none" }}>
@@ -41,8 +41,8 @@ export default async function LinkPage({ params, searchParams }: Props) {
   const type = linkGuestType(v);
   const first = await (v.link.kind === "one_off" ? oneOffSlots(rpc, v) : guestSlots(rpc, { ws: v.link.workspace_id, type: v.type!, length: type.lengths[0]! })).catch(() => undefined);
   return (
-    <BookShell tokens={tokens} design={v.ws.kit.design} embed={o.embed}>
-      <BookFlow endpoint={`/api/book/l/${token}`} type={type} initialSlots={first} turnstileKey={turnstileFor(v.ws.turnstile)} logo={v.ws.kit.logo_url} embed={o.embed} prefill={o.prefill} />
+    <BookShell tokens={s.tokens} design={s.design} brand={s.brand} embed={o.embed}>
+      <BookFlow endpoint={`/api/book/l/${token}`} type={type} initialSlots={first} turnstileKey={turnstileFor(v.ws.turnstile)} logo={s.logo} embed={o.embed} prefill={o.prefill} />
     </BookShell>
   );
 }

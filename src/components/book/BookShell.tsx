@@ -1,15 +1,18 @@
 import { EmbedHeight } from "./EmbedHeight";
-import { KitScope } from "./kit";
+import { KitScope, type BrandSheet } from "./kit";
 
 // The frame around every booking page: the kit's look, the card centered on the page, Claritia's corner badge (with
 // what Claritia does on hover) and "Book with Claritia" under the card, both unless the page hides them. In an embed
 // (<claritia-book>, ?embed=1) it sits flush and tells the page around it its height, so the frame fits. No hooks:
 // on the public pages the look is worked out on the server, and only the embed's height runs in the browser.
 
-/** `vars`: the page look's overrides (src/lib/meetings/look.ts). `badge`: show the corner badge and "Book with Claritia". */
-export function BookShell({ tokens, design, embed, narrow, vars, badge = true, children }: { tokens: Record<string, unknown> | null; design?: unknown; embed?: boolean; narrow?: boolean; vars?: Record<string, string>; badge?: boolean; children: React.ReactNode }) {
+/**
+ * `vars`: the page look's overrides (src/lib/meetings/look.ts). `badge`: show the corner badge and "Book with
+ * Claritia". `brand`: the brand's own stylesheet, on paid plans (src/lib/meetings/brandPage.ts).
+ */
+export function BookShell({ tokens, design, embed, narrow, vars, badge = true, brand, children }: { tokens: Record<string, unknown> | null; design?: unknown; embed?: boolean; narrow?: boolean; vars?: Record<string, string>; badge?: boolean; brand?: BrandSheet; children: React.ReactNode }) {
   return (
-    <KitScope tokens={tokens ?? {}} design={design} vars={vars} className={`cb-page ${embed ? "cb-embed" : ""}`}>
+    <KitScope tokens={tokens ?? {}} design={design} vars={vars} brand={brand} className={`cb-page ${embed ? "cb-embed" : ""}`}>
       {embed ? <EmbedHeight /> : null}
       <div className={`cb-wrap ${narrow ? "cb-narrow" : ""}`}>
         <div className="cb-cardwrap">

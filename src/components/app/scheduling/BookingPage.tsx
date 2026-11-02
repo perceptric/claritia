@@ -12,11 +12,14 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { toGuestType, type Profile as GuestProfile } from "@/lib/meetings/guest";
 import { bookingOrigin, bookingUrl, cleanHandle, handleProblem } from "@/lib/meetings/handles";
 import { ACCENTS, cleanLook, lookTokens, lookWords, ordered, usesKit, type Accent, type PageLook } from "@/lib/meetings/look";
+import { bookBrandCss, brandPlan } from "@/lib/meetings/brandPage";
+import { AiMark } from "../Ai";
+import { readLines } from "../streamLines";
 import { Check, ExternalLink, Grid, Grip, Link as LinkIcon, Message, Monitor, Palette, Phone, Upload, User } from "../../Icons";
 import { BookShell } from "@/components/book/BookShell";
 import { PageHead, TypeCards } from "@/components/book/TypeCards";
 import { askConfirm } from "../Dialogs";
-import { Button, ErrorNote, errorText, Input, invalidate, Loading, Page, Segmented, setLeaveGuard, Toggle, useQuery, type ViewProps } from "../ui";
+import { Badge, Button, ErrorNote, errorText, Input, invalidate, Loading, Page, postJson, Segmented, setLeaveGuard, Toggle, useQuery, type ViewProps } from "../ui";
 import { CopyButton, meetingsApi, usePeople } from "../meetings/parts";
 import { useMeetingTypes, type TypeRow } from "../meetings/TypesList";
 import { IconSeg, Labeled, PanelFooter, PanelSection } from "./panel";
@@ -28,6 +31,7 @@ type Info = {
 };
 type Draft = { handle: string; team: string; name: string; headline: string; photo_url: string; slug: string; hidden: Record<string, boolean>; mineLook: PageLook; teamLook: PageLook };
 type Which = "mine" | "team";
+type KitRow = { tokens: Record<string, unknown> | null; logo_url: string | null; source_url: string | null };
 type SectionKey = "link" | "profile" | "shown" | "welcome" | "styling";
 
 const isMine = (t: TypeRow, me: string) => t.owner_user_id === me || (!t.owner_user_id && (t.kind === "one" || t.kind === "group") && t.hosts[0]?.user_id === me);
@@ -67,15 +71,21 @@ export function BookingPage(props: ViewProps) {
   const me = session.user.id;
   const owner = role === "owner";
   const people = usePeople(sb, ws.id);
-  // The page's settings and the brand kit; the types come from the shared list (active ones, by name).
+  // The page's settings, the plan and the brand kit with its stylesheet (112); the types come from the shared list
+  // (active ones, by name). The brand's look is on paid plans (src/lib/meetings/brandPage.ts).
   const page = useQuery(`booking_page:${ws.id}`, async () => {
-    const [info, kit] = await Promise.all([
+    const [info, kit, bill] = await Promise.all([
       meetingsApi<Info>(session, ws.id, "booking", { action: "load" }),
-      workspaceKit<{ tokens: Record<string, unknown> | null; logo_url: string | null }>(sb, ws.id, "tokens, logo_url"),
+      workspaceKit<KitRow>(sb, ws.id, "tokens, logo_url, source_url"),
+      sb.from("workspace_billing").select("plan").eq("workspace_id", ws.id).maybeSingle(),
     ]);
-    const k = ((kit.data ?? []) as { tokens: Record<string, unknown> | null; logo_url: string | null }[])[0] ?? null;
-    return { info, kit: k && k.tokens && Object.keys(k.tokens).length ? k : null };
+    const k = ((kit.data ?? []) as (KitRow & { id: string })[])[0] ?? null;
+    const css = k ? await sb.from("brand_kits").select("studio_css").eq("id", k.id).maybeSingle() : null;
+    const studio = css && !css.error ? ((css.data as { studio_css?: string | null } | null)?.studio_css ?? "") : "";
+    return { info, kit: k && k.tokens && Object.keys(k.tokens).length ? { ...k, studio_css: studio } : null, paid: brandPlan((bill.data as { plan?: string } | null)?.plan) };
   });
+  const [readCss, setReadCss] = useState<string | null>(null);
+  const [reading, setReading] = useState(false);
   const allTypes = useMeetingTypes(sb, ws.id);
   const activeTypes = useMemo(() => (allTypes.data ? allTypes.data.filter((t) => t.active).sort((a, b) => a.name.localeCompare(b.name)) : null), [allTypes.data]);
   const data = useMemo(() => ({ data: page.data && activeTypes ? { ...page.data, types: activeTypes } : null, error: page.error || allTypes.error }), [page.data, page.error, activeTypes, allTypes.error]);
@@ -113,7 +123,7 @@ export function BookingPage(props: ViewProps) {
         {data.error ? null : <Loading />}
       </Page>
     );
-  const { info, types, kit } = data.data;
+  const { info, types, kit, paid } = data.data;
   const set = (patch: Partial<Draft>) => setDraft((d) => (d ? { ...d, ...patch } : d));
   const look = which === "mine" ? draft.mineLook : draft.teamLook;
   const setLook = (patch: Partial<PageLook>) => set(which === "mine" ? { mineLook: { ...draft.mineLook, ...patch } } : { teamLook: { ...draft.teamLook, ...patch } });
@@ -157,17 +167,49 @@ export function BookingPage(props: ViewProps) {
   };
 
   const profiles: GuestProfile[] = (people.data?.list ?? []).map((p) => (p.id === me ? { user_id: p.id, slug: draft.slug, name: draft.name, headline: draft.headline, photo_url: draft.photo_url || null } : { user_id: p.id, slug: p.slug ?? "", name: p.name, headline: p.headline, photo_url: p.photo }));
-  const shell = lookTokens(look, kit?.tokens ?? null);
+  // On Free the page is Claritia's look with the badge, whatever was saved; paid plans get the brand's own stylesheet.
+  const shown = paid ? look : { ...look, look: "claritia" as const, badge: true };
+  const shell = lookTokens(shown, kit?.tokens ?? null);
+  const brandCss = paid && kit && usesKit(shown, true) ? (readCss ?? kit.studio_css) : "";
+  const sheet = brandCss ? bookBrandCss(brandCss) : null;
+  const brand = sheet?.css ? sheet : undefined;
+  const readLook = async () => {
+    if (!kit) return;
+    setReading(true);
+    setError("");
+    try {
+      const res = await fetch("/api/studio", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` }, body: JSON.stringify({ workspaceId: ws.id, mode: "look", kitId: kit.id }) });
+      let got = "";
+      await readLines<{ css?: string; error?: string }>(res, (l) => {
+        if (l.error) throw new Error(l.error);
+        if (l.css) got = l.css;
+      });
+      if (got) setReadCss(got);
+    } catch (e) {
+      setError(errorText(e));
+    } finally {
+      setReading(false);
+    }
+  };
+  const upgrade = async () => {
+    setError("");
+    try {
+      const { url } = await postJson<{ url: string }>(session, "/api/billing/checkout", { workspaceId: ws.id, plan: "starter" });
+      window.location.assign(url);
+    } catch (e) {
+      setError(errorText(e));
+    }
+  };
   const cards = visible.map((t) => ({ href: handle ? bookingUrl(origin, handle, t.slug) : "#", type: toGuestType(t, profiles, { pay: true }) }));
   const preview =
     which === "mine" ? (
-      <BookShell tokens={shell.tokens} vars={shell.vars} badge={look.badge} narrow>
+      <BookShell tokens={shell.tokens} vars={shell.vars} badge={shown.badge} brand={brand} narrow>
         <PageHead title={`Book time with ${draft.name.split(/\s+/)[0] || draft.name || "me"}`} line={draft.headline || draft.name} hosts={[{ name: draft.name || email, photo: draft.photo_url || null }]} big welcome={look.welcome} />
         <TypeCards types={cards} />
       </BookShell>
     ) : (
-      <BookShell tokens={shell.tokens} vars={shell.vars} badge={look.badge} narrow>
-        <PageHead title={ws.name} logo={usesKit(look, !!kit) ? (kit?.logo_url ?? null) : null} welcome={look.welcome} />
+      <BookShell tokens={shell.tokens} vars={shell.vars} badge={shown.badge} brand={brand} narrow>
+        <PageHead title={ws.name} logo={usesKit(shown, !!kit) ? (kit?.logo_url ?? null) : null} welcome={look.welcome} />
         <TypeCards types={cards} />
       </BookShell>
     );
@@ -282,8 +324,19 @@ export function BookingPage(props: ViewProps) {
             <PanelSection icon={<Message />} title="Welcome line" summary={look.welcome || "None"} open={open === "welcome"} onToggle={() => toggle("welcome")}>
               <Input value={look.welcome} disabled={!canEdit} maxLength={140} placeholder="Pick a time that works for you." onChange={(e) => setLook({ welcome: e.target.value })} className="h-[34px] text-[13px]" />
             </PanelSection>
-            <PanelSection icon={<Palette />} title="Styling" summary={lookWords(look, !!kit)} open={open === "styling"} onToggle={() => toggle("styling")}>
-              <Styling kit={!!kit} look={look} disabled={!canEdit} onChange={setLook} />
+            <PanelSection icon={<Palette />} title="Styling" summary={lookWords(shown, !!kit)} open={open === "styling"} onToggle={() => toggle("styling")}>
+              <Styling
+                kit={!!kit}
+                look={shown}
+                paid={paid}
+                needsLook={!!kit?.source_url && !(readCss ?? kit.studio_css)}
+                reading={reading}
+                owner={owner}
+                disabled={!canEdit}
+                onChange={setLook}
+                onRead={() => void readLook()}
+                onUpgrade={() => void upgrade()}
+              />
             </PanelSection>
           </div>
           <PanelFooter>
@@ -423,8 +476,12 @@ async function squareJpeg(file: File, size: number): Promise<Blob> {
   return new Promise((resolve, reject) => canvas.toBlob((b) => (b ? resolve(b) : reject(new Error("This browser can't read the image."))), "image/jpeg", 0.85));
 }
 
-/** Claritia's look or the brand kit, the accent, the buttons and the Booked with Claritia line. */
-function Styling({ kit, look, disabled, onChange }: { kit: boolean; look: PageLook; disabled: boolean; onChange: (p: Partial<PageLook>) => void }) {
+/**
+ * Claritia's look or the brand kit, the accent, the buttons and the Booked with Claritia line. The brand's look and
+ * hiding the line are on paid plans; a brand with no stylesheet yet has Read the look.
+ */
+function Styling(p: { kit: boolean; look: PageLook; paid: boolean; needsLook: boolean; reading: boolean; owner: boolean; disabled: boolean; onChange: (p: Partial<PageLook>) => void; onRead: () => void; onUpgrade: () => void }) {
+  const { kit, look, paid, disabled, onChange } = p;
   const swatches: { key: Accent; tone: string }[] = [
     { key: "ink", tone: "bg-ink" },
     { key: "emerald", tone: "bg-signal" },
@@ -440,7 +497,7 @@ function Styling({ kit, look, disabled, onChange }: { kit: boolean; look: PageLo
       <div className="grid grid-cols-2 gap-2">
         {[
           { key: "claritia" as const, label: "Claritia", tone: "bg-ink", on: !onKit, off: false },
-          { key: "brand" as const, label: "Your brand kit", tone: "bg-sky", on: onKit, off: !kit },
+          { key: "brand" as const, label: "Your brand kit", tone: "bg-sky", on: onKit, off: !kit || !paid },
         ].map((c) => (
           <button
             key={c.key}
@@ -459,6 +516,21 @@ function Styling({ kit, look, disabled, onChange }: { kit: boolean; look: PageLo
           </button>
         ))}
       </div>
+      {!paid ? (
+        <span className="flex items-center justify-between gap-2">
+          <Badge tone="violet">Paid plans</Badge>
+          {p.owner ? (
+            <Button size="sm" onClick={p.onUpgrade}>
+              Upgrade
+            </Button>
+          ) : null}
+        </span>
+      ) : onKit && p.needsLook ? (
+        <Button variant="ghost" size="sm" className="h-[30px] self-start !border-line" disabled={disabled || p.reading} onClick={p.onRead}>
+          <AiMark size={13} working={p.reading} />
+          {p.reading ? "Reading the look" : "Read the look"}
+        </Button>
+      ) : null}
       <Labeled label="Accent">
         <div className="flex flex-wrap gap-2">
           {swatches.map((s) => (
@@ -489,7 +561,7 @@ function Styling({ kit, look, disabled, onChange }: { kit: boolean; look: PageLo
       </Labeled>
       <span className="flex items-center justify-between gap-2 text-[13px] text-ink">
         Show Booked with Claritia
-        <Toggle label="Show Booked with Claritia" on={look.badge} disabled={disabled} onChange={(badge) => onChange({ badge })} />
+        <Toggle label="Show Booked with Claritia" on={look.badge} disabled={disabled || !paid} onChange={(badge) => onChange({ badge })} />
       </span>
     </>
   );
