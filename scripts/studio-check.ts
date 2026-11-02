@@ -10,6 +10,10 @@ import { build } from "esbuild";
 import postcss from "postcss";
 import tailwind from "@tailwindcss/postcss";
 import pw from "playwright-core";
+import { sampleSlots } from "../src/lib/forms/calendar.ts";
+import { checkForm, type Form } from "../src/lib/forms/schema.ts";
+import { pageForm, type PageAfter } from "../src/lib/studio/page.ts";
+import { buildForms } from "./build-forms.mts";
 
 const failures: string[] = [];
 const check = (ok: boolean, what: string) => {
@@ -22,8 +26,20 @@ const bundle = await build({ entryPoints: [`${root}scripts/studio/entry.ts`], bu
 const js = bundle.outputFiles[0]!.contents;
 const globals = `${root}src/app/globals.css`;
 const css = (await postcss([tailwind()]).process(readFileSync(globals, "utf8"), { from: globals })).css;
+const formsJs = await buildForms();
+// The live form: the published body comes from the studio's Publish (set below), answers and bookings are kept.
+let live: Form | null = null;
+const sends: { answers: Record<string, unknown> }[] = [];
 const page = `<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="/app.css"><style>html,body{height:100%;margin:0}#studio{height:100%;display:flex;flex-direction:column}</style></head><body><div id="studio"></div><script type="module" src="/app.js"></script></body></html>`;
+const LIVE_ID = "33333333-3333-4333-8333-333333333333";
 const server = createServer((req, res) => {
+  const body = () => new Promise<string>((r) => { let b = ""; req.on("data", (c) => (b += c)); req.on("end", () => r(b)); });
+  const json = (o: unknown) => res.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify(o));
+  if (req.url === "/forms/v1.js") return void res.writeHead(200, { "content-type": "text/javascript" }).end(formsJs);
+  if (req.url === `/live`) return void res.writeHead(200, { "content-type": "text/html" }).end(`<!doctype html><html><head><meta charset="utf-8"><script src="/forms/v1.js"></script></head><body style="margin:0"><claritia-form form-id="${LIVE_ID}" host="http://localhost:${(server.address() as { port: number }).port}"></claritia-form></body></html>`);
+  if (req.url === `/api/forms/${LIVE_ID}`) return json({ id: LIVE_ID, version: 1, status: "live", body: live, tokens: {}, logo_url: "https://cdn.example/logo.svg" });
+  if (req.url === `/api/forms/${LIVE_ID}/submit`) return void body().then((b) => (sends.push(JSON.parse(b)), json({ id: "s1", booking: { token: "t", slots: sampleSlots(Date.now()), lengths: [30], length: 30 } })));
+  if (req.url?.startsWith(`/api/forms/${LIVE_ID}/seen`)) return json({});
   if (req.url?.startsWith("/app.css")) return void res.writeHead(200, { "content-type": "text/css" }).end(css);
   if (req.url?.startsWith("/app.js")) return void res.writeHead(200, { "content-type": "text/javascript" }).end(js);
   res.writeHead(200, { "content-type": "text/html" }).end(page);
@@ -71,10 +87,10 @@ try {
   // 3. The chat builds the form in the preview, with the real logo
   await $("#input").fill("A daily check-in");
   await $("#input").press("Enter");
-  await p.waitForFunction(() => !document.querySelector("#studio")!.shadowRoot!.querySelector(".msg.ai .who.working"), null, { timeout: 15000 });
+  await p.waitForFunction(() => !document.querySelector("#studio")!.shadowRoot!.querySelector(".msg.ai .tia.working"), null, { timeout: 15000 });
   const chat = (await calls()).find((c) => c.mode === "chat")!.body as { content: string }[];
   const last = chat.at(-1)!.content;
-  check(last.includes("<brand_css>") && last.includes("m-intro: Intro call, 15 min"), "each message carries the brand CSS and the meeting types");
+  check(last.includes("<brand_css>") && last.includes("11111111-1111-4111-8111-111111111111: Intro call, 15 min"), "each message carries the brand CSS and the meeting types");
   const form = p.locator("#studio").locator("#host");
   const logo = await p.evaluate(() => (document.querySelector("#studio")!.shadowRoot!.getElementById("host")!.shadowRoot!.querySelector("img[data-cl-logo]") as HTMLImageElement | null)?.src ?? "");
   check(logo.startsWith("data:image/png"), "the form shows the brand's real logo");
@@ -88,7 +104,9 @@ try {
   await form.locator('label:has(input[value="tender"])').first().click();
   check(await form.locator("[data-cl-show-if]").first().isVisible(), "show-if shows the follow-up");
   await form.locator("[data-cl-next]").click();
-  check(await form.locator('input[name="email"]').isVisible(), "next moves to step 2");
+  const stepOk = await form.locator('input[name="email"]').isVisible();
+  if (!stepOk) console.log("debug", await form.locator("[data-cl-error-for]").allTextContents(), await p.evaluate(() => (document.querySelector("#studio")!.shadowRoot!.getElementById("host")!.shadowRoot!.querySelector("section[data-cl-step]") as HTMLElement).hidden));
+  check(stepOk, "next moves to step 2");
   await form.locator('input[name="email"]').fill("sam@example.com");
   await form.locator("[type=submit]").click();
   await form.locator(".cl-cal").waitFor();
@@ -109,7 +127,43 @@ try {
   check((await $("#afterInner .pill.on").allTextContents()).some((t) => t.startsWith("Product demo")), "Claude's choice of meeting is set");
   if (shots) await p.screenshot({ path: `${shots}/4-after.png` });
 
-  // 6. Delete a brand from the menu
+  // 6. Tia, the brand as its logo and name, and Publish
+  check((await $(".msg.ai .who").first().textContent())!.includes("Tia") && !(await $("#app").textContent())!.includes("Claude"), "the chat is Tia, and Claude isn't named");
+  check(!(await $("#brandBtn").textContent())!.includes("finch.care"), "the brand shows as its logo and name");
+  await $("#t-preview").click();
+  await $("#publish").click();
+  await p.waitForFunction(() => document.querySelector("#studio")!.shadowRoot!.getElementById("publish")!.textContent === "Published");
+  const pub = (await calls()).find((c) => c.mode === "publish")!.body as { html: string; css: string; brand: string; after: PageAfter; name: string };
+  check(pub.name === "Daily check-in" && pub.html.includes("data-cl-step") && pub.brand.includes("--finch-mint"), "Publish sends the form's name, page and brand CSS");
+  check(!!(await $("#pubNote a").getAttribute("href")), "a published form links to its page");
+  const made = checkForm(pageForm(pub).form);
+  check("form" in made, `the published page passes the form checker${"errors" in made ? `: ${made.errors.join("; ")}` : ""}`);
+  live = "form" in made ? made.form : null;
+
+  // 7. The live form: the page in the form script, answers by field id, the booking in the page's spot
+  const lp = await browser.newPage({ viewport: { width: 1100, height: 900 } });
+  lp.on("pageerror", (e) => errors.push(`live: ${e.message}`));
+  await lp.goto(`http://localhost:${port}/live`);
+  const lf = lp.locator("claritia-form");
+  await lf.locator("#title").waitFor();
+  check((await lf.locator("img[data-cl-logo]").getAttribute("src")) === "https://cdn.example/logo.svg", "the live form shows the brand's logo");
+  await lf.locator("[data-cl-next]").click();
+  check(((await lf.locator('[data-cl-error-for="name"]').textContent()) ?? "").length > 0, "the live form checks required answers");
+  await lf.locator("#nm").fill("Sam");
+  await lf.locator('label:has(input[value="tender"])').first().click();
+  await lf.locator("#why").fill("A long week");
+  await lf.locator("[data-cl-next]").click();
+  await lf.locator('input[name="email"]').fill("sam@example.com");
+  await lf.locator("[type=submit]").click();
+  await lf.locator("[data-cl-book] .tm .pl").first().waitFor();
+  const sent = sends[0]?.answers ?? {};
+  const ids = live?.page?.ids ?? {};
+  check(sent[ids.name!] === "Sam" && sent[ids.email!] === "sam@example.com" && sent[ids.mood!] === "tender" && sent[ids.why!] === "A long week", "the live form sends each answer by its field id");
+  check(await lf.locator("[data-cl-thanks]").isVisible(), "the page's thanks shows after the send");
+  check((await lf.locator("[data-cl-book] .tm .pl").count()) > 0, "the booking calendar opens in the page's booking spot");
+  if (shots) await lp.screenshot({ path: `${shots}/5-live.png` });
+
+  // 8. Delete a brand from the menu
   await $("#brandBtn").click();
   await $("#brandMenu button[aria-label='Delete Finch']").click();
   await $("#brandMenu .mdel button").filter({ hasText: "Delete" }).click();

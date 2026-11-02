@@ -8,6 +8,7 @@ import { CONST_ID, evalFormula, parseFormula, type Ast } from "./formula.ts";
 import { cleanHtml } from "./html.ts";
 import { linkProblem, SCHEDULERS, WORK_EMAIL, type MatchRule, type Schedule } from "./schedule.ts";
 import { cleanCondition } from "../router/check.ts";
+import { checkPage, type Page } from "../studio/page.ts";
 import { cleanKeep, cleanNotify, cleanReply, cleanSites, type Keep, type Notify, type Reply } from "./notify.ts";
 
 export type FieldType =
@@ -307,6 +308,8 @@ export type After = {
 };
 
 export type Form = {
+  /** A studio form (docs/forms-chat-plan.md): the page Tia wrote, drawn in place of the fields. */
+  page?: Page;
   steps: Step[];
   rules: Rule[];
   /** progress: how steps show where you are (a bar unless set). maxWidth: px, over the narrow or wide width. */
@@ -1087,6 +1090,7 @@ export function checkForm(raw: unknown, ctx: Ctx = {}): { form: Form } | { error
     ...(en.hideKnown === true || enrichFields.length ? { enrich: { hideKnown: en.hideKnown === true, fields: enrichFields } } : {}),
     ...((d) => (Object.keys(d).length ? { design: d } : {}))(readFormDesign(r.design, new Set(flat.map((f) => f.id)))),    ...(constants.length ? { constants } : {}),
     ...((x) => (x ? { results: x } : {}))(cleanResults(r.results, byId, errors)),
+    ...((pg) => (pg ? { page: pg } : {}))(checkPage(r.page, new Set(flat.map((f) => f.id)))),
   };
   return errors.length ? { errors: [...new Set(errors)] } : { form };
 }

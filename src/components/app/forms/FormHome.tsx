@@ -12,6 +12,7 @@ import { CATALOG } from "@/lib/sources/catalog";
 import { Send } from "../../Icons";
 import { FormSketch } from "../../sketches/FormSketch";
 import { AiMark } from "../Ai";
+import { Studio } from "./studio/Studio";
 import { askConfirm } from "../Dialogs";
 import { Badge, ErrorNote, errorText, IconButton, invalidate, Loading, must, postJson, useKept, useQuery, type ViewProps } from "../ui";
 import { meetingTypes } from "../meetings/TypesList";
@@ -139,18 +140,17 @@ export function FormHome(props: ViewProps & { startNew?: boolean }) {
       <h1 className="text-ink">Forms</h1>
       {rows?.length ? <span className="font-normal text-faint tabular-nums">{rows.length}</span> : null}
       <span className="flex-1" />
-      <button type="button" className={GHOST} onClick={() => navigate("forms", "studio")}>
-        <AiMark size={14} />
-        Studio
-      </button>
       {rows?.length ? (
-        <button type="button" className={BTN} onClick={() => setDialog(true)}>
+        <button type="button" className={BTN} onClick={() => navigate("forms", "new")}>
           <Ic n="plus" />
           New form
         </button>
       ) : null}
     </div>
   );
+
+  // No forms yet: Form Studio is the first screen.
+  if (list.data && !rows?.length) return <Studio {...props} />;
 
   const body = !list.data ? (
     list.error ? (

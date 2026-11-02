@@ -11,8 +11,8 @@ const api: StudioApi = {
   key: "clr-form-studio:test",
   brands: async () => [],
   meetings: async () => [
-    { id: "m-intro", name: "Intro call", length: 15, host: "the host" },
-    { id: "m-demo", name: "Product demo", length: 30, host: "the team, round robin" },
+    { id: "11111111-1111-4111-8111-111111111111", name: "Intro call", length: 15, host: "the host" },
+    { id: "22222222-2222-4222-8222-222222222222", name: "Product demo", length: 30, host: "the team, round robin" },
   ],
   readSite: async (host) => {
     calls.push({ mode: "site", body: host });
@@ -43,6 +43,14 @@ const api: StudioApi = {
     }
     return { text: all, cut: false };
   },
+  form: async () => null,
+  publish: async (p) => {
+    calls.push({ mode: "publish", body: p });
+    await wait(200);
+    return { formId: "33333333-3333-4333-8333-333333333333" };
+  },
+  formUrl: (id) => `/f/${id}`,
+  started: () => undefined,
   deleteBrand: async (id) => void calls.push({ mode: "delete", body: id }),
   openMeetings: () => void calls.push({ mode: "openMeetings", body: null }),
   back: () => void calls.push({ mode: "back", body: null }),

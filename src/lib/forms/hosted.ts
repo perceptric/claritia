@@ -18,6 +18,8 @@ const CSS = [
   "main>div{width:100%;max-width:720px}",
   ".framed main{min-height:0;display:block;padding:4px;background:transparent}",
   ".framed main>div{max-width:none}",
+  // A studio page fills the page, edge to edge.
+  "main:has([data-page]){padding:0;display:block}main:has([data-page])>div{max-width:none}html:not(.framed) [data-page]{min-height:100vh}",
   ".missing{font-weight:600;letter-spacing:-.02em;padding:64px 0;margin:0;text-align:center;font-size:18px;color:#0a0a0a}",
 ].join("");
 

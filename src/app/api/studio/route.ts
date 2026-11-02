@@ -2,6 +2,9 @@ import Anthropic from "@anthropic-ai/sdk";
 import { cachedStep, hashKey, usageOf, type Usage } from "@/lib/ai/cache";
 import { sourceText } from "@/lib/brand/sourceSkin";
 import { isMember } from "@/lib/contacts/server";
+import { checkForm } from "@/lib/forms/schema";
+import { cleaningCtx } from "@/lib/contacts/server";
+import { pageForm, type PageAfter } from "@/lib/studio/page";
 import { BRAND_RULES, CHAT_RULES, STUDIO_MODEL } from "@/lib/studio/prompts";
 import { hostOf, readSite, readSource } from "@/lib/studio/site";
 import { requireUser } from "@/lib/serverAuth";
@@ -15,7 +18,9 @@ import { serviceClient } from "@/lib/serviceClient";
 //                                                               in a browser; the page checks back for its name and logo
 //   look    { kitId, fresh? }        → stream: { say, css }     the confirmed site's page source read into its brand CSS
 //                                                               (fresh: read again, past the cache)
-//   chat    { turns }                → stream: { t } deltas, then { done }   the form designer (Claude Opus)
+//   chat    { turns }                → stream: { t } deltas, then { done }   the form designer (Tia, on Claude Opus)
+//   save    { formId?, name, html, css, brand, after, kitId } → { formId }   the studio form as a real form's draft;
+//                                                               /api/forms/publish then makes it live
 // Streams are lines of JSON with a heartbeat, so no proxy ends a long Opus answer. Every Claude call goes through the
 // step cache: the same inputs replay the saved answer.
 
@@ -62,7 +67,7 @@ function lines(run: (send: (o: unknown) => void) => Promise<void>): Response {
         await run(send);
       } catch (e) {
         console.error(`studio: ${(e as Error).message}`);
-        send({ error: "Claude didn't finish. Try again." });
+        send({ error: "Tia didn't finish. Try again." });
       } finally {
         clearInterval(beat);
         try {
@@ -120,10 +125,40 @@ export async function POST(request: Request) {
     return Response.json({ kitId });
   }
 
+  if (b.mode === "save") {
+    // The studio form as a real form: its page cleaned, its questions read into fields, checked like every form.
+    const html = typeof b.html === "string" ? b.html : "";
+    if (!html.trim()) return bad("Build the form first.");
+    const after = (b.after && typeof b.after === "object" ? b.after : { kind: "thanks" }) as PageAfter;
+    const name = String(b.name ?? "").trim().slice(0, 120) || "New form";
+    const { form: draft, questions } = pageForm({ html, css: String(b.css ?? ""), brand: String(b.brand ?? ""), after, title: name });
+    if (!questions.length) return bad("The form has no questions to send.");
+    const ctx = await cleaningCtx(db, ws);
+    const r = checkForm(draft, { custom: ctx.custom });
+    if ("errors" in r) return bad(r.errors[0]!, 400);
+    const kitId = typeof b.kitId === "string" && UUID.test(b.kitId) ? b.kitId : null;
+    const formId = typeof b.formId === "string" && UUID.test(b.formId) ? b.formId : "";
+    if (formId) {
+      const { data: had } = await db.from("forms").select("id, draft_rev").eq("id", formId).eq("workspace_id", ws).maybeSingle();
+      if (had) {
+        const up = await db
+          .from("forms")
+          .update({ name, draft: r.form, brand_kit_id: kitId, draft_rev: ((had as { draft_rev: number }).draft_rev ?? 0) + 1, updated_at: new Date().toISOString() })
+          .eq("id", formId)
+          .eq("workspace_id", ws);
+        if (up.error) return bad(up.error.message, 500);
+        return Response.json({ formId });
+      }
+    }
+    const ins = await db.from("forms").insert({ workspace_id: ws, name, draft: r.form, brand_kit_id: kitId, created_by: auth.user.id, kind: "built" }).select("id").single();
+    if (ins.error) return bad(ins.error.message, 500);
+    return Response.json({ formId: (ins.data as { id: string }).id });
+  }
+
   const c = client();
   if (!c) {
     console.error("studio: ANTHROPIC_API_KEY isn't set");
-    return bad("Claude isn't set up on this server.", 503);
+    return bad("Tia isn't set up on this server.", 503);
   }
 
   if (b.mode === "look") {
@@ -161,7 +196,7 @@ export async function POST(request: Request) {
         if (out.stop === "refusal") return { result: null, model: STUDIO_MODEL, usage: out.usage, keep: false };
         return { result: { text: out.text, cut: out.stop === "max_tokens" }, model: STUDIO_MODEL, usage: out.usage, keep: out.stop !== "max_tokens" };
       });
-      if (!r.result) return send({ error: "Claude couldn't answer that. Try saying it another way." });
+      if (!r.result) return send({ error: "Tia couldn't answer that. Try saying it another way." });
       // From the cache: the whole answer at once.
       if (r.cached) send({ t: r.result.text });
       send({ done: r.result.text, cut: r.result.cut });

@@ -1,13 +1,14 @@
 "use client";
 
-// Inbound › Forms › Studio (/forms/studio, docs/forms-chat-plan.md): the chat with Claude on the left, the live form on
+// Inbound › Forms › Studio (/forms/studio, docs/forms-chat-plan.md): the chat with Tia on the left, the live form on
 // the right. The screen itself is plain DOM in a shadow root (studio.ts); this part hands it the workspace: its brands
 // with their real logos, its meeting types, and the calls to /api/studio.
 
 import { useEffect, useRef } from "react";
 import { logoOf, type KitLite } from "../new/NewForm";
 import { fetchMeetingTypes } from "../../meetings/TypesList";
-import { must, postJson, type ViewProps } from "../../ui";
+import { brandName } from "@/lib/brand/name";
+import { invalidate, must, postJson, type ViewProps } from "../../ui";
 import { mountStudio, STUDIO_CSS, STUDIO_HTML, type StudioApi } from "./studio";
 
 type Line = { t?: string; done?: string; cut?: boolean; css?: string; say?: string; error?: string; working?: number; beat?: number };
@@ -40,7 +41,8 @@ const hostOf = (u: string | null | undefined) => {
   }
 };
 
-export function Studio({ sb, session, ws, navigate }: Pick<ViewProps, "sb" | "session" | "ws" | "navigate">) {
+/** `formId`: a published studio form to open. `fresh`: New form, a new draft from the start. */
+export function Studio({ sb, session, ws, navigate, formId = "", fresh = false }: Pick<ViewProps, "sb" | "session" | "ws" | "navigate"> & { formId?: string; fresh?: boolean }) {
   const hostRef = useRef<HTMLDivElement>(null);
   // The session changes as its token refreshes; the studio always calls with the newest.
   const sessionRef = useRef(session);
@@ -57,10 +59,37 @@ export function Studio({ sb, session, ws, navigate }: Pick<ViewProps, "sb" | "se
     shell.innerHTML = `<style>${STUDIO_CSS}</style>${STUDIO_HTML}`;
     const post = (body: object, signal?: AbortSignal) =>
       fetch("/api/studio", { method: "POST", signal, headers: { "Content-Type": "application/json", Authorization: `Bearer ${sessionRef.current.access_token}` }, body: JSON.stringify({ workspaceId: ws.id, ...body }) });
-    const kitOf = (k: KitLite & { name?: string | null }) => ({ id: k.id, name: k.name?.trim() || hostOf(k.source_url) || "Brand", site: hostOf(k.source_url), logo: logoOf(k) });
+    const kitOf = (k: KitLite & { name?: string | null }) => ({ id: k.id, name: brandName(k), site: hostOf(k.source_url), logo: logoOf(k) });
+    const key = formId ? `clr-form-studio:${ws.id}:${formId}` : `clr-form-studio:${ws.id}`;
+    if (fresh) {
+      try {
+        localStorage.removeItem(key);
+      } catch {}
+    }
 
     const api: StudioApi = {
-      key: `clr-form-studio:${ws.id}`,
+      key,
+      form: async () => {
+        if (!formId) return null;
+        try {
+          const local = JSON.parse(localStorage.getItem(key) || "null") as { formId?: string } | null;
+          if (local?.formId === formId) return local;
+        } catch {}
+        const row = must(await sb.from("forms").select("id, name, status, draft, brand_kit_id").eq("id", formId).maybeSingle()) as { id: string; name: string; status: string; draft: { page?: { html: string; css: string; brand: string; after?: Record<string, unknown> } } | null; brand_kit_id: string | null } | null;
+        const pg = row?.draft?.page;
+        if (!row || !pg) return null;
+        const after = { kind: "thanks", url: "", meeting: "", routes: [], ...(pg.after ?? {}) };
+        return { formId: row.id, name: row.name, live: row.status === "live", brandId: row.brand_kit_id ?? "", html: pg.html, css: pg.css, brand: pg.brand, after, turns: [], log: [] };
+      },
+      publish: async (p) => {
+        const { formId: id } = await postJson<{ formId: string }>(sessionRef.current, "/api/studio", { workspaceId: ws.id, mode: "save", ...p });
+        const r = await postJson<{ routing?: { problems?: string[]; error?: string } }>(sessionRef.current, "/api/forms/publish", { workspaceId: ws.id, id });
+        invalidate(`forms:${ws.id}:home`);
+        const problem = r.routing?.error || r.routing?.problems?.[0];
+        return { formId: id, ...(problem ? { problem } : {}) };
+      },
+      formUrl: (id) => `${location.origin}/f/${id}`,
+      started: () => undefined,
       brands: async () => ((must(await sb.from("brand_kits").select(KIT_COLS).eq("workspace_id", ws.id).order("created_at")) ?? []) as KitLite[]).filter((k) => k.source_url).map(kitOf),
       meetings: async () =>
         (await fetchMeetingTypes(sb, ws.id))
@@ -106,7 +135,7 @@ export function Studio({ sb, session, ws, navigate }: Pick<ViewProps, "sb" | "se
           throw Object.assign(e instanceof Error ? e : new Error(String(e)), { text: all });
         }
         if (done) return done;
-        throw Object.assign(new Error(err || "Claude didn't finish. Try again."), { text: all });
+        throw Object.assign(new Error(err || "Tia didn't finish. Try again."), { text: all });
       },
       deleteBrand: async (id) => {
         must(await sb.rpc("brand_kit_delete", { p_id: id }));
@@ -119,7 +148,7 @@ export function Studio({ sb, session, ws, navigate }: Pick<ViewProps, "sb" | "se
       stop();
       shell.innerHTML = "";
     };
-  }, [sb, ws.id]);
+  }, [sb, ws.id, formId, fresh]);
 
   return <div ref={hostRef} className="relative flex h-full min-h-0 flex-1 flex-col bg-card" />;
 }

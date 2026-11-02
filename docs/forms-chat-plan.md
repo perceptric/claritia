@@ -6,13 +6,21 @@ its own CSS section, shared by every form in that brand. Then every element can 
 
 This replaces New form, the spec and the Build tab (`docs/forms.md`).
 
-Status: the studio is live at /forms/studio (the Studio button on Forms). Pick a brand from the workspace's brands, or
-add one: the site's name and real logo are read, you confirm it, and only then is its look read into the brand CSS.
-Then chat with Claude Opus, see the form live, change it in Edit and Code, and set On submission to the workspace's
-meeting types. Files: `src/components/app/forms/studio/` (the screen), `src/app/api/studio/route.ts` (site, confirm,
-scan, look, chat), `src/lib/studio/` (the instructions and the site reader). Checked by `scripts/studio-check.ts`.
-Not yet: saving a studio form as a real form and publishing it (steps 1, 2 and migration 112). Until then a studio form
-and each brand's CSS are kept in the browser.
+Status: Form Studio is New form. /forms/new (New form, and Create, Form) starts a new one, /forms/studio picks up
+the last draft, a workspace with no forms opens on it, and a published studio form opens in it (its other tabs at
+?tab=). The chat is with Tia, Claritia's mascot (`src/lib/studio/tia.ts`, `src/components/app/Tia.tsx`): a small dark
+face with the mark's corner bracket in emerald. Claude Opus runs Tia on the server; the screens never say Claude.
+
+The brand picker shows each brand as its logo and name. Add a brand: the site's name and real logo are read, the
+owner confirms, then its look is read into the brand CSS.
+
+Publish makes it a real form (`src/lib/studio/page.ts`): the page is cleaned (no scripts, frames, handlers, outside
+posts or pictures but the logo), its questions become the form's fields (data-cl-save picks the contact field, the
+rest are the form's own answers; a question under a show-if is never required on the server), and On submission
+becomes the form's Claritia calendar with its routes. It rides on the form as `page`, checked by `checkForm`, so the
+send path, CRM, routing and meetings work as for every form. The form script draws the page and sends by field id
+(`src/lib/studio/runtime.ts`, `element.ts`), and the booking calendar opens at `data-cl-book`. Checked by
+`tests/studioPage.test.ts` and `scripts/studio-check.ts` (the studio, then the published page live in the form script).
 
 ## Part 1. The screen
 
