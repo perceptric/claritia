@@ -27,7 +27,7 @@ Every way a form or a meeting gets in front of people, after Typeform and Fillou
   (`src/lib/meetings/bookElement.ts`).
 - Form › Share › On your website: six tiles (In the page, Full page, Popup, Slider, Popover, Side tab), the picked
   one's few settings, the code, and steps for Webflow, WordPress, Framer, Squarespace and any site.
-- Form Studio: Share beside Publish, once published, opens the form's Share tab.
+- Form Studio: the form page's header (docs/form-ui-plan.md) shows Share once the form is live and unchanged.
 - Meetings: Share on each meeting type's card and in its panel (`src/components/app/scheduling/ShareMeeting.tsx`):
   the link, its calendar on a website (in the page, a floating button, the site's own link or button), and for an
   email the next free times or a single-use link.

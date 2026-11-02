@@ -10,7 +10,7 @@ import { applyOp, type Op } from "@/lib/forms/ops";
 import { checkForm, emptyForm, type Form } from "@/lib/forms/schema";
 import type { CustomField } from "@/lib/records/fields";
 import { askConfirm } from "../Dialogs";
-import { Badge, cache, ErrorNote, errorText, invalidate, Loading, must, postJson, setLeaveGuard, Tabs, useQuery, type ViewProps } from "../ui";
+import { Badge, cache, ErrorNote, errorText, invalidate, Loading, must, postJson, setLeaveGuard, useQuery, type ViewProps } from "../ui";
 import { useLiveBody } from "../routing/screenParts";
 import { Builder, SUBMIT, type Pick as Picked } from "./build/Builder";
 import { mergeKey } from "./editorModel";
@@ -30,11 +30,14 @@ import { Sync } from "./Sync";
 import { useCrm } from "./useCrm";
 import { meetingTypes, type TypeRow } from "../meetings/TypesList";
 import { Studio } from "./studio/Studio";
+import type { StudioControl, StudioState } from "./studio/studio";
+import { FormCheck, FormHeader, type FormTab, type HeaderAction, type HeaderState } from "./FormHeader";
+import { sameJson } from "@/lib/sameJson";
 
 export function FormsView(props: ViewProps) {
   // New form is Form Studio (docs/forms-chat-plan.md): chat with Tia on the left, the live form on the right.
-  if (props.id === "studio") return <Studio key="studio" {...props} />;
-  if (props.id === "new") return <Studio key="new" {...props} fresh />;
+  if (props.id === "studio") return <StudioPage key={`studio:${chatParam()}`} {...props} />;
+  if (props.id === "new") return <StudioPage key="new" {...props} fresh />;
   if (props.id && props.id !== "overview") return <FormPage key={props.id} {...props} />;
   return <FormHome {...props} />;
 }
@@ -51,13 +54,57 @@ export type FormData = {
   subs: number;
   failed: Record<string, number>;
   pages: number;
+  /** A Studio form's chat state (112): "changed" when the page has edits that aren't live. */
+  chatState: string | null;
 };
+
+const chatParam = () => (typeof window === "undefined" ? "" : (new URLSearchParams(window.location.search).get("chat") ?? ""));
+
+/**
+ * Form Studio before its form exists (New form, or a chat picked from the Studio): the same header, with the tabs
+ * once the chat has a form. Its tabs open the form's own page.
+ */
+function StudioPage(props: ViewProps & { fresh?: boolean }) {
+  const { navigate } = props;
+  const [st, setSt] = useState<StudioState | null>(null);
+  const control = useRef<StudioControl | null>(null);
+  const actionRef = useRef<HTMLButtonElement>(null);
+  const [checkAt, setCheckAt] = useState<HTMLElement | null>(null);
+  const [chatId] = useState(chatParam);
+  const pill: HeaderState = !st || st.state === "new" || st.state === "draft" ? "draft" : st.state === "changed" ? "changed" : "live";
+  const go = (t: FormTab) => {
+    if (st?.formId && t !== "build") navigate("forms", st.formId, `tab=${t}`);
+  };
+  const run = async () => {
+    const r = await control.current?.publish();
+    if (r === "blocked") setCheckAt(actionRef.current);
+  };
+  const action: HeaderAction = st?.publishing
+    ? { label: "Publishing", onClick: () => undefined, disabled: true }
+    : pill === "live"
+      ? { label: "Share", onClick: () => go("share") }
+      : { label: pill === "changed" ? "Publish changes" : "Publish", onClick: () => void run(), disabled: !st?.canPublish, problems: st?.issues.filter((i) => i.level === "error").length };
+  return (
+    <div className="relative flex h-full min-h-0 flex-col bg-card">
+      <FormHeader navigate={navigate} name={st?.name || "New form"} onRename={st?.ready ? (n) => control.current?.rename(n) : undefined} state={pill} tab="build" onTab={go} tabs={!!st?.formId} action={action} actionRef={actionRef} />
+      {st?.msg && !/first$/.test(st.msg) ? (
+        <div className="shrink-0 border-b border-line px-[16px] py-[8px]">
+          <ErrorNote message={st.msg} />
+        </div>
+      ) : null}
+      <div className="relative flex min-h-0 flex-1 flex-col">
+        <Studio {...props} fresh={props.fresh} chatId={chatId} onState={setSt} controlRef={control} />
+      </div>
+      {checkAt && st ? <FormCheck anchor={checkAt} issues={st.issues} canFix={st.canFix} onFix={(f) => control.current?.fix(f)} onOpenAfter={() => control.current?.openAfter()} onClose={() => setCheckAt(null)} /> : null}
+    </div>
+  );
+}
 
 function FormPage(props: ViewProps) {
   const { sb, ws, id } = props;
   // Everything the form's page needs, in one round of calls side by side (counts come from form_page_stats).
   const data = useQuery(`form:${ws.id}:${id}`, async (): Promise<FormData | { none: true }> => {
-    const [f, kits, sources, dests, custom, sites, types, stats] = await Promise.all([
+    const [f, kits, sources, dests, custom, sites, types, stats, chat] = await Promise.all([
       // "*": live_kit_id (109) when the database has it, and the rest as before when it doesn't yet.
       sb.from("forms").select("*").eq("id", id).maybeSingle(),
       // "*": the skin (111) and the brand book (108) when the database has them.
@@ -68,6 +115,8 @@ function FormPage(props: ViewProps) {
       sb.from("sites").select("domain").eq("workspace_id", ws.id).order("created_at").limit(1),
       meetingTypes(sb, ws.id),
       sb.rpc("form_page_stats", { p_form: id }),
+      // A Studio form's chat (112); before 112 there's none and the page reads as published.
+      sb.from("form_chats").select("state").eq("form_id", id).order("updated_at", { ascending: false }).limit(1),
     ]);
     const row = must(f) as FormData["row"] | null;
     if (!row) return { none: true };
@@ -85,20 +134,19 @@ function FormPage(props: ViewProps) {
       subs: st.subs ?? 0,
       failed: st.failed ?? {},
       pages: st.pages ?? 0,
+      chatState: ((chat.data ?? []) as { state: string }[])[0]?.state ?? null,
     };
   });
   if (data.error && !data.data) return <div className="p-[16px]"><ErrorNote message={data.error} /></div>;
   if (!data.data) return <Loading />;
   if ("none" in data.data) return <div className="p-[24px] text-muted">Form not found</div>;
-  // A studio form opens in Form Studio; its other tabs (?tab=submissions and the rest) open here as for every form.
-  if (data.data.row.draft && "page" in (data.data.row.draft as object) && typeof window !== "undefined" && !new URLSearchParams(window.location.search).get("tab")) return <Studio {...props} formId={id} />;
   const patchRow = (p: Partial<FormData["row"]>) => data.set((d) => ("none" in d ? d : { ...d, row: { ...d.row, ...p } }));
   const patchKits = (fn: (kits: Kit[]) => Kit[]) => data.set((d) => ("none" in d ? d : { ...d, kits: fn(d.kits) }));
   const patchDests = (fn: (d: Destination[]) => Destination[]) => data.set((d) => ("none" in d ? d : { ...d, dests: fn(d.dests) }));
   return <Editor {...props} data={data.data} reload={data.reload} patchRow={patchRow} patchKits={patchKits} patchDests={patchDests} />;
 }
 
-export type Tab = "build" | "submissions" | "share" | "sync" | "settings";
+export type Tab = FormTab;
 const TABS: Tab[] = ["build", "submissions", "share", "sync", "settings"];
 /** The tab in ?tab=, with the old names opening their new homes. */
 function tabOf(search: string): Tab {
@@ -112,6 +160,16 @@ type Saving = "saved" | "saving" | "offline";
 function Editor(props: ViewProps & { data: FormData; reload: () => void; patchRow: (p: Partial<FormData["row"]>) => void; patchKits: (fn: (kits: Kit[]) => Kit[]) => void; patchDests: (fn: (d: Destination[]) => Destination[]) => void }) {
   const { sb, session, ws, navigate, data, reload, patchRow, patchDests } = props;
   const row = data.row;
+  // A Form Studio form: Build is the Studio, and its page goes live through the Studio's publish.
+  const [isStudio] = useState(() => !!row.draft && typeof row.draft === "object" && "page" in (row.draft as object));
+  const [studio, setStudio] = useState<StudioState | null>(null);
+  const control = useRef<StudioControl | null>(null);
+  const wantPublish = useRef(false);
+  // The Studio opened this form's chat once; only after that does picking another chat open another page.
+  const matched = useRef(false);
+  const openAfter = useRef(typeof window !== "undefined" && new URLSearchParams(window.location.search).get("open") === "submission");
+  const actionRef = useRef<HTMLButtonElement>(null);
+  const [checkAt, setCheckAt] = useState<HTMLElement | null>(null);
   const start = useMemo(() => {
     const d = row.draft as Partial<Form>;
     return d && Array.isArray(d.steps) ? (d as Form) : emptyForm();
@@ -231,6 +289,8 @@ function Editor(props: ViewProps & { data: FormData; reload: () => void; patchRo
     setSaid(null);
   }, [future]);
   useEffect(() => {
+    // Form Studio has its own undo; its keys come from inside its shadow root and must reach it.
+    if (isStudio) return;
     const onKey = (e: KeyboardEvent) => {
       if ((e.target as HTMLElement)?.closest?.("input, textarea, [contenteditable]") || !(e.metaKey || e.ctrlKey) || e.key.toLowerCase() !== "z") return;
       e.preventDefault();
@@ -239,7 +299,7 @@ function Editor(props: ViewProps & { data: FormData; reload: () => void; patchRo
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [undo, redo]);
+  }, [undo, redo, isStudio]);
 
   // Opened from a meeting's "Use in a form": this form books that meeting from now on (a change to publish like any other).
   useEffect(() => {
@@ -313,7 +373,25 @@ function Editor(props: ViewProps & { data: FormData; reload: () => void; patchRo
     setName(n);
     dirty.current = true;
     setSaving("saving");
+    // The Studio's chat keeps the same name, so its next publish doesn't put the old one back.
+    control.current?.rename(n);
   };
+  /**
+   * Form Studio wrote and published the draft on the server: this page takes it, with its revision, so its next save
+   * doesn't meet "changed in another window". Its own changes saved just before the publish.
+   */
+  const takeServerDraft = useCallback(async () => {
+    const r = must(await sb.from("forms").select("name, draft, draft_rev").eq("id", row.id).maybeSingle()) as { name: string; draft: Partial<Form> | null; draft_rev: number } | null;
+    if (!r || dirty.current) return;
+    if (r.draft && Array.isArray(r.draft.steps)) {
+      latest.current = r.draft as Form;
+      setFormState(r.draft as Form);
+      setPast([]);
+      setFuture([]);
+    }
+    rev.current = r.draft_rev;
+    setName(r.name);
+  }, [sb, row.id]);
   const setKit = (k: string | null) => {
     setKitId(k);
     dirty.current = true;
@@ -324,7 +402,8 @@ function Editor(props: ViewProps & { data: FormData; reload: () => void; patchRo
   const isLive = row.status === "live";
   // Another brand kit is a change to publish too: the live form keeps the kit it was published with (109).
   const liveKit = (row as { live_kit_id?: string | null }).live_kit_id;
-  const changed = !data.published || JSON.stringify("form" in checked ? checked.form : form) !== JSON.stringify(data.published) || (liveKit !== undefined && (liveKit ?? null) !== (kitId ?? null));
+  // Compared whatever order the keys come back in from the database.
+  const changed = !data.published || !sameJson("form" in checked ? checked.form : form, data.published) || (liveKit !== undefined && (liveKit ?? null) !== (kitId ?? null));
   const issueCtx = useMemo(() => ({ custom, crm: crm.ctx }), [custom, crm.ctx]);
   const failedWeek = Object.values(data.failed).reduce((a, b) => a + b, 0);
 
@@ -414,78 +493,125 @@ function Editor(props: ViewProps & { data: FormData; reload: () => void; patchRo
   };
 
 
-  const status = !row.version ? (
-    <Badge>Draft</Badge>
-  ) : row.status === "paused" ? (
-    <Badge>Offline</Badge>
-  ) : changed ? (
-    <span title="People see the last published version">
-      <Badge tone="amber" dot>
-        Live, edited
-      </Badge>
-    </span>
-  ) : (
-    <Badge tone="green" dot>
-      Live
-    </Badge>
-  );
   const checks = useMemo(() => publishChecks(form, "errors" in checked ? checked.errors : [], issueCtx, data.pages), [form, checked, issueCtx, data.pages]);
+
+  // ── The header's state and its one button ──
+  // A Studio form's page has edits that aren't live: known from the Studio while it's open, from its chat before.
+  const studioUnpublished = isStudio && (studio ? studio.state !== "live" : data.chatState === "changed" || data.chatState === "draft");
+  const pill: HeaderState = !row.version ? "draft" : row.status === "paused" ? "offline" : changed || studioUnpublished ? "changed" : "live";
+  const studioPublish = useCallback(async () => {
+    setError("");
+    if (!(await save())) return setError("The draft didn't save. Try again.");
+    const r = await control.current?.publish();
+    if (r === "live") {
+      await takeServerDraft().catch((e) => setError(errorText(e)));
+      reload();
+      invalidate(`forms:${ws.id}`);
+      invalidate("app_counts");
+    } else if (r === "blocked") setCheckAt(actionRef.current);
+  }, [save, reload, ws.id, takeServerDraft]);
+  const onPublish = () => {
+    if (!isStudio) return setDialog("publish");
+    // The page itself changed (or was never live): the Studio publishes it, from Build.
+    if (studioUnpublished || !row.version) {
+      if (tab !== "build" || !control.current) {
+        wantPublish.current = true;
+        setTab("build");
+        return;
+      }
+      return void studioPublish();
+    }
+    // Only the form's settings changed (Share, Settings): the draft goes live as it is.
+    void publish();
+  };
+  const onStudio = useCallback(
+    (s: StudioState) => {
+      // Only this form's chat, once loaded, speaks for the header (no flash of "Changes not live" while it loads).
+      if (!s.ready) return;
+      if (s.formId !== row.id) {
+        // Another chat was picked in the Studio: it opens on its own page. Before this form's chat opened (a load
+        // that failed), nothing moves.
+        if (!matched.current) return;
+        if (s.formId) navigate("forms", s.formId);
+        else if (s.state === "new") navigate("forms", "new");
+        else navigate("forms", "studio", `chat=${s.chatId}`);
+        return;
+      }
+      matched.current = true;
+      setStudio(s);
+      if (openAfter.current) {
+        openAfter.current = false;
+        control.current?.openAfter();
+      }
+      if (wantPublish.current) {
+        wantPublish.current = false;
+        if (s.canPublish) void studioPublish();
+      }
+    },
+    [row.id, navigate, studioPublish],
+  );
+  const problems = isStudio ? (studio?.issues.filter((i) => i.level === "error").length ?? 0) : checks.filter((c) => c.blocks).length;
+  const action: HeaderAction =
+    isStudio && studio?.publishing
+      ? { label: "Publishing", onClick: () => undefined, disabled: true }
+      : pill === "live"
+        ? { label: "Share", onClick: () => setTab("share") }
+        : { label: pill === "changed" ? "Publish changes" : "Publish", onClick: onPublish, problems };
+  const studioMsg = isStudio && studio?.msg && !/first$/.test(studio.msg) ? studio.msg : "";
 
   return (
     <div className="relative flex h-full min-h-0 flex-col bg-card">
-      <header className="flex h-[48px] shrink-0 items-center gap-[8px] border-b border-line pr-[12px] pl-[16px] text-[14px] font-medium">
-        <button type="button" onClick={() => navigate("forms")} className="inline-flex shrink-0 items-center gap-[6px] font-normal text-muted transition-colors duration-[120ms] hover:text-ink">
-          <Ic n="form" />
-          <span className="max-[860px]:hidden">Forms</span>
-        </button>
-        <span className="text-faint">/</span>
-        <NameInput value={name} onChange={rename} />
-        <span className="max-[860px]:hidden">{status}</span>
-        <span className="flex-1" />
-        <span className={`text-[12px] font-normal whitespace-nowrap max-[860px]:hidden ${saving === "offline" ? "text-butter" : "text-muted"}`}>{saving === "offline" ? "Not saved. Trying again" : saving === "saving" ? "Saving" : "Saved"}</span>
-        <button type="button" className={`${IB} max-[860px]:hidden`} onClick={undo} disabled={!past.length} title="Undo" aria-label="Undo">
-          <Ic n="undo" />
-        </button>
-        <button type="button" className={`${IB} max-[860px]:hidden`} onClick={redo} disabled={!future.length} title="Redo" aria-label="Redo">
-          <Ic n="redo" />
-        </button>
-        <button type="button" className={`${IB} max-[860px]:hidden`} onClick={() => setPreview(true)} title="Preview" aria-label="Preview">
-          <Ic n="eye" />
-        </button>
-        <button type="button" className={IB} onClick={(e) => setMenu(menu ? null : e.currentTarget)} title="More" aria-label="More" aria-haspopup="menu" aria-expanded={!!menu}>
-          <Ic n="more" />
-        </button>
-        <button type="button" className={BTN} disabled={!!row.version && isLive && !changed} onClick={() => setDialog("publish")}>
-          Publish
-          {row.version ? <span className="-ml-[4px] max-[860px]:hidden">&nbsp;changes</span> : null}
-        </button>
-      </header>
+      <FormHeader
+        navigate={navigate}
+        name={name}
+        onRename={rename}
+        state={pill}
+        saving={saving === "saving"}
+        tab={tab}
+        onTab={setTab}
+        subs={data.subs}
+        syncDot={failedWeek ? `${failedWeek} ${failedWeek === 1 ? "lead didn't" : "leads didn't"} reach the CRM` : undefined}
+        tools={
+          isStudio ? null : (
+            <>
+              <button type="button" className={`${IB} max-[860px]:hidden`} onClick={undo} disabled={!past.length} title="Undo" aria-label="Undo">
+                <Ic n="undo" />
+              </button>
+              <button type="button" className={`${IB} max-[860px]:hidden`} onClick={redo} disabled={!future.length} title="Redo" aria-label="Redo">
+                <Ic n="redo" />
+              </button>
+              <button type="button" className={`${IB} max-[860px]:hidden`} onClick={() => setPreview(true)} title="Preview" aria-label="Preview">
+                <Ic n="eye" />
+              </button>
+            </>
+          )
+        }
+        more={
+          <button type="button" className={IB} onClick={(e) => setMenu(menu ? null : e.currentTarget)} title="More" aria-label="More" aria-haspopup="menu" aria-expanded={!!menu}>
+            <Ic n="more" />
+          </button>
+        }
+        action={action}
+        actionRef={actionRef}
+      />
       {menu ? (
         <Menu
           anchor={menu}
           onClose={() => setMenu(null)}
           items={[
-            { icon: "clock", label: "Versions", run: () => setDialog("versions") },
+            ...(isStudio
+              ? [{ icon: "check", label: studio?.issues.length ? `Form check (${studio.issues.length})` : "Form check", disabled: !studio, run: () => setCheckAt(actionRef.current) }]
+              : [
+                  { icon: "clock", label: "Versions", run: () => setDialog("versions") },
+                  { icon: "undo", label: "Discard changes", disabled: !data.published || !changed, run: discard },
+                ]),
             { icon: "dup", label: "Duplicate", run: () => void duplicate() },
-            { icon: "undo", label: "Discard changes", disabled: !data.published || !changed, run: discard },
             row.status === "paused" ? { icon: "eye", label: "Put back online", run: () => void setStatus("live") } : { icon: "eye", label: "Take offline", disabled: !isLive, run: () => void setStatus("paused") },
             "hr",
             { icon: "trash", label: "Delete form", danger: true, run: () => void remove() },
           ]}
         />
       ) : null}
-      <Tabs<Tab>
-        dense
-        value={tab}
-        onChange={setTab}
-        tabs={[
-          { value: "build", label: "Build", icon: <Ic n="build" /> },
-          { value: "submissions", label: "Submissions", icon: <Ic n="inbox" />, count: data.subs },
-          { value: "share", label: "Share", icon: <Ic n="share" /> },
-          { value: "sync", label: "Sync", icon: <Ic n="sync" />, dot: failedWeek ? `${failedWeek} ${failedWeek === 1 ? "lead didn't" : "leads didn't"} reach the CRM` : undefined },
-          { value: "settings", label: "Settings", icon: <Ic n="gear" /> },
-        ]}
-      />
       {saving === "offline" ? (
         <div className="flex h-[44px] shrink-0 items-center gap-[10px] border-b border-line bg-paper pr-[12px] pl-[16px] text-[12.5px]">
           <span className="inline-flex size-[24px] shrink-0 items-center justify-center rounded-[7px] bg-butter-wash text-butter">
@@ -498,13 +624,15 @@ function Editor(props: ViewProps & { data: FormData; reload: () => void; patchRo
             Try now
           </button>
         </div>
-      ) : error ? (
+      ) : error || studioMsg ? (
         <div className="shrink-0 border-b border-line px-[16px] py-[8px]">
-          <ErrorNote message={error} />
+          <ErrorNote message={error || studioMsg} />
         </div>
       ) : null}
       <div className="relative flex min-h-0 flex-1 flex-col">
-        {tab === "build" ? (
+        {tab === "build" && isStudio ? (
+          <Studio sb={sb} session={session} ws={ws} navigate={navigate} formId={row.id} onState={onStudio} controlRef={control} />
+        ) : tab === "build" ? (
           <Builder
             session={session}
             ws={ws}
@@ -541,29 +669,10 @@ function Editor(props: ViewProps & { data: FormData; reload: () => void; patchRo
       </div>
       {dialog === "publish" ? <PublishDialog checks={checks} live={!!row.version} onClose={() => setDialog(null)} onPublish={publish} onFix={(qid) => goto(qid)} error={error} /> : null}
       {dialog === "versions" ? <Versions {...props} formId={row.id} live={row.version} changed={changed} onClose={() => setDialog(null)} onRestore={restore} /> : null}
+      {checkAt && isStudio && studio ? <FormCheck anchor={checkAt} issues={studio.issues} canFix={studio.canFix} onFix={(f) => control.current?.fix(f)} onOpenAfter={() => control.current?.openAfter()} onClose={() => setCheckAt(null)} /> : null}
       {preview ? <PreviewOverlay form={form} tokens={kit?.tokens ?? {}} logo={kit?.logo_url ?? null} skin={skinForKit(kit, typeof window === "undefined" ? "" : window.location.origin)} system={kit?.design ?? undefined} crmName={crm.crms[0]?.name} onClose={() => setPreview(false)} /> : null}
       {note.node}
     </div>
-  );
-}
-
-/** The form's name, typed in place in the header. */
-function NameInput({ value, onChange }: { value: string; onChange: (v: string) => void }) {
-  const [text, setText] = useState(value);
-  return (
-    <input
-      aria-label="Form name"
-      value={text}
-      maxLength={120}
-      size={Math.max(8, text.length)}
-      onChange={(e) => {
-        setText(e.target.value);
-        if (e.target.value.trim()) onChange(e.target.value.trim());
-      }}
-      onBlur={() => !text.trim() && setText(value)}
-      onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
-      className="-mx-[4px] max-w-[40vw] min-w-[60px] rounded-[4px] bg-transparent px-[4px] py-[2px] text-[14px] font-medium text-ink outline-none [field-sizing:content] hover:bg-hover focus:bg-card focus:shadow-[0_0_0_1px_var(--color-ink)] max-[860px]:max-w-[46vw]"
-    />
   );
 }
 

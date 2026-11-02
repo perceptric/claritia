@@ -4,7 +4,7 @@ What the owner asked for after using the live Studio (Nov 2): more room, one cha
 icons in place of words, nothing covering anything, an editor that works like Webflow or Framer right on the form,
 and a Tia that stops asking setup questions once the form is built.
 
-Status: Parts 1 to 5 are built (`src/components/app/forms/studio/studio.ts`, `Studio.tsx`, `Sidebar.tsx`, checked by
+Since docs/form-ui-plan.md step 1, the Studio is a Studio form's Build tab under the form page's header, which shows the state, the form check and Publish (`FormHeader.tsx`); New form uses the same header. Status: Parts 1 to 5 are built (`src/components/app/forms/studio/studio.ts`, `Studio.tsx`, `Sidebar.tsx`, checked by
 `scripts/studio-check.ts`). Chats and the brand's CSS are kept on the server once `supabase/migrations/112_form_chats.sql`
 is applied (Supabase, SQL editor); until then they stay in the browser and move to the server by themselves after.
 Part 6: step 6 is built (the form check in `src/lib/studio/check.ts`, run in the Studio and again at Publish; question

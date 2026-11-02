@@ -185,9 +185,10 @@ try {
   await $("#fbar button[aria-label='Duplicate']").click();
   check((await form.locator("h1").count()) >= 2, "the floating bar duplicates");
   await $("#undo").click();
-  const pubBox = await $("#publish").boundingBox();
+  const barBox = await $("section.stage > .bar").boundingBox();
   const panelBox = await $("#panel").boundingBox();
-  check(!!pubBox && !!panelBox && pubBox.y + pubBox.height <= panelBox.y, "the panel sits below the bar and never covers Publish");
+  check(!!barBox && !!panelBox && barBox.y + barBox.height <= panelBox.y, "the panel sits below the bar and never covers it");
+  check((await $("#publish").count()) + (await $("#checkBtn").count()) + (await $("#shareBtn").count()) + (await $("#backBtn").count()) === 0, "Publish, the check, Share and Back live in the page's header, never in the Studio's bar");
   for (const id of ["t-preview", "t-edit", "t-code", "t-after", "d-desk", "d-tab", "d-phone"]) if (!(await $(`#${id}`).getAttribute("data-tip"))) check(false, `${id} has a tooltip`);
   check((await $("#t-edit").textContent())!.trim() === "", "views are icons with tooltips");
   await $("#stepBar .sp").nth(1).click();
@@ -262,28 +263,31 @@ try {
   check(kept.some((c) => c.body.after.always?.to?.[0] === "coach@finch.care" && c.body.after.always.slack === true), "Always do is kept on the chat");
 
   // 7b. The form check: a sound form is ready; a broken one can't be published, and Tia gets the fix
-  await p.waitForFunction(() => !document.querySelector("#studio")!.shadowRoot!.getElementById("checkBtn")!.hidden);
+  const problems = () => p.evaluate(() => (window as unknown as { studioState: { issues: { level: string }[] } | null }).studioState?.issues.filter((i) => i.level === "error").length ?? -1);
+  await p.waitForFunction(() => !!(window as unknown as { studioState: { ready: boolean } | null }).studioState?.ready);
   await p.waitForTimeout(900);
   // Turning on Email the team before typing the emails is a problem for a moment; the check runs again on the emails.
-  await p.waitForFunction(() => !document.querySelector("#studio")!.shadowRoot!.getElementById("checkBtn")!.className.includes("err"), null, { timeout: 5000 }).catch(() => undefined);
-  check(!(await $("#checkBtn").getAttribute("class"))!.includes("err"), "the form check finds nothing to fix on a sound form");
+  await p.waitForFunction(() => (window as unknown as { studioState: { issues: { level: string }[] } }).studioState.issues.every((i) => i.level !== "error"), null, { timeout: 5000 }).catch(() => undefined);
+  check((await problems()) === 0, "the form check finds nothing to fix on a sound form");
   await $("#t-code").click();
   await $("#c-html").click();
   check((await $("#codeText").inputValue()).includes("data-cl-id="), "every question carries its field id");
   await $("#codeText").fill((await $("#codeText").inputValue()).replace(/<button[^>]*type="submit"[^>]*>[\s\S]*?<\/button>/, ""));
   await $("#codeApply").click();
-  await p.waitForFunction(() => document.querySelector("#studio")!.shadowRoot!.getElementById("checkBtn")!.className.includes("err"));
-  check(true, "a form with no send button shows a problem to fix");
-  await $("#publish").click();
-  check((await $("#pubNote").textContent())!.includes("first") && (await $("#layer .menu").textContent())!.includes("no send button"), "Publish is stopped and the problem is listed");
+  await p.waitForFunction(() => (window as unknown as { studioState: { issues: { level: string }[] } }).studioState.issues.some((i) => i.level === "error"));
+  check((await p.locator("#hdrAction").getAttribute("data-problems")) !== "0", "a form with no send button shows a problem to fix, as a count on Publish");
+  await p.locator("#hdrAction").click();
+  await p.locator("#hdrCheck:not([hidden])").waitFor();
+  check((await p.locator("#hdrMsg").textContent())!.includes("first") && (await p.locator("#hdrCheck").textContent())!.includes("no send button"), "Publish is stopped and the problem is listed");
+  check(!(await calls()).some((c) => c.mode === "publish"), "nothing was published");
   const tiaBefore = (await calls()).filter((c) => c.mode === "tia").length;
-  await $("#layer .menu .issue button").filter({ hasText: "Fix" }).first().click();
+  await p.locator("#hdrCheck .issue button").filter({ hasText: "Fix" }).first().click();
   await idle();
   const fixAsk = ((await calls()).filter((c) => c.mode === "tia")[tiaBefore]!.body as { content: string }[]).at(-1)!.content;
   check(fixAsk.startsWith("Fix this:") && fixAsk.includes("send button"), "Fix sends the problem to Tia");
   await $("#undo").click();
   await $("#undo").click();
-  await p.waitForFunction(() => !document.querySelector("#studio")!.shadowRoot!.getElementById("checkBtn")!.className.includes("err"));
+  await p.waitForFunction(() => (window as unknown as { studioState: { issues: { level: string }[] } }).studioState.issues.every((i) => i.level !== "error"));
   check(true, "undo brings the send button back and the problem clears");
 
   // 7c. Languages: Tia writes the form in French and Arabic; each previews, Arabic right to left
@@ -300,21 +304,21 @@ try {
   await p.waitForFunction(() => document.querySelector("#studio")!.shadowRoot!.getElementById("langBtn")!.textContent!.trim() === "AR");
   check((await form.locator(".cl-root").getAttribute("dir")) === "rtl", "Arabic shows right to left");
   await p.waitForTimeout(900);
-  check(!(await $("#checkBtn").getAttribute("class"))!.includes("err"), "both languages pass the form check at all three widths");
+  check((await problems()) === 0, "both languages pass the form check at all three widths");
   await $("#langBtn").click();
   await $("#layer .menu .mi").filter({ hasText: "the form's own" }).click();
   check((await form.locator("#title").textContent()) === "How was today?", "back to the form's own language");
 
   // 8. Publish, then the live form in the form script
   await $("#t-preview").click();
-  await $("#publish").click();
-  await p.waitForFunction(() => document.querySelector("#studio")!.shadowRoot!.getElementById("publish")!.textContent === "Published");
+  await p.locator("#hdrAction").click();
+  await p.waitForFunction(() => document.getElementById("hdrAction")!.textContent === "Share");
   const pub = (await calls()).find((c) => c.mode === "publish")!.body as { html: string; css: string; brand: string; after: PageAfter; name: string };
   check(pub.name === "Daily check-in" && pub.html.includes("data-cl-step") && pub.brand.includes("--finch-mint"), "Publish sends the form's name, page and brand CSS");
   check(Object.keys((pub as unknown as { langs: Record<string, string> }).langs).sort().join() === "ar,fr" && (pub as unknown as { lang: string }).lang === "en", "Publish sends the form's languages");
   check(!(await $("#openBtn").isHidden()), "a published form links to its page");
-  await $("#shareBtn").click();
-  check((await calls()).some((c) => c.mode === "openShare" && c.body === "33333333-3333-4333-8333-333333333333"), "Share opens the published form's Share tab");
+  await p.locator("#hdrAction").click();
+  check((await calls()).some((c) => c.mode === "openShare" && c.body === "33333333-3333-4333-8333-333333333333"), "once live, the one button is Share, for the published form");
   await p.waitForFunction(() => Object.values((window as unknown as { saved: Record<string, { formId: string; state: string }> }).saved).some((c) => c.formId && c.state === "live"));
   check(true, "the chat keeps its published form");
   const made = checkForm(pageForm(pub as Parameters<typeof pageForm>[0]).form);
@@ -383,7 +387,7 @@ try {
   // 9. One chat per form: a new chat starts empty, and the first keeps its form
   if (await $("#chat").evaluate((e) => e.classList.contains("folded"))) await $("#chatFold").click();
   await $("#chatPick").click();
-  check((await $("#layer .menu").textContent())!.includes("Daily check-in") && (await $("#layer .menu").textContent())!.includes("Published"), "the chat list shows each form and its state");
+  check((await $("#layer .menu").textContent())!.includes("Daily check-in") && (await $("#layer .menu").textContent())!.includes("Live"), "the chat list shows each form and its state, in the header's words");
   await $("#layer .menu button").filter({ hasText: "New chat" }).click();
   check(!(await form.locator("#title").count()) && (await $(".starts button").count()) > 0, "a new chat starts empty, with ideas");
   await $("#chatPick").click();
