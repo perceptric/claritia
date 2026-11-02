@@ -1,8 +1,10 @@
 "use client";
 
-// Inbound › Forms › Studio (/forms/studio, docs/forms-chat-plan.md): the chat with Tia on the left, the live form on
-// the right. The screen itself is plain DOM in a shadow root (studio.ts); this part hands it the workspace: its brands
-// with their real logos, its meeting types, and the calls to /api/studio.
+// Inbound › Forms › Studio (/forms/studio, docs/studio-v2-plan.md): every form is one chat with Tia on the left and the
+// live form on the right. The screen itself is plain DOM in a shadow root (studio.ts); this part hands it the
+// workspace: its brands with their real logos and CSS, its meeting types, its chats (form_chats, 112) and the calls to
+// /api/studio. Until 112 is applied, chats and brand CSS are kept in this browser. The app's sidebar folds to icons
+// while the Studio is open and comes back as it was after.
 
 import { useEffect, useRef } from "react";
 import { logoOf, type KitLite } from "../new/NewForm";
@@ -33,6 +35,20 @@ async function readLines(res: Response, onLine: (l: Line) => void) {
 }
 
 const KIT_COLS = "id, name, source_url, scan_status, logo_url, logo_svg";
+type Chat = Awaited<ReturnType<StudioApi["chats"]>>[number];
+const read = <T,>(k: string, d: T): T => {
+  try {
+    const v = localStorage.getItem(k);
+    return v ? (JSON.parse(v) as T) : d;
+  } catch {
+    return d;
+  }
+};
+const write = (k: string, v: unknown) => {
+  try {
+    localStorage.setItem(k, JSON.stringify(v));
+  } catch {}
+};
 const hostOf = (u: string | null | undefined) => {
   try {
     return u ? new URL(/^https?:\/\//.test(u) ? u : `https://${u}`).hostname.replace(/^www\./, "") : "";
@@ -41,7 +57,7 @@ const hostOf = (u: string | null | undefined) => {
   }
 };
 
-/** `formId`: a published studio form to open. `fresh`: New form, a new draft from the start. */
+/** `formId`: a published studio form to open in its chat. `fresh`: New form, a new chat. */
 export function Studio({ sb, session, ws, navigate, formId = "", fresh = false }: Pick<ViewProps, "sb" | "session" | "ws" | "navigate"> & { formId?: string; fresh?: boolean }) {
   const hostRef = useRef<HTMLDivElement>(null);
   // The session changes as its token refreshes; the studio always calls with the newest.
@@ -52,34 +68,75 @@ export function Studio({ sb, session, ws, navigate, formId = "", fresh = false }
     navRef.current = navigate;
   }, [session, navigate]);
 
+  // The sidebar folds to icons while the Studio is open (Sidebar.tsx listens).
+  useEffect(() => {
+    window.dispatchEvent(new CustomEvent("claritia:studio", { detail: true }));
+    return () => void window.dispatchEvent(new CustomEvent("claritia:studio", { detail: false }));
+  }, []);
+
   useEffect(() => {
     const el = hostRef.current;
     if (!el) return;
     const shell = el.shadowRoot ?? el.attachShadow({ mode: "open" });
     shell.innerHTML = `<style>${STUDIO_CSS}</style>${STUDIO_HTML}`;
-    const post = (body: object, signal?: AbortSignal) =>
-      fetch("/api/studio", { method: "POST", signal, headers: { "Content-Type": "application/json", Authorization: `Bearer ${sessionRef.current.access_token}` }, body: JSON.stringify({ workspaceId: ws.id, ...body }) });
-    const kitOf = (k: KitLite & { name?: string | null }) => ({ id: k.id, name: brandName(k), site: hostOf(k.source_url), logo: logoOf(k) });
-    const key = formId ? `clr-form-studio:${ws.id}:${formId}` : `clr-form-studio:${ws.id}`;
-    if (fresh) {
-      try {
-        localStorage.removeItem(key);
-      } catch {}
-    }
+    const post = (b: object, signal?: AbortSignal) =>
+      fetch("/api/studio", { method: "POST", signal, headers: { "Content-Type": "application/json", Authorization: `Bearer ${sessionRef.current.access_token}` }, body: JSON.stringify({ workspaceId: ws.id, ...b }) });
+    const LOCAL = `clr-studio-chats:${ws.id}`;
+    const cssKey = (id: string) => `clr-studio-css:${id}`;
+    // Before 112 the chats live in this browser; the browser copy stays as a backup after.
+    let local = false;
+    const localChats = () => read<Chat[]>(LOCAL, []);
+    const keepLocal = (c: Chat) => write(LOCAL, [c, ...localChats().filter((x) => x.id !== c.id)].slice(0, 40));
 
     const api: StudioApi = {
-      key,
-      form: async () => {
-        if (!formId) return null;
-        try {
-          const local = JSON.parse(localStorage.getItem(key) || "null") as { formId?: string } | null;
-          if (local?.formId === formId) return local;
-        } catch {}
-        const row = must(await sb.from("forms").select("id, name, status, draft, brand_kit_id").eq("id", formId).maybeSingle()) as { id: string; name: string; status: string; draft: { page?: { html: string; css: string; brand: string; after?: Record<string, unknown> } } | null; brand_kit_id: string | null } | null;
+      start: { formId, fresh },
+      brands: async () => {
+        let res = await sb.from("brand_kits").select(`${KIT_COLS}, studio_css`).eq("workspace_id", ws.id).order("created_at");
+        if (res.error) res = (await sb.from("brand_kits").select(KIT_COLS).eq("workspace_id", ws.id).order("created_at")) as typeof res;
+        const kits = (must(res) ?? []) as (KitLite & { name?: string | null; studio_css?: string | null })[];
+        return kits.filter((k) => k.source_url).map((k) => ({ id: k.id, name: brandName(k), site: hostOf(k.source_url), logo: logoOf(k), css: k.studio_css || read<string>(cssKey(k.id), "") }));
+      },
+      meetings: async () => (await fetchMeetingTypes(sb, ws.id)).filter((t) => t.active).map((t) => ({ id: t.id, name: t.name, length: t.settings?.lengths?.[0] ?? 30 })),
+      chats: async () => {
+        const res = await sb.from("form_chats").select("id, name, state, brand_kit_id, form_id, updated_at").eq("workspace_id", ws.id).order("updated_at", { ascending: false }).limit(200);
+        if (res.error) {
+          local = true;
+          return localChats();
+        }
+        const rows = ((res.data ?? []) as { id: string; name: string; state: Chat["state"]; brand_kit_id: string | null; form_id: string | null; updated_at: string }[]).map((r) => ({ id: r.id, name: r.name, state: r.state, brandId: r.brand_kit_id ?? "", formId: r.form_id ?? "", updatedAt: r.updated_at }));
+        // Chats kept in this browser before 112 move to the server.
+        const extra = localChats().filter((c) => !rows.some((r) => r.id === c.id) && c.body?.html);
+        for (const c of extra) void api.saveChat(c);
+        return [...rows, ...extra].sort((a, b) => String(b.updatedAt ?? "").localeCompare(String(a.updatedAt ?? "")));
+      },
+      chat: async (id) => {
+        if (!local) {
+          const res = await sb.from("form_chats").select("id, name, state, brand_kit_id, form_id, updated_at, body").eq("id", id).maybeSingle();
+          const r = res.data as { id: string; name: string; state: Chat["state"]; brand_kit_id: string | null; form_id: string | null; updated_at: string; body: Chat["body"] } | null;
+          if (r) return { id: r.id, name: r.name, state: r.state, brandId: r.brand_kit_id ?? "", formId: r.form_id ?? "", updatedAt: r.updated_at, body: r.body };
+        }
+        return localChats().find((c) => c.id === id) ?? null;
+      },
+      fromForm: async (id) => {
+        const row = must(await sb.from("forms").select("id, name, status, draft, brand_kit_id").eq("id", id).maybeSingle()) as { id: string; name: string; status: string; draft: { page?: { html: string; css: string; brand: string; after?: Record<string, unknown> } } | null; brand_kit_id: string | null } | null;
         const pg = row?.draft?.page;
         if (!row || !pg) return null;
-        const after = { kind: "thanks", url: "", meeting: "", routes: [], ...(pg.after ?? {}) };
-        return { formId: row.id, name: row.name, live: row.status === "live", brandId: row.brand_kit_id ?? "", html: pg.html, css: pg.css, brand: pg.brand, after, turns: [], log: [] };
+        if (row.brand_kit_id && pg.brand && !read<string>(cssKey(row.brand_kit_id), "")) write(cssKey(row.brand_kit_id), pg.brand);
+        return { id: crypto.randomUUID(), name: row.name, state: row.status === "live" ? "live" : "draft", brandId: row.brand_kit_id ?? "", formId: row.id, brandCss: pg.brand, body: { html: pg.html, css: pg.css, after: { kind: "thanks", url: "", meeting: "", routes: [], ...(pg.after ?? {}) }, turns: [], log: [] } };
+      },
+      saveChat: async (c) => {
+        keepLocal(c);
+        if (local) return;
+        const res = await post({ mode: "chat-save", chat: c });
+        if (res.status === 503) local = true;
+      },
+      deleteChat: async (id) => {
+        write(LOCAL, localChats().filter((x) => x.id !== id));
+        if (!local) await post({ mode: "chat-delete", id });
+      },
+      keepCss: (id, css) => {
+        write(cssKey(id), css);
+        void post({ mode: "brand-css", kitId: id, css }).catch(() => undefined);
       },
       publish: async (p) => {
         const { formId: id } = await postJson<{ formId: string }>(sessionRef.current, "/api/studio", { workspaceId: ws.id, mode: "save", ...p });
@@ -89,12 +146,6 @@ export function Studio({ sb, session, ws, navigate, formId = "", fresh = false }
         return { formId: id, ...(problem ? { problem } : {}) };
       },
       formUrl: (id) => `${location.origin}/f/${id}`,
-      started: () => undefined,
-      brands: async () => ((must(await sb.from("brand_kits").select(KIT_COLS).eq("workspace_id", ws.id).order("created_at")) ?? []) as KitLite[]).filter((k) => k.source_url).map(kitOf),
-      meetings: async () =>
-        (await fetchMeetingTypes(sb, ws.id))
-          .filter((t) => t.active)
-          .map((t) => ({ id: t.id, name: t.name, length: t.settings?.lengths?.[0] ?? 30, host: t.kind === "round_robin" ? "the team, round robin" : t.kind === "collective" ? "the team" : (t.hosts?.length ?? 0) > 1 ? "the team" : "the host" })),
       readSite: async (host) => {
         const res = await post({ mode: "site", url: host });
         const data = await res.json().catch(() => ({}));
@@ -104,20 +155,24 @@ export function Studio({ sb, session, ws, navigate, formId = "", fresh = false }
       scan: (host) => postJson<{ kitId: string }>(sessionRef.current, "/api/studio", { workspaceId: ws.id, mode: "scan", url: host }),
       kit: async (id) => {
         const k = must(await sb.from("brand_kits").select(KIT_COLS).eq("id", id).maybeSingle()) as (KitLite & { name: string | null }) | null;
-        return k ? { name: k.name?.trim() || hostOf(k.source_url), logo: logoOf(k), logoUrl: k.logo_url ?? null, logoSvg: k.logo_svg ?? null, scanStatus: k.scan_status } : null;
+        return k ? { name: brandName(k), logo: logoOf(k), logoUrl: k.logo_url ?? null, logoSvg: k.logo_svg ?? null, scanStatus: k.scan_status } : null;
       },
-      confirm: (b) => postJson<{ kitId: string }>(sessionRef.current, "/api/studio", { workspaceId: ws.id, mode: "confirm", ...b }),
-      look: async (kitId, fresh) => {
+      confirm: async (b) => {
+        const r = await postJson<{ kitId: string }>(sessionRef.current, "/api/studio", { workspaceId: ws.id, mode: "confirm", ...b });
+        invalidate((k) => k.startsWith(`forms:${ws.id}`));
+        return r;
+      },
+      look: async (kitId, again) => {
         let out: { css: string; say: string } | null = null;
         let err = "";
-        await readLines(await post({ mode: "look", kitId, fresh }), (l) => {
+        await readLines(await post({ mode: "look", kitId, fresh: again }), (l) => {
           if (l.error) err = l.error;
           if (l.css) out = { css: l.css, say: l.say ?? "" };
         });
         if (!out) throw new Error(err || "Couldn't read the brand's look. Try again.");
         return out;
       },
-      chat: async (turns, onText, signal) => {
+      tia: async (turns, onText, signal) => {
         let all = "";
         let done: { text: string; cut: boolean } | null = null;
         let err = "";

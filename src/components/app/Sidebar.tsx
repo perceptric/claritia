@@ -2,7 +2,9 @@
 
 // The side rail (docs/app-structure.md Part 1): Create, Search, then the groups from src/lib/nav.ts. Groups fold (the
 // fold is kept on this computer; the open page's group never folds), and Needs review and Meetings show a count. The
-// open item is a white chip with a hairline, like Omniscient. Folds to icons between 768 and 1,280 px.
+// open item is a white chip with a hairline, like Omniscient. Folds to icons between 768 and 1,280 px, and on wider
+// screens when the person folds it (kept on this computer) or while Form Studio is open (docs/studio-v2-plan.md,
+// Part 1: the Studio sends "claritia:studio"; leaving it puts the sidebar back the way it was).
 
 import { useEffect, useState } from "react";
 import { activeItem, GROUPS, NAV, type GroupKey, type NavItem, type Route as NavRoute } from "@/lib/nav";
@@ -52,6 +54,33 @@ export const NAV_ICONS: Record<string, React.ReactNode> = {
 };
 
 const FOLD_KEY = "claritia:nav-folded";
+const RAIL_KEY = "claritia:nav-rail";
+
+/** Icons only, on wide screens too: the person's choice, or folded while Form Studio is open. */
+function useRail(): [boolean, () => void] {
+  const [pref, setPref] = useState(() => {
+    try {
+      return typeof window !== "undefined" && localStorage.getItem(RAIL_KEY) === "1";
+    } catch {
+      return false;
+    }
+  });
+  const [studio, setStudio] = useState<boolean | null>(null);
+  useEffect(() => {
+    const on = (e: Event) => setStudio((e as CustomEvent<boolean>).detail ? true : null);
+    window.addEventListener("claritia:studio", on);
+    return () => window.removeEventListener("claritia:studio", on);
+  }, []);
+  const rail = studio ?? pref;
+  const toggle = () => {
+    if (studio !== null) return setStudio(!studio);
+    setPref(!pref);
+    try {
+      localStorage.setItem(RAIL_KEY, pref ? "0" : "1");
+    } catch {}
+  };
+  return [rail, toggle];
+}
 
 function readFolded(): Set<GroupKey> {
   try {
@@ -86,6 +115,9 @@ export type SidebarProps = {
 
 export function Sidebar(p: SidebarProps) {
   const active = activeItem(p.route as NavRoute);
+  const [rail, toggleRail] = useRail();
+  // Wide-screen classes apply only when the sidebar isn't folded to icons.
+  const xl = (c: string) => (rail ? "" : c);
   const [folded, setFolded] = useState<Set<GroupKey>>(() => (typeof window === "undefined" ? new Set() : readFolded()));
   const toggle = (g: GroupKey) =>
     setFolded((s) => {
@@ -99,21 +131,21 @@ export function Sidebar(p: SidebarProps) {
     });
 
   return (
-    <aside className="flex shrink-0 flex-col gap-2.5 p-3 md:h-full md:w-[68px] md:py-4 xl:w-60">
-      <div className="flex items-center justify-between gap-2 px-2 md:justify-center xl:justify-between">
+    <aside className={`flex shrink-0 flex-col gap-2.5 p-3 transition-[width] duration-200 md:h-full md:w-[68px] md:py-4 ${xl("xl:w-60")}`}>
+      <div className={`flex items-center justify-between gap-2 px-2 md:justify-center ${xl("xl:justify-between")}`}>
         <Logo />
-        <span className="truncate text-[12px] text-faint md:hidden xl:inline">{p.wsName}</span>
+        <span className={`truncate text-[12px] text-faint md:hidden ${xl("xl:inline")}`}>{p.wsName}</span>
       </div>
-      <CreateButton items={p.create} />
+      <CreateButton items={p.create} rail={rail} />
       <button
         type="button"
         onClick={p.onSearch}
         aria-label="Search"
-        className="hidden h-8 items-center gap-2 rounded-md border border-line bg-card px-3 text-[13px] text-muted transition-colors duration-[140ms] hover:border-line-strong hover:text-ink md:flex md:justify-center xl:justify-start"
+        className={`hidden h-8 items-center gap-2 rounded-md border border-line bg-card px-3 text-[13px] text-muted transition-colors duration-[140ms] hover:border-line-strong hover:text-ink md:flex md:justify-center ${xl("xl:justify-start")}`}
       >
         <Search size={14} />
-        <span className="flex-1 text-left md:hidden xl:inline">Search</span>
-        <kbd className="font-mono text-[11px] text-faint md:hidden xl:inline">⌘K</kbd>
+        <span className={`flex-1 text-left md:hidden ${xl("xl:inline")}`}>Search</span>
+        <kbd className={`font-mono text-[11px] text-faint md:hidden ${xl("xl:inline")}`}>⌘K</kbd>
       </button>
       <nav aria-label="Main" className="-mx-1 flex gap-1 overflow-x-auto px-1 md:min-h-0 md:flex-1 md:flex-col md:gap-0 md:overflow-y-auto md:overflow-x-hidden">
         {GROUPS.map((g) => {
@@ -126,7 +158,7 @@ export function Sidebar(p: SidebarProps) {
                   type="button"
                   onClick={() => toggle(g.key)}
                   aria-expanded={open}
-                  className="group/head mt-3 mb-0.5 hidden h-6 items-center gap-1 rounded-md px-2 text-left text-[11.5px] text-faint transition-colors duration-[140ms] hover:text-ink xl:flex"
+                  className={`group/head mt-3 mb-0.5 hidden h-6 items-center gap-1 rounded-md px-2 text-left text-[11.5px] text-faint transition-colors duration-[140ms] hover:text-ink ${xl("xl:flex")}`}
                 >
                   <span className="flex-1">{g.label}</span>
                   <ChevronDown size={12} className={`opacity-0 transition-[transform,opacity] duration-[140ms] group-hover/head:opacity-100 ${open ? "" : "-rotate-90 opacity-100"}`} />
@@ -134,9 +166,9 @@ export function Sidebar(p: SidebarProps) {
               ) : (
                 <span aria-hidden="true" className="mx-2 mt-3 mb-2 hidden h-px bg-line md:block" />
               )}
-              <div className={`flex gap-1 md:flex-col md:gap-0.5 ${open ? "" : "xl:hidden"}`}>
+              <div className={`flex gap-1 md:flex-col md:gap-0.5 ${open || rail ? "" : "xl:hidden"}`}>
                 {items.map((n) => (
-                  <NavLink key={n.key} n={n} on={active?.key === n.key} count={p.counts[n.key]} dot={!!p.dots?.[n.key]} navigate={p.navigate} preload={p.onPreload} />
+                  <NavLink key={n.key} n={n} on={active?.key === n.key} count={p.counts[n.key]} dot={!!p.dots?.[n.key]} navigate={p.navigate} preload={p.onPreload} rail={rail} />
                 ))}
                 {g.key === "crm"
                   ? p.objects.map((o) => (
@@ -147,6 +179,7 @@ export function Sidebar(p: SidebarProps) {
                         navigate={p.navigate}
                         preload={p.onPreload}
                         icon={NAV_ICONS.objects}
+                        rail={rail}
                       />
                     ))
                   : null}
@@ -156,22 +189,30 @@ export function Sidebar(p: SidebarProps) {
         })}
       </nav>
       {p.start}
-      <div className="hidden items-center gap-1 px-1 pt-1 md:flex md:flex-col xl:flex-row">
+      <div className={`hidden items-center gap-1 px-1 pt-1 md:flex md:flex-col ${xl("xl:flex-row")}`}>
         <Avatar label={p.email} size={28} />
-        <span className="ml-1 min-w-0 flex-1 truncate text-[12.5px] text-body md:hidden xl:inline">{p.email}</span>
+        <span className={`ml-1 min-w-0 flex-1 truncate text-[12.5px] text-body md:hidden ${xl("xl:inline")}`}>{p.email}</span>
         <button type="button" aria-label={p.theme === "dark" ? "Light mode" : "Dark mode"} title={p.theme === "dark" ? "Light mode" : "Dark mode"} onClick={p.onTheme} className="press rounded-full p-2 text-muted hover:bg-hover hover:text-ink">
           {p.theme === "dark" ? <Sun size={15} /> : <Moon size={15} />}
         </button>
         <button type="button" aria-label="Sign out" title="Sign out" onClick={p.onSignOut} className="press rounded-full p-2 text-muted hover:bg-hover hover:text-ink">
           <LogOut size={15} />
         </button>
+        <button type="button" aria-label={rail ? "Expand the sidebar" : "Collapse the sidebar"} title={rail ? "Expand the sidebar" : "Collapse the sidebar"} aria-expanded={!rail} onClick={toggleRail} className="press hidden rounded-full p-2 text-muted hover:bg-hover hover:text-ink xl:block">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <rect x="3" y="4" width="18" height="16" rx="2" />
+            <path d="M9 4v16" />
+            <path d={rail ? "m13 10 2 2-2 2" : "m16 10-2 2 2 2"} />
+          </svg>
+        </button>
       </div>
     </aside>
   );
 }
 
-function NavLink({ n, on, count, dot, navigate, icon, preload }: { n: NavItem; on: boolean; count?: number; dot?: boolean; navigate: SidebarProps["navigate"]; icon?: React.ReactNode; preload?: SidebarProps["onPreload"] }) {
+function NavLink({ n, on, count, dot, navigate, icon, preload, rail }: { n: NavItem; on: boolean; count?: number; dot?: boolean; navigate: SidebarProps["navigate"]; icon?: React.ReactNode; preload?: SidebarProps["onPreload"]; rail?: boolean }) {
   const glyph = icon ?? NAV_ICONS[n.key] ?? NAV_ICONS[n.route];
+  const xl = (c: string) => (rail ? "" : c);
   return (
     <a
       href={`/${n.route}${n.page ? `/${n.page}` : ""}`}
@@ -183,23 +224,23 @@ function NavLink({ n, on, count, dot, navigate, icon, preload }: { n: NavItem; o
       onFocus={preload ? () => preload(n.route as Route) : undefined}
       aria-current={on ? "page" : undefined}
       title={n.label}
-      className={`flex h-8 shrink-0 items-center gap-2.5 rounded-[7px] px-2 text-[13px] transition-[background-color,color,box-shadow] duration-[120ms] md:justify-center xl:justify-start ${on ? "bg-card text-ink shadow-[0_0_0_1px_var(--color-line),0_1px_2px_rgb(10_10_10/0.05)]" : "text-muted hover:bg-hover hover:text-ink"}`}
+      className={`flex h-8 shrink-0 items-center gap-2.5 rounded-[7px] px-2 text-[13px] transition-[background-color,color,box-shadow] duration-[120ms] md:justify-center ${xl("xl:justify-start")} ${on ? "bg-card text-ink shadow-[0_0_0_1px_var(--color-line),0_1px_2px_rgb(10_10_10/0.05)]" : "text-muted hover:bg-hover hover:text-ink"}`}
     >
       <span aria-hidden="true" className={`relative flex size-5 shrink-0 items-center justify-center ${on ? "text-ink" : ""}`}>
         {glyph}
-        {dot ? <span className="absolute -top-0.5 -right-0.5 hidden size-1.5 rounded-full bg-butter md:block xl:hidden" /> : null}
+        {dot ? <span className={`absolute -top-0.5 -right-0.5 hidden size-1.5 rounded-full bg-butter md:block ${xl("xl:hidden")}`} /> : null}
       </span>
-      <span className="truncate md:hidden xl:inline">{n.label}</span>
-      {dot ? <span role="img" aria-label="Needs a step" title="Needs a step" className="ml-auto size-1.5 shrink-0 rounded-full bg-butter md:hidden xl:block" /> : null}
+      <span className={`truncate md:hidden ${xl("xl:inline")}`}>{n.label}</span>
+      {dot ? <span role="img" aria-label="Needs a step" title="Needs a step" className={`ml-auto size-1.5 shrink-0 rounded-full bg-butter md:hidden ${xl("xl:block")}`} /> : null}
       {count ? (
-        <span className={`${dot ? "ml-1.5" : "ml-auto"} rounded-full bg-hover px-1.5 font-mono text-[11px] tabular-nums text-muted md:hidden xl:inline`}>{count > 99 ? "99+" : count}</span>
+        <span className={`${dot ? "ml-1.5" : "ml-auto"} rounded-full bg-hover px-1.5 font-mono text-[11px] tabular-nums text-muted md:hidden ${xl("xl:inline")}`}>{count > 99 ? "99+" : count}</span>
       ) : null}
     </a>
   );
 }
 
 /** "+ Create": one menu for everything you can make, grouped like the sidebar. */
-function CreateButton({ items }: { items: CreateItem[] }) {
+function CreateButton({ items, rail }: { items: CreateItem[]; rail?: boolean }) {
   const [anchor, setAnchor] = useState<HTMLElement | null>(null);
   const open = !!anchor;
   const setOpen = (v: boolean) => (v ? null : setAnchor(null));
@@ -219,8 +260,8 @@ function CreateButton({ items }: { items: CreateItem[] }) {
         className="press flex h-8 items-center justify-center gap-1.5 rounded-full bg-ink px-3.5 text-[13px] font-medium text-paper transition-colors duration-[140ms] hover:bg-ink/90"
       >
         <Plus size={14} />
-        <span className="md:hidden xl:inline">Create</span>
-        <ChevronDown size={12} className="md:hidden xl:inline" />
+        <span className={rail ? "md:hidden" : "md:hidden xl:inline"}>Create</span>
+        <ChevronDown size={12} className={rail ? "md:hidden" : "md:hidden xl:inline"} />
       </button>
       {open ? (
         <Popover anchor={anchor} onClose={() => setOpen(false)} width={240}>
