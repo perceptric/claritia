@@ -139,6 +139,10 @@ export function FormHome(props: ViewProps & { startNew?: boolean }) {
       <h1 className="text-ink">Forms</h1>
       {rows?.length ? <span className="font-normal text-faint tabular-nums">{rows.length}</span> : null}
       <span className="flex-1" />
+      <button type="button" className={GHOST} onClick={() => navigate("forms", "studio")}>
+        <AiMark size={14} />
+        Studio
+      </button>
       {rows?.length ? (
         <button type="button" className={BTN} onClick={() => setDialog(true)}>
           <Ic n="plus" />

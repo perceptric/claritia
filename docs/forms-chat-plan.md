@@ -4,7 +4,15 @@ Forms become two things: a chat on the left and the live form on the right. Clau
 anything: any layout, fonts, colors, cards, steps and words. The result is saved as HTML plus CSS. The brand's look is
 its own CSS section, shared by every form in that brand. Then every element can be picked and edited like Webflow.
 
-This replaces New form, the spec and the Build tab (`docs/forms.md`). Status: plan only.
+This replaces New form, the spec and the Build tab (`docs/forms.md`).
+
+Status: the studio is live at /forms/studio (the Studio button on Forms). Pick a brand from the workspace's brands, or
+add one: the site's name and real logo are read, you confirm it, and only then is its look read into the brand CSS.
+Then chat with Claude Opus, see the form live, change it in Edit and Code, and set On submission to the workspace's
+meeting types. Files: `src/components/app/forms/studio/` (the screen), `src/app/api/studio/route.ts` (site, confirm,
+scan, look, chat), `src/lib/studio/` (the instructions and the site reader). Checked by `scripts/studio-check.ts`.
+Not yet: saving a studio form as a real form and publishing it (steps 1, 2 and migration 112). Until then a studio form
+and each brand's CSS are kept in the browser.
 
 ## Part 1. The screen
 
