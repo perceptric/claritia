@@ -208,6 +208,13 @@ try {
   await $("#t-after").click();
   const after = (await $("#afterInner").textContent())!;
   check(after.includes("Intro call") && after.includes("Product demo"), "On submission lists the workspace's meeting types");
+  // The picked pill keeps its words on hover (it used to turn ink on ink), and each scheduler shows its logo.
+  const picked = $("#afterInner .pill.on").first();
+  await picked.hover();
+  const [fg, bg] = await picked.evaluate((e) => [getComputedStyle(e).color, getComputedStyle(e).backgroundColor]);
+  check(fg !== bg, `a picked pill keeps its words on hover (${fg} on ${bg})`);
+  check((await $("#afterInner .pill .logo").count()) >= 5, "Book with shows each scheduler's logo");
+  if (shots) await p.screenshot({ path: `${shots}/4-after.png` });
   // An outside scheduler: its link, checked, and opened in the form's booking spot
   await $("#afterInner .pill").filter({ hasText: "Calendly" }).click();
   await $("#afterInner input[aria-label='Scheduler link']").fill("https://evil.example/x");
