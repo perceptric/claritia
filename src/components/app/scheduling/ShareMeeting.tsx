@@ -7,11 +7,13 @@
 import { useState } from "react";
 import { bookingBase } from "@/lib/meetings/handles";
 import { meetingEmbedCode, PLATS, type MeetingEmbed, type MeetingMode, type Plat } from "@/lib/share/embed";
-import { Copy, ExternalLink } from "../../Icons";
+import { Copy } from "../../Icons";
 import { BrandLogo } from "../BrandLogo";
 import { Button, ErrorNote, errorText, Segmented, Toggle, type ViewProps } from "../ui";
 import { copyText, meetingsApi, Modal, ownZone } from "../meetings/parts";
 import { useLinkBase } from "../views/LinkDomainSettings";
+import { QrCode, signatureHtml } from "../meetings/Share";
+import { CodeBox, LinkRow, PillPicks } from "../SharePieces";
 
 type Pane = "link" | "site" | "email";
 
@@ -36,6 +38,17 @@ export function ShareMeeting({ session, ws, type, wsSlug, onClose, onSingleUse }
     if (await copyText(text)) {
       setCopied(what);
       setTimeout(() => setCopied((c) => (c === what ? "" : c)), 1600);
+    }
+  };
+  // Rich text for email apps, the plain link for the rest.
+  const signature = async () => {
+    const text = `Book a time: ${type.name}`;
+    try {
+      await navigator.clipboard.write([new ClipboardItem({ "text/html": new Blob([signatureHtml(text, url)], { type: "text/html" }), "text/plain": new Blob([`${text}: ${url}`], { type: "text/plain" }) })]);
+      setCopied("sig");
+      setTimeout(() => setCopied((c) => (c === "sig" ? "" : c)), 1600);
+    } catch {
+      await copy("sig", `${text}: ${url}`);
     }
   };
   const times = async () => {
@@ -64,16 +77,9 @@ export function ShareMeeting({ session, ws, type, wsSlug, onClose, onSingleUse }
         />
         <ErrorNote message={error || (type.active ? "" : "This meeting type is off. Turn it on before sharing it.")} />
         {pane === "link" ? (
-          <div className="flex flex-wrap items-center gap-2">
-            <code className="min-w-0 flex-1 truncate rounded-sm border border-line bg-paper px-2.5 py-1.5 font-mono text-[12.5px] text-ink">{url}</code>
-            <Button variant="ghost" size="sm" onClick={() => void copy("link", url)}>
-              <Copy size={13} />
-              {copied === "link" ? "Copied" : "Copy"}
-            </Button>
-            <Button variant="ghost" size="sm" onClick={() => window.open(url, "_blank", "noopener")}>
-              <ExternalLink size={13} />
-              Open
-            </Button>
+          <div className="flex flex-col gap-4">
+            <LinkRow url={url} disabled={!type.active} />
+            <QrCode url={url} name={type.name} />
           </div>
         ) : null}
         {pane === "site" ? (
@@ -101,21 +107,7 @@ export function ShareMeeting({ session, ws, type, wsSlug, onClose, onSingleUse }
                 </div>
               </div>
             ) : null}
-            <div className="flex flex-wrap gap-1.5">
-              {PLATS.map((p) => (
-                <button key={p.v} type="button" aria-pressed={plat === p.v} onClick={() => setPlat(p.v)} className={`inline-flex h-8 items-center gap-[7px] rounded-full border pr-2.5 pl-[7px] text-[12.5px] transition-colors duration-[120ms] ${plat === p.v ? "border-ink font-medium text-ink" : "border-line text-body hover:border-line-strong"}`}>
-                  {p.domain ? <BrandLogo domain={p.domain} name={p.l} size={18} /> : <span className="inline-flex size-[18px] items-center justify-center rounded-[5px] bg-paper-deep font-mono text-[9px] text-body">&lt;/&gt;</span>}
-                  {p.l}
-                </button>
-              ))}
-            </div>
-            <div className="relative">
-              <pre data-embed-code className="m-0 overflow-x-auto rounded-[10px] border border-line bg-paper px-4 py-3.5 pr-24 font-mono text-[12px] leading-[1.6] whitespace-pre text-body">{code}</pre>
-              <Button variant="ghost" size="sm" className="absolute top-2.5 right-2.5" onClick={() => void copy("code", code)}>
-                <Copy size={13} />
-                {copied === "code" ? "Copied" : "Copy"}
-              </Button>
-            </div>
+            <CodeBox code={code} bar={<PillPicks label="Site builder" value={plat} onChange={setPlat} options={PLATS.map((p) => ({ v: p.v, l: p.l, icon: p.domain ? <BrandLogo domain={p.domain} name={p.l} size={18} /> : <span className="inline-flex size-4 items-center justify-center rounded-[4px] bg-paper-deep font-mono text-[8px] text-body">&lt;/&gt;</span> }))} />} />
             <span className="text-[12.5px] text-muted">{PLATS.find((p) => p.v === plat)!.how}</span>
           </>
         ) : null}
@@ -126,6 +118,13 @@ export function ShareMeeting({ session, ws, type, wsSlug, onClose, onSingleUse }
               <Button variant="ghost" size="sm" onClick={() => void times()}>
                 <Copy size={13} />
                 {copied === "times" ? "Copied" : "Copy times"}
+              </Button>
+            </div>
+            <div className="flex items-center justify-between gap-3 px-4 py-3 text-[13px] text-ink">
+              Your email signature
+              <Button variant="ghost" size="sm" onClick={() => void signature()}>
+                <Copy size={13} />
+                {copied === "sig" ? "Copied" : "Copy signature"}
               </Button>
             </div>
             <div className="flex items-center justify-between gap-3 px-4 py-3 text-[13px] text-ink">

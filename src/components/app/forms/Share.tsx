@@ -11,6 +11,7 @@ import { capturedForm } from "@/lib/forms/templates";
 import { formEmbedCode, overPage, PLATS, type FormEmbed, type FormMode, type Opens, type Plat } from "@/lib/share/embed";
 import { emailQuestionHtml, firstQuestion } from "@/lib/share/emailForm";
 import { BrandLogo } from "../BrandLogo";
+import { CodeBox, LinkRow, PillPicks } from "../SharePieces";
 import { QrCode } from "../meetings/Share";
 import { useLinkBase } from "../views/LinkDomainSettings";
 import { Badge, ErrorNote, errorText, must, postJson, useQuery, type ViewProps } from "../ui";
@@ -25,13 +26,13 @@ import type { FormRow, Kit } from "./shared";
 type Way = "link" | "embed" | "email" | "qr" | "own";
 export function Share(props: ViewProps & { form: Form; row: FormRow & { kind?: "built" | "captured" }; apply: (ops: Op | Op[], words?: string) => boolean; kit: Kit | null; site: string }) {
   const { form, row } = props;
-  const [way, setWay] = useState<Way>(form.capture ? "own" : "embed");
+  const [way, setWay] = useState<Way>(form.capture ? "own" : "link");
   const ways: [Way, string, string, string][] = [
-    ["link", "link", "Link", "Its own page, its ending and preview"],
-    ["embed", "code", "On your website", "In the page, a popup, a slider and more"],
-    ["email", "mail", "Email", "Send the link, or the form in an email"],
-    ["qr", "qr", "QR code", "For posters, slides and print"],
-    ["own", "form", "Your own form", "Keep your site's form, Claritia reads it"],
+    ["link", "link", "Link", "Its own page"],
+    ["embed", "code", "On your website", "In the page or a popup"],
+    ["email", "mail", "Email", "Send it or put it inside"],
+    ["qr", "qr", "QR code", "For print and slides"],
+    ["own", "form", "Your own form", "Keep your site's form"],
   ];
   return (
     <div className="grid min-h-0 flex-1 grid-cols-[260px_minmax(0,1fr)] grid-rows-[minmax(0,1fr)] max-[860px]:grid-cols-1 max-[860px]:grid-rows-[auto_minmax(0,1fr)]">
@@ -74,14 +75,14 @@ const Sub = ({ children }: { children: React.ReactNode }) => <p className="-mt-[
 
 type LinkParts = { ws: string; slug: string | null };
 
-function LinkPane({ sb, session, ws, form, row, apply }: Parameters<typeof Share>[0]) {
+function LinkPane({ sb, session, ws, role, navigate, form, row, apply }: Parameters<typeof Share>[0]) {
   const note = useNote();
   const origin = typeof window === "undefined" ? "" : window.location.origin;
   const host = origin.replace(/^https?:\/\//, "");
   const url = `${origin}/f/${row.id}`;
   const fill = allFields(form).filter((f) => f.type !== "hidden" && f.type !== "heading" && f.type !== "paragraph");
   const prefillOn = fill.length > 0 && fill.every((f) => f.prefill);
-  // The link's ending (117): /f/<workspace>/<ending>; the id link above always keeps working.
+  // The link's ending (117): /f/<workspace>/<ending>; the id link always keeps working.
   const parts = useQuery(`form:${row.id}:link`, async () => must(await sb.rpc("form_link", { p_form: row.id })) as LinkParts);
   const [ending, setEnding] = useState<string | null>(null);
   const [endErr, setEndErr] = useState("");
@@ -91,11 +92,13 @@ function LinkPane({ sb, session, ws, form, row, apply }: Parameters<typeof Share
   // On the workspace's own domain or subdomain the ending stands alone (Settings › Link domain).
   const base = useLinkBase(session, ws.id);
   const own = parts.data?.slug ? (base ? `${base}/${parts.data.slug}` : `${origin}/f/${parts.data.ws}/${parts.data.slug}`) : "";
+  const prefix = base ? `${base.replace(/^https:\/\//, "")}/` : `${host}/f/${parts.data?.ws ?? "…"}/`;
   const saveEnding = async () => {
+    if (typed === cur) return;
     setBusy(true);
     setEndErr("");
     try {
-      const r = must(await sb.rpc("form_set_slug", { p_form: row.id, p_slug: typed.trim().toLowerCase() })) as LinkParts;
+      const r = must(await sb.rpc("form_set_slug", { p_form: row.id, p_slug: typed.trim().toLowerCase().replace(/^-+|-+$/g, "") })) as LinkParts;
       parts.set(r);
       setEnding(null);
       note.show(r.slug ? "Link ending saved" : "Link ending removed");
@@ -105,8 +108,10 @@ function LinkPane({ sb, session, ws, form, row, apply }: Parameters<typeof Share
       setBusy(false);
     }
   };
-  // The link's preview in chats and social posts.
+  // The link's preview in chats and social posts, shown as it will look while it's typed.
   const share = form.share ?? {};
+  const [title, setTitle] = useState<string | null>(null);
+  const [line, setLine] = useState<string | null>(null);
   const [imgBusy, setImgBusy] = useState(false);
   const [imgErr, setImgErr] = useState("");
   const upload = async (file: File | undefined) => {
@@ -127,80 +132,120 @@ function LinkPane({ sb, session, ws, form, row, apply }: Parameters<typeof Share
       setImgBusy(false);
     }
   };
+  const shownTitle = (title ?? share.title ?? "").trim() || form.title || row.name;
+  const shownLine = (line ?? share.description ?? "").trim();
+  const shownHost = ((own || url).replace(/^https?:\/\//, "").split("/")[0] ?? host).toLowerCase();
   return (
     <>
       <H3>Link</H3>
-      <Sub>A page in your brand. It works on phones and in emails.</Sub>
       <div className={CARD}>
         <div className={CSTACK}>
-          <label className="text-[12px] font-medium text-muted">Address</label>
-          <div className="flex flex-wrap items-center gap-[8px]">
-            <span className="font-mono text-[11.5px] text-muted">{`${host}/f/`}</span>
-            <input readOnly value={row.id} aria-label="Link" onFocus={(e) => e.currentTarget.select()} className="h-[30px] w-[180px] min-w-0 rounded-sm border border-line-strong bg-card px-[10px] font-mono text-[12px] text-ink outline-none focus:border-ink" />
-            <button type="button" className={GHOST_SM} onClick={() => void copyText(url).then((ok) => note.show(ok ? "Copied" : "Couldn't copy"))}>
-              <Ic n="copy" />
-              Copy
-            </button>
-            <button type="button" className={GHOST_SM} disabled={!row.version} onClick={() => window.open(url, "_blank", "noopener")}>
-              <Ic n="ext" />
-              Open
-            </button>
-          </div>
+          <LinkRow url={own || url} disabled={!row.version} />
         </div>
         <div className={CSTACK}>
           <label htmlFor="link-ending" className="text-[12px] font-medium text-muted">
             Link ending
           </label>
           <div className="flex flex-wrap items-center gap-[8px]">
-            <span className="font-mono text-[11.5px] text-muted">{base ? `${base.replace(/^https:\/\//, "")}/` : `${host}/f/${parts.data?.ws ?? "…"}/`}</span>
-            <input id="link-ending" value={typed} placeholder="demo-request" maxLength={50} onChange={(e) => setEnding(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "-"))} className="h-[30px] w-[180px] min-w-0 rounded-sm border border-line-strong bg-card px-[10px] font-mono text-[12px] text-ink outline-none focus:border-ink" />
+            <div className="flex h-[32px] min-w-0 flex-1 basis-[260px] items-center overflow-hidden rounded-[6px] border border-line-strong bg-card focus-within:border-ink">
+              <span className="max-w-[55%] shrink-0 truncate border-r border-line bg-paper px-[10px] py-[7px] font-mono text-[12px] text-muted" title={prefix}>
+                {prefix}
+              </span>
+              <input
+                id="link-ending"
+                value={typed}
+                placeholder="demo-request"
+                maxLength={50}
+                onChange={(e) => setEnding(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "-"))}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") void saveEnding();
+                  if (e.key === "Escape") {
+                    setEnding(null);
+                    setEndErr("");
+                  }
+                }}
+                className="h-full min-w-0 flex-1 bg-transparent px-[10px] font-mono text-[12px] text-ink outline-none"
+              />
+            </div>
             {typed !== cur ? (
-              <button type="button" className={GHOST_SM} disabled={busy || !parts.data} onClick={() => void saveEnding()}>
-                {busy ? "Saving" : "Save"}
-              </button>
-            ) : own ? (
-              <button type="button" className={GHOST_SM} onClick={() => void copyText(own).then((ok) => note.show(ok ? "Copied" : "Couldn't copy"))}>
-                <Ic n="copy" />
-                Copy
-              </button>
+              <>
+                <button type="button" className={BTN} disabled={busy || !parts.data} onClick={() => void saveEnding()}>
+                  {busy ? "Saving" : "Save"}
+                </button>
+                <button type="button" className={GHOST_SM} disabled={busy} onClick={() => (setEnding(null), setEndErr(""))}>
+                  Cancel
+                </button>
+              </>
             ) : null}
           </div>
           <ErrorNote message={endErr || parts.error} />
         </div>
+        {own ? (
+          <div className={CROW}>
+            <RowText title="Id link" />
+            <code className="min-w-0 flex-1 truncate text-right font-mono text-[11.5px] text-muted max-[560px]:hidden">{url.replace(/^https?:\/\//, "")}</code>
+            <button type="button" className={GHOST_SM} onClick={() => void copyText(url).then((ok) => note.show(ok ? "Copied" : "Couldn't copy"))}>
+              <Ic n="copy" />
+              Copy
+            </button>
+          </div>
+        ) : null}
+        {!base && role === "owner" ? (
+          <div className={CROW}>
+            <RowText title="Your own domain" />
+            <span className="flex-1" />
+            <button type="button" className={GHOST_SM} onClick={() => navigate("settings", "link_domain")}>
+              Set up
+            </button>
+          </div>
+        ) : null}
         <div className={CROW}>
-          <RowText title="Fill in from the link" sub="Add ?email= or ?company= and those questions start filled" />
+          <RowText title="Fill in from the link" sub="?email= and ?company= fill those questions" />
           <Tg label="Fill in from the link" on={prefillOn} onChange={(v) => apply(fill.map((f): Op => ({ op: "update_field", id: f.id, patch: { prefill: v || undefined } })), v ? "Questions fill in from the link" : "Questions start empty")} />
         </div>
       </div>
       <H3>Link preview</H3>
-      <div className={CARD}>
-        <div className={CSTACK}>
-          <label htmlFor="share-title" className="text-[12px] font-medium text-muted">
-            Title
-          </label>
-          <input id="share-title" key={`t:${share.title ?? ""}`} defaultValue={share.title ?? ""} placeholder={form.title || row.name} maxLength={90} onBlur={(e) => e.target.value.trim() !== (share.title ?? "") && apply({ op: "set_share", share: { title: e.target.value.trim() } }, "Changed the link's title")} className={IN} />
+      <div className="grid grid-cols-[minmax(0,1fr)_280px] items-start gap-[16px] max-[960px]:grid-cols-1">
+        <div className={CARD}>
+          <div className={CSTACK}>
+            <label htmlFor="share-title" className="text-[12px] font-medium text-muted">
+              Title
+            </label>
+            <input id="share-title" value={title ?? share.title ?? ""} placeholder={form.title || row.name} maxLength={90} onChange={(e) => setTitle(e.target.value)} onBlur={(e) => (e.target.value.trim() !== (share.title ?? "") && apply({ op: "set_share", share: { title: e.target.value.trim() } }, "Changed the link's title"), setTitle(null))} className={IN} />
+          </div>
+          <div className={CSTACK}>
+            <label htmlFor="share-line" className="text-[12px] font-medium text-muted">
+              Line
+            </label>
+            <input id="share-line" value={line ?? share.description ?? ""} maxLength={200} onChange={(e) => setLine(e.target.value)} onBlur={(e) => (e.target.value.trim() !== (share.description ?? "") && apply({ op: "set_share", share: { description: e.target.value.trim() } }, "Changed the link's line"), setLine(null))} className={IN} />
+          </div>
+          <div className={CROW}>
+            <RowText title="Picture" sub="1200 × 630" />
+            <label className={`${GHOST_SM} cursor-pointer`}>
+              {imgBusy ? "Uploading" : share.image ? "Change" : "Upload"}
+              <input type="file" accept="image/png,image/jpeg,image/gif,image/webp" className="sr-only" onChange={(e) => void upload(e.target.files?.[0])} />
+            </label>
+            {share.image ? (
+              <button type="button" className={GHOST_SM} onClick={() => apply({ op: "set_share", share: { image: "" } }, "Removed the link's picture")}>
+                Remove
+              </button>
+            ) : null}
+          </div>
+          <ErrorNote message={imgErr} />
         </div>
-        <div className={CSTACK}>
-          <label htmlFor="share-line" className="text-[12px] font-medium text-muted">
-            Line
-          </label>
-          <input id="share-line" key={`d:${share.description ?? ""}`} defaultValue={share.description ?? ""} maxLength={200} onBlur={(e) => e.target.value.trim() !== (share.description ?? "") && apply({ op: "set_share", share: { description: e.target.value.trim() } }, "Changed the link's line")} className={IN} />
-        </div>
-        <div className={CROW}>
-          {/* eslint-disable-next-line @next/next/no-img-element -- the team's own uploaded picture, any size */}
-          {share.image ? <img src={share.image} alt="" className="h-[52px] w-[100px] shrink-0 rounded-[6px] border border-line object-cover" /> : null}
-          <RowText title="Picture" sub="1200 × 630 shows best" />
-          <label className={`${GHOST_SM} cursor-pointer`}>
-            {imgBusy ? "Uploading" : share.image ? "Change" : "Upload"}
-            <input type="file" accept="image/png,image/jpeg,image/gif,image/webp" className="sr-only" onChange={(e) => void upload(e.target.files?.[0])} />
-          </label>
+        <div aria-label="Link preview" className="overflow-hidden rounded-[10px] border border-line bg-card">
           {share.image ? (
-            <button type="button" className={GHOST_SM} onClick={() => apply({ op: "set_share", share: { image: "" } }, "Removed the link's picture")}>
-              Remove
-            </button>
-          ) : null}
+            /* eslint-disable-next-line @next/next/no-img-element -- the team's own uploaded picture, any size */
+            <img src={share.image} alt="" className="aspect-[1200/630] w-full border-b border-line object-cover" />
+          ) : (
+            <div className="flex aspect-[1200/630] w-full items-center justify-center border-b border-line bg-paper px-[20px] text-center text-[15px] font-semibold tracking-[-0.01em] text-ink">{shownTitle}</div>
+          )}
+          <div className="flex flex-col gap-[2px] px-[12px] py-[10px]">
+            <span className="truncate font-mono text-[10.5px] text-muted">{shownHost}</span>
+            <b className="truncate text-[13px] font-semibold text-ink">{shownTitle}</b>
+            {shownLine ? <span className="line-clamp-2 text-[12px] text-body">{shownLine}</span> : null}
+          </div>
         </div>
-        <ErrorNote message={imgErr} />
       </div>
       {note.node}
     </>
@@ -214,7 +259,8 @@ function EmailPane({ session, ws, form, row, kit }: Parameters<typeof Share>[0])
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const list = [...new Set(to.split(/[\s,;]+/).map((x) => x.trim()).filter(Boolean))];
+  const list = [...new Set(to.split(/[\s,;]+/).map((x) => x.trim().toLowerCase()).filter(Boolean))];
+  const bad = list.filter((x) => !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(x));
   const send = async () => {
     setBusy(true);
     setError("");
@@ -247,8 +293,8 @@ function EmailPane({ session, ws, form, row, kit }: Parameters<typeof Share>[0])
           <textarea id="share-note" value={message} onChange={(e) => setMessage(e.target.value)} rows={3} maxLength={1000} className={`${IN} h-auto py-[8px]`} />
         </div>
         <div className={CROW}>
-          <span className="flex-1 text-[12.5px] text-muted">{list.length ? `${list.length} of 50` : ""}</span>
-          <button type="button" className={BTN} disabled={busy || !list.length || list.length > 50 || !row.version} onClick={() => void send()}>
+          <span className={`flex-1 text-[12.5px] ${bad.length || list.length > 50 ? "text-rose" : "text-muted"}`}>{bad.length ? `Not an email: ${bad.slice(0, 3).join(", ")}${bad.length > 3 ? ` and ${bad.length - 3} more` : ""}` : list.length > 50 ? `${list.length} addresses, 50 at most` : list.length ? `${list.length} ${list.length === 1 ? "address" : "addresses"}` : ""}</span>
+          <button type="button" className={BTN} disabled={busy || !list.length || !!bad.length || list.length > 50 || !row.version} onClick={() => void send()}>
             {busy ? "Sending" : "Send"}
           </button>
         </div>
@@ -402,21 +448,7 @@ function EmbedPane({ sb, form, row }: Parameters<typeof Share>[0]) {
           ) : null}
         </div>
       ) : null}
-      <div className="flex flex-wrap gap-[6px]">
-        {PLATS.map((p) => (
-          <button key={p.v} type="button" aria-pressed={plat === p.v} onClick={() => setPlat(p.v)} className={`inline-flex h-[32px] items-center gap-[7px] rounded-full border pr-[10px] pl-[7px] text-[12.5px] transition-colors duration-[120ms] ${plat === p.v ? "border-ink font-medium text-ink" : "border-line text-body hover:border-line-strong"}`}>
-            {p.domain ? <BrandLogo domain={p.domain} name={p.l} size={18} /> : <span className="inline-flex size-[18px] items-center justify-center rounded-[5px] bg-paper-deep font-mono text-[9px] text-body">&lt;/&gt;</span>}
-            {p.l}
-          </button>
-        ))}
-      </div>
-      <div className="relative">
-        <pre data-embed-code className="m-0 overflow-x-auto rounded-[10px] border border-line bg-paper px-[16px] py-[14px] pr-[96px] font-mono text-[12px] leading-[1.6] whitespace-pre text-body">{code}</pre>
-        <button type="button" className={`${GHOST_SM} absolute top-[10px] right-[10px]`} onClick={() => void copyText(code).then((ok) => note.show(ok ? "Copied" : "Couldn't copy"))}>
-          <Ic n="copy" />
-          Copy
-        </button>
-      </div>
+      <CodeBox code={code} embed bar={<PillPicks label="Site builder" value={plat} onChange={setPlat} options={PLATS.map((p) => ({ v: p.v, l: p.l, icon: p.domain ? <BrandLogo domain={p.domain} name={p.l} size={18} /> : <span className="inline-flex size-[16px] items-center justify-center rounded-[4px] bg-paper-deep font-mono text-[8px] text-body">&lt;/&gt;</span> }))} />} />
       <span className="text-[12.5px] text-muted">
         {PLATS.find((p) => p.v === plat)!.how}{" "}
         <a href="/developers/embed" target="_blank" rel="noopener" className="font-medium text-ink underline-offset-2 hover:underline">
@@ -481,13 +513,7 @@ function OwnPane({ sb, ws, navigate, form, row }: Parameters<typeof Share>[0]) {
     <>
       <H3>Your own form</H3>
       <Sub>Keep the form your site already has. Claritia reads each send and treats it like its own.</Sub>
-      <div className="relative">
-        <pre className="m-0 overflow-x-auto rounded-[10px] border border-line bg-paper px-[16px] py-[14px] pr-[96px] font-mono text-[12px] leading-[1.6] whitespace-pre text-body">{code}</pre>
-        <button type="button" className={`${GHOST_SM} absolute top-[10px] right-[10px]`} onClick={() => void copyText(code).then((ok) => note.show(ok ? "Copied" : "Couldn't copy"))}>
-          <Ic n="copy" />
-          Copy
-        </button>
-      </div>
+      <CodeBox code={code} />
       <div className={CARD}>
         <div className={CROW}>
           <RowText title="Fields on your form" sub="Matched by their names" />
