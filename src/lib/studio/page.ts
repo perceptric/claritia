@@ -6,7 +6,9 @@
 
 import { CONTACT_KEYS, DEFAULT_CONSENT, type FieldKey, type FieldType } from "../forms/schema.ts";
 
-export type PageAfter = { kind: "thanks" | "page" | "meeting"; url?: string; meeting?: string; routes?: { field: string; value: string; meeting: string }[] };
+/** After the send. A meeting books with Claritia's own calendar (`meeting`, with `routes`) or an outside scheduler (`tool` and its `link`). */
+export type PageAfter = { kind: "thanks" | "page" | "meeting"; url?: string; meeting?: string; routes?: { field: string; value: string; meeting: string }[]; tool?: string; link?: string };
+const OUTSIDE = ["calendly", "calcom", "hubspot_meetings", "savvycal", "link"];
 /** The page on a published form: its HTML, its own CSS, the brand's CSS, each question's name to its field id. */
 /**
  * The page on a published form: its HTML, its own CSS, the brand's CSS, each question's name to its field id, and its
@@ -364,8 +366,10 @@ export function pageForm(p: { html: string; css: string; brand: string; after: P
   const ids = Object.fromEntries(questions.map((q) => [q.name, q.id]));
   const keyOf = new Map(fields.map((f) => [f.id, f.key]));
   const a = p.after;
+  const outside = a.kind === "meeting" && a.tool && OUTSIDE.includes(a.tool) ? { tool: a.tool, url: (a.link ?? "").slice(0, 500), perOwner: false } : null;
   const schedule =
-    a.kind === "meeting" && a.meeting
+    outside ??
+    (a.kind === "meeting" && a.meeting
       ? {
           tool: "claritia",
           url: "",
@@ -374,9 +378,9 @@ export function pageForm(p: { html: string; css: string; brand: string; after: P
             .filter((r) => ids[r.field] && r.meeting && r.value)
             .map((r, i) => ({ id: `r${i + 1}`, meet: r.meeting, conds: [{ field: `answer.${keyOf.get(ids[r.field]!)}`, op: "is", value: r.value }] })),
         }
-      : null;
+      : null);
   const end = a.kind === "page" && a.url ? { kind: "redirect", url: a.url } : { kind: "message", title: "Thanks, we got it." };
-  const after: PageAfter = { kind: a.kind, ...(a.url ? { url: a.url.slice(0, 500) } : {}), ...(a.meeting ? { meeting: a.meeting } : {}), ...(a.routes?.length ? { routes: a.routes.slice(0, 30) } : {}) };
+  const after: PageAfter = { kind: a.kind, ...(a.url ? { url: a.url.slice(0, 500) } : {}), ...(a.meeting ? { meeting: a.meeting } : {}), ...(a.routes?.length ? { routes: a.routes.slice(0, 30) } : {}), ...(outside ? { tool: outside.tool, link: outside.url } : {}) };
   return {
     questions,
     form: {
@@ -422,6 +426,7 @@ export function checkPage(raw: unknown, fieldIds: Set<string>): Page | null {
     .map((x) => (x && typeof x === "object" ? (x as Record<string, unknown>) : {}))
     .filter((x) => typeof x.field === "string" && typeof x.value === "string" && typeof x.meeting === "string")
     .map((x) => ({ field: String(x.field).slice(0, 60), value: String(x.value).slice(0, 200), meeting: String(x.meeting).slice(0, 40) }));
-  const after: PageAfter = { kind, ...(typeof af.url === "string" && af.url ? { url: af.url.slice(0, 500) } : {}), ...(typeof af.meeting === "string" && af.meeting ? { meeting: af.meeting.slice(0, 40) } : {}), ...(routes.length ? { routes } : {}) };
+  const tool = typeof af.tool === "string" && OUTSIDE.includes(af.tool) ? af.tool : "";
+  const after: PageAfter = { kind, ...(tool ? { tool, ...(typeof af.link === "string" && /^https:\/\//.test(af.link) ? { link: af.link.slice(0, 500) } : {}) } : {}), ...(typeof af.url === "string" && af.url ? { url: af.url.slice(0, 500) } : {}), ...(typeof af.meeting === "string" && af.meeting ? { meeting: af.meeting.slice(0, 40) } : {}), ...(routes.length ? { routes } : {}) };
   return { html, css: cleanPageCss(String(r.css ?? "")), brand: cleanPageCss(String(r.brand ?? "")), ids, after, ...pageLangs(r.lang, r.langs) };
 }

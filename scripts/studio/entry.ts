@@ -48,6 +48,13 @@ const api: StudioApi = {
     calls.push({ mode: "deleteChat", body: id });
     delete w.saved[id];
   },
+  times: async (typeId) => {
+    calls.push({ mode: "times", body: typeId });
+    const d = new Date();
+    d.setDate(d.getDate() + 1);
+    d.setHours(9, 0, 0, 0);
+    return { starts: [0, 1, 2, 26, 27].map((h) => d.getTime() + h * 3_600_000), length: typeId.startsWith("1111") ? 15 : 30 };
+  },
   translate: async (texts, lang) => {
     calls.push({ mode: "translate", body: { texts, lang } });
     const fr = lang.includes("(fr)");

@@ -117,3 +117,17 @@ test("a block needs a label, and a file box of the page's own is stopped", () =>
   assert.ok(run('<div data-cl-field="file" data-cl-name="cv"></div>').includes("error:no-label"));
   assert.ok(run('<label for="f">CV</label><input id="f" type="file" name="cv">').includes("error:file-input"));
 });
+
+test("an outside scheduler: its link publishes as the form's booking, and a bad link is stopped", () => {
+  const page = `<form><label for="em">Email</label><input id="em" name="email" type="email" required><button type="submit">Send</button><section data-cl-thanks hidden><div data-cl-book id="book"></div></section></form>`;
+  const good = { kind: "meeting" as const, tool: "calendly", link: "https://calendly.com/acme/demo" };
+  assert.deepEqual(errorsIn(checkStudioPage({ html: page, after: good, meetings: [] })), []);
+  const { form } = pageForm({ html: page, css: "", brand: "", after: good });
+  const r = checkForm(form);
+  assert.ok("form" in r, JSON.stringify("errors" in r ? r.errors : null));
+  const f = (r as { form: Form }).form;
+  assert.equal(f.after.schedule?.tool, "calendly");
+  assert.equal(f.after.schedule?.url, "https://calendly.com/acme/demo");
+  assert.equal(f.page!.after?.tool, "calendly");
+  assert.ok(checkStudioPage({ html: page, after: { ...good, link: "https://evil.example/x" }, meetings: [] }).some((i) => i.code === "scheduler-link" && i.level === "error"));
+});

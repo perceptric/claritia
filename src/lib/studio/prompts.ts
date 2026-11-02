@@ -53,7 +53,7 @@ THE FORM'S HTML
 - Meetings: when the form books a meeting after the send, put <div data-cl-book id="book"></div> inside the thanks section. Claritia draws its booking calendar there (classes .cl-cal, .cl-day, .cl-time, and a .btn to confirm), so style those classes to match the brand. Never build your own calendar.
 
 AFTER THE SEND (also set in the On submission tab)
-{"kind":"thanks"}, or {"kind":"page","url":"https://..."}, or {"kind":"meeting","meeting":"<type id>","routes":[{"field":"<name>","value":"<option value>","meeting":"<type id>"}]}. Routes send leads whose answer matches to another meeting; everyone else gets the default. The workspace's meeting types come with each message; use only their ids.`;
+{"kind":"thanks"}, or {"kind":"page","url":"https://..."}, or {"kind":"meeting","meeting":"<type id>","routes":[{"field":"<name>","value":"<option value>","meeting":"<type id>"}]} (Claritia's own calendar), or {"kind":"meeting","tool":"calendly|calcom|hubspot_meetings|savvycal|link","link":"https://..."} when the owner books with an outside scheduler and gives its link. Routes send leads whose answer matches to another meeting; everyone else gets the default. The workspace's meeting types come with each message; use only their ids.`;
 
 export const BRAND_RULES = `You read a company's website and write its brand stylesheet for Claritia's forms. Copy the site's existing look exactly; never invent.
 

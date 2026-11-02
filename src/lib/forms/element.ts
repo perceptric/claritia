@@ -866,12 +866,12 @@ export class ClaritiaForm extends Base {
     const p = form.page!;
     if (!this.pg) {
       this.setAttribute("data-page", "");
-      const css = `${p.brand}\n${p.css}`.replace(/@import\s+url\(\s*["']?([^"')]+)["']?\s*\)[^;\n]*;?|@import\s+["']([^"']+)["'][^;\n]*;?/gi, (_m, a?: string, b?: string) => (addFont((a || b || "").trim()), ""));
+      const css = `${p.brand}\n${p.css}\n.cl .ps{flex-wrap:wrap}.cl .ps .pl{width:auto;flex:0 0 auto;padding-left:14px;padding-right:14px;white-space:nowrap}.cl .tm .pl{width:100%;min-width:0;padding-left:8px;padding-right:8px;white-space:nowrap}`.replace(/@import\s+url\(\s*["']?([^"')]+)["']?\s*\)[^;\n]*;?|@import\s+["']([^"']+)["'][^;\n]*;?/gi, (_m, a?: string, b?: string) => (addFont((a || b || "").trim()), ""));
       // The visitor's language, when the form has it (docs/studio-v2-plan.md 6.4).
       const langs = [p.lang || "", ...Object.keys(p.langs ?? {})].filter(Boolean);
       if (!this.pgLang) this.pgLang = (typeof navigator !== "undefined" ? navigator.languages ?? [] : []).map((l) => langs.find((x) => x === l || x.slice(0, 2) === l.slice(0, 2))).find(Boolean) ?? langs[0] ?? "";
       const html = this.pgLang && p.langs?.[this.pgLang] ? p.langs[this.pgLang]! : p.html;
-      const st = el("style", { text: `${style.textContent}\n${ACCESS_CSS}.cl-langs{display:flex;justify-content:flex-end;gap:4px;padding:8px 12px}.cl-langs button{font:inherit;font-size:12px;border:1px solid rgba(127,127,127,.45);background:rgba(255,255,255,.9);color:#222;border-radius:999px;padding:5px 11px;cursor:pointer}.cl-langs button[aria-pressed=true]{background:#111;color:#fff;border-color:#111}\n:host{display:block}.cl-root{min-height:inherit;display:flex;flex-direction:column}.cl-root>*{flex:1 0 auto}[hidden]{display:none!important}.cl-alert{color:#b23a26}\n${css.replace(/(^|[\s,{}])(?::root|html|body)(?=[\s,{:.[])/g, "$1:host")}` });
+      const st = el("style", { text: `${style.textContent}\n${ACCESS_CSS}.cl-langs{display:flex;justify-content:flex-end;gap:4px;padding:8px 12px}.cl-langs button{font:inherit;font-size:12px;border:1px solid rgba(127,127,127,.45);background:rgba(255,255,255,.9);color:#222;border-radius:999px;padding:5px 11px;cursor:pointer}.cl-langs button[aria-pressed=true]{background:#111;color:#fff;border-color:#111}.cl .ps,.cl .tm{gap:8px}\n:host{display:block}.cl-root{min-height:inherit;display:flex;flex-direction:column}.cl-root>*{flex:1 0 auto}[hidden]{display:none!important}.cl-alert{color:#b23a26}\n${css.replace(/(^|[\s,{}])(?::root|html|body)(?=[\s,{:.[])/g, "$1:host")}` });
       const wrap = el("div", { class: "cl-root" });
       wrap.innerHTML = html;
       if (this.pgLang) {
@@ -957,7 +957,15 @@ export class ClaritiaForm extends Base {
     if (this.bk || this.bkDone || this.waiting || this.schedule || this.pay || form.after.end.kind === "redirect") {
       const spot = wrap.querySelector<HTMLElement>("[data-cl-book]") ?? wrap.querySelector<HTMLElement>("[data-cl-thanks]") ?? wrap;
       spot.hidden = false;
-      spot.replaceChildren(this.endScreen(form));
+      const end = this.endScreen(form);
+      // Claritia's calendar in the brand's own classes, so it matches the page around it.
+      end.querySelectorAll(".h").forEach((x) => x.classList.add("heading"));
+      end.querySelectorAll(".i").forEach((x) => x.classList.add("text"));
+      end.querySelectorAll(".lb").forEach((x) => x.classList.add("label"));
+      end.querySelectorAll(".in").forEach((x) => x.classList.add("field"));
+      end.querySelectorAll(".bt").forEach((x) => x.classList.add("btn"));
+      end.querySelectorAll(".pl").forEach((x) => x.classList.add(x.getAttribute("aria-pressed") === "true" ? "btn" : "btn-secondary"));
+      spot.replaceChildren(end);
     }
   }
 

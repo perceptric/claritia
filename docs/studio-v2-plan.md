@@ -263,3 +263,13 @@ page from here).
   $0.10), a language about $0.04 (was about $0.20). Beta about $715 a month, Growth about $6,135 (was about $810 and
   $7,110 with the brand switch). Opus price "check".
 
+## Booking (after launch)
+
+- The Studio's preview shows the meeting type's real open times (/api/meetings/times), in the browser's time zone,
+  for the meeting the answers route to. Picking a time in the preview books nothing.
+- Claritia's calendar, in the Studio and live, wears the brand's own classes (.heading, .text, .label, .field, .btn
+  for the picked day, .btn-secondary for the rest), so it matches the page around it.
+- On submission's "Book with" offers Claritia calendar or an outside scheduler (Calendly, Cal.com, HubSpot Meetings,
+  SavvyCal, any link). An outside scheduler's link is checked and opens in the form's booking spot, live and in the
+  preview; routes stay with Claritia's calendar.
+

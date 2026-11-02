@@ -4,6 +4,7 @@
 // Publish. Layout, contrast and fonts need a browser, so the Studio adds those (studio.ts, layoutIssues).
 // Runs in the browser and on the server: no DOM.
 
+import { linkProblem, type ScheduleTool } from "../forms/schedule.ts";
 import { languageName } from "./industries.ts";
 import { cleanPage, type PageAfter, type PageQuestion } from "./page.ts";
 
@@ -158,7 +159,10 @@ export function checkStudioPage(p: { html: string; after: PageAfter; meetings: {
   const a = p.after;
   const known = (id: string | undefined) => !p.meetings || p.meetings.some((m) => m.id === id);
   if (a.kind === "page" && !/^https:\/\/[^\s]+\.[^\s]+/.test(a.url ?? "")) add("error", "page-url", "On submission opens a page, but its address isn't a full https link.");
-  if (a.kind === "meeting") {
+  if (a.kind === "meeting" && a.tool && a.tool !== "claritia") {
+    const problem = linkProblem(a.tool as ScheduleTool, a.link ?? "");
+    if (problem) add("error", "scheduler-link", `On submission: ${problem}`);
+  } else if (a.kind === "meeting") {
     if (p.meetings && !p.meetings.length) add("error", "no-meetings", "On submission books a meeting, but the workspace has no meeting types yet.");
     else if (!a.meeting || !known(a.meeting)) add("error", "meeting-gone", "On submission books a meeting that isn't there any more. Pick one in On submission.");
     if (!all(tree, (n) => "data-cl-book" in n.attrs).length) add("warning", "no-book-spot", "There's no booking spot, so the calendar shows at the end of the thank-you.", "Add <div data-cl-book id=\"book\"></div> inside the thank-you section.");
