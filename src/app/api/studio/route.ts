@@ -8,7 +8,7 @@ import { checkStudioPage, errorsIn } from "@/lib/studio/check";
 import { readProfile } from "@/lib/studio/industries";
 import { pageForm, type PageAfter } from "@/lib/studio/page";
 import { turnstileSiteKey } from "@/lib/forms/server";
-import { BRAND_RULES, CHAT_RULES, STUDIO_MODEL } from "@/lib/studio/prompts";
+import { BRAND_RULES, CHAT_RULES, STUDIO_MODEL, TRANSLATE_RULES } from "@/lib/studio/prompts";
 import { hostOf, readSite, readSource } from "@/lib/studio/site";
 import { requireUser } from "@/lib/serverAuth";
 import { serviceClient } from "@/lib/serviceClient";
@@ -21,7 +21,9 @@ import { serviceClient } from "@/lib/serviceClient";
 //                                                               in a browser; the page checks back for its name and logo
 //   look    { kitId, fresh? }        → stream: { say, css }     the confirmed site's page source read into its brand CSS
 //                                                               (fresh: read again, past the cache)
-//   chat    { turns }                → stream: { t } deltas, then { done }   the form designer (Tia, on Claude Opus)
+//   chat    { turns, brand, built, files? } → stream: { t } deltas, then { done }   the form designer (Tia, on Claude
+//                                                               Opus); brand is the chat's cached brand block
+//   translate { texts, lang }         → { texts }               the form's words in another language
 //   chat-save { chat: { id, name, state, brandId, formId, body } } → { ok }   one chat with Tia (112)
 //   chat-delete { id }               → { ok }
 //   brand-css { kitId, css }         → { ok }                  the brand's CSS, edited in Code
@@ -37,6 +39,11 @@ const ZERO: Usage = { input: 0, output: 0, cache_read: 0, cache_write: 0 };
 const UUID = /^[0-9a-f-]{36}$/;
 
 type Turn = { role: "user" | "assistant"; content: string };
+type Block = { type: "text"; text: string } | { type: "image"; source: { type: "base64"; media_type: string; data: string } } | { type: "document"; source: { type: "base64"; media_type: "application/pdf"; data: string }; title?: string };
+type Msg = { role: "user" | "assistant"; content: string | Block[] };
+const IMAGE_TYPES = new Set(["image/png", "image/jpeg", "image/webp", "image/gif"]);
+const MAX_IMAGE = 5 * 1024 * 1024;
+const MAX_PDF = 10 * 1024 * 1024;
 
 function client(): Anthropic | null {
   const apiKey = process.env.ANTHROPIC_API_KEY?.trim();
@@ -44,15 +51,23 @@ function client(): Anthropic | null {
 }
 
 /** Stream one Opus answer: text deltas to `onText`, the whole text at the end. */
-async function opus(c: Anthropic, system: string, messages: Turn[], maxTokens: number, effort: "low" | "medium" | "high", onText: (delta: string) => void): Promise<{ text: string; usage: Usage; stop: string | null }> {
+/**
+ * Stream one Opus answer. The rules and the brand block (its CSS, the industry, the meeting types: the same for every
+ * message in a chat) are cached, and so is the conversation up to the last answer, so each new message pays full price
+ * only for the form as it is now and the new words.
+ */
+async function opus(c: Anthropic, system: string, messages: Msg[], maxTokens: number, effort: "low" | "medium" | "high", onText: (delta: string) => void, brand = ""): Promise<{ text: string; usage: Usage; stop: string | null }> {
+  const cache = { type: "ephemeral" as const };
+  const lastAnswer = messages.map((m) => m.role).lastIndexOf("assistant");
+  const msgs = messages.map((m, i) => (i === lastAnswer && typeof m.content === "string" ? { role: m.role, content: [{ type: "text", text: m.content, cache_control: cache }] } : m));
   const stream = c.beta.messages.stream({
     model: STUDIO_MODEL,
     max_tokens: maxTokens,
     output_config: { effort },
     betas: ["server-side-fallback-2026-07-01"],
     fallbacks: "default",
-    system: [{ type: "text", text: system, cache_control: { type: "ephemeral" } }],
-    messages,
+    system: [{ type: "text", text: system, cache_control: cache }, ...(brand ? [{ type: "text", text: brand, cache_control: cache }] : [])],
+    messages: msgs,
   } as unknown as Anthropic.Beta.Messages.MessageCreateParamsStreaming);
   for await (const ev of stream) if (ev.type === "content_block_delta" && ev.delta.type === "text_delta") onText(ev.delta.text);
   const res = await stream.finalMessage();
@@ -261,9 +276,28 @@ export async function POST(request: Request) {
       .slice(-30)
       .map((t) => ({ role: t.role, content: t.content.slice(0, 200_000) }));
     if (!turns.length || turns[0]!.role !== "user" || turns.at(-1)!.role !== "user") return bad("The chat can't be read.");
+    const brand = typeof b.brand === "string" ? b.brand.slice(0, 220_000) : "";
+    // Files the owner attached to this message: pictures and PDFs Tia reads (text files come inside the words).
+    const files: Block[] = [];
+    for (const f of (Array.isArray(b.files) ? b.files : []).slice(0, 5)) {
+      const o = (f && typeof f === "object" ? f : {}) as Record<string, unknown>;
+      const type = String(o.type ?? ""), data = typeof o.data === "string" ? o.data : "", name = String(o.name ?? "file").slice(0, 120);
+      if (!/^[A-Za-z0-9+/=]+$/.test(data)) return bad(`${name} couldn't be read.`);
+      const size = Math.floor((data.length * 3) / 4);
+      if (IMAGE_TYPES.has(type)) {
+        if (size > MAX_IMAGE) return bad(`${name} is over 5 MB. Attach a smaller picture.`);
+        files.push({ type: "image", source: { type: "base64", media_type: type, data } });
+      } else if (type === "application/pdf") {
+        if (size > MAX_PDF) return bad(`${name} is over 10 MB. Attach a smaller PDF.`);
+        files.push({ type: "document", source: { type: "base64", media_type: "application/pdf", data }, title: name });
+      } else return bad(`${name} isn't a picture or a PDF.`);
+    }
+    const messages: Msg[] = turns.map((t, i) => (i === turns.length - 1 && files.length ? { role: t.role, content: [...files, { type: "text", text: t.content }] } : t));
+    // A change to a built form needs little thinking; a first build, a file to read or a big ask gets more.
+    const effort = b.built === true && !files.length && turns.at(-1)!.content.length < 60_000 ? "low" : "medium";
     return lines(async (send) => {
-      const r = await cachedStep(rpc, ws, "studio_chat", hashKey(STUDIO_MODEL, "chat-1", turns), async () => {
-        const out = await opus(c, CHAT_RULES, turns, 32000, "medium", (d) => send({ t: d }));
+      const r = await cachedStep(rpc, ws, "studio_chat", hashKey(STUDIO_MODEL, "chat-2", effort, brand, turns, files.map((f) => ("source" in f ? f.source.data : ""))), async () => {
+        const out = await opus(c, CHAT_RULES, messages, 32000, effort, (d) => send({ t: d }), brand);
         if (out.stop === "refusal") return { result: null, model: STUDIO_MODEL, usage: out.usage, keep: false };
         return { result: { text: out.text, cut: out.stop === "max_tokens" }, model: STUDIO_MODEL, usage: out.usage, keep: out.stop !== "max_tokens" };
       });
@@ -273,5 +307,24 @@ export async function POST(request: Request) {
       send({ done: r.result.text, cut: r.result.cut });
     });
   }
+  if (b.mode === "translate") {
+    // Only the words go out and come back (no markup), so a translation costs a fraction of the whole page.
+    const texts = (Array.isArray(b.texts) ? b.texts : []).slice(0, 600).map((t) => String(t ?? "").slice(0, 2000));
+    const lang = typeof b.lang === "string" ? b.lang.slice(0, 40) : "";
+    if (!texts.length || !lang) return bad("Nothing to translate.");
+    const r = await cachedStep(rpc, ws, "studio_translate", hashKey(STUDIO_MODEL, "tr-1", lang, texts), async () => {
+      const out = await opus(c, TRANSLATE_RULES, [{ role: "user", content: `Language: ${lang}\n${JSON.stringify(texts)}` }], 16000, "low", () => {});
+      const m = /\[[\s\S]*\]/.exec(out.text);
+      let list: unknown = null;
+      try {
+        list = m ? JSON.parse(m[0]) : null;
+      } catch {}
+      const ok = Array.isArray(list) && list.length === texts.length && list.every((x) => typeof x === "string");
+      return { result: ok ? (list as string[]) : null, model: STUDIO_MODEL, usage: out.usage, keep: ok };
+    });
+    if (!r.result) return bad("Tia couldn't translate the form. Try again.", 502);
+    return Response.json({ texts: r.result });
+  }
+
   return bad("Unknown mode.");
 }

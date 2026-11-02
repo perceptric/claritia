@@ -97,8 +97,10 @@ try {
   await $("#input").press("Enter");
   await idle();
   const first = (await calls()).find((c) => c.mode === "tia")!.body as { content: string }[];
-  check(first.at(-1)!.content.includes("[NOTHING BUILT YET]") && first.at(-1)!.content.includes("11111111-1111-4111-8111-111111111111: Intro call, 15 min"), "the first message says nothing is built and carries the meeting types");
-  check(first.at(-1)!.content.includes("[Industry: Hospitality and events, US. Write the form in English"), "Tia gets the industry's recipe");
+  const opts1 = (await calls()).find((c) => c.mode === "tiaOpts")!.body as { brand: string; built: boolean };
+  check(first.at(-1)!.content.includes("[NOTHING BUILT YET]") && opts1.brand.includes("11111111-1111-4111-8111-111111111111: Intro call, 15 min") && !opts1.built, "the first message says nothing is built; the meeting types ride in the brand block");
+  check(opts1.brand.includes("[Industry: Hospitality and events, US. Write the form in English"), "Tia gets the industry's recipe in the brand block");
+  check(opts1.brand.includes("<brand_css>") && !first.at(-1)!.content.includes("<brand_css>"), "the brand's CSS goes once in the cached brand block, not in each message");
   check(await form.locator("#title").isVisible(), "the form draws in the preview");
   check((await form.locator('#photo input[type="file"]').count()) === 1 && (await form.locator("#photo .label").textContent())!.includes("A photo of your day"), "a Claritia block shows in the preview with its label");
   const logo = await p.evaluate(() => (document.querySelector("#studio")!.shadowRoot!.getElementById("host")!.shadowRoot!.querySelector("img[data-cl-logo]") as HTMLImageElement | null)?.src ?? "");
@@ -115,10 +117,22 @@ try {
   await $("#input").press("Enter");
   await idle();
   const second = ((await calls()).filter((c) => c.mode === "tia")[1]!.body as { content: string }[]).at(-1)!.content;
-  check(second.includes("[THE FORM IS BUILT]"), "a change says the form is built");
+  check(second.includes("[THE FORM IS BUILT]") && ((await calls()).filter((c) => c.mode === "tiaOpts")[1]!.body as { built: boolean }).built, "a change says the form is built, so Tia thinks less");
+  check(!/>\s+</.test(/<form_html>([\s\S]*?)<\/form_html>/.exec(second)![1]!), "the form goes to Tia without the spaces between tags");
   check((await form.locator("#title").textContent()) === "How was today?", "Tia's change lands on the form");
   check((await $(".ask").count()) === 0, "no setup question once the form is built");
   check((await $(".did").last().textContent())!.includes("Renamed the title"), "the chat says what changed");
+
+  // 4b. Files for Tia: a picture goes with the message, and shows on it
+  await $("#fileIn").setInputFiles({ name: "old-form.png", mimeType: "image/png", buffer: Buffer.from("89504e470d0a1a0a", "hex") });
+  check((await $("#attached .fchip").textContent())!.includes("old-form.png"), "an attached file shows under the box");
+  await $("#send").click();
+  await idle();
+  const opts3 = (await calls()).filter((c) => c.mode === "tiaOpts").at(-1)!.body as { files: { name: string; type: string; data: string }[] };
+  const third = ((await calls()).filter((c) => c.mode === "tia").at(-1)!.body as { content: string }[]).at(-1)!.content;
+  check(opts3.files.length === 1 && opts3.files[0]!.name === "old-form.png" && opts3.files[0]!.type === "image/png" && opts3.files[0]!.data.length > 0, "the picture goes to Tia with the message");
+  check(third.startsWith("Use old-form.png") && (await $(".msg.me .fchip").last().textContent())!.includes("old-form.png") && (await $("#attached").isHidden()), "the message names the file and the box clears");
+  await $("#undo").click();
 
   // 5. The preview still runs: required, steps, show-if, the booking calendar
   await form.locator("[data-cl-next]").click();
@@ -223,6 +237,8 @@ try {
   await $("#layer .menu .mi").filter({ hasText: "French" }).click();
   await p.waitForFunction(() => document.querySelector("#studio")!.shadowRoot!.getElementById("langBtn")!.textContent!.trim() === "FR");
   check((await form.locator("#title").textContent()) === "Comment était ta journée ?", "Tia writes the form in French and it previews");
+  const tr = (await calls()).find((c) => c.mode === "translate")!.body as { texts: string[] };
+  check(tr.texts.includes("How was today?") && !tr.texts.some((t) => t.includes("<")), "only the words go to Tia for a translation");
   await $("#langBtn").click();
   await $("#layer .menu .mi").filter({ hasText: "Arabic" }).click();
   await p.waitForFunction(() => document.querySelector("#studio")!.shadowRoot!.getElementById("langBtn")!.textContent!.trim() === "AR");
