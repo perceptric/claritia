@@ -191,6 +191,19 @@ try {
   check((await $("#publish").count()) + (await $("#checkBtn").count()) + (await $("#shareBtn").count()) + (await $("#backBtn").count()) === 0, "Publish, the check, Share and Back live in the page's header, never in the Studio's bar");
   for (const id of ["t-preview", "t-edit", "t-code", "t-after", "d-desk", "d-tab", "d-phone"]) if (!(await $(`#${id}`).getAttribute("data-tip"))) check(false, `${id} has a tooltip`);
   check((await $("#t-edit").textContent())!.trim() === "", "views are icons with tooltips");
+  // One row: the steps sit in the bar, and the bar holds 11 controls (the extras are in ⋯).
+  const barRow = await $("section.stage > .bar").boundingBox();
+  const stepsBox = await $("#stepBar").boundingBox();
+  check(!!barRow && !!stepsBox && stepsBox.y >= barRow.y && stepsBox.y + stepsBox.height <= barRow.y + barRow.height, "the steps sit inside the bar, in one row");
+  const controls = await p.evaluate(() => [...document.querySelector("#studio")!.shadowRoot!.querySelectorAll("section.stage > .bar > button, section.stage > .bar > a, section.stage > .bar > .grp > button")].filter((b) => !(b as HTMLElement).hidden).length);
+  check(controls <= 11, `the bar holds at most 11 controls besides the steps (${controls})`);
+  await $("#moreBtn").click();
+  check((await $("#layer .menu").textContent())!.includes("Back to step 1") && (await $("#layer .menu").textContent())!.includes("Layers"), "⋯ holds Back to step 1 and, in Edit, Layers");
+  await $("#layer .menu #navBtn").click();
+  check(!(await $("#navi").isHidden()), "Layers opens from ⋯");
+  await $("#moreBtn").click();
+  await $("#layer .menu #navBtn").click();
+  check(await $("#navi").isHidden(), "and closes from ⋯");
   await $("#stepBar .sp").nth(1).click();
   await form.locator("#photo").click();
   await $("#p-set").click();
@@ -316,7 +329,9 @@ try {
   const pub = (await calls()).find((c) => c.mode === "publish")!.body as { html: string; css: string; brand: string; after: PageAfter; name: string };
   check(pub.name === "Daily check-in" && pub.html.includes("data-cl-step") && pub.brand.includes("--finch-mint"), "Publish sends the form's name, page and brand CSS");
   check(Object.keys((pub as unknown as { langs: Record<string, string> }).langs).sort().join() === "ar,fr" && (pub as unknown as { lang: string }).lang === "en", "Publish sends the form's languages");
-  check(!(await $("#openBtn").isHidden()), "a published form links to its page");
+  await $("#moreBtn").click();
+  check(await $("#layer .menu #openBtn").isVisible(), "a published form links to its page, from the bar's ⋯");
+  await $("#moreBtn").click();
   await p.locator("#hdrAction").click();
   check((await calls()).some((c) => c.mode === "openShare" && c.body === "33333333-3333-4333-8333-333333333333"), "once live, the one button is Share, for the published form");
   await p.waitForFunction(() => Object.values((window as unknown as { saved: Record<string, { formId: string; state: string }> }).saved).some((c) => c.formId && c.state === "live"));

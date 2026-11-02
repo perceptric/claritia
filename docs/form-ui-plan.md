@@ -51,7 +51,13 @@ What was planned:
   button goes Publish (blocked by a problem, then fixed by Tia) → Share → Publish changes. A publish that fails
   midway keeps the old live form and says so.
 
-## Step 2: a calmer Studio bar
+## Step 2: a calmer Studio bar (built)
+
+Built in `studio.ts`: the steps moved into the bar (`#stepBar`, centered, scrolling sideways when long), and ⋯
+(`#moreBtn`) holds Back to step 1, Open the live form (once live) and Layers (in Edit). `scripts/studio-check.ts`
+checks the one row, at most 11 controls, and Layers from ⋯.
+
+What was planned:
 
 Under the header, only while Build is open:
 

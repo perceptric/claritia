@@ -117,13 +117,14 @@ input, textarea { user-select: text; -webkit-user-select: text; }
 .tipright[data-tip]::after { left: 0; transform: translateY(-2px); }
 .tipright[data-tip]:hover::after, .tipright[data-tip]:focus-visible::after { transform: none; }
 .work { flex: 1; min-height: 0; display: flex; }
-.stepbar { flex: none; display: flex; align-items: center; gap: 6px; padding: 8px 12px; border-bottom: 1px solid var(--line); overflow-x: auto; }
-.stepbar .sp { height: 28px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--line); background: var(--bg); color: var(--body); font-size: 12.5px; white-space: nowrap; display: inline-flex; align-items: center; gap: 6px; flex: none; max-width: 220px; }
-.stepbar .sp span:last-child { overflow: hidden; text-overflow: ellipsis; }
-.stepbar .sp:hover { border-color: var(--line-strong); color: var(--ink); }
-.stepbar .sp[aria-pressed="true"] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
-.stepbar .sp .n { font: 500 11px var(--mono); opacity: .65; }
-.stepbar .tools { margin-left: auto; display: flex; gap: 2px; flex: none; padding-left: 8px; }
+.steps { flex: 0 1 auto; min-width: 0; display: flex; align-items: center; gap: 6px; overflow-x: auto; scrollbar-width: none; padding: 2px; }
+.steps::-webkit-scrollbar { display: none; }
+.steps .sp { height: 28px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--line); background: var(--bg); color: var(--body); font-size: 12.5px; white-space: nowrap; display: inline-flex; align-items: center; gap: 6px; flex: none; max-width: 220px; }
+.steps .sp span:last-child { overflow: hidden; text-overflow: ellipsis; }
+.steps .sp:hover { border-color: var(--line-strong); color: var(--ink); }
+.steps .sp[aria-pressed="true"] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+.steps .sp .n { font: 500 11px var(--mono); opacity: .65; }
+.steps .tools { display: flex; gap: 2px; flex: none; padding-left: 6px; margin-left: 2px; border-left: 1px solid var(--line); }
 .navi { flex: none; width: 220px; border-right: 1px solid var(--line); display: flex; flex-direction: column; min-height: 0; }
 .ptitle { height: 38px; flex: none; display: flex; align-items: center; padding: 0 12px; font-size: 11px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; color: var(--muted); }
 .tree { flex: 1; min-height: 0; overflow-y: auto; padding: 0 6px 10px; display: flex; flex-direction: column; }
@@ -290,7 +291,7 @@ const P = {
   al: '<path d="M4 6h16M4 10h10M4 14h16M4 18h10"/>', ac: '<path d="M4 6h16M7 10h10M4 14h16M7 18h10"/>', ar: '<path d="M4 6h16M10 10h10M4 14h16M10 18h10"/>',
   js: '<path d="M4 4v16"/><rect x="8" y="7" width="6" height="10" rx="1"/>', jc: '<path d="M12 4v16"/><rect x="7" y="7" width="10" height="10" rx="1"/>', je: '<path d="M20 4v16"/><rect x="10" y="7" width="6" height="10" rx="1"/>', jb: '<path d="M4 4v16M20 4v16"/><rect x="8" y="7" width="3" height="10" rx="1"/><rect x="13" y="7" width="3" height="10" rx="1"/>',
   case0: '<path d="M4 18 8 6l4 12M5.5 14h5M15 18v-6a2.5 2.5 0 0 1 5 0v6M15 15h5"/>', caseU: '<path d="M3 18 7 6l4 12M4.5 14h5M14 18 17 6l4 12M15 14h5"/>', caseL: '<path d="M8 18v-5a2.5 2.5 0 0 1 5 0v5M8 15h5M16 9v9"/>',
-  check: '<path d="m5 12 5 5 9-10"/>', stop: "", clip: '<path d="m21 11-8.6 8.6a5 5 0 0 1-7-7l8.6-8.6a3.3 3.3 0 0 1 4.7 4.7l-8.6 8.6a1.7 1.7 0 0 1-2.4-2.4l7.9-7.9"/>', globe: '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/>',
+  check: '<path d="m5 12 5 5 9-10"/>', more: '<circle cx="5" cy="12" r="1.4"/><circle cx="12" cy="12" r="1.4"/><circle cx="19" cy="12" r="1.4"/>', stop: "", clip: '<path d="m21 11-8.6 8.6a5 5 0 0 1-7-7l8.6-8.6a3.3 3.3 0 0 1 4.7 4.7l-8.6 8.6a1.7 1.7 0 0 1-2.4-2.4l7.9-7.9"/>', globe: '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/>',
 };
 
 export const STUDIO_HTML = `
@@ -316,7 +317,8 @@ export const STUDIO_HTML = `
         <button class="ib" role="tab" id="t-code" data-tip="Code" aria-label="Code">${SVG(P.code)}</button>
         <button class="ib" role="tab" id="t-after" data-tip="On submission" aria-label="On submission">${SVG(P.cal)}</button>
       </div>
-      <button class="ib" id="navBtn" data-tip="Layers" aria-label="Layers" aria-pressed="false" hidden>${SVG(P.layers)}</button>
+      <span class="spacer"></span>
+      <div class="steps" id="stepBar" role="toolbar" aria-label="Steps" hidden></div>
       <span class="spacer"></span>
       <div class="grp" role="group" aria-label="Device">
         <button class="ib" id="d-desk" data-tip="Desktop" aria-label="Desktop" aria-pressed="true">${SVG(P.desk)}</button>
@@ -327,10 +329,8 @@ export const STUDIO_HTML = `
       <span class="vsep"></span>
       <button class="ib" id="undo" data-tip="Undo" aria-label="Undo" disabled>${SVG(P.undo)}</button>
       <button class="ib" id="redo" data-tip="Redo" aria-label="Redo" disabled>${SVG(P.redo)}</button>
-      <button class="ib" id="restart" data-tip="Back to step 1" aria-label="Back to step 1">${SVG(P.restart)}</button>
-      <a class="ib tipleft" id="openBtn" data-tip="Open the live form" aria-label="Open the live form" target="_blank" rel="noopener" hidden>${SVG(P.open)}</a>
+      <button class="ib tipleft" id="moreBtn" data-tip="More" aria-label="More" aria-haspopup="menu">${SVG(P.more)}</button>
     </div>
-    <div class="stepbar" id="stepBar" role="toolbar" aria-label="Steps" hidden></div>
     <div class="work" id="work">
       <aside class="navi" id="navi" aria-label="Layers" hidden><div class="ptitle">Layers</div><div class="tree" id="tree"></div></aside>
       <div class="canvas" id="canvas">
@@ -1135,7 +1135,6 @@ ${CAL_CSS}
     $("codeView").hidden = m !== "code";
     $("afterView").hidden = m !== "after";
     $("panel").hidden = m !== "edit";
-    $("navBtn").hidden = m !== "edit";
     $("navi").hidden = m !== "edit" || !S.nav;
     if (m !== "edit") { S.sel = null; $("hov").hidden = true; }
     if (m === "edit") S.view = done ? (src.querySelector("[data-cl-thanks]") ? "thanks" : 0) : stepAt;
@@ -1147,8 +1146,21 @@ ${CAL_CSS}
   for (const [id, v] of [["t-preview", "preview"], ["t-edit", "edit"], ["t-code", "code"], ["t-after", "after"]]) $(id).onclick = () => setMode(v);
   function setDevice(d) { S.device = d; $("frame").className = `frame${d === "tab" ? " tablet" : d === "phone" ? " phone" : ""}`; for (const [id, v] of [["d-desk", "desk"], ["d-tab", "tab"], ["d-phone", "phone"]]) $(id).setAttribute("aria-pressed", String(d === v)); setTimeout(overlay, 340); }
   $("d-desk").onclick = () => setDevice("desk"); $("d-tab").onclick = () => setDevice("tab"); $("d-phone").onclick = () => setDevice("phone");
-  $("restart").onclick = () => { stepAt = 0; done = false; draw(); };
-  $("navBtn").onclick = () => { S.nav = !S.nav; $("navBtn").setAttribute("aria-pressed", String(S.nav)); $("navi").hidden = !S.nav; tree(); setTimeout(overlay, 0); };
+  // The bar's ⋯: Back to step 1, the live form, Layers (docs/form-ui-plan.md step 2).
+  function moreMenu() {
+    const live = !!cur?.formId && cur.state !== "new" && cur.state !== "draft";
+    const item = (id, ic, text, fn, extra = {}) => {
+      const b = h("button", { id, class: "mi small", role: "menuitem", html: `${SVG(ic, 15)}<span class="nm"></span>`, onclick: () => { closeMenu(); fn(); }, ...extra });
+      b.querySelector(".nm").textContent = text;
+      return b;
+    };
+    openMenu($("moreBtn"), [
+      item("restart", P.restart, "Back to step 1", () => { if (S.mode !== "preview") setMode("preview"); stepAt = 0; done = false; draw(); }),
+      live ? item("openBtn", P.open, "Open the live form", () => window.open(api.formUrl(cur.formId), "_blank", "noopener")) : null,
+      S.mode === "edit" ? item("navBtn", P.layers, S.nav ? "Hide layers" : "Layers", () => { S.nav = !S.nav; $("navi").hidden = !S.nav; tree(); setTimeout(overlay, 0); }, { role: "menuitemcheckbox", "aria-checked": String(S.nav) }) : null,
+    ].filter(Boolean), 220);
+  }
+  $("moreBtn").onclick = () => (menuEl && menuFor === $("moreBtn") ? closeMenu() : moreMenu());
   $("p-style").onclick = () => { S.ptab = "style"; panel(); };
   $("p-set").onclick = () => { S.ptab = "settings"; panel(); };
 
@@ -1447,9 +1459,6 @@ ${CAL_CSS}
   // ── Publish ───────────────────────────────────────────────────────────────────────────────────────────
   const formName = () => (src.querySelector("h1,h2,h3,legend")?.textContent || "").replace(/\s+/g, " ").trim().slice(0, 80) || `${brandOf(cur)?.name || "New"} form`;
   function pubUi() {
-    const o = $("openBtn");
-    o.hidden = !cur?.formId || cur.state === "new" || cur.state === "draft";
-    if (cur?.formId) o.href = api.formUrl(cur.formId);
     emit();
   }
   /** Publish from the header: the form check first, then the form goes live. */
