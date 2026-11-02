@@ -2,7 +2,7 @@
 // Payments live in Meetings (src/lib/nav.ts forwards them). The CRM's pages (imports, sync log, data model), Visitors'
 // (sites, identity, account alerts) and Scoring's are gone; their old addresses open Integrations.
 
-export type SettingsTab = "sources" | "sending" | "sender" | "team" | "calendars" | "workspace" | "payments" | "keys" | "profile" | "calendar" | "brand";
+export type SettingsTab = "sources" | "sending" | "sender" | "team" | "calendars" | "workspace" | "payments" | "keys" | "profile" | "calendar" | "brand" | "link_domain";
 /** `line` sits under the page title: one short line, like Twenty. */
 export type SettingsGroup = { label: string; tabs: { id: SettingsTab; label: string; line: string }[] };
 
@@ -21,6 +21,7 @@ export const SETTINGS_GROUPS: SettingsGroup[] = [
     tabs: [
       { id: "workspace", label: "General", line: "Your workspace's name" },
       { id: "brand", label: "Brand", line: "Your website's look, used by your forms and booking pages" },
+      { id: "link_domain", label: "Link domain", line: "Your own address for forms and booking pages" },
       { id: "keys", label: "API keys", line: "Keys for your own code and the CLI" },
     ],
   },

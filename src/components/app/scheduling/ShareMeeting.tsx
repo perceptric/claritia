@@ -11,6 +11,7 @@ import { Copy, ExternalLink } from "../../Icons";
 import { BrandLogo } from "../BrandLogo";
 import { Button, ErrorNote, errorText, Segmented, Toggle, type ViewProps } from "../ui";
 import { copyText, meetingsApi, Modal, ownZone } from "../meetings/parts";
+import { useLinkBase } from "../views/LinkDomainSettings";
 
 type Pane = "link" | "site" | "email";
 
@@ -27,7 +28,9 @@ export function ShareMeeting({ session, ws, type, wsSlug, onClose, onSingleUse }
   const [copied, setCopied] = useState("");
   const [error, setError] = useState("");
   const origin = typeof window === "undefined" ? "" : window.location.origin;
-  const url = `${bookingBase(origin)}/book/${wsSlug}/${type.slug}`;
+  // On the workspace's own domain or subdomain (Settings › Link domain): /book/<type> there.
+  const base = useLinkBase(session, ws.id);
+  const url = base ? `${base}/book/${type.slug}` : `${bookingBase(origin)}/book/${wsSlug}/${type.slug}`;
   const code = meetingEmbedCode(origin, `${wsSlug}/${type.slug}`, o);
   const copy = async (what: string, text: string) => {
     if (await copyText(text)) {

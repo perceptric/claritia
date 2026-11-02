@@ -5,6 +5,7 @@ import { allowed } from "@/lib/forms/server";
 import { requireUser, roleIn } from "@/lib/serverAuth";
 import { serviceClient } from "@/lib/serviceClient";
 import { addressesOf, shareEmail } from "@/lib/share/shareEmail";
+import { linkBase } from "@/lib/domains/server";
 
 // Share › Email › Send the link (docs/sharing-plan.md): one short email from the team with the form's link, to up to
 // 50 addresses. POST { workspaceId, formId, to: string[], message? }. It goes through the send pipeline like every
@@ -32,9 +33,10 @@ export async function POST(request: Request) {
   if (f.status !== "live") return bad("Publish the form first.", 409);
   const no = notReady(await sendReady(db, ws));
   if (no) return no;
-  const { data: wsRow } = await db.from("workspaces").select("booking_slug").eq("id", ws).maybeSingle();
+  const [{ data: wsRow }, base] = await Promise.all([db.from("workspaces").select("booking_slug").eq("id", ws).maybeSingle(), linkBase(db, ws).catch(() => null)]);
   const wsSlug = (wsRow as { booking_slug: string | null } | null)?.booking_slug;
-  const link = f.slug && wsSlug ? `${appBase()}/f/${wsSlug}/${f.slug}` : `${appBase()}/f/${f.id}`;
+  // The form's ending on the workspace's own domain when it has one, else on Claritia's address; the id link without one.
+  const link = f.slug && base ? `${base}/${f.slug}` : f.slug && wsSlug ? `${appBase()}/f/${wsSlug}/${f.slug}` : `${appBase()}/f/${f.id}`;
   const mail = shareEmail({ name: f.draft?.share?.title || f.name, link, message: typeof b.message === "string" ? b.message.slice(0, 1000) : "", button: "Open the form" });
   const { data: emailId, error: e1 } = await db.rpc("email_create", { p_ws: ws, p_user: auth.user.id, p_values: { kind: "one_to_one", name: `Share: ${f.name}`.slice(0, 200), subject: mail.subject, preheader: "", html: mail.html, text: mail.text, links: extractLinks(mail.html), marketing: true } });
   if (e1) return bad(e1.message, 500);

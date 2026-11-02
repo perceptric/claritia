@@ -12,6 +12,7 @@ import { formEmbedCode, overPage, PLATS, type FormEmbed, type FormMode, type Ope
 import { emailQuestionHtml, firstQuestion } from "@/lib/share/emailForm";
 import { BrandLogo } from "../BrandLogo";
 import { QrCode } from "../meetings/Share";
+import { useLinkBase } from "../views/LinkDomainSettings";
 import { Badge, ErrorNote, errorText, must, postJson, useQuery, type ViewProps } from "../ui";
 import { ago, daysAgo, saveName } from "./formModel";
 
@@ -87,7 +88,9 @@ function LinkPane({ sb, session, ws, form, row, apply }: Parameters<typeof Share
   const [busy, setBusy] = useState(false);
   const cur = parts.data?.slug ?? "";
   const typed = ending ?? cur;
-  const own = parts.data?.slug ? `${origin}/f/${parts.data.ws}/${parts.data.slug}` : "";
+  // On the workspace's own domain or subdomain the ending stands alone (Settings › Link domain).
+  const base = useLinkBase(session, ws.id);
+  const own = parts.data?.slug ? (base ? `${base}/${parts.data.slug}` : `${origin}/f/${parts.data.ws}/${parts.data.slug}`) : "";
   const saveEnding = async () => {
     setBusy(true);
     setEndErr("");
@@ -149,7 +152,7 @@ function LinkPane({ sb, session, ws, form, row, apply }: Parameters<typeof Share
             Link ending
           </label>
           <div className="flex flex-wrap items-center gap-[8px]">
-            <span className="font-mono text-[11.5px] text-muted">{`${host}/f/${parts.data?.ws ?? "…"}/`}</span>
+            <span className="font-mono text-[11.5px] text-muted">{base ? `${base.replace(/^https:\/\//, "")}/` : `${host}/f/${parts.data?.ws ?? "…"}/`}</span>
             <input id="link-ending" value={typed} placeholder="demo-request" maxLength={50} onChange={(e) => setEnding(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "-"))} className="h-[30px] w-[180px] min-w-0 rounded-sm border border-line-strong bg-card px-[10px] font-mono text-[12px] text-ink outline-none focus:border-ink" />
             {typed !== cur ? (
               <button type="button" className={GHOST_SM} disabled={busy || !parts.data} onClick={() => void saveEnding()}>

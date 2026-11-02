@@ -23,6 +23,7 @@ import { formNotify, formResume } from "./jobs/forms.ts";
 import { deliver, deliverHeld } from "./jobs/deliver.ts";
 import { meetingWebhook } from "./jobs/webhooks.ts";
 import { sourceHook } from "./jobs/sources.ts";
+import { recheckDomains } from "./jobs/linkDomains.ts";
 import { pgRpc } from "./rpc.ts";
 
 const log = (msg: string, extra: Record<string, unknown> = {}) => console.log(JSON.stringify({ at: new Date().toISOString(), msg, ...extra }));
@@ -144,10 +145,17 @@ const recover = every("job recovery", 30_000, async () => {
   if (Number(data)) log("jobs recovered", { jobs: Number(data) });
 });
 
+// Custom link domains: their DNS checked again every 30 minutes, so one pointed elsewhere stops serving.
+const domains = every("link domains", 30 * 60_000, async () => {
+  const n = await recheckDomains(pool);
+  if (n) log("link domains checked", { domains: n });
+});
+
 const shutdown = async (sig: string) => {
   log("stopping", { sig });
   stop.abort();
   clearInterval(recover);
+  clearInterval(domains);
   await Promise.race([Promise.all(running), new Promise((r) => setTimeout(r, 25_000))]);
   await pool.end().catch(() => {});
   process.exit(0);
