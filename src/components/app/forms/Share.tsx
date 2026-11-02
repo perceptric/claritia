@@ -414,7 +414,12 @@ function EmbedPane({ sb, form, row }: Parameters<typeof Share>[0]) {
           Copy
         </button>
       </div>
-      <span className="text-[12.5px] text-muted">{PLATS.find((p) => p.v === plat)!.how}</span>
+      <span className="text-[12.5px] text-muted">
+        {PLATS.find((p) => p.v === plat)!.how}{" "}
+        <a href="/developers/embed" target="_blank" rel="noopener" className="font-medium text-ink underline-offset-2 hover:underline">
+          For developers
+        </a>
+      </span>
       <div className={CARD}>
         <div className={`${CROW} min-h-[44px]`}>
           <RowText title="Seen on" />

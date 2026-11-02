@@ -639,7 +639,7 @@ export class ClaritiaForm extends Base {
   private isPreview = false;
   /** The builder's canvas: every field shows (logic and hidden ones too), so each can be picked. */
   private edit = false;
-  private open: string | null = null;
+  private openList: string | null = null;
   private schedule: { tool: string; url: string } | null = null;
   private filter = "";
   /** "Other" text by field id: undefined when Other isn't picked. */
@@ -846,8 +846,15 @@ export class ClaritiaForm extends Base {
       }
     }
     this.started = Date.now();
+    this.emit("ready", {});
     this.render();
     this.watchView();
+    // Values set with Claritia.prefill() before the form had loaded.
+    if (this.prefillLater) {
+      const p = this.prefillLater;
+      this.prefillLater = null;
+      this.prefill(p);
+    }
     if (this.data.turnstile && this.data.body.spam.turnstile) this.loadTurnstile();
   }
 
@@ -1106,6 +1113,7 @@ export class ClaritiaForm extends Base {
     const last = this.edit ? this.step === form.steps.length - 1 : nextStep(form, this.step, this.answers, this.ctx) >= form.steps.length;
     const step = form.steps[this.step];
     const wrap = el("form", { class: `f${screens ? " sc" : ""}${this.drawn !== this.step && this.drawn >= 0 ? " an" : ""}`, novalidate: true, "aria-label": form.title || "Form" });
+    if (this.drawn !== this.step) this.emit("step", { step: this.step, of: form.steps.length });
     this.drawn = this.step;
     // A result screen with a result on it counts once in the form's funnel (Reports' Forms page).
     if (step.result) this.beacon("result");
@@ -1237,6 +1245,44 @@ export class ClaritiaForm extends Base {
    * On a phone each fills the screen, unless mobile="keep". `full` (no popup) fills the page.
    */
   private opened = false;
+
+  // The developer kit (docs/embed.md): window.Claritia calls these, and each step of the visit is an event on the
+  // element (claritia:ready, :step, :open, :close, :submitted, :booked) that bubbles out of the shadow root.
+  private emit(name: string, detail: Record<string, unknown>) {
+    this.dispatchEvent(new CustomEvent(`claritia:${name}`, { bubbles: true, composed: true, detail: { formId: this.getAttribute("form-id"), ...detail } }));
+  }
+  /** Values to fill once the form has loaded. */
+  private prefillLater: Record<string, unknown> | null = null;
+  /** Open it over the page (a popup, slider, popover or side tab); a form in the page has nothing to open. */
+  open() {
+    if (this.floating) this.toggle(true);
+  }
+  close() {
+    if (this.floating) this.toggle(false);
+  }
+  /**
+   * Fill questions by their key ("email", "company", a custom field's name, a question's own name), before or after
+   * the form loads. Only text, number and one of a list's answers are taken; anything else is left as it was.
+   */
+  prefill(values: Record<string, unknown>) {
+    if (!values || typeof values !== "object") return;
+    if (!this.data) {
+      this.prefillLater = { ...this.prefillLater, ...values };
+      return;
+    }
+    const byKey = new Map(allFields(this.data.body).map((f) => [f.key.replace(/^[fq]\./, ""), f]));
+    let changed = false;
+    for (const [k, v] of Object.entries(values)) {
+      const f = byKey.get(k);
+      if (!f || isContent(f.type) || (typeof v !== "string" && typeof v !== "number")) continue;
+      const text = String(v).slice(0, 2000);
+      if (f.options?.length && !f.options.some((o) => o.value === text)) continue;
+      this.answers[f.id] = fromText(f, text);
+      changed = true;
+    }
+    if (changed) this.render();
+  }
+
   private get floating() {
     return ["popup", "popover", "slider", "side-tab"].some((a) => this.hasAttribute(a));
   }
@@ -1279,6 +1325,7 @@ export class ClaritiaForm extends Base {
   private toggle(open: boolean) {
     if (!open && this.overPage) return this.remove();
     if (open && !this.opened) this.opener = document.activeElement instanceof HTMLElement && document.activeElement !== this ? document.activeElement : null;
+    if (open !== this.opened) this.emit(open ? "open" : "close", {});
     this.opened = open;
     const pop = this.root.querySelector(".pop") as HTMLElement | null;
     if (pop) pop.hidden = !open;
@@ -1840,19 +1887,19 @@ export class ClaritiaForm extends Base {
       this.other[f.id] = undefined;
       set(value, true);
     };
-    const isOpen = this.open === f.id;
+    const isOpen = this.openList === f.id;
     const wrap = el("div", { class: "dd" });
     const btn = el("button", { type: "button", class: "bx", ...common, "aria-haspopup": "listbox", "aria-expanded": isOpen ? "true" : "false" });
     const picked = options.find((o) => o.value === cur);
     btn.append(el("span", { class: picked ? "" : "ph", text: picked?.label ?? (inside ? f.label : f.placeholder) ?? "Choose…" }), el("span", { "aria-hidden": "true", text: "▾" }));
     const close = (focus = true) => {
-      this.open = null;
+      this.openList = null;
       this.filter = "";
       this.render();
       if (focus) (this.root.getElementById(`clr-${f.id}`) as HTMLElement | null)?.focus();
     };
     btn.addEventListener("click", () => {
-      this.open = isOpen ? null : f.id;
+      this.openList = isOpen ? null : f.id;
       this.filter = "";
       this.render();
       const box = this.root.querySelector(".ls input, .ls .op[aria-selected=true], .ls .op") as HTMLElement | null;
@@ -2126,7 +2173,10 @@ export class ClaritiaForm extends Base {
 
   private settle(r: { status: number; j: Answer }, focus = "") {
     this.bkBusy = false;
-    if (r.j.booked) this.bkDone = r.j.booked;
+    if (r.j.booked) {
+      this.bkDone = r.j.booked;
+      this.emit("booked", { start: r.j.booked.start, end: r.j.booked.end });
+    }
     if (r.j.booking) this.bk = r.j.booking;
     this.bkMsg = r.j.taken ? "That time was just taken. Pick another." : r.j.booked || (r.status === 200 && r.j.booking) ? "" : (r.j.error ?? "Booking didn't go through. Try again.");
     this.render();

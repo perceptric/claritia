@@ -5,6 +5,7 @@
 // form's read and the booking page.
 //   CHROMIUM_PATH=… node scripts/embed-check.ts
 import { createServer } from "node:http";
+import { build } from "esbuild";
 import pw from "playwright-core";
 import { checkForm, emptyForm, type Form } from "../src/lib/forms/schema.ts";
 import { formEmbedCode, meetingEmbedCode } from "../src/lib/share/embed.ts";
@@ -40,12 +41,36 @@ const studioPick = ready(
   pageForm({ html: `<form><fieldset><legend>Which plan?</legend><label><input type="radio" name="plan" value="team"> Team</label><label><input type="radio" name="plan" value="ent"> Enterprise</label></fieldset><label for="e">Email</label><input id="e" name="email" type="email" required><button type="submit">Send</button></form><section data-cl-thanks hidden><h2>Thanks</h2></section>`, css: "", brand: "", after: { kind: "thanks" } }).form,
 );
 const formsJs = await buildForms();
+// The npm package's React components, bundled the way a site's build would (packages/embed).
+const reactJs = (
+  await build({
+    stdin: {
+      contents: `import { createElement as h } from "react";
+import { createRoot } from "react-dom/client";
+import { ClaritiaForm, ClaritiaBook } from "./packages/embed/src/react.tsx";
+const ev = (window.reactEvents = []);
+createRoot(document.getElementById("root")).render(h("div", null,
+  h(ClaritiaForm, { id: "${FORM}", mode: "popup", size: "s", buttonText: "React popup", host: location.origin, onReady: () => ev.push("ready"), onOpen: () => ev.push("open"), onClose: () => ev.push("close") }),
+  h(ClaritiaBook, { type: "acme/demo", host: location.origin })));`,
+      resolveDir: new URL("..", import.meta.url).pathname,
+      loader: "tsx",
+    },
+    bundle: true,
+    write: false,
+    format: "iife",
+    jsx: "automatic",
+    define: { "process.env.NODE_ENV": '"production"' },
+    logLevel: "error",
+  })
+).outputFiles[0]!.text;
 
 const pages = new Map<string, string>();
 const server = createServer((req, res) => {
   const json = (b: unknown) => res.writeHead(200, { "content-type": "application/json", "access-control-allow-origin": "*" }).end(JSON.stringify(b));
   const u = req.url ?? "";
   if (u.startsWith("/forms/v1.js")) return res.writeHead(200, { "content-type": "text/javascript" }).end(formsJs);
+  if (u === "/react.js") return res.writeHead(200, { "content-type": "text/javascript" }).end(reactJs);
+  if (u === `/api/forms/${STEPS}/submit`) return json({ id: "s1" });
   if (u === `/api/forms/${FORM}`) return json({ id: FORM, version: 1, status: "live", body: plain, tokens: {}, logo_url: null });
   if (u === `/api/forms/${PAGE}`) return json({ id: PAGE, version: 1, status: "live", body: studio, tokens: {}, logo_url: null });
   if (u === `/api/forms/${STEPS}`) return json({ id: STEPS, version: 1, status: "live", body: twoSteps, tokens: {}, logo_url: null });
@@ -174,6 +199,48 @@ try {
   await host(desk).locator('input[name="plan"][value="ent"]').waitFor();
   await desk.waitForTimeout(100);
   check(await host(desk).locator('input[name="plan"][value="ent"]').isChecked(), "a Form Studio page checks the email's answer");
+
+  // window.Claritia: open a form with no element on the page, close it, a meeting's calendar, and the events
+  await desk.goto(add("/api", `<script src="${origin}/forms/v1.js" async></script>`));
+  await desk.waitForFunction(() => (window as unknown as { Claritia?: { version: number } }).Claritia?.version === 1);
+  await desk.evaluate(() => {
+    const w = window as unknown as { seen: string[]; Claritia: { on: (e: string, f: (d: Record<string, unknown>) => void) => void } };
+    w.seen = [];
+    for (const e of ["ready", "step", "open", "close", "submitted"]) w.Claritia.on(e, (d) => w.seen.push(`${e}:${d.formId ?? ""}${d.step !== undefined ? `:${d.step}` : ""}${d.submissionId ? `:${d.submissionId}` : ""}`));
+  });
+  await desk.evaluate((id) => (window as unknown as { Claritia: { open: (id: string, o: object) => void } }).Claritia.open(id, { prefill: { plan: "ent" } }), STEPS);
+  await box(desk).waitFor();
+  check(true, "Claritia.open() makes a popup for a form that isn't on the page");
+  check(await host(desk).locator('input[value="ent"]').isChecked(), "Claritia.open() fills what it's given");
+  await host(desk).locator("button", { hasText: /next/i }).first().click();
+  await host(desk).locator('input[type="email"]').fill("dana@acme.com");
+  await host(desk).locator('button[type="submit"]').click();
+  await desk.waitForFunction(() => (window as unknown as { seen: string[] }).seen.some((x) => x.startsWith("submitted")));
+  const seen = await desk.evaluate(() => (window as unknown as { seen: string[] }).seen);
+  check(seen.indexOf(`ready:${STEPS}`) < seen.indexOf(`step:${STEPS}:0`), "ready comes before the first step");
+  check(seen.includes(`open:${STEPS}`) && seen.includes(`ready:${STEPS}`) && seen.includes(`step:${STEPS}:1`) && seen.includes(`submitted:${STEPS}:s1`), `events: ready, open, step and submitted with their details (${seen.join(", ")})`);
+  await desk.evaluate(() => (window as unknown as { Claritia: { close: () => void } }).Claritia.close());
+  check(!(await box(desk).isVisible()) && (await desk.evaluate(() => (window as unknown as { seen: string[] }).seen.includes(`close:${"" + document.querySelector("claritia-form")!.getAttribute("form-id")}`))), "Claritia.close() closes it, with a close event");
+  await desk.evaluate(() => (window as unknown as { Claritia: { open: (t: string) => void } }).Claritia.open("acme/demo"));
+  await desk.getByRole("dialog", { name: "Book a meeting" }).waitFor();
+  await desk.evaluate(() => (window as unknown as { Claritia: { close: () => void } }).Claritia.close());
+  check((await desk.getByRole("dialog", { name: "Book a meeting" }).count()) === 0, "Claritia.open() and close() a meeting's calendar");
+
+  // Calls made before the script loads run once it's there
+  await desk.goto(add("/queue", `<script>window.Claritia = { q: [["prefill", { email: "early@acme.com" }]] };</script>${formEmbedCode(origin, FORM, { mode: "inline" })}`));
+  await host(desk).locator('input[type="email"]').waitFor();
+  await desk.waitForFunction(() => (document.querySelector("claritia-form")!.shadowRoot!.querySelector('input[type="email"]') as HTMLInputElement).value === "early@acme.com", null, { timeout: 4000 });
+  check(true, "a prefill queued before the script loads fills the form once it's there");
+
+  // The npm package's React components
+  await desk.goto(add("/react", `<div id="root"></div><script src="/react.js"></script>`));
+  await desk.getByRole("button", { name: "React popup" }).click();
+  await box(desk).waitFor();
+  await desk.keyboard.press("Escape");
+  await desk.waitForFunction(() => (window as unknown as { reactEvents: string[] }).reactEvents.includes("close"));
+  check(true, "<ClaritiaForm> loads the script, opens from its button, and its onOpen and onClose run");
+  check(((await desk.locator('iframe[title="Book a meeting"]').getAttribute("src")) ?? "").endsWith("/book/acme/demo?embed=1"), "<ClaritiaBook> draws the meeting's calendar");
+  check((await desk.locator('script[src$="/forms/v1.js"]').count()) === 1, "the script loads once for both");
 
   // The meeting calendar
   const book = (p: typeof desk) => p.locator('iframe[title="Book a meeting"]');

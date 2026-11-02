@@ -1,6 +1,6 @@
 # Sharing forms and meetings
 
-Every way a form or a meeting gets in front of people, after Typeform and Fillout. Built in four steps; steps 1 and 2
+Every way a form or a meeting gets in front of people, after Typeform and Fillout. Built in four steps; steps 1 to 3
 are done.
 
 | Format | What it is | Step |
@@ -19,7 +19,7 @@ are done.
 | Popover | `popover`, a round button in the corner, `icon="chat\|calendar\|form\|logo"`, `note="…"` | 1, built |
 | Side tab | `side-tab="Contact us"`, a tab on the right edge | 1, built |
 | On phones | Over the page, each fills the screen; `mobile="keep"` keeps the box | 1, built |
-| Developers | `Claritia.open()`, events, `@claritia/embed` with React components, a docs page | 3 |
+| Developers | `Claritia.open()`, events, `@claritia/embed` with React components, a docs page | 3, built |
 
 ## Step 1 (built)
 
@@ -59,6 +59,22 @@ Form › Share's left list is Link, On your website, Email, QR code and Your own
   went out opens the form as it is. Copy for Gmail or Outlook (rich) or the HTML.
 - Tests: `tests/shareLinks.test.ts`, `tests/pg/formLinks.pg.ts` (endings, the 90 days, members only, two saves at
   once, the email queue), `scripts/embed-check.ts` (the email's answer in a real browser).
+
+## Step 3 (built)
+
+The developer kit, in `docs/embed.md` and on the site at `/developers/embed` (`src/app/developers/embed/page.tsx`).
+
+- **window.Claritia** (`src/lib/embed/api.ts`, in forms/v1.js): `open` (a form over the page, made when the page has
+  none; a meeting's calendar), `close`, `prefill` (by question key, waiting for the form to load), `on`. Calls made
+  before the script loads (`window.Claritia = { q: [...] }`) run once it's there.
+- **Events** from `<claritia-form>`: `claritia:ready`, `:step`, `:open`, `:close`, `:submitted`, `:booked`, bubbling
+  to the document; `<claritia-book>` sends `:booked`.
+- **@claritia/embed** (`packages/embed`): the script loader, `open`/`close`/`prefill`/`on`, and the React
+  components `<ClaritiaForm>` and `<ClaritiaBook>` with the events as props. It writes the same attributes as the
+  Share tab (checked in `tests/shareEmbed.test.ts`); CI builds it (`npm run build:embed`). Publishing to npm is one
+  `npm publish` from `packages/embed` with the team's npm account.
+- `scripts/embed-check.ts` runs the API, the events, the queue and the React components in Chromium.
+- The script is 39 KB gzipped at most.
 
 ## Monthly cost
 
