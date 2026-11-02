@@ -23,8 +23,26 @@ const CSS = [
   ".missing{font-weight:600;letter-spacing:-.02em;padding:64px 0;margin:0;text-align:center;font-size:18px;color:#0a0a0a}",
 ].join("");
 
-/** The hosted form page. `framed`: inside /f/embed.js's frame. `script`: the form script's (versioned) address. */
-export function hostedFormHtml(id: string, o: { framed: boolean; script: string }): string {
+/** The link's preview in chats and social posts (Share › Link): title, line, picture and the address shared. */
+export type PagePreview = { title?: string; description?: string; image?: string; url?: string };
+
+/** The tags a chat or social app reads for the link's preview card. */
+export function previewTags(p: PagePreview): string {
+  const t: string[] = [];
+  if (p.title) t.push(`<meta property="og:title" content="${esc(p.title)}">`, `<meta name="twitter:title" content="${esc(p.title)}">`);
+  if (p.description) t.push(`<meta name="description" content="${esc(p.description)}">`, `<meta property="og:description" content="${esc(p.description)}">`, `<meta name="twitter:description" content="${esc(p.description)}">`);
+  if (p.image && /^https:\/\//.test(p.image)) t.push(`<meta property="og:image" content="${esc(p.image)}">`, `<meta name="twitter:image" content="${esc(p.image)}">`, `<meta name="twitter:card" content="summary_large_image">`);
+  else if (p.title) t.push(`<meta name="twitter:card" content="summary">`);
+  if (p.url && /^https?:\/\//.test(p.url)) t.push(`<meta property="og:url" content="${esc(p.url)}">`);
+  if (t.length) t.push(`<meta property="og:type" content="website">`);
+  return t.join("\n");
+}
+
+/**
+ * The hosted form page. `framed`: inside /f/embed.js's frame. `script`: the form script's (versioned) address.
+ * `preview`: the link's preview card, and the page's title.
+ */
+export function hostedFormHtml(id: string, o: { framed: boolean; script: string; preview?: PagePreview }): string {
   const ok = ID.test(id);
   const body = ok ? `<claritia-form form-id="${esc(id)}"></claritia-form>` : `<p class="missing">Form not found.</p>`;
   return `<!doctype html>
@@ -32,8 +50,9 @@ export function hostedFormHtml(id: string, o: { framed: boolean; script: string 
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Form</title>
+<title>${esc(o.preview?.title || "Form")}</title>
 <meta name="robots" content="noindex">
+${o.preview ? previewTags(o.preview) : ""}
 <link rel="icon" href="/favicon.ico" sizes="any">
 <style>${CSS}</style>
 ${ok ? `<script src="${esc(o.script)}" async></script>` : ""}

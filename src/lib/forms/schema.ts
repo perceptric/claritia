@@ -360,13 +360,27 @@ export type Form = {
   /** How long submissions are kept. */
   keep?: Keep;
   capture?: Capture;
-  /** Fill before submit (docs/enrich-workflows-reports.md 1.2 B): fields hidden when enrichment already knows them. */
+  /** The link's preview in chats and social posts: its title, line and picture (docs/sharing-plan.md). */
+  share?: SharePreview;
   /** The form's own styles and classes on its elements (docs/design-system.md Part 3.1). */
   design?: FormDesign;
   /** Settings formulas read as {@id}, and the results a visitor can reach (docs/interactive-forms-plan.md). */
   constants?: Constant[];
   results?: Results;
 };
+
+export type SharePreview = { title?: string; description?: string; image?: string };
+
+/** A link preview, cleaned: a title up to 90, a line up to 200, an https picture. Undefined when it says nothing. */
+export function cleanShare(raw: unknown): SharePreview | undefined {
+  if (!raw || typeof raw !== "object") return undefined;
+  const r = raw as Record<string, unknown>;
+  const title = str(r.title, 90);
+  const description = str(r.description, 200);
+  const image = typeof r.image === "string" && /^https:\/\/[^\s"'<>]{4,1000}$/.test(r.image.trim()) ? r.image.trim() : undefined;
+  const out: SharePreview = { ...(title ? { title } : {}), ...(description ? { description } : {}), ...(image ? { image } : {}) };
+  return Object.keys(out).length ? out : undefined;
+}
 
 export const FIELD_TYPES: { value: FieldType; label: string }[] = [
   { value: "text", label: "Short answer" },
@@ -1080,6 +1094,7 @@ export function checkForm(raw: unknown, ctx: Ctx = {}): { form: Form } | { error
     ...(capture ? { capture } : {}),
     ...((d) => (Object.keys(d).length ? { design: d } : {}))(readFormDesign(r.design, new Set(flat.map((f) => f.id)))),    ...(constants.length ? { constants } : {}),
     ...((x) => (x ? { results: x } : {}))(cleanResults(r.results, byId, errors)),
+    ...((x) => (x ? { share: x } : {}))(cleanShare(r.share)),
     ...((pg) => (pg ? { page: pg } : {}))(checkPage(r.page, new Set(flat.map((f) => f.id)))),
   };
   return errors.length ? { errors: [...new Set(errors)] } : { form };

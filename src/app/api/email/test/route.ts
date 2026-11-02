@@ -5,9 +5,9 @@ import { extractLinks } from "@/lib/email/track";
 import { rpcOr } from "@/lib/rpcCompat";
 import { requireUser, roleIn } from "@/lib/serverAuth";
 import { serviceClient } from "@/lib/serviceClient";
+import { notReady, sendReady } from "@/lib/email/ready";
 
 type Db = NonNullable<ReturnType<typeof serviceClient>>;
-type Ready = { from_email: string | null; paused: boolean; verified: boolean };
 
 // Settings › Sending › Send test: one email to the member who asked, through the whole pipeline (guard, tracked
 // link, footer, one-click unsubscribe). POST { workspaceId }. The email builder's Test sends the email being built:
@@ -16,19 +16,6 @@ type Ready = { from_email: string | null; paused: boolean; verified: boolean };
 // Round trips: whether sending is ready (one call, email_test_ready) and the brand kit are read together, then the
 // email is made and queued in one call (email_test_send). Both are always read fresh: a pause or a new From address
 // counts at once.
-
-/** The From address, the pause, and whether the From domain is verified. */
-async function ready(db: Db, ws: string): Promise<Ready> {
-  const r = await rpcOr<Ready>((fn, args) => db.rpc(fn, args), "email_test_ready", { p_ws: ws }, async () => {
-    const { data: s, error } = await db.from("send_settings").select("from_email, from_name, address, paused").eq("workspace_id", ws).maybeSingle();
-    if (error) return { data: null, error };
-    if (!s?.from_email) return { data: { from_email: null, paused: false, verified: false }, error: null };
-    const { data: domain } = await db.rpc("verified_domain_for", { p_ws: ws, p_email: s.from_email });
-    return { data: { from_email: s.from_email as string, paused: !!s.paused, verified: !!(domain as { id?: string } | null)?.id }, error: null };
-  }, { anyError: true });
-  if (r.error) throw new Error(r.error.message);
-  return r.data ?? { from_email: null, paused: false, verified: false };
-}
 
 /** Make the test email and queue it to the asker, as one call (or the two old calls before the migration). */
 async function send(db: Db, ws: string, user: string, values: Record<string, unknown>) {
@@ -39,15 +26,6 @@ async function send(db: Db, ws: string, user: string, values: Record<string, unk
     return { data: (messageId as string | null) ?? null, error: e2 };
   });
 }
-
-const refusal = (s: Ready) =>
-  !s.from_email
-    ? Response.json({ error: "Add a From address first." }, { status: 409 })
-    : s.paused
-      ? Response.json({ error: "Sending is paused." }, { status: 409 })
-      : !s.verified
-        ? Response.json({ error: `${s.from_email.split("@")[1]} isn't a verified sending domain yet.` }, { status: 409 })
-        : null;
 
 export async function POST(request: Request) {
   const auth = await requireUser(request);
@@ -62,8 +40,8 @@ export async function POST(request: Request) {
 
   if (body.doc && typeof body.doc === "object") {
     const doc = readEmailDoc(body.doc, { allowHtml: role === "owner" });
-    const [s, kits] = await Promise.all([ready(db, ws), loadKits(db, ws, [doc.kitId])]);
-    const no = refusal(s);
+    const [s, kits] = await Promise.all([sendReady(db, ws), loadKits(db, ws, [doc.kitId])]);
+    const no = notReady(s);
     if (no) return no;
     let built;
     try {
@@ -79,8 +57,8 @@ export async function POST(request: Request) {
     return Response.json({ ok: true, messageId });
   }
 
-  const s = await ready(db, ws);
-  const no = refusal(s);
+  const s = await sendReady(db, ws);
+  const no = notReady(s);
   if (no) return no;
   const from = s.from_email!;
   const site = appBase();

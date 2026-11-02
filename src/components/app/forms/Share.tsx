@@ -9,23 +9,27 @@ import type { Op } from "@/lib/forms/ops";
 import { allFields, type Form } from "@/lib/forms/schema";
 import { capturedForm } from "@/lib/forms/templates";
 import { formEmbedCode, overPage, PLATS, type FormEmbed, type FormMode, type Opens, type Plat } from "@/lib/share/embed";
+import { emailQuestionHtml, firstQuestion } from "@/lib/share/emailForm";
 import { BrandLogo } from "../BrandLogo";
-import { Badge, ErrorNote, errorText, must, useQuery, type ViewProps } from "../ui";
+import { QrCode } from "../meetings/Share";
+import { Badge, ErrorNote, errorText, must, postJson, useQuery, type ViewProps } from "../ui";
 import { ago, daysAgo, saveName } from "./formModel";
 
 /** "Yesterday" and "Just now" read lower case after other words; dates and counts keep theirs. */
 const lower = (w: string) => (/^(Yesterday|Just now)$/.test(w) ? w.toLowerCase() : w);
 import { Ic } from "./ic";
-import { Box, CARD, copyText, CROW, CSTACK, GHOST_SM, RowText, Seg, useNote, Tg } from "./parts";
+import { Box, BTN, CARD, copyText, CROW, CSTACK, GHOST_SM, IN, RowText, Seg, useNote, Tg } from "./parts";
 import type { FormRow, Kit } from "./shared";
 
-type Way = "link" | "embed" | "own";
+type Way = "link" | "embed" | "email" | "qr" | "own";
 export function Share(props: ViewProps & { form: Form; row: FormRow & { kind?: "built" | "captured" }; apply: (ops: Op | Op[], words?: string) => boolean; kit: Kit | null; site: string }) {
   const { form, row } = props;
   const [way, setWay] = useState<Way>(form.capture ? "own" : "embed");
   const ways: [Way, string, string, string][] = [
-    ["link", "link", "Link", "Its own page to send people"],
-    ["embed", "code", "On your website", "In a page, a popup or a slide-in"],
+    ["link", "link", "Link", "Its own page, its ending and preview"],
+    ["embed", "code", "On your website", "In the page, a popup, a slider and more"],
+    ["email", "mail", "Email", "Send the link, or the form in an email"],
+    ["qr", "qr", "QR code", "For posters, slides and print"],
     ["own", "form", "Your own form", "Keep your site's form, Claritia reads it"],
   ];
   return (
@@ -42,7 +46,7 @@ export function Share(props: ViewProps & { form: Form; row: FormRow & { kind?: "
               <span className="text-body">The link and the code work once it&apos;s live</span>
             </Box>
           ) : null}
-          {way === "link" ? <LinkPane {...props} /> : way === "embed" ? <EmbedPane {...props} /> : <OwnPane {...props} />}
+          {way === "link" ? <LinkPane {...props} /> : way === "embed" ? <EmbedPane {...props} /> : way === "email" ? <EmailPane {...props} /> : way === "qr" ? <QrPane {...props} /> : <OwnPane {...props} />}
         </div>
       </div>
     </div>
@@ -67,13 +71,59 @@ export function LeftItem({ on, onClick, icon, title, sub, sub2, right, subTone }
 const H3 = ({ children }: { children: React.ReactNode }) => <h3 className="m-0 text-[15px] font-semibold tracking-[-0.01em] text-ink">{children}</h3>;
 const Sub = ({ children }: { children: React.ReactNode }) => <p className="-mt-[10px] mb-0 text-[12.5px] text-muted">{children}</p>;
 
-function LinkPane({ form, row, apply }: Parameters<typeof Share>[0]) {
+type LinkParts = { ws: string; slug: string | null };
+
+function LinkPane({ sb, session, ws, form, row, apply }: Parameters<typeof Share>[0]) {
   const note = useNote();
   const origin = typeof window === "undefined" ? "" : window.location.origin;
   const host = origin.replace(/^https?:\/\//, "");
   const url = `${origin}/f/${row.id}`;
   const fill = allFields(form).filter((f) => f.type !== "hidden" && f.type !== "heading" && f.type !== "paragraph");
   const prefillOn = fill.length > 0 && fill.every((f) => f.prefill);
+  // The link's ending (117): /f/<workspace>/<ending>; the id link above always keeps working.
+  const parts = useQuery(`form:${row.id}:link`, async () => must(await sb.rpc("form_link", { p_form: row.id })) as LinkParts);
+  const [ending, setEnding] = useState<string | null>(null);
+  const [endErr, setEndErr] = useState("");
+  const [busy, setBusy] = useState(false);
+  const cur = parts.data?.slug ?? "";
+  const typed = ending ?? cur;
+  const own = parts.data?.slug ? `${origin}/f/${parts.data.ws}/${parts.data.slug}` : "";
+  const saveEnding = async () => {
+    setBusy(true);
+    setEndErr("");
+    try {
+      const r = must(await sb.rpc("form_set_slug", { p_form: row.id, p_slug: typed.trim().toLowerCase() })) as LinkParts;
+      parts.set(r);
+      setEnding(null);
+      note.show(r.slug ? "Link ending saved" : "Link ending removed");
+    } catch (e) {
+      setEndErr(errorText(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+  // The link's preview in chats and social posts.
+  const share = form.share ?? {};
+  const [imgBusy, setImgBusy] = useState(false);
+  const [imgErr, setImgErr] = useState("");
+  const upload = async (file: File | undefined) => {
+    if (!file) return;
+    setImgBusy(true);
+    setImgErr("");
+    try {
+      const body = new FormData();
+      body.append("workspaceId", ws.id);
+      body.append("file", file, file.name || "preview.png");
+      const res = await fetch("/api/assets", { method: "POST", headers: { Authorization: `Bearer ${session.access_token}` }, body });
+      const out = (await res.json().catch(() => ({}))) as { url?: string; error?: string };
+      if (!res.ok || !out.url) throw new Error(out.error ?? "Try again in a moment.");
+      apply({ op: "set_share", share: { image: out.url } }, "Changed the link's picture");
+    } catch (e) {
+      setImgErr(errorText(e));
+    } finally {
+      setImgBusy(false);
+    }
+  };
   return (
     <>
       <H3>Link</H3>
@@ -94,12 +144,160 @@ function LinkPane({ form, row, apply }: Parameters<typeof Share>[0]) {
             </button>
           </div>
         </div>
+        <div className={CSTACK}>
+          <label htmlFor="link-ending" className="text-[12px] font-medium text-muted">
+            Link ending
+          </label>
+          <div className="flex flex-wrap items-center gap-[8px]">
+            <span className="font-mono text-[11.5px] text-muted">{`${host}/f/${parts.data?.ws ?? "…"}/`}</span>
+            <input id="link-ending" value={typed} placeholder="demo-request" maxLength={50} onChange={(e) => setEnding(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "-"))} className="h-[30px] w-[180px] min-w-0 rounded-sm border border-line-strong bg-card px-[10px] font-mono text-[12px] text-ink outline-none focus:border-ink" />
+            {typed !== cur ? (
+              <button type="button" className={GHOST_SM} disabled={busy || !parts.data} onClick={() => void saveEnding()}>
+                {busy ? "Saving" : "Save"}
+              </button>
+            ) : own ? (
+              <button type="button" className={GHOST_SM} onClick={() => void copyText(own).then((ok) => note.show(ok ? "Copied" : "Couldn't copy"))}>
+                <Ic n="copy" />
+                Copy
+              </button>
+            ) : null}
+          </div>
+          <ErrorNote message={endErr || parts.error} />
+        </div>
         <div className={CROW}>
           <RowText title="Fill in from the link" sub="Add ?email= or ?company= and those questions start filled" />
           <Tg label="Fill in from the link" on={prefillOn} onChange={(v) => apply(fill.map((f): Op => ({ op: "update_field", id: f.id, patch: { prefill: v || undefined } })), v ? "Questions fill in from the link" : "Questions start empty")} />
         </div>
       </div>
+      <H3>Link preview</H3>
+      <div className={CARD}>
+        <div className={CSTACK}>
+          <label htmlFor="share-title" className="text-[12px] font-medium text-muted">
+            Title
+          </label>
+          <input id="share-title" key={`t:${share.title ?? ""}`} defaultValue={share.title ?? ""} placeholder={form.title || row.name} maxLength={90} onBlur={(e) => e.target.value.trim() !== (share.title ?? "") && apply({ op: "set_share", share: { title: e.target.value.trim() } }, "Changed the link's title")} className={IN} />
+        </div>
+        <div className={CSTACK}>
+          <label htmlFor="share-line" className="text-[12px] font-medium text-muted">
+            Line
+          </label>
+          <input id="share-line" key={`d:${share.description ?? ""}`} defaultValue={share.description ?? ""} maxLength={200} onBlur={(e) => e.target.value.trim() !== (share.description ?? "") && apply({ op: "set_share", share: { description: e.target.value.trim() } }, "Changed the link's line")} className={IN} />
+        </div>
+        <div className={CROW}>
+          {/* eslint-disable-next-line @next/next/no-img-element -- the team's own uploaded picture, any size */}
+          {share.image ? <img src={share.image} alt="" className="h-[52px] w-[100px] shrink-0 rounded-[6px] border border-line object-cover" /> : null}
+          <RowText title="Picture" sub="1200 × 630 shows best" />
+          <label className={`${GHOST_SM} cursor-pointer`}>
+            {imgBusy ? "Uploading" : share.image ? "Change" : "Upload"}
+            <input type="file" accept="image/png,image/jpeg,image/gif,image/webp" className="sr-only" onChange={(e) => void upload(e.target.files?.[0])} />
+          </label>
+          {share.image ? (
+            <button type="button" className={GHOST_SM} onClick={() => apply({ op: "set_share", share: { image: "" } }, "Removed the link's picture")}>
+              Remove
+            </button>
+          ) : null}
+        </div>
+        <ErrorNote message={imgErr} />
+      </div>
       {note.node}
+    </>
+  );
+}
+
+function EmailPane({ session, ws, form, row, kit }: Parameters<typeof Share>[0]) {
+  const note = useNote();
+  const origin = typeof window === "undefined" ? "" : window.location.origin;
+  const [to, setTo] = useState("");
+  const [message, setMessage] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const list = [...new Set(to.split(/[\s,;]+/).map((x) => x.trim()).filter(Boolean))];
+  const send = async () => {
+    setBusy(true);
+    setError("");
+    try {
+      const r = await postJson<{ queued: number }>(session, "/api/forms/share-email", { workspaceId: ws.id, formId: row.id, to: list, message });
+      setTo("");
+      note.show(r.queued === 1 ? "Sent to 1 address" : `Sent to ${r.queued} addresses`);
+    } catch (e) {
+      setError(errorText(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+  const q = firstQuestion(form);
+  const html = q ? emailQuestionHtml(q, { link: `${origin}/f/${row.id}`, color: kit?.tokens.buttonBg || kit?.tokens.accent, textColor: kit?.tokens.buttonText }) : "";
+  return (
+    <>
+      <H3>Send the link</H3>
+      <div className={CARD}>
+        <div className={CSTACK}>
+          <label htmlFor="share-to" className="text-[12px] font-medium text-muted">
+            To
+          </label>
+          <textarea id="share-to" value={to} onChange={(e) => setTo(e.target.value)} rows={3} placeholder="name@company.com, name@company.com" className={`${IN} h-auto py-[8px] font-mono text-[12px]`} />
+        </div>
+        <div className={CSTACK}>
+          <label htmlFor="share-note" className="text-[12px] font-medium text-muted">
+            Message
+          </label>
+          <textarea id="share-note" value={message} onChange={(e) => setMessage(e.target.value)} rows={3} maxLength={1000} className={`${IN} h-auto py-[8px]`} />
+        </div>
+        <div className={CROW}>
+          <span className="flex-1 text-[12.5px] text-muted">{list.length ? `${list.length} of 50` : ""}</span>
+          <button type="button" className={BTN} disabled={busy || !list.length || list.length > 50 || !row.version} onClick={() => void send()}>
+            {busy ? "Sending" : "Send"}
+          </button>
+        </div>
+        <ErrorNote message={error} />
+      </div>
+      <H3>The form in an email</H3>
+      {q ? (
+        <>
+          <div className={CARD}>
+            <div className="p-[16px]" dangerouslySetInnerHTML={{ __html: html }} />
+          </div>
+          <div className="flex flex-wrap gap-[8px]">
+            <button
+              type="button"
+              className={GHOST_SM}
+              onClick={async () => {
+                // Pasted into Gmail or Outlook as the email itself: the rich copy; the HTML for an email tool's code block.
+                try {
+                  await navigator.clipboard.write([new ClipboardItem({ "text/html": new Blob([html], { type: "text/html" }), "text/plain": new Blob([q.label], { type: "text/plain" }) })]);
+                  note.show("Copied. Paste it into your email.");
+                } catch {
+                  note.show((await copyText(html)) ? "Copied the HTML" : "Couldn't copy");
+                }
+              }}
+            >
+              <Ic n="copy" />
+              Copy for Gmail or Outlook
+            </button>
+            <button type="button" className={GHOST_SM} onClick={() => void copyText(html).then((ok) => note.show(ok ? "Copied the HTML" : "Couldn't copy"))}>
+              <Ic n="code" />
+              Copy HTML
+            </button>
+          </div>
+        </>
+      ) : (
+        <Box tone="warn" title="Start the form with a pick list or a rating">
+          <span className="text-body">Each answer becomes a button in the email</span>
+        </Box>
+      )}
+      {note.node}
+    </>
+  );
+}
+
+function QrPane({ row }: Parameters<typeof Share>[0]) {
+  const origin = typeof window === "undefined" ? "" : window.location.origin;
+  // Always the id link, so a printed code keeps working when the ending changes.
+  return (
+    <>
+      <H3>QR code</H3>
+      <Sub>It always opens the form, whatever its link ending.</Sub>
+      <QrCode url={`${origin}/f/${row.id}`} name={row.name} />
     </>
   );
 }

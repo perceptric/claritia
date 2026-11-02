@@ -1,16 +1,17 @@
 # Sharing forms and meetings
 
-Every way a form or a meeting gets in front of people, after Typeform and Fillout. Built in four steps; step 1 is
-done.
+Every way a form or a meeting gets in front of people, after Typeform and Fillout. Built in four steps; steps 1 and 2
+are done.
 
 | Format | What it is | Step |
 |---|---|---|
 | Link | `/f/<form id>`; a meeting's `/book/<workspace>/<type>` | Built |
-| Custom ending | `/f/demo-request`; the id link always keeps working | 2 |
+| Link ending | `/f/<workspace>/demo-request`; the id link always keeps working | 2, built |
 | Workspace subdomain | `acme.tryclaritia.com/demo-request` | 4 |
 | Custom domain | `forms.acme.com/demo-request`, one DNS record, paid plans | 4 |
-| QR code | PNG or SVG, always to the id link, so a printed code never breaks | 2 |
-| Email | Send the link; the first question inside an email, each answer a button | 2 |
+| Link preview | Title, line and picture for chats and social posts | 2, built |
+| QR code | PNG or SVG, always to the id link, so a printed code never breaks | 2, built |
+| Email | Send the link; the first question inside an email, each answer a button | 2, built |
 | In the page | `<claritia-form form-id="…">` | Built |
 | Full page | `full`: the form fills the page | 1, built |
 | Popup | `popup="click\|delay:N\|exit"`, `size="s\|m\|l"`, opened by `data-claritia-open` | 1, built |
@@ -35,6 +36,29 @@ done.
   closed slide-in or popover could still show; `.pop[hidden]` now always wins.
 - `scripts/embed-check.ts` runs every mode in Chromium on a desktop and a phone width, with the real script.
 - The script is 38 KB gzipped at most (`scripts/build-forms.mts`).
+
+## Step 2 (built)
+
+Form › Share's left list is Link, On your website, Email, QR code and Your own form.
+
+- **Link ending** (`supabase/migrations/117_form_links.sql`): `/f/<workspace>/<ending>`, the workspace's name the
+  same one its meeting links use. An ending is the workspace's alone. A changed or removed one redirects to the
+  current link for 90 days and no other form can take it meanwhile. Only members set one. The page:
+  `src/app/f/[id]/[slug]/route.ts`.
+- **Link preview**: `share { title, description, image }` on the form (`cleanShare`, the `set_share` op), written as
+  `og:` and `twitter:` tags on the form's page (`src/lib/forms/formPage.ts`, `previewTags`). Form Studio keeps it on
+  save.
+- **QR code**: drawn in the browser (`QrCode` in `src/components/app/meetings/Share.tsx`), PNG or SVG, always to the
+  id link.
+- **Send the link** (`/api/forms/share-email`): up to 50 addresses, one short email from the team with the form's
+  link, through the send pipeline (a verified From domain, the pause, suppressions); each address once
+  (`email_queue_to`); a few sends a minute per workspace.
+- **The form in an email** (`src/lib/share/emailForm.ts`): the first question when it's a pick list (10 answers at
+  most) or a rating, each answer a button to `?clr_a=<field>:<answer>`. The form fills it, skips the cover and moves
+  on when the first step has only that question; a Form Studio page checks it. An answer deleted since the email
+  went out opens the form as it is. Copy for Gmail or Outlook (rich) or the HTML.
+- Tests: `tests/shareLinks.test.ts`, `tests/pg/formLinks.pg.ts` (endings, the 90 days, members only, two saves at
+  once, the email queue), `scripts/embed-check.ts` (the email's answer in a real browser).
 
 ## Monthly cost
 

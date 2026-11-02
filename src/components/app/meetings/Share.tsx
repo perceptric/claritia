@@ -64,7 +64,8 @@ export function ShareMenu({ get, name, onError }: { get: () => Promise<string>; 
   );
 }
 
-function QrDialog({ url, name, onClose }: { url: string; name: string; onClose: () => void }) {
+/** A link's QR code, made in the browser: the SVG to show and the PNG and SVG files to save. */
+function useQr(url: string, name: string) {
   const [svg, setSvg] = useState("");
   const [error, setError] = useState("");
   useEffect(() => {
@@ -77,7 +78,7 @@ function QrDialog({ url, name, onClose }: { url: string; name: string; onClose: 
       live = false;
     };
   }, [url]);
-  const file = `${name.replace(/[^\w-]+/g, "-").replace(/^-+|-+$/g, "").toLowerCase() || "booking"}-qr`;
+  const file = `${name.replace(/[^\w-]+/g, "-").replace(/^-+|-+$/g, "").toLowerCase() || "link"}-qr`;
   const png = async () => {
     const q = await import("qrcode");
     const a = document.createElement("a");
@@ -85,26 +86,56 @@ function QrDialog({ url, name, onClose }: { url: string; name: string; onClose: 
     a.download = `${file}.png`;
     a.click();
   };
+  const saveSvg = () => {
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob([svg], { type: "image/svg+xml" }));
+    a.download = `${file}.svg`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  };
+  return { svg, error, setError, png, saveSvg };
+}
+
+function QrImage({ svg, url }: { svg: string; url: string }) {
+  // The SVG is made here from the link, never from outside text.
+  return <div aria-label={`QR code for ${url}`} role="img" className="size-56 rounded-lg border border-line bg-white p-2 [&_svg]:size-full" dangerouslySetInnerHTML={{ __html: svg }} />;
+}
+
+/** A QR code in the page with its downloads (a form's Share › QR code). */
+export function QrCode({ url, name }: { url: string; name: string }) {
+  const q = useQr(url, name);
+  return (
+    <div className="flex flex-col items-start gap-3">
+      <ErrorNote message={q.error} />
+      <QrImage svg={q.svg} url={url} />
+      <code className="max-w-full truncate font-mono text-[11.5px] text-muted">{url.replace(/^https?:\/\//, "")}</code>
+      <div className="flex gap-2">
+        <Button variant="ghost" size="sm" disabled={!q.svg} onClick={() => void q.png().catch((e) => q.setError(errorText(e)))}>
+          <Download size={14} />
+          PNG
+        </Button>
+        <Button variant="ghost" size="sm" disabled={!q.svg} onClick={q.saveSvg}>
+          <Download size={14} />
+          SVG
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function QrDialog({ url, name, onClose }: { url: string; name: string; onClose: () => void }) {
+  const q = useQr(url, name);
   return (
     <Modal
       title="QR code"
       onClose={onClose}
       footer={
         <>
-          <Button variant="ghost" disabled={!svg} onClick={() => void png().catch((e) => setError(errorText(e)))}>
+          <Button variant="ghost" disabled={!q.svg} onClick={() => void q.png().catch((e) => q.setError(errorText(e)))}>
             <Download size={14} />
             PNG
           </Button>
-          <Button
-            disabled={!svg}
-            onClick={() => {
-              const a = document.createElement("a");
-              a.href = URL.createObjectURL(new Blob([svg], { type: "image/svg+xml" }));
-              a.download = `${file}.svg`;
-              a.click();
-              setTimeout(() => URL.revokeObjectURL(a.href), 1000);
-            }}
-          >
+          <Button disabled={!q.svg} onClick={q.saveSvg}>
             <Download size={14} />
             SVG
           </Button>
@@ -112,9 +143,8 @@ function QrDialog({ url, name, onClose }: { url: string; name: string; onClose: 
       }
     >
       <div className="flex flex-col items-center gap-3">
-        <ErrorNote message={error} />
-        {/* The SVG is made here from the link, never from outside text. */}
-        <div aria-label={`QR code for ${url}`} role="img" className="size-56 rounded-lg border border-line bg-white p-2 [&_svg]:size-full" dangerouslySetInnerHTML={{ __html: svg }} />
+        <ErrorNote message={q.error} />
+        <QrImage svg={q.svg} url={url} />
         <code className="max-w-full truncate font-mono text-[11.5px] text-muted">{url.replace(/^https?:\/\//, "")}</code>
       </div>
     </Modal>
