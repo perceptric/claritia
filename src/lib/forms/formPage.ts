@@ -22,7 +22,9 @@ export async function previewOf(id: string, url: string): Promise<PagePreview | 
 
 export async function formPage(request: Request, id: string): Promise<Response> {
   const framed = new URL(request.url).searchParams.has("c");
-  const [script, preview] = await Promise.all([formsScriptPath(), framed ? undefined : previewOf(id, request.url.split("?")[0]!)]);
+  // On a workspace's own domain the address shared is the short one the proxy saw.
+  const shared = request.headers.get("x-claritia-link-url") ?? request.url.split("?")[0]!;
+  const [script, preview] = await Promise.all([formsScriptPath(), framed ? undefined : previewOf(id, shared)]);
   return new Response(hostedFormHtml(id, { framed, script, preview }), {
     status: ID.test(id) ? 200 : 404,
     headers: { "content-type": "text/html; charset=utf-8", "cache-control": "public, max-age=60", "x-robots-tag": "noindex" },

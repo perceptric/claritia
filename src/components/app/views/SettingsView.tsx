@@ -1,6 +1,7 @@
 "use client";
 
 import { BrandSettings } from "./BrandSettings";
+import { LinkDomainSettings } from "./LinkDomainSettings";
 import { useState } from "react";
 import { Key, LogOut, Plus, Settings } from "../../Icons";
 import { APP_URL } from "@/lib/site";
@@ -198,6 +199,7 @@ export function SettingsView({ sb, session, ws, role, id, onWorkspace }: ViewPro
     ),
     keys: <KeysPanel sb={sb} session={session} ws={ws} />,
     brand: <BrandSettings sb={sb} session={session} ws={ws} />,
+    link_domain: <LinkDomainSettings session={session} ws={ws} role={role} />,
     profile: (
         <Panel>
           <CardHead label="Account" />

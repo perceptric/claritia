@@ -1,14 +1,13 @@
 # Sharing forms and meetings
 
-Every way a form or a meeting gets in front of people, after Typeform and Fillout. Built in four steps; steps 1 to 3
-are done.
+Every way a form or a meeting gets in front of people, after Typeform and Fillout. Built in four steps, all done.
 
 | Format | What it is | Step |
 |---|---|---|
 | Link | `/f/<form id>`; a meeting's `/book/<workspace>/<type>` | Built |
 | Link ending | `/f/<workspace>/demo-request`; the id link always keeps working | 2, built |
-| Workspace subdomain | `acme.tryclaritia.com/demo-request` | 4 |
-| Custom domain | `forms.acme.com/demo-request`, one DNS record, paid plans | 4 |
+| Workspace subdomain | `acme.tryclaritia.com/demo-request` | 4, built (on after setup) |
+| Custom domain | `forms.acme.com/demo-request`, one DNS record, paid plans | 4, built |
 | Link preview | Title, line and picture for chats and social posts | 2, built |
 | QR code | PNG or SVG, always to the id link, so a printed code never breaks | 2, built |
 | Email | Send the link; the first question inside an email, each answer a button | 2, built |
@@ -75,6 +74,38 @@ The developer kit, in `docs/embed.md` and on the site at `/developers/embed` (`s
   `npm publish` from `packages/embed` with the team's npm account.
 - `scripts/embed-check.ts` runs the API, the events, the queue and the React components in Chromium.
 - The script is 39 KB gzipped at most.
+
+## Step 4 (built)
+
+Links on the workspace's own address, in Settings › Link domain (`src/components/app/views/LinkDomainSettings.tsx`).
+
+- **What a link host serves** (`src/lib/domains/hosts.ts`, `linkPath`): `/` and `/book` the team's booking page,
+  `/book/<type>` a meeting type, `/book/l|m|p/<token>` single-use, manage and poll links, `/<ending>` a form by its link
+  ending. Everything else is "Page not found." The app is never served there. `src/proxy.ts` rewrites the path and
+  marks the request, so a moved ending redirects to `/<ending>` on the same host and the link preview names that host.
+- **Subdomain**: `<workspace>.tryclaritia.com`, the workspace's booking name. Reserved names (app, www, api, mail and
+  others) are never a workspace's. Served only when `LINK_SUBDOMAINS=1`.
+- **Custom domain** (`supabase/migrations/118_link_domains.sql`): one per workspace, owners only, paid plans. A
+  subdomain of a domain the team owns (`forms.acme.com`), never a bare domain or ours (`src/lib/domains/hostname.ts`).
+  One CNAME to the app's Fly address. Adding it asks Fly for a certificate (`src/lib/domains/fly.ts`); Check now
+  looks at DNS and the certificate. It serves only while Live: DNS points at us and the certificate is issued
+  (`nextState` in `src/lib/domains/check.ts`).
+- **Re-check** (`worker-intel/jobs/linkDomains.ts`): every 30 minutes the worker checks domains not checked in 25
+  minutes, 20 at a time, under one lock. A domain whose DNS moved away stops serving; pointed back, it serves again.
+  The proxy caches each host for 60 seconds; a removed domain is forgotten at once.
+- **Where the address shows**: Form › Share › Link, Meetings › Share and "Send the link" use the live custom domain,
+  else the subdomain when on, else the usual link. QR codes keep the id link.
+- Tests: `tests/linkDomains.test.ts` (hosts, paths, hostnames, DNS, states, Fly calls, the cache, the proxy),
+  `tests/pg/linkDomains.pg.ts` (one host one workspace, only active serves, members read only, the re-check, two
+  workers at once).
+
+Setup (once):
+
+1. Apply `118_link_domains.sql`.
+2. `fly tokens create deploy -a claritia-web`, then `fly secrets set FLY_API_TOKEN=<token> -a claritia-web` so custom
+   domains get certificates.
+3. Subdomains: DNS `*.tryclaritia.com` CNAME to `claritia-web.fly.dev`, `fly certs add "*.tryclaritia.com" -a
+   claritia-web` (it asks for one more DNS record), then `fly secrets set LINK_SUBDOMAINS=1 -a claritia-web`.
 
 ## Monthly cost
 
