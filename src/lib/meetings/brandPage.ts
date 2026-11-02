@@ -14,7 +14,7 @@ export const BRAND_PLANS = ["starter", "team", "business"] as const;
 export const brandPlan = (plan: unknown): boolean => BRAND_PLANS.includes(plan as (typeof BRAND_PLANS)[number]);
 
 /** What a booking page needs to draw the brand: the plan check and the scoped stylesheet with its font links. */
-export type BookBrand = { paid: boolean; css: string; fonts: string[] };
+export type BookBrand = { paid: boolean; css: string; fonts: string[]; kit?: { tokens: Record<string, unknown>; logo_url: string | null; design?: unknown } };
 
 export const SCOPE = ".cb-brand";
 
@@ -258,9 +258,13 @@ export function bookBrand(plan: unknown, studioCss: string | null | undefined): 
  */
 export function pageShell(t: { kit: { tokens: Record<string, unknown>; logo_url: string | null; design?: unknown }; look: PageLook; brand?: BookBrand }) {
   const paid = t.brand?.paid === true;
-  const look: PageLook = paid ? t.look : { ...t.look, look: "claritia", badge: true };
-  const kit = usesKit(look, !!t.kit.tokens && Object.keys(t.kit.tokens).length > 0);
-  const l = lookTokens(look, t.kit.tokens);
+  // The brand sets its own colors and corners, so the old accent and button choices no longer apply.
+  const base: PageLook = { ...t.look, accent: "emerald", buttons: undefined };
+  const look: PageLook = paid ? base : { ...base, look: "claritia", badge: true };
+  // The kit the page picked (read with the plan), else the one the page's read found.
+  const k = (paid && t.brand?.kit) || t.kit;
+  const kit = usesKit(look, !!k.tokens && Object.keys(k.tokens).length > 0);
+  const l = lookTokens(look, k.tokens);
   const brand = kit && t.brand?.css ? { css: t.brand.css, fonts: t.brand.fonts } : undefined;
-  return { tokens: l.tokens, design: kit ? t.kit.design : undefined, vars: l.vars, badge: look.badge, logo: kit ? t.kit.logo_url : null, brand };
+  return { tokens: l.tokens, design: kit ? k.design : undefined, vars: l.vars, badge: look.badge, logo: kit ? k.logo_url : null, brand };
 }

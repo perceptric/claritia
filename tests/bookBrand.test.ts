@@ -162,3 +162,22 @@ test("pageShell: paid plans get the kit, the brand's stylesheet and a hidden bad
   assert.equal(noCss.brand, undefined);
   assert.equal((noCss.tokens as { accent?: string }).accent, "#1a56db");
 });
+
+test("pageShell: a paid page draws the brand it picked (its colors, logo and stylesheet); Free never does", () => {
+  const picked = { ...bookBrand("team", BRAND), kit: { tokens: { accent: "#ff5500" }, logo_url: "https://x.test/picked.png", design: { v: 2 } } };
+  const s = pageShell(target({ brand: picked }));
+  assert.equal((s.tokens as { accent?: string }).accent, "#ff5500");
+  assert.equal(s.logo, "https://x.test/picked.png");
+  assert.deepEqual(s.design, { v: 2 });
+  assert.equal(s.brand?.css, picked.css);
+  const free = pageShell(target({ brand: { ...picked, paid: false } }));
+  assert.deepEqual(free.tokens, {});
+  assert.equal(free.logo, null);
+  assert.equal(free.badge, true);
+});
+
+test("pageShell: old accent and button choices no longer change a page", () => {
+  const s = pageShell(target({ brand: bookBrand("team", BRAND), look: cleanLook({ accent: "rose", buttons: "soft", badge: false }) }));
+  assert.equal(s.vars["--clr-btn-radius"], undefined);
+  assert.equal(s.vars["--cb-dot"], undefined);
+});

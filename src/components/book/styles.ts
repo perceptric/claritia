@@ -84,7 +84,7 @@ export const BOOK_CSS = `
 .cb-week{font-family:var(--cb-mono);font-size:10.5px;color:var(--clr-muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:.06em;container-type:inline-size}
 @container (max-width:280px){.cb-week span{font-size:0}.cb-week span::after{content:attr(data-short);font-size:11px}}
 .cb-day{position:relative;aspect-ratio:1;max-width:48px;width:100%;margin:0 auto;border-radius:999px;display:flex;align-items:center;justify-content:center;font-weight:500;font-variant-numeric:tabular-nums;color:var(--clr-muted);transition:background-color 140ms var(--cb-ease),color 140ms var(--cb-ease),transform 140ms var(--cb-ease)}
-.cb-day:disabled{cursor:default;opacity:.5}
+.cb-day:disabled,.cb-day[aria-disabled=true]{cursor:default;opacity:.5}
 .cb-day.cb-has{background:var(--cb-fill);color:var(--clr-text);font-weight:600}
 .cb-day.cb-has::after{content:"";position:absolute;bottom:16%;left:50%;width:4px;height:4px;margin-left:-2px;border-radius:999px;background:var(--cb-dot,#059669)}
 .cb-day.cb-has:hover{background:var(--cb-line2)}
@@ -156,6 +156,13 @@ textarea.cb-in{min-height:96px;padding:10px 12px;resize:vertical}
 .cb-sum::after{bottom:-1px;right:-1px;border-left:0;border-top:0;border-bottom-right-radius:10px}
 .cb-tick{width:52px;height:52px;border-radius:999px;background:var(--cb-dot-wash);color:var(--cb-dot,#059669);display:flex;align-items:center;justify-content:center}
 .cb-add{display:flex;flex-direction:column;align-items:center;gap:8px}
+.cb-donehosts{position:relative;align-items:center}
+.cb-donehosts .cb-ticksm{position:absolute;right:-6px;bottom:-4px;width:28px;height:28px;border:2px solid var(--clr-bg)}
+.cb-phonebar{position:fixed;left:0;right:0;bottom:0;z-index:50;display:flex;align-items:center;gap:12px;padding:12px 16px calc(12px + env(safe-area-inset-bottom));background:var(--clr-bg);border-top:1px solid var(--cb-line);box-shadow:0 -8px 24px -12px color-mix(in srgb,var(--clr-text) 18%,transparent);font-family:var(--clr-font);font-size:var(--clr-size);color:var(--clr-text)}
+.cb-phonebar .cb-pbw{display:flex;flex-direction:column;min-width:0;flex:1;line-height:1.25}
+.cb-phonebar .cb-btn{flex:none;min-width:120px}
+@media (prefers-reduced-motion:no-preference){.cb-phonebar{animation:cb-bar 220ms var(--cb-ease) both}}
+@keyframes cb-bar{from{transform:translateY(100%)}to{transform:none}}
 .cb-add .cb-chips{justify-content:center}
 .cb-add a{display:inline-flex;align-items:center;gap:6px;min-height:32px;padding:0 14px;border-radius:999px;border:1px solid var(--cb-line);font-weight:500;font-size:.9em;text-decoration:none;transition:border-color 140ms var(--cb-ease)}
 .cb-add a:hover{border-color:var(--clr-text)}

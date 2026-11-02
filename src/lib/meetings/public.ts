@@ -822,6 +822,11 @@ export function guestMeeting(v: MeetingView, now = Date.now()) {
     guest: { name: m.guest_name ?? "", email: m.guest_email, tz: m.guest_tz },
     hosts: m.hosts.map((h) => byId.get(h)).filter((p): p is Profile => !!p).map((p) => ({ name: p.name, photo: p.photo_url, slug: p.slug })),
     location: loc ? { kind: loc.kind, ...(loc.kind === "in_person" ? { detail: loc.address } : {}) } : null,
+    /** The video link once the calendar added it (or a set link), for Join on the guest's pages. */
+    join: (() => {
+      const u = (m.location as { url?: unknown } | null)?.url;
+      return m.status === "booked" && typeof u === "string" && /^https:\/\/\S+$/.test(u) ? u : null;
+    })(),
     reason: m.cancel_reason,
     payment: m.payment?.amount ? { amount: m.payment.amount, currency: m.payment.currency ?? "usd", url: m.status === "pending_payment" && m.holds ? (m.payment.url ?? null) : null, refunded: !!m.payment.refund } : null,
     ...canChange(v, now),

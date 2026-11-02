@@ -10,7 +10,8 @@ export type IcsEvent = {
   meetingId: string;
   /** Counts the meeting's changes (moves and the cancel); see icsSequence. */
   sequence: number;
-  method: "REQUEST" | "CANCEL";
+  /** REQUEST and CANCEL for invites; PUBLISH for a file the guest adds by hand (Apple Calendar). */
+  method: "REQUEST" | "CANCEL" | "PUBLISH";
   start: number;
   end: number;
   /** When this file was made. */

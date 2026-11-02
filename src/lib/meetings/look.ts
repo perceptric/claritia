@@ -11,6 +11,8 @@ export const ACCENTS: Record<Accent, string> = { ink: "#0A0A0A", emerald: "#0596
 export type PageLook = {
   /** Claritia's look, or the workspace's brand kit. Unset: the kit when there is one. */
   look?: "claritia" | "brand";
+  /** The imported brand this page uses (a brand kit id). Unset: the workspace's brand. */
+  brand?: string;
   accent: Accent;
   /** Unset: the look's own (pills for Claritia, the kit's corners for a kit). */
   buttons?: "round" | "soft";
@@ -28,6 +30,7 @@ export function cleanLook(raw: unknown): PageLook {
   const r = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
   return {
     ...(r.look === "claritia" || r.look === "brand" ? { look: r.look } : {}),
+    ...(typeof r.brand === "string" && UUID.test(r.brand) ? { brand: r.brand } : {}),
     accent: typeof r.accent === "string" && r.accent in ACCENTS ? (r.accent as Accent) : DEFAULT_LOOK.accent,
     ...(r.buttons === "round" || r.buttons === "soft" ? { buttons: r.buttons } : {}),
     welcome: typeof r.welcome === "string" ? r.welcome.replace(/\s+/g, " ").trim().slice(0, 140) : "",
@@ -54,9 +57,7 @@ export function ordered<T extends { id: string; name: string }>(types: T[], orde
   return [...types].sort((a, b) => (at.get(a.id) ?? 1e6) - (at.get(b.id) ?? 1e6) || a.name.localeCompare(b.name));
 }
 
-/** Styling's summary line. */
-export function lookWords(l: PageLook, hasKit: boolean): string {
-  const kit = usesKit(l, hasKit);
-  const buttons = l.buttons ?? (kit ? null : "round");
-  return [kit ? "Your brand kit" : "Claritia", buttons === "soft" ? "soft corners" : buttons === "round" ? "round buttons" : null].filter(Boolean).join(", ");
+/** Styling's summary line: the brand's name, or Claritia. */
+export function lookWords(l: PageLook, hasKit: boolean, brandName?: string | null): string {
+  return usesKit(l, hasKit) ? brandName || "Your brand" : "Claritia";
 }

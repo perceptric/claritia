@@ -295,7 +295,7 @@ export function MeetingsCalendar(props: ViewProps) {
                           />
                         ) : (
                           <div className="flex h-9 items-center gap-4 bg-paper px-4 text-[12.5px] text-faint">
-                            <span className="w-[150px] shrink-0 tabular-nums">{timeRange(it.b.start, it.b.end)}</span>
+                            <span className="w-[120px] shrink-0 whitespace-nowrap tabular-nums sm:w-[150px]">{timeRange(it.b.start, it.b.end)}</span>
                             <span>{it.b.ooo ? "Out of office" : "Busy on your calendar"}</span>
                           </div>
                         )}
@@ -318,7 +318,7 @@ function Strip({ cells }: { cells: { label: string; value: string | null; warn?:
   return (
     <div className="grid grid-cols-2 overflow-hidden rounded-lg border border-line bg-card md:grid-cols-4">
       {cells.map((c, i) => (
-        <div key={c.label} className={`flex min-w-0 flex-col gap-1 px-4 py-3 ${i % 2 ? "border-l border-line" : ""} ${i >= 2 ? "max-md:border-t md:border-l" : ""}`}>
+        <div key={c.label} className={`flex min-w-0 flex-col gap-1 border-line px-4 py-3 ${i % 2 ? "border-l" : ""} ${i >= 2 ? "max-md:border-t md:border-l" : ""}`}>
           <span className="truncate text-[12px] text-muted">{c.label}</span>
           {c.value === null ? (
             <span className="anim-shimmer h-5 w-12 rounded-full bg-paper-deep" />
@@ -383,7 +383,7 @@ const MeetingRow = memo(function MeetingRow({
       className={`group relative flex min-h-14 cursor-pointer items-center gap-4 py-2 pr-3 pl-5 transition-colors duration-[120ms] outline-none focus-visible:bg-hover ${current ? "bg-hover" : live ? "bg-clay-wash/30" : "hover:bg-hover"} ${m.status === "canceled" ? "opacity-60" : ""}`}
     >
       <span aria-hidden="true" className={`absolute inset-y-2 left-0 w-1 rounded-r-full ${current ? "bg-ink" : (EDGE[tone] ?? "bg-sky")}`} />
-      <span className="w-[150px] shrink-0 text-[13px] whitespace-nowrap text-ink tabular-nums">{timeRange(m.start_at, m.end_at)}</span>
+      <span className="w-[120px] shrink-0 text-[12.5px] whitespace-nowrap text-ink tabular-nums sm:w-[150px] sm:text-[13px]">{timeRange(m.start_at, m.end_at)}</span>
       <span className="flex min-w-0 flex-1 flex-col">
         <span className="truncate text-[13.5px] text-ink">
           <span className="font-semibold">{typeName ?? SOURCES[m.source]}</span> <span className="text-muted">with {guestName(m)}</span>
@@ -472,6 +472,7 @@ function WeekGrid({ from, items, typeOf, now, onOpen, cursorId }: { from: number
                 const e = Date.parse(m.end_at);
                 const t = m.type_id ? typeOf.get(m.type_id) : undefined;
                 const tone = t ? KIND_TONE[t.kind as keyof typeof KIND_TONE] : "sky";
+                const h = Math.max(20, ((e - s) / 3_600_000) * HOUR - 2);
                 return (
                   <button
                     key={m.id}
@@ -479,12 +480,12 @@ function WeekGrid({ from, items, typeOf, now, onOpen, cursorId }: { from: number
                     data-meeting={m.id}
                     onClick={() => onOpen(m.id)}
                     title={`${timeRange(m.start_at, m.end_at)}, ${t?.name ?? SOURCES[m.source]} with ${guestName(m)}`}
-                    className={`absolute inset-x-1 flex flex-col overflow-hidden rounded-md border bg-card px-2 py-1 text-left text-[11.5px] leading-tight transition-colors duration-[120ms] hover:border-ink ${cursorId === m.id ? "border-ink" : "border-line-strong"} ${m.status === "canceled" ? "opacity-50" : ""}`}
-                    style={{ top: top(s, d) + 1, height: Math.max(20, ((e - s) / 3_600_000) * HOUR - 2) }}
+                    className={`absolute inset-x-1 flex overflow-hidden rounded-md border bg-card px-2 text-left text-[11.5px] leading-tight transition-colors duration-[120ms] hover:border-ink ${h < 36 ? "items-center gap-1.5" : "flex-col py-1"} ${cursorId === m.id ? "border-ink" : "border-line-strong"} ${m.status === "canceled" ? "opacity-50" : ""}`}
+                    style={{ top: top(s, d) + 1, height: h }}
                   >
                     <span aria-hidden="true" className={`absolute inset-y-1 left-0 w-0.5 rounded-r-full ${EDGE[tone] ?? "bg-sky"}`} />
                     <span className="truncate font-semibold text-ink">{guestName(m)}</span>
-                    <span className="truncate text-muted tabular-nums">{timeRange(m.start_at, m.end_at)}</span>
+                    <span className="shrink-0 truncate text-muted tabular-nums">{h < 36 ? new Date(s).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }) : timeRange(m.start_at, m.end_at)}</span>
                   </button>
                 );
               })}

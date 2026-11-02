@@ -10,8 +10,9 @@ import { Logo } from "../Logo";
 import { AuthScreen } from "./AuthScreen";
 import { Dots } from "./Ai";
 import { CommandBar, type Command } from "./CommandBar";
-import { DialogHost } from "./Dialogs";
-import { cache, ErrorNote, errorText, Loading, mayLeave, must, useQuery, type Role, type Route, type ViewProps, type Workspace } from "./ui";
+import { DialogHost, tell } from "./Dialogs";
+import { bookingOrigin, bookingUrl } from "@/lib/meetings/handles";
+import { cache, ErrorNote, errorText, Loading, mayLeave, must, postJson, useQuery, type Role, type Route, type ViewProps, type Workspace } from "./ui";
 import { NAV_ICONS, Sidebar, type CreateItem } from "./Sidebar";
 import { useRoutingCommands } from "./routing/commands";
 import { useAppCounts } from "./appCounts";
@@ -219,18 +220,33 @@ export function ClientApp({ config }: { config: SupaConfig }) {
     { group: "CRM", label: "Opportunity", run: () => navigate("opportunities", "", "create=1") },
     { group: "Automation", label: "Workflow", run: () => navigate("workflows", "new") },
     { group: "Inbound", label: "Form", run: () => navigate("forms", "new") },
-    { group: "Inbound", label: "Meeting", run: () => navigate("scheduling", "types/new") },
+    { group: "Inbound", label: "Meeting type", run: () => navigate("scheduling", "types/new") },
     { group: "Inbound", label: "Single-use link", run: () => navigate("scheduling", "links", "create=single_use") },
     { group: "Inbound", label: "Poll", run: () => navigate("scheduling", "links", "create=poll") },
     { group: "Nurture", label: "Broadcast", run: () => navigate("workflows", "new", "template=broadcast") },
     { group: "CRM", label: "Segment", run: () => navigate("contacts", "segments/new") },
   ];
 
+  // ⌘K "Copy my booking link": your page's address, or the Booking page to set one.
+  const copyBookingLink = async () => {
+    if (!session || !ws) return;
+    try {
+      const r = await postJson<{ profile: { handle: string | null } | null }>(session, "/api/meetings/booking", { workspaceId: ws.id, action: "load" });
+      const handle = r.profile?.handle;
+      if (!handle) return navigate("scheduling", "booking");
+      await navigator.clipboard.writeText(bookingUrl(bookingOrigin(window.location), handle));
+      await tell("Copied your booking link");
+    } catch (e) {
+      await tell(errorText(e));
+    }
+  };
+
   const commands: Command[] = [
     ...NAV.map((n) => ({ id: n.key, label: n.label, group: GROUP_LABEL[n.group], icon: NAV_ICONS[n.key] ?? NAV_ICONS[n.route], run: () => navigate(n.route, n.page) })),
     ...customObjects.map((o) => ({ id: `o-${o.key}`, label: o.plural, group: "CRM", icon: NAV_ICONS.objects, run: () => navigate("objects", o.key) })),
     ...create.map((c) => ({ id: `create-${c.label}`, label: `New ${c.label.toLowerCase()}`, group: "Create", icon: NAV_ICONS.objects, run: c.run })),
     ...routingCommands,
+    { id: "booking-link", label: "Copy my booking link", group: "Meetings", icon: NAV_ICONS.scheduling, run: () => void copyBookingLink() },
     { id: "theme", label: theme === "dark" ? "Light mode" : "Dark mode", group: "Look", icon: theme === "dark" ? <Sun size={15} /> : <Moon size={15} />, run: flip },
     { id: "out", label: "Sign out", group: "Account", icon: <LogOut size={15} />, run: () => void sb.auth.signOut() },
   ];

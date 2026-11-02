@@ -13,9 +13,10 @@ import { use12h, useZone } from "./browser";
 
 const STATUS: Record<GuestMeeting["status"], string> = { booked: "Booked", pending_payment: "Waiting for payment", canceled: "Canceled", held: "Done", no_show: "Missed" };
 
-export function ManageView({ token, initial, paid, embed }: { token: string; initial: GuestMeeting; paid?: boolean; embed?: boolean }) {
+export function ManageView({ token, initial, paid, embed, start }: { token: string; initial: GuestMeeting; paid?: boolean; embed?: boolean; start?: "move" | "cancel" }) {
   const [m, setM] = useState(initial);
-  const [mode, setMode] = useState<"view" | "move" | "cancel">("view");
+  // From the thank-you screen or an email: open straight on Reschedule or Cancel when the meeting allows it.
+  const [mode, setMode] = useState<"view" | "move" | "cancel">(start === "move" && initial.reschedule ? "move" : start === "cancel" && initial.cancel ? "cancel" : "view");
   const tz = useZone();
   const h12 = use12h();
   const [reason, setReason] = useState("");

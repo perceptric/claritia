@@ -4,18 +4,21 @@
 // left as it is (the real page's parts, with what you're typing) and scaled to fit the height, and the few things that
 // change it in a 400 px panel on the right: You | Team, then closed sections (Link, Profile, Meetings shown, Welcome
 // line, Styling) and a pinned footer, Saved or Discard and Save changes.
-// The look (welcome line, Claritia or the brand kit, accent, buttons, "Booked with Claritia", the meetings' order) is
+// The look (welcome line, Claritia or one of the brands imported in Form Studio, "Booked with Claritia", the meetings'
+// order) is
 // saved per page: yours on your profile, the team's on the workspace (src/lib/meetings/look.ts).
 
-import { workspaceKit } from "@/lib/brand/workspaceKit";
+import { brandName } from "@/lib/brand/name";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { toGuestType, type Profile as GuestProfile } from "@/lib/meetings/guest";
 import { bookingOrigin, bookingUrl, cleanHandle, handleProblem } from "@/lib/meetings/handles";
-import { ACCENTS, cleanLook, lookTokens, lookWords, ordered, usesKit, type Accent, type PageLook } from "@/lib/meetings/look";
+import { cleanLook, lookTokens, lookWords, ordered, usesKit, type PageLook } from "@/lib/meetings/look";
+import { sampleSlots } from "@/lib/meetings/guest";
+import { Calendar } from "@/components/book/Calendar";
 import { bookBrandCss, brandPlan } from "@/lib/meetings/brandPage";
 import { AiMark } from "../Ai";
 import { readLines } from "../streamLines";
-import { Check, ExternalLink, Grid, Grip, Link as LinkIcon, Message, Monitor, Palette, Phone, Upload, User } from "../../Icons";
+import { Check, ExternalLink, Grid, Grip, Link as LinkIcon, Message, Monitor, Palette, Phone, Plus, Upload, User } from "../../Icons";
 import { BookShell } from "@/components/book/BookShell";
 import { PageHead, TypeCards } from "@/components/book/TypeCards";
 import { askConfirm } from "../Dialogs";
@@ -31,7 +34,12 @@ type Info = {
 };
 type Draft = { handle: string; team: string; name: string; headline: string; photo_url: string; slug: string; hidden: Record<string, boolean>; mineLook: PageLook; teamLook: PageLook };
 type Which = "mine" | "team";
-type KitRow = { tokens: Record<string, unknown> | null; logo_url: string | null; source_url: string | null };
+type BrandRow = { id: string; name: string | null; source_url: string | null; logo_url: string | null; logo_svg: string | null; tokens: Record<string, unknown> | null; studio_css?: string | null };
+type PreviewStep = "page" | "meeting" | "details" | "done" | "move";
+
+/** A brand's logo as a picture address: its https logo, or its SVG drawn as a picture (no scripts run in one). */
+const logoOf = (k: Pick<BrandRow, "logo_url" | "logo_svg">): string | null =>
+  k.logo_url && /^https:\/\//.test(k.logo_url) ? k.logo_url : k.logo_svg && /^\s*<svg[\s>]/i.test(k.logo_svg) ? `data:image/svg+xml;utf8,${encodeURIComponent(k.logo_svg)}` : null;
 type SectionKey = "link" | "profile" | "shown" | "welcome" | "styling";
 
 const isMine = (t: TypeRow, me: string) => t.owner_user_id === me || (!t.owner_user_id && (t.kind === "one" || t.kind === "group") && t.hosts[0]?.user_id === me);
@@ -71,21 +79,25 @@ export function BookingPage(props: ViewProps) {
   const me = session.user.id;
   const owner = role === "owner";
   const people = usePeople(sb, ws.id);
-  // The page's settings, the plan and the brand kit with its stylesheet (112); the types come from the shared list
-  // (active ones, by name). The brand's look is on paid plans (src/lib/meetings/brandPage.ts).
+  // The page's settings, the plan and every imported brand with its stylesheet (112); the types come from the shared
+  // list (active ones, by name). The brand's look is on paid plans (src/lib/meetings/brandPage.ts).
   const page = useQuery(`booking_page:${ws.id}`, async () => {
-    const [info, kit, bill] = await Promise.all([
+    const cols = "id, name, source_url, logo_url, logo_svg, tokens";
+    const [info, w, kits, bill] = await Promise.all([
       meetingsApi<Info>(session, ws.id, "booking", { action: "load" }),
-      workspaceKit<KitRow>(sb, ws.id, "tokens, logo_url, source_url"),
+      sb.from("workspaces").select("brand_kit_id").eq("id", ws.id).maybeSingle(),
+      sb.from("brand_kits").select(`${cols}, studio_css`).eq("workspace_id", ws.id).order("created_at"),
       sb.from("workspace_billing").select("plan").eq("workspace_id", ws.id).maybeSingle(),
     ]);
-    const k = ((kit.data ?? []) as (KitRow & { id: string })[])[0] ?? null;
-    const css = k ? await sb.from("brand_kits").select("studio_css").eq("id", k.id).maybeSingle() : null;
-    const studio = css && !css.error ? ((css.data as { studio_css?: string | null } | null)?.studio_css ?? "") : "";
-    return { info, kit: k && k.tokens && Object.keys(k.tokens).length ? { ...k, studio_css: studio } : null, paid: brandPlan((bill.data as { plan?: string } | null)?.plan) };
+    // Before 112 there's no studio_css: the brands without their stylesheets.
+    const list = (kits.error ? ((await sb.from("brand_kits").select(cols).eq("workspace_id", ws.id).order("created_at")).data ?? []) : (kits.data ?? [])) as BrandRow[];
+    return { info, brands: list, home: (w.data as { brand_kit_id?: string | null } | null)?.brand_kit_id ?? null, paid: brandPlan((bill.data as { plan?: string } | null)?.plan) };
   });
-  const [readCss, setReadCss] = useState<string | null>(null);
+  // A look read in this visit, per brand, before the list is read again.
+  const [readCss, setReadCss] = useState<Record<string, string>>({});
   const [reading, setReading] = useState(false);
+  const [step, setStep] = useState<PreviewStep>("page");
+  const [now] = useState(() => Date.now());
   const allTypes = useMeetingTypes(sb, ws.id);
   const activeTypes = useMemo(() => (allTypes.data ? allTypes.data.filter((t) => t.active).sort((a, b) => a.name.localeCompare(b.name)) : null), [allTypes.data]);
   const data = useMemo(() => ({ data: page.data && activeTypes ? { ...page.data, types: activeTypes } : null, error: page.error || allTypes.error }), [page.data, page.error, activeTypes, allTypes.error]);
@@ -123,9 +135,13 @@ export function BookingPage(props: ViewProps) {
         {data.error ? null : <Loading />}
       </Page>
     );
-  const { info, types, kit, paid } = data.data;
+  const { info, types, brands, home, paid } = data.data;
+  // The page's brand: the one it picked, else the workspace's, else the oldest with a look (workspaceKit's order).
+  const withLook = brands.filter((b) => b.tokens && Object.keys(b.tokens).length);
   const set = (patch: Partial<Draft>) => setDraft((d) => (d ? { ...d, ...patch } : d));
   const look = which === "mine" ? draft.mineLook : draft.teamLook;
+  const kit = brands.find((b) => b.id === look.brand) ?? brands.find((b) => b.id === home) ?? withLook[0] ?? null;
+  const kitCss = kit ? (readCss[kit.id] ?? kit.studio_css ?? "") : "";
   const setLook = (patch: Partial<PageLook>) => set(which === "mine" ? { mineLook: { ...draft.mineLook, ...patch } } : { teamLook: { ...draft.teamLook, ...patch } });
   const list = ordered(
     types.filter((t) => (which === "mine" ? isMine(t, me) : isTeam(t))),
@@ -169,8 +185,8 @@ export function BookingPage(props: ViewProps) {
   const profiles: GuestProfile[] = (people.data?.list ?? []).map((p) => (p.id === me ? { user_id: p.id, slug: draft.slug, name: draft.name, headline: draft.headline, photo_url: draft.photo_url || null } : { user_id: p.id, slug: p.slug ?? "", name: p.name, headline: p.headline, photo_url: p.photo }));
   // On Free the page is Claritia's look with the badge, whatever was saved; paid plans get the brand's own stylesheet.
   const shown = paid ? look : { ...look, look: "claritia" as const, badge: true };
-  const shell = lookTokens(shown, kit?.tokens ?? null);
-  const brandCss = paid && kit && usesKit(shown, true) ? (readCss ?? kit.studio_css) : "";
+  const shell = lookTokens({ ...shown, accent: "emerald", buttons: undefined }, kit?.tokens ?? null);
+  const brandCss = paid && kit && usesKit(shown, true) ? kitCss : "";
   const sheet = brandCss ? bookBrandCss(brandCss) : null;
   const brand = sheet?.css ? sheet : undefined;
   const readLook = async () => {
@@ -184,7 +200,7 @@ export function BookingPage(props: ViewProps) {
         if (l.error) throw new Error(l.error);
         if (l.css) got = l.css;
       });
-      if (got) setReadCss(got);
+      if (got) setReadCss((m) => ({ ...m, [kit.id]: got }));
     } catch (e) {
       setError(errorText(e));
     } finally {
@@ -201,7 +217,7 @@ export function BookingPage(props: ViewProps) {
     }
   };
   const cards = visible.map((t) => ({ href: handle ? bookingUrl(origin, handle, t.slug) : "#", type: toGuestType(t, profiles, { pay: true }) }));
-  const preview =
+  const pageView =
     which === "mine" ? (
       <BookShell tokens={shell.tokens} vars={shell.vars} badge={shown.badge} brand={brand} narrow>
         <PageHead title={`Book time with ${draft.name.split(/\s+/)[0] || draft.name || "me"}`} line={draft.headline || draft.name} hosts={[{ name: draft.name || email, photo: draft.photo_url || null }]} big welcome={look.welcome} />
@@ -209,8 +225,40 @@ export function BookingPage(props: ViewProps) {
       </BookShell>
     ) : (
       <BookShell tokens={shell.tokens} vars={shell.vars} badge={shown.badge} brand={brand} narrow>
-        <PageHead title={ws.name} logo={usesKit(shown, !!kit) ? (kit?.logo_url ?? null) : null} welcome={look.welcome} />
+        <PageHead title={ws.name} logo={usesKit(shown, !!kit) && kit ? logoOf(kit) : null} welcome={look.welcome} />
         <TypeCards types={cards} />
+      </BookShell>
+    );
+  // The other steps, drawn by the real calendar with sample times: a meeting, the details, the thank-you, a reschedule.
+  const sampleType = visible[0] ?? list[0] ?? null;
+  const gt = sampleType ? toGuestType(sampleType, profiles, { pay: true }) : null;
+  const zone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+  const len = gt?.lengths[0] ?? 30;
+  const slots = gt ? sampleSlots(len, zone, now) : [];
+  const first = slots[0]?.start;
+  const preview =
+    step === "page" || !gt || first === undefined ? (
+      pageView
+    ) : (
+      // A reschedule opens on the guest's manage page, which has no corner ribbon (BookShell's narrow frame).
+      <BookShell tokens={shell.tokens} vars={shell.vars} badge={shown.badge} brand={brand} narrow={step === "move"}>
+        <Calendar
+          key={`${step}-${which}`}
+          type={gt}
+          load={async (l) => sampleSlots(l, zone, now)}
+          initialSlots={slots}
+          logo={usesKit(shown, !!kit) && kit ? logoOf(kit) : null}
+          preview={step === "details" ? { step: "details", time: first } : step === "done" ? { step: "done", time: first, done: { ok: true, start: first, end: first + len * 60_000, manage: "#", hosts: gt.hosts, confirmation: { kind: "message" } } } : {}}
+          move={step === "move" ? async () => ({ ok: true }) : undefined}
+          banner={
+            step === "move" ? (
+              <div className="cb-when" style={{ marginBottom: 16 }}>
+                <span className="cb-small cb-muted">Now</span>
+                <span style={{ textDecoration: "line-through", textDecorationColor: "var(--clr-muted)" }}>{new Date(slots[Math.min(3, slots.length - 1)]!.start).toLocaleString(undefined, { weekday: "long", month: "long", day: "numeric", hour: "numeric", minute: "2-digit" })}</span>
+              </div>
+            ) : undefined
+          }
+        />
       </BookShell>
     );
 
@@ -228,6 +276,21 @@ export function BookingPage(props: ViewProps) {
                 </a>
               </>
             ) : null}
+            <span className="ml-1">
+              <Segmented<PreviewStep>
+                size="sm"
+                label="Preview step"
+                value={gt ? step : "page"}
+                options={[
+                  { value: "page", label: "Page" },
+                  { value: "meeting", label: "Meeting", disabled: !gt },
+                  { value: "details", label: "Details", disabled: !gt },
+                  { value: "done", label: "Booked", disabled: !gt },
+                  { value: "move", label: "Reschedule", disabled: !gt },
+                ]}
+                onChange={setStep}
+              />
+            </span>
             <span className="ml-1">
               <IconSeg
                 label="Preview size"
@@ -324,18 +387,20 @@ export function BookingPage(props: ViewProps) {
             <PanelSection icon={<Message />} title="Welcome line" summary={look.welcome || "None"} open={open === "welcome"} onToggle={() => toggle("welcome")}>
               <Input value={look.welcome} disabled={!canEdit} maxLength={140} placeholder="Pick a time that works for you." onChange={(e) => setLook({ welcome: e.target.value })} className="h-[34px] text-[13px]" />
             </PanelSection>
-            <PanelSection icon={<Palette />} title="Styling" summary={lookWords(shown, !!kit)} open={open === "styling"} onToggle={() => toggle("styling")}>
+            <PanelSection icon={<Palette />} title="Styling" summary={lookWords(shown, !!kit, kit ? brandName(kit) : null)} open={open === "styling"} onToggle={() => toggle("styling")}>
               <Styling
-                kit={!!kit}
-                look={shown}
+                brands={withLook}
+                picked={usesKit(shown, !!kit) ? (kit?.id ?? null) : null}
+                badge={shown.badge}
                 paid={paid}
-                needsLook={!!kit?.source_url && !(readCss ?? kit.studio_css)}
+                needsLook={!!kit?.source_url && !kitCss}
                 reading={reading}
                 owner={owner}
                 disabled={!canEdit}
                 onChange={setLook}
                 onRead={() => void readLook()}
                 onUpgrade={() => void upgrade()}
+                onImport={() => props.navigate("settings", "brand")}
               />
             </PanelSection>
           </div>
@@ -477,44 +542,39 @@ async function squareJpeg(file: File, size: number): Promise<Blob> {
 }
 
 /**
- * Claritia's look or the brand kit, the accent, the buttons and the Booked with Claritia line. The brand's look and
- * hiding the line are on paid plans; a brand with no stylesheet yet has Read the look.
+ * Styling: Claritia's look or one of the brands imported in Form Studio (logo and name), Import a brand, and the
+ * Booked with Claritia line. A brand and hiding the line are on paid plans; a brand with no stylesheet yet has Read
+ * the look. The brand sets its own colors and corners, so there's nothing else to pick.
  */
-function Styling(p: { kit: boolean; look: PageLook; paid: boolean; needsLook: boolean; reading: boolean; owner: boolean; disabled: boolean; onChange: (p: Partial<PageLook>) => void; onRead: () => void; onUpgrade: () => void }) {
-  const { kit, look, paid, disabled, onChange } = p;
-  const swatches: { key: Accent; tone: string }[] = [
-    { key: "ink", tone: "bg-ink" },
-    { key: "emerald", tone: "bg-signal" },
-    { key: "sky", tone: "bg-sky" },
-    { key: "lilac", tone: "bg-lilac" },
-    { key: "rose", tone: "bg-rose" },
-    { key: "butter", tone: "bg-butter" },
-  ];
-  const onKit = usesKit(look, kit);
-  const buttons = look.buttons ?? (onKit ? "soft" : "round");
+function Styling(p: { brands: BrandRow[]; picked: string | null; badge: boolean; paid: boolean; needsLook: boolean; reading: boolean; owner: boolean; disabled: boolean; onChange: (p: Partial<PageLook>) => void; onRead: () => void; onUpgrade: () => void; onImport: () => void }) {
+  const { brands, picked, paid, disabled, onChange } = p;
+  const tile = (on: boolean) => `press relative flex min-h-[64px] items-center gap-2.5 rounded-[10px] border p-2.5 text-left disabled:cursor-default ${on ? "border-ink shadow-[0_0_0_1px_var(--color-ink)]" : "border-line hover:border-line-strong"}`;
   return (
     <>
       <div className="grid grid-cols-2 gap-2">
-        {[
-          { key: "claritia" as const, label: "Claritia", tone: "bg-ink", on: !onKit, off: false },
-          { key: "brand" as const, label: "Your brand kit", tone: "bg-sky", on: onKit, off: !kit || !paid },
-        ].map((c) => (
-          <button
-            key={c.key}
-            type="button"
-            disabled={disabled || c.off}
-            aria-pressed={c.on}
-            onClick={() => onChange({ look: c.key })}
-            className={`press flex flex-col gap-2 rounded-[10px] border p-2.5 text-left disabled:cursor-default ${c.on ? "border-ink shadow-[0_0_0_1px_var(--color-ink)]" : "border-line hover:border-line-strong"} ${c.off ? "opacity-50" : ""}`}
-          >
-            <span className="flex h-[54px] flex-col justify-center gap-[5px] rounded-sm border border-line bg-paper px-2.5">
-              <i className="block h-[5px] w-3/5 rounded-full bg-line-strong" />
-              <i className="block h-[5px] w-2/5 rounded-full bg-line-strong" />
-              <em className={`block h-3 w-11 rounded-full ${c.tone}`} />
-            </span>
-            <span className="text-[13px] font-medium text-ink">{c.label}</span>
-          </button>
-        ))}
+        <button type="button" disabled={disabled} aria-pressed={picked === null} onClick={() => onChange({ look: "claritia" })} className={tile(picked === null)}>
+          <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-ink text-paper">
+            <ClaritiaMark />
+          </span>
+          <span className="min-w-0 truncate text-[13px] font-medium text-ink">Claritia</span>
+        </button>
+        {brands.map((b) => {
+          const logo = logoOf(b);
+          const name = brandName(b);
+          return (
+            <button key={b.id} type="button" disabled={disabled || !paid} aria-pressed={picked === b.id} onClick={() => onChange({ look: "brand", brand: b.id })} className={`${tile(picked === b.id)} ${!paid ? "opacity-50" : ""}`}>
+              <span className="flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-md border border-line bg-card">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                {logo ? <img src={logo} alt="" className="max-h-6 max-w-6 object-contain" /> : <span className="text-[12px] font-semibold text-ink">{name.slice(0, 1).toUpperCase()}</span>}
+              </span>
+              <span className="min-w-0 truncate text-[13px] font-medium text-ink">{name}</span>
+            </button>
+          );
+        })}
+        <button type="button" disabled={disabled} onClick={p.onImport} className="press flex min-h-[64px] items-center justify-center gap-1.5 rounded-[10px] border border-dashed border-line-strong p-2.5 text-[13px] font-medium text-muted hover:border-ink/40 hover:text-ink">
+          <Plus size={13} />
+          Import a brand
+        </button>
       </div>
       {!paid ? (
         <span className="flex items-center justify-between gap-2">
@@ -525,45 +585,27 @@ function Styling(p: { kit: boolean; look: PageLook; paid: boolean; needsLook: bo
             </Button>
           ) : null}
         </span>
-      ) : onKit && p.needsLook ? (
+      ) : picked && p.needsLook ? (
         <Button variant="ghost" size="sm" className="h-[30px] self-start !border-line" disabled={disabled || p.reading} onClick={p.onRead}>
           <AiMark size={13} working={p.reading} />
           {p.reading ? "Reading the look" : "Read the look"}
         </Button>
       ) : null}
-      <Labeled label="Accent">
-        <div className="flex flex-wrap gap-2">
-          {swatches.map((s) => (
-            <button
-              key={s.key}
-              type="button"
-              disabled={disabled}
-              aria-label={`Accent ${s.key}`}
-              title={ACCENTS[s.key]}
-              aria-pressed={look.accent === s.key}
-              onClick={() => onChange({ accent: s.key })}
-              className={`press size-7 rounded-full border-2 border-card ${s.tone} ${look.accent === s.key ? "shadow-[0_0_0_2px_var(--color-ink)]" : "shadow-[0_0_0_1px_var(--color-line)]"}`}
-            />
-          ))}
-        </div>
-      </Labeled>
-      <Labeled label="Buttons">
-        <Segmented<"round" | "soft">
-          size="sm"
-          label="Buttons"
-          value={buttons}
-          options={[
-            { value: "round", label: "Round", disabled },
-            { value: "soft", label: "Soft corners", disabled },
-          ]}
-          onChange={(v) => !disabled && onChange({ buttons: v })}
-        />
-      </Labeled>
       <span className="flex items-center justify-between gap-2 text-[13px] text-ink">
         Show Booked with Claritia
-        <Toggle label="Show Booked with Claritia" on={look.badge} disabled={disabled || !paid} onChange={(badge) => onChange({ badge })} />
+        <Toggle label="Show Booked with Claritia" on={p.badge} disabled={disabled || !paid} onChange={(badge) => onChange({ badge })} />
       </span>
     </>
+  );
+}
+
+/** Claritia's corner-bracket mark, small, for the Claritia tile. */
+function ClaritiaMark() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 32 32" aria-hidden="true">
+      <path d="M7 12V7h5M20 7h5v5M25 20v5h-5M12 25H7v-5" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M11.5 16.5l3 3 6-7" fill="none" stroke="currentColor" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
   );
 }
 

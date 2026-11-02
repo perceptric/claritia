@@ -249,8 +249,8 @@ export function useMeetingScreen(props: ViewProps, id: string, layout: "page" | 
       </dl>
     </Panel>
   ) : null;
-  const history = (
-    <Panel className="anim-rise-sm self-start">
+  const history = !data.data.events.length ? null : (
+    <Panel className={`anim-rise-sm ${sheet ? "" : "self-start"}`}>
       <div className="flex h-11 items-center border-b border-line px-5 text-[13px] font-medium">History</div>
       <ol className="relative flex flex-col px-5 py-4">
         {data.data.events.map((e, i) => (

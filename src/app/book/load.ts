@@ -26,7 +26,7 @@ export const pageTarget = cache(async (ws: string, slug: string | null, form: st
 
 /** The page with its plan check and the brand's stylesheet (branded booking pages are on paid plans). */
 export async function withBrand(t: Target, form: string | null): Promise<Target> {
-  return { ...t, brand: await loadBookBrand(serviceClient(), t.ws.id, form) };
+  return { ...t, brand: await loadBookBrand(serviceClient(), t.ws.id, form, t.look.brand ?? null) };
 }
 
 export type Search = Promise<Record<string, string | string[] | undefined>>;

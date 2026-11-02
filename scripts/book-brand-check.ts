@@ -45,13 +45,27 @@ async function layout(where: string) {
   check(times.length > 1 && times.every((t) => t.left >= list.left - 1 && t.right <= list.right + 1), `${where}: every time fits the list`);
   check(times.every((t) => t.height <= 52), `${where}: times keep their height (${Math.round(times[0]?.height ?? 0)}px)`);
   await page.locator(".cb-tlist > .cb-time").first().click();
-  await page.locator(".cb-tpair .cb-btn").waitFor();
-  await page.waitForTimeout(150);
-  const pair = await box(".cb-tpair");
-  const t = await box(".cb-tpair .cb-time");
-  const b = await box(".cb-tpair .cb-btn");
-  check(Math.abs(t.top - b.top) < 2 && t.right <= b.left + 1 && b.right <= pair.right + 1, `${where}: the picked time and Next sit side by side inside the row`);
-  check(Math.abs(t.height - b.height) < 2 && b.height <= 52, `${where}: Next is the time's height (${Math.round(b.height)}px)`);
+  if (where === "phone") {
+    // On a phone, Next sits in a bar fixed to the bottom of the screen, in the brand's look.
+    await page.locator(".cb-phonebar .cb-btn").waitFor();
+    await page.waitForTimeout(300);
+    const bar = await box(".cb-phonebar");
+    const vh = await page.evaluate(() => window.innerHeight);
+    check(Math.abs(bar.bottom - vh) < 2 && bar.left === 0, `phone: Next sits in a bar at the bottom of the screen (${Math.round(bar.bottom)} of ${vh})`);
+    check((await page.locator(".cb-tpair .cb-btn").count()) === 0, "phone: no second Next beside the time");
+    check((await style(".cb-phonebar .cb-btn", "background-color")) === "rgb(26, 86, 219)", "phone: the bar's Next takes the brand's .btn");
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await page.waitForTimeout(100);
+    check(Math.abs((await box(".cb-phonebar")).bottom - vh) < 2, "phone: the bar stays at the bottom while the page scrolls");
+  } else {
+    await page.locator(".cb-tpair .cb-btn").waitFor();
+    await page.waitForTimeout(150);
+    const pair = await box(".cb-tpair");
+    const t = await box(".cb-tpair .cb-time");
+    const b = await box(".cb-tpair .cb-btn");
+    check(Math.abs(t.top - b.top) < 2 && t.right <= b.left + 1 && b.right <= pair.right + 1, `${where}: the picked time and Next sit side by side inside the row`);
+    check(Math.abs(t.height - b.height) < 2 && b.height <= 52, `${where}: Next is the time's height (${Math.round(b.height)}px)`);
+  }
   check(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), `${where}: no sideways scroll`);
   if (process.env.SHOTS) await page.screenshot({ path: `${process.env.SHOTS}/${where}.png` });
 }
@@ -78,7 +92,7 @@ try {
   const input = await box(".cb-in");
   check(input.right <= form.right + 1, "inputs stay inside the form");
 
-  await page.setViewportSize({ width: 390, height: 900 });
+  await page.setViewportSize({ width: 390, height: 760 });
   await page.goto(base);
   await page.locator(".cb-day.cb-has").first().waitFor();
   await layout("phone");
