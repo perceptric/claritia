@@ -92,7 +92,8 @@ export function Builder(p: BuilderProps) {
   const askedSkin = useRef(new Set<string>());
   const { kit, reloadKits, session, ws } = p;
   useEffect(() => {
-    if (!kit || !kit.source_url || kit.skin || askedSkin.current.has(kit.id)) return;
+    // A measured look (from the runner's browser read) stays; a page-source one asks the runner again once.
+    if (!kit || !kit.source_url || (kit.skin && (kit.skin as { via?: string }).via !== "source") || askedSkin.current.has(kit.id)) return;
     askedSkin.current.add(kit.id);
     postJson(session, "/api/forms/skin", { workspaceId: ws.id, kitId: kit.id }).then(reloadKits, () => undefined);
   }, [kit, reloadKits, session, ws.id]);

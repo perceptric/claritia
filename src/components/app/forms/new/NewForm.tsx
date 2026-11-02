@@ -8,7 +8,7 @@
 //   4. Submission: contacts, the CRM, a team alert, the spam guard and the consent box.
 //   5. End: a thank-you, a page or a meeting. Then Create form, or Publish.
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Tokens } from "@/lib/forms/brand";
 import { baseForm, defaultSubmission, PAGE_URL, planLayout, type End, type Submission } from "@/lib/forms/newForm";
 import { layoutOf, placeholderSpec, questionCount, toForm, toOnePage, toSteps, type Spec } from "@/lib/forms/spec";
@@ -116,30 +116,50 @@ export function NewForm({ sb, session, ws, navigate, site, kits: start, onClose,
   const accent = (tokens.buttonBg || tokens.accent || "") as string;
   const siteUrl = kit ? (kit.source_url ?? "") : style === "learn" ? url.trim() : "";
   const known = style === "learn" && hostOf(url) ? kits.find((k) => hostOf(k.source_url) === hostOf(url) && (hasLook(k) || k.scan_status === "scanning")) : undefined;
-  // The site's look, copied from its page source (/api/forms/skin) once a brand with a site is picked and has none.
+  // The site's look (/api/forms/skin): the page-source copy at once, and the browser's measured read on its way. Asked
+  // once per brand while New form is open, or again with Try again or Copy again.
+  type Look = { state: "copying" | "done" | "error"; error?: string; measuring?: boolean };
+  const [looks, setLooks] = useState<Record<string, Look>>({});
   const asked = useRef(new Set<string>());
-  const [failed, setFailed] = useState<string[]>([]);
-  const needsSkin = !!kit && !!kit.source_url && !kit.skin && !failed.includes(kit.id);
+  const measuredSkin = (k: KitLite | null) => !!k?.skin && (k.skin as { via?: string }).via !== "source";
+  const copyLook = useCallback(
+    (id: string, fresh = false) => {
+      asked.current.add(id);
+      setLooks((l) => ({ ...l, [id]: { state: "copying", measuring: l[id]?.measuring } }));
+      fetch("/api/forms/skin", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` }, body: JSON.stringify({ workspaceId: ws.id, kitId: id, ...(fresh ? { fresh: true } : {}) }) })
+        .then(async (res) => {
+          const r = (await res.json().catch(() => ({}))) as { skin?: unknown; measuring?: boolean; error?: string };
+          if (r.skin) setKits((ks) => ks.map((k) => (k.id === id ? { ...k, skin: r.skin } : k)));
+          setLooks((l) => ({ ...l, [id]: r.skin ? { state: "done", measuring: !!r.measuring } : { state: "error", error: r.error ?? "Couldn't copy that site's look.", measuring: !!r.measuring } }));
+        })
+        .catch(() => setLooks((l) => ({ ...l, [id]: { state: "error", error: "Couldn't reach Claritia. Try again." } })));
+    },
+    [session.access_token, ws.id],
+  );
+  const kitId = kit?.id;
+  const kitSite = kit?.source_url;
+  const kitMeasured = measuredSkin(kit);
   useEffect(() => {
-    if (!kit || !kit.source_url || kit.skin || asked.current.has(kit.id)) return;
-    const id = kit.id;
-    asked.current.add(id);
-    postJson<{ skin: unknown }>(session, "/api/forms/skin", { workspaceId: ws.id, kitId: id }).then(
-      (r) => (r.skin ? setKits((ks) => ks.map((k) => (k.id === id ? { ...k, skin: r.skin } : k))) : setFailed((f) => [...f, id])),
-      () => setFailed((f) => [...f, id]),
-    );
-  }, [kit, session, ws.id]);
-  const brandLoading = learning || (!!kit && (kit.scan_status === "scanning" || !hasLook(kit) || needsSkin));
+    if (!kitId || !kitSite || kitMeasured || asked.current.has(kitId)) return;
+    copyLook(kitId);
+  }, [kitId, kitSite, kitMeasured, copyLook]);
+  const look = kit ? looks[kit.id] : undefined;
+  const brandLoading = learning || (!!kit && (!hasLook(kit) || (look?.state === "copying" && !kit.skin)));
 
-  // While a brand is being read, check back so the preview takes it as soon as it's ready (the skin comes a little after).
-  const waiting = !!kit && (kit.scan_status === "scanning" || !hasLook(kit) || !kit.skin);
+  // While a brand is being read or measured, check back so the preview takes it as soon as it lands: the quick look,
+  // then the browser's measured look over the page-source one.
+  const waiting = !!kit && (!hasLook(kit) || (!kitMeasured && (kit.scan_status === "scanning" || !!look?.measuring)));
   useEffect(() => {
     if (!kit || !waiting) return;
     let n = 0;
     const t = setInterval(async () => {
       if (++n > 60) return clearInterval(t);
       const { data } = await sb.from("brand_kits").select("*").eq("id", kit.id).maybeSingle();
-      if (data) setKits((ks) => ks.map((k) => (k.id === kit.id ? (data as KitLite) : k)));
+      if (!data) return;
+      const row = data as KitLite;
+      // A page-source look in hand stays until a measured one replaces it.
+      setKits((ks) => ks.map((k) => (k.id === kit.id ? { ...row, skin: row.skin ?? k.skin } : k)));
+      if (row.scan_status !== "scanning") setLooks((l) => (l[kit.id]?.measuring ? { ...l, [kit.id]: { ...l[kit.id]!, measuring: false } } : l));
     }, 3000);
     return () => clearInterval(t);
   }, [sb, kit, waiting]);
@@ -332,7 +352,31 @@ export function NewForm({ sb, session, ws, navigate, site, kits: start, onClose,
                       .map((c) => (
                         <span key={c} className="size-[14px] rounded-full border border-line" style={{ background: c }} title={c} />
                       ))}
+                    {kit.source_url ? (
+                      <button type="button" className={IB} aria-label="Copy the look again" title="Copy the look again" disabled={look?.state === "copying"} onClick={() => copyLook(kit.id, true)}>
+                        <Ic n="undo" />
+                      </button>
+                    ) : null}
                   </div>
+                ) : null}
+                {kit && look?.state === "copying" ? (
+                  <span role="status" className="flex items-center gap-[6px] text-[12.5px] text-muted">
+                    <AiMark size={12} working />
+                    {`Copying ${hostOf(kit.source_url) || "the site"}'s look`}
+                  </span>
+                ) : kit && !kitMeasured && (look?.measuring || kit.scan_status === "scanning") ? (
+                  <span role="status" className="flex items-center gap-[6px] text-[12.5px] text-muted">
+                    <AiMark size={12} working />
+                    Measuring the site in a browser
+                  </span>
+                ) : null}
+                {kit && look?.state === "error" ? (
+                  <span role="alert" className="flex items-center gap-[8px] text-[12.5px] text-rose">
+                    {look.error}
+                    <button type="button" className={GHOST_SM} onClick={() => copyLook(kit.id)}>
+                      Try again
+                    </button>
+                  </span>
                 ) : null}
                 {style === "learn" ? (
                   <form
@@ -579,7 +623,7 @@ export function NewForm({ sb, session, ws, navigate, site, kits: start, onClose,
         <div className="relative flex min-h-0 flex-1 items-start justify-center overflow-y-auto px-[16px] py-[28px]">
           {brandLoading && stage === "describe" ? (
             <div className="self-center">
-              <Throbber color={accent} label={learning ? "Reading the website's brand" : needsSkin ? `Copying ${hostOf(kit?.source_url) || "the site"}'s look` : "Getting the brand"} />
+              <Throbber color={accent} label={learning ? "Reading the website's brand" : look?.state === "copying" ? `Copying ${hostOf(kit?.source_url) || "the site"}'s look` : "Getting the brand"} />
             </div>
           ) : stage === "planning" ? (
             <div className="self-center">

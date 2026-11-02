@@ -62,8 +62,11 @@ try {
   await page.getByRole("button", { name: "Learn" }).click();
   await page.waitForTimeout(200);
   check((await calls()).some((c) => c.path === "/api/forms/scan"), "Styling: Learn reads the website's brand");
-  await page.waitForFunction(() => (window as unknown as { calls: { path: string }[] }).calls.some((c) => c.path === "/api/forms/skin"), null, { timeout: 5000 });
-  check(true, "Styling: the site's look is copied from its page source");
+  await page.getByRole("alert").filter({ hasText: "Couldn't copy that site's look" }).waitFor({ timeout: 5000 });
+  check(true, "flaky case: a failed copy says so, with Try again");
+  await page.getByRole("button", { name: "Try again" }).click();
+  await page.waitForFunction(() => (window as unknown as { calls: { path: string }[] }).calls.filter((c) => c.path === "/api/forms/skin").length === 2, null, { timeout: 5000 });
+  check(true, "Styling: Try again copies the site's look");
   await page.waitForTimeout(500);
   const skinned = await page.evaluate(() => document.querySelector("claritia-form")?.shadowRoot?.querySelector("style")?.textContent?.includes("box-shadow:0 4px 0 #b84d0a") ?? false);
   check(skinned, "the preview wears the copied look");
