@@ -35,6 +35,14 @@ const SCRIPT_BASE = (() => {
   }
 })();
 
+/** The popover button's icons (stroke drawings, colored by the button's text color). */
+const LC_ICONS: Record<string, string> = {
+  chat: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/></svg>',
+  calendar: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>',
+  form: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/></svg>',
+  close: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>',
+};
+
 const STYLES = `
 :host{all:initial;display:block;container-type:inline-size;font-family:var(--clr-font);font-size:var(--clr-size);color:var(--clr-text);line-height:1.45}
 *{box-sizing:border-box;font:inherit;color:inherit}
@@ -44,11 +52,32 @@ const STYLES = `
 .nt{font-size:.85em}
 .sr{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
 .pop{position:fixed;inset:0;z-index:2147483646;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;padding:16px;overflow:auto}
-.pop[hidden]{display:none}
+.pop[hidden]{display:none!important}
 .pop.sl{inset:auto 16px 16px auto;background:none;padding:0;width:min(420px,calc(100vw - 32px));max-height:calc(100vh - 32px);display:block;overflow:visible}
 .pop.sl .pbox{box-shadow:0 16px 40px rgba(0,0,0,.18);border-radius:12px}
 .pbox{position:relative;background:var(--clr-bg);padding:28px;max-width:calc(var(--clr-width,480px) + 56px);width:100%;max-height:calc(100vh - 32px);overflow:auto}
 .px{position:absolute;top:8px;right:8px;width:32px;height:32px;border:0;background:transparent;cursor:pointer;font-size:20px;line-height:1;color:var(--clr-muted)}
+:host([full]){display:flex;min-height:100vh;min-height:100dvh;align-items:center;justify-content:center;padding:24px;background:var(--clr-bg)}
+:host([full]) .f{width:100%}
+.pop.sz-s .pbox{max-width:400px}.pop.sz-m .pbox{max-width:560px}.pop.sz-l .pbox{max-width:760px}
+.pop.sd{background:rgba(0,0,0,.35);padding:0;justify-content:flex-end;align-items:stretch}
+.pop.sd.lf{justify-content:flex-start}
+.pop.sd .pbox{max-width:min(520px,100vw);height:100%;max-height:none;border-radius:0;animation:clr-in-r .32s cubic-bezier(.22,1,.36,1)}
+.pop.sd.lf .pbox{animation-name:clr-in-l}
+.pop.pv{inset:auto 20px 88px auto;background:none;padding:0;display:block;width:min(380px,calc(100vw - 40px));overflow:visible}
+.pop.pv .pbox{border-radius:16px;box-shadow:0 16px 40px rgba(0,0,0,.2);max-height:min(620px,calc(100vh - 120px));padding:24px;animation:clr-up .2s cubic-bezier(.22,1,.36,1)}
+.lc{all:initial;position:fixed;z-index:2147483645;cursor:pointer;font-family:var(--clr-font);background:var(--clr-btn-bg,var(--clr-accent));color:var(--clr-btn-text,#fff);display:flex;align-items:center;justify-content:center;box-shadow:0 8px 24px rgba(0,0,0,.18)}
+.lc:focus-visible{outline:2px solid var(--clr-accent);outline-offset:3px}
+.lc.fab{right:20px;bottom:20px;width:56px;height:56px;border-radius:999px}
+.lc.fab svg{width:24px;height:24px}
+.lc.fab img{width:30px;height:30px;border-radius:6px;object-fit:contain}
+.lc .nb{position:absolute;right:66px;bottom:10px;white-space:nowrap;background:var(--clr-bg);color:var(--clr-text);font-size:13px;padding:8px 12px;border-radius:999px;box-shadow:0 6px 20px rgba(0,0,0,.14)}
+.lc.tab{right:0;top:50%;transform:translateY(-50%);writing-mode:vertical-rl;padding:16px 10px;border-radius:8px 0 0 8px;font-size:14px;font-weight:600}
+@keyframes clr-in-r{from{transform:translateX(100%)}}
+@keyframes clr-in-l{from{transform:translateX(-100%)}}
+@keyframes clr-up{from{transform:translateY(12px);opacity:0}}
+@media (max-width:640px){.pop.mf,.pop.mf.sl,.pop.mf.pv{inset:0;padding:0;width:auto}.pop.mf .pbox{max-width:none;width:100%;height:100%;max-height:none;border-radius:0}.lc .nb{display:none}}
+@media (prefers-reduced-motion:reduce){.pop .pbox{animation:none!important}}
 .pg{display:flex;flex-direction:column;gap:8px}
 .st{margin:0;font-size:.85em;color:var(--clr-muted)}
 .pb{height:4px;border-radius:4px;overflow:hidden;background:color-mix(in srgb,var(--clr-muted) 22%,transparent)}
@@ -628,7 +657,7 @@ export class ClaritiaForm extends Base {
   private bkZone = false;
   private bkBusy = false;
   private overPage = false;
-  /** Field ids hidden because enrichment already knows them (fill before submit), and the email they're for. */
+  /** Field ids hidden as already known (none since fill before submit was removed). */
   private known = new Set<string>();
   /** Past the cover screen; the step last drawn (a new one slides in); the server's result after the send. */
   private covered = false;
@@ -939,7 +968,8 @@ export class ClaritiaForm extends Base {
       });
       const run = runPage(wrap, (v) => void this.pageSend(form, v));
       this.pg = { wrap, run, blocks };
-      this.root.replaceChildren(st, wrap);
+      // In the page, or over it (a popup, a slider, a popover or a side tab), like every form.
+      this.put(st, wrap);
     }
     const { wrap, run, blocks } = this.pg;
     // Drawn again each time, so an upload, an error or a picked day shows; the brand's classes style them.
@@ -1175,31 +1205,70 @@ export class ClaritiaForm extends Base {
   }
 
   /**
-   * <claritia-form popup="click|delay:5|exit">: the form opens over the page from any [data-claritia-open] button for
-   * it, after a number of seconds, or when the pointer leaves the top of the window (once a visit).
+   * Over the page instead of in it (src/components/app/forms/Share.tsx writes these):
+   *   popup="click|delay:5|exit"   opens from any [data-claritia-open] button for it, after a number of seconds, or
+   *                                when the pointer leaves the top of the window (once a visit); size="s|m|l"
+   *   slide                        a panel in the corner, no shade behind it
+   *   slider="left|right"          full height from that side
+   *   popover                      a round button in the corner opens a small form above it; icon="chat|calendar|
+   *                                form|logo", note="Questions?"
+   *   side-tab="Contact us"        a tab on the right edge opens it from the right
+   * On a phone each fills the screen, unless mobile="keep". `full` (no popup) fills the page.
    */
   private opened = false;
+  private get floating() {
+    return ["popup", "popover", "slider", "side-tab"].some((a) => this.hasAttribute(a));
+  }
   private put(...nodes: Node[]) {
-    if (!this.hasAttribute("popup") || this.isPreview) return this.root.replaceChildren(...nodes);
+    if (!this.floating || this.isPreview) return this.root.replaceChildren(...nodes);
     const style = nodes.find((n) => n instanceof HTMLStyleElement);
     const close = el("button", { type: "button", class: "px", "aria-label": "Close", text: "×" });
     close.addEventListener("click", () => this.toggle(false));
     const box = el("div", { class: "pbox", role: "dialog", "aria-modal": "true" }, close, ...nodes.filter((n) => n !== style));
-    // slide: a panel in the corner over the page, with no shade behind it.
-    const pop = el("div", { class: this.hasAttribute("slide") ? "pop sl" : "pop", ...(this.opened ? {} : { hidden: true }) }, box);
+    const side = this.getAttribute("slider");
+    const kind = this.hasAttribute("popover") ? "pv" : side !== null || this.hasAttribute("side-tab") ? `sd${side === "left" ? " lf" : ""}` : this.hasAttribute("slide") ? "sl" : "";
+    const size = /^[sml]$/.test(this.getAttribute("size") ?? "") ? ` sz-${this.getAttribute("size")}` : "";
+    const phone = this.getAttribute("mobile") === "keep" ? "" : " mf";
+    const pop = el("div", { class: `pop${kind ? ` ${kind}` : ""}${size}${phone}`, ...(this.opened ? {} : { hidden: true }) }, box);
     pop.addEventListener("click", (e) => e.target === pop && this.toggle(false));
-    this.root.replaceChildren(...(style ? [style] : []), pop);
+    this.root.replaceChildren(...(style ? [style] : []), pop, ...this.launcher());
   }
+  /** The popover's round button or the side tab: always on the page, opening and closing the form. */
+  private launcher(): HTMLElement[] {
+    const tab = this.getAttribute("side-tab");
+    if (tab !== null) {
+      const b = el("button", { type: "button", class: "lc tab", "aria-expanded": String(this.opened), text: tab.trim().slice(0, 40) || "Contact us" });
+      b.addEventListener("click", () => this.toggle(!this.opened));
+      return [b];
+    }
+    if (!this.hasAttribute("popover")) return [];
+    const icon = this.getAttribute("icon") ?? "chat";
+    const logo = icon === "logo" ? this.data?.logo_url : null;
+    const b = el("button", { type: "button", class: "lc fab", "aria-label": this.opened ? "Close" : this.getAttribute("note") || "Open the form", "aria-expanded": String(this.opened) });
+    if (this.opened) b.innerHTML = LC_ICONS.close;
+    else if (logo && /^https:\/\//.test(logo)) b.append(el("img", { src: logo, alt: "" }));
+    else b.innerHTML = LC_ICONS[icon] ?? LC_ICONS.chat;
+    const note = this.getAttribute("note");
+    if (note && !this.opened) b.append(el("span", { class: "nb", text: note.slice(0, 60) }));
+    b.addEventListener("click", () => this.toggle(!this.opened));
+    return [b];
+  }
+  /** What had focus when it opened (the site's button), to go back to on close. */
+  private opener: HTMLElement | null = null;
   private toggle(open: boolean) {
     if (!open && this.overPage) return this.remove();
+    if (open && !this.opened) this.opener = document.activeElement instanceof HTMLElement && document.activeElement !== this ? document.activeElement : null;
     this.opened = open;
     const pop = this.root.querySelector(".pop") as HTMLElement | null;
     if (pop) pop.hidden = !open;
-    if (open) (this.root.querySelector(".in, .bx, input, button:not(.px)") as HTMLElement | null)?.focus();
+    const lc = this.root.querySelector(".lc");
+    if (lc) lc.replaceWith(...this.launcher());
+    if (open) (this.root.querySelector(".pbox .in, .pbox .bx, .pbox input, .pbox button:not(.px)") as HTMLElement | null)?.focus();
+    else ((this.root.querySelector(".lc") as HTMLElement | null) ?? this.opener)?.focus();
   }
   private popupWired = false;
   private wirePopup() {
-    if (this.popupWired || !this.hasAttribute("popup") || this.isPreview) return;
+    if (this.popupWired || !this.floating || this.isPreview) return;
     this.popupWired = true;
     const how = this.getAttribute("popup") || "click";
     const id = this.getAttribute("form-id");

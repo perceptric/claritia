@@ -16,6 +16,7 @@ import { ToolIntro } from "../ToolIntro";
 import { Badge, Button, ErrorNote, errorText, invalidate, Loading, must, Page, Toggle, useQuery, type ViewProps } from "../ui";
 import { bookedBy } from "./hosts";
 import { LinkDialog } from "../meetings/LinkDialog";
+import { ShareMeeting } from "./ShareMeeting";
 import { AvatarStack, copyText, meetingsApi, Modal, ownZone, usePeople, useWorkspaceSlug } from "../meetings/parts";
 import { ShareMenu } from "../meetings/Share";
 import { DEFAULT_SETTINGS } from "@/lib/meetings/types";
@@ -92,6 +93,7 @@ export function TypesPage(props: ViewProps & { open: string }) {
   const data = { data: list.data && extra.data ? { ...extra.data, types: list.data } : null, error: list.error || extra.error };
   const [error, setError] = useState("");
   const [linkFor, setLinkFor] = useState<string | null>(null);
+  const [shareFor, setShareFor] = useState<string | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
 
   const types = data.data?.types;
@@ -221,6 +223,9 @@ export function TypesPage(props: ViewProps & { open: string }) {
           </div>
         </Modal>
       ) : null}
+      {shareFor && slug.data && types?.some((t) => t.id === shareFor) ? (
+        <ShareMeeting session={session} ws={ws} type={types.find((t) => t.id === shareFor)!} wsSlug={slug.data} onClose={() => setShareFor(null)} onSingleUse={() => (setLinkFor(shareFor), setShareFor(null))} />
+      ) : null}
       {linkFor ? <LinkDialog sb={sb} session={session} ws={ws} types={(types ?? []).map((t) => ({ ...t, lengths: t.settings.lengths }))} initialType={linkFor} onClose={() => setLinkFor(null)} /> : null}
       <div className="relative h-full min-h-0 overflow-hidden">
         <div className={`h-full overflow-y-auto transition-[padding] duration-[320ms] ease-out ${panel ? "md:pr-[400px]" : ""}`}>
@@ -249,6 +254,7 @@ export function TypesPage(props: ViewProps & { open: string }) {
                         <span className="relative z-10 -mt-1.5 -mr-2">
                           <MoreMenu
                             items={[
+                              url ? { label: "Share", run: () => setShareFor(t.id) } : null,
                               url ? { label: copied === t.id ? "Copied" : "Copy link", run: () => void copyText(url).then((ok) => ok && flash(t.id)) } : null,
                               url ? { label: "Open booking page", run: () => window.open(url, "_blank", "noopener") } : null,
                               { label: "New single-use link", run: () => setLinkFor(t.id) },

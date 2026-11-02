@@ -100,6 +100,8 @@ input, textarea { user-select: text; -webkit-user-select: text; }
 .grp .ib[aria-selected="true"], .grp .ib[aria-pressed="true"], .ib.on { background: var(--bg); color: var(--ink); box-shadow: 0 0 0 1px var(--line), 0 1px 2px rgb(10 10 10 / .06); }
 .spacer { flex: 1; }
 .vsep { width: 1px; height: 20px; background: var(--line); margin: 0 4px; }
+.sharebtn { height: 32px; padding: 0 14px; border-radius: 999px; border: 1px solid var(--line-strong); background: var(--bg); color: var(--ink); font-weight: 500; flex: none; white-space: nowrap; }
+.sharebtn:hover { border-color: var(--ink); }
 .publish { height: 32px; padding: 0 16px; border-radius: 999px; border: 0; background: var(--ink); color: var(--bg); font-weight: 500; flex: none; white-space: nowrap; }
 .publish.done { background: var(--signal-soft); color: var(--signal); }
 .langbtn { height: 30px; padding: 0 10px 0 8px; border-radius: 999px; border: 0; background: transparent; color: var(--muted); display: inline-flex; align-items: center; gap: 6px; font: 500 12px var(--sans); position: relative; flex: none; }
@@ -338,6 +340,7 @@ export const STUDIO_HTML = `
       <a class="ib tipleft" id="openBtn" data-tip="Open the live form" aria-label="Open the live form" target="_blank" rel="noopener" hidden>${SVG(P.open)}</a>
       <button class="checkbtn" id="checkBtn" aria-haspopup="menu" hidden></button>
       <span class="pubnote" id="pubNote"></span>
+      <button class="sharebtn" id="shareBtn" hidden>Share</button>
       <button class="publish" id="publish" disabled>Publish</button>
     </div>
     <div class="stepbar" id="stepBar" role="toolbar" aria-label="Steps" hidden></div>
@@ -404,6 +407,8 @@ export type StudioApi = {
   publish(p: { formId: string | null; name: string; html: string; css: string; brand: string; after: unknown; kitId: string; lang?: string; langs?: Record<string, string> }): Promise<{ formId: string; problem?: string }>;
   formUrl(id: string): string;
   openMeetings(): void;
+  /** The published form's Share tab: its link, the code for a website, and the rest. */
+  openShare(formId: string): void;
   /** One meeting type, open in its panel (Edit routing). */
   openMeeting(id: string): void;
   /** Keep the form as a draft without publishing, for what needs its id (Send to, Follow-ups). */
@@ -1446,8 +1451,10 @@ ${CAL_CSS}
     $("pubNote").title = S.pubMsg;
     const o = $("openBtn");
     o.hidden = !cur?.formId || cur.state === "new" || cur.state === "draft";
+    $("shareBtn").hidden = o.hidden;
     if (cur?.formId) o.href = api.formUrl(cur.formId);
   }
+  $("shareBtn").onclick = () => { if (cur?.formId) { save(true); api.openShare(cur.formId); } };
   $("publish").onclick = async () => {
     if (S.publishing || !built() || !brandOf(cur)) return;
     const now = [...checkStudioPage({ html: sourceHtml(), after: body().after, meetings: loaded ? MEETINGS : null, industry: brandOf(cur)?.profile?.industry ?? null, langs: body().langs }), ...layoutFound];

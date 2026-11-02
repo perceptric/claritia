@@ -1,13 +1,14 @@
 "use client";
 
-// Share (docs/forms-plan.md): three ways a form gets in front of people, on the left; the one picked on the right.
-// Link: the form's own page. On your website: in the page, a popup or a slide-in, the code for the site's builder and
-// the pages it was seen on. Your own form: keep the site's form, and Claritia reads each send.
+// Share (docs/sharing-plan.md): the ways a form gets in front of people, on the left; the one picked on the right.
+// Link: the form's own page. On your website: in the page, full page, popup, slider, popover or side tab, the code for
+// the site's builder and the pages it was seen on. Your own form: keep the site's form, and Claritia reads each send.
 
 import { useState } from "react";
 import type { Op } from "@/lib/forms/ops";
 import { allFields, type Form } from "@/lib/forms/schema";
 import { capturedForm } from "@/lib/forms/templates";
+import { formEmbedCode, overPage, PLATS, type FormEmbed, type FormMode, type Opens, type Plat } from "@/lib/share/embed";
 import { BrandLogo } from "../BrandLogo";
 import { Badge, ErrorNote, errorText, must, useQuery, type ViewProps } from "../ui";
 import { ago, daysAgo, saveName } from "./formModel";
@@ -19,17 +20,6 @@ import { Box, CARD, copyText, CROW, CSTACK, GHOST_SM, RowText, Seg, useNote, Tg 
 import type { FormRow, Kit } from "./shared";
 
 type Way = "link" | "embed" | "own";
-type Mode = "inline" | "popup" | "slide";
-type Plat = "webflow" | "wordpress" | "framer" | "squarespace" | "html";
-
-const PLATS: { v: Plat; l: string; domain?: string; how: string }[] = [
-  { v: "webflow", l: "Webflow", domain: "webflow.com", how: "In Webflow: add an Embed element where the form goes and paste." },
-  { v: "wordpress", l: "WordPress", domain: "wordpress.org", how: "In WordPress: add a Custom HTML block and paste." },
-  { v: "framer", l: "Framer", domain: "framer.com", how: "In Framer: Insert, Embed, then paste as HTML." },
-  { v: "squarespace", l: "Squarespace", domain: "squarespace.com", how: "In Squarespace: add a Code block and paste." },
-  { v: "html", l: "Any site", how: "Paste it where the form should show." },
-];
-
 export function Share(props: ViewProps & { form: Form; row: FormRow & { kind?: "built" | "captured" }; apply: (ops: Op | Op[], words?: string) => boolean; kit: Kit | null; site: string }) {
   const { form, row } = props;
   const [way, setWay] = useState<Way>(form.capture ? "own" : "embed");
@@ -114,59 +104,101 @@ function LinkPane({ form, row, apply }: Parameters<typeof Share>[0]) {
   );
 }
 
-function EmbedPane({ sb, form, row, kit }: Parameters<typeof Share>[0]) {
-  const accent = kit?.tokens.buttonBg || kit?.tokens.accent;
-  const [mode, setMode] = useState<Mode>("inline");
+/** The six ways on a site, each drawn as a small page with the form where it shows. */
+const MODES: { v: FormMode; l: string; draw: React.ReactNode }[] = [
+  { v: "inline", l: "In the page", draw: <i className="absolute top-[34%] right-[18%] bottom-[10%] left-[18%] rounded-[3px] bg-ink" /> },
+  { v: "full", l: "Full page", draw: <i className="absolute inset-[8%] rounded-[3px] bg-ink" /> },
+  { v: "popup", l: "Popup", draw: <><i className="absolute inset-0 bg-ink/15" /><i className="absolute top-[18%] right-[28%] bottom-[18%] left-[28%] rounded-[3px] bg-ink" /></> },
+  { v: "slider", l: "Slider", draw: <><i className="absolute inset-0 bg-ink/15" /><i className="absolute top-0 right-0 bottom-0 w-[38%] bg-ink" /></> },
+  { v: "popover", l: "Popover", draw: <><i className="absolute right-[8%] bottom-[34%] h-[46%] w-[34%] rounded-[3px] bg-ink" /><i className="absolute right-[8%] bottom-[8%] size-[16%] rounded-full bg-ink" /></> },
+  { v: "sidetab", l: "Side tab", draw: <i className="absolute top-[30%] right-0 h-[40%] w-[7%] rounded-l-[2px] bg-ink" /> },
+];
+
+function EmbedPane({ sb, form, row }: Parameters<typeof Share>[0]) {
+  const [o, setO] = useState<FormEmbed>({ mode: "inline", opens: "click", size: "m", side: "right", text: form.submit.label, icon: "chat", note: "", once: true, phoneFull: true });
+  const set = (p: Partial<FormEmbed>) => setO((x) => ({ ...x, ...p }));
   const [plat, setPlat] = useState<Plat>("webflow");
-  const [button, setButton] = useState(form.submit.label);
-  const [after, setAfter] = useState<"10" | "30" | "exit">("30");
-  const [once, setOnce] = useState(true);
   const note = useNote();
   const origin = typeof window === "undefined" ? "" : window.location.origin;
-  const script = `<script src="${origin}/forms/v1.js" async></script>`;
-  const code =
-    mode === "inline"
-      ? `${script}\n<claritia-form form-id="${row.id}"></claritia-form>`
-      : mode === "popup"
-        ? `${script}\n<claritia-form form-id="${row.id}" popup="click"${once ? " once" : ""}></claritia-form>\n<button data-claritia-open="${row.id}">${button.replace(/[<>&"]/g, "")}</button>`
-        : `${script}\n<claritia-form form-id="${row.id}" popup="${after === "exit" ? "exit" : `delay:${after}`}" slide${once ? " once" : ""}></claritia-form>`;
+  const code = formEmbedCode(origin, row.id, o);
   // The pages it was filled on, found by the database (form_seen_pages).
   const seen = useQuery(`form:${row.id}:seen`, async () => (must(await sb.rpc("form_seen_pages", { p_form: row.id, p_since: daysAgo(90) })) ?? []) as [string, { last: string; blocked: boolean }][]);
-  const cards: [Mode, string, string][] = [
-    ["inline", "In the page", "left-[10%] right-[10%] top-[22%] bottom-[22%]"],
-    ["popup", "Popup", "left-[28%] right-[28%] top-[16%] bottom-[16%]"],
-    ["slide", "Slide-in", "right-[6%] w-[34%] top-[36%] bottom-[8%]"],
-  ];
+  const opensOn = o.mode === "popup" || o.mode === "slider";
+  const textBox = (label: string, value: string, onChange: (v: string) => void, placeholder?: string) => (
+    <input value={value} onChange={(e) => onChange(e.target.value)} aria-label={label} placeholder={placeholder} maxLength={60} className="h-[30px] w-[200px] rounded-sm border border-line-strong bg-card px-[10px] text-[12.5px] text-ink outline-none focus:border-ink" />
+  );
   return (
     <>
       <H3>On your website</H3>
       <Sub>Paste it once. Changes you publish show up on its own.</Sub>
-      <div className="grid grid-cols-3 gap-[10px]">
-        {cards.map(([v, l, pos]) => (
-          <button key={v} type="button" aria-pressed={mode === v} onClick={() => setMode(v)} className={`flex flex-col gap-[8px] rounded-[10px] border p-[10px] text-left transition-colors duration-[120ms] ${mode === v ? "border-ink ring-1 ring-ink" : "border-line hover:border-line-strong"}`}>
+      <div className="grid grid-cols-3 gap-[10px] max-[560px]:grid-cols-2">
+        {MODES.map((m) => (
+          <button key={m.v} type="button" aria-pressed={o.mode === m.v} onClick={() => set({ mode: m.v })} className={`flex flex-col gap-[8px] rounded-[10px] border p-[10px] text-left transition-colors duration-[120ms] ${o.mode === m.v ? "border-ink ring-1 ring-ink" : "border-line hover:border-line-strong"}`}>
             <span aria-hidden="true" className="relative h-[64px] overflow-hidden rounded-[6px] border border-line bg-paper">
               <i className="absolute top-[12%] right-[10%] left-[10%] h-[6px] rounded-[3px] bg-line-strong" />
               <i className="absolute top-[calc(12%+12px)] right-[10%] left-[10%] h-[6px] rounded-[3px] bg-line" />
-              <i className={`absolute rounded-[4px] bg-ink opacity-85 shadow-[0_2px_8px_rgb(0_0_0/0.12)] ${pos}`} style={accent ? { background: accent } : undefined} />
+              <span className="absolute inset-0 opacity-85">{m.draw}</span>
             </span>
-            <b className="text-[12.5px] font-medium text-ink">{l}</b>
+            <b className="text-[12.5px] font-medium text-ink">{m.l}</b>
           </button>
         ))}
       </div>
-      {mode !== "inline" ? (
+      {o.mode !== "inline" && o.mode !== "full" ? (
         <div className={CARD}>
-          <div className={CROW}>
-            <RowText title={mode === "popup" ? "Opens when someone clicks" : "Slides in after"} />
-            {mode === "popup" ? (
-              <input value={button} onChange={(e) => setButton(e.target.value)} aria-label="Button text" className="h-[30px] w-[180px] rounded-sm border border-line-strong bg-card px-[10px] text-[12.5px] text-ink outline-none focus:border-ink" />
-            ) : (
-              <Seg label="Slides in after" value={after} onChange={setAfter} options={[{ value: "10", label: "10 s" }, { value: "30", label: "30 s" }, { value: "exit", label: "On exit" }]} />
-            )}
-          </div>
-          <div className={CROW}>
-            <RowText title="Don't show again to people who sent it" />
-            <Tg label="Don't show again to people who sent it" on={once} onChange={setOnce} />
-          </div>
+          {opensOn ? (
+            <div className={CROW}>
+              <RowText title="Opens" />
+              <Seg label="Opens" value={o.opens ?? "click"} onChange={(v: Opens) => set({ opens: v })} options={[{ value: "click", label: "On click" }, { value: "10", label: "After 10 s" }, { value: "30", label: "After 30 s" }, { value: "exit", label: "On exit" }]} />
+            </div>
+          ) : null}
+          {opensOn && o.opens === "click" ? (
+            <div className={CROW}>
+              <RowText title="Button text" />
+              {textBox("Button text", o.text ?? "", (text) => set({ text }))}
+            </div>
+          ) : null}
+          {o.mode === "popup" ? (
+            <div className={CROW}>
+              <RowText title="Size" />
+              <Seg label="Size" value={o.size ?? "m"} onChange={(size: "s" | "m" | "l") => set({ size })} options={[{ value: "s", label: "Small" }, { value: "m", label: "Medium" }, { value: "l", label: "Large" }]} />
+            </div>
+          ) : null}
+          {o.mode === "slider" ? (
+            <div className={CROW}>
+              <RowText title="From the" />
+              <Seg label="From the" value={o.side ?? "right"} onChange={(side: "left" | "right") => set({ side })} options={[{ value: "left", label: "Left" }, { value: "right", label: "Right" }]} />
+            </div>
+          ) : null}
+          {o.mode === "popover" ? (
+            <>
+              <div className={CROW}>
+                <RowText title="Icon" />
+                <Seg label="Icon" value={o.icon ?? "chat"} onChange={(icon: "chat" | "calendar" | "form" | "logo") => set({ icon })} options={[{ value: "chat", label: "Chat" }, { value: "calendar", label: "Calendar" }, { value: "form", label: "Form" }, { value: "logo", label: "Logo" }]} />
+              </div>
+              <div className={CROW}>
+                <RowText title="Note" />
+                {textBox("Note", o.note ?? "", (note) => set({ note }), "Questions?")}
+              </div>
+            </>
+          ) : null}
+          {o.mode === "sidetab" ? (
+            <div className={CROW}>
+              <RowText title="Tab text" />
+              {textBox("Tab text", o.text ?? "", (text) => set({ text }), "Contact us")}
+            </div>
+          ) : null}
+          {opensOn && o.opens !== "click" ? (
+            <div className={CROW}>
+              <RowText title="Don't show again to people who sent it" />
+              <Tg label="Don't show again to people who sent it" on={!!o.once} onChange={(once) => set({ once })} />
+            </div>
+          ) : null}
+          {overPage(o.mode) ? (
+            <div className={CROW}>
+              <RowText title="Full screen on phones" />
+              <Tg label="Full screen on phones" on={o.phoneFull !== false} onChange={(phoneFull) => set({ phoneFull })} />
+            </div>
+          ) : null}
         </div>
       ) : null}
       <div className="flex flex-wrap gap-[6px]">
@@ -178,7 +210,7 @@ function EmbedPane({ sb, form, row, kit }: Parameters<typeof Share>[0]) {
         ))}
       </div>
       <div className="relative">
-        <pre className="m-0 overflow-x-auto rounded-[10px] border border-line bg-paper px-[16px] py-[14px] pr-[96px] font-mono text-[12px] leading-[1.6] whitespace-pre text-body">{code}</pre>
+        <pre data-embed-code className="m-0 overflow-x-auto rounded-[10px] border border-line bg-paper px-[16px] py-[14px] pr-[96px] font-mono text-[12px] leading-[1.6] whitespace-pre text-body">{code}</pre>
         <button type="button" className={`${GHOST_SM} absolute top-[10px] right-[10px]`} onClick={() => void copyText(code).then((ok) => note.show(ok ? "Copied" : "Couldn't copy"))}>
           <Ic n="copy" />
           Copy
