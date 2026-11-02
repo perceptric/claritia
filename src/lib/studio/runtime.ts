@@ -53,11 +53,28 @@ const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export type PageRun = { done(): void; errors(byName: Record<string, string>): void; busy(on: boolean): void; alert(text: string): void };
 
+/** Errors are tied to their question and read out as they appear (docs/studio-v2-plan.md 6.4). */
+export function linkErrors(w: ParentNode) {
+  w.querySelectorAll<HTMLElement>("[data-cl-error-for]").forEach((e, i) => {
+    if (!e.id) e.id = `cl-err-${i}`;
+    e.setAttribute("aria-live", "polite");
+    w.querySelectorAll(`[name="${CSS.escape(e.getAttribute("data-cl-error-for")!)}"]`).forEach((x) => {
+      const d = x.getAttribute("aria-describedby") ?? "";
+      if (!d.split(" ").includes(e.id)) x.setAttribute("aria-describedby", `${d} ${e.id}`.trim());
+    });
+  });
+}
+
+/** Focus always shows, choice cards with hidden inputs too, and motion stops for people who ask for less. */
+export const ACCESS_CSS =
+  "@layer base{:where(input,button,select,textarea,a,summary):focus-visible{outline:2px solid currentColor;outline-offset:2px}label:has(input:focus-visible){outline:2px solid currentColor;outline-offset:2px}}@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important;scroll-behavior:auto!important}}";
+
 /** Run a page in `w`. `onSend` gets the answers once every shown question checks out. */
 export function runPage(w: HTMLElement, onSend: (v: Vals) => void): PageRun {
   const steps = [...w.querySelectorAll<HTMLElement>("[data-cl-step]")];
   const thanks = w.querySelector<HTMLElement>("[data-cl-thanks]");
   let at = 0;
+  linkErrors(w);
   let finished = false;
   const errFor = (n: string) => w.querySelector<HTMLElement>(`[data-cl-error-for="${CSS.escape(n)}"]`);
   const apply = () => {

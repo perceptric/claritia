@@ -4,6 +4,7 @@
 // Publish. Layout, contrast and fonts need a browser, so the Studio adds those (studio.ts, layoutIssues).
 // Runs in the browser and on the server: no DOM.
 
+import { languageName } from "./industries.ts";
 import { cleanPage, type PageAfter, type PageQuestion } from "./page.ts";
 
 export type Issue = { level: "error" | "warning"; code: string; text: string; fix?: string };
@@ -111,7 +112,7 @@ export function sensitiveIssues(questions: PageQuestion[], html: string): Issue[
  * step, a send button, conditions and routes that point at real questions, answers and meetings, a thank-you, and
  * nothing the form must never ask for. `meetings` is the workspace's meeting types (null when unknown).
  */
-export function checkStudioPage(p: { html: string; after: PageAfter; meetings: { id: string; name: string }[] | null; industry?: string | null }): Issue[] {
+export function checkStudioPage(p: { html: string; after: PageAfter; meetings: { id: string; name: string }[] | null; industry?: string | null; langs?: Record<string, string> }): Issue[] {
   const { html, questions } = cleanPage(p.html);
   const tree = pageTree(html);
   const out: Issue[] = [];
@@ -187,6 +188,15 @@ export function checkStudioPage(p: { html: string; after: PageAfter; meetings: {
     add("warning", "legal-notice", "Law firms usually say that sending the form doesn't make someone a client.", "Add a short line near the send button that sending the form doesn't make them a client or give legal advice.");
   if (p.industry === "education" && questions.some((q) => /\b(age|grade|year|date of birth)\b/i.test(q.label)) && !/(parent|guardian)/.test(words))
     add("warning", "parent", "Students may be under 13: ask for a parent or guardian's details.", "Add a parent or guardian name and email, shown when the student is under 13.");
+  // Each language is the same form in other words: the same questions, names and answers.
+  for (const [code, other] of Object.entries(p.langs ?? {})) {
+    const name = languageName(code);
+    const qs = cleanPage(other).questions;
+    const sig = (list: PageQuestion[]) => list.map((q) => `${q.name}:${q.type}:${q.options.map((o) => o.value).join("|")}`).sort().join(",");
+    if (sig(qs) !== sig(questions)) add("error", "lang-differs", `The ${name} version doesn't have the same questions and answers. Translate it again.`, `Translate the form into ${name} again, keeping every name and value.`);
+    else if (qs.some((q) => q.labelFrom === "name" && !["radio", "multi", "checkbox"].includes(q.type))) add("error", "lang-label", `A question in the ${name} version has no label.`);
+  }
+
   // One line per problem.
   const seen = new Set<string>();
   return out.filter((i) => (seen.has(i.text) ? false : (seen.add(i.text), true)));

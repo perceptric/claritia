@@ -193,18 +193,58 @@ try {
   await p.waitForFunction(() => !document.querySelector("#studio")!.shadowRoot!.getElementById("checkBtn")!.className.includes("err"));
   check(true, "undo brings the send button back and the problem clears");
 
+  // 7c. Languages: Tia writes the form in French and Arabic; each previews, Arabic right to left
+  await $("#t-preview").click();
+  check((await $("#langBtn").textContent())!.trim() === "EN", "the form's own language shows in the bar");
+  await $("#langBtn").click();
+  await $("#layer .menu .mi").filter({ hasText: "French" }).click();
+  await p.waitForFunction(() => document.querySelector("#studio")!.shadowRoot!.getElementById("langBtn")!.textContent!.trim() === "FR");
+  check((await form.locator("#title").textContent()) === "Comment était ta journée ?", "Tia writes the form in French and it previews");
+  await $("#langBtn").click();
+  await $("#layer .menu .mi").filter({ hasText: "Arabic" }).click();
+  await p.waitForFunction(() => document.querySelector("#studio")!.shadowRoot!.getElementById("langBtn")!.textContent!.trim() === "AR");
+  check((await form.locator(".cl-root").getAttribute("dir")) === "rtl", "Arabic shows right to left");
+  await p.waitForTimeout(900);
+  check(!(await $("#checkBtn").getAttribute("class"))!.includes("err"), "both languages pass the form check at all three widths");
+  await $("#langBtn").click();
+  await $("#layer .menu .mi").filter({ hasText: "the form's own" }).click();
+  check((await form.locator("#title").textContent()) === "How was today?", "back to the form's own language");
+
   // 8. Publish, then the live form in the form script
   await $("#t-preview").click();
   await $("#publish").click();
   await p.waitForFunction(() => document.querySelector("#studio")!.shadowRoot!.getElementById("publish")!.textContent === "Published");
   const pub = (await calls()).find((c) => c.mode === "publish")!.body as { html: string; css: string; brand: string; after: PageAfter; name: string };
   check(pub.name === "Daily check-in" && pub.html.includes("data-cl-step") && pub.brand.includes("--finch-mint"), "Publish sends the form's name, page and brand CSS");
+  check(Object.keys((pub as unknown as { langs: Record<string, string> }).langs).sort().join() === "ar,fr" && (pub as unknown as { lang: string }).lang === "en", "Publish sends the form's languages");
   check(!(await $("#openBtn").isHidden()), "a published form links to its page");
   await p.waitForFunction(() => Object.values((window as unknown as { saved: Record<string, { formId: string; state: string }> }).saved).some((c) => c.formId && c.state === "live"));
   check(true, "the chat keeps its published form");
-  const made = checkForm(pageForm(pub).form);
+  const made = checkForm(pageForm(pub as Parameters<typeof pageForm>[0]).form);
   check("form" in made, `the published page passes the form checker${"errors" in made ? `: ${made.errors.join("; ")}` : ""}`);
   live = "form" in made ? made.form : null;
+  // A French visitor gets French, with a switch; English keeps what was typed.
+  const fctx = await browser.newContext({ locale: "fr-FR", viewport: { width: 1100, height: 900 } });
+  const fp = await fctx.newPage();
+  fp.on("pageerror", (e) => errors.push(`live fr: ${e.message}`));
+  await fp.goto(`http://localhost:${port}/live`);
+  const ff = fp.locator("claritia-form");
+  await ff.locator("#title").waitFor();
+  check((await ff.locator("#title").textContent()) === "Comment était ta journée ?" && (await ff.locator(".cl-langs button").count()) === 3, "a French visitor gets the French form, with a language switch");
+  await ff.locator("#nm").fill("Camille");
+  await ff.locator(".cl-langs button").filter({ hasText: "English" }).click();
+  await ff.locator("#title").filter({ hasText: "How was today?" }).waitFor();
+  check((await ff.locator("#nm").inputValue()) === "Camille", "switching language keeps what was typed");
+  await ff.locator(".cl-langs button").filter({ hasText: "العربية" }).click();
+  check((await ff.locator(".cl-root").getAttribute("dir")) === "rtl", "the live form flips right to left in Arabic");
+  await ff.locator(".cl-langs button").filter({ hasText: "English" }).click();
+  await ff.locator("#nm").fill("");
+  await ff.locator("[data-cl-next]").click();
+  const desc = (await ff.locator("#nm").getAttribute("aria-describedby")) ?? "";
+  const errId = (await ff.locator('[data-cl-error-for="name"]').getAttribute("id")) ?? "-";
+  check(desc.includes(errId) && (await ff.locator('[data-cl-error-for="name"]').getAttribute("aria-live")) === "polite", "an error is tied to its question and read out");
+  await fctx.close();
+
   const lp = await browser.newPage({ viewport: { width: 1100, height: 900 } });
   lp.on("pageerror", (e) => errors.push(`live: ${e.message}`));
   await lp.goto(`http://localhost:${port}/live`);

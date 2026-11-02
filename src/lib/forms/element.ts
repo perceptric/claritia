@@ -15,7 +15,7 @@ import { calcText } from "./formula.ts";
 import { cleanHtml } from "./html.ts";
 import { allFields, isContent, nextStep, numOf, optionsFor, pickOutcome, safeUrl, visibility, withCalcs, type Choice, type Field, type FieldWidth, type Form, type RunCtx } from "./schema.ts";
 import { checkAnswers, OTHER, stepPath, type Answers } from "./values.ts";
-import { runPage, type PageRun, type Vals } from "../studio/runtime.ts";
+import { ACCESS_CSS, pageValues, runPage, type PageRun, type Vals } from "../studio/runtime.ts";
 
 /** regions: the region lists, sent with the form when a list follows a country field (src/lib/forms/regions.ts). */
 /** css: the design system's styles compiled for this form (src/lib/design/web.ts); it starts with the layer order. */
@@ -860,14 +860,57 @@ export class ClaritiaForm extends Base {
   // A studio page (docs/forms-chat-plan.md): the page's own HTML in the brand's CSS, drawn once and kept, so answers
   // stay put while the send and the booking draw again. The answers go by field id through the usual send.
   private pg: { wrap: HTMLElement; run: PageRun; blocks: { holder: HTMLElement; f: Field }[] } | null = null;
+  /** The page's language on screen: the visitor's own when the form has it, else the page's. */
+  private pgLang = "";
   private drawPage(form: Form, style: HTMLStyleElement) {
     const p = form.page!;
     if (!this.pg) {
       this.setAttribute("data-page", "");
       const css = `${p.brand}\n${p.css}`.replace(/@import\s+url\(\s*["']?([^"')]+)["']?\s*\)[^;\n]*;?|@import\s+["']([^"']+)["'][^;\n]*;?/gi, (_m, a?: string, b?: string) => (addFont((a || b || "").trim()), ""));
-      const st = el("style", { text: `${style.textContent}\n:host{display:block}.cl-root{min-height:inherit;display:flex;flex-direction:column}.cl-root>*{flex:1 0 auto}[hidden]{display:none!important}.cl-alert{color:#b23a26}\n${css.replace(/(^|[\s,{}])(?::root|html|body)(?=[\s,{:.[])/g, "$1:host")}` });
+      // The visitor's language, when the form has it (docs/studio-v2-plan.md 6.4).
+      const langs = [p.lang || "", ...Object.keys(p.langs ?? {})].filter(Boolean);
+      if (!this.pgLang) this.pgLang = (typeof navigator !== "undefined" ? navigator.languages ?? [] : []).map((l) => langs.find((x) => x === l || x.slice(0, 2) === l.slice(0, 2))).find(Boolean) ?? langs[0] ?? "";
+      const html = this.pgLang && p.langs?.[this.pgLang] ? p.langs[this.pgLang]! : p.html;
+      const st = el("style", { text: `${style.textContent}\n${ACCESS_CSS}.cl-langs{display:flex;justify-content:flex-end;gap:4px;padding:8px 12px}.cl-langs button{font:inherit;font-size:12px;border:1px solid rgba(127,127,127,.45);background:rgba(255,255,255,.9);color:#222;border-radius:999px;padding:5px 11px;cursor:pointer}.cl-langs button[aria-pressed=true]{background:#111;color:#fff;border-color:#111}\n:host{display:block}.cl-root{min-height:inherit;display:flex;flex-direction:column}.cl-root>*{flex:1 0 auto}[hidden]{display:none!important}.cl-alert{color:#b23a26}\n${css.replace(/(^|[\s,{}])(?::root|html|body)(?=[\s,{:.[])/g, "$1:host")}` });
       const wrap = el("div", { class: "cl-root" });
-      wrap.innerHTML = p.html;
+      wrap.innerHTML = html;
+      if (this.pgLang) {
+        wrap.setAttribute("lang", this.pgLang);
+        wrap.setAttribute("dir", /^(ar|he|fa|ur)/.test(this.pgLang) ? "rtl" : "ltr");
+      }
+      // A switch between the form's languages, keeping what's been answered.
+      if (langs.length > 1) {
+        const name = (c: string) => {
+          try {
+            const n = new Intl.DisplayNames([c], { type: "language" }).of(c) ?? c;
+            return n.charAt(0).toUpperCase() + n.slice(1);
+          } catch {
+            return c;
+          }
+        };
+        const sw = el("div", { class: "cl-langs", role: "group", "aria-label": "Language" });
+        for (const c of langs) {
+          const b = el("button", { type: "button", lang: c, "aria-pressed": c === this.pgLang ? "true" : "false", text: name(c) });
+          b.addEventListener("click", () => {
+            if (c === this.pgLang || !this.pg) return;
+            const kept = pageValues(this.pg.wrap);
+            this.pgLang = c;
+            this.pg = null;
+            this.render();
+            const w2 = this.pg ? (this.pg as { wrap: HTMLElement }).wrap : null;
+            if (!w2) return;
+            w2.querySelectorAll<HTMLInputElement>("input[name],textarea[name],select[name]").forEach((x) => {
+              const v = kept[x.name];
+              if (v === undefined) return;
+              if (x.type === "radio" || x.type === "checkbox") x.checked = (Array.isArray(v) ? v : [v]).includes(x.value === "on" ? "yes" : x.value);
+              else x.value = Array.isArray(v) ? (v[0] ?? "") : v;
+            });
+            w2.dispatchEvent(new Event("change"));
+          });
+          sw.append(b);
+        }
+        wrap.prepend(sw);
+      }
       const logo = this.data?.logo_url ?? "";
       const ok = /^https:\/\//.test(logo) ? !!safeUrl(logo) : /^data:image\/svg\+xml[;,]/.test(logo);
       wrap.querySelectorAll("img[data-cl-logo]").forEach((img) => (ok ? img.setAttribute("src", logo) : ((img as HTMLElement).hidden = true)));

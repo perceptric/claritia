@@ -14,7 +14,11 @@ signature, country) that Tia places with `data-cl-field` and the form script dra
 classes. Step 8 is built: industry recipes (`src/lib/studio/industries.ts`), read from the site with its language and
 country, kept on the brand (`supabase/migrations/113_brand_profile.sql`), changed with one click, sent to Tia, and
 used by the form check; the weekly 30-brand test (`scripts/studio-brands.ts`, `.github/workflows/studio-brands.yml`)
-runs when the `ANTHROPIC_API_KEY` secret is set. Step 9 is next.
+runs when the `ANTHROPIC_API_KEY` secret is set. Step 9 is built: Tia writes the form in other languages (the Languages
+button in the bar), each previews and passes the check, visitors get their own language with a switch on the form,
+right-to-left languages flip, contact answers get the right keyboard and autofill, errors are tied to their question
+and read out, focus always shows and motion stops for people who ask for less (`tests/studioLangs.test.ts`). The plan
+is built.
 
 ## Part 1. Room: the sidebar and the chat fold away
 
