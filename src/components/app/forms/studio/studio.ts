@@ -4,7 +4,7 @@ import { DEFAULT_CONSENT } from "../../../../lib/forms/schema";
 import { checkStudioPage } from "../../../../lib/studio/check";
 import { linkProblem, SCHEDULERS } from "../../../../lib/forms/schedule";
 import { INDUSTRIES, industryOf, isRtl, languageName, profileWords, recipeText } from "../../../../lib/studio/industries";
-import { ACCESS_CSS, around, consentSpot, linkErrors } from "../../../../lib/studio/runtime";
+import { ACCESS_CSS, around, CAL_CSS, consentSpot, linkErrors, zoneWords } from "../../../../lib/studio/runtime";
 import { TIA_STYLE, tiaSvg } from "../../../../lib/studio/tia";
 
 // Form Studio (docs/forms-chat-plan.md, docs/studio-v2-plan.md): every form is one chat with Tia on the left and the
@@ -494,7 +494,7 @@ export function mountStudio(shell: ShadowRoot, api: StudioApi): () => void {
   const BASE = `${ACCESS_CSS}.cl-bookph{border:1px dashed rgba(127,127,127,.6);border-radius:10px;padding:18px;text-align:center;font:500 12px system-ui,sans-serif;opacity:.7}.cl-divider{font:600 11px/1 system-ui,sans-serif;letter-spacing:.06em;text-transform:uppercase;color:#7a7a7a;border-top:1px dashed rgba(127,127,127,.55);padding:10px 0 0;margin:20px 0 10px}.cl-edit [data-cl-if]{outline:1px dashed rgba(109,40,217,.55);outline-offset:3px}.cl-edit [data-cl-if]::before{content:attr(data-cl-if);display:block;width:max-content;max-width:100%;font:500 11px/1.7 system-ui,sans-serif;color:#6d28d9;background:rgba(109,40,217,.08);border-radius:4px;padding:0 6px;margin-bottom:6px;white-space:normal}.cl-block{display:flex;flex-direction:column;gap:8px}.cl-two{display:grid;grid-template-columns:1fr 1fr;gap:8px}.cl-addr{display:flex;flex-direction:column;gap:8px}.cl-rate{display:flex;gap:6px;font-size:26px;line-height:1;opacity:.6}.cl-num{font-size:14px;border:1px solid currentColor;border-radius:8px;padding:8px 12px}.cl-sign{min-height:110px}
 .cl-consent{display:flex;gap:8px;align-items:flex-start;font-size:13px;line-height:1.4;opacity:.85}.cl-consent input{margin:2px 0 0}
 :host{all:initial;display:flex;flex-direction:column;flex:1}*,*::before,*::after{box-sizing:border-box}[hidden]{display:none!important}.cl-root{flex:1;min-height:560px;display:flex;flex-direction:column}.cl-root>*{flex:1 0 auto}
-.cl-cal{display:flex;flex-direction:column;gap:12px;margin-top:6px}.cl-days{flex-wrap:wrap}.cl-days .cl-day{width:auto;flex:0 0 auto;padding-left:14px;padding-right:14px;white-space:nowrap}.cl-times .cl-time{width:100%;min-width:0;padding-left:8px;padding-right:8px;white-space:nowrap}.cl-days{display:flex;gap:6px;flex-wrap:wrap}.cl-times{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}.cl-day,.cl-time{font:inherit;padding:8px 10px;border-radius:10px;border:1.5px solid rgba(127,127,127,.35);background:transparent;color:inherit;cursor:pointer}.cl-day[aria-pressed=true],.cl-time[aria-pressed=true]{border-color:currentColor}
+${CAL_CSS}
 .cl-edit [data-k]{cursor:default}.cl-edit [contenteditable]{outline:none;cursor:text}`;
   let stepAt = 0, done = false;
   function draw() {
@@ -646,21 +646,27 @@ export function mountStudio(shell: ShadowRoot, api: StudioApi): () => void {
     const t = await timesFor(m.id);
     if (!spot.isConnected) return;
     const zone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-    const dayKey = (ms) => new Date(ms).toLocaleDateString("en-CA", { timeZone: zone });
+    const fmt = (ms, o) => new Intl.DateTimeFormat(undefined, { timeZone: zone, ...o }).format(ms);
     const days = [];
-    for (const s of t?.starts || []) { const k = dayKey(s); let d = days.find((x) => x.k === k); if (!d) { if (days.length >= 7) continue; d = { k, starts: [] }; days.push(d); } d.starts.push(s); }
-    const cal = h("div", { class: "cl-cal" }, h("h3", { class: "heading", text: `${m.name}, ${t?.length || m.length} min` }));
+    for (const s of t?.starts || []) { const k = fmt(s, { year: "numeric", month: "2-digit", day: "2-digit" }); let d = days.find((x) => x.k === k); if (!d) { if (days.length >= 14) continue; d = { k, starts: [] }; days.push(d); } d.starts.push(s); }
+    // The same calendar the live form draws in a studio page (CAL_CSS), with the meeting's real open times.
+    const cal = h("div", { class: "cl-cal" }, h("div", { class: "cl-host" }, h("div", {}, h("b", { text: m.name }), h("small", { text: `${t?.length || m.length} min` }))));
     if (!days.length) { cal.append(h("p", { class: "text", text: t ? "No open times right now." : "Couldn't read the open times." })); return spot.replaceChildren(cal); }
-    let pick = days[0];
-    const dayRow = h("div", { class: "cl-days" }), timeRow = h("div", { class: "cl-times" });
-    const fmtDay = (ms) => new Date(ms).toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric", timeZone: zone });
-    const fmtTime = (ms) => new Date(ms).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit", timeZone: zone });
-    const drawTimes = () => { timeRow.replaceChildren(...pick.starts.slice(0, 24).map((s) => h("button", { type: "button", class: "btn-secondary cl-time", text: fmtTime(s), onclick: () => cal.replaceChildren(h("h3", { class: "heading", text: `Booked: ${fmtDay(s)}, ${fmtTime(s)}` }), h("p", { class: "text", text: "Preview only: nothing was booked." })) }))); };
-    days.forEach((d) => dayRow.append(h("button", { type: "button", class: `${d === pick ? "btn" : "btn-secondary"} cl-day`, "aria-pressed": String(d === pick), text: fmtDay(d.starts[0]), onclick: () => { pick = d; dayRow.querySelectorAll("button").forEach((b, i) => { const on = days[i] === d; b.setAttribute("aria-pressed", String(on)); b.className = `${on ? "btn" : "btn-secondary"} cl-day`; }); drawTimes(); } })));
-    drawTimes();
-    cal.append(h("p", { class: "text", text: zone.replace(/_/g, " ") }), dayRow, timeRow);
+    let pick = days[0], more = false;
+    const dRow = h("div", { class: "cl-days", role: "group", "aria-label": "Day" }), tRow = h("div", { class: "cl-times", role: "group", "aria-label": "Times" }), moreBtn = h("button", { type: "button", class: "cl-link" });
+    const drawDays = () => dRow.replaceChildren(...days.map((d) => h("button", { type: "button", class: `${d === pick ? "btn" : "btn-secondary"} cl-day`, "aria-pressed": String(d === pick), onclick: () => { pick = d; more = false; drawDays(); drawTimes(); } }, h("small", { text: fmt(d.starts[0], { weekday: "short" }) }), h("strong", { text: fmt(d.starts[0], { month: "short", day: "numeric" }) }))));
+    const drawTimes = () => {
+      const shown = more ? pick.starts : pick.starts.slice(0, 9);
+      tRow.replaceChildren(...shown.map((s) => h("button", { type: "button", class: "btn-secondary cl-time", text: fmt(s, { hour: "numeric", minute: "2-digit" }), onclick: () => cal.replaceChildren(h("h3", { class: "heading", text: "You're booked" }), h("p", { class: "text", text: `${fmt(s, { weekday: "long", month: "long", day: "numeric" })}, ${fmt(s, { hour: "numeric", minute: "2-digit" })}. Preview only: nothing was booked.` })) })));
+      moreBtn.hidden = shown.length >= pick.starts.length;
+      moreBtn.textContent = `${pick.starts.length - shown.length} more times`;
+    };
+    moreBtn.onclick = () => { more = true; drawTimes(); };
+    drawDays(); drawTimes();
+    cal.append(dRow, tRow, moreBtn, h("div", { class: "cl-zone" }, h("span", { text: `Times in ${zoneWords(zone)}` })));
     spot.replaceChildren(cal);
   }
+
   // After the send to a page: the preview says where it goes.
   function sampleCalendar(w) {
     const a = body().after;

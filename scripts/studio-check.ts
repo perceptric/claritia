@@ -144,7 +144,7 @@ try {
   await form.locator('input[name="email"]').fill("sam@example.com");
   await form.locator("[type=submit]").click();
   await form.locator(".cl-cal .cl-time").first().waitFor();
-  check((await form.locator(".cl-cal h3").first().textContent())!.includes("Intro call"), "the route books the right meeting");
+  check((await form.locator(".cl-cal .cl-host b").first().textContent())!.includes("Intro call"), "the route books the right meeting");
   check((await calls()).some((c) => c.mode === "times" && String(c.body).startsWith("1111")) && (await form.locator(".cl-cal .cl-day").count()) === 2 && (await form.locator(".cl-cal .cl-time").count()) === 3, "the preview shows the meeting type's real open times");
   check((await form.locator(".cl-cal .cl-day").first().getAttribute("class"))!.includes("btn") && (await form.locator(".cl-cal .cl-time").first().getAttribute("class"))!.includes("btn-secondary"), "the calendar wears the brand's button classes");
 
@@ -317,13 +317,25 @@ try {
   await lf.locator("#photo").getByText("day.png").waitFor();
   await lf.locator("#clr-consent").check();
   await lf.locator("[type=submit]").click();
-  await lf.locator("[data-cl-book] .tm .pl").first().waitFor();
+  await lf.locator("[data-cl-book] .cl-times button").first().waitFor();
   const sent = sends[0]?.answers ?? {};
   const ids = live?.page?.ids ?? {};
   check(sent[ids.name!] === "Sam" && sent[ids.email!] === "sam@example.com" && sent[ids.mood!] === "tender" && sent[ids.why!] === "A long week", "the live form sends each answer by its field id");
   check(sent[ids.photo!] === "up_11111111-1111-4111-8111-111111111111:day.png", "the uploaded file goes with the answers");
-  check((await lf.locator("[data-cl-book] .tm .pl").count()) > 0, "the booking calendar opens in the page's booking spot");
-  check((await lf.locator("[data-cl-book] .tm .pl.btn-secondary").count()) > 0 && (await lf.locator("[data-cl-book] .h.heading").count()) > 0, "the live calendar wears the brand's classes");
+  check((await lf.locator("[data-cl-book] .cl-times button").count()) > 0, "the booking calendar opens in the page's booking spot");
+  check((await lf.locator("[data-cl-book] .cl-times .btn-secondary").count()) > 0 && (await lf.locator("[data-cl-book] .cl-days .btn").count()) === 1, "the live calendar wears the brand's classes");
+  check((await lf.locator("[data-cl-book] .ok").count()) === 0 && (await lf.locator("[data-cl-book] h2").count()) === 0, "no second thank-you over the calendar");
+  check((await lf.locator("[data-cl-book] .cl-times button").count()) <= 9 && /^Times in .+\(GMT/.test((await lf.locator("[data-cl-book] .cl-zone span").textContent()) ?? ""), "a short grid of times and the zone in words");
+  const moreTimes = lf.locator("[data-cl-book] .cl-link").filter({ hasText: "more times" });
+  if (await moreTimes.count()) {
+    await moreTimes.click();
+    await lf.locator("[data-cl-book] .cl-times button").nth(9).waitFor({ state: "attached", timeout: 3000 }).then(() => true, () => false).then((ok) => check(ok, "More times shows the rest of the day"));
+  }
+  await lf.locator("[data-cl-book] .cl-zone .cl-link").click();
+  await lf.locator("[data-cl-book] #clr-_tz").waitFor({ state: "attached", timeout: 3000 }).then(() => true, () => false).then((ok) => check(ok, "Change opens the time zone list"));
+  const box = await lf.locator("[data-cl-book]").boundingBox();
+  const days = await lf.locator("[data-cl-book] .cl-days").evaluate((e) => e.scrollWidth <= e.clientWidth + 1 || getComputedStyle(e).overflowX === "auto");
+  check(!!box && days, "the days scroll in their row instead of being cut off");
   check((await lf.locator("#clr-consent").count()) === 1 && (await lf.locator('input[name="company_url"]').count()) === 1, "the live form has the consent line and the spam trap");
   if (shots) await lp.screenshot({ path: `${shots}/5-live.png` });
 

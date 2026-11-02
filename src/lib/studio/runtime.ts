@@ -67,6 +67,24 @@ export function consentSpot(send: Element, w: Element): Element {
   return row && row !== w && row.querySelectorAll("button,a").length > 1 && !row.matches("form,section,[data-cl-step]") ? row : send;
 }
 
+/**
+ * The booking calendar inside a studio page (live and in the Studio): a host line, day chips that scroll, a compact
+ * grid of times with More times, and a short time-zone line. Buttons wear the brand's .btn and .btn-secondary; these
+ * rules only size them, so the brand's colors, corners and fonts show.
+ */
+export const CAL_CSS =
+  ":where(.cl-cal button){background:transparent;color:inherit;border:1.5px solid rgba(127,127,127,.35);border-radius:10px}:where(.cl-cal button[aria-pressed=true]){border-color:currentColor;font-weight:600}.cl-cal{display:flex;flex-direction:column;gap:14px;margin-top:6px;text-align:start}.cl-host{display:flex;align-items:center;gap:10px}.cl-host img{width:40px;height:40px;border-radius:50%;object-fit:cover;flex:none}.cl-host b{display:block;font-weight:600}.cl-host small{display:block;opacity:.7;font-size:13px}.cl-cal .cl-days{display:flex;flex-wrap:nowrap;gap:8px;overflow-x:auto;padding:2px 2px 6px;scrollbar-width:thin}.cl-cal .cl-days button{flex:0 0 auto;display:flex;flex-direction:column;align-items:center;gap:2px;width:auto;min-width:68px;height:auto;margin:0;padding:8px 12px;font:inherit;line-height:1.2;cursor:pointer}.cl-cal .cl-days small{font-size:11px;letter-spacing:.06em;text-transform:uppercase;opacity:.75}.cl-cal .cl-days strong{font-size:15px}.cl-cal .cl-times{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}@media (max-width:420px){.cl-cal .cl-times{grid-template-columns:repeat(2,minmax(0,1fr))}}.cl-cal .cl-times button{width:100%;min-width:0;height:42px;margin:0;padding:0 8px;font:inherit;font-size:15px;white-space:nowrap;cursor:pointer}.cl-cal .cl-link{align-self:flex-start;background:none;border:0;padding:0;margin:0;font:inherit;font-size:14px;color:inherit;text-decoration:underline;text-underline-offset:3px;cursor:pointer;width:auto;height:auto;box-shadow:none}.cl-cal .cl-zone{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;font-size:13px;opacity:.85}.cl-cal .cl-zone .cl-link{font-size:13px}";
+
+/** A time zone in words people know: "Saigon (GMT+7)". */
+export function zoneWords(tz: string): string {
+  let off = "";
+  try {
+    off = new Intl.DateTimeFormat("en-US", { timeZone: tz, timeZoneName: "shortOffset" }).formatToParts(Date.now()).find((p) => p.type === "timeZoneName")?.value ?? "";
+  } catch {}
+  const city = (tz.split("/").pop() ?? tz).replace(/_/g, " ");
+  return off ? `${city} (${off})` : city;
+}
+
 /** Errors are tied to their question and read out as they appear (docs/studio-v2-plan.md 6.4). */
 export function linkErrors(w: ParentNode) {
   w.querySelectorAll<HTMLElement>("[data-cl-error-for]").forEach((e, i) => {

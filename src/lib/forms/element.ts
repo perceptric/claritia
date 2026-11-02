@@ -15,7 +15,7 @@ import { calcText } from "./formula.ts";
 import { cleanHtml } from "./html.ts";
 import { allFields, isContent, nextStep, numOf, optionsFor, pickOutcome, safeUrl, visibility, withCalcs, type Choice, type Field, type FieldWidth, type Form, type RunCtx } from "./schema.ts";
 import { checkAnswers, OTHER, stepPath, type Answers } from "./values.ts";
-import { ACCESS_CSS, consentSpot, pageValues, runPage, type PageRun, type Vals } from "../studio/runtime.ts";
+import { ACCESS_CSS, CAL_CSS, consentSpot, pageValues, runPage, zoneWords, type PageRun, type Vals } from "../studio/runtime.ts";
 
 /** regions: the region lists, sent with the form when a list follows a country field (src/lib/forms/regions.ts). */
 /** css: the design system's styles compiled for this form (src/lib/design/web.ts); it starts with the layer order. */
@@ -623,6 +623,9 @@ export class ClaritiaForm extends Base {
   private bkDay = "";
   private bkTz = localZone();
   private bkMsg = "";
+  /** The page calendar: all of the day's times shown, and the time zone list open. */
+  private bkMore = false;
+  private bkZone = false;
   private bkBusy = false;
   private overPage = false;
   /** Field ids hidden because enrichment already knows them (fill before submit), and the email they're for. */
@@ -866,7 +869,7 @@ export class ClaritiaForm extends Base {
     const p = form.page!;
     if (!this.pg) {
       this.setAttribute("data-page", "");
-      const css = `${p.brand}\n${p.css}\n.cl .ps{flex-wrap:wrap}.cl .ps .pl{width:auto;flex:0 0 auto;padding-left:14px;padding-right:14px;white-space:nowrap}.cl .tm .pl{width:100%;min-width:0;padding-left:8px;padding-right:8px;white-space:nowrap}`.replace(/@import\s+url\(\s*["']?([^"')]+)["']?\s*\)[^;\n]*;?|@import\s+["']([^"']+)["'][^;\n]*;?/gi, (_m, a?: string, b?: string) => (addFont((a || b || "").trim()), ""));
+      const css = `${p.brand}\n${p.css}\n${CAL_CSS}.cl-root [data-cl-book] .f,.cl-root [data-cl-thanks] .f{background:transparent;max-width:none;padding:0}`.replace(/@import\s+url\(\s*["']?([^"')]+)["']?\s*\)[^;\n]*;?|@import\s+["']([^"']+)["'][^;\n]*;?/gi, (_m, a?: string, b?: string) => (addFont((a || b || "").trim()), ""));
       // The visitor's language, when the form has it (docs/studio-v2-plan.md 6.4).
       const langs = [p.lang || "", ...Object.keys(p.langs ?? {})].filter(Boolean);
       if (!this.pgLang) this.pgLang = (typeof navigator !== "undefined" ? navigator.languages ?? [] : []).map((l) => langs.find((x) => x === l || x.slice(0, 2) === l.slice(0, 2))).find(Boolean) ?? langs[0] ?? "";
@@ -958,6 +961,8 @@ export class ClaritiaForm extends Base {
       const spot = wrap.querySelector<HTMLElement>("[data-cl-book]") ?? wrap.querySelector<HTMLElement>("[data-cl-thanks]") ?? wrap;
       spot.hidden = false;
       const end = this.endScreen(form);
+      // The page's own thank-you already says it: no second heading over an outside scheduler.
+      if (end.querySelector("iframe")) end.querySelector(":scope > .h")?.remove();
       // Claritia's calendar in the brand's own classes, so it matches the page around it.
       end.querySelectorAll(".h").forEach((x) => x.classList.add("heading"));
       end.querySelectorAll(".i").forEach((x) => x.classList.add("text"));
@@ -1884,6 +1889,7 @@ export class ClaritiaForm extends Base {
 
   /** The inline calendar: lengths, the visitor's zone, days and times. One click on a time books it. */
   private calendar(form: Form, b: Booking): HTMLElement {
+    if (this.pg) return this.pageCalendar(b);
     const tz = this.bkTz;
     const days = byDay(b.slots, tz);
     const day = days.find((d) => d.day === this.bkDay) ?? days[0];
@@ -1923,9 +1929,89 @@ export class ClaritiaForm extends Base {
   }
 
   /** The meeting booked, in place of the calendar. */
+  /**
+   * The calendar inside a studio page: the page's own thank-you already says thanks, so this is only the host, the
+   * days, the times and the zone, in the brand's buttons (CAL_CSS sizes them).
+   */
+  private pageCalendar(b: Booking): HTMLElement {
+    const tz = this.bkTz;
+    const days = byDay(b.slots, tz);
+    const day = days.find((d) => d.day === this.bkDay) ?? days[0];
+    this.bkDay = day?.day ?? "";
+    const box = el("div", { class: "cl-cal" });
+    const btn = (on: boolean, attrs: Record<string, string | undefined>, ...kids: (Node | string)[]) => {
+      const x = el("button", { type: "button", class: on ? "btn" : "btn-secondary", "aria-pressed": on ? "true" : "false", disabled: this.bkBusy, ...attrs }, ...kids);
+      return x;
+    };
+    if (b.host) box.append(el("div", { class: "cl-host" }, b.host.photo ? el("img", { src: b.host.photo, alt: "" }) : null, el("div", {}, el("b", { text: b.host.name }), el("small", { text: `${b.length} min` }))));
+    else box.append(el("div", { class: "cl-host" }, el("div", {}, el("small", { text: `${b.length} min` }))));
+    if (b.lengths.length > 1) {
+      const row = el("div", { class: "cl-days", role: "group", "aria-label": "Length" });
+      for (const n of b.lengths) {
+        const x = btn(n === b.length, { id: `clr-l${n}` }, el("strong", { text: `${n} min` }));
+        x.addEventListener("click", () => void this.times(n));
+        row.append(x);
+      }
+      box.append(row);
+    }
+    if (this.bkMsg) box.append(el("p", { class: "al", role: "alert", text: this.bkMsg }));
+    if (!day) {
+      box.append(el("p", { class: "text", text: "No open times right now." }));
+    } else {
+      const dRow = el("div", { class: "cl-days", role: "group", "aria-label": "Day" });
+      for (const d of days) {
+        const first = d.starts[0]!;
+        const x = btn(d === day, { id: `clr-d${d.day}`, "aria-label": dayText(first, tz) }, el("small", { text: new Intl.DateTimeFormat(undefined, { weekday: "short", timeZone: tz }).format(first) }), el("strong", { text: new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", timeZone: tz }).format(first) }));
+        x.addEventListener("click", () => {
+          this.bkDay = d.day;
+          this.bkMore = false;
+          this.later();
+        });
+        dRow.append(x);
+      }
+      box.append(dRow);
+      const shown = this.bkMore ? day.starts : day.starts.slice(0, 9);
+      const tRow = el("div", { class: "cl-times", role: "group", "aria-label": `Times on ${dayText(day.starts[0]!, tz)}` });
+      for (const t of shown) {
+        const x = btn(false, { id: `clr-t${t}`, "aria-label": `Book ${timeText(t, tz)}, ${dayText(t, tz)}` }, timeText(t, tz));
+        x.addEventListener("click", () => void this.pick(t));
+        tRow.append(x);
+      }
+      box.append(tRow);
+      if (shown.length < day.starts.length) {
+        const more = el("button", { type: "button", class: "cl-link", text: `${day.starts.length - shown.length} more times` });
+        more.addEventListener("click", () => ((this.bkMore = true), this.later()));
+        box.append(more);
+      }
+    }
+    // The zone in words, with the full list only when asked for.
+    const zone = el("div", { class: "cl-zone" }, el("span", { text: `Times in ${zoneWords(tz)}` }));
+    if (!this.bkZone) {
+      const ch = el("button", { type: "button", class: "cl-link", text: "Change" });
+      ch.addEventListener("click", () => ((this.bkZone = true), this.later()));
+      zone.append(ch);
+      box.append(zone);
+    } else {
+      const TZ = "_tz";
+      this.answers[TZ] = tz;
+      const zf = { id: TZ, key: TZ, type: "dropdown", label: "Time zone", required: false, options: zones(localZone()).map((z) => ({ value: z, label: zoneWords(z) })) } as unknown as Field;
+      box.append(zone, this.listbox(zf, { id: `clr-${TZ}` }, (v) => {
+        if (typeof v === "string" && v) this.bkTz = v;
+        this.bkZone = false;
+        this.later();
+      }, false));
+    }
+    return box;
+  }
+
   private booked(): HTMLElement {
     const m = this.bkDone!;
     const tz = this.bkTz;
+    if (this.pg) {
+      const box = el("div", { class: "cl-cal", role: "status", tabindex: "-1" }, el("h3", { class: "heading", text: "You're booked" }), el("p", { class: "text", text: `${dayText(m.start, tz)}, ${timeText(m.start, tz)} to ${timeText(m.end, tz)}, ${zoneWords(tz)}` }), m.host ? el("div", { class: "cl-host" }, m.host.photo ? el("img", { src: m.host.photo, alt: "" }) : null, el("div", {}, el("b", { text: m.host.name }))) : null, el("p", { class: "text", text: "The invite is on its way to your inbox." }), m.manage && /^https:\/\//.test(m.manage) ? el("a", { class: "cl-link", href: m.manage, target: "_blank", rel: "noopener", text: "Change or cancel" }) : null);
+      queueMicrotask(() => box.focus());
+      return box;
+    }
     const box = el(
       "div",
       { class: "f dn cl", role: "status", tabindex: "-1" },
