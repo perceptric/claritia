@@ -210,10 +210,12 @@ export async function POST(request: Request) {
     if (errs.length) return Response.json({ error: errs[0]!.text, issues: errs }, { status: 400 });
     // A question keeps its field id when it's renamed or Tia writes the page again: the ids the form had last time.
     const formIdIn = typeof b.formId === "string" && UUID.test(b.formId) ? b.formId : "";
-    const prev = formIdIn ? ((await db.from("forms").select("draft").eq("id", formIdIn).eq("workspace_id", ws).maybeSingle()).data as { draft?: { page?: { ids?: Record<string, string> } } } | null) : null;
+    const prev = formIdIn ? ((await db.from("forms").select("draft").eq("id", formIdIn).eq("workspace_id", ws).maybeSingle()).data as { draft?: { page?: { ids?: Record<string, string> }; notify?: unknown; reply?: unknown; keep?: unknown } } | null) : null;
     const turnstile = !!turnstileSiteKey() && !!process.env.TURNSTILE_SECRET_KEY?.trim();
     const { form: draft, questions } = pageForm({ html, css: String(b.css ?? ""), brand: String(b.brand ?? ""), after, title: name, prevIds: prev?.draft?.page?.ids ?? {}, turnstile, lang: typeof b.lang === "string" ? b.lang : undefined, langs });
     if (!questions.length) return bad("The form has no questions to send.");
+    // What the form's other tabs set stays: the auto-reply, how long it keeps sends, and its team alert until Always do sets one.
+    for (const k of ["reply", "keep", "notify"] as const) if (prev?.draft?.[k] !== undefined && !(k in draft)) (draft as Record<string, unknown>)[k] = prev.draft[k];
     const ctx = await cleaningCtx(db, ws);
     const r = checkForm(draft, { custom: ctx.custom });
     if ("errors" in r) return bad(r.errors[0]!, 400);
@@ -296,7 +298,7 @@ export async function POST(request: Request) {
     // A change to a built form needs little thinking; a first build, a file to read or a big ask gets more.
     const effort = b.built === true && !files.length && turns.at(-1)!.content.length < 60_000 ? "low" : "medium";
     return lines(async (send) => {
-      const r = await cachedStep(rpc, ws, "studio_chat", hashKey(STUDIO_MODEL, "chat-2", effort, brand, turns, files.map((f) => ("source" in f ? f.source.data : ""))), async () => {
+      const r = await cachedStep(rpc, ws, "studio_chat", hashKey(STUDIO_MODEL, "chat-3", effort, brand, turns, files.map((f) => ("source" in f ? f.source.data : ""))), async () => {
         const out = await opus(c, CHAT_RULES, messages, 32000, effort, (d) => send({ t: d }), brand);
         if (out.stop === "refusal") return { result: null, model: STUDIO_MODEL, usage: out.usage, keep: false };
         return { result: { text: out.text, cut: out.stop === "max_tokens" }, model: STUDIO_MODEL, usage: out.usage, keep: out.stop !== "max_tokens" };

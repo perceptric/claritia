@@ -6,7 +6,20 @@ import type { Cond, Op, Rule, Segment, Territory } from "./types.ts";
 
 export type FieldType = "text" | "number" | "country" | "choice" | "bool";
 
-export type FieldDef = { key: string; label: string; group: "Contact" | "Company" | "Form answers" | "Source" | "Score"; type: FieldType; options?: string[] };
+export type FieldDef = { key: string; label: string; group: "Contact" | "Company" | "Form answers" | "Past fills" | "Source" | "Score"; type: FieldType; options?: string[] };
+
+/**
+ * Past fills: what the person did before this send, read on the server (routing_past, 115) when a rule tests one.
+ * "Booked in the last N days" is "Days since they last booked is at most N". Yes/no fields hold "true" or "false".
+ */
+export const PAST_FIELDS: FieldDef[] = [
+  { key: "past.sent_form", label: "Has sent this form before", group: "Past fills", type: "bool", options: ["true", "false"] },
+  { key: "past.has_meeting", label: "Has a meeting booked", group: "Past fills", type: "bool", options: ["true", "false"] },
+  { key: "past.days_since_booked", label: "Days since they last booked", group: "Past fills", type: "number" },
+];
+export const isPast = (field: string) => field.startsWith("past.");
+/** Whether any condition in these tests a past fill (so the one extra read only happens when it's needed). */
+export const testsPast = (conds: { field: string }[]) => conds.some((c) => isPast(c.field));
 
 /** The fields every workspace has. Custom fields and form answers are added from the workspace (`fieldsFor`). */
 export const BASE_FIELDS: FieldDef[] = [
@@ -35,6 +48,7 @@ export const BASE_FIELDS: FieldDef[] = [
   { key: "lead.score", label: "Lead score", group: "Score", type: "number" },
   { key: "lead.band", label: "Score band", group: "Score", type: "text" },
   { key: "lead.qualify", label: "Qualify outcome", group: "Score", type: "choice" },
+  ...PAST_FIELDS,
 ];
 
 /** The tests that fit a field's type. */
@@ -272,6 +286,8 @@ function listWords(value: Cond["value"], field: FieldDef | undefined, territorie
 
 /** A condition as a sentence part: "country is US or Canada", "size is between 51 and 200". */
 export function condWords(c: Cond, fields: FieldDef[], territories: Territory[]): string {
+  const past = pastWords(c);
+  if (past) return past;
   const f = fields.find((x) => x.key === c.field);
   const name = (f?.label ?? c.field.replace(/^[a-z]+\./, "").replace(/_/g, " ")).toLowerCase();
   const op = OPS_WORDS[c.op];
@@ -280,6 +296,23 @@ export function condWords(c: Cond, fields: FieldDef[], territories: Territory[])
   if (c.value === undefined || c.value === "" || (Array.isArray(c.value) && !c.value.length)) return `${name} ${c.op === "one_of" ? "is" : c.op === "not_one_of" ? "is not" : op} (no value yet)`;
   if (c.op === "one_of" || c.op === "not_one_of") return `${name} ${c.op === "one_of" ? "is" : "is not"} ${listWords(c.value, f, territories)}`;
   return `${name} ${op} ${listWords(c.value, f, territories)}`;
+}
+
+const PAST_YES: Record<string, [string, string]> = {
+  "past.sent_form": ["has sent this form before", "hasn't sent this form before"],
+  "past.has_meeting": ["has a meeting booked", "has no meeting booked"],
+};
+
+/** Past fills read as plain words: "has sent this form before", "booked in the last 30 days". Null for other fields. */
+function pastWords(c: Cond): string | null {
+  const yes = PAST_YES[c.field];
+  if (yes && c.op === "is" && (c.value === "true" || c.value === "false")) return c.value === "true" ? yes[0] : yes[1];
+  if (c.field === "past.days_since_booked" && typeof c.value === "number") {
+    if (c.op === "lte") return `booked in the last ${c.value} days`;
+    if (c.op === "gt") return `last booked more than ${c.value} days ago`;
+  }
+  if (c.field === "past.days_since_booked" && c.op === "empty") return "has never booked";
+  return null;
 }
 
 const OPS_WORDS: Record<Op, string> = {

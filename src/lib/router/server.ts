@@ -8,6 +8,7 @@ import { forgetSources } from "../routing/sources.ts";
 import type { Rpc } from "../jobs.ts";
 import type { Availability } from "../meetings/types.ts";
 import { addDays, at, dateIn, dayOf, validZone } from "../meetings/time.ts";
+import { testsPast } from "./conditions.ts";
 import { decide } from "./engine.ts";
 import type { Decision, Facts, InputIssue, Provenance, Reason, RepFacts, RouterBody, StepResult, TeamFacts } from "./types.ts";
 
@@ -252,7 +253,30 @@ export async function readFacts(
     facts.values["lead.qualify"] = more?.qualify ?? null;
     facts.values["company.employees"] = more?.employees ?? null;
   }
+  // Past fills (115), only when a rule tests one.
+  if (o.body.rules.list.some((r) => testsPast(r.conds))) {
+    Object.assign(facts.values, await readPast(rpc, { ws: o.ws, contact: raw.contact.id ?? null, email: raw.contact.email_clean ?? raw.contact.email ?? o.email ?? null, form: raw.submission?.form_id ?? null, skip: raw.submission?.id ?? null }));
+  }
   return { facts, raw };
+}
+
+/**
+ * What the person did before (routing_past, 115): "true"/"false" for the yes/no fields, whole days for the last
+ * booking. Every value is null when the database doesn't have the function yet or the read fails, so a rule on a past
+ * fill never holds by mistake.
+ */
+export async function readPast(
+  rpc: Rpc,
+  o: { ws: string; contact: string | null; email: string | null; form: string | null; skip: string | null },
+): Promise<Record<string, unknown>> {
+  const none = { "past.sent_form": null, "past.has_meeting": null, "past.days_since_booked": null };
+  if (!o.contact && !o.email) return none;
+  const r = await callNewer(rpc, "routing_past", { p_ws: o.ws, p_contact: o.contact, p_email: o.email, p_form: o.form, p_skip: o.skip }).catch(() => null);
+  if (!r || r.error || !r.data || typeof r.data !== "object") return none;
+  const d = r.data as { sent_form?: unknown; has_meeting?: unknown; days_since_booked?: unknown };
+  const yes = (v: unknown) => (typeof v === "boolean" ? String(v) : null);
+  const days = typeof d.days_since_booked === "number" && Number.isFinite(d.days_since_booked) ? d.days_since_booked : null;
+  return { "past.sent_form": yes(d.sent_form), "past.has_meeting": yes(d.has_meeting), "past.days_since_booked": days };
 }
 
 export type Routed =

@@ -37,6 +37,20 @@ export const TEMPLATES: Template[] = [
     }),
   },
   {
+    key: "form_followup",
+    name: "Form follow-up",
+    line: "An email the day after they send a form",
+    body: () => ({
+      trigger: { kind: "form", forms: [] },
+      goals: [{ kind: "meeting_booked" }],
+      entry: { mode: "once", gapDays: 30 },
+      steps: [
+        s({ kind: "wait", days: 1, hours: 0 }),
+        s({ kind: "email", from: "owner", approved: false, email: email("Following up", ["Hi {{first_name|there}},", "Thanks for getting in touch. Reply to this email with anything else we can help with."]) }),
+      ],
+    }),
+  },
+  {
     key: "demo_request",
     name: "Demo request follow-up",
     line: "Qualify, route, and nudge until they book",

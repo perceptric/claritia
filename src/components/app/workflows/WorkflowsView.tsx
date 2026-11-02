@@ -1,7 +1,8 @@
 "use client";
 
 // Workflows (docs/workflows.md): /workflows and /workflows/<id> are the folders with one workflow open (Home.tsx);
-// /workflows/new picks a template (?template=broadcast opens that one; ?folder=<id> files it in that folder).
+// /workflows/new picks a template (?template=broadcast opens that one; ?folder=<id> files it in that folder; ?form=<id>
+// starts a form template on that form).
 
 import { useCallback, useEffect, useState } from "react";
 import { TEMPLATES, templateByKey } from "@/lib/workflows/templates";
@@ -38,12 +39,17 @@ function TemplatePicker({ sb, ws, navigate }: ViewProps) {
       setBusy(false);
     });
   };
-  // ?template=broadcast (the Create menu's Broadcast) makes that one at once.
+  // ?template=broadcast (the Create menu's Broadcast) makes that one at once; ?form=<id> (Form Studio's New follow-up)
+  // starts it on that form.
   const [asked] = useState(() => (typeof window === "undefined" ? null : new URLSearchParams(window.location.search).get("template")));
+  const [form] = useState(() => (typeof window === "undefined" ? null : new URLSearchParams(window.location.search).get("form")));
   useEffect(() => {
     const t = asked ? templateByKey(asked) : undefined;
-    if (t) make(t.name, t.body()).catch((e) => setError(errorText(e)));
-  }, [asked, make]);
+    if (!t) return;
+    const body = t.body();
+    if (form && /^[0-9a-f-]{36}$/.test(form) && "forms" in body.trigger) body.trigger = { ...body.trigger, forms: [form] };
+    make(t.name, body).catch((e) => setError(errorText(e)));
+  }, [asked, form, make]);
 
   if (asked && templateByKey(asked) && !error)
     return (

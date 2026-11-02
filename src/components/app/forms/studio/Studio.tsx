@@ -14,6 +14,10 @@ import { readProfile } from "@/lib/studio/industries";
 import { invalidate, must, postJson, type ViewProps } from "../../ui";
 import { mountStudio, STUDIO_CSS, STUDIO_HTML, type StudioApi } from "./studio";
 import { readLines as readStream } from "../../streamLines";
+import { askConfirm, askText, tell } from "../../Dialogs";
+import { rt, type Screen } from "../../routing/rt/api";
+import { whoBooks } from "@/lib/meetings/dynamicWords";
+import { entryOf } from "@/lib/sources/catalog";
 
 type Line = { t?: string; done?: string; cut?: boolean; css?: string; say?: string; profile?: unknown; error?: string; working?: number; beat?: number };
 
@@ -87,7 +91,18 @@ export function Studio({ sb, session, ws, navigate, formId = "", fresh = false }
           .filter((k) => k.source_url)
           .map((k) => ({ id: k.id, name: brandName(k), site: hostOf(k.source_url), logo: logoOf(k), css: k.studio_css || read<string>(cssKey(k.id), ""), profile: readProfile(k.studio_profile) ?? readProfile(read(profileKey(k.id), null)) }));
       },
-      meetings: async () => (await fetchMeetingTypes(sb, ws.id)).filter((t) => t.active).map((t) => ({ id: t.id, name: t.name, length: t.settings?.lengths?.[0] ?? 30 })),
+      meetings: async () => {
+        const types = (await fetchMeetingTypes(sb, ws.id)).filter((t) => t.active);
+        // A Dynamic meeting shows who books it in one line; the names come from the routing screen.
+        const dyn = (t: (typeof types)[number]) => !!(t.settings as { dynamic?: unknown; team?: string })?.dynamic || !!(t.settings as { team?: string })?.team;
+        const screen = types.some(dyn) ? await rt<Screen>(sessionRef.current, ws.id, "rt_screen").catch(() => null) : null;
+        return types.map((t) => ({
+          id: t.id,
+          name: t.name,
+          length: t.settings?.lengths?.[0] ?? 30,
+          ...(dyn(t) ? { dynamic: true, who: screen ? whoBooks(t as Parameters<typeof whoBooks>[0], { fields: screen.fields, teams: screen.teams, people: screen.people }) : "" } : {}),
+        }));
+      },
       chats: async () => {
         const res = await sb.from("form_chats").select("id, name, state, brand_kit_id, form_id, updated_at").eq("workspace_id", ws.id).order("updated_at", { ascending: false }).limit(200);
         if (res.error) {
@@ -192,7 +207,53 @@ export function Studio({ sb, session, ws, navigate, formId = "", fresh = false }
       deleteBrand: async (id) => {
         must(await sb.rpc("brand_kit_delete", { p_id: id }));
       },
-      openMeetings: () => navRef.current("meetings"),
+      openMeetings: () => navRef.current("scheduling", "types"),
+      openMeeting: (id) => navRef.current("scheduling", `types/${id}`),
+      saveDraft: async (p) => {
+        const r = await postJson<{ formId: string }>(sessionRef.current, "/api/studio", { workspaceId: ws.id, mode: "save", ...p });
+        invalidate(`forms:${ws.id}:home`);
+        return r;
+      },
+      sends: async (id) => {
+        const [d, src] = await Promise.all([
+          sb.from("form_destinations").select("id, kind, source_id, name").eq("form_id", id).order("position"),
+          sb.from("sources").select("id, kind").eq("workspace_id", ws.id),
+        ]);
+        const kinds = new Map(((src.data ?? []) as { id: string; kind: string }[]).map((x) => [x.id, x.kind]));
+        return ((must(d) ?? []) as { id: string; kind: string; source_id: string | null; name: string }[])
+          .filter((x) => x.kind !== "slack")
+          .map((x) => ({ id: x.id, kind: x.kind, name: x.name, domain: x.source_id ? (entryOf(kinds.get(x.source_id) ?? "")?.domain ?? null) : null }));
+      },
+      tools: async () => {
+        const rows = (must(await sb.from("sources").select("id, kind, name, status").eq("workspace_id", ws.id).order("name")) ?? []) as { id: string; kind: string; name: string; status: string }[];
+        return rows.filter((x) => x.status !== "disconnected" && (entryOf(x.kind)?.twoWay || entryOf(x.kind)?.pushes)).map((x) => ({ id: x.id, kind: x.kind, name: x.name, domain: entryOf(x.kind)?.domain ?? null }));
+      },
+      addSend: async (id, to) => {
+        if (to === "webhook") {
+          const url = await askText("Webhook address", { placeholder: "https://", ok: "Add" });
+          if (!url) return false;
+          let name = "Webhook";
+          try {
+            name = new URL(url).hostname || name;
+          } catch {}
+          const r = await postJson<{ secret?: string }>(sessionRef.current, "/api/forms/destination", { workspaceId: ws.id, formId: id, kind: "webhook", name, url });
+          if (r.secret) await tell("Signing secret", `Shown once. It signs the x-claritia-signature header.\n\n${r.secret}`);
+          return true;
+        }
+        await postJson(sessionRef.current, "/api/forms/destination", { workspaceId: ws.id, formId: id, kind: "source", sourceId: to.id, name: to.name });
+        return true;
+      },
+      removeSend: async (d) => {
+        if (!(await askConfirm(`Stop sending to ${d.name}?`, { body: "Sends already made stay there.", ok: "Remove", danger: true }))) return false;
+        must(await sb.rpc("form_destination_delete", { p_id: d.id }));
+        return true;
+      },
+      followUps: async (id) => {
+        const res = await sb.from("workflows").select("id, name, status").eq("workspace_id", ws.id).contains("draft", { trigger: { forms: [id] } }).order("created_at");
+        return ((must(res) ?? []) as { id: string; name: string; status: string }[]).map((x) => ({ id: x.id, name: x.name, status: x.status }));
+      },
+      newFollowUp: (id, when) => navRef.current("workflows", "new", `template=${when === "not_booked" ? "not_booked" : "form_followup"}&form=${id}`),
+      openWorkflow: (id) => navRef.current("workflows", id),
       back: () => navRef.current("forms"),
     };
     const stop = mountStudio(shell, api);

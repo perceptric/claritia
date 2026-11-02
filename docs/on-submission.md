@@ -46,6 +46,37 @@ open Availability › Team.
   falls through to a later rule. A booking link that already names the host skips the questions. Tested in
   `tests/dynamicBooking.test.ts`.
 
+## Form Studio's On submission
+
+Studio forms (`src/components/app/forms/studio/studio.ts`, the rows in `src/lib/studio/routes.ts`) keep the same rule:
+the form picks the meeting type, the meeting picks the person.
+
+- **Who books it**: when the picked meeting (or a route's meeting) is Dynamic, its rules show in one line, like
+  "Locations is at least 50 → Enterprise, otherwise anyone on the team" (`src/lib/meetings/dynamicWords.ts`).
+  **Edit routing** opens that meeting type's panel. The routing stays on the meeting type.
+- **Route by answer**: rows of "When <question> <test> <value>, book <meeting>", read top to bottom, then
+  **Otherwise, book** the form's meeting. The tests fit the question: is or is not one of its answers for a choice;
+  less than, more than, at most, at least, between and is for a number; contains, is, is not and starts with for text;
+  is answered and is empty for all. Numbers are compared as numbers. Rows saved before tests ("Plan is Enterprise")
+  read as "is" that answer. Each row compiles to one condition on `answer.<key>` (`pageForm` in
+  `src/lib/studio/page.ts`); a row whose question is gone or whose value is blank never routes anyone.
+- **Past fills** (rule fields for both the form's rows and Dynamic rules, `PAST_FIELDS` in
+  `src/lib/router/conditions.ts`): **Has sent this form before**, **Has a meeting booked**, and **Booked in the last N
+  days** (days since they last booked, at most N). The server reads them once per send, only when a rule tests one
+  (`routing_past`, `supabase/migrations/115_routing_past.sql`; `readPast` in `src/lib/router/server.ts`). The send
+  being routed never counts as "sent before"; spam and test sends never count. A Dynamic meeting's own booking link
+  reads them by the guest's email (any form, since a booking page has none). A past fill that can't be read is
+  unknown, so no rule on it holds by mistake.
+- **Always do**, on every send whatever it books: **Email the team** and **Post to Slack** (the form's team alert,
+  `form.notify`); **Send to** a connected CRM or a webhook (the form's destinations); **Follow-up** workflows that
+  start on this form (**New follow-up**: when they send it, or when they don't book). Send to and New follow-up save
+  the form once as a draft first, since they need its id. A form with no Always do keeps the alert it had.
+- **The form check** (`src/lib/studio/check.ts`) stops Publish on a route that reads a deleted question or answer, a
+  past fill that's gone, a blank value, a deleted meeting, a page or part shown by a question asked on a later page,
+  and Email the team with no emails.
+
+Tested in `tests/routeByAnswer.test.ts` and `scripts/studio-check.ts`.
+
 ## How it runs
 
 `src/lib/routing/compile.ts` turns the form's routing and its meetings into one routing policy:
@@ -104,7 +135,8 @@ Both run the same steps: questions, routing, the rep's calendar, booked.
 ## Monthly cost
 
 Nothing is added to the monthly bill. There is no new service and no AI call; publishing makes a few more routing
-calls than before, once per publish.
+calls than before, once per publish. Past fills add one indexed database read per send, only on forms and meetings
+whose rules test one; it fits in the database the app already runs on.
 
 | Stage | Added per month |
 |---|---|
