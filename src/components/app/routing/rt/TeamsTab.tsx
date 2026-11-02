@@ -22,6 +22,7 @@ import { ConnectButton } from "../SalesReps";
 import { localDate } from "../screensModel";
 import { RouteSketch } from "../screenParts";
 import { toast } from "../Toast";
+import { closeName } from "@/lib/routing/teamNames";
 import { rt, type Person, type Screen, type Team } from "./api";
 import { Initials, Pills } from "./parts";
 
@@ -61,7 +62,8 @@ export function TeamsTab({ session, ws, navigate, screen, teamId, pick }: ViewPr
   const saveTeam = async (t: Team, members: string[], words: string) => {
     setError("");
     try {
-      await rt(session, ws.id, "rt_team", { team: t.id, name: t.name, members, revision: t.revision });
+      // The method and each member's weight go with the save, so adding someone never resets how the team shares.
+      await rt(session, ws.id, "rt_team", { team: t.id, name: t.name, method: t.method, members: members.map((u) => ({ user: u, weight: t.members.find((m) => m.user === u)?.weight ?? 1 })), revision: t.revision });
       invalidate(`routing_screen:${ws.id}`);
       toast({ text: words });
     } catch (e) {
@@ -86,7 +88,6 @@ export function TeamsTab({ session, ws, navigate, screen, teamId, pick }: ViewPr
     }
   };
 
-  const zone = d.people.find((p) => p.id === d.me)?.tz ?? "UTC";
   const create = owner ? (
     <Button size="sm" onClick={() => setCreating(true)}>
       <Plus size={13} />
@@ -148,7 +149,6 @@ export function TeamsTab({ session, ws, navigate, screen, teamId, pick }: ViewPr
               }}
               onCap={(u, cap) => void saveMember(u, { cap_day: cap }, "Saved")}
             />
-            <span className="text-[12px] text-muted">Status and caps apply to the person in every team. Daily cap resets at midnight, {zone}.</span>
           </>
         )}
       </div>
@@ -168,6 +168,7 @@ export function TeamsTab({ session, ws, navigate, screen, teamId, pick }: ViewPr
       {creating ? (
         <CreateTeam
           people={d.people}
+          teams={d.teams}
           onClose={() => setCreating(false)}
           onCreate={async (name, members) => {
             const out = await rt<{ id: string }>(session, ws.id, "rt_team", { name, members });
@@ -226,7 +227,7 @@ function TeamCard({
     <section className="rounded-[10px] border border-line bg-card">
       <header className="flex flex-wrap items-center gap-2.5 border-b border-line px-4 py-2.5">
         <h2 className="min-w-0 flex-1 truncate text-[13.5px] font-semibold text-ink">{t.name}</h2>
-        <span className="text-[12px] text-muted">Used by {used.length ? used.map((x) => `${x.name} (${x.uses})`).join(", ") : "no policy"}</span>
+        <span className="text-[12px] text-muted">{used.length ? `Used by ${used.map((x) => `${x.name} (${x.uses})`).join(", ")}` : "Not used by any form yet"}</span>
         {owner ? (
           <Choice<string>
             label="Add member"
@@ -332,15 +333,20 @@ function TeamCard({
         );
       })}
       <div className="border-t border-line px-4 py-2.5">
-        <div className="font-medium text-ink">Distribution</div>
-        <div className="text-[12px] text-muted">Round robin. One shared queue for every policy that uses this team.</div>
+        <div className="font-medium text-ink">Shares leads</div>
+        <div className="text-[12px] text-muted">{METHOD_WORDS[t.method as keyof typeof METHOD_WORDS] ?? "Take turns"}</div>
       </div>
     </section>
   );
 }
 
-/** Create team (Section 12): a name and its members, in the order picked; the order is the round robin's. */
-function CreateTeam({ people, onClose, onCreate }: { people: Person[]; onClose: () => void; onCreate: (name: string, members: string[]) => Promise<void> }) {
+export const METHOD_WORDS = { rr: "Take turns", weighted: "Some get more", load: "Fewest meetings first" } as const;
+
+/**
+ * Create team (Section 12): a name and its members, in the order picked; the order is the round robin's. A name too
+ * close to a team that exists ("Enterprise 2" next to "Enterprise") says so before it's made.
+ */
+export function CreateTeam({ people, teams, onClose, onCreate }: { people: Person[]; teams: { id: string; name: string }[]; onClose: () => void; onCreate: (name: string, members: string[]) => Promise<void> }) {
   const [name, setName] = useState("");
   const [members, setMembers] = useState<string[]>([]);
   const [error, setError] = useState("");
@@ -348,6 +354,8 @@ function CreateTeam({ people, onClose, onCreate }: { people: Person[]; onClose: 
   const submit = async () => {
     if (busy) return;
     if (!name.trim()) return setError("Name the team.");
+    const near = closeName(name, teams);
+    if (near) return setError(`Too close to ${near}. Pick a name people can tell apart.`);
     setBusy(true);
     setError("");
     try {

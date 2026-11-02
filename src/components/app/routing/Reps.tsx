@@ -4,6 +4,7 @@
 
 import { useState } from "react";
 import { X } from "../../Icons";
+import { dayWords, MonthPick } from "../DatePick";
 import { Popover } from "../FilterBar";
 import { Button } from "../ui";
 import { endOfDay, localDate, pauseUntil, rangeWords, repStatus, type PauseChoice, type RepRow } from "./screensModel";
@@ -17,7 +18,20 @@ export function StatusPopover({ anchor, rep, onClose, onSave }: { anchor: HTMLEl
   const [from, setFrom] = useState(today);
   const [to, setTo] = useState(today);
   const [busy, setBusy] = useState(false);
+  // Which date is being picked, in the app's own month (never the browser's date box).
+  const [picking, setPicking] = useState<null | "until" | "from" | "to">(null);
   const status = repStatus(rep);
+  const dateBtn = (k: "until" | "from" | "to", v: string, label: string) => (
+    <button type="button" aria-label={label} aria-expanded={picking === k} onClick={() => setPicking(picking === k ? null : k)} className={`h-8 min-w-0 flex-1 rounded-sm border px-2 text-left text-[12.5px] tabular-nums ${picking === k ? "border-ink" : "border-line-strong"} ${v ? "text-ink" : "text-faint"}`}>
+      {v ? dayWords(v) : label}
+    </button>
+  );
+  const month = (k: "until" | "from" | "to", v: string, min: string | undefined, set: (d: string) => void) =>
+    picking === k ? (
+      <div className="mx-1 rounded-md border border-line">
+        <MonthPick value={v} min={min} onPick={(d) => (set(d), setPicking(null))} />
+      </div>
+    ) : null;
   const dates = rep?.out_dates ?? [];
   const run = async (p: Patch) => {
     setBusy(true);
@@ -43,11 +57,12 @@ export function StatusPopover({ anchor, rep, onClose, onSave }: { anchor: HTMLEl
             if (until && until >= today) void run({ paused_until: endOfDay(until) });
           }}
         >
-          <input type="date" min={today} value={until} onChange={(e) => setUntil(e.target.value)} aria-label="Until a date" className="h-8 min-w-0 flex-1 rounded-sm border border-line-strong bg-card px-2 text-[12.5px] outline-none focus:border-ink focus:ring-1 focus:ring-ink" />
+          {dateBtn("until", until, "Until a date")}
           <Button type="submit" variant="ghost" size="sm" disabled={busy || !until || until < today}>
             Pause
           </Button>
         </form>
+        {month("until", until, today, setUntil)}
         <button type="button" disabled={busy} className={row} onClick={() => pause("forever")}>
           Until I turn it back on
         </button>
@@ -69,12 +84,14 @@ export function StatusPopover({ anchor, rep, onClose, onSave }: { anchor: HTMLEl
             if (from && to) void run({ out_dates: [...dates, { from: from <= to ? from : to, to: from <= to ? to : from }] });
           }}
         >
-          <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} aria-label="Out from" className="h-8 min-w-0 flex-1 rounded-sm border border-line-strong bg-card px-2 text-[12.5px] outline-none focus:border-ink focus:ring-1 focus:ring-ink" />
-          <input type="date" value={to} min={from} onChange={(e) => setTo(e.target.value)} aria-label="Out until" className="h-8 min-w-0 flex-1 rounded-sm border border-line-strong bg-card px-2 text-[12.5px] outline-none focus:border-ink focus:ring-1 focus:ring-ink" />
+          {dateBtn("from", from, "Out from")}
+          {dateBtn("to", to, "Out until")}
           <Button type="submit" variant="ghost" size="sm" disabled={busy || !from || !to}>
             Add
           </Button>
         </form>
+        {month("from", from, today, (d) => (setFrom(d), d > to && setTo(d)))}
+        {month("to", to, from, setTo)}
 
         {status.kind !== "in" ? (
           <>

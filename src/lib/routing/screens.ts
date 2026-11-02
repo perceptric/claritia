@@ -248,13 +248,23 @@ export async function formSource(rpc: Rpc, c: Caller, o: { form: unknown }) {
 
 // Teams (Section 12) --------------------------------------------------------------------------------------------------
 
-export async function team(rpc: Rpc, c: Caller, o: { team?: unknown; name: unknown; members: unknown; revision?: unknown }) {
+export async function team(rpc: Rpc, c: Caller, o: { team?: unknown; name: unknown; members: unknown; revision?: unknown; method?: unknown }) {
   ownerOnly(c, "team");
-  const members = (Array.isArray(o.members) ? o.members : []).filter((u): u is string => typeof u === "string" && UUID.test(u)).slice(0, 100);
   const name = typeof o.name === "string" ? o.name.trim() : "";
   if (!name || name.length > 80) throw new Refusal(400, "invalid_configuration", name ? "Keep the name to 80 characters." : "Name the team.");
+  const teamId = o.team ? id(o.team, "team") : null;
+  const method = o.method === "rr" || o.method === "weighted" || o.method === "load" ? o.method : undefined;
+  // Members as ids, or { user, weight }; anything else is dropped.
+  const given = (Array.isArray(o.members) ? o.members : [])
+    .map((m) => (typeof m === "string" ? { user: m, weight: NaN } : m && typeof m === "object" ? { user: (m as { user?: unknown }).user, weight: Number((m as { weight?: unknown }).weight) } : null))
+    .filter((m): m is { user: string; weight: number } => !!m && typeof m.user === "string" && UUID.test(m.user))
+    .slice(0, 100);
+  // What the request leaves out stays as it was: the team's way of sharing leads and each member's weight. Saving the
+  // members alone used to turn every team back to taking turns with equal weights.
+  const current = teamId && (!method || given.some((m) => !Number.isFinite(m.weight))) ? Object.values(await teamsOf(rpc, c.ws)).find((t) => t.id === teamId) : undefined;
+  const members = given.map((m) => ({ user: m.user, weight: Number.isFinite(m.weight) && m.weight >= 1 && m.weight <= 10 ? Math.round(m.weight) : (current?.members.find((x) => x.user === m.user)?.weight ?? 1) }));
   try {
-    return await saveTeam(rpc, c, { team: o.team ? id(o.team, "team") : null, name, members: members.map((user) => ({ user })), revision: typeof o.revision === "number" ? o.revision : null });
+    return await saveTeam(rpc, c, { team: teamId, name, method: method ?? (current?.method as "rr" | "weighted" | "load" | undefined) ?? "rr", members, revision: typeof o.revision === "number" ? o.revision : null });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "";
     if (/draft_conflict/.test(msg)) throw new Refusal(409, "draft_conflict", "Someone else changed this team. Open it again.");

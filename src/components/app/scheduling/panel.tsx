@@ -30,7 +30,7 @@ export function PanelSection({
 }: {
   icon: React.ReactNode;
   title: string;
-  summary: string;
+  summary: React.ReactNode;
   open: boolean;
   onToggle: () => void;
   locked?: boolean;
@@ -60,7 +60,7 @@ export function PanelSection({
             {title}
             {locked ? <Lock size={11} className="text-faint" /> : null}
           </span>
-          <span className={`truncate text-[12px] ${tone === "bad" ? "text-rose" : tone === "warn" ? "text-butter" : "text-muted"}`}>{summary}</span>
+          <span className={`flex min-w-0 items-center gap-1.5 truncate text-[12px] ${tone === "bad" ? "text-rose" : tone === "warn" ? "text-butter" : "text-muted"}`}>{summary}</span>
         </span>
         <ChevronDown size={14} className={`text-faint transition-transform duration-[200ms] ease-out ${open ? "rotate-180" : ""}`} />
       </button>

@@ -18,13 +18,11 @@ import { MoreMenu } from "../StatCards";
 import { Badge, Button, ErrorNote, errorText, IconButton, invalidate, Loading, must, Page, postJson, Segmented, Toggle, useQuery, type ViewProps } from "../ui";
 import { DatePick } from "../DatePick";
 import { PaintWeek } from "./PaintWeek";
+import { TeamPeople } from "./TeamPeople";
 import { CLOCK_OPTIONS, ClockPick, FROM_OPTIONS, Overrides, ZonePicker } from "../meetings/HoursEditor";
 import { CLOCKS, DAY_LABEL, nextRange } from "../meetings/model";
 import { PROVIDERS, providerOf, useMyCalendars, type Account, type CalList } from "../meetings/MyCalendar";
 import { meetingsApi, Modal, ownZone } from "../meetings/parts";
-import { TeamsTab } from "../routing/rt/TeamsTab";
-import { useScreen } from "../routing/rt/api";
-import { TeamCalendars } from "../meetings/TeamCalendars";
 import { routingApi } from "../routing/api";
 
 type ScheduleRow = Availability & { id: string; name: string };
@@ -51,9 +49,6 @@ export function AvailabilityPage(props: ViewProps & { tab: string; back?: { labe
   const [daysOff, setDaysOff] = useState(tab === "days-off");
   const [dates, setDates] = useState(false);
   const [error, setError] = useState("");
-  // Teams (they were Routing › Teams): a team's members take turns when a Dynamic meeting sends leads to it.
-  const teams = useScreen(session, ws.id);
-  const [teamId, setTeamId] = useState<string | null>(null);
 
   const pickWhose = (w: Whose) => navigate("scheduling", w === "team" ? "availability/team" : "availability");
   const switcher = (
@@ -72,10 +67,9 @@ export function AvailabilityPage(props: ViewProps & { tab: string; back?: { labe
   if (whose === "team")
     return (
       <Page title="Availability" back={props.back} flush>
-        <div className="flex h-full min-h-0 flex-col gap-4 overflow-y-auto p-4">
+        <div className="flex h-full min-h-0 flex-col gap-4 overflow-y-auto px-5 pt-4 pb-8">
           <div>{switcher}</div>
-          <TeamCalendars sb={sb} ws={ws} role={props.role} session={session} onFix={() => pickWhose("you")} />
-          {teams.data ? <TeamsTab {...props} screen={teams} teamId={teamId} pick={setTeamId} /> : teams.error ? <ErrorNote message={teams.error} /> : null}
+          <TeamPeople {...props} onFix={() => pickWhose("you")} />
         </div>
       </Page>
     );

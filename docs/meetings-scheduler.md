@@ -192,6 +192,21 @@ and polls, Settings):
 - **Links and polls.** One table with Open or All and search, a New menu (single-use link, one-off meeting, poll), a
   share menu (Copy link, QR code drawn in the browser, Email signature) and a poll grid with Book this time.
 - **⌘K.** Copy my booking link and New meeting type.
+- **Team members, never reps.** Teams aren't only sales, so every word people read comes from `src/lib/words.ts`:
+  team member, owner (the person a contact or company belongs to) or person. Dynamic meetings read "1 team member,
+  1 rule, otherwise anyone on Enterprise". The starting team (key `q_everyone`) is "Whole team"; old names move over
+  on read and in migration 114, and a team someone renamed keeps its name. `tests/teamWords.test.ts` fails if "rep"
+  or "reps" comes back.
+- **Availability › Team.** One table of everyone: teams (chips, with + Team), calendar (Connect, Reconnect or Ask),
+  hours, today against their cap, and away. The team pills above filter it: members first with who's next in line,
+  then everyone not in the team with Add; how the team shares leads (Take turns, Some get more, Fewest meetings first);
+  and the meetings and forms that send to it. Turning Away on asks until when (pause or out-of-office dates, in the
+  app's own month picker). A new team name too close to one that exists is refused (`src/lib/routing/teamNames.ts`).
+  Saving a team keeps its method and every member's weight; before, adding a member reset both
+  (`tests/teamSave.test.ts`, with a flaky read).
+- **Styling brands.** Your brand (the workspace's own) is pinned next to Claritia; the other brands from Form Studio sit
+  under Other brands, searchable past 6. On Free: Claritia, your brand locked, and one line with Upgrade. The summary
+  shows the picked brand's logo.
 - **Guests.** On a phone, Next sits in a bar at the bottom of the screen. Arrow keys move through the month, Enter
   picks a day, and each day reads out its open times. The thank-you screen shows the host, Google, Outlook and
   Apple (`/api/book/m/<token>?ics=1`), the join link or where to find it, and its own Reschedule and Cancel
