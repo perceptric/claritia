@@ -223,7 +223,7 @@ export function useMeetingScreen(props: ViewProps, id: string, layout: "page" | 
           <Detail label="Source">{SOURCES[m.source as MeetingSource] ?? m.source}</Detail>
         )}
         {m.source === "form" && m.contact_id ? (
-          <Detail label="Why this rep">
+          <Detail label="Why this person">
             <RoutedBy sb={sb} session={session} ws={ws} role={props.role} navigate={navigate} contact={m.contact_id} />
           </Detail>
         ) : null}

@@ -113,7 +113,7 @@ function checkConds(body: RouterBody, ctx: OpCtx, list: unknown): { conds: Cond[
 
 /** A team of one for a person, reused when one already exists. */
 function soloTeam(b: RouterBody, ctx: OpCtx, user: string): Queue {
-  const name = ctx.members.find((m) => m.id === user)?.name ?? "Rep";
+  const name = ctx.members.find((m) => m.id === user)?.name ?? "Team member";
   const found = b.queues.find((q) => q.members.length === 1 && q.members[0]!.user === user && q.name === name);
   if (found) return found;
   const q: Queue = { id: newId("q_"), name, method: "rr", strict: false, hoursOnly: false, members: [{ user, weight: 1 }] };
@@ -162,7 +162,7 @@ export function applyOp(body: RouterBody, op: RouterOp, ctx: OpCtx): Applied {
     }
     case "set_account": {
       for (const k of ["on", "oppFirst", "setCompanyOwner"] as const) if (typeof op[k] === "boolean") b.account[k] = op[k]!;
-      return done(b.account.on ? "Leads from known companies go to their rep" : "Turned off same company, same rep");
+      return done(b.account.on ? "Leads from known companies go to their owner" : "Turned off same company, same owner");
     }
     case "set_keep": {
       if (typeof op.on === "boolean") b.keep.on = op.on;
@@ -170,7 +170,7 @@ export function applyOp(body: RouterBody, op: RouterOp, ctx: OpCtx): Applied {
         if (!["keep", "backup", "route"].includes(op.whenOut)) return { error: "whenOut is keep, backup or route." };
         b.keep.whenOut = op.whenOut;
       }
-      return done(b.keep.on ? "Leads keep the rep they have" : "Turned off keep their rep");
+      return done(b.keep.on ? "Leads keep the owner they have" : "Turned off keep their owner");
     }
     case "set_sla": {
       const sla = { ...(b.sla ?? { on: false, minutes: 60, nudge: 30, next: "route" as const, manager: null }) };

@@ -143,7 +143,7 @@ export function TriggerPanel({ body, names, onChange, readOnly }: { body: Body; 
       ) : null}
       {t.kind === "routed" ? (
         <Row name="When">
-          <Segmented value={t.result} options={[{ value: "routed", label: "Gets a rep" }, { value: "unassigned", label: "No rep found" }, { value: "any", label: "Either" }]} onChange={(result) => set({ result })} />
+          <Segmented value={t.result} options={[{ value: "routed", label: "Gets assigned" }, { value: "unassigned", label: "No one found" }, { value: "any", label: "Either" }]} onChange={(result) => set({ result })} />
         </Row>
       ) : null}
       {t.kind === "segment" || t.kind === "broadcast" ? (
@@ -430,7 +430,7 @@ export function StepPanel(p: {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const probs = stepProblems(s);
-  const people = [{ value: "owner", label: "Their rep" }, ...p.names.members.map((m) => ({ value: m.id, label: m.name || m.email }))];
+  const people = [{ value: "owner", label: "Their owner" }, ...p.names.members.map((m) => ({ value: m.id, label: m.name || m.email }))];
 
   const draft = async () => {
     if (s.kind !== "email") return;
@@ -482,7 +482,7 @@ export function StepPanel(p: {
       {s.kind === "email" ? (
         <>
           <div className="flex flex-wrap items-center gap-2">
-            <Segmented value={s.from} options={[{ value: "team", label: "From the team" }, { value: "owner", label: "From their rep" }]} onChange={(from) => p.onPatch({ from } as Partial<Step>)} />
+            <Segmented value={s.from} options={[{ value: "team", label: "From the team" }, { value: "owner", label: "From their owner" }]} onChange={(from) => p.onPatch({ from } as Partial<Step>)} />
             {!p.readOnly ? (
               <Button variant="ghost" onClick={() => void draft()} disabled={busy}>
                 <AiMark size={13} /> Write with AI

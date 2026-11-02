@@ -59,7 +59,7 @@ export const PREVIEW_FOOTER = "Preview only. No contacts, assignments, queue tur
 /** The public visitor's messages (Section 13). A workspace may word them its own way; their meaning must match the state. */
 export const VISITOR = {
   assigned: "Thanks — we've received your request.",
-  noSlots: "Thanks — your rep will contact you to arrange a time.",
+  noSlots: "Thanks. Someone from our team will contact you to arrange a time.",
   slow: "Your details are saved. We're finishing your request.",
   taken: "That time was just taken. Please choose another.",
   unknown: "We're confirming your meeting. Please keep this page open.",

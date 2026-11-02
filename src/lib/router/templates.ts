@@ -1,6 +1,7 @@
 // Starting points (docs/router-ux.md 4.1): three templates, and today's routing in lead_settings moved over
 // (docs/router.md Part 11). Each returns a full body; the editor's "Finish setup" list comes from `problems`.
 
+import { WHOLE_TEAM } from "../words.ts";
 import { REGIONS } from "./conditions.ts";
 import { emptyBody, type Queue, type Rule, type RouterBody } from "./types.ts";
 
@@ -9,7 +10,7 @@ export type TemplateId = "round_robin" | "territories" | "owner_first";
 export const TEMPLATES: { id: TemplateId; name: string; text: string }[] = [
   { id: "round_robin", name: "Everyone takes turns", text: "One team shares every lead" },
   { id: "territories", name: "By region", text: "A team for each region" },
-  { id: "owner_first", name: "Company owner first", text: "Known companies keep their rep" },
+  { id: "owner_first", name: "Company owner first", text: "Known companies keep their owner" },
 ];
 
 const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "").slice(0, 30) || "x";
@@ -17,7 +18,7 @@ const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(
 /** A template's body. `reps`: the members to start the shared queue with. `regions`: names from REGIONS. */
 export function fromTemplate(id: TemplateId, o: { reps?: string[]; regions?: string[] } = {}): RouterBody {
   const b = emptyBody();
-  const everyone: Queue = { id: "q_everyone", name: "All reps", method: "rr", strict: false, hoursOnly: false, members: (o.reps ?? []).map((user) => ({ user, weight: 1 })) };
+  const everyone: Queue = { id: "q_everyone", name: WHOLE_TEAM, method: "rr", strict: false, hoursOnly: false, members: (o.reps ?? []).map((user) => ({ user, weight: 1 })) };
   if (id === "round_robin") {
     b.account.on = false;
     b.queues = [everyone];

@@ -50,7 +50,7 @@ async function readNames(sb: SupabaseClient, ws: string): Promise<Names> {
   };
 }
 
-export const wordsOf = (n: Names): WordNames => ({ forms: byId(n.forms), segments: byId(n.segments), types: byId(n.types), people: { owner: "their rep", ...byId(n.members) } });
+export const wordsOf = (n: Names): WordNames => ({ forms: byId(n.forms), segments: byId(n.segments), types: byId(n.types), people: { owner: "their owner", ...byId(n.members) } });
 
 /** A workflow with its versions, names and counts, all asked for at once. */
 export async function loadWorkflow(sb: SupabaseClient, ws: string, id: string): Promise<Loaded> {

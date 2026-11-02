@@ -134,7 +134,7 @@ function ClaritiaPane({ navigate, formId }: Props) {
           <Badge>No company</Badge>
         </div>
         <div className={CROW}>
-          <RowText title="Then" sub="On Submission picks the meeting and the rep, Scoring scores the lead" />
+          <RowText title="Then" sub="On Submission picks the meeting and the person, Scoring scores the lead" />
           <button type="button" className={LINK} onClick={() => navigate("forms", formId, "open=submission")}>
             Open On Submission
           </button>
@@ -228,8 +228,8 @@ function CrmPane({ sb, session, ws, form, formId, dests, failed, reload, patchDe
           />
         </div>
         <div className={CROW}>
-          <RowText title="Owner" sub={r.assign === "claritia" ? `The rep Routing picks. Records ${source.name} already owns keep their owner.` : `${source.name}'s own assignment rules decide`} />
-          <Seg label="Owner" value={r.assign} onChange={(v) => set({ assign: v, owner: v === "claritia" ? "keep" : r.owner })} options={[{ value: "claritia", label: "Routing's rep" }, { value: "crm", label: `${source.name} decides` }]} />
+          <RowText title="Owner" sub={r.assign === "claritia" ? `The person Routing picks. Records ${source.name} already owns keep their owner.` : `${source.name}'s own assignment rules decide`} />
+          <Seg label="Owner" value={r.assign} onChange={(v) => set({ assign: v, owner: v === "claritia" ? "keep" : r.owner })} options={[{ value: "claritia", label: "Routing's pick" }, { value: "crm", label: `${source.name} decides` }]} />
         </div>
         <div className={CROW}>
           <RowText title="Send email consent" sub={`As ${source.name} subscription status`} />

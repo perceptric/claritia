@@ -58,7 +58,7 @@ export const TEMPLATES: Template[] = [
   {
     key: "no_show",
     name: "No-show follow-up",
-    line: "An email, a task and a Slack note for the rep",
+    line: "An email, a task and a Slack note for their owner",
     body: () => ({
       trigger: { kind: "meeting", events: ["no_show"], types: [] },
       goals: [{ kind: "meeting_booked" }],

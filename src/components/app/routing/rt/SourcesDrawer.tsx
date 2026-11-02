@@ -156,7 +156,7 @@ export function SourcesDrawer({ session, ws, d, policyId, ro, onClose, onStaged 
                   <Row label="Meeting type">
                     <Choice<string> label={`${s.name} meeting type`} value={eff.meetingTypeId ?? ""} placeholder="Select" align="right" disabled={ro || busy} options={meetings} onChange={(v) => set({ meeting: v })} />
                   </Row>
-                  <Row label="No slots" line="Thanks — your rep will contact you to arrange a time.">
+                  <Row label="No slots" line="Thanks. Someone from our team will contact you to arrange a time.">
                     <Badge>Follow-up task</Badge>
                   </Row>
                   <Row label="Unfinished booking">

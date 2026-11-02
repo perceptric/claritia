@@ -20,6 +20,7 @@ import { AvatarStack, copyText, meetingsApi, Modal, ownZone, usePeople, useWorks
 import { ShareMenu } from "../meetings/Share";
 import { DEFAULT_SETTINGS } from "@/lib/meetings/types";
 import { TAB_X } from "./frame";
+import { count, MEMBER } from "@/lib/words";
 import { TYPE_COLS, useMeetingTypes, type TypeRow } from "../meetings/TypesList";
 import { useLiveBody } from "../routing/screenParts";
 import { KIND_WORDS, lengthWords, PLACE_WORDS } from "./model";
@@ -294,7 +295,7 @@ export function TypesPage(props: ViewProps & { open: string }) {
                       ) : null}
                       <span className="text-[12.5px] text-muted tabular-nums">{booked ? `${booked} booked this week` : "None booked this week"}</span>
                       <div className="mt-auto flex items-center gap-2 border-t border-line pt-2.5 text-[12.5px]">
-                        <span className="relative z-10 flex min-w-0 items-center gap-2" title={dyn ? `${t.hosts.length} ${t.hosts.length === 1 ? "rep" : "reps"}, ${dyn.rules.length} ${dyn.rules.length === 1 ? "rule" : "rules"}` : t.hosts.map((h) => nameOf(h.user_id)).join(", ")}>
+                        <span className="relative z-10 flex min-w-0 items-center gap-2" title={dyn ? `${count(t.hosts.length, MEMBER)}, ${count(dyn.rules.length, "rule")}` : t.hosts.map((h) => nameOf(h.user_id)).join(", ")}>
                           <AvatarStack ids={t.hosts.map((h) => h.user_id)} people={people.data?.byId} max={4} size={22} />
                           <KindTip kind={dyn ? "dynamic" : "individual"}>
                             <Badge tone={dyn ? "violet" : "gray"}>{dyn ? "Dynamic" : t.kind === "one" || t.kind === "group" ? "Individual" : KIND_WORDS[t.kind]}</Badge>

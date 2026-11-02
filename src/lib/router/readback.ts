@@ -5,7 +5,7 @@ import { minutesWords } from "./explain.ts";
 import { BASE_FIELDS, ruleWords, type FieldDef } from "./conditions.ts";
 import { defaultSla, type RouterBody } from "./types.ts";
 
-const METHOD = { rr: "who take turns", weighted: "where some get more", load: "where the rep with the fewest meetings goes first" } as const;
+const METHOD = { rr: "who take turns", weighted: "where some get more", load: "where whoever has the fewest meetings goes first" } as const;
 
 /** `names`: teammates by id. `fields`: for rule sentences. */
 export function readBack(body: RouterBody, o: { names?: Record<string, string>; fields?: FieldDef[] } = {}): string {
@@ -17,10 +17,10 @@ export function readBack(body: RouterBody, o: { names?: Record<string, string>; 
     const checks = [body.spam.disposable && "throwaway emails", body.spam.fakeName && "made-up names", body.spam.tooMany && "too many forms from one person", body.spam.freeMail && "personal emails"].filter(Boolean) as string[];
     out.push(checks.length ? `Leads with ${list(checks)} wait for you to review.` : "Leads from blocked domains wait for you to review.");
   }
-  if (body.account.on) out.push(`A lead from a company you already work with goes to ${body.account.oppFirst ? "the rep on its open deal, or else the company's owner" : "the company's owner"}.`);
+  if (body.account.on) out.push(`A lead from a company you already work with goes to ${body.account.oppFirst ? "the owner of its open deal, or else the company's owner" : "the company's owner"}.`);
   if (body.keep.on) {
     const away = { keep: "waits for them", backup: "goes to whoever covers for them", route: "goes on to a team" }[body.keep.whenOut];
-    out.push(`A lead who already has a rep keeps them; when that rep is away, it ${away}.`);
+    out.push(`A lead who already has an owner keeps them; when that person is away, it ${away}.`);
   }
   if (body.rules.on) {
     for (const r of body.rules.list) {
@@ -33,11 +33,11 @@ export function readBack(body: RouterBody, o: { names?: Record<string, string>; 
     }
   }
   const fb = body.fallback;
-  out.push(!fb ? "Leads nothing else matched have no rep yet." : fb.kind === "user" ? `Fallback: assign to ${who(fb.id)}.` : `Fallback: the ${team(fb.id)?.name ?? "removed"} team.`);
+  out.push(!fb ? "Leads nothing else matched have no one yet." : fb.kind === "user" ? `Fallback: assign to ${who(fb.id)}.` : `Fallback: the ${team(fb.id)?.name ?? "removed"} team.`);
   const sla = body.sla ?? defaultSla();
   if (sla.on) {
     const then = sla.next === "route" ? "it goes to someone else" : sla.next === "manager" ? `it goes to ${sla.manager ? who(sla.manager) : "the manager"}` : "they get a reminder";
-    out.push(`Reps must reach out within ${minutesWords(sla.minutes)}, or ${then}.`);
+    out.push(`Team members must reach out within ${minutesWords(sla.minutes)}, or ${then}.`);
   }
   return out.join(" ");
 }
@@ -68,8 +68,8 @@ export function planLines(body: RouterBody, o: { names?: Record<string, string>;
     const checks = [body.spam.disposable && "throwaway emails", body.spam.fakeName && "made-up names", body.spam.tooMany && "too many fills in an hour", body.spam.freeMail && "personal emails"].filter(Boolean) as string[];
     out.push({ kind: "spam", text: checks.length ? `Leads with ${list(checks)} are held for you to check.` : "Leads from blocked domains are held for you to check." });
   }
-  if (body.account.on) out.push({ kind: "account", text: `If the lead's company is already in your CRM, the lead goes to ${body.account.oppFirst ? "the rep on its open deal, or else the company's owner" : "the company's owner"}.` });
-  if (body.keep.on) out.push({ kind: "keep", text: `If the lead already has a rep, they keep that rep${body.keep.whenOut === "backup" ? ". When the rep is away, their backup gets it" : body.keep.whenOut === "route" ? ", unless the rep is away" : ""}.` });
+  if (body.account.on) out.push({ kind: "account", text: `If the lead's company is already in your CRM, the lead goes to ${body.account.oppFirst ? "the owner of its open deal, or else the company's owner" : "the company's owner"}.` });
+  if (body.keep.on) out.push({ kind: "keep", text: `If the lead already has an owner, they keep that owner${body.keep.whenOut === "backup" ? ". When the owner is away, their backup gets it" : body.keep.whenOut === "route" ? ", unless the owner is away" : ""}.` });
   if (body.rules.on)
     for (const r of body.rules.list) {
       if (r.on === false) continue;
@@ -78,13 +78,13 @@ export function planLines(body: RouterBody, o: { names?: Record<string, string>;
       out.push({ kind: "rule", id: r.id, name: r.name, text: when ? `If ${when.charAt(0).toLowerCase() + when.slice(1)}, the lead ${then}.` : `No condition yet. The lead ${then}.` });
     }
   const fb = body.fallback;
-  out.push({ kind: "fallback", text: !fb ? "Leads that match nothing above get no rep yet." : `Leads that match nothing above go to ${fb.kind === "user" ? who(fb.id) : teamWords(fb.id)}.` });
+  out.push({ kind: "fallback", text: !fb ? "Leads that match nothing above get no one yet." : `Leads that match nothing above go to ${fb.kind === "user" ? who(fb.id) : teamWords(fb.id)}.` });
   const sla = body.sla ?? defaultSla();
   if (sla.on) {
-    const then = sla.next === "route" ? "the lead goes to the next rep" : sla.next === "manager" ? `the lead goes to ${sla.manager ? who(sla.manager) : "the manager"}` : "they get a reminder";
-    out.push({ kind: "sla", text: `A rep has ${minutesWords(sla.minutes)} to reach out. If they don't, ${then}.` });
+    const then = sla.next === "route" ? "the lead goes to the next team member" : sla.next === "manager" ? `the lead goes to ${sla.manager ? who(sla.manager) : "the manager"}` : "they get a reminder";
+    out.push({ kind: "sla", text: `A team member has ${minutesWords(sla.minutes)} to reach out. If they don't, ${then}.` });
   }
   return out;
 }
 
-const METHOD_SHORT = { rr: "taking turns", weighted: "some reps get more", load: "the rep with the fewest meetings first" } as const;
+const METHOD_SHORT = { rr: "taking turns", weighted: "some team members get more", load: "whoever has the fewest meetings first" } as const;

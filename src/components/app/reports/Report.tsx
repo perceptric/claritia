@@ -18,7 +18,7 @@ import { ErrorNote, IconButton, Loading, must, Panel, Segmented, Td, Th, useQuer
 export type ReportKind = "funnel" | "reps" | "speed" | "rules" | "forms" | "email";
 const TITLE: Record<ReportKind, string> = {
   funnel: "Funnel",
-  reps: "Reps",
+  reps: "Team members",
   speed: "Speed to lead",
   rules: "Routing rules",
   forms: "Forms",
@@ -208,12 +208,12 @@ const BY: { value: By; label: string }[] = [
   { value: "source", label: "Source" },
   { value: "campaign", label: "Campaign" },
   { value: "form", label: "Form" },
-  { value: "rep", label: "Rep" },
+  { value: "rep", label: "Team member" },
   { value: "rule", label: "Rule" },
 ];
 
 const groupName = (by: By, key: string, n: Names) => {
-  if (!key) return by === "campaign" ? "No campaign" : by === "rep" ? "No rep" : by === "rule" ? "No rule" : by === "form" ? "No form" : "Unknown";
+  if (!key) return by === "campaign" ? "No campaign" : by === "rep" ? "No one" : by === "rule" ? "No rule" : by === "form" ? "No form" : "Unknown";
   if (by === "form") return n.forms[key] ?? "A removed form";
   if (by === "rep") return n.people[key] ?? "A former teammate";
   if (by === "rule") return n.rules[key] ?? "A removed rule";
@@ -400,7 +400,7 @@ function SpeedPage({ sb, ws, range, title }: PageProps) {
         text: toCsv(
           ["Measure", "Median (seconds)", "90th percentile (seconds)", "Leads"],
           [
-            ["To a rep", d.now.assigned.median, d.now.assigned.p90, d.now.assigned.n],
+            ["To a team member", d.now.assigned.median, d.now.assigned.p90, d.now.assigned.n],
             ["To first touch", d.now.touched.median, d.now.touched.p90, d.now.touched.n],
             ["To a meeting", d.now.booked.median, d.now.booked.p90, d.now.booked.n],
           ],
@@ -414,11 +414,11 @@ function SpeedPage({ sb, ws, range, title }: PageProps) {
       <ToolIntro
         sketch="calendar"
         title={"How fast every lead\nhears back"}
-        lead="From the moment a form is sent: how long until a rep has it, until someone reaches out, and until a meeting is booked."
+        lead="From the moment a form is sent: how long until a team member has it, until someone reaches out, and until a meeting is booked."
         features={[
           {
             title: "First touch",
-            text: "The first of: the response time marked met, a meeting booked, or a one-to-one email sent from Claritia. Emails from a rep's own Gmail aren't seen yet.",
+            text: "The first of: the response time marked met, a meeting booked, or a one-to-one email sent from Claritia. Emails from a team member's own Gmail aren't seen yet.",
           },
           {
             title: "On time",
@@ -497,9 +497,9 @@ function RepsPage({ sb, ws, range, names, onDrill, title }: PageProps) {
   const perWeek = (x: Rep) => (d && d.weeks > 0 ? Math.round((x.leads / d.weeks) * 10) / 10 : 0);
   const csv: Csv | null = d
     ? () => ({
-        name: `reps-${range.from}-${range.to}.csv`,
+        name: `team-members-${range.from}-${range.to}.csv`,
         text: toCsv(
-          ["Rep", "Leads", "Leads a week", "Weekly cap", "Reached on time", "Booked", "Held", "No-shows", "Opportunities", "Won amount"],
+          ["Team member", "Leads", "Leads a week", "Weekly cap", "Reached on time", "Booked", "Held", "No-shows", "Opportunities", "Won amount"],
           d.reps.map((x) => [name(x.id), x.leads, perWeek(x), x.cap_week, pct(x.met, x.timed), x.booked, x.held, x.no_show, x.opportunities, x.won_amount]),
         ),
       })
@@ -520,7 +520,7 @@ function RepsPage({ sb, ws, range, names, onDrill, title }: PageProps) {
         <table className="w-full text-[13px]">
           <thead>
             <tr>
-              <Th>Rep</Th>
+              <Th>Team member</Th>
               <Th className="text-right">Leads</Th>
               <Th className="text-right">A week</Th>
               <Th className="text-right">On time</Th>

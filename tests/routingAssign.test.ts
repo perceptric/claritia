@@ -109,7 +109,7 @@ test("round robin is the rules off or none: every lead goes to the fallback's re
   assert.equal(d.result.kind === "owner" && d.result.by, "fallback", "an Enterprise-sized lead still goes round robin");
   assert.ok(d.result.kind === "owner" && [SAM, VIN].includes(d.result.user));
   assert.equal(hitOf(d), "default");
-  assert.equal(whyOf(d, { body: b, fields: BASE_FIELDS, name }), "Round robin across 2 reps");
+  assert.equal(whyOf(d, { body: b, fields: BASE_FIELDS, name }), "Round robin across 2 team members");
   assert.equal(setMode(b, "rr"), b, "the same mode is no change");
   assert.deepEqual(Object.fromEntries(rulesByRep(viewOf(b, BASE_FIELDS))), { [SAM]: ["Round robin"], [VIN]: ["Round robin"] });
 });
@@ -231,7 +231,7 @@ test("a new rule waits for its reps: it can't go live until they're picked, and 
   const issues = issuesOf(v, { calendar: (u) => u !== VIN, name });
   assert.deepEqual(
     issues.map((x) => x.title),
-    ["Vincent Nguyen has no calendar connected", "Rule 2 has no reps"],
+    ["Vincent Nguyen has no calendar connected", "Rule 2 has no team members"],
   );
   const picked = setRuleReps(b, "r_new", [DAN]);
   assert.equal(picked.rules.list.at(-1)!.queue, "t_1");

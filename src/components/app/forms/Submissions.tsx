@@ -266,7 +266,7 @@ export function Submissions(props: ViewProps & { form: Form; formId: string; des
 
   const openRow = rows?.find((r) => r.id === open) ?? null;
   const all = rows ?? [];
-  const head = view === "spam" ? ["Sent", "Name", "Why", "From"] : ["Sent", "Name", ...(hasCompany ? ["Company"] : []), ...shownCols.map((c) => c.label), "Rep", "Meeting", "Sync"];
+  const head = view === "spam" ? ["Sent", "Name", "Why", "From"] : ["Sent", "Name", ...(hasCompany ? ["Company"] : []), ...shownCols.map((c) => c.label), "Owner", "Meeting", "Sync"];
   const leftLabel = (id: string | null) => (id ? (fields.find((x) => x.id === id)?.label || "A question that's gone") : "Before the first question");
 
   return (

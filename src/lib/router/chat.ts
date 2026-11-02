@@ -1,8 +1,8 @@
 // The routing chat (docs/routing-chat-plan.md Part 2). Claude changes the setup only through tools, and each tool is
 // one op (src/lib/router/ops.ts) checked before it applies: an op that is malformed, points at someone who isn't on
 // the team, or would leave the setup with a new problem is refused, and the error goes back to the model, which fixes
-// it in the same turn. Claude never publishes; the person's click on Publish does. Rep changes (away, caps) come
-// back as patches for the route to save, since they are the rep's status and not part of the setup.
+// it in the same turn. Claude never publishes; the person's click on Publish does. Team member changes (away, caps) come
+// back as patches for the route to save, since they are the owner's status and not part of the setup.
 
 import type Anthropic from "@anthropic-ai/sdk";
 import { addUsage, usageOf, type Usage } from "../ai/cache.ts";
@@ -48,7 +48,7 @@ const conds = { type: "array", items: cond };
 const tool = (name: string, description: string, properties: Record<string, unknown>, required: string[] = []): Anthropic.Beta.BetaTool => ({ name, description, input_schema: { type: "object", properties, required } as Anthropic.Beta.BetaTool["input_schema"] });
 
 export const ROUTER_TOOLS: Anthropic.Beta.BetaTool[] = [
-  tool("add_team", "Make a team that shares leads. method: rr takes turns, weighted gives some more (weights 1 to 10, one per person), load sends to whoever has the fewest meetings this week.", { name: { type: "string" }, people: { type: "array", items: { type: "string" }, description: "Teammates by full name or email." }, method: { type: "string", enum: ["rr", "weighted", "load"] }, weights: { type: "array", items: { type: "number" } }, strict: { type: "boolean", description: "Keep the turn order; only skip reps who can't take leads at all." }, hoursOnly: { type: "boolean", description: "Only reps inside their working hours." } }, ["name", "people"]),
+  tool("add_team", "Make a team that shares leads. method: rr takes turns, weighted gives some more (weights 1 to 10, one per person), load sends to whoever has the fewest meetings this week.", { name: { type: "string" }, people: { type: "array", items: { type: "string" }, description: "Teammates by full name or email." }, method: { type: "string", enum: ["rr", "weighted", "load"] }, weights: { type: "array", items: { type: "number" } }, strict: { type: "boolean", description: "Keep the turn order; only skip team members who can't take leads at all." }, hoursOnly: { type: "boolean", description: "Only team members inside their working hours." } }, ["name", "people"]),
   tool("edit_team", "Change a team: its name, people, how they share, weights, strict or hoursOnly.", { team: { type: "string" }, name: { type: "string" }, people: { type: "array", items: { type: "string" } }, method: { type: "string", enum: ["rr", "weighted", "load"] }, weights: { type: "array", items: { type: "number" } }, strict: { type: "boolean" }, hoursOnly: { type: "boolean" } }, ["team"]),
   tool("remove_team", "Remove a team no rule uses.", { team: { type: "string" } }, ["team"]),
   tool("add_region", "Name a set of countries, like Europe or DACH, for rules to use. Known names fill their countries when you leave countries out.", { name: { type: "string" }, countries: { type: "array", items: { type: "string" } } }, ["name"]),
@@ -59,16 +59,16 @@ export const ROUTER_TOOLS: Anthropic.Beta.BetaTool[] = [
   tool("remove_rule", "Remove a rule.", { rule: { type: "string" } }, ["rule"]),
   tool("set_everyone_else", "Who gets leads no rule matched: a team or one person.", { team: { type: "string" }, person: { type: "string" } }),
   tool("set_junk", "The junk check: leads that look fake wait for review.", { on: { type: "boolean" }, disposable: { type: "boolean", description: "Throwaway emails." }, fakeName: { type: "boolean" }, tooMany: { type: "boolean", description: "Too many fills in an hour." }, freeMail: { type: "boolean", description: "Personal emails like gmail." }, maxPerHour: { type: "integer" } }),
-  tool("set_same_company", "Same company, same rep: a lead from a company you work with goes to its rep.", { on: { type: "boolean" }, oppFirst: { type: "boolean", description: "The rep on its open deal first." }, setCompanyOwner: { type: "boolean", description: "Also make that rep the company's owner." } }),
-  tool("set_keep_rep", "Keep their rep: a lead who already has a rep keeps them. whenOut: keep waits for them, backup sends to their backup, route sends it on.", { on: { type: "boolean" }, whenOut: { type: "string", enum: ["keep", "backup", "route"] } }),
-  tool("set_response_time", "After a lead is routed, the rep has this many minutes to act (5 to 10080). next: route sends it to someone else, manager gives it to the manager, nudge only reminds the rep.", { on: { type: "boolean" }, minutes: { type: "integer" }, nudge: { type: "integer" }, next: { type: "string", enum: ["route", "manager", "nudge"] }, manager: { type: "string" } }),
-  tool("set_rep", "A rep's own status, saved right away: away from one date to another (YYYY-MM-DD), a daily or weekly cap (null clears it), or their backup.", { person: { type: "string" }, away_from: { type: "string" }, away_to: { type: "string" }, cap_day: { type: ["integer", "null"] }, cap_week: { type: ["integer", "null"] }, backup: { type: "string" } }, ["person"]),
+  tool("set_same_company", "Same company, same owner: a lead from a company you work with goes to its owner.", { on: { type: "boolean" }, oppFirst: { type: "boolean", description: "The owner of its open deal first." }, setCompanyOwner: { type: "boolean", description: "Also make that person the company's owner." } }),
+  tool("set_keep_rep", "Keep their owner: a lead who already has an owner keeps them. whenOut: keep waits for them, backup sends to their backup, route sends it on.", { on: { type: "boolean" }, whenOut: { type: "string", enum: ["keep", "backup", "route"] } }),
+  tool("set_response_time", "After a lead is routed, the person has this many minutes to act (5 to 10080). next: route sends it to someone else, manager gives it to the manager, nudge only reminds the owner.", { on: { type: "boolean" }, minutes: { type: "integer" }, nudge: { type: "integer" }, next: { type: "string", enum: ["route", "manager", "nudge"] }, manager: { type: "string" } }),
+  tool("set_rep", "A team member's own status, saved right away: away from one date to another (YYYY-MM-DD), a daily or weekly cap (null clears it), or their backup.", { person: { type: "string" }, away_from: { type: "string" }, away_to: { type: "string" }, cap_day: { type: ["integer", "null"] }, cap_week: { type: ["integer", "null"] }, backup: { type: "string" } }, ["person"]),
   tool("ask", "Ask the person one question with 2 to 4 short choices, when their words could mean different things. Stop after asking.", { question: { type: "string" }, choices: { type: "array", items: { type: "string" } } }, ["question", "choices"]),
 ];
 
 export const ROUTER_SYSTEM = `You set up lead routing in Claritia for a sales team, by changing their routing setup with tools.
 
-How routing runs, in order: junk check (held for review), same company same rep, keep their rep, then rules top to bottom (the first match decides), then everyone else. A response time can pass a lead on when a rep doesn't act.
+How routing runs, in order: junk check (held for review), same company same owner, keep their owner, then rules top to bottom (the first match decides), then everyone else. A response time can pass a lead on when someone doesn't act.
 
 Rules:
 - Make every change with tools. Never describe a change you didn't make.
@@ -93,7 +93,7 @@ function contextText(ctx: RouterChatCtx): string {
   const teams = ctx.body.queues.map((q) => `${q.name} [${q.id}]: ${q.members.map((m) => names[m.user] ?? "former teammate").join(", ")}, ${q.method}`).join("\n") || "none";
   const rules = ctx.body.rules.list.map((r, i) => `${i}. ${r.name} [${r.id}]`).join("\n") || "none";
   const regions = [...ctx.body.territories.map((t) => `${t.name} [${t.id}]: ${t.countries.join(", ")}`), ...REGIONS.filter((r) => !ctx.body.territories.some((t) => t.name === r.name)).map((r) => `${r.name} (known, add_region to use)`)].join("\n");
-  const sum = ctx.summary ? `Lead summary, last ${ctx.summary.days} days: ${ctx.summary.leads} leads. Countries: ${ctx.summary.countries.map(([c, n]) => `${c} ${n}`).join(", ")}. Company sizes: ${ctx.summary.sizes.map(([s, n]) => `${s} ${n}`).join(", ")}. ${ctx.summary.withOwner} already had a rep.` : "";
+  const sum = ctx.summary ? `Lead summary, last ${ctx.summary.days} days: ${ctx.summary.leads} leads. Countries: ${ctx.summary.countries.map(([c, n]) => `${c} ${n}`).join(", ")}. Company sizes: ${ctx.summary.sizes.map(([s, n]) => `${s} ${n}`).join(", ")}. ${ctx.summary.withOwner} already had a owner.` : "";
   const recent = ctx.recent.length ? `Recent leads:\n${ctx.recent.slice(0, 40).map((l) => `${l.name}${l.company ? ` (${l.company}` : " ("}${l.country ? `, ${l.country}` : ""}${l.size ? `, ${l.size} people` : ""}) went to ${l.went}: ${l.path}, ${l.at}`).join("\n")}` : "";
   return [
     `Today is ${ctx.today}.`,

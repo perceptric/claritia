@@ -131,6 +131,6 @@ test("an op that would break the setup is refused even when it's well formed", a
   start.body = (await runRouterChat(m1, "x", start)).body;
   const { model, seen } = script([[{ name: "edit_team", input: { team: "AEs", people: [] } }], "ok"]);
   const r = await runRouterChat(model, "empty the AEs team", start);
-  assert.match(JSON.stringify(seen[1]), /would leave a problem: AEs has no reps/);
+  assert.match(JSON.stringify(seen[1]), /would leave a problem: AEs has no team members/);
   assert.equal(r.body.queues[0]!.members.length, 1);
 });

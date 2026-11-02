@@ -1,5 +1,7 @@
 "use client";
 
+import { anyoneOn, count, MEMBER, Members } from "@/lib/words";
+
 // One meeting type in the 400 px panel (docs/scheduling-plan.md 11.2 and 12.1), after Calendly's event type panel:
 // the name edited in place, then closed sections, each with a one-line summary, one open at a time: Duration,
 // Location, Availability, Host, Limits and buffers, Booking questions, Notifications, Confirmation page and Payment.
@@ -221,7 +223,7 @@ export function TypePanel({
   const destFrom = (v: string): Dest => (v.startsWith("t:") ? { kind: "team", id: v.slice(2) } : { kind: "user", id: v.slice(2) });
   const destOptions = [
     ...facts.teams.filter((t) => t.keys.length).map((t) => ({ value: `t:${t.keys[0]}`, label: t.name, hint: "Take turns", group: "Teams" })),
-    ...draft.hosts.map((h) => ({ value: `u:${h.user_id}`, label: nameOf(h.user_id), group: "Reps" })),
+    ...draft.hosts.map((h) => ({ value: `u:${h.user_id}`, label: nameOf(h.user_id), group: Members })),
   ];
   const firstField = usable(facts.fields).find((f) => f.key === "lead.country") ?? usable(facts.fields)[0];
   const withoutTeam = (x: TypeSettings): TypeSettings => {
@@ -239,9 +241,9 @@ export function TypePanel({
       const otherwise: Dest = teamKey ? { kind: "team", id: teamKey } : { kind: "user", id: first };
       return { ...d, kind: "round_robin", hosts: d.hosts.length ? d.hosts.map((h) => ({ user_id: h.user_id })) : [{ user_id: first }], settings: { ...withoutTeam(d.settings), dynamic: { rules: [], otherwise } } };
     });
-  const destWords = (x: Dest | null) => (!x ? "nobody" : x.kind === "user" ? nameOf(x.id) : (facts.teams.find((t) => t.keys.includes(x.id))?.name ?? "a removed team"));
+  const destWords = (x: Dest | null) => (!x ? "nobody" : x.kind === "user" ? nameOf(x.id) : anyoneOn(facts.teams.find((t) => t.keys.includes(x.id))?.name ?? "a removed team"));
   const hostSummary = dynamic
-    ? `${draft.hosts.length} ${draft.hosts.length === 1 ? "rep" : "reps"}, ${dyn!.rules.length} ${dyn!.rules.length === 1 ? "rule" : "rules"}, otherwise ${destWords(dyn!.otherwise)}`
+    ? `${count(draft.hosts.length, MEMBER)}, ${count(dyn!.rules.length, "rule")}, otherwise ${destWords(dyn!.otherwise)}`
     : draft.hosts[0]
       ? `${nameOf(draft.hosts[0].user_id)}${draft.hosts[0].user_id === me ? " (you)" : ""}`
       : "Pick a host";
@@ -402,7 +404,7 @@ export function TypePanel({
             />
           ) : (
             <>
-              <Labeled label="Reps">
+              <Labeled label={Members}>
                 <ul className="flex flex-col gap-2">
                   {draft.hosts.map((h) => {
                     const st = data.status.get(h.user_id);
@@ -426,8 +428,8 @@ export function TypePanel({
                     value=""
                     options={others.map((p) => ({ value: p.id, label: p.name }))}
                     onChange={(v) => set({ hosts: [...draft.hosts, { user_id: v }] })}
-                    ariaLabel="Add rep"
-                    placeholder="Add rep"
+                    ariaLabel="Add team member"
+                    placeholder="Add team member"
                     plainPlaceholder
                     className="h-8 self-start rounded-full border border-dashed border-line-strong px-3 text-[12.5px] font-medium text-body hover:text-ink"
                   />

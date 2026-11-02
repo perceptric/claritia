@@ -131,7 +131,7 @@ function Alerts({ form, apply, routing }: Props) {
         ) : null}
         <div className={CROW}>
           <BrandLogo domain="slack.com" name="Slack" size={18} />
-          <RowText title="Post in Slack" sub={routing ? "Routing posts new leads in its channel already, with the rep" : "In the Routing channel"} />
+          <RowText title="Post in Slack" sub={routing ? "Routing posts new leads in its channel already, with who took them" : "In the Routing channel"} />
           {routing ? <Badge>Routing posts here</Badge> : <Tg label="Post in Slack" on={n.slack} onChange={(v) => set({ slack: v })} />}
         </div>
       </div>
@@ -170,7 +170,7 @@ function Reply({ form, apply, ws }: Props) {
             <>
               <div className={CSTACK}>
                 <Label>From</Label>
-                <Seg label="From" value={r.from} onChange={(v) => set({ from: v })} options={[{ value: "owner", label: "Their rep" }, { value: "team", label: ws.name }]} />
+                <Seg label="From" value={r.from} onChange={(v) => set({ from: v })} options={[{ value: "owner", label: "Their owner" }, { value: "team", label: ws.name }]} />
               </div>
               <div className={CSTACK}>
                 <Label>Subject</Label>
@@ -182,7 +182,7 @@ function Reply({ form, apply, ws }: Props) {
                 <Tags tags={["first_name|there", "company|your team"]} onTag={(t) => set({ body: `${r.body} {{${t}}}` })} />
               </div>
               <div className={CROW}>
-                <RowText title="Add a booking link" sub="To the meeting they were offered, with their rep. Left out once they book." />
+                <RowText title="Add a booking link" sub="To the meeting they were offered, with their owner. Left out once they book." />
                 <Tg label="Add a booking link" on={r.book} onChange={(v) => set({ book: v })} />
               </div>
               <div className={CROW}>
@@ -198,7 +198,7 @@ function Reply({ form, apply, ws }: Props) {
         {r.on ? (
           <div aria-label="Email preview" className="keep-light rounded-[10px] border border-line bg-paper-deep p-[14px] text-ink">
             <div className="mb-[10px] text-[12px] text-muted">
-              {`From ${r.from === "owner" ? "their rep" : ws.name}`}
+              {`From ${r.from === "owner" ? "their owner" : ws.name}`}
               <br />
               {merge(r.subject, sample)}
             </div>
