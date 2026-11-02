@@ -13,7 +13,23 @@ What's wrong today, from the live app:
 
 Four steps, each its own pull request. Studio forms and older forms end up on the same page.
 
-## Step 1: one header for every form
+## Step 1: one header for every form (built)
+
+Built in `src/components/app/forms/FormHeader.tsx` and `FormsView.tsx`; checked by `scripts/formpage-check.ts` (the
+real form page with a fake database) and `scripts/studio-check.ts`.
+
+- A Studio form opens on its form page; Build is the Studio. Picking another chat in the Studio opens that form's
+  page (a chat with no form yet opens Form Studio at `/forms/studio?chat=`).
+- The Studio tells the header its state (`onState`) and publishes through its control (`publish`, `fix`,
+  `openAfter`, `rename`). Publish changes from another tab opens Build and publishes there. A change made only on
+  Share or Settings publishes where it is.
+- After the Studio publishes, the page reads the new draft and its revision back, so a change on Share or Settings
+  right after saves without "changed in another window".
+- Fixed: every published form read "Live, edited". The database hands the saved form back with its keys in another
+  order, and the page compared the text. It now compares the values (`src/lib/sameJson.ts`).
+- The Studio's chat list says Live, Changes not live and Draft, the header's words.
+
+What was planned:
 
 ```
 ← Forms / Book a demo  (Live)     Build   Submissions 12   Share   Sync   Settings          [ Publish changes ]

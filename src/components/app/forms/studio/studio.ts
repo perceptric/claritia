@@ -100,16 +100,9 @@ input, textarea { user-select: text; -webkit-user-select: text; }
 .grp .ib[aria-selected="true"], .grp .ib[aria-pressed="true"], .ib.on { background: var(--bg); color: var(--ink); box-shadow: 0 0 0 1px var(--line), 0 1px 2px rgb(10 10 10 / .06); }
 .spacer { flex: 1; }
 .vsep { width: 1px; height: 20px; background: var(--line); margin: 0 4px; }
-.sharebtn { height: 32px; padding: 0 14px; border-radius: 999px; border: 1px solid var(--line-strong); background: var(--bg); color: var(--ink); font-weight: 500; flex: none; white-space: nowrap; }
-.sharebtn:hover { border-color: var(--ink); }
-.publish { height: 32px; padding: 0 16px; border-radius: 999px; border: 0; background: var(--ink); color: var(--bg); font-weight: 500; flex: none; white-space: nowrap; }
-.publish.done { background: var(--signal-soft); color: var(--signal); }
 .langbtn { height: 30px; padding: 0 10px 0 8px; border-radius: 999px; border: 0; background: transparent; color: var(--muted); display: inline-flex; align-items: center; gap: 6px; font: 500 12px var(--sans); position: relative; flex: none; }
 .langbtn:hover { background: var(--hover); color: var(--ink); }
 .langbtn.on { background: var(--paper-deep); color: var(--ink); }
-.checkbtn { height: 28px; padding: 0 10px; border-radius: 999px; border: 0; display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 500; background: var(--paper-deep); color: var(--muted); flex: none; white-space: nowrap; }
-.checkbtn.err { background: color-mix(in srgb, var(--rose) 12%, var(--bg)); color: var(--rose); }
-.checkbtn.ok { background: var(--signal-soft); color: var(--signal); }
 .issue { display: grid; grid-template-columns: 8px minmax(0, 1fr) auto; gap: 10px; align-items: start; padding: 8px 10px; border-radius: 6px; font-size: 12.5px; line-height: 1.45; }
 .issue + .issue { border-top: 1px solid var(--line); }
 .issue .lv { width: 8px; height: 8px; border-radius: 999px; margin-top: 5px; background: var(--faint); }
@@ -117,7 +110,6 @@ input, textarea { user-select: text; -webkit-user-select: text; }
 .issue .pill { height: 26px; }
 .ihead { display: flex; align-items: center; gap: 8px; padding: 8px 10px 4px; font-size: 11px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; color: var(--muted); }
 .ihead .pill { margin-left: auto; text-transform: none; letter-spacing: 0; font-weight: 500; }
-.pubnote { font-size: 12px; color: var(--rose); max-width: 280px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 [data-tip]::after { content: attr(data-tip); position: absolute; top: calc(100% + 6px); left: 50%; transform: translateX(-50%) translateY(-2px); background: var(--ink); color: var(--bg); font-size: 11.5px; font-weight: 500; padding: 4px 8px; border-radius: 6px; white-space: nowrap; pointer-events: none; opacity: 0; transition: opacity .12s, transform .12s; z-index: 70; }
 [data-tip]:hover::after, [data-tip]:focus-visible::after { opacity: 1; transform: translateX(-50%); }
 .tipleft[data-tip]::after { left: auto; right: 0; transform: translateY(-2px); }
@@ -318,7 +310,6 @@ export const STUDIO_HTML = `
   </section>
   <section class="stage" aria-label="Form">
     <div class="bar">
-      <button class="ib tipright" id="backBtn" data-tip="All forms" aria-label="All forms">${SVG(P.back)}</button>
       <div class="grp" role="tablist" aria-label="View">
         <button class="ib" role="tab" id="t-preview" data-tip="Preview" aria-label="Preview">${SVG(P.eye)}</button>
         <button class="ib" role="tab" id="t-edit" data-tip="Edit" aria-label="Edit">${SVG(P.cursor)}</button>
@@ -338,10 +329,6 @@ export const STUDIO_HTML = `
       <button class="ib" id="redo" data-tip="Redo" aria-label="Redo" disabled>${SVG(P.redo)}</button>
       <button class="ib" id="restart" data-tip="Back to step 1" aria-label="Back to step 1">${SVG(P.restart)}</button>
       <a class="ib tipleft" id="openBtn" data-tip="Open the live form" aria-label="Open the live form" target="_blank" rel="noopener" hidden>${SVG(P.open)}</a>
-      <button class="checkbtn" id="checkBtn" aria-haspopup="menu" hidden></button>
-      <span class="pubnote" id="pubNote"></span>
-      <button class="sharebtn" id="shareBtn" hidden>Share</button>
-      <button class="publish" id="publish" disabled>Publish</button>
     </div>
     <div class="stepbar" id="stepBar" role="toolbar" aria-label="Steps" hidden></div>
     <div class="work" id="work">
@@ -407,8 +394,6 @@ export type StudioApi = {
   publish(p: { formId: string | null; name: string; html: string; css: string; brand: string; after: unknown; kitId: string; lang?: string; langs?: Record<string, string> }): Promise<{ formId: string; problem?: string }>;
   formUrl(id: string): string;
   openMeetings(): void;
-  /** The published form's Share tab: its link, the code for a website, and the rest. */
-  openShare(formId: string): void;
   /** One meeting type, open in its panel (Edit routing). */
   openMeeting(id: string): void;
   /** Keep the form as a draft without publishing, for what needs its id (Send to, Follow-ups). */
@@ -423,12 +408,28 @@ export type StudioApi = {
   followUps(formId: string): Promise<{ id: string; name: string; status: string }[]>;
   newFollowUp(formId: string, when: "sent" | "not_booked"): void;
   openWorkflow(id: string): void;
-  back(): void;
-  /** Where to start: a published form's chat, a new chat (New form), or the last one. */
-  start: { formId?: string; fresh?: boolean };
+  /** The page's header draws the state, the form check and Publish (docs/form-ui-plan.md step 1). */
+  onState?(s: StudioState): void;
+  /** Where to start: a published form's chat, one chat, a new chat (New form), or the last one. */
+  start: { formId?: string; chatId?: string; fresh?: boolean };
 };
 
-export function mountStudio(shell: ShadowRoot, api: StudioApi): () => void {
+export type StudioIssue = { level: "error" | "warning"; text: string; fix?: string; after?: boolean };
+/** What the header shows: the open chat and its form, whether it can publish, and the form check. */
+export type StudioState = { ready: boolean; chatId: string; formId: string; name: string; state: "new" | "draft" | "live" | "changed"; canPublish: boolean; publishing: boolean; issues: StudioIssue[]; canFix: boolean; msg: string };
+/** What the header can ask of the Studio. */
+export type StudioControl = {
+  stop(): void;
+  /** Publish once the form check passes: "blocked" when it found problems (they're in the state's issues). */
+  publish(): Promise<"live" | "blocked" | "failed">;
+  /** Hand fixes to Tia in the chat. */
+  fix(fixes: string[]): void;
+  /** Open On submission. */
+  openAfter(): void;
+  rename(name: string): void;
+};
+
+export function mountStudio(shell: ShadowRoot, api: StudioApi): StudioControl {
   const $ = (id) => shell.getElementById(id);
   const h = (tag, attrs = {}, ...kids) => {
     const e = document.createElement(tag);
@@ -759,6 +760,8 @@ ${CAL_CSS}
     return { top: r.top - f.top, left: r.left - f.left, width: r.width, height: r.height };
   }
   function overlay() {
+    // A timer or a resize can land after the Studio closed (another tab of the form's page).
+    if (!alive) return;
     const el = S.mode === "edit" && S.sel ? live(S.sel) : null;
     const box = place($("sel"), el, $("seltag"));
     const fb = $("fbar");
@@ -1148,7 +1151,6 @@ ${CAL_CSS}
   $("navBtn").onclick = () => { S.nav = !S.nav; $("navBtn").setAttribute("aria-pressed", String(S.nav)); $("navi").hidden = !S.nav; tree(); setTimeout(overlay, 0); };
   $("p-style").onclick = () => { S.ptab = "style"; panel(); };
   $("p-set").onclick = () => { S.ptab = "settings"; panel(); };
-  $("backBtn").onclick = () => { save(true); api.back(); };
 
   function showCode() { for (const [id, f] of [["c-html", "html"], ["c-css", "css"], ["c-brand", "brand"]]) $(id).setAttribute("aria-pressed", String(S.file === f)); $("codeText").value = S.file === "html" ? sourceHtml() : S.file === "css" ? body().css : brandOf(cur)?.css || ""; }
   for (const [id, f] of [["c-html", "html"], ["c-css", "css"], ["c-brand", "brand"]]) $(id).onclick = () => { S.file = f; showCode(); };
@@ -1369,24 +1371,26 @@ ${CAL_CSS}
     return out;
   }
   function checkUi() {
-    const b = $("checkBtn");
-    b.hidden = !cur || !built();
-    const errs = issues.filter((i) => i.level === "error").length, notes = issues.length - errs;
-    b.className = `checkbtn${errs ? " err" : issues.length ? "" : " ok"}`;
-    b.innerHTML = errs || notes ? `<span>${errs ? `${errs} to fix` : `${notes} ${notes === 1 ? "note" : "notes"}`}</span>` : `${SVG(P.check, 13)}<span>Ready</span>`;
-    b.setAttribute("aria-label", errs ? `${errs} problems to fix` : notes ? `${notes} notes` : "Ready to publish");
-    if (!errs && /first$/.test(S.pubMsg)) { S.pubMsg = ""; pubUi(); }
+    const errs = issues.filter((i) => i.level === "error").length;
+    if (!errs && /first$/.test(S.pubMsg)) S.pubMsg = "";
+    emit();
   }
-  function checkMenu() {
-    if (!issues.length) return openMenu($("checkBtn"), [h("div", { class: "issue" }, h("span", { class: "lv" }), h("span", { text: "Nothing to fix. The form is ready to publish." }), h("span"))], 340);
-    const fixable = issues.filter((i) => i.fix);
-    const tia = !!brandOf(cur)?.css && !S.busy;
-    const head = h("div", { class: "ihead" }, h("span", { text: "Form check" }), fixable.length > 1 && tia ? h("button", { class: "pill", html: `${tiaSvg(14)}<span>Fix all</span>`, onclick: () => { closeMenu(); setChatFold(false); send(`Fix these:\n${fixable.map((i) => `- ${i.fix}`).join("\n")}`); } }) : null);
-    const rows = [...issues].sort((a, b) => (a.level === b.level ? 0 : a.level === "error" ? -1 : 1)).map((i) => h("div", { class: "issue" }, h("span", { class: `lv${i.level === "error" ? " err" : ""}` }), h("span", { text: i.text }),
-      i.fix && tia ? h("button", { class: "pill", text: "Fix", onclick: () => { closeMenu(); setChatFold(false); send(`Fix this: ${i.fix}`); } }) : /On submission/.test(i.text) ? h("button", { class: "pill", text: "Open", onclick: () => { closeMenu(); setMode("after"); } }) : h("span")));
-    openMenu($("checkBtn"), [head, ...rows], 380);
+  /** The state for the page's header. */
+  function emit() {
+    if (!alive) return;
+    api.onState?.({
+      ready: loaded && !!cur,
+      chatId: cur?.id || "",
+      formId: cur?.formId || "",
+      name: cur?.name || "",
+      state: cur?.state || "new",
+      canPublish: !S.publishing && !!cur && built() && !!brandOf(cur) && !S.busy,
+      publishing: S.publishing,
+      issues: built() ? issues.map((i) => ({ level: i.level === "error" ? "error" : "warning", text: i.text, ...(i.fix ? { fix: i.fix } : {}), ...(/On submission/.test(i.text) ? { after: true } : {}) })) : [],
+      canFix: !!brandOf(cur)?.css && !S.busy,
+      msg: S.pubMsg,
+    });
   }
-  $("checkBtn").onclick = () => (menuEl && menuFor === $("checkBtn") ? closeMenu() : checkMenu());
 
   // ── Languages (docs/studio-v2-plan.md 6.4): the form in the site's language, and in others Tia translates. Visitors
   // get their own language with a switch on the form; right-to-left languages flip it. ──────────────────────────
@@ -1443,29 +1447,25 @@ ${CAL_CSS}
   // ── Publish ───────────────────────────────────────────────────────────────────────────────────────────
   const formName = () => (src.querySelector("h1,h2,h3,legend")?.textContent || "").replace(/\s+/g, " ").trim().slice(0, 80) || `${brandOf(cur)?.name || "New"} form`;
   function pubUi() {
-    const b = $("publish");
-    b.disabled = S.publishing || !built() || !brandOf(cur) || S.busy;
-    b.className = `publish${cur?.state === "live" ? " done" : ""}`;
-    b.textContent = S.publishing ? "Publishing" : cur?.state === "live" ? "Published" : cur?.state === "changed" ? "Publish changes" : "Publish";
-    $("pubNote").textContent = S.pubMsg;
-    $("pubNote").title = S.pubMsg;
     const o = $("openBtn");
     o.hidden = !cur?.formId || cur.state === "new" || cur.state === "draft";
-    $("shareBtn").hidden = o.hidden;
     if (cur?.formId) o.href = api.formUrl(cur.formId);
+    emit();
   }
-  $("shareBtn").onclick = () => { if (cur?.formId) { save(true); api.openShare(cur.formId); } };
-  $("publish").onclick = async () => {
-    if (S.publishing || !built() || !brandOf(cur)) return;
+  /** Publish from the header: the form check first, then the form goes live. */
+  async function publishNow() {
+    // The page's own rules run here, on the page as it is now; layout findings are notes and never stop it.
+    if (S.publishing || !cur || !built() || !brandOf(cur) || S.busy) return "failed";
     const now = [...checkStudioPage({ html: sourceHtml(), after: body().after, meetings: loaded ? MEETINGS : null, industry: brandOf(cur)?.profile?.industry ?? null, langs: body().langs }), ...layoutFound];
     const errs = now.filter((i) => i.level === "error");
-    if (errs.length) { issues = now; checkUi(); S.pubMsg = `Fix ${errs.length === 1 ? "1 problem" : `${errs.length} problems`} first`; pubUi(); return checkMenu(); }
+    if (errs.length) { issues = now; S.pubMsg = `Fix ${errs.length === 1 ? "1 problem" : `${errs.length} problems`} first`; emit(); return "blocked"; }
     const c = cur;
     S.publishing = true; S.pubMsg = ""; pubUi();
+    let ok = "failed";
     try {
       if (c.name === "New form") c.name = formName();
       const r = await api.publish({ formId: c.formId || null, name: c.name, html: sourceHtml(), css: c.body.css, brand: brandOf(c)?.css || "", after: c.body.after, kitId: c.brandId, lang: mainLang(), langs: c.body.langs || {} });
-      c.formId = r.formId; c.state = "live";
+      c.formId = r.formId; c.state = "live"; ok = "live";
       if (r.problem) S.pubMsg = r.problem;
       toast(`${c.name} is live`);
     } catch (e) {
@@ -1474,7 +1474,8 @@ ${CAL_CSS}
       S.publishing = false;
       if (alive) { pubUi(); chatHead(); save(true); }
     }
-  };
+    return ok;
+  }
 
   // ── The chat column ───────────────────────────────────────────────────────────────────────────────────
   function setChatFold(f) {
@@ -1487,8 +1488,8 @@ ${CAL_CSS}
   }
   $("chatFold").onclick = () => setChatFold(!$("chat").classList.contains("folded"));
   const mark = (b) => (b?.logo ? h("img", { class: "bmark", src: b.logo, alt: "" }) : h("span", { class: "bempty", text: b ? b.name.charAt(0) : "+" }));
-  const stateBadge = (c) => h("span", { class: `badge${c.state === "live" ? " live" : ""}`, text: c.state === "live" ? "Published" : c.state === "changed" ? "Changes" : "Draft" });
-  function chatHead() { const b = $("chatPick"); b.innerHTML = ""; if (!cur) return; b.append(mark(brandOf(cur)), h("span", { class: "nm", text: cur.name }), stateBadge(cur), h("span", { html: SVG(P.chev, 14), style: "color:var(--muted);display:inline-flex" })); }
+  const stateBadge = (c) => h("span", { class: `badge${c.state === "live" ? " live" : ""}`, text: c.state === "live" ? "Live" : c.state === "changed" ? "Changes not live" : "Draft" });
+  function chatHead() { const b = $("chatPick"); b.innerHTML = ""; if (!cur) return; b.append(mark(brandOf(cur)), h("span", { class: "nm", text: cur.name }), h("span", { html: SVG(P.chev, 14), style: "color:var(--muted);display:inline-flex" })); }
   let deleting = "";
   function chatMenu(q = "") {
     const search = h("input", { class: "search", placeholder: "Search chats", value: q, "aria-label": "Search chats" });
@@ -1510,7 +1511,7 @@ ${CAL_CSS}
   }
   async function open(c) {
     if (cur && cur !== c) save(true);
-    if (!c.body) { const full = await api.chat(c.id).catch(() => null); c.body = full?.body || blank(c.brandId).body; }
+    if (!c.body) { const full = await api.chat(c.id).catch(() => null); c.body = full?.body || blank(c.brandId).body; if (full?.name) c.name = full.name; }
     c.body.after ||= { kind: "thanks", url: "", meeting: "", routes: [] };
     c.body.turns ||= []; c.body.log ||= []; c.body.ids ||= {}; c.body.langs ||= {}; c.body.langFrom ||= {};
     cur = c;
@@ -1867,18 +1868,34 @@ ${CAL_CSS}
         }
       }
     }
+    if (!first && api.start.chatId) first = chats.find((c) => c.id === api.start.chatId) || null;
     if (!first && !api.start.fresh) first = chats[0] || null;
     if (!first) first = newChat(true);
     await open(first);
+    emit();
     if (!brands.length) openDialog();
     else if (!brandOf(cur)) brandMenu();
   })();
 
-  return () => {
-    alive = false;
-    save(true);
-    ctl?.abort();
-    clearTimeout(saveT); clearTimeout(toastT);
-    for (const f of off) f();
+  return {
+    stop() {
+      save(true);
+      alive = false;
+      ctl?.abort();
+      clearTimeout(saveT); clearTimeout(toastT);
+      for (const f of off) f();
+    },
+    publish: publishNow,
+    fix(fixes) {
+      if (!fixes.length || S.busy) return;
+      setChatFold(false);
+      send(fixes.length === 1 ? `Fix this: ${fixes[0]}` : `Fix these:\n${fixes.map((f) => `- ${f}`).join("\n")}`);
+    },
+    openAfter() { setMode("after"); },
+    rename(name) {
+      const n = String(name || "").trim().slice(0, 120);
+      if (!cur || !n || n === cur.name) return;
+      cur.name = n; chatHead(); save(); emit();
+    },
   };
 }

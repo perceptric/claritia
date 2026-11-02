@@ -6,14 +6,14 @@
 // /api/studio. Until 112 is applied, chats and brand CSS are kept in this browser. The app's sidebar folds to icons
 // while the Studio is open and comes back as it was after.
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, type MutableRefObject } from "react";
 import { logoOf, type KitLite } from "../new/NewForm";
 import { fetchMeetingTypes } from "../../meetings/TypesList";
 import { brandName } from "@/lib/brand/name";
 import { readProfile } from "@/lib/studio/industries";
 import { alwaysOf } from "@/lib/studio/page";
 import { invalidate, must, postJson, type ViewProps } from "../../ui";
-import { mountStudio, STUDIO_CSS, STUDIO_HTML, type StudioApi } from "./studio";
+import { mountStudio, STUDIO_CSS, STUDIO_HTML, type StudioApi, type StudioControl, type StudioState } from "./studio";
 import { readLines as readStream } from "../../streamLines";
 import { askConfirm, askText, tell } from "../../Dialogs";
 import { rt, type Screen } from "../../routing/rt/api";
@@ -48,16 +48,21 @@ const hostOf = (u: string | null | undefined) => {
   }
 };
 
-/** `formId`: a published studio form to open in its chat. `fresh`: New form, a new chat. */
-export function Studio({ sb, session, ws, navigate, formId = "", fresh = false }: Pick<ViewProps, "sb" | "session" | "ws" | "navigate"> & { formId?: string; fresh?: boolean }) {
+/**
+ * `formId`: a studio form to open in its chat. `chatId`: one chat. `fresh`: New form, a new chat. The page's header
+ * (FormHeader) shows the state from `onState` and publishes through `controlRef`.
+ */
+export function Studio({ sb, session, ws, navigate, formId = "", chatId = "", fresh = false, onState, controlRef }: Pick<ViewProps, "sb" | "session" | "ws" | "navigate"> & { formId?: string; chatId?: string; fresh?: boolean; onState?: (s: StudioState) => void; controlRef?: MutableRefObject<StudioControl | null> }) {
   const hostRef = useRef<HTMLDivElement>(null);
   // The session changes as its token refreshes; the studio always calls with the newest.
   const sessionRef = useRef(session);
   const navRef = useRef(navigate);
+  const stateRef = useRef(onState);
   useEffect(() => {
     sessionRef.current = session;
     navRef.current = navigate;
-  }, [session, navigate]);
+    stateRef.current = onState;
+  }, [session, navigate, onState]);
 
   // The sidebar folds to icons while the Studio is open (Sidebar.tsx listens).
   useEffect(() => {
@@ -81,7 +86,8 @@ export function Studio({ sb, session, ws, navigate, formId = "", fresh = false }
     const keepLocal = (c: Chat) => write(LOCAL, [c, ...localChats().filter((x) => x.id !== c.id)].slice(0, 40));
 
     const api: StudioApi = {
-      start: { formId, fresh },
+      start: { formId, chatId, fresh },
+      onState: (st) => stateRef.current?.(st),
       brands: async () => {
         // The brand's CSS (112) and industry (113), falling back as the database catches up.
         let res = await sb.from("brand_kits").select(`${KIT_COLS}, studio_css, studio_profile`).eq("workspace_id", ws.id).order("created_at");
@@ -120,10 +126,14 @@ export function Studio({ sb, session, ws, navigate, formId = "", fresh = false }
         if (!local) {
           const res = await sb.from("form_chats").select("id, name, state, brand_kit_id, form_id, updated_at, body").eq("id", id).maybeSingle();
           const r = res.data as { id: string; name: string; state: Chat["state"]; brand_kit_id: string | null; form_id: string | null; updated_at: string; body: Chat["body"] } | null;
-          if (r && r.form_id && r.body?.after) {
-            // The team alert changed in the form's Settings after this chat: Always do shows it as it is now.
-            const f = (await sb.from("forms").select("draft, updated_at").eq("id", r.form_id).maybeSingle()).data as { draft?: { notify?: unknown }; updated_at: string } | null;
-            if (f?.draft?.notify && f.updated_at > r.updated_at) r.body = { ...r.body, after: { ...r.body.after, always: alwaysOf(f.draft.notify) } };
+          if (r && r.form_id) {
+            // The form changed on its page after this chat (Settings' team alert, a new name in the header): the chat
+            // shows it as it is now.
+            const f = (await sb.from("forms").select("name, draft, updated_at").eq("id", r.form_id).maybeSingle()).data as { name?: string; draft?: { notify?: unknown }; updated_at: string } | null;
+            if (f && f.updated_at > r.updated_at) {
+              if (f.name) r.name = f.name;
+              if (f.draft?.notify && r.body?.after) r.body = { ...r.body, after: { ...r.body.after, always: alwaysOf(f.draft.notify) } };
+            }
           }
           if (r) return { id: r.id, name: r.name, state: r.state, brandId: r.brand_kit_id ?? "", formId: r.form_id ?? "", updatedAt: r.updated_at, body: r.body };
         }
@@ -215,7 +225,6 @@ export function Studio({ sb, session, ws, navigate, formId = "", fresh = false }
       },
       openMeetings: () => navRef.current("scheduling", "types"),
       openMeeting: (id) => navRef.current("scheduling", `types/${id}`),
-      openShare: (id) => navRef.current("forms", id, "tab=share"),
       saveDraft: async (p) => {
         const r = await postJson<{ formId: string }>(sessionRef.current, "/api/studio", { workspaceId: ws.id, mode: "save", ...p });
         invalidate(`forms:${ws.id}:home`);
@@ -261,14 +270,15 @@ export function Studio({ sb, session, ws, navigate, formId = "", fresh = false }
       },
       newFollowUp: (id, when) => navRef.current("workflows", "new", `template=${when === "not_booked" ? "not_booked" : "form_followup"}&form=${id}`),
       openWorkflow: (id) => navRef.current("workflows", id),
-      back: () => navRef.current("forms"),
     };
-    const stop = mountStudio(shell, api);
+    const ctl = mountStudio(shell, api);
+    if (controlRef) controlRef.current = ctl;
     return () => {
-      stop();
+      ctl.stop();
+      if (controlRef?.current === ctl) controlRef.current = null;
       shell.innerHTML = "";
     };
-  }, [sb, ws.id, formId, fresh]);
+  }, [sb, ws.id, formId, chatId, fresh, controlRef]);
 
-  return <div ref={hostRef} className="relative flex h-full min-h-0 flex-1 flex-col bg-card" />;
+  return <div ref={hostRef} data-studio-host="" className="relative flex h-full min-h-0 flex-1 flex-col bg-card" />;
 }

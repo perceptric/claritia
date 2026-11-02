@@ -1,11 +1,11 @@
 // Form Studio with a stand-in server (scripts/studio-check.ts): the real screen (studio.ts), fake brands and chats, a
 // fake site read, and canned Tia answers streamed in small pieces (the first builds, the second changes a built form).
-import { mountStudio, STUDIO_CSS, STUDIO_HTML, type StudioApi, type StudioChat } from "../../src/components/app/forms/studio/studio.ts";
+import { mountStudio, STUDIO_CSS, STUDIO_HTML, type StudioApi, type StudioChat, type StudioState } from "../../src/components/app/forms/studio/studio.ts";
 import fx from "./fixtures.json";
 
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const calls: { mode: string; body: unknown }[] = [];
-const w = window as unknown as { calls: typeof calls; saved: Record<string, StudioChat> };
+const w = window as unknown as { calls: typeof calls; saved: Record<string, StudioChat>; studioState: StudioState | null };
 w.calls = calls;
 w.saved = {};
 let tiaCalls = 0;
@@ -86,7 +86,6 @@ const api: StudioApi = {
   formUrl: (id) => `/f/${id}`,
   openMeetings: () => void calls.push({ mode: "openMeetings", body: null }),
   openMeeting: (id) => void calls.push({ mode: "openMeeting", body: id }),
-  openShare: (id) => void calls.push({ mode: "openShare", body: id }),
   saveDraft: async (p) => {
     calls.push({ mode: "saveDraft", body: p });
     return { formId: "33333333-3333-4333-8333-333333333333" };
@@ -106,9 +105,50 @@ const api: StudioApi = {
   followUps: async () => [{ id: "wf-1", name: "Form follow-up", status: "draft" }],
   newFollowUp: (id, when) => void calls.push({ mode: "newFollowUp", body: { id, when } }),
   openWorkflow: (id) => void calls.push({ mode: "openWorkflow", body: id }),
-  back: () => void calls.push({ mode: "back", body: null }),
+  onState: (st) => {
+    w.studioState = st;
+    drawHeader();
+  },
 };
 const el = document.getElementById("studio")!;
 const shell = el.attachShadow({ mode: "open" });
 shell.innerHTML = `<style>${STUDIO_CSS}</style>${STUDIO_HTML}`;
-mountStudio(shell, api);
+
+// A stand-in for the page's header (FormHeader): the one button, its problem count, the form check and the message,
+// driven the same way, through the Studio's state and control.
+const hdr = document.createElement("div");
+hdr.id = "hdr";
+hdr.innerHTML = `<button id="hdrAction"></button><span id="hdrMsg"></span><div id="hdrCheck" hidden></div>`;
+el.before(hdr);
+function drawHeader() {
+  const st = w.studioState;
+  const b = document.getElementById("hdrAction") as HTMLButtonElement;
+  const errs = st?.issues.filter((i) => i.level === "error").length ?? 0;
+  b.textContent = st?.publishing ? "Publishing" : st?.state === "live" ? "Share" : st?.state === "changed" ? "Publish changes" : "Publish";
+  b.dataset.problems = String(errs);
+  b.disabled = !!st?.publishing || (st?.state !== "live" && !st?.canPublish);
+  document.getElementById("hdrMsg")!.textContent = st?.msg ?? "";
+}
+function drawCheck() {
+  const box = document.getElementById("hdrCheck")!;
+  box.hidden = false;
+  box.innerHTML = "";
+  for (const i of w.studioState?.issues ?? []) {
+    const row = document.createElement("div");
+    row.className = `issue ${i.level}`;
+    row.textContent = i.text;
+    if (i.fix) {
+      const f = document.createElement("button");
+      f.textContent = "Fix";
+      f.onclick = () => ((box.hidden = true), ctl.fix([i.fix!]));
+      row.append(f);
+    }
+    box.append(row);
+  }
+}
+const ctl = mountStudio(shell, api);
+document.getElementById("hdrAction")!.onclick = async () => {
+  if (w.studioState?.state === "live") return void calls.push({ mode: "openShare", body: w.studioState.formId });
+  const r = await ctl.publish();
+  if (r === "blocked") drawCheck();
+};
