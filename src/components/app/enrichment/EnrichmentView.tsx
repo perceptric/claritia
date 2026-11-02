@@ -15,7 +15,7 @@ import { CSS } from "@dnd-kit/utilities";
 import { useState } from "react";
 import { DEFAULT_QUALIFY, cleanQualify, type QualifySettings } from "@/lib/enrich/qualifyRules";
 import { PLAN_CREDITS, STEPS, orderSources, stepOf, type Source, type StepResult } from "@/lib/enrich/types";
-import { BASE_FIELDS, needsValue, opsFor } from "@/lib/router/conditions";
+import { BASE_FIELDS, isPast, needsValue, opsFor } from "@/lib/router/conditions";
 import { OPS } from "@/lib/router/types";
 import { enrichmentPage, ENRICHMENT_TABS } from "@/lib/nav";
 import { ArrowDown, ArrowUp, Grip, Plus, Search, Trash } from "../../Icons";
@@ -463,7 +463,8 @@ function WhenRules({ sb, ws, role }: ViewProps) {
   );
 }
 
-const FIELDS = BASE_FIELDS.filter((f) => f.key !== "lead.qualify" && f.key !== "lead.form" && f.key !== "company.type");
+// Past fills are read only when a lead is routed, so qualify rules can't test them.
+const FIELDS = BASE_FIELDS.filter((f) => f.key !== "lead.qualify" && f.key !== "lead.form" && f.key !== "company.type" && !isPast(f.key));
 
 function QualifyRules({ sb, ws, role, session }: ViewProps) {
   const owner = role === "owner";

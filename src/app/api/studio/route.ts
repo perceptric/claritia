@@ -6,7 +6,7 @@ import { checkForm } from "@/lib/forms/schema";
 import { cleaningCtx } from "@/lib/contacts/server";
 import { checkStudioPage, errorsIn } from "@/lib/studio/check";
 import { readProfile } from "@/lib/studio/industries";
-import { pageForm, type PageAfter } from "@/lib/studio/page";
+import { pageForm, teamAlert, type PageAfter } from "@/lib/studio/page";
 import { turnstileSiteKey } from "@/lib/forms/server";
 import { BRAND_RULES, CHAT_RULES, STUDIO_MODEL, TRANSLATE_RULES } from "@/lib/studio/prompts";
 import { hostOf, readSite, readSource } from "@/lib/studio/site";
@@ -210,12 +210,16 @@ export async function POST(request: Request) {
     if (errs.length) return Response.json({ error: errs[0]!.text, issues: errs }, { status: 400 });
     // A question keeps its field id when it's renamed or Tia writes the page again: the ids the form had last time.
     const formIdIn = typeof b.formId === "string" && UUID.test(b.formId) ? b.formId : "";
-    const prev = formIdIn ? ((await db.from("forms").select("draft").eq("id", formIdIn).eq("workspace_id", ws).maybeSingle()).data as { draft?: { page?: { ids?: Record<string, string> }; notify?: unknown; reply?: unknown; keep?: unknown } } | null) : null;
+    const prev = formIdIn ? ((await db.from("forms").select("draft").eq("id", formIdIn).eq("workspace_id", ws).maybeSingle()).data as { draft?: { page?: { ids?: Record<string, string>; after?: { always?: unknown } }; notify?: unknown; reply?: unknown; keep?: unknown } } | null) : null;
     const turnstile = !!turnstileSiteKey() && !!process.env.TURNSTILE_SECRET_KEY?.trim();
     const { form: draft, questions } = pageForm({ html, css: String(b.css ?? ""), brand: String(b.brand ?? ""), after, title: name, prevIds: prev?.draft?.page?.ids ?? {}, turnstile, lang: typeof b.lang === "string" ? b.lang : undefined, langs });
     if (!questions.length) return bad("The form has no questions to send.");
     // What the form's other tabs set stays: the auto-reply, how long it keeps sends, and its team alert until Always do sets one.
     for (const k of ["reply", "keep", "notify"] as const) if (prev?.draft?.[k] !== undefined && !(k in draft)) (draft as Record<string, unknown>)[k] = prev.draft[k];
+    // Email the team and Post to Slack are the same team alert as the form's Settings, so the last place it changed
+    // wins: Always do left as it was keeps the alert Settings set, and a change here keeps the alert's subject.
+    const alert = teamAlert(prev?.draft?.notify, (draft as { notify?: unknown }).notify, after.always, prev?.draft?.page?.after?.always);
+    if (alert) (draft as Record<string, unknown>).notify = alert;
     const ctx = await cleaningCtx(db, ws);
     const r = checkForm(draft, { custom: ctx.custom });
     if ("errors" in r) return bad(r.errors[0]!, 400);

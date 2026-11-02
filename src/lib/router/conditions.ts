@@ -141,12 +141,14 @@ export function holds(c: Cond, actual: unknown, territories: Territory[] = [], m
   if (c.op === "filled") return !blank(actual);
   if (c.op === "empty") return blank(actual);
   if (incomplete(c)) return false;
+  // v1 lets "is not" hold for an unknown value; a past fill that wasn't read is never taken as an answer.
+  const v1Open = mode === "v1" && (c.op === "is_not" || c.op === "not_one_of") && !isPast(c.field);
   if (Array.isArray(actual)) {
-    if (!actual.length) return mode === "v1" && (c.op === "is_not" || c.op === "not_one_of");
+    if (!actual.length) return v1Open;
     if (c.op === "is_not" || c.op === "not_one_of") return actual.every((a) => holds(c, a, territories, mode));
     return actual.some((a) => holds(c, a, territories, mode));
   }
-  if (blank(actual)) return mode === "v1" && (c.op === "is_not" || c.op === "not_one_of");
+  if (blank(actual)) return v1Open;
   if (mode === "v2") return holdsV2(c, actual, territories);
   const a = norm(actual);
   switch (c.op) {

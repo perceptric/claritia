@@ -457,3 +457,24 @@ export function cleanAlways(raw: unknown): PageAlways | null {
   const to = [...new Set((Array.isArray(r.to) ? r.to : []).filter((x): x is string => typeof x === "string").map((x) => x.trim().toLowerCase()).filter((x) => EMAIL.test(x)))].slice(0, 10);
   return { email: r.email === true, to, slack: r.slack === true };
 }
+
+/** The form's team alert as Always do shows it: Email the team with its emails, and Post to Slack. */
+export function alwaysOf(notify: unknown): PageAlways {
+  const n = (notify && typeof notify === "object" ? notify : {}) as { on?: unknown; to?: unknown; slack?: unknown };
+  const to = Array.isArray(n.to) ? n.to.filter((x): x is string => typeof x === "string") : [];
+  return cleanAlways({ email: n.on === true && to.length > 0, to, slack: n.on === true && n.slack === true })!;
+}
+
+/**
+ * The team alert a Studio save keeps. Email the team and Post to Slack are the same alert as the form's Settings, so
+ * the last place it changed wins: Always do left as it was last saved keeps the alert Settings set (`had`), and a
+ * change here keeps the alert's subject and answers. Undefined when there's nothing to keep.
+ */
+export function teamAlert(had: unknown, now: unknown, always: unknown, wasAlways: unknown): unknown {
+  if (!had || typeof had !== "object") return now;
+  if (!now || typeof now !== "object") return had;
+  const before = cleanAlways(wasAlways) ?? alwaysOf(had);
+  if (JSON.stringify(cleanAlways(always)) === JSON.stringify(before)) return had;
+  const n = now as { on: boolean; to: string[]; slack: boolean };
+  return { ...(had as object), on: n.on, to: n.to, slack: n.slack };
+}
