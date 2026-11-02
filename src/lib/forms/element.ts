@@ -859,7 +859,7 @@ export class ClaritiaForm extends Base {
 
   // A studio page (docs/forms-chat-plan.md): the page's own HTML in the brand's CSS, drawn once and kept, so answers
   // stay put while the send and the booking draw again. The answers go by field id through the usual send.
-  private pg: { wrap: HTMLElement; run: PageRun } | null = null;
+  private pg: { wrap: HTMLElement; run: PageRun; blocks: { holder: HTMLElement; f: Field }[] } | null = null;
   private drawPage(form: Form, style: HTMLStyleElement) {
     const p = form.page!;
     if (!this.pg) {
@@ -885,11 +885,25 @@ export class ClaritiaForm extends Base {
       if (this.data?.turnstile && form.spam.turnstile) extras.push(el("div", { class: "ts" }));
       if (send) send.before(...extras);
       else wrap.append(...extras);
+      // Claritia blocks (file, phone, address, dates, rating, signature, country): the form's own inputs, in the page.
+      const byId = new Map(allFields(form).map((f) => [f.id, f]));
+      const blocks: { holder: HTMLElement; f: Field }[] = [];
+      wrap.querySelectorAll<HTMLElement>("[data-cl-field][data-cl-name]").forEach((holder) => {
+        const f = byId.get(p.ids[holder.getAttribute("data-cl-name") ?? ""] ?? "");
+        if (f) blocks.push({ holder, f });
+      });
       const run = runPage(wrap, (v) => void this.pageSend(form, v));
-      this.pg = { wrap, run };
+      this.pg = { wrap, run, blocks };
       this.root.replaceChildren(st, wrap);
     }
-    const { wrap, run } = this.pg;
+    const { wrap, run, blocks } = this.pg;
+    // Drawn again each time, so an upload, an error or a picked day shows; the brand's classes style them.
+    for (const { holder, f } of blocks) {
+      const box = this.field(f, form, f.required && !holder.closest("[hidden]"));
+      box.querySelectorAll(".lb").forEach((x) => x.classList.add("label"));
+      box.querySelectorAll(".in").forEach((x) => x.classList.add("field"));
+      holder.replaceChildren(box);
+    }
     const names = Object.fromEntries(Object.entries(p.ids).map(([n, id]) => [id, n]));
     run.busy(this.sending);
     run.alert(this.alert);
@@ -908,15 +922,28 @@ export class ClaritiaForm extends Base {
     if (this.sending || this.done) return;
     const types = new Map(allFields(form).map((f) => [f.id, f.type]));
     const answers: Answers = {};
+    const blocks = this.pg?.blocks ?? [];
     for (const [name, id] of Object.entries(form.page!.ids)) {
       const x = v[name];
       const t = types.get(id);
       if (x === undefined || (Array.isArray(x) ? !x.length : x === "")) continue;
       answers[id] = t === "checkbox" ? true : t === "multi" ? (Array.isArray(x) ? x : [x]) : Array.isArray(x) ? String(x[0]) : x;
     }
-    this.answers = answers;
+    // Blocks keep their answers as they're given (an upload's token, an address's parts).
     this.errors = {};
+    for (const { holder, f } of blocks) {
+      const x = this.answers[f.id];
+      const empty = x === undefined || x === "" || (Array.isArray(x) && !x.length) || (typeof x === "object" && x !== null && !Array.isArray(x) && !Object.values(x).some((y) => String(y ?? "").trim()));
+      if (!empty) answers[f.id] = x;
+      else if (f.required && !holder.closest("[hidden]")) this.errors[f.id] = "Fill this in.";
+    }
+    this.answers = answers;
     this.alert = "";
+    if (Object.keys(this.errors).length) {
+      this.render();
+      (this.root.querySelector("[aria-invalid=true]") as HTMLElement | null)?.focus();
+      return;
+    }
     // A consent box the form requires has to be ticked first.
     if (form.consent.required && this.needsConsent() && !this.consent) {
       this.alert = "Tick the box to send the form.";

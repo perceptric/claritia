@@ -36,6 +36,7 @@ THE FORM'S HTML
 - Never ask for passwords, card or bank numbers, ID or tax numbers, or health records (diagnoses, medications, allergies). Ask for a reason for a visit in plain words.
 - Every question has a visible label tied to it (label for= and id). Buttons and choices are at least 44px tall. Text keeps strong contrast on its background. The form fits a 390px wide phone with no sideways scrolling.
 - Don't draw a consent checkbox: Claritia adds the consent line where the law asks for it.
+- Inputs that must work the same everywhere are Claritia blocks, never your own inputs: <div data-cl-field="TYPE" data-cl-name="resume" data-cl-label="Your résumé" data-cl-required id="resume"></div>, where TYPE is file, phone, address, date, time, daterange, rating, signature or country. A file block takes data-cl-kinds="pdf image office" and data-cl-max="10" (MB); a rating takes data-cl-scale="5" and data-cl-style="stars" or "numbers"; phone and country take data-cl-save to save to the contact. Claritia draws them inside the block with the brand's .label and .field classes; style only the block's wrapper. Never use <input type="file">.
 - Questions are real inputs with a unique name: input, textarea, select, radios and checkboxes sharing a name. Use required where needed. Style choice cards with label:has(input:checked) and hide the native input visually if you like.
 - Attributes the form runs on:
   data-cl-step on a <section> makes a step (shown one at a time). Without steps it's one page.
