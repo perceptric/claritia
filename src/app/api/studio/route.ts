@@ -189,14 +189,15 @@ export async function POST(request: Request) {
     const types = await db.from("meeting_types").select("id, name").eq("workspace_id", ws).eq("active", true);
     const kitIn = typeof b.kitId === "string" && UUID.test(b.kitId) ? b.kitId : "";
     const prof = kitIn ? ((await db.from("brand_kits").select("studio_profile").eq("id", kitIn).eq("workspace_id", ws).maybeSingle()).data as { studio_profile?: unknown } | null) : null;
-    const issues = checkStudioPage({ html, after, meetings: types.error ? null : ((types.data ?? []) as { id: string; name: string }[]), industry: readProfile(prof?.studio_profile)?.industry ?? null });
+    const langs = b.langs && typeof b.langs === "object" ? (Object.fromEntries(Object.entries(b.langs as Record<string, unknown>).filter(([, v]) => typeof v === "string").slice(0, 6)) as Record<string, string>) : {};
+    const issues = checkStudioPage({ html, after, meetings: types.error ? null : ((types.data ?? []) as { id: string; name: string }[]), industry: readProfile(prof?.studio_profile)?.industry ?? null, langs });
     const errs = errorsIn(issues);
     if (errs.length) return Response.json({ error: errs[0]!.text, issues: errs }, { status: 400 });
     // A question keeps its field id when it's renamed or Tia writes the page again: the ids the form had last time.
     const formIdIn = typeof b.formId === "string" && UUID.test(b.formId) ? b.formId : "";
     const prev = formIdIn ? ((await db.from("forms").select("draft").eq("id", formIdIn).eq("workspace_id", ws).maybeSingle()).data as { draft?: { page?: { ids?: Record<string, string> } } } | null) : null;
     const turnstile = !!turnstileSiteKey() && !!process.env.TURNSTILE_SECRET_KEY?.trim();
-    const { form: draft, questions } = pageForm({ html, css: String(b.css ?? ""), brand: String(b.brand ?? ""), after, title: name, prevIds: prev?.draft?.page?.ids ?? {}, turnstile });
+    const { form: draft, questions } = pageForm({ html, css: String(b.css ?? ""), brand: String(b.brand ?? ""), after, title: name, prevIds: prev?.draft?.page?.ids ?? {}, turnstile, lang: typeof b.lang === "string" ? b.lang : undefined, langs });
     if (!questions.length) return bad("The form has no questions to send.");
     const ctx = await cleaningCtx(db, ws);
     const r = checkForm(draft, { custom: ctx.custom });

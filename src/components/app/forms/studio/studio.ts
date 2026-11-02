@@ -2,7 +2,8 @@
 // @ts-nocheck
 import { DEFAULT_CONSENT } from "../../../../lib/forms/schema";
 import { checkStudioPage } from "../../../../lib/studio/check";
-import { INDUSTRIES, industryOf, profileWords, recipeText } from "../../../../lib/studio/industries";
+import { INDUSTRIES, industryOf, isRtl, languageName, profileWords, recipeText } from "../../../../lib/studio/industries";
+import { ACCESS_CSS, linkErrors } from "../../../../lib/studio/runtime";
 import { TIA_STYLE, tiaSvg } from "../../../../lib/studio/tia";
 
 // Form Studio (docs/forms-chat-plan.md, docs/studio-v2-plan.md): every form is one chat with Tia on the left and the
@@ -93,6 +94,9 @@ input, textarea { user-select: text; -webkit-user-select: text; }
 .vsep { width: 1px; height: 20px; background: var(--line); margin: 0 4px; }
 .publish { height: 32px; padding: 0 16px; border-radius: 999px; border: 0; background: var(--ink); color: var(--bg); font-weight: 500; flex: none; white-space: nowrap; }
 .publish.done { background: var(--signal-soft); color: var(--signal); }
+.langbtn { height: 30px; padding: 0 10px 0 8px; border-radius: 999px; border: 0; background: transparent; color: var(--muted); display: inline-flex; align-items: center; gap: 6px; font: 500 12px var(--sans); position: relative; flex: none; }
+.langbtn:hover { background: var(--hover); color: var(--ink); }
+.langbtn.on { background: var(--paper-deep); color: var(--ink); }
 .checkbtn { height: 28px; padding: 0 10px; border-radius: 999px; border: 0; display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 500; background: var(--paper-deep); color: var(--muted); flex: none; white-space: nowrap; }
 .checkbtn.err { background: color-mix(in srgb, var(--rose) 12%, var(--bg)); color: var(--rose); }
 .checkbtn.ok { background: var(--signal-soft); color: var(--signal); }
@@ -265,7 +269,7 @@ const P = {
   al: '<path d="M4 6h16M4 10h10M4 14h16M4 18h10"/>', ac: '<path d="M4 6h16M7 10h10M4 14h16M7 18h10"/>', ar: '<path d="M4 6h16M10 10h10M4 14h16M10 18h10"/>',
   js: '<path d="M4 4v16"/><rect x="8" y="7" width="6" height="10" rx="1"/>', jc: '<path d="M12 4v16"/><rect x="7" y="7" width="10" height="10" rx="1"/>', je: '<path d="M20 4v16"/><rect x="10" y="7" width="6" height="10" rx="1"/>', jb: '<path d="M4 4v16M20 4v16"/><rect x="8" y="7" width="3" height="10" rx="1"/><rect x="13" y="7" width="3" height="10" rx="1"/>',
   case0: '<path d="M4 18 8 6l4 12M5.5 14h5M15 18v-6a2.5 2.5 0 0 1 5 0v6M15 15h5"/>', caseU: '<path d="M3 18 7 6l4 12M4.5 14h5M14 18 17 6l4 12M15 14h5"/>', caseL: '<path d="M8 18v-5a2.5 2.5 0 0 1 5 0v5M8 15h5M16 9v9"/>',
-  check: '<path d="m5 12 5 5 9-10"/>', stop: "",
+  check: '<path d="m5 12 5 5 9-10"/>', stop: "", globe: '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/>',
 };
 
 export const STUDIO_HTML = `
@@ -298,6 +302,7 @@ export const STUDIO_HTML = `
         <button class="ib" id="d-tab" data-tip="Tablet" aria-label="Tablet" aria-pressed="false">${SVG(P.tab)}</button>
         <button class="ib" id="d-phone" data-tip="Phone" aria-label="Phone" aria-pressed="false">${SVG(P.phone)}</button>
       </div>
+      <button class="langbtn" id="langBtn" data-tip="Languages" aria-label="Languages" aria-haspopup="menu"></button>
       <span class="vsep"></span>
       <button class="ib" id="undo" data-tip="Undo" aria-label="Undo" disabled>${SVG(P.undo)}</button>
       <button class="ib" id="redo" data-tip="Redo" aria-label="Redo" disabled>${SVG(P.redo)}</button>
@@ -360,7 +365,7 @@ export type StudioApi = {
   saveChat(c: StudioChat): Promise<void>;
   deleteChat(id: string): Promise<void>;
   tia(turns: { role: "user" | "assistant"; content: string }[], onText: (all: string) => void, signal: AbortSignal): Promise<{ text: string; cut: boolean }>;
-  publish(p: { formId: string | null; name: string; html: string; css: string; brand: string; after: unknown; kitId: string }): Promise<{ formId: string; problem?: string }>;
+  publish(p: { formId: string | null; name: string; html: string; css: string; brand: string; after: unknown; kitId: string; lang?: string; langs?: Record<string, string> }): Promise<{ formId: string; problem?: string }>;
   formUrl(id: string): string;
   openMeetings(): void;
   back(): void;
@@ -395,11 +400,11 @@ export function mountStudio(shell: ShadowRoot, api: StudioApi): () => void {
   let cur = null;
   let loaded = false;
   const looking = new Set();
-  const S = { mode: "preview", device: "desk", sel: null, about: null, busy: false, ptab: "style", scope: "class", nav: false, file: "html", publishing: false, pubMsg: "" };
+  const S = { lang: "", translating: "", mode: "preview", device: "desk", sel: null, about: null, busy: false, ptab: "style", scope: "class", nav: false, file: "html", publishing: false, pubMsg: "" };
   const hist = {};
   const H = () => (hist[cur?.id || "-"] ||= { past: [], future: [] });
   const brandOf = (c) => brands.find((b) => b.id === c?.brandId) || null;
-  const blank = (brandId) => ({ id: uuid(), name: "New form", state: "new", brandId: brandId || "", formId: "", body: { html: "", css: "", after: { kind: "thanks", url: "", meeting: MEETINGS[0]?.id || "", routes: [] }, turns: [], log: [], ids: {} } });
+  const blank = (brandId) => ({ id: uuid(), name: "New form", state: "new", brandId: brandId || "", formId: "", body: { html: "", css: "", after: { kind: "thanks", url: "", meeting: MEETINGS[0]?.id || "", routes: [] }, turns: [], log: [], ids: {}, langs: {}, langFrom: {}, lang: "" } });
   const body = () => cur.body;
 
   // Saved a second after the last change, and when the page closes.
@@ -466,7 +471,7 @@ export function mountStudio(shell: ShadowRoot, api: StudioApi): () => void {
   // ── Drawing ───────────────────────────────────────────────────────────────────────────────────────────
   const host = $("host");
   const root = host.attachShadow({ mode: "open" });
-  const BASE = `.cl-block{display:flex;flex-direction:column;gap:8px}.cl-two{display:grid;grid-template-columns:1fr 1fr;gap:8px}.cl-addr{display:flex;flex-direction:column;gap:8px}.cl-rate{display:flex;gap:6px;font-size:26px;line-height:1;opacity:.6}.cl-num{font-size:14px;border:1px solid currentColor;border-radius:8px;padding:8px 12px}.cl-sign{min-height:110px}
+  const BASE = `${ACCESS_CSS}.cl-block{display:flex;flex-direction:column;gap:8px}.cl-two{display:grid;grid-template-columns:1fr 1fr;gap:8px}.cl-addr{display:flex;flex-direction:column;gap:8px}.cl-rate{display:flex;gap:6px;font-size:26px;line-height:1;opacity:.6}.cl-num{font-size:14px;border:1px solid currentColor;border-radius:8px;padding:8px 12px}.cl-sign{min-height:110px}
 .cl-consent{display:flex;gap:8px;align-items:flex-start;font-size:13px;line-height:1.4;opacity:.85}.cl-consent input{margin:2px 0 0}
 :host{all:initial;display:flex;flex-direction:column;flex:1}*,*::before,*::after{box-sizing:border-box}[hidden]{display:none!important}.cl-root{flex:1;min-height:560px;display:flex;flex-direction:column}.cl-root>*{flex:1 0 auto}
 .cl-cal{display:flex;flex-direction:column;gap:12px;margin-top:6px}.cl-days{display:flex;gap:6px;flex-wrap:wrap}.cl-times{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}.cl-day,.cl-time{font:inherit;padding:8px 10px;border-radius:10px;border:1.5px solid rgba(127,127,127,.35);background:transparent;color:inherit;cursor:pointer}.cl-day[aria-pressed=true],.cl-time[aria-pressed=true]{border-color:currentColor}
@@ -481,7 +486,12 @@ export function mountStudio(shell: ShadowRoot, api: StudioApi): () => void {
     const st = document.createElement("style");
     st.textContent = `${BASE}\n/* brand */\n${cssFor(brandOf(cur)?.css)}\n/* form */\n${cssFor(body().css)}`;
     const wrap = h("div", { class: S.mode === "edit" ? "cl-root cl-edit" : "cl-root" });
-    wrap.append(...[...src.cloneNode(true).childNodes]);
+    // Another language shows as written (Preview only; Edit and Code work on the form's own language).
+    const other = S.mode !== "edit" && S.lang && body().langs?.[S.lang];
+    if (other) wrap.innerHTML = clean(other).innerHTML;
+    else wrap.append(...[...src.cloneNode(true).childNodes]);
+    const lang = other ? S.lang : mainLang();
+    if (lang) { wrap.setAttribute("lang", lang); wrap.setAttribute("dir", isRtl(lang) ? "rtl" : "ltr"); }
     root.append(st, wrap);
     const logo = brandOf(cur)?.logo;
     wrap.querySelectorAll("img[data-cl-logo]").forEach((img) => { if (logo) img.setAttribute("src", logo); else img.hidden = true; });
@@ -531,6 +541,7 @@ export function mountStudio(shell: ShadowRoot, api: StudioApi): () => void {
     return m[2] === ">" ? n > t : m[2] === "<" ? n < t : m[2] === ">=" ? n >= t : n <= t;
   }
   function run(w) {
+    linkErrors(w);
     const steps = [...w.querySelectorAll("[data-cl-step]")], thanks = w.querySelector("[data-cl-thanks]"), editing = S.mode === "edit";
     const apply = () => {
       const v = values(w);
@@ -896,13 +907,13 @@ export function mountStudio(shell: ShadowRoot, api: StudioApi): () => void {
   function toast(t) { $("layer").querySelector(".toast")?.remove(); const e = h("div", { class: "toast", role: "status", text: t }); $("layer").append(e); clearTimeout(toastT); toastT = setTimeout(() => e.remove(), 2400); }
 
   // ── Undo, redo, commit ────────────────────────────────────────────────────────────────────────────────
-  const state = () => ({ html: sourceHtml(), css: body().css, after: JSON.stringify(body().after) });
+  const state = () => ({ html: sourceHtml(), css: body().css, after: JSON.stringify(body().after), langs: JSON.stringify({ langs: body().langs || {}, from: body().langFrom || {} }) });
   function snap() { const s = H(); s.past.push(state()); if (s.past.length > 80) s.past.shift(); s.future.length = 0; buttons(); }
-  function restore(x) { body().css = x.css; body().after = JSON.parse(x.after); setSource(x.html); body().html = x.html; S.sel = null; changed(); draw(); refresh(); }
+  function restore(x) { body().css = x.css; body().after = JSON.parse(x.after); if (x.langs) { const l = JSON.parse(x.langs); body().langs = l.langs; body().langFrom = l.from; if (S.lang && !l.langs[S.lang]) S.lang = ""; } setSource(x.html); body().html = x.html; S.sel = null; changed(); draw(); refresh(); }
   function undo() { const s = H(); if (!s.past.length) return; s.future.push(state()); restore(s.past.pop()); }
   function redo() { const s = H(); if (!s.future.length) return; s.past.push(state()); restore(s.future.pop()); }
   function buttons() { $("undo").disabled = !H().past.length; $("redo").disabled = !H().future.length; }
-  function changed() { if (cur.state === "live") cur.state = "changed"; if (cur.state === "new" && built()) cur.state = "draft"; S.pubMsg = ""; pubUi(); chatHead(); buttons(); save(); }
+  function changed() { langUi(); if (cur.state === "live") cur.state = "changed"; if (cur.state === "new" && built()) cur.state = "draft"; S.pubMsg = ""; pubUi(); chatHead(); buttons(); save(); }
   function commit() { body().html = sourceHtml(); changed(); draw(); refresh(); }
   function refresh() { if (S.mode === "edit") { panel(); tree(); } if (S.mode === "code") showCode(); if (S.mode === "after") renderAfter(); }
   $("undo").onclick = undo; $("redo").onclick = redo;
@@ -918,6 +929,7 @@ export function mountStudio(shell: ShadowRoot, api: StudioApi): () => void {
     $("navBtn").hidden = m !== "edit";
     $("navi").hidden = m !== "edit" || !S.nav;
     if (m !== "edit") { S.sel = null; $("hov").hidden = true; }
+    if ((m === "edit" || m === "code") && S.lang) { S.lang = ""; langUi(); toast(`${m === "edit" ? "Edit" : "Code"} works on the form's own language`); }
     if (m === "edit" && !store.get("clr-studio-edit-folded", false)) { store.set("clr-studio-edit-folded", true); setChatFold(true); }
     draw();
     refresh();
@@ -974,10 +986,10 @@ export function mountStudio(shell: ShadowRoot, api: StudioApi): () => void {
     checkT = setTimeout(async () => {
       if (!alive || !cur) return;
       if (!built()) { issues = []; layoutFound = []; return checkUi(); }
-      const key = `${sourceHtml()}\n${body().css}\n${brandOf(cur)?.css || ""}\n${JSON.stringify(body().after)}\n${MEETINGS.length}\n${brandOf(cur)?.profile?.industry || ""}`;
+      const key = `${sourceHtml()}\n${body().css}\n${brandOf(cur)?.css || ""}\n${JSON.stringify(body().after)}\n${MEETINGS.length}\n${brandOf(cur)?.profile?.industry || ""}\n${JSON.stringify(body().langs)}`;
       if (key === checkKey) return;
       checkKey = key;
-      const base = checkStudioPage({ html: sourceHtml(), after: body().after, meetings: loaded ? MEETINGS : null, industry: brandOf(cur)?.profile?.industry ?? null });
+      const base = [...checkStudioPage({ html: sourceHtml(), after: body().after, meetings: loaded ? MEETINGS : null, industry: brandOf(cur)?.profile?.industry ?? null, langs: body().langs }), ...staleLangs()];
       issues = [...base, ...layoutFound]; checkUi();
       const run = ++checkRun;
       const lay = await layoutIssues().catch(() => []);
@@ -987,21 +999,30 @@ export function mountStudio(shell: ShadowRoot, api: StudioApi): () => void {
   }
   const lum = (c) => { const m = /rgba?\(([\d.]+),\s*([\d.]+),\s*([\d.]+)(?:,\s*([\d.]+))?/.exec(c || ""); if (!m) return null; const ch = [m[1], m[2], m[3]].map((x) => { const v = Number(x) / 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; }); return { l: 0.2126 * ch[0] + 0.7152 * ch[1] + 0.0722 * ch[2], a: m[4] === undefined ? 1 : Number(m[4]) }; };
   async function layoutIssues() {
+    const out = [...(await layoutFor(sourceHtml(), mainLang(), ""))];
+    for (const [code, html] of Object.entries(body().langs || {})) for (const i of await layoutFor(html, code, languageName(code))) if (i.code === "sideways" || i.code === "clipped") out.push(i);
+    return out;
+  }
+  async function layoutFor(html, lang, label) {
     const out = [];
-    const css = `${BASE}\n${cssFor(brandOf(cur)?.css)}\n${cssFor(body().css)}`, html = sourceHtml();
+    const css = `${BASE}\n${cssFor(brandOf(cur)?.css)}\n${cssFor(body().css)}`;
+    const where0 = label ? `In ${label}, ` : "";
     const brandText = String(brandOf(cur)?.css || "").toLowerCase();
     const where = { 390: "a phone", 768: "a tablet", 1100: "a desktop" };
     for (const w of [390, 768, 1100]) {
       const box = h("div", { style: `position:fixed;left:-30000px;top:0;width:${w}px;height:1000px;overflow:auto;visibility:hidden;pointer-events:none` });
       $("layer").append(box);
       const r = box.attachShadow({ mode: "open" });
-      r.innerHTML = `<style>${css}</style><div class="cl-root">${html}</div>`;
+      r.innerHTML = `<style>${css}</style><div class="cl-root"${lang ? ` lang="${lang}" dir="${isRtl(lang) ? "rtl" : "ltr"}"` : ""}>${html}</div>`;
       // Every step, condition and the thank-you at once, so each is measured.
       r.querySelectorAll("[hidden]").forEach((e) => e.removeAttribute("hidden"));
       await new Promise((res) => requestAnimationFrame(() => requestAnimationFrame(res)));
       if (!alive) return out;
-      if (Math.max(box.scrollWidth, r.querySelector(".cl-root").scrollWidth) > w + 2) out.push({ level: w === 390 ? "error" : "warning", code: "sideways", text: `The form scrolls sideways on ${where[w]} (${w}px wide).`, fix: `Make the form fit ${w}px wide with no sideways scrolling.` });
+      if (Math.max(box.scrollWidth, r.querySelector(".cl-root").scrollWidth) > w + 2) out.push({ level: w === 390 ? "error" : "warning", code: "sideways", text: `${where0}the form scrolls sideways on ${where[w]} (${w}px wide).`.replace(/^t/, "T"), fix: `Make the form fit ${w}px wide with no sideways scrolling${label ? ` in ${label}` : ""}.` });
       if (w === 390) {
+        // Choice cards whose own radio or check box is removed can't be reached with the keyboard.
+        const gone = [...r.querySelectorAll('input[type="radio"],input[type="checkbox"]')].find((x) => { const cs = getComputedStyle(x); return cs.display === "none" || cs.visibility === "hidden"; });
+        if (gone && !label) out.push({ level: "warning", code: "keyboard", text: "Some choices can't be reached with the keyboard: their radio or check box is removed.", fix: "Hide the native radio and check boxes visually (position absolute, opacity 0) instead of display none, and show focus on the choice card with label:has(input:focus-visible)." });
         const els = [...r.querySelectorAll("h1,h2,h3,h4,p,label,span,button,a,legend,li,strong,b,small")].slice(0, 300);
         let low = 0, clipped = false, small = false, font = "";
         for (const el of els) {
@@ -1013,15 +1034,15 @@ export function mountStudio(shell: ShadowRoot, api: StudioApi): () => void {
           const fg = lum(cs.color);
           let bg = null;
           for (let p = el; p && p.nodeType === 1; p = p.parentElement) { const ps = getComputedStyle(p); if (ps.backgroundImage && ps.backgroundImage !== "none") { bg = "skip"; break; } const b = lum(ps.backgroundColor); if (b && b.a > 0.5) { bg = b; break; } }
-          if (fg && bg && bg !== "skip" && low < 2) {
+          if (fg && bg && bg !== "skip" && low < 2 && !label) {
             const ratio = (Math.max(fg.l, bg.l) + 0.05) / (Math.min(fg.l, bg.l) + 0.05);
             const size = parseFloat(cs.fontSize), large = size >= 24 || (size >= 18.6 && Number(cs.fontWeight) >= 700);
             if (ratio < (large ? 3 : 4.5)) { low++; const t = el.textContent.trim().replace(/\s+/g, " ").slice(0, 40); out.push({ level: "warning", code: "contrast", text: `"${t}" is hard to read (contrast ${ratio.toFixed(1)} to 1).`, fix: `Raise the contrast of the text "${t}" to at least ${large ? 3 : 4.5} to 1, using the brand's darker colors.` }); }
           }
-          if (!clipped && /hidden|clip/.test(cs.overflow + cs.overflowX) && el.scrollWidth > el.clientWidth + 1) { clipped = true; const t = el.textContent.trim().slice(0, 40); out.push({ level: "warning", code: "clipped", text: `"${t}" is cut off on a phone.`, fix: `Let the text "${t}" wrap so it isn't cut off on a phone.` }); }
-          if (!small && (el.tagName === "BUTTON" || el.matches("label.choice, label.check, a")) && rect.height < 40) { small = true; const t = el.textContent.trim().slice(0, 30); out.push({ level: "warning", code: "small-tap", text: `"${t}" is smaller than a finger on a phone (${Math.round(rect.height)}px tall).`, fix: "Make every button and choice at least 44px tall on phones." }); }
+          if (!clipped && /hidden|clip/.test(cs.overflow + cs.overflowX) && el.scrollWidth > el.clientWidth + 1) { clipped = true; const t = el.textContent.trim().slice(0, 40); out.push({ level: "warning", code: "clipped", text: `${where0}"${t}" is cut off on a phone.`, fix: `Let the text "${t}" wrap so it isn't cut off on a phone.` }); }
+          if (!small && !label && (el.tagName === "BUTTON" || el.matches("label.choice, label.check, a")) && rect.height < 40) { small = true; const t = el.textContent.trim().slice(0, 30); out.push({ level: "warning", code: "small-tap", text: `"${t}" is smaller than a finger on a phone (${Math.round(rect.height)}px tall).`, fix: "Make every button and choice at least 44px tall on phones." }); }
           const fam = (cs.fontFamily.split(",")[0] || "").replace(/["']/g, "").trim();
-          if (!font && brandText && fam && !/^(serif|sans-serif|monospace|system-ui|ui-sans-serif|ui-serif|-apple-system|inherit|initial)$/i.test(fam) && !brandText.includes(fam.toLowerCase())) { font = fam; out.push({ level: "warning", code: "font", text: `Uses the font ${fam}, which isn't the brand's.`, fix: `Use only the brand's fonts in place of ${fam}.` }); }
+          if (!font && !label && brandText && fam && !/^(serif|sans-serif|monospace|system-ui|ui-sans-serif|ui-serif|-apple-system|inherit|initial)$/i.test(fam) && !brandText.includes(fam.toLowerCase())) { font = fam; out.push({ level: "warning", code: "font", text: `Uses the font ${fam}, which isn't the brand's.`, fix: `Use only the brand's fonts in place of ${fam}.` }); }
         }
       }
       box.remove();
@@ -1048,6 +1069,53 @@ export function mountStudio(shell: ShadowRoot, api: StudioApi): () => void {
   }
   $("checkBtn").onclick = () => (menuEl && menuFor === $("checkBtn") ? closeMenu() : checkMenu());
 
+  // ── Languages (docs/studio-v2-plan.md 6.4): the form in the site's language, and in others Tia translates. Visitors
+  // get their own language with a switch on the form; right-to-left languages flip it. ──────────────────────────
+  const COMMON = ["en", "es", "fr", "de", "pt", "it", "nl", "ar", "he", "ja", "zh", "ko", "hi", "pl", "sv", "tr"];
+  const mainLang = () => body()?.lang || brandOf(cur)?.profile?.language || "en";
+  const sig = (html) => { let x = 0; for (let i = 0; i < html.length; i++) x = (x * 31 + html.charCodeAt(i)) | 0; return String(x); };
+  function staleLangs() { const now = sig(sourceHtml()); return Object.keys(body().langs || {}).filter((c) => body().langFrom?.[c] && body().langFrom[c] !== now).map((c) => ({ level: "warning", code: "lang-old", text: `The ${languageName(c)} version is older than the form. Update it in Languages.` })); }
+  function langUi() {
+    const b = $("langBtn");
+    b.hidden = !cur || !built();
+    b.classList.toggle("on", !!S.lang);
+    b.innerHTML = S.translating ? tiaSvg(14, true) : SVG(P.globe, 15);
+    b.append(h("span", { text: (S.lang || mainLang()).toUpperCase() }));
+  }
+  function langMenu() {
+    const langs = Object.keys(body().langs || {});
+    const now = sig(sourceHtml());
+    const row = (code, main) => h("div", { class: "mrow" },
+      h("button", { class: "mi small", role: "menuitemradio", "aria-checked": String((S.lang || mainLang()) === code), onclick: () => { closeMenu(); if (S.mode !== "preview") setMode("preview"); S.lang = main ? "" : code; langUi(); draw(); } }, h("span", { class: "nm", text: `${languageName(code)}${main ? " (the form's own)" : ""}` })),
+      !main && body().langFrom?.[code] !== now ? h("button", { class: "pill", text: "Update", onclick: () => { closeMenu(); void translate(code); } }) : null,
+      !main ? h("button", { class: "ib", "aria-label": `Remove ${languageName(code)}`, html: SVG(P.del, 14), onclick: () => { snap(); delete body().langs[code]; delete body().langFrom[code]; if (S.lang === code) S.lang = ""; changed(); langUi(); draw(); closeMenu(); } }) : null);
+    const suggest = [...new Set([...(brandOf(cur)?.profile?.languages || []), ...COMMON])].filter((c) => c !== mainLang() && !langs.includes(c)).slice(0, 10);
+    const add = suggest.map((c) => { const b = h("button", { class: "mi small", html: `${SVG(P.plus, 14)}<span class="nm"></span>`, onclick: () => { closeMenu(); void translate(c); } }); b.querySelector(".nm").textContent = languageName(c); return b; });
+    openMenu($("langBtn"), [row(mainLang(), true), ...langs.map((c) => row(c, false)), h("div", { class: "msep" }), h("div", { class: "ihead" }, h("span", { text: "Add a language" })), ...add], 280);
+  }
+  $("langBtn").onclick = () => (menuEl && menuFor === $("langBtn") ? closeMenu() : langMenu());
+  async function translate(code) {
+    if (S.translating || S.busy || !built()) return;
+    const c = cur, html = sourceHtml();
+    S.translating = code; langUi(); toast(`Tia is writing the form in ${languageName(code)}`);
+    try {
+      const ask = `Translate the whole form into ${languageName(code)} (${code}). Keep every tag, attribute, class, id, name, value, data-cl-* attribute and data-cl-id exactly as they are, and change only the words people read: headings, text, labels, button words, option words, placeholders, alt text and data-cl-label. Answer with only <say>One short line.</say> and <form_html>the whole translated form</form_html>.\n\n<form_html>${html}</form_html>`;
+      const r = await api.tia([{ role: "user", content: ask }], () => {}, new AbortController().signal);
+      const out = tagOf(r.text, "form_html");
+      if (!out?.closed || !out.body.trim()) throw new Error(`Tia couldn't write the ${languageName(code)} version. Try again.`);
+      c.body.langs[code] = out.body.trim();
+      c.body.langFrom[code] = sig(html);
+      if (cur === c) { S.lang = code; if (S.mode !== "preview") setMode("preview"); }
+      changed();
+      toast(`${languageName(code)} added`);
+    } catch (e) {
+      toast(e?.message || "Couldn't translate the form.");
+    } finally {
+      S.translating = "";
+      if (alive) { langUi(); draw(); }
+    }
+  }
+
   // ── Publish ───────────────────────────────────────────────────────────────────────────────────────────
   const formName = () => (src.querySelector("h1,h2,h3,legend")?.textContent || "").replace(/\s+/g, " ").trim().slice(0, 80) || `${brandOf(cur)?.name || "New"} form`;
   function pubUi() {
@@ -1063,14 +1131,14 @@ export function mountStudio(shell: ShadowRoot, api: StudioApi): () => void {
   }
   $("publish").onclick = async () => {
     if (S.publishing || !built() || !brandOf(cur)) return;
-    const now = [...checkStudioPage({ html: sourceHtml(), after: body().after, meetings: loaded ? MEETINGS : null, industry: brandOf(cur)?.profile?.industry ?? null }), ...layoutFound];
+    const now = [...checkStudioPage({ html: sourceHtml(), after: body().after, meetings: loaded ? MEETINGS : null, industry: brandOf(cur)?.profile?.industry ?? null, langs: body().langs }), ...layoutFound];
     const errs = now.filter((i) => i.level === "error");
     if (errs.length) { issues = now; checkUi(); S.pubMsg = `Fix ${errs.length === 1 ? "1 problem" : `${errs.length} problems`} first`; pubUi(); return checkMenu(); }
     const c = cur;
     S.publishing = true; S.pubMsg = ""; pubUi();
     try {
       if (c.name === "New form") c.name = formName();
-      const r = await api.publish({ formId: c.formId || null, name: c.name, html: sourceHtml(), css: c.body.css, brand: brandOf(c)?.css || "", after: c.body.after, kitId: c.brandId });
+      const r = await api.publish({ formId: c.formId || null, name: c.name, html: sourceHtml(), css: c.body.css, brand: brandOf(c)?.css || "", after: c.body.after, kitId: c.brandId, lang: mainLang(), langs: c.body.langs || {} });
       c.formId = r.formId; c.state = "live";
       if (r.problem) S.pubMsg = r.problem;
       toast(`${c.name} is live`);
@@ -1118,11 +1186,13 @@ export function mountStudio(shell: ShadowRoot, api: StudioApi): () => void {
     if (cur && cur !== c) save(true);
     if (!c.body) { const full = await api.chat(c.id).catch(() => null); c.body = full?.body || blank(c.brandId).body; }
     c.body.after ||= { kind: "thanks", url: "", meeting: "", routes: [] };
-    c.body.turns ||= []; c.body.log ||= []; c.body.ids ||= {};
+    c.body.turns ||= []; c.body.log ||= []; c.body.ids ||= {}; c.body.langs ||= {}; c.body.langFrom ||= {};
     cur = c;
     setSource(c.body.html || "");
     stepAt = 0; done = false; S.sel = null; S.about = null; S.pubMsg = "";
-    aboutUi(); chatHead(); brandUi(); renderLog(); draw(); pubUi(); buttons(); refresh();
+    S.lang = "";
+    if (!c.body.lang && brandOf(c)?.profile?.language) c.body.lang = brandOf(c).profile.language;
+    aboutUi(); chatHead(); brandUi(); renderLog(); draw(); pubUi(); buttons(); refresh(); langUi();
     const b = brandOf(c);
     if (b && !b.css) void readLook(b);
   }

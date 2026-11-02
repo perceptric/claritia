@@ -8,7 +8,12 @@ import { CONTACT_KEYS, DEFAULT_CONSENT, type FieldKey, type FieldType } from "..
 
 export type PageAfter = { kind: "thanks" | "page" | "meeting"; url?: string; meeting?: string; routes?: { field: string; value: string; meeting: string }[] };
 /** The page on a published form: its HTML, its own CSS, the brand's CSS, each question's name to its field id. */
-export type Page = { html: string; css: string; brand: string; ids: Record<string, string>; after?: PageAfter };
+/**
+ * The page on a published form: its HTML, its own CSS, the brand's CSS, each question's name to its field id, and its
+ * languages (docs/studio-v2-plan.md 6.4): `lang` is the page's own, `langs` the same page in other languages.
+ */
+export type Page = { html: string; css: string; brand: string; ids: Record<string, string>; after?: PageAfter; lang?: string; langs?: Record<string, string> };
+export const LANG_CODE = /^[a-z]{2}(-[A-Z]{2})?$/;
 export type PageQuestion = {
   name: string;
   id: string;
@@ -66,6 +71,8 @@ const ATTRS = new Set([
 ]);
 const TYPES = new Set(["text", "email", "tel", "number", "url", "date", "time", "radio", "checkbox", "range", "hidden", "search", "month", "week", "datetime-local", "color", "submit"]);
 const FIELD_ID = /^[a-z][a-z0-9]{0,23}$/;
+/** Contact answers: the browser's autofill name, and the input type that brings up the right keyboard. */
+const AUTOFILL: Record<string, [string, string | null]> = { email: ["email", "email"], first_name: ["given-name", null], last_name: ["family-name", null], name: ["name", null], phone: ["tel", "tel"], company: ["organization", null], title: ["organization-title", null], website: ["url", "url"], country: ["country-name", null] };
 const SAVE = new Set(["email", "first_name", "last_name", "name", "phone", "company", "title", "website", "country"]);
 
 const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
@@ -236,6 +243,17 @@ export function cleanPage(raw: string, prevIds: Record<string, string> = {}): { 
     }
     if (name === "img" && !("data-cl-logo" in attrs)) continue;
     if (name === "button" && !("type" in attrs)) kept.push('type="button"');
+    // The right keyboard and the browser's autofill for contact answers (docs/studio-v2-plan.md 6.4).
+    if (name === "input" && attrs["data-cl-save"] && AUTOFILL[attrs["data-cl-save"]]) {
+      const [auto, type] = AUTOFILL[attrs["data-cl-save"]]!;
+      if (!("autocomplete" in attrs)) kept.push(`autocomplete="${auto}"`);
+      const t = (attrs.type ?? "text").toLowerCase();
+      if (type && (t === "text" || !("type" in attrs))) {
+        const i = kept.findIndex((x) => x.startsWith("type="));
+        if (i >= 0) kept.splice(i, 1);
+        kept.push(`type="${type}"`);
+      }
+    }
     if (name === "form") kept.push("novalidate");
     const qName = /^[A-Za-z][\w-]{0,60}$/.test(attrs.name ?? "") ? attrs.name! : "";
     // A Claritia block: its question's name, label and rules are on the block.
@@ -318,7 +336,7 @@ const KIND: Record<string, string> = { email: "email", tel: "phone", number: "nu
  * The form a studio page publishes as: one step of the page's questions, each saved to its contact field or kept as
  * the form's own answer, and what happens after the send (a thank-you, a page or a meeting with its routes).
  */
-export function pageForm(p: { html: string; css: string; brand: string; after: PageAfter; title?: string; prevIds?: Record<string, string>; turnstile?: boolean }): { form: Record<string, unknown>; questions: PageQuestion[] } {
+export function pageForm(p: { html: string; css: string; brand: string; after: PageAfter; title?: string; prevIds?: Record<string, string>; turnstile?: boolean; lang?: string; langs?: Record<string, string> }): { form: Record<string, unknown>; questions: PageQuestion[] } {
   const { html, questions } = cleanPage(p.html, p.prevIds);
   const keys = new Set<string>();
   const fields = questions.map((q) => {
@@ -372,12 +390,24 @@ export function pageForm(p: { html: string; css: string; brand: string; after: P
       consent: { mode: "by_region", label: DEFAULT_CONSENT },
       spam: { minSeconds: 2, turnstile: p.turnstile === true },
       after: { end, ...(schedule ? { schedule } : {}) },
-      page: { html, css: cleanPageCss(p.css), brand: cleanPageCss(p.brand), ids, after },
+      page: { html, css: cleanPageCss(p.css), brand: cleanPageCss(p.brand), ids, after, ...pageLangs(p.lang, p.langs) },
     },
   };
 }
 
 /** The page on a form, cleaned again (checkForm runs this on every save and publish). */
+/** The page's languages, cleaned: its own language code, and up to six translations with their codes. */
+function pageLangs(lang: unknown, langs: unknown): { lang?: string; langs?: Record<string, string> } {
+  const own = typeof lang === "string" && LANG_CODE.test(lang) ? lang : undefined;
+  const out: Record<string, string> = {};
+  for (const [code, html] of Object.entries(langs && typeof langs === "object" ? (langs as Record<string, unknown>) : {}).slice(0, 6))
+    if (LANG_CODE.test(code) && code !== own && typeof html === "string" && html.trim()) {
+      const clean = cleanPage(html).html;
+      if (clean) out[code] = clean;
+    }
+  return { ...(own ? { lang: own } : {}), ...(Object.keys(out).length ? { langs: out } : {}) };
+}
+
 export function checkPage(raw: unknown, fieldIds: Set<string>): Page | null {
   if (!raw || typeof raw !== "object") return null;
   const r = raw as Record<string, unknown>;
@@ -393,5 +423,5 @@ export function checkPage(raw: unknown, fieldIds: Set<string>): Page | null {
     .filter((x) => typeof x.field === "string" && typeof x.value === "string" && typeof x.meeting === "string")
     .map((x) => ({ field: String(x.field).slice(0, 60), value: String(x.value).slice(0, 200), meeting: String(x.meeting).slice(0, 40) }));
   const after: PageAfter = { kind, ...(typeof af.url === "string" && af.url ? { url: af.url.slice(0, 500) } : {}), ...(typeof af.meeting === "string" && af.meeting ? { meeting: af.meeting.slice(0, 40) } : {}), ...(routes.length ? { routes } : {}) };
-  return { html, css: cleanPageCss(String(r.css ?? "")), brand: cleanPageCss(String(r.brand ?? "")), ids, after };
+  return { html, css: cleanPageCss(String(r.css ?? "")), brand: cleanPageCss(String(r.brand ?? "")), ids, after, ...pageLangs(r.lang, r.langs) };
 }

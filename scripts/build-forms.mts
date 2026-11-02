@@ -9,8 +9,8 @@ import { fileURLToPath } from "node:url";
 import { gzipSync } from "node:zlib";
 
 // 32 KB with screens and result blocks (docs/interactive-forms-plan.md Part 2); 34 KB with studio pages
-// (docs/forms-chat-plan.md).
-const LIMIT = 34 * 1024;
+// (docs/forms-chat-plan.md); 36 KB with their languages and access rules (docs/studio-v2-plan.md 6.4).
+const LIMIT = 36 * 1024;
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const out = process.argv.includes("--dev") ? join(root, ".forms") : join(root, ".next", "static", "forms");
 

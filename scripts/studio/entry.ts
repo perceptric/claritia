@@ -50,6 +50,19 @@ const api: StudioApi = {
   },
   tia: async (turns, onText, signal) => {
     calls.push({ mode: "tia", body: turns });
+    // A translation: the same page with its words in French or Arabic.
+    const ask = turns.at(-1)!.content;
+    if (ask.startsWith("Translate the whole form into")) {
+      const fr = ask.includes("(fr)");
+      const page = /<form_html>([\s\S]*)<\/form_html>/.exec(ask)![1]!;
+      const words: [string, string][] = fr
+        ? [["How was today?", "Comment était ta journée ?"], ["Your name", "Ton prénom"], ["Next", "Suivant"], ["Email", "E-mail"], ["Start my day", "Commencer ma journée"]]
+        : [["How was today?", "كيف كان يومك؟"], ["Your name", "اسمك"], ["Next", "التالي"], ["Email", "البريد الإلكتروني"], ["Start my day", "ابدأ يومي"]];
+      let out = page;
+      for (const [a, b] of words) out = out.split(`>${a}<`).join(`>${b}<`);
+      await wait(100);
+      return { text: `<say>Done.</say><form_html>${out}</form_html>`, cut: false };
+    }
     const reply = tiaCalls++ === 0 ? fx.reply : fx.reply2;
     let all = "";
     for (let i = 0; i < reply.length; i += 400) {
