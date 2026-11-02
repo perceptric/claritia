@@ -129,20 +129,25 @@ export function sourceText(src: PageSource): string {
   ].join("\n\n");
 }
 
-/** Claude's stylesheet from the page source, cleaned, with the fonts it uses. Null when nothing usable came back. */
+/** Claude's stylesheet from the page source, cleaned, with the fonts it uses. One more try when the first can't be
+ * used (no JSON, links that were dropped to nothing, or no button). Null when neither can. */
 export async function skinFromSource(call: SourceCaller, src: PageSource): Promise<{ css: string; faces: Face[]; notes: string[]; usage: Anthropic.Beta.BetaUsage } | null> {
   if (!src.css.length && !src.html) return null;
-  const out = await call({ system: SYSTEM, user: sourceText(src), schema: OUT_SCHEMA, maxTokens: 16000 }).catch(() => null);
-  if (!out) return null;
-  let j: { css?: unknown; fonts?: unknown; notes?: unknown };
-  try {
-    j = JSON.parse(out.text) as typeof j;
-  } catch {
-    return null;
+  const user = sourceText(src);
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const out = await call({ system: SYSTEM, user: attempt ? `${user}\n\nThe last answer couldn't be used. Answer with the JSON only, and style .bt, .in and :host.` : user, schema: OUT_SCHEMA, maxTokens: 16000 }).catch(() => null);
+    if (!out) continue;
+    let j: { css?: unknown; fonts?: unknown; notes?: unknown };
+    try {
+      j = JSON.parse(out.text) as typeof j;
+    } catch {
+      continue;
+    }
+    const css = cleanSkin(typeof j.css === "string" ? j.css : "");
+    if (!css || !/\.bt\b/.test(css)) continue;
+    const used = new Set((Array.isArray(j.fonts) ? j.fonts : []).map((f) => String(f).replace(/^["']|["']$/g, "").toLowerCase()));
+    const faces = src.faces.filter((f) => used.has(f.family.toLowerCase()) || css.toLowerCase().includes(f.family.toLowerCase()));
+    return { css, faces, notes: Array.isArray(j.notes) ? j.notes.map(String).slice(0, 12) : [], usage: out.usage };
   }
-  const css = cleanSkin(typeof j.css === "string" ? j.css : "");
-  if (!css || !/\.bt\b/.test(css)) return null;
-  const used = new Set((Array.isArray(j.fonts) ? j.fonts : []).map((f) => String(f).replace(/^["']|["']$/g, "").toLowerCase()));
-  const faces = src.faces.filter((f) => used.has(f.family.toLowerCase()) || css.toLowerCase().includes(f.family.toLowerCase()));
-  return { css, faces, notes: Array.isArray(j.notes) ? j.notes.map(String).slice(0, 12) : [], usage: out.usage };
+  return null;
 }

@@ -8,10 +8,13 @@ import { isMember } from "@/lib/contacts/server";
 import { requireUser } from "@/lib/serverAuth";
 import { serviceClient } from "@/lib/serviceClient";
 
-// A brand kit's look, copied from its site's page source (docs/forms.md, Styling): POST { workspaceId, kitId, fresh? }
-// → { skin }. The page and every stylesheet go to Claude, which writes the form's stylesheet; it's kept on the kit, so
-// every form in that brand wears it, live and in previews. A kit that already has a skin keeps it unless `fresh`.
-// Through the step cache, once per site and day.
+// A brand kit's look (docs/forms.md, Styling): POST { workspaceId, kitId, fresh? } → { skin, measuring }.
+// Two reads at once:
+//   1. The runner's browser read (brand_scan): it opens the site, measures the real buttons, inputs and fonts, and
+//      Claude copies them. The best look, in a minute or two, when the runner is up. Started when the kit has none.
+//   2. The page source: the page and every stylesheet go to Claude here, and its stylesheet is kept on the kit at once.
+// The browser read replaces the page-source one when it lands. `measuring` says it's on its way. Every failure is
+// logged and answered with what went wrong.
 
 export const maxDuration = 300;
 const bad = (error: string, status = 400) => Response.json({ error }, { status });
@@ -44,16 +47,32 @@ export async function POST(request: Request) {
   if (typeof b.kitId !== "string" || !/^[0-9a-f-]{36}$/.test(b.kitId)) return bad("Brand not found.", 404);
   const db = serviceClient();
   if (!db) return bad("The server is not set up for this.", 500);
-  const { data: kit } = await db.from("brand_kits").select("id, source_url, skin, tokens").eq("id", b.kitId).eq("workspace_id", ws).maybeSingle();
+  const { data: kit } = await db.from("brand_kits").select("id, source_url, skin, tokens, scan_status").eq("id", b.kitId).eq("workspace_id", ws).maybeSingle();
   if (!kit) return bad("Brand not found.", 404);
-  const k = kit as { id: string; source_url: string | null; skin?: unknown; tokens?: Record<string, unknown> | null };
-  if (k.skin && b.fresh !== true && readSkin(k.skin)) return Response.json({ skin: k.skin });
+  const k = kit as { id: string; source_url: string | null; skin?: unknown; tokens?: Record<string, unknown> | null; scan_status?: string | null };
   if (!k.source_url) return bad("This brand has no website to copy from.");
+  const have = readSkin(k.skin) ? (k.skin as { via?: string }) : null;
+  const measured = !!have && have.via !== "source";
+  if (measured && b.fresh !== true) return Response.json({ skin: k.skin, measuring: false });
+  // 1. The browser read, unless one is already running.
+  let measuring = k.scan_status === "scanning";
+  if (!measuring) {
+    const started = await db.rpc("brand_scan_start", { p_user: auth.user.id, p_ws: ws, p_url: /^https?:\/\//i.test(k.source_url) ? k.source_url : `https://${k.source_url}`, p_kit: k.id, p_form: null });
+    if (started.error) console.error(`form skin: the browser read didn't start for ${k.id}: ${started.error.message}`);
+    measuring = !started.error;
+  }
+  if (have && b.fresh !== true) return Response.json({ skin: k.skin, measuring });
   const model = claude();
-  if (!model) return bad("The AI isn't set up on this server.", 503);
+  if (!model) {
+    console.error("form skin: ANTHROPIC_API_KEY isn't set");
+    return bad("The AI isn't set up on this server.", 503);
+  }
 
   const page = await fetchText(/^https?:\/\//i.test(k.source_url) ? k.source_url : `https://${k.source_url}`, "text/html", 3_000_000, 10_000);
-  if (!page || !/<html|<body|<head/i.test(page.text)) return bad("Couldn't open that website.", 422);
+  if (!page || !/<html|<body|<head/i.test(page.text)) {
+    console.error(`form skin: couldn't open ${k.source_url}`);
+    return Response.json({ error: "Couldn't open that website.", measuring }, { status: 422 });
+  }
   const links = [...stylesheets(page.text, page.url, 10), ...googleFontSheets(page.text, page.url)];
   const sheets = (await Promise.all(links.map((u) => fetchText(u, "text/css,*/*;q=0.1", 2_000_000, 8000)))).filter((x): x is { url: string; text: string } => !!x && !/<html/i.test(x.text.slice(0, 200)));
   // The colors and font already read from the live site, so a page built by scripts still gets its brand.
@@ -65,15 +84,22 @@ export async function POST(request: Request) {
       const out = await skinFromSource(model, src);
       return { result: out ? { css: out.css, faces: out.faces, notes: out.notes } : null, model: SKIN_MODEL, usage: out ? usageOf(out.usage) : usageOf(undefined), keep: !!out };
     });
-    if (!r.result) return bad("Couldn't copy that site's look. Try again.", 422);
+    if (!r.result) {
+      console.error(`form skin: Claude's stylesheet for ${src.url} couldn't be used (${src.css.length} stylesheets, ${src.html.length} chars of HTML)`);
+      return Response.json({ error: "Couldn't copy that site's look. Try again.", measuring }, { status: 422 });
+    }
     const skin = { css: r.result.css, faces: r.result.faces, at: new Date().toISOString(), from: page.url, notes: r.result.notes, via: "source" };
     const saved = await db.rpc("brand_kit_skin", { p_kit: k.id, p_skin: skin });
     if (saved.error) {
       const direct = await db.from("brand_kits").update({ skin, updated_at: new Date().toISOString() }).eq("id", k.id);
-      if (direct.error) return bad("Couldn't save the look.", 500);
+      if (direct.error) {
+        console.error(`form skin: couldn't save on ${k.id}: ${direct.error.message}`);
+        return bad("Couldn't save the look.", 500);
+      }
     }
-    return Response.json({ skin });
-  } catch {
-    return bad("The AI didn't answer. Try again in a moment.", 503);
+    return Response.json({ skin, measuring });
+  } catch (e) {
+    console.error(`form skin: ${(e as Error).message}`);
+    return Response.json({ error: "The AI didn't answer. Try again in a moment.", measuring }, { status: 503 });
   }
 }

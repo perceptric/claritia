@@ -34,7 +34,7 @@ progress bar with the five screens at the top.
   and kept on the brand, so every form in that brand wears it, live and in previews. The preview waits for it with the
   throbber. Sites built by scripts show little in their source, so Claude may also draw a well-known brand's controls
   the way that brand does. The runner's browser read (`docs/brand-skin.md`) measures the real controls and replaces
-  this when it finishes; it runs on the Fly runner, which must be deployed for it.
+  this when it finishes. New form starts that browser read too whenever the brand has no measured look, shows "Copying" and "Measuring the site in a browser" while they run, swaps the measured look in when it lands, and shows a real error with Try again when the copy fails. Every failure is logged on the server.
 
 ### Screen 2. One page or steps
 

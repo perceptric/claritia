@@ -63,6 +63,7 @@ export async function handleBrandScan(sb: SupabaseClient, job: Job, o: ScanOpts)
   await finish({ tokens, logo: scan.logo, notes: notes.slice(0, 20), forms: scan.forms }, null);
   if (scan.brand) await brandSetup(sb, ws, kit, url, scan.brand, tokens, o);
   if (scan.skin && o.skinner) await skinSetup(sb, ws, kit, scan.skin, o);
+  else o.log?.(scan.skin ? `Brand skin skipped for ${kit}: the runner has no ANTHROPIC_API_KEY` : `Brand skin skipped for ${kit}: no controls found on ${url}`);
 }
 
 /**
