@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { checkAnswers } from "@/lib/forms/answers";
 import { allFields, bandFor, maxScore, score as scoreOf, shown, shownPages } from "@/lib/forms/logic";
 import { DEFAULT_CONSENT, DEFAULT_NOTICE } from "@/lib/forms/schema";
-import type { FormSchema, FormSettings } from "@/lib/forms/types";
+import { HALF_KINDS, type FormSchema, type FormSettings } from "@/lib/forms/types";
 import { FieldInput } from "./FieldInput";
 
 // A form as visitors see it: pages, show-if logic, checks on each page, the consent block for the visitor's region,
@@ -85,6 +85,12 @@ export function FormView({ schema, settings = {}, mode, region = "notice", onSub
   useEffect(() => {
     started.current = Date.now();
   }, []);
+
+  // The editor: bring the picked question into view.
+  useEffect(() => {
+    if (!onSelect || !selected) return;
+    root.current?.querySelector(`[data-key="${selected}"]`)?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  }, [selected, onSelect, page]);
 
   // Embedded: tell the page around the iframe how tall the form is.
   useEffect(() => {
@@ -284,7 +290,7 @@ export function FormView({ schema, settings = {}, mode, region = "notice", onSub
         {multi && !thumb ? (
           <div className="flex flex-col gap-2" aria-label={`Step ${at + 1} of ${pages.length}`}>
             <div className="flex items-center justify-between font-mono text-[10.5px] tracking-[0.14em] text-muted uppercase">
-              <span>{schema.pages[page]?.title || (at === 0 ? schema.title : `Step ${at + 1}`)}</span>
+              <span>{schema.pages[page]?.title || `Step ${at + 1}`}</span>
               <span className="tabular-nums">
                 {at + 1} / {pages.length}
               </span>
@@ -301,7 +307,7 @@ export function FormView({ schema, settings = {}, mode, region = "notice", onSub
               data-key={f.key}
               onMouseDownCapture={onSelect ? () => onSelect(f.key) : undefined}
               onFocusCapture={onSelect ? () => onSelect(f.key) : undefined}
-              className={`${f.half ? "" : "sm:col-span-2"} ${onSelect ? `-m-2 rounded-md p-2 outline-offset-0 ${selected === f.key ? "outline-2 outline-brand outline-dashed" : "hover:outline-1 hover:outline-line-strong hover:outline-dashed"}` : ""}`}
+              className={`${f.half && HALF_KINDS.has(f.kind) ? "" : "sm:col-span-2"} ${onSelect ? `-m-2 rounded-md p-2 outline-offset-0 ${selected === f.key ? "outline-2 outline-brand outline-dashed" : "hover:outline-1 hover:outline-line-strong hover:outline-dashed"}` : ""}`}
             >
               <FieldInput f={f} value={answers[f.key]} files={files[f.key]} error={errors[f.key]} disabled={busy} onChange={(v) => set(f.key, v)} onFiles={(list) => { setFiles((x) => ({ ...x, [f.key]: list })); if (errors[f.key]) setErrors((e) => Object.fromEntries(Object.entries(e).filter(([k]) => k !== f.key))); }} />
             </div>

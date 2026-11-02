@@ -1,71 +1,75 @@
 # Form templates
 
-A gallery of ready forms for every industry, like Fillout's template gallery. Click a form, see it live, press **Use this form**, and it's in the workspace and taking submissions within seconds.
+A gallery of ready forms for every industry, like Fillout's template gallery. Click a form, try it, press **Use this form**, and it's live in the workspace and taking answers within seconds.
 
-Forms themselves are M6 in `docs/marketing-platform.md`. This plan adds the gallery, the template format, the import step and the full catalog.
+**Status: built.** Forms are the first slice of M6 in `docs/marketing-platform.md`: the gallery, the template catalog, the editor, hosted and embedded forms, submissions into contacts with consent, and Tailor.
 
 ---
 
 ## Part 1. How it works
 
-1. **Gallery.** Forms opens on the `ToolIntro` screen with the gallery under it. Left rail: industries. Top: a search box and use-case tags (Lead capture, Booking, Survey, Application, Order, Registration, Feedback, Quiz). Each card is a live mini render of the form (same renderer as the real form, scaled down), the name and the field count.
-2. **Preview.** Click a card and a `Sheet` opens with the full form. It can be filled in and clicked through, page by page, with logic working. Nothing is saved.
-3. **Use this form.** One click does all of this:
-   - Copies the template into `forms` and `form_fields` with new ids. `template_id` and `template_version` are kept.
-   - Maps each field to a contact or account property. Missing custom fields are made on the spot (`contact_fields`), with the type from the template.
-   - Applies the workspace brand (colors, font, logo) from the Brand Brain.
-   - Adds the consent block for the workspace's regions (`docs/marketing-platform.md` M6).
-   - Sets the after-submit default: thank-you screen, the matching journey trigger if one exists, and routing to an owner where the template has a booking step.
-   - Runs the Funnel QA form check (M9). If it passes, the form is published at `forms.tryclaritia.com/<team>/<slug>` and the embed script is ready. If it fails, the form stays a draft with the one-line error.
-   - Opens the form in the editor, live.
-4. **Tailor (optional).** A button in the editor: **Tailor to my business**. Claude rewrites labels, options and the thank-you text to fit the workspace's offer from the Brand Brain. Field types and logic don't change. Goes through the step cache.
+1. **Gallery** (`src/components/forms/Gallery.tsx`). Forms opens on the `ToolIntro` with the gallery under it; once a workspace has forms, Forms lists them and **New form** opens the gallery at `/forms/templates`. Left rail: industries with counts, plus Popular. Top: search and use-case tags. Each card is the real form, scaled down and drawn only when it scrolls into view.
+2. **Preview.** A card opens a side panel with the full form, working: pages, show-if logic, checks and the end screen. Nothing is saved. The address follows (`/forms/templates/<template>`), so a link opens the same preview.
+3. **Use this form** (`createForm` in `src/lib/forms/server.ts`) does this in one call:
+   - Copies the template's schema into `forms` (`form_create`, one transaction). `template_id` and `template_version` are kept, and `form_template_uses` counts the use.
+   - Links answers to contact fields. Built-ins (email, name, phone, title, company, website, country, region) map directly. Custom fields (`f.<key>`) are made when missing, pick lists get missing options, and a key taken by a field of another type gets a new key (`budget_2`) so answers never land as bad data (`planFields`).
+   - Runs the go-live check (`qaCheck` in `src/lib/forms/qa.ts`): the schema reads, a sample visitor can answer every required question on every path, and a sample email becomes a contact through the same code a real submission runs. Passing forms go live at once; health forms stay drafts until a BAA is confirmed.
+   - Opens the form in the editor.
+4. **Tailor to my business** (`src/lib/forms/tailor.ts`, `/api/forms/tailor`). Claude Haiku 5.5 rewrites the words (title, intro, labels, help, options, end screen) from a short business description. Keys, kinds, order, logic, points and contact mapping never change, and a renamed option renames the conditions that point at it. The result shows as unsaved changes to review. The same form and description replay from `form_tailor_cache` with no model call.
 
-Templates never change a form after import. A newer template version shows as a small `UPDATE` tag on the form, and nothing more.
+Templates never change a form after import.
+
+### The editor (`src/components/app/views/FormEditor.tsx`)
+
+- **Build:** outline of pages and questions, the live preview (click a question to pick it), and the picked question's settings: label, help, placeholder, required, half width, options, "Other", points, rows, ranges, files, **Save on the contact**, and **Show when**. The end screen has its message, booking button, redirect and score bands.
+- **Share:** the link (`/f/<slug>`), the embed code and an iframe.
+- **Answers:** newest first, a side panel with every answer, file downloads, where the visit came from and the contact; CSV export and delete.
+- **Settings:** name, color, booking link, consent words or consent off, and the BAA confirmation for health forms.
+- Saving a live form re-runs the go-live check, so an edit can't break what visitors see. Leaving with unsaved changes asks first.
+
+### Visitors
+
+- **Hosted:** `/f/<slug>` (`src/app/f/[slug]/page.tsx`). **Embedded:** `<script src="https://app.tryclaritia.com/forms.js" async></script>` and `<div data-claritia-form="<slug>"></div>`. The iframe grows to fit, `data-field-<key>` fills a hidden field, the page's UTM tags ride along, the div fires `claritia:submitted`, and when `claritia.js` is on the page the email ties the visit to the person.
+- **Consent:** the visit's region comes from Cloudflare's country header; no country counts as strict. Strict regions show an unticked opt-in box; elsewhere a notice sits under the button. `form_submit` records the exact words. A tick always records an opt-in; a notice never lowers an earlier opt-in.
+- **Spam:** a hidden box, a two-second minimum, a per-instance burst limit, 20 per network per workspace in 10 minutes (`form_can_submit`, checked before any contact is written), Cloudflare Turnstile when its keys are set, and temporary email domains refused.
+- **Submitting** (`/api/forms/submit`, `src/lib/forms/submit.ts`): answers are checked again on the server, files go to the private `form-files` bucket only after the answers pass (and come back out if the save fails), the contact is written with the source `form`, then the submission, the `form.submitted` activity and the consent go in one transaction. Hiccups are retried with growing waits in the browser and on the server.
+
+### Website
+
+`/templates` and one page per template (`/templates/<template>`, 150 static pages) on tryclaritia.com: try the form, see what it asks, and **Use this template** opens it in the app.
 
 ---
 
 ## Part 2. Template format
 
-Templates live in the repo as typed files, one per form, and are checked in CI.
-
-```
-src/lib/forms/templates/
-  index.ts               catalog: id, industry, tags, name, version
-  types.ts               FormTemplate, TemplateField, Logic
-  general/contact-us.ts
-  saas/demo-request.ts
-  ...
-```
+Templates are typed data in `src/lib/forms/templates/*.ts`, written with the short builders in `build.ts` (keys come from labels; `save` maps to a custom contact field; `when` refers to an earlier question). `src/lib/forms/catalog.ts` lists them. Forms and templates share one shape (`src/lib/forms/types.ts`):
 
 ```ts
-type FormTemplate = {
-  id: string;                 // "saas.demo-request"
-  version: number;
-  industry: Industry;
-  tags: UseCase[];
-  name: string;
-  pages: { title?: string; fields: TemplateField[] }[];
-  logic: Logic[];             // show/hide, skip to page, score, route
-  maps: Record<string, string>; // field key → contact or account property
-  after: { kind: "thanks" | "redirect" | "booking"; text?: string };
-  scoring?: { field: string; points: Record<string, number> }[];
+type FormSchema = {
+  v: 1;
+  title: string;
+  intro?: string;
+  pages: { title?: string; fields: FormField[] }[];
+  submit: string;
+  end: { title: string; text: string; redirect?: string; booking?: boolean; score?: { min: number; title: string; text: string }[] };
 };
+type FormField = { key: string; kind: FieldKind; label: string; help?; placeholder?; required?; options?; rows?; points?; other?; min?; max?; minLabel?; maxLabel?; currency?; maxFiles?; map?: string; show?: Cond; half?: boolean };
 ```
 
-**Field types needed** (all built with the app's own `Select`, never a browser dropdown):
+**Field kinds (26):** short text, long text, email, phone, website, number, money, pick one, pick many, dropdown (the form's own, never a browser `<select>`), yes or no, checkbox, stars, NPS 0–10, opinion scale, ranking, matrix, date, time, date range, full name, address, file upload, signature, statement, hidden.
 
-| Group | Types |
-|---|---|
-| Text | short text, long text, email, phone, website, number, money |
-| Choice | single choice, multi choice, dropdown, yes/no, picture choice |
-| Scale | rating (stars), NPS 0–10, opinion scale, ranking, matrix |
-| Date | date, time, date range |
-| People | name, address, company (filled from the email domain by account intelligence) |
-| Files | file upload, signature |
-| Flow | page break, statement, hidden field (UTM, page, segment), consent, meeting booker |
-| Later | payment (Stripe), calculator |
+**Checks:** `tests/forms.test.ts` runs every template through `checkSchema` and `qaCheck`, the answer checks for every kind, logic chains, scores, contact mapping, consent, field planning and Tailor. `tests/pg/forms.pg.ts` runs import, submit, consent, rate limits and closed forms on a real database. `tests/db/leaks.sql` checks members only reach their own forms, answers and files.
 
-**CI checks** (`tests/form-templates.test.ts`): every template renders, every `maps` target exists or is a valid custom field, every logic rule points at a real field, no `<select>` in output, and an import then submit round trip lands a contact.
+**Not built yet:** picture choice, payment, calculator, progressive profiling, A/B tests, journeys starting from a form, routing to an owner at submit (booking uses the form's booking link for now), and a browser-run Funnel QA check (M9; the go-live check runs the same code path on the server instead).
+
+### Setup
+
+| Setting | Where | What it does |
+|---|---|---|
+| Migration `039_forms.sql` | Supabase | Tables, functions and the `form-files` bucket |
+| `ANTHROPIC_API_KEY` | Render | Tailor. Without it, Tailor says it isn't set up |
+| `TURNSTILE_SITE_KEY`, `TURNSTILE_SECRET` | Render | Bot check on forms. Optional |
+| Cloudflare in front of the app | Cloudflare | Sends `cf-ipcountry`, which picks the consent block. Without it every visitor gets the opt-in box |
 
 ---
 
@@ -353,55 +357,26 @@ Media and creators (sponsorship inquiry, guest pitch, listener survey), agricult
 
 ## Part 4. Data
 
-Migration `039_form_templates.sql` (runs after the M6 forms tables exist):
+Migration `039_forms.sql`:
 
-```sql
-alter table forms add column template_id text, add column template_version int;
-create table form_template_uses (
-  id uuid primary key default gen_random_uuid(),
-  workspace_id uuid not null references workspaces(id) on delete cascade,
-  template_id text not null,
-  form_id uuid references forms(id) on delete set null,
-  at timestamptz not null default now()
-);
-```
-
-The catalog itself stays in code. `form_template_uses` feeds a "Most used" sort in the gallery and tells us which templates to improve.
+- `forms`: name, slug (title plus six random letters), status (draft, live, closed), schema, settings, template id and version, the health flag and BAA date, the answer count.
+- `form_submissions`: answers, score, meta (UTM tags, page, referrer, country, policy, browser), a keyed hash of the network for the rate limit, and the contact.
+- `form_template_uses`, and `form_tailor_cache` (server only).
+- Functions: `form_create`, `form_save` and `form_fields_apply` (forms and their contact fields together), `form_can_submit`, `form_submit`. All server only.
+- Members read their own workspace's rows and files; every write goes through the server.
 
 ---
 
-## Part 5. Build order
+## Part 5. Running cost
 
-| Week | Work |
-|---|---|
-| 1 | Template format, field types, renderer support for all Part 2 types except payment and calculator |
-| 2 | Gallery (`ToolIntro` + grid + search + tags), preview `Sheet`, import step with field mapping and brand |
-| 3 | First 39 templates (★), CI checks, Funnel QA on import |
-| 4 | Tailor to my business, remaining 111 templates, `UPDATE` tag |
-| Later | Payment and calculator fields, round 2 industries |
-
-Templates are written by us with Claude in the repo, then reviewed by hand. That's a one-time build cost with nothing added to the monthly bill.
-
-**Tests** (reliability rule, on top of the CI checks in Part 2):
-- Import twice in a row gives two separate forms with no shared ids.
-- An import whose Funnel QA check fails leaves a draft and publishes nothing.
-- A field mapped to an existing custom field of a different type gets a new field instead of writing bad data.
-- Tailor never changes field types, keys or logic (checked field by field after the call).
-- A second Tailor on the same template and brand replays from the step cache with no model call.
-- A form imported in a `strict` region shows the unticked opt-in box.
-
----
-
-## Part 6. Running cost
-
-What this adds to the monthly bill on top of M6 forms:
+What forms add to the monthly bill. Forms run on the existing `claritia-web` service and Supabase project.
 
 | Item | Beta (50 teams) | Growth (500 teams) |
 |---|---|---|
-| Servers | $0 (gallery and previews run on `claritia-web`; catalog is static code) | $0 |
-| Storage (`form_template_uses`, a few thousand rows) | $0 | $0 |
-| Funnel QA check on import (about 10 imports per team a month, ~20 s of browser time each, on the existing runner) | ~$1 | ~$8 |
-| Tailor to my business, Claude Haiku 5.5 (about 10 calls per team a month, ~3k tokens in, ~2k out; step cache cuts repeats; price check) | ~$5 | ~$50 |
-| **Total** | **~$6/mo** | **~$58/mo** |
-
-Haiku 5.5 price per token: check on the vendor page before launch. Funnel QA browser time uses the M9 runner's rate; check once M9's cost is final.
+| Servers: hosted forms, the embed script and submits on `claritia-web` | $0 | $0 |
+| Database rows (forms and answers, about 200 answers per team a month) | $0, inside the current Supabase plan | $0, inside the current Supabase plan |
+| File storage (about 1 GB a month at Beta, 10 GB at Growth) | $0, inside the plan's included storage (check) | $0, inside the plan's included storage (check) |
+| Cloudflare Turnstile | $0 (free tier, check) | $0 (free tier, check) |
+| Tailor, Claude Haiku 5.5: about 10 runs per team a month, ~3k tokens in and ~2k out; repeats replay from the cache (price check) | ~$5 | ~$50 |
+| The 150 template pages on the website: static | $0 | $0 |
+| **Total** | **~$5/mo** | **~$50/mo** |

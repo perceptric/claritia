@@ -63,6 +63,8 @@ export const KIND_LABEL = Object.fromEntries(KINDS.map((k) => [k.value, k.label]
 
 /** Kinds that take a list of options. */
 export const CHOICE_KINDS = new Set<FieldKind>(["single", "multi", "dropdown", "ranking", "matrix"]);
+/** Kinds small enough to sit two to a row; the rest always take the full width. */
+export const HALF_KINDS = new Set<FieldKind>(["short_text", "email", "phone", "url", "number", "money", "date", "time", "dropdown"]);
 /** Kinds that show something but take no answer. */
 export const NO_ANSWER = new Set<FieldKind>(["statement"]);
 

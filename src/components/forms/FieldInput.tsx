@@ -415,7 +415,7 @@ export function FieldInput({ f, value, files = [], error, disabled, onChange, on
               {files.map((x, i) => (
                 <li key={`${x.name}-${i}`} className="flex items-center gap-2 rounded-md border border-line bg-white px-3 py-1.5 text-[13px]">
                   <span className="min-w-0 flex-1 truncate">{x.name}</span>
-                  <span className={`font-mono text-[11px] ${x.size > MAX_FILE_BYTES ? "text-danger" : "text-muted"}`}>{(x.size / 1024 / 1024).toFixed(1)} MB</span>
+                  <span className={`font-mono text-[11px] ${x.size > MAX_FILE_BYTES ? "text-danger" : "text-muted"}`}>{x.size < 1024 * 1024 ? `${Math.max(1, Math.round(x.size / 1024))} KB` : `${(x.size / 1024 / 1024).toFixed(1)} MB`}</span>
                   <button type="button" aria-label={`Remove ${x.name}`} onClick={() => onFiles?.(files.filter((_, j) => j !== i))} className="rounded-md p-1 text-muted hover:bg-hover hover:text-ink">
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12" /></svg>
                   </button>

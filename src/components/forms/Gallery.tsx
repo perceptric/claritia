@@ -27,7 +27,7 @@ function Thumb({ t }: { t: FormTemplate }) {
     return () => io.disconnect();
   }, [seen]);
   return (
-    <div ref={box} className="paper relative h-[210px] overflow-hidden border-b border-line" aria-hidden="true">
+    <div ref={box} className="paper relative h-[210px] overflow-hidden border-b border-line" aria-hidden="true" inert>
       {seen ? (
         <div className="pointer-events-none absolute top-4 left-4 w-[calc(200%-64px)] origin-top-left scale-50 border border-line bg-panel p-7 select-none">
           <FormView schema={t.schema} mode="thumb" badge={false} />
@@ -39,8 +39,10 @@ function Thumb({ t }: { t: FormTemplate }) {
 
 export function TemplateCard({ t, onOpen, href }: { t: FormTemplate; onOpen?: (t: FormTemplate) => void; href?: string }) {
   const pages = t.schema.pages.length;
-  const body = (
-    <>
+  // The whole card is one link or button laid over the content, so the form drawn inside never nests in it.
+  const cover = "absolute inset-0 z-[2] outline-none focus-visible:ring-2 focus-visible:ring-ink";
+  return (
+    <div className="group relative flex flex-col border border-line bg-panel text-left transition-colors hover:border-ink has-[:focus-visible]:border-ink">
       <Thumb t={t} />
       <div className="flex flex-1 flex-col gap-1.5 p-4">
         <div className="flex items-start justify-between gap-2">
@@ -53,17 +55,8 @@ export function TemplateCard({ t, onOpen, href }: { t: FormTemplate; onOpen?: (t
           {industryLabel(t.industry)} — {questionCount(t)} questions{pages > 1 ? `, ${pages} pages` : ""}
         </p>
       </div>
-    </>
-  );
-  const cls = "group flex flex-col border border-line bg-panel text-left transition-colors hover:border-ink focus-visible:border-ink";
-  return href ? (
-    <a href={href} className={cls}>
-      {body}
-    </a>
-  ) : (
-    <button type="button" onClick={() => onOpen?.(t)} className={cls}>
-      {body}
-    </button>
+      {href ? <a href={href} aria-label={t.name} className={cover} /> : <button type="button" aria-label={`Preview ${t.name}`} onClick={() => onOpen?.(t)} className={cover} />}
+    </div>
   );
 }
 

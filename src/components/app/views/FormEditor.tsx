@@ -7,7 +7,7 @@
 import { useEffect, useState } from "react";
 import { CUSTOM_TYPE, BUILTIN_TARGETS, keyFrom } from "@/lib/forms/schema";
 import { allFields } from "@/lib/forms/logic";
-import { CHOICE_KINDS, KIND_LABEL, KINDS, type Cond, type FieldKind, type FormField, type FormSchema, type FormSettings } from "@/lib/forms/types";
+import { CHOICE_KINDS, HALF_KINDS, KIND_LABEL, KINDS, type Cond, type FieldKind, type FormField, type FormSchema, type FormSettings } from "@/lib/forms/types";
 import { ArrowDown, ArrowUp, Copy, ExternalLink, FormIcon, Plus, Trash, Wand } from "../../Icons";
 import { DEFAULT_ACCENT, FormView } from "../../forms/FormView";
 import { askConfirm, askLines } from "../Dialogs";
@@ -311,7 +311,7 @@ function Build({ schema: s, settings, setSchema, selected, setSelected, page, se
                     onClick={() => pick(f.key)}
                     className={`flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-left text-[13px] ${selected === f.key ? "bg-ink text-white" : "text-body hover:bg-hover hover:text-ink"}`}
                   >
-                    <span className={`w-16 shrink-0 truncate font-mono text-[9.5px] tracking-[0.06em] uppercase ${selected === f.key ? "text-white/70" : "text-faint"}`}>{KIND_LABEL[f.kind]}</span>
+                    <span className={`w-[76px] shrink-0 truncate font-mono text-[9.5px] tracking-[0.04em] uppercase ${selected === f.key ? "text-white/70" : "text-faint"}`}>{KIND_LABEL[f.kind]}</span>
                     <span className="min-w-0 flex-1 truncate">{f.label}</span>
                     {f.required ? <span className={selected === f.key ? "text-white/70" : "text-faint"}>*</span> : null}
                   </button>
@@ -322,7 +322,7 @@ function Build({ schema: s, settings, setSchema, selected, setSelected, page, se
             </div>
           ))}
           <button type="button" onClick={() => setSelected(END)} className={`mt-1 flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-left text-[13px] ${selected === END ? "bg-ink text-white" : "text-body hover:bg-hover"}`}>
-            <span className={`w-16 shrink-0 font-mono text-[9.5px] tracking-[0.06em] uppercase ${selected === END ? "text-white/70" : "text-faint"}`}>End</span>
+            <span className={`w-[76px] shrink-0 font-mono text-[9.5px] tracking-[0.04em] uppercase ${selected === END ? "text-white/70" : "text-faint"}`}>End</span>
             <span className="truncate">{s.end.title}</span>
           </button>
         </div>
@@ -533,7 +533,7 @@ function FieldPanel({ f, schema: s, setSchema, custom, onRemoved, onKey }: { f: 
           </Field>
         ) : null}
         {f.kind !== "statement" && f.kind !== "hidden" ? <Check label="Required" checked={!!f.required} onChange={(v) => update({ required: v || undefined })} /> : null}
-        {!["statement", "matrix", "address", "name", "long_text", "file", "signature", "nps", "ranking"].includes(f.kind) ? <Check label="Half width" checked={!!f.half} onChange={(v) => update({ half: v || undefined })} /> : null}
+        {HALF_KINDS.has(f.kind) ? <Check label="Half width" checked={!!f.half} onChange={(v) => update({ half: v || undefined })} /> : null}
         {f.kind === "hidden" ? <p className="font-mono text-[12px] text-muted">?{f.key}=…</p> : null}
       </Section>
       {CHOICE_KINDS.has(f.kind) ? (
@@ -635,7 +635,7 @@ function CopyBox({ label, text, code }: { label: string; text: string; code?: bo
         </Button>
       </CardHead>
       {code ? (
-        <pre className="overflow-x-auto bg-[#161615] p-4 font-mono text-[12.5px] leading-relaxed whitespace-pre text-[#e8e8e3]">{text}</pre>
+        <pre className="bg-[#161615] p-4 font-mono text-[12.5px] leading-relaxed break-all whitespace-pre-wrap text-[#e8e8e3]">{text}</pre>
       ) : (
         <div className="p-4">
           <Input readOnly value={text} onFocus={(e) => e.target.select()} className="font-mono" />

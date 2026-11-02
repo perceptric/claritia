@@ -38,7 +38,7 @@ function FormList({ sb, ws, session, navigate }: ViewProps) {
   if (!list.data.length)
     return (
       <Page icon={<FormIcon size={14} />} title="Forms">
-        <div className="mx-auto flex max-w-7xl flex-col gap-8">
+        <div className="mx-auto flex max-w-6xl flex-col gap-8">
           <ToolIntro
             title="Forms that turn visitors into leads"
             lead="Pick one of 150 forms made for your industry. It goes live in one click, saves every answer on a contact, and asks for consent the way each visitor's region requires."
@@ -114,7 +114,7 @@ function TemplatesPage({ sb, ws, session, navigate, open }: ViewProps & { open: 
         </Button>
       }
     >
-      <div className="mx-auto flex max-w-7xl flex-col gap-4">
+      <div className="mx-auto flex max-w-6xl flex-col gap-4">
         <ErrorNote message={error} />
         <TemplatePicker sb={sb} ws={ws} session={session} navigate={navigate} initialOpen={open} syncUrl />
       </div>

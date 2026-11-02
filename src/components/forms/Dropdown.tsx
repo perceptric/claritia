@@ -3,7 +3,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
-// The form's own dropdown (no browser <select>), styled with the form's accent. The list opens in a layer above the
+// The form's own dropdown, never the browser's, styled with the form's accent. The list opens in a layer above the
 // page so a short iframe or a card never cuts it off; it types-to-find for long lists like countries.
 
 export function Dropdown({
