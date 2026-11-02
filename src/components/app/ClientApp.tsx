@@ -4,7 +4,7 @@ import type { Session } from "@supabase/supabase-js";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { getSupabase, type SupaConfig } from "@/lib/supa";
 import { allowedRoute, navFor, showsProjectPicker, type Route as NavRoute } from "@/lib/nav";
-import { BarChart, Box, Branch, Check, Clock, Contact, Eye, FileText, Globe, ListIcon, LogOut, MapIcon, Play, Settings, Target, Users } from "../Icons";
+import { BarChart, Box, Branch, Check, Clock, Contact, Eye, FileText, FormIcon, Globe, ListIcon, LogOut, MapIcon, Play, Settings, Target, Users } from "../Icons";
 import { Logo } from "../Logo";
 import { AuthScreen } from "./AuthScreen";
 import { askText, DialogHost } from "./Dialogs";
@@ -22,6 +22,7 @@ import { AccountsView } from "./views/AccountsView";
 import { ContactsView, LeadsView } from "./views/ContactsView";
 import { CompaniesView, ObjectsView } from "./views/RecordsViews";
 import { SegmentsView } from "./views/SegmentsView";
+import { FormsView } from "./views/FormsView";
 import { JourneysView, PagesView, ReportsView } from "./views/MarketingIntros";
 import { VisitorsView } from "./views/VisitorsView";
 import { SettingsView } from "./views/SettingsView";
@@ -41,6 +42,7 @@ const ICONS: Record<NavRoute, React.ReactNode> = {
   people: <Users size={15} />,
   journeys: <Branch size={15} />,
   pages: <FileText size={15} />,
+  forms: <FormIcon size={15} />,
   reports: <BarChart size={15} />,
   tests: <ListIcon size={15} />,
   blocks: <Box size={15} />,
@@ -67,6 +69,11 @@ const readLoc = (): Loc => {
   // Settings pages: /settings/<page>.
   if (route === "settings") return { route, id: /^[a-z_]{2,30}$/.test(id) ? id : "" };
   if (route === "segments" && id === "new") return { route, id };
+  // Forms: /forms/templates, /forms/templates/<template>, /forms/<id> and /forms/<id>/<tab>.
+  if (route === "forms") {
+    if (id === "templates") return { route, id: /^[a-z0-9-]{3,80}$/.test(rest) ? `templates/${rest}` : "templates" };
+    return { route, id: /^[0-9a-f-]{36}$/.test(id) ? (/^(share|answers|settings)$/.test(rest) ? `${id}/${rest}` : id) : "" };
+  }
   return { route, id: WITH_ID.has(route) && /^[0-9a-f-]{36}$/.test(id) ? id : "" };
 };
 
@@ -319,7 +326,7 @@ export function ClientApp({ config }: { config: SupaConfig }) {
             <ErrorNote message={error} />
           </div>
         ) : null}
-        {route === "contacts" ? <ContactsView {...props} /> : route === "leads" ? <LeadsView {...props} /> : route === "companies" ? <CompaniesView {...props} /> : route === "segments" ? <SegmentsView {...props} /> : route === "objects" ? <ObjectsView key={loc.id.split("/")[0]} {...props} /> : route === "visitors" ? <VisitorsView {...props} /> : route === "accounts" ? <AccountsView {...props} /> : route === "journeys" ? <JourneysView /> : route === "pages" ? <PagesView /> : route === "reports" ? <ReportsView /> : route === "tests" ? <TestsView {...props} /> : route === "blocks" ? <BlocksView {...props} /> : route === "map" ? <MapView {...props} /> : route === "runs" ? <RunsView {...props} /> : route === "approvals" ? <ApprovalsView {...props} /> : route === "environments" ? <EnvironmentsView {...props} /> : route === "schedules" ? <SchedulesView {...props} /> : route === "insights" ? <InsightsView {...props} /> : <SettingsView {...props} />}
+        {route === "contacts" ? <ContactsView {...props} /> : route === "leads" ? <LeadsView {...props} /> : route === "companies" ? <CompaniesView {...props} /> : route === "segments" ? <SegmentsView {...props} /> : route === "objects" ? <ObjectsView key={loc.id.split("/")[0]} {...props} /> : route === "visitors" ? <VisitorsView {...props} /> : route === "accounts" ? <AccountsView {...props} /> : route === "journeys" ? <JourneysView /> : route === "pages" ? <PagesView /> : route === "forms" ? <FormsView {...props} /> : route === "reports" ? <ReportsView /> : route === "tests" ? <TestsView {...props} /> : route === "blocks" ? <BlocksView {...props} /> : route === "map" ? <MapView {...props} /> : route === "runs" ? <RunsView {...props} /> : route === "approvals" ? <ApprovalsView {...props} /> : route === "environments" ? <EnvironmentsView {...props} /> : route === "schedules" ? <SchedulesView {...props} /> : route === "insights" ? <InsightsView {...props} /> : <SettingsView {...props} />}
       </main>
     </div>
   );

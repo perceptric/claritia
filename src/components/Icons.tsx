@@ -222,3 +222,43 @@ export const Plug = (p: P) => (
     <path d="M9 3v5M15 3v5M6 8h12v3a6 6 0 0 1-12 0V8zM12 17v4" />
   </Svg>
 );
+
+export const FormIcon = (p: P) => (
+  <Svg {...p}>
+    <rect x="4" y="3" width="16" height="18" rx="1" />
+    <path d="M8 8h8M8 12h8M8 16h4" />
+  </Svg>
+);
+
+export const Search = (p: P) => (
+  <Svg {...p}>
+    <circle cx="11" cy="11" r="7" />
+    <path d="m20 20-3.5-3.5" />
+  </Svg>
+);
+
+export const Wand = (p: P) => (
+  <Svg {...p}>
+    <path d="m15 4 5 5L8 21l-5-5L15 4zM12 7l5 5" />
+    <path d="M5 3v4M3 5h4M19 15v4M17 17h4" />
+  </Svg>
+);
+
+export const ExternalLink = (p: P) => (
+  <Svg {...p}>
+    <path d="M14 4h6v6M20 4l-9 9" />
+    <path d="M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5" />
+  </Svg>
+);
+
+export const ArrowUp = (p: P) => (
+  <Svg {...p}>
+    <path d="M12 19V5M6 11l6-6 6 6" />
+  </Svg>
+);
+
+export const ArrowDown = (p: P) => (
+  <Svg {...p}>
+    <path d="M12 5v14M6 13l6 6 6-6" />
+  </Svg>
+);
