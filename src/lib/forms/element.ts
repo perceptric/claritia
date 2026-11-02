@@ -15,6 +15,7 @@ import { calcText } from "./formula.ts";
 import { cleanHtml } from "./html.ts";
 import { allFields, isContent, nextStep, numOf, optionsFor, pickOutcome, safeUrl, visibility, withCalcs, type Choice, type Field, type FieldWidth, type Form, type RunCtx } from "./schema.ts";
 import { checkAnswers, OTHER, stepPath, type Answers } from "./values.ts";
+import { answerFrom } from "../share/emailForm.ts";
 import { ACCESS_CSS, CAL_CSS, consentSpot, pageValues, runPage, zoneWords, type PageRun, type Vals } from "../studio/runtime.ts";
 
 /** regions: the region lists, sent with the form when a list follows a country field (src/lib/forms/regions.ts). */
@@ -627,6 +628,8 @@ export class ClaritiaForm extends Base {
   private answers: Answers = {};
   private errors: Record<string, string> = {};
   private step = 0;
+  /** The answer an email's button filled (field id and value), set on a studio page's own inputs too. */
+  private emailAnswer: { name: string; value: string } | null = null;
   private started = Date.now();
   private key = idemKey();
   private consent = false;
@@ -819,6 +822,16 @@ export class ClaritiaForm extends Base {
       const fromKey = params.get(f.key.replace(/^[fq]\./, ""));
       if (f.prefill && fromKey) this.answers[f.id] = fromText(f, fromKey);
     }
+    // An answer clicked in an email (Share › Email): it fills the first question, past the cover; a first step with
+    // only that question moves on to the next. One that's no longer an answer opens the form as it is.
+    const picked = answerFrom(this.data.body, params.get("clr_a"));
+    if (picked) {
+      this.answers[picked.field.id] = picked.value;
+      this.emailAnswer = { name: picked.field.id, value: Array.isArray(picked.value) ? picked.value[0]! : String(picked.value) };
+      this.covered = true;
+      const first = this.data.body.steps[0]!.fields.filter((f) => !isContent(f.type) && f.type !== "hidden" && f.type !== "calc");
+      if (first.length === 1 && this.data.body.steps.length > 1 && !this.data.body.page) this.step = 1;
+    }
     // Back from Stripe after paying: the thanks, not the form again.
     if (params.get("clr_pay") === "done") this.done = this.paid = true;
     // A saved fill's link: the answers and the step it stopped on.
@@ -968,6 +981,14 @@ export class ClaritiaForm extends Base {
       });
       const run = runPage(wrap, (v) => void this.pageSend(form, v));
       this.pg = { wrap, run, blocks };
+      // A studio page keeps its answers in its own inputs: the email's answer is checked there.
+      if (this.emailAnswer) {
+        const name = Object.keys(p.ids).find((k) => p.ids[k] === this.emailAnswer!.name);
+        const input = name ? [...wrap.querySelectorAll<HTMLInputElement | HTMLSelectElement>(`[name="${CSS.escape(name)}"]`)].find((x) => x.value === this.emailAnswer!.value || x.tagName === "SELECT") : null;
+        if (input instanceof HTMLInputElement) input.checked = true;
+        else if (input) input.value = this.emailAnswer.value;
+        input?.dispatchEvent(new Event("change", { bubbles: true }));
+      }
       // In the page, or over it (a popup, a slider, a popover or a side tab), like every form.
       this.put(st, wrap);
     }

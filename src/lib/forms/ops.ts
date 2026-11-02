@@ -5,7 +5,7 @@
 
 import { readFormDesign, type FormDesign } from "../design/model.ts";
 import { DEFAULT_KEEP, DEFAULT_NOTIFY, DEFAULT_REPLY, type Keep, type Notify, type Reply } from "./notify.ts";
-import { allFields, checkForm, CONTACT_KEYS, isChoice, isContent, newId, questionKey, type After, type Choice, type Cond, type Constant, type Field, type FieldKey, type FieldType, type Form, type Results, type Rule, type Step } from "./schema.ts";
+import { allFields, checkForm, cleanShare, CONTACT_KEYS, isChoice, isContent, newId, questionKey, type After, type Choice, type Cond, type Constant, type Field, type FieldKey, type FieldType, type Form, type Results, type Rule, type SharePreview, type Step } from "./schema.ts";
 
 export type FieldInput = Partial<Omit<Field, "id">> & { type: FieldType; label: string };
 
@@ -47,6 +47,7 @@ export type Op =
   | { op: "set_notify"; notify: Partial<Notify> }
   | { op: "set_reply"; reply: Partial<Reply> }
   | { op: "set_keep"; keep: Partial<Keep> }
+  | { op: "set_share"; share: SharePreview }
   | { op: "set_after"; end: After["end"] }
   | { op: "set_schedule"; schedule: After["schedule"] | null }
   | { op: "set_capture"; adapter?: NonNullable<Form["capture"]>["adapter"]; selector?: string }
@@ -344,6 +345,12 @@ export function applyOp(input: Form, op: Op): { form: Form } | { error: string }
     case "set_keep":
       form.keep = { ...DEFAULT_KEEP, ...form.keep, ...op.keep };
       return { form };
+    case "set_share": {
+      const share = cleanShare({ ...form.share, ...op.share });
+      if (share) form.share = share;
+      else delete form.share;
+      return { form };
+    }
     case "set_after":
       form.after = { ...form.after, end: op.end };
       return { form };
@@ -456,6 +463,8 @@ export function describeOp(op: Op, before: Form): string {
       return op.reply.on === false ? "Turned off the auto-reply" : op.reply.on ? "Turned on the auto-reply" : "Changed the auto-reply";
     case "set_keep":
       return "Changed how long submissions are kept";
+    case "set_share":
+      return "Changed the link preview";
     case "set_after":
       return op.end.kind === "redirect" ? "Opens a page after the submit" : "Changed the thank-you message";
     case "set_schedule":

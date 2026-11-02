@@ -28,6 +28,17 @@ const plain = ready(emptyForm());
 const studio = ready(
   pageForm({ html: `<form><label for="e">Work email</label><input id="e" name="email" type="email" required><button type="submit">Send</button></form><section data-cl-thanks hidden><h2>Thanks</h2></section>`, css: "", brand: "", after: { kind: "thanks" } }).form,
 );
+// Two steps, the first only a pick list (an answer clicked in an email moves on), and a studio page with one.
+const STEPS = "33333333-3333-4333-8333-333333333333";
+const PAGE2 = "44444444-4444-4444-8444-444444444444";
+const twoSteps = (() => {
+  const base = emptyForm();
+  const email = base.steps.flatMap((x) => x.fields).find((x) => x.key === "email")!;
+  return ready({ ...base, steps: [{ id: "s1", fields: [{ id: "plan", key: "q.plan", type: "choice", label: "Which plan?", required: true, options: [{ value: "team", label: "Team" }, { value: "ent", label: "Enterprise" }] }] }, { id: "s2", fields: [email] }] } as Form);
+})();
+const studioPick = ready(
+  pageForm({ html: `<form><fieldset><legend>Which plan?</legend><label><input type="radio" name="plan" value="team"> Team</label><label><input type="radio" name="plan" value="ent"> Enterprise</label></fieldset><label for="e">Email</label><input id="e" name="email" type="email" required><button type="submit">Send</button></form><section data-cl-thanks hidden><h2>Thanks</h2></section>`, css: "", brand: "", after: { kind: "thanks" } }).form,
+);
 const formsJs = await buildForms();
 
 const pages = new Map<string, string>();
@@ -37,6 +48,8 @@ const server = createServer((req, res) => {
   if (u.startsWith("/forms/v1.js")) return res.writeHead(200, { "content-type": "text/javascript" }).end(formsJs);
   if (u === `/api/forms/${FORM}`) return json({ id: FORM, version: 1, status: "live", body: plain, tokens: {}, logo_url: null });
   if (u === `/api/forms/${PAGE}`) return json({ id: PAGE, version: 1, status: "live", body: studio, tokens: {}, logo_url: null });
+  if (u === `/api/forms/${STEPS}`) return json({ id: STEPS, version: 1, status: "live", body: twoSteps, tokens: {}, logo_url: null });
+  if (u === `/api/forms/${PAGE2}`) return json({ id: PAGE2, version: 1, status: "live", body: studioPick, tokens: {}, logo_url: null });
   if (u.startsWith("/api/")) return json({});
   if (u.startsWith("/book/")) return res.writeHead(200, { "content-type": "text/html" }).end(`<!doctype html><body style="margin:0"><h1 id="cal">Pick a time</h1></body>`);
   const page = pages.get(u.split("?")[0]!);
@@ -148,6 +161,19 @@ try {
   await host(phone).locator(".lc.fab").click();
   await box(phone).waitFor();
   check(Math.round((await rect(box(phone)))!.width) === 390, "on a phone the popover fills the screen too");
+
+  // An answer clicked in an email: filled in, past the first step; a deleted answer opens the form as it is
+  await desk.goto(`${add("/answer", formEmbedCode(origin, STEPS, { mode: "inline" }))}?clr_a=plan%3Aent`);
+  await host(desk).locator('input[type="email"]').waitFor();
+  check(true, "an email's answer fills the first question and moves on to the next");
+  await desk.goto(`${add("/answer-gone", formEmbedCode(origin, STEPS, { mode: "inline" }))}?clr_a=plan%3Agone`);
+  await host(desk).locator('input[value="team"]').waitFor();
+  check((await host(desk).locator('input[type="email"]').count()) === 0 && !(await host(desk).locator('input[value="ent"]').isChecked()), "an answer deleted since the email opens the form at its first question");
+  const studioId = Object.entries(studioPick.page!.ids).find(([n]) => n === "plan")![1];
+  await desk.goto(`${add("/answer-studio", formEmbedCode(origin, PAGE2, { mode: "inline" }))}?clr_a=${encodeURIComponent(`${studioId}:ent`)}`);
+  await host(desk).locator('input[name="plan"][value="ent"]').waitFor();
+  await desk.waitForTimeout(100);
+  check(await host(desk).locator('input[name="plan"][value="ent"]').isChecked(), "a Form Studio page checks the email's answer");
 
   // The meeting calendar
   const book = (p: typeof desk) => p.locator('iframe[title="Book a meeting"]');
