@@ -22,17 +22,17 @@ export function diffBodies(from: RouterBody | null, to: RouterBody, o: { names?:
     ["Fake name check", from.spam.fakeName, to.spam.fakeName],
     ["Too many fills check", from.spam.tooMany, to.spam.tooMany],
     ["Personal email check", from.spam.freeMail, to.spam.freeMail],
-    ["Same company, same rep", from.account.on, to.account.on],
+    ["Same company, same owner", from.account.on, to.account.on],
     ["Opportunity owner first", from.account.oppFirst, to.account.oppFirst],
     ["Set the company owner", from.account.setCompanyOwner, to.account.setCompanyOwner],
-    ["Keep their rep", from.keep.on, to.keep.on],
+    ["Keep their owner", from.keep.on, to.keep.on],
     ["Rules", from.rules.on, to.rules.on],
   ];
   for (const [label, a, b] of flags) if (a !== b) out.push({ sign: "~", text: `${label} ${onOff(a)} → ${onOff(b)}` });
   if (from.spam.maxPerHour !== to.spam.maxPerHour) out.push({ sign: "~", text: `Fills an hour before holding ${from.spam.maxPerHour} → ${to.spam.maxPerHour}` });
   if (from.keep.whenOut !== to.keep.whenOut) {
     const w = { keep: "wait for them", backup: "whoever covers", route: "send on to a team" } as const;
-    out.push({ sign: "~", text: `When their rep is away: ${w[from.keep.whenOut]} → ${w[to.keep.whenOut]}` });
+    out.push({ sign: "~", text: `When their owner is away: ${w[from.keep.whenOut]} → ${w[to.keep.whenOut]}` });
   }
 
   const qName = (b: RouterBody, id: string) => b.queues.find((q) => q.id === id)?.name ?? "a removed queue";
@@ -57,7 +57,7 @@ export function diffBodies(from: RouterBody | null, to: RouterBody, o: { names?:
   for (const q of to.queues) {
     const old = fromQ.get(q.id);
     if (!old) {
-      out.push({ sign: "+", text: `Team ${q.name} with ${q.members.map((m) => who(m.user)).join(", ") || "no reps"}` });
+      out.push({ sign: "+", text: `Team ${q.name} with ${q.members.map((m) => who(m.user)).join(", ") || "no team members"}` });
       continue;
     }
     if (old.name !== q.name) out.push({ sign: "~", text: `Team ${old.name} renamed ${q.name}` });

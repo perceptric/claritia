@@ -259,8 +259,8 @@ export function issuesOf(v: AssignView, o: { calendar: (user: string) => boolean
   const live = v.mode === "rules" ? v.rules.filter((r) => r.on && r.then === "queue") : [];
   const used = [...new Set([...live.flatMap((r) => r.reps), ...v.def.reps])];
   for (const u of used) if (!o.calendar(u)) out.push({ key: `cal:${u}`, title: `${o.name(u)} has no calendar connected`, line: "Leads assigned to them can't book until they connect one", open: "reps" });
-  for (const r of live) if (!r.reps.length) out.push({ key: `rule:${r.id}`, title: `${r.title} has no reps`, line: "Pick reps before saving" });
-  if (!v.def.reps.length) out.push({ key: "rule:default", title: v.mode === "rules" ? "Default rule has no reps" : "Round robin has no reps", line: "Pick reps before saving" });
+  for (const r of live) if (!r.reps.length) out.push({ key: `rule:${r.id}`, title: `${r.title} has no team members`, line: "Pick team members before saving" });
+  if (!v.def.reps.length) out.push({ key: "rule:default", title: v.mode === "rules" ? "Default rule has no team members" : "Round robin has no team members", line: "Pick team members before saving" });
   return out;
 }
 
@@ -303,14 +303,14 @@ export function whyOf(d: Pick<Decision, "result" | "steps">, o: { body: RouterBo
     const name = ruleName(o.body, hit, rule?.name ?? "A rule", o.fields);
     if (r.kind === "owner" && r.by === "account") return `Matches ${name}, so it goes to their owner ${o.name(r.user)}`;
     if (r.kind === "owner") return words && words !== name ? `Matches ${name}: ${words}` : `Matches ${name}`;
-    return `Matches ${name}, but no rep in it is available`;
+    return `Matches ${name}, but no one in it is available`;
   }
   if (mode === "rr") {
     const n = viewOf(o.body, o.fields).def.reps.length;
-    if (r.kind === "owner") return `Round robin across ${n} ${n === 1 ? "rep" : "reps"}`;
-    return n ? "Everyone in the rotation is away or at capacity" : "Round robin has no reps";
+    if (r.kind === "owner") return `Round robin across ${n} ${n === 1 ? "team member" : "team members"}`;
+    return n ? "Everyone in the rotation is away or at capacity" : "Round robin has no team members";
   }
-  return r.kind === "owner" ? "No rule matches, so the Default rule applies" : "No rep on the Default rule is available";
+  return r.kind === "owner" ? "No rule matches, so the Default rule applies" : "No one on the Default rule is available";
 }
 
 const ruleName = (b: RouterBody, id: string, saved: string, fields: FieldDef[]) => {

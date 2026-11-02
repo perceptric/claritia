@@ -197,7 +197,7 @@ test("Finish setup turns problems into things to do, each opening its card", () 
   const items = setupItems(problems(b, { members: new Set() }));
   assert.deepEqual(
     items.map((i) => i.text),
-    ["Add reps to North America", "Add reps to EMEA", "Pick a fallback"],
+    ["Add team members to North America", "Add team members to EMEA", "Pick a fallback"],
   );
   assert.deepEqual(items[0]!.at, { kind: "queue", id: "q_north_america" });
   assert.deepEqual(items[2]!.at, { kind: "fallback" });
@@ -231,7 +231,7 @@ test("a test lead's path: each step's mark, the steps reached, the matched rule 
   assert.deepEqual(pathOf(null).marks, {});
 });
 
-test("names on screen: a made-up rule name shows what it matches, and the first team reads as All reps", async () => {
+test("names on screen: a made-up rule name shows what it matches, and the first team reads as Whole team", async () => {
   const { ruleTitle } = await import("../src/components/app/routing/editorModel.ts");
   const { BASE_FIELDS } = await import("../src/lib/router/conditions.ts");
   const { cleanBody, problemWords } = await import("../src/lib/router/check.ts");
@@ -240,7 +240,7 @@ test("names on screen: a made-up rule name shows what it matches, and the first 
   assert.equal(ruleTitle({ ...rule, conds: [{ field: "lead.country", op: "one_of" as const, value: [] }] }, BASE_FIELDS, []), "New rule");
   assert.equal(ruleTitle({ ...rule, name: "EMEA enterprise" }, BASE_FIELDS, []), "EMEA enterprise");
   assert.equal(problemWords('"Rule 1" has no team'), "Pick who gets these leads");
-  assert.equal(problemWords('"EMEA" has no team'), '"EMEA" needs a rep or team');
+  assert.equal(problemWords('"EMEA" has no team'), '"EMEA" needs a team member or team');
   const b = cleanBody({ queues: [{ id: "q_everyone", name: "Everyone", method: "rr", members: [] }] });
-  assert.equal(b.queues[0]!.name, "All reps");
+  assert.equal(b.queues[0]!.name, "Whole team");
 });

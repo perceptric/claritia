@@ -1,5 +1,7 @@
 "use client";
 
+import { count, MEMBER } from "@/lib/words";
+
 // On Submission (docs/on-submission.md): what happens after someone sends the form, on its own screen in Build. Show a
 // message, Go to a page, or Book a meeting. A meeting is picked, never edited here: Routing is a Default meeting and
 // conditions that send some leads to another meeting. The meeting then picks the rep (an Individual meeting is its
@@ -179,7 +181,7 @@ export function SubmitResult({ form, types, facts, trial }: { form: Form; types:
           {initials(rep ?? meeting.name)}
         </span>
         <span className="flex flex-col leading-[1.3]">
-          <b className="text-[14px] font-semibold">{rep ?? "Their rep"}</b>
+          <b className="text-[14px] font-semibold">{rep ?? "Their owner"}</b>
           <span className="text-[12.5px] text-[var(--b-muted)]">{typeLabel(meeting)}</span>
         </span>
       </div>
@@ -341,7 +343,7 @@ function Booking(p: PanelProps & { message: React.ReactNode }) {
       ...(ind.length ? [{ kind: "group" as const, label: "Individual" }] : []),
       ...ind.map((t): DdItem => ({ kind: "option", key: t.id, label: t.name, hint: hostName(t, facts), on: t.id === cur, onPick: () => onPick(t.id) })),
       ...(dyn.length ? [{ kind: "group" as const, label: "Dynamic" }] : []),
-      ...dyn.map((t): DdItem => ({ kind: "option", key: t.id, label: t.name, hint: `${t.hosts.length} reps`, on: t.id === cur, onPick: () => onPick(t.id) })),
+      ...dyn.map((t): DdItem => ({ kind: "option", key: t.id, label: t.name, hint: count(t.hosts.length, MEMBER), on: t.id === cur, onPick: () => onPick(t.id) })),
       { kind: "add", key: "new", label: "Create a meeting", onPick: () => navigate("scheduling", "types/new", p.formId ? `back=${p.formId}` : undefined) },
     ];
   };

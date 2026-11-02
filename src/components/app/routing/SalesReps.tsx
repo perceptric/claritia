@@ -54,7 +54,7 @@ export type RepsData = NonNullable<ReturnType<typeof useRepsData>["data"]>;
 
 /** "Invite rep": one email, sent as a workspace invite. */
 export async function inviteRep(sb: ViewProps["sb"], ws: string): Promise<boolean> {
-  const email = await askText("Invite rep", { placeholder: "name@company.com", ok: "Invite" });
+  const email = await askText("Invite team member", { placeholder: "name@company.com", ok: "Invite" });
   if (!email) return false;
   must(await sb.rpc("invite_member", { p_ws: ws, p_email: email }));
   invalidate(`workspace_people:${ws}`);
@@ -134,7 +134,7 @@ export function SalesReps({ sb, session, ws, role, navigate, assigned }: Pick<Vi
           <table className="w-full border-collapse [&_tbody_tr:last-child_td]:border-b-0">
             <thead>
               <tr>
-                <th className={TH}>Rep</th>
+                <th className={TH}>Team member</th>
                 <th className={TH}>Calendar</th>
                 <th className={`${TH} max-md:hidden`}>Working hours</th>
                 <th className={TH}>Status</th>

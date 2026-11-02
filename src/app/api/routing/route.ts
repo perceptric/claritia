@@ -47,7 +47,7 @@ export async function POST(request: Request) {
         case "rt_stage":
           return S.stage(rpc, c, { policy: body.policy, source: body.source, enabled: body.enabled, outcome: body.outcome, meeting: body.meeting, mappings: body.mappings, noSlots: body.noSlots, whenOff: body.whenOff, revision: body.revision });
         case "rt_team":
-          return S.team(rpc, c, { team: body.team, name: body.name, members: body.members, revision: body.revision });
+          return S.team(rpc, c, { team: body.team, name: body.name, members: body.members, revision: body.revision, method: body.method });
         case "rt_test":
           return S.test(rpc, c, deps, { policy: body.policy, version: body.version, revision: body.revision, source: body.source, email: body.email, contact: body.contact, values: body.values, overrides: (body.overrides ?? {}) as S.TestOverrides });
         case "rt_review":

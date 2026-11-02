@@ -588,7 +588,7 @@ export async function heldAction(rpc: Rpc, db: Q, c: Caller, o: { op: string; co
       return { ok: true };
     }
     case "assign": {
-      if (!o.user || !/^[0-9a-f-]{36}$/.test(o.user)) throw new Refused(400, "Pick a rep.");
+      if (!o.user || !/^[0-9a-f-]{36}$/.test(o.user)) throw new Refused(400, "Pick a team member.");
       // One call for all of them (router_assign_many, 088): each lead in its own step, in a fixed order.
       const owner = o.user;
       const r = await rpcOr<number>(rpc, "router_assign_many", { p_ws: c.ws, p_contacts: ids, p_owner: owner, p_by: c.user }, async () => {
@@ -773,7 +773,7 @@ export async function chat(rpc: Rpc, db: Q, c: Caller, o: { message: string; rev
       country: (r.values?.["lead.country"] as string) ?? null,
       size: (r.values?.["company.size"] as string | number) ?? null,
       went: r.kind === "owner" ? (names[r.owner ?? ""] ?? "a former teammate") : r.kind === "held" ? "review" : "no one",
-      path: r.by === "account" ? (r.rule_id ? `rule ${ruleName(r.rule_id)}, the owner` : "same company, same rep") : r.by === "keep" ? "kept their rep" : r.by === "queue" ? `rule ${ruleName(r.rule_id)}` : r.by === "fallback" ? "everyone else" : r.kind === "held" ? "held" : "no one could take it",
+      path: r.by === "account" ? (r.rule_id ? `rule ${ruleName(r.rule_id)}, the owner` : "same company, same owner") : r.by === "keep" ? "kept their owner" : r.by === "queue" ? `rule ${ruleName(r.rule_id)}` : r.by === "fallback" ? "everyone else" : r.kind === "held" ? "held" : "no one could take it",
       at: r.created_at.slice(0, 16).replace("T", " "),
     })),
     history: loaded.chat.filter((m) => m.text).slice(-10).map((m) => ({ role: m.role, text: m.text })),

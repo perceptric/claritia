@@ -201,7 +201,7 @@ test("explain: every step reads as a sentence, with links for names", () => {
   const company = { id: "co1", name: "Acme", domain: "acme.com", owner: null, ownerCrm: null, oppOwner: null, oppName: null };
   const f = facts({ company });
   const lines = explain(decide(body(), f), f);
-  assert.deepEqual(lines.map((l) => [l.title, l.mark]), [["Filter out junk", "ok"], ["Same company, same rep", "skip"], ["Keep their rep", "skip"], ["Who gets which leads", "ok"], ["Team", "ok"]]);
+  assert.deepEqual(lines.map((l) => [l.title, l.mark]), [["Filter out junk", "ok"], ["Same company, same owner", "skip"], ["Keep their owner", "skip"], ["Who gets which leads", "ok"], ["Team", "ok"]]);
   assert.ok(lines[3]!.parts.some((p) => typeof p !== "string" && p.kind === "rule" && p.id === "r_us"));
   assert.ok(lines[4]!.more?.length === 2, "the other reps fold under the queue line");
 });
@@ -220,8 +220,8 @@ test("check: any input becomes a valid body; problems point at their cards", () 
   b.rules.list[1]!.conds.push({ field: "company.size", op: "gt" });
   const texts = problems(b, { members: new Set([LEE, ANA, SAM]) }).map((p) => `${p.where.kind}:${p.where.id ?? ""} ${p.text}`);
   assert.ok(texts.includes("rule:r_us \"US mid-market\" has a condition with no value"));
-  assert.ok(texts.includes("queue:q_ent Enterprise has no reps"));
-  assert.ok(texts.includes("queue:q_us US mid-market has a rep no longer in the workspace"));
+  assert.ok(texts.includes("queue:q_ent Enterprise has no team members"));
+  assert.ok(texts.includes("queue:q_us US mid-market has a team member no longer in the workspace"));
 });
 
 test("diff: changes between versions in words", () => {
@@ -243,7 +243,7 @@ test("diff: changes between versions in words", () => {
 test("templates: each one is valid once reps and a fallback are set; today's routing moves over", () => {
   const tr = fromTemplate("territories", { regions: ["North America", "DACH"] });
   assert.deepEqual(tr.rules.list.map((r) => r.name), ["North America", "DACH"]);
-  assert.deepEqual(problems(tr, { members: new Set() }).map((p) => p.text), ["North America has no reps", "DACH has no reps", "Pick a fallback"]);
+  assert.deepEqual(problems(tr, { members: new Set() }).map((p) => p.text), ["North America has no team members", "DACH has no team members", "Pick a fallback"]);
   const rr = fromTemplate("round_robin", { reps: [LEE, ANA] });
   assert.deepEqual(problems(rr, { members: new Set([LEE, ANA]) }), []);
   const d = decide(rr, facts());

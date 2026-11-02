@@ -53,7 +53,7 @@ test("app_counts: routing_action counts Assignment's Action required", async () 
 
     await q(`insert into router_versions (workspace_id, version, body) values ($1, 1, $2)`, [ws, JSON.stringify(live)]);
     await q(`insert into routers (workspace_id, live_version) values ($1, 1)`, [ws]);
-    // b (Zoom only) and c (sign in again) get leads; d's rule is off and the other one holds; "Empty" has no reps.
+    // b (Zoom only) and c (sign in again) get leads; d's rule is off and the other one holds; "Empty" has no team members.
     assert.equal((await counts(a)).routing_action, 3);
 
     // A draft is what's being worked on: rules off, the Default rule's reps only (a has a calendar).

@@ -197,7 +197,7 @@ test("routed booking: picked rules, kept owners and everyone else book; a held l
   const sch = { tool: "claritia" as const, url: "", perOwner: false, who: "routed" as const, routeRules: ["r_ent", OWNED] };
   assert.equal(routedBooks(sch, { kind: "owner", rule: "r_ent", by: "queue" }), true);
   assert.equal(routedBooks(sch, { kind: "owner", rule: "r_smb", by: "queue" }), false, "a rule not picked");
-  assert.equal(routedBooks(sch, { kind: "owner", rule: null, by: "account" }), true, "same company, same rep");
+  assert.equal(routedBooks(sch, { kind: "owner", rule: null, by: "account" }), true, "same company, same owner");
   assert.equal(routedBooks(sch, { kind: "owner", rule: null, by: "fallback" }), false, "everyone else isn't picked");
   assert.equal(routedBooks({ ...sch, routeRules: [FALLBACK] }, { kind: "unassigned" }), true);
   assert.equal(routedBooks(sch, { kind: "held" }), false);

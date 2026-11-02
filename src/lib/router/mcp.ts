@@ -21,7 +21,7 @@ export const routerTools: Tool<ApiCaller>[] = [
   {
     name: "get_router",
     title: "Get the router",
-    description: "The lead router as JSON: the live version and the draft (steps, rules with conditions, queues with reps, fallback, territories), with the reps' names and ids and the fields rules can test.",
+    description: "The lead router as JSON: the live version and the draft (steps, rules with conditions, queues with team members, fallback, territories), with the team members' names and ids and the fields rules can test.",
     inputSchema: { type: "object", properties: {} },
     readOnly: true,
     async run(ctx) {

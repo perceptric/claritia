@@ -18,7 +18,7 @@ import { Calendar } from "@/components/book/Calendar";
 import { bookBrandCss, brandPlan } from "@/lib/meetings/brandPage";
 import { AiMark } from "../Ai";
 import { readLines } from "../streamLines";
-import { Check, ExternalLink, Grid, Grip, Link as LinkIcon, Message, Monitor, Palette, Phone, Plus, Upload, User } from "../../Icons";
+import { Check, ChevronDown, ExternalLink, Grid, Grip, Link as LinkIcon, Message, Monitor, Palette, Phone, Plus, Upload, User } from "../../Icons";
 import { BookShell } from "@/components/book/BookShell";
 import { PageHead, TypeCards } from "@/components/book/TypeCards";
 import { askConfirm } from "../Dialogs";
@@ -387,9 +387,24 @@ export function BookingPage(props: ViewProps) {
             <PanelSection icon={<Message />} title="Welcome line" summary={look.welcome || "None"} open={open === "welcome"} onToggle={() => toggle("welcome")}>
               <Input value={look.welcome} disabled={!canEdit} maxLength={140} placeholder="Pick a time that works for you." onChange={(e) => setLook({ welcome: e.target.value })} className="h-[34px] text-[13px]" />
             </PanelSection>
-            <PanelSection icon={<Palette />} title="Styling" summary={lookWords(shown, !!kit, kit ? brandName(kit) : null)} open={open === "styling"} onToggle={() => toggle("styling")}>
+            <PanelSection
+              icon={<Palette />}
+              title="Styling"
+              summary={
+                <>
+                  {usesKit(shown, !!kit) && kit && logoOf(kit) ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={logoOf(kit)!} alt="" className="size-3.5 shrink-0 rounded-[3px] object-contain" />
+                  ) : null}
+                  <span className="truncate">{lookWords(shown, !!kit, kit ? brandName(kit) : null)}</span>
+                </>
+              }
+              open={open === "styling"}
+              onToggle={() => toggle("styling")}
+            >
               <Styling
                 brands={withLook}
+                home={home}
                 picked={usesKit(shown, !!kit) ? (kit?.id ?? null) : null}
                 badge={shown.badge}
                 paid={paid}
@@ -542,13 +557,34 @@ async function squareJpeg(file: File, size: number): Promise<Blob> {
 }
 
 /**
- * Styling: Claritia's look or one of the brands imported in Form Studio (logo and name), Import a brand, and the
- * Booked with Claritia line. A brand and hiding the line are on paid plans; a brand with no stylesheet yet has Read
- * the look. The brand sets its own colors and corners, so there's nothing else to pick.
+ * Styling: Claritia's look, your brand (the workspace's own, pinned first), and the other brands imported in Form
+ * Studio under Other brands, closed until clicked and searchable past 6. On Free: Claritia, your brand locked, and one
+ * line with Upgrade. The brand sets its own colors and corners, so there's nothing else to pick.
  */
-function Styling(p: { brands: BrandRow[]; picked: string | null; badge: boolean; paid: boolean; needsLook: boolean; reading: boolean; owner: boolean; disabled: boolean; onChange: (p: Partial<PageLook>) => void; onRead: () => void; onUpgrade: () => void; onImport: () => void }) {
+function Styling(p: { brands: BrandRow[]; home: string | null; picked: string | null; badge: boolean; paid: boolean; needsLook: boolean; reading: boolean; owner: boolean; disabled: boolean; onChange: (p: Partial<PageLook>) => void; onRead: () => void; onUpgrade: () => void; onImport: () => void }) {
   const { brands, picked, paid, disabled, onChange } = p;
-  const tile = (on: boolean) => `press relative flex min-h-[64px] items-center gap-2.5 rounded-[10px] border p-2.5 text-left disabled:cursor-default ${on ? "border-ink shadow-[0_0_0_1px_var(--color-ink)]" : "border-line hover:border-line-strong"}`;
+  const yours = brands.find((b) => b.id === p.home) ?? brands[0] ?? null;
+  const others = brands.filter((b) => b.id !== yours?.id);
+  const [more, setMore] = useState(() => !!picked && others.some((b) => b.id === picked));
+  const [q, setQ] = useState("");
+  const shownOthers = q.trim() ? others.filter((b) => brandName(b).toLowerCase().includes(q.trim().toLowerCase())) : others;
+  const tile = (on: boolean) => `press relative flex min-h-[56px] items-center gap-2.5 rounded-[10px] border p-2.5 text-left disabled:cursor-default ${on ? "border-ink shadow-[0_0_0_1px_var(--color-ink)]" : "border-line hover:border-line-strong"}`;
+  const brandTile = (b: BrandRow, eyebrow?: string) => {
+    const logo = logoOf(b);
+    const name = brandName(b);
+    return (
+      <button key={b.id} type="button" disabled={disabled || !paid} aria-pressed={picked === b.id} onClick={() => onChange({ look: "brand", brand: b.id })} className={`${tile(picked === b.id)} ${!paid ? "opacity-50" : ""}`}>
+        <span className="flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-md border border-line bg-card">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          {logo ? <img src={logo} alt="" className="max-h-6 max-w-6 object-contain" /> : <span className="text-[12px] font-semibold text-ink">{name.slice(0, 1).toUpperCase()}</span>}
+        </span>
+        <span className="flex min-w-0 flex-col">
+          {eyebrow ? <span className="text-[11px] text-muted">{eyebrow}</span> : null}
+          <span className="truncate text-[13px] font-medium text-ink">{name}</span>
+        </span>
+      </button>
+    );
+  };
   return (
     <>
       <div className="grid grid-cols-2 gap-2">
@@ -558,26 +594,11 @@ function Styling(p: { brands: BrandRow[]; picked: string | null; badge: boolean;
           </span>
           <span className="min-w-0 truncate text-[13px] font-medium text-ink">Claritia</span>
         </button>
-        {brands.map((b) => {
-          const logo = logoOf(b);
-          const name = brandName(b);
-          return (
-            <button key={b.id} type="button" disabled={disabled || !paid} aria-pressed={picked === b.id} onClick={() => onChange({ look: "brand", brand: b.id })} className={`${tile(picked === b.id)} ${!paid ? "opacity-50" : ""}`}>
-              <span className="flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-md border border-line bg-card">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                {logo ? <img src={logo} alt="" className="max-h-6 max-w-6 object-contain" /> : <span className="text-[12px] font-semibold text-ink">{name.slice(0, 1).toUpperCase()}</span>}
-              </span>
-              <span className="min-w-0 truncate text-[13px] font-medium text-ink">{name}</span>
-            </button>
-          );
-        })}
-        <button type="button" disabled={disabled} onClick={p.onImport} className="press flex min-h-[64px] items-center justify-center gap-1.5 rounded-[10px] border border-dashed border-line-strong p-2.5 text-[13px] font-medium text-muted hover:border-ink/40 hover:text-ink">
-          <Plus size={13} />
-          Import a brand
-        </button>
+        {yours ? brandTile(yours, "Your brand") : null}
       </div>
       {!paid ? (
-        <span className="flex items-center justify-between gap-2">
+        <span className="flex items-center gap-2">
+          <span className="min-w-0 flex-1 text-[12.5px] text-body">Your brands on booking pages</span>
           <Badge tone="violet">Paid plans</Badge>
           {p.owner ? (
             <Button size="sm" onClick={p.onUpgrade}>
@@ -585,12 +606,38 @@ function Styling(p: { brands: BrandRow[]; picked: string | null; badge: boolean;
             </Button>
           ) : null}
         </span>
-      ) : picked && p.needsLook ? (
-        <Button variant="ghost" size="sm" className="h-[30px] self-start !border-line" disabled={disabled || p.reading} onClick={p.onRead}>
-          <AiMark size={13} working={p.reading} />
-          {p.reading ? "Reading the look" : "Read the look"}
-        </Button>
-      ) : null}
+      ) : (
+        <>
+          {others.length ? (
+            <div className="flex flex-col gap-2">
+              <button type="button" aria-expanded={more} onClick={() => setMore(!more)} className="flex items-center gap-1.5 self-start rounded-full px-1 text-[12.5px] font-medium text-body hover:text-ink">
+                <ChevronDown size={12} className={`transition-transform duration-[200ms] ${more ? "rotate-180" : ""}`} />
+                Other brands
+                <span className="text-faint tabular-nums">{others.length}</span>
+              </button>
+              {more ? (
+                <>
+                  {others.length > 6 ? <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search brands" aria-label="Search brands" className="h-8 text-[12.5px]" /> : null}
+                  <div className="grid grid-cols-2 gap-2">{shownOthers.map((b) => brandTile(b))}</div>
+                  {!shownOthers.length ? <span className="text-[12.5px] text-muted">No matches</span> : null}
+                </>
+              ) : null}
+            </div>
+          ) : null}
+          <span className="flex flex-wrap items-center gap-2">
+            {picked && p.needsLook ? (
+              <Button variant="ghost" size="sm" className="h-[30px] !border-line" disabled={disabled || p.reading} onClick={p.onRead}>
+                <AiMark size={13} working={p.reading} />
+                {p.reading ? "Reading the look" : "Read the look"}
+              </Button>
+            ) : null}
+            <Button variant="ghost" size="sm" className="h-[30px] !border-line" disabled={disabled} onClick={p.onImport}>
+              <Plus size={13} />
+              Import a brand
+            </Button>
+          </span>
+        </>
+      )}
       <span className="flex items-center justify-between gap-2 text-[13px] text-ink">
         Show Booked with Claritia
         <Toggle label="Show Booked with Claritia" on={p.badge} disabled={disabled || !paid} onChange={(badge) => onChange({ badge })} />

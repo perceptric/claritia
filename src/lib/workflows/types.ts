@@ -82,7 +82,7 @@ export const TRIGGERS: { kind: TriggerKind; label: string }[] = [
   { kind: "not_booked", label: "Didn't book after a form" },
   { kind: "outcome", label: "Qualify outcome set" },
   { kind: "band", label: "Score band changed" },
-  { kind: "routed", label: "Routed, or no rep found" },
+  { kind: "routed", label: "Routed, or no one found" },
   { kind: "segment", label: "Joined or left a segment" },
   { kind: "field", label: "Field changed" },
   { kind: "clicked", label: "Email clicked" },

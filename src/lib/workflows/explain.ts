@@ -34,7 +34,7 @@ export function triggerWords(t: Trigger, n: Names = {}): string {
     case "band":
       return `When the score turns ${list(t.bands) || "any band"}`;
     case "routed":
-      return t.result === "unassigned" ? "When no rep is found for a lead" : t.result === "routed" ? "When a lead gets a rep" : "When a lead is routed";
+      return t.result === "unassigned" ? "When no one is found for a lead" : t.result === "routed" ? "When a lead is assigned" : "When a lead is routed";
     case "segment":
       return `When someone ${t.on === "left" ? "leaves" : "joins"} ${n.segments?.[t.segment] ?? "a segment"}`;
     case "field":
@@ -65,7 +65,7 @@ export function waitWords(s: Extract<Step, { kind: "wait" }>): string {
 export function stepWords(s: Step, n: Names = {}): string {
   switch (s.kind) {
     case "email":
-      return s.email.subject ? `Send "${s.email.subject}"${s.from === "owner" ? " from their rep" : ""}` : "Send an email";
+      return s.email.subject ? `Send "${s.email.subject}"${s.from === "owner" ? " from their owner" : ""}` : "Send an email";
     case "wait":
       return waitWords(s);
     case "wait_until":
@@ -79,15 +79,15 @@ export function stepWords(s: Step, n: Names = {}): string {
     case "qualify":
       return "Qualify the lead";
     case "route":
-      return "Find the right rep";
+      return "Find the right person";
     case "update":
       return `Set ${s.field.replace(/^f\./, "").replace(/_/g, " ")} to ${s.value || "blank"}`;
     case "list":
       return `${s.action === "add" ? "Add to" : "Remove from"} ${n.segments?.[s.segment] ?? "a list"}`;
     case "task":
-      return `Task for ${s.assignee === "owner" ? "their rep" : (n.people?.[s.assignee] ?? "a teammate")}: ${s.title}`;
+      return `Task for ${s.assignee === "owner" ? "their owner" : (n.people?.[s.assignee] ?? "a teammate")}: ${s.title}`;
     case "slack":
-      return `Slack ${s.to === "owner" ? "their rep" : (n.people?.[s.to] ?? "a teammate")}`;
+      return `Slack ${s.to === "owner" ? "their owner" : (n.people?.[s.to] ?? "a teammate")}`;
     case "webhook":
       return s.url ? `Send to ${hostOf(s.url)}` : "Send to a webhook";
     case "crm":

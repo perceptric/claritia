@@ -226,13 +226,13 @@ export const sameSelection = (a: Selection | null, b: Selection | null) => !!a &
 export const selectionOf = (p: Problem): Selection =>
   p.where.kind === "rule" || p.where.kind === "queue" ? { kind: p.where.kind, id: p.where.id ?? "" } : p.where.kind === "segment" ? { kind: "rules" } : { kind: p.where.kind };
 
-/** Finish setup: each open problem as something to do. "EMEA has no reps" reads "Add reps to EMEA". */
+/** Finish setup: each open problem as something to do. "EMEA has no team members" reads "Add team members to EMEA". */
 export function setupItems(ps: Problem[]): { text: string; at: Selection }[] {
   const seen = new Set<string>();
   const out: { text: string; at: Selection }[] = [];
   for (const p of ps) {
-    const m = p.text.match(/^(.*) has no reps$/);
-    const text = m ? `Add reps to ${m[1]}` : p.text;
+    const m = p.text.match(/^(.*) has no team members$/);
+    const text = m ? `Add team members to ${m[1]}` : p.text;
     if (seen.has(text)) continue;
     seen.add(text);
     out.push({ text, at: selectionOf(p) });

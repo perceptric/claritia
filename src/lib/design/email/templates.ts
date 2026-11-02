@@ -274,7 +274,7 @@ export const EMAIL_TEMPLATES: EmailTemplate[] = [
     name: "Customer story",
     group: "Nurture and win-back",
     make: email("Customer story", "How one team did it, in three steps.", () => [
-      sec("hero", t("Customer story", "eyebrow"), quote("We stopped losing leads between our forms and our reps in the first week.", "Name, role at Company")),
+      sec("hero", t("Customer story", "eyebrow"), quote("We stopped losing leads between our forms and our team in the first week.", "Name, role at Company")),
       cols("body", [h("40%", "section"), t("More meetings", "small")], [h("2 days", "section"), t("To go live", "small")], [h("0", "section"), t("Leads lost", "small")]),
       sec("close", t("What they changed, in three short sentences. Say what was hard before and what's easy now."), btn("Read the story")),
     ]),

@@ -190,7 +190,7 @@ export function TeamCalendars({ sb, session, ws, role, onFix }: Pick<ViewProps, 
   );
 }
 
-function EditHours({ session, ws, person, saved, onClose, onSaved }: { session: ViewProps["session"]; ws: string; person: Person; saved: Availability | null; onClose: () => void; onSaved: (a: Availability) => void }) {
+export function EditHours({ session, ws, person, saved, onClose, onSaved }: { session: ViewProps["session"]; ws: string; person: Person; saved: Availability | null; onClose: () => void; onSaved: (a: Availability) => void }) {
   const [draft, setDraft] = useState<Availability>(() => (saved ? { tz: saved.tz, weekly: saved.weekly, overrides: saved.overrides } : DEFAULT_AVAILABILITY(ownZone())));
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);

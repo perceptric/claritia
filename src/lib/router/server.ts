@@ -414,7 +414,7 @@ export async function route(
     if (res.status === "gone") return { status: "gone" };
     // stale: decide again with fresh facts (the rep's new count or pause is in them now).
   }
-  throw new Error("The router couldn't settle on a rep; trying again later.");
+  throw new Error("The router couldn't settle on a team member; trying again later.");
 }
 
 /** A submission's mapped answers over the facts: this submission's answers win for this decision (Section 9). */

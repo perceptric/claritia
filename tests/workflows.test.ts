@@ -126,7 +126,7 @@ test("the words: triggers, cards and Make live's list of changes", () => {
   assert.equal(triggerWords({ kind: "form", forms: ["f1"] }, { forms: { f1: "Demo request" } }), "When Demo request is sent");
   assert.equal(triggerWords({ kind: "meeting", events: ["no_show"], types: [] }), "When a meeting is a no-show");
   assert.equal(stepWords(wait("w", 2)), "Wait 2 days");
-  assert.equal(stepWords(newStep("route")), "Find the right rep");
+  assert.equal(stepWords(newStep("route")), "Find the right person");
   const live: Body = { ...emptyBody(), steps: [email("e1"), wait("w1")] };
   const draft: Body = { ...live, steps: [wait("w1", 3), { ...email("e2") }] };
   assert.deepEqual(diffWords(live, draft), ["Changes: Wait 3 days", "Adds: Send \"Hi e2\"", "Removes: Send \"Hi e1\""]);

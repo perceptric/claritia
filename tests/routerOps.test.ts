@@ -116,19 +116,19 @@ test("strict: an op that would leave a new problem is refused; the chat can add 
   // No fallback yet is fine while building.
   const r = applyStrict(b, { op: "add_rule", conds: [{ field: "company.size", op: "gt", value: 500 }], team: "AEs" }, ctx);
   assert.ok(!("error" in r));
-  // Emptying the team a rule uses adds "has no reps": refused.
+  // Emptying the team a rule uses adds "has no team members": refused.
   const empty = applyStrict((r as { body: RouterBody }).body, { op: "edit_team", team: "AEs", people: [] }, ctx);
   assert.ok("error" in empty && /would leave a problem/.test(empty.error));
   // The same op through applyOp (Flow, mid-edit) goes through, and Publish names what's missing.
   const loose = applyOp((r as { body: RouterBody }).body, { op: "edit_team", team: "AEs", people: [] }, ctx);
   assert.ok(!("error" in loose));
-  assert.equal(firstProblem((loose as { body: RouterBody }).body, ctx), "Add reps to AEs");
+  assert.equal(firstProblem((loose as { body: RouterBody }).body, ctx), "Add team members to AEs");
 });
 
 test("a rule that sends to the owner: deal rep first, then company owner, then contact owner", () => {
   const b = sample();
   const d1 = decide(b, facts({ company: { id: "co", name: "Acme", domain: "acme.com", owner: RAJ, ownerCrm: null, oppOwner: SAM, oppName: "Pilot" } }));
-  // Same company, same rep is on by default and catches it first; turn it off to reach the rule.
+  // Same company, same owner is on by default and catches it first; turn it off to reach the rule.
   assert.equal(d1.result.kind === "owner" && d1.result.by, "account");
   const off = (applyOp(b, { op: "set_account", on: false }, ctx) as { body: RouterBody }).body;
   const d2 = decide(off, facts({ company: { id: "co", name: "Acme", domain: "acme.com", owner: RAJ, ownerCrm: null, oppOwner: SAM, oppName: "Pilot" } }));
@@ -197,5 +197,5 @@ test("plan lines read plainly: a condition with no value and a rule with no team
   const line = planLines(b).find((l) => l.id === b.rules.list[1]!.id)!;
   assert.equal(line.name, b.rules.list[1]!.name);
   assert.match(line.text, /^If .+ is \(no value yet\), the lead goes to no one yet\.$/);
-  assert.equal(firstProblem(b, ctx), `"${b.rules.list[1]!.name}" needs a rep or team`);
+  assert.equal(firstProblem(b, ctx), `"${b.rules.list[1]!.name}" needs a team member or team`);
 });

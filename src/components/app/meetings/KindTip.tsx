@@ -8,7 +8,7 @@ import { createPortal } from "react-dom";
 
 export const KIND_TIPS = {
   individual: "Individual: one person hosts it. Every lead books with them.",
-  dynamic: "Dynamic: its rules pick the rep from the lead's answers, or a team takes turns.",
+  dynamic: "Dynamic: its rules pick the team member from the lead's answers, or a team takes turns.",
 } as const;
 
 export function KindTip({ kind, children }: { kind: keyof typeof KIND_TIPS; children: React.ReactNode }) {

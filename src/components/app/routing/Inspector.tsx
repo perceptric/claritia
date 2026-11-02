@@ -54,7 +54,7 @@ export type InspectorProps = {
   onSelect: (s: Selection) => void;
 };
 
-const TITLES = { spam: "Spam check", account: "Company's rep", keep: "Person's rep", rules: "Rules", fallback: "Everyone else", sla: "Reach out within" } as const;
+const TITLES = { spam: "Spam check", account: "Company's owner", keep: "Contact's owner", rules: "Rules", fallback: "Everyone else", sla: "Reach out within" } as const;
 
 export function Inspector(p: InspectorProps) {
   const { sel, body } = p;
@@ -140,14 +140,14 @@ function AccountInspector({ body, edit, readOnly }: InspectorProps) {
   const set = (patch: Partial<RouterBody["account"]>) => edit((b) => ({ ...b, account: { ...b.account, ...patch } }));
   return (
     <Block first>
-      <Line label="Send to the company's rep">
-        <Toggle label="Send to the company's rep" on={a.on} onChange={(on) => set({ on })} disabled={readOnly} />
+      <Line label="Send to the company's owner">
+        <Toggle label="Send to the company's owner" on={a.on} onChange={(on) => set({ on })} disabled={readOnly} />
       </Line>
-      <Line label="Open deal's rep first">
-        <Toggle label="Open deal's rep first" on={a.oppFirst} onChange={(oppFirst) => set({ oppFirst })} disabled={readOnly || !a.on} />
+      <Line label="Open deal's owner first">
+        <Toggle label="Open deal's owner first" on={a.oppFirst} onChange={(oppFirst) => set({ oppFirst })} disabled={readOnly || !a.on} />
       </Line>
-      <Line label="Make them the company's rep">
-        <Toggle label="Make them the company's rep" on={a.setCompanyOwner} onChange={(setCompanyOwner) => set({ setCompanyOwner })} disabled={readOnly || !a.on} />
+      <Line label="Make them the company's owner">
+        <Toggle label="Make them the company's owner" on={a.setCompanyOwner} onChange={(setCompanyOwner) => set({ setCompanyOwner })} disabled={readOnly || !a.on} />
       </Line>
     </Block>
   );
@@ -163,12 +163,12 @@ function KeepInspector({ body, edit, readOnly }: InspectorProps) {
   const k = body.keep;
   return (
     <Block first>
-      <Line label="Send to their rep">
-        <Toggle label="Send to their rep" on={k.on} onChange={(on) => edit((b) => ({ ...b, keep: { ...b.keep, on } }))} disabled={readOnly} />
+      <Line label="Send to their owner">
+        <Toggle label="Send to their owner" on={k.on} onChange={(on) => edit((b) => ({ ...b, keep: { ...b.keep, on } }))} disabled={readOnly} />
       </Line>
       <div className="flex flex-col gap-2 pt-1">
         <span className="text-[12.5px] text-body">When the owner is out</span>
-        <Segmented<WhenOut> label="If that rep is away" value={k.whenOut} options={WHEN_OUT} onChange={(whenOut) => !readOnly && edit((b) => ({ ...b, keep: { ...b.keep, whenOut } }))} />
+        <Segmented<WhenOut> label="If they're away" value={k.whenOut} options={WHEN_OUT} onChange={(whenOut) => !readOnly && edit((b) => ({ ...b, keep: { ...b.keep, whenOut } }))} />
       </div>
     </Block>
   );
@@ -241,7 +241,7 @@ function FallbackInspector({ body, edit, members, meetings, readOnly }: Inspecto
         label="Assign to"
         value={kind}
         options={[
-          { value: "user", label: "A rep" },
+          { value: "user", label: "A team member" },
           { value: "queue", label: "A team" },
         ]}
         onChange={(k) => !readOnly && setKind(k)}
@@ -250,8 +250,8 @@ function FallbackInspector({ body, edit, members, meetings, readOnly }: Inspecto
         value={fb?.kind === kind ? fb.id : ""}
         options={options}
         onChange={(id) => edit((b) => ({ ...b, fallback: { kind, id, ...(b.fallback?.meet ? { meet: b.fallback.meet } : {}) } }))}
-        ariaLabel={kind === "user" ? "Rep" : "Team"}
-        placeholder={kind === "user" ? "Pick a rep" : "Pick a team"}
+        ariaLabel={kind === "user" ? "Team member" : "Team"}
+        placeholder={kind === "user" ? "Pick a team member" : "Pick a team"}
         disabled={readOnly}
         className={`${PICK} h-8`}
       />
@@ -268,7 +268,7 @@ function FallbackInspector({ body, edit, members, meetings, readOnly }: Inspecto
 }
 
 const SLA_NEXT: { value: Sla["next"]; label: string }[] = [
-  { value: "route", label: "Next rep" },
+  { value: "route", label: "Next team member" },
   { value: "manager", label: "Manager" },
   { value: "nudge", label: "Remind them" },
 ];
@@ -306,7 +306,7 @@ function SlaInspector({ body, edit, members, readOnly }: InspectorProps) {
         />
       </Line>
       <div className="flex flex-col gap-2 pt-1">
-        <span className="text-[12.5px] text-body">If the rep doesn&apos;t act</span>
+        <span className="text-[12.5px] text-body">If they don&apos;t act</span>
         <Segmented<Sla["next"]> label="If they don't reach out" value={s.next} options={SLA_NEXT} onChange={(next) => !readOnly && s.on && set({ next })} />
       </div>
       {s.next === "manager" ? (
@@ -589,7 +589,7 @@ function QueueInspector({ body, edit, id, members, readOnly, counts, onSelect }:
           <Toggle label="Only during working hours" on={q.hoursOnly} onChange={(hoursOnly) => edit((b) => setQueue(b, q.id, { hoursOnly }))} disabled={readOnly} />
         </Line>
       </Block>
-      <Block title="Reps" action={<span className="text-[12px] text-muted tabular-nums">{q.members.length}</span>}>
+      <Block title="Team members" action={<span className="text-[12px] text-muted tabular-nums">{q.members.length}</span>}>
         <ul className="flex flex-col">
           {q.members.map((m) => {
             const who = byId.get(m.user);
@@ -598,7 +598,7 @@ function QueueInspector({ body, edit, id, members, readOnly, counts, onSelect }:
                 <Avatar label={who?.name ?? "?"} size={24} />
                 <span className={`min-w-0 flex-1 truncate text-[13px] ${who ? "text-ink" : "text-rose"}`}>{who?.name ?? "Former teammate"}</span>
                 {q.method === "weighted" ? (
-                  <span className="flex items-center gap-0.5" role="group" aria-label={`Weight for ${who?.name ?? "rep"}`}>
+                  <span className="flex items-center gap-0.5" role="group" aria-label={`Weight for ${who?.name ?? "team member"}`}>
                     <IconButton label="Less" className="size-6" disabled={readOnly || m.weight <= 1} onClick={() => edit((b) => setWeight(b, q.id, m.user, m.weight - 1))}>
                       <Minus size={12} />
                     </IconButton>
@@ -611,7 +611,7 @@ function QueueInspector({ body, edit, id, members, readOnly, counts, onSelect }:
                   </span>
                 ) : null}
                 {!readOnly ? (
-                  <IconButton label={`Remove ${who?.name ?? "rep"}`} className="size-7" onClick={() => edit((b) => removeMember(b, q.id, m.user))}>
+                  <IconButton label={`Remove ${who?.name ?? "team member"}`} className="size-7" onClick={() => edit((b) => removeMember(b, q.id, m.user))}>
                     <X size={13} />
                   </IconButton>
                 ) : null}
@@ -625,8 +625,8 @@ function QueueInspector({ body, edit, id, members, readOnly, counts, onSelect }:
               value=""
               options={left.map((m) => ({ value: m.id, label: m.name }))}
               onChange={(u) => edit((b) => addMember(b, q.id, u))}
-              ariaLabel="Add rep"
-              placeholder="Add rep"
+              ariaLabel="Add team member"
+              placeholder="Add team member"
               plainPlaceholder
               className="h-7 rounded-full border border-dashed border-line-strong px-2.5 text-[12px] font-medium text-body hover:border-ink/40 hover:text-ink"
             />

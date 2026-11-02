@@ -2,6 +2,7 @@
 // valid body (bad parts dropped or fixed, so a draft always saves), and `problems` lists what stops it from going
 // live, each tied to the card it belongs to. Both run in the browser and on the server.
 
+import { OLD_WHOLE_TEAM, WHOLE_TEAM } from "../words.ts";
 import { BASE_FIELDS, needsValue, opsFor, type FieldDef } from "./conditions.ts";
 import { defaultSla, emptyBody, METHODS, OPS, type Backup, type Cond, type Member, type OwnerKind, type Queue, type Rule, type RouterBody, type Scope, type Segment, type Sla, type Territory, type WhenOut } from "./types.ts";
 
@@ -107,11 +108,11 @@ export function cleanBody(raw: unknown): RouterBody {
   const account = obj(r.account);
   const keep = obj(r.keep);
   const rules = obj(r.rules);
-  // The starting team was once called "Everyone", which read as "Everyone else goes to Everyone".
+  // The starting team was once called "Everyone" (which read as "Everyone else goes to Everyone"), then "All reps".
   const queues = arr(r.queues)
     .map(cleanQueue)
     .filter((q): q is Queue => !!q)
-    .map((q) => (q.id === "q_everyone" && q.name === "Everyone" ? { ...q, name: "All reps" } : q));
+    .map((q) => (q.id === "q_everyone" && OLD_WHOLE_TEAM.includes(q.name) ? { ...q, name: WHOLE_TEAM } : q));
   const qids = new Set(queues.map((q) => q.id));
   const territories = arr(r.territories).map(cleanTerritory).filter((t): t is Territory => !!t);
   const list: Rule[] = [];
@@ -209,9 +210,9 @@ export function problems(body: RouterBody, o: { members: Set<string>; fields?: F
   for (const q of body.queues) {
     const where: Where = { kind: "queue", id: q.id };
     if (!used.has(q.id)) continue;
-    if (!q.members.length) out.push({ where, text: `${q.name} has no reps` });
+    if (!q.members.length) out.push({ where, text: `${q.name} has no team members` });
     const gone = q.members.filter((m) => !o.members.has(m.user)).length;
-    if (gone) out.push({ where, text: `${q.name} has ${gone === 1 ? "a rep" : `${gone} reps`} no longer in the workspace` });
+    if (gone) out.push({ where, text: `${q.name} has ${gone === 1 ? "a team member" : `${gone} team members`} no longer in the workspace` });
   }
   if (!body.fallback) out.push({ where: { kind: "fallback" }, text: "Pick a fallback" });
   else if (body.fallback.kind === "user" && !o.members.has(body.fallback.id)) out.push({ where: { kind: "fallback" }, text: "The fallback is no longer in the workspace" });
@@ -244,9 +245,9 @@ export function problemWords(t: string): string {
       .replace(/^".+?" has no conditions$/, "Add a condition")
       .replace(/^".+?" has a condition with no value$/, "Pick a value for the condition");
   return t
-    .replace(/^"(.+?)" has no team$/, '"$1" needs a rep or team')
+    .replace(/^"(.+?)" has no team$/, '"$1" needs a team member or team')
     .replace(/^"(.+?)" has no conditions$/, '"$1" needs a condition')
     .replace(/^"(.+?)" has a condition with no value$/, 'Pick a value for "$1"')
-    .replace(/^(.+?) has no reps$/, "Add reps to $1")
-    .replace(/^The fallback is no longer in the workspace$/, "The rep for leads no rule matched has left. Pick another");
+    .replace(/^(.+?) has no team members$/, "Add team members to $1")
+    .replace(/^The fallback is no longer in the workspace$/, "The person for leads no rule matched has left. Pick another");
 }
