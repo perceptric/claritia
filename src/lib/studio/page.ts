@@ -4,10 +4,26 @@
 // routing and meetings work as for every form), and the page rides along on the form as `page`.
 // The same code runs in the browser and on the server: no DOM, a small tokenizer.
 
+import { DEFAULT_CONSENT } from "../forms/schema.ts";
+
 export type PageAfter = { kind: "thanks" | "page" | "meeting"; url?: string; meeting?: string; routes?: { field: string; value: string; meeting: string }[] };
 /** The page on a published form: its HTML, its own CSS, the brand's CSS, each question's name to its field id. */
 export type Page = { html: string; css: string; brand: string; ids: Record<string, string>; after?: PageAfter };
-export type PageQuestion = { name: string; id: string; type: string; label: string; required: boolean; save?: string; options: { value: string; label: string }[] };
+export type PageQuestion = {
+  name: string;
+  id: string;
+  type: string;
+  label: string;
+  /** Where the label came from: a real label, aria-label, the placeholder, or only the name. */
+  labelFrom: "label" | "aria" | "placeholder" | "name";
+  required: boolean;
+  save?: string;
+  options: { value: string; label: string }[];
+  /** Two separate inputs share this name (not a group of radios or check boxes): the second would overwrite the first. */
+  twice?: true;
+  /** The id the question keeps across renames (data-cl-id), when the page gives one. */
+  fixed?: string;
+};
 
 const MAX_HTML = 200_000;
 const MAX_CSS = 200_000;
@@ -24,7 +40,8 @@ const ATTRS = new Set([
   "id", "class", "name", "type", "value", "placeholder", "required", "checked", "selected", "disabled", "hidden", "for", "min", "max", "step",
   "minlength", "maxlength", "pattern", "rows", "cols", "multiple", "autocomplete", "inputmode", "alt", "title", "role", "tabindex", "lang", "dir", "open", "datetime", "href", "src", "width", "height",
 ]);
-const TYPES = new Set(["text", "email", "tel", "number", "url", "date", "time", "radio", "checkbox", "range", "hidden", "search", "month", "week", "datetime-local", "color"]);
+const TYPES = new Set(["text", "email", "tel", "number", "url", "date", "time", "radio", "checkbox", "range", "hidden", "search", "month", "week", "datetime-local", "color", "submit"]);
+const FIELD_ID = /^[a-z][a-z0-9]{0,23}$/;
 const SAVE = new Set(["email", "first_name", "last_name", "name", "phone", "company", "title", "website", "country"]);
 
 const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
@@ -57,7 +74,7 @@ function idFor(name: string, taken: Set<string>): string {
  * else its placeholder, else its name. A question under a show-if is never required on the server, since the
  * server doesn't run the page's conditions.
  */
-export function cleanPage(raw: string): { html: string; questions: PageQuestion[] } {
+export function cleanPage(raw: string, prevIds: Record<string, string> = {}): { html: string; questions: PageQuestion[] } {
   const src = String(raw ?? "").slice(0, MAX_HTML * 2);
   let out = "";
   let i = 0;
@@ -77,12 +94,21 @@ export function cleanPage(raw: string): { html: string; questions: PageQuestion[
     let q = byName.get(name);
     if (!q) {
       const save = SAVE.has(attrs["data-cl-save"] ?? "") ? attrs["data-cl-save"] : undefined;
-      q = { name, id: idFor(name, taken), type, label: "", required: false, ...(save ? { save } : {}), options: [] };
+      const fixed = FIELD_ID.test(attrs["data-cl-id"] ?? "") ? attrs["data-cl-id"] : undefined;
+      q = { name, id: "", type, label: "", labelFrom: "name", required: false, ...(save ? { save } : {}), ...(fixed ? { fixed } : {}), options: [] };
       byName.set(name, q);
       qs.push(q);
     } else if (q.type === "checkbox" && type === "checkbox") q.type = "multi";
+    else if (!(q.type === "radio" && type === "radio")) q.twice = true;
     if ("required" in attrs && !open.some((o) => o.showIf) && !("data-cl-show-if" in attrs)) q.required = true;
-    if (!q.label && attrs.placeholder) q.label = attrs.placeholder;
+    if (!q.label && attrs["aria-label"]) {
+      q.label = attrs["aria-label"].slice(0, 300);
+      q.labelFrom = "aria";
+    }
+    if (!q.label && attrs.placeholder) {
+      q.label = attrs.placeholder.slice(0, 300);
+      q.labelFrom = "placeholder";
+    }
     return q;
   };
 
@@ -130,7 +156,10 @@ export function cleanPage(raw: string): { html: string; questions: PageQuestion[
         if (label.target) forLabel.set(label.target, t);
         for (const x of label.inside) {
           if (x.opt) x.opt.label = t || x.opt.value;
-          else if (t && !x.q.label) x.q.label = t;
+          else if (t && (!x.q.label || x.q.labelFrom === "placeholder")) {
+            x.q.label = t;
+            x.q.labelFrom = "label";
+          }
         }
         label = null;
       }
@@ -188,7 +217,7 @@ export function cleanPage(raw: string): { html: string; questions: PageQuestion[
     // Questions
     if (qName && (name === "input" || name === "textarea" || name === "select")) {
       const t = name === "input" ? (TYPES.has((attrs.type ?? "text").toLowerCase()) ? (attrs.type ?? "text").toLowerCase() : "text") : name;
-      if (t !== "hidden") {
+      if (t !== "hidden" && t !== "submit") {
         const q = question(qName, t === "radio" ? "radio" : t === "checkbox" ? "checkbox" : t, attrs);
         let opt: { value: string; label: string } | undefined;
         if (t === "radio" || t === "checkbox") {
@@ -214,7 +243,18 @@ export function cleanPage(raw: string): { html: string; questions: PageQuestion[
     const x = byElId.get(el);
     if (!x) continue;
     if (x.opt) x.opt.label = t || x.opt.value;
-    else if (t && !x.q.label) x.q.label = t;
+    else if (t && (!x.q.label || x.q.labelFrom === "placeholder")) {
+      x.q.label = t;
+      x.q.labelFrom = "label";
+    }
+  }
+  // Each question keeps its id: the page's data-cl-id first, then the id the same name had last time, then a new one.
+  for (const q of qs) if (q.fixed && !taken.has(q.fixed)) taken.add((q.id = q.fixed));
+  for (const q of qs) {
+    if (q.id) continue;
+    const before = prevIds[q.name];
+    if (before && FIELD_ID.test(before) && !taken.has(before)) taken.add((q.id = before));
+    else q.id = idFor(q.name, taken);
   }
   for (const q of qs) {
     if (!q.label) q.label = q.name.replace(/[_-]+/g, " ").replace(/^./, (c) => c.toUpperCase());
@@ -242,8 +282,8 @@ const KIND: Record<string, string> = { email: "email", tel: "phone", number: "nu
  * The form a studio page publishes as: one step of the page's questions, each saved to its contact field or kept as
  * the form's own answer, and what happens after the send (a thank-you, a page or a meeting with its routes).
  */
-export function pageForm(p: { html: string; css: string; brand: string; after: PageAfter; title?: string }): { form: Record<string, unknown>; questions: PageQuestion[] } {
-  const { html, questions } = cleanPage(p.html);
+export function pageForm(p: { html: string; css: string; brand: string; after: PageAfter; title?: string; prevIds?: Record<string, string>; turnstile?: boolean }): { form: Record<string, unknown>; questions: PageQuestion[] } {
+  const { html, questions } = cleanPage(p.html, p.prevIds);
   const keys = new Set<string>();
   const fields = questions.map((q) => {
     let key = q.save && !keys.has(q.save) ? q.save : q.type === "email" && !keys.has("email") ? "email" : `q.${q.id.replace(/^[^a-z]+/, "") || "q"}`;
@@ -278,8 +318,9 @@ export function pageForm(p: { html: string; css: string; brand: string; after: P
       ...(p.title ? { title: p.title.slice(0, 300) } : {}),
       ...(keys.has("email") ? {} : { emailOptional: true }),
       submit: { label: "Submit" },
-      consent: { mode: "off", label: "" },
-      spam: { minSeconds: 2, turnstile: false },
+      // Consent by region and the spam checks, as on every form (docs/studio-v2-plan.md 6.3).
+      consent: { mode: "by_region", label: DEFAULT_CONSENT },
+      spam: { minSeconds: 2, turnstile: p.turnstile === true },
       after: { end, ...(schedule ? { schedule } : {}) },
       page: { html, css: cleanPageCss(p.css), brand: cleanPageCss(p.brand), ids, after },
     },

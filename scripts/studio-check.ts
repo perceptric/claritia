@@ -160,6 +160,29 @@ try {
   const after = (await $("#afterInner").textContent())!;
   check(after.includes("Intro call") && after.includes("Product demo"), "On submission lists the workspace's meeting types");
 
+  // 7b. The form check: a sound form is ready; a broken one can't be published, and Tia gets the fix
+  await p.waitForFunction(() => !document.querySelector("#studio")!.shadowRoot!.getElementById("checkBtn")!.hidden);
+  await p.waitForTimeout(900);
+  check(!(await $("#checkBtn").getAttribute("class"))!.includes("err"), "the form check finds nothing to fix on a sound form");
+  await $("#t-code").click();
+  await $("#c-html").click();
+  check((await $("#codeText").inputValue()).includes("data-cl-id="), "every question carries its field id");
+  await $("#codeText").fill((await $("#codeText").inputValue()).replace(/<button[^>]*type="submit"[^>]*>[\s\S]*?<\/button>/, ""));
+  await $("#codeApply").click();
+  await p.waitForFunction(() => document.querySelector("#studio")!.shadowRoot!.getElementById("checkBtn")!.className.includes("err"));
+  check(true, "a form with no send button shows a problem to fix");
+  await $("#publish").click();
+  check((await $("#pubNote").textContent())!.includes("first") && (await $("#layer .menu").textContent())!.includes("no send button"), "Publish is stopped and the problem is listed");
+  const tiaBefore = (await calls()).filter((c) => c.mode === "tia").length;
+  await $("#layer .menu .issue button").filter({ hasText: "Fix" }).first().click();
+  await idle();
+  const fixAsk = ((await calls()).filter((c) => c.mode === "tia")[tiaBefore]!.body as { content: string }[]).at(-1)!.content;
+  check(fixAsk.startsWith("Fix this:") && fixAsk.includes("send button"), "Fix sends the problem to Tia");
+  await $("#undo").click();
+  await $("#undo").click();
+  await p.waitForFunction(() => !document.querySelector("#studio")!.shadowRoot!.getElementById("checkBtn")!.className.includes("err"));
+  check(true, "undo brings the send button back and the problem clears");
+
   // 8. Publish, then the live form in the form script
   await $("#t-preview").click();
   await $("#publish").click();
@@ -183,16 +206,18 @@ try {
   await lf.locator("#why").fill("A long week");
   await lf.locator("[data-cl-next]").click();
   await lf.locator('input[name="email"]').fill("sam@example.com");
+  await lf.locator("#clr-consent").check();
   await lf.locator("[type=submit]").click();
   await lf.locator("[data-cl-book] .tm .pl").first().waitFor();
   const sent = sends[0]?.answers ?? {};
   const ids = live?.page?.ids ?? {};
   check(sent[ids.name!] === "Sam" && sent[ids.email!] === "sam@example.com" && sent[ids.mood!] === "tender" && sent[ids.why!] === "A long week", "the live form sends each answer by its field id");
   check((await lf.locator("[data-cl-book] .tm .pl").count()) > 0, "the booking calendar opens in the page's booking spot");
+  check((await lf.locator("#clr-consent").count()) === 1 && (await lf.locator('input[name="company_url"]').count()) === 1, "the live form has the consent line and the spam trap");
   if (shots) await lp.screenshot({ path: `${shots}/5-live.png` });
 
   // 9. One chat per form: a new chat starts empty, and the first keeps its form
-  await $("#chatFold").click();
+  if (await $("#chat").evaluate((e) => e.classList.contains("folded"))) await $("#chatFold").click();
   await $("#chatPick").click();
   check((await $("#layer .menu").textContent())!.includes("Daily check-in") && (await $("#layer .menu").textContent())!.includes("Published"), "the chat list shows each form and its state");
   await $("#layer .menu button").filter({ hasText: "New chat" }).click();

@@ -1,5 +1,7 @@
 /* eslint-disable */
 // @ts-nocheck
+import { DEFAULT_CONSENT } from "../../../../lib/forms/schema";
+import { checkStudioPage } from "../../../../lib/studio/check";
 import { TIA_STYLE, tiaSvg } from "../../../../lib/studio/tia";
 
 // Form Studio (docs/forms-chat-plan.md, docs/studio-v2-plan.md): every form is one chat with Tia on the left and the
@@ -87,6 +89,16 @@ input, textarea { user-select: text; -webkit-user-select: text; }
 .vsep { width: 1px; height: 20px; background: var(--line); margin: 0 4px; }
 .publish { height: 32px; padding: 0 16px; border-radius: 999px; border: 0; background: var(--ink); color: var(--bg); font-weight: 500; flex: none; white-space: nowrap; }
 .publish.done { background: var(--signal-soft); color: var(--signal); }
+.checkbtn { height: 28px; padding: 0 10px; border-radius: 999px; border: 0; display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 500; background: var(--paper-deep); color: var(--muted); flex: none; white-space: nowrap; }
+.checkbtn.err { background: color-mix(in srgb, var(--rose) 12%, var(--bg)); color: var(--rose); }
+.checkbtn.ok { background: var(--signal-soft); color: var(--signal); }
+.issue { display: grid; grid-template-columns: 8px minmax(0, 1fr) auto; gap: 10px; align-items: start; padding: 8px 10px; border-radius: 6px; font-size: 12.5px; line-height: 1.45; }
+.issue + .issue { border-top: 1px solid var(--line); }
+.issue .lv { width: 8px; height: 8px; border-radius: 999px; margin-top: 5px; background: var(--faint); }
+.issue .lv.err { background: var(--rose); }
+.issue .pill { height: 26px; }
+.ihead { display: flex; align-items: center; gap: 8px; padding: 8px 10px 4px; font-size: 11px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; color: var(--muted); }
+.ihead .pill { margin-left: auto; text-transform: none; letter-spacing: 0; font-weight: 500; }
 .pubnote { font-size: 12px; color: var(--rose); max-width: 280px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 [data-tip]::after { content: attr(data-tip); position: absolute; top: calc(100% + 6px); left: 50%; transform: translateX(-50%) translateY(-2px); background: var(--ink); color: var(--bg); font-size: 11.5px; font-weight: 500; padding: 4px 8px; border-radius: 6px; white-space: nowrap; pointer-events: none; opacity: 0; transition: opacity .12s, transform .12s; z-index: 70; }
 [data-tip]:hover::after, [data-tip]:focus-visible::after { opacity: 1; transform: translateX(-50%); }
@@ -287,6 +299,7 @@ export const STUDIO_HTML = `
       <button class="ib" id="redo" data-tip="Redo" aria-label="Redo" disabled>${SVG(P.redo)}</button>
       <button class="ib" id="restart" data-tip="Back to step 1" aria-label="Back to step 1">${SVG(P.restart)}</button>
       <a class="ib tipleft" id="openBtn" data-tip="Open the live form" aria-label="Open the live form" target="_blank" rel="noopener" hidden>${SVG(P.open)}</a>
+      <button class="checkbtn" id="checkBtn" aria-haspopup="menu" hidden></button>
       <span class="pubnote" id="pubNote"></span>
       <button class="publish" id="publish" disabled>Publish</button>
     </div>
@@ -381,7 +394,7 @@ export function mountStudio(shell: ShadowRoot, api: StudioApi): () => void {
   const hist = {};
   const H = () => (hist[cur?.id || "-"] ||= { past: [], future: [] });
   const brandOf = (c) => brands.find((b) => b.id === c?.brandId) || null;
-  const blank = (brandId) => ({ id: uuid(), name: "New form", state: "new", brandId: brandId || "", formId: "", body: { html: "", css: "", after: { kind: "thanks", url: "", meeting: MEETINGS[0]?.id || "", routes: [] }, turns: [], log: [] } });
+  const blank = (brandId) => ({ id: uuid(), name: "New form", state: "new", brandId: brandId || "", formId: "", body: { html: "", css: "", after: { kind: "thanks", url: "", meeting: MEETINGS[0]?.id || "", routes: [] }, turns: [], log: [], ids: {} } });
   const body = () => cur.body;
 
   // Saved a second after the last change, and when the page closes.
@@ -412,7 +425,23 @@ export function mountStudio(shell: ShadowRoot, api: StudioApi): () => void {
     });
     return doc.body;
   }
-  function setSource(html) { src = clean(html || ""); src.querySelectorAll("*").forEach((el) => el.setAttribute("data-k", String(++kSeq))); }
+  function setSource(html) { src = clean(html || ""); src.querySelectorAll("*").forEach((el) => el.setAttribute("data-k", String(++kSeq))); ensureIds(); }
+  // Each question keeps its field id (data-cl-id) when it's renamed or Tia writes the page again, so past answers, the
+  // CRM link and reports keep working (docs/studio-v2-plan.md 6.6).
+  function ensureIds() {
+    if (!cur) return;
+    const ids = (cur.body.ids ||= {});
+    const used = new Set([...src.querySelectorAll("[data-cl-id]")].map((e) => e.getAttribute("data-cl-id")));
+    const groups = new Map();
+    src.querySelectorAll("input[name],textarea[name],select[name]").forEach((el) => { if (el.type === "hidden" || el.type === "submit") return; if (!groups.has(el.name)) groups.set(el.name, []); groups.get(el.name).push(el); });
+    const make = (name) => { let base = name.toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 20) || "q"; if (!/^[a-z]/.test(base)) base = `q${base}`.slice(0, 20); let id = base; for (let i = 2; used.has(id); i++) id = `${base.slice(0, 18)}${i}`; return id; };
+    for (const [name, els] of groups) {
+      let id = els.map((e) => e.getAttribute("data-cl-id")).find((x) => /^[a-z][a-z0-9]{0,23}$/.test(x || ""));
+      if (!id) { id = ids[name] && /^[a-z][a-z0-9]{0,23}$/.test(ids[name]) && !used.has(ids[name]) ? ids[name] : make(name); used.add(id); }
+      els.forEach((e) => e.setAttribute("data-cl-id", id));
+      ids[name] = id;
+    }
+  }
   function sourceHtml() { const c = src.cloneNode(true); c.querySelectorAll("[data-k]").forEach((e) => e.removeAttribute("data-k")); return c.innerHTML.trim(); }
   const byK = (k) => src.querySelector(`[data-k="${k}"]`);
   const built = () => !!src.firstElementChild;
@@ -431,7 +460,8 @@ export function mountStudio(shell: ShadowRoot, api: StudioApi): () => void {
   // ── Drawing ───────────────────────────────────────────────────────────────────────────────────────────
   const host = $("host");
   const root = host.attachShadow({ mode: "open" });
-  const BASE = `:host{all:initial;display:flex;flex-direction:column;flex:1}*,*::before,*::after{box-sizing:border-box}[hidden]{display:none!important}.cl-root{flex:1;min-height:560px;display:flex;flex-direction:column}.cl-root>*{flex:1 0 auto}
+  const BASE = `.cl-consent{display:flex;gap:8px;align-items:flex-start;font-size:13px;line-height:1.4;opacity:.85}.cl-consent input{margin:2px 0 0}
+:host{all:initial;display:flex;flex-direction:column;flex:1}*,*::before,*::after{box-sizing:border-box}[hidden]{display:none!important}.cl-root{flex:1;min-height:560px;display:flex;flex-direction:column}.cl-root>*{flex:1 0 auto}
 .cl-cal{display:flex;flex-direction:column;gap:12px;margin-top:6px}.cl-days{display:flex;gap:6px;flex-wrap:wrap}.cl-times{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}.cl-day,.cl-time{font:inherit;padding:8px 10px;border-radius:10px;border:1.5px solid rgba(127,127,127,.35);background:transparent;color:inherit;cursor:pointer}.cl-day[aria-pressed=true],.cl-time[aria-pressed=true]{border-color:currentColor}
 .cl-edit [data-k]{cursor:default}.cl-edit [contenteditable]{outline:none;cursor:text}`;
   let stepAt = 0, done = false;
@@ -440,7 +470,7 @@ export function mountStudio(shell: ShadowRoot, api: StudioApi): () => void {
     $("empty").hidden = has;
     host.hidden = !has;
     root.innerHTML = "";
-    if (!has) return overlay();
+    if (!has) { runCheck(); return overlay(); }
     const st = document.createElement("style");
     st.textContent = `${BASE}\n/* brand */\n${cssFor(brandOf(cur)?.css)}\n/* form */\n${cssFor(body().css)}`;
     const wrap = h("div", { class: S.mode === "edit" ? "cl-root cl-edit" : "cl-root" });
@@ -448,8 +478,12 @@ export function mountStudio(shell: ShadowRoot, api: StudioApi): () => void {
     root.append(st, wrap);
     const logo = brandOf(cur)?.logo;
     wrap.querySelectorAll("img[data-cl-logo]").forEach((img) => { if (logo) img.setAttribute("src", logo); else img.hidden = true; });
+    // The consent line every form shows where the law asks for it, as the live form draws it.
+    const sendBtn = [...wrap.querySelectorAll("[type=submit]")].find((b) => !b.closest("[data-cl-thanks]"));
+    if (sendBtn) sendBtn.before(h("label", { class: "check cl-consent" }, h("input", { type: "checkbox", tabindex: "-1" }), h("span", { text: DEFAULT_CONSENT })));
     run(wrap);
     requestAnimationFrame(overlay);
+    runCheck();
   }
   const live = (k) => root.querySelector(`[data-k="${k}"]`);
 
@@ -730,6 +764,7 @@ export function mountStudio(shell: ShadowRoot, api: StudioApi): () => void {
         // Conditions and routes that read the old name follow it.
         src.querySelectorAll("[data-cl-show-if]").forEach((e) => e.setAttribute("data-cl-show-if", e.getAttribute("data-cl-show-if").replace(new RegExp(`\\b${input.name}\\b`, "g"), v)));
         body().after.routes = (body().after.routes || []).map((r) => (r.field === input.name ? { ...r, field: v } : r));
+        if (body().ids?.[input.name]) { body().ids[v] = body().ids[input.name]; delete body().ids[input.name]; }
         commit();
       });
       Q.append(h("div", { class: "row2" }, h("span", { class: "lbl", text: "Name" }), nm));
@@ -875,6 +910,88 @@ export function mountStudio(shell: ShadowRoot, api: StudioApi): () => void {
     box.append(c3);
   }
 
+  // ── The form check (docs/studio-v2-plan.md 6.5): the page's own rules here, and layout, contrast, taps and fonts
+  // measured at phone, tablet and desktop widths. Errors stop Publish; each issue can go to Tia as a fix. ─────────
+  let issues = [], layoutFound = [], checkT = 0, checkRun = 0, checkKey = "";
+  function runCheck() {
+    clearTimeout(checkT);
+    checkT = setTimeout(async () => {
+      if (!alive || !cur) return;
+      if (!built()) { issues = []; layoutFound = []; return checkUi(); }
+      const key = `${sourceHtml()}\n${body().css}\n${brandOf(cur)?.css || ""}\n${JSON.stringify(body().after)}\n${MEETINGS.length}`;
+      if (key === checkKey) return;
+      checkKey = key;
+      const base = checkStudioPage({ html: sourceHtml(), after: body().after, meetings: loaded ? MEETINGS : null });
+      issues = [...base, ...layoutFound]; checkUi();
+      const run = ++checkRun;
+      const lay = await layoutIssues().catch(() => []);
+      if (run !== checkRun || !alive) return;
+      layoutFound = lay; issues = [...base, ...lay]; checkUi();
+    }, 400);
+  }
+  const lum = (c) => { const m = /rgba?\(([\d.]+),\s*([\d.]+),\s*([\d.]+)(?:,\s*([\d.]+))?/.exec(c || ""); if (!m) return null; const ch = [m[1], m[2], m[3]].map((x) => { const v = Number(x) / 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; }); return { l: 0.2126 * ch[0] + 0.7152 * ch[1] + 0.0722 * ch[2], a: m[4] === undefined ? 1 : Number(m[4]) }; };
+  async function layoutIssues() {
+    const out = [];
+    const css = `${BASE}\n${cssFor(brandOf(cur)?.css)}\n${cssFor(body().css)}`, html = sourceHtml();
+    const brandText = String(brandOf(cur)?.css || "").toLowerCase();
+    const where = { 390: "a phone", 768: "a tablet", 1100: "a desktop" };
+    for (const w of [390, 768, 1100]) {
+      const box = h("div", { style: `position:fixed;left:-30000px;top:0;width:${w}px;height:1000px;overflow:auto;visibility:hidden;pointer-events:none` });
+      $("layer").append(box);
+      const r = box.attachShadow({ mode: "open" });
+      r.innerHTML = `<style>${css}</style><div class="cl-root">${html}</div>`;
+      // Every step, condition and the thank-you at once, so each is measured.
+      r.querySelectorAll("[hidden]").forEach((e) => e.removeAttribute("hidden"));
+      await new Promise((res) => requestAnimationFrame(() => requestAnimationFrame(res)));
+      if (!alive) return out;
+      if (Math.max(box.scrollWidth, r.querySelector(".cl-root").scrollWidth) > w + 2) out.push({ level: w === 390 ? "error" : "warning", code: "sideways", text: `The form scrolls sideways on ${where[w]} (${w}px wide).`, fix: `Make the form fit ${w}px wide with no sideways scrolling.` });
+      if (w === 390) {
+        const els = [...r.querySelectorAll("h1,h2,h3,h4,p,label,span,button,a,legend,li,strong,b,small")].slice(0, 300);
+        let low = 0, clipped = false, small = false, font = "";
+        for (const el of els) {
+          const own = [...el.childNodes].some((n) => n.nodeType === 3 && n.textContent.trim());
+          const rect = el.getBoundingClientRect();
+          if (!own || !rect.width || !rect.height) continue;
+          const cs = getComputedStyle(el);
+          // Contrast against the first solid background behind it.
+          const fg = lum(cs.color);
+          let bg = null;
+          for (let p = el; p && p.nodeType === 1; p = p.parentElement) { const ps = getComputedStyle(p); if (ps.backgroundImage && ps.backgroundImage !== "none") { bg = "skip"; break; } const b = lum(ps.backgroundColor); if (b && b.a > 0.5) { bg = b; break; } }
+          if (fg && bg && bg !== "skip" && low < 2) {
+            const ratio = (Math.max(fg.l, bg.l) + 0.05) / (Math.min(fg.l, bg.l) + 0.05);
+            const size = parseFloat(cs.fontSize), large = size >= 24 || (size >= 18.6 && Number(cs.fontWeight) >= 700);
+            if (ratio < (large ? 3 : 4.5)) { low++; const t = el.textContent.trim().replace(/\s+/g, " ").slice(0, 40); out.push({ level: "warning", code: "contrast", text: `"${t}" is hard to read (contrast ${ratio.toFixed(1)} to 1).`, fix: `Raise the contrast of the text "${t}" to at least ${large ? 3 : 4.5} to 1, using the brand's darker colors.` }); }
+          }
+          if (!clipped && /hidden|clip/.test(cs.overflow + cs.overflowX) && el.scrollWidth > el.clientWidth + 1) { clipped = true; const t = el.textContent.trim().slice(0, 40); out.push({ level: "warning", code: "clipped", text: `"${t}" is cut off on a phone.`, fix: `Let the text "${t}" wrap so it isn't cut off on a phone.` }); }
+          if (!small && (el.tagName === "BUTTON" || el.matches("label.choice, label.check, a")) && rect.height < 40) { small = true; const t = el.textContent.trim().slice(0, 30); out.push({ level: "warning", code: "small-tap", text: `"${t}" is smaller than a finger on a phone (${Math.round(rect.height)}px tall).`, fix: "Make every button and choice at least 44px tall on phones." }); }
+          const fam = (cs.fontFamily.split(",")[0] || "").replace(/["']/g, "").trim();
+          if (!font && brandText && fam && !/^(serif|sans-serif|monospace|system-ui|ui-sans-serif|ui-serif|-apple-system|inherit|initial)$/i.test(fam) && !brandText.includes(fam.toLowerCase())) { font = fam; out.push({ level: "warning", code: "font", text: `Uses the font ${fam}, which isn't the brand's.`, fix: `Use only the brand's fonts in place of ${fam}.` }); }
+        }
+      }
+      box.remove();
+    }
+    return out;
+  }
+  function checkUi() {
+    const b = $("checkBtn");
+    b.hidden = !cur || !built();
+    const errs = issues.filter((i) => i.level === "error").length, notes = issues.length - errs;
+    b.className = `checkbtn${errs ? " err" : issues.length ? "" : " ok"}`;
+    b.innerHTML = errs || notes ? `<span>${errs ? `${errs} to fix` : `${notes} ${notes === 1 ? "note" : "notes"}`}</span>` : `${SVG(P.check, 13)}<span>Ready</span>`;
+    b.setAttribute("aria-label", errs ? `${errs} problems to fix` : notes ? `${notes} notes` : "Ready to publish");
+    if (!errs && /first$/.test(S.pubMsg)) { S.pubMsg = ""; pubUi(); }
+  }
+  function checkMenu() {
+    if (!issues.length) return openMenu($("checkBtn"), [h("div", { class: "issue" }, h("span", { class: "lv" }), h("span", { text: "Nothing to fix. The form is ready to publish." }), h("span"))], 340);
+    const fixable = issues.filter((i) => i.fix);
+    const tia = !!brandOf(cur)?.css && !S.busy;
+    const head = h("div", { class: "ihead" }, h("span", { text: "Form check" }), fixable.length > 1 && tia ? h("button", { class: "pill", html: `${tiaSvg(14)}<span>Fix all</span>`, onclick: () => { closeMenu(); setChatFold(false); send(`Fix these:\n${fixable.map((i) => `- ${i.fix}`).join("\n")}`); } }) : null);
+    const rows = [...issues].sort((a, b) => (a.level === b.level ? 0 : a.level === "error" ? -1 : 1)).map((i) => h("div", { class: "issue" }, h("span", { class: `lv${i.level === "error" ? " err" : ""}` }), h("span", { text: i.text }),
+      i.fix && tia ? h("button", { class: "pill", text: "Fix", onclick: () => { closeMenu(); setChatFold(false); send(`Fix this: ${i.fix}`); } }) : /On submission/.test(i.text) ? h("button", { class: "pill", text: "Open", onclick: () => { closeMenu(); setMode("after"); } }) : h("span")));
+    openMenu($("checkBtn"), [head, ...rows], 380);
+  }
+  $("checkBtn").onclick = () => (menuEl && menuFor === $("checkBtn") ? closeMenu() : checkMenu());
+
   // ── Publish ───────────────────────────────────────────────────────────────────────────────────────────
   const formName = () => (src.querySelector("h1,h2,h3,legend")?.textContent || "").replace(/\s+/g, " ").trim().slice(0, 80) || `${brandOf(cur)?.name || "New"} form`;
   function pubUi() {
@@ -890,6 +1007,9 @@ export function mountStudio(shell: ShadowRoot, api: StudioApi): () => void {
   }
   $("publish").onclick = async () => {
     if (S.publishing || !built() || !brandOf(cur)) return;
+    const now = [...checkStudioPage({ html: sourceHtml(), after: body().after, meetings: loaded ? MEETINGS : null }), ...layoutFound];
+    const errs = now.filter((i) => i.level === "error");
+    if (errs.length) { issues = now; checkUi(); S.pubMsg = `Fix ${errs.length === 1 ? "1 problem" : `${errs.length} problems`} first`; pubUi(); return checkMenu(); }
     const c = cur;
     S.publishing = true; S.pubMsg = ""; pubUi();
     try {
@@ -942,7 +1062,7 @@ export function mountStudio(shell: ShadowRoot, api: StudioApi): () => void {
     if (cur && cur !== c) save(true);
     if (!c.body) { const full = await api.chat(c.id).catch(() => null); c.body = full?.body || blank(c.brandId).body; }
     c.body.after ||= { kind: "thanks", url: "", meeting: "", routes: [] };
-    c.body.turns ||= []; c.body.log ||= [];
+    c.body.turns ||= []; c.body.log ||= []; c.body.ids ||= {};
     cur = c;
     setSource(c.body.html || "");
     stepAt = 0; done = false; S.sel = null; S.about = null; S.pubMsg = "";

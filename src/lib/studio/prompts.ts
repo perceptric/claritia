@@ -32,6 +32,10 @@ THE FORM'S HTML
 - Plain HTML and CSS. No <script>, no on* attributes, no iframes, no images other than the logo.
 - Wrap everything in <div class="page" id="page">: it fills the preview, so give .page the background. The form inside can be a card or full-bleed.
 - Give every meaningful element an id (short, unique) so you can patch it later.
+- Questions carry data-cl-id: keep every data-cl-id exactly as it is when you change or rewrite the page (it keeps past answers tied to the question).
+- Never ask for passwords, card or bank numbers, ID or tax numbers, or health records (diagnoses, medications, allergies). Ask for a reason for a visit in plain words.
+- Every question has a visible label tied to it (label for= and id). Buttons and choices are at least 44px tall. Text keeps strong contrast on its background. The form fits a 390px wide phone with no sideways scrolling.
+- Don't draw a consent checkbox: Claritia adds the consent line where the law asks for it.
 - Questions are real inputs with a unique name: input, textarea, select, radios and checkboxes sharing a name. Use required where needed. Style choice cards with label:has(input:checked) and hide the native input visually if you like.
 - Attributes the form runs on:
   data-cl-step on a <section> makes a step (shown one at a time). Without steps it's one page.

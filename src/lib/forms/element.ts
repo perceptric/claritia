@@ -871,6 +871,20 @@ export class ClaritiaForm extends Base {
       const logo = this.data?.logo_url ?? "";
       const ok = /^https:\/\//.test(logo) ? !!safeUrl(logo) : /^data:image\/svg\+xml[;,]/.test(logo);
       wrap.querySelectorAll("img[data-cl-logo]").forEach((img) => (ok ? img.setAttribute("src", logo) : ((img as HTMLElement).hidden = true)));
+      // Consent by region (or the notice), the spam trap and the bot check, before the send button, as on every form.
+      const send = [...wrap.querySelectorAll("[type=submit]")].find((b) => !b.closest("[data-cl-thanks]"));
+      const extras: HTMLElement[] = [];
+      if (this.needsConsent() && !wrap.querySelector("#clr-consent")) {
+        const box = el("input", { type: "checkbox", id: "clr-consent" }) as HTMLInputElement;
+        box.checked = this.consent;
+        box.addEventListener("change", () => (this.consent = box.checked));
+        extras.push(el("label", { class: "check cl-consent" }, box, el("span", { text: form.consent.label })));
+      }
+      if (form.consent.mode === "notice") extras.push(el("p", { class: "text cl-notice", text: form.consent.label }));
+      extras.push(el("div", { class: "trap", "aria-hidden": "true", style: "position:absolute;left:-10000px;width:1px;height:1px;overflow:hidden" }, el("input", { type: "text", name: "company_url", tabindex: "-1", autocomplete: "off" })));
+      if (this.data?.turnstile && form.spam.turnstile) extras.push(el("div", { class: "ts" }));
+      if (send) send.before(...extras);
+      else wrap.append(...extras);
       const run = runPage(wrap, (v) => void this.pageSend(form, v));
       this.pg = { wrap, run };
       this.root.replaceChildren(st, wrap);
@@ -903,6 +917,13 @@ export class ClaritiaForm extends Base {
     this.answers = answers;
     this.errors = {};
     this.alert = "";
+    // A consent box the form requires has to be ticked first.
+    if (form.consent.required && this.needsConsent() && !this.consent) {
+      this.alert = "Tick the box to send the form.";
+      this.render();
+      (this.root.querySelector("#clr-consent") as HTMLElement | null)?.focus();
+      return;
+    }
     if (this.isPreview) {
       this.done = true;
       return this.render();
