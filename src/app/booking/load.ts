@@ -1,7 +1,7 @@
 import "server-only";
 import { cache } from "react";
 import { loadHandleCached } from "@/lib/meetings/public";
-import { pageRpc } from "../book/load";
+import { pageRpc, withBrand } from "../book/load";
 
 // /booking/<handle> (docs/scheduling-plan.md 4.1): a handle names a person or a team. The pages below read the same
 // booking data as /book/<workspace>/..., found through the handle, in one read (book_page) that the page and its
@@ -12,5 +12,5 @@ export const loadHandle = cache(async (handle: string, type: string | null, form
   const rpc = pageRpc();
   if (!rpc) return null;
   const d = await loadHandleCached(rpc, handle, type, form).catch(() => null);
-  return d ? { rpc, ...d } : null;
+  return d ? { rpc, h: d.h, t: await withBrand(d.t, form) } : null;
 });

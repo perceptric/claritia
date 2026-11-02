@@ -115,6 +115,20 @@ booking gets an email with the same rep's times.
 - **Embed:** `<claritia-book type="…">` in the same `forms/v1.js` script (one script tag for forms and booking), or a
   popup from any button with `data-claritia-book`.
 - **Spam:** Turnstile on the page when the form uses it, plus a cap of booking tries per IP.
+- **Branded booking pages (paid plans):** on Starter, Team and Business the page can use the brand's own stylesheet,
+  the one Form Studio reads from the site (`brand_kits.studio_css`). Claritia's layout stays: month, Soonest, morning
+  and afternoon times, time zone and the details step. The brand's `.btn` styles Next and Book, `.btn-secondary` the
+  times, Soonest and outline buttons, `.field` the inputs, `.label` the field names and `.heading` the titles. Its
+  colors feed the page's own, so the picked day and focus match; a main color that can't be seen on the brand's
+  background is left out. Everything is scoped to the booking root, and Claritia keeps the sizes of times, Next and
+  Soonest so a full-width brand button can't break them (`src/lib/meetings/brandPage.ts`,
+  `scripts/book-brand-check.ts`). The plan is checked on the server when the page loads (`brandServer.ts`), on
+  every booking page: types, the team and person pages, one-off and single-use links, polls and the guest's manage
+  page. On Free the page is Claritia's look with "Book with Claritia" on, whatever was saved, so a downgrade falls back
+  by itself. Branded forms stay on every plan. Styling shows "Paid plans" and Upgrade on Free, and Read the look when a
+  paid brand has no stylesheet yet. Emails keep Claritia's look for now.
+  Running cost: one Opus look read per brand (about $0.30, check), cached and shared with Form Studio, plus one small
+  read per page view kept 30 s per server. About $5 a month at Beta (50 teams) and $50 at Growth (500 teams).
 
 ### 1.8b Calendly parity: the booking calendar on its own
 

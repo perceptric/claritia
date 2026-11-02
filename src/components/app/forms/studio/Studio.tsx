@@ -13,27 +13,12 @@ import { brandName } from "@/lib/brand/name";
 import { readProfile } from "@/lib/studio/industries";
 import { invalidate, must, postJson, type ViewProps } from "../../ui";
 import { mountStudio, STUDIO_CSS, STUDIO_HTML, type StudioApi } from "./studio";
+import { readLines as readStream } from "../../streamLines";
 
 type Line = { t?: string; done?: string; cut?: boolean; css?: string; say?: string; profile?: unknown; error?: string; working?: number; beat?: number };
 
 /** Read a stream of JSON lines from /api/studio, one line at a time. */
-async function readLines(res: Response, onLine: (l: Line) => void) {
-  if (!res.ok || !res.body) throw new Error(((await res.json().catch(() => ({}))) as { error?: string }).error ?? "Something went wrong.");
-  const reader = res.body.getReader();
-  const dec = new TextDecoder();
-  let buf = "";
-  for (;;) {
-    const { value, done } = await reader.read();
-    buf += dec.decode(value ?? new Uint8Array(), { stream: !done });
-    let at: number;
-    while ((at = buf.indexOf("\n")) >= 0) {
-      const raw = buf.slice(0, at).trim();
-      buf = buf.slice(at + 1);
-      if (raw) onLine(JSON.parse(raw) as Line);
-    }
-    if (done) break;
-  }
-}
+const readLines = (res: Response, onLine: (l: Line) => void) => readStream<Line>(res, onLine);
 
 const KIT_COLS = "id, name, source_url, scan_status, logo_url, logo_svg";
 type Chat = Awaited<ReturnType<StudioApi["chats"]>>[number];

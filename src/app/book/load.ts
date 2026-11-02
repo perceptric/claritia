@@ -2,7 +2,8 @@ import "server-only";
 import { cache } from "react";
 import { turnstileSiteKey } from "@/lib/forms/server";
 import type { Rpc } from "@/lib/jobs";
-import { loadTargetCached } from "@/lib/meetings/public";
+import { loadBookBrand } from "@/lib/meetings/brandServer";
+import { loadTargetCached, type Kit, type Target } from "@/lib/meetings/public";
 import { serviceClient } from "@/lib/serviceClient";
 
 // What the booking pages share on the server: the service client as an Rpc and the address's options.
@@ -20,8 +21,13 @@ export const pageTarget = cache(async (ws: string, slug: string | null, form: st
   const rpc = pageRpc();
   if (!rpc) return null;
   const t = await loadTargetCached(rpc, ws, slug, form).catch(() => null);
-  return t ? { rpc, t } : null;
+  return t ? { rpc, t: await withBrand(t, form) } : null;
 });
+
+/** The page with its plan check and the brand's stylesheet (branded booking pages are on paid plans). */
+export async function withBrand(t: Target, form: string | null): Promise<Target> {
+  return { ...t, brand: await loadBookBrand(serviceClient(), t.ws.id, form) };
+}
 
 export type Search = Promise<Record<string, string | string[] | undefined>>;
 export const one = (v: string | string[] | undefined) => (typeof v === "string" ? v : undefined);
@@ -43,3 +49,12 @@ export const turnstileFor = (on: boolean) => (on ? turnstileSiteKey() || null : 
 
 /** Keeps ?embed=1 on links between pages inside a frame. */
 export const keep = (href: string, embed: boolean) => (embed ? `${href}?embed=1` : href);
+
+/**
+ * The look of a page made from a link (one-off, single-use, poll, the guest's manage page): the workspace's kit and the
+ * brand's stylesheet on paid plans, Claritia's look on Free (src/lib/meetings/brandPage.ts).
+ */
+export async function linkShell(ws: { id: string; kit: Kit }) {
+  const b = await loadBookBrand(serviceClient(), ws.id, null);
+  return b.paid ? { tokens: ws.kit.tokens, design: ws.kit.design, logo: ws.kit.logo_url, brand: b.css ? { css: b.css, fonts: b.fonts } : undefined } : { tokens: {}, design: undefined, logo: null, brand: undefined };
+}

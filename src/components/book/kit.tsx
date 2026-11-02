@@ -23,11 +23,15 @@ export function kitLook(tokens: Record<string, unknown> | null | undefined, desi
   return { theme, css };
 }
 
+/** The brand's own stylesheet on a paid booking page, scoped to .cb-brand (src/lib/meetings/brandPage.ts). */
+export type BrandSheet = { css: string; fonts: string[] };
+
 /** Wraps children in a worked-out look. */
-export function KitFrame({ look, vars, className = "", children }: { look: KitLook; vars?: Record<string, string>; className?: string; children: React.ReactNode }) {
+export function KitFrame({ look, vars, brand, className = "", children }: { look: KitLook; vars?: Record<string, string>; brand?: BrandSheet; className?: string; children: React.ReactNode }) {
   const { theme, css } = look;
+  const on = !!brand?.css;
   return (
-    <div className={`cb-root ${css ? "cb-ds " : ""}${className}`} style={(theme ? { ...theme.vars, ...vars } : vars) as React.CSSProperties | undefined} data-dark={theme?.dark || undefined}>
+    <div className={`cb-root ${css ? "cb-ds " : ""}${on ? "cb-brand " : ""}${className}`} style={(theme ? { ...theme.vars, ...vars } : vars) as React.CSSProperties | undefined} data-dark={theme?.dark || undefined}>
       <style href="clr-book" precedence="default">
         {BOOK_CSS}
       </style>
@@ -37,15 +41,21 @@ export function KitFrame({ look, vars, className = "", children }: { look: KitLo
         </style>
       ) : null}
       {theme?.fontUrl ? <link rel="stylesheet" href={theme.fontUrl} precedence="default" /> : null}
+      {on ? (
+        <style href={`clr-book-brand-${hashText(brand!.css)}`} precedence="default">
+          {brand!.css}
+        </style>
+      ) : null}
+      {on ? brand!.fonts.map((f) => <link key={f} rel="stylesheet" href={f} precedence="default" />) : null}
       {children}
     </div>
   );
 }
 
 /** Wraps children in the kit's variables and the booking styles. */
-export function KitScope({ tokens, design, vars, className, children }: { tokens?: Record<string, unknown> | null; design?: unknown; vars?: Record<string, string>; className?: string; children: React.ReactNode }) {
+export function KitScope({ tokens, design, vars, brand, className, children }: { tokens?: Record<string, unknown> | null; design?: unknown; vars?: Record<string, string>; brand?: BrandSheet; className?: string; children: React.ReactNode }) {
   return (
-    <KitFrame look={kitLook(tokens, design)} vars={vars} className={className}>
+    <KitFrame look={kitLook(tokens, design)} vars={vars} brand={brand} className={className}>
       {children}
     </KitFrame>
   );

@@ -20,7 +20,7 @@ export async function TypeView({ t, o, rpc }: { t: Target; o: Opts; rpc: Rpc }) 
   const first = questions.length ? undefined : await preferredSlots(rpc, { ws: t.ws.id, type: t.type!, length: type.lengths[0]!, host: o.link?.host, profiles: t.profiles }).catch(() => undefined);
   const s = shellOf(t);
   return (
-    <BookShell tokens={s.tokens} design={s.design} vars={s.vars} badge={s.badge} embed={o.embed}>
+    <BookShell tokens={s.tokens} design={s.design} vars={s.vars} badge={s.badge} brand={s.brand} embed={o.embed}>
       <BookFlow
         endpoint={`/api/book/t/${t.ws.slug}/${t.type!.slug}`}
         type={type}
