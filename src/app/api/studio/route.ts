@@ -4,7 +4,9 @@ import { sourceText } from "@/lib/brand/sourceSkin";
 import { isMember } from "@/lib/contacts/server";
 import { checkForm } from "@/lib/forms/schema";
 import { cleaningCtx } from "@/lib/contacts/server";
+import { checkStudioPage, errorsIn } from "@/lib/studio/check";
 import { pageForm, type PageAfter } from "@/lib/studio/page";
+import { turnstileSiteKey } from "@/lib/forms/server";
 import { BRAND_RULES, CHAT_RULES, STUDIO_MODEL } from "@/lib/studio/prompts";
 import { hostOf, readSite, readSource } from "@/lib/studio/site";
 import { requireUser } from "@/lib/serverAuth";
@@ -172,7 +174,16 @@ export async function POST(request: Request) {
     if (!html.trim()) return bad("Build the form first.");
     const after = (b.after && typeof b.after === "object" ? b.after : { kind: "thanks" }) as PageAfter;
     const name = String(b.name ?? "").trim().slice(0, 120) || "New form";
-    const { form: draft, questions } = pageForm({ html, css: String(b.css ?? ""), brand: String(b.brand ?? ""), after, title: name });
+    // The form check, again on the server (docs/studio-v2-plan.md 6.5): no broken form goes live.
+    const types = await db.from("meeting_types").select("id, name").eq("workspace_id", ws).eq("active", true);
+    const issues = checkStudioPage({ html, after, meetings: types.error ? null : ((types.data ?? []) as { id: string; name: string }[]) });
+    const errs = errorsIn(issues);
+    if (errs.length) return Response.json({ error: errs[0]!.text, issues: errs }, { status: 400 });
+    // A question keeps its field id when it's renamed or Tia writes the page again: the ids the form had last time.
+    const formIdIn = typeof b.formId === "string" && UUID.test(b.formId) ? b.formId : "";
+    const prev = formIdIn ? ((await db.from("forms").select("draft").eq("id", formIdIn).eq("workspace_id", ws).maybeSingle()).data as { draft?: { page?: { ids?: Record<string, string> } } } | null) : null;
+    const turnstile = !!turnstileSiteKey() && !!process.env.TURNSTILE_SECRET_KEY?.trim();
+    const { form: draft, questions } = pageForm({ html, css: String(b.css ?? ""), brand: String(b.brand ?? ""), after, title: name, prevIds: prev?.draft?.page?.ids ?? {}, turnstile });
     if (!questions.length) return bad("The form has no questions to send.");
     const ctx = await cleaningCtx(db, ws);
     const r = checkForm(draft, { custom: ctx.custom });
