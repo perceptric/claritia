@@ -47,7 +47,6 @@ export type Op =
   | { op: "set_notify"; notify: Partial<Notify> }
   | { op: "set_reply"; reply: Partial<Reply> }
   | { op: "set_keep"; keep: Partial<Keep> }
-  | { op: "set_enrich"; hideKnown?: boolean; fields?: string[] }
   | { op: "set_after"; end: After["end"] }
   | { op: "set_schedule"; schedule: After["schedule"] | null }
   | { op: "set_capture"; adapter?: NonNullable<Form["capture"]>["adapter"]; selector?: string }
@@ -345,11 +344,6 @@ export function applyOp(input: Form, op: Op): { form: Form } | { error: string }
     case "set_keep":
       form.keep = { ...DEFAULT_KEEP, ...form.keep, ...op.keep };
       return { form };
-    case "set_enrich": {
-      const cur = form.enrich ?? { hideKnown: false, fields: [] };
-      form.enrich = { hideKnown: op.hideKnown ?? cur.hideKnown, fields: op.fields ? [...new Set(op.fields)] : cur.fields };
-      return { form };
-    }
     case "set_after":
       form.after = { ...form.after, end: op.end };
       return { form };
@@ -462,8 +456,6 @@ export function describeOp(op: Op, before: Form): string {
       return op.reply.on === false ? "Turned off the auto-reply" : op.reply.on ? "Turned on the auto-reply" : "Changed the auto-reply";
     case "set_keep":
       return "Changed how long submissions are kept";
-    case "set_enrich":
-      return op.hideKnown === false ? "Shows every field" : "Hides fields we already know";
     case "set_after":
       return op.end.kind === "redirect" ? "Opens a page after the submit" : "Changed the thank-you message";
     case "set_schedule":

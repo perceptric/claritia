@@ -15,10 +15,6 @@ psql "$URL" -qX -v ON_ERROR_STOP=1 -f tests/db/leaks.sql
 psql "$URL" -qX -v ON_ERROR_STOP=1 -f tests/db/jobs.sql
 PG_URL="$URL" node --test tests/pg/*.ts
 if [ -n "${CHROMIUM_PATH:-}" ]; then
-  npm run -s build:script >/dev/null
-  PG_URL="$URL" DEBUG="${DEBUG:-}" node scripts/collect-check.ts
-  PG_URL="$URL" node scripts/identity-check.ts
-  PG_URL="$URL" node scripts/consent-check.ts
   PG_URL="$URL" node scripts/forms-check.ts
   PG_URL="$URL" node scripts/forms-qa-check.ts
   node scripts/brand-check.ts

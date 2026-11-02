@@ -6,7 +6,7 @@
 
 import { useState } from "react";
 import type { Location, MeetingSource, MeetingStatus, TypeSettings } from "@/lib/meetings/types";
-import { CalendarIcon, Contact, ExternalLink, Link as LinkIcon, Video } from "../../Icons";
+import { CalendarIcon, ExternalLink, Link as LinkIcon, Video } from "../../Icons";
 import { BrandLogo } from "../BrandLogo";
 import { Sheet } from "../Sheet";
 import { Button, Empty, ErrorNote, errorText, IconButton, invalidate, Loading, must, Page, Panel, timeAgo, useQuery, type ViewProps } from "../ui";
@@ -174,12 +174,6 @@ export function useMeetingScreen(props: ViewProps, id: string, layout: "page" | 
             <a href={`mailto:${m.guest_email}`} className="text-[12.5px] text-muted hover:text-ink">
               {m.guest_email}
             </a>
-            {m.contact_id ? (
-              <Button variant="plain" size="sm" className="-my-1 h-7 px-2.5" onClick={() => navigate("contacts", m.contact_id!)}>
-                <Contact size={13} />
-                Contact
-              </Button>
-            ) : null}
           </span>
         </Detail>
         {company || domain ? (

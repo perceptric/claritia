@@ -515,9 +515,6 @@ export function NewForm({ sb, session, ws, navigate, site, kits: start, onClose,
                 Where answers <span className="text-faint">go.</span>
               </h2>
               <div className="flex flex-col rounded-[10px] border border-line">
-                <Row title="Contacts in Claritia">
-                  <Tg label="Contacts in Claritia" on onChange={() => undefined} disabled />
-                </Row>
                 {crms.map((c) => (
                   <Row key={c.id} title={c.name}>
                     <Tg label={`Send to ${c.name}`} on={submission.crms.includes(c.id)} onChange={(v) => setSubmission((s) => ({ ...s, crms: v ? [...s.crms, c.id] : s.crms.filter((x) => x !== c.id) }))} />

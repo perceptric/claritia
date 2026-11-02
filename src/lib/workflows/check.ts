@@ -6,7 +6,7 @@ import { emailText } from "../design/email/compile.ts";
 import { readEmailDoc, type EmailDoc } from "../design/email/doc.ts";
 import { countSteps, maxDepth, pathsOf, walk } from "./tree.ts";
 import type { Cond } from "../router/types.ts";
-import { LIMITS, UPDATABLE, emptyBody, type Body, type Step } from "./types.ts";
+import { LIMITS, emptyBody, type Body, type Step } from "./types.ts";
 
 export type Problem = { step: string | null; text: string };
 
@@ -25,16 +25,7 @@ export function problems(body: Body): Problem[] {
   const need = (ok: boolean, text: string) => {
     if (!ok) out.push({ step: null, text });
   };
-  if (t.kind === "segment") need(!!t.segment, "Pick the segment that starts it");
-  if (t.kind === "broadcast") {
-    need(!!t.segment, "Pick who gets it");
-    need(!!t.at && !Number.isNaN(Date.parse(t.at)), "Pick when it goes");
-  }
-  if (t.kind === "field") need(!!t.key, "Pick the field that starts it");
-  if (t.kind === "date") need(!!t.field, "Pick the date field");
-  if (t.kind === "outcome") need(t.outcomes.length > 0, "Pick the outcomes that start it");
   if (t.kind === "meeting") need(t.events.length > 0, "Pick the meeting events that start it");
-  if (t.kind === "product") need(t.events.length > 0, "Pick the product events that start it");
   if (!body.steps.length) out.push({ step: null, text: "Add a step" });
   if (countSteps(body.steps) > LIMITS.steps) out.push({ step: null, text: `Up to ${LIMITS.steps} steps` });
   if (maxDepth(body.steps) > LIMITS.depth) out.push({ step: null, text: `Paths can go ${LIMITS.depth} levels deep` });
@@ -81,22 +72,12 @@ export function stepProblems(s: Step): string[] {
       break;
     case "wait_until":
       if (s.days <= 0) out.push("Set the longest wait");
-      if (s.event === "product.used" && !s.name) out.push("Pick the product event to wait for");
       break;
     case "branch":
       if (!s.conds.length) out.push("Add a condition");
       break;
     case "split":
       if (s.percent <= 0 || s.percent >= 100) out.push("Pick a split between 1 and 99%");
-      break;
-    case "update":
-      if (!(UPDATABLE as readonly string[]).includes(s.field) && !s.field.startsWith("f.")) out.push("Pick a field");
-      break;
-    case "list":
-      if (!s.segment) out.push("Pick a list");
-      break;
-    case "task":
-      if (!s.title.trim()) out.push("Name the task");
       break;
     case "slack":
       if (!s.text.trim()) out.push("Write the message");
@@ -124,7 +105,7 @@ export function cleanBody(raw: unknown): Body {
   const entry = (r.entry && typeof r.entry === "object" ? r.entry : {}) as Record<string, unknown>;
   const goals = (Array.isArray(r.goals) ? r.goals : [])
     .map((g: Record<string, unknown>) =>
-      g?.kind === "meeting_booked" ? { kind: "meeting_booked" as const } : g?.kind === "lifecycle" ? { kind: "lifecycle" as const, stages: ids(g.stages) } : g?.kind === "outcome" ? { kind: "outcome" as const, outcomes: ids(g.outcomes) } : null,
+      g?.kind === "meeting_booked" ? { kind: "meeting_booked" as const } : null,
     )
     .filter((g): g is Body["goals"][number] => !!g)
     .slice(0, 5);
@@ -146,33 +127,18 @@ function cleanTrigger(t: Record<string, unknown>): Body["trigger"] | null {
       return { kind: "meeting", events: ids(t.events).filter((e) => ["booked", "canceled", "held", "no_show"].includes(e)) as ("booked" | "canceled" | "held" | "no_show")[], types: ids(t.types) };
     case "not_booked":
       return { kind: "not_booked", forms: ids(t.forms) };
-    case "outcome":
-      return { kind: "outcome", outcomes: ids(t.outcomes) };
-    case "band":
-      return { kind: "band", bands: ids(t.bands) };
     case "routed":
       return { kind: "routed", result: t.result === "unassigned" ? "unassigned" : t.result === "routed" ? "routed" : "any" };
-    case "segment":
-      return { kind: "segment", segment: str(t.segment, 40), on: t.on === "left" ? "left" : "entered" };
-    case "field":
-      return { kind: "field", key: str(t.key, 60), ...(typeof t.to === "string" && t.to ? { to: str(t.to, 200) } : {}) };
     case "clicked":
       return { kind: "clicked", emails: ids(t.emails) };
-    case "product":
-      return { kind: "product", events: (Array.isArray(t.events) ? t.events : []).map((e) => str(e, 64)).filter(Boolean).slice(0, 20) };
-    case "date":
-      return { kind: "date", field: str(t.field, 60), days: num(t.days, -365, 365, 0), time: /^\d{2}:\d{2}$/.test(String(t.time)) ? String(t.time) : "09:00" };
-    case "broadcast":
-      return { kind: "broadcast", segment: str(t.segment, 40), at: str(t.at, 40) };
-    case "manual":
-      return { kind: "manual" };
     default:
       return null;
   }
 }
 
-const KINDS = new Set(["email", "wait", "wait_until", "branch", "split", "enrich", "qualify", "route", "update", "list", "task", "slack", "webhook", "crm", "exit"]);
-const WAIT_EVENTS = new Set(["meeting.booked", "email.clicked", "form.submitted", "lead.outcome", "segment.entered", "product.used"]);
+// Steps of removed parts (Enrich, Qualify, Update field, Add to list, Create task, Push to CRM) are dropped.
+const KINDS = new Set(["email", "wait", "wait_until", "branch", "split", "route", "slack", "webhook", "exit"]);
+const WAIT_EVENTS = new Set(["meeting.booked", "email.clicked", "form.submitted"]);
 
 function cleanSteps(raw: unknown, depth: number): Step[] {
   if (!Array.isArray(raw) || depth > 4) return [];
@@ -216,7 +182,6 @@ function cleanStep(x: unknown, depth: number): Step | null {
         id,
         kind: "wait_until",
         event: (WAIT_EVENTS.has(String(s.event)) ? s.event : "meeting.booked") as "meeting.booked",
-        ...(s.event === "product.used" && typeof s.name === "string" && s.name.trim() ? { name: str(s.name, 64) } : {}),
         days: num(s.days, 0, 90, 3),
         yes: cleanSteps(s.yes, depth + 1),
         no: cleanSteps(s.no, depth + 1),
@@ -225,12 +190,6 @@ function cleanStep(x: unknown, depth: number): Step | null {
       return { id, kind: "branch", match: s.match === "any" ? "any" : "all", conds: (Array.isArray(s.conds) ? (s.conds as Cond[]) : []).slice(0, 10), yes: cleanSteps(s.yes, depth + 1), no: cleanSteps(s.no, depth + 1) };
     case "split":
       return { id, kind: "split", percent: num(s.percent, 1, 99, 50), a: cleanSteps(s.a, depth + 1), b: cleanSteps(s.b, depth + 1) };
-    case "update":
-      return { id, kind: "update", field: str(s.field, 60), value: str(s.value, 200) };
-    case "list":
-      return { id, kind: "list", action: s.action === "remove" ? "remove" : "add", segment: str(s.segment, 40) };
-    case "task":
-      return { id, kind: "task", title: str(s.title, 300), assignee: str(s.assignee, 40) || "owner", dueDays: num(s.dueDays, 0, 90, 1) };
     case "slack":
       return { id, kind: "slack", to: str(s.to, 40) || "owner", text: str(s.text, 1000) };
     case "webhook":

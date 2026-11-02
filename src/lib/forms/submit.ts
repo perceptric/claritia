@@ -24,7 +24,7 @@ import { regionOf } from "../web/policy.ts";
 import { contactPolicy } from "./overwrite.ts";
 import { regionsOf } from "./regions.ts";
 import { uploadIds } from "./files.ts";
-import { allFields, ENGINE, hideKeyOf, resultOf, utcDay, type Form, type Overwrite } from "./schema.ts";
+import { allFields, ENGINE, resultOf, utcDay, type Form, type Overwrite } from "./schema.ts";
 import { checkAnswers, contactParts } from "./values.ts";
 
 export type Incoming = {
@@ -246,9 +246,8 @@ export type FillRouting = { routed: RoutedAs; live: LiveRouter | null | undefine
  * Route a fill: here within the budget, or by a route job (same key, `form:<submission>`), never both. Whichever side
  * claims the lead first owns it: the inline run asks `gate` just before router_commit, and once the budget is over
  * the job is queued only if the inline run hadn't claimed it yet. A commit already under way gets COMMIT_GRACE_MS;
- * past that the job is queued too, and the key makes its run a repeat that writes nothing. A router whose rules test
- * the qualify outcome always goes to the job: the send never waits on qualify (Claude). `before` runs first inside
- * the budget (the cached lookup for fields hidden as known). `live` is the router already read, when there is one.
+ * past that the job is queued too, and the key makes its run a repeat that writes nothing. `live` is the router
+ * already read, when there is one.
  */
 export async function routeFillWith(
   rpc: Rpc,
@@ -257,7 +256,6 @@ export async function routeFillWith(
   submission: string,
   o: {
     live?: LiveRouter | null;
-    before?: () => Promise<unknown>;
     budgetMs?: number;
     graceMs?: number;
     /** The form's connection (stored on the run), its mapped answers, and the run's first booking state. */
@@ -288,11 +286,9 @@ export async function routeFillWith(
   };
   let live: LiveRouter | null | undefined = o.live;
   try {
-    const { liveRouterCached, route, usesQualify } = await import("../router/server.ts");
+    const { liveRouterCached, route } = await import("../router/server.ts");
     const done = (async () => {
       if (live === undefined) live = await liveRouterCached(rpc, ws);
-      if (live && !live.paused && usesQualify(live.body)) return { handOff: true as const };
-      if (o.before) await o.before().catch(() => undefined);
       return { r: await route(rpc, { ws, contact, key, reason: "form", live, gate, source: o.source, inputs: o.inputs, booking: o.booking, submission }) };
     })();
     done.catch(() => undefined);
@@ -308,7 +304,6 @@ export async function routeFillWith(
       }
     }
     const v = got.value;
-    if ("handOff" in v) return await toJob(live);
     const r = v.r;
     if (r.status === "late") return { routed: null, live };
     // A lead marked spam before isn't routed: it's held. A contact that's gone has no owner to book with.
@@ -332,38 +327,6 @@ export async function routeFillWith(
 
 export async function routeFill(rpc: Rpc, ws: string, contact: string, submission: string): Promise<RoutedAs> {
   return (await routeFillWith(rpc, ws, contact, submission)).routed;
-}
-
-/**
- * The fields the browser hid as known, checked again against the team's records and the lookup caches (filled when
- * the visitor left the email field). Only fields the owner allowed, and only ones still known, are let off.
- */
-async function knownIds(rpc: Rpc, f: PublicForm, raw: Incoming): Promise<Set<string> | undefined> {
-  const e = f.body.enrich;
-  if (!e?.hideKnown || !Array.isArray(raw.known) || !raw.known.length) return undefined;
-  const fields = allFields(f.body);
-  const byId = new Map(fields.map((x) => [x.id, x]));
-  const ids = raw.known.filter((id): id is string => typeof id === "string" && !!byId.get(id) && e.fields.includes(hideKeyOf(byId.get(id)!.key))).slice(0, 20);
-  const emailField = fields.find((x) => x.key === "email");
-  const answers = raw.answers && typeof raw.answers === "object" ? (raw.answers as Record<string, unknown>) : {};
-  const email = emailField && typeof answers[emailField.id] === "string" ? (answers[emailField.id] as string) : "";
-  if (!ids.length || !email) return undefined;
-  try {
-    const { knownForEmail } = await import("../enrich/server.ts");
-    const keys = await knownForEmail(rpc, f.workspace_id, email, ids.map((id) => hideKeyOf(byId.get(id)!.key)), { cacheOnly: true, budgetMs: 400 });
-    return new Set(ids.filter((id) => keys.includes(hideKeyOf(byId.get(id)!.key))));
-  } catch {
-    return undefined;
-  }
-}
-
-/**
- * The cached lookup into the new contact. It runs first inside the routing budget (so the router reads the lead
- * with it), never as a wait of its own; slower, the enrich_contact job fills it a moment later.
- */
-async function fillKnown(rpc: Rpc, contact: string): Promise<void> {
-  const { enrichContact } = await import("../enrich/server.ts");
-  await enrichContact(rpc, contact, { trigger: "form", cacheOnly: true, budgetMs: ROUTE_BUDGET_MS });
 }
 
 /**
@@ -394,8 +357,8 @@ export async function acceptFill(
     const old = await Promise.resolve(rpc("form_version_body", { p_form: f.id, p_version: raw.version })).catch(() => null);
     if (old && !old.error && old.data && typeof old.data === "object") f = { ...f, body: old.data as Form, version: raw.version };
   }
-  const [known, c, turnstileFailed] = await Promise.all([knownIds(rpc, f, raw), ctx, o.turnstileFailed]);
-  const prepare = (overLimit: boolean) => prepareSubmit(f.body, f.version, raw, c, { country: o.country, turnstileFailed, known, origin: o.origin, ownHost: o.ownHost, overLimit });
+  const [c, turnstileFailed] = await Promise.all([ctx, o.turnstileFailed]);
+  const prepare = (overLimit: boolean) => prepareSubmit(f.body, f.version, raw, c, { country: o.country, turnstileFailed, origin: o.origin, ownHost: o.ownHost, overLimit });
   let r = prepare(false);
   if ("errors" in r) return { status: 400, body: { errors: r.errors } };
   if ("error" in r) return { status: r.status, body: { error: r.error } };
@@ -472,7 +435,6 @@ export async function acceptFill(
     cid && !spam
       ? await routeFillWith(rpc, f.workspace_id, cid, sid, {
           ...(resolved ? { live: resolved.live } : {}),
-          before: f.body.enrich?.hideKnown && !repeat ? () => fillKnown(rpc, cid) : undefined,
           source: src ? { id: src.id, revision: src.revision } : null,
           inputs,
           booking: calendar ? "awaiting_selection" : "not_requested",

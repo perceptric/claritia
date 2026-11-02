@@ -76,9 +76,9 @@ export function CountUp({ value }: { value: number }) {
   return <>{fmt(shown)}</>;
 }
 
-const GROUPS: FieldDef["group"][] = ["Contact", "Company", "Form answers", "Source", "Score"];
+const GROUPS: FieldDef["group"][] = ["Contact", "Company", "Form answers", "Past fills", "Source"];
 
-/** Pick a field: a search box and the fields grouped as Contact, Company, Form answers, Source and Score. */
+/** Pick a field: a search box and the fields grouped as Contact, Company, Form answers, Past fills and Source. */
 export function FieldPicker({ fields, value, onChange, disabled = false, className = "" }: { fields: FieldDef[]; value: string; onChange: (f: FieldDef) => void; disabled?: boolean; className?: string }) {
   const [anchor, setAnchor] = useState<HTMLButtonElement | null>(null);
   const [q, setQ] = useState("");

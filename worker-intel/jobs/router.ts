@@ -19,7 +19,6 @@ import { leadRoutedEmail, mime, slaEmail, validAddress } from "../../src/lib/mee
 import { buttons, esc, fields, section, slackDm, tokenOf } from "../../src/lib/slack/app.ts";
 import { explain, minutesWords, partText, pathWords } from "../../src/lib/router/explain.ts";
 import { route, type Inputs, type LiveRouter, type SourceRef } from "../../src/lib/router/server.ts";
-import { qualifyContact } from "../../src/lib/enrich/server.ts";
 import type { Facts, Reason, StepResult } from "../../src/lib/router/types.ts";
 import { REASONS } from "../../src/lib/router/types.ts";
 import type { Mailer } from "./meetings.ts";
@@ -64,8 +63,6 @@ export const routeJob =
     if (reason === "sla") return passOn(rpc, ws, contact, key, String(p.sla ?? ""));
     if (p.undo === true) await call(rpc, "router_undo", { p_ws: ws, p_contact: contact });
     const byUser = typeof p.byUser === "string" && UUID.test(p.byUser) ? p.byUser : null;
-    // An import or a CRM sync has its own qualify job for each lead: no waiting on Claude here (docs/router.md 3.8).
-    const inline = reason !== "import" && reason !== "crm";
     // A form send the router was too slow for carries what the send captured: its connection, its mapped answers,
     // the run's first booking state and the policy it resolved (docs/routing-workflow.md Section 13).
     const captured = formCapture(p);
@@ -79,7 +76,6 @@ export const routeJob =
       byUser,
       force: p.undo === true,
       skipSpam: p.skipSpam === true,
-      ...(inline ? { qualify: (c: string) => qualifyContact(rpc, c, { timeoutMs: 2900 }) } : {}),
       ...(live !== undefined ? { live } : {}),
       source: captured.source,
       inputs: captured.inputs,

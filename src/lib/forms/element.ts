@@ -630,7 +630,6 @@ export class ClaritiaForm extends Base {
   private overPage = false;
   /** Field ids hidden because enrichment already knows them (fill before submit), and the email they're for. */
   private known = new Set<string>();
-  private knownFor = "";
   /** Past the cover screen; the step last drawn (a new one slides in); the server's result after the send. */
   private covered = false;
   private drawn = -1;
@@ -1283,7 +1282,6 @@ export class ClaritiaForm extends Base {
       } else if (affects(form, f.id)) this.later();
     };
     const blur = () => {
-      if (f.key === "email") void this.lookupKnown(form, this.answers[f.id]);
       const r = checkAnswers(form, this.answers, { steps: [this.step], known: this.known, ...this.ctx });
       if (r.errors[f.id] && this.answers[f.id] !== undefined && this.answers[f.id] !== "") {
         this.errors[f.id] = r.errors[f.id];
@@ -2103,36 +2101,6 @@ export class ClaritiaForm extends Base {
     await this.send();
   }
 
-
-  /**
-   * Fill before submit: ask which of the owner's chosen fields enrichment already knows for this email, and hide the
-   * ones the visitor hasn't answered. A slow or failed answer hides nothing. A new email asks again.
-   */
-  private async lookupKnown(form: Form, value: unknown) {
-    if (!form.enrich?.hideKnown || this.isPreview || !this.data) return;
-    const email = typeof value === "string" ? value.trim().toLowerCase() : "";
-    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email) || email === this.knownFor) return;
-    this.knownFor = email;
-    let ids: string[] = [];
-    try {
-      const ctl = new AbortController();
-      const t = setTimeout(() => ctl.abort(), 2500);
-      const res = await fetch(`${this.base}/api/forms/${this.data.id}/known`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ email }), credentials: "omit", signal: ctl.signal });
-      clearTimeout(t);
-      if (res.ok) ids = ((await res.json()) as { known?: unknown }).known as string[];
-    } catch {
-      ids = [];
-    }
-    // The email changed while we asked: this answer is for another person.
-    if (this.knownFor !== email || !Array.isArray(ids)) return;
-    const empty = (id: string) => this.answers[id] === undefined || this.answers[id] === "" || (Array.isArray(this.answers[id]) && !(this.answers[id] as unknown[]).length);
-    const next = new Set(ids.filter((id) => typeof id === "string" && empty(id)));
-    const same = next.size === this.known.size && [...next].every((id) => this.known.has(id));
-    if (same) return;
-    this.known = next;
-    for (const id of next) delete this.errors[id];
-    this.later();
-  }
 
   private async send() {
     const d = this.data!;

@@ -7,11 +7,11 @@ import assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
 import { after, before, test } from "node:test";
 import pg from "pg";
-import { uuid7 } from "../../collect/ids.ts";
+import { uuid7 } from "./ids.ts";
 import { allFields, checkForm, type Form } from "../../src/lib/forms/schema.ts";
 import { acceptFill, type PublicForm } from "../../src/lib/forms/submit.ts";
 import { pgRpc } from "../../worker-intel/rpc.ts";
-import { ctxFor } from "../../worker-intel/jobs/imports.ts";
+import { ctxFor } from "../../worker-intel/jobs/ctx.ts";
 
 const url = process.env.PG_URL;
 if (!url) throw new Error("PG_URL is not set");

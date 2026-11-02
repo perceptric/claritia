@@ -6,7 +6,7 @@ import type { Cond, Op, Rule, Segment, Territory } from "./types.ts";
 
 export type FieldType = "text" | "number" | "country" | "choice" | "bool";
 
-export type FieldDef = { key: string; label: string; group: "Contact" | "Company" | "Form answers" | "Past fills" | "Source" | "Score"; type: FieldType; options?: string[] };
+export type FieldDef = { key: string; label: string; group: "Contact" | "Company" | "Form answers" | "Past fills" | "Source"; type: FieldType; options?: string[] };
 
 /**
  * Past fills: what the person did before this send, read on the server (routing_past, 115) when a rule tests one.
@@ -21,7 +21,10 @@ export const isPast = (field: string) => field.startsWith("past.");
 /** Whether any condition in these tests a past fill (so the one extra read only happens when it's needed). */
 export const testsPast = (conds: { field: string }[]) => conds.some((c) => isPast(c.field));
 
-/** The fields every workspace has. Custom fields and form answers are added from the workspace (`fieldsFor`). */
+/**
+ * The fields every workspace has. Custom fields and form answers are added from the workspace (`fieldsFor`).
+ * Seniority, department and employees come from a form's answers mapped to them (src/lib/routing/mapping.ts).
+ */
 export const BASE_FIELDS: FieldDef[] = [
   { key: "lead.country", label: "Country", group: "Contact", type: "country" },
   { key: "contact.email_domain", label: "Email domain", group: "Contact", type: "text" },
@@ -45,9 +48,6 @@ export const BASE_FIELDS: FieldDef[] = [
   { key: "utm.source", label: "UTM source", group: "Source", type: "text" },
   { key: "utm.medium", label: "UTM medium", group: "Source", type: "text" },
   { key: "utm.campaign", label: "UTM campaign", group: "Source", type: "text" },
-  { key: "lead.score", label: "Lead score", group: "Score", type: "number" },
-  { key: "lead.band", label: "Score band", group: "Score", type: "text" },
-  { key: "lead.qualify", label: "Qualify outcome", group: "Score", type: "choice" },
   ...PAST_FIELDS,
 ];
 

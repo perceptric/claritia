@@ -3,7 +3,7 @@
 import assert from "node:assert/strict";
 import { after, test } from "node:test";
 import pg from "pg";
-import { uuid7 } from "../../collect/ids.ts";
+import { uuid7 } from "./ids.ts";
 import { acceptFill, type PublicForm } from "../../src/lib/forms/submit.ts";
 import { checkForm, emptyForm, type Form } from "../../src/lib/forms/schema.ts";
 import { pgRpc } from "../../worker-intel/rpc.ts";

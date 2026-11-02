@@ -5,46 +5,16 @@ import { useState } from "react";
 import { Key, LogOut, Plus, Settings } from "../../Icons";
 import { APP_URL } from "@/lib/site";
 import { askConfirm, askText } from "../Dialogs";
-import { AccountAlertsPanel } from "./AccountAlertsPanel";
-import { IdentityPanel } from "./IdentityPanel";
-import { LeadScoringPanel } from "./LeadScoringPanel";
 import { SendingSettings } from "./SendingSettings";
-import { IcpPanel, SitesPanel } from "./SitesPanel";
 import { SETTINGS_GROUPS, settingsTab, type SettingsTab } from "@/lib/settingsTabs";
 import { TeamPanel } from "./TeamSettings";
 import { MyCalendar } from "../meetings/MyCalendar";
 import { Payments } from "../meetings/Payments";
 import { TeamCalendars } from "../meetings/TeamCalendars";
-import { FieldsSettings, ObjectsSettings } from "./FieldsSettings";
-import { ImportsSettings } from "./ImportsSettings";
-import { SourcesSettings, SyncLog } from "./SourcesSettings";
+import { SourcesSettings } from "./SourcesSettings";
 import { Avatar, Badge, Button, CardHead, ErrorNote, errorText, Loading, must, Page, Panel, postJson, timeAgo, useQuery, type ViewProps } from "../ui";
 import { CopyButton } from "../CopyButton";
 import { ToolIntro } from "../ToolIntro";
-
-/** Data model: the objects and the fields of each, as two tabs on one page. */
-function DataModel({ sb, ws, role, navigate, start }: Pick<ViewProps, "sb" | "ws" | "role" | "navigate"> & { start: "fields" | "objects" }) {
-  const [tab, setTab] = useState<"fields" | "objects">(start);
-  return (
-    <div className="flex flex-col gap-4">
-      <div role="tablist" aria-label="Data model" className="flex gap-1 border-b border-line">
-        {(["fields", "objects"] as const).map((t) => (
-          <button
-            key={t}
-            type="button"
-            role="tab"
-            aria-selected={tab === t}
-            onClick={() => setTab(t)}
-            className={`-mb-px h-9 border-b-2 px-3 text-[13px] font-medium transition-colors duration-[140ms] ${tab === t ? "border-ink text-ink" : "border-transparent text-muted hover:text-ink"}`}
-          >
-            {t === "fields" ? "Contact fields" : "Objects"}
-          </button>
-        ))}
-      </div>
-      {tab === "fields" ? <FieldsSettings sb={sb} ws={ws} role={role} /> : <ObjectsSettings sb={sb} ws={ws} role={role} navigate={navigate} />}
-    </div>
-  );
-}
 
 /** A label, a line to copy, and the shared copy button. */
 function CopyRow({ label, text }: { label: string; text: string }) {
@@ -163,7 +133,7 @@ function KeysPanel({ sb, session, ws }: Pick<ViewProps, "sb" | "session" | "ws">
   );
 }
 
-export function SettingsView({ sb, session, ws, role, navigate, id, onWorkspace }: ViewProps) {
+export function SettingsView({ sb, session, ws, role, id, onWorkspace }: ViewProps) {
   const [error, setError] = useState("");
   const [tab, setTab] = useState<SettingsTab>(() => settingsTab(id || (typeof window === "undefined" ? "" : window.location.hash.slice(1))));
   const members = useQuery(`workspace_members:${ws.id}`, async () => must(await sb.from("workspace_members").select("user_id, role, created_at").eq("workspace_id", ws.id).order("created_at")) as { user_id: string; role: string }[]);
@@ -185,19 +155,9 @@ export function SettingsView({ sb, session, ws, role, navigate, id, onWorkspace 
   };
 
   const pages: Record<SettingsTab, React.ReactNode> = {
-    data_model: <DataModel sb={sb} ws={ws} role={role} navigate={navigate} start={id === "objects" ? "objects" : "fields"} />,
-    fields: <FieldsSettings sb={sb} ws={ws} role={role} />,
-    objects: <ObjectsSettings sb={sb} ws={ws} role={role} navigate={navigate} />,
     sources: <SourcesSettings sb={sb} session={session} ws={ws} role={role} />,
-    imports: <ImportsSettings sb={sb} ws={ws} />,
-    sync_log: <SyncLog sb={sb} ws={ws} navigate={navigate} onConnect={() => pick("sources")} />,
     sending: <SendingSettings sb={sb} session={session} ws={ws} role={role} />,
     sender: <SendingSettings sb={sb} session={session} ws={ws} role={role} part="sender" />,
-    sites: <SitesPanel sb={sb} ws={ws} role={role} />,
-    identity: <IdentityPanel sb={sb} session={session} ws={ws} role={role} />,
-    icp: <IcpPanel sb={sb} ws={ws} />,
-    lead_scoring: <LeadScoringPanel sb={sb} session={session} ws={ws} role={role} />,
-    account_alerts: <AccountAlertsPanel sb={sb} session={session} ws={ws} />,
     team: <TeamPanel sb={sb} ws={ws} role={role} session={session} />,
     calendars: <TeamCalendars sb={sb} ws={ws} role={role} session={session} />,
     calendar: <MyCalendar sb={sb} ws={ws} session={session} />,

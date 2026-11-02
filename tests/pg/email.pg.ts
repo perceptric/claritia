@@ -4,7 +4,7 @@
 import assert from "node:assert/strict";
 import { after, before, beforeEach, test } from "node:test";
 import pg from "pg";
-import { uuid7 } from "../../collect/ids.ts";
+import { uuid7 } from "./ids.ts";
 import { SendError, type Outgoing } from "../../src/lib/email/provider.ts";
 import { readToken } from "../../src/lib/email/track.ts";
 import type { Job } from "../../src/lib/jobs.ts";

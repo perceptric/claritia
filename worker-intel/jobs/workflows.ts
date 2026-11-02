@@ -7,7 +7,6 @@
 //                 key; a webhook or a Slack message is marked unknown instead and the run goes on.
 
 import { signature } from "../../src/lib/delivery/send.ts";
-import { enrichContact, qualifyContact, type Keys } from "../../src/lib/enrich/server.ts";
 import { JobError, type Handler, type Rpc } from "../../src/lib/jobs.ts";
 import { hostIsPrivate } from "../../src/lib/privateNet.ts";
 import { route } from "../../src/lib/router/server.ts";
@@ -43,7 +42,6 @@ export function meetingVars(m: MeetingRow | null, o: { base?: string; secret?: s
 }
 
 export type WorkflowDeps = {
-  keys?: Keys;
   /** The app's address, for the reschedule link in reminder emails. */
   base?: string;
   /** SECRETS_KEY: signs webhooks per workflow. */
@@ -53,15 +51,11 @@ export type WorkflowDeps = {
   now?: () => number;
   roundMs?: number;
   /** Stand-ins for tests. */
-  enrich?: typeof enrichContact;
-  qualify?: typeof qualifyContact;
   route?: typeof route;
   slack?: typeof slackDm;
 };
 
 type Outcome = { status: "done" | "skipped" | "failed" | "unknown"; result?: Record<string, unknown>; path?: PathName; end?: string };
-
-const today = (now: number, days: number) => new Date(now + days * 86_400_000).toISOString().slice(0, 10);
 
 async function runStep(rpc: Rpc, ws: string, run: Claimed, step: Step, f: Facts, d: WorkflowDeps, redo: boolean): Promise<Outcome> {
   const now = d.now?.() ?? Date.now();
@@ -83,37 +77,11 @@ async function runStep(rpc: Rpc, ws: string, run: Claimed, step: Step, f: Facts,
       const id = await call<string | null>(rpc, "workflow_email", { p_run: run.id, p_step: step.id, p_vars: vars, p_from_name: owner?.name ?? null, p_reply_to: owner?.email ?? null });
       return { status: "done", result: id ? { message: id } : { message: null, why: "queued before" } };
     }
-    case "enrich": {
-      const r = await (d.enrich ?? enrichContact)(rpc, c.id, { keys: d.keys, fetcher: d.fetcher, trigger: "workflow", force: true });
-      return { status: "done", result: { fields: r.fields } };
-    }
-    case "qualify": {
-      const r = await (d.qualify ?? qualifyContact)(rpc, c.id, { timeoutMs: 15_000 });
-      return { status: r.status === "decided" || r.status === "same" ? "done" : "skipped", result: { outcome: r.decision?.outcome ?? null, why: r.status === "decided" || r.status === "same" ? undefined : r.status } };
-    }
     case "route": {
       // No second routing (docs/scheduling-plan.md Part 13.5): a lead Routing just routed keeps that rep.
       if (await call<boolean>(rpc, "router_recent", { p_ws: ws, p_contact: c.id, p_minutes: 10 })) return { status: "skipped", result: { why: "Already routed" } };
       const r = await (d.route ?? route)(rpc, { ws, contact: c.id, key: `wf:${run.id}:${step.id}`, reason: "api" });
       return { status: "done", result: { routed: r.status, owner: "result" in r && r.result.kind === "owner" ? r.result.user : null } };
-    }
-    case "update": {
-      const values = step.field.startsWith("f.") ? { fields: { [step.field.slice(2)]: step.value || null } } : { [step.field]: step.value || null };
-      const { error } = await rpc("contact_update", { p_id: c.id, p_source: "workflow", p_values: values });
-      return error ? { status: "failed", result: { error: error.message.slice(0, 200) } } : { status: "done" };
-    }
-    case "list": {
-      const ok = await call<boolean>(rpc, "workflow_list", { p_run: run.id, p_action: step.action, p_segment: step.segment });
-      return ok ? { status: "done" } : { status: "failed", result: { error: "The list is gone" } };
-    }
-    case "task": {
-      const assignee = step.assignee === "owner" ? (f.owner?.id ?? null) : step.assignee;
-      await call(rpc, "workflow_task", { p_run: run.id, p_step: step.id, p_title: step.title, p_assignee: assignee, p_due: today(now, step.dueDays) });
-      return { status: "done" };
-    }
-    case "crm": {
-      const n = await call<number>(rpc, "workflow_crm", { p_run: run.id });
-      return n ? { status: "done", result: { sources: n } } : { status: "skipped", result: { why: "no CRM connected" } };
     }
     case "slack": {
       // A Slack message has no key Slack honors: one found half-sent after a crash isn't sent again.
@@ -266,8 +234,7 @@ export async function advance(rpc: Rpc, ws: string, run: Claimed, d: WorkflowDep
     }
     if (step.kind === "wait_until") {
       if (wait?.step === step.id && wait.since && wait.until) {
-        // A named product event needs migration 082's four-argument form; every other wait keeps the original call.
-        const happened = await call<boolean>(rpc, "workflow_event_since", { p_run: run.id, p_kind: step.event, p_since: wait.since, ...(step.event === "product.used" ? { p_name: step.name ?? null } : {}) });
+        const happened = await call<boolean>(rpc, "workflow_event_since", { p_run: run.id, p_kind: step.event, p_since: wait.since });
         const over = now() >= Date.parse(wait.until);
         if (!happened && !over) {
           await done(null, "running", null, step.id, Math.min(Date.parse(wait.until), now() + 5 * 60_000), wait, "waiting");

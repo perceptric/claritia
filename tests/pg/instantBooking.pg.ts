@@ -13,7 +13,7 @@ import { acceptFill, type PublicForm } from "../../src/lib/forms/submit.ts";
 import type { Rpc } from "../../src/lib/jobs.ts";
 import { at } from "../../src/lib/meetings/time.ts";
 import { DEFAULT_AVAILABILITY, DEFAULT_SETTINGS, type Kind } from "../../src/lib/meetings/types.ts";
-import { ctxFor } from "../../worker-intel/jobs/imports.ts";
+import { ctxFor } from "../../worker-intel/jobs/ctx.ts";
 import { pgRpc } from "../../worker-intel/rpc.ts";
 
 const SECRET = "instant-booking-test-secret-0123456789";

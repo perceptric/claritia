@@ -15,7 +15,7 @@ import type { Rpc } from "../../src/lib/jobs.ts";
 import { at } from "../../src/lib/meetings/time.ts";
 import { DEFAULT_AVAILABILITY, DEFAULT_SETTINGS } from "../../src/lib/meetings/types.ts";
 import { invalidateRouterLive } from "../../src/lib/router/server.ts";
-import { ctxFor } from "../../worker-intel/jobs/imports.ts";
+import { ctxFor } from "../../worker-intel/jobs/ctx.ts";
 import { pgRpc } from "../../worker-intel/rpc.ts";
 import { ANA, KAI, policy, VIN } from "../fixtures/routingSpec.ts";
 

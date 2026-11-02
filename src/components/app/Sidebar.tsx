@@ -13,22 +13,15 @@ import {
   Branch,
   CalendarIcon,
   ChevronDown,
-  Contact,
-  Dollar,
   FormIcon,
-  Gauge,
-  Layers,
-  ListIcon,
   LogOut,
   Mail,
   Moon,
   Plus,
-  Radar,
   Search,
   Settings,
   Signpost,
   Sun,
-  Users,
 } from "../Icons";
 import { Logo } from "../Logo";
 import { Popover } from "./FilterBar";
@@ -36,20 +29,13 @@ import { Avatar, type Route } from "./ui";
 
 /** One icon per sidebar item, by its key. */
 export const NAV_ICONS: Record<string, React.ReactNode> = {
-  contacts: <Contact size={14} />,
-  companies: <Users size={14} />,
-  opportunities: <Dollar size={14} />,
   meetings: <CalendarIcon size={14} />,
   objects: <Box size={14} />,
   workflows: <Branch size={14} />,
   routing: <Signpost size={14} />,
-  enrichment: <Layers size={14} />,
   forms: <FormIcon size={14} />,
   scheduling: <CalendarIcon size={14} />,
-  visitors: <Radar size={14} />,
   emails: <Mail size={14} />,
-  segments: <ListIcon size={14} />,
-  scoring: <Gauge size={14} />,
   settings: <Settings size={14} />,
 };
 
@@ -97,7 +83,6 @@ export type SidebarProps = {
   route: Route;
   id: string;
   navigate: (r: Route, id?: string, query?: string) => void;
-  objects: { key: string; plural: string }[];
   counts: Partial<Record<string, number>>;
   /** A small amber dot when an item needs a step (a rep with no calendar, routing not live). */
   dots?: Partial<Record<string, boolean>>;
@@ -170,19 +155,6 @@ export function Sidebar(p: SidebarProps) {
                 {items.map((n) => (
                   <NavLink key={n.key} n={n} on={active?.key === n.key} count={p.counts[n.key]} dot={!!p.dots?.[n.key]} navigate={p.navigate} preload={p.onPreload} rail={rail} />
                 ))}
-                {g.key === "crm"
-                  ? p.objects.map((o) => (
-                      <NavLink
-                        key={`o-${o.key}`}
-                        n={{ key: `objects/${o.key}`, route: "objects", page: o.key, label: o.plural, group: "crm" }}
-                        on={p.route === "objects" && (p.id === o.key || p.id.startsWith(`${o.key}/`))}
-                        navigate={p.navigate}
-                        preload={p.onPreload}
-                        icon={NAV_ICONS.objects}
-                        rail={rail}
-                      />
-                    ))
-                  : null}
               </div>
             </div>
           );

@@ -69,12 +69,12 @@ export type RawFacts = {
     opp_name: string | null;
   } | null;
   submission: { id: string; form_id: string | null; values: Record<string, unknown>; hidden: Record<string, unknown> } | null;
+  /** Seniority, department and employees kept on the contact and its company (router_facts_full; router_facts_more before 090). */
+  more?: { seniority?: string; department?: string; employees?: number };
   recent: number;
   reps: Record<string, RawRep>;
   counts: Record<string, Record<string, { n: number; last: string }>>;
   lists: { allow: string[]; block: string[] };
-  /** The columns enrichment and qualify added (router_facts_full; router_facts_more before 090). */
-  more?: { seniority?: string; department?: string; qualify?: string; employees?: number };
   /** routing_facts (095): the body's teams as the database has them, and how the company was found. */
   teams?: Record<string, TeamFacts>;
   company_match?: Facts["companyMatch"];
@@ -116,8 +116,6 @@ export function valuesOf(raw: RawFacts, reason: Reason): Record<string, unknown>
   const v: Record<string, unknown> = {
     "lead.country": co?.country ?? c.country ?? null,
     "lead.source": reason === "form" ? "form" : reason === "import" ? "import" : reason === "crm" ? "crm" : "api",
-    "lead.score": c.score,
-    "lead.band": c.score_band,
     "lead.form": raw.submission?.form_id ?? null,
     "contact.email_domain": raw.domain,
     "contact.email_class": c.email_class,
@@ -245,12 +243,11 @@ export async function readFacts(
   if (raw.existing) return { existing: raw.existing };
   const facts = toFacts(raw, o.reason, o.now);
   facts.lead.disposable = await disposable(raw.contact.email_clean ?? raw.contact.email);
-  // The columns enrichment and qualify added (068_enrichment.sql).
+  // Seniority, department and employees as kept on the records (068).
   if (raw.contact.id) {
     const more = full ? (raw.more ?? null) : await call<RawFacts["more"] | null>(rpc, "router_facts_more", { p_contact: raw.contact.id }).catch(() => null);
     facts.values["contact.seniority"] = more?.seniority ?? null;
     facts.values["contact.department"] = more?.department ?? null;
-    facts.values["lead.qualify"] = more?.qualify ?? null;
     facts.values["company.employees"] = more?.employees ?? null;
   }
   // Past fills (115), only when a rule tests one.
@@ -284,12 +281,6 @@ export type Routed =
   | { status: "no_router" | "paused" | "gone" | "spam" }
   /** The caller's gate said no just before router_commit (a job took the lead meanwhile): nothing was written. */
   | { status: "late" };
-
-/** Whether a body's rules or company types test the qualify outcome. */
-export function usesQualify(body: RouterBody): boolean {
-  const test = (conds: { field: string }[] | undefined) => !!conds?.some((c) => c.field === "lead.qualify");
-  return (body.rules.on && body.rules.list.some((r) => r.on !== false && test(r.conds))) || !!body.segments?.some((sg) => test(sg.conds));
-}
 
 /** A live policy: its config (a router body), version, and whether routing is paused. `policy_id` from 095 on. */
 export type LiveRouter = { version: number; body: RouterBody; paused?: boolean; policy_id?: string };
@@ -355,8 +346,6 @@ export async function route(
     before?: StepResult[];
     live?: { version: number; body: RouterBody; paused?: boolean } | null;
     now?: () => number;
-    /** Qualify the lead now (enrich/server.ts qualifyContact), for a body whose rules test its outcome. */
-    qualify?: (contact: string) => Promise<unknown>;
     /**
      * Asked once, just before the first router_commit: false means the caller handed the lead to a job meanwhile, so
      * nothing is written here ("late"); true means this call owns the commit.
@@ -378,10 +367,6 @@ export async function route(
   // Paused: new leads keep the owner they come with.
   if (live.paused) return { status: "paused" };
   const t0 = Date.now();
-  // A rule that tests the qualify outcome waits for it, up to 3 seconds; with none by then the lead goes on without.
-  if (o.qualify && usesQualify(live.body)) {
-    await Promise.race([o.qualify(o.contact).catch(() => undefined), new Promise((r) => setTimeout(r, 3000))]);
-  }
   for (let tries = 0; tries < 3; tries++) {
     const now = o.now?.() ?? Date.now();
     const read = await readFacts(rpc, { ws: o.ws, contact: o.contact, key: o.key, body: live.body, reason: o.reason, now });

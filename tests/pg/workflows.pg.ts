@@ -56,8 +56,9 @@ async function publish(id: string, user: string, body: Body) {
 }
 
 const email = (id: string): Step => ({ id, kind: "email", from: "team", approved: true, email: { subject: `Subject ${id}`, preheader: "", paragraphs: ["Hi {{first_name|there}}"], cta_label: "", cta_url: "" } });
-const task = (id: string, title = id): Step => ({ id, kind: "task", title, assignee: "owner", dueDays: 1 });
-const manual = (steps: Step[], o: Partial<Body> = {}): Body => ({ ...emptyBody(), trigger: { kind: "manual" }, steps, ...o });
+/** A step that finishes at once with nothing outside to call: Route, with no routing set up. */
+const task = (id: string): Step => ({ id, kind: "route" });
+const manual = (steps: Step[], o: Partial<Body> = {}): Body => ({ ...emptyBody(), trigger: { kind: "clicked", emails: [] }, steps, ...o });
 
 async function start(ws: string, wf: string, c: string, key = `t:${c}`) {
   const v = (await q(`select live_version from workflows where id = $1`, [wf]))[0].live_version;
@@ -98,7 +99,6 @@ test("a worker stopped after queueing an email, before marking it done: on resta
   assert.equal((await q(`select count(*)::int n from email_messages where dedupe like $1`, [`wf:${r}:%`]))[0].n, 1, "one email");
   assert.deepEqual(await ledger(r), { e1: "done", t1: "done" });
   assert.equal((await run(r)).status, "done");
-  assert.equal((await q(`select count(*)::int n from tasks where record_id = $1`, [c]))[0].n, 1);
 });
 
 test("a webhook with no answer is marked unknown and not sent again; one found half-sent after a crash isn't sent at all", async () => {
@@ -142,7 +142,7 @@ test("Wait until a meeting is booked: yes when it happens during the wait, no at
   // Even if the meeting lands now, the run that already went "no" doesn't go back.
   await q(`insert into contact_events (workspace_id, contact_id, kind, data, source) values ($1, $2, 'meeting.booked', '{}', 'meetings')`, [ws, c2]);
   await runAll(ws);
-  assert.equal((await q(`select count(*)::int n from tasks where record_id = $1`, [c2]))[0].n, 1);
+  assert.deepEqual(await ledger(r2), { wu: "done", no: "done" });
 });
 
 test("a new version while people wait: each run finishes on the version it started on", async () => {
@@ -162,11 +162,14 @@ test("a new version while people wait: each run finishes on the version it start
 
 test("a goal met during a wait ends the run before its next email", async () => {
   const { ws, user } = await workspace();
-  const wf = await live(ws, user, manual([{ id: "w", kind: "wait", days: 2, hours: 0 }, email("e1")], { goals: [{ kind: "lifecycle", stages: ["customer"] }] }));
+  const wf = await live(ws, user, manual([{ id: "w", kind: "wait", days: 2, hours: 0 }, email("e1")], { goals: [{ kind: "meeting_booked" }] }));
   const c = await contact(ws);
   const r = await start(ws, wf, c);
   await runAll(ws);
-  await q(`update contacts set lifecycle = 'customer' where id = $1`, [c]);
+  // They book a meeting while the run waits.
+  const at = new Date(Date.now() + 86_400_000);
+  const end = new Date(at.getTime() + 1_800_000);
+  await q(`insert into meetings (workspace_id, hosts, contact_id, guest_email, start_at, end_at, block_start, block_end, source, token_hash) values ($1, $2, $3, 'guest@example.com', $4, $5, $4, $5, 'page', $6)`, [ws, [user], c, at, end, randomUUID()]);
   await due(r);
   await runAll(ws);
   assert.equal((await run(r)).status, "exited");
@@ -187,7 +190,7 @@ test("pausing a workflow mid-run stops it after the current step; live again fin
   assert.deepEqual(await ledger(r), { h: "done" });
   assert.equal((await run(r)).at_step, "t2");
   await runAll(ws, { fetcher: pausing });
-  assert.equal((await q(`select count(*)::int n from tasks where record_id = $1`, [c]))[0].n, 0, "nothing runs while paused");
+  assert.deepEqual(await ledger(r), { h: "done" }, "nothing runs while paused");
   await q(`update workflows set status = 'live' where id = $1`, [wf]);
   await runAll(ws, { fetcher: pausing });
   assert.equal((await run(r)).status, "done");
@@ -211,7 +214,6 @@ test("two contacts merged mid-run leave one run; a suppressed contact skips the 
   assert.equal(runs.find((x) => x.status === "exited")?.exit_reason, "merged into another run");
   const done = (await q(`select id from workflow_runs where workflow_id = $1 and status = 'done'`, [wf]))[0].id;
   assert.deepEqual(await ledger(done), { w: "done", e1: "skipped", t1: "done" });
-  assert.equal((await q(`select count(*)::int n from tasks where record_id = $1`, [keep]))[0].n, 1);
 });
 
 test("Try a contact and the worker take the same path on 40 contacts", async () => {
@@ -233,35 +235,6 @@ test("Try a contact and the worker take the same path on 40 contacts", async () 
     const want = t.lines.map((l) => l.step.id).sort();
     assert.deepEqual(Object.keys(await ledger(r.id)).sort(), want, `run ${r.id}`);
   }
-});
-
-test("a nurture moves into a draft workflow with its waits, emails and approvals", async () => {
-  const { ws, user } = await workspace();
-  const seg = (await q(`insert into segments (workspace_id, name, kind) values ($1, 'Trials', 'static') returning id`, [ws]))[0].id;
-  const n = (await q(`insert into nurtures (workspace_id, name, trigger, exit_stages, created_by) values ($1, 'Trial follow-up', $2, '{customer}', $3) returning id`, [ws, { kind: "segment", segment_id: seg }, user]))[0].id;
-  const e1 = (await q(`insert into emails (workspace_id, name, kind, subject, html, text) values ($1, 'One', 'journey', 'One', '<p>1</p>', 'First') returning id`, [ws]))[0].id;
-  const e2 = (await q(`insert into emails (workspace_id, name, kind, subject, html, text) values ($1, 'Two', 'journey', 'Two', '<p>2</p>', 'Second') returning id`, [ws]))[0].id;
-  await q(`insert into nurture_steps (workspace_id, nurture_id, position, wait_days, email_id, approved_at) values ($1, $2, 0, 0, $3, now()), ($1, $2, 1, 3, $4, null)`, [ws, n, e1, e2]);
-  await q(`select nurture_to_workflow($1)`, [n]);
-  const w = (await q(`select status, draft from workflows where id = $1`, [n]))[0];
-  assert.equal(w.status, "draft");
-  assert.deepEqual(w.draft.trigger, { kind: "segment", segment: seg, on: "entered" });
-  assert.deepEqual(w.draft.goals, [{ kind: "lifecycle", stages: ["customer"] }]);
-  assert.deepEqual(w.draft.steps.map((s: Step) => `${s.kind}:${s.kind === "email" ? s.approved : s.kind === "wait" ? s.days : ""}`), ["email:true", "wait:3", "email:false"]);
-});
-
-test("new events: a watched field's change, a score band change, and joining a list", async () => {
-  const { ws, user } = await workspace();
-  await live(ws, user, { ...emptyBody(), trigger: { kind: "field", key: "lifecycle", to: "customer" }, steps: [task("t")] });
-  const c = await contact(ws);
-  await q(`select contact_update($1, 'manual', '{"lifecycle":"customer"}')`, [c]);
-  await q(`select contact_update($1, 'manual', '{"title":"CEO"}')`, [c]);
-  const kinds = async () => (await q(`select kind, data from contact_events where contact_id = $1 and kind in ('field.changed', 'lead.band', 'segment.entered') order by at`, [c])).map((r) => `${r.kind}:${r.data.key ?? r.data.to ?? r.data.name}`);
-  assert.deepEqual(await kinds(), ["field.changed:lifecycle"], "only the watched field");
-  await q(`update contacts set score_band = 'hot' where id = $1`, [c]);
-  const seg = (await q(`insert into segments (workspace_id, name, kind) values ($1, 'VIP', 'static') returning id`, [ws]))[0].id;
-  await q(`insert into segment_members (workspace_id, segment_id, contact_id) values ($1, $2, $3)`, [ws, seg, c]);
-  assert.deepEqual(await kinds(), ["field.changed:lifecycle", "lead.band:hot", "segment.entered:VIP"]);
 });
 
 test("the screens' counts: entered and done per step in 7 days, people in it now, and 30 days of entries", async () => {

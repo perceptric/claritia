@@ -3,7 +3,6 @@ import { allFields, checkForm, unsetConstants } from "@/lib/forms/schema";
 import { forgetPublic } from "@/lib/forms/server";
 import { forgetFields } from "@/lib/router/actions";
 import { publishFormRouting } from "@/lib/routing/formPublish";
-import { forgetScoring } from "@/lib/scoring/actions";
 import { requireUser } from "@/lib/serverAuth";
 import { serviceClient } from "@/lib/serviceClient";
 
@@ -38,9 +37,8 @@ export async function POST(request: Request) {
   if (error) return bad(error.message, 500);
   // The new version shows at once on this server (others read it again within 10 seconds, or on the first send).
   forgetPublic(body.id);
-  // Routing's field list and Scoring's context include the form's questions.
+  // Routing's field list includes the form's questions.
   forgetFields(body.workspaceId as string);
-  forgetScoring(body.workspaceId as string);
   const routing = await publishFormRouting((f, args) => db.rpc(f, args), db, { ws: body.workspaceId as string, user: auth.user.id, formId: body.id, formName: (form.name as string) ?? "Form", schedule: r.form.after.schedule })
     .then((x) => ({ problems: x.problems }))
     .catch((e: unknown) => ({ problems: [] as string[], error: e instanceof Error ? e.message : "Couldn't publish the routing." }));

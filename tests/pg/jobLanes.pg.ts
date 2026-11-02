@@ -5,19 +5,13 @@ import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { after, test } from "node:test";
 import pg from "pg";
-import { toCsv } from "../../src/lib/contacts/csv.ts";
-import { executeImport, type ImportRow } from "../../src/lib/contacts/importJob.ts";
 import { SendError } from "../../src/lib/email/provider.ts";
 import { jobLoop, Lanes, type Handler, type Job } from "../../src/lib/jobs.ts";
 import { newToken, tokenHash } from "../../src/lib/meetings/server.ts";
 import { DEFAULT_SETTINGS } from "../../src/lib/meetings/types.ts";
-import { ctxFor } from "../../worker-intel/jobs/imports.ts";
 import { meetingNotify, type Mail, type Mailer } from "../../worker-intel/jobs/meetings.ts";
-import { BUSY_WAIT_S, stitch } from "../../worker-intel/jobs/stitch.ts";
 import { pgRpc } from "../../worker-intel/rpc.ts";
-import { setDomainCheck } from "../../worker-intel/settings.ts";
 
-setDomainCheck(async () => true);
 const url = process.env.PG_URL;
 if (!url) throw new Error("PG_URL is not set");
 const pool = new pg.Pool({ connectionString: url, max: 12 });
@@ -42,8 +36,8 @@ test("enqueue sets the lane from the kind and the route's reason; a waiting job 
   assert.equal(await lane("meeting_notify", "m1", {}), 0);
   assert.equal(await lane("route", "form:1", { reason: "form" }), 0);
   assert.equal(await lane("route", "import:1", { reason: "import" }), 2);
-  assert.equal(await lane("stitch", "d1", {}), 1);
-  assert.equal(await lane("enrich_contact", "c1", {}), 2);
+  assert.equal(await lane("workflow_run", "w1", {}), 1);
+  assert.equal(await lane("deliver_held", "d1", {}), 2);
   assert.equal(await lane("send", ws, { lane: "bulk" }), 2, "the rest of a long send");
   assert.equal(await lane("send", ws, {}), 1, "a new message takes the waiting send back to the normal lane");
 });
@@ -52,10 +46,10 @@ test("enqueue_jobs: one call, same-key rows collapse to the last payload and the
   const ws = await workspace();
   const n = (await one<{ n: number }>(`select enqueue_jobs($1) n`, [
     JSON.stringify([
-      { workspace_id: ws, kind: "score_account", key: "a", payload: { v: 1 }, delay_s: 60 },
-      { workspace_id: ws, kind: "score_account", key: "a", payload: { v: 2 }, delay_s: 0 },
-      { workspace_id: ws, kind: "score_account", key: "b", payload: { v: 3 }, delay_s: 60 },
-      { workspace_id: ws, kind: "score_account", key: "", payload: { v: 4 } },
+      { workspace_id: ws, kind: "workflow_run", key: "a", payload: { v: 1 }, delay_s: 60 },
+      { workspace_id: ws, kind: "workflow_run", key: "a", payload: { v: 2 }, delay_s: 0 },
+      { workspace_id: ws, kind: "workflow_run", key: "b", payload: { v: 3 }, delay_s: 60 },
+      { workspace_id: ws, kind: "workflow_run", key: "", payload: { v: 4 } },
     ]),
   ])).n;
   assert.equal(n, 3);
@@ -222,109 +216,6 @@ test("a meeting job's answers are recorded even when a later email says not now"
 });
 
 // Imports that resume from a byte ----------------------------------------------------------------------------------
-
-test("a worker killed mid-import picks up at the byte after the last row done, not at row 0", async () => {
-  const ws = await workspace("resume");
-  const user = randomUUID();
-  await q(`insert into auth.users (id, email) values ($1, $2)`, [user, `${user}@t.io`]);
-  await q(`insert into workspace_members (workspace_id, user_id, role) values ($1, $2, 'owner')`, [ws, user]);
-  const ROWS = 12_000;
-  const rows: unknown[][] = [["Email", "Note"]];
-  // A quoted cell with a line break inside, and non-ASCII, so offsets are real bytes.
-  for (let i = 0; i < ROWS; i++) rows.push([`p${i}@co${i % 50}.com`, i % 997 === 0 ? "two\nlines, \"quoted\"" : `Zoë ${i}`]);
-  const bytes = new TextEncoder().encode(toCsv(rows));
-  const id = (await one<{ id: string }>(`select imports_start($1, $2, 'big.csv', $3, 'file', $4, $5, null, true) as id`, [ws, user, JSON.stringify({ columns: ["email", "skip"], source: "signups", basis: "opt_in" }), `${ws}/${randomUUID()}/big.csv`, bytes.length])).id;
-  const opens: number[] = [];
-  let served = 0;
-  const openAt = async (_p: string, offset: number) => {
-    opens.push(offset);
-    const part = bytes.subarray(offset);
-    served += part.length;
-    return { stream: new Blob([part]).stream() as ReadableStream<Uint8Array>, offset };
-  };
-  const load = async () => (await one<ImportRow>(`select * from imports where id = $1`, [id])) as ImportRow;
-  await q(`select import_claim($1)`, [id]);
-  // First attempt: killed (its signal aborts) after the first page went in.
-  const kill = new AbortController();
-  const killer = setInterval(async () => {
-    if ((await load()).rows_done >= 5000) kill.abort();
-  }, 5);
-  await assert.rejects(executeImport(rpc, await load(), await ctxFor(pool, ws), { openAt, signal: kill.signal }));
-  clearInterval(killer);
-  const mid = await load();
-  assert.ok(mid.rows_done >= 5000 && mid.rows_done < ROWS, `stopped at ${mid.rows_done}`);
-  assert.equal(mid.progress.resume?.rows, mid.rows_done);
-  assert.ok(mid.progress.resume!.offset > 0);
-  // Second attempt: opens at the saved byte.
-  served = 0;
-  await executeImport(rpc, mid, await ctxFor(pool, ws), { openAt });
-  assert.equal(opens.at(-1), mid.progress.resume!.offset, "opened at the saved byte");
-  assert.ok(served < bytes.length * 0.75, "the done rows weren't read again");
-  const done = await load();
-  assert.equal((done as unknown as { status: string }).status, "done");
-  assert.equal((await one<{ n: number }>(`select count(*)::int n from contacts where workspace_id = $1`, [ws])).n, ROWS, "every row once");
-});
-
-test("an import runs in slices: each ends after its time, the next opens where it stopped, and the error rows add up", async () => {
-  const ws = await workspace("slices");
-  const user = randomUUID();
-  await q(`insert into auth.users (id, email) values ($1, $2)`, [user, `${user}@t.io`]);
-  await q(`insert into workspace_members (workspace_id, user_id, role) values ($1, $2, 'owner')`, [ws, user]);
-  const ROWS = 16_000;
-  const rows: unknown[][] = [["Email"]];
-  for (let i = 0; i < ROWS; i++) rows.push([i % 1000 === 0 ? `bad-${i}` : `s${i}@co.io`]);
-  const bytes = new TextEncoder().encode(toCsv(rows));
-  const id = (await one<{ id: string }>(`select imports_start($1, $2, 's.csv', $3, 'file', $4, $5, null, true) as id`, [ws, user, JSON.stringify({ columns: ["email"], source: "signups", basis: "opt_in" }), `${ws}/${randomUUID()}/s.csv`, bytes.length])).id;
-  const opens: number[] = [];
-  const openAt = async (_p: string, offset: number) => (opens.push(offset), { stream: new Blob([bytes.subarray(offset)]).stream() as ReadableStream<Uint8Array>, offset });
-  const files = new Map<string, string>();
-  const put = async (p: string, csv: string) => void files.set(p, csv);
-  let slices = 0;
-  for (;;) {
-    slices++;
-    await q(`select import_claim($1)`, [id]);
-    const imp = (await one(`select * from imports where id = $1`, [id])) as unknown as ImportRow;
-    // Each slice runs out of time after its first page.
-    const r = await executeImport(rpc, imp, await ctxFor(pool, ws), { openAt, budgetMs: 1, put, readPart: async (p) => files.get(p) ?? "" });
-    if (!r.more || slices > 10) break;
-  }
-  assert.equal(slices, 4, "16,000 rows in pages of 5,000");
-  assert.ok(opens[0] === 0 && opens.slice(1).every((o, i) => o > opens[i]!), `each slice opens further on: ${opens}`);
-  const done = await one<{ status: string; errors_path: string | null }>(`select status, errors_path from imports where id = $1`, [id]);
-  assert.equal(done.status, "done");
-  assert.equal((await one<{ n: number }>(`select count(*)::int n from contacts where workspace_id = $1`, [ws])).n, ROWS - ROWS / 1000);
-  const csv = files.get(done.errors_path!)!;
-  assert.equal(csv.trim().split(/\r?\n/).length - 1, ROWS / 1000, "every slice's bad rows are in the one errors file");
-  assert.deepEqual([...csv.matchAll(/bad-(\d+)/g)].map((m) => Number(m[1])), Array.from({ length: ROWS / 1000 }, (_, i) => i * 1000), "in file order");
-});
-
-// Stitching while a rebuild holds the workspace ------------------------------------------------------------------
-
-test("a stitch job during a rebuild goes back in line at once instead of holding a worker loop", async () => {
-  const ws = await workspace();
-  const site = (await one<{ id: string }>(`insert into sites (workspace_id, domain) values ($1, $2) returning id`, [ws, `s-${ws.slice(0, 8)}.com`])).id;
-  const dev = randomUUID();
-  await q(`insert into devices (id, workspace_id, site_id) values ($1, $2, $3)`, [dev, ws, site]);
-  await q(`insert into identity_evidence (id, workspace_id, site_id, device_id, source, level, identifiers) values ($1, $2, $3, $4, 'form', 'asserted', '[{"kind":"email","value":"x@busy.io"}]')`, [randomUUID(), ws, site, dev]);
-  const holder = await pool.connect();
-  try {
-    await holder.query("begin");
-    await holder.query(`select pg_advisory_xact_lock(hashtextextended($1, 0))`, [`ws:${ws}`]);
-    const t0 = Date.now();
-    await stitch(pool)({ id: randomUUID(), workspace_id: ws, kind: "stitch", key: dev, payload: { device_id: dev }, attempts: 1, max_attempts: 5 }, new AbortController().signal);
-    assert.ok(Date.now() - t0 < 2000, "it didn't wait for the rebuild");
-    const waiting = await one<{ later: boolean }>(`select run_after > now() + make_interval(secs => $2 - 2) as later from jobs where workspace_id = $1 and kind = 'stitch' and status = 'queued'`, [ws, BUSY_WAIT_S]);
-    assert.ok(waiting?.later, "queued again a little later");
-    assert.equal((await one<{ n: number }>(`select count(*)::int n from identity_evidence where device_id = $1 and stitched_at is null`, [dev])).n, 1);
-  } finally {
-    await holder.query("rollback");
-    holder.release();
-  }
-  await stitch(pool)({ id: randomUUID(), workspace_id: ws, kind: "stitch", key: dev, payload: { device_id: dev }, attempts: 1, max_attempts: 5 }, new AbortController().signal);
-  assert.equal((await one<{ n: number }>(`select count(*)::int n from identity_evidence where device_id = $1 and stitched_at is null`, [dev])).n, 0, "stitched once the rebuild let go");
-});
-
-// A form's alerts wake when routing commits -------------------------------------------------------------------------
 
 test("a form fill's routing wakes its alerts job that waits for the rep's name", async () => {
   const ws = await workspace();

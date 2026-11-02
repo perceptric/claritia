@@ -1,22 +1,13 @@
-// Settings pages, grouped the way the Settings sidebar shows them (same layout as Arrowsterr). Sites, Identity and
-// Account alerts moved to Visitors; Calendar, Calendars and Payments to Scheduling; Ideal customer and Lead scoring to
-// Nurture › Lead scoring (src/lib/nav.ts forwards them).
+// Settings pages, grouped the way the Settings sidebar shows them (same layout as Arrowsterr). Calendar, Calendars and
+// Payments live in Meetings (src/lib/nav.ts forwards them). The CRM's pages (imports, sync log, data model), Visitors'
+// (sites, identity, account alerts) and Scoring's are gone; their old addresses open Integrations.
 
-export type SettingsTab =
-  | "sources" | "imports" | "sync_log" | "data_model" | "fields" | "objects" | "sending" | "sender" | "team" | "calendars" | "sites" | "identity" | "icp" | "lead_scoring" | "account_alerts" | "workspace" | "payments" | "keys" | "profile" | "calendar" | "brand";
+export type SettingsTab = "sources" | "sending" | "sender" | "team" | "calendars" | "workspace" | "payments" | "keys" | "profile" | "calendar" | "brand";
 /** `line` sits under the page title: one short line, like Twenty. */
 export type SettingsGroup = { label: string; tabs: { id: SettingsTab; label: string; line: string }[] };
 
 export const SETTINGS_GROUPS: SettingsGroup[] = [
-  {
-    label: "CRM",
-    tabs: [
-      { id: "sources", label: "Integrations", line: "The tools your contacts come from and go back to" },
-      { id: "imports", label: "Imports", line: "Contacts brought in from a file" },
-      { id: "sync_log", label: "Sync log", line: "Every change between Claritia and your tools" },
-      { id: "data_model", label: "Data model", line: "The objects in your CRM and their fields" },
-    ],
-  },
+  { label: "Integrations", tabs: [{ id: "sources", label: "Integrations", line: "The tools your forms send leads to" }] },
   {
     label: "Email",
     tabs: [
@@ -38,7 +29,7 @@ export const SETTINGS_GROUPS: SettingsGroup[] = [
 
 /** The page for an address: old names land on their new pages, unknown ones on the first. */
 export function settingsTab(id: string): SettingsTab {
-  const moved: Record<string, SettingsTab> = { suite: "sources", tools: "sources", domains: "sending", fields: "data_model", objects: "data_model" };
+  const moved: Record<string, SettingsTab> = { suite: "sources", tools: "sources", domains: "sending" };
   const all = SETTINGS_GROUPS.flatMap((g) => g.tabs.map((t) => t.id));
   return (all as string[]).includes(id) ? (id as SettingsTab) : (moved[id] ?? "sources");
 }

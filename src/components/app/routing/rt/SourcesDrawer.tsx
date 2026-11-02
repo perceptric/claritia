@@ -84,7 +84,6 @@ export function SourcesDrawer({ session, ws, d, policyId, ro, onClose, onStaged 
         const elsewhere = s?.enabled ? policyName(s.policy_id) : null;
         return { value: `f:${f.id}`, label: f.name, hint: elsewhere ? `Now on ${elsewhere}. Moves here when you publish.` : f.status === "live" ? undefined : "Not published yet", group: "Forms" };
       }),
-    ...(mine.some((x) => x.s.kind === "handoff") ? [] : [{ value: "handoff", label: "Internal handoff", hint: "Contacts › Route & book", group: " " }]),
   ];
 
   return (

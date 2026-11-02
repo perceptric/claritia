@@ -8,7 +8,7 @@ import { enqueueJob, enqueueJobs, JobError, type Handler, type Rpc } from "../..
 import { sendDelivery, type SendDeps, type Taken } from "../../src/lib/delivery/send.ts";
 import { call } from "../../src/lib/sources/sync.ts";
 import type { RunOpts } from "../../src/lib/sources/run.ts";
-import { ctxFor } from "./imports.ts";
+import { ctxFor } from "./ctx.ts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 

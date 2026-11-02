@@ -89,8 +89,6 @@ export function reminderMove(s: Extract<Step, { kind: "wait" }>, start: number, 
 export function goalMet(goals: Goal[], f: Pick<Facts, "booked" | "lifecycle" | "outcome">): Goal | null {
   for (const g of goals) {
     if (g.kind === "meeting_booked" && f.booked) return g;
-    if (g.kind === "lifecycle" && f.lifecycle && g.stages.includes(f.lifecycle)) return g;
-    if (g.kind === "outcome" && f.outcome && g.outcomes.includes(f.outcome)) return g;
   }
   return null;
 }

@@ -361,19 +361,12 @@ export type Form = {
   keep?: Keep;
   capture?: Capture;
   /** Fill before submit (docs/enrich-workflows-reports.md 1.2 B): fields hidden when enrichment already knows them. */
-  enrich?: { hideKnown: boolean; fields: string[] };
   /** The form's own styles and classes on its elements (docs/design-system.md Part 3.1). */
   design?: FormDesign;
   /** Settings formulas read as {@id}, and the results a visitor can reach (docs/interactive-forms-plan.md). */
   constants?: Constant[];
   results?: Results;
 };
-
-/** The fields fill before submit may hide (src/lib/enrich/types.ts HIDEABLE). */
-export const HIDE_KEYS = ["company", "website", "title", "country", "phone", "size", "industry", "seniority", "department"];
-
-/** The enrichment key a field answers ("company", "title"... or a custom "f.industry" as "industry"). */
-export const hideKeyOf = (key: string) => key.replace(/^f\./, "");
 
 export const FIELD_TYPES: { value: FieldType; label: string }[] = [
   { value: "text", label: "Short answer" },
@@ -1043,8 +1036,6 @@ export function checkForm(raw: unknown, ctx: Ctx = {}): { form: Form } | { error
     for (const f of steps.flatMap((x) => x.fields)) if (f.type !== "hidden" && !f.source) errors.push(`${f.label || "A field"} needs its name on your form.`);
   }
   const minSeconds = Math.round(Number(spam.minSeconds ?? 2));
-  const en = (r.enrich && typeof r.enrich === "object" ? r.enrich : {}) as { hideKnown?: unknown; fields?: unknown };
-  const enrichFields = Array.isArray(en.fields) ? [...new Set(en.fields.filter((x): x is string => typeof x === "string" && HIDE_KEYS.includes(x)))] : [];
   const form: Form = {
     steps,
     rules,
@@ -1087,7 +1078,6 @@ export function checkForm(raw: unknown, ctx: Ctx = {}): { form: Form } | { error
     ...((n) => (n ? { reply: n } : {}))(cleanReply(r.reply, errors, flat.some((f) => f.key === "email"))),
     ...((n) => (n ? { keep: n } : {}))(cleanKeep(r.keep)),
     ...(capture ? { capture } : {}),
-    ...(en.hideKnown === true || enrichFields.length ? { enrich: { hideKnown: en.hideKnown === true, fields: enrichFields } } : {}),
     ...((d) => (Object.keys(d).length ? { design: d } : {}))(readFormDesign(r.design, new Set(flat.map((f) => f.id)))),    ...(constants.length ? { constants } : {}),
     ...((x) => (x ? { results: x } : {}))(cleanResults(r.results, byId, errors)),
     ...((pg) => (pg ? { page: pg } : {}))(checkPage(r.page, new Set(flat.map((f) => f.id)))),

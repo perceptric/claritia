@@ -18,7 +18,7 @@ import { at } from "../../src/lib/meetings/time.ts";
 import { DEFAULT_AVAILABILITY, DEFAULT_SETTINGS, type MeetingType } from "../../src/lib/meetings/types.ts";
 import { invalidateRouterLive } from "../../src/lib/router/server.ts";
 import { emptyBody, type RouterBody } from "../../src/lib/router/types.ts";
-import { ctxFor } from "../../worker-intel/jobs/imports.ts";
+import { ctxFor } from "../../worker-intel/jobs/ctx.ts";
 import { pgRpc } from "../../worker-intel/rpc.ts";
 
 const SECRET = "routed-booking-test-secret-0123456789";
