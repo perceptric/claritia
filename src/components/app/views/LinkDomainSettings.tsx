@@ -7,6 +7,7 @@
 import { useState } from "react";
 import { CopyButton } from "../CopyButton";
 import { askConfirm } from "../Dialogs";
+import { ago } from "../forms/formModel";
 import { Badge, Button, CardHead, ErrorNote, errorText, Input, Loading, Panel, postJson, useQuery, type Role, type Tone, type ViewProps } from "../ui";
 
 export type LinkDomainState = {
@@ -29,6 +30,12 @@ export function useLinkBase(session: ViewProps["session"], ws: string): string |
   const d = q.data;
   return d?.domain?.status === "active" ? `https://${d.domain.hostname}` : (d?.subdomain ?? null);
 }
+
+/** "Checked just now", "checked 5 min ago", "checked Nov 2". */
+const checkedWords = (iso: string) => {
+  const w = ago(iso);
+  return /^(Yesterday|Just now)$/.test(w) ? w.toLowerCase() : w;
+};
 
 const STATE: Record<string, [string, Tone]> = { pending: ["Waiting", "amber"], active: ["Live", "green"], failed: ["Not pointing", "red"] };
 
@@ -69,7 +76,16 @@ export function LinkDomainSettings({ session, ws, role }: Pick<ViewProps, "sessi
         </Panel>
       ) : null}
       <Panel>
-        <CardHead label="Custom domain">{domain ? <Badge tone={tone} dot>{label}</Badge> : null}</CardHead>
+        <CardHead label="Custom domain">
+          {domain ? (
+            <span className="flex items-center gap-2">
+              {domain.checked_at && domain.status !== "active" ? <span className="text-[12px] text-muted">Checked {checkedWords(domain.checked_at)}</span> : null}
+              <Badge tone={tone} dot>
+                {label}
+              </Badge>
+            </span>
+          ) : null}
+        </CardHead>
         {domain ? (
           <div className="flex flex-col gap-4 px-5 py-4">
             <div className="flex flex-wrap items-center gap-2">
@@ -99,16 +115,22 @@ export function LinkDomainSettings({ session, ws, role }: Pick<ViewProps, "sessi
                       <th className="px-4 py-2 font-medium">Type</th>
                       <th className="px-4 py-2 font-medium">Name</th>
                       <th className="px-4 py-2 font-medium">Value</th>
-                      <th className="px-4 py-2" />
                     </tr>
                   </thead>
                   <tbody>
                     <tr>
                       <td className="px-4 py-2.5 font-mono text-[12.5px]">CNAME</td>
-                      <td className="px-4 py-2.5 font-mono text-[12.5px]">{name}</td>
-                      <td className="px-4 py-2.5 font-mono text-[12.5px]">{target}</td>
-                      <td className="px-4 py-2.5 text-right">
-                        <CopyButton text={target} label="Copy" />
+                      <td className="px-4 py-2.5 font-mono text-[12.5px]">
+                        <span className="inline-flex items-center gap-1">
+                          {name}
+                          <CopyButton text={name} label="Copy name" size={13} />
+                        </span>
+                      </td>
+                      <td className="px-4 py-2.5 font-mono text-[12.5px]">
+                        <span className="inline-flex items-center gap-1">
+                          {target}
+                          <CopyButton text={target} label="Copy value" size={13} />
+                        </span>
                       </td>
                     </tr>
                   </tbody>

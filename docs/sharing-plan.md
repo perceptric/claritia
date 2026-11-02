@@ -107,6 +107,19 @@ Setup (once):
 3. Subdomains: DNS `*.tryclaritia.com` CNAME to `claritia-web.fly.dev`, `fly certs add "*.tryclaritia.com" -a
    claritia-web` (it asks for one more DNS record), then `fly secrets set LINK_SUBDOMAINS=1 -a claritia-web`.
 
+## The screens (after the four steps)
+
+- A form's Share tab opens on Link: the link in full (the ending link when there is one) with Copy link and Open,
+  the ending in one box after its address (Enter saves, Escape puts it back), the id link, Your own domain (owners,
+  until one is live, to Settings › Link domain), Fill in from the link, and the link preview drawn as a chat shows it
+  while it's typed.
+- Code to paste sits in a box with its own bar: the site builders on the left, Copy code on the right, so the button
+  never covers the code (`src/components/app/SharePieces.tsx`).
+- Email names an address that isn't one and counts the rest; Send waits until they're all good.
+- A meeting's Share: Link has its QR code (PNG or SVG); In an email adds the signature line.
+- Settings › Link domain: when it was last checked, and a copy on the record's name and value.
+- `scripts/share-check.ts` runs it all in Chromium on a desktop and a phone width.
+
 ## Monthly cost
 
 | Stage | Steps 1–3 | Step 4 (domains) | Total |
