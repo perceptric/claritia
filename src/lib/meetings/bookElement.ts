@@ -4,6 +4,7 @@
 //   <claritia-book type="acme/demo"></claritia-book>                          inline, grows to fit
 //   <claritia-book type="acme/demo" mode="button" text="Book a demo"></claritia-book>   a floating button
 //   <a href="#" data-claritia-book="acme/demo">Book a demo</a>                 any link or button opens it in a popup
+// Over the page on a phone, the calendar fills the screen; mobile="keep" (data-mobile="keep" on a link) keeps the box.
 // `type` is <workspace>/<type or person>, a page address under /book/, or a full booking page link. The page runs
 // in a frame from Claritia (the guest's details never touch the site around it); it reports its height and, after a
 // booking, a `claritia:booked` event bubbles from the element (or the link) for the site's analytics.
@@ -61,21 +62,17 @@ function listen(f: HTMLIFrameElement, from: Element, onHeight?: (h: number) => v
     }
     if (d.type === "book:booked") {
       from.dispatchEvent(new CustomEvent("claritia:booked", { bubbles: true, composed: true, detail: { start: d.start, end: d.end } }));
-      // The site's own tracking links this visitor to the guest (docs/visitors.md): a booking is the same proof as a form.
-      const claritia = (window as unknown as { claritia?: (m: string, v: string) => void }).claritia;
-      if (typeof d.email === "string" && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(d.email) && typeof claritia === "function") {
-        try {
-          claritia("booking", d.email);
-        } catch {}
-      }
     }
   };
   window.addEventListener("message", on);
   return () => window.removeEventListener("message", on);
 }
 
-/** The calendar over the page. */
-export function openBooking(type: string, from: Element = document.body, extra: Record<string, string | null> = {}) {
+/** Whether the calendar over the page fills a phone's screen: yes, unless the element or link says mobile="keep". */
+export const phoneFull = (keep: string | null, width: number) => keep !== "keep" && width <= 640;
+
+/** The calendar over the page. On a phone it fills the screen (unless `keep`). */
+export function openBooking(type: string, from: Element = document.body, extra: Record<string, string | null> = {}, keep: string | null = null) {
   const src = bookUrl(type, BOOK_BASE, extra);
   if (!src) return;
   const back = document.createElement("div");
@@ -85,6 +82,10 @@ export function openBooking(type: string, from: Element = document.body, extra: 
   box.setAttribute("aria-modal", "true");
   box.setAttribute("aria-label", "Book a meeting");
   box.style.cssText = "position:relative;width:100%;max-width:1060px;max-height:92vh;overflow:auto;border-radius:16px;background:#fff;box-shadow:0 24px 64px rgba(0,0,0,.25)";
+  if (phoneFull(keep, window.innerWidth)) {
+    back.style.padding = "0";
+    box.style.cssText += ";max-width:none;max-height:none;height:100%;border-radius:0";
+  }
   const close = document.createElement("button");
   close.type = "button";
   close.setAttribute("aria-label", "Close");
@@ -139,7 +140,7 @@ export class ClaritiaBook extends BBase {
       b.type = "button";
       b.textContent = this.getAttribute("text") || "Book a meeting";
       b.style.cssText = "position:fixed;right:20px;bottom:20px;z-index:2147483000;padding:12px 20px;border:0;border-radius:999px;background:var(--claritia-book-bg,#111);color:var(--claritia-book-text,#fff);font:600 15px/1.2 system-ui,sans-serif;cursor:pointer;box-shadow:0 8px 24px rgba(0,0,0,.2)";
-      b.addEventListener("click", () => openBooking(type, this, this.extra()));
+      b.addEventListener("click", () => openBooking(type, this, this.extra(), this.getAttribute("mobile")));
       root.append(b);
       return;
     }
@@ -161,5 +162,5 @@ if (typeof document !== "undefined")
     const t = (e.target as Element | null)?.closest?.("[data-claritia-book]");
     if (!t) return;
     e.preventDefault();
-    openBooking(t.getAttribute("data-claritia-book") ?? "", t, { name: t.getAttribute("data-name"), email: t.getAttribute("data-email") });
+    openBooking(t.getAttribute("data-claritia-book") ?? "", t, { name: t.getAttribute("data-name"), email: t.getAttribute("data-email") }, t.getAttribute("data-mobile"));
   });

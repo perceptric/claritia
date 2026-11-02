@@ -31,6 +31,7 @@ import { blankCond, ConditionRows, newRowId, usable } from "../forms/ConditionRo
 import { useRoutingFacts } from "../forms/formRouting";
 import { Arrow } from "../forms/OnSubmission";
 import { bookingBase } from "@/lib/meetings/handles";
+import { ShareMeeting } from "./ShareMeeting";
 
 export type HostStatus = { cal: boolean; out: { from: string; to: string }[] };
 export type Named = { user_id: string; name: string } & Availability;
@@ -169,6 +170,7 @@ export function TypePanel({
   const nameOf = (id: string) => data.byId.get(id)?.name ?? "Former teammate";
   const origin = typeof window === "undefined" ? "" : window.location.origin;
   const url = data.wsSlug && draft.slug ? `${bookingBase(origin)}/book/${data.wsSlug}/${draft.slug}` : "";
+  const [sharing, setSharing] = useState(false);
 
   const save = async () => {
     setError("");
@@ -296,6 +298,14 @@ export function TypePanel({
         <span className="flex h-8 items-center pr-1">
           <Toggle label={draft.active ? "Bookable" : "Turned off"} on={draft.active} onChange={(active) => set({ active })} />
         </span>
+        {row && data.wsSlug ? (
+          <Button variant="ghost" size="sm" onClick={() => setSharing(true)}>
+            Share
+          </Button>
+        ) : null}
+        {sharing && row && data.wsSlug ? (
+          <ShareMeeting session={session} ws={ws} type={{ id: row.id, name: draft.name || row.name, slug: row.slug, active: row.active }} wsSlug={data.wsSlug} onClose={() => setSharing(false)} onSingleUse={() => (setSharing(false), navigate("scheduling", "links", "create=single_use"))} />
+        ) : null}
         {row ? (
           <MoreMenu
             items={[

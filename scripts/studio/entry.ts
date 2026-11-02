@@ -86,6 +86,7 @@ const api: StudioApi = {
   formUrl: (id) => `/f/${id}`,
   openMeetings: () => void calls.push({ mode: "openMeetings", body: null }),
   openMeeting: (id) => void calls.push({ mode: "openMeeting", body: id }),
+  openShare: (id) => void calls.push({ mode: "openShare", body: id }),
   saveDraft: async (p) => {
     calls.push({ mode: "saveDraft", body: p });
     return { formId: "33333333-3333-4333-8333-333333333333" };

@@ -313,6 +313,8 @@ try {
   check(pub.name === "Daily check-in" && pub.html.includes("data-cl-step") && pub.brand.includes("--finch-mint"), "Publish sends the form's name, page and brand CSS");
   check(Object.keys((pub as unknown as { langs: Record<string, string> }).langs).sort().join() === "ar,fr" && (pub as unknown as { lang: string }).lang === "en", "Publish sends the form's languages");
   check(!(await $("#openBtn").isHidden()), "a published form links to its page");
+  await $("#shareBtn").click();
+  check((await calls()).some((c) => c.mode === "openShare" && c.body === "33333333-3333-4333-8333-333333333333"), "Share opens the published form's Share tab");
   await p.waitForFunction(() => Object.values((window as unknown as { saved: Record<string, { formId: string; state: string }> }).saved).some((c) => c.formId && c.state === "live"));
   check(true, "the chat keeps its published form");
   const made = checkForm(pageForm(pub as Parameters<typeof pageForm>[0]).form);

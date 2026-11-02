@@ -215,6 +215,7 @@ export function Studio({ sb, session, ws, navigate, formId = "", fresh = false }
       },
       openMeetings: () => navRef.current("scheduling", "types"),
       openMeeting: (id) => navRef.current("scheduling", `types/${id}`),
+      openShare: (id) => navRef.current("forms", id, "tab=share"),
       saveDraft: async (p) => {
         const r = await postJson<{ formId: string }>(sessionRef.current, "/api/studio", { workspaceId: ws.id, mode: "save", ...p });
         invalidate(`forms:${ws.id}:home`);
