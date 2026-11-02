@@ -248,3 +248,18 @@ formats run in the browser and cost nothing. Address search is the browser's own
 
 Opus at $4 in and $20 out per million tokens: check (from this repo's price table, not confirmed on Anthropic's
 page from here).
+
+## Tokens and files (after launch)
+
+- The brand block (its CSS, industry recipe, meeting types and logo note) goes once per chat as a cached part of
+  Tia's instructions; each message carries only the form as it is now, with the spaces between tags dropped. The
+  conversation up to Tia's last answer is cached too.
+- Changes to a built form run at low effort; a first build, attached files or a brand switch at medium.
+- Translations send only the words (headings, labels, options, placeholders) and put them back in place, so the page
+  can't change shape and the cost is a fraction of sending the page.
+- The owner can attach up to 5 files a message: pictures (5 MB) and PDFs (10 MB) go to Tia as they are, text files
+  (txt, csv, md, json; 200 KB) inside the words. A screenshot or PDF of a form is rebuilt in the brand's look.
+- Estimated effect on the bill (check against the step cache's usage after a week): a change about $0.05 (was about
+  $0.10), a language about $0.04 (was about $0.20). Beta about $715 a month, Growth about $6,135 (was about $810 and
+  $7,110 with the brand switch). Opus price "check".
+

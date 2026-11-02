@@ -182,12 +182,13 @@ export function Studio({ sb, session, ws, navigate, formId = "", fresh = false }
         if (!out) throw new Error(err || "Couldn't read the brand's look. Try again.");
         return out;
       },
-      tia: async (turns, onText, signal) => {
+      translate: async (texts, lang) => (await postJson<{ texts: string[] }>(sessionRef.current, "/api/studio", { workspaceId: ws.id, mode: "translate", texts, lang })).texts,
+      tia: async (turns, onText, signal, o) => {
         let all = "";
         let done: { text: string; cut: boolean } | null = null;
         let err = "";
         try {
-          await readLines(await post({ mode: "chat", turns }, signal), (l) => {
+          await readLines(await post({ mode: "chat", turns, brand: o?.brand ?? "", built: !!o?.built, files: o?.files ?? [] }, signal), (l) => {
             if (l.t) {
               all += l.t;
               onText(all);

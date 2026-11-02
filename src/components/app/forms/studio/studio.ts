@@ -78,7 +78,12 @@ input, textarea { user-select: text; -webkit-user-select: text; }
 .about { align-self: flex-start; display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 6px 0 10px; border-radius: 999px; background: var(--paper-deep); font-size: 12px; max-width: 100%; }
 .about span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .about button { border: 0; background: transparent; color: var(--muted); width: 18px; height: 18px; border-radius: 999px; display: inline-flex; align-items: center; justify-content: center; }
-.box { display: flex; align-items: flex-end; gap: 8px; border: 1px solid var(--line-strong); border-radius: 18px; padding: 6px 6px 6px 14px; }
+.box { display: flex; align-items: flex-end; gap: 6px; border: 1px solid var(--line-strong); border-radius: 18px; padding: 6px 6px 6px 6px; }
+.box .attach { width: 32px; height: 32px; }
+.box.drop { border-color: var(--ink); background: var(--hover); }
+.fchip { display: inline-flex; align-items: center; gap: 4px; height: 24px; padding: 0 8px; border-radius: 999px; background: var(--paper-deep); font-size: 12px; color: var(--body); max-width: 220px; }
+.fchip span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fchip button { border: 0; background: transparent; color: var(--muted); width: 16px; height: 16px; padding: 0; display: inline-flex; align-items: center; justify-content: center; border-radius: 999px; }
 .box:focus-within { border-color: var(--ink); }
 .box textarea { flex: 1; min-width: 0; border: 0; outline: 0; resize: none; background: transparent; color: var(--ink); font: inherit; font-size: 13.5px; line-height: 1.45; max-height: 140px; padding-block: 6px; }
 .box textarea:disabled { cursor: default; }
@@ -276,7 +281,7 @@ const P = {
   al: '<path d="M4 6h16M4 10h10M4 14h16M4 18h10"/>', ac: '<path d="M4 6h16M7 10h10M4 14h16M7 18h10"/>', ar: '<path d="M4 6h16M10 10h10M4 14h16M10 18h10"/>',
   js: '<path d="M4 4v16"/><rect x="8" y="7" width="6" height="10" rx="1"/>', jc: '<path d="M12 4v16"/><rect x="7" y="7" width="10" height="10" rx="1"/>', je: '<path d="M20 4v16"/><rect x="10" y="7" width="6" height="10" rx="1"/>', jb: '<path d="M4 4v16M20 4v16"/><rect x="8" y="7" width="3" height="10" rx="1"/><rect x="13" y="7" width="3" height="10" rx="1"/>',
   case0: '<path d="M4 18 8 6l4 12M5.5 14h5M15 18v-6a2.5 2.5 0 0 1 5 0v6M15 15h5"/>', caseU: '<path d="M3 18 7 6l4 12M4.5 14h5M14 18 17 6l4 12M15 14h5"/>', caseL: '<path d="M8 18v-5a2.5 2.5 0 0 1 5 0v5M8 15h5M16 9v9"/>',
-  check: '<path d="m5 12 5 5 9-10"/>', stop: "", globe: '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/>',
+  check: '<path d="m5 12 5 5 9-10"/>', stop: "", clip: '<path d="m21 11-8.6 8.6a5 5 0 0 1-7-7l8.6-8.6a3.3 3.3 0 0 1 4.7 4.7l-8.6 8.6a1.7 1.7 0 0 1-2.4-2.4l7.9-7.9"/>', globe: '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/>',
 };
 
 export const STUDIO_HTML = `
@@ -290,7 +295,8 @@ export const STUDIO_HTML = `
     <div class="msgs" id="msgs" aria-live="polite"></div>
     <div class="compose">
       <div class="about" id="about" hidden><span id="aboutText"></span><button id="aboutX" aria-label="Not about this element">${SVG(P.x, 12)}</button></div>
-      <div class="box"><textarea id="input" rows="1" aria-label="Message"></textarea><button class="send" id="send" aria-label="Send">${SVG(P.send, 15)}</button></div>
+      <div class="chips" id="attached" hidden></div>
+      <div class="box"><button class="ib attach" id="attachBtn" data-tip="Attach a picture, PDF or text file" aria-label="Attach a file">${SVG(P.clip, 16)}</button><input type="file" id="fileIn" multiple accept="image/png,image/jpeg,image/webp,image/gif,application/pdf,.txt,.csv,.md,.json,text/plain,text/csv,text/markdown" hidden><textarea id="input" rows="1" aria-label="Message"></textarea><button class="send" id="send" aria-label="Send">${SVG(P.send, 15)}</button></div>
     </div>
   </section>
   <section class="stage" aria-label="Form">
@@ -372,7 +378,10 @@ export type StudioApi = {
   fromForm(formId: string): Promise<StudioChat | null>;
   saveChat(c: StudioChat): Promise<void>;
   deleteChat(id: string): Promise<void>;
-  tia(turns: { role: "user" | "assistant"; content: string }[], onText: (all: string) => void, signal: AbortSignal): Promise<{ text: string; cut: boolean }>;
+  /** brand: the chat's brand block (cached on the server); built: a change to a built form; files: attached to this message. */
+  tia(turns: { role: "user" | "assistant"; content: string }[], onText: (all: string) => void, signal: AbortSignal, o?: { brand?: string; built?: boolean; files?: { name: string; type: string; data: string }[] }): Promise<{ text: string; cut: boolean }>;
+  /** The form's words in another language, in the same order. */
+  translate(texts: string[], lang: string): Promise<string[]>;
   publish(p: { formId: string | null; name: string; html: string; css: string; brand: string; after: unknown; kitId: string; lang?: string; langs?: Record<string, string> }): Promise<{ formId: string; problem?: string }>;
   formUrl(id: string): string;
   openMeetings(): void;
@@ -1221,11 +1230,16 @@ export function mountStudio(shell: ShadowRoot, api: StudioApi): () => void {
     const c = cur, html = sourceHtml();
     S.translating = code; langUi(); toast(`Tia is writing the form in ${languageName(code)}`);
     try {
-      const ask = `Translate the whole form into ${languageName(code)} (${code}). Keep every tag, attribute, class, id, name, value, data-cl-* attribute and data-cl-id exactly as they are, and change only the words people read: headings, text, labels, button words, option words, placeholders, alt text and data-cl-label. Answer with only <say>One short line.</say> and <form_html>the whole translated form</form_html>.\n\n<form_html>${html}</form_html>`;
-      const r = await api.tia([{ role: "user", content: ask }], () => {}, new AbortController().signal);
-      const out = tagOf(r.text, "form_html");
-      if (!out?.closed || !out.body.trim()) throw new Error(`Tia couldn't write the ${languageName(code)} version. Try again.`);
-      c.body.langs[code] = out.body.trim();
+      // Only the words go to Tia and come back, put back in the same places, so the page can't change shape.
+      const copy = clean(html);
+      const slots = [];
+      const walk = (n) => { for (const x of n.childNodes) { if (x.nodeType === 3 && x.textContent.trim()) slots.push({ node: x }); else if (x.nodeType === 1) { for (const a of ["placeholder", "alt", "title", "aria-label", "data-cl-label"]) if (x.getAttribute(a)?.trim()) slots.push({ el: x, attr: a }); if (!["SCRIPT", "STYLE"].includes(x.tagName)) walk(x); } } };
+      walk(copy);
+      const words = slots.map((t) => (t.node ? t.node.textContent : t.el.getAttribute(t.attr)));
+      const done2 = await api.translate(words, `${languageName(code)} (${code})`);
+      if (done2.length !== slots.length) throw new Error(`Tia couldn't write the ${languageName(code)} version. Try again.`);
+      slots.forEach((t, i) => { if (t.node) t.node.textContent = done2[i]; else t.el.setAttribute(t.attr, done2[i]); });
+      c.body.langs[code] = copy.innerHTML.trim();
       c.body.langFrom[code] = sig(html);
       if (cur === c) { S.lang = code; if (S.mode !== "preview") setMode("preview"); }
       changed();
@@ -1490,6 +1504,7 @@ export function mountStudio(shell: ShadowRoot, api: StudioApi): () => void {
     if (log.some((m) => m.who === "me")) log.forEach((m, i) => {
       const d = h("div", { class: `msg ${m.who}` });
       if (m.who === "ai") d.append(h("div", { class: "who", html: `${tiaSvg(18, !!m.live)}<span>Tia</span>` }));
+      if (m.files?.length) d.append(h("div", { class: "chips" }, ...m.files.map((n) => h("span", { class: "fchip", html: SVG(P.clip, 12) }, h("span", { text: n })))));
       if (m.text) d.append(h("div", { class: "text", text: m.text }));
       if (m.status) d.append(h("div", { class: "status", text: m.status }));
       if (m.did) { const x = h("div", { class: "did", html: SVG(P.check, 13) }); x.append(h("span", { text: m.did })); d.append(x); }
@@ -1512,18 +1527,24 @@ export function mountStudio(shell: ShadowRoot, api: StudioApi): () => void {
   async function send(text, extra) {
     text = String(text || "").trim();
     const c = cur, b = brandOf(c);
-    if (!text || S.busy || !b || !b.css || looking.has(b.id)) return;
+    const files = extra?.files ?? (extra?.from ? [] : takeFiles());
+    if ((!text && !files.length) || S.busy || !b || !b.css || looking.has(b.id)) return;
+    if (!text) text = files.length === 1 ? `Use ${files[0].name}` : "Use these files";
     $("input").value = ""; autosize();
     c.body.log.forEach((m) => (m.ask = undefined));
-    c.body.log.push({ who: "me", text });
+    c.body.log.push({ who: "me", text, ...(files.length ? { files: files.map((f) => f.name) } : {}) });
     const reply = { who: "ai", text: "", status: "Thinking", live: true };
     c.body.log.push(reply);
     const about = S.about; S.about = null; aboutUi();
     S.busy = true; busyUi(true); renderLog();
     const wasBuilt = built();
     snap();
-    const ctx = `\n\n[${wasBuilt ? "THE FORM IS BUILT" : "NOTHING BUILT YET"}]\n[Brand: ${b.name} (${b.site}), confirmed. Its brand CSS follows; build only with it.]${b.profile ? `\n${recipeText(b.profile)}` : ""}\n<brand_css>${b.css}</brand_css>\n[The form now]\n<form_html>${sourceHtml()}</form_html>\n<form_css>${c.body.css}</form_css>\n<after>${JSON.stringify(c.body.after)}</after>\n[Meeting types (id: name)] ${MEETINGS.length ? MEETINGS.map((m) => `${m.id}: ${m.name}, ${m.length} min`).join("; ") : "none yet"}${b.logo ? "\n[The brand's logo is set; the form shows it in img[data-cl-logo].]" : "\n[No logo yet. Use img[data-cl-logo] anyway; it hides until one is added.]"}${about ? `\n[This message is about the element with id="${about.id}" (${about.label}). Change only that element unless the owner asks for more.]` : ""}${extra?.from ? `\n[The brand just changed from ${extra.from} to ${b.name}. Put ${b.name} in place of ${extra.from} everywhere in the words, change any form CSS that used ${extra.from}'s own colors, fonts or variables to the brand CSS above, and keep every question, name, value and id.]` : ""}`;
-    const turns = [...c.body.turns, { role: "user", content: text + ctx }];
+    // The brand block is the same for every message in this chat, so the server caches it; each message carries only
+    // the form as it is now (whitespace between tags dropped) and the new words.
+    const brandBlock = `BRAND\n[Brand: ${b.name} (${b.site}), confirmed. Build only with its brand CSS.]${b.profile ? `\n${recipeText(b.profile)}` : ""}\n<brand_css>${b.css}</brand_css>\n[Meeting types (id: name)] ${MEETINGS.length ? MEETINGS.map((m) => `${m.id}: ${m.name}, ${m.length} min`).join("; ") : "none yet"}${b.logo ? "\n[The brand's logo is set; the form shows it in img[data-cl-logo].]" : "\n[No logo yet. Use img[data-cl-logo] anyway; it hides until one is added.]"}`;
+    const ctx = `\n\n[${wasBuilt ? "THE FORM IS BUILT" : "NOTHING BUILT YET"}]${files.length ? `\n[Attached: ${files.map((f) => f.name).join(", ")}]` : ""}\n[The form now]\n<form_html>${sourceHtml().replace(/>\s+</g, "><")}</form_html>\n<form_css>${c.body.css}</form_css>\n<after>${JSON.stringify(c.body.after)}</after>${about ? `\n[This message is about the element with id="${about.id}" (${about.label}). Change only that element unless the owner asks for more.]` : ""}${extra?.from ? `\n[The brand just changed from ${extra.from} to ${b.name}. Put ${b.name} in place of ${extra.from} everywhere in the words, change any form CSS that used ${extra.from}'s own colors, fonts or variables to the brand CSS, and keep every question, name, value and id.]` : ""}`;
+    const textFiles = files.filter((f) => f.text !== undefined);
+    const turns = [...c.body.turns, { role: "user", content: text + textFiles.map((f) => `\n\n[File ${f.name}]\n${f.text}`).join("") + ctx }];
     ctl = new AbortController();
     try {
       const r = await api.tia(turns, (t) => {
@@ -1535,10 +1556,10 @@ export function mountStudio(shell: ShadowRoot, api: StudioApi): () => void {
         const now = performance.now();
         if (!wasBuilt && cur === c && now - lastPaint > 250) { lastPaint = now; const fh = tagOf(t, "form_html"), fc = tagOf(t, "form_css"); if (fc) c.body.css = fc.body; if (fh) { setSource(fh.body); stepAt = 0; done = false; } if (fh || fc) draw(); }
         if (cur === c) renderLog();
-      }, ctl.signal);
+      }, ctl.signal, { brand: brandBlock, built: wasBuilt && !extra?.from, files: files.filter((f) => f.data).map(({ name, type, data }) => ({ name, type, data })) });
       finish(c, r.text, reply, wasBuilt);
       if (r.cut) reply.err = "The answer was cut short. Ask for a smaller change.";
-      c.body.turns.push({ role: "user", content: text }, { role: "assistant", content: `<say>${reply.text}</say>${reply.ask ? `<ask>${JSON.stringify(reply.ask)}</ask>` : ""}${reply.did ? `<did>${reply.did}</did>` : ""}` });
+      c.body.turns.push({ role: "user", content: files.length ? `${text} [attached ${files.map((f) => f.name).join(", ")}]` : text }, { role: "assistant", content: `<say>${reply.text}</say>${reply.ask ? `<ask>${JSON.stringify(reply.ask)}</ask>` : ""}${reply.did ? `<did>${reply.did}</did>` : ""}` });
       c.body.turns = c.body.turns.slice(-20);
     } catch (e) {
       if (e?.text) finish(c, e.text, reply, wasBuilt);
@@ -1595,8 +1616,38 @@ export function mountStudio(shell: ShadowRoot, api: StudioApi): () => void {
     pubUi();
   }
   $("send").onclick = () => (S.busy ? ctl?.abort() : send($("input").value));
+  $("attachBtn").disabled = false;
   $("input").addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send($("input").value); } });
   function autosize() { const t = $("input"); t.style.height = "auto"; t.style.height = `${Math.min(140, t.scrollHeight)}px`; }
+  // Files for Tia: pictures (5 MB) and PDFs (10 MB) go as they are; text files (200 KB) go inside the words. Up to 5.
+  let pending = [];
+  const IMG = ["image/png", "image/jpeg", "image/webp", "image/gif"];
+  function attachedUi() {
+    const box = $("attached"); box.innerHTML = ""; box.hidden = !pending.length;
+    pending.forEach((f, i) => box.append(h("span", { class: "fchip", html: SVG(P.clip, 12) }, h("span", { text: f.name }), h("button", { "aria-label": `Remove ${f.name}`, html: SVG(P.x, 10), onclick: () => { pending.splice(i, 1); attachedUi(); } }))));
+    if (!S.busy && brandOf(cur)?.css) $("send").disabled = false;
+  }
+  async function addFiles(list) {
+    for (const file of [...list]) {
+      if (pending.length >= 5) { toast("Up to 5 files a message"); break; }
+      const isText = /^text\//.test(file.type) || /\.(txt|csv|md|json)$/i.test(file.name);
+      if (IMG.includes(file.type) && file.size > 5 * 1024 * 1024) { toast(`${file.name} is over 5 MB`); continue; }
+      if (file.type === "application/pdf" && file.size > 10 * 1024 * 1024) { toast(`${file.name} is over 10 MB`); continue; }
+      if (isText && file.size > 200 * 1024) { toast(`${file.name} is over 200 KB`); continue; }
+      if (!IMG.includes(file.type) && file.type !== "application/pdf" && !isText) { toast(`${file.name} isn't a picture, PDF or text file`); continue; }
+      if (isText) pending.push({ name: file.name, type: "text/plain", text: (await file.text()).slice(0, 200_000) });
+      else { const buf = new Uint8Array(await file.arrayBuffer()); let bin = ""; for (let i = 0; i < buf.length; i += 0x8000) bin += String.fromCharCode(...buf.subarray(i, i + 0x8000)); pending.push({ name: file.name, type: file.type, data: btoa(bin) }); }
+    }
+    attachedUi();
+  }
+  function takeFiles() { const f = pending; pending = []; attachedUi(); return f; }
+  $("attachBtn").onclick = () => $("fileIn").click();
+  $("fileIn").addEventListener("change", () => { void addFiles($("fileIn").files || []); $("fileIn").value = ""; });
+  $("input").addEventListener("paste", (e) => { const fs = [...(e.clipboardData?.files || [])]; if (fs.length) { e.preventDefault(); void addFiles(fs); } });
+  const boxEl = $("input").parentElement;
+  $("chat").addEventListener("dragover", (e) => { if ([...(e.dataTransfer?.types || [])].includes("Files")) { e.preventDefault(); boxEl.classList.add("drop"); } });
+  $("chat").addEventListener("dragleave", (e) => { if (e.target === $("chat") || !$("chat").contains(e.relatedTarget)) boxEl.classList.remove("drop"); });
+  $("chat").addEventListener("drop", (e) => { if (!e.dataTransfer?.files?.length) return; e.preventDefault(); boxEl.classList.remove("drop"); void addFiles(e.dataTransfer.files); });
   $("input").addEventListener("input", autosize);
   listen(window, "pagehide", () => save(true));
 
