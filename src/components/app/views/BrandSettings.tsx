@@ -8,7 +8,9 @@ import { useEffect, useState } from "react";
 import type { BrandBook } from "@/lib/brand/book";
 import { cleanSvg } from "@/lib/brand/deep";
 import { cleanFontUrl, cleanTokens } from "@/lib/forms/brand";
-import { Badge, Button, CardHead, ErrorNote, errorText, Loading, must, Panel, postJson, useQuery, type ViewProps } from "../ui";
+import { brandName } from "@/lib/brand/name";
+import { askConfirm } from "../Dialogs";
+import { Badge, Button, CardHead, ErrorNote, errorText, invalidate, Loading, must, Panel, postJson, useQuery, type ViewProps } from "../ui";
 
 type Kit = {
   id: string;
@@ -73,6 +75,18 @@ export function BrandSettings({ sb, session, ws }: Pick<ViewProps, "sb" | "sessi
       setBusy(false);
     }
   };
+  /** Delete a brand: forms in it go back to Claritia's look. */
+  const remove = async (k: Kit) => {
+    if (!(await askConfirm(`Delete ${brandName(k)}?`, { body: "Forms and booking pages in this brand go back to Claritia's look.", ok: "Delete", danger: true }))) return;
+    setError("");
+    try {
+      must(await sb.rpc("brand_kit_delete", { p_id: k.id }));
+      invalidate(`forms:${ws.id}:home`);
+      data.reload();
+    } catch (e) {
+      setError(errorText(e));
+    }
+  };
   const use = async (id: string) => {
     setError("");
     try {
@@ -114,6 +128,9 @@ export function BrandSettings({ sb, session, ws }: Pick<ViewProps, "sb" | "sessi
                   Read again
                 </Button>
               ) : null}
+              <Button variant="plain" className="h-7 px-2 text-rose" disabled={busy} onClick={() => void remove(brand)}>
+                Delete
+              </Button>
             </span>
           ) : null}
         </CardHead>
@@ -235,9 +252,13 @@ export function BrandSettings({ sb, session, ws }: Pick<ViewProps, "sb" | "sessi
                 return (
                   <li key={k.id} className="flex items-center gap-3 border-t border-line px-5 py-3 first:border-t-0">
                     <span className="size-5 rounded-full border border-line" style={{ background: kt.accent }} />
-                    <span className="min-w-0 flex-1 truncate text-[13px] text-ink">{host(k.source_url) || k.name}</span>
+                    <span className="min-w-0 flex-1 truncate text-[13px] text-ink">{brandName(k)}</span>
+                    <span className="truncate text-[12px] text-muted max-[640px]:hidden">{host(k.source_url)}</span>
                     <Button variant="ghost" size="sm" onClick={() => void use(k.id)}>
                       Use as brand
+                    </Button>
+                    <Button variant="plain" size="sm" className="text-rose" onClick={() => void remove(k)}>
+                      Delete
                     </Button>
                   </li>
                 );
