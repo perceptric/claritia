@@ -187,7 +187,7 @@ Pulls run every 5 minutes for new CRM sources (HubSpot changes also arrive withi
 |---|---|
 | Close, Klaviyo, ActiveCampaign, Brevo, Kit, MailerLite, Stripe, Intercom | An API key from the tool's settings (these have no one-click sign-in in this build) |
 | Typeform, Tally, Webflow, Calendly, Cal.com, any JSON | Claritia gives a webhook address to paste into the tool, with an optional signing secret |
-| PostgreSQL, Redshift, MySQL, ClickHouse, BigQuery, Snowflake, Databricks | Database details for a read-only user. The connect screen shows the grant to run. Hosts on private networks are refused, so the database needs a public address. |
+| PostgreSQL, Redshift, MySQL, ClickHouse, BigQuery, Snowflake, Databricks | Database details for a read-only user. The connect screen shows the grant to run. Hosts on private networks are refused, so the database needs a public address. PostgreSQL and MySQL also take form fills as rows: their grant lets Claritia make the form's table and add columns to it. |
 
 ## 7. Check it works
 

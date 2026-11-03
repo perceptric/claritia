@@ -85,7 +85,9 @@ export const CATALOG: Entry[] = [
   { key: "password", label: "Password", secret: true },
 ],
     objects: [],
-    grant: "create user claritia_read with password '…';\ngrant usage on schema public to claritia_read;\ngrant select on all tables in schema public to claritia_read;",
+    pushes: true,
+    rows: true,
+    grant: "create user claritia with password '…';\ngrant usage, create on schema public to claritia;\ngrant select on all tables in schema public to claritia;",
   },
   {
     kind: "redshift",
@@ -117,7 +119,9 @@ export const CATALOG: Entry[] = [
   { key: "password", label: "Password", secret: true },
 ],
     objects: [],
-    grant: "create user 'claritia_read'@'%' identified by '…' require ssl;\ngrant select on yourdb.* to 'claritia_read'@'%';",
+    pushes: true,
+    rows: true,
+    grant: "create user 'claritia'@'%' identified by '…' require ssl;\ngrant select, insert, create, alter on yourdb.* to 'claritia'@'%';",
   },
   {
     kind: "clickhouse",
