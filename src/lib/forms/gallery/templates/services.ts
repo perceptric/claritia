@@ -1,5 +1,5 @@
 // Agencies, consulting, legal, accounting.
-import { address, agree, BUDGET, company, CONTACT_PREF, date, drop, email, file, files, fullName, HEARD, jobTitle, long, many, matrix, nps, num, one, phone, scale, stars, text, THANKS, TIMELINE, tpl, when, website, yesno } from "./build.ts";
+import { address, agree, BUDGET, company, CONTACT_PREF, date, drop, email, file, files, fullName, go, HEARD, jobTitle, long, many, matrix, money, nps, num, one, phone, scale, sign, stars, text, THANKS, TIMELINE, tpl, when, website, yesno } from "./build.ts";
 
 const SERVICES = ["Brand and design", "Website", "SEO", "Paid ads", "Content", "Social media", "Email marketing", "Strategy"];
 
@@ -21,12 +21,70 @@ export const AGENCY = [
   }),
   tpl("agency.client-intake", "agency", "Client intake", ["intake"], "Everything you need to kick off a new client.", {
     featured: true,
+    version: 2,
+    cover: { title: "Welcome aboard", text: "About 10 minutes. Have your logo and brand files nearby.", button: "Start" },
+    copy: true,
     pages: [
-      { title: "The business", fields: [fullName("Main contact"), email(), company("Brand name", { required: true }), website(undefined, { required: true }), long("What do you sell, in two sentences?", { required: true })] },
-      { title: "The audience", fields: [long("Who is your ideal customer?", { required: true }), text("Top 3 competitors"), long("What makes you different?")] },
-      { title: "Goals and assets", fields: [many("Goals for the next 6 months", ["More leads", "More sales", "Brand awareness", "Launch something new", "Enter a new market"], { required: true }), files("Brand assets (logo, guidelines)"), long("Logins or access we'll need")] },
+      {
+        title: "The business",
+        fields: [
+          fullName("Main contact"),
+          email(),
+          phone(),
+          company("Brand name", { required: true }),
+          website(undefined, { required: true }),
+          long("What do you sell, in two sentences?", { required: true }),
+        ],
+      },
+      {
+        title: "The audience",
+        fields: [
+          long("Who is your ideal customer?", { required: true }),
+          many("Where do customers find you today?", ["Search", "Social media", "Referrals", "Ads", "Events", "Partners"]),
+          text("Top 3 competitors"),
+          long("What makes you different?"),
+        ],
+      },
+      {
+        title: "Brand",
+        fields: [
+          yesno("Do you have brand guidelines?"),
+          files("Brand assets (logo, guidelines)"),
+          many("How should your brand sound?", ["Friendly", "Expert", "Playful", "Bold", "Calm", "Premium"]),
+          text("Brands you admire"),
+          long("Words, colors or styles to avoid"),
+        ],
+      },
+      {
+        title: "Goals and budget",
+        fields: [
+          many("Goals for the next 6 months", ["More leads", "More sales", "Brand awareness", "Launch something new", "Enter a new market"], { required: true }),
+          many("What are you hiring us for?", SERVICES, { required: true, save: "services" }),
+          text("How will you measure success?"),
+          one("Budget", BUDGET, { save: "budget" }),
+          date("Key launch or deadline"),
+        ],
+      },
+      {
+        title: "Access and assets",
+        fields: [
+          many("Which tools will we need access to?", ["Website", "Analytics", "Search Console", "Ad accounts", "Social accounts", "Email platform", "CRM"]),
+          one("How will you share access?", ["Invite our team as users", "Through a password manager", "Set it up on the kickoff call"]),
+          files("Photos, videos and past work"),
+          long("Past campaigns: what worked and what didn't?"),
+        ],
+      },
+      {
+        title: "Kickoff",
+        fields: [
+          text("Who should join the kickoff?"),
+          one("Best way to reach you day to day", ["Email", "Slack", "Phone", "Video calls"]),
+          one("How often should we check in?", ["Weekly", "Every two weeks", "Monthly"]),
+          long("Anything else before we start?"),
+        ],
+      },
     ],
-    end: ["Intake complete", "We'll review everything before our kickoff."],
+    end: { title: "Intake complete", text: "Pick a time for your kickoff call.", booking: true },
   }),
   tpl("agency.creative-brief", "agency", "Creative brief", ["intake", "request"], "A brief your creative team can work from.", {
     featured: true,
@@ -139,15 +197,66 @@ const PRACTICE = ["Family", "Personal injury", "Business", "Employment", "Real e
 export const LEGAL = [
   tpl("legal.case-evaluation", "legal", "Case evaluation", ["intake", "lead"], "A free case review that captures the key facts.", {
     featured: true,
-    fields: [
-      fullName(),
-      phone("Phone", { required: true }),
-      email("Email"),
-      drop("Type of case", PRACTICE, { required: true, save: "practice_area" }),
-      date("When did it happen?"),
-      long("Tell us what happened", { required: true }),
-      one("Best way to reach you", CONTACT_PREF),
-      agree("I understand this form does not create an attorney-client relationship."),
+    version: 2,
+    pages: [
+      {
+        title: "About you",
+        fields: [
+          fullName(),
+          phone("Phone", { required: true }),
+          email("Email"),
+          one("Best way to reach you", CONTACT_PREF),
+          text("City and state"),
+          drop("Type of case", PRACTICE, { required: true, save: "practice_area" }),
+        ],
+        jumps: [
+          go("Type of case", "is", "Family", "Family matter"),
+          go("Type of case", "any", ["Business", "Employment"], "Work or business"),
+          go("Type of case", "any", ["Real estate", "Estate planning", "Immigration", "Criminal defense", "Other"], "Timeline and consent"),
+        ],
+      },
+      {
+        title: "Injury details",
+        fields: [
+          one("How were you hurt?", ["Car or truck accident", "Slip or fall", "At work", "Medical care", "Dog bite", "Other"], { required: true }),
+          yesno("Did you get medical treatment?"),
+          yesno("Was a police or incident report made?"),
+          yesno("Have you talked to an insurance company?"),
+        ],
+        skip: go("Type of case", "is", "Personal injury", "Timeline and consent"),
+      },
+      {
+        title: "Family matter",
+        fields: [
+          one("What is the family matter about?", ["Divorce or separation", "Child custody", "Child support", "Adoption", "Protective order", "Other"], { required: true }),
+          yesno("Are there children under 18?"),
+          yesno("Has anyone filed in court yet?"),
+          date("Next court date", { show: when("Has anyone filed in court yet?", "is", true) }),
+        ],
+        skip: go("Type of case", "is", "Family", "Timeline and consent"),
+      },
+      {
+        title: "Work or business",
+        fields: [
+          one("What is the work issue about?", ["Unpaid wages", "Fired or let go", "Discrimination or harassment", "Other"], { show: when("Type of case", "is", "Employment") }),
+          yesno("Are you still working there?", { show: when("Type of case", "is", "Employment") }),
+          one("What is the business matter about?", ["A contract", "Forming a business", "A dispute with a partner", "Collecting a debt", "Other"], { show: when("Type of case", "is", "Business") }),
+          text("Employer or company name"),
+          yesno("Is there a written contract or agreement?"),
+        ],
+      },
+      {
+        title: "Timeline and consent",
+        fields: [
+          long("Tell us what happened", { required: true }),
+          date("When did it happen?"),
+          text("Other people or companies involved"),
+          yesno("Is there a deadline or court date coming up?"),
+          yesno("Have you talked to another lawyer about this?"),
+          files("Documents"),
+          agree("I understand this form does not create an attorney-client relationship."),
+        ],
+      },
     ],
     submit: "Request my free review",
     end: { title: "We've received your case", text: "An attorney will review it and contact you within one business day.", booking: true },
@@ -179,10 +288,80 @@ export const LEGAL = [
 export const ACCOUNTING = [
   tpl("accounting.tax-intake", "accounting", "Tax prep intake", ["intake"], "Gather what you need to file a return.", {
     featured: true,
+    version: 2,
+    cover: { title: "Tax prep intake", text: "About 10 minutes. Have your tax forms and last year's return nearby.", button: "Start" },
+    resume: true,
+    copy: true,
     pages: [
-      { title: "About you", fields: [fullName(), email("Email"), phone(), one("Filing status", ["Single", "Married filing jointly", "Married filing separately", "Head of household"], { required: true })] },
-      { title: "Income", fields: [many("Income this year", ["Wages (W-2)", "Self-employed", "Rental", "Investments", "Retirement", "Other"], { required: true }), num("Dependents", { min: 0 }), yesno("Any big changes this year?"), long("What changed?", { show: when("Any big changes this year?", "is", true) })] },
-      { title: "Documents", fields: [files("Upload your documents"), long("Questions for us")] },
+      {
+        title: "About you",
+        fields: [
+          fullName(),
+          email("Email"),
+          phone(),
+          address(),
+          one("Filing status", ["Single", "Married filing jointly", "Married filing separately", "Head of household", "Not sure"], { required: true }),
+          text("Spouse's name", { show: when("Filing status", "any", ["Married filing jointly", "Married filing separately"]) }),
+          yesno("Do you have dependents?", { required: true }),
+        ],
+        skip: go("Do you have dependents?", "is", false, "Income"),
+      },
+      {
+        title: "Dependents",
+        fields: [
+          num("How many dependents?", { min: 1, required: true }),
+          long("Names, birth dates and how they're related to you", { required: true }),
+          yesno("Did you pay for child care?"),
+          money("Child care paid this year", { show: when("Did you pay for child care?", "is", true) }),
+        ],
+      },
+      {
+        title: "Income",
+        fields: [
+          many("Income this year", ["Wages (W-2)", "Self-employment or business", "Rental", "Investments", "Retirement", "Unemployment", "Other"], { required: true }),
+          yesno("Did you sell stocks, crypto or property?"),
+          yesno("Any big changes this year?"),
+          long("What changed?", { show: when("Any big changes this year?", "is", true), placeholder: "A move, a new job, a marriage, a new baby" }),
+        ],
+      },
+      {
+        title: "Deductions",
+        fields: [
+          many("Did you pay any of these?", ["Mortgage interest", "Property taxes", "Student loan interest", "Medical bills", "Charitable gifts", "Education costs", "None of these"]),
+          money("Total charitable gifts", { show: when("Did you pay any of these?", "is", "Charitable gifts") }),
+          yesno("Did you put money into a retirement account or HSA?"),
+          long("Other costs we should know about"),
+        ],
+        skip: go("Income this year", "not", "Self-employment or business", "Uploads"),
+      },
+      {
+        title: "Business income",
+        fields: [
+          text("Business name or type", { required: true }),
+          money("Business income this year"),
+          money("Business expenses this year"),
+          yesno("Do you use part of your home for work?"),
+          yesno("Did you buy equipment or a vehicle for the business?"),
+          yesno("Did you make estimated tax payments?"),
+        ],
+      },
+      {
+        title: "Uploads",
+        fields: [
+          files("Tax forms (W-2, 1099 and others)", { required: true }),
+          file("Last year's tax return"),
+          files("Receipts and statements"),
+          long("Questions for us"),
+        ],
+      },
+      {
+        title: "Review and sign",
+        fields: [
+          one("How would you like to go over your return?", ["By email", "On a call", "In person"]),
+          agree("The information I gave is true and complete as far as I know."),
+          sign("Signature"),
+        ],
+      },
     ],
     end: ["We have everything", "We'll reach out if anything is missing."],
   }),

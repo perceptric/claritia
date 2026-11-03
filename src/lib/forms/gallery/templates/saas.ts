@@ -1,4 +1,4 @@
-import { agree, BUDGET, company, date, drop, email, file, fullName, HEARD, jobTitle, long, many, num, one, phone, TEAM_SIZE, text, TIMELINE, tpl, when, yesno } from "./build.ts";
+import { agree, BUDGET, company, date, DAYPART, drop, email, file, fullName, go, HEARD, jobTitle, long, many, num, one, phone, TEAM_SIZE, text, TIMELINE, tpl, when, yesno } from "./build.ts";
 
 const TOOLS = ["Spreadsheets", "HubSpot", "Salesforce", "An in-house tool", "Nothing yet", "Other"];
 
@@ -50,16 +50,59 @@ export const SAAS = [
   }),
   tpl("saas.onboarding-survey", "saas", "Onboarding survey", ["survey", "intake"], "Learn each new user's goal to personalize setup.", {
     featured: true,
-    fields: [
-      email("Email"),
-      one("Your role", ["Founder or exec", "Marketing", "Sales", "Product", "Engineering", "Operations", "Other"], { required: true, save: "persona" }),
-      one("Main goal", ["Save time", "Grow revenue", "Replace a tool", "Report better", "Just exploring"], { required: true, save: "goal" }),
-      one("Team size", TEAM_SIZE, { save: "team_size" }),
-      many("Tools you use", ["Slack", "Google Workspace", "Microsoft 365", "HubSpot", "Salesforce", "Notion", "Jira"]),
-      one("How did you hear about us?", HEARD, { save: "heard_from" }),
+    version: 2,
+    pages: [
+      {
+        title: "Your team",
+        fields: [
+          fullName(),
+          email("Email"),
+          company(),
+          one("Your role", ["Founder or exec", "Marketing", "Sales", "Product", "Engineering", "Operations", "Other"], { required: true, save: "persona" }),
+          one("Team size", TEAM_SIZE, { required: true, save: "team_size" }),
+        ],
+      },
+      {
+        title: "Tools you use today",
+        fields: [
+          many("Tools you use", ["Slack", "Google Workspace", "Microsoft 365", "HubSpot", "Salesforce", "Notion", "Jira"]),
+          one("What are you moving from?", ["Spreadsheets", "Another tool", "An in-house tool", "Nothing, we're starting fresh"], { required: true }),
+          text("Which tool?", { show: when("What are you moving from?", "is", "Another tool") }),
+          yesno("Do you have data to bring in?"),
+          one("About how many records?", ["Under 1,000", "1,000–10,000", "10,000–100,000", "Over 100,000"], { show: when("Do you have data to bring in?", "is", true) }),
+        ],
+      },
+      {
+        title: "Goals",
+        fields: [
+          one("Main goal", ["Save time", "Grow revenue", "Replace a tool", "Report better", "Just exploring"], { required: true, save: "goal" }),
+          many("What would you like to set up first?", ["Invite my team", "Connect my tools", "Bring in my data", "Build reports", "Set up automations"]),
+          long("What would make the first month a success?"),
+          one("When do you want to be up and running?", ["This week", "Within 2 weeks", "Within a month", "No rush"]),
+        ],
+      },
+      {
+        title: "Setup help",
+        fields: [
+          one("How comfortable is your team with new tools?", ["Very comfortable", "Fairly comfortable", "We'll need some help"]),
+          one("How would you like to get set up?", ["I'll set it up myself", "A short call to get started", "Hands-on help for my team"], { required: true, save: "setup_help" }),
+          one("How did you hear about us?", HEARD, { save: "heard_from" }),
+        ],
+        jumps: [go("How would you like to get set up?", "is", "I'll set it up myself", "end")],
+      },
+      {
+        title: "Setup call",
+        fields: [
+          many("Best days for a call", ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"]),
+          one("Best time of day", DAYPART),
+          phone(),
+          text("Who else should join?"),
+          long("Anything we should know before the call?"),
+        ],
+      },
     ],
     submit: "Finish",
-    end: ["You're all set", "We'll tailor your workspace to your goal."],
+    end: ["You're all set", "We'll tailor your workspace to your goal. If you asked for a call, we'll email you a time."],
   }),
   tpl("saas.pricing-lead", "saas", "Pricing calculator lead", ["lead", "request"], "Turn pricing curiosity into a qualified lead.", {
     fields: [
