@@ -4,7 +4,7 @@ import { requireUser, roleIn } from "@/lib/serverAuth";
 import { serviceClient } from "@/lib/serviceClient";
 
 /**
- * Start a Stripe checkout for a paid plan, monthly or yearly, with a line for each host past the first. Only the
+ * Start a Stripe checkout for a paid plan, monthly or yearly, with one line priced per seat. Only the
  * workspace's owner can. Returns the checkout page's address. A workspace already paying changes plan with
  * /api/billing/change instead.
  */

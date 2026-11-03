@@ -1,16 +1,20 @@
 import "server-only";
 import Stripe from "stripe";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { cents, extraHosts, isInterval, isPaidPlan, planById, type Interval, type PlanId } from "./plans.ts";
+import { cents, isInterval, isPaidPlan, planById, seats, type Interval, type PlanId } from "./plans.ts";
 import { APP_URL } from "./site.ts";
 
 // Billing needs one setting: STRIPE_SECRET_KEY. Prices come from src/lib/plans.ts (docs/pricing.md), and the app makes
 // its own products, webhook and billing page in Stripe the first time they're needed.
 //
-// A subscription has a plan line (quantity 1) and, with more than one host, an extra-host line whose quantity is the
-// hosts past the first. Both are priced from plans.ts on the way in, so there are no price ids to copy. The plan and
-// interval live in the subscription's metadata (only this server sets it), and a line only counts when its price
-// matches the plan's.
+// A subscription has one seat line: the plan's price per seat, with a quantity of the seats (the people anyone can
+// book, at least 1). It's priced from plans.ts on the way in, so there are no price ids to copy. The plan and interval
+// live in the subscription's metadata (only this server sets it), and a line only counts when its price matches the
+// plan's.
+//
+// Before per-seat pricing (November 2026), a subscription had a plan line with 1 seat in it and an extra-seat line for
+// the rest. The old plan line costs what one seat does now, so it reads as the seat line; the old extra-seat line
+// (LEGACY_EXTRA) still counts its seats, and the next seat sync folds it into the seat line, prorated.
 
 type Paid = Exclude<PlanId, "free">;
 type Admin = Pick<SupabaseClient, "from" | "rpc">;
@@ -36,10 +40,18 @@ export { isPaidPlan };
 
 // Products ------------------------------------------------------------------------------------------------------
 
-export type Products = Record<`${Paid}:${"plan" | "host"}`, string>;
+/** Each plan's product in Stripe, plus the old extra-seat products where they were made before per-seat pricing. */
+export type Products = Record<`${Paid}:plan`, string> & Partial<Record<`${Paid}:host`, string>>;
 const PAID_IDS: Paid[] = ["starter", "pro", "business"];
 
-/** Claritia's products in Stripe, one for each plan and one for its extra hosts. Made once, found by metadata. */
+/** The old extra-seat price in cents, by plan and interval, so a subscription from before per-seat pricing still reads. */
+export const LEGACY_EXTRA: Record<Paid, Record<Interval, number>> = {
+  starter: { month: 800, year: 7200 },
+  pro: { month: 1500, year: 14400 },
+  business: { month: 2500, year: 24000 },
+};
+
+/** Claritia's products in Stripe, one for each plan. Made once, found by metadata. */
 let productsReady: Promise<Products> | null = null;
 export function ensureProducts(stripe: Stripe): Promise<Products> {
   productsReady ??= (async () => {
@@ -49,12 +61,9 @@ export function ensureProducts(stripe: Stripe): Promise<Products> {
       if (key && !found[key]) found[key] = p.id;
     }
     for (const id of PAID_IDS) {
-      for (const kind of ["plan", "host"] as const) {
-        const key = `${id}:${kind}` as const;
-        if (found[key]) continue;
-        const name = kind === "plan" ? `Claritia ${planById(id).name}` : `Claritia ${planById(id).name} extra seat`;
-        found[key] = (await stripe.products.create({ name, metadata: { claritia_product: key } }, { idempotencyKey: `claritia-product-${key}` })).id;
-      }
+      const key = `${id}:plan` as const;
+      if (found[key]) continue;
+      found[key] = (await stripe.products.create({ name: `Claritia ${planById(id).name}`, metadata: { claritia_product: key } }, { idempotencyKey: `claritia-product-${key}` })).id;
     }
     return found as Products;
   })().catch((e) => {
@@ -64,23 +73,21 @@ export function ensureProducts(stripe: Stripe): Promise<Products> {
   return productsReady;
 }
 
-/** The checkout lines for a plan, an interval and a number of hosts. */
+/** The seat line's price, for a plan and interval. */
+const seatPrice = (products: Products, plan: Paid, interval: Interval) => ({ currency: "usd", product: products[`${plan}:plan`], unit_amount: cents(planById(plan), interval), recurring: { interval } });
+
+/** The checkout line for a plan, an interval and a number of seats. */
 export function linesFor(products: Products, plan: Paid, interval: Interval, hosts: number): Stripe.Checkout.SessionCreateParams.LineItem[] {
-  const c = cents(planById(plan), interval);
-  const extra = extraHosts(hosts);
-  const line = (product: string, amount: number, quantity: number) => ({ quantity, price_data: { currency: "usd", product, unit_amount: amount, recurring: { interval } } });
-  return [line(products[`${plan}:plan`], c.plan, 1), ...(extra > 0 ? [line(products[`${plan}:host`], c.host, extra)] : [])];
+  return [{ quantity: seats(hosts), price_data: seatPrice(products, plan, interval) }];
 }
 
-/** A subscription's plan line and extra-host line, matched by price against the plan it says it is. */
+/** A subscription's seat line, and an old extra-seat line if it still has one, matched by price against its plan. */
 export function linesOf(sub: Stripe.Subscription, plan: Paid, interval: Interval) {
-  const c = cents(planById(plan), interval);
   const right = (i: Stripe.SubscriptionItem) => i.price.recurring?.interval === interval && (i.price.recurring?.interval_count ?? 1) === 1;
   const items = sub.items.data;
-  return {
-    plan: items.find((i) => right(i) && i.price.unit_amount === c.plan && (i.quantity ?? 1) === 1),
-    host: items.find((i) => right(i) && i.price.unit_amount === c.host),
-  };
+  const seat = items.find((i) => right(i) && i.price.unit_amount === cents(planById(plan), interval) && (i.quantity ?? 1) >= 1);
+  const legacy = items.find((i) => i !== seat && right(i) && i.price.unit_amount === LEGACY_EXTRA[plan][interval]);
+  return { seat, legacy, seats: seat ? (seat.quantity ?? 1) + (legacy?.quantity ?? 0) : 0 };
 }
 
 // Webhook and billing page ----------------------------------------------------------------------------------------
@@ -135,8 +142,8 @@ const at = (s: number | undefined) => (s ? new Date(s * 1000).toISOString() : nu
 
 /**
  * Copy a subscription onto its workspace's plan. The workspace, plan and interval come from the subscription's
- * metadata, which only this server sets. The plan only counts when its line is priced right; the hosts are 1 plus the
- * extra-host line's quantity. A canceled or unpaid subscription puts the workspace back on Free.
+ * metadata, which only this server sets. The plan only counts when its seat line is priced right; the seats are that
+ * line's quantity (plus an old extra-seat line's). A canceled or unpaid subscription puts the workspace back on Free.
  */
 export async function applySubscription(admin: Admin, sub: Stripe.Subscription) {
   const customerId = typeof sub.customer === "string" ? sub.customer : sub.customer.id;
@@ -150,9 +157,9 @@ export async function applySubscription(admin: Admin, sub: Stripe.Subscription) 
   const asked = sub.metadata?.plan === "team" ? "pro" : sub.metadata?.plan;
   const interval: Interval = isInterval(sub.metadata?.interval) ? sub.metadata.interval : "month";
   const lines = isPaidPlan(asked) ? linesOf(sub, asked, interval) : null;
-  const plan: PlanId = PAYING.has(sub.status) && lines?.plan ? (asked as PlanId) : "free";
-  const hosts = plan === "free" ? 1 : 1 + (lines?.host?.quantity ?? 0);
-  const item = lines?.plan ?? sub.items.data[0];
+  const plan: PlanId = PAYING.has(sub.status) && lines?.seat ? (asked as PlanId) : "free";
+  const hosts = plan === "free" ? 1 : lines!.seats;
+  const item = lines?.seat ?? sub.items.data[0];
   const { error } = await admin.from("workspace_billing").upsert(
     {
       workspace_id: workspaceId,
@@ -188,41 +195,37 @@ export async function hostsNow(admin: Admin, ws: string): Promise<number> {
 }
 
 /**
- * Keep Stripe's extra-host quantity in step with the hosts people can book. Runs after a meeting type is saved, after
- * a plan change and before each invoice (invoice.upcoming), so a renewal always bills the right count. Changes are
- * prorated. Returns the hosts billed.
+ * Keep Stripe's seat quantity in step with the people anyone can book. Runs after a meeting type is saved, after a
+ * plan change and before each invoice (invoice.upcoming), so a renewal always bills the right count. An old extra-seat
+ * line is folded into the seat line in the same update. Changes are prorated. Returns the seats billed.
  */
 export async function syncHosts(stripe: Stripe, admin: Admin, ws: string): Promise<number | null> {
   const b = await billingRow(admin, ws);
   if (!b || !isPaidPlan(b.plan) || !b.stripe_subscription_id) return null;
   const interval: Interval = isInterval(b.billing_interval) ? b.billing_interval : "month";
-  const [sub, hosts, products] = await Promise.all([stripe.subscriptions.retrieve(b.stripe_subscription_id), hostsNow(admin, ws), ensureProducts(stripe)]);
+  const [sub, hosts] = await Promise.all([stripe.subscriptions.retrieve(b.stripe_subscription_id), hostsNow(admin, ws)]);
   if (!PAYING.has(sub.status)) return null;
-  const want = extraHosts(hosts);
-  const { host } = linesOf(sub, b.plan, interval);
-  const have = host?.quantity ?? 0;
-  if (want !== have) {
-    if (host && want > 0) await stripe.subscriptionItems.update(host.id, { quantity: want, proration_behavior: "create_prorations" });
-    else if (host) await stripe.subscriptionItems.del(host.id, { proration_behavior: "create_prorations" });
-    else
-      await stripe.subscriptionItems.create(
-        {
-          subscription: sub.id,
-          quantity: want,
-          proration_behavior: "create_prorations",
-          price_data: { currency: "usd", product: products[`${b.plan}:host`], unit_amount: cents(planById(b.plan), interval).host, recurring: { interval } },
-        },
-        { idempotencyKey: `claritia-hosts-${sub.id}-${want}-${have}` },
-      );
+  const { seat, legacy } = linesOf(sub, b.plan, interval);
+  // No seat line at this plan's price: the subscription isn't ours to change (applySubscription treats it as Free).
+  if (!seat) return null;
+  const want = seats(hosts);
+  if (legacy) {
+    // One update, so the seats are never billed twice or dropped between the two changes.
+    await stripe.subscriptions.update(sub.id, {
+      items: [{ id: seat.id, quantity: want }, { id: legacy.id, deleted: true }],
+      proration_behavior: "create_prorations",
+    });
+  } else if ((seat.quantity ?? 1) !== want) {
+    await stripe.subscriptionItems.update(seat.id, { quantity: want, proration_behavior: "create_prorations" });
   }
-  const { error } = await admin.from("workspace_billing").update({ hosts: 1 + want, updated_at: new Date().toISOString() }).eq("workspace_id", ws);
+  const { error } = await admin.from("workspace_billing").update({ hosts: want, updated_at: new Date().toISOString() }).eq("workspace_id", ws);
   if (error) throw new Error(error.message);
-  return 1 + want;
+  return want;
 }
 
 /**
- * Move a paying workspace to another paid plan or interval: the plan line and the host line are swapped for the new
- * prices in one update, prorated. Returns the subscription as Stripe now has it.
+ * Move a paying workspace to another paid plan or interval: the seat line (and an old extra-seat line) is swapped for
+ * the new plan's seat line in one update, prorated. Returns the subscription as Stripe now has it.
  */
 export async function changePlan(stripe: Stripe, admin: Admin, ws: string, plan: Paid, interval: Interval): Promise<Stripe.Subscription> {
   const b = await billingRow(admin, ws);
@@ -230,15 +233,11 @@ export async function changePlan(stripe: Stripe, admin: Admin, ws: string, plan:
   const from: Interval = isInterval(b.billing_interval) ? b.billing_interval : "month";
   const [sub, hosts, products] = await Promise.all([stripe.subscriptions.retrieve(b.stripe_subscription_id), hostsNow(admin, ws), ensureProducts(stripe)]);
   const old = linesOf(sub, b.plan, from);
-  const c = cents(planById(plan), interval);
-  const extra = extraHosts(hosts);
-  const price = (kind: "plan" | "host", amount: number) => ({ currency: "usd", product: products[`${plan}:${kind}`], unit_amount: amount, recurring: { interval } });
   // Every line that isn't ours stays as it is; ours are replaced.
-  const ours = new Set([old.plan?.id, old.host?.id].filter(Boolean));
+  const ours = [old.seat?.id, old.legacy?.id].filter((id): id is string => !!id);
   const items: Stripe.SubscriptionUpdateParams.Item[] = [
-    ...[...ours].map((id) => ({ id: id as string, deleted: true })),
-    { price_data: price("plan", c.plan), quantity: 1 },
-    ...(extra > 0 ? [{ price_data: price("host", c.host), quantity: extra }] : []),
+    ...ours.map((id) => ({ id, deleted: true })),
+    { price_data: seatPrice(products, plan, interval), quantity: seats(hosts) },
   ];
   return stripe.subscriptions.update(sub.id, {
     items,
@@ -272,7 +271,7 @@ export async function handleWebhook(stripe: Stripe, admin: Admin, body: string) 
     case "customer.subscription.deleted":
       return applySubscription(admin, await stripe.subscriptions.retrieve(event.data.object.id));
     case "invoice.upcoming": {
-      // Before a renewal is billed: the host count is brought up to date.
+      // Before a renewal is billed: the seat count is brought up to date.
       const inv = event.data.object as Stripe.Invoice & { subscription?: string | Stripe.Subscription | null; parent?: { subscription_details?: { subscription?: string | Stripe.Subscription } | null } | null };
       const ref = inv.parent?.subscription_details?.subscription ?? inv.subscription;
       const subId = typeof ref === "string" ? ref : ref?.id;

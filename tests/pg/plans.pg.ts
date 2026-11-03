@@ -161,7 +161,7 @@ test("hosts: the people in active meeting types and their owners, counted once",
   assert.equal((await q(`select plan_hosts($1) n`, [ws]))[0].n, 3, "an owner can be booked too");
 });
 
-test("calendars per host: Free 1, a reconnect always fits, Zoom isn't a calendar", async () => {
+test("calendars per seat: Free 1, paid 6, a reconnect always fits, Zoom isn't a calendar", async () => {
   const { ws, user } = await workspace();
   const calCheck = async (provider: string, email: string) => (await q(`select plan_check_calendar($1, $2, $3, $4) r`, [ws, user, provider, email]))[0].r as string | null;
   assert.equal(await calCheck("google", "a@acme.com"), null);
@@ -170,7 +170,11 @@ test("calendars per host: Free 1, a reconnect always fits, Zoom isn't a calendar
   assert.match((await calCheck("microsoft", "a@acme.com"))!, /1 calendar/);
   assert.equal(await calCheck("zoom", "a@acme.com"), null);
   await q(`insert into workspace_billing (workspace_id, plan) values ($1, 'starter')`, [ws]);
-  assert.equal(await calCheck("microsoft", "a@acme.com"), null, "Starter has 3");
+  assert.equal(await calCheck("microsoft", "a@acme.com"), null, "every paid plan has 6");
+  for (const n of [2, 3, 4, 5, 6]) await q(`insert into calendar_accounts (workspace_id, user_id, provider, account_email) values ($1, $2, 'google', $3)`, [ws, user, `c${n}@acme.com`]);
+  assert.match((await calCheck("microsoft", "a@acme.com"))!, /Each seat can connect 6 calendars/, "the 7th is refused");
+  await q(`update workspace_billing set plan = 'business' where workspace_id = $1`, [ws]);
+  assert.match((await calCheck("microsoft", "a@acme.com"))!, /6 calendars/, "Business has 6 too");
 });
 
 test("Settings › Billing reads the plan and this month; members only; old Team is Pro", async () => {

@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import Stripe from "stripe";
-import { applySubscription, changePlan, handleWebhook, linesFor, linesOf, syncHosts, type Products } from "../src/lib/billing.ts";
-import { allows, cents, creditCost, extraHosts, kindAllowed, monthlyTotal, planById, PLANS } from "../src/lib/plans.ts";
+import { applySubscription, changePlan, handleWebhook, LEGACY_EXTRA, linesFor, linesOf, syncHosts, type Products } from "../src/lib/billing.ts";
+import { allows, cents, creditCost, kindAllowed, monthlyTotal, planById, PLANS, seats } from "../src/lib/plans.ts";
 import { fetchReceived, firstInbox, readRecipient } from "../src/lib/inbound.ts";
 
 
@@ -34,11 +34,11 @@ test("received emails are fetched from Resend with our key", async () => {
 // Plans ---------------------------------------------------------------------------------------------------------
 
 test("the plan list matches docs/pricing.md", () => {
-  assert.deepEqual(PLANS.map((p) => [p.id, p.monthly, p.yearly, p.host?.monthly ?? null, p.host?.yearly ?? null, p.submissions, p.aiCredits]), [
-    ["free", 0, 0, null, null, 250, 100],
-    ["starter", 15, 12, 8, 6, 2000, 500],
-    ["pro", 39, 31, 15, 12, 5000, 2000],
-    ["business", 79, 63, 25, 20, null, 5000],
+  assert.deepEqual(PLANS.map((p) => [p.id, p.monthly, p.yearly, p.submissions, p.aiCredits, p.calendars]), [
+    ["free", 0, 0, 250, 100, 1],
+    ["starter", 15, 12, 2000, 500, 6],
+    ["pro", 39, 31, 5000, 2000, 6],
+    ["business", 79, 63, null, 5000, 6],
   ]);
   // Yearly is 20% off, rounded to whole dollars.
   for (const p of PLANS) assert.ok(Math.abs(p.yearly - p.monthly * 0.8) < 1, p.id);
@@ -46,17 +46,18 @@ test("the plan list matches docs/pricing.md", () => {
   assert.equal(planById("nope").id, "free");
 });
 
-test("totals: 1 host is in the price, each one after costs extra", () => {
+test("totals: every seat costs the plan's price", () => {
   const pro = planById("pro");
   assert.equal(monthlyTotal(pro, "month", 1), 39);
-  assert.equal(monthlyTotal(pro, "month", 10), 39 + 9 * 15);
-  assert.equal(monthlyTotal(pro, "year", 3), 31 + 2 * 12);
+  assert.equal(monthlyTotal(pro, "month", 10), 390);
+  assert.equal(monthlyTotal(pro, "year", 3), 93);
   assert.equal(monthlyTotal(planById("free"), "month", 5), 0);
-  assert.equal(extraHosts(0), 0);
-  assert.equal(extraHosts(1), 0);
-  assert.equal(extraHosts(4), 3);
-  assert.deepEqual(cents(pro, "month"), { plan: 3900, host: 1500 });
-  assert.deepEqual(cents(pro, "year"), { plan: 37200, host: 14400 });
+  assert.equal(seats(0), 1, "a paid plan always bills at least 1 seat");
+  assert.equal(seats(1), 1);
+  assert.equal(seats(4.7), 4);
+  assert.equal(seats(Number.NaN), 1);
+  assert.equal(cents(pro, "month"), 3900);
+  assert.equal(cents(pro, "year"), 37200);
 });
 
 test("features sit on their plan and up", () => {
@@ -83,19 +84,16 @@ test("AI credits: a new form is about 10, a small change 1, unasked work nothing
 
 // Stripe --------------------------------------------------------------------------------------------------------
 
-const PRODUCTS: Products = { "starter:plan": "prod_sp", "starter:host": "prod_sh", "pro:plan": "prod_pp", "pro:host": "prod_ph", "business:plan": "prod_bp", "business:host": "prod_bh" };
+const PRODUCTS: Products = { "starter:plan": "prod_sp", "pro:plan": "prod_pp", "business:plan": "prod_bp" };
 
-test("checkout lines: the plan, then the hosts past the first", () => {
+test("checkout: one line at the plan's price per seat, as many as the seats", () => {
   const one = linesFor(PRODUCTS, "pro", "month", 1);
-  assert.equal(one.length, 1, "1 host is in the plan's price");
-  assert.equal(one[0]!.price_data?.unit_amount, 3900);
-  assert.equal(one[0]!.price_data?.product, "prod_pp");
-  assert.equal(one[0]!.price_data?.recurring?.interval, "month");
+  assert.equal(one.length, 1);
+  assert.deepEqual([one[0]!.price_data?.unit_amount, one[0]!.price_data?.product, one[0]!.price_data?.recurring?.interval, one[0]!.quantity], [3900, "prod_pp", "month", 1]);
   const four = linesFor(PRODUCTS, "starter", "year", 4);
-  assert.equal(four.length, 2);
-  assert.equal(four[0]!.price_data?.unit_amount, 14400, "Starter yearly: $12 a month for 12 months");
-  assert.deepEqual([four[1]!.price_data?.product, four[1]!.price_data?.unit_amount, four[1]!.quantity], ["prod_sh", 7200, 3]);
-  assert.equal(four[1]!.price_data?.recurring?.interval, "year");
+  assert.equal(four.length, 1);
+  assert.deepEqual([four[0]!.price_data?.unit_amount, four[0]!.quantity], [14400, 4], "Starter yearly: $12 a month for 12 months, for each of 4 seats");
+  assert.equal(linesFor(PRODUCTS, "business", "month", 0)[0]!.quantity, 1, "never fewer than 1 seat");
 });
 
 /** A stand-in for the admin Supabase client: workspace_billing, and plan_hosts. */
@@ -126,39 +124,53 @@ type Item = { id: string; quantity: number; price: { unit_amount: number; recurr
 const item = (id: string, cents: number, quantity = 1, interval = "month"): Item => ({ id, quantity, price: { unit_amount: cents, recurring: { interval, interval_count: 1 } }, current_period_start: 1_760_000_000, current_period_end: 1_762_600_000 });
 const sub = (status: string, items: Item[], metadata: Record<string, string> = {}) => ({ id: "sub_1", status, customer: "cus_1", metadata, items: { data: items } }) as unknown as Stripe.Subscription;
 
-test("a subscription sets the plan, interval and hosts; canceling puts it back on Free", async () => {
+test("a subscription sets the plan, interval and seats; canceling puts it back on Free", async () => {
   const admin = fakeAdmin([{ workspace_id: "ws1", stripe_customer_id: "cus_1", plan: "free" }]);
-  await applySubscription(admin as never, sub("active", [item("si_p", 3900), item("si_h", 1500, 4)], { plan: "pro", interval: "month" }));
+  await applySubscription(admin as never, sub("active", [item("si_s", 3900, 5)], { plan: "pro", interval: "month" }));
   assert.deepEqual([admin.rows[0]!.plan, admin.rows[0]!.billing_interval, admin.rows[0]!.hosts], ["pro", "month", 5]);
   assert.equal(admin.rows[0]!.period_end, new Date(1_762_600_000_000).toISOString());
-  await applySubscription(admin as never, sub("active", [item("si_p", 75600, 1, "year")], { plan: "business", interval: "year" }));
+  await applySubscription(admin as never, sub("active", [item("si_s", 75600, 1, "year")], { plan: "business", interval: "year" }));
   assert.deepEqual([admin.rows[0]!.plan, admin.rows[0]!.billing_interval, admin.rows[0]!.hosts], ["business", "year", 1]);
-  await applySubscription(admin as never, sub("past_due", [item("si_p", 1500)], { plan: "starter" }));
+  await applySubscription(admin as never, sub("past_due", [item("si_s", 1500)], { plan: "starter" }));
   assert.equal(admin.rows[0]!.plan, "starter", "a missed payment keeps the plan while Stripe retries");
-  await applySubscription(admin as never, sub("canceled", [item("si_p", 1500)], { plan: "starter" }));
+  await applySubscription(admin as never, sub("canceled", [item("si_s", 1500, 3)], { plan: "starter" }));
   assert.deepEqual([admin.rows[0]!.plan, admin.rows[0]!.hosts, admin.rows[0]!.stripe_subscription_id], ["free", 1, null]);
+});
+
+test("an old subscription, 1 seat in the plan plus an extra-seat line, still reads with every seat", async () => {
+  const admin = fakeAdmin([{ workspace_id: "ws1", stripe_customer_id: "cus_1", plan: "free" }]);
+  // Before per-seat pricing: Pro at $39 for the first seat, then 4 more at $15.
+  await applySubscription(admin as never, sub("active", [item("si_p", 3900), item("si_h", 1500, 4)], { plan: "pro", interval: "month" }));
+  assert.deepEqual([admin.rows[0]!.plan, admin.rows[0]!.hosts], ["pro", 5]);
+  // Starter yearly: $12 x 12 for the first, $6 x 12 for each of 2 more.
+  await applySubscription(admin as never, sub("active", [item("si_p", 14400, 1, "year"), item("si_h", 7200, 2, "year")], { plan: "starter", interval: "year" }));
+  assert.deepEqual([admin.rows[0]!.plan, admin.rows[0]!.hosts], ["starter", 3]);
 });
 
 test("a plan only counts at its own price", async () => {
   const admin = fakeAdmin([{ workspace_id: "ws1", stripe_customer_id: "cus_1", plan: "free" }]);
-  await applySubscription(admin as never, sub("active", [item("si_p", 1500)], { plan: "business" }));
+  await applySubscription(admin as never, sub("active", [item("si_s", 1500, 3)], { plan: "business" }));
   assert.equal(admin.rows[0]!.plan, "free", "Business paid at the Starter price never counts");
-  await applySubscription(admin as never, sub("active", [item("si_p", 3100)], { plan: "pro", interval: "month" }));
+  await applySubscription(admin as never, sub("active", [item("si_s", 3100)], { plan: "pro", interval: "month" }));
   assert.equal(admin.rows[0]!.plan, "free", "the yearly month's price billed monthly never counts");
-  await applySubscription(admin as never, sub("active", [item("si_p", 3900)], { plan: "free" }));
+  await applySubscription(admin as never, sub("active", [item("si_h", 1500, 4)], { plan: "pro", interval: "month" }));
+  assert.equal(admin.rows[0]!.plan, "free", "an old extra-seat line alone is no plan");
+  await applySubscription(admin as never, sub("active", [item("si_s", 3900)], { plan: "free" }));
   assert.equal(admin.rows[0]!.plan, "free", "only paid plans come from Stripe");
-  await applySubscription(admin as never, sub("active", [item("si_p", 3900)], { plan: "team" }));
+  await applySubscription(admin as never, sub("active", [item("si_s", 3900)], { plan: "team" }));
   assert.equal(admin.rows[0]!.plan, "pro", "an old Team subscription at Pro's price is Pro");
-  const none = await applySubscription(fakeAdmin() as never, sub("active", [item("si_p", 3900)], { plan: "pro" }));
+  const none = await applySubscription(fakeAdmin() as never, sub("active", [item("si_s", 3900)], { plan: "pro" }));
   assert.equal(none.ok, false);
 });
 
-test("linesOf finds the plan and host lines by price", () => {
-  const s = sub("active", [item("si_other", 999), item("si_h", 1500, 2), item("si_p", 3900)]);
+test("linesOf finds the seat line, and an old extra-seat line, by price", () => {
+  const s = sub("active", [item("si_other", 999), item("si_h", 1500, 2), item("si_s", 3900, 1)]);
   const l = linesOf(s, "pro", "month");
-  assert.equal(l.plan?.id, "si_p");
-  assert.equal(l.host?.id, "si_h");
-  assert.equal(linesOf(s, "pro", "year").plan, undefined);
+  assert.deepEqual([l.seat?.id, l.legacy?.id, l.seats], ["si_s", "si_h", 3]);
+  const now = linesOf(sub("active", [item("si_s", 3900, 6)]), "pro", "month");
+  assert.deepEqual([now.seat?.id, now.legacy, now.seats], ["si_s", undefined, 6]);
+  assert.equal(linesOf(s, "pro", "year").seat, undefined);
+  assert.deepEqual(Object.keys(LEGACY_EXTRA), ["starter", "pro", "business"]);
 });
 
 /** A stand-in for Stripe that records what changes. */
@@ -184,38 +196,60 @@ function fakeStripe(s: Stripe.Subscription) {
   };
 }
 
-test("host sync: Stripe's extra-host count follows the hosts people can book", async () => {
+test("seat sync: Stripe's seat count follows the people anyone can book", async () => {
   const paid = { workspace_id: "ws1", plan: "pro", billing_interval: "month", stripe_subscription_id: "sub_1", hosts: 1 };
-  // One host to four: a host line is added for 3.
+  // One seat to four: the seat line's quantity goes up.
   let admin = fakeAdmin([{ ...paid }], 4);
-  let stripe = fakeStripe(sub("active", [item("si_p", 3900)], { plan: "pro" }));
+  let stripe = fakeStripe(sub("active", [item("si_s", 3900, 1)], { plan: "pro" }));
   assert.equal(await syncHosts(stripe as never, admin as never, "ws1"), 4);
-  assert.equal(stripe.calls[0]![0], "item.create");
-  assert.deepEqual((stripe.calls[0]![1] as { quantity: number; price_data: { unit_amount: number; product: string } }).quantity, 3);
-  assert.equal((stripe.calls[0]![1] as { price_data: { product: string } }).price_data.product, "prod_ph");
+  assert.deepEqual(stripe.calls, [["item.update si_s", { quantity: 4, proration_behavior: "create_prorations" }]]);
   assert.equal(admin.rows[0]!.hosts, 4);
-  // Four to two: the line's quantity drops.
+  // Four to two: it drops.
   admin = fakeAdmin([{ ...paid, hosts: 4 }], 2);
-  stripe = fakeStripe(sub("active", [item("si_p", 3900), item("si_h", 1500, 3)], { plan: "pro" }));
+  stripe = fakeStripe(sub("active", [item("si_s", 3900, 4)], { plan: "pro" }));
   await syncHosts(stripe as never, admin as never, "ws1");
-  assert.deepEqual(stripe.calls, [["item.update si_h", { quantity: 1, proration_behavior: "create_prorations" }]]);
-  // Back to one: the host line goes.
-  admin = fakeAdmin([{ ...paid, hosts: 2 }], 1);
-  stripe = fakeStripe(sub("active", [item("si_p", 3900), item("si_h", 1500, 1)], { plan: "pro" }));
-  await syncHosts(stripe as never, admin as never, "ws1");
-  assert.deepEqual(stripe.calls.map((c) => c[0]), ["item.del si_h"]);
+  assert.deepEqual(stripe.calls, [["item.update si_s", { quantity: 2, proration_behavior: "create_prorations" }]]);
+  // Nobody bookable: still 1 seat, never 0.
+  admin = fakeAdmin([{ ...paid, hosts: 2 }], 0);
+  stripe = fakeStripe(sub("active", [item("si_s", 3900, 2)], { plan: "pro" }));
+  assert.equal(await syncHosts(stripe as never, admin as never, "ws1"), 1);
+  assert.deepEqual(stripe.calls, [["item.update si_s", { quantity: 1, proration_behavior: "create_prorations" }]]);
   // Already right: nothing changes. Free and canceled workspaces are never touched.
   admin = fakeAdmin([{ ...paid, hosts: 3 }], 3);
-  stripe = fakeStripe(sub("active", [item("si_p", 3900), item("si_h", 1500, 2)], { plan: "pro" }));
+  stripe = fakeStripe(sub("active", [item("si_s", 3900, 3)], { plan: "pro" }));
   await syncHosts(stripe as never, admin as never, "ws1");
   assert.equal(stripe.calls.length, 0);
   assert.equal(await syncHosts(stripe as never, fakeAdmin([{ workspace_id: "ws1", plan: "free" }], 9) as never, "ws1"), null);
-  stripe = fakeStripe(sub("canceled", [item("si_p", 3900)], { plan: "pro" }));
+  stripe = fakeStripe(sub("canceled", [item("si_s", 3900)], { plan: "pro" }));
   assert.equal(await syncHosts(stripe as never, fakeAdmin([{ ...paid }], 9) as never, "ws1"), null);
+  assert.equal(stripe.calls.length, 0);
+  // A subscription with no seat line at this plan's price is never changed.
+  stripe = fakeStripe(sub("active", [item("si_x", 999, 2)], { plan: "pro" }));
+  assert.equal(await syncHosts(stripe as never, fakeAdmin([{ ...paid }], 5) as never, "ws1"), null);
   assert.equal(stripe.calls.length, 0);
 });
 
-test("a plan change swaps our lines for the new prices, prorated, and keeps others", async () => {
+test("seat sync folds an old extra-seat line into the seat line in one update", async () => {
+  const paid = { workspace_id: "ws1", plan: "pro", billing_interval: "month", stripe_subscription_id: "sub_1", hosts: 4 };
+  // Old: $39 for the first seat plus 3 extra at $15. Still 4 people bookable.
+  let admin = fakeAdmin([{ ...paid }], 4);
+  let stripe = fakeStripe(sub("active", [item("si_p", 3900, 1), item("si_h", 1500, 3), item("si_tax", 123)], { plan: "pro" }));
+  assert.equal(await syncHosts(stripe as never, admin as never, "ws1"), 4);
+  assert.deepEqual(stripe.calls, [["sub.update", { items: [{ id: "si_p", quantity: 4 }, { id: "si_h", deleted: true }], proration_behavior: "create_prorations" }]]);
+  assert.equal(admin.rows[0]!.hosts, 4);
+  // The count can change in the same update: 2 people now.
+  admin = fakeAdmin([{ ...paid }], 2);
+  stripe = fakeStripe(sub("active", [item("si_p", 3900, 1), item("si_h", 1500, 3)], { plan: "pro" }));
+  await syncHosts(stripe as never, admin as never, "ws1");
+  assert.deepEqual(stripe.calls, [["sub.update", { items: [{ id: "si_p", quantity: 2 }, { id: "si_h", deleted: true }], proration_behavior: "create_prorations" }]]);
+  // Run twice (a retried webhook): once folded, the second run changes nothing.
+  admin = fakeAdmin([{ ...paid }], 2);
+  stripe = fakeStripe(sub("active", [item("si_p", 3900, 2)], { plan: "pro" }));
+  await syncHosts(stripe as never, admin as never, "ws1");
+  assert.equal(stripe.calls.length, 0);
+});
+
+test("a plan change swaps our lines for the new seat line, prorated, and keeps others", async () => {
   const admin = fakeAdmin([{ workspace_id: "ws1", plan: "starter", billing_interval: "month", stripe_subscription_id: "sub_1" }], 3);
   const stripe = fakeStripe(sub("active", [item("si_p", 1500), item("si_h", 800, 2), item("si_tax", 123)], { plan: "starter", workspace_id: "ws1" }));
   await changePlan(stripe as never, admin as never, "ws1", "business", "year");
@@ -223,11 +257,11 @@ test("a plan change swaps our lines for the new prices, prorated, and keeps othe
   assert.equal(name, "sub.update");
   assert.equal(p.proration_behavior, "create_prorations");
   assert.deepEqual(p.metadata, { plan: "business", workspace_id: "ws1", interval: "year" });
-  assert.deepEqual(p.items.slice(0, 2), [{ id: "si_p", deleted: true }, { id: "si_h", deleted: true }]);
+  assert.deepEqual(p.items.slice(0, 2), [{ id: "si_p", deleted: true }, { id: "si_h", deleted: true }], "the old plan line and extra-seat line go");
   assert.equal(p.items.some((i) => i.id === "si_tax"), false, "a line that isn't ours stays");
-  const [planLine, hostLine] = p.items.slice(2) as { quantity: number; price_data: { unit_amount: number; product: string; recurring: { interval: string } } }[];
-  assert.deepEqual([planLine!.price_data.unit_amount, planLine!.price_data.product, planLine!.price_data.recurring.interval], [75600, "prod_bp", "year"]);
-  assert.deepEqual([hostLine!.quantity, hostLine!.price_data.unit_amount, hostLine!.price_data.product], [2, 24000, "prod_bh"]);
+  assert.equal(p.items.length, 3);
+  const seat = p.items[2] as { quantity: number; price_data: { unit_amount: number; product: string; recurring: { interval: string } } };
+  assert.deepEqual([seat.quantity, seat.price_data.unit_amount, seat.price_data.product, seat.price_data.recurring.interval], [3, 75600, "prod_bp", "year"]);
   await assert.rejects(() => changePlan(stripe as never, fakeAdmin([{ workspace_id: "ws1", plan: "free" }]) as never, "ws1", "pro", "month"), /no paid plan/);
 });
 
@@ -250,9 +284,9 @@ test("the webhook trusts only events it can fetch back from Stripe", async () =>
   const ok = await handleWebhook(stripe as never, admin as never, JSON.stringify({ id: "evt_real", type: "customer.subscription.updated", data: { object: { plan: "business" } } }));
   assert.equal(ok.ok, true);
   assert.equal(admin.rows[0]!.plan, "starter", "the posted body is ignored; Stripe's copy is used");
-  // Before a renewal: the host count is brought up to date.
+  // Before a renewal: the seat count is brought up to date.
   await handleWebhook(stripe as never, admin as never, JSON.stringify({ id: "evt_soon" }));
-  assert.equal(stripe.calls[0]![0], "item.create");
+  assert.deepEqual(stripe.calls[0], ["item.update si_p", { quantity: 2, proration_behavior: "create_prorations" }]);
   assert.equal(admin.rows[0]!.hosts, 2);
   await assert.rejects(() => handleWebhook(stripe as never, admin as never, JSON.stringify({ id: "evt_fake" })));
   assert.equal((await handleWebhook(stripe as never, admin as never, "not json")).ok, false);

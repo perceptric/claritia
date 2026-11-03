@@ -89,7 +89,7 @@ export function BillingSettings({ sb, session, ws, role }: Pick<ViewProps, "sb" 
       const next = planById(id);
       const total = monthlyTotal(next, interval, s.hosts);
       const ok = await askConfirm(`Move to ${next.name}?`, {
-        body: `${money(total)} a month${interval === "year" ? ", billed yearly" : ""} for ${s.hosts} ${s.hosts === 1 ? "seat" : "seats"}. The difference is prorated.`,
+        body: `${money(total)}/month${interval === "year" ? ", billed yearly" : ""} for ${s.hosts} ${s.hosts === 1 ? "seat" : "seats"}. The difference is prorated.`,
         ok: `Move to ${next.name}`,
       });
       if (!ok) return;
@@ -118,7 +118,7 @@ export function BillingSettings({ sb, session, ws, role }: Pick<ViewProps, "sb" 
           {s.plan !== "free" ? <Badge>{s.interval === "year" ? "Yearly" : "Monthly"}</Badge> : null}
           {s.status === "past_due" ? <Badge tone="red">Payment due</Badge> : null}
           <span className="text-[13px] text-muted">
-            {money(monthlyTotal(current, s.interval, s.plan === "free" ? 1 : s.hosts_billed))} a month
+            {money(monthlyTotal(current, s.interval, s.plan === "free" ? 1 : s.hosts_billed))}/month
             {s.period_end && s.plan !== "free" ? `, renews ${DATE.format(new Date(s.period_end))}` : ""}
           </span>
         </div>
@@ -150,7 +150,6 @@ export function BillingSettings({ sb, session, ws, role }: Pick<ViewProps, "sb" 
           {PLANS.map((p) => {
             const on = p.id === s.plan && (p.id === "free" || interval === s.interval);
             const total = monthlyTotal(p, interval, p.id === "free" ? 1 : hostsShown);
-            const each = p.host ? (interval === "year" ? p.host.yearly : p.host.monthly) : null;
             return (
               <div key={p.id} className={`flex min-w-0 flex-col gap-3 rounded-lg p-4 ${on ? "shadow-focus" : "shadow-rest"}`}>
                 <div className="flex flex-wrap items-center justify-between gap-2">
@@ -159,12 +158,12 @@ export function BillingSettings({ sb, session, ws, role }: Pick<ViewProps, "sb" 
                 </div>
                 <div className="flex flex-wrap items-baseline gap-1.5">
                   <span className="text-[24px] leading-none font-semibold tracking-[-0.02em] text-ink">{money(interval === "year" ? p.yearly : p.monthly)}</span>
-                  <span className="text-[12.5px] text-muted">a month</span>
+                  <span className="text-[12.5px] text-muted">{p.id === "free" ? "/month" : "/seat/month"}</span>
                 </div>
                 <div className="flex flex-col gap-1 text-[12.5px] text-body">
-                  <span>{each === null ? "1 seat" : `1 seat, then ${money(each)} a seat`}</span>
-                  <span>{amount(p.submissions)} submissions</span>
-                  <span>{amount(p.aiCredits)} AI credits</span>
+                  <span>{p.id === "free" ? "1 seat" : "Unlimited seats"}</span>
+                  <span>{amount(p.submissions)} submissions/month</span>
+                  <span>{amount(p.aiCredits)} AI credits/month</span>
                   {p.id !== "free" && hostsShown > 1 ? (
                     <span className="text-ink">
                       {money(total)} for {hostsShown} seats

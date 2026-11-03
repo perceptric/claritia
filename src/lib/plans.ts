@@ -8,16 +8,14 @@ export type Interval = "month" | "year";
 export type Plan = {
   id: PlanId;
   name: string;
-  /** Dollars a month, billed monthly. */
+  /** Dollars per seat per month, billed monthly. A seat is a person people can book. */
   monthly: number;
-  /** Dollars a month when billed yearly (20% off); the year is 12 times this. */
+  /** Dollars per seat per month when billed yearly (20% off); the year is 12 times this. */
   yearly: number;
-  /** Each host past the first, dollars a month (monthly / yearly billing). Null on Free, which has 1 host. */
-  host: { monthly: number; yearly: number } | null;
   /** Null means no limit. */
   submissions: number | null;
   aiCredits: number;
-  /** Calendars each host can connect. */
+  /** Calendar accounts each seat can connect. */
   calendars: number | null;
   /** Active meeting types in the workspace. */
   meetingTypes: number | null;
@@ -26,10 +24,10 @@ export type Plan = {
 };
 
 export const PLANS: Plan[] = [
-  { id: "free", name: "Free", monthly: 0, yearly: 0, host: null, submissions: 250, aiCredits: 100, calendars: 1, meetingTypes: 1, testing: { projects: 1, minutes: 300, credits: 200 } },
-  { id: "starter", name: "Starter", monthly: 15, yearly: 12, host: { monthly: 8, yearly: 6 }, submissions: 2000, aiCredits: 500, calendars: 3, meetingTypes: null, testing: { projects: 3, minutes: 2000, credits: 2000 } },
-  { id: "pro", name: "Pro", monthly: 39, yearly: 31, host: { monthly: 15, yearly: 12 }, submissions: 5000, aiCredits: 2000, calendars: 10, meetingTypes: null, testing: { projects: null, minutes: 10000, credits: 10000 } },
-  { id: "business", name: "Business", monthly: 79, yearly: 63, host: { monthly: 25, yearly: 20 }, submissions: null, aiCredits: 5000, calendars: null, meetingTypes: null, testing: { projects: null, minutes: null, credits: null } },
+  { id: "free", name: "Free", monthly: 0, yearly: 0, submissions: 250, aiCredits: 100, calendars: 1, meetingTypes: 1, testing: { projects: 1, minutes: 300, credits: 200 } },
+  { id: "starter", name: "Starter", monthly: 15, yearly: 12, submissions: 2000, aiCredits: 500, calendars: 6, meetingTypes: null, testing: { projects: 3, minutes: 2000, credits: 2000 } },
+  { id: "pro", name: "Pro", monthly: 39, yearly: 31, submissions: 5000, aiCredits: 2000, calendars: 6, meetingTypes: null, testing: { projects: null, minutes: 10000, credits: 10000 } },
+  { id: "business", name: "Business", monthly: 79, yearly: 63, submissions: null, aiCredits: 5000, calendars: 6, meetingTypes: null, testing: { projects: null, minutes: null, credits: null } },
 ];
 
 export const PAID: PlanId[] = ["starter", "pro", "business"];
@@ -73,23 +71,16 @@ export function kindAllowed(plan: string | null | undefined, kind: string): bool
   return true;
 }
 
-/** Hosts past the first, the ones Stripe bills for. */
-export const extraHosts = (hosts: number): number => Math.max(0, Math.floor(hosts) - 1);
+/** The seats Stripe bills for: the people anyone can book, never fewer than 1. */
+export const seats = (hosts: number): number => Math.max(1, Math.floor(hosts) || 0);
 
-/** What a plan costs a month with this many hosts, in dollars (a yearly plan's month). */
+/** What a plan costs a month with this many seats, in dollars (a yearly plan's month). */
 export function monthlyTotal(plan: Plan, interval: Interval, hosts: number): number {
-  const base = interval === "year" ? plan.yearly : plan.monthly;
-  const each = plan.host ? (interval === "year" ? plan.host.yearly : plan.host.monthly) : 0;
-  return base + each * extraHosts(hosts);
+  return (interval === "year" ? plan.yearly : plan.monthly) * seats(hosts);
 }
 
-/** Stripe's amounts in cents for one billing period: the plan, and each extra host. */
-export function cents(plan: Plan, interval: Interval): { plan: number; host: number } {
-  const months = interval === "year" ? 12 : 1;
-  const base = interval === "year" ? plan.yearly : plan.monthly;
-  const each = plan.host ? (interval === "year" ? plan.host.yearly : plan.host.monthly) : 0;
-  return { plan: base * months * 100, host: each * months * 100 };
-}
+/** Stripe's amount in cents for one seat for one billing period. */
+export const cents = (plan: Plan, interval: Interval): number => (interval === "year" ? plan.yearly * 12 : plan.monthly) * 100;
 
 /**
  * AI credits for one uncached Tia step a person asked for, by kind (src/lib/ai/cache.ts). A small change is 1; building
