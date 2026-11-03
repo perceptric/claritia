@@ -207,3 +207,31 @@ test("an email built with blocks: checked for words, links, images and its foote
   const read = clean([{ id: "t", type: "text", html: "<p onclick=x>ok<script>bad()</script></p>" }]) as { email: { doc: { sections: { columns: { blocks: { html: string }[] }[] }[] } } };
   assert.equal(read.email.doc.sections[0]!.columns[0]!.blocks[0]!.html, "<p>ok</p>");
 });
+
+test("the starting set: Notification and Follow-up, as drafts that send nothing until someone approves and publishes", async () => {
+  const { STARTING, startingItems, templateByKey } = await import("../src/lib/workflows/templates.ts");
+  assert.deepEqual(
+    STARTING.map((x) => `${x.folder}: ${templateByKey(x.key)?.name}`),
+    ["Notification: Form announcement", "Notification: Meeting announcement", "Follow-up: Form follow-up", "Follow-up: Meeting follow-up", "Follow-up: No-show follow-up"],
+  );
+  const items = startingItems();
+  assert.equal(items.length, 5);
+  for (const it of items) {
+    const emails = it.draft.steps.filter((s) => s.kind === "email");
+    assert.ok(emails.length > 0, `${it.name} sends an email`);
+    assert.ok(emails.every((s) => s.kind === "email" && !s.approved), `${it.name} starts with its emails unapproved`);
+    // The only thing left to do on each is approving its emails.
+    const left = problems(it.draft).filter((p) => p.text !== "Approve the email");
+    assert.deepEqual(left, [], `${it.name} has nothing else to fix`);
+  }
+  assert.deepEqual(
+    items.map((it) => it.draft.trigger),
+    [
+      { kind: "form", forms: [] },
+      { kind: "meeting", events: ["booked"], types: [] },
+      { kind: "form", forms: [] },
+      { kind: "meeting", events: ["held"], types: [] },
+      { kind: "meeting", events: ["no_show"], types: [] },
+    ],
+  );
+});

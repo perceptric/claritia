@@ -4,7 +4,7 @@
 // left as it is (the real page's parts, with what you're typing) and scaled to fit the height, and the few things that
 // change it in a 400 px panel on the right: You | Team, then closed sections (Link, Profile, Meetings shown, Welcome
 // line, Styling) and a pinned footer, Saved or Discard and Save changes.
-// The look (welcome line, Claritia or one of the brands imported in Form Studio, "Booked with Claritia", the meetings'
+// The look (welcome line, Claritia or one of the brands imported in Form Studio, "Built with love by Claritia", the meetings'
 // order) is
 // saved per page: yours on your profile, the team's on the workspace (src/lib/meetings/look.ts).
 
@@ -240,7 +240,7 @@ export function BookingPage(props: ViewProps) {
     step === "page" || !gt || first === undefined ? (
       pageView
     ) : (
-      // A reschedule opens on the guest's manage page, which has no corner ribbon (BookShell's narrow frame).
+      // A reschedule opens on the guest's manage page (BookShell's narrow frame).
       <BookShell tokens={shell.tokens} vars={shell.vars} badge={shown.badge} brand={brand} narrow={step === "move"}>
         <Calendar
           key={`${step}-${which}`}
@@ -639,8 +639,8 @@ function Styling(p: { brands: BrandRow[]; home: string | null; picked: string | 
         </>
       )}
       <span className="flex items-center justify-between gap-2 text-[13px] text-ink">
-        Show Booked with Claritia
-        <Toggle label="Show Booked with Claritia" on={p.badge} disabled={disabled || !paid} onChange={(badge) => onChange({ badge })} />
+        Show Built with love by Claritia
+        <Toggle label="Show Built with love by Claritia" on={p.badge} disabled={disabled || !paid} onChange={(badge) => onChange({ badge })} />
       </span>
     </>
   );

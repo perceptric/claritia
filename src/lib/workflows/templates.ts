@@ -11,6 +11,61 @@ export type Template = { key: string; name: string; line: string; body: () => Bo
 
 export const TEMPLATES: Template[] = [
   {
+    key: "form_announcement",
+    name: "Form announcement",
+    line: "A thank-you right away, and a Slack note for their owner",
+    body: () => ({
+      trigger: { kind: "form", forms: [] },
+      goals: [],
+      entry: { mode: "repeat", gapDays: 1 },
+      steps: [
+        s({ kind: "email", from: "owner", approved: false, email: email("We got your answers", ["Hi {{first_name|there}},", "Thanks for getting in touch. We read every answer and will get back to you soon."]) }),
+        s({ kind: "slack", to: "owner", text: "New form answers just came in." }),
+      ],
+    }),
+  },
+  {
+    key: "meeting_announcement",
+    name: "Meeting announcement",
+    line: "A Slack note when it's booked, then reminders a day and an hour before",
+    body: () => ({
+      trigger: { kind: "meeting", events: ["booked"], types: [] },
+      goals: [],
+      entry: { mode: "repeat", gapDays: 1 },
+      steps: [
+        s({ kind: "slack", to: "owner", text: "A new meeting was just booked." }),
+        s({ kind: "wait", days: 1, hours: 0, before: "meeting" }),
+        s({
+          kind: "email",
+          from: "owner",
+          approved: false,
+          email: email("See you tomorrow", ["Hi {{first_name|there}},", "A reminder: we meet {{meeting_time|tomorrow}}.", "Join here: {{meeting_link|the link in your invite}}", "Need another time? {{reschedule_link|Reply to this email}}"]),
+        }),
+        s({ kind: "wait", days: 0, hours: 1, before: "meeting" }),
+        s({
+          kind: "email",
+          from: "owner",
+          approved: false,
+          email: email("Starting in an hour", ["Hi {{first_name|there}},", "We meet in an hour, {{meeting_time|soon}}.", "Join here: {{meeting_link|the link in your invite}}"]),
+        }),
+      ],
+    }),
+  },
+  {
+    key: "meeting_followup",
+    name: "Meeting follow-up",
+    line: "A thank-you a few hours after the meeting",
+    body: () => ({
+      trigger: { kind: "meeting", events: ["held"], types: [] },
+      goals: [],
+      entry: { mode: "repeat", gapDays: 1 },
+      steps: [
+        s({ kind: "wait", days: 0, hours: 2 }),
+        s({ kind: "email", from: "owner", approved: false, email: email("Thanks for your time", ["Hi {{first_name|there}},", "Thanks for meeting with us today. Reply to this email with any questions, and we'll send the next steps."]) }),
+      ],
+    }),
+  },
+  {
     key: "reminders",
     name: "Meeting reminders",
     line: "A day before and an hour before, following any reschedule",
@@ -77,7 +132,7 @@ export const TEMPLATES: Template[] = [
       entry: { mode: "repeat", gapDays: 7 },
       steps: [
         s({ kind: "wait", days: 0, hours: 1 }),
-        s({ kind: "email", from: "owner", approved: false, email: email("Sorry we missed you", ["Hi {{first_name|there}},", "We missed you earlier. Pick another time and we'll keep it short."], ["Pick a new time", "https://"]) }),
+        s({ kind: "email", from: "owner", approved: false, email: email("Sorry we missed you", ["Hi {{first_name|there}},", "We missed you earlier. Pick another time and we'll keep it short.", "Pick a new time: {{reschedule_link|reply to this email and we'll find one}}"]) }),
         s({ kind: "slack", to: "owner", text: "A lead missed their meeting. They got a note with a link to pick a new time." }),
       ],
     }),
@@ -133,3 +188,22 @@ export const TEMPLATES: Template[] = [
 ];
 
 export const templateByKey = (k: string) => TEMPLATES.find((t) => t.key === k);
+
+/**
+ * The starting set every workspace gets the first time Workflows opens (supabase/migrations/119_workflow_defaults.sql):
+ * Notification and Follow-up, as drafts with unapproved emails, so nothing sends until someone publishes.
+ */
+export const STARTING: { folder: string; key: string }[] = [
+  { folder: "Notification", key: "form_announcement" },
+  { folder: "Notification", key: "meeting_announcement" },
+  { folder: "Follow-up", key: "form_followup" },
+  { folder: "Follow-up", key: "meeting_followup" },
+  { folder: "Follow-up", key: "no_show" },
+];
+
+/** The starting set as workflow_defaults takes it: each one's folder, name and draft body. */
+export const startingItems = () =>
+  STARTING.map(({ folder, key }) => {
+    const t = templateByKey(key)!;
+    return { folder, name: t.name, draft: t.body() };
+  });

@@ -226,7 +226,7 @@ export function WorkflowEditor({
   };
   const onPublished = async (v: number) => {
     setPanel(null);
-    toast({ text: `v${v} is live` });
+    toast({ text: `Published v${v}` });
     await reload();
   };
   const copyToDraft = async (v: Version) => {
@@ -300,7 +300,7 @@ export function WorkflowEditor({
       ) : null}
       <span title={probs.length ? `${probs.length} to fix` : undefined}>
         <Button size="sm" disabled={!!probs.length || !changed || !!viewing} onClick={() => void openPublish()}>
-          Make live
+          Publish
         </Button>
       </span>
     </>

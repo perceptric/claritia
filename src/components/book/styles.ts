@@ -29,18 +29,7 @@ export const BOOK_CSS = `
 .cb-page.cb-embed{min-height:0;background:var(--clr-bg);padding:0}
 .cb-wrap{width:100%;max-width:1000px;display:flex;flex-direction:column;gap:16px}
 .cb-cardwrap{position:relative}
-.cb-corner{position:absolute;top:0;right:0;width:112px;height:112px;z-index:2}
-.cb-ribclip{position:absolute;inset:0;overflow:hidden;border-top-right-radius:var(--cb-card-r);pointer-events:none}
-.cb-ribbon{pointer-events:auto;position:absolute;top:24px;right:-38px;width:170px;transform:rotate(45deg);display:flex;flex-direction:column;align-items:center;padding:6px 0 7px;background:#18181b;color:#fff;text-decoration:none;line-height:1;box-shadow:0 2px 6px rgb(0 0 0/.18);transition:background-color 140ms var(--cb-ease)}
-.cb-ribbon small{font-family:var(--cb-mono);font-size:7.5px;letter-spacing:.14em;text-transform:uppercase;opacity:.75}
-.cb-ribbon b{font-size:13px;font-weight:700;letter-spacing:-.01em;margin-top:2px}
-.cb-ribbon:hover,.cb-ribbon:focus-visible{background:#0C8C5E;outline:none}
-.cb-ribtip{position:absolute;top:14px;right:104px;width:240px;display:flex;gap:10px;align-items:flex-start;padding:10px 12px;border-radius:12px;background:#18181b;color:#fff;font-size:12.5px;line-height:1.45;box-shadow:0 12px 32px -8px rgb(0 0 0/.35);opacity:0;transform:translateX(4px);pointer-events:none;transition:opacity 140ms var(--cb-ease),transform 140ms var(--cb-ease)}
-.cb-ribtip b{font-weight:600}
 .cb-mark{flex:none;display:block}
-.cb-corner:hover .cb-ribtip,.cb-corner:focus-within .cb-ribtip{opacity:1;transform:none}
-.cb-embed .cb-corner{display:none}
-@container (min-width:700px){.cb-cardwrap:has(.cb-corner) .cb-phead{padding-right:64px}.cb-cardwrap:has(.cb-corner) .cb-times{padding-top:60px}.cb-cardwrap:has(.cb-corner) .cb-step.cb-form>div:first-child{padding-right:64px}}
 .cb-wrap.cb-narrow{max-width:640px}
 .cb-card{container-type:inline-size;background:var(--clr-bg);border:1px solid var(--cb-line);border-radius:var(--cb-card-r);overflow:hidden;box-shadow:0 1px 2px color-mix(in srgb,var(--clr-text) 4%,transparent),0 16px 40px -16px color-mix(in srgb,var(--clr-text) 14%,transparent)}
 .cb-wrap.cb-narrow .cb-card{box-shadow:none;border:0;background:transparent;overflow:visible}
@@ -48,7 +37,6 @@ export const BOOK_CSS = `
 .cb-foot{display:flex;justify-content:center;padding:12px 0 4px;font-size:12px;color:var(--clr-muted)}
 .cb-foot a{text-decoration:none;display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border-radius:999px;transition:background-color 140ms var(--cb-ease),color 140ms var(--cb-ease)}.cb-foot a:hover{color:var(--clr-text);background:var(--cb-tint)}
 .cb-foot b{font-weight:600;color:var(--clr-text);letter-spacing:-.01em}
-@media (prefers-reduced-motion:reduce){.cb-ribtip,.cb-ribbon{transition:none}}
 .cb-logo{height:28px;width:auto;max-width:180px;object-fit:contain;display:block}
 
 /* Booking: info | calendar | times */

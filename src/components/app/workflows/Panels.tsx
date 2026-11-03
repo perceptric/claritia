@@ -1,6 +1,6 @@
 "use client";
 
-// The editor's side pieces (docs/enrich-workflows-reports.md 2.4): Try a contact, History, Versions and Make live.
+// The editor's side pieces (docs/enrich-workflows-reports.md 2.4): Try a contact, History, Versions and Publish.
 
 import type { Session, SupabaseClient } from "@supabase/supabase-js";
 import { useEffect, useMemo, useState } from "react";
@@ -303,7 +303,7 @@ export function VersionsDrawer({ versions, live, people, onOpen, onCopy, onClose
   );
 }
 
-// Make live -------------------------------------------------------------------------------------------------------
+// Publish -----------------------------------------------------------------------------------------------------------
 
 export function PublishDialog({ session, id, live, draft, names, next, onDone, onClose }: { session: Session; id: string; live: Body | null; draft: Body; names: WordNames; next: number; onDone: (v: number) => void; onClose: () => void }) {
   const changes = useMemo(() => diffWords(live, draft, names), [live, draft, names]);
@@ -324,7 +324,7 @@ export function PublishDialog({ session, id, live, draft, names, next, onDone, o
   };
   return (
     <Modal
-      title={`Make v${next} live`}
+      title={`Publish v${next}`}
       onClose={onClose}
       footer={
         <>
@@ -332,7 +332,7 @@ export function PublishDialog({ session, id, live, draft, names, next, onDone, o
             Cancel
           </Button>
           <Button onClick={() => void go()} disabled={busy}>
-            Make live
+            Publish
           </Button>
         </>
       }

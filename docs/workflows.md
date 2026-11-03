@@ -1,6 +1,6 @@
 # Workflows
 
-Nurture › Workflows is where every automated email lives, meeting reminders included. It replaced Emails: the
+Workflows is where every automated email lives, meeting reminders included. It replaced Emails: the
 Journeys, Emails, Library and Brand tabs are gone, and the senders stay in Settings › Sending.
 
 ## The page
@@ -20,6 +20,26 @@ Journeys, Emails, Library and Brand tabs are gone, and the senders stay in Setti
   the page groups by stage as it did, without folder actions.
 - With no workflows yet, an owner sees the build screen that writes the lifecycle journeys.
 - Emails' old addresses open here (`resolveRoute` in `src/lib/nav.ts`).
+
+## The starting set
+
+Every workspace gets two folders the first time anyone opens Workflows (`workflow_defaults`,
+`supabase/migrations/119_workflow_defaults.sql`; the bodies are `STARTING` in `src/lib/workflows/templates.ts`):
+
+| Folder | Workflow | Starts when | Does |
+| --- | --- | --- | --- |
+| Notification | Form announcement | Any form is sent | Thanks them right away; a Slack note for their owner |
+| Notification | Meeting announcement | A meeting is booked | A Slack note, then reminders a day and an hour before |
+| Follow-up | Form follow-up | Any form is sent | An email the next day, until they book |
+| Follow-up | Meeting follow-up | A meeting is held | A thank-you two hours later |
+| Follow-up | No-show follow-up | A meeting is a no-show | An email with their reschedule link; a Slack note |
+
+- They are drafts with unapproved emails: nothing sends until someone reads each email and presses Publish.
+- They go in once per workspace (`workspaces.workflow_defaults_at`), ahead of older folders; a deleted one stays
+  deleted. Older workspaces keep their own workflows.
+- A new workspace no longer gets an empty "Workflows" folder (119 changes `workflow_folders_start`).
+- Before 119 runs, the page shows what's there.
+- Tested in `tests/workflows.test.ts` and `tests/pg/workflowDefaults.pg.ts`.
 
 ## Meeting reminders
 

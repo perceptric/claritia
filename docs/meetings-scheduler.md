@@ -124,7 +124,7 @@ booking gets an email with the same rep's times.
   Soonest so a full-width brand button can't break them (`src/lib/meetings/brandPage.ts`,
   `scripts/book-brand-check.ts`). The plan is checked on the server when the page loads (`brandServer.ts`), on
   every booking page: types, the team and person pages, one-off and single-use links, polls and the guest's manage
-  page. On Free the page is Claritia's look with "Book with Claritia" on, whatever was saved, so a downgrade falls back
+  page. On Free the page is Claritia's look with "Built with love by Claritia" on, whatever was saved, so a downgrade falls back
   by itself. Branded forms stay on every plan. Styling shows "Paid plans" and Upgrade on Free, and Read the look when a
   paid brand has no stylesheet yet. Emails keep Claritia's look for now.
   Running cost: one Opus look read per brand (about $0.30, check), cached and shared with Form Studio, plus one small
@@ -149,7 +149,7 @@ Everything a rep does in Calendly works in Claritia without a form:
 | Routing forms | Our forms and router (M2, M3) |
 | Workflows (reminders, follow-ups, thank-you emails) | Reminders in 1.7 now; any step after M6 ships |
 | Embeds: inline, popup widget, popup text | `<claritia-book>` inline, a floating button, and `data-claritia-book` on any link |
-| Branding | The brand kit: logo, font, colors, corners; "Powered by Claritia" can be hidden on paid plans |
+| Branding | The brand kit: logo, font, colors, corners; "Built with love by Claritia" can be hidden on paid plans |
 | Calendar connections (up to 6 per person) | Google and Microsoft, several accounts per person, all checked for busy |
 | Time zone detection, 12/24-hour, languages | Detected and switchable; English first, then the languages the forms support |
 | Contacts and meeting history | The CRM: every booking lands on the contact with its history |
