@@ -213,7 +213,7 @@ export function Builder(p: BuilderProps) {
             }}
           >
             <AiMark size={14} working={asking} />
-            <input className="h-full min-w-0 flex-1 bg-transparent text-[13px] text-ink outline-none placeholder:text-faint" placeholder="Change anything" aria-label="Change the form" value={ask} onChange={(e) => setAsk(e.target.value)} disabled={asking} />
+            <input className="h-full min-w-0 flex-1 bg-transparent text-[13px] text-ink shadow-none outline-none placeholder:text-faint focus-visible:shadow-none focus-visible:outline-none" placeholder="Change anything" aria-label="Change the form" value={ask} onChange={(e) => setAsk(e.target.value)} disabled={asking} />
             <button type="submit" className={IB} aria-label="Send" title="Send" disabled={!ask.trim() || asking}>
               <Ic n="up" />
             </button>
