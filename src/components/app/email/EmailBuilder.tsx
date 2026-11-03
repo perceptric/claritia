@@ -25,7 +25,7 @@ import { ArrowDown, ArrowUp, Copy, Monitor, Moon, Phone, Redo, Send, Sun, Trash,
 import { askLines, tell } from "../Dialogs";
 import { importAny } from "@/lib/design/email/import";
 import { Button, ErrorNote, IconButton, postJson, errorText } from "../ui";
-import { fontUrl } from "../forms/editorModel";
+import { fontUrl } from "@/lib/design/fonts";
 import { ElementIcon, Layers, PlusSquare } from "../forms/icons";
 import type { Kit } from "../forms/shared";
 import { useDesignDraft } from "../forms/useDesignDraft";

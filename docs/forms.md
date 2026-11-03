@@ -1,5 +1,8 @@
 # Forms
 
+Status: replaced. Every form is made and changed in Form Studio (`docs/forms-chat-plan.md`, `docs/studio-v2-plan.md`).
+The New form screens, the spec, the builder and its AI described here are deleted; this page stays as history.
+
 How a form gets made and changed: New form, the spec, the builder and the AI behind them. This replaces the old AI
 form builder docs. The live form script, the send path, delivery to CRMs, booking and routing are unchanged and stay
 in `docs/form-builder.md`, `docs/form-studio.md`, `docs/forms-plan.md` and `docs/on-submission.md`.

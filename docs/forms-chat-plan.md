@@ -174,11 +174,20 @@ meeting picks the rep (`docs/on-submission.md`).
 
 ## Part 8. Old forms
 
-- Forms made before this keep their saved format and keep running as they do now.
-- Opening one shows it in the live preview with a **Turn into HTML** button. The form script draws it, and that
-  markup (with the `data-cl-*` contract added) becomes its HTML. The brand's CSS and today's skin become its CSS. After
-  that, it's a chat-and-HTML form like any other.
-- Each published version keeps its format, so the server checks a send against the version that was shown.
+Status: done. The old builder is gone: New form's five screens, the spec and its AI, the Build tab, the canvas and its
+Style panel, the old On Submission screen, the skin and brand routes, the gallery's styles as brand kits, and the
+schema editor's undo, preview and versions.
+
+- Opening a form made before the Studio turns its draft into a Studio page on the server (`/api/studio` mode
+  `convert`, `src/lib/studio/fromForm.ts`), in its brand's stylesheet or the plain one (`src/lib/studio/brandDefault.ts`).
+  Every field id and save key carries over (`data-cl-id`, `data-cl-key`). Prices, payments, scores, grids, rankings
+  and hidden fields are Studio blocks. What the page can't hold (pictures, copy of answers) is listed once.
+- Templates, starter kits and the MCP's `create_form` make Studio pages (`src/lib/studio/templatePage.ts`); the MCP's
+  `set_form_page` writes a page's HTML.
+- A form that reads the site's own form (Share › Your own form) has no page: no Build tab, and it opens on Share.
+- Each published version keeps its format, so the server checks a send against the version that was shown. A live
+  version from before the Studio keeps running as it was until the form is published again.
+- Running cost: $0 at Beta (50 teams) and Growth (500 teams). The move is code only, with no Claude call.
 
 ## Part 9. Data (migration 112)
 
@@ -216,7 +225,7 @@ meeting picks the rep (`docs/on-submission.md`).
 | 4 | The brand's CSS section and real logo: written from the site, shared by forms, edited in chat and as code | Two forms in one brand change together; the logo shows |
 | 4b | On submission: thank-you, page or meeting, routes by answer, the booking calendar at `data-cl-book` | A routed lead books the right meeting with the right rep |
 | 5 | The Webflow editor, from Omniscient's builder | Pick, style by class, type, move, add and undo work on a real form |
-| 6 | Old forms: Turn into HTML. Delete the old New form, spec and Build tab | Every template converts and sends the same answers |
+| 6 | Old forms move into the Studio when opened. Delete the old New form, spec and Build tab (done) | Every template converts and sends the same answers |
 
 ## Part 12. Running cost
 

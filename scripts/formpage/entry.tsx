@@ -1,5 +1,5 @@
-// The form page for scripts/formpage-check.ts: the real FormsView (header, tabs, Form Studio in Build, the older
-// builder) with a fake database and server. window.FIX holds the two forms (made in node by the real page code);
+// The form page for scripts/formpage-check.ts: the real FormsView (header, tabs, Form Studio in Build, an older
+// form moving into the Studio) with a fake database and server. window.FIX holds the two forms (made in node by the real page code);
 // ?form=studio|old opens one. Database calls go to window.rpcs, server calls to window.calls, navigation to window.nav.
 
 import { createRoot } from "react-dom/client";
@@ -7,6 +7,8 @@ import type { SupabaseClient, Session } from "@supabase/supabase-js";
 import { FormsView } from "../../src/components/app/forms/FormsView";
 import { DialogHost } from "../../src/components/app/Dialogs";
 import { checkForm } from "../../src/lib/forms/schema";
+import { formToPage } from "../../src/lib/studio/fromForm";
+import { pageForm } from "../../src/lib/studio/page";
 
 /** As the server does: what's saved and published is the form the checker hands back. */
 const checked = (d: Record<string, unknown>) => {
@@ -89,6 +91,16 @@ window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
     r.name = body.name as string;
     r.draft_rev += 1;
     return ok({ formId: r.id });
+  }
+  if (path === "/api/studio" && body.mode === "convert") {
+    // As the server does: the older draft becomes a studio page in the brand's stylesheet; what's live stays.
+    const r = w.db.forms[body.formId as string]!;
+    if (!r.draft.page) {
+      const conv = formToPage(checked(r.draft) as never);
+      const { form } = pageForm({ html: conv.html, css: conv.css, brand: w.FIX.brand, after: conv.after, title: conv.title });
+      r.draft = checked(form as unknown as Record<string, unknown>);
+    }
+    return ok({ formId: r.id, lost: [] });
   }
   if (path === "/api/forms/tool-lists") return ok({ lists: [{ id: "aud1", name: "Newsletter" }, { id: "aud2", name: "Webinar guests" }] });
   if (path === "/api/forms/tool-targets" && !init?.method && String(input).includes(XL.id)) return ok({ targets: [{ id: "b!d!01A", name: "Leads 2026", url: "https://acme-my.sharepoint.com/a" }] });

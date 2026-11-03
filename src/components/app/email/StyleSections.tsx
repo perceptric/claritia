@@ -1,46 +1,20 @@
 "use client";
 
-// The Style panel (docs/design-system.md Parts 5.2 and 5.3): what the canvas picked (an element and one of its
-// parts), where the style goes (this element, one of its classes, or every form on the design system), the
-// breakpoint from the device and the state to style, then the properties in sections. Each label is colored by where
-// its value comes from, numbers scrub and take sums, and every color, size and font can come from a variable.
-// Every change goes through src/lib/design/edit.ts and lands as one undo step.
+// The style sections of the email builder's Style panel (docs/design-system.md Parts 5.2 and 5.3): the properties in
+// sections, each label colored by where its value comes from; numbers scrub and take sums, and every color, size and
+// font can come from a variable. EmailStyle.tsx says which email part they style and how a value is written.
 
-import { useEffect, useRef, useState } from "react";
-import { literal, resolve, sourceText, type Resolved } from "@/lib/design/cascade";
-import { addClass, evalSum, nudgeValue, originOf, ownValue, parseLength, removeClass, resetPart, setProp, setsAny, type Edit, type Level, type Origin } from "@/lib/design/edit";
-import { allVariables, STATES, type Breakpoint, type DesignSystem, type FormDesign, type PartStyles, type State, type Variable } from "@/lib/design/model";
-import { fieldParts, FORM_PARTS, partDef, type PartKey } from "@/lib/design/parts";
+import { useRef, useState } from "react";
+import { literal, type Resolved } from "@/lib/design/cascade";
+import { evalSum, nudgeValue, parseLength, type Origin } from "@/lib/design/edit";
+import type { Variable } from "@/lib/design/model";
 import { CLIENT_LABEL, propDef, PROP_NAMES, type Group, type Prop } from "@/lib/design/props";
-import { partSelector } from "@/lib/design/web";
-import type { Tokens } from "@/lib/forms/brand";
-import type { Form } from "@/lib/forms/schema";
-import { ChevronRight, Plus, Refresh, X } from "../../Icons";
-import { askText, tell } from "../Dialogs";
+import { Refresh, X } from "../../Icons";
 import { Select } from "../Select";
-import { INPUT, PICK, Popover } from "./controls";
-import { FONTS, fontStack, iconFor, nameOf } from "./editorModel";
-import type { Picked } from "./FormCanvas";
-import { ChevronDown, Diamond, ElementIcon } from "./icons";
+import { INPUT, PICK, Popover } from "../forms/controls";
+import { FONTS, fontStack } from "@/lib/design/fonts";
+import { ChevronDown, Diamond } from "../forms/icons";
 
-export type StylePanelProps = {
-  form: Form;
-  system: DesignSystem;
-  tokens: Partial<Tokens>;
-  bp: Breakpoint;
-  /** Classes and global styles live in the brand kit's design system; without a kit only this element can be styled. */
-  hasKit: boolean;
-  part: Picked;
-  onPart: (p: Picked) => void;
-  state?: State;
-  onState: (s: State | undefined) => void;
-  onEdit: (e: Edit, merge?: string) => void;
-  /** The style guide: only the design system's own levels (classes and every form), never one element. */
-  kitOnly?: boolean;
-};
-
-const BP_LABEL: Record<Breakpoint, string> = { base: "Desktop", tablet: "Tablet", phone: "Phone" };
-const STATE_LABEL: Record<State, string> = { hover: "Hover", focus: "Focus", pressed: "Pressed", invalid: "Invalid", disabled: "Disabled", checked: "Checked", dark: "Dark" };
 // Where a value comes from, as the label's color (Part 5.3).
 const ORIGIN_CLASS: Record<Origin, string> = { here: "text-ink font-medium", inherited: "text-clay", class: "text-sky", global: "text-muted", default: "text-muted", none: "text-muted" };
 
@@ -64,160 +38,6 @@ export type StyleCtx = {
   email?: boolean;
 };
 type Ctx = StyleCtx;
-
-/** Element styles copied with Cmd+Alt+C, for Cmd+Alt+V on another element. */
-let copied: PartStyles | null = null;
-
-export function StylePanel(props: StylePanelProps) {
-  const { form, system, tokens, bp, hasKit, part, onPart, state, onState, onEdit, kitOnly = false } = props;
-  const start: Level = kitOnly ? { kind: "global" } : { kind: "element" };
-  const [picked, setPicked] = useState<{ id: string; level: Level }>({ id: "", level: start });
-  const design: FormDesign = form.design ?? {};
-  const e: Edit = { system, design };
-  const id = part?.id ?? "";
-  const field = part && id !== "form" ? form.steps.flatMap((s) => s.fields).find((f) => f.id === id) : undefined;
-  const on = field ? (design.classes?.[id] ?? []) : [];
-  let level: Level = picked.id === id ? picked.level : kitOnly && on.length ? { kind: "class", id: on[on.length - 1]! } : start;
-  if (!hasKit || (level.kind === "class" && (!field || !on.includes(level.id)))) level = start;
-  const setLevel = (l: Level) => setPicked({ id, level: l });
-
-  // Cmd+Alt+C and Cmd+Alt+V copy and paste an element's own styles.
-  const latest = useRef({ e, id, onEdit });
-  useEffect(() => {
-    latest.current = { e, id, onEdit };
-  });
-  useEffect(() => {
-    const onKey = (ev: KeyboardEvent) => {
-      if (!(ev.metaKey || ev.ctrlKey) || !ev.altKey || (ev.target as HTMLElement)?.closest?.("input, textarea, [contenteditable]")) return;
-      const { e: cur, id: el, onEdit: edit } = latest.current;
-      if (!el) return;
-      if (ev.code === "KeyC") {
-        ev.preventDefault();
-        copied = cur.design.styles?.[el] ?? null;
-      } else if (ev.code === "KeyV" && copied) {
-        ev.preventDefault();
-        const kinds = el === "form" ? FORM_PARTS : null;
-        const paste = Object.fromEntries(Object.entries(copied).filter(([p]) => (kinds ? kinds.includes(p as PartKey) : partDef(p as PartKey).scope === "field")));
-        edit({ system: cur.system, design: { ...cur.design, styles: { ...(cur.design.styles ?? {}), [el]: paste } } });
-      }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, []);
-
-  if (!part) return <p className="px-4 py-10 text-center text-[12.5px] text-muted">Pick a part of the form</p>;
-
-  const parts = field ? fieldParts(field.type) : FORM_PARTS;
-  const plain = !!partDef(part.part).plain;
-  const states = plain ? [] : STATES.filter((s) => s !== "dark" && partSelector(part.part, id === "form" ? "" : ".fl", s) !== null);
-  const st = state && states.includes(state) ? state : undefined;
-  const vars = allVariables(system, tokens);
-  const levelKey = level.kind === "class" ? `c${level.id}` : level.kind;
-  const resolved = resolve(system, design, { id, part: part.part }, bp, st);
-  const ctx: Ctx = {
-    vars,
-    resolved,
-    own: (p) => ownValue(e, level, id, part.part, bp, st, p),
-    origin: (p) => originOf(e, level, id, part.part, bp, st, p),
-    source: (p) => (resolved[p] ? sourceText(resolved[p]!.source, system) : undefined),
-    setsAny: (ps) => setsAny(e, level, id, part.part, bp, st, ps),
-    write: (ps, value, merge) => {
-      let next: Edit | null = e;
-      for (const p of ps) next = next && setProp(next, tokens, level, id, part.part, bp, st, p, value);
-      if (!next) return false;
-      onEdit(next, merge ? `${id}:${part.part}:${ps.join()}:${levelKey}:${bp}:${st ?? ""}` : undefined);
-      return true;
-    },
-  };
-
-  const add = async () => {
-    const name = await askText("Add a class", { placeholder: "Class name", ok: "Add" });
-    if (!name?.trim()) return;
-    const r = addClass(e, id, name);
-    if ("error" in r) return void tell(r.error);
-    onEdit(r);
-    const c = r.system.classes.find((x) => x.name.toLowerCase() === name.trim().toLowerCase());
-    if (c) setLevel({ kind: "class", id: c.id });
-  };
-  const chip = (active: boolean, tone: "ink" | "sky" | "muted") =>
-    `press inline-flex h-6 max-w-full items-center gap-1 rounded-full px-2.5 text-[12px] font-medium transition-colors duration-[140ms] ${
-      active ? (tone === "sky" ? "bg-sky text-paper" : "bg-ink text-paper") : tone === "sky" ? "bg-sky-wash text-sky hover:bg-sky-wash/70" : "bg-paper-deep text-body hover:text-ink"
-    }`;
-
-  return (
-    <div className="flex flex-col">
-      <div className="flex flex-col gap-2.5 border-b border-line px-3 py-3">
-        <div className="flex min-w-0 items-center gap-1.5">
-          {field ? <ElementIcon name={iconFor(field)} size={13} className="shrink-0 text-muted" /> : null}
-          <span className="max-w-[45%] truncate text-[12.5px] font-medium text-ink">{field ? nameOf(field) : "Form"}</span>
-          <ChevronRight size={12} className="shrink-0 text-faint" />
-          <span className="min-w-0 flex-1">
-            <Select<PartKey> value={part.part} options={parts.map((p) => ({ value: p, label: partDef(p).label }))} onChange={(p) => onPart({ id, part: p })} ariaLabel="Part" className={PICK} />
-          </span>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="text-[12px] text-muted">{BP_LABEL[bp]}</span>
-          <span className="min-w-0 flex-1">
-            {states.length ? (
-              <Select<string>
-                value={st ?? ""}
-                options={[{ value: "", label: "No state" }, ...states.map((s) => ({ value: s, label: STATE_LABEL[s] }))]}
-                onChange={(v) => onState(v ? (v as State) : undefined)}
-                ariaLabel="State"
-                className={PICK}
-              />
-            ) : null}
-          </span>
-          <button
-            type="button"
-            aria-label="Reset this part"
-            title="Reset this part"
-            onClick={() => onEdit(resetPart(e, level, id, part.part))}
-            className="press flex size-7 shrink-0 items-center justify-center rounded-full text-muted hover:bg-hover hover:text-ink"
-          >
-            <Refresh size={13} />
-          </button>
-        </div>
-        <div role="radiogroup" aria-label="Style goes on" className="flex flex-wrap items-center gap-1">
-          {kitOnly ? null : (
-            <button type="button" role="radio" aria-checked={level.kind === "element"} onClick={() => setLevel({ kind: "element" })} className={chip(level.kind === "element", "ink")}>
-              {field ? "This field" : "This form"}
-            </button>
-          )}
-          {hasKit
-            ? on.map((cid) => {
-                const c = system.classes.find((x) => x.id === cid);
-                if (!c) return null;
-                const active = level.kind === "class" && level.id === cid;
-                return (
-                  <span key={cid} className={chip(active, "sky")}>
-                    <button type="button" role="radio" aria-checked={active} onClick={() => setLevel({ kind: "class", id: cid })} className="truncate">
-                      {c.name}
-                    </button>
-                    <button type="button" aria-label={`Remove ${c.name}`} title="Remove class" onClick={() => onEdit(removeClass(e, id, cid))} className="-mr-1 opacity-70 hover:opacity-100">
-                      <X size={10} />
-                    </button>
-                  </span>
-                );
-              })
-            : null}
-          {hasKit && field && !kitOnly ? (
-            <button type="button" aria-label="Add a class" title="Add a class" onClick={() => void add()} className="press inline-flex h-6 items-center gap-1 rounded-full border border-dashed border-line-strong px-2 text-[12px] text-muted hover:border-ink hover:text-ink">
-              <Plus size={11} />
-              Class
-            </button>
-          ) : null}
-          {hasKit ? (
-            <button type="button" role="radio" aria-checked={level.kind === "global"} onClick={() => setLevel({ kind: "global" })} className={chip(level.kind === "global", "muted")}>
-              All forms
-            </button>
-          ) : null}
-        </div>
-      </div>
-      <Sections ctx={ctx} />
-    </div>
-  );
-}
 
 // Sections ---------------------------------------------------------------------------------------------------------
 

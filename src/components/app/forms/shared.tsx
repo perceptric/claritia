@@ -5,7 +5,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { designFonts, formCss } from "@/lib/design/form";
-import { fontUrl } from "./editorModel";
+import { fontUrl } from "@/lib/design/fonts";
 import type { Breakpoint } from "@/lib/design/model";
 import type { Tokens } from "@/lib/forms/brand";
 import { allRegions, usesRegions } from "@/lib/forms/regions";
@@ -18,15 +18,6 @@ export type Destination = { id: string; kind: "source" | "slack" | "webhook"; so
 export type SourceRow = { id: string; kind: string; name: string; status: string };
 
 export const STATUS: Record<FormRow["status"], [string, Tone]> = { draft: ["Draft", "gray"], live: ["Published", "green"], paused: ["Paused", "amber"] };
-export const DELIVERY: Record<string, [string, Tone]> = {
-  queued: ["Queued", "gray"],
-  sending: ["Sending", "brand"],
-  retrying: ["Retrying", "amber"],
-  done: ["Sent", "green"],
-  failed: ["Failed", "red"],
-  held: ["Held", "amber"],
-  skipped: ["Skipped", "gray"],
-};
 
 /**
  * The form as visitors see it, from a draft that may not be finished yet. `system` is the design system's draft;
@@ -76,44 +67,11 @@ export function FormPreview({ form, tokens, logo, skin, step = 0, done = false, 
   return <claritia-form ref={ref} />;
 }
 
-/** A color: the swatch picker next to the hex, which can also be typed. */
-export function ColorInput({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
-  const hex = /^#[0-9a-f]{6}/i.test(value) ? value.slice(0, 7) : "#000000";
-  return (
-    <label className="flex items-center gap-2">
-      <input type="color" value={hex} onChange={(e) => onChange(e.target.value)} aria-label={label} className="size-8 shrink-0 cursor-pointer overflow-hidden rounded-full bg-card shadow-outline p-0.5" />
-      <span className="flex min-w-0 flex-1 flex-col">
-        <span className="label-mono">{label}</span>
-        <input value={value} onChange={(e) => onChange(e.target.value)} className="h-7 w-full bg-transparent font-mono text-[12px] text-ink outline-none" aria-label={`${label} hex`} />
-      </span>
-    </label>
-  );
-}
-
 export function Toggle({ label, checked, onChange, disabled }: { label: string; checked: boolean; onChange: (v: boolean) => void; disabled?: boolean }) {
   return (
     <label className={`flex items-center gap-2 text-[13px] ${disabled ? "opacity-50" : "cursor-pointer"}`}>
       <input type="checkbox" checked={checked} disabled={disabled} onChange={(e) => onChange(e.target.checked)} className="size-4 accent-[var(--color-ink)]" />
       {label}
-    </label>
-  );
-}
-
-export function NumberInput({ label, value, min, max, onChange }: { label: string; value: number; min: number; max: number; onChange: (v: number) => void }) {
-  return (
-    <label className="flex flex-col gap-1.5">
-      <span className="label-mono">{label}</span>
-      <input
-        type="number"
-        value={value}
-        min={min}
-        max={max}
-        onChange={(e) => {
-          const n = Number(e.target.value);
-          if (Number.isFinite(n)) onChange(Math.min(max, Math.max(min, n)));
-        }}
-        className="h-9 w-full rounded-md bg-card shadow-input px-3 text-[13px] text-ink outline-none focus:shadow-focus"
-      />
     </label>
   );
 }

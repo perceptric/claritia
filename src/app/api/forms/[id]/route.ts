@@ -1,7 +1,7 @@
 import { appBase } from "@/lib/billing";
 import { readSkin, skinFontCss } from "@/lib/brand/skin";
 import { designFonts, formCss } from "@/lib/design/form";
-import { fontUrl } from "@/components/app/forms/editorModel";
+import { fontUrl } from "@/lib/design/fonts";
 import { allRegions, usesRegions } from "@/lib/forms/regions";
 import { regionOf } from "@/lib/web/policy";
 import { publicForm } from "@/lib/forms/schema";

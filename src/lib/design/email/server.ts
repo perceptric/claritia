@@ -3,7 +3,7 @@
 // or send the result as it is.
 
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { fontUrl } from "../../../components/app/forms/editorModel.ts";
+import { fontUrl } from "../fonts.ts";
 import { cleanTokens } from "../../forms/brand.ts";
 import { designFonts } from "../form.ts";
 import { readSystem } from "../model.ts";

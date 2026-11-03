@@ -29,7 +29,7 @@ import { Chip, Eyebrow, Labeled, PanelFooter, PanelSection, TextLink } from "./p
 import type { Dest, Dynamic } from "@/lib/routing/compile";
 import { blankCond, ConditionRows, newRowId, usable } from "../forms/ConditionRows";
 import { useRoutingFacts } from "../forms/formRouting";
-import { Arrow } from "../forms/OnSubmission";
+import { Arrow } from "../forms/parts";
 import { bookingBase } from "@/lib/meetings/handles";
 import { ShareMeeting, type Pane as SharePane } from "./ShareMeeting";
 

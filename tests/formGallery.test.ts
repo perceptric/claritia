@@ -1,12 +1,11 @@
 // The template gallery (docs/form-templates.md): every template becomes a form the form checker passes, its logic
-// runs in the live form's own engine, every style is a brand kit cleanTokens keeps whole, and neighbors differ.
+// runs in the live form's own engine, and neighboring cards differ in style.
 import assert from "node:assert/strict";
 import { existsSync } from "node:fs";
 import { test } from "node:test";
-import { cleanTokens } from "../src/lib/forms/brand.ts";
 import { findTemplates, industryCounts, templateById, templateBySlug, templateSlug, templateTheme, TEMPLATES } from "../src/lib/forms/gallery/catalog.ts";
-import { ART_BASE, styleNote, styleTokens, templateForm } from "../src/lib/forms/gallery/convert.ts";
-import { isTheme, themeById, THEMES } from "../src/lib/forms/gallery/themes.ts";
+import { templateForm } from "../src/lib/forms/gallery/convert.ts";
+import { isTheme, THEMES } from "../src/lib/forms/gallery/themes.ts";
 import { allFields, checkForm, visibility, type Form } from "../src/lib/forms/schema.ts";
 import { filterTemplates, menuCounts, MENUS, picksFromQuery, picksToQuery, shownValues, valuesIn } from "../src/lib/forms/gallery/filter.ts";
 import { categoryFamily, featuresOf, isCategory, isSub, isTeam, layoutOf, lengthOf, MIN_SHOWN, subParent } from "../src/lib/forms/gallery/taxonomy.ts";
@@ -21,17 +20,16 @@ const checked = (f: Form) => {
   return (r as { form: Form }).form;
 };
 
-test("every template is a form the checker passes in its own style, and the demo request in every style", () => {
+test("every template is a form the checker passes", () => {
   assert.ok(TEMPLATES.length >= 150);
   assert.equal(Object.keys(industryCounts()).length, INDUSTRIES.length);
   assert.equal(new Set(TEMPLATES.map(templateSlug)).size, TEMPLATES.length);
   for (const t of TEMPLATES) {
     assert.equal(templateBySlug(templateSlug(t)), t);
-    const form = checked(templateForm(t, themeById(templateTheme(t))));
+    const form = checked(templateForm(t));
     assert.ok(form.title && form.submit.label, t.id);
     assert.ok(allFields(form).length > 0, t.id);
   }
-  for (const th of THEMES) checked(templateForm(templateById("saas.demo-request")!, th));
 });
 
 test("lead forms reach a contact; anonymous surveys say so; internal forms skip consent", () => {
@@ -82,17 +80,9 @@ test("question kinds map onto the app's types", () => {
   assert.equal(demo.find((f) => f.key === "email")!.check, "work_email");
 });
 
-test("styles: 18 brand kits cleanTokens keeps whole, drawings for the split ones, and varied neighbors", () => {
+test("card styles: 18, a drawing served for the split ones, and varied neighbors", () => {
   assert.equal(THEMES.length, 18);
-  for (const th of THEMES) {
-    assert.deepEqual(cleanTokens(styleTokens(th)).dropped, [], th.id);
-    assert.equal(styleNote(th), `style:${th.id}`);
-    const side = templateForm(templateById("general.contact-us")!, th).layout.side;
-    if (th.art) {
-      assert.equal(side?.image, `${ART_BASE}/${th.id}.svg`);
-      assert.ok(existsSync(`public/form-art/${th.id}.svg`), `${th.id} drawing is served`);
-    } else assert.equal(side, undefined);
-  }
+  for (const th of THEMES) if (th.art) assert.ok(existsSync(`public/form-art/${th.id}.svg`), `${th.id} drawing is served`);
   assert.equal(new Set(TEMPLATES.map(templateTheme)).size, 18);
   for (const t of TEMPLATES) assert.ok(isTheme(templateTheme(t)));
   for (let i = 1; i < TEMPLATES.length; i++) if (TEMPLATES[i - 1]!.industry === TEMPLATES[i]!.industry) assert.notEqual(templateTheme(TEMPLATES[i - 1]!), templateTheme(TEMPLATES[i]!));

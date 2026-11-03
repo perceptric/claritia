@@ -247,20 +247,6 @@ export function Dialog({ label, onClose, wide = false, alert = false, children }
   );
 }
 
-/** A dialog's title row, with a close button when asked. */
-export function DialogHead({ title, onClose }: { title: string; onClose?: () => void }) {
-  return (
-    <div className="flex items-center gap-[8px]">
-      <h2 className="flex-1 text-[16px] font-semibold tracking-[-0.01em] text-ink">{title}</h2>
-      {onClose ? (
-        <button type="button" className={IB} onClick={onClose} aria-label="Close" title="Close">
-          <Ic n="x" />
-        </button>
-      ) : null}
-    </div>
-  );
-}
-
 /** One line at the bottom of the screen that says what just happened, gone after two seconds. */
 export function useNote() {
   const [text, setText] = useState<{ t: string; n: number } | null>(null);
@@ -316,7 +302,6 @@ export const Dots = ({ className = "" }: { className?: string }) => (
 
 /** A small secondary action that removes something: red words on the same pill. */
 export const GHOST_SM_RED = GHOST_SM.replace("text-body hover:border-line-strong hover:text-ink", "text-rose hover:border-line-strong");
-export const GHOST_RED = GHOST.replace("text-body hover:border-line-strong hover:text-ink", "text-rose hover:border-line-strong");
 
 /** An on/off switch: 34 by 20, the thumb springs across. */
 export function Tg({ on, onChange, label, disabled = false }: { on: boolean; onChange: (v: boolean) => void; label: string; disabled?: boolean }) {
@@ -335,31 +320,11 @@ export function Tg({ on, onChange, label, disabled = false }: { on: boolean; onC
   );
 }
 
-/**
- * A number box that lets people type "0.", "-" or "1e" on the way to a number: the text stays as typed, and the number
- * is saved each time it reads as one (empty saves null). A change from outside (undo, the AI) shows the new number.
- */
-export function NumBox({ value, onChange, className = IN_SM, ...rest }: { value: number | null | undefined; onChange: (n: number | null) => void; className?: string; "aria-label": string; placeholder?: string }) {
-  const [text, setText] = useState(value === null || value === undefined ? "" : String(value));
-  const [seen, setSeen] = useState(value);
-  if (seen !== value) {
-    setSeen(value);
-    const now = text.trim() === "" ? null : Number(text);
-    if (now !== (value ?? null)) setText(value === null || value === undefined ? "" : String(value));
-  }
+/** The one arrow: "this leads to that". */
+export function Arrow({ className = "text-faint" }: { className?: string }) {
   return (
-    <input
-      {...rest}
-      className={className}
-      inputMode="decimal"
-      value={text}
-      onChange={(e) => {
-        const t = e.target.value;
-        setText(t);
-        if (t.trim() === "") return onChange(null);
-        const n = Number(t);
-        if (Number.isFinite(n)) onChange(n);
-      }}
-    />
+    <svg aria-hidden="true" viewBox="0 0 22 12" className={`h-[12px] w-[22px] shrink-0 ${className}`} fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M1 6h19M15 1.5 20 6l-5 4.5" />
+    </svg>
   );
 }

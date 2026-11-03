@@ -1,14 +1,8 @@
-// A gallery template as the app's saved form (../schema.ts), and a gallery style as a brand kit's tokens (../brand.ts).
-// Every template converts to a form checkForm passes (tests/formGallery.test.ts), so "Use template" can never make a
-// form the builder or the live script can't read.
+// A gallery template as the app's form (../schema.ts), the step before it becomes a Form Studio page
+// (src/lib/studio/templatePage.ts). Every template converts to a form checkForm passes (tests/formGallery.test.ts).
 
-import type { Tokens } from "../brand.ts";
 import { DEFAULT_CONSENT, type Choice, type Cond, type Field, type FieldKey, type Form, type Op, type Rule, type Step } from "../schema.ts";
-import { FONTS, fontsUrl, type Theme } from "./themes.ts";
 import type { Cond as GCond, FormField, FormTemplate } from "./types.ts";
-
-/** Where the style drawings are served (public/form-art); a split screen's picture must be an https address. */
-export const ART_BASE = "https://app.tryclaritia.com/form-art";
 
 const BUILTIN: Record<string, FieldKey> = { email: "email", phone: "phone", title: "title", company: "company", website: "website", country: "country", region: "region" };
 const opts = (xs: string[] = [], points?: number[]): Choice[] => xs.map((x, i) => ({ value: x, label: x, ...(points?.[i] !== undefined ? { score: points[i] } : {}) }));
@@ -98,8 +92,8 @@ function condFor(c: GCond, target: Field | undefined, source: FormField | undefi
   return { field: target.id, op, value: word(c.value) };
 }
 
-/** The template as a form, in a style: its pages as steps, its show-if logic as rules, its end screen and consent. */
-export function templateForm(t: FormTemplate, theme?: Theme): Form {
+/** The template as a form: its pages as steps, its show-if logic as rules, its end screen and consent. */
+export function templateForm(t: FormTemplate): Form {
   let n = 0;
   const id = () => `t${(n++).toString(36)}`;
   const byKey = new Map<string, { app: Field; src: FormField }>();
@@ -155,7 +149,6 @@ export function templateForm(t: FormTemplate, theme?: Theme): Form {
       labels: "above",
       width: "narrow",
       ...(steps.length > 1 ? { progress: "bar" as const } : {}),
-      ...(theme?.art ? { side: { image: `${ART_BASE}/${theme.id}.svg` } } : {}),
       ...(t.schema.cover ? { cover: t.schema.cover } : {}),
     },
     title: t.schema.title,
@@ -174,35 +167,3 @@ export function templateForm(t: FormTemplate, theme?: Theme): Form {
     },
   };
 }
-
-/** A gallery style as brand kit tokens, every value inside the ranges cleanTokens keeps. */
-export function styleTokens(th: Theme): Partial<Tokens> {
-  const solid = (c: string) => (/^#[0-9a-f]{6}$/i.test(c) ? c : th.card);
-  return {
-    font: FONTS[th.font].css,
-    headingFont: FONTS[th.head].css,
-    fontUrl: th.font === "inter" && th.head === "inter" ? "" : fontsUrl([th.font, th.head]),
-    fontSize: 15,
-    text: th.text,
-    muted: th.muted,
-    background: solid(th.layout === "plain" ? th.bg : th.card),
-    inputBg: solid(th.field),
-    border: th.border,
-    borderWidth: Math.min(th.bw, 4),
-    radius: Math.min(th.radius, 32),
-    inputHeight: 44,
-    accent: th.accent,
-    buttonBg: th.accent,
-    buttonText: th.accentInk,
-    buttonRadius: Math.min(th.btnRadius, 60),
-    buttonWeight: 600,
-    buttonCase: "none",
-    labelSize: 14,
-    labelWeight: 500,
-    error: th.dark ? "#ff8a73" : "#c4320a",
-    gap: 18,
-  };
-}
-
-/** The note a style's brand kit carries, so the next form in that style reuses it. */
-export const styleNote = (th: Theme) => `style:${th.id}`;

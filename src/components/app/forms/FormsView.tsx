@@ -1,28 +1,24 @@
 "use client";
 
 // Inbound › Forms (docs/forms.md): the list, and one form's screen. A form's screen is a header (the crumb, the name to
-// type in, its state, Saved, undo, redo, Preview, the more menu and Publish) and five tabs with icons, kept in the
-// address as ?tab=: Build (the outline, the live form and its panel, build/Builder.tsx), Submissions, Share, Sync and
-// Settings. Drafts save as you go; Publish checks the form first and makes the draft live.
+// type in, its state, the more menu and Publish) and five tabs with icons, kept in the address as ?tab=: Build (Form
+// Studio, docs/forms-chat-plan.md), Submissions, Share, Sync and Settings. A form made before the Studio moves into it
+// the first time it opens. A form that reads the site's own form has no page, so it has no Build and opens on Share.
+// Drafts save as you go; Publish checks the form first and makes the draft live.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { applyOp, type Op } from "@/lib/forms/ops";
 import { checkForm, emptyForm, type Form } from "@/lib/forms/schema";
 import type { CustomField } from "@/lib/records/fields";
 import { askConfirm, tell } from "../Dialogs";
-import { Badge, cache, ErrorNote, errorText, invalidate, Loading, must, postJson, setLeaveGuard, useQuery, type ViewProps } from "../ui";
+import { cache, ErrorNote, errorText, invalidate, Loading, must, postJson, setLeaveGuard, useQuery, type ViewProps } from "../ui";
 import { useLiveBody } from "../routing/screenParts";
-import { Builder, SUBMIT, type Pick as Picked } from "./build/Builder";
-import { mergeKey } from "./editorModel";
-import { FormHome, MADE_KEY } from "./FormHome";
-import { publishChecks, questionsOf } from "./formModel";
+import { FormHome } from "./FormHome";
+import { publishChecks } from "./formModel";
 import { Ic } from "./ic";
 import { Menu } from "./Menu";
-import { BTN, Dialog, DialogHead, EYEBROW, GHOST, GHOST_SM, IB, useNote } from "./parts";
-import { PreviewOverlay } from "./PreviewOverlay";
-import { skinForKit } from "@/lib/brand/skin";
+import { BTN, Dialog, EYEBROW, GHOST, GHOST_SM, IB, useNote } from "./parts";
 import { Setup, type SetupSub } from "./Setup";
-import { useRoutingFacts } from "./formRouting";
 import { Share } from "./Share";
 import type { Destination, FormRow, Kit, SourceRow } from "./shared";
 import { Submissions } from "./Submissions";
@@ -197,8 +193,10 @@ type Saving = "saved" | "saving" | "offline";
 function Editor(props: ViewProps & { data: FormData; reload: () => void; patchRow: (p: Partial<FormData["row"]>) => void; patchKits: (fn: (kits: Kit[]) => Kit[]) => void; patchDests: (fn: (d: Destination[]) => Destination[]) => void }) {
   const { sb, session, ws, navigate, data, reload, patchRow, patchDests } = props;
   const row = data.row;
-  // A Form Studio form: Build is the Studio, and its page goes live through the Studio's publish.
+  // A Form Studio form: Build is the Studio, and its page goes live through the Studio's publish. A form that reads
+  // the site's own form has no page: no Build, and it opens on Share, where its fields are matched.
   const [isStudio] = useState(() => !!row.draft && typeof row.draft === "object" && "page" in (row.draft as object));
+  const own = !isStudio;
   const [studio, setStudio] = useState<StudioState | null>(null);
   const control = useRef<StudioControl | null>(null);
   const wantPublish = useRef(false);
@@ -213,52 +211,31 @@ function Editor(props: ViewProps & { data: FormData; reload: () => void; patchRo
   }, [row.draft]);
   const [form, setFormState] = useState<Form>(start);
   const [name, setName] = useState(row.name);
-  const [kitId, setKitId] = useState<string | null>(row.brand_kit_id);
+  const [kitId] = useState<string | null>(row.brand_kit_id);
   const [custom] = useState<CustomField[]>(data.custom);
-  const [past, setPast] = useState<Form[]>([]);
-  const [future, setFuture] = useState<Form[]>([]);
   const [saving, setSaving] = useState<Saving>("saved");
   const [error, setError] = useState("");
-  const [tab, setTabRaw] = useState<Tab>(() => (typeof window === "undefined" ? "build" : tabOf(window.location.search)));
-  const [sub, setSub] = useState<SetupSub>("alerts");
-  // Opened from a meeting's "Used by": straight to On Submission.
-  const [pick, setPick] = useState<Picked>(() => (typeof window !== "undefined" && new URLSearchParams(window.location.search).get("open") === "submission" ? { id: SUBMIT, open: null } : null));
-  const [step, setStep] = useState(0);
-  const [dialog, setDialog] = useState<"publish" | "versions" | null>(null);
-  const [menu, setMenu] = useState<HTMLElement | null>(null);
-  const [preview, setPreview] = useState(false);
-  const [subsView, setSubsView] = useState<"leads" | "spam">("leads");
-  // A form just made from a description says so once.
-  const [said, setSaid] = useState<{ words: string; undo?: boolean; err?: boolean } | null>(() => {
-    try {
-      if (typeof window !== "undefined" && sessionStorage.getItem(`${MADE_KEY}${row.id}`)) {
-        sessionStorage.removeItem(`${MADE_KEY}${row.id}`);
-        return { words: "Made from your words. Change anything here or below." };
-      }
-    } catch {}
-    return null;
+  const [tab, setTabRaw] = useState<Tab>(() => {
+    const t = typeof window === "undefined" ? "build" : tabOf(window.location.search);
+    return own && t === "build" ? "share" : t;
   });
+  const [sub, setSub] = useState<SetupSub>("alerts");
+  const [dialog, setDialog] = useState<"publish" | null>(null);
+  const [menu, setMenu] = useState<HTMLElement | null>(null);
+  const [subsView, setSubsView] = useState<"leads" | "spam">("leads");
   const note = useNote();
   const rev = useRef(row.draft_rev);
   const dirty = useRef(false);
   const latest = useRef(form);
-  const merge = useRef<{ key: string; at: number } | null>(null);
   // One save at a time, so a slow save never sends an old revision next to a new one.
   const inflight = useRef<Promise<boolean> | null>(null);
   const saveErr = useRef(false);
   const crm = useCrm(data.sources, session, ws.id);
   const live = useLiveBody(sb, ws.id);
   const kit = data.kits.find((k) => k.id === kitId) ?? null;
-  const facts = useRoutingFacts(session, ws.id);
-  // While the site is being read, check back every 2 seconds so the form takes the brand as soon as it's ready.
-  const scanning = data.kits.some((k) => k.scan_status === "scanning");
-  useEffect(() => {
-    if (!scanning) return;
-    const t = setInterval(reload, 2000);
-    return () => clearInterval(t);
-  }, [scanning, reload]);
 
   const setTab = (t: Tab) => {
+    if (own && t === "build") t = "share";
     setTabRaw(t);
     try {
       const u = new URL(window.location.href);
@@ -275,68 +252,22 @@ function Editor(props: ViewProps & { data: FormData; reload: () => void; patchRo
     setSaving("saving");
   };
 
-  /** Apply ops as one undo step. Returns false when one can't apply (the reason shows in the AI bar's line). */
-  const apply = useCallback((input: Op | Op[], words?: string): boolean => {
+  /** Apply ops as one change. Returns false when one can't apply (its reason shows as the error). */
+  const apply = useCallback((input: Op | Op[]): boolean => {
     const ops = Array.isArray(input) ? input : [input];
     if (!ops.length) return true;
-    const cur = latest.current;
-    let next = cur;
+    let next = latest.current;
     for (const op of ops) {
       const r = applyOp(next, op);
       if ("error" in r) {
-        setSaid({ words: r.error, err: true });
+        setError(r.error);
         return false;
       }
       next = r.form;
     }
-    const key = ops.length === 1 ? mergeKey(ops[0]!) : "";
-    const now = Date.now();
-    const joins = !!key && merge.current?.key === key && now - merge.current.at < 1000;
-    merge.current = key ? { key, at: now } : null;
-    if (!joins) setPast((p) => [...p.slice(-99), cur]);
-    setFuture([]);
     put(next);
-    if (words) setSaid({ words, undo: true });
     return true;
   }, []);
-  /** A whole new form from the builder, as one undo step; typing in one box within a second stays one step. */
-  const replace = useCallback((next: Form, words?: string) => {
-    const now = Date.now();
-    const joins = !words && merge.current?.key === "replace" && now - merge.current.at < 1000;
-    merge.current = words ? null : { key: "replace", at: now };
-    if (!joins) setPast((p) => [...p.slice(-99), latest.current]);
-    setFuture([]);
-    put(next);
-    if (words) setSaid({ words, undo: true });
-  }, []);
-  const undo = useCallback(() => {
-    if (!past.length) return;
-    merge.current = null;
-    setFuture((f) => [latest.current, ...f]);
-    put(past[past.length - 1]!);
-    setPast((p) => p.slice(0, -1));
-    setSaid({ words: "Undone" });
-  }, [past]);
-  const redo = useCallback(() => {
-    if (!future.length) return;
-    merge.current = null;
-    setPast((p) => [...p, latest.current]);
-    put(future[0]!);
-    setFuture((f) => f.slice(1));
-    setSaid(null);
-  }, [future]);
-  useEffect(() => {
-    // Form Studio has its own undo; its keys come from inside its shadow root and must reach it.
-    if (isStudio) return;
-    const onKey = (e: KeyboardEvent) => {
-      if ((e.target as HTMLElement)?.closest?.("input, textarea, [contenteditable]") || !(e.metaKey || e.ctrlKey) || e.key.toLowerCase() !== "z") return;
-      e.preventDefault();
-      if (e.shiftKey) redo();
-      else undo();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [undo, redo, isStudio]);
 
   // Opened from a meeting's "Use in a form": this form books that meeting from now on (a change to publish like any other).
   useEffect(() => {
@@ -347,7 +278,7 @@ function Editor(props: ViewProps & { data: FormData; reload: () => void; patchRo
     history.replaceState(null, "", u);
     if (!data.types.some((t) => t.id === use)) return;
     const cur = latest.current.after;
-    apply([...(cur.end.kind === "redirect" ? [{ op: "set_after" as const, end: { kind: "message" as const, title: "Thanks, we got it." } }] : []), { op: "set_schedule", schedule: { ...(cur.schedule ?? {}), tool: "claritia", url: "", perOwner: false, meetingTypeId: use, routes: cur.schedule?.routes ?? [] } }], "Books this meeting now");
+    if (apply([...(cur.end.kind === "redirect" ? [{ op: "set_after" as const, end: { kind: "message" as const, title: "Thanks, we got it." } }] : []), { op: "set_schedule", schedule: { ...(cur.schedule ?? {}), tool: "claritia", url: "", perOwner: false, meetingTypeId: use, routes: cur.schedule?.routes ?? [] } }])) note.show("Books this meeting now");
     // Once, when the form opens.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -389,7 +320,7 @@ function Editor(props: ViewProps & { data: FormData; reload: () => void; patchRo
     if (saving !== "saving") return;
     const t = setTimeout(() => void save(), 700);
     return () => clearTimeout(t);
-  }, [saving, save, form, name, kitId]);
+  }, [saving, save, form, name]);
   useEffect(() => {
     if (saving !== "offline") return;
     const t = setInterval(() => void save(), 5000);
@@ -423,17 +354,10 @@ function Editor(props: ViewProps & { data: FormData; reload: () => void; patchRo
     if (r.draft && Array.isArray(r.draft.steps)) {
       latest.current = r.draft as Form;
       setFormState(r.draft as Form);
-      setPast([]);
-      setFuture([]);
     }
     rev.current = r.draft_rev;
     setName(r.name);
   }, [sb, row.id]);
-  const setKit = (k: string | null) => {
-    setKitId(k);
-    dirty.current = true;
-    setSaving("saving");
-  };
 
   const checked = useMemo(() => checkForm(form, { custom }), [form, custom]);
   const isLive = row.status === "live";
@@ -448,8 +372,6 @@ function Editor(props: ViewProps & { data: FormData; reload: () => void; patchRo
     setError("");
     try {
       if (!(await save())) throw new Error("The draft didn't save. Try again.");
-      // The brand's styles go live with the form, so the published form looks like the one in Build.
-      if (kit && JSON.stringify(kit.design ?? null) !== JSON.stringify(kit.design_live ?? null)) must(await sb.rpc("brand_kit_design_publish", { p_id: kit.id }));
       // The form's routing goes live with it, on the server: compiled with its meetings into the form's routing policy.
       const { routing } = await postJson<{ routing?: { problems: string[]; error?: string } }>(session, "/api/forms/publish", { workspaceId: ws.id, id: row.id });
       // Publishing an offline form puts it back online, as the Take offline note says.
@@ -504,29 +426,10 @@ function Editor(props: ViewProps & { data: FormData; reload: () => void; patchRo
       setError(errorText(e));
     }
   };
-  const discard = () => {
-    if (!data.published) return;
-    setPast((p) => [...p.slice(-99), latest.current]);
-    setFuture([]);
-    put(data.published);
-    note.show("Back to the live version");
-  };
-  const restore = (body: Form, version: number) => {
-    setPast((p) => [...p.slice(-99), latest.current]);
-    setFuture([]);
-    put(body);
-    setDialog(null);
-    note.show(`Version ${version} is the draft now`);
-  };
-
-  /** Open a question on Build, with a section open (Sync's Fix, a check's Fix). */
-  const goto = (qid: string, open = "save") => {
-    const q = questionsOf(latest.current).find((x) => x.id === qid || x.pair?.id === qid);
-    if (!q) return;
+  /** Sync's Fix and a check's Fix: where the question is made (the Studio, or Share's field list for the site's own form). */
+  const goto = () => {
     setDialog(null);
     setTab("build");
-    setStep(q.step);
-    setPick({ id: q.id, open });
   };
 
 
@@ -606,23 +509,9 @@ function Editor(props: ViewProps & { data: FormData; reload: () => void; patchRo
         saving={saving === "saving"}
         tab={tab}
         onTab={setTab}
+        build={isStudio}
         subs={data.subs}
         syncDot={failedWeek ? `${failedWeek} ${failedWeek === 1 ? "lead didn't" : "leads didn't"} reach the CRM` : undefined}
-        tools={
-          isStudio ? null : (
-            <>
-              <button type="button" className={`${IB} max-[860px]:hidden`} onClick={undo} disabled={!past.length} title="Undo" aria-label="Undo">
-                <Ic n="undo" />
-              </button>
-              <button type="button" className={`${IB} max-[860px]:hidden`} onClick={redo} disabled={!future.length} title="Redo" aria-label="Redo">
-                <Ic n="redo" />
-              </button>
-              <button type="button" className={`${IB} max-[860px]:hidden`} onClick={() => setPreview(true)} title="Preview" aria-label="Preview">
-                <Ic n="eye" />
-              </button>
-            </>
-          )
-        }
         more={
           <button type="button" className={IB} onClick={(e) => setMenu(menu ? null : e.currentTarget)} title="More" aria-label="More" aria-haspopup="menu" aria-expanded={!!menu}>
             <Ic n="more" />
@@ -636,12 +525,7 @@ function Editor(props: ViewProps & { data: FormData; reload: () => void; patchRo
           anchor={menu}
           onClose={() => setMenu(null)}
           items={[
-            ...(isStudio
-              ? [{ icon: "check", label: studio?.issues.length ? `Form check (${studio.issues.length})` : "Form check", disabled: !studio, run: () => setCheckAt(actionRef.current) }]
-              : [
-                  { icon: "clock", label: "Versions", run: () => setDialog("versions") },
-                  { icon: "undo", label: "Discard changes", disabled: !data.published || !changed, run: discard },
-                ]),
+            ...(isStudio ? [{ icon: "check", label: studio?.issues.length ? `Form check (${studio.issues.length})` : "Form check", disabled: !studio, run: () => setCheckAt(actionRef.current) }] : []),
             { icon: "dup", label: "Duplicate", run: () => void duplicate() },
             row.status === "paused" ? { icon: "eye", label: "Put back online", run: () => void setStatus("live") } : { icon: "eye", label: "Take offline", disabled: !isLive, run: () => void setStatus("paused") },
             "hr",
@@ -669,45 +553,18 @@ function Editor(props: ViewProps & { data: FormData; reload: () => void; patchRo
       <div className="relative flex min-h-0 flex-1 flex-col">
         {tab === "build" && isStudio ? (
           <Studio sb={sb} session={session} ws={ws} navigate={navigate} formId={row.id} onState={onStudio} controlRef={control} />
-        ) : tab === "build" ? (
-          <Builder
-            session={session}
-            ws={ws}
-            navigate={navigate}
-            form={form}
-            name={name}
-            replace={replace}
-            apply={apply}
-            custom={custom}
-            formId={row.id}
-            kit={kit}
-            kits={data.kits}
-            setKit={setKit}
-            reloadKits={reload}
-            types={data.types}
-            facts={facts}
-            pick={pick}
-            setPick={setPick}
-            step={step}
-            setStep={setStep}
-            said={said}
-            setSaid={setSaid}
-            onUndo={undo}
-          />
         ) : tab === "submissions" ? (
-          <Submissions key={subsView} {...props} form={form} formId={row.id} dests={data.dests} sources={data.sources} onFix={(qid) => goto(qid)} start={subsView} />
+          <Submissions key={subsView} {...props} form={form} formId={row.id} dests={data.dests} sources={data.sources} onFix={goto} start={subsView} />
         ) : tab === "share" ? (
           <Share {...props} form={form} row={row} apply={apply} kit={kit} site={data.site} />
         ) : tab === "sync" ? (
-          <Sync {...props} form={form} formId={row.id} dests={data.dests} sources={data.sources} crm={crm} failed={data.failed} reload={reload} patchDests={patchDests} onFix={(qid) => goto(qid)} issueCtx={issueCtx} />
+          <Sync {...props} form={form} formId={row.id} dests={data.dests} sources={data.sources} crm={crm} failed={data.failed} reload={reload} patchDests={patchDests} onFix={goto} issueCtx={issueCtx} />
         ) : (
           <Setup {...props} form={form} apply={apply} sub={sub} setSub={setSub} formId={row.id} types={data.types} routing={live.data?.body ?? null} onReview={() => (setSubsView("spam"), setTab("submissions"))} subs={data.subs} name={name} />
         )}
       </div>
-      {dialog === "publish" ? <PublishDialog checks={checks} live={!!row.version} onClose={() => setDialog(null)} onPublish={publish} onFix={(qid) => goto(qid)} error={error} /> : null}
-      {dialog === "versions" ? <Versions {...props} formId={row.id} live={row.version} changed={changed} onClose={() => setDialog(null)} onRestore={restore} /> : null}
+      {dialog === "publish" ? <PublishDialog checks={checks} live={!!row.version} onClose={() => setDialog(null)} onPublish={publish} onFix={goto} error={error} /> : null}
       {checkAt && isStudio && studio ? <FormCheck anchor={checkAt} issues={studio.issues} canFix={studio.canFix} onFix={(f) => control.current?.fix(f)} onOpenAfter={() => control.current?.openAfter()} onClose={() => setCheckAt(null)} /> : null}
-      {preview ? <PreviewOverlay form={form} tokens={kit?.tokens ?? {}} logo={kit?.logo_url ?? null} skin={skinForKit(kit, typeof window === "undefined" ? "" : window.location.origin)} system={kit?.design ?? undefined} crmName={crm.crms[0]?.name} onClose={() => setPreview(false)} /> : null}
       {note.node}
     </div>
   );
@@ -761,53 +618,3 @@ function PublishDialog({ checks, live, onClose, onPublish, onFix, error }: { che
     </Dialog>
   );
 }
-
-/** Every published version, newest first, and the draft. An older one can be made the draft again. */
-function Versions({ sb, formId, live, changed, onClose, onRestore }: Pick<ViewProps, "sb"> & { formId: string; live: number; changed: boolean; onClose: () => void; onRestore: (body: Form, v: number) => void }) {
-  const list = useQuery(`form:${formId}:versions:${live}`, async () => (must(await sb.from("form_versions").select("version, body, at").eq("form_id", formId).order("version", { ascending: false }).limit(50)) ?? []) as { version: number; body: Form; at: string }[]);
-  const day = (iso: string) => new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric" });
-  const words = (b: Form) => {
-    const n = questionsOf(b).filter((q) => q.kind !== "heading" && q.kind !== "para").length;
-    return `${b.steps.length > 1 ? `${b.steps.length} pages, ` : ""}${n} ${n === 1 ? "question" : "questions"}${b.after.schedule ? ", books a meeting" : ""}`;
-  };
-  return (
-    <Dialog label="Versions" onClose={onClose}>
-      <DialogHead title="Versions" onClose={onClose} />
-      {!list.data ? (
-        list.error ? <ErrorNote message={list.error} /> : <Loading />
-      ) : (
-        <div className="rounded-[10px] shadow-rest">
-          {changed || !live ? (
-            <div className="flex min-h-[52px] items-center gap-[12px] px-[16px] py-[12px]">
-              <span className="min-w-0 flex-1">
-                <b className="block font-medium text-ink">Draft</b>
-                <span className="text-[12px] text-muted">Your changes, not live</span>
-              </span>
-              <span className="text-[12px] text-muted">Now</span>
-            </div>
-          ) : null}
-          {list.data.map((v) => (
-            <div key={v.version} className="flex min-h-[52px] items-center gap-[12px] border-t border-line px-[16px] py-[12px] first:border-t-0">
-              <span className="min-w-0 flex-1">
-                <b className="block font-medium text-ink">{`Version ${v.version}`}</b>
-                <span className="text-[12px] text-muted">{v.version === live ? `Live. ${words(v.body)}` : words(v.body)}</span>
-              </span>
-              <span className="text-[12px] text-muted">{day(v.at)}</span>
-              {v.version === live ? (
-                <Badge tone="green" dot>
-                  Live
-                </Badge>
-              ) : (
-                <button type="button" className={GHOST_SM} onClick={() => onRestore(v.body, v.version)}>
-                  Restore
-                </button>
-              )}
-            </div>
-          ))}
-        </div>
-      )}
-      <span className="text-[12px] text-muted">Restoring makes it the draft. Publish to make it live.</span>
-    </Dialog>
-  );
-}
-

@@ -1,6 +1,6 @@
 import "server-only";
 import { hostIsPrivate } from "../privateNet.ts";
-import { pickPages, readPage } from "../forms/specAi.ts";
+import { pickPages, readPage } from "./sitePages.ts";
 import type { Page, Sheet } from "./deep.ts";
 import { readBrand, stylesheets, type QuickBrand } from "./quick.ts";
 

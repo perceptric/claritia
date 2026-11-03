@@ -14,7 +14,6 @@ import tailwind from "@tailwindcss/postcss";
 import pw from "playwright-core";
 import { checkForm, emptyForm, type Form } from "../src/lib/forms/schema.ts";
 import { pageForm } from "../src/lib/studio/page.ts";
-import { toForm } from "../src/lib/forms/spec.ts";
 import fx from "./studio/fixtures.json" with { type: "json" };
 
 const failures: string[] = [];
@@ -23,10 +22,11 @@ const check = (ok: boolean, what: string) => {
   console.log(`${ok ? "ok  " : "FAIL"} ${what}`);
 };
 
-// The two forms, made by the real code: a Studio page (draft.page) and a form from the older builder.
+// The two forms, made by the real code: a Studio page (draft.page) and a form made before the Studio, which moves
+// into the Studio the first time it opens.
 const html = /<form_html>([\s\S]*?)<\/form_html>/.exec(fx.reply)![1]!;
 const made = checkForm(pageForm({ html, css: "", brand: fx.brand, after: { kind: "thanks", url: "", meeting: "", routes: [] } as never, title: "Daily check-in" }).form, { custom: [] });
-const olds = checkForm(toForm({ title: "Book a demo", submit: "Book my demo", steps: [{ id: "s1", title: "You", fields: [{ id: "em", type: "email", label: "Work email", key: "email", required: true }] }] } as never, emptyForm()), { custom: [] });
+const olds = checkForm({ ...emptyForm(), title: "Book a demo", submit: { label: "Book my demo" }, steps: [{ id: "s1", title: "You", fields: [{ id: "em", key: "email", type: "email", label: "Work email", required: true }] }] }, { custom: [] });
 if (!("form" in made) || !("form" in olds)) throw new Error("the fixtures don't pass the form checker");
 const row = (id: string, name: string, draft: Form) => ({ id, workspace_id: "00000000-0000-4000-8000-000000000001", name, status: "live", version: 1, draft, draft_rev: 4, brand_kit_id: "k1", live_kit_id: "k1", kind: "built", published_at: new Date().toISOString() });
 const FIX = { studio: row("aaaaaaaa-0000-4000-8000-000000000001", "Daily check-in", made.form), old: row("bbbbbbbb-0000-4000-8000-000000000002", "Book a demo", olds.form), brand: fx.brand };
@@ -109,13 +109,15 @@ try {
   await page.waitForFunction(() => document.querySelector("[data-form-action]")?.textContent?.trim() === "Share", null, { timeout: 10000 });
   check((await tab("Share").getAttribute("aria-selected")) === "true", "a settings-only change publishes where it is, without opening the Studio");
 
-  // ── A form from the older builder ──
+  // ── A form made before the Studio: it moves into the Studio when it opens ──
   await page.goto(`${base}/?form=old`);
   await tab("Build").waitFor();
+  await studioReady();
   await page.waitForTimeout(400);
   await shot("4-old");
-  check((await action.textContent())?.trim() === "Share" && (await page.getByText("Live", { exact: true }).isVisible()), "an older published form reads Live with Share (it used to say Live, edited)");
-  check((await page.locator("[data-studio-host]").count()) === 0, "its Build is the older builder");
+  check(await page.evaluate(() => (window as unknown as { calls: { path: string; body: { mode?: string } }[] }).calls.some((c) => c.path === "/api/studio" && c.body.mode === "convert")), "an older form is turned into a Studio page when it opens");
+  check((await $s("#t-code").count()) === 1, "its Build is Form Studio");
+  check((await action.textContent())?.trim() === "Publish changes", "its new page isn't live until it's published");
 
   // ── New form: Form Studio before the form exists ──
   await page.goto(`${base}/?form=new`);

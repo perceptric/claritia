@@ -7,7 +7,7 @@
 // while the Studio is open and comes back as it was after.
 
 import { useEffect, useRef, type MutableRefObject } from "react";
-import { logoOf, type KitLite } from "../new/NewForm";
+import { logoOf, type KitLite } from "./brandKit";
 import { fetchMeetingTypes } from "../../meetings/TypesList";
 import { brandName } from "@/lib/brand/name";
 import { readProfile } from "@/lib/studio/industries";

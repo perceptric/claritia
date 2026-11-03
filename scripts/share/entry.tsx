@@ -12,7 +12,6 @@ import { Sidebar } from "../../src/components/app/Sidebar";
 import { MailLine, MeetingMailNotice } from "../../src/components/app/meetings/MailHealth";
 import { DialogHost } from "../../src/components/app/Dialogs";
 import { emptyForm, type Form } from "../../src/lib/forms/schema";
-import { toForm } from "../../src/lib/forms/spec";
 import type { Op } from "../../src/lib/forms/ops";
 
 type W = Window & { calls: { path: string; body: Record<string, unknown> }[]; rpcs: unknown[][] };
@@ -64,16 +63,12 @@ const session = { access_token: "t", user: { id: "u1", email: "me@acme.com" } } 
 const ws = { id: "00000000-0000-4000-8000-000000000001", name: "Acme", features: [] } as never;
 
 function FormShare() {
-  const [form] = useState<Form>(() =>
-    toForm(
-      {
-        title: "Book a demo",
-        submit: "Book my demo",
-        steps: [{ id: "s1", title: "Your team", fields: [{ id: "size", type: "radio", label: "How big is your team?", required: true, options: [{ value: "1", label: "1-10" }, { value: "2", label: "11-50" }, { value: "3", label: "51-200" }, { value: "4", label: "200+" }] }, { id: "em", type: "email", label: "Work email", key: "email", required: true }] }],
-      } as never,
-      emptyForm(),
-    ),
-  );
+  const [form] = useState<Form>(() => ({
+    ...emptyForm(),
+    title: "Book a demo",
+    submit: { label: "Book my demo" },
+    steps: [{ id: "s1", title: "Your team", fields: [{ id: "size", key: "q.size", type: "choice", label: "How big is your team?", required: true, options: [{ value: "1", label: "1-10" }, { value: "2", label: "11-50" }, { value: "3", label: "51-200" }, { value: "4", label: "200+" }] }, { id: "em", key: "email", type: "email", label: "Work email", required: true }] }],
+  }));
   // Saves are not kept here; the checks read the calls.
   const apply = (ops: Op | Op[]) => ((window as unknown as { ops: unknown[] }).ops = [...((window as unknown as { ops?: unknown[] }).ops ?? []), ops]).length > 0;
   return (

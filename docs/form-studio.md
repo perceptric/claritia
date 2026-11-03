@@ -1,6 +1,7 @@
 # Form studio
 
-Status: built (the parts below). See "What shipped" at the end for the gaps.
+Status: replaced by Form Studio (`docs/forms-chat-plan.md`). The canvas, Style panel and On Submission screen
+described here are deleted; this page stays as history.
 
 Building a form takes three moves: answer a short chat, then design it on a canvas, then decide what happens after
 the submit. Each move gets one screen that does one job well.

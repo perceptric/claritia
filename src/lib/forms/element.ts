@@ -642,7 +642,6 @@ export class ClaritiaForm extends Base {
     return this.isPreview || this.hasAttribute("demo");
   }
   /** The builder's canvas: every field shows (logic and hidden ones too), so each can be picked. */
-  private edit = false;
   private openList: string | null = null;
   private schedule: { tool: string; url: string } | null = null;
   private filter = "";
@@ -753,9 +752,8 @@ export class ClaritiaForm extends Base {
   }
 
   /** The app's builder shows a draft without loading or sending anything. */
-  set preview(p: { form: Form; tokens?: Partial<Tokens>; logo?: string | null; skin?: { css: string; fonts?: string } | null; step?: number; done?: boolean; regions?: Record<string, string[]>; css?: string; fonts?: string[]; edit?: boolean; answers?: Record<string, unknown> }) {
+  set preview(p: { form: Form; tokens?: Partial<Tokens>; logo?: string | null; skin?: { css: string; fonts?: string } | null; step?: number; done?: boolean; regions?: Record<string, string[]>; css?: string; fonts?: string[]; answers?: Record<string, unknown> }) {
     this.isPreview = true;
-    this.edit = !!p.edit;
     const fresh = !this.data || this.done !== !!p.done;
     if (fresh || p.form.after.schedule?.tool !== "claritia") this.bk = this.bkDone = null;
     this.data = { id: "preview", version: 0, status: "live", body: p.form, tokens: p.tokens ?? {}, logo_url: p.logo ?? null, skin: p.skin ?? null, strict: true, regions: p.regions, css: p.css, fonts: p.fonts };
@@ -1146,7 +1144,7 @@ export class ClaritiaForm extends Base {
       return this.put(style, ...(res && !after ? [res] : []), end, ...(res && after ? [res] : []));
     }
     const screens = form.layout.mode === "screens";
-    if (form.layout.cover && !this.covered && !this.edit && this.step === 0) {
+    if (form.layout.cover && !this.covered && this.step === 0) {
       const go = el("button", { type: "button", class: "bt", text: form.layout.cover.button || "Start" });
       go.addEventListener("click", () => {
         this.covered = true;
@@ -1158,7 +1156,7 @@ export class ClaritiaForm extends Base {
 
     const { shown, required } = visibility(form, this.answers, this.ctx);
     // The last step is the one whose next step (after any skip) is the end.
-    const last = this.edit ? this.step === form.steps.length - 1 : nextStep(form, this.step, this.answers, this.ctx) >= form.steps.length;
+    const last = nextStep(form, this.step, this.answers, this.ctx) >= form.steps.length;
     const step = form.steps[this.step];
     const wrap = el("form", { class: `f${screens ? " sc" : ""}${this.drawn !== this.step && this.drawn >= 0 ? " an" : ""}`, novalidate: true, "aria-label": form.title || "Form" });
     if (this.drawn !== this.step) this.emit("step", { step: this.step, of: form.steps.length });
@@ -1173,8 +1171,7 @@ export class ClaritiaForm extends Base {
     const grid = el("div", { class: "g" });
     this.maxStep = Math.max(this.maxStep, this.step);
     for (const f of step.fields)
-      if (this.edit && f.type === "hidden") grid.append(el("div", { class: "fl", "data-id": f.id, "data-hidden": "" }));
-      else if (this.edit || (f.type !== "hidden" && shown.has(f.id) && !this.known.has(f.id))) {
+      if (f.type !== "hidden" && shown.has(f.id) && !this.known.has(f.id)) {
         if (!isContent(f.type)) this.row(f.id)[0] = 1;
         grid.append(this.field(f, form, required.has(f.id)));
       }
@@ -1205,7 +1202,7 @@ export class ClaritiaForm extends Base {
     }
     actions.append(el("button", { type: "submit", class: form.submit.full ? "bt fw" : "bt", disabled: this.sending, text: this.sending ? "Sending…" : last ? form.submit.label : "Next" }));
     wrap.append(actions);
-    if (form.resume && form.steps.length > 1 && !this.edit && !this.quiet) wrap.append(this.saveLater(form));
+    if (form.resume && form.steps.length > 1 && !this.quiet) wrap.append(this.saveLater(form));
     wrap.addEventListener("submit", (e) => {
       e.preventDefault();
       void this.next();
@@ -1873,7 +1870,7 @@ export class ClaritiaForm extends Base {
     };
     // Screens with auto on: a single pick that is the step's only question moves on by itself.
     const form = this.data!.body;
-    const alone = !multi && !!form.layout.auto && !this.edit && form.steps[this.step]?.fields.filter((x) => !isContent(x.type) && x.type !== "hidden" && x.type !== "calc").length === 1;
+    const alone = !multi && !!form.layout.auto && form.steps[this.step]?.fields.filter((x) => !isContent(x.type) && x.type !== "hidden" && x.type !== "calc").length === 1;
     this.optionsOf(f).forEach((o, i) =>
       item(o.value, o.label, String(i), cur.includes(o.value) && (multi || other === undefined), (checked) => {
         if (!multi) {

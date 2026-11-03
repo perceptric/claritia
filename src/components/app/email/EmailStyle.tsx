@@ -1,7 +1,7 @@
 "use client";
 
-// The email builder's Style panel (docs/design-system.md Parts 5.2 and 5.4): the same sections and inputs as forms
-// (src/components/app/forms/StylePanel.tsx), on email parts, with only what email clients can draw and a mark on
+// The email builder's Style panel (docs/design-system.md Parts 5.2 and 5.4): the style sections and inputs
+// (src/components/app/email/StyleSections.tsx), on email parts, with only what email clients can draw and a mark on
 // what some clients ignore. Styles go on this element, one of its email classes, or every email on the design system.
 
 import { useState } from "react";
@@ -18,7 +18,7 @@ import { Plus, Refresh, X } from "../../Icons";
 import { askText, tell } from "../Dialogs";
 import { Select } from "../Select";
 import { PICK } from "../forms/controls";
-import { Sections, type StyleCtx } from "../forms/StylePanel";
+import { Sections, type StyleCtx } from "./StyleSections";
 
 const KIND_LABEL: Record<string, string> = { email: "Email", section: "Section", column: "Column" };
 

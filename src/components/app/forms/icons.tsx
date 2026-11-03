@@ -260,7 +260,7 @@ const BY_NAME: Record<string, (p: P) => React.ReactElement> = {
   calc: Calculator,
 };
 
-/** An element's icon by its name in the element list (editorModel.ts). */
+/** An element's icon by its name. */
 export function ElementIcon({ name, size = 16, className = "" }: { name: string; size?: number; className?: string }) {
   const I = BY_NAME[name] ?? ShortText;
   return <I size={size} className={className} />;

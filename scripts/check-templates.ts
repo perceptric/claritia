@@ -1,13 +1,12 @@
 // Checks new gallery templates before they join the catalog (docs/form-templates-plan.md Part 9).
 // Run: node scripts/check-templates.ts src/lib/forms/gallery/templates/<file>.ts <EXPORT_NAME> [id,id]
 // With ids, only those templates are checked (the rest of the file still counts as this file).
-// Each template must pass the form check in its own style, have real menus, ask for an email when it's a lead form,
+// Each template must pass the form check, have real menus, ask for an email when it's a lead form,
 // score when it's a quiz, and not repeat another template's questions in a category or reuse an id.
 import { TEMPLATES, withMenus } from "../src/lib/forms/gallery/catalog.ts";
 import { templateForm } from "../src/lib/forms/gallery/convert.ts";
 import { pathProblems } from "../src/lib/forms/gallery/paths.ts";
 import { isCategory, isSub, isTeam, subParent } from "../src/lib/forms/gallery/taxonomy.ts";
-import { themeById, THEMES } from "../src/lib/forms/gallery/themes.ts";
 import { INDUSTRIES, type FormTemplate } from "../src/lib/forms/gallery/types.ts";
 import { allFields, checkForm } from "../src/lib/forms/schema.ts";
 
@@ -51,13 +50,8 @@ for (const t of list) {
   }
   if (t.blurb.length > 80) bad(t, "keep the blurb under 80 characters");
   if (/[\u{1F300}-\u{1FAFF}]/u.test(JSON.stringify(t))) bad(t, "no emoji");
-  for (const th of [themeById("paper"), ...THEMES.slice(0, 3)]) {
-    const r = checkForm(JSON.parse(JSON.stringify(templateForm(t, th))));
-    if ("errors" in r) {
-      bad(t, `form check: ${r.errors.join("; ")}`);
-      break;
-    }
-  }
+  const r = checkForm(JSON.parse(JSON.stringify(templateForm(t))));
+  if ("errors" in r) bad(t, `form check: ${r.errors.join("; ")}`);
   const f = templateForm(t);
   const n = t.schema.pages.flatMap((p) => p.fields);
   if (t.tags.includes("lead") && !t.internal && !allFields(f).find((x) => x.key === "email")?.required) bad(t, "a lead form asks for a required email (email())");

@@ -1,6 +1,8 @@
 # Design system: Webflow-level styling for forms and emails
 
-Status: proposed, October 2026. Nothing here is built yet.
+Status: emails and booking pages use it. The form side (the canvas, the form Style panel) is deleted: forms take their
+look from the brand's Studio stylesheet (`docs/forms-chat-plan.md`). The style sections live on in the email builder
+(`src/components/app/email/StyleSections.tsx`).
 
 Brew lets a marketer style an email down to a single button state and keeps every email on brand. Claritia should go
 further: one design system for a workspace, shared by its forms, its emails and its booking pages, and styled like

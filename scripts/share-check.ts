@@ -10,7 +10,6 @@ import tailwind from "@tailwindcss/postcss";
 import pw from "playwright-core";
 import { buildForms } from "./build-forms.mts";
 import { checkForm, emptyForm } from "../src/lib/forms/schema.ts";
-import { toForm } from "../src/lib/forms/spec.ts";
 
 const failures: string[] = [];
 const check = (ok: boolean, what: string) => {
@@ -26,7 +25,7 @@ const css = (await postcss([tailwind()]).process(readFileSync(globals, "utf8"), 
 const formsJs = await buildForms();
 // The live form the preview loads (the same as the harness's), and every send the preview makes: there must be none.
 const FORM_ID = "6f1c2a90-4b7e-4d2a-9c1e-2b8f4a7d1e03";
-const live = checkForm(toForm({ title: "Book a demo", submit: "Book my demo", steps: [{ id: "s1", title: "Your team", fields: [{ id: "size", type: "radio", label: "How big is your team?", required: true, options: [{ value: "1", label: "1-10" }, { value: "2", label: "11-50" }] }, { id: "em", type: "email", label: "Work email", key: "email", required: true }] }] } as never, emptyForm()), { custom: [] });
+const live = checkForm({ ...emptyForm(), title: "Book a demo", submit: { label: "Book my demo" }, steps: [{ id: "s1", title: "Your team", fields: [{ id: "size", key: "q.size", type: "choice", label: "How big is your team?", required: true, options: [{ value: "1", label: "1-10" }, { value: "2", label: "11-50" }] }, { id: "em", key: "email", type: "email", label: "Work email", required: true }] }] }, { custom: [] });
 const sends: string[] = [];
 const server = createServer((req, res) => {
   if (req.url?.startsWith("/book/")) return void res.writeHead(200, { "content-type": "text/html" }).end(`<!doctype html><body style="margin:0;font:14px system-ui"><h2 style="margin:16px">Pick a time</h2></body>`);

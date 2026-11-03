@@ -1,8 +1,8 @@
 "use client";
 
 // The one header every form has (docs/form-ui-plan.md step 1): the way back to Forms, the name, one state pill, the
-// five tabs and one button that says what to do next (Publish, Publish changes or Share). Form Studio and the older
-// builder both sit under it. When the form check finds problems, the button carries their count and opens the list.
+// five tabs and one button that says what to do next (Publish, Publish changes or Share). Form Studio sits under it.
+// When the form check finds problems, the button carries their count and opens the list.
 
 import { useEffect, useRef, useState } from "react";
 import type { StudioIssue } from "./studio/studio";
@@ -41,6 +41,7 @@ export function FormHeader({
   tab,
   onTab,
   tabs = true,
+  build = true,
   subs = 0,
   syncDot,
   tools,
@@ -56,6 +57,8 @@ export function FormHeader({
   onTab: (t: FormTab) => void;
   /** False until the form exists (a new chat in Form Studio). */
   tabs?: boolean;
+  /** False for a form that reads the site's own form: it has no page to build. */
+  build?: boolean;
   subs?: number;
   syncDot?: string;
   tools?: React.ReactNode;
@@ -82,7 +85,7 @@ export function FormHeader({
             value={tab}
             onChange={onTab}
             tabs={[
-              { value: "build", label: "Build", icon: <Ic n="build" /> },
+              ...(build ? [{ value: "build" as const, label: "Build", icon: <Ic n="build" /> }] : []),
               { value: "submissions", label: "Submissions", icon: <Ic n="inbox" />, count: subs },
               { value: "share", label: "Share", icon: <Ic n="share" /> },
               { value: "sync", label: "Sync", icon: <Ic n="sync" />, dot: syncDot },
