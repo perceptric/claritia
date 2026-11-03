@@ -440,15 +440,19 @@ function ListPane({ sb, session, ws, formId, dests, failed, reload, source, logo
 }
 
 /** What a row tool calls the place rows go. */
-const TARGET_WORD: Record<string, string> = { google_sheets: "Sheet", airtable: "Table", notion: "Database", postgres: "Table", mysql: "Table" };
+const TARGET_WORD: Record<string, string> = { google_sheets: "Sheet", airtable: "Table", notion: "Database", postgres: "Table", mysql: "Table", excel: "Workbook" };
 type Target = { id: string; name: string; url?: string; sheet?: string };
 
-// Google Sheets, Airtable, Notion, PostgreSQL and MySQL (docs/integrations-plan.md step 2): a row per fill in the
-// sheet, table or database picked here. Google Sheets makes a new sheet or takes one's link; Airtable and Notion pick
-// from their own list; PostgreSQL and MySQL take a table name and make the table if it isn't there.
+// Google Sheets, Airtable, Notion, Excel Online, PostgreSQL and MySQL (docs/integrations-plan.md step 2): a row per
+// fill in the sheet, table or database picked here. Google Sheets makes a new sheet or takes one's link; Airtable and
+// Notion pick from their own list; Excel picks a workbook or takes one's link; PostgreSQL and MySQL take a table name
+// and make the table if it isn't there.
 function RowsPane({ sb, session, ws, form, formId, dests, failed, reload, source, logo }: Props & { source: SourceRow; logo: React.ReactNode }) {
   const d = dests.find((x) => x.kind === "source" && x.source_id === source.id);
   const google = source.kind === "google_sheets";
+  const xl = source.kind === "excel";
+  // Where a pasted link goes: a sheet or a workbook.
+  const thing = xl ? "workbook" : "sheet";
   const sql = source.kind === "postgres" || source.kind === "mysql";
   const word = TARGET_WORD[source.kind] ?? "Table";
   const [error, setError] = useState("");
@@ -489,7 +493,7 @@ function RowsPane({ sb, session, ws, form, formId, dests, failed, reload, source
     void run(async () => {
       await save(await sheet({ action: "link", link: l }));
       setLink("");
-    }, "Rows go to that sheet now");
+    }, `Rows go to that ${thing} now`);
   };
   const takeTable = () => {
     const t = table.trim();
@@ -500,7 +504,7 @@ function RowsPane({ sb, session, ws, form, formId, dests, failed, reload, source
   const picker = (
     <Select
       value={target?.id ?? ""}
-      options={(targets.data ?? []).map((t) => ({ value: t.id, label: t.name }))}
+      options={[...(targets.data ?? []), ...(target && !targets.data?.some((t) => t.id === target.id) ? [target] : [])].map((t) => ({ value: t.id, label: t.name }))}
       ariaLabel={word}
       placeholder={targets.data ? `Pick a ${word.toLowerCase()}` : "Reading…"}
       disabled={!targets.data || busy}
@@ -513,13 +517,13 @@ function RowsPane({ sb, session, ws, form, formId, dests, failed, reload, source
   );
   const linkRow = (
     <div className={CROW}>
-      <RowText title={target ? "Use another sheet" : "Use a sheet I have"} />
+      <RowText title={target ? `Use another ${thing}` : xl ? "Or paste its link" : "Use a sheet I have"} />
       <div className="flex min-w-0 flex-1 items-center justify-end gap-[6px] max-[860px]:basis-full">
         <input
           value={link}
           maxLength={1000}
-          aria-label="Sheet link"
-          placeholder="Paste the sheet's link"
+          aria-label={xl ? "Workbook link" : "Sheet link"}
+          placeholder={`Paste the ${thing}'s link`}
           onChange={(e) => setLink(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === "Enter") {
@@ -585,6 +589,7 @@ function RowsPane({ sb, session, ws, form, formId, dests, failed, reload, source
               <RowText title={word} />
               {picker}
             </div>
+            {xl ? linkRow : null}
           </div>
         )}
         {note.node}
@@ -647,6 +652,7 @@ function RowsPane({ sb, session, ws, form, formId, dests, failed, reload, source
             </div>
           </div>
         ) : null}
+        {xl ? linkRow : null}
         {google ? (
           <>
             {linkRow}

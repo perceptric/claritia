@@ -173,6 +173,7 @@ export const CATALOG: Entry[] = [
   // Sheets and databases (docs/integrations-plan.md step 2): a row per form fill, nothing read back.
   { kind: "google_sheets", label: "Google Sheets", group: "sheets", domain: "sheets.google.com", oauth: true, objects: [], pushes: true, rows: true },
   { kind: "airtable", label: "Airtable", group: "sheets", domain: "airtable.com", oauth: true, keys: key("Personal access token"), objects: [], pushes: true, rows: true },
+  { kind: "excel", label: "Excel Online", group: "sheets", domain: "excel.cloud.microsoft", oauth: true, objects: [], pushes: true, rows: true },
   { kind: "notion", label: "Notion", group: "sheets", domain: "notion.so", oauth: true, keys: key("Integration secret"), objects: [], pushes: true, rows: true },
   { kind: "api", label: "Webhook", group: "api", domain: "", hook: true, objects: ["contacts"] },
 ];
