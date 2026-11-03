@@ -52,7 +52,7 @@ const hostOf = (u: string | null | undefined) => {
  * `formId`: a studio form to open in its chat. `chatId`: one chat. `fresh`: New form, a new chat. The page's header
  * (FormHeader) shows the state from `onState` and publishes through `controlRef`.
  */
-export function Studio({ sb, session, ws, navigate, formId = "", chatId = "", fresh = false, onState, controlRef }: Pick<ViewProps, "sb" | "session" | "ws" | "navigate"> & { formId?: string; chatId?: string; fresh?: boolean; onState?: (s: StudioState) => void; controlRef?: MutableRefObject<StudioControl | null> }) {
+export function Studio({ sb, session, ws, navigate, formId = "", chatId = "", fresh = false, text = "", onState, controlRef }: Pick<ViewProps, "sb" | "session" | "ws" | "navigate"> & { formId?: string; chatId?: string; fresh?: boolean; text?: string; onState?: (s: StudioState) => void; controlRef?: MutableRefObject<StudioControl | null> }) {
   const hostRef = useRef<HTMLDivElement>(null);
   // The session changes as its token refreshes; the studio always calls with the newest.
   const sessionRef = useRef(session);
@@ -86,7 +86,7 @@ export function Studio({ sb, session, ws, navigate, formId = "", chatId = "", fr
     const keepLocal = (c: Chat) => write(LOCAL, [c, ...localChats().filter((x) => x.id !== c.id)].slice(0, 40));
 
     const api: StudioApi = {
-      start: { formId, chatId, fresh },
+      start: { formId, chatId, fresh, text },
       onState: (st) => stateRef.current?.(st),
       brands: async () => {
         // The brand's CSS (112) and industry (113), falling back as the database catches up.
@@ -278,7 +278,7 @@ export function Studio({ sb, session, ws, navigate, formId = "", chatId = "", fr
       if (controlRef?.current === ctl) controlRef.current = null;
       shell.innerHTML = "";
     };
-  }, [sb, ws.id, formId, chatId, fresh, controlRef]);
+  }, [sb, ws.id, formId, chatId, fresh, text, controlRef]);
 
   return <div ref={hostRef} data-studio-host="" className="relative flex h-full min-h-0 flex-1 flex-col bg-card" />;
 }

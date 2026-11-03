@@ -5,6 +5,16 @@ Today: 150 templates, 24 industries, 10 use cases and 18 styles, in Forms › Te
 Quizzes, Surveys and Role, with a "Make a form with AI" box at the end. This plan matches every menu and then adds what
 only Claritia can offer, because a Claritia form books the meeting, routes the lead and starts the follow-up.
 
+## Status (2026-11-03)
+
+Built: steps 1 to 5 and most of 6 (`docs/form-templates.md`). 424 templates (the first 150 and wave 1's 274), the menus
+with 85 categories, 38 industries and 16 teams, wired templates, starter kits for 36 industries, the seasonal row,
+See it in your brand, the live demos with calculations, payments and a sample booking step, and Describe your form.
+The website has 276 list pages and 424 template pages. Two changes from the plan: "Routes to a teammate" is left out
+(a template can't know a workspace's teams), and a booking template books the workspace's meeting only when it has
+exactly one. Still to do: wave 2 (to about 600), languages, real "Most used" counts, and carrying a brand picked on the
+website into the new workspace.
+
 ## Part 1. The menus
 
 Nine menus on the gallery, in this order. Menus 1 to 4 are tagged by hand on each template. Menus 5 to 9 are worked

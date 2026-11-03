@@ -32,6 +32,14 @@ test("the amount comes from the form's own calculation, in cents", () => {
   assert.ok("errors" in checkForm({ ...emptyForm(), steps: [{ id: "s1", fields: [EMAIL, { ...PAY, pay: { amount: 5, currency: "USD" } }, { ...PAY, id: "pay2", key: "c.pay2", pay: { amount: 5, currency: "USD" } }] }] }));
 });
 
+test("a payment a rule hides is never charged, and a shown one is", () => {
+  const HOW: Field = { id: "how", key: "q.how", type: "choice", label: "How will you pay?", required: true, options: [{ value: "Card now", label: "Card now" }, { value: "Send an invoice", label: "Send an invoice" }] };
+  const fm = ok([QTY, TOTAL, HOW, PAY], { rules: [{ id: "r1", when: { field: "how", op: "is", value: "Card now" }, then: { action: "show", field: "pay" } }] });
+  assert.equal(payAmount(fm, { qty: "3", how: "Send an invoice" }), null, "hidden by the rule");
+  assert.equal(payAmount(fm, { qty: "3" }), null, "no answer yet: still hidden");
+  assert.deepEqual(payAmount(fm, { qty: "3", how: "Card now" }), { amount: 3750, currency: "usd" });
+});
+
 test("checkout opens once per fill on the team's account, and a resend gets the same page", async () => {
   const fm = ok([QTY, TOTAL, PAY]);
   const made: unknown[] = [];

@@ -1499,6 +1499,8 @@ export function numOf(v: unknown): number | null {
 export function payAmount(form: Form, answers: Record<string, unknown>, ctx: RunCtx = {}): { amount: number; currency: string } | null {
   const block = allFields(form).find((f) => f.type === "payment" && f.pay);
   if (!block?.pay) return null;
+  // A payment a rule hides isn't charged (a form that offers "Send an invoice" beside "Pay by card").
+  if (!visibility(form, answers, ctx).shown.has(block.id)) return null;
   const major = block.pay.field ? numOf(withCalcs(form, answers, ctx)[block.pay.field]) : (block.pay.amount ?? null);
   if (major === null || !Number.isFinite(major) || major <= 0) return null;
   const minor = Math.round(major * (ZERO_DECIMAL.has(block.pay.currency) ? 1 : 100));

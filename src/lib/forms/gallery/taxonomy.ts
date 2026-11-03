@@ -364,7 +364,8 @@ export function featuresOf(t: FormTemplate): Feature[] {
   if (has("calc")) out.push("calculator");
   if (has("payment")) out.push("payment");
   if (t.schema.end.booking) out.push("booking");
-  if (t.schema.end.score?.length || fields.some((f) => f.points?.length)) out.push("score");
+  // Points on a calculator's choices are prices; only a quiz's points make a score.
+  if (t.schema.end.score?.length || (fields.some((f) => f.points?.length) && !has("calc"))) out.push("score");
   if (has("file")) out.push("file");
   if (has("signature")) out.push("signature");
   if (has("matrix")) out.push("grid");

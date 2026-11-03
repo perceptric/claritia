@@ -79,7 +79,7 @@ function fieldsFor(f: FormField, id: () => string): Field[] {
       return [{ ...base, key: q, type: "hidden", required: false, hidden: { from: "param", name: f.key } }];
     case "calc":
       // The formula names other answers by key; templateForm swaps in their ids once every field has one.
-      return [{ ...base, key: q, type: "calc", required: false, calc: { formula: f.formula ?? "0", ...(f.format ? { format: f.format } : {}), ...(f.format === "money" ? { currency: f.currency ?? "USD", decimals: 0 } : {}), ...(f.visible === false ? { show: false as const } : {}) } }];
+      return [{ ...base, key: q, type: "calc", required: false, calc: { formula: f.formula ?? "0", ...(f.format ? { format: f.format } : {}), ...(f.format === "money" ? { currency: f.currency ?? "USD" } : {}), ...(f.visible === false ? { show: false as const } : {}) } }];
     case "payment":
       return [{ id: base.id, key: `c.${base.id}` as FieldKey, type: "payment", label: f.label, required: false, pay: { currency: f.currency ?? "USD", ...(f.amount ? { amount: f.amount } : { field: f.from ?? "" }) } }];
     default:

@@ -73,6 +73,8 @@ function StudioPage(props: ViewProps & { fresh?: boolean }) {
   const actionRef = useRef<HTMLButtonElement>(null);
   const [checkAt, setCheckAt] = useState<HTMLElement | null>(null);
   const [chatId] = useState(chatParam);
+  // ?ask=<words>: the gallery's Describe your form, put in the message box of the new chat.
+  const [ask] = useState(() => (typeof window === "undefined" ? "" : (new URLSearchParams(window.location.search).get("ask") ?? "")));
   const pill: HeaderState = !st || st.state === "new" || st.state === "draft" ? "draft" : st.state === "changed" ? "changed" : "live";
   const go = (t: FormTab) => {
     if (st?.formId && t !== "build") navigate("forms", st.formId, `tab=${t}`);
@@ -95,7 +97,7 @@ function StudioPage(props: ViewProps & { fresh?: boolean }) {
         </div>
       ) : null}
       <div className="relative flex min-h-0 flex-1 flex-col">
-        <Studio {...props} fresh={props.fresh} chatId={chatId} onState={setSt} controlRef={control} />
+        <Studio {...props} fresh={props.fresh} chatId={chatId} text={props.fresh ? ask : ""} onState={setSt} controlRef={control} />
       </div>
       {checkAt && st ? <FormCheck anchor={checkAt} issues={st.issues} canFix={st.canFix} onFix={(f) => control.current?.fix(f)} onOpenAfter={() => control.current?.openAfter()} onClose={() => setCheckAt(null)} /> : null}
     </div>

@@ -7,13 +7,16 @@
 // keep their picks in the address (?category=waiver&team=hr).
 
 import { useEffect, useMemo, useState } from "react";
-import { industryLabel, questionCount, templateBySlug, templateSlug, templateTheme, TEMPLATES } from "@/lib/forms/gallery/catalog";
+import { industryLabel, questionCount, templateById, templateBySlug, templateSlug, templateTheme, TEMPLATES } from "@/lib/forms/gallery/catalog";
 import { styleTokens, templateForm } from "@/lib/forms/gallery/convert";
 import { kitBooks, kitWorkflows } from "@/lib/forms/gallery/kit";
+import { inSeason, kitById, KITS, type Kit } from "@/lib/forms/gallery/kits";
 import { filterTemplates, menuCounts, MENUS, picksFromQuery, picksToQuery, shownValues, valueLabel, type Menu, type Picks, type Sort } from "@/lib/forms/gallery/filter";
 import { LENGTHS, lengthOf } from "@/lib/forms/gallery/taxonomy";
 import { FONTS, fontsUrl, isTheme, themeById, THEMES, type FontKey, type Theme } from "@/lib/forms/gallery/themes";
 import type { FormTemplate } from "@/lib/forms/gallery/types";
+import type { Tokens } from "@/lib/forms/brand";
+import { AiMark } from "../../Ai";
 import { Select } from "../../Select";
 import { Sheet } from "../../Sheet";
 import { ErrorNote, errorText, invalidate, postJson, type ViewProps } from "../../ui";
@@ -254,15 +257,174 @@ function Menus({ picks, setPicks, counts }: { picks: Picks; setPicks: (p: Picks)
   );
 }
 
+/**
+ * Describe your form (docs/form-templates-plan.md 5.5): the words are matched to the catalog first, so a template
+ * that fits is offered before anything is built; Build with AI opens Form Studio with the words in its message box.
+ */
+function Describe({ ws, session, navigate, onPick, seed }: Pick<ViewProps, "ws" | "session" | "navigate"> & { onPick: (t: FormTemplate) => void; seed: string }) {
+  const [text, setText] = useState(seed);
+  const [found, setFound] = useState<{ q: string; ids: string[] }>({ q: "", ids: [] });
+  const q = text.trim();
+  useEffect(() => {
+    if (q.length < 8) return;
+    let live = true;
+    const t = setTimeout(() => {
+      postJson<{ ids: string[] }>(session, "/api/forms/templates/match", { workspaceId: ws.id, text: q })
+        .then((r) => live && setFound({ q, ids: r.ids }))
+        .catch(() => undefined);
+    }, 600);
+    return () => {
+      live = false;
+      clearTimeout(t);
+    };
+  }, [q, session, ws.id]);
+  const picks = found.q === q && q.length >= 8 ? found.ids.map((x) => templateById(x)).filter((x): x is FormTemplate => !!x) : [];
+  const build = () => navigate("forms", "new", q ? `ask=${encodeURIComponent(q)}` : undefined);
+  return (
+    <div className={`${CARD} flex flex-col gap-[10px] p-[16px]`}>
+      <label className="flex flex-col gap-[8px]">
+        <span className="flex items-center gap-[6px] text-[14px] font-medium text-ink">
+          <AiMark size={14} />
+          Describe the form you need
+        </span>
+        <span className="flex flex-wrap gap-[8px]">
+          <input
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && build()}
+            maxLength={300}
+            placeholder="A deposit form for custom cake orders"
+            className="h-[36px] min-w-[220px] flex-1 rounded-sm border border-line bg-card px-[10px] text-[13px] text-ink outline-none placeholder:text-muted focus:border-ink"
+          />
+          <button type="button" className={BTN} onClick={build}>
+            <Ic n="wand" />
+            Build with AI
+          </button>
+        </span>
+      </label>
+      {picks.length ? (
+        <div className="flex flex-wrap items-center gap-[6px]">
+          {picks.map((t) => (
+            <button key={t.id} type="button" onClick={() => onPick(t)} className="press inline-flex h-[28px] items-center gap-[6px] rounded-full border border-line bg-card px-[12px] text-[12.5px] text-body hover:border-ink hover:text-ink">
+              Start from {t.name}
+            </button>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function KitCard({ k, onOpen }: { k: Kit; onOpen: () => void }) {
+  const list = k.templates.map((x) => templateById(x)).filter((x): x is FormTemplate => !!x);
+  return (
+    <button type="button" onClick={onOpen} className={`${CARD} press flex w-[250px] shrink-0 flex-col gap-[8px] p-[14px] text-left transition-colors duration-[120ms] hover:border-ink`}>
+      <span className="text-[14px] font-medium text-ink">{k.name}</span>
+      <span className="flex flex-col gap-[2px] text-[12.5px] text-muted">
+        {list.map((t) => (
+          <span key={t.id} className="truncate">
+            {t.name}
+          </span>
+        ))}
+      </span>
+      <span className="mt-auto pt-[4px] text-[12px] text-faint">{list.length} forms</span>
+    </button>
+  );
+}
+
+/** A starter kit: its forms, and one button that makes them all in one style. */
+function KitSheet({ k, ws, session, navigate, onClose, onPick }: Pick<ViewProps, "ws" | "session" | "navigate"> & { k: Kit; onClose: () => void; onPick: (t: FormTemplate) => void }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const list = k.templates.map((x) => templateById(x)).filter((x): x is FormTemplate => !!x);
+  const add = async () => {
+    setBusy(true);
+    setError("");
+    try {
+      await postJson<{ ids: string[]; failed: string[] }>(session, "/api/forms/templates/kit", { workspaceId: ws.id, kit: k.id });
+      invalidate(`forms:${ws.id}:home`);
+      invalidate(`form_names:${ws.id}`);
+      invalidate("app_counts");
+      invalidate(`workflows:${ws.id}`);
+      navigate("forms");
+    } catch (e) {
+      setError(errorText(e));
+      setBusy(false);
+    }
+  };
+  return (
+    <Sheet
+      title={k.name}
+      onClose={onClose}
+      footer={
+        <>
+          <ErrorNote message={error} />
+          <span className="flex-1" />
+          <button type="button" className={BTN} onClick={add} disabled={busy}>
+            {busy ? "Making them…" : `Add all ${list.length}`}
+          </button>
+        </>
+      }
+    >
+      <div className="flex flex-col gap-[8px] p-[16px]">
+        {list.map((t) => (
+          <button key={t.id} type="button" onClick={() => onPick(t)} className={`${CARD} press flex flex-col gap-[2px] p-[12px] text-left hover:border-ink`}>
+            <span className="text-[13.5px] font-medium text-ink">{t.name}</span>
+            <span className="text-[12.5px] text-muted">{t.blurb}</span>
+          </button>
+        ))}
+      </div>
+    </Sheet>
+  );
+}
+
 const lengthLabel = (t: FormTemplate) => LENGTHS.find((l) => l.id === lengthOf(t))!.label;
 
-export function TemplatesPage({ ws, session, navigate, id }: ViewProps) {
+/** A workspace brand kit the gallery can draw in: the ones read from a site, never a style's own kit. */
+type BrandKit = { id: string; name: string; tokens: Partial<Tokens>; logo_url: string | null };
+
+function useBrandKits(sb: ViewProps["sb"], ws: string) {
+  const [kits, setKits] = useState<BrandKit[]>([]);
+  useEffect(() => {
+    let live = true;
+    sb.from("brand_kits")
+      .select("id, name, tokens, logo_url, source_url, notes")
+      .eq("workspace_id", ws)
+      .order("created_at")
+      .then(({ data }) => {
+        const rows = (data ?? []) as (BrandKit & { source_url: string | null; notes: string[] | null })[];
+        if (live) setKits(rows.filter((k) => k.source_url && !(k.notes ?? []).some((n) => n.startsWith("style:"))).slice(0, 6));
+      });
+    return () => {
+      live = false;
+    };
+  }, [sb, ws]);
+  return kits;
+}
+
+function KitSwatch({ k, on, onClick }: { k: BrandKit; on: boolean; onClick: () => void }) {
+  const c = (x: unknown, d: string) => (typeof x === "string" && /^#[0-9a-f]{6}$/i.test(x) ? x : d);
+  return (
+    <button type="button" role="radio" aria-checked={on} aria-label={k.name} title={k.name} onClick={onClick} className={`press flex h-[24px] items-center gap-[6px] rounded-full border pr-[10px] pl-[3px] text-[12px] ${on ? "border-ink ring-1 ring-ink" : "border-line hover:border-line-strong"}`}>
+      <span className="flex h-[16px] w-[24px] overflow-hidden rounded-full border border-line">
+        <span className="flex-1" style={{ background: c(k.tokens.background, "#ffffff") }} />
+        <span className="flex-1" style={{ background: c(k.tokens.accent ?? k.tokens.buttonBg, "#0a0a0a") }} />
+      </span>
+      <span className="max-w-[120px] truncate">{k.name}</span>
+    </button>
+  );
+}
+
+export function TemplatesPage({ sb, ws, session, navigate, id }: ViewProps) {
   useStyleFonts();
   const [picks, setPicks] = useState<Picks>(() => (typeof window === "undefined" ? {} : picksFromQuery(new URLSearchParams(window.location.search))));
   const [sort, setSort] = useState<Sort>("popular");
   const [look, setLook] = useState<string>(OWN);
   const [text, setText] = useState("");
   const [filters, setFilters] = useState(false);
+  // ?kit=<id> (the website's starter kits) opens that kit.
+  const [kitOpen, setKitOpen] = useState<Kit | null>(() => (typeof window === "undefined" ? null : (kitById(new URLSearchParams(window.location.search).get("kit") ?? "") ?? null)));
+  const season = useMemo(() => inSeason(new Date().getMonth() + 1).slice(0, 8), []);
   const [open, setOpen] = useState<FormTemplate | null>(() => templateBySlug(id.split("/")[1] ?? "") ?? null);
   const [picked, setPicked] = useState<string | null>(() => {
     if (typeof window === "undefined") return null;
@@ -274,9 +436,13 @@ export function TemplatesPage({ ws, session, navigate, id }: ViewProps) {
   const list = useMemo(() => filterTemplates(picks, text, sort), [picks, text, sort]);
   const counts = useMemo(() => menuCounts(picks, text), [picks, text]);
   const cardTheme = (t: FormTemplate) => themeById(look === OWN ? templateTheme(t) : look);
+  const kits = useBrandKits(sb, ws.id);
+  const [kitId, setKitId] = useState<string | null>(null);
+  const kit = kits.find((k) => k.id === kitId) ?? null;
   const theme = themeById(picked ?? (look !== OWN ? look : open ? templateTheme(open) : undefined));
-  const form = useMemo(() => (open ? templateForm(open, theme) : null), [open, theme]);
-  const tokens = useMemo(() => styleTokens(theme), [theme]);
+  // In the workspace's own brand the form takes the kit's look and no style drawing.
+  const form = useMemo(() => (open ? templateForm(open, kit ? undefined : theme) : null), [open, theme, kit]);
+  const tokens = useMemo(() => (kit ? kit.tokens : styleTokens(theme)), [theme, kit]);
   const tags = MENUS.flatMap((m) =>
     (picks[m.id] ?? []).map((v) => ({
       m: m.id,
@@ -296,7 +462,7 @@ export function TemplatesPage({ ws, session, navigate, id }: ViewProps) {
     setBusy(true);
     setError("");
     try {
-      const r = await postJson<{ id: string }>(session, "/api/forms/templates", { workspaceId: ws.id, template: open.id, theme: theme.id });
+      const r = await postJson<{ id: string }>(session, "/api/forms/templates", { workspaceId: ws.id, template: open.id, ...(kit ? { kitId: kit.id } : { theme: theme.id }) });
       invalidate(`forms:${ws.id}:home`);
       invalidate(`form_names:${ws.id}`);
       invalidate("app_counts");
@@ -396,6 +562,30 @@ export function TemplatesPage({ ws, session, navigate, id }: ViewProps) {
                 </button>
               </div>
             ) : null}
+            {!tags.length && !text ? (
+              <section aria-label="Starter kits" className="flex flex-col gap-[8px]">
+                <p className={EYEBROW}>Starter kits</p>
+                <div className="-mx-[2px] flex gap-[10px] overflow-x-auto px-[2px] pb-[4px]">
+                  {KITS.map((k) => (
+                    <KitCard key={k.id} k={k} onOpen={() => setKitOpen(k)} />
+                  ))}
+                </div>
+              </section>
+            ) : picks.industry?.length === 1 && kitById(picks.industry[0]!.replace(/_/g, "-")) ? (
+              <KitCard k={kitById(picks.industry[0]!.replace(/_/g, "-"))!} onOpen={() => setKitOpen(kitById(picks.industry![0]!.replace(/_/g, "-"))!)} />
+            ) : null}
+            {!tags.length && !text && season.length >= 3 ? (
+              <section aria-label="In season" className="flex flex-col gap-[8px]">
+                <p className={EYEBROW}>In season</p>
+                <div className="flex flex-wrap gap-[6px]">
+                  {season.map((t) => (
+                    <button key={t.id} type="button" onClick={() => (setPicked(look === OWN ? null : look), setError(""), setOpen(t))} className="press inline-flex h-[28px] items-center rounded-full border border-line bg-card px-[12px] text-[12.5px] text-body hover:border-ink hover:text-ink">
+                      {t.name}
+                    </button>
+                  ))}
+                </div>
+              </section>
+            ) : null}
             <p className="text-[12.5px] text-muted tabular-nums">{list.length} templates</p>
             {list.length ? (
               <div className="grid gap-[14px] sm:grid-cols-2 xl:grid-cols-3">
@@ -431,20 +621,41 @@ export function TemplatesPage({ ws, session, navigate, id }: ViewProps) {
             ) : (
               <div className={`${CARD} flex flex-col items-center gap-[8px] px-[16px] py-[48px] text-center`}>
                 <p className="text-[14px] font-medium text-ink">No matches</p>
-                <div className="flex gap-[8px]">
-                  <button type="button" className={GHOST} onClick={clear}>
-                    Clear
-                  </button>
-                  <button type="button" className={BTN} onClick={() => navigate("forms", "new")}>
-                    <Ic n="wand" />
-                    Build with AI
-                  </button>
-                </div>
+                <button type="button" className={GHOST} onClick={clear}>
+                  Clear
+                </button>
               </div>
             )}
+            <Describe
+              key={list.length ? "more" : `none:${text}`}
+              ws={ws}
+              session={session}
+              navigate={navigate}
+              seed={list.length ? "" : text}
+              onPick={(t) => {
+                setPicked(look === OWN ? null : look);
+                setError("");
+                setOpen(t);
+              }}
+            />
           </div>
         </div>
       </div>
+      {kitOpen ? (
+        <KitSheet
+          k={kitOpen}
+          ws={ws}
+          session={session}
+          navigate={navigate}
+          onClose={() => setKitOpen(null)}
+          onPick={(t) => {
+            setKitOpen(null);
+            setPicked(look === OWN ? null : look);
+            setError("");
+            setOpen(t);
+          }}
+        />
+      ) : null}
       {filters ? (
         <Sheet
           title="Filters"
@@ -498,16 +709,27 @@ export function TemplatesPage({ ws, session, navigate, id }: ViewProps) {
             </div>
             <div className="flex flex-col gap-[8px]">
               <p className={EYEBROW}>
-                Style <span className="normal-case">{theme.name}</span>
+                Style <span className="normal-case">{kit ? kit.name : theme.name}</span>
               </p>
               <div role="radiogroup" aria-label="Style" className="flex flex-wrap gap-[6px]">
+                {kits.map((k) => (
+                  <KitSwatch key={k.id} k={k} on={kit?.id === k.id} onClick={() => setKitId(k.id)} />
+                ))}
                 {THEMES.map((th) => (
-                  <Swatch key={th.id} th={th} on={theme.id === th.id} onClick={() => setPicked(th.id)} />
+                  <Swatch
+                    key={th.id}
+                    th={th}
+                    on={!kit && theme.id === th.id}
+                    onClick={() => {
+                      setKitId(null);
+                      setPicked(th.id);
+                    }}
+                  />
                 ))}
               </div>
             </div>
             <div className="overflow-hidden rounded-[10px] border border-line bg-paper-deep p-[16px]">
-              <FormPreview key={`${open.id}:${theme.id}`} form={form} tokens={tokens} />
+              <FormPreview key={`${open.id}:${kit?.id ?? theme.id}`} form={form} tokens={tokens} logo={kit?.logo_url ?? null} />
             </div>
           </div>
         </Sheet>

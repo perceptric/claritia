@@ -411,7 +411,8 @@ export type StudioApi = {
   /** The page's header draws the state, the form check and Publish (docs/form-ui-plan.md step 1). */
   onState?(s: StudioState): void;
   /** Where to start: a published form's chat, one chat, a new chat (New form), or the last one. */
-  start: { formId?: string; chatId?: string; fresh?: boolean };
+  /** text: words to put in the message box of a new chat, unsent (the gallery's Describe your form). */
+  start: { formId?: string; chatId?: string; fresh?: boolean; text?: string };
 };
 
 export type StudioIssue = { level: "error" | "warning"; text: string; fix?: string; after?: boolean };
@@ -1881,6 +1882,10 @@ ${CAL_CSS}
     if (!first && !api.start.fresh) first = chats[0] || null;
     if (!first) first = newChat(true);
     await open(first);
+    if (api.start.fresh && api.start.text) {
+      $("input").value = api.start.text.slice(0, 2000);
+      autosize();
+    }
     emit();
     if (!brands.length) openDialog();
     else if (!brandOf(cur)) brandMenu();

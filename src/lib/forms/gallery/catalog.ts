@@ -9,6 +9,16 @@ import { SAAS } from "./templates/saas.ts";
 import { ACCOUNTING, AGENCY, CONSULTING, LEGAL } from "./templates/services.ts";
 import { AUTOMOTIVE, ECOMMERCE, EDUCATION, LOGISTICS, MANUFACTURING } from "./templates/trade.ts";
 import { FIRST_TAGS } from "./tags.ts";
+import { WAVE1_BOOKING } from "./templates/wave1-booking.ts";
+import { WAVE1_EVENTS } from "./templates/wave1-events.ts";
+import { WAVE1_APPLY } from "./templates/wave1-apply.ts";
+import { WAVE1_FEEDBACK } from "./templates/wave1-feedback.ts";
+import { WAVE1_HOME } from "./templates/wave1-home.ts";
+import { WAVE1_LEADS } from "./templates/wave1-leads.ts";
+import { WAVE1_MONEY } from "./templates/wave1-money.ts";
+import { WAVE1_LEGAL } from "./templates/wave1-legal.ts";
+import { WAVE1_OPS } from "./templates/wave1-ops.ts";
+import { WAVE1_QUIZZES } from "./templates/wave1-quizzes.ts";
 import { defaultThemes } from "./themes.ts";
 import { INDUSTRIES, type FormTemplate, type Industry, type UseCase } from "./types.ts";
 
@@ -37,6 +47,17 @@ const RAW: FormTemplate[] = [
   ...NONPROFIT,
   ...HR,
   ...IT,
+  // Wave 1 (docs/form-templates-plan.md Part 9).
+  ...WAVE1_BOOKING,
+  ...WAVE1_EVENTS,
+  ...WAVE1_FEEDBACK,
+  ...WAVE1_HOME,
+  ...WAVE1_LEADS,
+  ...WAVE1_LEGAL,
+  ...WAVE1_OPS,
+  ...WAVE1_QUIZZES,
+  ...WAVE1_APPLY,
+  ...WAVE1_MONEY,
 ];
 
 /** Every template, with the first 150's menus from tags.ts. */
