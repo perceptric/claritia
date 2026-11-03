@@ -195,11 +195,11 @@ try {
   await page.goto(`${base}/?form=${event}`);
   await host.locator("form").waitFor();
   await host.locator("button[type=submit]").click();
-  check((await host.locator(".st").textContent())?.startsWith("Step 1 of 2") === true && (await host.locator("[aria-invalid=true]").count()) === 2, "Next checks the first step before moving on");
+  check((await host.locator(".st").textContent())?.startsWith("Page 1 of 2") === true && (await host.locator("[aria-invalid=true]").count()) === 2, "Next checks the first step before moving on");
   await host.getByLabel(/^Email/).fill("cy@acme.com");
   await host.getByLabel(/^Full name/).fill("Cy Park");
   await host.locator("button[type=submit]").click();
-  await host.getByText("Step 2 of 2", { exact: false }).waitFor();
+  await host.getByText("Page 2 of 2", { exact: false }).waitFor();
   await host.getByRole("button", { name: "Back" }).click();
   check((await host.getByLabel(/^Email/).inputValue()) === "cy@acme.com", "Back keeps what was typed");
 

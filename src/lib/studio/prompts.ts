@@ -48,7 +48,13 @@ THE FORM'S HTML
   data-cl-progress on any element: the form sets the CSS variable --cl-progress (0 to 1) on it.
   data-cl-error-for="name": where that question's error shows.
   <section data-cl-thanks hidden>: what shows after sending.
-- Save contact answers with data-cl-save="email" (or first_name, last_name, phone, company).
+- Save contact answers with data-cl-save="email" (or first_name, last_name, phone, company). Add data-cl-check="work_email" to an email input that should refuse free addresses (gmail.com and the rest).
+- Prices, payments, scores and structured questions are Claritia blocks too, each with a unique data-cl-name:
+  A calculation: <div data-cl-field="calc" data-cl-name="total" data-cl-label="Estimated total" data-cl-formula="{guests} * 38 + {extras}" data-cl-format="money" data-cl-currency="USD" id="total"></div>. Formulas read other questions by name in braces, with + - * / ( ), numbers and min, max, round, if, ifempty. A pick-one or pick-many counts its choices' points: give each radio, check box or option data-cl-score="12". A lone check box counts 1 when ticked, so multiply it: {wine} * 300. data-cl-hide works it out without showing it (a deposit or a score behind the scenes). A calc's name can be used in data-cl-show-if (total > 1000, score >= 13), so a quiz shows its outcome in the thanks section by score.
+  A payment, charged with Stripe after the send on the team's own account: <div data-cl-field="payment" data-cl-name="pay" data-cl-label="Deposit due now" data-cl-from="deposit" data-cl-currency="USD"></div>, from a calc by name, or data-cl-amount="50" for a fixed amount. One payment per form.
+  A result shown from a calc: <div data-cl-field="result" data-cl-name="res" data-cl-label="Your score" data-cl-kind="metric" data-cl-of="score"></div>; data-cl-kind="meter" with data-cl-max="20" shows it out of a top.
+  A grid (one answer per row): <div data-cl-field="grid" data-cl-name="ratings" data-cl-label="Rate each part" data-cl-rows="Speed|Quality|Price" data-cl-cols="Poor|OK|Great"></div>. A ranking: <div data-cl-field="ranking" data-cl-name="order" data-cl-label="Put these in order" data-cl-options="Price|Speed|Support"></div>.
+  A hidden value from the link: <div data-cl-field="hidden" data-cl-name="campaign" data-cl-param="utm_campaign"></div>.
 - The logo: <img data-cl-logo alt="Brand logo" class="logo">. The form fills in the brand's real logo file. Size and place it with CSS.
 - Meetings: when the form books a meeting after the send, put <div data-cl-book id="book"></div> inside the thanks section. Claritia draws its booking calendar there (classes .cl-cal, .cl-day, .cl-time, and a .btn to confirm), so style those classes to match the brand. Never build your own calendar.
 

@@ -22,6 +22,7 @@ if [ -n "${CHROMIUM_PATH:-}" ]; then
   node scripts/canvas-check.ts
   node scripts/newform-check.ts
   node scripts/studio-check.ts
+  node scripts/studio-blocks-check.ts
   node scripts/embed-check.ts
   node scripts/share-check.ts
   node scripts/formpage-check.ts

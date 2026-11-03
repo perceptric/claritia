@@ -16,7 +16,7 @@ import { cleanHtml } from "./html.ts";
 import { allFields, isContent, nextStep, numOf, optionsFor, pickOutcome, safeUrl, visibility, withCalcs, type Choice, type Field, type FieldWidth, type Form, type RunCtx } from "./schema.ts";
 import { checkAnswers, OTHER, stepPath, type Answers } from "./values.ts";
 import { answerFrom } from "../share/emailForm.ts";
-import { ACCESS_CSS, CAL_CSS, consentSpot, pageValues, runPage, zoneWords, type PageRun, type Vals } from "../studio/runtime.ts";
+import { ACCESS_CSS, CAL_CSS, consentSpot, pageValues, runPage, shownValues, showsByIf, zoneWords, type PageRun, type Vals } from "../studio/runtime.ts";
 
 /** regions: the region lists, sent with the form when a list follows a country field (src/lib/forms/regions.ts). */
 /** css: the design system's styles compiled for this form (src/lib/design/web.ts); it starts with the layer order. */
@@ -990,6 +990,11 @@ export class ClaritiaForm extends Base {
         const f = byId.get(p.ids[holder.getAttribute("data-cl-name") ?? ""] ?? "");
         if (f) blocks.push({ holder, f });
       });
+      // Prices, payments and results follow the answers as they're given. Capture runs first, so a show-if on a
+      // calc (a quiz's outcome by its score) reads the new number in the same change.
+      const live = () => this.pageLive(form);
+      wrap.addEventListener("input", live, true);
+      wrap.addEventListener("change", live, true);
       const run = runPage(wrap, (v) => void this.pageSend(form, v));
       this.pg = { wrap, run, blocks };
       // A studio page keeps its answers in its own inputs: the email's answer is checked there.
@@ -1005,12 +1010,7 @@ export class ClaritiaForm extends Base {
     }
     const { wrap, run, blocks } = this.pg;
     // Drawn again each time, so an upload, an error or a picked day shows; the brand's classes style them.
-    for (const { holder, f } of blocks) {
-      const box = this.field(f, form, f.required && !holder.closest("[hidden]"));
-      box.querySelectorAll(".lb").forEach((x) => x.classList.add("label"));
-      box.querySelectorAll(".in").forEach((x) => x.classList.add("field"));
-      holder.replaceChildren(box);
-    }
+    for (const { holder, f } of blocks) this.drawBlock(holder, f, form);
     const names = Object.fromEntries(Object.entries(p.ids).map(([n, id]) => [id, n]));
     run.busy(this.sending);
     run.alert(this.alert);
@@ -1035,24 +1035,68 @@ export class ClaritiaForm extends Base {
     }
   }
 
-  private async pageSend(form: Form, v: Vals) {
-    if (this.sending || this.done) return;
+  /** One block in the page: the form's own input or number, in the brand's classes. */
+  private drawBlock(holder: HTMLElement, f: Field, form: Form) {
+    // A hidden value has nothing to show; it's sent with every send.
+    if (f.type === "hidden") return holder.replaceChildren();
+    const box = this.field(f, form, f.required && !holder.closest("[hidden]"));
+    box.querySelectorAll(".lb").forEach((x) => x.classList.add("label"));
+    box.querySelectorAll(".in").forEach((x) => x.classList.add("field"));
+    box.querySelectorAll(".py").forEach((x) => x.classList.add("text"));
+    if (f.type === "calc") {
+      // The number under its page name, so the page's show-if can read it. A calc that doesn't show keeps only that.
+      const name = Object.keys(form.page!.ids).find((n) => form.page!.ids[n] === f.id);
+      const v = withCalcs(form, this.answers, this.ctx)[f.id];
+      const keep = name ? el("input", { type: "hidden", name, value: typeof v === "number" && Number.isFinite(v) ? String(v) : "" }) : null;
+      if (f.calc?.show === false) return holder.replaceChildren(...(keep ? [keep] : []));
+      if (keep) box.append(keep);
+    }
+    holder.replaceChildren(box);
+  }
+
+  /** The page's answers by field id, as the form sends them: a list for pick many, true for a ticked box. */
+  private pageAnswers(form: Form, v: Vals): Answers {
     const types = new Map(allFields(form).map((f) => [f.id, f.type]));
     const answers: Answers = {};
-    const blocks = this.pg?.blocks ?? [];
     for (const [name, id] of Object.entries(form.page!.ids)) {
       const x = v[name];
       const t = types.get(id);
-      if (x === undefined || (Array.isArray(x) ? !x.length : x === "")) continue;
+      // A calc's number is the page's to read; the server works it out again.
+      if (t === "calc" || x === undefined || (Array.isArray(x) ? !x.length : x === "")) continue;
       answers[id] = t === "checkbox" ? true : t === "multi" ? (Array.isArray(x) ? x : [x]) : Array.isArray(x) ? String(x[0]) : x;
     }
+    return answers;
+  }
+
+  /** As answers change: the page's answers join the blocks' own, and every calc, payment and result draws again. */
+  private pageLive(form: Form) {
+    const pg = this.pg;
+    if (!pg || this.done) return;
+    const v = shownValues(pg.wrap, pageValues(pg.wrap));
+    // A block's own answer (an upload, a grid) counts only while its show-if holds.
+    const own = new Set(pg.blocks.filter((b) => !["calc", "payment", "result"].includes(b.f.type) && showsByIf(b.holder, v)).map((b) => b.f.id));
+    const kept = Object.fromEntries(Object.entries(this.answers).filter(([id]) => own.has(id)));
+    this.answers = { ...this.pageAnswers(form, v), ...kept };
+    for (const { holder, f } of pg.blocks) if (f.type === "calc" || f.type === "payment" || f.type === "result") this.drawBlock(holder, f, form);
+  }
+
+  private async pageSend(form: Form, v: Vals) {
+    if (this.sending || this.done) return;
+    // An answer a show-if hides isn't sent, priced or kept.
+    const shown = this.pg ? shownValues(this.pg.wrap, v) : v;
+    const answers: Answers = this.pageAnswers(form, shown);
+    const blocks = this.pg?.blocks ?? [];
     // Blocks keep their answers as they're given (an upload's token, an address's parts).
     this.errors = {};
     for (const { holder, f } of blocks) {
+      // Worked out, charged or shown: nothing to send for it.
+      if (f.type === "calc" || f.type === "payment" || f.type === "result" || f.type === "hidden") continue;
+      // A block a show-if hides sends nothing and needs nothing. One on another page still counts: it was shown there.
+      if (!showsByIf(holder, shown)) continue;
       const x = this.answers[f.id];
       const empty = x === undefined || x === "" || (Array.isArray(x) && !x.length) || (typeof x === "object" && x !== null && !Array.isArray(x) && !Object.values(x).some((y) => String(y ?? "").trim()));
       if (!empty) answers[f.id] = x;
-      else if (f.required && !holder.closest("[hidden]")) this.errors[f.id] = "Fill this in.";
+      else if (f.required) this.errors[f.id] = "Fill this in.";
     }
     this.answers = answers;
     this.alert = "";

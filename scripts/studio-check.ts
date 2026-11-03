@@ -164,7 +164,7 @@ try {
   await $("#stepBar .sp").nth(3).click();
   check((await form.locator(".cl-divider").count()) === 3, "All shows every step with a divider");
   await $("#stepBar .sp").nth(0).click();
-  await $("#stepBar button[aria-label='Add a step after']").click();
+  await $("#stepBar button[aria-label='Add a page after']").click();
   check((await $("#stepBar .sp").count()) === 5 && (await form.locator("section[data-cl-step]").nth(1).locator("[data-cl-next]").count()) === 1 && (await form.locator("section[data-cl-step]").nth(2).locator("[type=submit]").count()) === 1, "a new step goes in with Next, and the send button stays on the last step");
   await $("#stepBar button[aria-label='Move later']").click();
   check((await form.locator("section[data-cl-step]").nth(2).locator("[type=submit]").count()) === 1 && (await form.locator("section[data-cl-step]").nth(1).locator("[type=submit]").count()) === 0, "moving a step keeps Next and send in order");
@@ -198,7 +198,7 @@ try {
   const controls = await p.evaluate(() => [...document.querySelector("#studio")!.shadowRoot!.querySelectorAll("section.stage > .bar > button, section.stage > .bar > a, section.stage > .bar > .grp > button")].filter((b) => !(b as HTMLElement).hidden).length);
   check(controls <= 11, `the bar holds at most 11 controls besides the steps (${controls})`);
   await $("#moreBtn").click();
-  check((await $("#layer .menu").textContent())!.includes("Back to step 1") && (await $("#layer .menu").textContent())!.includes("Layers"), "⋯ holds Back to step 1 and, in Edit, Layers");
+  check((await $("#layer .menu").textContent())!.includes("Back to page 1") && (await $("#layer .menu").textContent())!.includes("Layers"), "⋯ holds Back to step 1 and, in Edit, Layers");
   await $("#layer .menu #navBtn").click();
   check(!(await $("#navi").isHidden()), "Layers opens from ⋯");
   await $("#moreBtn").click();

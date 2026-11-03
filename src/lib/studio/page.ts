@@ -32,23 +32,80 @@ export type PageQuestion = {
   labelFrom: "label" | "aria" | "placeholder" | "name";
   required: boolean;
   save?: string;
-  options: { value: string; label: string }[];
+  options: { value: string; label: string; score?: number }[];
   /** Two separate inputs share this name (not a group of radios or check boxes): the second would overwrite the first. */
   twice?: true;
   /** The id the question keeps across renames (data-cl-id), when the page gives one. */
   fixed?: string;
   /** A Claritia block (docs/studio-v2-plan.md 6.2): an input the form script draws, in the brand's look. */
   block?: Block;
+  /** data-cl-check="work_email" on an email input: free email addresses are refused. */
+  work?: true;
 };
 
-/** The inputs that must work the same on every form: Tia places them as <div data-cl-field="...">. */
-export const BLOCKS = ["file", "phone", "address", "date", "time", "daterange", "rating", "signature", "country"] as const;
-export type Block = { type: (typeof BLOCKS)[number]; kinds?: ("pdf" | "image" | "office")[]; maxMb?: number; scale?: number; style?: "stars" | "numbers" };
+/**
+ * The inputs that must work the same on every form: Tia places them as <div data-cl-field="...">. The first nine take
+ * an answer; the rest are worked out (calc), charged (payment), shown from other answers (result), or a structured
+ * question (grid, ranking) or a hidden value (hidden), each drawn by the form script in the brand's classes.
+ */
+export const BLOCKS = ["file", "phone", "address", "date", "time", "daterange", "rating", "signature", "country", "calc", "payment", "result", "grid", "ranking", "hidden"] as const;
+type ListItem = { value: string; label: string };
+export type Block = {
+  type: (typeof BLOCKS)[number];
+  kinds?: ("pdf" | "image" | "office")[];
+  maxMb?: number;
+  scale?: number;
+  style?: "stars" | "numbers";
+  /** calc: a formula over other questions by their names in braces, {guests} * 38; and how its number shows. */
+  formula?: string;
+  format?: "number" | "money" | "percent";
+  decimals?: number;
+  currency?: string;
+  /** calc: worked out and kept, not shown on the form. */
+  hide?: true;
+  /** payment: the calc it charges (by name) or a fixed amount. */
+  from?: string;
+  amount?: number;
+  /** result: what it shows, the calcs it reads (by name) and a meter's top. */
+  kind?: "metric" | "meter" | "summary" | "bars" | "outcome";
+  of?: string[];
+  max?: number;
+  /** grid: the rows asked about and the columns each is answered with. ranking: the options to put in order. */
+  rows?: ListItem[];
+  cols?: ListItem[];
+  options?: ListItem[];
+  /** hidden: where its value comes from. */
+  source?: { from: "param" | "page" | "referrer" | "static"; name?: string; value?: string };
+};
+/** Blocks that take no answer from the visitor: worked out, charged or shown. */
+export const SHOWN_BLOCKS = new Set(["calc", "payment", "result"]);
+
+/** A list written "Value::Label|Other", or just "Label|Other" when the value is the label. */
+function readList(raw: string | undefined): ListItem[] {
+  return String(raw ?? "")
+    .split("|")
+    .map((x) => x.trim())
+    .filter(Boolean)
+    .slice(0, 100)
+    .map((x) => {
+      const at = x.indexOf("::");
+      const value = (at > 0 ? x.slice(0, at) : x).trim().slice(0, 200);
+      const label = (at > 0 ? x.slice(at + 2) : x).trim().slice(0, 200);
+      return { value, label: label || value };
+    })
+    .filter((o, i, all) => o.value && all.findIndex((y) => y.value === o.value) === i);
+}
+/** The list as the page writes it (the converter and the Studio write lists this way). */
+export const writeList = (xs: ListItem[]) => xs.map((o) => (o.value === o.label ? o.label : `${o.value}::${o.label}`).replace(/\|/g, "/")).join("|");
 
 function readBlock(attrs: Record<string, string>): Block | null {
   const type = BLOCKS.find((b) => b === attrs["data-cl-field"]);
   if (!type) return null;
   const b: Block = { type };
+  const num = (k: string) => {
+    const n = Number(attrs[k]);
+    return attrs[k] !== undefined && attrs[k] !== "" && Number.isFinite(n) ? n : null;
+  };
   if (type === "file") {
     const kinds = (attrs["data-cl-kinds"] ?? "").split(/[\s,]+/).filter((k): k is "pdf" | "image" | "office" => k === "pdf" || k === "image" || k === "office");
     if (kinds.length) b.kinds = [...new Set(kinds)];
@@ -59,6 +116,47 @@ function readBlock(attrs: Record<string, string>): Block | null {
     const sc = Math.round(Number(attrs["data-cl-scale"]));
     if (Number.isFinite(sc) && sc >= 3) b.scale = Math.min(sc, 10);
     if (attrs["data-cl-style"] === "numbers") b.style = "numbers";
+  }
+  if (type === "calc" || type === "payment") {
+    const cur = (attrs["data-cl-currency"] ?? "").toUpperCase();
+    if (/^[A-Z]{3}$/.test(cur)) b.currency = cur;
+  }
+  if (type === "calc") {
+    b.formula = String(attrs["data-cl-formula"] ?? "").slice(0, 500);
+    const f = attrs["data-cl-format"];
+    if (f === "money" || f === "percent" || f === "number") b.format = f;
+    const d = num("data-cl-decimals");
+    if (d !== null) b.decimals = Math.max(0, Math.min(4, Math.round(d)));
+    if ("data-cl-hide" in attrs) b.hide = true;
+  }
+  if (type === "payment") {
+    const from = attrs["data-cl-from"];
+    if (from && /^[A-Za-z][\w-]{0,60}$/.test(from)) b.from = from;
+    const amount = num("data-cl-amount");
+    if (!b.from && amount !== null && amount > 0) b.amount = amount;
+  }
+  if (type === "result") {
+    const k = attrs["data-cl-kind"];
+    b.kind = k === "meter" || k === "summary" || k === "bars" || k === "outcome" ? k : "metric";
+    b.of = String(attrs["data-cl-of"] ?? "")
+      .split(/[\s,]+/)
+      .filter((x) => /^[A-Za-z][\w-]{0,60}$/.test(x))
+      .slice(0, 12);
+    const max = num("data-cl-max");
+    if (max !== null && max > 0) b.max = max;
+  }
+  if (type === "grid") {
+    b.rows = readList(attrs["data-cl-rows"]).slice(0, 30);
+    b.cols = readList(attrs["data-cl-cols"]).slice(0, 12);
+  }
+  if (type === "ranking") b.options = readList(attrs["data-cl-options"]).slice(0, 20);
+  if (type === "hidden") {
+    const from = attrs["data-cl-from"];
+    const src: Block["source"] = { from: from === "page" || from === "referrer" || from === "static" ? from : "param" };
+    const n = attrs["data-cl-param"];
+    if (src.from === "param") src.name = /^[\w.-]{1,60}$/.test(n ?? "") ? n : (attrs["data-cl-name"] ?? "").slice(0, 60);
+    if (src.from === "static") src.value = String(attrs["data-cl-value"] ?? "").slice(0, 500);
+    b.source = src;
   }
   return b;
 }
@@ -83,6 +181,12 @@ const FIELD_ID = /^[a-z][a-z0-9]{0,23}$/;
 /** Contact answers: the browser's autofill name, and the input type that brings up the right keyboard. */
 const AUTOFILL: Record<string, [string, string | null]> = { email: ["email", "email"], first_name: ["given-name", null], last_name: ["family-name", null], name: ["name", null], phone: ["tel", "tel"], company: ["organization", null], title: ["organization-title", null], website: ["url", "url"], country: ["country-name", null] };
 const SAVE = new Set(["email", "first_name", "last_name", "name", "phone", "company", "title", "website", "country"]);
+const LONG_ATTRS = new Set(["data-cl-rows", "data-cl-cols", "data-cl-options", "data-cl-formula", "data-cl-show-if"]);
+/** A choice's points (a quiz's score, a price's weight): data-cl-score on the radio, check box or option. */
+const scoreOf = (attrs: Record<string, string>): number | undefined => {
+  const n = Number(attrs["data-cl-score"]);
+  return attrs["data-cl-score"] !== undefined && attrs["data-cl-score"] !== "" && Number.isFinite(n) ? Math.max(-100000, Math.min(100000, n)) : undefined;
+};
 
 const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 const unesc = (s: string) => s.replace(/&quot;/g, '"').replace(/&#39;|&#x27;/g, "'").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&nbsp;/g, " ").replace(/&amp;/g, "&");
@@ -109,6 +213,24 @@ function idFor(name: string, taken: Set<string>): string {
 }
 
 /**
+ * Where a tag ends: the first > outside a quoted value, so a show-if like "total >= 3000" stays whole. A tag with an
+ * unclosed quote ends at its first > instead, as before.
+ */
+function tagEnd(src: string, lt: number): number {
+  let q = "";
+  for (let k = lt + 1; k < src.length && k < lt + 20_000; k++) {
+    const c = src[k];
+    if (q) {
+      if (c === q) q = "";
+    } else if (c === '"' || c === "'") {
+      // A quote starts a value only after =, so an apostrophe in a broken tag can't swallow the page.
+      if (/=\s*$/.test(src.slice(Math.max(lt, k - 4), k))) q = c;
+    } else if (c === ">") return k;
+  }
+  return src.indexOf(">", lt);
+}
+
+/**
  * The page's HTML, cleaned, and its questions in order. A question is every input, textarea and select with a name
  * (radios and check boxes sharing a name are one question); its label is the label around it or pointing at it,
  * else its placeholder, else its name. A question under a show-if is never required on the server, since the
@@ -127,7 +249,7 @@ export function cleanPage(raw: string, prevIds: Record<string, string> = {}): { 
   let label: { text: string; inside: { q: PageQuestion; opt?: { value: string; label: string } }[]; target: string } | null = null;
   const forLabel = new Map<string, string>();
   const byElId = new Map<string, { q: PageQuestion; opt?: { value: string; label: string } }>();
-  let option: { value: string; text: string; q: PageQuestion; had: boolean } | null = null;
+  let option: { value: string; text: string; q: PageQuestion; had: boolean; score?: number } | null = null;
   let select: PageQuestion | null = null;
 
   const question = (name: string, type: string, attrs: Record<string, string>): PageQuestion => {
@@ -135,12 +257,17 @@ export function cleanPage(raw: string, prevIds: Record<string, string> = {}): { 
     if (!q) {
       const save = SAVE.has(attrs["data-cl-save"] ?? "") ? attrs["data-cl-save"] : undefined;
       const fixed = FIELD_ID.test(attrs["data-cl-id"] ?? "") ? attrs["data-cl-id"] : undefined;
-      q = { name, id: "", type, label: "", labelFrom: "name", required: false, ...(save ? { save } : {}), ...(fixed ? { fixed } : {}), options: [] };
+      q = { name, id: "", type, label: "", labelFrom: "name", required: false, ...(save ? { save } : {}), ...(fixed ? { fixed } : {}), ...(attrs["data-cl-check"] === "work_email" ? { work: true as const } : {}), options: [] };
       byName.set(name, q);
       qs.push(q);
     } else if (q.type === "checkbox" && type === "checkbox") q.type = "multi";
     else if (!(q.type === "radio" && type === "radio")) q.twice = true;
     if ("required" in attrs && !open.some((o) => o.showIf) && !("data-cl-show-if" in attrs)) q.required = true;
+    // A group of choices names its question with data-cl-label on its inputs (its legend is only words on screen).
+    if (attrs["data-cl-label"]?.trim() && q.labelFrom !== "label") {
+      q.label = attrs["data-cl-label"].trim().slice(0, 300);
+      q.labelFrom = "label";
+    }
     if (!q.label && attrs["aria-label"]) {
       q.label = attrs["aria-label"].slice(0, 300);
       q.labelFrom = "aria";
@@ -171,7 +298,7 @@ export function cleanPage(raw: string, prevIds: Record<string, string> = {}): { 
       i = lt + 1;
       continue;
     }
-    const gt = src.indexOf(">", lt);
+    const gt = tagEnd(src, lt);
     if (gt < 0) break;
     const tag = src.slice(lt + 1, gt);
     i = gt + 1;
@@ -205,7 +332,7 @@ export function cleanPage(raw: string, prevIds: Record<string, string> = {}): { 
       }
       if (name === "option" && option) {
         const t = words(option.text).slice(0, 200);
-        option.q.options.push({ value: option.had ? option.value : t, label: t || option.value });
+        option.q.options.push({ value: option.had ? option.value : t, label: t || option.value, ...(option.score !== undefined ? { score: option.score } : {}) });
         option = null;
       }
       if (name === "select") select = null;
@@ -226,7 +353,8 @@ export function cleanPage(raw: string, prevIds: Record<string, string> = {}): { 
         continue;
       }
       if (k.startsWith("data-cl-")) {
-        if (/^data-cl-[a-z-]{1,20}$/.test(k)) kept.push(v ? `${k}="${esc(v.slice(0, 500))}"` : k);
+        // A grid's rows and columns, a ranking's options and a formula run longer than other settings.
+        if (/^data-cl-[a-z-]{1,20}$/.test(k)) kept.push(v ? `${k}="${esc(v.slice(0, LONG_ATTRS.has(k) ? 4000 : 500))}"` : k);
         continue;
       }
       if (k.startsWith("aria-") && /^aria-[a-z]{1,20}$/.test(k)) {
@@ -284,7 +412,8 @@ export function cleanPage(raw: string, prevIds: Record<string, string> = {}): { 
         const q = question(qName, t === "radio" ? "radio" : t === "checkbox" ? "checkbox" : t, attrs);
         let opt: { value: string; label: string } | undefined;
         if (t === "radio" || t === "checkbox") {
-          opt = { value: attrs.value ?? "on", label: attrs.value ?? "" };
+          const score = scoreOf(attrs);
+          opt = { value: attrs.value ?? "on", label: attrs.value ?? "", ...(score !== undefined ? { score } : {}) };
           if (!q.options.some((o) => o.value === opt!.value)) q.options.push(opt);
           else opt = q.options.find((o) => o.value === opt!.value);
         }
@@ -294,7 +423,10 @@ export function cleanPage(raw: string, prevIds: Record<string, string> = {}): { 
       }
     }
     if (name === "label") label = { text: "", inside: [], target: attrs.for ?? "" };
-    if (name === "option" && select) option = { value: attrs.value ?? "", text: "", q: select, had: "value" in attrs };
+    if (name === "option" && select) {
+      const score = scoreOf(attrs);
+      option = { value: attrs.value ?? "", text: "", q: select, had: "value" in attrs, ...(score !== undefined ? { score } : {}) };
+    }
     out += `<${name}${kept.length ? ` ${kept.join(" ")}` : ""}>`;
     if (!VOID.has(name) && m[4] !== "/") open.push({ tag: name, showIf: "data-cl-show-if" in attrs });
     else if (!VOID.has(name)) out += `</${name}>`;
@@ -341,6 +473,34 @@ export function cleanPageCss(raw: string): string {
 
 const KIND: Record<string, string> = { email: "email", tel: "phone", number: "number", url: "url", date: "date", textarea: "textarea", select: "dropdown", radio: "choice", multi: "multi", checkbox: "checkbox", range: "number" };
 
+/** A formula over names, {guests} * 38, as the form runs it, over field ids. A name the page doesn't have stays, so the check says so. */
+export const formulaIds = (formula: string, byName: (n: string) => string | undefined) => formula.replace(/\{([A-Za-z][\w-]{0,60})\}/g, (m, n: string) => (byName(n) ? `{${byName(n)}}` : m));
+
+/** A calculation, a payment or a result: worked out from other answers, never asked, never required. */
+function shownField(q: PageQuestion, b: Block, byName: (n: string | undefined) => string | undefined): Record<string, unknown> {
+  const base = { id: q.id, type: b.type, label: q.label, required: false };
+  if (b.type === "calc")
+    return {
+      ...base,
+      key: `q.${q.id}`,
+      calc: {
+        formula: formulaIds(b.formula ?? "", (n) => byName(n)),
+        ...(b.format ? { format: b.format } : {}),
+        ...(b.decimals !== undefined ? { decimals: b.decimals } : {}),
+        ...(b.currency ? { currency: b.currency } : {}),
+        ...(b.hide ? { show: false } : {}),
+      },
+    };
+  if (b.type === "payment") {
+    const field = byName(b.from);
+    // A payment that names a calc the page doesn't have keeps its name, so the form check says the calc is gone.
+    return { ...base, pay: { currency: b.currency ?? "USD", ...(field ? { field } : b.from ? { field: b.from } : b.amount ? { amount: b.amount } : {}) } };
+  }
+  const of = (b.of ?? []).map((n) => byName(n) ?? n);
+  const kind = b.kind ?? "metric";
+  return { ...base, result: { kind, ...(kind === "metric" || kind === "meter" ? (of[0] ? { field: of[0] } : {}) : of.length ? { fields: of } : {}), ...(b.max ? { max: b.max } : {}) } };
+}
+
 /**
  * The form a studio page publishes as: one step of the page's questions, each saved to its contact field or kept as
  * the form's own answer, and what happens after the send (a thank-you, a page or a meeting with its routes).
@@ -348,30 +508,40 @@ const KIND: Record<string, string> = { email: "email", tel: "phone", number: "nu
 export function pageForm(p: { html: string; css: string; brand: string; after: PageAfter; title?: string; prevIds?: Record<string, string>; turnstile?: boolean; lang?: string; langs?: Record<string, string> }): { form: Record<string, unknown>; questions: PageQuestion[] } {
   const { html, questions } = cleanPage(p.html, p.prevIds);
   const keys = new Set<string>();
+  // Formulas, payments and results name other questions; the form runs on field ids.
+  const idOfName = new Map(questions.map((q) => [q.name, q.id]));
+  const markedEmail = questions.some((q) => q.save === "email");
+  const byName = (n: string | undefined) => (n ? idOfName.get(n) : undefined);
   const fields = questions.map((q) => {
-    let type = (q.block ? q.block.type : q.type === "dropdown" ? "dropdown" : (KIND[q.type] ?? "text")) as FieldType;
+    const b = q.block;
+    if (b && SHOWN_BLOCKS.has(b.type)) return shownField(q, b, byName);
+    let type = (b ? b.type : q.type === "dropdown" ? "dropdown" : (KIND[q.type] ?? "text")) as FieldType;
     // A contact field only takes the types it can hold (Company can't be a dropdown); anything else stays on the form.
     const fits = (k: string) => CONTACT_KEYS.some((c) => c.key === k && (c.types.includes(type) || (k === "email" && type === "text") || (k === "phone" && type === "text")));
-    let key: string = q.save && !keys.has(q.save) && fits(q.save) ? q.save : (q.type === "email" || q.save === "email") && !keys.has("email") && fits("email") ? "email" : `q.${q.id}`;
+    // The email marked data-cl-save="email" is the contact's; only a page with none gives it to its first email.
+    let key: string = q.save && !keys.has(q.save) && fits(q.save) ? q.save : (q.save === "email" || (q.type === "email" && !markedEmail)) && !keys.has("email") && fits("email") ? "email" : `q.${q.id}`;
     if (keys.has(key)) key = `q.${q.id}`;
     keys.add(key);
     if (key === "email") type = "email";
     if (key === "phone" && type === "text") type = "phone";
     const opts = type === "choice" || type === "multi" || type === "dropdown";
-    const b = q.block;
     return {
       id: q.id,
       key: key as FieldKey,
       type,
       label: q.label,
-      required: q.required,
+      required: q.required && type !== "hidden",
+      ...(q.work && type === "email" ? { check: "work_email" } : {}),
       ...(opts ? { options: q.options.length ? q.options : [{ value: "yes", label: "Yes" }] } : {}),
       ...(b?.type === "file" ? { file: { maxMb: b.maxMb ?? 10, kinds: b.kinds ?? ["pdf", "image", "office"] } } : {}),
       ...(b?.type === "rating" ? { rating: { scale: b.scale ?? 5, style: b.style ?? "stars" } } : {}),
+      ...(b?.type === "grid" ? { grid: { rows: b.rows ?? [], cols: b.cols ?? [] } } : {}),
+      ...(b?.type === "ranking" ? { options: b.options ?? [] } : {}),
+      ...(b?.type === "hidden" && b.source ? { hidden: b.source } : {}),
     };
   });
   const ids = Object.fromEntries(questions.map((q) => [q.name, q.id]));
-  const keyOf = new Map(fields.map((f) => [f.id, f.key]));
+  const keyOf = new Map(fields.map((f) => [f.id as string, f.key as string | undefined]));
   const a = p.after;
   const outside = a.kind === "meeting" && a.tool && OUTSIDE.includes(a.tool) ? { tool: a.tool, url: (a.link ?? "").slice(0, 500), perOwner: false } : null;
   const schedule =

@@ -49,6 +49,31 @@ function clause(c: string, v: Vals): boolean {
 /** A show-if: clauses joined with and / or (and binds first). */
 export const holds = (expr: string, v: Vals) => expr.split(/\s+or\s+/i).some((part) => part.split(/\s+and\s+/i).every((c) => clause(c.trim(), v)));
 
+/** Whether an element shows by the page's conditions (not by which page is open): every show-if around it holds. */
+export function showsByIf(el: Element, v: Vals): boolean {
+  for (let p: Element | null = el; p; p = p.parentElement) {
+    const e = p.getAttribute("data-cl-show-if");
+    if (e && !holds(e, v)) return false;
+  }
+  return true;
+}
+
+/**
+ * The answers to send and to price: an answer a show-if hides is dropped, as on every form, so a choice picked and
+ * then hidden by a later change is never charged. Twice, so a question hidden because its parent is hidden goes too.
+ */
+export function shownValues(w: ParentNode, v: Vals): Vals {
+  let cur = v;
+  for (let pass = 0; pass < 2; pass++) {
+    const keep = new Set<string>();
+    w.querySelectorAll<HTMLInputElement>("input[name],textarea[name],select[name]").forEach((el) => {
+      if (showsByIf(el, cur)) keep.add(el.name);
+    });
+    cur = Object.fromEntries(Object.entries(v).filter(([k]) => keep.has(k)));
+  }
+  return cur;
+}
+
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export type PageRun = { done(): void; errors(byName: Record<string, string>): void; busy(on: boolean): void; alert(text: string): void };
@@ -187,7 +212,8 @@ export function runPage(w: HTMLElement, onSend: (v: Vals) => void): PageRun {
         const e = errFor(n);
         if (e) e.textContent = msg;
         w.querySelectorAll(`[name="${CSS.escape(n)}"]`).forEach((x) => x.setAttribute("aria-invalid", "true"));
-        const s = steps.findIndex((st) => st.querySelector(`[name="${CSS.escape(n)}"]`));
+        // A block holds its answer under data-cl-name: an empty one on an earlier page opens that page.
+        const s = steps.findIndex((st) => st.querySelector(`[name="${CSS.escape(n)}"],[data-cl-name="${CSS.escape(n)}"]`));
         if (s >= 0 && (first < 0 || s < first)) first = s;
       }
       if (first >= 0) at = first;

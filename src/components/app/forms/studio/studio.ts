@@ -3,6 +3,7 @@
 import { DEFAULT_CONSENT } from "../../../../lib/forms/schema";
 import { checkStudioPage } from "../../../../lib/studio/check";
 import { cleanPage } from "../../../../lib/studio/page";
+import { pageNumbers } from "../../../../lib/studio/numbers";
 import { cleanRoute, OP_LABEL, PAST_ROUTES, ROUTE_OPS, routeKind, routeMeeting, routeStart } from "../../../../lib/studio/routes";
 import { linkProblem, SCHEDULERS } from "../../../../lib/forms/schedule";
 import { INDUSTRIES, industryOf, isRtl, languageName, profileWords, recipeText } from "../../../../lib/studio/industries";
@@ -529,7 +530,7 @@ export function mountStudio(shell: ShadowRoot, api: StudioApi): StudioControl {
   // ── Drawing ───────────────────────────────────────────────────────────────────────────────────────────
   const host = $("host");
   const root = host.attachShadow({ mode: "open" });
-  const BASE = `${ACCESS_CSS}.cl-bookph{border:1px dashed rgba(127,127,127,.6);border-radius:10px;padding:18px;text-align:center;font:500 12px system-ui,sans-serif;opacity:.7}.cl-divider{font:600 11px/1 system-ui,sans-serif;letter-spacing:.06em;text-transform:uppercase;color:#7a7a7a;border-top:1px dashed rgba(127,127,127,.55);padding:10px 0 0;margin:20px 0 10px}.cl-edit [data-cl-if]{outline:1px dashed rgba(109,40,217,.55);outline-offset:3px}.cl-edit [data-cl-if]::before{content:attr(data-cl-if);display:block;width:max-content;max-width:100%;font:500 11px/1.7 system-ui,sans-serif;color:#6d28d9;background:rgba(109,40,217,.08);border-radius:4px;padding:0 6px;margin-bottom:6px;white-space:normal}.cl-block{display:flex;flex-direction:column;gap:8px}.cl-two{display:grid;grid-template-columns:1fr 1fr;gap:8px}.cl-addr{display:flex;flex-direction:column;gap:8px}.cl-rate{display:flex;gap:6px;font-size:26px;line-height:1;opacity:.6}.cl-num{font-size:14px;border:1px solid currentColor;border-radius:8px;padding:8px 12px}.cl-sign{min-height:110px}
+  const BASE = `${ACCESS_CSS}.cl-bookph{border:1px dashed rgba(127,127,127,.6);border-radius:10px;padding:18px;text-align:center;font:500 12px system-ui,sans-serif;opacity:.7}.cl-divider{font:600 11px/1 system-ui,sans-serif;letter-spacing:.06em;text-transform:uppercase;color:#7a7a7a;border-top:1px dashed rgba(127,127,127,.55);padding:10px 0 0;margin:20px 0 10px}.cl-edit [data-cl-if]{outline:1px dashed rgba(109,40,217,.55);outline-offset:3px}.cl-edit [data-cl-if]::before{content:attr(data-cl-if);display:block;width:max-content;max-width:100%;font:500 11px/1.7 system-ui,sans-serif;color:#6d28d9;background:rgba(109,40,217,.08);border-radius:4px;padding:0 6px;margin-bottom:6px;white-space:normal}.cl-block{display:flex;flex-direction:column;gap:8px}.cl-two{display:grid;grid-template-columns:1fr 1fr;gap:8px}.cl-addr{display:flex;flex-direction:column;gap:8px}.cl-rate{display:flex;gap:6px;font-size:26px;line-height:1;opacity:.6}.cl-num{font-size:14px;border:1px solid currentColor;border-radius:8px;padding:8px 12px}.cl-sign{min-height:110px}.cl-calc{display:block;font-variant-numeric:tabular-nums}.cl-pay{display:flex;justify-content:space-between;gap:12px;align-items:baseline}.cl-pay b,.cl-res b{font-size:1.4em;font-variant-numeric:tabular-nums}.cl-res{display:flex;flex-direction:column;gap:4px}.cl-grid{width:100%;border-collapse:collapse}.cl-grid th,.cl-grid td{padding:6px;text-align:center}.cl-grid th:first-child,.cl-grid td:first-child{text-align:start}.cl-rank{margin:0;padding-inline-start:20px;display:flex;flex-direction:column;gap:6px}.cl-hid{font:500 11px/1.8 system-ui,sans-serif;opacity:.6;border:1px dashed currentColor;border-radius:6px;padding:0 8px;width:max-content}
 .cl-consent{display:flex;gap:8px;align-items:flex-start;font-size:13px;line-height:1.4;opacity:.85}.cl-consent input{margin:2px 0 0}
 :host{all:initial;display:flex;flex-direction:column;flex:1}*,*::before,*::after{box-sizing:border-box}[hidden]{display:none!important}.cl-root{flex:1;min-height:560px;display:flex;flex-direction:column}.cl-root>*{flex:1 0 auto}
 ${CAL_CSS}
@@ -575,7 +576,8 @@ ${CAL_CSS}
     runCheck();
   }
   const live = (k) => root.querySelector(`[data-k="${k}"]`);
-  const BLOCK_NAMES = { file: "File upload", phone: "Phone", address: "Address", date: "Date", time: "Time", daterange: "Date range", rating: "Rating", signature: "Signature", country: "Country" };
+  const BLOCK_NAMES = { file: "File upload", phone: "Phone", address: "Address", date: "Date", time: "Time", daterange: "Date range", rating: "Rating", signature: "Signature", country: "Country", calc: "Calculation", payment: "Payment", result: "Result", grid: "Grid", ranking: "Ranking", hidden: "Hidden value" };
+  const listOf = (raw) => String(raw || "").split("|").map((x) => x.trim()).filter(Boolean).map((x) => { const i = x.indexOf("::"); return i > 0 ? x.slice(i + 2) : x; });
   function blockPreview(hd) {
     const type = hd.getAttribute("data-cl-field");
     const label = hd.getAttribute("data-cl-label") || hd.getAttribute("data-cl-name") || BLOCK_NAMES[type] || "";
@@ -590,6 +592,12 @@ ${CAL_CSS}
     else if (type === "country") box.append(inp({ placeholder: "Country" }));
     else if (type === "rating") { const n = Math.min(10, Math.max(3, Number(hd.getAttribute("data-cl-scale")) || 5)); const nums = hd.getAttribute("data-cl-style") === "numbers"; box.append(h("div", { class: "cl-rate" }, ...Array.from({ length: n }, (_, i) => h("span", { class: nums ? "cl-num" : "", text: nums ? String(i + 1) : "\u2605" })))); }
     else if (type === "signature") box.append(h("div", { class: "field cl-sign" }));
+    else if (type === "calc") { if (hd.hasAttribute("data-cl-hide")) return S.mode === "edit" ? h("span", { class: "cl-hid", text: `${label} (worked out, not shown)` }) : h("span"); box.append(h("output", { class: "field cl-calc", "data-cl-num": hd.getAttribute("data-cl-name") || "", text: "—" })); }
+    else if (type === "payment") return h("div", { class: "text cl-pay" }, h("span", { text: hd.getAttribute("data-cl-label") || "Total" }), h("b", { "data-cl-num": hd.getAttribute("data-cl-name") || "", text: "—" }));
+    else if (type === "result") return h("div", { class: "card cl-res" }, h("span", { class: "label", text: hd.getAttribute("data-cl-label") || "Your result" }), h("b", { "data-cl-num": hd.getAttribute("data-cl-name") || "", text: "—" }));
+    else if (type === "grid") { const cols = listOf(hd.getAttribute("data-cl-cols")); box.append(h("table", { class: "cl-grid" }, h("tr", {}, h("th", {}), ...cols.map((c) => h("th", { class: "label", text: c }))), ...listOf(hd.getAttribute("data-cl-rows")).map((r) => h("tr", {}, h("td", { class: "text", text: r }), ...cols.map(() => h("td", {}, h("input", { type: "radio", tabindex: "-1" }))))))); }
+    else if (type === "ranking") box.append(h("ol", { class: "cl-rank" }, ...listOf(hd.getAttribute("data-cl-options")).map((o) => h("li", { class: "field", text: o }))));
+    else if (type === "hidden") return S.mode === "edit" ? h("span", { class: "cl-hid", text: `Hidden value: ${hd.getAttribute("data-cl-param") || hd.getAttribute("data-cl-name") || ""}` }) : h("span");
     return box;
   }
 
@@ -613,8 +621,16 @@ ${CAL_CSS}
   function run(w) {
     linkErrors(w);
     const steps = [...w.querySelectorAll("[data-cl-step]")], thanks = w.querySelector("[data-cl-thanks]"), editing = S.mode === "edit";
+    // Totals, payments and scores, worked out the way the live form and the server do; calcs join the answers by name.
+    const nums = () => {
+      if (!w.querySelector("[data-cl-num]")) return {};
+      let n = {};
+      try { n = pageNumbers(body().html, values(w)); } catch { n = {}; }
+      w.querySelectorAll("[data-cl-num]").forEach((x) => { const k = x.getAttribute("data-cl-num"); if (n[k]) x.textContent = n[k].text; });
+      return Object.fromEntries(Object.entries(n).map(([k, x]) => [k, x.value === null ? "" : String(x.value)]));
+    };
     const apply = () => {
-      const v = values(w);
+      const v = { ...values(w), ...nums() };
       w.querySelectorAll("[data-cl-show-if]").forEach((el) => { if (!el.hasAttribute("data-cl-step")) el.hidden = !editing && !holds(el.getAttribute("data-cl-show-if"), v); });
       const shown = steps.filter((s) => !s.hasAttribute("data-cl-show-if") || holds(s.getAttribute("data-cl-show-if"), v));
       if (stepAt >= steps.length) stepAt = 0;
