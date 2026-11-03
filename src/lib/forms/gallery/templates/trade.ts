@@ -1,5 +1,5 @@
 // Education and training, ecommerce and retail, manufacturing, logistics, automotive.
-import { address, agree, company, date, drop, email, file, files, fullName, jobTitle, long, many, money, num, one, phone, scale, sign, stars, text, TIMELINE, tpl, url, website, when, yesno } from "./build.ts";
+import { address, agree, company, date, drop, email, email2, file, files, fullName, go, HEARD, jobTitle, long, many, money, num, one, phone, phone2, scale, sign, stars, text, TIMELINE, tpl, url, website, when, yesno } from "./build.ts";
 
 export const EDUCATION = [
   tpl("education.course-inquiry", "education", "Course inquiry", ["lead"], "Capture prospective students by program and term.", {
@@ -9,11 +9,77 @@ export const EDUCATION = [
   }),
   tpl("education.application", "education", "Application", ["application"], "A full application with essay and documents.", {
     featured: true,
+    version: 2,
+    cover: { title: "Application", text: "About 20 minutes. Have your transcripts and two references ready.", button: "Start" },
+    resume: true,
+    copy: true,
     pages: [
-      { title: "About you", fields: [fullName(), email("Email"), phone("Phone", { required: true }), date("Date of birth", { required: true }), address()] },
-      { title: "Education", fields: [text("Most recent school", { required: true }), text("Graduation year"), files("Transcripts", { required: true })] },
-      { title: "Essay", fields: [long("Why do you want to join this program?", { required: true }), text("Reference name and email")] },
-      { title: "Confirm", fields: [agree("Everything in this application is true."), sign("Signature")] },
+      {
+        title: "Student",
+        fields: [
+          fullName("Student's name"),
+          email("Email"),
+          phone("Phone", { required: true }),
+          date("Date of birth", { required: true }),
+          address(),
+          text("Program or grade you're applying for", { required: true }),
+          yesno("Is the student under 18?", { required: true }),
+        ],
+        skip: go("Is the student under 18?", "is", false, "Grades"),
+      },
+      {
+        title: "Family",
+        fields: [
+          text("Parent or guardian name", { required: true }),
+          one("Relationship to the student", ["Parent", "Guardian", "Other"]),
+          email2("Parent or guardian email", { required: true }),
+          phone2("Parent or guardian phone"),
+          yesno("Is there a second parent or guardian?"),
+          text("Second parent or guardian name", { show: when("Is there a second parent or guardian?", "is", true) }),
+          email2("Second parent or guardian email", { show: when("Is there a second parent or guardian?", "is", true) }),
+        ],
+      },
+      {
+        title: "Grades",
+        fields: [
+          text("Most recent school", { required: true }),
+          text("Graduation year"),
+          text("Grade average or GPA"),
+          files("Transcripts", { required: true }),
+          files("Test scores"),
+        ],
+      },
+      {
+        title: "Activities",
+        fields: [
+          many("Activities", ["Sports", "Music or arts", "Clubs", "Volunteering", "A job", "Other"]),
+          long("Tell us about the one that matters most to you"),
+          text("Awards or honors"),
+          num("Hours a week on activities", { min: 0 }),
+        ],
+      },
+      {
+        title: "Essay",
+        fields: [
+          long("Why do you want to join this program?", { required: true }),
+          long("Tell us about a challenge you faced and what you learned"),
+          file("Writing sample"),
+        ],
+      },
+      {
+        title: "References",
+        fields: [
+          text("Reference name", { required: true }),
+          email2("Reference email", { required: true }),
+          text("How do they know you?"),
+          text("Second reference name"),
+          email2("Second reference email"),
+        ],
+      },
+      {
+        title: "Confirm",
+        fields: [one("How did you hear about us?", HEARD), agree("Everything in this application is true."), sign("Signature")],
+      },
     ],
     end: ["Application submitted", "We'll email you about next steps."],
   }),
@@ -30,7 +96,50 @@ export const EDUCATION = [
     end: { title: "Thanks", text: "Book a call to plan the training.", booking: true },
   }),
   tpl("education.scholarship", "education", "Scholarship application", ["application"], "Collect need, essays and references.", {
-    fields: [fullName(), email("Email"), text("School and program", { required: true }), money("Yearly household income"), long("Tell us about your goals", { required: true }), long("How would this scholarship help?", { required: true }), files("Supporting documents")],
+    version: 2,
+    cover: { title: "Scholarship application", text: "About 15 minutes. Have your transcript and a reference ready.", button: "Start" },
+    resume: true,
+    copy: true,
+    pages: [
+      { title: "About you", fields: [fullName(), email("Email"), phone(), date("Date of birth"), address()] },
+      {
+        title: "School",
+        fields: [
+          text("School and program", { required: true }),
+          one("Year in school", ["Last year of high school", "First year", "Second year", "Third year", "Fourth year", "Graduate school"], { required: true }),
+          text("Grade average or GPA"),
+          text("Expected graduation year"),
+          file("Transcript", { required: true }),
+        ],
+      },
+      {
+        title: "Financial need",
+        fields: [
+          money("Yearly household income"),
+          num("People in your household", { min: 1 }),
+          money("Cost of school this year"),
+          yesno("Do you get other aid or scholarships?"),
+          money("Other aid this year", { show: when("Do you get other aid or scholarships?", "is", true) }),
+          long("Anything else about your situation we should know?"),
+        ],
+      },
+      {
+        title: "Essay",
+        fields: [long("Tell us about your goals", { required: true }), long("How would this scholarship help?", { required: true }), files("Supporting documents")],
+      },
+      {
+        title: "References",
+        fields: [text("Reference name", { required: true }), email2("Reference email", { required: true }), text("How do they know you?"), file("Letter of recommendation")],
+      },
+      {
+        title: "Certify",
+        fields: [
+          agree("Everything in this application is true."),
+          agree("The committee may confirm my enrollment with my school."),
+          sign("Signature"),
+        ],
+      },
+    ],
     end: ["Application received", "We'll announce awards by email."],
   }),
   tpl("education.knowledge-check", "education", "Quiz / knowledge check", ["quiz"], "A scored quiz with instant results.", {
@@ -71,8 +180,45 @@ export const ECOMMERCE = [
     end: ["Your picks are on the way", "Check your inbox for products chosen for you."],
   }),
   tpl("ecommerce.return", "ecommerce", "Return request", ["request"], "Start returns with order details and photos.", {
-    fields: [email("Email"), text("Order number", { required: true }), text("Item", { required: true }), drop("Reason", ["Wrong size", "Damaged", "Not as described", "Changed my mind", "Other"], { required: true }), files("Photos", { show: when("Reason", "is", "Damaged") }), one("You'd like…", ["A refund", "An exchange", "Store credit"], { required: true })],
-    end: ["Return started", "We'll email a return label shortly."],
+    version: 2,
+    pages: [
+      { title: "Your order", fields: [fullName(), email("Email"), text("Order number", { required: true }), date("Delivery date")] },
+      {
+        title: "The item",
+        fields: [
+          text("Item", { required: true }),
+          text("Size or color"),
+          num("How many are you returning?", { min: 1 }),
+          one("Reason", ["Wrong size", "Damaged", "Wrong item sent", "Not as described", "Changed my mind", "Other"], { required: true }),
+          long("Tell us more"),
+        ],
+        jumps: [go("Reason", "any", ["Damaged", "Wrong item sent", "Not as described"], "Photos"), go("Reason", "any", ["Changed my mind", "Other"], "Refund or exchange")],
+      },
+      {
+        title: "Size and fit",
+        fields: [text("Size you ordered", { required: true, half: true }), text("Size you need", { half: true }), one("How did it fit?", ["Too small", "Too big", "Too long", "Too short", "Other"])],
+        skip: go("Reason", "is", "Wrong size", "Refund or exchange"),
+      },
+      {
+        title: "Photos",
+        fields: [
+          files("Photos of the item", { required: true }),
+          file("Photo of the box and label"),
+          text("What did you get instead?", { show: when("Reason", "is", "Wrong item sent") }),
+          yesno("Was the box damaged when it arrived?", { show: when("Reason", "is", "Damaged") }),
+        ],
+      },
+      {
+        title: "Refund or exchange",
+        fields: [
+          one("What would you like?", ["A refund", "An exchange", "Store credit"], { required: true }),
+          text("What should we send instead?", { show: when("What would you like?", "is", "An exchange"), placeholder: "Size, color or item" }),
+          one("How will you send it back?", ["Drop it off", "Schedule a pickup", "Bring it to a store"]),
+          long("Anything else?"),
+        ],
+      },
+    ],
+    end: ["Return started", "We'll email your return details shortly."],
   }),
   tpl("ecommerce.back-in-stock", "ecommerce", "Back-in-stock alert", ["registration", "lead"], "Let shoppers know when an item returns.", {
     fields: [text("Product", { required: true }), text("Size or color"), email("Email")],
@@ -121,7 +267,64 @@ export const MANUFACTURING = [
   }),
   tpl("manufacturing.supplier-onboarding", "manufacturing", "Supplier onboarding", ["intake", "application"], "Collect tax, certifications and insurance.", {
     internal: true,
-    fields: [company("Supplier name", { required: true }), text("Tax ID", { required: true }), fullName("Contact name"), email(), many("Certifications", ["ISO 9001", "ISO 14001", "AS9100", "IATF 16949", "None"]), files("Insurance certificate", { required: true }), files("W-9 or equivalent")],
+    version: 2,
+    cover: { title: "Supplier onboarding", text: "About 10 minutes. Have your tax form, insurance certificate and bank details nearby.", button: "Start" },
+    copy: true,
+    pages: [
+      {
+        title: "Company",
+        fields: [
+          company("Supplier name", { required: true }),
+          website(),
+          address("Business address", { required: true }),
+          one("Business type", ["Corporation", "LLC", "Partnership", "Sole proprietor", "Other"]),
+          many("What do you supply?", ["Raw materials", "Parts and components", "Packaging", "Tooling and equipment", "Services", "Other"], { required: true }),
+          yesno("Do you hold any quality or industry certifications?", { required: true }),
+        ],
+      },
+      {
+        title: "Contacts",
+        fields: [
+          fullName("Contact name"),
+          email(),
+          phone(undefined, { half: true }),
+          jobTitle(undefined, { half: true }),
+          email2("Billing email", { required: true }),
+          email2("Email for purchase orders"),
+        ],
+      },
+      {
+        title: "Banking",
+        fields: [
+          one("How would you like to be paid?", ["ACH transfer", "Wire transfer", "Check"], { required: true }),
+          text("Bank name", { show: when("How would you like to be paid?", "not", "Check") }),
+          text("Name on the account", { show: when("How would you like to be paid?", "not", "Check") }),
+          text("Routing number", { show: when("How would you like to be paid?", "not", "Check"), half: true }),
+          text("Account number", { show: when("How would you like to be paid?", "not", "Check"), half: true }),
+          file("Voided check or bank letter", { show: when("How would you like to be paid?", "not", "Check") }),
+          address("Remit-to address", { show: when("How would you like to be paid?", "is", "Check"), map: undefined, key: "remit_to" }),
+        ],
+      },
+      {
+        title: "Tax and insurance",
+        fields: [text("Tax ID", { required: true }), files("W-9 or equivalent", { required: true }), files("Insurance certificate", { required: true }), date("Insurance expiry date")],
+        skip: go("Do you hold any quality or industry certifications?", "is", false, "Sign"),
+      },
+      {
+        title: "Compliance",
+        fields: [
+          many("Certifications", ["ISO 9001", "ISO 14001", "AS9100", "IATF 16949", "Other"], { required: true }),
+          files("Certificates", { required: true }),
+          date("Earliest expiry date"),
+          yesno("Have you had a customer or outside audit in the last 2 years?"),
+          file("Latest audit report", { show: when("Have you had a customer or outside audit in the last 2 years?", "is", true) }),
+        ],
+      },
+      {
+        title: "Sign",
+        fields: [text("Signer's name and title", { required: true }), agree("The information in this form is true and complete."), sign("Signature")],
+      },
+    ],
     end: ["Received", "Our purchasing team will review your details."],
   }),
   tpl("manufacturing.quality-issue", "manufacturing", "Quality issue report", ["request"], "Log defects with photos and lot numbers.", {

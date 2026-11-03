@@ -1,6 +1,6 @@
 // Wave 1, leads: contact, demo, quote, consultation, qualification, waitlist, referral, partner, download, newsletter
 // and estimate forms across industries. Every one is a lead form: a name and a required email.
-import { address, company, CONTACT_PREF, date, drop, email, email2, files, fullName, HEARD, jobTitle, long, many, money, num, one, phone, range, TEAM_SIZE, text, THANKS, TIMELINE, tpl, website, when, yesno } from "./build.ts";
+import { address, company, CONTACT_PREF, date, drop, email, email2, files, fullName, go, HEARD, jobTitle, long, many, money, num, one, phone, range, statement, TEAM_SIZE, text, THANKS, TIMELINE, tpl, website, when, yesno } from "./build.ts";
 
 const INDUSTRY = ["Software", "Professional services", "Healthcare", "Finance", "Retail and ecommerce", "Manufacturing", "Education", "Nonprofit", "Other"];
 const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
@@ -46,23 +46,62 @@ export const WAVE1_LEADS = [
     cats: "demo-request qualify",
     teams: "sales",
     added: "2026-11-03",
+    version: 2,
     intro: "Tell us about your rollout and we'll shape the demo around it.",
     pages: [
-      { title: "About you", fields: [fullName(), email(), company(undefined, { required: true, half: true }), jobTitle(undefined, { required: true, half: true }), phone()] },
       {
-        title: "Your rollout",
+        title: "About you",
+        fields: [
+          fullName(),
+          email(),
+          jobTitle(undefined, { required: true, half: true }),
+          phone(undefined, { half: true }),
+          company(undefined, { required: true, half: true }),
+          website(undefined, { half: true }),
+        ],
+      },
+      {
+        title: "Your team",
         fields: [
           num("How many people will use it?", { required: true, min: 1, save: "seats" }),
-          many("What do you need?", ["Single sign-on", "User roles and permissions", "Audit logs", "Data kept in your region", "Custom contract", "A named support contact"], { save: "requirements" }),
+          statement("Teams of 10 or fewer usually get going fastest on our self-serve plans. Send this form and we'll email you how to start.", {
+            show: when("How many people will use it?", "lte", 10),
+          }),
+          many("Which teams will use it?", ["Sales", "Marketing", "Support", "Operations", "Engineering", "Finance", "HR"]),
+          one("Where are your users?", ["One country", "A few countries", "Worldwide"]),
+        ],
+        jumps: [go("How many people will use it?", "lte", 10, "end")],
+      },
+      {
+        title: "Your needs",
+        fields: [
+          long("What problem are you trying to solve?", { required: true }),
           drop("What do you use today?", ["Spreadsheets", "An in-house tool", "Another vendor", "Nothing yet"], { save: "current_tool" }),
           text("Which vendor?", { show: when("What do you use today?", "is", "Another vendor") }),
+          many("What matters most?", ["Ease of use", "Integrations", "Reporting", "Automation", "Support", "Price"]),
+        ],
+      },
+      {
+        title: "Security and buying",
+        fields: [
+          many("What do you need?", ["Single sign-on", "User roles and permissions", "Audit logs", "Data kept in your region", "Custom contract", "A named support contact"], { save: "requirements" }),
+          yesno("Will you send a security questionnaire?"),
           one("When do you plan to decide?", TIMELINE, { required: true, save: "timeline" }),
+          many("Who else is part of the decision?", ["IT or security", "Finance", "Legal", "Procurement", "An executive sponsor"]),
+          one("Is there budget for this?", ["Yes, it's approved", "It's being planned", "Not yet"]),
+        ],
+      },
+      {
+        title: "The demo",
+        fields: [
           long("What should the demo cover?"),
+          many("Who will join the demo?", ["Just me", "My manager", "Team leads", "IT or security", "An executive"]),
+          one("How long can you meet?", ["30 minutes", "45 minutes", "An hour"]),
         ],
       },
     ],
     submit: "Continue",
-    end: { title: "Pick a time", text: "Choose a slot for a demo with a solutions specialist.", booking: true },
+    end: { title: "Thanks, we got it", text: "Pick a time below to meet a solutions specialist.", booking: true },
   }),
   tpl("saas.quick-demo", "saas", "Quick demo request", ["lead", "booking"], "Five short questions, then straight to the calendar.", {
     cats: "demo-request lead-generation",
