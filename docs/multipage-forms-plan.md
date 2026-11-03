@@ -1,6 +1,7 @@
 # Multi-page form templates: the plan
 
-**3 November 2026.** Status: plan. Builds on `docs/form-templates.md` (424 form templates, 18 styles).
+**3 November 2026.** Status: built (steps 1 to 3). Step 4 is still to do. Builds on `docs/form-templates.md` (now 435 form
+templates, 18 styles).
 
 ## Where we are
 
@@ -12,7 +13,8 @@ Multi-page forms already work. The form engine (`src/lib/forms/schema.ts`) has s
 - a cover screen with a Start button, and one question at a time (`mode: "screens"`);
 - "Save and finish later" (`resume`), a PDF copy of the answers (`copy`), a picture beside each page (`side`).
 
-Of the 424 form templates, 111 have more than one page: 86 have 2 pages, 23 have 3 and 2 have 4. The form template
+Before this, of the 424 form templates, 111 had more than one page: 86 had 2 pages, 23 had 3 and 2 had 4. Now 132
+of 435 do, 40 of them with 5 to 7 pages. The form template
 format (`src/lib/forms/gallery/types.ts`) only carries pages of fields with show-if rules, so none of them can use
 jumps, skips, the cover, save and finish later or the PDF copy. The gallery calls them "Steps".
 
@@ -32,54 +34,59 @@ they help, like a page skipped when it doesn't apply or a path by answer.
   and show "Save and finish later" as a preview note (nothing is saved on the website).
 - Tests: each jump and skip in `tests/formGallery*.ts`, and a browser walk that fills every path to the end screen.
 
-## Step 2: the 40 form templates
+## Step 2: the 40 form templates (built)
 
-| Form template | Industry | Pages | New or upgrade | What makes it multi-page |
+29 upgrades and 11 new ones; checking the catalog showed most of the planned "new" ones already existed as short
+forms, so they became upgrades. An upgrade keeps its id and address and is version 2; forms people already made from
+it don't change. 26 of the 40 use skips or paths by answer. Prices in the calculators (kitchen remodel, moving, solar,
+the childcare deposit) are starting figures each business sets for itself.
+
+| Form template | Industry | Pages | New or upgrade | Page features |
 | --- | --- | --- | --- | --- |
-| Rental application | Real estate | 6 | Upgrade `real_estate.rental-application, 4 pages` | Residence history, income, household, references, sign; save and finish later; application fee |
-| Mortgage pre-qualification | Finance | 6 | New | Income and debts feed a price range; co-borrower page only if there is one |
-| Business loan application | Finance | 6 | New | Owners, revenue, uploads; PDF copy |
-| Auto insurance quote | Insurance | 5 | New | Drivers, cars, claims, coverage; jump past the claims page with no claims |
-| Home insurance quote | Insurance | 5 | New | Property, coverage, claims; renters skip the property page |
-| Full patient intake | Healthcare | 6 | Upgrade `healthcare.patient-intake, 3 pages` | Insurance page skipped for self-pay; history, medicines, consent, then book |
-| Therapy intake | Wellness | 6 | New | Concerns, history, goals, consent; save and finish later |
-| Nutrition intake | Wellness | 6 | New | Diet, activity, goals; result page with a starting plan |
-| Fitness assessment | Fitness | 5 | New | Scores each part; result page, then book a session |
-| Job application | HR | 6 | Upgrade `hr.job-application, 1 page` | Role, experience, education, questions, uploads, review |
-| Employee onboarding | HR | 6 | Upgrade `hr.onboarding, 3 pages` | Pay and tax, emergency contact, equipment, policies, sign |
-| Vendor onboarding | Any business | 6 | New | Company, contacts, banking, tax form upload, compliance, sign |
-| Client onboarding | Agency | 6 | Upgrade `agency.client-intake, 3 pages` | Business, audience, brand, goals, access, kickoff booking |
-| SaaS onboarding questionnaire | SaaS | 5 | New | Team, tools, goals; jump to a setup call for larger teams |
-| Enterprise demo qualification | SaaS | 5 | New | Size, need, timing; small teams go to a self-serve end, large teams book |
-| Legal case evaluation | Legal | 5 | New | One page per matter type, picked by the first answer |
-| Immigration consultation intake | Legal | 6 | New | Status, family, history, documents; save and finish later |
-| Tax organizer | Accounting | 7 | Upgrade `accounting.tax-intake, 3 pages` | Income, deductions, dependents, uploads; pages skipped by answer; PDF copy |
-| Bookkeeping onboarding | Accounting | 5 | New | Accounts, tools, volume; price on the last page |
-| Kitchen remodel estimate | Construction | 6 | New | Size, finishes, appliances; running price; book a visit |
-| Solar savings quote | Solar | 5 | Upgrade `solar.savings-calculator, 2 pages` | Roof, bills, shade; savings result, then book |
-| Moving quote | Construction | 5 | Upgrade `construction.moving-cost-calculator, 2 pages` | Rooms, items, dates; price result |
-| Wedding planner inquiry | Events | 6 | Upgrade `events.wedding-planner-inquiry, 2 pages` | Date, guests, budget, style, vendors; book a call |
-| Conference registration with guests | Events | 5 | New | Attendee, guests, sessions, tickets and payment |
-| Call for speakers | Events | 5 | New | Talk, outline, experience, travel; PDF copy |
-| Summer camp registration | Education | 7 | Upgrade `education.summer-camp, 2 pages` | Child, medical, consent, pickup, payment; a second child page only with a second child |
-| Daycare enrollment | Education | 7 | New | Child, family, health, schedule, consent, deposit |
-| School admission | Education | 7 | New | Student, grades, essay, references; save and finish later |
-| Scholarship application | Education | 6 | Upgrade `education.scholarship, 1 page` | Need, grades, essay, references; save and finish later |
-| Course enrollment | Education | 5 | New | Course, level check, payment |
-| Grant application | Nonprofit | 7 | Upgrade `nonprofit.grant-application, 2 pages` | Organization, project, budget, outcomes, uploads; save and finish later |
-| Volunteer application | Nonprofit | 5 | Upgrade `nonprofit.volunteer, 1 page` | Interests, availability, background consent |
-| Pet adoption application | Pets | 6 | New | Home, other pets, experience, references; vet page only with other pets |
-| Membership application | Fitness | 5 | Upgrade `fitness.membership, 1 page` | Plan, health check, waiver, payment |
-| Franchise inquiry | Any business | 5 | New | Market, capital, experience; qualified leads book |
-| Retreat registration | Faith | 5 | New | Room, meals, travel, payment |
-| Travel booking request | Hospitality | 5 | Upgrade `hospitality.travel-inquiry, 1 page` | Trip, people, budget, extras; book a call |
-| Product return | Ecommerce | 4 | New | The page after the reason changes with the reason |
-| Customer feedback, in depth | Any business | 5 | New | The follow-up page changes with the score |
-| Employee engagement survey | HR | 6 | New | Anonymous; one page per topic |
+| Rental application | Real estate | 6 | Upgrade | Pets detail only with pets; cover, save and finish later, PDF copy |
+| Patient intake | Healthcare | 6 | Upgrade | Self-pay skips Insurance; cover, save and finish later, PDF copy |
+| Membership sign-up | Fitness | 5 | Upgrade | No health conditions skips the health check; joining fee |
+| Business funding | Financial services | 6 | Upgrade | Cover, save and finish later, PDF copy; booking end |
+| Job application | HR | 6 | Upgrade | No experience yet skips Experience; cover, save and finish later, PDF copy |
+| Employee onboarding | HR | 6 | Upgrade | Internal; cover, save and finish later, PDF copy |
+| Engagement survey | HR | 6 | Upgrade | Anonymous; no manager skips Manager |
+| Grant application | Nonprofits | 7 | Upgrade | Operating support skips Project; cover, save and finish later, PDF copy |
+| Volunteer application | Nonprofits | 5 | Upgrade | First-time volunteers skip Experience |
+| Onboarding survey | SaaS | 5 | Upgrade | Self-serve answer ends the form |
+| Tax intake | Accounting | 7 | Upgrade | Skips Dependents and Business income; cover, save and finish later, PDF copy |
+| Client intake | Agencies | 6 | Upgrade | Kickoff booking; cover, PDF copy |
+| Case evaluation | Legal | 5 | Upgrade | A details page by case type |
+| Return request | Ecommerce | 5 | Upgrade | The next page follows the reason |
+| School application | Education | 7 | Upgrade | Adults skip Family; cover, save and finish later, PDF copy |
+| Scholarship application | Education | 6 | Upgrade | Cover, save and finish later, PDF copy |
+| Supplier onboarding | Manufacturing | 6 | Upgrade | Not certified skips Compliance; cover, PDF copy |
+| Enterprise demo | SaaS | 5 | Upgrade | Small teams end with a self-serve note; booking end |
+| Childcare enrollment | Education | 7 | Upgrade | One child skips Second child; deposit; cover, save and finish later, PDF copy |
+| Course enrollment | Education | 5 | Upgrade | Self-paced skips Schedule; payment |
+| Immigration intake | Legal | 6 | Upgrade | Cover, save and finish later, PDF copy; booking end |
+| Nutrition intake | Wellness | 6 | Upgrade | Cover; booking end |
+| Call for proposals | Events | 5 | Upgrade | First-time speakers skip Past talks; PDF copy |
+| Conference registration | Events | 5 | Upgrade | Coming alone skips Guests; pass times people plus add-ons |
+| Wedding planner inquiry | Events | 6 | Upgrade | Cover; booking end |
+| Retreat registration | Faith communities | 5 | Upgrade | Payment |
+| Moving cost calculator | Construction | 5 | Upgrade | Price follows stairs and load |
+| Summer camp registration | Education | 7 | Upgrade | One camper skips Second camper; payment; cover, save and finish later, PDF copy |
+| Solar savings calculator | Solar | 5 | Upgrade | Renters end after the roof page; savings follow direction and coverage |
+| Mortgage pre-qualification | Financial services | 6 | New | No co-borrower skips that page; a budget range; cover, save and finish later, PDF copy |
+| Auto insurance quote | Insurance | 5 | New | No claims skips Claims |
+| Home insurance quote | Insurance | 5 | New | Renters skip Property |
+| Therapy intake | Wellness | 6 | New | Cover, save and finish later |
+| Fitness assessment | Fitness | 5 | New | A score with bands; booking end |
+| Bookkeeping onboarding | Accounting | 5 | New | PDF copy |
+| Kitchen remodel estimate | Construction | 6 | New | Skips Appliances; a low and high estimate; booking end |
+| Pet adoption application | Pets | 6 | New | No other pets skips the vet page; cover, save and finish later |
+| Franchise inquiry | Any business | 5 | New | Capital under the lowest band ends the form; booking end |
+| Customer feedback, in depth | Any business | 6 | New | The score picks What you like or What to improve; cover |
+| Trip planner | Hospitality | 5 | New | Booking end |
 
-An upgrade keeps the form template's id and address, so links and saved forms keep working; forms people already
-made from it don't change. 25 are new and 15 are upgrades. Written in two batches of 20 by parallel helpers, the way
-wave 1 was, each checked by `check-templates` and the browser walk before it joins the catalog.
+Written by four parallel helpers in `templates/wave2-multipage.ts` (the new ones) and in place in their files (the
+upgrades). Each passes `scripts/check-templates.ts`, which now runs `paths.ts`, and a browser walk fills each one's
+website demo page by page to its end screen.
 
 ## Step 3: show them
 

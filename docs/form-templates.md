@@ -1,6 +1,6 @@
 # Form templates and styles
 
-A gallery of 424 ready forms for 38 industries, each in one of 18 styles, with menus to find them, starter kits, and
+A gallery of 435 ready forms for 38 industries, each in one of 18 styles, with menus to find them, starter kits, and
 templates that come wired with their meeting and follow-up. It lives on the website (tryclaritia.com/templates,
 `dev-arrowsterr/claritia-site`) and in the app (Forms › Templates). The plan behind it is
 `docs/form-templates-plan.md`.

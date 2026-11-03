@@ -5,6 +5,7 @@ import { address, agree, company, DAYPART, date, email, file, files, fullName, h
 const added = "2026-11-03";
 const WEEKDAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 const RATE4 = ["Poor", "Fair", "Good", "Great"];
+const STAIRS = ["Elevator or ground floor", "One flight", "Two or more flights"];
 /** A price worked out from earlier answers by their keys. */
 const price = (label: string, key: string, formula: string) => ({ kind: "calc" as const, label, key, formula, format: "money" as const, currency: "USD" });
 
@@ -627,23 +628,58 @@ export const WAVE1_HOME = [
 
   // Moving
   tpl("construction.moving-cost-calculator", "construction", "Moving cost calculator", ["lead", "request"], "Estimate a local move from home size, crew and extras.", {
+    version: 2,
     cats: "quote calculator",
     teams: "sales",
     subs: "moving",
     added,
     pages: [
       {
-        title: "Your move",
+        title: "Moving from",
         fields: [
-          one("Home size", ["Studio", "1 bedroom", "2 bedrooms", "3 bedrooms", "4 bedrooms or more"], { required: true, key: "hours", points: [3, 4, 6, 8, 10], save: "home_size" }),
-          one("Crew", ["2 movers", "3 movers", "4 movers"], { required: true, key: "rate", points: [130, 180, 230] }),
-          num("Miles between homes", { required: true, min: 0, max: 500, key: "miles" }),
-          one("Stairs", ["Elevator or ground floor", "One flight", "Two or more flights"], { required: true, key: "stairs", points: [0, 75, 150] }),
-          many("Extras", ["Packing", "Piano or safe", "Furniture assembly", "Boxes and supplies"], { key: "extras", points: [350, 250, 150, 120] }),
-          price("Estimated cost", "total", "{hours} * {rate} + {miles} * 2 + {stairs} + ifempty({extras}, 0)"),
+          fullName(),
+          email("Email"),
+          phone(),
+          address("Current address", { required: true }),
+          one("Type of home", ["House", "Apartment or condo", "Townhouse", "Storage unit"], { required: true }),
+          one("Stairs at your current home", STAIRS, { required: true, key: "stairs", points: [0, 75, 150] }),
         ],
       },
-      { title: "Your details", fields: [date("Moving date", { required: true, save: "move_date" }), fullName(), email("Email"), phone()] },
+      {
+        title: "Moving to",
+        fields: [
+          { kind: "address", label: "New address", required: true },
+          num("Miles between homes", { required: true, min: 0, max: 500, key: "miles" }),
+          one("Stairs at your new home", STAIRS, { required: true, key: "stairs_to", points: [0, 75, 150] }),
+          date("Moving date", { required: true, save: "move_date" }),
+          yesno("Are your dates flexible?"),
+        ],
+      },
+      {
+        title: "Home size and items",
+        fields: [
+          one("Home size", ["Studio", "1 bedroom", "2 bedrooms", "3 bedrooms", "4 bedrooms or more"], { required: true, key: "hours", points: [3, 4, 6, 8, 10], save: "home_size" }),
+          one("How full is your home?", ["Lightly furnished", "About average", "Very full"], { required: true, key: "load", points: [0.8, 1, 1.25] }),
+          many("Large items", ["Sofa", "King or queen bed", "Dining table", "Washer and dryer", "Fridge", "Large TV"]),
+          one("Crew", ["2 movers", "3 movers", "4 movers"], { required: true, key: "rate", points: [130, 180, 230] }),
+        ],
+      },
+      {
+        title: "Extras",
+        fields: [
+          many("Extras", ["Packing", "Piano or safe", "Furniture assembly", "Boxes and supplies"], { key: "extras", points: [350, 250, 150, 120] }),
+          one("Truck parking", ["Driveway or right outside", "Street parking nearby", "Loading dock or permit needed"]),
+          long("Anything fragile or special we should know about?"),
+        ],
+      },
+      {
+        title: "Your price",
+        fields: [
+          { kind: "calc", label: "Estimated hours", key: "work_hours", formula: "ceil({hours} * {load} * 2) / 2", format: "number" },
+          price("Estimated cost", "total", "{work_hours} * {rate} + {miles} * 2 + {stairs} + {stairs_to} + ifempty({extras}, 0)"),
+          one("Best time to call you", DAYPART),
+        ],
+      },
     ],
     submit: "Save my estimate",
     end: { title: "Your estimate is saved", text: "Book a video walkthrough to lock in your price.", booking: true },

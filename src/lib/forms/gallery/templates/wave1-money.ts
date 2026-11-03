@@ -1,7 +1,7 @@
 // Wave 1, orders and payments: orders, price calculators, payments, deposits, donations, subscriptions and
 // sponsorships across food, retail, ecommerce, nonprofits, home services, solar, SaaS, farms, sports, faith and media.
 import type { Cond } from "../types.ts";
-import { address, agree, company, date, drop, email, email2, file, fullName, jobTitle, long, many, money, num, one, phone, range, sign, text, tpl, website, when, yesno } from "./build.ts";
+import { address, agree, company, date, drop, email, email2, file, fullName, go, jobTitle, long, many, money, num, one, phone, phone2, range, sign, text, TIMELINE, tpl, website, when, yesno } from "./build.ts";
 
 /** A calculation that reads earlier answers by key. Money in USD unless the format says otherwise. */
 const calc = (label: string, key: string, formula: string, format: "money" | "number" | "percent" = "money", o: { visible?: boolean } = {}) => ({
@@ -17,6 +17,12 @@ const calc = (label: string, key: string, formula: string, format: "money" | "nu
 const pay = (label: string, from: string, o: { show?: Cond } = {}) => ({ kind: "payment" as const, label, from, currency: "USD", ...o });
 
 const ADDED = "2026-11-03";
+
+// Choices more than one field reads.
+const FULL_SUN = "Full sun most of the day";
+const CAMP_GRADES = ["Kindergarten", "1st", "2nd", "3rd", "4th", "5th", "6th", "7th", "8th"];
+const CAMP_WEEKS = ["Week 1", "Week 2", "Week 3", "Week 4", "Week 5", "Week 6"];
+const CAMP_DAYS = ["Half day, $180 a week", "Full day, $295 a week"];
 
 export const WAVE1_MONEY = [
   // Food
@@ -416,27 +422,64 @@ export const WAVE1_MONEY = [
 
   // Solar
   tpl("solar.savings-calculator", "solar", "Solar savings calculator", ["lead", "request"], "Show yearly solar savings and system size from one bill.", {
+    version: 2,
     cats: "calculator lead-generation",
     teams: "marketing sales",
     added: ADDED,
-    intro: "See what solar could save you. Takes one minute.",
+    intro: "See what solar could save you. Takes about 3 minutes.",
     pages: [
       {
         title: "Your home",
         fields: [
-          money("Average monthly electric bill", { required: true, min: 20, key: "bill", save: "electric_bill" }),
-          one("How much sun does your roof get?", ["Full sun most of the day", "Some shade", "Lots of shade", "Not sure"], { required: true, key: "sun", points: [1, 0.85, 0.65, 0.85] }),
-          yesno("Do you own the home?", { required: true }),
-          one("Roof age", ["Under 10 years", "10 to 20 years", "Over 20 years", "Not sure"]),
-          calc("System size you'd need, in kW", "system", "round({bill} / 0.16 / 120, 1)", "number"),
-          calc("Estimated yearly savings", "yearly", "round({bill} * 12 * 0.8 * {sun})"),
-          calc("Estimated savings over 25 years", "lifetime", "{yearly} * 25"),
+          fullName(),
+          email("Email"),
+          phone(),
+          address("Home address", { required: true }),
+          one("Type of home", ["Single-family house", "Townhouse", "Condo", "Mobile home"], { required: true }),
         ],
       },
-      { title: "Get your full report", fields: [address("Home address", { required: true }), fullName(), email("Email"), phone()] },
+      {
+        title: "Your roof",
+        fields: [
+          yesno("Do you own the home?", { required: true }),
+          one("Roof age", ["Under 10 years", "10 to 20 years", "Over 20 years", "Not sure"], { show: when("Do you own the home?", "is", true) }),
+          one("Roof material", ["Asphalt shingles", "Metal", "Tile", "Wood shakes", "Not sure"], { show: when("Do you own the home?", "is", true) }),
+          one("Which way does most of your roof face?", ["South", "East or west", "North", "It's flat", "Not sure"], { required: true, key: "facing", points: [1, 0.85, 0.7, 0.9, 0.85], show: when("Do you own the home?", "is", true) }),
+        ],
+        jumps: [go("Do you own the home?", "is", false, "end")],
+      },
+      {
+        title: "Your bills",
+        fields: [
+          money("Average monthly electric bill", { required: true, min: 20, key: "bill", save: "electric_bill" }),
+          text("Electric company"),
+          one("How much of your bill should solar cover?", ["All of it", "About three quarters", "About half"], { required: true, key: "cover", points: [1, 0.75, 0.5] }),
+          many("Plans that will add to your power use", ["Electric car", "Heat pump", "Pool or hot tub", "Home addition", "None"]),
+          file("A recent electric bill"),
+        ],
+      },
+      {
+        title: "Shade and timing",
+        fields: [
+          one("How much sun does your roof get?", [FULL_SUN, "Some shade", "Lots of shade", "Not sure"], { required: true, key: "sun", points: [1, 0.85, 0.65, 0.85] }),
+          many("What shades your roof?", ["Trees", "Nearby buildings", "Chimneys or vents"], { show: when("sun", "not", FULL_SUN) }),
+          one("When would you like to go solar?", TIMELINE),
+          yesno("Interested in a home battery?"),
+        ],
+      },
+      {
+        title: "Your savings",
+        fields: [
+          calc("System size you'd need, in kW", "system", "round({bill} * {cover} / 0.16 / 120, 1)", "number"),
+          calc("Estimated yearly savings", "yearly", "round({bill} * 12 * {cover} * 0.8 * {sun} * {facing})"),
+          calc("Estimated savings over 25 years", "lifetime", "{yearly} * 25"),
+          calc("Estimated monthly bill after solar", "new_bill", "round(max({bill} - {yearly} / 12, 0))"),
+          one("Best time for a call", ["Morning", "Afternoon", "Evening"]),
+        ],
+      },
     ],
     submit: "Get my report",
-    end: { title: "Your savings report is next", text: "Pick a time for a free design call with exact numbers.", booking: true },
+    end: { title: "Thanks, we have your details", text: "Pick a time for a free design call. We'll go over exact numbers and your options.", booking: true },
   }),
 
   // SaaS
@@ -705,21 +748,37 @@ export const WAVE1_MONEY = [
 
   // Education
   tpl("education.summer-camp", "education", "Summer camp sign-up", ["registration", "order"], "Sign campers up by the week and take a deposit.", {
+    version: 2,
     cats: "deposit payment calculator",
     teams: "operations teachers finance",
     subs: "childcare",
     added: ADDED,
-    intro: "Pick your weeks and hold your child's spot with a deposit.",
+    cover: { title: "Summer camp sign-up", text: "About 8 minutes. Pick your weeks, then hold your spot with a deposit.", button: "Start" },
+    resume: true,
+    copy: true,
     pages: [
       {
         title: "Camper",
         fields: [
           text("Camper's name", { required: true }),
           date("Camper's date of birth", { required: true }),
-          drop("Grade this fall", ["Kindergarten", "1st", "2nd", "3rd", "4th", "5th", "6th", "7th", "8th"], { required: true }),
-          many("Weeks", ["Week 1", "Week 2", "Week 3", "Week 4", "Week 5", "Week 6"], { required: true, key: "weeks", points: [1, 1, 1, 1, 1, 1] }),
-          one("Day", ["Half day, $180 a week", "Full day, $295 a week"], { required: true, key: "day", points: [180, 295], save: "camp_day" }),
+          drop("Grade this fall", CAMP_GRADES, { required: true }),
+          many("Weeks", CAMP_WEEKS, { required: true, key: "weeks", points: [1, 1, 1, 1, 1, 1] }),
+          one("Day", CAMP_DAYS, { required: true, key: "day", points: [180, 295], save: "camp_day" }),
           yesno("Add after care until 6 pm, $60 a week?", { required: true, key: "after", points: [60, 0] }),
+          one("How many campers are you signing up?", ["One", "Two"], { required: true, key: "campers", points: [1, 2] }),
+        ],
+        skip: go("campers", "is", "One", "Parent or guardian"),
+      },
+      {
+        title: "Second camper",
+        fields: [
+          text("Second camper's name", { required: true }),
+          date("Second camper's date of birth", { required: true }),
+          drop("Second camper's grade this fall", CAMP_GRADES, { required: true }),
+          many("Weeks for the second camper", CAMP_WEEKS, { required: true, key: "weeks_two", points: [1, 1, 1, 1, 1, 1] }),
+          one("Day for the second camper", CAMP_DAYS, { required: true, key: "day_two", points: [180, 295] }),
+          yesno("After care for the second camper, $60 a week?", { required: true, key: "after_two", points: [60, 0] }),
         ],
       },
       {
@@ -728,8 +787,46 @@ export const WAVE1_MONEY = [
           fullName("Parent or guardian name"),
           email("Email"),
           phone("Phone", { required: true }),
-          calc("Camp total", "total", "{weeks} * ({day} + {after})"),
-          calc("Deposit today, $50 a week", "deposit", "{weeks} * 50"),
+          address("Home address"),
+          text("Second parent or guardian name"),
+          phone2("Second parent or guardian phone"),
+        ],
+      },
+      {
+        title: "Medical",
+        fields: [
+          long("Allergies and what to do if there's a reaction"),
+          long("Medicines to take at camp"),
+          long("Health conditions staff should know about"),
+          text("Doctor's name and phone"),
+          file("Camp health form"),
+        ],
+      },
+      {
+        title: "Pickup",
+        fields: [
+          one("How will your camper get home?", ["A parent picks up", "Someone on the pickup list", "Walks or bikes home"], { required: true }),
+          long("Other people allowed to pick up", { placeholder: "Name, relationship and phone for each" }),
+          text("Emergency contact name", { required: true, half: true }),
+          phone2("Emergency contact phone", { required: true, half: true }),
+        ],
+      },
+      {
+        title: "Consent",
+        fields: [
+          agree("My camper may take part in all camp activities, including swimming and field trips."),
+          agree("If I can't be reached, staff may get emergency medical care for my camper."),
+          yesno("May we use photos of your camper in camp emails and social media?"),
+          sign("Parent or guardian signature"),
+        ],
+      },
+      {
+        title: "Payment",
+        fields: [
+          // The second camper counts only while two are signed up, so answers left on a skipped page never add to the bill.
+          calc("Camp total", "total", "{weeks} * ({day} + {after}) + ({campers} == 2) * ifempty({weeks_two} * ({day_two} + {after_two}), 0)"),
+          calc("Deposit today, $50 a week", "deposit", "({weeks} + ({campers} == 2) * ifempty({weeks_two}, 0)) * 50"),
+          agree("I understand the rest of the camp fee is due before camp starts."),
           pay("Pay the deposit", "deposit"),
         ],
       },

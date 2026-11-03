@@ -1,5 +1,5 @@
 // Wave 1: events. Weddings, conferences, venues, parties, webinars, speakers and exhibitors, across industries.
-import { agree, company, date, drop, email, file, files, fullName, HEARD, jobTitle, long, many, money, num, one, phone, phone2, range, scale, statement, TEAM_SIZE, text, tpl, url, website, when, yesno } from "./build.ts";
+import { agree, company, CONTACT_PREF, date, drop, email, email2, file, files, fullName, go, HEARD, jobTitle, long, many, money, num, one, phone, phone2, range, scale, statement, TEAM_SIZE, text, tpl, url, website, when, yesno } from "./build.ts";
 
 const DIET = ["None", "Vegetarian", "Vegan", "Gluten free", "Dairy free", "Halal", "Kosher", "Other"];
 const ADDED = "2026-11-03";
@@ -10,6 +10,11 @@ const BIRTHDAY_YES = "Yes, I'll be there";
 const ONE_DAY = "One-day pass ($349)";
 const VIRTUAL = "Virtual pass ($149)";
 const NOT_IN = "Can't make it";
+const ALONE = "Just me";
+const TWO_GUESTS = "Me and 2 guests";
+const THREE_GUESTS = "Me and 3 guests";
+const SHARED_CABIN = "Shared cabin ($180)";
+const DAY_GUEST = "Day guest, no lodging ($90)";
 
 export const WAVE1_EVENTS = [
   // Events: weddings
@@ -35,24 +40,60 @@ export const WAVE1_EVENTS = [
     end: ["Thank you for your reply", "We'll send the final details closer to the day."],
   }),
   tpl("events.wedding-planner-inquiry", "events", "Wedding planning inquiry", ["lead", "booking"], "Qualify couples by date, guest count, budget and services.", {
+    version: 2,
     cats: "wedding consultation",
     teams: "sales events",
     subs: "weddings",
     added: ADDED,
-    intro: "Tell us about your wedding. We reply within one business day.",
+    cover: { title: "Tell us about your wedding", text: "About 5 minutes. At the end, pick a time to talk with a planner.", button: "Start" },
     pages: [
-      { title: "About you", fields: [fullName("Your name"), email("Email"), phone(), text("Your partner's name")] },
+      { title: "About you", fields: [fullName("Your name"), email("Email"), phone(), text("Your partner's name"), one("Best way to reach you", CONTACT_PREF)] },
       {
-        title: "The wedding",
+        title: "Date and place",
         fields: [
           one("Have you set a date?", ["Yes", "Not yet"], { required: true }),
           date("Wedding date", { save: "event_date", show: when("Have you set a date?", "is", "Yes") }),
-          num("Expected guests", { min: 1, save: "guest_count" }),
-          one("Budget for the whole wedding", ["Under $15,000", "$15,000 to $30,000", "$30,000 to $60,000", "$60,000 to $100,000", "Over $100,000"], { save: "budget" }),
-          many("How can we help?", ["Full planning", "Partial planning", "Day-of coordination", "Design and decor", "Destination wedding"], { required: true, save: "service_type" }),
+          text("Month or season you have in mind", { show: when("Have you set a date?", "is", "Not yet") }),
+          text("City or area"),
           yesno("Have you booked a venue?"),
-          text("Venue name", { show: when("Have you booked a venue?", "is", "Yes") }),
+          text("Venue name", { show: when("Have you booked a venue?", "is", true) }),
+          one("Ceremony and reception", ["Same place", "Different places", "Not sure yet"]),
+        ],
+      },
+      {
+        title: "Guests",
+        fields: [
+          num("Expected guests", { min: 1, save: "guest_count" }),
+          one("Size of your wedding party", ["Under 4", "4 to 8", "9 to 14", "15 or more"]),
+          yesno("Will many guests travel from out of town?"),
+          yesno("Do you need help with hotel room blocks?", { show: when("Will many guests travel from out of town?", "is", true) }),
+          yesno("Will children be invited?"),
+        ],
+      },
+      {
+        title: "Budget",
+        fields: [
+          one("Budget for the whole wedding", ["Under $15,000", "$15,000 to $30,000", "$30,000 to $60,000", "$60,000 to $100,000", "Over $100,000"], { save: "budget" }),
+          one("How firm is that budget?", ["Firm", "Some room", "Flexible"]),
+          many("Where do you most want to spend?", ["Venue", "Food and drink", "Photography and video", "Flowers and decor", "Music", "Attire"]),
+        ],
+      },
+      {
+        title: "Style",
+        fields: [
+          many("Words that fit your style", ["Classic", "Modern", "Rustic", "Boho", "Glam", "Garden", "Minimal", "Cultural traditions"]),
+          text("Colors you love"),
+          url("Link to an inspiration board"),
           long("Tell us about the wedding you picture"),
+        ],
+      },
+      {
+        title: "Services",
+        fields: [
+          many("How can we help?", ["Full planning", "Partial planning", "Day-of coordination", "Design and decor", "Destination wedding"], { required: true, save: "service_type" }),
+          many("Vendors you still need", ["Photographer", "Videographer", "Florist", "Caterer", "Music or DJ", "Officiant", "Hair and makeup", "Rentals"]),
+          many("Other events to plan", ["Engagement party", "Rehearsal dinner", "Welcome party", "Morning-after brunch"]),
+          drop("How did you hear about us?", HEARD),
         ],
       },
     ],
@@ -104,47 +145,129 @@ export const WAVE1_EVENTS = [
   }),
   // Events: conferences
   tpl("events.conference-registration", "events", "Conference registration with tickets", ["registration", "order"], "Passes, add-ons and payment for a paid conference.", {
+    version: 2,
     cats: "event-registration payment",
     teams: "events marketing",
     subs: "conferences",
     added: ADDED,
     pages: [
-      { title: "Attendee", fields: [fullName(), email(), company(undefined, { required: true, half: true }), jobTitle(undefined, { half: true }), text("Name for your badge")] },
       {
-        title: "Tickets",
+        title: "Attendee",
         fields: [
-          one("Pass", ["Full conference pass ($599)", ONE_DAY, VIRTUAL], { required: true, key: "pass", points: [599, 349, 149], save: "ticket" }),
+          fullName(),
+          email(),
+          company(undefined, { required: true, half: true }),
+          jobTitle(undefined, { half: true }),
+          text("Name for your badge"),
+          one("Who's coming?", [ALONE, "Me and 1 guest", TWO_GUESTS, THREE_GUESTS], { required: true, key: "people", points: [1, 2, 3, 4] }),
+        ],
+        skip: go("people", "is", ALONE, "Sessions"),
+      },
+      {
+        title: "Guests",
+        fields: [
+          text("Guest 1 name", { required: true, half: true }),
+          email2("Guest 1 email", { required: true, half: true }),
+          text("Guest 2 name", { required: true, half: true, show: when("people", "any", [TWO_GUESTS, THREE_GUESTS]) }),
+          email2("Guest 2 email", { required: true, half: true, show: when("people", "any", [TWO_GUESTS, THREE_GUESTS]) }),
+          text("Guest 3 name", { required: true, half: true, show: when("people", "is", THREE_GUESTS) }),
+          email2("Guest 3 email", { required: true, half: true, show: when("people", "is", THREE_GUESTS) }),
+          text("Guests' dietary needs"),
+        ],
+      },
+      {
+        title: "Sessions",
+        fields: [
+          many("Tracks you're most interested in", ["Strategy", "Product", "Engineering", "Marketing", "Leadership"], { required: true }),
+          one("Your experience in the field", ["New to it", "A few years", "Ten years or more"]),
+          yesno("Would you like to book meetings with sponsors?"),
+          long("Questions you'd like the speakers to answer"),
+        ],
+      },
+      {
+        title: "Tickets and payment",
+        fields: [
+          one("Pass for each person", ["Full conference pass ($599)", ONE_DAY, VIRTUAL], { required: true, key: "pass", points: [599, 349, 149], save: "ticket" }),
           one("Which day?", ["Day 1", "Day 2"], { required: true, show: when("pass", "is", ONE_DAY) }),
           many("Add-ons", ["Hands-on workshop ($199)", "Networking dinner ($95)", "Session recordings ($49)"], { key: "addons", points: [199, 95, 49] }),
           drop("Dietary needs", DIET, { show: when("pass", "not", VIRTUAL) }),
-          { kind: "calc", label: "Total", key: "total", formula: "{pass} + ifempty({addons}, 0)", format: "money", currency: "USD" },
-          { kind: "payment", label: "Pay for your ticket", from: "total", currency: "USD" },
+          { kind: "calc", label: "Total", key: "total", formula: "{pass} * {people} + ifempty({addons}, 0)", format: "money", currency: "USD" },
+          { kind: "payment", label: "Pay for your tickets", from: "total", currency: "USD" },
+        ],
+      },
+      {
+        title: "Consent",
+        fields: [
+          yesno("May we include you in event photos and video?"),
+          yesno("May we share your name and email with sponsors?"),
+          drop("How did you hear about us?", HEARD),
+          agree("I agree to the event's code of conduct."),
+          agree("I agree to the ticket terms and refund policy."),
         ],
       },
     ],
     submit: "Register and pay",
-    end: ["You're registered", "Your receipt and ticket are on the way by email."],
+    end: ["You're registered", "Your receipt and tickets are on the way by email."],
   }),
   tpl("events.call-for-proposals", "events", "Call for proposals", ["application"], "Session proposals with track, format, takeaways and past talks.", {
+    version: 2,
     cats: "speaker application",
     teams: "events",
     subs: "conferences",
     added: ADDED,
+    copy: true,
     pages: [
-      { title: "About you", fields: [fullName(), email("Email"), jobTitle(undefined, { half: true }), company(undefined, { half: true }), long("Speaker bio", { required: true })] },
+      {
+        title: "About you",
+        fields: [
+          fullName(),
+          email("Email"),
+          jobTitle(undefined, { half: true }),
+          company(undefined, { half: true }),
+          long("Speaker bio", { required: true }),
+          yesno("Have you spoken at a conference before?", { required: true }),
+          long("Other speaking or teaching you've done", { show: when("Have you spoken at a conference before?", "is", false) }),
+        ],
+      },
       {
         title: "Your session",
         fields: [
           text("Session title", { required: true }),
           drop("Track", ["Strategy", "Product", "Engineering", "Marketing", "Leadership", "Other"], { required: true }),
           one("Format", ["Talk, 30 minutes", "Panel, 45 minutes", "Workshop, 90 minutes", "Lightning talk, 5 minutes"], { required: true }),
+          one("Audience level", ["Beginner", "Intermediate", "Advanced", "All levels"], { required: true }),
           long("Session description", { required: true }),
-          long("What will people take away?", { required: true }),
+          yesno("Will someone present with you?"),
+          text("Co-presenter's name and email", { show: when("Will someone present with you?", "is", true) }),
         ],
       },
       {
-        title: "Experience",
-        fields: [yesno("Have you spoken at a conference before?"), url("Link to a recording of a past talk", { show: when("Have you spoken at a conference before?", "is", "Yes") })],
+        title: "Outline",
+        fields: [
+          long("Session outline", { required: true, placeholder: "Main points in order, with rough timings" }),
+          long("What will people take away?", { required: true }),
+          many("What will you use?", ["Slides", "Live demo", "Video", "Audience activity", "Questions and answers"]),
+        ],
+        skip: go("Have you spoken at a conference before?", "is", false, "Travel and consent"),
+      },
+      {
+        title: "Past talks",
+        fields: [
+          url("Link to a recording of a past talk"),
+          long("Events where you've spoken"),
+          one("Talks given in the past two years", ["1 or 2", "3 to 5", "6 to 10", "More than 10"]),
+          text("A past organizer we can contact", { placeholder: "Name and email" }),
+        ],
+      },
+      {
+        title: "Travel and consent",
+        fields: [
+          text("City you'll travel from", { required: true }),
+          yesno("Will you need help with travel or a hotel?"),
+          yesno("May we record your session and share it after the event?", { required: true }),
+          agree("The session is my own work and I can share it."),
+          agree("If my session is accepted, I'll be there to present it."),
+        ],
       },
     ],
     submit: "Submit my proposal",
@@ -301,6 +424,7 @@ export const WAVE1_EVENTS = [
 
   // Faith communities
   tpl("faith.retreat-registration", "faith", "Retreat registration", ["registration", "order"], "Retreat sign-ups with lodging, rides, a gift and payment.", {
+    version: 2,
     cats: "event-registration registration payment",
     teams: "events volunteers",
     added: ADDED,
@@ -313,18 +437,44 @@ export const WAVE1_EVENTS = [
           phone(undefined, { required: true }),
           one("Age group", ["Youth, 13 to 17", "Young adult, 18 to 29", "Adult, 30 to 64", "Senior, 65 and over"], { required: true }),
           agree("A parent or guardian has approved this registration.", { show: when("Age group", "is", "Youth, 13 to 17") }),
-          text("Emergency contact name", { required: true }),
-          phone2("Emergency contact phone", { required: true }),
+          text("Emergency contact name", { required: true, half: true }),
+          phone2("Emergency contact phone", { required: true, half: true }),
         ],
       },
       {
-        title: "Your stay",
+        title: "Your room",
         fields: [
-          one("Lodging", ["Shared cabin ($180)", "Private room ($260)", "Day guest, no lodging ($90)"], { required: true, key: "lodging", points: [180, 260, 90], save: "lodging" }),
-          yesno("Need a ride from the church?"),
+          one("Lodging", [SHARED_CABIN, "Private room ($260)", DAY_GUEST], { required: true, key: "lodging", points: [180, 260, 90], save: "lodging" }),
+          text("Who would you like to room with?", { show: when("lodging", "is", SHARED_CABIN) }),
+          one("Bunk", ["Top", "Bottom", "No preference"], { show: when("lodging", "is", SHARED_CABIN) }),
+          yesno("Do you need an accessible room?", { show: when("lodging", "not", DAY_GUEST) }),
+        ],
+      },
+      {
+        title: "Meals and needs",
+        fields: [
           drop("Dietary needs", DIET),
+          text("Food allergies"),
+          yesno("Will you join every meal?"),
+          text("Meals you'll miss", { show: when("Will you join every meal?", "is", false) }),
+          long("Anything that would help you take part fully?"),
+        ],
+      },
+      {
+        title: "Travel",
+        fields: [
+          one("Getting there", ["I'll drive myself", "I need a ride from the church", "I can drive others", "Someone will drop me off"], { required: true }),
+          num("Open seats in your car", { min: 1, max: 8, show: when("Getting there", "is", "I can drive others") }),
+          one("When will you arrive?", ["With the group", "Later than the group"]),
+          text("Your arrival day and time", { show: when("When will you arrive?", "is", "Later than the group") }),
+        ],
+      },
+      {
+        title: "Payment",
+        fields: [
           money("Help someone else attend (optional)", { min: 0, key: "gift" }),
           { kind: "calc", label: "Total", key: "total", formula: "{lodging} + ifempty({gift}, 0)", format: "money", currency: "USD" },
+          agree("I'll follow the retreat's guidelines and schedule."),
           { kind: "payment", label: "Pay for the retreat", from: "total", currency: "USD" },
         ],
       },

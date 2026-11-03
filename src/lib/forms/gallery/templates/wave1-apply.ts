@@ -1,9 +1,12 @@
 // Wave 1, apply and join: memberships, enrollment, volunteers, grants, tenants, vendors, job applications, patient
 // intake, project briefs and client onboarding, across coaching, creative, architecture, media, education, health,
 // legal, faith, sports, government, security, agriculture and real estate.
-import { address, agree, BUDGET, company, CONTACT_PREF, country, DAYPART, date, drop, email, file, files, fullName, HEARD, jobTitle, long, many, money, num, one, phone, range, rank, scale, sign, text, TIMELINE, tpl, url, website, when, yesno } from "./build.ts";
+import { address, agree, BUDGET, company, CONTACT_PREF, country, DAYPART, date, drop, email, file, files, fullName, go, HEARD, jobTitle, long, many, money, num, one, phone, phone2, range, rank, scale, sign, text, time, TIMELINE, tpl, url, website, when, yesno } from "./build.ts";
 
 const ADDED = "2026-11-03";
+
+const CARE_PROGRAMS = ["Infant", "Toddler", "Preschool", "Before and after school"];
+const IMMIGRATION_HISTORY = ["Denied a visa or entry to the US", "Stayed past the date on a visa", "Been in immigration court or deported", "Been arrested or charged with a crime", "None of these"];
 
 export const WAVE1_APPLY = [
   // Coaching
@@ -176,43 +179,138 @@ export const WAVE1_APPLY = [
 
   // Education
   tpl("education.childcare-enrollment", "education", "Childcare enrollment", ["application", "registration"], "Enroll children with schedules, contacts and care needs.", {
+    version: 2,
     phi: true,
     cats: "enrollment application",
     teams: "teachers operations",
     subs: "childcare",
     added: ADDED,
+    cover: { title: "Enroll your child", text: "About 10 minutes. Have your child's doctor and immunization details ready.", button: "Start" },
+    resume: true,
+    copy: true,
     pages: [
       {
         title: "Your child",
         fields: [
           text("Child's full name", { required: true }),
           date("Child's date of birth", { required: true }),
-          one("Program", ["Infant", "Toddler", "Preschool", "Before and after school"], { required: true, save: "program" }),
+          one("Program", CARE_PROGRAMS, { required: true, save: "program" }),
+          one("How many children are you enrolling?", ["1", "2", "3 or more"], { required: true, key: "children", points: [1, 2, 3] }),
+        ],
+      },
+      {
+        title: "Parents",
+        fields: [
+          fullName("Parent or guardian name"),
+          email("Email"),
+          phone("Phone", { required: true }),
+          address("Home address", { required: true }),
+          one("Relationship to the child", ["Mother", "Father", "Guardian", "Other"]),
+          text("Second parent or guardian name"),
+          phone2("Second parent or guardian phone"),
+        ],
+        skip: go("children", "is", "1", "Health and allergies"),
+      },
+      {
+        title: "Second child",
+        fields: [
+          text("Second child's full name", { required: true }),
+          date("Second child's date of birth", { required: true }),
+          one("Second child's program", CARE_PROGRAMS, { required: true }),
+          long("Other children's names, birth dates and programs", { show: when("children", "is", "3 or more") }),
+        ],
+      },
+      {
+        title: "Health and allergies",
+        fields: [
+          yesno("Any allergies?", { required: true }),
+          long("Allergies and what to do if there's a reaction", { required: true, show: when("Any allergies?", "is", true) }),
+          long("Medical conditions or daily medicines"),
+          text("Doctor's name and phone"),
+          yesno("Are immunizations up to date?"),
+          file("Immunization record"),
+        ],
+      },
+      {
+        title: "Schedule",
+        fields: [
           many("Days needed", ["Mon", "Tue", "Wed", "Thu", "Fri"], { required: true }),
           one("Schedule", ["Full day", "Half day mornings", "Half day afternoons"], { required: true }),
           date("Start date", { required: true }),
+          time("Usual drop-off time", { half: true }),
+          time("Usual pickup time", { half: true }),
         ],
       },
-      { title: "Parent or guardian", fields: [fullName("Parent or guardian name"), email("Email"), phone("Phone", { required: true }), text("Other people allowed to pick up")] },
-      { title: "Care needs", fields: [long("Allergies or medical needs"), text("Emergency contact name and phone", { required: true })] },
+      {
+        title: "Pickup and consent",
+        fields: [
+          long("Other people allowed to pick up", { placeholder: "Name, relationship and phone for each" }),
+          text("Emergency contact name", { required: true, half: true }),
+          phone2("Emergency contact phone", { required: true, half: true }),
+          yesno("May we include your child in photos we share with families?"),
+          agree("If I can't be reached, staff may get emergency medical care for my child."),
+          agree("I've read the parent handbook and agree to its policies."),
+          sign("Parent or guardian signature"),
+        ],
+      },
+      {
+        title: "Deposit",
+        fields: [
+          one("How would you like to be billed?", ["Weekly", "Every two weeks", "Monthly"], { required: true }),
+          { kind: "calc", label: "Deposit today, $100 a child", key: "deposit", formula: "{children} * 100", format: "money", currency: "USD" },
+          { kind: "payment", label: "Pay the deposit", from: "deposit", currency: "USD" },
+        ],
+      },
     ],
+    submit: "Send and pay the deposit",
     end: ["Application received", "We'll confirm a spot or add you to the waitlist within a week."],
   }),
   tpl("education.course-enrollment", "education", "Course enrollment", ["registration", "order"], "Enroll students in a course and take payment in one step.", {
+    version: 2,
     cats: "enrollment registration payment",
     teams: "teachers operations",
     subs: "online-courses",
     added: ADDED,
-    fields: [
-      fullName(),
-      email("Email"),
-      one("Course", ["Beginner course ($199)", "Intermediate course ($299)", "Advanced course ($399)"], { required: true, key: "course", points: [199, 299, 399], save: "course" }),
-      one("Format", ["Live online", "Self-paced"], { required: true }),
-      many("Add-ons", ["One-on-one coaching session ($75)", "Printed workbook ($25)", "Certificate of completion ($15)"], { key: "addons", points: [75, 25, 15] }),
-      one("Experience with the subject", ["None", "Some", "A lot"]),
-      { kind: "calc", label: "Total", key: "total", formula: "ifempty({course}, 0) + ifempty({addons}, 0)", format: "money", currency: "USD" },
-      agree("I agree to the course terms and refund policy."),
-      { kind: "payment", label: "Pay for the course", from: "total", currency: "USD" },
+    pages: [
+      {
+        title: "Course",
+        fields: [
+          one("Course", ["Beginner course ($199)", "Intermediate course ($299)", "Advanced course ($399)"], { required: true, key: "course", points: [199, 299, 399], save: "course" }),
+          one("Format", ["Live online", "Self-paced"], { required: true }),
+          long("What do you hope to get from the course?"),
+        ],
+      },
+      {
+        title: "Level check",
+        fields: [
+          one("Experience with the subject", ["None", "Some", "A lot"], { required: true }),
+          yesno("Have you taken a course like this before?"),
+          scale("How sure are you of the basics?", "Not at all", "Very sure"),
+          num("Hours a week you can study", { min: 1, max: 40 }),
+        ],
+      },
+      {
+        title: "About you",
+        fields: [fullName(), email("Email"), phone(), company("Company or school"), drop("How did you hear about us?", HEARD)],
+        skip: go("Format", "is", "Self-paced", "Payment"),
+      },
+      {
+        title: "Schedule",
+        fields: [
+          many("Class times that work for you", ["Weekday mornings", "Weekday evenings", "Saturdays"], { required: true }),
+          text("Your time zone", { required: true, placeholder: "Eastern Time" }),
+          long("Class dates you know you'll miss"),
+        ],
+      },
+      {
+        title: "Payment",
+        fields: [
+          many("Add-ons", ["One-on-one coaching session ($75)", "Printed workbook ($25)", "Certificate of completion ($15)"], { key: "addons", points: [75, 25, 15] }),
+          { kind: "calc", label: "Total", key: "total", formula: "ifempty({course}, 0) + ifempty({addons}, 0)", format: "money", currency: "USD" },
+          agree("I agree to the course terms and refund policy."),
+          { kind: "payment", label: "Pay for the course", from: "total", currency: "USD" },
+        ],
+      },
     ],
     submit: "Enroll",
     end: ["You're enrolled", "Your receipt and course access are on the way by email."],
@@ -343,26 +441,68 @@ export const WAVE1_APPLY = [
     end: ["Intake complete", "Thanks. We'll go over this with you at your first visit."],
   }),
   tpl("wellness.nutrition-intake", "wellness", "Nutrition client intake", ["intake"], "Eating habits, health goals and diet before a nutrition consult.", {
+    version: 2,
     phi: true,
     cats: "client-onboarding intake",
     teams: "care",
     subs: "nutrition",
     added: ADDED,
+    cover: { title: "Nutrition intake", text: "About 8 minutes. Your dietitian reads this before your first session.", button: "Start" },
     pages: [
-      { title: "About you", fields: [fullName(), email("Email"), phone(), date("Date of birth")] },
+      { title: "About you", fields: [fullName(), email("Email"), phone(), date("Date of birth"), one("Best way to reach you", CONTACT_PREF)] },
       {
-        title: "Health and goals",
+        title: "Your diet",
         fields: [
-          many("Main goals", ["Lose weight", "Gain weight", "More energy", "Manage blood sugar", "Gut health", "Sports performance", "Eat healthier as a family"], { required: true, save: "nutrition_goals" }),
-          long("Health conditions and medicines"),
           many("Diet you follow", ["No special diet", "Vegetarian", "Vegan", "Gluten free", "Dairy free", "Low carb", "Other"]),
           long("Food allergies or foods you avoid"),
+          long("What does a usual day of eating look like?", { placeholder: "Breakfast, lunch, dinner and snacks" }),
           one("Meals you cook at home each week", ["0 to 3", "4 to 7", "8 to 14", "15 or more"]),
+          one("Meals you eat out or order in each week", ["0 to 2", "3 to 5", "6 to 10", "More than 10"]),
+          one("Water most days", ["Under 4 cups", "4 to 8 cups", "Over 8 cups"]),
+        ],
+      },
+      {
+        title: "Activity",
+        fields: [
+          one("How active are you most days?", ["Mostly sitting", "Lightly active", "Active", "Very active"]),
+          many("Exercise you do", ["Walking", "Running", "Strength training", "Cycling", "Swimming", "Yoga", "Team sports", "None right now"]),
+          one("Sleep most nights", ["Under 6 hours", "6 to 7 hours", "7 to 8 hours", "Over 8 hours"]),
           scale("How is your energy most days?", "Very low", "Very high"),
+          scale("How stressed do you feel most days?", "Not at all", "Very"),
+        ],
+      },
+      {
+        title: "Health",
+        fields: [
+          text("Height", { half: true }),
+          text("Weight", { half: true }),
+          many("Do any of these apply to you?", ["Diabetes or prediabetes", "High blood pressure", "High cholesterol", "Digestive problems", "Pregnant or breastfeeding", "History of an eating disorder", "None of these"]),
+          long("Health conditions and medicines"),
+          long("Vitamins or supplements you take"),
+          yesno("Did a doctor refer you to us?"),
+          text("Doctor's name and phone", { show: when("Did a doctor refer you to us?", "is", true) }),
+        ],
+      },
+      {
+        title: "Goals",
+        fields: [
+          many("Main goals", ["Lose weight", "Gain weight", "More energy", "Manage blood sugar", "Gut health", "Sports performance", "Eat healthier as a family"], { required: true, save: "nutrition_goals" }),
+          long("What would you like to be different in 3 months?"),
+          one("What gets in the way most?", ["Time", "Cost", "Cravings", "Family meals", "Not knowing what to eat", "Other"]),
+          scale("How ready do you feel to make changes?", "Not yet", "Very ready"),
+        ],
+      },
+      {
+        title: "Your first session",
+        fields: [
+          one("How would you like to meet?", ["In person", "Video call", "Phone"], { required: true }),
+          long("Anything else your dietitian should know?"),
+          drop("How did you hear about us?", HEARD),
+          agree("My dietitian may use these answers to plan my care."),
         ],
       },
     ],
-    end: ["Thanks, you're all set", "Your dietitian will review this before your first session."],
+    end: { title: "Thanks, you're all set", text: "Pick a time for your first session, or we'll reach out to set one up.", booking: true },
   }),
 
   // Legal
@@ -391,10 +531,14 @@ export const WAVE1_APPLY = [
     end: { title: "Thank you", text: "Pick a time for your consultation.", booking: true },
   }),
   tpl("legal.immigration-intake", "legal", "Immigration intake", ["intake", "lead"], "Status, goals and key dates for new immigration clients.", {
+    version: 2,
     cats: "client-onboarding intake",
     teams: "operations",
     subs: "immigration",
     added: ADDED,
+    cover: { title: "Immigration intake", text: "About 10 minutes. Have your passport and any letters from immigration nearby.", button: "Start" },
+    resume: true,
+    copy: true,
     pages: [
       {
         title: "About you",
@@ -402,19 +546,57 @@ export const WAVE1_APPLY = [
           fullName(),
           email("Email"),
           phone("Phone", { required: true }),
+          yesno("Is it safe to leave messages at this number?"),
+          date("Date of birth", { required: true }),
           country("Country of citizenship", { required: true }),
           drop("Preferred language", ["English", "Spanish", "Chinese", "Hindi", "Arabic", "French", "Portuguese", "Other"]),
         ],
       },
       {
-        title: "Your case",
+        title: "Your status",
         fields: [
           one("What do you need help with?", ["Family visa", "Work visa", "Green card", "Citizenship", "Asylum", "Student visa", "Removal defense", "Other"], { required: true, save: "case_type" }),
           one("Current status in the US", ["Visitor", "Student", "Work visa", "Green card holder", "No current status", "Outside the US"], { required: true }),
           date("When does your current status end?", { show: when("Current status in the US", "any", ["Visitor", "Student", "Work visa"]) }),
+          date("Date of your last entry to the US", { show: when("Current status in the US", "not", "Outside the US") }),
           yesno("Do you have a court date?", { required: true }),
           date("Court date", { show: when("Do you have a court date?", "is", true) }),
-          files("Notices or documents you received"),
+        ],
+      },
+      {
+        title: "Family",
+        fields: [
+          one("Marital status", ["Single", "Married", "Divorced", "Widowed"], { required: true }),
+          text("Spouse's full name", { show: when("Marital status", "is", "Married") }),
+          drop("Spouse's status", ["US citizen", "Green card holder", "Visa holder", "No current status", "Lives outside the US"], { show: when("Marital status", "is", "Married") }),
+          num("Number of children", { min: 0, max: 20 }),
+          long("Children's names, birth dates and where they live", { show: when("Number of children", "gte", 1) }),
+          long("Parents, children or siblings who are US citizens or green card holders"),
+        ],
+      },
+      {
+        title: "History",
+        fields: [
+          many("Has any of this happened to you?", IMMIGRATION_HISTORY, { required: true }),
+          long("Tell us what happened and when", { show: when("Has any of this happened to you?", "any", IMMIGRATION_HISTORY.slice(0, -1)) }),
+          long("Visas or green cards you've applied for before"),
+        ],
+      },
+      {
+        title: "Documents",
+        fields: [
+          files("Passport and visa pages"),
+          files("Letters or notices from immigration or the court"),
+          files("Other documents about your case"),
+          long("Anything else we should know?"),
+        ],
+      },
+      {
+        title: "Consent",
+        fields: [
+          agree("The information I've given is true to the best of my knowledge."),
+          agree("I understand that sending this form doesn't make me a client of the firm."),
+          sign("Signature"),
         ],
       },
     ],
