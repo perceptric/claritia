@@ -29,7 +29,7 @@ The sidebar is in `src/lib/nav.ts`: Forms, Meetings and Workflows with no group 
 - Inter for every word. A light gray shell with a white page panel; each page has a white header bar with its tabs beside the title. The dark gray pill (`brand`) is the one primary action; Claritia green is the one signal (about 5% of a view). Mono only for code, keys and ids.
 - Buttons, chips and toggles are pills. Status tags (`Badge`) 6px, inputs 8px, cards 10 to 12px, dialogs 16px.
 - Raised things (cards, tables, inputs, chips) sit on ring shadows (`shadow-rest`, `shadow-chip`, `shadow-input`, `shadow-outline`) in place of borders; dividers inside them stay hairlines. Focus is `shadow-focus`, a green ring. No gradients and no emoji.
-- The corner bracket from the mark is Claritia's motif (the Catch in `src/components/app/Catch.tsx`).
+- The mark is the Slot (`Mark` and `Logo` in `src/components/Logo.tsx`): six time slots on a green tile, one booked. Folded sidebars and tight spots show the mark without the name. The corner bracket stays Claritia's motif (the Catch in `src/components/app/Catch.tsx`).
 - AI is shown with the sparkle (`src/components/app/Ai.tsx`): `AiMark` beside AI controls, `AiAvatar` where AI speaks, `AiTag` on anything AI made.
 - Empty states and first screens use a drawing from `src/components/sketches`.
 - Motion uses the three speeds and two curves in `docs/brand.md`, and stops under reduced motion. Every screen works in light and dark.

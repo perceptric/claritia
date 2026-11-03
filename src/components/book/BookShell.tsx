@@ -1,5 +1,6 @@
 import { EmbedHeight } from "./EmbedHeight";
 import { KitScope, type BrandSheet } from "./kit";
+import { Mark } from "../Logo";
 
 // The frame around every booking page: the kit's look, the card centered on the page and "Built with love by Claritia"
 // under the card, unless the page hides it. In an embed
@@ -22,24 +23,13 @@ export function BookShell({ tokens, design, embed, narrow, vars, badge = true, b
           <footer className="cb-foot">
             <a href="https://tryclaritia.com/?ref=booking" target="_blank" rel="noopener">
               Built with love by
-              <Mark size={16} />
+              <Mark size={16} className="cb-mark" />
               <b>Claritia</b>
             </a>
           </footer>
         ) : null}
       </div>
     </KitScope>
-  );
-}
-
-/** The Claritia mark: four corner brackets and a check on its emerald tile (src/components/Logo.tsx). */
-function Mark({ size }: { size: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 32 32" aria-hidden="true" className="cb-mark">
-      <rect width="32" height="32" rx="7" fill="#0C8C5E" />
-      <path d="M7 12V7h5M20 7h5v5M25 20v5h-5M12 25H7v-5" fill="none" stroke="#fff" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
-      <path d="M11.5 16.5l3 3 6-7" fill="none" stroke="#fff" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
   );
 }
 

@@ -8,6 +8,7 @@ import { linkProblem, SCHEDULERS } from "../../../../lib/forms/schedule";
 import { INDUSTRIES, industryOf, isRtl, languageName, profileWords, recipeText } from "../../../../lib/studio/industries";
 import { ACCESS_CSS, around, CAL_CSS, consentSpot, linkErrors, zoneWords } from "../../../../lib/studio/runtime";
 import { TIA_STYLE, tiaSvg } from "../../../../lib/studio/tia";
+import { markSvg } from "../../../Logo";
 
 // Form Studio (docs/forms-chat-plan.md, docs/studio-v2-plan.md): every form is one chat with Tia on the left and the
 // live form on the right, drawn in a shadow root so the brand's CSS and the form's own CSS never touch the app. The
@@ -165,7 +166,7 @@ input, textarea { user-select: text; -webkit-user-select: text; }
 .pill.on, .pill.primary { background: var(--ink); color: var(--bg); border-color: var(--ink); }
 .pill.on:hover:not(:disabled), .pill.primary:hover:not(:disabled) { color: var(--bg); border-color: var(--ink); opacity: .9; }
 .pill .logo { width: 16px; height: 16px; border-radius: 4px; flex: none; object-fit: contain; }
-.pill .logo.mark { background: #0c8c5e; padding: 2px; }
+.pill .logo.mark { border-radius: 0; }
 .after { flex: 1; min-height: 0; overflow: auto; padding: 24px; display: flex; justify-content: center; background: var(--paper); }
 .after .inner { width: min(600px, 100%); display: flex; flex-direction: column; gap: 14px; }
 .card2 { border: 1px solid var(--line); border-radius: 10px; background: var(--bg); padding: 16px; display: flex; flex-direction: column; gap: 12px; }
@@ -1203,7 +1204,7 @@ ${CAL_CSS}
     // Where they book: Claritia's own calendar, or an outside scheduler opened in the form.
     const tool = a.tool || "claritia";
     // Each scheduler shows its logo beside its name; Claritia its own mark, Other link a link icon.
-    const logo = (x) => (x === "claritia" ? `<svg class="logo mark" viewBox="0 0 32 32" aria-hidden="true"><path d="M7 12V7h5M20 7h5v5M25 20v5h-5M12 25H7v-5" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/><path d="M11.5 16.5l3 3 6-7" fill="none" stroke="#fff" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/></svg>` : logoImg(x.domain));
+    const logo = (x) => (x === "claritia" ? markSvg(16, 'class="logo mark"') : logoImg(x.domain));
     const toolPill = ([v, label, x]) => h("button", { class: `pill${v === tool ? " on" : ""}`, html: `${logo(x)}<span></span>`, onclick: () => set({ tool: v === "claritia" ? "" : v }) });
     const cS = h("div", { class: "card2" }, h("h3", { text: "Book with" }), h("div", { class: "chips" }, ...[["claritia", "Claritia calendar", "claritia"], ...SCHEDULERS.map((x) => [x.value, x.label, x])].map((t) => { const b = toolPill(t); b.lastChild.textContent = t[1]; return b; })));
     if (tool !== "claritia") {

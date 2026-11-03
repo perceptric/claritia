@@ -20,6 +20,7 @@ import { AiMark } from "../Ai";
 import { readLines } from "../streamLines";
 import { Check, ChevronDown, ExternalLink, Grid, Grip, Link as LinkIcon, Message, Monitor, Palette, Phone, Plus, Upload, User } from "../../Icons";
 import { BookShell } from "@/components/book/BookShell";
+import { Mark } from "@/components/Logo";
 import { PageHead, TypeCards } from "@/components/book/TypeCards";
 import { askConfirm } from "../Dialogs";
 import { Badge, Button, ErrorNote, errorText, Input, invalidate, Loading, Page, postJson, Segmented, setLeaveGuard, Toggle, useQuery, type ViewProps } from "../ui";
@@ -589,9 +590,7 @@ function Styling(p: { brands: BrandRow[]; home: string | null; picked: string | 
     <>
       <div className="grid grid-cols-2 gap-2">
         <button type="button" disabled={disabled} aria-pressed={picked === null} onClick={() => onChange({ look: "claritia" })} className={tile(picked === null)}>
-          <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-ink text-paper">
-            <ClaritiaMark />
-          </span>
+          <Mark size={32} className="shrink-0" />
           <span className="min-w-0 truncate text-[13px] font-medium text-ink">Claritia</span>
         </button>
         {yours ? brandTile(yours, "Your brand") : null}
@@ -643,16 +642,6 @@ function Styling(p: { brands: BrandRow[]; home: string | null; picked: string | 
         <Toggle label="Show Built with love by Claritia" on={p.badge} disabled={disabled || !paid} onChange={(badge) => onChange({ badge })} />
       </span>
     </>
-  );
-}
-
-/** Claritia's corner-bracket mark, small, for the Claritia tile. */
-function ClaritiaMark() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 32 32" aria-hidden="true">
-      <path d="M7 12V7h5M20 7h5v5M25 20v5h-5M12 25H7v-5" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" />
-      <path d="M11.5 16.5l3 3 6-7" fill="none" stroke="currentColor" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
   );
 }
 

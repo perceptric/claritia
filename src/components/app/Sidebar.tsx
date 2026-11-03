@@ -97,7 +97,8 @@ export function Sidebar(p: SidebarProps) {
   return (
     <aside className={`flex shrink-0 flex-col gap-2.5 p-3 transition-[width] duration-200 md:h-full md:w-[68px] md:py-4 ${xl("xl:w-60")}`}>
       <div className={`flex items-center justify-between gap-2 px-2 md:justify-center ${xl("xl:justify-between")}`}>
-        <Logo />
+        {/* Folded to icons: the mark alone. */}
+        <Logo nameClass={`md:hidden ${xl("xl:inline")}`} />
         <span className={`truncate text-[12px] text-faint md:hidden ${xl("xl:inline")}`}>{p.wsName}</span>
       </div>
       <CreateButton items={p.create} rail={rail} />

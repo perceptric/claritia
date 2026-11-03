@@ -8,7 +8,8 @@ its `BRAND.md`).
 In short: Inter for every word, a light gray shell with a white page panel, soft ring shadows in place of borders, a
 dark gray pill for the one primary action and Claritia green as the one signal.
 
-Claritia's motif is still the **corner bracket** from its mark (the Catch in `src/components/app/Catch.tsx`).
+The mark is the **Slot**: a green tile of six time slots with one booked. The corner bracket stays Claritia's motif (the
+Catch in `src/components/app/Catch.tsx`).
 
 ---
 
@@ -119,8 +120,11 @@ Workflows at the top, Settings at the very bottom above the account row. The ope
 
 ## 4. Mark and pictures
 
-- **Mark:** a green tile (`#0C8C5E`, 6px corners at 32px) with four white corner brackets and a check
-  (`src/components/Logo.tsx`). Never recolor or redraw it.
+- **Mark:** the Slot, a green tile (`#0C8C5E`, 13px corners at 48px) holding six white time slots with one booked
+  in solid white (`Mark` and `Logo` in `src/components/Logo.tsx`, `markSvg` for plain HTML). Under 20px it draws four
+  bigger slots. Where there's no room for the name, like the folded sidebar, show the mark alone. Never recolor it,
+  move the booked slot or redraw it. Every kit file (small, ink and white marks, lockups, app icon, avatar, favicon,
+  link image) is in `claritia-site/assets/brand` and listed in its `BRAND.md`.
 - **The Catch:** `src/components/app/Catch.tsx`, on the sign-in screen.
 - **Drawings:** `src/components/sketches/Sketch.tsx` on first screens and empty states.
 - **AI:** the sparkle (`src/components/app/Ai.tsx`).
