@@ -168,6 +168,34 @@ try {
   await page.getByRole("button", { name: "Turn off" }).waitFor();
   check((await target("cccccccc-0000-4000-8000-000000000005"))?.id === "app1/tbl2", "Sync: Airtable takes the table picked");
   check((await page.getByRole("link", { name: "Open" }).getAttribute("href")) === "https://airtable.com/app1/tbl2", "Sync: Open goes to the table");
+  // PostgreSQL: a table named from the form, made by the server; a bad name shows the server's words.
+  const PGS = "cccccccc-0000-4000-8000-000000000006";
+  await page.getByRole("button", { name: /^PostgreSQL/ }).first().click();
+  const tableBox = page.getByLabel("Table name");
+  check(/^[a-z][a-z0-9_]*_fills$/.test(await tableBox.inputValue()), `Sync: PostgreSQL suggests a table from the form's name (${await tableBox.inputValue()})`);
+  await tableBox.fill("demo leads");
+  await page.getByRole("button", { name: "Send rows to PostgreSQL" }).click();
+  await page.getByText("Use letters, digits and _ for the table name.").waitFor();
+  check(!(await target(PGS)), "Sync: a bad table name saves nothing");
+  await tableBox.fill("demo_leads");
+  await page.getByRole("button", { name: "Send rows to PostgreSQL" }).click();
+  await page.getByText("demo_leads", { exact: true }).waitFor();
+  check((await target(PGS))?.id === "demo_leads", "Sync: PostgreSQL takes the table named");
+  await shot("4f-sync-postgres");
+  // Excel Online: pick a workbook, or paste a shared one's link.
+  const XL = "cccccccc-0000-4000-8000-000000000007";
+  await page.getByRole("button", { name: /^Excel Online/ }).first().click();
+  await page.getByRole("button", { name: "Workbook", exact: true }).click();
+  await page.getByRole("option", { name: "Leads 2026" }).click();
+  await page.getByRole("button", { name: "Turn off" }).waitFor();
+  check((await target(XL))?.id === "b!d!01A", "Sync: Excel takes the workbook picked");
+  await page.getByLabel("Workbook link").fill("https://acme.sharepoint.com/:x:/s/sales/EAbc");
+  await page.getByRole("button", { name: "Use", exact: true }).click();
+  await page.waitForFunction((s) => (window as unknown as { db: { dests: { source_id: string; config: { target?: { id: string } } }[] } }).db.dests.find((d) => d.source_id === s)?.config.target?.id === "b!d!01B", XL);
+  check(true, "Sync: Excel takes a pasted workbook link instead");
+  await page.getByRole("button", { name: "Workbook", exact: true }).filter({ hasText: "Shared pipeline" }).waitFor();
+  check(true, "Sync: the picker shows a linked workbook that isn't in its list");
+  await shot("4g-sync-excel");
   await page.setViewportSize({ width: 390, height: 800 });
   await page.getByRole("button", { name: /^Google Sheets/ }).first().click();
   await page.getByText("Team leads 2026 with a long name that has to wrap on a phone").waitFor();

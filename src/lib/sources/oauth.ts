@@ -40,6 +40,15 @@ export const OAUTH: Record<string, OauthCfg> = {
     extra: { access_type: "offline", prompt: "consent", include_granted_scopes: "true" },
   },
   airtable: { env: "AIRTABLE", authorize: "https://airtable.com/oauth2/v1/authorize", token: "https://airtable.com/oauth2/v1/token", scope: "data.records:read data.records:write schema.bases:read schema.bases:write user.email:read", pkce: true, basic: true },
+  // Excel Online (step 2c): the Microsoft app meetings use, with Files.ReadWrite added to it.
+  excel: {
+    env: "MICROSOFT",
+    authorize: "https://login.microsoftonline.com/common/oauth2/v2.0/authorize",
+    token: "https://login.microsoftonline.com/common/oauth2/v2.0/token",
+    scope: "offline_access User.Read Files.ReadWrite",
+    extra: { prompt: "select_account" },
+    refreshScope: true,
+  },
   notion: { env: "NOTION", authorize: "https://api.notion.com/v1/oauth/authorize", token: "https://api.notion.com/v1/oauth/token", basic: true, extra: { owner: "user" } },
   // Meetings (docs/meetings-scheduler.md 1.1): each person's own calendar, connected from My calendar through
   // /api/calendar/connect. Google asks again for consent so a refresh token always comes back.

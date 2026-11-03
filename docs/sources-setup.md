@@ -152,6 +152,14 @@ Uses the same Google app as calendars (`GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET
 3. OAuth consent screen → Scopes → add `https://www.googleapis.com/auth/spreadsheets`. Google's app check for it is free
    (check).
 
+### Excel Online (out: a row per form fill)
+
+Uses the Microsoft app meetings use (`MICROSOFT_CLIENT_ID`, `MICROSOFT_CLIENT_SECRET`, see `docs/meetings-setup.md`).
+
+1. Entra admin center → App registrations → the Claritia app → Authentication → add the redirect URI
+   `https://app.tryclaritia.com/api/sources/callback` (Web).
+2. API permissions → Microsoft Graph → Delegated → add `Files.ReadWrite`. No admin consent is needed for it (check).
+
 ### Airtable and Notion (out: a record per form fill)
 
 Both work with a pasted key until their apps are set up: an Airtable personal access token (scopes
@@ -187,7 +195,7 @@ Pulls run every 5 minutes for new CRM sources (HubSpot changes also arrive withi
 |---|---|
 | Close, Klaviyo, ActiveCampaign, Brevo, Kit, MailerLite, Stripe, Intercom | An API key from the tool's settings (these have no one-click sign-in in this build) |
 | Typeform, Tally, Webflow, Calendly, Cal.com, any JSON | Claritia gives a webhook address to paste into the tool, with an optional signing secret |
-| PostgreSQL, Redshift, MySQL, ClickHouse, BigQuery, Snowflake, Databricks | Database details for a read-only user. The connect screen shows the grant to run. Hosts on private networks are refused, so the database needs a public address. |
+| PostgreSQL, Redshift, MySQL, ClickHouse, BigQuery, Snowflake, Databricks | Database details for a read-only user. The connect screen shows the grant to run. Hosts on private networks are refused, so the database needs a public address. PostgreSQL and MySQL also take form fills as rows: their grant lets Claritia make the form's table and add columns to it. |
 
 ## 7. Check it works
 

@@ -7,11 +7,12 @@ import { hubspot } from "./hubspot.ts";
 import { omniscient } from "./omniscient.ts";
 import { intercom, stripe } from "./product.ts";
 import { salesforce } from "./salesforce.ts";
+import { excel } from "./excel.ts";
 import { airtable, googleSheets, notion } from "./rows.ts";
 import type { Connector } from "./types.ts";
 import { WAREHOUSES } from "./warehouse.ts";
 
-const ALL: Connector[] = [hubspot, salesforce, omniscient, pipedrive, attio, close, mailchimp, klaviyo, activecampaign, brevo, kit, mailerlite, stripe, intercom, typeform, tally, webflow, calendly, calcom, api, googleSheets, airtable, notion, ...WAREHOUSES];
+const ALL: Connector[] = [hubspot, salesforce, omniscient, pipedrive, attio, close, mailchimp, klaviyo, activecampaign, brevo, kit, mailerlite, stripe, intercom, typeform, tally, webflow, calendly, calcom, api, googleSheets, airtable, notion, excel, ...WAREHOUSES];
 const BY_KIND = new Map(ALL.map((c) => [c.kind, c]));
 
 export const connectorFor = (kind: string): Connector | undefined => BY_KIND.get(kind);

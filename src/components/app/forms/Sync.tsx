@@ -440,21 +440,32 @@ function ListPane({ sb, session, ws, formId, dests, failed, reload, source, logo
 }
 
 /** What a row tool calls the place rows go. */
-const TARGET_WORD: Record<string, string> = { google_sheets: "Sheet", airtable: "Table", notion: "Database" };
+const TARGET_WORD: Record<string, string> = { google_sheets: "Sheet", airtable: "Table", notion: "Database", postgres: "Table", mysql: "Table", excel: "Workbook" };
 type Target = { id: string; name: string; url?: string; sheet?: string };
 
-// Google Sheets, Airtable and Notion (docs/integrations-plan.md step 2): a row per fill in the sheet, table or
-// database picked here. Google Sheets makes a new sheet or takes one's link; Airtable and Notion pick from their own list.
+// Google Sheets, Airtable, Notion, Excel Online, PostgreSQL and MySQL (docs/integrations-plan.md step 2): a row per
+// fill in the sheet, table or database picked here. Google Sheets makes a new sheet or takes one's link; Airtable and
+// Notion pick from their own list; Excel picks a workbook or takes one's link; PostgreSQL and MySQL take a table name
+// and make the table if it isn't there.
 function RowsPane({ sb, session, ws, form, formId, dests, failed, reload, source, logo }: Props & { source: SourceRow; logo: React.ReactNode }) {
   const d = dests.find((x) => x.kind === "source" && x.source_id === source.id);
   const google = source.kind === "google_sheets";
+  const xl = source.kind === "excel";
+  // Where a pasted link goes: a sheet or a workbook.
+  const thing = xl ? "workbook" : "sheet";
+  const sql = source.kind === "postgres" || source.kind === "mysql";
   const word = TARGET_WORD[source.kind] ?? "Table";
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [link, setLink] = useState("");
+  // A table name from the form's: "Book a demo" → book_a_demo_fills.
+  const [table, setTable] = useState(() => {
+    const n = (form.title ?? "").toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 50);
+    return `${n && /^[a-z]/.test(n) ? n : `form_${n}`.replace(/_+$/, "")}_fills`;
+  });
   const note = useNote();
   const headers = { Authorization: `Bearer ${session.access_token}` };
-  const targets = useQuery(google ? null : `tool_targets:${source.id}`, async () => {
+  const targets = useQuery(google || sql ? null : `tool_targets:${source.id}`, async () => {
     const res = await fetch(`/api/forms/tool-targets?workspaceId=${encodeURIComponent(ws.id)}&sourceId=${encodeURIComponent(source.id)}`, { headers });
     const j = (await res.json().catch(() => ({}))) as { targets?: Target[]; error?: string };
     if (!j.targets) throw new Error(j.error ?? `Couldn't read the ${word.toLowerCase()}s.`);
@@ -482,14 +493,18 @@ function RowsPane({ sb, session, ws, form, formId, dests, failed, reload, source
     void run(async () => {
       await save(await sheet({ action: "link", link: l }));
       setLink("");
-    }, "Rows go to that sheet now");
+    }, `Rows go to that ${thing} now`);
+  };
+  const takeTable = () => {
+    const t = table.trim();
+    if (t) void run(() => sheet({ action: "table", name: t }).then(save), `Rows go to ${t} now`);
   };
   const fails = useQuery(`form:${formId}:fails:${d?.id ?? ""}:${failed[d?.id ?? ""] ?? 0}`, async () => (d ? ((must(await sb.from("deliveries").select("id, error").eq("destination_id", d.id).eq("status", "failed").order("created_at", { ascending: false }).limit(200)) ?? []) as { id: string; error: string | null }[]) : []));
   const target = d ? targetOf(d.config) : null;
   const picker = (
     <Select
       value={target?.id ?? ""}
-      options={(targets.data ?? []).map((t) => ({ value: t.id, label: t.name }))}
+      options={[...(targets.data ?? []), ...(target && !targets.data?.some((t) => t.id === target.id) ? [target] : [])].map((t) => ({ value: t.id, label: t.name }))}
       ariaLabel={word}
       placeholder={targets.data ? `Pick a ${word.toLowerCase()}` : "Reading…"}
       disabled={!targets.data || busy}
@@ -502,13 +517,13 @@ function RowsPane({ sb, session, ws, form, formId, dests, failed, reload, source
   );
   const linkRow = (
     <div className={CROW}>
-      <RowText title={target ? "Use another sheet" : "Use a sheet I have"} />
+      <RowText title={target ? `Use another ${thing}` : xl ? "Or paste its link" : "Use a sheet I have"} />
       <div className="flex min-w-0 flex-1 items-center justify-end gap-[6px] max-[860px]:basis-full">
         <input
           value={link}
           maxLength={1000}
-          aria-label="Sheet link"
-          placeholder="Paste the sheet's link"
+          aria-label={xl ? "Workbook link" : "Sheet link"}
+          placeholder={`Paste the ${thing}'s link`}
           onChange={(e) => setLink(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === "Enter") {
@@ -524,6 +539,22 @@ function RowsPane({ sb, session, ws, form, formId, dests, failed, reload, source
       </div>
     </div>
   );
+  const tableBox = (
+    <input
+      value={table}
+      maxLength={127}
+      aria-label="Table name"
+      spellCheck={false}
+      onChange={(e) => setTable(e.target.value)}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          takeTable();
+        }
+      }}
+      className="h-[32px] min-w-0 flex-1 rounded-[8px] bg-card px-[10px] font-mono text-[12.5px] text-ink shadow-input outline-none placeholder:text-faint focus:shadow-focus"
+    />
+  );
 
   if (!d || !target)
     return (
@@ -533,7 +564,19 @@ function RowsPane({ sb, session, ws, form, formId, dests, failed, reload, source
           <H3>{source.name}</H3>
         </div>
         <ErrorNote message={error || targets.error} />
-        {google ? (
+        {sql ? (
+          <>
+            <div className={CARD}>
+              <div className={CROW}>
+                <RowText title="Table" />
+                <div className="flex min-w-0 flex-1 items-center justify-end max-[860px]:basis-full">{tableBox}</div>
+              </div>
+            </div>
+            <button type="button" className={`${BTN} self-start`} disabled={busy || !table.trim()} onClick={takeTable}>
+              {`Send rows to ${source.name}`}
+            </button>
+          </>
+        ) : google ? (
           <>
             <button type="button" className={`${BTN} self-start`} disabled={busy} onClick={makeNew}>
               Send rows to a new sheet
@@ -546,6 +589,7 @@ function RowsPane({ sb, session, ws, form, formId, dests, failed, reload, source
               <RowText title={word} />
               {picker}
             </div>
+            {xl ? linkRow : null}
           </div>
         )}
         {note.node}
@@ -575,7 +619,9 @@ function RowsPane({ sb, session, ws, form, formId, dests, failed, reload, source
       <div className={CARD}>
         <div className={CROW}>
           <RowText title={word} />
-          {google ? (
+          {sql ? (
+            <span className="min-w-0 font-mono text-[12.5px] text-ink [overflow-wrap:anywhere]">{target.name}</span>
+          ) : google ? (
             <div className="flex min-w-0 flex-wrap items-center justify-end gap-[6px]">
               <span className="min-w-0 text-[13px] text-ink [overflow-wrap:anywhere]">{target.name}</span>
               {target.url ? (
@@ -595,6 +641,18 @@ function RowsPane({ sb, session, ws, form, formId, dests, failed, reload, source
             </div>
           )}
         </div>
+        {sql ? (
+          <div className={CROW}>
+            <RowText title="Use another table" />
+            <div className="flex min-w-0 flex-1 items-center justify-end gap-[6px] max-[860px]:basis-full">
+              {tableBox}
+              <button type="button" className={GHOST_SM} disabled={busy || !table.trim() || table.trim() === target.id} onClick={takeTable}>
+                Use
+              </button>
+            </div>
+          </div>
+        ) : null}
+        {xl ? linkRow : null}
         {google ? (
           <>
             {linkRow}
