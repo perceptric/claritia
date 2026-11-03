@@ -823,6 +823,151 @@ Forms and booking are sold like Fillout and Calendly: a small plan fee plus a se
 | Lead tools | Answers go to Contacts | Custom endings, redirect | Prevent duplicate submissions | Partial submissions, drop-off tracking, A/B tests, pixels, enrichment (200 a month) |
 | Integrations | Webhooks, CSV | HubSpot, Omniscient, Google Sheets, Slack | Same | Salesforce |
 
+### 10.1.1 Every feature, plan by plan
+
+**Free: all the basics**
+
+- Forms
+  - Unlimited forms and questions
+  - Multi-page forms with a progress bar
+  - 30+ field types: text, long text, email, phone, number, single and multiple choice, picker, checkboxes, date, time, rating, scale, yes or no, address, URL, file upload, consent
+  - Conditional logic (show, hide, skip, jump)
+  - Answer piping (use an earlier answer in a later question)
+  - Calculations and scoring
+  - Hidden fields (UTM tags, page, referrer, segment)
+  - Pre-fill from the link
+  - Field validation and required fields
+  - Save and resume a half-filled form
+  - Thank-you message
+  - File uploads up to 20 MB
+  - Collect payments with Stripe (Stripe's own fees apply)
+  - Ready-made themes
+  - Works on phones, by keyboard and with screen readers
+- Sharing
+  - Share link on `forms.tryclaritia.com`
+  - Embed by script tag: inline, popup or slide-in
+  - Native on Claritia pages
+  - QR code
+- Spam and consent
+  - Honeypot, Cloudflare Turnstile and a rate limit per network
+  - Disposable email blocking and email checks
+  - Consent block worded by region, saved with the exact wording
+- Booking
+  - 1 calendar (Google or Microsoft), connected in one click
+  - 1 booking page
+  - Working hours, buffer time, minimum notice and a daily limit
+  - Time zone found on its own
+  - Video link added on its own (Google Meet, Microsoft Teams, Zoom)
+  - Book straight from a form after submit
+  - Reschedule and cancel links
+- Reminders
+  - Confirmation email with a calendar invite
+  - Email reminders 24 hours and 1 hour before
+  - Emails when a meeting is moved or canceled
+- AI (100 credits a month)
+  - Write a form from one sentence
+  - Suggest the next question
+  - Write booking page text
+  - Translate a form
+- Contacts
+  - Every answer lands on a contact
+  - Repeat sign-ups merge by email
+  - Timeline of forms and meetings on each contact
+- Results and data
+  - Summary page with a chart for each question
+  - Email to you on each submission
+  - CSV export and import
+  - Webhooks
+- Account
+  - 1 seat, unlimited admins
+  - Claritia badge
+  - Help center and email support
+
+**Starter: everything in Free, plus**
+
+- 2,000 submissions and 500 AI credits a month
+- Extra seats at $8 ($6 yearly)
+- Forms
+  - Premium fields: signature, matrix, ranking, payment amount picked by the person
+  - Custom endings, and a different ending for each answer
+  - Redirect on completion
+  - Your logo
+  - Custom themes (colors, Google Fonts, corners, background image)
+  - Copy of the answers emailed to the person who filled the form
+  - Progressive profiling (known contacts aren't asked again)
+  - Small Claritia badge
+- Booking
+  - 3 calendars per seat
+  - Unlimited booking pages
+  - One-on-one and group meetings
+  - Custom questions on the booking page
+  - Paid meetings with Stripe
+  - Secret booking links
+- Reminders
+  - Custom wording for confirmations and reminders
+  - Your own reminder times
+- Integrations
+  - HubSpot, Omniscient, Google Sheets, Slack, Zapier, Make
+- Support by email within one business day
+
+**Pro: everything in Starter, plus**
+
+- 5,000 submissions and 2,000 AI credits a month
+- Extra seats at $15 ($12 yearly)
+- Forms
+  - Remove all branding
+  - Custom fonts and favicon
+  - Custom CSS
+  - Custom share link and share preview
+  - Emails sent from your own domain
+  - Prevent duplicate submissions
+- Booking
+  - 10 calendars per seat
+  - Team booking (everyone needed in one meeting)
+  - Meeting limits per rep
+  - Vacation and a backup rep
+- Routing
+  - Routing forms (route by any answer)
+  - Round robin: even, weighted or by who's free first
+  - Book the right rep right after the form
+  - Routing log showing why each lead went where
+- Reminders
+  - SMS reminders (100 a month)
+  - Custom follow-up emails after the meeting
+  - No-show follow-up
+  - Ask to confirm before the meeting
+- AI
+  - Suggest routing rules
+  - Summary of answers for the rep before the meeting
+- Meeting reports (booked, held, no-show, by rep)
+- Priority email support
+
+**Business: everything in Pro, plus**
+
+- Unlimited submissions and 5,000 AI credits a month
+- Extra seats at $25 ($20 yearly)
+- Forms
+  - Custom domain (`forms.yourcompany.com`)
+  - Partial submissions
+  - Drop-off by question
+  - Views, starts and conversion rate for each form
+  - A/B tests
+  - Meta, LinkedIn and Google Ads pixels, and Google Analytics 4
+  - Custom code and HTML block
+  - Pre-fetch data from a webhook
+  - File uploads up to 1 GB
+- Booking and routing
+  - Unlimited calendars
+  - Route to the account owner in HubSpot, Omniscient or Salesforce
+  - Salesforce sync
+  - Alert when a routed lead isn't booked within a set time
+- Enrichment (200 a month): company, size, industry, role
+- SMS reminders (300 a month)
+- Audit log
+- Priority chat support
+
+Payments, video links, pixels and Google Analytics use free APIs. File uploads and SMS are inside the costs in Part 11.4.
+
 ### 10.2 Marketing add-on
 
 | Add-on | Price | Includes |
