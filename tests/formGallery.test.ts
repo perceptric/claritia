@@ -11,6 +11,9 @@ import { allFields, checkForm, visibility, type Form } from "../src/lib/forms/sc
 import { filterTemplates, menuCounts, MENUS, picksFromQuery, picksToQuery, shownValues, valuesIn } from "../src/lib/forms/gallery/filter.ts";
 import { categoryFamily, featuresOf, isCategory, isSub, isTeam, layoutOf, lengthOf, MIN_SHOWN, subParent } from "../src/lib/forms/gallery/taxonomy.ts";
 import { INDUSTRIES } from "../src/lib/forms/gallery/types.ts";
+import { kitBooks, kitMeeting, kitWorkflows } from "../src/lib/forms/gallery/kit.ts";
+import { templateByKey } from "../src/lib/workflows/templates.ts";
+import { cleanBody } from "../src/lib/workflows/check.ts";
 
 const checked = (f: Form) => {
   const r = checkForm(JSON.parse(JSON.stringify(f)));
@@ -174,4 +177,37 @@ test("no two templates in one category ask the same questions in the same order"
       seen.set(key, t.id);
     }
   }
+});
+
+test("wired templates: the meeting only when there's one to pick, and follow-ups as drafts on the form", () => {
+  // Never a guess: one active meeting is booked; none or several leave it for the owner.
+  assert.equal(kitMeeting([]), null);
+  assert.equal(kitMeeting([{ id: "a", active: true }]), "a");
+  assert.equal(kitMeeting([{ id: "a", active: true }, { id: "b", active: true }]), null);
+  assert.equal(kitMeeting([{ id: "a", active: false }, { id: "b", active: true }]), "b");
+  const form = "00000000-0000-4000-8000-000000000001";
+  const meeting = "00000000-0000-4000-8000-000000000002";
+  for (const t of TEMPLATES) {
+    // A booking template with the meeting set still passes the form check.
+    if (kitBooks(t)) {
+      const f = templateForm(t);
+      checked({ ...f, after: { ...f.after, schedule: { tool: "claritia", url: "", meetingTypeId: meeting, perOwner: false } } });
+    }
+    for (const key of kitWorkflows(t)) {
+      const w = templateByKey(key);
+      assert.ok(w, `${t.id}: workflow template ${key}`);
+      const body = w!.body();
+      if ("forms" in body.trigger) body.trigger = { ...body.trigger, forms: [form] };
+      const clean = cleanBody(JSON.parse(JSON.stringify(body)));
+      assert.deepEqual("forms" in clean.trigger ? clean.trigger.forms : [form], [form], `${t.id}: starts on the new form`);
+      const emails = JSON.stringify(clean.steps);
+      assert.ok(!emails.includes('"approved":true'), `${t.id}: every email starts unapproved`);
+    }
+    if (t.internal) assert.deepEqual(kitWorkflows(t), [], `${t.id}: internal forms send no follow-up`);
+  }
+  assert.deepEqual(kitWorkflows(templateById("saas.demo-request")!), ["demo_request"]);
+  assert.deepEqual(kitWorkflows(templateById("general.book-a-call")!), ["not_booked"]);
+  assert.deepEqual(kitWorkflows(templateById("events.registration")!), ["event"]);
+  assert.deepEqual(kitWorkflows(templateById("general.nps")!), []);
+  assert.ok(valuesIn(templateById("general.waitlist")!, "does").includes("follow-up"));
 });

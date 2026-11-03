@@ -9,6 +9,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { industryLabel, questionCount, templateBySlug, templateSlug, templateTheme, TEMPLATES } from "@/lib/forms/gallery/catalog";
 import { styleTokens, templateForm } from "@/lib/forms/gallery/convert";
+import { kitBooks, kitWorkflows } from "@/lib/forms/gallery/kit";
 import { filterTemplates, menuCounts, MENUS, picksFromQuery, picksToQuery, shownValues, valueLabel, type Menu, type Picks, type Sort } from "@/lib/forms/gallery/filter";
 import { LENGTHS, lengthOf } from "@/lib/forms/gallery/taxonomy";
 import { FONTS, fontsUrl, isTheme, themeById, THEMES, type FontKey, type Theme } from "@/lib/forms/gallery/themes";
@@ -299,6 +300,7 @@ export function TemplatesPage({ ws, session, navigate, id }: ViewProps) {
       invalidate(`forms:${ws.id}:home`);
       invalidate(`form_names:${ws.id}`);
       invalidate("app_counts");
+      invalidate(`workflows:${ws.id}`);
       navigate("forms", r.id);
     } catch (e) {
       setError(errorText(e));
@@ -482,6 +484,18 @@ export function TemplatesPage({ ws, session, navigate, id }: ViewProps) {
         >
           <div className="flex flex-col gap-[14px] p-[16px]">
             <p className="text-[13px] text-muted">{open.blurb}</p>
+            <div aria-label="Comes with" className="flex flex-wrap items-center gap-[6px] text-[12.5px] text-body">
+              {["Form", ...(kitBooks(open) ? ["Meeting"] : []), ...(kitWorkflows(open).length ? ["Follow-up"] : [])].map((x, i) => (
+                <span key={x} className="flex items-center gap-[6px]">
+                  {i ? (
+                    <span aria-hidden="true" className="-rotate-90 text-faint">
+                      <Ic n="chev" />
+                    </span>
+                  ) : null}
+                  <span className="inline-flex h-[24px] items-center rounded-full border border-line bg-card px-[10px]">{x}</span>
+                </span>
+              ))}
+            </div>
             <div className="flex flex-col gap-[8px]">
               <p className={EYEBROW}>
                 Style <span className="normal-case">{theme.name}</span>

@@ -2,6 +2,7 @@
 // each template, and the menus worked out from the form itself (features, layout, length, what it does next), which
 // can never be wrong. A value shows only when MIN_SHOWN templates have it.
 
+import { kitWorkflows } from "./kit.ts";
 import type { FieldKind, FormTemplate, Industry } from "./types.ts";
 
 /** A menu value shows only when this many templates have it. */
@@ -294,7 +295,6 @@ export type Length = (typeof LENGTHS)[number]["id"];
 /** What happens after the send. */
 export const DOES = [
   { id: "meeting", label: "Books a meeting" },
-  { id: "routes", label: "Routes to a teammate" },
   { id: "payment", label: "Takes payment" },
   { id: "price", label: "Shows a price" },
   { id: "score", label: "Shows a score" },
@@ -379,12 +379,11 @@ const hasEmail = (t: FormTemplate) => t.schema.pages.some((p) => p.fields.some((
 export function doesOf(t: FormTemplate): Does[] {
   const out: Does[] = [];
   if (t.schema.end.booking) out.push("meeting");
-  if (t.kit?.routes?.length) out.push("routes");
   const fields = t.schema.pages.flatMap((p) => p.fields);
   if (fields.some((f) => f.kind === "payment")) out.push("payment");
   if (fields.some((f) => f.kind === "calc" && f.visible !== false && f.format === "money")) out.push("price");
   if (t.schema.end.score?.length) out.push("score");
-  if (t.kit?.followUp?.length) out.push("follow-up");
+  if (kitWorkflows(t).length) out.push("follow-up");
   if (!hasEmail(t)) out.push("anonymous");
   return out;
 }

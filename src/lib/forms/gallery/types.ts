@@ -281,15 +281,9 @@ export type FormTemplate = {
   schema: FormSchema;
 };
 
-/** A route by answer: when the condition holds, the meeting goes to this kind of teammate. */
-export type KitRoute = { when: Cond; to: string };
-/** One follow-up email after the send: days after, subject and body (with {first_name} and the like). */
-export type KitEmail = { days: number; subject: string; body: string };
 export type TemplateKit = {
-  /** The meeting a booking template books: its name and length in minutes. */
-  meeting?: { name: string; minutes: number };
-  routes?: KitRoute[];
-  followUp?: KitEmail[];
+  /** Workflows templates (src/lib/workflows/templates.ts) made as draft follow-ups on the new form; [] for none. */
+  workflows?: string[];
 };
 
 /** Answer values, by kind. */
