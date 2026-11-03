@@ -351,7 +351,7 @@ function Handoff({ session, ws, d, contact, onClose, onDone }: Pick<ViewProps, "
         {step === "failed" ? <Result badge={<Badge tone="red" dot>Not confirmed</Badge>} text={`Lead assigned to ${firstName(who(done?.owner))}. Meeting not confirmed.`} /> : null}
         <ErrorNote message={error} />
       </div>
-      <div className="flex shrink-0 items-center justify-end gap-2 border-t border-line bg-paper px-5 py-3">
+      <div className="flex shrink-0 flex-wrap items-center justify-end gap-2 border-t border-line bg-paper px-5 py-3">
         {step === "found" && recipient ? (
           <>
             <Button variant="ghost" disabled={busy || blocked || (!!other && !reason.trim())} onClick={() => void confirm(false)}>

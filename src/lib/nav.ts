@@ -1,18 +1,12 @@
-// The sidebar: Forms, Meetings and Workflows, then Settings. Each item is one route; pages inside a route are tabs
-// under its title, each with its own address. The app opens on Forms. Old addresses keep working: they forward to
+// The sidebar: Forms, Meetings and Workflows, with no group titles, and Settings at the very bottom. Each item is one
+// route; pages inside a route are tabs under its title, each with its own address. The app opens on Forms. Old addresses keep working: they forward to
 // their new page, and the removed CRM, Enrichment, Scoring and Visitors open Forms.
 
 export type Route = "meetings" | "workflows" | "routing" | "forms" | "scheduling" | "emails" | "settings";
 
-export type GroupKey = "inbound" | "nurture" | "settings";
-export type Tone = "sky" | "clay" | "sage" | "butter";
-
-/** A group's color tile (docs/brand.md: sidebar groups) and its title; an empty title draws a rule. */
-export const GROUPS: { key: GroupKey; label: string; tone: Tone | null }[] = [
-  { key: "inbound", label: "Inbound", tone: "sage" },
-  { key: "nurture", label: "Nurture", tone: "butter" },
-  { key: "settings", label: "", tone: null },
-];
+/** "main": the three sections, at the top. "settings": Settings, at the bottom of the sidebar. */
+export type GroupKey = "main" | "settings";
+export const GROUPS: { key: GroupKey }[] = [{ key: "main" }, { key: "settings" }];
 
 export type NavItem = {
   /** Unique, for keys and the command bar. */
@@ -32,9 +26,9 @@ const item = (group: GroupKey, route: Route, label: string): NavItem => ({ key: 
  * Routing has no item of its own: its old addresses open where its parts went (resolveRoute).
  */
 export const NAV: NavItem[] = [
-  item("inbound", "forms", "Forms"),
-  item("inbound", "scheduling", "Meetings"),
-  item("nurture", "workflows", "Workflows"),
+  item("main", "forms", "Forms"),
+  item("main", "scheduling", "Meetings"),
+  item("main", "workflows", "Workflows"),
   item("settings", "settings", "Settings"),
 ];
 

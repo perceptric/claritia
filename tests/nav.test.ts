@@ -15,14 +15,15 @@ import {
   teamsPage,
 } from "../src/lib/nav.ts";
 
-test("the sidebar is Forms, Meetings and Workflows, then Settings", () => {
+test("the sidebar is Forms, Meetings and Workflows, with Settings at the bottom", () => {
   assert.deepEqual(
     GROUPS.map((g) => g.key),
-    ["inbound", "nurture", "settings"],
+    ["main", "settings"],
   );
   const by = (g: string) => NAV.filter((n) => n.group === g).map((n) => n.label);
   assert.deepEqual(NAV.map((n) => n.label), ["Forms", "Meetings", "Workflows", "Settings"]);
-  assert.deepEqual(by("inbound"), ["Forms", "Meetings"], "Routing lives in forms and meetings");
+  assert.deepEqual(by("main"), ["Forms", "Meetings", "Workflows"], "three sections, no group titles");
+  assert.deepEqual(by("settings"), ["Settings"]);
   // The CRM, Enrichment, Scoring, Segments and Visitors are gone: their addresses open Forms.
   for (const gone of ["contacts", "companies", "opportunities", "objects", "enrichment", "scoring", "segments", "visitors", "signals", "leads", "people", "accounts"])
     assert.deepEqual(resolveRoute(gone, "11111111-1111-4111-8111-111111111111"), { route: "forms", id: "" }, gone);

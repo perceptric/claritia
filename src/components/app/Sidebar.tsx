@@ -1,13 +1,13 @@
 "use client";
 
-// The side rail (docs/app-structure.md Part 1): Create, Search, then the groups from src/lib/nav.ts. Groups fold (the
-// fold is kept on this computer; the open page's group never folds), and Needs review and Meetings show a count. The
+// The side rail (docs/app-structure.md Part 1): Create, Search, then Forms, Meetings and Workflows from src/lib/nav.ts
+// with no group titles, and Settings at the very bottom above the account row. Items can show a count. The
 // open item is a white chip with a hairline, like Omniscient. Folds to icons between 768 and 1,280 px, and on wider
 // screens when the person folds it (kept on this computer) or while Form Studio is open (docs/studio-v2-plan.md,
 // Part 1: the Studio sends "claritia:studio"; leaving it puts the sidebar back the way it was).
 
 import { useEffect, useState } from "react";
-import { activeItem, GROUPS, NAV, type GroupKey, type NavItem, type Route as NavRoute } from "@/lib/nav";
+import { activeItem, NAV, type NavItem, type Route as NavRoute } from "@/lib/nav";
 import {
   Box,
   Branch,
@@ -39,7 +39,6 @@ export const NAV_ICONS: Record<string, React.ReactNode> = {
   settings: <Settings size={14} />,
 };
 
-const FOLD_KEY = "claritia:nav-folded";
 const RAIL_KEY = "claritia:nav-rail";
 
 /** Icons only, on wide screens too: the person's choice, or folded while Form Studio is open. */
@@ -68,15 +67,6 @@ function useRail(): [boolean, () => void] {
   return [rail, toggle];
 }
 
-function readFolded(): Set<GroupKey> {
-  try {
-    const v = JSON.parse(localStorage.getItem(FOLD_KEY) ?? "[]");
-    return new Set(Array.isArray(v) ? (v as GroupKey[]) : []);
-  } catch {
-    return new Set();
-  }
-}
-
 export type CreateItem = { group: string; label: string; run: () => void };
 
 export type SidebarProps = {
@@ -103,17 +93,6 @@ export function Sidebar(p: SidebarProps) {
   const [rail, toggleRail] = useRail();
   // Wide-screen classes apply only when the sidebar isn't folded to icons.
   const xl = (c: string) => (rail ? "" : c);
-  const [folded, setFolded] = useState<Set<GroupKey>>(() => (typeof window === "undefined" ? new Set() : readFolded()));
-  const toggle = (g: GroupKey) =>
-    setFolded((s) => {
-      const next = new Set(s);
-      if (next.has(g)) next.delete(g);
-      else next.add(g);
-      try {
-        localStorage.setItem(FOLD_KEY, JSON.stringify([...next]));
-      } catch {}
-      return next;
-    });
 
   return (
     <aside className={`flex shrink-0 flex-col gap-2.5 p-3 transition-[width] duration-200 md:h-full md:w-[68px] md:py-4 ${xl("xl:w-60")}`}>
@@ -132,35 +111,20 @@ export function Sidebar(p: SidebarProps) {
         <span className={`flex-1 text-left md:hidden ${xl("xl:inline")}`}>Search</span>
         <kbd className={`font-mono text-[11px] text-faint md:hidden ${xl("xl:inline")}`}>⌘K</kbd>
       </button>
-      <nav aria-label="Main" className="-mx-1 flex gap-1 overflow-x-auto px-1 md:min-h-0 md:flex-1 md:flex-col md:gap-0 md:overflow-y-auto md:overflow-x-hidden">
-        {GROUPS.map((g) => {
-          const items = NAV.filter((n) => n.group === g.key);
-          const open = !folded.has(g.key) || active?.group === g.key;
-          return (
-            <div key={g.key} role="group" aria-label={g.label || undefined} className="flex shrink-0 gap-1 md:flex-col md:gap-0.5">
-              {g.label ? (
-                <button
-                  type="button"
-                  onClick={() => toggle(g.key)}
-                  aria-expanded={open}
-                  className={`group/head mt-3 mb-0.5 hidden h-6 items-center gap-1 rounded-md px-2 text-left text-[11.5px] text-faint transition-colors duration-[140ms] hover:text-ink ${xl("xl:flex")}`}
-                >
-                  <span className="flex-1">{g.label}</span>
-                  <ChevronDown size={12} className={`opacity-0 transition-[transform,opacity] duration-[140ms] group-hover/head:opacity-100 ${open ? "" : "-rotate-90 opacity-100"}`} />
-                </button>
-              ) : (
-                <span aria-hidden="true" className="mx-2 mt-3 mb-2 hidden h-px bg-line md:block" />
-              )}
-              <div className={`flex gap-1 md:flex-col md:gap-0.5 ${open || rail ? "" : "xl:hidden"}`}>
-                {items.map((n) => (
-                  <NavLink key={n.key} n={n} on={active?.key === n.key} count={p.counts[n.key]} dot={!!p.dots?.[n.key]} navigate={p.navigate} preload={p.onPreload} rail={rail} />
-                ))}
-              </div>
-            </div>
-          );
-        })}
+      <nav aria-label="Main" className="-mx-1 flex gap-1 overflow-x-auto px-1 md:mt-3 md:min-h-0 md:flex-1 md:flex-col md:gap-0.5 md:overflow-y-auto md:overflow-x-hidden">
+        {NAV.map((n) => (
+          // Settings sits at the bottom of the sidebar on wider screens; on phones it stays in the row.
+          <span key={n.key} className={n.group === "settings" ? "contents md:hidden" : "contents"}>
+            <NavLink n={n} on={active?.key === n.key} count={p.counts[n.key]} dot={!!p.dots?.[n.key]} navigate={p.navigate} preload={p.onPreload} rail={rail} />
+          </span>
+        ))}
       </nav>
       {p.start}
+      <div className="hidden flex-col gap-0.5 md:flex">
+        {NAV.filter((n) => n.group === "settings").map((n) => (
+          <NavLink key={n.key} n={n} on={active?.key === n.key} count={p.counts[n.key]} dot={!!p.dots?.[n.key]} navigate={p.navigate} preload={p.onPreload} rail={rail} />
+        ))}
+      </div>
       <div className={`hidden items-center gap-1 px-1 pt-1 md:flex md:flex-col ${xl("xl:flex-row")}`}>
         <Avatar label={p.email} size={28} />
         <span className={`ml-1 min-w-0 flex-1 truncate text-[12.5px] text-body md:hidden ${xl("xl:inline")}`}>{p.email}</span>

@@ -449,7 +449,7 @@ export function Button({ variant = "primary", size = "md", className = "", ...pr
   return (
     <button
       {...props}
-      className={`press inline-flex items-center justify-center gap-1.5 rounded-full font-medium whitespace-nowrap transition-[background-color,border-color,transform] duration-[120ms] disabled:pointer-events-none disabled:opacity-45 ${size === "sm" ? "h-8 px-3.5 text-[12.5px]" : "h-9 px-4 text-[13.5px]"} ${look} ${className}`}
+      className={`press inline-flex max-w-full min-w-0 items-center justify-center gap-1.5 rounded-full font-medium whitespace-nowrap transition-[background-color,border-color,transform] duration-[120ms] disabled:pointer-events-none disabled:opacity-45 ${size === "sm" ? "h-8 px-3.5 text-[12.5px]" : "h-9 px-4 text-[13.5px]"} ${look} ${className}`}
     />
   );
 }

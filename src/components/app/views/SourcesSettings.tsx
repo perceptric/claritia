@@ -62,29 +62,35 @@ export function SourcesSettings({ sb, session, ws, role }: Pick<ViewProps, "sb" 
         {SENDS.map((e) => {
           const on = connected.get(e.kind);
           return (
-            <div key={e.kind} className="flex min-w-0 flex-wrap items-center gap-3 rounded-lg border border-line bg-card px-4 py-3.5 text-[13px]">
-              <BrandLogo domain={e.domain} name={e.label} size={24} />
-              <span className="flex min-w-0 flex-col">
-                <span className="truncate font-medium">{e.label}</span>
-                {on?.account ? <span className="truncate font-mono text-[11px] text-faint">{on.account}</span> : null}
-              </span>
-              <span className="ml-auto flex shrink-0 items-center gap-2">
-                {on ? <Badge tone={on.status === "error" ? "red" : "green"} dot>{on.status === "error" ? "Error" : "Connected"}</Badge> : null}
-                {on && owner && e.hook && !hooks[on.id] ? (
-                  <Button variant="ghost" size="sm" onClick={() => void showHook(on)}>
-                    Webhook URL
-                  </Button>
-                ) : null}
-                {on && owner ? (
-                  <Button variant="ghost" size="sm" onClick={() => void disconnect(on)}>
-                    Disconnect
-                  </Button>
-                ) : !on && owner ? (
+            <div key={e.kind} className="flex min-w-0 flex-col gap-3 rounded-lg border border-line bg-card px-4 py-3.5 text-[13px]">
+              <div className="flex min-w-0 items-center gap-3">
+                <BrandLogo domain={e.domain} name={e.label} size={24} />
+                <span className="flex min-w-0 flex-1 flex-col">
+                  <span className="truncate font-medium">{e.label}</span>
+                  {on?.account && on.account !== e.label ? <span className="truncate font-mono text-[11px] text-faint">{on.account}</span> : null}
+                </span>
+                {on ? (
+                  <Badge tone={on.status === "error" ? "red" : "green"} dot>
+                    {on.status === "error" ? "Error" : "Connected"}
+                  </Badge>
+                ) : owner ? (
                   <Button variant="ghost" size="sm" onClick={() => setConnect(e)}>
                     Connect
                   </Button>
                 ) : null}
-              </span>
+              </div>
+              {on && owner ? (
+                <div className="flex min-w-0 flex-wrap items-center gap-2">
+                  {e.hook && !hooks[on.id] ? (
+                    <Button variant="ghost" size="sm" onClick={() => void showHook(on)}>
+                      Webhook URL
+                    </Button>
+                  ) : null}
+                  <Button variant="ghost" size="sm" onClick={() => void disconnect(on)}>
+                    Disconnect
+                  </Button>
+                </div>
+              ) : null}
               {on && hooks[on.id] ? (
                 <div className="flex w-full min-w-0 items-center gap-2">
                   <code className="min-w-0 flex-1 truncate rounded-sm border border-line bg-paper px-2.5 py-1.5 font-mono text-[12px]">{hooks[on.id]}</code>

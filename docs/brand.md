@@ -98,7 +98,8 @@ frame.
 
 A white panel (`card`, 16px, a hairline and `shadow-xs`) inset on the gray shell (`paper-deep`). The side rail has
 plain icons and quiet gray labels. The open item is a white chip with a hairline and a faint shadow, like Omniscient.
-Counts are small gray pills. "Create" is the rail's one black button.
+Counts are small gray pills. "Create" is the rail's one black button. The rail has no group titles: Forms, Meetings and
+Workflows at the top, Settings at the very bottom above the account row.
 
 ## 3a. CRM screens, copied from Omniscient
 
@@ -135,6 +136,7 @@ pages (`src/app/u/[token]`, the meeting outcome page) and Claritia's own emails 
 - Black is the one primary action. Emerald is the signal, about 5% of a view. No gradients. No emoji.
 - Cards sit flat; shadows only on the page panel, the one frame and floating things.
 - The sparkle marks AI. Anything AI made gets the "AI" tag.
+- Nothing spills out of its box at any width: rows of buttons wrap, long words truncate (`tests/overflow.test.ts`).
 - Kept: no `<select>` or browser pop-ups, minimal copy, the `ToolIntro` pattern, running cost on every build.
 
 ## 7. Running cost

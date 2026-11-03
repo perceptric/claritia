@@ -133,7 +133,7 @@ export function AiPanel({
           placeholder="Make the intro shorter and add a booking button"
           className="w-full resize-none rounded-sm border border-line-strong bg-card px-2 py-1.5 text-[12.5px] text-ink outline-none placeholder:text-faint focus:border-ink focus:ring-1 focus:ring-ink"
         />
-        <div className="flex items-center gap-1.5">
+        <div className="flex flex-wrap items-center gap-1.5">
           <Button type="submit" disabled={!!busy || !text.trim()}>
             <AiMark size={13} />
             Change

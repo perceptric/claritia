@@ -46,7 +46,7 @@ const OpenView = memo(function OpenView({ route, ...props }: ViewProps & { route
   return <View {...props} />;
 });
 
-const GROUP_LABEL = { inbound: "Inbound", nurture: "Workflows", settings: "App" } as const;
+const GROUP_LABEL = { main: "Go to", settings: "App" } as const;
 
 type Loc = { route: Route; id: string };
 const WITH_ID = new Set<Route>(["forms", "workflows"]);
@@ -194,10 +194,10 @@ export function ClientApp({ config }: { config: SupaConfig }) {
   const email = session.user.email ?? "";
 
   const create: CreateItem[] = [
-    { group: "Inbound", label: "Form", run: () => navigate("forms", "new") },
-    { group: "Inbound", label: "Meeting type", run: () => navigate("scheduling", "types/new") },
-    { group: "Inbound", label: "Single-use link", run: () => navigate("scheduling", "links", "create=single_use") },
-    { group: "Inbound", label: "Poll", run: () => navigate("scheduling", "links", "create=poll") },
+    { group: "Forms", label: "Form", run: () => navigate("forms", "new") },
+    { group: "Meetings", label: "Meeting type", run: () => navigate("scheduling", "types/new") },
+    { group: "Meetings", label: "Single-use link", run: () => navigate("scheduling", "links", "create=single_use") },
+    { group: "Meetings", label: "Poll", run: () => navigate("scheduling", "links", "create=poll") },
     { group: "Workflows", label: "Workflow", run: () => navigate("workflows", "new") },
   ];
 
