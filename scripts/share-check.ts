@@ -158,6 +158,11 @@ async function run(width: number, tag: string) {
 
   await page.goto(`${base}/?view=meeting`);
   await page.locator("[data-share-link]").waitFor();
+  const dlg = await page.getByRole("dialog").boundingBox();
+  // The panel is the right 400 px; the dialog is centered on the whole screen and wider than the panel on a desktop.
+  check(!!dlg && Math.abs(dlg.x + dlg.width / 2 - width / 2) < 24 && (width < 800 || dlg.width > 400), `${tag}: Share opened from a slid-in panel is centered on the screen, never squeezed into the panel (${Math.round(dlg?.width ?? 0)} px at ${Math.round(dlg?.x ?? 0)})`);
+  await page.getByRole("button", { name: "Edit booking page" }).click();
+  check(await page.evaluate(() => !!(window as unknown as { editPage?: boolean }).editPage), `${tag}: Share › Link has Edit booking page`);
   await page.getByRole("img", { name: /QR code for/ }).waitFor();
   check(true, `${tag}: a meeting's link has its QR code`);
   await shot("meeting-link");
@@ -191,6 +196,29 @@ async function run(width: number, tag: string) {
   }
   await page.getByRole("button", { name: "Copy signature" }).click();
   check(await page.getByRole("button", { name: "Copied" }).waitFor({ timeout: 3000 }).then(() => true, () => false), `${tag}: Copy signature says Copied`);
+  // ⋯ › Embed on a website opens Share on the code, the code before the preview.
+  await page.goto(`${base}/?view=meeting&start=site`);
+  await page.getByRole("button", { name: "Copy code" }).waitFor();
+  const codeY = (await page.getByRole("button", { name: "Copy code" }).boundingBox())!.y;
+  const previewY = (await page.locator("iframe[data-site-preview]").boundingBox())!.y;
+  check(codeY < previewY, `${tag}: Embed on a website opens on the code, above the preview`);
+
+  // The sidebar with a long workspace name and email: no word is cut short.
+  if (width >= 1280) {
+    await page.goto(`${base}/?view=sidebar`);
+    await page.getByText("Claritia", { exact: true }).waitFor();
+    await shot("sidebar");
+    const cut = await page.evaluate(() =>
+      [...document.querySelectorAll("aside *")]
+        .filter((e) => e instanceof HTMLElement && e.children.length === 0 && (e.textContent ?? "").trim() && getComputedStyle(e).display !== "none")
+        .filter((e) => (e as HTMLElement).scrollWidth > (e as HTMLElement).clientWidth + 1 || getComputedStyle(e).textOverflow === "ellipsis")
+        .map((e) => (e.textContent ?? "").trim()),
+    );
+    check(cut.length === 0, `${tag}: the sidebar cuts no words (${cut.join(", ")})`);
+    check(await page.getByText("hoanghy2032002@gmail.com's workspace").isVisible(), `${tag}: the workspace name shows in full`);
+    check((await page.getByRole("img", { name: "hoanghy2032002@gmail.com" }).count()) === 1, `${tag}: the account is its avatar, with the email on hover`);
+  }
+
   for (const st of ["none", "pending", "active", "failed"]) {
     await page.goto(`${base}/?view=domain&state=${st}&subs=1`);
     await page.waitForTimeout(300);

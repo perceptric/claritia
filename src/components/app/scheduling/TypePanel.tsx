@@ -31,7 +31,7 @@ import { blankCond, ConditionRows, newRowId, usable } from "../forms/ConditionRo
 import { useRoutingFacts } from "../forms/formRouting";
 import { Arrow } from "../forms/OnSubmission";
 import { bookingBase } from "@/lib/meetings/handles";
-import { ShareMeeting } from "./ShareMeeting";
+import { ShareMeeting, type Pane as SharePane } from "./ShareMeeting";
 
 export type HostStatus = { cal: boolean; out: { from: string; to: string }[] };
 export type Named = { user_id: string; name: string } & Availability;
@@ -170,7 +170,8 @@ export function TypePanel({
   const nameOf = (id: string) => data.byId.get(id)?.name ?? "Former teammate";
   const origin = typeof window === "undefined" ? "" : window.location.origin;
   const url = data.wsSlug && draft.slug ? `${bookingBase(origin)}/book/${data.wsSlug}/${draft.slug}` : "";
-  const [sharing, setSharing] = useState(false);
+  // Share open on a pane: the link, or the code for a website (⋯ › Embed on a website).
+  const [sharing, setSharing] = useState<false | SharePane>(false);
 
   const save = async () => {
     setError("");
@@ -258,7 +259,7 @@ export function TypePanel({
   const kindWord = dynamic ? "Dynamic" : draft.kind === "one" || draft.kind === "group" ? "Individual" : KIND_WORDS[draft.kind];
 
   return (
-    <aside aria-label="Meeting type" className="anim-panel absolute inset-y-0 right-0 z-20 flex w-full flex-col border-l border-line bg-card shadow-[-12px_0_32px_-16px_var(--color-scrim)] md:w-[400px]">
+    <aside aria-label="Meeting type" className="anim-panel absolute inset-y-0 right-0 z-20 flex w-full flex-col border-l border-line bg-card shadow-[-12px_0_32px_-16px_var(--color-scrim)] md:w-[480px] xl:w-[560px]">
       <div className="flex shrink-0 items-start gap-1 border-b border-line pt-3.5 pr-3 pb-3 pl-5">
         <div className="flex min-w-0 flex-1 flex-col">
           <Eyebrow>{kindWord}</Eyebrow>
@@ -272,8 +273,8 @@ export function TypePanel({
             onChange={(e) => set({ name: e.target.value, ...(slugTouched ? {} : { slug: slugify(e.target.value) || "" }) })}
             className="mt-0.5 w-full min-w-0 bg-transparent p-0 text-[17px] font-semibold tracking-[-0.015em] text-ink outline-none placeholder:text-faint focus:shadow-[inset_0_-1px_0_var(--color-ink)]"
           />
-          <span className="mt-2 inline-flex h-6 max-w-full items-center gap-1.5 self-start rounded-full bg-paper-deep pr-1 pl-2.5 font-mono text-[11px] text-body">
-            <span className="truncate">
+          <span className="mt-2 inline-flex min-h-6 max-w-full items-center gap-1.5 self-start rounded-[12px] bg-paper-deep py-0.5 pr-1 pl-2.5 font-mono text-[11px] text-body">
+            <span className="[overflow-wrap:anywhere]">
               /{data.wsSlug ?? "…"}/{draft.slug || "…"}
             </span>
             {url && !isNew ? (
@@ -299,16 +300,18 @@ export function TypePanel({
           <Toggle label={draft.active ? "Bookable" : "Turned off"} on={draft.active} onChange={(active) => set({ active })} />
         </span>
         {row && data.wsSlug ? (
-          <Button variant="ghost" size="sm" onClick={() => setSharing(true)}>
+          <Button variant="ghost" size="sm" onClick={() => setSharing("link")}>
             Share
           </Button>
         ) : null}
         {sharing && row && data.wsSlug ? (
-          <ShareMeeting session={session} ws={ws} type={{ id: row.id, name: draft.name || row.name, slug: row.slug, active: row.active }} wsSlug={data.wsSlug} onClose={() => setSharing(false)} onSingleUse={() => (setSharing(false), navigate("scheduling", "links", "create=single_use"))} />
+          <ShareMeeting session={session} ws={ws} type={{ id: row.id, name: draft.name || row.name, slug: row.slug, active: row.active }} wsSlug={data.wsSlug} start={sharing} onClose={() => setSharing(false)} onSingleUse={() => (setSharing(false), navigate("scheduling", "links", "create=single_use"))} onEditPage={() => (setSharing(false), navigate("scheduling", "booking"))} />
         ) : null}
         {row ? (
           <MoreMenu
             items={[
+              data.wsSlug ? { label: "Embed on a website", run: () => setSharing("site") } : null,
+              { label: "Edit booking page", run: () => navigate("scheduling", "booking") },
               { label: "Duplicate", run: () => void duplicate() },
               { label: "All settings", run: () => navigate("scheduling", `types/${row.id}/all`) },
               !copy || role === "owner" ? { label: "Delete", danger: true, run: () => void remove() } : null,

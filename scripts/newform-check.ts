@@ -82,7 +82,7 @@ try {
   await shot("3-sketch");
   await page.getByRole("radio", { name: "One page" }).first().click();
   check((await cards()) === 1, "the layout switch makes it one page");
-  await page.getByRole("radio", { name: "Steps" }).first().click();
+  await page.getByRole("radio", { name: "Multi-page" }).first().click();
   check((await cards()) >= 2, "and back to steps");
   await page.getByRole("button", { name: "Build the form" }).click();
   check(await page.getByRole("status", { name: "Writing every question" }).first().isVisible(), "screen 3: the throbber shows while it builds");

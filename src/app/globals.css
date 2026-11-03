@@ -348,7 +348,8 @@ body {
   }
 }
 .anim-panel {
-  animation: panel-in var(--duration-calm) var(--ease-out) both;
+  /* backwards: no transform stays once it's in, so menus and dialogs inside aren't held to the panel. */
+  animation: panel-in var(--duration-calm) var(--ease-out) backwards;
 }
 /* A booking page drawn inside the app (Calendar › Booking page): as tall as its content, not the window. */
 .cal-preview .cb-page {

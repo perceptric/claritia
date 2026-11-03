@@ -96,10 +96,10 @@ export function Sidebar(p: SidebarProps) {
 
   return (
     <aside className={`flex shrink-0 flex-col gap-2.5 p-3 transition-[width] duration-200 md:h-full md:w-[68px] md:py-4 ${xl("xl:w-60")}`}>
-      <div className={`flex items-center justify-between gap-2 px-2 md:justify-center ${xl("xl:justify-between")}`}>
-        {/* Folded to icons: the mark alone. */}
+      {/* The mark and the name, never cut; the workspace on its own line, in full. Folded to icons: the mark alone. */}
+      <div className={`flex flex-col gap-1 px-2 md:items-center ${xl("xl:items-stretch")}`}>
         <Logo nameClass={`md:hidden ${xl("xl:inline")}`} />
-        <span className={`truncate text-[12px] text-faint md:hidden ${xl("xl:inline")}`}>{p.wsName}</span>
+        {p.wsName ? <span className={`text-[12px] leading-snug text-faint [overflow-wrap:anywhere] md:hidden ${xl("xl:block")}`}>{p.wsName}</span> : null}
       </div>
       <CreateButton items={p.create} rail={rail} />
       <button
@@ -127,8 +127,11 @@ export function Sidebar(p: SidebarProps) {
         ))}
       </div>
       <div className={`hidden items-center gap-1 px-1 pt-1 md:flex md:flex-col ${xl("xl:flex-row")}`}>
-        <Avatar label={p.email} size={28} />
-        <span className={`ml-1 min-w-0 flex-1 truncate text-[12.5px] text-body md:hidden ${xl("xl:inline")}`}>{p.email}</span>
+        {/* The account as its avatar, the email on hover: nothing cut short. */}
+        <span title={p.email} aria-label={p.email} role="img" className="inline-flex">
+          <Avatar label={p.email} size={28} />
+        </span>
+        <span className={`flex-1 md:hidden ${xl("xl:block")}`} />
         <button type="button" aria-label={p.theme === "dark" ? "Light mode" : "Dark mode"} title={p.theme === "dark" ? "Light mode" : "Dark mode"} onClick={p.onTheme} className="press rounded-full p-2 text-muted hover:bg-hover hover:text-ink">
           {p.theme === "dark" ? <Sun size={15} /> : <Moon size={15} />}
         </button>
@@ -167,7 +170,7 @@ function NavLink({ n, on, count, dot, navigate, icon, preload, rail }: { n: NavI
         {glyph}
         {dot ? <span className={`absolute -top-0.5 -right-0.5 hidden size-1.5 rounded-full bg-butter md:block ${xl("xl:hidden")}`} /> : null}
       </span>
-      <span className={`truncate md:hidden ${xl("xl:inline")}`}>{n.label}</span>
+      <span className={`whitespace-nowrap md:hidden ${xl("xl:inline")}`}>{n.label}</span>
       {dot ? <span role="img" aria-label="Needs a step" title="Needs a step" className={`ml-auto size-1.5 shrink-0 rounded-full bg-butter md:hidden ${xl("xl:block")}`} /> : null}
       {count ? (
         <span className={`${dot ? "ml-1.5" : "ml-auto"} px-1 text-[12px] font-normal tabular-nums text-muted md:hidden ${xl("xl:inline")}`}>{count > 99 ? "99+" : count}</span>
