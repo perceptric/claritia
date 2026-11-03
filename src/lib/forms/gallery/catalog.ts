@@ -19,6 +19,7 @@ import { WAVE1_MONEY } from "./templates/wave1-money.ts";
 import { WAVE1_LEGAL } from "./templates/wave1-legal.ts";
 import { WAVE1_OPS } from "./templates/wave1-ops.ts";
 import { WAVE1_QUIZZES } from "./templates/wave1-quizzes.ts";
+import { WAVE2_MULTIPAGE } from "./templates/wave2-multipage.ts";
 import { defaultThemes } from "./themes.ts";
 import { INDUSTRIES, type FormTemplate, type Industry, type UseCase } from "./types.ts";
 
@@ -58,6 +59,8 @@ const RAW: FormTemplate[] = [
   ...WAVE1_QUIZZES,
   ...WAVE1_APPLY,
   ...WAVE1_MONEY,
+  // Wave 2: long multi-page form templates (docs/multipage-forms-plan.md).
+  ...WAVE2_MULTIPAGE,
 ];
 
 /** A template with its menus: the first 150 take theirs from tags.ts unless they set their own. */

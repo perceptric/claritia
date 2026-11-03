@@ -676,7 +676,7 @@ export const WAVE2_MULTIPAGE: FormTemplate[] = [
   }),
 
   // Hospitality
-  tpl("hospitality.trip-planner", "hospitality", "Trip planner", ["lead", "request"], "Plan a custom trip from travelers, dates, budget and wish list, then book a call.", {
+  tpl("hospitality.trip-planner", "hospitality", "Trip planner", ["lead", "request"], "Plan a trip from travelers, dates, budget and wish list, then book a call.", {
     cats: "quote consultation lead-generation",
     teams: "sales",
     subs: "tours",
