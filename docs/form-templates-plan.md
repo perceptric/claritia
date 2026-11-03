@@ -9,7 +9,7 @@ only Claritia can offer, because a Claritia form books the meeting, routes the l
 
 Built: steps 1 to 5 and most of 6 (`docs/form-templates.md`). 424 templates (the first 150 and wave 1's 274), the menus
 with 85 categories, 38 industries and 16 teams, wired templates, starter kits for 36 industries, the seasonal row,
-See it in your brand, the live demos with calculations, payments and a sample booking step, and Describe your form.
+the live demos with calculations, payments and a sample booking step, and Describe your form.
 The website has 276 list pages and 424 template pages. Two changes from the plan: "Routes to a teammate" is left out
 (a template can't know a workspace's teams), and a booking template books the workspace's meeting only when it has
 exactly one. Still to do: wave 2 (to about 600), languages, real "Most used" counts, and carrying a brand picked on the
@@ -103,6 +103,9 @@ Consultation booking and Client feedback. One kit for each of the 40 industries.
 each industry page.
 
 ### 5.3 See it in your brand
+
+Removed from the website on 3 November 2026 (the yoursite.com box and `/api/templates/brand`). In the app,
+cards and previews still switch to the workspace's own brand kits.
 
 - In the app, every card and preview can switch to the workspace's own brand kit, with its logo, colors and fonts.
   The 18 styles stay as the other choice.

@@ -1,59 +1,9 @@
-// The gallery's extras (docs/form-templates-plan.md 5.3 and 5.5): a visitor's brand read with no AI, and the words
-// someone types matched to the catalog, with the model's answer never trusted past the catalog's own ids.
+// The gallery's extras (docs/form-templates-plan.md 5.5): the words someone types matched to the catalog, with the
+// model's answer never trusted past the catalog's own ids.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import type { RawBrand } from "../src/lib/brand/deep.ts";
 import { TEMPLATES } from "../src/lib/forms/gallery/catalog.ts";
 import { catalogLines, keyWords, localMatch, readMatch } from "../src/lib/forms/gallery/match.ts";
-import { inkFor, peekFrom } from "../src/lib/forms/gallery/peek.ts";
-
-const raw = (over: Partial<RawBrand>): RawBrand => ({
-  site: { url: "https://acme.com", name: "Acme", title: "", description: "" },
-  logo: { svg: null, src: null },
-  icons: { favicon: null, touch: null, share: null },
-  colors: [],
-  fonts: [],
-  faces: [],
-  googleFonts: null,
-  type: { h1: {}, h2: {}, h3: {}, h4: {}, body: {}, small: {} },
-  buttons: [],
-  radii: [],
-  shadows: [],
-  gradients: [],
-  images: [],
-  copy: { headlines: [], ctas: [], menu: [], paragraphs: [] },
-  social: [],
-  emails: [],
-  ...over,
-});
-
-test("brand peek: the button's color and corners, a Google font, the logo, and nothing it can't see", () => {
-  const p = peekFrom(
-    raw({
-      buttons: [
-        { bg: "#ffffff", color: "#111111", count: 9 },
-        { bg: "rgb(255, 90, 54)", color: "#ffffff", radius: "999px", count: 4 },
-      ],
-      fonts: [{ family: "system-ui", count: 20 }, { family: "'DM Sans'", count: 12 }],
-      googleFonts: "https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;700",
-      logo: { svg: null, src: "https://acme.com/logo.png" },
-    }),
-    "Acme",
-  );
-  assert.equal(p.accent, "#ff5a36", "a white button is never the brand color");
-  assert.equal(p.accentInk, "#ffffff");
-  assert.equal(p.radius, 999);
-  assert.equal(p.font, "DM Sans");
-  assert.match(p.fontUrl!, /family=DM\+Sans/);
-  assert.equal(p.logo, "https://acme.com/logo.png");
-  // A gray page with a font it can't load: no guesses.
-  const none = peekFrom(raw({ buttons: [{ bg: "#333333", count: 3 }], fonts: [{ family: "Proxima Nova", count: 9 }], logo: { svg: null, src: "http://acme.com/x.png" } }), "Acme");
-  assert.deepEqual(none, { name: "Acme" });
-  // Button text that doesn't read on the color is replaced by one that does.
-  const pale = peekFrom(raw({ buttons: [{ bg: "#ffd60a", color: "#ffffff", count: 2 }] }), "Acme");
-  assert.equal(pale.accentInk, "#111111");
-  assert.equal(inkFor("#0a0a0a"), "#ffffff");
-});
 
 test("describe your form: local words first, and only catalog ids from the model", () => {
   assert.deepEqual(keyWords("I need a form for the Cake orders"), ["cake", "orders"]);

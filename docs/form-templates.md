@@ -66,9 +66,6 @@ site repo. Every page is static:
   more fit (`/templates/category/<id>/<industry>`) and kit (`/templates/kits/<id>`).
 - A page per template: the live form with its logic, calculations, payment amount and a sample booking step, a style
   menu, what it asks, what happens to answers, question types, steps, questions and related templates.
-- **See it in your brand**: a visitor types their site and every form on the page takes its button color, font,
-  corners and logo (`/api/templates/brand`, `src/lib/forms/gallery/peek.ts`). Read from the page source with no AI,
-  private addresses refused, 5 a visitor a day and 2,000 a day, kept in the visitor's browser for the next pages.
 - **Describe the form you need** at the end of every gallery: the closest templates on the page first, then Build
   with AI into the app.
 
@@ -95,7 +92,6 @@ website carried into the new workspace, and the card-on-a-page look of some styl
 | Templates, menus, kits and pages: data in the app, static pages on the website | $0 | $0 |
 | Style fonts: Google Fonts | $0 | $0 |
 | Use template and kits: no AI call | $0 | $0 |
-| See it in your brand: page source read on today's servers, no AI | $0 | $0 |
 | Claude Haiku: catalog match when the words hit nothing (about 20,000 and 200,000 a month, about 9,000 tokens in with the catalog cached, 60 out, repeats free) | about $5 | about $50 |
 | Claude Opus: forms built from the Describe box, counted in Form Studio's bill (`docs/studio-v2-plan.md`), about 3 more a team a month at about $0.90 | about $135 | about $1,350 |
 | **Total** | **about $140** | **about $1,400** |
