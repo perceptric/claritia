@@ -1,14 +1,14 @@
 # Integrations: what's built and what to build
 
 Every integration on Fillout's list (fillout.com/integrations, Nov 2026), checked against Claritia's code. 55 in all:
-20 built, 8 half built, 27 not built.
+21 built, 8 half built, 26 not built.
 
 - **Built**: works today.
 - **Half built**: part of it is there (the sign-in and the tool's client, or a way through the webhook); the missing
   part is named.
 - **Not built**: nothing yet.
 
-## Built (20)
+## Built (21)
 
 | Integration | In Claritia today | Where |
 |---|---|---|
@@ -32,6 +32,7 @@ Every integration on Fillout's list (fillout.com/integrations, Nov 2026), checke
 | Notion | A database entry per fill, each value as its column's type (step 2) | The same |
 | PostgreSQL | A row per fill in a table named in the Sync tab, made if missing (step 2b); reads as before | `src/lib/sources/dbRows.ts`, form › Sync |
 | MySQL | The same | The same |
+| Excel Online | A row per fill in a ClaritiaFills table on its own sheet, in a workbook picked or linked (step 2c) | `src/lib/sources/excel.ts`, form › Sync |
 
 Also built, not on Fillout's list: Close and Omniscient (send leads), Typeform, Tally and Webflow forms (fills come in by
 webhook), HubSpot Meetings and SavvyCal (book from a form by link).
@@ -51,11 +52,10 @@ webhook), HubSpot Meetings and SavvyCal (book from a form by link).
 
 Kit and MailerLite take leads too (not on Fillout's list).
 
-## Not built (27)
+## Not built (26)
 
 | Integration | What to build |
 |---|---|
-| Excel Online | A row per fill (Microsoft sign-in, which meetings already use) (step 2c) |
 | SmartSuite | A record per fill |
 | Monday.com | An item per fill on a board |
 | ClickUp | A task per fill |
@@ -118,7 +118,14 @@ workflows, the jobs queue with retries and the sync log, and Settings › Integr
      now allows making the table (`create` on the schema in Postgres; `insert, create, alter` in MySQL). Code:
      `src/lib/sources/dbRows.ts`; tests in `tests/dbRows.test.ts` (MySQL on a fake connection) and
      `tests/pg/dbRows.pg.ts` (a real Postgres).
-   - **Excel Online** (2c): a workbook from its link, a table with a row added per fill.
+   - **Excel Online** (built). In the Sync tab: pick a workbook from OneDrive or paste one's link (OneDrive or
+     SharePoint). The first fill makes a "Claritia fills" sheet with a ClaritiaFills table, so the team's own sheets
+     are never touched. Rows go in with the table's own add, which never overwrites a row another fill wrote at the same
+     moment. A question added later adds a column at the end (an Excel that names it Column4 gets the header written).
+     Two first fills at once make one table; a run again looks for its Fill ID first; a value that starts with =, +, -
+     or @ gets Excel's ' text mark. A deleted workbook fails with what to do. Uses the Microsoft app meetings use, with
+     `Files.ReadWrite` added. Code: `src/lib/sources/excel.ts`; tests in `tests/excelRows.test.ts`. Graph endpoints
+     check against a real account (check).
 3. **Tracking**: Google Analytics, Google Tag Manager, Meta Pixel, Google Ads, in the form script, after consent.
 4. **Chat alerts**: Microsoft Teams and Discord, beside Slack.
 5. **Zapier, Make, Activepieces**: a Forms API with API keys and subscribe hooks, and the listed apps.

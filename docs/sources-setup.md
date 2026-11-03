@@ -152,6 +152,14 @@ Uses the same Google app as calendars (`GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET
 3. OAuth consent screen → Scopes → add `https://www.googleapis.com/auth/spreadsheets`. Google's app check for it is free
    (check).
 
+### Excel Online (out: a row per form fill)
+
+Uses the Microsoft app meetings use (`MICROSOFT_CLIENT_ID`, `MICROSOFT_CLIENT_SECRET`, see `docs/meetings-setup.md`).
+
+1. Entra admin center → App registrations → the Claritia app → Authentication → add the redirect URI
+   `https://app.tryclaritia.com/api/sources/callback` (Web).
+2. API permissions → Microsoft Graph → Delegated → add `Files.ReadWrite`. No admin consent is needed for it (check).
+
 ### Airtable and Notion (out: a record per form fill)
 
 Both work with a pasted key until their apps are set up: an Airtable personal access token (scopes
