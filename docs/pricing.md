@@ -112,7 +112,7 @@ What the market does:
 - Meetings: 10 calendars per host, round robin (weights, priority, flexible or strict), collective meetings
   (everyone free), team pools, caps per host for a day and a week, away days
 - Routing: route by any answer to a meeting and a person, route by past fills, a log of why each lead went where
-- Workflows: thank-you after a held meeting, no-show follow-up with the reschedule link, Slack notes, SMS reminders
+- Workflows: thank-you after a held meeting, no-show follow-up with the reschedule link, SMS reminders
   (100 a month, Soon)
 - Tia: a short brief of the answers for the host before the meeting
 - Priority help by email
