@@ -6,12 +6,13 @@
 // Styling preview) and on the server.
 
 import { cleanColor, contrast } from "../forms/brand.ts";
+import { allows } from "../plans.ts";
 import { cleanPageCss } from "../studio/page.ts";
 import { lookTokens, usesKit, type PageLook } from "./look.ts";
 
 /** Plans with branded booking pages. Branded forms stay on every plan. */
-export const BRAND_PLANS = ["starter", "team", "business"] as const;
-export const brandPlan = (plan: unknown): boolean => BRAND_PLANS.includes(plan as (typeof BRAND_PLANS)[number]);
+export const BRAND_PLANS = ["starter", "pro", "business"] as const;
+export const brandPlan = (plan: unknown): boolean => typeof plan === "string" && allows(plan, "booking_brand");
 
 /** What a booking page needs to draw the brand: the plan check and the scoped stylesheet with its font links. */
 export type BookBrand = { paid: boolean; css: string; fonts: string[]; kit?: { tokens: Record<string, unknown>; logo_url: string | null; design?: unknown } };

@@ -1,4 +1,4 @@
-import { brandPlan } from "@/lib/meetings/brandPage";
+import { allows } from "@/lib/plans";
 import { cleanHostname, hostnameProblem } from "@/lib/domains/hostname";
 import { addCert, flyFromEnv, linkTarget, removeCert } from "@/lib/domains/fly";
 import { forgetDomain } from "@/lib/domains/resolve";
@@ -10,7 +10,7 @@ import { SITE_HOST } from "@/lib/site";
 // Settings › Link domain (docs/sharing-plan.md step 4).
 //   GET ?workspaceId=      the workspace's subdomain (when those are on), its custom domain and its state, and the
 //                          CNAME target
-//   POST { workspaceId, action: "add", hostname }   owners, paid plans: one domain a workspace; its certificate is
+//   POST { workspaceId, action: "add", hostname }   owners, on Business: one domain a workspace; its certificate is
 //                                                   asked for and it's checked at once
 //   POST { workspaceId, action: "check" }           check the DNS and the certificate again
 //   POST { workspaceId, action: "remove" }          owners: the domain stops serving and its certificate goes
@@ -42,7 +42,7 @@ async function state(db: NonNullable<ReturnType<typeof serviceClient>>, ws: stri
     domain: d.error ? null : ((d.data as DomainRow | null) ?? null),
     missing: !!d.error,
     target: linkTarget(),
-    paid: brandPlan((b.data as { plan?: string } | null)?.plan ?? "free"),
+    paid: allows((b.data as { plan?: string } | null)?.plan ?? "free", "link_domain"),
   };
 }
 
@@ -63,7 +63,7 @@ export async function POST(request: Request) {
 
   if (b.action === "add") {
     if (role !== "owner") return bad("Only owners add a domain.", 403);
-    if (!cur.paid) return bad("Your own domain is on paid plans.", 402);
+    if (!cur.paid) return bad("Your own domain is on Business.", 402);
     if (cur.domain) return bad("Remove the domain you have first.", 409);
     const raw = typeof b.hostname === "string" ? b.hostname : "";
     const problem = hostnameProblem(raw, SITE_HOST);

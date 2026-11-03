@@ -24,15 +24,12 @@ const STATS = [
 // The pricing cards, built from the shared plan list in src/lib/plans.ts.
 const CARDS = PLANS.map((p) => ({
   name: p.name,
-  price: p.price === null ? "Custom" : `$${p.price}`,
-  note: p.id === "free" ? "for side projects" : p.price === null ? "billed yearly" : "per month",
-  items: [
-    ...(p.id === "business" ? ["Higher limits"] : [`${p.projects === null ? "Unlimited" : p.projects} ${p.projects === 1 ? "project" : "projects"}`, `${amount(p.minutes)} cloud minutes a month`, `${amount(p.credits)} AI credits a month`]),
-    ...p.features,
-  ],
-  cta: p.id === "business" ? "Talk to us" : "Start free",
-  featured: p.id === "team",
-  contact: p.id === "business",
+  price: `$${p.monthly}`,
+  note: p.host ? `a month with 1 host, then $${p.host.monthly} a host` : "a month",
+  items: [`${amount(p.submissions)} submissions a month`, `${amount(p.aiCredits)} AI credits a month`, `${amount(p.meetingTypes)} meeting ${p.meetingTypes === 1 ? "type" : "types"}`, `${amount(p.calendars)} ${p.calendars === 1 ? "calendar" : "calendars"} per host`],
+  cta: "Start free",
+  featured: p.id === "pro",
+  contact: false,
 }));
 
 function Eyebrow({ children, dark = false }: { children: React.ReactNode; dark?: boolean }) {

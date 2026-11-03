@@ -4,7 +4,31 @@
 
 import { createHash } from "node:crypto";
 import type { Rpc } from "../jobs.ts";
-import { rpcOr } from "../rpcCompat.ts";
+import { creditCost } from "../plans.ts";
+import { isMissingFunction, rpcOr } from "../rpcCompat.ts";
+
+/** The month's AI credits are used up (docs/pricing.md). Routes show its message as it is. */
+export class OutOfCredits extends Error {
+  status = 402;
+  constructor() {
+    super("You've used this month's AI credits. Upgrade in Settings › Billing for more.");
+    this.name = "OutOfCredits";
+  }
+}
+
+/**
+ * Take a step's AI credits before the model is called. A step that costs nothing, or a database without the plans
+ * migration (120) yet, goes ahead. Any other failure to read the count refuses, so no unpaid call slips through.
+ */
+async function takeCredits(rpc: Rpc, ws: string, n: number): Promise<void> {
+  if (n <= 0) return;
+  const { data, error } = await rpc("ai_credit_take", { p_ws: ws, p_n: n });
+  if (error) {
+    if (isMissingFunction(error.message, "ai_credit_take")) return;
+    throw new Error(`ai_credit_take: ${error.message}`);
+  }
+  if (data !== true) throw new OutOfCredits();
+}
 
 export type Usage = { input: number; output: number; cache_read: number; cache_write: number; searches?: number };
 
@@ -67,7 +91,16 @@ export async function cachedStep<T>(
   if (got.error) throw new Error(`ai_cache_get: ${got.error.message}`);
   const hit = got.data;
   if (hit !== null && hit !== undefined) return { result: hit, cached: true, usage: { input: 0, output: 0, cache_read: 0, cache_write: 0 }, cost: 0 };
-  const r = await run();
+  const credits = creditCost(kind);
+  await takeCredits(rpc, ws, credits);
+  let r: Awaited<ReturnType<typeof run>>;
+  try {
+    r = await run();
+  } catch (e) {
+    // The model never answered: the credits go back.
+    if (credits > 0) await Promise.resolve(rpc("ai_credit_give", { p_ws: ws, p_n: credits })).catch(() => undefined);
+    throw e;
+  }
   const cost = costOf(r.model, r.usage);
   const keep = r.keep !== false;
   // The log and the answer kept, in one call (ai_cache_store, 088). Only keeping the answer may fail the step.

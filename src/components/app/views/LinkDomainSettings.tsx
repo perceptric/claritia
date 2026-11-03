@@ -1,7 +1,7 @@
 "use client";
 
 // Settings › Link domain (docs/sharing-plan.md step 4): the workspace's own address for its forms and booking pages.
-// Its subdomain (acme.tryclaritia.com) when those are on, and one custom domain on paid plans: the CNAME to add, the
+// Its subdomain (acme.tryclaritia.com) when those are on, and one custom domain on Business: the CNAME to add, the
 // state (Waiting, Live, Not pointing), Check now and Remove.
 
 import { useState } from "react";
@@ -140,7 +140,7 @@ export function LinkDomainSettings({ session, ws, role }: Pick<ViewProps, "sessi
             {domain.last_error && domain.status !== "active" ? <p className="text-[12.5px] text-muted">{domain.last_error}</p> : null}
           </div>
         ) : !paid ? (
-          <p className="px-5 py-4 text-[13px] text-muted">Your own domain is on paid plans.</p>
+          <p className="px-5 py-4 text-[13px] text-muted">Your own domain is on Business.</p>
         ) : owner ? (
           <form
             className="flex flex-wrap items-center gap-2 px-5 py-4"

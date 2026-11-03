@@ -11,6 +11,8 @@ import { slots as engine } from "../../../../lib/meetings/slots.ts";
 import { liveRouter } from "../../../../lib/router/server.ts";
 import { roles } from "../../../../lib/roleCache.ts";
 import { rpcOr } from "../../../../lib/rpcCompat.ts";
+import { planCheck } from "../../../../lib/planGate.ts";
+import { syncHostsSoon } from "../../../../lib/billingHosts.ts";
 import { DEFAULT_SETTINGS, type MeetingType } from "../../../../lib/meetings/types.ts";
 import { bookUrl, canEditType, checkProfile, slugify, timesText, uniqueSlug } from "../../../../components/app/meetings/model.ts";
 
@@ -135,7 +137,12 @@ export async function saveType(rpc: Rpc, a: Actor, raw: unknown, id?: string | n
   const t = checked.type;
   if (role !== "owner") t.locked = cur?.locked ?? [];
   if (!cur && role !== "owner" && !t.hosts.some((h) => h.user_id === a.user)) throw new Refused(403, "Add yourself as a host, or ask an owner.");
+  // The plan's limits (docs/pricing.md): the kind, and on Free one meeting type with one host.
+  const over = await planCheck(rpc, "plan_check_type", { p_ws: a.ws, p_id: cur?.id ?? null, p_type: t });
+  if (over) throw new Refused(402, over);
   const saved = await call<string>(rpc, "meeting_type_save", { p_ws: a.ws, p_id: cur?.id ?? null, p_type: t, p_by: a.user });
+  // A paid plan bills each host past the first: Stripe's count follows, after the save.
+  syncHostsSoon(a.ws);
   return { id: saved };
 }
 

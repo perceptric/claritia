@@ -3,23 +3,33 @@ import { APP_URL, CONTACT_EMAIL } from "@/lib/site";
 
 export const dynamic = "force-static";
 
-/** Pricing as plain Markdown, for AI agents and people comparing tools. Built from the same plan list as the homepage. */
+/** Pricing as plain Markdown, for AI agents and people comparing tools. Built from the plan list (docs/pricing.md). */
 export function GET() {
-  const rows = PLANS.map((p) => `| ${p.name} | ${p.price === null ? "Custom" : `$${p.price}/month`} | ${p.projects === null ? "Unlimited" : p.projects} | ${amount(p.minutes)} | ${amount(p.credits)} | ${p.features.join(", ")} |`);
+  const money = (n: number) => `$${n}`;
+  const row = (label: string, f: (p: (typeof PLANS)[number]) => string) => `| ${label} | ${PLANS.map(f).join(" | ")} |`;
   const text = `# Claritia pricing
 
-Claritia turns plain-English user flows into Playwright tests, runs them in the cloud, and saves video, traces, network logs and screenshots for every run.
+Claritia is forms, meetings and workflows: forms that turn visitors into leads, meetings that book them with the right person, and workflows that send the reminders and follow-ups.
 
-| Plan | Price | Projects | Cloud minutes a month | AI credits a month | Also includes |
-|---|---|---|---|---|---|
-${rows.join("\n")}
+Each plan has 1 host in its price, then a price for each extra host. A host is anyone people can book. Everyone who builds forms, edits workflows or reads results is free.
 
-- Unlimited users on every plan.
-- A cloud minute is one minute of browser time in a cloud run.
-- An AI credit is one call to Claude to write a step. Claude writes each step once, then every run replays the saved Playwright code and uses no credits.
-- Plans renew monthly. Cancel any time from Settings.
-- Business is billed yearly. Write to ${CONTACT_EMAIL}.
+| | ${PLANS.map((p) => p.name).join(" | ")} |
+|---|${PLANS.map(() => "---|").join("")}
+${row("Price a month", (p) => money(p.monthly))}
+${row("Price a month, billed yearly", (p) => money(p.yearly))}
+${row("Each extra host a month", (p) => (p.host ? `${money(p.host.monthly)} (${money(p.host.yearly)} yearly)` : "–"))}
+${row("Submissions a month", (p) => amount(p.submissions))}
+${row("AI credits a month", (p) => amount(p.aiCredits))}
+${row("Calendars per host", (p) => amount(p.calendars))}
+${row("Meeting types", (p) => amount(p.meetingTypes))}
 
+- Unlimited forms and editors on every plan.
+- Past 250 submissions on Free, forms keep working and every submission is saved. Answers past 250 show after an upgrade or on the 1st.
+- An AI credit is one thing Tia does for you: a small change is 1 credit, a whole new form is 10.
+- Billed monthly, or yearly at 20% off. Change or cancel any time from Settings › Billing.
+- Questions: ${CONTACT_EMAIL}.
+
+Every feature: https://tryclaritia.com/pricing
 Start free: ${APP_URL}
 `;
   return new Response(text, { headers: { "content-type": "text/markdown; charset=utf-8" } });

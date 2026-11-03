@@ -65,9 +65,10 @@ What the market does:
 
 - **An AI credit** is one thing Tia does when asked: write a form, add questions, write a meeting's text, draft a
   follow-up. A small change is 1 credit, a whole new form is 10. A step replayed from cache uses no credits.
-- **Past the submission cap** the form keeps working and every submission is saved. On Free, answers past 250 stay
-  hidden until the team upgrades or the month resets, and the person gets no follow-ups. Paid plans pay $5 per 1,000
-  extra. A lead is never dropped. Counts reset on the 1st, or on the billing day for paid plans.
+- **Past the submission cap** the form keeps working, every submission is saved and its deliveries and workflows run
+  as usual. On Free, answers past 250 stay hidden on screen and in the CSV until the team upgrades or the month turns.
+  Paid plans will pay $5 per 1,000 extra (counted now, not billed yet). A lead is never dropped. Counts reset on the 1st
+  of each month for every plan.
 - **Past the AI credit cap** Tia stops until the month resets. Forms, booking and workflows keep running.
 - **Reminders** never go out for a canceled or moved meeting.
 
@@ -174,16 +175,30 @@ Mix assumed, with 3 hosts on each paid team:
 
 That keeps about 86% of revenue at both stages. Claude tokens are inside the first line.
 
-## Part 8. To build
+## Part 8. Built (November 3, 2026)
 
-1. `src/lib/plans.ts`: Free, Starter, Pro and Business with included hosts, extra-host prices and limits.
-2. `plan_limits` and `plan_usage` in a new migration: hosts, submissions and AI credits a month. A host is anyone in a
-   meeting type.
-3. Over-cap fills saved and hidden on Free, with a test where two fills race for the last free slot: both save,
-   exactly one counts.
-4. Stripe: a monthly and a yearly price per plan, plus a per-host price with the quantity kept in step with hosts.
-5. Settings › Billing: plan, hosts used, usage against limits, change plan.
-6. The badge on Free and Starter forms and booking pages.
+| Part | Where |
+|---|---|
+| The plan list: prices, hosts, limits, which plan has each feature, AI credits per Tia step | `src/lib/plans.ts` |
+| Plan ids (Team became Pro), interval and hosts billed; caps; this month's usage; the submission counter and the hidden flag; credits taken and given back; hosts; the meeting type and calendar checks; what Billing reads | `supabase/migrations/120_plans.sql` |
+| Stripe: products made once, a plan line and an extra-host line priced from the plan list, monthly or yearly; plan changes in place, prorated; the host count kept in step after each meeting type save and before each renewal (`invoice.upcoming`) | `src/lib/billing.ts`, `src/lib/billingHosts.ts`, `src/app/api/billing/` |
+| Settings › Billing: the plan, this month's submissions, AI credits and hosts, the four plans monthly or yearly | `src/components/app/views/BillingSettings.tsx` |
+| Tia steps charged before the model runs; a cached step, unasked work and a failed call cost nothing | `src/lib/ai/cache.ts` |
+| Limits enforced: meeting kinds by plan, Free's 1 meeting type, 1 host, paid meetings on Starter and up, calendars per host, branded booking pages on Starter and up, the link domain on Business, Left early (partial fills) on Business, hidden answers past Free's cap | `src/app/api/meetings/_lib/host.ts`, `src/lib/meetings/providers/connect.ts`, `src/app/api/link-domain/route.ts`, `src/components/app/forms/Submissions.tsx` |
+| Tests: the plan list, Stripe lines, subscriptions, host sync, plan changes, the webhook, AI credits, hidden fills; on Postgres, two fills racing for Free's last slot, twenty at once, repeats and spam, two Tia steps racing for the last credits, the meeting type and calendar checks | `tests/billing.test.ts`, `tests/planCredits.test.ts`, `tests/pg/plans.pg.ts` |
+
+Not held back yet, so open on every plan for now: polls, one-off and single-use links, signatures and payments on
+forms, routing by answer, the small badge on Starter and the badge on Free forms, Salesforce on Business, and billing
+for extra submissions. Each is listed in `FEATURES` in `src/lib/plans.ts` and needs its check where it's saved.
+
+### Running cost of this build
+
+Nothing new on the bill beyond Part 7. Stripe products, prices and webhooks cost nothing; the extra calls are a few
+Stripe API requests a day per paying team (free). The usage counters are one small row a workspace a month.
+
+| | Beta (50 teams) | Growth (500 teams) |
+|---|---|---|
+| Added by this build | $0 | $0 |
 
 ---
 

@@ -21,6 +21,6 @@ export async function POST(request: Request) {
   if (!billing?.stripe_customer_id) return Response.json({ error: "This workspace has no billing yet." }, { status: 400 });
   if (configuration instanceof Error) throw configuration;
 
-  const session = await stripe.billingPortal.sessions.create({ customer: billing.stripe_customer_id, configuration, return_url: `${appBase()}/settings` });
+  const session = await stripe.billingPortal.sessions.create({ customer: billing.stripe_customer_id, configuration, return_url: `${appBase()}/settings/billing` });
   return Response.json({ url: session.url });
 }

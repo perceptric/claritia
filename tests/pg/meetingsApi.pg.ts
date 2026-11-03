@@ -18,10 +18,12 @@ const rpc = pgRpc(pool);
 const q = async (sql: string, p: unknown[] = []) => (await pool.query(sql, p)).rows;
 after(() => pool.end());
 
-/** A workspace with an owner and members; each gets a calendar and hours so times can be offered. */
+/** A workspace with an owner and members; each gets a calendar and hours so times can be offered. On Business, so
+ * every kind of meeting and any number of hosts fit the plan (Free's limits are in plans.pg.ts). */
 async function team(n: number) {
   const ws = randomUUID();
   await q(`insert into workspaces (id, name) values ($1, 'Acme Inc')`, [ws]);
+  await q(`insert into workspace_billing (workspace_id, plan) values ($1, 'business')`, [ws]);
   const users: string[] = [];
   for (let i = 0; i < n; i++) {
     const u = randomUUID();

@@ -1,4 +1,5 @@
 import { toCsv } from "@/lib/contacts/csv";
+import { maskFill } from "@/lib/planHidden";
 import { cleanFilters, csvHead, csvRow, fillColumns, type ExportFill } from "@/lib/forms/results";
 import type { Form } from "@/lib/forms/schema";
 import { requireUser } from "@/lib/serverAuth";
@@ -39,9 +40,10 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       if (error) return ctl.error(new Error(error.message));
       const list = (ids ?? []) as string[];
       if (!list.length) return ctl.close();
-      const { data: rows, error: e2 } = await sb.from("submissions").select("id, created_at, values, hidden").in("id", list);
+      const { data: rows, error: e2 } = await sb.from("submissions").select("id, created_at, values, hidden, over_cap").in("id", list);
       if (e2) return ctl.error(new Error(e2.message));
-      const byId = new Map(((rows ?? []) as ExportFill[]).map((r) => [r.id, r]));
+      // Fills past Free's monthly cap export without their answers, as the screen shows them (src/lib/planHidden.ts).
+      const byId = new Map(((rows ?? []) as ExportFill[]).map((r) => [r.id, maskFill(r)]));
       const page = list.map((x) => byId.get(x)).filter((r): r is ExportFill => !!r);
       if (page.length) ctl.enqueue(enc.encode(toCsv(page.map((s) => csvRow(cols, s)))));
       const last = byId.get(list[list.length - 1]);

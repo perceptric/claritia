@@ -14,7 +14,9 @@ import { Popover } from "../FilterBar";
 import { BrandLogo } from "../BrandLogo";
 import { askConfirm } from "../Dialogs";
 import { usePeople } from "../meetings/parts";
-import { Badge, ErrorNote, errorText, Loading, must, postJson, useLoad, type ViewProps } from "../ui";
+import { Badge, ErrorNote, errorText, Loading, must, postJson, useLoad, useQuery, type ViewProps } from "../ui";
+import { allows } from "@/lib/plans";
+import { maskFill } from "@/lib/planHidden";
 import { Eyebrow, PanelFooter, PanelSection } from "../scheduling/panel";
 import { ago } from "./formModel";
 import { Ic } from "./ic";
@@ -33,11 +35,14 @@ type Fill = {
   contacts: { email: string | null; first_name: string | null; last_name: string | null; owner_user_id: string | null; score: number | null } | null;
   deliveries: { id: string; status: string; error: string | null; external_url: string | null; destination_id: string; updated_at: string }[];
   meetings: { id: string; status: string; start_at: string }[];
+  over_cap?: boolean;
+  /** Past Free's monthly cap: answers hidden until an upgrade (src/lib/planHidden.ts). */
+  locked?: boolean;
 };
 type Left = { started_at: string; left_field: string | null; step: number };
 type View = "leads" | "partial" | "spam";
 
-const SELECT = "id, created_at, values, hidden, spam, spam_reason, form_version, contact_id, contacts(email, first_name, last_name, owner_user_id, score), deliveries(id, status, error, external_url, destination_id, updated_at), meetings(id, status, start_at)";
+const SELECT = "id, created_at, values, hidden, spam, spam_reason, form_version, contact_id, over_cap, contacts(email, first_name, last_name, owner_user_id, score), deliveries(id, status, error, external_url, destination_id, updated_at), meetings(id, status, start_at)";
 const PAGE = 50;
 export const SPAM_WORDS: Record<string, string> = {
   trap: "Filled the hidden box",
@@ -64,7 +69,11 @@ const slot = (iso: string) => new Date(iso).toLocaleString("en-US", { weekday: "
 
 export function Submissions(props: ViewProps & { form: Form; formId: string; dests: Destination[]; sources: SourceRow[]; onFix: (fieldId: string) => void; start?: View }) {
   const { sb, session, ws, form, formId, dests, sources } = props;
-  const [view, setView] = useState<View>(props.start ?? "leads");
+  const plan = useQuery(`workspace_plan:${ws.id}`, async () => ((await sb.from("workspace_billing").select("plan").eq("workspace_id", ws.id).maybeSingle()).data as { plan?: string } | null)?.plan ?? "free", { staleMs: 60_000 });
+  // Left early (partial fills) is on Business (docs/pricing.md).
+  const partial = allows(plan.data, "partial");
+  const [viewPicked, setView] = useState<View>(props.start ?? "leads");
+  const view: View = viewPicked === "partial" && plan.data !== undefined && !partial ? "leads" : viewPicked;
   const [text, setText] = useState("");
   const [q, setQ] = useState("");
   const [range, setRange] = useState("30");
@@ -118,7 +127,7 @@ export function Submissions(props: ViewProps & { form: Form; formId: string; des
     const ids = must(await sb.rpc("form_fill_ids", { p_form: formId, p_filters: filters, p_after_at: after?.created_at ?? null, p_after_id: after?.id ?? null, p_limit: PAGE })) as string[];
     if (!ids.length) return [] as Fill[];
     const got = (must(await sb.from("submissions").select(SELECT).in("id", ids)) ?? []) as unknown as Fill[];
-    const by = new Map(got.map((r) => [r.id, r]));
+    const by = new Map(got.map((r) => [r.id, maskFill(r)]));
     return ids.map((id) => by.get(id)).filter((r): r is Fill => !!r);
   };
   useEffect(() => {
@@ -292,7 +301,7 @@ export function Submissions(props: ViewProps & { form: Form; formId: string; des
                 onChange={(v) => (setView(v), setOpen(null), setSel(new Set()), setRows(null))}
                 options={[
                   { value: "leads", label: <>Leads <SegN n={counts.data?.leads ?? "–"} /></> },
-                  { value: "partial", label: <>Left early <SegN n={counts.data?.left.count ?? "–"} /></> },
+                  ...(partial ? [{ value: "partial" as const, label: <>Left early <SegN n={counts.data?.left.count ?? "–"} /></> }] : []),
                   { value: "spam", label: <>Spam <SegN n={counts.data?.spam ?? "–"} /></> },
                 ]}
               />
@@ -365,7 +374,9 @@ export function Submissions(props: ViewProps & { form: Form; formId: string; des
                 </thead>
                 <tbody>
                   {rows.map((s) => {
-                    const who = (
+                    const who = s.locked ? (
+                      <Badge tone="violet">Upgrade to see</Badge>
+                    ) : (
                       <div className="flex flex-col leading-[1.3]">
                         <b className="font-medium text-ink">{nameOf(s) || emailOf(s)}</b>
                         {nameOf(s) ? <span className="text-[12px] text-muted">{emailOf(s)}</span> : null}
@@ -591,6 +602,7 @@ function RowPanel({ s, form, name, rep, dests, destName, destLogo, onClose, onRe
           <Eyebrow>{ago(s.created_at)}</Eyebrow>
           <b className="truncate text-[16px] font-semibold tracking-[-0.015em] text-ink">{name}</b>
           <div className="mt-[4px] flex flex-wrap gap-[6px]">
+            {s.locked ? <Badge tone="violet">Upgrade to see</Badge> : null}
             {s.spam ? <Badge tone="amber">{SPAM_WORDS[s.spam_reason ?? ""] ?? "Spam"}</Badge> : s.contacts?.score != null ? <Badge>{`Score ${s.contacts.score}`}</Badge> : null}
             {m ? (
               <Badge tone="green" dot>
