@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { APP_URL, CLR_SITE_KEY, COMPANY, CONTACT_EMAIL } from "@/lib/site";
+import { APP_URL, COMPANY, CONTACT_EMAIL } from "@/lib/site";
 import { Logo } from "./Logo";
 
 const NAV = [
@@ -7,7 +7,6 @@ const NAV = [
   { href: "/#agent", label: "Agent" },
   { href: "/#developers", label: "Developers" },
   { href: "/#security", label: "Security" },
-  { href: "https://tryclaritia.com/templates", label: "Templates" },
   { href: "/#pricing", label: "Pricing" },
 ];
 
@@ -15,7 +14,6 @@ const NAV = [
 export function SiteHeader() {
   return (
     <header className="sticky top-0 z-50 border-b border-line bg-white/90 backdrop-blur">
-      <script defer src="/_clr/s.js" data-site={CLR_SITE_KEY} />
       <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-6 px-4 md:px-6">
         <Link href="/" aria-label="Claritia home" className="shrink-0">
           <Logo />
@@ -44,7 +42,7 @@ export function SiteHeader() {
 }
 
 const FOOTER: { title: string; links: [string, string][] }[] = [
-  { title: "Product", links: [["Run viewer", "/#product"], ["Agent", "/#agent"], ["Form templates", "https://tryclaritia.com/templates"], ["Pricing", "/#pricing"]] },
+  { title: "Product", links: [["Run viewer", "/#product"], ["Agent", "/#agent"], ["Pricing", "/#pricing"]] },
   { title: "Developers", links: [["Repo files", "/#developers"], ["GitHub Action", "/#developers"], ["MCP server", "/#developers"], ["Security", "/#security"]] },
   { title: "Company", links: [["Contact", `mailto:${CONTACT_EMAIL}`]] },
 ];

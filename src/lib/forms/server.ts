@@ -1,113 +1,110 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { cleaningCtx } from "../contacts/server.ts";
-import { templateById, templateTheme } from "./catalog.ts";
-import { isTheme } from "./themes.ts";
-import { applyRemap, planFields } from "./fields.ts";
-import { qaCheck } from "./qa.ts";
-import { blankSchema, checkSchema, checkSettings, cloneSchema, slugFor } from "./schema.ts";
-import type { FormSchema, FormSettings } from "./types.ts";
+import type { Ctx, PublicForm } from "./submit.ts";
 
-// The member side of forms: make one from a template or blank, save, publish. Every write goes through the
-// database functions in 039_forms.sql with the service role, after the route checks membership.
+// What the public form routes share (docs/form-builder.md Part 6): the live form with a short cache, a per-visitor
+// rate limit, the Turnstile check, the visitor's country from the edge, and CORS for any site.
 
-export type FormRow = { id: string; workspace_id: string; name: string; slug: string; status: "draft" | "live" | "closed"; schema: FormSchema; settings: FormSettings; phi: boolean; baa_confirmed_at: string | null };
+export type { PublicForm };
 
-const call = async <T>(db: SupabaseClient, fn: string, args: Record<string, unknown>): Promise<T> => {
-  for (let i = 0; ; i++) {
-    const { data, error } = await db.rpc(fn, args);
-    if (!error) return data as T;
-    if (i >= 2 || !/timeout|fetch failed|ECONN|50[234]|429|deadlock/i.test(error.message)) throw new Error(error.message);
-    await new Promise((r) => setTimeout(r, 300 * 2 ** i));
-  }
+const CACHE_MS = 10_000;
+const cache = new Map<string, { at: number; form: PublicForm | null }>();
+
+export async function loadPublic(db: SupabaseClient, id: string, fresh = false): Promise<PublicForm | null> {
+  const hit = cache.get(id);
+  if (!fresh && hit && Date.now() - hit.at < CACHE_MS) return hit.form;
+  const { data, error } = await db.rpc("form_public", { p_id: id });
+  if (error) throw new Error(error.message);
+  const form = (data as PublicForm | null) ?? null;
+  if (cache.size > 5000) cache.clear();
+  cache.set(id, { at: Date.now(), form });
+  return form;
+}
+
+/** Drop a form's cached copy (after a publish on this server). */
+export function forgetPublic(id: string): void {
+  cache.delete(id);
+}
+
+/**
+ * The live form for a send: the cached copy when it's live and on the version the browser sent, else a fresh read
+ * (the form was just published, paused or resumed). A send is always checked against what's live now.
+ */
+export async function loadForSend(db: SupabaseClient, id: string, version: unknown): Promise<PublicForm | null> {
+  const f = await loadPublic(db, id);
+  if (f && f.status === "live" && f.version === version) return f;
+  return loadPublic(db, id, true);
+}
+
+// The workspace's cleaning lists (custom fields, own and partner domains) for sends, kept a minute per workspace.
+// A change shows within CTX_MS. One read at a time per workspace; a failed read is never kept.
+const CTX_MS = 60_000;
+const ctxCache = new Map<string, { at: number; value: Promise<Ctx> }>();
+
+export function sendCtx(ws: string, load: (ws: string) => Promise<Ctx>, now = Date.now()): Promise<Ctx> {
+  const hit = ctxCache.get(ws);
+  if (hit && now - hit.at < CTX_MS) return hit.value;
+  const value = load(ws);
+  const entry = { at: now, value };
+  if (ctxCache.size > 5000) ctxCache.clear();
+  ctxCache.set(ws, entry);
+  value.catch(() => {
+    if (ctxCache.get(ws) === entry) ctxCache.delete(ws);
+  });
+  return value;
+}
+
+export const cors = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+  "Access-Control-Allow-Headers": "content-type",
+  "Access-Control-Max-Age": "86400",
 };
 
-async function existingFields(db: SupabaseClient, ws: string) {
-  const { data, error } = await db.from("fields").select("key, label, type, options").eq("workspace_id", ws).eq("object", "contact");
-  if (error) throw new Error(error.message);
-  return (data ?? []) as { key: string; label: string; type: string; options: string[] }[];
+export const json = (body: unknown, status = 200, headers: Record<string, string> = {}) => Response.json(body, { status, headers: { ...cors, ...headers } });
+
+/** The visitor's IP as the edge saw it. */
+export function clientIp(req: Request): string {
+  return (req.headers.get("cf-connecting-ip") || req.headers.get("x-forwarded-for")?.split(",")[0] || req.headers.get("x-real-ip") || "").trim().slice(0, 64);
 }
 
-/** A new form from a template (or blank when templateId is null). It goes live at once when it passes the check. */
-export async function createForm(db: SupabaseClient, ws: string, user: string, templateId: string | null, theme?: string): Promise<{ id: string; status: string; problems: string[] }> {
-  const t = templateId ? templateById(templateId) : null;
-  if (templateId && !t) throw new Error("Template not found.");
-  const settings: FormSettings = {
-    theme: isTheme(theme) ? theme : t ? templateTheme(t) : undefined,
-    ...(t?.internal ? { consent_off: true } : {}),
-  };
-  if (!settings.theme) delete settings.theme;
-  let schema = t ? cloneSchema(t.schema) : blankSchema();
-  const plan = planFields(schema, (await existingFields(db, ws)) as never);
-  schema = applyRemap(schema, plan.remap);
-  const ctx = await cleaningCtx(db, ws);
-  // The fields this form will make count as existing for the check.
-  const custom = [...ctx.custom, ...plan.create.map((c) => ({ key: c.key, label: c.label, type: c.type as never, options: c.options }))];
-  const problems = qaCheck(schema, { ...ctx, custom });
-  const status = t && !t.phi && !problems.length ? "live" : "draft";
-  // The slug is random; a clash (one in a billion) just tries again.
-  for (let i = 0; ; i++) {
-    try {
-      const id = await call<string>(db, "form_create", {
-        p_ws: ws, p_user: user, p_name: schema.title, p_slug: slugFor(schema.title), p_schema: schema, p_settings: settings,
-        p_template: t?.id ?? null, p_version: t?.version ?? null, p_phi: !!t?.phi, p_status: status, p_fields: plan.create, p_extend: plan.extend,
-      });
-      return { id, status, problems: t?.phi ? ["Health forms stay drafts until you confirm a BAA in Settings."] : problems };
-    } catch (e) {
-      if (i < 2 && /forms_slug_key|duplicate key/.test(String(e))) continue;
-      throw e;
-    }
+/** The visitor's country, when the edge in front of us says it (Cloudflare, Vercel, or our own proxy). */
+export function edgeCountry(req: Request): string | null {
+  const c = (req.headers.get("cf-ipcountry") || req.headers.get("x-vercel-ip-country") || req.headers.get("x-country-code") || "").toUpperCase();
+  return /^[A-Z]{2}$/.test(c) && c !== "XX" && c !== "T1" ? c : null;
+}
+
+// 10 fills a minute from one address to one form, and 600 a minute to one form from everywhere. Per machine.
+const buckets = new Map<string, { n: number; reset: number }>();
+export function allowed(key: string, max: number, now = Date.now()): boolean {
+  const b = buckets.get(key);
+  if (!b || b.reset < now) {
+    if (buckets.size > 50_000) buckets.clear();
+    buckets.set(key, { n: 1, reset: now + 60_000 });
+    return true;
   }
+  b.n++;
+  return b.n <= max;
 }
 
-export async function duplicateForm(db: SupabaseClient, f: FormRow, user: string): Promise<string> {
-  const plan = planFields(f.schema, (await existingFields(db, f.workspace_id)) as never);
-  const schema = applyRemap({ ...cloneSchema(f.schema), title: f.schema.title }, plan.remap);
-  return call<string>(db, "form_create", {
-    p_ws: f.workspace_id, p_user: user, p_name: `${f.name} (copy)`.slice(0, 200), p_slug: slugFor(f.name), p_schema: schema, p_settings: f.settings,
-    p_template: null, p_version: null, p_phi: f.phi, p_status: "draft", p_fields: plan.create, p_extend: plan.extend,
-  });
-}
+export const turnstileSiteKey = () => process.env.TURNSTILE_SITE_KEY?.trim() || "";
 
-/** Save the editor's changes. Errors come back as words for the editor. */
-export async function saveForm(db: SupabaseClient, f: FormRow, user: string, name: string, schema: FormSchema, settings: FormSettings): Promise<{ schema: FormSchema } | { errors: string[] }> {
-  const errs = [...checkSchema(schema), ...checkSettings(settings)];
-  if (!name.trim() || name.length > 200) errs.push("Give the form a name.");
-  if (errs.length) return { errors: errs };
-  const plan = planFields(schema, (await existingFields(db, f.workspace_id)) as never);
-  const next = applyRemap(schema, plan.remap);
-  // A live form must keep passing the check, so a save can't break what visitors see.
-  if (f.status === "live") {
-    const ctx = await cleaningCtx(db, f.workspace_id);
-    const custom = [...ctx.custom, ...plan.create.map((c) => ({ key: c.key, label: c.label, type: c.type as never, options: c.options }))];
-    const problems = qaCheck(next, { ...ctx, custom });
-    if (problems.length) return { errors: problems };
-  }
-  await call(db, "form_save", { p_form: f.id, p_user: user, p_name: name.trim(), p_schema: next, p_settings: settings, p_fields: plan.create, p_extend: plan.extend });
-  return { schema: next };
-}
-
-export async function publishForm(db: SupabaseClient, f: FormRow): Promise<string[]> {
-  if (f.phi && !f.baa_confirmed_at) return ["Confirm you have a signed BAA in Settings before this form collects health details."];
-  const problems = qaCheck(f.schema, await cleaningCtx(db, f.workspace_id));
-  if (problems.length) return problems;
-  const { error } = await db.from("forms").update({ status: "live", published_at: new Date().toISOString(), updated_at: new Date().toISOString() }).eq("id", f.id);
-  if (error) throw new Error(error.message);
-  return [];
-}
-
-/** Remove a form's uploaded files, a page at a time. */
-export async function removeFiles(db: SupabaseClient, prefix: string) {
-  for (let i = 0; i < 200; i++) {
-    const { data } = await db.storage.from("form-files").list(prefix, { limit: 100 });
-    if (!data?.length) return;
-    const paths: string[] = [];
-    for (const item of data) {
-      const p = `${prefix}/${item.name}`;
-      if (item.id) paths.push(p);
-      else await removeFiles(db, p);
-    }
-    if (paths.length) await db.storage.from("form-files").remove(paths);
-    else return;
+/** True when the Turnstile token checks out, or when Turnstile isn't set up on the server. */
+export async function turnstileOk(token: unknown, ip: string, fetcher: typeof fetch = fetch): Promise<boolean> {
+  const secret = process.env.TURNSTILE_SECRET_KEY?.trim();
+  if (!secret) return true;
+  if (typeof token !== "string" || !token || token.length > 2048) return false;
+  try {
+    const res = await fetcher("https://challenges.cloudflare.com/turnstile/v0/siteverify", {
+      method: "POST",
+      headers: { "content-type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({ secret, response: token, ...(ip ? { remoteip: ip } : {}) }),
+      signal: AbortSignal.timeout(5000),
+    });
+    const j = (await res.json()) as { success?: boolean };
+    return j.success === true;
+  } catch {
+    // Cloudflare down: let the fill through rather than lose a lead; the trap and timing checks still ran.
+    return true;
   }
 }

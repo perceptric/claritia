@@ -20,7 +20,7 @@ export async function GET(request: Request) {
     const redirect = `${base}/api/sources/callback`;
     if (state.kind === "omniscient") {
       const omni = process.env.OMNISCIENT_URL?.trim().replace(/\/+$/, "") || "https://app.tryomniscient.com";
-      const res = await fetch(`${omni}/api/v1/connect/token`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ code, redirect_uri: redirect }) });
+      const res = await fetch(`${omni}/api/v1/connect/token`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ code, redirect_uri: redirect }), signal: AbortSignal.timeout(10_000) });
       const t = (await res.json().catch(() => ({}))) as { key?: string; error?: { message?: string } };
       if (!res.ok || !t.key) throw new Error(t.error?.message ?? "Omniscient didn't accept the code.");
       const s = await connectSource(db, { ws: state.ws, user: state.user, kind: "omniscient", creds: { type: "key", values: { api_key: t.key, url: omni } } });

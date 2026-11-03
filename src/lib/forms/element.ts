@@ -1,0 +1,2347 @@
+// <claritia-form>: the form visitors fill (docs/form-builder.md Part 6). A web component, so one script line works in
+// plain HTML, Webflow, Framer, WordPress or React. It draws the published schema inside a shadow root with the brand
+// kit's tokens, checks answers as people go, and sends the fill once. A send that can't reach us waits in
+// localStorage with its idem key and is tried again for 24 hours; the server treats a repeat key as the same fill.
+//   <script src="https://app.tryclaritia.com/forms/v1.js" async></script>
+//   <claritia-form form-id="…"></claritia-form>
+// Every label and answer is set as text, never as HTML. Choice lists are the component's own listbox, never <select>.
+// A form that books with Claritia calendar swaps to the inline calendar after the send (docs/meetings-scheduler.md
+// Part 2); a captured form opens it over the page, or on the thank-you page the team's form goes to.
+
+import { tokensCss, type Tokens } from "./brand.ts";
+import { byDay, dayText, localZone, sampleSlots, timeText, zoneName, zones, type Booked, type Booking } from "./calendar.ts";
+import { countryNames } from "./countries.ts";
+import { calcText } from "./formula.ts";
+import { cleanHtml } from "./html.ts";
+import { allFields, isContent, nextStep, numOf, optionsFor, pickOutcome, safeUrl, visibility, withCalcs, type Choice, type Field, type FieldWidth, type Form, type RunCtx } from "./schema.ts";
+import { checkAnswers, OTHER, stepPath, type Answers } from "./values.ts";
+import { answerFrom } from "../share/emailForm.ts";
+import { ACCESS_CSS, CAL_CSS, consentSpot, pageValues, runPage, zoneWords, type PageRun, type Vals } from "../studio/runtime.ts";
+
+/** regions: the region lists, sent with the form when a list follows a country field (src/lib/forms/regions.ts). */
+/** css: the design system's styles compiled for this form (src/lib/design/web.ts); it starts with the layer order. */
+type Loaded = { id: string; version: number; status: "live" | "paused"; body: Form; tokens: Partial<Tokens>; logo_url?: string | null; skin?: { css: string; fonts?: string } | null; strict?: boolean; turnstile?: string; regions?: Record<string, string[]>; css?: string; fonts?: string[] };
+type Queued = { url: string; body: string; key: string; at: number; tries: number };
+
+/** Field types drawn by many(): answers with parts. */
+const MANY = new Set(["ranking", "address", "grid", "daterange", "group", "signature"]);
+const QUEUE = "clr_form_queue";
+const DAY = 86_400_000;
+const SCRIPT_BASE = (() => {
+  try {
+    const src = (document.currentScript as HTMLScriptElement | null)?.src;
+    return src ? new URL(src).origin : "";
+  } catch {
+    return "";
+  }
+})();
+
+/** The popover button's icons (stroke drawings, colored by the button's text color). */
+const LC_ICONS: Record<string, string> = {
+  chat: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/></svg>',
+  calendar: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>',
+  form: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/></svg>',
+  close: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>',
+};
+
+const STYLES = `
+:host{all:initial;display:block;container-type:inline-size;font-family:var(--clr-font);font-size:var(--clr-size);color:var(--clr-text);line-height:1.45}
+*{box-sizing:border-box;font:inherit;color:inherit}
+.f{background:var(--clr-bg);display:flex;flex-direction:column;gap:var(--clr-gap);max-width:var(--clr-width,480px);container-type:inline-size}
+.h{font-family:var(--clr-heading-font);font-size:1.45em;font-weight:600;margin:0;line-height:1.2}
+.i{margin:0;color:var(--clr-muted)}
+.nt{font-size:.85em}
+.sr{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
+.pop{position:fixed;inset:0;z-index:2147483646;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;padding:16px;overflow:auto}
+.pop[hidden]{display:none!important}
+.pop.sl{inset:auto 16px 16px auto;background:none;padding:0;width:min(420px,calc(100vw - 32px));max-height:calc(100vh - 32px);display:block;overflow:visible}
+.pop.sl .pbox{box-shadow:0 16px 40px rgba(0,0,0,.18);border-radius:12px}
+.pbox{position:relative;background:var(--clr-bg);padding:28px;max-width:calc(var(--clr-width,480px) + 56px);width:100%;max-height:calc(100vh - 32px);overflow:auto}
+.px{position:absolute;top:8px;right:8px;width:32px;height:32px;border:0;background:transparent;cursor:pointer;font-size:20px;line-height:1;color:var(--clr-muted)}
+:host([full]){display:flex;min-height:100vh;min-height:100dvh;align-items:center;justify-content:center;padding:24px;background:var(--clr-bg)}
+:host([full]) .f{width:100%}
+.pop.sz-s .pbox{max-width:400px}.pop.sz-m .pbox{max-width:560px}.pop.sz-l .pbox{max-width:760px}
+.pop.sd{background:rgba(0,0,0,.35);padding:0;justify-content:flex-end;align-items:stretch}
+.pop.sd.lf{justify-content:flex-start}
+.pop.sd .pbox{max-width:min(520px,100vw);height:100%;max-height:none;border-radius:0;animation:clr-in-r .32s cubic-bezier(.22,1,.36,1)}
+.pop.sd.lf .pbox{animation-name:clr-in-l}
+.pop.pv{inset:auto 20px 88px auto;background:none;padding:0;display:block;width:min(380px,calc(100vw - 40px));overflow:visible}
+.pop.pv .pbox{border-radius:16px;box-shadow:0 16px 40px rgba(0,0,0,.2);max-height:min(620px,calc(100vh - 120px));padding:24px;animation:clr-up .2s cubic-bezier(.22,1,.36,1)}
+.lc{all:initial;position:fixed;z-index:2147483645;cursor:pointer;font-family:var(--clr-font);background:var(--clr-btn-bg,var(--clr-accent));color:var(--clr-btn-text,#fff);display:flex;align-items:center;justify-content:center;box-shadow:0 8px 24px rgba(0,0,0,.18)}
+.lc:focus-visible{outline:2px solid var(--clr-accent);outline-offset:3px}
+.lc.fab{right:20px;bottom:20px;width:56px;height:56px;border-radius:999px}
+.lc.fab svg{width:24px;height:24px}
+.lc.fab img{width:30px;height:30px;border-radius:6px;object-fit:contain}
+.lc .nb{position:absolute;right:66px;bottom:10px;white-space:nowrap;background:var(--clr-bg);color:var(--clr-text);font-size:13px;padding:8px 12px;border-radius:999px;box-shadow:0 6px 20px rgba(0,0,0,.14)}
+.lc.tab{right:0;top:50%;transform:translateY(-50%);writing-mode:vertical-rl;padding:16px 10px;border-radius:8px 0 0 8px;font-size:14px;font-weight:600}
+@keyframes clr-in-r{from{transform:translateX(100%)}}
+@keyframes clr-in-l{from{transform:translateX(-100%)}}
+@keyframes clr-up{from{transform:translateY(12px);opacity:0}}
+@media (max-width:640px){.pop.mf,.pop.mf.sl,.pop.mf.pv{inset:0;padding:0;width:auto}.pop.mf .pbox{max-width:none;width:100%;height:100%;max-height:none;border-radius:0}.lc .nb{display:none}}
+@media (prefers-reduced-motion:reduce){.pop .pbox{animation:none!important}}
+.pg{display:flex;flex-direction:column;gap:8px}
+.st{margin:0;font-size:.85em;color:var(--clr-muted)}
+.pb{height:4px;border-radius:4px;overflow:hidden;background:color-mix(in srgb,var(--clr-muted) 22%,transparent)}
+.pb i{display:block;height:100%;background:var(--clr-accent);transform-origin:left}
+.pd{display:flex;gap:6px}
+.pd i{width:8px;height:8px;border-radius:50%;background:color-mix(in srgb,var(--clr-muted) 30%,transparent)}
+.pd i.on{background:var(--clr-accent)}
+.g{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:var(--clr-gap)}
+.fl{grid-column:span 6;display:flex;flex-direction:column;gap:6px;min-width:0}
+.w4{grid-column:span 4}.w3{grid-column:span 3}.w2{grid-column:span 2}
+@container (max-width:400px){.fl{grid-column:span 6}.np{display:none}}
+.lb{font-size:var(--clr-label-size);font-weight:var(--clr-label-weight)}
+.rq{color:var(--clr-muted);margin-left:2px}
+.hp{font-size:.85em;color:var(--clr-muted);margin:0}
+.in,.bx{width:100%;min-height:var(--clr-input-h);padding:0 12px;background:var(--clr-input-bg);border:var(--clr-border-w) solid var(--clr-border);border-radius:var(--clr-radius);outline:none}
+textarea.in{min-height:calc(var(--clr-input-h)*2.4);padding:10px 12px;resize:vertical}
+.sm .in,.sm .bx{min-height:calc(var(--clr-input-h)*.82);font-size:.92em}
+.lg .in,.lg .bx{min-height:calc(var(--clr-input-h)*1.2);font-size:1.08em}
+.in:focus,.bx:focus,.bx[aria-expanded=true]{border-color:var(--clr-accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--clr-accent) 22%,transparent)}
+.in[aria-invalid=true],.bx[aria-invalid=true]{border-color:var(--clr-error)}
+.er{color:var(--clr-error);font-size:.85em;margin:0}
+.bx{display:flex;align-items:center;justify-content:space-between;gap:8px;text-align:left;cursor:pointer}
+.bx .ph{color:var(--clr-muted)}
+.dd{position:relative}
+.ls{position:absolute;z-index:10;left:0;right:0;top:calc(100% + 4px);max-height:260px;overflow:auto;margin:0;padding:4px;list-style:none;background:var(--clr-input-bg);border:var(--clr-border-w) solid var(--clr-border);border-radius:var(--clr-radius);box-shadow:0 8px 24px rgba(0,0,0,.12)}
+.ls input{margin-bottom:4px}
+.op{padding:8px 10px;border-radius:calc(var(--clr-radius)*.6);cursor:pointer}
+.op[aria-selected=true]{font-weight:600}
+.op.on{background:color-mix(in srgb,var(--clr-accent) 12%,transparent)}
+.ch{display:flex;flex-direction:column;gap:8px}
+.ck{display:flex;align-items:flex-start;gap:10px;cursor:pointer}
+.ck input{width:18px;height:18px;margin:2px 0 0;accent-color:var(--clr-accent);flex:none}
+.rt{display:flex;flex-wrap:wrap;gap:6px}
+.rt label{position:relative;cursor:pointer;display:flex}
+.rt input{position:absolute;opacity:0;width:1px;height:1px;margin:0}
+.rt input:focus-visible+span{outline:2px solid var(--clr-accent);outline-offset:2px}
+.rs span{font-size:1.7em;line-height:1;border-radius:4px;color:color-mix(in srgb,var(--clr-muted) 40%,transparent)}
+.rs .on span{color:var(--clr-accent)}
+@media (hover:hover){.rs:hover span{color:var(--clr-accent)}.rs label:hover~label span{color:color-mix(in srgb,var(--clr-muted) 40%,transparent)}}
+.rn span{display:flex;align-items:center;justify-content:center;min-width:var(--clr-input-h);height:var(--clr-input-h);padding:0 8px;background:var(--clr-input-bg);border:var(--clr-border-w) solid var(--clr-border);border-radius:var(--clr-radius)}
+.rn .on span{background:var(--clr-accent);border-color:var(--clr-accent);color:var(--clr-btn-text)}
+.rt[aria-invalid=true] span{border-color:var(--clr-error)}
+.rl{display:flex;justify-content:space-between;gap:12px;font-size:.85em;color:var(--clr-muted)}
+.k1,.k2,.k3{font-family:var(--clr-heading-font);font-weight:600;margin:0;line-height:1.2}
+.k1{font-size:1.45em}.k2{font-size:1.2em}.k3{font-size:1.05em}
+.tx{margin:0;white-space:pre-line}
+.dv{width:100%;border:0;border-top:var(--clr-border-w) solid var(--clr-border);margin:4px 0}
+.im{display:block;max-width:100%;height:auto;border-radius:var(--clr-radius)}
+.ce{text-align:center;align-items:center}
+.ac{display:flex;gap:10px;align-items:center}
+.fw{flex:1}
+.bt{min-height:var(--clr-input-h);padding:0 22px;border:0;border-radius:var(--clr-btn-radius);background:var(--clr-btn-bg);color:var(--clr-btn-text);font-weight:var(--clr-btn-weight);text-transform:var(--clr-btn-case);cursor:pointer}
+.bt:disabled{opacity:.6;cursor:default}
+.bt.bk{background:transparent;color:var(--clr-text);border:var(--clr-border-w) solid var(--clr-border)}
+.bt:focus-visible{outline:2px solid var(--clr-accent);outline-offset:2px}
+.trap{position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden}
+.al{color:var(--clr-error);margin:0}
+.dn{display:flex;flex-direction:column;gap:6px}
+.ok{--clr-ok:rgb(12 140 94);display:flex;width:36px;height:36px;margin-bottom:6px;align-items:center;justify-content:center;border-radius:50%;background:color-mix(in srgb,var(--clr-ok) 12%,var(--clr-bg))}
+.ok::after{content:"";width:12px;height:6px;border-left:2px solid var(--clr-ok);border-bottom:2px solid var(--clr-ok);transform:translateY(-2px) rotate(-45deg)}
+.cl{gap:14px}
+.hs{display:flex;align-items:center;gap:10px;font-weight:600}
+.av{width:36px;height:36px;border-radius:50%;object-fit:cover}
+.ps{display:flex;flex-wrap:wrap;gap:6px}
+.dy{flex-wrap:nowrap;overflow-x:auto;padding:2px}
+.pl{min-height:calc(var(--clr-input-h)*.8);padding:0 14px;border-radius:999px;border:var(--clr-border-w) solid var(--clr-border);background:var(--clr-input-bg);cursor:pointer;white-space:nowrap}
+.pl[aria-pressed=true]{background:var(--clr-accent);border-color:var(--clr-accent);color:var(--clr-btn-text)}
+.pl:focus-visible{outline:2px solid var(--clr-accent);outline-offset:2px}
+.pl:disabled{opacity:.6;cursor:default}
+.tm{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:8px}
+.tm .pl{border-radius:var(--clr-radius)}
+.tz{display:flex;flex-direction:column;gap:6px;max-width:320px}
+.hx{display:block;min-width:0}
+.hx img{max-width:100%;height:auto;display:block;border-radius:var(--clr-radius)}
+.hx h1,.hx h2,.hx h3{font-family:var(--clr-heading-font);line-height:1.15;margin:0 0 .4em}
+.hx h1{font-size:2.2em}.hx h2{font-size:1.6em}.hx h3{font-size:1.2em}
+.hx p{margin:0 0 .8em}.hx a{color:var(--clr-accent)}
+.sc{min-height:360px;gap:calc(var(--clr-gap)*1.4)}
+.sc .lb{font-family:var(--clr-heading-font);font-size:1.4em;font-weight:600;line-height:1.25}
+.sc .h{font-size:2em}
+.cv{justify-content:center}
+.mn{display:flex;flex-direction:column;gap:8px}
+.lo{display:block;height:28px;width:auto;max-width:180px;object-fit:contain;object-position:left}
+.cv .lo{margin:0 auto}
+.py{display:flex;justify-content:space-between;align-items:baseline;padding:12px 14px;border:1px solid var(--clr-border);border-radius:var(--clr-radius)}.py b{font-size:1.3em}
+.lk{border:0;background:none;color:var(--clr-muted);text-decoration:underline;cursor:pointer;font:inherit;padding:0}
+.r2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.rk{display:flex;align-items:center;gap:10px;padding:8px 10px;border:1px solid var(--clr-border);border-radius:var(--clr-radius)}
+.rk b{width:20px;color:var(--clr-muted);font-weight:600}.rk span{flex:1}
+.mv{width:28px;height:28px;border:1px solid var(--clr-border);border-radius:50%;background:var(--clr-bg);color:var(--clr-text);cursor:pointer;font:inherit}
+.mv:disabled{opacity:.35;cursor:default}
+.gw{overflow-x:auto}.gd{border-collapse:collapse;width:100%}.gd th,.gd td{padding:8px;text-align:center;border-bottom:1px solid var(--clr-border);font-weight:400}.gd th[scope=row]{text-align:left}
+.gr{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:10px;border:1px solid var(--clr-border);border-radius:var(--clr-radius)}.gr>.in{flex:1 1 140px}.gf{display:flex;flex-direction:column;gap:4px}
+.pk{padding:6px 12px;border:1px solid var(--clr-border);border-radius:99px;background:var(--clr-bg);color:var(--clr-text);cursor:pointer;font:inherit}.pk.on{background:var(--clr-btn-bg);color:var(--clr-btn-text);border-color:var(--clr-btn-bg)}
+.sg{width:100%;height:auto;aspect-ratio:10/3;border:1px dashed var(--clr-border);border-radius:var(--clr-radius);background:#fff;touch-action:none}
+.sp{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);min-height:480px;border:1px solid var(--clr-border);border-radius:var(--clr-radius);overflow:hidden;background:var(--clr-bg)}
+.sp.sr>.spi{order:2}
+.spi{min-height:200px;background:color-mix(in srgb,var(--clr-accent) 8%,var(--clr-bg))}
+.spi img{display:block;width:100%;height:100%;object-fit:cover}
+.sp>.f{align-self:center;padding:clamp(20px,4vw,48px)}
+@container (max-width:640px){.sp{grid-template-columns:1fr}.sp.sr>.spi{order:0}.spi{max-height:200px}.r2{grid-template-columns:1fr}}
+.cv .h{font-size:2.2em}
+.cd{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px}
+.cd label{position:relative;display:flex;flex-direction:column;gap:8px;padding:14px;border:var(--clr-border-w) solid var(--clr-border);border-radius:var(--clr-radius);background:var(--clr-input-bg);cursor:pointer}
+.cd label:has(input:checked){border-color:var(--clr-accent);background:color-mix(in srgb,var(--clr-accent) 10%,var(--clr-input-bg))}
+.cd label:has(input:focus-visible){outline:2px solid var(--clr-accent);outline-offset:2px}
+.cd input{position:absolute;opacity:0;width:1px;height:1px}
+.cd img{width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:calc(var(--clr-radius)*.7)}
+.sv{display:grid;grid-template-columns:minmax(0,1fr) 96px;gap:12px;align-items:center}
+.sv input[type=range]{width:100%;accent-color:var(--clr-accent)}
+.rm{display:flex;flex-direction:column;gap:4px}
+.rv{font-family:var(--clr-heading-font);font-size:2.2em;font-weight:600;line-height:1.1;font-variant-numeric:tabular-nums}
+.mt{height:8px;border-radius:8px;overflow:hidden;background:color-mix(in srgb,var(--clr-muted) 22%,transparent)}
+.mt i{display:block;height:100%;background:var(--clr-accent)}
+.rs2{border:var(--clr-border-w) solid var(--clr-border);border-radius:var(--clr-radius)}
+.rs2 div{display:flex;justify-content:space-between;gap:12px;padding:8px 12px;font-variant-numeric:tabular-nums}
+.rs2 div+div{border-top:var(--clr-border-w) solid var(--clr-border)}
+.rs2 div:last-child{font-weight:600}
+.br{display:grid;grid-template-columns:minmax(0,1fr) 2fr auto;gap:8px 12px;align-items:center;font-variant-numeric:tabular-nums}
+.br i{display:block;height:10px;border-radius:4px;background:var(--clr-accent)}
+@media (prefers-reduced-motion:no-preference){.an{animation:clr-in .2s cubic-bezier(.22,1,.36,1)}@keyframes clr-in{from{opacity:0;transform:translateX(12px)}to{opacity:1;transform:none}}}
+@media (prefers-reduced-motion:no-preference){.f{transition:opacity .15s ease}.pb i{transition:transform .2s cubic-bezier(.2,0,0,1)}}
+`;
+
+const el = <K extends keyof HTMLElementTagNameMap>(tag: K, attrs: Record<string, string | boolean | undefined> = {}, ...kids: (Node | string | null | false)[]) => {
+  const n = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) {
+    if (v === undefined || v === false) continue;
+    if (k === "text") n.textContent = String(v);
+    else n.setAttribute(k, v === true ? "" : v);
+  }
+  for (const k of kids) if (k) n.append(k);
+  return n;
+};
+
+/** The columns a field takes on the form's six-column grid; a narrow form stacks every field. */
+export const SPAN: Record<FieldWidth, number> = { full: 6, half: 3, third: 2, two_thirds: 4 };
+
+/**
+ * A shuffled list in an order that holds for one page load (one seed), whatever order the list was saved in, so the
+ * options don't jump while the visitor answers.
+ */
+export function shuffled<T extends { value: string }>(list: T[], seed: number): T[] {
+  const hash = (v: string) => {
+    let h = (2166136261 ^ seed) >>> 0;
+    for (let i = 0; i < v.length; i++) h = Math.imul(h ^ v.charCodeAt(i), 16777619) >>> 0;
+    return h;
+  };
+  return list
+    .map((o) => [hash(o.value), o] as const)
+    .sort((a, b) => a[0] - b[0] || (a[1].value < b[1].value ? -1 : 1))
+    .map((x) => x[1]);
+}
+
+/** The input attributes a field's checks call for, so the browser and phone keyboards match what checkAnswers takes. */
+export function inputAttrs(f: Field): Record<string, string> {
+  const v = f.valid ?? {};
+  const a: Record<string, string> = {};
+  const put = (k: string, x: number | string | undefined) => {
+    if (x !== undefined) a[k] = String(x);
+  };
+  if (f.type === "text" || f.type === "textarea") {
+    put("maxlength", v.max ?? (f.type === "text" ? 1000 : 5000));
+    if (v.min) put("minlength", v.min);
+  } else if (f.type === "number") {
+    put("min", v.min);
+    put("max", v.max);
+    put("step", v.step);
+    // Whole numbers that can't go below zero get the digits-only keypad.
+    a.inputmode = v.step !== undefined && Number.isInteger(v.step) && v.min !== undefined && v.min >= 0 ? "numeric" : "decimal";
+  } else if (f.type === "date") {
+    put("min", v.earliest);
+    put("max", v.latest);
+  } else if (f.type === "email") put("maxlength", 320);
+  else if (f.type === "phone") put("maxlength", 50);
+  else if (f.type === "url") put("maxlength", 1000);
+  return a;
+}
+
+/** A default or a value from the address, as the field holds it. */
+export function fromText(f: Field, s: string): unknown {
+  if (f.type === "multi") return s.split(",").map((x) => x.trim()).filter(Boolean);
+  if (f.type === "rating") return Number.isFinite(Number(s)) ? Number(s) : s;
+  return s;
+}
+
+/** The visitor's own day, for rules like "within 30 days". */
+const localDay = () => {
+  const d = new Date();
+  return new Date(d.getTime() - d.getTimezoneOffset() * 60_000).toISOString().slice(0, 10);
+};
+
+const listOf = (v: unknown): string[] => (Array.isArray(v) ? v.map(String) : (typeof v === "string" && v) || typeof v === "number" ? [String(v)] : []);
+
+/** A random id for this browser, kept in localStorage; one per page load when storage is blocked. */
+let pageVid = "";
+function visitorId(): string {
+  try {
+    const v = localStorage.getItem("_clr_vid");
+    if (v && /^[A-Za-z0-9_-]{8,64}$/.test(v)) return v;
+    const n = idemKey();
+    localStorage.setItem("_clr_vid", n);
+    return n;
+  } catch {
+    return (pageVid ||= idemKey());
+  }
+}
+
+function idemKey(): string {
+  const b = new Uint8Array(18);
+  crypto.getRandomValues(b);
+  return btoa(String.fromCharCode(...b)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+function readQueue(): Queued[] {
+  try {
+    const q = JSON.parse(localStorage.getItem(QUEUE) || "[]") as Queued[];
+    return Array.isArray(q) ? q.filter((x) => x && Date.now() - x.at < DAY) : [];
+  } catch {
+    return [];
+  }
+}
+function writeQueue(q: Queued[]) {
+  try {
+    if (q.length) localStorage.setItem(QUEUE, JSON.stringify(q.slice(-20)));
+    else localStorage.removeItem(QUEUE);
+  } catch {}
+}
+
+/** Send one queued fill. True when it's settled (accepted, or refused for good). */
+async function sendQueued(x: Queued): Promise<boolean> {
+  try {
+    const res = await fetch(x.url, { method: "POST", headers: { "content-type": "application/json" }, body: x.body, keepalive: true });
+    return res.ok || (res.status >= 400 && res.status < 500 && res.status !== 408 && res.status !== 429);
+  } catch {
+    return false;
+  }
+}
+
+const TOUCH = ["utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_content", "gclid", "fbclid", "li_fat_id", "msclkid"];
+type Touch = { utm: Record<string, string>; first: Record<string, string>; page: string; referrer: string };
+
+/** Inside the frame /f/embed.js draws: it passes the page around it as ?c=. */
+const embedFrame = () => {
+  try {
+    return window.parent !== window && new URLSearchParams(location.search).has("c");
+  } catch {
+    return false;
+  }
+};
+
+/**
+ * Where the visitor is: the page around the frame when the embed sent it, else this page. UTMs and ad click ids,
+ * latest and first touch, kept in localStorage the same way the embed keeps them.
+ */
+function touch(): Touch {
+  const params = new URLSearchParams(location.search);
+  const pick = (o: unknown) => {
+    const out: Record<string, string> = {};
+    if (o && typeof o === "object") for (const k of TOUCH) if (typeof (o as Record<string, unknown>)[k] === "string" && (o as Record<string, string>)[k]) out[k] = (o as Record<string, string>)[k].slice(0, 300);
+    return out;
+  };
+  const text = (v: unknown) => (typeof v === "string" ? v.slice(0, 1000) : "");
+  if (embedFrame()) {
+    try {
+      const raw = atob((params.get("c") ?? "").replace(/-/g, "+").replace(/_/g, "/"));
+      const o = JSON.parse(new TextDecoder().decode(Uint8Array.from(raw, (ch) => ch.charCodeAt(0)))) as Record<string, unknown>;
+      return { utm: pick(o.utm), first: pick(o.first), page: text(o.page), referrer: text(o.referrer) };
+    } catch {}
+  }
+  const store = (k: string, v?: Record<string, string>): unknown => {
+    try {
+      if (v === undefined) return JSON.parse(localStorage.getItem(k) || "null");
+      localStorage.setItem(k, JSON.stringify(v));
+    } catch {}
+    return null;
+  };
+  const now = pick(Object.fromEntries(params));
+  if (Object.keys(now).length) {
+    store("_clr_utm", now);
+    if (!store("_clr_utm1")) store("_clr_utm1", now);
+  }
+  return { utm: Object.keys(now).length ? now : pick(store("_clr_utm")), first: pick(store("_clr_utm1")), page: text(location.href), referrer: text(document.referrer) };
+}
+
+/** What hidden fields pick up on this page, by field id. */
+function hiddenValues(form: Form, t: Touch): Record<string, string> {
+  const out: Record<string, string> = {};
+  const params = new URLSearchParams(location.search);
+  for (const f of allFields(form)) {
+    if (f.type !== "hidden" || !f.hidden) continue;
+    const name = f.hidden.name ?? "";
+    const v = f.hidden.from === "param" ? (t.utm[name] ?? t.first[name] ?? params.get(name)) : f.hidden.from === "page" ? t.page : f.hidden.from === "referrer" ? t.referrer : f.hidden.value;
+    if (v) out[f.id] = v.slice(0, 500);
+  }
+  return out;
+}
+
+/** The booking calendar over the page, for captured forms (they have no screen of their own to show it in). */
+function bookingOverlay(url: string) {
+  const back = el("div", { style: "position:fixed;inset:0;z-index:2147483647;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;padding:16px" });
+  const box = el("div", { role: "dialog", "aria-modal": "true", "aria-label": "Book a meeting", style: "background:#fff;width:100%;max-width:760px;max-height:92vh;overflow:auto;border-radius:8px;position:relative" });
+  const close = el("button", { type: "button", "aria-label": "Close", text: "×", style: "position:absolute;top:6px;right:10px;border:0;background:none;font:24px/1 sans-serif;cursor:pointer;color:#333" });
+  const done = () => {
+    back.remove();
+    document.removeEventListener("keydown", esc);
+  };
+  const esc = (e: KeyboardEvent) => e.key === "Escape" && done();
+  close.addEventListener("click", done);
+  back.addEventListener("click", (e) => e.target === back && done());
+  document.addEventListener("keydown", esc);
+  box.append(close, el("iframe", { src: url, title: "Book a meeting", style: "width:100%;min-height:680px;border:0;display:block" }));
+  back.append(box);
+  document.body.append(back);
+  close.focus();
+}
+
+type Values = (name: string) => unknown;
+/** What a send or a booking call answers. */
+type Answer = { schedule?: { url: string } | null; booking?: Booking; booked?: Booked; taken?: boolean; error?: string; expired?: boolean };
+
+/** Claritia calendar over the page: a <claritia-form> in booking mode, in the form's own look. */
+function calendarOver(data: Loaded, base: string, a: Answer) {
+  if (!a.booking && !a.booked) return;
+  const c = document.createElement("claritia-form") as ClaritiaForm;
+  c.setAttribute("popup", "");
+  c.setAttribute("host", base);
+  c.over(data, a);
+  document.body.append(c);
+}
+
+const PEND = "clr_book_pend";
+/** A captured send in flight: when the page moves on first, the next page (same site) sends it again, same key. */
+const pend = (v?: object) => {
+  try {
+    if (v) sessionStorage.setItem(PEND, JSON.stringify(v));
+    else sessionStorage.removeItem(PEND);
+  } catch {}
+};
+let addressDone = false;
+
+/**
+ * Captured forms (docs/form-builder.md Part 9): the team's own form, read when it's sent. Only the fields mapped in
+ * Claritia are read, by their names, and only from the form set up here; the team's form keeps working as before.
+ * Started by <script src=".../forms/v1.js" data-capture="<form id>">.
+ */
+export function startCapture(formId: string, base: string) {
+  if (!/^[0-9a-f-]{36}$/.test(formId)) return;
+  const started = Date.now();
+  // Listeners go on at once and keep what was sent; the form's settings are read alongside, so a send made before
+  // they arrive still counts.
+  const ready: Promise<Loaded | null> = fetch(`${base}/api/forms/${formId}`, { credentials: "omit" })
+    .then((r) => (r.ok ? (r.json() as Promise<Loaded>) : null))
+    .catch(() => null);
+  const sentKeys = new Set<string>();
+
+  const show = (data: Loaded, j: Answer) => {
+    if (j.booking || j.booked) calendarOver(data, base, j);
+    else if (j.schedule && /^https:\/\//.test(j.schedule.url)) bookingOverlay(j.schedule.url);
+  };
+  const post = async (url: string, body: string): Promise<{ res: Response; j: Answer } | null> => {
+    try {
+      const res = await fetch(url, { method: "POST", headers: { "content-type": "application/json" }, body, credentials: "omit", keepalive: true });
+      return { res, j: (await res.json().catch(() => ({}))) as Answer };
+    } catch {
+      return null;
+    }
+  };
+
+  // A thank-you page: the calendar opens from the token in the address, or from a send the last page didn't hear back.
+  void ready.then(async (data) => {
+    if (!data) return;
+    const tok = /[#&?]clr_book=([^&#]+)/.exec(location.href)?.[1];
+    if (tok && !addressDone) {
+      addressDone = true;
+      const r = await post(`${base}/api/forms/book`, JSON.stringify({ token: decodeURIComponent(tok) }));
+      if (r?.res.ok) show(data, r.j);
+      return;
+    }
+    let p: { url?: string; body?: string; form?: string; at?: number } | null = null;
+    try {
+      p = JSON.parse(sessionStorage.getItem(PEND) || "null");
+    } catch {}
+    if (!p || p.form !== formId || !p.url || !p.body || Date.now() - (p.at ?? 0) > 600_000) return;
+    pend();
+    const r = await post(p.url, p.body);
+    if (r?.res.ok) {
+      writeQueue(readQueue().filter((x) => x.body !== p!.body));
+      show(data, r.j);
+    }
+  });
+
+  const send = async (adapter: NonNullable<Form["capture"]>["adapter"], get: Values, el?: HTMLFormElement, quiet = false): Promise<Answer | null> => {
+    const data = await ready;
+    const form = data?.body;
+    const cap = form?.capture;
+    if (!data || !form || !cap || data.status !== "live") return null;
+    // Only the adapter set up here, and for HTML only the form it names (or the one holding the mapped email).
+    if (adapter !== cap.adapter && !(adapter === "html" && (cap.adapter === "webflow" || cap.adapter === "framer"))) return null;
+    const fields = allFields(form).filter((f) => f.source);
+    const email = fields.find((f) => f.key === "email");
+    if (!email) return null;
+    if (el && (cap.selector ? !el.matches(cap.selector) : get(email.source!) === undefined)) return null;
+    const answers: Answers = {};
+    for (const f of fields) {
+      const v = get(f.source!);
+      if (v === undefined || v === null || v === "") continue;
+      answers[f.id] = f.type === "checkbox" ? v === true || v === "true" || v === "on" || v === "yes" : f.type === "multi" ? (Array.isArray(v) ? v.map(String) : String(v).split(/[;,]/)) : Array.isArray(v) ? String(v[0]) : String(v);
+    }
+    if (checkAnswers(form, answers).errors[email.id] || !answers[email.id]) return null;
+    // The same answers sent twice in a row (a double click, two events for one send) count once.
+    const sig = JSON.stringify(answers);
+    if (sentKeys.has(sig)) return null;
+    sentKeys.add(sig);
+    const key = idemKey();
+    const t = touch();
+    const body = JSON.stringify({ v: 1, version: data.version, key, answers, hidden: hiddenValues(form, t), consent: {}, page: t.page, referrer: t.referrer, utm: t.utm, first: t.first, ms: Date.now() - started, trap: "" });
+    const url = `${base}/api/forms/${formId}/submit`;
+    pend({ url, body, form: formId, at: Date.now() });
+    const r = await post(url, body);
+    // Kept when there was no answer (the page moving on cuts the request off), for the next page to send again.
+    if (r) pend();
+    if (r?.res.ok) {
+      if (!quiet) show(data, r.j);
+      return r.j;
+    }
+    if (r && r.res.status < 500 && r.res.status !== 408 && r.res.status !== 429) return null;
+    writeQueue([...readQueue(), { url, body, key, at: Date.now(), tries: 1 }]);
+    return null;
+  };
+
+  const byName = (list: { name: string; value: unknown }[]) => (name: string) => {
+    const hits = list.filter((x) => x.name === name || x.name.endsWith(`/${name}`)).map((x) => x.value);
+    return hits.length > 1 ? hits : hits[0];
+  };
+
+  // HubSpot: legacy embeds post a message; v4 forms raise a window event (check both against a live portal).
+  window.addEventListener("message", (e: MessageEvent) => {
+    const d = e.data as { type?: string; eventName?: string; data?: unknown } | null;
+    if (!d || d.type !== "hsFormCallback" || d.eventName !== "onFormSubmitted") return;
+    const raw = d.data as { name: string; value: unknown }[] | { submissionValues?: Record<string, unknown> } | undefined;
+    const list = Array.isArray(raw) ? raw : Object.entries(raw?.submissionValues ?? {}).map(([name, value]) => ({ name, value }));
+    void send("hubspot", byName(list));
+  });
+  window.addEventListener("hs-form-event:on-submission:success", async (e: Event) => {
+    const hs = (window as unknown as { HubSpotFormsV4?: { getFormFromEvent?: (e: Event) => { getFormFieldValues?: () => Promise<{ name: string; value: unknown }[]> } } }).HubSpotFormsV4;
+    const list = await hs?.getFormFromEvent?.(e)?.getFormFieldValues?.().catch(() => []);
+    if (list?.length) void send("hubspot", byName(list));
+  });
+  // Marketo: with a follow-up page, it opens once our answer is in (3 seconds at most), carrying the booking token so
+  // the calendar opens there; without one, the calendar opens over this page.
+  const tryMarketo = (n: number) => {
+    const M = (window as unknown as { MktoForms2?: { whenReady: (cb: (f: { onSuccess: (cb: (values: Record<string, unknown>, follow?: string) => boolean | void) => void }) => void) => void } }).MktoForms2;
+    if (!M) return void (n < 60 && setTimeout(() => tryMarketo(n + 1), 500));
+    M.whenReady((f) =>
+      f.onSuccess((values, follow) => {
+        const p = send("marketo", (name) => values[name], undefined, !!follow);
+        if (!follow) return;
+        let gone = false;
+        const go = (t?: string) => {
+          if (gone) return;
+          gone = true;
+          location.assign(t ? `${follow}${follow.includes("#") ? "&" : "#"}clr_book=${encodeURIComponent(t)}` : follow);
+        };
+        setTimeout(go, 3000);
+        void p.then((j) => go(j?.booking?.token));
+        return false;
+      }),
+    );
+  };
+  void ready.then((d) => d?.body.capture?.adapter === "marketo" && tryMarketo(0));
+  // Plain HTML, Webflow and Framer: the form's own submit event, heard before the page moves on. The values are read
+  // at once, then checked against the settings.
+  document.addEventListener(
+    "submit",
+    (e) => {
+      const f = e.target as HTMLFormElement | null;
+      if (!f || f.tagName !== "FORM") return;
+      const fd = new FormData(f);
+      void send(
+        "html",
+        (name) => {
+          const all = fd.getAll(name).filter((v): v is string => typeof v === "string");
+          return all.length > 1 ? all : all[0];
+        },
+        f,
+      );
+    },
+    true,
+  );
+}
+
+let flushing = false;
+/** Fills that couldn't be sent before, oldest first. Runs when any form loads and every so often while open. */
+async function flushQueue() {
+  if (flushing) return;
+  flushing = true;
+  try {
+    for (const x of readQueue()) {
+      const ok = await sendQueued(x);
+      const q = readQueue();
+      const i = q.findIndex((y) => y.key === x.key);
+      if (i < 0) continue;
+      if (ok) q.splice(i, 1);
+      else q[i] = { ...x, tries: x.tries + 1 };
+      writeQueue(q);
+      if (!ok) break;
+    }
+  } finally {
+    flushing = false;
+  }
+}
+
+const fontsAdded = new Set<string>();
+function addFont(url: string) {
+  // Google Fonts, or the brand's own fonts served by Claritia (docs/brand-capture.md).
+  if (!url || fontsAdded.has(url) || !/^https:\/\/(fonts\.googleapis\.com\/|(app\.)?tryclaritia\.com\/api\/brand\/fonts\/[0-9a-f-]{36}$|localhost(:\d+)?\/api\/brand\/fonts\/)/.test(url)) return;
+  fontsAdded.add(url);
+  document.head.append(el("link", { rel: "stylesheet", href: url }));
+}
+
+/**
+ * A skin's fonts (docs/brand-skin.md): @font-face rules whose files Claritia serves. Fonts declared inside a shadow root
+ * don't load, so they go in the page's head, once. Anything else in the text is refused.
+ */
+function addFaces(css: string, base: string) {
+  if (!css || fontsAdded.has(css)) return;
+  const rules = css.match(/@font-face\{[^{}]*\}/g) ?? [];
+  if (rules.join("\n") !== css.trim() || rules.some((r) => [...r.matchAll(/url\("([^"]+)"\)/g)].some((m) => !m[1]!.startsWith(`${base}/api/brand/fontfile/`)))) return;
+  fontsAdded.add(css);
+  document.head.append(el("style", { text: css }));
+}
+
+/** Whether a change to this field can change what the form shows: a rule, a skip, a calc or a list reads it. */
+function affects(form: Form, id: string): boolean {
+  const c = (w: { field: string }) => w.field === id;
+  return form.rules.some((r) => c(r.when) || !!r.group?.when.some(c)) || form.steps.some((s) => (s.skip && c(s.skip.when)) || s.fields.some((f) => f.type === "calc" || f.optionsBy?.field === id));
+}
+
+// Node (the tests) has no HTMLElement; the helpers above still load there.
+const Base = (typeof HTMLElement === "undefined" ? class {} : HTMLElement) as typeof HTMLElement;
+
+export class ClaritiaForm extends Base {
+  static observedAttributes = ["form-id"];
+  private root: ShadowRoot;
+  private data: Loaded | null = null;
+  private answers: Answers = {};
+  private errors: Record<string, string> = {};
+  private step = 0;
+  /** The answer an email's button filled (field id and value), set on a studio page's own inputs too. */
+  private emailAnswer: { name: string; value: string } | null = null;
+  private started = Date.now();
+  private key = idemKey();
+  private consent = false;
+  private sending = false;
+  private done = false;
+  private alert = "";
+  private isPreview = false;
+  /** demo: the live form in the app's Share preview; it loads and opens as on a site, and sends nothing. */
+  private get quiet() {
+    return this.isPreview || this.hasAttribute("demo");
+  }
+  /** The builder's canvas: every field shows (logic and hidden ones too), so each can be picked. */
+  private edit = false;
+  private openList: string | null = null;
+  private schedule: { tool: string; url: string } | null = null;
+  private filter = "";
+  /** "Other" text by field id: undefined when Other isn't picked. */
+  private other: Record<string, string | undefined> = {};
+  /** The defaults put in, so the builder can swap one the visitor hasn't changed. */
+  private defaults: Record<string, unknown> = {};
+  private seed = (Math.random() * 2 ** 31) | 0;
+  // Claritia calendar after the send: the times, the booked meeting, the day picked, the visitor's zone, a line to say.
+  private bk: Booking | null = null;
+  /** The server saved the details and is still finishing (Routing hasn't committed an owner yet): its words. */
+  private waiting = "";
+  private bkDone: Booked | null = null;
+  private bkDay = "";
+  private bkTz = localZone();
+  private bkMsg = "";
+  /** The page calendar: all of the day's times shown, and the time zone list open. */
+  private bkMore = false;
+  private bkZone = false;
+  private bkBusy = false;
+  private overPage = false;
+  /** Field ids hidden as already known (none since fill before submit was removed). */
+  private known = new Set<string>();
+  /** Past the cover screen; the step last drawn (a new one slides in); the server's result after the send. */
+  private covered = false;
+  private drawn = -1;
+  private result: { values: Record<string, number | null>; outcome?: { id: string; title: string; text?: string } } | null = null;
+  private sid = "";
+  /** Step 3 (docs/form-kinds-plan.md): Checkout to finish, a PDF copy link, back from paying, the save-later box. */
+  private pay: { url?: string; error?: string } | null = null;
+  private copy = "";
+  private paid = false;
+  private later_: "" | "ask" | "sent" = "";
+  private mailed = "";
+  private mailFail = false;
+  private get ctx(): RunCtx {
+    return { today: localDay(), regions: (c) => this.data?.regions?.[c] };
+  }
+
+  constructor() {
+    super();
+    this.root = this.attachShadow({ mode: "open" });
+    // The first answer is a start (Reports' Forms page).
+    const start = () => this.beacon("start");
+    this.root.addEventListener("input", start);
+    this.root.addEventListener("change", start);
+    // Time in each field, and the last one the visitor was in (docs/forms-plan.md 1.2).
+    const fid = (e: Event) => /^clr-([a-z0-9]{1,24})/.exec((e.target as HTMLElement | null)?.id ?? "")?.[1];
+    this.root.addEventListener("focusin", (e) => {
+      const id = fid(e);
+      if (id && this.data?.body.steps.some((st) => st.fields.some((f) => f.id === id))) this.at = [id, Date.now()];
+    });
+    this.root.addEventListener("focusout", () => {
+      if (this.at) this.row(this.at[0])[3] += Date.now() - this.at[1];
+      this.last = this.at?.[0] ?? this.last;
+      this.at = null;
+    });
+  }
+
+  /** Per field: [reached, answered, errors, ms]. Never the answers. */
+  private seenFields: Record<string, [number, number, number, number]> = {};
+  private at: [string, number] | null = null;
+  private last = "";
+  private maxStep = 0;
+  private told = "";
+  private hooked = false;
+  private row(id: string) {
+    return (this.seenFields[id] ??= [0, 0, 0, 0]);
+  }
+  /** One summary when the visitor leaves the page or sends the form; a later one replaces it on the server. */
+  private summary(sent: boolean) {
+    const id = this.getAttribute("form-id");
+    if (this.quiet || !this.sent.has("start") || !this.data || this.data.status !== "live" || !id || this.told === "sent") return;
+    for (const [k, r] of Object.entries(this.seenFields)) r[1] = listOf(this.answers[k]).length || this.answers[k] === true ? 1 : 0;
+    const body = JSON.stringify({ kind: "fields", vid: visitorId(), version: this.data.version, fields: this.seenFields, left: this.at?.[0] ?? this.last, step: this.maxStep, sent });
+    if (body === this.told) return;
+    this.told = sent ? "sent" : body;
+    fetch(`${this.base}/api/forms/${id}/seen`, { method: "POST", headers: { "content-type": "text/plain" }, body, credentials: "omit", keepalive: true }).catch(() => {});
+  }
+
+  /** One view (half on screen for a second) and one start per load; the server counts each visitor every 30 minutes. */
+  private sent = new Set<"view" | "start" | "result">();
+  private beacon(kind: "view" | "start" | "result") {
+    const id = this.getAttribute("form-id");
+    if (this.quiet || this.sent.has(kind) || !this.data || this.data.status !== "live" || !id) return;
+    this.sent.add(kind);
+    fetch(`${this.base}/api/forms/${id}/seen`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ kind, vid: visitorId() }), credentials: "omit", keepalive: true }).catch(() => {});
+  }
+
+  private watchView() {
+    if (this.quiet || typeof IntersectionObserver === "undefined") return;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const io = new IntersectionObserver(
+      ([e]) => {
+        if (e?.isIntersecting) {
+          timer ??= setTimeout(() => {
+            this.beacon("view");
+            io.disconnect();
+          }, 1000);
+        } else if (timer) {
+          clearTimeout(timer);
+          timer = null;
+        }
+      },
+      { threshold: 0.5 },
+    );
+    io.observe(this);
+  }
+
+  /** The app's builder shows a draft without loading or sending anything. */
+  set preview(p: { form: Form; tokens?: Partial<Tokens>; logo?: string | null; skin?: { css: string; fonts?: string } | null; step?: number; done?: boolean; regions?: Record<string, string[]>; css?: string; fonts?: string[]; edit?: boolean; answers?: Record<string, unknown> }) {
+    this.isPreview = true;
+    this.edit = !!p.edit;
+    const fresh = !this.data || this.done !== !!p.done;
+    if (fresh || p.form.after.schedule?.tool !== "claritia") this.bk = this.bkDone = null;
+    this.data = { id: "preview", version: 0, status: "live", body: p.form, tokens: p.tokens ?? {}, logo_url: p.logo ?? null, skin: p.skin ?? null, strict: true, regions: p.regions, css: p.css, fonts: p.fonts };
+    this.step = Math.min(p.step ?? this.step, p.form.steps.length - 1);
+    this.done = !!p.done;
+    if (fresh) this.errors = {};
+    this.applyDefaults(p.form);
+    // Try example: the example's answers, past the cover, on the step asked for (the result screen).
+    if (p.answers) {
+      this.answers = { ...p.answers };
+      this.covered = true;
+    }
+    this.render();
+  }
+
+  /** Captured forms: the calendar alone, over the page (calendarOver). */
+  over(data: Loaded, a: Answer) {
+    this.data = data;
+    this.done = this.opened = this.overPage = true;
+    this.bk = a.booking ?? null;
+    this.bkDone = a.booked ?? null;
+    this.render();
+    queueMicrotask(() => this.toggle(true));
+  }
+
+  private get base() {
+    return this.getAttribute("host") || SCRIPT_BASE || location.origin;
+  }
+
+  connectedCallback() {
+    if (!this.isPreview) void this.load();
+    void flushQueue();
+    this.wirePopup();
+    if (!this.isPreview && !this.hooked) {
+      this.hooked = true;
+      document.addEventListener("visibilitychange", () => document.visibilityState === "hidden" && this.summary(false));
+    }
+    // In the embed's frame: tell the page around it how tall the form is.
+    if (!this.isPreview && embedFrame() && typeof ResizeObserver !== "undefined") {
+      const size = () => {
+        try {
+          window.parent.postMessage({ type: "claritia-form", id: this.getAttribute("form-id"), height: document.documentElement.scrollHeight }, "*");
+        } catch {}
+      };
+      new ResizeObserver(size).observe(document.body);
+    }
+  }
+
+  attributeChangedCallback() {
+    if (this.isConnected && !this.isPreview) void this.load();
+  }
+
+  private async load() {
+    const id = this.getAttribute("form-id");
+    if (!id || !/^[0-9a-f-]{36}$/.test(id)) return;
+    try {
+      const res = await fetch(`${this.base}/api/forms/${id}`, { credentials: "omit" });
+      if (!res.ok) throw new Error(String(res.status));
+      this.data = (await res.json()) as Loaded;
+    } catch {
+      this.put(el("p", { text: "This form couldn't load. Refresh the page to try again." }));
+      return;
+    }
+    // Defaults first, then the address wins: ?email=… for fields set to take it.
+    this.applyDefaults(this.data.body);
+    const params = new URLSearchParams(location.search);
+    for (const f of allFields(this.data.body)) {
+      const fromKey = params.get(f.key.replace(/^[fq]\./, ""));
+      if (f.prefill && fromKey) this.answers[f.id] = fromText(f, fromKey);
+    }
+    // An answer clicked in an email (Share › Email): it fills the first question, past the cover; a first step with
+    // only that question moves on to the next. One that's no longer an answer opens the form as it is.
+    const picked = answerFrom(this.data.body, params.get("clr_a"));
+    if (picked) {
+      this.answers[picked.field.id] = picked.value;
+      this.emailAnswer = { name: picked.field.id, value: Array.isArray(picked.value) ? picked.value[0]! : String(picked.value) };
+      this.covered = true;
+      const first = this.data.body.steps[0]!.fields.filter((f) => !isContent(f.type) && f.type !== "hidden" && f.type !== "calc");
+      if (first.length === 1 && this.data.body.steps.length > 1 && !this.data.body.page) this.step = 1;
+    }
+    // Back from Stripe after paying: the thanks, not the form again.
+    if (params.get("clr_pay") === "done") this.done = this.paid = true;
+    // A saved fill's link: the answers and the step it stopped on.
+    const resume = params.get("clr_resume");
+    if (resume && /^[A-Za-z0-9_-]{24,64}$/.test(resume)) {
+      const r = await fetch(`${this.base}/api/forms/${id}/resume?t=${resume}`, { credentials: "omit" }).catch(() => null);
+      const j = r?.ok ? ((await r.json().catch(() => null)) as { answers?: Record<string, unknown>; step?: number } | null) : null;
+      if (j?.answers) {
+        this.answers = { ...this.answers, ...j.answers };
+        this.step = Math.min(Math.max(Number(j.step) || 0, 0), this.data.body.steps.length - 1);
+        this.covered = true;
+      }
+    }
+    this.started = Date.now();
+    this.emit("ready", {});
+    this.render();
+    this.watchView();
+    // Values set with Claritia.prefill() before the form had loaded.
+    if (this.prefillLater) {
+      const p = this.prefillLater;
+      this.prefillLater = null;
+      this.prefill(p);
+    }
+    if (this.data.turnstile && this.data.body.spam.turnstile) this.loadTurnstile();
+  }
+
+  /** Each field's default, unless the visitor already answered it. */
+  private applyDefaults(form: Form) {
+    for (const f of allFields(form)) {
+      const prev = this.defaults[f.id];
+      const cur = this.answers[f.id];
+      if (cur !== undefined && (prev === undefined || JSON.stringify(cur) !== JSON.stringify(prev))) continue;
+      const next = f.default !== undefined && f.type !== "hidden" && !isContent(f.type) ? fromText(f, f.default) : undefined;
+      if (next === undefined) {
+        if (prev !== undefined) delete this.answers[f.id];
+        delete this.defaults[f.id];
+      } else this.answers[f.id] = this.defaults[f.id] = next;
+    }
+  }
+
+  private turnstileToken = "";
+  private loadTurnstile() {
+    const w = window as unknown as { turnstile?: { render: (el: Element, o: object) => void } };
+    const draw = () =>
+      // Unseen unless a fill looks like a bot; "always" shows the check to everyone.
+      w.turnstile?.render(this.root.querySelector(".ts")!, { sitekey: this.data!.turnstile, size: this.data!.body.spam.bot === "always" ? "normal" : "invisible", callback: (t: string) => (this.turnstileToken = t) });
+    if (w.turnstile) return draw();
+    const s = el("script", { src: "https://challenges.cloudflare.com/turnstile/v0/api.js", async: true });
+    s.addEventListener("load", draw);
+    document.head.append(s);
+  }
+
+  // Drawing ------------------------------------------------------------------------------------------------
+
+  private pending = 0;
+  /** Draw again on the next frame, keeping focus where the visitor moved it (a change fires before focus moves on). */
+  private later() {
+    if (this.pending) return;
+    this.pending = requestAnimationFrame(() => {
+      this.pending = 0;
+      const focused = (this.root.activeElement as HTMLElement | null)?.id;
+      this.render();
+      if (focused) (this.root.getElementById(focused) as HTMLElement | null)?.focus();
+    });
+  }
+
+  /** Draws the form; a form that can't be drawn says so in place of a blank box. */
+  private render() {
+    try {
+      this.draw();
+    } catch (e) {
+      console.error("claritia-form:", e);
+      this.root.replaceChildren(el("p", { class: "al", role: "alert", text: "This form couldn't be shown. Refresh the page to try again." }));
+    }
+  }
+
+  // A studio page (docs/forms-chat-plan.md): the page's own HTML in the brand's CSS, drawn once and kept, so answers
+  // stay put while the send and the booking draw again. The answers go by field id through the usual send.
+  private pg: { wrap: HTMLElement; run: PageRun; blocks: { holder: HTMLElement; f: Field }[] } | null = null;
+  /** The page's language on screen: the visitor's own when the form has it, else the page's. */
+  private pgLang = "";
+  private drawPage(form: Form, style: HTMLStyleElement) {
+    const p = form.page!;
+    if (!this.pg) {
+      this.setAttribute("data-page", "");
+      const css = `${p.brand}\n${p.css}\n${CAL_CSS}.cl-root [data-cl-book] .f,.cl-root [data-cl-thanks] .f{background:transparent;max-width:none;padding:0}`.replace(/@import\s+url\(\s*["']?([^"')]+)["']?\s*\)[^;\n]*;?|@import\s+["']([^"']+)["'][^;\n]*;?/gi, (_m, a?: string, b?: string) => (addFont((a || b || "").trim()), ""));
+      // The visitor's language, when the form has it (docs/studio-v2-plan.md 6.4).
+      const langs = [p.lang || "", ...Object.keys(p.langs ?? {})].filter(Boolean);
+      if (!this.pgLang) this.pgLang = (typeof navigator !== "undefined" ? navigator.languages ?? [] : []).map((l) => langs.find((x) => x === l || x.slice(0, 2) === l.slice(0, 2))).find(Boolean) ?? langs[0] ?? "";
+      const html = this.pgLang && p.langs?.[this.pgLang] ? p.langs[this.pgLang]! : p.html;
+      const st = el("style", { text: `${style.textContent}\n${ACCESS_CSS}.cl-langs{display:flex;justify-content:flex-end;gap:4px;padding:8px 12px}.cl-langs button{font:inherit;font-size:12px;border:1px solid rgba(127,127,127,.45);background:rgba(255,255,255,.9);color:#222;border-radius:999px;padding:5px 11px;cursor:pointer}.cl-langs button[aria-pressed=true]{background:#111;color:#fff;border-color:#111}.cl .ps,.cl .tm{gap:8px}\n:host{display:block}.cl-root{min-height:inherit;display:flex;flex-direction:column}.cl-root>*{flex:1 0 auto}[hidden]{display:none!important}.cl-alert{color:#b23a26}\n${css.replace(/(^|[\s,{}])(?::root|html|body)(?=[\s,{:.[])/g, "$1:host")}` });
+      const wrap = el("div", { class: "cl-root" });
+      wrap.innerHTML = html;
+      if (this.pgLang) {
+        wrap.setAttribute("lang", this.pgLang);
+        wrap.setAttribute("dir", /^(ar|he|fa|ur)/.test(this.pgLang) ? "rtl" : "ltr");
+      }
+      // A switch between the form's languages, keeping what's been answered.
+      if (langs.length > 1) {
+        const name = (c: string) => {
+          try {
+            const n = new Intl.DisplayNames([c], { type: "language" }).of(c) ?? c;
+            return n.charAt(0).toUpperCase() + n.slice(1);
+          } catch {
+            return c;
+          }
+        };
+        const sw = el("div", { class: "cl-langs", role: "group", "aria-label": "Language" });
+        for (const c of langs) {
+          const b = el("button", { type: "button", lang: c, "aria-pressed": c === this.pgLang ? "true" : "false", text: name(c) });
+          b.addEventListener("click", () => {
+            if (c === this.pgLang || !this.pg) return;
+            const kept = pageValues(this.pg.wrap);
+            this.pgLang = c;
+            this.pg = null;
+            this.render();
+            const w2 = this.pg ? (this.pg as { wrap: HTMLElement }).wrap : null;
+            if (!w2) return;
+            w2.querySelectorAll<HTMLInputElement>("input[name],textarea[name],select[name]").forEach((x) => {
+              const v = kept[x.name];
+              if (v === undefined) return;
+              if (x.type === "radio" || x.type === "checkbox") x.checked = (Array.isArray(v) ? v : [v]).includes(x.value === "on" ? "yes" : x.value);
+              else x.value = Array.isArray(v) ? (v[0] ?? "") : v;
+            });
+            w2.dispatchEvent(new Event("change"));
+          });
+          sw.append(b);
+        }
+        wrap.prepend(sw);
+      }
+      const logo = this.data?.logo_url ?? "";
+      const ok = /^https:\/\//.test(logo) ? !!safeUrl(logo) : /^data:image\/svg\+xml[;,]/.test(logo);
+      wrap.querySelectorAll("img[data-cl-logo]").forEach((img) => (ok ? img.setAttribute("src", logo) : ((img as HTMLElement).hidden = true)));
+      // Consent by region (or the notice), the spam trap and the bot check, before the send button, as on every form.
+      const send = [...wrap.querySelectorAll("[type=submit]")].find((b) => !b.closest("[data-cl-thanks]"));
+      const extras: HTMLElement[] = [];
+      if (this.needsConsent() && !wrap.querySelector("#clr-consent")) {
+        const box = el("input", { type: "checkbox", id: "clr-consent" }) as HTMLInputElement;
+        box.checked = this.consent;
+        box.addEventListener("change", () => (this.consent = box.checked));
+        extras.push(el("label", { class: "check cl-consent" }, box, el("span", { text: form.consent.label })));
+      }
+      if (form.consent.mode === "notice") extras.push(el("p", { class: "text cl-notice", text: form.consent.label }));
+      extras.push(el("div", { class: "trap", "aria-hidden": "true", style: "position:absolute;left:-10000px;width:1px;height:1px;overflow:hidden" }, el("input", { type: "text", name: "company_url", tabindex: "-1", autocomplete: "off" })));
+      if (this.data?.turnstile && form.spam.turnstile) extras.push(el("div", { class: "ts" }));
+      if (send) consentSpot(send, wrap).before(...extras);
+      else wrap.append(...extras);
+      // Claritia blocks (file, phone, address, dates, rating, signature, country): the form's own inputs, in the page.
+      const byId = new Map(allFields(form).map((f) => [f.id, f]));
+      const blocks: { holder: HTMLElement; f: Field }[] = [];
+      wrap.querySelectorAll<HTMLElement>("[data-cl-field][data-cl-name]").forEach((holder) => {
+        const f = byId.get(p.ids[holder.getAttribute("data-cl-name") ?? ""] ?? "");
+        if (f) blocks.push({ holder, f });
+      });
+      const run = runPage(wrap, (v) => void this.pageSend(form, v));
+      this.pg = { wrap, run, blocks };
+      // A studio page keeps its answers in its own inputs: the email's answer is checked there.
+      if (this.emailAnswer) {
+        const name = Object.keys(p.ids).find((k) => p.ids[k] === this.emailAnswer!.name);
+        const input = name ? [...wrap.querySelectorAll<HTMLInputElement | HTMLSelectElement>(`[name="${CSS.escape(name)}"]`)].find((x) => x.value === this.emailAnswer!.value || x.tagName === "SELECT") : null;
+        if (input instanceof HTMLInputElement) input.checked = true;
+        else if (input) input.value = this.emailAnswer.value;
+        input?.dispatchEvent(new Event("change", { bubbles: true }));
+      }
+      // In the page, or over it (a popup, a slider, a popover or a side tab), like every form.
+      this.put(st, wrap);
+    }
+    const { wrap, run, blocks } = this.pg;
+    // Drawn again each time, so an upload, an error or a picked day shows; the brand's classes style them.
+    for (const { holder, f } of blocks) {
+      const box = this.field(f, form, f.required && !holder.closest("[hidden]"));
+      box.querySelectorAll(".lb").forEach((x) => x.classList.add("label"));
+      box.querySelectorAll(".in").forEach((x) => x.classList.add("field"));
+      holder.replaceChildren(box);
+    }
+    const names = Object.fromEntries(Object.entries(p.ids).map(([n, id]) => [id, n]));
+    run.busy(this.sending);
+    run.alert(this.alert);
+    if (Object.keys(this.errors).length) run.errors(Object.fromEntries(Object.entries(this.errors).filter(([id]) => names[id]).map(([id, m]) => [names[id]!, m])));
+    if (!this.done) return;
+    run.done();
+    // A meeting to book, a page to open, a payment or a wait: the form's own end, in the page's booking spot.
+    if (this.bk || this.bkDone || this.waiting || this.schedule || this.pay || form.after.end.kind === "redirect") {
+      const spot = wrap.querySelector<HTMLElement>("[data-cl-book]") ?? wrap.querySelector<HTMLElement>("[data-cl-thanks]") ?? wrap;
+      spot.hidden = false;
+      const end = this.endScreen(form);
+      // The page's own thank-you already says it: no second heading over an outside scheduler.
+      if (end.querySelector("iframe")) end.querySelector(":scope > .h")?.remove();
+      // Claritia's calendar in the brand's own classes, so it matches the page around it.
+      end.querySelectorAll(".h").forEach((x) => x.classList.add("heading"));
+      end.querySelectorAll(".i").forEach((x) => x.classList.add("text"));
+      end.querySelectorAll(".lb").forEach((x) => x.classList.add("label"));
+      end.querySelectorAll(".in").forEach((x) => x.classList.add("field"));
+      end.querySelectorAll(".bt").forEach((x) => x.classList.add("btn"));
+      end.querySelectorAll(".pl").forEach((x) => x.classList.add(x.getAttribute("aria-pressed") === "true" ? "btn" : "btn-secondary"));
+      spot.replaceChildren(end);
+    }
+  }
+
+  private async pageSend(form: Form, v: Vals) {
+    if (this.sending || this.done) return;
+    const types = new Map(allFields(form).map((f) => [f.id, f.type]));
+    const answers: Answers = {};
+    const blocks = this.pg?.blocks ?? [];
+    for (const [name, id] of Object.entries(form.page!.ids)) {
+      const x = v[name];
+      const t = types.get(id);
+      if (x === undefined || (Array.isArray(x) ? !x.length : x === "")) continue;
+      answers[id] = t === "checkbox" ? true : t === "multi" ? (Array.isArray(x) ? x : [x]) : Array.isArray(x) ? String(x[0]) : x;
+    }
+    // Blocks keep their answers as they're given (an upload's token, an address's parts).
+    this.errors = {};
+    for (const { holder, f } of blocks) {
+      const x = this.answers[f.id];
+      const empty = x === undefined || x === "" || (Array.isArray(x) && !x.length) || (typeof x === "object" && x !== null && !Array.isArray(x) && !Object.values(x).some((y) => String(y ?? "").trim()));
+      if (!empty) answers[f.id] = x;
+      else if (f.required && !holder.closest("[hidden]")) this.errors[f.id] = "Fill this in.";
+    }
+    this.answers = answers;
+    this.alert = "";
+    if (Object.keys(this.errors).length) {
+      this.render();
+      (this.root.querySelector("[aria-invalid=true]") as HTMLElement | null)?.focus();
+      return;
+    }
+    // A consent box the form requires has to be ticked first.
+    if (form.consent.required && this.needsConsent() && !this.consent) {
+      this.alert = "Tick the box to send the form.";
+      this.render();
+      (this.root.querySelector("#clr-consent") as HTMLElement | null)?.focus();
+      return;
+    }
+    if (this.quiet) {
+      this.done = true;
+      return this.render();
+    }
+    await this.send();
+  }
+
+  /** The brand's logo over the form, unless the form hides it. https or an inline SVG picture only. */
+  private logo(form: Form): HTMLElement | null {
+    const u = this.data?.logo_url ?? "";
+    if (form.layout.logo === false || !(/^https:\/\//.test(u) ? safeUrl(u) : /^data:image\/svg\+xml[;,]/.test(u))) return null;
+    return el("img", { class: "lo", src: u, alt: "" });
+  }
+
+  private draw() {
+    const d = this.data;
+    if (!d) return;
+    const form = d.body;
+    for (const u of [d.tokens.fontUrl ?? "", ...(d.fonts ?? [])]) addFont(u);
+    const width = form.layout.maxWidth ? `${form.layout.maxWidth}px` : form.layout.side || form.steps.some((st) => st.image) ? "1040px" : form.layout.width === "wide" ? "720px" : "480px";
+    // The form's own stylesheet is the lowest layer; the design system's layers (in d.css) sit above it.
+    // The brand's skin (docs/brand-skin.md) comes last: the site's own look, over the form's base styles.
+    if (d.skin?.fonts) addFaces(d.skin.fonts, this.base);
+    const style = el("style", { text: `${d.css ?? ""}\n:host{${tokensCss(d.tokens)}--clr-width:${width}}\n@layer base{${STYLES}}${d.skin?.css ? `\n${d.skin.css.replace(/<\//g, "")}` : ""}` });
+    if (d.status === "paused") return this.put(style, el("div", { class: "f" }, el("p", { class: "i", text: "This form is closed." })));
+    if (form.page) return this.drawPage(form, style);
+    if (this.done) {
+      const res = this.resultPanel(form);
+      const end = this.endScreen(form);
+      // The full result reads before the thanks; a lone "Email my results" (the result showed already) goes after it.
+      const after = !!res && form.steps.some((st) => st.result) && form.results?.show === "instant";
+      return this.put(style, ...(res && !after ? [res] : []), end, ...(res && after ? [res] : []));
+    }
+    const screens = form.layout.mode === "screens";
+    if (form.layout.cover && !this.covered && !this.edit && this.step === 0) {
+      const go = el("button", { type: "button", class: "bt", text: form.layout.cover.button || "Start" });
+      go.addEventListener("click", () => {
+        this.covered = true;
+        this.render();
+        (this.root.querySelector(".in, .bx, input") as HTMLElement | null)?.focus();
+      });
+      return this.put(style, this.split(form, 0, el("div", { class: `f cv${screens ? " sc" : ""}` }, this.logo(form), el("h2", { class: "h", text: form.layout.cover.title }), form.layout.cover.text ? el("p", { class: "i", text: form.layout.cover.text }) : null, el("div", { class: "ac" }, go))));
+    }
+
+    const { shown, required } = visibility(form, this.answers, this.ctx);
+    // The last step is the one whose next step (after any skip) is the end.
+    const last = this.edit ? this.step === form.steps.length - 1 : nextStep(form, this.step, this.answers, this.ctx) >= form.steps.length;
+    const step = form.steps[this.step];
+    const wrap = el("form", { class: `f${screens ? " sc" : ""}${this.drawn !== this.step && this.drawn >= 0 ? " an" : ""}`, novalidate: true, "aria-label": form.title || "Form" });
+    if (this.drawn !== this.step) this.emit("step", { step: this.step, of: form.steps.length });
+    this.drawn = this.step;
+    // A result screen with a result on it counts once in the form's funnel (Reports' Forms page).
+    if (step.result) this.beacon("result");
+    const lg = this.logo(form);
+    if (lg) wrap.append(lg);
+    if (form.title) wrap.append(el("h2", { class: "h", text: form.title }));
+    if (form.intro) wrap.append(el("p", { class: "i", text: form.intro }));
+    if (form.steps.length > 1) wrap.append(this.progress(form));
+    const grid = el("div", { class: "g" });
+    this.maxStep = Math.max(this.maxStep, this.step);
+    for (const f of step.fields)
+      if (this.edit && f.type === "hidden") grid.append(el("div", { class: "fl", "data-id": f.id, "data-hidden": "" }));
+      else if (this.edit || (f.type !== "hidden" && shown.has(f.id) && !this.known.has(f.id))) {
+        if (!isContent(f.type)) this.row(f.id)[0] = 1;
+        grid.append(this.field(f, form, required.has(f.id)));
+      }
+    wrap.append(grid);
+    if (last && this.needsConsent()) {
+      const box = el("input", { type: "checkbox", id: "clr-consent" }) as HTMLInputElement;
+      box.checked = this.consent;
+      box.addEventListener("change", () => (this.consent = box.checked));
+      wrap.append(el("label", { class: "ck cs" }, box, el("span", { text: form.consent.label })));
+    }
+    if (last && form.consent.mode === "notice") wrap.append(el("p", { class: "i nt", text: form.consent.label }));
+    // Spam trap: hidden from people and screen readers; bots fill it.
+    wrap.append(el("div", { class: "trap", "aria-hidden": "true" }, el("input", { type: "text", name: "company_url", tabindex: "-1", autocomplete: "off" })));
+    if (d.turnstile && form.spam.turnstile) wrap.append(el("div", { class: "ts" }));
+    if (this.alert) wrap.append(el("p", { class: "al", role: "alert", text: this.alert }));
+    const actions = el("div", { class: "ac" });
+    if (this.step > 0) {
+      const back = el("button", { type: "button", class: "bt bk", text: "Back" });
+      back.addEventListener("click", () => {
+        // Back goes along the path the answers took, so a skipped step stays skipped.
+        const path = stepPath(form, this.answers, this.ctx);
+        const at = path.indexOf(this.step);
+        this.step = at > 0 ? path[at - 1]! : this.step - 1;
+        this.alert = "";
+        this.render();
+      });
+      actions.append(back);
+    }
+    actions.append(el("button", { type: "submit", class: form.submit.full ? "bt fw" : "bt", disabled: this.sending, text: this.sending ? "Sending…" : last ? form.submit.label : "Next" }));
+    wrap.append(actions);
+    if (form.resume && form.steps.length > 1 && !this.edit && !this.quiet) wrap.append(this.saveLater(form));
+    wrap.addEventListener("submit", (e) => {
+      e.preventDefault();
+      void this.next();
+    });
+    this.put(style, this.split(form, this.step, wrap));
+  }
+
+  /** A split screen: the step's picture (or the form's) beside it; with no picture, the step alone. */
+  private split(form: Form, at: number, node: HTMLElement): HTMLElement {
+    const src = form.steps[at]?.image ?? form.layout.side?.image;
+    if (!src || !/^https:\/\//.test(src) || !safeUrl(src)) return node;
+    return el("div", { class: `sp${form.layout.side?.at === "right" ? " sr" : ""}` }, el("div", { class: "spi" }, el("img", { src, alt: "", loading: "lazy", decoding: "async" })), node);
+  }
+
+  /** "Save and finish later": their email, then a link that opens the form where they stopped. */
+  private saveLater(form: Form): HTMLElement {
+    if (this.later_ === "sent") return el("p", { class: "hp", role: "status", text: "We emailed you a link to finish later." });
+    if (this.later_ !== "ask") {
+      const b = el("button", { type: "button", class: "lk", text: "Save and finish later" });
+      b.addEventListener("click", () => ((this.later_ = "ask"), this.render()));
+      return el("div", { class: "ac" }, b);
+    }
+    const emailField = allFields(form).find((f) => f.key === "email");
+    const mail = el("input", { class: "in", type: "email", "aria-label": "Your email", placeholder: "Your email", value: emailField && typeof this.answers[emailField.id] === "string" ? (this.answers[emailField.id] as string) : "" }) as HTMLInputElement;
+    const go = el("button", { type: "button", class: "bt bk", text: "Email me a link" });
+    go.addEventListener("click", async () => {
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(mail.value.trim())) return mail.focus();
+      go.setAttribute("disabled", "");
+      const res = await fetch(`${this.base}/api/forms/${this.data!.id}/resume`, { method: "POST", headers: { "content-type": "application/json" }, credentials: "omit", body: JSON.stringify({ email: mail.value.trim(), answers: this.answers, step: this.step, page: location.href }) }).catch(() => null);
+      if (res?.ok) this.later_ = "sent";
+      else this.alert = "Couldn't save it. Try again.";
+      this.render();
+    });
+    return el("div", { class: "r2" }, mail, go);
+  }
+
+  /** Where the visitor is in a form of several steps: a bar, dots, or only words for screen readers. */
+  private progress(form: Form): HTMLElement {
+    const n = form.steps.length;
+    const at = this.step + 1;
+    const title = form.steps[this.step].title;
+    const text = `Step ${at} of ${n}${title ? ` · ${title}` : ""}`;
+    const kind = form.layout.progress ?? "bar";
+    if (kind === "none") return el("p", { class: "sr", text });
+    if (kind === "dots")
+      return el("div", { class: "pg" }, el("p", { class: "sr", text }), el("div", { class: "pd", "aria-hidden": "true" }, ...Array.from({ length: n }, (_, j) => el("i", { class: j < at ? "on" : undefined }))));
+    return el(
+      "div",
+      { class: "pg" },
+      el("p", { class: "st", id: "clr-step", text }),
+      el("div", { class: "pb", role: "progressbar", "aria-labelledby": "clr-step", "aria-valuemin": "1", "aria-valuemax": String(n), "aria-valuenow": String(at) }, el("i", { style: `transform:scaleX(${at / n})` })),
+    );
+  }
+
+  /** After a fill: the page links the visit to the person (Claritia's site script), and the embed around a frame resizes or opens the next page. */
+  private tellPage() {
+    const d = this.data!;
+    const emailField = allFields(d.body).find((f) => f.key === "email");
+    const email = emailField && typeof this.answers[emailField.id] === "string" ? (this.answers[emailField.id] as string) : null;
+    const end = d.body.after.end;
+    if (embedFrame()) {
+      const redirect = end.kind === "redirect" && !this.schedule && safeUrl(end.url) ? end.url : null;
+      try {
+        window.parent.postMessage({ type: "claritia-form-done", id: d.id, email, redirect }, "*");
+      } catch {}
+      return;
+    }
+    const site = (window as unknown as { claritia?: (kind: string, email: string) => void }).claritia;
+    if (email && typeof site === "function") {
+      try {
+        site("form", email);
+      } catch {}
+    }
+  }
+
+  /**
+   * Over the page instead of in it (src/components/app/forms/Share.tsx writes these):
+   *   popup="click|delay:5|exit"   opens from any [data-claritia-open] button for it, after a number of seconds, or
+   *                                when the pointer leaves the top of the window (once a visit); size="s|m|l"
+   *   slide                        a panel in the corner, no shade behind it
+   *   slider="left|right"          full height from that side
+   *   popover                      a round button in the corner opens a small form above it; icon="chat|calendar|
+   *                                form|logo", note="Questions?"
+   *   side-tab="Contact us"        a tab on the right edge opens it from the right
+   * On a phone each fills the screen, unless mobile="keep". `full` (no popup) fills the page.
+   */
+  private opened = false;
+
+  // The developer kit (docs/embed.md): window.Claritia calls these, and each step of the visit is an event on the
+  // element (claritia:ready, :step, :open, :close, :submitted, :booked) that bubbles out of the shadow root.
+  private emit(name: string, detail: Record<string, unknown>) {
+    this.dispatchEvent(new CustomEvent(`claritia:${name}`, { bubbles: true, composed: true, detail: { formId: this.getAttribute("form-id"), ...detail } }));
+  }
+  /** Values to fill once the form has loaded. */
+  private prefillLater: Record<string, unknown> | null = null;
+  /** Open it over the page (a popup, slider, popover or side tab); a form in the page has nothing to open. */
+  open() {
+    if (this.floating) this.toggle(true);
+  }
+  close() {
+    if (this.floating) this.toggle(false);
+  }
+  /**
+   * Fill questions by their key ("email", "company", a custom field's name, a question's own name), before or after
+   * the form loads. Only text, number and one of a list's answers are taken; anything else is left as it was.
+   */
+  prefill(values: Record<string, unknown>) {
+    if (!values || typeof values !== "object") return;
+    if (!this.data) {
+      this.prefillLater = { ...this.prefillLater, ...values };
+      return;
+    }
+    const byKey = new Map(allFields(this.data.body).map((f) => [f.key.replace(/^[fq]\./, ""), f]));
+    let changed = false;
+    for (const [k, v] of Object.entries(values)) {
+      const f = byKey.get(k);
+      if (!f || isContent(f.type) || (typeof v !== "string" && typeof v !== "number")) continue;
+      const text = String(v).slice(0, 2000);
+      if (f.options?.length && !f.options.some((o) => o.value === text)) continue;
+      this.answers[f.id] = fromText(f, text);
+      changed = true;
+    }
+    if (changed) this.render();
+  }
+
+  private get floating() {
+    return ["popup", "popover", "slider", "side-tab"].some((a) => this.hasAttribute(a));
+  }
+  private put(...nodes: Node[]) {
+    if (!this.floating || this.isPreview) return this.root.replaceChildren(...nodes);
+    const style = nodes.find((n) => n instanceof HTMLStyleElement);
+    const close = el("button", { type: "button", class: "px", "aria-label": "Close", text: "×" });
+    close.addEventListener("click", () => this.toggle(false));
+    const box = el("div", { class: "pbox", role: "dialog", "aria-modal": "true" }, close, ...nodes.filter((n) => n !== style));
+    const side = this.getAttribute("slider");
+    const kind = this.hasAttribute("popover") ? "pv" : side !== null || this.hasAttribute("side-tab") ? `sd${side === "left" ? " lf" : ""}` : this.hasAttribute("slide") ? "sl" : "";
+    const size = /^[sml]$/.test(this.getAttribute("size") ?? "") ? ` sz-${this.getAttribute("size")}` : "";
+    const phone = this.getAttribute("mobile") === "keep" ? "" : " mf";
+    const pop = el("div", { class: `pop${kind ? ` ${kind}` : ""}${size}${phone}`, ...(this.opened ? {} : { hidden: true }) }, box);
+    pop.addEventListener("click", (e) => e.target === pop && this.toggle(false));
+    this.root.replaceChildren(...(style ? [style] : []), pop, ...this.launcher());
+  }
+  /** The popover's round button or the side tab: always on the page, opening and closing the form. */
+  private launcher(): HTMLElement[] {
+    const tab = this.getAttribute("side-tab");
+    if (tab !== null) {
+      const b = el("button", { type: "button", class: "lc tab", "aria-expanded": String(this.opened), text: tab.trim().slice(0, 40) || "Contact us" });
+      b.addEventListener("click", () => this.toggle(!this.opened));
+      return [b];
+    }
+    if (!this.hasAttribute("popover")) return [];
+    const icon = this.getAttribute("icon") ?? "chat";
+    const logo = icon === "logo" ? this.data?.logo_url : null;
+    const b = el("button", { type: "button", class: "lc fab", "aria-label": this.opened ? "Close" : this.getAttribute("note") || "Open the form", "aria-expanded": String(this.opened) });
+    if (this.opened) b.innerHTML = LC_ICONS.close;
+    else if (logo && /^https:\/\//.test(logo)) b.append(el("img", { src: logo, alt: "" }));
+    else b.innerHTML = LC_ICONS[icon] ?? LC_ICONS.chat;
+    const note = this.getAttribute("note");
+    if (note && !this.opened) b.append(el("span", { class: "nb", text: note.slice(0, 60) }));
+    b.addEventListener("click", () => this.toggle(!this.opened));
+    return [b];
+  }
+  /** What had focus when it opened (the site's button), to go back to on close. */
+  private opener: HTMLElement | null = null;
+  private toggle(open: boolean) {
+    if (!open && this.overPage) return this.remove();
+    if (open && !this.opened) this.opener = document.activeElement instanceof HTMLElement && document.activeElement !== this ? document.activeElement : null;
+    if (open !== this.opened) this.emit(open ? "open" : "close", {});
+    this.opened = open;
+    const pop = this.root.querySelector(".pop") as HTMLElement | null;
+    if (pop) pop.hidden = !open;
+    const lc = this.root.querySelector(".lc");
+    if (lc) lc.replaceWith(...this.launcher());
+    if (open) (this.root.querySelector(".pbox .in, .pbox .bx, .pbox input, .pbox button:not(.px)") as HTMLElement | null)?.focus();
+    else ((this.root.querySelector(".lc") as HTMLElement | null) ?? this.opener)?.focus();
+  }
+  private popupWired = false;
+  private wirePopup() {
+    if (this.popupWired || !this.floating || this.isPreview) return;
+    this.popupWired = true;
+    const how = this.getAttribute("popup") || "click";
+    const id = this.getAttribute("form-id");
+    document.addEventListener("click", (e) => {
+      const b = (e.target as HTMLElement | null)?.closest?.("[data-claritia-open]");
+      if (b && b.getAttribute("data-claritia-open") === id) {
+        e.preventDefault();
+        this.toggle(true);
+      }
+    });
+    document.addEventListener("keydown", (e) => e.key === "Escape" && this.opened && this.toggle(false));
+    // once: it doesn't open by itself again for someone who already sent it (a button still opens it).
+    try {
+      if (this.hasAttribute("once") && localStorage.getItem(`clr_sent_${id}`)) return;
+    } catch {}
+    const delay = /^delay:(\d{1,3})$/.exec(how);
+    if (delay) setTimeout(() => this.toggle(true), Number(delay[1]) * 1000);
+    if (how === "exit")
+      document.addEventListener("mouseout", (e) => {
+        if (e.relatedTarget || e.clientY > 0) return;
+        try {
+          if (sessionStorage.getItem(`clr_exit_${id}`)) return;
+          sessionStorage.setItem(`clr_exit_${id}`, "1");
+        } catch {}
+        this.toggle(true);
+      });
+  }
+
+  private needsConsent() {
+    const c = this.data!.body.consent;
+    return c.mode === "always" || (c.mode === "by_region" && this.data!.strict !== false);
+  }
+
+  private field(f: Field, form: Form, req: boolean): HTMLElement {
+    const id = `clr-${f.id}`;
+    const err = this.errors[f.id];
+    // A required field always shows: hidden on a phone, it could never be filled there.
+    const cls = ["fl", `w${SPAN[f.width ?? "full"]}`, f.size === "sm" || f.size === "lg" ? f.size : "", f.hideOnPhone && !req ? "np" : "", f.content?.align === "center" ? "ce" : ""];
+    // The design system finds a field by its id, and its classes by c-<id> (src/lib/design/web.ts).
+    const own = (form.design?.classes?.[f.id] ?? []).filter((c) => /^[a-z0-9]{1,24}$/.test(c)).map((c) => `c-${c}`);
+    const box = el("div", { class: [...cls, ...own].filter(Boolean).join(" "), "data-id": f.id });
+    if (isContent(f.type)) {
+      const c = this.content(f);
+      if (c) box.append(c);
+      return box;
+    }
+    if (f.type === "calc") {
+      box.append(el("label", { class: `lb${f.hideLabel ? " sr" : ""}`, for: id, text: f.label }), el("output", { class: "in", id, "aria-live": "polite", text: calcText(f.calc, withCalcs(form, this.answers, this.ctx)[f.id]) }));
+      return box;
+    }
+    const inside = (f.labels ?? form.layout.labels) === "inside" && ["text", "email", "phone", "number", "url", "textarea", "date", "dropdown", "country"].includes(f.type);
+    const group = f.type === "choice" || f.type === "multi" || f.type === "rating" || MANY.has(f.type);
+    const star = req ? el("span", { class: "rq", "aria-hidden": "true", text: "*" }) : null;
+    // A hidden label, or one shown inside the box, stays for screen readers.
+    const label = group
+      ? el("div", { class: `lb${f.hideLabel ? " sr" : ""}`, id: `${id}-l`, text: f.label }, star)
+      : el("label", { class: `lb${f.hideLabel || inside ? " sr" : ""}`, for: id, text: f.label }, star);
+    if (f.type !== "checkbox") box.append(label);
+    const common = { id, "aria-invalid": err ? "true" : undefined, "aria-describedby": err ? `${id}-e` : f.help ? `${id}-h` : undefined, "aria-required": req ? "true" : undefined };
+    const set = (v: unknown, picked = false) => {
+      this.answers[f.id] = v;
+      // A list that follows this field drops a pick its new list doesn't have.
+      for (const g of allFields(form))
+        if (g.optionsBy?.field === f.id && this.answers[g.id] !== undefined) {
+          const ok = new Set(optionsFor(g, this.answers, this.ctx).map((o) => o.value));
+          const kept = listOf(this.answers[g.id]).filter((x) => ok.has(x));
+          if (g.type === "multi") this.answers[g.id] = kept;
+          else if (!kept.length) delete this.answers[g.id];
+        }
+      // A pick is checked at once (too many picks, say); typing is checked when the visitor moves on.
+      if (picked) {
+        const e = checkAnswers(form, this.answers, { steps: [this.step], known: this.known, ...this.ctx }).errors[f.id];
+        if (e && listOf(v).length) this.errors[f.id] = e;
+        else delete this.errors[f.id];
+        return this.later();
+      }
+      if (this.errors[f.id]) {
+        delete this.errors[f.id];
+        this.later();
+      } else if (affects(form, f.id)) this.later();
+    };
+    const blur = () => {
+      const r = checkAnswers(form, this.answers, { steps: [this.step], known: this.known, ...this.ctx });
+      if (r.errors[f.id] && this.answers[f.id] !== undefined && this.answers[f.id] !== "") {
+        this.errors[f.id] = r.errors[f.id];
+        this.row(f.id)[2]++;
+        this.later();
+      }
+    };
+    if (f.type === "dropdown" || f.type === "country") {
+      box.append(this.listbox(f, common, set, inside));
+      if (this.otherText(f) !== undefined) box.append(this.otherBox(f, id, set));
+    } else if (f.type === "file") box.append(this.filePick(f, id, common, set));
+    else if (MANY.has(f.type)) box.append(this.many(f, id, common, set));
+    else if (f.type === "choice" || f.type === "multi") box.append(this.picks(f, id, common, set));
+    else if (f.type === "rating") box.append(this.rating(f, id, common, set));
+    else if (f.type === "checkbox") {
+      const c = el("input", { type: "checkbox", ...common }) as HTMLInputElement;
+      c.checked = this.answers[f.id] === true;
+      c.addEventListener("change", () => set(c.checked));
+      box.append(el("label", { class: "ck" }, c, el("span", { class: f.hideLabel ? "sr" : undefined, text: f.label }, star)));
+    } else {
+      const types: Record<string, string> = { email: "email", phone: "tel", number: "text", url: "url", date: "date", time: "time" };
+      const auto: Record<string, string> = { email: "email", first_name: "given-name", last_name: "family-name", name: "name", phone: "tel", company: "organization", title: "organization-title", website: "url" };
+      const input = (f.type === "textarea" ? el("textarea", { class: "in", ...common, ...inputAttrs(f) }) : el("input", { class: "in", type: types[f.type] ?? "text", ...common, ...inputAttrs(f) })) as
+        | HTMLInputElement
+        | HTMLTextAreaElement;
+      if (auto[f.key]) input.setAttribute("autocomplete", auto[f.key]);
+      const ph = inside ? f.label + (req ? " *" : "") : f.placeholder;
+      if (ph) input.setAttribute("placeholder", ph);
+      input.value = typeof this.answers[f.id] === "string" ? (this.answers[f.id] as string) : "";
+      input.addEventListener("input", () => {
+        this.answers[f.id] = input.value;
+        if (this.errors[f.id]) {
+          delete this.errors[f.id];
+          input.removeAttribute("aria-invalid");
+          box.querySelector(".er")?.remove();
+        }
+        if (f.type === "number") this.refreshLive();
+      });
+      input.addEventListener("change", () => set(input.value));
+      input.addEventListener("blur", blur);
+      if (f.slider && f.valid?.min !== undefined && f.valid.max !== undefined) {
+        // A slider with the number box beside it: either one sets the answer; dragging updates results in place.
+        const range = el("input", { type: "range", min: String(f.valid.min), max: String(f.valid.max), step: String(f.valid.step ?? 1), "aria-label": f.label, tabindex: "-1" }) as HTMLInputElement;
+        // A slider always shows a number, so that number is the answer until it's moved.
+        if (!input.value) {
+          const start = f.default !== undefined && Number.isFinite(Number(f.default)) ? String(f.default) : String(f.valid.min);
+          input.value = start;
+          this.answers[f.id] = start;
+        }
+        range.value = input.value;
+        range.addEventListener("input", () => {
+          input.value = range.value;
+          this.answers[f.id] = range.value;
+          this.refreshLive();
+        });
+        range.addEventListener("change", () => set(range.value));
+        input.addEventListener("input", () => (range.value = input.value));
+        box.append(el("div", { class: "sv" }, range, input));
+      } else box.append(input);
+    }
+    if (f.help) box.append(el("p", { class: "hp", id: `${id}-h`, text: f.help }));
+    if (err) box.append(el("p", { class: "er", id: `${id}-e`, text: err }));
+    return box;
+  }
+
+  /** A heading, text, divider or image. Text is set as text; a picture needs https. */
+  private content(f: Field): HTMLElement | null {
+    const c = f.content ?? {};
+    if (f.type === "heading") {
+      const level = c.level ?? 2;
+      return el(`h${level + 1}` as "h2", { class: `k${level}`, text: c.text ?? "" });
+    }
+    if (f.type === "paragraph") return el("p", { class: "tx", text: c.text ?? "" });
+    if (f.type === "divider") return el("hr", { class: "dv" });
+    if (f.type === "payment" && f.pay) {
+      // The total, live from the answers; the server works it out again before it charges.
+      const v = f.pay.field ? numOf(withCalcs(this.data?.body ?? ({ steps: [], rules: [] } as unknown as Form), this.answers, this.ctx)[f.pay.field]) : (f.pay.amount ?? null);
+      const money = v === null ? "—" : new Intl.NumberFormat(undefined, { style: "currency", currency: f.pay.currency }).format(v);
+      return el("div", { class: "py" }, el("span", { text: f.label || "Total" }), el("b", { text: money }));
+    }
+    if (f.type === "image" && c.src && /^https:\/\//.test(c.src) && safeUrl(c.src)) return el("img", { class: "im", src: c.src, alt: c.alt ?? "", loading: "lazy", decoding: "async" });
+    if (f.type === "html") {
+      // Cleaned again here: the browser never trusts what it's sent.
+      const box = el("div", { class: "hx" });
+      box.innerHTML = cleanHtml(c.html ?? "");
+      return box;
+    }
+    if (f.type === "result") {
+      const form = this.data!.body;
+      const vals = withCalcs(form, this.answers, this.ctx);
+      return this.resultBlock(f, form, (id) => numOf(vals[id]), pickOutcome(form, this.answers, this.ctx));
+    }
+    return null;
+  }
+
+  /** A result block from numbers by field id: live from the answers on a result screen, or the server's after the send. */
+  private resultBlock(f: Field, form: Form, get: (id: string) => number | null, outcome: { title: string; text?: string } | null): HTMLElement | null {
+    const r = f.result;
+    if (!r) return null;
+    const byId = new Map(allFields(form).map((x) => [x.id, x]));
+    const text = (id: string) => {
+      const x = byId.get(id);
+      return calcText(x?.calc ?? (x?.unit ? { format: x.unit } : undefined), get(id));
+    };
+    const name = (id: string) => byId.get(id)?.label ?? "";
+    const box = el("div", { class: "rm", "data-res": f.id, "aria-live": "polite" });
+    if (r.kind === "outcome") {
+      if (!outcome) return null;
+      box.append(el("h3", { class: "k2", text: outcome.title }));
+      if (outcome.text) box.append(el("p", { class: "tx", text: outcome.text }));
+    } else if (r.kind === "metric" || r.kind === "meter") {
+      box.append(el("span", { class: "lb", text: f.label || name(r.field!) }), el("strong", { class: "rv", text: text(r.field!) }));
+      if (r.kind === "meter") {
+        const pct = Math.max(0, Math.min(100, ((get(r.field!) ?? 0) / (r.max ?? 100)) * 100));
+        box.append(el("div", { class: "mt", role: "meter", "aria-valuemin": "0", "aria-valuemax": String(r.max ?? 100), "aria-valuenow": String(get(r.field!) ?? 0), "aria-label": f.label || name(r.field!) }, el("i", { style: `width:${pct}%` })));
+      }
+    } else if (r.kind === "summary") {
+      box.append(el("div", { class: "rs2" }, ...(r.fields ?? []).map((id) => el("div", {}, el("span", { text: name(id) }), el("span", { text: text(id) })))));
+    } else if (r.kind === "bars") {
+      const top = Math.max(1, ...(r.fields ?? []).map((id) => Math.abs(get(id) ?? 0)));
+      box.append(el("div", { class: "br" }, ...(r.fields ?? []).flatMap((id) => [el("span", { text: name(id) }), el("i", { style: `width:${(Math.abs(get(id) ?? 0) / top) * 100}%` }), el("span", { text: text(id) })])));
+    } else if (r.kind === "email") {
+      if (!this.sid || this.quiet) return null;
+      const b = el("button", { type: "button", class: "bt bk", disabled: !!this.mailed, text: this.mailed || (this.mailFail ? "Couldn't send. Try again" : "Email my results") });
+      b.addEventListener("click", () => void this.mailResults());
+      box.append(b);
+    }
+    return box;
+  }
+
+  /** After the send: the outcome and the result blocks with the server's numbers. */
+  private resultPanel(form: Form): HTMLElement | null {
+    const r = this.result;
+    if (!r) return null;
+    const byKey = new Map(allFields(form).map((x) => [x.id, x.key]));
+    const get = (id: string) => r.values[byKey.get(id) ?? ""] ?? null;
+    const blocks = allFields(form).filter((x) => x.type === "result");
+    // A live result screen already showed it: then only Email my results, if the form has it.
+    const live = form.steps.some((s) => s.result) && form.results?.show === "instant";
+    const nodes = blocks.filter((x) => !live || x.result?.kind === "email").map((x) => this.resultBlock(x, form, get, r.outcome ?? null)).filter((x): x is HTMLElement => !!x);
+    return nodes.length ? el("div", { class: "f" }, ...nodes) : null;
+  }
+
+  /** Update the result blocks and calc boxes in place (a slider being dragged must not be drawn again). */
+  private refreshLive() {
+    const form = this.data?.body;
+    if (!form) return;
+    for (const node of Array.from(this.root.querySelectorAll("[data-res]"))) {
+      const f = allFields(form).find((x) => x.id === (node as HTMLElement).dataset.res);
+      const fresh = f && this.content(f);
+      if (fresh) node.replaceWith(fresh);
+    }
+    const vals = withCalcs(form, this.answers, this.ctx);
+    for (const f of allFields(form)) if (f.type === "calc") {
+      const out = this.root.getElementById(`clr-${f.id}`);
+      if (out) out.textContent = calcText(f.calc, vals[f.id]);
+    }
+  }
+
+  private async mailResults() {
+    const d = this.data!;
+    this.mailed = "Sending…";
+    this.render();
+    const res = await fetch(`${this.base}/api/forms/${d.id}/results-email`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ submission: this.sid, key: this.key }), credentials: "omit" }).catch(() => null);
+    this.mailed = res?.ok ? "Sent to your email" : "";
+    this.mailFail = !res?.ok;
+    this.render();
+  }
+
+  /** The options in the order this visitor sees them. */
+  private optionsOf(f: Field): Choice[] {
+    const list = optionsFor(f, this.answers, this.ctx);
+    return f.shuffle ? shuffled(list, this.seed) : list;
+  }
+
+  /** The "Other" text, or undefined when Other isn't picked. */
+  private otherText(f: Field): string | undefined {
+    if (f.id in this.other) return this.other[f.id];
+    const hit = listOf(this.answers[f.id]).find((v) => v.startsWith(OTHER));
+    return hit === undefined ? undefined : hit.slice(OTHER.length);
+  }
+
+  /** The answer from the picks and the Other text: "Other: " and the words, left out while the words are empty. */
+  private compose(f: Field, picked?: string[]): unknown {
+    const o = this.otherText(f);
+    const extra = o !== undefined && o.trim() ? OTHER + o.trim().slice(0, 200) : null;
+    if (f.type === "multi") {
+      const base = picked ?? listOf(this.answers[f.id]).filter((v) => !v.startsWith(OTHER));
+      return extra ? [...base, extra] : base;
+    }
+    return o !== undefined ? (extra ?? undefined) : picked?.[0];
+  }
+
+  private otherBox(f: Field, id: string, set: (v: unknown, picked?: boolean) => void): HTMLElement {
+    const t = el("input", { class: "in", type: "text", id: `${id}-ot`, "aria-label": `${f.label}: Other`, maxlength: "200" }) as HTMLInputElement;
+    t.value = this.otherText(f) ?? "";
+    t.addEventListener("input", () => {
+      this.other[f.id] = t.value;
+      this.answers[f.id] = this.compose(f);
+      if (this.errors[f.id]) {
+        delete this.errors[f.id];
+        const box = t.closest(".fl");
+        box?.querySelector(".er")?.remove();
+        box?.querySelector("[aria-invalid]")?.removeAttribute("aria-invalid");
+      }
+    });
+    t.addEventListener("change", () => set(this.compose(f)));
+    return t;
+  }
+
+  /** A file upload: sent the moment it's picked, so the answer is the upload's token (docs/forms-plan.md 3.1). */
+  private filePick(f: Field, id: string, common: Record<string, string | undefined>, set: (v: unknown, picked?: boolean) => void): HTMLElement {
+    const accept = { pdf: ".pdf,application/pdf", image: "image/png,image/jpeg,image/gif,image/webp", office: ".doc,.docx,.xls,.xlsx,.ppt,.pptx" };
+    const input = el("input", { type: "file", class: "in", ...common, accept: (f.file?.kinds ?? []).map((k) => accept[k]).join(",") }) as HTMLInputElement;
+    const cur = typeof this.answers[f.id] === "string" ? (this.answers[f.id] as string) : "";
+    const state = el("p", { class: "hp", "aria-live": "polite", text: cur ? cur.slice(cur.indexOf(":") + 1) : "" });
+    input.addEventListener("change", async () => {
+      const file = input.files?.[0];
+      if (!file) return;
+      if (f.file && file.size > f.file.maxMb * 1024 * 1024) {
+        this.errors[f.id] = `Files can be up to ${f.file.maxMb} MB.`;
+        return this.later();
+      }
+      if (this.quiet) return set(`up_00000000-0000-4000-8000-000000000000:${file.name.slice(0, 120)}`, true);
+      state.textContent = "Uploading…";
+      const body = new FormData();
+      body.append("field", f.id);
+      body.append("file", file);
+      const res = await fetch(`${this.base}/api/forms/${this.data!.id}/upload`, { method: "POST", body, credentials: "omit" }).catch(() => null);
+      const j = (await res?.json().catch(() => ({}))) as { token?: string; error?: string } | undefined;
+      if (res?.ok && j?.token) set(j.token, true);
+      else {
+        this.errors[f.id] = j?.error ?? "Upload didn't go through. Try again.";
+        this.later();
+      }
+    });
+    return el("div", { class: "ch" }, input, state);
+  }
+
+  /**
+   * The answers with parts (docs/form-kinds-plan.md step 2): ranking (up and down buttons), address, grid (one radio
+   * per row), date range, group rows ("add another") and a signature drawn on a canvas, uploaded as a picture.
+   */
+  private many(f: Field, id: string, common: Record<string, string | undefined>, set: (v: unknown, picked?: boolean) => void): HTMLElement {
+    const box = el("div", { class: "mn", role: "group", "aria-labelledby": `${id}-l`, "aria-invalid": common["aria-invalid"], "aria-describedby": common["aria-describedby"] });
+    const cur = this.answers[f.id];
+    const o = (cur && typeof cur === "object" && !Array.isArray(cur) ? cur : {}) as Record<string, string>;
+    const text = (label: string, value: string, on: (v: string) => void, type = "text", auto?: string) => {
+      const i = el("input", { class: "in", type, "aria-label": label, placeholder: label, value, ...(auto ? { autocomplete: auto } : {}) }) as HTMLInputElement;
+      i.addEventListener("input", () => on(i.value));
+      return i;
+    };
+    if (f.type === "ranking") {
+      const all = this.optionsOf(f);
+      const order = Array.isArray(cur) && cur.length === all.length ? (cur as string[]) : all.map((x) => x.value);
+      // The order shown is the answer until it's changed.
+      if (!Array.isArray(cur)) this.answers[f.id] = order;
+      const move = (i: number, by: number) => {
+        const next = [...order];
+        [next[i], next[i + by]] = [next[i + by]!, next[i]!];
+        set(next, true);
+        this.render();
+      };
+      order.forEach((v, i) => {
+        const up = el("button", { type: "button", class: "mv", "aria-label": "Move up", text: "↑", disabled: i === 0 });
+        const dn = el("button", { type: "button", class: "mv", "aria-label": "Move down", text: "↓", disabled: i === order.length - 1 });
+        up.addEventListener("click", () => move(i, -1));
+        dn.addEventListener("click", () => move(i, 1));
+        box.append(el("div", { class: "rk" }, el("b", { text: String(i + 1) }), el("span", { text: all.find((x) => x.value === v)?.label ?? v }), up, dn));
+      });
+    } else if (f.type === "address") {
+      const part = (k: string) => (v: string) => set({ ...((this.answers[f.id] as Record<string, string>) ?? {}), [k]: v });
+      box.append(
+        text("Street", o.line1 ?? "", part("line1"), "text", "address-line1"),
+        text("Apartment, suite (optional)", o.line2 ?? "", part("line2"), "text", "address-line2"),
+        el("div", { class: "r2" }, text("City", o.city ?? "", part("city"), "text", "address-level2"), text("State or region", o.region ?? "", part("region"), "text", "address-level1")),
+        el("div", { class: "r2" }, text("Postcode", o.postal ?? "", part("postal"), "text", "postal-code"), text("Country", o.country ?? "", part("country"), "text", "country-name")),
+      );
+    } else if (f.type === "grid" && f.grid) {
+      const t = el("table", { class: "gd" });
+      t.append(el("tr", {}, el("th", {}), ...f.grid.cols.map((c) => el("th", { scope: "col", text: c.label }))));
+      f.grid.rows.forEach((r, ri) => {
+        const tr = el("tr", {}, el("th", { scope: "row", text: r.label }));
+        for (const c of f.grid!.cols) {
+          const x = el("input", { type: "radio", name: `${id}-${ri}`, value: c.value, "aria-label": `${r.label}: ${c.label}` }) as HTMLInputElement;
+          x.checked = o[r.value] === c.value;
+          x.addEventListener("change", () => set({ ...((this.answers[f.id] as Record<string, string>) ?? {}), [r.value]: c.value }, Object.keys((this.answers[f.id] as object) ?? {}).length + 1 >= f.grid!.rows.length));
+          tr.append(el("td", {}, x));
+        }
+        t.append(tr);
+      });
+      box.append(el("div", { class: "gw" }, t));
+    } else if (f.type === "daterange") {
+      const part = (k: string) => (v: string) => set({ ...((this.answers[f.id] as Record<string, string>) ?? {}), [k]: v });
+      box.append(el("div", { class: "r2" }, text("From", o.from ?? "", part("from"), "date"), text("To", o.to ?? "", part("to"), "date")));
+    } else if (f.type === "group" && f.group) {
+      const g = f.group;
+      const rows = (Array.isArray(cur) ? cur : [{}]) as Record<string, string>[];
+      if (!Array.isArray(cur)) this.answers[f.id] = rows;
+      rows.forEach((row, ri) => {
+        const line = el("div", { class: "gr" });
+        for (const sf of g.fields) {
+          const on = (v: string) => {
+            const next = (this.answers[f.id] as Record<string, string>[]).map((x, j) => (j === ri ? { ...x, [sf.id]: v } : x));
+            set(next);
+          };
+          if (sf.type === "dropdown") {
+            const sel = el("div", { class: "ch" });
+            for (const opt of sf.options ?? []) {
+              const b = el("button", { type: "button", class: `pk${row[sf.id] === opt.value ? " on" : ""}`, "aria-pressed": String(row[sf.id] === opt.value), text: opt.label });
+              b.addEventListener("click", () => (on(opt.value), this.render()));
+              sel.append(b);
+            }
+            line.append(el("div", { class: "gf" }, el("span", { class: "hp", text: sf.label }), sel));
+          } else line.append(text(sf.label + (sf.required ? " *" : ""), row[sf.id] ?? "", on, { email: "email", phone: "tel", number: "text", date: "date" }[sf.type as string] ?? "text"));
+        }
+        if (rows.length > 1) {
+          const x = el("button", { type: "button", class: "mv", "aria-label": `Remove row ${ri + 1}`, text: "×" });
+          x.addEventListener("click", () => (set((this.answers[f.id] as Record<string, string>[]).filter((_, j) => j !== ri), true), this.render()));
+          line.append(x);
+        }
+        box.append(line);
+      });
+      if (rows.length < g.max) {
+        const add = el("button", { type: "button", class: "bt bk", text: g.add || "Add another" });
+        add.addEventListener("click", () => (set([...(this.answers[f.id] as Record<string, string>[]), {}]), this.render()));
+        box.append(add);
+      }
+    } else if (f.type === "signature") {
+      const pad = el("canvas", { class: "sg", width: "600", height: "180", "aria-label": `${f.label}: draw your signature` }) as HTMLCanvasElement;
+      const ctx = pad.getContext("2d");
+      const state = el("p", { class: "hp", "aria-live": "polite", text: typeof cur === "string" && cur ? "Signed" : "" });
+      let drawing = false;
+      let drawn = false;
+      const at = (e: PointerEvent) => {
+        const r = pad.getBoundingClientRect();
+        return [((e.clientX - r.left) / r.width) * pad.width, ((e.clientY - r.top) / r.height) * pad.height] as const;
+      };
+      pad.addEventListener("pointerdown", (e) => {
+        if (!ctx) return;
+        drawing = drawn = true;
+        pad.setPointerCapture(e.pointerId);
+        ctx.lineWidth = 2.5;
+        ctx.lineCap = "round";
+        ctx.strokeStyle = "#111";
+        ctx.beginPath();
+        ctx.moveTo(...at(e));
+      });
+      pad.addEventListener("pointermove", (e) => {
+        if (!drawing || !ctx) return;
+        ctx.lineTo(...at(e));
+        ctx.stroke();
+      });
+      const done = () => {
+        if (!drawing) return;
+        drawing = false;
+        if (!drawn) return;
+        if (this.quiet) return set("up_00000000-0000-4000-8000-000000000000:signature.png", true);
+        state.textContent = "Saving…";
+        pad.toBlob(async (blob) => {
+          if (!blob) return;
+          const body = new FormData();
+          body.append("field", f.id);
+          body.append("file", blob, "signature.png");
+          const res = await fetch(`${this.base}/api/forms/${this.data!.id}/upload`, { method: "POST", body, credentials: "omit" }).catch(() => null);
+          const j = (await res?.json().catch(() => ({}))) as { token?: string; error?: string } | undefined;
+          state.textContent = res?.ok && j?.token ? "Signed" : (j?.error ?? "Didn't save. Sign again.");
+          if (res?.ok && j?.token) set(j.token, true);
+        }, "image/png");
+      };
+      pad.addEventListener("pointerup", done);
+      pad.addEventListener("pointerleave", done);
+      const clear = el("button", { type: "button", class: "bt bk", text: "Clear" });
+      clear.addEventListener("click", () => {
+        ctx?.clearRect(0, 0, pad.width, pad.height);
+        drawn = false;
+        state.textContent = "";
+        set(undefined);
+      });
+      box.append(pad, el("div", { class: "ac" }, clear), state);
+    }
+    return box;
+  }
+
+  /** Pick one or pick many: radios or check boxes, with "Other" and its text box last. */
+  private picks(f: Field, id: string, common: Record<string, string | undefined>, set: (v: unknown, picked?: boolean) => void): HTMLElement {
+    const multi = f.type === "multi";
+    const list = el("div", {
+      class: "ch",
+      role: multi ? "group" : "radiogroup",
+      "aria-labelledby": `${id}-l`,
+      "aria-invalid": common["aria-invalid"],
+      "aria-describedby": common["aria-describedby"],
+      "aria-required": multi ? undefined : common["aria-required"],
+    });
+    const other = this.otherText(f);
+    const cur = listOf(this.answers[f.id]).filter((v) => !v.startsWith(OTHER));
+    if (f.cards) list.className = "cd";
+    const item = (value: string, text: string, n: string, on: boolean, change: (checked: boolean) => void, image?: string) => {
+      const c = el("input", { type: multi ? "checkbox" : "radio", name: id, value, id: `${id}-${n}` }) as HTMLInputElement;
+      c.checked = on;
+      c.addEventListener("change", () => change(c.checked));
+      list.append(el("label", { class: f.cards ? undefined : "ck" }, c, f.cards && image && safeUrl(image) ? el("img", { src: image, alt: "", loading: "lazy" }) : null, el("span", { text })));
+    };
+    // Screens with auto on: a single pick that is the step's only question moves on by itself.
+    const form = this.data!.body;
+    const alone = !multi && !!form.layout.auto && !this.edit && form.steps[this.step]?.fields.filter((x) => !isContent(x.type) && x.type !== "hidden" && x.type !== "calc").length === 1;
+    this.optionsOf(f).forEach((o, i) =>
+      item(o.value, o.label, String(i), cur.includes(o.value) && (multi || other === undefined), (checked) => {
+        if (!multi) {
+          this.other[f.id] = undefined;
+          set(o.value, true);
+          if (alone) setTimeout(() => void this.next(), 180);
+          return;
+        }
+        set(this.compose(f, checked ? [...cur, o.value] : cur.filter((v) => v !== o.value)), true);
+      }, o.image),
+    );
+    if (f.other) {
+      item("", "Other", "o", other !== undefined, (checked) => {
+        this.other[f.id] = checked ? (other ?? "") : undefined;
+        set(this.compose(f, multi ? cur : []), true);
+      });
+      if (other !== undefined) list.append(this.otherBox(f, id, set));
+    }
+    return list;
+  }
+
+  /** A rating: a radio group of stars or numbers, so arrows move and screen readers say "3 of 5". */
+  private rating(f: Field, id: string, common: Record<string, string | undefined>, set: (v: unknown, picked?: boolean) => void): HTMLElement {
+    const r = f.rating ?? { scale: 5, style: "stars" };
+    const has = this.answers[f.id] !== undefined && this.answers[f.id] !== "";
+    const cur = has ? Number(this.answers[f.id]) : -1;
+    const stars = r.style !== "numbers";
+    const group = el("div", {
+      class: `rt ${stars ? "rs" : "rn"}`,
+      role: "radiogroup",
+      "aria-labelledby": `${id}-l`,
+      "aria-invalid": common["aria-invalid"],
+      "aria-describedby": common["aria-describedby"],
+      "aria-required": common["aria-required"],
+    });
+    const low = !stars && r.zero ? 0 : 1;
+    for (let n = low; n <= r.scale; n++) {
+      const words = n === low && r.low ? `, ${r.low}` : n === r.scale && r.high ? `, ${r.high}` : "";
+      const c = el("input", { type: "radio", name: id, value: String(n), id: `${id}-${n}`, "aria-label": `${n} of ${r.scale}${words}` }) as HTMLInputElement;
+      c.checked = cur === n;
+      c.addEventListener("change", () => set(n, true));
+      group.append(el("label", { class: (stars ? n <= cur && cur > 0 : n === cur) ? "on" : undefined }, c, el("span", { "aria-hidden": "true", text: stars ? "★" : String(n) })));
+    }
+    if (!r.low && !r.high) return group;
+    return el("div", { class: "ch" }, group, el("div", { class: "rl", "aria-hidden": "true" }, el("span", { text: r.low ?? "" }), el("span", { text: r.high ?? "" })));
+  }
+
+  /** A single-pick list: a button that opens options, with keys (up, down, enter, escape, letters) and search for long lists. */
+  private listbox(f: Field, common: Record<string, string | undefined>, set: (v: unknown, picked?: boolean) => void, inside: boolean): HTMLElement {
+    const OTHER_PICK = "\u0000other";
+    const options: Choice[] = f.type === "country" ? countryNames(navigator.language) : [...this.optionsOf(f), ...(f.other ? [{ value: OTHER_PICK, label: "Other" }] : [])];
+    const other = f.type === "country" ? undefined : this.otherText(f);
+    const cur = other !== undefined ? OTHER_PICK : typeof this.answers[f.id] === "string" ? (this.answers[f.id] as string) : "";
+    const pick = (value: string) => {
+      if (value === OTHER_PICK) {
+        this.other[f.id] = other ?? "";
+        return set(this.compose(f), true);
+      }
+      this.other[f.id] = undefined;
+      set(value, true);
+    };
+    const isOpen = this.openList === f.id;
+    const wrap = el("div", { class: "dd" });
+    const btn = el("button", { type: "button", class: "bx", ...common, "aria-haspopup": "listbox", "aria-expanded": isOpen ? "true" : "false" });
+    const picked = options.find((o) => o.value === cur);
+    btn.append(el("span", { class: picked ? "" : "ph", text: picked?.label ?? (inside ? f.label : f.placeholder) ?? "Choose…" }), el("span", { "aria-hidden": "true", text: "▾" }));
+    const close = (focus = true) => {
+      this.openList = null;
+      this.filter = "";
+      this.render();
+      if (focus) (this.root.getElementById(`clr-${f.id}`) as HTMLElement | null)?.focus();
+    };
+    btn.addEventListener("click", () => {
+      this.openList = isOpen ? null : f.id;
+      this.filter = "";
+      this.render();
+      const box = this.root.querySelector(".ls input, .ls .op[aria-selected=true], .ls .op") as HTMLElement | null;
+      box?.focus();
+    });
+    wrap.append(btn);
+    if (!isOpen) return wrap;
+    const search = options.length > 8;
+    const list = el("ul", { class: "ls", role: "listbox", "aria-label": f.label });
+    const shownOpts = this.filter ? options.filter((o) => o.label.toLowerCase().includes(this.filter.toLowerCase())) : options;
+    const items: HTMLElement[] = [];
+    const move = (i: number) => {
+      const n = Math.max(0, Math.min(items.length - 1, i));
+      items.forEach((x, j) => x.classList.toggle("on", j === n));
+      items[n]?.focus();
+    };
+    if (search) {
+      const q = el("input", { class: "in", type: "text", "aria-label": `Search ${f.label}`, autocomplete: "off" }) as HTMLInputElement;
+      q.value = this.filter;
+      q.addEventListener("input", () => {
+        this.filter = q.value;
+        this.render();
+        const again = this.root.querySelector(".ls input") as HTMLInputElement | null;
+        again?.focus();
+        again?.setSelectionRange(again.value.length, again.value.length);
+      });
+      q.addEventListener("keydown", (e) => {
+        if (e.key === "ArrowDown") {
+          e.preventDefault();
+          move(0);
+        } else if (e.key === "Escape") close();
+        else if (e.key === "Enter") {
+          e.preventDefault();
+          if (shownOpts[0]) {
+            pick(shownOpts[0].value);
+            close();
+          }
+        }
+      });
+      list.append(el("li", { role: "presentation" }, q));
+    }
+    shownOpts.slice(0, 300).forEach((o, i) => {
+      const li = el("li", { class: "op", role: "option", tabindex: "-1", "aria-selected": o.value === cur ? "true" : "false", text: o.label });
+      li.addEventListener("click", () => {
+        pick(o.value);
+        close();
+      });
+      li.addEventListener("keydown", (e) => {
+        if (e.key === "ArrowDown") {
+          e.preventDefault();
+          move(i + 1);
+        } else if (e.key === "ArrowUp") {
+          e.preventDefault();
+          if (i === 0 && search) (this.root.querySelector(".ls input") as HTMLElement).focus();
+          else move(i - 1);
+        } else if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          pick(o.value);
+          close();
+        } else if (e.key === "Escape" || e.key === "Tab") close(e.key === "Escape");
+        else if (e.key.length === 1) {
+          const j = shownOpts.findIndex((x) => x.label.toLowerCase().startsWith(e.key.toLowerCase()));
+          if (j >= 0) move(j);
+        }
+      });
+      items.push(li);
+      list.append(li);
+    });
+    wrap.append(list);
+    return wrap;
+  }
+
+  private endScreen(form: Form): HTMLElement {
+    // Claritia calendar: the times in place of the form. In the builder, sample times and no network.
+    if (this.quiet && form.after.schedule?.tool === "claritia" && !this.bk) this.bk = { token: "", slots: sampleSlots(Date.now()), lengths: [30], length: 30 };
+    if (this.bkDone) return this.booked();
+    if (this.bk) return this.calendar(form, this.bk);
+    if (this.waiting) return el("div", { class: "f dn", role: "status", "aria-live": "polite" }, el("p", { class: "i", text: this.waiting }));
+    // A meeting to book: the scheduler opens in the form, with the lead filled in. In the builder, its link stands in.
+    const book = this.schedule ?? (this.isPreview && form.after.schedule?.url ? { tool: form.after.schedule.tool, url: form.after.schedule.url } : null);
+    if (book && (!this.isPreview || safeUrl(book.url))) {
+      return el(
+        "div",
+        { class: "f dn", role: "status" },
+        el("h2", { class: "h", text: form.after.schedule?.heading || "Pick a time" }),
+        el("iframe", { src: book.url, title: "Book a meeting", style: "width:100%;min-height:680px;border:0", loading: "lazy", allow: "payment" }),
+      );
+    }
+    if (this.paid) return el("div", { class: "f dn", role: "status" }, el("span", { class: "ok", "aria-hidden": "true" }), el("h2", { class: "h", text: "Payment received" }), el("p", { class: "i", text: "Thank you. A receipt is on its way." }));
+    if (this.pay?.url && /^https:\/\/checkout\.stripe\.com\//.test(this.pay.url)) {
+      // Checkout opens on the page; in the embed's frame, in a new tab.
+      if (!embedFrame()) location.assign(this.pay.url);
+      return el("div", { class: "f dn", role: "status" }, el("h2", { class: "h", text: "One more step" }), el("p", { class: "i", text: "Finish your payment to complete it." }), el("div", { class: "ac" }, el("a", { class: "bt", href: this.pay.url, target: "_blank", rel: "noopener", text: "Pay now" })));
+    }
+    const end = form.after.end;
+    if (end.kind === "redirect" && !this.quiet && safeUrl(end.url)) {
+      // In the embed's frame, the page around it opens the address.
+      if (!embedFrame()) location.assign(end.url);
+      return el("div", { class: "f" }, el("p", { class: "i", text: "One moment…" }));
+    }
+    const title = end.kind === "message" ? end.title : "Thanks, we got it.";
+    const text = end.kind === "message" ? end.text : `Then we open ${end.url}`;
+    const box = el(
+      "div",
+      { class: "f dn", role: "status", tabindex: "-1" },
+      el("span", { class: "ok", "aria-hidden": "true" }),
+      el("h2", { class: "h", text: title }),
+      text ? el("p", { class: "i", text }) : null,
+      this.pay?.error ? el("p", { class: "al", text: this.pay.error }) : null,
+      this.copy ? el("div", { class: "ac" }, el("a", { class: "bt bk", href: `${this.base}${this.copy}`, target: "_blank", rel: "noopener", text: "Download a copy" })) : null,
+    );
+    queueMicrotask(() => box.focus());
+    return box;
+  }
+
+  // Booking ------------------------------------------------------------------------------------------------
+
+  /** The host's photo and name, when known. */
+  private hostRow(h?: Booking["host"]) {
+    return h ? el("div", { class: "hs" }, h.photo ? el("img", { class: "av", src: h.photo, alt: "" }) : null, el("span", { text: h.name })) : null;
+  }
+
+  /** The inline calendar: lengths, the visitor's zone, days and times. One click on a time books it. */
+  private calendar(form: Form, b: Booking): HTMLElement {
+    if (this.pg) return this.pageCalendar(b);
+    const tz = this.bkTz;
+    const days = byDay(b.slots, tz);
+    const day = days.find((d) => d.day === this.bkDay) ?? days[0];
+    this.bkDay = day?.day ?? "";
+    const pill = (id: string, text: string, on: boolean, click: () => void, label?: string) => {
+      const x = el("button", { type: "button", id: `clr-${id}`, class: "pl", "aria-pressed": on ? "true" : "false", disabled: this.bkBusy, "aria-label": label, text });
+      x.addEventListener("click", click);
+      return x;
+    };
+    // "Thanks, Maya. Pick a time with Dan." when the lead and their rep are known (docs/inbound.md).
+    const first = allFields(form).find((f) => f.key === "first_name");
+    const name = first && typeof this.answers[first.id] === "string" ? String(this.answers[first.id]).trim().split(/\s+/)[0] : "";
+    const rep = b.host?.name.trim().split(/\s+/)[0];
+    const heading = `${name ? `Thanks, ${name.slice(0, 40)}. ` : ""}${form.after.schedule?.heading || "Pick a time"}${rep ? ` with ${rep}` : ""}`;
+    const box = el("div", { class: "f dn cl" }, el("span", { class: "ok", "aria-hidden": "true" }), el("h2", { class: "h", tabindex: "-1", text: name || rep ? `${heading}.` : heading }), this.hostRow(b.host));
+    if (b.lengths.length > 1)
+      box.append(el("div", { class: "ps", role: "group", "aria-label": "Length" }, ...b.lengths.map((n) => pill(`l${n}`, `${n} min`, n === b.length, () => void this.times(n)))));
+    // The zone: the component's own listbox, so it works like every other list on the form.
+    const TZ = "_tz";
+    this.answers[TZ] = tz;
+    const zf = { id: TZ, key: TZ, type: "dropdown", label: "Time zone", required: false, options: zones(localZone()).map((z) => ({ value: z, label: zoneName(z) })) } as unknown as Field;
+    box.append(
+      el("div", { class: "tz" }, el("label", { class: "lb", for: `clr-${TZ}`, text: "Time zone" }), this.listbox(zf, { id: `clr-${TZ}` }, (v) => {
+        if (typeof v === "string" && v) this.bkTz = v;
+        this.later();
+      }, false)),
+    );
+    if (this.bkMsg) box.append(el("p", { class: "al", role: "alert", text: this.bkMsg }));
+    if (!day) {
+      box.append(el("p", { class: "i", text: "No open times right now." }));
+      return box;
+    }
+    box.append(el("div", { class: "ps dy", role: "group", "aria-label": "Day" }, ...days.map((d) => pill(`d${d.day}`, dayText(d.starts[0]!, tz), d === day, () => ((this.bkDay = d.day), this.later())))));
+    const label = `Times on ${dayText(day.starts[0]!, tz)}`;
+    box.append(el("div", { class: "tm", role: "group", "aria-label": label }, ...day.starts.map((t) => pill(`t${t}`, timeText(t, tz), false, () => void this.pick(t), `Book ${timeText(t, tz)}, ${dayText(t, tz)}`))));
+    return box;
+  }
+
+  /** The meeting booked, in place of the calendar. */
+  /**
+   * The calendar inside a studio page: the page's own thank-you already says thanks, so this is only the host, the
+   * days, the times and the zone, in the brand's buttons (CAL_CSS sizes them).
+   */
+  private pageCalendar(b: Booking): HTMLElement {
+    const tz = this.bkTz;
+    const days = byDay(b.slots, tz);
+    const day = days.find((d) => d.day === this.bkDay) ?? days[0];
+    this.bkDay = day?.day ?? "";
+    const box = el("div", { class: "cl-cal" });
+    const btn = (on: boolean, attrs: Record<string, string | undefined>, ...kids: (Node | string)[]) => {
+      const x = el("button", { type: "button", class: on ? "btn" : "btn-secondary", "aria-pressed": on ? "true" : "false", disabled: this.bkBusy, ...attrs }, ...kids);
+      return x;
+    };
+    if (b.host) box.append(el("div", { class: "cl-host" }, b.host.photo ? el("img", { src: b.host.photo, alt: "" }) : null, el("div", {}, el("b", { text: b.host.name }), el("small", { text: `${b.length} min` }))));
+    else box.append(el("div", { class: "cl-host" }, el("div", {}, el("small", { text: `${b.length} min` }))));
+    if (b.lengths.length > 1) {
+      const row = el("div", { class: "cl-days", role: "group", "aria-label": "Length" });
+      for (const n of b.lengths) {
+        const x = btn(n === b.length, { id: `clr-l${n}` }, el("strong", { text: `${n} min` }));
+        x.addEventListener("click", () => void this.times(n));
+        row.append(x);
+      }
+      box.append(row);
+    }
+    if (this.bkMsg) box.append(el("p", { class: "al", role: "alert", text: this.bkMsg }));
+    if (!day) {
+      box.append(el("p", { class: "text", text: "No open times right now." }));
+    } else {
+      const dRow = el("div", { class: "cl-days", role: "group", "aria-label": "Day" });
+      for (const d of days) {
+        const first = d.starts[0]!;
+        const x = btn(d === day, { id: `clr-d${d.day}`, "aria-label": dayText(first, tz) }, el("small", { text: new Intl.DateTimeFormat(undefined, { weekday: "short", timeZone: tz }).format(first) }), el("strong", { text: new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", timeZone: tz }).format(first) }));
+        x.addEventListener("click", () => {
+          this.bkDay = d.day;
+          this.bkMore = false;
+          this.later();
+        });
+        dRow.append(x);
+      }
+      box.append(dRow);
+      const shown = this.bkMore ? day.starts : day.starts.slice(0, 9);
+      const tRow = el("div", { class: "cl-times", role: "group", "aria-label": `Times on ${dayText(day.starts[0]!, tz)}` });
+      for (const t of shown) {
+        const x = btn(false, { id: `clr-t${t}`, "aria-label": `Book ${timeText(t, tz)}, ${dayText(t, tz)}` }, timeText(t, tz));
+        x.addEventListener("click", () => void this.pick(t));
+        tRow.append(x);
+      }
+      box.append(tRow);
+      if (shown.length < day.starts.length) {
+        const more = el("button", { type: "button", class: "cl-link", text: `${day.starts.length - shown.length} more times` });
+        more.addEventListener("click", () => ((this.bkMore = true), this.later()));
+        box.append(more);
+      }
+    }
+    // The zone in words, with the full list only when asked for.
+    const zone = el("div", { class: "cl-zone" }, el("span", { text: `Times in ${zoneWords(tz)}` }));
+    if (!this.bkZone) {
+      const ch = el("button", { type: "button", class: "cl-link", text: "Change" });
+      ch.addEventListener("click", () => ((this.bkZone = true), this.later()));
+      zone.append(ch);
+      box.append(zone);
+    } else {
+      const TZ = "_tz";
+      this.answers[TZ] = tz;
+      const zf = { id: TZ, key: TZ, type: "dropdown", label: "Time zone", required: false, options: zones(localZone()).map((z) => ({ value: z, label: zoneWords(z) })) } as unknown as Field;
+      box.append(zone, this.listbox(zf, { id: `clr-${TZ}` }, (v) => {
+        if (typeof v === "string" && v) this.bkTz = v;
+        this.bkZone = false;
+        this.later();
+      }, false));
+    }
+    return box;
+  }
+
+  private booked(): HTMLElement {
+    const m = this.bkDone!;
+    const tz = this.bkTz;
+    if (this.pg) {
+      const box = el("div", { class: "cl-cal", role: "status", tabindex: "-1" }, el("h3", { class: "heading", text: "You're booked" }), el("p", { class: "text", text: `${dayText(m.start, tz)}, ${timeText(m.start, tz)} to ${timeText(m.end, tz)}, ${zoneWords(tz)}` }), m.host ? el("div", { class: "cl-host" }, m.host.photo ? el("img", { src: m.host.photo, alt: "" }) : null, el("div", {}, el("b", { text: m.host.name }))) : null, el("p", { class: "text", text: "The invite is on its way to your inbox." }), m.manage && /^https:\/\//.test(m.manage) ? el("a", { class: "cl-link", href: m.manage, target: "_blank", rel: "noopener", text: "Change or cancel" }) : null);
+      queueMicrotask(() => box.focus());
+      return box;
+    }
+    const box = el(
+      "div",
+      { class: "f dn cl", role: "status", tabindex: "-1" },
+      el("span", { class: "ok", "aria-hidden": "true" }),
+      el("h2", { class: "h", text: "You're booked" }),
+      this.hostRow(m.host),
+      el("p", { class: "i", text: `${dayText(m.start, tz)}, ${timeText(m.start, tz)} to ${timeText(m.end, tz)} (${zoneName(tz)})` }),
+      el("p", { class: "i", text: "The invite is on its way to your inbox." }),
+      m.manage && /^https:\/\//.test(m.manage) ? el("a", { class: "i", href: m.manage, target: "_blank", rel: "noopener", text: "Change or cancel" }) : null,
+    );
+    queueMicrotask(() => box.focus());
+    return box;
+  }
+
+  /** Ask the booking route: fresh times (no start) or a booking. */
+  private async bookCall(body: object): Promise<{ status: number; j: Answer }> {
+    try {
+      const res = await fetch(`${this.base}/api/forms/book`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ token: this.bk!.token, ...body }), credentials: "omit" });
+      return { status: res.status, j: (await res.json().catch(() => ({}))) as Answer };
+    } catch {
+      return { status: 0, j: {} };
+    }
+  }
+
+  private settle(r: { status: number; j: Answer }, focus = "") {
+    this.bkBusy = false;
+    if (r.j.booked) {
+      this.bkDone = r.j.booked;
+      this.emit("booked", { start: r.j.booked.start, end: r.j.booked.end });
+    }
+    if (r.j.booking) this.bk = r.j.booking;
+    this.bkMsg = r.j.taken ? "That time was just taken. Pick another." : r.j.booked || (r.status === 200 && r.j.booking) ? "" : (r.j.error ?? "Booking didn't go through. Try again.");
+    this.render();
+    (this.root.getElementById(focus) ?? (this.bkMsg ? this.root.querySelector(".tm .pl") : null) as HTMLElement | null)?.focus();
+  }
+
+  private async times(length: number) {
+    if (this.isPreview) return void ((this.bk = { ...this.bk!, length }), this.later());
+    if (this.bkBusy) return;
+    this.bkBusy = true;
+    this.render();
+    this.settle(await this.bookCall({ length }), `clr-l${length}`);
+  }
+
+  private async pick(start: number) {
+    const b = this.bk!;
+    if (this.bkBusy) return;
+    if (this.quiet) {
+      this.bkDone = { start, end: start + b.length * 60_000, ...(b.host ? { host: b.host } : {}) };
+      return this.render();
+    }
+    this.bkBusy = true;
+    this.bkMsg = "";
+    this.render();
+    this.settle(await this.bookCall({ start, length: b.length, tz: this.bkTz }));
+  }
+
+  // Sending ------------------------------------------------------------------------------------------------
+
+  private async next() {
+    const d = this.data!;
+    const form = d.body;
+    const r = checkAnswers(form, this.answers, { steps: [this.step], known: this.known, ...this.ctx });
+    this.errors = r.errors;
+    for (const id of Object.keys(r.errors)) this.row(id)[2]++;
+    this.alert = "";
+    if (Object.keys(r.errors).length) {
+      this.render();
+      // A group (radios, check boxes, a rating) takes focus on its first box.
+      const first = this.root.querySelector("[aria-invalid=true]") as HTMLElement | null;
+      (first && !first.matches("input,button,textarea") ? (first.querySelector("input,button") as HTMLElement | null) : first)?.focus();
+      return;
+    }
+    const to = nextStep(form, this.step, this.answers, this.ctx);
+    if (to < form.steps.length) {
+      this.step = to;
+      this.render();
+      (this.root.querySelector(".in, .bx, input") as HTMLElement | null)?.focus();
+      return;
+    }
+    // A consent box the form requires has to be ticked first.
+    if (form.consent.required && this.needsConsent() && !this.consent) {
+      this.alert = "Tick the box to send the form.";
+      this.render();
+      (this.root.querySelector("#clr-consent") as HTMLElement | null)?.focus();
+      return;
+    }
+    if (this.quiet) {
+      this.done = true;
+      return this.render();
+    }
+    await this.send();
+  }
+
+
+  private async send() {
+    const d = this.data!;
+    this.sending = true;
+    this.render();
+    const t = touch();
+    const body = JSON.stringify({
+      v: 1,
+      version: d.version,
+      key: this.key,
+      answers: this.answers,
+      hidden: hiddenValues(d.body, t),
+      consent: this.needsConsent() ? { given: this.consent, wording: d.body.consent.label } : {},
+      page: t.page,
+      referrer: t.referrer,
+      utm: t.utm,
+      first: t.first,
+      ms: Date.now() - this.started,
+      trap: (this.root.querySelector('input[name="company_url"]') as HTMLInputElement | null)?.value ?? "",
+      turnstile: this.turnstileToken || undefined,
+      // The daily form check opens the form with its token; the fill is then marked as a test.
+      qa: new URLSearchParams(location.search).get("clr_qa") || undefined,
+      known: this.known.size ? [...this.known] : undefined,
+      today: localDay(),
+    });
+    const url = `${this.base}/api/forms/${d.id}/submit`;
+    let res: Response | null = null;
+    try {
+      res = await fetch(url, { method: "POST", headers: { "content-type": "application/json" }, body, credentials: "omit", keepalive: true });
+    } catch {
+      res = null;
+    }
+    this.sending = false;
+    if (res && res.status === 400) {
+      // The server's own check found something the browser didn't (a free email on a work email field).
+      const j = (await res.json().catch(() => ({}))) as { errors?: Record<string, string>; error?: string };
+      this.errors = j.errors ?? {};
+      for (const id of Object.keys(this.errors)) this.row(id)[2]++;
+      this.alert = j.errors ? "" : (j.error ?? "Check the form and try again.");
+      const firstStep = d.body.steps.findIndex((s) => s.fields.some((f) => this.errors[f.id]));
+      if (firstStep >= 0) this.step = firstStep;
+      return this.render();
+    }
+    if (res && res.status >= 400 && res.status < 500 && res.status !== 408 && res.status !== 429) {
+      const j = (await res.json().catch(() => ({}))) as { error?: string };
+      this.alert = j.error ?? "This form can't take answers right now.";
+      return this.render();
+    }
+    if (!res || !res.ok) {
+      // Kept and sent later with the same key; the visitor is done either way.
+      writeQueue([...readQueue().filter((x) => x.key !== this.key), { url, body, key: this.key, at: Date.now(), tries: 1 }]);
+      setTimeout(() => void flushQueue(), 15_000);
+    } else {
+      type Answer = { id?: string; schedule?: { tool: string; url: string } | null; booking?: Booking; pending?: boolean; message?: string; result?: ClaritiaForm["result"]; pay?: { url?: string; error?: string }; copy?: string };
+      let j = (await res.json().catch(() => ({}))) as Answer;
+      // Saved, still finishing: say so, and send the same request again (the same key, so the same submission and
+      // routing request) until the server has the answer, for about 12 seconds.
+      if (j.pending) {
+        this.waiting = typeof j.message === "string" && j.message ? j.message.slice(0, 200) : "Your details are saved. We're finishing your request.";
+        this.done = true;
+        this.render();
+        for (let i = 0; i < 8 && j.pending; i++) {
+          await new Promise((r) => setTimeout(r, 1500));
+          const again = await fetch(url, { method: "POST", headers: { "content-type": "application/json" }, body, credentials: "omit" }).catch(() => null);
+          if (again?.ok) j = (await again.json().catch(() => j)) as Answer;
+        }
+        this.waiting = "";
+      }
+      if (j.schedule && /^https:\/\//.test(j.schedule.url)) this.schedule = j.schedule;
+      if (j.result && typeof j.result.values === "object") {
+        this.result = j.result;
+        if (!d.body.steps.some((st) => st.result) || d.body.results?.show !== "instant") this.beacon("result");
+      }
+      if (typeof j.id === "string") this.sid = j.id;
+      if (j.pay && typeof j.pay === "object") this.pay = { ...(typeof j.pay.url === "string" ? { url: j.pay.url } : {}), ...(typeof j.pay.error === "string" ? { error: j.pay.error.slice(0, 200) } : {}) };
+      if (typeof j.copy === "string" && /^\/api\/forms\/[0-9a-f-]{36}\/copy\/[0-9a-f-]{36}\?k=[\w-]{16,64}$/.test(j.copy)) this.copy = j.copy;
+      if (j.booking?.token && Array.isArray(j.booking.slots)) this.bk = j.booking;
+      this.dispatchEvent(new CustomEvent("claritia:submitted", { bubbles: true, composed: true, detail: { formId: d.id, submissionId: j.id ?? null } }));
+      this.tellPage();
+    }
+    // Sent, or kept to send again: either way the visitor finished the form.
+    this.summary(true);
+    try {
+      localStorage.setItem(`clr_sent_${d.id}`, "1");
+    } catch {}
+    this.done = true;
+    this.render();
+    // The calendar in place of the form: screen readers and keys start at its heading.
+    if (this.bk) (this.root.querySelector(".cl .h") as HTMLElement | null)?.focus();
+  }
+}
+
+if (typeof customElements !== "undefined" && !customElements.get("claritia-form")) customElements.define("claritia-form", ClaritiaForm);
+
+// <script src=".../forms/v1.js" data-capture="<form id>,<form id>">: capture the team's own forms on this page.
+const captureIds = (typeof document !== "undefined" && (document.currentScript as HTMLScriptElement | null)?.dataset.capture) || "";
+if (captureIds) {
+  void flushQueue();
+  for (const id of captureIds.split(",").map((x) => x.trim()).filter(Boolean)) void startCapture(id, SCRIPT_BASE || location.origin);
+}

@@ -1,0 +1,548 @@
+"use client";
+
+// Inbound › Forms (docs/forms.md): one list of forms as 72 px rows, like Calendar's meeting types. Each row has its
+// thumbnail, where it lives, its last fill and send rate, the last 7 days as bars, this week's count and its state; the
+// more menu opens, copies, takes offline and deletes. With no forms yet, the first screen asks what the form is for.
+// New form opens the five screens in new/NewForm.tsx.
+
+import { useEffect, useState } from "react";
+import type { Tokens } from "@/lib/forms/brand";
+import type { Form } from "@/lib/forms/schema";
+import { CATALOG } from "@/lib/sources/catalog";
+import { Send } from "../../Icons";
+import { FormSketch } from "../../sketches/FormSketch";
+import { AiMark } from "../Ai";
+import { Studio } from "./studio/Studio";
+import { askConfirm } from "../Dialogs";
+import { Badge, ErrorNote, errorText, IconButton, invalidate, Loading, must, postJson, useKept, useQuery, type ViewProps } from "../ui";
+import { meetingTypes } from "../meetings/TypesList";
+import { ago, whereWords } from "./formModel";
+import { Ic } from "./ic";
+import { BTN, copyText, Dots, GHOST, IB, Seg, SegN, Thumb, useNote } from "./parts";
+import { NewForm as NewFormScreen } from "./new/NewForm";
+import { Menu } from "./Menu";
+
+export type ListRow = {
+  id: string;
+  name: string;
+  status: "draft" | "live" | "paused";
+  kind: "built" | "captured";
+  version: number;
+  fills: number;
+  last_fill: string | null;
+  updated_at: string;
+  failed: number;
+  check: string | null;
+  week?: number;
+  spark?: number[];
+  views?: number;
+  pages?: number;
+  page?: string | null;
+  hosted?: boolean;
+  edited?: boolean;
+  brand_kit_id?: string | null;
+};
+type KitLite = { id: string; tokens: Partial<Tokens>; source_url: string | null; scan_status: string | null; logo_url?: string | null; logo_svg?: string | null };
+
+/** What New form starts from: the tools that take leads, the site, a meeting type and whether routing is on. */
+function useNewFormContext(sb: ViewProps["sb"], ws: string) {
+  return useQuery(`forms:${ws}:new`, async () => {
+    const [sources, sites, types, router] = await Promise.all([
+      sb.from("sources").select("id, kind, name, status").eq("workspace_id", ws).order("name"),
+      sb.from("sites").select("domain").eq("workspace_id", ws).order("created_at").limit(1),
+      meetingTypes(sb, ws),
+      sb.from("routers").select("live_version, paused_at").eq("workspace_id", ws).maybeSingle(),
+    ]);
+    const tools = ((sources.data ?? []) as Tool[]).filter((s) => s.status !== "disconnected" && PUSHES.has(s.kind));
+    const r = router.data as { live_version: number | null; paused_at: string | null } | null;
+    return {
+      tools,
+      site: ((sites.data ?? []) as { domain: string }[])[0]?.domain ?? "",
+      type: types.find((t) => t.active)?.id ?? null,
+      routing: !!r?.live_version && !r.paused_at,
+    };
+  });
+}
+
+/** A form made from a description says so the first time it opens. */
+export const MADE_KEY = "claritia:form-made:";
+
+export function FormHome(props: ViewProps & { startNew?: boolean }) {
+  const { sb, ws, navigate } = props;
+  const list = useQuery(`forms:${ws.id}:home`, async () => {
+    const [rows, kits, w] = await Promise.all([sb.rpc("forms_list", { p_ws: ws.id }), sb.from("brand_kits").select("*").eq("workspace_id", ws.id), sb.from("workspaces").select("brand_kit_id").eq("id", ws.id).maybeSingle()]);
+    // The workspace's brand first (docs/brand-capture.md), so everything that picks "a kit" picks it.
+    const brand = (w.data as { brand_kit_id: string | null } | null)?.brand_kit_id ?? null;
+    const all = (kits.data ?? []) as KitLite[];
+    return { rows: must(rows) as ListRow[], kits: [...all.filter((k) => k.id === brand), ...all.filter((k) => k.id !== brand)] };
+  });
+  // What New form needs, read with the list so the dialog opens ready.
+  useNewFormContext(sb, ws.id);
+  const [error, setError] = useState("");
+  const [filter, setFilter] = useKept<"all" | "live" | "draft">(`forms:${ws.id}:filter`, "all");
+  const [q, setQ] = useKept(`forms:${ws.id}:q`, "");
+  const [dialog, setDialog] = useState(!!props.startNew);
+  const [aiNote, setAiNote] = useState("");
+  // Onboarding: the brand step is done (read, or skipped on this computer), and a starter to open right after.
+  const [brandDone, setBrandDone] = useState(() => {
+    try {
+      return localStorage.getItem(`claritia:brand-step:${ws.id}`) === "done";
+    } catch {
+      return false;
+    }
+  });
+  const [menu, setMenu] = useState<{ id: string; at: HTMLElement } | null>(null);
+  const note = useNote();
+
+  const rows = list.data?.rows;
+  const kitOf = (id?: string | null) => list.data?.kits.find((k) => k.id === id);
+  const live = (rows ?? []).filter((r) => r.status !== "draft").length;
+  const shown = (rows ?? []).filter((r) => (filter === "all" || (filter === "live" ? r.status !== "draft" : r.status === "draft")) && (!q.trim() || r.name.toLowerCase().includes(q.trim().toLowerCase())));
+  const week = (rows ?? []).reduce((n, r) => n + (r.week ?? 0), 0);
+  const origin = typeof window === "undefined" ? "" : window.location.origin;
+
+  const act = async (fn: () => Promise<unknown>) => {
+    setError("");
+    try {
+      await fn();
+    } catch (e) {
+      setError(errorText(e));
+    }
+  };
+  const duplicate = (r: ListRow) =>
+    act(async () => {
+      const f = must(await sb.from("forms").select("draft, brand_kit_id").eq("id", r.id).maybeSingle()) as { draft: Form; brand_kit_id: string | null } | null;
+      if (!f) throw new Error("That form is gone.");
+      must(await sb.rpc("form_create", { p_ws: ws.id, p_name: `${r.name} (copy)`.slice(0, 120), p_draft: f.draft, p_brand_kit: f.brand_kit_id, p_kind: r.kind }));
+      list.reload();
+      note.show("Duplicated as a draft");
+    });
+  const offline = (r: ListRow, on: boolean) =>
+    act(async () => {
+      // The status changes on click; it goes back, with the error, if the save fails.
+      await list.mutate((d) => ({ ...d, rows: d.rows.map((x) => (x.id === r.id ? { ...x, status: on ? "live" : "paused" } : x)) }), async () => must(await sb.rpc("form_set_status", { p_id: r.id, p_status: on ? "live" : "paused" })));
+      invalidate("app_counts");
+      note.show(on ? "Back online" : "Offline. Pages show nothing until you publish again.");
+    });
+  const remove = (r: ListRow) =>
+    act(async () => {
+      const where = whereWords({ ...r, pages: r.pages ?? 0, page: r.page ?? null, hosted: !!r.hosted });
+      const body = r.status === "draft" ? "It's a draft, so nothing else changes." : `It comes off ${where.charAt(0).toLowerCase()}${where.slice(1)}. Its ${r.fills.toLocaleString("en-US")} submissions stay on your contacts.`;
+      if (!(await askConfirm(`Delete ${r.name}?`, { body, ok: "Delete", danger: true }))) return;
+      await list.mutate((d) => ({ ...d, rows: d.rows.filter((x) => x.id !== r.id) }), async () => must(await sb.rpc("form_delete", { p_id: r.id })));
+      invalidate(`form_names:${ws.id}`);
+      invalidate("app_counts");
+      note.show(`${r.name} deleted`);
+    });
+
+  const header = (
+    <div className="flex h-[48px] shrink-0 items-center gap-[8px] border-b border-line pr-[12px] pl-[16px] text-[14px] font-medium">
+      <h1 className="text-ink">Forms</h1>
+      {rows?.length ? <span className="font-normal text-faint tabular-nums">{rows.length}</span> : null}
+      <span className="flex-1" />
+      {rows?.length ? (
+        <button type="button" className={GHOST} onClick={() => navigate("forms", "templates")}>
+          <Ic n="form" />
+          Templates
+        </button>
+      ) : null}
+      {rows?.length ? (
+        <button type="button" className={BTN} onClick={() => navigate("forms", "new")}>
+          <Ic n="plus" />
+          New form
+        </button>
+      ) : null}
+    </div>
+  );
+
+  // No forms yet: Form Studio is the first screen.
+  if (list.data && !rows?.length) return <Studio {...props} />;
+
+  const body = !list.data ? (
+    list.error ? (
+      <div className="p-[16px]">
+        <ErrorNote message={list.error} />
+      </div>
+    ) : (
+      <Loading />
+    )
+  ) : !rows!.length && !brandDone && !list.data.kits.some((k) => Object.keys(k.tokens ?? {}).length > 0) ? (
+    <BrandStep {...props} onDone={(build) => (list.reload(), setBrandDone(true), build ? (setAiNote(""), setDialog(true)) : undefined)} />
+  ) : !rows!.length ? (
+    <FirstScreen onStart={(n?: string) => (setAiNote(n ?? ""), setDialog(true))} />
+  ) : (
+    <div className="min-h-0 flex-1 overflow-y-auto px-[16px] pt-[16px] pb-[24px] sm:px-[clamp(16px,2.5vw,28px)]">
+      <div className="mb-[14px] flex flex-wrap items-center gap-[10px]">
+        <label className="flex h-[32px] w-[260px] max-w-full items-center gap-[8px] rounded-sm border border-line bg-card px-[10px] text-muted focus-within:border-ink">
+          <Ic n="search" />
+          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search forms" aria-label="Search forms" className="min-w-0 flex-1 bg-transparent text-[13px] text-ink outline-none placeholder:text-muted" />
+        </label>
+        <Seg
+          label="Show"
+          value={filter}
+          onChange={setFilter}
+          options={[
+            { value: "all", label: <>All <SegN n={rows!.length} /></> },
+            { value: "live", label: <>Live <SegN n={live} /></> },
+            { value: "draft", label: <>Drafts <SegN n={rows!.length - live} /></> },
+          ]}
+        />
+        <span className="flex-1" />
+        <span className="text-[12.5px] text-muted">{`${week.toLocaleString("en-US")} ${week === 1 ? "submission" : "submissions"} this week`}</span>
+      </div>
+      <ErrorNote message={error} />
+      {shown.length ? (
+        <ul className="rounded-[10px] border border-line">
+          {shown.map((r) => (
+            <FormRowView
+              key={r.id}
+              r={r}
+              accent={kitOf(r.brand_kit_id)?.tokens.buttonBg || kitOf(r.brand_kit_id)?.tokens.accent}
+              open={menu?.id === r.id}
+              onOpen={() => navigate("forms", r.id)}
+              onMenu={(at) => setMenu(menu?.id === r.id ? null : { id: r.id, at })}
+            />
+          ))}
+        </ul>
+      ) : (
+        <div className="flex flex-col items-center gap-[4px] px-[16px] py-[56px] text-center">
+          <b className="font-medium text-ink">No matches</b>
+          <span className="text-muted">Try another name</span>
+        </div>
+      )}
+    </div>
+  );
+
+  const open = menu ? rows?.find((r) => r.id === menu.id) : null;
+  return (
+    <div className="relative flex h-full min-h-0 flex-col bg-card">
+      {header}
+      {body}
+      {open && menu ? (
+        <Menu
+          anchor={menu.at}
+          onClose={() => setMenu(null)}
+          items={[
+            { icon: "build", label: "Open", run: () => navigate("forms", open.id) },
+            { icon: "dup", label: "Duplicate", run: () => void duplicate(open) },
+            { icon: "link", label: "Copy link", disabled: !open.version, run: () => void copyText(`${origin}/f/${open.id}`).then((ok) => note.show(ok ? "Link copied" : "Couldn't copy the link")) },
+            open.status === "paused"
+              ? { icon: "eye", label: "Put back online", run: () => void offline(open, true) }
+              : { icon: "eye", label: "Take offline", disabled: open.status === "draft", run: () => void offline(open, false) },
+            "hr",
+            { icon: "trash", label: "Delete", danger: true, run: () => void remove(open) },
+          ]}
+        />
+      ) : null}
+      {dialog ? <NewForm {...props} note={aiNote} kits={list.data?.kits ?? []} onClose={() => setDialog(false)} /> : null}
+      {note.node}
+    </div>
+  );
+}
+
+/** One form in the list. */
+function FormRowView({ r, accent, open, onOpen, onMenu }: { r: ListRow; accent?: string; open: boolean; onOpen: () => void; onMenu: (at: HTMLElement) => void }) {
+  const spark = r.spark?.length === 7 ? r.spark : [0, 0, 0, 0, 0, 0, 0];
+  const max = Math.max(1, ...spark);
+  const rate = r.views ? Math.min(100, Math.round((r.fills / r.views) * 100)) : null;
+  const where = whereWords({ ...r, pages: r.pages ?? 0, page: r.page ?? null, hosted: !!r.hosted });
+  const last = r.last_fill ? ago(r.last_fill) : `Edited ${ago(r.updated_at).replace(/^Just now$/, "just now").replace(/^Yesterday$/, "yesterday")}`;
+  const badge =
+    r.status === "draft" ? (
+      <Badge>Draft</Badge>
+    ) : r.status === "paused" ? (
+      <Badge>Offline</Badge>
+    ) : r.edited ? (
+      <span title="Live, with changes not published yet">
+        <Badge tone="amber" dot>
+          Live, edited
+        </Badge>
+      </span>
+    ) : (
+      <Badge tone="green" dot>
+        Live
+      </Badge>
+    );
+  return (
+    <li className="relative flex h-[72px] items-center gap-[14px] border-t border-line pr-[10px] pl-[14px] transition-colors duration-[120ms] first:rounded-t-[10px] first:border-t-0 last:rounded-b-[10px] hover:bg-paper">
+      {open ? <CatchCorners /> : null}
+      <Thumb accent={accent} />
+      <button type="button" onClick={onOpen} className="flex min-w-0 flex-1 flex-col gap-[5px] text-left after:absolute after:inset-0">
+        <span className="flex min-w-0 items-center gap-[8px] text-[13.5px] font-medium text-ink">
+          <span className="truncate">{r.name}</span>
+          {r.failed ? (
+            <span title={`${r.failed} ${r.failed === 1 ? "lead didn't" : "leads didn't"} reach their CRM`}>
+              <Badge tone="red">{`${r.failed} not synced`}</Badge>
+            </span>
+          ) : null}
+          {r.check === "failed" ? <Badge tone="red">Check failed</Badge> : null}
+        </span>
+        <span className="flex items-center gap-[14px] overflow-hidden text-[12.5px] whitespace-nowrap text-muted">
+          <span className="inline-flex items-center gap-[5px]">
+            <Ic n="globe" />
+            {where}
+          </span>
+          <span className="inline-flex items-center gap-[5px] max-md:hidden">
+            <Ic n="clock" />
+            {last}
+          </span>
+          {r.fills && rate !== null ? <span className="max-md:hidden">{`${rate}% of visitors send it`}</span> : null}
+        </span>
+      </button>
+      <span aria-hidden="true" className="flex h-[22px] w-[64px] shrink-0 items-end gap-[2px] max-md:hidden">
+        {spark.map((v, i) => (
+          <i key={i} className={`block min-h-[2px] flex-1 rounded-[1px] ${i === 6 ? "bg-ink" : "bg-line-strong"}`} style={{ height: `${Math.round((v / max) * 100)}%` }} />
+        ))}
+      </span>
+      <span className="flex w-[120px] shrink-0 flex-col items-end gap-[2px] max-[1100px]:hidden">
+        <b className="font-medium text-ink tabular-nums">{r.week ? r.week.toLocaleString("en-US") : "None"}</b>
+        <span className="text-[11.5px] text-muted">this week</span>
+      </span>
+      <span className="flex w-[88px] shrink-0 justify-end max-md:hidden">{badge}</span>
+      <button
+        type="button"
+        aria-label={`More for ${r.name}`}
+        title="More"
+        onClick={(e) => {
+          e.stopPropagation();
+          onMenu(e.currentTarget);
+        }}
+        className={`${IB} relative z-10`}
+      >
+        <Ic n="more" />
+      </button>
+    </li>
+  );
+}
+
+/** The corner bracket from the mark, on the row whose menu is open. */
+export function CatchCorners({ r = 10, inset = "-1px" }: { r?: number; inset?: string }) {
+  return (
+    <>
+      <span aria-hidden="true" className="anim-fade pointer-events-none absolute z-[1] size-[12px] border-t-[1.5px] border-l-[1.5px] border-ink" style={{ top: inset, left: inset, borderTopLeftRadius: r }} />
+      <span aria-hidden="true" className="anim-fade pointer-events-none absolute z-[1] size-[12px] border-r-[1.5px] border-b-[1.5px] border-ink" style={{ bottom: inset, right: inset, borderBottomRightRadius: r }} />
+    </>
+  );
+}
+
+// Onboarding: learn the brand -------------------------------------------------------------------------------------
+
+type KitRow = { id: string; tokens: Partial<Tokens>; source_url: string | null; scan_status: string | null; scan_error: string | null };
+const READING = ["Opening the site", "Reading fonts", "Reading colors", "Reading buttons and fields", "Finding its forms"];
+
+/**
+ * The first visit: the site's address, then Claritia reads its look live (fonts, colors, buttons, its forms) and the
+ * first form is built in it. Skipping is kept on this computer. A scan that never ends says so after 90 seconds.
+ */
+function BrandStep({ sb, session, ws, onDone }: ViewProps & { onDone: (build: boolean) => void }) {
+  const [url, setUrl] = useState("");
+  const [kit, setKit] = useState<KitRow | null>(null);
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [tick, setTick] = useState(0);
+  const finish = (build: boolean) => {
+    try {
+      localStorage.setItem(`claritia:brand-step:${ws.id}`, "done");
+    } catch {}
+    onDone(build);
+  };
+  const scanning = kit?.scan_status === "scanning";
+  useEffect(() => {
+    if (!kit || !scanning) return;
+    const t = setInterval(async () => {
+      setTick((n) => n + 1);
+      const { data } = await sb.from("brand_kits").select("id, tokens, source_url, scan_status, scan_error").eq("id", kit.id).maybeSingle();
+      if (data) setKit(data as KitRow);
+    }, 2000);
+    return () => clearInterval(t);
+  }, [sb, kit, scanning]);
+  const start = async () => {
+    setBusy(true);
+    setError("");
+    try {
+      const { kitId, tokens } = await postJson<{ kitId: string; tokens?: Record<string, unknown> }>(session, "/api/forms/scan", { workspaceId: ws.id, url: url.trim() });
+      setTick(0);
+      // The quick read found the look already: done now; the full scan polishes it later.
+      setKit({ id: kitId, tokens: tokens ?? {}, source_url: url.trim(), scan_status: tokens ? "done" : "scanning", scan_error: null });
+    } catch (e) {
+      setError(errorText(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+  const t = kit?.tokens ?? {};
+  const name = host(kit?.source_url) || url.trim();
+  const done = kit?.scan_status === "done";
+  const failed = kit?.scan_status === "failed";
+  const slow = scanning && tick > 45;
+  const shown = done ? READING.length : Math.min(READING.length - 1, Math.floor(tick / 2));
+  return (
+    <div className="flex flex-1 flex-col items-center justify-center gap-[16px] overflow-y-auto px-[16px] py-[24px] text-center">
+      <FormSketch />
+      <h1 className="text-[28px] leading-[1.15] font-semibold tracking-[-0.025em] text-balance text-ink">
+        {done ? "Got your look." : "First, your website."}
+        <br />
+        <span className="text-faint">{done ? "Your forms will match it." : "Claritia learns its look."}</span>
+      </h1>
+      {!kit ? (
+        <form
+          className="flex w-[min(460px,100%)] items-center gap-[8px] rounded-full border border-line-strong bg-card py-[6px] pr-[6px] pl-[16px] focus-within:border-ink"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (url.trim() && !busy) void start();
+          }}
+        >
+          <input autoFocus value={url} onChange={(e) => setUrl(e.target.value)} placeholder="yourcompany.com" aria-label="Your website" className="min-w-0 flex-1 bg-transparent text-[14px] text-ink outline-none placeholder:text-faint" />
+          <button type="submit" className={BTN} disabled={!url.trim() || busy}>
+            <AiMark />
+            {busy ? "Starting" : "Learn my brand"}
+          </button>
+        </form>
+      ) : (
+        <div className="flex w-[min(460px,100%)] flex-col gap-[10px] rounded-[10px] border border-line bg-card p-[16px] text-left">
+          <span className="font-mono text-[11px] tracking-[0.06em] text-muted uppercase">{name}</span>
+          <ul className="flex flex-col gap-[6px]">
+            {READING.slice(0, shown + 1).map((r, i) => (
+              <li key={r} className="anim-rise-sm flex items-center gap-[8px] text-[13px] text-ink">
+                {i < shown || done ? (
+                  <span className="flex size-[16px] items-center justify-center rounded-full bg-signal-soft text-signal-text">
+                    <Ic n="check" />
+                  </span>
+                ) : failed ? (
+                  <span className="size-[16px] rounded-full border border-rose" />
+                ) : (
+                  <span className="size-[14px] animate-spin rounded-full border-2 border-line border-t-ink motion-reduce:animate-none" aria-label="Working" />
+                )}
+                {r}
+              </li>
+            ))}
+          </ul>
+          {done ? (
+            <div className="anim-rise-sm flex flex-wrap items-center gap-[8px] border-t border-line pt-[10px]">
+              {t.font ? <Badge>{t.font}</Badge> : null}
+              {[t.buttonBg, t.text, t.background, t.border].filter(Boolean).map((c, i) => (
+                <span key={i} className="size-[18px] rounded-full border border-line" style={{ background: c }} title={c} />
+              ))}
+              <span className="ml-auto inline-flex h-[28px] items-center px-[12px] text-[12px] font-medium" style={{ background: t.buttonBg ?? "var(--color-ink)", color: t.buttonText ?? "var(--color-paper)", borderRadius: t.buttonRadius ?? 99 }}>
+                Their button
+              </span>
+            </div>
+          ) : null}
+          {failed ? <ErrorNote message={kit.scan_error || `Couldn't read ${name}.`} /> : null}
+          {slow ? <span className="text-[12.5px] text-muted">Still reading. This can take a minute when the reader is busy.</span> : null}
+        </div>
+      )}
+      <ErrorNote message={error} />
+      <div className="flex flex-wrap items-center justify-center gap-[6px]">
+        {done ? (
+          <button type="button" className={BTN} onClick={() => finish(true)}>
+            <AiMark />
+            Build my first form
+          </button>
+        ) : failed ? (
+          <button type="button" className={GHOST} onClick={() => setKit(null)}>
+            Try again
+          </button>
+        ) : null}
+        {!done ? (
+          <button type="button" className={GHOST} onClick={() => finish(false)}>
+            Skip
+          </button>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+// First screen -------------------------------------------------------------------------------------------------------
+
+function FirstScreen({ onStart }: { onStart: (note?: string) => void }) {
+  const [text, setText] = useState("");
+  return (
+    <div className="flex flex-1 flex-col items-center justify-center gap-[14px] overflow-y-auto px-[16px] py-[24px] text-center">
+      <FormSketch />
+      <h1 className="text-[28px] leading-[1.15] font-semibold tracking-[-0.025em] text-balance text-ink">
+        Make your first form.
+        <br />
+        <span className="text-faint">It takes your website&apos;s look.</span>
+      </h1>
+      <p className="max-w-[420px] text-muted">Describe it. Claritia picks one page or steps, writes every question and sends each answer to your contacts.</p>
+      <AskPill value={text} onChange={setText} placeholder="A demo request for work emails, then book a call" onSend={() => text.trim() && onStart(text.trim())} shadow />
+    </div>
+  );
+}
+
+/** The AI box: the sparkle, a line to type in and the round send button. */
+export function AskPill({ value, onChange, placeholder, onSend, busy = false, shadow = false, autoFocus = false, label = "Describe the form", needText = true, full = false }: { needText?: boolean; full?: boolean; value: string; onChange: (v: string) => void; placeholder: string; onSend: () => void; busy?: boolean; shadow?: boolean; autoFocus?: boolean; label?: string }) {
+  return (
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (!busy && value.trim()) onSend();
+      }}
+      className={`flex ${full ? "w-full" : "w-[min(560px,100%)]"} items-center gap-[8px] rounded-full border bg-card py-[6px] pr-[6px] pl-[14px] text-left transition-colors duration-[140ms] focus-within:border-ink ${busy ? "border-signal" : "border-line-strong"} ${shadow ? "shadow-[0_8px_28px_rgb(0_0_0/0.1)]" : ""}`}
+    >
+      <AiMark size={14} working={busy} />
+      <input autoFocus={autoFocus} value={value} disabled={busy} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} aria-label={label} autoComplete="off" className="h-[32px] min-w-0 flex-1 bg-transparent text-[13.5px] text-ink outline-none placeholder:text-muted disabled:text-muted" />
+      <button type="submit" disabled={busy || (needText && !value.trim())} aria-label="Send" className="inline-flex size-[32px] shrink-0 items-center justify-center rounded-full bg-ink text-card transition-opacity duration-[120ms] disabled:opacity-30">
+        {busy ? <Dots /> : <Ic n="up" />}
+      </button>
+    </form>
+  );
+}
+
+// New form ---------------------------------------------------------------------------------------------------------
+
+type Tool = { id: string; kind: string; name: string; status: string };
+const PUSHES = new Set(CATALOG.filter((e) => e.twoWay || e.pushes).map((e) => e.kind));
+const host = (u: string | null | undefined) => {
+  try {
+    return u ? new URL(/^https?:\/\//.test(u) ? u : `https://${u}`).hostname.replace(/^www\./, "") : "";
+  } catch {
+    return "";
+  }
+};
+
+/** New form, once what it reads (the site) is in. */
+function NewForm({ sb, session, ws, navigate, kits, onClose, note = "" }: ViewProps & { kits: KitLite[]; onClose: () => void; note?: string }) {
+  const ctx = useNewFormContext(sb, ws.id);
+  // The site to build for: the workspace's site, else the one its brand was read from.
+  const site = ctx.data?.site || host(lookKit(kits)?.source_url);
+  if (!ctx.data && !ctx.error) return null;
+  return <NewFormScreen sb={sb} session={session} ws={ws} navigate={navigate} site={site} kits={kits} note={note} onClose={onClose} />;
+}
+
+/** The kit a new form takes: the workspace's brand (listed first) when it has a look, else none. */
+// A kit with tokens has a look even while a later scan is still running (or never picked up by the runner).
+export const lookKit = (kits: KitLite[]) => kits.find((k) => k.scan_status !== "failed" && Object.keys(k.tokens ?? {}).length > 0) ?? kits.find((k) => k.scan_status === "scanning") ?? null;
+
+// The assistant's box at the bottom of Routing and Scoring screens ------------------------------------------------------
+
+/** The assistant's box, always at the bottom of the screen. */
+export function AskDock({ placeholder, onSend, busy = false, wide = false }: { placeholder: string; onSend: (text: string) => void; busy?: boolean; wide?: boolean }) {
+  const [text, setText] = useState("");
+  const send = (t: string) => {
+    if (!t.trim() || busy) return;
+    setText("");
+    onSend(t);
+  };
+  return (
+    <div className="shrink-0 border-t border-line bg-card px-4 pt-3 pb-4 md:px-8">
+      <div className={`mx-auto flex flex-col gap-2.5 ${wide ? "" : "max-w-5xl"}`}>
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            send(text);
+          }}
+          className="flex items-center gap-2 rounded-[14px] border border-line-strong bg-card py-1.5 pr-1.5 pl-3.5 transition-[border-color,box-shadow] duration-[120ms] focus-within:border-ink focus-within:shadow-[0_0_0_3px_var(--color-hover)]"
+        >
+          <AiMark size={15} />
+          <input aria-label="Ask the assistant" value={text} onChange={(e) => setText(e.target.value)} placeholder={placeholder} className="h-9 min-w-0 flex-1 bg-transparent text-[13.5px] text-ink outline-none placeholder:text-faint" />
+          <IconButton label="Send" type="submit" disabled={busy || !text.trim()} className="bg-ink text-paper hover:bg-ink hover:opacity-90">
+            <Send size={15} />
+          </IconButton>
+        </form>
+      </div>
+    </div>
+  );
+}

@@ -19,7 +19,7 @@ export async function deliver(to: Channels, m: Message, fetchFn: typeof fetch = 
   const errors: string[] = [];
   let delivered = 0;
   if (to.slack) {
-    const res = await fetchFn(to.slack, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(slackMessage(m.project, m.failures, m.heals)) }).catch((e: Error) => e);
+    const res = await fetchFn(to.slack, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(slackMessage(m.project, m.failures, m.heals)), signal: AbortSignal.timeout(10_000) }).catch((e: Error) => e);
     if (res instanceof Error) errors.push(`Slack: ${res.message}`);
     else if (!res.ok) errors.push(`Slack answered ${res.status}: ${(await res.text().catch(() => "")).slice(0, 200)}`);
     else delivered++;
@@ -33,6 +33,7 @@ export async function deliver(to: Channels, m: Message, fetchFn: typeof fetch = 
         method: "POST",
         headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
         body: JSON.stringify({ from: alertsFrom(), to: to.emails, subject: mail.subject, html: mail.html, text: mail.text }),
+        signal: AbortSignal.timeout(10_000),
       }).catch((e: Error) => e);
       if (res instanceof Error) errors.push(`Email: ${res.message}`);
       else if (!res.ok) errors.push(`Email answered ${res.status}: ${(await res.text().catch(() => "")).slice(0, 200)}`);

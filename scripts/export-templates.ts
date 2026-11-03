@@ -1,8 +1,8 @@
 // Writes the form template catalog as JSON for the website (dev-arrowsterr/claritia-site, tools/templates.json),
 // which turns it into /templates. Run: node scripts/export-templates.ts > ../claritia-site/tools/templates.json
-import { industryLabel, templateSlug, templateTheme, TEMPLATES } from "../src/lib/forms/catalog.ts";
-import { FONTS, fontsUrl, themeArt, themeVars, THEMES, type FontKey } from "../src/lib/forms/themes.ts";
-import { INDUSTRIES, KIND_LABEL, USE_CASES } from "../src/lib/forms/types.ts";
+import { industryLabel, templateSlug, templateTheme, TEMPLATES } from "../src/lib/forms/gallery/catalog.ts";
+import { FONTS, fontsUrl, themeArt, themeVars, THEMES, type FontKey } from "../src/lib/forms/gallery/themes.ts";
+import { INDUSTRIES, KIND_LABEL, USE_CASES } from "../src/lib/forms/gallery/types.ts";
 
 const out = {
   industries: INDUSTRIES,

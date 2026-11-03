@@ -15,8 +15,20 @@ psql "$URL" -qX -v ON_ERROR_STOP=1 -f tests/db/leaks.sql
 psql "$URL" -qX -v ON_ERROR_STOP=1 -f tests/db/jobs.sql
 PG_URL="$URL" node --test tests/pg/*.ts
 if [ -n "${CHROMIUM_PATH:-}" ]; then
-  npm run -s build:script >/dev/null
-  PG_URL="$URL" DEBUG="${DEBUG:-}" node scripts/collect-check.ts
-  PG_URL="$URL" node scripts/identity-check.ts
-  PG_URL="$URL" node scripts/consent-check.ts
+  PG_URL="$URL" node scripts/forms-check.ts
+  PG_URL="$URL" node scripts/forms-qa-check.ts
+  node scripts/brand-check.ts
+  node scripts/design-check.ts
+  node scripts/canvas-check.ts
+  node scripts/newform-check.ts
+  node scripts/studio-check.ts
+  node scripts/embed-check.ts
+  node scripts/share-check.ts
+  node scripts/formpage-check.ts
+  node scripts/email-check.ts
+  node scripts/email-builder-check.ts
+  node scripts/book-design-check.ts
+  node scripts/book-brand-check.ts
+  node scripts/book-guest-check.ts
+  if [ -n "${POSTGREST_BIN:-}" ]; then node scripts/screens-check.ts; fi
 fi

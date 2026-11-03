@@ -1,40 +1,183 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { allowedRoute, defaultRoute, navFor, showsProjectPicker } from "../src/lib/nav.ts";
+import {
+  activeItem,
+  availabilityPage,
+  defaultRoute,
+  GROUPS,
+  meetingsPage,
+  NAV,
+  resolveRoute,
+  ROUTING_TABS,
+  routingPage,
+  SCHEDULING_TABS,
+  schedulingPage,
+  teamsPage,
+} from "../src/lib/nav.ts";
 
-const routes = (f: string[]) => navFor(f).map((n) => n.route);
-
-test("a testing-only workspace sees the app exactly as before", () => {
-  assert.deepEqual(routes(["testing"]), ["tests", "blocks", "map", "runs", "environments", "schedules", "approvals", "insights", "settings"]);
-  assert.equal(defaultRoute(["testing"]), "tests");
-  assert.equal(allowedRoute(["testing"], "visitors"), "tests");
-  assert.ok(showsProjectPicker(["testing"], "tests"));
+test("the sidebar is Forms, Meetings and Workflows, then Settings", () => {
+  assert.deepEqual(
+    GROUPS.map((g) => g.key),
+    ["inbound", "nurture", "settings"],
+  );
+  const by = (g: string) => NAV.filter((n) => n.group === g).map((n) => n.label);
+  assert.deepEqual(NAV.map((n) => n.label), ["Forms", "Meetings", "Workflows", "Settings"]);
+  assert.deepEqual(by("inbound"), ["Forms", "Meetings"], "Routing lives in forms and meetings");
+  // The CRM, Enrichment, Scoring, Segments and Visitors are gone: their addresses open Forms.
+  for (const gone of ["contacts", "companies", "opportunities", "objects", "enrichment", "scoring", "segments", "visitors", "signals", "leads", "people", "accounts"])
+    assert.deepEqual(resolveRoute(gone, "11111111-1111-4111-8111-111111111111"), { route: "forms", id: "" }, gone);
+  for (const g of GROUPS) assert.ok(by(g.key).length <= 5, g.key);
+  assert.equal(defaultRoute, "forms");
+  assert.equal(new Set(NAV.map((n) => n.route)).size, NAV.length, "one item per route");
+  assert.deepEqual(ROUTING_TABS.map((t) => t.label), ["Policies", "Teams", "Activity"]);
+  assert.deepEqual(SCHEDULING_TABS.map((t) => t.label), ["Meeting types", "Upcoming", "Availability", "Booking page", "Links and polls", "Settings"]);
+  assert.equal(NAV.find((n) => n.route === "scheduling")?.label, "Meetings", "Calendar is now Meetings, at its old address");
 });
 
-test("a marketing-only workspace sees no testing screens and no project picker", () => {
-  assert.deepEqual(routes(["marketing"]), ["contacts", "leads", "companies", "segments", "accounts", "visitors", "journeys", "pages", "forms", "reports", "settings"]);
-  assert.equal(defaultRoute(["marketing"]), "visitors");
-  assert.equal(allowedRoute(["marketing"], "runs"), "visitors");
-  assert.ok(!showsProjectPicker(["marketing"], "settings"));
+test("old addresses open their new home", () => {
+  assert.deepEqual(resolveRoute("journeys", ""), { route: "workflows", id: "" });
+  assert.deepEqual(resolveRoute("workflows", ""), { route: "workflows", id: "" });
+  assert.deepEqual(resolveRoute("workflows", "11111111-1111-4111-8111-111111111111"), { route: "workflows", id: "11111111-1111-4111-8111-111111111111" });
+  assert.deepEqual(resolveRoute("workflows", "new"), { route: "workflows", id: "new" });
+  assert.deepEqual(resolveRoute("workflows", "nope"), { route: "workflows", id: "" });
+  // Emails became Workflows: its old addresses open there, one journey as that workflow.
+  assert.deepEqual(resolveRoute("emails", ""), { route: "workflows", id: "" });
+  assert.deepEqual(resolveRoute("emails", "library"), { route: "workflows", id: "" });
+  assert.deepEqual(resolveRoute("emails", "journeys/11111111-1111-4111-8111-111111111111"), { route: "workflows", id: "11111111-1111-4111-8111-111111111111" });
+  // Reports moved into their sections.
+  assert.deepEqual(resolveRoute("reports", ""), { route: "forms", id: "" });
+  assert.deepEqual(resolveRoute("reports", "reps"), { route: "forms", id: "" });
+  assert.deepEqual(resolveRoute("reports", "speed"), { route: "scheduling", id: "upcoming" });
+  assert.deepEqual(resolveRoute("reports", "forms"), { route: "forms", id: "" });
+  assert.deepEqual(resolveRoute("reports", "email"), { route: "workflows", id: "" });
+  assert.deepEqual(resolveRoute("analytics", ""), { route: "workflows", id: "" });
+  assert.deepEqual(resolveRoute("templates", ""), { route: "workflows", id: "" });
+  // Pages and Ads are gone.
+  assert.deepEqual(resolveRoute("pages", ""), { route: "forms", id: "" });
+  assert.deepEqual(resolveRoute("ads", "x"), { route: "forms", id: "" });
+  // Booking forms are forms.
+  assert.deepEqual(resolveRoute("scheduling", "forms"), { route: "forms", id: "" });
+  const id = "0b7c6a8e-1f2d-4c3b-9a8e-7d6c5b4a3f21";
+  assert.deepEqual(resolveRoute("meetings", "types"), { route: "scheduling", id: "types" });
+  assert.deepEqual(resolveRoute("meetings", `types/${id}`), { route: "scheduling", id: `types/${id}` });
+  assert.deepEqual(resolveRoute("settings", "calendar"), { route: "scheduling", id: "availability/calendars" });
+  assert.deepEqual(resolveRoute("settings", "calendars"), { route: "scheduling", id: "availability/team" });
+  assert.deepEqual(resolveRoute("settings", "payments"), { route: "scheduling", id: "settings/payments" });
+  assert.deepEqual(resolveRoute("settings", "lead_scoring"), { route: "settings", id: "lead_scoring" }, "Settings opens Integrations for it");
+  assert.deepEqual(resolveRoute("settings", "team"), { route: "settings", id: "team" });
 });
 
-test("with both, testing sits under one Testing group after the marketing screens", () => {
-  const nav = navFor(["testing", "marketing"]);
-  assert.deepEqual(nav.map((n) => n.route).slice(0, 11), ["contacts", "leads", "companies", "segments", "accounts", "visitors", "journeys", "pages", "forms", "reports", "tests"]);
-  assert.equal(nav.find((n) => n.route === "tests")!.group, "Testing");
-  assert.equal(nav.find((n) => n.route === "runs")!.group, undefined);
-  assert.equal(allowedRoute(["testing", "marketing"], "runs"), "runs");
-  assert.ok(showsProjectPicker(["testing", "marketing"], "runs"));
-  assert.ok(!showsProjectPicker(["testing", "marketing"], "visitors"));
+test("Inbound's old addresses open their new home", () => {
+  const id = "0b7c6a8e-1f2d-4c3b-9a8e-7d6c5b4a3f21";
+  // CRM › Meetings is Meetings › Upcoming; one meeting keeps its page.
+  assert.deepEqual(resolveRoute("meetings", ""), { route: "scheduling", id: "upcoming" });
+  assert.deepEqual(resolveRoute("meetings", "nope"), { route: "scheduling", id: "upcoming" });
+  assert.deepEqual(resolveRoute("meetings", id), { route: "meetings", id });
+  assert.equal(activeItem("meetings")?.label, "Meetings", "one meeting lights Inbound › Meetings");
+  // Calendar (scheduling) keeps its address and tabs; Availability is a Meetings tab again (it was Routing › Teams').
+  assert.deepEqual(resolveRoute("scheduling", "types"), { route: "scheduling", id: "types" });
+  assert.deepEqual(resolveRoute("scheduling", "availability"), { route: "scheduling", id: "availability" });
+  assert.deepEqual(schedulingPage("availability/calendars"), { page: "availability", sub: "calendars", id: "availability/calendars" });
+  assert.deepEqual(schedulingPage("availability/team"), { page: "availability", sub: "team", id: "availability/team" });
+  assert.deepEqual(schedulingPage("availability/nope"), { page: "availability", sub: "", id: "availability" });
+  assert.deepEqual(resolveRoute("availability", "team"), { route: "scheduling", id: "availability/team" });
+  assert.deepEqual(resolveRoute("routing", "teams/availability"), { route: "scheduling", id: "availability" });
+  assert.deepEqual(resolveRoute("routing", "teams/availability/days-off"), { route: "scheduling", id: "availability/days-off" });
+  // The Reps page, then Routing › Sales reps, is Routing › Teams; its availability editor is in Meetings.
+  assert.deepEqual(resolveRoute("reps", ""), { route: "scheduling", id: "availability/team" });
+  assert.deepEqual(resolveRoute("reps", "availability"), { route: "scheduling", id: "availability" });
+  assert.deepEqual(resolveRoute("reps", "availability/calendars"), { route: "scheduling", id: "availability/calendars" });
+  assert.deepEqual(resolveRoute("reps", "nope"), { route: "scheduling", id: "availability/team" });
+  // Routing's parts moved: policies are meetings, teams are in Availability; one policy and the activity log stay.
+  assert.deepEqual(resolveRoute("routing", ""), { route: "scheduling", id: "types" });
+  assert.deepEqual(resolveRoute("routing", "setup"), { route: "scheduling", id: "types" });
+  assert.deepEqual(resolveRoute("routing", "teams"), { route: "scheduling", id: "availability/team" });
+  assert.deepEqual(resolveRoute("routing", `teams/${id}`), { route: "scheduling", id: "availability/team" });
+  assert.deepEqual(resolveRoute("routing", `policies/${id}`), { route: "routing", id: `policies/${id}` });
+  assert.deepEqual(resolveRoute("routing", "activity/review"), { route: "routing", id: "activity/review" });
+  // Routing's old tabs forward inside Routing: Assignment to Policies, Sales reps to Teams, History to Activity.
+  for (const old of ["setup", "rules", "flow", "versions/3"]) assert.equal(routingPage(old).id, "");
+  for (const old of ["reps", "team", "teams"]) assert.equal(routingPage(old).id, "teams");
+  assert.equal(routingPage("leads").id, "activity");
+  assert.equal(routingPage(`leads/${id}`).id, `activity/${id}`);
+  assert.equal(routingPage("leads/review").id, "activity/review");
+  assert.deepEqual(routingPage("reps/availability"), { page: "teams", sub: "availability", id: "teams/availability" });
+  assert.deepEqual(routingPage("reps/availability/team"), { page: "teams", sub: "availability/team", id: "teams/availability/team" });
+  assert.deepEqual(routingPage("teams/availability/nope"), { page: "teams", sub: "availability", id: "teams/availability" });
+  assert.deepEqual(teamsPage(""), { page: "list", sub: "" });
+  assert.deepEqual(teamsPage(id), { page: "team", sub: id });
+  assert.deepEqual(teamsPage("availability"), { page: "availability", sub: "" });
+  assert.deepEqual(teamsPage("availability/days-off"), { page: "availability", sub: "days-off" });
+  assert.deepEqual(teamsPage("availability/nope"), { page: "availability", sub: "" });
+  assert.deepEqual(teamsPage("nope"), { page: "list", sub: "" });
+  assert.deepEqual(schedulingPage("upcoming"), { page: "upcoming", sub: "", id: "upcoming" });
+  assert.equal(schedulingPage("availability").page, "availability", "Availability is a Meetings tab");
 });
 
-test("no features falls back to the testing product", () => {
-  assert.equal(defaultRoute([]), "tests");
-  assert.ok(routes([]).includes("tests"));
+test("the testing screens and unknown addresses open Forms, where the app starts", () => {
+  for (const old of ["tests", "blocks", "map", "runs", "environments", "schedules", "approvals", "insights", "nope", ""]) assert.deepEqual(resolveRoute(old, "x"), { route: "forms", id: "" });
 });
 
-test("the person page opens from marketing screens only", () => {
-  assert.equal(allowedRoute(["marketing"], "people"), "people");
-  assert.equal(allowedRoute(["testing"], "people"), "tests");
-  assert.ok(!routes(["marketing"]).includes("people"), "it isn't in the sidebar");
+test("current addresses keep their record", () => {
+  assert.deepEqual(resolveRoute("forms", "abc"), { route: "forms", id: "abc" });
+});
+
+test("meetings: the list and one meeting", () => {
+  const id = "0b7c6a8e-1f2d-4c3b-9a8e-7d6c5b4a3f21";
+  assert.deepEqual(meetingsPage(""), { page: "list", id: "" });
+  assert.deepEqual(meetingsPage(id), { page: "meeting", id });
+  assert.deepEqual(meetingsPage("nope"), { page: "list", id: "" });
+});
+
+test("routing: Policies with one policy open, Teams with one team, Activity with a run, the review list and errors", () => {
+  const run = "0b7c6a8e-1f2d-4c3b-9a8e-7d6c5b4a3f21";
+  assert.deepEqual(routingPage(""), { page: "", sub: "", id: "" });
+  assert.deepEqual(routingPage(`policies/${run}`), { page: "", sub: run, id: `policies/${run}` });
+  assert.deepEqual(routingPage("policies/nope"), { page: "", sub: "", id: "" });
+  assert.deepEqual(routingPage("teams"), { page: "teams", sub: "", id: "teams" });
+  assert.deepEqual(routingPage(`teams/${run}`), { page: "teams", sub: run, id: `teams/${run}` });
+  assert.deepEqual(routingPage("activity"), { page: "activity", sub: "", id: "activity" });
+  assert.deepEqual(routingPage(`activity/${run}`), { page: "activity", sub: run, id: `activity/${run}` });
+  assert.deepEqual(routingPage("activity/nope"), { page: "activity", sub: "", id: "activity" });
+  assert.deepEqual(routingPage("activity/review"), { page: "activity", sub: "review", id: "activity/review" });
+  assert.deepEqual(routingPage("activity/errors"), { page: "activity", sub: "errors", id: "activity/errors" });
+  // History's old addresses.
+  assert.deepEqual(routingPage("history"), { page: "activity", sub: "", id: "activity" });
+  assert.equal(routingPage(`history/${run}`).id, `activity/${run}`);
+  assert.equal(routingPage(`log/${run}`).id, `activity/${run}`);
+  for (const old of ["review", "held", "leads/review", "history/review"]) assert.equal(routingPage(old).id, "activity/review");
+  for (const old of ["setup", "rules", "overview", "regions", "company-types", "flow", "versions/3"]) assert.equal(routingPage(old).id, "");
+  for (const bad of ["handoffs", "versions/0", "versions", "nope", "nope/1"]) assert.deepEqual(routingPage(bad), { page: "", sub: "", id: "" });
+});
+
+test("scheduling tabs", () => {
+  const id = "0b7c6a8e-1f2d-4c3b-9a8e-7d6c5b4a3f21";
+  assert.deepEqual(schedulingPage(""), { page: "types", sub: "", id: "types" });
+  assert.deepEqual(schedulingPage(`types/${id}`), { page: "types", sub: id, id: `types/${id}` });
+  assert.deepEqual(schedulingPage("types/new"), { page: "types", sub: "new", id: "types/new" });
+  assert.deepEqual(schedulingPage("types/nope"), { page: "types", sub: "", id: "types" });
+  assert.equal(availabilityPage(""), "schedules");
+  assert.equal(availabilityPage("days-off"), "days-off");
+  assert.deepEqual(schedulingPage(`types/${id}/all`), { page: "types", sub: `${id}/all`, id: `types/${id}/all` }, "the full editor");
+  assert.deepEqual(schedulingPage("types/new/all"), { page: "types", sub: "new", id: "types/new" });
+  for (const p of ["booking", "links", "upcoming"]) assert.equal(schedulingPage(p).page, p);
+  assert.ok(SCHEDULING_TABS.every((t) => t.icon), "every tab has its icon");
+  // Payments and Webhooks moved into Settings; their old addresses open there. Reminders are a workflow now.
+  assert.deepEqual(schedulingPage("settings"), { page: "settings", sub: "payments", id: "settings" });
+  assert.deepEqual(schedulingPage("settings/nope"), { page: "settings", sub: "payments", id: "settings" });
+  assert.deepEqual(resolveRoute("scheduling", "settings/reminders"), { route: "workflows", id: "" });
+  assert.deepEqual(resolveRoute("scheduling", "reminders"), { route: "workflows", id: "" });
+  for (const p of ["payments", "webhooks"]) {
+    assert.deepEqual(schedulingPage(p), { page: "settings", sub: p, id: `settings/${p}` });
+    assert.deepEqual(schedulingPage(`settings/${p}`), { page: "settings", sub: p, id: `settings/${p}` });
+  }
+  for (const gone of ["forms", "ai", "notetaker"]) assert.equal(schedulingPage(gone).page, "types");
+});
+
+test("every page lights its one sidebar item", () => {
+  assert.equal(activeItem("routing")?.label, "Meetings", "a policy or the activity log lights Meetings");
+  assert.equal(activeItem("scheduling")?.label, "Meetings");
+  assert.equal(activeItem("emails")?.label, "Workflows");
+  assert.equal(activeItem("workflows")?.label, "Workflows");
+  assert.equal(activeItem("forms")?.label, "Forms");
 });

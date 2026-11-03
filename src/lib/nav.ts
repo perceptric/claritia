@@ -1,78 +1,220 @@
-// Which screens a workspace sees, from its features (workspaces.features, supabase/migrations/020_foundation.sql).
-// 'testing' is the testing product; 'marketing' is the marketing platform (docs/marketing-platform.md).
-// A workspace with only testing sees the app exactly as before.
+// The sidebar: Forms, Meetings and Workflows, then Settings. Each item is one route; pages inside a route are tabs
+// under its title, each with its own address. The app opens on Forms. Old addresses keep working: they forward to
+// their new page, and the removed CRM, Enrichment, Scoring and Visitors open Forms.
 
-export type Route =
-  | "contacts"
-  | "leads"
-  | "companies"
-  | "segments"
-  | "objects"
-  | "visitors"
-  | "accounts"
-  | "people"
-  | "journeys"
-  | "pages"
-  | "forms"
-  | "reports"
-  | "tests"
-  | "blocks"
-  | "map"
-  | "runs"
-  | "environments"
-  | "schedules"
-  | "approvals"
-  | "insights"
-  | "settings";
+export type Route = "meetings" | "workflows" | "routing" | "forms" | "scheduling" | "emails" | "settings";
 
-export type NavItem = { route: Route; label: string; group?: string };
+export type GroupKey = "inbound" | "nurture" | "settings";
+export type Tone = "sky" | "clay" | "sage" | "butter";
 
-const MARKETING: NavItem[] = [
-  { route: "contacts", label: "Contacts", group: "Audience" },
-  { route: "leads", label: "Leads" },
-  { route: "companies", label: "Companies" },
-  { route: "segments", label: "Segments" },
-  { route: "accounts", label: "Accounts" },
-  { route: "visitors", label: "Visitors" },
-  { route: "journeys", label: "Journeys", group: "Engage" },
-  { route: "pages", label: "Pages" },
-  { route: "forms", label: "Forms" },
-  { route: "reports", label: "Reports", group: "Prove" },
+/** A group's color tile (docs/brand.md: sidebar groups) and its title; an empty title draws a rule. */
+export const GROUPS: { key: GroupKey; label: string; tone: Tone | null }[] = [
+  { key: "inbound", label: "Inbound", tone: "sage" },
+  { key: "nurture", label: "Nurture", tone: "butter" },
+  { key: "settings", label: "", tone: null },
 ];
 
-// The testing product's own groups, as before.
-const TESTING: NavItem[] = [
-  { route: "tests", label: "Tests", group: "Authoring" },
-  { route: "blocks", label: "Blocks" },
-  { route: "map", label: "Map" },
-  { route: "runs", label: "Runs", group: "Execution" },
-  { route: "environments", label: "Environments" },
-  { route: "schedules", label: "Schedules", group: "Management" },
-  { route: "approvals", label: "Approvals" },
-  { route: "insights", label: "Insights", group: "Analytics" },
+export type NavItem = {
+  /** Unique, for keys and the command bar. */
+  key: string;
+  route: Route;
+  /** The page inside the route ("" is the route's first page). */
+  page: string;
+  label: string;
+  group: GroupKey;
+};
+
+const item = (group: GroupKey, route: Route, label: string): NavItem => ({ key: route, route, page: "", label, group });
+
+/**
+ * Forms (each form picks the meeting), Meetings (a Dynamic meeting picks the person; Availability holds hours, teams
+ * and who's away; docs/on-submission.md) and Workflows (folders of workflows, reminders included; docs/workflows.md).
+ * Routing has no item of its own: its old addresses open where its parts went (resolveRoute).
+ */
+export const NAV: NavItem[] = [
+  item("inbound", "forms", "Forms"),
+  item("inbound", "scheduling", "Meetings"),
+  item("nurture", "workflows", "Workflows"),
+  item("settings", "settings", "Settings"),
 ];
 
-// Screens reached from other screens, never from the sidebar.
-const LINKED: Partial<Record<Route, string>> = { people: "marketing", objects: "marketing" };
+const ROUTES = new Set<string>([...NAV.map((n) => n.route), "meetings", "routing"]);
 
-export const TESTING_ROUTES = new Set<Route>(TESTING.map((n) => n.route));
+export const defaultRoute: Route = "forms";
 
-const SETTINGS: NavItem = { route: "settings", label: "Settings", group: "" };
+/** The sidebar item an address belongs to: each route has one. A new workflow is made under Emails; one meeting's page under Meetings. */
+export const activeItem = (route: Route): NavItem | null => NAV.find((n) => n.route === (route === "emails" ? "workflows" : route === "meetings" || route === "routing" ? "scheduling" : route)) ?? null;
 
-export function navFor(features: readonly string[]): NavItem[] {
-  const marketing = features.includes("marketing");
-  const testing = features.includes("testing");
-  if (!marketing) return [...TESTING, SETTINGS];
-  // Both: the testing screens sit together under one Testing group, after the marketing ones.
-  const testingGroup = testing ? TESTING.map((n, i) => ({ route: n.route, label: n.label, ...(i === 0 ? { group: "Testing" } : {}) })) : [];
-  return [...MARKETING, ...testingGroup, SETTINGS];
+/**
+ * Routing's amber dot: the default policy has something to fix (a rep who gets leads has no calendar, or a rule's
+ * team has nobody; `routing_action` from 094, reading teams from 096). Before 094 there's no count, so no dot.
+ */
+export function inboundDots(r: { routing_action?: number }): { routing: boolean } {
+  return { routing: (r.routing_action ?? 0) > 0 };
 }
 
-export const defaultRoute = (features: readonly string[]): Route => (features.includes("marketing") ? "visitors" : "tests");
+// Tabs inside a route -----------------------------------------------------------------------------------------------
 
-/** The route to show: the one asked for if this workspace has it, otherwise its first screen. */
-export const allowedRoute = (features: readonly string[], route: Route): Route =>
-  navFor(features).some((n) => n.route === route) || (LINKED[route] && features.includes(LINKED[route])) ? route : defaultRoute(features);
+export type Tab<T extends string = string> = { value: T; label: string };
 
-/** The project picker belongs to the testing product's screens. */
-export const showsProjectPicker = (features: readonly string[], route: Route) => features.includes("testing") && (!features.includes("marketing") || TESTING_ROUTES.has(route) || route === "settings");
+const UUID = /^[0-9a-f-]{36}$/;
+
+
+/** One meeting (<id>); the list of upcoming meetings lives in Meetings › Upcoming. Anything else opens the list. */
+export function meetingsPage(id: string): { page: "list" | "meeting"; id: string } {
+  const [a = ""] = id.split("/");
+  return UUID.test(a) ? { page: "meeting", id: a } : { page: "list", id: "" };
+}
+
+export type RoutingPageKey = "" | "teams" | "activity";
+export const ROUTING_TABS: Tab<RoutingPageKey>[] = [
+  { value: "", label: "Policies" },
+  { value: "teams", label: "Teams" },
+  { value: "activity", label: "Activity" },
+];
+
+/**
+ * Routing's tabs (docs/routing-workflow.md Section 3): Policies ("", one policy's editor at "policies/<id>"), Teams
+ * ("teams", one team at "teams/<id>", the working-hours editor at "teams/availability" and its views
+ * "teams/availability/calendars"...) and Activity ("activity", one run at "activity/<run>", the review list at
+ * "activity/review" and errors at "activity/errors"). Older addresses forward: Assignment and its pages (setup,
+ * rules, versions/<n>, flow...) to Policies; Sales reps (reps, team, teams) and its availability editor to Teams;
+ * History (history, leads, log, held, review) to Activity.
+ */
+export function routingPage(id: string): { page: RoutingPageKey; sub: string; id: string } {
+  const [raw = "", b = "", c = ""] = id.split("/");
+  const a = ({ reps: "teams", team: "teams", history: "activity", leads: "activity", log: "activity", held: "review", review: "review" } as Record<string, string>)[raw] ?? raw;
+  if (a === "policies" && UUID.test(b)) return { page: "", sub: b, id: `policies/${b}` };
+  if (a === "teams") {
+    if (b === "availability") {
+      const tab = (["calendars", "team", "days-off"] as string[]).includes(c) ? c : "";
+      return { page: "teams", sub: tab ? `availability/${tab}` : "availability", id: tab ? `teams/availability/${tab}` : "teams/availability" };
+    }
+    return UUID.test(b) ? { page: "teams", sub: b, id: `teams/${b}` } : { page: "teams", sub: "", id: "teams" };
+  }
+  if (a === "review" || (a === "activity" && b === "review")) return { page: "activity", sub: "review", id: "activity/review" };
+  if (a === "activity" && b === "errors") return { page: "activity", sub: "errors", id: "activity/errors" };
+  if (a === "activity") return UUID.test(b) ? { page: "activity", sub: b, id: `activity/${b}` } : { page: "activity", sub: "", id: "activity" };
+  return { page: "", sub: "", id: "" };
+}
+
+/** Teams: the list (""), one team (<id>) and the working-hours editor with its views ("availability", "availability/team"...). */
+export function teamsPage(sub: string): { page: "list" | "team" | "availability"; sub: string } {
+  const [a = "", b = ""] = sub.split("/");
+  if (UUID.test(a)) return { page: "team", sub: a };
+  if (a !== "availability") return { page: "list", sub: "" };
+  const tab = (["calendars", "team", "days-off"] as string[]).includes(b) ? b : "";
+  return { page: "availability", sub: tab };
+}
+
+export type SchedulingPageKey = "types" | "upcoming" | "availability" | "booking" | "links" | "settings";
+export type AvailabilityTab = "schedules" | "calendars" | "team" | "days-off";
+/** The icon beside each Meetings tab (the screen draws it, from src/components/Icons.tsx). */
+export type SchedulingTabIcon = "grid" | "monitor" | "calendar" | "link" | "gear";
+export const SCHEDULING_TABS: (Tab<SchedulingPageKey> & { icon: SchedulingTabIcon })[] = [
+  { value: "types", label: "Meeting types", icon: "grid" },
+  { value: "upcoming", label: "Upcoming", icon: "calendar" },
+  { value: "availability", label: "Availability", icon: "calendar" },
+  { value: "booking", label: "Booking page", icon: "monitor" },
+  { value: "links", label: "Links and polls", icon: "link" },
+  { value: "settings", label: "Settings", icon: "gear" },
+];
+
+/** Meetings › Settings: the things set once, listed on the left. */
+/** Meetings › Settings. Reminders moved to Workflows (docs/workflows.md); their old addresses open there. */
+export type CalendarSettingsKey = "payments" | "webhooks";
+export const CALENDAR_SETTINGS: Tab<CalendarSettingsKey>[] = [
+  { value: "payments", label: "Payments" },
+  { value: "webhooks", label: "Webhooks" },
+];
+const SETTINGS_KEYS = new Set<string>(CALENDAR_SETTINGS.map((t) => t.value));
+
+/**
+ * Meetings' tabs (route "scheduling", once Calendar): Meetings with one type open in the panel ("types/<id>" or
+ * "types/new") or in the full editor ("types/<id>/all"), Upcoming (the meetings on the calendar, once CRM ›
+ * Meetings), Availability (everyone's hours, calendars and who's away, read by forms and booking pages alike:
+ * "availability", "availability/team"...), Booking page, Links and polls, and Settings with Reminders, Payments and
+ * Webhooks ("settings/payments"). The old Reminders, Payments and Webhooks tabs open inside Settings; Routing ›
+ * Teams' old availability addresses open here (see resolveRoute).
+ * Anything else opens Meetings.
+ */
+export function schedulingPage(id: string): { page: SchedulingPageKey; sub: string; id: string } {
+  const [a = "", b = "", c = ""] = id.split("/");
+  if (a === "types") {
+    if (UUID.test(b) && c === "all") return { page: "types", sub: `${b}/all`, id: `types/${b}/all` };
+    return UUID.test(b) || b === "new" ? { page: "types", sub: b, id: `types/${b}` } : { page: "types", sub: "", id: "types" };
+  }
+  if (a === "availability") {
+    const tab = (["calendars", "team", "days-off"] as string[]).includes(b) ? b : "";
+    return { page: "availability", sub: tab, id: tab ? `availability/${tab}` : "availability" };
+  }
+  if (a === "settings") return SETTINGS_KEYS.has(b) ? { page: "settings", sub: b, id: `settings/${b}` } : { page: "settings", sub: "payments", id: "settings" };
+  if (SETTINGS_KEYS.has(a)) return { page: "settings", sub: a, id: `settings/${a}` };
+  if (a === "booking" || a === "links" || a === "upcoming") return { page: a, sub: "", id: a };
+  return { page: "types", sub: "", id: "types" };
+}
+
+/** Availability's view from its address part ("" is Schedules). */
+export const availabilityPage = (sub: string): AvailabilityTab => (sub === "calendars" || sub === "team" || sub === "days-off" ? sub : "schedules");
+
+// Old addresses ---------------------------------------------------------------------------------------------------
+
+/** Old first parts of an address and where they open now: the route, and the page inside it. */
+const MOVED: Record<string, { route: Route; id?: string; keepId?: boolean }> = {
+  journeys: { route: "workflows" },
+  nurture: { route: "workflows" },
+  templates: { route: "workflows" },
+  analytics: { route: "workflows" },
+};
+
+
+/** Reports' old pages, now inside the sections they're about. */
+const REPORTS: Record<string, { route: Route; id: string }> = {
+  "": { route: "forms", id: "" },
+  reps: { route: "forms", id: "" },
+  speed: { route: "scheduling", id: "upcoming" },
+  forms: { route: "forms", id: "" },
+  email: { route: "workflows", id: "" },
+};
+
+/** Settings and Scheduling pages that moved. */
+const SETTINGS_MOVED: Record<string, { route: Route; id: string }> = {
+  calendar: { route: "scheduling", id: "availability/calendars" },
+  calendars: { route: "scheduling", id: "availability/team" },
+  payments: { route: "scheduling", id: "settings/payments" },
+};
+
+/**
+ * The screen for an address's first part and the rest. Unknown and removed addresses (the CRM, Enrichment, Scoring,
+ * Visitors and the old testing screens) open Forms; moved ones open their new home.
+ */
+export function resolveRoute(first: string, id: string): { route: Route; id: string } {
+  const [a = "", ...rest] = id.split("/");
+  // Meeting types lived under Meetings; booking forms under Scheduling. The list of meetings is Meetings › Upcoming;
+  // one meeting keeps its own page. Availability lives in Meetings (it was Routing › Teams'); the old Reps page is
+  // Routing › Teams.
+  if (first === "meetings" && a === "types") return { route: "scheduling", id: ["types", ...rest].join("/") };
+  if (first === "meetings") return UUID.test(a) ? { route: "meetings", id: a } : { route: "scheduling", id: "upcoming" };
+  if (first === "scheduling" && a === "forms") return { route: "forms", id: "" };
+  const availability = (tab: string | undefined) => ({ route: "scheduling" as Route, id: schedulingPage(["availability", ...(tab ? [tab] : [])].join("/")).id });
+  if (first === "availability") return availability(a);
+  if (first === "routing" && a === "teams" && rest[0] === "availability") return availability(rest[1]);
+  if (first === "reps" && a === "availability") return availability(rest[0]);
+  // Routing's parts moved (docs/on-submission.md): its policies are meetings now, its teams and reps are in
+  // Availability › Team. One policy's page and the activity log still open where they were.
+  if (first === "reps" || (first === "routing" && (routingPage(id).page === "teams" || ["reps", "team"].includes(a)))) return availability("team");
+  if (first === "routing" && routingPage(id).page === "" && !routingPage(id).sub) return { route: "scheduling", id: "types" };
+  if (first === "settings" && SETTINGS_MOVED[a]) return SETTINGS_MOVED[a];
+  // Meeting reminders are a workflow now.
+  if (first === "scheduling" && (a === "reminders" || (a === "settings" && rest[0] === "reminders"))) return { route: "workflows", id: "" };
+  if (first === "reports") return REPORTS[a] ?? REPORTS[""]!;
+  // Emails became Workflows: folders of workflows, one open beside them (/workflows/<id>); /workflows/new picks a
+  // template. Emails' old addresses open there.
+  if (first === "workflows") return { route: "workflows", id: a === "new" || UUID.test(a) ? a : "" };
+  if (first === "emails") return { route: "workflows", id: a === "journeys" && UUID.test(rest[0] ?? "") ? rest[0]! : "" };
+  if (ROUTES.has(first)) return { route: first as Route, id };
+  const m = MOVED[first];
+  if (!m) return { route: defaultRoute, id: "" };
+  if (m.keepId && id) return { route: m.route, id: m.id ? `${m.id}/${id}` : id };
+  return { route: m.route, id: m.id && !m.keepId ? m.id : "" };
+}

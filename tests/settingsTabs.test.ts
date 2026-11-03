@@ -1,14 +1,32 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { settingsGroups } from "../src/lib/settingsTabs.ts";
+import { SETTINGS_GROUPS, settingsTab } from "../src/lib/settingsTabs.ts";
 
-const ids = (f: string[], p = true) => settingsGroups(f, p).flatMap((g) => g.tabs.map((t) => t.id));
-
-test("marketing workspaces see website and scoring pages and no testing pages", () => {
-  assert.deepEqual(ids(["marketing"]), ["fields", "objects", "sources", "imports", "sync_log", "sites", "identity", "icp", "account_alerts", "workspace", "keys", "profile"]);
+test("settings lead with integrations, sending domains and the team", () => {
+  assert.deepEqual(
+    SETTINGS_GROUPS.slice(0, 3).map((g) => [g.label, g.tabs[0].id]),
+    [
+      ["Integrations", "sources"],
+      ["Email", "sending"],
+      ["Team", "team"],
+    ],
+  );
+  const ids = SETTINGS_GROUPS.flatMap((g) => g.tabs.map((t) => t.id));
+  assert.equal(new Set(ids).size, ids.length, "each page once");
+  for (const gone of ["project", "github", "test_alerts", "plan"]) assert.ok(!(ids as string[]).includes(gone), `${gone} is gone`);
 });
 
-test("testing workspaces see the testing pages and plan", () => {
-  assert.deepEqual(ids(["testing"]), ["project", "github", "test_alerts", "workspace", "keys", "plan", "profile"]);
-  assert.ok(!ids(["testing"], false).includes("project"), "no project, no project pages");
+test("old and unknown settings addresses land on a real page", () => {
+  assert.equal(settingsTab("team"), "team");
+  assert.equal(settingsTab("suite"), "sources");
+  assert.equal(settingsTab("domains"), "sending");
+  assert.equal(settingsTab("github"), "sources");
+  assert.equal(settingsTab(""), "sources");
+});
+
+test("pages that moved out of Settings aren't listed there", () => {
+  const ids = SETTINGS_GROUPS.flatMap((g) => g.tabs.map((t) => t.id)) as string[];
+  for (const moved of ["calendar", "calendars", "payments", "sites", "identity", "account_alerts", "imports", "sync_log", "data_model", "lead_scoring", "icp"]) assert.ok(!ids.includes(moved), `${moved} isn't listed`);
+  assert.equal(settingsTab("data_model"), "sources", "the CRM's old pages open Integrations");
+  assert.equal(settingsTab("lead_scoring"), "sources");
 });
