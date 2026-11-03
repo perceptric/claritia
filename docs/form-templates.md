@@ -23,6 +23,11 @@ lives on the website (tryclaritia.com/templates, `dev-arrowsterr/claritia-site`)
 site repo. The site's pages are static: the gallery, a page per industry and a page per template with the live form,
 a style menu, question types, steps, questions and related templates.
 
+## Next
+
+`docs/form-templates-plan.md`: about 70 categories in 10 families, 40 industries, teams, menus worked out from
+each form, templates that come wired with their meeting and follow-up, starter kits, and 600 templates.
+
 ## Not carried into the app yet
 
 Quiz score bands (the points are kept on each choice; the end screen lists the bands as text), and the card-on-a-page
