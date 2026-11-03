@@ -492,7 +492,7 @@ approvals     (id, workspace_id, kind, ref_id, payload jsonb, status, decided_by
 - Routing picks the owner at submit (M7), so the visitor books with the right rep at once.
 - **Reminders:** a confirmation, then emails 24 hours and 1 hour before, through the jobs queue. Paid plans add SMS (Twilio, check), custom follow-ups and a no-show follow-up.
 
-**Plan limits (Part 10.2):** submissions and AI credits are counted per workspace per month in `plan_usage`. Over the cap, submissions are saved and marked `over_cap`, and the contact waits outside journeys until the cap lifts.
+**Plan limits (Part 10.3):** submissions and AI credits are counted per workspace per month in `plan_usage`. Over the cap, submissions are saved and marked `over_cap`, and the contact waits outside journeys until the cap lifts.
 
 **Data (migration `027_pages.sql`):** `pages`, `page_versions`, `page_variants`, `page_views`, `forms`, `form_fields`, `form_submissions`, `domains`, `bookings`.
 
@@ -801,42 +801,52 @@ Website rules are in `docs/account-intelligence.md` Part 3 and `docs/identity.md
 
 ---
 
-## Part 10. Pricing (proposed)
+## Part 10. Pricing
 
-| Plan | Price | Includes |
+Forms and booking are sold like Fillout and Calendly: a small plan fee plus a seat for each person who takes meetings. The marketing platform (journeys, email sending, Website Intelligence) is an add-on on top of any plan.
+
+### 10.1 Plans
+
+| | Free | Starter | Pro | Business |
+|---|---|---|---|---|
+| Plan fee (monthly / yearly) | $0 | $15 / $12 | $39 / $31 | $79 / $63 |
+| Seats included | 1 | 1 | 1 | 1 |
+| Each extra seat (monthly / yearly) | — | $8 / $6 | $15 / $12 | $25 / $20 |
+| Forms | Unlimited | Unlimited | Unlimited | Unlimited |
+| Submissions per month | 250 | 2,000 | 5,000 | Unlimited |
+| AI credits per month | 100 | 500 | 2,000 | 5,000 |
+| Calendars per seat | 1 | 3 | 10 | Unlimited |
+| Booking pages | 1 | Unlimited | Unlimited | Unlimited |
+| Reminders | Confirmation, email reminders 24 hours and 1 hour before | Custom wording | SMS (100 a month), follow-ups, no-show follow-up | SMS (300 a month) |
+| Branding | Claritia badge | Small badge | Removed | Removed, custom domain |
+| Routing | — | — | Routing forms, round robin, team booking | CRM owner lookup |
+| Lead tools | Answers go to Contacts | Custom endings, redirect | Prevent duplicate submissions | Partial submissions, drop-off tracking, A/B tests, pixels, enrichment (200 a month) |
+| Integrations | Webhooks, CSV | HubSpot, Omniscient, Google Sheets, Slack | Same | Salesforce |
+
+### 10.2 Marketing add-on
+
+| Add-on | Price | Includes |
 |---|---|---|
-| Free | $0 | 1 user, 1 calendar with 1 booking page, unlimited forms, 250 submissions/mo, 100 AI credits/mo, booking confirmations and email reminders, contacts, Claritia badge |
-| Starter | $299/mo | 5,000 contacts, 25,000 emails/mo, 5,000 submissions/mo, 2,000 AI credits/mo, 1 site, Website Intelligence, segments, broadcasts, 3 journeys with agent steps (review mode), Funnel QA basics |
-| Growth | $799/mo | 25,000 contacts, 100,000 emails/mo, 25,000 submissions/mo, 10,000 AI credits/mo, 3 sites, unlimited journeys, review-sample and auto modes, pages and forms, personalization, attribution, Omniscient and HubSpot sync |
-| Scale | From $1,999/mo | 100,000+ contacts, unlimited submissions, custom AI credits, dedicated sending IPs, Salesforce, Marketing Agent, SSO, priority support |
+| Marketing | $299/mo | 5,000 contacts, 25,000 emails/mo, 1 site, Website Intelligence, segments, broadcasts, 3 journeys with agent steps (review mode), Funnel QA basics |
+| Marketing Plus | $799/mo | 25,000 contacts, 100,000 emails/mo, 3 sites, unlimited journeys, review-sample and auto modes, personalization, attribution |
+| Scale | From $1,999/mo | 100,000+ contacts, dedicated sending IPs, Marketing Agent, SSO, priority support |
 | Suite bundle | 20% off when a team runs Arrowsterr, Claritia and Omniscient together | — |
 
 - Overages: $10 per 1,000 contacts, $1 per 1,000 emails, $5 per 1,000 submissions.
-- At the cost per team in Part 11 (about $82–$106), Starter keeps about 65% gross margin and Growth about 87%.
+- At the cost per team in Part 11 (about $82–$106), Marketing keeps about 65% gross margin and Marketing Plus about 87%.
 
-### 10.1 What Free holds back
+### 10.3 Plan rules
 
-| Feature | Free | Paid |
-|---|---|---|
-| Calendars | 1 calendar (Google or Microsoft), 1 booking page | More calendars, team booking, round robin (Starter) |
-| Forms | Unlimited forms, 250 submissions/mo | 5,000+ submissions/mo |
-| AI credits | 100/mo | 2,000+/mo |
-| Reminders | Booking confirmation, email reminders 24 hours and 1 hour before | SMS reminders, custom follow-up emails, no-show follow-up (Starter) |
-| Branding | Claritia badge on forms, booking pages and emails | Remove the badge (Starter), custom domain (Growth) |
-| Lead tools | Answers go to Contacts | Routing forms (Starter); partial submissions, drop-off tracking, enrichment, A/B tests (Growth) |
-| Integrations | Webhooks, CSV export | HubSpot and Omniscient (Starter), Salesforce (Scale) |
-| Users | 1 | 3 on Starter, 10 on Growth, unlimited on Scale |
-| Website Intelligence | No | Yes (it pays for Coresignal and IPinfo) |
-
-### 10.2 Plan rules
-
+- **A seat** is a person who takes meetings: anyone with a booking page or in a routing pool. Admins and people who only build forms or read reports are free.
 - **An AI credit** is one AI action a person asks for: write a form, a booking page, a reminder, a page section. A light action (Haiku) is 1 credit, a heavy one (Sonnet page build) is 10. Journey agent steps count against emails, never credits. A step replayed from cache uses no credits.
-- **Past 250 submissions** the form keeps working and every submission is saved. Answers past the cap stay hidden until the team upgrades or the month resets, and the contact is held back from journeys. A lead is never dropped. The count resets on the 1st (on the billing day for paid plans).
-- **Past 100 AI credits** the AI buttons stop until the month resets. Forms, booking and reminders keep running.
-- **Reminders** on Free use the fixed wording. A reminder never goes out for a canceled or moved booking.
-- **Yearly billing** saves 20% (Calendly saves 17–20%, Fillout 20%, Heyflow up to 31%).
+- **Past the submission cap** the form keeps working and every submission is saved. On Free, answers past 250 stay hidden until the team upgrades or the month resets, and the contact is held back from journeys. Paid plans pay the overage. A lead is never dropped. Counts reset on the 1st (on the billing day for paid plans).
+- **Past the AI credit cap** the AI buttons stop until the month resets. Forms, booking and reminders keep running.
+- **Reminders** never go out for a canceled or moved booking.
+- **Yearly billing** saves 20%.
 
-### 10.3 How the market prices (checked Nov 3, 2026)
+### 10.4 How the market prices (checked Nov 3, 2026)
+
+Forms and booking:
 
 | Tool | Free | Paid | Model |
 |---|---|---|---|
@@ -847,6 +857,21 @@ Website rules are in `docs/account-intelligence.md` Part 3 and `docs/identity.md
 | Jotform | 5 forms, 100 submissions | $34–99/mo yearly (1,000 to 10,000 submissions) | Flat, by submissions |
 | involve.me | 50 submissions or 500 visits | $29–139/mo yearly (3 to 25 live funnels) | Flat, by funnels |
 | Heyflow | About 100 leads, 1 flow (check) | €49–239/mo (check) | Flat, by responses |
+
+Lead routing, for a team of 10 reps per month (monthly / yearly):
+
+| Tool | Cost | Model |
+|---|---|---|
+| Claritia Starter | $87 / $66 | Plan fee plus seats |
+| Cal.com Teams | $120 (yearly) | Per seat |
+| Claritia Pro | $174 / $139 | Plan fee plus seats |
+| Calendly Teams | $200 / $160 | Per seat |
+| OnceHub Route | $230 / $190 (check) | Per seat |
+| Claritia Business | $304 / $243 | Plan fee plus seats |
+| RevenueHero Essentials | $449 / $329 | Plan fee plus seats |
+| HubSpot Sales Hub Pro | $900–1,000 (check) | Per seat |
+| Chili Piper Growth | $1,250 (yearly only) | Plan fee with 15 seats |
+| Default Growth | $1,450 (yearly only) | Plan fee plus seats |
 
 ---
 
@@ -898,27 +923,26 @@ Claude prices: Haiku 5.5 $0.10/$0.50, Sonnet 5.5 $2/$10, Opus 5.5 $4/$20 per mil
 | **Total** | **$5,279** | **$41,245** |
 | **Per team** | **About $106** | **About $82** |
 
-### 11.4 Free teams
+### 11.4 Forms and booking plans
 
-| Line per free team per month | Cost |
-|---|---|
-| 100 AI credits (mostly Haiku, about $0.0005 per credit; all heavy Sonnet use about $1) | $0.05–$1 |
-| Up to 500 confirmation and reminder emails on SES (check) | $0.05 |
-| Storage, intake and hosting share (check) | $0.10 |
-| **Total** | **About $0.20–$1.15** |
+| Line per team per month | Free | Starter | Pro | Business |
+|---|---|---|---|---|
+| AI credits (worst case about $0.0015 each) | $0.15 | $0.75 | $3 | $7.50 |
+| Emails and SMS (SES and Twilio, check) | $0.05 | $0.20 | $1.50 | $4 |
+| Storage, intake and hosting share (check) | $0.10 | $0.30 | $0.50 | $1 |
+| Enrichment, 200 lookups (check) | — | — | — | $4–10 |
+| **Total** | **About $0.30** | **About $1.25** | **About $5** | **About $17–23** |
 
-| Line | Beta (50 free teams) | Growth (500 free teams) |
+Each seat adds calendar sync, reminders and its share of SMS, about $0.50 (check).
+
+| If every team is on this plan (5 seats on paid plans) | Beta (50 teams) | Growth (500 teams) |
 |---|---|---|
-| **Free plan total** | **About $10–$60** | **About $100–$575** |
+| Free | About $15 | About $150 |
+| Starter | About $190 | About $1,875 |
+| Pro | About $375 | About $3,750 |
+| Business | About $975–1,275 | About $9,750–12,750 |
 
-Free teams get no Website Intelligence, so they add no Coresignal or IPinfo cost.
-
-**Ways to cut the bill:**
-- Haiku for Write by default.
-- The decision cache on Decide.
-- The Batch API for summaries.
-- A shared company cache for Coresignal and IPinfo.
-- Enrichment only for accounts with real activity.
+Free teams get no Website Intelligence, so they add no Coresignal or IPinfo cost. With 5 seats, every paid plan keeps about 80–90% gross margin.
 
 ---
 
