@@ -125,7 +125,8 @@ test("booked: the guest gets the confirmation with the invite and a working mana
   assert.ok(c, "the guest got the confirmation");
   assert.match(subjectOf(c), /^Confirmed: Demo with Sam Lee on /);
   const p = parts(c.raw);
-  assert.ok(p["text/plain"]!.includes(`https://app.test/book/m/${m.token}`), "the manage link is the guest's own token");
+  // The guest's links are on the site's short address (bookingBase: app.test → test), as in the calendar event.
+  assert.ok(p["text/plain"]!.includes(`https://test/book/m/${m.token}`), "the manage link is the guest's own token");
   assert.ok(p["text/plain"]!.includes("Team size: 12") && p["text/plain"]!.includes("https://meet.google.com/abc-defg-hij"));
   assert.equal(icsLine(p["text/calendar"]!, "UID"), `UID:${meetingUid(m.id)}`);
   assert.equal(icsLine(p["text/calendar"]!, "SEQUENCE"), "SEQUENCE:0");
@@ -177,7 +178,7 @@ test("a reminder for a meeting moved after it was scheduled sends at the new tim
   const cal = parts(u!.raw)["text/calendar"]!;
   assert.equal(icsLine(cal, "UID"), `UID:${meetingUid(m.id)}`, "the same calendar entry");
   assert.equal(icsLine(cal, "SEQUENCE"), "SEQUENCE:1", "a newer version");
-  assert.ok(parts(u!.raw)["text/plain"]!.includes(`https://app.test/book/m/${m.token}`), "the manage link stays the same");
+  assert.ok(parts(u!.raw)["text/plain"]!.includes(`https://test/book/m/${m.token}`), "the manage link stays the same");
   const now = await queued(m.id, "meeting_remind");
   assert.deepEqual(now.map((r) => new Date(r.payload.start).getTime()), [moved, moved], "only reminders for the new time wait");
   assert.equal((await one<{ n: number }>(`select count(*)::int n from jobs where kind = 'meeting_remind' and payload->>'meeting' = $1 and error = 'The meeting changed'`, [m.id])).n, 2);
@@ -240,7 +241,7 @@ test("with no kept copy of the guest's token, emails go without a manage link an
   assert.ok(now.token_sealed && !now.token_sealed.includes(a), "only a sealed copy is stored");
   sent = [];
   await meetingRemind(rpc, { ...opts, now: () => Date.now() })(job("meeting_remind", { meeting: m.id, start: (await one<{ s: Date }>(`select start_at s from meetings where id = $1`, [m.id])).s.toISOString(), minutes: 1440 }), signal);
-  assert.ok(parts(sent[0]!.raw)["text/plain"]!.includes(`https://app.test/book/m/${a}`), "later emails carry the kept link");
+  assert.ok(parts(sent[0]!.raw)["text/plain"]!.includes(`https://test/book/m/${a}`), "later emails carry the kept link");
 });
 
 test("the 24-hour auto-held turns only unmarked meetings held, and never one already marked or being marked", async () => {
@@ -323,7 +324,7 @@ test("a no-show gets one follow-up with the host's next times, unless suppressed
   assert.equal(subjectOf(sent[0]!), "Pick a new time with Sam Lee");
   const text = parts(sent[0]!.raw)["text/plain"]!;
   assert.ok(/^- \w{3}, \w{3} \d+, /m.test(text), "lists open times");
-  assert.ok(text.includes(`https://app.test/book/`) && text.includes("/demo?") && text.includes(encodeURIComponent(m.guest)));
+  assert.ok(text.includes(`https://test/book/`) && text.includes("/demo?") && text.includes(encodeURIComponent(m.guest)));
   assert.equal((await one<{ n: number }>(`select count(*)::int n from meeting_events where meeting_id = $1 and kind = 'follow_up_sent'`, [m.id])).n, 1);
   // Held: nothing goes to the guest.
   sent = [];

@@ -382,3 +382,14 @@ Left:
 - Embed on a website, on each meeting card's ⋯ and the panel's ⋯, opens Share straight on the code.
 - Edit booking page, in the panel's ⋯ and under the link in Share, opens Meetings › Booking page.
 - The page's badge reads "Built by Claritia".
+
+## A meeting's Description, and emails that don't go out (Nov 2026)
+
+- **Description** (`settings.description`, the panel's first section): the meeting's own words, plain text with line
+  breaks, 2,000 characters (`cleanDescription` in `src/lib/meetings/check.ts`). It shows under the name on the booking
+  page, first on the calendar event and in the invite file (`about` in `src/lib/meetings/description.ts`; the event
+  job reads it with `meeting_mail_info`, and a read that fails leaves it out), and in the guest's confirmation.
+- **Emails that didn't go out** (`src/lib/meetings/mailHealth.ts`, `/api/meetings/mail-health`): a failed email job
+  (Resend not set up on claritia-intel, a From domain not verified) or an email the provider refused shows as one line
+  under the Meetings tabs with the worker's own reason, and on its meeting. A failure older than the last email that
+  went out doesn't warn; a read that fails warns about nothing.

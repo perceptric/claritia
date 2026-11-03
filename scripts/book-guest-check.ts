@@ -32,6 +32,11 @@ try {
   await page.reload();
   await page.locator(".cb-day.cb-has").first().waitFor();
   await page.waitForTimeout(200);
+  // The meeting's Description under its name, its line breaks kept.
+  const desc = page.locator(".cb-desc");
+  const box = await desc.boundingBox();
+  const h1 = await page.locator(".cb-info h1").boundingBox();
+  check((await desc.innerText()) === "Bring your numbers.\nWe'll look at pricing together." && !!box && !!h1 && box.y >= h1.y + h1.height - 1, "the meeting's Description shows under its name, line breaks kept");
 
   const label = await page.locator(".cb-day.cb-has").first().getAttribute("aria-label");
   check(/\d+ open times?$/.test(label ?? ""), `a day says how many open times it has ("${label}")`);

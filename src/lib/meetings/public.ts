@@ -367,6 +367,8 @@ export function linkGuestType(v: LinkView): GuestType {
   return {
     slug: "",
     name: v.link.title || (owner ? `Meeting with ${owner.name}` : "Meeting"),
+    // A one-off link is its own meeting; a link made from a type keeps the type's words.
+    description: v.type?.settings.description?.trim() || null,
     kind: "one",
     lengths: [linkLength(v.link)],
     location: guestLocation(linkLocation(v)),

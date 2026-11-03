@@ -13,7 +13,7 @@ import { anyoneOn, count, MEMBER, Members } from "@/lib/words";
 import { useEffect, useRef, useState } from "react";
 import { DEFAULT_AVAILABILITY, DEFAULT_SETTINGS, type Availability, type Location, type TypeSettings } from "@/lib/meetings/types";
 import type { Queue } from "@/lib/router/types";
-import { Bell, Bolt, CalendarIcon, Card, Check, Clock, Copy, Eye, Hourglass, Link as LinkIcon, ListIcon, MapPin, PhoneCall, Plus, Users, X } from "../../Icons";
+import { AlignLeft, Bell, Bolt, CalendarIcon, Card, Check, Clock, Copy, Eye, Hourglass, Link as LinkIcon, ListIcon, MapPin, PhoneCall, Plus, Users, X } from "../../Icons";
 import { BrandLogo } from "../BrandLogo";
 import { askConfirm } from "../Dialogs";
 import { Select } from "../Select";
@@ -45,7 +45,7 @@ export type PanelData = {
   wsSlug: string | null;
 };
 
-type SectionKey = "len" | "where" | "hours" | "host" | "limits" | "qs" | "notify" | "confirm" | "pay";
+type SectionKey = "about" | "len" | "where" | "hours" | "host" | "limits" | "qs" | "notify" | "confirm" | "pay";
 type LockKey = TypeRow["locked"][number];
 
 const LENGTHS = [15, 30, 45, 60];
@@ -329,6 +329,18 @@ export function TypePanel({
             <ErrorNote message={error} />
           </div>
         ) : null}
+
+        <PanelSection icon={<AlignLeft />} title="Description" summary={s.description?.trim() ? s.description.trim().split("\n")[0]! : "None"} open={open === "about"} onToggle={() => toggle("about")} locked={isLocked("description")}>
+          <textarea
+            aria-label="Description"
+            value={s.description ?? ""}
+            maxLength={2000}
+            rows={4}
+            placeholder="What it's for and what to bring"
+            onChange={(e) => setS("description", e.target.value || undefined)}
+            className="w-full resize-y rounded-md bg-card shadow-input px-2.5 py-2 text-[13px] leading-[1.5] text-ink outline-none placeholder:text-faint focus:shadow-focus"
+          />
+        </PanelSection>
 
         <PanelSection icon={<Clock />} title="Duration" summary={lengthWords(s.lengths)} open={open === "len"} onToggle={() => toggle("len")} locked={isLocked("lengths")}>
           <Lengths value={s.lengths} onChange={(v) => setS("lengths", v)} />

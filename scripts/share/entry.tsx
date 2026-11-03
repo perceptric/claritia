@@ -9,6 +9,7 @@ import { Share } from "../../src/components/app/forms/Share";
 import { ShareMeeting } from "../../src/components/app/scheduling/ShareMeeting";
 import { LinkDomainSettings } from "../../src/components/app/views/LinkDomainSettings";
 import { Sidebar } from "../../src/components/app/Sidebar";
+import { MailLine, MeetingMailNotice } from "../../src/components/app/meetings/MailHealth";
 import { DialogHost } from "../../src/components/app/Dialogs";
 import { emptyForm, type Form } from "../../src/lib/forms/schema";
 import { toForm } from "../../src/lib/forms/spec";
@@ -33,6 +34,11 @@ window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
   w.calls.push({ path, body });
   const ok = (j: unknown) => new Response(JSON.stringify(j), { status: 200, headers: { "content-type": "application/json" } });
   if (path === "/api/link-domain") return ok(linkState());
+  if (path === "/api/meetings/mail-health") {
+    const at = new Date(Date.now() - 5 * 60_000).toISOString();
+    const error = "Resend isn't set up on the worker (RESEND_API_KEY).";
+    return ok(qs.get("mailok") ? { problem: null, meetings: {} } : { problem: { error, at, count: 2 }, meetings: { m1: [{ what: "Confirmation and host note", to: null, error, at }, { what: "Confirmation", to: "trollong2002@gmail.com", error: "Domain not verified", at }] } });
+  }
   if (path === "/api/forms/share-email") return ok({ queued: (body.to ?? []).length });
   if (path === "/api/meetings/times") return ok({ text: "Tue, Nov 3, 10:00 AM: https://claritia.app/book/acme/demo?t=1" });
   return ok({});
@@ -84,6 +90,15 @@ function App() {
       // Inside a 400 px panel that slid in with a transform, as the meeting panel does: the dialog must still cover the screen.
       <div className="anim-panel" style={{ position: "absolute", top: 0, right: 0, bottom: 0, width: 400, transform: "translateX(0)" }}>
         <ShareMeeting session={session} ws={ws} type={{ id: "t1", name: "Product demo", slug: "demo", active: qs.get("off") !== "1" }} wsSlug="acme" start={(qs.get("start") as "site" | null) ?? "link"} onClose={() => {}} onSingleUse={() => {}} onEditPage={() => ((window as unknown as { editPage?: boolean }).editPage = true)} />
+      </div>
+    );
+  if (view === "mail")
+    return (
+      <div className="flex flex-col gap-4">
+        <MailLine session={session} ws={ws} />
+        <div className="p-4">
+          <MeetingMailNotice session={session} ws={ws} meeting="m1" />
+        </div>
       </div>
     );
   if (view === "sidebar")

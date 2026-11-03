@@ -206,7 +206,8 @@ test("copy times: the next free times as lines, each with its own booking link",
   assert.equal(lines[0], "Chat, 30 min (times in New York)");
   const links = lines.filter((l) => l.includes("https://"));
   assert.equal(links.length, 5);
-  for (const l of links) assert.match(l, /^\d{1,2}:\d{2} https:\/\/app\.example\.com\/book\/acme-inc(-\d+)?\/chat\?start=\d{4}-\d{2}-\d{2}T.*&length=30$/);
+  // On the site's short address (bookingBase: app.example.com → example.com).
+  for (const l of links) assert.match(l, /^\d{1,2}:\d{2} https:\/\/example\.com\/book\/acme-inc(-\d+)?\/chat\?start=\d{4}-\d{2}-\d{2}T.*&length=30$/);
   await refused(copyTimes(rpc, as(0), { type: randomUUID(), origin: "https://x.io" }), 404);
 });
 
@@ -216,7 +217,8 @@ test("the reschedule link is the guest's own link, from its sealed copy, for mee
   const m = await meeting(ws, [users[1]!], 120);
   const token = "guest-token-abc";
   await q(`update meetings set token_hash = $2, token_sealed = $3 where id = $1`, [m, tokenHash(token), seal(token, secret)]);
-  assert.deepEqual(await hostLink(rpc, as(0), m, "https://app.x.io/", secret), { url: `https://app.x.io/book/m/${token}` });
+  // On the site's short address (bookingBase: app.x.io → x.io).
+  assert.deepEqual(await hostLink(rpc, as(0), m, "https://app.x.io/", secret), { url: `https://x.io/book/m/${token}` });
   assert.equal((await q(`select token_hash from meetings where id = $1`, [m]))[0].token_hash, tokenHash(token), "the guest's link keeps working");
   const done = await meeting(ws, [users[1]!], -120);
   await refused(hostLink(rpc, as(0), done, "https://app.x.io", secret), 409);

@@ -12,6 +12,18 @@ const DATE = /^\d{4}-\d{2}-\d{2}$/;
 const SLUG = /^[a-z0-9][a-z0-9-]{0,58}[a-z0-9]$/;
 const UUID = /^[0-9a-f-]{36}$/;
 const str = (v: unknown, max: number) => (typeof v === "string" ? v.trim().slice(0, max) : "");
+/** A meeting's description: control characters out, line breaks kept (at most one blank line in a row). */
+export const cleanDescription = (v: unknown): string =>
+  typeof v === "string"
+    ? v
+        .replace(/\r\n?/g, "\n")
+        .replace(/[\u0000-\u0008\u000b-\u001f\u007f]/g, "")
+        .replace(/[ \t]+\n/g, "\n")
+        .replace(/\n{3,}/g, "\n\n")
+        .trim()
+        .slice(0, 2000)
+        .trim()
+    : "";
 const int = (v: unknown, min: number, max: number, dflt: number) => {
   const n = Math.round(Number(v));
   return Number.isFinite(n) ? Math.min(max, Math.max(min, n)) : dflt;
@@ -137,6 +149,7 @@ export function checkSettings(raw: unknown, kind: Kind): { settings: TypeSetting
     reminders,
     noShowFollowUp: r.noShowFollowUp !== false,
     confirmation,
+    ...(cleanDescription(r.description) ? { description: cleanDescription(r.description) } : {}),
     ...(price ? { price } : {}),
     ...(str(r.schedule, 60) ? { schedule: str(r.schedule, 60) } : {}),
     ...((kind === "round_robin" || kind === "owner_first") && typeof r.team === "string" && /^[a-z0-9_-]{1,40}$/i.test(r.team) ? { team: r.team } : {}),

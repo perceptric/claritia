@@ -1,6 +1,7 @@
-// The meeting description (docs/meetings-scheduler.md): the text on the calendar event and in the invite file, made
-// from the meeting itself, so every booking has one without anyone writing it. Who booked, from which form, their
-// answers (the form's and the meeting's own questions), the join link and the guest's reschedule and cancel link.
+// The meeting description (docs/meetings-scheduler.md): the text on the calendar event and in the invite file. The
+// meeting type's own words first (its Description, when it has one), then what's made from the meeting itself: who
+// booked, from which form, their answers (the form's and the meeting's own questions), the join link and the guest's
+// reschedule and cancel link.
 // The guest sees it too, so it holds only what the guest gave and their own links: no score, no routing reason.
 // meeting_sync writes it on create and again on every move, so a rescheduled meeting never shows an old link.
 
@@ -10,6 +11,8 @@ export type Answer = { label: string; value: string };
 
 export type DescriptionIn = {
   typeName: string;
+  /** The meeting type's own words (settings.description), first. */
+  about?: string | null;
   guest: { name: string | null; email: string };
   /** The form the meeting was booked from, when there is one. */
   form?: string | null;
@@ -38,7 +41,8 @@ export function formAnswers(body: Pick<Form, "steps"> | null | undefined, values
 
 export function meetingDescription(d: DescriptionIn): string {
   const who = d.guest.name?.trim() ? `${d.guest.name.trim()} (${d.guest.email})` : d.guest.email;
-  const lines = [`${who} booked ${d.typeName}${d.form ? ` from ${d.form}` : ""}.`];
+  const about = d.about?.trim() ? d.about.trim().slice(0, 2000) : "";
+  const lines = [...(about ? [about, ""] : []), `${who} booked ${d.typeName}${d.form ? ` from ${d.form}` : ""}.`];
   // The guest's name and email are already in the first line; the same label twice keeps the first.
   const seen = new Set<string>();
   const own = new Set([d.guest.email.toLowerCase(), (d.guest.name ?? "").trim().toLowerCase()].filter(Boolean));

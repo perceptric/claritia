@@ -7,7 +7,7 @@ import { BookingCalendar, KitScope } from "../../src/components/book/BookingCale
 import { sampleSlots, type GuestType } from "../../src/lib/meetings/guest";
 import { bookBrandCss } from "../../src/lib/meetings/brandPage";
 
-const type: GuestType = { slug: "intro", name: "Intro call", kind: "one", lengths: [30], location: { kind: "google_meet" }, questions: [], price: null, seats: null, hosts: [{ name: "Alex Kim", photo: null }] };
+const type: GuestType = { slug: "intro", name: "Intro call", description: null, kind: "one", lengths: [30], location: { kind: "google_meet" }, questions: [], price: null, seats: null, hosts: [{ name: "Alex Kim", photo: null }] };
 
 const LIGHT = `:root{--brand-primary:#1a56db;--brand-text:#111827;--brand-line:#c0c4cc;--brand-bg:#ffffff;--brand-radius:8px}
 body{margin:0;padding:60px;background:#ff0000}

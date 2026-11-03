@@ -357,7 +357,10 @@ async function describe(rpc: Rpc, o: CalendarOpts, inp: Inputs): Promise<string>
   const x = await inviteExtras(rpc, m.id, { base: o.base, secret: o.secret });
   const own = (inp.questions ?? []).filter((q) => m.answers?.[q.id]).map((q) => ({ label: q.label, value: String(m.answers[q.id]) }));
   const join = typeof m.location?.url === "string" && /^https:\/\//.test(m.location.url) ? m.location.url : null;
-  return meetingDescription({ typeName: inp.title, guest: { name: m.guest_name, email: m.guest_email }, form: x.form, answers: [...x.formAnswers, ...own], join, manage: x.manage });
+  // The meeting type's own words; a read that fails leaves them out and never stops the event.
+  const info = await rpc("meeting_mail_info", { p_meeting: m.id }).then((r) => (r.error ? null : (r.data as { type?: { settings?: { description?: unknown } } | null } | null)), () => null);
+  const about = typeof info?.type?.settings?.description === "string" ? info.type.settings.description : null;
+  return meetingDescription({ typeName: inp.title, about, guest: { name: m.guest_name, email: m.guest_email }, form: x.form, answers: [...x.formAnswers, ...own], join, manage: x.manage });
 }
 
 /** Every seat's guests, once each, for a shared group event. */
