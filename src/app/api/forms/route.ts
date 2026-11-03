@@ -5,7 +5,7 @@ import { requireUser } from "@/lib/serverAuth";
 import { serviceClient } from "@/lib/serviceClient";
 
 // Forms for members (docs/form-templates.md). POST { workspaceId, action, ... }:
-//   import { templateId } · create · duplicate { id } · save { id, name, schema, settings } · publish { id }
+//   import { templateId, theme? } · create · duplicate { id } · save { id, name, schema, settings } · publish { id }
 //   close { id } · delete { id } · baa { id } · delete_submission { id, submissionId } · file_url { id, path }
 
 const bad = (error: string, status = 400) => Response.json({ error }, { status });
@@ -23,7 +23,7 @@ export async function POST(request: Request) {
 
   try {
     if (b.action === "import" || b.action === "create") {
-      const r = await createForm(db, ws, user, b.action === "import" ? String(b.templateId ?? "") : null);
+      const r = await createForm(db, ws, user, b.action === "import" ? String(b.templateId ?? "") : null, typeof b.theme === "string" ? b.theme : undefined);
       return Response.json(r);
     }
 

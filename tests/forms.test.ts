@@ -239,3 +239,28 @@ test("forms use the app's own dropdowns and dialogs", () => {
     }
   }
 });
+
+test("styles: 18 styles, every template has one, neighbors in an industry differ, and the variables are complete", async () => {
+  const { THEMES, themeById, themeVars, themeArt, isTheme, DEFAULT_THEME } = await import("../src/lib/forms/themes.ts");
+  const { templateTheme } = await import("../src/lib/forms/catalog.ts");
+  const { checkSettings } = await import("../src/lib/forms/schema.ts");
+  assert.equal(THEMES.length, 18);
+  assert.equal(new Set(THEMES.map((t) => t.id)).size, 18);
+  assert.equal(themeById("nope").id, DEFAULT_THEME, "an unknown style falls back");
+  for (const th of THEMES) {
+    const v = themeVars(th);
+    for (const k of ["--f-bg", "--f-card", "--f-text", "--f-accent", "--f-accent-ink", "--f-radius", "--f-font", "--f-head", "--f-art-bg"]) assert.ok(v[k], `${th.id} sets ${k}`);
+    if (th.layout === "cover" || th.layout === "split") assert.match(themeArt(th), /^<svg[^>]*viewBox="0 0 400 300"/, `${th.id} has a drawing`);
+    assert.ok(!/gradient/i.test(themeArt(th)), `${th.id} drawing is flat`);
+  }
+  const used = new Set(TEMPLATES.map(templateTheme));
+  assert.equal(used.size, 18, "every style shows up in the gallery");
+  for (const t of TEMPLATES) assert.ok(isTheme(templateTheme(t)), t.id);
+  for (let i = 1; i < TEMPLATES.length; i++) {
+    const a = TEMPLATES[i - 1]!, b = TEMPLATES[i]!;
+    if (a.industry === b.industry) assert.notEqual(templateTheme(a), templateTheme(b), `${a.id} and ${b.id} look the same`);
+  }
+  assert.deepEqual(checkSettings({ theme: "midnight" }), []);
+  assert.deepEqual(checkSettings({ theme: "made-up" }), ["Pick one of the styles."]);
+  assert.equal(themeVars(themeById("paper"), "#ffde3d")["--f-accent-ink"], "#0c0c0b", "a light button color gets dark text");
+});

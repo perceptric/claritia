@@ -8,6 +8,7 @@ import { EVENTS, HOSPITALITY, HR, IT, NONPROFIT } from "./templates/people.ts";
 import { SAAS } from "./templates/saas.ts";
 import { ACCOUNTING, AGENCY, CONSULTING, LEGAL } from "./templates/services.ts";
 import { AUTOMOTIVE, ECOMMERCE, EDUCATION, LOGISTICS, MANUFACTURING } from "./templates/trade.ts";
+import { defaultThemes } from "./themes.ts";
 import { INDUSTRIES, type FormTemplate, type Industry, type UseCase } from "./types.ts";
 
 export const TEMPLATES: FormTemplate[] = [
@@ -38,6 +39,10 @@ export const TEMPLATES: FormTemplate[] = [
 ];
 
 const BY_ID = new Map(TEMPLATES.map((t) => [t.id, t]));
+const THEME_OF = defaultThemes(TEMPLATES);
+
+/** A template's own style, so the gallery shows every look. */
+export const templateTheme = (t: Pick<FormTemplate, "id">) => THEME_OF[t.id] ?? "paper";
 
 export const templateById = (id: string): FormTemplate | undefined => BY_ID.get(id);
 

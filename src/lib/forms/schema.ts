@@ -2,6 +2,7 @@
 // template goes through checkSchema, so a broken form can't reach a visitor. Browser and server.
 
 import { allFields } from "./logic.ts";
+import { isTheme } from "./themes.ts";
 import { CHOICE_KINDS, KEY_RE, NO_ANSWER, type FieldKind, type FormField, type FormSchema, type FormSettings } from "./types.ts";
 
 /** Built-in contact fields a form can fill, and the kinds that may fill each. */
@@ -139,6 +140,7 @@ function checkField(f: FormField, seen: Set<string>, maps: Set<string>): string[
 
 export function checkSettings(st: FormSettings): string[] {
   const errs: string[] = [];
+  if (st.theme !== undefined && !isTheme(st.theme)) errs.push("Pick one of the styles.");
   if (st.accent !== undefined && !/^#[0-9a-f]{6}$/i.test(st.accent)) errs.push("Pick a color like #0c0c0b.");
   if (st.booking_url && !/^https:\/\/[^\s]+$/i.test(st.booking_url)) errs.push("The booking link must start with https://.");
   if (st.consent_text !== undefined && st.consent_text.length > 600) errs.push("The opt-in words are too long.");

@@ -1,12 +1,13 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { findTemplates, industryCounts, industryLabel, questionCount } from "@/lib/forms/catalog";
+import { findTemplates, industryCounts, industryLabel, questionCount, templateTheme } from "@/lib/forms/catalog";
 import { INDUSTRIES, USE_CASES, type FormTemplate, type Industry, type UseCase } from "@/lib/forms/types";
 import { Search } from "../Icons";
 import { Select } from "../app/Select";
 import { Badge } from "../app/ui";
 import { FormView } from "./FormView";
+import { ThemedFrame } from "./ThemedFrame";
 
 // The template gallery (docs/form-templates.md Part 1): industries down the side, words and use cases on top, and
 // each card a live, scaled-down copy of the form itself. Used in the app (open → preview → Use this form) and on
@@ -27,10 +28,12 @@ function Thumb({ t }: { t: FormTemplate }) {
     return () => io.disconnect();
   }, [seen]);
   return (
-    <div ref={box} className="paper relative h-[210px] overflow-hidden border-b border-line" aria-hidden="true" inert>
+    <div ref={box} className="relative h-[210px] overflow-hidden border-b border-line bg-canvas" aria-hidden="true" inert>
       {seen ? (
-        <div className="pointer-events-none absolute top-4 left-4 w-[calc(200%-64px)] origin-top-left scale-50 border border-line bg-panel p-7 select-none">
-          <FormView schema={t.schema} mode="thumb" badge={false} />
+        <div className="pointer-events-none absolute inset-0 h-[200%] w-[200%] origin-top-left scale-50 select-none">
+          <ThemedFrame theme={templateTheme(t)} size="thumb">
+            <FormView schema={t.schema} settings={{ theme: templateTheme(t) }} mode="thumb" badge={false} />
+          </ThemedFrame>
         </div>
       ) : null}
     </div>

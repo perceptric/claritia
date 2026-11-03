@@ -34,9 +34,13 @@ Templates never change a form after import.
 - **Spam:** a hidden box, a two-second minimum, a per-instance burst limit, 20 per network per workspace in 10 minutes (`form_can_submit`, checked before any contact is written), Cloudflare Turnstile when its keys are set, and temporary email domains refused.
 - **Submitting** (`/api/forms/submit`, `src/lib/forms/submit.ts`): answers are checked again on the server, files go to the private `form-files` bucket only after the answers pass (and come back out if the save fails), the contact is written with the source `form`, then the submission, the `form.submitted` activity and the consent go in one transaction. Hiccups are retried with growing waits in the browser and on the server.
 
+### Styles
+
+18 form styles in `src/lib/forms/themes.ts`, each with its own colors, fonts (Google Fonts), corners, field look (boxed, filled or a single line), shadow and layout (a card, a drawing across the top, a drawing beside the form, or no card), and for six of them a flat drawing. Each template gets a style that suits its industry, in turn, so the gallery looks varied. Forms keep their style in `settings.theme`; Settings in the editor has a style picker and a button color on top. The template preview in the app has a style row, and a link from the website (`?theme=`) keeps the style picked there. `ThemedFrame` draws the page, card and drawing; the form itself reads the style's CSS variables.
+
 ### Website
 
-The gallery lives on the live site, tryclaritia.com (`dev-arrowsterr/claritia-site`): `/templates`, a page per industry and a page per template, where people can try the form and press **Use this template**, which opens it in the app at `/forms/templates/<template>`. The pages are static, written by `tools/templates.py` there from the data this repo exports (`node scripts/export-templates.ts > ../claritia-site/tools/templates.json`). `/templates` on the app sends people to the website.
+The gallery lives on the live site, tryclaritia.com (`dev-arrowsterr/claritia-site`): `/templates`, a page per industry and a page per template, where people can try the form in any of the 18 styles (a style menu and Shuffle) and press **Use template**, which opens it in the app at `/forms/templates/<template>`. The pages are static, written by `tools/templates.py` there from the data this repo exports (`node scripts/export-templates.ts > ../claritia-site/tools/templates.json`). `/templates` on the app sends people to the website.
 
 ---
 
@@ -378,5 +382,5 @@ What forms add to the monthly bill. Forms run on the existing `claritia-web` ser
 | File storage (about 1 GB a month at Beta, 10 GB at Growth) | $0, inside the plan's included storage (check) | $0, inside the plan's included storage (check) |
 | Cloudflare Turnstile | $0 (free tier, check) | $0 (free tier, check) |
 | Tailor, Claude Haiku 5.5: about 10 runs per team a month, ~3k tokens in and ~2k out; repeats replay from the cache (price check) | ~$5 | ~$50 |
-| The 150 template pages on the website: static | $0 | $0 |
+| The 150 template pages and 18 styles on the website: static; fonts from Google Fonts (free) | $0 | $0 |
 | **Total** | **~$5/mo** | **~$50/mo** |

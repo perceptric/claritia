@@ -131,6 +131,9 @@ export type FormSchema = {
 
 /** Per-form settings that aren't part of a template. */
 export type FormSettings = {
+  /** A style from src/lib/forms/themes.ts. */
+  theme?: string;
+  /** Overrides the style's button color. */
   accent?: string;
   booking_url?: string;
   /** The opt-in box's words in strict regions, and the notice elsewhere. */

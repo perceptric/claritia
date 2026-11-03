@@ -3,6 +3,7 @@ import { headers } from "next/headers";
 import { connection } from "next/server";
 import { cache } from "react";
 import { HostedForm } from "@/components/forms/HostedForm";
+import { ThemedFrame } from "@/components/forms/ThemedFrame";
 import type { FormSchema, FormSettings } from "@/lib/forms/types";
 import { visitorOf } from "@/lib/forms/visitor";
 import { serviceClient } from "@/lib/serviceClient";
@@ -49,11 +50,11 @@ export default async function FormPage({ params, searchParams }: PageProps<"/f/[
     );
   }
   return (
-    <main className={shell}>
+    <main>
       {embed ? <style>{"html,body{background:transparent!important}"}</style> : null}
-      <div className={card}>
+      <ThemedFrame theme={f.settings?.theme} accent={f.settings?.accent} size={embed ? "bare" : "page"}>
         <HostedForm slug={f.slug} schema={f.schema} settings={f.settings ?? {}} region={who.region} turnstileKey={process.env.TURNSTILE_SITE_KEY?.trim() || undefined} embed={embed} />
-      </div>
+      </ThemedFrame>
     </main>
   );
 }

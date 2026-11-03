@@ -19,8 +19,8 @@ type Props = {
   onFiles?: (f: File[]) => void;
 };
 
-const BOX = "h-10 w-full rounded-md border bg-white px-3 text-[14px] text-ink outline-none placeholder:text-faint focus:border-[var(--fa)] focus:ring-1 focus:ring-[var(--fa)] disabled:opacity-60";
-const border = (err?: string) => (err ? "border-danger" : "border-line-strong hover:border-ink/40");
+const BOX = "cf-in h-10 w-full rounded-[var(--f-radius)] border bg-[var(--f-field)] px-3 text-[14px] text-[var(--f-text)] outline-none placeholder:text-[var(--f-faint)] focus:border-[var(--fa)] focus:ring-1 focus:ring-[var(--fa)] disabled:opacity-60";
+const border = (err?: string) => (err ? "border-danger" : "border-[var(--f-border)] hover:border-[var(--f-hover)]");
 const CURRENCY: Record<string, string> = { USD: "$", EUR: "€", GBP: "£", CAD: "$", AUD: "$", JPY: "¥", INR: "₹" };
 
 const Check = () => (
@@ -37,13 +37,13 @@ function Choice({ on, kind, label, onClick, disabled }: { on: boolean; kind: "ra
       aria-checked={on}
       disabled={disabled}
       onClick={onClick}
-      className={`flex min-h-10 w-full items-center gap-2.5 rounded-md border px-3 py-2 text-left text-[14px] transition-colors disabled:opacity-60 ${
-        on ? "border-[var(--fa)] bg-[color-mix(in_srgb,var(--fa)_7%,white)] text-ink" : "border-line-strong bg-white text-ink hover:border-ink/40"
+      className={`cf-opt flex min-h-10 w-full items-center gap-2.5 rounded-[var(--f-radius)] border px-3 py-2 text-left text-[14px] transition-colors disabled:opacity-60 ${
+        on ? "border-[var(--fa)] bg-[var(--f-soft)] text-[var(--f-text)]" : "border-[var(--f-border)] bg-[var(--f-field)] text-[var(--f-text)] hover:border-[var(--f-hover)]"
       }`}
     >
       <span
         aria-hidden="true"
-        className={`flex size-4 shrink-0 items-center justify-center border ${kind === "radio" ? "rounded-full" : "rounded-[3px]"} ${on ? "border-[var(--fa)] bg-[var(--fa)] text-[var(--fa-ink)]" : "border-line-strong bg-white"}`}
+        className={`flex size-4 shrink-0 items-center justify-center border ${kind === "radio" ? "rounded-full" : "rounded-[3px]"} ${on ? "border-[var(--fa)] bg-[var(--fa)] text-[var(--fa-ink)]" : "border-[var(--f-border)] bg-[var(--f-field)]"}`}
       >
         {on ? kind === "radio" ? <span className="size-1.5 rounded-full bg-[var(--fa-ink)]" /> : <Check /> : null}
       </span>
@@ -73,14 +73,14 @@ function Steps({ id, lo, hi, value, onChange, minLabel, maxLabel, disabled }: { 
             aria-checked={value === v}
             disabled={disabled}
             onClick={() => onChange(v)}
-            className={`h-10 rounded-md border text-[14px] tabular-nums transition-colors disabled:opacity-60 ${value === v ? "border-[var(--fa)] bg-[var(--fa)] text-[var(--fa-ink)]" : "border-line-strong bg-white text-ink hover:border-ink/40"}`}
+            className={`cf-opt h-10 rounded-[min(var(--f-radius),10px)] border text-[14px] tabular-nums transition-colors disabled:opacity-60 ${value === v ? "border-[var(--fa)] bg-[var(--fa)] text-[var(--fa-ink)]" : "border-[var(--f-border)] bg-[var(--f-field)] text-[var(--f-text)] hover:border-[var(--f-hover)]"}`}
           >
             {v}
           </button>
         ))}
       </div>
       {minLabel || maxLabel ? (
-        <div className="flex justify-between text-[12px] text-muted">
+        <div className="flex justify-between text-[12px] text-[var(--f-muted)]">
           <span>{minLabel}</span>
           <span>{maxLabel}</span>
         </div>
@@ -104,17 +104,17 @@ export function FieldInput({ f, value, files = [], error, disabled, onChange, on
   if (f.kind === "statement") {
     return (
       <div className="flex flex-col gap-1">
-        <p className="text-[15px] font-medium text-ink">{f.label}</p>
-        {f.help ? <p className="text-[14px] leading-relaxed whitespace-pre-line text-body">{f.help}</p> : null}
+        <p className="text-[15px] font-medium text-[var(--f-text)]">{f.label}</p>
+        {f.help ? <p className="text-[14px] leading-relaxed whitespace-pre-line text-[var(--f-muted)]">{f.help}</p> : null}
       </div>
     );
   }
   if (f.kind === "hidden") return null;
 
   const label = (
-    <label htmlFor={["single", "multi", "yes_no", "rating", "nps", "scale", "ranking", "matrix", "agree"].includes(f.kind) ? undefined : id} id={`${id}-label`} className="text-[14px] font-medium text-ink">
+    <label htmlFor={["single", "multi", "yes_no", "rating", "nps", "scale", "ranking", "matrix", "agree"].includes(f.kind) ? undefined : id} id={`${id}-label`} className="text-[14px] font-medium text-[var(--f-text)]">
       {f.label}
-      {f.required ? <span className="text-faint"> *</span> : null}
+      {f.required ? <span className="text-[var(--f-faint)]"> *</span> : null}
     </label>
   );
 
@@ -147,7 +147,7 @@ export function FieldInput({ f, value, files = [], error, disabled, onChange, on
           rows={4}
           maxLength={10000}
           onChange={(e) => onChange(e.target.value)}
-          className={`w-full rounded-md border bg-white px-3 py-2.5 text-[14px] leading-relaxed text-ink outline-none placeholder:text-faint focus:border-[var(--fa)] focus:ring-1 focus:ring-[var(--fa)] disabled:opacity-60 ${border(error)}`}
+          className={`cf-in w-full rounded-[var(--f-radius)] border bg-[var(--f-field)] px-3 py-2.5 text-[14px] leading-relaxed text-[var(--f-text)] outline-none placeholder:text-[var(--f-faint)] focus:border-[var(--fa)] focus:ring-1 focus:ring-[var(--fa)] disabled:opacity-60 ${border(error)}`}
         />
       );
       break;
@@ -155,7 +155,7 @@ export function FieldInput({ f, value, files = [], error, disabled, onChange, on
     case "money":
       input = (
         <div className="relative">
-          {f.kind === "money" ? <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-[14px] text-muted">{CURRENCY[f.currency ?? "USD"] ?? f.currency}</span> : null}
+          {f.kind === "money" ? <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-[14px] text-[var(--f-muted)]">{CURRENCY[f.currency ?? "USD"] ?? f.currency}</span> : null}
           <input
             {...common}
             type="text"
@@ -176,7 +176,7 @@ export function FieldInput({ f, value, files = [], error, disabled, onChange, on
       input = (
         <div className="flex flex-wrap items-center gap-2">
           <input {...common} type="date" aria-label={`${f.label}: from`} value={obj.from ?? ""} onChange={(e) => onChange({ ...obj, from: e.target.value })} className={`${BOX} ${border(error)} max-w-48`} />
-          <span className="text-[13px] text-muted">to</span>
+          <span className="text-[13px] text-[var(--f-muted)]">to</span>
           <input type="date" disabled={disabled} aria-label={`${f.label}: to`} value={obj.to ?? ""} onChange={(e) => onChange({ ...obj, to: e.target.value })} className={`${BOX} ${border(error)} max-w-48`} />
         </div>
       );
@@ -282,26 +282,26 @@ export function FieldInput({ f, value, files = [], error, disabled, onChange, on
             aria-describedby={describedBy}
             disabled={disabled}
             onClick={() => onChange(value === true ? false : true)}
-            className="flex items-start gap-2.5 text-left text-[14px] text-ink disabled:opacity-60"
+            className="flex items-start gap-2.5 text-left text-[14px] text-[var(--f-text)] disabled:opacity-60"
           >
-            <span aria-hidden="true" className={`mt-0.5 flex size-4 shrink-0 items-center justify-center rounded-[3px] border ${value === true ? "border-[var(--fa)] bg-[var(--fa)] text-[var(--fa-ink)]" : error ? "border-danger bg-white" : "border-line-strong bg-white"}`}>
+            <span aria-hidden="true" className={`mt-0.5 flex size-4 shrink-0 items-center justify-center rounded-[3px] border ${value === true ? "border-[var(--fa)] bg-[var(--fa)] text-[var(--fa-ink)]" : error ? "border-danger bg-[var(--f-field)]" : "border-[var(--f-border)] bg-[var(--f-field)]"}`}>
               {value === true ? <Check /> : null}
             </span>
             <span>
               {f.label}
-              {f.required ? <span className="text-faint"> *</span> : null}
+              {f.required ? <span className="text-[var(--f-faint)]"> *</span> : null}
             </span>
           </button>
-          {f.help ? <p id={helpId} className="pl-6.5 text-[13px] text-muted">{f.help}</p> : null}
+          {f.help ? <p id={helpId} className="pl-6.5 text-[13px] text-[var(--f-muted)]">{f.help}</p> : null}
           {error ? <p id={errId} className="pl-6.5 text-[12.5px] text-danger">{error}</p> : null}
         </div>
       );
     case "rating": {
       const max = f.max ?? 5;
       input = (
-        <div role="radiogroup" aria-labelledby={`${id}-label`} aria-describedby={describedBy} className="flex gap-1 text-line-strong">
+        <div role="radiogroup" aria-labelledby={`${id}-label`} aria-describedby={describedBy} className="flex gap-1 text-[var(--f-faint)]">
           {Array.from({ length: max }, (_, i) => i + 1).map((v) => (
-            <button key={v} type="button" role="radio" aria-checked={value === v} aria-label={`${v} of ${max}`} disabled={disabled} onClick={() => onChange(v)} className="rounded-md p-0.5 hover:text-ink/40">
+            <button key={v} type="button" role="radio" aria-checked={value === v} aria-label={`${v} of ${max}`} disabled={disabled} onClick={() => onChange(v)} className="rounded-[var(--f-radius)] p-0.5 hover:text-[var(--f-hover)]">
               <Star on={typeof value === "number" && value >= v} />
             </button>
           ))}
@@ -326,13 +326,13 @@ export function FieldInput({ f, value, files = [], error, disabled, onChange, on
       input = (
         <ol aria-labelledby={`${id}-label`} aria-describedby={describedBy} className="flex flex-col gap-1.5">
           {order.map((o, i) => (
-            <li key={o} className="flex h-10 items-center gap-2 rounded-md border border-line-strong bg-white pr-1 pl-3 text-[14px]">
-              <span className="w-5 font-mono text-[12px] text-muted tabular-nums">{i + 1}</span>
+            <li key={o} className="cf-opt flex h-10 items-center gap-2 rounded-[var(--f-radius)] border border-[var(--f-border)] bg-[var(--f-field)] pr-1 pl-3 text-[14px]">
+              <span className="w-5 font-mono text-[12px] text-[var(--f-muted)] tabular-nums">{i + 1}</span>
               <span className="min-w-0 flex-1 truncate">{o}</span>
-              <button type="button" aria-label={`Move ${o} up`} disabled={disabled || i === 0} onClick={() => move(i, -1)} className="flex size-8 items-center justify-center rounded-md text-muted hover:bg-hover hover:text-ink disabled:opacity-30">
+              <button type="button" aria-label={`Move ${o} up`} disabled={disabled || i === 0} onClick={() => move(i, -1)} className="flex size-8 items-center justify-center rounded-[var(--f-radius)] text-[var(--f-muted)] hover:bg-[var(--f-soft)] hover:text-[var(--f-text)] disabled:opacity-30">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="m18 15-6-6-6 6" /></svg>
               </button>
-              <button type="button" aria-label={`Move ${o} down`} disabled={disabled || i === order.length - 1} onClick={() => move(i, 1)} className="flex size-8 items-center justify-center rounded-md text-muted hover:bg-hover hover:text-ink disabled:opacity-30">
+              <button type="button" aria-label={`Move ${o} down`} disabled={disabled || i === order.length - 1} onClick={() => move(i, 1)} className="flex size-8 items-center justify-center rounded-[var(--f-radius)] text-[var(--f-muted)] hover:bg-[var(--f-soft)] hover:text-[var(--f-text)] disabled:opacity-30">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="m6 9 6 6 6-6" /></svg>
               </button>
             </li>
@@ -344,13 +344,13 @@ export function FieldInput({ f, value, files = [], error, disabled, onChange, on
     case "matrix": {
       const cols = f.options ?? [];
       input = (
-        <div className="overflow-x-auto rounded-md border border-line-strong bg-white" aria-describedby={describedBy}>
+        <div className="overflow-x-auto rounded-[min(var(--f-radius),12px)] border border-[var(--f-border)] bg-[var(--f-field)]" aria-describedby={describedBy}>
           <table className="w-full border-collapse text-[13.5px]">
             <thead>
               <tr>
-                <th className="border-b border-line p-2" />
+                <th className="border-b border-[var(--f-border)] p-2" />
                 {cols.map((c) => (
-                  <th key={c} scope="col" className="border-b border-line px-2 py-2 text-center text-[12px] font-medium text-muted">
+                  <th key={c} scope="col" className="border-b border-[var(--f-border)] px-2 py-2 text-center text-[12px] font-medium text-[var(--f-muted)]">
                     {c}
                   </th>
                 ))}
@@ -358,8 +358,8 @@ export function FieldInput({ f, value, files = [], error, disabled, onChange, on
             </thead>
             <tbody>
               {(f.rows ?? []).map((r) => (
-                <tr key={r} role="radiogroup" aria-label={r} className="border-b border-line last:border-b-0">
-                  <th scope="row" className="px-3 py-2 text-left font-normal text-ink">{r}</th>
+                <tr key={r} role="radiogroup" aria-label={r} className="border-b border-[var(--f-border)] last:border-b-0">
+                  <th scope="row" className="px-3 py-2 text-left font-normal text-[var(--f-text)]">{r}</th>
                   {cols.map((c) => (
                     <td key={c} className="px-2 py-2 text-center">
                       <button
@@ -369,7 +369,7 @@ export function FieldInput({ f, value, files = [], error, disabled, onChange, on
                         aria-label={`${r}: ${c}`}
                         disabled={disabled}
                         onClick={() => onChange({ ...obj, [r]: c })}
-                        className={`inline-flex size-5 items-center justify-center rounded-full border ${obj[r] === c ? "border-[var(--fa)] bg-[var(--fa)]" : "border-line-strong bg-white hover:border-ink/40"}`}
+                        className={`inline-flex size-5 items-center justify-center rounded-full border ${obj[r] === c ? "border-[var(--fa)] bg-[var(--fa)]" : "border-[var(--f-border)] bg-[var(--f-field)] hover:border-[var(--f-hover)]"}`}
                       >
                         {obj[r] === c ? <span className="size-2 rounded-full bg-[var(--fa-ink)]" /> : null}
                       </button>
@@ -404,19 +404,19 @@ export function FieldInput({ f, value, files = [], error, disabled, onChange, on
               setDrag(false);
               if (!disabled) add(e.dataTransfer.files);
             }}
-            className={`flex min-h-20 cursor-pointer flex-col items-center justify-center gap-1 rounded-md border border-dashed bg-white px-3 py-4 text-center text-[13.5px] ${drag ? "border-[var(--fa)] bg-[color-mix(in_srgb,var(--fa)_6%,white)]" : error ? "border-danger" : "border-line-strong hover:border-ink/40"} ${disabled || files.length >= max ? "pointer-events-none opacity-60" : ""}`}
+            className={`flex min-h-20 cursor-pointer flex-col items-center justify-center gap-1 rounded-[var(--f-radius)] border border-dashed bg-[var(--f-field)] px-3 py-4 text-center text-[13.5px] ${drag ? "border-[var(--fa)] bg-[var(--f-soft)]" : error ? "border-danger" : "border-[var(--f-border)] hover:border-[var(--f-hover)]"} ${disabled || files.length >= max ? "pointer-events-none opacity-60" : ""}`}
           >
-            <span className="text-ink">Drop {max === 1 ? "a file" : "files"} here or <span className="underline underline-offset-2">browse</span></span>
-            <span className="text-[12px] text-muted">Up to 10 MB{max > 1 ? `, ${max} files` : ""}</span>
+            <span className="text-[var(--f-text)]">Drop {max === 1 ? "a file" : "files"} here or <span className="underline underline-offset-2">browse</span></span>
+            <span className="text-[12px] text-[var(--f-muted)]">Up to 10 MB{max > 1 ? `, ${max} files` : ""}</span>
             <input {...common} type="file" multiple={max > 1} className="sr-only" onChange={(e) => { add(e.target.files); e.target.value = ""; }} />
           </label>
           {files.length ? (
             <ul className="flex flex-col gap-1">
               {files.map((x, i) => (
-                <li key={`${x.name}-${i}`} className="flex items-center gap-2 rounded-md border border-line bg-white px-3 py-1.5 text-[13px]">
+                <li key={`${x.name}-${i}`} className="flex items-center gap-2 rounded-[var(--f-radius)] border border-[var(--f-border)] bg-[var(--f-field)] px-3 py-1.5 text-[13px]">
                   <span className="min-w-0 flex-1 truncate">{x.name}</span>
-                  <span className={`font-mono text-[11px] ${x.size > MAX_FILE_BYTES ? "text-danger" : "text-muted"}`}>{x.size < 1024 * 1024 ? `${Math.max(1, Math.round(x.size / 1024))} KB` : `${(x.size / 1024 / 1024).toFixed(1)} MB`}</span>
-                  <button type="button" aria-label={`Remove ${x.name}`} onClick={() => onFiles?.(files.filter((_, j) => j !== i))} className="rounded-md p-1 text-muted hover:bg-hover hover:text-ink">
+                  <span className={`font-mono text-[11px] ${x.size > MAX_FILE_BYTES ? "text-danger" : "text-[var(--f-muted)]"}`}>{x.size < 1024 * 1024 ? `${Math.max(1, Math.round(x.size / 1024))} KB` : `${(x.size / 1024 / 1024).toFixed(1)} MB`}</span>
+                  <button type="button" aria-label={`Remove ${x.name}`} onClick={() => onFiles?.(files.filter((_, j) => j !== i))} className="rounded-[var(--f-radius)] p-1 text-[var(--f-muted)] hover:bg-[var(--f-soft)] hover:text-[var(--f-text)]">
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12" /></svg>
                   </button>
                 </li>
@@ -437,7 +437,7 @@ export function FieldInput({ f, value, files = [], error, disabled, onChange, on
   return (
     <div className="flex flex-col gap-1.5">
       {label}
-      {f.help ? <p id={helpId} className="-mt-0.5 text-[13px] leading-relaxed text-muted">{f.help}</p> : null}
+      {f.help ? <p id={helpId} className="-mt-0.5 text-[13px] leading-relaxed text-[var(--f-muted)]">{f.help}</p> : null}
       {input}
       {error ? <p id={errId} className="text-[12.5px] text-danger">{error}</p> : null}
     </div>

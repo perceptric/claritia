@@ -5,11 +5,13 @@
 // and publishes it, then opens it in the editor.
 
 import { useEffect, useState } from "react";
-import { industryLabel, questionCount, templateBySlug, templateSlug } from "@/lib/forms/catalog";
+import { industryLabel, questionCount, templateBySlug, templateSlug, templateTheme } from "@/lib/forms/catalog";
+import { DEFAULT_THEME, isTheme, THEMES } from "@/lib/forms/themes";
 import { USE_CASES, type FormTemplate } from "@/lib/forms/types";
 import { FormIcon, Plus } from "../../Icons";
 import { FormView } from "../../forms/FormView";
 import { Gallery } from "../../forms/Gallery";
+import { ThemedFrame } from "../../forms/ThemedFrame";
 import { SidePanel } from "../records/SidePanel";
 import { ToolIntro } from "../ToolIntro";
 import { Badge, Button, ErrorNote, errorText, Loading, must, Page, Panel, postJson, Td, Th, timeAgo, useLoad, type Tone, type ViewProps } from "../ui";
@@ -127,16 +129,23 @@ export function TemplatePicker({ ws, session, navigate, initialOpen = "", syncUr
   const [open, setOpen] = useState<FormTemplate | null>(() => (initialOpen ? (templateBySlug(initialOpen) ?? null) : null));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  // The style: the one picked on the website (?theme=), else the template's own.
+  const [picked, setPicked] = useState<string | null>(() => {
+    if (typeof window === "undefined") return null;
+    const q = new URLSearchParams(window.location.search).get("theme");
+    return isTheme(q) ? q : null;
+  });
+  const theme = picked ?? (open ? templateTheme(open) : DEFAULT_THEME);
   useEffect(() => {
     if (!syncUrl) return;
-    window.history.replaceState(null, "", open ? `/forms/templates/${templateSlug(open)}` : "/forms/templates");
-  }, [open, syncUrl]);
+    window.history.replaceState(null, "", open ? `/forms/templates/${templateSlug(open)}${picked ? `?theme=${picked}` : ""}` : "/forms/templates");
+  }, [open, syncUrl, picked]);
 
   const use = async (t: FormTemplate) => {
     setBusy(true);
     setError("");
     try {
-      const r = await postJson<{ id: string }>(session, "/api/forms", { workspaceId: ws.id, action: "import", templateId: t.id });
+      const r = await postJson<{ id: string }>(session, "/api/forms", { workspaceId: ws.id, action: "import", templateId: t.id, theme });
       navigate("forms", r.id);
     } catch (e) {
       setError(errorText(e));
@@ -146,7 +155,13 @@ export function TemplatePicker({ ws, session, navigate, initialOpen = "", syncUr
 
   return (
     <>
-      <Gallery onOpen={(t) => { setError(""); setOpen(t); }} />
+      <Gallery
+        onOpen={(t) => {
+          setError("");
+          setPicked(null);
+          setOpen(t);
+        }}
+      />
       {open ? (
         <SidePanel
           title={open.name}
@@ -172,11 +187,28 @@ export function TemplatePicker({ ws, session, navigate, initialOpen = "", syncUr
             </div>
             <ErrorNote message={error} />
           </div>
-          <div className="paper p-4 md:p-8">
-            <div className="frame mx-auto max-w-[640px] border border-line bg-panel p-6 md:p-8">
-              <FormView key={open.id} schema={open.schema} settings={open.internal ? { consent_off: true } : {}} mode="preview" badge={false} />
-            </div>
+          <div className="flex flex-wrap items-center gap-1.5 border-b border-line px-5 py-3" role="radiogroup" aria-label="Style">
+            <span className="label-mono mr-1">Style</span>
+            {THEMES.map((th) => (
+              <button
+                key={th.id}
+                type="button"
+                role="radio"
+                aria-checked={theme === th.id}
+                aria-label={th.name}
+                title={th.name}
+                onClick={() => setPicked(th.id)}
+                className={`flex h-6 w-9 overflow-hidden rounded-sm border ${theme === th.id ? "border-ink ring-1 ring-ink" : "border-line hover:border-line-strong"}`}
+              >
+                <span className="flex-1" style={{ background: th.bg }} />
+                <span className="flex-1" style={{ background: th.card }} />
+                <span className="flex-1" style={{ background: th.accent }} />
+              </button>
+            ))}
           </div>
+          <ThemedFrame theme={theme} size="panel">
+            <FormView key={open.id} schema={open.schema} settings={{ theme, ...(open.internal ? { consent_off: true } : {}) }} mode="preview" badge={false} />
+          </ThemedFrame>
         </SidePanel>
       ) : null}
     </>

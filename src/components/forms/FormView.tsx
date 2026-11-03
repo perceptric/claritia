@@ -4,8 +4,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { checkAnswers } from "@/lib/forms/answers";
 import { allFields, bandFor, maxScore, score as scoreOf, shown, shownPages } from "@/lib/forms/logic";
 import { DEFAULT_CONSENT, DEFAULT_NOTICE } from "@/lib/forms/schema";
+import { themeById, themeVars } from "@/lib/forms/themes";
 import { HALF_KINDS, type FormSchema, type FormSettings } from "@/lib/forms/types";
 import { FieldInput } from "./FieldInput";
+import { useThemeFont } from "./ThemedFrame";
 
 // A form as visitors see it: pages, show-if logic, checks on each page, the consent block for the visitor's region,
 // and the end screen with a score or a booking button. The same component draws gallery cards ("thumb"), the
@@ -77,8 +79,11 @@ export function FormView({ schema, settings = {}, mode, region = "notice", onSub
   const started = useRef(0);
   const hp = useRef<HTMLInputElement>(null);
   const turnstileBox = useRef<HTMLDivElement>(null);
-  const accent = settings.accent && /^#[0-9a-f]{6}$/i.test(settings.accent) ? settings.accent : DEFAULT_ACCENT;
-  const vars = { "--fa": accent, "--fa-ink": inkFor(accent) } as React.CSSProperties;
+  // The style's colors, fonts and corners, with the form's own color on top.
+  const th = themeById(settings.theme);
+  const vars = { ...themeVars(th, settings.accent), "--fa": "var(--f-accent)", "--fa-ink": "var(--f-accent-ink)" } as React.CSSProperties;
+  const flags = { "data-input": th.input, "data-shadow": th.shadow, "data-layout": th.layout };
+  useThemeFont(th);
   const live = mode === "live";
   const thumb = mode === "thumb";
 
@@ -231,37 +236,37 @@ export function FormView({ schema, settings = {}, mode, region = "notice", onSub
       }
     }
     return (
-      <div ref={root} style={vars} className="flex w-full flex-col gap-4 py-2 text-ink" role="status">
-        <span className="flex size-10 items-center justify-center rounded-md bg-[var(--fa)] text-[var(--fa-ink)]" aria-hidden="true">
+      <div ref={root} style={vars} {...flags} className="cf-root flex w-full flex-col gap-4 py-2" role="status">
+        <span className="flex size-10 items-center justify-center rounded-[min(var(--f-btn-radius),12px)] bg-[var(--fa)] text-[var(--fa-ink)]" aria-hidden="true">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"><path d="M20 6 9 17l-5-5" /></svg>
         </span>
-        <h2 className="text-[24px] leading-tight font-medium tracking-[-0.02em]">{schema.end.title}</h2>
+        <h2 className="cf-title text-[24px] leading-tight tracking-[-0.02em]">{schema.end.title}</h2>
         {ended.score != null && schema.end.score?.length ? (
-          <div className="flex flex-col gap-2 border border-line bg-canvas p-4">
-            <p className="font-mono text-[11px] tracking-[0.14em] text-muted uppercase">
+          <div className="flex flex-col gap-2 border border-[var(--f-border)] bg-[var(--f-soft)] p-4">
+            <p className="font-mono text-[11px] tracking-[0.14em] text-[var(--f-muted)] uppercase">
               Score {ended.score} of {maxScore(schema)}
             </p>
             {band ? (
               <>
                 <p className="text-[18px] font-medium">{band.title}</p>
-                <p className="text-[14px] leading-relaxed text-body">{band.text}</p>
+                <p className="text-[14px] leading-relaxed text-[var(--f-muted)]">{band.text}</p>
               </>
             ) : null}
           </div>
         ) : null}
-        {schema.end.text ? <p className="text-[15px] leading-relaxed whitespace-pre-line text-body">{schema.end.text}</p> : null}
+        {schema.end.text ? <p className="text-[15px] leading-relaxed whitespace-pre-line text-[var(--f-muted)]">{schema.end.text}</p> : null}
         {schema.end.booking && (booking || !live) ? (
           <a
             href={booking || undefined}
             target={embed ? "_blank" : undefined}
             rel="noopener"
-            className="inline-flex h-10 w-fit items-center gap-2 rounded-md bg-[var(--fa)] px-5 text-[14px] font-medium text-[var(--fa-ink)] hover:opacity-90"
+            className="cf-btn inline-flex h-10 w-fit items-center gap-2 px-5 text-[14px] font-medium hover:opacity-90"
           >
             Pick a time
           </a>
         ) : null}
         {!live && !showEnd ? (
-          <button type="button" onClick={() => { setDone(null); setAnswers({}); setFiles({}); setPage(0); }} className="w-fit text-[13px] text-muted underline-offset-2 hover:text-ink hover:underline">
+          <button type="button" onClick={() => { setDone(null); setAnswers({}); setFiles({}); setPage(0); }} className="w-fit text-[13px] text-[var(--f-muted)] underline-offset-2 hover:text-[var(--f-text)] hover:underline">
             Start over
           </button>
         ) : null}
@@ -271,7 +276,7 @@ export function FormView({ schema, settings = {}, mode, region = "notice", onSub
   }
 
   return (
-    <div ref={root} style={vars} className="w-full text-ink" inert={thumb || undefined} data-clr-ignore={live ? undefined : ""}>
+    <div ref={root} style={vars} {...flags} className="cf-root w-full" inert={thumb || undefined} data-clr-ignore={live ? undefined : ""}>
       <form
         noValidate
         data-clr-form={slug}
@@ -283,19 +288,19 @@ export function FormView({ schema, settings = {}, mode, region = "notice", onSub
       >
         {at === 0 || thumb ? (
           <header className="flex flex-col gap-2">
-            <h1 className="text-[26px] leading-[1.15] font-medium tracking-[-0.025em]">{schema.title}</h1>
-            {schema.intro ? <p className="text-[15px] leading-relaxed whitespace-pre-line text-body">{schema.intro}</p> : null}
+            <h1 className="cf-title text-[28px] leading-[1.12] tracking-[-0.02em]">{schema.title}</h1>
+            {schema.intro ? <p className="text-[15px] leading-relaxed whitespace-pre-line text-[var(--f-muted)]">{schema.intro}</p> : null}
           </header>
         ) : null}
         {multi && !thumb ? (
           <div className="flex flex-col gap-2" aria-label={`Step ${at + 1} of ${pages.length}`}>
-            <div className="flex items-center justify-between font-mono text-[10.5px] tracking-[0.14em] text-muted uppercase">
+            <div className="flex items-center justify-between font-mono text-[10.5px] tracking-[0.14em] text-[var(--f-muted)] uppercase">
               <span>{schema.pages[page]?.title || `Step ${at + 1}`}</span>
               <span className="tabular-nums">
                 {at + 1} / {pages.length}
               </span>
             </div>
-            <div className="h-1 bg-hover">
+            <div className="h-1 bg-[var(--f-soft)]">
               <div className="h-full bg-[var(--fa)] transition-[width] duration-300" style={{ width: `${((at + 1) / pages.length) * 100}%` }} />
             </div>
           </div>
@@ -315,8 +320,8 @@ export function FormView({ schema, settings = {}, mode, region = "notice", onSub
         </div>
         {isLast && consent && !thumb ? (
           region === "strict" ? (
-            <button type="button" role="checkbox" aria-checked={ticked} onClick={() => setTicked((t) => !t)} className="flex items-start gap-2.5 text-left text-[13px] leading-relaxed text-body">
-              <span aria-hidden="true" className={`mt-0.5 flex size-4 shrink-0 items-center justify-center rounded-[3px] border ${ticked ? "border-[var(--fa)] bg-[var(--fa)] text-[var(--fa-ink)]" : "border-line-strong bg-white"}`}>
+            <button type="button" role="checkbox" aria-checked={ticked} onClick={() => setTicked((t) => !t)} className="flex items-start gap-2.5 text-left text-[13px] leading-relaxed text-[var(--f-muted)]">
+              <span aria-hidden="true" className={`mt-0.5 flex size-4 shrink-0 items-center justify-center rounded-[3px] border ${ticked ? "border-[var(--fa)] bg-[var(--fa)] text-[var(--fa-ink)]" : "border-[var(--f-border)] bg-[var(--f-field)]"}`}>
                 {ticked ? (
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M20 6 9 17l-5-5" /></svg>
                 ) : null}
@@ -335,19 +340,19 @@ export function FormView({ schema, settings = {}, mode, region = "notice", onSub
         <div className="flex flex-col gap-3">
           <div className="flex items-center gap-2">
             {at > 0 && !thumb ? (
-              <button type="button" onClick={back} disabled={busy} className="inline-flex h-10 items-center rounded-md border border-line-strong bg-white px-4 text-[14px] font-medium text-ink hover:border-ink/40 disabled:opacity-60">
+              <button type="button" onClick={back} disabled={busy} className="cf-btn-ghost inline-flex h-10 items-center border border-[var(--f-border)] px-4 text-[14px] font-medium text-[var(--f-text)] hover:border-[var(--f-hover)] disabled:opacity-60">
                 Back
               </button>
             ) : null}
             <button
               type="submit"
               disabled={busy}
-              className="inline-flex h-10 items-center gap-2 rounded-md bg-[var(--fa)] px-5 text-[14px] font-medium text-[var(--fa-ink)] transition-opacity hover:opacity-90 disabled:opacity-60"
+              className="cf-btn inline-flex h-10 items-center gap-2 px-5 text-[14px] font-medium transition-opacity hover:opacity-90 disabled:opacity-60"
             >
               {isLast ? schema.submit : "Next"}
             </button>
           </div>
-          {isLast && consent && region === "notice" && !thumb ? <p className="text-[12px] leading-relaxed text-muted">{settings.notice_text || DEFAULT_NOTICE}</p> : null}
+          {isLast && consent && region === "notice" && !thumb ? <p className="text-[12px] leading-relaxed text-[var(--f-muted)]">{settings.notice_text || DEFAULT_NOTICE}</p> : null}
         </div>
       </form>
       {badge && live ? <Badge /> : null}
@@ -357,7 +362,7 @@ export function FormView({ schema, settings = {}, mode, region = "notice", onSub
 
 function Badge() {
   return (
-    <a href="https://tryclaritia.com/templates" target="_blank" rel="noopener" className="mt-8 inline-flex items-center gap-1.5 font-mono text-[10px] tracking-[0.14em] text-faint uppercase hover:text-muted">
+    <a href="https://tryclaritia.com/templates" target="_blank" rel="noopener" className="mt-8 inline-flex items-center gap-1.5 font-mono text-[10px] tracking-[0.14em] text-[var(--f-faint)] uppercase hover:text-muted">
       Made with Claritia
     </a>
   );

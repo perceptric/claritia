@@ -27,7 +27,7 @@ export function Dropdown({
 }) {
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(0);
-  const [pos, setPos] = useState<{ left: number; top: number; width: number; max: number } | null>(null);
+  const [pos, setPos] = useState<{ left: number; top: number; width: number; max: number; vars: Record<string, string> } | null>(null);
   const btn = useRef<HTMLButtonElement>(null);
   const list = useRef<HTMLUListElement>(null);
   const typed = useRef({ text: "", at: 0 });
@@ -41,7 +41,11 @@ export function Dropdown({
       const want = Math.min(280, options.length * 36 + 8);
       const up = below < Math.min(want, 160) && above > below;
       const max = Math.max(120, Math.min(want, up ? above : below));
-      setPos({ left: r.left, top: up ? r.top - max - 4 : r.bottom + 4, width: r.width, max });
+      // The list opens on the page's top layer, outside the form, so it takes the form's style along.
+      const cs = getComputedStyle(btn.current!);
+      const vars: Record<string, string> = {};
+      for (const v of ["--f-card", "--f-text", "--f-border", "--f-soft", "--f-accent", "--f-radius", "--f-font", "--f-faint", "--f-field"]) vars[v] = cs.getPropertyValue(v);
+      setPos({ left: r.left, top: up ? r.top - max - 4 : r.bottom + 4, width: r.width, max, vars });
     };
     place();
     setActive(Math.max(0, options.indexOf(value)));
@@ -113,10 +117,10 @@ export function Dropdown({
             if (i >= 0) onChange(options[i]!);
           }
         }}
-        className={`flex h-10 w-full items-center justify-between gap-2 rounded-md border bg-white px-3 text-left text-[14px] outline-none focus-visible:border-[var(--fa)] focus-visible:ring-1 focus-visible:ring-[var(--fa)] disabled:opacity-60 ${invalid ? "border-danger" : "border-line-strong hover:border-ink/40"}`}
+        className={`cf-in flex h-10 w-full items-center justify-between gap-2 rounded-[var(--f-radius)] border bg-[var(--f-field)] px-3 text-left text-[14px] outline-none focus-visible:border-[var(--f-accent)] focus-visible:ring-1 focus-visible:ring-[var(--f-accent)] disabled:opacity-60 ${invalid ? "border-danger" : "border-[var(--f-border)] hover:border-[var(--f-hover)]"}`}
       >
-        <span className={`truncate ${value ? "text-ink" : "text-faint"}`}>{value || placeholder}</span>
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="shrink-0 text-faint" aria-hidden="true">
+        <span className={`truncate ${value ? "text-[var(--f-text)]" : "text-[var(--f-faint)]"}`}>{value || placeholder}</span>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="shrink-0 text-[var(--f-faint)]" aria-hidden="true">
           <path d="m7 15 5 5 5-5M7 9l5-5 5 5" />
         </svg>
       </button>
@@ -126,8 +130,8 @@ export function Dropdown({
               ref={list}
               role="listbox"
               aria-labelledby={id}
-              style={{ position: "fixed", left: pos.left, top: pos.top, width: pos.width, maxHeight: pos.max }}
-              className="z-[200] overflow-y-auto border border-line-strong bg-white p-1 text-[14px] shadow-pop"
+              style={{ ...pos.vars, position: "fixed", left: pos.left, top: pos.top, width: pos.width, maxHeight: pos.max, background: "var(--f-card, #fff)", color: "var(--f-text, #0c0c0b)", fontFamily: "var(--f-font)" } as React.CSSProperties}
+              className="z-[200] overflow-y-auto rounded-[min(var(--f-radius),10px)] border border-[var(--f-border)] p-1 text-[14px] shadow-pop"
             >
               {options.map((o, i) => (
                 <li
@@ -138,7 +142,7 @@ export function Dropdown({
                   onMouseEnter={() => setActive(i)}
                   onMouseDown={(e) => e.preventDefault()}
                   onClick={() => pick(i)}
-                  className={`flex min-h-9 cursor-pointer items-center justify-between gap-2 rounded-md px-2.5 py-1.5 ${i === active ? "bg-hover" : ""}`}
+                  className={`flex min-h-9 cursor-pointer items-center justify-between gap-2 rounded-[min(var(--f-radius),8px)] px-2.5 py-1.5 ${i === active ? "bg-[var(--f-soft)]" : ""}`}
                 >
                   <span>{o}</span>
                   {o === value ? (

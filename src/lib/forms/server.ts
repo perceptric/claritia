@@ -1,7 +1,8 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { cleaningCtx } from "../contacts/server.ts";
-import { templateById } from "./catalog.ts";
+import { templateById, templateTheme } from "./catalog.ts";
+import { isTheme } from "./themes.ts";
 import { applyRemap, planFields } from "./fields.ts";
 import { qaCheck } from "./qa.ts";
 import { blankSchema, checkSchema, checkSettings, cloneSchema, slugFor } from "./schema.ts";
@@ -28,10 +29,14 @@ async function existingFields(db: SupabaseClient, ws: string) {
 }
 
 /** A new form from a template (or blank when templateId is null). It goes live at once when it passes the check. */
-export async function createForm(db: SupabaseClient, ws: string, user: string, templateId: string | null): Promise<{ id: string; status: string; problems: string[] }> {
+export async function createForm(db: SupabaseClient, ws: string, user: string, templateId: string | null, theme?: string): Promise<{ id: string; status: string; problems: string[] }> {
   const t = templateId ? templateById(templateId) : null;
   if (templateId && !t) throw new Error("Template not found.");
-  const settings: FormSettings = t?.internal ? { consent_off: true } : {};
+  const settings: FormSettings = {
+    theme: isTheme(theme) ? theme : t ? templateTheme(t) : undefined,
+    ...(t?.internal ? { consent_off: true } : {}),
+  };
+  if (!settings.theme) delete settings.theme;
   let schema = t ? cloneSchema(t.schema) : blankSchema();
   const plan = planFields(schema, (await existingFields(db, ws)) as never);
   schema = applyRemap(schema, plan.remap);

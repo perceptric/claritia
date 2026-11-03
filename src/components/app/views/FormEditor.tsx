@@ -9,7 +9,9 @@ import { CUSTOM_TYPE, BUILTIN_TARGETS, keyFrom } from "@/lib/forms/schema";
 import { allFields } from "@/lib/forms/logic";
 import { CHOICE_KINDS, HALF_KINDS, KIND_LABEL, KINDS, type Cond, type FieldKind, type FormField, type FormSchema, type FormSettings } from "@/lib/forms/types";
 import { ArrowDown, ArrowUp, Copy, ExternalLink, FormIcon, Plus, Trash, Wand } from "../../Icons";
-import { DEFAULT_ACCENT, FormView } from "../../forms/FormView";
+import { FormView } from "../../forms/FormView";
+import { ThemedFrame } from "../../forms/ThemedFrame";
+import { DEFAULT_THEME, themeById, THEMES } from "@/lib/forms/themes";
 import { askConfirm, askLines } from "../Dialogs";
 import { Select } from "../Select";
 import { Badge, Button, CardHead, Empty, ErrorNote, errorText, Field, Input, Loading, must, Page, Panel, postJson, setLeaveGuard, Tabs, useLoad, type ViewProps } from "../ui";
@@ -342,14 +344,14 @@ function Build({ schema: s, settings, setSchema, selected, setSelected, page, se
           </Button>
         </div>
       </aside>
-      <section className="paper min-h-[480px] overflow-auto p-4 md:p-8">
-        <div className="frame mx-auto max-w-[680px] border border-line bg-panel p-6 md:p-10">
+      <section className="min-h-[480px] overflow-auto">
+        <ThemedFrame theme={settings.theme} accent={settings.accent} size="panel" className="min-h-full">
           {s.pages[page] && !s.pages[page]!.fields.length && selected !== END ? (
             <Empty title="An empty page">Add a question, and it lands here.</Empty>
           ) : (
             <FormView schema={s} settings={settings} mode="preview" badge={false} selected={selected} onSelect={pick} page={page} onPage={setPage} showEnd={selected === END} />
           )}
-        </div>
+        </ThemedFrame>
       </section>
       <aside className="min-h-0 overflow-auto border-t border-line bg-panel lg:border-t-0 lg:border-l">
         {selected === END ? (
@@ -673,7 +675,8 @@ function Share({ row, onPublish, busy }: { row: Row; onPublish: () => void; busy
 
 function SettingsTab({ draft, row, setName, setSettings, onBaa }: { draft: Draft; row: Row; setName: (n: string) => void; setSettings: (p: Partial<FormSettings>) => void; onBaa: () => void }) {
   const st = draft.settings;
-  const accent = st.accent ?? DEFAULT_ACCENT;
+  const style = themeById(st.theme);
+  const accent = st.accent ?? style.accent;
   const [hex, setHex] = useState(accent);
   const consentOn = !st.consent_off;
   return (
@@ -688,13 +691,53 @@ function SettingsTab({ draft, row, setName, setSettings, onBaa }: { draft: Draft
           </div>
         </Panel>
         <Panel>
-          <CardHead label="Color" />
+          <CardHead label="Style" />
+          <div className="grid grid-cols-2 gap-3 p-4 sm:grid-cols-3">
+            {THEMES.map((th) => {
+              const on = (st.theme ?? DEFAULT_THEME) === th.id;
+              return (
+                <button
+                  key={th.id}
+                  type="button"
+                  aria-pressed={on}
+                  onClick={() => setSettings({ theme: th.id })}
+                  className={`flex flex-col overflow-hidden border text-left ${on ? "border-ink ring-1 ring-ink" : "border-line hover:border-line-strong"}`}
+                >
+                  <span className="flex h-16 items-center justify-center gap-1.5" style={{ background: th.bg }}>
+                    <span className="h-8 w-14 border" style={{ background: th.card, borderColor: th.border, borderRadius: Math.min(th.cardRadius, 8) }} />
+                    <span className="size-4" style={{ background: th.accent, borderRadius: Math.min(th.btnRadius, 99) }} />
+                  </span>
+                  <span className="flex flex-col gap-0.5 border-t border-line bg-panel px-3 py-2">
+                    <span className="text-[13px] font-medium">{th.name}</span>
+                    <span className="truncate text-[12px] text-muted">{th.mood}</span>
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </Panel>
+        <Panel>
+          <CardHead label="Button color">
+            {st.accent ? (
+              <Button variant="plain" className="h-7 px-2" onClick={() => { setHex(style.accent); setSettings({ accent: undefined }); }}>
+                Use the style&apos;s
+              </Button>
+            ) : null}
+          </CardHead>
           <div className="flex flex-wrap items-center gap-2 p-4">
-            {SWATCHES.map((c) => (
-              <button key={c} type="button" aria-label={c} title={c} onClick={() => {
+            {[style.accent, ...SWATCHES.filter((c) => c !== style.accent)].map((c) => (
+              <button
+                key={c}
+                type="button"
+                aria-label={c}
+                title={c}
+                onClick={() => {
                   setHex(c);
-                  setSettings({ accent: c === DEFAULT_ACCENT ? undefined : c });
-                }} className={`size-8 rounded-md border ${accent === c ? "border-ink ring-2 ring-ink ring-offset-2" : "border-line"}`} style={{ background: c }} />
+                  setSettings({ accent: c === style.accent ? undefined : c });
+                }}
+                className={`size-8 rounded-md border ${accent === c ? "border-ink ring-2 ring-ink ring-offset-2" : "border-line"}`}
+                style={{ background: c }}
+              />
             ))}
             <Input
               value={hex}
@@ -702,7 +745,7 @@ function SettingsTab({ draft, row, setName, setSettings, onBaa }: { draft: Draft
               aria-label="Color code"
               onChange={(e) => {
                 setHex(e.target.value);
-                if (/^#[0-9a-f]{6}$/i.test(e.target.value)) setSettings({ accent: e.target.value.toLowerCase() === DEFAULT_ACCENT ? undefined : e.target.value.toLowerCase() });
+                if (/^#[0-9a-f]{6}$/i.test(e.target.value)) setSettings({ accent: e.target.value.toLowerCase() === style.accent ? undefined : e.target.value.toLowerCase() });
               }}
               className="w-28 font-mono"
             />

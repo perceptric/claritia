@@ -56,7 +56,7 @@ export function Signature({ id, onChange, invalid, disabled }: { id: string; onC
         id={id}
         role="img"
         aria-label="Signature pad"
-        className={`h-36 w-full touch-none rounded-md border bg-white ${invalid ? "border-danger" : "border-line-strong"} ${disabled ? "pointer-events-none opacity-60" : "cursor-crosshair"}`}
+        className={`h-36 w-full touch-none rounded-[min(var(--f-radius),14px)] border bg-white ${invalid ? "border-danger" : "border-[var(--f-border)]"} ${disabled ? "pointer-events-none opacity-60" : "cursor-crosshair"}`}
         onPointerDown={(e) => {
           const ctx = e.currentTarget.getContext("2d");
           if (!ctx) return;
@@ -80,7 +80,7 @@ export function Signature({ id, onChange, invalid, disabled }: { id: string; onC
         onPointerUp={finish}
         onPointerLeave={finish}
       />
-      <button type="button" onClick={clear} disabled={disabled} className="self-start text-[12.5px] text-muted underline-offset-2 hover:text-ink hover:underline">
+      <button type="button" onClick={clear} disabled={disabled} className="self-start text-[12.5px] text-[var(--f-muted)] underline-offset-2 hover:text-[var(--f-text)] hover:underline">
         Clear
       </button>
     </div>
