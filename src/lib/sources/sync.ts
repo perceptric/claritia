@@ -430,7 +430,7 @@ const plain = (c: Candidate) => ({ ...c, first_name: c.first_name ?? undefined, 
 
 /** Push contacts that changed here. `ids` pushes just those (a retry from the sync log). */
 /** How one contact's push ended, for callers that send chosen contacts (form deliveries). */
-export type PushOutcome = { externalId?: string; error?: string; gone?: boolean };
+export type PushOutcome = { externalId?: string; error?: string; gone?: boolean; skipped?: string };
 
 /**
  * Contacts out to the tool. `force` sends the given ids even when the source only pulls and its "push new" setting
@@ -462,7 +462,9 @@ export async function push(
       if (!k.external_id) {
         const allowed = opts.force || pushNew === "all" || (pushNew === "lifecycle" && !!k.lifecycle && k.lifecycle !== "subscriber");
         if (!allowed) continue;
-      } else if (changedKeys(pushPart(k.last), pushPart(ours)).length === 0) {
+      } else if (!opts.options?.list && changedKeys(pushPart(k.last), pushPart(ours)).length === 0) {
+        // Unchanged since the last push: nothing to send. A list add (an email tool's destination) always goes:
+        // the same person filling another form joins that form's list.
         c.skipped++;
         opts.outcome?.set(k.id, { externalId: k.external_id });
         continue;
@@ -477,6 +479,12 @@ export async function push(
       const gone: string[] = [];
       for (const ch of changes) {
         const r = byId.get(ch.localId);
+        if (r?.skipped) {
+          // The tool was left alone on purpose (no email consent for a list that only holds subscribers).
+          opts.outcome?.set(ch.localId, { skipped: r.skipped });
+          c.skipped++;
+          continue;
+        }
         if (r?.gone && ch.externalId) {
           opts.outcome?.set(ch.localId, { gone: true, error: "The record was deleted in the tool." });
           gone.push(ch.externalId);

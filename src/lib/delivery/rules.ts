@@ -54,7 +54,33 @@ export function pushOptions(rules: SyncRules | null, consentGiven: boolean): Pus
     autoAssign: rules.assign === "crm",
     create: rules.create,
     optIn: rules.consent && consentGiven,
+    // Email tools: with consent on, only people who ticked the box get marketing email; off, everyone does.
+    marketing: rules.consent ? consentGiven : true,
   };
+}
+
+/** An email tool destination's list and tags (form_destinations.config.list, .tags). */
+export type ListPick = { list: { id: string; name: string } | null; tags: string[] };
+
+export function listOf(config: unknown): ListPick {
+  const c = (config && typeof config === "object" ? config : {}) as { list?: unknown; tags?: unknown };
+  const l = c.list as { id?: unknown; name?: unknown } | undefined;
+  const list = l && typeof l.id === "string" && l.id.trim() && l.id.length <= 120 ? { id: l.id.trim(), name: typeof l.name === "string" ? l.name.slice(0, 200) : l.id } : null;
+  return { list, tags: cleanTags(c.tags) };
+}
+
+/** Up to 10 tags, each up to 100 characters, no repeats (case aside). */
+export function cleanTags(v: unknown): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const t of Array.isArray(v) ? v : []) {
+    const s = typeof t === "string" ? t.replace(/\s+/g, " ").trim().slice(0, 100) : "";
+    if (!s || seen.has(s.toLowerCase())) continue;
+    seen.add(s.toLowerCase());
+    out.push(s);
+    if (out.length === 10) break;
+  }
+  return out;
 }
 
 /** Text a delivery stopped on a possible duplicate starts with, so the screen can offer Create anyway. */

@@ -16,7 +16,7 @@ const checked = (d: Record<string, unknown>) => {
 };
 
 type Row = Record<string, unknown> & { id: string; draft: Record<string, unknown>; draft_rev: number; version: number; status: string; name: string };
-type W = Window & { FIX: { studio: Row; old: Row; brand: string }; rpcs: [string, Record<string, unknown>][]; calls: { path: string; body: Record<string, unknown> }[]; nav: unknown[][]; db: { forms: Record<string, Row>; published: Record<string, unknown>; chats: Record<string, Record<string, unknown>> } };
+type W = Window & { FIX: { studio: Row; old: Row; brand: string }; rpcs: [string, Record<string, unknown>][]; calls: { path: string; body: Record<string, unknown> }[]; nav: unknown[][]; db: { forms: Record<string, Row>; published: Record<string, unknown>; chats: Record<string, Record<string, unknown>>; dests: Record<string, unknown>[] } };
 const w = window as unknown as W;
 w.rpcs = [];
 w.calls = [];
@@ -26,7 +26,9 @@ const KIT = { id: "k1", name: "Finch", source_url: "https://finch.care", scan_st
 const jsonb = (v: unknown): unknown =>
   Array.isArray(v) ? v.map(jsonb) : v && typeof v === "object" ? Object.fromEntries(Object.keys(v).sort((x, y) => x.length - y.length || (x < y ? -1 : 1)).map((k) => [k, jsonb((v as Record<string, unknown>)[k])])) : v;
 const clone = <T,>(v: T): T => JSON.parse(JSON.stringify(v)) as T;
-w.db = { forms: { [w.FIX.studio.id]: clone(w.FIX.studio), [w.FIX.old.id]: clone(w.FIX.old) }, published: { [w.FIX.studio.id]: jsonb(w.FIX.studio.draft), [w.FIX.old.id]: jsonb(w.FIX.old.draft) }, chats: {} };
+w.db = { forms: { [w.FIX.studio.id]: clone(w.FIX.studio), [w.FIX.old.id]: clone(w.FIX.old) }, published: { [w.FIX.studio.id]: jsonb(w.FIX.studio.draft), [w.FIX.old.id]: jsonb(w.FIX.old.draft) }, chats: {}, dests: [] };
+// A connected email tool (docs/integrations-plan.md step 1).
+const MC = { id: "cccccccc-0000-4000-8000-000000000003", kind: "mailchimp", name: "Mailchimp", status: "active" };
 
 function from(table: string) {
   const eq: [string, unknown][] = [];
@@ -36,6 +38,8 @@ function from(table: string) {
   const rows = (): unknown[] => {
     if (table === "forms") return Object.values(w.db.forms).filter((r) => eq.every(([c, v]) => c !== "id" || r.id === v)).map((r) => jsonb(r));
     if (table === "brand_kits") return [KIT];
+    if (table === "sources") return [MC];
+    if (table === "form_destinations") return w.db.dests.filter((d) => eq.every(([c, v]) => c !== "form_id" || d.form_id === v)).map((d) => clone(d));
     if (table === "form_chats") return Object.values(w.db.chats).filter((r) => eq.every(([c, v]) => r[c] === v || c === "workspace_id")).map((r) => clone(r));
     return [];
   };
@@ -80,6 +84,15 @@ window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
     r.name = body.name as string;
     r.draft_rev += 1;
     return ok({ formId: r.id });
+  }
+  if (path === "/api/forms/tool-lists") return ok({ lists: [{ id: "aud1", name: "Newsletter" }, { id: "aud2", name: "Webinar guests" }] });
+  if (path === "/api/forms/destination") {
+    // As the server does: a new destination starts with the safe rules; list, tags and rules merge into its config.
+    const cur = body.id ? w.db.dests.find((d) => d.id === body.id) : null;
+    const config = { ...((cur?.config as object) ?? { rules: { exists: "if_empty", match: "email", owner: "keep", assign: "claritia", consent: true, create: "Lead" } }), ...(body.list !== undefined ? { list: body.list } : {}), ...(body.tags !== undefined ? { tags: body.tags } : {}), ...(body.rules !== undefined ? { rules: body.rules } : {}) };
+    if (cur) cur.config = config;
+    else w.db.dests.push({ id: `dest-${w.db.dests.length + 1}`, form_id: body.formId, kind: body.kind, source_id: body.sourceId, name: body.name, config, paused: false, position: w.db.dests.length });
+    return ok({ id: cur?.id ?? `dest-${w.db.dests.length}` });
   }
   if (path === "/api/routing") return ok({ policies: [], sources: [], forms: [], meetingTypes: [], teams: [], people: [], fields: [], me: "u1", role: "owner", openReviews: 0, paused: false });
   if (path === "/api/forms/publish") {

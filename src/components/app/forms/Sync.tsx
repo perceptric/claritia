@@ -7,7 +7,7 @@
 // button that starts it.
 
 import { useState } from "react";
-import { DUPLICATE, rulesOf, type SyncRules } from "@/lib/delivery/rules";
+import { DUPLICATE, listOf, NEW_RULES, rulesOf, type SyncRules } from "@/lib/delivery/rules";
 import { allFields, type Form } from "@/lib/forms/schema";
 import { CATALOG, entryOf } from "@/lib/sources/catalog";
 import { BrandLogo } from "../BrandLogo";
@@ -17,6 +17,7 @@ import { daysAgo, issuesOf } from "./formModel";
 import { Ic } from "./ic";
 import { BTN, CARD, CROW, GHOST_SM, GHOST_SM_RED, RowText, Seg, useNote, Tg } from "./parts";
 import { LeftItem } from "./Share";
+import { Select } from "../Select";
 import type { Destination, SourceRow } from "./shared";
 import type { useCrm } from "./useCrm";
 
@@ -89,6 +90,8 @@ export function Sync(props: Props) {
             <WebhookPane {...props} hooks={hooks} />
           ) : cur.key.startsWith("connect:") ? (
             <Start logo={cur.logo} name={cur.title} button={`Connect ${cur.title}`} onClick={() => props.navigate("settings", "sources")} />
+          ) : entryOf(tools.find((s) => s.id === cur.key)!.kind)?.lists ? (
+            <ListPane {...props} source={tools.find((s) => s.id === cur.key)!} logo={cur.logo} />
           ) : (
             <CrmPane {...props} source={tools.find((s) => s.id === cur.key)!} logo={cur.logo} />
           )}
@@ -261,6 +264,168 @@ function CrmPane({ sb, session, ws, form, formId, dests, failed, reload, patchDe
                 async () => must(await sb.rpc("form_destination_pause", { p_id: d.id, p_paused: !d.paused })),
                 d.paused ? `Leads go to ${source.name} again` : `Stopped sending to ${source.name}`,
               );
+            }}
+          >
+            {d.paused ? "Turn on" : "Turn off"}
+          </button>
+        </div>
+      </div>
+      {note.node}
+    </>
+  );
+}
+
+/** What each email tool calls the thing a person joins. */
+const LIST_WORD: Record<string, string> = { mailchimp: "Audience", kit: "Form", mailerlite: "Group" };
+
+/**
+ * An email tool (docs/integrations-plan.md step 1): each lead joins one of its lists, with tags where the tool keeps
+ * them. Subscribe: only people who ticked the consent box, or everyone.
+ */
+function ListPane({ sb, session, ws, formId, dests, failed, reload, source, logo }: Props & { source: SourceRow; logo: React.ReactNode }) {
+  const d = dests.find((x) => x.kind === "source" && x.source_id === source.id);
+  const entry = entryOf(source.kind);
+  const word = LIST_WORD[source.kind] ?? "List";
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [pickNew, setPickNew] = useState<{ id: string; name: string } | null>(null);
+  const [tag, setTag] = useState("");
+  const note = useNote();
+  const lists = useQuery(`tool_lists:${source.id}`, async () => {
+    const res = await fetch(`/api/forms/tool-lists?workspaceId=${encodeURIComponent(ws.id)}&sourceId=${encodeURIComponent(source.id)}`, { headers: { Authorization: `Bearer ${session.access_token}` } });
+    const j = (await res.json().catch(() => ({}))) as { lists?: { id: string; name: string }[]; error?: string };
+    if (!j.lists) throw new Error(j.error ?? "Couldn't read the lists.");
+    return j.lists;
+  });
+  const run = async (fn: () => Promise<unknown>, words?: string) => {
+    setError("");
+    setBusy(true);
+    try {
+      await fn();
+      if (words) note.show(words);
+      reload();
+    } catch (e) {
+      setError(errorText(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+  const save = (body: object) => postJson(session, "/api/forms/destination", { workspaceId: ws.id, formId, kind: "source", sourceId: source.id, name: source.name, ...body });
+  const fails = useQuery(`form:${formId}:fails:${d?.id ?? ""}:${failed[d?.id ?? ""] ?? 0}`, async () => (d ? ((must(await sb.from("deliveries").select("id, error").eq("destination_id", d.id).eq("status", "failed").order("created_at", { ascending: false }).limit(200)) ?? []) as { id: string; error: string | null }[]) : []));
+  const options = (lists.data ?? []).map((l) => ({ value: l.id, label: l.name }));
+  const listPicker = (value: string, onPick: (l: { id: string; name: string }) => void) => (
+    <Select
+      value={value}
+      options={options}
+      ariaLabel={word}
+      placeholder={lists.data ? `Pick a ${word.toLowerCase()}` : "Reading…"}
+      disabled={!lists.data || busy}
+      className="h-[32px] min-w-[200px] rounded-[8px] bg-card px-[10px] text-[13px] text-ink shadow-input"
+      onChange={(id) => onPick({ id, name: lists.data?.find((l) => l.id === id)?.name ?? id })}
+    />
+  );
+
+  if (!d)
+    return (
+      <>
+        <div className="flex flex-wrap items-center gap-[10px]">
+          {logo}
+          <H3>{source.name}</H3>
+        </div>
+        <div className={CARD}>
+          <div className={CROW}>
+            <RowText title={word} />
+            {listPicker(pickNew?.id ?? "", setPickNew)}
+          </div>
+        </div>
+        <ErrorNote message={error || lists.error} />
+        <button type="button" className={`${BTN} self-start`} disabled={!pickNew || busy} onClick={() => void run(() => save({ list: pickNew }), `Leads join ${pickNew?.name ?? source.name} now`)}>
+          {`Add leads to ${source.name}`}
+        </button>
+      </>
+    );
+
+  const r: SyncRules = rulesOf(d.config) ?? { ...NEW_RULES, consent: false };
+  const pick = listOf(d.config);
+  const list = fails.data ?? [];
+  const week = failed[d.id] ?? 0;
+  const setTags = (tags: string[]) => void run(() => save({ id: d.id, tags }));
+  const addTag = () => {
+    const t = tag.trim();
+    if (!t || pick.tags.some((x) => x.toLowerCase() === t.toLowerCase())) return setTag("");
+    setTag("");
+    setTags([...pick.tags, t]);
+  };
+  return (
+    <>
+      <div className="flex flex-wrap items-center gap-[10px]">
+        {logo}
+        <H3>{source.name}</H3>
+        {d.paused ? <Badge tone="amber">Paused</Badge> : <Badge tone="green" dot>Connected</Badge>}
+      </div>
+      {list.length ? (
+        <div className="flex w-full flex-wrap items-center gap-[10px] rounded-lg bg-rose-wash px-[12px] py-[10px] text-[12.5px]">
+          <span className="min-w-0 flex-1 text-rose [overflow-wrap:anywhere]">
+            <b className="font-semibold">{`${week || list.length} ${(week || list.length) === 1 ? "lead didn't" : "leads didn't"} reach ${source.name}${week ? " this week" : ""}.`}</b> {list[0]!.error ?? ""}
+          </span>
+          <button type="button" className={GHOST_SM} disabled={busy || !pick.list} onClick={() => void run(async () => must(await sb.rpc("deliveries_replay", { p_ids: list.map((x) => x.id) })), "Sent again")}>
+            Send again
+          </button>
+        </div>
+      ) : null}
+      <ErrorNote message={error || lists.error} />
+      <div className={CARD}>
+        <div className={CROW}>
+          <RowText title={word} />
+          {listPicker(pick.list?.id ?? "", (l) => void run(() => save({ id: d.id, list: l }), `Leads join ${l.name} now`))}
+        </div>
+        {entry?.tags ? (
+          <div className={CROW}>
+            <RowText title="Tags" />
+            <div className="flex min-w-0 flex-1 flex-wrap items-center justify-end gap-[6px]">
+              {pick.tags.map((t) => (
+                <span key={t} className="inline-flex h-[26px] items-center gap-[4px] rounded-full bg-paper-deep pr-[4px] pl-[10px] text-[12px] text-ink">
+                  <span className="[overflow-wrap:anywhere]">{t}</span>
+                  <button type="button" aria-label={`Remove ${t}`} title={`Remove ${t}`} disabled={busy} onClick={() => setTags(pick.tags.filter((x) => x !== t))} className="inline-flex size-[18px] items-center justify-center rounded-full text-muted hover:bg-hover hover:text-ink">
+                    <Ic n="x" />
+                  </button>
+                </span>
+              ))}
+              {pick.tags.length < 10 ? (
+                <input
+                  value={tag}
+                  maxLength={100}
+                  aria-label="Add a tag"
+                  placeholder="Add a tag"
+                  onChange={(e) => setTag(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === ",") {
+                      e.preventDefault();
+                      addTag();
+                    }
+                  }}
+                  onBlur={addTag}
+                  className="h-[28px] w-[140px] rounded-[8px] bg-card px-[10px] text-[12.5px] text-ink shadow-input outline-none placeholder:text-faint focus:shadow-focus"
+                />
+              ) : null}
+            </div>
+          </div>
+        ) : null}
+        <div className={CROW}>
+          <RowText title="Subscribe" />
+          <Seg label="Subscribe" value={r.consent ? "consent" : "all"} onChange={(v) => void run(() => save({ id: d.id, rules: { ...r, consent: v === "consent" } }))} options={[{ value: "consent", label: "Who ticked consent" }, { value: "all", label: "Everyone" }]} />
+        </div>
+      </div>
+      <div className={CARD}>
+        <div className={CROW}>
+          <RowText title={d.paused ? `Send to ${source.name} again` : `Stop sending to ${source.name}`} />
+          <button
+            type="button"
+            className={d.paused ? GHOST_SM : GHOST_SM_RED}
+            disabled={busy}
+            onClick={async () => {
+              if (!d.paused && !(await askConfirm(`Stop adding leads to ${source.name}?`, { body: "Leads keep going to Claritia. Turn it on again any time.", ok: "Turn off", danger: true }))) return;
+              await run(async () => must(await sb.rpc("form_destination_pause", { p_id: d.id, p_paused: !d.paused })), d.paused ? `Leads go to ${source.name} again` : `Stopped sending to ${source.name}`);
             }}
           >
             {d.paused ? "Turn on" : "Turn off"}

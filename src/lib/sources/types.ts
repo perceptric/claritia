@@ -34,11 +34,23 @@ export type PushChange = { localId: string; externalId: string | null; values: R
  * assigns). autoAssign: Salesforce runs its own assignment rules on new records. create: what a new Salesforce record
  * is. optIn: the person ticked the consent box on this submission.
  */
-export type PushOptions = { owner?: "set" | "keep" | "none"; autoAssign?: boolean; create?: "Lead" | "Contact"; optIn?: boolean };
+export type PushOptions = {
+  owner?: "set" | "keep" | "none";
+  autoAssign?: boolean;
+  create?: "Lead" | "Contact";
+  optIn?: boolean;
+  /**
+   * Email tools (docs/integrations-plan.md step 1): the list, audience, form or group the person joins, its tags, and
+   * whether they may get marketing email (they ticked the consent box, or the destination adds everyone).
+   */
+  list?: string;
+  tags?: string[];
+  marketing?: boolean;
+};
 /** A record in the tool with the same name at the same company domain, found before creating a new one. */
 export type Similar = { id: string; email: string | null; name: string };
 /** `gone`: the tool no longer has the record (deleted there and the news missed); the link goes, nothing is re-created. */
-export type PushResult = { localId: string; externalId?: string; error?: string; gone?: boolean };
+export type PushResult = { localId: string; externalId?: string; error?: string; gone?: boolean; skipped?: string };
 
 export type Creds =
   | { type: "oauth"; access: string; refresh: string | null; expiresAt: number; extra?: Record<string, string> }
@@ -117,6 +129,10 @@ export type Connector = {
   /** For one webhook URL shared by every account (HubSpot): which account it's for. */
   hookAccount?(body: unknown): string | null;
   push?(ctx: Ctx, changes: PushChange[], o?: PushOptions): Promise<PushResult[]>;
+  /** Email tools: the lists (audiences, forms, groups) a person can join, for the form's Sync tab. */
+  audiences?(ctx: Ctx): Promise<{ id: string; name: string }[]>;
+  /** Email tools that keep tags on a person. */
+  tags?: boolean;
   /** Records with this first and last name and an email at this domain (the duplicate check in sync rules). */
   similar?(ctx: Ctx, p: { first: string; last: string; domain: string }): Promise<Similar[]>;
   /** Write email and form activity to the CRM, one result per item. */

@@ -34,10 +34,10 @@ test("rules: saved choices read back, unknown ones take the safe default, and no
   assert.deepEqual(rulesOf({ rules: { exists: "never", owner: "x", create: "Account" } }), { ...NEW_RULES, exists: "never" });
   assert.equal(rulesOf({ rules: { owner: "keep" } }), null, "a rule set needs exists");
   assert.equal(pushOptions(null, true), undefined);
-  assert.deepEqual(pushOptions(NEW_RULES, true), { owner: "keep", autoAssign: false, create: "Lead", optIn: true });
-  assert.deepEqual(pushOptions({ ...NEW_RULES, owner: "route" }, false), { owner: "set", autoAssign: false, create: "Lead", optIn: false });
+  assert.deepEqual(pushOptions(NEW_RULES, true), { owner: "keep", autoAssign: false, create: "Lead", optIn: true, marketing: true });
+  assert.deepEqual(pushOptions({ ...NEW_RULES, owner: "route" }, false), { owner: "set", autoAssign: false, create: "Lead", optIn: false, marketing: false });
   // The CRM assigns: Claritia never writes an owner, and Salesforce's own rules run.
-  assert.deepEqual(pushOptions({ ...NEW_RULES, assign: "crm", owner: "route" }, true), { owner: "none", autoAssign: true, create: "Lead", optIn: true });
+  assert.deepEqual(pushOptions({ ...NEW_RULES, assign: "crm", owner: "route" }, true), { owner: "none", autoAssign: true, create: "Lead", optIn: true, marketing: true });
   assert.equal(pushOptions({ ...NEW_RULES, consent: false }, true)?.optIn, false, "consent off: the box isn't sent");
 });
 

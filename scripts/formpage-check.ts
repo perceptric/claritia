@@ -128,6 +128,25 @@ try {
   await page.goto(`${base}/?form=old`);
   await tab("Build").waitFor();
 
+  // ── Sync: a lead joins an email tool's list (docs/integrations-plan.md step 1) ──
+  await tab("Sync").click();
+  await page.getByRole("button", { name: /^Mailchimp/ }).first().click();
+  await page.getByRole("button", { name: "Audience" }).click();
+  await page.getByRole("option", { name: "Webinar guests" }).click();
+  await page.getByRole("button", { name: "Add leads to Mailchimp" }).click();
+  await page.getByText("Subscribe", { exact: true }).waitFor();
+  const dest = () => page.evaluate(() => (window as unknown as { db: { dests: { config: { list?: { id: string }; tags?: string[]; rules?: { consent: boolean } } }[] } }).db.dests[0]?.config);
+  check((await dest())?.list?.id === "aud2", "Sync: an email tool takes the audience picked");
+  await page.getByLabel("Add a tag").fill("Webinar");
+  await page.getByLabel("Add a tag").press("Enter");
+  await page.waitForFunction(() => (window as unknown as { db: { dests: { config: { tags?: string[] } }[] } }).db.dests[0]?.config.tags?.includes("Webinar"));
+  check(true, "Sync: tags are added");
+  check((await dest())?.rules?.consent === true, "Sync: a new list subscribes only people who ticked consent");
+  await page.getByRole("radio", { name: "Everyone" }).or(page.getByRole("button", { name: "Everyone" })).first().click();
+  await page.waitForFunction(() => (window as unknown as { db: { dests: { config: { rules?: { consent: boolean } } }[] } }).db.dests[0]?.config.rules?.consent === false);
+  check(true, "Sync: Subscribe Everyone is saved");
+  await shot("4c-sync-list");
+
   // ── Phone width: the tabs move under the name ──
   await page.setViewportSize({ width: 390, height: 800 });
   await page.waitForTimeout(200);
