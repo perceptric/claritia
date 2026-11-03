@@ -96,7 +96,7 @@ export const FITNESS = [
     submit: "Join",
     end: ["Welcome", "Your membership starts on the date you picked."],
   }),
-  tpl("fitness.salon-booking", "fitness", "Salon booking", ["booking"], "Book services with a stylist.", {
+  tpl("fitness.salon-booking", "beauty", "Salon booking", ["booking"], "Book services with a stylist.", {
     fields: [drop("Service", ["Haircut", "Color", "Blowout", "Nails", "Facial", "Waxing"], { required: true }), text("Stylist (optional)"), date("Date", { required: true }), one("Time", DAYPART, { required: true }), fullName(), phone("Phone", { required: true }), email("Email")],
     submit: "Request booking",
     end: ["Request received", "We'll confirm your time by text."],

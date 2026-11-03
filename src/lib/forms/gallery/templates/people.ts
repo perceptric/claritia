@@ -18,7 +18,7 @@ export const HOSPITALITY = [
     ],
     end: { title: "Thanks", text: "Book a call with our events team.", booking: true },
   }),
-  tpl("hospitality.catering", "hospitality", "Catering request", ["request", "order"], "Menus, guest counts and dietary needs.", {
+  tpl("hospitality.catering", "food", "Catering request", ["request", "order"], "Menus, guest counts and dietary needs.", {
     fields: [date("Event date", { required: true }), time("Serving time"), num("Guests", { required: true, min: 1 }), one("Style", ["Buffet", "Plated", "Family style", "Drop-off"], { required: true }), many("Dietary needs", DIET), fullName(), email("Email"), phone()],
     end: ["Request received", "We'll send menu options and a quote."],
   }),
@@ -30,7 +30,7 @@ export const HOSPITALITY = [
     fields: [text("Destination", { required: true }), range("Travel dates", { required: true }), num("Travelers", { required: true, min: 1 }), money("Budget per person"), many("Interests", ["Beaches", "Culture", "Food", "Adventure", "Relaxation", "Family"]), fullName(), email("Email")],
     end: { title: "Thanks", text: "Book a call to plan your trip.", booking: true },
   }),
-  tpl("hospitality.reservation", "hospitality", "Reservation request", ["booking"], "Table requests for busy nights.", {
+  tpl("hospitality.reservation", "food", "Reservation request", ["booking"], "Table requests for busy nights.", {
     fields: [date("Date", { required: true }), time("Time", { required: true }), num("Party size", { required: true, min: 1, max: 30 }), fullName(), phone("Phone", { required: true }), email("Email"), text("Special requests")],
     submit: "Request table",
     end: ["Request received", "We'll confirm your table by text."],

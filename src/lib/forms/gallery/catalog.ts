@@ -8,10 +8,11 @@ import { EVENTS, HOSPITALITY, HR, IT, NONPROFIT } from "./templates/people.ts";
 import { SAAS } from "./templates/saas.ts";
 import { ACCOUNTING, AGENCY, CONSULTING, LEGAL } from "./templates/services.ts";
 import { AUTOMOTIVE, ECOMMERCE, EDUCATION, LOGISTICS, MANUFACTURING } from "./templates/trade.ts";
+import { FIRST_TAGS } from "./tags.ts";
 import { defaultThemes } from "./themes.ts";
 import { INDUSTRIES, type FormTemplate, type Industry, type UseCase } from "./types.ts";
 
-export const TEMPLATES: FormTemplate[] = [
+const RAW: FormTemplate[] = [
   ...GENERAL,
   ...SAAS,
   ...AGENCY,
@@ -37,6 +38,19 @@ export const TEMPLATES: FormTemplate[] = [
   ...HR,
   ...IT,
 ];
+
+/** Every template, with the first 150's menus from tags.ts. */
+export const TEMPLATES: FormTemplate[] = RAW.map((t) => {
+  const tag = FIRST_TAGS[t.id];
+  if (!tag || t.categories) return t;
+  const words = (x?: string) => (x ?? "").split(/\s+/).filter(Boolean);
+  return {
+    ...t,
+    categories: words(tag[0]),
+    teams: words(tag[1]),
+    ...(tag[2] ? { subs: words(tag[2]) } : {}),
+  };
+});
 
 const BY_ID = new Map(TEMPLATES.map((t) => [t.id, t]));
 const THEME_OF = defaultThemes(TEMPLATES);

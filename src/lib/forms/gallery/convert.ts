@@ -77,6 +77,11 @@ function fieldsFor(f: FormField, id: () => string): Field[] {
       return [{ id: base.id, key: `c.${base.id}` as FieldKey, type: "paragraph", label: "Text", required: false, content: { text: [f.label, f.help].filter(Boolean).join("\n\n").slice(0, 1000) } }];
     case "hidden":
       return [{ ...base, key: q, type: "hidden", required: false, hidden: { from: "param", name: f.key } }];
+    case "calc":
+      // The formula names other answers by key; templateForm swaps in their ids once every field has one.
+      return [{ ...base, key: q, type: "calc", required: false, calc: { formula: f.formula ?? "0", ...(f.format ? { format: f.format } : {}), ...(f.format === "money" ? { currency: f.currency ?? "USD", decimals: 0 } : {}), ...(f.visible === false ? { show: false as const } : {}) } }];
+    case "payment":
+      return [{ id: base.id, key: `c.${base.id}` as FieldKey, type: "payment", label: f.label, required: false, pay: { currency: f.currency ?? "USD", ...(f.amount ? { amount: f.amount } : { field: f.from ?? "" }) } }];
     default:
       return [];
   }
@@ -107,6 +112,13 @@ export function templateForm(t: FormTemplate, theme?: Theme): Form {
     }
     return { id: `s${i}`, ...(p.title ? { title: p.title } : {}), fields };
   });
+  // Calculations and payments name answers by key: swap in the app's field ids.
+  const idOf = (k: string) => byKey.get(k)?.app.id;
+  for (const st of steps)
+    for (const f of st.fields) {
+      if (f.type === "calc" && f.calc) f.calc.formula = f.calc.formula.replace(/\{([a-z][a-z0-9_]*)\}/g, (m, k: string) => (idOf(k) ? `{${idOf(k)}}` : m));
+      if (f.type === "payment" && f.pay?.field) f.pay.field = idOf(f.pay.field) ?? f.pay.field;
+    }
   const rules: Rule[] = [];
   for (const p of t.schema.pages)
     for (const f of p.fields) {

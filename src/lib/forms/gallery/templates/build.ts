@@ -2,7 +2,7 @@
 // refers to an earlier field by its label or key. tpl() turns a draft into a FormTemplate and checks it.
 
 import { keyFrom } from "../key.ts";
-import type { Cond, FieldKind, FormEnd, FormField, FormPage, FormTemplate, Industry, UseCase } from "../types.ts";
+import type { Cond, FieldKind, FormEnd, FormField, FormPage, FormTemplate, Industry, TemplateKit, UseCase } from "../types.ts";
 
 type Draft = Omit<FormField, "key" | "show"> & { key?: string; save?: string; show?: Cond };
 type Opts = Partial<Omit<Draft, "kind" | "label">>;
@@ -81,6 +81,15 @@ type Def = {
   phi?: boolean;
   internal?: boolean;
   version?: number;
+  /** Menus (../taxonomy.ts): categories and teams as space-separated ids, sub-industries, other industries. */
+  cats?: string;
+  teams?: string;
+  subs?: string;
+  also?: Industry[];
+  mode?: "screens";
+  kit?: TemplateKit;
+  seasons?: number[];
+  added?: string;
 };
 
 export function tpl(id: string, industry: Industry, name: string, tags: UseCase[], blurb: string, d: Def): FormTemplate {
@@ -117,6 +126,14 @@ export function tpl(id: string, industry: Industry, name: string, tags: UseCase[
     ...(d.featured ? { featured: true } : {}),
     ...(d.phi ? { phi: true } : {}),
     ...(d.internal ? { internal: true } : {}),
+    ...(d.cats ? { categories: d.cats.split(/\s+/).filter(Boolean) } : {}),
+    ...(d.teams ? { teams: d.teams.split(/\s+/).filter(Boolean) } : {}),
+    ...(d.subs ? { subs: d.subs.split(/\s+/).filter(Boolean) } : {}),
+    ...(d.also?.length ? { also: d.also } : {}),
+    ...(d.mode ? { mode: d.mode } : {}),
+    ...(d.kit ? { kit: d.kit } : {}),
+    ...(d.seasons?.length ? { seasons: d.seasons } : {}),
+    ...(d.added ? { added: d.added } : {}),
     schema: { v: 1, title: name, ...(d.intro ? { intro: d.intro } : {}), pages, submit: d.submit ?? "Submit", end },
   };
 }

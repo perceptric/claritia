@@ -114,6 +114,20 @@ const BY_INDUSTRY: Record<string, string[]> = {
   nonprofit: ["grove", "sunrise", "coral", "tide"],
   hr: ["lilac", "mint", "paper", "tide"],
   it: ["terminal", "midnight", "harbor", "studio"],
+  beauty: ["bubblegum", "lilac", "clay", "noir", "coral"],
+  food: ["clay", "retro", "coral", "sunrise", "gilded"],
+  creative: ["editorial", "noir", "poster", "studio"],
+  coaching: ["sunrise", "grove", "lilac", "editorial"],
+  pets: ["mint", "sunrise", "bubblegum", "grove"],
+  faith: ["grove", "paper", "sunrise", "tide"],
+  sports: ["poster", "midnight", "retro", "coral"],
+  government: ["harbor", "paper", "tide", "editorial"],
+  media: ["editorial", "noir", "studio", "poster"],
+  retail: ["coral", "bubblegum", "studio", "retro"],
+  architecture: ["studio", "editorial", "noir", "clay"],
+  security: ["terminal", "midnight", "harbor", "noir"],
+  agriculture: ["grove", "clay", "sunrise", "mint"],
+  personal: ["lilac", "sunrise", "bubblegum", "paper", "coral"],
 };
 
 /** Each template's own style: the industry's styles in turn, in the order its templates appear. */

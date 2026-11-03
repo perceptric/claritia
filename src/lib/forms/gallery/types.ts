@@ -27,7 +27,9 @@ export type FieldKind =
   | "file"
   | "signature"
   | "statement"
-  | "hidden";
+  | "hidden"
+  | "calc"
+  | "payment";
 
 export const KINDS: { value: FieldKind; label: string; group: string }[] = [
   { value: "short_text", label: "Short text", group: "Text" },
@@ -56,6 +58,8 @@ export const KINDS: { value: FieldKind; label: string; group: string }[] = [
   { value: "signature", label: "Signature", group: "Files" },
   { value: "statement", label: "Statement", group: "Layout" },
   { value: "hidden", label: "Hidden", group: "Layout" },
+  { value: "calc", label: "Calculation", group: "Money" },
+  { value: "payment", label: "Payment", group: "Money" },
 ];
 
 export const KIND_LABEL = Object.fromEntries(KINDS.map((k) => [k.value, k.label])) as Record<FieldKind, string>;
@@ -65,7 +69,7 @@ export const CHOICE_KINDS = new Set<FieldKind>(["single", "multi", "dropdown", "
 /** Kinds small enough to sit two to a row; the rest always take the full width. */
 export const HALF_KINDS = new Set<FieldKind>(["short_text", "email", "phone", "url", "number", "money", "date", "time", "dropdown"]);
 /** Kinds that show something but take no answer. */
-export const NO_ANSWER = new Set<FieldKind>(["statement"]);
+export const NO_ANSWER = new Set<FieldKind>(["statement", "calc", "payment"]);
 
 /** When a field shows: compared with an earlier field's answer. */
 export type Cond = {
@@ -102,6 +106,13 @@ export type FormField = {
   map?: string;
   show?: Cond;
   half?: boolean;
+  /** calc: other answers as {key}, with + - * / ( ) min max round if; how the result shows; false keeps it out of sight. */
+  formula?: string;
+  format?: "number" | "money" | "percent";
+  visible?: boolean;
+  /** payment: a fixed amount, or the key of the calc to charge. */
+  amount?: number;
+  from?: string;
 };
 
 export type FormPage = { title?: string; fields: FormField[] };
@@ -168,7 +179,21 @@ export type Industry =
   | "events"
   | "nonprofit"
   | "hr"
-  | "it";
+  | "it"
+  | "beauty"
+  | "food"
+  | "creative"
+  | "coaching"
+  | "pets"
+  | "faith"
+  | "sports"
+  | "government"
+  | "media"
+  | "retail"
+  | "architecture"
+  | "security"
+  | "agriculture"
+  | "personal";
 
 export const INDUSTRIES: { value: Industry; label: string }[] = [
   { value: "general", label: "Any business" },
@@ -184,7 +209,8 @@ export const INDUSTRIES: { value: Industry; label: string }[] = [
   { value: "solar", label: "Solar and energy" },
   { value: "healthcare", label: "Healthcare" },
   { value: "wellness", label: "Dental, wellness and therapy" },
-  { value: "fitness", label: "Fitness and beauty" },
+  { value: "fitness", label: "Fitness" },
+  { value: "beauty", label: "Beauty and salons" },
   { value: "education", label: "Education and training" },
   { value: "ecommerce", label: "Ecommerce and retail" },
   { value: "manufacturing", label: "Manufacturing" },
@@ -195,6 +221,19 @@ export const INDUSTRIES: { value: Industry; label: string }[] = [
   { value: "nonprofit", label: "Nonprofits" },
   { value: "hr", label: "HR and recruiting" },
   { value: "it", label: "IT services" },
+  { value: "food", label: "Restaurants and food" },
+  { value: "creative", label: "Photography and creative" },
+  { value: "coaching", label: "Coaching" },
+  { value: "pets", label: "Veterinary and pets" },
+  { value: "faith", label: "Faith communities" },
+  { value: "sports", label: "Sports clubs" },
+  { value: "government", label: "Government and public" },
+  { value: "media", label: "Media and publishing" },
+  { value: "retail", label: "Retail stores" },
+  { value: "architecture", label: "Architecture and design" },
+  { value: "security", label: "Security" },
+  { value: "agriculture", label: "Agriculture" },
+  { value: "personal", label: "Personal" },
 ];
 
 export type UseCase = "lead" | "booking" | "survey" | "application" | "order" | "registration" | "feedback" | "quiz" | "intake" | "request";
@@ -226,18 +265,41 @@ export type FormTemplate = {
   phi?: boolean;
   /** Consent block off by default (internal forms). */
   internal?: boolean;
+  /** The menus set by hand (taxonomy.ts): 1 to 3 categories and teams, sub-industries, other industries it fits. */
+  categories?: string[];
+  teams?: string[];
+  subs?: string[];
+  also?: Industry[];
+  /** One question at a time. */
+  mode?: "screens";
+  /** What Use template sets up beside the form (docs/form-templates-plan.md 5.1). */
+  kit?: TemplateKit;
+  /** Months it's featured in (1 to 12), for the seasonal rows. */
+  seasons?: number[];
+  /** When it joined the catalog, yyyy-mm-dd. */
+  added?: string;
   schema: FormSchema;
 };
 
+/** A route by answer: when the condition holds, the meeting goes to this kind of teammate. */
+export type KitRoute = { when: Cond; to: string };
+/** One follow-up email after the send: days after, subject and body (with {first_name} and the like). */
+export type KitEmail = { days: number; subject: string; body: string };
+export type TemplateKit = {
+  /** The meeting a booking template books: its name and length in minutes. */
+  meeting?: { name: string; minutes: number };
+  routes?: KitRoute[];
+  followUp?: KitEmail[];
+};
+
 /** Answer values, by kind. */
-export type FileRef = { name: string; path: string; size: number; type: string };
-export type Answer =
-  | string
-  | number
-  | boolean
-  | string[]
-  | Record<string, string>
-  | FileRef[];
+export type FileRef = {
+  name: string;
+  path: string;
+  size: number;
+  type: string;
+};
+export type Answer = string | number | boolean | string[] | Record<string, string> | FileRef[];
 export type Answers = Record<string, Answer>;
 
 export const KEY_RE = /^[a-z][a-z0-9_]{0,39}$/;
