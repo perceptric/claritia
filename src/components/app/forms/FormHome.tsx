@@ -466,7 +466,7 @@ function FirstScreen({ onStart }: { onStart: (note?: string) => void }) {
         <br />
         <span className="text-faint">It takes your website&apos;s look.</span>
       </h1>
-      <p className="max-w-[420px] text-muted">Describe it. Claritia picks one page or steps, writes every question and sends each answer to your contacts.</p>
+      <p className="max-w-[420px] text-muted">Describe it. Claritia picks one page or several, writes every question and sends each answer to your contacts.</p>
       <AskPill value={text} onChange={setText} placeholder="A demo request for work emails, then book a call" onSend={() => text.trim() && onStart(text.trim())} shadow />
     </div>
   );

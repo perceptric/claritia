@@ -172,8 +172,8 @@ test("two steps in a row can't both have conditions, and the first step always s
   s.steps[0]!.show = { field: "size", op: "filled" };
   s.steps[2]!.show = { field: "sso", op: "is", value: "yes" };
   const texts = lintSpec(s).map((p) => p.text);
-  assert.ok(texts.includes("The first step always shows."));
-  assert.ok(texts.some((t) => t.startsWith("Steps 2 and 3 both have conditions")));
+  assert.ok(texts.includes("The first page always shows."));
+  assert.ok(texts.some((t) => t.startsWith("Pages 2 and 3 both have conditions")));
 });
 
 test("edits are all or none: one bad edit leaves the spec as it was", () => {

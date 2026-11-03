@@ -146,23 +146,23 @@ export function lintSpec(s: Spec, opts: { needEmail?: boolean } = {}): Problem[]
   const seen = new Set<string>();
   const keys = new Set<string>();
   const before = new Map<string, { step: number; f: SpecField }>();
-  if (!s.steps.length) out.push({ text: "A form needs at least one step." });
-  if (s.steps.length > LIMITS.steps) out.push({ text: `Up to ${LIMITS.steps} steps.` });
+  if (!s.steps.length) out.push({ text: "A form needs at least one page." });
+  if (s.steps.length > LIMITS.steps) out.push({ text: `Up to ${LIMITS.steps} pages.` });
   if (specFields(s).length > LIMITS.fields) out.push({ text: `Up to ${LIMITS.fields} questions.` });
   if (!s.submit.trim()) out.push({ text: "The button needs words." });
   const stepIds = new Set<string>();
   s.steps.forEach((st, si) => {
-    if (!ID.test(st.id) || stepIds.has(st.id)) out.push({ at: st.id, text: `Step ${si + 1} has a missing or repeated id.` });
+    if (!ID.test(st.id) || stepIds.has(st.id)) out.push({ at: st.id, text: `Page ${si + 1} has a missing or repeated id.` });
     stepIds.add(st.id);
-    if (!st.fields.length) out.push({ at: st.id, text: `Step ${si + 1} has no questions.` });
+    if (!st.fields.length) out.push({ at: st.id, text: `Page ${si + 1} has no questions.` });
     if (st.show) {
-      if (si === 0) out.push({ at: st.id, text: "The first step always shows." });
+      if (si === 0) out.push({ at: st.id, text: "The first page always shows." });
       const src = before.get(st.show.field);
-      if (!src || src.step >= si) out.push({ at: st.id, text: `Step ${si + 1} shows on a question that isn't on an earlier step.` });
-      else if (!STEP_OPS.includes(st.show.op) || !opsFor(src.f.type, true).includes(st.show.op)) out.push({ at: st.id, text: `Step ${si + 1} has a condition that can't be used on a step.` });
-      else out.push(...condProblems(st.show, src.f, `Step ${si + 1}`));
+      if (!src || src.step >= si) out.push({ at: st.id, text: `Page ${si + 1} shows on a question that isn't on an earlier page.` });
+      else if (!STEP_OPS.includes(st.show.op) || !opsFor(src.f.type, true).includes(st.show.op)) out.push({ at: st.id, text: `Page ${si + 1} has a condition that can't be used on a page.` });
+      else out.push(...condProblems(st.show, src.f, `Page ${si + 1}`));
       // Two steps in a row with conditions can't be told apart once the form runs: one must always show.
-      if (si > 0 && s.steps[si - 1]!.show) out.push({ at: st.id, text: `Steps ${si} and ${si + 1} both have conditions. Let one of them always show.` });
+      if (si > 0 && s.steps[si - 1]!.show) out.push({ at: st.id, text: `Pages ${si} and ${si + 1} both have conditions. Let one of them always show.` });
     }
     for (const f of st.fields) {
       const name = f.label.trim() || "A question";
@@ -563,7 +563,7 @@ function applyOne(s: Spec, e: Edit): string | null {
   switch (e.op) {
     case "add_field": {
       const st = stepOf(s, e.step);
-      if (!st) return "That step isn't on the form.";
+      if (!st) return "That page isn't on the form.";
       const input = cleanInput(e.field);
       if (!input.type) return "Say what kind of question to add.";
       const f: SpecField = { label: "", ...input, type: input.type, id: freshId(s, e.field.id) } as SpecField;
@@ -572,7 +572,7 @@ function applyOne(s: Spec, e: Edit): string | null {
       if (f.type === "file" && !f.files) f.files = { kinds: ["pdf", "image", "office"], maxMb: 10 };
       if (f.type === "rating" && !f.scale) f.scale = 5;
       const at = e.after ? st.fields.findIndex((x) => x.id === e.after) : st.fields.length - 1;
-      if (e.after && at < 0) return "The question to add after isn't on that step.";
+      if (e.after && at < 0) return "The question to add after isn't on that page.";
       st.fields.splice(at + 1, 0, f);
       return null;
     }
@@ -613,20 +613,20 @@ function applyOne(s: Spec, e: Edit): string | null {
     case "move_field": {
       const w = where(s, e.id);
       const to = stepOf(s, e.step);
-      if (!w || !to) return "That question or step isn't on the form.";
+      if (!w || !to) return "That question or page isn't on the form.";
       const [f] = w.st.fields.splice(w.i, 1);
       to.fields.splice(Math.max(0, Math.min(e.index, to.fields.length)), 0, f!);
       return null;
     }
     case "add_step": {
       const at = e.after ? s.steps.findIndex((x) => x.id === e.after) : s.steps.length - 1;
-      if (e.after && at < 0) return "That step isn't on the form.";
+      if (e.after && at < 0) return "That page isn't on the form.";
       s.steps.splice(at + 1, 0, { id: freshId(s, e.id), ...(e.title?.trim() ? { title: e.title.trim().slice(0, LIMITS.label) } : {}), fields: [] });
       return null;
     }
     case "update_step": {
       const st = stepOf(s, e.id);
-      if (!st) return "That step isn't on the form.";
+      if (!st) return "That page isn't on the form.";
       if (e.title !== undefined) {
         if (e.title.trim()) st.title = e.title.slice(0, LIMITS.label);
         else delete st.title;
@@ -637,8 +637,8 @@ function applyOne(s: Spec, e: Edit): string | null {
     }
     case "remove_step": {
       const i = s.steps.findIndex((x) => x.id === e.id);
-      if (i < 0) return "That step isn't on the form.";
-      if (s.steps.length === 1) return "A form needs at least one step.";
+      if (i < 0) return "That page isn't on the form.";
+      if (s.steps.length === 1) return "A form needs at least one page.";
       const [gone] = s.steps.splice(i, 1);
       // Its questions join the step before (or the next one, for the first step).
       const into = s.steps[Math.max(0, i - 1)]!;
@@ -649,7 +649,7 @@ function applyOne(s: Spec, e: Edit): string | null {
     }
     case "move_step": {
       const i = s.steps.findIndex((x) => x.id === e.id);
-      if (i < 0) return "That step isn't on the form.";
+      if (i < 0) return "That page isn't on the form.";
       const [st] = s.steps.splice(i, 1);
       s.steps.splice(Math.max(0, Math.min(e.index, s.steps.length)), 0, st!);
       return null;
@@ -681,7 +681,7 @@ function dropReads(s: Spec, id: string) {
 export function readersOf(s: Spec, id: string): string[] {
   const out: string[] = [];
   s.steps.forEach((st, i) => {
-    if (st.show?.field === id) out.push(st.title || `Step ${i + 1}`);
+    if (st.show?.field === id) out.push(st.title || `Page ${i + 1}`);
     for (const f of st.fields) if (f.show?.conds.some((c) => c.field === id)) out.push(f.label || "a question");
   });
   return out;
@@ -785,7 +785,7 @@ function chunk(fields: SpecField[], per: number): SpecField[][] {
  */
 export function fitLayout(s: Spec): { spec: Spec; changed: string | null } {
   const n = questionCount(s);
-  if (s.steps.length === 1 && n > 8) return { spec: toSteps(s), changed: `${n} questions are too many for one page, so it's in steps.` };
+  if (s.steps.length === 1 && n > 8) return { spec: toSteps(s), changed: `${n} questions are too many for one page, so it's split into pages.` };
   if (s.steps.length > 1 && n <= 4 && !s.steps.some((st) => st.show)) {
     const one = toOnePage(s);
     if (one) return { spec: one, changed: `${n} questions fit on one page.` };
@@ -802,14 +802,14 @@ export function fitLayout(s: Spec): { spec: Spec; changed: string | null } {
       parts.forEach((fields, i) => steps.push({ ...(i === 0 ? st : { id: newSpecId(), ...(st.title ? { title: st.title } : {}) }), fields }));
     }
     out.steps = steps;
-    if (!lintSpec(out).length) return { spec: out, changed: "Long steps are split, five questions a step." };
+    if (!lintSpec(out).length) return { spec: out, changed: "Long pages are split, five questions a page." };
   }
   return { spec: s, changed: null };
 }
 
 /** The rough sketch: each step's title and its questions in a few words. */
 export function outline(s: Spec): { title: string; items: string[] }[] {
-  return s.steps.map((st, i) => ({ title: st.title?.trim() || (s.steps.length === 1 ? s.title?.trim() || "Your form" : `Step ${i + 1}`), items: st.fields.filter(isQuestion).map((f) => f.label) }));
+  return s.steps.map((st, i) => ({ title: st.title?.trim() || (s.steps.length === 1 ? s.title?.trim() || "Your form" : `Page ${i + 1}`), items: st.fields.filter(isQuestion).map((f) => f.label) }));
 }
 
 /** A spec that's just a title, for the preview before the form is written. */

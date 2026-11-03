@@ -735,7 +735,7 @@ function Versions({ sb, formId, live, changed, onClose, onRestore }: Pick<ViewPr
   const day = (iso: string) => new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric" });
   const words = (b: Form) => {
     const n = questionsOf(b).filter((q) => q.kind !== "heading" && q.kind !== "para").length;
-    return `${b.steps.length > 1 ? `${b.steps.length} steps, ` : ""}${n} ${n === 1 ? "question" : "questions"}${b.after.schedule ? ", books a meeting" : ""}`;
+    return `${b.steps.length > 1 ? `${b.steps.length} pages, ` : ""}${n} ${n === 1 ? "question" : "questions"}${b.after.schedule ? ", books a meeting" : ""}`;
   };
   return (
     <Dialog label="Versions" onClose={onClose}>

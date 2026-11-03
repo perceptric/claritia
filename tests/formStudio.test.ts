@@ -32,7 +32,7 @@ test("content blocks keep their text, save nothing and can't be required", () =>
   assert.match(errs(withFields([{ id: "h", type: "heading", label: "" }])), /heading is empty/);
   assert.match(errs(withFields([{ id: "i", type: "image", label: "", content: { src: "http://x.com/a.png" } }])), /https/);
   // A step of only content still needs a real field.
-  assert.match(errs({ ...emptyForm(), steps: [{ id: "s1", fields: [EMAIL] }, { id: "s2", fields: [{ id: "h", type: "heading", label: "", content: { text: "Hi" } }] }] }), /Step 2 has no fields/);
+  assert.match(errs({ ...emptyForm(), steps: [{ id: "s1", fields: [EMAIL] }, { id: "s2", fields: [{ id: "h", type: "heading", label: "", content: { text: "Hi" } }] }] }), /Page 2 has no fields/);
   // Content never shows up in the answers.
   assert.deepEqual(checkAnswers(f, { e: "a@acme.com", h: "x" }).values, { email: "a@acme.com" });
 });

@@ -319,7 +319,7 @@ export const STUDIO_HTML = `
         <button class="ib" role="tab" id="t-after" data-tip="On submission" aria-label="On submission">${SVG(P.cal)}</button>
       </div>
       <span class="spacer"></span>
-      <div class="steps" id="stepBar" role="toolbar" aria-label="Steps" hidden></div>
+      <div class="steps" id="stepBar" role="toolbar" aria-label="Pages" hidden></div>
       <span class="spacer"></span>
       <div class="grp" role="group" aria-label="Device">
         <button class="ib" id="d-desk" data-tip="Desktop" aria-label="Desktop" aria-pressed="true">${SVG(P.desk)}</button>
@@ -565,7 +565,7 @@ ${CAL_CSS}
       wrap.querySelectorAll("[data-cl-book]").forEach((x) => x.replaceChildren(h("div", { class: "cl-bookph", text: "Booking calendar" })));
       // All steps at once: a divider names each.
       if (S.view === "all") {
-        stepsIn(wrap).forEach((st, i) => st.before(h("div", { class: "cl-divider", text: `Step ${i + 1}: ${stepName(st, i)}` })));
+        stepsIn(wrap).forEach((st, i) => st.before(h("div", { class: "cl-divider", text: `Page ${i + 1}: ${stepName(st, i)}` })));
         wrap.querySelector("[data-cl-thanks]")?.before(h("div", { class: "cl-divider", text: "Thank-you" }));
       }
     }
@@ -816,7 +816,7 @@ ${CAL_CSS}
   // ── Steps (multi-page forms): pills to see one step at a time, the thank-you and all of them; tools to add,
   // copy, move and remove steps. Next and send buttons follow the order. ──────────────────────────────────────
   const stepsIn = (r) => [...r.querySelectorAll("[data-cl-step]")].filter((x) => !x.parentElement?.closest("[data-cl-thanks]"));
-  const stepName = (st, i) => (st.querySelector("h1,h2,h3,h4,legend,.heading,.title,label")?.textContent || "").replace(/\s+/g, " ").trim().slice(0, 28) || `Step ${i + 1}`;
+  const stepName = (st, i) => (st.querySelector("h1,h2,h3,h4,legend,.heading,.title,label")?.textContent || "").replace(/\s+/g, " ").trim().slice(0, 28) || `Page ${i + 1}`;
   function ifWords(expr) {
     const qs = questions();
     const label = (n) => { const el = src.querySelector(`[name="${CSS.escape(n)}"]`); const lab = el?.id ? src.querySelector(`label[for="${CSS.escape(el.id)}"]`) : null; return (lab?.textContent || n.replace(/[_-]+/g, " ")).trim(); };
@@ -853,9 +853,9 @@ ${CAL_CSS}
       bar.append(h("div", { class: "tools" },
         tool("Move earlier", '<path d="m15 18-6-6 6-6"/>', () => moveStep(i, -1), i === 0),
         tool("Move later", '<path d="m9 18 6-6-6-6"/>', () => moveStep(i, 1), i === steps.length - 1),
-        tool("Add a step after", P.plus, () => addStep(i)),
-        tool("Duplicate the step", P.dup, () => dupStep(i)),
-        tool("Delete the step", P.del, () => delStep(i), steps.length < 2)));
+        tool("Add a page after", P.plus, () => addStep(i)),
+        tool("Duplicate the page", P.dup, () => dupStep(i)),
+        tool("Delete the page", P.del, () => delStep(i), steps.length < 2)));
       bar.lastChild.lastChild.classList.add("tipleft");
     }
   }
@@ -887,7 +887,7 @@ ${CAL_CSS}
     snap();
     const c = st.cloneNode(false); c.removeAttribute("data-cl-show-if"); c.id = `step${Date.now().toString(36).slice(-4)}`;
     const head = st.querySelector("h1,h2,h3,.heading");
-    c.append(head ? Object.assign(head.cloneNode(false), { textContent: "New step" }) : Object.assign(document.createElement("h2"), { textContent: "New step" }));
+    c.append(head ? Object.assign(head.cloneNode(false), { textContent: "New page" }) : Object.assign(document.createElement("h2"), { textContent: "New page" }));
     const nav = [...st.querySelectorAll("[data-cl-back],[data-cl-next],[type=submit]")].at(-1)?.parentElement;
     if (nav && nav !== st) { const row = nav.cloneNode(true); row.querySelectorAll("[id]").forEach((x) => x.removeAttribute("id")); c.append(row); }
     else { const back = st.querySelector("[data-cl-back]"); if (back) c.append(back.cloneNode(true)); }
@@ -1157,7 +1157,7 @@ ${CAL_CSS}
       return b;
     };
     openMenu($("moreBtn"), [
-      item("restart", P.restart, "Back to step 1", () => { if (S.mode !== "preview") setMode("preview"); stepAt = 0; done = false; draw(); }),
+      item("restart", P.restart, "Back to page 1", () => { if (S.mode !== "preview") setMode("preview"); stepAt = 0; done = false; draw(); }),
       live ? item("openBtn", P.open, "Open the live form", () => window.open(api.formUrl(cur.formId), "_blank", "noopener")) : null,
       S.mode === "edit" ? item("navBtn", P.layers, S.nav ? "Hide layers" : "Layers", () => { S.nav = !S.nav; $("navi").hidden = !S.nav; tree(); setTimeout(overlay, 0); }, { role: "menuitemcheckbox", "aria-checked": String(S.nav) }) : null,
     ].filter(Boolean), 220);

@@ -436,7 +436,7 @@ const EDIT_SCHEMA = {
         additionalProperties: false,
       },
     },
-    reply: { type: "string", description: "What changed, in a few words. Or why nothing could." },
+    reply: { type: "string", description: "What changed, in a few words, calling a step a page. Or why nothing could." },
   },
   required: ["edits", "reply"],
   additionalProperties: false,

@@ -448,6 +448,8 @@ export function TemplatesPage({ sb, ws, session, navigate, id }: ViewProps) {
   // In the workspace's own brand the form takes the kit's look and no style drawing.
   const form = useMemo(() => (open ? templateForm(open, kit ? undefined : theme) : null), [open, theme, kit]);
   const tokens = useMemo(() => (kit ? kit.tokens : styleTokens(theme)), [theme, kit]);
+  // The form's own background once drawn, so the frame around the preview matches it (as in the builder).
+  const [formBg, setFormBg] = useState("");
   const tags = MENUS.flatMap((m) =>
     (picks[m.id] ?? []).map((v) => ({
       m: m.id,
@@ -767,8 +769,10 @@ export function TemplatesPage({ sb, ws, session, navigate, id }: ViewProps) {
                 ))}
               </ol>
             ) : null}
-            <div className="overflow-hidden rounded-[10px] shadow-rest bg-paper-deep p-[16px]">
-              <FormPreview key={`${open.id}:${kit?.id ?? theme.id}`} form={form} tokens={tokens} logo={kit?.logo_url ?? null} />
+            <div className="flex justify-center rounded-[12px] bg-paper px-[16px] py-[24px] shadow-rest">
+              <div className="keep-light h-fit w-full max-w-[760px] min-w-0 rounded-[14px] p-[24px] shadow-[0_1px_2px_rgb(0_0_0/0.05),0_0_0_1px_rgb(0_0_0/0.06)] max-[560px]:p-[16px]" style={{ background: formBg || (tokens as { background?: string }).background || "#fff" }}>
+                <FormPreview key={`${open.id}:${kit?.id ?? theme.id}`} form={form} tokens={tokens} logo={kit?.logo_url ?? null} onBackground={setFormBg} />
+              </div>
             </div>
           </div>
         </Sheet>

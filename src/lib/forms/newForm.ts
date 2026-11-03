@@ -32,6 +32,6 @@ export function planLayout(p: Plan, layout: "page" | "steps"): Plan {
   const items = p.steps.flatMap((s) => s.items);
   if (layout === "page") return { ...p, layout, steps: [{ title: p.steps[0]?.title || p.name, items }], changed: undefined };
   const per = items.length > 8 ? 4 : Math.max(2, Math.ceil(items.length / 2));
-  const steps = Array.from({ length: Math.max(1, Math.ceil(items.length / per)) }, (_, i) => ({ title: `Step ${i + 1}`, items: items.slice(i * per, i * per + per) }));
+  const steps = Array.from({ length: Math.max(1, Math.ceil(items.length / per)) }, (_, i) => ({ title: `Page ${i + 1}`, items: items.slice(i * per, i * per + per) }));
   return { ...p, layout, steps, changed: undefined };
 }

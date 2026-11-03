@@ -661,13 +661,13 @@ export function checkForm(raw: unknown, ctx: Ctx = {}): { form: Form } | { error
   const keys = new Set<string>();
   const custom = new Set((ctx.custom ?? []).map((c) => c.key));
   const rawSteps = Array.isArray(r.steps) ? r.steps : [];
-  if (!rawSteps.length) errors.push("A form needs at least one step.");
-  if (rawSteps.length > LIMITS.steps) errors.push(`Up to ${LIMITS.steps} steps.`);
+  if (!rawSteps.length) errors.push("A form needs at least one page.");
+  if (rawSteps.length > LIMITS.steps) errors.push(`Up to ${LIMITS.steps} pages.`);
   let count = 0;
   for (const s of rawSteps.slice(0, LIMITS.steps)) {
     const so = (s && typeof s === "object" ? s : {}) as Record<string, unknown>;
     const sid = str(so.id, 24) ?? "";
-    if (!ID.test(sid)) errors.push("A step has a bad id.");
+    if (!ID.test(sid)) errors.push("A page has a bad id.");
     const fields: Field[] = [];
     for (const x of Array.isArray(so.fields) ? so.fields : []) {
       count++;
@@ -844,7 +844,7 @@ export function checkForm(raw: unknown, ctx: Ctx = {}): { form: Form } | { error
   if (count > LIMITS.fields) errors.push(`Up to ${LIMITS.fields} fields.`);
   if (!keys.has("email") && r.emailOptional !== true) errors.push("Add an email field, so each answer reaches a contact.");
   steps.forEach((s, i) => {
-    if (s.result ? !s.fields.some((f) => f.type === "result") : !s.fields.some((f) => f.type !== "hidden" && !isContent(f.type))) errors.push(s.result ? `Step ${i + 1} has no results to show.` : `Step ${i + 1} has no fields.`);
+    if (s.result ? !s.fields.some((f) => f.type === "result") : !s.fields.some((f) => f.type !== "hidden" && !isContent(f.type))) errors.push(s.result ? `Page ${i + 1} has no results to show.` : `Page ${i + 1} has no fields.`);
   });
   const fieldIds = new Set(steps.flatMap((s) => s.fields.map((f) => f.id)));
   const contentIds = new Set(steps.flatMap((s) => s.fields.filter((f) => isContent(f.type)).map((f) => f.id)));
@@ -943,8 +943,8 @@ export function checkForm(raw: unknown, ctx: Ctx = {}): { form: Form } | { error
     const to = Math.round(Number(sk.to));
     const earlier = steps.slice(0, i + 1).some((s) => s.fields.some((f) => f.id === field && !isContent(f.type)));
     const when = readCond(sk.when, types);
-    if (!earlier || typeof when === "string") errors.push(earlier && typeof when === "string" && when !== "A rule is incomplete." ? `Step ${i + 1}: ${when}` : `Step ${i + 1} skips on a field that isn't on it or before it.`);
-    else if (!Number.isFinite(to) || to <= i + 1 || to >= steps.length) errors.push(`Step ${i + 1} skips to a step that isn't after the next one.`);
+    if (!earlier || typeof when === "string") errors.push(earlier && typeof when === "string" && when !== "A rule is incomplete." ? `Page ${i + 1}: ${when}` : `Page ${i + 1} skips on a field that isn't on it or before it.`);
+    else if (!Number.isFinite(to) || to <= i + 1 || to >= steps.length) errors.push(`Page ${i + 1} skips to a page that isn't after the next one.`);
     else steps[i].skip = { when, to };
   });
   // Paths by answer: to a later step (past the next one) or, at the number of steps, the end (send now).
@@ -957,8 +957,8 @@ export function checkForm(raw: unknown, ctx: Ctx = {}): { form: Form } | { error
       const to = Math.round(Number(j?.to));
       const earlier = steps.slice(0, i + 1).some((st) => st.fields.some((f) => f.id === field && !isContent(f.type)));
       const when = readCond(j?.when, types);
-      if (!earlier || typeof when === "string") errors.push(earlier && typeof when === "string" && when !== "A rule is incomplete." ? `Step ${i + 1}: ${when}` : `Step ${i + 1} has a path on a field that isn't on it or before it.`);
-      else if (!Number.isFinite(to) || to <= i || to > steps.length || (to === i + 1 && to < steps.length)) errors.push(`Step ${i + 1} has a path to a step that isn't after it.`);
+      if (!earlier || typeof when === "string") errors.push(earlier && typeof when === "string" && when !== "A rule is incomplete." ? `Page ${i + 1}: ${when}` : `Page ${i + 1} has a path on a field that isn't on it or before it.`);
+      else if (!Number.isFinite(to) || to <= i || to > steps.length || (to === i + 1 && to < steps.length)) errors.push(`Page ${i + 1} has a path to a page that isn't after it.`);
       else out.push({ when, to });
     }
     if (out.length) steps[i].jumps = out;

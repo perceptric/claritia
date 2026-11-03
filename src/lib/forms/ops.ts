@@ -432,11 +432,11 @@ export function describeOp(op: Op, before: Form): string {
     case "move_field":
       return `Moved ${label(op.id)}`;
     case "add_step":
-      return `Added a step${op.title ? `: ${op.title}` : ""}`;
+      return `Added a page${op.title ? `: ${op.title}` : ""}`;
     case "update_step":
-      return op.title !== undefined ? `Renamed step ${op.index + 1}` : op.result !== undefined ? (op.result ? `Step ${op.index + 1} shows results` : `Step ${op.index + 1} asks questions again`) : `Changed where step ${op.index + 1} goes next`;
+      return op.title !== undefined ? `Renamed page ${op.index + 1}` : op.result !== undefined ? (op.result ? `Page ${op.index + 1} shows results` : `Page ${op.index + 1} asks questions again`) : `Changed where page ${op.index + 1} goes next`;
     case "remove_step":
-      return `Removed step ${op.index + 1}`;
+      return `Removed page ${op.index + 1}`;
     case "set_rule":
       return `${op.rule.then.action === "show" ? "Show" : op.rule.then.action === "hide" ? "Hide" : "Require"} ${label(op.rule.then.field)} when ${condText(op.rule.when, label)}${op.rule.group?.when.length ? ` and ${op.rule.group.logic === "any" ? "any" : "all"} of ${op.rule.group.when.length} more` : ""}`;
     case "remove_rule":

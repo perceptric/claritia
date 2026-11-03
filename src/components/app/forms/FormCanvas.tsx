@@ -86,12 +86,12 @@ export function FormCanvas(props: CanvasProps) {
         {form.steps.map((s, si) => (
           <div key={s.id} className="flex flex-col gap-2">
             <div className="flex h-7 items-center gap-2" style={{ width: fw * z }} onClick={(e) => e.stopPropagation()}>
-              <span className="shrink-0 text-[12px] font-medium text-muted">{n > 1 ? `Step ${si + 1} of ${n}` : device === "desktop" ? "Desktop" : device === "tablet" ? "Tablet" : "Phone"}</span>
+              <span className="shrink-0 text-[12px] font-medium text-muted">{n > 1 ? `Page ${si + 1} of ${n}` : device === "desktop" ? "Desktop" : device === "tablet" ? "Tablet" : "Phone"}</span>
               {n > 1 && !locked ? (
                 <input
                   value={s.title ?? ""}
                   placeholder="Title"
-                  aria-label={`Step ${si + 1} title`}
+                  aria-label={`Page ${si + 1} title`}
                   onChange={(e) => apply({ op: "update_step", index: si, title: e.target.value })}
                   className="h-6 min-w-0 flex-1 rounded-sm border border-transparent bg-transparent px-1.5 text-[12px] text-ink outline-none placeholder:text-faint hover:border-line-strong focus:shadow-focus focus:bg-card"
                 />
@@ -101,8 +101,8 @@ export function FormCanvas(props: CanvasProps) {
               {n > 1 && !locked ? (
                 <button
                   type="button"
-                  aria-label={`Remove step ${si + 1}`}
-                  title="Remove step"
+                  aria-label={`Remove page ${si + 1}`}
+                  title="Remove page"
                   onClick={() => apply({ op: "remove_step", index: si })}
                   className="press flex size-6 items-center justify-center rounded-full text-muted hover:bg-rose-wash hover:text-rose"
                 >
@@ -126,7 +126,7 @@ export function FormCanvas(props: CanvasProps) {
             className="press inline-flex h-8 items-center gap-1.5 rounded-full bg-card shadow-outline px-3.5 text-[12.5px] font-medium text-ink hover:shadow-input-hover"
           >
             <Plus size={13} />
-            Add step
+            Add page
           </button>
         )}
       </div>

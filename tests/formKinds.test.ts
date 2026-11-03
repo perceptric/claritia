@@ -46,7 +46,7 @@ test("a path to a later step jumps over the ones between", () => {
 
 test("paths that go nowhere new are refused", () => {
   const r = checkForm({ ...emptyForm(), steps: [{ id: "s1", fields: [FIT], jumps: [{ when: { field: "fit", op: "is", value: "solo" }, to: 1 }] }, { id: "s2", fields: [q("a")] }, { id: "s3", fields: [EMAIL] }] });
-  assert.ok("errors" in r && r.errors.some((e) => /path to a step/.test(e)));
+  assert.ok("errors" in r && r.errors.some((e) => /path to a page/.test(e)));
 });
 
 test("removing a step keeps paths pointing at the same place, and adding one keeps the end the end", () => {

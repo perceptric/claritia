@@ -1203,7 +1203,7 @@ export class ClaritiaForm extends Base {
     const n = form.steps.length;
     const at = this.step + 1;
     const title = form.steps[this.step].title;
-    const text = `Step ${at} of ${n}${title ? ` · ${title}` : ""}`;
+    const text = `Page ${at} of ${n}${title ? ` · ${title}` : ""}`;
     const kind = form.layout.progress ?? "bar";
     if (kind === "none") return el("p", { class: "sr", text });
     if (kind === "dots")

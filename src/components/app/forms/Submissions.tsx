@@ -338,7 +338,7 @@ export function Submissions(props: ViewProps & { form: Form; formId: string; des
                 <table className="w-full border-collapse text-[13px]">
                   <thead>
                     <tr>
-                      {["Started", "Where they left", "Step"].map((h) => (
+                      {["Started", "Where they left", "Page"].map((h) => (
                         <Th key={h}>{h}</Th>
                       ))}
                     </tr>
@@ -348,7 +348,7 @@ export function Submissions(props: ViewProps & { form: Form; formId: string; des
                       <tr key={`${r.started_at}${i}`}>
                         <Td>{ago(r.started_at)}</Td>
                         <Td>{leftLabel(r.left_field)}</Td>
-                        <Td>{form.steps.length > 1 ? `Step ${r.step + 1}` : "One page"}</Td>
+                        <Td>{form.steps.length > 1 ? `Page ${r.step + 1}` : "One page"}</Td>
                       </tr>
                     ))}
                   </tbody>

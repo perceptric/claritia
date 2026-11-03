@@ -134,8 +134,8 @@ export function Builder(p: BuilderProps) {
     if (edit([{ op: "remove_field", id: f.id }], `Deleted ${f.label || "the question"}`) && pick?.id === f.id) setPick(null);
   };
   const removeStep = async (st: SpecStep) => {
-    if (!(await askConfirm(`Delete ${st.title || "this step"}?`, { body: "Its questions move to the step before.", ok: "Delete", danger: true }))) return;
-    if (edit([{ op: "remove_step", id: st.id }], "Deleted the step")) setPick(null);
+    if (!(await askConfirm(`Delete ${st.title || "this page"}?`, { body: "Its questions move to the page before.", ok: "Delete", danger: true }))) return;
+    if (edit([{ op: "remove_step", id: st.id }], "Deleted the page")) setPick(null);
   };
   const add = (stepId: string, type: Exclude<SpecType, "locked">) => {
     const label = SPEC_TYPES.find((t) => t.value === type)?.label ?? "Question";
@@ -181,7 +181,7 @@ export function Builder(p: BuilderProps) {
       <Outline spec={spec} pick={pick} setPick={setPick} setStep={p.setStep} edit={edit} onAdd={add} onSubmit={() => setPick({ id: SUBMIT, open: null })} submitOn={onSubmit} />
       <div className="relative flex min-h-0 min-w-0 flex-col border-x border-line bg-paper max-[860px]:border-x-0 max-[860px]:border-y">
         <div className="flex h-[44px] shrink-0 items-center gap-[8px] border-b border-line bg-card px-[12px]">
-          <span className={EYEBROW}>{onSubmit ? "Submission" : spec.steps.length > 1 ? `Step ${cur + 1} of ${spec.steps.length}` : "Form"}</span>
+          <span className={EYEBROW}>{onSubmit ? "Submission" : spec.steps.length > 1 ? `Page ${cur + 1} of ${spec.steps.length}` : "Form"}</span>
           <span className="flex-1" />
           <Seg icons label="Device" value={device} onChange={setDevice} options={[{ value: "desktop", label: <Ic n="monitor" />, title: "Desktop" }, { value: "phone", label: <Ic n="phone" />, title: "Phone" }]} />
         </div>
@@ -279,7 +279,7 @@ function Outline({ spec, pick, setPick, setStep, edit, onAdd, onSubmit, submitOn
           onDrop={(e) => {
             e.preventDefault();
             setOver(null);
-            if (drag?.kind === "step") edit([{ op: "move_step", id: drag.id, index: si }], "Moved the step");
+            if (drag?.kind === "step") edit([{ op: "move_step", id: drag.id, index: si }], "Moved the page");
             else dropOnField(st.id, st.fields.length);
             setDrag(null);
           }}
@@ -293,7 +293,7 @@ function Outline({ spec, pick, setPick, setStep, edit, onAdd, onSubmit, submitOn
               className={`mx-[8px] mt-[8px] flex h-[30px] items-center gap-[8px] rounded-md px-[8px] text-left text-[12px] font-medium ${pick?.id === st.id ? "bg-ink text-card" : "text-muted hover:bg-hover hover:text-ink"}`}
             >
               <span className="tabular-nums">{si + 1}</span>
-              <span className="min-w-0 flex-1 truncate">{st.title || `Step ${si + 1}`}</span>
+              <span className="min-w-0 flex-1 truncate">{st.title || `Page ${si + 1}`}</span>
               {st.show ? <Ic n="branch" s={12} /> : null}
             </button>
           ) : null}
@@ -359,12 +359,12 @@ function Outline({ spec, pick, setPick, setStep, edit, onAdd, onSubmit, submitOn
 function AddStep({ spec, edit }: { spec: Spec; edit: (e: Edit[], w?: string) => boolean }) {
   const add = () => {
     const id = `st${spec.steps.length + 1}${Math.random().toString(36).slice(2, 6)}`;
-    edit([{ op: "add_step", id, title: `Step ${spec.steps.length + 1}` }, { op: "add_field", step: id, field: { type: "text", label: "New question" } }], "Added a step");
+    edit([{ op: "add_step", id, title: `Page ${spec.steps.length + 1}` }, { op: "add_field", step: id, field: { type: "text", label: "New question" } }], "Added a step");
   };
   return (
     <button type="button" onClick={add} className="mx-[8px] mt-[8px] flex h-[30px] items-center gap-[8px] rounded-md px-[8px] text-left text-[12.5px] text-muted hover:bg-hover hover:text-ink">
       <Ic n="plus" s={12} />
-      Add a step
+      Add a page
     </button>
   );
 }
@@ -642,21 +642,21 @@ function StepPanel({ st, spec, edit, onRemove }: { st: SpecStep; spec: Spec; edi
   };
   return (
     <Shell
-      eyebrow={`Step ${i + 1}`}
-      title={st.title || `Step ${i + 1}`}
+      eyebrow={`Page ${i + 1}`}
+      title={st.title || `Page ${i + 1}`}
       actions={
         spec.steps.length > 1 ? (
-          <button type="button" className={IB} onClick={onRemove} aria-label="Delete step" title="Delete step">
+          <button type="button" className={IB} onClick={onRemove} aria-label="Delete page" title="Delete page">
             <Ic n="trash" />
           </button>
         ) : null
       }
     >
       <Labeled label="Title">
-        <TextBox label="Step title" value={st.title ?? ""} onChange={(v) => edit([{ op: "update_step", id: st.id, title: v }])} />
+        <TextBox label="Page title" value={st.title ?? ""} onChange={(v) => edit([{ op: "update_step", id: st.id, title: v }])} />
       </Labeled>
       {i > 0 && earlier.length ? (
-        <Labeled label="Show this step">
+        <Labeled label="Show this page">
           {st.show ? (
             <div className="flex flex-col gap-[8px] rounded-[10px] shadow-rest p-[10px]">
               <CondRow step c={st.show} sources={earlier} onChange={(c) => edit([{ op: "update_step", id: st.id, show: c }])} onRemove={() => edit([{ op: "update_step", id: st.id, show: null }], "Removed the condition")} />
@@ -664,7 +664,7 @@ function StepPanel({ st, spec, edit, onRemove }: { st: SpecStep; spec: Spec; edi
           ) : (
             <div className="flex items-center justify-between gap-[8px]">
               <span className="text-[13px] text-ink">Always</span>
-              <button type="button" className={GHOST_SM} disabled={prevHasShow || nextHasShow} title={prevHasShow || nextHasShow ? "A step next to it already has a condition" : undefined} onClick={() => edit([{ op: "update_step", id: st.id, show: blank() }], "Added logic")}>
+              <button type="button" className={GHOST_SM} disabled={prevHasShow || nextHasShow} title={prevHasShow || nextHasShow ? "A page next to it already has a condition" : undefined} onClick={() => edit([{ op: "update_step", id: st.id, show: blank() }], "Added logic")}>
                 <Ic n="branch" s={11} />
                 Add logic
               </button>

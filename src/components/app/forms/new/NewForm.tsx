@@ -416,7 +416,7 @@ export function NewForm({ sb, session, ws, navigate, site, kits: start, onClose,
           {screen === 1 ? (
             <>
               <h2 className="text-[22px] leading-[1.2] font-semibold tracking-[-0.02em] text-ink">
-                One page <span className="text-faint">or steps?</span>
+                One page <span className="text-faint">or several?</span>
               </h2>
               <Thinking text={thinking} live={stage === "planning"} reading={reading} />
               {plan ? (
