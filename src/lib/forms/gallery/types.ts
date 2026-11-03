@@ -115,7 +115,14 @@ export type FormField = {
   from?: string;
 };
 
-export type FormPage = { title?: string; fields: FormField[] };
+/**
+ * Where a page goes next (docs/multipage-forms-plan.md, Step 1), on an answer from this page or one before it.
+ * `to` is a page's place (0-based) past the next one; in `jumps`, the number of pages ends the form there (send now).
+ */
+export type PageJump = { when: Cond; to: number };
+
+/** A page. `skip`: past pages that don't apply. `jumps`: paths by answer, checked in order before `skip`. */
+export type FormPage = { title?: string; fields: FormField[]; skip?: PageJump; jumps?: PageJump[] };
 
 export type ScoreBand = { min: number; title: string; text: string };
 
@@ -137,6 +144,12 @@ export type FormSchema = {
   pages: FormPage[];
   submit: string;
   end: FormEnd;
+  /** A first screen with a title, a line and a Start button. */
+  cover?: { title: string; text?: string; button?: string };
+  /** "Save and finish later": a link by email that opens the form where they stopped. */
+  resume?: true;
+  /** After the send, a link to download a PDF copy of the answers. */
+  copy?: true;
 };
 
 /** Per-form settings that aren't part of a template. */

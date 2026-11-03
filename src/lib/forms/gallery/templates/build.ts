@@ -2,7 +2,7 @@
 // refers to an earlier field by its label or key. tpl() turns a draft into a FormTemplate and checks it.
 
 import { keyFrom } from "../key.ts";
-import type { Cond, FieldKind, FormEnd, FormField, FormPage, FormTemplate, Industry, TemplateKit, UseCase } from "../types.ts";
+import type { Cond, FieldKind, FormEnd, FormField, FormPage, FormSchema, FormTemplate, Industry, PageJump, TemplateKit, UseCase } from "../types.ts";
 
 type Draft = Omit<FormField, "key" | "show"> & { key?: string; save?: string; show?: Cond };
 type Opts = Partial<Omit<Draft, "kind" | "label">>;
@@ -71,10 +71,26 @@ export const CONTACT_PREF = ["Email", "Phone", "Text message"];
 export const DAYPART = ["Morning", "Afternoon", "Evening"];
 export const AGREE5 = ["Strongly disagree", "Disagree", "Neutral", "Agree", "Strongly agree"];
 
+/**
+ * A page path (docs/multipage-forms-plan.md): when an answer on this page or one before it (by label or key)
+ * matches, go to the page with this title (or place, 0-based), or "end" to send the form there.
+ */
+export type Path = { when: Cond; to: string | number };
+/** Go to `to` when `ref` matches: `go("Any claims?", "is", false, "Coverage")`. */
+export const go = (ref: string, op: Cond["op"], value: Cond["value"], to: string | number): Path => ({ when: { key: ref, op, value }, to });
+
+type PageDef = { title?: string; fields: Draft[]; skip?: Path; jumps?: Path[] };
+
 type Def = {
   intro?: string;
   fields?: Draft[];
-  pages?: (Draft[] | { title?: string; fields: Draft[] })[];
+  pages?: (Draft[] | PageDef)[];
+  /** A first screen with a title, a line and a Start button. */
+  cover?: FormSchema["cover"];
+  /** "Save and finish later". */
+  resume?: boolean;
+  /** A PDF copy of the answers after the send. */
+  copy?: boolean;
   submit?: string;
   end: FormEnd | [string, string];
   featured?: boolean;
@@ -115,6 +131,20 @@ export function tpl(id: string, industry: Industry, name: string, tags: UseCase[
     });
     return Array.isArray(p) ? { fields } : { title: p.title, fields };
   });
+  // Page paths: answers by label or key from this page or one before; pages by title or place; "end" sends.
+  raw.forEach((p, i) => {
+    if (Array.isArray(p) || (!p.skip && !p.jumps?.length)) return;
+    const upTo = pages.slice(0, i + 1).flatMap((x) => x.fields);
+    const path = (x: Path, what: string): PageJump => {
+      const ref = upTo.find((y) => y.key === x.when.key) ?? upTo.find((y) => y.label === x.when.key);
+      if (!ref) throw new Error(`${id}: page ${i + 1}'s ${what} is on "${x.when.key}", which isn't on it or before it`);
+      const to = x.to === "end" ? pages.length : typeof x.to === "number" ? x.to : pages.findIndex((y) => y.title === x.to);
+      if (to < 0) throw new Error(`${id}: page ${i + 1}'s ${what} goes to "${x.to}", which isn't a page title`);
+      return { when: { ...x.when, key: ref.key }, to };
+    };
+    if (p.skip) pages[i]!.skip = path(p.skip, "skip");
+    if (p.jumps?.length) pages[i]!.jumps = p.jumps.map((j) => path(j, "path"));
+  });
   const end: FormEnd = Array.isArray(d.end) ? { title: d.end[0], text: d.end[1] } : d.end;
   return {
     id,
@@ -134,7 +164,17 @@ export function tpl(id: string, industry: Industry, name: string, tags: UseCase[
     ...(d.kit ? { kit: d.kit } : {}),
     ...(d.seasons?.length ? { seasons: d.seasons } : {}),
     ...(d.added ? { added: d.added } : {}),
-    schema: { v: 1, title: name, ...(d.intro ? { intro: d.intro } : {}), pages, submit: d.submit ?? "Submit", end },
+    schema: {
+      v: 1,
+      title: name,
+      ...(d.intro ? { intro: d.intro } : {}),
+      pages,
+      submit: d.submit ?? "Submit",
+      end,
+      ...(d.cover ? { cover: d.cover } : {}),
+      ...(d.resume ? { resume: true as const } : {}),
+      ...(d.copy ? { copy: true as const } : {}),
+    },
   };
 }
 

@@ -60,8 +60,8 @@ const RAW: FormTemplate[] = [
   ...WAVE1_MONEY,
 ];
 
-/** Every template, with the first 150's menus from tags.ts. */
-export const TEMPLATES: FormTemplate[] = RAW.map((t) => {
+/** A template with its menus: the first 150 take theirs from tags.ts unless they set their own. */
+export function withMenus(t: FormTemplate): FormTemplate {
   const tag = FIRST_TAGS[t.id];
   if (!tag || t.categories) return t;
   const words = (x?: string) => (x ?? "").split(/\s+/).filter(Boolean);
@@ -71,7 +71,10 @@ export const TEMPLATES: FormTemplate[] = RAW.map((t) => {
     teams: words(tag[1]),
     ...(tag[2] ? { subs: words(tag[2]) } : {}),
   };
-});
+}
+
+/** Every template, with its menus. */
+export const TEMPLATES: FormTemplate[] = RAW.map(withMenus);
 
 const BY_ID = new Map(TEMPLATES.map((t) => [t.id, t]));
 const THEME_OF = defaultThemes(TEMPLATES);

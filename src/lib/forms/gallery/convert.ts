@@ -134,6 +134,18 @@ export function templateForm(t: FormTemplate, theme?: Theme): Form {
       }
       rules.push({ id: `r${rules.length}`, when, then: { action: "show", field: self.id } });
     }
+  // Page paths: skips past pages that don't apply, and paths by answer, on an answer from this page or one before.
+  t.schema.pages.forEach((p, i) => {
+    const at = (j: { when: GCond; to: number }) => {
+      const src = byKey.get(j.when.key);
+      const when = condFor(j.when, src?.app, src?.src);
+      return when ? { when, to: j.to } : null;
+    };
+    const skip = p.skip ? at(p.skip) : null;
+    if (skip) steps[i]!.skip = skip;
+    const jumps = (p.jumps ?? []).map(at).filter((j): j is NonNullable<typeof j> => !!j);
+    if (jumps.length) steps[i]!.jumps = jumps;
+  });
   const end = t.schema.end;
   const bands = end.score?.length ? [...end.score].sort((a, b) => b.min - a.min) : [];
   return {
@@ -144,11 +156,14 @@ export function templateForm(t: FormTemplate, theme?: Theme): Form {
       width: "narrow",
       ...(steps.length > 1 ? { progress: "bar" as const } : {}),
       ...(theme?.art ? { side: { image: `${ART_BASE}/${theme.id}.svg` } } : {}),
+      ...(t.schema.cover ? { cover: t.schema.cover } : {}),
     },
     title: t.schema.title,
     ...(t.schema.intro ? { intro: t.schema.intro } : {}),
     // Anonymous surveys (an exit interview, a safety check) ask for no email.
     ...(steps.some((s) => s.fields.some((f) => f.key === "email")) ? {} : { emailOptional: true as const }),
+    ...(t.schema.resume ? { resume: true as const } : {}),
+    ...(t.schema.copy ? { copy: true as const } : {}),
     submit: { label: t.schema.submit },
     consent: { mode: t.internal ? "off" : "by_region", label: DEFAULT_CONSENT },
     spam: { minSeconds: 2, turnstile: false },

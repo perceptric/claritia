@@ -421,7 +421,7 @@ export function NewForm({ sb, session, ws, navigate, site, kits: start, onClose,
               <Thinking text={thinking} live={stage === "planning"} reading={reading} />
               {plan ? (
                 <div className="anim-rise-sm flex flex-col gap-[12px]">
-                  <Seg label="Layout" value={plan.layout} onChange={(v) => setPlan(planLayout(plan, v))} options={[{ value: "page", label: "One page" }, { value: "steps", label: "Steps" }]} />
+                  <Seg label="Layout" value={plan.layout} onChange={(v) => setPlan(planLayout(plan, v))} options={[{ value: "page", label: "One page" }, { value: "steps", label: "Multi-page" }]} />
                   {plan.why ? <p className="text-[13px] text-body">{plan.why}</p> : null}
                   {plan.changed ? <p className="text-[12.5px] text-muted">{plan.changed}</p> : null}
                   <div className="flex flex-col gap-[6px]">
@@ -461,7 +461,7 @@ export function NewForm({ sb, session, ws, navigate, site, kits: start, onClose,
               {stage === "building" ? <Working label="Writing every question" /> : null}
               {spec ? (
                 <div className="flex flex-col gap-[10px]">
-                  <Seg label="Layout" value={layout ?? "page"} onChange={flip} options={[{ value: "page", label: "One page" }, { value: "steps", label: "Steps" }]} />
+                  <Seg label="Layout" value={layout ?? "page"} onChange={flip} options={[{ value: "page", label: "One page" }, { value: "steps", label: "Multi-page" }]} />
                   {changed ? <p className="text-[12.5px] text-muted">{changed}</p> : null}
                 </div>
               ) : null}

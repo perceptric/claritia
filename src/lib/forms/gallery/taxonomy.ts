@@ -280,7 +280,7 @@ export type Feature = (typeof FEATURES)[number]["id"];
 
 export const LAYOUTS = [
   { id: "one", label: "One page" },
-  { id: "steps", label: "Steps" },
+  { id: "steps", label: "Multi-page" },
   { id: "screens", label: "One question at a time" },
 ] as const;
 export type Layout = (typeof LAYOUTS)[number]["id"];

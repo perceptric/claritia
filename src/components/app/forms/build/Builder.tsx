@@ -687,9 +687,9 @@ function FormPanel(p: BuilderProps & { spec: Spec; setSpec: (s: Spec, w?: string
     if (to === layout) return;
     if (to === "page") {
       const one = toOnePage(spec);
-      if (!one) return p.setSaid({ words: "This form's logic needs steps.", err: true });
+      if (!one) return p.setSaid({ words: "This form's logic needs more than one page.", err: true });
       p.setSpec(one, "One page");
-    } else p.setSpec(toSteps(spec), "Steps");
+    } else p.setSpec(toSteps(spec), "Multi-page");
   };
   const learn = async () => {
     if (!hostOf(url) || learning) return;
@@ -719,7 +719,7 @@ function FormPanel(p: BuilderProps & { spec: Spec; setSpec: (s: Spec, w?: string
         <TextBox label="Button" value={spec.submit} onChange={(v) => edit([{ op: "set_form", submit: v }])} />
       </Labeled>
       <Labeled label="Layout">
-        <Seg label="Layout" value={layout} onChange={flip} options={[{ value: "page", label: "One page" }, { value: "steps", label: "Steps" }]} />
+        <Seg label="Layout" value={layout} onChange={flip} options={[{ value: "page", label: "One page" }, { value: "steps", label: "Multi-page" }]} />
       </Labeled>
       <Labeled label="Styling">
         <Select value={kit?.id ?? "claritia"} options={styleOptions} onChange={(v) => p.setKit(v === "claritia" ? null : v)} ariaLabel="Styling" />

@@ -135,6 +135,11 @@ const SORTS: { value: Sort; label: string }[] = [
   { value: "new", label: "Newest" },
   { value: "az", label: "A to Z" },
 ];
+/** The Multi-page row: the longest form templates, 4 pages or more, newest first (docs/multipage-forms-plan.md). */
+const LONG = TEMPLATES.filter((t) => t.schema.pages.length >= 4)
+  .sort((a, b) => (b.added ?? "").localeCompare(a.added ?? "") || b.schema.pages.length - a.schema.pages.length)
+  .slice(0, 12);
+
 const OWN = "own";
 
 /** The menus as they show: nested ones (categories in families, sub-industries in industries) under their parent. */
@@ -586,6 +591,22 @@ export function TemplatesPage({ sb, ws, session, navigate, id }: ViewProps) {
                 </div>
               </section>
             ) : null}
+            {!tags.length && !text ? (
+              <section aria-label="Multi-page" className="flex flex-col gap-[8px]">
+                <p className={EYEBROW}>Multi-page</p>
+                <div className="flex flex-wrap gap-[6px]">
+                  {LONG.map((t) => (
+                    <button key={t.id} type="button" onClick={() => (setPicked(look === OWN ? null : look), setError(""), setOpen(t))} className="press inline-flex h-[28px] items-center gap-[6px] rounded-full bg-card px-[12px] text-[12.5px] text-body shadow-chip hover:text-ink">
+                      {t.name}
+                      <span className="text-faint tabular-nums">{t.schema.pages.length}</span>
+                    </button>
+                  ))}
+                  <button type="button" onClick={() => setPicks({ layout: ["steps"] })} className="press inline-flex h-[28px] items-center rounded-full px-[10px] text-[12.5px] text-muted hover:text-ink">
+                    See all
+                  </button>
+                </div>
+              </section>
+            ) : null}
             <p className="text-[12.5px] text-muted tabular-nums">{list.length} form templates</p>
             {list.length ? (
               <div className="grid gap-[14px] sm:grid-cols-2 xl:grid-cols-3">
@@ -611,7 +632,8 @@ export function TemplatesPage({ sb, ws, session, navigate, id }: ViewProps) {
                         </span>
                         <span className="line-clamp-2 text-[13px] text-muted">{t.blurb}</span>
                         <span className="mt-auto pt-[6px] text-[12px] text-faint">
-                          {industryLabel(t.industry)}, {questionCount(t)} questions, {lengthLabel(t).toLowerCase()}
+                          {industryLabel(t.industry)}, {t.schema.pages.length > 1 ? `${t.schema.pages.length} pages, ` : ""}
+                          {questionCount(t)} questions, {lengthLabel(t).toLowerCase()}
                         </span>
                       </span>
                     </button>
@@ -728,6 +750,23 @@ export function TemplatesPage({ sb, ws, session, navigate, id }: ViewProps) {
                 ))}
               </div>
             </div>
+            {open.schema.pages.length > 1 ? (
+              <ol aria-label="Pages" className="flex flex-wrap items-center gap-[6px] text-[12.5px] text-body">
+                {open.schema.pages.map((p, i) => (
+                  <li key={i} className="flex items-center gap-[6px]">
+                    {i ? (
+                      <span aria-hidden="true" className="-rotate-90 text-faint">
+                        <Ic n="chev" />
+                      </span>
+                    ) : null}
+                    <span className="inline-flex h-[24px] items-center gap-[6px] rounded-full bg-card px-[10px] shadow-chip">
+                      <span className="text-faint tabular-nums">{i + 1}</span>
+                      {p.title ?? `Page ${i + 1}`}
+                    </span>
+                  </li>
+                ))}
+              </ol>
+            ) : null}
             <div className="overflow-hidden rounded-[10px] shadow-rest bg-paper-deep p-[16px]">
               <FormPreview key={`${open.id}:${kit?.id ?? theme.id}`} form={form} tokens={tokens} logo={kit?.logo_url ?? null} />
             </div>
