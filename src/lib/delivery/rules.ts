@@ -4,7 +4,7 @@
 // wins over `exists`. A destination with no rules keeps the behavior it had (answers overwrite, the owner is written).
 
 import type { Overwrite } from "../forms/schema.ts";
-import type { PushOptions } from "../sources/types.ts";
+import type { PushOptions, RowTarget } from "../sources/types.ts";
 
 export type SyncRules = {
   exists: Overwrite;
@@ -67,6 +67,15 @@ export function listOf(config: unknown): ListPick {
   const l = c.list as { id?: unknown; name?: unknown } | undefined;
   const list = l && typeof l.id === "string" && l.id.trim() && l.id.length <= 120 ? { id: l.id.trim(), name: typeof l.name === "string" ? l.name.slice(0, 200) : l.id } : null;
   return { list, tags: cleanTags(c.tags) };
+}
+
+/** A row tool destination's target (form_destinations.config.target): a spreadsheet, table or database. */
+export function targetOf(config: unknown): RowTarget | null {
+  const t = ((config && typeof config === "object" ? (config as { target?: unknown }).target : null) ?? null) as Record<string, unknown> | null;
+  if (!t || typeof t.id !== "string" || !t.id.trim() || t.id.length > 200) return null;
+  const s = (v: unknown, max: number) => (typeof v === "string" && v.trim() ? v.trim().slice(0, max) : undefined);
+  const url = s(t.url, 1000);
+  return { id: t.id.trim(), name: s(t.name, 200) ?? t.id.trim(), ...(url && /^https:\/\//.test(url) ? { url } : {}), ...(s(t.sheet, 100) ? { sheet: s(t.sheet, 100) } : {}) };
 }
 
 /** Up to 10 tags, each up to 100 characters, no repeats (case aside). */

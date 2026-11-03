@@ -4,7 +4,7 @@
 
 import type { Target } from "../contacts/fields.ts";
 
-export type Group = "crm" | "email" | "form" | "event" | "product" | "warehouse" | "api";
+export type Group = "crm" | "email" | "sheets" | "form" | "event" | "product" | "warehouse" | "api";
 export type ObjectKind = "contacts" | "companies" | "opportunities" | "lists" | "suppressions" | "events" | "records";
 
 /** One record as the tool has it. `id` is the tool's own id; `data` is flat (column → value). */
@@ -103,6 +103,11 @@ export type Ctx = {
 
 export type HookRequest = { headers: Headers; body: string; url: string; method: string };
 
+/** Where a fill's row goes: a spreadsheet (and its tab), a base's table, a database; `url` opens it. */
+export type RowTarget = { id: string; name: string; url?: string; sheet?: string };
+/** One form fill as a row: its id, when, the form, then a cell per question (named by its label). */
+export type FillRow = { id: string; at: string; form: string; cells: { name: string; value: string }[] };
+
 export type CompanyTarget = "skip" | "name" | "domain" | "industry" | "size" | "country" | `f.${string}`;
 export type ContactMap = Record<string, Target | "score" | "score_band" | "owner_crm">;
 
@@ -133,6 +138,14 @@ export type Connector = {
   audiences?(ctx: Ctx): Promise<{ id: string; name: string }[]>;
   /** Email tools that keep tags on a person. */
   tags?: boolean;
+  /**
+   * Sheets and databases (docs/integrations-plan.md step 2): one row per form fill in the destination's target (a
+   * spreadsheet, a table, a database). Columns the target doesn't have yet are added. With `retry` (the delivery ran
+   * before and may have landed), the target is searched for the fill's id first, so a retry never adds a second row.
+   */
+  append?(ctx: Ctx, target: RowTarget, row: FillRow, o: { retry: boolean }): Promise<{ externalId: string }>;
+  /** The targets a fill can go to (Airtable's tables, Notion's databases), for the form's Sync tab. */
+  targets?(ctx: Ctx): Promise<RowTarget[]>;
   /** Records with this first and last name and an email at this domain (the duplicate check in sync rules). */
   similar?(ctx: Ctx, p: { first: string; last: string; domain: string }): Promise<Similar[]>;
   /** Write email and form activity to the CRM, one result per item. */

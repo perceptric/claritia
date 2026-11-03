@@ -12,7 +12,8 @@ import { deps, type RunOpts } from "../sources/run.ts";
 import { call, push, type Deps, type PushOutcome } from "../sources/sync.ts";
 import { AuthError, RateLimited } from "../sources/types.ts";
 import { allFields, isContent, type Form } from "../forms/schema.ts";
-import { DUPLICATE, listOf, pushOptions, rulesOf } from "./rules.ts";
+import { DUPLICATE, listOf, pushOptions, rulesOf, targetOf } from "./rules.ts";
+import { fillRow } from "./fillRow.ts";
 
 export type Taken = {
   /** allow_duplicate: Create anyway was clicked on a possible duplicate. */
@@ -96,9 +97,12 @@ function recordUrl(kind: string, account: string | null, externalId: string, sec
 }
 
 async function toSource(t: Taken, d: SendDeps): Promise<Result> {
-  if (!t.contact) return { status: "skipped", reason: "No contact to send." };
   const dep = await deps(d.run, t.destination.source_id!);
-  if (!dep) return { status: "failed", error: `Connect ${t.destination.name} again.` };
+  // Sheets and databases take every fill, with or without an email (docs/integrations-plan.md step 2).
+  if (dep?.connector.append) return toRow(t, dep);
+  // A sheet whose sign-in is gone still owes this fill a row, contact or not.
+  if (!dep && (t.contact || targetOf(t.destination.config))) return { status: "failed", error: `Connect ${t.destination.name} again.` };
+  if (!t.contact || !dep) return { status: "skipped", reason: "No contact to send." };
   if (!dep.connector.push) return { status: "failed", error: `${t.destination.name} doesn't take new contacts from Claritia yet.` };
   if (dep.ctx.source.status === "paused") return { status: "retry", error: `${t.destination.name} is paused in Settings › Tools.`, retryAfterS: 1800 };
   const outcome = new Map<string, PushOutcome>();
@@ -148,6 +152,23 @@ async function toSource(t: Taken, d: SendDeps): Promise<Result> {
     if (e instanceof AuthError) return { status: "failed", error: `Sign in to ${t.destination.name} again: ${e.message}`.slice(0, 500) };
     if (e instanceof RateLimited) return { status: "retry", error: e.message, retryAfterS: e.retryAfterS };
     return { status: "retry", error: String((e as Error).message ?? e).slice(0, 500) };
+  }
+}
+
+/** A row per fill in a spreadsheet, table or database; a run after a timeout finds its row instead of adding one. */
+async function toRow(t: Taken, dep: Deps): Promise<Result> {
+  const target = targetOf(t.destination.config);
+  if (!target) return { status: "failed", error: "Pick where rows go in the form's Sync tab." };
+  if (dep.ctx.source.status === "paused") return { status: "retry", error: `${t.destination.name} is paused in Settings › Tools.`, retryAfterS: 1800 };
+  try {
+    const row = fillRow({ id: t.submission.id, created_at: t.submission.created_at, values: t.submission.values ?? {}, hidden: (t.submission.hidden ?? {}) as Record<string, string> }, { name: t.form?.name ?? "Form", body: t.form?.body ?? null });
+    const r = await dep.connector.append!(dep.ctx, target, row, { retry: t.delivery.attempts > 1 });
+    return { status: "done", externalId: r.externalId, ...(target.url ? { externalUrl: target.url } : {}) };
+  } catch (e) {
+    if (e instanceof AuthError) return { status: "failed", error: `Sign in to ${t.destination.name} again: ${e.message}`.slice(0, 500) };
+    if (e instanceof RateLimited) return { status: "retry", error: e.message, retryAfterS: e.retryAfterS };
+    const msg = String((e as Error).message ?? e).slice(0, 500);
+    return TRANSIENT.test(msg) ? { status: "retry", error: msg } : { status: "failed", error: msg };
   }
 }
 
