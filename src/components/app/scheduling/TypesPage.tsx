@@ -16,7 +16,7 @@ import { ToolIntro } from "../ToolIntro";
 import { Badge, Button, ErrorNote, errorText, invalidate, Loading, must, Page, Toggle, useQuery, type ViewProps } from "../ui";
 import { bookedBy } from "./hosts";
 import { LinkDialog } from "../meetings/LinkDialog";
-import { ShareMeeting } from "./ShareMeeting";
+import { ShareMeeting, type Pane as SharePane } from "./ShareMeeting";
 import { AvatarStack, copyText, meetingsApi, Modal, ownZone, usePeople, useWorkspaceSlug } from "../meetings/parts";
 import { ShareMenu } from "../meetings/Share";
 import { DEFAULT_SETTINGS } from "@/lib/meetings/types";
@@ -93,7 +93,9 @@ export function TypesPage(props: ViewProps & { open: string }) {
   const data = { data: list.data && extra.data ? { ...extra.data, types: list.data } : null, error: list.error || extra.error };
   const [error, setError] = useState("");
   const [linkFor, setLinkFor] = useState<string | null>(null);
+  // Share open for one type, on a pane (⋯ › Embed on a website opens the code).
   const [shareFor, setShareFor] = useState<string | null>(null);
+  const [sharePane, setSharePane] = useState<SharePane>("link");
   const [copied, setCopied] = useState<string | null>(null);
 
   const types = data.data?.types;
@@ -224,7 +226,7 @@ export function TypesPage(props: ViewProps & { open: string }) {
         </Modal>
       ) : null}
       {shareFor && slug.data && types?.some((t) => t.id === shareFor) ? (
-        <ShareMeeting session={session} ws={ws} type={types.find((t) => t.id === shareFor)!} wsSlug={slug.data} onClose={() => setShareFor(null)} onSingleUse={() => (setLinkFor(shareFor), setShareFor(null))} />
+        <ShareMeeting session={session} ws={ws} type={types.find((t) => t.id === shareFor)!} wsSlug={slug.data} start={sharePane} onClose={() => setShareFor(null)} onSingleUse={() => (setLinkFor(shareFor), setShareFor(null))} onEditPage={() => (setShareFor(null), navigate("scheduling", "booking"))} />
       ) : null}
       {linkFor ? <LinkDialog sb={sb} session={session} ws={ws} types={(types ?? []).map((t) => ({ ...t, lengths: t.settings.lengths }))} initialType={linkFor} onClose={() => setLinkFor(null)} /> : null}
       <div className="relative h-full min-h-0 overflow-hidden">
@@ -247,14 +249,15 @@ export function TypesPage(props: ViewProps & { open: string }) {
                       {sel ? <Corners /> : null}
                       <div className="flex items-start gap-2">
                         <button type="button" onClick={() => navigate("scheduling", `types/${t.id}`)} className={`min-w-0 flex-1 text-left after:absolute after:inset-0 ${t.active ? "" : "opacity-50"}`}>
-                          <h3 className="truncate text-[15px] font-semibold text-ink">{t.name}</h3>
+                          <h3 className="text-[15px] font-semibold text-ink [overflow-wrap:anywhere]">{t.name}</h3>
                         </button>
                         {!t.active ? <Badge>Off</Badge> : null}
                         {t.secret ? <Badge>Secret</Badge> : null}
                         <span className="relative z-10 -mt-1.5 -mr-2">
                           <MoreMenu
                             items={[
-                              url ? { label: "Share", run: () => setShareFor(t.id) } : null,
+                              url ? { label: "Share", run: () => (setSharePane("link"), setShareFor(t.id)) } : null,
+                              url ? { label: "Embed on a website", run: () => (setSharePane("site"), setShareFor(t.id)) } : null,
                               url ? { label: copied === t.id ? "Copied" : "Copy link", run: () => void copyText(url).then((ok) => ok && flash(t.id)) } : null,
                               url ? { label: "Open booking page", run: () => window.open(url, "_blank", "noopener") } : null,
                               { label: "New single-use link", run: () => setLinkFor(t.id) },

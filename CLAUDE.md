@@ -18,7 +18,8 @@ The sidebar is in `src/lib/nav.ts`: Forms, Meetings and Workflows with no group 
 - Never use `<select>`, `window.prompt`, `window.confirm` or `window.alert`. Use the app's own `Select` and dialog helpers (same pattern as Omniscient).
 
 ## Rule: nothing spills out of its box
-- No text or button ever runs past the edge of its card, panel or row, at any width. Rows of buttons wrap (`flex-wrap`, `min-w-0`); long words truncate. `tests/overflow.test.ts` fails on a button row that can't wrap.
+- No text or button ever runs past the edge of its card, panel or row, at any width. Rows of buttons wrap (`flex-wrap`, `min-w-0`). `tests/overflow.test.ts` fails on a button row that can't wrap.
+- Names, labels and titles are never cut short with "…": they show in full (wrapping when they must) or the layout leaves them out (an avatar with the email on hover). Cutting short is only for long data in lists and tables (a page address, a file name), with the full text on hover.
 
 ## Rule: minimal copy
 - Working screens hold labels, buttons and real errors only. No help text or cost notes.

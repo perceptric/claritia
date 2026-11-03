@@ -3,6 +3,7 @@
 // Shared parts of the Meetings screens: teammates with their booking names and photos, avatar stacks, a dialog
 // frame for the few questions that need more than askText (cancel with a reason, picking times, links), and copy.
 
+import { createPortal } from "react-dom";
 import type { Session, SupabaseClient } from "@supabase/supabase-js";
 import { useEffect, useState } from "react";
 import { X } from "../../Icons";
@@ -66,7 +67,8 @@ export function Modal({ title, onClose, children, footer, wide = false }: { titl
     window.addEventListener("keydown", key);
     return () => window.removeEventListener("keydown", key);
   }, [onClose]);
-  return (
+  // On the page's body: inside a panel that slides in, a fixed box would be held to the panel.
+  const node = (
     <div className="anim-fade fixed inset-0 z-[80] flex items-start justify-center overflow-y-auto bg-scrim px-4 py-[10vh]" onMouseDown={onClose}>
       <div role="dialog" aria-modal="true" aria-label={title} onMouseDown={(e) => e.stopPropagation()} className={`anim-rise-sm w-full overflow-hidden rounded-2xl bg-card shadow-float ${wide ? "max-w-2xl" : "max-w-md"}`}>
         <div className="flex items-center gap-2 px-6 pt-5">
@@ -80,6 +82,7 @@ export function Modal({ title, onClose, children, footer, wide = false }: { titl
       </div>
     </div>
   );
+  return typeof document === "undefined" ? node : createPortal(node, document.body);
 }
 
 export { copyText, CopyButton } from "../CopyButton";

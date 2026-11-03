@@ -38,9 +38,9 @@ export function Mark({ size = 24, className }: { size?: number; className?: stri
 /** The mark with the name in Inter. `compact` drops the name; `nameClass` hides it at some widths (the folded sidebar). */
 export function Logo({ compact = false, nameClass = "" }: { compact?: boolean; nameClass?: string }) {
   return (
-    <span className="inline-flex min-w-0 items-center gap-2">
+    <span className="inline-flex shrink-0 items-center gap-2">
       <Mark size={24} className="shrink-0" />
-      {compact ? null : <span className={`truncate font-semibold tracking-[-0.03em] text-[16px] leading-none text-ink ${nameClass}`}>Claritia</span>}
+      {compact ? null : <span className={`font-semibold tracking-[-0.03em] text-[16px] leading-none whitespace-nowrap text-ink ${nameClass}`}>Claritia</span>}
     </span>
   );
 }

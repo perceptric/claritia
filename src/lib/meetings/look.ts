@@ -1,5 +1,5 @@
 // A booking page's look (docs/scheduling-plan.md 11.3, Styling): Claritia's look or the brand kit, an accent, the
-// button shape, the welcome line, whether "Built with love by Claritia" shows, and the order of the meetings. Saved on the
+// button shape, the welcome line, whether "Built by Claritia" shows, and the order of the meetings. Saved on the
 // person's booking profile (booking_profiles.page) or on the workspace for the team page (workspaces.booking_page).
 // Every value is cleaned here before it is saved or drawn. Runs in the browser and on the server.
 

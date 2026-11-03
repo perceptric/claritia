@@ -8,6 +8,7 @@ import type { SupabaseClient, Session } from "@supabase/supabase-js";
 import { Share } from "../../src/components/app/forms/Share";
 import { ShareMeeting } from "../../src/components/app/scheduling/ShareMeeting";
 import { LinkDomainSettings } from "../../src/components/app/views/LinkDomainSettings";
+import { Sidebar } from "../../src/components/app/Sidebar";
 import { DialogHost } from "../../src/components/app/Dialogs";
 import { emptyForm, type Form } from "../../src/lib/forms/schema";
 import { toForm } from "../../src/lib/forms/spec";
@@ -79,7 +80,18 @@ function FormShare() {
 
 function App() {
   if (view === "meeting")
-    return <ShareMeeting session={session} ws={ws} type={{ id: "t1", name: "Product demo", slug: "demo", active: qs.get("off") !== "1" }} wsSlug="acme" onClose={() => {}} onSingleUse={() => {}} />;
+    return (
+      // Inside a 400 px panel that slid in with a transform, as the meeting panel does: the dialog must still cover the screen.
+      <div className="anim-panel" style={{ position: "absolute", top: 0, right: 0, bottom: 0, width: 400, transform: "translateX(0)" }}>
+        <ShareMeeting session={session} ws={ws} type={{ id: "t1", name: "Product demo", slug: "demo", active: qs.get("off") !== "1" }} wsSlug="acme" start={(qs.get("start") as "site" | null) ?? "link"} onClose={() => {}} onSingleUse={() => {}} onEditPage={() => ((window as unknown as { editPage?: boolean }).editPage = true)} />
+      </div>
+    );
+  if (view === "sidebar")
+    return (
+      <div style={{ display: "flex", height: "100vh" }} className="bg-paper">
+        <Sidebar route={"scheduling" as never} id="" navigate={() => {}} counts={{}} wsName="hoanghy2032002@gmail.com's workspace" email="hoanghy2032002@gmail.com" theme="light" onTheme={() => {}} onSignOut={() => {}} onSearch={() => {}} create={[]} />
+      </div>
+    );
   if (view === "domain")
     return (
       <div className="mx-auto max-w-[720px] p-8">

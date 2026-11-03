@@ -14,7 +14,7 @@ import { useLinkBase } from "../views/LinkDomainSettings";
 import { QrCode, signatureHtml } from "../meetings/Share";
 import { BuilderPick, CodeBox, LinkRow, SitePreview } from "../SharePieces";
 
-type Pane = "link" | "site" | "email";
+export type Pane = "link" | "site" | "email";
 
 const MODES: { v: MeetingMode; l: string; draw: React.ReactNode }[] = [
   { v: "inline", l: "In the page", draw: <i className="absolute top-[34%] right-[14%] bottom-[10%] left-[14%] rounded-[3px] bg-ink" /> },
@@ -22,8 +22,8 @@ const MODES: { v: MeetingMode; l: string; draw: React.ReactNode }[] = [
   { v: "link", l: "Your own button", draw: <><i className="absolute inset-0 bg-ink/15" /><i className="absolute top-[14%] right-[18%] bottom-[14%] left-[18%] rounded-[3px] bg-ink" /></> },
 ];
 
-export function ShareMeeting({ session, ws, type, wsSlug, onClose, onSingleUse }: Pick<ViewProps, "session" | "ws"> & { type: { id: string; name: string; slug: string; active: boolean }; wsSlug: string; onClose: () => void; onSingleUse: () => void }) {
-  const [pane, setPane] = useState<Pane>("link");
+export function ShareMeeting({ session, ws, type, wsSlug, onClose, onSingleUse, onEditPage, start = "link" }: Pick<ViewProps, "session" | "ws"> & { type: { id: string; name: string; slug: string; active: boolean }; wsSlug: string; onClose: () => void; onSingleUse: () => void; onEditPage?: () => void; start?: Pane }) {
+  const [pane, setPane] = useState<Pane>(start);
   const [o, setO] = useState<MeetingEmbed>({ mode: "inline", text: "Book a meeting", phoneFull: true });
   const [plat, setPlat] = useState<Plat>("webflow");
   const [copied, setCopied] = useState("");
@@ -78,6 +78,11 @@ export function ShareMeeting({ session, ws, type, wsSlug, onClose, onSingleUse }
         {pane === "link" ? (
           <div className="flex flex-col gap-4">
             <LinkRow url={url} disabled={!type.active} />
+            {onEditPage ? (
+              <button type="button" onClick={onEditPage} className="-mt-1 self-start text-[12.5px] font-medium text-ink underline decoration-line-strong underline-offset-[3px] hover:decoration-ink">
+                Edit booking page
+              </button>
+            ) : null}
             <div className="flex justify-center rounded-[10px] shadow-rest bg-paper py-[20px]">
               <QrCode url={url} name={type.name} center />
             </div>
@@ -108,8 +113,8 @@ export function ShareMeeting({ session, ws, type, wsSlug, onClose, onSingleUse }
                 </div>
               </div>
             ) : null}
-            <SitePreview key={o.mode} code={code} after={o.mode === "link" ? `var a=document.querySelector("[data-claritia-book]");a&&a.click();` : ""} still label="How it looks on a site" height={340} />
             <CodeBox code={code} bar={<BuilderPick value={plat} onChange={setPlat} />} />
+            <SitePreview key={o.mode} code={code} after={o.mode === "link" ? `var a=document.querySelector("[data-claritia-book]");a&&a.click();` : ""} still label="How it looks on a site" height={340} />
           </>
         ) : null}
         {pane === "email" ? (
