@@ -36,7 +36,7 @@ Templates never change a form after import.
 
 ### Website
 
-`/templates` and one page per template (`/templates/<template>`, 150 static pages) on tryclaritia.com: try the form, see what it asks, and **Use this template** opens it in the app.
+The gallery lives on the live site, tryclaritia.com (`dev-arrowsterr/claritia-site`): `/templates`, a page per industry and a page per template, where people can try the form and press **Use this template**, which opens it in the app at `/forms/templates/<template>`. The pages are static, written by `tools/templates.py` there from the data this repo exports (`node scripts/export-templates.ts > ../claritia-site/tools/templates.json`). `/templates` on the app sends people to the website.
 
 ---
 

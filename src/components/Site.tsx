@@ -7,7 +7,7 @@ const NAV = [
   { href: "/#agent", label: "Agent" },
   { href: "/#developers", label: "Developers" },
   { href: "/#security", label: "Security" },
-  { href: "/templates", label: "Templates" },
+  { href: "https://tryclaritia.com/templates", label: "Templates" },
   { href: "/#pricing", label: "Pricing" },
 ];
 
@@ -44,7 +44,7 @@ export function SiteHeader() {
 }
 
 const FOOTER: { title: string; links: [string, string][] }[] = [
-  { title: "Product", links: [["Run viewer", "/#product"], ["Agent", "/#agent"], ["Form templates", "/templates"], ["Pricing", "/#pricing"]] },
+  { title: "Product", links: [["Run viewer", "/#product"], ["Agent", "/#agent"], ["Form templates", "https://tryclaritia.com/templates"], ["Pricing", "/#pricing"]] },
   { title: "Developers", links: [["Repo files", "/#developers"], ["GitHub Action", "/#developers"], ["MCP server", "/#developers"], ["Security", "/#security"]] },
   { title: "Company", links: [["Contact", `mailto:${CONTACT_EMAIL}`]] },
 ];
