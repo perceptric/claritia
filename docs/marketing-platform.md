@@ -487,8 +487,12 @@ approvals     (id, workspace_id, kind, ref_id, payload jsonb, status, decided_by
 
 **Booking:**
 - **Owner calendar:** through Omniscient, which already syncs Google Calendar. Claritia asks Omniscient for open slots of the routed owner (needs the Omniscient API in Part 5.1).
+- **Own calendar** (Free and teams without Omniscient): one Google or Microsoft calendar connected with one click, read for busy times and written for new bookings.
 - **Fallback:** a Calendly or HubSpot Meetings link.
 - Routing picks the owner at submit (M7), so the visitor books with the right rep at once.
+- **Reminders:** a confirmation, then emails 24 hours and 1 hour before, through the jobs queue. Paid plans add SMS (Twilio, check), custom follow-ups and a no-show follow-up.
+
+**Plan limits (Part 10.2):** submissions and AI credits are counted per workspace per month in `plan_usage`. Over the cap, submissions are saved and marked `over_cap`, and the contact waits outside journeys until the cap lifts.
 
 **Data (migration `027_pages.sql`):** `pages`, `page_versions`, `page_variants`, `page_views`, `forms`, `form_fields`, `form_submissions`, `domains`, `bookings`.
 
@@ -499,6 +503,8 @@ approvals     (id, workspace_id, kind, ref_id, payload jsonb, status, decided_by
 - Progressive profiling hides known fields.
 - Server and client renders match.
 - A booking creates a meeting in a test Omniscient workspace.
+- Submission 251 on Free is saved and hidden, and shows after an upgrade. Two submissions racing for the last slot under the cap both save, and exactly one counts.
+- A reminder job that retries after a timeout sends once. A canceled booking sends no reminder.
 
 ---
 
@@ -668,6 +674,8 @@ Work on the Arrowsterr side: an API key and 3 endpoints if they don't exist yet 
 | Stripe | Week 9 | Free |
 | Slack | Week 6 (existing alerts app) | Free |
 | Calendly, HubSpot Meetings | Week 22 (booking fallback) | Free with the customer's plan |
+| Google Calendar, Microsoft Graph | Week 22 (own calendar) | Free APIs |
+| Twilio | Week 22 (SMS reminders, paid plans) | About $0.0083 per US message plus carrier fees (check) |
 | Google Ads, LinkedIn Ads | Later (ad spend in attribution) | Free APIs (check access rules) |
 
 ---
@@ -708,7 +716,7 @@ Work on the Arrowsterr side: an API key and 3 endpoints if they don't exist yet 
 | 19 | Hardening, load test, Beta launch |
 | 20 | Page blocks, editor, renderer, hosting, domains |
 | 21 | Forms, consent block, Turnstile, progressive profiling |
-| 22 | AI page build, personalization slots, A/B, booking through Omniscient |
+| 22 | AI page build, personalization slots, A/B, booking through Omniscient or one own calendar, reminders, plan limits |
 | 23 | Scores (engagement, readiness), routing rules, SLA, recycle |
 | 24 | Touches across the suite, attribution models |
 | 25 | Reports, weekly AI summary |
@@ -797,13 +805,48 @@ Website rules are in `docs/account-intelligence.md` Part 3 and `docs/identity.md
 
 | Plan | Price | Includes |
 |---|---|---|
-| Starter | $299/mo | 5,000 contacts, 25,000 emails/mo, 1 site, Website Intelligence, segments, broadcasts, 3 journeys with agent steps (review mode), Funnel QA basics |
-| Growth | $799/mo | 25,000 contacts, 100,000 emails/mo, 3 sites, unlimited journeys, review-sample and auto modes, pages and forms, personalization, attribution, Omniscient and HubSpot sync |
-| Scale | From $1,999/mo | 100,000+ contacts, dedicated sending IPs, Salesforce, Marketing Agent, SSO, priority support |
+| Free | $0 | 1 user, 1 calendar with 1 booking page, unlimited forms, 250 submissions/mo, 100 AI credits/mo, booking confirmations and email reminders, contacts, Claritia badge |
+| Starter | $299/mo | 5,000 contacts, 25,000 emails/mo, 5,000 submissions/mo, 2,000 AI credits/mo, 1 site, Website Intelligence, segments, broadcasts, 3 journeys with agent steps (review mode), Funnel QA basics |
+| Growth | $799/mo | 25,000 contacts, 100,000 emails/mo, 25,000 submissions/mo, 10,000 AI credits/mo, 3 sites, unlimited journeys, review-sample and auto modes, pages and forms, personalization, attribution, Omniscient and HubSpot sync |
+| Scale | From $1,999/mo | 100,000+ contacts, unlimited submissions, custom AI credits, dedicated sending IPs, Salesforce, Marketing Agent, SSO, priority support |
 | Suite bundle | 20% off when a team runs Arrowsterr, Claritia and Omniscient together | — |
 
-- Overages: $10 per 1,000 contacts, $1 per 1,000 emails.
-- At the cost per team in Part 11 (about $80–$104), Starter keeps about 65% gross margin and Growth about 87%.
+- Overages: $10 per 1,000 contacts, $1 per 1,000 emails, $5 per 1,000 submissions.
+- At the cost per team in Part 11 (about $82–$106), Starter keeps about 65% gross margin and Growth about 87%.
+
+### 10.1 What Free holds back
+
+| Feature | Free | Paid |
+|---|---|---|
+| Calendars | 1 calendar (Google or Microsoft), 1 booking page | More calendars, team booking, round robin (Starter) |
+| Forms | Unlimited forms, 250 submissions/mo | 5,000+ submissions/mo |
+| AI credits | 100/mo | 2,000+/mo |
+| Reminders | Booking confirmation, email reminders 24 hours and 1 hour before | SMS reminders, custom follow-up emails, no-show follow-up (Starter) |
+| Branding | Claritia badge on forms, booking pages and emails | Remove the badge (Starter), custom domain (Growth) |
+| Lead tools | Answers go to Contacts | Routing forms (Starter); partial submissions, drop-off tracking, enrichment, A/B tests (Growth) |
+| Integrations | Webhooks, CSV export | HubSpot and Omniscient (Starter), Salesforce (Scale) |
+| Users | 1 | 3 on Starter, 10 on Growth, unlimited on Scale |
+| Website Intelligence | No | Yes (it pays for Coresignal and IPinfo) |
+
+### 10.2 Plan rules
+
+- **An AI credit** is one AI action a person asks for: write a form, a booking page, a reminder, a page section. A light action (Haiku) is 1 credit, a heavy one (Sonnet page build) is 10. Journey agent steps count against emails, never credits. A step replayed from cache uses no credits.
+- **Past 250 submissions** the form keeps working and every submission is saved. Answers past the cap stay hidden until the team upgrades or the month resets, and the contact is held back from journeys. A lead is never dropped. The count resets on the 1st (on the billing day for paid plans).
+- **Past 100 AI credits** the AI buttons stop until the month resets. Forms, booking and reminders keep running.
+- **Reminders** on Free use the fixed wording. A reminder never goes out for a canceled or moved booking.
+- **Yearly billing** saves 20% (Calendly saves 17–20%, Fillout 20%, Heyflow up to 31%).
+
+### 10.3 How the market prices (checked Nov 3, 2026)
+
+| Tool | Free | Paid | Model |
+|---|---|---|---|
+| Calendly | 1 event type, 1 calendar, confirmations only | $10–16/seat yearly, $12–20 monthly. Reminders from Standard, routing from Teams | Per seat |
+| Cal.com | 1 user, unlimited events, email and SMS reminders | $12–28/user yearly. AI phone $0.29/min | Per seat |
+| Typeform | Low response cap | $28–266/mo yearly (100 to 10,000 responses) | Flat, by responses |
+| Fillout | 1,000 responses, unlimited seats | $15–75/mo. Partial submissions on Business | Flat, by responses |
+| Jotform | 5 forms, 100 submissions | $34–99/mo yearly (1,000 to 10,000 submissions) | Flat, by submissions |
+| involve.me | 50 submissions or 500 visits | $29–139/mo yearly (3 to 25 live funnels) | Flat, by funnels |
+| Heyflow | About 100 leads, 1 flow (check) | €49–239/mo (check) | Flat, by responses |
 
 ---
 
@@ -851,8 +894,24 @@ Claude prices: Haiku 5.5 $0.10/$0.50, Sonnet 5.5 $2/$10, Opus 5.5 $4/$20 per mil
 | Resend for app notifications | $20 | $90 (check) |
 | Cloudflare Turnstile | $0 (check) | $0 (check) |
 | SOC 2 compliance tool (check) | — | $850 |
-| **Total** | **$5,179** | **$40,245** |
-| **Per team** | **About $104** | **About $80** |
+| Twilio SMS reminders (about 200 per team at $0.01 with fees, check) | $100 | $1,000 |
+| **Total** | **$5,279** | **$41,245** |
+| **Per team** | **About $106** | **About $82** |
+
+### 11.4 Free teams
+
+| Line per free team per month | Cost |
+|---|---|
+| 100 AI credits (mostly Haiku, about $0.0005 per credit; all heavy Sonnet use about $1) | $0.05–$1 |
+| Up to 500 confirmation and reminder emails on SES (check) | $0.05 |
+| Storage, intake and hosting share (check) | $0.10 |
+| **Total** | **About $0.20–$1.15** |
+
+| Line | Beta (50 free teams) | Growth (500 free teams) |
+|---|---|---|
+| **Free plan total** | **About $10–$60** | **About $100–$575** |
+
+Free teams get no Website Intelligence, so they add no Coresignal or IPinfo cost.
 
 **Ways to cut the bill:**
 - Haiku for Write by default.
