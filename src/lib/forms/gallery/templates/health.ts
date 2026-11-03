@@ -1,6 +1,6 @@
 // Healthcare, dental and wellness, fitness and beauty. Forms that collect health details carry phi and stay drafts
 // until the workspace confirms a BAA (docs/form-templates.md, Healthcare).
-import { address, agree, date, DAYPART, drop, email, file, fullName, long, many, matrix, one, phone, scale, sign, stars, text, tpl, when, yesno } from "./build.ts";
+import { address, agree, date, DAYPART, drop, email, file, fullName, go, long, many, matrix, one, phone, phone2, scale, sign, stars, text, tpl, when, yesno } from "./build.ts";
 
 export const HEALTHCARE = [
   tpl("healthcare.appointment", "healthcare", "Appointment request", ["booking", "request"], "Let patients ask for an appointment.", {
@@ -19,10 +19,71 @@ export const HEALTHCARE = [
   }),
   tpl("healthcare.patient-intake", "healthcare", "New patient intake", ["intake"], "Medical history before the first visit.", {
     phi: true,
+    version: 2,
+    cover: { title: "New patient intake", text: "About 10 minutes. Have your insurance card and medicine list ready.", button: "Start" },
+    resume: true,
+    copy: true,
     pages: [
-      { title: "About you", fields: [fullName(), date("Date of birth", { required: true }), email("Email"), phone("Phone", { required: true }), address()] },
-      { title: "Health history", fields: [long("Current medicines"), long("Allergies"), many("Conditions", ["Diabetes", "High blood pressure", "Asthma", "Heart disease", "None of these"]), long("Past surgeries")] },
-      { title: "Insurance", fields: [text("Insurance provider"), text("Member ID"), file("Insurance card (front)"), agree("The information above is true and complete."), sign("Signature")] },
+      {
+        title: "About you",
+        fields: [
+          fullName(),
+          date("Date of birth", { required: true }),
+          email("Email"),
+          phone("Phone", { required: true }),
+          address(),
+          text("Emergency contact name", { required: true }),
+          phone2("Emergency contact phone", { required: true }),
+          one("How will you pay for your visits?", ["Insurance", "Self-pay"], { required: true }),
+        ],
+        skip: go("How will you pay for your visits?", "is", "Self-pay", "Your visit"),
+      },
+      {
+        title: "Insurance",
+        fields: [
+          text("Insurance provider", { required: true }),
+          text("Member ID", { required: true }),
+          text("Group number"),
+          one("Who is the policy holder?", ["Me", "My spouse or partner", "My parent", "Someone else"], { required: true }),
+          text("Policy holder's name", { show: when("Who is the policy holder?", "not", "Me") }),
+          date("Policy holder's date of birth", { show: when("Who is the policy holder?", "not", "Me") }),
+          file("Insurance card (front)"),
+          file("Insurance card (back)"),
+        ],
+      },
+      {
+        title: "Your visit",
+        fields: [
+          drop("Reason for visit", ["Checkup", "New problem", "Ongoing condition", "Follow-up", "Other"], { required: true }),
+          long("Tell us more about why you're coming in"),
+          yesno("Did another doctor refer you?"),
+          text("Referring doctor", { show: when("Did another doctor refer you?", "is", true) }),
+        ],
+      },
+      {
+        title: "Health history",
+        fields: [
+          many("Do you have or have you had any of these?", ["Diabetes", "High blood pressure", "Asthma", "Heart disease", "Cancer", "Depression or anxiety", "None of these"]),
+          long("Past surgeries and hospital stays"),
+          many("Family history", ["Diabetes", "Heart disease", "Cancer", "Stroke", "High blood pressure", "None that I know of"]),
+          one("Do you smoke or vape?", ["Never", "In the past", "Yes, now"]),
+          one("How often do you drink alcohol?", ["Never", "Monthly or less", "Weekly", "Most days"]),
+        ],
+      },
+      {
+        title: "Medicines and allergies",
+        fields: [
+          yesno("Do you take any medicines?", { required: true }),
+          long("Medicines and doses", { placeholder: "Include vitamins and supplements", show: when("Do you take any medicines?", "is", true) }),
+          yesno("Do you have any allergies?", { required: true }),
+          long("What are you allergic to, and what happens?", { show: when("Do you have any allergies?", "is", true) }),
+          text("Preferred pharmacy"),
+        ],
+      },
+      {
+        title: "Consent",
+        fields: [agree("The information above is true and complete."), agree("I agree to be treated by this practice."), agree("I have read the privacy notice."), sign("Signature")],
+      },
     ],
     end: ["Intake complete", "Thank you. We'll see you at your visit."],
   }),
@@ -92,7 +153,54 @@ export const FITNESS = [
     end: { title: "Thanks", text: "Book your first session.", booking: true },
   }),
   tpl("fitness.membership", "fitness", "Membership sign-up", ["registration", "order"], "Sign up members with a plan and signature.", {
-    fields: [fullName(), email("Email"), phone("Phone", { required: true }), one("Plan", ["Monthly", "Yearly", "Class pack", "Student"], { required: true, save: "plan" }), date("Start date", { required: true }), text("Emergency contact"), agree("I agree to the membership terms."), sign("Signature")],
+    version: 2,
+    copy: true,
+    pages: [
+      {
+        title: "Plan",
+        fields: [
+          one("Plan", ["Monthly", "Yearly", "Class pack", "Student"], { required: true, save: "plan" }),
+          date("Start date", { required: true }),
+          file("Student ID", { required: true, show: when("Plan", "is", "Student") }),
+          many("What are you most interested in?", ["Gym floor", "Group classes", "Personal training", "Pool", "Kids' programs"]),
+        ],
+      },
+      {
+        title: "About you",
+        fields: [
+          fullName(),
+          email("Email"),
+          phone("Phone", { required: true }),
+          date("Date of birth", { required: true }),
+          address(),
+          text("Emergency contact name", { required: true }),
+          phone2("Emergency contact phone", { required: true }),
+          yesno("Do you have any health conditions or injuries that affect exercise?", { required: true }),
+        ],
+        skip: go("Do you have any health conditions or injuries that affect exercise?", "is", false, "Waiver"),
+      },
+      {
+        title: "Health check",
+        fields: [
+          many("Which of these apply to you?", ["Heart condition", "High blood pressure", "Joint or back problems", "Asthma", "Recent surgery", "Pregnancy", "Other"], { required: true }),
+          long("Tell us more so we can help you train safely"),
+          yesno("Has a doctor told you to limit exercise?"),
+          file("Note from your doctor", { show: when("Has a doctor told you to limit exercise?", "is", true) }),
+        ],
+      },
+      {
+        title: "Waiver",
+        fields: [agree("I agree to the membership terms."), agree("I understand the risks of exercise and release the gym from liability."), sign("Signature")],
+      },
+      {
+        title: "Payment",
+        fields: [
+          one("How should we bill your plan?", ["Card", "Bank debit", "At the front desk"], { required: true }),
+          text("Promo code"),
+          { kind: "payment", label: "Pay the joining fee", amount: 50, currency: "USD" },
+        ],
+      },
+    ],
     submit: "Join",
     end: ["Welcome", "Your membership starts on the date you picked."],
   }),

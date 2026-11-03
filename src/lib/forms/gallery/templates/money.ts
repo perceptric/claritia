@@ -1,5 +1,5 @@
 // Financial services, insurance, real estate.
-import { address, agree, company, CONTACT_PREF, date, DAYPART, drop, email, file, files, fullName, long, many, money, num, one, phone, sign, text, THANKS, TIMELINE, tpl, when, yesno } from "./build.ts";
+import { address, agree, company, CONTACT_PREF, date, DAYPART, drop, email, file, files, fullName, long, many, money, num, one, phone, phone2, sign, text, THANKS, TIMELINE, tpl, when, yesno } from "./build.ts";
 
 const ASSETS = ["Under $100,000", "$100,000–$500,000", "$500,000–$1M", "$1M–$5M", "Over $5M"];
 
@@ -52,10 +52,63 @@ export const FINANCE = [
     end: ["Thanks, we're reviewing", "A loan officer will call within one business day."],
   }),
   tpl("finance.business-funding", "finance", "Business funding application", ["application"], "Collect revenue, history and need for funding.", {
+    version: 2,
+    cover: { title: "Business funding application", text: "About 10 minutes. Have your bank statements and tax returns ready.", button: "Start" },
+    resume: true,
+    copy: true,
     pages: [
-      { title: "Business", fields: [company("Business name", { required: true }), drop("Industry", ["Retail", "Services", "Construction", "Healthcare", "Restaurant", "Tech", "Other"], { required: true }), one("Years in business", ["Under 1", "1–2", "3–5", "5+"], { required: true }), money("Yearly revenue", { required: true })] },
-      { title: "Funding", fields: [money("Amount needed", { required: true }), one("Use of funds", ["Working capital", "Equipment", "Expansion", "Inventory", "Refinance debt"], { required: true }), files("Bank statements (last 3 months)")] },
-      { title: "Contact", fields: [fullName(), email("Email"), phone("Phone", { required: true })] },
+      {
+        title: "Business",
+        fields: [
+          company("Business name", { required: true }),
+          drop("Industry", ["Retail", "Services", "Construction", "Healthcare", "Restaurant", "Tech", "Other"], { required: true }),
+          one("Legal structure", ["Sole proprietor", "Partnership", "LLC", "Corporation", "Other"], { required: true }),
+          one("Years in business", ["Under 1", "1–2", "3–5", "5+"], { required: true }),
+          address("Business address", { required: true }),
+          num("Employees", { min: 0 }),
+        ],
+      },
+      {
+        title: "Owners",
+        fields: [
+          fullName(),
+          email("Email"),
+          phone("Phone", { required: true }),
+          num("Your share of the business (%)", { required: true, min: 0, max: 100 }),
+          one("Your credit score", ["Excellent (740+)", "Good (670–739)", "Fair (580–669)", "Below 580", "Not sure"], { required: true }),
+          yesno("Are there other owners?"),
+          long("Other owners and their shares", { show: when("Are there other owners?", "is", true) }),
+        ],
+      },
+      {
+        title: "Revenue and debts",
+        fields: [
+          money("Yearly revenue", { required: true }),
+          one("Was the business profitable last year?", ["Yes", "About even", "No", "Too new to say"]),
+          yesno("Does the business have loans or debts now?", { required: true }),
+          money("Total owed", { show: when("Does the business have loans or debts now?", "is", true) }),
+          money("Monthly debt payments", { show: when("Does the business have loans or debts now?", "is", true) }),
+          yesno("Has the business or an owner ever filed for bankruptcy?"),
+        ],
+      },
+      {
+        title: "Funding need",
+        fields: [
+          money("Amount needed", { required: true }),
+          one("Use of funds", ["Working capital", "Equipment", "Expansion", "Inventory", "Refinance debt"], { required: true }),
+          one("How soon do you need it?", ["Within a week", "Within a month", "In 1–3 months", "Just exploring"], { required: true }),
+          many("Funding you'd consider", ["Term loan", "Line of credit", "Equipment financing", "Invoice financing", "Not sure"]),
+          long("Tell us more about your plans"),
+        ],
+      },
+      {
+        title: "Documents",
+        fields: [files("Bank statements (last 3 months)"), files("Business tax returns"), file("Profit and loss statement"), files("Other documents")],
+      },
+      {
+        title: "Consent",
+        fields: [agree("The information above is true and complete."), agree("I agree to a credit check for me and the business."), sign("Signature")],
+      },
     ],
     end: { title: "Application received", text: "Book a call to go over your options.", booking: true },
   }),
@@ -148,12 +201,71 @@ export const REAL_ESTATE = [
     end: ["Welcome", "Enjoy the tour. We'll follow up with similar homes."],
   }),
   tpl("real_estate.rental-application", "real_estate", "Rental application", ["application"], "Screen renters with income, references and ID.", {
+    version: 2,
+    cover: { title: "Rental application", text: "About 10 minutes. Have your pay stubs and photo ID ready.", button: "Start" },
+    resume: true,
+    copy: true,
     pages: [
-      { title: "Applicant", fields: [fullName(), email("Email"), phone("Phone", { required: true }), date("Date of birth", { required: true }), address("Current address", { required: true })] },
-      { title: "Income", fields: [text("Employer", { required: true }), money("Monthly income", { required: true }), files("Proof of income")] },
-      { title: "Household", fields: [num("People living in the unit", { min: 1, required: true }), yesno("Any pets?"), text("Tell us about your pets", { show: when("Any pets?", "is", true) }), long("References (name and phone)")] },
-      { title: "Sign", fields: [file("Photo ID", { required: true }), agree("The information above is true."), sign("Signature")] },
+      {
+        title: "Applicant",
+        fields: [
+          fullName(),
+          email("Email"),
+          phone("Phone", { required: true }),
+          date("Date of birth", { required: true }),
+          text("Property you're applying for", { required: true }),
+          date("Move-in date you'd like", { required: true }),
+        ],
+      },
+      {
+        title: "Residence history",
+        fields: [
+          address("Current address", { required: true }),
+          one("Do you rent or own?", ["Rent", "Own", "Live with family", "Other"], { required: true }),
+          money("Monthly rent or mortgage"),
+          one("How long have you lived there?", ["Under 1 year", "1–2 years", "Over 2 years"], { required: true }),
+          { kind: "address", label: "Previous address", show: when("How long have you lived there?", "not", "Over 2 years") },
+          long("Why are you moving?"),
+        ],
+      },
+      {
+        title: "Employment and income",
+        fields: [
+          one("Employment status", ["Employed", "Self-employed", "Student", "Retired", "Not working now", "Other"], { required: true }),
+          text("Employer or business name", { show: when("Employment status", "any", ["Employed", "Self-employed"]) }),
+          text("Your job title", { show: when("Employment status", "any", ["Employed", "Self-employed"]) }),
+          one("How long have you worked there?", ["Under 1 year", "1–3 years", "Over 3 years"], { show: when("Employment status", "any", ["Employed", "Self-employed"]) }),
+          money("Monthly income before tax", { required: true }),
+          money("Other monthly income"),
+          files("Proof of income"),
+        ],
+      },
+      {
+        title: "Household and pets",
+        fields: [
+          num("People living in the unit", { min: 1, required: true }),
+          long("Other adults who will live there", { placeholder: "Name of each adult" }),
+          one("How many vehicles?", ["None", "1", "2", "3 or more"]),
+          yesno("Any pets?"),
+          text("Tell us about your pets", { placeholder: "Type, breed and weight of each", show: when("Any pets?", "is", true) }),
+        ],
+      },
+      {
+        title: "References",
+        fields: [
+          text("Current landlord's name", { show: when("Do you rent or own?", "is", "Rent") }),
+          phone2("Current landlord's phone", { show: when("Do you rent or own?", "is", "Rent") }),
+          text("Personal reference's name", { required: true }),
+          phone2("Personal reference's phone", { required: true }),
+          one("How do you know them?", ["Friend", "Coworker", "Past landlord", "Other"]),
+        ],
+      },
+      {
+        title: "Review and sign",
+        fields: [file("Photo ID", { required: true }), agree("I agree to a credit and background check."), agree("The information above is true."), sign("Signature")],
+      },
     ],
+    submit: "Submit application",
     end: ["Application received", "We'll be in touch within two business days."],
   }),
   tpl("real_estate.maintenance", "real_estate", "Maintenance request", ["request"], "Tenants report issues with photos and access.", {

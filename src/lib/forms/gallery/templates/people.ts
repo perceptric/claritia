@@ -1,5 +1,5 @@
 // Hospitality and travel, events, nonprofits, HR and recruiting, IT services.
-import { agree, company, date, drop, email, file, files, fullName, jobTitle, long, many, matrix, money, nps, num, one, phone, range, phone2, scale, stars, text, time, tpl, url, when, website, yesno, AGREE5 } from "./build.ts";
+import { address, agree, company, date, drop, email, email2, file, files, fullName, go, jobTitle, long, many, matrix, money, nps, num, one, phone, range, phone2, scale, sign, stars, text, time, tpl, url, when, website, yesno, AGREE5 } from "./build.ts";
 
 const DIET = ["None", "Vegetarian", "Vegan", "Gluten free", "Halal", "Kosher", "Other"];
 
@@ -74,7 +74,44 @@ export const EVENTS = [
 export const NONPROFIT = [
   tpl("nonprofit.volunteer", "nonprofit", "Volunteer application", ["application", "registration"], "Recruit and screen volunteers.", {
     featured: true,
-    fields: [fullName(), email("Email"), phone(), many("Interests", ["Events", "Mentoring", "Fundraising", "Office help", "Outreach", "Skilled work"], { required: true }), many("Availability", ["Weekdays", "Evenings", "Weekends"], { required: true }), long("Why do you want to volunteer?"), agree("I agree to a background check if needed.")],
+    version: 2,
+    pages: [
+      {
+        title: "About you",
+        fields: [fullName(), email("Email"), phone(), yesno("Are you 18 or older?", { required: true }), text("Emergency contact name and phone", { required: true })],
+      },
+      {
+        title: "Interests",
+        fields: [
+          many("Interests", ["Events", "Mentoring", "Fundraising", "Office help", "Outreach", "Skilled work"], { required: true }),
+          many("Skills you can share", ["Teaching", "Driving", "Languages", "Computers", "Cooking", "Building and repairs", "Other"]),
+          long("Why do you want to volunteer?"),
+          yesno("Have you volunteered before?", { required: true }),
+        ],
+      },
+      {
+        title: "Availability",
+        fields: [
+          many("Availability", ["Weekdays", "Evenings", "Weekends"], { required: true }),
+          one("How often can you help?", ["One time", "A few times a year", "Monthly", "Weekly"], { required: true }),
+          date("When can you start?"),
+        ],
+        skip: go("Have you volunteered before?", "is", false, "Background check"),
+      },
+      {
+        title: "Experience",
+        fields: [
+          text("Where did you volunteer?", { required: true }),
+          long("What did you do there?"),
+          one("How long did you volunteer there?", ["Under 6 months", "6–12 months", "1–3 years", "Over 3 years"]),
+          text("A reference from there (name and phone)"),
+        ],
+      },
+      {
+        title: "Background check",
+        fields: [yesno("Do you agree to a background check if the role needs one?", { required: true }), agree("The information I gave is true and complete."), sign("Signature")],
+      },
+    ],
     end: ["Thank you", "Our volunteer team will be in touch."],
   }),
   tpl("nonprofit.donation-pledge", "nonprofit", "Donation pledge", ["order", "lead"], "Pledges with amount and dedication.", {
@@ -83,9 +120,67 @@ export const NONPROFIT = [
     end: ["Thank you for your pledge", "We'll send a receipt and how to complete your gift."],
   }),
   tpl("nonprofit.grant-application", "nonprofit", "Grant application", ["application"], "Collect proposals and budgets.", {
+    version: 2,
+    cover: { title: "Grant application", text: "About 20 minutes. Have your budget and latest financial statement ready.", button: "Start" },
+    resume: true,
+    copy: true,
     pages: [
-      { title: "Organization", fields: [company("Organization name", { required: true }), website(), fullName("Contact name"), email()] },
-      { title: "Project", fields: [text("Project name", { required: true }), long("What will it do?", { required: true }), money("Amount requested", { required: true }), files("Budget", { required: true })] },
+      {
+        title: "Organization",
+        fields: [
+          company("Organization name", { required: true }),
+          website(),
+          one("Organization type", ["Nonprofit or charity", "School", "Faith group", "Community group", "Public agency", "Other"], { required: true }),
+          text("Tax ID or registration number"),
+          long("Your mission", { required: true }),
+          one("What are you applying for?", ["A project grant", "General operating support"], { required: true }),
+        ],
+      },
+      {
+        title: "Contact",
+        fields: [
+          fullName("Contact name"),
+          jobTitle(),
+          email("Email"),
+          phone(),
+          address("Mailing address"),
+          yesno("Have you had a grant from us before?"),
+          text("Which grant, and when?", { show: when("Have you had a grant from us before?", "is", true) }),
+        ],
+        skip: go("What are you applying for?", "is", "General operating support", "Budget"),
+      },
+      {
+        title: "Project",
+        fields: [
+          text("Project name", { required: true }),
+          long("What will it do?", { required: true }),
+          long("Who will it serve?", { required: true }),
+          num("About how many people will it reach?", { min: 0 }),
+          range("Project dates"),
+        ],
+      },
+      {
+        title: "Budget",
+        fields: [
+          money("Amount requested", { required: true }),
+          money("Total budget for this work", { required: true }),
+          one("Your organization's yearly budget", ["Under $100,000", "$100,000–$500,000", "$500,000–$1M", "$1M–$5M", "Over $5M"]),
+          long("How will you use the money?", { required: true }),
+          long("Other funding you have or have asked for"),
+        ],
+      },
+      {
+        title: "Outcomes",
+        fields: [long("What will change because of this grant?", { required: true }), long("How will you measure success?", { required: true }), long("How will the work go on after the grant?")],
+      },
+      {
+        title: "Uploads",
+        fields: [files("Budget", { required: true }), file("Proof of nonprofit status"), file("Latest financial statement"), files("Letters of support")],
+      },
+      {
+        title: "Certify",
+        fields: [agree("The information in this application is true and complete."), agree("If funded, we will use the money as described."), text("Signer's name and title", { required: true }), sign("Signature")],
+      },
     ],
     end: ["Application received", "We'll announce decisions by email."],
   }),
@@ -103,25 +198,169 @@ export const NONPROFIT = [
 export const HR = [
   tpl("hr.job-application", "hr", "Job application", ["application"], "Collect resumes and the basics for any role.", {
     featured: true,
-    fields: [fullName(), email("Email"), phone("Phone", { required: true }), text("Role applying for", { required: true }), file("Resume", { required: true }), url("LinkedIn profile"), date("Earliest start date"), long("Why this role?")],
+    version: 2,
+    cover: { title: "Job application", text: "About 10 minutes. Have your resume ready.", button: "Start" },
+    resume: true,
+    copy: true,
+    pages: [
+      {
+        title: "About you",
+        fields: [fullName(), email("Email"), phone("Phone", { required: true }), text("Where are you based?", { placeholder: "City and country" }), url("LinkedIn profile"), url("Portfolio or website")],
+      },
+      {
+        title: "The role",
+        fields: [
+          text("Role applying for", { required: true }),
+          one("Type of work", ["Full-time", "Part-time", "Contract", "Internship"], { required: true }),
+          one("Where would you like to work?", ["In the office", "Remote", "Hybrid", "Any of these"]),
+          date("Earliest start date"),
+          text("Pay you're looking for"),
+          one("Years of experience in this kind of work", ["None yet", "Under 1 year", "1–3 years", "3–5 years", "5–10 years", "Over 10 years"], { required: true }),
+        ],
+        skip: go("Years of experience in this kind of work", "is", "None yet", "Education"),
+      },
+      {
+        title: "Experience",
+        fields: [
+          text("Current or most recent employer", { required: true }),
+          text("Your job title there"),
+          yesno("Do you work there now?"),
+          long("What did you do there?"),
+          long("Other experience that fits this role"),
+        ],
+      },
+      {
+        title: "Education",
+        fields: [
+          one("Highest level of education", ["High school or equivalent", "Some college", "Associate degree", "Bachelor's degree", "Master's degree", "Doctorate", "Other"]),
+          text("School"),
+          text("Field of study"),
+          text("Licenses or certifications"),
+        ],
+      },
+      {
+        title: "A few questions",
+        fields: [
+          long("Why this role?", { required: true }),
+          long("What work are you most proud of?"),
+          yesno("Are you allowed to work in this country?", { required: true }),
+          yesno("Will you need visa sponsorship?"),
+        ],
+      },
+      {
+        title: "Uploads and consent",
+        fields: [
+          file("Resume", { required: true }),
+          file("Cover letter"),
+          files("Work samples"),
+          agree("The information I gave is true and complete."),
+          agree("You may keep my application on file for other roles.", { required: false }),
+        ],
+      },
+    ],
     submit: "Apply",
     end: ["Application received", "We'll be in touch about next steps."],
   }),
   tpl("hr.onboarding", "hr", "Employee onboarding", ["intake"], "New-hire details before day one.", {
     internal: true,
+    version: 2,
+    cover: { title: "Welcome aboard", text: "About 10 minutes. Have your tax form and bank details ready.", button: "Start" },
+    resume: true,
+    copy: true,
     pages: [
-      { title: "You", fields: [fullName(), email("Personal email"), phone(), date("Date of birth", { required: true })] },
-      { title: "Pay and tax", fields: [files("Tax form", { required: true }), text("Bank name"), files("Direct deposit form")] },
-      { title: "Emergency contact", fields: [text("Name", { required: true }), phone2("Their phone", { required: true }), one("Shirt size", ["XS", "S", "M", "L", "XL", "XXL"])] },
+      {
+        title: "You",
+        fields: [fullName(), text("Name you go by"), email("Personal email"), phone(), date("Date of birth", { required: true }), address("Home address", { required: true })],
+      },
+      {
+        title: "Pay and tax",
+        fields: [
+          files("Tax form", { required: true }),
+          one("How would you like to be paid?", ["Direct deposit", "Paper check"], { required: true }),
+          text("Bank name", { show: when("How would you like to be paid?", "is", "Direct deposit") }),
+          files("Direct deposit form", { show: when("How would you like to be paid?", "is", "Direct deposit") }),
+        ],
+      },
+      {
+        title: "Emergency contact",
+        fields: [text("Name", { required: true }), text("How are they related to you?"), phone2("Their phone", { required: true }), email2("Their email")],
+      },
+      {
+        title: "Equipment and access",
+        fields: [
+          one("Where will you work?", ["Office", "Remote", "Hybrid"], { required: true }),
+          { kind: "address", label: "Where should we ship your equipment?", show: when("Where will you work?", "any", ["Remote", "Hybrid"]) },
+          one("Computer you'd like", ["Mac", "Windows", "No preference"]),
+          long("Tools or accounts you'll need"),
+          one("Shirt size", ["XS", "S", "M", "L", "XL", "XXL"]),
+        ],
+      },
+      {
+        title: "Policies",
+        fields: [
+          agree("I have read the employee handbook."),
+          agree("I have read the code of conduct."),
+          agree("I have read the IT and security policy."),
+          yesno("May we share your photo and name on our team page?"),
+        ],
+      },
+      {
+        title: "Sign",
+        fields: [agree("The information I gave is true and complete."), sign("Signature"), date("Today's date", { required: true })],
+      },
     ],
     end: ["All set", "See you on your first day."],
   }),
   tpl("hr.engagement", "hr", "Employee engagement survey", ["survey"], "An anonymous pulse on how people feel.", {
     internal: true,
-    fields: [
-      matrix("How much do you agree?", ["I know what's expected of me", "I have what I need to do my job", "My manager supports me", "I see a future here", "I'd recommend working here"], AGREE5, { required: true }),
-      scale("How happy are you at work?", "Not happy", "Very happy", { required: true }),
-      long("What would make work better?"),
+    version: 2,
+    cover: { title: "Employee engagement survey", text: "About 5 minutes. Your answers are anonymous.", button: "Start" },
+    pages: [
+      {
+        title: "Work",
+        fields: [
+          matrix("Your work", ["I know what's expected of me", "I have what I need to do my job", "My work feels meaningful", "My workload is manageable"], AGREE5, { required: true }),
+          scale("How happy are you at work?", "Not happy", "Very happy", { required: true }),
+          long("What gets in the way of your work?"),
+        ],
+      },
+      {
+        title: "Team",
+        fields: [
+          matrix("Your team", ["People on my team help each other", "I can speak up without worry", "We share information openly", "I feel respected"], AGREE5, { required: true }),
+          long("What would help your team work better together?"),
+          yesno("Do you report to a manager?", { required: true }),
+        ],
+        skip: go("Do you report to a manager?", "is", false, "Growth"),
+      },
+      {
+        title: "Manager",
+        fields: [
+          matrix("Your manager", ["My manager supports me", "I get useful feedback", "My manager notices good work", "I can bring problems to my manager"], AGREE5, { required: true }),
+          one("How often do you meet one to one?", ["Weekly", "Every two weeks", "Monthly", "Rarely", "Never"]),
+          long("What should your manager keep doing or change?"),
+        ],
+      },
+      {
+        title: "Growth",
+        fields: [
+          matrix("Your growth", ["I'm learning new skills", "I see a future here", "I know how to move up", "I get the training I need"], AGREE5, { required: true }),
+          yesno("Have you talked about your goals with someone here this year?"),
+          long("What would help you grow here?"),
+        ],
+      },
+      {
+        title: "Wellbeing",
+        fields: [
+          matrix("Your wellbeing", ["I can balance work and life", "My stress at work is manageable", "I can take time off when I need it"], AGREE5, { required: true }),
+          one("How often do you work past your usual hours?", ["Rarely", "Sometimes", "Often", "Almost always"]),
+          long("What would help your wellbeing at work?"),
+        ],
+      },
+      {
+        title: "Comments",
+        fields: [nps("How likely are you to recommend working here?", { required: true }), long("What would make work better?"), long("Anything else you'd like to share?")],
+      },
     ],
     end: ["Thank you", "Your answers are anonymous."],
   }),
