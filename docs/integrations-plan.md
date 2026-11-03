@@ -88,8 +88,14 @@ Kit and MailerLite are in the same state as Mailchimp (not on Fillout's list).
 Each step is one piece of work, on the parts that already exist: destinations on a form (form › Sync), steps in
 workflows, the jobs queue with retries and the sync log, and Settings › Integrations for signing in.
 
-1. **Email lists**: Mailchimp, Klaviyo, ActiveCampaign, Brevo (and Kit, MailerLite): add the person to a list, with
-   tags, from a form or a workflow step. The clients and sign-in are there.
+1. **Email lists** (built): Mailchimp, Klaviyo, ActiveCampaign, Brevo, Kit and MailerLite take form leads. In the
+   form's Sync tab: the list (Mailchimp's audience, Kit's form, MailerLite's group), tags (Mailchimp, ActiveCampaign,
+   Kit), and Subscribe: who ticked consent (the default) or everyone. Without consent Mailchimp keeps the person as
+   transactional and Klaviyo adds them to the list unsubscribed; the tools that only hold subscribers leave them out,
+   and the delivery says why. An existing person's subscription is never changed. The same person filling a second
+   form still joins that form's list. Code: `src/lib/sources/email.ts` (Lists), `src/lib/delivery`, the Sync tab's
+   `ListPane`, `/api/forms/tool-lists`; tests in `tests/emailLists.test.ts` and `scripts/formpage-check.ts`. A
+   workflow step that adds to a list comes with the other workflow steps.
 2. **Sheets and databases**: Google Sheets, Airtable, Notion, Excel Online, PostgreSQL, MySQL: a row or record per fill.
 3. **Tracking**: Google Analytics, Google Tag Manager, Meta Pixel, Google Ads, in the form script, after consent.
 4. **Chat alerts**: Microsoft Teams and Discord, beside Slack.

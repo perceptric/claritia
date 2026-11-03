@@ -12,7 +12,7 @@ import { deps, type RunOpts } from "../sources/run.ts";
 import { call, push, type Deps, type PushOutcome } from "../sources/sync.ts";
 import { AuthError, RateLimited } from "../sources/types.ts";
 import { allFields, isContent, type Form } from "../forms/schema.ts";
-import { DUPLICATE, pushOptions, rulesOf } from "./rules.ts";
+import { DUPLICATE, listOf, pushOptions, rulesOf } from "./rules.ts";
 
 export type Taken = {
   /** allow_duplicate: Create anyway was clicked on a possible duplicate. */
@@ -106,7 +106,11 @@ async function toSource(t: Taken, d: SendDeps): Promise<Result> {
     const linked = linkedFields(t, dep.ctx.source.id);
     // "Never" may still fill a record this delivery makes: was the contact linked to one before?
     const rules = rulesOf(t.destination.config);
-    const options = pushOptions(rules, t.submission.consent?.given === true);
+    // Email tools join the destination's list, with its tags (docs/integrations-plan.md step 1).
+    const pick = listOf(t.destination.config);
+    if (dep.connector.audiences && !pick.list) return { status: "failed", error: "Pick a list in the form's Sync tab." };
+    const base = pushOptions(rules, t.submission.consent?.given === true);
+    const options = dep.connector.audiences ? { ...(base ?? { marketing: t.submission.consent?.given === true }), list: pick.list!.id, tags: pick.tags } : base;
     const checkDuplicate = rules?.match === "email_name" && !t.delivery.allow_duplicate && !!dep.connector.similar && !!t.contact.first_name && !!t.contact.last_name && !!t.contact.company_domain;
     const wasLinked = linked.some((f) => (f.overwrite ?? rules?.exists) === "never") || checkDuplicate
       ? !!(await call<{ external_id: string | null }[]>(dep.rpc, "push_candidates", { p_source: dep.ctx.source.id, p_after: null, p_limit: 1, p_ids: [t.contact.id] }))[0]?.external_id
@@ -131,6 +135,7 @@ async function toSource(t: Taken, d: SendDeps): Promise<Result> {
       o = outcome.get(t.contact.id);
     }
     if (!o) return { status: "retry", error: "The contact wasn't ready to send." };
+    if (o.skipped) return { status: "skipped", reason: o.skipped };
     if (o.error) return TRANSIENT.test(o.error) ? { status: "retry", error: o.error } : { status: "failed", error: o.error };
     const notes = linked.length && o.externalId ? await toCrmFields(t, dep, o.externalId, !wasLinked || gone) : [];
     return {

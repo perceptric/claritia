@@ -2,8 +2,9 @@
 // bounces first. Mailchimp, Klaviyo, ActiveCampaign, Brevo, Kit and MailerLite. Endpoints and fields are
 // rechecked against a real account before launch ("check").
 
+import { createHash } from "node:crypto";
 import { qs, readCursor } from "./ctx.ts";
-import type { Connector, Ctx, Page, RawRecord } from "./types.ts";
+import { AuthError, RateLimited, type Connector, type Ctx, type Page, type PushChange, type PushOptions, type PushResult, type RawRecord } from "./types.ts";
 
 const since5 = (iso: string) => new Date(Date.parse(iso) - 300_000).toISOString();
 const newest = (rs: { updatedAt?: string | null }[], m: string) => rs.reduce((x, r) => ((r.updatedAt ?? "") > x ? (r.updatedAt as string) : x), m);
@@ -248,3 +249,187 @@ export const mailerlite: Connector = {
   },
   defaults: { contact: { email: "email", name: "first_name", last_name: "last_name", company: "company", country: "country", phone: "phone" } },
 };
+
+// Lists (docs/integrations-plan.md step 1) ----------------------------------------------------------------------
+// A form fill (or a workflow) adds the person to one list of the tool, with its tags where the tool keeps tags.
+// Marketing permission follows the destination: with `marketing` off (no consent box ticked), Mailchimp keeps them
+// as transactional and Klaviyo adds them to the list without a subscription; the tools that only hold subscribers
+// (ActiveCampaign, Brevo, Kit, MailerLite) leave them out, and the delivery says why. An existing person's
+// subscription is never changed here: someone who unsubscribed stays unsubscribed. Endpoints "check" as above.
+
+const text = (v: unknown) => (typeof v === "string" && v.trim() ? v.trim() : undefined);
+const e164 = (v: unknown) => (typeof v === "string" && /^\+[1-9]\d{7,14}$/.test(v.replace(/[\s().-]/g, "")) ? v.replace(/[\s().-]/g, "") : undefined);
+const clean = <T extends Record<string, unknown>>(o: T) => Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined && v !== "")) as Partial<T>;
+const NO_CONSENT = "Not added: no email consent on this fill.";
+const NO_LIST = "Pick a list in the form's Sync tab.";
+
+/** One result per change; sign-in and rate limits go up so the delivery stops or waits, anything else is this fill's error. */
+async function eachChange(changes: PushChange[], o: PushOptions | undefined, one: (c: PushChange, email: string, list: string) => Promise<PushResult>): Promise<PushResult[]> {
+  const out: PushResult[] = [];
+  for (const c of changes) {
+    const email = text(c.values.email)?.toLowerCase();
+    if (!email) {
+      out.push({ localId: c.localId, error: "This fill has no email." });
+      continue;
+    }
+    if (!o?.list) {
+      out.push({ localId: c.localId, error: NO_LIST });
+      continue;
+    }
+    try {
+      out.push(await one(c, email, o.list));
+    } catch (e) {
+      if (e instanceof AuthError || e instanceof RateLimited) throw e;
+      out.push({ localId: c.localId, error: String((e as Error).message ?? e).slice(0, 300) });
+    }
+  }
+  return out;
+}
+
+const tagsOf = (o?: PushOptions) => [...new Set((o?.tags ?? []).map((t) => t.trim()).filter(Boolean))].slice(0, 10);
+
+// Mailchimp: an audience; the member is upserted by its email's hash, merge fields only where the audience has them.
+const mcHash = (email: string) => createHash("md5").update(email.toLowerCase()).digest("hex");
+Object.assign(mailchimp, {
+  tags: true,
+  async audiences(ctx: Ctx) {
+    const d = await ctx.api<{ lists: { id: string; name: string }[] }>(`${await mcBase(ctx)}/lists?count=1000&fields=lists.id,lists.name`, mcAuth(ctx));
+    return (d.lists ?? []).map((l) => ({ id: l.id, name: l.name }));
+  },
+  async push(ctx: Ctx, changes: PushChange[], o?: PushOptions) {
+    const base = await mcBase(ctx);
+    let tagsHere: Set<string> | null = null;
+    return eachChange(changes, o, async (c, email, list) => {
+      tagsHere ??= new Set((await ctx.api<{ merge_fields: { tag: string }[] }>(`${base}/lists/${list}/merge-fields?count=100&fields=merge_fields.tag`, mcAuth(ctx))).merge_fields?.map((m) => m.tag) ?? []);
+      const merge = clean({ FNAME: text(c.values.FNAME), LNAME: text(c.values.LNAME), PHONE: text(c.values.PHONE), COMPANY: text(c.values.COMPANY) });
+      const fields = Object.fromEntries(Object.entries(merge).filter(([k]) => tagsHere!.has(k)));
+      const hash = mcHash(email);
+      await ctx.api(`${base}/lists/${list}/members/${hash}`, { ...mcAuth(ctx), method: "PUT", body: JSON.stringify({ email_address: email, status_if_new: o?.marketing ? "subscribed" : "transactional", ...(Object.keys(fields).length ? { merge_fields: fields } : {}) }) });
+      const tags = tagsOf(o);
+      if (tags.length) await ctx.api(`${base}/lists/${list}/members/${hash}/tags`, { ...mcAuth(ctx), method: "POST", body: JSON.stringify({ tags: tags.map((name) => ({ name, status: "active" })) }) });
+      return { localId: c.localId, externalId: hash };
+    });
+  },
+});
+
+// Klaviyo: the profile is made or updated, then subscribed to the list with consent, or only added to it without.
+Object.assign(klaviyo, {
+  async audiences(ctx: Ctx) {
+    const out: { id: string; name: string }[] = [];
+    let next: string | null = "https://a.klaviyo.com/api/lists?fields[list]=name";
+    for (let i = 0; next && i < 10; i++) {
+      const d: { data: { id: string; attributes: { name: string } }[]; links?: { next?: string | null } } = await ctx.api(next, kvHeaders(ctx));
+      out.push(...(d.data ?? []).map((l) => ({ id: l.id, name: l.attributes.name })));
+      next = d.links?.next ?? null;
+    }
+    return out;
+  },
+  async push(ctx: Ctx, changes: PushChange[], o?: PushOptions) {
+    const h = kvHeaders(ctx);
+    const json = (body: unknown) => ({ ...h, headers: { ...h.headers, "content-type": "application/vnd.api+json", accept: "application/vnd.api+json" }, method: "POST", body: JSON.stringify(body) });
+    return eachChange(changes, o, async (c, email, list) => {
+      const attributes = clean({ email, first_name: text(c.values.first_name), last_name: text(c.values.last_name), phone_number: e164(c.values.phone_number), organization: text(c.values.organization), title: text(c.values.title) });
+      const made = await ctx.api<{ data?: { id?: string } }>("https://a.klaviyo.com/api/profile-import", json({ data: { type: "profile", attributes } }));
+      const id = made?.data?.id;
+      if (!id) return { localId: c.localId, error: "Klaviyo didn't take this person." };
+      if (o?.marketing)
+        await ctx.api("https://a.klaviyo.com/api/profile-subscription-bulk-create-jobs", json({ data: { type: "profile-subscription-bulk-create-job", attributes: { profiles: { data: [{ type: "profile", attributes: { email, subscriptions: { email: { marketing: { consent: "SUBSCRIBED" } } } } }] } }, relationships: { list: { data: { type: "list", id: list } } } } }));
+      else await ctx.api(`https://a.klaviyo.com/api/lists/${list}/relationships/profiles`, json({ data: [{ type: "profile", id }] }));
+      return { localId: c.localId, externalId: id };
+    });
+  },
+});
+
+// ActiveCampaign: synced by email, subscribed to the list, tags found or made by name.
+Object.assign(activecampaign, {
+  tags: true,
+  async audiences(ctx: Ctx) {
+    const d = await ctx.api<{ lists: { id: string; name: string }[] }>(`${acBase(ctx)}/lists?limit=100`, acHeaders(ctx));
+    return (d.lists ?? []).map((l) => ({ id: String(l.id), name: l.name }));
+  },
+  async push(ctx: Ctx, changes: PushChange[], o?: PushOptions) {
+    const base = acBase(ctx);
+    const post = <T,>(path: string, body: unknown) => ctx.api<T>(`${base}${path}`, { ...acHeaders(ctx), method: "POST", body: JSON.stringify(body) });
+    const tagIds = new Map<string, string>();
+    const tagId = async (name: string) => {
+      if (tagIds.has(name)) return tagIds.get(name)!;
+      const found = await ctx.api<{ tags: { id: string; tag: string }[] }>(`${base}/tags?${qs({ search: name })}`, acHeaders(ctx));
+      const id = found.tags?.find((t) => t.tag.toLowerCase() === name.toLowerCase())?.id ?? (await post<{ tag: { id: string } }>("/tags", { tag: { tag: name, tagType: "contact", description: "" } })).tag.id;
+      tagIds.set(name, String(id));
+      return String(id);
+    };
+    return eachChange(changes, o, async (c, email, list) => {
+      if (!o?.marketing) return { localId: c.localId, skipped: NO_CONSENT };
+      const synced = await post<{ contact?: { id?: string } }>("/contact/sync", { contact: clean({ email, firstName: text(c.values.firstName), lastName: text(c.values.lastName), phone: text(c.values.phone) }) });
+      const id = synced?.contact?.id;
+      if (!id) return { localId: c.localId, error: "ActiveCampaign didn't take this person." };
+      await post("/contactLists", { contactList: { list, contact: id, status: 1 } });
+      for (const t of tagsOf(o)) await post("/contactTags", { contactTag: { contact: id, tag: await tagId(t) } });
+      return { localId: c.localId, externalId: String(id) };
+    });
+  },
+});
+
+// Brevo: made or updated by email with the list; first and last name only (the attributes every account has).
+Object.assign(brevo, {
+  async audiences(ctx: Ctx) {
+    const d = await ctx.api<{ lists?: { id: number; name: string }[] }>("https://api.brevo.com/v3/contacts/lists?limit=50&offset=0", brevoHeaders(ctx));
+    return (d.lists ?? []).map((l) => ({ id: String(l.id), name: l.name }));
+  },
+  async push(ctx: Ctx, changes: PushChange[], o?: PushOptions) {
+    return eachChange(changes, o, async (c, email, list) => {
+      if (!o?.marketing) return { localId: c.localId, skipped: NO_CONSENT };
+      const attributes = clean({ FIRSTNAME: text(c.values.FIRSTNAME), LASTNAME: text(c.values.LASTNAME) });
+      const made = await ctx.api<{ id?: number } | null>("https://api.brevo.com/v3/contacts", { ...brevoHeaders(ctx), method: "POST", body: JSON.stringify({ email, updateEnabled: true, listIds: [Number(list)], ...(Object.keys(attributes).length ? { attributes } : {}) }) });
+      // An update answers 204 with no body: the id is read by email.
+      const id = made?.id ?? (await ctx.api<{ id: number }>(`https://api.brevo.com/v3/contacts/${encodeURIComponent(email)}`, brevoHeaders(ctx))).id;
+      return { localId: c.localId, externalId: String(id) };
+    });
+  },
+});
+
+// Kit: subscribed through one of its forms, tags found or made by name.
+const kitUrl = (ctx: Ctx, path: string, q: Record<string, string | number | null> = {}) => `https://api.convertkit.com/v3${path}?${qs({ api_secret: ctx.secret("api_key"), ...q })}`;
+Object.assign(kit, {
+  tags: true,
+  async audiences(ctx: Ctx) {
+    const d = await ctx.api<{ forms: { id: number; name: string }[] }>(kitUrl(ctx, "/forms"), { auth: false });
+    return (d.forms ?? []).map((f) => ({ id: String(f.id), name: f.name }));
+  },
+  async push(ctx: Ctx, changes: PushChange[], o?: PushOptions) {
+    let tags: Map<string, number> | null = null;
+    const tagId = async (name: string) => {
+      tags ??= new Map(((await ctx.api<{ tags: { id: number; name: string }[] }>(kitUrl(ctx, "/tags"), { auth: false })).tags ?? []).map((t) => [t.name.toLowerCase(), t.id]));
+      const had = tags.get(name.toLowerCase());
+      if (had) return had;
+      const made = await ctx.api<{ id: number }>(kitUrl(ctx, "/tags"), { auth: false, method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ api_secret: ctx.secret("api_key"), tag: { name } }) });
+      tags.set(name.toLowerCase(), made.id);
+      return made.id;
+    };
+    return eachChange(changes, o, async (c, email, list) => {
+      if (!o?.marketing) return { localId: c.localId, skipped: NO_CONSENT };
+      const tagIds = [];
+      for (const t of tagsOf(o)) tagIds.push(await tagId(t));
+      const d = await ctx.api<{ subscription?: { subscriber?: { id?: number } } }>(`https://api.convertkit.com/v3/forms/${encodeURIComponent(list)}/subscribe`, { auth: false, method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(clean({ api_secret: ctx.secret("api_key"), email, first_name: text(c.values.first_name), ...(tagIds.length ? { tags: tagIds } : {}) })) });
+      const id = d?.subscription?.subscriber?.id;
+      return id ? { localId: c.localId, externalId: String(id) } : { localId: c.localId, error: "Kit didn't take this person." };
+    });
+  },
+});
+
+// MailerLite: upserted with the group.
+Object.assign(mailerlite, {
+  async audiences(ctx: Ctx) {
+    const d = await ctx.api<{ data: { id: string; name: string }[] }>("https://connect.mailerlite.com/api/groups?limit=100");
+    return (d.data ?? []).map((g) => ({ id: String(g.id), name: g.name }));
+  },
+  async push(ctx: Ctx, changes: PushChange[], o?: PushOptions) {
+    return eachChange(changes, o, async (c, email, list) => {
+      if (!o?.marketing) return { localId: c.localId, skipped: NO_CONSENT };
+      const fields = clean({ name: text(c.values.name), last_name: text(c.values.last_name), company: text(c.values.company), country: text(c.values.country), phone: text(c.values.phone) });
+      const d = await ctx.api<{ data?: { id?: string } }>("https://connect.mailerlite.com/api/subscribers", { method: "POST", body: JSON.stringify({ email, groups: [list], ...(Object.keys(fields).length ? { fields } : {}) }) });
+      const id = d?.data?.id;
+      return id ? { localId: c.localId, externalId: String(id) } : { localId: c.localId, error: "MailerLite didn't take this person." };
+    });
+  },
+});
