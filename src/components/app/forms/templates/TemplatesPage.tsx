@@ -485,7 +485,7 @@ export function TemplatesPage({ sb, ws, session, navigate, id }: ViewProps) {
       onClick={clear}
       className={`flex h-[30px] items-center justify-between gap-[8px] rounded-full px-[10px] text-left text-[13px] ${!tags.length && !text ? "bg-hover font-medium text-ink" : "text-body hover:bg-hover hover:text-ink"}`}
     >
-      <span>All templates</span>
+      <span>All form templates</span>
       <span className="text-[11.5px] text-faint tabular-nums">{TEMPLATES.length}</span>
     </button>
   );
@@ -497,7 +497,7 @@ export function TemplatesPage({ sb, ws, session, navigate, id }: ViewProps) {
           Forms
         </button>
         <span className="text-faint">/</span>
-        <h1 className="text-ink">Templates</h1>
+        <h1 className="text-ink">Form templates</h1>
         <span className="flex-1" />
         <button type="button" className={GHOST} onClick={() => navigate("forms", "new")}>
           <Ic n="wand" />
@@ -506,7 +506,7 @@ export function TemplatesPage({ sb, ws, session, navigate, id }: ViewProps) {
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto px-[16px] pt-[16px] pb-[32px] sm:px-[clamp(16px,2.5vw,28px)]">
         <div className="mx-auto flex max-w-[1240px] gap-[28px]">
-          <nav aria-label="Template menus" className="sticky top-0 hidden max-h-[calc(100vh-120px)] w-[230px] shrink-0 flex-col gap-[10px] self-start overflow-y-auto pb-[16px] lg:flex">
+          <nav aria-label="Form template menus" className="sticky top-0 hidden max-h-[calc(100vh-120px)] w-[230px] shrink-0 flex-col gap-[10px] self-start overflow-y-auto pb-[16px] lg:flex">
             {all}
             <Menus picks={picks} setPicks={setPicks} counts={counts} />
           </nav>
@@ -517,8 +517,8 @@ export function TemplatesPage({ sb, ws, session, navigate, id }: ViewProps) {
                 <input
                   value={text}
                   onChange={(e) => setText(e.target.value)}
-                  placeholder={`Search ${TEMPLATES.length} templates`}
-                  aria-label="Search templates"
+                  placeholder={`Search ${TEMPLATES.length} form templates`}
+                  aria-label="Search form templates"
                   className="min-w-0 flex-1 bg-transparent text-[13px] text-ink outline-none placeholder:text-muted"
                 />
               </label>
@@ -586,7 +586,7 @@ export function TemplatesPage({ sb, ws, session, navigate, id }: ViewProps) {
                 </div>
               </section>
             ) : null}
-            <p className="text-[12.5px] text-muted tabular-nums">{list.length} templates</p>
+            <p className="text-[12.5px] text-muted tabular-nums">{list.length} form templates</p>
             {list.length ? (
               <div className="grid gap-[14px] sm:grid-cols-2 xl:grid-cols-3">
                 {list.map((t) => {
@@ -688,7 +688,7 @@ export function TemplatesPage({ sb, ws, session, navigate, id }: ViewProps) {
               <ErrorNote message={error} />
               <span className="flex-1" />
               <button type="button" className={BTN} onClick={use} disabled={busy}>
-                {busy ? "Making it…" : "Use template"}
+                {busy ? "Making it…" : "Use form template"}
               </button>
             </>
           }

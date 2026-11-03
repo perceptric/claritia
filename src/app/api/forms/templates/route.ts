@@ -27,6 +27,6 @@ export async function POST(request: Request) {
     const made = await makeFromTemplate({ sb: auth.sb, db, user: auth.user.id, ws, t, th: themeById(isTheme(b.theme) ? b.theme : templateTheme(t)), kitId: kit });
     return Response.json(made);
   } catch (e) {
-    return bad(e instanceof Error ? e.message : "This template can't be used right now.", 500);
+    return bad(e instanceof Error ? e.message : "This form template can't be used right now.", 500);
   }
 }

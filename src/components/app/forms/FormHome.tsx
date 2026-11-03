@@ -143,7 +143,7 @@ export function FormHome(props: ViewProps & { startNew?: boolean }) {
       {rows?.length ? (
         <button type="button" className={GHOST} onClick={() => navigate("forms", "templates")}>
           <Ic n="form" />
-          Templates
+          Form templates
         </button>
       ) : null}
       {rows?.length ? (

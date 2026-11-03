@@ -53,7 +53,7 @@ export async function makeFromTemplate(o: { sb: SupabaseClient; db: SupabaseClie
     if (meeting) draft = { ...draft, after: { ...draft.after, schedule: { tool: "claritia", url: "", meetingTypeId: meeting, perOwner: false } } };
   }
   const checked = checkForm(draft);
-  if ("errors" in checked) throw new Error(checked.errors[0] ?? "This template can't be used right now.");
+  if ("errors" in checked) throw new Error(checked.errors[0] ?? "This form template can't be used right now.");
   const kitId = o.kitId ?? (await styleKit(db, user, ws, th));
   const { data: id, error } = await sb.rpc("form_create", { p_ws: ws, p_name: t.name, p_draft: checked.form, p_brand_kit: kitId, p_kind: "built" });
   if (error) throw new Error(error.message);
