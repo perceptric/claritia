@@ -41,6 +41,8 @@ export type PageQuestion = {
   block?: Block;
   /** data-cl-check="work_email" on an email input: free email addresses are refused. */
   work?: true;
+  /** data-cl-key: where the answer saves (q.<name> on the submission, f.<field> on the contact), kept from a form made before. */
+  key?: string;
 };
 
 /**
@@ -177,10 +179,14 @@ const ATTRS = new Set([
   "minlength", "maxlength", "pattern", "rows", "cols", "multiple", "autocomplete", "inputmode", "alt", "title", "role", "tabindex", "lang", "dir", "open", "datetime", "href", "src", "width", "height",
 ]);
 const TYPES = new Set(["text", "email", "tel", "number", "url", "date", "time", "radio", "checkbox", "range", "hidden", "search", "month", "week", "datetime-local", "color", "submit"]);
-const FIELD_ID = /^[a-z][a-z0-9]{0,23}$/;
+const FIELD_ID = /^[a-z0-9]{1,24}$/;
+/** A key a question saves to: its answer on the submission (q.) or a custom contact field (f.). */
+const SAVED_KEY = /^[qf]\.[a-z][a-z0-9_]{0,39}$/;
+/** The answer's key on the submission for a question with no key of its own: its id, starting with a letter. */
+const ownKey = (id: string) => `q.${/^[a-z]/.test(id) ? id : `n${id}`}`;
 /** Contact answers: the browser's autofill name, and the input type that brings up the right keyboard. */
 const AUTOFILL: Record<string, [string, string | null]> = { email: ["email", "email"], first_name: ["given-name", null], last_name: ["family-name", null], name: ["name", null], phone: ["tel", "tel"], company: ["organization", null], title: ["organization-title", null], website: ["url", "url"], country: ["country-name", null] };
-const SAVE = new Set(["email", "first_name", "last_name", "name", "phone", "company", "title", "website", "country"]);
+const SAVE = new Set(["email", "first_name", "last_name", "name", "phone", "company", "title", "website", "country", "region"]);
 const LONG_ATTRS = new Set(["data-cl-rows", "data-cl-cols", "data-cl-options", "data-cl-formula", "data-cl-show-if"]);
 /** A choice's points (a quiz's score, a price's weight): data-cl-score on the radio, check box or option. */
 const scoreOf = (attrs: Record<string, string>): number | undefined => {
@@ -257,7 +263,8 @@ export function cleanPage(raw: string, prevIds: Record<string, string> = {}): { 
     if (!q) {
       const save = SAVE.has(attrs["data-cl-save"] ?? "") ? attrs["data-cl-save"] : undefined;
       const fixed = FIELD_ID.test(attrs["data-cl-id"] ?? "") ? attrs["data-cl-id"] : undefined;
-      q = { name, id: "", type, label: "", labelFrom: "name", required: false, ...(save ? { save } : {}), ...(fixed ? { fixed } : {}), ...(attrs["data-cl-check"] === "work_email" ? { work: true as const } : {}), options: [] };
+      const key = SAVED_KEY.test(attrs["data-cl-key"] ?? "") ? attrs["data-cl-key"] : undefined;
+      q = { name, id: "", type, label: "", labelFrom: "name", required: false, ...(save ? { save } : {}), ...(fixed ? { fixed } : {}), ...(key ? { key } : {}), ...(attrs["data-cl-check"] === "work_email" ? { work: true as const } : {}), options: [] };
       byName.set(name, q);
       qs.push(q);
     } else if (q.type === "checkbox" && type === "checkbox") q.type = "multi";
@@ -397,7 +404,7 @@ export function cleanPage(raw: string, prevIds: Record<string, string> = {}): { 
     const block = readBlock(attrs);
     const bName = /^[A-Za-z][\w-]{0,60}$/.test(attrs["data-cl-name"] ?? "") ? attrs["data-cl-name"]! : "";
     if (block && bName) {
-      const battrs: Record<string, string> = { ...(attrs["data-cl-save"] ? { "data-cl-save": attrs["data-cl-save"] } : {}), ...(attrs["data-cl-id"] ? { "data-cl-id": attrs["data-cl-id"] } : {}), ...("data-cl-required" in attrs ? { required: "" } : {}), ...("data-cl-show-if" in attrs ? { "data-cl-show-if": "" } : {}) };
+      const battrs: Record<string, string> = { ...(attrs["data-cl-save"] ? { "data-cl-save": attrs["data-cl-save"] } : {}), ...(attrs["data-cl-id"] ? { "data-cl-id": attrs["data-cl-id"] } : {}), ...(attrs["data-cl-key"] ? { "data-cl-key": attrs["data-cl-key"] } : {}), ...("data-cl-required" in attrs ? { required: "" } : {}), ...("data-cl-show-if" in attrs ? { "data-cl-show-if": "" } : {}) };
       const q = question(bName, `block:${block.type}`, battrs);
       q.block = block;
       if (attrs["data-cl-label"]?.trim() && q.labelFrom !== "label") {
@@ -482,7 +489,7 @@ function shownField(q: PageQuestion, b: Block, byName: (n: string | undefined) =
   if (b.type === "calc")
     return {
       ...base,
-      key: `q.${q.id}`,
+      key: q.key ?? ownKey(q.id),
       calc: {
         formula: formulaIds(b.formula ?? "", (n) => byName(n)),
         ...(b.format ? { format: b.format } : {}),
@@ -519,8 +526,8 @@ export function pageForm(p: { html: string; css: string; brand: string; after: P
     // A contact field only takes the types it can hold (Company can't be a dropdown); anything else stays on the form.
     const fits = (k: string) => CONTACT_KEYS.some((c) => c.key === k && (c.types.includes(type) || (k === "email" && type === "text") || (k === "phone" && type === "text")));
     // The email marked data-cl-save="email" is the contact's; only a page with none gives it to its first email.
-    let key: string = q.save && !keys.has(q.save) && fits(q.save) ? q.save : (q.save === "email" || (q.type === "email" && !markedEmail)) && !keys.has("email") && fits("email") ? "email" : `q.${q.id}`;
-    if (keys.has(key)) key = `q.${q.id}`;
+    let key: string = q.save && !keys.has(q.save) && fits(q.save) ? q.save : (q.save === "email" || (q.type === "email" && !markedEmail && !q.key)) && !keys.has("email") && fits("email") ? "email" : q.key && !keys.has(q.key) ? q.key : ownKey(q.id);
+    if (keys.has(key)) key = ownKey(q.id);
     keys.add(key);
     if (key === "email") type = "email";
     if (key === "phone" && type === "text") type = "phone";

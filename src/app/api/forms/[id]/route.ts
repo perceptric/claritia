@@ -23,8 +23,10 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     const f = await loadPublic(db, id);
     if (!f) return json({ error: "Form not found." }, 404);
     const country = edgeCountry(request);
+    const isPage = !!(f.body as { page?: unknown }).page;
     return json(
-      { id: f.id, version: f.version, status: f.status, body: publicForm(f.body), tokens: f.tokens, logo_url: f.logo_url, ...skinOf(f), strict: regionOf(country ?? "", "") === "strict", turnstile: turnstileSiteKey() || undefined, ...(usesRegions(f.body) ? { regions: allRegions() } : {}), ...cssOf(f) },
+      // A Form Studio page wears its own brand stylesheet: the old kit look (tokens, skin, design) never goes under it.
+      { id: f.id, version: f.version, status: f.status, body: publicForm(f.body), tokens: isPage ? {} : f.tokens, logo_url: f.logo_url, ...(isPage ? {} : skinOf(f)), strict: regionOf(country ?? "", "") === "strict", turnstile: turnstileSiteKey() || undefined, ...(usesRegions(f.body) ? { regions: allRegions() } : {}), ...(isPage ? {} : cssOf(f)) },
       200,
       { "Cache-Control": "public, max-age=30", Vary: "cf-ipcountry" },
     );

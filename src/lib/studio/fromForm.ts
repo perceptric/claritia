@@ -15,7 +15,7 @@ export type Converted = { html: string; css: string; after: PageAfter; title: st
 const esc = (s: unknown) => String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 /** Contact fields a page saves to with data-cl-save (src/lib/studio/page.ts SAVE). */
 const ROUTE_OP = new Set(["is", "is_not", "one_of", "not_one_of", "contains", "starts_with", "filled", "empty", "gt", "gte", "lt", "lte", "between"]);
-const SAVE = new Set(["email", "first_name", "last_name", "name", "phone", "company", "title", "website", "country"]);
+const SAVE = new Set(["email", "first_name", "last_name", "name", "phone", "company", "title", "website", "country", "region"]);
 
 // Conditions -------------------------------------------------------------------------------------------------------
 // A show-if is clauses joined with "and" (binding first) and "or", with no brackets, so every condition is kept as an
@@ -133,7 +133,9 @@ function fieldHtml(f: Field, n: string, ifs: string, ctx: { name: (id: string) =
   const id = `q_${f.id}`;
   const show = ifs ? ` data-cl-show-if="${esc(ifs)}"` : "";
   const req = f.required ? " required" : "";
-  const cid = ` data-cl-id="${f.id}"`;
+  // Each question keeps its id, and where its answer saves (on the submission, or a custom contact field), so past
+  // answers line up with new ones.
+  const cid = ` data-cl-id="${f.id}"${f.key && /^[qf]\./.test(f.key) ? ` data-cl-key="${f.key}"` : ""}`;
   const save = f.key && SAVE.has(f.key) && n === f.key ? ` data-cl-save="${f.key}"` : "";
   const help = f.help ? `<p class="text help">${esc(f.help)}</p>` : "";
   const err = `<p class="error" data-cl-error-for="${n}"></p>`;
@@ -142,7 +144,6 @@ function fieldHtml(f: Field, n: string, ifs: string, ctx: { name: (id: string) =
   const block = (type: string, extra = "") => `<div class="q"${show}><div data-cl-field="${type}" data-cl-name="${n}" data-cl-label="${esc(f.label)}"${cid}${save}${f.required ? " data-cl-required" : ""}${extra} id="${id}"></div>${help}</div>`;
   const opts = f.options ?? [];
   const score = (o: { score?: number }) => (o.score !== undefined ? ` data-cl-score="${o.score}"` : "");
-  if (f.key && f.key.startsWith("f.")) ctx.lost.add(`${f.label}: saves on the submission, not to a custom contact field`);
   if (f.prefill) ctx.lost.add(`${f.label}: no longer filled in from the link`);
   if (f.optionsBy) ctx.lost.add(`${f.label}: its list no longer follows an earlier answer`);
   switch (f.type) {
@@ -169,7 +170,7 @@ function fieldHtml(f: Field, n: string, ifs: string, ctx: { name: (id: string) =
       return `<div class="q"${show}>${label}${help}<input class="field" id="${id}" name="${n}" type="${t}"${ph}${mm}${req}${cid}${save}${work}>${err}</div>`;
     }
     case "textarea":
-      return `<div class="q"${show}>${label}${help}<textarea class="field" id="${id}" name="${n}" rows="4"${ph}${req}${cid}></textarea>${err}</div>`;
+      return `<div class="q"${show}>${label}${help}<textarea class="field" id="${id}" name="${n}" rows="4"${ph}${req}${cid}${save}></textarea>${err}</div>`;
     case "phone":
       return block("phone");
     case "date":
@@ -192,7 +193,7 @@ function fieldHtml(f: Field, n: string, ifs: string, ctx: { name: (id: string) =
     case "ranking":
       return block("ranking", ` data-cl-options="${esc(listItems(opts))}"`);
     case "calc": {
-      const formula = (f.calc?.formula ?? "").replace(/\{([a-z][a-z0-9]{0,23})\}/g, (m, x: string) => (ctx.name(x) ? `{${ctx.name(x)}}` : m));
+      const formula = (f.calc?.formula ?? "").replace(/\{([a-z0-9]{1,24})\}/g, (m, x: string) => (ctx.name(x) ? `{${ctx.name(x)}}` : m));
       if (/\{@/.test(formula)) ctx.lost.add(`${f.label}: a setting it read is now a number in its formula`);
       const c = f.calc;
       return `<div class="q"${show}><div data-cl-field="calc" data-cl-name="${n}" data-cl-label="${esc(f.label)}"${cid} data-cl-formula="${esc(formula)}"${c?.format ? ` data-cl-format="${c.format}"` : ""}${c?.decimals !== undefined ? ` data-cl-decimals="${c.decimals}"` : ""}${c?.currency ? ` data-cl-currency="${c.currency}"` : ""}${c?.show === false ? " data-cl-hide" : ""} id="${id}"></div></div>`;
@@ -221,7 +222,9 @@ function fieldHtml(f: Field, n: string, ifs: string, ctx: { name: (id: string) =
       return `<fieldset class="q"${show}><legend class="label">${esc(f.label)}</legend>${help}<div class="choices">${items.join("")}${other}</div>${otherBox}${err}</fieldset>`;
     }
     case "dropdown":
-      return `<div class="q"${show}>${label}${help}<select class="field" id="${id}" name="${n}"${req}${cid}><option value="">Choose one</option>${opts.map((o) => `<option value="${esc(o.value)}"${score(o)}>${esc(o.label || o.value)}</option>`).join("")}</select>${err}</div>`;
+      // A list that followed another answer (regions by country) has no list of its own: a box to type in.
+      if (!opts.length) return `<div class="q"${show}>${label}${help}<input class="field" id="${id}" name="${n}" type="text"${ph}${req}${cid}${save}>${err}</div>`;
+      return `<div class="q"${show}>${label}${help}<select class="field" id="${id}" name="${n}"${req}${cid}${save}><option value="">Choose one</option>${opts.map((o) => `<option value="${esc(o.value)}"${score(o)}>${esc(o.label || o.value)}</option>`).join("")}</select>${err}</div>`;
     case "checkbox":
       return `<div class="q"${show}><label class="check"><input type="checkbox" name="${n}" id="${id}"${req}${cid} data-cl-label="${esc(f.label)}"> ${esc(f.label)}</label>${help}${err}</div>`;
     case "group":

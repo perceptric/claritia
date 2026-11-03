@@ -9,7 +9,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { applyOp, type Op } from "@/lib/forms/ops";
 import { checkForm, emptyForm, type Form } from "@/lib/forms/schema";
 import type { CustomField } from "@/lib/records/fields";
-import { askConfirm } from "../Dialogs";
+import { askConfirm, tell } from "../Dialogs";
 import { Badge, cache, ErrorNote, errorText, invalidate, Loading, must, postJson, setLeaveGuard, useQuery, type ViewProps } from "../ui";
 import { useLiveBody } from "../routing/screenParts";
 import { Builder, SUBMIT, type Pick as Picked } from "./build/Builder";
@@ -144,10 +144,43 @@ function FormPage(props: ViewProps) {
   if (data.error && !data.data) return <div className="p-[16px]"><ErrorNote message={data.error} /></div>;
   if (!data.data) return <Loading />;
   if ("none" in data.data) return <div className="p-[24px] text-muted">Form not found</div>;
+  // An older form moves into the Studio the first time it opens; a form that reads the site's own form has no page.
+  const r0 = data.data.row as FormData["row"] & { kind?: string };
+  const d0 = (r0.draft ?? {}) as { page?: unknown; capture?: unknown };
+  if (!d0.page && !d0.capture && r0.kind !== "captured")
+    return (
+      <MoveToStudio
+        {...props}
+        onDone={(lost) => {
+          data.reload();
+          if (lost.length) void tell("Moved into the Studio", `Not carried over: ${lost.join("; ")}.`);
+        }}
+      />
+    );
   const patchRow = (p: Partial<FormData["row"]>) => data.set((d) => ("none" in d ? d : { ...d, row: { ...d.row, ...p } }));
   const patchKits = (fn: (kits: Kit[]) => Kit[]) => data.set((d) => ("none" in d ? d : { ...d, kits: fn(d.kits) }));
   const patchDests = (fn: (d: Destination[]) => Destination[]) => data.set((d) => ("none" in d ? d : { ...d, dests: fn(d.dests) }));
   return <Editor {...props} data={data.data} reload={data.reload} patchRow={patchRow} patchKits={patchKits} patchDests={patchDests} />;
+}
+
+/** An older form's draft, turned into a studio page on the server (docs/forms-chat-plan.md Part 8). */
+function MoveToStudio({ session, ws, id, onDone }: ViewProps & { onDone: (lost: string[]) => void }) {
+  const [error, setError] = useState("");
+  const done = useRef(onDone);
+  useEffect(() => {
+    done.current = onDone;
+  });
+  useEffect(() => {
+    let live = true;
+    postJson<{ lost?: string[] }>(session, "/api/studio", { workspaceId: ws.id, mode: "convert", formId: id }).then(
+      (r) => live && done.current(r.lost ?? []),
+      (e) => live && setError(errorText(e)),
+    );
+    return () => {
+      live = false;
+    };
+  }, [session, ws.id, id]);
+  return error ? <div className="p-[16px]"><ErrorNote message={error} /></div> : <Loading />;
 }
 
 export type Tab = FormTab;

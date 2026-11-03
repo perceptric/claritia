@@ -85,7 +85,8 @@ test("every template turns into a page that keeps its questions, choices, points
       const at = `${t.id}: ${f.label} (${f.id})`;
       assert.ok(g, `${at} is missing`);
       assert.equal(g.type, TYPE[f.type] ?? f.type, `${at} type`);
-      if (!f.key.startsWith("q.") && !f.key.startsWith("f.")) assert.equal(g.key, f.key, `${at} saves to the contact`);
+      // Every answer saves where it did, so a converted form's new submissions line up with its old ones.
+      if (!isContent(f.type)) assert.equal(g.key, f.key, `${at} saves where it did`);
       if (!cond.has(f.id) && f.type !== "calc") assert.equal(g.required, f.required, `${at} required`);
       // An "Other" choice is a real choice on the page, with its own box for the words.
       if (f.options && f.type !== "ranking") assert.deepEqual(g.options?.filter((o) => !(f.other && o.value === "Other")).map((o) => [o.value, o.score]), f.options.map((o) => [o.value, o.score]), `${at} choices`);
@@ -166,4 +167,14 @@ test("flaky forms: a condition with no show-if words, a missing field, a long co
   assert.ok(c.lost.some((l) => /Why: shows always/.test(l)), c.lost.join("; "));
   assert.match(c.html, /data-cl-show-if="pick == &quot;it's&quot;"/, "a value with a quote is wrapped in the other quote");
   asPage(form);
+});
+
+test("the MCP server's starting points turn into pages too", async () => {
+  const { TEMPLATES: STARTS } = await import("../src/lib/forms/templates.ts");
+  const { emptyForm } = await import("../src/lib/forms/schema.ts");
+  for (const t of [...STARTS.map((x) => x.form()), emptyForm()]) {
+    const before = checked(t);
+    const after = asPage(before);
+    for (const f of asked(before)) assert.ok(fieldsOf(after).some((g) => g.id === f.id && (isContent(f.type) || g.key === f.key)), `${f.label} is on the page and saves where it did`);
+  }
 });

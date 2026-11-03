@@ -7,6 +7,8 @@ import { cleaningCtx } from "@/lib/contacts/server";
 import { checkStudioPage, errorsIn } from "@/lib/studio/check";
 import { readProfile } from "@/lib/studio/industries";
 import { pageForm, teamAlert, type PageAfter } from "@/lib/studio/page";
+import { formToPage } from "@/lib/studio/fromForm";
+import { DEFAULT_BRAND_CSS } from "@/lib/studio/brandDefault";
 import { turnstileSiteKey } from "@/lib/forms/server";
 import { BRAND_RULES, CHAT_RULES, STUDIO_MODEL, TRANSLATE_RULES } from "@/lib/studio/prompts";
 import { hostOf, readSite, readSource } from "@/lib/studio/site";
@@ -28,6 +30,7 @@ import { serviceClient } from "@/lib/serviceClient";
 //   chat-delete { id }               → { ok }
 //   brand-css { kitId, css }         → { ok }                  the brand's CSS, edited in Code
 //   brand-profile { kitId, profile } → { ok }                  the brand's industry, language and country (113)
+//   convert { formId }               → { formId, lost }          an older form's draft as a studio page (Part 8)
 //   save    { formId?, name, html, css, brand, after, kitId } → { formId }   the studio form as a real form's draft;
 //                                                               /api/forms/publish then makes it live
 // Streams are lines of JSON with a heartbeat, so no proxy ends a long Opus answer. Every Claude call goes through the
@@ -194,6 +197,31 @@ export async function POST(request: Request) {
     return Response.json({ ok: true });
   }
 
+  if (b.mode === "convert") {
+    // An older form opened in the Studio (docs/forms-chat-plan.md Part 8): its draft becomes a studio page in its
+    // brand's stylesheet (or the plain one), keeping every field id and what its Settings set. What's live stays as
+    // it is until the next publish. Answers { formId, lost } with what the page couldn't hold, in plain words.
+    const formId = typeof b.formId === "string" && UUID.test(b.formId) ? b.formId : "";
+    const { data: row } = await db.from("forms").select("id, draft, brand_kit_id, kind").eq("id", formId).eq("workspace_id", ws).maybeSingle();
+    const had = row as { id: string; draft: Record<string, unknown> | null; brand_kit_id: string | null; kind: string | null } | null;
+    if (!had?.draft) return bad("Form not found.", 404);
+    if (had.draft.page) return Response.json({ formId, lost: [] });
+    if (had.kind === "captured" || had.draft.capture) return bad("This form is your site's own; it has no page to build.");
+    const ctx = await cleaningCtx(db, ws);
+    const old = checkForm(had.draft, { custom: ctx.custom });
+    if ("errors" in old) return bad(old.errors[0]!, 400);
+    const css = had.brand_kit_id ? ((await db.from("brand_kits").select("studio_css").eq("id", had.brand_kit_id).maybeSingle()).data as { studio_css?: string | null } | null)?.studio_css : null;
+    const conv = formToPage(old.form);
+    const turnstile = !!turnstileSiteKey() && !!process.env.TURNSTILE_SECRET_KEY?.trim();
+    const { form: draft } = pageForm({ html: conv.html, css: conv.css, brand: css || DEFAULT_BRAND_CSS, after: conv.after, title: conv.title, turnstile });
+    for (const k of ["reply", "keep", "notify", "share", "consent", "spam"] as const) if (old.form[k] !== undefined) (draft as Record<string, unknown>)[k] = old.form[k];
+    const r = checkForm(draft, { custom: ctx.custom });
+    if ("errors" in r) return bad(r.errors[0]!, 400);
+    const up = await db.from("forms").update({ draft: r.form, updated_at: new Date().toISOString() }).eq("id", formId).eq("workspace_id", ws);
+    if (up.error) return bad(up.error.message, 500);
+    return Response.json({ formId, lost: conv.lost });
+  }
+
   if (b.mode === "save") {
     // The studio form as a real form: its page cleaned, its questions read into fields, checked like every form.
     const html = typeof b.html === "string" ? b.html : "";
@@ -210,13 +238,15 @@ export async function POST(request: Request) {
     if (errs.length) return Response.json({ error: errs[0]!.text, issues: errs }, { status: 400 });
     // A question keeps its field id when it's renamed or Tia writes the page again: the ids the form had last time.
     const formIdIn = typeof b.formId === "string" && UUID.test(b.formId) ? b.formId : "";
-    const prev = formIdIn ? ((await db.from("forms").select("draft").eq("id", formIdIn).eq("workspace_id", ws).maybeSingle()).data as { draft?: { page?: { ids?: Record<string, string>; after?: { always?: unknown } }; notify?: unknown; reply?: unknown; keep?: unknown; share?: unknown } } | null) : null;
+    const prev = formIdIn ? ((await db.from("forms").select("draft").eq("id", formIdIn).eq("workspace_id", ws).maybeSingle()).data as { draft?: { page?: { ids?: Record<string, string>; after?: { always?: unknown } }; notify?: unknown; reply?: unknown; keep?: unknown; share?: unknown; consent?: unknown; spam?: unknown } } | null) : null;
     const turnstile = !!turnstileSiteKey() && !!process.env.TURNSTILE_SECRET_KEY?.trim();
     const { form: draft, questions } = pageForm({ html, css: String(b.css ?? ""), brand: String(b.brand ?? ""), after, title: name, prevIds: prev?.draft?.page?.ids ?? {}, turnstile, lang: typeof b.lang === "string" ? b.lang : undefined, langs });
     if (!questions.length) return bad("The form has no questions to send.");
     // What the form's other tabs set stays: the auto-reply, how long it keeps sends, the link preview, and its team
     // alert until Always do sets one.
     for (const k of ["reply", "keep", "notify", "share"] as const) if (prev?.draft?.[k] !== undefined && !(k in draft)) (draft as Record<string, unknown>)[k] = prev.draft[k];
+    // Consent and the spam checks are the Settings tab's: a Studio save keeps what it set.
+    for (const k of ["consent", "spam"] as const) if (prev?.draft?.[k] !== undefined) (draft as Record<string, unknown>)[k] = prev.draft[k];
     // Email the team and Post to Slack are the same team alert as the form's Settings, so the last place it changed
     // wins: Always do left as it was keeps the alert Settings set, and a change here keeps the alert's subject.
     const alert = teamAlert(prev?.draft?.notify, (draft as { notify?: unknown }).notify, after.always, prev?.draft?.page?.after?.always);
