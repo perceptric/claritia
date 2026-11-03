@@ -1,0 +1,66 @@
+"use client";
+
+// What the Workflows screens read: the workflow with its live version, the names its cards show, and the 7-day
+// counts. All through the person's own client, so a workflow outside their workspace reads as not found.
+
+import type { SupabaseClient } from "@supabase/supabase-js";
+import { cleanBody } from "@/lib/workflows/check";
+import type { Names as WordNames } from "@/lib/workflows/explain";
+import type { Body } from "@/lib/workflows/types";
+import { cached, must } from "../ui";
+import { meetingTypes } from "../meetings/TypesList";
+import { workspacePeople } from "../shared";
+import { byId, type Names } from "./model";
+
+export type Workflow = { id: string; name: string; status: "draft" | "live" | "paused"; draft: unknown; draft_revision: number; live_version: number | null; updated_at: string };
+export type Version = { version: number; note: string | null; published_at: string; published_by: string | null; body: unknown };
+export type Stats = { entered: number; active: number; steps: Record<string, number> };
+
+export type Loaded = { wf: Workflow; draft: Body; live: Body | null; versions: Version[]; names: Names; words: WordNames; stats: Stats };
+
+/** The names workflows show, shared by the list and every open workflow (`workflow_names:<workspace>`). */
+export const loadNames = (sb: SupabaseClient, ws: string): Promise<Names> => cached(`workflow_names:${ws}`, () => readNames(sb, ws));
+
+async function readNames(sb: SupabaseClient, ws: string): Promise<Names> {
+  const [forms, typeRows, people, profiles, templates] = await Promise.all([
+    sb.from("forms").select("id, name").eq("workspace_id", ws).order("name"),
+    meetingTypes(sb, ws),
+    workspacePeople(sb, ws),
+    sb.from("booking_profiles").select("user_id, name").eq("workspace_id", ws),
+    // Names only; a template's body is read when it's picked.
+    sb.from("email_templates").select("id, name").eq("workspace_id", ws).order("name"),
+  ]);
+  const types = { data: [...typeRows].sort((a, b) => a.name.localeCompare(b.name)).map((t) => ({ id: t.id, name: t.name })), error: null };
+  const named = new Map(((profiles.data ?? []) as { user_id: string; name: string }[]).map((p) => [p.user_id, p.name]));
+  return {
+    forms: (must(forms) ?? []) as Names["forms"],
+    types: (must(types) ?? []) as Names["types"],
+    members: people.map((p) => ({ id: p.id, email: p.email, name: named.get(p.id) || p.email.replace(/@.*/, "") })),
+    templates: (must(templates) ?? []) as Names["templates"],
+  };
+}
+
+export const wordsOf = (n: Names): WordNames => ({ forms: byId(n.forms), types: byId(n.types), people: { owner: "their owner", ...byId(n.members) } });
+
+/** A workflow with its versions, names and counts, all asked for at once. */
+export async function loadWorkflow(sb: SupabaseClient, ws: string, id: string): Promise<Loaded> {
+  const [row, versions, names, stats] = await Promise.all([
+    sb.from("workflows").select("id, name, status, draft, draft_revision, live_version, updated_at").eq("id", id).eq("workspace_id", ws).maybeSingle(),
+    sb.from("workflow_versions").select("version, note, published_at, published_by, body").eq("workflow_id", id).order("version", { ascending: false }).limit(50),
+    loadNames(sb, ws),
+    sb.rpc("workflow_stats", { p_id: id }),
+  ]);
+  const wf = must(row) as Workflow | null;
+  if (!wf) throw new Error("Workflow not found.");
+  const vs = (must(versions) ?? []) as Version[];
+  const liveRow = wf.live_version ? vs.find((v) => v.version === wf.live_version) : null;
+  return {
+    wf,
+    draft: cleanBody(wf.draft),
+    live: liveRow ? cleanBody(liveRow.body) : null,
+    versions: vs,
+    names,
+    words: wordsOf(names),
+    stats: (stats.data as Stats | null) ?? { entered: 0, active: 0, steps: {} },
+  };
+}

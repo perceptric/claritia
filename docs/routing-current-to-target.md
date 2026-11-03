@@ -1,0 +1,151 @@
+# Routing: current to target
+
+The short map asked for by `docs/routing-workflow.md` Section 24 (discovery checklist), written before the refactor
+and kept up to date by it. "Unverified" means the code path exists but was not exercised against a real provider here.
+
+## 1. What exists today (inspected)
+
+| Area | Where | What it does today |
+| --- | --- | --- |
+| Router body | `src/lib/router/types.ts` (`RouterBody` v1) | One body per version: spam step, account step (company/opportunity owner), keep step (contact owner, `whenOut` keep/backup/route), ordered rules (`all`/`any`, typed conditions, `then` queue/owner/hold, optional `meet`), queues (members, method rr/weighted/load, strict, hoursOnly), fallback ("Everyone else": a user or a queue), territories, company types, SLA, `notify.noTimes`. |
+| Engine | `src/lib/router/engine.ts` `decide()` | Pure. Spam, then company owner, then contact owner, then first matching rule, then its queue, then the fallback. Round robin = fewest leads from that queue in 30 days, then longest wait, then order. A rule whose queue has nobody falls through to the fallback; the fallback user takes leads over caps. |
+| Conditions | `src/lib/router/conditions.ts` `holds()` | "is not" / "not one of" are **true** on an unknown value; `toNumber` reads the low end of a range ("51-200" is 51) and digits out of any text. Empty condition lists never match. |
+| Checks | `src/lib/router/check.ts` | `cleanBody` (any input to a valid body) and `problems` (what blocks publish). |
+| Persistence | `064_router.sql`: `routers` (one per workspace: live_version, draft, draft_revision, paused_at, allow/block), `router_versions` (immutable by convention only), `router_runs` (unique `(workspace_id, key)`, steps, facts, owner, by, queue_id) | `router_draft_save` (revision check), `router_publish` (next version, clears draft), `router_live`. |
+| Commit | `router_commit` (064) | Advisory lock per queue, duplicate key returns the first run, re-picks the queue turn under the lock with fresh 30-day counts (`router_pick`), writes the run, the owner (field history, CRM owner link), `route_status` for held/unassigned, the timeline line and the `router_alert` job. Caps are counted from `router_runs` (`by` queue/fallback only). |
+| Facts | `router_facts` / `router_facts_full` (064/090) | Contact, company (linked, else first domain match by an order), open opportunity owner, submission answers, reps' state, 30-day queue counts. |
+| Reps | `router_reps` | `paused_until`, `out_dates` (dates in the rep's zone), `backup`, `cap_day`, `cap_week`. Saved at once (`router_rep_save`), outside versions. |
+| Assignment UI | `src/components/app/routing/Assignment.tsx`, `assignModel.ts` | Edits the body as cards and saves + publishes in one step. **Changing reps on a shared queue split it into a new queue per rule** (`q_<rule id>`, `q_default`), which conflicts with spec §12 (one shared queue per team). |
+| Sales reps / History | `SalesReps.tsx`, `History.tsx` | Read `router_reps` and `router_runs`. |
+| Owner writers | `router_commit` (routing), `meeting_team_run` (084, only when a contact has no owner), `contact_update` / record saves (034, people in the CRM), `lead_route` (064, the old MQL routing when no router is live), CRM sync (owner_crm_id, mapped by `contacts_crm_owner`, 086) | Company owner: record saves and `router_commit` when `account.setCompanyOwner`. |
+| Form submit | `src/lib/forms/submit.ts` `acceptFill` → `form_submit_all` (090) | The submission and contact are saved first (idempotent by the browser's key). Then `routeFillWith` routes inline within 300 ms, else the `route` job routes with the same key `form:<submission>`. |
+| Routed booking | `src/lib/forms/schedule.ts` `claritiaPlan`, `src/lib/forms/booking.ts`, `src/lib/meetings/server.ts` `offer`/`book` with `only` | With Routing live, the lead sees only the routed rep's times (`only`), and the signed token books with that rep alone. **When routing was too slow the lead booked from the meeting type's own hosts** (conflicts with "host = committed owner"). |
+| Meeting type hosts | `meeting_types.kind` one / round_robin / collective / double / group, `settings.team` (a Routing queue) | A team type pools a Routing queue and takes the queue's turn at booking (`router_pick`, `meeting_team_run`). This is the spec's separate booking-first mode. |
+| Jobs / outbox | `020_foundation.sql`, `087_job_lanes.sql` `enqueue_job` (unique key), `worker-intel/jobs/router.ts` | `route`, `router_alert` (Slack/email), `router_sla`, `meeting_team_run`, `meeting_book_later`. |
+| Tasks | `tasks` (049) | No dedupe key. |
+| Notifications | `router_alert` job, `router_alert_sent` claims | Slack app message, channel, or email. |
+| Audit | `audit_log` (020), `field_history` | Owner changes are in `field_history`. |
+
+Unverified here: real Google/Microsoft calendar reads and event creation (only the `fake` provider runs in tests),
+Slack/email delivery, CRM two-way owner sync.
+
+## 2. Target (stages A to E) and the chosen adaptations
+
+| Spec entity | Where it lives now |
+| --- | --- |
+| Policy | `routing_policies` (095): workspace, stable id, name, `is_default`, durable `draft` + `draft_revision`, `active_version`, `archived_at`, `create_key` (one policy per create click). |
+| Policy version | `routing_policy_versions` (095): immutable (an update trigger refuses changes), `publish_key` unique per policy (a lost publish response is looked up, not repeated). |
+| Default policy | Every workspace with a `routers` row gets one policy named **Inbound** with all its `router_versions` copied (same numbers, same bodies) and its draft. `routers` / `router_versions` stay as a **mirror** written in the same transaction by the publish and draft services, so every older reader (app counts, SLA, reports, the current Routing screens) keeps working. `router_live` reads the policy. |
+| Policy config | The existing `RouterBody`, extended (no second format): `v: 2` turns on the spec's semantics; every existing body is `v: 1`, which keeps its exact live condition and owner semantics (see 3). New fields: `scope`, `ownership.order`, `ownership.capBlocksNew`, `backup`, `review.owner`, rule `then: "user"`. |
+| Source connection | `routing_sources` (095): source kind form/handoff, form id, `policy_id`, `enabled`, `follows_default` (routes with the workspace's default policy, as every form did before), `outcome` assign_only / assign_and_calendar, `meeting_type_id`, `mappings` (by stable form field id, `src/lib/routing/mapping.ts`), completion (the form's own after-submit setting), `no_slots`, `live_revision`, staged `draft` + `draft_revision`. One row per form (unique), so a form has one primary live policy. `routing_source_resolve` reads the connection's live revision and the policy's active version together. |
+| Team / membership | `routing_teams` + `routing_team_members` (stable `position`) + `routing_team_keys` (the body's queue ids). One persisted `next_position` per team: one shared queue per team, whichever rules or policies point at it. |
+| Member preferences | `router_reps` (unchanged): pause, out dates, backup, caps. |
+| Quota period | `routing_quota` (095): one row per member and period with its own start, end and zone, so a zone change takes effect at the next boundary. |
+| Routing run | `router_runs`, extended: policy id and version, source id and revision, `assignment_state`, `booking_state`, `sync_state`, `previous_owner`, `effect` (new/retained/none), `trace` (the spec's seven stages), `parent_run_id`, `team_id`. The request identity is the existing unique `(workspace_id, key)`. |
+| Assignment event | `routing_assignments` (095): one per committed run, with `counted` (quota) and `advanced` (queue turn). |
+| Review item | `routing_reviews` (095): one per held/unallocated run, a named reviewer (the policy's review owner, else a workspace owner), state open / approved_pending_execution / in_progress / resolved / dismissed. |
+| Follow-up task | `tasks.dedupe_key` (095, unique per workspace): one scheduling task per run and purpose. |
+| Outbox | The jobs queue, written inside the commit transaction (`router_alert`), run after commit by the worker. |
+| Evaluator | `src/lib/router/engine.ts` `decide()` stays the one evaluator; `src/lib/routing/evaluate.ts` wraps it and adds the spec trace and state. The Test panel, Replay, the form path and the jobs all call it. |
+| Committer | `routing_commit(jsonb)` (095). `router_commit(...)` is kept as a thin wrapper over it for the callers that still use the old signature (manual assign, the SLA job). |
+
+### Decisions recorded
+
+1. **Live semantics kept (v1).** Migrated bodies stay `v: 1`, and `v: 1` keeps: "is not" true on unknown, the low end of
+   a range for number tests, company owner ignoring caps, every member in scope, the owner's backup when they're away,
+   a rule whose team has nobody falling to Everyone else, Everyone else as a person taking leads over caps. Turning a
+   policy to `v: 2` is a reviewed, published change (Stage F screen), never done by the migration.
+2. **Round robin moves to the shared persisted queue.** Spec §12 (one queue per team, a turn only for a committed new
+   allocation, no catch-up debt) replaces "fewest leads in 30 days" for teams set to take turns. The migration seeds
+   each team's `next_position` with the member the old rule would have picked next (fewest leads in that queue in 30
+   days, then longest wait, then order), so fairness isn't reset. Weighted and fewest-meetings teams keep their
+   method.
+3. **Per-rule queues.** Queues whose ids look like the last build's per-rule split (`q_<rule id>`, `q_default`, with an
+   optional `_n`) are folded into another queue of the same body **only when they are identical**: same members in
+   the same order, same weights, method, strict and hours setting. Both queue ids then point at one team
+   (`routing_team_keys`). Anything else stays its own named team. The Assignment screen no longer splits: a rule
+   whose reps change reuses a team with exactly those reps, or edits its own unshared team, or makes one new team named
+   after its reps.
+4. **Quota.** Caps count committed new owner allocations in `routing_quota`, across teams and policies, including
+   company-owner and manual allocations (the old count only had queue and fallback picks). Retention and retries
+   count nothing. Today's count is seeded from today's `router_runs`, so caps don't reset at migration. Undoing a run
+   (spam, route again) no longer refunds a count (spec §12: a transfer doesn't refund).
+5. **Sources.** Every form gets an explicit connection: forms whose after-submit step books with Claritia calendar get
+   `assign_and_calendar` with their meeting type; everything else `assign_only` (an outside scheduler link keeps
+   working as before). Each `follows_default`: it routes whenever the default policy is live and not paused, exactly
+   as before. Publishing a staged connection to a policy turns `follows_default` off for it. A form made later with no
+   row also uses the default policy until Stage F writes its row on create.
+6. **Slow routing.** A form whose connection shows a calendar no longer falls back to the meeting type's own hosts
+   when routing is slow: the visitor sees "Your details are saved. We're finishing your request." and the form sends
+   the same request again (same key), so the times shown are always the committed owner's.
+7. **Booking-first team types** (`settings.team`) are left as they are: they keep their own pooled turn from
+   `router_runs` and don't advance the shared owner-first queue.
+
+## 3. v1 and v2 semantics side by side
+
+| Behavior | v1 (every migrated body) | v2 (spec) |
+| --- | --- | --- |
+| "is not" / "not one of" on unknown | true | false; use "is unknown" |
+| Number test on a range | low end of the range | true only when the whole range passes |
+| Number from text | first digits in the text | whole numbers only ("1,200"); anything else is unknown |
+| Ownership order | company (opportunity first), then contact | `ownership.order`, default company then contact |
+| Owner away | `keep.whenOut`: keep, their backup, or route on | skipped with a reason |
+| Company owner at cap | assigned | skipped; next candidate |
+| Scope | every workspace member | `scope.people` and members of `scope.teams` |
+| Rule team has nobody | Everyone else | `backup` once (person or team), then review |
+| Nobody at all | Unassigned | review item with the named reviewer |
+| Company found by domain, several match | the first by owner/length/age | review (`multiple_companies`) |
+| Mapped form value of the wrong type | read as is | review (`source_mapping_mismatch`) |
+
+## 4. Built in stages A to I
+
+| Stage | What exists now |
+| --- | --- |
+| A | This map. |
+| B | `src/lib/routing/states.ts` (assignment, booking, sync and review states as separate lists; typed errors; visitor copy), `src/lib/routing/evaluate.ts` (the one evaluator's spec trace: input, checks, ownership, rules, distribution, assignment, booking; a configuration fingerprint), `src/lib/routing/validate.ts` (blocking errors and warnings), `src/lib/routing/mapping.ts` (field mappings by id, ranges kept as ranges, countries as codes). The engine (`src/lib/router/engine.ts`) gained v2: input checks, ownership in order and scope, typed conditions (`conditions.ts`), first match with later rules "not evaluated", one backup hop then review, and turns from a team's persisted next position. |
+| C | Policies, immutable versions, durable drafts with revisions, publish keys, source connections, `routing_migrate` (the default policy Inbound, teams, connections, quota seed). The current Routing screens keep working on the mirror; `actions.publish` goes through `src/lib/routing/policies.ts` `publishPolicy` (validated, revision-checked, keyed by the draft revision). |
+| D | Teams (`routing_team_save`, stable positions, one queue each), the quota, `routing_commit` (Section 22's order, consistent lock order: request key, contact, team, quota rows by user id), `routing_assignments`, `routing_reviews`, `tasks.dedupe_key`. `route()` (forms, jobs, the SLA job, manual assign through `router_commit`) commits through it. The Assignment screen no longer makes a queue per rule. |
+| E | `acceptFill`: the submission is saved first; the connection and policy are resolved together and stored on the run with the mapped answers; assign-only shows its completion; a calendar connection shows the committed owner's times only; held, no-slots, calendar-disconnected and failed reads keep the owner and record a distinct reason, with one scheduling task; a taken slot refreshes times; a slow send answers "Your details are saved. We're finishing your request." and the form element sends the same request again; the `route` job carries what the send captured. |
+
+| F | The Routing section is **Policies / Teams / Activity** (`src/components/app/routing/RoutingView.tsx` and `rt/`), on one screen read (`routing_screen_*`, 096). Policies list with each policy's state (`screenModel.policyState`: Draft, Published vN, draft changes, not connected, Archived), live sources, destination and last real run; the empty workspace's two starts; Create policy (`createPolicy`, one per click). The editor autosaves the durable draft at its revision (`saveDraft`, now with a staged name, `routing_policy_draft`) and shows Saving, Saved or Couldn't save; a conflict offers Reload, Compare and Reapply mine. Sources are staged through `stageSource` and the new `routing_handoff_stage`. Rules edit typed conditions (numbers gained "at most", `lte`), All/Any, destinations (team, person or review), move up/down by keyboard, delete with Undo; Everyone else, the backup and the review owner; the scope follows the destinations. A migrated v1 policy opens on the spec's rules (`toV2`) and only goes live through the publish review, which lists what changes (`semanticsChanges`). The tester runs the shared evaluator on the saved draft or the published version with labeled overrides and keeps evidence (`routing_test_evidence`: the release fingerprint of the draft, the teams it names and its sources' settings); publish needs evidence for exactly the current release, is checked on the server (`screens.review`) and goes through `publishPolicy` with the dialog's operation id (a lost answer is looked up). Versions (restore as draft), Duplicate (a disconnected copy) and Archive (refused while a live source uses the policy). Teams: members' status (Accepting leads, Paused, Out of office with dates and zone), today's count of the cap, calendar, next in the round robin, add/remove (`saveTeam`, positions kept), Create team. Activity: real runs with separate assignment and booking states, review items, a run drawer from the stored trace. |
+| G | Route & book from a contact (and the policy header): `src/lib/routing/handoff.ts`. Find recipient previews with the shared evaluator and the recipient's real times (`offer`, read only). Assign without booking and Confirm handoff & book recheck the live version, the contact's owner (`expect_owner`) and the recipient (the team's turn is taken under its lock for that person only) and commit once by the drawer's operation id through `commit` (the 095 committer); booking goes through `book` with the committed owner alone, `routing_run_meeting` links the meeting and keeps it pending until the calendar has the event. A failed booking keeps the assignment; `bookRun` books again without routing again. An owner's override is checked for scope and eligibility, needs a reason and is audited in the trace; members can't override. |
+
+Acceptance scenarios run (all passing): R01-R15, O01-O14 and P03-P06 at the evaluator (`tests/routingPolicy.test.ts`);
+T01-T12, O01-O14 at commit, R11-R13 facts, G05, G07, P02, P06, B13 and the migration (`tests/pg/routingPolicies.pg.ts`);
+B01-B05, B08, B13, B14, B16, public tampering and two flaky cases (`tests/pg/routingForms.pg.ts`); T05 in validation.
+Stages F and G: P01, P02, P07-P10, G01, G03-G08, H01-H10 and archive (`tests/pg/routingScreens.pg.ts`); P03-P06, the
+at-most comparison, scope, the v1 move, the change list, the trace in words and the release fingerprint
+(`tests/routingScreensModel.test.ts`); G02, G15, G16 and P07's Undo in a browser against the real screens with a mocked
+server (render harness, not in the repository).
+
+| Stage | Built in H and I |
+| --- | --- |
+| H | Recovery and review (`supabase/migrations/097_routing_recovery.sql`, `src/lib/routing/recovery.ts`, `src/lib/routing/access.ts`, the Activity drawer `rt/RunDrawer.tsx`). The review lifecycle goes through one call with a revision check (`routing_review_act`: approve, start, back, dismiss with a reason, reopen; never "resolve"). Approve and route runs a child attempt with its own key `review:<item>:<op>` and `parent_run_id`, on the original version when it's still valid (else a chosen published version, with the reason), with corrections as new facts (`provenance.source = review`), previewed then confirmed; its owner resolves the parent in the committer's transaction (trigger `routing_runs_after`); a child that lands in review again reopens the parent's item (trigger `routing_reviews_child`), so one lead has one item. A reviewer who leaves hands their items to a workspace owner (`routing_reviewer_left`). Assign by hand and Reassign go through `routing_commit` with a reason, a conflict check on the owner the person saw and the cap rechecked under the lock; a new owner counts once, no team turn, company and meetings untouched, audited (`routing.assign_by_hand`). Bookings: a routed meeting links to its run when it's made and the run stays `pending_confirmation` until the calendar holds the event (`routing_meeting_made` / `routing_meeting_changed`); a calendar create that stopped trying is `outcome_unknown` (may exist) or `failed` with `provider_error` (surely not), from the worker's new `outcome` detail; Check calendar re-runs the same `meeting_sync` key, so the provider finds the first event. Cancelled meetings set the booking only; no-show is attendance. Abandonment: each sign of life from a booking session (`routing_booking_touch`) queues `routing_abandon` for the end of its window (30 minutes, or the connection's `no_slots.abandonAfter`); the owner stays; a task only when `no_slots.abandonTask`; a later booking confirms and resolves both follow-ups. External sync: a new owner is `pending` while a two-way CRM has to learn it; the sync log settles it (`complete` / `failed`); Retry sync pushes that contact again (`routing_sync_retry`). |
+| I | Forms › Settings › After submit shows and edits the form's canonical connection (`forms/RoutingConnection.tsx`, `rt_form_source`, `rt_stage`): policy, outcome, meeting type, state (Live, Waiting to publish, Disconnected), Disconnect and Connect. The form's own meeting picker shows only while the connection still follows the form. A new form gets its connection on creation (`routing_form_made`); while nobody has edited it, it follows the form's "Book a meeting" choice at each form publish (`routing_form_published`). Disconnecting stages `enabled = false` with `when_off = review`: after the publish, new leads are kept and open one review item (`source_disconnected`) with the admin reviewer; no calendar is shown. Roles (`access.ts`) on every new action; members can hand off only their own or unowned leads. The tester looks up an existing contact of the workspace (server-side search `rt_contacts`). Route & book has the override picker for owners (reason required). A booking-first team meeting that gives an unowned contact its owner counts once in the quota (`meeting_team_run`). |
+
+Acceptance added in H and I (all passing, `tests/pg/routingRecovery.pg.ts`, `tests/routingRecoveryModel.test.ts`): G09, G10 (twice: original
+version and a chosen version with corrections), G11, G12, G13, G14, B06, B07, B09 (an unknown outcome and a surely failed create), B10,
+B11, B12, B15, H10 regression, reviewer escalation, manual reassignment, resume booking, the tester's lookup, a new form's connection,
+the pooled team quota. B01 and B08 now expect `pending_confirmation` until the calendar holds the event. O12 and O13 were already covered
+in `tests/routingPolicy.test.ts` and `tests/pg/routingPolicies.pg.ts`.
+
+## 5. What is still open
+
+- The public visitor still sees the scheduler's own "booked" confirmation as soon as Claritia holds the time; the run says
+  `pending_confirmation` until the calendar has the event. The spec's "We're confirming your meeting" message isn't shown to visitors.
+- Real Google, Microsoft and Zoom calendars, HubSpot/Salesforce pushes, Slack and email delivery were not run here; only the fake
+  calendar and the database sync log were.
+- Scoped managers and read-only members don't exist as roles yet (only owner and member).
+
+## 6. Running cost
+
+Stages F to I add no service and no AI call: the screens read the database, the tester runs the evaluator in the API
+server, Route & book uses the existing calendar reads, and recovery uses the existing jobs (`meeting_sync`, `source_pull`,
+`meeting_book_later`) plus one small `routing_abandon` job per calendar-showing fill. Beta (50 teams): $0 a month. Growth
+(500 teams): $0 a month (a few thousand extra small job and audit rows a month, inside the existing database plan).
+
+## 7. Rollback
+
+095, 096 and 097 add tables, columns and triggers and replace functions; they delete nothing. 097's triggers can be dropped
+on their own (`drop trigger routing_meeting_made ...`) to stop its live effects. The `routers` / `router_versions` mirror is
+complete, so restoring 094's function bodies brings back the old path with every version intact.

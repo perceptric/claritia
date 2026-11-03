@@ -19,6 +19,13 @@ services:
         generateValue: true
       - key: RESEND_API_KEY
         sync: false
+      # Forms (docs/forms-setup.md): the form chat, and Turnstile for forms that turn it on.
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: TURNSTILE_SITE_KEY
+        sync: false
+      - key: TURNSTILE_SECRET_KEY
+        sync: false
       - key: STRIPE_SECRET_KEY
         sync: false
       # Sources (docs/sources-setup.md). APP_URL only when the app isn't at https://app.tryclaritia.com.
@@ -45,4 +52,15 @@ services:
       - key: MAILCHIMP_CLIENT_ID
         sync: false
       - key: MAILCHIMP_CLIENT_SECRET
+        sync: false
+      # Sending (docs/sending-setup.md): the signing secret of Resend's webhook.
+      - key: RESEND_WEBHOOK_SECRET
+        sync: false
+      # Forms (docs/conversion-parity.md Part 21g): Cloudflare Turnstile, optional per form.
+      - key: TURNSTILE_SITE_KEY
+        sync: false
+      - key: TURNSTILE_SECRET_KEY
+        sync: false
+      # AI: nurture drafts and the GitHub flow.
+      - key: ANTHROPIC_API_KEY
         sync: false

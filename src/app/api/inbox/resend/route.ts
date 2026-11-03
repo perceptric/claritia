@@ -3,7 +3,6 @@ import { serviceClient } from "@/lib/serviceClient";
 
 const MAX_TEXT = 100_000;
 const MAX_HTML = 300_000;
-const KEEP_DAYS = 7;
 
 /**
  * Resend's email.received webhook, for test inboxes. Anyone can post here, so only the email's id is read from
@@ -46,12 +45,6 @@ export async function POST(request: Request) {
     { onConflict: "external_id", ignoreDuplicates: true },
   );
   if (saveErr) return Response.json({ error: saveErr.message }, { status: 500 });
-
-  // Test mail is only needed while a run waits for it. Keep a week, for the run pages.
-  await admin
-    .from("inbox_messages")
-    .delete()
-    .eq("project_id", project.id)
-    .lt("received_at", new Date(Date.now() - KEEP_DAYS * 86_400_000).toISOString());
+  // Test mail older than a week is removed by the database each night (inbox_prune, 088_server_speed.sql), not here.
   return Response.json({ ok: true });
 }

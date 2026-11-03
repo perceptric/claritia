@@ -15,11 +15,30 @@ export async function requireKey(request: Request): Promise<ApiCaller | { denied
   if (!key) return deny("Send an API key as 'Authorization: Bearer clr_...'. Make one in Settings.", 401);
   const sb = serviceClient();
   if (!sb) return deny("The server is not set up for API keys.", 500);
-  const { data, error } = await sb.rpc("api_key_auth", { p_hash: hashKey(key) });
+  const hash = hashKey(key);
+  const hit = keys.get(hash);
+  if (hit && hit.until > Date.now()) return { sb, keyId: hit.keyId, workspaceId: hit.workspaceId };
+  const { data, error } = await sb.rpc("api_key_auth", { p_hash: hash });
   if (error) return deny(error.message, 500);
   const row = (data as { key_id: string; workspace_id: string }[] | null)?.[0];
-  if (!row) return deny("This API key is wrong or was revoked.", 401);
+  if (!row) {
+    keys.delete(hash);
+    return deny("This API key is wrong or was revoked.", 401);
+  }
+  if (keys.size >= 2000) keys.delete(keys.keys().next().value!);
+  keys.set(hash, { keyId: row.key_id, workspaceId: row.workspace_id, until: Date.now() + KEY_TTL_MS });
   return { sb, keyId: row.key_id, workspaceId: row.workspace_id };
+}
+
+// A working key's workspace, kept a minute by its hash so a script's calls don't each look it up. A revoked key
+// stops within that minute (or at once when this process revokes it: forgetKey). Wrong keys are never kept.
+const KEY_TTL_MS = 60_000;
+const keys = new Map<string, { keyId: string; workspaceId: string; until: number }>();
+
+/** Drop kept keys: one by its id, or all. */
+export function forgetKey(keyId?: string) {
+  if (!keyId) return keys.clear();
+  for (const [h, v] of keys) if (v.keyId === keyId) keys.delete(h);
 }
 
 export const isUuid = (v: unknown): v is string => typeof v === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v);

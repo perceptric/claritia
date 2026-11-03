@@ -3,7 +3,8 @@ import { requireUser } from "@/lib/serverAuth";
 
 /** Make an API key for a workspace. The key comes back once; only its hash is kept. */
 export async function POST(request: Request) {
-  const auth = await requireUser(request);
+  // Making an API key is an owner-level action: Supabase Auth confirms the session is still live.
+  const auth = await requireUser(request, { fresh: true });
   if ("denied" in auth) return auth.denied;
   const body = (await request.json().catch(() => ({}))) as { workspaceId?: unknown; name?: unknown };
   if (typeof body.workspaceId !== "string") return Response.json({ error: "Missing workspace." }, { status: 400 });

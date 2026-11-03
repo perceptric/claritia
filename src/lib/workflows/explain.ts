@@ -1,0 +1,115 @@
+// Workflows in plain words: the trigger as a sentence, each card's one-line meaning, a run's lines in History, and
+// the changes Make live lists.
+
+import { BASE_FIELDS, ruleWords } from "../router/conditions.ts";
+import { find, walk } from "./tree.ts";
+import type { Body, Goal, Step, Trigger } from "./types.ts";
+
+export type Names = { forms?: Record<string, string>; segments?: Record<string, string>; types?: Record<string, string>; people?: Record<string, string>; emails?: Record<string, string> };
+
+const list = (xs: string[]) => (xs.length <= 1 ? (xs[0] ?? "") : `${xs.slice(0, -1).join(", ")} or ${xs[xs.length - 1]}`);
+/** The names of the picked ids. Deleted ones drop out; when all are gone, `gone` says so. */
+const named = (ids: string[], by: Record<string, string> | undefined, any: string, gone: string) => {
+  if (!ids.length) return any;
+  const known = ids.map((id) => by?.[id]).filter((x): x is string => !!x);
+  return known.length ? list(known) : gone;
+};
+const EVENT: Record<string, string> = { booked: "booked", canceled: "canceled", held: "held", no_show: "a no-show" };
+const plural = (n: number, one: string) => `${n} ${one}${n === 1 ? "" : "s"}`;
+
+export function triggerWords(t: Trigger, n: Names = {}): string {
+  switch (t.kind) {
+    case "form":
+      return `When ${named(t.forms, n.forms, "any form", "a deleted form")} is sent`;
+    case "meeting": {
+      const what = list(t.events.map((e) => EVENT[e] ?? e)) || "booked";
+      if (!t.types.length) return `When a meeting is ${what}`;
+      const w = named(t.types, n.types, "", "");
+      return w ? `When ${/^[aeiou]/i.test(w) ? "an" : "a"} ${w} meeting is ${what}` : `When a meeting of a deleted type is ${what}`;
+    }
+    case "not_booked":
+      return `When a lead doesn't book after ${named(t.forms, n.forms, "a form", "a deleted form")}`;
+    case "routed":
+      return t.result === "unassigned" ? "When no one is found for a lead" : t.result === "routed" ? "When a lead is assigned" : "When a lead is routed";
+    case "clicked":
+      return `When someone clicks ${named(t.emails, n.emails, "an email", "a deleted email")}`;
+  }
+}
+
+const EVENT_WORDS: Record<string, string> = { "meeting.booked": "a booked meeting", "email.clicked": "a click on an email", "form.submitted": "a form" };
+
+export function waitWords(s: Extract<Step, { kind: "wait" }>): string {
+  const parts = [s.days ? plural(s.days, "day") : "", s.hours ? plural(s.hours, "hour") : ""].filter(Boolean);
+  if (s.before === "meeting") return `Wait until ${parts.join(" and ") || "the time"} before the meeting`;
+  const days = s.weekday?.length ? ` until ${s.weekday.length === 5 && !s.weekday.includes(0) && !s.weekday.includes(6) ? "a weekday" : "the next allowed day"}` : "";
+  return `Wait ${parts.join(" and ") || "a moment"}${days}${s.at ? ` at ${s.at}` : ""}`;
+}
+
+/** A card's one line. */
+export function stepWords(s: Step, n: Names = {}): string {
+  switch (s.kind) {
+    case "email":
+      return s.email.subject ? `Send "${s.email.subject}"${s.from === "owner" ? " from their owner" : ""}` : "Send an email";
+    case "wait":
+      return waitWords(s);
+    case "wait_until":
+      return `Wait up to ${plural(s.days, "day")} for ${EVENT_WORDS[s.event] ?? s.event}`;
+    case "branch":
+      return s.conds.length ? `If ${s.conds.map((c) => ruleWords({ id: s.id, name: "", match: s.match, conds: [c], queue: "" }, BASE_FIELDS, []).replace(/^./, (x) => x.toLowerCase())).join(s.match === "any" ? " or " : " and ")}` : "If…";
+    case "split":
+      return `Split ${s.percent}% and ${100 - s.percent}%`;
+    case "route":
+      return "Find the right person";
+    case "slack":
+      return `Slack ${s.to === "owner" ? "their owner" : (n.people?.[s.to] ?? "a teammate")}`;
+    case "webhook":
+      return s.url ? `Send to ${hostOf(s.url)}` : "Send to a webhook";
+    case "exit":
+      return "End here";
+  }
+}
+
+const hostOf = (u: string) => {
+  try {
+    return new URL(u).host;
+  } catch {
+    return "a webhook";
+  }
+};
+
+export function goalWords(g: Goal): string {
+  void g;
+  return "they book a meeting";
+}
+
+/** Make live's list: what changed between the live version and the draft, as sentences. */
+export function diffWords(live: Body | null, draft: Body, n: Names = {}): string[] {
+  if (!live) return ["Goes live for the first time"];
+  const out: string[] = [];
+  if (JSON.stringify(live.trigger) !== JSON.stringify(draft.trigger)) out.push(`Starts: ${triggerWords(draft.trigger, n)}`);
+  if (JSON.stringify(live.goals) !== JSON.stringify(draft.goals)) out.push(draft.goals.length ? `Ends early when ${draft.goals.map(goalWords).join(" or ")}` : "No longer ends early");
+  if (JSON.stringify(live.entry) !== JSON.stringify(draft.entry)) out.push(draft.entry.mode === "once" ? "People go through once" : `People can go through again after ${plural(draft.entry.gapDays, "day")}`);
+  const before = new Map<string, Step>();
+  walk(live.steps, (s) => before.set(s.id, s));
+  const after = new Map<string, Step>();
+  walk(draft.steps, (s) => after.set(s.id, s));
+  for (const [id, s] of after) {
+    const b = before.get(id);
+    const strip = (x: Step) => JSON.stringify({ ...x, yes: undefined, no: undefined, a: undefined, b: undefined });
+    if (!b) out.push(`Adds: ${stepWords(s, n)}`);
+    else if (strip(b) !== strip(s)) out.push(`Changes: ${stepWords(s, n)}`);
+    else if (find(live.steps, id)?.parent?.step.id !== find(draft.steps, id)?.parent?.step.id || find(live.steps, id)?.index !== find(draft.steps, id)?.index) out.push(`Moves: ${stepWords(s, n)}`);
+  }
+  for (const [id, s] of before) if (!after.has(id)) out.push(`Removes: ${stepWords(s, n)}`);
+  return out.length ? out : ["No changes"];
+}
+
+/** A finished step in History, by its result. */
+export function resultWords(s: Step | null, status: string, result: Record<string, unknown> | null, n: Names = {}): string {
+  const base = s ? stepWords(s, n) : "A step that was removed";
+  if (status === "skipped") return `${base}: skipped${result?.why ? `, ${String(result.why)}` : ""}`;
+  if (status === "failed") return `${base}: didn't work${result?.error ? `, ${String(result.error)}` : ""}`;
+  if (status === "unknown") return `${base}: no clear answer, not tried again`;
+  if (s?.kind === "branch" || s?.kind === "split" || s?.kind === "wait_until") return `${base}: went ${String(result?.path ?? "on")}`;
+  return base;
+}

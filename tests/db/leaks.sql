@@ -548,13 +548,13 @@ insert into audit_log (workspace_id, actor, action, target) values
 insert into privacy_requests (workspace_id, kind, subject_hash, source) values
   ('11111111-0000-0000-0000-000000000000', 'erase', '\x00', 'app'),
   ('22222222-0000-0000-0000-000000000000', 'erase', '\x01', 'app');
-select enqueue_job('11111111-0000-0000-0000-000000000000', 'stitch', 'dev-acme', '{}');
+select enqueue_job('11111111-0000-0000-0000-000000000000', 'workflow_run', 'dev-acme', '{}');
 select pg_temp.as_user('b0000000-0000-0000-0000-000000000000');
 set role authenticated;
 select pg_temp.check(pg_temp.visible($$select count(*) from jobs$$) = 0, 'Ben sees the jobs queue');
-select pg_temp.fails($$insert into jobs (kind) values ('stitch')$$, 'Ben adds a job');
-select pg_temp.fails($$select enqueue_job('11111111-0000-0000-0000-000000000000', 'stitch', 'x', '{}')$$, 'Ben queues a job through the function');
-select pg_temp.fails($$select * from claim_job('{stitch}', 'ben', 60, 1)$$, 'Ben claims a job');
+select pg_temp.fails($$insert into jobs (kind) values ('workflow_run')$$, 'Ben adds a job');
+select pg_temp.fails($$select enqueue_job('11111111-0000-0000-0000-000000000000', 'workflow_run', 'x', '{}')$$, 'Ben queues a job through the function');
+select pg_temp.fails($$select * from claim_job('{workflow_run}', 'ben', 60, 1)$$, 'Ben claims a job');
 select pg_temp.fails($$update workspaces set features = '{testing,marketing}'$$, 'Ben turns on features for his workspace');
 select pg_temp.check((select count(*) from suite_connections) = 1 and (select key_hint from suite_connections) = '…a1b2', 'Ben can''t see only his own suite connection');
 select pg_temp.fails($$select key_sealed from suite_connections$$, 'Ben reads a sealed suite key');
@@ -670,7 +670,8 @@ create temp table pr as select privacy_request('ab000000-0000-0000-0000-00000000
 reset role;
 select set_config('request.jwt.claim.sub', '', false);
 insert into privacy_exports (request_id, workspace_id, data) values ((select id from pr), '11111111-0000-0000-0000-000000000000', '{"person":"jane"}');
-select pg_temp.check((select count(*) from jobs where kind = 'privacy') = 1, 'The export wasn''t queued');
+-- Visitors' privacy jobs aren't run any more (116): the queue drops them.
+select pg_temp.check((select count(*) from jobs where kind = 'privacy') = 0, 'A removed job kind was queued');
 select pg_temp.as_user('b0000000-0000-0000-0000-000000000000');
 set role authenticated;
 select pg_temp.check((select count(*) from privacy_exports) = 0, 'Ben, a member, reads a privacy export');
@@ -744,12 +745,20 @@ insert into saved_views (workspace_id, screen, name, filters, created_by) values
 create temp table cat_contact as select id from contacts where email_clean = 'spy@secret-co.com';
 create temp table ben_contact as select id from contacts where email_clean = 'jane@globex.com';
 grant select on cat_contact, ben_contact to authenticated;
+insert into invites (workspace_id, email) values ('22222222-0000-0000-0000-000000000000', 'friend@other.com');
 select pg_temp.as_user('b0000000-0000-0000-0000-000000000000');
 set role authenticated;
 select pg_temp.check((select count(*) from contacts) = 1 and (select count(*) from companies) = 1, 'Ben sees another workspace''s contacts or companies');
 select pg_temp.check((select count(*) from consents) = 1 and (select count(*) from field_writes w join contacts c on c.id = w.contact_id) = (select count(*) from field_writes), 'Ben sees another workspace''s consent or field history');
 select pg_temp.check((select count(*) from contact_events) = 1, 'Ben sees another workspace''s contact events');
-select pg_temp.check((select count(*) from topics) = 0 and (select count(*) from fields) = 0 and (select count(*) from saved_views) = 0, 'Ben sees Cat''s topics, fields or views');
+-- Every workspace has the built-in Opportunity fields; Ben sees only his own.
+select pg_temp.check((select count(*) from topics) = 0 and (select count(*) from fields where object <> 'opportunity') = 0 and (select count(*) from saved_views) = 0, 'Ben sees Cat''s topics, fields or views');
+select pg_temp.check((select count(*) from fields where object = 'opportunity') = 10 and (select count(*) from objects) = 1, 'Ben sees Cat''s built-in objects');
+select pg_temp.check((select count(*) from invites) = 0, 'Ben sees Cat''s invites');
+select pg_temp.check((select count(*) from team('22222222-0000-0000-0000-000000000000')) = 0, 'Ben reads Cat''s team');
+select pg_temp.fails($$select invite_member('22222222-0000-0000-0000-000000000000', 'mole@evil.com')$$, 'Ben invites himself a friend into Cat''s workspace');
+select pg_temp.fails($$select opportunities_ingest((select id from sources limit 1), '[]')$$, 'Ben calls the opportunity sync');
+select pg_temp.fails($$insert into invites (workspace_id, email) values ('11111111-0000-0000-0000-000000000000', 'x@x.com')$$, 'Ben writes invites directly');
 select pg_temp.check(pg_temp.visible($$select count(*) from partitions.contact_events_$$ || to_char(now(), 'YYYY_MM')) = 0, 'Ben reads an event month directly');
 select pg_temp.fails($$update contacts set title = 'x'$$, 'Ben edits contacts directly');
 select pg_temp.fails($$insert into contacts (workspace_id, email, email_clean) values ('11111111-0000-0000-0000-000000000000', 'a@b.com', 'a@b.com')$$, 'Ben plants a contact');
@@ -792,7 +801,7 @@ insert into saved_views (workspace_id, screen, name, filters, created_by, owner_
   ('11111111-0000-0000-0000-000000000000', 'contacts', 'Ann only', '[]', 'a0000000-0000-0000-0000-000000000000', 'a0000000-0000-0000-0000-000000000000');
 select pg_temp.as_user('b0000000-0000-0000-0000-000000000000');
 set role authenticated;
-select pg_temp.check((select count(*) from objects) = 0 and (select count(*) from records) = 0 and (select count(*) from field_history where object = 'deal_room') = 0, 'Ben sees Cat''s objects, records or history');
+select pg_temp.check((select count(*) from objects where not system) = 0 and (select count(*) from records) = 0 and (select count(*) from field_history where object = 'deal_room') = 0, 'Ben sees Cat''s objects, records or history');
 select pg_temp.check((select count(*) from suppressions) = 0 and (select count(*) from field_order) = 0, 'Ben sees Cat''s suppressions or field order');
 select pg_temp.check((select count(*) from saved_views where name = 'Ann only') = 0, 'Ben sees Ann''s personal view');
 select pg_temp.check(pg_temp.touched($$update saved_views set name = 'mine' where name = 'Ann only'$$) = 0, 'Ben renames Ann''s personal view');
@@ -911,6 +920,440 @@ reset role;
 select pg_temp.check((select name from segments where id = '5e000000-0000-0000-0000-0000000000c1') = 'Cat''s VIPs', 'Cat''s segment changed');
 select set_config('request.jwt.claim.sub', '', false);
 delete from jobs;
+
+-- Forms (045): Ben edits and deletes only Acme's forms; nobody reads a destination's address or secret; publishing,
+-- serving, submitting and sending are server only; a stale draft never overwrites a newer one.
+insert into forms (id, workspace_id, name, status, version, draft) values
+  ('f0a00000-0000-0000-0000-0000000000a1', '11111111-0000-0000-0000-000000000000', 'Acme demo', 'live', 1, '{}'),
+  ('f0c00000-0000-0000-0000-0000000000c1', '22222222-0000-0000-0000-000000000000', 'Cat demo', 'live', 1, '{}');
+insert into form_versions (form_id, workspace_id, version, body) values
+  ('f0a00000-0000-0000-0000-0000000000a1', '11111111-0000-0000-0000-000000000000', 1, '{"steps":[]}'),
+  ('f0c00000-0000-0000-0000-0000000000c1', '22222222-0000-0000-0000-000000000000', 1, '{"steps":[]}');
+insert into form_destinations (id, workspace_id, form_id, kind, name) values
+  ('fda00000-0000-0000-0000-0000000000a1', '11111111-0000-0000-0000-000000000000', 'f0a00000-0000-0000-0000-0000000000a1', 'slack', 'Acme Slack'),
+  ('fdc00000-0000-0000-0000-0000000000c1', '22222222-0000-0000-0000-000000000000', 'f0c00000-0000-0000-0000-0000000000c1', 'webhook', 'Cat hook');
+insert into form_destination_secrets (destination_id, sealed) values
+  ('fda00000-0000-0000-0000-0000000000a1', 'v1:acme-slack'),
+  ('fdc00000-0000-0000-0000-0000000000c1', 'v1:cat-hook');
+insert into submissions (id, workspace_id, form_id, form_version, idem_key, "values") values
+  ('5b000000-0000-0000-0000-0000000000c1', '22222222-0000-0000-0000-000000000000', 'f0c00000-0000-0000-0000-0000000000c1', 1, 'catcatcatcatcatcat01', '{"email":"x@cat.com"}');
+insert into deliveries (id, workspace_id, submission_id, destination_id, status) values
+  ('de000000-0000-0000-0000-0000000000c1', '22222222-0000-0000-0000-000000000000', '5b000000-0000-0000-0000-0000000000c1', 'fdc00000-0000-0000-0000-0000000000c1', 'failed');
+insert into brand_kits (id, workspace_id, name) values ('bc000000-0000-0000-0000-0000000000c1', '22222222-0000-0000-0000-000000000000', 'Cat brand');
+select pg_temp.as_user('b0000000-0000-0000-0000-000000000000');
+set role authenticated;
+select pg_temp.check((select count(*) from forms) = 1, 'Ben sees another workspace''s forms');
+select pg_temp.check((select count(*) from form_versions) = 1, 'Ben sees another workspace''s form versions');
+select pg_temp.check((select count(*) from form_destinations) = 1, 'Ben sees another workspace''s destinations');
+select pg_temp.check((select count(*) from submissions) = 0 and (select count(*) from deliveries) = 0, 'Ben sees Cat''s submissions or deliveries');
+select pg_temp.check((select count(*) from brand_kits) = 0, 'Ben sees Cat''s brand kit');
+select pg_temp.check(jsonb_array_length(forms_list('22222222-0000-0000-0000-000000000000')) = 0 and jsonb_array_length(forms_list('11111111-0000-0000-0000-000000000000')) = 1, 'Ben lists Cat''s forms, or can''t list Acme''s');
+select pg_temp.fails($$select * from form_destination_secrets$$, 'Ben reads a destination''s secret');
+select pg_temp.fails($$insert into forms (workspace_id, name) values ('11111111-0000-0000-0000-000000000000', 'x')$$, 'Ben writes forms directly');
+select pg_temp.fails($$update submissions set spam = true$$, 'Ben writes submissions directly');
+select pg_temp.fails($$select form_create('22222222-0000-0000-0000-000000000000', 'x', '{}')$$, 'Ben makes a form in Cat''s workspace');
+select pg_temp.fails($$select form_save('f0c00000-0000-0000-0000-0000000000c1', 'mine', '{}', 0)$$, 'Ben saves Cat''s form');
+select pg_temp.fails($$select form_rename('f0c00000-0000-0000-0000-0000000000c1', 'mine')$$, 'Ben renames Cat''s form');
+select pg_temp.fails($$select form_set_status('f0c00000-0000-0000-0000-0000000000c1', 'paused')$$, 'Ben pauses Cat''s form');
+select pg_temp.fails($$select form_delete('f0c00000-0000-0000-0000-0000000000c1')$$, 'Ben deletes Cat''s form');
+select pg_temp.fails($$select form_destination_delete('fdc00000-0000-0000-0000-0000000000c1')$$, 'Ben deletes Cat''s destination');
+select pg_temp.fails($$select form_destination_pause('fdc00000-0000-0000-0000-0000000000c1', true)$$, 'Ben pauses Cat''s destination');
+select pg_temp.fails($$select brand_kit_delete('bc000000-0000-0000-0000-0000000000c1')$$, 'Ben deletes Cat''s brand kit');
+select pg_temp.check(deliveries_replay(array['de000000-0000-0000-0000-0000000000c1']::uuid[]) = 0, 'Ben replays Cat''s delivery');
+select pg_temp.fails($$select form_publish('f0a00000-0000-0000-0000-0000000000a1', 'b0000000-0000-0000-0000-000000000000', '{}')$$, 'Ben publishes without the server''s check');
+select pg_temp.fails($$select form_public('f0c00000-0000-0000-0000-0000000000c1')$$, 'Ben reads a form the public way');
+select pg_temp.fails($$select form_submit('f0a00000-0000-0000-0000-0000000000a1', 1, 'abcdefghijklmnop', '{}', '{}', null, '{}', null, null, false)$$, 'Ben submits past the public route');
+select pg_temp.fails($$select delivery_take('de000000-0000-0000-0000-0000000000c1')$$, 'Ben takes a delivery');
+select pg_temp.fails($$select delivery_finish('de000000-0000-0000-0000-0000000000c1', 'done')$$, 'Ben finishes a delivery');
+select pg_temp.fails($$select form_destination_save('b0000000-0000-0000-0000-000000000000', 'f0a00000-0000-0000-0000-0000000000a1', null, 'webhook', null, 'x', '{}', 'upsert', 'v1:x')$$, 'Ben saves a destination past the route');
+select pg_temp.fails($$select brand_kit_save('b0000000-0000-0000-0000-000000000000', '11111111-0000-0000-0000-000000000000', null, 'x', '{}')$$, 'Ben saves a brand kit past the route');
+select pg_temp.fails($$select deliveries_sweep()$$, 'Ben sweeps deliveries');
+select pg_temp.fails($$select deliveries_held('fda00000-0000-0000-0000-0000000000a1')$$, 'Ben takes held deliveries');
+select pg_temp.fails_with($$select form_set_status(form_create('11111111-0000-0000-0000-000000000000', 'Fresh', '{}'), 'live')$$, '%Publish the form first%', 'Ben turns on a form never published');
+select pg_temp.check(form_save('f0a00000-0000-0000-0000-0000000000a1', 'Acme demo 2', '{"a":1}', 0) = 1, 'Ben can''t save Acme''s form');
+select pg_temp.fails_with($$select form_save('f0a00000-0000-0000-0000-0000000000a1', 'stale', '{"a":0}', 0)$$, '%changed in another window%', 'A stale draft overwrites a newer one');
+select form_rename('f0a00000-0000-0000-0000-0000000000a1', '  Acme demo 3  ');
+select pg_temp.check((select name = 'Acme demo 3' and draft_rev = 1 from forms where id = 'f0a00000-0000-0000-0000-0000000000a1'), 'A rename changes the draft or keeps the spaces');
+select pg_temp.fails_with($$select form_rename('f0a00000-0000-0000-0000-0000000000a1', '   ')$$, '%Name the form%', 'A form is renamed to nothing');
+select pg_temp.as_user('');
+set role anon;
+select pg_temp.fails($$select form_public('f0a00000-0000-0000-0000-0000000000a1')$$, 'Anyone reads a form past the public route');
+select pg_temp.fails($$select * from submissions$$, 'Anyone reads submissions');
+reset role;
+select pg_temp.check((select name from forms where id = 'f0c00000-0000-0000-0000-0000000000c1') = 'Cat demo' and (select status from deliveries where id = 'de000000-0000-0000-0000-0000000000c1') = 'failed', 'Cat''s form or delivery changed');
+select pg_temp.check((select draft from forms where id = 'f0a00000-0000-0000-0000-0000000000a1') = '{"a":1}', 'The stale save changed the draft');
+select set_config('request.jwt.claim.sub', '', false);
+delete from jobs;
+
+-- Form chat and brand scans (046): the AI cache and chat history stay server-side or in the workspace; only owners
+-- read AI costs; scans start only through the server.
+insert into form_chats (form_id, workspace_id, messages) values ('f0c00000-0000-0000-0000-0000000000c1', '22222222-0000-0000-0000-000000000000', '[{"role":"user","text":"cat secret"}]');
+insert into ai_cache (workspace_id, kind, key, output, model) values ('22222222-0000-0000-0000-000000000000', 'form_chat', repeat('a', 64), '{}', 'm');
+insert into ai_calls (workspace_id, kind, model) values ('11111111-0000-0000-0000-000000000000', 'form_chat', 'claude-sonnet-5-5'), ('22222222-0000-0000-0000-000000000000', 'form_chat', 'claude-sonnet-5-5');
+select pg_temp.as_user('b0000000-0000-0000-0000-000000000000');
+set role authenticated;
+select pg_temp.check((select count(*) from form_chats) = 0, 'Ben reads Cat''s form chat');
+select pg_temp.check((select count(*) from ai_calls) = 0, 'Ben (a member) reads AI costs');
+select pg_temp.fails($$select * from ai_cache$$, 'Ben reads the AI cache');
+select pg_temp.fails($$select ai_cache_get('22222222-0000-0000-0000-000000000000', 'form_chat', repeat('a', 64))$$, 'Ben reads the AI cache through its function');
+select pg_temp.fails($$select ai_cache_put('11111111-0000-0000-0000-000000000000', 'form_chat', repeat('b', 64), '{}', 'm', 0, 0)$$, 'Ben writes the AI cache');
+select pg_temp.fails($$select ai_call_log('11111111-0000-0000-0000-000000000000', 'x_y', 'm', '{}', 0, false)$$, 'Ben logs AI costs');
+select pg_temp.fails($$select form_chat_add('f0a00000-0000-0000-0000-0000000000a1', '[]')$$, 'Ben writes chat history past the route');
+select pg_temp.fails($$select brand_scan_start('b0000000-0000-0000-0000-000000000000', '11111111-0000-0000-0000-000000000000', 'https://acme.com')$$, 'Ben starts a scan past the route');
+select pg_temp.fails($$select brand_scan_finish('bc000000-0000-0000-0000-0000000000c1', '{}', null, '{}', '[]', null)$$, 'Ben finishes a scan');
+select pg_temp.as_user('a0000000-0000-0000-0000-000000000000');
+select pg_temp.check((select count(*) from ai_calls) = 1, 'Ann (an owner) can''t read only her own AI costs');
+reset role;
+select set_config('request.jwt.claim.sub', '', false);
+delete from jobs;
+
+-- Meetings after the submit (047): people set their own booking link, owners anyone's; bookings stay in their
+-- workspace; linking bookings and picking the owner's link are server only.
+insert into form_bookings (workspace_id, tool, external_id, linked) values ('22222222-0000-0000-0000-000000000000', 'calendly', 'cat-booking', 'none');
+select pg_temp.as_user('b0000000-0000-0000-0000-000000000000');
+set role authenticated;
+select scheduler_link_save('11111111-0000-0000-0000-000000000000', 'b0000000-0000-0000-0000-000000000000', 'calendly', 'https://calendly.com/ben');
+select pg_temp.fails($$select scheduler_link_save('11111111-0000-0000-0000-000000000000', 'a0000000-0000-0000-0000-000000000000', 'calendly', 'https://calendly.com/evil')$$, 'Ben (a member) sets Ann''s booking link');
+select pg_temp.fails($$select scheduler_link_save('22222222-0000-0000-0000-000000000000', 'b0000000-0000-0000-0000-000000000000', 'calendly', 'https://calendly.com/ben')$$, 'Ben sets a link in Cat''s workspace');
+select pg_temp.fails($$insert into scheduler_links (workspace_id, user_id, tool, url) values ('11111111-0000-0000-0000-000000000000', 'a0000000-0000-0000-0000-000000000000', 'link', 'https://x.com')$$, 'Ben writes booking links directly');
+select pg_temp.check((select count(*) from form_bookings) = 0, 'Ben sees Cat''s bookings');
+select pg_temp.fails($$select booking_record('5c000000-0000-0000-0000-0000000000c1', '[]')$$, 'Ben records bookings');
+select pg_temp.fails($$select scheduler_for('5b000000-0000-0000-0000-0000000000c1', 'calendly')$$, 'Ben looks up a booking link past the route');
+select pg_temp.check((select url from scheduler_links where user_id = 'b0000000-0000-0000-0000-000000000000') = 'https://calendly.com/ben', 'Ben can''t set his own booking link');
+reset role;
+select set_config('request.jwt.claim.sub', '', false);
+delete from jobs;
+
+-- Form checks (048): members start checks and read results only in their workspace; the check's own steps are
+-- server only.
+insert into form_checks (workspace_id, form_id, status) values ('22222222-0000-0000-0000-000000000000', 'f0c00000-0000-0000-0000-0000000000c1', 'failed');
+select pg_temp.as_user('b0000000-0000-0000-0000-000000000000');
+set role authenticated;
+select pg_temp.check((select count(*) from form_checks) = 0, 'Ben sees Cat''s form checks');
+select pg_temp.fails($$select form_check_now('f0c00000-0000-0000-0000-0000000000c1')$$, 'Ben checks Cat''s form');
+select pg_temp.fails($$select form_check_start('f0a00000-0000-0000-0000-0000000000a1')$$, 'Ben starts a check past the runner');
+select pg_temp.fails($$select form_check_progress('f0c00000-0000-0000-0000-0000000000c1', now())$$, 'Ben reads a check''s progress');
+select pg_temp.fails($$select form_checks_due()$$, 'Ben queues checks');
+select form_check_now('f0a00000-0000-0000-0000-0000000000a1');
+reset role;
+select pg_temp.check((select count(*) from jobs where kind = 'form_qa' and key = 'f0a00000-0000-0000-0000-0000000000a1') = 1, 'Ben can''t check Acme''s live form');
+select set_config('request.jwt.claim.sub', '', false);
+delete from jobs;
+
+-- Sending (039): Ben (a member) reads Acme's sending but can't change it; nobody reads Cat's; the send pipeline is
+-- server only.
+insert into sending_domains (id, workspace_id, domain, mail_from, tracking_host, status) values
+  ('5f000000-0000-0000-0000-0000000000a1', '11111111-0000-0000-0000-000000000000', 'mail.acme.com', 'bounce.mail.acme.com', 't.mail.acme.com', 'verified'),
+  ('5f000000-0000-0000-0000-0000000000c1', '22222222-0000-0000-0000-000000000000', 'mail.other.com', 'bounce.mail.other.com', 't.mail.other.com', 'verified');
+insert into send_settings (workspace_id, from_email, address) values
+  ('11111111-0000-0000-0000-000000000000', 'news@mail.acme.com', '1 Main St'),
+  ('22222222-0000-0000-0000-000000000000', 'news@mail.other.com', '2 Side St');
+insert into emails (id, workspace_id, name, kind, subject, html, text) values
+  ('5f100000-0000-0000-0000-0000000000c1', '22222222-0000-0000-0000-000000000000', 'Cat news', 'broadcast', 'Cat news', '<p>x</p>', 'x');
+insert into email_messages (id, workspace_id, email_id, to_email, dedupe, status, provider_id) values
+  ('5f200000-0000-0000-0000-0000000000c1', '22222222-0000-0000-0000-000000000000', '5f100000-0000-0000-0000-0000000000c1', 'cat-friend@x.com', 'c1', 'sent', 'ses-cat-1');
+insert into topics (id, workspace_id, name) values ('5f300000-0000-0000-0000-0000000000c1', '22222222-0000-0000-0000-000000000000', 'Cat topic');
+select pg_temp.as_user('b0000000-0000-0000-0000-000000000000');
+set role authenticated;
+select pg_temp.check((select count(*) from sending_domains) = 1, 'Ben sees a sending domain outside Acme');
+select pg_temp.check((select count(*) from send_settings) = 1, 'Ben sees Cat''s sending settings');
+select pg_temp.check((select count(*) from emails) = 0, 'Ben sees Cat''s emails');
+select pg_temp.check((select count(*) from email_messages) = 0, 'Ben sees Cat''s messages');
+select pg_temp.check((select count(*) from email_events) = 0, 'Ben sees Cat''s email events');
+select pg_temp.fails($$select sending_domain_add('11111111-0000-0000-0000-000000000000', 'news.acme.com')$$, 'Ben (a member) adds a sending domain');
+select pg_temp.fails($$select sending_domain_remove('5f000000-0000-0000-0000-0000000000a1')$$, 'Ben removes a sending domain');
+select pg_temp.fails($$select sending_domain_check_now('5f000000-0000-0000-0000-0000000000c1')$$, 'Ben checks Cat''s domain');
+select pg_temp.fails($$select send_settings_save('11111111-0000-0000-0000-000000000000', '{"address":"x"}')$$, 'Ben changes sending settings');
+select pg_temp.fails($$select send_resume('11111111-0000-0000-0000-000000000000')$$, 'Ben resumes sending');
+select pg_temp.fails($$select topic_save('11111111-0000-0000-0000-000000000000', null, 'x', true)$$, 'Ben adds a topic');
+select pg_temp.fails($$select topic_delete('5f300000-0000-0000-0000-0000000000c1')$$, 'Ben deletes Cat''s topic');
+select pg_temp.fails($$select email_guard('5f200000-0000-0000-0000-0000000000c1')$$, 'Ben runs the guard');
+select pg_temp.fails($$select send_claim('22222222-0000-0000-0000-000000000000', 10)$$, 'Ben claims Cat''s messages');
+select pg_temp.fails($$select send_done('5f200000-0000-0000-0000-0000000000c1', 'ok', 'x', null, 60)$$, 'Ben records a send');
+select pg_temp.fails($$select email_create('11111111-0000-0000-0000-000000000000', 'b0000000-0000-0000-0000-000000000000', '{}')$$, 'Ben creates an email directly');
+select pg_temp.fails($$select email_queue('5f100000-0000-0000-0000-0000000000c1', '{}')$$, 'Ben queues Cat''s email');
+select pg_temp.fails($$select email_queue_test('5f100000-0000-0000-0000-0000000000c1', 'b0000000-0000-0000-0000-000000000000')$$, 'Ben queues a test');
+select pg_temp.fails($$select email_event_apply('{"kind":"complained","provider_id":"ses-cat-1","event_id":"x"}')$$, 'Ben fakes a complaint');
+select pg_temp.fails($$select meeting_mail_event('{"kind":"complained","to":"cat-friend@x.com"}')$$, 'Ben fakes a meeting email complaint');
+select pg_temp.fails($$select email_click('5f200000-0000-0000-0000-0000000000c1', 0, true, '{}')$$, 'Ben fakes a click');
+select pg_temp.fails($$select email_unsubscribe('5f200000-0000-0000-0000-0000000000c1', 'all')$$, 'Ben unsubscribes Cat''s contact');
+select pg_temp.fails($$select email_unsubscribe_info('5f200000-0000-0000-0000-0000000000c1')$$, 'Ben reads unsubscribe info');
+select pg_temp.fails($$select sending_domain_update('5f000000-0000-0000-0000-0000000000c1', 'x', '[]', 'failed')$$, 'Ben updates Cat''s domain');
+select pg_temp.fails($$select sending_domain_load('5f000000-0000-0000-0000-0000000000c1')$$, 'Ben loads Cat''s domain');
+select pg_temp.fails($$select sends_due()$$, 'Ben starts sends');
+select pg_temp.fails($$select domain_checks_due()$$, 'Ben starts domain checks');
+select pg_temp.fails($$select complaints_check('22222222-0000-0000-0000-000000000000')$$, 'Ben pauses Cat''s sending');
+select pg_temp.fails($$insert into emails (workspace_id, name, kind, subject, html, text) values ('11111111-0000-0000-0000-000000000000', 'x', 'broadcast', 'x', 'x', 'x')$$, 'Ben inserts an email');
+select pg_temp.fails($$update send_settings set paused = false$$, 'Ben writes sending settings');
+reset role;
+select pg_temp.as_user('a0000000-0000-0000-0000-000000000000');
+set role authenticated;
+select pg_temp.fails($$select sending_domain_add('22222222-0000-0000-0000-000000000000', 'evil.other.com')$$, 'Ann adds a domain to Cat''s workspace');
+select pg_temp.fails($$select sending_domain_add('11111111-0000-0000-0000-000000000000', 'mail.other.com')$$, 'Ann takes Cat''s domain');
+select pg_temp.fails($$select sending_domain_remove('5f000000-0000-0000-0000-0000000000c1')$$, 'Ann removes Cat''s domain');
+select pg_temp.fails($$select send_settings_save('22222222-0000-0000-0000-000000000000', '{}')$$, 'Ann changes Cat''s sending');
+select pg_temp.fails($$select send_settings_save('11111111-0000-0000-0000-000000000000', '{"timezone":"Mars/Olympus"}')$$, 'Ann saves an unknown time zone');
+select sending_domain_add('11111111-0000-0000-0000-000000000000', 'news.acme.com');
+select send_settings_save('11111111-0000-0000-0000-000000000000', '{"from_email":"news@mail.acme.com","address":"1 Main St","quiet_start":22,"quiet_end":7,"timezone":"Asia/Tokyo"}');
+reset role;
+select pg_temp.check((select count(*) from sending_domains where workspace_id = '11111111-0000-0000-0000-000000000000') = 2, 'Ann (an owner) can''t add her own domain');
+select pg_temp.check((select count(*) from jobs where kind = 'domain_check') = 1, 'Adding a domain doesn''t queue its check');
+select pg_temp.check((select quiet_start = 22 and timezone = 'Asia/Tokyo' from send_settings where workspace_id = '11111111-0000-0000-0000-000000000000'), 'Ann can''t save sending settings');
+select pg_temp.check((select status from email_messages where id = '5f200000-0000-0000-0000-0000000000c1') = 'sent', 'Cat''s message changed');
+select pg_temp.check((select count(*) from topics where id = '5f300000-0000-0000-0000-0000000000c1') = 1, 'Cat''s topic was deleted');
+select set_config('request.jwt.claim.sub', '', false);
+delete from jobs;
+
+-- Sync, part 2 (040): activity claims are server only; nobody reads another workspace's activity rows.
+insert into activity_out (workspace_id, source_id, event_id, kind, status) values
+  ('22222222-0000-0000-0000-000000000000', '5c000000-0000-0000-0000-0000000000c1', '60000000-0000-0000-0000-0000000000c1', 'email.sent', 'sent');
+select pg_temp.as_user('b0000000-0000-0000-0000-000000000000');
+set role authenticated;
+select pg_temp.check((select count(*) from activity_out) = 0, 'Ben sees Cat''s activity');
+select pg_temp.fails($$select activity_candidates('5c000000-0000-0000-0000-0000000000c1', 10)$$, 'Ben reads Cat''s activity candidates');
+select pg_temp.fails($$select activity_claim('5c000000-0000-0000-0000-0000000000c1', '[]')$$, 'Ben claims activity');
+select pg_temp.fails($$select activity_done('5c000000-0000-0000-0000-0000000000c1', '[]')$$, 'Ben finishes activity');
+select pg_temp.fails($$select mapping_save('5c000000-0000-0000-0000-0000000000c1', 'contact', '[{"col":"email","target":"email","wins":"crm"}]')$$, 'Ben sets who wins on Cat''s source');
+reset role;
+select pg_temp.as_user('a0000000-0000-0000-0000-000000000000');
+set role authenticated;
+select pg_temp.fails($$select mapping_save('5a000000-0000-0000-0000-0000000000a1', 'contact', '[{"col":"email","target":"email","wins":"everyone"}]')$$, 'Ann saves a made-up winner');
+reset role;
+select set_config('request.jwt.claim.sub', '', false);
+
+-- Forms made before the builder (041): their old answers stay members-only.
+insert into forms (id, workspace_id, name, fields, status) values
+  ('61000000-0000-0000-0000-0000000000c1', '22222222-0000-0000-0000-000000000000', 'Cat form', '[{"key":"email","label":"Email","type":"email","maps_to":"email"}]', 'live');
+insert into form_submissions (id, workspace_id, form_id, answers) values
+  ('62000000-0000-0000-0000-0000000000c1', '22222222-0000-0000-0000-000000000000', '61000000-0000-0000-0000-0000000000c1', '{"email":"friend@cat.com"}');
+select pg_temp.as_user('b0000000-0000-0000-0000-000000000000');
+set role authenticated;
+select pg_temp.check((select count(*) from forms where workspace_id = '22222222-0000-0000-0000-000000000000') = 0, 'Ben sees Cat''s forms');
+select pg_temp.check((select count(*) from form_submissions) = 0, 'Ben sees Cat''s old form answers');
+select pg_temp.fails($$insert into forms (workspace_id, name) values ('11111111-0000-0000-0000-000000000000', 'x')$$, 'Ben inserts a form');
+select pg_temp.fails($$update form_submissions set answers = '{}'$$, 'Ben changes old form answers');
+reset role;
+select pg_temp.check((select status from forms where id = '61000000-0000-0000-0000-0000000000c1') = 'live', 'Cat''s form changed');
+select set_config('request.jwt.claim.sub', '', false);
+
+-- Nurture (042): members build in their own workspace only; enrolling, advancing and the AI cache are server only.
+insert into nurtures (id, workspace_id, name, trigger) values ('63000000-0000-0000-0000-0000000000c1', '22222222-0000-0000-0000-000000000000', 'Cat nurture', '{}');
+insert into emails (id, workspace_id, name, kind, subject, html, text) values ('63100000-0000-0000-0000-0000000000c1', '22222222-0000-0000-0000-000000000000', 'Cat step', 'journey', 'Hi', 'x', 'x');
+insert into nurture_steps (id, workspace_id, nurture_id, position, email_id) values ('63200000-0000-0000-0000-0000000000c1', '22222222-0000-0000-0000-000000000000', '63000000-0000-0000-0000-0000000000c1', 0, '63100000-0000-0000-0000-0000000000c1');
+insert into ai_cache (workspace_id, kind, key, output, model) values ('22222222-0000-0000-0000-000000000000', 'nurture_draft', repeat('a', 64), '{"secret":"cat"}', 'm');
+select pg_temp.as_user('b0000000-0000-0000-0000-000000000000');
+set role authenticated;
+select pg_temp.check((select count(*) from nurtures) = 0, 'Ben sees Cat''s nurtures');
+select pg_temp.check((select count(*) from nurture_steps) = 0, 'Ben sees Cat''s steps');
+select pg_temp.fails($$select * from ai_cache$$, 'Ben reads the AI cache');
+select pg_temp.fails($$select nurture_step_approve('63200000-0000-0000-0000-0000000000c1')$$, 'Ben approves Cat''s step');
+select pg_temp.fails($$select nurture_step_save('63000000-0000-0000-0000-0000000000c1', '63200000-0000-0000-0000-0000000000c1', 1, 'mine', '', 'x', 'x', '{}')$$, 'Ben rewrites Cat''s step');
+select pg_temp.fails($$select nurture_step_change('63200000-0000-0000-0000-0000000000c1', 'delete')$$, 'Ben deletes Cat''s step');
+select pg_temp.fails($$select nurture_set_status('63000000-0000-0000-0000-0000000000c1', 'paused')$$, 'Ben pauses Cat''s nurture');
+select pg_temp.fails($$select nurture_delete('63000000-0000-0000-0000-0000000000c1')$$, 'Ben deletes Cat''s nurture');
+select pg_temp.fails($$select nurture_save('22222222-0000-0000-0000-000000000000', null, 'x', '{"kind":"segment"}', null, '', '{}')$$, 'Ben makes a nurture in Cat''s workspace');
+select pg_temp.fails($$select nurture_enroll(null)$$, 'Ben enrolls people');
+select pg_temp.fails($$select nurture_advance(10)$$, 'Ben sends nurture steps');
+select pg_temp.fails($$select ai_cache_get('22222222-0000-0000-0000-000000000000', 'nurture_draft', repeat('a', 64))$$, 'Ben reads Cat''s AI cache');
+select pg_temp.fails($$select ai_cache_put('22222222-0000-0000-0000-000000000000', 'nurture_draft', repeat('b', 64), '{}', 'm', 0, 0)$$, 'Ben writes the AI cache');
+reset role;
+select pg_temp.check((select approved_at is null from nurture_steps where id = '63200000-0000-0000-0000-0000000000c1'), 'Cat''s step was approved');
+select set_config('request.jwt.claim.sub', '', false);
+
+-- Lead scoring (043): only owners change it; scoring, routing and owner writes are server only.
+insert into lead_settings (workspace_id, enabled) values ('22222222-0000-0000-0000-000000000000', true);
+select pg_temp.as_user('b0000000-0000-0000-0000-000000000000');
+set role authenticated;
+select pg_temp.check((select count(*) from lead_settings) = 0, 'Ben sees Cat''s scoring');
+select pg_temp.fails($$select lead_settings_save('11111111-0000-0000-0000-000000000000', '{"enabled": true}')$$, 'Ben (a member) turns scoring on');
+select pg_temp.fails($$select lead_settings_save('22222222-0000-0000-0000-000000000000', '{"enabled": false}')$$, 'Ben turns Cat''s scoring off');
+select pg_temp.fails($$select lead_rescore_now('22222222-0000-0000-0000-000000000000')$$, 'Ben rescores Cat''s contacts');
+select pg_temp.fails($$select lead_scores_refresh('22222222-0000-0000-0000-000000000000', 10)$$, 'Ben runs scoring');
+select pg_temp.fails($$select lead_scores_due()$$, 'Ben runs all scoring');
+select pg_temp.fails($$select * from lead_score_rows('22222222-0000-0000-0000-000000000000', '{}')$$, 'Ben reads Cat''s scores');
+select pg_temp.fails($$select lead_route('b0000000-0000-0000-0000-000000000000')$$, 'Ben routes a lead');
+select pg_temp.fails($$select contacts_owner_crm_set('22222222-0000-0000-0000-000000000000', '[]')$$, 'Ben sets CRM owners');
+reset role;
+select pg_temp.as_user('a0000000-0000-0000-0000-000000000000');
+set role authenticated;
+select pg_temp.fails($$select lead_settings_save('22222222-0000-0000-0000-000000000000', '{"enabled": false}')$$, 'Ann turns Cat''s scoring off');
+select lead_settings_save('11111111-0000-0000-0000-000000000000', '{"threshold": 60}');
+reset role;
+select pg_temp.check((select threshold from lead_settings where workspace_id = '11111111-0000-0000-0000-000000000000') = 60, 'Ann (an owner) can''t change her scoring');
+select pg_temp.check((select enabled from lead_settings where workspace_id = '22222222-0000-0000-0000-000000000000'), 'Cat''s scoring changed');
+select set_config('request.jwt.claim.sub', '', false);
+
+-- Notes and tasks (049): only in your own workspace; a note is changed by its author or an owner.
+insert into companies (id, workspace_id, name, domain) values
+  ('49a00000-0000-0000-0000-0000000000a1', '11111111-0000-0000-0000-000000000000', 'Acme customer', 'acmecustomer.com'),
+  ('49c00000-0000-0000-0000-0000000000c1', '22222222-0000-0000-0000-000000000000', 'Cat customer', 'catcustomer.com');
+insert into notes (id, workspace_id, object, record_id, body, author) values
+  ('49d00000-0000-0000-0000-0000000000c1', '22222222-0000-0000-0000-000000000000', 'company', '49c00000-0000-0000-0000-0000000000c1', 'Cat secret', 'c0000000-0000-0000-0000-000000000000'),
+  ('49d00000-0000-0000-0000-0000000000a1', '11111111-0000-0000-0000-000000000000', 'company', '49a00000-0000-0000-0000-0000000000a1', 'Ann wrote this', 'a0000000-0000-0000-0000-000000000000');
+insert into tasks (id, workspace_id, object, record_id, title) values
+  ('49e00000-0000-0000-0000-0000000000c1', '22222222-0000-0000-0000-000000000000', 'company', '49c00000-0000-0000-0000-0000000000c1', 'Cat task');
+select pg_temp.as_user('b0000000-0000-0000-0000-000000000000');
+set role authenticated;
+select pg_temp.check((select count(*) from notes where workspace_id = '22222222-0000-0000-0000-000000000000') = 0, 'Ben reads Cat''s notes');
+select pg_temp.check((select count(*) from tasks where workspace_id = '22222222-0000-0000-0000-000000000000') = 0, 'Ben reads Cat''s tasks');
+select pg_temp.fails($$select note_save('22222222-0000-0000-0000-000000000000', 'company', '49c00000-0000-0000-0000-0000000000c1', null, 'x')$$, 'Ben writes a note in Cat''s workspace');
+select pg_temp.fails($$select note_save('11111111-0000-0000-0000-000000000000', 'company', '49c00000-0000-0000-0000-0000000000c1', null, 'x')$$, 'Ben notes Cat''s record through his workspace');
+select pg_temp.fails($$select note_save('11111111-0000-0000-0000-000000000000', 'company', '49a00000-0000-0000-0000-0000000000a1', '49d00000-0000-0000-0000-0000000000a1', 'mine now')$$, 'Ben (not the author, not an owner) changes Ann''s note');
+select pg_temp.fails($$select note_delete('49d00000-0000-0000-0000-0000000000c1')$$, 'Ben deletes Cat''s note');
+select pg_temp.fails($$select task_save('11111111-0000-0000-0000-000000000000', 'company', '49a00000-0000-0000-0000-0000000000a1', '49e00000-0000-0000-0000-0000000000c1', 'took it', null, null, true)$$, 'Ben changes Cat''s task through his workspace');
+select pg_temp.fails($$select task_delete('49e00000-0000-0000-0000-0000000000c1')$$, 'Ben deletes Cat''s task');
+select pg_temp.fails($$insert into notes (workspace_id, object, record_id, body) values ('11111111-0000-0000-0000-000000000000', 'company', '49a00000-0000-0000-0000-0000000000a1', 'x')$$, 'Ben inserts a note directly');
+select pg_temp.fails($$select record_exists('22222222-0000-0000-0000-000000000000', 'company', '49c00000-0000-0000-0000-0000000000c1')$$, 'Ben probes for records');
+select note_save('11111111-0000-0000-0000-000000000000', 'company', '49a00000-0000-0000-0000-0000000000a1', null, 'Ben''s own note');
+select task_save('11111111-0000-0000-0000-000000000000', 'company', '49a00000-0000-0000-0000-0000000000a1', null, 'Call them', current_date, 'a0000000-0000-0000-0000-000000000000', false);
+reset role;
+select pg_temp.check((select count(*) from notes where workspace_id = '11111111-0000-0000-0000-000000000000') = 2, 'Ben (a member) can''t note Acme''s record');
+select pg_temp.check((select body from notes where id = '49d00000-0000-0000-0000-0000000000a1') = 'Ann wrote this', 'Ann''s note changed');
+select pg_temp.check((select count(*) from tasks where workspace_id = '22222222-0000-0000-0000-000000000000' and not done) = 1, 'Cat''s task changed');
+delete from companies where id = '49a00000-0000-0000-0000-0000000000a1';
+select pg_temp.check((select count(*) from notes where record_id = '49a00000-0000-0000-0000-0000000000a1') = 0 and (select count(*) from tasks where record_id = '49a00000-0000-0000-0000-0000000000a1') = 0, 'A deleted company keeps its notes and tasks');
+select set_config('request.jwt.claim.sub', '', false);
+
+-- Enrichment (068): runs, usage and settings stay in their workspace; the shared person cache and the teams' own
+-- keys are the server's only; members can't change settings, spend credits or write vendor values.
+insert into enrich_runs (workspace_id, trigger, steps, fields) values ('22222222-0000-0000-0000-000000000000', 'new', '[]', '{title}');
+insert into enrich_usage (workspace_id, month, credits) values ('22222222-0000-0000-0000-000000000000', date_trunc('month', now())::date, 5);
+insert into enrich_settings (workspace_id, credit_cap) values ('22222222-0000-0000-0000-000000000000', 9);
+insert into enrich_keys (workspace_id, step, sealed) values ('22222222-0000-0000-0000-000000000000', 'pdl', 'v1:sealed');
+insert into qualify_settings (workspace_id, "on") values ('22222222-0000-0000-0000-000000000000', true);
+insert into person_cache (email_clean, vendor, data) values ('someone@else.com', 'pdl', '{"title":"CEO"}');
+select pg_temp.as_user('b0000000-0000-0000-0000-000000000000');
+set role authenticated;
+select pg_temp.check((select count(*) from enrich_runs) = 0, 'Ben reads Cat''s lookups');
+select pg_temp.check((select count(*) from enrich_usage) = 0, 'Ben reads Cat''s credits');
+select pg_temp.check((select count(*) from enrich_settings) = 0, 'Ben reads Cat''s enrichment settings');
+select pg_temp.check((select count(*) from qualify_settings) = 0, 'Ben reads Cat''s qualify settings');
+select pg_temp.fails($$select count(*) from person_cache$$, 'Ben reads the shared person cache');
+select pg_temp.fails($$select count(*) from enrich_keys$$, 'Ben reads a team''s own keys');
+select pg_temp.fails($$select enrich_settings_save('11111111-0000-0000-0000-000000000000', '{"on":false}', null)$$, 'Ben (a member) turns enrichment off');
+select pg_temp.fails($$select enrich_backfill_start('11111111-0000-0000-0000-000000000000', '{}')$$, 'Ben (a member) starts a backfill');
+select pg_temp.fails($$select enrich_backfill_count('22222222-0000-0000-0000-000000000000', '{}')$$, 'Ben counts Cat''s contacts');
+select pg_temp.fails($$select enrich_spend('22222222-0000-0000-0000-000000000000', 1)$$, 'Ben spends Cat''s credits');
+select pg_temp.fails($$select enrich_cache_get('someone@else.com', 'else.com')$$, 'Ben reads the cache through a function');
+select pg_temp.fails($$select enrich_write('5f200000-0000-0000-0000-0000000000c1', 'pdl', '{}', null)$$, 'Ben writes vendor values');
+select pg_temp.fails($$select qualify_store('5f200000-0000-0000-0000-0000000000c1', 'Qualified', 'x', 'ai')$$, 'Ben sets a qualify outcome');
+select pg_temp.fails($$select qualify_load('5f200000-0000-0000-0000-0000000000c1')$$, 'Ben reads a lead''s answers through qualify');
+select pg_temp.fails($$select enrich_load_email('22222222-0000-0000-0000-000000000000', 'x@y.com')$$, 'Ben loads Cat''s enrichment');
+reset role;
+select set_config('request.jwt.claim.sub', '', false);
+
+-- Workflows (069): every table stays in its workspace; the runner's functions are the server's only.
+insert into workflows (id, workspace_id, name, status, draft, live_version) values ('69a00000-0000-0000-0000-0000000000c1', '22222222-0000-0000-0000-000000000000', 'Cat''s flow', 'live', '{}', 1);
+insert into workflow_versions (workflow_id, workspace_id, version, body) values ('69a00000-0000-0000-0000-0000000000c1', '22222222-0000-0000-0000-000000000000', 1, '{"trigger":{"kind":"manual"},"steps":[]}');
+insert into workflow_runs (id, workspace_id, workflow_id, version, contact_id, key, status) values ('69b00000-0000-0000-0000-0000000000c1', '22222222-0000-0000-0000-000000000000', '69a00000-0000-0000-0000-0000000000c1', 1, null, 'manual:x', 'failed');
+insert into workflow_steps_done (run_id, workspace_id, step_id, status) values ('69b00000-0000-0000-0000-0000000000c1', '22222222-0000-0000-0000-000000000000', 's1', 'failed');
+insert into workflow_watch (workspace_id, workflow_id, key) values ('22222222-0000-0000-0000-000000000000', '69a00000-0000-0000-0000-0000000000c1', 'lifecycle');
+insert into contacts (id, workspace_id, email, email_clean, first_name) values ('69d00000-0000-0000-0000-0000000000c1', '22222222-0000-0000-0000-000000000000', 'cat.lead@x.com', 'cat.lead@x.com', 'Cat''s lead');
+insert into email_templates (id, workspace_id, name, body) values ('69c00000-0000-0000-0000-0000000000c1', '22222222-0000-0000-0000-000000000000', 'Cat''s template', '{}');
+select pg_temp.as_user('b0000000-0000-0000-0000-000000000000');
+set role authenticated;
+select pg_temp.check((select count(*) from workflows where workspace_id = '22222222-0000-0000-0000-000000000000') = 0, 'Ben reads Cat''s workflows');
+select pg_temp.check((select count(*) from workflow_versions) = 0, 'Ben reads Cat''s workflow versions');
+select pg_temp.check((select count(*) from workflow_runs) = 0, 'Ben reads Cat''s workflow runs');
+select pg_temp.check((select count(*) from workflow_steps_done) = 0, 'Ben reads Cat''s workflow steps');
+select pg_temp.check((select count(*) from email_templates) = 0, 'Ben reads Cat''s email templates');
+select pg_temp.fails($$select count(*) from workflow_watch$$, 'Ben reads the watch list');
+select pg_temp.fails($$update workflows set name = 'mine' where id = '69a00000-0000-0000-0000-0000000000c1'$$ , 'Ben renames a workflow directly');
+select pg_temp.fails($$insert into workflow_runs (workspace_id, workflow_id, version, key) values ('11111111-0000-0000-0000-000000000000', '69a00000-0000-0000-0000-0000000000c1', 1, 'x')$$, 'Ben starts a run directly');
+select pg_temp.fails($$select workflow_save('22222222-0000-0000-0000-000000000000', '69a00000-0000-0000-0000-0000000000c1', 'x', '{}', null)$$, 'Ben saves Cat''s workflow');
+select pg_temp.fails($$select workflow_save('11111111-0000-0000-0000-000000000000', '69a00000-0000-0000-0000-0000000000c1', 'x', '{}', null)$$, 'Ben saves Cat''s workflow through his workspace');
+select pg_temp.fails($$select workflow_set_status('69a00000-0000-0000-0000-0000000000c1', 'paused')$$, 'Ben pauses Cat''s workflow');
+select pg_temp.fails($$select workflow_delete('69a00000-0000-0000-0000-0000000000c1')$$, 'Ben deletes Cat''s workflow');
+select pg_temp.fails($$select workflow_enter('69a00000-0000-0000-0000-0000000000c1', array['69d00000-0000-0000-0000-0000000000c1'::uuid])$$, 'Ben adds people to Cat''s workflow');
+select pg_temp.fails($$select workflow_retry('69b00000-0000-0000-0000-0000000000c1')$$, 'Ben retries Cat''s run');
+select pg_temp.fails($$select workflow_stats('69a00000-0000-0000-0000-0000000000c1')$$, 'Ben reads Cat''s workflow counts');
+select pg_temp.fails($$select workflows_overview('22222222-0000-0000-0000-000000000000')$$, 'Ben reads Cat''s workflow list counts');
+select pg_temp.check((select workflow_preview_facts('69d00000-0000-0000-0000-0000000000c1')) is null, 'Ben previews Cat''s contact');
+select pg_temp.fails($$select email_template_save('22222222-0000-0000-0000-000000000000', null, 'x', '{}')$$, 'Ben saves a template in Cat''s workspace');
+select pg_temp.fails($$select email_template_save('11111111-0000-0000-0000-000000000000', '69c00000-0000-0000-0000-0000000000c1', 'x', '{}')$$, 'Ben changes Cat''s template through his workspace');
+select pg_temp.fails($$select email_template_delete('69c00000-0000-0000-0000-0000000000c1')$$, 'Ben deletes Cat''s template');
+select pg_temp.fails($$select workflow_publish('69a00000-0000-0000-0000-0000000000c1', 'b0000000-0000-0000-0000-000000000000', '{}', '[]')$$, 'Ben publishes without the server');
+select pg_temp.fails($$select workflow_claim('22222222-0000-0000-0000-000000000000')$$, 'Ben claims Cat''s runs');
+select pg_temp.fails($$select workflow_facts('69b00000-0000-0000-0000-0000000000c1')$$, 'Ben reads a run''s facts');
+select pg_temp.fails($$select workflow_step_done('69b00000-0000-0000-0000-0000000000c1', 's1', 1, 'done', '{}', null, null, null, 'done')$$, 'Ben finishes a step');
+select pg_temp.fails($$select workflow_email('69b00000-0000-0000-0000-0000000000c1', 's1', '{}', null, null)$$, 'Ben queues a workflow email');
+select pg_temp.fails($$select workflows_tick()$$, 'Ben runs the workflow tick');
+reset role;
+select pg_temp.check((select name from workflows where id = '69a00000-0000-0000-0000-0000000000c1') = 'Cat''s flow' and (select status from workflow_runs where id = '69b00000-0000-0000-0000-0000000000c1') = 'failed', 'Cat''s workflow changed');
+select set_config('request.jwt.claim.sub', '', false);
+
+-- Reports (070): every report is members-only; beacons, rollups and first touch are the server's.
+insert into form_daily (form_id, workspace_id, day, views, starts) select id, workspace_id, current_date, 5, 2 from forms where workspace_id = '22222222-0000-0000-0000-000000000000' limit 1;
+select pg_temp.as_user('b0000000-0000-0000-0000-000000000000');
+set role authenticated;
+select pg_temp.check((select count(*) from form_daily where workspace_id = '22222222-0000-0000-0000-000000000000') = 0, 'Ben reads Cat''s form views');
+select pg_temp.fails($$select count(*) from form_seen$$, 'Ben reads form beacons');
+select pg_temp.fails($$select count(*) from site_rolled$$, 'Ben reads the rollup ledger');
+select pg_temp.fails($$select report_funnel('22222222-0000-0000-0000-000000000000', current_date - 30, current_date)$$, 'Ben reads Cat''s funnel');
+select pg_temp.fails($$select report_speed('22222222-0000-0000-0000-000000000000', current_date - 30, current_date)$$, 'Ben reads Cat''s speed to lead');
+select pg_temp.fails($$select report_reps('22222222-0000-0000-0000-000000000000', current_date - 30, current_date)$$, 'Ben reads Cat''s reps');
+select pg_temp.fails($$select report_forms('22222222-0000-0000-0000-000000000000', current_date - 30, current_date)$$, 'Ben reads Cat''s forms report');
+select pg_temp.fails($$select report_email('22222222-0000-0000-0000-000000000000', current_date - 30, current_date)$$, 'Ben reads Cat''s email report');
+select pg_temp.fails($$select report_people('22222222-0000-0000-0000-000000000000', current_date - 30, current_date, 'funnel', 'submitted')$$, 'Ben lists Cat''s leads');
+select pg_temp.fails($$select report_facts('22222222-0000-0000-0000-000000000000', now() - interval '30 days', now())$$, 'Ben reads lead facts directly');
+select pg_temp.fails($$select report_leads('22222222-0000-0000-0000-000000000000', now() - interval '30 days', now())$$, 'Ben reads leads directly');
+select pg_temp.fails($$select report_visits('22222222-0000-0000-0000-000000000000', current_date - 30, current_date)$$, 'Ben reads visits directly');
+select pg_temp.fails($$select form_seen(id, 'abcdefgh12', 'view') from forms limit 1$$, 'Ben counts a form view');
+select pg_temp.fails($$select site_daily_roll('22222222-0000-0000-0000-000000000000', current_date)$$, 'Ben rolls Cat''s visits');
+select pg_temp.fails($$select reports_nightly()$$, 'Ben runs the nightly reports job');
+select pg_temp.fails($$select first_touch_fill()$$, 'Ben fills first touch');
+select pg_temp.fails($$update contacts set first_touch = '{}' where workspace_id = '11111111-0000-0000-0000-000000000000'$$, 'Ben writes first touch directly');
+reset role;
+select set_config('request.jwt.claim.sub', '', false);
+
+-- Routing policies (095): members read their own workspace's policies, versions, teams, connections, quota,
+-- assignments and reviews; nobody writes them directly; every function that writes is the server's.
+select routing_policy_create('22222222-0000-0000-0000-000000000000', 'Cat''s policy', '{"v":2}'::jsonb, 'cat-1', 'c0000000-0000-0000-0000-000000000000');
+select routing_policy_create('11111111-0000-0000-0000-000000000000', 'Acme policy', '{"v":2}'::jsonb, 'acme-1', 'a0000000-0000-0000-0000-000000000000');
+select routing_publish('22222222-0000-0000-0000-000000000000', (select id from routing_policies where name = 'Cat''s policy'), '{"v":2}'::jsonb, 'v1', null, 'cat-pub');
+select routing_team_save('22222222-0000-0000-0000-000000000000', null, 'Cat team', 'rr', '[{"user":"c0000000-0000-0000-0000-000000000000"}]'::jsonb, null, 'cat_team');
+select routing_quota_current('22222222-0000-0000-0000-000000000000', 'c0000000-0000-0000-0000-000000000000');
+select pg_temp.as_user('b0000000-0000-0000-0000-000000000000');
+set role authenticated;
+select pg_temp.check((select count(*) from routing_policies) = 1 and (select name from routing_policies) = 'Acme policy', 'Ben reads another workspace''s policy');
+select pg_temp.check((select count(*) from routing_policy_versions where workspace_id = '22222222-0000-0000-0000-000000000000') = 0, 'Ben reads Cat''s policy versions');
+select pg_temp.check((select count(*) from routing_teams) = 0 and (select count(*) from routing_team_members) = 0 and (select count(*) from routing_team_keys) = 0, 'Ben reads Cat''s teams');
+select pg_temp.check((select count(*) from routing_quota) = 0, 'Ben reads Cat''s quota');
+select pg_temp.check((select count(*) from routing_sources where workspace_id = '22222222-0000-0000-0000-000000000000') = 0 and (select count(*) from routing_assignments) = 0 and (select count(*) from routing_reviews) = 0, 'Ben reads Cat''s routing rows');
+select pg_temp.fails($$insert into routing_policies (workspace_id, name) values ('11111111-0000-0000-0000-000000000000', 'x')$$, 'Ben writes a policy directly');
+select pg_temp.fails($$update routing_policies set draft = '{}' where workspace_id = '11111111-0000-0000-0000-000000000000'$$, 'Ben writes a draft directly');
+select pg_temp.fails($$update routing_teams set next_position = 0$$, 'Ben moves a queue directly');
+select pg_temp.fails($$update routing_quota set n = 0$$, 'Ben resets a quota directly');
+select pg_temp.fails($$select routing_commit('{"ws":"22222222-0000-0000-0000-000000000000"}'::jsonb)$$, 'Ben commits a routing decision');
+select pg_temp.fails($$select routing_draft_save('22222222-0000-0000-0000-000000000000', (select id from routing_policies limit 1), '{}'::jsonb, null, null)$$, 'Ben saves a draft');
+select pg_temp.fails($$select routing_publish('11111111-0000-0000-0000-000000000000', (select id from routing_policies limit 1), '{}'::jsonb, null, null)$$, 'Ben publishes a policy');
+select pg_temp.fails($$select routing_policy_create('22222222-0000-0000-0000-000000000000', 'x', null, null, null)$$, 'Ben creates a policy in Cat''s workspace');
+select pg_temp.fails($$select routing_team_save('22222222-0000-0000-0000-000000000000', null, 'x', 'rr', '[]'::jsonb)$$, 'Ben saves a team');
+select pg_temp.fails($$select routing_facts('22222222-0000-0000-0000-000000000000', null, null, '{}', '{}')$$, 'Ben reads routing facts');
+select pg_temp.fails($$select routing_source_resolve(id) from forms limit 1$$, 'Ben resolves a form''s connection');
+select pg_temp.fails($$select routing_followup('22222222-0000-0000-0000-000000000000', gen_random_uuid(), 'schedule')$$, 'Ben makes a follow-up task');
+select pg_temp.fails($$select routing_migrate('22222222-0000-0000-0000-000000000000')$$, 'Ben runs the routing migration');
+select pg_temp.check(router_live_screen('22222222-0000-0000-0000-000000000000') is null, 'Ben reads Cat''s live routing');
+-- Recovery and review (097): every action is the server's; members can't call them, in their workspace or Cat's.
+select pg_temp.fails($$select routing_review_act('22222222-0000-0000-0000-000000000000', gen_random_uuid(), 'approve', null)$$, 'Ben approves a review item');
+select pg_temp.fails($$select routing_review_act('11111111-0000-0000-0000-000000000000', gen_random_uuid(), 'dismiss', null, 'x')$$, 'Ben dismisses a review item directly');
+select pg_temp.fails($$select routing_sync_retry('22222222-0000-0000-0000-000000000000', gen_random_uuid(), null)$$, 'Ben retries a CRM sync');
+select pg_temp.fails($$select routing_booking_reconcile('22222222-0000-0000-0000-000000000000', gen_random_uuid(), null)$$, 'Ben reconciles a booking');
+select pg_temp.fails($$select routing_booking_touch('22222222-0000-0000-0000-000000000000', 'form:x')$$, 'Ben touches a booking session');
+select pg_temp.fails($$select routing_booking_abandon(gen_random_uuid())$$, 'Ben abandons a booking');
+select pg_temp.fails($$select routing_run_meeting('22222222-0000-0000-0000-000000000000', gen_random_uuid(), null, 'confirmed')$$, 'Ben confirms a run''s meeting');
+select pg_temp.fails($$select routing_screen_run('22222222-0000-0000-0000-000000000000', gen_random_uuid())$$, 'Ben reads a run''s drawer directly');
+select pg_temp.fails($$select routing_screen_sources('22222222-0000-0000-0000-000000000000')$$, 'Ben reads Cat''s connections directly');
+select pg_temp.fails($$select meeting_team_run('22222222-0000-0000-0000-000000000000', gen_random_uuid(), null, 'q', gen_random_uuid(), 1)$$, 'Ben writes a team booking run');
+select pg_temp.fails($$update routing_reviews set state = 'resolved'$$, 'Ben resolves a review item directly');
+select pg_temp.fails($$update routing_sources set when_off = 'none'$$, 'Ben changes a disconnected form''s outcome directly');
+reset role;
+select set_config('request.jwt.claim.sub', '', false);
+set role anon;
+select pg_temp.fails($$select count(*) from routing_policies$$, 'Anyone reads policies');
+select pg_temp.fails($$select routing_commit('{}'::jsonb)$$, 'Anyone commits a routing decision');
+reset role;
+select pg_temp.fails_with($$update routing_policy_versions set note = 'x'$$, '%immutable%', 'A published version changes');
 
 -- Cloud minutes: once Acme has used its 2,000, nobody there can start a run.
 insert into runs (workspace_id, project_id, test_name, test_version, environment_name, base_url, lock, status, duration_ms)

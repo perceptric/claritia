@@ -3,6 +3,7 @@ import { randomBytes } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { appBase } from "../billing.ts";
 import { seal } from "../seal.ts";
+import { roleIn } from "../serverAuth.ts";
 import { entryOf } from "./catalog.ts";
 import { makeCtx } from "./ctx.ts";
 import { connectorFor } from "./registry.ts";
@@ -11,9 +12,8 @@ import type { Creds, Settings, SourceRow } from "./types.ts";
 // What the sources routes share: the owner check, and connecting a tool once its credentials are in hand.
 
 export async function isOwner(sb: SupabaseClient, userId: string, ws: unknown): Promise<boolean> {
-  if (typeof ws !== "string" || !/^[0-9a-f-]{36}$/.test(ws)) return false;
-  const { data } = await sb.from("workspace_members").select("role").eq("workspace_id", ws).eq("user_id", userId).maybeSingle();
-  return data?.role === "owner";
+  // The shared role lookup (kept up to 60 s, src/lib/roleCache.ts).
+  return (await roleIn({ user: { id: userId }, sb }, ws)) === "owner";
 }
 
 export const hookUrl = (kind: string, id: string, token?: string) => `${appBase()}/api/hooks/${kind}/${id}${token ? `?t=${token}` : ""}`;
@@ -23,7 +23,7 @@ export function defaultSettings(kind: string): Settings {
   const e = entryOf(kind);
   const objects: Settings["objects"] = {};
   for (const o of e?.objects ?? []) objects[o] = o === "contacts" && e?.twoWay ? "both" : "in";
-  return { objects, every_min: e?.group === "crm" ? 15 : 60, push_new: "lifecycle", basis: e?.group === "form" || e?.group === "event" ? "opt_in" : kind === "stripe" ? "soft_opt_in" : "legitimate_interest" };
+  return { objects, every_min: e?.group === "crm" ? 5 : 60, push_new: "lifecycle", basis: e?.group === "form" || e?.group === "event" ? "opt_in" : kind === "stripe" ? "soft_opt_in" : "legitimate_interest" };
 }
 
 const fakeRow = (ws: string, kind: string): SourceRow => ({ id: "", workspace_id: ws, kind, name: kind, account: null, status: "active", settings: {}, cursors: {}, push_cursor: null });

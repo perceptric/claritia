@@ -22,27 +22,34 @@ export type Entry = {
   grant?: string;
   objects: ObjectKind[];
   twoWay?: boolean;
+  /** Takes new contacts from Claritia (form destinations) without being two-way. */
+  pushes?: boolean;
+  /** An email tool: a form fill joins one of its lists (docs/integrations-plan.md step 1); `tags` when it keeps tags. */
+  lists?: boolean;
+  tags?: boolean;
+  /** Sheets and databases: a row per form fill (docs/integrations-plan.md step 2). */
+  rows?: boolean;
 };
 
 const key = (label = "API key"): KeyField[] => [{ key: "api_key", label, secret: true }];
 
 export const CATALOG: Entry[] = [
-  { kind: "hubspot", label: "HubSpot", group: "crm", domain: "hubspot.com", oauth: true, keys: key("Private app token"), objects: ["companies", "contacts", "lists"], twoWay: true },
+  { kind: "hubspot", label: "HubSpot", group: "crm", domain: "hubspot.com", oauth: true, keys: key("Private app token"), objects: ["companies", "contacts", "opportunities", "lists"], twoWay: true },
   {
     kind: "salesforce",
     label: "Salesforce",
     group: "crm",
     domain: "salesforce.com",
     oauth: true,
-    objects: ["companies", "contacts"],
+    objects: ["companies", "contacts", "opportunities"],
     twoWay: true,
   },
-  { kind: "omniscient", label: "Omniscient", group: "crm", domain: "tryomniscient.com", objects: ["companies", "contacts"], twoWay: true },
-  { kind: "pipedrive", label: "Pipedrive", group: "crm", domain: "pipedrive.com", oauth: true, keys: key("API token"), objects: ["companies", "contacts"] },
-  { kind: "attio", label: "Attio", group: "crm", domain: "attio.com", oauth: true, keys: key("Access token"), objects: ["companies", "contacts"] },
-  { kind: "close", label: "Close", group: "crm", domain: "close.com", keys: key(), objects: ["contacts"] },
-  { kind: "mailchimp", label: "Mailchimp", group: "email", domain: "mailchimp.com", oauth: true, keys: key(), objects: ["contacts"] },
-  { kind: "klaviyo", label: "Klaviyo", group: "email", domain: "klaviyo.com", keys: key("Private API key"), objects: ["contacts"] },
+  { kind: "omniscient", label: "Omniscient", group: "crm", domain: "tryomniscient.com", objects: ["companies", "contacts", "opportunities"], twoWay: true },
+  { kind: "pipedrive", label: "Pipedrive", group: "crm", domain: "pipedrive.com", oauth: true, keys: key("API token"), pushes: true, objects: ["companies", "contacts", "opportunities"] },
+  { kind: "attio", label: "Attio", group: "crm", domain: "attio.com", oauth: true, keys: key("Access token"), pushes: true, objects: ["companies", "contacts", "opportunities"] },
+  { kind: "close", label: "Close", group: "crm", domain: "close.com", keys: key(), pushes: true, objects: ["contacts"] },
+  { kind: "mailchimp", label: "Mailchimp", group: "email", domain: "mailchimp.com", oauth: true, keys: key(), objects: ["contacts"], pushes: true, lists: true, tags: true },
+  { kind: "klaviyo", label: "Klaviyo", group: "email", domain: "klaviyo.com", keys: key("Private API key"), objects: ["contacts"], pushes: true, lists: true },
   {
     kind: "activecampaign",
     label: "ActiveCampaign",
@@ -50,10 +57,13 @@ export const CATALOG: Entry[] = [
     domain: "activecampaign.com",
     keys: [{ key: "url", label: "API URL", placeholder: "https://you.api-us1.com" }, ...key()],
     objects: ["contacts"],
+    pushes: true,
+    lists: true,
+    tags: true,
   },
-  { kind: "brevo", label: "Brevo", group: "email", domain: "brevo.com", keys: key(), objects: ["contacts"] },
-  { kind: "kit", label: "Kit", group: "email", domain: "kit.com", keys: key("API secret"), objects: ["contacts", "suppressions"] },
-  { kind: "mailerlite", label: "MailerLite", group: "email", domain: "mailerlite.com", keys: key("API token"), objects: ["contacts"] },
+  { kind: "brevo", label: "Brevo", group: "email", domain: "brevo.com", keys: key(), objects: ["contacts"], pushes: true, lists: true },
+  { kind: "kit", label: "Kit", group: "email", domain: "kit.com", keys: key("API secret"), objects: ["contacts", "suppressions"], pushes: true, lists: true, tags: true },
+  { kind: "mailerlite", label: "MailerLite", group: "email", domain: "mailerlite.com", keys: key("API token"), objects: ["contacts"], pushes: true, lists: true },
   { kind: "stripe", label: "Stripe", group: "product", domain: "stripe.com", keys: key("Restricted key"), objects: ["contacts"] },
   { kind: "intercom", label: "Intercom", group: "product", domain: "intercom.com", keys: key("Access token"), objects: ["contacts"] },
   { kind: "typeform", label: "Typeform", group: "form", domain: "typeform.com", hook: true, hookSecret: true, objects: ["contacts"] },
@@ -156,12 +166,17 @@ export const CATALOG: Entry[] = [
     objects: [],
     grant: "Make a service principal with CAN USE on the SQL warehouse and SELECT on the tables, and an access token for it.",
   },
+  // Sheets and databases (docs/integrations-plan.md step 2): a row per form fill, nothing read back.
+  { kind: "google_sheets", label: "Google Sheets", group: "sheets", domain: "sheets.google.com", oauth: true, objects: [], pushes: true, rows: true },
+  { kind: "airtable", label: "Airtable", group: "sheets", domain: "airtable.com", oauth: true, keys: key("Personal access token"), objects: [], pushes: true, rows: true },
+  { kind: "notion", label: "Notion", group: "sheets", domain: "notion.so", oauth: true, keys: key("Integration secret"), objects: [], pushes: true, rows: true },
   { kind: "api", label: "Webhook", group: "api", domain: "", hook: true, objects: ["contacts"] },
 ];
 
 export const GROUPS: { id: Group; label: string }[] = [
   { id: "crm", label: "CRMs" },
   { id: "email", label: "Email tools" },
+  { id: "sheets", label: "Sheets and databases" },
   { id: "form", label: "Forms" },
   { id: "event", label: "Meetings and events" },
   { id: "product", label: "Product and billing" },

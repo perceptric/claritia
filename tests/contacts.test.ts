@@ -193,3 +193,13 @@ test("filters: tags read as words, and saved filters are checked", () => {
     [{ field: "name", op: "contains", values: ["a"] }, { field: "name", op: "empty", values: [] }],
   );
 });
+
+test("a rating takes a whole number from 1 to 5 and reads as one of five", async () => {
+  const { customValue, shown } = await import("../src/lib/records/fields.ts");
+  const f = { type: "rating" as const, options: [] };
+  assert.equal(customValue(f, "4"), 4);
+  assert.equal(customValue(f, "4.6"), 5);
+  assert.equal(customValue(f, "0"), undefined);
+  assert.equal(customValue(f, "7"), undefined);
+  assert.equal(shown({ kind: "rating", options: [], config: {} }, 3), "3 of 5");
+});

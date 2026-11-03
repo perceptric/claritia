@@ -1,26 +1,36 @@
 # Claritia
 
-The agentic marketing platform: Claritia turns website visitors into leads and leads into meetings, with AI agents running the journeys, writing the emails, building the pages and proving what made revenue. It sits between Arrowsterr (SEO and AI search) and Omniscient (`dev-omniscient/omniscient`, CRM and deal rooms), on the same stack and brand system. The original product, AI end-to-end testing, stays for existing workspaces and powers Funnel QA.
+Claritia is Forms, Meetings and Workflows: forms that turn visitors into leads, meetings that book them with the right person, and workflows that follow up (reminders, follow-ups and the rest). Built for small teams of every kind, not only sales. There is no CRM, Enrichment, Scoring or Visitors: those were removed (`supabase/migrations/116_forms_meetings_workflows.sql`); contacts stay in the database as the person behind each fill and booking, with no screens of their own. It sits beside Arrowsterr (SEO and AI search) and Omniscient (`dev-omniscient/omniscient`, CRM and deal rooms), on the same stack and brand system. The original product, AI end-to-end testing, stays for existing workspaces and powers Funnel QA.
 
-Setup for imports, sources and warehouses: `docs/sources-setup.md`. Start with `docs/marketing-platform.md` (the plan), `docs/m1-website-intelligence.md` (the module being built), `docs/identity.md` and `docs/account-intelligence.md` (specs), and `docs/brand.md` (look and copy). `docs/vision.md` and `docs/plan.md` describe the testing product.
+Setup for sending: `docs/sending-setup.md`. Setup for forms: `docs/forms-setup.md`. Setup for meetings: `docs/meetings-setup.md`. Start with `docs/inbound.md` and `docs/form-builder.md` (forms to booked meetings), `docs/studio-v2-plan.md` (Form Studio: one chat per form with Tia, the form check, blocks, industries, languages), `docs/forms.md` (the older builder and its AI), `docs/form-templates.md` (435 templates, 18 styles, the menus, starter kits and wired templates, in Forms › Templates and on the website; `docs/form-templates-plan.md` for what's next, `docs/multipage-forms-plan.md` for the multi-page shelf), `docs/on-submission.md` (forms, meetings and routing: the form picks the meeting, the meeting picks the person; Route by answer, past fills, Always do), `docs/forms-plan.md` (what's next for forms), `docs/workflows.md`, `docs/design-system.md` (Webflow-level styling for forms and emails) and `docs/brand.md` (look and copy). Older docs about the CRM, Enrichment, Scoring, Visitors and identity describe removed parts. `docs/vision.md` and `docs/plan.md` describe the testing product.
 
-Workspaces see screens by `workspaces.features` (`src/lib/nav.ts`): `testing`, `marketing`, or both. Background work goes through the jobs queue (`supabase/migrations/020_foundation.sql`, `src/lib/jobs.ts`).
+The sidebar is in `src/lib/nav.ts`: Forms, Meetings and Workflows with no group titles, and Settings at the very bottom. Routing lives in each form's On Submission and in Dynamic meetings, teams in Meetings › Availability. Workflows is folders of workflows, meeting reminders included (`docs/workflows.md`). Settings › Integrations connects the tools forms send leads to, and the form and meeting tools whose webhooks come in (Typeform, Tally, Webflow, Calendly, Cal.com). Old addresses of removed screens open Forms. One sidebar item per route; pages inside a route are tabs under its title (`Section` in `src/components/app/ui.tsx`). The app opens on Forms. Meetings (scheduler, booking pages, instant booking in forms) is in `docs/meetings-scheduler.md`. The testing screens are gone from the app. Background work goes through the jobs queue (`supabase/migrations/020_foundation.sql`, `src/lib/jobs.ts`); job kinds of removed parts are dropped on the way in (116).
 
 ## Rule: every build includes its running cost
 - Every build plan, feature or milestone states what it adds to the monthly bill: servers plus every paid service, Claude tokens included. Give monthly totals at two stages: Beta (50 teams) and Growth (500 teams).
 - Mark any price that couldn't be confirmed on the vendor's own page as "check".
 
 ## Rule: reliability first
-- A false failure costs more than a missing feature, and a wrong link or signal costs more than a missing one. Never ship a change to the runner, healing, failure sorting, the jobs queue, identity, the send pipeline or Funnel QA without a test that proves it on a flaky case.
+- A false failure costs more than a missing feature, and a wrong link or signal costs more than a missing one. Never ship a change to the runner, healing, failure sorting, the jobs queue, the send pipeline, routing, booking or Funnel QA without a test that proves it on a flaky case.
 - AI calls go through the step cache. A passing step replays from cache and never calls the model.
 
 ## Rule: no browser pop-ups or browser dropdowns
 - Never use `<select>`, `window.prompt`, `window.confirm` or `window.alert`. Use the app's own `Select` and dialog helpers (same pattern as Omniscient).
+
+## Rule: nothing spills out of its box
+- No text or button ever runs past the edge of its card, panel or row, at any width. Rows of buttons wrap (`flex-wrap`, `min-w-0`). `tests/overflow.test.ts` fails on a button row that can't wrap.
+- Names, labels and titles are never cut short with "…": they show in full (wrapping when they must) or the layout leaves them out (an avatar with the email on hover). Cutting short is only for long data in lists and tables (a page address, a file name), with the full text on hover.
 
 ## Rule: minimal copy
 - Working screens hold labels, buttons and real errors only. No help text or cost notes.
 - Explaining happens once, on a tool's first screen before there's data (the `ToolIntro` pattern from Omniscient).
 
 ## Rule: one brand style
-- Follow `docs/brand.md` for the app, the website, emails and decks.
-- Containers are square. Buttons and inputs use `rounded-md`. A state is a square tag. No pills, no shadows on cards, no gradients, no emoji.
+- Follow `docs/brand.md` (version 4, the calm style after zite.com) for the app, the website, emails and decks; the full guide is the Claritia design system (https://claude.ai/artifact/2ZKbX3ATfS3Fr7LnEVTUkA). Use the tokens in `src/app/globals.css`, never a hex.
+- Inter for every word. A light gray shell with a white page panel; each page has a white header bar with its tabs beside the title. The dark gray pill (`brand`) is the one primary action; Claritia green is the one signal (about 5% of a view). Mono only for code, keys and ids.
+- Buttons, chips and toggles are pills. Status tags (`Badge`) 6px, inputs 8px, cards 10 to 12px, dialogs 16px.
+- Raised things (cards, tables, inputs, chips) sit on ring shadows (`shadow-rest`, `shadow-chip`, `shadow-input`, `shadow-outline`) in place of borders; dividers inside them stay hairlines. Focus is `shadow-focus`, a green ring. No gradients and no emoji.
+- The mark is the Slot (`Mark` and `Logo` in `src/components/Logo.tsx`): six time slots on a green tile, one booked. Folded sidebars and tight spots show the mark without the name. The corner bracket stays Claritia's motif (the Catch in `src/components/app/Catch.tsx`).
+- AI is shown with the sparkle (`src/components/app/Ai.tsx`): `AiMark` beside AI controls, `AiAvatar` where AI speaks, `AiTag` on anything AI made.
+- Empty states and first screens use a drawing from `src/components/sketches`.
+- Motion uses the three speeds and two curves in `docs/brand.md`, and stops under reduced motion. Every screen works in light and dark.

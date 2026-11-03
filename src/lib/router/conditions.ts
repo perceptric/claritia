@@ -1,0 +1,360 @@
+// Rule conditions (docs/router.md 3.5): the fields a rule can test, the tests each type allows, and the one function
+// that decides whether a condition holds. The rule editor and the engine both use this file, so what a person sees in
+// the editor is what runs.
+
+import type { Cond, Op, Rule, Segment, Territory } from "./types.ts";
+
+export type FieldType = "text" | "number" | "country" | "choice" | "bool";
+
+export type FieldDef = { key: string; label: string; group: "Contact" | "Company" | "Form answers" | "Past fills" | "Source"; type: FieldType; options?: string[] };
+
+/**
+ * Past fills: what the person did before this send, read on the server (routing_past, 115) when a rule tests one.
+ * "Booked in the last N days" is "Days since they last booked is at most N". Yes/no fields hold "true" or "false".
+ */
+export const PAST_FIELDS: FieldDef[] = [
+  { key: "past.sent_form", label: "Has sent this form before", group: "Past fills", type: "bool", options: ["true", "false"] },
+  { key: "past.has_meeting", label: "Has a meeting booked", group: "Past fills", type: "bool", options: ["true", "false"] },
+  { key: "past.days_since_booked", label: "Days since they last booked", group: "Past fills", type: "number" },
+];
+export const isPast = (field: string) => field.startsWith("past.");
+/** Whether any condition in these tests a past fill (so the one extra read only happens when it's needed). */
+export const testsPast = (conds: { field: string }[]) => conds.some((c) => isPast(c.field));
+
+/**
+ * The fields every workspace has. Custom fields and form answers are added from the workspace (`fieldsFor`).
+ * Seniority, department and employees come from a form's answers mapped to them (src/lib/routing/mapping.ts).
+ */
+export const BASE_FIELDS: FieldDef[] = [
+  { key: "lead.country", label: "Country", group: "Contact", type: "country" },
+  { key: "contact.email_domain", label: "Email domain", group: "Contact", type: "text" },
+  { key: "contact.email_class", label: "Email type", group: "Contact", type: "choice", options: ["work", "free", "role"] },
+  { key: "contact.title", label: "Job title", group: "Contact", type: "text" },
+  { key: "contact.seniority", label: "Seniority", group: "Contact", type: "choice", options: ["C-level", "VP", "Director", "Manager", "Individual"] },
+  { key: "contact.department", label: "Department", group: "Contact", type: "choice", options: ["Marketing", "Sales", "Engineering", "Product", "Finance", "HR", "Operations", "Other"] },
+  { key: "contact.country", label: "Contact country", group: "Contact", type: "country" },
+  { key: "contact.region", label: "State or region", group: "Contact", type: "text" },
+  { key: "contact.lifecycle", label: "Lifecycle stage", group: "Contact", type: "choice", options: ["subscriber", "lead", "mql", "sql", "opportunity", "customer", "evangelist", "other"] },
+  { key: "contact.lead_status", label: "Lead status", group: "Contact", type: "text" },
+  { key: "company.name", label: "Company name", group: "Company", type: "text" },
+  { key: "company.domain", label: "Company domain", group: "Company", type: "text" },
+  { key: "company.country", label: "Company country", group: "Company", type: "country" },
+  { key: "company.industry", label: "Industry", group: "Company", type: "text" },
+  { key: "company.size", label: "Company size", group: "Company", type: "number" },
+  { key: "company.employees", label: "Employees", group: "Company", type: "number" },
+  { key: "company.type", label: "Company type", group: "Company", type: "choice" },
+  { key: "lead.form", label: "Form", group: "Source", type: "choice" },
+  { key: "lead.source", label: "Came from", group: "Source", type: "choice", options: ["form", "import", "crm", "api"] },
+  { key: "utm.source", label: "UTM source", group: "Source", type: "text" },
+  { key: "utm.medium", label: "UTM medium", group: "Source", type: "text" },
+  { key: "utm.campaign", label: "UTM campaign", group: "Source", type: "text" },
+  ...PAST_FIELDS,
+];
+
+/** The tests that fit a field's type. */
+export function opsFor(type: FieldType): Op[] {
+  switch (type) {
+    case "number":
+      return ["is", "is_not", "gt", "gte", "lt", "lte", "between", "filled", "empty"];
+    case "country":
+    case "choice":
+      return ["one_of", "not_one_of", "filled", "empty"];
+    case "bool":
+      return ["is", "filled", "empty"];
+    default:
+      return ["is", "is_not", "one_of", "not_one_of", "contains", "starts_with", "filled", "empty"];
+  }
+}
+
+export const needsValue = (op: Op) => op !== "filled" && op !== "empty";
+
+const norm = (v: unknown) => (typeof v === "string" ? v.trim().toLowerCase() : typeof v === "number" || typeof v === "boolean" ? String(v).toLowerCase() : "");
+
+const blank = (v: unknown) => v === null || v === undefined || (typeof v === "string" && !v.trim()) || (Array.isArray(v) && !v.length);
+
+/**
+ * A number from a value: 250, "250", "1,200", a size range like "51-200" or "51 to 200" (its low end) and "10,000+"
+ * (10000). Null when there's none.
+ */
+export function toNumber(v: unknown): number | null {
+  if (typeof v === "number") return Number.isFinite(v) ? v : null;
+  if (typeof v !== "string") return null;
+  const m = v.replace(/,/g, "").match(/-?\d+(\.\d+)?/);
+  return m ? Number(m[0]) : null;
+}
+
+/** The list a condition's value stands for, with territories opened up into their countries. */
+export function listOf(value: Cond["value"], territories: Territory[]): string[] {
+  const raw = Array.isArray(value) ? value : value === undefined || value === null || value === "" ? [] : [value];
+  const out: string[] = [];
+  for (const x of raw) {
+    const s = String(x);
+    if (s.startsWith("t:")) out.push(...(territories.find((t) => t.id === s.slice(2))?.countries ?? []));
+    else out.push(s);
+  }
+  return out.map(norm).filter(Boolean);
+}
+
+/** v1 keeps every body made before policies exactly as it ran; v2 is the spec's typed semantics. */
+export type CondMode = "v1" | "v2";
+
+const WHOLE = /^-?(\d{1,3}(,\d{3})+|\d+)(\.\d+)?$/;
+const RANGE = /^(\d{1,3}(?:,\d{3})+|\d+)\s*(?:-|\u2013|\u2014|to)\s*(\d{1,3}(?:,\d{3})+|\d+)$/i;
+const PLUS = /^(\d{1,3}(?:,\d{3})+|\d+)\s*\+$/;
+const num = (s: string) => Number(s.replace(/,/g, ""));
+
+/**
+ * v2: a number or a range from a value, never made up. 800, "800", "1,200" are numbers; "51-200", "51 to 200" are
+ * ranges; "10,000+" is at least 10000. Anything else ("about 50", "lots") is unknown: null.
+ */
+export function numberOrRange(v: unknown): { lo: number; hi: number } | null {
+  if (typeof v === "number") return Number.isFinite(v) ? { lo: v, hi: v } : null;
+  if (typeof v !== "string") return null;
+  const t = v.trim();
+  if (WHOLE.test(t)) {
+    const n = num(t);
+    return Number.isFinite(n) ? { lo: n, hi: n } : null;
+  }
+  const r = t.match(RANGE);
+  if (r) {
+    const a = num(r[1]!);
+    const b = num(r[2]!);
+    return { lo: Math.min(a, b), hi: Math.max(a, b) };
+  }
+  const p = t.match(PLUS);
+  if (p) return { lo: num(p[1]!), hi: Infinity };
+  return null;
+}
+
+/** A condition that still needs its value (an incomplete draft row): it never holds, so it can't become a catch-all. */
+export const incomplete = (c: Cond) => needsValue(c.op) && (c.value === undefined || c.value === null || c.value === "" || (Array.isArray(c.value) && !c.value.length));
+
+/**
+ * Whether one condition holds for a value. A list value (a multi-choice answer) holds when any item does.
+ *
+ * v1 (every body made before policies, kept as it ran): "is not" and "not one of" hold for an unknown value, and a
+ * number test reads the first number in the text (a range's low end). v2 (docs/routing-workflow.md Section 11): an
+ * unknown value only answers "is known" / "is unknown"; numbers are compared as numbers; a range passes a number test
+ * only when the whole range does ("51-200" is at least 51, never "at least 100"); text that isn't a number is unknown.
+ */
+export function holds(c: Cond, actual: unknown, territories: Territory[] = [], mode: CondMode = "v1"): boolean {
+  if (c.op === "filled") return !blank(actual);
+  if (c.op === "empty") return blank(actual);
+  if (incomplete(c)) return false;
+  // v1 lets "is not" hold for an unknown value; a past fill that wasn't read is never taken as an answer.
+  const v1Open = mode === "v1" && (c.op === "is_not" || c.op === "not_one_of") && !isPast(c.field);
+  if (Array.isArray(actual)) {
+    if (!actual.length) return v1Open;
+    if (c.op === "is_not" || c.op === "not_one_of") return actual.every((a) => holds(c, a, territories, mode));
+    return actual.some((a) => holds(c, a, territories, mode));
+  }
+  if (blank(actual)) return v1Open;
+  if (mode === "v2") return holdsV2(c, actual, territories);
+  const a = norm(actual);
+  switch (c.op) {
+    case "is": {
+      const n = toNumber(c.value);
+      const an = toNumber(actual);
+      return typeof c.value === "number" && n !== null && an !== null ? an === n : a === norm(c.value);
+    }
+    case "is_not":
+      return !holds({ ...c, op: "is" }, actual, territories);
+    case "one_of":
+      return listOf(c.value, territories).includes(a);
+    case "not_one_of":
+      return !listOf(c.value, territories).includes(a);
+    case "contains":
+      return listOf(c.value, territories).some((v) => a.includes(v));
+    case "starts_with":
+      return listOf(c.value, territories).some((v) => a.startsWith(v));
+    case "gt":
+    case "gte":
+    case "lt":
+    case "lte": {
+      const n = toNumber(actual);
+      const lim = toNumber(Array.isArray(c.value) ? c.value[0] : c.value);
+      if (n === null || lim === null) return false;
+      return c.op === "gt" ? n > lim : c.op === "gte" ? n >= lim : c.op === "lte" ? n <= lim : n < lim;
+    }
+    case "between": {
+      const n = toNumber(actual);
+      const [lo, hi] = Array.isArray(c.value) ? c.value.map(toNumber) : [null, null];
+      if (n === null || lo === null || lo === undefined || hi === null || hi === undefined) return false;
+      return n >= Math.min(lo, hi) && n <= Math.max(lo, hi);
+    }
+  }
+  return false;
+}
+
+/** v2 for a known, single value. */
+function holdsV2(c: Cond, actual: unknown, territories: Territory[]): boolean {
+  const numeric = c.op === "gt" || c.op === "gte" || c.op === "lt" || c.op === "lte" || c.op === "between" || ((c.op === "is" || c.op === "is_not") && typeof c.value === "number");
+  if (numeric) {
+    const r = numberOrRange(actual);
+    if (!r) return false;
+    const lim = (x: unknown) => (typeof x === "number" && Number.isFinite(x) ? x : typeof x === "string" && WHOLE.test(x.trim()) ? num(x.trim()) : null);
+    if (c.op === "between") {
+      const [a, b] = Array.isArray(c.value) ? c.value.map(lim) : [null, null];
+      if (a === null || a === undefined || b === null || b === undefined) return false;
+      return r.lo >= Math.min(a, b) && r.hi <= Math.max(a, b);
+    }
+    const n = lim(Array.isArray(c.value) ? c.value[0] : c.value);
+    if (n === null) return false;
+    switch (c.op) {
+      case "gt":
+        return r.lo > n;
+      case "gte":
+        return r.lo >= n;
+      case "lt":
+        return r.hi < n;
+      case "lte":
+        return r.hi <= n;
+      case "is":
+        return r.lo === n && r.hi === n;
+      case "is_not":
+        return n < r.lo || n > r.hi;
+    }
+    return false;
+  }
+  const a = norm(actual);
+  switch (c.op) {
+    case "is":
+      return a === norm(c.value);
+    case "is_not":
+      return a !== norm(c.value);
+    case "one_of":
+      return listOf(c.value, territories).includes(a);
+    case "not_one_of":
+      return !listOf(c.value, territories).includes(a);
+    case "contains":
+      return listOf(c.value, territories).some((v) => a.includes(v));
+    case "starts_with":
+      return listOf(c.value, territories).some((v) => a.startsWith(v));
+  }
+  return false;
+}
+
+/**
+ * Whether a rule matches the lead's values; when it doesn't, the first condition that failed and its value. A rule
+ * with no conditions never matches (an empty "all" isn't a catch-all).
+ */
+export function ruleMatches(r: Rule, values: Record<string, unknown>, territories: Territory[], mode: CondMode = "v1"): { ok: boolean; failed: { cond: Cond; actual: unknown } | null } {
+  if (!r.conds.length) return { ok: false, failed: null };
+  const results = r.conds.map((c) => ({ cond: c, actual: values[c.field], ok: holds(c, values[c.field], territories, mode) }));
+  const ok = r.match === "any" ? results.some((x) => x.ok) : results.every((x) => x.ok);
+  if (ok) return { ok, failed: null };
+  const f = results.find((x) => !x.ok)!;
+  return { ok, failed: { cond: f.cond, actual: f.actual ?? null } };
+}
+
+/** The company types a lead's company is, by name, from the other values (a type's conditions can't use types). */
+export function segmentsOf(segments: Segment[] | undefined, values: Record<string, unknown>, territories: Territory[], mode: CondMode = "v1"): string[] {
+  return (segments ?? []).filter((s) => ruleMatches({ id: s.id, name: s.name, match: s.match, conds: s.conds.filter((c) => c.field !== "company.type"), queue: "" }, values, territories, mode).ok).map((s) => s.name);
+}
+
+/** The fields with Company type's choices filled in from a body's types. */
+export const withSegments = (fields: FieldDef[], segments: Segment[] | undefined): FieldDef[] =>
+  fields.map((f) => (f.key === "company.type" ? { ...f, options: (segments ?? []).map((s) => s.name) } : f));
+
+// Words ----------------------------------------------------------------------------------------------------------
+
+const COUNTRY_NAMES = (() => {
+  try {
+    return new Intl.DisplayNames(["en"], { type: "region" });
+  } catch {
+    return null;
+  }
+})();
+
+export const countryName = (code: string) => {
+  try {
+    return COUNTRY_NAMES?.of(code.toUpperCase()) ?? code.toUpperCase();
+  } catch {
+    return code.toUpperCase();
+  }
+};
+
+/** "US, Canada or Mexico", "DACH" for a territory. */
+function listWords(value: Cond["value"], field: FieldDef | undefined, territories: Territory[]): string {
+  const raw = Array.isArray(value) ? value : value === undefined ? [] : [value];
+  const words = raw.map((x) => {
+    const s = String(x);
+    if (s.startsWith("t:")) return territories.find((t) => t.id === s.slice(2))?.name ?? "a removed territory";
+    return field?.type === "country" ? countryName(s) : s;
+  });
+  if (words.length <= 1) return words[0] ?? "";
+  return `${words.slice(0, -1).join(", ")} or ${words[words.length - 1]}`;
+}
+
+/** A condition as a sentence part: "country is US or Canada", "size is between 51 and 200". */
+export function condWords(c: Cond, fields: FieldDef[], territories: Territory[]): string {
+  const past = pastWords(c);
+  if (past) return past;
+  const f = fields.find((x) => x.key === c.field);
+  const name = (f?.label ?? c.field.replace(/^[a-z]+\./, "").replace(/_/g, " ")).toLowerCase();
+  const op = OPS_WORDS[c.op];
+  if (!needsValue(c.op)) return `${name} ${op}`;
+  if (c.op === "between" && Array.isArray(c.value)) return `${name} is between ${c.value[0]} and ${c.value[1]}`;
+  if (c.value === undefined || c.value === "" || (Array.isArray(c.value) && !c.value.length)) return `${name} ${c.op === "one_of" ? "is" : c.op === "not_one_of" ? "is not" : op} (no value yet)`;
+  if (c.op === "one_of" || c.op === "not_one_of") return `${name} ${c.op === "one_of" ? "is" : "is not"} ${listWords(c.value, f, territories)}`;
+  return `${name} ${op} ${listWords(c.value, f, territories)}`;
+}
+
+const PAST_YES: Record<string, [string, string]> = {
+  "past.sent_form": ["has sent this form before", "hasn't sent this form before"],
+  "past.has_meeting": ["has a meeting booked", "has no meeting booked"],
+};
+
+/** Past fills read as plain words: "has sent this form before", "booked in the last 30 days". Null for other fields. */
+function pastWords(c: Cond): string | null {
+  const yes = PAST_YES[c.field];
+  if (yes && c.op === "is" && (c.value === "true" || c.value === "false")) return c.value === "true" ? yes[0] : yes[1];
+  if (c.field === "past.days_since_booked" && typeof c.value === "number") {
+    if (c.op === "lte") return `booked in the last ${c.value} days`;
+    if (c.op === "gt") return `last booked more than ${c.value} days ago`;
+  }
+  if (c.field === "past.days_since_booked" && c.op === "empty") return "has never booked";
+  return null;
+}
+
+const OPS_WORDS: Record<Op, string> = {
+  is: "is",
+  is_not: "is not",
+  one_of: "is one of",
+  not_one_of: "is not one of",
+  contains: "contains",
+  starts_with: "starts with",
+  filled: "is filled",
+  empty: "is empty",
+  gt: "is more than",
+  gte: "is at least",
+  lt: "is less than",
+  lte: "is at most",
+  between: "is between",
+};
+
+/** A rule as one line: "Country is US or Canada, and size is between 51 and 200". */
+export function ruleWords(r: Rule, fields: FieldDef[], territories: Territory[]): string {
+  if (!r.conds.length) return "No conditions";
+  const parts = r.conds.map((c) => condWords(c, fields, territories));
+  const joined = parts.length === 1 ? parts[0]! : `${parts.slice(0, -1).join(", ")}, ${r.match === "any" ? "or" : "and"} ${parts[parts.length - 1]}`;
+  return joined.charAt(0).toUpperCase() + joined.slice(1);
+}
+
+// Regions for the territory picker ----------------------------------------------------------------------------------
+
+export const REGIONS: { name: string; countries: string[] }[] = [
+  { name: "North America", countries: ["US", "CA", "MX"] },
+  { name: "LATAM", countries: ["AR", "BO", "BR", "CL", "CO", "CR", "DO", "EC", "GT", "HN", "MX", "NI", "PA", "PE", "PY", "SV", "UY", "VE"] },
+  { name: "UK and Ireland", countries: ["GB", "IE"] },
+  { name: "DACH", countries: ["DE", "AT", "CH"] },
+  { name: "Nordics", countries: ["DK", "FI", "IS", "NO", "SE"] },
+  {
+    name: "EMEA",
+    countries: [
+      "AE", "AT", "BE", "BG", "CH", "CY", "CZ", "DE", "DK", "EE", "EG", "ES", "FI", "FR", "GB", "GR", "HR", "HU", "IE", "IL", "IS", "IT", "KE", "LT", "LU", "LV",
+      "MA", "MT", "NG", "NL", "NO", "PL", "PT", "QA", "RO", "RS", "SA", "SE", "SI", "SK", "TR", "UA", "ZA",
+    ],
+  },
+  { name: "APAC", countries: ["AU", "CN", "HK", "ID", "IN", "JP", "KR", "MY", "NZ", "PH", "SG", "TH", "TW", "VN"] },
+];

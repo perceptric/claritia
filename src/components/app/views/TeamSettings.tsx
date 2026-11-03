@@ -1,0 +1,122 @@
+"use client";
+
+// Settings › Team (supabase/migrations/044_crm.sql). People join by signing in with the invited email, as in
+// Omniscient.
+
+import { useState } from "react";
+import { Plus, Trash } from "../../Icons";
+import { askConfirm, askText } from "../Dialogs";
+import { Avatar, Badge, Button, CardHead, ErrorNote, errorText, invalidate, Loading, must, Panel, type Role, Td, Th, timeAgo, useQuery, type ViewProps } from "../ui";
+
+type Member = {
+  user_id: string | null;
+  email: string;
+  role: string;
+  joined_at: string;
+  pending: boolean;
+  invite_id: string | null;
+};
+
+export function TeamPanel({ sb, ws, role, session }: Pick<ViewProps, "sb" | "ws" | "session"> & { role: Role }) {
+  const team = useQuery(`team:${ws.id}`, async () => must(await sb.rpc("team", { p_ws: ws.id })) as Member[]);
+  const [error, setError] = useState("");
+  const owner = role === "owner";
+  const act = async (fn: () => Promise<unknown>) => {
+    setError("");
+    try {
+      await fn();
+      team.reload();
+      // Teammates show in pickers across the app.
+      invalidate(`workspace_people:${ws.id}`);
+      invalidate(`people:${ws.id}`);
+      invalidate("app_counts");
+    } catch (e) {
+      setError(errorText(e));
+    }
+  };
+  const invite = () =>
+    act(async () => {
+      const email = await askText("Invite a teammate", {
+        placeholder: "name@company.com",
+        ok: "Invite",
+      });
+      if (email) must(await sb.rpc("invite_member", { p_ws: ws.id, p_email: email }));
+    });
+  const remove = (m: Member) =>
+    act(async () => {
+      if (
+        !(await askConfirm(m.pending ? `Cancel the invite for ${m.email}?` : `Remove ${m.email}?`, {
+          ok: m.pending ? "Cancel invite" : "Remove",
+          danger: true,
+        }))
+      )
+        return;
+      // The row leaves at once; it comes back, with the error, if the change fails.
+      const key = (x: Member) => (m.pending ? x.invite_id === m.invite_id : x.user_id === m.user_id && !x.pending);
+      await team.mutate(
+        (l) => l.filter((x) => !key(x)),
+        async () => (m.pending ? must(await sb.rpc("cancel_invite", { p_id: m.invite_id })) : must(await sb.rpc("member_remove", { p_ws: ws.id, p_user: m.user_id }))),
+      );
+    });
+  return (
+    <Panel className="overflow-hidden">
+      <CardHead label="Team" count={team.data?.filter((m) => !m.pending).length}>
+        {owner ? (
+          <Button variant="ghost" size="sm" onClick={invite}>
+            <Plus size={13} />
+            Invite
+          </Button>
+        ) : null}
+      </CardHead>
+      {error || team.error ? (
+        <div className="px-5 pt-4">
+          <ErrorNote message={error || team.error} />
+        </div>
+      ) : null}
+      {!team.data ? (
+        team.error ? null : (
+          <Loading />
+        )
+      ) : (
+        <table className="w-full border-collapse [&_tbody_tr:last-child_td]:border-b-0">
+          <thead>
+            <tr>
+              <Th>Person</Th>
+              <Th>Role</Th>
+              <Th>Since</Th>
+              <Th className="w-12">{""}</Th>
+            </tr>
+          </thead>
+          <tbody>
+            {team.data.map((m) => (
+              <tr key={m.invite_id ?? m.user_id}>
+                <Td>
+                  <span className="flex items-center gap-2.5">
+                    <Avatar label={m.email} size={28} />
+                    <span className="truncate">{m.email}</span>
+                    {m.user_id === session.user.id ? <span className="text-[12px] text-faint">you</span> : null}
+                  </span>
+                </Td>
+                <Td>{m.pending ? <Badge tone="amber" dot>Invited</Badge> : <Badge tone={m.role === "owner" ? "brand" : "gray"}>{m.role}</Badge>}</Td>
+                <Td className="text-[13px] text-muted">{timeAgo(m.joined_at)}</Td>
+                <Td className="text-right">
+                  {owner && m.role !== "owner" ? (
+                    <button
+                      type="button"
+                      aria-label={m.pending ? "Cancel invite" : "Remove"}
+                      title={m.pending ? "Cancel invite" : "Remove"}
+                      onClick={() => remove(m)}
+                      className="press inline-flex size-8 items-center justify-center rounded-full text-muted hover:bg-hover hover:text-rose"
+                    >
+                      <Trash size={13} />
+                    </button>
+                  ) : null}
+                </Td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </Panel>
+  );
+}

@@ -1,0 +1,148 @@
+# Forms, meetings and routing
+
+The form picks the meeting. The meeting picks the rep. There is no Routing section of its own: each part of it lives
+where it's used, and the routing engine underneath runs both steps.
+
+| Part | Where |
+|---|---|
+| Which meeting a lead books | Form › Build › On Submission › Routing (a Default meeting and conditions) |
+| Which rep a lead gets | The meeting: Individual is its host; Dynamic has its own rules |
+| Teams that take turns | Meetings › Availability › Team |
+| Hours, calendars, away, caps | Meetings › Availability |
+| Spam check | Form › Settings › Spam; caught leads go to Form › Submissions › Spam |
+| Why a rep got a lead | Meetings › Upcoming and the meeting's page; one policy and the activity log still open at their old addresses |
+
+Old Routing addresses forward (`resolveRoute` in `src/lib/nav.ts`): the policies list opens Meetings, teams and reps
+open Availability › Team.
+
+## The form
+
+- **Build** has two screens: **1 Form** (questions, layout, the brand's look) and **2 On Submission**.
+- **On Submission** picks Show a message, Go to a page or Book a meeting (`src/components/app/forms/OnSubmission.tsx`).
+- **Book a meeting** only picks meetings, it never edits them:
+  - **Routing**: a **Default** meeting, then **Add condition** rows. A row is one or more conditions (more with
+    **+ and**, all needed) and the meeting it books. The first row that matches wins; anyone else gets the Default.
+  - **Try a lead** runs the compiled routing on answers typed in and shows the meeting and the rep or team.
+  - **When no times are open**: show the message, or email times later.
+  - With no meetings yet, **Create a meeting** opens Meetings.
+- The rows live in the form's draft as `after.schedule.routes`; `meetingTypeId` is the Default meeting
+  (`src/lib/forms/schedule.ts`, checked in `src/lib/forms/schema.ts`).
+
+## Meetings
+
+- **Individual**: one host. The lead always books with that person.
+- **Dynamic**: a group of reps and rules. A rule is conditions (the same editor as the form's,
+  `src/components/app/forms/ConditionRows.tsx`) and one rep or a team that takes turns. **Otherwise** catches the rest.
+  It's kept as `settings.dynamic` on the meeting type (`src/lib/meetings/types.ts`, checked in
+  `src/lib/meetings/check.ts`). The panel is `src/components/app/scheduling/TypePanel.tsx`.
+- Each card says Individual or Dynamic and **Used by** the forms whose Routing books it.
+- An older meeting hosted by a Routing team takes that team's turns. One with several hosts and no team isn't used by a
+  form until it's set up as Individual or Dynamic.
+- A Dynamic meeting's own booking link asks the questions its rules test first (a rule on the email's domain or type
+  asks for the email), then shows the times of the rep or team the answers pick, by the same rules. The answers go
+  with each read of times and with the booking, so the server offers and books the same reps
+  (`src/lib/meetings/dynamic.ts`, `dynamicServer.ts`, the page's step in `src/components/book/RouteQuestions.tsx`).
+  A matched rule whose rep isn't among the meeting's reps, or whose team is gone or empty, keeps every rep; it never
+  falls through to a later rule. A booking link that already names the host skips the questions. Tested in
+  `tests/dynamicBooking.test.ts`.
+
+## Form Studio's On submission
+
+Studio forms (`src/components/app/forms/studio/studio.ts`, the rows in `src/lib/studio/routes.ts`) keep the same rule:
+the form picks the meeting type, the meeting picks the person.
+
+- **Who books it**: when the picked meeting (or a route's meeting) is Dynamic, its rules show in one line, like
+  "Locations is at least 50 → Enterprise, otherwise anyone on the team" (`src/lib/meetings/dynamicWords.ts`).
+  **Edit routing** opens that meeting type's panel. The routing stays on the meeting type.
+- **Route by answer**: rows of "When <question> <test> <value>, book <meeting>", read top to bottom, then
+  **Otherwise, book** the form's meeting. The tests fit the question: is or is not one of its answers for a choice;
+  less than, more than, at most, at least, between and is for a number; contains, is, is not and starts with for text;
+  is answered and is empty for all. Numbers are compared as numbers. Rows saved before tests ("Plan is Enterprise")
+  read as "is" that answer. Each row compiles to one condition on `answer.<key>` (`pageForm` in
+  `src/lib/studio/page.ts`); a row whose question is gone or whose value is blank never routes anyone.
+- **Past fills** (rule fields for both the form's rows and Dynamic rules, `PAST_FIELDS` in
+  `src/lib/router/conditions.ts`): **Has sent this form before**, **Has a meeting booked**, and **Booked in the last N
+  days** (days since they last booked, at most N). The server reads them once per send, only when a rule tests one
+  (`routing_past`, `supabase/migrations/115_routing_past.sql`; `readPast` in `src/lib/router/server.ts`). The send
+  being routed never counts as "sent before"; spam and test sends never count. A Dynamic meeting's own booking link
+  reads them by the guest's email (any form, since a booking page has none). A past fill that can't be read is
+  unknown, so no rule on it holds by mistake, in older policies too ("is not" included). Workflow branches and
+  Enrichment's qualify rules don't offer them, since only routing reads them.
+- **Always do**, on every send whatever it books: **Email the team** and **Post to Slack** (the form's team alert,
+  `form.notify`); **Send to** a connected CRM or a webhook (the form's destinations); **Follow-up** workflows that
+  start on this form (**New follow-up**: when they send it, or when they don't book). Send to and New follow-up save
+  the form once as a draft first, since they need its id. Email the team and Post to Slack are the same team alert as
+  the form's Settings, so the last place it changed wins (`teamAlert` in `src/lib/studio/page.ts`), the alert's subject
+  stays, and a chat opened after a Settings change shows the alert as it is now. A form with no Always do keeps the
+  alert it had.
+- **The form check** (`src/lib/studio/check.ts`) stops Publish on a route that reads a deleted question or answer, a
+  past fill that's gone, a blank value, a deleted meeting, a page or part shown by a question asked on a later page,
+  and Email the team with no emails.
+
+Tested in `tests/routeByAnswer.test.ts` and `scripts/studio-check.ts`.
+
+## How it runs
+
+`src/lib/routing/compile.ts` turns the form's routing and its meetings into one routing policy:
+
+1. Each form row expands into one rule per rule of its meeting (the row's conditions and the meeting's, together),
+   then one for the meeting's Otherwise (or its host). Each rule names its rep or team and the meeting it books (`meet`).
+2. The Default meeting's rules come next, and its Otherwise (or host) is Everyone else.
+3. Paths that can't route are left out and listed: a value missing, a meeting deleted or off, a team that's gone, a
+   meeting with no host. A half-made row never catches a lead. Tested in `tests/routingCompile.test.ts`.
+
+The router then runs it like any policy: the spam check, existing owners, away, caps and turns all work as before, and
+the booking shows the picked rep's times for the rule's meeting.
+
+**Publishing** (`src/lib/routing/formPublish.ts`, on the server):
+
+- Publishing a form compiles its routing and publishes it as the form's own policy: `rt_save`, the form's connection
+  staged on it, the test the router asks for (`rt_test` with a lead that matches the first rule), then `rt_publish`.
+- A form that shared a policy, or used the default one, gets its own at its first publish.
+- A form that never used this routing (no `routes`) keeps the policy it had.
+- Saving a meeting publishes again every live form that books it (`/api/meetings/types`), so a Dynamic meeting's new
+  rules reach them at once.
+- Anyone who can publish the form publishes its routing. It only ever touches that form's own policy, so it runs with
+  an owner's rights for them. Anything left out shows as an error after the form goes live. Tested in
+  `tests/formPublish.test.ts`.
+
+## Spam
+
+- A lead any spam check catches goes to its form's **Spam** list (Form › Submissions › Spam): the form's own checks,
+  and the routing spam check (reason `routing`, "Failed the spam check"). There is no review step and no "held" wording.
+- The routing spam check's review item is kept, dismissed (`supabase/migrations/098_spam_to_spam.sql`), so
+  **Not spam** routes the lead through that item with the spam check skipped (`src/lib/routing/spamRelease.ts`, called
+  from `/api/forms/release`). If routing refuses, the item goes back to dismissed and the lead stays in Spam.
+- Leads from the handoff or the API keep their review item. Tested in `tests/spamToSpam.test.ts`.
+
+## The meeting description
+
+Every booked meeting's calendar event and invite file get a description made from the meeting
+(`src/lib/meetings/description.ts`): who booked and from which form, their answers (the form's and the meeting's own
+questions), the join link and the guest's reschedule and cancel link. The guest sees it too, so it holds nothing
+internal (no score, no routing reason). A group event carries none of one guest's details.
+
+- `meeting_sync` writes it when the event is made and again on every reschedule, so the links never go stale
+  (`worker-intel/jobs/calendars.ts`). The invite file in the confirmation and update emails uses the same text.
+- The form, its answers and the sealed manage token come from `meeting_invite_info`
+  (`supabase/migrations/099_meeting_description.sql`). If that read fails, the event is still made with what the
+  meeting has.
+- A reschedule keeps the meeting's host. A Dynamic meeting always does, even when set to the pool, since its rules
+  picked that rep (`keepsHost` in `src/lib/meetings/public.ts`). A cancel takes the event down.
+- Tested in `tests/meetingDescription.test.ts` and `tests/dynamicBooking.test.ts`.
+
+## Sharing
+
+The form's Share tab has the embed code for the customer's site and the form's own link on Claritia (`/f/<form>`).
+Both run the same steps: questions, routing, the rep's calendar, booked.
+
+## Monthly cost
+
+Nothing is added to the monthly bill. There is no new service and no AI call; publishing makes a few more routing
+calls than before, once per publish. Past fills add one indexed database read per send, only on forms and meetings
+whose rules test one; it fits in the database the app already runs on.
+
+| Stage | Added per month |
+|---|---|
+| Beta (50 teams) | $0 |
+| Growth (500 teams) | $0 |

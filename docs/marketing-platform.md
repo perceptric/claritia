@@ -2,6 +2,8 @@
 
 **One line:** Claritia turns website visitors into leads and leads into meetings, with AI agents running the journeys, writing the emails, building the pages and proving what made revenue.
 
+**Next build:** `docs/inbound.md`. Forms, enrichment, qualification, routing and meeting scheduling for small teams, after Default. It comes before M3 and M4.
+
 **Who it's for first:** B2B teams of 5 to 200 people, with 1 to 10 marketers. They pay for 4 or 5 tools today (HubSpot or Marketo, Warmly or Unify, Mutiny or Unbounce, HockeyStack or Dreamdata) at $35K to $100K a year.
 
 **The suite:**
@@ -103,7 +105,7 @@ The testing product's screens (Tests, Runs, Map, Approvals for heals) move under
 | `claritia-runner` (exists, sleeps when idle) | 2 GB | Browser jobs: crawls and Funnel QA runs |
 | `claritia-relay` | 256 MB | Kept for localhost tunnels (Funnel QA on staging) |
 | Supabase `claritia` (Tokyo) | Pro + Medium, then Large | Postgres, Auth, Storage, pg_cron, pgvector |
-| Amazon SES | — | Email sending, with bounce and complaint events through SNS |
+| Resend | — | Email sending from customer domains, with bounce, complaint and delivery events through signed webhooks |
 | ClickHouse Cloud | Growth only | Raw events at scale |
 
 ### 3.2 Data flow
@@ -116,7 +118,7 @@ The testing product's screens (Tests, Runs, Map, Approvals for heals) move under
                                    │
                          jobs queue (claim_job, skip locked)
                                    │
-   segment_refresh · journey_step · agent_decide · agent_write · send · ses_event · score · handoff · qa_run
+   segment_refresh · journey_step · agent_decide · agent_write · send · email_event · score · handoff · qa_run
                                    │
           Approvals · Slack · Omniscient (contacts, opportunities, activities) · Reports · MCP · API
 ```
@@ -127,7 +129,7 @@ The testing product's screens (Tests, Runs, Map, Approvals for heals) move under
 collect/               Hono intake: /s.js, /e, /f (forms), /c (clicks), /u (unsubscribe)
 src/lib/identity/      docs/identity.md
 src/lib/contacts/      contacts, companies, consent, segments (filter → SQL)
-src/lib/email/         ses client, domains, templates (MJML), suppression, tracking links
+src/lib/email/         resend client, domains, templates (MJML), suppression, tracking links
 src/lib/journeys/      graph schema, engine, steps, simulation
 src/lib/brain/         ingest, atoms, embeddings, verifier
 src/lib/pages/         blocks, renderer, forms, booking, personalization, domains
@@ -253,18 +255,18 @@ imports        (id, workspace_id, file_path, mapping jsonb, status, counts jsonb
 
 **Problem:** marketing email has to reach the inbox, respect the law, and look right everywhere.
 
-**Sending:** Amazon SES. One configuration set per workspace, for event routing and reputation tracking.
+**Sending:** Resend (already used for alerts and test inboxes). Each customer domain is a Resend domain made through its API, and every send is tagged with the workspace id, for event routing and reputation tracking.
 
 | Stage | Setup |
 |---|---|
-| Beta | Shared SES IP pool, split by sending reputation tier |
-| Growth | Dedicated IPs for workspaces sending 100K+ a month (check price), with an automatic warm-up schedule |
+| Beta | Resend's shared IPs |
+| Growth | Resend dedicated IPs for workspaces sending 100K+ a month (check price), with Resend's managed warm-up |
 
 **Domains wizard (Settings › Sending):**
 1. The customer adds a sending domain (for example `mail.acme.com`).
 2. Claritia shows the DNS records to add:
-   - DKIM: three SES CNAMEs (Easy DKIM).
-   - SPF: through a custom MAIL FROM subdomain.
+   - DKIM: the TXT record Resend gives for the domain.
+   - SPF: the MX and TXT records on Resend's `send` subdomain.
    - DMARC: at least `p=none` with a `rua` address.
    - A tracking subdomain CNAME for links.
 3. A DNS check job polls each record and shows a green or red tag per record.
@@ -279,13 +281,13 @@ imports        (id, workspace_id, file_path, mapping jsonb, status, counts jsonb
 | Spam complaint rate under 0.3% (aim for under 0.1%) | Per-workspace complaint tracking. Sending pauses at 0.2% over 7 days. |
 | Visible unsubscribe link and physical address (CAN-SPAM) | A footer block that can't be removed from marketing templates |
 
-**Events:** SES sends to SNS, then to `/api/ses/events`, verified by SNS signature.
+**Events:** Resend webhooks post to `/api/email/events`, verified by the Svix signature.
 
 | Event | Action |
 |---|---|
 | Delivery | Logged |
 | Bounce (hard) | Suppress the address for all topics |
-| Bounce (soft) | Retry by SES. Suppress after 3 in 30 days. |
+| Bounce (soft) | Retry by Resend. Suppress after 3 in 30 days. |
 | Complaint | Suppress, unsubscribe from all, alert if the rate rises |
 | Reject | Logged, alert |
 
@@ -305,7 +307,7 @@ imports        (id, workspace_id, file_path, mapping jsonb, status, counts jsonb
    - suppression;
    - the frequency cap (default 3 marketing emails per 7 days per contact);
    - quiet hours in the contact's time zone.
-2. It renders the email, rewrites links, adds headers, and sends through SES with up to 14 messages a second per workspace at Beta (check the SES account rate).
+2. It renders the email, rewrites links, adds headers, and sends through Resend's batch endpoint (100 emails per call) within the account's rate limit (check the Resend rate for the plan).
 3. It writes `email_messages` and a contact event, and posts an activity to Omniscient.
 
 **Data (migration `024_email.sql`):**
@@ -315,7 +317,7 @@ sending_domains (id, workspace_id, domain, dkim_status, spf_status, dmarc_status
 templates       (id, workspace_id, name, blocks jsonb, mjml text, version int)
 emails          (id, workspace_id, name, kind text, -- journey, broadcast, one_to_one
                  subject, preheader, template_id, from_name, from_email, topic_id, status)
-email_messages  (id, workspace_id, email_id, contact_id, journey_step_id, ses_message_id, subject_final,
+email_messages  (id, workspace_id, email_id, contact_id, journey_step_id, resend_id, subject_final,
                  body_hash, sent_at, delivered_at, bounced text, complained_at, first_click_at, replied_at)
 suppressions    (workspace_id, email_hash, reason, source, at)
 send_limits     (workspace_id, per_second, per_day, paused bool, paused_reason)
@@ -327,7 +329,7 @@ send_limits     (workspace_id, per_second, per_day, paused bool, paused_reason)
 - **Settings › Sending:** domains with record tags, reputation numbers, and the pause banner if paused.
 
 **Tests:**
-- SNS signature check. Each event type is handled.
+- Webhook signature check. Each event type is handled.
 - A suppressed address is never sent to, even from a journey step that was already queued.
 - `List-Unsubscribe-Post` unsubscribes in one POST.
 - Frequency cap and quiet hours hold.
@@ -487,12 +489,8 @@ approvals     (id, workspace_id, kind, ref_id, payload jsonb, status, decided_by
 
 **Booking:**
 - **Owner calendar:** through Omniscient, which already syncs Google Calendar. Claritia asks Omniscient for open slots of the routed owner (needs the Omniscient API in Part 5.1).
-- **Own calendar** (Free and teams without Omniscient): one Google or Microsoft calendar connected with one click, read for busy times and written for new bookings.
 - **Fallback:** a Calendly or HubSpot Meetings link.
 - Routing picks the owner at submit (M7), so the visitor books with the right rep at once.
-- **Reminders:** a confirmation, then emails 24 hours and 1 hour before, through the jobs queue. Paid plans add SMS (Twilio, check), custom follow-ups and a no-show follow-up.
-
-**Plan limits (Part 10.3):** submissions and AI credits are counted per workspace per month in `plan_usage`. Over the cap, submissions are saved and marked `over_cap`, and the contact waits outside journeys until the cap lifts.
 
 **Data (migration `027_pages.sql`):** `pages`, `page_versions`, `page_variants`, `page_views`, `forms`, `form_fields`, `form_submissions`, `domains`, `bookings`.
 
@@ -503,8 +501,6 @@ approvals     (id, workspace_id, kind, ref_id, payload jsonb, status, decided_by
 - Progressive profiling hides known fields.
 - Server and client renders match.
 - A booking creates a meeting in a test Omniscient workspace.
-- Submission 251 on Free is saved and hidden, and shows after an upgrade. Two submissions racing for the last slot under the cap both save, and exactly one counts.
-- A reminder job that retries after a timeout sends once. A canceled booking sends no reminder.
 
 ---
 
@@ -674,8 +670,6 @@ Work on the Arrowsterr side: an API key and 3 endpoints if they don't exist yet 
 | Stripe | Week 9 | Free |
 | Slack | Week 6 (existing alerts app) | Free |
 | Calendly, HubSpot Meetings | Week 22 (booking fallback) | Free with the customer's plan |
-| Google Calendar, Microsoft Graph | Week 22 (own calendar) | Free APIs |
-| Twilio | Week 22 (SMS reminders, paid plans) | About $0.0083 per US message plus carrier fees (check) |
 | Google Ads, LinkedIn Ads | Later (ad spend in attribution) | Free APIs (check access rules) |
 
 ---
@@ -704,7 +698,7 @@ Work on the Arrowsterr side: an API key and 3 endpoints if they don't exist yet 
 | 7 | Contacts, companies, consents, fields, import |
 | 8 | Segment builder and engine |
 | 9 | Syncs: Omniscient both ways, HubSpot, Segment, PostHog, Stripe |
-| 10 | SES setup, domains wizard, DNS checks, SNS events, suppression |
+| 10 | Resend domains API, domains wizard, DNS checks, webhook events, suppression |
 | 11 | Templates, brand kit, MJML, tracking links, unsubscribe, footer rules |
 | 12 | Broadcasts, send pipeline, caps and quiet hours, email render QA |
 | 13 | Brand Brain: absorb and distill |
@@ -716,7 +710,7 @@ Work on the Arrowsterr side: an API key and 3 endpoints if they don't exist yet 
 | 19 | Hardening, load test, Beta launch |
 | 20 | Page blocks, editor, renderer, hosting, domains |
 | 21 | Forms, consent block, Turnstile, progressive profiling |
-| 22 | AI page build, personalization slots, A/B, booking through Omniscient or one own calendar, reminders, plan limits |
+| 22 | AI page build, personalization slots, A/B, booking through Omniscient |
 | 23 | Scores (engagement, readiness), routing rules, SLA, recycle |
 | 24 | Touches across the suite, attribution models |
 | 25 | Reports, weekly AI summary |
@@ -756,7 +750,7 @@ Work on the Arrowsterr side: an API key and 3 endpoints if they don't exist yet 
 | Real-browser checks (script, identity, forms, pages, email renders, consent matrix) | `scripts/*-check.ts` on Chromium, plus WebKit and Firefox in CI |
 | Suite integration (Omniscient and HubSpot test workspaces) | `scripts/suite-check.ts` |
 | AI evals (Write, Decide, page build, verifier, weekly summary) | `scripts/ai-eval.ts` in CI on any prompt or model change |
-| Deliverability (SES mailbox simulator addresses for bounce and complaint) | `scripts/ses-check.ts` |
+| Deliverability (Resend test addresses for delivered, bounced and complained) | `scripts/email-check.ts` |
 | Leak tests on every table | `tests/db/leaks.sql` |
 | Load (collect 10K events a second, 10K journey steps a minute, 50 sends a second) | `scripts/load-*.ts` |
 
@@ -797,226 +791,24 @@ Website rules are in `docs/account-intelligence.md` Part 3 and `docs/identity.md
 ### 9.4 Data
 
 - Same retention, erasure, export and sub-processor rules as `docs/account-intelligence.md` Part 3.
-- Amazon SES and Cloudflare Turnstile are added to the sub-processor list.
+- Resend and Cloudflare Turnstile are added to the sub-processor list.
 
 ---
 
-## Part 10. Pricing
+## Part 10. Pricing (proposed)
 
-Forms and booking are sold like Fillout and Calendly: a small plan fee plus a seat for each person who takes meetings. The marketing platform (journeys, email sending, Website Intelligence) is an add-on on top of any plan.
+Replaced by `docs/pricing.md` (October 2026), priced against Chili Piper, Default, RevenueHero, Calendly and HubSpot.
+The table below is the earlier draft.
 
-### 10.1 Plans
-
-| | Free | Starter | Pro | Business |
-|---|---|---|---|---|
-| Plan fee (monthly / yearly) | $0 | $15 / $12 | $39 / $31 | $79 / $63 |
-| Seats included | 1 | 1 | 1 | 1 |
-| Each extra seat (monthly / yearly) | — | $8 / $6 | $15 / $12 | $25 / $20 |
-| Forms | Unlimited | Unlimited | Unlimited | Unlimited |
-| Submissions per month | 250 | 2,000 | 5,000 | Unlimited |
-| AI credits per month | 100 | 500 | 2,000 | 5,000 |
-| Calendars per seat | 1 | 3 | 10 | Unlimited |
-| Booking pages | 1 | Unlimited | Unlimited | Unlimited |
-| Reminders | Confirmation, email reminders 24 hours and 1 hour before | Custom wording | SMS (100 a month), follow-ups, no-show follow-up | SMS (300 a month) |
-| Branding | Claritia badge | Small badge | Removed | Removed, custom domain |
-| Routing | — | — | Routing forms, round robin, team booking | CRM owner lookup |
-| Lead tools | Answers go to Contacts | Custom endings, redirect | Prevent duplicate submissions | Partial submissions, drop-off tracking, A/B tests, pixels, enrichment (200 a month) |
-| Integrations | Webhooks, CSV | HubSpot, Omniscient, Google Sheets, Slack | Same | Salesforce |
-
-### 10.1.1 Every feature, plan by plan
-
-**Free: all the basics**
-
-- Forms
-  - Unlimited forms and questions
-  - Multi-page forms with a progress bar
-  - 30+ field types: text, long text, email, phone, number, single and multiple choice, picker, checkboxes, date, time, rating, scale, yes or no, address, URL, file upload, consent
-  - Conditional logic (show, hide, skip, jump)
-  - Answer piping (use an earlier answer in a later question)
-  - Calculations and scoring
-  - Hidden fields (UTM tags, page, referrer, segment)
-  - Pre-fill from the link
-  - Field validation and required fields
-  - Save and resume a half-filled form
-  - Thank-you message
-  - File uploads up to 20 MB
-  - Collect payments with Stripe (Stripe's own fees apply)
-  - Ready-made themes
-  - Works on phones, by keyboard and with screen readers
-- Sharing
-  - Share link on `forms.tryclaritia.com`
-  - Embed by script tag: inline, popup or slide-in
-  - Native on Claritia pages
-  - QR code
-- Spam and consent
-  - Honeypot, Cloudflare Turnstile and a rate limit per network
-  - Disposable email blocking and email checks
-  - Consent block worded by region, saved with the exact wording
-- Booking
-  - 1 calendar (Google or Microsoft), connected in one click
-  - 1 booking page
-  - Working hours, buffer time, minimum notice and a daily limit
-  - Time zone found on its own
-  - Video link added on its own (Google Meet, Microsoft Teams, Zoom)
-  - Book straight from a form after submit
-  - Reschedule and cancel links
-- Reminders
-  - Confirmation email with a calendar invite
-  - Email reminders 24 hours and 1 hour before
-  - Emails when a meeting is moved or canceled
-- AI (100 credits a month)
-  - Write a form from one sentence
-  - Suggest the next question
-  - Write booking page text
-  - Translate a form
-- Contacts
-  - Every answer lands on a contact
-  - Repeat sign-ups merge by email
-  - Timeline of forms and meetings on each contact
-- Results and data
-  - Summary page with a chart for each question
-  - Email to you on each submission
-  - CSV export and import
-  - Webhooks
-- Account
-  - 1 seat, unlimited admins
-  - Claritia badge
-  - Help center and email support
-
-**Starter: everything in Free, plus**
-
-- 2,000 submissions and 500 AI credits a month
-- Extra seats at $8 ($6 yearly)
-- Forms
-  - Premium fields: signature, matrix, ranking, payment amount picked by the person
-  - Custom endings, and a different ending for each answer
-  - Redirect on completion
-  - Your logo
-  - Custom themes (colors, Google Fonts, corners, background image)
-  - Copy of the answers emailed to the person who filled the form
-  - Progressive profiling (known contacts aren't asked again)
-  - Small Claritia badge
-- Booking
-  - 3 calendars per seat
-  - Unlimited booking pages
-  - One-on-one and group meetings
-  - Custom questions on the booking page
-  - Paid meetings with Stripe
-  - Secret booking links
-- Reminders
-  - Custom wording for confirmations and reminders
-  - Your own reminder times
-- Integrations
-  - HubSpot, Omniscient, Google Sheets, Slack, Zapier, Make
-- Support by email within one business day
-
-**Pro: everything in Starter, plus**
-
-- 5,000 submissions and 2,000 AI credits a month
-- Extra seats at $15 ($12 yearly)
-- Forms
-  - Remove all branding
-  - Custom fonts and favicon
-  - Custom CSS
-  - Custom share link and share preview
-  - Emails sent from your own domain
-  - Prevent duplicate submissions
-- Booking
-  - 10 calendars per seat
-  - Team booking (everyone needed in one meeting)
-  - Meeting limits per rep
-  - Vacation and a backup rep
-- Routing
-  - Routing forms (route by any answer)
-  - Round robin: even, weighted or by who's free first
-  - Book the right rep right after the form
-  - Routing log showing why each lead went where
-- Reminders
-  - SMS reminders (100 a month)
-  - Custom follow-up emails after the meeting
-  - No-show follow-up
-  - Ask to confirm before the meeting
-- AI
-  - Suggest routing rules
-  - Summary of answers for the rep before the meeting
-- Meeting reports (booked, held, no-show, by rep)
-- Priority email support
-
-**Business: everything in Pro, plus**
-
-- Unlimited submissions and 5,000 AI credits a month
-- Extra seats at $25 ($20 yearly)
-- Forms
-  - Custom domain (`forms.yourcompany.com`)
-  - Partial submissions
-  - Drop-off by question
-  - Views, starts and conversion rate for each form
-  - A/B tests
-  - Meta, LinkedIn and Google Ads pixels, and Google Analytics 4
-  - Custom code and HTML block
-  - Pre-fetch data from a webhook
-  - File uploads up to 1 GB
-- Booking and routing
-  - Unlimited calendars
-  - Route to the account owner in HubSpot, Omniscient or Salesforce
-  - Salesforce sync
-  - Alert when a routed lead isn't booked within a set time
-- Enrichment (200 a month): company, size, industry, role
-- SMS reminders (300 a month)
-- Audit log
-- Priority chat support
-
-Payments, video links, pixels and Google Analytics use free APIs. File uploads and SMS are inside the costs in Part 11.4.
-
-### 10.2 Marketing add-on
-
-| Add-on | Price | Includes |
+| Plan | Price | Includes |
 |---|---|---|
-| Marketing | $299/mo | 5,000 contacts, 25,000 emails/mo, 1 site, Website Intelligence, segments, broadcasts, 3 journeys with agent steps (review mode), Funnel QA basics |
-| Marketing Plus | $799/mo | 25,000 contacts, 100,000 emails/mo, 3 sites, unlimited journeys, review-sample and auto modes, personalization, attribution |
-| Scale | From $1,999/mo | 100,000+ contacts, dedicated sending IPs, Marketing Agent, SSO, priority support |
+| Starter | $299/mo | 5,000 contacts, 25,000 emails/mo, 1 site, Website Intelligence, segments, broadcasts, 3 journeys with agent steps (review mode), Funnel QA basics |
+| Growth | $799/mo | 25,000 contacts, 100,000 emails/mo, 3 sites, unlimited journeys, review-sample and auto modes, pages and forms, personalization, attribution, Omniscient and HubSpot sync |
+| Scale | From $1,999/mo | 100,000+ contacts, dedicated sending IPs, Salesforce, Marketing Agent, SSO, priority support |
 | Suite bundle | 20% off when a team runs Arrowsterr, Claritia and Omniscient together | — |
 
-- Overages: $10 per 1,000 contacts, $1 per 1,000 emails, $5 per 1,000 submissions.
-- At the cost per team in Part 11 (about $82–$106), Marketing keeps about 65% gross margin and Marketing Plus about 87%.
-
-### 10.3 Plan rules
-
-- **A seat** is a person who takes meetings: anyone with a booking page or in a routing pool. Admins and people who only build forms or read reports are free.
-- **An AI credit** is one AI action a person asks for: write a form, a booking page, a reminder, a page section. A light action (Haiku) is 1 credit, a heavy one (Sonnet page build) is 10. Journey agent steps count against emails, never credits. A step replayed from cache uses no credits.
-- **Past the submission cap** the form keeps working and every submission is saved. On Free, answers past 250 stay hidden until the team upgrades or the month resets, and the contact is held back from journeys. Paid plans pay the overage. A lead is never dropped. Counts reset on the 1st (on the billing day for paid plans).
-- **Past the AI credit cap** the AI buttons stop until the month resets. Forms, booking and reminders keep running.
-- **Reminders** never go out for a canceled or moved booking.
-- **Yearly billing** saves 20%.
-
-### 10.4 How the market prices (checked Nov 3, 2026)
-
-Forms and booking:
-
-| Tool | Free | Paid | Model |
-|---|---|---|---|
-| Calendly | 1 event type, 1 calendar, confirmations only | $10–16/seat yearly, $12–20 monthly. Reminders from Standard, routing from Teams | Per seat |
-| Cal.com | 1 user, unlimited events, email and SMS reminders | $12–28/user yearly. AI phone $0.29/min | Per seat |
-| Typeform | Low response cap | $28–266/mo yearly (100 to 10,000 responses) | Flat, by responses |
-| Fillout | 1,000 responses, unlimited seats | $15–75/mo. Partial submissions on Business | Flat, by responses |
-| Jotform | 5 forms, 100 submissions | $34–99/mo yearly (1,000 to 10,000 submissions) | Flat, by submissions |
-| involve.me | 50 submissions or 500 visits | $29–139/mo yearly (3 to 25 live funnels) | Flat, by funnels |
-| Heyflow | About 100 leads, 1 flow (check) | €49–239/mo (check) | Flat, by responses |
-
-Lead routing, for a team of 10 reps per month (monthly / yearly):
-
-| Tool | Cost | Model |
-|---|---|---|
-| Claritia Starter | $87 / $66 | Plan fee plus seats |
-| Cal.com Teams | $120 (yearly) | Per seat |
-| Claritia Pro | $174 / $139 | Plan fee plus seats |
-| Calendly Teams | $200 / $160 | Per seat |
-| OnceHub Route | $230 / $190 (check) | Per seat |
-| Claritia Business | $304 / $243 | Plan fee plus seats |
-| RevenueHero Essentials | $449 / $329 | Plan fee plus seats |
-| HubSpot Sales Hub Pro | $900–1,000 (check) | Per seat |
-| Chili Piper Growth | $1,250 (yearly only) | Plan fee with 15 seats |
-| Default Growth | $1,450 (yearly only) | Plan fee plus seats |
+- Overages: $10 per 1,000 contacts, $1 per 1,000 emails.
+- At the cost per team in Part 11 (about $85–$121), Starter keeps about 60% gross margin and Growth about 89%.
 
 ---
 
@@ -1054,40 +846,24 @@ Claude prices: Haiku 5.5 $0.10/$0.50, Sonnet 5.5 $2/$10, Opus 5.5 $4/$20 per mil
 | Line | Beta (50 teams) | Growth (500 teams) |
 |---|---|---|
 | AI ($60 per team) | $3,000 | $30,000 |
-| Amazon SES (about $0.10 per 1,000 emails, check) | $250 | $2,500 |
+| Resend, marketing sends and app notifications (2.5M emails a month at Beta, 25M at Growth, check) | $1,150 (check) | $5,000 (custom quote, check) |
 | Dedicated sending IPs (about $25 each, check) | $50 (2) | $250 (10) |
 | Coresignal (check) | $1,500 | $5,000 |
 | IPinfo Business (check) | $249 | $1,000 |
 | Fly: web, collect, agent, relay (check) | $25 | $120 |
 | Supabase Pro + compute (check) | $85 | $135 |
 | ClickHouse Cloud (check) | — | $300 |
-| Resend for app notifications | $20 | $90 (check) |
 | Cloudflare Turnstile | $0 (check) | $0 (check) |
 | SOC 2 compliance tool (check) | — | $850 |
-| Twilio SMS reminders (about 200 per team at $0.01 with fees, check) | $100 | $1,000 |
-| **Total** | **$5,279** | **$41,245** |
-| **Per team** | **About $106** | **About $82** |
+| **Total** | **$6,059** | **$42,655** |
+| **Per team** | **About $121** | **About $85** |
 
-### 11.4 Forms and booking plans
-
-| Line per team per month | Free | Starter | Pro | Business |
-|---|---|---|---|---|
-| AI credits (worst case about $0.0015 each) | $0.15 | $0.75 | $3 | $7.50 |
-| Emails and SMS (SES and Twilio, check) | $0.05 | $0.20 | $1.50 | $4 |
-| Storage, intake and hosting share (check) | $0.10 | $0.30 | $0.50 | $1 |
-| Enrichment, 200 lookups (check) | — | — | — | $4–10 |
-| **Total** | **About $0.30** | **About $1.25** | **About $5** | **About $17–23** |
-
-Each seat adds calendar sync, reminders and its share of SMS, about $0.50 (check).
-
-| If every team is on this plan (5 seats on paid plans) | Beta (50 teams) | Growth (500 teams) |
-|---|---|---|
-| Free | About $15 | About $150 |
-| Starter | About $190 | About $1,875 |
-| Pro | About $375 | About $3,750 |
-| Business | About $975–1,275 | About $9,750–12,750 |
-
-Free teams get no Website Intelligence, so they add no Coresignal or IPinfo cost. With 5 seats, every paid plan keeps about 80–90% gross margin.
+**Ways to cut the bill:**
+- Haiku for Write by default.
+- The decision cache on Decide.
+- The Batch API for summaries.
+- A shared company cache for Coresignal and IPinfo.
+- Enrichment only for accounts with real activity.
 
 ---
 
@@ -1099,7 +875,7 @@ Free teams get no Website Intelligence, so they add no Coresignal or IPinfo cost
 | AI writes something false or off-brand | Trust lost | Atoms only, verifier, voice guide, review modes unlocked by approval history |
 | Wrong identity link drives a wrong email | Creepy or wrong message | Probable never sends, no tracking mentions, `can_act()` gate |
 | Omniscient API slips | Handoff and booking blocked | HubSpot sync as the fallback path, built in week 9 |
-| SES production access or rate limits | Launch delay | Request production access in week 1, Resend as a backup sender at Beta volume (check) |
+| Resend rate limits or plan caps | Launch delay | Ask Resend for the volume plan and rate raise in week 1 |
 | Too much scope for one team | Late launch | Phase releases each stand alone. Beta at week 19 needs only phases A to C. |
 | HubSpot and Conversion.ai move faster | Harder sales | Suite bundle, price, Website Intelligence and Funnel QA that they don't have |
 
@@ -1109,7 +885,7 @@ Free teams get no Website Intelligence, so they add no Coresignal or IPinfo cost
 
 | Item | Needed by | Lead time |
 |---|---|---|
-| AWS account, SES production access request, SNS topic | Week 10 (request in week 1) | Days to weeks |
+| Resend volume plan, rate raise and webhook for email events | Week 10 (ask in week 1) | Days |
 | IPinfo Business plan | Week 3 | 1 day |
 | Coresignal plan upgrade (Premium at Beta) | Week 5 | 1 day |
 | Omniscient API work (Part 5.1) | Weeks 5–6 | In the build |

@@ -1,0 +1,26 @@
+{
+  "name": "@claritia/embed",
+  "version": "0.1.0",
+  "description": "Claritia forms and meeting calendars on any site: a script loader, window.Claritia, and React components.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" },
+    "./react": { "types": "./dist/react.d.ts", "import": "./dist/react.js" }
+  },
+  "files": ["dist", "README.md"],
+  "sideEffects": false,
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "prepublishOnly": "npm run build"
+  },
+  "peerDependencies": {
+    "react": ">=18"
+  },
+  "peerDependenciesMeta": {
+    "react": { "optional": true }
+  },
+  "homepage": "https://tryclaritia.com/developers/embed",
+  "license": "MIT"
+}

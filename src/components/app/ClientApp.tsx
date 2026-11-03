@@ -1,97 +1,103 @@
 "use client";
 
 import type { Session } from "@supabase/supabase-js";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import dynamic from "next/dynamic";
+import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import { getSupabase, type SupaConfig } from "@/lib/supa";
-import { allowedRoute, navFor, showsProjectPicker, type Route as NavRoute } from "@/lib/nav";
-import { BarChart, Box, Branch, Check, Clock, Contact, Eye, FileText, Globe, ListIcon, LogOut, MapIcon, Play, Settings, Target, Users } from "../Icons";
+import { NAV, resolveRoute, routingPage, schedulingPage } from "@/lib/nav";
+import { LogOut, Moon, Sun } from "../Icons";
 import { Logo } from "../Logo";
 import { AuthScreen } from "./AuthScreen";
-import { askText, DialogHost } from "./Dialogs";
-import { Select } from "./Select";
-import { Avatar, ErrorNote, errorText, mayLeave, must, type Project, type Role, type Route, type ViewProps, type Workspace } from "./ui";
-import { ApprovalsView } from "./views/ApprovalsView";
-import { BlocksView } from "./views/BlocksView";
-import { EnvironmentsView } from "./views/EnvironmentsView";
-import { InsightsView } from "./views/InsightsView";
-import { SchedulesView } from "./views/SchedulesView";
-import { RunsView } from "./views/RunsView";
-import { ConnectExtension } from "./ConnectExtension";
-import { MapView } from "./views/MapView";
-import { AccountsView } from "./views/AccountsView";
-import { ContactsView, LeadsView } from "./views/ContactsView";
-import { CompaniesView, ObjectsView } from "./views/RecordsViews";
-import { SegmentsView } from "./views/SegmentsView";
-import { JourneysView, PagesView, ReportsView } from "./views/MarketingIntros";
-import { VisitorsView } from "./views/VisitorsView";
-import { SettingsView } from "./views/SettingsView";
-import { TestsView } from "./views/TestsView";
+import { Dots } from "./Ai";
+import { CommandBar, type Command } from "./CommandBar";
+import { DialogHost, tell } from "./Dialogs";
+import { bookingOrigin, bookingUrl } from "@/lib/meetings/handles";
+import { cache, ErrorNote, errorText, Loading, mayLeave, must, postJson, type Role, type Route, type ViewProps, type Workspace } from "./ui";
+import { NAV_ICONS, Sidebar, type CreateItem } from "./Sidebar";
+import { useRoutingCommands } from "./routing/commands";
+import { useAppCounts } from "./appCounts";
 
-// One icon per screen. Which screens a workspace sees comes from its features (src/lib/nav.ts): the testing product's
-// four modules (AI works inside each: the Writer in Authoring, the Healer in Execution, smart retries in Management
-// and the Judge in Analytics), the marketing platform's screens, or both.
-const ICONS: Record<NavRoute, React.ReactNode> = {
-  contacts: <Contact size={15} />,
-  leads: <Target size={15} />,
-  segments: <ListIcon size={15} />,
-  companies: <Users size={15} />,
-  objects: <Box size={15} />,
-  visitors: <Eye size={15} />,
-  accounts: <Users size={15} />,
-  people: <Users size={15} />,
-  journeys: <Branch size={15} />,
-  pages: <FileText size={15} />,
-  reports: <BarChart size={15} />,
-  tests: <ListIcon size={15} />,
-  blocks: <Box size={15} />,
-  map: <MapIcon size={15} />,
-  runs: <Play size={15} />,
-  environments: <Globe size={15} />,
-  schedules: <Clock size={15} />,
-  approvals: <Check size={15} />,
-  insights: <BarChart size={15} />,
-  settings: <Settings size={15} />,
+// Each section loads its own code when first opened (or when its sidebar item is hovered), so the app starts small.
+const LOADERS = {
+  meetings: () => import("./meetings/MeetingsView").then((m) => m.MeetingsView),
+  routing: () => import("./routing/RoutingView").then((m) => m.RoutingView),
+  scheduling: () => import("./scheduling/SchedulingView").then((m) => m.SchedulingView),
+  workflows: () => import("./workflows/WorkflowsView").then((m) => m.WorkflowsView),
+  forms: () => import("./forms/FormsView").then((m) => m.FormsView),
+  settings: () => import("./views/SettingsView").then((m) => m.SettingsView),
+} satisfies Partial<Record<Route, () => Promise<React.ComponentType<ViewProps>>>>;
+type ViewRoute = keyof typeof LOADERS;
+
+const loading = () => <Loading />;
+const VIEWS: Record<ViewRoute, React.ComponentType<ViewProps>> = {
+  meetings: dynamic(LOADERS.meetings, { ssr: false, loading }),
+  routing: dynamic(LOADERS.routing, { ssr: false, loading }),
+  scheduling: dynamic(LOADERS.scheduling, { ssr: false, loading }),
+  workflows: dynamic(LOADERS.workflows, { ssr: false, loading }),
+  forms: dynamic(LOADERS.forms, { ssr: false, loading }),
+  settings: dynamic(LOADERS.settings, { ssr: false, loading }),
 };
+const viewOf = (r: Route): ViewRoute => (r in LOADERS ? (r as ViewRoute) : "settings");
+const preloadView = (r: Route) => void LOADERS[viewOf(r)]().catch(() => undefined);
 
-const PROJECT_KEY = "claritia:project";
-const NEW_PROJECT = "__new";
+/** The open section. Memoized, so the command bar and the sidebar counts don't redraw it. */
+const OpenView = memo(function OpenView({ route, ...props }: ViewProps & { route: Route }) {
+  const View = VIEWS[viewOf(route)];
+  return <View {...props} />;
+});
+
+const GROUP_LABEL = { main: "Go to", settings: "App" } as const;
 
 type Loc = { route: Route; id: string };
-const WITH_ID = new Set<Route>(["tests", "blocks", "runs", "approvals", "accounts", "contacts", "leads", "companies", "segments"]);
+const WITH_ID = new Set<Route>(["forms", "workflows"]);
 
 const readLoc = (): Loc => {
   const [, first = "", id = "", rest = ""] = window.location.pathname.split("/");
-  const route = first in ICONS ? (first as Route) : "tests";
-  // Custom objects: /objects/<key> and /objects/<key>/<record id>.
-  if (route === "objects") return { route, id: /^[a-z][a-z0-9_]{0,39}$/.test(id) ? (/^[0-9a-f-]{36}$/.test(rest) ? `${id}/${rest}` : id) : "" };
+  const r = resolveRoute(first, rest ? `${id}/${rest}` : id);
+  const [a = ""] = r.id.split("/");
+  const uuid = (x: string) => /^[0-9a-f-]{36}$/.test(x);
   // Settings pages: /settings/<page>.
-  if (route === "settings") return { route, id: /^[a-z_]{2,30}$/.test(id) ? id : "" };
-  if (route === "segments" && id === "new") return { route, id };
-  return { route, id: WITH_ID.has(route) && /^[0-9a-f-]{36}$/.test(id) ? id : "" };
-};
-
-function remember(id: string) {
-  try {
-    localStorage.setItem(PROJECT_KEY, id);
-  } catch {}
-}
-
-function recall() {
-  try {
-    return localStorage.getItem(PROJECT_KEY);
-  } catch {
-    return null;
+  if (r.route === "settings") return { route: r.route, id: /^[a-z_]{2,30}$/.test(a) ? a : "" };
+  if ((r.route === "forms" || r.route === "workflows") && a === "new") return { route: r.route, id: a };
+  if (r.route === "forms" && a === "overview") return { route: r.route, id: a };
+  // The template gallery: /forms/templates and /forms/templates/<template> (the website links there).
+  if (r.route === "forms" && a === "templates") {
+    const t = r.id.split("/")[1] ?? "";
+    return { route: r.route, id: /^[a-z0-9-]{3,80}$/.test(t) ? `templates/${t}` : "templates" };
   }
-}
+  // Meetings: /meetings/<id>.
+  if (r.route === "meetings") return { route: r.route, id: uuid(a) ? a : "" };
+  // Pages inside a route (src/lib/nav.ts).
+  if (r.route === "routing") return { route: r.route, id: routingPage(r.id).id };
+  if (r.route === "scheduling") return { route: r.route, id: schedulingPage(r.id).id };
+  return { route: r.route, id: WITH_ID.has(r.route) && uuid(a) ? a : "" };
+};
 
 function Splash() {
   return (
     <main className="flex min-h-screen items-center justify-center">
-      <span className="animate-pulse">
-        <Logo compact />
-      </span>
+      <Dots />
     </main>
   );
+}
+
+type Theme = "light" | "dark";
+
+/** Light or dark, saved on this computer; the page sets it before the first paint. */
+function useTheme() {
+  // The app shows a splash before anything themed, so reading the page here can't differ from the server's render.
+  const [theme, setTheme] = useState<Theme>(() => (typeof document !== "undefined" && document.documentElement.dataset.theme === "dark" ? "dark" : "light"));
+  const flip = useCallback(() => {
+    setTheme((t) => {
+      const next: Theme = t === "dark" ? "light" : "dark";
+      document.documentElement.dataset.theme = next;
+      try {
+        localStorage.setItem("claritia:theme", next);
+      } catch {}
+      return next;
+    });
+  }, []);
+  return { theme, flip };
 }
 
 export function ClientApp({ config }: { config: SupaConfig }) {
@@ -99,16 +105,23 @@ export function ClientApp({ config }: { config: SupaConfig }) {
   const [session, setSession] = useState<Session | null | undefined>(undefined);
   const [ws, setWs] = useState<Workspace | null>(null);
   const [role, setRole] = useState<Role>("member");
-  const [projects, setProjects] = useState<Project[] | null>(null);
-  const [projectId, setProjectId] = useState<string | null>(null);
-  const [loc, setLoc] = useState<Loc>({ route: "tests", id: "" });
+  const [loc, setLoc] = useState<Loc>({ route: "forms", id: "" });
   const [error, setError] = useState("");
-  // The screen asked for, or this workspace's first screen when it doesn't have that one.
-  const route = ws ? allowedRoute(ws.features, loc.route) : loc.route;
-  // Keep the address in step when the screen asked for isn't this workspace's.
+  const [searching, setSearching] = useState(false);
+  const { theme, flip } = useTheme();
+  const route = loc.route;
+
+  // ⌘K or Ctrl+K opens the command bar.
   useEffect(() => {
-    if (ws && route !== loc.route) window.history.replaceState(null, "", `/${route}`);
-  }, [ws, route, loc.route]);
+    const key = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        setSearching((v) => !v);
+      }
+    };
+    window.addEventListener("keydown", key);
+    return () => window.removeEventListener("keydown", key);
+  }, []);
 
   useEffect(() => {
     sb.auth.getSession().then(({ data }) => setSession(data.session));
@@ -117,7 +130,14 @@ export function ClientApp({ config }: { config: SupaConfig }) {
   }, [sb]);
 
   useEffect(() => {
-    const sync = () => setLoc(readLoc());
+    const sync = () => {
+      const l = readLoc();
+      setLoc(l);
+      // Old and unknown addresses show where they landed.
+      const want = `/${l.route}${l.id ? `/${l.id}` : ""}`;
+      if (window.location.pathname !== want && !(l.route === "settings" && !l.id) && !(l.route === "scheduling" && l.id === "types" && window.location.pathname === "/scheduling"))
+        window.history.replaceState(null, "", want + window.location.search);
+    };
     sync();
     window.addEventListener("popstate", sync);
     return () => window.removeEventListener("popstate", sync);
@@ -125,202 +145,118 @@ export function ClientApp({ config }: { config: SupaConfig }) {
 
   const userId = session?.user.id;
 
-  // Your workspace, made on first sign-in.
+  // Your workspace (made on first sign-in) and your role, in one call.
   useEffect(() => {
     if (!userId) return;
     (async () => {
-      const id = must(await sb.rpc("ensure_workspace")) as string;
-      const w = must(await sb.from("workspaces").select("id, name, features").eq("id", id).single()) as Workspace;
-      const m = must(await sb.from("workspace_members").select("role").eq("workspace_id", id).eq("user_id", userId).single()) as { role: Role };
-      setWs(w);
-      setRole(m.role);
+      const r = must(await sb.rpc("app_start")) as { workspace: Workspace; role: Role };
+      setWs(r.workspace);
+      setRole(r.role);
     })().catch((e) => setError(errorText(e)));
   }, [sb, userId]);
-
-  // Your projects, and which one is open: the one asked for, the last one you used, or the first.
-  const loadProjects = useCallback(
-    (select?: string) => {
-      if (!ws) return;
-      sb.from("projects")
-        .select("id, name, workspace_id, created_at")
-        .eq("workspace_id", ws.id)
-        .order("created_at")
-        .then((res) => {
-          if (res.error) return setError(res.error.message);
-          const list = res.data as Project[];
-          const want = select ?? recall();
-          const pick = list.find((p) => p.id === want) ?? list[0] ?? null;
-          setProjects(list);
-          setProjectId(pick?.id ?? null);
-          if (pick) remember(pick.id);
-        });
-    },
-    [sb, ws],
-  );
-
-  useEffect(() => loadProjects(), [loadProjects]);
-
-  // The workspace's custom objects, listed in the sidebar after Companies.
-  const [customObjects, setCustomObjects] = useState<{ key: string; plural: string }[]>([]);
+  // Signing out empties the cache, so the next person starts clean.
   useEffect(() => {
-    if (!ws || !ws.features.includes("marketing")) return;
-    const load = () =>
-      void sb
-        .from("objects")
-        .select("key, plural")
-        .eq("workspace_id", ws.id)
-        .order("created_at")
-        .then(({ data }) => setCustomObjects((data ?? []) as { key: string; plural: string }[]));
-    load();
-    window.addEventListener("claritia:changed", load);
-    return () => window.removeEventListener("claritia:changed", load);
-  }, [sb, ws]);
+    if (session === null) cache.clear();
+  }, [session]);
 
-  // How many fixes wait for approval in the open project, for the sidebar.
-  const [waiting, setWaiting] = useState(0);
-  useEffect(() => {
-    if (!projectId) return;
-    const count = () =>
-      void sb
-        .from("heals")
-        .select("id", { count: "exact", head: true })
-        .eq("project_id", projectId)
-        .eq("status", "pending")
-        .then(({ count: n }) => setWaiting(n ?? 0));
-    count();
-    window.addEventListener("claritia:changed", count);
-    const t = setInterval(count, 60_000);
-    return () => {
-      window.removeEventListener("claritia:changed", count);
-      clearInterval(t);
-    };
-  }, [sb, projectId, loc]);
+  // Counts in the sidebar (today's meetings) and its dots (a rep with no calendar, routing not live).
+  const appCounts = useAppCounts(sb, ws?.id ?? null).data;
+  const counts = appCounts?.sidebar ?? NO_COUNTS;
+  const dots = appCounts?.dots ?? NO_DOTS;
 
   // Pages with unsaved changes get to ask first.
-  const navigate = useCallback((r: Route, id = "") => {
+  const navigate = useCallback((to: Route, toId = "", query = "") => {
+    // Moved pages open their new home (a workflow opens in Emails › Journeys, availability in Routing › Sales reps).
+    const { route: r, id } = resolveRoute(to, toId);
     mayLeave().then((ok) => {
       if (!ok) return;
-      window.history.pushState(null, "", `/${r}${id ? `/${id}` : ""}`);
+      window.history.pushState(null, "", `/${r}${id ? `/${id}` : ""}${query ? `?${query}` : ""}`);
       setLoc({ route: r, id });
     });
   }, []);
-
-  async function newProject() {
-    if (!ws) return;
-    const name = await askText("New project", { placeholder: "My app", ok: "Create" });
-    if (!name) return;
-    try {
-      const p = must(await sb.from("projects").insert({ workspace_id: ws.id, name }).select("id").single()) as { id: string };
-      loadProjects(p.id);
-      navigate("tests");
-    } catch (e) {
-      setError(errorText(e));
-    }
-  }
+  const onWorkspace = useCallback((patch: Partial<Workspace>) => setWs((w) => (w ? { ...w, ...patch } : w)), []);
+  const routingCommands = useRoutingCommands({ sb, session, ws: ws?.id ?? null, navigate });
 
   if (session === undefined) return <Splash />;
   if (!session) return <AuthScreen sb={sb} />;
   if (error && !ws)
     return (
       <main className="flex min-h-screen items-center justify-center px-4">
-        <div className="w-full max-w-md space-y-4 border border-line bg-panel p-7">
+        <div className="w-full max-w-md space-y-4 rounded-2xl bg-card p-7 shadow-hover">
           <Logo />
           <ErrorNote message={error} />
         </div>
       </main>
     );
-  if (!ws || projects === null) return <Splash />;
-  if (window.location.pathname === "/extension") return <ConnectExtension sb={sb} session={session} ws={ws} />;
+  if (!ws) return <Splash />;
 
-  const project = projects.find((p) => p.id === projectId) ?? null;
-  const props: ViewProps = { sb, session, ws, role, project, projectsChanged: loadProjects, navigate, id: loc.id };
+  const props: ViewProps = { sb, session, ws, role, navigate, id: loc.id, onWorkspace };
   const email = session.user.email ?? "";
-  const options = [...projects.map((p) => ({ value: p.id, label: p.name })), { value: NEW_PROJECT, label: "New project…" }];
-  const pickProject = async (v: string) => {
-    if (!(await mayLeave())) return;
-    if (v === NEW_PROJECT) return void newProject();
-    setProjectId(v);
-    remember(v);
-    if (loc.id) navigate(loc.route);
+
+  const create: CreateItem[] = [
+    { group: "Forms", label: "Form", run: () => navigate("forms", "new") },
+    { group: "Meetings", label: "Meeting type", run: () => navigate("scheduling", "types/new") },
+    { group: "Meetings", label: "Single-use link", run: () => navigate("scheduling", "links", "create=single_use") },
+    { group: "Meetings", label: "Poll", run: () => navigate("scheduling", "links", "create=poll") },
+    { group: "Workflows", label: "Workflow", run: () => navigate("workflows", "new") },
+  ];
+
+  // ⌘K "Copy my booking link": your page's address, or the Booking page to set one.
+  const copyBookingLink = async () => {
+    if (!session || !ws) return;
+    try {
+      const r = await postJson<{ profile: { handle: string | null } | null }>(session, "/api/meetings/booking", { workspaceId: ws.id, action: "load" });
+      const handle = r.profile?.handle;
+      if (!handle) return navigate("scheduling", "booking");
+      await navigator.clipboard.writeText(bookingUrl(bookingOrigin(window.location), handle));
+      await tell("Copied your booking link");
+    } catch (e) {
+      await tell(errorText(e));
+    }
   };
 
-  const objectLinks = customObjects.map((o) => {
-    const on = route === "objects" && (loc.id === o.key || loc.id.startsWith(`${o.key}/`));
-    return (
-      <a
-        key={`o-${o.key}`}
-        href={`/objects/${o.key}`}
-        onClick={(e) => {
-          e.preventDefault();
-          navigate("objects", o.key);
-        }}
-        aria-current={on && loc.id === o.key ? "page" : undefined}
-        className={`flex h-8 items-center gap-2.5 rounded-md px-2.5 text-[13px] font-medium ${on ? "bg-panel text-ink ring-1 ring-line" : "text-body hover:bg-hover hover:text-ink"}`}
-      >
-        <span className={on ? "text-ink" : "text-muted"}>{ICONS.objects}</span>
-        <span className="truncate">{o.plural}</span>
-      </a>
-    );
-  });
-  const navLinks = navFor(ws.features).map((n) => [
-    n.group !== undefined ? (
-      <p key={`g-${n.route}`} className={`hidden px-2.5 font-mono text-[10px] tracking-[0.12em] text-faint uppercase md:block ${n.group ? "mt-3 mb-1" : "mt-3 border-t border-line pt-3"}`}>
-        {n.group}
-      </p>
-    ) : null,
-    <a
-      key={n.route}
-      href={`/${n.route}`}
-      onClick={(e) => {
-        e.preventDefault();
-        navigate(n.route);
-      }}
-      aria-current={route === n.route && !loc.id ? "page" : undefined}
-      className={`flex h-8 items-center gap-2.5 rounded-md px-2.5 text-[13px] font-medium ${route === n.route ? "bg-panel text-ink ring-1 ring-line" : "text-body hover:bg-hover hover:text-ink"}`}
-    >
-      <span className={route === n.route ? "text-ink" : "text-muted"}>{ICONS[n.route]}</span>
-      {n.label}
-      {n.route === "approvals" && waiting ? <span className="ml-auto bg-brand px-1.5 font-mono text-[10px] leading-4 text-white">{waiting}</span> : null}
-    </a>,
-    n.route === "companies" ? objectLinks : null,
-  ]);
+  const commands: Command[] = [
+    ...NAV.map((n) => ({ id: n.key, label: n.label, group: GROUP_LABEL[n.group], icon: NAV_ICONS[n.key] ?? NAV_ICONS[n.route], run: () => navigate(n.route, n.page) })),
+    ...create.map((c) => ({ id: `create-${c.label}`, label: `New ${c.label.toLowerCase()}`, group: "Create", icon: NAV_ICONS.objects, run: c.run })),
+    ...routingCommands,
+    { id: "booking-link", label: "Copy my booking link", group: "Meetings", icon: NAV_ICONS.scheduling, run: () => void copyBookingLink() },
+    { id: "theme", label: theme === "dark" ? "Light mode" : "Dark mode", group: "Look", icon: theme === "dark" ? <Sun size={15} /> : <Moon size={15} />, run: flip },
+    { id: "out", label: "Sign out", group: "Account", icon: <LogOut size={15} />, run: () => void sb.auth.signOut() },
+  ];
 
   return (
-    <div className="flex h-screen min-h-0 flex-col bg-canvas md:flex-row">
+    <div className="flex h-screen min-h-0 flex-col bg-paper-deep md:flex-row">
       <DialogHost />
-      {/* Sidebar on wide screens, a top bar on phones */}
-      <aside className="flex shrink-0 flex-col gap-3 border-b border-line bg-side p-3 md:h-full md:w-60 md:border-r md:border-b-0">
-        <div className="flex items-center justify-between gap-2 px-1">
-          <Logo />
-          <span className="truncate font-mono text-[10px] tracking-[0.08em] text-faint uppercase">{ws.name}</span>
-        </div>
-        {showsProjectPicker(ws.features, route) ? (
-        <Select
-          value={project?.id ?? ""}
-          options={options}
-          onChange={pickProject}
-          ariaLabel="Project"
-          placeholder="No project yet"
-          className="h-9 w-full rounded-md border border-line bg-panel px-2.5 text-[13px] font-medium hover:border-line-strong"
-        />
-        ) : null}
-        <nav className="flex gap-1 overflow-x-auto md:flex-col md:overflow-visible">{navLinks}</nav>
-        <div className="mt-auto hidden items-center gap-2 border-t border-line px-1 pt-3 md:flex">
-          <Avatar label={email} />
-          <span className="min-w-0 flex-1 truncate text-[12.5px] text-body">{email}</span>
-          <button type="button" aria-label="Sign out" title="Sign out" onClick={() => sb.auth.signOut()} className="rounded-md p-1.5 text-muted hover:bg-hover hover:text-ink">
-            <LogOut size={14} />
-          </button>
-        </div>
-      </aside>
-      <main className="min-h-0 min-w-0 flex-1">
+      {searching ? <CommandBar onClose={() => setSearching(false)} commands={commands} /> : null}
+      {/* Side rail on wide screens, a top bar on phones */}
+      <Sidebar
+        route={route}
+        id={loc.id}
+        navigate={navigate}
+        counts={counts}
+        dots={dots}
+        wsName={ws.name}
+        email={email}
+        theme={theme}
+        onTheme={flip}
+        onSignOut={() => void sb.auth.signOut()}
+        onSearch={() => setSearching(true)}
+        onPreload={preloadView}
+        create={create}
+      />
+      <main className="min-h-0 min-w-0 flex-1 overflow-hidden bg-paper md:my-2 md:mr-2 md:rounded-xl md:shadow-rest">
         {error ? (
-          <div className="border-b border-line bg-panel p-3">
+          <div className="border-b border-line p-3">
             <ErrorNote message={error} />
           </div>
         ) : null}
-        {route === "contacts" ? <ContactsView {...props} /> : route === "leads" ? <LeadsView {...props} /> : route === "companies" ? <CompaniesView {...props} /> : route === "segments" ? <SegmentsView {...props} /> : route === "objects" ? <ObjectsView key={loc.id.split("/")[0]} {...props} /> : route === "visitors" ? <VisitorsView {...props} /> : route === "accounts" ? <AccountsView {...props} /> : route === "journeys" ? <JourneysView /> : route === "pages" ? <PagesView /> : route === "reports" ? <ReportsView /> : route === "tests" ? <TestsView {...props} /> : route === "blocks" ? <BlocksView {...props} /> : route === "map" ? <MapView {...props} /> : route === "runs" ? <RunsView {...props} /> : route === "approvals" ? <ApprovalsView {...props} /> : route === "environments" ? <EnvironmentsView {...props} /> : route === "schedules" ? <SchedulesView {...props} /> : route === "insights" ? <InsightsView {...props} /> : <SettingsView {...props} />}
+        <OpenView route={route} {...props} />
       </main>
     </div>
   );
 }
+
+const NO_COUNTS: Partial<Record<string, number>> = {};
+const NO_DOTS: Partial<Record<string, boolean>> = {};
+
+
