@@ -132,7 +132,7 @@ test("Free holds 1 meeting type with 1 host; kinds sit on their plans", async ()
   const t1 = await saveType(ws, [user]);
   assert.match((await check(ws, null, type({ hosts: [{ user_id: user }] })))!, /1 meeting type/);
   assert.equal(await check(ws, t1, type({ hosts: [{ user_id: user }], name: "Renamed" })), null, "changing the one type is fine");
-  assert.match((await check(ws, t1, type({ hosts: [{ user_id: user }, { user_id: other }] })))!, /1 host/);
+  assert.match((await check(ws, t1, type({ hosts: [{ user_id: user }, { user_id: other }] })))!, /1 seat/);
   assert.equal(await check(ws, null, type({ active: false })), null, "an inactive type doesn't count");
   assert.match((await check(ws, null, type({ kind: "group" })))!, /Starter/);
   assert.match((await check(ws, t1, type({ settings: { price: { amount: 2000, currency: "usd" } } })))!, /Paid meetings/);

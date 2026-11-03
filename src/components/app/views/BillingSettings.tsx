@@ -1,6 +1,6 @@
 "use client";
 
-// Settings › Billing (docs/pricing.md): the plan, this month's submissions, AI credits and hosts, and the four plans
+// Settings › Billing (docs/pricing.md): the plan, this month's submissions, AI credits and seats, and the four plans
 // to move between. Free to paid goes through Stripe's checkout; paid to paid changes the subscription in place,
 // prorated; cards, invoices and cancelling are on Stripe's billing page. Only the owner changes anything.
 
@@ -89,7 +89,7 @@ export function BillingSettings({ sb, session, ws, role }: Pick<ViewProps, "sb" 
       const next = planById(id);
       const total = monthlyTotal(next, interval, s.hosts);
       const ok = await askConfirm(`Move to ${next.name}?`, {
-        body: `${money(total)} a month${interval === "year" ? ", billed yearly" : ""} for ${s.hosts} ${s.hosts === 1 ? "host" : "hosts"}. The difference is prorated.`,
+        body: `${money(total)} a month${interval === "year" ? ", billed yearly" : ""} for ${s.hosts} ${s.hosts === 1 ? "seat" : "seats"}. The difference is prorated.`,
         ok: `Move to ${next.name}`,
       });
       if (!ok) return;
@@ -129,7 +129,7 @@ export function BillingSettings({ sb, session, ws, role }: Pick<ViewProps, "sb" 
         <div className="flex flex-col divide-y divide-line">
           <Meter label="Submissions" used={s.submissions} cap={s.submissions_cap} />
           <Meter label="AI credits" used={s.ai_credits} cap={s.ai_credits_cap} />
-          <Meter label="Hosts" used={s.hosts} cap={s.plan === "free" ? 1 : null} />
+          <Meter label="Seats" used={s.hosts} cap={s.plan === "free" ? 1 : null} />
         </div>
       </Panel>
 
@@ -162,12 +162,12 @@ export function BillingSettings({ sb, session, ws, role }: Pick<ViewProps, "sb" 
                   <span className="text-[12.5px] text-muted">a month</span>
                 </div>
                 <div className="flex flex-col gap-1 text-[12.5px] text-body">
-                  <span>{each === null ? "1 host" : `1 host, then ${money(each)} each`}</span>
+                  <span>{each === null ? "1 seat" : `1 seat, then ${money(each)} a seat`}</span>
                   <span>{amount(p.submissions)} submissions</span>
                   <span>{amount(p.aiCredits)} AI credits</span>
                   {p.id !== "free" && hostsShown > 1 ? (
                     <span className="text-ink">
-                      {money(total)} for {hostsShown} hosts
+                      {money(total)} for {hostsShown} seats
                     </span>
                   ) : null}
                 </div>

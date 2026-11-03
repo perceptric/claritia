@@ -41,8 +41,8 @@ What the market does:
 
 ## Part 2. How Claritia prices
 
-1. **A small plan price with 1 host in it**, like Fillout's.
-2. **A price for each extra host**, like Calendly and Cal.com. A host is anyone people can book. Everyone who builds forms, edits workflows or reads results is free.
+1. **A small plan price with 1 seat in it**, like Fillout's.
+2. **A price for each extra seat**, like Calendly and Cal.com. A seat is a teammate people can book a meeting with. Everyone who builds forms, edits workflows or reads results is free.
 3. **Monthly billing.** Yearly saves 20%.
 4. **A free plan.** No card needed.
 
@@ -52,12 +52,12 @@ What the market does:
 |---|---|---|---|---|
 | Plan price (monthly / yearly) | $0 | $15 / $12 | $39 / $31 | $79 / $63 |
 | Hosts included | 1 | 1 | 1 | 1 |
-| Each extra host (monthly / yearly) | — | $8 / $6 | $15 / $12 | $25 / $20 |
+| Each extra seat (monthly / yearly) | — | $8 / $6 | $15 / $12 | $25 / $20 |
 | Editors | Unlimited | Unlimited | Unlimited | Unlimited |
 | Forms | Unlimited | Unlimited | Unlimited | Unlimited |
 | Submissions a month | 250 | 2,000 | 5,000 | Unlimited |
 | AI credits a month | 100 | 500 | 2,000 | 5,000 |
-| Calendars per host | 1 | 3 | 10 | Unlimited |
+| Calendars per seat | 1 | 3 | 10 | Unlimited |
 | Meeting types | 1 | Unlimited | Unlimited | Unlimited |
 | Branding | Claritia badge | Small badge | Removed | Removed |
 
@@ -92,13 +92,13 @@ What the market does:
 - Tia (100 credits): write a form from one sentence, add and fix questions, write a meeting's text
 - Results: every fill and booking saved, repeat people merged by email, views, starts and fills for each form, CSV
   export, webhooks
-- Account: 1 host, unlimited editors, Claritia badge, help by email
+- Account: 1 seat, unlimited editors, Claritia badge, help by email
 
 **Starter**, everything in Free, plus
-- 2,000 submissions and 500 AI credits a month; extra hosts $8 ($6 yearly)
+- 2,000 submissions and 500 AI credits a month; extra seats $8 ($6 yearly)
 - Forms: signatures, payments with Stripe, custom endings by answer, redirect on completion, your logo, your colors and
   fonts, a copy of the answers emailed to the person
-- Meetings: 3 calendars per host, unlimited meeting types, group meetings with a seat limit, one-off meetings,
+- Meetings: 3 calendars per seat, unlimited meeting types, group meetings with a seat limit, one-off meetings,
   single-use links, secret meeting types, meeting polls, paid meetings with Stripe, questions on the booking page,
   copy open times into an email, booking pages for each person and the team
 - Workflows: your own wording and times for confirmations and reminders, a follow-up the next day until they book
@@ -107,19 +107,19 @@ What the market does:
 - Small Claritia badge; help by email within one business day
 
 **Pro**, everything in Starter, plus
-- 5,000 submissions and 2,000 AI credits a month; extra hosts $15 ($12 yearly)
+- 5,000 submissions and 2,000 AI credits a month; extra seats $15 ($12 yearly)
 - Forms: no Claritia branding, full style control (corners, spacing, buttons, your site's look copied in), emails from
   your own domain, form languages (Soon), prevent duplicate fills (Soon)
-- Meetings: 10 calendars per host, round robin (weights, priority, flexible or strict), collective meetings
-  (everyone free), team pools, caps per host for a day and a week, away days
+- Meetings: 10 calendars per seat, round robin (weights, priority, flexible or strict), collective meetings
+  (everyone free), team pools, caps per seat for a day and a week, away days
 - Routing: route by any answer to a meeting and a person, route by past fills, a log of why each lead went where
 - Workflows: thank-you after a held meeting, no-show follow-up with the reschedule link, SMS reminders
   (100 a month, Soon)
-- Tia: a short brief of the answers for the host before the meeting
+- Tia: a short brief of the answers before each call
 - Priority help by email
 
 **Business**, everything in Pro, plus
-- Unlimited submissions and 5,000 AI credits a month; extra hosts $25 ($20 yearly)
+- Unlimited submissions and 5,000 AI credits a month; extra seats $25 ($20 yearly)
 - Meetings: unlimited calendars, owner first (the person's owner in your CRM, else the pool), double round robin (one
   from each of two teams)
 - Integrations: Salesforce
@@ -130,7 +130,7 @@ What the market does:
 
 ## Part 5. Side by side
 
-A team with 10 hosts, per month (monthly / yearly billing):
+A team with 10 seats, per month (monthly / yearly billing):
 
 | Tool | Cost |
 |---|---|
@@ -157,12 +157,12 @@ What one team costs Claritia on each plan, used to the limit:
 | SMS on Twilio, about $0.01 with fees (check, once built) | — | — | $1 | $3 |
 | Storage, intake and hosting share (check) | $0.10 | $0.30 | $0.50 | $1 |
 | **Cost** | **About $0.30** | **About $1.25** | **About $5** | **About $12.50** |
-| Each host (calendar sync, reminders) | — | $0.50 | $0.50 | $0.50 |
+| Each seat (calendar sync, reminders) | — | $0.50 | $0.50 | $0.50 |
 | **Gross margin, plan alone, monthly price** | — | 92% | 87% | 84% |
 
 ## Part 7. Running cost of this change
 
-Mix assumed, with 3 hosts on each paid team:
+Mix assumed, with 3 seats on each paid team:
 - Beta: 20 Free, 15 Starter, 10 Pro and 5 Business teams, about $1,800 a month in revenue.
 - Growth: 200 Free, 150 Starter, 100 Pro and 50 Business teams, about $18,000 a month.
 
@@ -179,13 +179,13 @@ That keeps about 86% of revenue at both stages. Claude tokens are inside the fir
 
 | Part | Where |
 |---|---|
-| The plan list: prices, hosts, limits, which plan has each feature, AI credits per Tia step | `src/lib/plans.ts` |
-| Plan ids (Team became Pro), interval and hosts billed; caps; this month's usage; the submission counter and the hidden flag; credits taken and given back; hosts; the meeting type and calendar checks; what Billing reads | `supabase/migrations/120_plans.sql` |
-| Stripe: products made once, a plan line and an extra-host line priced from the plan list, monthly or yearly; plan changes in place, prorated; the host count kept in step after each meeting type save and before each renewal (`invoice.upcoming`) | `src/lib/billing.ts`, `src/lib/billingHosts.ts`, `src/app/api/billing/` |
-| Settings › Billing: the plan, this month's submissions, AI credits and hosts, the four plans monthly or yearly | `src/components/app/views/BillingSettings.tsx` |
+| The plan list: prices, seats, limits, which plan has each feature, AI credits per Tia step | `src/lib/plans.ts` |
+| Plan ids (Team became Pro), interval and seats billed; caps; this month's usage; the submission counter and the hidden flag; credits taken and given back; seats; the meeting type and calendar checks; what Billing reads | `supabase/migrations/120_plans.sql` |
+| Stripe: products made once, a plan line and an extra-seat line priced from the plan list, monthly or yearly; plan changes in place, prorated; the seat count kept in step after each meeting type save and before each renewal (`invoice.upcoming`) | `src/lib/billing.ts`, `src/lib/billingHosts.ts`, `src/app/api/billing/` |
+| Settings › Billing: the plan, this month's submissions, AI credits and seats, the four plans monthly or yearly | `src/components/app/views/BillingSettings.tsx` |
 | Tia steps charged before the model runs; a cached step, unasked work and a failed call cost nothing | `src/lib/ai/cache.ts` |
-| Limits enforced: meeting kinds by plan, Free's 1 meeting type, 1 host, paid meetings on Starter and up, calendars per host, branded booking pages on Starter and up, the link domain on Business, Left early (partial fills) on Business, hidden answers past Free's cap | `src/app/api/meetings/_lib/host.ts`, `src/lib/meetings/providers/connect.ts`, `src/app/api/link-domain/route.ts`, `src/components/app/forms/Submissions.tsx` |
-| Tests: the plan list, Stripe lines, subscriptions, host sync, plan changes, the webhook, AI credits, hidden fills; on Postgres, two fills racing for Free's last slot, twenty at once, repeats and spam, two Tia steps racing for the last credits, the meeting type and calendar checks | `tests/billing.test.ts`, `tests/planCredits.test.ts`, `tests/pg/plans.pg.ts` |
+| Limits enforced: meeting kinds by plan, Free's 1 meeting type, 1 seat, paid meetings on Starter and up, calendars per seat, branded booking pages on Starter and up, the link domain on Business, Left early (partial fills) on Business, hidden answers past Free's cap | `src/app/api/meetings/_lib/seat.ts`, `src/lib/meetings/providers/connect.ts`, `src/app/api/link-domain/route.ts`, `src/components/app/forms/Submissions.tsx` |
+| Tests: the plan list, Stripe lines, subscriptions, seat sync, plan changes, the webhook, AI credits, hidden fills; on Postgres, two fills racing for Free's last slot, twenty at once, repeats and spam, two Tia steps racing for the last credits, the meeting type and calendar checks | `tests/billing.test.ts`, `tests/planCredits.test.ts`, `tests/pg/plans.pg.ts` |
 
 Not held back yet, so open on every plan for now: polls, one-off and single-use links, signatures and payments on
 forms, routing by answer, the small badge on Starter and the badge on Free forms, Salesforce on Business, and billing

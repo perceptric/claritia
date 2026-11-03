@@ -52,7 +52,7 @@ export function ensureProducts(stripe: Stripe): Promise<Products> {
       for (const kind of ["plan", "host"] as const) {
         const key = `${id}:${kind}` as const;
         if (found[key]) continue;
-        const name = kind === "plan" ? `Claritia ${planById(id).name}` : `Claritia ${planById(id).name} extra host`;
+        const name = kind === "plan" ? `Claritia ${planById(id).name}` : `Claritia ${planById(id).name} extra seat`;
         found[key] = (await stripe.products.create({ name, metadata: { claritia_product: key } }, { idempotencyKey: `claritia-product-${key}` })).id;
       }
     }
