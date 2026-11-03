@@ -147,6 +147,39 @@ try {
   check(true, "Sync: Subscribe Everyone is saved");
   await shot("4c-sync-list");
 
+  // ── Sync: a row per fill in Google Sheets and Airtable (step 2) ──
+  type Dests = { db: { dests: { source_id: string; config: { target?: { id: string; url?: string } } }[] } };
+  const target = (src: string) => page.evaluate((s) => (window as unknown as Dests).db.dests.find((d) => d.source_id === s)?.config.target ?? null, src);
+  const GS = "cccccccc-0000-4000-8000-000000000004";
+  await page.getByRole("button", { name: /^Google Sheets/ }).first().click();
+  await page.getByRole("button", { name: "Send rows to a new sheet" }).click();
+  await page.getByRole("link", { name: "Open" }).waitFor();
+  check((await target(GS))?.id === "NEWSHEET", "Sync: a new Google Sheet takes the rows");
+  check((await page.getByRole("link", { name: "Open" }).getAttribute("href"))?.includes("NEWSHEET") === true, "Sync: Open goes to the sheet");
+  await page.getByLabel("Sheet link").fill("https://docs.google.com/spreadsheets/d/OLDSHEET/edit");
+  await page.getByRole("button", { name: "Use", exact: true }).click();
+  await page.getByText("Team leads 2026 with a long name that has to wrap on a phone").waitFor();
+  check((await target(GS))?.id === "OLDSHEET", "Sync: a pasted sheet link takes the rows instead");
+  check((await page.getByLabel("Sheet link").inputValue()) === "", "Sync: the link box clears");
+  await shot("4d-sync-sheet");
+  await page.getByRole("button", { name: /^Airtable/ }).first().click();
+  await page.getByRole("button", { name: "Table", exact: true }).click();
+  await page.getByRole("option", { name: "CRM / Events" }).click();
+  await page.getByRole("button", { name: "Turn off" }).waitFor();
+  check((await target("cccccccc-0000-4000-8000-000000000005"))?.id === "app1/tbl2", "Sync: Airtable takes the table picked");
+  check((await page.getByRole("link", { name: "Open" }).getAttribute("href")) === "https://airtable.com/app1/tbl2", "Sync: Open goes to the table");
+  await page.setViewportSize({ width: 390, height: 800 });
+  await page.getByRole("button", { name: /^Google Sheets/ }).first().click();
+  await page.getByText("Team leads 2026 with a long name that has to wrap on a phone").waitFor();
+  const spill: string[] = [];
+  for (const l of [page.getByText("Team leads 2026 with a long name that has to wrap on a phone"), page.getByRole("link", { name: "Open" }), page.getByLabel("Sheet link"), page.getByRole("button", { name: "Use", exact: true }), page.getByRole("button", { name: "New sheet" }), page.getByRole("button", { name: "Turn off" })]) {
+    const b = await l.boundingBox();
+    if (!b || b.x < 0 || b.x + b.width > 391) spill.push(String(l));
+  }
+  check(spill.length === 0, `Sync: nothing runs off a phone screen (${spill.join(" | ")})`);
+  await shot("4e-sync-sheet-phone");
+  await page.setViewportSize({ width: 1280, height: 860 });
+
   // ── Phone width: the tabs move under the name ──
   await page.setViewportSize({ width: 390, height: 800 });
   await page.waitForTimeout(200);

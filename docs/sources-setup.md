@@ -34,7 +34,10 @@ fly secrets set --app claritia-intel \
   SALESFORCE_CLIENT_ID='…' SALESFORCE_CLIENT_SECRET='…' \
   PIPEDRIVE_CLIENT_ID='…' PIPEDRIVE_CLIENT_SECRET='…' \
   ATTIO_CLIENT_ID='…' ATTIO_CLIENT_SECRET='…' \
-  MAILCHIMP_CLIENT_ID='…' MAILCHIMP_CLIENT_SECRET='…'
+  MAILCHIMP_CLIENT_ID='…' MAILCHIMP_CLIENT_SECRET='…' \
+  GOOGLE_CLIENT_ID='…' GOOGLE_CLIENT_SECRET='…' \
+  AIRTABLE_CLIENT_ID='…' AIRTABLE_CLIENT_SECRET='…' \
+  NOTION_CLIENT_ID='…' NOTION_CLIENT_SECRET='…'
 fly deploy --config fly.intel.toml
 ```
 
@@ -139,6 +142,27 @@ Limits for now:
 3. Copy the Client ID and secret into `MAILCHIMP_CLIENT_ID` and `MAILCHIMP_CLIENT_SECRET`.
 
 Mailchimp has no scopes. Claritia finds the account's data center itself after sign-in.
+
+### Google Sheets (out: a row per form fill)
+
+Uses the same Google app as calendars (`GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, already set for meetings).
+
+1. Google Cloud console → APIs and services → Library → turn on the **Google Sheets API**.
+2. Credentials → the OAuth client → Authorized redirect URIs → add `https://app.tryclaritia.com/api/sources/callback`.
+3. OAuth consent screen → Scopes → add `https://www.googleapis.com/auth/spreadsheets`. Google's app check for it is free
+   (check).
+
+### Airtable and Notion (out: a record per form fill)
+
+Both work with a pasted key until their apps are set up: an Airtable personal access token (scopes
+`data.records:read`, `data.records:write`, `schema.bases:read`, `schema.bases:write`, with the bases added), or a Notion
+integration secret (the database shared with the integration).
+
+For one-click sign-in:
+1. Airtable: airtable.com/create/oauth → register an integration, redirect URL the return address above, the same five
+   scopes plus `user.email:read`. Copy the Client ID and secret into `AIRTABLE_CLIENT_ID` and `AIRTABLE_CLIENT_SECRET`.
+2. Notion: notion.so/my-integrations → a public integration, redirect URI the return address above, with read, update
+   and insert content. Copy the OAuth client ID and secret into `NOTION_CLIENT_ID` and `NOTION_CLIENT_SECRET`.
 
 ### Omniscient (two-way, one click)
 

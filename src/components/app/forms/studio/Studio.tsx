@@ -242,8 +242,8 @@ export function Studio({ sb, session, ws, navigate, formId = "", chatId = "", fr
       },
       tools: async () => {
         const rows = (must(await sb.from("sources").select("id, kind, name, status").eq("workspace_id", ws.id).order("name")) ?? []) as { id: string; kind: string; name: string; status: string }[];
-        // Email tools need a list picked: they're set up in the form's Sync tab.
-        return rows.filter((x) => x.status !== "disconnected" && (entryOf(x.kind)?.twoWay || entryOf(x.kind)?.pushes) && !entryOf(x.kind)?.lists).map((x) => ({ id: x.id, kind: x.kind, name: x.name, domain: entryOf(x.kind)?.domain ?? null }));
+        // Email tools need a list picked and sheets a target: they're set up in the form's Sync tab.
+        return rows.filter((x) => x.status !== "disconnected" && (entryOf(x.kind)?.twoWay || entryOf(x.kind)?.pushes) && !entryOf(x.kind)?.lists && !entryOf(x.kind)?.rows).map((x) => ({ id: x.id, kind: x.kind, name: x.name, domain: entryOf(x.kind)?.domain ?? null }));
       },
       addSend: async (id, to) => {
         if (to === "webhook") {

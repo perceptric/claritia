@@ -4,7 +4,7 @@ import { hostIsPrivate } from "@/lib/privateNet";
 import { seal } from "@/lib/seal";
 import { requireUser } from "@/lib/serverAuth";
 import { serviceClient } from "@/lib/serviceClient";
-import { cleanTags, listOf, NEW_RULES, rulesOf } from "@/lib/delivery/rules";
+import { cleanTags, listOf, NEW_RULES, rulesOf, targetOf } from "@/lib/delivery/rules";
 
 // Add or change where a form's leads go: POST { workspaceId, formId, id?, kind, sourceId?, name, url?, rules?, list?, tags? }
 // (docs/form-builder.md 7.1). Addresses are sealed; only the host is kept where people can see it. A new webhook
@@ -16,7 +16,7 @@ const bad = (error: string, status = 400) => Response.json({ error }, { status }
 export async function POST(request: Request) {
   const auth = await requireUser(request);
   if ("denied" in auth) return auth.denied;
-  const b = (await request.json().catch(() => ({}))) as { workspaceId?: unknown; formId?: unknown; id?: unknown; kind?: unknown; sourceId?: unknown; name?: unknown; url?: unknown; rules?: unknown; list?: unknown; tags?: unknown };
+  const b = (await request.json().catch(() => ({}))) as { workspaceId?: unknown; formId?: unknown; id?: unknown; kind?: unknown; sourceId?: unknown; name?: unknown; url?: unknown; rules?: unknown; list?: unknown; tags?: unknown; target?: unknown };
   if (!(await isMember(auth, b.workspaceId))) return bad("Workspace not found.", 404);
   const kind = b.kind === "source" || b.kind === "slack" || b.kind === "webhook" ? b.kind : null;
   if (!kind) return bad("Pick where leads go.");
@@ -55,8 +55,8 @@ export async function POST(request: Request) {
     config = { ...((row as { config: Record<string, unknown> }).config ?? {}), rules };
     keep = true;
   }
-  // An email tool's list and tags, on a new destination or an existing one.
-  if (kind === "source" && (b.list !== undefined || b.tags !== undefined)) {
+  // An email tool's list and tags, or a sheet's or database's target, on a new destination or an existing one.
+  if (kind === "source" && (b.list !== undefined || b.tags !== undefined || b.target !== undefined)) {
     let cur: Record<string, unknown> = config;
     if (id && !(b.rules !== undefined)) {
       const { data: row } = await db.from("form_destinations").select("config").eq("id", id).eq("form_id", b.formId).maybeSingle();
@@ -65,7 +65,9 @@ export async function POST(request: Request) {
     }
     const pick = listOf({ list: b.list, tags: b.tags });
     if (b.list !== undefined && !pick.list) return bad("Pick a list.");
-    config = { ...cur, ...(b.list !== undefined ? { list: pick.list } : {}), ...(b.tags !== undefined ? { tags: cleanTags(b.tags) } : {}) };
+    const target = b.target !== undefined ? targetOf({ target: b.target }) : null;
+    if (b.target !== undefined && !target) return bad("Pick where rows go.");
+    config = { ...cur, ...(b.list !== undefined ? { list: pick.list } : {}), ...(b.tags !== undefined ? { tags: cleanTags(b.tags) } : {}), ...(target ? { target } : {}) };
     keep = true;
   }
   const { data, error } = await db.rpc("form_destination_save", {

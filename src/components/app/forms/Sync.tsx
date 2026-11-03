@@ -7,7 +7,7 @@
 // button that starts it.
 
 import { useState } from "react";
-import { DUPLICATE, listOf, NEW_RULES, rulesOf, type SyncRules } from "@/lib/delivery/rules";
+import { DUPLICATE, listOf, NEW_RULES, rulesOf, targetOf, type SyncRules } from "@/lib/delivery/rules";
 import { allFields, type Form } from "@/lib/forms/schema";
 import { CATALOG, entryOf } from "@/lib/sources/catalog";
 import { BrandLogo } from "../BrandLogo";
@@ -92,6 +92,8 @@ export function Sync(props: Props) {
             <Start logo={cur.logo} name={cur.title} button={`Connect ${cur.title}`} onClick={() => props.navigate("settings", "sources")} />
           ) : entryOf(tools.find((s) => s.id === cur.key)!.kind)?.lists ? (
             <ListPane {...props} source={tools.find((s) => s.id === cur.key)!} logo={cur.logo} />
+          ) : entryOf(tools.find((s) => s.id === cur.key)!.kind)?.rows ? (
+            <RowsPane {...props} source={tools.find((s) => s.id === cur.key)!} logo={cur.logo} />
           ) : (
             <CrmPane {...props} source={tools.find((s) => s.id === cur.key)!} logo={cur.logo} />
           )}
@@ -426,6 +428,195 @@ function ListPane({ sb, session, ws, formId, dests, failed, reload, source, logo
             onClick={async () => {
               if (!d.paused && !(await askConfirm(`Stop adding leads to ${source.name}?`, { body: "Leads keep going to Claritia. Turn it on again any time.", ok: "Turn off", danger: true }))) return;
               await run(async () => must(await sb.rpc("form_destination_pause", { p_id: d.id, p_paused: !d.paused })), d.paused ? `Leads go to ${source.name} again` : `Stopped sending to ${source.name}`);
+            }}
+          >
+            {d.paused ? "Turn on" : "Turn off"}
+          </button>
+        </div>
+      </div>
+      {note.node}
+    </>
+  );
+}
+
+/** What a row tool calls the place rows go. */
+const TARGET_WORD: Record<string, string> = { google_sheets: "Sheet", airtable: "Table", notion: "Database" };
+type Target = { id: string; name: string; url?: string; sheet?: string };
+
+// Google Sheets, Airtable and Notion (docs/integrations-plan.md step 2): a row per fill in the sheet, table or
+// database picked here. Google Sheets makes a new sheet or takes one's link; Airtable and Notion pick from their own list.
+function RowsPane({ sb, session, ws, form, formId, dests, failed, reload, source, logo }: Props & { source: SourceRow; logo: React.ReactNode }) {
+  const d = dests.find((x) => x.kind === "source" && x.source_id === source.id);
+  const google = source.kind === "google_sheets";
+  const word = TARGET_WORD[source.kind] ?? "Table";
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [link, setLink] = useState("");
+  const note = useNote();
+  const headers = { Authorization: `Bearer ${session.access_token}` };
+  const targets = useQuery(google ? null : `tool_targets:${source.id}`, async () => {
+    const res = await fetch(`/api/forms/tool-targets?workspaceId=${encodeURIComponent(ws.id)}&sourceId=${encodeURIComponent(source.id)}`, { headers });
+    const j = (await res.json().catch(() => ({}))) as { targets?: Target[]; error?: string };
+    if (!j.targets) throw new Error(j.error ?? `Couldn't read the ${word.toLowerCase()}s.`);
+    return j.targets;
+  });
+  const run = async (fn: () => Promise<unknown>, words?: string) => {
+    setError("");
+    setBusy(true);
+    try {
+      await fn();
+      if (words) note.show(words);
+      reload();
+    } catch (e) {
+      setError(errorText(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+  const save = (target: Target) => postJson(session, "/api/forms/destination", { workspaceId: ws.id, formId, kind: "source", sourceId: source.id, name: source.name, ...(d ? { id: d.id } : {}), target });
+  const sheet = async (body: object) => (await postJson<{ target: Target }>(session, "/api/forms/tool-targets", { workspaceId: ws.id, sourceId: source.id, ...body })).target;
+  const makeNew = () => void run(async () => save(await sheet({ action: "create", name: form.title?.trim() || "Form fills" })), "Rows go to the new sheet now");
+  const takeLink = () => {
+    const l = link.trim();
+    if (!l) return;
+    void run(async () => {
+      await save(await sheet({ action: "link", link: l }));
+      setLink("");
+    }, "Rows go to that sheet now");
+  };
+  const fails = useQuery(`form:${formId}:fails:${d?.id ?? ""}:${failed[d?.id ?? ""] ?? 0}`, async () => (d ? ((must(await sb.from("deliveries").select("id, error").eq("destination_id", d.id).eq("status", "failed").order("created_at", { ascending: false }).limit(200)) ?? []) as { id: string; error: string | null }[]) : []));
+  const target = d ? targetOf(d.config) : null;
+  const picker = (
+    <Select
+      value={target?.id ?? ""}
+      options={(targets.data ?? []).map((t) => ({ value: t.id, label: t.name }))}
+      ariaLabel={word}
+      placeholder={targets.data ? `Pick a ${word.toLowerCase()}` : "Reading…"}
+      disabled={!targets.data || busy}
+      className="h-[32px] min-w-[200px] rounded-[8px] bg-card px-[10px] text-[13px] text-ink shadow-input"
+      onChange={(id) => {
+        const t = targets.data?.find((x) => x.id === id);
+        if (t) void run(() => save(t), `Rows go to ${t.name} now`);
+      }}
+    />
+  );
+  const linkRow = (
+    <div className={CROW}>
+      <RowText title={target ? "Use another sheet" : "Use a sheet I have"} />
+      <div className="flex min-w-0 flex-1 items-center justify-end gap-[6px] max-[860px]:basis-full">
+        <input
+          value={link}
+          maxLength={1000}
+          aria-label="Sheet link"
+          placeholder="Paste the sheet's link"
+          onChange={(e) => setLink(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              takeLink();
+            }
+          }}
+          className="h-[32px] min-w-0 flex-1 rounded-[8px] bg-card px-[10px] text-[13px] text-ink shadow-input outline-none placeholder:text-faint focus:shadow-focus"
+        />
+        <button type="button" className={GHOST_SM} disabled={busy || !link.trim()} onClick={takeLink}>
+          Use
+        </button>
+      </div>
+    </div>
+  );
+
+  if (!d || !target)
+    return (
+      <>
+        <div className="flex flex-wrap items-center gap-[10px]">
+          {logo}
+          <H3>{source.name}</H3>
+        </div>
+        <ErrorNote message={error || targets.error} />
+        {google ? (
+          <>
+            <button type="button" className={`${BTN} self-start`} disabled={busy} onClick={makeNew}>
+              Send rows to a new sheet
+            </button>
+            <div className={CARD}>{linkRow}</div>
+          </>
+        ) : (
+          <div className={CARD}>
+            <div className={CROW}>
+              <RowText title={word} />
+              {picker}
+            </div>
+          </div>
+        )}
+        {note.node}
+      </>
+    );
+
+  const list = fails.data ?? [];
+  const week = failed[d.id] ?? 0;
+  return (
+    <>
+      <div className="flex flex-wrap items-center gap-[10px]">
+        {logo}
+        <H3>{source.name}</H3>
+        {d.paused ? <Badge tone="amber">Paused</Badge> : <Badge tone="green" dot>Connected</Badge>}
+      </div>
+      {list.length ? (
+        <div className="flex w-full flex-wrap items-center gap-[10px] rounded-lg bg-rose-wash px-[12px] py-[10px] text-[12.5px]">
+          <span className="min-w-0 flex-1 text-rose [overflow-wrap:anywhere]">
+            <b className="font-semibold">{`${week || list.length} ${(week || list.length) === 1 ? "fill didn't" : "fills didn't"} reach ${source.name}${week ? " this week" : ""}.`}</b> {list[0]!.error ?? ""}
+          </span>
+          <button type="button" className={GHOST_SM} disabled={busy} onClick={() => void run(async () => must(await sb.rpc("deliveries_replay", { p_ids: list.map((x) => x.id) })), "Sent again")}>
+            Send again
+          </button>
+        </div>
+      ) : null}
+      <ErrorNote message={error || targets.error} />
+      <div className={CARD}>
+        <div className={CROW}>
+          <RowText title={word} />
+          {google ? (
+            <div className="flex min-w-0 flex-wrap items-center justify-end gap-[6px]">
+              <span className="min-w-0 text-[13px] text-ink [overflow-wrap:anywhere]">{target.name}</span>
+              {target.url ? (
+                <a href={target.url} target="_blank" rel="noreferrer" className={GHOST_SM}>
+                  Open
+                </a>
+              ) : null}
+            </div>
+          ) : (
+            <div className="flex min-w-0 flex-wrap items-center justify-end gap-[6px]">
+              {picker}
+              {target.url ? (
+                <a href={target.url} target="_blank" rel="noreferrer" className={GHOST_SM}>
+                  Open
+                </a>
+              ) : null}
+            </div>
+          )}
+        </div>
+        {google ? (
+          <>
+            {linkRow}
+            <div className={CROW}>
+              <RowText title="Start a new sheet" />
+              <button type="button" className={GHOST_SM} disabled={busy} onClick={makeNew}>
+                New sheet
+              </button>
+            </div>
+          </>
+        ) : null}
+      </div>
+      <div className={CARD}>
+        <div className={CROW}>
+          <RowText title={d.paused ? `Send to ${source.name} again` : `Stop sending to ${source.name}`} />
+          <button
+            type="button"
+            className={d.paused ? GHOST_SM : GHOST_SM_RED}
+            disabled={busy}
+            onClick={async () => {
+              if (!d.paused && !(await askConfirm(`Stop adding rows to ${source.name}?`, { body: "Fills stay in Claritia. Turn it on again any time.", ok: "Turn off", danger: true }))) return;
+              await run(async () => must(await sb.rpc("form_destination_pause", { p_id: d.id, p_paused: !d.paused })), d.paused ? `Rows go to ${source.name} again` : `Stopped sending to ${source.name}`);
             }}
           >
             {d.paused ? "Turn on" : "Turn off"}

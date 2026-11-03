@@ -30,6 +30,17 @@ export const OAUTH: Record<string, OauthCfg> = {
   pipedrive: { env: "PIPEDRIVE", authorize: "https://oauth.pipedrive.com/oauth/authorize", token: "https://oauth.pipedrive.com/oauth/token", basic: true },
   attio: { env: "ATTIO", authorize: "https://app.attio.com/authorize", token: "https://app.attio.com/oauth/token" },
   mailchimp: { env: "MAILCHIMP", authorize: "https://login.mailchimp.com/oauth2/authorize", token: "https://login.mailchimp.com/oauth2/token" },
+  // Sheets and databases (docs/integrations-plan.md step 2). Google Sheets uses the same Google app as calendars, with
+  // the Sheets scope and this callback added to it; Airtable and Notion take a pasted key when their apps aren't set up.
+  google_sheets: {
+    env: "GOOGLE",
+    authorize: "https://accounts.google.com/o/oauth2/v2/auth",
+    token: "https://oauth2.googleapis.com/token",
+    scope: "https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/userinfo.email",
+    extra: { access_type: "offline", prompt: "consent", include_granted_scopes: "true" },
+  },
+  airtable: { env: "AIRTABLE", authorize: "https://airtable.com/oauth2/v1/authorize", token: "https://airtable.com/oauth2/v1/token", scope: "data.records:read data.records:write schema.bases:read schema.bases:write user.email:read", pkce: true, basic: true },
+  notion: { env: "NOTION", authorize: "https://api.notion.com/v1/oauth/authorize", token: "https://api.notion.com/v1/oauth/token", basic: true, extra: { owner: "user" } },
   // Meetings (docs/meetings-scheduler.md 1.1): each person's own calendar, connected from My calendar through
   // /api/calendar/connect. Google asks again for consent so a refresh token always comes back.
   google_calendar: {

@@ -29,6 +29,9 @@ const clone = <T,>(v: T): T => JSON.parse(JSON.stringify(v)) as T;
 w.db = { forms: { [w.FIX.studio.id]: clone(w.FIX.studio), [w.FIX.old.id]: clone(w.FIX.old) }, published: { [w.FIX.studio.id]: jsonb(w.FIX.studio.draft), [w.FIX.old.id]: jsonb(w.FIX.old.draft) }, chats: {}, dests: [] };
 // A connected email tool (docs/integrations-plan.md step 1).
 const MC = { id: "cccccccc-0000-4000-8000-000000000003", kind: "mailchimp", name: "Mailchimp", status: "active" };
+// Sheets and databases (step 2).
+const GS = { id: "cccccccc-0000-4000-8000-000000000004", kind: "google_sheets", name: "Google Sheets", status: "active" };
+const AT = { id: "cccccccc-0000-4000-8000-000000000005", kind: "airtable", name: "Airtable", status: "active" };
 
 function from(table: string) {
   const eq: [string, unknown][] = [];
@@ -38,7 +41,7 @@ function from(table: string) {
   const rows = (): unknown[] => {
     if (table === "forms") return Object.values(w.db.forms).filter((r) => eq.every(([c, v]) => c !== "id" || r.id === v)).map((r) => jsonb(r));
     if (table === "brand_kits") return [KIT];
-    if (table === "sources") return [MC];
+    if (table === "sources") return [MC, GS, AT];
     if (table === "form_destinations") return w.db.dests.filter((d) => eq.every(([c, v]) => c !== "form_id" || d.form_id === v)).map((d) => clone(d));
     if (table === "form_chats") return Object.values(w.db.chats).filter((r) => eq.every(([c, v]) => r[c] === v || c === "workspace_id")).map((r) => clone(r));
     return [];
@@ -86,10 +89,13 @@ window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
     return ok({ formId: r.id });
   }
   if (path === "/api/forms/tool-lists") return ok({ lists: [{ id: "aud1", name: "Newsletter" }, { id: "aud2", name: "Webinar guests" }] });
+  if (path === "/api/forms/tool-targets" && !init?.method) return ok({ targets: [{ id: "app1/tbl1", name: "CRM / Leads", url: "https://airtable.com/app1/tbl1" }, { id: "app1/tbl2", name: "CRM / Events", url: "https://airtable.com/app1/tbl2" }] });
+  if (path === "/api/forms/tool-targets" && body.action === "create") return ok({ target: { id: "NEWSHEET", name: String(body.name), url: "https://docs.google.com/spreadsheets/d/NEWSHEET/edit", sheet: "Fills" } });
+  if (path === "/api/forms/tool-targets" && body.action === "link") return ok({ target: { id: "OLDSHEET", name: "Team leads 2026 with a long name that has to wrap on a phone", url: "https://docs.google.com/spreadsheets/d/OLDSHEET/edit", sheet: "Sheet1" } });
   if (path === "/api/forms/destination") {
     // As the server does: a new destination starts with the safe rules; list, tags and rules merge into its config.
     const cur = body.id ? w.db.dests.find((d) => d.id === body.id) : null;
-    const config = { ...((cur?.config as object) ?? { rules: { exists: "if_empty", match: "email", owner: "keep", assign: "claritia", consent: true, create: "Lead" } }), ...(body.list !== undefined ? { list: body.list } : {}), ...(body.tags !== undefined ? { tags: body.tags } : {}), ...(body.rules !== undefined ? { rules: body.rules } : {}) };
+    const config = { ...((cur?.config as object) ?? { rules: { exists: "if_empty", match: "email", owner: "keep", assign: "claritia", consent: true, create: "Lead" } }), ...(body.list !== undefined ? { list: body.list } : {}), ...(body.tags !== undefined ? { tags: body.tags } : {}), ...(body.rules !== undefined ? { rules: body.rules } : {}), ...(body.target !== undefined ? { target: body.target } : {}) };
     if (cur) cur.config = config;
     else w.db.dests.push({ id: `dest-${w.db.dests.length + 1}`, form_id: body.formId, kind: body.kind, source_id: body.sourceId, name: body.name, config, paused: false, position: w.db.dests.length });
     return ok({ id: cur?.id ?? `dest-${w.db.dests.length}` });

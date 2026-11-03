@@ -1,14 +1,14 @@
 # Integrations: what's built and what to build
 
 Every integration on Fillout's list (fillout.com/integrations, Nov 2026), checked against Claritia's code. 55 in all:
-11 built, 14 half built, 30 not built.
+18 built, 10 half built, 27 not built.
 
 - **Built**: works today.
 - **Half built**: part of it is there (the sign-in and the tool's client, or a way through the webhook); the missing
   part is named.
 - **Not built**: nothing yet.
 
-## Built (11)
+## Built (18)
 
 | Integration | In Claritia today | Where |
 |---|---|---|
@@ -23,20 +23,23 @@ Every integration on Fillout's list (fillout.com/integrations, Nov 2026), checke
 | Cal.com | The same | The same |
 | Google Calendar | Claritia's own scheduler: busy times, events, Meet links (also Outlook, Teams meetings, Zoom) | `src/lib/meetings/providers` |
 | reCAPTCHA | Covered by Cloudflare Turnstile and the spam trap on every form and booking page | `src/lib/forms/element.ts` |
+| Mailchimp | A form adds each lead to the audience picked, with tags and consent (step 1) | `src/lib/sources/email.ts`, form › Sync |
+| Klaviyo | The same, to a list | The same |
+| ActiveCampaign | The same, with tags | The same |
+| Brevo | The same, to a list | The same |
+| Google Sheets | A row per fill in a new sheet or one from its link; new questions add columns (step 2) | `src/lib/sources/rows.ts`, form › Sync |
+| Airtable | A record per fill in the table picked; missing fields are made (step 2) | The same |
+| Notion | A database entry per fill, each value as its column's type (step 2) | The same |
 
 Also built, not on Fillout's list: Close and Omniscient (send leads), Typeform, Tally and Webflow forms (fills come in by
 webhook), HubSpot Meetings and SavvyCal (book from a form by link).
 
-## Half built (14)
+## Half built (10)
 
 | Integration | What's there | What's missing |
 |---|---|---|
-| Mailchimp | Sign-in and the client (reads contacts) | Add or update the person on a list from a form or workflow |
-| Klaviyo | Key and the client (reads profiles) | The same |
-| ActiveCampaign | Key and the client | The same |
-| Brevo | Key and the client | The same |
 | Intercom | Key and the client (reads contacts) | Make a contact, and a conversation or ticket, per fill |
-| PostgreSQL | Connection and reads | Write each fill as a row, columns added as questions are |
+| PostgreSQL | Connection and reads | Write each fill as a row, columns added as questions are (step 2b) |
 | MySQL | The same | The same |
 | Zapier | Works now through the Webhook (paste a Zapier Catch Hook address) | A listed Zapier app: a Forms API with API keys and subscribe hooks; triggers New fill and New booking |
 | Make | The same, through the Webhook | A listed Make app on the same API |
@@ -46,16 +49,13 @@ webhook), HubSpot Meetings and SavvyCal (book from a form by link).
 | Google Docs | A PDF copy of each fill | A Google Doc from a template, filled with the answers |
 | Google Tag Manager | The form's events (`claritia:submitted`, `:booked` and the rest) bubble on the page, so a GTM trigger can catch them | Push them to `dataLayer` by itself, with a Tracking section in form Settings |
 
-Kit and MailerLite are in the same state as Mailchimp (not on Fillout's list).
+Kit and MailerLite take leads too (not on Fillout's list).
 
-## Not built (30)
+## Not built (27)
 
 | Integration | What to build |
 |---|---|
-| Google Sheets | A row per fill in a chosen sheet; new questions add columns (Google sign-in, Sheets scope) |
-| Airtable | Make or update a record per fill, fields mapped |
-| Notion | Make or update a database entry per fill |
-| Excel Online | A row per fill (Microsoft sign-in, which meetings already use) |
+| Excel Online | A row per fill (Microsoft sign-in, which meetings already use) (step 2c) |
 | SmartSuite | A record per fill |
 | Monday.com | An item per fill on a board |
 | ClickUp | A task per fill |
@@ -96,7 +96,20 @@ workflows, the jobs queue with retries and the sync log, and Settings › Integr
    form still joins that form's list. Code: `src/lib/sources/email.ts` (Lists), `src/lib/delivery`, the Sync tab's
    `ListPane`, `/api/forms/tool-lists`; tests in `tests/emailLists.test.ts` and `scripts/formpage-check.ts`. A
    workflow step that adds to a list comes with the other workflow steps.
-2. **Sheets and databases**: Google Sheets, Airtable, Notion, Excel Online, PostgreSQL, MySQL: a row or record per fill.
+2. **Sheets and databases**: a row or record per fill, with or without an email.
+   - **Google Sheets, Airtable, Notion** (built). In the form's Sync tab: Google Sheets makes a new sheet for the form
+     (named after it, a Fills tab, the header row frozen) or takes one's link; Airtable and Notion pick a table or
+     database from their own list. The first columns are Sent at, Fill ID and Form, then one per question by its label,
+     and where the fill came from (page, UTM, click ids) when known. A question added later adds a column at the end;
+     columns the team moved or added stay put. Airtable gets missing fields as long text; Notion gets them as text and
+     fills each value as its column's type (a value the column can't hold is left out). Values go into Sheets as plain
+     text, so an answer that starts with "=" never runs. A run after a timeout looks for its Fill ID first and adds no
+     second row. A sheet that's gone fails with the tool's words; down or rate limited tries again. Code:
+     `src/lib/sources/rows.ts`, `src/lib/delivery/fillRow.ts`, `toRow` in `src/lib/delivery/send.ts`, the Sync tab's
+     `RowsPane`, `/api/forms/tool-targets`; tests in `tests/sheetRows.test.ts` and `scripts/formpage-check.ts`. Setup:
+     `docs/sources-setup.md` (the Sheets API, scope and return address on the Google app).
+   - **PostgreSQL, MySQL** (next, 2b): a table per form made if missing, a row per fill kept unique by its Fill ID.
+   - **Excel Online** (2c): a workbook from its link, a table with a row added per fill.
 3. **Tracking**: Google Analytics, Google Tag Manager, Meta Pixel, Google Ads, in the form script, after consent.
 4. **Chat alerts**: Microsoft Teams and Discord, beside Slack.
 5. **Zapier, Make, Activepieces**: a Forms API with API keys and subscribe hooks, and the listed apps.
