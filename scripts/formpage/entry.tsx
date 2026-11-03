@@ -32,6 +32,7 @@ const MC = { id: "cccccccc-0000-4000-8000-000000000003", kind: "mailchimp", name
 // Sheets and databases (step 2).
 const GS = { id: "cccccccc-0000-4000-8000-000000000004", kind: "google_sheets", name: "Google Sheets", status: "active" };
 const AT = { id: "cccccccc-0000-4000-8000-000000000005", kind: "airtable", name: "Airtable", status: "active" };
+const PGS = { id: "cccccccc-0000-4000-8000-000000000006", kind: "postgres", name: "PostgreSQL", status: "active" };
 
 function from(table: string) {
   const eq: [string, unknown][] = [];
@@ -41,7 +42,7 @@ function from(table: string) {
   const rows = (): unknown[] => {
     if (table === "forms") return Object.values(w.db.forms).filter((r) => eq.every(([c, v]) => c !== "id" || r.id === v)).map((r) => jsonb(r));
     if (table === "brand_kits") return [KIT];
-    if (table === "sources") return [MC, GS, AT];
+    if (table === "sources") return [MC, GS, AT, PGS];
     if (table === "form_destinations") return w.db.dests.filter((d) => eq.every(([c, v]) => c !== "form_id" || d.form_id === v)).map((d) => clone(d));
     if (table === "form_chats") return Object.values(w.db.chats).filter((r) => eq.every(([c, v]) => r[c] === v || c === "workspace_id")).map((r) => clone(r));
     return [];
@@ -92,6 +93,10 @@ window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
   if (path === "/api/forms/tool-targets" && !init?.method) return ok({ targets: [{ id: "app1/tbl1", name: "CRM / Leads", url: "https://airtable.com/app1/tbl1" }, { id: "app1/tbl2", name: "CRM / Events", url: "https://airtable.com/app1/tbl2" }] });
   if (path === "/api/forms/tool-targets" && body.action === "create") return ok({ target: { id: "NEWSHEET", name: String(body.name), url: "https://docs.google.com/spreadsheets/d/NEWSHEET/edit", sheet: "Fills" } });
   if (path === "/api/forms/tool-targets" && body.action === "link") return ok({ target: { id: "OLDSHEET", name: "Team leads 2026 with a long name that has to wrap on a phone", url: "https://docs.google.com/spreadsheets/d/OLDSHEET/edit", sheet: "Sheet1" } });
+  if (path === "/api/forms/tool-targets" && body.action === "table") {
+    const name = String(body.name).trim().toLowerCase();
+    return /^[a-z_][a-z0-9_]*$/.test(name) ? ok({ target: { id: name, name } }) : new Response(JSON.stringify({ error: "Use letters, digits and _ for the table name." }), { status: 400, headers: { "content-type": "application/json" } });
+  }
   if (path === "/api/forms/destination") {
     // As the server does: a new destination starts with the safe rules; list, tags and rules merge into its config.
     const cur = body.id ? w.db.dests.find((d) => d.id === body.id) : null;

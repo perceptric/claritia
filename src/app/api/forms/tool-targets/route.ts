@@ -1,4 +1,5 @@
 import { isMember } from "@/lib/contacts/server";
+import { prepareTable } from "@/lib/sources/dbRows";
 import { createSheet, sheetFromLink } from "@/lib/sources/rows";
 import { deps } from "@/lib/sources/run";
 import { requireUser } from "@/lib/serverAuth";
@@ -8,6 +9,7 @@ import { serviceClient } from "@/lib/serviceClient";
 //   GET ?workspaceId=&sourceId=                                  → { targets: [{ id, name, url }] }  Airtable, Notion
 //   POST { workspaceId, sourceId, action: "create", name }       → { target }  a new Google Sheet for the form
 //   POST { workspaceId, sourceId, action: "link", link }         → { target }  a Google Sheet from its link
+//   POST { workspaceId, sourceId, action: "table", name }        → { target }  a PostgreSQL or MySQL table, made if missing
 // The caller must be in the workspace and the tool one of its connected sheets and databases.
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
@@ -46,6 +48,14 @@ export async function POST(request: Request) {
   const b = (await request.json().catch(() => ({}))) as { workspaceId?: unknown; sourceId?: unknown; action?: unknown; name?: unknown; link?: unknown };
   const l = await load(request, b.workspaceId, b.sourceId);
   if ("denied" in l) return l.denied;
+  if (l.kind === "postgres" || l.kind === "mysql") {
+    if (b.action !== "table" || typeof b.name !== "string") return bad("Name the table.");
+    try {
+      return Response.json({ target: await prepareTable(l.d.ctx, b.name.slice(0, 200)) });
+    } catch (e) {
+      return bad(why(e), 502);
+    }
+  }
   if (l.kind !== "google_sheets") return bad("Pick one from the list.");
   try {
     if (b.action === "create") return Response.json({ target: await createSheet(l.d.ctx, typeof b.name === "string" ? b.name.trim() : "") });

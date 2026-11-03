@@ -9,6 +9,7 @@ import pg from "pg";
 import { hostIsPrivate } from "../privateNet.ts";
 import type { Connector, Ctx, ObjectKind, Page, RawRecord, SourceRow } from "./types.ts";
 
+import { appendRow } from "./dbRows.ts";
 import { bindCursor, queryError, START_CURSOR, type WhQuery } from "./sql.ts";
 
 export { START_CURSOR, type WhQuery } from "./sql.ts";
@@ -261,6 +262,8 @@ function warehouse(kind: string): Connector {
       if (more && next === from) throw new Error(`Over ${PAGE.toLocaleString("en-US")} rows share one cursor value; use a finer cursor column.`);
       return { records, cursor: next, more };
     },
+    // A row per form fill (docs/integrations-plan.md step 2b).
+    ...(kind === "postgres" || kind === "mysql" ? { append: appendRow } : {}),
     defaults: { contact: {}, company: {} },
   };
 }
