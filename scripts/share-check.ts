@@ -203,6 +203,19 @@ async function run(width: number, tag: string) {
   const previewY = (await page.locator("iframe[data-site-preview]").boundingBox())!.y;
   check(codeY < previewY, `${tag}: Embed on a website opens on the code, above the preview`);
 
+  // Meeting emails that didn't go out: one line across Meetings with the worker's reason, and a notice on the meeting.
+  await page.goto(`${base}/?view=mail`);
+  await page.getByText("Meeting emails aren't going out").waitFor();
+  await shot("mail");
+  check(await page.getByText("Resend isn't set up on the worker (RESEND_API_KEY).").first().isVisible(), `${tag}: the email warning gives the worker's reason`);
+  check(await page.getByText("2 emails, last").isVisible(), `${tag}: and how many, and when`);
+  check((await page.getByText("Confirmation not sent").isVisible()) && (await page.getByText("to trollong2002@gmail.com").isVisible()), `${tag}: the meeting says which email didn't go out, to whom`);
+  const spill = await page.evaluate(() => [...document.querySelectorAll("[role=alert] *")].some((e) => (e as HTMLElement).scrollWidth > (e as HTMLElement).clientWidth + 1 || e.getBoundingClientRect().right > window.innerWidth + 1));
+  check(!spill, `${tag}: nothing in the warning spills or is cut`);
+  await page.goto(`${base}/?view=mail&mailok=1`);
+  await page.waitForTimeout(400);
+  check((await page.locator("[role=alert]").count()) === 0, `${tag}: emails going out: no warning`);
+
   // The sidebar with a long workspace name and email: no word is cut short.
   if (width >= 1280) {
     await page.goto(`${base}/?view=sidebar`);

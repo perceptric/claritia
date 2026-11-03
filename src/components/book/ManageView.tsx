@@ -41,7 +41,7 @@ export function ManageView({ token, initial, paid, embed, start }: { token: stri
   }, [waiting, endpoint]);
 
   const len = Math.round((m.end - m.start) / 60_000);
-  const type: GuestType = { slug: "", name: m.name, kind: "one", lengths: [len], location: m.location ?? { kind: "google_meet" }, questions: [], price: null, seats: null, hosts: m.hosts };
+  const type: GuestType = { slug: "", name: m.name, description: null, kind: "one", lengths: [len], location: m.location ?? { kind: "google_meet" }, questions: [], price: null, seats: null, hosts: m.hosts };
   const load = useCallback(async () => {
     const r = await fetch(`${endpoint}?slots=1`, { cache: "no-store" });
     if (!r.ok) throw new Error("load");

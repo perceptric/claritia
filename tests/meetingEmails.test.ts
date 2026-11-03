@@ -134,3 +134,10 @@ test("the booking link carries the lead's details and a signed ref to the submis
   assert.equal(url.searchParams.get("name"), "Dana Lee");
   assert.equal(url.searchParams.get("ref"), ref);
 });
+
+test("the confirmation carries the meeting's Description, line breaks kept and escaped", () => {
+  const e = confirmEmail(v({ about: "Bring your numbers.\n<script>alert(1)</script>" }));
+  assert.match(e.html, /Bring your numbers\.<br>&lt;script&gt;alert\(1\)&lt;\/script&gt;/);
+  assert.match(e.text, /Bring your numbers\.\n<script>/);
+  assert.doesNotMatch(confirmEmail(v()).html, /<br>&lt;script/, "no Description, nothing extra");
+});

@@ -56,6 +56,7 @@ guests pay that account. Claritia never holds the money.
 
 | Secret | Without it |
 |---|---|
+| `RESEND_API_KEY` | No meeting email goes out (confirmations, host notes, reminders); Meetings shows "Meeting emails aren't going out" with the reason |
 | `MEETINGS_FROM` | Meeting emails come from `meetings@tryclaritia.com` when the workspace has no verified From address |
 | `GOOGLE_*`, `MICROSOFT_*`, `ZOOM_*` (same values) | Tokens can't be refreshed, so events and busy times stop |
 | `SECRETS_KEY` (same value as Render) | Manage links in emails and calendar tokens can't be opened |

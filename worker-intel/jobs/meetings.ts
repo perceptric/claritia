@@ -260,6 +260,7 @@ function view(info: Info, reader: "guest" | Person, now: number, manage?: string
   const host = info.hosts[0]?.name ?? info.workspace.name;
   return {
     typeName: info.type?.name ?? "Meeting",
+    about: info.type?.settings?.description ?? null,
     start: ms(m.start_at),
     end: ms(m.end_at),
     guestName: m.guest_name,
@@ -279,7 +280,7 @@ function ics(info: Info, method: "REQUEST" | "CANCEL", now: number, x?: InviteEx
   const v = view(info, "guest", now);
   const description =
     x && method === "REQUEST"
-      ? meetingDescription({ typeName: v.typeName, guest: { name: m.guest_name, email: m.guest_email }, form: x.form, answers: [...x.formAnswers, ...v.answers], join: v.where.url, manage: manage ?? null })
+      ? meetingDescription({ typeName: v.typeName, about: v.about, guest: { name: m.guest_name, email: m.guest_email }, form: x.form, answers: [...x.formAnswers, ...v.answers], join: v.where.url, manage: manage ?? null })
       : [v.where.url ? `Join: ${v.where.url}` : "", ...v.answers.map((a) => `${a.label}: ${a.value}`)].filter(Boolean).join("\n");
   const organizer = info.hosts[0] ? { name: info.hosts[0].name, email: info.hosts[0].email } : { name: info.workspace.name, email: info.sending.from_email ?? "meetings@tryclaritia.com" };
   return {

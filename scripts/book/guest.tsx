@@ -5,7 +5,7 @@ import { createRoot } from "react-dom/client";
 import { BookingCalendar, KitScope } from "../../src/components/book/BookingCalendar";
 import { sampleSlots, type GuestType } from "../../src/lib/meetings/guest";
 
-const type: GuestType = { slug: "intro", name: "Intro call", kind: "one", lengths: [30], location: { kind: "google_meet" }, questions: [], price: null, seats: null, hosts: [{ name: "Alex Kim", photo: null }] };
+const type: GuestType = { slug: "intro", name: "Intro call", description: "Bring your numbers.\nWe'll look at pricing together.", kind: "one", lengths: [30], location: { kind: "google_meet" }, questions: [], price: null, seats: null, hosts: [{ name: "Alex Kim", photo: null }] };
 
 function App() {
   const [now] = useState(() => Date.now());

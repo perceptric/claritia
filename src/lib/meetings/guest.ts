@@ -14,6 +14,8 @@ export type Question = TypeSettings["questions"][number];
 export type GuestType = {
   slug: string;
   name: string;
+  /** The meeting's own words, shown under its name. */
+  description: string | null;
   kind: MeetingType["kind"];
   lengths: number[];
   location: GuestLocation;
@@ -48,6 +50,7 @@ export function toGuestType(t: Pick<MeetingType, "slug" | "name" | "kind" | "hos
   return {
     slug: t.slug,
     name: t.name,
+    description: s.description?.trim() || null,
     kind: t.kind,
     lengths: [...s.lengths].sort((a, b) => a - b),
     location: guestLocation(s.location),

@@ -9,6 +9,7 @@ import type { Location, MeetingSource, MeetingStatus, TypeSettings } from "@/lib
 import { CalendarIcon, ExternalLink, Link as LinkIcon, Video } from "../../Icons";
 import { BrandLogo } from "../BrandLogo";
 import { Sheet } from "../Sheet";
+import { MeetingMailNotice } from "./MailHealth";
 import { Button, Empty, ErrorNote, errorText, IconButton, invalidate, Loading, must, Page, Panel, timeAgo, useQuery, type ViewProps } from "../ui";
 import { canCancel, canMark, joinOpen, joinUrl, minutesText, SOURCES } from "./model";
 import { guestName, MEETING_COLUMNS, type Meeting } from "./MeetingsView";
@@ -270,6 +271,7 @@ export function useMeetingScreen(props: ViewProps, id: string, layout: "page" | 
   const body = (
     <div className={`flex flex-col gap-4 ${sheet ? "" : "mx-auto max-w-5xl gap-5"}`}>
       <ErrorNote message={error} />
+      <MeetingMailNotice session={props.session} ws={props.ws} meeting={m.id} />
       {canceling ? <CancelDialog paid={!!m.payment?.amount} busy={busy} onClose={() => setCanceling(false)} onCancel={async (reason) => (await act({ action: "cancel", reason })) && setCanceling(false)} /> : null}
       {sheet ? (
         <>

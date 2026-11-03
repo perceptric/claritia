@@ -445,6 +445,11 @@ function Info({ type, logo, length, picked }: { type: GuestType; logo?: string |
         <h1 className="cb-two" style={{ fontSize: "1.75em" }}>
           {type.name}
         </h1>
+        {type.description ? (
+          <p className="cb-muted cb-desc" style={{ margin: 0, whiteSpace: "pre-line", overflowWrap: "anywhere" }}>
+            {type.description}
+          </p>
+        ) : null}
       </div>
       <div className="cb-meta">
         <div className="cb-row">

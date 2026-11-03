@@ -69,7 +69,7 @@ test("flaky: very long answers are cut, the links at the end always stay", () =>
 
 // The calendar job, end to end over a fake database and calendar.
 type Ev = { title: string; description: string; start: number; end: number };
-function world(o: { info?: "ok" | "fails"; group?: boolean; token?: string }) {
+function world(o: { info?: "ok" | "fails"; group?: boolean; token?: string; about?: string | "fails" }) {
   const events = new Map<string, Ev>();
   const updates: { description?: string; start: number }[] = [];
   const token = o.token ?? "tok-1";
@@ -92,6 +92,9 @@ function world(o: { info?: "ok" | "fails"; group?: boolean; token?: string }) {
     if (fn === "meeting_sync_inputs") return { data: inputs(), error: null };
     if (fn === "meeting_invite_info")
       return o.info === "fails" ? { data: null, error: { message: "function meeting_invite_info does not exist" } } : { data: { token_hash: tokenHash(token), token_sealed: seal(token, SECRET), form: { name: "Demo request", values: VALUES, body: FORM } }, error: null };
+    // The meeting type's Description, read with the meeting's mail info.
+    if (fn === "meeting_mail_info" && o.about !== undefined)
+      return o.about === "fails" ? { data: null, error: { message: "canceling statement due to statement timeout" } } : { data: { type: { settings: { description: o.about } } }, error: null };
     if (fn === "meeting_calendar_save") {
       meeting.events = { ...meeting.events, ...(args.p_events as object) };
       return { data: null, error: null };
@@ -145,4 +148,30 @@ test("flaky: a group event carries no one guest's answers or link", async () => 
   const w = world({ group: true });
   await w.sync("create");
   assert.equal([...w.events.values()][0]!.description, "");
+});
+
+test("the meeting's Description comes first on the event, and a reschedule keeps it", async () => {
+  const w = world({ about: "Bring your numbers.\nWe'll look at pricing together." });
+  await w.sync("create");
+  const ev = [...w.events.values()][0]!;
+  assert.match(ev.description, /^Bring your numbers\.\nWe'll look at pricing together\.\n\nDana Lee \(dana@acme\.com\) booked Intro call from Demo request\./);
+  assert.match(ev.description, /Reschedule or cancel: /);
+  w.meeting.start_at = new Date(Date.UTC(2026, 10, 3, 15)).toISOString();
+  w.meeting.end_at = new Date(Date.UTC(2026, 10, 3, 15, 30)).toISOString();
+  await w.sync("move");
+  assert.match(w.updates[0]!.description ?? "", /^Bring your numbers\./);
+});
+
+test("flaky: reading the Description fails or times out, the event is still made without it", async () => {
+  const w = world({ about: "fails" });
+  await w.sync("create");
+  assert.match([...w.events.values()][0]!.description, /^Dana Lee \(dana@acme\.com\) booked Intro call/);
+});
+
+test("flaky: a long Description and long answers: the links at the end always stay", () => {
+  const d = meetingDescription({ typeName: "Intro call", about: "Read this. ".repeat(400), guest: { name: "Dana", email: "dana@acme.com" }, answers: Array.from({ length: 20 }, (_, i) => ({ label: `Q${i}`, value: "x".repeat(1900) })), join: "https://meet.google.com/abc", manage: "https://tryclaritia.com/book/m/tok" });
+  assert.ok(d.length <= DESCRIPTION_MAX);
+  assert.ok(d.startsWith("Read this."), "the Description leads");
+  assert.ok(d.length - d.indexOf("Read this.") > 0 && d.split("Read this.").length - 1 <= 200, "the Description is held to 2,000 characters");
+  assert.ok(d.endsWith("Join: https://meet.google.com/abc\nReschedule or cancel: https://tryclaritia.com/book/m/tok"));
 });

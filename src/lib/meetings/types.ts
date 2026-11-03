@@ -83,6 +83,11 @@ export type TypeSettings = {
   /** After a no-show, one email to the guest with the host's next times. */
   noShowFollowUp: boolean;
   confirmation: { kind: "message"; text?: string } | { kind: "redirect"; url: string };
+  /**
+   * The meeting's own words (what it's for, what to bring): under its name on the booking page, at the top of the
+   * calendar event and the invite, and in the confirmation email. Plain text, line breaks kept, 2,000 characters.
+   */
+  description?: string;
   /** Paid types: amount in the smallest unit (cents) and the currency; refunded when the host cancels. */
   price?: { amount: number; currency: string };
   /** A named schedule (availability_schedules): each host's schedule of this name, else their default hours. */

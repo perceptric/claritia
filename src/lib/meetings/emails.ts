@@ -109,7 +109,8 @@ function render(o: { preheader: string; heading: string; blocks: Block[] }): { h
   const text: string[] = [o.heading, ""];
   for (const b of o.blocks) {
     if ("p" in b) {
-      html.push(`<p style="margin:0 0 16px">${esc(b.p)}</p>`);
+      // Line breaks the writer typed (a meeting's description) stay.
+      html.push(`<p style="margin:0 0 16px">${esc(b.p).replace(/\n/g, "<br>")}</p>`);
       text.push(b.p, "");
     } else if ("small" in b) {
       html.push(`<p style="margin:16px 0 0;font-size:13px;color:${MUTED}">${esc(b.small)}</p>`);
@@ -167,6 +168,8 @@ function render(o: { preheader: string; heading: string; blocks: Block[] }): { h
 
 export type MeetingView = {
   typeName: string;
+  /** The meeting type's own words (its Description), in the guest's confirmation. */
+  about?: string | null;
   start: number;
   end: number;
   guestName: string | null;
@@ -203,7 +206,8 @@ const manageButtons = (v: MeetingView): Block[] =>
 
 export function confirmEmail(v: MeetingView): MailParts {
   const subject = `Confirmed: ${v.typeName} with ${hostNames(v)} on ${fmtWhen(v.start, v.tz, v.now)}`;
-  return { subject, ...render({ preheader: `${fmtWhen(v.start, v.tz, v.now)} with ${hostNames(v)}`, heading: "Your meeting is booked", blocks: [{ p: hi(v.guestName) }, meetingRows(v, false), ...answerRows(v), ...manageButtons(v), { small: "The invite is attached." }] }) };
+  const about: Block[] = v.about?.trim() ? [{ p: v.about.trim() }] : [];
+  return { subject, ...render({ preheader: `${fmtWhen(v.start, v.tz, v.now)} with ${hostNames(v)}`, heading: "Your meeting is booked", blocks: [{ p: hi(v.guestName) }, meetingRows(v, false), ...about, ...answerRows(v), ...manageButtons(v), { small: "The invite is attached." }] }) };
 }
 
 export function updateEmail(v: MeetingView, from?: number | null): MailParts {

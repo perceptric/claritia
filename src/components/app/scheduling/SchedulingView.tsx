@@ -13,6 +13,7 @@ import { TypeEditor } from "../meetings/TypeEditor";
 import { AvailabilityPage } from "./AvailabilityPage";
 import { BookingPage } from "./BookingPage";
 import { SetupLine } from "./Setup";
+import { MailLine } from "../meetings/MailHealth";
 import { LinksPage } from "./LinksPage";
 import { SettingsPage } from "./SettingsPage";
 import { TypesPage } from "./TypesPage";
@@ -21,7 +22,13 @@ const TABS = SCHEDULING_TABS.map((t) => ({ value: t.value, label: t.label }));
 
 export function SchedulingView(props: ViewProps) {
   const p = schedulingPage(props.id);
-  const nav = { title: "Meetings", tabs: TABS, current: p.page, onPick: (t: string) => props.navigate("scheduling", t), banner: <SetupLine sb={props.sb} session={props.session} ws={props.ws} navigate={props.navigate} /> };
+  const nav = { title: "Meetings", tabs: TABS, current: p.page, onPick: (t: string) => props.navigate("scheduling", t), banner: (
+      <>
+        <SetupLine sb={props.sb} session={props.session} ws={props.ws} navigate={props.navigate} />
+        <MailLine session={props.session} ws={props.ws} />
+      </>
+    ),
+  };
   return <Section nav={nav}>{body(props, p)}</Section>;
 }
 
