@@ -93,7 +93,7 @@ export function ReplayPanel({
               ]}
               onChange={setDays}
               ariaLabel="Range"
-              className="h-9 w-full rounded-sm border border-line-strong bg-card px-3 text-[13px] text-ink hover:border-ink/40"
+              className="h-9 w-full rounded-md bg-card shadow-input px-3 text-[13px] text-ink hover:shadow-input-hover"
             />
           </span>
           <Button variant="ghost" onClick={() => void run()} disabled={busy}>

@@ -49,7 +49,7 @@ export function Menu({ anchor, items, onClose, width = 200 }: { anchor: HTMLElem
       ref={box}
       role="menu"
       style={{ position: "fixed", left: pos?.left ?? -9999, top: pos?.top ?? -9999, width }}
-      className="anim-rise-sm z-[95] flex flex-col rounded-[10px] border border-line bg-card p-[4px] text-[13px] shadow-float"
+      className="anim-rise-sm z-[95] flex flex-col rounded-[10px] bg-card shadow-rest p-[4px] text-[13px] shadow-float"
       onKeyDown={(e) => {
         if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
         e.preventDefault();

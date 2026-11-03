@@ -199,7 +199,7 @@ function AccountRow({ a, lists, onReconnect, onRefresh, onDisconnect, onLists }:
         </IconButton>
       </div>
       {a.provider !== "zoom" && lists.length ? (
-        <div className="mx-5 mb-4 overflow-hidden rounded-lg border border-line">
+        <div className="mx-5 mb-4 overflow-hidden rounded-lg shadow-rest">
           <div className="grid grid-cols-[minmax(0,1fr)_64px_96px] items-center gap-3 border-b border-line bg-paper px-3.5 py-2 text-[11.5px] font-medium text-muted">
             <span>Calendar</span>
             <span>Busy</span>
@@ -324,7 +324,7 @@ function ProfilePanel({ session, ws, email, saved, onSaved }: { session: ViewPro
             <Input value={draft.photo_url ?? ""} maxLength={1000} placeholder="https://" onChange={(e) => setDraft({ ...draft, photo_url: e.target.value })} />
           </Labeled>
           <Labeled label="Link">
-            <span className="flex h-10 min-w-0 items-center rounded-sm border border-line-strong bg-card focus-within:border-ink focus-within:ring-1 focus-within:ring-ink">
+            <span className="flex h-10 min-w-0 items-center rounded-md bg-card shadow-input focus-within:shadow-focus">
               <span className="max-w-[50%] shrink-0 truncate pl-3 font-mono text-[12px] text-faint">/book/{wsSlug.data ?? "…"}/</span>
               <input
                 aria-label="Link"

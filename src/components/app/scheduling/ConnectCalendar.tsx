@@ -94,7 +94,7 @@ export function TimesError({ message, session, ws }: { message: string; session:
   if (!needs) return <ErrorNote message={message} />;
   const go = (provider: string) => void connectCalendar(session, ws, provider).catch((e) => setError(errorText(e)));
   return (
-    <div className="flex flex-col items-center gap-3 rounded-[10px] border border-line px-4 py-6 text-center">
+    <div className="flex flex-col items-center gap-3 rounded-[10px] shadow-rest px-4 py-6 text-center">
       <p className="text-[13.5px] font-medium text-ink">{/^reconnect/i.test(message) ? "Reconnect your calendar" : "Connect your calendar"}</p>
       <div className="flex flex-wrap justify-center gap-2">
         {CALENDARS.map((p) => (

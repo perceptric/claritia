@@ -98,7 +98,7 @@ export function SourcesDrawer({ session, ws, d, policyId, ro, onClose, onStaged 
           const ns = eff.noSlots as { abandonTask?: boolean; abandonAfter?: number };
           const unfinished = ns.abandonTask ? String(ns.abandonAfter ?? 30) : "off";
           return (
-            <section key={s.id} className={`rounded-[10px] border border-line bg-card ${eff.enabled ? "" : "opacity-60"}`}>
+            <section key={s.id} className={`rounded-[10px] bg-card shadow-rest ${eff.enabled ? "" : "opacity-60"}`}>
               <header className="flex items-center gap-2 border-b border-line px-4 py-2.5">
                 <h3 className="min-w-0 flex-1 truncate font-semibold text-ink">{s.name}</h3>
                 {eff.pending ? (

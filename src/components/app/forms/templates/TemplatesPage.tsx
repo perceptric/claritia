@@ -294,7 +294,7 @@ function Describe({ ws, session, navigate, onPick, seed }: Pick<ViewProps, "ws" 
             onKeyDown={(e) => e.key === "Enter" && build()}
             maxLength={300}
             placeholder="A deposit form for custom cake orders"
-            className="h-[36px] min-w-[220px] flex-1 rounded-sm border border-line bg-card px-[10px] text-[13px] text-ink outline-none placeholder:text-muted focus:border-ink"
+            className="h-[36px] min-w-[220px] flex-1 rounded-sm border border-line bg-card px-[10px] text-[13px] text-ink outline-none placeholder:text-muted focus:shadow-focus"
           />
           <button type="button" className={BTN} onClick={build}>
             <Ic n="wand" />
@@ -305,7 +305,7 @@ function Describe({ ws, session, navigate, onPick, seed }: Pick<ViewProps, "ws" 
       {picks.length ? (
         <div className="flex flex-wrap items-center gap-[6px]">
           {picks.map((t) => (
-            <button key={t.id} type="button" onClick={() => onPick(t)} className="press inline-flex h-[28px] items-center gap-[6px] rounded-full border border-line bg-card px-[12px] text-[12.5px] text-body hover:border-ink hover:text-ink">
+            <button key={t.id} type="button" onClick={() => onPick(t)} className="press inline-flex h-[28px] items-center gap-[6px] rounded-full bg-card shadow-chip px-[12px] text-[12.5px] text-body hover:shadow-input-hover hover:text-ink">
               Start from {t.name}
             </button>
           ))}
@@ -512,7 +512,7 @@ export function TemplatesPage({ sb, ws, session, navigate, id }: ViewProps) {
           </nav>
           <div className="flex min-w-0 flex-1 flex-col gap-[14px]">
             <div className="flex flex-wrap items-center gap-[8px]">
-              <label className="flex h-[36px] min-w-[200px] flex-1 items-center gap-[8px] rounded-sm border border-line bg-card px-[10px] text-muted focus-within:border-ink">
+              <label className="flex h-[36px] min-w-[200px] flex-1 items-center gap-[8px] rounded-sm border border-line bg-card px-[10px] text-muted focus-within:shadow-focus">
                 <Ic n="search" />
                 <input
                   value={text}
@@ -579,7 +579,7 @@ export function TemplatesPage({ sb, ws, session, navigate, id }: ViewProps) {
                 <p className={EYEBROW}>In season</p>
                 <div className="flex flex-wrap gap-[6px]">
                   {season.map((t) => (
-                    <button key={t.id} type="button" onClick={() => (setPicked(look === OWN ? null : look), setError(""), setOpen(t))} className="press inline-flex h-[28px] items-center rounded-full border border-line bg-card px-[12px] text-[12.5px] text-body hover:border-ink hover:text-ink">
+                    <button key={t.id} type="button" onClick={() => (setPicked(look === OWN ? null : look), setError(""), setOpen(t))} className="press inline-flex h-[28px] items-center rounded-full bg-card shadow-chip px-[12px] text-[12.5px] text-body hover:shadow-input-hover hover:text-ink">
                       {t.name}
                     </button>
                   ))}
@@ -703,7 +703,7 @@ export function TemplatesPage({ sb, ws, session, navigate, id }: ViewProps) {
                       <Ic n="chev" />
                     </span>
                   ) : null}
-                  <span className="inline-flex h-[24px] items-center rounded-full border border-line bg-card px-[10px]">{x}</span>
+                  <span className="inline-flex h-[24px] items-center rounded-full bg-card shadow-chip px-[10px]">{x}</span>
                 </span>
               ))}
             </div>
@@ -728,7 +728,7 @@ export function TemplatesPage({ sb, ws, session, navigate, id }: ViewProps) {
                 ))}
               </div>
             </div>
-            <div className="overflow-hidden rounded-[10px] border border-line bg-paper-deep p-[16px]">
+            <div className="overflow-hidden rounded-[10px] shadow-rest bg-paper-deep p-[16px]">
               <FormPreview key={`${open.id}:${kit?.id ?? theme.id}`} form={form} tokens={tokens} logo={kit?.logo_url ?? null} />
             </div>
           </div>

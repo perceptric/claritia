@@ -24,7 +24,7 @@ export function Title({ children, gray }: { children: React.ReactNode; gray?: st
 }
 
 export function Card({ children, className = "" }: { children: React.ReactNode; className?: string }) {
-  return <section className={`rounded-[10px] border border-line bg-card ${className}`}>{children}</section>;
+  return <section className={`rounded-[10px] bg-card shadow-rest ${className}`}>{children}</section>;
 }
 
 export function CardTitle({ title, children }: { title: string; children?: React.ReactNode }) {
@@ -80,7 +80,7 @@ export function Who({ person, name, after, line, size = 28 }: { person?: Person 
 export const NextTag = () => <span className="inline-flex h-[18px] shrink-0 items-center rounded-full bg-signal-soft px-[7px] text-[10.5px] font-semibold text-signal-text">Next</span>;
 
 const LOOK = {
-  field: "h-[30px] gap-1.5 rounded-sm border border-line-strong bg-card pr-1.5 pl-2.5 text-[13px] text-ink transition-colors duration-[140ms] hover:border-faint aria-expanded:border-ink disabled:opacity-60",
+  field: "h-[30px] gap-1.5 rounded-md bg-card shadow-input pr-1.5 pl-2.5 text-[13px] text-ink transition-colors duration-[140ms] hover:shadow-input-hover aria-expanded:shadow-focus disabled:opacity-60",
   word: "h-[26px] gap-1.5 rounded-sm border border-line-strong bg-paper pr-1.5 pl-2 text-[13px] font-medium text-ink transition-colors duration-[140ms] hover:border-faint aria-expanded:border-ink disabled:opacity-60",
 } as const;
 

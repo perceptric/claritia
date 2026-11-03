@@ -358,7 +358,7 @@ function CancelDialog({ paid, busy, onClose, onCancel }: { paid: boolean; busy: 
           maxLength={500}
           rows={3}
           onChange={(e) => setReason(e.target.value)}
-          className="w-full resize-y rounded-sm border border-line-strong bg-card px-3 py-2 text-[13.5px] text-ink outline-none placeholder:text-faint focus:border-ink focus:ring-1 focus:ring-ink"
+          className="w-full resize-y rounded-md bg-card shadow-input px-3 py-2 text-[13.5px] text-ink outline-none placeholder:text-faint focus:shadow-focus"
         />
       </label>
     </Modal>

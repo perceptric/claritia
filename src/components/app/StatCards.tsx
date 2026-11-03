@@ -43,7 +43,7 @@ export function StatCards({ cards }: { cards: StatCard[] }) {
   return (
     <div className={`grid gap-3 sm:grid-cols-2 ${cards.length >= 4 ? "xl:grid-cols-4" : "lg:grid-cols-3"}`}>
       {cards.map((c, i) => (
-        <div key={c.label} className="anim-rise-sm flex min-w-0 flex-col gap-2 rounded-2xl border border-line bg-card px-5 py-4" style={{ animationDelay: `${i * 60}ms` }}>
+        <div key={c.label} className="anim-rise-sm flex min-w-0 flex-col gap-2 rounded-2xl bg-card shadow-rest px-5 py-4" style={{ animationDelay: `${i * 60}ms` }}>
           <span className="truncate text-[12.5px] text-muted">{c.label}</span>
           <span className={`text-[30px] leading-none font-semibold tracking-[-0.04em] tabular-nums ${c.tone ? TONE_TEXT[c.tone] : "text-ink"}`}>
             {c.value === null ? <span className="anim-shimmer inline-block h-7 w-16 rounded-full bg-paper-deep align-middle" /> : <CountUp value={c.value} format={c.format} />}

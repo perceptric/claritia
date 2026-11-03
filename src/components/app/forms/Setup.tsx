@@ -196,7 +196,7 @@ function Reply({ form, apply, ws }: Props) {
           ) : null}
         </div>
         {r.on ? (
-          <div aria-label="Email preview" className="keep-light rounded-[10px] border border-line bg-paper-deep p-[14px] text-ink">
+          <div aria-label="Email preview" className="keep-light rounded-[10px] shadow-rest bg-paper-deep p-[14px] text-ink">
             <div className="mb-[10px] text-[12px] text-muted">
               {`From ${r.from === "owner" ? "their owner" : ws.name}`}
               <br />

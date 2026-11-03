@@ -99,7 +99,7 @@ export function TypesList(props: ViewProps) {
             {list.data.map((t, i) => {
               const url = slug.data ? `${bookingBase(origin)}/book/${slug.data}/${t.slug}` : "";
               return (
-                <div key={t.id} className="group lift anim-rise-sm relative flex flex-col gap-5 rounded-2xl border border-line bg-card p-5 hover:border-line-strong" style={i < 8 ? { animationDelay: `${i * 40}ms` } : undefined}>
+                <div key={t.id} className="group lift anim-rise-sm relative flex flex-col gap-5 rounded-2xl bg-card shadow-rest p-5 hover:shadow-hover" style={i < 8 ? { animationDelay: `${i * 40}ms` } : undefined}>
                   <div className="flex items-start gap-2">
                     <button type="button" onClick={() => navigate("scheduling", `types/${t.id}`)} className="flex min-w-0 flex-1 flex-col gap-1 text-left after:absolute after:inset-0 after:rounded-2xl">
                       <span className="truncate text-[15px] font-semibold tracking-[-0.01em] text-ink">{t.name}</span>

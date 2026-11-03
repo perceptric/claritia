@@ -11,21 +11,21 @@ import { Ic } from "./ic";
 // Class strings ------------------------------------------------------------------------------------------------------
 
 /** The one primary action: a black pill. */
-export const BTN = "press inline-flex h-[32px] shrink-0 items-center gap-[6px] rounded-full bg-ink px-[14px] text-[13px] font-medium whitespace-nowrap text-card transition-opacity duration-[120ms] disabled:pointer-events-none disabled:opacity-30";
+export const BTN = "press inline-flex h-[32px] shrink-0 items-center gap-[6px] rounded-full bg-brand px-[14px] text-[13px] font-medium whitespace-nowrap text-on-brand shadow-primary transition-[background-color,opacity] duration-[150ms] hover:bg-brand-hover disabled:pointer-events-none disabled:opacity-30";
 /** A secondary action: a white pill on a hairline. */
-export const GHOST = "press inline-flex h-[30px] shrink-0 items-center gap-[6px] rounded-full border border-line bg-card px-[12px] text-[12.5px] whitespace-nowrap text-body transition-colors duration-[120ms] hover:border-line-strong hover:text-ink disabled:pointer-events-none disabled:opacity-45";
-export const GHOST_SM = "press inline-flex h-[26px] shrink-0 items-center gap-[6px] rounded-full border border-line bg-card px-[10px] text-[12px] whitespace-nowrap text-body transition-colors duration-[120ms] hover:border-line-strong hover:text-ink disabled:pointer-events-none disabled:opacity-45";
+export const GHOST = "press inline-flex h-[30px] shrink-0 items-center gap-[6px] rounded-full bg-card px-[12px] text-[12.5px] whitespace-nowrap text-body shadow-outline transition-[color,background-color] duration-[150ms] hover:bg-paper hover:text-ink disabled:pointer-events-none disabled:opacity-45";
+export const GHOST_SM = "press inline-flex h-[26px] shrink-0 items-center gap-[6px] rounded-full bg-card px-[10px] text-[12px] whitespace-nowrap text-body shadow-chip transition-colors duration-[120ms] hover:shadow-input-hover hover:text-ink disabled:pointer-events-none disabled:opacity-45";
 /** A round icon button. */
 export const IB = "press inline-flex size-[30px] shrink-0 items-center justify-center rounded-full text-muted transition-colors duration-[120ms] hover:bg-hover hover:text-ink disabled:pointer-events-none disabled:opacity-35";
 export const IB_SM = "press inline-flex size-[24px] shrink-0 items-center justify-center rounded-full text-muted transition-colors duration-[120ms] hover:bg-hover hover:text-ink disabled:pointer-events-none disabled:opacity-35";
 /** A text box: 34 px, 6 px corners. */
-export const IN = "h-[34px] w-full min-w-0 rounded-sm border border-line-strong bg-card px-[10px] text-[13px] text-ink outline-none placeholder:text-faint focus:border-ink";
-export const IN_SM = "h-[30px] w-full min-w-0 rounded-sm border border-line-strong bg-card px-[10px] text-[12.5px] text-ink outline-none placeholder:text-faint focus:border-ink";
+export const IN = "h-[34px] w-full min-w-0 rounded-md bg-card shadow-input px-[10px] text-[13px] text-ink outline-none placeholder:text-faint focus:shadow-focus";
+export const IN_SM = "h-[30px] w-full min-w-0 rounded-md bg-card shadow-input px-[10px] text-[12.5px] text-ink outline-none placeholder:text-faint focus:shadow-focus";
 /** A small text box with its own width (set beside it). */
 export const IN_FIT = IN_SM.replace("w-full ", "");
-export const AREA = "w-full min-w-0 resize-y rounded-sm border border-line-strong bg-card px-[10px] py-[8px] text-[13px] leading-normal text-ink outline-none placeholder:text-faint focus:border-ink";
+export const AREA = "w-full min-w-0 resize-y rounded-md bg-card shadow-input px-[10px] py-[8px] text-[13px] leading-normal text-ink outline-none placeholder:text-faint focus:shadow-focus";
 export const EYEBROW = "font-mono text-[10.5px] tracking-[0.06em] text-muted uppercase";
-export const CARD = "rounded-[10px] border border-line bg-card";
+export const CARD = "rounded-[10px] bg-card shadow-rest";
 /** A row in a card: what it is on the left, the control on the right. */
 export const CROW = "flex min-h-[52px] items-center gap-[12px] border-t border-line px-[16px] py-[12px] first:border-t-0 max-[860px]:flex-wrap";
 /** A stacked row in a card: a small label over the control. */
@@ -157,7 +157,7 @@ export function Dd({ label, items, sm = false, search, onSearch, ariaLabel, sear
               role="listbox"
               aria-label={ariaLabel}
               style={{ position: "fixed", left: pos.left, top: pos.top, width: Math.max(pos.width, 180), maxHeight: pos.max }}
-              className="anim-rise-sm z-[100] flex flex-col overflow-y-auto rounded-[10px] border border-line bg-card p-[4px] text-[13px] text-ink shadow-float"
+              className="anim-rise-sm z-[100] flex flex-col overflow-y-auto rounded-[10px] bg-card shadow-rest p-[4px] text-[13px] text-ink shadow-float"
             >
               {onSearch ? <input autoFocus value={search ?? ""} onChange={(e) => onSearch(e.target.value)} placeholder="Search fields" aria-label={searchLabel} className={`${IN_SM} mb-[4px] shrink-0`} /> : null}
               {list.map((i, n) =>

@@ -131,7 +131,7 @@ export function LinksPage(props: ViewProps) {
         ) : !rows.length ? (
           <p className="py-10 text-center text-[13.5px] text-muted">{filter === "open" ? "No open links" : "No matches"}</p>
         ) : (
-          <div className="overflow-x-auto rounded-lg border border-line bg-card">
+          <div className="overflow-x-auto rounded-lg bg-card shadow-rest">
             <table className="w-full min-w-[760px] border-separate border-spacing-0">
               <thead>
                 <tr>
@@ -270,7 +270,7 @@ function Times({ link }: { link: LinkRow }) {
   return (
     <ul className="anim-rise-sm flex flex-wrap gap-2 px-4 py-3">
       {link.offered.map((o) => (
-        <li key={o.start} className="rounded-full border border-line bg-card px-3 py-1 text-[12.5px] text-ink tabular-nums">
+        <li key={o.start} className="rounded-full bg-card shadow-chip px-3 py-1 text-[12.5px] text-ink tabular-nums">
           {new Date(o.start).toLocaleString("en-US", { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
         </li>
       ))}

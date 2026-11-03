@@ -2,7 +2,7 @@
 
 // The side rail (docs/app-structure.md Part 1): Create, Search, then Forms, Meetings and Workflows from src/lib/nav.ts
 // with no group titles, and Settings at the very bottom above the account row. Items can show a count. The
-// open item is a white chip with a hairline, like Omniscient. Folds to icons between 768 and 1,280 px, and on wider
+// open item is a white chip on a ring shadow with a green icon. Folds to icons between 768 and 1,280 px, and on wider
 // screens when the person folds it (kept on this computer) or while Form Studio is open (docs/studio-v2-plan.md,
 // Part 1: the Studio sends "claritia:studio"; leaving it puts the sidebar back the way it was).
 
@@ -105,11 +105,11 @@ export function Sidebar(p: SidebarProps) {
         type="button"
         onClick={p.onSearch}
         aria-label="Search"
-        className={`hidden h-8 items-center gap-2 rounded-md border border-line bg-card px-3 text-[13px] text-muted transition-colors duration-[140ms] hover:border-line-strong hover:text-ink md:flex md:justify-center ${xl("xl:justify-start")}`}
+        className={`hidden h-8 items-center gap-2 rounded-md bg-card px-2.5 text-[13px] text-muted shadow-chip transition-[color,box-shadow] duration-[150ms] hover:text-ink hover:shadow-pill md:flex md:justify-center ${xl("xl:justify-start")}`}
       >
         <Search size={14} />
         <span className={`flex-1 text-left md:hidden ${xl("xl:inline")}`}>Search</span>
-        <kbd className={`font-mono text-[11px] text-faint md:hidden ${xl("xl:inline")}`}>⌘K</kbd>
+        <kbd className={`text-[12px] text-faint md:hidden ${xl("xl:inline")}`}>⌘K</kbd>
       </button>
       <nav aria-label="Main" className="-mx-1 flex gap-1 overflow-x-auto px-1 md:mt-3 md:min-h-0 md:flex-1 md:flex-col md:gap-0.5 md:overflow-y-auto md:overflow-x-hidden">
         {NAV.map((n) => (
@@ -160,16 +160,16 @@ function NavLink({ n, on, count, dot, navigate, icon, preload, rail }: { n: NavI
       onFocus={preload ? () => preload(n.route as Route) : undefined}
       aria-current={on ? "page" : undefined}
       title={n.label}
-      className={`flex h-8 shrink-0 items-center gap-2.5 rounded-[7px] px-2 text-[13px] transition-[background-color,color,box-shadow] duration-[120ms] md:justify-center ${xl("xl:justify-start")} ${on ? "bg-card text-ink shadow-[0_0_0_1px_var(--color-line),0_1px_2px_rgb(10_10_10/0.05)]" : "text-muted hover:bg-hover hover:text-ink"}`}
+      className={`flex h-8 shrink-0 items-center gap-2.5 rounded-md px-2 text-[13.5px] transition-[background-color,color,box-shadow] duration-[150ms] md:justify-center ${xl("xl:justify-start")} ${on ? "bg-card font-medium text-ink shadow-chip" : "text-body hover:bg-hover hover:text-ink"}`}
     >
-      <span aria-hidden="true" className={`relative flex size-5 shrink-0 items-center justify-center ${on ? "text-ink" : ""}`}>
+      <span aria-hidden="true" className={`relative flex size-5 shrink-0 items-center justify-center ${on ? "text-signal" : "text-muted"}`}>
         {glyph}
         {dot ? <span className={`absolute -top-0.5 -right-0.5 hidden size-1.5 rounded-full bg-butter md:block ${xl("xl:hidden")}`} /> : null}
       </span>
       <span className={`truncate md:hidden ${xl("xl:inline")}`}>{n.label}</span>
       {dot ? <span role="img" aria-label="Needs a step" title="Needs a step" className={`ml-auto size-1.5 shrink-0 rounded-full bg-butter md:hidden ${xl("xl:block")}`} /> : null}
       {count ? (
-        <span className={`${dot ? "ml-1.5" : "ml-auto"} rounded-full bg-hover px-1.5 font-mono text-[11px] tabular-nums text-muted md:hidden ${xl("xl:inline")}`}>{count > 99 ? "99+" : count}</span>
+        <span className={`${dot ? "ml-1.5" : "ml-auto"} px-1 text-[12px] font-normal tabular-nums text-muted md:hidden ${xl("xl:inline")}`}>{count > 99 ? "99+" : count}</span>
       ) : null}
     </a>
   );
@@ -193,7 +193,7 @@ function CreateButton({ items, rail }: { items: CreateItem[]; rail?: boolean }) 
         aria-haspopup="menu"
         aria-expanded={open}
         onClick={(e) => setAnchor(anchor ? null : e.currentTarget)}
-        className="press flex h-8 items-center justify-center gap-1.5 rounded-full bg-ink px-3.5 text-[13px] font-medium text-paper transition-colors duration-[140ms] hover:bg-ink/90"
+        className="press flex h-8 items-center justify-center gap-1.5 rounded-full bg-brand px-3.5 text-[13px] font-medium text-on-brand shadow-primary transition-colors duration-[150ms] hover:bg-brand-hover"
       >
         <Plus size={14} />
         <span className={rail ? "md:hidden" : "md:hidden xl:inline"}>Create</span>

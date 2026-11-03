@@ -213,7 +213,7 @@ function DomainCard({ d, owner, sb, onChange, onError }: { d: Domain; owner: boo
       </div>
       <ErrorNote message={d.error ?? ""} />
       {d.records.length ? (
-        <div className="overflow-x-auto rounded-lg border border-line bg-card">
+        <div className="overflow-x-auto rounded-lg bg-card shadow-rest">
           <table className="w-full text-[12.5px] [&_tbody_tr:last-child_td]:border-b-0">
             <thead>
               <tr>

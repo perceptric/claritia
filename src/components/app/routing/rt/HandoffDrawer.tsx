@@ -45,7 +45,7 @@ function ContactPick({ sb, ws, onPick }: { sb?: SupabaseClient; ws: string; onPi
   }, [sb, text, ws]);
   return (
     <div className="flex flex-col gap-2 p-4 text-[13px]">
-      <label className="flex h-[30px] items-center gap-2 rounded-sm border border-line-strong bg-card px-2.5 focus-within:border-ink">
+      <label className="flex h-[30px] items-center gap-2 rounded-md bg-card shadow-input px-2.5 focus-within:shadow-focus">
         <Search size={13} className="text-muted" />
         <input autoFocus aria-label="Find a contact" placeholder="Find a contact" value={text} onChange={(e) => setText(e.target.value)} className="min-w-0 flex-1 bg-transparent text-ink outline-none placeholder:text-faint" />
       </label>
@@ -206,7 +206,7 @@ function Handoff({ session, ws, d, contact, onClose, onDone }: Pick<ViewProps, "
   return (
     <div className="flex h-full flex-col">
       <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-4 text-[13px]">
-        <div className="rounded-[10px] border border-line">
+        <div className="rounded-[10px] shadow-rest">
           <div className="flex flex-wrap items-center gap-3 px-4 py-2.5">
             <div className="min-w-0 flex-1">
               <div className="font-medium text-ink">{p.contact.name || p.contact.email}</div>
@@ -244,7 +244,7 @@ function Handoff({ session, ws, d, contact, onClose, onDone }: Pick<ViewProps, "
                         setRes(null);
                       }
                     }}
-                    className="h-[30px] w-full rounded-sm border border-line-strong bg-card px-2.5 font-normal text-ink outline-none placeholder:text-faint focus:border-ink disabled:opacity-60"
+                    className="h-[30px] w-full rounded-md bg-card shadow-input px-2.5 font-normal text-ink outline-none placeholder:text-faint focus:shadow-focus disabled:opacity-60"
                   />
                 </label>
               );
@@ -268,7 +268,7 @@ function Handoff({ session, ws, d, contact, onClose, onDone }: Pick<ViewProps, "
         ) : null}
         {res && step !== "start" ? (
           res.state === "assigned" && recipient ? (
-            <div className="rounded-[10px] border border-line">
+            <div className="rounded-[10px] shadow-rest">
               <div className="flex items-center gap-2.5 border-b border-line px-4 py-2.5">
                 <Initials name={who(recipient)} />
                 <span className="min-w-0 flex-1 font-semibold text-ink">
@@ -295,14 +295,14 @@ function Handoff({ session, ws, d, contact, onClose, onDone }: Pick<ViewProps, "
                       placeholder="Reason"
                       value={reason}
                       onChange={(e) => setReason(e.target.value.slice(0, 300))}
-                      className="h-[30px] w-full rounded-sm border border-line-strong bg-card px-2.5 text-ink outline-none placeholder:text-faint focus:border-ink"
+                      className="h-[30px] w-full rounded-md bg-card shadow-input px-2.5 text-ink outline-none placeholder:text-faint focus:shadow-focus"
                     />
                   ) : null}
                 </div>
               ) : null}
             </div>
           ) : (
-            <div className="flex items-center gap-2.5 rounded-[10px] border border-line bg-paper px-3.5 py-3">
+            <div className="flex items-center gap-2.5 rounded-[10px] shadow-rest bg-paper px-3.5 py-3">
               <Badge tone="amber" dot>
                 Needs review
               </Badge>
@@ -384,7 +384,7 @@ function Handoff({ session, ws, d, contact, onClose, onDone }: Pick<ViewProps, "
 
 function Result({ badge, text, line }: { badge: React.ReactNode; text: string; line?: string }) {
   return (
-    <div role="status" className="flex flex-wrap items-center gap-2.5 rounded-[10px] border border-line bg-paper px-3.5 py-3">
+    <div role="status" className="flex flex-wrap items-center gap-2.5 rounded-[10px] shadow-rest bg-paper px-3.5 py-3">
       {badge}
       <b className="text-[14px] font-semibold text-ink">{text}</b>
       {line ? <span className="text-muted">{line}</span> : null}

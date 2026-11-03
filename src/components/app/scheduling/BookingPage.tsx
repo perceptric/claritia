@@ -687,7 +687,7 @@ function HandleField({ host, value, onChange, check, saved, disabled = false }: 
   const taken = bad && !handleProblem(value);
   return (
     <div className="flex flex-col gap-1.5">
-      <span className={`flex h-9 min-w-0 items-center rounded-sm border bg-card pr-1 pl-2.5 font-mono text-[12px] focus-within:border-ink ${bad ? "border-rose" : "border-line-strong"}`}>
+      <span className={`flex h-9 min-w-0 items-center rounded-sm border bg-card pr-1 pl-2.5 font-mono text-[12px] focus-within:shadow-focus ${bad ? "border-rose" : "border-line-strong"}`}>
         <span className="max-w-[60%] shrink-0 truncate text-faint">{host}/booking/</span>
         <input aria-label="Handle" value={value} maxLength={40} disabled={disabled} onChange={(e) => onChange(cleanHandle(e.target.value))} className="h-full min-w-10 flex-1 bg-transparent text-ink outline-none disabled:text-muted" />
         {taken ? (

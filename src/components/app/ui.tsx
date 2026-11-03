@@ -324,8 +324,8 @@ export function Page({
       </div>
     );
   return (
-    <div className="flex h-full min-h-0 flex-col bg-card">
-      <header className="flex h-12 shrink-0 items-center gap-1 border-b border-line px-3">
+    <div className="flex h-full min-h-0 flex-col bg-paper">
+      <header className="flex min-h-[52px] shrink-0 flex-wrap items-center gap-x-1 gap-y-1.5 border-b border-line bg-card px-3 py-2">
         <nav aria-label="Breadcrumb" className="flex min-w-0 items-center gap-1">
           {back ? (
             <span className="contents">
@@ -340,7 +340,7 @@ export function Page({
             {onRename ? (
               <TitleInput value={heading} onChange={onRename} />
             ) : (
-              <h1 aria-current="page" className="truncate text-[13px] leading-normal font-medium text-ink">
+              <h1 aria-current="page" className="truncate text-[15px] leading-normal font-medium tracking-[-0.01em] text-ink">
                 {heading}
               </h1>
             )}
@@ -348,9 +348,9 @@ export function Page({
             {badge ? <span className="ml-1 flex shrink-0 items-center">{badge}</span> : null}
           </span>
         </nav>
-        {actions ? <div className="ml-auto flex shrink-0 items-center gap-2">{actions}</div> : null}
+        {tabs ? <Tabs value={tabs.current} tabs={tabs.tabs} onChange={tabs.onPick} bare inline /> : null}
+        {actions ? <div className="ml-auto flex max-w-full min-w-0 flex-wrap items-center justify-end gap-2">{actions}</div> : null}
       </header>
-      {tabs ? <Tabs value={tabs.current} tabs={tabs.tabs} onChange={tabs.onPick} /> : null}
       {tabs?.banner ?? null}
       <div className={`min-h-0 flex-1 overflow-auto ${flush ? "" : "p-4 md:p-6"}`}>{children}</div>
     </div>
@@ -385,14 +385,14 @@ function TitleInput({ value, onChange }: { value: string; onChange: (v: string) 
         }
       }}
       style={{ width: `${Math.max(6, text.length + 1)}ch` }}
-      className="h-7 max-w-[60vw] min-w-0 rounded-sm border border-transparent bg-transparent px-1 text-[13px] font-medium text-ink outline-none hover:bg-hover focus:border-ink focus:bg-card"
+      className="h-7 max-w-[60vw] min-w-0 rounded-sm border border-transparent bg-transparent px-1 text-[13px] font-medium text-ink outline-none hover:bg-hover focus:shadow-focus focus:bg-card"
     />
   );
 }
 
-/** A flat card on a hairline. `frame` gives the one frame a screen is about its shadow. */
+/** A card on a soft ring shadow. `frame` gives the one frame a screen is about a deeper shadow. */
 export function Panel({ children, className = "", frame = false }: { children: React.ReactNode; className?: string; frame?: boolean }) {
-  return <div className={`rounded-lg border border-line bg-card ${frame ? "frame" : ""} ${className}`}>{children}</div>;
+  return <div className={`rounded-xl bg-card ${frame ? "shadow-hover" : "shadow-rest"} ${className}`}>{children}</div>;
 }
 
 /** A card's header bar: a label, with room for actions on the right. */
@@ -410,7 +410,7 @@ export function CardHead({ label, count, children }: { label: string; count?: nu
 export function Empty({ icon, sketch, title, children }: { icon?: React.ReactNode; sketch?: React.ReactNode; title: string; children?: React.ReactNode }) {
   return (
     <div className="anim-rise-sm flex flex-col items-center gap-2 px-6 py-16 text-center">
-      {sketch || icon ? <div className="mb-4">{sketch ?? <span className="flex size-12 items-center justify-center rounded-lg border border-line bg-card text-ink">{icon}</span>}</div> : null}
+      {sketch || icon ? <div className="mb-4">{sketch ?? <span className="flex size-12 items-center justify-center rounded-xl bg-signal-soft text-signal-text shadow-chip">{icon}</span>}</div> : null}
       <p className="text-[16px] font-medium tracking-[-0.01em] text-ink">{title}</p>
       {children ? <div className="max-w-sm text-[13.5px] text-muted">{children}</div> : null}
     </div>
@@ -440,16 +440,16 @@ export function Loading() {
 export function Button({ variant = "primary", size = "md", className = "", ...props }: React.ButtonHTMLAttributes<HTMLButtonElement> & { variant?: "primary" | "ghost" | "plain" | "danger"; size?: "sm" | "md" }) {
   const look =
     variant === "primary"
-      ? "bg-ink text-paper hover:bg-brand-hover"
+      ? "bg-brand text-on-brand shadow-primary hover:bg-brand-hover"
       : variant === "ghost"
-        ? "border border-line-strong bg-card text-ink hover:bg-hover"
+        ? "bg-card text-ink shadow-outline hover:bg-paper"
         : variant === "danger"
-          ? "border border-line-strong bg-card text-rose hover:bg-rose-wash"
+          ? "bg-card text-rose shadow-outline hover:bg-rose-wash"
           : "text-body hover:bg-hover hover:text-ink";
   return (
     <button
       {...props}
-      className={`press inline-flex max-w-full min-w-0 items-center justify-center gap-1.5 rounded-full font-medium whitespace-nowrap transition-[background-color,border-color,transform] duration-[120ms] disabled:pointer-events-none disabled:opacity-45 ${size === "sm" ? "h-8 px-3.5 text-[12.5px]" : "h-9 px-4 text-[13.5px]"} ${look} ${className}`}
+      className={`press inline-flex max-w-full min-w-0 items-center justify-center gap-1.5 rounded-full font-medium whitespace-nowrap transition-[background-color,box-shadow,transform] duration-[150ms] disabled:pointer-events-none disabled:opacity-45 ${size === "sm" ? "h-7 px-3 text-[12.5px]" : "h-[34px] px-4 text-[13.5px]"} ${look} ${className}`}
     />
   );
 }
@@ -463,7 +463,7 @@ export function Input({ className = "", ...props }: React.InputHTMLAttributes<HT
   return (
     <input
       {...props}
-      className={`h-10 w-full rounded-sm border border-line-strong bg-card px-3 text-[13.5px] text-ink outline-none transition-shadow duration-[140ms] placeholder:text-faint focus:border-ink focus:ring-[3px] focus:ring-hover ${className}`}
+      className={`h-9 w-full rounded-md bg-card px-3 text-[13.5px] text-ink shadow-input outline-none transition-shadow duration-[150ms] placeholder:text-faint focus:shadow-focus focus-visible:outline-none ${className}`}
     />
   );
 }
@@ -487,9 +487,9 @@ export function Toggle({ on, onChange, label, disabled = false }: { on: boolean;
       aria-label={label}
       disabled={disabled}
       onClick={() => onChange(!on)}
-      className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors duration-[320ms] disabled:opacity-45 ${on ? "bg-ink" : "bg-line-strong"}`}
+      className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors duration-[320ms] disabled:opacity-45 ${on ? "bg-signal-strong" : "bg-line-strong"}`}
     >
-      <span className={`absolute left-0.5 size-4 rounded-full bg-paper transition-transform duration-[320ms] ease-spring ${on ? "translate-x-4" : ""}`} />
+      <span className={`absolute left-0.5 size-4 rounded-full bg-white shadow-xs transition-transform duration-[320ms] ease-spring ${on ? "translate-x-4" : ""}`} />
     </button>
   );
 }
@@ -506,7 +506,7 @@ export function Stat({ value, label }: { value: React.ReactNode; label: string }
 
 export type Tone = "gray" | "brand" | "violet" | "green" | "amber" | "red" | "sky";
 const TONES: Record<Tone, { tag: string; dot: string }> = {
-  gray: { tag: "bg-paper-deep text-body", dot: "bg-muted" },
+  gray: { tag: "bg-chip text-text", dot: "bg-muted" },
   brand: { tag: "bg-clay-wash text-clay", dot: "bg-clay" },
   violet: { tag: "bg-lilac-wash text-lilac", dot: "bg-lilac" },
   green: { tag: "bg-sage-wash text-sage", dot: "bg-sage" },
@@ -515,10 +515,10 @@ const TONES: Record<Tone, { tag: string; dot: string }> = {
   sky: { tag: "bg-sky-wash text-sky", dot: "bg-sky" },
 };
 
-/** A record's state: a pill tag, wash fill and deep text, with an optional dot. */
+/** A record's state: a 6px tag, soft fill and deep text, with an optional dot. */
 export function Badge({ children, tone = "gray", dot = false }: { children: React.ReactNode; tone?: Tone; dot?: boolean }) {
   return (
-    <span className={`inline-flex h-[22px] items-center gap-1.5 rounded-full px-2.5 text-[11.5px] font-medium whitespace-nowrap ${TONES[tone].tag}`}>
+    <span className={`inline-flex h-5 w-fit items-center gap-1.5 rounded-sm px-2 text-[12px] whitespace-nowrap ${TONES[tone].tag}`}>
       {dot ? <span className={`size-1.5 rounded-full ${TONES[tone].dot}`} /> : null}
       {children}
     </span>
@@ -548,11 +548,11 @@ export function Avatar({ label, size = 24 }: { label: string; size?: number }) {
 }
 
 export function Th({ children, className = "" }: { children: React.ReactNode; className?: string }) {
-  return <th className={`sticky top-0 z-[1] h-10 border-r border-b border-r-line-light border-b-line bg-card px-3 text-left text-[12px] font-medium whitespace-nowrap text-faint last:border-r-0 ${className}`}>{children}</th>;
+  return <th className={`sticky top-0 z-[1] h-10 border-r border-b border-line bg-card px-3 text-left text-[13px] font-[450] whitespace-nowrap text-text last:border-r-0 ${className}`}>{children}</th>;
 }
 
 export function Td({ children, className = "" }: { children: React.ReactNode; className?: string }) {
-  return <td className={`h-10 border-r border-b border-line-light px-3 text-[13px] whitespace-nowrap last:border-r-0 ${className}`}>{children}</td>;
+  return <td className={`h-9 border-r border-b border-line px-3 text-[13px] whitespace-nowrap text-text last:border-r-0 ${className}`}>{children}</td>;
 }
 
 /** The host of a URL, for showing it short. */
@@ -597,8 +597,8 @@ export function Segmented<T extends string>({ value, options, onChange, label, s
   );
   const sm = size === "sm";
   return (
-    <div ref={box} role="radiogroup" aria-label={label} className={`relative inline-flex max-w-full shrink-0 items-center gap-0.5 rounded-full bg-paper-deep ${sm ? "h-8 p-[3px]" : "h-9 p-1"}`}>
-      {at ? <span aria-hidden="true" className={`absolute rounded-full bg-ink transition-[transform,width] duration-[320ms] ease-out ${sm ? "top-[3px] bottom-[3px]" : "top-1 bottom-1"}`} style={{ left: 0, width: at.width, transform: `translateX(${at.left}px)` }} /> : null}
+    <div ref={box} role="radiogroup" aria-label={label} className={`relative inline-flex max-w-full shrink-0 items-center gap-0.5 rounded-full bg-paper-deep shadow-[inset_0_0_0_1px_var(--color-line)] ${sm ? "h-8 p-[3px]" : "h-9 p-1"}`}>
+      {at ? <span aria-hidden="true" className={`absolute rounded-full bg-card shadow-chip transition-[transform,width] duration-[320ms] ease-out ${sm ? "top-[3px] bottom-[3px]" : "top-1 bottom-1"}`} style={{ left: 0, width: at.width, transform: `translateX(${at.left}px)` }} /> : null}
       {options.map((o) => (
         <button
           key={o.value}
@@ -608,7 +608,7 @@ export function Segmented<T extends string>({ value, options, onChange, label, s
           aria-checked={value === o.value}
           disabled={o.disabled}
           onClick={() => onChange(o.value)}
-          className={`relative inline-flex items-center rounded-full px-3 text-[12.5px] font-medium whitespace-nowrap transition-colors duration-[320ms] disabled:cursor-default disabled:opacity-45 ${sm ? "h-[26px]" : "h-7"} ${value === o.value ? "text-paper" : "text-muted hover:text-ink"} ${at ? "" : value === o.value ? "bg-ink" : ""}`}
+          className={`relative inline-flex items-center rounded-full px-3 text-[12.5px] font-medium whitespace-nowrap transition-colors duration-[320ms] disabled:cursor-default disabled:opacity-45 ${sm ? "h-[26px]" : "h-7"} ${value === o.value ? "text-ink" : "text-muted hover:text-ink"} ${at ? "" : value === o.value ? "bg-card shadow-chip" : ""}`}
         >
           {o.label}
         </button>
@@ -618,8 +618,9 @@ export function Segmented<T extends string>({ value, options, onChange, label, s
 }
 
 /**
- * Tabs under a page header, with an ink underline that slides to the open one. `dense` is the 38 px row a record's
- * own tabs use (a form's Build, Submissions...); a tab's `dot` is an amber point when something there needs a look.
+ * Tabs: a row of small chips, the open one in soft green. Inside a section they sit beside the page title (`inline`);
+ * a record's own tabs (a form's Build, Submissions...) use them as a row under its header. `dense` is the tighter row,
+ * and a tab's `dot` is an amber point when something there needs a look.
  */
 export function Tabs<T extends string>({
   value,
@@ -627,37 +628,39 @@ export function Tabs<T extends string>({
   onChange,
   bare = false,
   dense = false,
+  inline = false,
 }: {
   value: T;
   tabs: { value: T; label: string; count?: number; icon?: React.ReactNode; dot?: string; badge?: number }[];
   onChange: (v: T) => void;
   bare?: boolean;
   dense?: boolean;
+  inline?: boolean;
 }) {
-  const { box, at } = useSlide(
-    tabs.findIndex((t) => t.value === value),
-    [tabs.map((t) => `${t.label}${t.count ?? ""}${t.dot ?? ""}${t.badge ?? ""}`).join()],
-  );
   return (
-    <div ref={box} role="tablist" className={`relative flex shrink-0 items-end overflow-x-auto [scrollbar-width:none] ${dense ? "h-[38px] gap-[4px]" : "h-10 gap-2"} ${bare ? "-mb-px" : `border-b border-line ${dense ? "px-[10px]" : "px-3"}`}`}>
-      {tabs.map((t) => (
-        <button
-          key={t.value}
-          data-slide=""
-          type="button"
-          role="tab"
-          aria-selected={value === t.value}
-          onClick={() => onChange(t.value)}
-          className={`relative flex shrink-0 items-center text-[13px] whitespace-nowrap transition-colors duration-[120ms] ${dense ? "h-[38px] gap-[7px] px-[8px]" : "h-10 gap-1.5 px-2"} ${value === t.value ? "font-medium text-ink" : "text-muted hover:text-ink"}`}
-        >
-          {t.icon ? <span className="flex shrink-0 items-center [&_svg]:size-3.5">{t.icon}</span> : null}
-          {t.label}
-          {t.count != null ? <span className={`tabular-nums ${dense ? "text-[11.5px] font-normal text-faint" : `text-[12px] ${value === t.value ? "font-medium text-ink" : "text-faint"}`}`}>{t.count}</span> : null}
-          {t.dot ? <span title={t.dot} aria-label={t.dot} className="size-1.5 rounded-full bg-butter" /> : null}
-          {t.badge ? <span className="inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-butter-wash px-1.5 text-[11px] font-medium text-butter tabular-nums">{t.badge}</span> : null}
-        </button>
-      ))}
-      {at ? <span aria-hidden="true" className="absolute bottom-0 left-0 h-0.5 bg-ink transition-[transform,width] duration-[200ms] ease-out" style={{ width: at.width, transform: `translateX(${at.left}px)` }} /> : null}
+    <div
+      role="tablist"
+      className={`flex max-w-full min-w-0 shrink items-center overflow-x-auto [scrollbar-width:none] ${inline ? "gap-1.5 p-[2px]" : `shrink-0 gap-1.5 ${dense ? "h-[42px]" : "h-12"} ${bare ? "" : `border-b border-line bg-card ${dense ? "px-[10px]" : "px-3"}`}`}`}
+    >
+      {tabs.map((t) => {
+        const on = value === t.value;
+        return (
+          <button
+            key={t.value}
+            type="button"
+            role="tab"
+            aria-selected={on}
+            onClick={() => onChange(t.value)}
+            className={`flex h-7 shrink-0 items-center gap-1.5 rounded-md px-2.5 text-[13px] whitespace-nowrap transition-[background-color,box-shadow,color] duration-[150ms] ${on ? "bg-signal-soft text-signal-text shadow-[0_0_0_1px_var(--color-signal-line)]" : "bg-card text-body shadow-chip hover:text-ink"}`}
+          >
+            {t.icon ? <span className={`flex shrink-0 items-center [&_svg]:size-3.5 ${on ? "text-signal" : "text-muted"}`}>{t.icon}</span> : null}
+            {t.label}
+            {t.count != null ? <span className={`text-[12px] tabular-nums ${on ? "text-signal-text" : "text-faint"}`}>{t.count}</span> : null}
+            {t.dot ? <span title={t.dot} aria-label={t.dot} className="size-1.5 rounded-full bg-butter" /> : null}
+            {t.badge ? <span className="inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-butter-wash px-1.5 text-[11px] font-medium text-butter tabular-nums">{t.badge}</span> : null}
+          </button>
+        );
+      })}
     </div>
   );
 }

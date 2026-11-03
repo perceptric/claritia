@@ -691,7 +691,7 @@ function PublishDialog({ checks, live, onClose, onPublish, onFix, error }: { che
       <h2 className="text-[16px] font-semibold tracking-[-0.01em] text-ink">{bad.length ? `${bad.length} ${bad.length === 1 ? "thing" : "things"} to look at` : "Ready to go live"}</h2>
       <div className="flex flex-col gap-[8px]">
         {checks.map((c, i) => (
-          <div key={`${c.t}${i}`} className="flex items-start gap-[10px] rounded-lg border border-line px-[12px] py-[10px]">
+          <div key={`${c.t}${i}`} className="flex items-start gap-[10px] rounded-lg shadow-rest px-[12px] py-[10px]">
             <span className={`inline-flex size-[24px] shrink-0 items-center justify-center rounded-[7px] ${c.lvl === "ok" ? "bg-signal-soft text-signal" : c.lvl === "warn" ? "bg-butter-wash text-butter" : "bg-rose-wash text-rose"}`}>
               <Ic n={c.lvl === "ok" ? "check" : "warn"} s={12} />
             </span>
@@ -743,7 +743,7 @@ function Versions({ sb, formId, live, changed, onClose, onRestore }: Pick<ViewPr
       {!list.data ? (
         list.error ? <ErrorNote message={list.error} /> : <Loading />
       ) : (
-        <div className="rounded-[10px] border border-line">
+        <div className="rounded-[10px] shadow-rest">
           {changed || !live ? (
             <div className="flex min-h-[52px] items-center gap-[12px] px-[16px] py-[12px]">
               <span className="min-w-0 flex-1">

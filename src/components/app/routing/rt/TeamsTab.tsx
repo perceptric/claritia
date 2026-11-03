@@ -224,7 +224,7 @@ function TeamCard({
   const addable = d.people.filter((p) => !t.members.some((m) => m.user === p.id));
   const grid = "grid grid-cols-[minmax(0,1.4fr)_1fr_110px_120px_40px] items-center gap-2.5 max-md:grid-cols-[minmax(0,1fr)_auto]";
   return (
-    <section className="rounded-[10px] border border-line bg-card">
+    <section className="rounded-[10px] bg-card shadow-rest">
       <header className="flex flex-wrap items-center gap-2.5 border-b border-line px-4 py-2.5">
         <h2 className="min-w-0 flex-1 truncate text-[13.5px] font-semibold text-ink">{t.name}</h2>
         <span className="text-[12px] text-muted">{used.length ? `Used by ${used.map((x) => `${x.name} (${x.uses})`).join(", ")}` : "Not used by any form yet"}</span>

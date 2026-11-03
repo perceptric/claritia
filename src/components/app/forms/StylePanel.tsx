@@ -555,7 +555,7 @@ function BoxModel({ ctx }: { ctx: Ctx }) {
       <div className="flex justify-center">{cell("margin", "top")}</div>
       <div className="flex items-center gap-1">
         {cell("margin", "left")}
-        <div className="relative flex-1 rounded-sm border border-line-strong bg-card px-1.5 py-1">
+        <div className="relative flex-1 rounded-md bg-card shadow-input px-1.5 py-1">
           <span className="absolute top-1 left-2 text-[10.5px] text-faint">Padding</span>
           <div className="flex justify-center">{cell("padding", "top")}</div>
           <div className="flex items-center justify-between gap-1">
@@ -644,7 +644,7 @@ function BoxCell({ ctx, kind, side }: { ctx: Ctx; kind: "margin" | "padding"; si
           if (next && ctx.write([prop], next, true)) setDraft(null);
         }
       }}
-      className={`h-5 w-10 cursor-ns-resize rounded-[3px] bg-transparent text-center text-[11.5px] tabular-nums outline-none hover:bg-hover focus:cursor-text focus:bg-card focus:ring-1 focus:ring-ink ${ORIGIN_CLASS[origin]} ${bad ? "ring-1 ring-rose" : ""}`}
+      className={`h-5 w-10 cursor-ns-resize rounded-[3px] bg-transparent text-center text-[11.5px] tabular-nums outline-none hover:bg-hover focus:cursor-text focus:bg-card ${ORIGIN_CLASS[origin]} ${bad ? "ring-1 ring-rose" : ""}`}
     />
   );
 }

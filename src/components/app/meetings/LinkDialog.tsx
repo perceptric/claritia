@@ -79,7 +79,7 @@ export function LinkDialog({ session, ws, types, initialType, initialKind = "sin
       }
     >
       {url ? (
-        <div className="anim-rise-sm flex items-center gap-2 rounded-lg border border-line bg-paper py-1.5 pr-1.5 pl-3.5">
+        <div className="anim-rise-sm flex items-center gap-2 rounded-lg shadow-rest bg-paper py-1.5 pr-1.5 pl-3.5">
           <span className="min-w-0 flex-1 truncate font-mono text-[12.5px] text-ink">{url}</span>
           <CopyButton text={url} />
         </div>

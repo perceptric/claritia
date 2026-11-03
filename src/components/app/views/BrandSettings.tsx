@@ -155,7 +155,7 @@ export function BrandSettings({ sb, session, ws }: Pick<ViewProps, "sb" | "sessi
               <span className="label-mono">Colors</span>
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
                 {colors.map((c) => (
-                  <div key={`${c.role}${c.hex}`} className="flex flex-col overflow-hidden rounded-[10px] border border-line">
+                  <div key={`${c.role}${c.hex}`} className="flex flex-col overflow-hidden rounded-[10px] shadow-rest">
                     <span className="h-16" style={{ background: c.hex }} />
                     <span className="flex flex-col px-3 py-2">
                       <span className="text-[12.5px] font-medium text-ink">{c.name || ROLE_WORDS[c.role]}</span>
@@ -169,7 +169,7 @@ export function BrandSettings({ sb, session, ws }: Pick<ViewProps, "sb" | "sessi
 
             <section className="flex flex-col gap-2">
               <span className="label-mono">Type</span>
-              <div className="flex flex-col gap-3 rounded-[10px] border border-line px-4 py-4">
+              <div className="flex flex-col gap-3 rounded-[10px] shadow-rest px-4 py-4">
                 {(book?.type.scale.length ? book.type.scale : [{ role: "h1", size: "40px", weight: "600", lineHeight: "1.15", letterSpacing: "0" }, { role: "body", size: "16px", weight: "400", lineHeight: "1.5", letterSpacing: "0" }]).map((s) => (
                   <div key={s.role} className="flex flex-wrap items-baseline gap-4">
                     <span className="w-10 font-mono text-[11.5px] text-muted uppercase">{s.role}</span>
@@ -236,7 +236,7 @@ export function BrandSettings({ sb, session, ws }: Pick<ViewProps, "sb" | "sessi
             if (url.trim() && !busy) void scan(url.trim());
           }}
         >
-          <input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="yourcompany.com" aria-label="Website" className="h-9 min-w-[220px] flex-1 rounded-md border border-line-strong bg-card px-3 text-[13px] text-ink outline-none focus:border-ink" />
+          <input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="yourcompany.com" aria-label="Website" className="h-9 min-w-[220px] flex-1 rounded-md border border-line-strong bg-card px-3 text-[13px] text-ink outline-none focus:shadow-focus" />
           <Button disabled={!url.trim() || busy}>{busy ? "Reading" : "Read this site"}</Button>
         </form>
       </Panel>

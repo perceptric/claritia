@@ -93,7 +93,7 @@ export function FormCanvas(props: CanvasProps) {
                   placeholder="Title"
                   aria-label={`Step ${si + 1} title`}
                   onChange={(e) => apply({ op: "update_step", index: si, title: e.target.value })}
-                  className="h-6 min-w-0 flex-1 rounded-sm border border-transparent bg-transparent px-1.5 text-[12px] text-ink outline-none placeholder:text-faint hover:border-line-strong focus:border-ink focus:bg-card"
+                  className="h-6 min-w-0 flex-1 rounded-sm border border-transparent bg-transparent px-1.5 text-[12px] text-ink outline-none placeholder:text-faint hover:border-line-strong focus:shadow-focus focus:bg-card"
                 />
               ) : (
                 <span className="flex-1 text-[11.5px] text-faint tabular-nums">{fw}</span>
@@ -123,7 +123,7 @@ export function FormCanvas(props: CanvasProps) {
               apply({ op: "add_step" });
               onClear();
             }}
-            className="press inline-flex h-8 items-center gap-1.5 rounded-full border border-line-strong bg-card px-3.5 text-[12.5px] font-medium text-ink hover:border-ink"
+            className="press inline-flex h-8 items-center gap-1.5 rounded-full bg-card shadow-outline px-3.5 text-[12.5px] font-medium text-ink hover:shadow-input-hover"
           >
             <Plus size={13} />
             Add step

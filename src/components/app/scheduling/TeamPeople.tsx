@@ -326,7 +326,7 @@ export function TeamPeople(props: ViewProps & { onFix: () => void }) {
       ) : null}
 
       <ErrorNote message={error} />
-      <div className="overflow-x-auto rounded-lg border border-line bg-card">
+      <div className="overflow-x-auto rounded-lg bg-card shadow-rest">
         <table className="w-full min-w-[860px] border-collapse [&_tbody_tr:last-child_td]:border-b-0">
           <thead>
             <tr>

@@ -276,7 +276,7 @@ const Merge = ({ onPick }: { onPick: (tag: string) => void }) => (
         key={k}
         type="button"
         onClick={() => onPick(`{{${k}|}}`)}
-        className="press inline-flex h-6 items-center rounded-full border border-line-strong bg-card px-2 font-mono text-[11px] text-body hover:text-ink"
+        className="press inline-flex h-6 items-center rounded-full bg-card shadow-outline px-2 font-mono text-[11px] text-body hover:text-ink"
       >
         {`{{${k}}}`}
       </button>
@@ -540,7 +540,7 @@ function RichText({ value, onChange }: { value: string; onChange: (html: string)
         contentEditable
         suppressContentEditableWarning
         onInput={read}
-        className="min-h-24 rounded-sm border border-line-strong bg-card px-2 py-1.5 text-[12.5px] leading-snug text-ink outline-none hover:border-ink/40 focus:border-ink focus:ring-1 focus:ring-ink [&_a]:text-clay [&_a]:underline [&_ul]:list-disc [&_ul]:pl-5 [&_p]:mb-2"
+        className="min-h-24 rounded-md bg-card shadow-input px-2 py-1.5 text-[12.5px] leading-snug text-ink outline-none hover:shadow-input-hover focus:shadow-focus [&_a]:text-clay [&_a]:underline [&_ul]:list-disc [&_ul]:pl-5 [&_p]:mb-2"
       />
     </div>
   );

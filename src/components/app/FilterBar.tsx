@@ -83,7 +83,7 @@ export function Popover({ anchor, onClose, children, width = 300 }: { anchor: HT
   }, [anchor, onClose]);
   if (!pos) return null;
   return createPortal(
-    <div ref={box} style={{ position: "fixed", left: pos.left, top: pos.top, width, maxHeight: pos.max }} className="anim-rise-sm z-[95] overflow-y-auto rounded-lg border border-line bg-card text-[13px] shadow-float">
+    <div ref={box} style={{ position: "fixed", left: pos.left, top: pos.top, width, maxHeight: pos.max }} className="anim-rise-sm z-[95] overflow-y-auto rounded-lg bg-card shadow-rest text-[13px] shadow-float">
       {children}
     </div>,
     document.body,
@@ -151,7 +151,7 @@ export function FilterEditor({ fields, start, onDone }: { fields: AnyField[]; st
             onChange={setOp}
             ariaLabel="Condition"
             options={OPS[field.type].map((o) => ({ value: o, label: OP_LABEL[o] }))}
-            className="ml-auto h-9 w-36 rounded-sm border border-line-strong bg-card px-3 text-[13px] focus:border-ink"
+            className="ml-auto h-9 w-36 rounded-md bg-card shadow-input px-3 text-[13px] focus:shadow-focus"
           />
         ) : null}
       </div>
@@ -259,10 +259,10 @@ export function FilterBar({
         placeholder="Custom view"
         plainPlaceholder
         options={views.map((v) => ({ value: v.value, label: v.label }))}
-        className="h-9 w-44 rounded-sm border border-line-strong bg-card px-3 text-[13px] focus:border-ink"
+        className="h-9 w-44 rounded-md bg-card shadow-input px-3 text-[13px] focus:shadow-focus"
       />
       {filters.map((f, i) => (
-        <span key={i} className="anim-pop inline-flex h-8 items-center gap-0.5 rounded-full border border-line-strong bg-card pr-1 text-[12.5px] transition-[translate,box-shadow] duration-[320ms] ease-out hover:-translate-y-px hover:shadow-soft">
+        <span key={i} className="anim-pop inline-flex h-8 items-center gap-0.5 rounded-full bg-card shadow-outline pr-1 text-[12.5px] transition-[translate,box-shadow] duration-[320ms] ease-out hover:-translate-y-px hover:shadow-soft">
           <button type="button" onClick={(e) => setEditing({ index: i, anchor: e.currentTarget })} className="h-full max-w-[320px] truncate rounded-full pr-1.5 pl-3 hover:text-ink">
             {describe(f, fields.find((x) => x.key === f.field))}
           </button>

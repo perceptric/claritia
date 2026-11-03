@@ -173,7 +173,7 @@ export function FormHome(props: ViewProps & { startNew?: boolean }) {
   ) : (
     <div className="min-h-0 flex-1 overflow-y-auto px-[16px] pt-[16px] pb-[24px] sm:px-[clamp(16px,2.5vw,28px)]">
       <div className="mb-[14px] flex flex-wrap items-center gap-[10px]">
-        <label className="flex h-[32px] w-[260px] max-w-full items-center gap-[8px] rounded-sm border border-line bg-card px-[10px] text-muted focus-within:border-ink">
+        <label className="flex h-[32px] w-[260px] max-w-full items-center gap-[8px] rounded-sm border border-line bg-card px-[10px] text-muted focus-within:shadow-focus">
           <Ic n="search" />
           <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search forms" aria-label="Search forms" className="min-w-0 flex-1 bg-transparent text-[13px] text-ink outline-none placeholder:text-muted" />
         </label>
@@ -192,7 +192,7 @@ export function FormHome(props: ViewProps & { startNew?: boolean }) {
       </div>
       <ErrorNote message={error} />
       {shown.length ? (
-        <ul className="rounded-[10px] border border-line">
+        <ul className="rounded-[10px] shadow-rest">
           {shown.map((r) => (
             <FormRowView
               key={r.id}
@@ -386,7 +386,7 @@ function BrandStep({ sb, session, ws, onDone }: ViewProps & { onDone: (build: bo
       </h1>
       {!kit ? (
         <form
-          className="flex w-[min(460px,100%)] items-center gap-[8px] rounded-full border border-line-strong bg-card py-[6px] pr-[6px] pl-[16px] focus-within:border-ink"
+          className="flex w-[min(460px,100%)] items-center gap-[8px] rounded-full bg-card shadow-outline py-[6px] pr-[6px] pl-[16px] focus-within:shadow-focus"
           onSubmit={(e) => {
             e.preventDefault();
             if (url.trim() && !busy) void start();
@@ -399,7 +399,7 @@ function BrandStep({ sb, session, ws, onDone }: ViewProps & { onDone: (build: bo
           </button>
         </form>
       ) : (
-        <div className="flex w-[min(460px,100%)] flex-col gap-[10px] rounded-[10px] border border-line bg-card p-[16px] text-left">
+        <div className="flex w-[min(460px,100%)] flex-col gap-[10px] rounded-[10px] bg-card shadow-rest p-[16px] text-left">
           <span className="font-mono text-[11px] tracking-[0.06em] text-muted uppercase">{name}</span>
           <ul className="flex flex-col gap-[6px]">
             {READING.slice(0, shown + 1).map((r, i) => (
@@ -480,7 +480,7 @@ export function AskPill({ value, onChange, placeholder, onSend, busy = false, sh
         e.preventDefault();
         if (!busy && value.trim()) onSend();
       }}
-      className={`flex ${full ? "w-full" : "w-[min(560px,100%)]"} items-center gap-[8px] rounded-full border bg-card py-[6px] pr-[6px] pl-[14px] text-left transition-colors duration-[140ms] focus-within:border-ink ${busy ? "border-signal" : "border-line-strong"} ${shadow ? "shadow-[0_8px_28px_rgb(0_0_0/0.1)]" : ""}`}
+      className={`flex ${full ? "w-full" : "w-[min(560px,100%)]"} items-center gap-[8px] rounded-full border bg-card py-[6px] pr-[6px] pl-[14px] text-left transition-colors duration-[140ms] focus-within:shadow-focus ${busy ? "border-signal" : "border-line-strong"} ${shadow ? "shadow-[0_8px_28px_rgb(0_0_0/0.1)]" : ""}`}
     >
       <AiMark size={14} working={busy} />
       <input autoFocus={autoFocus} value={value} disabled={busy} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} aria-label={label} autoComplete="off" className="h-[32px] min-w-0 flex-1 bg-transparent text-[13.5px] text-ink outline-none placeholder:text-muted disabled:text-muted" />
@@ -534,7 +534,7 @@ export function AskDock({ placeholder, onSend, busy = false, wide = false }: { p
             e.preventDefault();
             send(text);
           }}
-          className="flex items-center gap-2 rounded-[14px] border border-line-strong bg-card py-1.5 pr-1.5 pl-3.5 transition-[border-color,box-shadow] duration-[120ms] focus-within:border-ink focus-within:shadow-[0_0_0_3px_var(--color-hover)]"
+          className="flex items-center gap-2 rounded-[14px] border border-line-strong bg-card py-1.5 pr-1.5 pl-3.5 transition-[border-color,box-shadow] duration-[120ms] focus-within:shadow-focus focus-within:shadow-[0_0_0_3px_var(--color-hover)]"
         >
           <AiMark size={15} />
           <input aria-label="Ask the assistant" value={text} onChange={(e) => setText(e.target.value)} placeholder={placeholder} className="h-9 min-w-0 flex-1 bg-transparent text-[13.5px] text-ink outline-none placeholder:text-faint" />

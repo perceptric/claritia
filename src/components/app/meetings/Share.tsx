@@ -98,7 +98,7 @@ function useQr(url: string, name: string) {
 
 function QrImage({ svg, url, big = false }: { svg: string; url: string; big?: boolean }) {
   // The SVG is made here from the link, never from outside text.
-  return <div aria-label={`QR code for ${url}`} role="img" className={`${big ? "size-64" : "size-56"} rounded-lg border border-line bg-white p-2 [&_svg]:size-full`} dangerouslySetInnerHTML={{ __html: svg }} />;
+  return <div aria-label={`QR code for ${url}`} role="img" className={`${big ? "size-64" : "size-56"} rounded-lg shadow-rest bg-white p-2 [&_svg]:size-full`} dangerouslySetInnerHTML={{ __html: svg }} />;
 }
 
 /** A QR code in the page with its downloads (a form's Share › QR code, a meeting's Share). `center`: big, centered. */
@@ -174,8 +174,8 @@ function SignatureDialog({ url, name, onClose }: { url: string; name: string; on
       }
     >
       <div className="flex flex-col gap-3">
-        <input value={text} maxLength={80} onChange={(e) => setText(e.target.value)} aria-label="Link words" className="h-9 rounded-sm border border-line-strong bg-card px-3 text-[13.5px] text-ink outline-none focus:border-ink focus:ring-1 focus:ring-ink" />
-        <div className="rounded-lg border border-line bg-paper px-4 py-3 text-[13.5px]" dangerouslySetInnerHTML={{ __html: html }} />
+        <input value={text} maxLength={80} onChange={(e) => setText(e.target.value)} aria-label="Link words" className="h-9 rounded-md bg-card shadow-input px-3 text-[13.5px] text-ink outline-none focus:shadow-focus" />
+        <div className="rounded-lg shadow-rest bg-paper px-4 py-3 text-[13.5px]" dangerouslySetInnerHTML={{ __html: html }} />
       </div>
     </Modal>
   );

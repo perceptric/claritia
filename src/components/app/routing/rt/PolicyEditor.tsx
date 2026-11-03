@@ -404,7 +404,7 @@ function Editor({ sb, session, ws, navigate, d, policyId, back, screen }: ViewPr
           <div className="flex flex-wrap gap-2 p-4">
             {sources.length ? (
               sources.map(({ s, eff }) => (
-                <span key={s.id} className="flex items-center gap-2 rounded-[10px] border border-line px-2.5 py-2">
+                <span key={s.id} className="flex items-center gap-2 rounded-[10px] shadow-rest px-2.5 py-2">
                   <span className="text-muted">{s.kind === "handoff" ? <User size={14} /> : <FormIcon size={14} />}</span>
                   <span className="flex flex-col leading-[1.35]">
                     <span className="font-medium text-ink">{s.name}</span>
@@ -659,7 +659,7 @@ function RuleRow({
                 const v = e.target.value;
                 onChange((x) => ({ ...x, name: v }));
               }}
-              className={`h-[30px] rounded-sm border bg-card px-2.5 text-[13px] font-normal text-ink outline-none focus:border-ink ${!r.name.trim() ? "border-rose" : "border-line-strong"}`}
+              className={`h-[30px] rounded-sm border bg-card px-2.5 text-[13px] font-normal text-ink outline-none focus:shadow-focus ${!r.name.trim() ? "border-rose" : "border-line-strong"}`}
             />
           </label>
           <div className="flex flex-wrap items-center gap-2">
@@ -719,7 +719,7 @@ function RuleRow({
                         const v = e.target.value;
                         setCond(j, (x) => ({ ...x, value: x.op === "one_of" || x.op === "not_one_of" ? (v ? [v] : []) : v }));
                       }}
-                      className={`h-7 w-[140px] rounded-sm border bg-card px-2 text-[13px] text-ink outline-none focus:border-ink ${bad ? "border-rose" : "border-line-strong"}`}
+                      className={`h-7 w-[140px] rounded-sm border bg-card px-2 text-[13px] text-ink outline-none focus:shadow-focus ${bad ? "border-rose" : "border-line-strong"}`}
                     />
                   )
                 ) : null}
@@ -765,7 +765,7 @@ function NumberBox({ value, bad, onChange }: { value: unknown; bad: boolean; onC
         const n = t.trim().replace(/,/g, "");
         onChange(/^\d+(\.\d+)?$/.test(n) ? Number(n) : t.trim());
       }}
-      className={`h-7 w-[90px] rounded-sm border bg-card px-2 text-[13px] text-ink tabular-nums outline-none focus:border-ink ${bad ? "border-rose" : "border-line-strong"}`}
+      className={`h-7 w-[90px] rounded-sm border bg-card px-2 text-[13px] text-ink tabular-nums outline-none focus:shadow-focus ${bad ? "border-rose" : "border-line-strong"}`}
     />
   );
 }

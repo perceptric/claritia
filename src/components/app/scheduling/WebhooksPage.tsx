@@ -145,7 +145,7 @@ export function WebhooksPage({ session, ws }: ViewProps) {
         {d.endpoints.map((e, i) => {
           const st = state(e);
           return (
-            <section key={e.id} className="anim-rise-sm rounded-[10px] border border-line bg-card" style={i < 8 ? { animationDelay: `${i * 30}ms` } : undefined}>
+            <section key={e.id} className="anim-rise-sm rounded-[10px] bg-card shadow-rest" style={i < 8 ? { animationDelay: `${i * 30}ms` } : undefined}>
               <div className="flex items-center gap-3 px-4 py-3">
                 <button type="button" onClick={() => setOpen(open === e.id ? null : e.id)} className="flex min-w-0 flex-1 items-center gap-3 text-left" aria-expanded={open === e.id}>
                   <ChevronRight size={14} className={`shrink-0 text-faint transition-transform duration-[180ms] ${open === e.id ? "rotate-90" : ""}`} />

@@ -25,10 +25,10 @@ The sidebar is in `src/lib/nav.ts`: Forms, Meetings and Workflows with no group 
 - Explaining happens once, on a tool's first screen before there's data (the `ToolIntro` pattern from Omniscient).
 
 ## Rule: one brand style
-- Follow `docs/brand.md` for the app, the website, emails and decks. Use the tokens in `src/app/globals.css`, never a hex.
-- The same family as Omniscient and tryclaritia.com: black and white with plain grays, Inter for every word, black for the one primary action, emerald as the one signal (about 5% of a view). Big titles take two tones. Mono only for eyebrows, code, keys and ids.
-- Buttons, tags and toggles are pills. Inputs 6px, cards 10px, the page panel and dialogs 16px. A state is a pill `Badge`.
-- No gradients and no emoji. Cards sit flat on a hairline; shadows only on the page panel, the one frame and things that float.
+- Follow `docs/brand.md` (version 4, the calm style after zite.com) for the app, the website, emails and decks; the full guide is the Claritia design system (https://claude.ai/artifact/2ZKbX3ATfS3Fr7LnEVTUkA). Use the tokens in `src/app/globals.css`, never a hex.
+- Inter for every word. A light gray shell with a white page panel; each page has a white header bar with its tabs beside the title. The dark gray pill (`brand`) is the one primary action; Claritia green is the one signal (about 5% of a view). Mono only for code, keys and ids.
+- Buttons, chips and toggles are pills. Status tags (`Badge`) 6px, inputs 8px, cards 10 to 12px, dialogs 16px.
+- Raised things (cards, tables, inputs, chips) sit on ring shadows (`shadow-rest`, `shadow-chip`, `shadow-input`, `shadow-outline`) in place of borders; dividers inside them stay hairlines. Focus is `shadow-focus`, a green ring. No gradients and no emoji.
 - The corner bracket from the mark is Claritia's motif (the Catch in `src/components/app/Catch.tsx`).
 - AI is shown with the sparkle (`src/components/app/Ai.tsx`): `AiMark` beside AI controls, `AiAvatar` where AI speaks, `AiTag` on anything AI made.
 - Empty states and first screens use a drawing from `src/components/sketches`.

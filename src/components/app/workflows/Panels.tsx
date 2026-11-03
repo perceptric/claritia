@@ -104,7 +104,7 @@ export function TryPanel({ sb, session, ws, body, names, onPath, onClose }: { sb
             <Search size={14} className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-faint" />
             <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Find a contact" className="h-10 pl-9" autoFocus aria-label="Find a contact" />
             {found.length && q.trim().length >= 2 ? (
-              <ul className="absolute inset-x-0 top-11 z-10 rounded-lg border border-line bg-card p-1 shadow-float">
+              <ul className="absolute inset-x-0 top-11 z-10 rounded-lg bg-card shadow-rest p-1 shadow-float">
                 {found.map((f) => (
                   <li key={f.id}>
                     <button type="button" onClick={() => setWho(f)} className="flex h-9 w-full items-center rounded-sm px-3 text-left text-[13px] text-ink hover:bg-hover">
@@ -199,8 +199,9 @@ export function HistoryDrawer({ sb, id, versions, live, names, onClose }: { sb: 
 
   return (
     <Drawer title="History" onClose={onClose} wide>
-      <div className="border-b border-line px-5 pt-2">
+      <div className="border-b border-line px-5">
         <Tabs
+          bare
           value={filter}
           onChange={setFilter}
           tabs={[

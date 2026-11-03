@@ -173,7 +173,7 @@ export function TypesPage(props: ViewProps & { open: string }) {
   const starters = (
     <span className="flex flex-wrap justify-center gap-2">
       {STARTERS.map((st) => (
-        <button key={st.key} type="button" onClick={() => startWith(st.key)} className="press inline-flex h-9 items-center gap-2 rounded-full border border-line-strong bg-card px-3.5 text-[13px] font-medium text-ink hover:border-ink/40">
+        <button key={st.key} type="button" onClick={() => startWith(st.key)} className="press inline-flex h-9 items-center gap-2 rounded-full bg-card shadow-outline px-3.5 text-[13px] font-medium text-ink hover:shadow-input-hover">
           {st.label}
           <span className="text-muted">{st.note}</span>
         </button>

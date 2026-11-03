@@ -275,7 +275,7 @@ export function MeetingsCalendar(props: ViewProps) {
                     <span className="font-medium text-muted">{g.date.toLocaleDateString("en-US", { day: "numeric", month: "short" })}</span>
                     {isToday ? <Badge tone="sky">Today</Badge> : null}
                   </h2>
-                  <ul className="flex flex-col overflow-hidden rounded-lg border border-line bg-card">
+                  <ul className="flex flex-col overflow-hidden rounded-lg bg-card shadow-rest">
                     {g.rows.map((it, i) => (
                       <li key={it.kind === "meeting" ? it.m.id : `b-${it.b.start}-${i}`} className="border-line [contain-intrinsic-size:auto_56px] [content-visibility:auto] not-first:border-t">
                         {i === nowAt ? <NowLine /> : null}
@@ -316,7 +316,7 @@ export function MeetingsCalendar(props: ViewProps) {
 /** Upcoming's numbers in one slim row. */
 function Strip({ cells }: { cells: { label: string; value: string | null; warn?: boolean }[] }) {
   return (
-    <div className="grid grid-cols-2 overflow-hidden rounded-lg border border-line bg-card md:grid-cols-4">
+    <div className="grid grid-cols-2 overflow-hidden rounded-lg bg-card shadow-rest md:grid-cols-4">
       {cells.map((c, i) => (
         <div key={c.label} className={`flex min-w-0 flex-col gap-1 border-line px-4 py-3 ${i % 2 ? "border-l" : ""} ${i >= 2 ? "max-md:border-t md:border-l" : ""}`}>
           <span className="truncate text-[12px] text-muted">{c.label}</span>
@@ -432,7 +432,7 @@ function WeekGrid({ from, items, typeOf, now, onOpen, cursorId }: { from: number
   const hours = Array.from({ length: h1 - h0 }, (_, i) => h0 + i);
   const top = (t: number, d: Date) => ((t - d.getTime()) / 3_600_000 - h0) * HOUR;
   return (
-    <div className="overflow-x-auto rounded-lg border border-line bg-card">
+    <div className="overflow-x-auto rounded-lg bg-card shadow-rest">
       <div className="grid min-w-[760px] grid-cols-[52px_repeat(7,minmax(0,1fr))]">
         <span className="border-b border-line" />
         {days.map((d) => {

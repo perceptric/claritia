@@ -100,7 +100,7 @@ export function FieldPicker({ fields, value, onChange, disabled = false, classNa
         aria-expanded={!!anchor}
         aria-label="Field"
         onClick={(e) => (anchor ? close() : setAnchor(e.currentTarget))}
-        className={`inline-flex h-7 min-w-0 items-center justify-between gap-1.5 rounded-sm border border-line-strong bg-card px-2 text-left text-[12.5px] text-ink hover:border-ink/40 disabled:opacity-60 ${className}`}
+        className={`inline-flex h-7 min-w-0 items-center justify-between gap-1.5 rounded-md bg-card shadow-input px-2 text-left text-[12.5px] text-ink hover:shadow-input-hover disabled:opacity-60 ${className}`}
       >
         <span className={`truncate ${current ? "" : "text-faint"}`}>{current?.label ?? (value ? value.replace(/^[a-z]+\./, "") : "Field")}</span>
         <ChevronsUpDown size={12} className="shrink-0 text-faint" />
@@ -170,7 +170,7 @@ export function ChipList({
     setText("");
   };
   return (
-    <div className="flex min-h-8 w-full min-w-0 flex-wrap items-center gap-1 rounded-sm border border-line-strong bg-card px-1 py-1 focus-within:border-ink focus-within:ring-1 focus-within:ring-ink">
+    <div className="flex min-h-8 w-full min-w-0 flex-wrap items-center gap-1 rounded-md bg-card shadow-input px-1 py-1 focus-within:shadow-focus">
       {values.map((v) => (
         <span key={v} className="inline-flex h-6 max-w-full items-center gap-1 rounded-full bg-paper-deep pr-1 pl-2.5 text-[12px] text-ink">
           <span className="truncate">{v}</span>

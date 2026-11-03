@@ -68,7 +68,7 @@ export function FormPreview({ form, tokens, logo, skin, step = 0, done = false, 
     return (
       <div role="alert" className="flex flex-col items-start gap-[8px] text-[13px] text-muted">
         Claritia was just updated. Refresh to see the preview.
-        <button type="button" className="press inline-flex h-[28px] items-center rounded-full border border-line-strong bg-card px-[12px] text-[12.5px] font-medium text-ink" onClick={() => location.reload()}>
+        <button type="button" className="press inline-flex h-[28px] items-center rounded-full bg-card shadow-outline px-[12px] text-[12.5px] font-medium text-ink" onClick={() => location.reload()}>
           Refresh
         </button>
       </div>
@@ -81,7 +81,7 @@ export function ColorInput({ label, value, onChange }: { label: string; value: s
   const hex = /^#[0-9a-f]{6}/i.test(value) ? value.slice(0, 7) : "#000000";
   return (
     <label className="flex items-center gap-2">
-      <input type="color" value={hex} onChange={(e) => onChange(e.target.value)} aria-label={label} className="size-8 shrink-0 cursor-pointer overflow-hidden rounded-full border border-line-strong bg-card p-0.5" />
+      <input type="color" value={hex} onChange={(e) => onChange(e.target.value)} aria-label={label} className="size-8 shrink-0 cursor-pointer overflow-hidden rounded-full bg-card shadow-outline p-0.5" />
       <span className="flex min-w-0 flex-1 flex-col">
         <span className="label-mono">{label}</span>
         <input value={value} onChange={(e) => onChange(e.target.value)} className="h-7 w-full bg-transparent font-mono text-[12px] text-ink outline-none" aria-label={`${label} hex`} />
@@ -112,7 +112,7 @@ export function NumberInput({ label, value, min, max, onChange }: { label: strin
           const n = Number(e.target.value);
           if (Number.isFinite(n)) onChange(Math.min(max, Math.max(min, n)));
         }}
-        className="h-9 w-full rounded-sm border border-line-strong bg-card px-3 text-[13px] text-ink outline-none focus:border-ink focus:ring-1 focus:ring-ink"
+        className="h-9 w-full rounded-md bg-card shadow-input px-3 text-[13px] text-ink outline-none focus:shadow-focus"
       />
     </label>
   );

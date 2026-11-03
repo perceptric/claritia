@@ -182,7 +182,7 @@ export function ClientApp({ config }: { config: SupaConfig }) {
   if (error && !ws)
     return (
       <main className="flex min-h-screen items-center justify-center px-4">
-        <div className="w-full max-w-md space-y-4 rounded-2xl border border-line bg-card p-7">
+        <div className="w-full max-w-md space-y-4 rounded-2xl bg-card p-7 shadow-hover">
           <Logo />
           <ErrorNote message={error} />
         </div>
@@ -244,7 +244,7 @@ export function ClientApp({ config }: { config: SupaConfig }) {
         onPreload={preloadView}
         create={create}
       />
-      <main className="min-h-0 min-w-0 flex-1 overflow-hidden border-line bg-card md:my-2 md:mr-2 md:rounded-2xl md:border md:shadow-xs">
+      <main className="min-h-0 min-w-0 flex-1 overflow-hidden bg-paper md:my-2 md:mr-2 md:rounded-xl md:shadow-rest">
         {error ? (
           <div className="border-b border-line p-3">
             <ErrorNote message={error} />

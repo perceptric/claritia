@@ -257,7 +257,7 @@ export function TypeEditor(props: ViewProps) {
                 )}
               </Row>
               <Row label="Link">
-                <span className="flex min-w-0 flex-1 items-center rounded-sm border border-line-strong bg-card focus-within:border-ink focus-within:ring-1 focus-within:ring-ink">
+                <span className="flex min-w-0 flex-1 items-center rounded-md bg-card shadow-input focus-within:shadow-focus">
                   <span className="max-w-[45%] shrink-0 truncate pl-2 font-mono text-[11.5px] text-faint">/{slug.data ?? "…"}/</span>
                   <input
                     aria-label="Link"
@@ -526,7 +526,7 @@ function Hosts({ draft, people, list, readOnly, onChange }: { draft: Draft; peop
             onChange={(v) => onChange([{ user_id: v }])}
             ariaLabel="Host"
             placeholder="Pick a host"
-            className="h-7 w-full min-w-0 rounded-sm border border-line-strong bg-card px-2 text-[12.5px] text-ink hover:border-ink/40"
+            className="h-7 w-full min-w-0 rounded-md bg-card shadow-input px-2 text-[12.5px] text-ink hover:shadow-input-hover"
           />
         )}
       </Row>
@@ -546,7 +546,7 @@ function Hosts({ draft, people, list, readOnly, onChange }: { draft: Draft; peop
         {two ? <span>Team</span> : null}
         {readOnly ? null : <span />}
       </div>
-      <ul className="flex flex-col divide-y divide-line rounded-lg border border-line">
+      <ul className="flex flex-col divide-y divide-line rounded-lg shadow-rest">
         {draft.hosts.map((h, i) => {
           const p = people?.get(h.user_id);
           return (
@@ -669,7 +669,7 @@ export function Questions({ value, disabled, onChange }: { value: TypeSettings["
   return (
     <ul className="flex flex-col gap-2">
       {value.map((q, i) => (
-        <li key={q.id} className="anim-rise-sm flex flex-col gap-2 rounded-lg border border-line p-2.5">
+        <li key={q.id} className="anim-rise-sm flex flex-col gap-2 rounded-lg shadow-rest p-2.5">
           <span className="flex items-center gap-1.5">
             <input aria-label="Question" value={q.label} disabled={disabled} placeholder="Question" onChange={(e) => put(i, { label: e.target.value })} className={`${INPUT} flex-1`} />
             {!disabled ? (

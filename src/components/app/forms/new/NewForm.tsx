@@ -514,7 +514,7 @@ export function NewForm({ sb, session, ws, navigate, site, kits: start, onClose,
               <h2 className="text-[22px] leading-[1.2] font-semibold tracking-[-0.02em] text-ink">
                 Where answers <span className="text-faint">go.</span>
               </h2>
-              <div className="flex flex-col rounded-[10px] border border-line">
+              <div className="flex flex-col rounded-[10px] shadow-rest">
                 {crms.map((c) => (
                   <Row key={c.id} title={c.name}>
                     <Tg label={`Send to ${c.name}`} on={submission.crms.includes(c.id)} onChange={(v) => setSubmission((s) => ({ ...s, crms: v ? [...s.crms, c.id] : s.crms.filter((x) => x !== c.id) }))} />
@@ -642,7 +642,7 @@ export function NewForm({ sb, session, ws, navigate, site, kits: start, onClose,
           )}
           {stage === "building" || editing ? (
             <div className="absolute inset-0 flex items-center justify-center">
-              <span className="rounded-full border border-line bg-card px-[14px] py-[8px] shadow-float">
+              <span className="rounded-full bg-card shadow-chip px-[14px] py-[8px] shadow-float">
                 <Working label={editing ? "Changing the form" : "Writing every question"} />
               </span>
             </div>
@@ -671,7 +671,7 @@ function Thinking({ text, live, reading }: { text: string; live: boolean; readin
   }, [text, live]);
   if (!text && !live) return null;
   return (
-    <div className="flex flex-col gap-[6px] rounded-[10px] border border-line px-[12px] py-[10px]">
+    <div className="flex flex-col gap-[6px] rounded-[10px] shadow-rest px-[12px] py-[10px]">
       <button type="button" className="flex items-center gap-[8px] text-left text-[12.5px] font-medium text-ink" onClick={() => setOpen(!open)} aria-expanded={open}>
         <AiMark size={13} working={live} />
         <span className="flex-1">{reading ? "Reading your website" : live ? "Thinking" : "Thought it through"}</span>

@@ -469,7 +469,7 @@ function CondRow({
   const ops = opsFor(type);
   return (
     <li
-      className="flex flex-col gap-1.5 rounded-lg border border-line bg-card p-2"
+      className="flex flex-col gap-1.5 rounded-lg bg-card shadow-rest p-2"
       onKeyDown={(e) => {
         if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "d" && !readOnly) {
           e.preventDefault();

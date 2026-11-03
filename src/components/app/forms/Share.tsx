@@ -131,7 +131,7 @@ function LinkPane({ sb, session, ws, role, navigate, form, row, apply }: Props) 
     <>
       <H3>Link</H3>
       <div className="flex flex-wrap items-center gap-[8px]">
-        <div data-share-link={link} className="flex h-[40px] min-w-0 flex-1 basis-[300px] items-center overflow-hidden rounded-[10px] border border-line-strong bg-card focus-within:border-ink">
+        <div data-share-link={link} className="flex h-[40px] min-w-0 flex-1 basis-[300px] items-center overflow-hidden rounded-[10px] border border-line-strong bg-card focus-within:shadow-focus">
           {endings && (cur || editing) ? (
             <>
               <span className="max-w-[60%] shrink-0 truncate pl-[12px] font-mono text-[13px] text-muted" title={prefix}>
@@ -234,7 +234,7 @@ function PreviewCard({ session, ws, form, row, apply, host }: Pick<Props, "sessi
   const shownTitle = (title ?? share.title ?? "").trim() || form.title || row.name;
   return (
     <>
-      <div aria-label="Link preview" className="relative w-full max-w-[460px] overflow-hidden rounded-[10px] border border-line bg-card">
+      <div aria-label="Link preview" className="relative w-full max-w-[460px] overflow-hidden rounded-[10px] bg-card shadow-rest">
         <button
           type="button"
           aria-label={share.image ? "Change the picture" : "Add a picture"}
@@ -443,7 +443,7 @@ function EmbedPane({ form, row }: Props) {
   const opener = o.mode === "popup" || o.mode === "slider" ? `var f=document.querySelector("claritia-form");f&&f.open&&f.open();` : "";
   const opensOn = o.mode === "popup" || o.mode === "slider";
   const textBox = (label: string, value: string, onChange: (v: string) => void, placeholder?: string) => (
-    <input value={value} onChange={(e) => onChange(e.target.value)} aria-label={label} placeholder={placeholder} maxLength={60} className="h-[30px] w-[200px] rounded-sm border border-line-strong bg-card px-[10px] text-[12.5px] text-ink outline-none focus:border-ink" />
+    <input value={value} onChange={(e) => onChange(e.target.value)} aria-label={label} placeholder={placeholder} maxLength={60} className="h-[30px] w-[200px] rounded-md bg-card shadow-input px-[10px] text-[12.5px] text-ink outline-none focus:shadow-focus" />
   );
   return (
     <>

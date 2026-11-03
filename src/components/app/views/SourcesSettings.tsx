@@ -62,7 +62,7 @@ export function SourcesSettings({ sb, session, ws, role }: Pick<ViewProps, "sb" 
         {SENDS.map((e) => {
           const on = connected.get(e.kind);
           return (
-            <div key={e.kind} className="flex min-w-0 flex-col gap-3 rounded-lg border border-line bg-card px-4 py-3.5 text-[13px]">
+            <div key={e.kind} className="flex min-w-0 flex-col gap-3 rounded-lg bg-card shadow-rest px-4 py-3.5 text-[13px]">
               <div className="flex min-w-0 items-center gap-3">
                 <BrandLogo domain={e.domain} name={e.label} size={24} />
                 <span className="flex min-w-0 flex-1 flex-col">
@@ -201,7 +201,7 @@ function ConnectPanel({ session, wsId, entry, onClose, onError }: { session: Vie
                     rows={5}
                     spellCheck={false}
                     autoComplete="off"
-                    className="w-full rounded-sm border border-line-strong bg-card px-3 py-2 font-mono text-[12px] outline-none focus:border-ink focus:ring-1 focus:ring-ink"
+                    className="w-full rounded-md bg-card shadow-input px-3 py-2 font-mono text-[12px] outline-none focus:shadow-focus"
                   />
                 ) : (
                   <Input value={keys[k.key] ?? ""} onChange={(e) => setKeys({ ...keys, [k.key]: e.target.value })} type={k.secret ? "password" : "text"} placeholder={k.placeholder} autoComplete="off" />

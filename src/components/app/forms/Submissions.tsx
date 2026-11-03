@@ -297,7 +297,7 @@ export function Submissions(props: ViewProps & { form: Form; formId: string; des
                 ]}
               />
               {view !== "partial" ? (
-                <label className={`flex h-[32px] max-w-full items-center gap-[8px] rounded-sm border border-line bg-card px-[10px] text-muted focus-within:border-ink ${openRow ? "w-[170px]" : "w-[240px]"}`}>
+                <label className={`flex h-[32px] max-w-full items-center gap-[8px] rounded-sm border border-line bg-card px-[10px] text-muted focus-within:shadow-focus ${openRow ? "w-[170px]" : "w-[240px]"}`}>
                   <Ic n="search" />
                   <input value={text} onChange={(e) => (setText(e.target.value), setSel(new Set()))} placeholder="Search" aria-label="Search submissions" className="min-w-0 flex-1 bg-transparent text-[13px] text-ink outline-none placeholder:text-muted" />
                 </label>

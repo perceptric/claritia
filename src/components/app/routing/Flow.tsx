@@ -185,7 +185,7 @@ function Connector({ label, dashed = false, lit, runKey }: { label?: string; das
         <path d="M6 0V44M3 41l3 3 3-3" stroke="var(--color-line-strong)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" fill="none" strokeDasharray={dashed ? "3 4" : undefined} />
         {lit ? <path key={runKey} d="M6 0V44M3 41l3 3 3-3" pathLength={1} stroke="var(--color-ink)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" fill="none" style={{ strokeDasharray: 1, animation: "draw 700ms var(--ease-out) both" }} /> : null}
       </svg>
-      {label ? <span className="absolute top-1/2 left-1/2 ml-3 -translate-y-1/2 rounded-full border border-line bg-card px-2 py-0.5 text-[11px] font-medium text-muted">{label}</span> : null}
+      {label ? <span className="absolute top-1/2 left-1/2 ml-3 -translate-y-1/2 rounded-full bg-card shadow-chip px-2 py-0.5 text-[11px] font-medium text-muted">{label}</span> : null}
     </div>
   );
 }
@@ -275,7 +275,7 @@ function Branch({ text, count, lit, runKey }: { text: string; count?: number; li
           <path d="M0 4H60M57 1l3 3-3 3" stroke="var(--color-line-strong)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" fill="none" />
           {lit ? <path key={runKey} d="M0 4H60M57 1l3 3-3 3" pathLength={1} stroke="var(--color-ink)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" fill="none" style={{ strokeDasharray: 1, animation: "draw 700ms var(--ease-out) both" }} /> : null}
         </svg>
-        <span className="absolute -top-5 rounded-full border border-line bg-card px-2 py-0.5 text-[11px] font-medium text-muted">Yes</span>
+        <span className="absolute -top-5 rounded-full bg-card shadow-chip px-2 py-0.5 text-[11px] font-medium text-muted">Yes</span>
       </span>
       <span className={`flex h-8 shrink-0 items-center gap-1.5 rounded-full border bg-card px-3 text-[12.5px] whitespace-nowrap ${lit ? "border-ink font-medium text-ink" : "border-line-strong text-ink"}`}>
         {text}

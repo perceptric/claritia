@@ -53,7 +53,7 @@ export function ActivityTab({ session, ws, navigate, screen, sub }: ViewProps & 
         {!list.data && !list.error ? (
           <Loading />
         ) : (
-          <div className="overflow-x-auto rounded-[10px] border border-line bg-card">
+          <div className="overflow-x-auto rounded-[10px] bg-card shadow-rest">
             <table className="w-full border-collapse">
               <thead>
                 <tr>

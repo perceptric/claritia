@@ -1,140 +1,143 @@
 # Claritia brand
 
-**Version 3, 29 October 2026.** Replaces the warm paper, Geist and sketchbook look of version 2. The app and
-tryclaritia.com now share one look, in the same family as Omniscient: black and white with plain grays, Inter, black
-for the one primary action, and emerald as the one signal.
+**Version 4, 3 November 2026.** The calm style, after zite.com. Replaces version 3 (flat cards on hairlines, black
+primary, pill everything). The full guide, with every token, component preview and logo file, is the Claritia design
+system: https://claude.ai/artifact/2ZKbX3ATfS3Fr7LnEVTUkA. tryclaritia.com follows the same guide (`claritia-site`,
+its `BRAND.md`).
 
-Claritia's own motif is the **corner bracket** from its mark. Things that get caught (a lead, a form, the product)
-sit inside four brackets. The website's hero picture, the Catch, shows it: visitors drift in, one lead runs the four
-corners (Capture, Know, Route, Book) and a check draws.
+In short: Inter for every word, a light gray shell with a white page panel, soft ring shadows in place of borders, a
+dark gray pill for the one primary action and Claritia green as the one signal.
+
+Claritia's motif is still the **corner bracket** from its mark (the Catch in `src/components/app/Catch.tsx`).
 
 ---
 
 ## 1. Tokens
 
 All tokens live in `src/app/globals.css` under `@theme`, with dark values under `[data-theme="dark"]`. Screens use
-tokens only, never a hex. The old names still work and point at the new values, so older screens follow along.
+tokens only, never a hex. Old names still work and point at the new values.
 
 ### Color
 
 | Token | Light | Dark | Use |
 | --- | --- | --- | --- |
-| `paper-deep` | #f2f2f0 | #0a0a0a | The shell and the side rail |
-| `paper` | #f7f7f5 | #111111 | Quiet bands, sunk wells, row hover, the open row |
-| `card` | #ffffff | #161616 | The page panel and cards |
-| `ink` | #0a0a0a | #fafafa | Headings, the primary button, links, focus |
-| `body` | #404040 | #d4d4d4 | Body text |
-| `muted` | #6b6b6b | #a3a3a3 | Labels and second lines |
-| `faint` | #a3a3a3 | #737373 | Hints, the gray half of a two-tone title |
-| `line`, `line-strong` | #e7e7e4, #d4d4d0 | #262626, #333333 | Hairlines, inputs |
-| `signal` | #0c8c5e | #18e299 | The mark, live lines, scores, booked |
-| `signal-text`, `signal-soft` | #0a7a52, #e8f5ef | #3ddca4, #0f2a20 | Green text and its tag fill |
+| `paper-deep` | #f5f5f5 | #161614 | The shell and the side rail |
+| `paper` | #fafafa | #1a1a18 | The work area inside the page panel, quiet wells, row hover |
+| `card` | #ffffff | #1f1f1d | The page header bar, cards, inputs, menus |
+| `chip` | #ededed | #2c2c29 | Gray tags |
+| `ink` | #0f0f0f | #f5f5f0 | Headings and titles |
+| `text` | #171717 | #e8e8e3 | Body text and table cells |
+| `body` | #333333 | #d9d9d4 | Nav items, secondary text on buttons |
+| `muted` | #737373 | #9a9a95 | Labels, counts, second lines |
+| `faint` | #a3a3a3 | #6b6b67 | Hints and placeholders |
+| `line`, `line-strong` | #ebebeb, #d4d4d4 | #2c2c29, #3d3d39 | Dividers inside cards and tables |
+| `brand`, `on-brand` | #333333, #ffffff | #f5f5f0, #171717 | The primary button |
+| `signal` | #0c8c5e | #0c8c5e | The mark, live lines, the open sidebar icon, focus, toggles |
+| `signal-strong` | #0a7a52 | #0a7a52 | Green fills that carry white text (#0c8c5e on white is 4.3:1) |
+| `signal-text`, `signal-soft` | #086444, #e3f4ec | #5fc79a, #12301f | Green text and its fill: the open tab, Live tags |
 
-Status pairs keep their names (a step 3 fill and a step 11 text): `sage` green for done and booked, `butter` orange
-for waiting, `rose` red for errors, `sky` blue for information, `lilac` purple for AI. `clay` now points at emerald.
+Status pairs keep their names (a soft fill and a deep text): `sage` green for live and booked, `butter` orange for
+waiting and paused, `rose` red for errors, `sky` blue for kinds and information, `lilac` purple for AI and tests.
 
-About 5% of a view is emerald. Other hues only mean status. No gradients anywhere.
+About 5% of a view is green. Other hues only mean status. No gradients.
 
 ### Type
 
-Inter for every word, Geist Mono for eyebrows, keys, ids and numbers in tables.
+Inter for every word. Mono only for code, keys and ids; numbers use Inter with tabular figures (`.num`).
 
 | Role | Size and tracking | Weight |
 | --- | --- | --- |
-| Page title | 20px, -0.02em | 600 |
-| First-screen title | 38px, -0.035em | 500, two tones |
-| Card title | 14 to 16px | 500 to 600 |
-| Stat | 30px, -0.04em | 500, tabular |
-| Body and UI | 13 to 14px | 400 to 500 |
-| Label | 12px, sentence case | 500, muted |
-| Eyebrow | Geist Mono 11.5px, uppercase, 0.08em | 500, muted |
-
-Big headings take two tones: a line break in a `ToolIntro` title puts the rest on its own line in `faint`.
+| Page title (header bar) | 15px, -0.01em | 500 |
+| Greeting and card titles | 16 to 18px, -0.01em | 500 |
+| First-screen title | 38px, -0.035em | 500 |
+| Stat | 22px, -0.02em | 500, tabular |
+| Body, cells and UI | 13 to 14px | 400 to 450 |
+| Label | 12 to 13px, sentence case | 400 to 500, muted |
 
 ### Shape
 
 | Token | Value | Use |
 | --- | --- | --- |
-| `rounded-full` | 9999px | Buttons, tags, toggles, avatars, segmented controls |
-| `rounded-sm`, `rounded-md` | 6px | Inputs and small controls |
-| `rounded-lg` | 10px | Cards and menus |
-| `rounded-2xl`, `rounded-3xl` | 16px | The page panel, first-screen frames, dialogs |
+| `rounded-full` | 9999px | Buttons, chips, toggles, avatars, segmented controls |
+| `rounded-sm` | 6px | Status tags (`Badge`) |
+| `rounded-md` | 8px | Inputs, tabs, small controls |
+| `rounded-lg`, `rounded-xl` | 10px, 12px | Cards, tables, menus |
+| `rounded-2xl` | 16px | Dialogs and first-screen frames |
 
 ### Depth
 
-Cards sit flat on a hairline, and the hairline darkens on hover. Shadows only on the page panel (`shadow-xs`), the
-one frame a screen is about (`frame`, `shadow-heavy`) and things that float (`shadow-float`).
+Raised things sit on a ring shadow in place of a border:
+
+| Token | Use |
+| --- | --- |
+| `shadow-rest` | Cards, tables, the page panel |
+| `shadow-hover` | A card under the pointer, the one frame a screen is about |
+| `shadow-chip` | Tabs, the open sidebar item, search, small chips |
+| `shadow-outline` | Secondary buttons |
+| `shadow-input`, `shadow-input-hover` | Inputs and pickers |
+| `shadow-primary` | The primary button |
+| `shadow-focus` | Focus: a 1px green ring in a soft green halo |
+| `shadow-menu`, `shadow-modal` | Menus, popovers and dialogs |
+
+Dividers inside a card (table rows, a card's header) stay as `line` hairlines.
 
 ### Motion
 
 | Token | Value |
 | --- | --- |
-| `quick` | 120ms |
-| `calm` | 200ms |
-| `slow` | 320ms |
+| `quick` | 150ms, hover and color |
+| `calm` | 280ms, things arriving |
+| `slow` | 380ms |
+| `ease-calm` | cubic-bezier(.4,0,.2,1) |
 | `ease-out` | cubic-bezier(.22,1,.36,1) |
-| `ease-spring` | cubic-bezier(.34,1.56,.64,1) |
 
-Only transform, opacity and stroke offset move. Everything stops under `prefers-reduced-motion` and shows its last
-frame.
+Things arrive with a short rise (opacity and 6px). Everything stops under `prefers-reduced-motion`.
 
 ---
 
-## 2. Base parts
+## 2. Base parts (`src/components/app/ui.tsx`)
 
 | Part | Look |
 | --- | --- |
-| `Button` | Pill, 36px (32px small). Primary: `ink` fill. Ghost: `card` with `line-strong`. Press shrinks a little. |
+| `Button` | Pill, 34px (28px small). Primary: `brand` fill with `shadow-primary`. Ghost and danger: `card` with `shadow-outline`. |
 | `IconButton` | 32px circle with a tooltip. |
-| `Badge` | Pill, step 3 fill and step 11 text, optional dot. |
-| `Input` | 40px, 6px corners, `line-strong`; focus turns the border `ink` with a soft ring. |
-| `Panel` | `card`, 10px corners, `line` border, flat. |
-| `Tabs` | Text tabs with a sliding `ink` underline. |
-| `Segmented` | Gray pill track with a black thumb. |
-| `Avatar` | Gray circle with dark initials. |
-| `Loading` | Dots over gray rows that shimmer. |
+| `Badge` | 6px tag, 20px tall, soft fill and deep text, optional dot. |
+| `Input` | 36px, 8px corners, `shadow-input`; focus shows `shadow-focus`. |
+| `Panel` | `card`, 12px corners, `shadow-rest`. |
+| `Tabs` | Small 8px chips with `shadow-chip`; the open one is `signal-soft` with green text. Inside a section they sit beside the page title. |
+| `Segmented` | Gray pill track with a white thumb on `shadow-chip`. |
+| `Toggle` | Pill; green (`signal-strong`) when on. |
+| `Th`, `Td` | 13px cells, ink headers, hairlines between cells. |
 
 ## 3. Shell
 
-A white panel (`card`, 16px, a hairline and `shadow-xs`) inset on the gray shell (`paper-deep`). The side rail has
-plain icons and quiet gray labels. The open item is a white chip with a hairline and a faint shadow, like Omniscient.
-Counts are small gray pills. "Create" is the rail's one black button. The rail has no group titles: Forms, Meetings and
-Workflows at the top, Settings at the very bottom above the account row.
-
-## 3a. CRM screens, copied from Omniscient
-
-- **Page header:** a 48px bar with a breadcrumb ("Contacts / Emma Lopez") at 13px, the page icon, actions on the right.
-  A section's tabs sit in a 40px bar under it with a black underline.
-- **Lists:** the table runs edge to edge under one filter bar. 40px rows, 12px gray headers, hairlines between cells,
-  a 22px avatar and the name in the first column, the page count in the footer.
-- **Records** (`src/components/app/records/RecordLayout.tsx`): at most 6xl wide. The main column has the picture,
-  name and tags, "Title at Company", a strip of key numbers, the stages as one path of arrows like Salesforce
-  (`StagePath`: done steps green with a check, the current one black, won green, lost red), then tabs (Timeline, Notes, Tasks,
-  Changes and the rest). The 360px right rail holds the fields in folding groups (`FieldGroup`), each row a 132px
-  label and the value with its source, then short lists of related records (`RelatedList`).
+The gray shell (`paper-deep`) holds the side rail and the page panel (12px corners, `shadow-rest`, 8px from the
+edges). Each page has a white header bar: the title, the section's tabs beside it, actions on the right; the work
+area under it is `paper`, so cards read as white on light gray. The rail has no group titles: Forms, Meetings and
+Workflows at the top, Settings at the very bottom above the account row. The open item is a white chip on
+`shadow-chip` with a green icon. "Create" is the rail's one dark pill.
 
 ## 4. Mark and pictures
 
-- **Mark:** an emerald tile (`#0C8C5E`, 6px corners at 32px) with four white corner brackets and a check
-  (`src/components/Logo.tsx`). Never recolor it.
-- **The Catch:** `src/components/app/Catch.tsx`, the website's hero picture, on the sign-in screen.
-- **Drawings:** `src/components/sketches/Sketch.tsx`. A thin black line, a plain gray fill, emerald for the part
-  that moves. They draw themselves in on first view. Used on first screens and empty states.
-- **AI:** the sparkle in `lilac` (`src/components/app/Ai.tsx`).
+- **Mark:** a green tile (`#0C8C5E`, 6px corners at 32px) with four white corner brackets and a check
+  (`src/components/Logo.tsx`). Never recolor or redraw it.
+- **The Catch:** `src/components/app/Catch.tsx`, on the sign-in screen.
+- **Drawings:** `src/components/sketches/Sketch.tsx` on first screens and empty states.
+- **AI:** the sparkle (`src/components/app/Ai.tsx`).
 
 ## 5. Outside the app
 
-The same colors and Inter are used on tryclaritia.com (the `claritia-site` repo, its `BRAND.md`), the plain HTML
-pages (`src/app/u/[token]`, the meeting outcome page) and Claritia's own emails (`src/lib/meetings/emails.ts`,
-`src/lib/alerts.ts`). Forms, booking pages and emails a customer builds use the customer's design system instead.
+tryclaritia.com uses the same tokens and adds the website parts: the off-white page (#fafaf5) with framed rails, the
+floating pill nav, the blinking green tile field, the prompt with its green ring, and the dark bands. Forms, booking
+pages and emails a customer builds use the customer's design system instead.
 
 ## 6. Rules
 
 - Use the tokens in `src/app/globals.css`, never a hex.
-- Inter for every word. Titles tight; big headings in two tones.
-- Buttons, tags and toggles are pills. Inputs 6px, cards 10px, the page panel and dialogs 16px.
-- Black is the one primary action. Emerald is the signal, about 5% of a view. No gradients. No emoji.
-- Cards sit flat; shadows only on the page panel, the one frame and floating things.
+- Inter for every word.
+- Buttons, chips and toggles are pills. Status tags 6px, inputs 8px, cards 10 to 12px, dialogs 16px.
+- Raised things use ring shadows; dividers inside them stay hairlines.
+- The dark gray pill is the one primary action. Green is the signal, about 5% of a view. No gradients. No emoji.
 - The sparkle marks AI. Anything AI made gets the "AI" tag.
 - Nothing spills out of its box at any width: rows of buttons wrap, long words truncate (`tests/overflow.test.ts`).
 - Kept: no `<select>` or browser pop-ups, minimal copy, the `ToolIntro` pattern, running cost on every build.
@@ -143,7 +146,7 @@ pages (`src/app/u/[token]`, the meeting outcome page) and Claritia's own emails 
 
 | Item | Beta (50 teams) | Growth (500 teams) |
 | --- | --- | --- |
-| Fonts (Inter and Geist Mono, OFL, Google Fonts) | $0 | $0 |
-| Drawings and the Catch (SVG and CSS in the repo) | $0 | $0 |
+| Fonts (Inter, OFL, Google Fonts) | $0 | $0 |
+| Shadows, tokens and drawings (CSS and SVG in the repo) | $0 | $0 |
 | Claude tokens | $0 | $0 |
 | **Added per month** | **$0** | **$0** |

@@ -87,7 +87,7 @@ export function ClockPick({ label, value, options, onChange }: { label: string; 
       options={options}
       onChange={onChange}
       ariaLabel={label}
-      className="h-8 w-[84px] rounded-sm border border-line-strong bg-card px-2.5 text-[13px] text-ink tabular-nums hover:border-ink/40"
+      className="h-8 w-[84px] rounded-md bg-card shadow-input px-2.5 text-[13px] text-ink tabular-nums hover:shadow-input-hover"
     />
   );
 }
@@ -110,13 +110,13 @@ export function ZonePicker({ value, onChange }: { value: string; onChange: (tz: 
         aria-haspopup="dialog"
         aria-expanded={open}
         onClick={() => setOpen((o) => !o)}
-        className="inline-flex h-8 min-w-0 items-center gap-2 rounded-sm border border-line-strong bg-card px-2.5 text-[13px] text-ink hover:border-ink/40"
+        className="inline-flex h-8 min-w-0 items-center gap-2 rounded-md bg-card shadow-input px-2.5 text-[13px] text-ink hover:shadow-input-hover"
       >
         <Globe size={13} className="text-muted" />
         <span className="truncate">{value.replace(/_/g, " ")}</span>
       </button>
       <Popover anchor={anchor} open={open} onClose={() => setOpen(false)} label="Time zone" width={280}>
-        <label className="mb-1.5 flex h-8 items-center gap-2 rounded-sm border border-line-strong px-2 focus-within:border-ink">
+        <label className="mb-1.5 flex h-8 items-center gap-2 rounded-sm border border-line-strong px-2 focus-within:shadow-focus">
           <Search size={13} className="text-faint" />
           <input autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search" aria-label="Search time zones" className="min-w-0 flex-1 bg-transparent text-[12.5px] outline-none placeholder:text-faint" />
         </label>
@@ -154,7 +154,7 @@ export function Overrides({ value, onChange, bare = false }: { value: Availabili
     <div className={`flex flex-col gap-2 ${bare ? "" : "border-t border-line pt-5"}`}>
       <div className="flex items-center gap-2">
         <span className="flex-1 text-[13px] font-semibold tracking-[-0.01em] text-ink">{bare ? "" : "Date changes"}</span>
-        <button ref={anchor} type="button" onClick={() => setOpen((o) => !o)} className="press inline-flex h-8 items-center gap-1.5 rounded-full border border-line-strong bg-card px-3 text-[12.5px] font-medium text-ink hover:bg-hover">
+        <button ref={anchor} type="button" onClick={() => setOpen((o) => !o)} className="press inline-flex h-8 items-center gap-1.5 rounded-full bg-card shadow-outline px-3 text-[12.5px] font-medium text-ink hover:bg-hover">
           <Plus size={13} />
           Add a date
         </button>
@@ -170,7 +170,7 @@ export function Overrides({ value, onChange, bare = false }: { value: Availabili
         </Popover>
       </div>
       {list.length ? (
-        <ul className="flex flex-col divide-y divide-line rounded-lg border border-line">
+        <ul className="flex flex-col divide-y divide-line rounded-lg shadow-rest">
           {list.map((o) => (
             <li key={o.date} className="anim-rise-sm flex items-start gap-3 px-3 py-2.5">
               <span className="flex h-8 w-28 shrink-0 items-center text-[13px] font-medium text-ink tabular-nums">

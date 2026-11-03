@@ -122,7 +122,7 @@ function Card(p: ListProps & { step: Step; first: boolean; last: boolean }) {
         ) : null}
       </button>
       {!p.readOnly ? (
-        <span className="absolute top-1/2 -right-11 hidden -translate-y-1/2 flex-col rounded-full border border-line bg-card shadow-soft group-hover:flex group-focus-within:flex">
+        <span className="absolute top-1/2 -right-11 hidden -translate-y-1/2 flex-col rounded-full bg-card shadow-chip shadow-soft group-hover:flex group-focus-within:flex">
           <MiniButton label="Move up" disabled={p.first} onClick={() => p.onNudge(s.id, -1)}>
             <ArrowUp size={12} />
           </MiniButton>
@@ -164,7 +164,7 @@ function Joint({ words, onAdd, readOnly, end = false }: { words: string | null; 
           aria-label="Add a step"
           title="Add a step"
           onClick={(e) => setAnchor(e.currentTarget)}
-          className={`press flex size-6 items-center justify-center rounded-full border border-line-strong bg-card text-muted transition-[opacity,color] duration-[140ms] hover:border-ink hover:text-ink ${end ? "opacity-100" : "opacity-40 hover:opacity-100 focus-visible:opacity-100"}`}
+          className={`press flex size-6 items-center justify-center rounded-full bg-card shadow-outline text-muted transition-[opacity,color] duration-[140ms] hover:shadow-input-hover hover:text-ink ${end ? "opacity-100" : "opacity-40 hover:opacity-100 focus-visible:opacity-100"}`}
         >
           <Plus size={12} />
         </button>

@@ -13,7 +13,7 @@ import type { Person, Team } from "./api";
 /** One of the editor's sections: a number, a plain label, and what's on its right. */
 export function Sec({ n, label, aside, children }: { n?: number | string; label: string; aside?: React.ReactNode; children: React.ReactNode }) {
   return (
-    <section className="rounded-[10px] border border-line bg-card text-[13px]">
+    <section className="rounded-[10px] bg-card shadow-rest text-[13px]">
       <header className="flex min-h-[50px] items-center gap-2.5 border-b border-line px-4 py-2.5">
         {n !== undefined ? <span className="inline-flex size-5 shrink-0 items-center justify-center rounded-full bg-paper-deep text-[11px] font-semibold text-body">{n}</span> : null}
         <h2 className="min-w-0 flex-1 truncate text-[13.5px] font-semibold text-ink">{label}</h2>

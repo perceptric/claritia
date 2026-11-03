@@ -42,7 +42,7 @@ function GitHubLogo() {
   );
 }
 
-const ssoClass = "press flex h-11 w-full items-center justify-center gap-3 rounded-full border border-line-strong bg-card text-[13.5px] font-medium text-ink hover:bg-hover disabled:opacity-50";
+const ssoClass = "press flex h-11 w-full items-center justify-center gap-3 rounded-full bg-card shadow-outline text-[13.5px] font-medium text-ink hover:bg-hover disabled:opacity-50";
 
 /** Split screen: the form on the left, and the website's Catch on the right. */
 function Frame({ children }: { children: React.ReactNode }) {
@@ -169,7 +169,7 @@ export function AuthScreen({ sb }: { sb: SupabaseClient }) {
           onChange={(e) => setEmail(e.target.value)}
           placeholder="you@company.com"
           aria-label="Email"
-          className="h-11 w-full rounded-sm border border-line-strong bg-card px-3.5 text-[14px] outline-none focus:border-ink focus:ring-1 focus:ring-ink"
+          className="h-11 w-full rounded-md bg-card shadow-input px-3.5 text-[14px] outline-none focus:shadow-focus"
         />
         <Button type="submit" className="h-11 w-full" disabled={busy}>
           {busy ? "Sending…" : "Continue with email"}

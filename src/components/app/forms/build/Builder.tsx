@@ -192,7 +192,7 @@ export function Builder(p: BuilderProps) {
         </div>
         <div className="pointer-events-none absolute inset-x-0 bottom-0 flex flex-col items-center gap-[8px] px-[16px] pt-[16px] pb-[16px]">
           {p.said && !asking ? (
-            <div role="status" className={`anim-rise-sm pointer-events-auto inline-flex h-[30px] max-w-full items-center gap-[8px] rounded-full border border-line bg-card pr-[6px] pl-[12px] text-[12.5px] shadow-[0_4px_16px_rgb(0_0_0/0.08)] ${p.said.err ? "text-rose" : "text-body"}`}>
+            <div role="status" className={`anim-rise-sm pointer-events-auto inline-flex h-[30px] max-w-full items-center gap-[8px] rounded-full bg-card shadow-chip pr-[6px] pl-[12px] text-[12.5px] shadow-[0_4px_16px_rgb(0_0_0/0.08)] ${p.said.err ? "text-rose" : "text-body"}`}>
               <span className="truncate">{p.said.words}</span>
               {p.said.undo ? (
                 <button type="button" onClick={p.onUndo} className="h-[22px] shrink-0 rounded-full px-[9px] font-medium text-ink hover:bg-hover">
@@ -206,7 +206,7 @@ export function Builder(p: BuilderProps) {
             </div>
           ) : null}
           <form
-            className="pointer-events-auto flex h-[44px] w-full max-w-[560px] items-center gap-[8px] rounded-full border border-line-strong bg-card pr-[6px] pl-[14px] shadow-[0_8px_28px_rgb(0_0_0/0.08)]"
+            className="pointer-events-auto flex h-[44px] w-full max-w-[560px] items-center gap-[8px] rounded-full bg-card shadow-outline pr-[6px] pl-[14px] shadow-[0_8px_28px_rgb(0_0_0/0.08)]"
             onSubmit={(e) => {
               e.preventDefault();
               void send();
@@ -564,7 +564,7 @@ function Logic({ f, spec, set }: { f: SpecField; spec: Spec; set: (s: { show?: W
   return (
     <Labeled label="Show this question">
       {show ? (
-        <div className="flex flex-col gap-[8px] rounded-[10px] border border-line p-[10px]">
+        <div className="flex flex-col gap-[8px] rounded-[10px] shadow-rest p-[10px]">
           {show.conds.length > 1 ? <Seg label="Match" value={show.match} onChange={(m) => set({ show: { ...show, match: m } })} options={[{ value: "all", label: "All of these" }, { value: "any", label: "Any of these" }]} /> : null}
           {show.conds.map((c, i) => (
             <CondRow key={i} c={c} sources={earlier} onChange={(n) => set({ show: { ...show, conds: show.conds.map((x, j) => (j === i ? n : x)) } })} onRemove={() => set({ show: show.conds.length > 1 ? { ...show, conds: show.conds.filter((_, j) => j !== i) } : null }, "Removed a condition")} />
@@ -658,7 +658,7 @@ function StepPanel({ st, spec, edit, onRemove }: { st: SpecStep; spec: Spec; edi
       {i > 0 && earlier.length ? (
         <Labeled label="Show this step">
           {st.show ? (
-            <div className="flex flex-col gap-[8px] rounded-[10px] border border-line p-[10px]">
+            <div className="flex flex-col gap-[8px] rounded-[10px] shadow-rest p-[10px]">
               <CondRow step c={st.show} sources={earlier} onChange={(c) => edit([{ op: "update_step", id: st.id, show: c }])} onRemove={() => edit([{ op: "update_step", id: st.id, show: null }], "Removed the condition")} />
             </div>
           ) : (

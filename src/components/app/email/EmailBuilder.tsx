@@ -372,7 +372,7 @@ export function EmailBuilder({
               <>
                 <div className="grid grid-cols-2 gap-1.5 p-3">
                   {BLOCKS.map((b) => (
-                    <button key={b.type} type="button" onClick={() => add(b.type)} className="press flex h-16 flex-col items-center justify-center gap-1.5 rounded-lg border border-line bg-card text-[12px] text-ink transition-[box-shadow,border-color] duration-[140ms] hover:border-line-strong hover:shadow-soft">
+                    <button key={b.type} type="button" onClick={() => add(b.type)} className="press flex h-16 flex-col items-center justify-center gap-1.5 rounded-lg bg-card shadow-rest text-[12px] text-ink transition-[box-shadow,border-color] duration-[140ms] hover:shadow-hover hover:shadow-soft">
                       <ElementIcon name={b.icon} size={16} className="text-muted" />
                       {b.label}
                     </button>
@@ -397,7 +397,7 @@ export function EmailBuilder({
                           apply({ doc: r.doc });
                           setSelected(r.id);
                         }}
-                        className="press flex h-9 items-center gap-2 rounded-lg border border-line bg-card px-3 text-left text-[12.5px] text-ink hover:border-line-strong hover:shadow-soft"
+                        className="press flex h-9 items-center gap-2 rounded-lg bg-card shadow-rest px-3 text-left text-[12.5px] text-ink hover:shadow-hover hover:shadow-soft"
                       >
                         <Layers size={13} className="text-muted" />
                         <span className="truncate">{c.name}</span>

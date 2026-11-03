@@ -7,7 +7,7 @@ import { AiMark } from "../../Ai";
 export function PreviewLoading({ color, label }: { color?: string; label: string }) {
   return (
     <div className="flex w-[min(420px,calc(100vw-64px))] flex-col items-center gap-[18px]">
-      <div aria-hidden="true" className="flex w-full flex-col gap-[14px] rounded-[10px] border border-line bg-card p-[24px]">
+      <div aria-hidden="true" className="flex w-full flex-col gap-[14px] rounded-[10px] bg-card shadow-rest p-[24px]">
         <span className="anim-shimmer h-[18px] w-[55%] rounded-sm bg-paper-deep" />
         <span className="anim-shimmer h-[10px] w-[80%] rounded-sm bg-paper-deep" style={{ animationDelay: "120ms" }} />
         {[0, 1, 2].map((i) => (

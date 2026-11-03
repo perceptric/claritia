@@ -109,7 +109,7 @@ export function EmailCanvas({
           sandbox="allow-same-origin"
           onLoad={wire}
           onClick={(e) => e.stopPropagation()}
-          className="block rounded-lg border border-line bg-card shadow-soft transition-[width] duration-[320ms] ease-out"
+          className="block rounded-lg bg-card shadow-rest shadow-soft transition-[width] duration-[320ms] ease-out"
           style={{ width, height }}
         />
       </div>

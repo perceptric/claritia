@@ -78,7 +78,7 @@ export function ShareMeeting({ session, ws, type, wsSlug, onClose, onSingleUse }
         {pane === "link" ? (
           <div className="flex flex-col gap-4">
             <LinkRow url={url} disabled={!type.active} />
-            <div className="flex justify-center rounded-[10px] border border-line bg-paper py-[20px]">
+            <div className="flex justify-center rounded-[10px] shadow-rest bg-paper py-[20px]">
               <QrCode url={url} name={type.name} center />
             </div>
           </div>
@@ -97,10 +97,10 @@ export function ShareMeeting({ session, ws, type, wsSlug, onClose, onSingleUse }
               ))}
             </div>
             {o.mode !== "inline" ? (
-              <div className="flex flex-col divide-y divide-line rounded-[10px] border border-line">
+              <div className="flex flex-col divide-y divide-line rounded-[10px] shadow-rest">
                 <label className="flex items-center justify-between gap-3 px-4 py-2.5 text-[13px] text-ink">
                   Button text
-                  <input value={o.text ?? ""} maxLength={60} onChange={(e) => setO({ ...o, text: e.target.value })} aria-label="Button text" className="h-[30px] w-[200px] rounded-[6px] border border-line-strong bg-card px-2.5 text-[12.5px] text-ink outline-none focus:border-ink" />
+                  <input value={o.text ?? ""} maxLength={60} onChange={(e) => setO({ ...o, text: e.target.value })} aria-label="Button text" className="h-[30px] w-[200px] rounded-[6px] border border-line-strong bg-card px-2.5 text-[12.5px] text-ink outline-none focus:shadow-focus" />
                 </label>
                 <div className="flex items-center justify-between gap-3 px-4 py-2.5 text-[13px] text-ink">
                   Full screen on phones
@@ -113,7 +113,7 @@ export function ShareMeeting({ session, ws, type, wsSlug, onClose, onSingleUse }
           </>
         ) : null}
         {pane === "email" ? (
-          <div className="flex flex-col divide-y divide-line rounded-[10px] border border-line">
+          <div className="flex flex-col divide-y divide-line rounded-[10px] shadow-rest">
             <div className="flex items-center justify-between gap-3 px-4 py-3 text-[13px] text-ink">
               Your next free times, each with its own link
               <Button variant="ghost" size="sm" onClick={() => void times()}>

@@ -379,7 +379,7 @@ export function TypePanel({
               options={[{ value: "", label: "Working hours" }, ...schedules.map((n) => ({ value: n, label: n }))]}
               onChange={(v) => setDraft((d) => ({ ...d, settings: { ...d.settings, schedule: v || undefined } }))}
               ariaLabel="Schedule"
-              className="h-[34px] w-full rounded-sm border border-line-strong bg-card px-2.5 text-[13px] text-ink"
+              className="h-[34px] w-full rounded-md bg-card shadow-input px-2.5 text-[13px] text-ink"
             />
           ) : null}
           {!s.schedule && (draft.hosts[0]?.user_id ?? me) === me ? (
@@ -410,7 +410,7 @@ export function TypePanel({
               onChange={(v) => set({ hosts: [{ user_id: v }] })}
               ariaLabel="Host"
               placeholder="Pick a host"
-              className="h-[34px] w-full rounded-sm border border-line-strong bg-card px-2.5 text-[13px] text-ink"
+              className="h-[34px] w-full rounded-md bg-card shadow-input px-2.5 text-[13px] text-ink"
             />
           ) : (
             <>
@@ -448,21 +448,21 @@ export function TypePanel({
               <Labeled label="Routing">
                 <div className="flex flex-col gap-2">
                   {dyn!.rules.map((rule, i) => (
-                    <div key={rule.id} className="flex flex-col gap-2 rounded-[10px] border border-line p-2.5">
+                    <div key={rule.id} className="flex flex-col gap-2 rounded-[10px] shadow-rest p-2.5">
                       <ConditionRows conds={rule.conds} fields={facts.fields} onChange={(conds) => setDyn({ ...dyn!, rules: dyn!.rules.map((x, n) => (n === i ? { ...x, conds } : x)) })} />
                       <div className="flex items-center gap-2 pl-[35px]">
                         <Arrow className="text-ink" />
-                        <Select<string> value={destValue(rule.to)} options={destOptions} onChange={(v) => setDyn({ ...dyn!, rules: dyn!.rules.map((x, n) => (n === i ? { ...x, to: destFrom(v) } : x)) })} ariaLabel="Then" className="h-[30px] min-w-0 flex-1 rounded-sm border border-line-strong bg-card px-2.5 text-[12.5px] text-ink" />
+                        <Select<string> value={destValue(rule.to)} options={destOptions} onChange={(v) => setDyn({ ...dyn!, rules: dyn!.rules.map((x, n) => (n === i ? { ...x, to: destFrom(v) } : x)) })} ariaLabel="Then" className="h-[30px] min-w-0 flex-1 rounded-md bg-card shadow-input px-2.5 text-[12.5px] text-ink" />
                         <IconButton label="Delete rule" className="size-7" onClick={() => setDyn({ ...dyn!, rules: dyn!.rules.filter((_, n) => n !== i) })}>
                           <X size={12} />
                         </IconButton>
                       </div>
                     </div>
                   ))}
-                  <div className="flex items-center gap-2 rounded-[10px] border border-line p-2.5">
+                  <div className="flex items-center gap-2 rounded-[10px] shadow-rest p-2.5">
                     <span className="text-[12.5px] font-semibold text-ink">Otherwise</span>
                     <Arrow className="text-ink" />
-                    <Select<string> value={dyn!.otherwise ? destValue(dyn!.otherwise) : ""} options={destOptions} placeholder="Pick who" onChange={(v) => setDyn({ ...dyn!, otherwise: destFrom(v) })} ariaLabel="Otherwise" className="h-[30px] min-w-0 flex-1 rounded-sm border border-line-strong bg-card px-2.5 text-[12.5px] text-ink" />
+                    <Select<string> value={dyn!.otherwise ? destValue(dyn!.otherwise) : ""} options={destOptions} placeholder="Pick who" onChange={(v) => setDyn({ ...dyn!, otherwise: destFrom(v) })} ariaLabel="Otherwise" className="h-[30px] min-w-0 flex-1 rounded-md bg-card shadow-input px-2.5 text-[12.5px] text-ink" />
                   </div>
                   {firstField ? (
                     <button type="button" className="inline-flex h-7 items-center gap-1.5 self-start rounded-full border border-line px-2.5 text-[12px] text-body hover:border-line-strong hover:text-ink" onClick={() => setDyn({ ...dyn!, rules: [...dyn!.rules, { id: newRowId("m"), conds: [blankCond(firstField)], to: dyn!.otherwise ?? { kind: "user", id: draft.hosts[0]?.user_id ?? me } }] })}>
@@ -544,7 +544,7 @@ export function TypePanel({
               rows={3}
               placeholder="You're booked."
               onChange={(e) => setS("confirmation", { kind: "message", ...(e.target.value ? { text: e.target.value } : {}) })}
-              className="w-full resize-none rounded-sm border border-line-strong bg-card px-2.5 py-2 text-[13px] text-ink outline-none placeholder:text-faint focus:border-ink"
+              className="w-full resize-none rounded-md bg-card shadow-input px-2.5 py-2 text-[13px] text-ink outline-none placeholder:text-faint focus:shadow-focus"
             />
           ) : (
             <Input aria-label="Page" value={s.confirmation.url} placeholder="https://" onChange={(e) => setS("confirmation", { kind: "redirect", url: e.target.value })} className="h-[34px] text-[13px]" />
@@ -572,7 +572,7 @@ export function TypePanel({
                 options={CURRENCIES.map((c) => ({ value: c, label: c.toUpperCase() }))}
                 onChange={(c) => setS("price", { ...s.price!, currency: c })}
                 ariaLabel="Currency"
-                className="h-[34px] w-24 rounded-sm border border-line-strong bg-card px-2.5 text-[13px] text-ink"
+                className="h-[34px] w-24 rounded-md bg-card shadow-input px-2.5 text-[13px] text-ink"
               />
             </div>
           ) : null}
@@ -654,7 +654,7 @@ function Choice({ values, value, word, onChange, label, short = false }: { value
         options={all.map((n) => ({ value: n, label: word(n) }))}
         onChange={onChange}
         ariaLabel={label}
-        className="h-[34px] w-full rounded-sm border border-line-strong bg-card px-2.5 text-[13px] text-ink"
+        className="h-[34px] w-full rounded-md bg-card shadow-input px-2.5 text-[13px] text-ink"
       />
     );
   return <Segmented<string> size="sm" label={label} value={String(value)} options={all.map((n) => ({ value: String(n), label: word(n) }))} onChange={(v) => onChange(Number(v))} />;

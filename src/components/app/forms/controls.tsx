@@ -13,8 +13,8 @@ import { Toggle } from "../ui";
 import { FONTS, familyOf, grade, previewFontsUrl, SYSTEM_FONT } from "./editorModel";
 
 export const INPUT =
-  "h-7 w-full min-w-0 rounded-sm border border-line-strong bg-card px-2 text-[12.5px] text-ink outline-none transition-shadow duration-[140ms] placeholder:text-faint hover:border-ink/40 focus:border-ink focus:ring-1 focus:ring-ink";
-export const PICK = "h-7 w-full min-w-0 rounded-sm border border-line-strong bg-card px-2 text-[12.5px] text-ink hover:border-ink/40";
+  "h-7 w-full min-w-0 rounded-md bg-card shadow-input px-2 text-[12.5px] text-ink outline-none transition-shadow duration-[140ms] placeholder:text-faint hover:shadow-input-hover focus:shadow-focus";
+export const PICK = "h-7 w-full min-w-0 rounded-md bg-card shadow-input px-2 text-[12.5px] text-ink hover:shadow-input-hover";
 
 /** A titled block in a panel. */
 export function Section({ title, action, children, first = false }: { title?: string; action?: React.ReactNode; children: React.ReactNode; first?: boolean }) {
@@ -99,7 +99,7 @@ export function AreaIn({ value, onChange, placeholder, label, rows = 3 }: { valu
       onChange={(e) => onChange(e.target.value)}
       placeholder={placeholder}
       aria-label={label}
-      className="w-full min-w-0 resize-y rounded-sm border border-line-strong bg-card px-2 py-1.5 text-[12.5px] leading-snug text-ink outline-none placeholder:text-faint hover:border-ink/40 focus:border-ink focus:ring-1 focus:ring-ink"
+      className="w-full min-w-0 resize-y rounded-md bg-card shadow-input px-2 py-1.5 text-[12.5px] leading-snug text-ink outline-none placeholder:text-faint hover:shadow-input-hover focus:shadow-focus"
     />
   );
 }
@@ -267,7 +267,7 @@ export function Slider({ label, value, min, max, step = 1, onChange }: { label: 
         <span className="block h-1 rounded-full bg-ink" style={{ width: `${pct}%` }} />
       </span>
       <span
-        className="absolute size-3.5 -translate-x-1/2 rounded-full border border-line-strong bg-card shadow-soft transition-transform duration-[140ms] group-hover:scale-110 group-focus-visible:ring-2 group-focus-visible:ring-ink"
+        className="absolute size-3.5 -translate-x-1/2 rounded-full bg-card shadow-outline shadow-soft transition-transform duration-[140ms] group-hover:scale-110 group-focus-visible:ring-2 group-focus-visible:ring-ink"
         style={{ left: `${pct}%` }}
       />
     </div>
@@ -609,7 +609,7 @@ export function FontPicker({ label, value, onChange, allowSame = false }: { labe
         </span>
       </button>
       <Popover anchor={btn} open={open} onClose={() => setOpen(false)} label={label} width={240}>
-        <label className="mb-1.5 flex h-7 items-center gap-1.5 rounded-sm border border-line-strong px-2 focus-within:border-ink">
+        <label className="mb-1.5 flex h-7 items-center gap-1.5 rounded-sm border border-line-strong px-2 focus-within:shadow-focus">
           <Search size={12} className="text-faint" />
           <input
             autoFocus
@@ -682,7 +682,7 @@ export function TagInput({
     setText("");
   };
   return (
-    <div className="flex min-h-7 w-full min-w-0 flex-wrap items-center gap-1 rounded-sm border border-line-strong bg-card px-1 py-0.5 focus-within:border-ink focus-within:ring-1 focus-within:ring-ink">
+    <div className="flex min-h-7 w-full min-w-0 flex-wrap items-center gap-1 rounded-md bg-card shadow-input px-1 py-0.5 focus-within:shadow-focus">
       {values.map((v) => (
         <span key={v} className="inline-flex h-5 items-center gap-1 rounded-full bg-paper-deep pr-1 pl-2 text-[11.5px] text-ink">
           {v}

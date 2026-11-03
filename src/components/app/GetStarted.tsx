@@ -58,7 +58,7 @@ export function GetStarted({ sb, ws, navigate }: Pick<ViewProps, "sb" | "ws" | "
     } catch {}
   };
   return (
-    <section aria-label="Get started" className="hidden rounded-2xl border border-line bg-card xl:block">
+    <section aria-label="Get started" className="hidden rounded-2xl bg-card shadow-rest xl:block">
       <div className="flex items-center gap-2 px-3 py-2.5">
         <button type="button" onClick={() => setOpen((v) => !v)} aria-expanded={open} className="flex min-w-0 flex-1 flex-col gap-1.5 text-left">
           <span className="text-[12.5px] font-semibold tracking-[-0.01em] text-ink">Get started</span>

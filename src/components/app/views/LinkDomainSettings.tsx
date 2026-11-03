@@ -108,7 +108,7 @@ export function LinkDomainSettings({ session, ws, role }: Pick<ViewProps, "sessi
               ) : null}
             </div>
             {domain.status !== "active" ? (
-              <div className="overflow-x-auto rounded-[10px] border border-line">
+              <div className="overflow-x-auto rounded-[10px] shadow-rest">
                 <table className="w-full text-left text-[13px]">
                   <thead>
                     <tr className="border-b border-line bg-paper text-muted">

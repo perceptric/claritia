@@ -1,57 +1,64 @@
 @import "tailwindcss";
 
-/* Brand (docs/brand.md): the same family as Omniscient and tryclaritia.com. Black and white with plain grays, Inter,
-   black for the one primary action, emerald as the one signal. A white panel inset on a light gray shell.
-   Round buttons and tags, controls 6px, cards 10px, frames 16px. Screens use these tokens, never a hex. */
+/* Brand (docs/brand.md and the Claritia design system): the calm style, after zite.com. Inter for every word, a light
+   gray shell with a white page panel, soft ring shadows in place of borders, a dark gray primary button and Claritia
+   green as the one signal. Buttons, chips and toggles are pills, status tags 6px, inputs 8px, cards 10px to 12px, the
+   page panel and dialogs 16px. Screens use these tokens, never a hex. */
 @custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
 
 @theme {
   --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --font-mono: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 
-  /* Surfaces and text: white panel, gray shell, black ink, plain grays */
-  --color-paper: #f7f7f5;
-  --color-paper-deep: #f2f2f0;
+  /* Surfaces and text: gray shell, white panel, near-black ink, plain grays */
+  --color-paper: #fafafa;
+  --color-paper-deep: #f5f5f5;
   --color-card: #ffffff;
-  --color-ink: #0a0a0a;
-  --color-body: #404040;
-  --color-muted: #6b6b6b;
+  --color-chip: #ededed;
+  --color-ink: #0f0f0f;
+  --color-text: #171717;
+  --color-body: #333333;
+  --color-muted: #737373;
   --color-faint: #a3a3a3;
-  --color-line: #e7e7e4;
-  --color-line-strong: #d4d4d0;
-  --color-line-light: #f0f0ee;
-  --color-hover: rgb(10 10 10 / 0.04);
-  --color-scrim: rgb(10 10 10 / 0.28);
+  --color-line: #ebebeb;
+  --color-line-strong: #d4d4d4;
+  --color-line-light: #f2f2f2;
+  --color-hover: rgb(15 15 15 / 0.04);
+  --color-scrim: rgb(23 23 23 / 0.24);
 
   /* Older names, kept so every screen follows along */
   --color-panel: var(--color-card);
   --color-canvas: var(--color-paper);
   --color-side: var(--color-paper-deep);
 
-  /* Emerald is the signal: the mark, live lines, scores, booked. About 5% of a view. */
+  /* Claritia green is the signal: the mark, live lines, the open tab, booked. About 5% of a view. */
   --color-signal: #0c8c5e;
-  --color-signal-text: #0a7a52;
-  --color-signal-soft: #e8f5ef;
-  --color-signal-line: #b8e2cf;
+  --color-signal-strong: #0a7a52;
+  --color-signal-text: #086444;
+  --color-signal-soft: #e3f4ec;
+  --color-signal-pale: #f2faf6;
+  --color-signal-mid: #c9eadb;
+  --color-signal-line: #94d4b7;
   --color-mint: #18e299;
 
-  /* Status pairs: a step 3 fill and a step 11 text. The names stay; the hues follow the new family. */
+  /* Status pairs: a soft fill and a deep text */
   --color-clay: var(--color-signal-text);
   --color-clay-wash: var(--color-signal-soft);
-  --color-sage: #0a7a52;
-  --color-sage-wash: #e8f5ef;
-  --color-sky: #0b62b0;
-  --color-sky-wash: #e3f2fe;
-  --color-lilac: #5230c2;
-  --color-lilac-wash: #f1ecfe;
-  --color-butter: #b25a09;
-  --color-butter-wash: #fff1e2;
-  --color-rose: #b23a26;
+  --color-sage: #086444;
+  --color-sage-wash: #e3f4ec;
+  --color-sky: #1e4f9a;
+  --color-sky-wash: #e2effd;
+  --color-lilac: #5429d6;
+  --color-lilac-wash: #e9e3fd;
+  --color-butter: #9a3412;
+  --color-butter-wash: #ffe9cc;
+  --color-rose: #b42318;
   --color-rose-wash: #fdecea;
 
-  /* Black is the action: the primary button, links, the open row, focus */
-  --color-brand: var(--color-ink);
+  /* The primary action: a dark gray pill with a crisp ring */
+  --color-brand: #333333;
   --color-brand-hover: #262626;
+  --color-on-brand: #ffffff;
   --color-brand-soft: var(--color-paper-deep);
   --color-brand-pale: var(--color-paper);
   --color-brand-line: var(--color-line-strong);
@@ -65,70 +72,98 @@
   --color-violet: var(--color-lilac);
   --color-violet-soft: var(--color-lilac-wash);
 
-  /* Corners: inline 3px, controls 6px, cards and menus 10px, frames and dialogs 16px. Buttons and tags are round. */
-  --radius-xs: 3px;
+  /* Corners: status tags 6px, inputs and small controls 8px, cards 10px to 12px, the panel and dialogs 16px. */
+  --radius-xs: 4px;
   --radius-sm: 6px;
-  --radius: 6px;
-  --radius-md: 6px;
+  --radius: 8px;
+  --radius-md: 8px;
   --radius-lg: 10px;
   --radius-xl: 12px;
   --radius-2xl: 16px;
-  --radius-3xl: 16px;
+  --radius-3xl: 20px;
 
-  /* Cards sit flat on a hairline. Shadows only on the page panel and things that float. */
-  --shadow-xs: 0 1px 2px rgb(10 10 10 / 0.04);
-  --shadow-soft: 0 8px 24px -8px rgb(10 10 10 / 0.14), 0 1px 2px rgb(10 10 10 / 0.04);
-  --shadow-float: 0 0 0 1px rgb(10 10 10 / 0.06), 0 8px 24px -8px rgb(10 10 10 / 0.18), 0 1px 2px rgb(10 10 10 / 0.04);
-  --shadow-heavy: 0 1px 2px rgb(10 10 10 / 0.04), 0 24px 48px -24px rgb(10 10 10 / 0.18);
-  --shadow-card: 0 0 0 1px var(--color-line);
-  --shadow-pop: var(--shadow-float);
+  /* Depth: a 1px ring plus soft layers. Raised things use these in place of borders. */
+  --shadow-xs: 0 1px 2px rgb(0 0 0 / 0.05);
+  --shadow-rest: 0 4px 4px -12px rgb(0 0 0 / 0.02), 0 12px 12px -6px rgb(0 0 0 / 0.02), 0 6px 6px -3px rgb(0 0 0 / 0.02), 0 3px 3px -1.5px rgb(0 0 0 / 0.02), 0 1px 1px -0.5px rgb(0 0 0 / 0.04), 0 0 0 1px rgb(0 0 0 / 0.06);
+  --shadow-hover: 0 24px 24px -12px rgb(0 0 0 / 0.04), 0 12px 12px -6px rgb(0 0 0 / 0.02), 0 6px 6px -3px rgb(0 0 0 / 0.04), 0 3px 3px -1.5px rgb(0 0 0 / 0.08), 0 1px 1px -0.5px rgb(0 0 0 / 0.08), 0 0 0 1px rgb(0 0 0 / 0.08);
+  --shadow-chip: 0 1px 2px rgb(0 0 0 / 0.08), 0 0 0 1px rgb(0 0 0 / 0.06);
+  --shadow-pill: 0 1px 2px rgb(0 0 0 / 0.12), 0 0 0 1px rgb(0 0 0 / 0.08);
+  --shadow-outline: 0 0 0 1px rgb(0 0 0 / 0.1), 0 1px 3px rgb(0 0 0 / 0.16);
+  --shadow-primary: 0 0 0 1px rgb(0 0 0 / 0.8), 0 1px 3px rgb(0 0 0 / 0.4), 1px 4px 8px rgb(0 0 0 / 0.12);
+  --shadow-input: 0 0 0 1px rgb(0 0 0 / 0.1), 0 1px 3px rgb(0 0 0 / 0.16);
+  --shadow-input-hover: 0 0 0 1px rgb(0 0 0 / 0.18), 0 1px 3px rgb(0 0 0 / 0.16);
+  --shadow-focus: 0 0 0 1px #0c8c5e, 0 1px 3px rgb(0 0 0 / 0.16), 0 0 0 3px rgb(12 140 94 / 0.18);
+  --shadow-error: 0 0 0 1px rgb(220 38 38 / 0.6), 0 1px 3px rgb(0 0 0 / 0.16), 0 0 0 3px rgb(220 38 38 / 0.12);
+  --shadow-menu: 0 12px 32px -6px rgb(0 0 0 / 0.12), 0 0 0 1px rgb(111 107 107 / 0.1), 0 1px 3px rgb(63 70 75 / 0.1);
+  --shadow-modal: 0 0 0 1px rgb(0 0 0 / 0.04), 0 1px 1px -0.5px rgb(0 0 0 / 0.04), 0 6px 6px -3px rgb(0 0 0 / 0.04), 0 12px 12px -6px rgb(0 0 0 / 0.03), 0 24px 24px -12px rgb(0 0 0 / 0.02), 0 32px 64px -16px rgb(0 0 0 / 0.18);
+  --shadow-soft: var(--shadow-menu);
+  --shadow-float: var(--shadow-menu);
+  --shadow-heavy: var(--shadow-hover);
+  --shadow-card: var(--shadow-rest);
+  --shadow-pop: var(--shadow-menu);
 
   /* Motion: three speeds, two curves */
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
   --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
-  --duration-quick: 120ms;
-  --duration-calm: 200ms;
-  --duration-slow: 320ms;
+  --ease-calm: cubic-bezier(0.4, 0, 0.2, 1);
+  --duration-quick: 150ms;
+  --duration-calm: 280ms;
+  --duration-slow: 380ms;
 }
 
 [data-theme="dark"] {
   color-scheme: dark;
-  --color-paper: #111111;
-  --color-paper-deep: #0a0a0a;
-  --color-card: #161616;
-  --color-ink: #fafafa;
-  --color-body: #d4d4d4;
-  --color-muted: #a3a3a3;
-  --color-faint: #737373;
-  --color-line: #262626;
-  --color-line-strong: #333333;
-  --color-line-light: #1f1f1f;
+  --color-paper: #1a1a18;
+  --color-paper-deep: #161614;
+  --color-card: #1f1f1d;
+  --color-chip: #2c2c29;
+  --color-ink: #f5f5f0;
+  --color-text: #e8e8e3;
+  --color-body: #d9d9d4;
+  --color-muted: #9a9a95;
+  --color-faint: #6b6b67;
+  --color-line: #2c2c29;
+  --color-line-strong: #3d3d39;
+  --color-line-light: #242422;
   --color-hover: rgb(255 255 255 / 0.05);
   --color-scrim: rgb(0 0 0 / 0.5);
-  --color-signal: #18e299;
-  --color-signal-text: #3ddca4;
-  --color-signal-soft: #0f2a20;
-  --color-signal-line: #1f4a38;
-  --color-sage: #3ddca4;
-  --color-sage-wash: #0f2a20;
-  --color-sky: #7cc4ff;
-  --color-sky-wash: #0f2236;
-  --color-lilac: #b9a6ff;
-  --color-lilac-wash: #1f1838;
-  --color-butter: #f5b056;
-  --color-butter-wash: #2c1d0b;
-  --color-rose: #ff8a7a;
+  --color-signal-text: #5fc79a;
+  --color-signal-soft: #12301f;
+  --color-signal-pale: #10241b;
+  --color-signal-mid: #17402c;
+  --color-signal-line: #1f5a3e;
+  --color-sage: #5fc79a;
+  --color-sage-wash: #12301f;
+  --color-sky: #93c5fd;
+  --color-sky-wash: #13253f;
+  --color-lilac: #c4b5fd;
+  --color-lilac-wash: #261d45;
+  --color-butter: #fdba74;
+  --color-butter-wash: #3a2410;
+  --color-rose: #f87171;
   --color-rose-wash: #2e1512;
-  --color-brand-hover: #e5e5e5;
-  --shadow-soft: 0 1px 2px rgb(0 0 0 / 0.3), 0 8px 24px -8px rgb(0 0 0 / 0.5);
-  --shadow-float: 0 0 0 1px rgb(255 255 255 / 0.08), 0 8px 24px -8px rgb(0 0 0 / 0.6), 0 1px 2px rgb(0 0 0 / 0.3);
-  --shadow-heavy: 0 1px 2px rgb(0 0 0 / 0.3), 0 24px 48px -24px rgb(0 0 0 / 0.6);
+  --color-brand: #f5f5f0;
+  --color-brand-hover: #e5e5e0;
+  --color-on-brand: #171717;
+  --shadow-xs: 0 1px 2px rgb(0 0 0 / 0.3);
+  --shadow-rest: 0 1px 2px rgb(0 0 0 / 0.4), 0 0 0 1px rgb(255 255 255 / 0.08);
+  --shadow-hover: 0 12px 24px -8px rgb(0 0 0 / 0.5), 0 0 0 1px rgb(255 255 255 / 0.12);
+  --shadow-chip: 0 1px 2px rgb(0 0 0 / 0.4), 0 0 0 1px rgb(255 255 255 / 0.08);
+  --shadow-pill: 0 1px 2px rgb(0 0 0 / 0.5), 0 0 0 1px rgb(255 255 255 / 0.1);
+  --shadow-outline: 0 0 0 1px rgb(255 255 255 / 0.12), 0 1px 3px rgb(0 0 0 / 0.5);
+  --shadow-primary: 0 0 0 1px rgb(255 255 255 / 0.9), 0 1px 3px rgb(0 0 0 / 0.5);
+  --shadow-input: 0 0 0 1px rgb(255 255 255 / 0.14), 0 1px 3px rgb(0 0 0 / 0.5);
+  --shadow-input-hover: 0 0 0 1px rgb(255 255 255 / 0.24), 0 1px 3px rgb(0 0 0 / 0.5);
+  --shadow-focus: 0 0 0 1px #0c8c5e, 0 0 0 3px rgb(12 140 94 / 0.35);
+  --shadow-error: 0 0 0 1px rgb(248 113 113 / 0.7), 0 0 0 3px rgb(248 113 113 / 0.18);
+  --shadow-menu: 0 12px 32px -6px rgb(0 0 0 / 0.6), 0 0 0 1px rgb(255 255 255 / 0.1);
+  --shadow-modal: 0 24px 48px -12px rgb(0 0 0 / 0.6), 0 0 0 1px rgb(255 255 255 / 0.1);
 }
 
 html,
 body {
-  background: var(--color-paper);
-  color: var(--color-ink);
+  background: var(--color-paper-deep);
+  color: var(--color-text);
   font-size: 14px;
   letter-spacing: -0.006em;
   font-feature-settings: "cv11", "ss01";
@@ -155,8 +190,9 @@ body {
 
 @layer base {
   :focus-visible {
-    outline: 2px solid var(--color-ink);
-    outline-offset: 2px;
+    outline: 1px solid var(--color-signal);
+    outline-offset: 1px;
+    box-shadow: 0 0 0 4px rgb(12 140 94 / 0.18);
   }
 }
 
@@ -182,7 +218,6 @@ body {
 
 /* Numbers in tables and meters */
 .num {
-  font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
 }
 
@@ -209,12 +244,13 @@ body {
     position: relative;
     box-shadow: var(--shadow-heavy);
   }
-  /* Cards stay flat; on hover their hairline darkens */
+  /* Cards rest on a soft ring; on hover the shadow deepens */
   .lift {
-    transition: border-color var(--duration-calm) var(--ease-out);
+    transition: box-shadow var(--duration-quick) var(--ease-calm), border-color var(--duration-quick) var(--ease-calm);
   }
   .lift:hover {
     border-color: var(--color-line-strong);
+    box-shadow: var(--shadow-hover);
   }
   .press {
     transition: transform var(--duration-quick) var(--ease-out);

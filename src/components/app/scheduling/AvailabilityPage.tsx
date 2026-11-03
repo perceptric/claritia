@@ -461,7 +461,7 @@ function DaysOffDialog({ sb, session, ws, onClose, onSaved }: ViewProps & { onCl
         {!data.data ? (
           <Loading />
         ) : list.length ? (
-          <ul className="flex flex-col divide-y divide-line rounded-lg border border-line">
+          <ul className="flex flex-col divide-y divide-line rounded-lg shadow-rest">
             {list.map((d) => (
               <li key={`${d.from}-${d.to}`} className="flex items-center gap-3 py-1.5 pr-1.5 pl-3.5 text-[13px]">
                 <span className="flex-1 text-ink">{d.from === d.to ? words(d.from) : `${words(d.from)} to ${words(d.to)}`}</span>
@@ -592,7 +592,7 @@ function Calendars({ sb, session, ws }: ViewProps) {
                         options={lists.map((l) => ({ value: l.calendar_id, label: l.name }))}
                         onChange={(id) => void saveLists(a, lists, id, { write: true })}
                         ariaLabel="Add new bookings to"
-                        className="h-[34px] w-full rounded-sm border border-line-strong bg-card px-2.5 text-[13px] text-ink"
+                        className="h-[34px] w-full rounded-md bg-card shadow-input px-2.5 text-[13px] text-ink"
                       />
                     )}
                   </>

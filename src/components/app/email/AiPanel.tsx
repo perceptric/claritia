@@ -131,7 +131,7 @@ export function AiPanel({
           rows={3}
           aria-label="What to change"
           placeholder="Make the intro shorter and add a booking button"
-          className="w-full resize-none rounded-sm border border-line-strong bg-card px-2 py-1.5 text-[12.5px] text-ink outline-none placeholder:text-faint focus:border-ink focus:ring-1 focus:ring-ink"
+          className="w-full resize-none rounded-md bg-card shadow-input px-2 py-1.5 text-[12.5px] text-ink outline-none placeholder:text-faint focus:shadow-focus"
         />
         <div className="flex flex-wrap items-center gap-1.5">
           <Button type="submit" disabled={!!busy || !text.trim()}>
@@ -205,7 +205,7 @@ function Variants({ variants, system, tokens, onPick, onClose }: { variants: AiO
                 <span className="flex-1 truncate text-[12.5px] font-medium text-ink">{v.subject || `Version ${i + 1}`}</span>
                 <Button onClick={() => onPick(v)}>Use this</Button>
               </div>
-              <iframe title={`Version ${i + 1}`} srcDoc={html} sandbox="" className="min-h-[560px] w-full flex-1 rounded-lg border border-line bg-card" />
+              <iframe title={`Version ${i + 1}`} srcDoc={html} sandbox="" className="min-h-[560px] w-full flex-1 rounded-lg bg-card shadow-rest" />
             </div>
           );
         })}

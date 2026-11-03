@@ -13,12 +13,12 @@ export const metadata: Metadata = {
 const SCRIPT = `<script src="${APP_URL}/forms/v1.js" async></script>`;
 
 function Code({ children }: { children: string }) {
-  return <pre className="overflow-x-auto rounded-[10px] border border-line bg-paper px-4 py-3.5 font-mono text-[12.5px] leading-[1.6] text-body">{children}</pre>;
+  return <pre className="overflow-x-auto rounded-[10px] shadow-rest bg-paper px-4 py-3.5 font-mono text-[12.5px] leading-[1.6] text-body">{children}</pre>;
 }
 
 function Table({ rows, head }: { head: [string, string]; rows: [string, string][] }) {
   return (
-    <div className="overflow-x-auto rounded-[10px] border border-line">
+    <div className="overflow-x-auto rounded-[10px] shadow-rest">
       <table className="w-full text-left text-[13.5px]">
         <thead>
           <tr className="border-b border-line bg-paper">

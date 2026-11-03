@@ -155,7 +155,7 @@ export function RunDrawer({ session, ws, run, d, onClose, onOpen }: Pick<ViewPro
     >
       <div className="flex flex-col gap-3 p-4 text-[13px]">
         <ErrorNote message={error} />
-        <div className="rounded-[10px] border border-line">
+        <div className="rounded-[10px] shadow-rest">
           {(
             [
               ["Source", r.source ?? (r.reason === "manual" ? "By hand" : "Other")],
@@ -336,7 +336,7 @@ function ChildPanel({ session, ws, r, d, who, onDone, onCancel }: Pick<ViewProps
   const original = pv?.options.find((x) => x.original);
   const value = chosen ? `${chosen.policy}:${chosen.version}` : "";
   return (
-    <section className="rounded-[10px] border border-line bg-card" aria-label="Child attempt">
+    <section className="rounded-[10px] bg-card shadow-rest" aria-label="Child attempt">
       <div className="flex items-center gap-3 px-4 py-2.5">
         <span className="flex-1 font-medium text-ink">Version</span>
         <Choice<string>
@@ -382,7 +382,7 @@ function ChildPanel({ session, ws, r, d, who, onDone, onCancel }: Pick<ViewProps
                     setFix({ ...fix, [f.key]: e.target.value });
                     setStale(true);
                   }}
-                  className="h-[30px] w-full rounded-sm border border-line-strong bg-card px-2.5 font-normal text-ink outline-none placeholder:text-faint focus:border-ink"
+                  className="h-[30px] w-full rounded-md bg-card shadow-input px-2.5 font-normal text-ink outline-none placeholder:text-faint focus:shadow-focus"
                 />
               </label>
             );
@@ -474,7 +474,7 @@ function AssignPanel({ session, ws, r, d, who, review, onDone, onCancel }: Pick<
     }
   };
   return (
-    <section className="rounded-[10px] border border-line bg-card" aria-label={review ? "Assign manually" : "Reassign"}>
+    <section className="rounded-[10px] bg-card shadow-rest" aria-label={review ? "Assign manually" : "Reassign"}>
       <Line k="Owner now">
         <span className={pv?.contact.owner || r.current_owner ? "" : "text-muted"}>{who(pv?.contact.owner ?? r.current_owner)}</span>
       </Line>
@@ -498,7 +498,7 @@ function AssignPanel({ session, ws, r, d, who, review, onDone, onCancel }: Pick<
         </Line>
       ) : null}
       <div className="border-t border-line px-4 py-2.5">
-        <input aria-label="Reason" placeholder="Reason" value={reason} onChange={(e) => setReason(e.target.value.slice(0, 300))} className="h-[30px] w-full rounded-sm border border-line-strong bg-card px-2.5 text-ink outline-none placeholder:text-faint focus:border-ink" />
+        <input aria-label="Reason" placeholder="Reason" value={reason} onChange={(e) => setReason(e.target.value.slice(0, 300))} className="h-[30px] w-full rounded-md bg-card shadow-input px-2.5 text-ink outline-none placeholder:text-faint focus:shadow-focus" />
       </div>
       {error ? (
         <div className="border-t border-line px-4 py-2.5">

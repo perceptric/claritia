@@ -83,7 +83,7 @@ export function BrandPicker({ kits, value, onChange, onDelete, disabled = false 
         aria-expanded={open}
         disabled={disabled}
         onClick={() => setOpen(!open)}
-        className="flex h-[52px] w-full items-center gap-[10px] rounded-[10px] border border-line bg-card px-[12px] text-left transition-colors duration-[120ms] hover:border-line-strong disabled:opacity-60"
+        className="flex h-[52px] w-full items-center gap-[10px] rounded-[10px] bg-card shadow-rest px-[12px] text-left transition-colors duration-[120ms] hover:shadow-hover disabled:opacity-60"
       >
         {value === LEARN ? (
           <span className="inline-flex size-[22px] shrink-0 items-center justify-center rounded-full border border-dashed border-line-strong text-muted">
@@ -99,7 +99,7 @@ export function BrandPicker({ kits, value, onChange, onDelete, disabled = false 
       </button>
       {open && pos
         ? createPortal(
-            <div ref={menu} role="menu" aria-label="Brands" className="anim-rise-sm fixed z-[200] flex max-h-[360px] flex-col overflow-y-auto rounded-[10px] border border-line bg-card p-[4px] shadow-float" style={{ left: pos.left, top: pos.top, width: pos.width }}>
+            <div ref={menu} role="menu" aria-label="Brands" className="anim-rise-sm fixed z-[200] flex max-h-[360px] flex-col overflow-y-auto rounded-[10px] bg-card shadow-rest p-[4px] shadow-float" style={{ left: pos.left, top: pos.top, width: pos.width }}>
               {kits.map((k) => (
                 <div key={k.id} className="group flex items-center">
                   <button type="button" role="menuitemradio" aria-checked={k.id === value} className={row} onClick={() => pick(k.id)}>

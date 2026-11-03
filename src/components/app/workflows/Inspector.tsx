@@ -20,7 +20,7 @@ import { Badge, Button, ErrorNote, errorText, IconButton, Input, postJson, Segme
 import type { Names } from "./model";
 
 const label = "text-[12px] font-medium text-muted";
-const area = "min-h-24 w-full rounded-sm border border-line-strong bg-card px-3 py-2 text-[13.5px] leading-relaxed text-ink outline-none focus:border-ink";
+const area = "min-h-24 w-full rounded-md bg-card shadow-input px-3 py-2 text-[13.5px] leading-relaxed text-ink outline-none focus:shadow-focus";
 
 function Row({ name, children }: { name: string; children: React.ReactNode }) {
   return (
@@ -153,7 +153,7 @@ export function Conditions({ conds, onChange, readOnly }: { conds: Cond[]; onCha
         const set = (patch: Partial<Cond>) => onChange(conds.map((x, j) => (j === i ? { ...x, ...patch } : x)));
         const list = c.op === "one_of" || c.op === "not_one_of";
         return (
-          <div key={i} className="flex flex-col gap-1.5 rounded-lg border border-line p-2">
+          <div key={i} className="flex flex-col gap-1.5 rounded-lg shadow-rest p-2">
             <div className="flex items-center gap-1.5">
               <Select value={def.key} options={FIELDS.map((f) => ({ value: f.key, label: f.label }))} onChange={(field) => set({ field, op: opsFor(FIELDS.find((f) => f.key === field)!.type)[0]!, value: "" })} ariaLabel="Field" className="h-8 flex-1" disabled={readOnly} />
               {!readOnly ? (
@@ -252,7 +252,7 @@ export function EmailForm({ email, onChange, readOnly, builder }: { email: Email
               const last = email.paragraphs.length - 1;
               onChange({ ...email, paragraphs: email.paragraphs.map((p, i) => (i === last ? `${p}{{${k}|}}` : p)) }, "body");
             }}
-            className="press inline-flex h-7 items-center rounded-full border border-line-strong bg-card px-2.5 font-mono text-[11.5px] text-body hover:text-ink disabled:opacity-60"
+            className="press inline-flex h-7 items-center rounded-full bg-card shadow-outline px-2.5 font-mono text-[11.5px] text-body hover:text-ink disabled:opacity-60"
           >
             {`{{${k}}}`}
           </button>

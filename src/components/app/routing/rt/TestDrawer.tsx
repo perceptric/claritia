@@ -154,7 +154,7 @@ export function TestDrawer({ session, ws, d, row, body, flush, onClose }: Pick<V
             <ContactLookup session={session} ws={ws.id} value={t.contact ?? null} onChange={(c) => edit({ contact: c, ...(c?.email ? { email: c.email } : {}) })} />
           </Lbl>
           <Lbl label="Work email">
-            <input value={t.email} disabled={!!t.contact} onChange={(e) => edit({ email: e.target.value })} className="h-[30px] w-full rounded-sm border border-line-strong bg-card px-2.5 text-ink outline-none focus:border-ink disabled:opacity-60" />
+            <input value={t.email} disabled={!!t.contact} onChange={(e) => edit({ email: e.target.value })} className="h-[30px] w-full rounded-md bg-card shadow-input px-2.5 text-ink outline-none focus:shadow-focus disabled:opacity-60" />
           </Lbl>
           {used.map((f) => (
             <Lbl key={f.key} label={f.label}>
@@ -183,7 +183,7 @@ export function TestDrawer({ session, ws, d, row, body, flush, onClose }: Pick<V
                   placeholder="Unknown"
                   inputMode={f.type === "number" ? "numeric" : undefined}
                   onChange={(e) => edit({ values: { ...t.values, [f.key]: e.target.value } })}
-                  className="h-[30px] w-full rounded-sm border border-line-strong bg-card px-2.5 text-ink outline-none placeholder:text-faint focus:border-ink"
+                  className="h-[30px] w-full rounded-md bg-card shadow-input px-2.5 text-ink outline-none placeholder:text-faint focus:shadow-focus"
                 />
               )}
             </Lbl>
@@ -230,7 +230,7 @@ export function TestDrawer({ session, ws, d, row, body, flush, onClose }: Pick<V
         <ErrorNote message={error} />
         {res && words ? (
           <div className={stale ? "opacity-45" : ""} aria-live="polite">
-            <div className="flex flex-wrap items-center gap-2.5 rounded-[10px] border border-line bg-paper px-3.5 py-3">
+            <div className="flex flex-wrap items-center gap-2.5 rounded-[10px] shadow-rest bg-paper px-3.5 py-3">
               {res.state === "assigned" && res.recipient ? (
                 <>
                   <Initials name={who(res.recipient)} />
@@ -253,7 +253,7 @@ export function TestDrawer({ session, ws, d, row, body, flush, onClose }: Pick<V
                 </span>
               ) : null}
             </div>
-            <div className="mt-2.5 flex flex-col rounded-[10px] border border-line">
+            <div className="mt-2.5 flex flex-col rounded-[10px] shadow-rest">
               {words.map((w) => (
                 <div key={w.k} className="grid grid-cols-1 gap-1 border-t border-line px-3.5 py-2.5 text-[12.5px] first:border-t-0 sm:grid-cols-[110px_minmax(0,1fr)] sm:gap-3">
                   <span className="font-medium text-muted">{w.k}</span>
@@ -299,7 +299,7 @@ function ContactLookup({ session, ws, value, onChange }: Pick<ViewProps, "sessio
   }, [session, ws, text, value]);
   if (value)
     return (
-      <div className="flex h-[30px] items-center gap-2 rounded-sm border border-line-strong bg-card pr-1 pl-2.5">
+      <div className="flex h-[30px] items-center gap-2 rounded-md bg-card shadow-input pr-1 pl-2.5">
         <span className="min-w-0 flex-1 truncate font-normal text-ink">{value.name || value.email}</span>
         <IconButton label="Clear contact" onClick={() => onChange(null)}>
           <X size={11} />
@@ -308,12 +308,12 @@ function ContactLookup({ session, ws, value, onChange }: Pick<ViewProps, "sessio
     );
   return (
     <div className="flex flex-col gap-1">
-      <label className="flex h-[30px] items-center gap-2 rounded-sm border border-line-strong bg-card px-2.5 focus-within:border-ink">
+      <label className="flex h-[30px] items-center gap-2 rounded-md bg-card shadow-input px-2.5 focus-within:shadow-focus">
         <Search size={12} className="text-muted" />
         <input aria-label="Find a contact" placeholder="None" value={text} onChange={(e) => setText(e.target.value)} className="min-w-0 flex-1 bg-transparent font-normal text-ink outline-none placeholder:text-faint" />
       </label>
       {text.trim().length >= 2 && rows.length ? (
-        <div className="flex flex-col rounded-[10px] border border-line bg-card py-1">
+        <div className="flex flex-col rounded-[10px] bg-card shadow-rest py-1">
           {rows.map((c) => (
             <button
               key={c.id}

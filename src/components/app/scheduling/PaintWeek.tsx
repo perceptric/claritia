@@ -50,7 +50,7 @@ export function PaintWeek({ weekly, onChange }: { weekly: Availability["weekly"]
   const flip = (d: number, r: number) => commit({ mode: cells[DAYS[d]!].has(rows[r]!) ? "off" : "on", from: [d, r], to: [d, r] });
 
   return (
-    <div className="overflow-x-auto rounded-lg border border-line bg-card select-none">
+    <div className="overflow-x-auto rounded-lg bg-card shadow-rest select-none">
       <div className="grid min-w-[520px] grid-cols-[56px_repeat(7,minmax(0,1fr))]">
         <span className="h-9 border-b border-line" />
         {DAYS.map((d) => (

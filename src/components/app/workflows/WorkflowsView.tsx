@@ -76,7 +76,7 @@ function Card({ name, line, onClick, disabled }: { name: string; line: string; o
       type="button"
       onClick={onClick}
       disabled={disabled}
-      className="lift anim-rise flex flex-col gap-1 rounded-2xl border border-line bg-card p-5 text-left disabled:opacity-60"
+      className="lift anim-rise flex flex-col gap-1 rounded-2xl bg-card shadow-rest p-5 text-left disabled:opacity-60"
     >
       <span className="text-[14px] font-semibold tracking-[-0.01em] text-ink">{name}</span>
       <span className="text-[12.5px] text-muted">{line}</span>

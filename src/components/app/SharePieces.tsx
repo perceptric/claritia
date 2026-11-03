@@ -49,7 +49,7 @@ export function LinkRow({ url, disabled = false, primary = true }: { url: string
 export function CodeBox({ code, label = "Code", bar, embed = false }: { code: string; label?: string; bar?: React.ReactNode; embed?: boolean }) {
   const { done, copy } = useCopied();
   return (
-    <div className="overflow-hidden rounded-[10px] border border-line bg-card">
+    <div className="overflow-hidden rounded-[10px] bg-card shadow-rest">
       <div className="flex items-start gap-2 border-b border-line px-3 py-2">
         <div className="flex min-h-[28px] min-w-0 flex-1 items-center">{bar ?? <span className="font-mono text-[11px] tracking-[0.04em] text-muted uppercase">{label}</span>}</div>
         <Button size="sm" variant="ghost" onClick={() => void copy("code", code)}>
@@ -113,7 +113,7 @@ export function SitePreview({ code, after = "", still = false, label, height = 3
     return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>html,body{margin:0;background:${t.bg};color:${t.ink};font:14px/1.5 Inter,system-ui,sans-serif}.site{max-width:720px;margin:0 auto;padding:22px 24px 40px}.nav{display:flex;justify-content:space-between;align-items:center;margin-bottom:30px}button[data-claritia-open],a[data-claritia-book]{display:inline-flex;align-items:center;height:36px;padding:0 16px;border-radius:999px;border:0;background:${t.ink};color:${t.bg};font:500 13px Inter,system-ui,sans-serif;text-decoration:none;margin:6px 0 18px;cursor:pointer}</style></head><body><div class="site"><div class="nav">${bar("90px", 14, t.line)}<div style="display:flex;gap:14px">${bar("40px", 8)}${bar("40px", 8)}${bar("40px", 8)}</div></div>${bar("58%", 22, t.line)}${bar("88%")}${bar("72%")}<div style="height:12px"></div>${code}<div style="height:16px"></div>${bar("80%")}${bar("64%")}${bar("76%")}</div><script>customElements.whenDefined("claritia-form").then(function(){setTimeout(function(){${after}},700)});</script></body></html>`;
   }, [code, after]);
   return (
-    <div className="overflow-hidden rounded-[10px] border border-line bg-card">
+    <div className="overflow-hidden rounded-[10px] bg-card shadow-rest">
       <div aria-hidden="true" className="flex h-[30px] items-center gap-[6px] border-b border-line bg-paper px-[12px]">
         <i className="size-[8px] rounded-full bg-line-strong" />
         <i className="size-[8px] rounded-full bg-line-strong" />

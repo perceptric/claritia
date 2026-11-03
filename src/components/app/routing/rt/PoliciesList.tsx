@@ -78,7 +78,7 @@ export function PoliciesList({ session, ws, navigate, screen }: ViewProps & { sc
         </div>
       ) : (
         <div className="mx-auto w-full max-w-[1120px] px-4 py-5 md:px-6">
-          <div className="overflow-x-auto rounded-[10px] border border-line bg-card">
+          <div className="overflow-x-auto rounded-[10px] bg-card shadow-rest">
             <table className="w-full border-collapse text-[13px]">
               <thead>
                 <tr>
