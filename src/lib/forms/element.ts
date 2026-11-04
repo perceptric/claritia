@@ -17,7 +17,7 @@ import { cleanHtml } from "./html.ts";
 import { allFields, isContent, nextStep, numOf, optionsFor, pickOutcome, safeUrl, visibility, withCalcs, type Choice, type Field, type FieldWidth, type Form, type RunCtx } from "./schema.ts";
 import { checkAnswers, OTHER, stepPath, type Answers } from "./values.ts";
 import { answerFrom } from "../share/emailForm.ts";
-import { isChannel, VIA } from "../share/channels.ts";
+import { VIA } from "../share/channels.ts";
 import { ACCESS_CSS, CAL_CSS, consentSpot, pageValues, runPage, shownValues, showsByIf, zoneWords, type PageRun, type Vals } from "../studio/runtime.ts";
 
 /** regions: the region lists, sent with the form when a list follows a country field (src/lib/forms/regions.ts). */
@@ -996,8 +996,8 @@ export class ClaritiaForm extends Base {
       const filled: HTMLElement[] = [];
       for (const [k, v] of Object.entries(this.data?.known ?? {}))
         if (/^[a-z_]{1,20}$/.test(k))
-          wrap.querySelectorAll<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>(`input[data-cl-save="${k}"], select[data-cl-save="${k}"], textarea[data-cl-save="${k}"]`).forEach((x) => {
-            if (x.value || (x instanceof HTMLInputElement && (x.type === "checkbox" || x.type === "radio"))) return;
+          wrap.querySelectorAll<HTMLInputElement>(`[data-cl-save="${k}"]`).forEach((x) => {
+            if (!("value" in x) || x.value || x.type === "checkbox" || x.type === "radio") return;
             x.value = v;
             if (x.value === v) filled.push(x);
           });
@@ -2296,8 +2296,7 @@ export class ClaritiaForm extends Base {
     if ((VIA as readonly string[]).includes(via)) return via;
     if (embedFrame()) return "inline";
     if (this.hasAttribute("hosted")) return "link";
-    const mode = this.hasAttribute("full") ? "full" : this.hasAttribute("slider") ? "slider" : this.hasAttribute("popup") ? "popup" : this.hasAttribute("popover") ? "popover" : this.hasAttribute("side-tab") ? "sidetab" : "inline";
-    return isChannel(mode) ? mode : "inline";
+    return ["full", "slider", "popup", "popover", "side-tab"].find((a) => this.hasAttribute(a))?.replace("-", "") ?? "inline";
   }
 
   private async send() {
