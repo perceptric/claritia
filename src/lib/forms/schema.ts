@@ -362,6 +362,8 @@ export type Form = {
   capture?: Capture;
   /** The link's preview in chats and social posts: its title, line and picture (docs/sharing-plan.md). */
   share?: SharePreview;
+  /** Settings › Access (src/lib/forms/access.ts): when it opens and closes, the most fills it takes, what it says when closed. */
+  access?: Access;
   /** The form's own styles and classes on its elements (docs/design-system.md Part 3.1). */
   design?: FormDesign;
   /** Settings formulas read as {@id}, and the results a visitor can reach (docs/interactive-forms-plan.md). */
@@ -370,6 +372,23 @@ export type Form = {
 };
 
 export type SharePreview = { title?: string; description?: string; image?: string };
+/** opens, closes: ISO times. limit: the most real fills (spam and tests aside). message: shown while it's closed or paused. */
+export type Access = { opens?: string; closes?: string; limit?: number; message?: string };
+
+export function cleanAccess(raw: unknown): Access | undefined {
+  if (!raw || typeof raw !== "object") return undefined;
+  const r = raw as Record<string, unknown>;
+  const time = (v: unknown) => (typeof v === "string" && v.length <= 40 && Number.isFinite(Date.parse(v)) ? new Date(Date.parse(v)).toISOString() : undefined);
+  const opens = time(r.opens);
+  let closes = time(r.closes);
+  // A close before the open would never take a fill: the close goes.
+  if (opens && closes && Date.parse(closes) <= Date.parse(opens)) closes = undefined;
+  const n = Number(r.limit);
+  const limit = Number.isFinite(n) && n >= 1 ? Math.min(Math.round(n), 1_000_000) : undefined;
+  const message = str(r.message, 500);
+  const out: Access = { ...(opens ? { opens } : {}), ...(closes ? { closes } : {}), ...(limit ? { limit } : {}), ...(message ? { message } : {}) };
+  return Object.keys(out).length ? out : undefined;
+}
 
 /** A link preview, cleaned: a title up to 90, a line up to 200, an https picture. Undefined when it says nothing. */
 export function cleanShare(raw: unknown): SharePreview | undefined {
@@ -1095,6 +1114,7 @@ export function checkForm(raw: unknown, ctx: Ctx = {}): { form: Form } | { error
     ...((d) => (Object.keys(d).length ? { design: d } : {}))(readFormDesign(r.design, new Set(flat.map((f) => f.id)))),    ...(constants.length ? { constants } : {}),
     ...((x) => (x ? { results: x } : {}))(cleanResults(r.results, byId, errors)),
     ...((x) => (x ? { share: x } : {}))(cleanShare(r.share)),
+    ...((x) => (x ? { access: x } : {}))(cleanAccess(r.access)),
     ...((pg) => (pg ? { page: pg } : {}))(checkPage(r.page, new Set(flat.map((f) => f.id)))),
   };
   return errors.length ? { errors: [...new Set(errors)] } : { form };

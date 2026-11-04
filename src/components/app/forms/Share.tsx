@@ -3,39 +3,36 @@
 // Share (docs/sharing-plan.md, docs/form-ui-plan.md step 3): the ways a form gets in front of people on the left, the
 // one picked on the right, shown more than told. Link: the link with its ending typed in place, and the preview card
 // people see in chats (edited on the card). Website: the six ways as pictures, a live preview of the picked one on a
-// sample page, and the code with its builder. Email, QR code, and Your own form (Claritia reads the site's form).
+// sample page, and the code with its builder and its steps. Embed HTML, Email and QR code.
 
 import { useRef, useState } from "react";
 import type { Op } from "@/lib/forms/ops";
-import { allFields, type Form } from "@/lib/forms/schema";
-import { capturedForm } from "@/lib/forms/templates";
-import { formEmbedCode, overPage, type FormEmbed, type FormMode, type Opens, type Plat } from "@/lib/share/embed";
+import type { Form } from "@/lib/forms/schema";
+import { formEmbedCode, overPage, pageHtmlCss, type FormEmbed, type FormMode, type Opens, type Plat } from "@/lib/share/embed";
 import { emailQuestionHtml, firstQuestion } from "@/lib/share/emailForm";
 import { viaLink } from "@/lib/share/channels";
 import { QrCode } from "../meetings/Share";
 import { BuilderPick, CodeBox, EmbedSteps, SitePreview, useCopied } from "../SharePieces";
+import { SendEmail } from "./SendEmail";
 import { useLinkBase } from "../views/LinkDomainSettings";
-import { Badge, ErrorNote, errorText, must, postJson, useQuery, type ViewProps } from "../ui";
-import { saveName } from "./formModel";
+import { ErrorNote, errorText, must, useQuery, type ViewProps } from "../ui";
 import { Ic } from "./ic";
 import { Menu } from "./Menu";
-import { Box, BTN, CARD, copyText, CROW, CSTACK, GHOST_SM, IB, IB_SM, IN, RowText, Seg, Tg, useNote } from "./parts";
+import { Box, BTN, CARD, copyText, CROW, GHOST_SM, IB, IB_SM, RowText, Seg, Tg, useNote } from "./parts";
 import type { FormRow, Kit } from "./shared";
 
-type Way = "link" | "personal" | "embed" | "html" | "email" | "qr" | "own";
+type Way = "link" | "embed" | "html" | "email" | "qr";
 type Props = ViewProps & { form: Form; row: FormRow & { kind?: "built" | "captured" }; apply: (ops: Op | Op[], words?: string) => boolean; kit: Kit | null; site: string };
 
 export function Share(props: Props) {
   const { form, row } = props;
-  const [way, setWay] = useState<Way>(form.capture ? "own" : "link");
+  const [way, setWay] = useState<Way>("link");
   const ways: [Way, string, string][] = [
     ["link", "link", "Link"],
-    ["personal", "user", "Personal link"],
     ["embed", "code", "Website"],
     ...(form.page ? ([["html", "code", "Embed HTML"]] as [Way, string, string][]) : []),
     ["email", "mail", "Email"],
     ["qr", "qr", "QR code"],
-    ["own", "form", "Own form"],
   ];
   return (
     <div className="grid min-h-0 flex-1 grid-cols-[200px_minmax(0,1fr)] grid-rows-[minmax(0,1fr)] max-[860px]:grid-cols-1 max-[860px]:grid-rows-[auto_minmax(0,1fr)]">
@@ -47,7 +44,7 @@ export function Share(props: Props) {
       <div className="min-w-0 overflow-y-auto px-[16px] pt-[20px] pb-[32px] sm:px-[clamp(16px,3vw,32px)]">
         <div className="flex max-w-[760px] flex-col gap-[16px]">
           {!row.version ? <Box tone="warn" title="Publish the form first" /> : null}
-          {way === "link" ? <LinkPane {...props} /> : way === "personal" ? <PersonalPane {...props} /> : way === "embed" ? <EmbedPane {...props} /> : way === "html" ? <HtmlPane {...props} /> : way === "email" ? <EmailPane {...props} /> : way === "qr" ? <QrPane {...props} /> : <OwnPane {...props} />}
+          {way === "link" ? <LinkPane {...props} /> : way === "embed" ? <EmbedPane {...props} /> : way === "html" ? <HtmlPane {...props} /> : way === "email" ? <EmailPane {...props} /> : <QrPane {...props} />}
         </div>
       </div>
     </div>
@@ -279,74 +276,13 @@ function PreviewCard({ session, ws, form, row, apply, host }: Pick<Props, "sessi
   );
 }
 
-/**
- * A personal link (docs/sharing-plan.md): the form's link for one person, which fills in what Claritia knows about
- * them. Made on the server, so the link holds a signed token and never their details.
- */
-function PersonalPane({ session, ws, row }: Props) {
-  const [email, setEmail] = useState("");
-  const [made, setMade] = useState<{ url: string; contact: boolean; for: string } | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
-  const { done, copy } = useCopied();
-  const make = async () => {
-    setBusy(true);
-    setError("");
-    try {
-      const r = await postJson<{ url: string; contact: boolean }>(session, "/api/forms/personal-link", { workspaceId: ws.id, formId: row.id, email: email.trim() });
-      setMade({ ...r, for: email.trim().toLowerCase() });
-    } catch (e) {
-      setError(errorText(e));
-    } finally {
-      setBusy(false);
-    }
-  };
-  return (
-    <>
-      <H3>Personal link</H3>
-      <form
-        className="flex flex-wrap items-center gap-[8px]"
-        onSubmit={(e) => {
-          e.preventDefault();
-          if (email.trim() && !busy) void make();
-        }}
-      >
-        <input aria-label="Their email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="name@company.com" className={`${IN} h-[40px] min-w-0 flex-1 basis-[260px]`} />
-        <button type="submit" className={BTN} disabled={!email.trim() || busy || !row.version}>
-          {busy ? "Making it" : "Make link"}
-        </button>
-      </form>
-      <ErrorNote message={error} />
-      {made ? (
-        <div className={CARD}>
-          <div className={CROW}>
-            <span className="flex min-w-0 flex-1 flex-wrap items-center gap-[8px]">
-              <b className="font-medium break-all text-ink">{made.for}</b>
-              <Badge tone={made.contact ? "green" : "gray"}>{made.contact ? "Known contact" : "New person"}</Badge>
-            </span>
-          </div>
-          <div className={CROW}>
-            <a href={made.url} target="_blank" rel="noopener" data-personal-link className="min-w-0 flex-1 truncate font-mono text-[12.5px] text-ink" title={made.url}>
-              {made.url.replace(/^https?:\/\//, "")}
-            </a>
-            <button type="button" className={BTN} onClick={() => void copy("personal", made.url)}>
-              <Ic n={done === "personal" ? "check" : "copy"} />
-              {done === "personal" ? "Copied" : "Copy link"}
-            </button>
-          </div>
-        </div>
-      ) : null}
-    </>
-  );
-}
-
-/** The form's own code, as Form Studio holds it: its HTML, its own CSS and the brand's stylesheet, each to copy. */
+/** The form's own code, as Form Studio holds it: all of it in one block, or its HTML, its own CSS or the brand's stylesheet. */
 function HtmlPane({ form }: Props) {
-  const [file, setFile] = useState<"html" | "css" | "brand">("html");
+  const [file, setFile] = useState<"both" | "html" | "css" | "brand">("both");
   const pg = form.page;
   if (!pg) return null;
-  const code = file === "html" ? pg.html : file === "css" ? pg.css : pg.brand;
-  const label = file === "html" ? "Form HTML" : file === "css" ? "Form CSS" : "Brand CSS";
+  const code = file === "both" ? pageHtmlCss(pg) : file === "html" ? pg.html : file === "css" ? pg.css : pg.brand;
+  const label = { both: "HTML + CSS", html: "HTML", css: "CSS", brand: "Brand CSS" }[file];
   return (
     <>
       <H3>Embed HTML</H3>
@@ -355,8 +291,9 @@ function HtmlPane({ form }: Props) {
         value={file}
         onChange={setFile}
         options={[
-          { value: "html", label: "Form HTML" },
-          { value: "css", label: "Form CSS" },
+          { value: "both", label: "HTML + CSS" },
+          { value: "html", label: "HTML" },
+          { value: "css", label: "CSS" },
           { value: "brand", label: "Brand CSS" },
         ]}
       />
@@ -392,28 +329,10 @@ const MAILS: { v: "send" | "inside"; l: string; draw: React.ReactNode }[] = [
   },
 ];
 
-function EmailPane({ session, ws, form, row, kit }: Props) {
+function EmailPane(props: Props) {
+  const { form, row, kit } = props;
   const note = useNote();
   const [pick, setPick] = useState<"send" | "inside">("send");
-  const [to, setTo] = useState("");
-  const [message, setMessage] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
-  const list = [...new Set(to.split(/[\s,;]+/).map((x) => x.trim().toLowerCase()).filter(Boolean))];
-  const bad = list.filter((x) => !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(x));
-  const send = async () => {
-    setBusy(true);
-    setError("");
-    try {
-      const r = await postJson<{ queued: number }>(session, "/api/forms/share-email", { workspaceId: ws.id, formId: row.id, to: list, message });
-      setTo("");
-      note.show(r.queued === 1 ? "Sent to 1 address" : `Sent to ${r.queued} addresses`);
-    } catch (e) {
-      setError(errorText(e));
-    } finally {
-      setBusy(false);
-    }
-  };
   const q = firstQuestion(form);
   const html = q ? emailQuestionHtml(q, { link: viaLink(`${origin()}/f/${row.id}`, "email"), color: kit?.tokens.buttonBg || kit?.tokens.accent, textColor: kit?.tokens.buttonText }) : "";
   return (
@@ -421,27 +340,7 @@ function EmailPane({ session, ws, form, row, kit }: Props) {
       <H3>Email</H3>
       <Tiles value={pick} onChange={setPick} items={MAILS} cols="grid-cols-2" />
       {pick === "send" ? (
-        <div className={CARD}>
-          <div className={CSTACK}>
-            <label htmlFor="share-to" className="text-[12px] font-medium text-muted">
-              To
-            </label>
-            <textarea id="share-to" value={to} onChange={(e) => setTo(e.target.value)} rows={3} placeholder="name@company.com, name@company.com" className={`${IN} h-auto py-[8px] font-mono text-[12px]`} />
-          </div>
-          <div className={CSTACK}>
-            <label htmlFor="share-note" className="text-[12px] font-medium text-muted">
-              Message
-            </label>
-            <textarea id="share-note" value={message} onChange={(e) => setMessage(e.target.value)} rows={3} maxLength={1000} className={`${IN} h-auto py-[8px]`} />
-          </div>
-          <div className={CROW}>
-            <span className={`flex-1 text-[12.5px] ${bad.length || list.length > 50 ? "text-rose" : "text-muted"}`}>{bad.length ? `Not an email: ${bad.slice(0, 3).join(", ")}${bad.length > 3 ? ` and ${bad.length - 3} more` : ""}` : list.length > 50 ? `${list.length} addresses, 50 at most` : list.length ? `${list.length} ${list.length === 1 ? "address" : "addresses"}` : ""}</span>
-            <button type="button" className={BTN} disabled={busy || !list.length || !!bad.length || list.length > 50 || !row.version} onClick={() => void send()}>
-              {busy ? "Sending" : "Send"}
-            </button>
-          </div>
-          <ErrorNote message={error} />
-        </div>
+        <SendEmail {...props} />
       ) : q ? (
         <>
           <div className={`${CARD} bg-paper p-[16px]`}>
@@ -539,6 +438,29 @@ function EmbedPane({ form, row }: Props) {
       <H3>Website</H3>
       <Tiles value={o.mode} onChange={(mode) => set({ mode })} items={MODES} cols="grid-cols-6 max-[1100px]:grid-cols-3" />
       {row.version ? <SitePreview key={`${o.mode}:${o.size}:${o.side}`} code={shownCode} after={opener} label="How it looks on a site" height={o.mode === "full" ? 460 : 400} /> : null}
+      {o.mode === "inline" ? (
+        <div className={CARD}>
+          {(
+            [
+              ["Width", "width", "Fill the space", 640],
+              ["Height", "height", "Fit the form", 600],
+            ] as const
+          ).map(([title, k, auto, start]) => (
+            <div key={k} className={CROW}>
+              <RowText title={title} />
+              <div className="flex flex-wrap items-center gap-[8px]">
+                <Seg label={title} value={o[k] ? "fixed" : "auto"} onChange={(v: "auto" | "fixed") => set({ [k]: v === "fixed" ? start : null })} options={[{ value: "auto", label: auto }, { value: "fixed", label: "Fixed" }]} />
+                {o[k] ? (
+                  <span className="inline-flex items-center gap-[6px] text-[12.5px] text-muted">
+                    <input type="number" inputMode="numeric" min={k === "width" ? 280 : 200} max={k === "width" ? 2000 : 4000} value={o[k] ?? ""} onChange={(e) => set({ [k]: Number(e.target.value) || start })} aria-label={`${title} in pixels`} className="h-[30px] w-[84px] rounded-md bg-card px-[10px] text-[12.5px] text-ink shadow-input outline-none focus:shadow-focus" />
+                    px
+                  </span>
+                ) : null}
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : null}
       {o.mode !== "inline" && o.mode !== "full" ? (
         <div className={CARD}>
           {opensOn ? (
@@ -599,60 +521,6 @@ function EmbedPane({ form, row }: Props) {
       ) : null}
       <CodeBox code={code} embed bar={<BuilderPick value={plat} onChange={setPlat} />} />
       <EmbedSteps plat={plat} over={overPage(o.mode)} />
-    </>
-  );
-}
-
-function OwnPane({ sb, ws, navigate, form, row }: Props) {
-  const [error, setError] = useState("");
-  const code = `<script src="${origin()}/forms/v1.js" async data-capture="${row.id}"></script>`;
-  if (!form.capture)
-    return (
-      <>
-        <H3>Your own form</H3>
-        <p className="-mt-[10px] mb-0 text-[12.5px] text-muted">Keep the form your site has. Claritia reads each send like its own.</p>
-        <ErrorNote message={error} />
-        <button
-          type="button"
-          className={`${BTN} self-start`}
-          onClick={async () => {
-            setError("");
-            try {
-              const id = must(await sb.rpc("form_create", { p_ws: ws.id, p_name: "Your own form", p_draft: capturedForm("html"), p_brand_kit: null, p_kind: "captured" })) as string;
-              navigate("forms", id, "tab=share");
-            } catch (e) {
-              setError(errorText(e));
-            }
-          }}
-        >
-          <Ic n="plus" />
-          Read my own form
-        </button>
-      </>
-    );
-  const fields = allFields(form).filter((f) => f.type !== "heading" && f.type !== "paragraph");
-  return (
-    <>
-      <H3>Your own form</H3>
-      <CodeBox code={code} />
-      <div className={CARD}>
-        <table className="w-full border-collapse text-[13px]">
-          <thead>
-            <tr>
-              <th className="border-b border-line bg-paper px-[12px] py-[9px] text-left text-[12px] font-medium text-muted first:rounded-tl-[10px]">Your field</th>
-              <th className="border-b border-line bg-paper px-[12px] py-[9px] text-left text-[12px] font-medium text-muted last:rounded-tr-[10px]">Claritia field</th>
-            </tr>
-          </thead>
-          <tbody>
-            {fields.map((f) => (
-              <tr key={f.id}>
-                <td className="border-b border-line px-[12px] py-[9px] font-mono text-[12px] last:border-b-0">{f.source || <span className="text-faint">Not matched</span>}</td>
-                <td className={`border-b border-line px-[12px] py-[9px] ${f.key.startsWith("q.") ? "text-muted" : "text-ink"}`}>{saveName(f, [])}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
     </>
   );
 }

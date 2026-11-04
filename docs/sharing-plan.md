@@ -147,6 +147,28 @@ A form link for one person, which fills in what Claritia knows about them (`src/
 - **The fill**: counts as Personal link, or as Email when it came by email (marked as personal too). The answer always
   decides the contact: someone who types another email is that other person.
 
+## Step 7: Share after Fillout (built)
+
+- **Share's list**: Link, Website, Embed HTML (Studio pages), Email and QR code. Personal link and Own form are off
+  the list. Personal links still work underneath: every form link in a Claritia email opens as the reader's own, and
+  forms that already read a site's own form keep doing so.
+- **Website**: In the page takes a width (fill the space, or fixed, never past the space it's in) and a height (fit
+  the form, or fixed with the form scrolling inside). The site builders are Webflow, WordPress, Framer, Squarespace
+  (an Embed block, any plan), Shopify and any site, each with numbered steps under the code, and the site's footer
+  code for the ones over the page. A box that sizes to fit what's in it (Framer's Fit) keeps the form 640 px wide.
+- **Embed HTML**: HTML + CSS in one block (the brand's stylesheet, the form's, then its HTML), or HTML, CSS or Brand
+  CSS alone.
+- **Email** (`src/components/app/forms/SendEmail.tsx`, `src/lib/share/people.ts`): To is chips. People Claritia
+  knows are suggested as you type; Add people adds everyone who filled this form, a meeting type's guests, a CSV or a
+  pasted list (the addresses are picked out of any text). From is you (your name on the team's address) or the team,
+  then Subject and Message, up to 200 people a send. Each send remembers its form (`125_share_sends.sql`), and the
+  last sends show each person as Not started, In progress (opened the link), Finished (sent the form after the email)
+  or Not delivered (bounced, refused or skipped).
+- **Settings › Access** (`src/lib/forms/access.ts`): Pause the form, Opens on, Closes on, Stop after this many fills
+  (real fills, spam and tests aside) and the closed message, which a paused form shows too. The form read says it's
+  closed; the send checks again, so a page loaded before the close can't slip a fill in. A fill count that can't be
+  read leaves the form open, and a Funnel QA test still goes through.
+
 ## The screens (after the four steps)
 
 - A form's Share tab opens on Link: the link in full (the ending link when there is one) with Copy link and Open,
@@ -168,6 +190,10 @@ A form link for one person, which fills in what Claritia knows about them (`src/
 | Growth (500 teams) | about $1 for "Email the link" sends on Resend, inside the current plan (check) | about $10, about 100 custom domains (check) | about $11 |
 
 No Claude calls. QR codes and email HTML are made in the browser.
+
+Step 7 adds $0 a month at Beta (50 teams) and Growth (500 teams): the emails go through the current sender (Resend,
+inside the current plan, check), the people lists are reads Supabase already serves, and a form with a fill limit
+counts its fills once per read and send. No Claude calls.
 
 Steps 5 and 6 add $0 a month at Beta (50 teams) and Growth (500 teams): one more value on each fill, a signed token
 made with the key the server already has, and a lookup of one contact when a personal link opens. No Claude calls.

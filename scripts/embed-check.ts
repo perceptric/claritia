@@ -44,6 +44,7 @@ const studioPick = ready(
 );
 // A form in a gallery style, as the Studio makes it, for a site box that sizes to fit what's in it (Framer's Fit).
 const STYLED = "55555555-5555-4555-8555-555555555555";
+const SHUT = "66666666-6666-4666-8666-666666666666";
 const styled = (() => {
   const r = studioForm(plain, styleCssById("grove"));
   if ("error" in r) throw new Error(r.error);
@@ -84,6 +85,7 @@ const server = createServer((req, res) => {
   if (u === `/api/forms/${PAGE}`) return json({ id: PAGE, version: 1, status: "live", body: studio, tokens: {}, logo_url: null });
   if (u === `/api/forms/${STEPS}`) return json({ id: STEPS, version: 1, status: "live", body: twoSteps, tokens: {}, logo_url: null });
   if (u === `/api/forms/${PAGE2}`) return json({ id: PAGE2, version: 1, status: "live", body: studioPick, tokens: {}, logo_url: null });
+  if (u === `/api/forms/${SHUT}`) return json({ id: SHUT, version: 1, status: "paused", closed: "Sign-ups are closed for this year.", body: styled, logo_url: null });
   if (u === `/api/forms/${STYLED}`) return json({ id: STYLED, version: 1, status: "live", body: styled, logo_url: null });
   if (u.startsWith("/api/")) return json({});
   if (u.startsWith("/book/")) return res.writeHead(200, { "content-type": "text/html" }).end(`<!doctype html><body style="margin:0"><h1 id="cal">Pick a time</h1></body>`);
@@ -121,6 +123,11 @@ try {
   await host(phone).locator(".cl-root form").waitFor();
   const pw2 = (await host(phone).boundingBox())?.width ?? 0;
   check(pw2 <= 390 && pw2 >= 300, `in a fit box on a phone: the form fits the screen (${Math.round(pw2)}px)`);
+
+  // Closed by Settings › Access: the form's own closed message in place of the form
+  await desk.goto(add("/shut", formEmbedCode(origin, SHUT, { mode: "inline" })));
+  await host(desk).locator(".f").first().waitFor();
+  check(((await host(desk).locator(".f").first().textContent()) ?? "").includes("Sign-ups are closed for this year.") && (await host(desk).locator("form").count()) === 0, "closed: the form's closed message shows, with no form");
 
   // Full page
   await desk.goto(add("/full", formEmbedCode(origin, FORM, { mode: "full" })));

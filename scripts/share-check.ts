@@ -140,34 +140,73 @@ async function run(width: number, tag: string) {
   await way("Email");
   await page.waitForTimeout(200);
   await shot("form-email");
-  await page.getByLabel("To").fill("ana@acme.com, not-an-email");
-  check(await page.getByText("Not an email: not-an-email").isVisible(), `${tag}: a wrong address is named`);
-  check(await page.getByRole("button", { name: "Send", exact: true }).isDisabled(), `${tag}: Send waits for good addresses`);
-  await page.getByLabel("To").fill("ana@acme.com, bo@acme.com");
-  check(await page.getByText("2 addresses").isVisible(), `${tag}: the count of addresses`);
+  const to = page.getByRole("combobox", { name: "To" });
+  check((await page.getByText("No one yet").isVisible()) && (await page.getByRole("button", { name: "Send", exact: true }).isDisabled()), `${tag}: Send waits for someone to send to`);
+  // People Claritia knows show as you type; a click makes a chip.
+  await to.click();
+  await to.fill("pri");
+  await page.getByRole("option", { name: /Priya Shah/ }).click();
+  check((await page.locator("[data-chip='priya@harbor.app']").count()) === 1, `${tag}: a known person picked from the suggestions`);
+  // A typed address and a comma make a chip; a wrong one is named.
+  await to.fill("new@orbit.co,");
+  await to.fill("not-an-email");
+  await to.press("Enter");
+  check((await page.locator("[data-chip='new@orbit.co']").count()) === 1 && (await page.getByText("1 isn't an email").isVisible()) && (await page.getByRole("button", { name: "Send", exact: true }).isDisabled()), `${tag}: a typed address is a chip, and a wrong one holds Send`);
+  await page.getByRole("button", { name: "Remove not-an-email" }).click();
+  // Add people: everyone who filled this form, a meeting type's guests, a pasted list.
+  await page.getByRole("button", { name: "Add people" }).click();
+  await page.getByRole("menuitem", { name: "Everyone who filled this form" }).or(page.getByRole("button", { name: "Everyone who filled this form" })).first().click();
+  await page.locator("[data-chip='jon@quarry.dev']").waitFor();
+  await page.getByRole("button", { name: "Add people" }).click();
+  await page.getByRole("menuitem", { name: "Guests of a meeting type" }).or(page.getByRole("button", { name: "Guests of a meeting type" })).first().click();
+  await page.getByRole("menuitem", { name: "Demo call" }).or(page.getByRole("button", { name: "Demo call" })).first().click();
+  await page.locator("[data-chip='ravi@stackline.co']").waitFor();
+  await page.getByRole("button", { name: "Add people" }).click();
+  await page.getByRole("menuitem", { name: "Paste a list" }).or(page.getByRole("button", { name: "Paste a list" })).first().click();
+  await page.getByRole("dialog").locator("textarea").fill("Kai <kai@sunfield.co>, priya@harbor.app\nlee@acme.com");
+  await page.getByRole("dialog").getByRole("button", { name: "Add" }).click();
+  await page.locator("[data-chip='kai@sunfield.co']").waitFor();
+  const chips = await page.locator("[data-chip]").count();
+  check(chips === 7 && (await page.getByText("7 people").isVisible()), `${tag}: Add people adds fills, guests and a pasted list, each person once (${chips})`);
+  await page.getByLabel("Subject").fill("Your demo");
+  await page.getByRole("radio", { name: "Acme team" }).click();
+  await shot("form-email");
+  await page.getByRole("button", { name: "Send", exact: true }).click();
+  await page.getByText("Sent to 7 people").waitFor();
+  const sentCall = (await page.evaluate(() => (window as unknown as { calls: { path: string; body: Record<string, unknown> }[] }).calls)).find((x) => x.path === "/api/forms/share-email");
+  check((sentCall?.body.to as string[] | undefined)?.length === 7 && sentCall?.body.subject === "Your demo" && sentCall?.body.from === "team", `${tag}: the send carries the people, the subject and who it's from`);
+  check((await page.locator("[data-chip]").count()) === 0, `${tag}: the To box empties after a send`);
+  const sent = page.locator("[data-share-sent]");
+  check((await sent.getByText("Finished").count()) === 1 && (await sent.getByText("Not delivered").count()) === 1 && (await sent.getByText("Not started").count()) === 1, `${tag}: an earlier send shows where each person is`);
   await page.getByRole("radio", { name: "The form in an email" }).click();
   check(await page.getByRole("button", { name: "Copy for Gmail or Outlook" }).isVisible(), `${tag}: the form in an email is its own picture`);
 
-  await way("Personal link");
-  await page.getByLabel("Their email").fill("ana@acme.com");
-  await page.getByRole("button", { name: "Make link" }).click();
-  await page.locator("[data-personal-link]").waitFor();
-  await shot("form-personal");
-  check((await page.locator("[data-personal-link]").getAttribute("href"))?.includes("p=") === true && (await page.getByText("Known contact").isVisible()), `${tag}: a personal link for a known contact`);
-  const call = (await page.evaluate(() => (window as unknown as { calls: { path: string; body: Record<string, unknown> }[] }).calls)).find((x) => x.path === "/api/forms/personal-link");
-  check(call?.body.email === "ana@acme.com", `${tag}: the link is made on the server for that email`);
-  await page.getByLabel("Their email").fill("new@acme.com");
-  await page.getByRole("button", { name: "Make link" }).click();
-  await page.getByText("New person").waitFor();
-  check(true, `${tag}: a personal link for someone new`);
+  check((await page.getByRole("button", { name: "Personal link", exact: true }).count()) === 0 && (await page.getByRole("button", { name: "Own form", exact: true }).count()) === 0, `${tag}: no Personal link or Own form`);
 
   await way("QR code");
   await page.waitForTimeout(300);
   await shot("form-qr");
   check(await page.getByRole("img", { name: /QR code for/ }).isVisible(), `${tag}: the QR code`);
-  await way("Own form");
-  await page.waitForTimeout(200);
-  await shot("form-own");
+
+  // Settings › Access: Pause the form, the dates, the most fills and the closed message, each saved on the form.
+  await page.goto(`${base}/?view=access`);
+  await page.getByRole("heading", { name: "Access" }).waitFor();
+  const formNow = () => page.evaluate(() => (window as unknown as { form?: { access?: Record<string, unknown> } }).form?.access ?? null);
+  await page.getByRole("switch", { name: "Closes on", exact: true }).or(page.getByRole("button", { name: "Closes on", exact: true })).first().click();
+  check(typeof (await formNow())?.closes === "string" && (await page.getByLabel("Closes on, time").isVisible()), `${tag}: Closes on sets a close with a day and a time`);
+  await page.getByLabel("Closes on, time").fill("17:30");
+  check(new Date(String((await formNow())?.closes)).getMinutes() === 30, `${tag}: the close time is kept`);
+  await page.getByRole("switch", { name: "Stop after this many fills" }).or(page.getByRole("button", { name: "Stop after this many fills" })).first().click();
+  await page.getByLabel("Most fills").fill("250");
+  check((await formNow())?.limit === 250, `${tag}: the most fills is kept`);
+  await page.getByLabel("Closed message").fill("Sign-ups are closed.");
+  check((await formNow())?.message === "Sign-ups are closed.", `${tag}: the closed message is kept`);
+  await page.getByRole("switch", { name: "Pause the form" }).or(page.getByRole("button", { name: "Pause the form" })).first().click();
+  check(await page.getByText("Closed now").isVisible(), `${tag}: a paused form says Closed now`);
+  await page.waitForTimeout(300);
+  await shot("form-access");
+  await page.getByRole("switch", { name: "Closes on", exact: true }).or(page.getByRole("button", { name: "Closes on", exact: true })).first().click();
+  check(!("closes" in ((await formNow()) ?? {})), `${tag}: turning Closes on off takes the close away`);
 
   // Before 117 the ending's function isn't there: the ending hides, no raw error shows.
   await page.goto(`${base}/?view=form&nolinks=1`);

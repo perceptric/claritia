@@ -22,7 +22,7 @@ import { ACCESS_CSS, CAL_CSS, consentSpot, pageValues, runPage, shownValues, sho
 
 /** regions: the region lists, sent with the form when a list follows a country field (src/lib/forms/regions.ts). */
 /** known: a personal link's person, for the contact questions the form asks (src/lib/share/known.ts). */
-type Loaded = { id: string; version: number; status: "live" | "paused"; body: Form; logo_url?: string | null; strict?: boolean; turnstile?: string; regions?: Record<string, string[]>; known?: Record<string, string> };
+type Loaded = { id: string; version: number; status: "live" | "paused"; closed?: string; body: Form; logo_url?: string | null; strict?: boolean; turnstile?: string; regions?: Record<string, string[]>; known?: Record<string, string> };
 
 /** A personal link's token, from the address (src/lib/share/personal.ts): the server says whether it's good. */
 const personalParam = (): string => {
@@ -1139,7 +1139,7 @@ export class ClaritiaForm extends Base {
     const form = d.body;
     const width = form.layout.maxWidth ? `${form.layout.maxWidth}px` : form.layout.side || form.steps.some((st) => st.image) ? "1040px" : form.layout.width === "wide" ? "720px" : "480px";
     const style = el("style", { text: `:host{${BLOCK_VARS}--clr-width:${width}}\n@layer base{${STYLES}}` });
-    if (d.status === "paused") return this.put(style, el("div", { class: "f" }, el("p", { class: "i", text: "This form is closed." })));
+    if (d.status === "paused") return this.put(style, el("div", { class: "f" }, el("p", { class: "i", text: d.closed || "This form is closed." })));
     if (form.page) return this.drawPage(form, style);
     if (this.done) {
       const res = this.resultPanel(form);

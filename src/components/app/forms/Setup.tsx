@@ -1,7 +1,7 @@
 "use client";
 
-// Settings (docs/forms-plan.md Part 6): a list on the left with icons (Team alerts, Auto-reply, Consent, Spam and
-// security, Data; what happens after a submit is On Submission on Build), the one picked on the right. Every change is an op on the draft, so it saves,
+// Settings (docs/forms-plan.md Part 6): a list on the left with icons (Access, Team alerts, Auto-reply, Consent, Spam
+// and security, Data; what happens after a submit is On Submission on Build), the one picked on the right. Every change is an op on the draft, so it saves,
 // undoes and publishes like the rest of the form.
 
 import { useState } from "react";
@@ -10,12 +10,14 @@ import type { Op } from "@/lib/forms/ops";
 import { allFields, DEFAULT_CONSENT, type Form } from "@/lib/forms/schema";
 import type { RouterBody } from "@/lib/router/types";
 import { BrandLogo } from "../BrandLogo";
+import { CLOSED } from "@/lib/forms/access";
+import { DatePick } from "../DatePick";
 import { askText } from "../Dialogs";
 import { Badge, ErrorNote, errorText, must, useLoad, type ViewProps } from "../ui";
 import { Ic } from "./ic";
 import { AREA, Box, CARD, CROW, CSTACK, GHOST_SM, GHOST_SM_RED, IN, IN_FIT, RowText, Seg, useNote, Tg } from "./parts";
 
-export type SetupSub = "alerts" | "reply" | "consent" | "spam" | "data";
+export type SetupSub = "access" | "alerts" | "reply" | "consent" | "spam" | "data";
 
 type Props = ViewProps & {
   form: Form;
@@ -28,11 +30,15 @@ type Props = ViewProps & {
   onReview: () => void;
   subs: number;
   name: string;
+  /** Pause the form, from Access: whether it's paused, and the switch (it asks first). Null before it's published. */
+  paused?: boolean | null;
+  onStatus?: (s: "live" | "paused") => void;
 };
 
 export function Setup(p: Props) {
   const { form, sub, setSub } = p;
   const items: [SetupSub, string, string, boolean?][] = [
+    ["access", "clock", "Access", !!form.access || !!p.paused],
     ["alerts", "bell", "Team alerts", !!form.notify?.on],
     ["reply", "reply", "Auto-reply", !!form.reply?.on],
     ["consent", "shield", "Consent"],
@@ -58,7 +64,7 @@ export function Setup(p: Props) {
       </nav>
       <div className="min-w-0 overflow-y-auto px-[16px] pt-[20px] pb-[32px] sm:px-[clamp(16px,3vw,32px)]">
         <div className="flex max-w-[760px] flex-col gap-[16px]">
-          {sub === "alerts" ? <Alerts {...p} /> : sub === "reply" ? <Reply {...p} /> : sub === "consent" ? <Consent {...p} /> : sub === "spam" ? <Spam {...p} /> : <Data {...p} />}
+          {sub === "access" ? <AccessPane {...p} /> : sub === "alerts" ? <Alerts {...p} /> : sub === "reply" ? <Reply {...p} /> : sub === "consent" ? <Consent {...p} /> : sub === "spam" ? <Spam {...p} /> : <Data {...p} />}
         </div>
       </div>
     </div>
@@ -73,6 +79,79 @@ const Label = ({ children }: { children: React.ReactNode }) => <label className=
 
 
 const EMAIL = /^[^\s@<>()",;:]{1,64}@[a-z0-9-]+(\.[a-z0-9-]+)+$/i;
+
+const pad2 = (n: number) => String(n).padStart(2, "0");
+/** An ISO time as this computer's day and time, for the pickers. */
+const localParts = (iso?: string) => {
+  if (!iso) return { day: "", time: "09:00" };
+  const d = new Date(iso);
+  return { day: `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`, time: `${pad2(d.getHours())}:${pad2(d.getMinutes())}` };
+};
+const toIso = (day: string, time: string) => new Date(`${day}T${/^\d{2}:\d{2}$/.test(time) ? time : "09:00"}:00`).toISOString();
+
+/** Settings › Access: Pause the form, when it opens and closes, the most fills it takes and what it says when closed. */
+function AccessPane({ form, apply, paused, onStatus }: Props) {
+  const a = form.access ?? {};
+  const [now] = useState(() => Date.now());
+  const shut = paused || (a.opens && now < Date.parse(a.opens)) || (a.closes && now >= Date.parse(a.closes));
+  const when = (k: "opens" | "closes", title: string) => {
+    const v = a[k];
+    const parts = localParts(v);
+    const tomorrow = new Date(now + 86_400_000);
+    return (
+      <div className={CROW}>
+        <RowText title={title} />
+        <div className="flex flex-wrap items-center gap-[8px]">
+          {v ? (
+            <>
+              <DatePick label={`${title}, day`} value={parts.day} onChange={(d) => apply({ op: "set_access", access: { [k]: toIso(d, parts.time) } })} />
+              <input type="time" aria-label={`${title}, time`} value={parts.time} onChange={(e) => e.target.value && apply({ op: "set_access", access: { [k]: toIso(parts.day, e.target.value) } })} className={`${IN_FIT} w-[110px] tabular-nums`} />
+            </>
+          ) : null}
+          <Tg label={title} on={!!v} onChange={(on) => apply({ op: "set_access", access: { [k]: on ? toIso(localParts((k === "closes" && a.opens ? new Date(Date.parse(a.opens) + 7 * 86_400_000) : tomorrow).toISOString()).day, "09:00") : null } })} />
+        </div>
+      </div>
+    );
+  };
+  return (
+    <>
+      <div className="flex flex-wrap items-center gap-[8px]">
+        <H3>Access</H3>
+        {shut ? <Badge tone="amber">Closed now</Badge> : null}
+      </div>
+      <div className={CARD}>
+        <div className={CROW}>
+          <RowText title="Pause the form" sub={paused ? "Paused" : undefined} />
+          <Tg label="Pause the form" on={!!paused} disabled={paused == null || !onStatus} onChange={(on) => onStatus?.(on ? "paused" : "live")} />
+        </div>
+        {when("opens", "Opens on")}
+        {when("closes", "Closes on")}
+        <div className={CROW}>
+          <RowText title="Stop after this many fills" />
+          <div className="flex flex-wrap items-center gap-[8px]">
+            {a.limit ? (
+              <input
+                className={`${IN_FIT} w-[90px] tabular-nums`}
+                inputMode="numeric"
+                aria-label="Most fills"
+                value={a.limit}
+                onChange={(e) => {
+                  const n = parseInt(e.target.value.replace(/\D/g, ""), 10);
+                  if (Number.isFinite(n) && n > 0) apply({ op: "set_access", access: { limit: Math.min(n, 1_000_000) } });
+                }}
+              />
+            ) : null}
+            <Tg label="Stop after this many fills" on={!!a.limit} onChange={(on) => apply({ op: "set_access", access: { limit: on ? 100 : null } })} />
+          </div>
+        </div>
+        <div className={CSTACK}>
+          <Label>Closed message</Label>
+          <textarea className={AREA} rows={2} maxLength={500} aria-label="Closed message" placeholder={CLOSED} value={a.message ?? ""} onChange={(e) => apply({ op: "set_access", access: { message: e.target.value || null } })} />
+        </div>
+      </div>
+    </>
+  );
+}
 
 function Alerts({ form, apply, routing }: Props) {
   const n = { ...DEFAULT_NOTIFY, ...form.notify };

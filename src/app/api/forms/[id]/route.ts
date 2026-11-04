@@ -1,6 +1,7 @@
 import { after } from "next/server";
 import { allRegions, usesRegions } from "@/lib/forms/regions";
 import { regionOf } from "@/lib/web/policy";
+import { accessShut, closedMessage } from "@/lib/forms/access";
 import { publicForm } from "@/lib/forms/schema";
 import { cors, edgeCountry, forgetPublic, json, loadPublic, turnstileSiteKey } from "@/lib/forms/server";
 import { serviceClient } from "@/lib/serviceClient";
@@ -36,15 +37,19 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
         if (!r.live) keeping.delete(id);
       });
     }
+    // Settings › Access: shut by its dates or its limit, the form shows as closed with its closed message.
+    const shut = f.status === "live" && (await accessShut(f.body, Date.now(), () => Promise.resolve(db.rpc("form_fill_count", { p_form: f.id, p_filters: {} })).then((r) => (r.error ? null : Number(r.data)))));
+    const status = shut ? "paused" : f.status;
+    const closed = status === "paused" ? closedMessage(f.body) : undefined;
     const country = edgeCountry(request);
     const token = new URL(request.url).searchParams.get("p");
     const person = token ? readPersonal(token, process.env.SECRETS_KEY, f.workspace_id) : null;
     const known = person ? await knownFor(db, person, f.body).catch(() => ({})) : null;
     return json(
       // tokens: always empty, only so a form script cached from before 123 (5 minutes at most) doesn't stop on it.
-      { id: f.id, version: f.version, status: f.status, body: publicForm(f.body), tokens: {}, logo_url: f.logo_url, strict: regionOf(country ?? "", "") === "strict", turnstile: turnstileSiteKey() || undefined, ...(usesRegions(f.body) ? { regions: allRegions() } : {}), ...(known ? { known } : {}) },
+      { id: f.id, version: f.version, status, ...(closed ? { closed } : {}), body: publicForm(f.body), tokens: {}, logo_url: f.logo_url, strict: regionOf(country ?? "", "") === "strict", turnstile: turnstileSiteKey() || undefined, ...(usesRegions(f.body) ? { regions: allRegions() } : {}), ...(known ? { known } : {}) },
       200,
-      token ? { "Cache-Control": "private, no-store" } : { "Cache-Control": "public, max-age=30", Vary: "cf-ipcountry" },
+      token ? { "Cache-Control": "private, no-store" } : { "Cache-Control": `public, max-age=${f.body.access ? 10 : 30}`, Vary: "cf-ipcountry" },
     );
   } catch {
     return json({ error: "Try again in a moment." }, 503);

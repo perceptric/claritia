@@ -3,7 +3,7 @@
 // of its attribute or tag.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { formEmbedCode, meetingEmbedCode, overPage, safe } from "../src/lib/share/embed.ts";
+import { embedSteps, formEmbedCode, meetingEmbedCode, overPage, pageHtmlCss, PLATS, safe } from "../src/lib/share/embed.ts";
 
 const O = "https://app.tryclaritia.com";
 const ID = "11111111-1111-4111-8111-111111111111";
@@ -28,6 +28,22 @@ test("a button only when a click opens it; once only when it opens by itself; th
   assert.ok(!formEmbedCode(O, ID, { mode: "inline", phoneFull: false }).includes("mobile"), "in the page there's nothing to fill");
   assert.ok(!formEmbedCode(O, ID, { mode: "popup", phoneFull: true }).includes("mobile"), "full screen is the default");
   assert.deepEqual((["inline", "full", "popup", "slider", "popover", "sidetab"] as const).filter(overPage), ["popup", "slider", "popover", "sidetab"]);
+});
+
+test("in the page: a fixed width never grows past its space, a fixed height scrolls, and only in the page", () => {
+  assert.equal(tag(formEmbedCode(O, ID, { mode: "inline", width: 640 })), `<claritia-form form-id="${ID}" style="width:640px;max-width:100%"></claritia-form>`);
+  assert.equal(tag(formEmbedCode(O, ID, { mode: "inline", height: 600 })), `<claritia-form form-id="${ID}" style="height:600px;overflow:auto"></claritia-form>`);
+  assert.equal(tag(formEmbedCode(O, ID, { mode: "inline", width: 20, height: 99999 })), `<claritia-form form-id="${ID}" style="width:280px;max-width:100%;height:4000px;overflow:auto"></claritia-form>`);
+  assert.equal(tag(formEmbedCode(O, ID, { mode: "inline", width: Number.NaN, height: null })), `<claritia-form form-id="${ID}"></claritia-form>`);
+  assert.equal(tag(formEmbedCode(O, ID, { mode: "popup", opens: "exit", width: 640, height: 600 })), `<claritia-form form-id="${ID}" popup="exit" size="m"></claritia-form>`);
+});
+
+test("every site builder has steps in the page and over it; Embed HTML in one block puts the styles first", () => {
+  for (const p of PLATS) for (const over of [false, true]) assert.ok(embedSteps(p.v, over).length >= 3, `${p.v} ${over}`);
+  assert.ok(PLATS.some((p) => p.v === "shopify"));
+  assert.match(embedSteps("squarespace", false).join(" "), /Embed/);
+  assert.match(embedSteps("shopify", true).join(" "), /theme\.liquid/);
+  assert.equal(pageHtmlCss({ html: "<div class=\"page\">x</div>", css: ".page{}", brand: ":root{}" }), "<style>\n:root{}\n\n.page{}\n</style>\n<div class=\"page\">x</div>\n");
 });
 
 test("text can't break out of its attribute or tag", () => {

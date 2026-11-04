@@ -3,6 +3,7 @@
 // cleaning. What comes out is either errors to show on the form, or the arguments for form_submit. Server only
 // (email cleaning reads the domain lists).
 
+import { accessShut, closedMessage } from "./access.ts";
 import { createHmac } from "node:crypto";
 import { cleanDomain } from "../company/domains.ts";
 import { cleanPhone, nameCase } from "../contacts/clean.ts";
@@ -362,6 +363,8 @@ export async function acceptFill(
     test?: boolean;
     secret?: string;
     now?: number;
+    /** How many real fills the form has (Settings › Access limit); the route passes the real count. */
+    fills?: () => Promise<number | null>;
     /** Opens Stripe Checkout for a form with a payment block (src/lib/forms/pay.ts); the route passes the real one. */
     pay?: (p: { submissionId: string; answers: Record<string, unknown>; email: string | null; page?: string }) => Promise<{ url: string } | null>;
   } = {},
@@ -375,6 +378,9 @@ export async function acceptFill(
       f = { ...f, body: s.body, older: s.older, version: raw.version };
     }
   }
+  // Settings › Access: before its open date, after its close date or once full, a send is refused with the form's
+  // closed message (a Funnel QA test still goes through, so a closed form isn't a false failure).
+  if (o.test !== true && (await accessShut(f.body, o.now ?? Date.now(), o.fills))) return { status: 410, body: { error: closedMessage(f.body), closed: true } };
   const [c, turnstileFailed] = await Promise.all([ctx, o.turnstileFailed]);
   const personal = !!readPersonal(raw.personal, o.secret, f.workspace_id, o.now);
   const prepare = (overLimit: boolean) => prepareSubmit(f.body, f.version, raw, c, { country: o.country, turnstileFailed, origin: o.origin, ownHost: o.ownHost, overLimit, personal });

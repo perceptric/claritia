@@ -93,14 +93,18 @@ try {
   await page.waitForFunction(() => document.querySelector("[data-form-action]")?.textContent?.trim() === "Publish changes");
   check(await page.getByText("Changes not live").isVisible(), "an edit in the Studio: Changes not live, and Publish changes");
 
-  // Share › Embed HTML: the form's HTML, its own CSS and the brand's stylesheet, each to copy.
+  // Share › Embed HTML: all of it in one block, then the form's HTML, its own CSS and the brand's stylesheet.
   await tab("Share").click();
+  check((await page.getByRole("button", { name: "Personal link", exact: true }).count()) === 0 && (await page.getByRole("button", { name: "Own form", exact: true }).count()) === 0, "Share has no Personal link or Own form");
   await page.getByRole("button", { name: "Embed HTML", exact: true }).click();
   const codeShown = () => page.locator("pre").last().textContent();
-  check(/check-in/.test((await codeShown()) ?? "") && ((await codeShown()) ?? "").includes("data-cl-"), "Embed HTML shows the form's HTML, as it's saved");
+  const both = (await codeShown()) ?? "";
+  check(both.startsWith("<style>") && both.includes("</style>") && both.includes("data-cl-") && /check-in/.test(both), "Embed HTML opens on HTML + CSS: the stylesheets, then the form's HTML");
+  await page.getByRole("radio", { name: "HTML", exact: true }).click();
+  check(/check-in/.test((await codeShown()) ?? "") && ((await codeShown()) ?? "").includes("data-cl-") && !((await codeShown()) ?? "").includes("<style>"), "HTML is the form's HTML, as it's saved");
   await page.getByRole("radio", { name: "Brand CSS" }).click();
   check(((await codeShown()) ?? "").length > 20 && !((await codeShown()) ?? "").includes("<section"), "and the brand's stylesheet");
-  await page.getByRole("radio", { name: "Form CSS" }).click();
+  await page.getByRole("radio", { name: "CSS", exact: true }).click();
   check(await page.getByRole("button", { name: "Copy code" }).isVisible(), "each with Copy code");
   await page.getByRole("button", { name: "Link", exact: true }).click();
 

@@ -2,6 +2,7 @@ import { cleaningCtx } from "@/lib/contacts/server";
 import { allowed, clientIp, cors, edgeCountry, json, loadForSend, sendCtx, turnstileOk } from "@/lib/forms/server";
 import { appBase, stripeClient } from "@/lib/billing";
 import { startFormCheckout } from "@/lib/forms/pay";
+import { closedMessage } from "@/lib/forms/access";
 import { acceptFill, qaOk, type Incoming } from "@/lib/forms/submit";
 import { formPayStripe } from "@/lib/meetings/payServer";
 import { serviceClient } from "@/lib/serviceClient";
@@ -31,13 +32,15 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   if (!db) return json({ error: "Not set up." }, 503);
   try {
     const f = await loadForSend(db, id, raw.version);
-    if (!f || f.status !== "live") return json({ error: "This form isn't taking answers." }, 410);
+    if (!f || f.status !== "live") return json({ error: f ? closedMessage(f.body) : "This form isn't taking answers." }, 410);
     const r = await acceptFill((fn, args) => db.rpc(fn, args), f, raw, sendCtx(f.workspace_id, (ws) => cleaningCtx(db, ws)), {
       country: edgeCountry(request),
       turnstileFailed: f.body.spam.turnstile ? turnstileOk(raw.turnstile, ip).then((ok) => !ok) : false,
       origin: request.headers.get("origin"),
       ownHost: request.headers.get("x-forwarded-host") ?? request.headers.get("host"),
       test: qaOk(id, raw.qa, process.env.SECRETS_KEY),
+      // Settings › Access: real fills so far, for a form with a limit.
+      fills: () => Promise.resolve(db.rpc("form_fill_count", { p_form: f.id, p_filters: {} })).then((r) => (r.error ? null : Number(r.data))),
       // Signs the booking token when the form books with Claritia calendar.
       secret: process.env.SECRETS_KEY,
       // A payment block: Checkout on the workspace's connected Stripe account (docs/form-kinds-plan.md step 3).

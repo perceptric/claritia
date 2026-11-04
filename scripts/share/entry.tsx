@@ -12,6 +12,8 @@ import { Sidebar } from "../../src/components/app/Sidebar";
 import { MailLine, MeetingMailNotice } from "../../src/components/app/meetings/MailHealth";
 import { DialogHost } from "../../src/components/app/Dialogs";
 import { emptyForm, type Form } from "../../src/lib/forms/schema";
+import { applyOp } from "../../src/lib/forms/ops";
+import { Setup, type SetupSub } from "../../src/components/app/forms/Setup";
 import type { Op } from "../../src/lib/forms/ops";
 
 type W = Window & { calls: { path: string; body: Record<string, unknown> }[]; rpcs: unknown[][] };
@@ -44,11 +46,32 @@ window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
   return ok({});
 };
 
+// The people Share › Email knows: contacts, this form's fills, a meeting type's guests, and one earlier send.
+const CONTACTS = [
+  { email: "maya@northwind.io", first_name: "Maya", last_name: "Chen" },
+  { email: "tom.becker@lumen.co", first_name: "Tom", last_name: "Becker" },
+  { email: "priya@harbor.app", first_name: "Priya", last_name: "Shah" },
+];
+const TABLES: Record<string, unknown[]> = {
+  submissions: [{ values: { email: "maya@northwind.io", first_name: "Maya" }, created_at: "2026-11-04T12:00:00Z" }, { values: { email: "jon@quarry.dev" }, created_at: "2026-10-01T12:00:00Z" }],
+  meeting_types: [{ id: "t1", name: "Demo call" }],
+  meetings: [{ guest_email: "ravi@stackline.co", guest_name: "Ravi Kumar" }],
+  emails: [{ id: "e1", subject: "Book a demo", created_at: "2026-11-04T10:00:00Z" }],
+  email_messages: [
+    { email_id: "e1", to_email: "maya@northwind.io", status: "delivered", first_click_at: "2026-11-04T10:05:00Z", created_at: "2026-11-04T10:00:00Z" },
+    { email_id: "e1", to_email: "sam@gone.io", status: "bounced", first_click_at: null, created_at: "2026-11-04T10:00:00Z" },
+    { email_id: "e1", to_email: "lee@acme.com", status: "delivered", first_click_at: null, created_at: "2026-11-04T10:00:00Z" },
+  ],
+};
 const sb = {
-  from: () => {
+  from: (t: string) => {
     const q: Record<string, unknown> = {};
-    for (const k of ["select", "eq", "order", "limit", "in", "neq"]) q[k] = () => q;
-    q.then = (res: (v: unknown) => unknown) => Promise.resolve({ data: [], error: null }).then(res);
+    let term = "";
+    for (const k of ["select", "eq", "order", "limit", "in", "neq", "is", "not", "gte"]) q[k] = () => q;
+    q.or = (f: string) => ((term = (/ilike\.%([^%]*)%/.exec(f)?.[1] ?? "").toLowerCase()), q);
+    const rows = () => (t === "contacts" ? CONTACTS.filter((c) => !term || `${c.email} ${c.first_name} ${c.last_name}`.toLowerCase().includes(term)) : (TABLES[t] ?? []));
+    q.maybeSingle = () => Promise.resolve({ data: t === "send_settings" ? { from_name: "Acme team", from_email: "hello@acme.com" } : null, error: null });
+    q.then = (res: (v: unknown) => unknown) => Promise.resolve({ data: rows(), error: null }).then(res);
     return q;
   },
   rpc: (fn: string, args: Record<string, unknown>) => {
@@ -60,7 +83,7 @@ const sb = {
     return Promise.resolve({ data: null, error: null });
   },
 } as unknown as SupabaseClient;
-const session = { access_token: "t", user: { id: "u1", email: "me@acme.com" } } as unknown as Session;
+const session = { access_token: "t", user: { id: "u1", email: "me@acme.com", user_metadata: { full_name: "Ana Lee" } } } as unknown as Session;
 const ws = { id: "00000000-0000-4000-8000-000000000001", name: "Acme", features: [] } as never;
 
 function FormShare() {
@@ -80,7 +103,30 @@ function FormShare() {
   );
 }
 
+/** Settings › Access on its own: ops change the form here, so the screen shows what they did. */
+function AccessSettings() {
+  const [form, setForm] = useState<Form>(() => emptyForm());
+  const [sub, setSub] = useState<SetupSub>("access");
+  const [paused, setPaused] = useState(false);
+  const apply = (ops: Op | Op[]) => {
+    let f = form;
+    for (const op of Array.isArray(ops) ? ops : [ops]) {
+      const r = applyOp(f, op);
+      if ("form" in r) f = r.form;
+    }
+    setForm(f);
+    (window as unknown as { form: Form }).form = f;
+    return true;
+  };
+  return (
+    <div className="flex h-screen flex-col bg-card">
+      <Setup sb={sb} session={session} ws={ws} role="owner" navigate={() => {}} id={FORM_ID} form={form} apply={apply} sub={sub} setSub={setSub} formId={FORM_ID} types={[]} routing={null} onReview={() => {}} subs={0} name="Book a demo" paused={paused} onStatus={(st) => setPaused(st === "paused")} />
+    </div>
+  );
+}
+
 function App() {
+  if (view === "access") return <AccessSettings />;
   if (view === "meeting")
     return (
       // Inside a 400 px panel that slid in with a transform, as the meeting panel does: the dialog must still cover the screen.

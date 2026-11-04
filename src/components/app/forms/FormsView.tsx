@@ -220,7 +220,7 @@ function Editor(props: ViewProps & { data: FormData; reload: () => void; patchRo
     const t = typeof window === "undefined" ? "build" : tabOf(window.location.search);
     return own && t === "build" ? "share" : t;
   });
-  const [sub, setSub] = useState<SetupSub>("alerts");
+  const [sub, setSub] = useState<SetupSub>("access");
   const [dialog, setDialog] = useState<"publish" | null>(null);
   const [menu, setMenu] = useState<HTMLElement | null>(null);
   const [subsView, setSubsView] = useState<"leads" | "spam">("leads");
@@ -562,7 +562,7 @@ function Editor(props: ViewProps & { data: FormData; reload: () => void; patchRo
         ) : tab === "sync" ? (
           <Sync {...props} form={form} formId={row.id} dests={data.dests} sources={data.sources} crm={crm} failed={data.failed} reload={reload} patchDests={patchDests} onFix={goto} issueCtx={issueCtx} />
         ) : (
-          <Setup {...props} form={form} apply={apply} sub={sub} setSub={setSub} formId={row.id} types={data.types} routing={live.data?.body ?? null} onReview={() => (setSubsView("spam"), setTab("submissions"))} subs={data.subs} name={name} />
+          <Setup {...props} form={form} apply={apply} sub={sub} setSub={setSub} formId={row.id} types={data.types} routing={live.data?.body ?? null} onReview={() => (setSubsView("spam"), setTab("submissions"))} subs={data.subs} name={name} paused={row.version ? row.status === "paused" : null} onStatus={(st) => void setStatus(st)} />
         )}
       </div>
       {dialog === "publish" ? <PublishDialog checks={checks} live={!!row.version} onClose={() => setDialog(null)} onPublish={publish} onFix={goto} error={error} /> : null}

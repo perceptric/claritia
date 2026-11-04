@@ -69,10 +69,13 @@ test("a clicked answer fills only the first question, only with one of its answe
 test("Email the link: each address once, up to 50, every one a real address; the email escapes what's typed", () => {
   assert.deepEqual(addressesOf(["A@acme.com", " a@acme.com ", "b@acme.com"]), ["a@acme.com", "b@acme.com"]);
   assert.equal(addressesOf(["a@acme.com", "not an email"]), null);
-  assert.equal(addressesOf(Array.from({ length: 51 }, (_, i) => `p${i}@acme.com`)), null);
+  assert.equal(addressesOf(Array.from({ length: 200 }, (_, i) => `p${i}@acme.com`))?.length, 200);
+  assert.equal(addressesOf(Array.from({ length: 201 }, (_, i) => `p${i}@acme.com`)), null);
   assert.equal(addressesOf([]), null);
   const m = shareEmail({ name: "Book a <demo>", link: "https://app.tryclaritia.com/f/acme/demo", message: "Hi <b>team</b>\nSee below", button: "Open the form" });
   assert.equal(m.subject, "Book a <demo>");
+  assert.equal(shareEmail({ name: "Demo", link: "https://x.co", message: "", button: "Open", subject: " Your demo\r\nBcc: x@y.co " }).subject, "Your demo Bcc: x@y.co", "a typed subject, on one line");
+  assert.equal(shareEmail({ name: "Demo", link: "https://x.co", message: "", button: "Open", subject: "  " }).subject, "Demo");
   assert.ok(m.html.includes("Book a &lt;demo&gt;") && m.html.includes("Hi &lt;b&gt;team&lt;/b&gt;") && m.html.includes('href="https://app.tryclaritia.com/f/acme/demo"'));
   assert.ok(m.text.includes("Open the form: https://app.tryclaritia.com/f/acme/demo"));
 });
