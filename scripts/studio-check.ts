@@ -228,6 +228,49 @@ try {
   await $("#pscroll input[aria-label='Most letters']").press("Enter");
   await $("#pscroll input[aria-label='Most letters']").blur();
   check((await form.locator("#nm").getAttribute("maxlength")) === "40", "the most letters is set on the answer");
+  // Options: a dropdown's list is added to, renamed, moved, pasted and trimmed; a renamed option saves what it says.
+  await $("#addList button[data-add='dropdown']").click();
+  const dd = form.locator("select[name='pick']");
+  check((await dd.locator("option").count()) === 4, "a new dropdown comes with three options");
+  await $("#pscroll input[aria-label='Option 1']").fill("Small team");
+  await $("#pscroll input[aria-label='Option 1']").press("Enter");
+  check((await dd.locator("option[value='Small team']").textContent()) === "Small team", "a renamed option saves what it says");
+  await $("#pscroll button").filter({ hasText: "Add option" }).click();
+  check((await dd.locator("option").count()) === 5, "Add option adds one to the dropdown");
+  await $("#pscroll button[aria-label='Move down']").first().click();
+  check((await dd.locator("option").nth(2).getAttribute("value")) === "Small team", "an option moves down");
+  await $("#pscroll button").filter({ hasText: "Paste a list" }).click();
+  await $("#layer .menu textarea").fill("Agency\nSchool");
+  await $("#layer .menu button").filter({ hasText: "Add them" }).click();
+  const ddVals = await dd.locator("option").evaluateAll((os) => os.map((o) => (o as HTMLOptionElement).value));
+  check(ddVals.slice(-2).join(",") === "Agency,School", `a pasted list adds each line in order (${ddVals.join(", ")})`);
+  await $("#pscroll button[aria-label='Remove the option']").first().click();
+  check((await dd.locator("option").count()) === 6, "an option can be removed");
+  await $("#pscroll input[aria-label='Empty choice']").fill("Pick your team");
+  await $("#pscroll input[aria-label='Empty choice']").press("Enter");
+  await $("#pscroll input[aria-label='Empty choice']").blur();
+  check((await dd.locator("option[value='']").textContent()) === "Pick your team", "the dropdown's empty choice says what it's asked to");
+  if (shots) await p.screenshot({ path: `${shots}/2c-options.png` });
+  // Choices: a value set on purpose stays when its words change, and Other adds a box for their own words.
+  await form.locator("label:has(input[value='sunny'])").click();
+  await $("#pscroll input[aria-label='Option 1']").fill("Bright");
+  await $("#pscroll input[aria-label='Option 1']").press("Enter");
+  check(((await form.locator("label:has(input[value='sunny'])").textContent()) ?? "").includes("Bright"), "a choice's words change and its saved value (sunny) stays");
+  await $("#pscroll button[aria-label='Other']").click();
+  check((await form.locator("input[name='mood'][value='Other']").count()) === 1 && (await form.locator("input[name='mood_other']").count()) === 1, "Other adds a choice and a box for their own words");
+  await $("#pscroll input[aria-label='Question']").fill("How do you feel?");
+  await $("#pscroll input[aria-label='Question']").press("Enter");
+  await $("#pscroll input[aria-label='Question']").blur();
+  check(((await form.locator("#q").textContent()) ?? "") === "How do you feel?", "a choice question's words are set from the panel, even in a line of their own");
+  // Blocks: a ranking's list and a payment's price.
+  await $("#addList button[data-add='ranking']").click();
+  await $("#pscroll button").filter({ hasText: /^Add$/ }).click();
+  check(((await form.locator("[data-cl-field='ranking']").getAttribute("data-cl-options")) ?? "").split("|").length === 4, "a ranking's list takes another option");
+  await $("#addList button[data-add='payment']").click();
+  await $("#pscroll input[aria-label='Price']").fill("99");
+  await $("#pscroll input[aria-label='Price']").press("Enter");
+  await $("#pscroll input[aria-label='Price']").blur();
+  check((await form.locator("[data-cl-field='payment']").getAttribute("data-cl-amount")) === "99", "a payment's price is set");
   // An answer in a text.
   await form.locator("#title").click();
   await $("#pscroll button").filter({ hasText: "Insert an answer" }).click();
@@ -263,7 +306,7 @@ try {
   if (shots) await p.screenshot({ path: `${shots}/2b-builder.png` });
   // Back to the form as it was.
   for (let i = 0; i < 30 && !(await $("#undo").isDisabled()); i++) {
-    if (!(await form.locator("[name='details'],[name='yes_no'],[data-cl-field='date'],[data-cl-field='hidden']").count()) && !(await form.locator("#title").getAttribute("data-cl-pipe")) && (await form.locator("section[data-cl-step]").count()) === 2 && !(await form.locator("#nm").getAttribute("maxlength"))) break;
+    if (!(await form.locator("[name='details'],[name='yes_no'],[name='pick'],[name='mood_other'],[data-cl-field='date'],[data-cl-field='hidden'],[data-cl-field='ranking'],[data-cl-field='payment']").count()) && !(await form.locator("#title").getAttribute("data-cl-pipe")) && (await form.locator("section[data-cl-step]").count()) === 2 && !(await form.locator("#nm").getAttribute("maxlength")) && ((await form.locator("label:has(input[value='sunny'])").textContent()) ?? "").includes("Sunny") && (await form.locator("#q").textContent()) === "How are you feeling today?") break;
     await $("#undo").click();
   }
   await p.waitForTimeout(1600);

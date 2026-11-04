@@ -262,8 +262,15 @@ Everything a form needs can be made in Edit without Tia (`src/lib/studio/builder
   the contact's email.
 - **Change type**: the floating bar's first button turns a text box into another kind (short, long, email, phone,
   number) or a pick into another (choice, checkboxes, dropdown). The answer's name, id and Saves to stay.
-- **Answer settings**: help text, fewest and most letters, lowest and highest number, shuffle the choices, the most
-  picks. The form script checks them on every site (`limitMsg`, `shuffle` in `src/lib/studio/runtime.ts`).
+- **Question settings** (Settings tab): the question's words (its label, legend, or the line just before it on a
+  loose page), required, help text, placeholder and Saves to. Options for choices, checkboxes and dropdowns: rename,
+  move up and down, remove, Add option, Paste a list (one per line), a dropdown's empty choice, Other with a box for
+  their own words, shuffle and the most picks. A renamed option whose saved value is its words (or a placeholder like
+  Option 2) saves the new words, and the show-ifs, jumps and meeting routes that named it follow; a value written on
+  purpose (sunny for "Sunny") stays. The answer's name is last, under Answer name.
+- **Block settings**: a ranking's list, a grid's rows and columns, a payment's price or the total it charges and its
+  currency, a calculation's formula, format, decimals and whether it shows, a hidden value's source.
+- **Answer settings**: fewest and most letters, lowest and highest number. The form script checks them on every site (`limitMsg`, `shuffle` in `src/lib/studio/runtime.ts`).
 - **Jump to a page**: on a choice or dropdown, "If the answer is X, go to page N". Kept on the question as
   `data-cl-jump` and written as show-ifs on the pages it skips, which every live form already runs; a page's own
   condition is kept apart in `data-cl-own`.

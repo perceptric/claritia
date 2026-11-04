@@ -10,7 +10,7 @@ import { cleanRoute, OP_LABEL, PAST_ROUTES, ROUTE_OPS, routeKind, routeMeeting, 
 import { linkProblem, SCHEDULERS } from "../../../../lib/forms/schedule";
 import { INDUSTRIES, industryOf, isRtl, languageName, profileWords, recipeText } from "../../../../lib/studio/industries";
 import { ACCESS_CSS, around, CAL_CSS, consentSpot, limitMsg, linkErrors, pipes, shuffle, zoneWords } from "../../../../lib/studio/runtime";
-import { baseName, isLayout, PICK_KINDS, QGROUPS, QNAME, questionHtml, readJumps, stepShowIfs, TEXT_KINDS, uniqueName, writeJumps } from "../../../../lib/studio/builder";
+import { baseName, isLayout, PICK_KINDS, QGROUPS, QNAME, questionHtml, readJumps, renameValueIn, stepShowIfs, TEXT_KINDS, uniqueName, uniqueValue, valueFollows, writeJumps } from "../../../../lib/studio/builder";
 import { TIA_STYLE, tiaSvg } from "../../../../lib/studio/tia";
 import { markSvg } from "../../../Logo";
 
@@ -775,12 +775,14 @@ ${CAL_CSS}
 
   // ── Edit on the form: hover tags, pick, type in place, the floating bar ─────────────────────────────────
   const NAMES = { H1: "Heading", H2: "Heading", H3: "Heading", H4: "Heading", P: "Text", SPAN: "Text", LABEL: "Label", BUTTON: "Button", INPUT: "Input", TEXTAREA: "Text box", SELECT: "Dropdown", IMG: "Logo", FORM: "Form", SECTION: "Step", DIV: "Box", I: "Fill", B: "Text", STRONG: "Text", EM: "Text", A: "Link", UL: "List", LI: "Item", FIELDSET: "Group", LEGEND: "Heading" };
-  const nameOf = (el) => { if (!el) return ""; if (el.hasAttribute?.("data-cl-field")) return BLOCK_NAMES[el.getAttribute("data-cl-field")] || "Block"; if (el.matches?.("label.choice,label.check")) return "Choice"; if (el.hasAttribute?.("data-cl-step")) return "Step"; if (el.hasAttribute?.("data-cl-thanks")) return "Thanks"; if (el.hasAttribute?.("data-cl-book")) return "Booking"; return NAMES[el.tagName] || "Box"; };
+  const nameOf = (el) => { if (!el) return ""; const qk = questionKind(el); if (qk) return qk; if (el.hasAttribute?.("data-cl-field")) return BLOCK_NAMES[el.getAttribute("data-cl-field")] || "Block"; if (el.matches?.("label.choice,label.check")) return "Choice"; if (el.hasAttribute?.("data-cl-step")) return "Step"; if (el.hasAttribute?.("data-cl-thanks")) return "Thanks"; if (el.hasAttribute?.("data-cl-book")) return "Booking"; return NAMES[el.tagName] || "Box"; };
   const leaf = (el) => el && !el.children.length && !["INPUT", "IMG", "TEXTAREA", "SELECT", "BR", "HR"].includes(el.tagName) && el.textContent.trim();
   const kOf = (e) => e.composedPath().find((n) => n instanceof Element && n.hasAttribute?.("data-k"));
   let editingK = null;
   root.addEventListener("mousemove", (e) => { if (S.mode !== "edit") return; const el = kOf(e); place($("hov"), el && el.getAttribute("data-k") !== S.sel ? el : null, $("hovtag")); });
   root.addEventListener("mouseleave", () => ($("hov").hidden = true));
+  // In Edit a dropdown on the form is picked like anything else, so the browser's own list never opens.
+  root.addEventListener("mousedown", (e) => { if (S.mode === "edit" && e.composedPath()[0]?.closest?.("select")) e.preventDefault(); }, true);
   root.addEventListener("click", (e) => {
     if (S.mode !== "edit") return;
     const el = kOf(e);
@@ -1084,59 +1086,15 @@ ${CAL_CSS}
       B.append(h("div", { class: "row2" }, h("span", { class: "lbl", text: "Out of" }), sc), h("div", { class: "row2" }, h("span", { class: "lbl", text: "Shown as" }), pick(nums ? "Numbers" : "Stars", [["Stars", () => { snap(); bl.removeAttribute("data-cl-style"); commit(); }, !nums], ["Numbers", () => { snap(); bl.setAttribute("data-cl-style", "numbers"); commit(); }, nums]])));
     }
     p.append(B);
+    blockMore(p, bl, type);
   }
   function settings(p, el) {
-    const bl = el.closest?.("[data-cl-field]");
+    // A block picked by its box (the box Add writes around it) opens the block's settings.
+    const inner = el.querySelectorAll?.("[data-cl-field]");
+    const bl = el.closest?.("[data-cl-field]") || (inner?.length === 1 && namesIn(el).size <= 1 && !el.matches("form,[data-cl-step]") ? inner[0] : null);
     if (bl) return blockSettings(p, bl);
     const input = el.matches("input,textarea,select") ? el : el.querySelector("input[name],textarea[name],select[name]") || el.closest("label")?.querySelector("input[name],textarea[name],select[name]");
-    if (input?.name) {
-      const isChoice = input.type === "radio" || input.type === "checkbox";
-      const group = [...src.querySelectorAll(`[name="${CSS.escape(input.name)}"]`)];
-      const Q = h("div", { class: "sec" }, h("h4", { text: "Question" }));
-      const nm = h("input", { class: "in", value: input.name, "aria-label": "Question name" });
-      nm.addEventListener("change", () => {
-        const v = nm.value.trim().replace(/[^\w-]/g, "_");
-        if (!v || v === input.name) return;
-        snap();
-        group.forEach((g) => g.setAttribute("name", v));
-        src.querySelectorAll(`[data-cl-error-for="${CSS.escape(input.name)}"]`).forEach((e) => e.setAttribute("data-cl-error-for", v));
-        // Conditions and routes that read the old name follow it.
-        for (const a of ["data-cl-show-if", "data-cl-own"]) src.querySelectorAll(`[${a}]`).forEach((e) => e.setAttribute(a, e.getAttribute(a).replace(new RegExp(`\\b${input.name}\\b`, "g"), v)));
-        body().after.routes = (body().after.routes || []).map((r) => (r.field === input.name ? { ...r, field: v } : r));
-        if (body().ids?.[input.name]) { body().ids[v] = body().ids[input.name]; delete body().ids[input.name]; }
-        commit();
-      });
-      Q.append(h("div", { class: "row2" }, h("span", { class: "lbl", text: "Name" }), nm));
-      const req = group.some((g) => g.hasAttribute("required"));
-      Q.append(h("div", { class: "row2" }, h("span", { class: "lbl", text: "Required" }), h("div", {}, h("button", { class: "sw", role: "switch", "aria-checked": String(req), "aria-label": "Required", onclick: () => { snap(); if (req) group.forEach((g) => g.removeAttribute("required")); else group[0].setAttribute("required", ""); commit(); } }))));
-      if (!isChoice && input.tagName !== "SELECT") { const ph = h("input", { class: "in", value: input.getAttribute("placeholder") || "", "aria-label": "Placeholder" }); ph.addEventListener("change", () => { snap(); ph.value ? input.setAttribute("placeholder", ph.value) : input.removeAttribute("placeholder"); commit(); }); Q.append(h("div", { class: "row2" }, h("span", { class: "lbl", text: "Placeholder" }), ph)); }
-      const SAVES = [["", "Just this form"], ["email", "Email"], ["first_name", "First name"], ["last_name", "Last name"], ["name", "Full name"], ["phone", "Phone"], ["company", "Company"], ["title", "Job title"], ["website", "Website"]];
-      const sv = input.getAttribute("data-cl-save") || "";
-      Q.append(h("div", { class: "row2" }, h("span", { class: "lbl", text: "Saves to" }), pick((SAVES.find((s) => s[0] === sv) || SAVES[0])[1], SAVES.map(([v, t]) => [t, () => { snap(); group.forEach((g) => (v ? g.setAttribute("data-cl-save", v) : g.removeAttribute("data-cl-save"))); commit(); }, v === sv]))));
-      p.append(Q);
-      moreSettings(p, input);
-      if (isChoice && group.length) {
-        const O = h("div", { class: "sec" }, h("h4", { text: "Options" }));
-        const list = h("div", { class: "opts" });
-        group.forEach((g) => {
-          const lab = g.closest("label");
-          const txt = lab ? lab.querySelector("span,b,strong") || [...lab.childNodes].find((n) => n.nodeType === 3 && n.textContent.trim()) : null;
-          const t = h("input", { class: "in", value: (lab?.textContent || g.value).trim(), "aria-label": "Option" });
-          t.addEventListener("change", () => { if (!t.value.trim()) return; snap(); if (txt) txt.textContent = t.value.trim(); commit(); });
-          list.append(h("div", { class: "opt" }, t, h("button", { class: "ib", "aria-label": "Remove the option", html: SVG(P.x, 14), disabled: group.length < 2 || null, onclick: () => { snap(); (lab || g).remove(); commit(); } })));
-        });
-        O.append(list, h("div", {}, h("button", { class: "pill", html: `${SVG(P.plus, 14)}Add option`, onclick: () => {
-          const last = group.at(-1)?.closest("label") || group.at(-1); if (!last) return;
-          snap();
-          const c = last.cloneNode(true); [c, ...c.querySelectorAll("[data-k]")].forEach((x) => x.setAttribute("data-k", String(++kSeq)));
-          [c, ...c.querySelectorAll("[id]")].forEach((x) => x.id && (x.id = `${x.id}-${group.length + 1}`));
-          const inp = c.matches("input") ? c : c.querySelector("input"); const val = `option-${group.length + 1}`; inp.value = val; inp.setAttribute("value", val); inp.removeAttribute("checked"); inp.removeAttribute("required");
-          const sp = c.querySelector("span,b,strong") || [...c.childNodes].find((n) => n.nodeType === 3 && n.textContent.trim()); if (sp) sp.textContent = `Option ${group.length + 1}`;
-          last.after(c); commit();
-        } })));
-        p.append(O);
-      }
-    }
+    if (input?.name) questionSettings(p, input);
     if (!input?.name && leaf(el) && !el.matches("button,a,option")) textSettings(p, el);
     // Show if, with pickers. A page that a jump skips keeps its own condition apart (data-cl-own).
     const C = h("div", { class: "sec" }, h("h4", { text: "Show if" }));
@@ -1203,6 +1161,17 @@ ${CAL_CSS}
     const l = c?.id && src.querySelector(`label[for="${CSS.escape(c.id)}"]`);
     return l && l.parentElement === q.parentElement && !q.contains(l) && l.compareDocumentPosition(q) & Node.DOCUMENT_POSITION_FOLLOWING ? l : q;
   }
+  /** A picked question's kind in the words of the Add list: Dropdown, Choice, Short answer. */
+  function questionKind(el) {
+    if (!el || el === src || el.matches?.(CONTROLS) || namesIn(el).size !== 1) return "";
+    const c = el.querySelector(CONTROLS);
+    if (!c || qOf(c) !== el) return "";
+    if (c.hasAttribute("data-cl-field")) return BLOCK_NAMES[c.getAttribute("data-cl-field")] || "Block";
+    if (c.tagName === "SELECT") return "Dropdown";
+    if (c.tagName === "TEXTAREA") return "Long answer";
+    const n = el.querySelectorAll(`[name="${CSS.escape(nameIn(c))}"]`).length;
+    return { radio: "Choice", checkbox: n > 1 ? "Checkboxes" : "Tick box", email: "Email", tel: "Phone", number: "Number", date: "Date", time: "Time", url: "Website" }[c.type] || "Short answer";
+  }
   /** Where a new question goes: after the picked question, else after the last question of the page in view. */
   function spot() {
     const picked = S.sel ? byK(S.sel) : null;
@@ -1252,6 +1221,8 @@ ${CAL_CSS}
     const at = where || spot();
     if (at.after) at.after.after(node); else if (at.before) at.before.before(node); else at.into.append(node);
     ensureIds();
+    // A group of choices on a page whose style never mentions one: no browser frame around it.
+    if (node.matches("fieldset") && !/fieldset/i.test(`${body().css}\n${brandOf(cur)?.css || ""}`)) { const r = rules(); r.fieldset = { border: "0", margin: "0", padding: "0", "min-width": "0" }; r.legend = { padding: "0" }; writeRules(r); }
     S.sel = node.getAttribute("data-k");
     S.ptab = "settings";
     commit();
@@ -1432,30 +1403,234 @@ ${CAL_CSS}
     J.append(h("p", { class: "hint0", text: "Any other answer goes to the next page." }));
     p.append(J);
   }
-  // More for a question: help text, limits, shuffle, the most picks, then jumps.
-  function moreSettings(p, input) {
-    const q = qOf(input); if (!q) return;
-    const isPick = input.type === "radio" || input.type === "checkbox";
-    const M = h("div", { class: "sec" }, h("h4", { text: "Answer" }));
-    const field = (label, get, set, ph) => { const i = h("input", { class: "in", value: get() || "", placeholder: ph || "", "aria-label": label }); i.addEventListener("change", () => { snap(); set(i.value.trim()); commit(); }); return h("div", { class: "row2" }, h("span", { class: "lbl", text: label }), i); };
-    const helpEl = () => q.querySelector(".help");
-    M.append(field("Help text", () => helpEl()?.textContent, (v) => {
-      let e = helpEl();
+  // ── Question settings (Settings tab): the question's words, its options and its rules, all with pickers ──────
+  const sec = (title) => h("div", { class: "sec" }, h("h4", { text: title }));
+  const row = (label, ctl) => h("div", { class: "row2" }, h("span", { class: "lbl", text: label }), ctl);
+  const swRow = (label, on, flip) => row(label, h("div", {}, h("button", { class: "sw", role: "switch", "aria-checked": String(on), "aria-label": label, onclick: () => { snap(); flip(!on); commit(); } })));
+  const textRow = (label, value, set, ph) => { const i = h("input", { class: "in", placeholder: ph || "", "aria-label": label }); i.value = value || ""; i.addEventListener("change", () => { snap(); set(i.value.trim()); commit(); }); return row(label, i); };
+  /** The words of a label that may hold its input (a tick box) or an inner span: only the words change. */
+  function wordsOf(lab) {
+    if (!lab) return { get: () => "", set: () => {} };
+    const inner = [...lab.children].find((c) => !c.matches("input,select,textarea") && c.textContent.trim());
+    const tn = () => [...lab.childNodes].find((n) => n.nodeType === 3 && n.textContent.trim());
+    return {
+      get: () => (inner ? inner.textContent : lab.textContent).trim(),
+      set: (t) => { if (inner) inner.textContent = t; else if (tn()) tn().textContent = lab.querySelector("input") ? ` ${t}` : t; else lab.append(lab.querySelector("input") ? ` ${t}` : t); },
+    };
+  }
+  /** The words a question is asked with: its label, its group's legend, or a lone tick box's own words. */
+  function questionLabel(input, q) {
+    const fs = input.closest("fieldset");
+    const legend = fs && q.contains(fs) ? fs.querySelector("legend") : q.querySelector?.("legend");
+    const forL = input.id && src.querySelector(`label[for="${CSS.escape(input.id)}"]`);
+    const own = !legend && !forL && (input.type === "checkbox" || input.type === "radio") && [...src.querySelectorAll(`input[name="${CSS.escape(input.name)}"]`)].length === 1 ? input.closest("label") : null;
+    // A loose page asks with the line just before the question: a heading or text with no answer box in it.
+    const start = startOf(q), prev = start.previousElementSibling;
+    const before = !legend && !forL && !own && prev && !prev.matches("button,[data-cl-error-for]") && !namesIn(prev).size && leaf(prev) ? prev : null;
+    const el = legend || forL || own || before || null;
+    if (!el) return null;
+    const w = wordsOf(el);
+    return { get: w.get, set: (t) => { if (!t) return; w.set(t); src.querySelectorAll(`[name="${CSS.escape(input.name)}"][data-cl-label]`).forEach((x) => x.setAttribute("data-cl-label", t)); } };
+  }
+  /** A question's options, from its dropdown's list or its choices' boxes, each with its words and saved value. */
+  function optionsOf(input) {
+    const name = input.name;
+    if (input.tagName === "SELECT") return [...input.options].filter((o) => o.value !== "").map((o) => ({ value: o.value, node: o, words: { get: () => o.textContent.trim(), set: (t) => (o.textContent = t) }, setValue: (v) => o.setAttribute("value", v) }));
+    return [...src.querySelectorAll(`input[name="${CSS.escape(name)}"]`)].filter((i) => !(i.value === "Other" && src.querySelector(`[name="${CSS.escape(`${name}_other`)}"]`))).map((i) => ({ value: i.value, node: i.closest("label") || i, input: i, words: wordsOf(i.closest("label")), setValue: (v) => { i.value = v; i.setAttribute("value", v); } }));
+  }
+  /** A renamed value everywhere it's named: show-ifs, pages a jump skips, jumps, and the meeting routes. */
+  function renameValue(name, from, to) {
+    for (const a of ["data-cl-show-if", "data-cl-own"]) src.querySelectorAll(`[${a}]`).forEach((e) => e.setAttribute(a, renameValueIn(e.getAttribute(a), name, from, to)));
+    src.querySelectorAll("[data-cl-jump]").forEach((q) => { if (namesIn(q).has(name)) q.setAttribute("data-cl-jump", writeJumps(readJumps(q.getAttribute("data-cl-jump")).map((j) => (j.value === from ? { ...j, value: to } : j)))); });
+    body().after.routes = (body().after.routes || []).map((r) => (r.field !== name ? r : Array.isArray(r.value) ? { ...r, value: r.value.map((v) => (v === from ? to : v)) } : r.value === from ? { ...r, value: to } : r));
+  }
+  function optionsSec(p, input, q) {
+    const name = input.name, kind = input.tagName === "SELECT" ? "select" : input.type;
+    const opts = optionsOf(input);
+    const O = sec("Options");
+    const list = h("div", { class: "opts" });
+    opts.forEach((o, i) => {
+      const t = h("input", { class: "in", "aria-label": `Option ${i + 1}` }); t.value = o.words.get();
+      t.addEventListener("change", () => {
+        const next = t.value.trim(); const was = o.words.get();
+        if (!next || next === was) return (t.value = was);
+        snap();
+        o.words.set(next);
+        // The saved value follows the words when it was made from them; what names the old value follows too.
+        if (valueFollows(o.value, was)) { const v = uniqueValue(next, opts.filter((x) => x !== o).map((x) => x.value)); o.setValue(v); renameValue(name, o.value, v); }
+        commit();
+      });
+      t.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); t.blur(); } });
+      const mv = (d) => { const other = opts[i + d]; if (!other) return; snap(); d < 0 ? other.node.before(o.node) : other.node.after(o.node); commit(); };
+      list.append(h("div", { class: "opt" }, t,
+        h("button", { class: "ib", "aria-label": "Move up", "data-tip": "Move up", html: SVG(P.up, 13), disabled: i === 0 || null, onclick: () => mv(-1) }),
+        h("button", { class: "ib", "aria-label": "Move down", "data-tip": "Move down", html: SVG(P.down, 13), disabled: i === opts.length - 1 || null, onclick: () => mv(1) }),
+        h("button", { class: "ib", "aria-label": "Remove the option", html: SVG(P.x, 13), disabled: opts.length < 2 || null, onclick: () => {
+          snap();
+          const first = o.input && src.querySelector(`input[name="${CSS.escape(name)}"]`) === o.input;
+          const keep = first ? ["required", "data-cl-label", "data-cl-id", "data-cl-key", "data-cl-save"].map((a) => [a, o.input.getAttribute(a)]).filter(([, v]) => v !== null) : [];
+          o.node.remove();
+          const nf = src.querySelector(`input[name="${CSS.escape(name)}"]`); if (nf) keep.forEach(([a, v]) => nf.setAttribute(a, v));
+          commit();
+        } })));
+    });
+    // One option at the end of the list, with its words; the saved value is the words (made unique).
+    const addOne = (words) => {
+      const now = optionsOf(input);
+      const v = uniqueValue(words, now.map((x) => x.value).concat(["Other"]));
+      if (kind === "select") { const op = document.createElement("option"); op.setAttribute("value", v); op.textContent = v; op.setAttribute("data-k", String(++kSeq)); input.append(op); return; }
+      const last = now.at(-1)?.node; if (!last) return;
+      const c = last.cloneNode(true);
+      [c, ...c.querySelectorAll("*")].forEach((x) => x.setAttribute("data-k", String(++kSeq)));
+      [c, ...c.querySelectorAll("[id]")].forEach((x) => x.id && (x.id = `${x.id}-${kSeq}`));
+      const inp = c.matches("input") ? c : c.querySelector("input");
+      inp.value = v; inp.setAttribute("value", v); ["checked", "required", "data-cl-label", "data-cl-save", "data-cl-score"].forEach((a) => inp.removeAttribute(a));
+      if (c !== inp) wordsOf(c).set(v);
+      last.after(c);
+    };
+    const pasteBtn = h("button", { class: "pill", html: `${SVG(P.qtext, 14)}Paste a list` });
+    pasteBtn.onclick = () => {
+      const box = h("textarea", { class: "in", rows: "6", placeholder: "One option on each line", "aria-label": "Options, one on each line", style: "height:auto;padding:6px 8px" });
+      const go = h("button", { class: "pill primary", text: "Add them", onclick: () => {
+        const lines = box.value.split(/\n+/).map((x) => x.trim()).filter(Boolean).slice(0, 100);
+        closeMenu(); if (!lines.length) return;
+        snap(); lines.forEach(addOne); commit();
+        toast(lines.length === 1 ? "Added 1 option" : `Added ${lines.length} options`);
+      } });
+      openMenu(pasteBtn, [h("div", { style: "padding:8px;display:flex;flex-direction:column;gap:8px" }, box, h("div", {}, go))], 260);
+      setTimeout(() => box.focus(), 0);
+    };
+    O.append(list, h("div", { style: "display:flex;gap:6px;flex-wrap:wrap" }, h("button", { class: "pill", html: `${SVG(P.plus, 14)}Add option`, onclick: () => { snap(); addOne(`Option ${optionsOf(input).length + 1}`); commit(); } }), pasteBtn));
+    if (kind === "select") {
+      const empty = [...input.options].find((o) => o.value === "");
+      O.append(textRow("Empty choice", empty?.textContent.trim() || "", (t) => { if (empty) empty.textContent = t || "Choose one"; else { const o = document.createElement("option"); o.value = ""; o.textContent = t || "Choose one"; o.setAttribute("data-k", String(++kSeq)); input.prepend(o); } }, "Choose one"));
+    }
+    if (kind === "radio" || kind === "checkbox") {
+      const other = src.querySelector(`[name="${CSS.escape(`${name}_other`)}"]`);
+      O.append(swRow("Other", !!other, (on) => {
+        if (!on) { src.querySelector(`input[name="${CSS.escape(name)}"][value="Other"]`)?.closest("label")?.remove(); other?.closest("[data-cl-show-if]")?.remove(); return; }
+        const last = opts.at(-1)?.node; if (!last) return;
+        const c = last.cloneNode(true); [c, ...c.querySelectorAll("*")].forEach((x) => x.setAttribute("data-k", String(++kSeq)));
+        const inp = c.matches("input") ? c : c.querySelector("input"); inp.value = "Other"; inp.setAttribute("value", "Other"); ["checked", "required", "data-cl-label", "data-cl-save", "id"].forEach((a) => inp.removeAttribute(a));
+        if (c !== inp) wordsOf(c).set("Other");
+        last.after(c);
+        const map = classMap();
+        const box = clean(`<div${map.q ? ` class="${map.q}"` : ""} data-cl-show-if="${name} == 'Other'"><label class="${map.label || "label"}" for="q_${name}_other">Tell us more</label><input class="${map.field || "field"}" id="q_${name}_other" name="${name}_other" type="text"></div>`).firstElementChild;
+        [box, ...box.querySelectorAll("*")].forEach((x) => x.setAttribute("data-k", String(++kSeq)));
+        endOf(q).after(box);
+        ensureIds();
+      }));
+      const box = input.closest("label")?.parentElement;
+      if (box && box !== q.parentElement) O.append(swRow("Shuffle", box.hasAttribute("data-cl-shuffle"), (on) => (on ? box.setAttribute("data-cl-shuffle", "") : box.removeAttribute("data-cl-shuffle"))));
+    }
+    if (kind === "checkbox") O.append(textRow("Most picks", q.getAttribute("data-cl-limit"), (v) => (/^\d+$/.test(v) && Number(v) > 0 ? q.setAttribute("data-cl-limit", v) : q.removeAttribute("data-cl-limit")), "Any"));
+    p.append(O);
+  }
+  function questionSettings(p, input) {
+    const name = input.name;
+    const q = qOf(input) || input;
+    const group = [...src.querySelectorAll(`[name="${CSS.escape(name)}"]`)].filter((x) => x.matches("input,select,textarea"));
+    const kind = input.tagName === "SELECT" ? "select" : input.tagName === "TEXTAREA" ? "textarea" : input.type;
+    const lone = (kind === "checkbox" || kind === "radio") && group.length === 1;
+    const Q = sec("Question");
+    const L = questionLabel(input, q);
+    if (L) Q.append(textRow(lone ? "Words" : "Question", L.get(), L.set));
+    const req = group.some((g) => g.hasAttribute("required"));
+    Q.append(swRow(lone && kind === "checkbox" ? "Must be ticked" : "Required", req, (on) => { group.forEach((g) => g.removeAttribute("required")); if (on) group[0].setAttribute("required", ""); }));
+    const helpEl = q.querySelector(".help");
+    Q.append(textRow("Help text", helpEl?.textContent.trim(), (v) => {
+      let e = q.querySelector(".help");
       if (!v) return e?.remove();
-      if (!e) { e = document.createElement("p"); e.className = `${classMap().text || "text"} help`.trim(); e.setAttribute("data-k", String(++kSeq)); (q.querySelector("legend,label") || q.firstElementChild)?.after(e); }
+      if (!e) { e = document.createElement("p"); e.className = `${classMap().text || "text"} help`.trim(); e.setAttribute("data-k", String(++kSeq)); const anchor = q.querySelector("legend,label") || q; anchor === q ? q.before(e) : anchor.after(e); }
       e.textContent = v;
     }));
-    const attr = (el, a) => (v) => (v && /^-?\d+(\.\d+)?$/.test(v) ? el.setAttribute(a, v) : el.removeAttribute(a));
-    if (input.tagName === "TEXTAREA" || ["text", "email", "tel", "url"].includes(input.type)) M.append(field("Fewest letters", () => input.getAttribute("minlength"), attr(input, "minlength"), "Any"), field("Most letters", () => input.getAttribute("maxlength"), attr(input, "maxlength"), "Any"));
-    if (input.type === "number") M.append(field("Lowest", () => input.getAttribute("min"), attr(input, "min"), "Any"), field("Highest", () => input.getAttribute("max"), attr(input, "max"), "Any"));
-    if (isPick) {
-      const box = input.closest("label")?.parentElement;
-      const on = !!box?.hasAttribute("data-cl-shuffle");
-      if (box) M.append(h("div", { class: "row2" }, h("span", { class: "lbl", text: "Shuffle" }), h("div", {}, h("button", { class: "sw", role: "switch", "aria-checked": String(on), "aria-label": "Shuffle the choices", onclick: () => { snap(); on ? box.removeAttribute("data-cl-shuffle") : box.setAttribute("data-cl-shuffle", ""); commit(); } }))));
+    if (!["radio", "checkbox", "select"].includes(kind)) Q.append(textRow("Placeholder", input.getAttribute("placeholder"), (v) => (v ? input.setAttribute("placeholder", v) : input.removeAttribute("placeholder"))));
+    if (!lone) {
+      const SAVES = [["", "Just this form"], ["email", "Email"], ["first_name", "First name"], ["last_name", "Last name"], ["name", "Full name"], ["phone", "Phone"], ["company", "Company"], ["title", "Job title"], ["website", "Website"], ["country", "Country"]];
+      const sv = input.getAttribute("data-cl-save") || "";
+      Q.append(row("Saves to", pick((SAVES.find((s) => s[0] === sv) || SAVES[0])[1], SAVES.map(([v, t]) => [t, () => { snap(); group.forEach((g) => (v ? g.setAttribute("data-cl-save", v) : g.removeAttribute("data-cl-save"))); commit(); }, v === sv]))));
     }
-    if (input.type === "checkbox") M.append(field("Most picks", () => q.getAttribute("data-cl-limit"), attr(q, "data-cl-limit"), "Any"));
-    p.append(M);
-    if (input.type === "radio" || input.tagName === "SELECT") jumpsSec(p, q, input);
+    p.append(Q);
+    if (!lone && ["radio", "checkbox", "select"].includes(kind)) optionsSec(p, input, q);
+    // Limits on a typed answer.
+    const attr = (el, a) => (v) => (v && /^-?\d+(\.\d+)?$/.test(v) ? el.setAttribute(a, v) : el.removeAttribute(a));
+    if (["text", "textarea", "email", "tel", "url"].includes(kind)) { const A = sec("Answer"); A.append(textRow("Fewest letters", input.getAttribute("minlength"), attr(input, "minlength"), "Any"), textRow("Most letters", input.getAttribute("maxlength"), attr(input, "maxlength"), "Any")); p.append(A); }
+    if (kind === "number") { const A = sec("Answer"); A.append(textRow("Lowest", input.getAttribute("min"), attr(input, "min"), "Any"), textRow("Highest", input.getAttribute("max"), attr(input, "max"), "Any")); p.append(A); }
+    if (kind === "radio" || kind === "select") jumpsSec(p, q, input);
+    // Where the answer is kept: its name in the submissions, the CRM and the rules that read it.
+    const N = sec("Answer name");
+    const nm = h("input", { class: "in", "aria-label": "Answer name" }); nm.value = name;
+    nm.addEventListener("change", () => {
+      const v = nm.value.trim().replace(/[^\w-]/g, "_");
+      if (!v || v === name) return (nm.value = name);
+      if (allNames().has(v)) { nm.value = name; return toast("Another question has that name"); }
+      snap();
+      group.forEach((g) => g.setAttribute("name", v));
+      src.querySelectorAll(`[name="${CSS.escape(`${name}_other`)}"]`).forEach((g) => g.setAttribute("name", `${v}_other`));
+      src.querySelectorAll(`[data-cl-error-for="${CSS.escape(name)}"]`).forEach((e) => e.setAttribute("data-cl-error-for", v));
+      for (const a of ["data-cl-show-if", "data-cl-own"]) src.querySelectorAll(`[${a}]`).forEach((e) => e.setAttribute(a, e.getAttribute(a).replace(new RegExp(`\\b${name}\\b`, "g"), v)));
+      src.querySelectorAll("[data-cl-pipe]").forEach((e) => { const t = e.textContent.replace(new RegExp(`\\{${name}\\}`, "g"), `{${v}}`); e.textContent = t; });
+      body().after.routes = (body().after.routes || []).map((r) => (r.field === name ? { ...r, field: v } : r));
+      if (body().ids?.[name]) { body().ids[v] = body().ids[name]; delete body().ids[name]; }
+      commit();
+    });
+    N.append(row("Name", nm));
+    p.append(N);
+  }
+  /** A list kept in one setting ("Value::Words|Other"): a ranking's options, a grid's rows and columns. */
+  function listSec(p, bl, attr, title) {
+    const read = () => String(bl.getAttribute(attr) || "").split("|").map((x) => x.trim()).filter(Boolean).map((x) => { const i = x.indexOf("::"); return i > 0 ? { value: x.slice(0, i), label: x.slice(i + 2) } : { value: x, label: x }; });
+    const write = (items) => bl.setAttribute(attr, items.map((o) => (o.value === o.label ? o.label : `${o.value}::${o.label}`).replace(/\|/g, "/")).join("|"));
+    const items = read();
+    const S2 = sec(title);
+    const list = h("div", { class: "opts" });
+    items.forEach((o, i) => {
+      const t = h("input", { class: "in", "aria-label": `${title} ${i + 1}` }); t.value = o.label;
+      t.addEventListener("change", () => { const v = t.value.trim(); if (!v || v === o.label) return; snap(); const next = read(); next[i] = valueFollows(o.value, o.label) ? { value: uniqueValue(v, next.filter((_, k) => k !== i).map((x) => x.value)), label: v } : { ...o, label: v }; write(next); commit(); });
+      t.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); t.blur(); } });
+      const mv = (d) => { const next = read(); if (!next[i + d]) return; snap(); [next[i], next[i + d]] = [next[i + d], next[i]]; write(next); commit(); };
+      list.append(h("div", { class: "opt" }, t, h("button", { class: "ib", "aria-label": "Move up", html: SVG(P.up, 13), disabled: i === 0 || null, onclick: () => mv(-1) }), h("button", { class: "ib", "aria-label": "Move down", html: SVG(P.down, 13), disabled: i === items.length - 1 || null, onclick: () => mv(1) }), h("button", { class: "ib", "aria-label": "Remove", html: SVG(P.x, 13), disabled: items.length < 2 || null, onclick: () => { snap(); write(read().filter((_, k) => k !== i)); commit(); } })));
+    });
+    S2.append(list, h("div", {}, h("button", { class: "pill", html: `${SVG(P.plus, 14)}Add`, onclick: () => { snap(); const next = read(); const v = uniqueValue(`${title.replace(/s$/, "")} ${next.length + 1}`, next.map((x) => x.value)); write([...next, { value: v, label: v }]); commit(); } })));
+    p.append(S2);
+  }
+  /** The rest of each block's settings: lists, the amount, the formula, a hidden value's source. */
+  function blockMore(p, bl, type) {
+    const set = (a) => (v) => (v ? bl.setAttribute(a, v) : bl.removeAttribute(a));
+    if (type === "ranking") listSec(p, bl, "data-cl-options", "Options");
+    if (type === "grid") { listSec(p, bl, "data-cl-rows", "Rows"); listSec(p, bl, "data-cl-cols", "Columns"); }
+    const CUR = [["USD", "US dollar"], ["EUR", "Euro"], ["GBP", "Pound"], ["CAD", "Canadian dollar"], ["AUD", "Australian dollar"]];
+    const curRow = () => { const c = bl.getAttribute("data-cl-currency") || "USD"; return row("Currency", pick(CUR.find(([v]) => v === c)?.[1] || c, CUR.map(([v, t]) => [t, () => { snap(); bl.setAttribute("data-cl-currency", v); commit(); }, v === c]))); };
+    if (type === "payment") {
+      const M = sec("Charge");
+      const calcs = [...src.querySelectorAll('[data-cl-field="calc"]')].map((c) => c.getAttribute("data-cl-name")).filter(Boolean);
+      const from = bl.getAttribute("data-cl-from") || "";
+      M.append(row("Amount", pick(from ? `The total: ${from}` : "A set amount", [["A set amount", () => { snap(); bl.removeAttribute("data-cl-from"); if (!bl.getAttribute("data-cl-amount")) bl.setAttribute("data-cl-amount", "49"); commit(); }, !from], ...calcs.map((c) => [`The total: ${c}`, () => { snap(); bl.setAttribute("data-cl-from", c); bl.removeAttribute("data-cl-amount"); commit(); }, from === c])])));
+      if (!from) M.append(textRow("Price", bl.getAttribute("data-cl-amount"), (v) => (/^\d+(\.\d{1,2})?$/.test(v) ? bl.setAttribute("data-cl-amount", v) : null), "49"));
+      M.append(curRow());
+      p.append(M);
+    }
+    if (type === "calc") {
+      const C = sec("Calculation");
+      C.append(textRow("Formula", bl.getAttribute("data-cl-formula"), set("data-cl-formula"), "{guests} * 38"));
+      const f = bl.getAttribute("data-cl-format") || "number";
+      C.append(row("Shows as", pick({ number: "Number", money: "Money", percent: "Percent" }[f] || f, [["Number", () => { snap(); bl.removeAttribute("data-cl-format"); commit(); }, f === "number"], ["Money", () => { snap(); bl.setAttribute("data-cl-format", "money"); commit(); }, f === "money"], ["Percent", () => { snap(); bl.setAttribute("data-cl-format", "percent"); commit(); }, f === "percent"]])));
+      if (f === "money") C.append(curRow());
+      C.append(textRow("Decimals", bl.getAttribute("data-cl-decimals"), (v) => (/^[0-4]$/.test(v) ? bl.setAttribute("data-cl-decimals", v) : bl.removeAttribute("data-cl-decimals")), "0"));
+      C.append(swRow("Hide on the form", bl.hasAttribute("data-cl-hide"), (on) => (on ? bl.setAttribute("data-cl-hide", "") : bl.removeAttribute("data-cl-hide"))));
+      const names = [...allNames()].filter((n) => n !== bl.getAttribute("data-cl-name"));
+      if (names.length) C.append(h("p", { class: "hint0", text: `Use answers in braces: ${names.slice(0, 6).map((n) => `{${n}}`).join(", ")}` }));
+      p.append(C);
+    }
+    if (type === "hidden") {
+      const Hh = sec("Value");
+      const from = bl.getAttribute("data-cl-from") || "param";
+      const FROM = [["param", "A value in the link"], ["page", "The page address"], ["referrer", "Where they came from"], ["static", "A set value"]];
+      Hh.append(row("Comes from", pick(FROM.find(([v]) => v === from)?.[1] || from, FROM.map(([v, t]) => [t, () => { snap(); bl.setAttribute("data-cl-from", v); commit(); }, v === from]))));
+      if (from === "param") Hh.append(textRow("Link value", bl.getAttribute("data-cl-param"), set("data-cl-param"), "ref"));
+      if (from === "static") Hh.append(textRow("Value", bl.getAttribute("data-cl-value"), set("data-cl-value")));
+      p.append(Hh);
+    }
   }
   // Text: put an earlier answer in it.
   function textSettings(p, el) {

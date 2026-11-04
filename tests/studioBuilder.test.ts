@@ -72,3 +72,13 @@ test("a text shows the answers in it, and an empty one leaves no stray comma", (
   assert.equal(pipeText("You picked {tools}.", { tools: ["Typeform", "Sheets"] }), "You picked Typeform, Sheets.");
   assert.equal(pipeText("Hi {unknown}", { name: "x" }), "Hi {unknown}", "a name the form doesn't have stays as written");
 });
+
+test("a renamed option saves what it says, and the rules that named it follow", async () => {
+  const { renameValueIn, uniqueValue, valueFollows } = await import("../src/lib/studio/builder.ts");
+  assert.ok(valueFollows("Option 2", "Option 2") && valueFollows("option-3", "Small team") && valueFollows("Small team", "Small team "));
+  assert.ok(!valueFollows("ent", "Enterprise") && !valueFollows("sunny", "Sunny"), "a value set on purpose stays");
+  assert.equal(uniqueValue("Big", ["Big", "Big 2"]), "Big 3");
+  assert.equal(renameValueIn("size == 'Big' and plan != \"Big\"", "size", "Big", "Large"), "size == 'Large' and plan != \"Big\"");
+  assert.equal(renameValueIn("size != Big or size == 'Bigger'", "size", "Big", "It's big"), `size != "It's big" or size == 'Bigger'`);
+  assert.equal(renameValueIn("teamsize == 'Big'", "size", "Big", "Large"), "teamsize == 'Big'", "another question with a longer name is left alone");
+});

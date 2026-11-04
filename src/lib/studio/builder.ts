@@ -19,7 +19,7 @@ export const QNAME = Object.fromEntries(QGROUPS.flatMap(([, xs]) => xs)) as Reco
 
 const LABEL: Record<QType, string> = {
   short: "Short answer", long: "Tell us more", email: "Email", phone: "Phone", address: "Address", choice: "Pick one", checks: "Pick any that fit",
-  dropdown: "Choose one", yesno: "Yes or no?", ranking: "Rank these", rating: "How would you rate us?", scale: "How likely are you to recommend us?",
+  dropdown: "Pick from the list", yesno: "Yes or no?", ranking: "Rank these", rating: "How would you rate us?", scale: "How likely are you to recommend us?",
   number: "How many?", payment: "Payment", date: "Pick a date", time: "Pick a time", file: "Upload a file", signature: "Sign here",
   heading: "New section", text: "A few words for the people filling this in.", divider: "",
 };
@@ -136,3 +136,26 @@ export function stepShowIfs(steps: { own: string }[], jumps: (Jump & { from: num
 }
 
 export { pipeText } from "./runtime.ts";
+
+// Options: a choice's saved value follows its words when it was made from them, so a renamed option saves what it
+// says; the show-ifs and jumps that name the old value follow it.
+
+/**
+ * Whether an option's value is its words (or a placeholder like option-2), so it follows a rename. A value written
+ * on purpose (sunny for "Sunny", ent for "Enterprise") stays, so past answers and the tools it goes to still match.
+ */
+export const valueFollows = (value: string, label: string) => value === label.trim() || /^option[-_ ]?\d+$/i.test(value);
+/** A value no other option of the question has. */
+export function uniqueValue(v: string, taken: Iterable<string>): string {
+  const used = new Set(taken);
+  const b = v.trim().slice(0, 200) || "Option";
+  if (!used.has(b)) return b;
+  for (let i = 2; ; i++) if (!used.has(`${b} ${i}`)) return `${b} ${i}`;
+}
+const reEsc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+/** A show-if with one question's old value written as the new one: size == 'Big' becomes size == 'Large'. */
+export function renameValueIn(expr: string, name: string, from: string, to: string): string {
+  if (!expr || from === to) return expr;
+  const q = to.includes("'") ? `"${to.replace(/"/g, "'")}"` : `'${to}'`;
+  return expr.replace(new RegExp(`(\\b${reEsc(name)}\\s*(?:==|!=)\\s*)(?:'${reEsc(from)}'|"${reEsc(from)}"|${reEsc(from)}(?=\\s|$))`, "g"), `$1${q}`);
+}
