@@ -77,8 +77,9 @@ export function FormHeader({
       <span className="max-[560px]:hidden">
         <StatePill state={state} />
       </span>
+      {tabs ? <span aria-hidden="true" className="mx-[8px] h-[20px] w-px shrink-0 bg-line-strong max-[1100px]:hidden" /> : null}
       {tabs ? (
-        <nav aria-label="Form" className="ml-[12px] self-center max-[1100px]:order-last max-[1100px]:-mx-[16px] max-[1100px]:ml-0 max-[1100px]:w-[calc(100%+28px)] max-[1100px]:border-t max-[1100px]:border-line max-[1100px]:px-[6px]">
+        <nav aria-label="Form" className="self-center max-[1100px]:order-last max-[1100px]:-mx-[16px] max-[1100px]:ml-0 max-[1100px]:w-[calc(100%+28px)] max-[1100px]:border-t max-[1100px]:border-line max-[1100px]:px-[6px]">
           <Tabs<FormTab>
             bare
             dense
