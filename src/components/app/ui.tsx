@@ -640,7 +640,7 @@ export function Tabs<T extends string>({
   return (
     <div
       role="tablist"
-      className={`flex max-w-full min-w-0 shrink items-center overflow-x-auto [scrollbar-width:none] ${inline ? "gap-1.5 p-[2px]" : `shrink-0 gap-1.5 ${dense ? "h-[42px]" : "h-12"} ${bare ? "" : `border-b border-line bg-card ${dense ? "px-[10px]" : "px-3"}`}`}`}
+      className={`flex max-w-full min-w-0 shrink items-center overflow-x-auto [scrollbar-width:none] ${inline ? "gap-1.5 p-[2px]" : `shrink-0 gap-1.5 ${dense ? "h-[42px]" : "h-12"} ${bare ? "px-[2px]" : `border-b border-line bg-card ${dense ? "px-[10px]" : "px-3"}`}`}`}
     >
       {tabs.map((t) => {
         const on = value === t.value;
