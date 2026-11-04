@@ -98,7 +98,8 @@ const sb = {
   },
 } as unknown as SupabaseClient;
 const session = { access_token: "t", user: { id: "u1", email: "me@acme.com", user_metadata: { full_name: "Ana Lee" } } } as unknown as Session;
-const ws = { id: "00000000-0000-4000-8000-000000000001", name: "Acme", features: [] } as never;
+const WS_ID = "00000000-0000-4000-8000-000000000001";
+const ws = { id: WS_ID, name: "Acme", features: [] } as never;
 
 function FormShare() {
   const [form] = useState<Form>(() => ({
@@ -145,7 +146,7 @@ function FolderPages() {
   const navigate = ((_r: string, to?: string) => ((window as unknown as { navs: unknown[] }).navs = [...((window as unknown as { navs?: unknown[] }).navs ?? []), to ?? ""], setId(to ?? ""))) as never;
   return (
     <div style={{ display: "flex", height: "100vh" }} className="bg-paper">
-      <Sidebar route={"forms" as never} id={id} navigate={navigate} counts={{}} wsName="Acme" email="me@acme.com" theme="light" onTheme={() => {}} onSignOut={() => {}} onSearch={() => {}} create={[]} under={{ forms: <FormFolderNav sb={sb} ws={ws.id} current={id} open navigate={navigate} /> }} />
+      <Sidebar route={"forms" as never} id={id} navigate={navigate} counts={{}} wsName="Acme" email="me@acme.com" theme="light" onTheme={() => {}} onSignOut={() => {}} onSearch={() => {}} create={[]} under={{ forms: <FormFolderNav sb={sb} ws={WS_ID} current={id} open navigate={navigate} /> }} />
       <div className="min-w-0 flex-1 bg-card">
         <FormHome key={id} sb={sb} session={session} ws={ws} role="owner" navigate={navigate} id={id} folder={id.startsWith("folder:") ? id.slice(7) : ""} />
       </div>
