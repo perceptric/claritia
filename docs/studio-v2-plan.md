@@ -251,6 +251,17 @@ page from here).
 
 ## Part 9. The no-code builder (built)
 
+**The layout** (after Fillout): the left sidebar is the one editor, with **Build | AI** at its top. Build has Add
+fields (every type as a tile, with search, click or drag) and Layers; AI is the chat with Tia (the brand row with it).
+A form with nothing built opens on AI, with Start blank; a built one opens on the side used last on this computer, and
+AI shows a dot when Tia changed the form while Build was open. Ask Tia about this and the form check's Fix switch to AI.
+There are no Preview, Edit and On submission tabs: the Studio is always the editor, Preview sits beside Publish in the
+page's header (the form on the whole Studio, with Back to editor), and On submission is the last of the steps, which
+sit under the form. The panel's words are a form builder's: Field, Label, Description, Contact field, Field key,
+Validation with Min and Max characters (or value), Allow Other, Randomize order, Max selections, Bulk add, Display
+condition, Page skip rules, Insert field value; Theme's Customize has Brand color, Corner radius, Button style and
+Form width.
+
 Everything a form needs can be made in Edit without Tia (`src/lib/studio/builder.ts`, the builder block in
 `src/components/app/forms/studio/studio.ts`):
 

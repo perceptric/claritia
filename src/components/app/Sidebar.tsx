@@ -86,6 +86,8 @@ export type SidebarProps = {
   onPreload?: (r: Route) => void;
   create: CreateItem[];
   start?: React.ReactNode;
+  /** Shown under an item when the sidebar is wide: the form folders under Forms. */
+  under?: Partial<Record<string, React.ReactNode>>;
 };
 
 export function Sidebar(p: SidebarProps) {
@@ -117,6 +119,7 @@ export function Sidebar(p: SidebarProps) {
           // Settings sits at the bottom of the sidebar on wider screens; on phones it stays in the row.
           <span key={n.key} className={n.group === "settings" ? "contents md:hidden" : "contents"}>
             <NavLink n={n} on={active?.key === n.key} count={p.counts[n.key]} dot={!!p.dots?.[n.key]} navigate={p.navigate} preload={p.onPreload} rail={rail} />
+            {p.under?.[n.key] && !rail ? <span className="hidden xl:contents">{p.under[n.key]}</span> : null}
           </span>
         ))}
       </nav>

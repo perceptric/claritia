@@ -348,3 +348,15 @@ Reliability: each alert, the Slack post and the reply are noted in form_notify_s
 | Claude (the AI bar) | $0 more: the same calls as the old chat, with no history sent, so slightly fewer tokens | $0 more |
 | Database and cron | $0 more (one small table, one nightly job) | $0 more |
 | **Total added** | **$0 a month** | **about $90 a month (check)** |
+
+
+## Folders (built)
+
+Forms in the sidebar opens onto folders, like Fillout's workspaces (`supabase/migrations/126_form_folders.sql`,
+`src/components/app/forms/folders.tsx`). The folders sit under Forms in the wide sidebar, each with how many forms it
+holds, then New folder (named in the app's dialog). A folder's page (`/forms/folder:<id>`) lists its forms, with
+Rename folder and Delete folder (its forms stay, under All forms); New form from a folder puts the form in it once
+it exists. A form moves from its row's menu (Move to folder, or No folder), and its page shows the folder in its path:
+Forms / Sales / Book a demo. Before 126 there are no folders and nothing about them shows.
+
+Running cost: $0 a month at Beta (50 teams) and Growth (500 teams): a small table Supabase already serves.

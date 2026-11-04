@@ -11,6 +11,8 @@ import { LinkDomainSettings } from "../../src/components/app/views/LinkDomainSet
 import { Sidebar } from "../../src/components/app/Sidebar";
 import { MailLine, MeetingMailNotice } from "../../src/components/app/meetings/MailHealth";
 import { DialogHost } from "../../src/components/app/Dialogs";
+import { FormFolderNav } from "../../src/components/app/forms/folders";
+import { FormHome } from "../../src/components/app/forms/FormHome";
 import { emptyForm, type Form } from "../../src/lib/forms/schema";
 import { applyOp } from "../../src/lib/forms/ops";
 import { Setup, type SetupSub } from "../../src/components/app/forms/Setup";
@@ -57,6 +59,8 @@ const TABLES: Record<string, unknown[]> = {
   meeting_types: [{ id: "t1", name: "Demo call" }],
   meetings: [{ guest_email: "ravi@stackline.co", guest_name: "Ravi Kumar" }],
   emails: [{ id: "e1", subject: "Book a demo", created_at: "2026-11-04T10:00:00Z" }],
+  form_folders: [{ id: "fold-sales", name: "Sales", position: 0 }, { id: "fold-hiring", name: "Hiring", position: 1 }],
+  forms: [{ id: "f-demo", folder_id: "fold-sales" }, { id: "f-price", folder_id: "fold-sales" }, { id: "f-apply", folder_id: null }],
   email_messages: [
     { email_id: "e1", to_email: "maya@northwind.io", status: "delivered", first_click_at: "2026-11-04T10:05:00Z", created_at: "2026-11-04T10:00:00Z" },
     { email_id: "e1", to_email: "sam@gone.io", status: "bounced", first_click_at: null, created_at: "2026-11-04T10:00:00Z" },
@@ -78,6 +82,16 @@ const sb = {
     w.rpcs.push([fn, args]);
     if (fn === "form_link")
       return Promise.resolve(qs.get("nolinks") ? { data: null, error: { message: "Could not find the function public.form_link(p_form) in the schema cache", code: "PGRST202" } } : { data: { ws: "acme", slug: qs.get("ending") ?? "demo-request" }, error: null });
+    if (fn === "forms_list")
+      return Promise.resolve({
+        data: [
+          { id: "f-demo", name: "Book a demo", status: "live", kind: "built", version: 2, fills: 12, last_fill: null, updated_at: "2026-11-04T10:00:00Z", failed: 0, check: null },
+          { id: "f-price", name: "Pricing question", status: "draft", kind: "built", version: 0, fills: 0, last_fill: null, updated_at: "2026-11-03T10:00:00Z", failed: 0, check: null },
+          { id: "f-apply", name: "Job application", status: "live", kind: "built", version: 1, fills: 3, last_fill: null, updated_at: "2026-11-02T10:00:00Z", failed: 0, check: null },
+        ],
+        error: null,
+      });
+    if (fn === "form_folder_save") return Promise.resolve({ data: "fold-new", error: null });
     if (fn === "form_set_slug") return Promise.resolve({ data: { ws: "acme", slug: args.p_slug || null }, error: null });
     if (fn === "form_seen_pages") return Promise.resolve({ data: qs.get("seen") === "0" ? [] : [["acme.com/pricing", { last: new Date(Date.now() - 3600_000).toISOString(), blocked: false }], ["acme.com/contact", { last: new Date(Date.now() - 86400_000 * 2).toISOString(), blocked: false }], ["staging.acme.dev/contact", { last: new Date(Date.now() - 86400_000 * 5).toISOString(), blocked: true }]], error: null });
     return Promise.resolve({ data: null, error: null });
@@ -125,8 +139,23 @@ function AccessSettings() {
   );
 }
 
+/** Forms with its folders: the sidebar's list under Forms, and a folder's page. */
+function FolderPages() {
+  const [id, setId] = useState(qs.get("folder") ? `folder:${qs.get("folder")}` : "");
+  const navigate = ((_r: string, to?: string) => ((window as unknown as { navs: unknown[] }).navs = [...((window as unknown as { navs?: unknown[] }).navs ?? []), to ?? ""], setId(to ?? ""))) as never;
+  return (
+    <div style={{ display: "flex", height: "100vh" }} className="bg-paper">
+      <Sidebar route={"forms" as never} id={id} navigate={navigate} counts={{}} wsName="Acme" email="me@acme.com" theme="light" onTheme={() => {}} onSignOut={() => {}} onSearch={() => {}} create={[]} under={{ forms: <FormFolderNav sb={sb} ws={ws.id} current={id} open navigate={navigate} /> }} />
+      <div className="min-w-0 flex-1 bg-card">
+        <FormHome key={id} sb={sb} session={session} ws={ws} role="owner" navigate={navigate} id={id} folder={id.startsWith("folder:") ? id.slice(7) : ""} />
+      </div>
+    </div>
+  );
+}
+
 function App() {
   if (view === "access") return <AccessSettings />;
+  if (view === "folders") return <FolderPages />;
   if (view === "meeting")
     return (
       // Inside a 400 px panel that slid in with a transform, as the meeting panel does: the dialog must still cover the screen.

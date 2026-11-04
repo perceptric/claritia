@@ -9,19 +9,19 @@ export type QType =
 
 /** What the Add list shows, in groups. */
 export const QGROUPS: [string, [QType, string][]][] = [
-  ["Contact", [["short", "Short answer"], ["long", "Long answer"], ["email", "Email"], ["phone", "Phone"], ["address", "Address"]]],
-  ["Choices", [["choice", "Choice"], ["checks", "Checkboxes"], ["dropdown", "Dropdown"], ["yesno", "Yes or no"], ["ranking", "Ranking"]]],
-  ["Ratings and numbers", [["rating", "Rating"], ["scale", "Scale 1 to 10"], ["number", "Number"], ["payment", "Payment"]]],
-  ["Dates and files", [["date", "Date"], ["time", "Time"], ["file", "File upload"], ["signature", "Signature"]]],
-  ["Layout", [["heading", "Heading"], ["text", "Text"], ["divider", "Divider"]]],
+  ["Contact", [["short", "Short answer"], ["long", "Long answer"], ["email", "Email"], ["phone", "Phone number"], ["address", "Address"]]],
+  ["Choices", [["choice", "Multiple choice"], ["checks", "Checkboxes"], ["dropdown", "Dropdown"], ["yesno", "Yes / No"], ["ranking", "Ranking"]]],
+  ["Ratings and numbers", [["rating", "Rating"], ["scale", "Opinion scale"], ["number", "Number"], ["payment", "Payment"]]],
+  ["Date, time and files", [["date", "Date picker"], ["time", "Time picker"], ["file", "File upload"], ["signature", "Signature"]]],
+  ["Display", [["heading", "Heading"], ["text", "Paragraph"], ["divider", "Divider"]]],
 ];
 export const QNAME = Object.fromEntries(QGROUPS.flatMap(([, xs]) => xs)) as Record<QType, string>;
 
 const LABEL: Record<QType, string> = {
-  short: "Short answer", long: "Tell us more", email: "Email", phone: "Phone", address: "Address", choice: "Pick one", checks: "Pick any that fit",
-  dropdown: "Pick from the list", yesno: "Yes or no?", ranking: "Rank these", rating: "How would you rate us?", scale: "How likely are you to recommend us?",
-  number: "How many?", payment: "Payment", date: "Pick a date", time: "Pick a time", file: "Upload a file", signature: "Sign here",
-  heading: "New section", text: "A few words for the people filling this in.", divider: "",
+  short: "Short answer", long: "Tell us more", email: "Email address", phone: "Phone number", address: "Address", choice: "Select one", checks: "Select all that apply",
+  dropdown: "Select an option", yesno: "Yes or no?", ranking: "Rank in order of importance", rating: "How would you rate your experience?", scale: "How likely are you to recommend us?",
+  number: "Quantity", payment: "Payment", date: "Select a date", time: "Select a time", file: "Upload a file", signature: "Signature",
+  heading: "Section heading", text: "Add a short description for this section.", divider: "",
 };
 /** The name a new question's answer goes under, before it's made unique. */
 const BASE: Record<QType, string> = {
@@ -98,8 +98,8 @@ export function questionHtml(type: QType, name: string, o: { save?: string } = {
 export const baseName = (t: QType) => BASE[t];
 
 /** The kinds a question can turn into and keep its answers: text boxes among themselves, picks among themselves. */
-export const TEXT_KINDS: [string, string][] = [["text", "Short answer"], ["textarea", "Long answer"], ["email", "Email"], ["tel", "Phone"], ["number", "Number"]];
-export const PICK_KINDS: [string, string][] = [["radio", "Choice"], ["checkbox", "Checkboxes"], ["select", "Dropdown"]];
+export const TEXT_KINDS: [string, string][] = [["text", "Short answer"], ["textarea", "Long answer"], ["email", "Email"], ["tel", "Phone number"], ["number", "Number"]];
+export const PICK_KINDS: [string, string][] = [["radio", "Multiple choice"], ["checkbox", "Checkboxes"], ["select", "Dropdown"]];
 
 // Jumps: "If size is More than 50, go to page 3" skips the pages in between. Written as show-ifs on those pages, the
 // rule every live form already runs, so a jump needs nothing new on the sites the form is on.

@@ -49,6 +49,7 @@ input, textarea { user-select: text; -webkit-user-select: text; }
 .chat.folded > :not(.chathead) { display: none; }
 .chat.folded .chathead > :not(.foldbtn) { display: none; }
 .chat.folded .chathead { justify-content: center; padding: 0; }
+.chat.prev { display: none; }
 .chathead { height: 52px; flex: none; display: flex; align-items: center; gap: 6px; padding: 0 8px 0 10px; border-bottom: 1px solid var(--line); }
 .chatpick { flex: 1; min-width: 0; height: 36px; display: flex; align-items: center; gap: 8px; padding: 0 8px; border: 0; border-radius: 8px; background: transparent; text-align: left; }
 .chatpick:hover { background: var(--hover); }
@@ -123,6 +124,7 @@ input, textarea { user-select: text; -webkit-user-select: text; }
 .tipright[data-tip]::after { left: 0; transform: translateY(-2px); }
 .tipright[data-tip]:hover::after, .tipright[data-tip]:focus-visible::after { transform: none; }
 .work { flex: 1; min-height: 0; display: flex; }
+.mid { flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; }
 .steps { flex: 0 1 auto; min-width: 0; display: flex; align-items: center; gap: 6px; overflow-x: auto; scrollbar-width: none; padding: 2px; }
 .steps::-webkit-scrollbar { display: none; }
 .steps { gap: 0; }
@@ -147,9 +149,31 @@ input, textarea { user-select: text; -webkit-user-select: text; }
 .themes .th[aria-pressed="true"] .sw2 { box-shadow: 0 0 0 2px var(--ink); }
 .themes .nm { font-size: 11.5px; color: var(--body); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .steps .tools { display: flex; gap: 2px; flex: none; padding-left: 6px; margin-left: 2px; border-left: 1px solid var(--line); }
-.navi { flex: none; width: 220px; border-right: 1px solid var(--line); display: flex; flex-direction: column; min-height: 0; }
-.adds { flex: none; width: 212px; border-right: 1px solid var(--line); display: flex; flex-direction: column; min-height: 0; }
-.adds .in { margin: 0 10px 8px; width: auto; flex: none; }
+.navi { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.navi .ptitle { display: none; }
+.adds { flex: 1; min-height: 0; display: flex; flex-direction: column; padding-top: 10px; }
+.adds .ptitle { display: none; }
+.adds .in { margin: 0 10px 8px; width: auto; flex: none; height: 30px; }
+.aibody { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.sidemode { flex: none; padding: 10px 10px 8px; border-bottom: 1px solid var(--line); display: flex; flex-direction: column; gap: 8px; }
+.mseg { display: flex; gap: 2px; padding: 3px; border-radius: 999px; background: var(--paper-deep); }
+.mseg button { flex: 1; height: 28px; border: 0; border-radius: 999px; background: transparent; color: var(--muted); font-size: 12.5px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
+.mseg button[aria-selected="true"] { background: var(--bg); color: var(--ink); font-weight: 500; box-shadow: 0 0 0 1px var(--line), 0 1px 2px rgb(10 10 10 / .06); }
+.mseg .tia { width: 16px; height: 16px; }
+.mdot { width: 6px; height: 6px; border-radius: 999px; background: var(--signal); }
+.subt { display: flex; gap: 2px; }
+.subt button { height: 26px; padding: 0 10px; border: 0; border-radius: 7px; background: transparent; color: var(--muted); font-size: 12.5px; }
+.subt button[aria-selected="true"] { background: var(--paper); color: var(--ink); font-weight: 500; box-shadow: 0 0 0 1px var(--line); }
+.addlist.grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; align-content: start; }
+.addlist.grid .ag { grid-column: 1 / -1; padding: 8px 2px 0; }
+.addlist.grid button { height: auto; flex-direction: column; justify-content: center; gap: 5px; padding: 9px 4px 7px; border-radius: 10px; background: var(--bg); box-shadow: 0 0 0 1px var(--line); text-align: center; font-size: 11.5px; line-height: 1.25; min-width: 0; }
+.addlist.grid button:hover { box-shadow: 0 0 0 1px var(--line-strong), 0 2px 6px rgb(0 0 0 / .06); background: var(--bg); }
+.addlist.grid button i { width: 26px; height: 26px; border-radius: 7px; box-shadow: none; }
+.addlist.grid button .nm { overflow-wrap: anywhere; }
+.stepdock { flex: none; display: flex; align-items: center; min-height: 48px; padding: 6px 12px; border-top: 1px solid var(--line); background: var(--bg); }
+.stepdock .steps { flex: 1; flex-wrap: wrap; row-gap: 4px; overflow: visible; }
+.steps .sp.after .n { border-style: dashed; }
+.exitprev { display: inline-flex; align-items: center; gap: 6px; }
 .addlist { flex: 1; min-height: 0; overflow-y: auto; padding: 0 6px 12px; display: flex; flex-direction: column; gap: 1px; }
 .addlist .ag { font-size: 11px; color: var(--faint); padding: 8px 6px 3px; }
 .addlist button { flex: none; height: 32px; border: 0; background: transparent; border-radius: 7px; display: flex; align-items: center; gap: 9px; padding: 0 6px; text-align: left; font-size: 12.5px; color: var(--ink); cursor: grab; }
@@ -316,6 +340,7 @@ input, textarea { user-select: text; -webkit-user-select: text; }
 
 const SVG = (d, w = 16) => `<svg width="${w}" height="${w}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
 const P = {
+  bolt: '<path d="M13 2 4 14h7l-1 8 9-12h-7z"/>',
   brush: '<path d="M9.06 11.9 17.6 3.4a2 2 0 0 1 2.9 2.9l-8.5 8.5"/><path d="M7 14a3 3 0 0 0-3 3c0 1.5-1 2-2 2 1 1.5 3 2 4 2a4 4 0 0 0 4-4 3 3 0 0 0-3-3z"/>',
   swap: '<path d="M7 4 3 8l4 4"/><path d="M3 8h13a4 4 0 0 1 4 4"/><path d="m17 20 4-4-4-4"/><path d="M21 16H8a4 4 0 0 1-4-4"/>',
   short: '<path d="M4 9h16M4 15h10"/>', long: '<path d="M4 6h16M4 10h16M4 14h16M4 18h10"/>', email: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/>',
@@ -348,6 +373,10 @@ export const STUDIO_HTML = `
       <button class="chatpick" id="chatPick" aria-haspopup="menu" aria-expanded="false" aria-label="Chats"></button>
       <button class="ib foldbtn tipleft" id="chatFold"></button>
     </div>
+    <div class="sidemode"><div class="mseg" role="tablist" aria-label="Editor"><button role="tab" id="m-build" aria-selected="true">${SVG(P.cursor, 14)}Build</button><button role="tab" id="m-ai" aria-selected="false">${tiaSvg(16)}AI<span class="mdot" id="aiDot" hidden></span></button></div><div class="subt" id="subt" role="tablist" aria-label="Build"><button role="tab" id="s-add" aria-selected="true">Add fields</button><button role="tab" id="s-layers" aria-selected="false">Layers</button></div></div>
+    <aside class="adds" id="adds" aria-label="Add fields" hidden><div class="ptitle">Add</div><input class="in" id="addQ" placeholder="Search fields" aria-label="Search fields" autocomplete="off"><div class="addlist grid" id="addList"></div></aside>
+    <aside class="navi" id="navi" aria-label="Layers" hidden><div class="ptitle">Layers</div><div class="tree" id="tree"></div></aside>
+    <div class="aibody" id="aiBody">
     <div class="brandrow"><button class="brandbtn" id="brandBtn" aria-haspopup="menu" aria-label="Brand"></button><button class="profile" id="profileBtn" aria-haspopup="menu" aria-label="Industry, country and language" hidden></button><div class="bstatus" id="brandStatus" hidden></div></div>
     <div class="msgs" id="msgs" aria-live="polite"></div>
     <div class="compose">
@@ -355,17 +384,11 @@ export const STUDIO_HTML = `
       <div class="chips" id="attached" hidden></div>
       <div class="box"><button class="ib attach" id="attachBtn" data-tip="Attach a picture, PDF or text file" aria-label="Attach a file">${SVG(P.clip, 16)}</button><input type="file" id="fileIn" multiple accept="image/png,image/jpeg,image/webp,image/gif,application/pdf,.txt,.csv,.md,.json,text/plain,text/csv,text/markdown" hidden><textarea id="input" rows="1" aria-label="Message"></textarea><button class="send" id="send" aria-label="Send">${SVG(P.send, 15)}</button></div>
     </div>
+    </div>
   </section>
   <section class="stage" aria-label="Form">
     <div class="bar">
-      <div class="grp" role="tablist" aria-label="View">
-        <button class="ib" role="tab" id="t-preview" data-tip="Preview" aria-label="Preview">${SVG(P.eye)}</button>
-        <button class="ib" role="tab" id="t-edit" data-tip="Edit" aria-label="Edit">${SVG(P.cursor)}</button>
-        <button class="ib" role="tab" id="t-after" data-tip="On submission" aria-label="On submission">${SVG(P.cal)}</button>
-      </div>
-      <button class="ib" id="addBtn" data-tip="Add a question" aria-label="Add a question" aria-pressed="false" hidden>${SVG(P.plus)}</button>
-      <span class="spacer"></span>
-      <div class="steps" id="stepBar" role="toolbar" aria-label="Pages" hidden></div>
+      <button class="pill exitprev" id="exitPrev" hidden>${SVG(P.back, 14)}Back to editor</button>
       <span class="spacer"></span>
       <div class="grp" role="group" aria-label="Device">
         <button class="ib" id="d-desk" data-tip="Desktop" aria-label="Desktop" aria-pressed="true">${SVG(P.desk)}</button>
@@ -379,8 +402,7 @@ export const STUDIO_HTML = `
       <button class="ib tipleft" id="moreBtn" data-tip="More" aria-label="More" aria-haspopup="menu">${SVG(P.more)}</button>
     </div>
     <div class="work" id="work">
-      <aside class="adds" id="adds" aria-label="Add a question" hidden><div class="ptitle">Add</div><input class="in" id="addQ" placeholder="Search questions" aria-label="Search questions" autocomplete="off"><div class="addlist" id="addList"></div></aside>
-      <aside class="navi" id="navi" aria-label="Layers" hidden><div class="ptitle">Layers</div><div class="tree" id="tree"></div></aside>
+      <div class="mid" id="mid">
       <div class="canvas" id="canvas">
         <div class="frame" id="frame">
           <div id="host"></div>
@@ -397,6 +419,8 @@ export const STUDIO_HTML = `
         <div><button class="pill primary" id="codeApply">Apply</button></div>
       </div>
       <div class="after" id="afterView" hidden><div class="inner" id="afterInner"></div></div>
+      <div class="stepdock" id="stepDock"><div class="steps" id="stepBar" role="toolbar" aria-label="Pages" hidden></div></div>
+      </div>
       <aside class="panel" id="panel" aria-label="Element" hidden>
         <div class="ptabs" role="tablist">
           <button class="pt" role="tab" id="p-set" aria-selected="true">${SVG(P.set, 14)}Settings</button>
@@ -467,7 +491,7 @@ export type StudioApi = {
 
 export type StudioIssue = { level: "error" | "warning"; text: string; fix?: string; after?: boolean };
 /** What the header shows: the open chat and its form, whether it can publish, and the form check. */
-export type StudioState = { ready: boolean; chatId: string; formId: string; name: string; state: "new" | "draft" | "live" | "changed"; canPublish: boolean; publishing: boolean; issues: StudioIssue[]; canFix: boolean; msg: string };
+export type StudioState = { ready: boolean; chatId: string; formId: string; name: string; state: "new" | "draft" | "live" | "changed"; canPublish: boolean; publishing: boolean; issues: StudioIssue[]; canFix: boolean; msg: string; previewing?: boolean };
 /** What the header can ask of the Studio. */
 export type StudioControl = {
   stop(): void;
@@ -477,6 +501,8 @@ export type StudioControl = {
   fix(fixes: string[]): void;
   /** Open On submission. */
   openAfter(): void;
+  /** Preview the form on the whole screen, or go back to the editor. */
+  preview(): void;
   rename(name: string): void;
 };
 
@@ -851,7 +877,7 @@ ${CAL_CSS}
     fb.innerHTML = "";
     const b = (tip, ic, fn) => h("button", { class: "ib", "data-tip": tip, "aria-label": tip, html: SVG(ic, 15), onclick: (e) => { e.stopPropagation(); fn(); } });
     const kinds = kindsOf(byK(S.sel));
-    fb.append(...(kinds ? [h("button", { class: "ib", id: "typeBtn", "data-tip": "Change type", "aria-label": "Change type", html: SVG(P.swap, 15), onclick: (e) => { e.stopPropagation(); typeChangeMenu(e.currentTarget); } })] : []), b("Move up", P.up, () => move(-1)), b("Move down", P.down, () => move(1)), b("Duplicate", P.dup, dup), b("Delete", P.del, del), b("Select parent", P.parent, parent), h("button", { class: "ib", "data-tip": "Ask Tia about this", "aria-label": "Ask Tia about this", html: tiaSvg(16), onclick: (e) => { e.stopPropagation(); askAbout(); } }));
+    fb.append(...(kinds ? [h("button", { class: "ib", id: "typeBtn", "data-tip": "Change field type", "aria-label": "Change field type", html: SVG(P.swap, 15), onclick: (e) => { e.stopPropagation(); typeChangeMenu(e.currentTarget); } })] : []), b("Move up", P.up, () => move(-1)), b("Move down", P.down, () => move(1)), b("Duplicate", P.dup, dup), b("Delete", P.del, del), b("Select parent", P.parent, parent), h("button", { class: "ib", "data-tip": "Ask Tia about this", "aria-label": "Ask Tia about this", html: tiaSvg(16), onclick: (e) => { e.stopPropagation(); askAbout(); } }));
     const w = (kinds ? 7 : 6) * 30 + 6;
     fb.style.left = `${Math.max(0, Math.min(box.left + box.width - w, $("frame").clientWidth - w))}px`;
     fb.style.top = `${box.top > 62 ? box.top - 58 : box.top + box.height + 8}px`;
@@ -876,7 +902,7 @@ ${CAL_CSS}
     const el = byK(S.sel); if (!el) return;
     if (!el.id) { el.id = `el${S.sel}`; body().html = sourceHtml(); }
     S.about = { id: el.id, label: `${nameOf(el)}${leaf(el) ? `: ${el.textContent.trim().slice(0, 40)}` : ` #${el.id}`}` };
-    setChatFold(false); aboutUi(); $("input").focus();
+    setChatFold(false); setSide("ai"); aboutUi(); $("input").focus();
   }
   listen(document, "keydown", (e) => {
     if (!alive || S.mode !== "edit" || !S.sel || editingK) return;
@@ -918,21 +944,28 @@ ${CAL_CSS}
   function stepUi() {
     const bar = $("stepBar");
     const steps = stepsIn(src), thanks = src.querySelector("[data-cl-thanks]");
-    bar.hidden = !cur || !built() || S.mode === "code" || S.mode === "after" || (!thanks && steps.length < 2);
+    bar.hidden = !cur || !built() || S.mode === "code";
     if (bar.hidden) return;
     const editing = S.mode === "edit";
     if (editing && typeof S.view === "number" && S.view >= Math.max(1, steps.length)) S.view = 0;
     bar.innerHTML = "";
     // Pages as steps: numbered circles joined by a line, the thank-you last with a tick; pages already passed in
     // Preview show done. All is an icon beside them.
-    const go = (v) => { if (editing) { S.view = v; S.sel = null; draw(); panel(); tree(); } else { if (v === "thanks") done = true; else { done = false; stepAt = v; } draw(); } };
+    const go = (v) => {
+      if (v === "after") return setMode("after");
+      if (S.mode === "after") { S.view = v; return setMode("edit"); }
+      if (editing) { S.view = v; S.sel = null; draw(); panel(); tree(); } else { if (v === "thanks") done = true; else { done = false; stepAt = v; } draw(); }
+    };
     const conn = () => h("span", { class: "conn", "aria-hidden": "true" });
-    const pill = (n, text, on, fn, cls = "") => h("button", { class: `sp${cls ? ` ${cls}` : ""}`, "aria-pressed": String(on), onclick: fn }, h("span", { class: "n", ...(n === "tick" ? { html: SVG(P.check, 11) } : { text: n }) }), h("span", { text }));
+    const pill = (n, text, on, fn, cls = "") => h("button", { class: `sp${cls ? ` ${cls}` : ""}`, "aria-pressed": String(on), onclick: fn }, h("span", { class: "n", ...(n === "tick" ? { html: SVG(P.check, 11) } : n === "bolt" ? { html: SVG(P.bolt, 11) } : { text: n }) }), h("span", { text }));
+    const after = S.mode === "after";
     const at = editing ? S.view : done ? "thanks" : stepAt;
     const passed = (i) => !editing && (done || (typeof at === "number" && i < at));
-    if (steps.length) steps.forEach((st, i) => { if (i) bar.append(conn()); bar.append(pill(String(i + 1), stepName(st, i), editing ? S.view === i : !done && stepAt === i, () => go(i), passed(i) ? "done" : "")); });
-    else bar.append(pill("1", "Form", editing ? S.view === 0 : !done, () => go(0), !editing && done ? "done" : ""));
-    if (thanks) { bar.append(conn()); bar.append(pill("tick", "Thank-you", editing ? S.view === "thanks" : done, () => go("thanks"))); }
+    if (steps.length) steps.forEach((st, i) => { if (i) bar.append(conn()); bar.append(pill(String(i + 1), stepName(st, i), !after && (editing ? S.view === i : !done && stepAt === i), () => go(i), passed(i) ? "done" : "")); });
+    else bar.append(pill("1", "Form", !after && (editing ? S.view === 0 : !done), () => go(0), !editing && !after && done ? "done" : ""));
+    if (thanks) { bar.append(conn()); bar.append(pill("tick", "Thank-you", !after && (editing ? S.view === "thanks" : done), () => go("thanks"))); }
+    // On submission is the last step: what happens once it's sent (the meeting, routing, the team's email).
+    if (S.mode !== "preview") { bar.append(conn()); bar.append(pill("bolt", "On submission", after, () => go("after"), "after")); }
     if (editing && (steps.length > 1 || thanks)) bar.append(h("button", { class: "sp all", "aria-pressed": String(S.view === "all"), "aria-label": "All pages", "data-tip": "All pages", html: SVG(P.layers, 15), onclick: () => go("all") }));
     if (editing && typeof S.view === "number" && steps.length) {
       const i = S.view;
@@ -989,7 +1022,7 @@ ${CAL_CSS}
   // ── Layers ────────────────────────────────────────────────────────────────────────────────────────────
   function tree() {
     const t = $("tree"); t.innerHTML = "";
-    if (!S.nav || S.mode !== "edit") return;
+    if (!S.nav) return;
     const walk = (el, d) => { for (const c of el.children) { const k = c.getAttribute("data-k"); const label = c.id ? `#${c.id}` : leaf(c) ? c.textContent.trim().slice(0, 24) : c.classList[0] ? `.${c.classList[0]}` : ""; t.append(h("button", { class: k === S.sel ? "sel" : "", style: `padding-left:${6 + d * 12}px`, onclick: () => select(k) }, h("span", { class: "tg", text: nameOf(c) }), h("span", { text: label }))); if (d < 9) walk(c, d + 1); } };
     walk(src, 0);
   }
@@ -1014,7 +1047,7 @@ ${CAL_CSS}
     $("p-style").setAttribute("aria-selected", String(S.ptab === "style")); $("p-set").setAttribute("aria-selected", String(S.ptab === "settings")); $("p-theme").setAttribute("aria-selected", String(S.ptab === "theme"));
     if (S.ptab === "theme") return themePanel(p);
     if (!el && S.ptab === "settings") return formSettings(p);
-    if (!el) { p.append(h("div", { class: "sec" }, h("p", { class: "hint0", text: "Click anything on the form to change it. Click picked text again to type." }))); return; }
+    if (!el) { p.append(h("div", { class: "sec" }, h("p", { class: "hint0", text: "Select a field on the form to style it." }))); return; }
     if (S.ptab === "settings") return settings(p, el);
     const cls = el.classList[0];
     p.append(h("div", { class: "sec" }, h("div", { class: "sel-head" }, h("span", { class: `cls${S.scope === "class" && cls ? "" : " off"}`, text: S.scope === "class" && cls ? `.${cls}` : el.id ? `#${el.id}` : "this one" }), h("span", { class: "spacer" }),
@@ -1089,13 +1122,13 @@ ${CAL_CSS}
     const type = bl.getAttribute("data-cl-field"), name = bl.getAttribute("data-cl-name") || "";
     const B = h("div", { class: "sec" }, h("h4", { text: BLOCK_NAMES[type] || "Block" }));
     const txt = (label, attr, ph) => { const i = h("input", { class: "in", value: bl.getAttribute(attr) || "", placeholder: ph || "", "aria-label": label }); i.addEventListener("change", () => { const v = i.value.trim(); if (attr === "data-cl-name" && !/^[A-Za-z][\w-]{0,60}$/.test(v)) return; snap(); if (attr === "data-cl-name" && body().ids?.[name]) { body().ids[v] = body().ids[name]; delete body().ids[name]; } v ? bl.setAttribute(attr, v) : bl.removeAttribute(attr); commit(); }); return h("div", { class: "row2" }, h("span", { class: "lbl", text: label }), i); };
-    B.append(txt("Label", "data-cl-label"), txt("Name", "data-cl-name"));
+    B.append(txt("Label", "data-cl-label"), txt("Field key", "data-cl-name"));
     const req = bl.hasAttribute("data-cl-required");
     B.append(h("div", { class: "row2" }, h("span", { class: "lbl", text: "Required" }), h("div", {}, h("button", { class: "sw", role: "switch", "aria-checked": String(req), "aria-label": "Required", onclick: () => { snap(); req ? bl.removeAttribute("data-cl-required") : bl.setAttribute("data-cl-required", ""); commit(); } }))));
     if (type === "phone" || type === "country") {
       const sv = bl.getAttribute("data-cl-save") || "";
-      const opts = [["", "Just this form"], [type, type === "phone" ? "Phone" : "Country"]];
-      B.append(h("div", { class: "row2" }, h("span", { class: "lbl", text: "Saves to" }), pick((opts.find((o) => o[0] === sv) || opts[0])[1], opts.map(([v, t]) => [t, () => { snap(); v ? bl.setAttribute("data-cl-save", v) : bl.removeAttribute("data-cl-save"); commit(); }, v === sv]))));
+      const opts = [["", "None"], [type, type === "phone" ? "Phone" : "Country"]];
+      B.append(h("div", { class: "row2" }, h("span", { class: "lbl", text: "Contact field" }), pick((opts.find((o) => o[0] === sv) || opts[0])[1], opts.map(([v, t]) => [t, () => { snap(); v ? bl.setAttribute("data-cl-save", v) : bl.removeAttribute("data-cl-save"); commit(); }, v === sv]))));
     }
     if (type === "file") {
       const kinds = (bl.getAttribute("data-cl-kinds") || "pdf image office").split(/\s+/);
@@ -1103,13 +1136,13 @@ ${CAL_CSS}
       for (const [v, t] of [["pdf", "PDF"], ["image", "Images"], ["office", "Office"]]) k.append(h("button", { class: "ib", "aria-pressed": String(kinds.includes(v)), text: t, style: "font-size:12px", onclick: () => { const next = kinds.includes(v) ? kinds.filter((x) => x !== v) : [...kinds, v]; if (!next.length) return; snap(); bl.setAttribute("data-cl-kinds", next.join(" ")); commit(); } }));
       const mb = h("input", { class: "in", value: bl.getAttribute("data-cl-max") || "", placeholder: "10", "aria-label": "Largest file in MB" });
       mb.addEventListener("change", () => { const n = Math.round(Number(mb.value)); snap(); n > 0 ? bl.setAttribute("data-cl-max", String(Math.min(n, 20))) : bl.removeAttribute("data-cl-max"); commit(); });
-      B.append(h("div", { class: "row2" }, h("span", { class: "lbl", text: "Takes" }), k), h("div", { class: "row2" }, h("span", { class: "lbl", text: "Up to MB" }), mb));
+      B.append(h("div", { class: "row2" }, h("span", { class: "lbl", text: "File types" }), k), h("div", { class: "row2" }, h("span", { class: "lbl", text: "Max size (MB)" }), mb));
     }
     if (type === "rating") {
       const sc = h("input", { class: "in", value: bl.getAttribute("data-cl-scale") || "", placeholder: "5", "aria-label": "Scale" });
       sc.addEventListener("change", () => { const n = Math.round(Number(sc.value)); snap(); n >= 3 ? bl.setAttribute("data-cl-scale", String(Math.min(n, 10))) : bl.removeAttribute("data-cl-scale"); commit(); });
       const nums = bl.getAttribute("data-cl-style") === "numbers";
-      B.append(h("div", { class: "row2" }, h("span", { class: "lbl", text: "Out of" }), sc), h("div", { class: "row2" }, h("span", { class: "lbl", text: "Shown as" }), pick(nums ? "Numbers" : "Stars", [["Stars", () => { snap(); bl.removeAttribute("data-cl-style"); commit(); }, !nums], ["Numbers", () => { snap(); bl.setAttribute("data-cl-style", "numbers"); commit(); }, nums]])));
+      B.append(h("div", { class: "row2" }, h("span", { class: "lbl", text: "Scale" }), sc), h("div", { class: "row2" }, h("span", { class: "lbl", text: "Display" }), pick(nums ? "Numbers" : "Stars", [["Stars", () => { snap(); bl.removeAttribute("data-cl-style"); commit(); }, !nums], ["Numbers", () => { snap(); bl.setAttribute("data-cl-style", "numbers"); commit(); }, nums]])));
     }
     p.append(B);
     blockMore(p, bl, type);
@@ -1123,12 +1156,12 @@ ${CAL_CSS}
     if (input?.name) questionSettings(p, input);
     if (!input?.name && leaf(el) && !el.matches("button,a,option")) textSettings(p, el);
     // Show if, with pickers. A page that a jump skips keeps its own condition apart (data-cl-own).
-    const C = h("div", { class: "sec" }, h("h4", { text: "Show if" }));
+    const C = h("div", { class: "sec" }, h("h4", { text: "Display condition" }));
     const IF = el.hasAttribute("data-cl-own") ? "data-cl-own" : "data-cl-show-if";
     const raw = el.getAttribute(IF) || "";
     const qs = questions().filter((q) => !el.contains(src.querySelector(`[name="${CSS.escape(q.name)}"]`)));
     if (!raw) {
-      C.append(h("div", {}, h("button", { class: "pill", html: `${SVG(P.plus, 14)}Add a condition`, disabled: !qs.length || null, onclick: () => { const q = qs[0]; snap(); el.setAttribute(IF, q.options[0] ? `${q.name} == '${q.options[0].value}'` : `${q.name} filled`); commit(); } })));
+      C.append(h("div", {}, h("button", { class: "pill", html: `${SVG(P.plus, 14)}Add display condition`, disabled: !qs.length || null, onclick: () => { const q = qs[0]; snap(); el.setAttribute(IF, q.options[0] ? `${q.name} == '${q.options[0].value}'` : `${q.name} filled`); commit(); } })));
     } else {
       const m = /^([\w-]+)\s*(==|!=)\s*'([^']*)'$/.exec(raw) || /^([\w-]+)\s+(filled)$/.exec(raw);
       if (!m) C.append(h("p", { class: "hint0", text: raw }));
@@ -1234,6 +1267,7 @@ ${CAL_CSS}
   }
   function addQuestion(type, where) {
     if (!built()) return toast("Start the form first");
+    if (S.mode !== "edit") setMode("edit");
     const taken = allNames();
     const name = isLayout(type) ? "" : uniqueName(baseName(type), taken);
     const save = type === "email" && !src.querySelector('[data-cl-save="email"]') ? "email" : type === "phone" && !src.querySelector('[data-cl-save="phone"]') ? "phone" : undefined;
@@ -1252,7 +1286,7 @@ ${CAL_CSS}
     S.sel = node.getAttribute("data-k");
     S.ptab = "settings";
     commit();
-    toast(`Added ${QNAME[type]}`);
+    toast(`${QNAME[type]} added`);
     requestAnimationFrame(() => live(S.sel)?.scrollIntoView({ block: "nearest", behavior: "smooth" }));
   }
   function addsUi() {
@@ -1272,11 +1306,10 @@ ${CAL_CSS}
     }
   }
   $("addQ").addEventListener("input", addsUi);
-  $("addBtn").onclick = () => { S.adds = !S.adds; $("adds").hidden = !S.adds; $("addBtn").setAttribute("aria-pressed", String(S.adds)); if (S.adds) addsUi(); setTimeout(overlay, 0); };
   addsUi();
   /** The type list as a menu with a search box: "/" on the form opens it. */
   function typeMenu(anchor, onPick) {
-    const q = h("input", { class: "in", placeholder: "Search questions", "aria-label": "Search questions", style: "margin:4px 4px 6px;width:calc(100% - 8px)" });
+    const q = h("input", { class: "in", placeholder: "Search fields", "aria-label": "Search fields", style: "margin:4px 4px 6px;width:calc(100% - 8px)" });
     const box = h("div", {});
     const fill = () => {
       box.innerHTML = "";
@@ -1300,7 +1333,7 @@ ${CAL_CSS}
     // A box on the form in Edit only holds focus from the click that picked it: "/" still opens the list there.
     if ((t?.closest?.("input,textarea,[contenteditable]") && !(root.contains(t) && !t.isContentEditable)) || menuEl) return;
     e.preventDefault();
-    typeMenu(S.sel && live(S.sel) && !$("fbar").hidden ? $("fbar") : $("addBtn"), (type) => addQuestion(type));
+    typeMenu(S.sel && live(S.sel) && !$("fbar").hidden ? $("fbar") : $("canvas"), (type) => addQuestion(type));
   });
   // Drag a type from Add onto the form: a line shows where it lands.
   let dragType = null, dropAt = null;
@@ -1377,7 +1410,7 @@ ${CAL_CSS}
     [...q.querySelectorAll("*")].forEach((x) => x.hasAttribute("data-k") || x.setAttribute("data-k", String(++kSeq)));
     S.sel = q.getAttribute("data-k");
     commit();
-    toast(`Now ${[...TEXT_KINDS, ...PICK_KINDS].find(([v]) => v === to)?.[1]}. Answers still save under ${nameIn(q.matches(CONTROLS) ? q : q.querySelector(CONTROLS))}.`);
+    toast(`Changed to ${[...TEXT_KINDS, ...PICK_KINDS].find(([v]) => v === to)?.[1]}. Responses keep the field key ${nameIn(q.matches(CONTROLS) ? q : q.querySelector(CONTROLS))}.`);
   }
 
   // Jumps: kept on the question as data-cl-jump (value=>page id); written as show-ifs on the pages they skip.
@@ -1419,14 +1452,14 @@ ${CAL_CSS}
     const later = steps.map((st, i) => [st.id, `${i + 1}. ${stepName(st, i)}`, i]).filter(([, , i]) => i > from + 1);
     const js = readJumps(q.getAttribute("data-cl-jump"));
     const write = (next) => { snap(); next.length ? q.setAttribute("data-cl-jump", writeJumps(next)) : q.removeAttribute("data-cl-jump"); commit(); };
-    const J = h("div", { class: "sec" }, h("h4", { text: "Jump to a page" }));
+    const J = h("div", { class: "sec" }, h("h4", { text: "Page skip rules" }));
     js.forEach((j, i) => {
       const lbl = vals.find(([v]) => v === j.value)?.[1] || j.value;
       const to = later.find(([id]) => id === j.to)?.[1] || "Pick";
-      J.append(h("div", { class: "jrow" }, pick(lbl, vals.map(([v, t]) => [t, () => write(js.map((x, k) => (k === i ? { ...x, value: v } : x))), v === j.value])), h("span", { text: "goes to" }), pick(to, later.map(([id, t]) => [t, () => write(js.map((x, k) => (k === i ? { ...x, to: id } : x))), id === j.to])), h("button", { class: "ib", "aria-label": "Remove the jump", html: SVG(P.x, 13), onclick: () => write(js.filter((_, k) => k !== i)) })));
+      J.append(h("div", { class: "jrow" }, pick(lbl, vals.map(([v, t]) => [t, () => write(js.map((x, k) => (k === i ? { ...x, value: v } : x))), v === j.value])), h("span", { text: "skips to" }), pick(to, later.map(([id, t]) => [t, () => write(js.map((x, k) => (k === i ? { ...x, to: id } : x))), id === j.to])), h("button", { class: "ib", "aria-label": "Remove the rule", html: SVG(P.x, 13), onclick: () => write(js.filter((_, k) => k !== i)) })));
     });
-    if (later.length) J.append(h("div", {}, h("button", { class: "pill", html: `${SVG(P.plus, 14)}Add a jump`, onclick: () => write([...js, { value: vals[0][0], to: later.at(-1)[0] }]) })));
-    J.append(h("p", { class: "hint0", text: "Any other answer goes to the next page." }));
+    if (later.length) J.append(h("div", {}, h("button", { class: "pill", html: `${SVG(P.plus, 14)}Add skip rule`, onclick: () => write([...js, { value: vals[0][0], to: later.at(-1)[0] }]) })));
+    J.append(h("p", { class: "hint0", text: "Other answers continue to the next page." }));
     p.append(J);
   }
   // ── Question settings (Settings tab): the question's words, its options and its rules, all with pickers ──────
@@ -1514,10 +1547,10 @@ ${CAL_CSS}
       if (c !== inp) wordsOf(c).set(v);
       last.after(c);
     };
-    const pasteBtn = h("button", { class: "pill", html: `${SVG(P.qtext, 14)}Paste a list` });
+    const pasteBtn = h("button", { class: "pill", html: `${SVG(P.qtext, 14)}Bulk add` });
     pasteBtn.onclick = () => {
-      const box = h("textarea", { class: "in", rows: "6", placeholder: "One option on each line", "aria-label": "Options, one on each line", style: "height:auto;padding:6px 8px" });
-      const go = h("button", { class: "pill primary", text: "Add them", onclick: () => {
+      const box = h("textarea", { class: "in", rows: "6", placeholder: "One option per line", "aria-label": "Options, one per line", style: "height:auto;padding:6px 8px" });
+      const go = h("button", { class: "pill primary", text: "Add options", onclick: () => {
         const lines = box.value.split(/\n+/).map((x) => x.trim()).filter(Boolean).slice(0, 100);
         closeMenu(); if (!lines.length) return;
         snap(); lines.forEach(addOne); commit();
@@ -1529,11 +1562,11 @@ ${CAL_CSS}
     O.append(list, h("div", { style: "display:flex;gap:6px;flex-wrap:wrap" }, h("button", { class: "pill", html: `${SVG(P.plus, 14)}Add option`, onclick: () => { snap(); addOne(`Option ${optionsOf(input).length + 1}`); commit(); } }), pasteBtn));
     if (kind === "select") {
       const empty = [...input.options].find((o) => o.value === "");
-      O.append(textRow("Empty choice", empty?.textContent.trim() || "", (t) => { if (empty) empty.textContent = t || "Choose one"; else { const o = document.createElement("option"); o.value = ""; o.textContent = t || "Choose one"; o.setAttribute("data-k", String(++kSeq)); input.prepend(o); } }, "Choose one"));
+      O.append(textRow("Placeholder", empty?.textContent.trim() || "", (t) => { if (empty) empty.textContent = t || "Choose one"; else { const o = document.createElement("option"); o.value = ""; o.textContent = t || "Choose one"; o.setAttribute("data-k", String(++kSeq)); input.prepend(o); } }, "Choose one"));
     }
     if (kind === "radio" || kind === "checkbox") {
       const other = src.querySelector(`[name="${CSS.escape(`${name}_other`)}"]`);
-      O.append(swRow("Other", !!other, (on) => {
+      O.append(swRow("Allow Other", !!other, (on) => {
         if (!on) { src.querySelector(`input[name="${CSS.escape(name)}"][value="Other"]`)?.closest("label")?.remove(); other?.closest("[data-cl-show-if]")?.remove(); return; }
         const last = opts.at(-1)?.node; if (!last) return;
         const c = last.cloneNode(true); [c, ...c.querySelectorAll("*")].forEach((x) => x.setAttribute("data-k", String(++kSeq)));
@@ -1547,9 +1580,9 @@ ${CAL_CSS}
         ensureIds();
       }));
       const box = input.closest("label")?.parentElement;
-      if (box && box !== q.parentElement) O.append(swRow("Shuffle", box.hasAttribute("data-cl-shuffle"), (on) => (on ? box.setAttribute("data-cl-shuffle", "") : box.removeAttribute("data-cl-shuffle"))));
+      if (box && box !== q.parentElement) O.append(swRow("Randomize order", box.hasAttribute("data-cl-shuffle"), (on) => (on ? box.setAttribute("data-cl-shuffle", "") : box.removeAttribute("data-cl-shuffle"))));
     }
-    if (kind === "checkbox") O.append(textRow("Most picks", q.getAttribute("data-cl-limit"), (v) => (/^\d+$/.test(v) && Number(v) > 0 ? q.setAttribute("data-cl-limit", v) : q.removeAttribute("data-cl-limit")), "Any"));
+    if (kind === "checkbox") O.append(textRow("Max selections", q.getAttribute("data-cl-limit"), (v) => (/^\d+$/.test(v) && Number(v) > 0 ? q.setAttribute("data-cl-limit", v) : q.removeAttribute("data-cl-limit")), "Any"));
     p.append(O);
   }
   function questionSettings(p, input) {
@@ -1558,13 +1591,13 @@ ${CAL_CSS}
     const group = [...src.querySelectorAll(`[name="${CSS.escape(name)}"]`)].filter((x) => x.matches("input,select,textarea"));
     const kind = input.tagName === "SELECT" ? "select" : input.tagName === "TEXTAREA" ? "textarea" : input.type;
     const lone = (kind === "checkbox" || kind === "radio") && group.length === 1;
-    const Q = sec("Question");
+    const Q = sec("Field");
     const L = questionLabel(input, q);
-    if (L) Q.append(textRow(lone ? "Words" : "Question", L.get(), L.set));
+    if (L) Q.append(textRow(lone ? "Text" : "Label", L.get(), L.set));
     const req = group.some((g) => g.hasAttribute("required"));
-    Q.append(swRow(lone && kind === "checkbox" ? "Must be ticked" : "Required", req, (on) => { group.forEach((g) => g.removeAttribute("required")); if (on) group[0].setAttribute("required", ""); }));
+    Q.append(swRow("Required", req, (on) => { group.forEach((g) => g.removeAttribute("required")); if (on) group[0].setAttribute("required", ""); }));
     const helpEl = q.querySelector(".help");
-    Q.append(textRow("Help text", helpEl?.textContent.trim(), (v) => {
+    Q.append(textRow("Description", helpEl?.textContent.trim(), (v) => {
       let e = q.querySelector(".help");
       if (!v) return e?.remove();
       if (!e) { e = document.createElement("p"); e.className = `${classMap().text || "text"} help`.trim(); e.setAttribute("data-k", String(++kSeq)); const anchor = q.querySelector("legend,label") || q; anchor === q ? q.before(e) : anchor.after(e); }
@@ -1572,24 +1605,24 @@ ${CAL_CSS}
     }));
     if (!["radio", "checkbox", "select"].includes(kind)) Q.append(textRow("Placeholder", input.getAttribute("placeholder"), (v) => (v ? input.setAttribute("placeholder", v) : input.removeAttribute("placeholder"))));
     if (!lone) {
-      const SAVES = [["", "Just this form"], ["email", "Email"], ["first_name", "First name"], ["last_name", "Last name"], ["name", "Full name"], ["phone", "Phone"], ["company", "Company"], ["title", "Job title"], ["website", "Website"], ["country", "Country"]];
+      const SAVES = [["", "None"], ["email", "Email"], ["first_name", "First name"], ["last_name", "Last name"], ["name", "Full name"], ["phone", "Phone"], ["company", "Company"], ["title", "Job title"], ["website", "Website"], ["country", "Country"]];
       const sv = input.getAttribute("data-cl-save") || "";
-      Q.append(row("Saves to", pick((SAVES.find((s) => s[0] === sv) || SAVES[0])[1], SAVES.map(([v, t]) => [t, () => { snap(); group.forEach((g) => (v ? g.setAttribute("data-cl-save", v) : g.removeAttribute("data-cl-save"))); commit(); }, v === sv]))));
+      Q.append(row("Contact field", pick((SAVES.find((s) => s[0] === sv) || SAVES[0])[1], SAVES.map(([v, t]) => [t, () => { snap(); group.forEach((g) => (v ? g.setAttribute("data-cl-save", v) : g.removeAttribute("data-cl-save"))); commit(); }, v === sv]))));
     }
     p.append(Q);
     if (!lone && ["radio", "checkbox", "select"].includes(kind)) optionsSec(p, input, q);
     // Limits on a typed answer.
     const attr = (el, a) => (v) => (v && /^-?\d+(\.\d+)?$/.test(v) ? el.setAttribute(a, v) : el.removeAttribute(a));
-    if (["text", "textarea", "email", "tel", "url"].includes(kind)) { const A = sec("Answer"); A.append(textRow("Fewest letters", input.getAttribute("minlength"), attr(input, "minlength"), "Any"), textRow("Most letters", input.getAttribute("maxlength"), attr(input, "maxlength"), "Any")); p.append(A); }
-    if (kind === "number") { const A = sec("Answer"); A.append(textRow("Lowest", input.getAttribute("min"), attr(input, "min"), "Any"), textRow("Highest", input.getAttribute("max"), attr(input, "max"), "Any")); p.append(A); }
+    if (["text", "textarea", "email", "tel", "url"].includes(kind)) { const A = sec("Validation"); A.append(textRow("Min characters", input.getAttribute("minlength"), attr(input, "minlength"), "None"), textRow("Max characters", input.getAttribute("maxlength"), attr(input, "maxlength"), "None")); p.append(A); }
+    if (kind === "number") { const A = sec("Validation"); A.append(textRow("Min value", input.getAttribute("min"), attr(input, "min"), "None"), textRow("Max value", input.getAttribute("max"), attr(input, "max"), "None")); p.append(A); }
     if (kind === "radio" || kind === "select") jumpsSec(p, q, input);
     // Where the answer is kept: its name in the submissions, the CRM and the rules that read it.
-    const N = sec("Answer name");
-    const nm = h("input", { class: "in", "aria-label": "Answer name" }); nm.value = name;
+    const N = sec("Data");
+    const nm = h("input", { class: "in", "aria-label": "Field key" }); nm.value = name;
     nm.addEventListener("change", () => {
       const v = nm.value.trim().replace(/[^\w-]/g, "_");
       if (!v || v === name) return (nm.value = name);
-      if (allNames().has(v)) { nm.value = name; return toast("Another question has that name"); }
+      if (allNames().has(v)) { nm.value = name; return toast("Another field already uses that key"); }
       snap();
       group.forEach((g) => g.setAttribute("name", v));
       src.querySelectorAll(`[name="${CSS.escape(`${name}_other`)}"]`).forEach((g) => g.setAttribute("name", `${v}_other`));
@@ -1600,7 +1633,7 @@ ${CAL_CSS}
       if (body().ids?.[name]) { body().ids[v] = body().ids[name]; delete body().ids[name]; }
       commit();
     });
-    N.append(row("Name", nm));
+    N.append(row("Field key", nm));
     p.append(N);
   }
   /** A list kept in one setting ("Value::Words|Other"): a ranking's options, a grid's rows and columns. */
@@ -1665,17 +1698,17 @@ ${CAL_CSS}
     const earlier = all.filter((c) => el.compareDocumentPosition(c) & Node.DOCUMENT_POSITION_PRECEDING);
     const names = [...new Set([...earlier, ...all].map(nameIn))].filter(Boolean);
     const T = h("div", { class: "sec" }, h("h4", { text: "Text" }));
-    const b = h("button", { class: "pill", html: `${SVG(P.plus, 14)}Insert an answer`, disabled: !names.length || null });
-    b.onclick = () => openMenu(b, names.map((n) => h("button", { class: "mi small", role: "menuitem", text: `{${n}}`, onclick: () => { closeMenu(); snap(); el.textContent = `${(el.textContent || "").trimEnd()} {${n}}`; commit(); toast("It shows what they answered"); } })), 220);
+    const b = h("button", { class: "pill", html: `${SVG(P.plus, 14)}Insert field value`, disabled: !names.length || null });
+    b.onclick = () => openMenu(b, names.map((n) => h("button", { class: "mi small", role: "menuitem", text: `{${n}}`, onclick: () => { closeMenu(); snap(); el.textContent = `${(el.textContent || "").trimEnd()} {${n}}`; commit(); toast("Inserted. It shows the respondent's answer."); } })), 220);
     T.append(h("div", {}, b));
-    if (el.hasAttribute("data-cl-pipe")) T.append(h("p", { class: "hint0", text: "The {names} show what people answered." }));
+    if (el.hasAttribute("data-cl-pipe")) T.append(h("p", { class: "hint0", text: "Values in braces show the respondent's answers." }));
     p.append(T);
   }
 
   // The Form tab: the look for the whole form (written into the form's CSS, over the brand's) and hidden values.
   const ruleSet = (sel, pairs) => { snap(); const r = rules(); r[sel] = r[sel] || {}; for (const [k, v] of pairs) { if (v === "" || v == null) delete r[sel][k]; else r[sel][k] = v; } writeRules(r); commit(); };
   const ruleGet = (sel, k) => rules()[sel]?.[k] || "";
-  const FONTS = [["", "The brand's font"], ["Inter", "Inter"], ["DM Sans", "DM Sans"], ["Manrope", "Manrope"], ["Fraunces", "Fraunces"], ["Playfair Display", "Playfair Display"], ["Space Grotesk", "Space Grotesk"]];
+  const FONTS = [["", "Theme default"], ["Inter", "Inter"], ["DM Sans", "DM Sans"], ["Manrope", "Manrope"], ["Fraunces", "Fraunces"], ["Playfair Display", "Playfair Display"], ["Space Grotesk", "Space Grotesk"]];
   function setFont(f) {
     let css = body().css.replace(/@import url\("https:\/\/fonts\.googleapis\.com\/css2\?family=[^"]*"\);\s*\/\* form font \*\/\n?/g, "");
     if (f) css = `@import url("https://fonts.googleapis.com/css2?family=${f.replace(/ /g, "+")}:wght@400;500;600;700&display=swap"); /* form font */\n${css}`;
@@ -1688,34 +1721,34 @@ ${CAL_CSS}
     snap();
     cur.brandId = ""; body().style = id; body().styleCss = styleCssById(id);
     changed(); brandUi(); chatHead(); draw(); refresh();
-    toast(`${styleName(id)}. Undo with Cmd+Z.`);
+    toast(`${styleName(id)} applied. Undo with Cmd+Z.`);
   }
   function themePanel(p) {
     const now = brandOf(cur);
-    const T = h("div", { class: "sec" }, h("h4", { text: "Theme" }));
+    const T = h("div", { class: "sec" }, h("h4", { text: "Themes" }));
     const grid = h("div", { class: "themes", role: "group", "aria-label": "Theme" });
     for (const b of brands) grid.append(h("button", { class: "th", "aria-pressed": String(!body().style && cur.brandId === b.id), "aria-label": b.name, onclick: () => useBrand(b.id) }, h("span", { class: "sw2 brand" }, b.logo ? h("img", { src: b.logo, alt: "" }) : h("b", { text: b.name.charAt(0) })), h("span", { class: "nm", text: b.name })));
     for (const th of THEMES) grid.append(h("button", { class: "th", "aria-pressed": String(body().style === th.id), "aria-label": `${th.name} style`, onclick: () => useStyle(th.id) }, h("span", { class: "sw2", style: `background:${th.bg}` }, h("i", { style: `background:${th.card}` }, h("u", { style: `background:${th.accent}` }))), h("span", { class: "nm", text: th.name })));
     T.append(grid);
     p.append(T);
-    const F = h("div", { class: "sec" }, h("h4", { text: `Adjust ${now?.name || "the theme"}` }));
+    const F = h("div", { class: "sec" }, h("h4", { text: "Customize" }));
     const accent = ruleGet(":root", "--brand-primary");
     const sw = h("div", { class: "swatches", role: "group", "aria-label": "Main color" });
-    for (const [val, hex, nm] of [["", "conic-gradient(from 0deg,#e5e5e5,#bdbdbd)", "The brand's color"], ...brandColors().slice(0, 4).map(([v, x, n]) => [v, x, n]), ["#0c8c5e", "#0c8c5e", "green"], ["#1e6bf0", "#1e6bf0", "blue"], ["#5429d6", "#5429d6", "violet"], ["#d9480f", "#d9480f", "orange"], ["#111111", "#111111", "black"]]) sw.append(h("button", { "aria-label": nm, title: nm, "aria-pressed": String(accent === val), style: `background:${hex}`, onclick: () => ruleSet(":root", [["--brand-primary", val], ["--brand-focus", val]]) }));
-    F.append(h("div", { class: "row2" }, h("span", { class: "lbl", text: "Color" }), sw));
+    for (const [val, hex, nm] of [["", "conic-gradient(from 0deg,#e5e5e5,#bdbdbd)", "Theme default"], ...brandColors().slice(0, 4).map(([v, x, n]) => [v, x, n]), ["#0c8c5e", "#0c8c5e", "green"], ["#1e6bf0", "#1e6bf0", "blue"], ["#5429d6", "#5429d6", "violet"], ["#d9480f", "#d9480f", "orange"], ["#111111", "#111111", "black"]]) sw.append(h("button", { "aria-label": nm, title: nm, "aria-pressed": String(accent === val), style: `background:${hex}`, onclick: () => ruleSet(":root", [["--brand-primary", val], ["--brand-focus", val]]) }));
+    F.append(h("div", { class: "row2" }, h("span", { class: "lbl", text: "Brand color" }), sw));
     const font = (/^"([^"]+)"/.exec(ruleGet(":root", "--brand-font")) || [])[1] || "";
     F.append(h("div", { class: "row2" }, h("span", { class: "lbl", text: "Font" }), pick(FONTS.find(([v]) => v === font)?.[1] || font, FONTS.map(([v, t]) => [t, () => setFont(v), v === font]))));
     const rad = ruleGet(":root", "--brand-radius");
-    const corners = [["", "Brand"], ["4px", "Square"], ["10px", "Soft"], ["18px", "Round"]];
-    F.append(h("div", { class: "row2" }, h("span", { class: "lbl", text: "Corners" }), pick(corners.find(([v]) => v === rad)?.[1] || "Brand", corners.map(([v, t]) => [t, () => ruleSet(":root", [["--brand-radius", v], ["--brand-card-radius", v ? `${parseInt(v, 10) + 6}px` : ""], ...(ruleGet(":root", "--brand-btn-radius") === "999px" ? [] : [["--brand-btn-radius", v]])]), v === rad]))));
+    const corners = [["", "Theme default"], ["4px", "None"], ["10px", "Small"], ["18px", "Large"]];
+    F.append(h("div", { class: "row2" }, h("span", { class: "lbl", text: "Corner radius" }), pick(corners.find(([v]) => v === rad)?.[1] || "Theme default", corners.map(([v, t]) => [t, () => ruleSet(":root", [["--brand-radius", v], ["--brand-card-radius", v ? `${parseInt(v, 10) + 6}px` : ""], ...(ruleGet(":root", "--brand-btn-radius") === "999px" ? [] : [["--brand-btn-radius", v]])]), v === rad]))));
     const pill = ruleGet(":root", "--brand-btn-radius") === "999px";
-    F.append(h("div", { class: "row2" }, h("span", { class: "lbl", text: "Buttons" }), pick(pill ? "Pill" : "Box", [["Box", () => ruleSet(":root", [["--brand-btn-radius", rad]]), !pill], ["Pill", () => ruleSet(":root", [["--brand-btn-radius", "999px"]]), pill]])));
+    F.append(h("div", { class: "row2" }, h("span", { class: "lbl", text: "Button style" }), pick(pill ? "Rounded" : "Solid", [["Solid", () => ruleSet(":root", [["--brand-btn-radius", rad]]), !pill], ["Rounded", () => ruleSet(":root", [["--brand-btn-radius", "999px"]]), pill]])));
     const bg = ruleGet(":root", "--brand-bg");
-    const bgs = [["", "Brand"], ["#ffffff", "White"], ["color-mix(in srgb, var(--brand-primary) 6%, #ffffff)", "Tinted"]];
+    const bgs = [["", "Theme default"], ["#ffffff", "White"], ["color-mix(in srgb, var(--brand-primary) 6%, #ffffff)", "Tinted"]];
     F.append(h("div", { class: "row2" }, h("span", { class: "lbl", text: "Background" }), pick(bgs.find(([v]) => v === bg)?.[1] || "Custom", bgs.map(([v, t]) => [t, () => ruleSet(":root", [["--brand-bg", v]]), v === bg]))));
     const wd = ruleGet(".page .form-card", "max-width");
-    const wds = [["", "Brand"], ["520px", "Narrow"], ["760px", "Wide"]];
-    F.append(h("div", { class: "row2" }, h("span", { class: "lbl", text: "Width" }), pick(wds.find(([v]) => v === wd)?.[1] || wd, wds.map(([v, t]) => [t, () => ruleSet(".page .form-card", [["max-width", v]]), v === wd]))));
+    const wds = [["", "Theme default"], ["520px", "Narrow"], ["760px", "Wide"]];
+    F.append(h("div", { class: "row2" }, h("span", { class: "lbl", text: "Form width" }), pick(wds.find(([v]) => v === wd)?.[1] || wd, wds.map(([v, t]) => [t, () => ruleSet(".page .form-card", [["max-width", v]]), v === wd]))));
     const steps = stepsIn(src);
     if (steps.length > 1) {
       const bar = src.querySelector("[data-cl-progress]");
@@ -1731,13 +1764,13 @@ ${CAL_CSS}
   }
   /** Settings with nothing picked: the whole form's settings, starting with hidden values from the link. */
   function formSettings(p) {
-    p.append(h("div", { class: "sec" }, h("p", { class: "hint0", text: "Click anything on the form to change it. Click picked text again to type." })));
+    p.append(h("div", { class: "sec" }, h("p", { class: "hint0", text: "Select a field on the form to edit it. Click selected text again to type." })));
     // Hidden values from the link: ?utm_source=… or ?ref=… kept with each fill.
     const Hd = h("div", { class: "sec" }, h("h4", { text: "Hidden fields" }));
     const hidden = [...src.querySelectorAll('[data-cl-field="hidden"][data-cl-from="param"]')];
     const chips = h("div", { class: "hchips" });
     for (const el of hidden) { const n = el.getAttribute("data-cl-param") || el.getAttribute("data-cl-name"); chips.append(h("span", { class: "hchip" }, h("span", { text: n }), h("button", { class: "ib", style: "width:20px;height:20px", "aria-label": `Remove ${n}`, html: SVG(P.x, 11), onclick: () => { snap(); el.remove(); commit(); } }))); }
-    const add = h("input", { class: "in", placeholder: "Add one, like ref", "aria-label": "Add a hidden field" });
+    const add = h("input", { class: "in", placeholder: "Add a URL parameter, e.g. ref", "aria-label": "Add a hidden field" });
     add.addEventListener("keydown", (e) => {
       if (e.key !== "Enter") return;
       const v = add.value.trim().toLowerCase().replace(/[^a-z0-9_]/g, "_").slice(0, 40);
@@ -1750,7 +1783,7 @@ ${CAL_CSS}
       ensureIds();
       commit();
     });
-    Hd.append(hidden.length ? chips : h("p", { class: "hint0", text: "None yet" }), add);
+    Hd.append(hidden.length ? chips : h("p", { class: "hint0", text: "None" }), add, h("p", { class: "hint0", text: "Captured from the form link and saved with each submission." }));
     p.append(Hd);
   }
   // Start blank: an email question and a send button in the brand's look, with no AI.
@@ -1763,8 +1796,10 @@ ${CAL_CSS}
     body().css = conv.css;
     body().html = sourceHtml();
     changed();
+    setSide("build");
+    S.sub = "add"; sideUi();
     setMode("edit");
-    toast("A blank form. Add questions from the list.");
+    toast("Blank form created. Add fields from the Build panel.");
   };
 
   // ── Floating menus (never the browser's) and the toast ───────────────────────────────────────────────
@@ -1801,26 +1836,48 @@ ${CAL_CSS}
   $("undo").onclick = undo; $("redo").onclick = redo;
 
   // ── Views and devices ─────────────────────────────────────────────────────────────────────────────────
+  // The views: Edit (always, with the editor sidebar and the panel), Preview (the whole screen, from the page's
+  // header, with Back to editor) and On submission (the last step).
   function setMode(m) {
+    const was = S.mode;
     S.mode = m;
-    // The form's code is on the form's Share tab (Embed HTML), so the views are Preview, Edit and On submission.
-    for (const [id, v] of [["t-preview", "preview"], ["t-edit", "edit"], ["t-after", "after"]]) $(id).setAttribute("aria-selected", String(m === v));
     $("canvas").hidden = m === "code" || m === "after";
     $("codeView").hidden = m !== "code";
     $("afterView").hidden = m !== "after";
     $("panel").hidden = m !== "edit";
-    $("navi").hidden = m !== "edit" || !S.nav;
-    $("adds").hidden = m !== "edit" || !S.adds;
-    $("addBtn").hidden = m !== "edit";
-    $("addBtn").setAttribute("aria-pressed", String(S.adds));
+    $("chat").classList.toggle("prev", m === "preview");
+    $("exitPrev").hidden = m !== "preview";
     if (m !== "edit") { S.sel = null; $("hov").hidden = true; }
-    if (m === "edit") S.view = done ? (src.querySelector("[data-cl-thanks]") ? "thanks" : 0) : stepAt;
+    if (m === "edit" && was === "preview") S.view = done ? (src.querySelector("[data-cl-thanks]") ? "thanks" : 0) : stepAt;
+    if (m === "preview" && was !== "preview") { stepAt = typeof S.view === "number" ? S.view : 0; done = S.view === "thanks"; }
     if ((m === "edit" || m === "code") && S.lang) { S.lang = ""; langUi(); toast(`${m === "edit" ? "Edit" : "Code"} works on the form's own language`); }
-    if (m === "edit" && !store.get("clr-studio-edit-folded", false)) { store.set("clr-studio-edit-folded", true); setChatFold(true); }
+    sideUi();
     draw();
     refresh();
+    emit();
   }
-  for (const [id, v] of [["t-preview", "preview"], ["t-edit", "edit"], ["t-after", "after"]]) $(id).onclick = () => setMode(v);
+  $("exitPrev").onclick = () => setMode("edit");
+  // The editor sidebar: Build (Add fields, Layers) or AI (the chat with Tia). The last choice is kept on this computer.
+  S.side = store.get("clr-studio-side", "build") === "ai" ? "ai" : "build";
+  S.sub = store.get("clr-studio-sub", "add") === "layers" ? "layers" : "add";
+  function sideUi() {
+    const build = S.side === "build";
+    $("m-build").setAttribute("aria-selected", String(build)); $("m-ai").setAttribute("aria-selected", String(!build));
+    $("s-add").setAttribute("aria-selected", String(S.sub === "add")); $("s-layers").setAttribute("aria-selected", String(S.sub === "layers"));
+    $("subt").hidden = !build;
+    $("adds").hidden = !build || S.sub !== "add";
+    $("navi").hidden = !build || S.sub !== "layers";
+    $("aiBody").hidden = build;
+    if (!build) $("aiDot").hidden = true;
+    S.nav = build && S.sub === "layers";
+    if (S.nav) tree();
+    if (build && S.sub === "add") addsUi();
+  }
+  function setSide(v, remember = true) { S.side = v; if (remember) store.set("clr-studio-side", v); sideUi(); setTimeout(overlay, 0); }
+  $("m-build").onclick = () => setSide("build");
+  $("m-ai").onclick = () => { setSide("ai"); $("input").focus(); };
+  $("s-add").onclick = () => { S.sub = "add"; store.set("clr-studio-sub", "add"); sideUi(); };
+  $("s-layers").onclick = () => { S.sub = "layers"; store.set("clr-studio-sub", "layers"); sideUi(); };
   function setDevice(d) { S.device = d; $("frame").className = `frame${d === "tab" ? " tablet" : d === "phone" ? " phone" : ""}`; for (const [id, v] of [["d-desk", "desk"], ["d-tab", "tab"], ["d-phone", "phone"]]) $(id).setAttribute("aria-pressed", String(d === v)); setTimeout(overlay, 340); }
   $("d-desk").onclick = () => setDevice("desk"); $("d-tab").onclick = () => setDevice("tab"); $("d-phone").onclick = () => setDevice("phone");
   // The bar's ⋯: Back to step 1, the live form, Layers (docs/form-ui-plan.md step 2).
@@ -1834,7 +1891,6 @@ ${CAL_CSS}
     openMenu($("moreBtn"), [
       item("restart", P.restart, "Back to page 1", () => { if (S.mode !== "preview") setMode("preview"); stepAt = 0; done = false; draw(); }),
       live ? item("openBtn", P.open, "Open the live form", () => window.open(api.formUrl(cur.formId), "_blank", "noopener")) : null,
-      S.mode === "edit" ? item("navBtn", P.layers, S.nav ? "Hide layers" : "Layers", () => { S.nav = !S.nav; $("navi").hidden = !S.nav; tree(); setTimeout(overlay, 0); }, { role: "menuitemcheckbox", "aria-checked": String(S.nav) }) : null,
     ].filter(Boolean), 220);
   }
   $("moreBtn").onclick = () => (menuEl && menuFor === $("moreBtn") ? closeMenu() : moreMenu());
@@ -2079,6 +2135,7 @@ ${CAL_CSS}
       issues: built() ? issues.map((i) => ({ level: i.level === "error" ? "error" : "warning", text: i.text, ...(i.fix ? { fix: i.fix } : {}), ...(/On submission/.test(i.text) ? { after: true } : {}) })) : [],
       canFix: !!brandOf(cur)?.css && !S.busy,
       msg: S.pubMsg,
+      previewing: S.mode === "preview",
     });
   }
 
@@ -2206,7 +2263,11 @@ ${CAL_CSS}
     stepAt = 0; done = false; S.sel = null; S.about = null; S.pubMsg = "";
     S.lang = "";
     if (!c.body.lang && brandOf(c)?.profile?.language) c.body.lang = brandOf(c).profile.language;
-    aboutUi(); chatHead(); brandUi(); renderLog(); draw(); pubUi(); buttons(); refresh(); langUi();
+    // A form with nothing built yet opens on AI (Tia builds it, or Start blank); a built one on the side last used.
+    S.side = built() ? (store.get("clr-studio-side", "build") === "ai" ? "ai" : "build") : "ai";
+    if (S.mode !== "edit") S.mode = "edit";
+    S.view = 0;
+    aboutUi(); chatHead(); brandUi(); renderLog(); sideUi(); setMode("edit"); pubUi(); buttons(); langUi();
     const b = brandOf(c);
     if (b && !b.css) void readLook(b);
   }
@@ -2454,6 +2515,7 @@ ${CAL_CSS}
     }
   }
   function finish(c, t, reply, wasBuilt) {
+    if (S.side !== "ai") $("aiDot").hidden = false;
     const say = tagOf(t, "say"), ask = tagOf(t, "ask"), fh = tagOf(t, "form_html"), fc = tagOf(t, "form_css"), add = tagOf(t, "css_add"), did = tagOf(t, "did"), af = tagOf(t, "after");
     reply.text = say ? say.body.trim() : reply.text;
     const here = cur === c;
@@ -2534,7 +2596,7 @@ ${CAL_CSS}
 
   // ── Start ─────────────────────────────────────────────────────────────────────────────────────────────
   setChatFold(false);
-  setMode("preview");
+  setMode("edit");
   setDevice("desk");
   brandUi();
   (async () => {
@@ -2585,9 +2647,11 @@ ${CAL_CSS}
     fix(fixes) {
       if (!fixes.length || S.busy) return;
       setChatFold(false);
+      setSide("ai");
       send(fixes.length === 1 ? `Fix this: ${fixes[0]}` : `Fix these:\n${fixes.map((f) => `- ${f}`).join("\n")}`);
     },
     openAfter() { setMode("after"); },
+    preview() { setMode(S.mode === "preview" ? "edit" : "preview"); },
     rename(name) {
       const n = String(name || "").trim().slice(0, 120);
       if (!cur || !n || n === cur.name) return;

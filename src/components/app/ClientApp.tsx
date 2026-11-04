@@ -1,5 +1,6 @@
 "use client";
 
+import { FormFolderNav } from "./forms/folders";
 import type { Session } from "@supabase/supabase-js";
 import dynamic from "next/dynamic";
 import { memo, useCallback, useEffect, useMemo, useState } from "react";
@@ -243,6 +244,7 @@ export function ClientApp({ config }: { config: SupaConfig }) {
         onSearch={() => setSearching(true)}
         onPreload={preloadView}
         create={create}
+        under={{ forms: <FormFolderNav sb={sb} ws={ws.id} current={route === "forms" ? loc.id : ""} open navigate={(r, id) => navigate(r, id)} onError={setError} /> }}
       />
       <main className="min-h-0 min-w-0 flex-1 overflow-hidden bg-paper md:my-2 md:mr-2 md:rounded-xl md:shadow-rest">
         {error ? (

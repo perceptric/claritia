@@ -58,8 +58,8 @@ try {
   page.on("pageerror", (e) => check(false, `no page errors (${e.message}${process.env.STACK ? ` ${e.stack}` : ""})`));
   const shot = (name: string) => (shots ? page.screenshot({ path: `${shots}/${name}.png` }) : Promise.resolve());
   const action = page.locator("[data-form-action]");
-  const tab = (name: string) => page.getByRole("tab", { name: new RegExp(`^${name}`) });
-  const studioReady = () => page.waitForFunction(() => !!document.querySelector("[data-studio-host]")?.shadowRoot?.getElementById("t-edit"), null, { timeout: 15000 });
+  const tab = (name: string) => page.locator("header").first().getByRole("tab", { name: new RegExp(`^${name}`) });
+  const studioReady = () => page.waitForFunction(() => !!document.querySelector("[data-studio-host]")?.shadowRoot?.getElementById("m-build"), null, { timeout: 15000 });
   const $s = (sel: string) => page.locator(`[data-studio-host] ${sel}`);
 
   // ── A Form Studio form ──
@@ -82,14 +82,16 @@ try {
   check(true, "Build brings the Studio back");
 
   // An edit in the Studio, typed right on the form: the button says Publish changes.
-  await $s("#t-edit").click();
   const heading = $s("h1, h2").filter({ hasText: "Daily check-in" }).first();
   await heading.click();
   await heading.click();
   await page.keyboard.press("ControlOrMeta+a");
   await page.keyboard.type("Morning check-in");
   await page.keyboard.press("Enter");
-  await $s("#t-preview").click();
+  // Preview sits beside Publish in the page's header; again goes back to the editor.
+  await page.locator("[data-form-preview]").click();
+  check((await $s("#exitPrev").isVisible()) && ((await page.locator("[data-form-preview]").textContent()) ?? "").includes("Back to editor"), "Preview in the header shows the form on the whole Studio, and turns into Back to editor");
+  await page.locator("[data-form-preview]").click();
   await page.waitForFunction(() => document.querySelector("[data-form-action]")?.textContent?.trim() === "Publish changes");
   check(await page.getByText("Changes not live").isVisible(), "an edit in the Studio: Changes not live, and Publish changes");
 
@@ -140,7 +142,7 @@ try {
   await page.waitForTimeout(400);
   await shot("4-old");
   check(await page.evaluate(() => (window as unknown as { calls: { path: string; body: { mode?: string } }[] }).calls.some((c) => c.path === "/api/studio" && c.body.mode === "convert")), "an older form is turned into a Studio page when it opens");
-  check((await $s("#t-edit").count()) === 1, "its Build is Form Studio");
+  check((await $s("#m-build").count()) === 1, "its Build is Form Studio");
   check((await action.textContent())?.trim() === "Publish changes", "its new page isn't live until it's published");
 
   // ── A template in a website style: the Studio keeps the style as its look ──

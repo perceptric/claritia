@@ -8,6 +8,7 @@ const P: Record<string, React.ReactNode> = {
   sync: (<><path d="M4 12a8 8 0 0 1 14-5.3L20 9M20 4v5h-5" /><path d="M20 12a8 8 0 0 1-14 5.3L4 15M4 20v-5h5" /></>),
   gear: (<><circle cx="12" cy="12" r="3" /><path d="M12 2v3M12 19v3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M2 12h3M19 12h3M4.9 19.1 7 17M17 7l2.1-2.1" /></>),
   plus: <path d="M12 5v14M5 12h14" />,
+  folder: <path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />,
   check: <path d="m5 12 5 5 9-10" />,
   chev: <path d="m7 10 5 5 5-5" />,
   x: <path d="M6 6l12 12M18 6 6 18" />,

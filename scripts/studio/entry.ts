@@ -118,7 +118,7 @@ shell.innerHTML = `<style>${STUDIO_CSS}</style>${STUDIO_HTML}`;
 // driven the same way, through the Studio's state and control.
 const hdr = document.createElement("div");
 hdr.id = "hdr";
-hdr.innerHTML = `<button id="hdrAction"></button><span id="hdrMsg"></span><div id="hdrCheck" hidden></div>`;
+hdr.innerHTML = `<button id="hdrPreview">Preview</button><button id="hdrAction"></button><span id="hdrMsg"></span><div id="hdrCheck" hidden></div>`;
 el.before(hdr);
 function drawHeader() {
   const st = w.studioState;
@@ -147,6 +147,7 @@ function drawCheck() {
   }
 }
 const ctl = mountStudio(shell, api);
+document.getElementById("hdrPreview")!.onclick = () => ctl.preview();
 document.getElementById("hdrAction")!.onclick = async () => {
   if (w.studioState?.state === "live") return void calls.push({ mode: "openShare", body: w.studioState.formId });
   const r = await ctl.publish();

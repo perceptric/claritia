@@ -6,6 +6,7 @@
 // the first time it opens. A form that reads the site's own form has no page, so it has no Build and opens on Share.
 // Drafts save as you go; Publish checks the form first and makes the draft live.
 
+import { folderPage, moveForm, useFormFolders } from "./folders";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { applyOp, type Op } from "@/lib/forms/ops";
 import { checkForm, emptyForm, type Form } from "@/lib/forms/schema";
@@ -37,6 +38,7 @@ export function FormsView(props: ViewProps) {
   if (props.id === "studio") return <StudioPage key={`studio:${chatParam()}`} {...props} />;
   if (props.id === "new") return <StudioPage key="new" {...props} fresh />;
   if (props.id === "templates" || props.id.startsWith("templates/")) return <TemplatesPage {...props} />;
+  if (props.id.startsWith("folder:")) return <FormHome key={props.id} {...props} folder={props.id.slice(7)} />;
   if (props.id && props.id !== "overview") return <FormPage key={props.id} {...props} />;
   return <FormHome {...props} />;
 }
@@ -73,6 +75,17 @@ function StudioPage(props: ViewProps & { fresh?: boolean }) {
   // ?ask=<words>: the gallery's Describe your form, put in the message box of the new chat.
   const [ask] = useState(() => (typeof window === "undefined" ? "" : (new URLSearchParams(window.location.search).get("ask") ?? "")));
   const pill: HeaderState = !st || st.state === "new" || st.state === "draft" ? "draft" : st.state === "changed" ? "changed" : "live";
+  // New form from a folder's page: once the form exists, it goes in that folder.
+  const formId = st?.formId ?? "";
+  useEffect(() => {
+    if (!formId) return;
+    let to = "";
+    try {
+      to = sessionStorage.getItem("clr-new-form-folder") ?? "";
+      sessionStorage.removeItem("clr-new-form-folder");
+    } catch {}
+    if (to) void moveForm(props.sb, props.ws.id, formId, to).catch(() => undefined);
+  }, [formId, props.sb, props.ws.id]);
   const go = (t: FormTab) => {
     if (st?.formId && t !== "build") navigate("forms", st.formId, `tab=${t}`);
   };
@@ -87,7 +100,7 @@ function StudioPage(props: ViewProps & { fresh?: boolean }) {
       : { label: pill === "changed" ? "Publish changes" : "Publish", onClick: () => void run(), disabled: !st?.canPublish, problems: st?.issues.filter((i) => i.level === "error").length };
   return (
     <div className="relative flex h-full min-h-0 flex-col bg-card">
-      <FormHeader navigate={navigate} name={st?.name || "New form"} onRename={st?.ready ? (n) => control.current?.rename(n) : undefined} state={pill} tab="build" onTab={go} tabs={!!st?.formId} action={action} actionRef={actionRef} />
+      <FormHeader navigate={navigate} name={st?.name || "New form"} onRename={st?.ready ? (n) => control.current?.rename(n) : undefined} state={pill} tab="build" onTab={go} tabs={!!st?.formId} tools={<PreviewButton previewing={!!st?.previewing} onClick={() => control.current?.preview()} />} action={action} actionRef={actionRef} />
       {st?.msg && !/first$/.test(st.msg) ? (
         <div className="shrink-0 border-b border-line px-[16px] py-[8px]">
           <ErrorNote message={st.msg} />
@@ -499,6 +512,8 @@ function Editor(props: ViewProps & { data: FormData; reload: () => void; patchRo
       : pill === "live"
         ? { label: "Share", onClick: () => setTab("share") }
         : { label: pill === "changed" ? "Publish changes" : "Publish", onClick: onPublish, problems };
+  const fq = useFormFolders(sb, ws.id);
+  const inFolder = fq.data?.folders.find((f) => f.id === fq.data?.byForm[row.id]) ?? null;
   const studioMsg = isStudio && studio?.msg && !/first$/.test(studio.msg) ? studio.msg : "";
 
   return (
@@ -513,6 +528,8 @@ function Editor(props: ViewProps & { data: FormData; reload: () => void; patchRo
         onTab={setTab}
         build={isStudio}
         subs={data.subs}
+        folder={inFolder ? { name: inFolder.name, open: () => navigate("forms", folderPage(inFolder.id)) } : null}
+        tools={tab === "build" && isStudio ? <PreviewButton previewing={!!studio?.previewing} onClick={() => control.current?.preview()} /> : undefined}
         syncDot={failedWeek ? `${failedWeek} ${failedWeek === 1 ? "lead didn't" : "leads didn't"} reach the CRM` : undefined}
         more={
           <button type="button" className={IB} onClick={(e) => setMenu(menu ? null : e.currentTarget)} title="More" aria-label="More" aria-haspopup="menu" aria-expanded={!!menu}>
@@ -618,5 +635,15 @@ function PublishDialog({ checks, live, onClose, onPublish, onFix, error }: { che
         </button>
       </div>
     </Dialog>
+  );
+}
+
+/** Preview beside Publish: the form on the whole screen, as a visitor fills it; again goes back to the editor. */
+function PreviewButton({ previewing, onClick }: { previewing: boolean; onClick: () => void }) {
+  return (
+    <button type="button" data-form-preview="" className={GHOST} aria-pressed={previewing} onClick={onClick}>
+      <Ic n={previewing ? "back" : "eye"} />
+      {previewing ? "Back to editor" : "Preview"}
+    </button>
   );
 }
