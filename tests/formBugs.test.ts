@@ -88,7 +88,7 @@ test("a fill started before a publish is checked against the version the visitor
     }
     return { data: null, error: null };
   };
-  const pub: PublicForm = { id: "0192f3a1-0000-7000-8000-0000000000ff", workspace_id: "w", version: 2, status: "live", body: v2, tokens: {}, logo_url: null };
+  const pub: PublicForm = { id: "0192f3a1-0000-7000-8000-0000000000ff", workspace_id: "w", version: 2, status: "live", body: v2, logo_url: null };
   const r = await acceptFill(rpc, pub, { v: 1, version: 1, key: "k".repeat(20), answers: { e: "ana@acme.com", seats: "5" }, ms: 9000, trap: "" }, { custom: [] });
   assert.equal(r.status, 200, JSON.stringify(r.body));
   assert.equal(sent[0]!.p_version, 1);

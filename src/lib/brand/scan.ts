@@ -6,10 +6,9 @@
 import pw from "playwright-core";
 import { cleanColor, cleanFontUrl, cleanTokens, contrast, fixContrast, type Tokens } from "../forms/brand.ts";
 import { hostIsPrivate } from "../privateNet.ts";
-import { captureParts, FONT_SPY, formPages, GUESS_PATHS, mergeSources, type SkinSource } from "./skinCapture.ts";
 
 export type SiteForm = { url: string; fields: { label: string; type: string }[]; button?: string };
-export type Scan = { tokens: Tokens; notes: string[]; logo: string | null; forms: SiteForm[]; formShot: Buffer | null; pages: string[]; brand: BrandExtras; skin?: SkinSource | null };
+export type Scan = { tokens: Tokens; notes: string[]; logo: string | null; forms: SiteForm[]; pages: string[]; brand: BrandExtras };
 /** What the scan finds beyond the 22 tokens (docs/design-system.md Part 7.1). */
 export type BrandExtras = { palette: { color: string; weight: number }[]; headings: { level: number; size: string; weight: string }[]; shadow: string | null; social: { kind: string; url: string }[]; address: string | null; copy: string };
 export class ScanBlocked extends Error {}
@@ -243,37 +242,6 @@ async function isChallenge(page: { title(): Promise<string>; evaluate<T>(fn: () 
  * Scan a site. Throws ScanBlocked when the site turns the browser away (a bot wall, an error page, a private address).
  * `allowPrivate` is for tests on localhost only.
  */
-/** The site's controls for the brand skin, from up to four pages, in about a minute at most. */
-async function skinFrom(page: pw.Page, home: string, allowPrivate: boolean | undefined, timeout: number): Promise<SkinSource | null> {
-  const fetchCss = async (href: string) => {
-    const u = new URL(href);
-    if (u.protocol !== "https:" || (!allowPrivate && (await hostIsPrivate(u.hostname)))) return null;
-    const r = await page.context().request.get(href, { timeout: 5000 }).catch(() => null);
-    return r && r.ok() ? (await r.text()).slice(0, 2_000_000) : null;
-  };
-  const go = async (href: string) => {
-    await page.goto(href, { waitUntil: "load", timeout: Math.min(timeout, 15_000) });
-    await page.waitForLoadState("networkidle", { timeout: 5000 }).catch(() => undefined);
-    await page.evaluate(() => document.fonts?.ready).catch(() => undefined);
-  };
-  const started = Date.now();
-  await go(home);
-  const got: SkinSource[] = [await captureParts(page, fetchCss)];
-  const links = (await page.evaluate(() => [...document.querySelectorAll("a[href]")].map((a) => ({ href: (a as HTMLAnchorElement).href, text: (a as HTMLElement).innerText || "" })))) as { href: string; text: string }[];
-  const more = [...formPages(links, page.url()), ...GUESS_PATHS.map((x) => new URL(x, page.url()).href)].filter((h, i, all) => all.indexOf(h) === i).slice(0, 5);
-  for (const href of more) {
-    if (got.some((g) => g.parts.some((p) => p.role === "input")) || Date.now() - started > 60_000) break;
-    try {
-      await go(href);
-      if (page.url() === got[0]!.url) continue;
-      got.push(await captureParts(page, fetchCss));
-    } catch {
-      // A missing page is fine: the next one is tried.
-    }
-  }
-  return mergeSources(got);
-}
-
 export async function scanSite(rawUrl: string, opts: { chromiumPath?: string; allowPrivate?: boolean; timeoutMs?: number } = {}): Promise<Scan> {
   let u: URL;
   try {
@@ -294,8 +262,6 @@ export async function scanSite(rawUrl: string, opts: { chromiumPath?: string; al
         if (await hostIsPrivate(host)) return route.abort();
         return route.continue();
       });
-    // Records the fonts a page's scripts load, for the brand skin (docs/brand-skin.md).
-    await ctx.addInitScript(FONT_SPY);
     const page = await ctx.newPage();
     const visit = async (href: string): Promise<Raw> => {
       const res = await page.goto(href, { waitUntil: "load", timeout });
@@ -326,7 +292,6 @@ export async function scanSite(rawUrl: string, opts: { chromiumPath?: string; al
     // The page most likely to hold a form: contact or demo first.
     const next = home.ctas.sort((a, b) => Number(/contact|demo/i.test(b)) - Number(/contact|demo/i.test(a)))[0];
     let formPage: Raw | null = null;
-    let formShot: Buffer | null = null;
     if (next && next !== pages[0]) {
       try {
         formPage = await visit(next);
@@ -336,20 +301,11 @@ export async function scanSite(rawUrl: string, opts: { chromiumPath?: string; al
         formPage = null;
       }
     }
-    const withForm = formPage?.forms.length ? formPage : home.forms.length ? home : null;
-    if (withForm) {
-      if (withForm === home && formPage) await page.goto(pages[0], { waitUntil: "load", timeout }).catch(() => undefined);
-      const el = page.locator("form").first();
-      formShot = await el.screenshot({ timeout: 5000 }).catch(() => null);
-    }
     const { tokens, notes } = tokensFrom(home, formPage);
     const forms = [...home.forms, ...(formPage?.forms ?? [])].slice(0, 5);
     const logo = home.logo && /^https:\/\//.test(home.logo) ? home.logo.slice(0, 1000) : null;
     const brand: BrandExtras = { palette: home.palette, headings: home.headings, shadow: home.shadow, social: home.social, address: home.address, copy: home.copy };
-    // The brand skin's source: the site's real controls on the home page, then on pages likely to hold a form, until
-    // one with an input is found. Only polishes: a scan without it still stands.
-    const skin = await skinFrom(page, u.href, opts.allowPrivate, timeout).catch(() => null);
-    return { tokens, notes, logo, forms, formShot, pages, brand, skin };
+    return { tokens, notes, logo, forms, pages, brand };
   } finally {
     await browser.close().catch(() => undefined);
   }

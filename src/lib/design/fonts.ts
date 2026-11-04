@@ -81,3 +81,21 @@ export function previewFontsUrl(): string {
     .join("");
   return `https://fonts.googleapis.com/css2?${FONTS.map((f) => `family=${f.name.replace(/ /g, "+")}`).join("&")}&text=${encodeURIComponent(letters)}&display=swap`;
 }
+
+/** The font families a design names (the first of each stack), so the page can load them: fonts can't load inside a shadow root. */
+export function designFonts(system: unknown, design: unknown): string[] {
+  const out = new Set<string>();
+  const walk = (v: unknown, key = "") => {
+    if (typeof v === "string") {
+      if (key === "font-family" && !v.startsWith("$")) out.add((v.split(",")[0] ?? "").trim().replace(/^['"]|['"]$/g, ""));
+      else if (key === "value" || key === "dark") return;
+    } else if (v && typeof v === "object") for (const [k, x] of Object.entries(v)) walk(x, k);
+  };
+  walk(system);
+  walk(design);
+  // A font variable's value is a stack too.
+  const vars = (system as { variables?: { kind?: string; value?: string }[] } | null)?.variables;
+  for (const v of Array.isArray(vars) ? vars : []) if (v?.kind === "font" && typeof v.value === "string") out.add((v.value.split(",")[0] ?? "").trim().replace(/^['"]|['"]$/g, ""));
+  out.delete("");
+  return [...out];
+}

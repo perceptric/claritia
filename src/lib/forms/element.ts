@@ -1,6 +1,7 @@
 // <claritia-form>: the form visitors fill (docs/form-builder.md Part 6). A web component, so one script line works in
-// plain HTML, Webflow, Framer, WordPress or React. It draws the published schema inside a shadow root with the brand
-// kit's tokens, checks answers as people go, and sends the fill once. A send that can't reach us waits in
+// plain HTML, Webflow, Framer, WordPress or React. It draws the published Form Studio page inside a shadow root in its
+// own stylesheet (the brand's, a gallery style's or the plain one), checks answers as people go, and sends the fill
+// once. The server turns any form made before the Studio into a page before it's sent here. A send that can't reach us waits in
 // localStorage with its idem key and is tried again for 24 hours; the server treats a repeat key as the same fill.
 //   <script src="https://app.tryclaritia.com/forms/v1.js" async></script>
 //   <claritia-form form-id="…"></claritia-form>
@@ -8,7 +9,7 @@
 // A form that books with Claritia calendar swaps to the inline calendar after the send (docs/meetings-scheduler.md
 // Part 2); a captured form opens it over the page, or on the thank-you page the team's form goes to.
 
-import { tokensCss, type Tokens } from "./brand.ts";
+import { tokensCss } from "./brand.ts";
 import { byDay, dayText, localZone, sampleSlots, timeText, zoneName, zones, type Booked, type Booking } from "./calendar.ts";
 import { countryNames } from "./countries.ts";
 import { calcText } from "./formula.ts";
@@ -19,8 +20,9 @@ import { answerFrom } from "../share/emailForm.ts";
 import { ACCESS_CSS, CAL_CSS, consentSpot, pageValues, runPage, shownValues, showsByIf, zoneWords, type PageRun, type Vals } from "../studio/runtime.ts";
 
 /** regions: the region lists, sent with the form when a list follows a country field (src/lib/forms/regions.ts). */
-/** css: the design system's styles compiled for this form (src/lib/design/web.ts); it starts with the layer order. */
-type Loaded = { id: string; version: number; status: "live" | "paused"; body: Form; tokens: Partial<Tokens>; logo_url?: string | null; skin?: { css: string; fonts?: string } | null; strict?: boolean; turnstile?: string; regions?: Record<string, string[]>; css?: string; fonts?: string[] };
+type Loaded = { id: string; version: number; status: "live" | "paused"; body: Form; logo_url?: string | null; strict?: boolean; turnstile?: string; regions?: Record<string, string[]> };
+/** The blocks' own neutral parts (a date, a file drop, a signature): the page's stylesheet styles everything else. */
+const BLOCK_VARS = tokensCss({});
 type Queued = { url: string; body: string; key: string; at: number; tries: number };
 
 /** Field types drawn by many(): answers with parts. */
@@ -600,18 +602,6 @@ function addFont(url: string) {
   document.head.append(el("link", { rel: "stylesheet", href: url }));
 }
 
-/**
- * A skin's fonts (docs/brand-skin.md): @font-face rules whose files Claritia serves. Fonts declared inside a shadow root
- * don't load, so they go in the page's head, once. Anything else in the text is refused.
- */
-function addFaces(css: string, base: string) {
-  if (!css || fontsAdded.has(css)) return;
-  const rules = css.match(/@font-face\{[^{}]*\}/g) ?? [];
-  if (rules.join("\n") !== css.trim() || rules.some((r) => [...r.matchAll(/url\("([^"]+)"\)/g)].some((m) => !m[1]!.startsWith(`${base}/api/brand/fontfile/`)))) return;
-  fontsAdded.add(css);
-  document.head.append(el("style", { text: css }));
-}
-
 /** Whether a change to this field can change what the form shows: a rule, a skip, a calc or a list reads it. */
 function affects(form: Form, id: string): boolean {
   const c = (w: { field: string }) => w.field === id;
@@ -752,11 +742,11 @@ export class ClaritiaForm extends Base {
   }
 
   /** The app's builder shows a draft without loading or sending anything. */
-  set preview(p: { form: Form; tokens?: Partial<Tokens>; logo?: string | null; skin?: { css: string; fonts?: string } | null; step?: number; done?: boolean; regions?: Record<string, string[]>; css?: string; fonts?: string[]; answers?: Record<string, unknown> }) {
+  set preview(p: { form: Form; logo?: string | null; step?: number; done?: boolean; regions?: Record<string, string[]>; answers?: Record<string, unknown> }) {
     this.isPreview = true;
     const fresh = !this.data || this.done !== !!p.done;
     if (fresh || p.form.after.schedule?.tool !== "claritia") this.bk = this.bkDone = null;
-    this.data = { id: "preview", version: 0, status: "live", body: p.form, tokens: p.tokens ?? {}, logo_url: p.logo ?? null, skin: p.skin ?? null, strict: true, regions: p.regions, css: p.css, fonts: p.fonts };
+    this.data = { id: "preview", version: 0, status: "live", body: p.form, logo_url: p.logo ?? null, strict: true, regions: p.regions };
     this.step = Math.min(p.step ?? this.step, p.form.steps.length - 1);
     this.done = !!p.done;
     if (fresh) this.errors = {};
@@ -1128,12 +1118,8 @@ export class ClaritiaForm extends Base {
     const d = this.data;
     if (!d) return;
     const form = d.body;
-    for (const u of [d.tokens.fontUrl ?? "", ...(d.fonts ?? [])]) addFont(u);
     const width = form.layout.maxWidth ? `${form.layout.maxWidth}px` : form.layout.side || form.steps.some((st) => st.image) ? "1040px" : form.layout.width === "wide" ? "720px" : "480px";
-    // The form's own stylesheet is the lowest layer; the design system's layers (in d.css) sit above it.
-    // The brand's skin (docs/brand-skin.md) comes last: the site's own look, over the form's base styles.
-    if (d.skin?.fonts) addFaces(d.skin.fonts, this.base);
-    const style = el("style", { text: `${d.css ?? ""}\n:host{${tokensCss(d.tokens)}--clr-width:${width}}\n@layer base{${STYLES}}${d.skin?.css ? `\n${d.skin.css.replace(/<\//g, "")}` : ""}` });
+    const style = el("style", { text: `:host{${BLOCK_VARS}--clr-width:${width}}\n@layer base{${STYLES}}` });
     if (d.status === "paused") return this.put(style, el("div", { class: "f" }, el("p", { class: "i", text: "This form is closed." })));
     if (form.page) return this.drawPage(form, style);
     if (this.done) {
@@ -1420,9 +1406,7 @@ export class ClaritiaForm extends Base {
     const err = this.errors[f.id];
     // A required field always shows: hidden on a phone, it could never be filled there.
     const cls = ["fl", `w${SPAN[f.width ?? "full"]}`, f.size === "sm" || f.size === "lg" ? f.size : "", f.hideOnPhone && !req ? "np" : "", f.content?.align === "center" ? "ce" : ""];
-    // The design system finds a field by its id, and its classes by c-<id> (src/lib/design/web.ts).
-    const own = (form.design?.classes?.[f.id] ?? []).filter((c) => /^[a-z0-9]{1,24}$/.test(c)).map((c) => `c-${c}`);
-    const box = el("div", { class: [...cls, ...own].filter(Boolean).join(" "), "data-id": f.id });
+    const box = el("div", { class: cls.filter(Boolean).join(" "), "data-id": f.id });
     if (isContent(f.type)) {
       const c = this.content(f);
       if (c) box.append(c);

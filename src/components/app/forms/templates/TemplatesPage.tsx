@@ -790,7 +790,7 @@ export function TemplatesPage({ sb, ws, session, navigate, id }: ViewProps) {
             ) : null}
             {/* The Studio page fills its own frame, in the brand's background, as it shows on the form's page. */}
             <div className="keep-light min-w-0 overflow-hidden rounded-[12px] shadow-rest">
-              <FormPreview key={`${open.id}:${kit?.id ?? (inStyle ? styleId : PLAIN)}`} form={form} tokens={{}} logo={kit?.logo_url ?? null} />
+              <FormPreview key={`${open.id}:${kit?.id ?? (inStyle ? styleId : PLAIN)}`} form={form} logo={kit?.logo_url ?? null} />
             </div>
           </div>
         </Sheet>

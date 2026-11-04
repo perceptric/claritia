@@ -1,20 +1,17 @@
-// Brand scans on the runner (docs/form-builder.md Part 5): the brand_scan job from the jobs queue. Scan the site, then
-// one look check with Claude when the site has a form to compare with, then save the kit. A site that turns the
-// browser away is reported on the kit and not tried again.
+// Brand scans on the runner (docs/form-builder.md Part 5): the brand_scan job from the jobs queue. Scan the site, save
+// the kit's colors, fonts and logo (for booking pages and emails), then its brief and design draft. A site that turns
+// the browser away is reported on the kit and not tried again. Forms take their look from the brand's Form Studio
+// stylesheet (src/lib/studio/site.ts), never from the scan.
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { cachedStep, hashKey, usageOf } from "../src/lib/ai/cache.ts";
-import { applyFixes, drawForm, LOOK_MODEL, type Looker } from "../src/lib/brand/look.ts";
 import { scanSite, ScanBlocked, type BrandExtras, type Scan } from "../src/lib/brand/scan.ts";
-import { SKIN_MODEL, writeSkin, type SkinCaller } from "../src/lib/brand/skin.ts";
 import { BRIEF_MODEL, type Brief, type Briefer } from "../src/lib/brand/brief.ts";
 import { brandColors, brandDesign } from "../src/lib/brand/design.ts";
 import type { Tokens } from "../src/lib/forms/brand.ts";
-import { checkForm } from "../src/lib/forms/schema.ts";
-import { TEMPLATES } from "../src/lib/forms/templates.ts";
 import { JobError, type Job } from "../src/lib/jobs.ts";
 
-export type ScanOpts = { chromiumPath?: string; looker?: Looker; briefer?: Briefer; skinner?: SkinCaller; formCode?: () => Promise<string | null>; allowPrivate?: boolean; scan?: typeof scanSite; log?: (...a: unknown[]) => void };
+export type ScanOpts = { chromiumPath?: string; briefer?: Briefer; allowPrivate?: boolean; scan?: typeof scanSite; log?: (...a: unknown[]) => void };
 
 export async function handleBrandScan(sb: SupabaseClient, job: Job, o: ScanOpts) {
   const kit = String(job.payload.kit_id ?? "");
@@ -39,51 +36,9 @@ export async function handleBrandScan(sb: SupabaseClient, job: Job, o: ScanOpts)
     }
     throw e;
   }
-  let { tokens, notes } = scan;
-  if (scan.formShot && o.looker && o.formCode) {
-    try {
-      const code = await o.formCode();
-      const form = checkForm(TEMPLATES[1].form());
-      if (code && "form" in form) {
-        const ours = await drawForm(code, form.form, tokens, o.chromiumPath);
-        const rpc = (fn: string, args: Record<string, unknown>) => sb.rpc(fn, args);
-        const looked = await cachedStep(rpc, ws, "brand_look", hashKey(LOOK_MODEL, scan.formShot.toString("base64"), ours.toString("base64"), tokens), async () => {
-          const r = await o.looker!(scan.formShot!, ours, tokens);
-          return { result: r.fixes, model: LOOK_MODEL, usage: usageOf(r.usage) };
-        });
-        const fixed = applyFixes(tokens, looked.result);
-        tokens = fixed.tokens;
-        notes = [...notes, ...fixed.notes.filter((n) => !notes.includes(n))];
-      }
-    } catch (e) {
-      // The look check only polishes; the scan stands without it.
-      o.log?.(`Look check skipped: ${(e as Error).message}`);
-    }
-  }
+  const { tokens, notes } = scan;
   await finish({ tokens, logo: scan.logo, notes: notes.slice(0, 20), forms: scan.forms }, null);
   if (scan.brand) await brandSetup(sb, ws, kit, url, scan.brand, tokens, o);
-  if (scan.skin && o.skinner) await skinSetup(sb, ws, kit, scan.skin, o);
-  else o.log?.(scan.skin ? `Brand skin skipped for ${kit}: the runner has no ANTHROPIC_API_KEY` : `Brand skin skipped for ${kit}: no controls found on ${url}`);
-}
-
-/**
- * The brand skin (docs/brand-skin.md): Claude writes the form's stylesheet from the site's real controls, once per
- * look (through the step cache), and it's saved on the kit with the fonts it uses. Before 111 there's nowhere to keep
- * it, and the scan stands without it.
- */
-async function skinSetup(sb: SupabaseClient, ws: string, kit: string, src: NonNullable<Scan["skin"]>, o: ScanOpts) {
-  try {
-    const rpc = (fn: string, args: Record<string, unknown>) => sb.rpc(fn, args);
-    const r = await cachedStep(rpc, ws, "brand_skin", hashKey(SKIN_MODEL, "skin-1", src), async () => {
-      const out = await writeSkin(o.skinner!, src);
-      return { result: out ? { css: out.css, notes: out.notes } : null, model: SKIN_MODEL, usage: out ? usageOf(out.usage) : usageOf(undefined), keep: !!out };
-    });
-    if (!r.result) return;
-    const { error } = await sb.rpc("brand_kit_skin", { p_kit: kit, p_skin: { css: r.result.css, faces: src.faces, at: new Date().toISOString(), from: src.url, notes: r.result.notes } });
-    if (error) throw new Error(error.message);
-  } catch (e) {
-    o.log?.(`Brand skin skipped: ${(e as Error).message}`);
-  }
 }
 
 /**
@@ -112,14 +67,3 @@ async function brandSetup(sb: SupabaseClient, ws: string, kit: string, url: stri
     o.log?.(`Brand setup skipped: ${(e as Error).message}`);
   }
 }
-
-/** The built form script from the app, for the look check. */
-export const formCodeFrom = (appUrl: string) => async () => {
-  try {
-    const res = await fetch(`${appUrl.replace(/\/+$/, "")}/forms/v1.js`, { signal: AbortSignal.timeout(10_000) });
-    return res.ok ? await res.text() : null;
-  } catch {
-    return null;
-  }
-};
-

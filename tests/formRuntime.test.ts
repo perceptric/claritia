@@ -101,7 +101,7 @@ async function fill(form: Form, answers: Record<string, unknown>) {
     if (fn === "form_submit_all") return { data: { id: SID, notified: true }, error: null };
     return { data: null, error: null };
   };
-  const pub: PublicForm = { id: "0192f3a1-0000-7000-8000-0000000000ff", workspace_id: "w", version: 1, status: "live", body: form, tokens: {}, logo_url: null };
+  const pub: PublicForm = { id: "0192f3a1-0000-7000-8000-0000000000ff", workspace_id: "w", version: 1, status: "live", body: form, logo_url: null };
   const r = await acceptFill(rpc, pub, { v: 1, version: 1, key: "k".repeat(20), answers, ms: 5000, trap: "" }, { custom: [] }, { origin: "https://acme.com" });
   assert.equal(r.status, 200, JSON.stringify(r.body));
   const s = r.body.schedule as { tool: string; url: string } | null;

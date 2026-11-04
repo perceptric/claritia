@@ -1,14 +1,9 @@
-// Copying a site's look from its page source (docs/forms.md, Styling): what a person does by hand. Take the page's
-// HTML and every stylesheet it loads, give them to Claude, and Claude writes the form's stylesheet from them. It runs
-// on the web server the moment a brand is picked in New form or the builder, so a form wears the site's look in about
-// a minute without waiting for the runner. The runner's browser read (skin.ts), which measures the real controls,
-// replaces it when it finishes.
+// A site's page source for Tia (src/lib/studio/site.ts, the brand's Form Studio stylesheet): the page's HTML without
+// scripts, every stylesheet it loads, the brand's own fonts (no math or icon fonts) and the colors read from it, as
+// one text Claude reads.
 
-import type Anthropic from "@anthropic-ai/sdk";
-import { cleanSkin, MARKUP, SKIN_MODEL } from "./skin.ts";
 import type { Face } from "./skinCapture.ts";
 
-export { SKIN_MODEL };
 /** The page source as Claude reads it: the HTML without scripts, every stylesheet, and the fonts they load. */
 export type PageSource = { url: string; html: string; css: { url: string; text: string }[]; faces: Face[]; colors?: Record<string, string> };
 
@@ -90,35 +85,6 @@ export function pageSource(url: string, html: string, sheets: { url: string; tex
   return { url, html: pageMarkup(html), css, faces: faces.slice(0, 12) };
 }
 
-const SYSTEM = `You copy a website's look onto a web form, the way a designer would from the site's page source. You get the page's HTML and every stylesheet it loads. Find how the site draws its main button, its secondary button, its text inputs, its headings, its body text and its labels, and write one CSS stylesheet that makes the form's parts look exactly like them.
-
-${MARKUP}
-
-HOW TO READ THE SOURCE
-- Many sites build the page with JavaScript, so the HTML may be nearly empty. Then read the stylesheets: the main button is the rule set with the brand's fill color, bold or uppercase text, a radius and padding (often with a darker bottom border or shadow and a pressed state); inputs are the rules with a border, radius and padding on input or a field class.
-- Resolve CSS variables to their values (var(--x) → the value from :root), so the stylesheet works on its own.
-- Use the site's font families exactly as written, with their fallbacks. Fonts listed under FONTS are loaded for you.
-- COLORS are what was already read from the live site (its button fill, text, background): trust them.
-- When the source doesn't show a control (its styles load later from scripts) and this is a well-known brand whose public look you know well, draw that control the way the brand does on its site. When you don't know the brand, build the controls from COLORS, the fonts and the radius and weights the stylesheets use most.
-
-RULES
-- Copy values exactly: fonts, sizes, weights, letter spacing, text transform, colors, borders per side, radius, shadows, padding, heights, and the hover, pressed (:active), focus and disabled states.
-- If the site draws its button with a ::before layer or a thick bottom border that disappears when pressed, draw .bt the same way.
-- Style .bt from the main button, .bt.bk from the secondary one, .in and .bx from the inputs, .h from the main heading, :host and .i from body text, .lb from field labels, .ck input and .cd label from the site's checkboxes and option cards when it has them (else from its inputs and buttons).
-- Set :host's font-family, color and size, and .f's background to the page's background.
-- Keep the layout working: don't change display, grid or flex on .f, .g, .fl, .ch, .cd, .ac, and don't hide anything.
-- No url(), @import, @font-face or expressions.
-Answer with JSON {"css": "...", "fonts": ["each font family the css uses"], "notes": ["what you copied, short"]}.`;
-
-const OUT_SCHEMA = {
-  type: "object",
-  properties: { css: { type: "string" }, fonts: { type: "array", items: { type: "string" } }, notes: { type: "array", items: { type: "string" } } },
-  required: ["css", "fonts", "notes"],
-  additionalProperties: false,
-};
-
-export type SourceCaller = (p: { system: string; user: string; schema: object; maxTokens: number }) => Promise<{ text: string; usage: Anthropic.Beta.BetaUsage } | null>;
-
 export function sourceText(src: PageSource): string {
   return [
     `SITE ${src.url}`,
@@ -127,27 +93,4 @@ export function sourceText(src: PageSource): string {
     `HTML\n${src.html || "(empty: the page is built by JavaScript)"}`,
     ...src.css.map((s) => `STYLESHEET ${s.url}\n${s.text}`),
   ].join("\n\n");
-}
-
-/** Claude's stylesheet from the page source, cleaned, with the fonts it uses. One more try when the first can't be
- * used (no JSON, links that were dropped to nothing, or no button). Null when neither can. */
-export async function skinFromSource(call: SourceCaller, src: PageSource): Promise<{ css: string; faces: Face[]; notes: string[]; usage: Anthropic.Beta.BetaUsage } | null> {
-  if (!src.css.length && !src.html) return null;
-  const user = sourceText(src);
-  for (let attempt = 0; attempt < 2; attempt++) {
-    const out = await call({ system: SYSTEM, user: attempt ? `${user}\n\nThe last answer couldn't be used. Answer with the JSON only, and style .bt, .in and :host.` : user, schema: OUT_SCHEMA, maxTokens: 16000 }).catch(() => null);
-    if (!out) continue;
-    let j: { css?: unknown; fonts?: unknown; notes?: unknown };
-    try {
-      j = JSON.parse(out.text) as typeof j;
-    } catch {
-      continue;
-    }
-    const css = cleanSkin(typeof j.css === "string" ? j.css : "");
-    if (!css || !/\.bt\b/.test(css)) continue;
-    const used = new Set((Array.isArray(j.fonts) ? j.fonts : []).map((f) => String(f).replace(/^["']|["']$/g, "").toLowerCase()));
-    const faces = src.faces.filter((f) => used.has(f.family.toLowerCase()) || css.toLowerCase().includes(f.family.toLowerCase()));
-    return { css, faces, notes: Array.isArray(j.notes) ? j.notes.map(String).slice(0, 12) : [], usage: out.usage };
-  }
-  return null;
 }

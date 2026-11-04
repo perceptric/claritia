@@ -185,9 +185,26 @@ schema editor's undo, preview and versions.
 - Templates, starter kits and the MCP's `create_form` make Studio pages (`src/lib/studio/templatePage.ts`); the MCP's
   `set_form_page` writes a page's HTML.
 - A form that reads the site's own form (Share › Your own form) has no page: no Build tab, and it opens on Share.
-- Each published version keeps its format, so the server checks a send against the version that was shown. A live
-  version from before the Studio keeps running as it was until the form is published again.
-- Running cost: $0 at Beta (50 teams) and Growth (500 teams). The move is code only, with no Claude call.
+- **Live forms too** (123): a live version from before the Studio is turned into its page as it's read
+  (`studioPublic` in `src/lib/forms/submit.ts`, one conversion in `src/lib/studio/liveForm.ts`), so every visitor
+  gets a Studio page. The look is the kit's Studio stylesheet, the gallery style its kit was made for ("style:<id>"),
+  or the plain one. What the server does after a send stays exactly as it was: the meeting it books with every route,
+  the copy of answers, the auto-reply, alerts, consent and spam checks. After the answer goes out, the page is kept as
+  a new version in one step (`form_to_studio`, `src/lib/studio/persist.ts`): only while the version read is still
+  live, the draft only while it's still the older kind, the form's state, look and publish time untouched. Opening the
+  form in the app does the same.
+- Sends: checked against the page, or against an older version the visitor started on (also turned into a page). A
+  visitor who loaded the older form before it turned is checked against the form they filled, so no send is lost. A
+  stored form that can't be turned (it fails the checker) is served as it is, in the script's neutral look.
+- **No old look anywhere.** `form_public` no longer hands out the kit's tokens, skin or design system; the form script
+  and the app's preview take only the page's stylesheet. Deleted: the design-system compiler for forms
+  (`src/lib/design/web.ts`, `form.ts`), the brand skin (`src/lib/brand/skin.ts`, its font route, the runner's skin
+  step) and the runner's look check (`src/lib/brand/look.ts`). Kit tokens and the design system stay for booking pages
+  and emails.
+- Running cost: $0 added at Beta (50 teams) and Growth (500 teams): the move is code only, with no Claude call, and a
+  version is written once a form. It removes the runner's skin and look check: about $11 less at Beta and $110 less at
+  Growth a month (the skin's $6 and $60 from docs/brand-skin.md, the look check's about $5 and $50 from
+  docs/form-builder.md; check).
 
 ## Part 9. Data (migration 112)
 

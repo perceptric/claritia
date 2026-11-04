@@ -153,7 +153,7 @@ function db(o: { slots?: boolean; ctxFails?: boolean } = {}) {
   return { rpc, calls };
 }
 
-const pub = (body: Form): PublicForm => ({ id: "0192f3a1-0000-7000-8000-0000000000ff", workspace_id: "w", version: 1, status: "live", body, tokens: {}, logo_url: null });
+const pub = (body: Form): PublicForm => ({ id: "0192f3a1-0000-7000-8000-0000000000ff", workspace_id: "w", version: 1, status: "live", body, logo_url: null });
 const send = (rpc: Rpc, body: Form, answers: Record<string, unknown>, secret = SECRET) =>
   acceptFill(rpc, pub(body), { v: 1, version: 1, key: "k".repeat(20), answers, ms: 5000, trap: "" }, { custom: [] }, { secret, now: NOW });
 

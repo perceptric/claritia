@@ -1,5 +1,9 @@
 # Brand skin: forms that look like the site
 
+Status: removed (123). Forms take their look from the brand's Form Studio stylesheet (`docs/forms-chat-plan.md`);
+the skin, its font route and the runner's skin step are deleted. `src/lib/brand/skinCapture.ts` stays: Tia's site read
+uses it. This page stays as history.
+
 A brand kit's colors and font only go so far. Many sites draw their controls with layers and states that tokens can't
 describe: Duolingo's button is a `::before` layer with a 4px bottom shadow that drops when pressed, its inputs get their
 box from a wrapper, its labels are small all-caps text, and its font is its own. The skin copies all of that.

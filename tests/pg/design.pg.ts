@@ -58,7 +58,7 @@ test("two saves from the same rev at once: one lands, the other is refused, noth
   await assert.rejects(save(other.user, kit, a, 2), /not found/);
 });
 
-test("a draft reaches the live form only when published, and only a member publishes", async () => {
+test("a draft goes live on the kit only when published, only a member publishes, and forms never carry it", async () => {
   const { ws, user, kit } = await workspace();
   const r = checkForm(TEMPLATES.find((t) => t.key === "demo")!.form());
   assert.ok("form" in r);
@@ -66,8 +66,10 @@ test("a draft reaches the live form only when published, and only a member publi
   await q(`select form_publish($1, $2, $3)`, [id, user, r.form]);
   const draft = { globals: { button: { base: { "border-top-left-radius": "999px" } } } };
   await save(user, kit, draft, 0);
-  const live = async () => (await q(`select form_public($1) as f`, [id]))[0].f.design;
-  assert.deepEqual(await live(), {}, "saving the draft doesn't change the live form");
+  // Emails and booking pages read the kit's published design; a form's look is its Studio stylesheet (123).
+  const live = async () => (await q(`select design_live from brand_kits where id = $1`, [kit]))[0].design_live ?? {};
+  assert.deepEqual(await live(), {}, "saving the draft doesn't publish it");
+  assert.ok(!("design" in (await q(`select form_public($1) as f`, [id]))[0].f), "the live form never carries the design system");
   const uses = await asUser<{ live_forms: number; changed: boolean }>(user, `select brand_kit_design_uses($1) as r`, [kit]);
   assert.equal(uses.live_forms, 1);
   assert.equal(uses.changed, true);

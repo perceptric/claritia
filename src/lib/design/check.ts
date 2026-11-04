@@ -4,17 +4,15 @@
 // no words, merge tags without a fallback, and raw colors that are nearly a variable. "block" notes stop a send.
 
 import { contrast } from "../forms/brand.ts";
-import { allFields, isContent, type Form } from "../forms/schema.ts";
 import type { Tokens } from "../forms/brand.ts";
 import { mergeGaps } from "../workflows/merge.ts";
-import { literal, resolve } from "./cascade.ts";
+import { literal } from "./cascade.ts";
 import { compileEmail, emailText } from "./email/compile.ts";
 import { expandComponents } from "./email/components.ts";
 import { elements, type EmailDoc } from "./email/doc.ts";
 import type { EmailPartKey } from "./email/parts.ts";
 import { resolveEmail, type EmailBp, type EmailState } from "./email/style.ts";
-import { allVariables, readFormDesign, type DesignSystem, type Variable } from "./model.ts";
-import type { PartKey } from "./parts.ts";
+import { allVariables, type DesignSystem, type Variable } from "./model.ts";
 import type { Prop } from "./props.ts";
 
 export type DesignNote = { level: "block" | "warn"; text: string; id?: string };
@@ -161,50 +159,4 @@ function partOf(type: string): EmailPartKey[] {
     default:
       return [];
   }
-}
-
-// Forms ----------------------------------------------------------------------------------------------------------------
-
-export function checkFormDesign(system: DesignSystem, form: Form, tokens: Partial<Tokens> = {}): DesignNote[] {
-  const out: DesignNote[] = [];
-  const vars = allVariables(system, tokens);
-  const varMap = new Map(vars.map((v) => [v.id, v]));
-  const design = readFormDesign(form.design, new Set(allFields(form).map((f) => f.id)), system, tokens);
-  const val = (id: string, part: PartKey, prop: Prop, bp: "base" | "phone" = "base") => {
-    const r = resolve(system, design, { id, part }, bp)[prop];
-    return r ? literal(r.value, varMap) : undefined;
-  };
-  const formBg = hex(val("form", "form", "background-color")) ?? "#ffffff";
-  const text = (fg: string | undefined, bg: string, id: string, what: string, size: string | undefined, weight?: string) => {
-    const f = hex(fg);
-    if (!f) return;
-    const ratio = contrast(f, bg);
-    const need = needs(px(size, px(val("form", "form", "font-size")) ?? 16), weight);
-    if (ratio < need) out.push({ level: "warn", id, text: `${what} is hard to read (${ratio.toFixed(1)}:1, needs ${need}:1).` });
-  };
-  text(val("form", "title", "color") ?? val("form", "form", "color"), formBg, "form", "The title", val("form", "title", "font-size"), val("form", "title", "font-weight"));
-  const btnBg = hex(val("form", "button", "background-color")) ?? formBg;
-  text(val("form", "button", "color"), btnBg, "form", "The button's words", val("form", "button", "font-size"), val("form", "button", "font-weight"));
-  const btnH = px(val("form", "button", "height", "phone")) ?? px(val("form", "button", "min-height", "phone"));
-  if (btnH !== null && btnH < 44) out.push({ level: "warn", id: "form", text: `The button is ${btnH}px tall on phones; 44px is easy to tap.` });
-  for (const f of allFields(form)) {
-    if (f.type === "image" && f.content?.src && !f.content.alt?.trim()) out.push({ level: "warn", id: f.id, text: "An image has no alt text." });
-    if (isContent(f.type) || f.type === "hidden") continue;
-    const color = val(f.id, "label", "color") ?? val("form", "form", "color");
-    const bg = hex(val(f.id, "field", "background-color")) ?? formBg;
-    text(color, bg, f.id, `The label of ${f.label}`, val(f.id, "label", "font-size", "phone"), val(f.id, "label", "font-weight"));
-    const inBg = hex(val(f.id, "input", "background-color")) ?? bg;
-    text(val(f.id, "input", "color") ?? color, inBg, f.id, `What people type in ${f.label}`, val(f.id, "input", "font-size"));
-    const size = px(val(f.id, "label", "font-size", "phone"));
-    if (size !== null && size < 12) out.push({ level: "warn", id: f.id, text: `The label of ${f.label} is ${size}px on phones.` });
-    const h = px(val(f.id, "input", "min-height", "phone")) ?? px(val(f.id, "input", "height", "phone"));
-    if (h !== null && h < 44 && ["text", "email", "phone", "number", "url", "dropdown", "country", "date"].includes(f.type)) out.push({ level: "warn", id: f.id, text: `${f.label} is ${h}px tall on phones; 44px is easy to tap.` });
-    for (const part of ["label", "input"] as PartKey[])
-      for (const prop of ["color", "background-color"] as Prop[]) {
-        const own = design.styles?.[f.id]?.[part]?.base?.[prop];
-        const near = own ? nearVariable(own, vars) : null;
-        if (near) out.push({ level: "warn", id: f.id, text: `${own} is nearly ${near.name}. Use the variable.` });
-      }
-  }
-  return out;
 }

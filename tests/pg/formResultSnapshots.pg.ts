@@ -45,7 +45,7 @@ test("a result is saved once, a repeat keeps the first, and a new version leaves
   const v1 = quote(100);
   const id = (await q(`insert into forms (workspace_id, name, draft) values ($1, 'Quote', $2) returning id`, [ws, v1]))[0].id as string;
   const version = (await q(`select form_publish($1, $2, $3) as v`, [id, user, v1]))[0].v as number;
-  const pub: PublicForm = { id, workspace_id: ws, version, status: "live", body: v1, tokens: {}, logo_url: null };
+  const pub: PublicForm = { id, workspace_id: ws, version, status: "live", body: v1, logo_url: null };
   const fill = { v: 1, version, key: "q".repeat(16) + uuid7().replace(/-/g, "").slice(0, 20), answers: { e: "ana@acme.com", rooms: "20", total: 1 }, ms: 5000 };
 
   const first = await acceptFill(rpc, pub, fill, { custom: [] });
@@ -96,7 +96,7 @@ test("Email my results: only the browser that sent the fill can ask, and it queu
   const id = (await q(`insert into forms (workspace_id, name, draft) values ($1, 'Quote', $2) returning id`, [ws, body]))[0].id as string;
   const version = (await q(`select form_publish($1, $2, $3) as v`, [id, user, body]))[0].v as number;
   const key = "m".repeat(16) + uuid7().replace(/-/g, "").slice(0, 20);
-  const r = await acceptFill(rpc, { id, workspace_id: ws, version, status: "live", body, tokens: {}, logo_url: null }, { v: 1, version, key, answers: { e: "bo@acme.com", rooms: "3" }, ms: 5000 }, { custom: [] });
+  const r = await acceptFill(rpc, { id, workspace_id: ws, version, status: "live", body, logo_url: null }, { v: 1, version, key, answers: { e: "bo@acme.com", rooms: "3" }, ms: 5000 }, { custom: [] });
   const sid = r.body.id as string;
   const ask = async (k: string, form = id) => (await q(`select form_results_request($1, $2, $3) as r`, [form, sid, k]))[0].r as string;
   assert.equal(await ask("x".repeat(20)), "not_found");
@@ -129,7 +129,7 @@ test("uploads: a fill links only its own form's uploads, once, and only members 
   const mine = await up(a.id);
   const theirs = await up(other.id);
   const send = async (token: string) =>
-    acceptFill(rpc, { id: a.id, workspace_id: ws, version: a.version, status: "live", body, tokens: {}, logo_url: null }, { v: 1, version: a.version, key: "f".repeat(16) + uuid7().replace(/-/g, "").slice(0, 20), answers: { e: "cy@acme.com", cv: token }, ms: 5000 }, { custom: [] });
+    acceptFill(rpc, { id: a.id, workspace_id: ws, version: a.version, status: "live", body, logo_url: null }, { v: 1, version: a.version, key: "f".repeat(16) + uuid7().replace(/-/g, "").slice(0, 20), answers: { e: "cy@acme.com", cv: token }, ms: 5000 }, { custom: [] });
   const one = await send(`up_${mine}:cv.pdf`);
   assert.equal(one.status, 200, JSON.stringify(one.body));
   assert.equal((await q(`select submission_id from form_uploads where id = $1`, [mine]))[0].submission_id, one.body.id);

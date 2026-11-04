@@ -42,7 +42,7 @@ function form(o: { perHour?: number; notify?: boolean } = {}): Form {
   if ("errors" in r) throw new Error(r.errors.join(" "));
   return r.form;
 }
-const pub = (body: Form, version = 1): PublicForm => ({ id: FORM, workspace_id: WS, version, status: "live", body, tokens: {}, logo_url: null });
+const pub = (body: Form, version = 1): PublicForm => ({ id: FORM, workspace_id: WS, version, status: "live", body, logo_url: null });
 const fill = { v: 1, version: 1, key: "k".repeat(20), answers: { em: "ana@acme.com" }, ms: 5000, trap: "" };
 
 /** A send's database: records each call with its arguments; form_submit_all as the database answers it. */

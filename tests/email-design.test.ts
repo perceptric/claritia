@@ -236,7 +236,7 @@ test("client view: what a mail app ignores is left out, and fonts fall back to t
 });
 
 test("design check: hard-to-read text, alt text, buttons, small text, links, merge tags and near colors", async () => {
-  const { checkEmailDesign, checkFormDesign, hex } = await import("../src/lib/design/check.ts");
+  const { checkEmailDesign, hex } = await import("../src/lib/design/check.ts");
   assert.equal(hex("rgb(255, 0, 0)"), "#ff0000");
   assert.equal(hex("#abc"), "#aabbcc");
   assert.equal(hex("rgba(0,0,0,0.5)"), null, "see-through colors aren't judged");
@@ -277,13 +277,6 @@ test("design check: hard-to-read text, alt text, buttons, small text, links, mer
   // The starting email passes.
   const start = (await import("../src/lib/design/email/doc.ts")).emptyEmailDoc();
   assert.deepEqual(checkEmailDesign(sys(), start, DEFAULT_TOKENS).filter((n) => !/button is/.test(n.text)), []);
-  // Forms.
-  const { checkForm, emptyForm } = await import("../src/lib/forms/schema.ts");
-  const r = checkForm({ ...emptyForm(), steps: [{ id: "s", fields: [{ id: "a", key: "email", type: "email", label: "Email", required: true }] }], design: { styles: { a: { label: { base: { color: "#dddddd" } }, input: { phone: { "min-height": "30px" } } } } } });
-  assert.ok("form" in r);
-  const fn = checkFormDesign(sys(), r.form, DEFAULT_TOKENS);
-  assert.ok(fn.some((n) => /label of Email is hard to read/.test(n.text)));
-  assert.ok(fn.some((n) => /30px tall on phones/.test(n.text)));
 });
 
 test("components: save, reuse with props, lock, change everywhere, detach and delete", async () => {

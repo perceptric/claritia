@@ -79,7 +79,7 @@ try {
   check(t.muted === "#6b7280", `light: gray text (${t.muted})`);
   check(light.forms.some((f) => f.button === "Talk to sales" && f.fields.map((x) => x.label).join() === "Work email,Company,Message"), "light: the contact form's fields and button text");
   check(light.logo === "https://cdn.example.com/acme-logo.svg", "light: the logo");
-  check(light.pages.length === 2 && light.pages[1].endsWith("/light/contact") && !!light.formShot, "light: the contact page was read and its form captured");
+  check(light.pages.length === 2 && light.pages[1].endsWith("/light/contact"), "light: the contact page was read");
 
   const dark = await scanSite(`${base}/dark/`, opts);
   const d = dark.tokens;

@@ -188,7 +188,7 @@ async function accept(fm: Form, answers: Record<string, unknown>, opts: { repeat
     }
     return { data: null, error: null };
   };
-  const pub: PublicForm = { id: "0192f3a1-0000-7000-8000-0000000000ff", workspace_id: "w", version: 1, status: "live", body: fm, tokens: {}, logo_url: null };
+  const pub: PublicForm = { id: "0192f3a1-0000-7000-8000-0000000000ff", workspace_id: "w", version: 1, status: "live", body: fm, logo_url: null };
   const r = await acceptFill(rpc, pub, { v: 1, version: 1, key: "k".repeat(20), answers: { e: "ana@acme.com", ...answers }, ms: 5000, trap: "" }, { custom: [] }, { test: opts.test });
   assert.equal(r.status, 200, JSON.stringify(r.body));
   return { body: r.body as { result?: { values: Record<string, number | null>; outcome?: { id: string; title: string } } }, saves };

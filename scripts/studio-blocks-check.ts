@@ -2,7 +2,9 @@
 // a price that adds up as people answer, a hidden deposit and its payment, a score's outcome by show-if, a grid and a
 // ranking that send their answers, an extra picked and then hidden by a later answer that is never sent or charged,
 // a template turned into a page whose skip passes over a page, and templates in the website's styles (Poster's
-// yellow stage and black frames, Grove's picture beside the form) with half-width fields side by side. A small server stands in for the form's read and
+// yellow stage and black frames, Grove's picture beside the form) with half-width fields side by side, and a form
+// live from before the Studio, served as the page it turns into (src/lib/forms/submit.ts studioPublic), whose send
+// keeps the older form's field ids. A small server stands in for the form's read and
 // records the send.
 //   CHROMIUM_PATH=… node scripts/studio-blocks-check.ts
 import { createServer } from "node:http";
@@ -14,6 +16,7 @@ import { formToPage } from "../src/lib/studio/fromForm.ts";
 import { pageForm } from "../src/lib/studio/page.ts";
 import { styleCssById } from "../src/lib/studio/styleCss.ts";
 import { templateDraft } from "../src/lib/studio/templatePage.ts";
+import { studioPublic } from "../src/lib/forms/submit.ts";
 import { buildForms } from "./build-forms.mts";
 
 const failures: string[] = [];
@@ -61,6 +64,10 @@ const GROVE = "88888888-8888-4888-8888-888888888888";
 const inquiry = templateById("agency.project-inquiry")!;
 const poster = templateDraft(inquiry, styleCssById("poster"));
 const grove = templateDraft(inquiry, styleCssById("grove"));
+// A form live from before the Studio, in a kit made for Poster: served as the page it becomes.
+const OLDER = "99999999-9999-4999-8999-999999999999";
+const olderBody = ready(templateForm(inquiry));
+const older = studioPublic({ id: OLDER, workspace_id: "w", version: 4, status: "live", body: olderBody, logo_url: null, studio_css: null, kit_notes: ["style:poster"] });
 
 const formsJs = await buildForms();
 const sent: { id: string; body: Record<string, unknown> }[] = [];
@@ -82,9 +89,10 @@ const server = createServer((req, res) => {
   if (u === `/api/forms/${SKIPS}`) return json({ id: SKIPS, version: 1, status: "live", body: skips, tokens: {}, logo_url: null });
   if (u === `/api/forms/${POSTER}`) return json({ id: POSTER, version: 1, status: "live", body: poster, tokens: {}, logo_url: null });
   if (u === `/api/forms/${GROVE}`) return json({ id: GROVE, version: 1, status: "live", body: grove, tokens: {}, logo_url: null });
+  if (u === `/api/forms/${OLDER}`) return json({ id: OLDER, version: older.version, status: "live", body: older.body, logo_url: null });
   if (u.startsWith("/api/")) return json({});
   const id = u.slice(1).split("?")[0];
-  if (id === PRICED || id === SKIPS || id === POSTER || id === GROVE)
+  if (id === PRICED || id === SKIPS || id === POSTER || id === GROVE || id === OLDER)
     return res.writeHead(200, { "content-type": "text/html" }).end(`<!doctype html><html><body><script src="/forms/v1.js" async></script><claritia-form form-id="${id}" host="${origin}"></claritia-form></body></html>`);
   res.writeHead(404).end();
 });
@@ -169,6 +177,37 @@ try {
   await page.setViewportSize({ width: 390, height: 800 });
   await page.waitForTimeout(150);
   check((await side()).pos !== "absolute", "Grove: the picture goes across the top on a phone");
+  // A form live from before the Studio: a page in its kit's style, and its send keeps the older form's field ids.
+  await page.setViewportSize({ width: 1100, height: 900 });
+  await page.goto(`${origin}/${OLDER}`);
+  await f.locator("input").first().waitFor();
+  const old = await f.evaluate((host) => { const r = (host as HTMLElement).shadowRoot!; return { page: !!r.querySelector(".page"), stage: r.querySelector(".page") ? getComputedStyle(r.querySelector(".page")!).backgroundColor : "", oldLook: !!r.querySelector(".f") }; });
+  check(old.page && old.stage === "rgb(255, 223, 61)" && !old.oldLook, `an older live form is served as a page in its kit's style (${JSON.stringify(old)})`);
+  const want = olderBody.steps.flatMap((x) => x.fields).filter((x) => x.required && (x.type === "text" || x.type === "email"));
+  // Every question it asks, answered as a visitor would.
+  await f.evaluate((host) => {
+    const r = (host as HTMLElement).shadowRoot!;
+    for (const el of r.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>("input.field, textarea.field")) {
+      if (el.type === "email") el.value = "ana@acme-industries.com";
+      else if (el.type === "url") el.value = "https://acme.com";
+      else if (el.type === "date") el.value = "2027-01-15";
+      else if (el.type === "number") el.value = "5";
+      else el.value = "Acme";
+      el.dispatchEvent(new Event("input", { bubbles: true }));
+    }
+    const groups = new Set<string>();
+    for (const el of r.querySelectorAll<HTMLInputElement>("input[type=radio], input[type=checkbox]")) {
+      if (groups.has(el.name)) continue;
+      groups.add(el.name);
+      el.click();
+    }
+  });
+  await f.getByRole("button", { name: olderBody.submit.label }).click();
+  await page.waitForTimeout(800);
+  const shown = await f.evaluate((host) => [...(host as HTMLElement).shadowRoot!.querySelectorAll(".error, [role=alert]")].map((n) => n.textContent).filter(Boolean).join(" | "));
+  const s2 = sent.find((x) => x.id === OLDER)?.body as { answers?: Record<string, unknown> } | undefined;
+  const keys = Object.keys(s2?.answers ?? {});
+  check(!!s2 && want.every((x) => keys.includes(x.id)), `its send keeps the older form's field ids (${keys.join(",")}${shown ? `; ${shown}` : ""})`);
   check(errors.length === 0, `no page errors: ${errors.join(" | ")}`);
 } finally {
   await browser.close();

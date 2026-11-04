@@ -16,7 +16,6 @@ import { addBlock, duplicateEl, findEl, moveBlock, moveSection, removeEl, type P
 import { insertComponent } from "@/lib/design/email/components";
 import { BLOCK_TYPES, type BlockType, type EmailPartKey } from "@/lib/design/email/parts";
 import type { EmailBp, EmailState } from "@/lib/design/email/style";
-import { designFonts } from "@/lib/design/form";
 import { readSystem, type DesignSystem } from "@/lib/design/model";
 import { CLIENT_LABEL, type Client } from "@/lib/design/props";
 import { Select } from "../Select";
@@ -25,7 +24,7 @@ import { ArrowDown, ArrowUp, Copy, Monitor, Moon, Phone, Redo, Send, Sun, Trash,
 import { askLines, tell } from "../Dialogs";
 import { importAny } from "@/lib/design/email/import";
 import { Button, ErrorNote, IconButton, postJson, errorText } from "../ui";
-import { fontUrl } from "@/lib/design/fonts";
+import { designFonts, fontUrl } from "@/lib/design/fonts";
 import { ElementIcon, Layers, PlusSquare } from "../forms/icons";
 import type { Kit } from "../forms/shared";
 import { useDesignDraft } from "../forms/useDesignDraft";

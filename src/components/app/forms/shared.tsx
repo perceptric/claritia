@@ -1,60 +1,38 @@
 "use client";
 
-// What the Forms screens share: the row shapes, the live preview (the real <claritia-form>, so the builder shows
-// exactly what visitors get), and small controls.
+// What the Forms screens share: the row shapes, the live preview (the real <claritia-form>, so a sheet shows exactly
+// what visitors get), and small controls.
 
-import { useEffect, useMemo, useRef, useState } from "react";
-import { designFonts, formCss } from "@/lib/design/form";
-import { fontUrl } from "@/lib/design/fonts";
-import type { Breakpoint } from "@/lib/design/model";
+import { useEffect, useRef, useState } from "react";
 import type { Tokens } from "@/lib/forms/brand";
 import { allRegions, usesRegions } from "@/lib/forms/regions";
 import type { Form } from "@/lib/forms/schema";
 import type { Tone } from "../ui";
 
 export type FormRow = { id: string; name: string; status: "draft" | "live" | "paused"; draft: Form; draft_rev: number; version: number; brand_kit_id: string | null; published_at: string | null };
-export type Kit = { id: string; skin?: unknown; name: string; tokens: Partial<Tokens>; logo_url: string | null; notes: string[]; source_url: string | null; scan_status: "scanning" | "done" | "failed" | null; scan_error: string | null; scanned_at: string | null; design?: unknown; design_live?: unknown; design_rev?: number; social?: { kind: string; url: string }[] };
+export type Kit = { id: string; name: string; tokens: Partial<Tokens>; logo_url: string | null; notes: string[]; source_url: string | null; scan_status: "scanning" | "done" | "failed" | null; scan_error: string | null; scanned_at: string | null; design?: unknown; design_live?: unknown; design_rev?: number; social?: { kind: string; url: string }[] };
 export type Destination = { id: string; kind: "source" | "slack" | "webhook"; source_id: string | null; name: string; config: { host?: string; rules?: unknown }; paused: boolean; position: number };
 export type SourceRow = { id: string; kind: string; name: string; status: string };
 
 export const STATUS: Record<FormRow["status"], [string, Tone]> = { draft: ["Draft", "gray"], live: ["Published", "green"], paused: ["Paused", "amber"] };
 
-/**
- * The form as visitors see it, from a draft that may not be finished yet. `system` is the design system's draft;
- * `device` draws that breakpoint's styles whatever the window's width is.
- */
-export function FormPreview({ form, tokens, logo, skin, step = 0, done = false, system, device, answers, onBackground }: { form: Form; tokens: Partial<Tokens>; logo?: string | null; skin?: { css: string; fonts: string } | null; step?: number; done?: boolean; system?: unknown; device?: Breakpoint; answers?: Record<string, unknown>; /** The form's own background once drawn ("" when it has none), for the frame around it. */ onBackground?: (color: string) => void }) {
+/** The form as visitors see it (a Form Studio page in its own stylesheet), from a draft that may not be finished yet. */
+export function FormPreview({ form, logo, step = 0, done = false, answers }: { form: Form; logo?: string | null; step?: number; done?: boolean; answers?: Record<string, unknown> }) {
   const ref = useRef<HTMLElement>(null);
   // After a deploy, a page opened before it can't load the form script's new file: say so instead of a blank box.
   const [failed, setFailed] = useState(false);
-  const css = useMemo(() => {
-    try {
-      return formCss(form, tokens, system, { device });
-    } catch {
-      return "";
-    }
-  }, [form, tokens, system, device]);
-  const fontKey = fontUrl(designFonts(system, form.design));
   useEffect(() => {
     let live = true;
     import("@/lib/forms/element").then(
       () => {
-        if (live && ref.current) (ref.current as unknown as { preview: unknown }).preview = { form, tokens, logo: logo ?? null, skin: skin ?? null, step, done, css, ...(fontKey ? { fonts: [fontKey] } : {}), ...(usesRegions(form) ? { regions: allRegions() } : {}), ...(answers ? { answers } : {}) };
-        if (live && onBackground)
-          requestAnimationFrame(() =>
-            requestAnimationFrame(() => {
-              const f = ref.current?.shadowRoot?.querySelector(".f");
-              const bg = f ? getComputedStyle(f).backgroundColor : "";
-              if (live) onBackground(!bg || bg === "transparent" || /rgba\([^)]*,\s*0\)$/.test(bg) ? "" : bg);
-            }),
-          );
+        if (live && ref.current) (ref.current as unknown as { preview: unknown }).preview = { form, logo: logo ?? null, step, done, ...(usesRegions(form) ? { regions: allRegions() } : {}), ...(answers ? { answers } : {}) };
       },
       () => live && setFailed(true),
     );
     return () => {
       live = false;
     };
-  }, [form, tokens, logo, skin, step, done, css, fontKey, answers, onBackground]);
+  }, [form, logo, step, done, answers]);
   if (failed)
     return (
       <div role="alert" className="flex flex-col items-start gap-[8px] text-[13px] text-muted">

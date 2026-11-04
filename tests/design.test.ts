@@ -5,10 +5,8 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { chainKeys, resolve, sourceText } from "../src/lib/design/cascade.ts";
 import { allVariables, readFormDesign, readSystem, setDecl, varKinds, type DesignSystem } from "../src/lib/design/model.ts";
-import { fieldParts, PART_KEYS } from "../src/lib/design/parts.ts";
 import { PROP_NAMES, propDef } from "../src/lib/design/props.ts";
 import { checkValue, safeValue } from "../src/lib/design/values.ts";
-import { compileWeb, partSelector } from "../src/lib/design/web.ts";
 import { addClass, addVariable, classUses, deleteClass, deleteVariable, evalSum, nudgeValue, originOf, ownValue, parseLength, removeClass, renameClass, resetPart, setProp, setsAny, updateVariable, variableUses } from "../src/lib/design/edit.ts";
 
 test("values: each property takes only values of its type, in range", () => {
@@ -161,43 +159,6 @@ test("cascade: defaults, global, class, combo, element; larger breakpoints carry
   assert.equal(resolve(SYS, {}, { id: "x", part: "input" }, "base")["min-height"]?.source.level, "default");
   assert.deepEqual(chainKeys("tablet", "hover"), ["base", "tablet", "base:hover", "tablet:hover"]);
   assert.equal(sourceText({ level: "class", classId: "large", key: "tablet" }, SYS), "Class is-large, Tablet");
-});
-
-test("compiler: layers in order, scoped selectors, variables, breakpoints, states", () => {
-  const design = readFormDesign({ classes: { a: ["boxed", "large"] }, styles: { a: { input: { "base:focus": { "border-top-color": "$brand" } } }, form: { button: { phone: { width: "100%" } } } } }, new Set(["a"]), SYS);
-  const css = compileWeb(SYS, design, ["a"]);
-  assert.ok(css.startsWith("@layer base, g, c-boxed, c-large, e;"), css.slice(0, 80));
-  assert.match(css, /:host\{--v-brand:#0055ff;--v-space-4:16px\}/);
-  assert.match(css, /@layer g\{\n[^@]*\.fl \.lb\{font-weight:600;color:var\(--v-brand\)\}/);
-  assert.match(css, /\.ac \.bt:not\(\.bk\):hover\{opacity:0\.9\}/);
-  assert.match(css, /@media \(max-width: 479px\)\{\n\.fl \.lb\{font-size:13px\}/);
-  assert.match(css, /@layer c-large\{\n\.fl\.c-large\.c-boxed \.lb\{font-size:18px\}/);
-  assert.ok(css.indexOf("@layer c-boxed{") < css.indexOf("@layer c-large{"), "classes in the system's order");
-  assert.match(css, /\.fl\[data-id="a"\] :is\(\.in, \.bx\):focus-within\{border-top-color:var\(--v-brand\)\}/);
-  assert.match(css, /@layer e\{\n[^@]*@media \(max-width: 479px\)\{\n\.ac \.bt:not\(\.bk\)\{width:100%\}/);
-  // Built-in variables keep the names the form's stylesheet already uses.
-  assert.match(compileWeb(readSystem({ globals: { label: { base: { color: "$accent" } } } }), {}, []), /color:var\(--clr-accent\)/);
-  // The builder's device frames apply their breakpoint's rules directly, larger ones too, smaller ones not at all.
-  const tablet = compileWeb(SYS, {}, [], { device: "tablet" });
-  assert.ok(!tablet.includes("@media") && !tablet.includes("font-size:13px"), "a tablet frame has no phone rules and no media queries");
-  assert.match(compileWeb(SYS, {}, [], { device: "phone" }), /\.fl \.lb\{font-size:13px\}/);
-  // A forced state in the builder has the same weight as the real one.
-  assert.equal(partSelector("label", ".fl", "hover", true), ".fl .lb:is(:hover, .clr-force-hover)");
-  // Unused classes aren't written.
-  assert.ok(!compileWeb(SYS, {}, []).includes("c-boxed"));
-});
-
-test("compiler: every part has a selector, states only where they apply, and a bad id can't make a selector", () => {
-  for (const p of PART_KEYS) assert.ok(partSelector(p, ".fl") !== null, p);
-  assert.equal(partSelector("placeholder", ".fl", "hover"), null);
-  assert.equal(partSelector("title", ".fl", "invalid"), null);
-  assert.equal(partSelector("label", ".fl", "invalid"), '.fl:has([aria-invalid="true"]) .lb');
-  assert.equal(partSelector("option", ".fl", "checked"), ".fl .ck:has(:checked)");
-  assert.equal(partSelector("placeholder", ".fl"), ".fl .in::placeholder, .fl .bx .ph");
-  const evil = readFormDesign({ styles: { 'a"]{}body{x': { label: { base: { color: "#000" } } } } }, new Set(['a"]{}body{x']), SYS);
-  assert.ok(!compileWeb(SYS, evil, ['a"]{}body{x']).includes("body"));
-  // Every field type's parts are known parts.
-  for (const t of ["text", "choice", "checkbox", "rating", "heading", "calc", "dropdown"] as const) assert.ok(fieldParts(t).every((p) => PART_KEYS.includes(p)));
 });
 
 test("setDecl sets, replaces and clears, and refuses a bad value", () => {

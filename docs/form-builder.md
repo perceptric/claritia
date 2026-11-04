@@ -158,7 +158,7 @@ The scan runs on the existing runner (`claritia-runner`, Playwright, sleeps when
    - Text and button colors must pass WCAG AA contrast. A failing pair is moved to the nearest passing shade, and the change is noted.
    - Fonts: Google Fonts are linked by name. A font hosted on the customer's own domain is referenced from there for the embed (it runs on their domain). The hosted page uses the font only if the font's server allows it (CORS), else the closest Google Font with a note. Font files are never copied to our servers.
    - If the page blocks the runner (bot wall, login), the chat asks for 1 to 3 colors and a font instead.
-4. **Look check:** the runner renders the new form on top of a screenshot of their form page. Sonnet compares the two images and returns up to 3 token fixes ("radius is 8, theirs is 4"). The fixes are applied as ops the person can undo. One pass only, so it can't loop.
+4. **Look check** (removed in 123: forms take their look from the brand's Form Studio stylesheet): the runner renders the new form on top of a screenshot of their form page. Sonnet compares the two images and returns up to 3 token fixes ("radius is 8, theirs is 4"). The fixes are applied as ops the person can undo. One pass only, so it can't loop.
 
 ### 5.2 The brand kit
 
