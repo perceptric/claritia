@@ -65,6 +65,10 @@ try {
   const toEdit = async () => { if (await $("#exitPrev").isVisible()) await $("#exitPrev").click(); else if (await $("#afterView").isVisible()) await $("#stepBar .sp").first().click(); };
   const toAfter = async () => { await toEdit(); await $("#stepBar .sp.after").click(); };
 
+  // 0. While the form loads, the canvas is blank: the templates never flash before a form
+  await p.waitForFunction(() => !!document.querySelector("#studio")?.shadowRoot?.getElementById("empty"));
+  check(await $("#empty").isHidden(), "nothing shows on the canvas while the form loads");
+
   // 1. A new workspace opens on the templates: every one, by family and search, with nothing covering them
   await $("#tplGrid .tpl").first().waitFor();
   check((await $("#brandDlg").count()) === 0 && (await $("#tpls").isVisible()), "an empty form shows the templates, with no dialog over them");

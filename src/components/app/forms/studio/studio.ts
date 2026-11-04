@@ -676,10 +676,11 @@ ${CAL_CSS}
   let stepAt = 0, done = false;
   function draw() {
     const has = built();
-    $("empty").hidden = has;
+    // Nothing shows until a chat is open: a form that's still loading never flashes the templates.
+    $("empty").hidden = has || !cur;
     host.hidden = !has;
     root.innerHTML = "";
-    if (!has) { emptyUi(); void tplLoad(); runCheck(); return overlay(); }
+    if (!has) { if (cur) { emptyUi(); void tplLoad(); } runCheck(); return overlay(); }
     const st = document.createElement("style");
     st.textContent = `${BASE}\n/* brand */\n${cssFor(PK ? PK.brand : brandOf(cur)?.css || S.hold)}\n/* form */\n${cssFor(PK ? PK.css : body().css)}`;
     const wrap = h("div", { class: S.mode === "edit" ? "cl-root cl-edit" : "cl-root" });

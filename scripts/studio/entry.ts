@@ -13,7 +13,10 @@ let tiaCalls = 0;
 const sends: { id: string; kind: string; name: string; domain: string | null }[] = [];
 const api: StudioApi = {
   start: {},
-  brands: async () => [],
+  brands: async () => {
+    await wait(400);
+    return [];
+  },
   meetings: async () => [
     { id: "11111111-1111-4111-8111-111111111111", name: "Intro call", length: 15 },
     { id: "22222222-2222-4222-8222-222222222222", name: "Product demo", length: 30, dynamic: true, who: "Locations is at least 50 → Enterprise, otherwise anyone on the team" },
