@@ -125,9 +125,17 @@ async function run(width: number, tag: string) {
   await shot("form-popup");
   check(await copyClear(page), `${tag}: the code's Copy button sits above the code`);
   await page.getByRole("button", { name: "Site builder" }).click();
-  check(await page.getByText("In WordPress: add a Custom HTML block and paste.").isVisible(), `${tag}: each builder's steps are in the dropdown`);
+  check(await page.getByText("A Custom HTML block").isVisible(), `${tag}: each builder says where the code goes in the dropdown`);
   await page.getByRole("option", { name: /WordPress/ }).click();
   check(((await page.getByRole("button", { name: "Site builder" }).textContent()) ?? "").includes("WordPress"), `${tag}: picking a builder shows it`);
+  const steps = page.locator("[data-embed-steps]");
+  check((await steps.textContent())?.includes("Add the form in WordPress") === true && (await steps.locator("li").count()) >= 3, `${tag}: the steps for the picked builder sit under the code`);
+  await page.getByRole("button", { name: "Site builder" }).click();
+  await page.getByRole("option", { name: /Framer/ }).click();
+  check((await steps.textContent())?.includes("End of <body> tag") === true, `${tag}: a popup in Framer goes in the site's footer code`);
+  await page.getByRole("radio", { name: "In the page" }).click();
+  check((await steps.textContent())?.includes("width to Fill") === true, `${tag}: in the page in Framer, the steps say to set the width to Fill`);
+  await shot("form-embed-steps");
 
   await way("Email");
   await page.waitForTimeout(200);

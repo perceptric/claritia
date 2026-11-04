@@ -12,7 +12,7 @@ import { Button, ErrorNote, errorText, Segmented, Toggle, type ViewProps } from 
 import { copyText, meetingsApi, Modal, ownZone } from "../meetings/parts";
 import { useLinkBase } from "../views/LinkDomainSettings";
 import { QrCode, signatureHtml } from "../meetings/Share";
-import { BuilderPick, CodeBox, LinkRow, SitePreview } from "../SharePieces";
+import { BuilderPick, CodeBox, EmbedSteps, LinkRow, SitePreview } from "../SharePieces";
 
 export type Pane = "link" | "site" | "email";
 
@@ -114,6 +114,7 @@ export function ShareMeeting({ session, ws, type, wsSlug, onClose, onSingleUse, 
               </div>
             ) : null}
             <CodeBox code={code} bar={<BuilderPick value={plat} onChange={setPlat} />} />
+            <EmbedSteps plat={plat} over={o.mode === "button"} what="calendar" />
             <SitePreview key={o.mode} code={code} after={o.mode === "link" ? `var a=document.querySelector("[data-claritia-book]");a&&a.click();` : ""} still label="How it looks on a site" height={340} />
           </>
         ) : null}

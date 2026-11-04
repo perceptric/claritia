@@ -55,7 +55,7 @@ const LC_ICONS: Record<string, string> = {
 };
 
 const STYLES = `
-:host{all:initial;display:block;container-type:inline-size;font-family:var(--clr-font);font-size:var(--clr-size);color:var(--clr-text);line-height:1.45}
+:host{all:initial;display:block;container-type:inline-size;contain-intrinsic-width:min(640px,100vw);font-family:var(--clr-font);font-size:var(--clr-size);color:var(--clr-text);line-height:1.45}
 *{box-sizing:border-box;font:inherit;color:inherit}
 .f{background:var(--clr-bg);display:flex;flex-direction:column;gap:var(--clr-gap);max-width:var(--clr-width,480px);container-type:inline-size}
 .h{font-family:var(--clr-heading-font);font-size:1.45em;font-weight:600;margin:0;line-height:1.2}

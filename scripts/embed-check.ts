@@ -9,7 +9,9 @@ import { build } from "esbuild";
 import pw from "playwright-core";
 import { checkForm, emptyForm, type Form } from "../src/lib/forms/schema.ts";
 import { formEmbedCode, meetingEmbedCode } from "../src/lib/share/embed.ts";
+import { studioForm } from "../src/lib/studio/liveForm.ts";
 import { pageForm } from "../src/lib/studio/page.ts";
+import { styleCssById } from "../src/lib/studio/styleCss.ts";
 import { buildForms } from "./build-forms.mts";
 
 const failures: string[] = [];
@@ -40,6 +42,13 @@ const twoSteps = (() => {
 const studioPick = ready(
   pageForm({ html: `<form><fieldset><legend>Which plan?</legend><label><input type="radio" name="plan" value="team"> Team</label><label><input type="radio" name="plan" value="ent"> Enterprise</label></fieldset><label for="e">Email</label><input id="e" name="email" type="email" required><button type="submit">Send</button></form><section data-cl-thanks hidden><h2>Thanks</h2></section>`, css: "", brand: "", after: { kind: "thanks" } }).form,
 );
+// A form in a gallery style, as the Studio makes it, for a site box that sizes to fit what's in it (Framer's Fit).
+const STYLED = "55555555-5555-4555-8555-555555555555";
+const styled = (() => {
+  const r = studioForm(plain, styleCssById("grove"));
+  if ("error" in r) throw new Error(r.error);
+  return r.form;
+})();
 const formsJs = await buildForms();
 // The npm package's React components, bundled the way a site's build would (packages/embed).
 const reactJs = (
@@ -75,6 +84,7 @@ const server = createServer((req, res) => {
   if (u === `/api/forms/${PAGE}`) return json({ id: PAGE, version: 1, status: "live", body: studio, tokens: {}, logo_url: null });
   if (u === `/api/forms/${STEPS}`) return json({ id: STEPS, version: 1, status: "live", body: twoSteps, tokens: {}, logo_url: null });
   if (u === `/api/forms/${PAGE2}`) return json({ id: PAGE2, version: 1, status: "live", body: studioPick, tokens: {}, logo_url: null });
+  if (u === `/api/forms/${STYLED}`) return json({ id: STYLED, version: 1, status: "live", body: styled, logo_url: null });
   if (u.startsWith("/api/")) return json({});
   if (u.startsWith("/book/")) return res.writeHead(200, { "content-type": "text/html" }).end(`<!doctype html><body style="margin:0"><h1 id="cal">Pick a time</h1></body>`);
   const page = pages.get(u.split("?")[0]!);
@@ -99,6 +109,18 @@ try {
   await desk.goto(add("/inline", formEmbedCode(origin, FORM, { mode: "inline" })));
   await host(desk).locator(".f").first().waitFor();
   check((await host(desk).locator(".pop").count()) === 0, "in the page: the form is in the page, not over it");
+
+  // In a box that sizes to fit what's in it (Framer's Fit, an inline block, a flex row): the form keeps a real width
+  for (const [name, wrap] of [["fit content", "width:fit-content"], ["inline block", "display:inline-block"], ["flex row", "display:flex"]] as const) {
+    await desk.goto(add(`/fit-${name.replace(" ", "-")}`, `<div style="${wrap}"><div>${formEmbedCode(origin, STYLED, { mode: "inline" }).replace("<claritia-form", '<claritia-form style="flex:none"')}</div></div>`));
+    await host(desk).locator(".cl-root form").waitFor();
+    const w = (await host(desk).boundingBox())?.width ?? 0;
+    check(w >= 560, `in a box set to ${name}: the form keeps its width (${Math.round(w)}px)`);
+  }
+  await phone.goto(add("/fit-phone", `<div style="width:fit-content">${formEmbedCode(origin, STYLED, { mode: "inline" })}</div>`));
+  await host(phone).locator(".cl-root form").waitFor();
+  const pw2 = (await host(phone).boundingBox())?.width ?? 0;
+  check(pw2 <= 390 && pw2 >= 300, `in a fit box on a phone: the form fits the screen (${Math.round(pw2)}px)`);
 
   // Full page
   await desk.goto(add("/full", formEmbedCode(origin, FORM, { mode: "full" })));

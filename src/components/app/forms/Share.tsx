@@ -13,7 +13,7 @@ import { formEmbedCode, overPage, type FormEmbed, type FormMode, type Opens, typ
 import { emailQuestionHtml, firstQuestion } from "@/lib/share/emailForm";
 import { viaLink } from "@/lib/share/channels";
 import { QrCode } from "../meetings/Share";
-import { BuilderPick, CodeBox, SitePreview, useCopied } from "../SharePieces";
+import { BuilderPick, CodeBox, EmbedSteps, SitePreview, useCopied } from "../SharePieces";
 import { useLinkBase } from "../views/LinkDomainSettings";
 import { Badge, ErrorNote, errorText, must, postJson, useQuery, type ViewProps } from "../ui";
 import { saveName } from "./formModel";
@@ -598,6 +598,7 @@ function EmbedPane({ form, row }: Props) {
         </div>
       ) : null}
       <CodeBox code={code} embed bar={<BuilderPick value={plat} onChange={setPlat} />} />
+      <EmbedSteps plat={plat} over={overPage(o.mode)} />
     </>
   );
 }

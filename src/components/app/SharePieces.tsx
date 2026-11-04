@@ -5,7 +5,7 @@
 // dialog and Settings › Link domain.
 
 import { useMemo, useState } from "react";
-import { PLATS, type Plat } from "@/lib/share/embed";
+import { embedSteps, PLATS, type Plat } from "@/lib/share/embed";
 import { Check, Copy, ExternalLink } from "../Icons";
 import { BrandLogo } from "./BrandLogo";
 import { copyText } from "./CopyButton";
@@ -90,6 +90,27 @@ export function BuilderPick({ value, onChange }: { value: Plat; onChange: (v: Pl
       options={[...PLATS.map((p) => ({ value: p.v, label: p.l, hint: p.how })), { value: "dev" as const, label: "For developers", hint: "Claritia.open(), events and React" }]}
       onChange={(v) => (v === "dev" ? void window.open("/developers/embed", "_blank", "noopener") : onChange(v))}
     />
+  );
+}
+
+/** The steps for putting the code on a site in the picked builder, under its code box. */
+export function EmbedSteps({ plat, over, what = "form" }: { plat: Plat; over: boolean; what?: string }) {
+  const p = PLATS.find((x) => x.v === plat) ?? PLATS[0]!;
+  return (
+    <div data-embed-steps="" className="rounded-[10px] bg-card px-4 py-3.5 shadow-rest">
+      <div className="mb-2.5 flex min-w-0 flex-wrap items-center gap-2 text-[13px] font-medium text-ink">
+        <PlatMark p={p} />
+        {p.v === "html" ? `Add the ${what} to your site` : `Add the ${what} in ${p.l}`}
+      </div>
+      <ol className="m-0 flex list-none flex-col gap-2 p-0">
+        {embedSteps(plat, over).map((s, i) => (
+          <li key={i} className="flex min-w-0 items-start gap-2.5 text-[13px] leading-[1.5] text-body">
+            <span className="mt-[1px] inline-flex size-[18px] shrink-0 items-center justify-center rounded-full bg-paper-deep text-[11px] font-medium text-ink">{i + 1}</span>
+            <span className="min-w-0 wrap-break-word">{s}</span>
+          </li>
+        ))}
+      </ol>
+    </div>
   );
 }
 

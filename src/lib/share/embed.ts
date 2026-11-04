@@ -87,9 +87,36 @@ export function meetingEmbedCode(origin: string, type: string, o: MeetingEmbed):
 /** The site builders Share has steps for. */
 export type Plat = "webflow" | "wordpress" | "framer" | "squarespace" | "html";
 export const PLATS: { v: Plat; l: string; domain?: string; how: string }[] = [
-  { v: "webflow", l: "Webflow", domain: "webflow.com", how: "In Webflow: add an Embed element where it goes and paste." },
-  { v: "wordpress", l: "WordPress", domain: "wordpress.org", how: "In WordPress: add a Custom HTML block and paste." },
-  { v: "framer", l: "Framer", domain: "framer.com", how: "In Framer: Insert, Embed, then paste as HTML." },
-  { v: "squarespace", l: "Squarespace", domain: "squarespace.com", how: "In Squarespace: add a Code block and paste." },
-  { v: "html", l: "Any site", how: "Paste it where it should show, before </body> for the ones over the page." },
+  { v: "webflow", l: "Webflow", domain: "webflow.com", how: "A Code Embed element" },
+  { v: "wordpress", l: "WordPress", domain: "wordpress.org", how: "A Custom HTML block" },
+  { v: "framer", l: "Framer", domain: "framer.com", how: "An Embed, set to HTML" },
+  { v: "squarespace", l: "Squarespace", domain: "squarespace.com", how: "A Code block" },
+  { v: "html", l: "Any site", how: "The page's HTML" },
 ];
+
+/**
+ * How to put the code on a site in each builder, step by step. `over`: the code shows over the page (a popup, slider,
+ * popover, side tab or floating button), so it goes in the site's footer code where the builder has one.
+ */
+export function embedSteps(p: Plat, over: boolean): string[] {
+  switch (p) {
+    case "webflow":
+      return over
+        ? ["Open Site settings, then Custom code.", "Paste the code in Footer code (Before </body> tag).", "Click Save, then publish the site."]
+        : ["Open the page in the Webflow Designer.", "Open the Add panel and drag a Code Embed element to where the form goes.", "Paste the code, then click Save and close.", "Publish the site. The form shows on the published site."];
+    case "wordpress":
+      return [over ? "Open any page in the WordPress editor." : "Open the page in the WordPress editor.", over ? "Click + at the end of the page and add a Custom HTML block." : "Click + where the form goes and add a Custom HTML block.", "Paste the code.", "Click Update or Publish."];
+    case "framer":
+      return over
+        ? ["Open Site settings, then General, then Custom code.", "Paste the code in End of <body> tag.", "Click Save, then publish the site."]
+        : ["Open the page in Framer.", "Click Insert, search for Embed and drag it to where the form goes.", "In the right panel, set the type to HTML and paste the code.", "Set its width to Fill, or a fixed width of 600 or more.", "Set its height to Fit, or a fixed height tall enough for the whole form.", "Publish the site."];
+    case "squarespace":
+      return over
+        ? ["Open Settings, then Advanced, then Code injection.", "Paste the code in Footer.", "Click Save. Squarespace runs scripts on the Business plan and up."]
+        : ["Edit the page and click Add block where the form goes.", "Pick Code and paste the code.", "Click out of the block, then Save. Squarespace runs scripts on the Business plan and up."];
+    default:
+      return over
+        ? ["Open your site's HTML.", "Paste the code just before </body>. Put it in your shared footer to show it on every page.", "Save and publish."]
+        : ["Open the page's HTML.", "Paste the code where the form should show.", "Save and publish."];
+  }
+}
