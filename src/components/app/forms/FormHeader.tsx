@@ -74,9 +74,6 @@ export function FormHeader({
       </button>
       <span className="text-faint">/</span>
       {onRename ? <NameInput value={name} onChange={onRename} /> : <span className="max-w-[40vw] truncate text-ink">{name}</span>}
-      <span className="max-[560px]:hidden">
-        <StatePill state={state} />
-      </span>
       {tabs ? <span aria-hidden="true" className="mx-[8px] h-[20px] w-px shrink-0 bg-line-strong max-[1100px]:hidden" /> : null}
       {tabs ? (
         <nav aria-label="Form" className="self-center max-[1100px]:order-last max-[1100px]:-mx-[16px] max-[1100px]:ml-0 max-[1100px]:w-[calc(100%+28px)] max-[1100px]:border-t max-[1100px]:border-line max-[1100px]:px-[6px]">
@@ -97,6 +94,10 @@ export function FormHeader({
       ) : null}
       <span className="flex-1" />
       {saving ? <span className="text-[12px] font-normal whitespace-nowrap text-muted max-[860px]:hidden">Saving</span> : null}
+      {/* The form's state sits by the button that changes it, apart from the tabs. */}
+      <span data-form-state="" className="max-[560px]:hidden">
+        <StatePill state={state} />
+      </span>
       {tools}
       {more}
       <button ref={actionRef} type="button" data-form-action className={BTN} disabled={action.disabled} onClick={action.onClick} aria-label={action.problems ? `${action.label}, ${action.problems} ${action.problems === 1 ? "problem" : "problems"} to fix` : undefined}>

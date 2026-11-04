@@ -6,6 +6,7 @@ import { checkStudioPage } from "../../../../lib/studio/check";
 import { cleanPage } from "../../../../lib/studio/page";
 import { pageNumbers } from "../../../../lib/studio/numbers";
 import { styleCssById, styleName } from "../../../../lib/studio/styleCss";
+import { THEMES } from "../../../../lib/forms/gallery/themes";
 import { cleanRoute, OP_LABEL, PAST_ROUTES, ROUTE_OPS, routeKind, routeMeeting, routeStart } from "../../../../lib/studio/routes";
 import { linkProblem, SCHEDULERS } from "../../../../lib/forms/schedule";
 import { INDUSTRIES, industryOf, isRtl, languageName, profileWords, recipeText } from "../../../../lib/studio/industries";
@@ -124,11 +125,27 @@ input, textarea { user-select: text; -webkit-user-select: text; }
 .work { flex: 1; min-height: 0; display: flex; }
 .steps { flex: 0 1 auto; min-width: 0; display: flex; align-items: center; gap: 6px; overflow-x: auto; scrollbar-width: none; padding: 2px; }
 .steps::-webkit-scrollbar { display: none; }
-.steps .sp { height: 28px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--line); background: var(--bg); color: var(--body); font-size: 12.5px; white-space: nowrap; display: inline-flex; align-items: center; gap: 6px; flex: none; max-width: 220px; }
+.steps { gap: 0; }
+.steps .sp { height: 30px; padding: 0 6px; border-radius: 8px; border: 0; background: transparent; color: var(--muted); font-size: 12.5px; white-space: nowrap; display: inline-flex; align-items: center; gap: 7px; flex: none; max-width: 200px; }
 .steps .sp span:last-child { overflow: hidden; text-overflow: ellipsis; }
-.steps .sp:hover { border-color: var(--line-strong); color: var(--ink); }
-.steps .sp[aria-pressed="true"] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
-.steps .sp .n { font: 500 11px var(--mono); opacity: .65; }
+.steps .sp:hover { color: var(--ink); background: var(--hover); }
+.steps .sp .n { width: 20px; height: 20px; border-radius: 999px; border: 1.5px solid var(--line-strong); display: inline-flex; align-items: center; justify-content: center; flex: none; font: 600 10.5px var(--sans); color: var(--muted); background: var(--bg); }
+.steps .sp[aria-pressed="true"] { color: var(--ink); font-weight: 500; }
+.steps .sp[aria-pressed="true"] .n { background: var(--ink); border-color: var(--ink); color: var(--bg); }
+.steps .sp.done .n { background: var(--signal-soft); border-color: var(--signal); color: var(--signal); }
+.steps .conn { width: 18px; height: 1.5px; border-radius: 1px; background: var(--line-strong); flex: none; }
+.steps .sp.all { width: 30px; padding: 0; justify-content: center; margin-left: 6px; color: var(--muted); }
+.steps .sp.all[aria-pressed="true"] { background: var(--paper-deep); color: var(--ink); }
+.themes { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.themes .th { border: 0; background: transparent; padding: 0; display: flex; flex-direction: column; gap: 4px; text-align: left; min-width: 0; }
+.themes .sw2 { height: 40px; border-radius: 8px; box-shadow: 0 0 0 1px var(--line); display: flex; align-items: center; justify-content: center; overflow: hidden; }
+.themes .sw2 i { width: 62%; height: 58%; border-radius: 4px; display: flex; align-items: flex-end; padding: 3px; }
+.themes .sw2 u { width: 40%; height: 5px; border-radius: 3px; }
+.themes .sw2.brand { background: var(--paper); }
+.themes .sw2.brand img { max-width: 80%; max-height: 26px; object-fit: contain; }
+.themes .sw2.brand b { font-size: 14px; color: var(--ink); }
+.themes .th[aria-pressed="true"] .sw2 { box-shadow: 0 0 0 2px var(--ink); }
+.themes .nm { font-size: 11.5px; color: var(--body); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .steps .tools { display: flex; gap: 2px; flex: none; padding-left: 6px; margin-left: 2px; border-left: 1px solid var(--line); }
 .navi { flex: none; width: 220px; border-right: 1px solid var(--line); display: flex; flex-direction: column; min-height: 0; }
 .adds { flex: none; width: 212px; border-right: 1px solid var(--line); display: flex; flex-direction: column; min-height: 0; }
@@ -207,7 +224,7 @@ input, textarea { user-select: text; -webkit-user-select: text; }
 .ptabs { height: 44px; flex: none; display: flex; align-items: center; gap: 4px; padding: 0 10px; border-bottom: 1px solid var(--line); }
 .ptabs .pt { height: 30px; padding: 0 10px; border: 0; border-radius: 999px; background: transparent; color: var(--muted); display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; }
 .ptabs .pt[aria-selected="true"] { background: var(--paper-deep); color: var(--ink); }
-.ptabs .who2 { margin-left: auto; font: 500 11px var(--mono); color: var(--muted); }
+.ptabs .who2 { display: none; }
 .pscroll { flex: 1; min-height: 0; overflow-y: auto; }
 .sec { padding: 12px 14px; border-bottom: 1px solid var(--line); display: flex; flex-direction: column; gap: 10px; }
 .sec h4 { margin: 0; font-size: 11px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; color: var(--muted); }
@@ -299,6 +316,7 @@ input, textarea { user-select: text; -webkit-user-select: text; }
 
 const SVG = (d, w = 16) => `<svg width="${w}" height="${w}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
 const P = {
+  brush: '<path d="M9.06 11.9 17.6 3.4a2 2 0 0 1 2.9 2.9l-8.5 8.5"/><path d="M7 14a3 3 0 0 0-3 3c0 1.5-1 2-2 2 1 1.5 3 2 4 2a4 4 0 0 0 4-4 3 3 0 0 0-3-3z"/>',
   swap: '<path d="M7 4 3 8l4 4"/><path d="M3 8h13a4 4 0 0 1 4 4"/><path d="m17 20 4-4-4-4"/><path d="M21 16H8a4 4 0 0 1-4-4"/>',
   short: '<path d="M4 9h16M4 15h10"/>', long: '<path d="M4 6h16M4 10h16M4 14h16M4 18h10"/>', email: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/>',
   qphone: '<path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2"/>', address: '<path d="M12 21s-7-6.2-7-12a7 7 0 0 1 14 0c0 5.8-7 12-7 12z"/><circle cx="12" cy="9" r="2.5"/>',
@@ -381,9 +399,9 @@ export const STUDIO_HTML = `
       <div class="after" id="afterView" hidden><div class="inner" id="afterInner"></div></div>
       <aside class="panel" id="panel" aria-label="Element" hidden>
         <div class="ptabs" role="tablist">
-          <button class="pt" role="tab" id="p-style" aria-selected="true">${SVG(P.style, 14)}Style</button>
-          <button class="pt" role="tab" id="p-set" aria-selected="false">${SVG(P.set, 14)}Settings</button>
-          <button class="pt" role="tab" id="p-form" aria-selected="false">${SVG(P.panel, 14)}Form</button>
+          <button class="pt" role="tab" id="p-set" aria-selected="true">${SVG(P.set, 14)}Settings</button>
+          <button class="pt" role="tab" id="p-style" aria-selected="false">${SVG(P.brush, 14)}Style</button>
+          <button class="pt" role="tab" id="p-theme" aria-selected="false">${SVG(P.style, 14)}Theme</button>
           <span class="who2" id="selName"></span>
         </div>
         <div class="pscroll" id="pscroll"></div>
@@ -489,7 +507,7 @@ export function mountStudio(shell: ShadowRoot, api: StudioApi): StudioControl {
   let cur = null;
   let loaded = false;
   const looking = new Set();
-  const S = { view: 0, hold: "", lang: "", translating: "", mode: "preview", device: "desk", sel: null, about: null, busy: false, ptab: "style", scope: "class", nav: false, adds: true, file: "html", publishing: false, pubMsg: "" };
+  const S = { view: 0, hold: "", lang: "", translating: "", mode: "preview", device: "desk", sel: null, about: null, busy: false, ptab: "settings", scope: "class", nav: false, adds: true, file: "html", publishing: false, pubMsg: "" };
   const hist = {};
   const H = () => (hist[cur?.id || "-"] ||= { past: [], future: [] });
   // A form in one of the website's styles (src/lib/studio/styleCss.ts) has the style as its look, kept on its chat
@@ -873,6 +891,8 @@ ${CAL_CSS}
   });
   listen(document, "keydown", (e) => { const mod = e.metaKey || e.ctrlKey; if (!alive || !mod || e.key.toLowerCase() !== "z") return; const t = e.composedPath()[0]; if (t?.closest?.("input,textarea,[contenteditable]")) return; if (!shell.host.isConnected) return; e.preventDefault(); e.shiftKey ? redo() : undo(); });
   $("canvas").addEventListener("scroll", () => { overlay(); $("hov").hidden = true; });
+  // A click beside the form picks nothing: the panel shows the whole form's settings.
+  $("canvas").addEventListener("click", (e) => { if (S.mode !== "edit" || !S.sel || e.target.closest?.("#host,#fbar,#sel")) return; S.sel = null; panel(); tree(); overlay(); });
   listen(window, "resize", () => overlay());
 
   // ── Steps (multi-page forms): pills to see one step at a time, the thank-you and all of them; tools to add,
@@ -903,12 +923,17 @@ ${CAL_CSS}
     const editing = S.mode === "edit";
     if (editing && typeof S.view === "number" && S.view >= Math.max(1, steps.length)) S.view = 0;
     bar.innerHTML = "";
-    const pill = (n, text, on, fn) => h("button", { class: "sp", "aria-pressed": String(on), onclick: fn }, n ? h("span", { class: "n", text: n }) : null, h("span", { text }));
+    // Pages as steps: numbered circles joined by a line, the thank-you last with a tick; pages already passed in
+    // Preview show done. All is an icon beside them.
     const go = (v) => { if (editing) { S.view = v; S.sel = null; draw(); panel(); tree(); } else { if (v === "thanks") done = true; else { done = false; stepAt = v; } draw(); } };
-    if (steps.length) steps.forEach((st, i) => bar.append(pill(String(i + 1), stepName(st, i), editing ? S.view === i : !done && stepAt === i, () => go(i))));
-    else bar.append(pill("", "Form", editing ? S.view === 0 : !done, () => go(0)));
-    if (thanks) bar.append(pill("", "Thank-you", editing ? S.view === "thanks" : done, () => go("thanks")));
-    if (editing && (steps.length > 1 || thanks)) bar.append(pill("", "All", S.view === "all", () => go("all")));
+    const conn = () => h("span", { class: "conn", "aria-hidden": "true" });
+    const pill = (n, text, on, fn, cls = "") => h("button", { class: `sp${cls ? ` ${cls}` : ""}`, "aria-pressed": String(on), onclick: fn }, h("span", { class: "n", ...(n === "tick" ? { html: SVG(P.check, 11) } : { text: n }) }), h("span", { text }));
+    const at = editing ? S.view : done ? "thanks" : stepAt;
+    const passed = (i) => !editing && (done || (typeof at === "number" && i < at));
+    if (steps.length) steps.forEach((st, i) => { if (i) bar.append(conn()); bar.append(pill(String(i + 1), stepName(st, i), editing ? S.view === i : !done && stepAt === i, () => go(i), passed(i) ? "done" : "")); });
+    else bar.append(pill("1", "Form", editing ? S.view === 0 : !done, () => go(0), !editing && done ? "done" : ""));
+    if (thanks) { bar.append(conn()); bar.append(pill("tick", "Thank-you", editing ? S.view === "thanks" : done, () => go("thanks"))); }
+    if (editing && (steps.length > 1 || thanks)) bar.append(h("button", { class: "sp all", "aria-pressed": String(S.view === "all"), "aria-label": "All pages", "data-tip": "All pages", html: SVG(P.layers, 15), onclick: () => go("all") }));
     if (editing && typeof S.view === "number" && steps.length) {
       const i = S.view;
       const tool = (tip, ic, fn, off) => h("button", { class: "ib", "data-tip": tip, "aria-label": tip, html: SVG(ic, 15), disabled: off || null, onclick: fn });
@@ -986,8 +1011,9 @@ ${CAL_CSS}
     const p = $("pscroll"); p.innerHTML = "";
     const el = S.sel ? byK(S.sel) : null;
     $("selName").textContent = el ? nameOf(el) : "";
-    $("p-style").setAttribute("aria-selected", String(S.ptab === "style")); $("p-set").setAttribute("aria-selected", String(S.ptab === "settings")); $("p-form").setAttribute("aria-selected", String(S.ptab === "form"));
-    if (S.ptab === "form") return formPanel(p);
+    $("p-style").setAttribute("aria-selected", String(S.ptab === "style")); $("p-set").setAttribute("aria-selected", String(S.ptab === "settings")); $("p-theme").setAttribute("aria-selected", String(S.ptab === "theme"));
+    if (S.ptab === "theme") return themePanel(p);
+    if (!el && S.ptab === "settings") return formSettings(p);
     if (!el) { p.append(h("div", { class: "sec" }, h("p", { class: "hint0", text: "Click anything on the form to change it. Click picked text again to type." }))); return; }
     if (S.ptab === "settings") return settings(p, el);
     const cls = el.classList[0];
@@ -1656,8 +1682,23 @@ ${CAL_CSS}
     body().css = css;
     ruleSet(":root", [["--brand-font", f ? `"${f}", system-ui, sans-serif` : ""], ["--brand-head", f ? `"${f}", system-ui, sans-serif` : ""]]);
   }
-  function formPanel(p) {
-    const F = h("div", { class: "sec" }, h("h4", { text: "Theme" }));
+  /** A theme to pick: the workspace's brands, then the gallery's styles. A style switches at once (undo puts it back). */
+  function useStyle(id) {
+    if (!cur) return;
+    snap();
+    cur.brandId = ""; body().style = id; body().styleCss = styleCssById(id);
+    changed(); brandUi(); chatHead(); draw(); refresh();
+    toast(`${styleName(id)}. Undo with Cmd+Z.`);
+  }
+  function themePanel(p) {
+    const now = brandOf(cur);
+    const T = h("div", { class: "sec" }, h("h4", { text: "Theme" }));
+    const grid = h("div", { class: "themes", role: "group", "aria-label": "Theme" });
+    for (const b of brands) grid.append(h("button", { class: "th", "aria-pressed": String(!body().style && cur.brandId === b.id), "aria-label": b.name, onclick: () => useBrand(b.id) }, h("span", { class: "sw2 brand" }, b.logo ? h("img", { src: b.logo, alt: "" }) : h("b", { text: b.name.charAt(0) })), h("span", { class: "nm", text: b.name })));
+    for (const th of THEMES) grid.append(h("button", { class: "th", "aria-pressed": String(body().style === th.id), "aria-label": `${th.name} style`, onclick: () => useStyle(th.id) }, h("span", { class: "sw2", style: `background:${th.bg}` }, h("i", { style: `background:${th.card}` }, h("u", { style: `background:${th.accent}` }))), h("span", { class: "nm", text: th.name })));
+    T.append(grid);
+    p.append(T);
+    const F = h("div", { class: "sec" }, h("h4", { text: `Adjust ${now?.name || "the theme"}` }));
     const accent = ruleGet(":root", "--brand-primary");
     const sw = h("div", { class: "swatches", role: "group", "aria-label": "Main color" });
     for (const [val, hex, nm] of [["", "conic-gradient(from 0deg,#e5e5e5,#bdbdbd)", "The brand's color"], ...brandColors().slice(0, 4).map(([v, x, n]) => [v, x, n]), ["#0c8c5e", "#0c8c5e", "green"], ["#1e6bf0", "#1e6bf0", "blue"], ["#5429d6", "#5429d6", "violet"], ["#d9480f", "#d9480f", "orange"], ["#111111", "#111111", "black"]]) sw.append(h("button", { "aria-label": nm, title: nm, "aria-pressed": String(accent === val), style: `background:${hex}`, onclick: () => ruleSet(":root", [["--brand-primary", val], ["--brand-focus", val]]) }));
@@ -1687,6 +1728,10 @@ ${CAL_CSS}
       } }))));
     }
     p.append(F);
+  }
+  /** Settings with nothing picked: the whole form's settings, starting with hidden values from the link. */
+  function formSettings(p) {
+    p.append(h("div", { class: "sec" }, h("p", { class: "hint0", text: "Click anything on the form to change it. Click picked text again to type." })));
     // Hidden values from the link: ?utm_source=… or ?ref=… kept with each fill.
     const Hd = h("div", { class: "sec" }, h("h4", { text: "Hidden fields" }));
     const hidden = [...src.querySelectorAll('[data-cl-field="hidden"][data-cl-from="param"]')];
@@ -1744,9 +1789,9 @@ ${CAL_CSS}
   function toast(t) { $("layer").querySelector(".toast")?.remove(); const e = h("div", { class: "toast", role: "status", text: t }); $("layer").append(e); clearTimeout(toastT); toastT = setTimeout(() => e.remove(), 2400); }
 
   // ── Undo, redo, commit ────────────────────────────────────────────────────────────────────────────────
-  const state = () => ({ html: sourceHtml(), css: body().css, after: JSON.stringify(body().after), langs: JSON.stringify({ langs: body().langs || {}, from: body().langFrom || {} }) });
+  const state = () => ({ html: sourceHtml(), css: body().css, after: JSON.stringify(body().after), langs: JSON.stringify({ langs: body().langs || {}, from: body().langFrom || {} }), look: JSON.stringify({ b: cur?.brandId || "", s: body().style || "", c: body().styleCss || "" }) });
   function snap() { const s = H(); s.past.push(state()); if (s.past.length > 80) s.past.shift(); s.future.length = 0; buttons(); }
-  function restore(x) { body().css = x.css; body().after = JSON.parse(x.after); if (x.langs) { const l = JSON.parse(x.langs); body().langs = l.langs; body().langFrom = l.from; if (S.lang && !l.langs[S.lang]) S.lang = ""; } setSource(x.html); body().html = x.html; S.sel = null; changed(); draw(); refresh(); }
+  function restore(x) { if (x.look) { const l = JSON.parse(x.look); cur.brandId = l.b; if (l.s) { body().style = l.s; body().styleCss = l.c; } else { delete body().style; delete body().styleCss; } brandUi(); chatHead(); } body().css = x.css; body().after = JSON.parse(x.after); if (x.langs) { const l = JSON.parse(x.langs); body().langs = l.langs; body().langFrom = l.from; if (S.lang && !l.langs[S.lang]) S.lang = ""; } setSource(x.html); body().html = x.html; S.sel = null; changed(); draw(); refresh(); }
   function undo() { const s = H(); if (!s.past.length) return; s.future.push(state()); restore(s.past.pop()); }
   function redo() { const s = H(); if (!s.future.length) return; s.past.push(state()); restore(s.future.pop()); }
   function buttons() { $("undo").disabled = !H().past.length; $("redo").disabled = !H().future.length; }
@@ -1795,7 +1840,7 @@ ${CAL_CSS}
   $("moreBtn").onclick = () => (menuEl && menuFor === $("moreBtn") ? closeMenu() : moreMenu());
   $("p-style").onclick = () => { S.ptab = "style"; panel(); };
   $("p-set").onclick = () => { S.ptab = "settings"; panel(); };
-  $("p-form").onclick = () => { S.ptab = "form"; panel(); };
+  $("p-theme").onclick = () => { S.ptab = "theme"; panel(); };
 
   function showCode() { for (const [id, f] of [["c-html", "html"], ["c-css", "css"], ["c-brand", "brand"]]) $(id).setAttribute("aria-pressed", String(S.file === f)); $("codeText").value = S.file === "html" ? sourceHtml() : S.file === "css" ? body().css : brandOf(cur)?.css || ""; }
   for (const [id, f] of [["c-html", "html"], ["c-css", "css"], ["c-brand", "brand"]]) $(id).onclick = () => { S.file = f; showCode(); };

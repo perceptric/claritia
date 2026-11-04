@@ -276,9 +276,14 @@ Everything a form needs can be made in Edit without Tia (`src/lib/studio/builder
   condition is kept apart in `data-cl-own`.
 - **Answers in text**: Insert an answer puts `{name}` in a heading or text, and it shows what they answered
   (`data-cl-pipe`, also on the thank-you).
-- **The Form tab**: color, font, corners, buttons, background and width for the whole form, written into the form's
-  own CSS over the brand's (so a template keeps its website's style until one is changed), the progress bar, and
-  hidden fields from the link (`?ref=`).
+- **The panel's tabs** are Settings, Style, then Theme. Settings opens first; with nothing picked (a click beside the
+  form) it holds the whole form's settings, starting with hidden fields from the link (`?ref=`).
+- **The Theme tab**: the workspace's brands and every gallery style as small pictures; a style switches the form at
+  once and undo puts it back (the look is part of each undo step), a brand on a built form asks first and Tia moves it.
+  Under them, Adjust: color, font, corners, buttons, background, width and the progress bar, written into the form's
+  own CSS over the theme's.
+- **Pages as steps**: the bar shows the pages as numbered steps joined by a line, the thank-you last with a tick, and
+  All pages as an icon; in Preview the pages already passed show done.
 - **Start blank**: an email question and a send button in the brand's look, with no AI.
 - The form script's size limit goes from 39 to 41 KB for the rules above.
 

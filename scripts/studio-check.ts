@@ -296,10 +296,16 @@ try {
   check(await form.locator('input[name="email"]').isVisible(), "Tender jumps past the page in between");
   await $("#t-edit").click();
   // The Form tab: the look over the brand's, and a hidden field.
-  await $("#p-form").click();
+  check(((await $("#panel .ptabs").textContent()) ?? "").replace(/\s+/g, "").startsWith("SettingsStyleTheme"), "the panel's tabs are Settings, Style, then Theme");
+  await $("#p-theme").click();
+  check((await $("#pscroll .themes .th").count()) >= 18, "the Theme tab lists the brand and every gallery style");
+  if (shots) await p.screenshot({ path: `${shots}/2d-theme.png` });
   await $("#pscroll button[aria-label='blue']").click();
   await p.waitForFunction(() => Object.values((window as unknown as { saved: Record<string, { body?: { css: string } }> }).saved).some((c) => c.body?.css.includes("--brand-primary:#1e6bf0")));
   check(true, "the Form tab's color goes into the form's own CSS");
+  // Nothing picked: Settings is the whole form's, with its hidden fields.
+  await $("#canvas").click({ position: { x: 6, y: 6 } });
+  await $("#p-set").click();
   await $("#pscroll input[aria-label='Add a hidden field']").fill("ref");
   await $("#pscroll input[aria-label='Add a hidden field']").press("Enter");
   check((await form.locator("[data-cl-field='hidden'][data-cl-param='ref']").count()) === 1, "a hidden field from the link is added");
