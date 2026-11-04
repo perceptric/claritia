@@ -2,18 +2,20 @@
 
 // The template gallery (docs/form-templates.md, docs/form-templates-plan.md): every template as a card, with the
 // menus on the side (category, industry, team, what it does next, features, layout, length). A card opens the form in
-// a sheet as the Form Studio page it becomes, in the workspace's brand (src/lib/studio/templatePage.ts); Use template
-// makes that page and opens it in the Studio. The website's template pages link here (/forms/templates/<template>),
-// and the menus keep their picks in the address (?category=waiver&team=hr).
+// a sheet as the Form Studio page it becomes (src/lib/studio/templatePage.ts), in the template's own style as its
+// card shows it, another style, a workspace brand or plain; Use template makes that page and opens it in the Studio.
+// The website's template pages link here (/forms/templates/<template>?theme=<style>) with the style picked there, and
+// the menus keep their picks in the address (?category=waiver&team=hr).
 
 import { useEffect, useMemo, useState } from "react";
 import { industryLabel, questionCount, templateById, templateBySlug, templateSlug, templateTheme, TEMPLATES } from "@/lib/forms/gallery/catalog";
+import { STYLE_ART, styleCssById } from "@/lib/studio/styleCss";
 import { templateDraft } from "@/lib/studio/templatePage";
 import { kitBooks, kitWorkflows } from "@/lib/forms/gallery/kit";
 import { inSeason, kitById, KITS, type Kit } from "@/lib/forms/gallery/kits";
 import { filterTemplates, menuCounts, MENUS, picksFromQuery, picksToQuery, shownValues, valueLabel, type Menu, type Picks, type Sort } from "@/lib/forms/gallery/filter";
 import { LENGTHS, lengthOf } from "@/lib/forms/gallery/taxonomy";
-import { FONTS, fontsUrl, themeById, type FontKey, type Theme } from "@/lib/forms/gallery/themes";
+import { FONTS, fontsUrl, isTheme, themeById, THEMES, type FontKey, type Theme } from "@/lib/forms/gallery/themes";
 import type { FormTemplate } from "@/lib/forms/gallery/types";
 import { AiMark } from "../../Ai";
 import { Select } from "../../Select";
@@ -47,7 +49,7 @@ function StyleThumb({ t, th }: { t: FormTemplate; th: Theme }) {
   } as const;
   const field = th.input === "line" ? { borderBottom: `1px solid ${th.border}`, background: "transparent" } : box;
   const shown = s.pages[0]!.fields.filter((f) => f.kind !== "hidden").slice(0, 4);
-  const art = th.art ? `/form-art/${th.id}.svg` : "";
+  const art = th.art ? `${STYLE_ART}/${th.id}.svg` : "";
   const split = !!art && th.layout === "split";
   return (
     <div aria-hidden="true" className="relative h-[200px] overflow-hidden border-b border-line px-[14px] pt-[14px]" style={{ background: th.bg }}>
@@ -111,8 +113,10 @@ function StyleThumb({ t, th }: { t: FormTemplate; th: Theme }) {
   );
 }
 
-/** The sheet's plain look, before the workspace has a brand of its own. */
+/** The sheet's looks besides a brand: the style (the template's own, or one picked) and Claritia's plain look. */
+const STYLE = "style";
 const PLAIN = "plain";
+const STYLE_OPTIONS = THEMES.map((th) => ({ value: th.id, label: th.name, hint: th.mood }));
 
 const SORTS: { value: Sort; label: string }[] = [
   { value: "popular", label: "Most used" },
@@ -390,11 +394,56 @@ function useBrandKits(sb: ViewProps["sb"], ws: string) {
   return kits;
 }
 
-function BrandChip({ name, on, onClick }: { name: string; on: boolean; onClick: () => void }) {
+const CHIP = "press inline-flex min-h-[26px] items-center gap-[6px] rounded-full px-[10px] text-[12.5px]";
+const chipOn = (on: boolean) => (on ? "bg-card text-ink shadow-focus" : "bg-card text-body shadow-chip hover:text-ink");
+
+function BrandChip({ name, on, onClick, children }: { name: string; on: boolean; onClick: () => void; children?: React.ReactNode }) {
   return (
-    <button type="button" role="radio" aria-checked={on} onClick={onClick} className={`press inline-flex min-h-[26px] items-center rounded-full px-[10px] text-[12.5px] ${on ? "bg-card text-ink shadow-focus" : "bg-card text-body shadow-chip hover:text-ink"}`}>
+    <button type="button" role="radio" aria-checked={on} onClick={onClick} className={`${CHIP} ${chipOn(on)}`}>
+      {children}
       {name}
     </button>
+  );
+}
+
+/** A style's colors, as a small pill. */
+function StyleSwatch({ id }: { id: string }) {
+  const th = themeById(id);
+  return (
+    <span aria-hidden="true" className="inline-flex h-[12px] w-[20px] shrink-0 overflow-hidden rounded-full shadow-chip">
+      <i className="flex-1" style={{ background: th.bg }} />
+      <i className="flex-1" style={{ background: th.accent }} />
+    </span>
+  );
+}
+
+/**
+ * The style chip: picks the style as the look; once it's the look, it opens the list of styles to change it.
+ */
+function StyleChip({ id, on, onPick }: { id: string; on: boolean; onPick: (id: string) => void }) {
+  const name = `${themeById(id).name} style`;
+  if (!on)
+    return (
+      <BrandChip name={name} on={false} onClick={() => onPick(id)}>
+        <StyleSwatch id={id} />
+      </BrandChip>
+    );
+  return (
+    <Select<string>
+      value={id}
+      options={STYLE_OPTIONS}
+      onChange={onPick}
+      ariaLabel="Style"
+      down
+      menuWidth={240}
+      className={`${CHIP} ${chipOn(true)}`}
+      shown={
+        <span className="inline-flex items-center gap-[6px]">
+          <StyleSwatch id={id} />
+          {name}
+        </span>
+      }
+    />
   );
 }
 
@@ -407,24 +456,39 @@ export function TemplatesPage({ sb, ws, session, navigate, id }: ViewProps) {
   // ?kit=<id> (the website's starter kits) opens that kit.
   const [kitOpen, setKitOpen] = useState<Kit | null>(() => (typeof window === "undefined" ? null : (kitById(new URLSearchParams(window.location.search).get("kit") ?? "") ?? null)));
   const season = useMemo(() => inSeason(new Date().getMonth() + 1).slice(0, 8), []);
-  const [open, setOpen] = useState<FormTemplate | null>(() => templateBySlug(id.split("/")[1] ?? "") ?? null);
+  const [open, setOpenRaw] = useState<FormTemplate | null>(() => templateBySlug(id.split("/")[1] ?? "") ?? null);
+  // The look: the style (the one picked on the website, ?theme=, else each template's own), a brand, or plain.
+  const [look, setLook] = useState<string>(STYLE);
+  const [style, setStyle] = useState<string | null>(() => {
+    if (typeof window === "undefined") return null;
+    const q = new URLSearchParams(window.location.search).get("theme");
+    return isTheme(q) ? q : null;
+  });
+  // Another template opens in its own style, as its card shows it.
+  const setOpen = (t: FormTemplate | null) => {
+    if (t && t.id !== open?.id) {
+      setLook(STYLE);
+      setStyle(null);
+    }
+    setOpenRaw(t);
+  };
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const list = useMemo(() => filterTemplates(picks, text, sort), [picks, text, sort]);
   const counts = useMemo(() => menuCounts(picks, text), [picks, text]);
   const cardTheme = (t: FormTemplate) => themeById(templateTheme(t));
   const kits = useBrandKits(sb, ws.id);
-  // The workspace's first brand unless another (or Plain, before a brand is added) is picked.
-  const [kitId, setKitId] = useState<string | null>(null);
-  const kit = kitId === PLAIN ? null : (kits.find((k) => k.id === kitId) ?? kits[0] ?? null);
-  // The page the template becomes, in that brand's stylesheet, as Use template makes it.
+  const styleId = open ? (style ?? templateTheme(open)) : null;
+  const kit = look !== STYLE && look !== PLAIN ? (kits.find((k) => k.id === look) ?? null) : null;
+  const inStyle = look === STYLE && !!styleId;
+  // The page the template becomes, in that look's stylesheet, as Use template makes it.
   const form = useMemo(() => {
     try {
-      return open ? templateDraft(open, kit?.studio_css ?? "") : null;
+      return open ? templateDraft(open, kit ? (kit.studio_css ?? "") : inStyle ? styleCssById(styleId) : "") : null;
     } catch {
       return null;
     }
-  }, [open, kit]);
+  }, [open, kit, inStyle, styleId]);
   const tags = MENUS.flatMap((m) =>
     (picks[m.id] ?? []).map((v) => ({
       m: m.id,
@@ -435,16 +499,16 @@ export function TemplatesPage({ sb, ws, session, navigate, id }: ViewProps) {
 
   useEffect(() => {
     const q = picksToQuery(picks);
-    const path = open ? `/forms/templates/${templateSlug(open)}` : `/forms/templates${q ? `?${q}` : ""}`;
+    const path = open ? `/forms/templates/${templateSlug(open)}${style ? `?theme=${style}` : ""}` : `/forms/templates${q ? `?${q}` : ""}`;
     window.history.replaceState(null, "", path);
-  }, [open, picks]);
+  }, [open, picks, style]);
 
   const use = async () => {
     if (!open) return;
     setBusy(true);
     setError("");
     try {
-      const r = await postJson<{ id: string }>(session, "/api/forms/templates", { workspaceId: ws.id, template: open.id, ...(kit ? { kitId: kit.id } : {}) });
+      const r = await postJson<{ id: string }>(session, "/api/forms/templates", { workspaceId: ws.id, template: open.id, ...(kit ? { kitId: kit.id } : inStyle ? { theme: styleId } : { plain: true }) });
       invalidate(`forms:${ws.id}:home`);
       invalidate(`form_names:${ws.id}`);
       invalidate("app_counts");
@@ -688,17 +752,25 @@ export function TemplatesPage({ sb, ws, session, navigate, id }: ViewProps) {
                 </span>
               ))}
             </div>
-            {kits.length ? (
-              <div className="flex flex-col gap-[8px]">
-                <p className={EYEBROW}>Brand</p>
-                <div role="radiogroup" aria-label="Brand" className="flex flex-wrap gap-[6px]">
-                  {kits.map((k) => (
-                    <BrandChip key={k.id} name={k.name} on={kit?.id === k.id} onClick={() => setKitId(k.id)} />
-                  ))}
-                  <BrandChip name="Plain" on={!kit} onClick={() => setKitId(PLAIN)} />
-                </div>
+            <div className="flex flex-col gap-[8px]">
+              <p className={EYEBROW}>Look</p>
+              <div role="radiogroup" aria-label="Look" className="flex flex-wrap gap-[6px]">
+                {styleId ? (
+                  <StyleChip
+                    id={styleId}
+                    on={inStyle}
+                    onPick={(x) => {
+                      setStyle(x);
+                      setLook(STYLE);
+                    }}
+                  />
+                ) : null}
+                {kits.map((k) => (
+                  <BrandChip key={k.id} name={k.name} on={kit?.id === k.id} onClick={() => setLook(k.id)} />
+                ))}
+                <BrandChip name="Plain" on={look === PLAIN} onClick={() => setLook(PLAIN)} />
               </div>
-            ) : null}
+            </div>
             {open.schema.pages.length > 1 ? (
               <ol aria-label="Pages" className="flex flex-wrap items-center gap-[6px] text-[12.5px] text-body">
                 {open.schema.pages.map((p, i) => (
@@ -718,7 +790,7 @@ export function TemplatesPage({ sb, ws, session, navigate, id }: ViewProps) {
             ) : null}
             {/* The Studio page fills its own frame, in the brand's background, as it shows on the form's page. */}
             <div className="keep-light min-w-0 overflow-hidden rounded-[12px] shadow-rest">
-              <FormPreview key={`${open.id}:${kit?.id ?? PLAIN}`} form={form} tokens={{}} logo={kit?.logo_url ?? null} />
+              <FormPreview key={`${open.id}:${kit?.id ?? (inStyle ? styleId : PLAIN)}`} form={form} tokens={{}} logo={kit?.logo_url ?? null} />
             </div>
           </div>
         </Sheet>

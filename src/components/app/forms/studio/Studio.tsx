@@ -8,6 +8,7 @@
 
 import { useEffect, useRef, type MutableRefObject } from "react";
 import { logoOf, type KitLite } from "./brandKit";
+import { styleCssById, styleOf } from "@/lib/studio/styleCss";
 import { fetchMeetingTypes } from "../../meetings/TypesList";
 import { brandName } from "@/lib/brand/name";
 import { readProfile } from "@/lib/studio/industries";
@@ -143,8 +144,11 @@ export function Studio({ sb, session, ws, navigate, formId = "", chatId = "", fr
         const row = must(await sb.from("forms").select("id, name, status, draft, brand_kit_id").eq("id", id).maybeSingle()) as { id: string; name: string; status: string; draft: { page?: { html: string; css: string; brand: string; after?: Record<string, unknown> } } | null; brand_kit_id: string | null } | null;
         const pg = row?.draft?.page;
         if (!row || !pg) return null;
-        if (row.brand_kit_id && pg.brand && !read<string>(cssKey(row.brand_kit_id), "")) write(cssKey(row.brand_kit_id), pg.brand);
-        return { id: crypto.randomUUID(), name: row.name, state: row.status === "live" ? "live" : "draft", brandId: row.brand_kit_id ?? "", formId: row.id, brandCss: pg.brand, body: { html: pg.html, css: pg.css, after: { kind: "thanks", url: "", meeting: "", routes: [], ...(pg.after ?? {}), ...((row.draft as { notify?: unknown }).notify ? { always: alwaysOf((row.draft as { notify?: unknown }).notify) } : {}) }, turns: [], log: [] } };
+        // A form in one of the website's styles keeps it (src/lib/studio/styleCss.ts), with its own edits to the CSS.
+        const style = styleOf(pg.brand);
+        if (row.brand_kit_id && pg.brand && !style && !read<string>(cssKey(row.brand_kit_id), "")) write(cssKey(row.brand_kit_id), pg.brand);
+        const look = style ? { style, ...(pg.brand !== styleCssById(style) ? { styleCss: pg.brand } : {}) } : {};
+        return { id: crypto.randomUUID(), name: row.name, state: row.status === "live" ? "live" : "draft", brandId: row.brand_kit_id ?? "", formId: row.id, brandCss: style ? "" : pg.brand, body: { ...look, html: pg.html, css: pg.css, after: { kind: "thanks", url: "", meeting: "", routes: [], ...(pg.after ?? {}), ...((row.draft as { notify?: unknown }).notify ? { always: alwaysOf((row.draft as { notify?: unknown }).notify) } : {}) }, turns: [], log: [] } };
       },
       saveChat: async (c) => {
         keepLocal(c);

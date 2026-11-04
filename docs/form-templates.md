@@ -41,14 +41,22 @@ them. Each count is what that pick would show.
   side (a Sheet on small screens), picked values as tags, search, a style for every card, and sort. With nothing
   picked, the first screen shows the starter kits and what's in season. Picks stay in the address
   (`?category=waiver&team=hr`).
-- A card opens the real form (the `<claritia-form>` preview) in a sheet with what it comes with (Form, Meeting,
-  Follow-up) and a row of styles, the workspace's own brand kits first. **Use template** makes a draft and opens it.
+- A card opens the Form Studio page it becomes (the `<claritia-form>` preview) in a sheet with what it comes with
+  (Form, Meeting, Follow-up) and its Look: the template's own style as its card shows it (a menu changes it), the
+  workspace's brands, or Plain. A template opened from the website (`/forms/templates/<template>?theme=<style>`)
+  starts in the style picked there. **Use template** makes that page and opens it in the Studio.
+- **Styles are Studio stylesheets** (`src/lib/studio/styleCss.ts`): each of the 18 styles is written by code as the
+  same `--brand-*` variables and classes a brand's stylesheet has, drawn as the website draws it (the stage, the card,
+  the drawing across the top or beside the form, fields, choices and buttons). Its first line names the style, so the
+  Studio shows "Poster style" as the form's look and keeps it until a brand is picked. The drawings load from the
+  website's copy (`https://tryclaritia.com/assets/form-art`). Half-width questions share a row, as on the website.
 - **Use template** (`/api/forms/templates`, `src/lib/forms/gallery/make.ts`): the form is checked before it's made and
-  wears a style's brand kit ("Midnight style", made once per workspace) or the workspace's own. A booking template
+  wears the style asked for (`theme`), a workspace brand (`kitId`), Claritia's plain look (`plain`), or else the
+  template's own style. A booking template
   books the workspace's meeting when it has exactly one, never a guess. Its follow-up is a Workflows template
   (`kit.ts`) made as a draft on the new form with every email unapproved.
 - **Starter kits** (`kits.ts`, `/api/forms/templates/kit`): 3 to 5 forms of one industry from different groups, made
-  in one click in one style. A form that fails is tried once more and never stops the rest. The website's kit pages
+  in one click, each in its own style. A form that fails is tried once more and never stops the rest. The website's kit pages
   link to `/forms/templates?kit=<id>`.
 - **Describe the form you need**, under the grid: the words are matched to the catalog first
   (`/api/forms/templates/match`, `match.ts`). Words that hit a template match for free; the rest go to Claude Haiku
@@ -72,7 +80,7 @@ site repo. Every page is static:
 ## Not done yet
 
 Languages, real "Most used" counts (sorting uses featured first until Use template is counted), a brand picked on the
-website carried into the new workspace, and the card-on-a-page look of some styles in the app.
+website carried into the new workspace.
 
 ## Tests
 
@@ -84,6 +92,12 @@ website carried into the new workspace, and the card-on-a-page look of some styl
 - `tests/formGalleryMore.test.ts`: the brand peek (the button color, never white or gray; text that reads; a Google
   font only; nothing it can't see), the catalog match (only catalog ids), starter kits and seasons.
 - `tests/formPay.test.ts`: a payment a rule hides is never charged.
+- `tests/studioStyle.test.ts`: every style survives the page's CSS cleaner whole and is known again by its first
+  line; Use template makes the style asked for, the template's own, a brand or plain.
+- `scripts/studio-blocks-check.ts` (browser): Poster's stage, frames and buttons, Grove's drawing beside the form and
+  across the top on a phone, half-width questions on one row. `scripts/templates-check.ts` (browser): the website's
+  style carried in, the style menu, a brand, Plain, a card's own style, and what Use template asks for.
+  `scripts/formpage-check.ts`: a styled form opens in the Studio with its style and its chat keeps it.
 
 ## Running cost
 
@@ -91,7 +105,7 @@ website carried into the new workspace, and the card-on-a-page look of some styl
 | --- | --- | --- |
 | Templates, menus, kits and pages: data in the app, static pages on the website | $0 | $0 |
 | Style fonts: Google Fonts | $0 | $0 |
-| Use template and kits: no AI call | $0 | $0 |
+| Use template and kits: no AI call; styles are stylesheets written by code | $0 | $0 |
 | Claude Haiku: catalog match when the words hit nothing (about 20,000 and 200,000 a month, about 9,000 tokens in with the catalog cached, 60 out, repeats free) | about $5 | about $50 |
 | Claude Opus: forms built from the Describe box, counted in Form Studio's bill (`docs/studio-v2-plan.md`), about 3 more a team a month at about $0.90 | about $135 | about $1,350 |
 | **Total** | **about $140** | **about $1,400** |

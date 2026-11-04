@@ -1,7 +1,8 @@
 // Studio blocks and converted forms in a real browser, in the real forms/v1.js (src/lib/studio/page.ts, fromForm.ts):
 // a price that adds up as people answer, a hidden deposit and its payment, a score's outcome by show-if, a grid and a
 // ranking that send their answers, an extra picked and then hidden by a later answer that is never sent or charged,
-// and a template turned into a page whose skip passes over a page. A small server stands in for the form's read and
+// a template turned into a page whose skip passes over a page, and templates in the website's styles (Poster's
+// yellow stage and black frames, Grove's picture beside the form) with half-width fields side by side. A small server stands in for the form's read and
 // records the send.
 //   CHROMIUM_PATH=… node scripts/studio-blocks-check.ts
 import { createServer } from "node:http";
@@ -11,6 +12,8 @@ import { templateForm } from "../src/lib/forms/gallery/convert.ts";
 import { checkForm, type Form } from "../src/lib/forms/schema.ts";
 import { formToPage } from "../src/lib/studio/fromForm.ts";
 import { pageForm } from "../src/lib/studio/page.ts";
+import { styleCssById } from "../src/lib/studio/styleCss.ts";
+import { templateDraft } from "../src/lib/studio/templatePage.ts";
 import { buildForms } from "./build-forms.mts";
 
 const failures: string[] = [];
@@ -52,6 +55,12 @@ const priced = ready(
 const tpl = templateById("legal.case-evaluation")!;
 const conv = formToPage(ready(templateForm(tpl)));
 const skips = ready(pageForm({ html: conv.html, css: conv.css, brand: "", after: conv.after, title: conv.title }).form);
+// Templates in two of the website's styles.
+const POSTER = "77777777-7777-4777-8777-777777777777";
+const GROVE = "88888888-8888-4888-8888-888888888888";
+const inquiry = templateById("agency.project-inquiry")!;
+const poster = templateDraft(inquiry, styleCssById("poster"));
+const grove = templateDraft(inquiry, styleCssById("grove"));
 
 const formsJs = await buildForms();
 const sent: { id: string; body: Record<string, unknown> }[] = [];
@@ -71,9 +80,11 @@ const server = createServer((req, res) => {
   }
   if (u === `/api/forms/${PRICED}`) return json({ id: PRICED, version: 1, status: "live", body: priced, tokens: {}, logo_url: null });
   if (u === `/api/forms/${SKIPS}`) return json({ id: SKIPS, version: 1, status: "live", body: skips, tokens: {}, logo_url: null });
+  if (u === `/api/forms/${POSTER}`) return json({ id: POSTER, version: 1, status: "live", body: poster, tokens: {}, logo_url: null });
+  if (u === `/api/forms/${GROVE}`) return json({ id: GROVE, version: 1, status: "live", body: grove, tokens: {}, logo_url: null });
   if (u.startsWith("/api/")) return json({});
   const id = u.slice(1).split("?")[0];
-  if (id === PRICED || id === SKIPS)
+  if (id === PRICED || id === SKIPS || id === POSTER || id === GROVE)
     return res.writeHead(200, { "content-type": "text/html" }).end(`<!doctype html><html><body><script src="/forms/v1.js" async></script><claritia-form form-id="${id}" host="${origin}"></claritia-form></body></html>`);
   res.writeHead(404).end();
 });
@@ -133,6 +144,31 @@ try {
   check((await f.locator("[data-cl-step]").count()) === tpl.schema.pages.length, `the template's ${tpl.schema.pages.length} pages are steps`);
   check((await f.locator("[data-cl-progress]").count()) === 1, "a progress bar shows");
   check(await f.locator("img[data-cl-logo]").count() === 1, "the logo spot is there");
+
+  // A template in Poster: the yellow stage, the white card in a black frame with a hard shadow, black buttons, and
+  // first and last name on one row.
+  await page.goto(`${origin}/${POSTER}`);
+  await f.locator("input").first().waitFor();
+  const look = await f.evaluate((host) => {
+    const r = (host as HTMLElement).shadowRoot!;
+    const cs = (sel: string, pseudo?: string) => getComputedStyle(r.querySelector(sel)!, pseudo);
+    const names = [...r.querySelectorAll(".q.half")].slice(0, 2).map((n) => Math.round(n.getBoundingClientRect().top));
+    return { stage: cs(".page").backgroundColor, card: cs(".form-card").borderTopWidth, shadow: cs(".form-card").boxShadow, btn: cs(".btn").backgroundColor, btnInk: cs(".btn").color, field: cs(".field").borderTopWidth, font: cs(".page").fontFamily, names };
+  });
+  check(look.stage === "rgb(255, 223, 61)", `Poster: the yellow stage (${look.stage})`);
+  check(look.card === "2px" && look.shadow.includes("6px 6px"), `Poster: the card's black frame and hard shadow (${look.card}, ${look.shadow})`);
+  check(look.btn === "rgb(0, 0, 0)" && look.btnInk === "rgb(255, 223, 61)", `Poster: black buttons with yellow words (${look.btn}, ${look.btnInk})`);
+  check(look.field === "2px" && look.font.includes("Space Grotesk"), `Poster: 2px fields in Space Grotesk (${look.field}, ${look.font})`);
+  check(look.names.length === 2 && look.names[0] === look.names[1], `half-width fields share a row (${look.names})`);
+  // Grove: its picture beside the form on a wide screen, across the top on a phone.
+  await page.goto(`${origin}/${GROVE}`);
+  await f.locator("input").first().waitFor();
+  const side = () => f.evaluate((host) => { const c = (host as HTMLElement).shadowRoot!.querySelector(".form-card")!; const b = getComputedStyle(c, "::before"); return { pos: b.position, img: b.backgroundImage }; });
+  const wide = await side();
+  check(wide.pos === "absolute" && wide.img.includes("/form-art/grove.svg"), `Grove: the picture beside the form (${wide.pos})`);
+  await page.setViewportSize({ width: 390, height: 800 });
+  await page.waitForTimeout(150);
+  check((await side()).pos !== "absolute", "Grove: the picture goes across the top on a phone");
   check(errors.length === 0, `no page errors: ${errors.join(" | ")}`);
 } finally {
   await browser.close();

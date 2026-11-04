@@ -6,7 +6,7 @@ import { requireUser } from "@/lib/serverAuth";
 import { serviceClient } from "@/lib/serviceClient";
 
 // A starter kit (docs/form-templates-plan.md 5.2): POST { workspaceId, kit, kitId? } makes every template in the kit
-// as a Form Studio form in the workspace's brand, and answers { ids, failed }. One form that fails never stops the rest; the ones made stay.
+// as a Form Studio form, in a workspace brand or each in its own style, and answers { ids, failed }. One form that fails never stops the rest; the ones made stay.
 
 const bad = (error: string, status = 400) => Response.json({ error }, { status });
 

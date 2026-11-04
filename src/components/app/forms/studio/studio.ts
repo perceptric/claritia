@@ -4,6 +4,7 @@ import { DEFAULT_CONSENT } from "../../../../lib/forms/schema";
 import { checkStudioPage } from "../../../../lib/studio/check";
 import { cleanPage } from "../../../../lib/studio/page";
 import { pageNumbers } from "../../../../lib/studio/numbers";
+import { styleCssById, styleName } from "../../../../lib/studio/styleCss";
 import { cleanRoute, OP_LABEL, PAST_ROUTES, ROUTE_OPS, routeKind, routeMeeting, routeStart } from "../../../../lib/studio/routes";
 import { linkProblem, SCHEDULERS } from "../../../../lib/forms/schedule";
 import { INDUSTRIES, industryOf, isRtl, languageName, profileWords, recipeText } from "../../../../lib/studio/industries";
@@ -462,7 +463,17 @@ export function mountStudio(shell: ShadowRoot, api: StudioApi): StudioControl {
   const S = { view: 0, hold: "", lang: "", translating: "", mode: "preview", device: "desk", sel: null, about: null, busy: false, ptab: "style", scope: "class", nav: false, file: "html", publishing: false, pubMsg: "" };
   const hist = {};
   const H = () => (hist[cur?.id || "-"] ||= { past: [], future: [] });
-  const brandOf = (c) => brands.find((b) => b.id === c?.brandId) || null;
+  // A form in one of the website's styles (src/lib/studio/styleCss.ts) has the style as its look, kept on its chat
+  // (body.style, and body.styleCss once its CSS is edited), until a brand is picked.
+  const styled = new WeakMap();
+  const styleBrand = (c) => {
+    const id = c?.body?.style;
+    if (!id) return null;
+    let b = styled.get(c);
+    if (!b || b.style !== id) { b = { id: "", style: id, name: styleName(id), site: "", logo: null, css: c.body.styleCss || styleCssById(id), profile: null, lookErr: "" }; styled.set(c, b); }
+    return b;
+  };
+  const brandOf = (c) => brands.find((b) => b.id === c?.brandId) || styleBrand(c) || null;
   const blank = (brandId) => ({ id: uuid(), name: "New form", state: "new", brandId: brandId || "", formId: "", body: { html: "", css: "", after: { kind: "thanks", url: "", meeting: MEETINGS[0]?.id || "", routes: [] }, turns: [], log: [], ids: {}, langs: {}, langFrom: {}, lang: "" } });
   const body = () => cur.body;
 
@@ -1189,7 +1200,7 @@ ${CAL_CSS}
     const v = $("codeText").value;
     if (S.file === "html") setSource(v);
     else if (S.file === "css") body().css = v;
-    else { const b = brandOf(cur); if (b) { b.css = v; api.keepCss(b.id, v); } }
+    else { const b = brandOf(cur); if (b?.style) { b.css = v; cur.body.styleCss = v; } else if (b) { b.css = v; api.keepCss(b.id, v); } }
     commit(); toast("Applied");
   };
 
@@ -1572,6 +1583,9 @@ ${CAL_CSS}
           brandUi(); chatHead(); draw(); renderLog(); brandMenu();
         } }), h("button", { class: "pill", text: "Keep", onclick: () => { brandDeleting = ""; brandMenu(); } }))
       : h("div", { class: "mrow" }, h("button", { class: "mi", role: "menuitemradio", "aria-checked": String(b.id === cur?.brandId), onclick: () => { closeMenu(); useBrand(b.id); } }, mark(b), h("span", { class: "nm", text: b.name })), h("button", { class: "ib", "aria-label": `Delete ${b.name}`, html: SVG(P.del, 14), onclick: (e) => { e.stopPropagation(); brandDeleting = b.id; brandMenu(); } })));
+    // The chat's style, when its form wears one, first and picked.
+    const st = cur?.body?.style && !brands.some((b) => b.id === cur.brandId) ? styleBrand(cur) : null;
+    if (st) rows.unshift(h("div", { class: "mrow" }, h("button", { class: "mi", role: "menuitemradio", "aria-checked": "true", onclick: closeMenu }, mark(st), h("span", { class: "nm", text: st.name }))));
     openMenu($("brandBtn"), [...rows, rows.length ? h("div", { class: "msep" }) : null, h("button", { class: "mi small", html: `${SVG(P.plus, 14)}<span class="nm">Add a brand</span>`, onclick: () => { closeMenu(); openDialog(); } })].filter(Boolean), $("brandBtn").offsetWidth);
   }
   $("brandBtn").onclick = () => (menuEl && menuFor === $("brandBtn") ? closeMenu() : brandMenu());
@@ -1587,7 +1601,7 @@ ${CAL_CSS}
     const old = brandOf(cur);
     // A built form asks first, keeps its look until the new one is ready, then Tia moves it over in one change.
     if (built() && old && old.id !== id) return switchDialog(old, b);
-    if (cur.brandId !== id) { snap(); cur.brandId = id; changed(); }
+    if (cur.brandId !== id || cur.body.style) { snap(); cur.brandId = id; delete cur.body.style; delete cur.body.styleCss; changed(); }
     brandUi(); chatHead(); draw(); renderLog();
     if (!b.css) void readLook(b);
   }
@@ -1600,7 +1614,7 @@ ${CAL_CSS}
   async function switchBrand(old, b) {
     const c = cur;
     S.hold = old.css || "";
-    snap(); c.brandId = b.id; changed();
+    snap(); c.brandId = b.id; delete c.body.style; delete c.body.styleCss; changed();
     brandUi(); chatHead(); draw(); renderLog();
     if (!b.css) await readLook(b);
     S.hold = "";
@@ -1759,7 +1773,7 @@ ${CAL_CSS}
     snap();
     // The brand block is the same for every message in this chat, so the server caches it; each message carries only
     // the form as it is now (whitespace between tags dropped) and the new words.
-    const brandBlock = `BRAND\n[Brand: ${b.name} (${b.site}), confirmed. Build only with its brand CSS.]${b.profile ? `\n${recipeText(b.profile)}` : ""}\n<brand_css>${b.css}</brand_css>\n[Meeting types (id: name)] ${MEETINGS.length ? MEETINGS.map((m) => `${m.id}: ${m.name}, ${m.length} min`).join("; ") : "none yet"}${b.logo ? "\n[The brand's logo is set; the form shows it in img[data-cl-logo].]" : "\n[No logo yet. Use img[data-cl-logo] anyway; it hides until one is added.]"}`;
+    const brandBlock = `BRAND\n${b.style ? `[Style: ${b.name}, one of Claritia's form styles, picked by the owner. Build only with its CSS and keep the page's classes.]` : `[Brand: ${b.name} (${b.site}), confirmed. Build only with its brand CSS.]`}${b.profile ? `\n${recipeText(b.profile)}` : ""}\n<brand_css>${b.css}</brand_css>\n[Meeting types (id: name)] ${MEETINGS.length ? MEETINGS.map((m) => `${m.id}: ${m.name}, ${m.length} min`).join("; ") : "none yet"}${b.logo ? "\n[The brand's logo is set; the form shows it in img[data-cl-logo].]" : "\n[No logo yet. Use img[data-cl-logo] anyway; it hides until one is added.]"}`;
     const ctx = `\n\n[${wasBuilt ? "THE FORM IS BUILT" : "NOTHING BUILT YET"}]${files.length ? `\n[Attached: ${files.map((f) => f.name).join(", ")}]` : ""}\n[The form now]\n<form_html>${sourceHtml().replace(/>\s+</g, "><")}</form_html>\n<form_css>${c.body.css}</form_css>\n<after>${JSON.stringify(c.body.after)}</after>${about ? `\n[This message is about the element with id="${about.id}" (${about.label}). Change only that element unless the owner asks for more.]` : ""}${extra?.from ? `\n[The brand just changed from ${extra.from} to ${b.name}. Put ${b.name} in place of ${extra.from} everywhere in the words, change any form CSS that used ${extra.from}'s own colors, fonts or variables to the brand CSS, and keep every question, name, value and id.]` : ""}`;
     const textFiles = files.filter((f) => f.text !== undefined);
     const turns = [...c.body.turns, { role: "user", content: text + textFiles.map((f) => `\n\n[File ${f.name}]\n${f.text}`).join("") + ctx }];
@@ -1904,8 +1918,10 @@ ${CAL_CSS}
       autosize();
     }
     emit();
-    if (!brands.length) openDialog();
-    else if (!brandOf(cur)) brandMenu();
+    if (!brandOf(cur)) {
+      if (!brands.length) openDialog();
+      else brandMenu();
+    }
   })();
 
   return {

@@ -18,7 +18,7 @@ const checked = (d: Record<string, unknown>) => {
 };
 
 type Row = Record<string, unknown> & { id: string; draft: Record<string, unknown>; draft_rev: number; version: number; status: string; name: string };
-type W = Window & { FIX: { studio: Row; old: Row; brand: string }; rpcs: [string, Record<string, unknown>][]; calls: { path: string; body: Record<string, unknown> }[]; nav: unknown[][]; db: { forms: Record<string, Row>; published: Record<string, unknown>; chats: Record<string, Record<string, unknown>>; dests: Record<string, unknown>[] } };
+type W = Window & { FIX: { studio: Row; old: Row; styled: Row; brand: string }; rpcs: [string, Record<string, unknown>][]; calls: { path: string; body: Record<string, unknown> }[]; nav: unknown[][]; db: { forms: Record<string, Row>; published: Record<string, unknown>; chats: Record<string, Record<string, unknown>>; dests: Record<string, unknown>[] } };
 const w = window as unknown as W;
 w.rpcs = [];
 w.calls = [];
@@ -28,7 +28,7 @@ const KIT = { id: "k1", name: "Finch", source_url: "https://finch.care", scan_st
 const jsonb = (v: unknown): unknown =>
   Array.isArray(v) ? v.map(jsonb) : v && typeof v === "object" ? Object.fromEntries(Object.keys(v).sort((x, y) => x.length - y.length || (x < y ? -1 : 1)).map((k) => [k, jsonb((v as Record<string, unknown>)[k])])) : v;
 const clone = <T,>(v: T): T => JSON.parse(JSON.stringify(v)) as T;
-w.db = { forms: { [w.FIX.studio.id]: clone(w.FIX.studio), [w.FIX.old.id]: clone(w.FIX.old) }, published: { [w.FIX.studio.id]: jsonb(w.FIX.studio.draft), [w.FIX.old.id]: jsonb(w.FIX.old.draft) }, chats: {}, dests: [] };
+w.db = { forms: { [w.FIX.studio.id]: clone(w.FIX.studio), [w.FIX.old.id]: clone(w.FIX.old), [w.FIX.styled.id]: clone(w.FIX.styled) }, published: { [w.FIX.studio.id]: jsonb(w.FIX.studio.draft), [w.FIX.old.id]: jsonb(w.FIX.old.draft), [w.FIX.styled.id]: jsonb(w.FIX.styled.draft) }, chats: {}, dests: [] };
 // A connected email tool (docs/integrations-plan.md step 1).
 const MC = { id: "cccccccc-0000-4000-8000-000000000003", kind: "mailchimp", name: "Mailchimp", status: "active" };
 // Sheets and databases (step 2).
@@ -134,7 +134,7 @@ window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
 const session = { access_token: "t", user: { id: "u1", email: "me@finch.care" } } as unknown as Session;
 const ws = { id: "00000000-0000-4000-8000-000000000001", name: "Finch", features: [] } as never;
 const pick = new URLSearchParams(location.search).get("form");
-const which = pick === "old" ? w.FIX.old.id : pick === "new" ? "new" : w.FIX.studio.id;
+const which = pick === "old" ? w.FIX.old.id : pick === "styled" ? w.FIX.styled.id : pick === "new" ? "new" : w.FIX.studio.id;
 const navigate = (...a: unknown[]) => void w.nav.push(a);
 
 createRoot(document.getElementById("root")!).render(

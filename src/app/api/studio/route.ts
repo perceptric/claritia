@@ -9,6 +9,8 @@ import { readProfile } from "@/lib/studio/industries";
 import { pageForm, teamAlert, type PageAfter } from "@/lib/studio/page";
 import { formToPage } from "@/lib/studio/fromForm";
 import { DEFAULT_BRAND_CSS } from "@/lib/studio/brandDefault";
+import { styleCssById } from "@/lib/studio/styleCss";
+import { isTheme } from "@/lib/forms/gallery/themes";
 import { turnstileSiteKey } from "@/lib/forms/server";
 import { BRAND_RULES, CHAT_RULES, STUDIO_MODEL, TRANSLATE_RULES } from "@/lib/studio/prompts";
 import { hostOf, readSite, readSource } from "@/lib/studio/site";
@@ -210,7 +212,10 @@ export async function POST(request: Request) {
     const ctx = await cleaningCtx(db, ws);
     const old = checkForm(had.draft, { custom: ctx.custom });
     if ("errors" in old) return bad(old.errors[0]!, 400);
-    const css = had.brand_kit_id ? ((await db.from("brand_kits").select("studio_css").eq("id", had.brand_kit_id).maybeSingle()).data as { studio_css?: string | null } | null)?.studio_css : null;
+    // Its brand's stylesheet; a form made in one of the gallery's styles (its kit noted "style:<id>") keeps that style.
+    const kit = had.brand_kit_id ? ((await db.from("brand_kits").select("studio_css, notes").eq("id", had.brand_kit_id).maybeSingle()).data as { studio_css?: string | null; notes?: string[] | null } | null) : null;
+    const styleNote = (kit?.notes ?? []).find((n) => n.startsWith("style:"))?.slice(6);
+    const css = kit?.studio_css || (isTheme(styleNote) ? styleCssById(styleNote) : null);
     const conv = formToPage(old.form);
     const turnstile = !!turnstileSiteKey() && !!process.env.TURNSTILE_SECRET_KEY?.trim();
     const { form: draft } = pageForm({ html: conv.html, css: conv.css, brand: css || DEFAULT_BRAND_CSS, after: conv.after, title: conv.title, turnstile });

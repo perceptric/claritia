@@ -14,6 +14,9 @@ import tailwind from "@tailwindcss/postcss";
 import pw from "playwright-core";
 import { checkForm, emptyForm, type Form } from "../src/lib/forms/schema.ts";
 import { pageForm } from "../src/lib/studio/page.ts";
+import { templateById } from "../src/lib/forms/gallery/catalog.ts";
+import { styleCssById } from "../src/lib/studio/styleCss.ts";
+import { templateDraft } from "../src/lib/studio/templatePage.ts";
 import fx from "./studio/fixtures.json" with { type: "json" };
 
 const failures: string[] = [];
@@ -29,7 +32,9 @@ const made = checkForm(pageForm({ html, css: "", brand: fx.brand, after: { kind:
 const olds = checkForm({ ...emptyForm(), title: "Book a demo", submit: { label: "Book my demo" }, steps: [{ id: "s1", title: "You", fields: [{ id: "em", key: "email", type: "email", label: "Work email", required: true }] }] }, { custom: [] });
 if (!("form" in made) || !("form" in olds)) throw new Error("the fixtures don't pass the form checker");
 const row = (id: string, name: string, draft: Form) => ({ id, workspace_id: "00000000-0000-4000-8000-000000000001", name, status: "live", version: 1, draft, draft_rev: 4, brand_kit_id: "k1", live_kit_id: "k1", kind: "built", published_at: new Date().toISOString() });
-const FIX = { studio: row("aaaaaaaa-0000-4000-8000-000000000001", "Daily check-in", made.form), old: row("bbbbbbbb-0000-4000-8000-000000000002", "Book a demo", olds.form), brand: fx.brand };
+// A template used in the website's Poster style: no brand of its own, the style as its look.
+const styledForm = templateDraft(templateById("agency.project-inquiry")!, styleCssById("poster"));
+const FIX = { studio: row("aaaaaaaa-0000-4000-8000-000000000001", "Daily check-in", made.form), old: row("bbbbbbbb-0000-4000-8000-000000000002", "Book a demo", olds.form), styled: { ...row("dddddddd-0000-4000-8000-000000000004", "Project inquiry", styledForm), brand_kit_id: null, live_kit_id: null }, brand: fx.brand };
 
 const root = new URL("..", import.meta.url).pathname;
 // Studio.tsx imports "./studio" (studio.ts beside it); esbuild would pick Studio.tsx itself by a case-blind match.
@@ -118,6 +123,26 @@ try {
   check(await page.evaluate(() => (window as unknown as { calls: { path: string; body: { mode?: string } }[] }).calls.some((c) => c.path === "/api/studio" && c.body.mode === "convert")), "an older form is turned into a Studio page when it opens");
   check((await $s("#t-code").count()) === 1, "its Build is Form Studio");
   check((await action.textContent())?.trim() === "Publish changes", "its new page isn't live until it's published");
+
+  // ── A template in a website style: the Studio keeps the style as its look ──
+  await page.goto(`${base}/?form=styled`);
+  await tab("Build").waitFor();
+  await studioReady();
+  await page.waitForTimeout(600);
+  await shot("4a-styled");
+  check(((await $s("#brandBtn").textContent()) ?? "").includes("Poster style"), "a styled form opens in the Studio with its style as the look");
+  const stage = await page.evaluate(() => {
+    const outer = document.querySelector("[data-studio-host]")!.shadowRoot!;
+    const inner = outer.getElementById("host")?.shadowRoot;
+    const pg = inner?.querySelector(".page");
+    return pg ? getComputedStyle(pg).backgroundColor : "";
+  });
+  check(stage === "rgb(255, 223, 61)", `the Studio's preview wears the style (${stage})`);
+  // The chat saves as the page closes: it keeps the style and no brand.
+  await page.evaluate(() => window.dispatchEvent(new Event("pagehide")));
+  await page.waitForTimeout(200);
+  const kept = await page.evaluate(() => (window as unknown as { calls: { path: string; body: { mode?: string; chat?: { brandId?: string; body?: { style?: string } } } }[] }).calls.filter((c) => c.body.mode === "chat-save").map((c) => c.body.chat));
+  check(kept.some((c) => c?.body?.style === "poster" && !c.brandId), "its chat keeps the style, with no brand");
 
   // ── New form: Form Studio before the form exists ──
   await page.goto(`${base}/?form=new`);

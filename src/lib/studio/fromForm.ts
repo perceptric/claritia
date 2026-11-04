@@ -240,12 +240,14 @@ function fieldHtml(f: Field, n: string, ifs: string, ctx: { name: (id: string) =
 /** The form's look, kept to layout: everything else comes from the brand's classes and variables. */
 function pageCss(form: Form): string {
   const w = form.layout?.width === "wide" ? 720 : 600;
-  return `.page{min-height:100%;padding-block:40px;padding-inline:16px;background:var(--brand-bg,#fff);box-sizing:border-box}
+  return `.page{min-height:100%;padding-block:40px;padding-inline:16px;background:var(--brand-bg,#fff);box-sizing:border-box;container-type:inline-size}
 .form-card{max-width:${w}px;margin-inline:auto;display:flex;flex-direction:column;gap:22px}
 .form-card>header{display:flex;flex-direction:column;gap:10px}
 .logo{height:32px;width:auto;align-self:flex-start}
 .q{display:flex;flex-direction:column;gap:6px;border:0;margin:0;padding:0;min-width:0}
 .q legend{padding:0;margin-block-end:6px}
+.fields{display:grid;grid-template-columns:minmax(0,1fr);gap:22px 14px}
+@container (min-width:560px){.fields{grid-template-columns:repeat(2,minmax(0,1fr))}.fields>*{grid-column:1/-1}.fields>.half{grid-column:auto}}
 .choices{display:flex;flex-direction:column;gap:8px}
 .help{margin:0;font-size:.9em;opacity:.75}
 .error{margin:0;font-size:.9em;color:#b23a26}
@@ -299,7 +301,12 @@ export function formToPage(form: Form): Converted {
   const many = form.steps.length > 1;
   const submit = esc(form.submit?.label || "Submit");
   const stepHtml = (s: Step, i: number) => {
-    const body = s.fields.map((f) => fieldHtml(f, nm.get(f.id) ?? f.id, ifFor.get(f.id) ?? "", { name, lost })).join("\n");
+    // Fields sit in a grid: a half-width one shares its row with the next, as on the website's template pages.
+    const one = (f: Field) => {
+      const html = fieldHtml(f, nm.get(f.id) ?? f.id, ifFor.get(f.id) ?? "", { name, lost });
+      return f.width && f.width !== "full" ? html.replace(/^<(div|fieldset) class="q"/, '<$1 class="q half"') : html;
+    };
+    const body = `<div class="fields">\n${s.fields.map(one).filter(Boolean).join("\n")}\n</div>`;
     if (!many) return `${body}\n<div class="nav"><button class="btn" type="submit">${submit}</button></div>`;
     const last = i === form.steps.length - 1;
     const now = text(sendNow[i]!.length ? sendNow[i]! : null);
