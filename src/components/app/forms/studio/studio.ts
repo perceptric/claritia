@@ -1,6 +1,7 @@
 /* eslint-disable */
 // @ts-nocheck
-import { DEFAULT_CONSENT } from "../../../../lib/forms/schema";
+import { checkForm, DEFAULT_CONSENT, emptyForm } from "../../../../lib/forms/schema";
+import { formToPage } from "../../../../lib/studio/fromForm";
 import { checkStudioPage } from "../../../../lib/studio/check";
 import { cleanPage } from "../../../../lib/studio/page";
 import { pageNumbers } from "../../../../lib/studio/numbers";
@@ -8,7 +9,8 @@ import { styleCssById, styleName } from "../../../../lib/studio/styleCss";
 import { cleanRoute, OP_LABEL, PAST_ROUTES, ROUTE_OPS, routeKind, routeMeeting, routeStart } from "../../../../lib/studio/routes";
 import { linkProblem, SCHEDULERS } from "../../../../lib/forms/schedule";
 import { INDUSTRIES, industryOf, isRtl, languageName, profileWords, recipeText } from "../../../../lib/studio/industries";
-import { ACCESS_CSS, around, CAL_CSS, consentSpot, linkErrors, zoneWords } from "../../../../lib/studio/runtime";
+import { ACCESS_CSS, around, CAL_CSS, consentSpot, limitMsg, linkErrors, pipes, shuffle, zoneWords } from "../../../../lib/studio/runtime";
+import { baseName, isLayout, PICK_KINDS, QGROUPS, QNAME, questionHtml, readJumps, stepShowIfs, TEXT_KINDS, uniqueName, writeJumps } from "../../../../lib/studio/builder";
 import { TIA_STYLE, tiaSvg } from "../../../../lib/studio/tia";
 import { markSvg } from "../../../Logo";
 
@@ -129,6 +131,21 @@ input, textarea { user-select: text; -webkit-user-select: text; }
 .steps .sp .n { font: 500 11px var(--mono); opacity: .65; }
 .steps .tools { display: flex; gap: 2px; flex: none; padding-left: 6px; margin-left: 2px; border-left: 1px solid var(--line); }
 .navi { flex: none; width: 220px; border-right: 1px solid var(--line); display: flex; flex-direction: column; min-height: 0; }
+.adds { flex: none; width: 212px; border-right: 1px solid var(--line); display: flex; flex-direction: column; min-height: 0; }
+.adds .in { margin: 0 10px 8px; width: auto; flex: none; }
+.addlist { flex: 1; min-height: 0; overflow-y: auto; padding: 0 6px 12px; display: flex; flex-direction: column; gap: 1px; }
+.addlist .ag { font-size: 11px; color: var(--faint); padding: 8px 6px 3px; }
+.addlist button { flex: none; height: 32px; border: 0; background: transparent; border-radius: 7px; display: flex; align-items: center; gap: 9px; padding: 0 6px; text-align: left; font-size: 12.5px; color: var(--ink); cursor: grab; }
+.addlist button:hover { background: var(--hover); }
+.addlist button i { width: 22px; height: 22px; border-radius: 6px; background: var(--paper); box-shadow: 0 0 0 1px var(--line); display: inline-flex; align-items: center; justify-content: center; color: var(--muted); flex: none; }
+.dropl { position: absolute; height: 3px; border-radius: 2px; background: var(--pick); pointer-events: none; z-index: 4; }
+.mh { font-size: 11px; color: var(--faint); padding: 6px 10px 2px; }
+.jrow { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr) auto; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); }
+.swatches { display: flex; flex-wrap: wrap; gap: 6px; }
+.swatches button { width: 24px; height: 24px; border-radius: 999px; border: 0; box-shadow: 0 0 0 1px rgb(0 0 0 / .12); }
+.swatches button[aria-pressed="true"] { box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--ink); }
+.hchips { display: flex; flex-wrap: wrap; gap: 6px; }
+.hchip { height: 24px; display: inline-flex; align-items: center; gap: 2px; padding: 0 2px 0 9px; border-radius: 999px; background: var(--paper-deep); font: 11.5px var(--mono); }
 .ptitle { height: 38px; flex: none; display: flex; align-items: center; padding: 0 12px; font-size: 11px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; color: var(--muted); }
 .tree { flex: 1; min-height: 0; overflow-y: auto; padding: 0 6px 10px; display: flex; flex-direction: column; }
 .tree button { flex: none; height: 26px; border: 0; background: transparent; text-align: left; border-radius: 5px; color: var(--body); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 12px; display: flex; align-items: center; gap: 6px; }
@@ -273,6 +290,7 @@ input, textarea { user-select: text; -webkit-user-select: text; }
   .bar { flex-wrap: wrap; height: auto; padding: 8px 12px; row-gap: 8px; }
   .work { flex-direction: column; }
   .navi { width: auto; border-right: 0; border-bottom: 1px solid var(--line); max-height: 220px; }
+  .adds { width: auto; border-right: 0; border-bottom: 1px solid var(--line); max-height: 220px; }
   .canvas { min-height: 70vh; padding: 12px; }
   .panel { width: auto; border-left: 0; border-top: 1px solid var(--line); }
 }
@@ -281,6 +299,14 @@ input, textarea { user-select: text; -webkit-user-select: text; }
 
 const SVG = (d, w = 16) => `<svg width="${w}" height="${w}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
 const P = {
+  swap: '<path d="M7 4 3 8l4 4"/><path d="M3 8h13a4 4 0 0 1 4 4"/><path d="m17 20 4-4-4-4"/><path d="M21 16H8a4 4 0 0 1-4-4"/>',
+  short: '<path d="M4 9h16M4 15h10"/>', long: '<path d="M4 6h16M4 10h16M4 14h16M4 18h10"/>', email: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/>',
+  qphone: '<path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2"/>', address: '<path d="M12 21s-7-6.2-7-12a7 7 0 0 1 14 0c0 5.8-7 12-7 12z"/><circle cx="12" cy="9" r="2.5"/>',
+  choice: '<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/>', checks: '<rect x="4" y="4" width="16" height="16" rx="3"/><path d="m8 12 3 3 5-6"/>', dropdown: '<rect x="3" y="6" width="18" height="12" rx="2"/><path d="m14 11 2 2 2-2"/>',
+  yesno: '<path d="M20 6 9 17l-5-5"/>', ranking: '<path d="M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01"/>', rating: '<path d="m12 3 2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z"/>',
+  scale: '<path d="M4 18V12M9 18V8M14 18v-6M19 18V5"/>', number: '<path d="M4 9h16M4 15h16M10 3 8 21M16 3l-2 18"/>', payment: '<rect x="3" y="6" width="18" height="12" rx="2"/><path d="M3 10h18M7 15h3"/>',
+  date: '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/>', time: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>', file: '<path d="M12 16V4M7 9l5-5 5 5M5 20h14"/>',
+  signature: '<path d="M3 17c3-1 4-9 7-9s-1 9 2 9 3-4 5-4 2 3 4 3"/>', heading: '<path d="M6 4v16M18 4v16M6 12h12"/>', qtext: '<path d="M5 6h14M12 6v13"/>', divider: '<path d="M4 12h16"/>',
   back: '<path d="m15 18-6-6 6-6"/>', link: '<path d="M10 14a4 4 0 0 0 5.66 0l3-3a4 4 0 0 0-5.66-5.66l-1 1"/><path d="M14 10a4 4 0 0 0-5.66 0l-3 3a4 4 0 0 0 5.66 5.66l1-1"/>', eye: '<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>', cursor: '<path d="m4 4 7 17 2.5-7.5L21 11z"/>',
   code: '<path d="m8 7-5 5 5 5M16 7l5 5-5 5"/>', cal: '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4M9 15l2 2 4-4"/>', layers: '<path d="m12 3 9 5-9 5-9-5z"/><path d="m3 13 9 5 9-5"/>',
   desk: '<rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/>', tab: '<rect x="5" y="3" width="14" height="18" rx="2"/><path d="M11 18h2"/>', phone: '<rect x="7" y="3" width="10" height="18" rx="2"/><path d="M11 18h2"/>',
@@ -319,6 +345,7 @@ export const STUDIO_HTML = `
         <button class="ib" role="tab" id="t-edit" data-tip="Edit" aria-label="Edit">${SVG(P.cursor)}</button>
         <button class="ib" role="tab" id="t-after" data-tip="On submission" aria-label="On submission">${SVG(P.cal)}</button>
       </div>
+      <button class="ib" id="addBtn" data-tip="Add a question" aria-label="Add a question" aria-pressed="false" hidden>${SVG(P.plus)}</button>
       <span class="spacer"></span>
       <div class="steps" id="stepBar" role="toolbar" aria-label="Pages" hidden></div>
       <span class="spacer"></span>
@@ -334,13 +361,15 @@ export const STUDIO_HTML = `
       <button class="ib tipleft" id="moreBtn" data-tip="More" aria-label="More" aria-haspopup="menu">${SVG(P.more)}</button>
     </div>
     <div class="work" id="work">
+      <aside class="adds" id="adds" aria-label="Add a question" hidden><div class="ptitle">Add</div><input class="in" id="addQ" placeholder="Search questions" aria-label="Search questions" autocomplete="off"><div class="addlist" id="addList"></div></aside>
       <aside class="navi" id="navi" aria-label="Layers" hidden><div class="ptitle">Layers</div><div class="tree" id="tree"></div></aside>
       <div class="canvas" id="canvas">
         <div class="frame" id="frame">
           <div id="host"></div>
-          <div class="empty" id="empty" hidden><div class="sk" aria-hidden="true"><span style="width:55%;height:16px"></span><span style="width:80%"></span><span class="b2"></span><span style="width:30%"></span><span class="b2"></span><span class="bt2"></span></div><span id="emptyText">Your form shows here as Tia builds it</span></div>
+          <div class="empty" id="empty" hidden><div class="sk" aria-hidden="true"><span style="width:55%;height:16px"></span><span style="width:80%"></span><span class="b2"></span><span style="width:30%"></span><span class="b2"></span><span class="bt2"></span></div><span id="emptyText">Your form shows here as Tia builds it</span><button class="pill" id="blankBtn">Start blank</button></div>
           <div class="ov" id="hov" hidden><span id="hovtag"></span></div>
           <div class="ov" id="sel" hidden><span id="seltag"></span></div>
+          <div class="dropl" id="dropl" hidden></div>
           <div id="fbar" hidden></div>
         </div>
       </div>
@@ -354,6 +383,7 @@ export const STUDIO_HTML = `
         <div class="ptabs" role="tablist">
           <button class="pt" role="tab" id="p-style" aria-selected="true">${SVG(P.style, 14)}Style</button>
           <button class="pt" role="tab" id="p-set" aria-selected="false">${SVG(P.set, 14)}Settings</button>
+          <button class="pt" role="tab" id="p-form" aria-selected="false">${SVG(P.panel, 14)}Form</button>
           <span class="who2" id="selName"></span>
         </div>
         <div class="pscroll" id="pscroll"></div>
@@ -459,7 +489,7 @@ export function mountStudio(shell: ShadowRoot, api: StudioApi): StudioControl {
   let cur = null;
   let loaded = false;
   const looking = new Set();
-  const S = { view: 0, hold: "", lang: "", translating: "", mode: "preview", device: "desk", sel: null, about: null, busy: false, ptab: "style", scope: "class", nav: false, file: "html", publishing: false, pubMsg: "" };
+  const S = { view: 0, hold: "", lang: "", translating: "", mode: "preview", device: "desk", sel: null, about: null, busy: false, ptab: "style", scope: "class", nav: false, adds: true, file: "html", publishing: false, pubMsg: "" };
   const hist = {};
   const H = () => (hist[cur?.id || "-"] ||= { past: [], future: [] });
   // A form in one of the website's styles (src/lib/studio/styleCss.ts) has the style as its look, kept on its chat
@@ -630,6 +660,7 @@ ${CAL_CSS}
   }
   function run(w) {
     linkErrors(w);
+    if (S.mode !== "edit") shuffle(w);
     const steps = [...w.querySelectorAll("[data-cl-step]")], thanks = w.querySelector("[data-cl-thanks]"), editing = S.mode === "edit";
     // Totals, payments and scores, worked out the way the live form and the server do; calcs join the answers by name.
     const nums = () => {
@@ -653,6 +684,8 @@ ${CAL_CSS}
       const pos = shown.indexOf(steps[stepAt]);
       const p = steps.length ? (done ? 1 : (Math.max(0, pos) + 1) / Math.max(1, shown.length)) : done ? 1 : 0;
       w.querySelectorAll("[data-cl-progress]").forEach((el) => el.style.setProperty("--cl-progress", String(editing ? 0.5 : p)));
+      // Answers in text show as typed in Preview; Edit keeps {first_name} so it can be changed.
+      if (!editing) pipes(w, v);
       return shown;
     };
     const check = (scope) => {
@@ -661,7 +694,7 @@ ${CAL_CSS}
         if (el.closest("[hidden]") || seen.has(el.name)) continue; seen.add(el.name);
         const group = [...scope.querySelectorAll(`[name="${CSS.escape(el.name)}"]`)].filter((x) => !x.closest("[hidden]"));
         const filled = el.type === "radio" || el.type === "checkbox" ? group.some((x) => x.checked) : !!el.value.trim();
-        const msg = group.some((x) => x.required) && !filled ? "Fill this in." : el.type === "email" && el.value && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(el.value) ? "Enter a valid email." : "";
+        const msg = group.some((x) => x.required) && !filled ? "Fill this in." : el.type === "email" && el.value && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(el.value) ? "Enter a valid email." : limitMsg(el, group);
         group.forEach((x) => x.setAttribute("aria-invalid", msg ? "true" : "false"));
         const er = w.querySelector(`[data-cl-error-for="${CSS.escape(el.name)}"]`); if (er) er.textContent = msg;
         if (msg) ok = false;
@@ -797,8 +830,9 @@ ${CAL_CSS}
     fb.hidden = false;
     fb.innerHTML = "";
     const b = (tip, ic, fn) => h("button", { class: "ib", "data-tip": tip, "aria-label": tip, html: SVG(ic, 15), onclick: (e) => { e.stopPropagation(); fn(); } });
-    fb.append(b("Move up", P.up, () => move(-1)), b("Move down", P.down, () => move(1)), b("Duplicate", P.dup, dup), b("Delete", P.del, del), b("Select parent", P.parent, parent), h("button", { class: "ib", "data-tip": "Ask Tia about this", "aria-label": "Ask Tia about this", html: tiaSvg(16), onclick: (e) => { e.stopPropagation(); askAbout(); } }));
-    const w = 6 * 30 + 6;
+    const kinds = kindsOf(byK(S.sel));
+    fb.append(...(kinds ? [h("button", { class: "ib", id: "typeBtn", "data-tip": "Change type", "aria-label": "Change type", html: SVG(P.swap, 15), onclick: (e) => { e.stopPropagation(); typeChangeMenu(e.currentTarget); } })] : []), b("Move up", P.up, () => move(-1)), b("Move down", P.down, () => move(1)), b("Duplicate", P.dup, dup), b("Delete", P.del, del), b("Select parent", P.parent, parent), h("button", { class: "ib", "data-tip": "Ask Tia about this", "aria-label": "Ask Tia about this", html: tiaSvg(16), onclick: (e) => { e.stopPropagation(); askAbout(); } }));
+    const w = (kinds ? 7 : 6) * 30 + 6;
     fb.style.left = `${Math.max(0, Math.min(box.left + box.width - w, $("frame").clientWidth - w))}px`;
     fb.style.top = `${box.top > 62 ? box.top - 58 : box.top + box.height + 8}px`;
   }
@@ -950,7 +984,8 @@ ${CAL_CSS}
     const p = $("pscroll"); p.innerHTML = "";
     const el = S.sel ? byK(S.sel) : null;
     $("selName").textContent = el ? nameOf(el) : "";
-    $("p-style").setAttribute("aria-selected", String(S.ptab === "style")); $("p-set").setAttribute("aria-selected", String(S.ptab === "settings"));
+    $("p-style").setAttribute("aria-selected", String(S.ptab === "style")); $("p-set").setAttribute("aria-selected", String(S.ptab === "settings")); $("p-form").setAttribute("aria-selected", String(S.ptab === "form"));
+    if (S.ptab === "form") return formPanel(p);
     if (!el) { p.append(h("div", { class: "sec" }, h("p", { class: "hint0", text: "Click anything on the form to change it. Click picked text again to type." }))); return; }
     if (S.ptab === "settings") return settings(p, el);
     const cls = el.classList[0];
@@ -1066,7 +1101,7 @@ ${CAL_CSS}
         group.forEach((g) => g.setAttribute("name", v));
         src.querySelectorAll(`[data-cl-error-for="${CSS.escape(input.name)}"]`).forEach((e) => e.setAttribute("data-cl-error-for", v));
         // Conditions and routes that read the old name follow it.
-        src.querySelectorAll("[data-cl-show-if]").forEach((e) => e.setAttribute("data-cl-show-if", e.getAttribute("data-cl-show-if").replace(new RegExp(`\\b${input.name}\\b`, "g"), v)));
+        for (const a of ["data-cl-show-if", "data-cl-own"]) src.querySelectorAll(`[${a}]`).forEach((e) => e.setAttribute(a, e.getAttribute(a).replace(new RegExp(`\\b${input.name}\\b`, "g"), v)));
         body().after.routes = (body().after.routes || []).map((r) => (r.field === input.name ? { ...r, field: v } : r));
         if (body().ids?.[input.name]) { body().ids[v] = body().ids[input.name]; delete body().ids[input.name]; }
         commit();
@@ -1079,6 +1114,7 @@ ${CAL_CSS}
       const sv = input.getAttribute("data-cl-save") || "";
       Q.append(h("div", { class: "row2" }, h("span", { class: "lbl", text: "Saves to" }), pick((SAVES.find((s) => s[0] === sv) || SAVES[0])[1], SAVES.map(([v, t]) => [t, () => { snap(); group.forEach((g) => (v ? g.setAttribute("data-cl-save", v) : g.removeAttribute("data-cl-save"))); commit(); }, v === sv]))));
       p.append(Q);
+      moreSettings(p, input);
       if (isChoice && group.length) {
         const O = h("div", { class: "sec" }, h("h4", { text: "Options" }));
         const list = h("div", { class: "opts" });
@@ -1101,26 +1137,415 @@ ${CAL_CSS}
         p.append(O);
       }
     }
-    // Show if, with pickers
+    if (!input?.name && leaf(el) && !el.matches("button,a,option")) textSettings(p, el);
+    // Show if, with pickers. A page that a jump skips keeps its own condition apart (data-cl-own).
     const C = h("div", { class: "sec" }, h("h4", { text: "Show if" }));
-    const raw = el.getAttribute("data-cl-show-if") || "";
+    const IF = el.hasAttribute("data-cl-own") ? "data-cl-own" : "data-cl-show-if";
+    const raw = el.getAttribute(IF) || "";
     const qs = questions().filter((q) => !el.contains(src.querySelector(`[name="${CSS.escape(q.name)}"]`)));
     if (!raw) {
-      C.append(h("div", {}, h("button", { class: "pill", html: `${SVG(P.plus, 14)}Add a condition`, disabled: !qs.length || null, onclick: () => { const q = qs[0]; snap(); el.setAttribute("data-cl-show-if", q.options[0] ? `${q.name} == '${q.options[0].value}'` : `${q.name} filled`); commit(); } })));
+      C.append(h("div", {}, h("button", { class: "pill", html: `${SVG(P.plus, 14)}Add a condition`, disabled: !qs.length || null, onclick: () => { const q = qs[0]; snap(); el.setAttribute(IF, q.options[0] ? `${q.name} == '${q.options[0].value}'` : `${q.name} filled`); commit(); } })));
     } else {
       const m = /^([\w-]+)\s*(==|!=)\s*'([^']*)'$/.exec(raw) || /^([\w-]+)\s+(filled)$/.exec(raw);
       if (!m) C.append(h("p", { class: "hint0", text: raw }));
       const [q0, op0, v0] = m ? [m[1], m[2], m[3] ?? ""] : ["", "==", ""];
-      const write = (q, op, v) => { snap(); el.setAttribute("data-cl-show-if", op === "filled" ? `${q} filled` : `${q} ${op} '${v}'`); commit(); };
+      const write = (q, op, v) => { snap(); el.setAttribute(IF, op === "filled" ? `${q} filled` : `${q} ${op} '${v}'`); commit(); };
       const q = qs.find((x) => x.name === q0);
       C.append(h("div", { class: "cond" },
         pick(q0 || "Pick", qs.map((x) => [x.name, () => write(x.name, x.options.length ? "==" : "filled", x.options[0]?.value || ""), x.name === q0])),
         pick(op0 === "!=" ? "is not" : op0 === "filled" ? "filled" : "is", [["is", () => write(q0, "==", v0 || q?.options[0]?.value || ""), op0 === "=="], ["is not", () => write(q0, "!=", v0 || q?.options[0]?.value || ""), op0 === "!="], ["filled", () => write(q0, "filled", ""), op0 === "filled"]]),
         op0 === "filled" ? h("span") : pick(q?.options.find((o) => o.value === v0)?.label || v0 || "Pick", (q?.options || []).map((o) => [o.label, () => write(q0, op0, o.value), o.value === v0])),
-        h("button", { class: "ib", "aria-label": "Remove the condition", html: SVG(P.x, 14), onclick: () => { snap(); el.removeAttribute("data-cl-show-if"); commit(); } })));
+        h("button", { class: "ib", "aria-label": "Remove the condition", html: SVG(P.x, 14), onclick: () => { snap(); el.removeAttribute(IF); commit(); } })));
     }
     p.append(C);
   }
+
+  // ── The no-code builder (docs/studio-v2-plan.md, Part 9): Add, "/", drag onto the form, change type, jumps, answers
+  // in text and the Form tab. Questions are written in the page's own classes (src/lib/studio/builder.ts).
+  const TI = (t) => P[{ phone: "qphone", text: "qtext" }[t] || t] || P.plus;
+  const CONTROLS = "input[name]:not([type=hidden]):not([type=submit]),textarea[name],select[name],[data-cl-field][data-cl-name]";
+  const nameIn = (el) => el.getAttribute("name") || el.getAttribute("data-cl-name") || "";
+  const namesIn = (el) => new Set([...(el.matches?.(CONTROLS) ? [el] : []), ...el.querySelectorAll(CONTROLS)].map(nameIn).filter(Boolean));
+  const allNames = () => namesIn(src);
+  const isList = (el) => !el || el === src || el.matches?.("form,[data-cl-step],[data-cl-thanks]");
+  /**
+   * The question around an element: the smallest box that holds its answer and its label (or its legend), so a page
+   * with one question still finds the question, not the list it's in. A picked heading or text is itself.
+   */
+  function qOf(el) {
+    if (!el || el === src) return null;
+    if (namesIn(el).size > 1) return el;
+    let ctl = el.matches?.(CONTROLS) ? el : el.querySelector?.(CONTROLS);
+    if (!ctl) { let a = el; while (a.parentElement && !isList(a.parentElement) && namesIn(a).size === 0) a = a.parentElement; if (namesIn(a).size === 1) ctl = a.matches(CONTROLS) ? a : a.querySelector(CONTROLS); }
+    if (!ctl) return el;
+    const need = [];
+    if (ctl.id) { const l = src.querySelector(`label[for="${CSS.escape(ctl.id)}"]`); if (l) need.push(l); }
+    const fs = ctl.closest("fieldset"); if (fs && namesIn(fs).size === 1) need.push(fs);
+    const wrapL = ctl.closest("label"); if (wrapL) need.push(wrapL);
+    let p = ctl;
+    while (p.parentElement && !isList(p.parentElement) && !need.every((x) => p.contains(x))) p = p.parentElement;
+    // A choice's own label holds only one option: the question is the box with all of them.
+    if (ctl.type === "radio" || ctl.type === "checkbox") while (p.parentElement && !isList(p.parentElement) && namesIn(p.parentElement).size === 1 && [...src.querySelectorAll(`[name="${CSS.escape(nameIn(ctl))}"]`)].some((x) => !p.contains(x))) p = p.parentElement;
+    // A box with no label of its own (a block, a placeholder-only input) takes its small wrapper.
+    if (p === ctl && p.parentElement && !isList(p.parentElement) && namesIn(p.parentElement).size === 1 && p.parentElement.children.length <= 3) p = p.parentElement;
+    if (!el.contains(p) && !p.contains(el)) return el;
+    return p.contains(el) ? p : el;
+  }
+  /** The last part of a question that sits loose in its list (its label, its box, then its error line): the error line. */
+  function endOf(q) {
+    const c = q.matches?.(CONTROLS) ? q : q.querySelector?.(CONTROLS);
+    const er = c && src.querySelector(`[data-cl-error-for="${CSS.escape(nameIn(c))}"]`);
+    return er && er.parentElement === q.parentElement && q.compareDocumentPosition(er) & Node.DOCUMENT_POSITION_FOLLOWING ? er : q;
+  }
+  /** The first part of a loose question: its label, when the label sits just before it. */
+  function startOf(q) {
+    const c = q.matches?.(CONTROLS) ? q : q.querySelector?.(CONTROLS);
+    const l = c?.id && src.querySelector(`label[for="${CSS.escape(c.id)}"]`);
+    return l && l.parentElement === q.parentElement && !q.contains(l) && l.compareDocumentPosition(q) & Node.DOCUMENT_POSITION_FOLLOWING ? l : q;
+  }
+  /** Where a new question goes: after the picked question, else after the last question of the page in view. */
+  function spot() {
+    const picked = S.sel ? byK(S.sel) : null;
+    const pq = picked && !isList(picked) ? qOf(picked) : null;
+    if (pq && pq !== src.firstElementChild && pq.closest("form,[data-cl-step]")) return { after: endOf(pq) };
+    const steps = stepsIn(src);
+    const scope = (typeof S.view === "number" && steps[S.view]) || src.querySelector("form") || src.firstElementChild || src;
+    const qs = [...scope.querySelectorAll(CONTROLS)].map(qOf).filter(Boolean);
+    if (qs.length) return { after: endOf(qs.at(-1)) };
+    const btn = scope.querySelector("[type=submit],[data-cl-next]");
+    if (btn) { let b = btn; while (b.parentElement && b.parentElement !== scope && !isList(b.parentElement)) b = b.parentElement; return { before: b }; }
+    return { into: scope };
+  }
+  /** The page's own class names for a question's parts, read from a question it already has. */
+  function classMap() {
+    const map = {};
+    const text = src.querySelector("input[type=text][name],input[type=email][name],textarea[name]");
+    const tq = text && qOf(text);
+    // A page whose questions sit loose (label, box, error line) gets a plain box around a new one.
+    map.q = "";
+    if (tq && tq !== text && tq.querySelector("label,legend")) {
+      map.q = tq.className;
+        const lab = tq.querySelector("label,legend"); if (lab?.className) map.label = lab.className;
+    }
+    if (text?.className) map.field = text.className;
+    const fl = text?.id && src.querySelector(`label[for="${CSS.escape(text.id)}"]`); if (fl?.className && !map.label) map.label = fl.className;
+    const ch = src.querySelector("label > input[type=radio], label > input[type=checkbox]")?.parentElement;
+    if (ch?.classList[0]) map.choice = ch.classList[0];
+    if (ch?.parentElement?.className && ch.parentElement.tagName !== "FIELDSET") map.choices = ch.parentElement.className;
+    const er = src.querySelector("[data-cl-error-for]"); if (er?.className) map.error = er.className;
+    const hd = src.querySelector("h2,h3"); if (hd?.className) map.heading = hd.className;
+    const tx = src.querySelector("p.text,p"); if (tx?.className && !tx.hasAttribute("data-cl-error-for")) map.text = tx.className;
+    return map;
+  }
+  function addQuestion(type, where) {
+    if (!built()) return toast("Start the form first");
+    const taken = allNames();
+    const name = isLayout(type) ? "" : uniqueName(baseName(type), taken);
+    const save = type === "email" && !src.querySelector('[data-cl-save="email"]') ? "email" : type === "phone" && !src.querySelector('[data-cl-save="phone"]') ? "phone" : undefined;
+    const frag = clean(questionHtml(type, name, { save }));
+    const map = classMap();
+    frag.querySelectorAll("[class]").forEach((el) => { const next = el.className.split(/\s+/).map((c) => (c in map ? map[c] : c)).filter(Boolean).join(" "); next ? (el.className = next) : el.removeAttribute("class"); });
+    const node = frag.firstElementChild;
+    if (!node) return;
+    snap();
+    [node, ...node.querySelectorAll("*")].forEach((x) => x.setAttribute("data-k", String(++kSeq)));
+    const at = where || spot();
+    if (at.after) at.after.after(node); else if (at.before) at.before.before(node); else at.into.append(node);
+    ensureIds();
+    S.sel = node.getAttribute("data-k");
+    S.ptab = "settings";
+    commit();
+    toast(`Added ${QNAME[type]}`);
+    requestAnimationFrame(() => live(S.sel)?.scrollIntoView({ block: "nearest", behavior: "smooth" }));
+  }
+  function addsUi() {
+    const list = $("addList"); list.innerHTML = "";
+    const f = $("addQ").value.trim().toLowerCase();
+    for (const [g, xs] of QGROUPS) {
+      const shown = xs.filter(([, n]) => !f || n.toLowerCase().includes(f));
+      if (!shown.length) continue;
+      list.append(h("div", { class: "ag", text: g }));
+      for (const [t, n] of shown) {
+        const b = h("button", { draggable: "true", "data-add": t, title: "Click to add, or drag onto the form", html: `<i>${SVG(TI(t), 13)}</i><span class="nm"></span>`, onclick: () => addQuestion(t) });
+        b.querySelector(".nm").textContent = n;
+        b.addEventListener("dragstart", (e) => { dragType = t; e.dataTransfer.effectAllowed = "copy"; try { e.dataTransfer.setData("text/plain", t); } catch {} });
+        b.addEventListener("dragend", () => { dragType = null; $("dropl").hidden = true; });
+        list.append(b);
+      }
+    }
+  }
+  $("addQ").addEventListener("input", addsUi);
+  $("addBtn").onclick = () => { S.adds = !S.adds; $("adds").hidden = !S.adds; $("addBtn").setAttribute("aria-pressed", String(S.adds)); if (S.adds) addsUi(); setTimeout(overlay, 0); };
+  addsUi();
+  /** The type list as a menu with a search box: "/" on the form opens it. */
+  function typeMenu(anchor, onPick) {
+    const q = h("input", { class: "in", placeholder: "Search questions", "aria-label": "Search questions", style: "margin:4px 4px 6px;width:calc(100% - 8px)" });
+    const box = h("div", {});
+    const fill = () => {
+      box.innerHTML = "";
+      const f = q.value.trim().toLowerCase();
+      for (const [g, xs] of QGROUPS) {
+        const shown = xs.filter(([, n]) => !f || n.toLowerCase().includes(f));
+        if (!shown.length) continue;
+        box.append(h("div", { class: "mh", text: g }));
+        for (const [t, n] of shown) { const b = h("button", { class: "mi small", role: "menuitem", html: `${SVG(TI(t), 14)}<span class="nm"></span>`, onclick: () => { closeMenu(); onPick(t); } }); b.querySelector(".nm").textContent = n; box.append(b); }
+      }
+    };
+    q.addEventListener("input", fill);
+    q.addEventListener("keydown", (e) => { e.stopPropagation(); if (e.key === "Enter") { e.preventDefault(); box.querySelector(".mi")?.click(); } if (e.key === "Escape") closeMenu(); });
+    fill();
+    openMenu(anchor, [q, box], 260);
+    setTimeout(() => q.focus(), 0);
+  }
+  listen(document, "keydown", (e) => {
+    if (!alive || S.mode !== "edit" || e.key !== "/" || editingK || e.metaKey || e.ctrlKey) return;
+    const t = e.composedPath()[0];
+    // A box on the form in Edit only holds focus from the click that picked it: "/" still opens the list there.
+    if ((t?.closest?.("input,textarea,[contenteditable]") && !(root.contains(t) && !t.isContentEditable)) || menuEl) return;
+    e.preventDefault();
+    typeMenu(S.sel && live(S.sel) && !$("fbar").hidden ? $("fbar") : $("addBtn"), (type) => addQuestion(type));
+  });
+  // Drag a type from Add onto the form: a line shows where it lands.
+  let dragType = null, dropAt = null;
+  const dropTarget = (e) => {
+    const el = kOf(e); const sk = el && byK(el.getAttribute("data-k"));
+    const q = sk && !isList(sk) ? qOf(sk) : null;
+    if (!q || q === src.firstElementChild) return null;
+    const lv = live(q.getAttribute("data-k")); if (!lv) return null;
+    const r = lv.getBoundingClientRect();
+    return { q, lv, before: e.clientY < r.top + r.height / 2, first: startOf(q), last: endOf(q) };
+  };
+  root.addEventListener("dragover", (e) => {
+    if (!dragType || S.mode !== "edit") return;
+    e.preventDefault();
+    dropAt = dropTarget(e);
+    const line = $("dropl");
+    if (!dropAt) { line.hidden = true; return; }
+    const f = $("frame").getBoundingClientRect(), r = dropAt.lv.getBoundingClientRect();
+    Object.assign(line.style, { left: `${r.left - f.left}px`, width: `${r.width}px`, top: `${(dropAt.before ? r.top : r.bottom) - f.top - 2}px` });
+    line.hidden = false;
+  });
+  root.addEventListener("drop", (e) => {
+    if (!dragType) return;
+    e.preventDefault();
+    const t = dragType, at = dropAt; dragType = null; dropAt = null; $("dropl").hidden = true;
+    addQuestion(t, at ? (at.before ? { before: at.first } : { after: at.last }) : undefined);
+  });
+  root.addEventListener("dragleave", (e) => { if (!e.relatedTarget) $("dropl").hidden = true; });
+
+  // Change type: a text box into another kind of text box, a pick into another kind of pick; the answer's name stays.
+  function kindsOf(el) {
+    const q = el && !isList(el) ? qOf(el) : null;
+    if (!q) return null;
+    const c = q.matches(CONTROLS) ? q : q.querySelector("input[name]:not([type=hidden]),textarea[name],select[name]");
+    if (!c || c.closest("[data-cl-field]")) return null;
+    if (c.tagName === "SELECT" || c.type === "radio" || c.type === "checkbox") return { q, c, now: c.tagName === "SELECT" ? "select" : c.type, list: PICK_KINDS };
+    if (c.tagName === "TEXTAREA" || ["text", "email", "tel", "number", "url"].includes(c.type)) return { q, c, now: c.tagName === "TEXTAREA" ? "textarea" : c.type, list: TEXT_KINDS };
+    return null;
+  }
+  function typeChangeMenu(anchor) {
+    const k = kindsOf(byK(S.sel)); if (!k) return;
+    openMenu(anchor, k.list.map(([v, t]) => h("button", { class: "mi small", role: "menuitemradio", "aria-checked": String(v === k.now), text: t, onclick: () => { closeMenu(); if (v !== k.now) changeType(k, v); } })), 200);
+  }
+  function changeType(k, to) {
+    snap();
+    const { q, c } = k;
+    const copy = (from, toEl) => { for (const a of [...from.attributes]) if (!["type", "rows", "inputmode", "autocomplete"].includes(a.name)) toEl.setAttribute(a.name, a.value); };
+    if (k.list === TEXT_KINDS) {
+      let el = c;
+      if ((to === "textarea") !== (c.tagName === "TEXTAREA")) { el = document.createElement(to === "textarea" ? "textarea" : "input"); copy(c, el); if (to === "textarea") el.setAttribute("rows", "4"); c.replaceWith(el); }
+      if (to !== "textarea") { el.setAttribute("type", to); el.removeAttribute("inputmode"); if (to === "number") el.setAttribute("inputmode", "numeric"); if (to === "email") el.setAttribute("autocomplete", "email"); if (to === "tel") el.setAttribute("autocomplete", "tel"); }
+      if (to !== "email" && el.getAttribute("data-cl-save") === "email") el.removeAttribute("data-cl-save");
+    } else {
+      const name = nameIn(c);
+      const opts = c.tagName === "SELECT" ? [...c.options].filter((o) => o.value).map((o) => [o.value, o.textContent.trim()]) : [...q.querySelectorAll(`input[name="${CSS.escape(name)}"]`)].map((i) => [i.value, (i.closest("label")?.textContent || i.value).trim()]);
+      const first = c.tagName === "SELECT" ? c : q.querySelector(`input[name="${CSS.escape(name)}"]`);
+      const keep = ["data-cl-id", "data-cl-key", "data-cl-save", "required"].map((a) => [a, first.getAttribute(a)]).filter(([, v]) => v !== null);
+      const label = (q.querySelector("legend,label.label,label:not(:has(input))")?.textContent || first.getAttribute("data-cl-label") || "").trim();
+      const map = classMap();
+      if (to === "select") {
+        const sel = document.createElement("select"); sel.name = name; sel.id = `q_${name}`; sel.className = map.field || "field";
+        sel.append(new Option("Choose one", ""), ...opts.map(([v, t]) => new Option(t, v)));
+        keep.forEach(([a, v]) => sel.setAttribute(a, v)); if (label) sel.setAttribute("data-cl-label", label);
+        const box = c.tagName === "SELECT" ? c : first.closest("label")?.parentElement;
+        box.replaceWith(sel);
+      } else if (c.tagName === "SELECT") {
+        const box = document.createElement("div"); box.className = map.choices || "choices";
+        opts.forEach(([v, t], i) => { const l = document.createElement("label"); l.className = map.choice || "choice"; const inp = document.createElement("input"); inp.type = to; inp.name = name; inp.value = v; if (i === 0) { keep.forEach(([a, x]) => inp.setAttribute(a, x)); if (label) inp.setAttribute("data-cl-label", label); } l.append(inp, ` ${t}`); box.append(l); });
+        c.replaceWith(box);
+      } else q.querySelectorAll(`input[name="${CSS.escape(name)}"]`).forEach((i) => i.setAttribute("type", to));
+      q.querySelectorAll("*").forEach((x) => x.hasAttribute("data-k") || x.setAttribute("data-k", String(++kSeq)));
+      if (to !== "checkbox") q.removeAttribute("data-cl-limit");
+    }
+    [...q.querySelectorAll("*")].forEach((x) => x.hasAttribute("data-k") || x.setAttribute("data-k", String(++kSeq)));
+    S.sel = q.getAttribute("data-k");
+    commit();
+    toast(`Now ${[...TEXT_KINDS, ...PICK_KINDS].find(([v]) => v === to)?.[1]}. Answers still save under ${nameIn(q.matches(CONTROLS) ? q : q.querySelector(CONTROLS))}.`);
+  }
+
+  // Jumps: kept on the question as data-cl-jump (value=>page id); written as show-ifs on the pages they skip.
+  const stepId = (st, i) => { if (!st.id) { let id = `page-${i + 1}`; for (let n = 2; src.querySelector(`#${CSS.escape(id)}`); n++) id = `page-${i + 1}-${n}`; st.id = id; } return st.id; };
+  function compileJumps() {
+    const steps = stepsIn(src);
+    if (!steps.length && !src.querySelector("[data-cl-own]")) return;
+    steps.forEach(stepId);
+    const jumps = [];
+    src.querySelectorAll("[data-cl-jump]").forEach((q) => {
+      const from = steps.findIndex((st) => st.contains(q));
+      const c = q.matches(CONTROLS) ? q : q.querySelector(CONTROLS);
+      if (from < 0 || !c) return;
+      for (const j of readJumps(q.getAttribute("data-cl-jump"))) { const to = steps.findIndex((st) => st.id === j.to); if (to > from + 1) jumps.push({ name: nameIn(c), value: j.value, from, to }); }
+    });
+    const own = steps.map((st) => ({ own: st.hasAttribute("data-cl-own") ? st.getAttribute("data-cl-own") : st.getAttribute("data-cl-show-if") || "" }));
+    stepShowIfs(own, jumps).forEach((v, i) => {
+      const st = steps[i], o = own[i].own;
+      if (v !== o) { st.setAttribute("data-cl-own", o); st.setAttribute("data-cl-show-if", v); }
+      else { st.removeAttribute("data-cl-own"); o ? st.setAttribute("data-cl-show-if", o) : st.removeAttribute("data-cl-show-if"); }
+    });
+  }
+  // Answers in text: a {name} of one of the form's questions makes the text follow that answer (data-cl-pipe).
+  function syncPipes() {
+    const names = allNames();
+    src.querySelectorAll("h1,h2,h3,h4,h5,h6,p,span,label,legend,b,strong,em,li,div,small").forEach((el) => {
+      if (el.children.length) return;
+      const t = el.textContent || "";
+      const uses = [...t.matchAll(/\{([A-Za-z][\w-]{0,60})\}/g)].some((m) => names.has(m[1]));
+      if (uses) el.setAttribute("data-cl-pipe", t); else el.removeAttribute("data-cl-pipe");
+    });
+  }
+  function jumpsSec(p, q, c) {
+    const steps = stepsIn(src), from = steps.findIndex((st) => st.contains(q));
+    if (from < 0 || from >= steps.length - 2) return;
+    steps.forEach(stepId);
+    const vals = c.tagName === "SELECT" ? [...c.options].filter((o) => o.value).map((o) => [o.value, o.textContent.trim()]) : [...q.querySelectorAll(`input[name="${CSS.escape(nameIn(c))}"]`)].map((i) => [i.value, (i.closest("label")?.textContent || i.value).trim()]);
+    if (!vals.length) return;
+    const later = steps.map((st, i) => [st.id, `${i + 1}. ${stepName(st, i)}`, i]).filter(([, , i]) => i > from + 1);
+    const js = readJumps(q.getAttribute("data-cl-jump"));
+    const write = (next) => { snap(); next.length ? q.setAttribute("data-cl-jump", writeJumps(next)) : q.removeAttribute("data-cl-jump"); commit(); };
+    const J = h("div", { class: "sec" }, h("h4", { text: "Jump to a page" }));
+    js.forEach((j, i) => {
+      const lbl = vals.find(([v]) => v === j.value)?.[1] || j.value;
+      const to = later.find(([id]) => id === j.to)?.[1] || "Pick";
+      J.append(h("div", { class: "jrow" }, pick(lbl, vals.map(([v, t]) => [t, () => write(js.map((x, k) => (k === i ? { ...x, value: v } : x))), v === j.value])), h("span", { text: "goes to" }), pick(to, later.map(([id, t]) => [t, () => write(js.map((x, k) => (k === i ? { ...x, to: id } : x))), id === j.to])), h("button", { class: "ib", "aria-label": "Remove the jump", html: SVG(P.x, 13), onclick: () => write(js.filter((_, k) => k !== i)) })));
+    });
+    if (later.length) J.append(h("div", {}, h("button", { class: "pill", html: `${SVG(P.plus, 14)}Add a jump`, onclick: () => write([...js, { value: vals[0][0], to: later.at(-1)[0] }]) })));
+    J.append(h("p", { class: "hint0", text: "Any other answer goes to the next page." }));
+    p.append(J);
+  }
+  // More for a question: help text, limits, shuffle, the most picks, then jumps.
+  function moreSettings(p, input) {
+    const q = qOf(input); if (!q) return;
+    const isPick = input.type === "radio" || input.type === "checkbox";
+    const M = h("div", { class: "sec" }, h("h4", { text: "Answer" }));
+    const field = (label, get, set, ph) => { const i = h("input", { class: "in", value: get() || "", placeholder: ph || "", "aria-label": label }); i.addEventListener("change", () => { snap(); set(i.value.trim()); commit(); }); return h("div", { class: "row2" }, h("span", { class: "lbl", text: label }), i); };
+    const helpEl = () => q.querySelector(".help");
+    M.append(field("Help text", () => helpEl()?.textContent, (v) => {
+      let e = helpEl();
+      if (!v) return e?.remove();
+      if (!e) { e = document.createElement("p"); e.className = `${classMap().text || "text"} help`.trim(); e.setAttribute("data-k", String(++kSeq)); (q.querySelector("legend,label") || q.firstElementChild)?.after(e); }
+      e.textContent = v;
+    }));
+    const attr = (el, a) => (v) => (v && /^-?\d+(\.\d+)?$/.test(v) ? el.setAttribute(a, v) : el.removeAttribute(a));
+    if (input.tagName === "TEXTAREA" || ["text", "email", "tel", "url"].includes(input.type)) M.append(field("Fewest letters", () => input.getAttribute("minlength"), attr(input, "minlength"), "Any"), field("Most letters", () => input.getAttribute("maxlength"), attr(input, "maxlength"), "Any"));
+    if (input.type === "number") M.append(field("Lowest", () => input.getAttribute("min"), attr(input, "min"), "Any"), field("Highest", () => input.getAttribute("max"), attr(input, "max"), "Any"));
+    if (isPick) {
+      const box = input.closest("label")?.parentElement;
+      const on = !!box?.hasAttribute("data-cl-shuffle");
+      if (box) M.append(h("div", { class: "row2" }, h("span", { class: "lbl", text: "Shuffle" }), h("div", {}, h("button", { class: "sw", role: "switch", "aria-checked": String(on), "aria-label": "Shuffle the choices", onclick: () => { snap(); on ? box.removeAttribute("data-cl-shuffle") : box.setAttribute("data-cl-shuffle", ""); commit(); } }))));
+    }
+    if (input.type === "checkbox") M.append(field("Most picks", () => q.getAttribute("data-cl-limit"), attr(q, "data-cl-limit"), "Any"));
+    p.append(M);
+    if (input.type === "radio" || input.tagName === "SELECT") jumpsSec(p, q, input);
+  }
+  // Text: put an earlier answer in it.
+  function textSettings(p, el) {
+    // Earlier answers first; a later one works too (a heading that fills in as they type).
+    const all = [...src.querySelectorAll(CONTROLS)].filter((c) => c.getAttribute("data-cl-field") !== "hidden");
+    const earlier = all.filter((c) => el.compareDocumentPosition(c) & Node.DOCUMENT_POSITION_PRECEDING);
+    const names = [...new Set([...earlier, ...all].map(nameIn))].filter(Boolean);
+    const T = h("div", { class: "sec" }, h("h4", { text: "Text" }));
+    const b = h("button", { class: "pill", html: `${SVG(P.plus, 14)}Insert an answer`, disabled: !names.length || null });
+    b.onclick = () => openMenu(b, names.map((n) => h("button", { class: "mi small", role: "menuitem", text: `{${n}}`, onclick: () => { closeMenu(); snap(); el.textContent = `${(el.textContent || "").trimEnd()} {${n}}`; commit(); toast("It shows what they answered"); } })), 220);
+    T.append(h("div", {}, b));
+    if (el.hasAttribute("data-cl-pipe")) T.append(h("p", { class: "hint0", text: "The {names} show what people answered." }));
+    p.append(T);
+  }
+
+  // The Form tab: the look for the whole form (written into the form's CSS, over the brand's) and hidden values.
+  const ruleSet = (sel, pairs) => { snap(); const r = rules(); r[sel] = r[sel] || {}; for (const [k, v] of pairs) { if (v === "" || v == null) delete r[sel][k]; else r[sel][k] = v; } writeRules(r); commit(); };
+  const ruleGet = (sel, k) => rules()[sel]?.[k] || "";
+  const FONTS = [["", "The brand's font"], ["Inter", "Inter"], ["DM Sans", "DM Sans"], ["Manrope", "Manrope"], ["Fraunces", "Fraunces"], ["Playfair Display", "Playfair Display"], ["Space Grotesk", "Space Grotesk"]];
+  function setFont(f) {
+    let css = body().css.replace(/@import url\("https:\/\/fonts\.googleapis\.com\/css2\?family=[^"]*"\);\s*\/\* form font \*\/\n?/g, "");
+    if (f) css = `@import url("https://fonts.googleapis.com/css2?family=${f.replace(/ /g, "+")}:wght@400;500;600;700&display=swap"); /* form font */\n${css}`;
+    body().css = css;
+    ruleSet(":root", [["--brand-font", f ? `"${f}", system-ui, sans-serif` : ""], ["--brand-head", f ? `"${f}", system-ui, sans-serif` : ""]]);
+  }
+  function formPanel(p) {
+    const F = h("div", { class: "sec" }, h("h4", { text: "Theme" }));
+    const accent = ruleGet(":root", "--brand-primary");
+    const sw = h("div", { class: "swatches", role: "group", "aria-label": "Main color" });
+    for (const [val, hex, nm] of [["", "conic-gradient(from 0deg,#e5e5e5,#bdbdbd)", "The brand's color"], ...brandColors().slice(0, 4).map(([v, x, n]) => [v, x, n]), ["#0c8c5e", "#0c8c5e", "green"], ["#1e6bf0", "#1e6bf0", "blue"], ["#5429d6", "#5429d6", "violet"], ["#d9480f", "#d9480f", "orange"], ["#111111", "#111111", "black"]]) sw.append(h("button", { "aria-label": nm, title: nm, "aria-pressed": String(accent === val), style: `background:${hex}`, onclick: () => ruleSet(":root", [["--brand-primary", val], ["--brand-focus", val]]) }));
+    F.append(h("div", { class: "row2" }, h("span", { class: "lbl", text: "Color" }), sw));
+    const font = (/^"([^"]+)"/.exec(ruleGet(":root", "--brand-font")) || [])[1] || "";
+    F.append(h("div", { class: "row2" }, h("span", { class: "lbl", text: "Font" }), pick(FONTS.find(([v]) => v === font)?.[1] || font, FONTS.map(([v, t]) => [t, () => setFont(v), v === font]))));
+    const rad = ruleGet(":root", "--brand-radius");
+    const corners = [["", "Brand"], ["4px", "Square"], ["10px", "Soft"], ["18px", "Round"]];
+    F.append(h("div", { class: "row2" }, h("span", { class: "lbl", text: "Corners" }), pick(corners.find(([v]) => v === rad)?.[1] || "Brand", corners.map(([v, t]) => [t, () => ruleSet(":root", [["--brand-radius", v], ["--brand-card-radius", v ? `${parseInt(v, 10) + 6}px` : ""], ...(ruleGet(":root", "--brand-btn-radius") === "999px" ? [] : [["--brand-btn-radius", v]])]), v === rad]))));
+    const pill = ruleGet(":root", "--brand-btn-radius") === "999px";
+    F.append(h("div", { class: "row2" }, h("span", { class: "lbl", text: "Buttons" }), pick(pill ? "Pill" : "Box", [["Box", () => ruleSet(":root", [["--brand-btn-radius", rad]]), !pill], ["Pill", () => ruleSet(":root", [["--brand-btn-radius", "999px"]]), pill]])));
+    const bg = ruleGet(":root", "--brand-bg");
+    const bgs = [["", "Brand"], ["#ffffff", "White"], ["color-mix(in srgb, var(--brand-primary) 6%, #ffffff)", "Tinted"]];
+    F.append(h("div", { class: "row2" }, h("span", { class: "lbl", text: "Background" }), pick(bgs.find(([v]) => v === bg)?.[1] || "Custom", bgs.map(([v, t]) => [t, () => ruleSet(":root", [["--brand-bg", v]]), v === bg]))));
+    const wd = ruleGet(".page .form-card", "max-width");
+    const wds = [["", "Brand"], ["520px", "Narrow"], ["760px", "Wide"]];
+    F.append(h("div", { class: "row2" }, h("span", { class: "lbl", text: "Width" }), pick(wds.find(([v]) => v === wd)?.[1] || wd, wds.map(([v, t]) => [t, () => ruleSet(".page .form-card", [["max-width", v]]), v === wd]))));
+    const steps = stepsIn(src);
+    if (steps.length > 1) {
+      const bar = src.querySelector("[data-cl-progress]");
+      const on = !!bar && !bar.hasAttribute("hidden");
+      F.append(h("div", { class: "row2" }, h("span", { class: "lbl", text: "Progress bar" }), h("div", {}, h("button", { class: "sw", role: "switch", "aria-checked": String(on), "aria-label": "Progress bar", onclick: () => {
+        snap();
+        if (bar) on ? bar.setAttribute("hidden", "") : bar.removeAttribute("hidden");
+        else { const b = clean('<div class="bar" data-cl-progress><i></i></div>').firstElementChild; [b, ...b.querySelectorAll("*")].forEach((x) => x.setAttribute("data-k", String(++kSeq))); steps[0].before(b); }
+        commit();
+      } }))));
+    }
+    p.append(F);
+    // Hidden values from the link: ?utm_source=… or ?ref=… kept with each fill.
+    const Hd = h("div", { class: "sec" }, h("h4", { text: "Hidden fields" }));
+    const hidden = [...src.querySelectorAll('[data-cl-field="hidden"][data-cl-from="param"]')];
+    const chips = h("div", { class: "hchips" });
+    for (const el of hidden) { const n = el.getAttribute("data-cl-param") || el.getAttribute("data-cl-name"); chips.append(h("span", { class: "hchip" }, h("span", { text: n }), h("button", { class: "ib", style: "width:20px;height:20px", "aria-label": `Remove ${n}`, html: SVG(P.x, 11), onclick: () => { snap(); el.remove(); commit(); } }))); }
+    const add = h("input", { class: "in", placeholder: "Add one, like ref", "aria-label": "Add a hidden field" });
+    add.addEventListener("keydown", (e) => {
+      if (e.key !== "Enter") return;
+      const v = add.value.trim().toLowerCase().replace(/[^a-z0-9_]/g, "_").slice(0, 40);
+      if (!v || hidden.some((x) => (x.getAttribute("data-cl-param") || x.getAttribute("data-cl-name")) === v)) return;
+      snap();
+      const name = uniqueName(v, allNames());
+      const el = clean(`<div data-cl-field="hidden" data-cl-name="${name}" data-cl-from="param" data-cl-param="${v}"></div>`).firstElementChild;
+      el.setAttribute("data-k", String(++kSeq));
+      (src.querySelector("form") || src.firstElementChild).prepend(el);
+      ensureIds();
+      commit();
+    });
+    Hd.append(hidden.length ? chips : h("p", { class: "hint0", text: "None yet" }), add);
+    p.append(Hd);
+  }
+  // Start blank: an email question and a send button in the brand's look, with no AI.
+  $("blankBtn").onclick = () => {
+    const f = checkForm({ ...emptyForm(), title: "New form" });
+    if ("errors" in f) return;
+    const conv = formToPage(f.form);
+    snap();
+    setSource(conv.html);
+    body().css = conv.css;
+    body().html = sourceHtml();
+    changed();
+    setMode("edit");
+    toast("A blank form. Add questions from the list.");
+  };
 
   // ── Floating menus (never the browser's) and the toast ───────────────────────────────────────────────
   let menuEl = null, menuFor = null;
@@ -1151,7 +1576,7 @@ ${CAL_CSS}
   function redo() { const s = H(); if (!s.future.length) return; s.past.push(state()); restore(s.future.pop()); }
   function buttons() { $("undo").disabled = !H().past.length; $("redo").disabled = !H().future.length; }
   function changed() { langUi(); if (cur.state === "live") cur.state = "changed"; if (cur.state === "new" && built()) cur.state = "draft"; S.pubMsg = ""; pubUi(); chatHead(); buttons(); save(); }
-  function commit() { body().html = sourceHtml(); changed(); draw(); refresh(); }
+  function commit() { compileJumps(); syncPipes(); body().html = sourceHtml(); changed(); draw(); refresh(); }
   function refresh() { if (S.mode === "edit") { panel(); tree(); } if (S.mode === "code") showCode(); if (S.mode === "after") renderAfter(); }
   $("undo").onclick = undo; $("redo").onclick = redo;
 
@@ -1165,6 +1590,9 @@ ${CAL_CSS}
     $("afterView").hidden = m !== "after";
     $("panel").hidden = m !== "edit";
     $("navi").hidden = m !== "edit" || !S.nav;
+    $("adds").hidden = m !== "edit" || !S.adds;
+    $("addBtn").hidden = m !== "edit";
+    $("addBtn").setAttribute("aria-pressed", String(S.adds));
     if (m !== "edit") { S.sel = null; $("hov").hidden = true; }
     if (m === "edit") S.view = done ? (src.querySelector("[data-cl-thanks]") ? "thanks" : 0) : stepAt;
     if ((m === "edit" || m === "code") && S.lang) { S.lang = ""; langUi(); toast(`${m === "edit" ? "Edit" : "Code"} works on the form's own language`); }
@@ -1192,6 +1620,7 @@ ${CAL_CSS}
   $("moreBtn").onclick = () => (menuEl && menuFor === $("moreBtn") ? closeMenu() : moreMenu());
   $("p-style").onclick = () => { S.ptab = "style"; panel(); };
   $("p-set").onclick = () => { S.ptab = "settings"; panel(); };
+  $("p-form").onclick = () => { S.ptab = "form"; panel(); };
 
   function showCode() { for (const [id, f] of [["c-html", "html"], ["c-css", "css"], ["c-brand", "brand"]]) $(id).setAttribute("aria-pressed", String(S.file === f)); $("codeText").value = S.file === "html" ? sourceHtml() : S.file === "css" ? body().css : brandOf(cur)?.css || ""; }
   for (const [id, f] of [["c-html", "html"], ["c-css", "css"], ["c-brand", "brand"]]) $(id).onclick = () => { S.file = f; showCode(); };

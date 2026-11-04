@@ -249,6 +249,35 @@ formats run in the browser and cost nothing. Address search is the browser's own
 Opus at $4 in and $20 out per million tokens: check (from this repo's price table, not confirmed on Anthropic's
 page from here).
 
+## Part 9. The no-code builder (built)
+
+Everything a form needs can be made in Edit without Tia (`src/lib/studio/builder.ts`, the builder block in
+`src/components/app/forms/studio/studio.ts`):
+
+- **Add**: a list beside the canvas (the + in the bar shows or hides it) with every question type in groups, and a
+  search. Click adds under the picked question, or after the last question of the page in view; drag drops it where
+  the line shows; "/" on the form opens the same list as a menu, and Enter adds the first match. A new question is
+  written in the page's own classes, read from a question the page already has, and a page whose questions sit loose
+  (label, box, error line) gets a plain box around it. Its name is never one the page has; the first email saves to
+  the contact's email.
+- **Change type**: the floating bar's first button turns a text box into another kind (short, long, email, phone,
+  number) or a pick into another (choice, checkboxes, dropdown). The answer's name, id and Saves to stay.
+- **Answer settings**: help text, fewest and most letters, lowest and highest number, shuffle the choices, the most
+  picks. The form script checks them on every site (`limitMsg`, `shuffle` in `src/lib/studio/runtime.ts`).
+- **Jump to a page**: on a choice or dropdown, "If the answer is X, go to page N". Kept on the question as
+  `data-cl-jump` and written as show-ifs on the pages it skips, which every live form already runs; a page's own
+  condition is kept apart in `data-cl-own`.
+- **Answers in text**: Insert an answer puts `{name}` in a heading or text, and it shows what they answered
+  (`data-cl-pipe`, also on the thank-you).
+- **The Form tab**: color, font, corners, buttons, background and width for the whole form, written into the form's
+  own CSS over the brand's (so a template keeps its website's style until one is changed), the progress bar, and
+  hidden fields from the link (`?ref=`).
+- **Start blank**: an email question and a send button in the brand's look, with no AI.
+- The form script's size limit goes from 39 to 41 KB for the rules above.
+
+Running cost: $0 a month at Beta (50 teams) and Growth (500 teams). Nothing new is bought, and these edits make no
+Claude calls.
+
 ## Tokens and files (after launch)
 
 - The brand block (its CSS, industry recipe, meeting types and logo note) goes once per chat as a cached part of

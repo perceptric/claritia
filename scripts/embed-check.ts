@@ -45,6 +45,16 @@ const studioPick = ready(
 // A form in a gallery style, as the Studio makes it, for a site box that sizes to fit what's in it (Framer's Fit).
 const STYLED = "55555555-5555-4555-8555-555555555555";
 const SHUT = "66666666-6666-4666-8666-666666666666";
+// A page made with the no-code builder: a length limit, a most-picks limit, an answer in a heading, and a jump.
+const BUILT = "77777777-7777-4777-8777-777777777777";
+const built = ready(
+  pageForm({
+    html: `<form><section data-cl-step id="page-1"><h2 class="heading" id="hi" data-cl-pipe="Hi {first}">Hi {first}</h2><div class="q"><label class="label" for="q_first">First name</label><input class="field" id="q_first" name="first" type="text" minlength="3"><p class="error" data-cl-error-for="first"></p></div><fieldset class="q" data-cl-limit="1"><legend class="label">Tools</legend><div class="choices" data-cl-shuffle><label class="choice"><input type="checkbox" name="tools" value="a" data-cl-label="Tools"> A</label><label class="choice"><input type="checkbox" name="tools" value="b"> B</label></div><p class="error" data-cl-error-for="tools"></p></fieldset><fieldset class="q" data-cl-jump="big=>page-3"><legend class="label">Size</legend><div class="choices"><label class="choice"><input type="radio" name="size" value="small" data-cl-label="Size"> Small</label><label class="choice"><input type="radio" name="size" value="big"> Big</label></div></fieldset><button type="button" data-cl-next>Next</button></section><section data-cl-step id="page-2" data-cl-show-if="size != 'big'"><p class="text" id="two">Page two</p><button type="button" data-cl-next>Next</button></section><section data-cl-step id="page-3"><label for="q_email">Email</label><input id="q_email" name="email" type="email"><button type="submit">Send</button></section><section data-cl-thanks hidden><h2 data-cl-pipe="Thanks, {first}!">Thanks</h2></section></form>`,
+    css: "",
+    brand: "",
+    after: { kind: "thanks" },
+  }).form,
+);
 const styled = (() => {
   const r = studioForm(plain, styleCssById("grove"));
   if ("error" in r) throw new Error(r.error);
@@ -85,6 +95,7 @@ const server = createServer((req, res) => {
   if (u === `/api/forms/${PAGE}`) return json({ id: PAGE, version: 1, status: "live", body: studio, tokens: {}, logo_url: null });
   if (u === `/api/forms/${STEPS}`) return json({ id: STEPS, version: 1, status: "live", body: twoSteps, tokens: {}, logo_url: null });
   if (u === `/api/forms/${PAGE2}`) return json({ id: PAGE2, version: 1, status: "live", body: studioPick, tokens: {}, logo_url: null });
+  if (u === `/api/forms/${BUILT}`) return json({ id: BUILT, version: 1, status: "live", body: built, logo_url: null });
   if (u === `/api/forms/${SHUT}`) return json({ id: SHUT, version: 1, status: "paused", closed: "Sign-ups are closed for this year.", body: styled, logo_url: null });
   if (u === `/api/forms/${STYLED}`) return json({ id: STYLED, version: 1, status: "live", body: styled, logo_url: null });
   if (u.startsWith("/api/")) return json({});
@@ -123,6 +134,24 @@ try {
   await host(phone).locator(".cl-root form").waitFor();
   const pw2 = (await host(phone).boundingBox())?.width ?? 0;
   check(pw2 <= 390 && pw2 >= 300, `in a fit box on a phone: the form fits the screen (${Math.round(pw2)}px)`);
+
+  // Made with the no-code builder: its limits, the answer in the heading and the jump run on the live form
+  await desk.goto(add("/built", formEmbedCode(origin, BUILT, { mode: "inline" })));
+  const bf = host(desk);
+  await bf.locator("input[name='first']").waitFor();
+  await bf.locator("input[name='first']").fill("Al");
+  await bf.locator("[data-cl-next]").first().click();
+  check(((await bf.locator('[data-cl-error-for="first"]').textContent()) ?? "").includes("at least 3"), "built: a length limit stops the next page");
+  await bf.locator("input[name='first']").fill("Alex");
+  check(((await bf.locator("#hi").textContent()) ?? "") === "Hi Alex", "built: the heading shows the typed name");
+  await bf.locator("input[value='a']").check();
+  await bf.locator("input[value='b']").check();
+  await bf.locator("[data-cl-next]").first().click();
+  check(((await bf.locator('[data-cl-error-for="tools"]').textContent()) ?? "").includes("Pick up to 1"), "built: the most picks stops the next page");
+  await bf.locator("input[value='b']").uncheck();
+  await bf.locator("input[value='big']").check();
+  await bf.locator("[data-cl-next]").first().click();
+  check((await bf.locator("input[name='email']").isVisible()) && !(await bf.locator("#two").isVisible()), "built: Big jumps past page two");
 
   // Closed by Settings › Access: the form's own closed message in place of the form
   await desk.goto(add("/shut", formEmbedCode(origin, SHUT, { mode: "inline" })));

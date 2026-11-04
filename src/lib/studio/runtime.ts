@@ -3,6 +3,59 @@
 
 export type Vals = Record<string, string | string[]>;
 
+/** A text with the answers in it: {first_name} becomes what they typed, and an empty one leaves no stray comma. */
+export function pipeText(template: string, v: Record<string, string | string[] | undefined>): string {
+  return template
+    .replace(/\{([A-Za-z][\w-]{0,60})\}/g, (m, n: string) => {
+      if (!(n in v)) return m;
+      const x = v[n];
+      return Array.isArray(x) ? x.join(", ") : (x ?? "");
+    })
+    .replace(/[ ,]+([.!?])/g, "$1")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+}
+
+/** Texts with answers in them ({first_name}), as written in data-cl-pipe (src/lib/studio/builder.ts). */
+export function pipes(w: ParentNode, v: Vals) {
+  w.querySelectorAll<HTMLElement>("[data-cl-pipe]").forEach((el) => (el.textContent = pipeText(el.getAttribute("data-cl-pipe")!, v)));
+}
+
+/** Choices in a new order for each visitor, once. */
+export function shuffle(w: ParentNode) {
+  w.querySelectorAll<HTMLElement>("[data-cl-shuffle]").forEach((box) => {
+    const k = [...box.children];
+    for (let i = k.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [k[i], k[j]] = [k[j]!, k[i]!];
+    }
+    box.append(...k);
+  });
+}
+
+/** What a question's own limits say about its answer: its length, its number range, the most it may pick. */
+export function limitMsg(el: HTMLInputElement, group: HTMLInputElement[]): string {
+  if (el.type === "checkbox") {
+    const most = Number(el.closest("[data-cl-limit]")?.getAttribute("data-cl-limit"));
+    return most > 0 && group.filter((x) => x.checked).length > most ? `Pick up to ${most}.` : "";
+  }
+  const t = el.value.trim();
+  if (!t || el.type === "radio") return "";
+  const lo = Number(el.getAttribute("minlength")),
+    hi = Number(el.getAttribute("maxlength"));
+  if (lo > 0 && t.length < lo) return `Write at least ${lo} characters.`;
+  if (hi > 0 && t.length > hi) return `Keep it under ${hi} characters.`;
+  if (el.type === "number") {
+    const n = Number(t),
+      a = el.getAttribute("min"),
+      b = el.getAttribute("max");
+    if (!Number.isFinite(n)) return "Enter a number.";
+    if (a && n < Number(a)) return `Enter ${a} or more.`;
+    if (b && n > Number(b)) return `Enter ${b} or less.`;
+  }
+  return "";
+}
+
 /** Every named question's answer: a list for check boxes, the picked value for radios, the text for the rest. */
 export function pageValues(w: ParentNode): Vals {
   const v: Vals = {};
@@ -132,6 +185,7 @@ export function runPage(w: HTMLElement, onSend: (v: Vals) => void): PageRun {
   const thanks = w.querySelector<HTMLElement>("[data-cl-thanks]");
   let at = 0;
   linkErrors(w);
+  shuffle(w);
   let finished = false;
   const errFor = (n: string) => w.querySelector<HTMLElement>(`[data-cl-error-for="${CSS.escape(n)}"]`);
   const apply = () => {
@@ -147,6 +201,7 @@ export function runPage(w: HTMLElement, onSend: (v: Vals) => void): PageRun {
     const pos = shown.indexOf(steps[at]!);
     const p = steps.length ? (finished ? 1 : (Math.max(0, pos) + 1) / Math.max(1, shown.length)) : finished ? 1 : 0;
     w.querySelectorAll<HTMLElement>("[data-cl-progress]").forEach((el) => el.style.setProperty("--cl-progress", String(p)));
+    pipes(w, v);
     return shown;
   };
   const visible = (scope: ParentNode) => [...scope.querySelectorAll<HTMLInputElement>("input[name],textarea[name],select[name]")].filter((el) => el.type !== "hidden" && !el.closest("[hidden]"));
@@ -161,6 +216,7 @@ export function runPage(w: HTMLElement, onSend: (v: Vals) => void): PageRun {
       let msg = "";
       if (group.some((x) => x.required) && !filled) msg = "Fill this in.";
       else if (el.type === "email" && el.value && !EMAIL.test(el.value.trim())) msg = "Enter a valid email.";
+      else msg = limitMsg(el, group);
       group.forEach((x) => x.setAttribute("aria-invalid", msg ? "true" : "false"));
       const e = errFor(el.name);
       if (e) e.textContent = msg;

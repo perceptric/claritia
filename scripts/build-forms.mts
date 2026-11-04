@@ -11,8 +11,9 @@ import { gzipSync } from "node:zlib";
 // 32 KB with screens and result blocks (docs/interactive-forms-plan.md Part 2); 34 KB with studio pages
 // (docs/forms-chat-plan.md); 36 KB with their languages and access rules (docs/studio-v2-plan.md 6.4); 38 KB with full
 // page, slider, popover, side tab and full screen on phones (docs/sharing-plan.md); 39 KB with window.Claritia and
-// its events (docs/embed.md).
-const LIMIT = 39 * 1024;
+// its events (docs/embed.md); 41 KB with the no-code builder's rules: limits, shuffle and answers in text
+// (src/lib/studio/builder.ts).
+const LIMIT = 41 * 1024;
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const out = process.argv.includes("--dev") ? join(root, ".forms") : join(root, ".next", "static", "forms");
 

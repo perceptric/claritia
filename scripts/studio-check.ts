@@ -185,6 +185,91 @@ try {
   await $("#fbar button[aria-label='Duplicate']").click();
   check((await form.locator("h1").count()) >= 2, "the floating bar duplicates");
   await $("#undo").click();
+
+  // 6b. The no-code builder: Add (click, "/", drag), change type, limits, answers in text, jumps and the Form tab.
+  const order = () => p.evaluate(() => [...document.querySelector("#studio")!.shadowRoot!.querySelector("#host")!.shadowRoot!.querySelectorAll("[data-k]")].map((e) => (e.getAttribute("name") || e.getAttribute("data-cl-error-for") ? `${e.tagName.toLowerCase()}:${e.getAttribute("name") || `err-${e.getAttribute("data-cl-error-for")}`}` : e.id ? `#${e.id}` : e.tagName.toLowerCase())));
+  const builtHtml = () => p.evaluate(() => Object.values((window as unknown as { saved: Record<string, { body?: { html: string; css: string } }> }).saved).map((c) => `${c.body?.html ?? ""}\n${c.body?.css ?? ""}`).find((x) => x.includes('id="title"')) ?? "");
+  await $("#stepBar .sp").nth(0).click();
+  check((await $("#adds").isVisible()) && (await $("#addList button[data-add]").count()) >= 20, "Edit opens with the Add list, every question type in it");
+  await $("#addQ").fill("check");
+  check((await $("#addList button[data-add]").count()) === 1, "the Add list finds a type as you type");
+  await $("#addQ").fill("");
+  await form.locator("#nm").click();
+  await $("#addList button[data-add='long']").click();
+  let o = await order();
+  check(o.indexOf("textarea:details") > o.indexOf("span:err-name") && o.indexOf("textarea:details") < o.indexOf("#q"), "a question added from the list lands after the picked one, past its error line");
+  check(((await form.locator("textarea[name='details']").getAttribute("class")) ?? "").includes("field") && ((await form.locator("label[for='q_details']").getAttribute("class")) ?? "") === "lbl", "it wears the page's own classes");
+  check((await $("#pscroll").textContent())!.includes("Fewest letters"), "and its settings open");
+  await form.locator("#title").click();
+  await p.keyboard.press("Escape");
+  await form.locator("#nm").click();
+  await p.keyboard.press("/");
+  await $("#layer .menu input").fill("date");
+  await p.keyboard.press("Enter");
+  check((await form.locator("[data-cl-field='date']").count()) === 1, "/ opens the list, and Enter adds the first match");
+  await $("#addList button[data-add='yesno']").dragTo(form.locator("#q"), { targetPosition: { x: 10, y: 2 } });
+  o = await order();
+  check(o.includes("input:yes_no") && o.indexOf("input:yes_no") < o.indexOf("#q"), "a type dragged onto the form lands where it's dropped");
+  // Change type keeps the answer's name.
+  await form.locator("textarea[name='details']").click();
+  await $("#typeBtn").click();
+  await $("#layer .menu button").filter({ hasText: "Short answer" }).click();
+  check((await form.locator("input[name='details'][type='text']").count()) === 1 && (await form.locator("textarea[name='details']").count()) === 0, "a long answer turns into a short answer, under the same name");
+  await form.locator("label:has(input[name='mood'])").first().click();
+  await $("#typeBtn").click();
+  await $("#layer .menu button").filter({ hasText: "Dropdown" }).click();
+  check((await form.locator("select[name='mood'] option").count()) === 4, "a choice turns into a dropdown with the same options");
+  await $("#undo").click();
+  check((await form.locator("input[name='mood'][type='radio']").count()) === 3, "undo brings the choice back");
+  // Limits on an answer.
+  await form.locator("#nm").click();
+  await $("#p-set").click();
+  await $("#pscroll input[aria-label='Most letters']").fill("40");
+  await $("#pscroll input[aria-label='Most letters']").press("Enter");
+  await $("#pscroll input[aria-label='Most letters']").blur();
+  check((await form.locator("#nm").getAttribute("maxlength")) === "40", "the most letters is set on the answer");
+  // An answer in a text.
+  await form.locator("#title").click();
+  await $("#pscroll button").filter({ hasText: "Insert an answer" }).click();
+  await $("#layer .menu button").filter({ hasText: "{name}" }).click();
+  check(((await form.locator("#title").textContent()) ?? "").endsWith("{name}") && (await form.locator("#title").getAttribute("data-cl-pipe")) !== null, "an earlier answer goes into a text as {name}");
+  // A jump: three pages, and Tender skips the second.
+  await $("#stepBar .sp").nth(0).click();
+  await $("#stepBar button[aria-label='Add a page after']").click();
+  await $("#stepBar .sp").nth(0).click();
+  await form.locator("label:has(input[name='mood'])").first().click();
+  await $("#pscroll button").filter({ hasText: "Add a jump" }).click();
+  await $("#pscroll .jrow .dd").first().click();
+  await $("#layer .menu button").filter({ hasText: "Tender" }).click();
+  const skipped = await form.locator("section[data-cl-step]").nth(1).getAttribute("data-cl-show-if");
+  check(skipped === "mood != 'tender'", `the page a jump skips shows only for other answers (${skipped})`);
+  await $("#t-preview").click();
+  await $("#moreBtn").click();
+  await $("#layer #restart").click();
+  await form.locator("#nm").fill("Sam");
+  check(((await form.locator("#title").textContent()) ?? "").endsWith("Sam"), "in Preview the text shows what they typed");
+  await form.locator('label:has(input[value="tender"])').first().click();
+  await form.locator("[data-cl-next]").first().click();
+  check(await form.locator('input[name="email"]').isVisible(), "Tender jumps past the page in between");
+  await $("#t-edit").click();
+  // The Form tab: the look over the brand's, and a hidden field.
+  await $("#p-form").click();
+  await $("#pscroll button[aria-label='blue']").click();
+  await p.waitForFunction(() => Object.values((window as unknown as { saved: Record<string, { body?: { css: string } }> }).saved).some((c) => c.body?.css.includes("--brand-primary:#1e6bf0")));
+  check(true, "the Form tab's color goes into the form's own CSS");
+  await $("#pscroll input[aria-label='Add a hidden field']").fill("ref");
+  await $("#pscroll input[aria-label='Add a hidden field']").press("Enter");
+  check((await form.locator("[data-cl-field='hidden'][data-cl-param='ref']").count()) === 1, "a hidden field from the link is added");
+  if (shots) await p.screenshot({ path: `${shots}/2b-builder.png` });
+  // Back to the form as it was.
+  for (let i = 0; i < 30 && !(await $("#undo").isDisabled()); i++) {
+    if (!(await form.locator("[name='details'],[name='yes_no'],[data-cl-field='date'],[data-cl-field='hidden']").count()) && !(await form.locator("#title").getAttribute("data-cl-pipe")) && (await form.locator("section[data-cl-step]").count()) === 2 && !(await form.locator("#nm").getAttribute("maxlength"))) break;
+    await $("#undo").click();
+  }
+  await p.waitForTimeout(1600);
+  const backTo = [(await form.locator("section[data-cl-step]").count()) === 2, (await form.locator("#title").textContent()) === "How was today?", !(await builtHtml()).includes("--brand-primary:#1e6bf0"), !(await builtHtml()).includes('name="details"')];
+  check(backTo.every(Boolean), `undo takes every builder change back out (${backTo.join(", ")})`);
+  await $("#p-style").click();
   const barBox = await $("section.stage > .bar").boundingBox();
   const panelBox = await $("#panel").boundingBox();
   check(!!barBox && !!panelBox && barBox.y + barBox.height <= panelBox.y, "the panel sits below the bar and never covers it");
@@ -405,6 +490,8 @@ try {
   check((await $("#layer .menu").textContent())!.includes("Daily check-in") && (await $("#layer .menu").textContent())!.includes("Live"), "the chat list shows each form and its state, in the header's words");
   await $("#layer .menu button").filter({ hasText: "New chat" }).click();
   check(!(await form.locator("#title").count()) && (await $(".starts button").count()) > 0, "a new chat starts empty, with ideas");
+  await $("#blankBtn").click();
+  check((await form.locator("input[type='email']").count()) === 1 && (await form.locator("[type=submit]").count()) === 1 && (await $("#adds").isVisible()), "Start blank makes an email question and a send button, and opens Edit with the Add list");
   await $("#chatPick").click();
   await $("#layer .menu .mi").filter({ hasText: "Daily check-in" }).click();
   await form.locator("#title").waitFor();
