@@ -14,6 +14,16 @@ The form script already runs more blocks than the Add list shows (`BLOCKS` in `s
 Country, Calculation, Result (score, meter, summary, outcome), Grid (matrix) and Hidden field. Tia and templates use
 them; people can't add them by hand yet.
 
+## Built: 40 fields in the Add list
+
+Contact: Short answer, Long answer, Email, Phone number, Full name, Company, Job title, Website, Address, Country,
+Date of birth. Choices: Multiple choice, Checkboxes, Dropdown, Yes / No, Ranking, Matrix, Likert scale, Agreement.
+Ratings and numbers: Rating, Opinion scale, Net Promoter Score (0 to 10 with words at each end), Slider, Number,
+Currency, Percentage, Payment. Date, time and files: Date picker, Time picker, Date and time, Month, Date range, File
+upload, Image upload, Signature. Advanced: Color picker, Hidden field. Display: Heading, Paragraph, Divider. Full name,
+Company, Job title, Website and Country save to the contact the first time they're on a form. The rest of Part 1 and
+Part 2 below is next.
+
 ## Part 1. Show what already runs (code only)
 
 Add these to the Add list with their settings panels: Date range, Country, Matrix (one answer or many per row),

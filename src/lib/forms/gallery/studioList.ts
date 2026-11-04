@@ -18,3 +18,23 @@ export function studioTemplate(t: FormTemplate): StudioTemplate {
 export function studioTemplates(): { list: StudioTemplate[]; families: { id: string; label: string }[] } {
   return { list: filterTemplates({}, "", "popular").map(studioTemplate), families: FAMILIES.map((f) => ({ id: f.id, label: f.label })) };
 }
+
+/**
+ * A template as it will look once used, for the Studio's preview before it's made: its page and its look (`css`, the
+ * chat's brand or style; else the template's own style).
+ */
+export async function templatePreview(id: string, css?: string): Promise<{ html: string; css: string; brand: string }> {
+  const [{ templateById }, { templateForm }, { checkForm }, { formToPage }, { styleCssById }] = await Promise.all([
+    import("./catalog.ts"),
+    import("./convert.ts"),
+    import("../schema.ts"),
+    import("../../studio/fromForm.ts"),
+    import("../../studio/styleCss.ts"),
+  ]);
+  const t = templateById(id);
+  if (!t) throw new Error("Template not found.");
+  const checked = checkForm(templateForm(t));
+  if ("errors" in checked) throw new Error("This template can't be shown right now.");
+  const page = formToPage(checked.form);
+  return { html: page.html, css: page.css, brand: css || styleCssById(templateTheme(t)) };
+}

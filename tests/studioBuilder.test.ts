@@ -7,7 +7,7 @@ import { pipeText, QGROUPS, questionHtml, readJumps, stepShowIfs, uniqueName, wr
 import { cleanPage } from "../src/lib/studio/page.ts";
 import { holds } from "../src/lib/studio/runtime.ts";
 
-const KIND: Partial<Record<QType, string>> = { short: "text", long: "textarea", email: "email", number: "number", dropdown: "select", choice: "radio", yesno: "radio", checks: "multi" };
+const KIND: Partial<Record<QType, string>> = { short: "text", long: "textarea", email: "email", number: "number", dropdown: "select", choice: "radio", yesno: "radio", checks: "multi", website: "url", currency: "number", percent: "number", slider: "range", agree: "checkbox", birthday: "date" };
 
 test("every type in the Add list writes a question the page reads back", () => {
   const all = QGROUPS.flatMap(([, xs]) => xs.map(([t]) => t));
@@ -25,6 +25,9 @@ test("every type in the Add list writes a question the page reads back", () => {
     assert.ok(q.label && q.labelFrom !== "name", `${t} has a label`);
     if (KIND[t]) assert.equal(q.type, KIND[t], t);
     if (t === "email") assert.equal(q.save, "email");
+    if (t === "nps") assert.ok(q.block?.type === "rating" && q.block.scale === 10 && q.block.zero && q.block.low === "Not likely" && q.block.high === "Very likely", "nps runs 0 to 10 with words at each end");
+    if (t === "matrix" || t === "likert") assert.ok(q.block?.type === "grid" && q.block.rows!.length === 3 && q.block.cols!.length >= 4, t);
+    if (t === "image") assert.deepEqual(q.block?.kinds, ["image"]);
     if (t === "choice" || t === "checks" || t === "dropdown") assert.equal(q.options.length, 3, t);
     if (t === "yesno") assert.deepEqual(q.options.map((o) => o.value), ["Yes", "No"]);
     assert.ok(kept.includes(`data-cl-error-for="n_${t}"`) || q.block, `${t} shows its errors or is a block`);

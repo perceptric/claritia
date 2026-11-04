@@ -11,7 +11,7 @@ import { cleanRoute, OP_LABEL, PAST_ROUTES, ROUTE_OPS, routeKind, routeMeeting, 
 import { linkProblem, SCHEDULERS } from "../../../../lib/forms/schedule";
 import { INDUSTRIES, industryOf, isRtl, languageName, profileWords, recipeText } from "../../../../lib/studio/industries";
 import { ACCESS_CSS, around, CAL_CSS, consentSpot, limitMsg, linkErrors, pipes, shuffle, zoneWords } from "../../../../lib/studio/runtime";
-import { baseName, isLayout, PICK_KINDS, QGROUPS, QNAME, questionHtml, readJumps, renameValueIn, stepShowIfs, TEXT_KINDS, uniqueName, uniqueValue, valueFollows, writeJumps } from "../../../../lib/studio/builder";
+import { baseName, isLayout, PICK_KINDS, SAVES, QGROUPS, QNAME, questionHtml, readJumps, renameValueIn, stepShowIfs, TEXT_KINDS, uniqueName, uniqueValue, valueFollows, writeJumps } from "../../../../lib/studio/builder";
 import { TIA_STYLE, tiaSvg } from "../../../../lib/studio/tia";
 import { markSvg } from "../../../Logo";
 import type { StudioTemplate } from "../../../../lib/forms/gallery/studioList";
@@ -174,7 +174,14 @@ input, textarea { user-select: text; -webkit-user-select: text; }
 .stepdock { flex: none; display: flex; align-items: center; min-height: 48px; padding: 6px 12px; border-top: 1px solid var(--line); background: var(--bg); }
 .stepdock .steps { flex: 1; flex-wrap: wrap; row-gap: 4px; overflow: visible; }
 .steps .sp.after .n { border-style: dashed; }
+.steps .addp { height: 30px; padding: 0 8px; margin-inline-start: 6px; border-radius: 8px; border: 0; background: transparent; color: var(--muted); font-size: 12.5px; white-space: nowrap; display: inline-flex; align-items: center; gap: 7px; flex: none; }
+.steps .addp:hover { color: var(--ink); background: var(--hover); }
+.steps .addp .n { width: 20px; height: 20px; border-radius: 999px; border: 1.5px dashed var(--line-strong); display: inline-flex; align-items: center; justify-content: center; flex: none; background: var(--bg); }
 .exitprev { display: inline-flex; align-items: center; gap: 6px; }
+.peekbar { flex: 1; min-width: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; }
+.peeknm { font-weight: 600; color: var(--ink); min-width: 0; overflow-wrap: anywhere; }
+.peekbar .primary { margin-inline-start: auto; }
+.peekbar:not([hidden]) + .spacer { display: none; }
 .addlist { flex: 1; min-height: 0; overflow-y: auto; padding: 0 6px 12px; display: flex; flex-direction: column; gap: 1px; }
 .addlist .ag { font-size: 11px; color: var(--faint); padding: 8px 6px 3px; }
 .addlist button { flex: none; height: 32px; border: 0; background: transparent; border-radius: 7px; display: flex; align-items: center; gap: 9px; padding: 0 6px; text-align: left; font-size: 12.5px; color: var(--ink); cursor: grab; }
@@ -388,7 +395,8 @@ const P = {
   desk: '<rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/>', tab: '<rect x="5" y="3" width="14" height="18" rx="2"/><path d="M11 18h2"/>', phone: '<rect x="7" y="3" width="10" height="18" rx="2"/><path d="M11 18h2"/>',
   undo: '<path d="M9 14 4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-3"/>', redo: '<path d="m15 14 5-5-5-5"/><path d="M20 9H9a5 5 0 0 0 0 10h3"/>', restart: '<path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/>',
   open: '<path d="M14 4h6v6M20 4l-9 9"/><path d="M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/>', panel: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16"/>',
-  send: '<path d="M12 19V5M5 12l7-7 7 7"/>', x: '<path d="M6 6l12 12M18 6 6 18"/>', chev: '<path d="m6 9 6 6 6-6"/>', plus: '<path d="M12 5v14M5 12h14"/>', search: '<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>', del: '<path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/>',
+  send: '<path d="M12 19V5M5 12l7-7 7 7"/>', x: '<path d="M6 6l12 12M18 6 6 18"/>', chev: '<path d="m6 9 6 6 6-6"/>', plus: '<path d="M12 5v14M5 12h14"/>', search: '<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>',
+  qname: '<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>', company: '<rect x="4" y="3" width="16" height="18" rx="2"/><path d="M9 7h2M13 7h2M9 11h2M13 11h2M10 21v-4h4v4"/>', jobtitle: '<rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>', website: '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/>', country: '<path d="M5 21V4M5 4h11l-2 4 2 4H5"/>', birthday: '<path d="M4 21h16M5 21v-8h14v8M12 13V9M12 6v.01"/><path d="M5 17c2 0 2-1.5 3.5-1.5S10 17 12 17s2-1.5 3.5-1.5S17 17 19 17"/>', matrix: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18M3 15h18M9 4v16"/>', likert: '<path d="M4 12h16"/><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/>', agree: '<rect x="4" y="4" width="16" height="16" rx="3"/><path d="m8 12 3 3 5-6"/>', nps: '<path d="M3 17h2v3H3zM8 14h2v6H8zM13 11h2v9h-2zM18 7h2v13h-2z"/>', slider: '<path d="M4 12h16"/><circle cx="14" cy="12" r="3"/>', currency: '<path d="M12 3v18M16 7H10a3 3 0 0 0 0 6h4a3 3 0 0 1 0 6H8"/>', percent: '<path d="M19 5 5 19"/><circle cx="7" cy="7" r="2.5"/><circle cx="17" cy="17" r="2.5"/>', datetime: '<rect x="3" y="5" width="12" height="12" rx="2"/><path d="M3 9h12M7 3v4M11 3v4"/><circle cx="17" cy="17" r="4"/><path d="M17 15.5V17l1 1"/>', month: '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4M7 14h10"/>', daterange: '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4M7 15h10M7 15l2-2M17 15l-2 2"/>', image: '<rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="m21 17-5-5-9 8"/>', color: '<circle cx="12" cy="12" r="9"/><path d="M12 3v18M3 12h9"/>', hidden: '<path d="M3 3l18 18M10.6 10.6a2 2 0 0 0 2.8 2.8M9.4 5.2A9.8 9.8 0 0 1 12 5c5 0 9 5 9 7 0 .9-.6 2.1-1.7 3.4M6.3 6.3C4.2 7.7 3 9.8 3 12c0 2 4 7 9 7 1.5 0 2.9-.4 4.1-1"/>', del: '<path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/>',
   up: '<path d="m18 15-6-6-6 6"/>', down: '<path d="m6 9 6 6 6-6"/>', dup: '<rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/>', parent: '<path d="M9 14 4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 6 6v5"/>',
   style: '<path d="M12 3a9 9 0 1 0 0 18c1.1 0 2-.9 2-2 0-.5-.2-1-.5-1.3-.3-.4-.5-.8-.5-1.3 0-1.1.9-2 2-2h2.4A4.6 4.6 0 0 0 21 9.8C21 6 17 3 12 3z"/>', set: '<path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/>',
   block: '<rect x="4" y="5" width="16" height="14" rx="2"/>', row: '<rect x="3" y="7" width="7" height="10" rx="1.5"/><rect x="14" y="7" width="7" height="10" rx="1.5"/>', col: '<rect x="6" y="3" width="12" height="7" rx="1.5"/><rect x="6" y="14" width="12" height="7" rx="1.5"/>',
@@ -422,6 +430,7 @@ export const STUDIO_HTML = `
   <section class="stage" aria-label="Form">
     <div class="bar">
       <button class="pill exitprev" id="exitPrev" hidden>${SVG(P.back, 14)}Back to editor</button>
+      <div class="peekbar" id="peekBar" hidden><button class="pill" id="peekBack">${SVG(P.back, 14)}All templates</button><span class="peeknm" id="peekName"></span><button class="pill primary" id="peekUse">Use this template</button></div>
       <span class="spacer"></span>
       <div class="grp" role="group" aria-label="Device">
         <button class="ib" id="d-desk" data-tip="Desktop" aria-label="Desktop" aria-pressed="true">${SVG(P.desk)}</button>
@@ -517,6 +526,8 @@ export type StudioApi = {
   openWorkflow(id: string): void;
   /** The gallery's templates, most used first, and its families with labels. */
   templates(): Promise<{ list: StudioTemplate[]; families: { id: string; label: string }[] }>;
+  /** A template's page as it will look in `css` (the chat's brand or style; else its own style), before it's made. */
+  templatePage(id: string, css?: string): Promise<{ html: string; css: string; brand: string }>;
   /** Make a form from a template in a brand, a style, or the template's own style; its id. */
   useTemplate(id: string, look: { kitId?: string; theme?: string }): Promise<{ id: string; workflowError?: string }>;
   /** Open a form in the Studio. */
@@ -575,6 +586,8 @@ export function mountStudio(shell: ShadowRoot, api: StudioApi): StudioControl {
   const S = { view: 0, hold: "", lang: "", translating: "", mode: "preview", device: "desk", sel: null, about: null, busy: false, ptab: "settings", scope: "class", nav: false, adds: true, file: "html", publishing: false, pubMsg: "" };
   const hist = {};
   const TG = { list: null, fams: [], fam: "all", q: "", n: 48, making: "" };
+  // A template open for a look before it's used: its page in the canvas, in Preview, with nothing saved.
+  let PK = null;
   const H = () => (hist[cur?.id || "-"] ||= { past: [], future: [] });
   // A form in one of the website's styles (src/lib/studio/styleCss.ts) has the style as its look, kept on its chat
   // (body.style, and body.styleCss once its CSS is edited), until a brand is picked.
@@ -594,7 +607,7 @@ export function mountStudio(shell: ShadowRoot, api: StudioApi): StudioControl {
   let saveT = 0;
   const dropped = new Set();
   function save(now) {
-    if (!cur || dropped.has(cur.id)) return;
+    if (!cur || dropped.has(cur.id) || PK) return;
     cur.updatedAt = new Date().toISOString();
     const c = cur;
     clearTimeout(saveT);
@@ -655,7 +668,7 @@ export function mountStudio(shell: ShadowRoot, api: StudioApi): StudioControl {
   // ── Drawing ───────────────────────────────────────────────────────────────────────────────────────────
   const host = $("host");
   const root = host.attachShadow({ mode: "open" });
-  const BASE = `${ACCESS_CSS}.cl-bookph{border:1px dashed rgba(127,127,127,.6);border-radius:10px;padding:18px;text-align:center;font:500 12px system-ui,sans-serif;opacity:.7}.cl-divider{font:600 11px/1 system-ui,sans-serif;letter-spacing:.06em;text-transform:uppercase;color:#7a7a7a;border-top:1px dashed rgba(127,127,127,.55);padding:10px 0 0;margin:20px 0 10px}.cl-edit [data-cl-if]{outline:1px dashed rgba(109,40,217,.55);outline-offset:3px}.cl-edit [data-cl-if]::before{content:attr(data-cl-if);display:block;width:max-content;max-width:100%;font:500 11px/1.7 system-ui,sans-serif;color:#6d28d9;background:rgba(109,40,217,.08);border-radius:4px;padding:0 6px;margin-bottom:6px;white-space:normal}.cl-block{display:flex;flex-direction:column;gap:8px}.cl-two{display:grid;grid-template-columns:1fr 1fr;gap:8px}.cl-addr{display:flex;flex-direction:column;gap:8px}.cl-rate{display:flex;gap:6px;font-size:26px;line-height:1;opacity:.6}.cl-num{font-size:14px;border:1px solid currentColor;border-radius:8px;padding:8px 12px}.cl-sign{min-height:110px}.cl-calc{display:block;font-variant-numeric:tabular-nums}.cl-pay{display:flex;justify-content:space-between;gap:12px;align-items:baseline}.cl-pay b,.cl-res b{font-size:1.4em;font-variant-numeric:tabular-nums}.cl-res{display:flex;flex-direction:column;gap:4px}.cl-grid{width:100%;border-collapse:collapse}.cl-grid th,.cl-grid td{padding:6px;text-align:center}.cl-grid th:first-child,.cl-grid td:first-child{text-align:start}.cl-rank{margin:0;padding-inline-start:20px;display:flex;flex-direction:column;gap:6px}.cl-hid{font:500 11px/1.8 system-ui,sans-serif;opacity:.6;border:1px dashed currentColor;border-radius:6px;padding:0 8px;width:max-content}
+  const BASE = `${ACCESS_CSS}.cl-bookph{border:1px dashed rgba(127,127,127,.6);border-radius:10px;padding:18px;text-align:center;font:500 12px system-ui,sans-serif;opacity:.7}.cl-divider{font:600 11px/1 system-ui,sans-serif;letter-spacing:.06em;text-transform:uppercase;color:#7a7a7a;border-top:1px dashed rgba(127,127,127,.55);padding:10px 0 0;margin:20px 0 10px}.cl-edit [data-cl-if]{outline:1px dashed rgba(109,40,217,.55);outline-offset:3px}.cl-edit [data-cl-if]::before{content:attr(data-cl-if);display:block;width:max-content;max-width:100%;font:500 11px/1.7 system-ui,sans-serif;color:#6d28d9;background:rgba(109,40,217,.08);border-radius:4px;padding:0 6px;margin-bottom:6px;white-space:normal}.cl-block{display:flex;flex-direction:column;gap:8px}.cl-two{display:grid;grid-template-columns:1fr 1fr;gap:8px}.cl-addr{display:flex;flex-direction:column;gap:8px}.cl-rate{display:flex;flex-wrap:wrap;gap:6px;font-size:26px;line-height:1;opacity:.6}.cl-ends{display:flex;justify-content:space-between;gap:12px;font-size:12px;opacity:.6}.cl-num{font-size:14px;border:1px solid currentColor;border-radius:8px;padding:8px 12px}.cl-sign{min-height:110px}.cl-calc{display:block;font-variant-numeric:tabular-nums}.cl-pay{display:flex;justify-content:space-between;gap:12px;align-items:baseline}.cl-pay b,.cl-res b{font-size:1.4em;font-variant-numeric:tabular-nums}.cl-res{display:flex;flex-direction:column;gap:4px}.cl-grid{width:100%;border-collapse:collapse}.cl-grid th,.cl-grid td{padding:6px;text-align:center}.cl-grid th:first-child,.cl-grid td:first-child{text-align:start}.cl-rank{margin:0;padding-inline-start:20px;display:flex;flex-direction:column;gap:6px}.cl-hid{font:500 11px/1.8 system-ui,sans-serif;opacity:.6;border:1px dashed currentColor;border-radius:6px;padding:0 8px;width:max-content}
 .cl-consent{display:flex;gap:8px;align-items:flex-start;font-size:13px;line-height:1.4;opacity:.85}.cl-consent input{margin:2px 0 0}
 :host{all:initial;display:flex;flex-direction:column;flex:1}*,*::before,*::after{box-sizing:border-box}[hidden]{display:none!important}.cl-root{flex:1;min-height:560px;display:flex;flex-direction:column}.cl-root>*{flex:1 0 auto}
 ${CAL_CSS}
@@ -668,7 +681,7 @@ ${CAL_CSS}
     root.innerHTML = "";
     if (!has) { emptyUi(); void tplLoad(); runCheck(); return overlay(); }
     const st = document.createElement("style");
-    st.textContent = `${BASE}\n/* brand */\n${cssFor(brandOf(cur)?.css || S.hold)}\n/* form */\n${cssFor(body().css)}`;
+    st.textContent = `${BASE}\n/* brand */\n${cssFor(PK ? PK.brand : brandOf(cur)?.css || S.hold)}\n/* form */\n${cssFor(PK ? PK.css : body().css)}`;
     const wrap = h("div", { class: S.mode === "edit" ? "cl-root cl-edit" : "cl-root" });
     // Another language shows as written (Preview only; Edit and Code work on the form's own language).
     const other = S.mode !== "edit" && S.lang && body().langs?.[S.lang];
@@ -677,7 +690,7 @@ ${CAL_CSS}
     const lang = other ? S.lang : mainLang();
     if (lang) { wrap.setAttribute("lang", lang); wrap.setAttribute("dir", isRtl(lang) ? "rtl" : "ltr"); }
     root.append(st, wrap);
-    const logo = brandOf(cur)?.logo;
+    const logo = PK ? PK.logo : brandOf(cur)?.logo;
     wrap.querySelectorAll("img[data-cl-logo]").forEach((img) => { if (logo) img.setAttribute("src", logo); else img.hidden = true; });
     // Claritia blocks, as the live form draws them (the form script fills them with its own inputs).
     wrap.querySelectorAll("[data-cl-field]").forEach((hd) => hd.replaceChildren(blockPreview(hd)));
@@ -715,7 +728,13 @@ ${CAL_CSS}
     else if (type === "daterange") box.append(h("div", { class: "cl-two" }, inp({ type: "date" }), inp({ type: "date" })));
     else if (type === "address") box.append(h("div", { class: "cl-addr" }, inp({ placeholder: "Street address" }), h("div", { class: "cl-two" }, inp({ placeholder: "City" }), inp({ placeholder: "Postcode" })), inp({ placeholder: "Country" })));
     else if (type === "country") box.append(inp({ placeholder: "Country" }));
-    else if (type === "rating") { const n = Math.min(10, Math.max(3, Number(hd.getAttribute("data-cl-scale")) || 5)); const nums = hd.getAttribute("data-cl-style") === "numbers"; box.append(h("div", { class: "cl-rate" }, ...Array.from({ length: n }, (_, i) => h("span", { class: nums ? "cl-num" : "", text: nums ? String(i + 1) : "\u2605" })))); }
+    else if (type === "rating") {
+      const n = Math.min(10, Math.max(3, Number(hd.getAttribute("data-cl-scale")) || 5)); const nums = hd.getAttribute("data-cl-style") === "numbers";
+      const low = nums && hd.hasAttribute("data-cl-zero") ? 0 : 1;
+      box.append(h("div", { class: "cl-rate" }, ...Array.from({ length: n - low + 1 }, (_, i) => h("span", { class: nums ? "cl-num" : "", text: nums ? String(i + low) : "\u2605" }))));
+      const lo = hd.getAttribute("data-cl-low"), hi = hd.getAttribute("data-cl-high");
+      if (lo || hi) box.append(h("div", { class: "cl-ends" }, h("span", { text: lo || "" }), h("span", { text: hi || "" })));
+    }
     else if (type === "signature") box.append(h("div", { class: "field cl-sign" }));
     else if (type === "calc") { if (hd.hasAttribute("data-cl-hide")) return S.mode === "edit" ? h("span", { class: "cl-hid", text: `${label} (worked out, not shown)` }) : h("span"); box.append(h("output", { class: "field cl-calc", "data-cl-num": hd.getAttribute("data-cl-name") || "", text: "—" })); }
     else if (type === "payment") return h("div", { class: "text cl-pay" }, h("span", { text: hd.getAttribute("data-cl-label") || "Total" }), h("b", { "data-cl-num": hd.getAttribute("data-cl-name") || "", text: "—" }));
@@ -1004,6 +1023,7 @@ ${CAL_CSS}
     const passed = (i) => !editing && (done || (typeof at === "number" && i < at));
     if (steps.length) steps.forEach((st, i) => { if (i) bar.append(conn()); bar.append(pill(String(i + 1), stepName(st, i), !after && (editing ? S.view === i : !done && stepAt === i), () => go(i), passed(i) ? "done" : "")); });
     else bar.append(pill("1", "Form", !after && (editing ? S.view === 0 : !done), () => go(0), !editing && !after && done ? "done" : ""));
+    if (editing) bar.append(h("button", { class: "addp", "data-add-page": "", onclick: addPage }, h("span", { class: "n", html: SVG(P.plus, 11) }), h("span", { text: "Add page" })));
     if (thanks) { bar.append(conn()); bar.append(pill("tick", "Thank-you", !after && (editing ? S.view === "thanks" : done), () => go("thanks"))); }
     // On submission is the last step: what happens once it's sent (the meeting, routing, the team's email).
     if (S.mode !== "preview") { bar.append(conn()); bar.append(pill("bolt", "On submission", after, () => go("after"), "after")); }
@@ -1043,10 +1063,29 @@ ${CAL_CSS}
     src.querySelectorAll("*:not([data-k])").forEach((el) => el.setAttribute("data-k", String(++kSeq)));
   }
   const copyStep = (st) => { const c = st.cloneNode(true); const n = Date.now().toString(36).slice(-4); [c, ...c.querySelectorAll("[id]")].forEach((x) => x.id && (x.id = `${x.id}-${n}`)); c.querySelectorAll("[for]").forEach((x) => x.setAttribute("for", `${x.getAttribute("for")}-${n}`)); c.querySelectorAll("[name]").forEach((x) => x.setAttribute("name", `${x.getAttribute("name")}_${n}`)); c.querySelectorAll("[data-cl-error-for]").forEach((x) => x.setAttribute("data-cl-error-for", `${x.getAttribute("data-cl-error-for")}_${n}`)); c.querySelectorAll("[data-cl-id]").forEach((x) => x.removeAttribute("data-cl-id")); [c, ...c.querySelectorAll("*")].forEach((x) => x.setAttribute("data-k", String(++kSeq))); return c; };
-  function addStep(i) {
-    const st = stepsIn(src)[i]; if (!st) return;
+  /**
+   * Add page: a page after the one in view (or the last). A one-page form becomes pages first: what it asks is page 1,
+   * and the send button moves to the new last page.
+   */
+  function addPage() {
+    if (!built()) return;
+    const steps = stepsIn(src);
+    if (steps.length) return addStep(typeof S.view === "number" && S.view < steps.length ? S.view : steps.length - 1);
+    const form = src.querySelector("form");
+    if (!form) return toast("This form has no fields to split into pages");
     snap();
-    const c = st.cloneNode(false); c.removeAttribute("data-cl-show-if"); c.id = `step${Date.now().toString(36).slice(-4)}`;
+    const st = document.createElement("section"); st.setAttribute("data-cl-step", ""); st.id = "s1";
+    const thanks = [...form.children].find((x) => x.matches("[data-cl-thanks]"));
+    for (const ch of [...form.childNodes]) if (!(ch.nodeType === 1 && ch.matches('[data-cl-thanks],[data-cl-field="hidden"]'))) st.append(ch);
+    if (thanks) thanks.before(st); else form.append(st);
+    if (!/\[data-cl-step\]\s*\{/.test(body().css || "")) body().css = `${body().css || ""}\n[data-cl-step]{display:flex;flex-direction:column;gap:22px}`;
+    normalizeSteps(); ensureIds();
+    addStep(0, true);
+  }
+  function addStep(i, snapped) {
+    const st = stepsIn(src)[i]; if (!st) return;
+    if (!snapped) snap();
+    const c = st.cloneNode(false); c.removeAttribute("data-cl-show-if"); c.removeAttribute("data-k"); c.removeAttribute("data-cl-own"); c.id = `step${Date.now().toString(36).slice(-4)}`;
     const head = st.querySelector("h1,h2,h3,.heading");
     c.append(head ? Object.assign(head.cloneNode(false), { textContent: "New page" }) : Object.assign(document.createElement("h2"), { textContent: "New page" }));
     const nav = [...st.querySelectorAll("[data-cl-back],[data-cl-next],[type=submit]")].at(-1)?.parentElement;
@@ -1220,7 +1259,7 @@ ${CAL_CSS}
 
   // ── The no-code builder (docs/studio-v2-plan.md, Part 9): Add, "/", drag onto the form, change type, jumps, answers
   // in text and the Form tab. Questions are written in the page's own classes (src/lib/studio/builder.ts).
-  const TI = (t) => P[{ phone: "qphone", text: "qtext" }[t] || t] || P.plus;
+  const TI = (t) => P[{ phone: "qphone", text: "qtext", name: "qname" }[t] || t] || P.plus;
   const CONTROLS = "input[name]:not([type=hidden]):not([type=submit]),textarea[name],select[name],[data-cl-field][data-cl-name]";
   const nameIn = (el) => el.getAttribute("name") || el.getAttribute("data-cl-name") || "";
   const namesIn = (el) => new Set([...(el.matches?.(CONTROLS) ? [el] : []), ...el.querySelectorAll(CONTROLS)].map(nameIn).filter(Boolean));
@@ -1270,7 +1309,7 @@ ${CAL_CSS}
     if (c.tagName === "SELECT") return "Dropdown";
     if (c.tagName === "TEXTAREA") return "Long answer";
     const n = el.querySelectorAll(`[name="${CSS.escape(nameIn(c))}"]`).length;
-    return { radio: "Choice", checkbox: n > 1 ? "Checkboxes" : "Tick box", email: "Email", tel: "Phone", number: "Number", date: "Date", time: "Time", url: "Website" }[c.type] || "Short answer";
+    return { radio: "Choice", checkbox: n > 1 ? "Checkboxes" : "Agreement", email: "Email", tel: "Phone", number: "Number", date: "Date", time: "Time", url: "Website", range: "Slider", month: "Month", "datetime-local": "Date and time", color: "Color picker" }[c.type] || "Short answer";
   }
   /** Where a new question goes: after the picked question, else after the last question of the page in view. */
   function spot() {
@@ -1311,7 +1350,7 @@ ${CAL_CSS}
     if (S.mode !== "edit") setMode("edit");
     const taken = allNames();
     const name = isLayout(type) ? "" : uniqueName(baseName(type), taken);
-    const save = type === "email" && !src.querySelector('[data-cl-save="email"]') ? "email" : type === "phone" && !src.querySelector('[data-cl-save="phone"]') ? "phone" : undefined;
+    const save = SAVES[type] && !src.querySelector(`[data-cl-save="${SAVES[type]}"]`) ? SAVES[type] : undefined;
     const frag = clean(questionHtml(type, name, { save }));
     const map = classMap();
     frag.querySelectorAll("[class]").forEach((el) => { const next = el.className.split(/\s+/).map((c) => (c in map ? map[c] : c)).filter(Boolean).join(" "); next ? (el.className = next) : el.removeAttribute("class"); });
@@ -1410,6 +1449,7 @@ ${CAL_CSS}
     if (!q) return null;
     const c = q.matches(CONTROLS) ? q : q.querySelector("input[name]:not([type=hidden]),textarea[name],select[name]");
     if (!c || c.closest("[data-cl-field]")) return null;
+    if (c.type === "checkbox" && q.querySelectorAll(`input[name="${CSS.escape(c.name)}"]`).length < 2) return null;
     if (c.tagName === "SELECT" || c.type === "radio" || c.type === "checkbox") return { q, c, now: c.tagName === "SELECT" ? "select" : c.type, list: PICK_KINDS };
     if (c.tagName === "TEXTAREA" || ["text", "email", "tel", "number", "url"].includes(c.type)) return { q, c, now: c.tagName === "TEXTAREA" ? "textarea" : c.type, list: TEXT_KINDS };
     return null;
@@ -1875,28 +1915,52 @@ ${CAL_CSS}
     for (const t of shown.slice(0, TG.n)) {
       const a = t.art;
       const mini = h("div", { class: "t-mini", style: `background:${a.card};color:${a.ink};box-shadow:0 0 0 1px ${a.line}` }, h("i", { class: "h" }), h("i", { style: "width:80%" }), h("i", { class: "f" }), h("i", { class: "b", style: `background:${a.accent}` }));
-      grid.append(h("button", { class: `tpl${TG.making === t.id ? " making" : ""}`, "data-tpl": t.id, disabled: TG.making ? "" : null, onclick: () => useTpl(t) },
+      grid.append(h("button", { class: `tpl${TG.making === t.id ? " making" : ""}`, "data-tpl": t.id, disabled: TG.making ? "" : null, onclick: () => peek(t) },
         h("div", { class: "t-art", style: `background:${a.bg}` }, mini),
-        h("div", { class: "t-tx" }, h("span", { class: "t-nm", text: t.name }), h("span", { class: "t-bl", text: t.blurb }), h("span", { class: "t-mt", text: TG.making === t.id ? "Creating form" : `${t.n} ${t.n === 1 ? "question" : "questions"}` }))));
+        h("div", { class: "t-tx" }, h("span", { class: "t-nm", text: t.name }), h("span", { class: "t-bl", text: t.blurb }), h("span", { class: "t-mt", text: TG.making === t.id ? "Opening" : `${t.n} ${t.n === 1 ? "question" : "questions"}` }))));
     }
     $("tplMore").hidden = shown.length <= TG.n;
   }
   $("tplQ").addEventListener("input", (e) => { TG.q = e.target.value; TG.n = 48; tplUi(); });
   $("tplMore").onclick = () => { TG.n += 96; tplUi(); };
+  /** Open a template for a look: the whole form, page by page, in the look it will be made in. */
+  async function peek(t) {
+    if (TG.making || !cur || S.busy) return;
+    const b = brandOf(cur);
+    TG.making = t.id; tplUi();
+    let pg = null;
+    try { pg = await api.templatePage(t.id, b?.css || undefined); } catch (e) { toast(e?.message || "Couldn't open this template. Try again."); }
+    TG.making = ""; tplUi();
+    if (!pg || !alive || built()) return;
+    PK = { t, ...pg, logo: b?.css ? b.logo : null };
+    setSource(pg.html);
+    stepAt = 0; done = false; S.view = 0;
+    setMode("preview");
+    peekUi();
+  }
+  function peekUi() {
+    $("peekBar").hidden = !PK;
+    $("peekName").textContent = PK ? PK.t.name : "";
+    $("peekUse").disabled = !!TG.making;
+    $("peekUse").textContent = TG.making ? "Creating form" : "Use this template";
+    if (PK) $("exitPrev").hidden = true;
+  }
+  $("peekBack").onclick = () => setMode("edit");
+  $("peekUse").onclick = () => { if (PK) void useTpl(PK.t); };
   async function useTpl(t) {
     if (TG.making || !cur) return;
     const c = cur, b = brandOf(c);
     const look = b?.style ? { theme: b.style } : b?.id && b.css ? { kitId: b.id } : {};
-    TG.making = t.id; tplUi();
+    TG.making = t.id; peekUi();
     try {
       const r = await api.useTemplate(t.id, look);
       // The empty chat this started from goes; the new form opens in its own.
-      if (!built() && !c.body.log.length) { dropped.add(c.id); chats = chats.filter((x) => x !== c); api.deleteChat(c.id).catch(() => {}); }
+      if (!c.body.html && !c.body.log.length) { dropped.add(c.id); chats = chats.filter((x) => x !== c); api.deleteChat(c.id).catch(() => {}); }
       if (r.workflowError) toast(r.workflowError);
       api.openForm(r.id);
     } catch (e) {
       toast(e?.message || "Couldn't use this template. Try again.");
-    } finally { TG.making = ""; if (alive) tplUi(); }
+    } finally { TG.making = ""; if (alive) { peekUi(); tplUi(); } }
   }
   /** The empty canvas: the templates, or the skeleton while Tia builds. */
   function emptyUi() {
@@ -1944,6 +2008,7 @@ ${CAL_CSS}
   // The views: Edit (always, with the editor sidebar and the panel), Preview (the whole screen, from the page's
   // header, with Back to editor) and On submission (the last step).
   function setMode(m) {
+    if (PK && m !== "preview") { PK = null; setSource(""); peekUi(); }
     const was = S.mode;
     S.mode = m;
     $("canvas").hidden = m === "code" || m === "after";
@@ -1951,7 +2016,7 @@ ${CAL_CSS}
     $("afterView").hidden = m !== "after";
     $("panel").hidden = m !== "edit";
     $("chat").classList.toggle("prev", m === "preview");
-    $("exitPrev").hidden = m !== "preview";
+    $("exitPrev").hidden = m !== "preview" || !!PK;
     if (m !== "edit") { S.sel = null; $("hov").hidden = true; }
     if (m === "edit" && was === "preview") S.view = done ? (src.querySelector("[data-cl-thanks]") ? "thanks" : 0) : stepAt;
     if (m === "preview" && was !== "preview") { stepAt = typeof S.view === "number" ? S.view : 0; done = S.view === "thanks"; }
@@ -2156,7 +2221,7 @@ ${CAL_CSS}
   function runCheck() {
     clearTimeout(checkT);
     checkT = setTimeout(async () => {
-      if (!alive || !cur) return;
+      if (!alive || !cur || PK) return;
       if (!built()) { issues = []; layoutFound = []; return checkUi(); }
       const key = `${sourceHtml()}\n${body().css}\n${brandOf(cur)?.css || ""}\n${JSON.stringify(body().after)}\n${MEETINGS.length}\n${brandOf(cur)?.profile?.industry || ""}\n${JSON.stringify(body().langs)}`;
       if (key === checkKey) return;
@@ -2235,12 +2300,12 @@ ${CAL_CSS}
       formId: cur?.formId || "",
       name: cur?.name || "",
       state: cur?.state || "new",
-      canPublish: !S.publishing && !!cur && built() && !!brandOf(cur) && !S.busy,
+      canPublish: !S.publishing && !!cur && built() && !!brandOf(cur) && !S.busy && !PK,
       publishing: S.publishing,
       issues: built() ? issues.map((i) => ({ level: i.level === "error" ? "error" : "warning", text: i.text, ...(i.fix ? { fix: i.fix } : {}), ...(/On submission/.test(i.text) ? { after: true } : {}) })) : [],
       canFix: !!brandOf(cur)?.css && !S.busy,
       msg: S.pubMsg,
-      previewing: S.mode === "preview",
+      previewing: S.mode === "preview" && !PK,
     });
   }
 
@@ -2364,6 +2429,7 @@ ${CAL_CSS}
     c.body.after ||= { kind: "thanks", url: "", meeting: "", routes: [] };
     c.body.turns ||= []; c.body.log ||= []; c.body.ids ||= {}; c.body.langs ||= {}; c.body.langFrom ||= {};
     cur = c;
+    PK = null; peekUi();
     setSource(c.body.html || "");
     stepAt = 0; done = false; S.sel = null; S.about = null; S.pubMsg = "";
     S.lang = "";
@@ -2757,7 +2823,7 @@ ${CAL_CSS}
       send(fixes.length === 1 ? `Fix this: ${fixes[0]}` : `Fix these:\n${fixes.map((f) => `- ${f}`).join("\n")}`);
     },
     openAfter() { setMode("after"); },
-    preview() { setMode(S.mode === "preview" ? "edit" : "preview"); },
+    preview() { if (PK) return; setMode(S.mode === "preview" ? "edit" : "preview"); },
     rename(name) {
       const n = String(name || "").trim().slice(0, 120);
       if (!cur || !n || n === cur.name) return;

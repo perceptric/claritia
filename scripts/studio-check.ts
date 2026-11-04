@@ -84,6 +84,17 @@ try {
   const tplBox = await $("#tpls").evaluate((e) => [...e.querySelectorAll(".tpl")].every((c) => c.scrollWidth <= c.clientWidth + 1));
   check(tplBox, "no template card spills out of its box");
   if (shots) await p.screenshot({ path: `${shots}/0-templates.png` });
+  // A click opens the template itself, page by page, before anything is made
+  const peekName = (await $("#tplGrid .tpl .t-nm").first().textContent())!;
+  await $("#tplGrid .tpl").first().click();
+  await $("#peekBar").waitFor();
+  check((await $("#peekName").textContent()) === peekName && (await form.locator("input, select, textarea").count()) > 1, "a template opens in full before it's used");
+  check(!(await calls()).some((c) => c.mode === "useTemplate") && !(await calls()).some((c) => c.mode === "saveChat" && JSON.stringify(c.body).includes("data-cl")), "opening a template makes nothing and saves nothing");
+  check(await $("#exitPrev").isHidden(), "the template's bar replaces Back to editor");
+  if (shots) await p.screenshot({ path: `${shots}/0b-peek.png` });
+  await $("#peekBack").click();
+  await $("#tplGrid .tpl").first().waitFor();
+  check(await $("#peekBar").isHidden() && (await form.locator("input").count()) === 0, "All templates goes back to the list, with the form still empty");
 
   // 1b. No brand yet: the chat waits, and the brand button opens Add a brand
   check(await $("#input").isDisabled(), "the chat waits for a brand");
@@ -234,7 +245,7 @@ try {
   await p.keyboard.press("Escape");
   await form.locator("#nm").click();
   await p.keyboard.press("/");
-  await $("#layer .menu input").fill("date");
+  await $("#layer .menu input").fill("date picker");
   await p.keyboard.press("Enter");
   check((await form.locator("[data-cl-field='date']").count()) === 1, "/ opens the list, and Enter adds the first match");
   await $("#addList button[data-add='yesno']").dragTo(form.locator("#q"), { targetPosition: { x: 10, y: 2 } });
@@ -574,6 +585,24 @@ try {
   check(!(await form.locator("#title").count()) && (await $(".starts button").count()) > 0, "a new chat starts empty, with ideas");
   await $("#blankBtn").click();
   check((await form.locator("input[type='email']").count()) === 1 && (await form.locator("[type=submit]").count()) === 1 && (await $("#adds").isVisible()), "Start blank makes an email question and a send button, and opens Edit with the Add list");
+  // The new fields: 39 in the Add list, each added in one click
+  check((await $("#addList [data-add]").count()) === 40, "the Add list has 40 fields");
+  await $("#addList [data-add='nps']").click();
+  await $("#addList [data-add='website']").click();
+  await $("#addList [data-add='matrix']").click();
+  await $("#addList [data-add='slider']").click();
+  const npsNums = await form.locator(".cl-rate .cl-num").allTextContents();
+  check(npsNums[0] === "0" && npsNums.at(-1) === "10" && (await form.locator(".cl-ends").textContent())!.includes("Not likely"), "Net Promoter Score runs 0 to 10 with words at each end");
+  check((await form.locator("input[type='url']").count()) === 1 && (await form.locator(".cl-grid tr").count()) === 4 && (await form.locator("input[type='range']").count()) === 1, "Website, Matrix and Slider add in one click");
+  // Add page: a one-page form becomes two pages, the send button on the last
+  await $("#stepBar [data-add-page]").click();
+  check((await form.locator("[data-cl-step]").count()) === 2 && (await $("#stepBar .sp").filter({ hasText: "New page" }).count()) === 1, "Add page splits a one-page form into pages");
+  const pg1 = form.locator("[data-cl-step]").first(), pg2 = form.locator("[data-cl-step]").last();
+  check((await pg1.locator("[data-cl-next]").count()) === 1 && (await pg1.locator("[type=submit]").count()) === 0 && (await pg1.locator("input[type='url']").count()) === 1, "the first page keeps the fields and gets Next");
+  check((await pg2.locator("[type=submit]").count()) === 1, "the send button moves to the last page");
+  await $("#stepBar [data-add-page]").click();
+  check((await form.locator("[data-cl-step]").count()) === 3, "Add page on a form with pages adds one more");
+  if (shots) await p.screenshot({ path: `${shots}/9-pages.png` });
   await $("#chatPick").click();
   await $("#layer .menu .mi").filter({ hasText: "Daily check-in" }).click();
   await form.locator("#title").waitFor();
@@ -604,11 +633,13 @@ try {
   const tplId = await $("#tplGrid .tpl").first().getAttribute("data-tpl");
   const emptyChat = await p.evaluate(() => (window as unknown as { studioState: { chatId: string } | null }).studioState?.chatId ?? "");
   await $("#tplGrid .tpl").first().click();
+  await $("#peekUse").click();
   await p.waitForFunction(() => (window as unknown as { calls: { mode: string }[] }).calls.some((c) => c.mode === "openForm"));
   const used = (await calls()).find((c) => c.mode === "useTemplate")!.body as { id: string; look: { kitId?: string } };
   check(used.id === tplId && used.look.kitId === "55555555-5555-4555-8555-555555555555", "a template is made in the chat's brand");
   check((await calls()).some((c) => c.mode === "openForm" && c.body === "77777777-7777-4777-8777-777777777777"), "the new form opens");
   check(!!emptyChat && (await calls()).some((c) => c.mode === "deleteChat" && c.body === emptyChat), "the empty chat it started from is removed");
+  await $("#peekBack").click();
   await $("#chatPick").click();
   await $("#layer .menu .mi").filter({ hasText: "Daily check-in" }).click();
   await form.locator("#title").waitFor();

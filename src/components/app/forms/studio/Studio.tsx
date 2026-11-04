@@ -278,6 +278,7 @@ export function Studio({ sb, session, ws, navigate, formId = "", chatId = "", fr
       openWorkflow: (id) => navRef.current("workflows", id),
       // Loaded only when an empty canvas shows them, so the catalog stays out of the Studio's first load.
       templates: async () => (await import("@/lib/forms/gallery/studioList")).studioTemplates(),
+      templatePage: async (id, css) => (await import("@/lib/forms/gallery/studioList")).templatePreview(id, css),
       useTemplate: async (id, look) => {
         const r = await postJson<{ id: string; workflowError?: string }>(sessionRef.current, "/api/forms/templates", { workspaceId: ws.id, template: id, ...look });
         // New form from a folder's page: it goes in that folder.

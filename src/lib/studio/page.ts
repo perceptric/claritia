@@ -58,6 +58,10 @@ export type Block = {
   maxMb?: number;
   scale?: number;
   style?: "stars" | "numbers";
+  /** rating: starts at 0 (Net Promoter Score), and the words under the two ends. */
+  zero?: true;
+  low?: string;
+  high?: string;
   /** calc: a formula over other questions by their names in braces, {guests} * 38; and how its number shows. */
   formula?: string;
   format?: "number" | "money" | "percent";
@@ -118,6 +122,10 @@ function readBlock(attrs: Record<string, string>): Block | null {
     const sc = Math.round(Number(attrs["data-cl-scale"]));
     if (Number.isFinite(sc) && sc >= 3) b.scale = Math.min(sc, 10);
     if (attrs["data-cl-style"] === "numbers") b.style = "numbers";
+    if (b.style === "numbers" && attrs["data-cl-zero"] !== undefined) b.zero = true;
+    const lo = words(attrs["data-cl-low"] ?? "").slice(0, 60), hi = words(attrs["data-cl-high"] ?? "").slice(0, 60);
+    if (lo) b.low = lo;
+    if (hi) b.high = hi;
   }
   if (type === "calc" || type === "payment") {
     const cur = (attrs["data-cl-currency"] ?? "").toUpperCase();
@@ -541,7 +549,7 @@ export function pageForm(p: { html: string; css: string; brand: string; after: P
       ...(q.work && type === "email" ? { check: "work_email" } : {}),
       ...(opts ? { options: q.options.length ? q.options : [{ value: "yes", label: "Yes" }] } : {}),
       ...(b?.type === "file" ? { file: { maxMb: b.maxMb ?? 10, kinds: b.kinds ?? ["pdf", "image", "office"] } } : {}),
-      ...(b?.type === "rating" ? { rating: { scale: b.scale ?? 5, style: b.style ?? "stars" } } : {}),
+      ...(b?.type === "rating" ? { rating: { scale: b.scale ?? 5, style: b.style ?? "stars", ...(b.zero ? { zero: true as const } : {}), ...(b.low ? { low: b.low } : {}), ...(b.high ? { high: b.high } : {}) } } : {}),
       ...(b?.type === "grid" ? { grid: { rows: b.rows ?? [], cols: b.cols ?? [] } } : {}),
       ...(b?.type === "ranking" ? { options: b.options ?? [] } : {}),
       ...(b?.type === "hidden" && b.source ? { hidden: b.source } : {}),

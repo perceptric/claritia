@@ -2,7 +2,7 @@
 // fake site read, and canned Tia answers streamed in small pieces (the first builds, the second changes a built form).
 import { mountStudio, STUDIO_CSS, STUDIO_HTML, type StudioApi, type StudioChat, type StudioState } from "../../src/components/app/forms/studio/studio.ts";
 import fx from "./fixtures.json";
-import { studioTemplates } from "../../src/lib/forms/gallery/studioList.ts";
+import { studioTemplates, templatePreview } from "../../src/lib/forms/gallery/studioList.ts";
 
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const calls: { mode: string; body: unknown }[] = [];
@@ -43,6 +43,7 @@ const api: StudioApi = {
     await wait(50);
     return studioTemplates();
   },
+  templatePage: (id, css) => templatePreview(id, css),
   useTemplate: async (id, look) => {
     calls.push({ mode: "useTemplate", body: { id, look } });
     await wait(150);

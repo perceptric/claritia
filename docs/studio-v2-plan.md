@@ -301,7 +301,11 @@ Everything a form needs can be made in Edit without Tia (`src/lib/studio/builder
   makes the form the way Forms › Templates does (`/api/forms/templates`), in the chat's brand or style, or the
   template's own style; it opens in its own chat, joins the folder it was started from, and the empty chat goes. No
   brand dialog covers the templates; the brand button opens Add a brand when there are none. Adding a field to an
-  empty form starts it blank first.
+  empty form starts it blank first. A click on a template opens it in full first, page by page in Preview, in the look
+  it will be made in, with All templates and Use this template; nothing is made or saved until Use.
+- **Add page** sits in the steps bar after the pages. It adds a page after the one in view; a one-page form becomes
+  pages first, with what it asks on page 1 and the send button on the new last page.
+- **40 fields** in the Add list (docs/fields-plan.md, Built).
 - The form script's size limit goes from 39 to 41 KB for the rules above.
 
 Running cost: $0 a month at Beta (50 teams) and Growth (500 teams). Nothing new is bought, and these edits make no
