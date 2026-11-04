@@ -20,6 +20,7 @@ import { askConfirm, askText, tell } from "../../Dialogs";
 import { rt, type Screen } from "../../routing/rt/api";
 import { whoBooks } from "@/lib/meetings/dynamicWords";
 import { entryOf } from "@/lib/sources/catalog";
+import { moveForm } from "../folders";
 
 type Line = { t?: string; done?: string; cut?: boolean; css?: string; say?: string; profile?: unknown; error?: string; working?: number; beat?: number };
 
@@ -275,6 +276,24 @@ export function Studio({ sb, session, ws, navigate, formId = "", chatId = "", fr
       },
       newFollowUp: (id, when) => navRef.current("workflows", "new", `template=${when === "not_booked" ? "not_booked" : "form_followup"}&form=${id}`),
       openWorkflow: (id) => navRef.current("workflows", id),
+      // Loaded only when an empty canvas shows them, so the catalog stays out of the Studio's first load.
+      templates: async () => (await import("@/lib/forms/gallery/studioList")).studioTemplates(),
+      useTemplate: async (id, look) => {
+        const r = await postJson<{ id: string; workflowError?: string }>(sessionRef.current, "/api/forms/templates", { workspaceId: ws.id, template: id, ...look });
+        // New form from a folder's page: it goes in that folder.
+        let to = "";
+        try {
+          to = sessionStorage.getItem("clr-new-form-folder") ?? "";
+          sessionStorage.removeItem("clr-new-form-folder");
+        } catch {}
+        if (to) await moveForm(sb, ws.id, r.id, to).catch(() => undefined);
+        invalidate(`forms:${ws.id}:home`);
+        invalidate(`form_names:${ws.id}`);
+        invalidate("app_counts");
+        invalidate(`workflows:${ws.id}`);
+        return r;
+      },
+      openForm: (id) => navRef.current("forms", id),
     };
     const ctl = mountStudio(shell, api);
     if (controlRef) controlRef.current = ctl;

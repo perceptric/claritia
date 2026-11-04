@@ -65,9 +65,30 @@ try {
   const toEdit = async () => { if (await $("#exitPrev").isVisible()) await $("#exitPrev").click(); else if (await $("#afterView").isVisible()) await $("#stepBar .sp").first().click(); };
   const toAfter = async () => { await toEdit(); await $("#stepBar .sp.after").click(); };
 
-  // 1. No brand yet: Add a brand opens, and the chat waits
-  await $("#brandDlg").waitFor();
+  // 1. A new workspace opens on the templates: every one, by family and search, with nothing covering them
+  await $("#tplGrid .tpl").first().waitFor();
+  check((await $("#brandDlg").count()) === 0 && (await $("#tpls").isVisible()), "an empty form shows the templates, with no dialog over them");
+  const tplAll = await $("#tplGrid .tpl").count();
+  check(tplAll === 48 && (await $("#tplQ").getAttribute("placeholder"))!.startsWith("Search 4"), "the templates show 48 at a time, out of hundreds");
+  await $("#tplMore").click();
+  check((await $("#tplGrid .tpl").count()) === 144, "Show more adds more templates");
+  await $("#tplFam button").filter({ hasText: "Booking" }).click();
+  check((await $("#tplFam button[aria-pressed='true']").textContent())!.startsWith("Booking") && (await $("#tplGrid .tpl").count()) > 4, "a family picks its templates");
+  await $("#tplFam button").filter({ hasText: "All" }).click();
+  await $("#tplQ").fill("patient intake");
+  const hits = await $("#tplGrid .tpl .t-nm").allTextContents();
+  check(hits.length > 0 && hits.length < 40, `search narrows the templates (${hits.length})`);
+  await $("#tplQ").fill("zzzz no such form");
+  check((await $("#tplGrid").textContent())!.includes("No templates match"), "a search with no match says so");
+  await $("#tplQ").fill("");
+  const tplBox = await $("#tpls").evaluate((e) => [...e.querySelectorAll(".tpl")].every((c) => c.scrollWidth <= c.clientWidth + 1));
+  check(tplBox, "no template card spills out of its box");
+  if (shots) await p.screenshot({ path: `${shots}/0-templates.png` });
+
+  // 1b. No brand yet: the chat waits, and the brand button opens Add a brand
   check(await $("#input").isDisabled(), "the chat waits for a brand");
+  await $("#brandBtn").click();
+  await $("#brandDlg").waitFor();
 
   // 2. Add a brand: the site is read for its name and logo, and confirmed before the look
   await $("#dlgSite").fill("nope.dev");
@@ -574,6 +595,23 @@ try {
   const sw = ((await calls()).filter((c) => c.mode === "tia")[tiaN]!.body as { content: string }[]).at(-1)!.content;
   check(sw.startsWith("Switch this form to Acme") && sw.includes("[The brand just changed from Finch to Acme."), "Tia moves the form to the new brand in one change");
   check((await $("#brandBtn").textContent())!.trim() === "Acme", "the form is on the new brand");
+
+  // 9c. A template on a new chat's empty canvas makes the form in the chat's brand, opens it, and the empty chat goes
+  await $("#m-ai").click();
+  await $("#chatPick").click();
+  await $("#layer .menu button").filter({ hasText: "New chat" }).click();
+  await $("#tplGrid .tpl").first().waitFor();
+  const tplId = await $("#tplGrid .tpl").first().getAttribute("data-tpl");
+  const emptyChat = await p.evaluate(() => (window as unknown as { studioState: { chatId: string } | null }).studioState?.chatId ?? "");
+  await $("#tplGrid .tpl").first().click();
+  await p.waitForFunction(() => (window as unknown as { calls: { mode: string }[] }).calls.some((c) => c.mode === "openForm"));
+  const used = (await calls()).find((c) => c.mode === "useTemplate")!.body as { id: string; look: { kitId?: string } };
+  check(used.id === tplId && used.look.kitId === "55555555-5555-4555-8555-555555555555", "a template is made in the chat's brand");
+  check((await calls()).some((c) => c.mode === "openForm" && c.body === "77777777-7777-4777-8777-777777777777"), "the new form opens");
+  check(!!emptyChat && (await calls()).some((c) => c.mode === "deleteChat" && c.body === emptyChat), "the empty chat it started from is removed");
+  await $("#chatPick").click();
+  await $("#layer .menu .mi").filter({ hasText: "Daily check-in" }).click();
+  await form.locator("#title").waitFor();
 
   // 10. Delete a brand from the menu
   await $("#brandBtn").click();

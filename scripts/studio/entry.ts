@@ -2,6 +2,7 @@
 // fake site read, and canned Tia answers streamed in small pieces (the first builds, the second changes a built form).
 import { mountStudio, STUDIO_CSS, STUDIO_HTML, type StudioApi, type StudioChat, type StudioState } from "../../src/components/app/forms/studio/studio.ts";
 import fx from "./fixtures.json";
+import { studioTemplates } from "../../src/lib/forms/gallery/studioList.ts";
 
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const calls: { mode: string; body: unknown }[] = [];
@@ -38,6 +39,16 @@ const api: StudioApi = {
   keepCss: (id) => void calls.push({ mode: "keepCss", body: id }),
   keepProfile: (id, profile) => void calls.push({ mode: "keepProfile", body: { id, profile } }),
   deleteBrand: async (id) => void calls.push({ mode: "delete", body: id }),
+  templates: async () => {
+    await wait(50);
+    return studioTemplates();
+  },
+  useTemplate: async (id, look) => {
+    calls.push({ mode: "useTemplate", body: { id, look } });
+    await wait(150);
+    return { id: "77777777-7777-4777-8777-777777777777" };
+  },
+  openForm: (id) => void calls.push({ mode: "openForm", body: id }),
   chats: async () => Object.values(w.saved),
   chat: async (id) => w.saved[id] ?? null,
   fromForm: async () => null,

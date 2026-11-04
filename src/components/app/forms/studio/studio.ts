@@ -14,6 +14,7 @@ import { ACCESS_CSS, around, CAL_CSS, consentSpot, limitMsg, linkErrors, pipes, 
 import { baseName, isLayout, PICK_KINDS, QGROUPS, QNAME, questionHtml, readJumps, renameValueIn, stepShowIfs, TEXT_KINDS, uniqueName, uniqueValue, valueFollows, writeJumps } from "../../../../lib/studio/builder";
 import { TIA_STYLE, tiaSvg } from "../../../../lib/studio/tia";
 import { markSvg } from "../../../Logo";
+import type { StudioTemplate } from "../../../../lib/forms/gallery/studioList";
 
 // Form Studio (docs/forms-chat-plan.md, docs/studio-v2-plan.md): every form is one chat with Tia on the left and the
 // live form on the right, drawn in a shadow root so the brand's CSS and the form's own CSS never touch the app. The
@@ -210,6 +211,38 @@ input, textarea { user-select: text; -webkit-user-select: text; }
 #fbar .ib[data-tip]::after { background: var(--bg); color: var(--ink); box-shadow: 0 0 0 1px var(--line); }
 #fbar .tia { --tia-ink: var(--bg); --tia-face: var(--ink); }
 .empty { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; color: var(--muted); padding: 80px 24px; text-align: center; flex: 1; }
+.empty.gal { justify-content: flex-start; align-items: stretch; text-align: start; padding: 28px clamp(16px, 4vw, 36px) 36px; color: var(--body); }
+.wait { display: flex; flex-direction: column; align-items: center; gap: 14px; }
+.tpls { display: flex; flex-direction: column; gap: 14px; width: 100%; max-width: 1040px; margin: 0 auto; }
+.tplhead { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; }
+.tplhead h2 { margin: 0; font: 600 18px/1.3 var(--sans); color: var(--ink); min-width: 0; }
+.tplact { display: flex; flex-wrap: wrap; gap: 8px; min-width: 0; flex: 0 1 auto; }
+.tplq { display: flex; align-items: center; gap: 6px; height: 30px; padding: 0 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); color: var(--faint); flex: 0 1 240px; min-width: 160px; }
+.tplq:focus-within { border-color: var(--signal); box-shadow: 0 0 0 3px var(--signal-soft); }
+.tplq input { flex: 1; min-width: 0; border: 0; outline: 0; background: transparent; color: var(--ink); font: 13px var(--sans); }
+.tplfam { display: flex; flex-wrap: wrap; gap: 6px; }
+.tplfam button { height: 28px; padding: 0 11px; border-radius: 999px; border: 1px solid var(--line); background: var(--bg); color: var(--body); font-size: 12.5px; display: inline-flex; align-items: center; gap: 6px; }
+.tplfam button:hover { border-color: var(--line-strong); color: var(--ink); }
+.tplfam button[aria-pressed="true"] { background: var(--ink); border-color: var(--ink); color: var(--bg); }
+.tplfam button span { color: inherit; opacity: .6; font-variant-numeric: tabular-nums; }
+.tplgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(190px, 100%), 1fr)); gap: 12px; }
+.tpl { display: flex; flex-direction: column; min-width: 0; padding: 0; border-radius: 10px; border: 1px solid var(--line); background: var(--bg); text-align: start; overflow: hidden; transition: border-color .12s var(--ease), box-shadow .12s var(--ease), transform .12s var(--ease); }
+.tpl:hover:not(:disabled) { border-color: var(--line-strong); box-shadow: 0 8px 20px -12px rgb(0 0 0 / .25); transform: translateY(-1px); }
+.tpl:disabled { opacity: .55; }
+.tpl.making { opacity: 1; border-color: var(--signal); }
+.tpl .t-art { height: 92px; padding: 14px 18px 0; display: flex; align-items: flex-end; border-bottom: 1px solid var(--line); }
+.tpl .t-mini { width: 100%; height: 100%; border-radius: 6px 6px 0 0; padding: 10px 12px; display: flex; flex-direction: column; gap: 6px; }
+.tpl .t-mini i { display: block; height: 6px; border-radius: 3px; background: currentColor; opacity: .22; }
+.tpl .t-mini i.h { height: 8px; width: 58%; opacity: .55; }
+.tpl .t-mini i.f { height: 14px; width: 100%; background: transparent; border: 1px solid currentColor; opacity: .25; border-radius: 4px; }
+.tpl .t-mini i.b { height: 12px; width: 34%; opacity: 1; border-radius: 999px; }
+.tpl .t-tx { display: flex; flex-direction: column; gap: 4px; padding: 10px 12px 12px; min-width: 0; }
+.tpl .t-nm { font: 500 13px/1.35 var(--sans); color: var(--ink); overflow-wrap: anywhere; }
+.tpl .t-bl { font-size: 12px; line-height: 1.45; color: var(--muted); overflow-wrap: anywhere; }
+.tpl .t-mt { font-size: 11.5px; color: var(--faint); }
+.tplfoot { display: flex; justify-content: center; }
+.tplnone { grid-column: 1 / -1; padding: 40px 0; text-align: center; color: var(--muted); }
+@media (prefers-reduced-motion: reduce) { .tpl { transition: none; } .tpl:hover:not(:disabled) { transform: none; } }
 .sk { width: min(380px, 100%); border: 1px solid var(--line); border-radius: 10px; padding: 22px; display: flex; flex-direction: column; gap: 12px; }
 .sk span { display: block; height: 10px; border-radius: 4px; background: var(--paper-deep); }
 .sk .b2 { height: 32px; border: 1px solid var(--line); background: var(--paper); }
@@ -355,7 +388,7 @@ const P = {
   desk: '<rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/>', tab: '<rect x="5" y="3" width="14" height="18" rx="2"/><path d="M11 18h2"/>', phone: '<rect x="7" y="3" width="10" height="18" rx="2"/><path d="M11 18h2"/>',
   undo: '<path d="M9 14 4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-3"/>', redo: '<path d="m15 14 5-5-5-5"/><path d="M20 9H9a5 5 0 0 0 0 10h3"/>', restart: '<path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/>',
   open: '<path d="M14 4h6v6M20 4l-9 9"/><path d="M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/>', panel: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16"/>',
-  send: '<path d="M12 19V5M5 12l7-7 7 7"/>', x: '<path d="M6 6l12 12M18 6 6 18"/>', chev: '<path d="m6 9 6 6 6-6"/>', plus: '<path d="M12 5v14M5 12h14"/>', del: '<path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/>',
+  send: '<path d="M12 19V5M5 12l7-7 7 7"/>', x: '<path d="M6 6l12 12M18 6 6 18"/>', chev: '<path d="m6 9 6 6 6-6"/>', plus: '<path d="M12 5v14M5 12h14"/>', search: '<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>', del: '<path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/>',
   up: '<path d="m18 15-6-6-6 6"/>', down: '<path d="m6 9 6 6 6-6"/>', dup: '<rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/>', parent: '<path d="M9 14 4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 6 6v5"/>',
   style: '<path d="M12 3a9 9 0 1 0 0 18c1.1 0 2-.9 2-2 0-.5-.2-1-.5-1.3-.3-.4-.5-.8-.5-1.3 0-1.1.9-2 2-2h2.4A4.6 4.6 0 0 0 21 9.8C21 6 17 3 12 3z"/>', set: '<path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/>',
   block: '<rect x="4" y="5" width="16" height="14" rx="2"/>', row: '<rect x="3" y="7" width="7" height="10" rx="1.5"/><rect x="14" y="7" width="7" height="10" rx="1.5"/>', col: '<rect x="6" y="3" width="12" height="7" rx="1.5"/><rect x="6" y="14" width="12" height="7" rx="1.5"/>',
@@ -406,7 +439,7 @@ export const STUDIO_HTML = `
       <div class="canvas" id="canvas">
         <div class="frame" id="frame">
           <div id="host"></div>
-          <div class="empty" id="empty" hidden><div class="sk" aria-hidden="true"><span style="width:55%;height:16px"></span><span style="width:80%"></span><span class="b2"></span><span style="width:30%"></span><span class="b2"></span><span class="bt2"></span></div><span id="emptyText">Your form shows here as Tia builds it</span><button class="pill" id="blankBtn">Start blank</button></div>
+          <div class="empty" id="empty" hidden><div class="wait" id="tplWait"><div class="sk" aria-hidden="true"><span style="width:55%;height:16px"></span><span style="width:80%"></span><span class="b2"></span><span style="width:30%"></span><span class="b2"></span><span class="bt2"></span></div><span id="emptyText">Your form shows here as Tia builds it</span></div><div class="tpls" id="tpls" hidden><div class="tplhead"><h2 id="tplTitle">Start from a template</h2><div class="tplact"><label class="tplq">${SVG(P.search, 14)}<input id="tplQ" type="search" placeholder="Search templates" aria-label="Search templates" autocomplete="off"></label><button class="pill" id="blankBtn">${SVG(P.plus, 13)}Start blank</button></div></div><div class="tplfam" id="tplFam" role="group" aria-label="Category"></div><div class="tplgrid" id="tplGrid"></div><div class="tplfoot"><button class="pill" id="tplMore" hidden>Show more</button></div></div></div>
           <div class="ov" id="hov" hidden><span id="hovtag"></span></div>
           <div class="ov" id="sel" hidden><span id="seltag"></span></div>
           <div class="dropl" id="dropl" hidden></div>
@@ -482,6 +515,12 @@ export type StudioApi = {
   followUps(formId: string): Promise<{ id: string; name: string; status: string }[]>;
   newFollowUp(formId: string, when: "sent" | "not_booked"): void;
   openWorkflow(id: string): void;
+  /** The gallery's templates, most used first, and its families with labels. */
+  templates(): Promise<{ list: StudioTemplate[]; families: { id: string; label: string }[] }>;
+  /** Make a form from a template in a brand, a style, or the template's own style; its id. */
+  useTemplate(id: string, look: { kitId?: string; theme?: string }): Promise<{ id: string; workflowError?: string }>;
+  /** Open a form in the Studio. */
+  openForm(id: string): void;
   /** The page's header draws the state, the form check and Publish (docs/form-ui-plan.md step 1). */
   onState?(s: StudioState): void;
   /** Where to start: a published form's chat, one chat, a new chat (New form), or the last one. */
@@ -535,6 +574,7 @@ export function mountStudio(shell: ShadowRoot, api: StudioApi): StudioControl {
   const looking = new Set();
   const S = { view: 0, hold: "", lang: "", translating: "", mode: "preview", device: "desk", sel: null, about: null, busy: false, ptab: "settings", scope: "class", nav: false, adds: true, file: "html", publishing: false, pubMsg: "" };
   const hist = {};
+  const TG = { list: null, fams: [], fam: "all", q: "", n: 48, making: "" };
   const H = () => (hist[cur?.id || "-"] ||= { past: [], future: [] });
   // A form in one of the website's styles (src/lib/studio/styleCss.ts) has the style as its look, kept on its chat
   // (body.style, and body.styleCss once its CSS is edited), until a brand is picked.
@@ -552,8 +592,9 @@ export function mountStudio(shell: ShadowRoot, api: StudioApi): StudioControl {
 
   // Saved a second after the last change, and when the page closes.
   let saveT = 0;
+  const dropped = new Set();
   function save(now) {
-    if (!cur) return;
+    if (!cur || dropped.has(cur.id)) return;
     cur.updatedAt = new Date().toISOString();
     const c = cur;
     clearTimeout(saveT);
@@ -625,7 +666,7 @@ ${CAL_CSS}
     $("empty").hidden = has;
     host.hidden = !has;
     root.innerHTML = "";
-    if (!has) { runCheck(); return overlay(); }
+    if (!has) { emptyUi(); void tplLoad(); runCheck(); return overlay(); }
     const st = document.createElement("style");
     st.textContent = `${BASE}\n/* brand */\n${cssFor(brandOf(cur)?.css || S.hold)}\n/* form */\n${cssFor(body().css)}`;
     const wrap = h("div", { class: S.mode === "edit" ? "cl-root cl-edit" : "cl-root" });
@@ -1266,7 +1307,7 @@ ${CAL_CSS}
     return map;
   }
   function addQuestion(type, where) {
-    if (!built()) return toast("Start the form first");
+    if (!built() && !startBlank(true)) return;
     if (S.mode !== "edit") setMode("edit");
     const taken = allNames();
     const name = isLayout(type) ? "" : uniqueName(baseName(type), taken);
@@ -1787,9 +1828,9 @@ ${CAL_CSS}
     p.append(Hd);
   }
   // Start blank: an email question and a send button in the brand's look, with no AI.
-  $("blankBtn").onclick = () => {
+  function startBlank(quiet) {
     const f = checkForm({ ...emptyForm(), title: "New form" });
-    if ("errors" in f) return;
+    if ("errors" in f) return false;
     const conv = formToPage(f.form);
     snap();
     setSource(conv.html);
@@ -1799,8 +1840,72 @@ ${CAL_CSS}
     setSide("build");
     S.sub = "add"; sideUi();
     setMode("edit");
-    toast("Blank form created. Add fields from the Build panel.");
-  };
+    if (!quiet) toast("Blank form created. Add fields from the Build panel.");
+    return true;
+  }
+  $("blankBtn").onclick = () => startBlank();
+
+  // ── Templates on the empty canvas: the whole gallery, by family and search. Picking one makes the form from it
+  // (the same as Forms › Templates) in this chat's brand or style, or the template's own style. ─────────────
+  async function tplLoad() {
+    if (TG.list) return;
+    TG.list = [];
+    try { const r = await api.templates(); TG.list = r.list; TG.fams = r.families; } catch { TG.list = null; }
+    emptyUi();
+  }
+  function tplShown() {
+    const words = TG.q.toLowerCase().split(/\s+/).filter(Boolean);
+    return (TG.list || []).filter((t) => (TG.fam === "all" || t.fams.includes(TG.fam)) && words.every((w) => t.words.includes(w)));
+  }
+  function tplUi() {
+    if (!TG.list) return;
+    const all = TG.list;
+    $("tplQ").placeholder = all.length ? `Search ${all.length} templates` : "Search templates";
+    const fam = $("tplFam"); fam.innerHTML = "";
+    const count = (id) => all.filter((t) => id === "all" || t.fams.includes(id)).length;
+    for (const f of [{ id: "all", label: "All" }, ...TG.fams]) {
+      const n = count(f.id);
+      if (!n) continue;
+      fam.append(h("button", { "aria-pressed": String(TG.fam === f.id), onclick: () => { TG.fam = f.id; TG.n = 48; tplUi(); } }, document.createTextNode(f.label), h("span", { text: String(n) })));
+    }
+    const shown = tplShown();
+    const grid = $("tplGrid"); grid.innerHTML = "";
+    if (!all.length) grid.append(h("div", { class: "tplnone", text: "Loading templates" }));
+    else if (!shown.length) grid.append(h("div", { class: "tplnone", text: "No templates match" }));
+    for (const t of shown.slice(0, TG.n)) {
+      const a = t.art;
+      const mini = h("div", { class: "t-mini", style: `background:${a.card};color:${a.ink};box-shadow:0 0 0 1px ${a.line}` }, h("i", { class: "h" }), h("i", { style: "width:80%" }), h("i", { class: "f" }), h("i", { class: "b", style: `background:${a.accent}` }));
+      grid.append(h("button", { class: `tpl${TG.making === t.id ? " making" : ""}`, "data-tpl": t.id, disabled: TG.making ? "" : null, onclick: () => useTpl(t) },
+        h("div", { class: "t-art", style: `background:${a.bg}` }, mini),
+        h("div", { class: "t-tx" }, h("span", { class: "t-nm", text: t.name }), h("span", { class: "t-bl", text: t.blurb }), h("span", { class: "t-mt", text: TG.making === t.id ? "Creating form" : `${t.n} ${t.n === 1 ? "question" : "questions"}` }))));
+    }
+    $("tplMore").hidden = shown.length <= TG.n;
+  }
+  $("tplQ").addEventListener("input", (e) => { TG.q = e.target.value; TG.n = 48; tplUi(); });
+  $("tplMore").onclick = () => { TG.n += 96; tplUi(); };
+  async function useTpl(t) {
+    if (TG.making || !cur) return;
+    const c = cur, b = brandOf(c);
+    const look = b?.style ? { theme: b.style } : b?.id && b.css ? { kitId: b.id } : {};
+    TG.making = t.id; tplUi();
+    try {
+      const r = await api.useTemplate(t.id, look);
+      // The empty chat this started from goes; the new form opens in its own.
+      if (!built() && !c.body.log.length) { dropped.add(c.id); chats = chats.filter((x) => x !== c); api.deleteChat(c.id).catch(() => {}); }
+      if (r.workflowError) toast(r.workflowError);
+      api.openForm(r.id);
+    } catch (e) {
+      toast(e?.message || "Couldn't use this template. Try again.");
+    } finally { TG.making = ""; if (alive) tplUi(); }
+  }
+  /** The empty canvas: the templates, or the skeleton while Tia builds. */
+  function emptyUi() {
+    const gal = !S.busy && !!TG.list;
+    $("empty").classList.toggle("gal", gal);
+    $("tpls").hidden = !gal;
+    $("tplWait").hidden = gal;
+    if (gal) tplUi();
+  }
 
   // ── Floating menus (never the browser's) and the toast ───────────────────────────────────────────────
   let menuEl = null, menuFor = null;
@@ -2298,7 +2403,7 @@ ${CAL_CSS}
     if (st) rows.unshift(h("div", { class: "mrow" }, h("button", { class: "mi", role: "menuitemradio", "aria-checked": "true", onclick: closeMenu }, mark(st), h("span", { class: "nm", text: st.name }))));
     openMenu($("brandBtn"), [...rows, rows.length ? h("div", { class: "msep" }) : null, h("button", { class: "mi small", html: `${SVG(P.plus, 14)}<span class="nm">Add a brand</span>`, onclick: () => { closeMenu(); openDialog(); } })].filter(Boolean), $("brandBtn").offsetWidth);
   }
-  $("brandBtn").onclick = () => (menuEl && menuFor === $("brandBtn") ? closeMenu() : brandMenu());
+  $("brandBtn").onclick = () => (!brands.length && loaded ? openDialog() : menuEl && menuFor === $("brandBtn") ? closeMenu() : brandMenu());
   // One click fixes what the site told Tia about the brand.
   $("profileBtn").onclick = () => {
     const b = brandOf(cur);
@@ -2555,6 +2660,7 @@ ${CAL_CSS}
     $("send").innerHTML = b ? `<svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><rect x="5" y="5" width="14" height="14" rx="2"/></svg>` : SVG(P.send, 15);
     $("send").setAttribute("aria-label", b ? "Stop" : "Send");
     $("empty").classList.toggle("live", b);
+    emptyUi();
     $("emptyText").textContent = b ? "Tia is building your form" : "Your form shows here as Tia builds it";
     pubUi();
   }
@@ -2629,7 +2735,7 @@ ${CAL_CSS}
       autosize();
     }
     emit();
-    if (!brandOf(cur)) {
+    if (!brandOf(cur) && built()) {
       if (!brands.length) openDialog();
       else brandMenu();
     }

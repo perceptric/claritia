@@ -296,6 +296,12 @@ Everything a form needs can be made in Edit without Tia (`src/lib/studio/builder
 - **Pages as steps**: the bar shows the pages as numbered steps joined by a line, the thank-you last with a tick, and
   All pages as an icon; in Preview the pages already passed show done.
 - **Start blank**: an email question and a send button in the brand's look, with no AI.
+- **Templates on an empty form**: a new form's canvas shows every gallery template (`studioList.ts`), most used
+  first, with the families as chips, search, and Start blank. Each card is drawn in its style's colors. Picking one
+  makes the form the way Forms › Templates does (`/api/forms/templates`), in the chat's brand or style, or the
+  template's own style; it opens in its own chat, joins the folder it was started from, and the empty chat goes. No
+  brand dialog covers the templates; the brand button opens Add a brand when there are none. Adding a field to an
+  empty form starts it blank first.
 - The form script's size limit goes from 39 to 41 KB for the rules above.
 
 Running cost: $0 a month at Beta (50 teams) and Growth (500 teams). Nothing new is bought, and these edits make no
