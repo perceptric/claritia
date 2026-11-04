@@ -59,7 +59,7 @@ try {
   const shot = (name: string) => (shots ? page.screenshot({ path: `${shots}/${name}.png` }) : Promise.resolve());
   const action = page.locator("[data-form-action]");
   const tab = (name: string) => page.getByRole("tab", { name: new RegExp(`^${name}`) });
-  const studioReady = () => page.waitForFunction(() => !!document.querySelector("[data-studio-host]")?.shadowRoot?.getElementById("t-code"), null, { timeout: 15000 });
+  const studioReady = () => page.waitForFunction(() => !!document.querySelector("[data-studio-host]")?.shadowRoot?.getElementById("t-edit"), null, { timeout: 15000 });
   const $s = (sel: string) => page.locator(`[data-studio-host] ${sel}`);
 
   // ── A Form Studio form ──
@@ -81,13 +81,28 @@ try {
   await studioReady();
   check(true, "Build brings the Studio back");
 
-  // An edit in the Studio: the button says Publish changes.
-  await $s("#t-code").click();
-  await $s("#c-html").click();
-  await $s("#codeText").fill((await $s("#codeText").inputValue()).replace("Daily check-in", "Morning check-in"));
-  await $s("#codeApply").click();
+  // An edit in the Studio, typed right on the form: the button says Publish changes.
+  await $s("#t-edit").click();
+  const heading = $s("h1, h2").filter({ hasText: "Daily check-in" }).first();
+  await heading.click();
+  await heading.click();
+  await page.keyboard.press("ControlOrMeta+a");
+  await page.keyboard.type("Morning check-in");
+  await page.keyboard.press("Enter");
+  await $s("#t-preview").click();
   await page.waitForFunction(() => document.querySelector("[data-form-action]")?.textContent?.trim() === "Publish changes");
   check(await page.getByText("Changes not live").isVisible(), "an edit in the Studio: Changes not live, and Publish changes");
+
+  // Share › Embed HTML: the form's HTML, its own CSS and the brand's stylesheet, each to copy.
+  await tab("Share").click();
+  await page.getByRole("button", { name: "Embed HTML", exact: true }).click();
+  const codeShown = () => page.locator("pre").last().textContent();
+  check(/check-in/.test((await codeShown()) ?? "") && ((await codeShown()) ?? "").includes("data-cl-"), "Embed HTML shows the form's HTML, as it's saved");
+  await page.getByRole("radio", { name: "Brand CSS" }).click();
+  check(((await codeShown()) ?? "").length > 20 && !((await codeShown()) ?? "").includes("<section"), "and the brand's stylesheet");
+  await page.getByRole("radio", { name: "Form CSS" }).click();
+  check(await page.getByRole("button", { name: "Copy code" }).isVisible(), "each with Copy code");
+  await page.getByRole("button", { name: "Link", exact: true }).click();
 
   // Publish changes from another tab goes to Build and publishes through the Studio.
   await tab("Share").click();
@@ -121,7 +136,7 @@ try {
   await page.waitForTimeout(400);
   await shot("4-old");
   check(await page.evaluate(() => (window as unknown as { calls: { path: string; body: { mode?: string } }[] }).calls.some((c) => c.path === "/api/studio" && c.body.mode === "convert")), "an older form is turned into a Studio page when it opens");
-  check((await $s("#t-code").count()) === 1, "its Build is Form Studio");
+  check((await $s("#t-edit").count()) === 1, "its Build is Form Studio");
   check((await action.textContent())?.trim() === "Publish changes", "its new page isn't live until it's published");
 
   // ── A template in a website style: the Studio keeps the style as its look ──

@@ -22,7 +22,7 @@ import { Menu } from "./Menu";
 import { Box, BTN, CARD, copyText, CROW, CSTACK, GHOST_SM, IB, IB_SM, IN, RowText, Seg, Tg, useNote } from "./parts";
 import type { FormRow, Kit } from "./shared";
 
-type Way = "link" | "personal" | "embed" | "email" | "qr" | "own";
+type Way = "link" | "personal" | "embed" | "html" | "email" | "qr" | "own";
 type Props = ViewProps & { form: Form; row: FormRow & { kind?: "built" | "captured" }; apply: (ops: Op | Op[], words?: string) => boolean; kit: Kit | null; site: string };
 
 export function Share(props: Props) {
@@ -32,6 +32,7 @@ export function Share(props: Props) {
     ["link", "link", "Link"],
     ["personal", "user", "Personal link"],
     ["embed", "code", "Website"],
+    ...(form.page ? ([["html", "code", "Embed HTML"]] as [Way, string, string][]) : []),
     ["email", "mail", "Email"],
     ["qr", "qr", "QR code"],
     ["own", "form", "Own form"],
@@ -46,7 +47,7 @@ export function Share(props: Props) {
       <div className="min-w-0 overflow-y-auto px-[16px] pt-[20px] pb-[32px] sm:px-[clamp(16px,3vw,32px)]">
         <div className="flex max-w-[760px] flex-col gap-[16px]">
           {!row.version ? <Box tone="warn" title="Publish the form first" /> : null}
-          {way === "link" ? <LinkPane {...props} /> : way === "personal" ? <PersonalPane {...props} /> : way === "embed" ? <EmbedPane {...props} /> : way === "email" ? <EmailPane {...props} /> : way === "qr" ? <QrPane {...props} /> : <OwnPane {...props} />}
+          {way === "link" ? <LinkPane {...props} /> : way === "personal" ? <PersonalPane {...props} /> : way === "embed" ? <EmbedPane {...props} /> : way === "html" ? <HtmlPane {...props} /> : way === "email" ? <EmailPane {...props} /> : way === "qr" ? <QrPane {...props} /> : <OwnPane {...props} />}
         </div>
       </div>
     </div>
@@ -335,6 +336,31 @@ function PersonalPane({ session, ws, row }: Props) {
           </div>
         </div>
       ) : null}
+    </>
+  );
+}
+
+/** The form's own code, as Form Studio holds it: its HTML, its own CSS and the brand's stylesheet, each to copy. */
+function HtmlPane({ form }: Props) {
+  const [file, setFile] = useState<"html" | "css" | "brand">("html");
+  const pg = form.page;
+  if (!pg) return null;
+  const code = file === "html" ? pg.html : file === "css" ? pg.css : pg.brand;
+  const label = file === "html" ? "Form HTML" : file === "css" ? "Form CSS" : "Brand CSS";
+  return (
+    <>
+      <H3>Embed HTML</H3>
+      <Seg
+        label="Code"
+        value={file}
+        onChange={setFile}
+        options={[
+          { value: "html", label: "Form HTML" },
+          { value: "css", label: "Form CSS" },
+          { value: "brand", label: "Brand CSS" },
+        ]}
+      />
+      <CodeBox code={code || ""} label={label} tall />
     </>
   );
 }

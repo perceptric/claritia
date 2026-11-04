@@ -14,6 +14,7 @@ import { askConfirm, tell } from "../Dialogs";
 import { cache, ErrorNote, errorText, invalidate, Loading, must, postJson, setLeaveGuard, useQuery, type ViewProps } from "../ui";
 import { useLiveBody } from "../routing/screenParts";
 import { FormHome } from "./FormHome";
+import { confirmPause } from "./pause";
 import { publishChecks } from "./formModel";
 import { Ic } from "./ic";
 import { Menu } from "./Menu";
@@ -374,7 +375,7 @@ function Editor(props: ViewProps & { data: FormData; reload: () => void; patchRo
       if (!(await save())) throw new Error("The draft didn't save. Try again.");
       // The form's routing goes live with it, on the server: compiled with its meetings into the form's routing policy.
       const { routing } = await postJson<{ routing?: { problems: string[]; error?: string } }>(session, "/api/forms/publish", { workspaceId: ws.id, id: row.id });
-      // Publishing an offline form puts it back online, as the Take offline note says.
+      // Publishing a paused form resumes it.
       if (row.status === "paused") must(await sb.rpc("form_set_status", { p_id: row.id, p_status: "live" }));
       if (routing?.error) setError(`The form is live. ${routing.error}`);
       else if (routing?.problems.length) setError(`The form is live. Routing left out: ${routing.problems.join(", ")}.`);
@@ -389,6 +390,7 @@ function Editor(props: ViewProps & { data: FormData; reload: () => void; patchRo
     }
   };
   const setStatus = async (s: "live" | "paused") => {
+    if (s === "paused" && !(await confirmPause(name))) return;
     // The status changes on click; it goes back, with the error, if the save fails.
     const was = row.status;
     patchRow({ status: s });
@@ -396,7 +398,7 @@ function Editor(props: ViewProps & { data: FormData; reload: () => void; patchRo
       must(await sb.rpc("form_set_status", { p_id: row.id, p_status: s }));
       invalidate(`forms:${ws.id}`);
       invalidate("app_counts");
-      note.show(s === "paused" ? "Offline. Pages show nothing until you publish again." : "Back online");
+      note.show(s === "paused" ? "Paused" : "Resumed");
     } catch (e) {
       patchRow({ status: was });
       setError(errorText(e));
@@ -527,7 +529,7 @@ function Editor(props: ViewProps & { data: FormData; reload: () => void; patchRo
           items={[
             ...(isStudio ? [{ icon: "check", label: studio?.issues.length ? `Form check (${studio.issues.length})` : "Form check", disabled: !studio, run: () => setCheckAt(actionRef.current) }] : []),
             { icon: "dup", label: "Duplicate", run: () => void duplicate() },
-            row.status === "paused" ? { icon: "eye", label: "Put back online", run: () => void setStatus("live") } : { icon: "eye", label: "Take offline", disabled: !isLive, run: () => void setStatus("paused") },
+            row.status === "paused" ? { icon: "eye", label: "Resume the form", run: () => void setStatus("live") } : { icon: "eye", label: "Pause the form", disabled: !isLive, run: () => void setStatus("paused") },
             "hr",
             { icon: "trash", label: "Delete form", danger: true, run: () => void remove() },
           ]}

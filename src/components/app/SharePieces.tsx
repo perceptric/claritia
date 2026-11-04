@@ -46,7 +46,8 @@ export function LinkRow({ url, disabled = false, primary = true }: { url: string
 }
 
 /** Code to paste, with its own bar: a label, anything else for the bar (like platform picks), and Copy. */
-export function CodeBox({ code, label = "Code", bar, embed = false }: { code: string; label?: string; bar?: React.ReactNode; embed?: boolean }) {
+/** `tall`: a long file (a form's whole HTML) scrolls inside the box, under its Copy button. */
+export function CodeBox({ code, label = "Code", bar, embed = false, tall = false }: { code: string; label?: string; bar?: React.ReactNode; embed?: boolean; tall?: boolean }) {
   const { done, copy } = useCopied();
   return (
     <div className="overflow-hidden rounded-[10px] bg-card shadow-rest">
@@ -57,7 +58,7 @@ export function CodeBox({ code, label = "Code", bar, embed = false }: { code: st
           {done === "code" ? "Copied" : "Copy code"}
         </Button>
       </div>
-      <pre {...(embed ? { "data-embed-code": "" } : {})} className="m-0 overflow-x-auto bg-paper px-4 py-3.5 font-mono text-[12px] leading-[1.6] whitespace-pre text-body">
+      <pre {...(embed ? { "data-embed-code": "" } : {})} className={`m-0 overflow-x-auto bg-paper px-4 py-3.5 font-mono text-[12px] leading-[1.6] whitespace-pre text-body ${tall ? "max-h-[440px] overflow-y-auto" : ""}`}>
         {code}
       </pre>
     </div>

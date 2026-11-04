@@ -317,7 +317,6 @@ export const STUDIO_HTML = `
       <div class="grp" role="tablist" aria-label="View">
         <button class="ib" role="tab" id="t-preview" data-tip="Preview" aria-label="Preview">${SVG(P.eye)}</button>
         <button class="ib" role="tab" id="t-edit" data-tip="Edit" aria-label="Edit">${SVG(P.cursor)}</button>
-        <button class="ib" role="tab" id="t-code" data-tip="Code" aria-label="Code">${SVG(P.code)}</button>
         <button class="ib" role="tab" id="t-after" data-tip="On submission" aria-label="On submission">${SVG(P.cal)}</button>
       </div>
       <span class="spacer"></span>
@@ -1159,7 +1158,8 @@ ${CAL_CSS}
   // ── Views and devices ─────────────────────────────────────────────────────────────────────────────────
   function setMode(m) {
     S.mode = m;
-    for (const [id, v] of [["t-preview", "preview"], ["t-edit", "edit"], ["t-code", "code"], ["t-after", "after"]]) $(id).setAttribute("aria-selected", String(m === v));
+    // The form's code is on the form's Share tab (Embed HTML), so the views are Preview, Edit and On submission.
+    for (const [id, v] of [["t-preview", "preview"], ["t-edit", "edit"], ["t-after", "after"]]) $(id).setAttribute("aria-selected", String(m === v));
     $("canvas").hidden = m === "code" || m === "after";
     $("codeView").hidden = m !== "code";
     $("afterView").hidden = m !== "after";
@@ -1172,7 +1172,7 @@ ${CAL_CSS}
     draw();
     refresh();
   }
-  for (const [id, v] of [["t-preview", "preview"], ["t-edit", "edit"], ["t-code", "code"], ["t-after", "after"]]) $(id).onclick = () => setMode(v);
+  for (const [id, v] of [["t-preview", "preview"], ["t-edit", "edit"], ["t-after", "after"]]) $(id).onclick = () => setMode(v);
   function setDevice(d) { S.device = d; $("frame").className = `frame${d === "tab" ? " tablet" : d === "phone" ? " phone" : ""}`; for (const [id, v] of [["d-desk", "desk"], ["d-tab", "tab"], ["d-phone", "phone"]]) $(id).setAttribute("aria-pressed", String(d === v)); setTimeout(overlay, 340); }
   $("d-desk").onclick = () => setDevice("desk"); $("d-tab").onclick = () => setDevice("tab"); $("d-phone").onclick = () => setDevice("phone");
   // The bar's ⋯: Back to step 1, the live form, Layers (docs/form-ui-plan.md step 2).
@@ -1320,7 +1320,7 @@ ${CAL_CSS}
   function alwaysCard(a, set) {
     const al = a.always || {};
     const setA = (p) => set({ always: { email: !!al.email, to: al.to || [], slack: !!al.slack, ...p } });
-    const card = h("div", { class: "card2" }, h("h3", { text: "Always do" }));
+    const card = h("div", { class: "card2" }, h("h3", { text: "Notification" }));
     const eRow = h("div", { class: "arow" }, h("button", { class: `pill${al.email ? " on" : ""}`, "aria-pressed": String(!!al.email), text: "Email the team", onclick: () => setA({ email: !al.email }) }));
     if (al.email) { const i = h("input", { class: "in txt wide", placeholder: "name@company.com, name@company.com", value: (al.to || []).join(", "), "aria-label": "Team emails" }); i.addEventListener("change", () => setA({ to: i.value.split(/[\s,;]+/).map((x) => x.trim()).filter(Boolean) })); eRow.append(i); }
     card.append(eRow, h("div", { class: "arow" }, h("button", { class: `pill${al.slack ? " on" : ""}`, "aria-pressed": String(!!al.slack), html: `${logoImg("slack.com")}<span>Post to Slack</span>`, onclick: () => setA({ slack: !al.slack }) })));

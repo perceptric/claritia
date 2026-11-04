@@ -29,7 +29,7 @@ export function StatePill({ state }: { state: HeaderState }) {
         Changes not live
       </Badge>
     );
-  return <Badge>{state === "offline" ? "Offline" : "Draft"}</Badge>;
+  return <Badge>{state === "offline" ? "Paused" : "Draft"}</Badge>;
 }
 
 export function FormHeader({

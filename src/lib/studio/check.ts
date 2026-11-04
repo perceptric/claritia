@@ -204,7 +204,7 @@ export function checkStudioPage(p: { html: string; after: PageAfter; meetings: {
       if (!r.meeting || !known(r.meeting)) add("error", "route-meeting", `${n} books a meeting that isn't there any more. Fix it in On submission.`);
     });
   }
-  if (a.always?.email && !a.always.to?.length) add("error", "always-email", "Always do emails the team, but has no emails yet. Add them in On submission.");
+  if (a.always?.email && !a.always.to?.length) add("error", "always-email", "Notification emails the team, but has no emails yet. Add them in On submission.");
 
   // Without an email, answers can't become contacts.
   if (!questions.some((q) => q.type === "email" || q.save === "email")) add("warning", "no-email", "There's no email question, so answers won't become contacts.", "Add an email question saved to the contact's email (data-cl-save=\"email\").");

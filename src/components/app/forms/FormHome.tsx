@@ -2,7 +2,7 @@
 
 // Inbound › Forms (docs/forms.md): one list of forms as 72 px rows, like Calendar's meeting types. Each row has its
 // thumbnail, where it lives, its last fill and send rate, the last 7 days as bars, this week's count and its state; the
-// more menu opens, copies, takes offline and deletes. With no forms yet, Form Studio is the first screen, and New form
+// more menu opens, copies, pauses and deletes. With no forms yet, Form Studio is the first screen, and New form
 // opens it too (docs/forms-chat-plan.md).
 
 import { useState } from "react";
@@ -15,6 +15,7 @@ import { ago, whereWords } from "./formModel";
 import { Ic } from "./ic";
 import { BTN, copyText, GHOST, IB, Seg, SegN, Thumb, useNote } from "./parts";
 import { Menu } from "./Menu";
+import { confirmPause } from "./pause";
 
 export type ListRow = {
   id: string;
@@ -78,10 +79,11 @@ export function FormHome(props: ViewProps) {
     });
   const offline = (r: ListRow, on: boolean) =>
     act(async () => {
+      if (!on && !(await confirmPause(r.name))) return;
       // The status changes on click; it goes back, with the error, if the save fails.
       await list.mutate((d) => ({ ...d, rows: d.rows.map((x) => (x.id === r.id ? { ...x, status: on ? "live" : "paused" } : x)) }), async () => must(await sb.rpc("form_set_status", { p_id: r.id, p_status: on ? "live" : "paused" })));
       invalidate("app_counts");
-      note.show(on ? "Back online" : "Offline. Pages show nothing until you publish again.");
+      note.show(on ? "Resumed" : "Paused");
     });
   const remove = (r: ListRow) =>
     act(async () => {
@@ -182,8 +184,8 @@ export function FormHome(props: ViewProps) {
             { icon: "dup", label: "Duplicate", run: () => void duplicate(open) },
             { icon: "link", label: "Copy link", disabled: !open.version, run: () => void copyText(`${origin}/f/${open.id}`).then((ok) => note.show(ok ? "Link copied" : "Couldn't copy the link")) },
             open.status === "paused"
-              ? { icon: "eye", label: "Put back online", run: () => void offline(open, true) }
-              : { icon: "eye", label: "Take offline", disabled: open.status === "draft", run: () => void offline(open, false) },
+              ? { icon: "eye", label: "Resume the form", run: () => void offline(open, true) }
+              : { icon: "eye", label: "Pause the form", disabled: open.status === "draft", run: () => void offline(open, false) },
             "hr",
             { icon: "trash", label: "Delete", danger: true, run: () => void remove(open) },
           ]}
@@ -205,7 +207,7 @@ function FormRowView({ r, accent, open, onOpen, onMenu }: { r: ListRow; accent?:
     r.status === "draft" ? (
       <Badge>Draft</Badge>
     ) : r.status === "paused" ? (
-      <Badge>Offline</Badge>
+      <Badge>Paused</Badge>
     ) : r.edited ? (
       <span title="Live, with changes not published yet">
         <Badge tone="amber" dot>

@@ -189,7 +189,7 @@ try {
   const panelBox = await $("#panel").boundingBox();
   check(!!barBox && !!panelBox && barBox.y + barBox.height <= panelBox.y, "the panel sits below the bar and never covers it");
   check((await $("#publish").count()) + (await $("#checkBtn").count()) + (await $("#shareBtn").count()) + (await $("#backBtn").count()) === 0, "Publish, the check, Share and Back live in the page's header, never in the Studio's bar");
-  for (const id of ["t-preview", "t-edit", "t-code", "t-after", "d-desk", "d-tab", "d-phone"]) if (!(await $(`#${id}`).getAttribute("data-tip"))) check(false, `${id} has a tooltip`);
+  for (const id of ["t-preview", "t-edit", "t-after", "d-desk", "d-tab", "d-phone"]) if (!(await $(`#${id}`).getAttribute("data-tip"))) check(false, `${id} has a tooltip`);
   check((await $("#t-edit").textContent())!.trim() === "", "views are icons with tooltips");
   // One row: the steps sit in the bar, and the bar holds 11 controls (the extras are in ⋯).
   const barRow = await $("section.stage > .bar").boundingBox();
@@ -214,11 +214,8 @@ try {
   check((await $("#pscroll").textContent())!.includes("Saves to"), "Settings shows where the answer saves");
   if (shots) await p.screenshot({ path: `${shots}/3-edit.png` });
 
-  // 7. Code and On submission
-  await $("#t-code").click();
-  check((await $("#codeText").inputValue()).includes('id="title"'), "Code shows the HTML");
-  await $("#c-brand").click();
-  check((await $("#codeText").inputValue()).includes("--finch-mint"), "Code shows the brand CSS");
+  // 7. On submission (the form's code is on Share › Embed HTML, scripts/formpage-check.ts)
+  check((await $("#t-code").count()) === 0, "the Studio has no Code view: the code is on Share");
   await $("#t-after").click();
   const after = (await $("#afterInner").textContent())!;
   check(after.includes("Intro call") && after.includes("Product demo"), "On submission lists the workspace's meeting types");
@@ -273,7 +270,7 @@ try {
   check((await calls()).some((c) => c.mode === "newFollowUp" && (c.body as { when: string }).when === "not_booked"), "New follow-up starts a workflow on this form");
   if (shots) await p.screenshot({ path: `${shots}/4b-after.png` });
   const kept = Object.values(await p.evaluate(() => (window as unknown as { saved: Record<string, { body: { after: { always?: { to?: string[]; slack?: boolean } } } }> }).saved));
-  check(kept.some((c) => c.body.after.always?.to?.[0] === "coach@finch.care" && c.body.after.always.slack === true), "Always do is kept on the chat");
+  check(kept.some((c) => c.body.after.always?.to?.[0] === "coach@finch.care" && c.body.after.always.slack === true), "Notification is kept on the chat");
 
   // 7b. The form check: a sound form is ready; a broken one can't be published, and Tia gets the fix
   const problems = () => p.evaluate(() => (window as unknown as { studioState: { issues: { level: string }[] } | null }).studioState?.issues.filter((i) => i.level === "error").length ?? -1);
@@ -282,11 +279,14 @@ try {
   // Turning on Email the team before typing the emails is a problem for a moment; the check runs again on the emails.
   await p.waitForFunction(() => (window as unknown as { studioState: { issues: { level: string }[] } }).studioState.issues.every((i) => i.level !== "error"), null, { timeout: 5000 }).catch(() => undefined);
   check((await problems()) === 0, "the form check finds nothing to fix on a sound form");
-  await $("#t-code").click();
-  await $("#c-html").click();
-  check((await $("#codeText").inputValue()).includes("data-cl-id="), "every question carries its field id");
-  await $("#codeText").fill((await $("#codeText").inputValue()).replace(/<button[^>]*type="submit"[^>]*>[\s\S]*?<\/button>/, ""));
-  await $("#codeApply").click();
+  const savedHtml = () => p.evaluate(() => Object.values((window as unknown as { saved: Record<string, { body: { html?: string } }> }).saved).map((c) => c.body.html ?? "").join("\n"));
+  check((await savedHtml()).includes("data-cl-id="), "every question carries its field id");
+  // The send button deleted in Edit, from the floating bar.
+  await $("#t-edit").click();
+  await $("#stepBar .sp").last().click();
+  await form.locator("[type=submit]").first().click();
+  await $("#fbar button[aria-label='Delete']").click();
+  await $("#t-preview").click();
   await p.waitForFunction(() => (window as unknown as { studioState: { issues: { level: string }[] } }).studioState.issues.some((i) => i.level === "error"));
   check((await p.locator("#hdrAction").getAttribute("data-problems")) !== "0", "a form with no send button shows a problem to fix, as a count on Publish");
   await p.locator("#hdrAction").click();
