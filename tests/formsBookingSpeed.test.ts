@@ -262,7 +262,8 @@ test("the hosted form page is plain HTML with the versioned script in its head; 
   const html = hostedFormHtml(FORM, { framed: false, script: "/forms/v1.abc123abc123.js" });
   assert.match(html, /^<!doctype html>/);
   assert.match(html, /<head>[\s\S]*<script src="\/forms\/v1\.abc123abc123\.js" async><\/script>[\s\S]*<\/head>/);
-  assert.match(html, new RegExp(`<claritia-form form-id="${FORM}"></claritia-form>`));
+  // hosted: the form knows it is on its own page, so its fills count as Link (src/lib/share/channels.ts).
+  assert.match(html, new RegExp(`<claritia-form form-id="${FORM}" hosted></claritia-form>`));
   assert.ok(!/_next/.test(html), "no app framework");
   assert.match(hostedFormHtml(FORM, { framed: true, script: "/forms/v1.js" }), /<html lang="en" class="framed">/);
   const bad = hostedFormHtml("<script>", { framed: false, script: "/forms/v1.js" });

@@ -11,17 +11,18 @@ import { allFields, type Form } from "@/lib/forms/schema";
 import { capturedForm } from "@/lib/forms/templates";
 import { formEmbedCode, overPage, type FormEmbed, type FormMode, type Opens, type Plat } from "@/lib/share/embed";
 import { emailQuestionHtml, firstQuestion } from "@/lib/share/emailForm";
+import { viaLink } from "@/lib/share/channels";
 import { QrCode } from "../meetings/Share";
 import { BuilderPick, CodeBox, SitePreview, useCopied } from "../SharePieces";
 import { useLinkBase } from "../views/LinkDomainSettings";
-import { ErrorNote, errorText, must, postJson, useQuery, type ViewProps } from "../ui";
+import { Badge, ErrorNote, errorText, must, postJson, useQuery, type ViewProps } from "../ui";
 import { saveName } from "./formModel";
 import { Ic } from "./ic";
 import { Menu } from "./Menu";
 import { Box, BTN, CARD, copyText, CROW, CSTACK, GHOST_SM, IB, IB_SM, IN, RowText, Seg, Tg, useNote } from "./parts";
 import type { FormRow, Kit } from "./shared";
 
-type Way = "link" | "embed" | "email" | "qr" | "own";
+type Way = "link" | "personal" | "embed" | "email" | "qr" | "own";
 type Props = ViewProps & { form: Form; row: FormRow & { kind?: "built" | "captured" }; apply: (ops: Op | Op[], words?: string) => boolean; kit: Kit | null; site: string };
 
 export function Share(props: Props) {
@@ -29,6 +30,7 @@ export function Share(props: Props) {
   const [way, setWay] = useState<Way>(form.capture ? "own" : "link");
   const ways: [Way, string, string][] = [
     ["link", "link", "Link"],
+    ["personal", "user", "Personal link"],
     ["embed", "code", "Website"],
     ["email", "mail", "Email"],
     ["qr", "qr", "QR code"],
@@ -44,7 +46,7 @@ export function Share(props: Props) {
       <div className="min-w-0 overflow-y-auto px-[16px] pt-[20px] pb-[32px] sm:px-[clamp(16px,3vw,32px)]">
         <div className="flex max-w-[760px] flex-col gap-[16px]">
           {!row.version ? <Box tone="warn" title="Publish the form first" /> : null}
-          {way === "link" ? <LinkPane {...props} /> : way === "embed" ? <EmbedPane {...props} /> : way === "email" ? <EmailPane {...props} /> : way === "qr" ? <QrPane {...props} /> : <OwnPane {...props} />}
+          {way === "link" ? <LinkPane {...props} /> : way === "personal" ? <PersonalPane {...props} /> : way === "embed" ? <EmbedPane {...props} /> : way === "email" ? <EmailPane {...props} /> : way === "qr" ? <QrPane {...props} /> : <OwnPane {...props} />}
         </div>
       </div>
     </div>
@@ -276,6 +278,67 @@ function PreviewCard({ session, ws, form, row, apply, host }: Pick<Props, "sessi
   );
 }
 
+/**
+ * A personal link (docs/sharing-plan.md): the form's link for one person, which fills in what Claritia knows about
+ * them. Made on the server, so the link holds a signed token and never their details.
+ */
+function PersonalPane({ session, ws, row }: Props) {
+  const [email, setEmail] = useState("");
+  const [made, setMade] = useState<{ url: string; contact: boolean; for: string } | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const { done, copy } = useCopied();
+  const make = async () => {
+    setBusy(true);
+    setError("");
+    try {
+      const r = await postJson<{ url: string; contact: boolean }>(session, "/api/forms/personal-link", { workspaceId: ws.id, formId: row.id, email: email.trim() });
+      setMade({ ...r, for: email.trim().toLowerCase() });
+    } catch (e) {
+      setError(errorText(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <>
+      <H3>Personal link</H3>
+      <form
+        className="flex flex-wrap items-center gap-[8px]"
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (email.trim() && !busy) void make();
+        }}
+      >
+        <input aria-label="Their email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="name@company.com" className={`${IN} h-[40px] min-w-0 flex-1 basis-[260px]`} />
+        <button type="submit" className={BTN} disabled={!email.trim() || busy || !row.version}>
+          {busy ? "Making it" : "Make link"}
+        </button>
+      </form>
+      <ErrorNote message={error} />
+      {made ? (
+        <div className={CARD}>
+          <div className={CROW}>
+            <span className="flex min-w-0 flex-1 flex-wrap items-center gap-[8px]">
+              <b className="font-medium break-all text-ink">{made.for}</b>
+              <Badge tone={made.contact ? "green" : "gray"}>{made.contact ? "Known contact" : "New person"}</Badge>
+            </span>
+          </div>
+          <div className={CROW}>
+            <a href={made.url} target="_blank" rel="noopener" data-personal-link className="min-w-0 flex-1 truncate font-mono text-[12.5px] text-ink" title={made.url}>
+              {made.url.replace(/^https?:\/\//, "")}
+            </a>
+            <button type="button" className={BTN} onClick={() => void copy("personal", made.url)}>
+              <Ic n={done === "personal" ? "check" : "copy"} />
+              {done === "personal" ? "Copied" : "Copy link"}
+            </button>
+          </div>
+        </div>
+      ) : null}
+    </>
+  );
+}
+
 /** Two ways in an email, as pictures: the link, or the form's first question with each answer a button. */
 const MAILS: { v: "send" | "inside"; l: string; draw: React.ReactNode }[] = [
   {
@@ -326,7 +389,7 @@ function EmailPane({ session, ws, form, row, kit }: Props) {
     }
   };
   const q = firstQuestion(form);
-  const html = q ? emailQuestionHtml(q, { link: `${origin()}/f/${row.id}`, color: kit?.tokens.buttonBg || kit?.tokens.accent, textColor: kit?.tokens.buttonText }) : "";
+  const html = q ? emailQuestionHtml(q, { link: viaLink(`${origin()}/f/${row.id}`, "email"), color: kit?.tokens.buttonBg || kit?.tokens.accent, textColor: kit?.tokens.buttonText }) : "";
   return (
     <>
       <H3>Email</H3>
@@ -390,12 +453,12 @@ function EmailPane({ session, ws, form, row, kit }: Props) {
 }
 
 function QrPane({ row }: Props) {
-  // Always the id link, so a printed code keeps working when the ending changes.
+  // Always the id link, so a printed code keeps working when the ending changes; tagged QR code.
   return (
     <>
       <H3>QR code</H3>
       <div className={`${CARD} flex justify-center bg-paper py-[28px]`}>
-        <QrCode url={`${origin()}/f/${row.id}`} name={row.name} center />
+        <QrCode url={viaLink(`${origin()}/f/${row.id}`, "qr")} name={row.name} center />
       </div>
     </>
   );

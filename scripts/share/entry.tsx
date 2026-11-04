@@ -1,5 +1,5 @@
 // The Share screens for scripts/share-check.ts: the real components with a fake database and a fake server.
-// ?view=form&way=<link|embed|email|qr|own> draws a form's Share tab; ?view=meeting the meeting Share dialog;
+// ?view=form&way=<link|personal|embed|email|qr|own> draws a form's Share tab; ?view=meeting the meeting Share dialog;
 // ?view=domain&state=<none|pending|active|failed> Settings › Link domain. Server calls go to window.calls.
 
 import { useState } from "react";
@@ -39,6 +39,7 @@ window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
     return ok(qs.get("mailok") ? { problem: null, meetings: {} } : { problem: { error, at, count: 2 }, meetings: { m1: [{ what: "Confirmation and host note", to: null, error, at }, { what: "Confirmation", to: "trollong2002@gmail.com", error: "Domain not verified", at }] } });
   }
   if (path === "/api/forms/share-email") return ok({ queued: (body.to ?? []).length });
+  if (path === "/api/forms/personal-link") return ok({ url: `https://app.tryclaritia.com/f/acme/demo-request?p=abcdefghijk.ABCDEFGHIJKLMNOPQRSTUV&via=personal`, contact: body.email === "ana@acme.com", days: 90 });
   if (path === "/api/meetings/times") return ok({ text: "Tue, Nov 3, 10:00 AM: https://claritia.app/book/acme/demo?t=1" });
   return ok({});
 };

@@ -44,7 +44,7 @@ export function previewTags(p: PagePreview): string {
  */
 export function hostedFormHtml(id: string, o: { framed: boolean; script: string; preview?: PagePreview }): string {
   const ok = ID.test(id);
-  const body = ok ? `<claritia-form form-id="${esc(id)}"></claritia-form>` : `<p class="missing">Form not found.</p>`;
+  const body = ok ? `<claritia-form form-id="${esc(id)}" hosted></claritia-form>` : `<p class="missing">Form not found.</p>`;
   return `<!doctype html>
 <html lang="en"${o.framed ? ' class="framed"' : ""}>
 <head>

@@ -2,6 +2,7 @@
 // fills is read with, the columns the table and the CSV show across every version of a form, and one fill as a row.
 // Runs in the browser and on the server.
 
+import { isChannel, type Channel } from "../share/channels.ts";
 import { calcText } from "./formula.ts";
 import { ADDRESS_PARTS, allFields, everyOption, isContent, type Field, type Form } from "./schema.ts";
 
@@ -9,7 +10,8 @@ export type FillKind = "leads" | "tests" | "spam";
 export type FillStatus = "sent" | "waiting" | "failed";
 
 /** What form_fill_ids and form_fill_count read (supabase/migrations/071_form_results.sql). */
-export type FillFilters = { kind?: FillKind; q?: string; from?: string; to?: string; status?: FillStatus; booked?: boolean; key?: string; value?: string };
+/** channel: where fills came from (src/lib/share/channels.ts). */
+export type FillFilters = { kind?: FillKind; q?: string; from?: string; to?: string; status?: FillStatus; booked?: boolean; key?: string; value?: string; channel?: Channel };
 
 const KEY = /^[a-z][a-z0-9_.]{0,59}$/;
 
@@ -22,6 +24,7 @@ export function cleanFilters(raw: unknown): FillFilters {
   for (const k of ["from", "to"] as const) if (typeof r[k] === "string" && !Number.isNaN(Date.parse(r[k] as string))) out[k] = new Date(r[k] as string).toISOString();
   if (r.status === "sent" || r.status === "waiting" || r.status === "failed") out.status = r.status;
   if (typeof r.booked === "boolean") out.booked = r.booked;
+  if (isChannel(r.channel)) out.channel = r.channel;
   if (typeof r.key === "string" && KEY.test(r.key) && typeof r.value === "string") {
     out.key = r.key;
     out.value = r.value.slice(0, 200);
@@ -43,10 +46,10 @@ export const fromFor = (range: string, now = Date.now()) => {
   return days ? new Date(now - days * 86_400_000).toISOString() : undefined;
 };
 
-/** Page, referrer and the UTMs and click ids a fill keeps beside its answers (src/lib/forms/submit.ts). */
+/** Where it came from (the channel), page, referrer and the UTMs and click ids a fill keeps beside its answers (src/lib/forms/submit.ts). */
 const UTM = ["utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_content"];
 const CLICK = ["gclid", "fbclid", "li_fat_id", "msclkid"];
-export const META_KEYS = ["page", "referrer", ...UTM, ...CLICK, ...[...UTM, ...CLICK].map((k) => `first_${k}`)];
+export const META_KEYS = ["channel", "page", "referrer", ...UTM, ...CLICK, ...[...UTM, ...CLICK].map((k) => `first_${k}`)];
 
 export type Column = { key: string; label: string; field?: Field };
 

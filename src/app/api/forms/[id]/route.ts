@@ -5,12 +5,15 @@ import { publicForm } from "@/lib/forms/schema";
 import { cors, edgeCountry, forgetPublic, json, loadPublic, turnstileSiteKey } from "@/lib/forms/server";
 import { serviceClient } from "@/lib/serviceClient";
 import { persistStudio } from "@/lib/studio/persist";
+import { knownFor } from "@/lib/share/known";
+import { readPersonal } from "@/lib/share/personal";
 
 // The live version of a form, for <claritia-form> on any site (docs/form-builder.md Part 6). Public: answers only
 // with what the form shows, plus whether the consent box applies to this visitor, and the region lists when a
 // dropdown follows a country field (docs/forms-plan.md 2.2). Every form is a Form Studio page that wears its own
 // stylesheet: a version from before the Studio is turned into one as it's read, and kept as one for good after the
-// answer goes out (src/lib/studio/persist.ts).
+// answer goes out (src/lib/studio/persist.ts). A personal link (?p=, src/lib/share/personal.ts) also gets the details
+// Claritia knows about its person, for the contact questions the form asks; that answer is never cached.
 
 const ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 /** Forms this server is already keeping as pages, so a busy form starts it once. */
@@ -34,11 +37,14 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       });
     }
     const country = edgeCountry(request);
+    const token = new URL(request.url).searchParams.get("p");
+    const person = token ? readPersonal(token, process.env.SECRETS_KEY, f.workspace_id) : null;
+    const known = person ? await knownFor(db, person, f.body).catch(() => ({})) : null;
     return json(
       // tokens: always empty, only so a form script cached from before 123 (5 minutes at most) doesn't stop on it.
-      { id: f.id, version: f.version, status: f.status, body: publicForm(f.body), tokens: {}, logo_url: f.logo_url, strict: regionOf(country ?? "", "") === "strict", turnstile: turnstileSiteKey() || undefined, ...(usesRegions(f.body) ? { regions: allRegions() } : {}) },
+      { id: f.id, version: f.version, status: f.status, body: publicForm(f.body), tokens: {}, logo_url: f.logo_url, strict: regionOf(country ?? "", "") === "strict", turnstile: turnstileSiteKey() || undefined, ...(usesRegions(f.body) ? { regions: allRegions() } : {}), ...(known ? { known } : {}) },
       200,
-      { "Cache-Control": "public, max-age=30", Vary: "cf-ipcountry" },
+      token ? { "Cache-Control": "private, no-store" } : { "Cache-Control": "public, max-age=30", Vary: "cf-ipcountry" },
     );
   } catch {
     return json({ error: "Try again in a moment." }, 503);

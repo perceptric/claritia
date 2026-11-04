@@ -135,6 +135,8 @@ export function valuesOf(raw: RawFacts, reason: Reason): Record<string, unknown>
   for (const [k, x] of Object.entries(raw.submission?.values ?? {})) v[`answer.${k}`] = x;
   const h = raw.submission?.hidden ?? {};
   for (const k of ["source", "medium", "campaign", "term", "content"]) v[`utm.${k}`] = h[`utm_${k}`] ?? h[`first_utm_${k}`] ?? null;
+  // Where the fill came from: the Share channel it was tagged with (src/lib/share/channels.ts).
+  v["lead.channel"] = h.channel ?? null;
   return v;
 }
 

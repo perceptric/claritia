@@ -248,3 +248,20 @@ test("200 visits with lost, doubled and late field summaries count each visit on
   assert.equal(drop[0].label, b.label);
   assert.equal(drop[0].n, stoppedAtB);
 });
+
+test("channels (124): fills filter by where they came from, and each channel counts its fills", async () => {
+  const { ws, user } = await workspace("Channels");
+  const f = await liveForm(ws, user);
+  for (let i = 0; i < 3; i++) await submit(f, ws, { name: `QR ${i}`, email: `qr${i}@acme.com` }, { channel: "qr" });
+  for (let i = 0; i < 2; i++) await submit(f, ws, { name: `Popup ${i}`, email: `pop${i}@acme.com` }, { channel: "popup" });
+  await submit(f, ws, { name: "Old", email: "old@acme.com" });
+  assert.equal(Number(await asUser(user, `select form_fill_count($1, '{"channel":"qr"}') as r`, [f.id])), 3);
+  assert.equal(Number(await asUser(user, `select form_fill_count($1, '{"channel":"popup"}') as r`, [f.id])), 2);
+  assert.equal(Number(await asUser(user, `select form_fill_count($1, '{}') as r`, [f.id])), 6);
+  const by = await asUser<Record<string, { fills: number; booked: number }>>(user, `select form_fill_channels($1, '{"channel":"popup"}') as r`, [f.id]);
+  assert.equal(by.qr?.fills, 3, "the channel filter doesn't narrow its own counts");
+  assert.equal(by.popup?.fills, 2);
+  assert.equal(by.none?.fills, 1, "a fill from before channels");
+  const other = await workspace("Other channels");
+  await assert.rejects(asUser(other.user, `select form_fill_channels($1, '{}') as r`, [f.id]), /Form not found/);
+});

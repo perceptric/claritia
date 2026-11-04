@@ -140,6 +140,19 @@ async function run(width: number, tag: string) {
   await page.getByRole("radio", { name: "The form in an email" }).click();
   check(await page.getByRole("button", { name: "Copy for Gmail or Outlook" }).isVisible(), `${tag}: the form in an email is its own picture`);
 
+  await way("Personal link");
+  await page.getByLabel("Their email").fill("ana@acme.com");
+  await page.getByRole("button", { name: "Make link" }).click();
+  await page.locator("[data-personal-link]").waitFor();
+  await shot("form-personal");
+  check((await page.locator("[data-personal-link]").getAttribute("href"))?.includes("p=") === true && (await page.getByText("Known contact").isVisible()), `${tag}: a personal link for a known contact`);
+  const call = (await page.evaluate(() => (window as unknown as { calls: { path: string; body: Record<string, unknown> }[] }).calls)).find((x) => x.path === "/api/forms/personal-link");
+  check(call?.body.email === "ana@acme.com", `${tag}: the link is made on the server for that email`);
+  await page.getByLabel("Their email").fill("new@acme.com");
+  await page.getByRole("button", { name: "Make link" }).click();
+  await page.getByText("New person").waitFor();
+  check(true, `${tag}: a personal link for someone new`);
+
   await way("QR code");
   await page.waitForTimeout(300);
   await shot("form-qr");

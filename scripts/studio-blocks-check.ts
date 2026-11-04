@@ -4,7 +4,8 @@
 // a template turned into a page whose skip passes over a page, and templates in the website's styles (Poster's
 // yellow stage and black frames, Grove's picture beside the form) with half-width fields side by side, and a form
 // live from before the Studio, served as the page it turns into (src/lib/forms/submit.ts studioPublic), whose send
-// keeps the older form's field ids. A small server stands in for the form's read and
+// keeps the older form's field ids. Then Share: a personal link fills in what's known and sends as Email with its
+// token, and the hosted link, a QR code and a full-page embed each send their own channel. A small server stands in for the form's read and
 // records the send.
 //   CHROMIUM_PATH=… node scripts/studio-blocks-check.ts
 import { createServer } from "node:http";
@@ -67,6 +68,8 @@ const grove = templateDraft(inquiry, styleCssById("grove"));
 // A form live from before the Studio, in a kit made for Poster: served as the page it becomes.
 const OLDER = "99999999-9999-4999-8999-999999999999";
 const olderBody = ready(templateForm(inquiry));
+const PERS = "aaaaaaaa-1111-4111-8111-111111111111";
+const TOKEN = "abcdefghijk.ABCDEFGHIJKLMNOPQRSTUV";
 const older = studioPublic({ id: OLDER, workspace_id: "w", version: 4, status: "live", body: olderBody, logo_url: null, studio_css: null, kit_notes: ["style:poster"] });
 
 const formsJs = await buildForms();
@@ -89,9 +92,14 @@ const server = createServer((req, res) => {
   if (u === `/api/forms/${SKIPS}`) return json({ id: SKIPS, version: 1, status: "live", body: skips, tokens: {}, logo_url: null });
   if (u === `/api/forms/${POSTER}`) return json({ id: POSTER, version: 1, status: "live", body: poster, tokens: {}, logo_url: null });
   if (u === `/api/forms/${GROVE}`) return json({ id: GROVE, version: 1, status: "live", body: grove, tokens: {}, logo_url: null });
+  if (u === `/api/forms/${PERS}` || u === `/api/forms/${PERS}?p=${TOKEN}`) return json({ id: PERS, version: 1, status: "live", body: poster, logo_url: null, ...(u.includes("?p=") ? { known: { email: "ana@acme-industries.com", first_name: "Ana" } } : {}) });
   if (u === `/api/forms/${OLDER}`) return json({ id: OLDER, version: older.version, status: "live", body: older.body, logo_url: null });
   if (u.startsWith("/api/")) return json({});
   const id = u.slice(1).split("?")[0];
+  if (id === PERS) {
+    const attrs = new URL(u, "http://x").searchParams.get("mode") === "full" ? " full" : " hosted";
+    return res.writeHead(200, { "content-type": "text/html" }).end(`<!doctype html><html><body><script src="/forms/v1.js" async></script><claritia-form form-id="${id}" host="${origin}"${attrs}></claritia-form></body></html>`);
+  }
   if (id === PRICED || id === SKIPS || id === POSTER || id === GROVE || id === OLDER)
     return res.writeHead(200, { "content-type": "text/html" }).end(`<!doctype html><html><body><script src="/forms/v1.js" async></script><claritia-form form-id="${id}" host="${origin}"></claritia-form></body></html>`);
   res.writeHead(404).end();
@@ -208,6 +216,39 @@ try {
   const s2 = sent.find((x) => x.id === OLDER)?.body as { answers?: Record<string, unknown> } | undefined;
   const keys = Object.keys(s2?.answers ?? {});
   check(!!s2 && want.every((x) => keys.includes(x.id)), `its send keeps the older form's field ids (${keys.join(",")}${shown ? `; ${shown}` : ""})`);
+  // Share: a personal link from an email fills in what's known, still open to change, and sends as Email.
+  const sendPers = async (query: string) => {
+    sent.length = 0;
+    await page.goto(`${origin}/${PERS}${query}`);
+    await f.locator("input").first().waitFor();
+    await page.waitForTimeout(200);
+    const vals = await f.evaluate((host) => Object.fromEntries([...(host as HTMLElement).shadowRoot!.querySelectorAll<HTMLInputElement>("input[data-cl-save]")].map((x) => [x.getAttribute("data-cl-save"), x.value])));
+    await f.evaluate((host) => {
+      const r = (host as HTMLElement).shadowRoot!;
+      for (const el of r.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>("input.field, textarea.field")) {
+        if (el.value) continue;
+        el.value = el.type === "email" ? "ana@acme-industries.com" : el.type === "url" ? "https://acme.com" : el.type === "date" ? "2027-01-15" : el.type === "number" ? "5" : "Acme";
+        el.dispatchEvent(new Event("input", { bubbles: true }));
+      }
+      const groups = new Set<string>();
+      for (const el of r.querySelectorAll<HTMLInputElement>("input[type=radio], input[type=checkbox]")) {
+        if (groups.has(el.name)) continue;
+        groups.add(el.name);
+        el.click();
+      }
+    });
+    await f.getByRole("button", { name: poster.submit.label }).click();
+    await page.waitForFunction(() => true);
+    for (let i = 0; i < 30 && !sent.some((x) => x.id === PERS); i++) await page.waitForTimeout(100);
+    return { vals, body: sent.find((x) => x.id === PERS)?.body as { channel?: string; personal?: string } | undefined };
+  };
+  const pers = await sendPers(`?p=${TOKEN}&via=email`);
+  check(pers.vals.email === "ana@acme-industries.com" && pers.vals.first_name === "Ana", `a personal link fills in what's known (${JSON.stringify(pers.vals)})`);
+  check(pers.body?.channel === "email" && pers.body?.personal === TOKEN, `it sends as Email with its token (${JSON.stringify(pers.body && { channel: pers.body.channel, personal: pers.body.personal })})`);
+  const plain = await sendPers("");
+  check(!plain.vals.first_name && plain.body?.channel === "link" && !plain.body?.personal, `the hosted link with no token is empty and sends as Link (${plain.body?.channel})`);
+  check((await sendPers("?via=qr")).body?.channel === "qr", "a QR code sends as QR code");
+  check((await sendPers("?mode=full")).body?.channel === "full", "a full-page embed sends as its style");
   check(errors.length === 0, `no page errors: ${errors.join(" | ")}`);
 } finally {
   await browser.close();

@@ -1,5 +1,5 @@
 -- Which Claritia migrations from 090 on are in this database. 091, 093, 114 and 121 have nothing to look for: they're
--- safe to run again (122 replaces 121). Run each one marked false, in order, ending with 123.
+-- safe to run again (122 replaces 121). Run each one marked false, in order.
 select migration, applied from (values
   ('090', exists(select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.proname = 'form_submit_all')),
   ('092', exists(select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.proname = 'form_booking_shown_rep')),
@@ -30,5 +30,6 @@ select migration, applied from (values
   ('119', exists(select 1 from information_schema.columns where table_schema = 'public' and table_name = 'workspaces' and column_name = 'workflow_defaults_at')),
   ('120', to_regclass('public.plan_usage') is not null),
   ('122', exists(select 1 from pg_proc where proname = 'plan_caps' and prosrc like '%''starter'' then 6 when ''pro'' then 6%')),
-  ('123', exists(select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.proname = 'form_to_studio'))
+  ('123', exists(select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.proname = 'form_to_studio')),
+  ('124', exists(select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.proname = 'form_fill_channels'))
 ) as v(migration, applied) order by migration;

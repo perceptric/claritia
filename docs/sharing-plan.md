@@ -108,6 +108,45 @@ Setup (once):
 3. Subdomains: DNS `*.tryclaritia.com` CNAME to `claritia-web.fly.dev`, `fly certs add "*.tryclaritia.com" -a
    claritia-web` (it asks for one more DNS record), then `fly secrets set LINK_SUBDOMAINS=1 -a claritia-web`.
 
+## Step 5: where each fill came from (built)
+
+Every way Share gives a form out tags its fills, with no UTM tags to type (`src/lib/share/channels.ts`):
+
+| Channel | How the form knows |
+| --- | --- |
+| Link | the hosted page (`/f/...`, marked `hosted`) |
+| QR code | the code's link carries `?via=qr` |
+| Email | Share's email, the form in an email and every form link in a Claritia email carry `?via=email` |
+| Personal link | a personal link's token the server checked (Step 6) |
+| Website, by style | the embed's own mode: in the page, full page, popup, slider, popover, side tab; the old `/f/embed.js` frame counts as in the page |
+| Your own form | a form that reads the site's own form |
+
+- The form script works it out (`channel()` in `src/lib/forms/element.ts`) and the server keeps it with the fill as
+  `channel`, beside the UTM tags (`src/lib/forms/submit.ts`). "Personal link" and "Your own form" are never taken on
+  the browser's word. A fill from before channels has none.
+- **Submissions**: a Came from row of chips, each with its fills and the meetings they booked, and a click shows only
+  those (`form_fill_channels` and the `channel` filter, 124). A fill's panel says how it came.
+- **Routing**: a Form channel condition (`lead.channel`), beside the UTM ones.
+- **Exports and tools**: the CSV export has a `channel` column, and a sheet, Airtable or Notion row a Came from column.
+
+## Step 6: personal links (built)
+
+A form link for one person, which fills in what Claritia knows about them (`src/lib/share/personal.ts`):
+
+- **The token**: the link holds a signed token for the workspace and the contact (or, for an address with no contact
+  yet, the email), good for 90 days. Never their details. A token that's been changed, is past its date, was made with
+  another key or belongs to another workspace reads as none, and the form opens empty: a forwarded or edited link can't
+  fill in someone else's details or send as them.
+- **What's filled in**: only the contact questions the form asks (email, names, title, phone, company, website,
+  country, region), from the contact and their company, still open to change (`src/lib/share/known.ts`). A deleted
+  contact gives nothing. The form's answer with a token is never cached.
+- **Where they come from**: Share › Personal link makes one for an email (`/api/forms/personal-link`). And every link
+  to one of the workspace's forms in a Claritia email (workflows, Share's email) opens as the reader's personal link:
+  the click redirect adds the token for that message's contact (`src/app/c/[token]/route.ts`). Anything that goes wrong
+  there sends them to the plain link.
+- **The fill**: counts as Personal link, or as Email when it came by email (marked as personal too). The answer always
+  decides the contact: someone who types another email is that other person.
+
 ## The screens (after the four steps)
 
 - A form's Share tab opens on Link: the link in full (the ending link when there is one) with Copy link and Open,
@@ -129,3 +168,6 @@ Setup (once):
 | Growth (500 teams) | about $1 for "Email the link" sends on Resend, inside the current plan (check) | about $10, about 100 custom domains (check) | about $11 |
 
 No Claude calls. QR codes and email HTML are made in the browser.
+
+Steps 5 and 6 add $0 a month at Beta (50 teams) and Growth (500 teams): one more value on each fill, a signed token
+made with the key the server already has, and a lookup of one contact when a personal link opens. No Claude calls.

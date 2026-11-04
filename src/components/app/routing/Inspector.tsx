@@ -4,6 +4,7 @@
 // change is one `edit` on the body, so undo, autosave and the test path follow it. The spam lists live beside the body
 // (saved on their own), so they don't go through undo.
 
+import { channelLabel } from "@/lib/share/channels";
 import { useState } from "react";
 import { BASE_FIELDS, countryName, needsValue, opsFor, REGIONS, ruleWords, type FieldDef } from "@/lib/router/conditions";
 import { newId, type Problem } from "@/lib/router/check";
@@ -515,7 +516,7 @@ function ValueInput({ c, f, body, forms, readOnly, onChange, onRegion }: { c: Co
       );
     }
     if (type === "choice" && f?.options?.length) {
-      const name = (v: string) => (f.key === "lead.form" ? (forms.find((x) => x.id === v)?.name ?? "A removed form") : v);
+      const name = (v: string) => (f.key === "lead.form" ? (forms.find((x) => x.id === v)?.name ?? "A removed form") : f.key === "lead.channel" ? channelLabel(v) || v : v);
       return <ChoiceChips label={f.label} values={list} options={f.options.map((o) => ({ value: o, label: name(o) }))} onChange={(v) => onChange({ ...c, value: v })} disabled={readOnly} />;
     }
     return <ChipList label="Values" values={list} placeholder="Type and press Enter" disabled={readOnly} onChange={(v) => onChange({ ...c, value: v })} />;

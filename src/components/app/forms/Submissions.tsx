@@ -7,6 +7,7 @@
 // didn't send it, with the field they were in, never their answers.
 
 import { useEffect, useMemo, useState } from "react";
+import { CHANNELS, channelLabel, type Channel } from "@/lib/share/channels";
 import { answerText, cleanFilters, csvHead, csvRow, fillColumns, fromFor, RANGES, type Column } from "@/lib/forms/results";
 import { allFields, type Form } from "@/lib/forms/schema";
 import { entryOf } from "@/lib/sources/catalog";
@@ -77,6 +78,7 @@ export function Submissions(props: ViewProps & { form: Form; formId: string; des
   const [text, setText] = useState("");
   const [q, setQ] = useState("");
   const [range, setRange] = useState("30");
+  const [channel, setChannel] = useState<Channel | null>(null);
   const [rows, setRows] = useState<Fill[] | null>(null);
   const [more, setMore] = useState(false);
   const [open, setOpen] = useState<string | null>(null);
@@ -93,7 +95,7 @@ export function Submissions(props: ViewProps & { form: Form; formId: string; des
     return () => clearTimeout(t);
   }, [text]);
   const from = useMemo(() => fromFor(range), [range]);
-  const filters = useMemo(() => cleanFilters({ kind: view === "spam" ? "spam" : "leads", q, from }), [view, q, from]);
+  const filters = useMemo(() => cleanFilters({ kind: view === "spam" ? "spam" : "leads", q, from, channel }), [view, q, from, channel]);
   const fkey = JSON.stringify(filters);
 
   // The funnel: views and starts from the form's beacons, sends and bookings from its fills.
@@ -116,6 +118,12 @@ export function Submissions(props: ViewProps & { form: Form; formId: string; des
     ]);
     return { leads: Number(leads.data ?? 0), spam: Number(spam.data ?? 0), left: (left.data ?? { count: 0, rows: [] }) as { count: number; rows: Left[] } };
   }, `${formId}:${from}:${tick}`);
+  // Where fills came from (124): fills and booked meetings for each channel, for the filters other than the channel.
+  const channels = useLoad(async () => {
+    const r = await sb.rpc("form_fill_channels", { p_form: formId, p_filters: cleanFilters({ kind: "leads", q, from }) });
+    if (r.error) return null;
+    return (r.data ?? {}) as Record<string, { fills: number; booked: number }>;
+  }, `${formId}:${from}:${q}:${tick}`);
   const meta = useLoad(async () => {
     // The columns come from the last 50 versions' questions (not every body ever published).
     const [vers, f] = await Promise.all([sb.from("form_versions").select("version, body").eq("form_id", formId).order("version", { ascending: false }).limit(50), sb.from("forms").select("results_columns").eq("id", formId).maybeSingle()]);
@@ -329,6 +337,14 @@ export function Submissions(props: ViewProps & { form: Form; formId: string; des
               ) : null}
             </div>
           )}
+          {view === "leads" && channels.data && CHANNELS.some((c) => channels.data![c]) ? (
+            <div role="radiogroup" aria-label="Came from" className="flex shrink-0 flex-wrap items-center gap-[6px] border-b border-line px-[16px] py-[8px]">
+              <ChannelChip label="Anywhere" on={!channel} onClick={() => (setChannel(null), setRows(null), setSel(new Set()))} />
+              {CHANNELS.filter((c) => channels.data![c]).map((c) => (
+                <ChannelChip key={c} label={channelLabel(c)} n={channels.data![c]!.fills} booked={channels.data![c]!.booked} on={channel === c} onClick={() => (setChannel(channel === c ? null : c), setRows(null), setSel(new Set()))} />
+              ))}
+            </div>
+          ) : null}
           <ErrorNote message={error || funnel.error || counts.error} />
           <div className="min-h-0 flex-1 overflow-auto">
             {view === "partial" ? (
@@ -527,6 +543,17 @@ const EmptyLine = ({ title }: { title: string }) => (
   </div>
 );
 
+/** One channel in the Came from row: its fills and the meetings they booked, and a click to see only those. */
+function ChannelChip({ label, n, booked, on, onClick }: { label: string; n?: number; booked?: number; on: boolean; onClick: () => void }) {
+  return (
+    <button type="button" role="radio" aria-checked={on} onClick={onClick} className={`press inline-flex min-h-[26px] items-center gap-[6px] rounded-full px-[10px] text-[12.5px] ${on ? "bg-card text-ink shadow-focus" : "bg-card text-body shadow-chip hover:text-ink"}`}>
+      {label}
+      {n !== undefined ? <span className="text-faint tabular-nums">{n.toLocaleString("en-US")}</span> : null}
+      {booked ? <span className="text-signal-text tabular-nums">{`${booked.toLocaleString("en-US")} booked`}</span> : null}
+    </button>
+  );
+}
+
 function Check({ on, label, onClick }: { on: boolean; label: string; onClick: (e: React.MouseEvent) => void }) {
   return (
     <button type="button" role="checkbox" aria-checked={on} aria-label={label} onClick={onClick} className={`inline-flex size-[16px] shrink-0 items-center justify-center rounded-[4px] border-[1.5px] align-middle text-card ${on ? "border-ink bg-ink" : "border-line-strong"}`}>
@@ -712,6 +739,8 @@ function RowPanel({ s, form, name, rep, dests, destName, destLogo, onClose, onRe
             <span className="truncate font-mono text-[11.5px]">{page || "Hosted page"}</span>
             <span className="text-muted">Campaign</span>
             <span>{s.hidden.utm_campaign || s.hidden.utm_source || "None"}</span>
+            <span className="text-muted">Came by</span>
+            <span>{channelLabel(s.hidden.channel) || "Not recorded"}{s.hidden.personal === "yes" && s.hidden.channel !== "personal" ? ", personal link" : ""}</span>
             <span className="text-muted">Came from</span>
             <span className="truncate">{(s.hidden.referrer ?? "").replace(/^https?:\/\//, "") || "Typed in or a bookmark"}</span>
           </div>

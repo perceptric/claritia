@@ -2,6 +2,7 @@
 // that decides whether a condition holds. The rule editor and the engine both use this file, so what a person sees in
 // the editor is what runs.
 
+import { CHANNELS } from "../share/channels.ts";
 import type { Cond, Op, Rule, Segment, Territory } from "./types.ts";
 
 export type FieldType = "text" | "number" | "country" | "choice" | "bool";
@@ -45,6 +46,7 @@ export const BASE_FIELDS: FieldDef[] = [
   { key: "company.type", label: "Company type", group: "Company", type: "choice" },
   { key: "lead.form", label: "Form", group: "Source", type: "choice" },
   { key: "lead.source", label: "Came from", group: "Source", type: "choice", options: ["form", "import", "crm", "api"] },
+  { key: "lead.channel", label: "Form channel", group: "Source", type: "choice", options: [...CHANNELS] },
   { key: "utm.source", label: "UTM source", group: "Source", type: "text" },
   { key: "utm.medium", label: "UTM medium", group: "Source", type: "text" },
   { key: "utm.campaign", label: "UTM campaign", group: "Source", type: "text" },

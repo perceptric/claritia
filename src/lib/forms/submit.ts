@@ -18,6 +18,8 @@ import { within } from "../meetings/team.ts";
 import { callNewer } from "./newer.ts";
 import { siteAllowed } from "./notify.ts";
 import { studioBody } from "../studio/liveForm.ts";
+import { isChannel } from "../share/channels.ts";
+import { readPersonal } from "../share/personal.ts";
 import { offerForFill, type Booking } from "./booking.ts";
 import { bookingUrl, claritiaPlan, emailsTimesLater, outside, routedBooks, showsMeeting, type RoutedAs } from "./schedule.ts";
 import { regionOf } from "../web/policy.ts";
@@ -48,6 +50,10 @@ export type Incoming = {
   known?: unknown;
   /** The visitor's day (YYYY-MM-DD), for rules like "within 30 days". Taken only when it's within a day of ours. */
   today?: unknown;
+  /** Where the fill came from, as the form script worked it out (src/lib/share/channels.ts). */
+  channel?: unknown;
+  /** A personal link's token (src/lib/share/personal.ts): checked here before it counts. */
+  personal?: unknown;
 };
 
 /** The visitor's day when it's within a day of the server's (time zones), else the server's own. */
@@ -99,7 +105,7 @@ export function prepareSubmit(
   version: number,
   raw: Incoming,
   ctx: Ctx,
-  opts: { country?: string | null; turnstileFailed?: boolean; known?: Set<string>; origin?: string | null; ownHost?: string | null; overLimit?: boolean } = {},
+  opts: { country?: string | null; turnstileFailed?: boolean; known?: Set<string>; origin?: string | null; ownHost?: string | null; overLimit?: boolean; personal?: boolean } = {},
 ): { errors: Record<string, string> } | { error: string; status: number } | { args: SubmitArgs } {
   if (raw.v !== 1 || typeof raw.key !== "string" || !KEY.test(raw.key)) return { error: "Bad request.", status: 400 };
   if (raw.version !== version) return { error: "This form changed. Refresh the page and try again.", status: 409 };
@@ -159,6 +165,12 @@ export function prepareSubmit(
   const referrer = pageOnly(raw.referrer);
   if (page) meta.page = page;
   if (referrer) meta.referrer = referrer;
+  // Where it came from: the site's own form, a personal link the server checked, or the channel the script saw. A
+  // personal link sent by email stays Email; "personal" is never taken on the browser's word alone.
+  const said = isChannel(raw.channel) && raw.channel !== "own" && raw.channel !== "personal" ? raw.channel : null;
+  const channel = form.capture ? "own" : opts.personal && said !== "email" ? "personal" : said;
+  if (channel) meta.channel = channel;
+  if (opts.personal) meta.personal = "yes";
   for (const f of allFields(form)) if (f.type === "hidden" && typeof checked.values[f.key] === "string") meta[f.key] = checked.values[f.key] as string;
 
   // The wording saved is the form's own, never what the browser says it showed.
@@ -364,12 +376,13 @@ export async function acceptFill(
     }
   }
   const [c, turnstileFailed] = await Promise.all([ctx, o.turnstileFailed]);
-  const prepare = (overLimit: boolean) => prepareSubmit(f.body, f.version, raw, c, { country: o.country, turnstileFailed, origin: o.origin, ownHost: o.ownHost, overLimit });
+  const personal = !!readPersonal(raw.personal, o.secret, f.workspace_id, o.now);
+  const prepare = (overLimit: boolean) => prepareSubmit(f.body, f.version, raw, c, { country: o.country, turnstileFailed, origin: o.origin, ownHost: o.ownHost, overLimit, personal });
   let r = prepare(false);
   // A visitor who loaded the form before it became a page sends what that form asked: checked against it instead.
   if ("errors" in r && f.older) {
     const older = f.older;
-    const r2 = prepareSubmit(older, f.version, raw, c, { country: o.country, turnstileFailed, origin: o.origin, ownHost: o.ownHost, overLimit: false });
+    const r2 = prepareSubmit(older, f.version, raw, c, { country: o.country, turnstileFailed, origin: o.origin, ownHost: o.ownHost, overLimit: false, personal });
     if (!("errors" in r2)) r = r2;
   }
   if ("errors" in r) return { status: 400, body: { errors: r.errors } };

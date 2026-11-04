@@ -17,10 +17,18 @@ import { cleanHtml } from "./html.ts";
 import { allFields, isContent, nextStep, numOf, optionsFor, pickOutcome, safeUrl, visibility, withCalcs, type Choice, type Field, type FieldWidth, type Form, type RunCtx } from "./schema.ts";
 import { checkAnswers, OTHER, stepPath, type Answers } from "./values.ts";
 import { answerFrom } from "../share/emailForm.ts";
+import { isChannel, VIA } from "../share/channels.ts";
 import { ACCESS_CSS, CAL_CSS, consentSpot, pageValues, runPage, shownValues, showsByIf, zoneWords, type PageRun, type Vals } from "../studio/runtime.ts";
 
 /** regions: the region lists, sent with the form when a list follows a country field (src/lib/forms/regions.ts). */
-type Loaded = { id: string; version: number; status: "live" | "paused"; body: Form; logo_url?: string | null; strict?: boolean; turnstile?: string; regions?: Record<string, string[]> };
+/** known: a personal link's person, for the contact questions the form asks (src/lib/share/known.ts). */
+type Loaded = { id: string; version: number; status: "live" | "paused"; body: Form; logo_url?: string | null; strict?: boolean; turnstile?: string; regions?: Record<string, string[]>; known?: Record<string, string> };
+
+/** A personal link's token, from the address (src/lib/share/personal.ts): the server says whether it's good. */
+const personalParam = (): string => {
+  const p = new URLSearchParams(location.search).get("p") ?? "";
+  return /^[A-Za-z0-9_-]{8,300}\.[A-Za-z0-9_-]{16,64}$/.test(p) ? p : "";
+};
 /** The blocks' own neutral parts (a date, a file drop, a signature): the page's stylesheet styles everything else. */
 const BLOCK_VARS = tokensCss({});
 type Queued = { url: string; body: string; key: string; at: number; tries: number };
@@ -800,7 +808,8 @@ export class ClaritiaForm extends Base {
     const id = this.getAttribute("form-id");
     if (!id || !/^[0-9a-f-]{36}$/.test(id)) return;
     try {
-      const res = await fetch(`${this.base}/api/forms/${id}`, { credentials: "omit" });
+      const p = personalParam();
+      const res = await fetch(`${this.base}/api/forms/${id}${p ? `?p=${encodeURIComponent(p)}` : ""}`, { credentials: "omit" });
       if (!res.ok) throw new Error(String(res.status));
       this.data = (await res.json()) as Loaded;
     } catch {
@@ -983,8 +992,18 @@ export class ClaritiaForm extends Base {
       const live = () => this.pageLive(form);
       wrap.addEventListener("input", live, true);
       wrap.addEventListener("change", live, true);
+      // A personal link: what Claritia knows about its person goes in the questions that save it, still open to change.
+      const filled: HTMLElement[] = [];
+      for (const [k, v] of Object.entries(this.data?.known ?? {}))
+        if (/^[a-z_]{1,20}$/.test(k))
+          wrap.querySelectorAll<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>(`input[data-cl-save="${k}"], select[data-cl-save="${k}"], textarea[data-cl-save="${k}"]`).forEach((x) => {
+            if (x.value || (x instanceof HTMLInputElement && (x.type === "checkbox" || x.type === "radio"))) return;
+            x.value = v;
+            if (x.value === v) filled.push(x);
+          });
       const run = runPage(wrap, (v) => void this.pageSend(form, v));
       this.pg = { wrap, run, blocks };
+      for (const x of filled) x.dispatchEvent(new Event("input", { bubbles: true }));
       // A studio page keeps its answers in its own inputs: the email's answer is checked there.
       if (this.emailAnswer) {
         const name = Object.keys(p.ids).find((k) => p.ids[k] === this.emailAnswer!.name);
@@ -2271,6 +2290,16 @@ export class ClaritiaForm extends Base {
   }
 
 
+  /** Where this fill came from: the link's ?via=, else how the form is on the page (src/lib/share/channels.ts). */
+  private channel(): string {
+    const via = new URLSearchParams(location.search).get("via") ?? "";
+    if ((VIA as readonly string[]).includes(via)) return via;
+    if (embedFrame()) return "inline";
+    if (this.hasAttribute("hosted")) return "link";
+    const mode = this.hasAttribute("full") ? "full" : this.hasAttribute("slider") ? "slider" : this.hasAttribute("popup") ? "popup" : this.hasAttribute("popover") ? "popover" : this.hasAttribute("side-tab") ? "sidetab" : "inline";
+    return isChannel(mode) ? mode : "inline";
+  }
+
   private async send() {
     const d = this.data!;
     this.sending = true;
@@ -2294,6 +2323,8 @@ export class ClaritiaForm extends Base {
       qa: new URLSearchParams(location.search).get("clr_qa") || undefined,
       known: this.known.size ? [...this.known] : undefined,
       today: localDay(),
+      channel: this.channel(),
+      personal: personalParam() || undefined,
     });
     const url = `${this.base}/api/forms/${d.id}/submit`;
     let res: Response | null = null;
