@@ -8,6 +8,7 @@
 
 import { isTheme } from "../forms/gallery/themes.ts";
 import { checkForm, type Form } from "../forms/schema.ts";
+import type { PublicForm } from "../forms/submit.ts";
 import { DEFAULT_BRAND_CSS } from "./brandDefault.ts";
 import { formToPage } from "./fromForm.ts";
 import { pageForm } from "./page.ts";
@@ -46,4 +47,17 @@ export function studioForm(raw: unknown, css: string, ctx: { custom?: { key: str
   const r = checkForm(next, ctx);
   if ("errors" in r) return { error: r.errors[0] ?? "The page can't be made." };
   return { form: r.form, lost: conv.lost };
+}
+
+/** A version from before the Studio as the page visitors get, in its kit's look. The stored form when it can't be one. */
+export function studioBody(body: Form, f: Pick<PublicForm, "studio_css" | "kit_notes">): { body: Form; older?: Form } {
+  if (!needsStudio(body)) return { body };
+  const r = studioForm(body, lookCss({ studio_css: f.studio_css, notes: f.kit_notes }));
+  return "error" in r ? { body } : { body: r.form, older: body };
+}
+
+/** The live form as form_public answers it, with an older body turned into a page. */
+export function studioPublic(f: PublicForm): PublicForm {
+  const s = studioBody(f.body, f);
+  return s.older ? { ...f, body: s.body, older: s.older } : f;
 }

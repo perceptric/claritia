@@ -16,7 +16,7 @@ import { formToPage } from "../src/lib/studio/fromForm.ts";
 import { pageForm } from "../src/lib/studio/page.ts";
 import { styleCssById } from "../src/lib/studio/styleCss.ts";
 import { templateDraft } from "../src/lib/studio/templatePage.ts";
-import { studioPublic } from "../src/lib/forms/submit.ts";
+import { studioPublic } from "../src/lib/studio/liveForm.ts";
 import { buildForms } from "./build-forms.mts";
 
 const failures: string[] = [];

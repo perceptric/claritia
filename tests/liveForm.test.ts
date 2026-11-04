@@ -8,10 +8,10 @@ import { test } from "node:test";
 import { TEMPLATES, templateTheme } from "../src/lib/forms/gallery/catalog.ts";
 import { templateForm } from "../src/lib/forms/gallery/convert.ts";
 import { allFields, checkForm, emptyForm, type Field, type Form } from "../src/lib/forms/schema.ts";
-import { acceptFill, studioPublic, type PublicForm } from "../src/lib/forms/submit.ts";
+import { acceptFill, type PublicForm } from "../src/lib/forms/submit.ts";
 import type { Rpc } from "../src/lib/jobs.ts";
 import { DEFAULT_BRAND_CSS } from "../src/lib/studio/brandDefault.ts";
-import { lookCss, needsStudio, studioForm } from "../src/lib/studio/liveForm.ts";
+import { lookCss, needsStudio, studioForm, studioPublic } from "../src/lib/studio/liveForm.ts";
 import { cleanPageCss } from "../src/lib/studio/page.ts";
 import { styleCssById, styleOf } from "../src/lib/studio/styleCss.ts";
 

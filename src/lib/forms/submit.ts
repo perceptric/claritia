@@ -17,7 +17,7 @@ import { VISITOR, type AvailabilityFailure } from "../routing/states.ts";
 import { within } from "../meetings/team.ts";
 import { callNewer } from "./newer.ts";
 import { siteAllowed } from "./notify.ts";
-import { lookCss, needsStudio, studioForm } from "../studio/liveForm.ts";
+import { studioBody } from "../studio/liveForm.ts";
 import { offerForFill, type Booking } from "./booking.ts";
 import { bookingUrl, claritiaPlan, emailsTimesLater, outside, routedBooks, showsMeeting, type RoutedAs } from "./schedule.ts";
 import { regionOf } from "../web/policy.ts";
@@ -219,19 +219,6 @@ export const consentShown = (form: Form, country: string | null | undefined) =>
  * kit's Studio stylesheet and notes that set its look.
  */
 export type PublicForm = { id: string; workspace_id: string; version: number; status: "live" | "paused"; body: Form; logo_url: string | null; studio_css?: string | null; kit_notes?: string[] | null; older?: Form };
-
-/** A version from before the Studio as the page visitors get, in its kit's look. The stored form when it can't be one. */
-export function studioBody(body: Form, f: Pick<PublicForm, "studio_css" | "kit_notes">): { body: Form; older?: Form } {
-  if (!needsStudio(body)) return { body };
-  const r = studioForm(body, lookCss({ studio_css: f.studio_css, notes: f.kit_notes }));
-  return "error" in r ? { body } : { body: r.form, older: body };
-}
-
-/** The live form as form_public answers it, with an older body turned into a page. */
-export function studioPublic(f: PublicForm): PublicForm {
-  const s = studioBody(f.body, f);
-  return s.older ? { ...f, body: s.body, older: s.older } : f;
-}
 
 /** The daily form check's token for a form, good for the day it was made and the next (src/app/api/forms). */
 export function qaToken(formId: string, day: string, secret: string): string {

@@ -11,7 +11,8 @@ import { checkForm, emptyForm, type Form } from "../../src/lib/forms/schema.ts";
 import { templateById } from "../../src/lib/forms/gallery/catalog.ts";
 import { templateForm } from "../../src/lib/forms/gallery/convert.ts";
 import { capturedForm } from "../../src/lib/forms/templates.ts";
-import { studioPublic, type PublicForm } from "../../src/lib/forms/submit.ts";
+import type { PublicForm } from "../../src/lib/forms/submit.ts";
+import { studioPublic } from "../../src/lib/studio/liveForm.ts";
 import { lookCss, studioForm } from "../../src/lib/studio/liveForm.ts";
 import { styleOf } from "../../src/lib/studio/styleCss.ts";
 

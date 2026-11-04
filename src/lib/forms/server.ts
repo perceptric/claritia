@@ -1,6 +1,7 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { studioPublic, type Ctx, type PublicForm } from "./submit.ts";
+import type { Ctx, PublicForm } from "./submit.ts";
+import { studioPublic } from "../studio/liveForm.ts";
 
 // What the public form routes share (docs/form-builder.md Part 6): the live form with a short cache (always a Form
 // Studio page: a version from before the Studio is turned into one as it's read), a per-visitor rate limit, the
