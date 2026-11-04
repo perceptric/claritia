@@ -45,6 +45,13 @@ export async function persistStudio(db: SupabaseClient, formId: string): Promise
     }
     if (!draft && !body) return out;
     const { data: res, error } = await db.rpc("form_to_studio", { p_id: row.id, p_version: row.version, p_body: body, p_draft: draft });
+    // Before 123 there's no form_to_studio: the draft still moves (visitors already get the page as it's read), and
+    // the live version is kept as a page once 123 is in.
+    if (error && /form_to_studio|PGRST202|does not exist/i.test(error.message)) {
+      if (!draft) return out;
+      const up = await db.from("forms").update({ draft, updated_at: new Date().toISOString() }).eq("id", row.id);
+      return up.error ? { ...out, error: up.error.message } : { ...out, draft: true };
+    }
     if (error) return { ...out, error: error.message };
     const r = (res ?? {}) as { draft?: boolean; live?: boolean };
     return { ...out, draft: !!r.draft, live: !!r.live };

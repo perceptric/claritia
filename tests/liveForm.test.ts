@@ -122,3 +122,41 @@ test("sends: the page's answers, an older version a visitor started on, and a vi
   assert.equal(r.status, 400);
   assert.equal(d.sent.length, 0);
 });
+
+/** A Supabase client for persistStudio: one older form, its live version, and form_to_studio as the database has it. */
+function fakeSb(hasFn: boolean) {
+  const updates: Record<string, unknown>[] = [];
+  const calls: [string, Record<string, unknown>][] = [];
+  const row = { id: "0192f3a1-0000-7000-8000-0000000000ff", workspace_id: "w", draft: ROUTED, brand_kit_id: null, live_kit_id: null, kind: "built", version: 3 };
+  const chain = (data: unknown) => {
+    const q: Record<string, unknown> = {};
+    for (const k of ["select", "eq", "order"]) q[k] = () => q;
+    q.maybeSingle = () => Promise.resolve({ data, error: null });
+    q.update = (u: Record<string, unknown>) => (updates.push(u), { eq: () => Promise.resolve({ error: null }) });
+    q.then = (res: (v: unknown) => unknown) => Promise.resolve({ data: [], error: null }).then(res);
+    return q;
+  };
+  const sb = {
+    from: (t: string) => chain(t === "forms" ? row : null),
+    rpc: (fn: string, a: Record<string, unknown>) => {
+      calls.push([fn, a]);
+      if (fn === "form_version_body") return Promise.resolve({ data: ROUTED, error: null });
+      if (fn === "form_to_studio") return Promise.resolve(hasFn ? { data: { draft: true, live: true, version: 4 }, error: null } : { data: null, error: { message: "Could not find the function public.form_to_studio(p_body, p_draft, p_id, p_version) in the schema cache" } });
+      return Promise.resolve({ data: null, error: null });
+    },
+  };
+  return { sb: sb as never, updates, calls };
+}
+
+test("kept for good: the draft and live version in one step, and before 123 the draft still moves", async () => {
+  const { persistStudio } = await import("../src/lib/studio/persist.ts");
+  let f = fakeSb(true);
+  let r = await persistStudio(f.sb, "0192f3a1-0000-7000-8000-0000000000ff");
+  assert.deepEqual([r.draft, r.live, r.error], [true, true, undefined]);
+  const args = f.calls.find(([fn]) => fn === "form_to_studio")![1] as { p_body: Form; p_draft: Form; p_version: number };
+  assert.ok(args.p_body.page && args.p_draft.page && args.p_version === 3);
+  f = fakeSb(false);
+  r = await persistStudio(f.sb, "0192f3a1-0000-7000-8000-0000000000ff");
+  assert.deepEqual([r.draft, r.live, r.error], [true, false, undefined]);
+  assert.ok((f.updates[0]!.draft as Form).page, "the draft moved into the Studio");
+});
