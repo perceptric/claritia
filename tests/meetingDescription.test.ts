@@ -50,10 +50,18 @@ test("the description: who booked, the form, answers without repeats, then the l
   assert.equal(
     d,
     [
-      "Dana Lee (dana@acme.com) booked Intro call from Demo request.",
+      "Event details:",
+      "Invitee: Dana Lee",
+      "Invitee email: dana@acme.com",
+      "Event: Intro call",
+      "Booked from: Demo request",
       "",
-      "Company size: 51-200",
-      "What do you need: Forms, Routing",
+      "Additional details:",
+      "Company size:",
+      "51-200",
+      "",
+      "What do you need:",
+      "Forms, Routing",
       "",
       "Join: https://meet.google.com/abc-defg-hij",
       `Reschedule or cancel: ${BASE}/book/m/tok`,
@@ -123,9 +131,9 @@ test("a booked meeting's event gets the description; a reschedule writes it agai
   const w = world({});
   await w.sync("create");
   const ev = [...w.events.values()][0]!;
-  assert.match(ev.description, /^Dana Lee \(dana@acme\.com\) booked Intro call from Demo request\./);
-  assert.match(ev.description, /Company size: 51-200/);
-  assert.match(ev.description, /Notes: Pricing for 50 seats/);
+  assert.match(ev.description, /^Event details:\nInvitee: Dana Lee\nInvitee email: dana@acme\.com\nEvent: Intro call\nBooked from: Demo request\n/);
+  assert.match(ev.description, /Company size:\n51-200/);
+  assert.match(ev.description, /Notes:\nPricing for 50 seats/);
   assert.match(ev.description, new RegExp(`Reschedule or cancel: https://tryclaritia.com/book/m/tok-1`), "the guest's link is on the site's short address");
   // Rescheduled: same event, moved, with its description written again.
   w.meeting.start_at = new Date(Date.UTC(2026, 10, 3, 15)).toISOString();
@@ -141,7 +149,7 @@ test("flaky: the extra read fails, the event is still made with what the meeting
   const w = world({ info: "fails" });
   await w.sync("create");
   const ev = [...w.events.values()][0]!;
-  assert.equal(ev.description, "Dana Lee (dana@acme.com) booked Intro call.\n\nNotes: Pricing for 50 seats");
+  assert.equal(ev.description, "Event details:\nInvitee: Dana Lee\nInvitee email: dana@acme.com\nEvent: Intro call\n\nAdditional details:\nNotes:\nPricing for 50 seats");
 });
 
 test("flaky: a group event carries no one guest's answers or link", async () => {
@@ -150,28 +158,32 @@ test("flaky: a group event carries no one guest's answers or link", async () => 
   assert.equal([...w.events.values()][0]!.description, "");
 });
 
-test("the meeting's Description comes first on the event, and a reschedule keeps it", async () => {
+test("the meeting's Description is on the event after the answers, and a reschedule keeps it", async () => {
   const w = world({ about: "Bring your numbers.\nWe'll look at pricing together." });
   await w.sync("create");
   const ev = [...w.events.values()][0]!;
-  assert.match(ev.description, /^Bring your numbers\.\nWe'll look at pricing together\.\n\nDana Lee \(dana@acme\.com\) booked Intro call from Demo request\./);
+  assert.match(ev.description, /^Event details:\nInvitee: Dana Lee\n/);
+  assert.match(ev.description, /\n\nEvent type description:\nBring your numbers\.\nWe'll look at pricing together\.\n\n(Join|Reschedule or cancel): /);
   assert.match(ev.description, /Reschedule or cancel: /);
   w.meeting.start_at = new Date(Date.UTC(2026, 10, 3, 15)).toISOString();
   w.meeting.end_at = new Date(Date.UTC(2026, 10, 3, 15, 30)).toISOString();
   await w.sync("move");
-  assert.match(w.updates[0]!.description ?? "", /^Bring your numbers\./);
+  assert.match(w.updates[0]!.description ?? "", /Event type description:\nBring your numbers\./);
 });
 
 test("flaky: reading the Description fails or times out, the event is still made without it", async () => {
   const w = world({ about: "fails" });
   await w.sync("create");
-  assert.match([...w.events.values()][0]!.description, /^Dana Lee \(dana@acme\.com\) booked Intro call/);
+  const d = [...w.events.values()][0]!.description;
+  assert.match(d, /^Event details:\nInvitee: Dana Lee\nInvitee email: dana@acme\.com\nEvent: Intro call/);
+  assert.ok(!d.includes("Event type description:"));
 });
 
 test("flaky: a long Description and long answers: the links at the end always stay", () => {
   const d = meetingDescription({ typeName: "Intro call", about: "Read this. ".repeat(400), guest: { name: "Dana", email: "dana@acme.com" }, answers: Array.from({ length: 20 }, (_, i) => ({ label: `Q${i}`, value: "x".repeat(1900) })), join: "https://meet.google.com/abc", manage: "https://tryclaritia.com/book/m/tok" });
   assert.ok(d.length <= DESCRIPTION_MAX);
-  assert.ok(d.startsWith("Read this."), "the Description leads");
-  assert.ok(d.length - d.indexOf("Read this.") > 0 && d.split("Read this.").length - 1 <= 200, "the Description is held to 2,000 characters");
+  assert.ok(d.startsWith("Event details:\nInvitee: Dana"), "Event details lead");
+  assert.ok(d.includes("\n…\n\nEvent type description:\nRead this."), "the answers are cut before the Description");
+  assert.ok(d.split("Read this.").length - 1 <= 200, "the Description is held to 2,000 characters");
   assert.ok(d.endsWith("Join: https://meet.google.com/abc\nReschedule or cancel: https://tryclaritia.com/book/m/tok"));
 });

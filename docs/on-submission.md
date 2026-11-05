@@ -118,8 +118,10 @@ the booking shows the picked rep's times for the rule's meeting.
 ## The meeting description
 
 Every booked meeting's calendar event and invite file get a description made from the meeting
-(`src/lib/meetings/description.ts`): who booked and from which form, their answers (the form's and the meeting's own
-questions), the join link and the guest's reschedule and cancel link. The guest sees it too, so it holds nothing
+(`src/lib/meetings/description.ts`), laid out like Calendly's: **Event details** (Invitee, Invitee email, Event,
+Booked from), **Additional details** (each answer under its question), **Event type description** (the meeting
+type's Description), then the join link and the guest's reschedule and cancel link. Very long answers are cut first,
+so the Description and the links always stay. The guest sees it too, so it holds nothing
 internal (no score, no routing reason). A group event carries none of one guest's details.
 
 - `meeting_sync` writes it when the event is made and again on every reschedule, so the links never go stale
