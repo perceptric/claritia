@@ -2,6 +2,7 @@
 // build; Make live refuses while any is left. `cleanBody` makes stored or sent JSON safe to use.
 
 import { mergeGaps } from "./merge.ts";
+import { isContentSid, TEXT_MAX } from "../texts/words.ts";
 import { emailText } from "../design/email/compile.ts";
 import { readEmailDoc, type EmailDoc } from "../design/email/doc.ts";
 import { countSteps, maxDepth, pathsOf, walk } from "./tree.ts";
@@ -85,6 +86,18 @@ export function stepProblems(s: Step): string[] {
     case "webhook":
       if (!https(s.url)) out.push("Webhooks need an https:// address");
       break;
+    case "sms": {
+      if (!s.text.trim()) out.push("Write the text");
+      if (s.text.length > TEXT_MAX) out.push(`Keep the text under ${TEXT_MAX} characters`);
+      const gaps = mergeGaps(s.text);
+      if (gaps.length) out.push(`Give ${gaps[0]} a fallback, like {{first_name|there}}`);
+      if (s.fallback && !s.fallback.subject.trim()) out.push("Write the email's subject");
+      break;
+    }
+    case "whatsapp":
+      if (!isContentSid(s.template)) out.push("Paste the template's Content SID (HX and 32 characters)");
+      if (s.vars.some((v) => mergeGaps(v).length)) out.push("Give each variable's field a fallback, like {{first_name|there}}");
+      break;
   }
   return out;
 }
@@ -137,7 +150,7 @@ function cleanTrigger(t: Record<string, unknown>): Body["trigger"] | null {
 }
 
 // Steps of removed parts (Enrich, Qualify, Update field, Add to list, Create task, Push to CRM) are dropped.
-const KINDS = new Set(["email", "wait", "wait_until", "branch", "split", "route", "slack", "webhook", "exit"]);
+const KINDS = new Set(["email", "wait", "wait_until", "branch", "split", "route", "slack", "webhook", "sms", "whatsapp", "exit"]);
 const WAIT_EVENTS = new Set(["meeting.booked", "email.clicked", "form.submitted"]);
 
 function cleanSteps(raw: unknown, depth: number): Step[] {
@@ -194,6 +207,12 @@ function cleanStep(x: unknown, depth: number): Step | null {
       return { id, kind: "slack", to: str(s.to, 40) || "owner", text: str(s.text, 1000) };
     case "webhook":
       return { id, kind: "webhook", url: str(s.url, 1000) };
+    case "sms": {
+      const fb = s.fallback && typeof s.fallback === "object" ? (s.fallback as Record<string, unknown>) : null;
+      return { id, kind: "sms", text: str(s.text, TEXT_MAX + 100), ...(fb ? { fallback: { subject: str(fb.subject, 200) } } : {}) };
+    }
+    case "whatsapp":
+      return { id, kind: "whatsapp", template: str(s.template, 40).trim(), vars: (Array.isArray(s.vars) ? s.vars : []).slice(0, 10).map((v) => str(v, 300)) };
     default:
       return { id, kind: s.kind } as Step;
   }

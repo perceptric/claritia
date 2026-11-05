@@ -3,9 +3,11 @@
 // runs, and the answers a text shows ({first_name}). Pure and string-based, so the Studio, the tests and the form
 // script share it. Browser and server.
 
+import { SMS_WORDING } from "../texts/words.ts";
+
 export type QType =
   | "short" | "long" | "email" | "phone" | "address" | "name" | "company" | "jobtitle" | "website" | "country" | "birthday"
-  | "choice" | "checks" | "dropdown" | "yesno" | "ranking" | "matrix" | "likert" | "agree"
+  | "choice" | "checks" | "dropdown" | "yesno" | "ranking" | "matrix" | "likert" | "agree" | "smsconsent"
   | "rating" | "scale" | "nps" | "slider" | "number" | "currency" | "percent" | "payment"
   | "date" | "time" | "datetime" | "month" | "daterange" | "file" | "image" | "signature"
   | "color" | "hidden" | "heading" | "text" | "divider"
@@ -20,7 +22,7 @@ export type QType =
 export const QGROUPS: [string, [QType, string][]][] = [
   ["Contact", [["short", "Short answer"], ["long", "Long answer"], ["email", "Email"], ["phone", "Phone number"], ["name", "Full name"], ["company", "Company"], ["jobtitle", "Job title"], ["website", "Website"], ["social", "Social profile"], ["address", "Address"], ["country", "Country"], ["language", "Language"], ["timezone", "Time zone"], ["birthday", "Date of birth"]]],
   ["Text", [["pattern", "Formatted text"], ["rich", "Rich text"]]],
-  ["Choices", [["choice", "Multiple choice"], ["checks", "Checkboxes"], ["dropdown", "Dropdown"], ["multiselect", "Multi-select dropdown"], ["longlist", "Searchable list"], ["dependent", "Dependent dropdown"], ["pictures", "Picture choice"], ["yesno", "Yes / No"], ["toggle", "Toggle"], ["ranking", "Ranking"], ["matrix", "Matrix"], ["likert", "Likert scale"], ["agree", "Agreement"]]],
+  ["Choices", [["choice", "Multiple choice"], ["checks", "Checkboxes"], ["dropdown", "Dropdown"], ["multiselect", "Multi-select dropdown"], ["longlist", "Searchable list"], ["dependent", "Dependent dropdown"], ["pictures", "Picture choice"], ["yesno", "Yes / No"], ["toggle", "Toggle"], ["ranking", "Ranking"], ["matrix", "Matrix"], ["likert", "Likert scale"], ["agree", "Agreement"], ["smsconsent", "Text consent"]]],
   ["Ratings", [["rating", "Rating"], ["scale", "Opinion scale"], ["nps", "Net Promoter Score"], ["faces", "Smiley scale"], ["thumbs", "Thumbs up or down"], ["semantic", "Semantic scale"], ["sum", "Points to spread"]]],
   ["Numbers and payments", [["number", "Number"], ["unit", "Number with unit"], ["slider", "Slider"], ["range", "Range slider"], ["currency", "Currency"], ["percent", "Percentage"], ["amount", "Amount picker"], ["products", "Product picker"], ["payment", "Payment"]]],
   ["Date and time", [["date", "Date picker"], ["time", "Time picker"], ["datetime", "Date and time"], ["month", "Month"], ["daterange", "Date range"], ["duration", "Duration"], ["availability", "Availability grid"]]],
@@ -38,7 +40,7 @@ const LABEL: Record<QType, string> = {
   dropdown: "Select an option", yesno: "Yes or no?", ranking: "Rank in order of importance", rating: "How would you rate your experience?", scale: "How likely are you to recommend us?",
   number: "Quantity", payment: "Payment", date: "Select a date", time: "Select a time", file: "Upload a file", signature: "Signature",
   name: "Full name", company: "Company", jobtitle: "Job title", website: "Website", country: "Country", birthday: "Date of birth",
-  matrix: "Rate each of the following", likert: "How much do you agree with each statement?", agree: "I agree to the terms and conditions",
+  matrix: "Rate each of the following", likert: "How much do you agree with each statement?", agree: "I agree to the terms and conditions", smsconsent: "Text consent",
   nps: "How likely are you to recommend us to a friend?", slider: "How satisfied are you?", currency: "Budget", percent: "Percentage",
   datetime: "Select a date and time", month: "Select a month", daterange: "Select your dates", image: "Upload an image", color: "Pick a color", hidden: "Hidden field",
   language: "Preferred language", timezone: "Time zone", social: "LinkedIn profile", unit: "Weight", pattern: "ZIP code", rich: "Tell us more",
@@ -55,7 +57,7 @@ const BASE: Record<QType, string> = {
   short: "answer", long: "details", email: "email", phone: "phone", address: "address", choice: "choice", checks: "picks", dropdown: "pick",
   yesno: "yes_no", ranking: "ranking", rating: "rating", scale: "score", number: "number", payment: "payment", date: "date", time: "time",
   file: "file", signature: "signature", name: "name", company: "company", jobtitle: "job_title", website: "website", country: "country",
-  birthday: "birthday", matrix: "matrix", likert: "agreement", agree: "terms", nps: "nps", slider: "satisfaction", currency: "budget",
+  birthday: "birthday", matrix: "matrix", likert: "agreement", agree: "terms", smsconsent: "sms_consent", nps: "nps", slider: "satisfaction", currency: "budget",
   percent: "percent", datetime: "date_time", month: "month", daterange: "dates", image: "image", color: "color", hidden: "ref",
   language: "language", timezone: "time_zone", social: "linkedin", unit: "weight", pattern: "zip", rich: "details", range: "range",
   amount: "amount", duration: "duration", pictures: "picture", multiselect: "picks", longlist: "pick", dependent: "subcategory",
@@ -137,6 +139,8 @@ export function questionHtml(type: QType, name: string, o: { save?: string; opti
       return `<div class="q">${lab}<input id="${id}" name="${name}" type="range" min="0" max="10" step="1" value="5">${err}</div>`;
     case "color":
       return `<div class="q">${lab}<input id="${id}" name="${name}" type="color">${err}</div>`;
+    case "smsconsent":
+      return `<div class="q"><label class="choice"><input type="checkbox" id="${id}" name="${name}" value="Yes" data-cl-label="${esc(label)}"> ${esc(SMS_WORDING)}</label>${err}</div>`;
     case "agree":
       return `<div class="q"><label class="choice"><input type="checkbox" id="${id}" name="${name}" value="Yes" required data-cl-label="${esc(label)}"> I agree to the <a href="https://example.com/terms" target="_blank" rel="noopener">terms and conditions</a></label>${err}</div>`;
     case "country":

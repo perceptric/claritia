@@ -1,5 +1,6 @@
 import { cors } from "@/lib/forms/server";
 import { checkGuest } from "@/lib/meetings/guest";
+import { bookingTextConsent } from "@/lib/texts/booking";
 import { startCheckout } from "@/lib/meetings/pay";
 import { payStripe } from "@/lib/meetings/payServer";
 import { readBookRef } from "@/lib/meetings/links";
@@ -78,6 +79,7 @@ export async function POST(request: Request, ctx: Ctx) {
       liveBusy: liveFor(x.rpc, x.t.ws.id),
     });
     if (!r.ok) return failed(r);
+    await bookingTextConsent(x.rpc, x.t.ws.id, g.guest, x.type.settings.questions);
     let checkout: string | undefined;
     if (r.pending) {
       const stripe = stripeClient();

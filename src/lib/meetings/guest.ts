@@ -112,7 +112,7 @@ export function checkGuest(raw: unknown, questions: Question[], location?: Guest
     const a = checkAnswer(q, given[q.id]);
     if ("error" in a) return { error: a.error, field: q.id };
     if (!a.value) {
-      if (q.required) return { error: q.type === "checkbox" ? `Tick ${q.label}.` : `${q.label} is required.`, field: q.id };
+      if (q.required) return { error: q.type === "checkbox" || q.type === "sms" ? `Tick ${q.label}.` : `${q.label} is required.`, field: q.id };
       continue;
     }
     answers[q.id] = a.value;

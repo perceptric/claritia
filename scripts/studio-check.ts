@@ -614,7 +614,7 @@ try {
   await $("#blankBtn").click();
   check((await form.locator("input[type='email']").count()) === 1 && (await form.locator("[type=submit]").count()) === 1 && (await $("#adds").isVisible()), "Start blank makes an email question and a send button, and opens Edit with the Add list");
   // The new fields: 39 in the Add list, each added in one click
-  check((await $("#addList [data-add]").count()) === 78, "the Add list has 78 fields");
+  check((await $("#addList [data-add]").count()) === 79, "the Add list has 79 fields");
   await $("#addList [data-add='nps']").click();
   await $("#addList [data-add='website']").click();
   await $("#addList [data-add='matrix']").click();

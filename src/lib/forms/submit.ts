@@ -25,6 +25,7 @@ import { offerForFill, type Booking } from "./booking.ts";
 import { bookingUrl, claritiaPlan, emailsTimesLater, outside, routedBooks, showsMeeting, type RoutedAs } from "./schedule.ts";
 import { regionOf } from "../web/policy.ts";
 import { queueTrack, serverTracked, trackInfoFor } from "../track/server.ts";
+import { smsConsented, SMS_WORDING } from "../texts/consent.ts";
 import { contactPolicy } from "./overwrite.ts";
 import { regionsOf } from "./regions.ts";
 import { uploadIds } from "./files.ts";
@@ -428,6 +429,10 @@ export async function acceptFill(
     const info = trackInfoFor(raw.t, { ip: o.client?.ip, ua: o.client?.ua, page: raw.page, strict: regionOf(o.country ?? "", "") === "strict" });
     if (info) await queueTrack(rpc, sid, info).catch(() => undefined);
   }
+  // A ticked Text consent box: the contact's mobile and their text consent (129_texts.sql), for workflow texts.
+  const phone = r.args.p_contact?.phone;
+  if (!spam && !o.test && !repeat && cid && phone && smsConsented(f.body, r.args.p_values))
+    await Promise.resolve(rpc("text_consent_add", { p_ws: f.workspace_id, p_contact: cid, p_email: null, p_phone: phone, p_wording: SMS_WORDING, p_source: "form" })).catch(() => undefined);
   // The submission is saved: everything below may fail or be slow, and the fill is kept (Section 13).
   const sch = f.body.after.schedule;
   const lead = spam ? null : r.args.p_contact;

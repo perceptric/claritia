@@ -14,7 +14,7 @@ The form script already runs more blocks than the Add list shows (`BLOCKS` in `s
 Country, Calculation, Result (score, meter, summary, outcome), Grid (matrix) and Hidden field. Tia and templates use
 them; people can't add them by hand yet.
 
-## Built: 78 fields in the Add list
+## Built: 79 fields in the Add list
 
 Every field below is in Form Studio's Add list (and the "/" menu), with its own settings, and runs on live forms.
 
@@ -24,7 +24,7 @@ Every field below is in Form Studio's Add list (and the "/" menu), with its own 
   Rich text (bold, italic, lists and links, kept as Markdown).
 - **Choices:** Multiple choice, Checkboxes, Dropdown, Multi-select dropdown, Searchable list (up to 10,000 options,
   pasted one per line), Dependent dropdown (its options follow another list), Picture choice, Yes / No, Toggle,
-  Ranking, Matrix, Likert scale, Agreement (with a terms link).
+  Ranking, Matrix, Likert scale, Agreement (with a terms link), Text consent (lets workflows text them).
 - **Ratings:** Rating, Opinion scale, Net Promoter Score, Smiley scale, Thumbs up or down, Semantic scale, Points to
   spread.
 - **Numbers and payments:** Number, Number with unit, Slider, Range slider, Currency, Percentage, Amount picker

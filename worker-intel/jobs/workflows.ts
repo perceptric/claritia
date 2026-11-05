@@ -18,6 +18,7 @@ import { validZone } from "../../src/lib/meetings/time.ts";
 import { enterPath, find, nextAfter, type PathName } from "../../src/lib/workflows/tree.ts";
 import type { Body, Step } from "../../src/lib/workflows/types.ts";
 import { valuesOf, webhookSecret, type Facts } from "../../src/lib/workflows/facts.ts";
+import { fillText, withStop } from "../../src/lib/texts/words.ts";
 
 async function call<T>(rpc: Rpc, fn: string, args: Record<string, unknown>): Promise<T> {
   const { data, error } = await rpc(fn, args);
@@ -76,6 +77,29 @@ async function runStep(rpc: Rpc, ws: string, run: Claimed, step: Step, f: Facts,
       const owner = step.from === "owner" ? f.owner : null;
       const id = await call<string | null>(rpc, "workflow_email", { p_run: run.id, p_step: step.id, p_vars: vars, p_from_name: owner?.name ?? null, p_reply_to: owner?.email ?? null });
       return { status: "done", result: id ? { message: id } : { message: null, why: "queued before" } };
+    }
+    case "sms":
+    case "whatsapp": {
+      // Queued once per run and step (129_texts.sql), so a step run again after a crash queues nothing new. The job
+      // checks consent, STOP and the meeting again when it sends.
+      const meeting = await meetingsOf(rpc, run.id)
+        .then((ms) => meetingFor(ms, cleanBody(run.body).trigger, now))
+        .catch(() => null);
+      const vars = { first_name: c.first_name, last_name: c.last_name, company: (f.company?.name as string | undefined) ?? null, title: c.title, ...meetingVars(meeting, { base: d.base, secret: d.secret, tz: f.tz }) };
+      const sms = step.kind === "sms";
+      const text = sms ? fillText(step.text, vars).trim() : null;
+      const r = await call<{ id?: string; skip?: string }>(rpc, "workflow_text", {
+        p_run: run.id,
+        p_step: step.id,
+        p_channel: step.kind,
+        p_body: text ? withStop(text) : null,
+        p_template: sms ? null : step.template,
+        p_vars: sms ? {} : Object.fromEntries(step.vars.map((v, i) => [String(i + 1), fillText(v, vars).slice(0, 300)])),
+        p_meeting: meeting?.id ?? null,
+        p_meeting_start: meeting?.start_at ?? null,
+        p_fallback: sms && step.fallback && text ? { subject: fillText(step.fallback.subject, vars).slice(0, 200), text } : null,
+      });
+      return r.skip ? { status: "skipped", result: { why: r.skip } } : { status: "done", result: { text: r.id ?? null } };
     }
     case "route": {
       // No second routing (docs/scheduling-plan.md Part 13.5): a lead Routing just routed keeps that rep.

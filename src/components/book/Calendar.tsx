@@ -627,7 +627,7 @@ function Details(p: {
     for (const q of questions) {
       const a = checkAnswer(q, answers[q.id]);
       if ("error" in a) return setErr({ error: a.error, field: q.id });
-      if (q.required && !a.value) return setErr({ error: q.type === "checkbox" ? `Tick ${q.label}.` : `${q.label} is required.`, field: q.id });
+      if (q.required && !a.value) return setErr({ error: q.type === "checkbox" || q.type === "sms" ? `Tick ${q.label}.` : `${q.label} is required.`, field: q.id });
     }
     setBusy(true);
     try {
@@ -665,7 +665,7 @@ function Details(p: {
       </label>
       {questions.map((q) => (
         <div className="cb-field" key={q.id}>
-          {q.type === "checkbox" ? null : (
+          {q.type === "checkbox" || q.type === "sms" ? null : (
             <span id={`cb-q-${q.id}`}>
               {q.label}
               {!q.required && <span className="cb-muted"> (optional)</span>}
@@ -716,6 +716,7 @@ function Answer({ q, value, onChange, invalid }: { q: Question; value: string; o
     case "rating":
       return chips(["1", "2", "3", "4", "5"], (o) => !!value && Number(o) <= Number(value), (o) => onChange(value === o && !q.required ? "" : o), "radio", (o) => <span aria-label={`${o} of 5`}>{o}</span>);
     case "checkbox":
+    case "sms":
       return (
         <button type="button" role="checkbox" aria-checked={value === "Yes"} id={label} className="cb-check" onClick={() => onChange(value === "Yes" ? "" : "Yes")}>
           <span className="cb-box" aria-hidden="true">{value === "Yes" ? <Check size={12} /> : null}</span>

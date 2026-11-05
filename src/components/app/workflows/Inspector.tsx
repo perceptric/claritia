@@ -11,6 +11,7 @@ import { BASE_FIELDS, isPast, needsValue, opsFor } from "@/lib/router/conditions
 import { OPS, type Cond } from "@/lib/router/types";
 import { stepProblems } from "@/lib/workflows/check";
 import { MERGE_KEYS } from "@/lib/workflows/merge";
+import { segments, STOP_LINE } from "@/lib/texts/words";
 import { STEP_KINDS, TRIGGERS, type Body, type EmailBody, type Goal, type Step, type Trigger, type TriggerKind } from "@/lib/workflows/types";
 import { Copy, Plus, Trash } from "../../Icons";
 import { AiMark } from "../Ai";
@@ -479,6 +480,49 @@ export function StepPanel(p: {
           <Row name="Message">
             <textarea value={s.text} onChange={(e) => p.onPatch({ text: e.target.value } as Partial<Step>, "text")} className={area} disabled={p.readOnly} />
           </Row>
+        </>
+      ) : null}
+
+      {s.kind === "sms" ? (
+        <>
+          <Row name="Text">
+            <textarea value={s.text} onChange={(e) => p.onPatch({ text: e.target.value } as Partial<Step>, "text")} className={area} disabled={p.readOnly} />
+          </Row>
+          <p className="m-0 text-[12px] text-muted">
+            {((n) => `${n.count} ${n.count === 1 ? "message" : "messages"}`)(segments(/\bSTOP\b/.test(s.text) ? s.text : `${s.text}\n${STOP_LINE}`))}
+          </p>
+          <div className="flex min-w-0 items-center justify-between gap-3">
+            <span className="text-[13px] text-ink">{"Email if the text can't go"}</span>
+            <Toggle label="Email if the text can't go" on={!!s.fallback} onChange={(v) => p.onPatch({ fallback: v ? { subject: "A reminder about our meeting" } : undefined } as Partial<Step>)} disabled={p.readOnly} />
+          </div>
+          {s.fallback ? (
+            <Row name="Email subject">
+              <Input value={s.fallback.subject} onChange={(e) => p.onPatch({ fallback: { subject: e.target.value } } as Partial<Step>, "subject")} className="h-9" disabled={p.readOnly} />
+            </Row>
+          ) : null}
+        </>
+      ) : null}
+
+      {s.kind === "whatsapp" ? (
+        <>
+          <Row name="Template Content SID">
+            <Input value={s.template} onChange={(e) => p.onPatch({ template: e.target.value.trim() } as Partial<Step>, "template")} placeholder="HXxxxxxxxx" className="h-9 font-mono text-[12.5px]" disabled={p.readOnly} />
+          </Row>
+          {s.vars.map((v, i) => (
+            <Row key={i} name={`Variable ${i + 1}`}>
+              <div className="flex min-w-0 items-center gap-2">
+                <Input value={v} onChange={(e) => p.onPatch({ vars: s.vars.map((x, j) => (j === i ? e.target.value : x)) } as Partial<Step>, `var${i}`)} placeholder="{{first_name|there}}" className="h-9 min-w-0 flex-1" disabled={p.readOnly} />
+                <IconButton label={`Remove variable ${i + 1}`} onClick={() => p.onPatch({ vars: s.vars.filter((_, j) => j !== i) } as Partial<Step>)} disabled={p.readOnly}>
+                  <Trash size={13} />
+                </IconButton>
+              </div>
+            </Row>
+          ))}
+          {s.vars.length < 10 ? (
+            <Button variant="ghost" size="sm" onClick={() => p.onPatch({ vars: [...s.vars, ""] } as Partial<Step>)} disabled={p.readOnly}>
+              <Plus size={13} /> Variable
+            </Button>
+          ) : null}
         </>
       ) : null}
 

@@ -92,6 +92,24 @@ export const TEMPLATES: Template[] = [
     }),
   },
   {
+    key: "text_reminders",
+    name: "Text reminders",
+    line: "A text an hour before each meeting, by email when it can't go",
+    body: () => ({
+      trigger: { kind: "meeting", events: ["booked"], types: [] },
+      goals: [],
+      entry: { mode: "repeat", gapDays: 1 },
+      steps: [
+        s({ kind: "wait", days: 0, hours: 1, before: "meeting" }),
+        s({
+          kind: "sms",
+          text: "Hi {{first_name|there}}, we meet in an hour, {{meeting_time|soon}}. Join: {{meeting_link|the link in your invite}}",
+          fallback: { subject: "Starting in an hour" },
+        }),
+      ],
+    }),
+  },
+  {
     key: "form_followup",
     name: "Form follow-up",
     line: "An email the day after they send a form",

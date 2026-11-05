@@ -131,7 +131,7 @@ export const DEFAULT_SETTINGS: TypeSettings = {
 };
 
 /** Booking question kinds (src/lib/meetings/questions.ts). */
-export type QuestionType = "text" | "textarea" | "email" | "phone" | "number" | "url" | "date" | "choice" | "multi" | "yesno" | "rating" | "country" | "checkbox";
+export type QuestionType = "text" | "textarea" | "email" | "phone" | "number" | "url" | "date" | "choice" | "multi" | "yesno" | "rating" | "country" | "checkbox" | "sms";
 
 export type MeetingType = {
   id: string;

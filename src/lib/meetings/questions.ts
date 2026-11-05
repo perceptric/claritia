@@ -20,6 +20,7 @@ export const QUESTION_TYPES: { value: QuestionType; label: string; options?: tru
   { value: "rating", label: "Rating" },
   { value: "country", label: "Country" },
   { value: "checkbox", label: "Checkbox" },
+  { value: "sms", label: "Text consent" },
 ];
 export const QUESTION_KINDS = new Set<string>(QUESTION_TYPES.map((t) => t.value));
 export const hasOptions = (t: QuestionType) => t === "choice" || t === "multi";
@@ -69,6 +70,7 @@ export function checkAnswer(q: Q, raw: unknown): { value: string } | { error: st
       return COUNTRY_CODES.includes(c) ? { value: c } : { error: `Pick a country for ${q.label}.` };
     }
     case "checkbox":
+    case "sms":
       return s === "Yes" ? { value: "Yes" } : { value: "" };
     default:
       return { value: s.slice(0, 300) };

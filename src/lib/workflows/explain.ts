@@ -70,7 +70,7 @@ export function triggerDetail(t: Trigger, n: Names = {}): string {
 }
 
 /** A card's name, a noun: Email, Delay, Slack message. */
-export const STEP_TITLE: Record<Step["kind"], string> = { email: "Email", wait: "Delay", wait_until: "Event wait", branch: "Branch", split: "Split", route: "Route", slack: "Slack message", webhook: "Webhook", exit: "Exit" };
+export const STEP_TITLE: Record<Step["kind"], string> = { email: "Email", wait: "Delay", wait_until: "Event wait", branch: "Branch", split: "Split", route: "Route", slack: "Slack message", webhook: "Webhook", sms: "Text message", whatsapp: "WhatsApp message", exit: "Exit" };
 
 /** A card's detail under its name: "See you tomorrow", from owner; 1 day before meeting; To owner. */
 export function stepDetail(s: Step, n: Names = {}): string {
@@ -95,6 +95,10 @@ export function stepDetail(s: Step, n: Names = {}): string {
       return `To ${s.to === "owner" ? "owner" : (n.people?.[s.to] ?? "a teammate")}`;
     case "webhook":
       return s.url ? hostOf(s.url) : "No address yet";
+    case "sms":
+      return s.text.trim() ? `"${s.text.trim().split("\n")[0]}"${s.fallback ? ", email if it can't go" : ""}` : "No text yet";
+    case "whatsapp":
+      return s.template ? "Approved template" : "No template yet";
     case "exit":
       return "End of workflow";
   }
@@ -128,6 +132,10 @@ export function stepWords(s: Step, n: Names = {}): string {
       return `Slack ${s.to === "owner" ? "their owner" : (n.people?.[s.to] ?? "a teammate")}`;
     case "webhook":
       return s.url ? `Send to ${hostOf(s.url)}` : "Send to a webhook";
+    case "sms":
+      return "Send a text";
+    case "whatsapp":
+      return "Send a WhatsApp message";
     case "exit":
       return "End here";
   }

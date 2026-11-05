@@ -198,18 +198,35 @@ again; a run after a timeout looks for its Fill ID first and makes no second rec
   adwords scope and Google Ads' return address on the Google app (`docs/sources-setup.md`). The API versions in
   `src/lib/track/server.ts` (Graph v21.0, Google Ads v22) need checking against each vendor's current one (check).
 
-### 3. Text messages: SMS reminders and WhatsApp (about 1 week)
+### 3. Text messages: SMS reminders and WhatsApp (built)
 
-- **What:** a Text message step in workflows (meeting reminders, no-show follow-ups, a note after a fill) and a
-  WhatsApp message step on approved templates.
-- **Where:** Workflows › the step list; Meetings › Reminders gets "Text" beside "Email". Texts go only to people who
-  ticked the text consent on the form or booking page.
-- **How:** Twilio on Claritia's own account with a toll-free number (verified once), or the team's own Twilio from
-  Settings › Integrations. STOP and HELP replies are kept per number and checked before every send. WhatsApp uses
-  Twilio's WhatsApp sender with the team's approved templates. Phone numbers are kept as E.164 (`e164` in
-  `src/lib/forms/codes.ts`).
-- **Tests:** a person who replied STOP gets nothing; a reminder for a canceled or moved meeting is never sent; a
-  Twilio 429 tries again; a text that fails twice falls back to the email reminder.
+- **What:** a Text message step and a WhatsApp message step in workflows, for meeting reminders, no-show follow-ups
+  and notes after a fill, and a Text reminders template (a text an hour before each meeting, by email when it can't
+  go).
+- **Where:** Workflows › the step list (Text message, WhatsApp message). A form gets a Text consent box from Form
+  Studio's Add list (Choices); a booking page gets a Text consent question (Meetings › the type's questions). A team's
+  own Twilio connects in Settings › Integrations (account SID, auth token, number or Messaging Service SID, and a
+  WhatsApp sender).
+- **How:** a text goes only to a contact whose latest text consent is granted, to a mobile kept as E.164; the
+  consent is kept with the words they saw (`129_texts.sql`). Each step writes one message per run and queues a
+  `text_send` job (`worker-intel/jobs/texts.ts`), which checks again when it sends: consent, STOP to that sender, and
+  a reminder's meeting still on at the same time. Every text ends with "Reply STOP to opt out." unless it says STOP
+  already, and the editor counts its messages. Texts go from the team's Twilio when connected, else Claritia's
+  toll-free number; WhatsApp needs the team's (its approved templates live there; a step names its Content SID and
+  its variables). Twilio's 429 and 5xx try again; after two tries, or a refusal that won't change, the step's email
+  goes instead when it has one. A send with no answer is unknown and never sent again. Replies at
+  `/api/texts/inbound`: STOP and the other stop words stop texts from that number, START lets them go, HELP answers.
+  Delivery answers at `/api/texts/status`. Both check Twilio's signature with the account's own token. Code:
+  `src/lib/texts`, `src/lib/sources/twilio.ts`.
+- **Tests:** `tests/texts.test.ts`: the words, segments and keywords; the step checks; consent from the form and the
+  booking page; each Twilio answer; signatures; a number that replied STOP, a canceled or moved meeting and no
+  consent get nothing; a 429 sends once; failing twice sends the email; no answer is never sent again; Twilio's own
+  STOP is kept; WhatsApp on the team's Twilio. `tests/pg/texts.pg.ts`: consent and a mobile needed, once per run and
+  step, the latest consent counts, STOP and START, delivered never turns back.
+- **To go live:** run `129_texts.sql`. On claritia-intel, set `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN` and
+  `TWILIO_FROM` (the verified toll-free number) or `TWILIO_MESSAGING_SID`; on claritia-web, the same SID and token
+  for the webhooks. Point the number's incoming messages at `https://app.tryclaritia.com/api/texts/inbound`
+  (`docs/forms-setup.md`). Toll-free verification is free (check).
 
 ### 4. More CRMs: Zoho CRM, Dynamics 365, GoHighLevel, Freshsales, Copper, Keap, monday CRM (about 1 week)
 
@@ -312,10 +329,10 @@ worker. No Claude calls.
 | Steps 1, 2, 4, 5, 7 to 13 (APIs free or on the team's account) | $0 | $0 |
 | Gmail and Outlook send: `gmail.send` is a sensitive scope, so Google's app check is free (check) | $0 | $0 |
 | SMS: Twilio $0.0083 a segment plus carrier fees of about $0.0045, and a toll-free number at about $2.15 (check). 1,200 and 12,000 texts | about $18 (check) | about $165 (check) |
-| WhatsApp: Twilio $0.005 a message plus Meta's utility template fee, about $0.0034 (check). 360 and 3,000 messages | about $3 (check) | about $25 (check) |
+| WhatsApp: on the team's own Twilio, so Twilio's $0.005 a message and Meta's template fee are the team's (check) | $0 | $0 |
 | Files copied out of Supabase Storage: about 1 GB and 12 GB, inside the 250 GB included (check) | $0 | $0 |
 | One more small worker machine for the extra sends (check) | $0 | about $5 (check) |
-| **Added per month** | **about $21** | **about $195** |
+| **Added per month** | **about $18** | **about $170** |
 
 With texts sold as a paid add-on (or sent on the team's own Twilio), the added cost is $0 at Beta and about $5 at
 Growth. One-time costs: the Shopify App Store listing fee, about $19 (check). Listing on Zapier, Make, Activepieces,

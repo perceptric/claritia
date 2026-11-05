@@ -31,6 +31,8 @@ export type Entry = {
   rows?: boolean;
   /** Ad tools: a form's Settings › Tracking sends its fills and bookings to them (docs/integrations-plan.md, Next step 2). */
   ads?: boolean;
+  /** Sends workflow texts (docs/integrations-plan.md, Next step 3). */
+  texts?: boolean;
 };
 
 const key = (label = "API key"): KeyField[] => [{ key: "api_key", label, secret: true }];
@@ -175,6 +177,20 @@ export const CATALOG: Entry[] = [
   // Sheets and databases (docs/integrations-plan.md step 2): a row per form fill, nothing read back.
   { kind: "meta_ads", label: "Meta Conversions API", group: "ads", domain: "meta.com", keys: [{ key: "access_token", label: "Access token", secret: true }], objects: [], ads: true },
   { kind: "google_ads", label: "Google Ads", group: "ads", domain: "ads.google.com", oauth: true, objects: [], ads: true },
+  {
+    kind: "twilio",
+    label: "Twilio",
+    group: "product",
+    domain: "twilio.com",
+    keys: [
+      { key: "account_sid", label: "Account SID", placeholder: "ACxxxxxxxx" },
+      { key: "auth_token", label: "Auth token", secret: true },
+      { key: "from", label: "Phone number or Messaging Service SID", placeholder: "+15551234567" },
+      { key: "whatsapp_from", label: "WhatsApp sender", placeholder: "+15551234567", optional: true },
+    ],
+    objects: [],
+    texts: true,
+  },
   { kind: "google_sheets", label: "Google Sheets", group: "sheets", domain: "sheets.google.com", oauth: true, objects: [], pushes: true, rows: true },
   { kind: "airtable", label: "Airtable", group: "sheets", domain: "airtable.com", oauth: true, keys: key("Personal access token"), objects: [], pushes: true, rows: true },
   { kind: "excel", label: "Excel Online", group: "sheets", domain: "excel.cloud.microsoft", oauth: true, objects: [], pushes: true, rows: true },

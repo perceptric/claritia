@@ -1,5 +1,6 @@
 import { cors } from "@/lib/forms/server";
 import { checkGuest } from "@/lib/meetings/guest";
+import { bookingTextConsent } from "@/lib/texts/booking";
 import { bookOneOff, bookType, guestSlots, linkGuestType, loadLink, oneOffSlots } from "@/lib/meetings/public";
 import { startCheckout } from "@/lib/meetings/pay";
 import { payStripe } from "@/lib/meetings/payServer";
@@ -57,11 +58,13 @@ export async function POST(request: Request, ctx: Ctx) {
     const live = liveFor(rpc, v.link.workspace_id);
     if (v.link.kind === "one_off") {
       const r = await bookOneOff(rpc, { view: v, start, guest: g.guest, liveBusy: live });
+      if (r.ok) await bookingTextConsent(rpc, v.link.workspace_id, g.guest, gt.questions);
       return r.ok ? booked(r, { profiles: v.profiles, confirmation: v.type?.settings.confirmation }) : failed(r);
     }
     const type = v.type!;
     const r = await bookType(rpc, { ws: v.link.workspace_id, type, length: Number(body.length), start, guest: g.guest, source: "page", linkId: v.link.id, payReady: !!v.ws.pay?.ready, liveBusy: live });
     if (!r.ok) return failed(r);
+    await bookingTextConsent(rpc, v.link.workspace_id, g.guest, gt.questions);
     let checkout: string | undefined;
     if (r.pending) {
       const stripe = stripeClient();

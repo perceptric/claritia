@@ -11,8 +11,8 @@ const q = (type: QuestionType, options?: string[]) => ({ label: "Q", type, optio
 const ok = (type: QuestionType, raw: unknown, want: string, options?: string[]) => assert.deepEqual(checkAnswer(q(type, options), raw), { value: want }, `${type} ${JSON.stringify(raw)}`);
 const bad = (type: QuestionType, raw: unknown, options?: string[]) => assert.ok("error" in checkAnswer(q(type, options), raw), `${type} ${JSON.stringify(raw)} should be refused`);
 
-test("thirteen kinds, each with a label", () => {
-  assert.equal(QUESTION_TYPES.length, 13);
+test("fourteen kinds, each with a label (Text consent the last)", () => {
+  assert.equal(QUESTION_TYPES.length, 14);
   assert.ok(QUESTION_TYPES.every((t) => t.label));
 });
 

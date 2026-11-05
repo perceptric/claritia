@@ -33,6 +33,10 @@ export type Step =
   | { id: string; kind: "route" }
   | { id: string; kind: "slack"; to: string; text: string }
   | { id: string; kind: "webhook"; url: string }
+  /** A text to the contact's mobile, with their text consent (src/lib/texts). fallback: the email that goes instead when the text can't. */
+  | { id: string; kind: "sms"; text: string; fallback?: { subject: string } }
+  /** A WhatsApp message on an approved template (its Content SID), its variables in order, through the team's own Twilio. */
+  | { id: string; kind: "whatsapp"; template: string; vars: string[] }
   | { id: string; kind: "exit" };
 
 export type StepKind = Step["kind"];
@@ -52,6 +56,8 @@ export const STEP_KINDS: { kind: StepKind; label: string; group: "Email" | "Time
   { kind: "split", label: "Split", group: "Logic" },
   { kind: "route", label: "Route", group: "Lead" },
   { kind: "slack", label: "Slack message", group: "Outside" },
+  { kind: "sms", label: "Text message", group: "Outside" },
+  { kind: "whatsapp", label: "WhatsApp message", group: "Outside" },
   { kind: "webhook", label: "Webhook", group: "Outside" },
   { kind: "exit", label: "Exit", group: "End" },
 ];
@@ -92,6 +98,10 @@ export function newStep(kind: StepKind): Step {
       return { id, kind, to: "owner", text: "" };
     case "webhook":
       return { id, kind, url: "" };
+    case "sms":
+      return { id, kind, text: "Hi {{first_name|there}}, a reminder: we meet {{meeting_time|soon}}. {{meeting_link|}}" };
+    case "whatsapp":
+      return { id, kind, template: "", vars: [] };
     default:
       return { id, kind } as Step;
   }
