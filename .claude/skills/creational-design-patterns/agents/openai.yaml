@@ -1,0 +1,4 @@
+interface:
+  display_name: "Creational Design Patterns"
+  short_description: "Apply and verify creational patterns"
+  default_prompt: "Use $creational-design-patterns to improve object creation in this codebase."

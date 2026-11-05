@@ -1,0 +1,4 @@
+interface:
+  display_name: "Behavioral Design Patterns"
+  short_description: "Apply and verify behavioral patterns"
+  default_prompt: "Use $behavioral-design-patterns to improve object collaboration in this codebase."

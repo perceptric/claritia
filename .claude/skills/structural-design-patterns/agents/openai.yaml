@@ -1,0 +1,4 @@
+interface:
+  display_name: "Structural Design Patterns"
+  short_description: "Apply and verify structural patterns"
+  default_prompt: "Use $structural-design-patterns to improve this object structure."

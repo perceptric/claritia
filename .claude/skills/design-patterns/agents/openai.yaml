@@ -1,0 +1,4 @@
+interface:
+  display_name: "Design Patterns Expert"
+  short_description: "Select and verify the right design pattern"
+  default_prompt: "Use $design-patterns to diagnose this design problem and justify the best pattern."
