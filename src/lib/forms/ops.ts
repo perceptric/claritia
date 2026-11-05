@@ -5,7 +5,7 @@
 
 import { readFormDesign, type FormDesign } from "../design/model.ts";
 import { DEFAULT_KEEP, DEFAULT_NOTIFY, DEFAULT_REPLY, type Keep, type Notify, type Reply } from "./notify.ts";
-import { allFields, checkForm, cleanAccess, cleanShare, CONTACT_KEYS, isChoice, isContent, newId, questionKey, type After, type Choice, type Cond, type Constant, type Field, type FieldKey, type FieldType, type Form, type Results, type Rule, type SharePreview, type Step } from "./schema.ts";
+import { allFields, checkForm, cleanAccess, cleanShare, cleanTrack, CONTACT_KEYS, isChoice, isContent, newId, questionKey, type After, type Choice, type Cond, type Constant, type Field, type FieldKey, type FieldType, type Form, type Results, type Rule, type SharePreview, type Step, type Track } from "./schema.ts";
 
 export type FieldInput = Partial<Omit<Field, "id">> & { type: FieldType; label: string };
 
@@ -50,6 +50,8 @@ export type Op =
   | { op: "set_share"; share: SharePreview }
   /** A field given as null comes off. */
   | { op: "set_access"; access: { opens?: string | null; closes?: string | null; limit?: number | null; message?: string | null } }
+  /** Settings › Tracking, whole: a key left out comes off. */
+  | { op: "set_track"; track: Track }
   | { op: "set_after"; end: After["end"] }
   | { op: "set_schedule"; schedule: After["schedule"] | null }
   | { op: "set_capture"; adapter?: NonNullable<Form["capture"]>["adapter"]; selector?: string }
@@ -364,6 +366,12 @@ export function applyOp(input: Form, op: Op): { form: Form } | { error: string }
       else delete form.access;
       return { form };
     }
+    case "set_track": {
+      const track = cleanTrack(op.track);
+      if (track) form.track = track;
+      else delete form.track;
+      return { form };
+    }
     case "set_after":
       form.after = { ...form.after, end: op.end };
       return { form };
@@ -480,6 +488,8 @@ export function describeOp(op: Op, before: Form): string {
       return "Changed the link preview";
     case "set_access":
       return "Changed when the form takes fills";
+    case "set_track":
+      return "Changed the tracking";
     case "set_after":
       return op.end.kind === "redirect" ? "Opens a page after the submit" : "Changed the thank-you message";
     case "set_schedule":

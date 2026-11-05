@@ -59,6 +59,7 @@ const P: Record<string, React.ReactNode> = {
   back: <path d="M15 6l-6 6 6 6" />,
   clock: (<><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></>),
   lock: (<><rect x="5" y="11" width="14" height="10" rx="2" /><path d="M8 11V7a4 4 0 0 1 8 0v4" /></>),
+  chart: (<><path d="M4 20h16" /><path d="M7 16v-5M12 16V7M17 16v-8" /></>),
 };
 
 export type IcName = keyof typeof P;

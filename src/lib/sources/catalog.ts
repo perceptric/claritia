@@ -29,6 +29,8 @@ export type Entry = {
   tags?: boolean;
   /** Sheets and databases: a row per form fill (docs/integrations-plan.md step 2). */
   rows?: boolean;
+  /** Ad tools: a form's Settings › Tracking sends its fills and bookings to them (docs/integrations-plan.md, Next step 2). */
+  ads?: boolean;
 };
 
 const key = (label = "API key"): KeyField[] => [{ key: "api_key", label, secret: true }];
@@ -171,6 +173,8 @@ export const CATALOG: Entry[] = [
     grant: "Make a service principal with CAN USE on the SQL warehouse and SELECT on the tables, and an access token for it.",
   },
   // Sheets and databases (docs/integrations-plan.md step 2): a row per form fill, nothing read back.
+  { kind: "meta_ads", label: "Meta Conversions API", group: "ads", domain: "meta.com", keys: [{ key: "access_token", label: "Access token", secret: true }], objects: [], ads: true },
+  { kind: "google_ads", label: "Google Ads", group: "ads", domain: "ads.google.com", oauth: true, objects: [], ads: true },
   { kind: "google_sheets", label: "Google Sheets", group: "sheets", domain: "sheets.google.com", oauth: true, objects: [], pushes: true, rows: true },
   { kind: "airtable", label: "Airtable", group: "sheets", domain: "airtable.com", oauth: true, keys: key("Personal access token"), objects: [], pushes: true, rows: true },
   { kind: "excel", label: "Excel Online", group: "sheets", domain: "excel.cloud.microsoft", oauth: true, objects: [], pushes: true, rows: true },

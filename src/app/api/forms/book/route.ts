@@ -39,6 +39,8 @@ export async function POST(request: Request) {
     if (typeof raw.start !== "number" || !Number.isFinite(raw.start)) return json({ error: "Bad request." }, 400);
     if (!allowed(`book:${claim.submission}`, 10)) return json({ error: "Too many tries. Wait a minute and try again." }, 429, { "Retry-After": "60" });
     const r = await bookForClaim(rpc, token, claim, { start: raw.start, length, tz, base: APP_URL, liveBusyFor: (ws) => liveBusyFor(rpc, ws) });
+    // Settings › Tracking: the booking's own server event, when its fill kept the details for one (128_track.sql).
+    if ((r.body as { booked?: unknown }).booked) await Promise.resolve(rpc("track_booked", { p_sub: claim.submission })).catch(() => undefined);
     return json(r.body, r.status);
   } catch {
     return json({ error: "Booking didn't go through. Try again in a moment." }, 503);

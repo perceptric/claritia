@@ -24,6 +24,7 @@ import { readPersonal } from "../share/personal.ts";
 import { offerForFill, type Booking } from "./booking.ts";
 import { bookingUrl, claritiaPlan, emailsTimesLater, outside, routedBooks, showsMeeting, type RoutedAs } from "./schedule.ts";
 import { regionOf } from "../web/policy.ts";
+import { queueTrack, serverTracked, trackInfoFor } from "../track/server.ts";
 import { contactPolicy } from "./overwrite.ts";
 import { regionsOf } from "./regions.ts";
 import { uploadIds } from "./files.ts";
@@ -55,6 +56,8 @@ export type Incoming = {
   channel?: unknown;
   /** A personal link's token (src/lib/share/personal.ts): checked here before it counts. */
   personal?: unknown;
+  /** Settings › Tracking: Meta's cookies and the visitor's ad consent, from x1.js (src/lib/forms/track.ts). */
+  t?: unknown;
 };
 
 /** The visitor's day when it's within a day of the server's (time zones), else the server's own. */
@@ -365,6 +368,8 @@ export async function acceptFill(
     now?: number;
     /** How many real fills the form has (Settings › Access limit); the route passes the real count. */
     fills?: () => Promise<number | null>;
+    /** The visitor's address and browser, for Settings › Tracking's server events. */
+    client?: { ip?: string; ua?: string | null };
     /** Opens Stripe Checkout for a form with a payment block (src/lib/forms/pay.ts); the route passes the real one. */
     pay?: (p: { submissionId: string; answers: Record<string, unknown>; email: string | null; page?: string }) => Promise<{ url: string } | null>;
   } = {},
@@ -418,6 +423,11 @@ export async function acceptFill(
   // Alerts and the auto-reply (their job waits for routing, so they name the rep). form_submit_all queued them; the
   // old way queues them here. The key is the submission's, so a repeat can't send twice.
   if (!inOne && !spam && !o.test && !repeat) await queueNotify(rpc, f.workspace_id, f.body, sid);
+  // Settings › Tracking's server events, when the visitor's consent allows them (src/lib/track/server.ts).
+  if (!spam && !o.test && !repeat && serverTracked(f.body.track)) {
+    const info = trackInfoFor(raw.t, { ip: o.client?.ip, ua: o.client?.ua, page: raw.page, strict: regionOf(o.country ?? "", "") === "strict" });
+    if (info) await queueTrack(rpc, sid, info).catch(() => undefined);
+  }
   // The submission is saved: everything below may fail or be slow, and the fill is kept (Section 13).
   const sch = f.body.after.schedule;
   const lead = spam ? null : r.args.p_contact;

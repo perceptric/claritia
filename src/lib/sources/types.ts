@@ -4,7 +4,7 @@
 
 import type { Target } from "../contacts/fields.ts";
 
-export type Group = "crm" | "email" | "sheets" | "form" | "event" | "product" | "warehouse" | "api";
+export type Group = "crm" | "email" | "sheets" | "form" | "event" | "product" | "warehouse" | "api" | "ads";
 export type ObjectKind = "contacts" | "companies" | "opportunities" | "lists" | "suppressions" | "events" | "records";
 
 /** One record as the tool has it. `id` is the tool's own id; `data` is flat (column → value). */

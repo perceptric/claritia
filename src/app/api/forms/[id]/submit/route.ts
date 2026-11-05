@@ -43,6 +43,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     }
     const r = await acceptFill((fn, args) => db.rpc(fn, args), f, raw, sendCtx(f.workspace_id, (ws) => cleaningCtx(db, ws)), {
       country: edgeCountry(request),
+      client: { ip, ua: request.headers.get("user-agent") },
       turnstileFailed: f.body.spam.turnstile ? turnstileOk(raw.turnstile, ip).then((ok) => !ok) : false,
       origin: request.headers.get("origin"),
       ownHost: request.headers.get("x-forwarded-host") ?? request.headers.get("host"),

@@ -23,7 +23,7 @@ import type { XCtx } from "./extras.ts";
 
 /** The form script's second part (extras.ts, /forms/x1.js): loaded once, on the first form that has one of its fields. */
 declare const __X1__: string;
-type Extras = { draw(c: XCtx): HTMLElement; css: string };
+type Extras = { draw(c: XCtx): HTMLElement; css: string; track?: typeof import("./track.ts").track; info?: typeof import("./track.ts").trackInfo };
 const xOf = () => (window as unknown as { __clrX?: Extras }).__clrX;
 let xLoading: Promise<void> | null = null;
 let xTries = 0;
@@ -760,7 +760,16 @@ export class ClaritiaForm extends Base {
     const id = this.getAttribute("form-id");
     if (this.quiet || this.sent.has(kind) || !this.data || this.data.status !== "live" || !id) return;
     this.sent.add(kind);
+    if (kind !== "result") this.trk(kind);
     fetch(`${this.base}/api/forms/${id}/seen`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ kind, vid: visitorId() }), credentials: "omit", keepalive: true }).catch(() => {});
+  }
+
+  /** Settings › Tracking: the event goes to the team's tags (src/lib/forms/track.ts, in x1.js). */
+  private trk(n: "view" | "start" | "submit" | "booked", submissionId?: string | null) {
+    const d = this.data,
+      t = d?.body.track;
+    if (!t || this.quiet || d.status !== "live") return;
+    void loadX(this.base).then(() => xOf()?.track?.(t, n, { formId: d.id, formName: d.body.title, submissionId }, !!d.strict), () => {});
   }
 
   private watchView() {
@@ -2371,6 +2380,7 @@ export class ClaritiaForm extends Base {
     if (r.j.booked) {
       this.bkDone = r.j.booked;
       this.emit("booked", { start: r.j.booked.start, end: r.j.booked.end });
+      this.trk("booked", this.sid);
     }
     if (r.j.booking) this.bk = r.j.booking;
     this.bkMsg = r.j.taken ? "That time was just taken. Pick another." : r.j.booked || (r.status === 200 && r.j.booking) ? "" : (r.j.error ?? "Booking didn't go through. Try again.");
@@ -2549,6 +2559,7 @@ export class ClaritiaForm extends Base {
       channel: this.channel(),
       personal: personalParam() || undefined,
       codes: Object.keys(this.codes).length ? Object.fromEntries(Object.entries(this.codes).map(([k, v]) => [k, v.code])) : undefined,
+      t: d.body.track ? xOf()?.info?.(!!d.strict) : undefined,
     });
     const url = `${this.base}/api/forms/${d.id}/submit`;
     let res: Response | null = null;
@@ -2605,6 +2616,7 @@ export class ClaritiaForm extends Base {
       if (typeof j.copy === "string" && /^\/api\/forms\/[0-9a-f-]{36}\/copy\/[0-9a-f-]{36}\?k=[\w-]{16,64}$/.test(j.copy)) this.copy = j.copy;
       if (j.booking?.token && Array.isArray(j.booking.slots)) this.bk = j.booking;
       this.dispatchEvent(new CustomEvent("claritia:submitted", { bubbles: true, composed: true, detail: { formId: d.id, submissionId: j.id ?? null } }));
+      this.trk("submit", j.id);
       this.tellPage();
     }
     // Sent, or kept to send again: either way the visitor finished the form.

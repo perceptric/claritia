@@ -229,15 +229,15 @@ export async function POST(request: Request) {
     if (errs.length) return Response.json({ error: errs[0]!.text, issues: errs }, { status: 400 });
     // A question keeps its field id when it's renamed or Tia writes the page again: the ids the form had last time.
     const formIdIn = typeof b.formId === "string" && UUID.test(b.formId) ? b.formId : "";
-    const prev = formIdIn ? ((await db.from("forms").select("draft").eq("id", formIdIn).eq("workspace_id", ws).maybeSingle()).data as { draft?: { page?: { ids?: Record<string, string>; after?: { always?: unknown } }; notify?: unknown; reply?: unknown; keep?: unknown; share?: unknown; consent?: unknown; spam?: unknown } } | null) : null;
+    const prev = formIdIn ? ((await db.from("forms").select("draft").eq("id", formIdIn).eq("workspace_id", ws).maybeSingle()).data as { draft?: { page?: { ids?: Record<string, string>; after?: { always?: unknown } }; notify?: unknown; reply?: unknown; keep?: unknown; share?: unknown; consent?: unknown; spam?: unknown; access?: unknown; track?: unknown } } | null) : null;
     const turnstile = !!turnstileSiteKey() && !!process.env.TURNSTILE_SECRET_KEY?.trim();
     const { form: draft, questions } = pageForm({ html, css: String(b.css ?? ""), brand: String(b.brand ?? ""), after, title: name, prevIds: prev?.draft?.page?.ids ?? {}, turnstile, lang: typeof b.lang === "string" ? b.lang : undefined, langs });
     if (!questions.length) return bad("The form has no questions to send.");
     // What the form's other tabs set stays: the auto-reply, how long it keeps sends, the link preview, and its team
     // alert until Always do sets one.
     for (const k of ["reply", "keep", "notify", "share"] as const) if (prev?.draft?.[k] !== undefined && !(k in draft)) (draft as Record<string, unknown>)[k] = prev.draft[k];
-    // Consent and the spam checks are the Settings tab's: a Studio save keeps what it set.
-    for (const k of ["consent", "spam"] as const) if (prev?.draft?.[k] !== undefined) (draft as Record<string, unknown>)[k] = prev.draft[k];
+    // Consent, the spam checks, Access and Tracking are the Settings tab's: a Studio save keeps what it set.
+    for (const k of ["consent", "spam", "access", "track"] as const) if (prev?.draft?.[k] !== undefined) (draft as Record<string, unknown>)[k] = prev.draft[k];
     // Email the team and Post to Slack are the same team alert as the form's Settings, so the last place it changed
     // wins: Always do left as it was keeps the alert Settings set, and a change here keeps the alert's subject.
     const alert = teamAlert(prev?.draft?.notify, (draft as { notify?: unknown }).notify, after.always, prev?.draft?.page?.after?.always);

@@ -48,7 +48,7 @@ webhook), HubSpot Meetings and SavvyCal (book from a form by link).
 | Microsoft Teams | Teams meetings as a meeting location | Fill alerts in a Teams channel |
 | Gmail | Emails go from the workspace's verified domain (Resend) | Send workflow emails from a team member's own Gmail |
 | Google Docs | A PDF copy of each fill | A Google Doc from a template, filled with the answers |
-| Google Tag Manager | The form's events (`claritia:submitted`, `:booked` and the rest) bubble on the page, so a GTM trigger can catch them | Push them to `dataLayer` by itself, with a Tracking section in form Settings |
+| Google Tag Manager | Built (Next step 2): form › Settings › Tracking pushes the form's events to `dataLayer` | Nothing |
 
 Kit and MailerLite take leads too (not on Fillout's list).
 
@@ -64,9 +64,9 @@ Kit and MailerLite take leads too (not on Fillout's list).
 | Zendesk | A ticket (and the user) per fill |
 | Freshdesk | A ticket per fill |
 | Discord | Fill alerts in a channel (its webhook address) |
-| Google Analytics | GA4 events on view, start, fill and booking, after consent where it's needed |
-| Meta Pixel | Lead and Schedule events, after consent |
-| Google Ads | A conversion on a fill or a booking, with the click id |
+| Google Analytics | Built (Next step 2) |
+| Meta Pixel | Built (Next step 2), with the Conversions API |
+| Google Ads | Built (Next step 2): the conversion tag and offline conversions |
 | Google Drive | Each upload copied into a chosen folder |
 | OneDrive | The same |
 | Dropbox | The same |
@@ -165,18 +165,38 @@ again; a run after a timeout looks for its Fill ID first and makes no second rec
   (`docs/sources-setup.md`), then publish each app with the same secret. Each app's return address is in
   `src/lib/oauth/clients.ts` (check against each app's settings when it's made).
 
-### 2. Tracking: Google Analytics, Google Tag Manager, Meta Pixel, Google Ads (about 1 week)
+### 2. Tracking: Google Analytics, Google Tag Manager, Meta Pixel, Google Ads (built)
 
-- **What:** form events go to the team's own tags: view, start, fill and booking.
-- **Where:** form › Settings › Tracking: GA4 measurement id, GTM on or off, Meta Pixel id with a Conversions API
-  token, Google Ads conversion (signed in with Google).
-- **How:** the form script pushes `claritia_view`, `claritia_start`, `claritia_submit` and `claritia_booked` to
-  `dataLayer` and calls `gtag` and `fbq` when they're on the page. Nothing loads before consent where the page has a
-  consent tool (Google Consent Mode). The server sends Meta's Conversions API event with the
-  same event id, so the pixel and the server count once. Google Ads gets an offline conversion from the gclid the form
-  already keeps (`src/lib/forms/submit.ts`). The size check on `v1.js` still holds; the tracking code is about 1 KB.
-- **Tests:** a blocked pixel never stops a send; the browser and server events share one id; no event before
-  consent; a gclid older than 90 days is skipped with its reason in the log.
+- **What:** each form's views, starts, fills and bookings go to the team's own tags, after consent.
+- **Where:** form › Settings › Tracking (`src/components/app/forms/Setup.tsx`): Google Tag Manager on or off, the
+  GA4 measurement ID, the Meta Pixel ID with Conversions API on or off, the Google Ads conversion ID and label, and
+  Offline conversions with the Google Ads account and conversion action picked from lists. Meta Conversions API and
+  Google Ads connect in Settings › Integrations (a pasted system user token; Google sign-in on the calendars' Google
+  app with the adwords scope).
+- **How, in the browser:** the tracking code (`src/lib/forms/track.ts`) lives in the second file, `x1.js`, so `v1.js`
+  grew by 132 bytes (43,975 of 45,056 gzipped). GTM gets `claritia_view`, `claritia_start`, `claritia_submit` and
+  `claritia_booked`. GA4 gets the same, with `generate_lead` for the fill. Google Ads gets a conversion on the fill
+  with the fill's id as its transaction id. Meta gets Lead and Schedule with the event ids the server uses (the fill's
+  id, and `book_` plus it). A page's own `gtag` and `fbq` are used when they're there; otherwise Claritia loads them.
+  With Google Consent Mode on the page, nothing loads and nothing goes to Meta or Google Ads until it's granted. With
+  no consent tool, Claritia loads no tag of its own for visitors in strict regions. A tag that throws never stops the
+  others or the form.
+- **How, on the server:** a fill whose consent allows ad events keeps its browser details (address, browser, Meta's
+  cookies, the page) for 30 days (`128_track.sql`) and gets a `track_send` job; a booking from it gets one more
+  (`worker-intel/jobs/track.ts`). Meta's Conversions API gets Lead and Schedule with hashed contact details and the
+  same event ids. Google Ads gets the fill as a click conversion (gclid, or gbraid and wbraid) with the fill's id as
+  its order id, so a repeat is dropped. Down, slow or rate limited goes back to the jobs queue; a refusal is written
+  to that connection's sync log. Code: `src/lib/track/server.ts`, `src/lib/sources/ads.ts`,
+  `src/app/api/forms/ads-actions`.
+- **Tests:** `tests/track.test.ts`: which tag gets which event; Consent Mode denied loads nothing; strict regions;
+  a throwing tag; the event ids; hashing; Meta down four times then up, with the same id each try; a repeat upload
+  Google already has counts as done; a refusal is logged and stops; no click id or no setup sends nothing.
+  `tests/pg/track.pg.ts`: one event per fill, none for spam or tests, a booking event only after a kept fill, the
+  30-day prune.
+- **To go live:** run `128_track.sql`. For offline conversions: `GOOGLE_ADS_DEVELOPER_TOKEN` on claritia-web and
+  claritia-intel (from a Google Ads manager account; basic access needs Google's approval, free (check)), and the
+  adwords scope and Google Ads' return address on the Google app (`docs/sources-setup.md`). The API versions in
+  `src/lib/track/server.ts` (Graph v21.0, Google Ads v22) need checking against each vendor's current one (check).
 
 ### 3. Text messages: SMS reminders and WhatsApp (about 1 week)
 

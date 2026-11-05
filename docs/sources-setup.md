@@ -232,3 +232,23 @@ fly secrets set --app claritia-web OAUTH_ZAPIER_SECRET=... OAUTH_MAKE_SECRET=...
 | Activepieces | `activepieces` | The piece's OAuth app settings in Activepieces |
 
 An app with no secret set can't sign in: its approve screen says it isn't set up yet.
+
+## Meta Conversions API and Google Ads
+
+Form › Settings › Tracking sends fills and bookings to them (docs/integrations-plan.md, Next step 2).
+
+- **Meta Conversions API:** in Meta's Events Manager, make a system user token with access to the pixel, then
+  connect it in Settings › Integrations. Nothing to set on the server.
+- **Google Ads:** uses the Google app the calendars use. Add the `https://www.googleapis.com/auth/adwords` scope to
+  its consent screen and Google Ads' return address next to the Sheets one. Set the developer token from a Google
+  Ads manager account (API Center) on both apps:
+
+```bash
+fly secrets set --app claritia-web GOOGLE_ADS_DEVELOPER_TOKEN=...
+```
+
+```bash
+fly secrets set --app claritia-intel GOOGLE_ADS_DEVELOPER_TOKEN=...
+```
+
+Without the token, Offline conversions says Google Ads isn't set up yet, and fills are not uploaded.

@@ -7,17 +7,18 @@
 import { useState } from "react";
 import { DEFAULT_NOTIFY, DEFAULT_REPLY, merge } from "@/lib/forms/notify";
 import type { Op } from "@/lib/forms/ops";
-import { allFields, DEFAULT_CONSENT, type Form } from "@/lib/forms/schema";
+import { allFields, cleanTrack, DEFAULT_CONSENT, type Form, type Track } from "@/lib/forms/schema";
 import type { RouterBody } from "@/lib/router/types";
 import { BrandLogo } from "../BrandLogo";
 import { CLOSED } from "@/lib/forms/access";
 import { DatePick } from "../DatePick";
 import { askText } from "../Dialogs";
-import { Badge, ErrorNote, errorText, must, useLoad, type ViewProps } from "../ui";
+import { Badge, ErrorNote, errorText, must, postJson, useLoad, type ViewProps } from "../ui";
+import { Select } from "../Select";
 import { Ic } from "./ic";
 import { AREA, Box, CARD, CROW, CSTACK, GHOST_SM, GHOST_SM_RED, IN, IN_FIT, RowText, Seg, useNote, Tg } from "./parts";
 
-export type SetupSub = "access" | "alerts" | "reply" | "consent" | "spam" | "data";
+export type SetupSub = "access" | "alerts" | "reply" | "consent" | "spam" | "tracking" | "data";
 
 type Props = ViewProps & {
   form: Form;
@@ -43,6 +44,7 @@ export function Setup(p: Props) {
     ["reply", "reply", "Auto-reply", !!form.reply?.on],
     ["consent", "shield", "Consent"],
     ["spam", "lock", "Spam and security"],
+    ["tracking", "chart", "Tracking", !!form.track],
     ["data", "data", "Data"],
   ];
   return (
@@ -64,7 +66,7 @@ export function Setup(p: Props) {
       </nav>
       <div className="min-w-0 overflow-y-auto px-[16px] pt-[20px] pb-[32px] sm:px-[clamp(16px,3vw,32px)]">
         <div className="flex max-w-[760px] flex-col gap-[16px]">
-          {sub === "access" ? <AccessPane {...p} /> : sub === "alerts" ? <Alerts {...p} /> : sub === "reply" ? <Reply {...p} /> : sub === "consent" ? <Consent {...p} /> : sub === "spam" ? <Spam {...p} /> : <Data {...p} />}
+          {sub === "access" ? <AccessPane {...p} /> : sub === "alerts" ? <Alerts {...p} /> : sub === "reply" ? <Reply {...p} /> : sub === "consent" ? <Consent {...p} /> : sub === "spam" ? <Spam {...p} /> : sub === "tracking" ? <Tracking {...p} /> : <Data {...p} />}
         </div>
       </div>
     </div>
@@ -497,6 +499,194 @@ function Data({ sb, session, form, apply, formId, subs, name }: Props) {
         </div>
       </div>
       {note.node}
+    </>
+  );
+}
+
+// Tracking -----------------------------------------------------------------------------------------------------------
+
+/** An id typed in full before it's kept: kept when it's right (or emptied), with one short line when it isn't. */
+function IdInput({ label, value, placeholder, ok, onSave, width = "w-[190px]" }: { label: string; value: string; placeholder: string; ok: (v: string) => boolean; onSave: (v: string) => void; width?: string }) {
+  const [text, setText] = useState(value);
+  const [shown, setShown] = useState(value);
+  if (shown !== value) {
+    setShown(value);
+    setText(value);
+  }
+  const v = text.trim();
+  const wrong = !!v && !ok(v);
+  const save = () => {
+    if (!wrong && v !== value) onSave(v);
+  };
+  return (
+    <div className="flex min-w-0 flex-col items-end gap-[4px]">
+      <input
+        className={`${IN_FIT} ${width} max-w-full font-mono text-[12.5px]`}
+        aria-label={label}
+        aria-invalid={wrong || undefined}
+        spellCheck={false}
+        placeholder={placeholder}
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        onBlur={save}
+        onKeyDown={(e) => e.key === "Enter" && save()}
+      />
+      {wrong ? <span className="text-[12px] text-rose">Like {placeholder}</span> : null}
+    </div>
+  );
+}
+
+const GA4 = /^G-[A-Z0-9]{4,16}$/;
+const PIXEL = /^\d{6,20}$/;
+const AW = /^AW-\d{6,14}$/;
+const LABEL = /^[A-Za-z0-9_-]{4,40}$/;
+
+type AdsAccount = { customer: string; login: string; name: string };
+
+/** The Google Ads tag's ID and label: kept once both are right, taken off once both are empty. */
+function AdsTag({ value, onSave }: { value: Track["ads"]; onSave: (v: Track["ads"]) => void }) {
+  const [id, setId] = useState(value?.id ?? "");
+  const [label, setLabel] = useState(value?.label ?? "");
+  const keep = (i: string, l: string) => {
+    setId(i);
+    setLabel(l);
+    if (AW.test(i) && LABEL.test(l)) onSave({ id: i, label: l });
+    else if (!i && !l && value) onSave(undefined);
+  };
+  return (
+    <div className="flex min-w-0 flex-wrap justify-end gap-[8px]">
+      <IdInput label="Google Ads conversion ID" value={id} placeholder="AW-123456789" width="w-[150px]" ok={(v) => AW.test(v)} onSave={(v) => keep(v, label)} />
+      <IdInput label="Google Ads conversion label" value={label} placeholder="AbC-D_efG" width="w-[150px]" ok={(v) => LABEL.test(v)} onSave={(v) => keep(id, v)} />
+    </div>
+  );
+}
+
+/** Settings › Tracking: the team's own tags get the form's views, starts, fills and bookings, after consent. */
+function Tracking({ sb, session, ws, form, apply, navigate }: Props) {
+  const t: Track = form.track ?? {};
+  const set = (patch: Partial<Record<keyof Track, unknown>>) => {
+    const next: Record<string, unknown> = { ...t };
+    for (const [k, v] of Object.entries(patch)) {
+      if (v === undefined || v === "" || v === false) delete next[k];
+      else next[k] = v;
+    }
+    apply({ op: "set_track", track: cleanTrack(next) ?? {} });
+  };
+  const tools = useLoad(async () => must(await sb.from("sources").select("kind").eq("workspace_id", ws.id).in("kind", ["meta_ads", "google_ads"]).neq("status", "disconnected")) as { kind: string }[], ws.id);
+  const has = (k: string) => (tools.data ?? []).some((x) => x.kind === k);
+  const connect = (k: string) => navigate("settings", "sources", `connect=${k}`);
+  const [accounts, setAccounts] = useState<AdsAccount[] | null>(null);
+  const [actions, setActions] = useState<{ id: string; name: string }[] | null>(null);
+  const [error, setError] = useState("");
+  const loadAccounts = async () => {
+    setError("");
+    try {
+      setAccounts((await postJson<{ accounts: AdsAccount[] }>(session, "/api/forms/ads-actions", { workspaceId: ws.id })).accounts);
+    } catch (e) {
+      setError(errorText(e));
+    }
+  };
+  const loadActions = async (a: AdsAccount) => {
+    setError("");
+    setActions(null);
+    try {
+      setActions((await postJson<{ actions: { id: string; name: string }[] }>(session, "/api/forms/ads-actions", { workspaceId: ws.id, customer: a.customer, login: a.login })).actions);
+    } catch (e) {
+      setError(errorText(e));
+    }
+  };
+  const up = t.upload;
+  const [account, setAccount] = useState<AdsAccount | null>(null);
+  const picked = account ?? (up ? { customer: up.customer, login: up.login ?? up.customer, name: up.customer } : null);
+  return (
+    <>
+      <H3>Tracking</H3>
+      <ErrorNote message={error} />
+      <div className={CARD}>
+        <div className={CROW}>
+          <RowText title="Google Tag Manager" sub="Events in the page's dataLayer" />
+          <Tg label="Google Tag Manager" on={!!t.gtm} onChange={(on) => set({ gtm: on || undefined })} />
+        </div>
+        <div className={CROW}>
+          <RowText title="Google Analytics 4" sub="Measurement ID" />
+          <IdInput label="Google Analytics 4 measurement ID" value={t.ga4 ?? ""} placeholder="G-ABC123DEF4" ok={(v) => GA4.test(v)} onSave={(v) => set({ ga4: v })} />
+        </div>
+      </div>
+      <div className={CARD}>
+        <div className={CROW}>
+          <RowText title="Meta Pixel" sub="Pixel ID" />
+          <IdInput label="Meta Pixel ID" value={t.pixel ?? ""} placeholder="123456789012345" ok={(v) => PIXEL.test(v)} onSave={(v) => set({ pixel: v, ...(v ? {} : { meta: undefined }) })} />
+        </div>
+        {t.pixel ? (
+          <div className={CROW}>
+            <RowText title="Conversions API" sub={has("meta_ads") ? "Fills and bookings also go from the server" : "Not connected"} />
+            {has("meta_ads") ? (
+              <Tg label="Conversions API" on={!!t.meta} onChange={(on) => set({ meta: on || undefined })} />
+            ) : (
+              <button type="button" className={GHOST_SM} onClick={() => connect("meta_ads")}>
+                <BrandLogo domain="meta.com" name="Meta" size={14} />
+                Connect
+              </button>
+            )}
+          </div>
+        ) : null}
+      </div>
+      <div className={CARD}>
+        <div className={CROW}>
+          <RowText title="Google Ads conversion" sub="Conversion ID and label" />
+          <AdsTag value={t.ads} onSave={(ads) => set({ ads })} />
+        </div>
+        <div className={CROW}>
+          <RowText title="Offline conversions" sub={!has("google_ads") ? "Not connected" : up ? (up.name ?? "Fills with a Google click ID") : "Fills with a Google click ID"} />
+          {has("google_ads") ? (
+            <Tg
+              label="Offline conversions"
+              on={!!up}
+              onChange={(on) => {
+                if (!on) {
+                  set({ upload: undefined });
+                  setAccount(null);
+                  setActions(null);
+                } else void loadAccounts();
+              }}
+            />
+          ) : (
+            <button type="button" className={GHOST_SM} onClick={() => connect("google_ads")}>
+              <BrandLogo domain="ads.google.com" name="Google Ads" size={14} />
+              Connect
+            </button>
+          )}
+        </div>
+        {has("google_ads") && (accounts || up) ? (
+          <div className={CROW}>
+            <RowText title="Account and action" />
+            <div className="flex min-w-0 flex-wrap justify-end gap-[8px]">
+              <Select
+                ariaLabel="Google Ads account"
+                placeholder="Account"
+                value={picked?.customer ?? ""}
+                options={(accounts ?? (picked ? [picked] : [])).map((a) => ({ value: a.customer, label: a.name }))}
+                onChange={(c) => {
+                  const a = (accounts ?? []).find((x) => x.customer === c);
+                  if (!a) return;
+                  setAccount(a);
+                  void loadActions(a);
+                }}
+              />
+              <Select
+                ariaLabel="Conversion action"
+                placeholder="Conversion action"
+                value={up && picked?.customer === up.customer ? up.action : ""}
+                options={(actions ?? (up ? [{ id: up.action, name: up.name ?? up.action }] : [])).map((a) => ({ value: a.id, label: a.name }))}
+                onChange={(id) => {
+                  const act = (actions ?? []).find((x) => x.id === id);
+                  if (picked && act) set({ upload: { customer: picked.customer, login: picked.login, action: act.id, name: act.name } });
+                }}
+              />
+            </div>
+          </div>
+        ) : null}
+      </div>
     </>
   );
 }

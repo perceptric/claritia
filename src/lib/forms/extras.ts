@@ -3,6 +3,7 @@
 // with the field and its answer; every widget sets the answer through `set`, so checks, rules and the send work as
 // for every other field. Built by scripts/build-forms.mts. Browser only.
 
+import { track, trackInfo } from "./track.ts";
 import { ADDRESS_PARTS, type Choice, type Field } from "./schema.ts";
 
 type El = <K extends keyof HTMLElementTagNameMap>(tag: K, attrs?: Record<string, string | boolean | undefined>, ...kids: (Node | string | null | false)[]) => HTMLElementTagNameMap[K];
@@ -794,4 +795,4 @@ function address(c: XCtx): HTMLElement {
   return el("div", { class: "mn", role: "group", "aria-labelledby": `${c.id}-l` }, parts.line1!, list, parts.line2!, el("div", { class: "xw" }, parts.city!, parts.region!), el("div", { class: "xw" }, parts.postal!, parts.country!));
 }
 
-(window as unknown as { __clrX?: { draw: (c: XCtx) => HTMLElement; css: string } }).__clrX = { draw, css: CSS };
+(window as unknown as { __clrX?: { draw: (c: XCtx) => HTMLElement; css: string; track: typeof track; info: typeof trackInfo } }).__clrX = { draw, css: CSS, track, info: trackInfo };

@@ -25,7 +25,7 @@ export function lookCss(kit: KitLook): string {
 }
 
 /** Settings a page doesn't hold, kept from the older form as they were. */
-const KEEP = ["reply", "keep", "notify", "share", "consent", "spam", "copy"] as const;
+const KEEP = ["reply", "keep", "notify", "share", "consent", "spam", "copy", "access", "track"] as const;
 
 /** Whether a form is already a page, or reads the site's own form (which has no page). */
 export const needsStudio = (f: unknown): boolean => !!f && typeof f === "object" && !("page" in (f as object)) && !("capture" in (f as object)) && Array.isArray((f as { steps?: unknown }).steps);

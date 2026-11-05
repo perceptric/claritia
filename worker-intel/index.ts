@@ -22,6 +22,8 @@ import { meetingTeamRun, routeJob, routerAlert, routerSla, routingAbandon } from
 import { formNotify, formResume } from "./jobs/forms.ts";
 import { deliver, deliverHeld } from "./jobs/deliver.ts";
 import { meetingWebhook } from "./jobs/webhooks.ts";
+import { trackSend } from "./jobs/track.ts";
+import { ctxFor } from "./jobs/ctx.ts";
 import { sourceHook } from "./jobs/sources.ts";
 import { recheckDomains } from "./jobs/linkDomains.ts";
 import { pgRpc } from "./rpc.ts";
@@ -70,6 +72,7 @@ const handlers = {
   calendar_reconnect: calendarReconnect(rpc, meetings),
   meeting_sync: meetingSync(rpc, { base: meetings.base }),
   meeting_webhook: meetingWebhook(rpc, { base: meetings.base }),
+  track_send: trackSend(rpc, { clean: (ws) => ctxFor(pool, ws) }),
 };
 const stop = new AbortController();
 const worker = `intel-${hostname()}-${process.pid}`;

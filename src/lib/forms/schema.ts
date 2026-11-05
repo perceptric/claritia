@@ -393,6 +393,8 @@ export type Form = {
   share?: SharePreview;
   /** Settings › Access (src/lib/forms/access.ts): when it opens and closes, the most fills it takes, what it says when closed. */
   access?: Access;
+  /** Settings › Tracking (src/lib/track): the team's own tags get the form's events, after consent. */
+  track?: Track;
   /** The form's own styles and classes on its elements (docs/design-system.md Part 3.1). */
   design?: FormDesign;
   /** Settings formulas read as {@id}, and the results a visitor can reach (docs/interactive-forms-plan.md). */
@@ -403,6 +405,40 @@ export type Form = {
 export type SharePreview = { title?: string; description?: string; image?: string };
 /** opens, closes: ISO times. limit: the most real fills (spam and tests aside). message: shown while it's closed or paused. */
 export type Access = { opens?: string; closes?: string; limit?: number; message?: string };
+
+/**
+ * Settings › Tracking (docs/integrations-plan.md, Next step 2). ga4: a GA4 measurement id (G-...). gtm: the events go
+ * to the page's dataLayer. pixel: a Meta pixel id; meta: the fill and the booking also go to Meta's Conversions API
+ * through the workspace's Meta connection, with the browser's event id. ads: a Google Ads conversion tag (AW-... and
+ * its label); upload: a fill with a Google click id goes to that Google Ads account's conversion action, through the
+ * workspace's Google Ads connection.
+ */
+export type Track = { ga4?: string; gtm?: true; pixel?: string; meta?: true; ads?: { id: string; label: string }; upload?: { customer: string; action: string; login?: string; name?: string } };
+
+export function cleanTrack(raw: unknown): Track | undefined {
+  if (!raw || typeof raw !== "object") return undefined;
+  const r = raw as Record<string, unknown>;
+  const pick = (v: unknown, re: RegExp) => (typeof v === "string" && re.test(v.trim()) ? v.trim() : undefined);
+  const ga4 = pick(r.ga4, /^G-[A-Z0-9]{4,16}$/);
+  const pixel = pick(r.pixel, /^\d{6,20}$/);
+  const a = r.ads && typeof r.ads === "object" ? (r.ads as Record<string, unknown>) : null;
+  const adsId = a ? pick(a.id, /^AW-\d{6,14}$/) : undefined;
+  const adsLabel = a ? pick(a.label, /^[A-Za-z0-9_-]{4,40}$/) : undefined;
+  const u = r.upload && typeof r.upload === "object" ? (r.upload as Record<string, unknown>) : null;
+  const customer = u ? pick(String(u.customer ?? "").replace(/-/g, ""), /^\d{10}$/) : undefined;
+  const action = u ? pick(u.action, /^\d{1,20}$/) : undefined;
+  const out: Track = {
+    ...(ga4 ? { ga4 } : {}),
+    ...(r.gtm === true ? { gtm: true as const } : {}),
+    ...(pixel ? { pixel } : {}),
+    ...(pixel && r.meta === true ? { meta: true as const } : {}),
+    ...(adsId && adsLabel ? { ads: { id: adsId, label: adsLabel } } : {}),
+    ...(customer && action
+      ? { upload: { customer, action, ...((l) => (l ? { login: l } : {}))(pick(String(u!.login ?? "").replace(/-/g, ""), /^\d{10}$/)), ...(typeof u!.name === "string" && u!.name.trim() ? { name: u!.name.trim().slice(0, 120) } : {}) } }
+      : {}),
+  };
+  return Object.keys(out).length ? out : undefined;
+}
 
 export function cleanAccess(raw: unknown): Access | undefined {
   if (!raw || typeof raw !== "object") return undefined;
@@ -1187,6 +1223,7 @@ export function checkForm(raw: unknown, ctx: Ctx = {}): { form: Form } | { error
     ...((x) => (x ? { results: x } : {}))(cleanResults(r.results, byId, errors)),
     ...((x) => (x ? { share: x } : {}))(cleanShare(r.share)),
     ...((x) => (x ? { access: x } : {}))(cleanAccess(r.access)),
+    ...((x) => (x ? { track: x } : {}))(cleanTrack(r.track)),
     ...((pg) => (pg ? { page: pg } : {}))(checkPage(r.page, new Set(flat.map((f) => f.id)))),
   };
   return errors.length ? { errors: [...new Set(errors)] } : { form };
@@ -1290,7 +1327,9 @@ function cleanResults(raw: unknown, byId: Map<string, Field>, errors: string[]):
 export const unsetConstants = (form: Pick<Form, "constants">): Constant[] => (form.constants ?? []).filter((c) => c.value === null);
 
 /** The form as the browser gets it: private settings have no value and secret scores are gone, so both stay on the server. */
-export function publicForm<T extends Pick<Form, "constants" | "steps">>(form: T): T {
+export function publicForm<T extends Pick<Form, "constants" | "steps"> & { track?: Track }>(raw: T): T {
+  // The Google Ads account and action the server uploads to stay on the server.
+  const form = raw.track?.upload ? { ...raw, track: Object.fromEntries(Object.entries(raw.track).filter(([k]) => k !== "upload")) as Track } : raw;
   const secret = form.steps.some((st) => st.fields.some((x) => x.secret));
   if (!form.constants?.some((c) => c.private) && !secret) return form;
   return {
