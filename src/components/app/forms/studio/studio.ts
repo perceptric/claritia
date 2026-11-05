@@ -38,7 +38,8 @@ export const STUDIO_CSS =
 button { font: inherit; color: inherit; cursor: pointer; }
 button:disabled { cursor: default; opacity: .4; }
 [hidden] { display: none !important; }
-:focus-visible { outline: 2px solid var(--pick); outline-offset: 2px; }
+:focus-visible { outline: 2px solid var(--signal); outline-offset: 2px; }
+input:focus-visible, textarea:focus-visible, select:focus-visible { outline: none; }
 .app, .chat, .bar, .panel, .navi { user-select: none; -webkit-user-select: none; }
 input, textarea { user-select: text; -webkit-user-select: text; }
 .tia { --tia-ink: var(--ink); --tia-face: var(--bg); --tia-signal: var(--signal); }
@@ -298,13 +299,24 @@ input, textarea { user-select: text; -webkit-user-select: text; }
 .icons { display: flex; gap: 2px; padding: 2px; background: var(--paper-deep); border-radius: 8px; }
 .icons .ib { width: auto; flex: 1; height: 26px; border-radius: 6px; }
 .icons .ib[aria-pressed="true"] { background: var(--bg); color: var(--ink); box-shadow: 0 0 0 1px var(--line); }
-.g2 { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
-.g3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; }
+.g2 { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 6px; }
+.g3 { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr); gap: 6px; }
 .num { position: relative; display: flex; align-items: center; height: 28px; border-radius: 6px; background: var(--paper-deep); }
-.num .k { width: 22px; flex: none; text-align: center; color: var(--faint); font-size: 11px; font-weight: 600; cursor: ew-resize; }
-.num input { flex: 1; min-width: 0; height: 100%; border: 0; background: transparent; color: var(--ink); font: 12px var(--sans); padding-right: 6px; }
+.num .k { min-width: 22px; padding: 0 5px; flex: none; text-align: center; color: var(--faint); font-size: 11px; font-weight: 600; cursor: ew-resize; }
+.num input { flex: 1; width: 100%; min-width: 0; height: 100%; border: 0; background: transparent; color: var(--ink); font: 12px var(--sans); padding-right: 6px; }
 .num input::placeholder { color: var(--faint); }
-.num:focus-within { box-shadow: inset 0 0 0 1px var(--ink); }
+.num:focus-within { box-shadow: 0 0 0 1px var(--signal), 0 0 0 3px var(--signal-soft); }
+.num .k { user-select: none; -webkit-user-select: none; touch-action: none; }
+.bx:focus { outline: none; box-shadow: 0 0 0 1px var(--signal); background: var(--bg); }
+.fold { display: flex; align-items: center; justify-content: space-between; gap: 8px; border: 0; background: none; padding: 0; color: var(--muted); }
+.fold h4 { pointer-events: none; }
+.fold .ib { width: 22px; height: 22px; }
+.row3 { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 6px; align-items: center; }
+.lbl2 { font-size: 12px; color: var(--body); }
+.slide { display: grid; grid-template-columns: 72px minmax(0, 1fr); gap: 8px; align-items: center; }
+.slide input[type=range] { width: 100%; accent-color: var(--ink); }
+.cross { display: grid; grid-template-columns: 1fr 1fr 1fr; grid-template-rows: auto auto auto; gap: 6px; align-items: center; }
+.cross .c { height: 26px; border-radius: 6px; border: 1px dashed var(--line-strong); }
 .boxm { position: relative; border-radius: 8px; background: var(--paper-deep); padding: 22px 30px; display: flex; flex-direction: column; }
 .boxp { position: relative; border-radius: 6px; background: var(--bg); box-shadow: 0 0 0 1px var(--line); padding: 22px 34px; display: flex; align-items: center; justify-content: center; }
 .boxc { height: 22px; min-width: 56px; border-radius: 4px; background: var(--paper); box-shadow: 0 0 0 1px var(--line); font: 11px/22px var(--sans); color: var(--muted); text-align: center; padding: 0 6px; }
@@ -325,9 +337,10 @@ input, textarea { user-select: text; -webkit-user-select: text; }
 .row2 { display: grid; grid-template-columns: 76px minmax(0, 1fr); align-items: center; gap: 8px; }
 .in { height: 28px; width: 100%; min-width: 0; border: 0; border-radius: 6px; padding: 0 8px; background: var(--paper-deep); color: var(--ink); font: 12px var(--sans); }
 .in::placeholder { color: var(--faint); }
-.in:focus { outline: 0; box-shadow: inset 0 0 0 1px var(--ink); }
+.in:focus { outline: 0; box-shadow: 0 0 0 1px var(--signal), 0 0 0 3px var(--signal-soft); }
 .dd { height: 28px; width: 100%; min-width: 0; border: 0; border-radius: 6px; background: var(--paper-deep); color: var(--ink); display: flex; align-items: center; justify-content: space-between; gap: 4px; padding: 0 8px; font-size: 12px; text-align: left; }
-.dd span:first-child { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dd span:first-child { min-width: 0; overflow-wrap: anywhere; text-align: start; }
+.dd { height: auto; min-height: 28px; padding-block: 4px; }
 .sw { width: 32px; height: 18px; border-radius: 999px; border: 0; background: var(--line-strong); position: relative; padding: 0; flex: none; }
 .sw::after { content: ""; position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; border-radius: 999px; background: var(--bg); transition: transform .15s var(--ease); }
 .sw[aria-checked="true"] { background: var(--ink); }
@@ -587,7 +600,7 @@ export function mountStudio(shell: ShadowRoot, api: StudioApi): StudioControl {
   let cur = null;
   let loaded = false;
   const looking = new Set();
-  const S = { view: 0, hold: "", lang: "", translating: "", mode: "preview", device: "desk", sel: null, about: null, busy: false, ptab: "settings", scope: "class", nav: false, adds: true, file: "html", publishing: false, pubMsg: "" };
+  const S = { state: "", open: new Set(), view: 0, hold: "", lang: "", translating: "", mode: "preview", device: "desk", sel: null, about: null, busy: false, ptab: "settings", scope: "class", nav: false, adds: true, file: "html", publishing: false, pubMsg: "" };
   const hist = {};
   const TG = { list: null, fams: [], fam: "all", q: "", n: 48, making: "" };
   // A template open for a look before it's used: its page in the canvas, in Preview, with nothing saved.
@@ -1163,7 +1176,7 @@ ${CAL_CSS}
   const EDIT = "/* editor */";
   function rules() { const css = body().css; const i = css.indexOf(EDIT); const out = {}; if (i < 0) return out; for (const m of css.slice(i + EDIT.length).matchAll(/([^{}]+)\{([^{}]*)\}/g)) { const p = {}; for (const d of m[2].split(";")) { const j = d.indexOf(":"); if (j > 0) p[d.slice(0, j).trim()] = d.slice(j + 1).trim(); } out[m[1].trim()] = p; } return out; }
   function writeRules(r) { const css = body().css; const i = css.indexOf(EDIT); const head = (i >= 0 ? css.slice(0, i) : css).trimEnd(); const out = Object.entries(r).filter(([, p]) => Object.keys(p).length).map(([s, p]) => `${s}{${Object.entries(p).map(([k, v]) => `${k}:${v}`).join(";")}}`).join("\n"); body().css = out ? `${head}\n${EDIT}\n${out}\n` : `${head}\n`; }
-  function target() { const el = byK(S.sel); if (!el) return null; const cls = el.classList[0]; if (S.scope === "class" && cls) return `.${cls}`; if (!el.id) el.id = `el${S.sel}`; return `#${el.id}`; }
+  function target() { const el = byK(S.sel); if (!el) return null; const cls = el.classList[0]; const st = S.state || ""; if (S.scope === "class" && cls) return `.${cls}${st}`; if (!el.id) el.id = `el${S.sel}`; return `#${el.id}${st}`; }
   const getP = (p) => { const t = target(); return (t && rules()[t]?.[p]) || ""; };
   function setP(p, v) { const t = target(); if (!t) return; snap(); const r = rules(); r[t] = r[t] || {}; if (v === "" || v == null) delete r[t][p]; else r[t][p] = v; writeRules(r); commit(); }
   function setMany(pairs) { const t = target(); if (!t) return; snap(); const r = rules(); r[t] = r[t] || {}; for (const [p, v] of pairs) { if (v === "" || v == null) delete r[t][p]; else r[t][p] = v; } writeRules(r); commit(); }
@@ -1183,7 +1196,9 @@ ${CAL_CSS}
     if (S.ptab === "settings") return settings(p, el);
     const cls = el.classList[0];
     p.append(h("div", { class: "sec" }, h("div", { class: "sel-head" }, h("span", { class: `cls${S.scope === "class" && cls ? "" : " off"}`, text: S.scope === "class" && cls ? `.${cls}` : el.id ? `#${el.id}` : "this one" }), h("span", { class: "spacer" }),
-      h("div", { class: "seg" }, h("button", { "aria-pressed": String(S.scope === "el" || !cls), onclick: () => { S.scope = "el"; panel(); }, text: "This one" }), cls ? h("button", { "aria-pressed": String(S.scope === "class"), onclick: () => { S.scope = "class"; panel(); }, text: "All like it" }) : null))));
+      h("div", { class: "seg" }, h("button", { "aria-pressed": String(S.scope === "el" || !cls), onclick: () => { S.scope = "el"; panel(); }, text: "This one" }), cls ? h("button", { "aria-pressed": String(S.scope === "class"), onclick: () => { S.scope = "class"; panel(); }, text: "All like it" }) : null)),
+      // States, like Framer's variants: the look on hover and while it's being typed in.
+      h("div", { class: "sel-head" }, h("span", { class: "lbl2", text: "State" }), h("span", { class: "spacer" }), h("div", { class: "seg" }, ...[["", "Default"], [":hover", "Hover"], [":focus-within", "Focus"]].map(([v, t]) => h("button", { "aria-pressed": String((S.state || "") === v), onclick: () => { S.state = v; panel(); }, text: t }))))));
     // Layout
     const disp = getP("display") || comp("display"), dir = getP("flex-direction") || comp("flex-direction");
     const L = h("div", { class: "sec" }, h("h4", { text: "Layout" }));
@@ -1198,13 +1213,13 @@ ${CAL_CSS}
       for (const [v, ic, tip] of [["flex-start", P.js, "Start"], ["center", P.jc, "Center"], ["flex-end", P.je, "End"], ["space-between", P.jb, "Spread out"]]) j.append(h("button", { class: "ib", "data-tip": tip, "aria-label": tip, "aria-pressed": String((getP("justify-content") || comp("justify-content")) === v), html: SVG(ic, 15), onclick: () => setP("justify-content", v) }));
       L.append(j, h("div", { class: "g2" }, num("Gap", "gap", "G")));
     }
+    p.append(positionSec(), sizeSec());
     p.append(L);
     // Spacing
     const r = live(S.sel)?.getBoundingClientRect();
     const bx = (prop, side) => { const i = h("input", { class: `bx ${side}`, "aria-label": prop.replace("-", " "), value: getP(prop).replace(/px$/, ""), placeholder: (comp(prop) || "").replace(/px$/, "") }); i.addEventListener("change", () => setP(prop, unit(i.value))); return i; };
     const pad = h("div", { class: "boxp" }, h("span", { class: "bl", text: "Padding" }), bx("padding-top", "t"), bx("padding-right", "r"), bx("padding-bottom", "b"), bx("padding-left", "l"), h("span", { class: "boxc", text: r ? `${Math.round(r.width)} × ${Math.round(r.height)}` : "" }));
     p.append(h("div", { class: "sec" }, h("h4", { text: "Spacing" }), h("div", { class: "boxm" }, h("span", { class: "bl", text: "Margin" }), bx("margin-top", "t"), bx("margin-right", "r"), bx("margin-bottom", "b"), bx("margin-left", "l"), pad)));
-    p.append(h("div", { class: "sec" }, h("h4", { text: "Size" }), h("div", { class: "g3" }, num("Width", "width", "W"), num("Height", "height", "H"), num("Max width", "max-width", "M"))));
     // Type
     const T = h("div", { class: "sec" }, h("h4", { text: "Type" }), h("div", { class: "g3" }, num("Size", "font-size", "S"), num("Line height", "line-height", "L"), num("Letter spacing", "letter-spacing", "T")));
     const wt = h("div", { class: "icons", role: "group", "aria-label": "Weight" });
@@ -1213,21 +1228,112 @@ ${CAL_CSS}
     for (const [v, ic, tip] of [["left", P.al, "Left"], ["center", P.ac, "Center"], ["right", P.ar, "Right"]]) al.append(h("button", { class: "ib", "data-tip": tip, "aria-label": tip, "aria-pressed": String((getP("text-align") || comp("text-align")).replace("start", "left") === v), html: SVG(ic, 15), onclick: () => setP("text-align", v) }));
     const cs = h("div", { class: "icons", role: "group", "aria-label": "Case" });
     for (const [v, ic, tip] of [["none", P.case0, "As typed"], ["uppercase", P.caseU, "Capitals"], ["lowercase", P.caseL, "Lower case"]]) cs.append(h("button", { class: "ib", "data-tip": tip, "aria-label": tip, "aria-pressed": String((getP("text-transform") || comp("text-transform")) === v), html: SVG(ic, 15), onclick: () => setP("text-transform", v) }));
-    T.append(wt, h("div", { class: "g2" }, al, cs), color("Text color", "color"));
+    const it = h("div", { class: "icons", role: "group", "aria-label": "Style" });
+    for (const [v, t, st] of [["normal", "Regular", ""], ["italic", "Italic", "font-style:italic"]]) it.append(h("button", { class: "ib", "aria-pressed": String((getP("font-style") || comp("font-style")) === v), text: t, style: `font-size:12px;${st}`, onclick: () => setP("font-style", v === "normal" ? "" : v) }));
+    const dec = h("div", { class: "icons", role: "group", "aria-label": "Decoration" });
+    for (const [v, t, st] of [["none", "None", ""], ["underline", "Underline", "text-decoration:underline"], ["line-through", "Strike", "text-decoration:line-through"]]) dec.append(h("button", { class: "ib", "aria-pressed": String((getP("text-decoration-line") || comp("text-decoration-line")) === v), text: t, style: `font-size:12px;${st}`, onclick: () => setP("text-decoration-line", v === "none" ? "" : v) }));
+    T.append(wt, h("div", { class: "g2" }, al, cs), it, dec, color("Text color", "color"));
     p.append(T);
     p.append(h("div", { class: "sec" }, h("h4", { text: "Fill" }), color("Background", "background-color")));
-    p.append(h("div", { class: "sec" }, h("h4", { text: "Border" }), h("div", { class: "g2" }, num("Border width", "border-width", "W"), num("Radius", "border-radius", "R")), color("Border color", "border-color")));
+    const bs = getP("border-style") || comp("border-style");
+    p.append(h("div", { class: "sec" }, h("h4", { text: "Border" }), h("div", { class: "g2" }, num("Border width", "border-width", "W"), num("Radius", "border-radius", "R")), h("div", { class: "row3" }, h("span", { class: "lbl2", text: "Style" }), pick({ solid: "Solid", dashed: "Dashed", dotted: "Dotted", none: "None" }[bs] || "Solid", [["solid", "Solid"], ["dashed", "Dashed"], ["dotted", "Dotted"], ["none", "None"]].map(([v, t]) => [t, () => setP("border-style", v), v === bs]))), color("Border color", "border-color")));
     const fx = h("div", { class: "icons", role: "group", "aria-label": "Shadow" });
     for (const [v, t] of [["none", "None"], ["0 1px 3px rgba(0,0,0,.12)", "Soft"], ["0 12px 32px -12px rgba(0,0,0,.35)", "Lift"]]) fx.append(h("button", { class: "ib", "aria-pressed": String(getP("box-shadow") === v), text: t, style: "font-size:12px", onclick: () => setP("box-shadow", v) }));
-    p.append(h("div", { class: "sec" }, h("h4", { text: "Effects" }), h("div", { class: "g2" }, num("Opacity", "opacity", "O")), fx));
+    p.append(effectsSec(fx));
+    p.append(transformSec(), stylesSec(), transitionSec());
+  }
+  /** A section that opens and closes, open by itself when it holds a value. */
+  function fold(title, props, body) {
+    const has = props.some((x) => getP(x));
+    const open = has || S.open.has(title);
+    const sec = h("div", { class: "sec" });
+    const btn = h("button", { class: "fold", "aria-expanded": String(open), onclick: () => { open ? S.open.delete(title) : S.open.add(title); panel(); } }, h("h4", { text: title }), h("span", { class: "ib", html: SVG(open ? P.x : P.plus, 13), "aria-hidden": "true" }));
+    sec.append(btn);
+    if (open) sec.append(...body());
+    return sec;
+  }
+  /** Width and height as Framer sets them: a fixed size, part of the space (%), all of it, or as big as the content. */
+  function sizeSec() {
+    const el = live(S.sel);
+    const sizeRow = (label, prop, key) => {
+      const v = getP(prop);
+      const mode = !v || v === "auto" ? "auto" : v === "100%" && getP("align-self") === "stretch" ? "fill" : /%$/.test(v) ? "rel" : /content$/.test(v) ? "fit" : "fixed";
+      const MODES = [["auto", "Auto"], ["fixed", "Fixed"], ["rel", "Relative"], ["fill", "Fill"], ["fit", "Fit content"]];
+      const go = (m) => {
+        const r = el?.getBoundingClientRect();
+        const pr = el?.parentElement?.getBoundingClientRect();
+        const px = r ? Math.round(prop === "width" ? r.width : r.height) : 0;
+        const whole = pr ? (prop === "width" ? pr.width : pr.height) : 0;
+        if (m === "auto") setMany([[prop, ""], ["align-self", ""]]);
+        else if (m === "fixed") setMany([[prop, `${px || 100}px`], ["align-self", ""]]);
+        else if (m === "rel") setMany([[prop, `${whole ? Math.max(1, Math.min(100, Math.round((px / whole) * 100))) : 50}%`], ["align-self", ""]]);
+        else if (m === "fill") setMany([[prop, "100%"], ["align-self", "stretch"]]);
+        else setMany([[prop, "fit-content"], ["align-self", ""]]);
+      };
+      return h("div", { class: "row3" }, mode === "fill" || mode === "fit" || mode === "auto" ? h("span", { class: "lbl2", text: label }) : num(label, prop, key), pick(MODES.find(([m]) => m === mode)?.[1] || "Auto", MODES.map(([m, t]) => [t, () => go(m), m === mode])));
+    };
+    return h("div", { class: "sec" }, h("h4", { text: "Size" }), sizeRow("Width", "width", "W"), sizeRow("Height", "height", "H"), h("div", { class: "g2" }, num("Min width", "min-width", "Min W"), num("Max width", "max-width", "Max W")), h("div", { class: "g2" }, num("Min height", "min-height", "Min H"), num("Max height", "max-height", "Max H")));
+  }
+  /** Position: in the flow, nudged, pinned in its box, fixed on the screen, or sticky while it scrolls. */
+  function positionSec() {
+    const pos = getP("position") || "static";
+    const TYPES = [["static", "Default"], ["relative", "Relative"], ["absolute", "Absolute"], ["sticky", "Sticky"], ["fixed", "Fixed"]];
+    return fold("Position", ["position", "top", "left", "z-index"], () => [
+      h("div", { class: "row3" }, h("span", { class: "lbl2", text: "Type" }), pick(TYPES.find(([v]) => v === pos)?.[1] || "Default", TYPES.map(([v, t]) => [t, () => setP("position", v === "static" ? "" : v), v === pos]))),
+      ...(pos === "static" ? [] : [h("div", { class: "cross" }, h("span"), num("Top", "top", "T"), h("span"), num("Left", "left", "L"), h("span", { class: "c" }), num("Right", "right", "R"), h("span"), num("Bottom", "bottom", "B"), h("span"))]),
+      h("div", { class: "g2" }, num("Z index", "z-index", "Z")),
+    ]);
+  }
+  function effectsSec(fx) {
+    const sh = getP("box-shadow");
+    const m = /^(-?[\d.]+)px (-?[\d.]+)px ([\d.]+)px (-?[\d.]+)px (.+)$/.exec(sh);
+    const part = (i, label, key) => {
+      const inp = h("input", { "aria-label": label, value: m ? m[i] : "", placeholder: ["", "0", "4", "12", "0"][i] });
+      inp.addEventListener("change", () => { const v = [1, 2, 3, 4].map((k) => (k === i ? inp.value.trim() || "0" : m ? m[k] : ["", "0", "4", "12", "0"][k])); setP("box-shadow", `${v[0]}px ${v[1]}px ${v[2]}px ${v[3]}px ${m ? m[5] : "rgba(0,0,0,.18)"}`); });
+      return h("label", { class: "num" }, h("span", { class: "k", text: key }), inp);
+    };
+    const blurOf = (prop) => (/blur\(([\d.]+)px\)/.exec(getP(prop)) || [])[1] || "";
+    const blur = (label, prop, key) => { const i = h("input", { "aria-label": label, value: blurOf(prop), placeholder: "0" }); i.addEventListener("change", () => setP(prop, Number(i.value) > 0 ? `blur(${Number(i.value)}px)` : "")); return h("label", { class: "num" }, h("span", { class: "k", text: key }), i); };
+    return h("div", { class: "sec" }, h("h4", { text: "Effects" }), fx, h("div", { class: "g2" }, part(1, "Shadow X", "X"), part(2, "Shadow Y", "Y")), h("div", { class: "g2" }, part(3, "Shadow blur", "B"), part(4, "Shadow spread", "S")), h("div", { class: "g2" }, blur("Blur", "filter", "Blur"), blur("Background blur", "backdrop-filter", "BG")));
+  }
+  /** Transforms: turn, size and move it, without moving what's around it. */
+  function transformSec() {
+    const tr = (getP("translate") || "").split(/\s+/);
+    const tx = (i, label, key) => { const inp = h("input", { "aria-label": label, value: (tr[i] || "").replace(/px$/, ""), placeholder: "0" }); inp.addEventListener("change", () => { const v = [0, 1].map((k) => (k === i ? unit(inp.value || "0") : tr[k] || "0px")); setP("translate", v.every((x) => /^0(px)?$/.test(x)) ? "" : v.join(" ")); }); return h("label", { class: "num" }, h("span", { class: "k", text: key }), inp); };
+    const deg = h("input", { "aria-label": "Rotate", value: (getP("rotate") || "").replace(/deg$/, ""), placeholder: "0" });
+    deg.addEventListener("change", () => setP("rotate", Number(deg.value) ? `${Number(deg.value)}deg` : ""));
+    const sc = h("input", { "aria-label": "Scale", value: getP("scale"), placeholder: "1" });
+    sc.addEventListener("change", () => setP("scale", sc.value && Number(sc.value) !== 1 ? String(Number(sc.value)) : ""));
+    return fold("Transforms", ["rotate", "scale", "translate"], () => [h("div", { class: "g2" }, h("label", { class: "num" }, h("span", { class: "k", text: "R" }), deg), h("label", { class: "num" }, h("span", { class: "k", text: "S" }), sc)), h("div", { class: "g2" }, tx(0, "Move X", "X"), tx(1, "Move Y", "Y"))]);
+  }
+  /** Styles: how see-through it is, which sits on top, and the pointer over it. */
+  function stylesSec() {
+    const op = getP("opacity") || "1";
+    const r = h("input", { type: "range", min: "0", max: "1", step: "0.05", value: op, "aria-label": "Opacity" });
+    r.addEventListener("change", () => setP("opacity", Number(r.value) >= 1 ? "" : r.value));
+    const cur = getP("cursor") || "auto";
+    const CURSORS = [["auto", "Auto"], ["pointer", "Pointer"], ["text", "Text"], ["grab", "Grab"], ["help", "Help"], ["not-allowed", "Not allowed"]];
+    return h("div", { class: "sec" }, h("h4", { text: "Styles" }), h("div", { class: "slide" }, num("Opacity", "opacity", "O"), r), h("div", { class: "row3" }, h("span", { class: "lbl2", text: "Cursor" }), pick(CURSORS.find(([v]) => v === cur)?.[1] || "Auto", CURSORS.map(([v, t]) => [t, () => setP("cursor", v === "auto" ? "" : v), v === cur]))));
+  }
+  /** Transition: how changes (a hover, a focus) ease in. */
+  function transitionSec() {
+    const t = getP("transition");
+    const m = /^all (\d+)ms (.+)$/.exec(t);
+    const ms = m ? m[1] : "";
+    const EASE = [["cubic-bezier(.22,1,.36,1)", "Ease out"], ["ease-in-out", "Ease in and out"], ["linear", "Linear"], ["cubic-bezier(.34,1.56,.64,1)", "Spring"]];
+    const ez = m ? m[2] : EASE[0][0];
+    const d = h("input", { "aria-label": "Duration in ms", value: ms, placeholder: "200" });
+    d.addEventListener("change", () => setP("transition", Number(d.value) > 0 ? `all ${Math.round(Number(d.value))}ms ${ez}` : ""));
+    return fold("Transition", ["transition"], () => [h("div", { class: "row3" }, h("label", { class: "num" }, h("span", { class: "k", text: "ms" }), d), pick(EASE.find(([v]) => v === ez)?.[1] || "Ease out", EASE.map(([v, tt]) => [tt, () => setP("transition", `all ${ms || 200}ms ${v}`), v === ez])))]);
   }
   function num(label, prop, key) {
     const raw = prop === "opacity" || prop === "line-height";
     const i = h("input", { "aria-label": label, value: getP(prop).replace(/px$/, ""), placeholder: short(comp(prop)).replace(/px$/, "") });
     i.addEventListener("change", () => setP(prop, raw ? i.value.trim() : unit(i.value)));
-    const k = h("span", { class: "k", title: label, text: key });
+    const k = h("span", { class: "k", title: label, text: key, draggable: "false" });
     // Drag the letter to change the number.
     k.addEventListener("pointerdown", (e) => {
+      e.preventDefault();
       const start = e.clientX, base = parseFloat(i.value || i.placeholder) || 0, step = raw ? 0.05 : 0.5;
       const mv = (ev) => { const n = base + (ev.clientX - start) * step; i.value = String(raw ? Math.round(n * 100) / 100 : Math.round(n)); };
       const up = () => { window.removeEventListener("pointermove", mv); window.removeEventListener("pointerup", up); if (i.value !== "") i.dispatchEvent(new Event("change")); };

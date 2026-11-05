@@ -367,6 +367,26 @@ try {
   const barBox = await $("section.stage > .bar").boundingBox();
   const panelBox = await $("#panel").boundingBox();
   check(!!barBox && !!panelBox && barBox.y + barBox.height <= panelBox.y, "the panel sits below the bar and never covers it");
+  // Style like Framer: Width set to Fill takes the whole row; Hover is its own state; a box being typed in has one green ring.
+  await form.locator("#title").click();
+  await $("#p-style").click();
+  const sizeSec = $("#pscroll .sec").filter({ has: p.locator("h4", { hasText: /^Size$/ }) });
+  await sizeSec.locator(".dd").first().click();
+  await $("#layer .menu .mi").filter({ hasText: "Fill" }).click();
+  const fills = await p.evaluate(() => { const r = document.querySelector("#studio")!.shadowRoot!.getElementById("host")!.shadowRoot!; const t = r.querySelector("#title") as HTMLElement; const pe = t.parentElement!; const cs = getComputedStyle(pe); const inner = pe.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight); return [Math.round(t.getBoundingClientRect().width), Math.round(inner), getComputedStyle(t).width, (r.querySelector("style")?.textContent || "").match(/#title[^}]*}/)?.[0] ?? ""]; });
+  check(Math.abs(Number(fills[0]) - Number(fills[1])) < 2, `Width set to Fill makes it as wide as its row (${fills.join(" / ")})`);
+  check((await $("#pscroll .sec").filter({ hasText: "Position" }).count()) === 1 && (await $("#pscroll .sec").filter({ hasText: "Transforms" }).count()) === 1 && (await $("#pscroll .sec").filter({ hasText: "Transition" }).count()) === 1, "the Style panel has Position, Transforms and Transition");
+  await $("#pscroll .seg button").filter({ hasText: "Hover" }).click();
+  check((await $("#pscroll .seg button[aria-pressed='true']").filter({ hasText: "Hover" }).count()) === 1, "Hover is its own state");
+  await $("#pscroll .seg button").filter({ hasText: "Default" }).click();
+  await sizeSec.locator("input").first().focus().catch(() => undefined);
+  await $("#pscroll .num input").first().focus();
+  const ring = await $("#pscroll .num input").first().evaluate((e) => [getComputedStyle(e).outlineStyle, getComputedStyle(e.parentElement!).boxShadow]);
+  check(ring[0] === "none" && ring[1].includes("rgb"), `a box being typed in has one ring, no second outline (${ring.join(" / ")})`);
+  const spill = await $("#pscroll").evaluate((box) => { const b = box.getBoundingClientRect(); return [...box.querySelectorAll("input, button, .num")].filter((x) => { const r = x.getBoundingClientRect(); return r.width && r.right > b.right + 1; }).length; });
+  check(spill === 0, `nothing in the Style panel runs past its edge (${spill})`);
+  if (shots) await p.screenshot({ path: `${shots}/style.png` });
+  await $("#undo").click();
   check((await $("#publish").count()) + (await $("#checkBtn").count()) + (await $("#shareBtn").count()) + (await $("#backBtn").count()) === 0, "Publish, the check, Share and Back live in the page's header, never in the Studio's bar");
   for (const id of ["d-desk", "d-tab", "d-phone"]) if (!(await $(`#${id}`).getAttribute("data-tip"))) check(false, `${id} has a tooltip`);
   check((await $("#t-edit").count()) + (await $("#t-preview").count()) + (await $("#t-after").count()) + (await $("#addBtn").count()) === 0, "no Preview, Edit and On submission tabs, and no Add button in the bar");
