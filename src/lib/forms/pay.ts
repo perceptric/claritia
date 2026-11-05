@@ -6,10 +6,10 @@
 // Stripe is passed in (the route uses the real client, the tests a fake), so this runs anywhere.
 
 import type { Rpc } from "../jobs.ts";
-import { payAmount, type Form } from "./schema.ts";
+import { allFields, payAmount, type Form } from "./schema.ts";
 
 export type FormPayStripe = {
-  checkout(account: string, p: { submissionId: string; workspaceId: string; formId: string; name: string; amount: number; currency: string; email: string | null; successUrl: string; cancelUrl: string }): Promise<{ id: string; url: string }>;
+  checkout(account: string, p: { submissionId: string; workspaceId: string; formId: string; name: string; amount: number; currency: string; email: string | null; successUrl: string; cancelUrl: string; coupons?: boolean }): Promise<{ id: string; url: string }>;
 };
 
 /** Where Stripe sends the visitor back: their page (or the hosted one) with a note the form reads. */
@@ -47,6 +47,8 @@ export async function startFormCheckout(
     email: o.email,
     successUrl: returnUrl(o.page, o.hosted, true),
     cancelUrl: returnUrl(o.page, o.hosted, false),
+    // A payment block that takes coupon codes: they're typed on Stripe's page (the account's own promotion codes).
+    coupons: allFields(o.form).some((f) => f.type === "payment" && f.pay?.coupons),
   });
   const { error } = await rpc("submission_payment", { p_sid: o.submissionId, p_patch: { session: s.id, url: s.url, account: o.account, amount: due.amount, currency: due.currency, status: "open" } });
   if (error) throw new Error(error.message);

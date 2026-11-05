@@ -305,7 +305,9 @@ Everything a form needs can be made in Edit without Tia (`src/lib/studio/builder
   it will be made in, with All templates and Use this template; nothing is made or saved until Use.
 - **Add page** sits in the steps bar after the pages. It adds a page after the one in view; a one-page form becomes
   pages first, with what it asks on page 1 and the send button on the new last page.
-- **40 fields** in the Add list (docs/fields-plan.md, Built).
+- **78 fields** in the Add list in twelve groups (docs/fields-plan.md, Built), each with its own settings: lists of
+  up to 10,000 options, dependent dropdowns, picture cards, quizzes with a score, products a payment charges, codes for
+  email and phone, date rules in Display condition, and a timer on a page (Steps bar).
 - The form script's size limit goes from 39 to 41 KB for the rules above.
 
 Running cost: $0 a month at Beta (50 teams) and Growth (500 teams). Nothing new is bought, and these edits make no

@@ -3,7 +3,7 @@
 // apart from the page's own condition, with or-conditions kept right); and a text shows the answers in it.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { pipeText, QGROUPS, questionHtml, readJumps, stepShowIfs, uniqueName, writeJumps, type QType } from "../src/lib/studio/builder.ts";
+import { isLayout, pipeText, QGROUPS, questionHtml, readJumps, stepShowIfs, uniqueName, writeJumps, type QType } from "../src/lib/studio/builder.ts";
 import { cleanPage } from "../src/lib/studio/page.ts";
 import { holds } from "../src/lib/studio/runtime.ts";
 
@@ -15,12 +15,13 @@ test("every type in the Add list writes a question the page reads back", () => {
   for (const t of all) {
     const html = questionHtml(t, `n_${t}`, t === "email" ? { save: "email" } : {});
     const { html: kept, questions } = cleanPage(`<form>${html}</form>`);
-    if (t === "heading" || t === "text" || t === "divider") {
+    if (isLayout(t)) {
       assert.equal(questions.length, 0, t);
       continue;
     }
-    assert.equal(questions.length, 1, `${t}: ${kept}`);
-    const q = questions[0]!;
+    // A dependent dropdown comes with the list it follows.
+    assert.equal(questions.length, t === "dependent" ? 2 : 1, `${t}: ${kept}`);
+    const q = questions.at(-1)!;
     assert.equal(q.name, `n_${t}`, t);
     assert.ok(q.label && q.labelFrom !== "name", `${t} has a label`);
     if (KIND[t]) assert.equal(q.type, KIND[t], t);

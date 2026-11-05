@@ -41,6 +41,8 @@ export type PageQuestion = {
   block?: Block;
   /** data-cl-check="work_email" on an email input: free email addresses are refused. */
   work?: true;
+  /** data-cl-verify on an email input: a code is sent to it before the form sends. */
+  verify?: true;
   /** data-cl-key: where the answer saves (q.<name> on the submission, f.<field> on the contact), kept from a form made before. */
   key?: string;
 };
@@ -50,14 +52,23 @@ export type PageQuestion = {
  * an answer; the rest are worked out (calc), charged (payment), shown from other answers (result), or a structured
  * question (grid, ranking) or a hidden value (hidden), each drawn by the form script in the brand's classes.
  */
-export const BLOCKS = ["file", "phone", "address", "date", "time", "daterange", "rating", "signature", "country", "calc", "payment", "result", "grid", "ranking", "hidden"] as const;
+export const BLOCKS = [
+  "file", "phone", "address", "date", "time", "daterange", "rating", "signature", "country", "calc", "payment", "result", "grid", "ranking", "hidden",
+  // docs/fields-plan.md: a searchable list (one pick or many, or following another answer), picture cards, rows of
+  // small questions, points to spread, a range, a table to fill in, the times that work, products, amounts to pick,
+  // hours and minutes, formatted text, a drawing, a location, a pin on a map, a recording, a cropped picture, and a
+  // picture or a video to show.
+  "list", "pictures", "group", "sum", "range", "table", "slots", "products", "amount", "duration", "rich", "draw", "location", "map", "record", "crop", "image", "video",
+] as const;
 type ListItem = { value: string; label: string };
 export type Block = {
   type: (typeof BLOCKS)[number];
-  kinds?: ("pdf" | "image" | "office")[];
+  kinds?: ("pdf" | "image" | "office" | "audio" | "video")[];
+  /** file: open the camera on phones. */
+  capture?: true;
   maxMb?: number;
   scale?: number;
-  style?: "stars" | "numbers";
+  style?: "stars" | "numbers" | "faces" | "thumbs";
   /** rating: starts at 0 (Net Promoter Score), and the words under the two ends. */
   zero?: true;
   low?: string;
@@ -82,17 +93,56 @@ export type Block = {
   options?: ListItem[];
   /** hidden: where its value comes from. */
   source?: { from: "param" | "page" | "referrer" | "static"; name?: string; value?: string };
+  /** list and pictures: many picks; list: the answer it follows (by name) and its options for each of that answer's. */
+  multi?: true;
+  by?: string;
+  map?: Record<string, ListItem[]>;
+  /** pictures: each option's picture, in order. products: each one's price, in order. amount: the amounts offered. */
+  images?: string[];
+  prices?: number[];
+  amounts?: number[];
+  /** sum: the total the points add up to. */
+  total?: number;
+  /** range: the lowest, highest and step. */
+  lo?: number;
+  hi?: number;
+  step?: number;
+  /** group: the small questions in each row (label and type), and the rows allowed. */
+  fields?: { label: string; type: "text" | "email" | "phone" | "number" | "date" }[];
+  add?: string;
+  /** image and video: the address, and the picture's words. */
+  src?: string;
+  alt?: string;
+  /** payment: coupon codes at checkout. address: suggestions as it's typed. phone: a code is sent to it. */
+  coupons?: true;
+  auto?: true;
+  verify?: true;
 };
 /** Blocks that take no answer from the visitor: worked out, charged or shown. */
-export const SHOWN_BLOCKS = new Set(["calc", "payment", "result"]);
+export const SHOWN_BLOCKS = new Set(["calc", "payment", "result", "image", "video"]);
+/** Blocks that are a form type drawn another way, and the type they are. */
+const BLOCK_TYPE: Partial<Record<Block["type"], (b: Block) => string>> = {
+  list: (b) => (b.multi ? "multi" : "dropdown"),
+  pictures: (b) => (b.multi ? "multi" : "choice"),
+  amount: () => "number",
+  duration: () => "number",
+  rich: () => "textarea",
+  draw: () => "signature",
+  location: () => "text",
+  map: () => "text",
+  record: () => "file",
+  crop: () => "file",
+};
+const BLOCK_UI: Partial<Record<Block["type"], string>> = { amount: "amounts", duration: "duration", rich: "rich", draw: "draw", location: "location", map: "map", record: "record", crop: "crop" };
+const listUi = (b: Block) => (b.type === "list" && b.multi ? "dropdown" : undefined);
 
 /** A list written "Value::Label|Other", or just "Label|Other" when the value is the label. */
-function readList(raw: string | undefined): ListItem[] {
+function readList(raw: string | undefined, max = 100): ListItem[] {
   return String(raw ?? "")
     .split("|")
     .map((x) => x.trim())
     .filter(Boolean)
-    .slice(0, 100)
+    .slice(0, max)
     .map((x) => {
       const at = x.indexOf("::");
       const value = (at > 0 ? x.slice(0, at) : x).trim().slice(0, 200);
@@ -112,16 +162,79 @@ function readBlock(attrs: Record<string, string>): Block | null {
     const n = Number(attrs[k]);
     return attrs[k] !== undefined && attrs[k] !== "" && Number.isFinite(n) ? n : null;
   };
-  if (type === "file") {
-    const kinds = (attrs["data-cl-kinds"] ?? "").split(/[\s,]+/).filter((k): k is "pdf" | "image" | "office" => k === "pdf" || k === "image" || k === "office");
-    if (kinds.length) b.kinds = [...new Set(kinds)];
+  const list = (k: string) => String(attrs[k] ?? "").split("|").map((x) => x.trim());
+  if (type === "file" || type === "record" || type === "crop") {
+    const kinds = (attrs["data-cl-kinds"] ?? "").split(/[\s,]+/).filter((k): k is NonNullable<Block["kinds"]>[number] => ["pdf", "image", "office", "audio", "video"].includes(k));
+    if (type === "record") b.kinds = kinds.some((k) => k === "video") ? ["audio", "video"] : ["audio"];
+    else if (type === "crop") b.kinds = ["image"];
+    else if (kinds.length) b.kinds = [...new Set(kinds)];
     const mb = Math.round(Number(attrs["data-cl-max"]));
     if (Number.isFinite(mb) && mb > 0) b.maxMb = Math.min(mb, 20);
+    if ("data-cl-capture" in attrs) b.capture = true;
   }
+  if (type === "list" || type === "pictures") {
+    b.options = readList(attrs["data-cl-options"], type === "list" ? 10000 : 30);
+    if ("data-cl-multi" in attrs) b.multi = true;
+  }
+  if (type === "list" && /^[A-Za-z][\w-]{0,60}$/.test(attrs["data-cl-by"] ?? "")) {
+    b.by = attrs["data-cl-by"];
+    // One line per answer of the list it follows: "Answer=>Option|Option".
+    const map: Record<string, ListItem[]> = {};
+    for (const line of String(attrs["data-cl-map"] ?? "").split("\n").slice(0, 50)) {
+      const at = line.indexOf("=>");
+      if (at < 1) continue;
+      const opts = readList(line.slice(at + 2)).slice(0, 100);
+      if (opts.length) map[line.slice(0, at).trim().slice(0, 200)] = opts;
+    }
+    b.map = map;
+  }
+  if (type === "pictures") b.images = list("data-cl-images").map((u) => (/^https:\/\/\S+$/.test(u) ? u.slice(0, 1000) : ""));
+  if (type === "products") {
+    b.options = readList(attrs["data-cl-options"]).slice(0, 50);
+    b.prices = list("data-cl-prices").map((x) => Math.max(0, Number(x) || 0));
+  }
+  if (type === "sum") {
+    b.options = readList(attrs["data-cl-options"]).slice(0, 12);
+    const t = num("data-cl-total");
+    b.total = t !== null && t > 0 ? Math.min(Math.round(t), 100000) : 100;
+  }
+  if (type === "amount") b.amounts = list("data-cl-amounts").map(Number).filter((n) => Number.isFinite(n) && n > 0).slice(0, 8);
+  if (type === "range") {
+    const lo = num("data-cl-min"), hi = num("data-cl-max"), st = num("data-cl-step");
+    b.lo = lo ?? 0;
+    b.hi = hi !== null && hi > b.lo ? hi : b.lo + 100;
+    if (st !== null && st > 0) b.step = st;
+  }
+  if (type === "table" || type === "slots") {
+    b.rows = readList(attrs["data-cl-rows"]).slice(0, type === "slots" ? 14 : 20);
+    b.cols = readList(attrs["data-cl-cols"]).slice(0, type === "slots" ? 24 : 8);
+  }
+  if (type === "group") {
+    const TYPES = ["text", "email", "phone", "number", "date"] as const;
+    b.fields = list("data-cl-fields")
+      .map((x) => {
+        const at = x.lastIndexOf("::");
+        const t = (at > 0 ? x.slice(at + 2).trim() : "text") as (typeof TYPES)[number];
+        return { label: (at > 0 ? x.slice(0, at) : x).trim().slice(0, 200), type: TYPES.includes(t) ? t : "text" };
+      })
+      .filter((x) => x.label)
+      .slice(0, 6);
+    const mx = num("data-cl-max");
+    b.max = mx !== null && mx >= 1 ? Math.min(Math.round(mx), 20) : 5;
+    if (attrs["data-cl-add"]?.trim()) b.add = attrs["data-cl-add"].trim().slice(0, 40);
+  }
+  if (type === "image" || type === "video") {
+    b.src = String(attrs["data-cl-src"] ?? "").trim().slice(0, 1000);
+    if (attrs["data-cl-alt"]) b.alt = attrs["data-cl-alt"].slice(0, 200);
+  }
+  if (type === "payment" && "data-cl-coupons" in attrs) b.coupons = true;
+  if (type === "address" && "data-cl-auto" in attrs) b.auto = true;
+  if (type === "phone" && "data-cl-verify" in attrs) b.verify = true;
   if (type === "rating") {
     const sc = Math.round(Number(attrs["data-cl-scale"]));
     if (Number.isFinite(sc) && sc >= 3) b.scale = Math.min(sc, 10);
-    if (attrs["data-cl-style"] === "numbers") b.style = "numbers";
+    const sty = attrs["data-cl-style"];
+    if (sty === "numbers" || sty === "faces" || sty === "thumbs") b.style = sty;
     if (b.style === "numbers" && attrs["data-cl-zero"] !== undefined) b.zero = true;
     const lo = words(attrs["data-cl-low"] ?? "").slice(0, 60), hi = words(attrs["data-cl-high"] ?? "").slice(0, 60);
     if (lo) b.low = lo;
@@ -171,7 +284,7 @@ function readBlock(attrs: Record<string, string>): Block | null {
   return b;
 }
 
-const MAX_HTML = 200_000;
+const MAX_HTML = 1_000_000;
 const MAX_CSS = 200_000;
 
 const TAGS = new Set([
@@ -195,7 +308,9 @@ const ownKey = (id: string) => `q.${/^[a-z]/.test(id) ? id : `n${id}`}`;
 /** Contact answers: the browser's autofill name, and the input type that brings up the right keyboard. */
 const AUTOFILL: Record<string, [string, string | null]> = { email: ["email", "email"], first_name: ["given-name", null], last_name: ["family-name", null], name: ["name", null], phone: ["tel", "tel"], company: ["organization", null], title: ["organization-title", null], website: ["url", "url"], country: ["country-name", null] };
 const SAVE = new Set(["email", "first_name", "last_name", "name", "phone", "company", "title", "website", "country", "region"]);
-const LONG_ATTRS = new Set(["data-cl-rows", "data-cl-cols", "data-cl-options", "data-cl-formula", "data-cl-show-if"]);
+const LONG_ATTRS = new Set(["data-cl-rows", "data-cl-cols", "data-cl-options", "data-cl-formula", "data-cl-show-if", "data-cl-images", "data-cl-map", "data-cl-prices", "data-cl-fields"]);
+/** A searchable list holds up to 10,000 options, so its options and map may be long. */
+const attrMax = (k: string) => (k === "data-cl-options" || k === "data-cl-map" ? 400_000 : k === "data-cl-images" ? 40_000 : LONG_ATTRS.has(k) ? 4000 : 500);
 /** A choice's points (a quiz's score, a price's weight): data-cl-score on the radio, check box or option. */
 const scoreOf = (attrs: Record<string, string>): number | undefined => {
   const n = Number(attrs["data-cl-score"]);
@@ -203,7 +318,7 @@ const scoreOf = (attrs: Record<string, string>): number | undefined => {
 };
 
 const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
-const unesc = (s: string) => s.replace(/&quot;/g, '"').replace(/&#39;|&#x27;/g, "'").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&nbsp;/g, " ").replace(/&amp;/g, "&");
+const unesc = (s: string) => s.replace(/&quot;/g, '"').replace(/&#39;|&#x27;/g, "'").replace(/&#(10|13);/g, "\n").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&nbsp;/g, " ").replace(/&amp;/g, "&");
 const words = (s: string) => unesc(s.replace(/<[^>]*>/g, " ")).replace(/\s+/g, " ").trim();
 
 function safeLink(v: string): string | null {
@@ -272,7 +387,7 @@ export function cleanPage(raw: string, prevIds: Record<string, string> = {}): { 
       const save = SAVE.has(attrs["data-cl-save"] ?? "") ? attrs["data-cl-save"] : undefined;
       const fixed = FIELD_ID.test(attrs["data-cl-id"] ?? "") ? attrs["data-cl-id"] : undefined;
       const key = SAVED_KEY.test(attrs["data-cl-key"] ?? "") ? attrs["data-cl-key"] : undefined;
-      q = { name, id: "", type, label: "", labelFrom: "name", required: false, ...(save ? { save } : {}), ...(fixed ? { fixed } : {}), ...(key ? { key } : {}), ...(attrs["data-cl-check"] === "work_email" ? { work: true as const } : {}), options: [] };
+      q = { name, id: "", type, label: "", labelFrom: "name", required: false, ...(save ? { save } : {}), ...(fixed ? { fixed } : {}), ...(key ? { key } : {}), ...(attrs["data-cl-check"] === "work_email" ? { work: true as const } : {}), ...("data-cl-verify" in attrs ? { verify: true as const } : {}), options: [] };
       byName.set(name, q);
       qs.push(q);
     } else if (q.type === "checkbox" && type === "checkbox") q.type = "multi";
@@ -369,7 +484,7 @@ export function cleanPage(raw: string, prevIds: Record<string, string> = {}): { 
       }
       if (k.startsWith("data-cl-")) {
         // A grid's rows and columns, a ranking's options and a formula run longer than other settings.
-        if (/^data-cl-[a-z-]{1,20}$/.test(k)) kept.push(v ? `${k}="${esc(v.slice(0, LONG_ATTRS.has(k) ? 4000 : 500))}"` : k);
+        if (/^data-cl-[a-z-]{1,20}$/.test(k)) kept.push(v ? `${k}="${esc(v.slice(0, attrMax(k)))}"` : k);
         continue;
       }
       if (k.startsWith("aria-") && /^aria-[a-z]{1,20}$/.test(k)) {
@@ -509,8 +624,9 @@ function shownField(q: PageQuestion, b: Block, byName: (n: string | undefined) =
   if (b.type === "payment") {
     const field = byName(b.from);
     // A payment that names a calc the page doesn't have keeps its name, so the form check says the calc is gone.
-    return { ...base, pay: { currency: b.currency ?? "USD", ...(field ? { field } : b.from ? { field: b.from } : b.amount ? { amount: b.amount } : {}) } };
+    return { ...base, pay: { currency: b.currency ?? "USD", ...(field ? { field } : b.from ? { field: b.from } : b.amount ? { amount: b.amount } : {}), ...(b.coupons ? { coupons: true } : {}) } };
   }
+  if (b.type === "image" || b.type === "video") return { ...base, content: { src: b.src ?? "", ...(b.alt ? { alt: b.alt } : {}) } };
   const of = (b.of ?? []).map((n) => byName(n) ?? n);
   const kind = b.kind ?? "metric";
   return { ...base, result: { kind, ...(kind === "metric" || kind === "meter" ? (of[0] ? { field: of[0] } : {}) : of.length ? { fields: of } : {}), ...(b.max ? { max: b.max } : {}) } };
@@ -530,7 +646,7 @@ export function pageForm(p: { html: string; css: string; brand: string; after: P
   const fields = questions.map((q) => {
     const b = q.block;
     if (b && SHOWN_BLOCKS.has(b.type)) return shownField(q, b, byName);
-    let type = (b ? b.type : q.type === "dropdown" ? "dropdown" : (KIND[q.type] ?? "text")) as FieldType;
+    let type = (b ? (BLOCK_TYPE[b.type]?.(b) ?? b.type) : q.type === "dropdown" ? "dropdown" : (KIND[q.type] ?? "text")) as FieldType;
     // A contact field only takes the types it can hold (Company can't be a dropdown); anything else stays on the form.
     const fits = (k: string) => CONTACT_KEYS.some((c) => c.key === k && (c.types.includes(type) || (k === "email" && type === "text") || (k === "phone" && type === "text")));
     // The email marked data-cl-save="email" is the contact's; only a page with none gives it to its first email.
@@ -548,7 +664,20 @@ export function pageForm(p: { html: string; css: string; brand: string; after: P
       required: q.required && type !== "hidden",
       ...(q.work && type === "email" ? { check: "work_email" } : {}),
       ...(opts ? { options: q.options.length ? q.options : [{ value: "yes", label: "Yes" }] } : {}),
-      ...(b?.type === "file" ? { file: { maxMb: b.maxMb ?? 10, kinds: b.kinds ?? ["pdf", "image", "office"] } } : {}),
+      ...(b?.type === "file" || b?.type === "record" || b?.type === "crop" ? { file: { maxMb: b.maxMb ?? 10, kinds: b.kinds ?? ["pdf", "image", "office"], ...(b.capture ? { capture: true } : {}) } } : {}),
+      ...(b && (BLOCK_UI[b.type] ?? listUi(b)) ? { ui: BLOCK_UI[b.type] ?? listUi(b) } : {}),
+      ...(b?.type === "list" || b?.type === "pictures" || b?.type === "sum" ? { options: b.options ?? [] } : {}),
+      ...(b?.type === "list" && b.by ? { optionsBy: { field: byName(b.by) ?? b.by, map: b.map ?? {} } } : {}),
+      ...(b?.type === "pictures" ? { cards: true, options: (b.options ?? []).map((o, i) => ({ ...o, ...(b.images?.[i] ? { image: b.images[i] } : {}) })) } : {}),
+      ...(b?.type === "products" ? { options: (b.options ?? []).map((o, i) => ({ ...o, score: b.prices?.[i] ?? 0 })), currency: b.currency ?? "USD" } : {}),
+      ...(b?.type === "sum" ? { total: b.total ?? 100 } : {}),
+      ...(b?.type === "amount" ? { amounts: b.amounts ?? [], unit: "money" } : {}),
+      ...(b?.type === "duration" ? { valid: { min: 0 } } : {}),
+      ...(b?.type === "range" ? { valid: { min: b.lo ?? 0, max: b.hi ?? 100, ...(b.step ? { step: b.step } : {}) } } : {}),
+      ...(b?.type === "table" || b?.type === "slots" ? { grid: { rows: b.rows ?? [], cols: b.cols ?? [] } } : {}),
+      ...(b?.type === "group" ? { group: { fields: (b.fields ?? []).map((x, i) => ({ id: `${q.id.slice(0, 18)}r${i}`, type: x.type, label: x.label, required: i === 0 })), max: b.max ?? 5, ...(b.add ? { add: b.add } : {}) } } : {}),
+      ...(b?.type === "address" && b.auto ? { auto: true } : {}),
+      ...((b?.type === "phone" && b.verify) || (!b && q.verify && type === "email") ? { verify: true } : {}),
       ...(b?.type === "rating" ? { rating: { scale: b.scale ?? 5, style: b.style ?? "stars", ...(b.zero ? { zero: true as const } : {}), ...(b.low ? { low: b.low } : {}), ...(b.high ? { high: b.high } : {}) } } : {}),
       ...(b?.type === "grid" ? { grid: { rows: b.rows ?? [], cols: b.cols ?? [] } } : {}),
       ...(b?.type === "ranking" ? { options: b.options ?? [] } : {}),

@@ -8,16 +8,28 @@ export type QType =
   | "choice" | "checks" | "dropdown" | "yesno" | "ranking" | "matrix" | "likert" | "agree"
   | "rating" | "scale" | "nps" | "slider" | "number" | "currency" | "percent" | "payment"
   | "date" | "time" | "datetime" | "month" | "daterange" | "file" | "image" | "signature"
-  | "color" | "hidden" | "heading" | "text" | "divider";
+  | "color" | "hidden" | "heading" | "text" | "divider"
+  // docs/fields-plan.md Part 2 and 3
+  | "language" | "timezone" | "social" | "unit" | "pattern" | "rich" | "range" | "amount" | "duration"
+  | "pictures" | "multiselect" | "longlist" | "dependent" | "toggle" | "semantic" | "faces" | "thumbs" | "sum"
+  | "availability" | "camera" | "crop" | "draw" | "record" | "quiz" | "score" | "calc"
+  | "section" | "group" | "table" | "review" | "progress" | "picture" | "video"
+  | "meeting" | "member" | "location" | "map" | "products";
 
 /** What the Add list shows, in groups. */
 export const QGROUPS: [string, [QType, string][]][] = [
-  ["Contact", [["short", "Short answer"], ["long", "Long answer"], ["email", "Email"], ["phone", "Phone number"], ["name", "Full name"], ["company", "Company"], ["jobtitle", "Job title"], ["website", "Website"], ["address", "Address"], ["country", "Country"], ["birthday", "Date of birth"]]],
-  ["Choices", [["choice", "Multiple choice"], ["checks", "Checkboxes"], ["dropdown", "Dropdown"], ["yesno", "Yes / No"], ["ranking", "Ranking"], ["matrix", "Matrix"], ["likert", "Likert scale"], ["agree", "Agreement"]]],
-  ["Ratings and numbers", [["rating", "Rating"], ["scale", "Opinion scale"], ["nps", "Net Promoter Score"], ["slider", "Slider"], ["number", "Number"], ["currency", "Currency"], ["percent", "Percentage"], ["payment", "Payment"]]],
-  ["Date, time and files", [["date", "Date picker"], ["time", "Time picker"], ["datetime", "Date and time"], ["month", "Month"], ["daterange", "Date range"], ["file", "File upload"], ["image", "Image upload"], ["signature", "Signature"]]],
-  ["Advanced", [["color", "Color picker"], ["hidden", "Hidden field"]]],
-  ["Display", [["heading", "Heading"], ["text", "Paragraph"], ["divider", "Divider"]]],
+  ["Contact", [["short", "Short answer"], ["long", "Long answer"], ["email", "Email"], ["phone", "Phone number"], ["name", "Full name"], ["company", "Company"], ["jobtitle", "Job title"], ["website", "Website"], ["social", "Social profile"], ["address", "Address"], ["country", "Country"], ["language", "Language"], ["timezone", "Time zone"], ["birthday", "Date of birth"]]],
+  ["Text", [["pattern", "Formatted text"], ["rich", "Rich text"]]],
+  ["Choices", [["choice", "Multiple choice"], ["checks", "Checkboxes"], ["dropdown", "Dropdown"], ["multiselect", "Multi-select dropdown"], ["longlist", "Searchable list"], ["dependent", "Dependent dropdown"], ["pictures", "Picture choice"], ["yesno", "Yes / No"], ["toggle", "Toggle"], ["ranking", "Ranking"], ["matrix", "Matrix"], ["likert", "Likert scale"], ["agree", "Agreement"]]],
+  ["Ratings", [["rating", "Rating"], ["scale", "Opinion scale"], ["nps", "Net Promoter Score"], ["faces", "Smiley scale"], ["thumbs", "Thumbs up or down"], ["semantic", "Semantic scale"], ["sum", "Points to spread"]]],
+  ["Numbers and payments", [["number", "Number"], ["unit", "Number with unit"], ["slider", "Slider"], ["range", "Range slider"], ["currency", "Currency"], ["percent", "Percentage"], ["amount", "Amount picker"], ["products", "Product picker"], ["payment", "Payment"]]],
+  ["Date and time", [["date", "Date picker"], ["time", "Time picker"], ["datetime", "Date and time"], ["month", "Month"], ["daterange", "Date range"], ["duration", "Duration"], ["availability", "Availability grid"]]],
+  ["Files and media", [["file", "File upload"], ["image", "Image upload"], ["camera", "Camera photo"], ["crop", "Image with crop"], ["record", "Audio or video answer"], ["signature", "Signature"], ["draw", "Drawing"]]],
+  ["Location", [["location", "Current location"], ["map", "Map pin"]]],
+  ["Quiz and logic", [["quiz", "Quiz question"], ["score", "Score"], ["calc", "Calculation"], ["hidden", "Hidden field"], ["color", "Color picker"]]],
+  ["Structure", [["section", "Section"], ["group", "Repeating group"], ["table", "Table input"], ["review", "Answer review"], ["progress", "Progress bar"]]],
+  ["Workspace", [["meeting", "Meeting type"], ["member", "Team member"]]],
+  ["Display", [["heading", "Heading"], ["text", "Paragraph"], ["divider", "Divider"], ["picture", "Image"], ["video", "Video"]]],
 ];
 export const QNAME = Object.fromEntries(QGROUPS.flatMap(([, xs]) => xs)) as Record<QType, string>;
 
@@ -29,6 +41,13 @@ const LABEL: Record<QType, string> = {
   matrix: "Rate each of the following", likert: "How much do you agree with each statement?", agree: "I agree to the terms and conditions",
   nps: "How likely are you to recommend us to a friend?", slider: "How satisfied are you?", currency: "Budget", percent: "Percentage",
   datetime: "Select a date and time", month: "Select a month", daterange: "Select your dates", image: "Upload an image", color: "Pick a color", hidden: "Hidden field",
+  language: "Preferred language", timezone: "Time zone", social: "LinkedIn profile", unit: "Weight", pattern: "ZIP code", rich: "Tell us more",
+  range: "Budget range", amount: "Choose an amount", duration: "How long?", pictures: "Pick one", multiselect: "Select all that apply",
+  longlist: "Search and select", dependent: "Select an option", toggle: "Send me updates", semantic: "How was it?", faces: "How do you feel?",
+  thumbs: "Was this helpful?", sum: "Spread 100 points by importance", availability: "When are you available?", camera: "Take a photo",
+  crop: "Upload a profile picture", draw: "Draw it", record: "Record your answer", quiz: "Question 1", score: "Your score", calc: "Total",
+  section: "Section", group: "Who's coming?", table: "Fill in the table", review: "", progress: "", picture: "Image", video: "Video",
+  meeting: "Which meeting?", member: "Who would you like to meet?", location: "Your location", map: "Drop a pin", products: "Choose your products",
   heading: "Section heading", text: "Add a short description for this section.", divider: "",
 };
 /** The name a new question's answer goes under, before it's made unique. */
@@ -38,11 +57,16 @@ const BASE: Record<QType, string> = {
   file: "file", signature: "signature", name: "name", company: "company", jobtitle: "job_title", website: "website", country: "country",
   birthday: "birthday", matrix: "matrix", likert: "agreement", agree: "terms", nps: "nps", slider: "satisfaction", currency: "budget",
   percent: "percent", datetime: "date_time", month: "month", daterange: "dates", image: "image", color: "color", hidden: "ref",
+  language: "language", timezone: "time_zone", social: "linkedin", unit: "weight", pattern: "zip", rich: "details", range: "range",
+  amount: "amount", duration: "duration", pictures: "picture", multiselect: "picks", longlist: "pick", dependent: "subcategory",
+  toggle: "updates", semantic: "ease", faces: "mood", thumbs: "helpful", sum: "points", availability: "availability", camera: "photo",
+  crop: "photo", draw: "drawing", record: "recording", quiz: "q1", score: "score", calc: "total", section: "", group: "guests", table: "table",
+  review: "", progress: "", picture: "image", video: "video", meeting: "meeting", member: "person", location: "location", map: "pin", products: "products",
   heading: "", text: "", divider: "",
 };
 /** The contact field a new question saves to, when the page has none yet. */
 export const SAVES: Partial<Record<QType, string>> = { email: "email", phone: "phone", name: "name", company: "company", jobtitle: "title", website: "website", country: "country" };
-export const isLayout = (t: QType) => t === "heading" || t === "text" || t === "divider";
+export const isLayout = (t: QType) => t === "heading" || t === "text" || t === "divider" || t === "section" || t === "review" || t === "progress";
 
 const esc = (s: unknown) => String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 
@@ -58,15 +82,36 @@ export function uniqueName(base: string, taken: Iterable<string>): string {
  * A new question's HTML in the classes every page's brand styles (q, label, field, choices, choice, help, error), as
  * Form Studio writes it. `name` is its answer's name; `save` is "email" for the page's first email.
  */
-export function questionHtml(type: QType, name: string, o: { save?: string } = {}): string {
+/** Languages offered by the Language field, by code; their names come from the browser in the page's language. */
+const LANGS = "en es fr de it pt nl sv no da fi pl cs sk hu ro bg el tr ru uk ar he fa hi bn ur ta te mr th vi id ms tl zh ja ko sw am yo zu af ca eu gl hr sr sl lt lv et is ga cy".split(" ");
+export function languageOptions(locale = "en"): string[] {
+  try {
+    const dn = new Intl.DisplayNames([locale], { type: "language" });
+    return LANGS.map((c) => dn.of(c) ?? c).sort((a, b) => a.localeCompare(b));
+  } catch {
+    return LANGS;
+  }
+}
+/** Every time zone the browser knows, as IANA names (America/New_York). */
+export function timeZoneOptions(): string[] {
+  try {
+    return (Intl as unknown as { supportedValuesOf(k: string): string[] }).supportedValuesOf("timeZone");
+  } catch {
+    return ["UTC", "America/New_York", "America/Chicago", "America/Denver", "America/Los_Angeles", "Europe/London", "Europe/Paris", "Asia/Tokyo", "Australia/Sydney"];
+  }
+}
+const pipeList = (xs: string[]) => xs.map((x) => x.replace(/\|/g, "/")).join("|");
+
+export function questionHtml(type: QType, name: string, o: { save?: string; options?: string[]; parent?: string } = {}): string {
   const id = `q_${name}`;
   const label = LABEL[type];
   const err = `<p class="error" data-cl-error-for="${name}"></p>`;
   const lab = `<label class="label" for="${id}">${esc(label)}</label>`;
   const save = o.save ? ` data-cl-save="${o.save}"` : "";
   const block = (field: string, extra = "") => `<div class="q"><div data-cl-field="${field}" data-cl-name="${name}" data-cl-label="${esc(label)}"${save}${extra} id="${id}"></div></div>`;
-  const choices = (t: "radio" | "checkbox", opts: string[]) =>
-    `<fieldset class="q"><legend class="label">${esc(label)}</legend><div class="choices">${opts.map((x, i) => `<label class="choice"><input type="${t}" name="${name}" value="${esc(x)}"${i === 0 ? ` data-cl-label="${esc(label)}"` : ""}> ${esc(x)}</label>`).join("")}</div>${err}</fieldset>`;
+  const choices = (t: "radio" | "checkbox", opts: string[], scores?: number[], extra = "") =>
+    `<fieldset class="q"${extra}><legend class="label">${esc(label)}</legend><div class="choices">${opts.map((x, i) => `<label class="choice"><input type="${t}" name="${name}" value="${esc(x)}"${scores ? ` data-cl-score="${scores[i] ?? 0}"` : ""}${i === 0 ? ` data-cl-label="${esc(label)}"` : ""}> ${esc(x)}</label>`).join("")}</div>${err}</fieldset>`;
+  const select = (opts: string[]) => `<div class="q">${lab}<select class="field" id="${id}" name="${name}"><option value="">Choose one</option>${opts.map((x) => `<option value="${esc(x)}">${esc(x)}</option>`).join("")}</select>${err}</div>`;
   switch (type) {
     case "short":
       return `<div class="q">${lab}<input class="field" id="${id}" name="${name}" type="text"${save}>${err}</div>`;
@@ -93,7 +138,7 @@ export function questionHtml(type: QType, name: string, o: { save?: string } = {
     case "color":
       return `<div class="q">${lab}<input id="${id}" name="${name}" type="color">${err}</div>`;
     case "agree":
-      return `<div class="q"><label class="choice"><input type="checkbox" id="${id}" name="${name}" value="Yes" required data-cl-label="${esc(label)}"> ${esc(label)}</label>${err}</div>`;
+      return `<div class="q"><label class="choice"><input type="checkbox" id="${id}" name="${name}" value="Yes" required data-cl-label="${esc(label)}"> I agree to the <a href="https://example.com/terms" target="_blank" rel="noopener">terms and conditions</a></label>${err}</div>`;
     case "country":
       return block("country");
     case "daterange":
@@ -106,6 +151,86 @@ export function questionHtml(type: QType, name: string, o: { save?: string } = {
       return block("grid", ` data-cl-rows="Statement 1|Statement 2|Statement 3" data-cl-cols="Strongly disagree|Disagree|Neutral|Agree|Strongly agree"`);
     case "nps":
       return block("rating", ` data-cl-scale="10" data-cl-style="numbers" data-cl-zero data-cl-low="Not likely" data-cl-high="Very likely"`);
+    case "social":
+      return `<div class="q">${lab}<input class="field" id="${id}" name="${name}" type="url" placeholder="https://linkedin.com/in/yourname" inputmode="url">${err}</div>`;
+    case "language":
+      return block("list", ` data-cl-options="${esc(pipeList(o.options ?? languageOptions()))}"`);
+    case "timezone":
+      return block("list", ` data-cl-options="${esc(pipeList(o.options ?? timeZoneOptions()))}"`);
+    case "longlist":
+      return block("list", ` data-cl-options="${esc(pipeList(o.options ?? ["Option 1", "Option 2", "Option 3"]))}"`);
+    case "multiselect":
+      return block("list", ` data-cl-multi data-cl-options="${esc(pipeList(o.options ?? ["Option 1", "Option 2", "Option 3"]))}"`);
+    case "dependent": {
+      // The list it follows comes first: each of its answers has its own options below.
+      const parent = o.parent ?? `${name}_parent`;
+      const pid = `q_${parent}`;
+      return `<div class="q"><label class="label" for="${pid}">Category</label><select class="field" id="${pid}" name="${parent}"><option value="">Choose one</option><option value="Category A">Category A</option><option value="Category B">Category B</option></select><p class="error" data-cl-error-for="${parent}"></p></div>${block("list", ` data-cl-by="${parent}" data-cl-map="Category A=&gt;Option 1|Option 2
+Category B=&gt;Option 3|Option 4"`)}`;
+    }
+    case "pictures":
+      return block("pictures", ` data-cl-options="Option 1|Option 2|Option 3" data-cl-images="||"`);
+    case "toggle":
+      return `<div class="q"><label class="choice cl-switch"><input type="checkbox" role="switch" id="${id}" name="${name}" value="Yes" data-cl-label="${esc(label)}"> ${esc(label)}</label>${err}</div>`;
+    case "unit":
+      return `<div class="q">${lab}<div class="cl-unit"><input class="field" id="${id}" name="${name}" type="number" inputmode="decimal" step="any"><span class="cl-unit-tx">kg</span></div>${err}</div>`;
+    case "pattern":
+      return `<div class="q">${lab}<input class="field" id="${id}" name="${name}" type="text" inputmode="numeric" pattern="[0-9]{5}" title="Enter 5 digits." placeholder="12345" autocomplete="postal-code">${err}</div>`;
+    case "rich":
+      return block("rich");
+    case "range":
+      return block("range", ` data-cl-min="0" data-cl-max="10000" data-cl-step="100"`);
+    case "amount":
+      return block("amount", ` data-cl-amounts="10|25|50|100" data-cl-currency="USD"`);
+    case "duration":
+      return block("duration");
+    case "semantic":
+      return block("rating", ` data-cl-scale="7" data-cl-style="numbers" data-cl-low="Difficult" data-cl-high="Easy"`);
+    case "faces":
+      return block("rating", ` data-cl-scale="5" data-cl-style="faces"`);
+    case "thumbs":
+      return block("rating", ` data-cl-style="thumbs"`);
+    case "sum":
+      return block("sum", ` data-cl-options="Price|Quality|Support" data-cl-total="100"`);
+    case "availability":
+      return block("slots", ` data-cl-rows="Monday|Tuesday|Wednesday|Thursday|Friday" data-cl-cols="Morning|Afternoon|Evening"`);
+    case "camera":
+      return block("file", ` data-cl-kinds="image" data-cl-max="10" data-cl-capture`);
+    case "crop":
+      return block("crop", ` data-cl-max="10"`);
+    case "draw":
+      return block("draw");
+    case "record":
+      return block("record", ` data-cl-kinds="audio" data-cl-max="20"`);
+    case "location":
+      return block("location");
+    case "map":
+      return block("map");
+    case "products":
+      return block("products", ` data-cl-options="Product A|Product B" data-cl-prices="20|35" data-cl-currency="USD"`);
+    case "quiz":
+      return choices("radio", ["Correct answer", "Wrong answer", "Wrong answer 2"], [1, 0, 0], " data-cl-quiz");
+    case "score":
+      return block("calc", ` data-cl-quiz data-cl-formula="0"`);
+    case "calc":
+      return block("calc", ` data-cl-formula="0"`);
+    case "group":
+      return block("group", ` data-cl-fields="Name::text|Email::email" data-cl-max="5" data-cl-add="Add another"`);
+    case "table":
+      return block("table", ` data-cl-rows="Item 1|Item 2|Item 3" data-cl-cols="Quantity|Notes"`);
+    case "meeting":
+    case "member":
+      return select(o.options?.length ? o.options : type === "meeting" ? ["Intro call"] : ["Anyone"]);
+    case "picture":
+      return block("image", ` data-cl-src="" data-cl-alt=""`);
+    case "video":
+      return block("video", ` data-cl-src=""`);
+    case "section":
+      return `<section class="cl-section" data-cl-section><h3 class="heading">Section</h3><p class="text">Add fields to this section.</p></section>`;
+    case "review":
+      return `<div class="cl-review" data-cl-review></div>`;
+    case "progress":
+      return `<div class="cl-progress" data-cl-progress><i></i></div>`;
     case "hidden":
       return `<div data-cl-field="hidden" data-cl-name="${name}" data-cl-label="${name}" data-cl-from="param" data-cl-param="${name}"></div>`;
     case "email":

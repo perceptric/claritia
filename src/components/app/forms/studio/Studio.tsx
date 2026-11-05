@@ -295,6 +295,10 @@ export function Studio({ sb, session, ws, navigate, formId = "", chatId = "", fr
         return r;
       },
       openForm: (id) => navRef.current("forms", id),
+      people: async () => {
+        const screen = await rt<Screen>(sessionRef.current, ws.id, "rt_screen").catch(() => null);
+        return [...new Set((screen?.people ?? []).map((p) => (p as { name?: string | null; email?: string | null }).name || (p as { email?: string | null }).email || "").filter(Boolean))].slice(0, 200);
+      },
     };
     const ctl = mountStudio(shell, api);
     if (controlRef) controlRef.current = ctl;

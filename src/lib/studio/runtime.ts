@@ -45,6 +45,13 @@ export function limitMsg(el: HTMLInputElement, group: HTMLInputElement[]): strin
     hi = Number(el.getAttribute("maxlength"));
   if (lo > 0 && t.length < lo) return `Write at least ${lo} characters.`;
   if (hi > 0 && t.length > hi) return `Keep it under ${hi} characters.`;
+  // Formatted text (a ZIP code, an ID): the page's own pattern, with its own words for a miss.
+  const pat = el.getAttribute("pattern");
+  if (pat) {
+    try {
+      if (!new RegExp(`^(?:${pat})$`).test(t)) return el.getAttribute("title") || "Check the format.";
+    } catch {}
+  }
   if (el.type === "number") {
     const n = Number(t),
       a = el.getAttribute("min"),
@@ -73,8 +80,21 @@ export function pageValues(w: ParentNode): Vals {
   return v;
 }
 
+const DAY = /^\d{4}-\d{2}-\d{2}/;
+/** Today as YYYY-MM-DD where the visitor is, N days on. */
+const dayAt = (n: number) => {
+  const d = new Date(Date.now() + n * 864e5);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+};
+
 function clause(c: string, v: Vals): boolean {
-  let m = /^([\w-]+)\s+(filled|empty)$/i.exec(c);
+  // A date within the next N days: move_in within 30 days.
+  let m = /^([\w-]+)\s+within\s+(\d{1,4})\s+days$/i.exec(c);
+  if (m) {
+    const x = String(v[m[1]!] ?? "").slice(0, 10);
+    return DAY.test(x) && x >= dayAt(0) && x <= dayAt(Number(m[2]));
+  }
+  m = /^([\w-]+)\s+(filled|empty)$/i.exec(c);
   if (m) {
     const x = v[m[1]!];
     const f = Array.isArray(x) ? x.length > 0 : !!x;
@@ -93,6 +113,12 @@ function clause(c: string, v: Vals): boolean {
   const list = Array.isArray(x) ? x : [x ?? ""];
   if (m[2] === "==") return list.includes(val);
   if (m[2] === "!=") return !list.includes(val);
+  // Dates compare as days: start < '2026-12-01' is "before December 1".
+  if (DAY.test(String(list[0])) && DAY.test(val)) {
+    const a = String(list[0]).slice(0, 10),
+      b = val.slice(0, 10);
+    return m[2] === ">" ? a > b : m[2] === "<" ? a < b : m[2] === ">=" ? a >= b : a <= b;
+  }
   const n = Number(list[0]);
   const t = Number(val);
   if (!Number.isFinite(n) || !Number.isFinite(t)) return false;
@@ -177,6 +203,7 @@ export function linkErrors(w: ParentNode) {
 
 /** Focus always shows, choice cards with hidden inputs too, and motion stops for people who ask for less. */
 export const ACCESS_CSS =
+  ".cl-unit{display:flex;align-items:center;gap:8px}.cl-unit>input{flex:1;min-width:0}.cl-switch input{appearance:none;-webkit-appearance:none;width:36px;height:20px;border-radius:999px;background:rgba(127,127,127,.45);position:relative;flex:none;margin:0;cursor:pointer}.cl-switch input::after{content:'';position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:#fff;transition:transform .15s}.cl-switch input:checked{background:var(--brand-primary,#111)}.cl-switch input:checked::after{transform:translateX(16px)}.cl-section{display:flex;flex-direction:column;gap:inherit}.cl-progress{height:6px;border-radius:999px;background:rgba(127,127,127,.2);overflow:hidden}.cl-progress>i{display:block;height:100%;width:calc(var(--cl-progress,0)*100%);background:var(--brand-primary,currentColor);transition:width .3s}.cl-review{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,2fr);gap:6px 16px;margin:0}.cl-review dt{opacity:.7}.cl-review dd{margin:0;overflow-wrap:anywhere}.cl-timer{font-variant-numeric:tabular-nums}" +
   "@layer base{:where(input,button,select,textarea,a,summary):focus-visible{outline:2px solid currentColor;outline-offset:2px}label:has(input:focus-visible){outline:2px solid currentColor;outline-offset:2px}}@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important;scroll-behavior:auto!important}}";
 
 /** Run a page in `w`. `onSend` gets the answers once every shown question checks out. */
@@ -188,6 +215,40 @@ export function runPage(w: HTMLElement, onSend: (v: Vals) => void): PageRun {
   shuffle(w);
   let finished = false;
   const errFor = (n: string) => w.querySelector<HTMLElement>(`[data-cl-error-for="${CSS.escape(n)}"]`);
+  // A page with a timer (data-cl-timer, in seconds) moves on by itself when its time is up.
+  let timed = -1;
+  let tick = 0;
+  const timer = () => {
+    const st = steps[at];
+    const secs = Number(st?.getAttribute("data-cl-timer"));
+    if (finished || !st || !(secs > 0)) {
+      clearInterval(tick);
+      timed = -1;
+      return;
+    }
+    if (timed === at) return;
+    clearInterval(tick);
+    timed = at;
+    const end = Date.now() + secs * 1000;
+    let left = st.querySelector<HTMLElement>("[data-cl-timer-left]");
+    if (!left) {
+      left = document.createElement("p");
+      left.className = "text cl-timer";
+      left.setAttribute("data-cl-timer-left", "");
+      left.setAttribute("aria-live", "off");
+      st.prepend(left);
+    }
+    const show = () => {
+      const s = Math.max(0, Math.ceil((end - Date.now()) / 1000));
+      left!.textContent = `Time left ${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+      if (s > 0) return;
+      clearInterval(tick);
+      if (at < steps.length - 1) move(1);
+      else send();
+    };
+    show();
+    tick = window.setInterval(show, 500);
+  };
   const apply = () => {
     const v = pageValues(w);
     w.querySelectorAll<HTMLElement>("[data-cl-show-if]").forEach((el) => {
@@ -202,6 +263,7 @@ export function runPage(w: HTMLElement, onSend: (v: Vals) => void): PageRun {
     const p = steps.length ? (finished ? 1 : (Math.max(0, pos) + 1) / Math.max(1, shown.length)) : finished ? 1 : 0;
     w.querySelectorAll<HTMLElement>("[data-cl-progress]").forEach((el) => el.style.setProperty("--cl-progress", String(p)));
     pipes(w, v);
+    timer();
     return shown;
   };
   const visible = (scope: ParentNode) => [...scope.querySelectorAll<HTMLInputElement>("input[name],textarea[name],select[name]")].filter((el) => el.type !== "hidden" && !el.closest("[hidden]"));

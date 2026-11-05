@@ -61,6 +61,7 @@ export function formPayStripe(stripe: Stripe): FormPayStripe {
           payment_intent_data: { metadata: meta },
           success_url: p.successUrl,
           cancel_url: p.cancelUrl,
+          ...(p.coupons ? { allow_promotion_codes: true } : {}),
         },
         { stripeAccount: account, idempotencyKey: `form-checkout-${p.submissionId}` },
       );

@@ -49,6 +49,15 @@ export type FieldType =
   | "daterange"
   | "group"
   | "signature"
+  // docs/fields-plan.md Part 2: points spread over options; a lowest and highest number; a table of rows and columns to
+  // fill in; the times that work, many per row; products with how many of each.
+  | "sum"
+  | "range"
+  | "table"
+  | "slots"
+  | "products"
+  // A video from YouTube, Vimeo or Loom, shown on the form (content).
+  | "video"
   // A payment block (docs/form-kinds-plan.md step 3): the total shows on the form, and Stripe Checkout opens after the
   // send, on the workspace's own account.
   | "payment";
@@ -59,13 +68,13 @@ export const PAY_CURRENCIES = ["USD", "EUR", "GBP", "CAD", "AUD", "NZD", "SGD", 
 const ZERO_DECIMAL = new Set(["JPY"]);
 
 /** Answers that are more than one value (an address, a grid, a date range, group rows): kept on the fill only. */
-export const STRUCTURED: FieldType[] = ["ranking", "address", "grid", "daterange", "group", "signature"];
+export const STRUCTURED: FieldType[] = ["ranking", "address", "grid", "daterange", "group", "signature", "sum", "range", "table", "slots", "products"];
 /** The parts of an address answer, in order. */
 export const ADDRESS_PARTS = ["line1", "line2", "city", "region", "postal", "country"] as const;
 /** The question types a group row can hold. */
 export const GROUP_TYPES: FieldType[] = ["text", "email", "phone", "number", "dropdown", "date"];
 
-export const CONTENT_TYPES: FieldType[] = ["heading", "paragraph", "divider", "image", "result", "html", "payment"];
+export const CONTENT_TYPES: FieldType[] = ["heading", "paragraph", "divider", "image", "video", "result", "html", "payment"];
 export const isContent = (t: FieldType) => CONTENT_TYPES.includes(t);
 /** Types that hold one choice from a list: cards or a dropdown. */
 export const isChoice = (t: FieldType) => t === "choice" || t === "multi" || t === "dropdown";
@@ -166,11 +175,11 @@ export type Field = {
   other?: boolean;
   shuffle?: boolean;
   /** zero: the scale starts at 0 (0 to 10 for NPS). */
-  rating?: { scale: number; style: "stars" | "numbers"; low?: string; high?: string; zero?: true };
+  rating?: { scale: number; style: "stars" | "numbers" | "faces" | "thumbs"; low?: string; high?: string; zero?: true };
   /** Grid: the rows asked about, each answered with one of the columns. */
   grid?: { rows: Choice[]; cols: Choice[] };
   /** Payment: the amount from a calc (its value, in the currency's main unit) or a fixed amount, and the currency. */
-  pay?: { field?: string; amount?: number; currency: string };
+  pay?: { field?: string; amount?: number; currency: string; coupons?: true };
   /** Group: the small questions in each row, and how many rows. */
   group?: { fields: Field[]; min?: number; max: number; add?: string };
   /** How this field's rules combine for each action: any one of them (the default) or all of them. */
@@ -188,16 +197,36 @@ export type Field = {
   result?: ResultBlock;
   /** Pick one and pick many: the choices' scores stay on the server (a quiz's answer key). */
   secret?: true;
-  /** File upload: the biggest file in MB (up to 20) and the kinds it takes. */
-  file?: { maxMb: number; kinds: FileKind[] };
+  /** File upload: the biggest file in MB (up to 20) and the kinds it takes; capture opens the camera on phones. */
+  file?: { maxMb: number; kinds: FileKind[]; capture?: true };
+  /**
+   * How the form script draws it (docs/fields-plan.md): multi as a dropdown, a number as hours and minutes or as amounts
+   * to pick, long answers with formatting, a drawing, a location (one tap, or a pin on a map), a recording, a cropped
+   * picture.
+   */
+  ui?: FieldUi;
+  /** Number with ui "amounts": the amounts offered (a donation, a tip); any other amount can be typed. */
+  amounts?: number[];
+  /** Points to spread: the total the answers add up to. */
+  total?: number;
+  /** Email or phone: a code is sent to it, and the form sends only once it's typed. */
+  verify?: true;
+  /** Address: suggestions as it's typed, when the map service is set up. */
+  auto?: true;
+  /** Products: the currency of their prices (each product's price is its option's score). */
+  currency?: string;
 };
+
+export type FieldUi = "dropdown" | "duration" | "amounts" | "rich" | "draw" | "location" | "map" | "record" | "crop";
+/** The ways each type can be drawn. */
+export const UI_FOR: Partial<Record<FieldType, FieldUi[]>> = { multi: ["dropdown"], number: ["duration", "amounts"], textarea: ["rich"], signature: ["draw"], text: ["location", "map"], file: ["record", "crop"] };
 
 /**
  * What a result block shows. metric: one calc. meter: a calc out of max. summary: the listed calcs as lines, the last
  * as the total. bars: the listed calcs side by side. outcome: the outcome's title and text. email: "Email my results".
  */
-export type FileKind = "pdf" | "image" | "office";
-export const FILE_KINDS: FileKind[] = ["pdf", "image", "office"];
+export type FileKind = "pdf" | "image" | "office" | "audio" | "video";
+export const FILE_KINDS: FileKind[] = ["pdf", "image", "office", "audio", "video"];
 /** A file answer: the upload's id and the name it was sent with. */
 export const FILE_ANSWER = /^up_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}:[^\n/\\]{1,120}$/;
 
@@ -426,6 +455,12 @@ export const FIELD_TYPES: { value: FieldType; label: string }[] = [
   { value: "group", label: "Repeating group" },
   { value: "signature", label: "Signature" },
   { value: "payment", label: "Payment" },
+  { value: "sum", label: "Points to spread" },
+  { value: "range", label: "Range" },
+  { value: "table", label: "Table" },
+  { value: "slots", label: "Availability" },
+  { value: "products", label: "Products" },
+  { value: "video", label: "Video" },
   { value: "result", label: "Result" },
   { value: "html", label: "Section" },
   { value: "heading", label: "Heading" },
@@ -448,7 +483,7 @@ export const CONTACT_KEYS: { key: FieldKey; label: string; types: FieldType[] }[
   { key: "region", label: "State or region", types: ["text", "choice", "dropdown"] },
 ];
 
-export const LIMITS = { steps: 10, fields: 40, options: 100, rules: 50, label: 300, text: 1000, value: 5000, constants: 50, outcomes: 12, conds: 10 };
+export const LIMITS = { steps: 10, fields: 60, options: 100, longList: 10000, rules: 50, label: 300, text: 1000, value: 5000, constants: 50, outcomes: 12, conds: 10 };
 export const DEFAULT_CONSENT = "I agree to receive emails. I can unsubscribe at any time.";
 export const DEFAULT_NOTICE = "By sending this, you agree we may email you about our products. You can unsubscribe at any time.";
 
@@ -586,6 +621,11 @@ function contentBlock(id: string, type: FieldType, fo: Record<string, unknown>, 
     const alt = str(c.alt, 200);
     if (alt) content.alt = alt;
   }
+  if (type === "video") {
+    const src = videoEmbed(str(c.src, 1000) ?? "");
+    if (!src) errors.push(`${name === "A field" ? "A video" : name} needs a YouTube, Vimeo or Loom link.`);
+    content.src = src ?? "";
+  }
   if (type === "html") {
     const html = cleanHtml(typeof c.html === "string" ? c.html : "");
     if (!html) errors.push(`${name === "A field" ? "A section" : name} is empty or too long.`);
@@ -607,7 +647,7 @@ function contentBlock(id: string, type: FieldType, fo: Record<string, unknown>, 
     const field = str(po.field, 24);
     const amount = Number(po.amount);
     const currency = (str(po.currency, 3) ?? "USD").toUpperCase();
-    f.pay = { currency: PAY_CURRENCIES.includes(currency) ? currency : "USD", ...(field && ID.test(field) ? { field } : Number.isFinite(amount) && amount > 0 ? { amount: Math.min(Math.round(amount * 100) / 100, 100000) } : {}) };
+    f.pay = { currency: PAY_CURRENCIES.includes(currency) ? currency : "USD", ...(field && ID.test(field) ? { field } : Number.isFinite(amount) && amount > 0 ? { amount: Math.min(Math.round(amount * 100) / 100, 100000) } : {}), ...(po.coupons === true ? { coupons: true as const } : {}) };
     if (!f.pay.field && !f.pay.amount) errors.push(`${name === "A field" ? "A payment" : name} needs an amount or a calculation to charge.`);
   }
   if (c.align === "center") content.align = "center";
@@ -631,16 +671,16 @@ function validation(type: FieldType, raw: unknown, name: string, errors: string[
   const r = raw as Record<string, unknown>;
   const v: Validation = {};
   const num = (x: unknown) => (typeof x === "number" && Number.isFinite(x) ? x : typeof x === "string" && x.trim() !== "" && Number.isFinite(Number(x)) ? Number(x) : undefined);
-  const counted = type === "text" || type === "textarea" || type === "number" || type === "multi" || type === "rating" || type === "url";
+  const counted = type === "text" || type === "textarea" || type === "number" || type === "multi" || type === "rating" || type === "url" || type === "range";
   if (counted) {
     const min = num(r.min);
     const max = num(r.max);
-    const whole = type !== "number";
+    const whole = type !== "number" && type !== "range";
     if (min !== undefined) v.min = whole ? Math.max(0, Math.round(min)) : min;
     if (max !== undefined) v.max = whole ? Math.max(0, Math.round(max)) : max;
     if (v.min !== undefined && v.max !== undefined && v.min > v.max) errors.push(`${name}: the lowest is above the highest.`);
   }
-  if (type === "number") {
+  if (type === "number" || type === "range") {
     const step = num(r.step);
     if (step !== undefined && step > 0) v.step = step;
   }
@@ -753,9 +793,11 @@ export function checkForm(raw: unknown, ctx: Ctx = {}): { form: Form } | { error
         const ro = (fo.rating && typeof fo.rating === "object" ? fo.rating : {}) as Record<string, unknown>;
         const scale = Math.round(Number(ro.scale ?? 5));
         const zero = ro.zero === true && ro.style === "numbers";
+        const style = ro.style === "numbers" || ro.style === "faces" || ro.style === "thumbs" ? ro.style : "stars";
         f.rating = {
-          scale: Number.isFinite(scale) ? Math.min(Math.max(scale, 3), 10) : 5,
-          style: ro.style === "numbers" ? "numbers" : "stars",
+          // Thumbs are up or down; faces are five.
+          scale: style === "thumbs" ? 2 : style === "faces" ? 5 : Number.isFinite(scale) ? Math.min(Math.max(scale, 3), 10) : 5,
+          style,
           ...(zero ? { zero: true as const } : {}),
           ...(str(ro.low, 60) ? { low: str(ro.low, 60) } : {}),
           ...(str(ro.high, 60) ? { high: str(ro.high, 60) } : {}),
@@ -767,7 +809,8 @@ export function checkForm(raw: unknown, ctx: Ctx = {}): { form: Form } | { error
         if (fo.shuffle === true) f.shuffle = true;
       }
       if (type === "choice" || type === "multi" || type === "dropdown") {
-        f.options = choices(fo.options, LIMITS.options);
+        // A dropdown searches as it's typed in, so it can hold a long list (countries' states, every product).
+        f.options = choices(fo.options, type === "dropdown" ? LIMITS.longList : LIMITS.options);
         const by = readOptionsBy(fo.optionsBy);
         if (by) f.optionsBy = by;
         else if (!f.options.length) errors.push(`${name} needs at least one option.`);
@@ -782,7 +825,36 @@ export function checkForm(raw: unknown, ctx: Ctx = {}): { form: Form } | { error
         const fl = (fo.file && typeof fo.file === "object" ? fo.file : {}) as Record<string, unknown>;
         const mb = Math.round(Number(fl.maxMb ?? 10));
         const kinds = Array.isArray(fl.kinds) ? [...new Set(fl.kinds.filter((k): k is FileKind => FILE_KINDS.includes(k as FileKind)))] : [];
-        f.file = { maxMb: Number.isFinite(mb) ? Math.min(Math.max(mb, 1), 20) : 10, kinds: kinds.length ? kinds : ["pdf", "image", "office"] };
+        f.file = { maxMb: Number.isFinite(mb) ? Math.min(Math.max(mb, 1), 20) : 10, kinds: kinds.length ? kinds : ["pdf", "image", "office"], ...(fl.capture === true ? { capture: true as const } : {}) };
+      }
+      const ui = typeof fo.ui === "string" && UI_FOR[type]?.includes(fo.ui as FieldUi) ? (fo.ui as FieldUi) : undefined;
+      if (ui) f.ui = ui;
+      if (ui === "record" && !f.file?.kinds.some((k) => k === "audio" || k === "video")) errors.push(`${name}: a recording takes audio or video.`);
+      if (ui === "amounts") {
+        const list = (Array.isArray(fo.amounts) ? fo.amounts : []).map(Number).filter((n) => Number.isFinite(n) && n > 0 && n <= 1_000_000);
+        f.amounts = [...new Set(list.map((n) => Math.round(n * 100) / 100))].slice(0, 8);
+        if (!f.amounts.length) errors.push(`${name} needs at least one amount to offer.`);
+      }
+      if (fo.verify === true && (type === "email" || type === "phone")) f.verify = true;
+      if (fo.auto === true && type === "address") f.auto = true;
+      if (type === "sum") {
+        f.options = choices(fo.options, 12);
+        const total = Math.round(Number(fo.total ?? 100));
+        f.total = Number.isFinite(total) && total > 0 ? Math.min(total, 100000) : 100;
+        if (f.options.length < 2) errors.push(`${name} needs at least two things to spread points over.`);
+      }
+      if (type === "range" && (f.valid?.min === undefined || f.valid?.max === undefined || f.valid.max <= f.valid.min)) errors.push(`${name} needs a lowest and a highest value.`);
+      if (type === "table" || type === "slots") {
+        const g = (fo.grid && typeof fo.grid === "object" ? fo.grid : {}) as Record<string, unknown>;
+        f.grid = { rows: choices(g.rows, type === "slots" ? 14 : 20), cols: choices(g.cols, type === "slots" ? 24 : 8) };
+        if (!f.grid.rows.length || !f.grid.cols.length) errors.push(`${name} needs rows and columns.`);
+      }
+      if (type === "products") {
+        f.options = choices(fo.options, 50);
+        if (!f.options.length) errors.push(`${name} needs at least one product.`);
+        if (f.options.some((o) => o.score === undefined || o.score < 0)) errors.push(`${name} needs a price for every product.`);
+        const cur = (str(fo.currency, 3) ?? "USD").toUpperCase();
+        f.currency = PAY_CURRENCIES.includes(cur) ? cur : "USD";
       }
       if (STRUCTURED.includes(type) && !key.startsWith("q.")) errors.push(`${name} keeps its answer on the fill: use a q. key.`);
       if (type === "ranking") {
@@ -986,7 +1058,7 @@ export function checkForm(raw: unknown, ctx: Ctx = {}): { form: Form } | { error
   // One payment block, charging a calculation the form has.
   const pays = steps.flatMap((s) => s.fields).filter((f) => f.type === "payment");
   if (pays.length > 1) errors.push("A form takes one payment.");
-  for (const p of pays) if (p.pay?.field && !steps.some((s) => s.fields.some((f) => f.id === p.pay!.field && f.type === "calc"))) errors.push("The payment charges a calculation that's gone.");
+  for (const p of pays) if (p.pay?.field && !steps.some((s) => s.fields.some((f) => f.id === p.pay!.field && (f.type === "calc" || f.type === "products")))) errors.push("The payment charges a calculation that's gone.");
   if (emailField && rules.some((x) => x.then.field === emailField.id && x.then.action !== "require")) errors.push("The email field can't be hidden by a rule.");
 
   const layout = (r.layout && typeof r.layout === "object" ? r.layout : {}) as Record<string, unknown>;
@@ -1228,6 +1300,27 @@ export function publicForm<T extends Pick<Form, "constants" | "steps">>(form: T)
   };
 }
 
+/** A YouTube, Vimeo or Loom link as the address that plays it on a page, or null for any other link. */
+export function videoEmbed(raw: string): string | null {
+  try {
+    const u = new URL(raw.trim());
+    if (u.protocol !== "https:") return null;
+    const host = u.hostname.replace(/^(www|m)\./, "");
+    const yt = (v: string | null | undefined) => (v && /^[\w-]{6,20}$/.test(v) ? `https://www.youtube-nocookie.com/embed/${v}` : null);
+    if (host === "youtu.be") return yt(u.pathname.slice(1));
+    if (host === "youtube.com" || host === "youtube-nocookie.com") return yt(u.searchParams.get("v") ?? /^\/(?:embed|shorts|live)\/([\w-]{6,20})/.exec(u.pathname)?.[1]);
+    if (host === "vimeo.com" || host === "player.vimeo.com") {
+      const v = /\/(\d{6,12})(?:\/|$)/.exec(u.pathname)?.[1];
+      return v ? `https://player.vimeo.com/video/${v}` : null;
+    }
+    if (host === "loom.com") {
+      const v = /^\/(?:share|embed)\/([0-9a-f]{20,40})/.exec(u.pathname)?.[1];
+      return v ? `https://www.loom.com/embed/${v}` : null;
+    }
+  } catch {}
+  return null;
+}
+
 export function safeUrl(raw: string): boolean {
   try {
     const u = new URL(raw);
@@ -1292,6 +1385,7 @@ function calcs(form: Pick<Form, "steps" | "constants">, answers: Record<string, 
     }
     const raw = answers[id];
     if (f.type === "checkbox") return raw === true ? 1 : 0;
+    if (f.type === "products") return productsTotal(f, raw);
     const list = (Array.isArray(raw) ? raw : raw === undefined || raw === null || raw === "" ? [] : [raw]).map(String);
     if (!list.length) return null;
     const score = (v: string) => (f.options ?? []).find((o) => o.value === v)?.score ?? (Number.isFinite(Number(v)) ? Number(v) : f.type === "multi" ? 0 : null);
@@ -1502,6 +1596,21 @@ export function usedBy(form: Pick<Form, "steps" | "rules" | "results"> & { after
   return [...new Set(out)];
 }
 
+/** What the products picked cost: each one's price (its option's score) times how many. Null with none picked. */
+export function productsTotal(f: Pick<Field, "options">, raw: unknown): number | null {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+  let total = 0;
+  let any = false;
+  for (const o of f.options ?? []) {
+    const n = Number((raw as Record<string, unknown>)[o.value]);
+    if (Number.isFinite(n) && n > 0) {
+      total += n * (o.score ?? 0);
+      any = true;
+    }
+  }
+  return any ? Math.round(total * 100) / 100 : null;
+}
+
 /** A number answer as a number: typed answers arrive as text ("42"). */
 export function numOf(v: unknown): number | null {
   if (typeof v === "number") return Number.isFinite(v) ? v : null;
@@ -1521,7 +1630,8 @@ export function payAmount(form: Form, answers: Record<string, unknown>, ctx: Run
   if (!block?.pay) return null;
   // A payment a rule hides isn't charged (a form that offers "Send an invoice" beside "Pay by card").
   if (!visibility(form, answers, ctx).shown.has(block.id)) return null;
-  const major = block.pay.field ? numOf(withCalcs(form, answers, ctx)[block.pay.field]) : (block.pay.amount ?? null);
+  const from = block.pay.field ? allFields(form).find((f) => f.id === block.pay!.field) : undefined;
+  const major = from?.type === "products" ? productsTotal(from, answers[from.id]) : block.pay.field ? numOf(withCalcs(form, answers, ctx)[block.pay.field]) : (block.pay.amount ?? null);
   if (major === null || !Number.isFinite(major) || major <= 0) return null;
   const minor = Math.round(major * (ZERO_DECIMAL.has(block.pay.currency) ? 1 : 100));
   // Stripe's smallest charge is about 50 cents; anything less isn't charged.

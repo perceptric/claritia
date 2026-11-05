@@ -396,6 +396,7 @@ const P = {
   undo: '<path d="M9 14 4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-3"/>', redo: '<path d="m15 14 5-5-5-5"/><path d="M20 9H9a5 5 0 0 0 0 10h3"/>', restart: '<path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/>',
   open: '<path d="M14 4h6v6M20 4l-9 9"/><path d="M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/>', panel: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16"/>',
   send: '<path d="M12 19V5M5 12l7-7 7 7"/>', x: '<path d="M6 6l12 12M18 6 6 18"/>', chev: '<path d="m6 9 6 6 6-6"/>', plus: '<path d="M12 5v14M5 12h14"/>', search: '<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>',
+  toggle: '<rect x="3" y="7" width="18" height="10" rx="5"/><circle cx="16" cy="12" r="3"/>', face: '<circle cx="12" cy="12" r="9"/><path d="M8.5 14.5c.9 1.2 2.1 1.8 3.5 1.8s2.6-.6 3.5-1.8M9 10h.01M15 10h.01"/>', thumb: '<path d="M7 11v9H4v-9zM7 11l4-7c1.4 0 2.2 1 2 2.4L12.5 10H18a2 2 0 0 1 2 2.3l-1.2 6A2 2 0 0 1 16.8 20H7"/>', pie: '<path d="M12 3v9h9a9 9 0 1 1-9-9z"/><path d="M15 3.5A9 9 0 0 1 20.5 9H15z"/>', cart: '<path d="M3 4h2l2.4 11h10.2L20 8H7"/><circle cx="9" cy="19" r="1.4"/><circle cx="17" cy="19" r="1.4"/>', camera: '<path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/>', crop: '<path d="M6 2v14a2 2 0 0 0 2 2h14M2 6h14a2 2 0 0 1 2 2v14"/>', mic: '<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/>', pin: '<path d="M12 21s-7-6.2-7-11.5a7 7 0 0 1 14 0C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/>', mapi: '<path d="m3 6 6-3 6 3 6-3v15l-6 3-6-3-6 3z"/><path d="M9 3v15M15 6v15"/>', calc: '<rect x="5" y="3" width="14" height="18" rx="2"/><path d="M8 7h8M8 12h.01M12 12h.01M16 12h.01M8 16h.01M12 16h.01M16 16h.01"/>', progress: '<rect x="3" y="10" width="18" height="4" rx="2"/><path d="M3 12h10"/>', play: '<rect x="3" y="5" width="18" height="14" rx="3"/><path d="m10 9 5 3-5 3z"/>', quizi: '<circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .8-1 1.5V14M12 17h.01"/>', review: '<path d="M9 5h10M9 12h10M9 19h10M4 5l1 1 2-2M4 12l1 1 2-2M4 19l1 1 2-2"/>', section: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18"/>',
   qname: '<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>', company: '<rect x="4" y="3" width="16" height="18" rx="2"/><path d="M9 7h2M13 7h2M9 11h2M13 11h2M10 21v-4h4v4"/>', jobtitle: '<rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>', website: '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/>', country: '<path d="M5 21V4M5 4h11l-2 4 2 4H5"/>', birthday: '<path d="M4 21h16M5 21v-8h14v8M12 13V9M12 6v.01"/><path d="M5 17c2 0 2-1.5 3.5-1.5S10 17 12 17s2-1.5 3.5-1.5S17 17 19 17"/>', matrix: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18M3 15h18M9 4v16"/>', likert: '<path d="M4 12h16"/><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/>', agree: '<rect x="4" y="4" width="16" height="16" rx="3"/><path d="m8 12 3 3 5-6"/>', nps: '<path d="M3 17h2v3H3zM8 14h2v6H8zM13 11h2v9h-2zM18 7h2v13h-2z"/>', slider: '<path d="M4 12h16"/><circle cx="14" cy="12" r="3"/>', currency: '<path d="M12 3v18M16 7H10a3 3 0 0 0 0 6h4a3 3 0 0 1 0 6H8"/>', percent: '<path d="M19 5 5 19"/><circle cx="7" cy="7" r="2.5"/><circle cx="17" cy="17" r="2.5"/>', datetime: '<rect x="3" y="5" width="12" height="12" rx="2"/><path d="M3 9h12M7 3v4M11 3v4"/><circle cx="17" cy="17" r="4"/><path d="M17 15.5V17l1 1"/>', month: '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4M7 14h10"/>', daterange: '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4M7 15h10M7 15l2-2M17 15l-2 2"/>', image: '<rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="m21 17-5-5-9 8"/>', color: '<circle cx="12" cy="12" r="9"/><path d="M12 3v18M3 12h9"/>', hidden: '<path d="M3 3l18 18M10.6 10.6a2 2 0 0 0 2.8 2.8M9.4 5.2A9.8 9.8 0 0 1 12 5c5 0 9 5 9 7 0 .9-.6 2.1-1.7 3.4M6.3 6.3C4.2 7.7 3 9.8 3 12c0 2 4 7 9 7 1.5 0 2.9-.4 4.1-1"/>', del: '<path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/>',
   up: '<path d="m18 15-6-6-6 6"/>', down: '<path d="m6 9 6 6 6-6"/>', dup: '<rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/>', parent: '<path d="M9 14 4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 6 6v5"/>',
   style: '<path d="M12 3a9 9 0 1 0 0 18c1.1 0 2-.9 2-2 0-.5-.2-1-.5-1.3-.3-.4-.5-.8-.5-1.3 0-1.1.9-2 2-2h2.4A4.6 4.6 0 0 0 21 9.8C21 6 17 3 12 3z"/>', set: '<path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/>',
@@ -524,6 +525,8 @@ export type StudioApi = {
   followUps(formId: string): Promise<{ id: string; name: string; status: string }[]>;
   newFollowUp(formId: string, when: "sent" | "not_booked"): void;
   openWorkflow(id: string): void;
+  /** The people who take meetings, by name (the Team member field). */
+  people?(): Promise<string[]>;
   /** The gallery's templates, most used first, and its families with labels. */
   templates(): Promise<{ list: StudioTemplate[]; families: { id: string; label: string }[] }>;
   /** A template's page as it will look in `css` (the chat's brand or style; else its own style), before it's made. */
@@ -579,6 +582,8 @@ export function mountStudio(shell: ShadowRoot, api: StudioApi): StudioControl {
   // ── State ─────────────────────────────────────────────────────────────────────────────────────────────
   let brands = [];
   let MEETINGS = [];
+  // The people who take meetings, for the Team member field.
+  let PEOPLE = ["Anyone"];
   let chats = [];
   let cur = null;
   let loaded = false;
@@ -670,6 +675,7 @@ export function mountStudio(shell: ShadowRoot, api: StudioApi): StudioControl {
   const root = host.attachShadow({ mode: "open" });
   const BASE = `${ACCESS_CSS}.cl-bookph{border:1px dashed rgba(127,127,127,.6);border-radius:10px;padding:18px;text-align:center;font:500 12px system-ui,sans-serif;opacity:.7}.cl-divider{font:600 11px/1 system-ui,sans-serif;letter-spacing:.06em;text-transform:uppercase;color:#7a7a7a;border-top:1px dashed rgba(127,127,127,.55);padding:10px 0 0;margin:20px 0 10px}.cl-edit [data-cl-if]{outline:1px dashed rgba(109,40,217,.55);outline-offset:3px}.cl-edit [data-cl-if]::before{content:attr(data-cl-if);display:block;width:max-content;max-width:100%;font:500 11px/1.7 system-ui,sans-serif;color:#6d28d9;background:rgba(109,40,217,.08);border-radius:4px;padding:0 6px;margin-bottom:6px;white-space:normal}.cl-block{display:flex;flex-direction:column;gap:8px}.cl-two{display:grid;grid-template-columns:1fr 1fr;gap:8px}.cl-addr{display:flex;flex-direction:column;gap:8px}.cl-rate{display:flex;flex-wrap:wrap;gap:6px;font-size:26px;line-height:1;opacity:.6}.cl-ends{display:flex;justify-content:space-between;gap:12px;font-size:12px;opacity:.6}.cl-num{font-size:14px;border:1px solid currentColor;border-radius:8px;padding:8px 12px}.cl-sign{min-height:110px}.cl-calc{display:block;font-variant-numeric:tabular-nums}.cl-pay{display:flex;justify-content:space-between;gap:12px;align-items:baseline}.cl-pay b,.cl-res b{font-size:1.4em;font-variant-numeric:tabular-nums}.cl-res{display:flex;flex-direction:column;gap:4px}.cl-grid{width:100%;border-collapse:collapse}.cl-grid th,.cl-grid td{padding:6px;text-align:center}.cl-grid th:first-child,.cl-grid td:first-child{text-align:start}.cl-rank{margin:0;padding-inline-start:20px;display:flex;flex-direction:column;gap:6px}.cl-hid{font:500 11px/1.8 system-ui,sans-serif;opacity:.6;border:1px dashed currentColor;border-radius:6px;padding:0 8px;width:max-content}
 .cl-consent{display:flex;gap:8px;align-items:flex-start;font-size:13px;line-height:1.4;opacity:.85}.cl-consent input{margin:2px 0 0}
+.cl-pick{display:flex;justify-content:space-between;align-items:center;gap:8px;opacity:.75}.cl-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:8px}.cl-card{display:flex;flex-direction:column;gap:6px;padding:8px;height:auto}.cl-card img,.cl-ph{width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:6px;background:rgba(127,127,127,.15);display:block}.cl-row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}.cl-row>input{flex:1 1 120px;min-width:0}.cl-btn2{display:inline-flex;width:max-content;font:500 12px/1 system-ui,sans-serif;border:1px solid currentColor;border-radius:999px;padding:7px 12px;opacity:.7}.cl-qty{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px 12px;align-items:center}.cl-step{display:inline-flex;gap:12px;align-items:center;border:1px solid rgba(127,127,127,.5);border-radius:999px;padding:4px 12px}.cl-chips{display:flex;flex-wrap:wrap;gap:6px;align-items:center}.cl-chip{display:inline-flex;align-items:center;padding:6px 12px;height:auto;width:auto;border-radius:999px;border:1px solid rgba(127,127,127,.5);font-size:13px}.cl-map{height:160px;position:relative;background:repeating-linear-gradient(45deg,rgba(127,127,127,.08) 0 12px,rgba(127,127,127,.14) 12px 24px)}.cl-pin{position:absolute;left:50%;top:50%;width:16px;height:16px;margin:-16px 0 0 -8px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);background:#d93025}.cl-crop{width:160px;aspect-ratio:1;height:auto}.cl-media{border:1px dashed rgba(127,127,127,.6);border-radius:10px;padding:22px;text-align:center;font:500 12px system-ui,sans-serif;opacity:.7;overflow-wrap:anywhere}.cl-edit [data-cl-review]:empty::before{content:"Answer review: the answers show here before sending";display:block;font:500 12px system-ui,sans-serif;opacity:.6;border:1px dashed rgba(127,127,127,.6);border-radius:8px;padding:14px}.cl-edit .cl-section{outline:1px dashed rgba(127,127,127,.45);outline-offset:6px;border-radius:4px}
 :host{all:initial;display:flex;flex-direction:column;flex:1}*,*::before,*::after{box-sizing:border-box}[hidden]{display:none!important}.cl-root{flex:1;min-height:560px;display:flex;flex-direction:column}.cl-root>*{flex:1 0 auto}
 ${CAL_CSS}
 .cl-edit [data-k]{cursor:default}.cl-edit [contenteditable]{outline:none;cursor:text}`;
@@ -715,7 +721,7 @@ ${CAL_CSS}
     runCheck();
   }
   const live = (k) => root.querySelector(`[data-k="${k}"]`);
-  const BLOCK_NAMES = { file: "File upload", phone: "Phone", address: "Address", date: "Date", time: "Time", daterange: "Date range", rating: "Rating", signature: "Signature", country: "Country", calc: "Calculation", payment: "Payment", result: "Result", grid: "Grid", ranking: "Ranking", hidden: "Hidden value" };
+  const BLOCK_NAMES = { file: "File upload", phone: "Phone", address: "Address", date: "Date", time: "Time", daterange: "Date range", rating: "Rating", signature: "Signature", country: "Country", calc: "Calculation", payment: "Payment", result: "Result", grid: "Grid", ranking: "Ranking", hidden: "Hidden value", list: "Searchable list", pictures: "Picture choice", group: "Repeating group", sum: "Points to spread", range: "Range slider", table: "Table input", slots: "Availability grid", products: "Product picker", amount: "Amount picker", duration: "Duration", rich: "Rich text", draw: "Drawing", location: "Current location", map: "Map pin", record: "Audio or video answer", crop: "Image with crop", image: "Image", video: "Video" };
   const listOf = (raw) => String(raw || "").split("|").map((x) => x.trim()).filter(Boolean).map((x) => { const i = x.indexOf("::"); return i > 0 ? x.slice(i + 2) : x; });
   function blockPreview(hd) {
     const type = hd.getAttribute("data-cl-field");
@@ -729,6 +735,10 @@ ${CAL_CSS}
     else if (type === "daterange") box.append(h("div", { class: "cl-two" }, inp({ type: "date" }), inp({ type: "date" })));
     else if (type === "address") box.append(h("div", { class: "cl-addr" }, inp({ placeholder: "Street address" }), h("div", { class: "cl-two" }, inp({ placeholder: "City" }), inp({ placeholder: "Postcode" })), inp({ placeholder: "Country" })));
     else if (type === "country") box.append(inp({ placeholder: "Country" }));
+    else if (type === "rating" && /^(faces|thumbs)$/.test(hd.getAttribute("data-cl-style") || "")) {
+      const th = hd.getAttribute("data-cl-style") === "thumbs";
+      box.append(h("div", { class: "cl-rate" }, ...(th ? [180, 0] : [0, 1, 2, 3, 4]).map((x) => h("span", { html: SVG(th ? P.thumb : P.face, 30), style: th && x ? "" : th ? "transform:rotate(180deg);display:inline-flex" : "display:inline-flex" }))));
+    }
     else if (type === "rating") {
       const n = Math.min(10, Math.max(3, Number(hd.getAttribute("data-cl-scale")) || 5)); const nums = hd.getAttribute("data-cl-style") === "numbers";
       const low = nums && hd.hasAttribute("data-cl-zero") ? 0 : 1;
@@ -742,6 +752,27 @@ ${CAL_CSS}
     else if (type === "result") return h("div", { class: "card cl-res" }, h("span", { class: "label", text: hd.getAttribute("data-cl-label") || "Your result" }), h("b", { "data-cl-num": hd.getAttribute("data-cl-name") || "", text: "—" }));
     else if (type === "grid") { const cols = listOf(hd.getAttribute("data-cl-cols")); box.append(h("table", { class: "cl-grid" }, h("tr", {}, h("th", {}), ...cols.map((c) => h("th", { class: "label", text: c }))), ...listOf(hd.getAttribute("data-cl-rows")).map((r) => h("tr", {}, h("td", { class: "text", text: r }), ...cols.map(() => h("td", {}, h("input", { type: "radio", tabindex: "-1" }))))))); }
     else if (type === "ranking") box.append(h("ol", { class: "cl-rank" }, ...listOf(hd.getAttribute("data-cl-options")).map((o) => h("li", { class: "field", text: o }))));
+    else if (type === "list") {
+      const opts = listOf(hd.getAttribute("data-cl-options"));
+      const by = hd.getAttribute("data-cl-by");
+      box.append(h("div", { class: "field cl-pick" }, h("span", { text: by ? `Options follow ${by}` : hd.hasAttribute("data-cl-multi") ? "Choose any" : opts.length > 8 ? `Search ${opts.length} options` : "Choose one" }), h("span", { text: "\u25be" })));
+    }
+    else if (type === "pictures") { const imgs = String(hd.getAttribute("data-cl-images") || "").split("|"); box.append(h("div", { class: "cl-cards" }, ...listOf(hd.getAttribute("data-cl-options")).map((o, i) => h("div", { class: "field cl-card" }, /^https:\/\//.test(imgs[i] || "") ? h("img", { src: imgs[i], alt: "" }) : h("span", { class: "cl-ph" }), h("span", { text: o }))))); }
+    else if (type === "group") { const fs = String(hd.getAttribute("data-cl-fields") || "").split("|").filter(Boolean).map((x) => x.split("::")[0]); box.append(h("div", { class: "cl-row" }, ...fs.map((x) => inp({ placeholder: x }))), h("span", { class: "cl-btn2", text: `+ ${hd.getAttribute("data-cl-add") || "Add another"}` })); }
+    else if (type === "sum") { const t = hd.getAttribute("data-cl-total") || "100"; box.append(h("div", { class: "cl-qty" }, ...listOf(hd.getAttribute("data-cl-options")).flatMap((o) => [h("span", { class: "text", text: o }), inp({ placeholder: "0", style: "width:72px" })])), h("span", { class: "cl-ends", text: `${t} points left` })); }
+    else if (type === "range") box.append(h("div", { class: "cl-two" }, inp({ value: hd.getAttribute("data-cl-min") || "0" }), inp({ value: hd.getAttribute("data-cl-max") || "100" })));
+    else if (type === "table" || type === "slots") { const cols = listOf(hd.getAttribute("data-cl-cols")); box.append(h("table", { class: "cl-grid" }, h("tr", {}, h("th", {}), ...cols.map((c) => h("th", { class: "label", text: c }))), ...listOf(hd.getAttribute("data-cl-rows")).map((r) => h("tr", {}, h("td", { class: "text", text: r }), ...cols.map(() => h("td", {}, type === "slots" ? h("input", { type: "checkbox", tabindex: "-1" }) : inp({}))))))); }
+    else if (type === "products") { const pr = String(hd.getAttribute("data-cl-prices") || "").split("|"); const cur = hd.getAttribute("data-cl-currency") || "USD"; const fmt = (n) => { try { return new Intl.NumberFormat(undefined, { style: "currency", currency: cur }).format(Number(n) || 0); } catch { return String(n); } }; box.append(h("div", { class: "cl-qty" }, ...listOf(hd.getAttribute("data-cl-options")).flatMap((o, i) => [h("span", { class: "text", text: `${o}  ${fmt(pr[i])}` }), h("span", { class: "cl-step" }, h("span", { text: "\u2212" }), h("b", { text: "0" }), h("span", { text: "+" }))]))); }
+    else if (type === "amount") box.append(h("div", { class: "cl-chips" }, ...String(hd.getAttribute("data-cl-amounts") || "").split("|").filter(Boolean).map((a) => h("span", { class: "field cl-chip", text: a })), inp({ placeholder: "Other amount" })));
+    else if (type === "duration") box.append(h("div", { class: "cl-two" }, inp({ placeholder: "Hours" }), inp({ placeholder: "Minutes" })));
+    else if (type === "rich") box.append(h("div", { class: "cl-chips" }, ...["B", "I", "\u2022", "1.", "Link"].map((x) => h("span", { class: "cl-chip", text: x }))), h("textarea", { class: "field", rows: "4", tabindex: "-1" }));
+    else if (type === "draw") box.append(h("div", { class: "field cl-sign", style: "min-height:180px" }));
+    else if (type === "location") box.append(h("div", { class: "cl-row" }, inp({ placeholder: "City, address or coordinates" }), h("span", { class: "cl-btn2", text: "Use my location" })));
+    else if (type === "map") box.append(h("div", { class: "field cl-map" }, h("span", { class: "cl-pin" })), h("span", { class: "cl-btn2", text: "Use my location" }));
+    else if (type === "record") box.append(h("span", { class: "cl-btn2", text: "Start recording" }));
+    else if (type === "crop") box.append(inp({ type: "file" }), h("div", { class: "field cl-crop" }));
+    else if (type === "image") { const src = hd.getAttribute("data-cl-src") || ""; return /^https:\/\//.test(src) ? h("img", { src, alt: hd.getAttribute("data-cl-alt") || "", style: "max-width:100%;border-radius:8px" }) : h("div", { class: "cl-media", text: "Image: add its address in Settings" }); }
+    else if (type === "video") { const src = hd.getAttribute("data-cl-src") || ""; return h("div", { class: "cl-media", text: src ? `Video: ${src}` : "Video: add a YouTube, Vimeo or Loom link in Settings" }); }
     else if (type === "hidden") return S.mode === "edit" ? h("span", { class: "cl-hid", text: `Hidden value: ${hd.getAttribute("data-cl-param") || hd.getAttribute("data-cl-name") || ""}` }) : h("span");
     return box;
   }
@@ -994,12 +1025,15 @@ ${CAL_CSS}
       if (/^(and|or)$/i.test(c)) return c.toLowerCase();
       let m = /^([\w-]+)\s+(filled|empty)$/i.exec(c.trim());
       if (m) return `${label(m[1])} is ${m[2].toLowerCase() === "filled" ? "answered" : "empty"}`;
+      m = /^([\w-]+)\s+within\s+(\d+)\s+days$/i.exec(c.trim());
+      if (m) return `${label(m[1])} is within the next ${m[2]} days`;
       m = /^([\w-]+)\s+in\s+\((.*)\)$/i.exec(c.trim());
       if (m) return `${label(m[1])} is ${[...m[2].matchAll(/'([^']*)'|"([^"]*)"/g)].map((y) => opt(m[1], y[1] ?? y[2])).join(" or ")}`;
       m = /^([\w-]+)\s*(==|!=|>=|<=|>|<)\s*(?:'([^']*)'|"([^"]*)"|(\S+))$/.exec(c.trim());
       if (!m) return c;
       const v = m[3] ?? m[4] ?? m[5];
-      return `${label(m[1])} ${{ "==": "is", "!=": "is not", ">": "is over", "<": "is under", ">=": "is at least", "<=": "is at most" }[m[2]]} ${opt(m[1], v)}`;
+      const day = /^\d{4}-\d{2}-\d{2}$/.test(v);
+      return `${label(m[1])} ${(day ? { ">": "is after", "<": "is before", ">=": "is on or after", "<=": "is on or before" } : {})[m[2]] || { "==": "is", "!=": "is not", ">": "is over", "<": "is under", ">=": "is at least", "<=": "is at most" }[m[2]]} ${opt(m[1], v)}`;
     }).join(" ")}`;
   }
   function stepUi() {
@@ -1037,6 +1071,7 @@ ${CAL_CSS}
         tool("Move later", '<path d="m9 18 6-6-6-6"/>', () => moveStep(i, 1), i === steps.length - 1),
         tool("Add a page after", P.plus, () => addStep(i)),
         tool("Duplicate the page", P.dup, () => dupStep(i)),
+        timerTool(i),
         tool("Delete the page", P.del, () => delStep(i), steps.length < 2)));
       bar.lastChild.lastChild.classList.add("tipleft");
     }
@@ -1095,6 +1130,14 @@ ${CAL_CSS}
     st.after(c);
     normalizeSteps(); ensureIds();
     S.view = i + 1; commit();
+  }
+  /** A page's timer: it moves on by itself when the time is up. */
+  function timerTool(i) {
+    const st = stepsIn(src)[i];
+    const secs = Number(st?.getAttribute("data-cl-timer")) || 0;
+    const b = h("button", { class: "ib", "data-tip": secs ? `Timer: ${secs >= 60 ? `${secs / 60} min` : `${secs} s`}` : "Add a timer", "aria-label": "Page timer", "aria-pressed": String(!!secs), html: SVG(P.time, 15) });
+    b.onclick = () => openMenu(b, [[0, "No timer"], [30, "30 seconds"], [60, "1 minute"], [120, "2 minutes"], [300, "5 minutes"], [600, "10 minutes"]].map(([n, t]) => h("button", { class: "mi small", role: "menuitemradio", "aria-checked": String(n === secs), text: t, onclick: () => { closeMenu(); snap(); n ? st.setAttribute("data-cl-timer", String(n)) : st.removeAttribute("data-cl-timer"); commit(); } })), 180);
+    return b;
   }
   function dupStep(i) { const st = stepsIn(src)[i]; if (!st) return; snap(); st.after(copyStep(st)); normalizeSteps(); ensureIds(); S.view = i + 1; commit(); }
   function moveStep(i, dir) { const steps = stepsIn(src), st = steps[i], other = steps[i + dir]; if (!st || !other) return; snap(); dir < 0 ? other.before(st) : other.after(st); normalizeSteps(); S.view = i + dir; commit(); }
@@ -1205,7 +1248,8 @@ ${CAL_CSS}
     const txt = (label, attr, ph) => { const i = h("input", { class: "in", value: bl.getAttribute(attr) || "", placeholder: ph || "", "aria-label": label }); i.addEventListener("change", () => { const v = i.value.trim(); if (attr === "data-cl-name" && !/^[A-Za-z][\w-]{0,60}$/.test(v)) return; snap(); if (attr === "data-cl-name" && body().ids?.[name]) { body().ids[v] = body().ids[name]; delete body().ids[name]; } v ? bl.setAttribute(attr, v) : bl.removeAttribute(attr); commit(); }); return h("div", { class: "row2" }, h("span", { class: "lbl", text: label }), i); };
     B.append(txt("Label", "data-cl-label"), txt("Field key", "data-cl-name"));
     const req = bl.hasAttribute("data-cl-required");
-    B.append(h("div", { class: "row2" }, h("span", { class: "lbl", text: "Required" }), h("div", {}, h("button", { class: "sw", role: "switch", "aria-checked": String(req), "aria-label": "Required", onclick: () => { snap(); req ? bl.removeAttribute("data-cl-required") : bl.setAttribute("data-cl-required", ""); commit(); } }))));
+    // Pictures, videos and worked-out numbers take no answer, so nothing is required of them.
+    if (!["image", "video", "calc", "payment", "result", "hidden"].includes(type)) B.append(h("div", { class: "row2" }, h("span", { class: "lbl", text: "Required" }), h("div", {}, h("button", { class: "sw", role: "switch", "aria-checked": String(req), "aria-label": "Required", onclick: () => { snap(); req ? bl.removeAttribute("data-cl-required") : bl.setAttribute("data-cl-required", ""); commit(); } }))));
     if (type === "phone" || type === "country") {
       const sv = bl.getAttribute("data-cl-save") || "";
       const opts = [["", "None"], [type, type === "phone" ? "Phone" : "Country"]];
@@ -1222,9 +1266,18 @@ ${CAL_CSS}
     if (type === "rating") {
       const sc = h("input", { class: "in", value: bl.getAttribute("data-cl-scale") || "", placeholder: "5", "aria-label": "Scale" });
       sc.addEventListener("change", () => { const n = Math.round(Number(sc.value)); snap(); n >= 3 ? bl.setAttribute("data-cl-scale", String(Math.min(n, 10))) : bl.removeAttribute("data-cl-scale"); commit(); });
-      const nums = bl.getAttribute("data-cl-style") === "numbers";
-      B.append(h("div", { class: "row2" }, h("span", { class: "lbl", text: "Scale" }), sc), h("div", { class: "row2" }, h("span", { class: "lbl", text: "Display" }), pick(nums ? "Numbers" : "Stars", [["Stars", () => { snap(); bl.removeAttribute("data-cl-style"); commit(); }, !nums], ["Numbers", () => { snap(); bl.setAttribute("data-cl-style", "numbers"); commit(); }, nums]])));
+      const sty = bl.getAttribute("data-cl-style") || "stars";
+      const STY = [["stars", "Stars"], ["numbers", "Numbers"], ["faces", "Smileys"], ["thumbs", "Thumbs up or down"]];
+      if (sty !== "faces" && sty !== "thumbs") B.append(h("div", { class: "row2" }, h("span", { class: "lbl", text: "Scale" }), sc));
+      B.append(h("div", { class: "row2" }, h("span", { class: "lbl", text: "Display" }), pick(STY.find(([v]) => v === sty)?.[1] || "Stars", STY.map(([v, t]) => [t, () => { snap(); v === "stars" ? bl.removeAttribute("data-cl-style") : bl.setAttribute("data-cl-style", v); if (v !== "numbers") bl.removeAttribute("data-cl-zero"); commit(); }, v === sty]))));
+      if (sty === "numbers") {
+        B.append(swRow("Start at 0", bl.hasAttribute("data-cl-zero"), (on) => (on ? bl.setAttribute("data-cl-zero", "") : bl.removeAttribute("data-cl-zero"))));
+        B.append(textRow("Low label", bl.getAttribute("data-cl-low"), (v) => (v ? bl.setAttribute("data-cl-low", v) : bl.removeAttribute("data-cl-low")), "Not likely"), textRow("High label", bl.getAttribute("data-cl-high"), (v) => (v ? bl.setAttribute("data-cl-high", v) : bl.removeAttribute("data-cl-high")), "Very likely"));
+      }
     }
+    if (type === "file") B.append(swRow("Open the camera on phones", bl.hasAttribute("data-cl-capture"), (on) => (on ? bl.setAttribute("data-cl-capture", "") : bl.removeAttribute("data-cl-capture"))));
+    if (type === "phone") B.append(swRow("Verify with a code", bl.hasAttribute("data-cl-verify"), (on) => (on ? bl.setAttribute("data-cl-verify", "") : bl.removeAttribute("data-cl-verify"))));
+    if (type === "address") B.append(swRow("Suggest addresses", bl.hasAttribute("data-cl-auto"), (on) => (on ? bl.setAttribute("data-cl-auto", "") : bl.removeAttribute("data-cl-auto"))));
     p.append(B);
     blockMore(p, bl, type);
   }
@@ -1244,15 +1297,28 @@ ${CAL_CSS}
     if (!raw) {
       C.append(h("div", {}, h("button", { class: "pill", html: `${SVG(P.plus, 14)}Add display condition`, disabled: !qs.length || null, onclick: () => { const q = qs[0]; snap(); el.setAttribute(IF, q.options[0] ? `${q.name} == '${q.options[0].value}'` : `${q.name} filled`); commit(); } })));
     } else {
-      const m = /^([\w-]+)\s*(==|!=)\s*'([^']*)'$/.exec(raw) || /^([\w-]+)\s+(filled)$/.exec(raw);
+      const m = /^([\w-]+)\s*(==|!=|>=|<=|>|<)\s*'([^']*)'$/.exec(raw) || /^([\w-]+)\s+(filled)$/.exec(raw) || /^([\w-]+)\s+(within)\s+(\d+)\s+days$/.exec(raw);
       if (!m) C.append(h("p", { class: "hint0", text: raw }));
       const [q0, op0, v0] = m ? [m[1], m[2], m[3] ?? ""] : ["", "==", ""];
-      const write = (q, op, v) => { snap(); el.setAttribute(IF, op === "filled" ? `${q} filled` : `${q} ${op} '${v}'`); commit(); };
+      const write = (q, op, v) => { snap(); el.setAttribute(IF, op === "filled" ? `${q} filled` : op === "within" ? `${q} within ${Math.max(1, Math.round(Number(v)) || 30)} days` : `${q} ${op} '${v}'`); commit(); };
       const q = qs.find((x) => x.name === q0);
+      // What the question holds decides the rules: a choice, a date, a number, or words.
+      const kindOf = (n) => { const x = src.querySelector(`[name="${CSS.escape(n)}"]`); const t = x?.getAttribute("type") || ""; return qs.find((y) => y.name === n)?.options.length ? "choice" : /^(date|datetime-local|month)$/.test(t) ? "date" : /^(number|range)$/.test(t) ? "number" : "text"; };
+      const kind = q0 ? kindOf(q0) : "choice";
+      const today = new Date().toISOString().slice(0, 10);
+      const OPS = kind === "date" ? [["<", "is before"], [">", "is after"], ["within", "is within the next"], ["filled", "is answered"]] : kind === "number" ? [["==", "is"], [">", "is over"], ["<", "is under"], ["filled", "is answered"]] : [["==", "is"], ["!=", "is not"], ["filled", "is answered"]];
+      const first = (k) => (k === "date" ? today : k === "number" ? "10" : "");
+      const valueBox = () => {
+        if (op0 === "filled") return h("span");
+        if (kind === "choice") return pick(q?.options.find((o) => o.value === v0)?.label || v0 || "Pick", (q?.options || []).map((o) => [o.label, () => write(q0, op0, o.value), o.value === v0]));
+        const i = h("input", { class: "in", type: op0 === "within" ? "number" : kind === "date" ? "date" : kind === "number" ? "number" : "text", value: v0, "aria-label": "Value", style: "width:auto;min-width:0;flex:1" });
+        i.addEventListener("change", () => write(q0, op0, i.value.trim()));
+        return op0 === "within" ? h("span", { style: "display:flex;gap:6px;align-items:center;min-width:0;flex:1" }, i, h("span", { text: "days" })) : i;
+      };
       C.append(h("div", { class: "cond" },
-        pick(q0 || "Pick", qs.map((x) => [x.name, () => write(x.name, x.options.length ? "==" : "filled", x.options[0]?.value || ""), x.name === q0])),
-        pick(op0 === "!=" ? "is not" : op0 === "filled" ? "filled" : "is", [["is", () => write(q0, "==", v0 || q?.options[0]?.value || ""), op0 === "=="], ["is not", () => write(q0, "!=", v0 || q?.options[0]?.value || ""), op0 === "!="], ["filled", () => write(q0, "filled", ""), op0 === "filled"]]),
-        op0 === "filled" ? h("span") : pick(q?.options.find((o) => o.value === v0)?.label || v0 || "Pick", (q?.options || []).map((o) => [o.label, () => write(q0, op0, o.value), o.value === v0])),
+        pick(q0 || "Pick", qs.map((x) => [x.name, () => { const k = kindOf(x.name); write(x.name, k === "choice" ? "==" : k === "date" ? "<" : "filled", k === "choice" ? x.options[0]?.value || "" : first(k)); }, x.name === q0])),
+        pick(OPS.find(([o]) => o === op0)?.[1] || op0, OPS.map(([o, t]) => [t, () => write(q0, o, o === "within" ? "30" : o === "filled" ? "" : kind === "choice" ? v0 || q?.options[0]?.value || "" : v0 && op0 !== "within" ? v0 : first(kind)), o === op0])),
+        valueBox(),
         h("button", { class: "ib", "aria-label": "Remove the condition", html: SVG(P.x, 14), onclick: () => { snap(); el.removeAttribute(IF); commit(); } })));
     }
     p.append(C);
@@ -1260,7 +1326,7 @@ ${CAL_CSS}
 
   // ── The no-code builder (docs/studio-v2-plan.md, Part 9): Add, "/", drag onto the form, change type, jumps, answers
   // in text and the Form tab. Questions are written in the page's own classes (src/lib/studio/builder.ts).
-  const TI = (t) => P[{ phone: "qphone", text: "qtext", name: "qname" }[t] || t] || P.plus;
+  const TI = (t) => P[{ phone: "qphone", text: "qtext", name: "qname", social: "link", language: "globe", timezone: "time", pattern: "short", rich: "long", multiselect: "checks", longlist: "search", dependent: "dropdown", pictures: "image", faces: "face", thumbs: "thumb", semantic: "scale", sum: "pie", unit: "number", range: "slider", amount: "currency", products: "cart", duration: "time", availability: "cal", record: "mic", draw: "brush", location: "pin", map: "mapi", quiz: "quizi", score: "nps", group: "dup", table: "grid", meeting: "cal", member: "qname", picture: "image", video: "play" }[t] || t] || P.plus;
   const CONTROLS = "input[name]:not([type=hidden]):not([type=submit]),textarea[name],select[name],[data-cl-field][data-cl-name]";
   const nameIn = (el) => el.getAttribute("name") || el.getAttribute("data-cl-name") || "";
   const namesIn = (el) => new Set([...(el.matches?.(CONTROLS) ? [el] : []), ...el.querySelectorAll(CONTROLS)].map(nameIn).filter(Boolean));
@@ -1315,6 +1381,9 @@ ${CAL_CSS}
   /** Where a new question goes: after the picked question, else after the last question of the page in view. */
   function spot() {
     const picked = S.sel ? byK(S.sel) : null;
+    // A picked section takes the new field inside it.
+    const section = picked?.closest?.("[data-cl-section]");
+    if (section && section === picked) return { into: section };
     const pq = picked && !isList(picked) ? qOf(picked) : null;
     if (pq && pq !== src.firstElementChild && pq.closest("form,[data-cl-step]")) return { after: endOf(pq) };
     const steps = stepsIn(src);
@@ -1352,15 +1421,19 @@ ${CAL_CSS}
     const taken = allNames();
     const name = isLayout(type) ? "" : uniqueName(baseName(type), taken);
     const save = SAVES[type] && !src.querySelector(`[data-cl-save="${SAVES[type]}"]`) ? SAVES[type] : undefined;
-    const frag = clean(questionHtml(type, name, { save }));
+    // Workspace lists: the meeting types and the people who take meetings, as they are now.
+    const options = type === "meeting" ? MEETINGS.map((m) => m.name) : type === "member" ? PEOPLE : undefined;
+    const parent = type === "dependent" ? uniqueName("category", taken) : undefined;
+    const frag = clean(questionHtml(type, name, { save, options, parent }));
     const map = classMap();
     frag.querySelectorAll("[class]").forEach((el) => { const next = el.className.split(/\s+/).map((c) => (c in map ? map[c] : c)).filter(Boolean).join(" "); next ? (el.className = next) : el.removeAttribute("class"); });
-    const node = frag.firstElementChild;
+    const nodes = [...frag.children];
+    const node = nodes.at(-1);
     if (!node) return;
     snap();
-    [node, ...node.querySelectorAll("*")].forEach((x) => x.setAttribute("data-k", String(++kSeq)));
+    for (const n of nodes) [n, ...n.querySelectorAll("*")].forEach((x) => x.setAttribute("data-k", String(++kSeq)));
     const at = where || spot();
-    if (at.after) at.after.after(node); else if (at.before) at.before.before(node); else at.into.append(node);
+    if (at.after) at.after.after(...nodes); else if (at.before) at.before.before(...nodes); else at.into.append(...nodes);
     ensureIds();
     // A group of choices on a page whose style never mentions one: no browser frame around it.
     if (node.matches("fieldset") && !/fieldset/i.test(`${body().css}\n${brandOf(cur)?.css || ""}`)) { const r = rules(); r.fieldset = { border: "0", margin: "0", padding: "0", "min-width": "0" }; r.legend = { padding: "0" }; writeRules(r); }
@@ -1691,8 +1764,29 @@ ${CAL_CSS}
       const sv = input.getAttribute("data-cl-save") || "";
       Q.append(row("Contact field", pick((SAVES.find((s) => s[0] === sv) || SAVES[0])[1], SAVES.map(([v, t]) => [t, () => { snap(); group.forEach((g) => (v ? g.setAttribute("data-cl-save", v) : g.removeAttribute("data-cl-save"))); commit(); }, v === sv]))));
     }
+    if (kind === "email") Q.append(swRow("Verify with a code", input.hasAttribute("data-cl-verify"), (on) => (on ? input.setAttribute("data-cl-verify", "") : input.removeAttribute("data-cl-verify"))));
+    // Formatted text: a format to match, with its own words for a miss.
+    if (kind === "text" && input.hasAttribute("pattern")) {
+      const FMT = [["[0-9]{5}", "ZIP code (5 digits)", "Enter 5 digits."], ["[A-Za-z0-9 -]{3,10}", "Postal code", "Enter a postal code."], ["[0-9]+", "Digits only", "Use digits only."], ["[A-Za-z ]+", "Letters only", "Use letters only."], ["[A-Z]{2}[0-9]{2}[A-Z0-9]{10,30}", "IBAN", "Enter a valid IBAN."]];
+      const pat = input.getAttribute("pattern");
+      const F = sec("Format");
+      F.append(row("Format", pick(FMT.find(([v]) => v === pat)?.[1] || "Custom", FMT.map(([v, t, m]) => [t, () => { snap(); input.setAttribute("pattern", v); input.setAttribute("title", m); commit(); }, v === pat]))));
+      F.append(textRow("Pattern", pat, (v) => { try { new RegExp(v); v && input.setAttribute("pattern", v); } catch { toast("That pattern can't be read"); } }), textRow("Error message", input.getAttribute("title"), (v) => (v ? input.setAttribute("title", v) : input.removeAttribute("title")), "Check the format."));
+      p.append(F);
+    }
+    const unitEl = q.querySelector(".cl-unit-tx");
+    if (unitEl) Q.append(textRow("Unit", unitEl.textContent, (v) => (unitEl.textContent = v || "kg"), "kg"));
+    const link = lone && kind === "checkbox" ? q.querySelector("label a[href]") : null;
+    if (link) Q.append(textRow("Terms link", link.getAttribute("href"), (v) => (/^https:\/\/\S+$/.test(v) ? link.setAttribute("href", v) : toast("Use an address that starts with https://")), "https://"));
     p.append(Q);
     if (!lone && ["radio", "checkbox", "select"].includes(kind)) optionsSec(p, input, q);
+    // A quiz question: which answer is right (it scores 1, the rest 0).
+    if (kind === "radio" && q.closest("[data-cl-quiz]")) {
+      const Z = sec("Quiz");
+      const right = group.find((g) => g.getAttribute("data-cl-score") === "1");
+      Z.append(row("Correct answer", pick(right ? right.value : "Pick", group.map((g) => [g.value, () => { snap(); group.forEach((x) => x.setAttribute("data-cl-score", x === g ? "1" : "0")); commit(); }, g === right]))));
+      p.append(Z);
+    }
     // Limits on a typed answer.
     const attr = (el, a) => (v) => (v && /^-?\d+(\.\d+)?$/.test(v) ? el.setAttribute(a, v) : el.removeAttribute(a));
     if (["text", "textarea", "email", "tel", "url"].includes(kind)) { const A = sec("Validation"); A.append(textRow("Min characters", input.getAttribute("minlength"), attr(input, "minlength"), "None"), textRow("Max characters", input.getAttribute("maxlength"), attr(input, "maxlength"), "None")); p.append(A); }
@@ -1735,6 +1829,72 @@ ${CAL_CSS}
     S2.append(list, h("div", {}, h("button", { class: "pill", html: `${SVG(P.plus, 14)}Add`, onclick: () => { snap(); const next = read(); const v = uniqueValue(`${title.replace(/s$/, "")} ${next.length + 1}`, next.map((x) => x.value)); write([...next, { value: v, label: v }]); commit(); } })));
     p.append(S2);
   }
+  /** A long list (a searchable list, time zones, languages): one option per line, edited as text. */
+  function bulkSec(p, bl, attr, title) {
+    const items = String(bl.getAttribute(attr) || "").split("|").map((x) => x.trim()).filter(Boolean);
+    const S2 = sec(`${title} (${items.length})`);
+    const t = h("textarea", { class: "in", rows: "8", "aria-label": title, style: "font-family:var(--mono);font-size:12px" });
+    t.value = items.map((x) => (x.includes("::") ? x.slice(x.indexOf("::") + 2) : x)).join("\n");
+    t.addEventListener("change", () => { const next = [...new Set(t.value.split("\n").map((x) => x.trim().replace(/\|/g, "/")).filter(Boolean))].slice(0, 10000); if (!next.length) return; snap(); bl.setAttribute(attr, next.join("|")); commit(); });
+    S2.append(t, h("p", { class: "hint0", text: "One per line, up to 10,000." }));
+    p.append(S2);
+  }
+  /** A dependent dropdown: the list it follows, and its options for each of that list's answers. */
+  function mapSec(p, bl) {
+    const by = bl.getAttribute("data-cl-by") || "";
+    const parents = questions().filter((q) => q.options.length && q.name !== bl.getAttribute("data-cl-name"));
+    const parent = parents.find((q) => q.name === by);
+    const S2 = sec("Options for each answer");
+    S2.append(row("Follows", pick(by || "Pick", parents.map((q) => [q.name, () => { snap(); bl.setAttribute("data-cl-by", q.name); commit(); }, q.name === by]))));
+    const map = {};
+    for (const line of String(bl.getAttribute("data-cl-map") || "").split("\n")) { const at = line.indexOf("=>"); if (at > 0) map[line.slice(0, at).trim()] = line.slice(at + 2).split("|").map((x) => x.trim()).filter(Boolean); }
+    const write = () => bl.setAttribute("data-cl-map", Object.entries(map).filter(([, xs]) => xs.length).map(([k, xs]) => `${k}=>${xs.join("|")}`).join("\n"));
+    for (const o of parent?.options || []) {
+      const t = h("input", { class: "in", "aria-label": `Options for ${o.label}`, placeholder: "Option 1, Option 2" });
+      t.value = (map[o.value] || []).join(", ");
+      t.addEventListener("change", () => { snap(); map[o.value] = t.value.split(",").map((x) => x.trim().replace(/\|/g, "/")).filter(Boolean); write(); commit(); });
+      S2.append(row(o.label, t));
+    }
+    p.append(S2);
+  }
+  /** Picture choice: each option's picture address. */
+  function imagesSec(p, bl) {
+    const opts = String(bl.getAttribute("data-cl-options") || "").split("|").filter(Boolean).map((x) => (x.includes("::") ? x.slice(x.indexOf("::") + 2) : x));
+    const imgs = String(bl.getAttribute("data-cl-images") || "").split("|");
+    const S2 = sec("Pictures");
+    opts.forEach((o, i) => S2.append(textRow(o, imgs[i], (v) => { if (v && !/^https:\/\/\S+$/.test(v)) return toast("Use an address that starts with https://"); const next = opts.map((_, k) => (k === i ? v : imgs[k] || "")); bl.setAttribute("data-cl-images", next.join("|")); }, "https://")));
+    p.append(S2);
+  }
+  /** Product picker: each product's name and price. */
+  function productsSec(p, bl) {
+    const read = () => { const names = String(bl.getAttribute("data-cl-options") || "").split("|").filter(Boolean); const prices = String(bl.getAttribute("data-cl-prices") || "").split("|"); return names.map((n, i) => ({ n, price: prices[i] || "0" })); };
+    const write = (xs) => { bl.setAttribute("data-cl-options", xs.map((x) => x.n.replace(/\|/g, "/")).join("|")); bl.setAttribute("data-cl-prices", xs.map((x) => x.price).join("|")); };
+    const S2 = sec("Products");
+    read().forEach((x, i) => {
+      const n = h("input", { class: "in", "aria-label": `Product ${i + 1}` }); n.value = x.n;
+      const pr = h("input", { class: "in", "aria-label": `Price of ${x.n}`, style: "max-width:84px" }); pr.value = x.price;
+      n.addEventListener("change", () => { const v = n.value.trim(); if (!v) return; snap(); const xs = read(); xs[i].n = v; write(xs); commit(); });
+      pr.addEventListener("change", () => { if (!/^\d+(\.\d{1,2})?$/.test(pr.value.trim())) return; snap(); const xs = read(); xs[i].price = pr.value.trim(); write(xs); commit(); });
+      S2.append(h("div", { class: "opt" }, n, pr, h("button", { class: "ib", "aria-label": "Remove", html: SVG(P.x, 13), disabled: read().length < 2 || null, onclick: () => { snap(); write(read().filter((_, k) => k !== i)); commit(); } })));
+    });
+    S2.append(h("div", {}, h("button", { class: "pill", html: `${SVG(P.plus, 14)}Add product`, onclick: () => { snap(); const xs = read(); write([...xs, { n: `Product ${xs.length + 1}`, price: "10" }]); commit(); } })));
+    p.append(S2);
+  }
+  /** Repeating group: the small questions in each row, and how many rows. */
+  function groupSec(p, bl) {
+    const TYPES = [["text", "Short answer"], ["email", "Email"], ["phone", "Phone"], ["number", "Number"], ["date", "Date"]];
+    const read = () => String(bl.getAttribute("data-cl-fields") || "").split("|").filter(Boolean).map((x) => { const at = x.lastIndexOf("::"); return { label: at > 0 ? x.slice(0, at) : x, type: at > 0 ? x.slice(at + 2) : "text" }; });
+    const write = (xs) => bl.setAttribute("data-cl-fields", xs.map((x) => `${x.label.replace(/\|/g, "/")}::${x.type}`).join("|"));
+    const S2 = sec("Questions in each row");
+    read().forEach((x, i) => {
+      const t = h("input", { class: "in", "aria-label": `Question ${i + 1}` }); t.value = x.label;
+      t.addEventListener("change", () => { const v = t.value.trim(); if (!v) return; snap(); const xs = read(); xs[i].label = v; write(xs); commit(); });
+      S2.append(h("div", { class: "opt" }, t, pick(TYPES.find(([v]) => v === x.type)?.[1] || "Short answer", TYPES.map(([v, tt]) => [tt, () => { snap(); const xs = read(); xs[i].type = v; write(xs); commit(); }, v === x.type])), h("button", { class: "ib", "aria-label": "Remove", html: SVG(P.x, 13), disabled: read().length < 2 || null, onclick: () => { snap(); write(read().filter((_, k) => k !== i)); commit(); } })));
+    });
+    S2.append(h("div", {}, h("button", { class: "pill", html: `${SVG(P.plus, 14)}Add question`, disabled: read().length >= 6 || null, onclick: () => { snap(); write([...read(), { label: `Question ${read().length + 1}`, type: "text" }]); commit(); } })));
+    S2.append(textRow("Max rows", bl.getAttribute("data-cl-max"), (v) => (/^\d+$/.test(v) && +v >= 1 && +v <= 20 ? bl.setAttribute("data-cl-max", v) : null), "5"), textRow("Button text", bl.getAttribute("data-cl-add"), (v) => (v ? bl.setAttribute("data-cl-add", v) : bl.removeAttribute("data-cl-add")), "Add another"));
+    p.append(S2);
+  }
   /** The rest of each block's settings: lists, the amount, the formula, a hidden value's source. */
   function blockMore(p, bl, type) {
     const set = (a) => (v) => (v ? bl.setAttribute(a, v) : bl.removeAttribute(a));
@@ -1744,12 +1904,31 @@ ${CAL_CSS}
     const curRow = () => { const c = bl.getAttribute("data-cl-currency") || "USD"; return row("Currency", pick(CUR.find(([v]) => v === c)?.[1] || c, CUR.map(([v, t]) => [t, () => { snap(); bl.setAttribute("data-cl-currency", v); commit(); }, v === c]))); };
     if (type === "payment") {
       const M = sec("Charge");
-      const calcs = [...src.querySelectorAll('[data-cl-field="calc"]')].map((c) => c.getAttribute("data-cl-name")).filter(Boolean);
+      const calcs = [...src.querySelectorAll('[data-cl-field="calc"],[data-cl-field="products"]')].map((c) => c.getAttribute("data-cl-name")).filter(Boolean);
       const from = bl.getAttribute("data-cl-from") || "";
       M.append(row("Amount", pick(from ? `The total: ${from}` : "A set amount", [["A set amount", () => { snap(); bl.removeAttribute("data-cl-from"); if (!bl.getAttribute("data-cl-amount")) bl.setAttribute("data-cl-amount", "49"); commit(); }, !from], ...calcs.map((c) => [`The total: ${c}`, () => { snap(); bl.setAttribute("data-cl-from", c); bl.removeAttribute("data-cl-amount"); commit(); }, from === c])])));
       if (!from) M.append(textRow("Price", bl.getAttribute("data-cl-amount"), (v) => (/^\d+(\.\d{1,2})?$/.test(v) ? bl.setAttribute("data-cl-amount", v) : null), "49"));
       M.append(curRow());
+      M.append(swRow("Allow coupon codes", bl.hasAttribute("data-cl-coupons"), (on) => (on ? bl.setAttribute("data-cl-coupons", "") : bl.removeAttribute("data-cl-coupons"))));
       p.append(M);
+    }
+    if (type === "list" && !bl.hasAttribute("data-cl-by")) { bulkSec(p, bl, "data-cl-options", "Options"); const M2 = sec("Picks"); M2.append(swRow("Allow several", bl.hasAttribute("data-cl-multi"), (on) => (on ? bl.setAttribute("data-cl-multi", "") : bl.removeAttribute("data-cl-multi")))); p.append(M2); }
+    if (type === "list" && bl.hasAttribute("data-cl-by")) mapSec(p, bl);
+    if (type === "pictures") { listSec(p, bl, "data-cl-options", "Options"); imagesSec(p, bl); const M2 = sec("Picks"); M2.append(swRow("Allow several", bl.hasAttribute("data-cl-multi"), (on) => (on ? bl.setAttribute("data-cl-multi", "") : bl.removeAttribute("data-cl-multi")))); p.append(M2); }
+    if (type === "sum") { listSec(p, bl, "data-cl-options", "Options"); const M2 = sec("Points"); M2.append(textRow("Total", bl.getAttribute("data-cl-total"), (v) => (/^\d+$/.test(v) && Number(v) > 0 ? bl.setAttribute("data-cl-total", v) : null), "100")); p.append(M2); }
+    if (type === "range") { const M2 = sec("Range"); for (const [a, t, ph] of [["data-cl-min", "Min value", "0"], ["data-cl-max", "Max value", "100"], ["data-cl-step", "Step", "1"]]) M2.append(textRow(t, bl.getAttribute(a), (v) => (/^-?\d+(\.\d+)?$/.test(v) ? bl.setAttribute(a, v) : null), ph)); p.append(M2); }
+    if (type === "table" || type === "slots") { listSec(p, bl, "data-cl-rows", "Rows"); listSec(p, bl, "data-cl-cols", "Columns"); }
+    if (type === "products") { productsSec(p, bl); const M2 = sec("Price"); M2.append(curRow()); p.append(M2); }
+    if (type === "amount") { const M2 = sec("Amounts"); M2.append(textRow("Amounts", String(bl.getAttribute("data-cl-amounts") || "").split("|").join(", "), (v) => { const xs = v.split(/[\s,|]+/).map(Number).filter((n) => n > 0); if (xs.length) bl.setAttribute("data-cl-amounts", xs.slice(0, 8).join("|")); }, "10, 25, 50"), curRow()); p.append(M2); }
+    if (type === "group") groupSec(p, bl);
+    if (type === "record") { const M2 = sec("Recording"); const kinds = (bl.getAttribute("data-cl-kinds") || "audio").split(/\s+/); M2.append(swRow("Allow video", kinds.includes("video"), (on) => bl.setAttribute("data-cl-kinds", on ? "audio video" : "audio"))); p.append(M2); }
+    if (type === "image") { const M2 = sec("Image"); M2.append(textRow("Image address", bl.getAttribute("data-cl-src"), (v) => (!v || /^https:\/\/\S+$/.test(v) ? bl.setAttribute("data-cl-src", v) : toast("Use an address that starts with https://")), "https://"), textRow("Alt text", bl.getAttribute("data-cl-alt"), (v) => bl.setAttribute("data-cl-alt", v))); p.append(M2); }
+    if (type === "video") { const M2 = sec("Video"); M2.append(textRow("Video link", bl.getAttribute("data-cl-src"), (v) => bl.setAttribute("data-cl-src", v), "https://youtube.com/watch?v=")); M2.append(h("p", { class: "hint0", text: "YouTube, Vimeo or Loom." })); p.append(M2); }
+    if (type === "calc" && bl.hasAttribute("data-cl-quiz")) {
+      const C = sec("Score");
+      C.append(h("p", { class: "hint0", text: "Adds up the quiz questions: 1 point for each correct answer." }));
+      p.append(C);
+      return;
     }
     if (type === "calc") {
       const C = sec("Calculation");
@@ -2001,7 +2180,15 @@ ${CAL_CSS}
   function redo() { const s = H(); if (!s.future.length) return; s.past.push(state()); restore(s.future.pop()); }
   function buttons() { $("undo").disabled = !H().past.length; $("redo").disabled = !H().future.length; }
   function changed() { langUi(); if (cur.state === "live") cur.state = "changed"; if (cur.state === "new" && built()) cur.state = "draft"; S.pubMsg = ""; pubUi(); chatHead(); buttons(); save(); }
-  function commit() { compileJumps(); syncPipes(); body().html = sourceHtml(); changed(); draw(); refresh(); }
+  function commit() { compileJumps(); syncPipes(); syncQuiz(); body().html = sourceHtml(); changed(); draw(); refresh(); }
+  /** A quiz's score adds up every quiz question on the form. */
+  function syncQuiz() {
+    const scores = src.querySelectorAll('[data-cl-field="calc"][data-cl-quiz]');
+    if (!scores.length) return;
+    const names = [...new Set([...src.querySelectorAll("[data-cl-quiz] input[name]")].map((x) => x.name))];
+    const f = names.length ? names.map((n) => `{${n}}`).join(" + ") : "0";
+    scores.forEach((c) => c.getAttribute("data-cl-formula") !== f && c.setAttribute("data-cl-formula", f));
+  }
   function refresh() { if (S.mode === "edit") { panel(); tree(); } if (S.mode === "code") showCode(); if (S.mode === "after") renderAfter(); }
   $("undo").onclick = undo; $("redo").onclick = redo;
 
@@ -2774,6 +2961,7 @@ ${CAL_CSS}
   brandUi();
   (async () => {
     const [bs, ms, cs] = await Promise.all([api.brands().catch(() => []), api.meetings().catch(() => []), api.chats().catch(() => [])]);
+    void api.people?.().then((ps) => { if (ps?.length) PEOPLE = ["Anyone", ...ps]; }).catch(() => {});
     if (!alive) return;
     brands = bs.map((b) => ({ ...b, lookErr: "" }));
     MEETINGS = ms;

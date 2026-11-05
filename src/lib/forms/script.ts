@@ -11,18 +11,18 @@ import { join } from "node:path";
 
 export type FormsScript = { code: Uint8Array; hash: string };
 
-let kept: FormsScript | null = null;
+const kept: Record<string, FormsScript> = {};
 
 export const scriptHash = (code: Uint8Array) => createHash("sha256").update(code).digest("hex").slice(0, 12);
 
 /** The built script and its hash, or null when it isn't built. Kept in production; read again while developing. */
-export async function formsScript(): Promise<FormsScript | null> {
-  if (kept) return kept;
+export async function formsScript(name: "v1" | "x1" = "v1"): Promise<FormsScript | null> {
+  if (kept[name]) return kept[name];
   for (const dir of [[".next", "static", "forms"], [".forms"]]) {
     try {
-      const code = new Uint8Array(await readFile(join(process.cwd(), ...dir, "v1.js")));
+      const code = new Uint8Array(await readFile(join(process.cwd(), ...dir, `${name}.js`)));
       const s = { code, hash: scriptHash(code) };
-      if (process.env.NODE_ENV === "production") kept = s;
+      if (process.env.NODE_ENV === "production") kept[name] = s;
       return s;
     } catch {}
   }
@@ -36,6 +36,8 @@ export async function formsScriptPath(): Promise<string> {
 }
 
 const VERSIONED = /^v1\.([0-9a-f]{12})\.js$/;
+// The second part (src/lib/forms/extras.ts): the main script asks for /forms/x1.js?v=<its hash>, so a new build is
+// fetched at once while the address stays the same.
 
 /**
  * The script's answer for /forms/<file>: the plain address with a short cache, the current hash cached for good,
@@ -43,8 +45,8 @@ const VERSIONED = /^v1\.([0-9a-f]{12})\.js$/;
  */
 export async function scriptResponse(file: string, built?: FormsScript | null): Promise<Response> {
   const m = VERSIONED.exec(file);
-  if (file !== "v1.js" && !m) return new Response("Not found", { status: 404 });
-  const s = built === undefined ? await formsScript() : built;
+  if (file !== "v1.js" && file !== "x1.js" && !m) return new Response("Not found", { status: 404 });
+  const s = built === undefined ? await formsScript(file === "x1.js" ? "x1" : "v1") : built;
   if (!s) return new Response("// Form script not built. Run: npm run build:forms\n", { status: 503, headers: { "content-type": "text/javascript" } });
   const forever = !!m && m[1] === s.hash;
   return new Response(s.code as BodyInit, {

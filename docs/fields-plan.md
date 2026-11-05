@@ -14,15 +14,47 @@ The form script already runs more blocks than the Add list shows (`BLOCKS` in `s
 Country, Calculation, Result (score, meter, summary, outcome), Grid (matrix) and Hidden field. Tia and templates use
 them; people can't add them by hand yet.
 
-## Built: 40 fields in the Add list
+## Built: 78 fields in the Add list
 
-Contact: Short answer, Long answer, Email, Phone number, Full name, Company, Job title, Website, Address, Country,
-Date of birth. Choices: Multiple choice, Checkboxes, Dropdown, Yes / No, Ranking, Matrix, Likert scale, Agreement.
-Ratings and numbers: Rating, Opinion scale, Net Promoter Score (0 to 10 with words at each end), Slider, Number,
-Currency, Percentage, Payment. Date, time and files: Date picker, Time picker, Date and time, Month, Date range, File
-upload, Image upload, Signature. Advanced: Color picker, Hidden field. Display: Heading, Paragraph, Divider. Full name,
-Company, Job title, Website and Country save to the contact the first time they're on a form. The rest of Part 1 and
-Part 2 below is next.
+Every field below is in Form Studio's Add list (and the "/" menu), with its own settings, and runs on live forms.
+
+- **Contact:** Short answer, Long answer, Email, Phone number, Full name, Company, Job title, Website, Social profile,
+  Address, Country, Language, Time zone, Date of birth.
+- **Text:** Formatted text (ZIP code, postal code, digits, letters, IBAN or your own pattern, with its own error),
+  Rich text (bold, italic, lists and links, kept as Markdown).
+- **Choices:** Multiple choice, Checkboxes, Dropdown, Multi-select dropdown, Searchable list (up to 10,000 options,
+  pasted one per line), Dependent dropdown (its options follow another list), Picture choice, Yes / No, Toggle,
+  Ranking, Matrix, Likert scale, Agreement (with a terms link).
+- **Ratings:** Rating, Opinion scale, Net Promoter Score, Smiley scale, Thumbs up or down, Semantic scale, Points to
+  spread.
+- **Numbers and payments:** Number, Number with unit, Slider, Range slider, Currency, Percentage, Amount picker
+  (donations, tips), Product picker (how many of each, with the total), Payment (with coupon codes at checkout).
+- **Date and time:** Date picker, Time picker, Date and time, Month, Date range, Duration, Availability grid.
+- **Files and media:** File upload, Image upload, Camera photo, Image with crop, Audio or video answer (recorded in the
+  browser, up to 2 minutes), Signature, Drawing.
+- **Location:** Current location (one tap), Map pin.
+- **Quiz and logic:** Quiz question (pick the correct answer), Score (adds up the quiz), Calculation, Hidden field,
+  Color picker.
+- **Structure:** Section, Repeating group, Table input, Answer review, Progress bar. A page can have a timer (Steps
+  bar), and Add page splits a form into pages.
+- **Workspace:** Meeting type, Team member.
+- **Display:** Heading, Paragraph, Divider, Image, Video (YouTube, Vimeo or Loom).
+- **Codes:** Email and Phone have "Verify with a code": a 6-digit code goes to the email (Resend) or phone (Twilio
+  Verify), and the form sends once it's typed. Address has "Suggest addresses" (Mapbox).
+- **Display conditions** read dates (is before, is after, is within the next N days) and numbers (is over, is under).
+
+How it runs: the new widgets are a second file, `/forms/x1.js` (`src/lib/forms/extras.ts`, about 9 KB gzipped), loaded
+only by forms that have one; a failed load is tried again. The main `v1.js` is about 43.6 KB of its 44 KB limit. The
+server checks every new answer (`src/lib/forms/values.ts`), products are priced on the server, and codes are checked
+with a signed proof (`src/lib/forms/codes.ts`, `/api/forms/[id]/code`). Tests: `tests/fields.test.ts`,
+`scripts/fields-check.ts` (a real browser, with x1.js failing once, an upload failing once, an address lookup that
+never answers and a wrong code before the right one).
+
+Services to set up (all optional, `docs/forms-setup.md`): `MAPBOX_TOKEN` for addresses and maps, `TWILIO_ACCOUNT_SID`,
+`TWILIO_AUTH_TOKEN` and `TWILIO_VERIFY_SID` for phone codes. Email codes use Resend, already set up. Without a service
+its field still works: addresses are typed, Map pin works as Current location, and phone fields don't ask for a code.
+
+Limits: Image with crop cuts a square, and a long list shows its first 200 matches as it's searched.
 
 ## Part 1. Show what already runs (code only)
 

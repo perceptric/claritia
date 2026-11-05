@@ -14,15 +14,45 @@ import { byDay, dayText, localZone, sampleSlots, timeText, zoneName, zones, type
 import { countryNames } from "./countries.ts";
 import { calcText } from "./formula.ts";
 import { cleanHtml } from "./html.ts";
-import { allFields, isContent, nextStep, numOf, optionsFor, pickOutcome, safeUrl, visibility, withCalcs, type Choice, type Field, type FieldWidth, type Form, type RunCtx } from "./schema.ts";
+import { allFields, isContent, nextStep, numOf, optionsFor, pickOutcome, productsTotal, safeUrl, visibility, withCalcs, type Choice, type Field, type FieldWidth, type Form, type RunCtx } from "./schema.ts";
 import { checkAnswers, OTHER, stepPath, type Answers } from "./values.ts";
 import { answerFrom } from "../share/emailForm.ts";
 import { VIA } from "../share/channels.ts";
 import { ACCESS_CSS, CAL_CSS, consentSpot, pageValues, runPage, shownValues, showsByIf, zoneWords, type PageRun, type Vals } from "../studio/runtime.ts";
+import type { XCtx } from "./extras.ts";
+
+/** The form script's second part (extras.ts, /forms/x1.js): loaded once, on the first form that has one of its fields. */
+declare const __X1__: string;
+type Extras = { draw(c: XCtx): HTMLElement; css: string };
+const xOf = () => (window as unknown as { __clrX?: Extras }).__clrX;
+let xLoading: Promise<void> | null = null;
+let xTries = 0;
+function loadX(base: string): Promise<void> {
+  if (xOf()) return Promise.resolve();
+  return (xLoading ??= new Promise<void>((ok, no) => {
+    const s = document.createElement("script");
+    s.src = `${base}/forms/x1.js?v=${typeof __X1__ === "string" ? __X1__ : "dev"}`;
+    s.async = true;
+    s.onload = () => ok();
+    // A failed load is tried again on the next draw, three times at most.
+    s.onerror = () => {
+      xLoading = null;
+      xTries++;
+      s.remove();
+      no(new Error("x1"));
+    };
+    document.head.append(s);
+  }));
+}
+/** A smiley scale's five answers, in words. */
+export const FACES = ["Very unhappy", "Unhappy", "Neutral", "Happy", "Very happy"];
+/** Fields the second part draws. */
+const needsX = (f: Field, map?: string) =>
+  f.type === "sum" || f.type === "range" || f.type === "table" || f.type === "slots" || f.type === "products" || !!f.ui || (f.type === "rating" && (f.rating?.style === "faces" || f.rating?.style === "thumbs")) || (f.type === "address" && !!f.auto && !!map);
 
 /** regions: the region lists, sent with the form when a list follows a country field (src/lib/forms/regions.ts). */
 /** known: a personal link's person, for the contact questions the form asks (src/lib/share/known.ts). */
-type Loaded = { id: string; version: number; status: "live" | "paused"; closed?: string; body: Form; logo_url?: string | null; strict?: boolean; turnstile?: string; regions?: Record<string, string[]>; known?: Record<string, string> };
+type Loaded = { id: string; version: number; status: "live" | "paused"; closed?: string; body: Form; logo_url?: string | null; strict?: boolean; turnstile?: string; regions?: Record<string, string[]>; known?: Record<string, string>; map?: string; codes?: { email?: boolean; sms?: boolean } };
 
 /** A personal link's token, from the address (src/lib/share/personal.ts): the server says whether it's good. */
 const personalParam = (): string => {
@@ -207,6 +237,7 @@ textarea.in{min-height:calc(var(--clr-input-h)*2.4);padding:10px 12px;resize:ver
 .rs2 div{display:flex;justify-content:space-between;gap:12px;padding:8px 12px;font-variant-numeric:tabular-nums}
 .rs2 div+div{border-top:var(--clr-border-w) solid var(--clr-border)}
 .rs2 div:last-child{font-weight:600}
+.vd{position:relative;aspect-ratio:16/9;border-radius:var(--clr-radius);overflow:hidden;background:#000}.vd iframe{position:absolute;inset:0;width:100%;height:100%;border:0}
 .br{display:grid;grid-template-columns:minmax(0,1fr) 2fr auto;gap:8px 12px;align-items:center;font-variant-numeric:tabular-nums}
 .br i{display:block;height:10px;border-radius:4px;background:var(--clr-accent)}
 @media (prefers-reduced-motion:no-preference){.an{animation:clr-in .2s cubic-bezier(.22,1,.36,1)}@keyframes clr-in{from{opacity:0;transform:translateX(12px)}to{opacity:1;transform:none}}}
@@ -673,6 +704,9 @@ export class ClaritiaForm extends Base {
   private copy = "";
   private paid = false;
   private later_: "" | "ask" | "sent" = "";
+  /** Email and phone codes (docs/fields-plan.md Part 3): the code typed for each field, for the value it was sent to. */
+  private codes: Record<string, { to: string; code: string }> = {};
+  private coding: { id: string; to: string; err: string; busy: boolean } | null = null;
   private mailed = "";
   private mailFail = false;
   private get ctx(): RunCtx {
@@ -1021,6 +1055,13 @@ export class ClaritiaForm extends Base {
     const names = Object.fromEntries(Object.entries(p.ids).map(([n, id]) => [id, n]));
     run.busy(this.sending);
     run.alert(this.alert);
+    wrap.querySelector(".cl-code")?.remove();
+    const cp = this.codePanel();
+    if (cp) {
+      const sb = [...wrap.querySelectorAll("[type=submit]")].find((b) => !b.closest("[data-cl-thanks]"));
+      if (sb) consentSpot(sb, wrap).before(cp);
+      else wrap.append(cp);
+    }
     if (Object.keys(this.errors).length) run.errors(Object.fromEntries(Object.entries(this.errors).filter(([id]) => names[id]).map(([id, m]) => [names[id]!, m])));
     if (!this.done) return;
     run.done();
@@ -1084,7 +1125,46 @@ export class ClaritiaForm extends Base {
     const own = new Set(pg.blocks.filter((b) => !["calc", "payment", "result"].includes(b.f.type) && showsByIf(b.holder, v)).map((b) => b.f.id));
     const kept = Object.fromEntries(Object.entries(this.answers).filter(([id]) => own.has(id)));
     this.answers = { ...this.pageAnswers(form, v), ...kept };
-    for (const { holder, f } of pg.blocks) if (f.type === "calc" || f.type === "payment" || f.type === "result") this.drawBlock(holder, f, form);
+    // A list that follows another answer drops a pick its new list doesn't have, and draws its new list.
+    for (const { f } of pg.blocks)
+      if (f.optionsBy && this.answers[f.id] !== undefined) {
+        const ok = new Set(optionsFor(f, this.answers, this.ctx).map((o) => o.value));
+        const left = (Array.isArray(this.answers[f.id]) ? (this.answers[f.id] as string[]) : [String(this.answers[f.id])]).filter((x) => ok.has(x));
+        if (!left.length) delete this.answers[f.id];
+        else if (f.type === "multi") this.answers[f.id] = left;
+      }
+    for (const { holder, f } of pg.blocks) if (f.type === "calc" || f.type === "payment" || f.type === "result" || f.optionsBy) this.drawBlock(holder, f, form);
+    this.review(form, pg.wrap);
+  }
+
+  /** Answer review (data-cl-review): every answer so far, by its question, to check before sending. */
+  private review(form: Form, wrap: HTMLElement) {
+    const boxes = wrap.querySelectorAll<HTMLElement>("[data-cl-review]");
+    if (!boxes.length) return;
+    const byId = new Map(allFields(form).map((f) => [f.id, f]));
+    const words = (f: Field, v: unknown): string => {
+      const lab = (x: string) => (f.options ?? []).find((o) => o.value === x)?.label ?? x;
+      if (typeof v === "string" && v.startsWith("up_")) return v.slice(v.indexOf(":") + 1);
+      if (Array.isArray(v)) return v.map((x) => (x && typeof x === "object" ? Object.values(x).join(", ") : lab(String(x)))).join(", ");
+      if (v && typeof v === "object") {
+        const o = v as Record<string, unknown>;
+        if (f.type === "range" || f.type === "daterange") return `${o.from} to ${o.to}`;
+        if (f.type === "address") return Object.values(o).filter(Boolean).join(", ");
+        return Object.entries(o).map(([k, x]) => `${lab(k)}: ${Array.isArray(x) ? x.join(", ") : x}`).join("; ");
+      }
+      if (typeof v === "boolean") return v ? "Yes" : "No";
+      if (f.rating?.style === "thumbs") return v === 2 ? "Thumbs up" : "Thumbs down";
+      if (f.rating?.style === "faces") return FACES[Number(v) - 1] ?? String(v);
+      return lab(String(v));
+    };
+    const list = el("dl", { class: "cl-review" });
+    for (const id of Object.values(form.page!.ids)) {
+      const f = byId.get(id);
+      const v = this.answers[id];
+      if (!f || isContent(f.type) || f.type === "hidden" || f.type === "calc" || v === undefined || v === "" || (Array.isArray(v) && !v.length)) continue;
+      list.append(el("dt", { text: f.label }), el("dd", { text: words(f, v) }));
+    }
+    boxes.forEach((b) => b.replaceChildren(list.cloneNode(true)));
   }
 
   private async pageSend(form: Form, v: Vals) {
@@ -1192,6 +1272,8 @@ export class ClaritiaForm extends Base {
     wrap.append(el("div", { class: "trap", "aria-hidden": "true" }, el("input", { type: "text", name: "company_url", tabindex: "-1", autocomplete: "off" })));
     if (d.turnstile && form.spam.turnstile) wrap.append(el("div", { class: "ts" }));
     if (this.alert) wrap.append(el("p", { class: "al", role: "alert", text: this.alert }));
+    const cp = this.codePanel();
+    if (cp) wrap.append(cp);
     const actions = el("div", { class: "ac" });
     if (this.step > 0) {
       const back = el("button", { type: "button", class: "bt bk", text: "Back" });
@@ -1337,6 +1419,9 @@ export class ClaritiaForm extends Base {
     return ["popup", "popover", "slider", "side-tab"].some((a) => this.hasAttribute(a));
   }
   private put(...nodes: Node[]) {
+    // The second part's styles stay with every draw once it's loaded.
+    const X = xOf();
+    if (X) nodes = [...nodes, el("style", { "data-x": "", text: X.css })];
     if (!this.floating || this.isPreview) return this.root.replaceChildren(...nodes);
     const style = nodes.find((n) => n instanceof HTMLStyleElement);
     const close = el("button", { type: "button", class: "px", "aria-label": "Close", text: "×" });
@@ -1474,7 +1559,8 @@ export class ClaritiaForm extends Base {
         this.later();
       }
     };
-    if (f.type === "dropdown" || f.type === "country") {
+    if (needsX(f, this.data?.map)) box.append(this.extra(f, id, common, set));
+    else if (f.type === "dropdown" || f.type === "country") {
       box.append(this.listbox(f, common, set, inside));
       if (this.otherText(f) !== undefined) box.append(this.otherBox(f, id, set));
     } else if (f.type === "file") box.append(this.filePick(f, id, common, set));
@@ -1543,11 +1629,16 @@ export class ClaritiaForm extends Base {
     if (f.type === "divider") return el("hr", { class: "dv" });
     if (f.type === "payment" && f.pay) {
       // The total, live from the answers; the server works it out again before it charges.
-      const v = f.pay.field ? numOf(withCalcs(this.data?.body ?? ({ steps: [], rules: [] } as unknown as Form), this.answers, this.ctx)[f.pay.field]) : (f.pay.amount ?? null);
+      const body = this.data?.body ?? ({ steps: [], rules: [] } as unknown as Form);
+      const from = f.pay.field ? allFields(body).find((x) => x.id === f.pay!.field) : undefined;
+      const v = from?.type === "products" ? productsTotal(from, this.answers[from.id]) : f.pay.field ? numOf(withCalcs(body, this.answers, this.ctx)[f.pay.field]) : (f.pay.amount ?? null);
       const money = v === null ? "—" : new Intl.NumberFormat(undefined, { style: "currency", currency: f.pay.currency }).format(v);
       return el("div", { class: "py" }, el("span", { text: f.label || "Total" }), el("b", { text: money }));
     }
     if (f.type === "image" && c.src && /^https:\/\//.test(c.src) && safeUrl(c.src)) return el("img", { class: "im", src: c.src, alt: c.alt ?? "", loading: "lazy", decoding: "async" });
+    // A video plays from YouTube (no cookies), Vimeo or Loom only, as the form check wrote its address.
+    if (f.type === "video" && c.src && /^https:\/\/(www\.youtube-nocookie\.com\/embed|player\.vimeo\.com\/video|www\.loom\.com\/embed)\/[\w-]+$/.test(c.src))
+      return el("div", { class: "vd" }, el("iframe", { src: c.src, title: f.label || "Video", allow: "autoplay; fullscreen; picture-in-picture; encrypted-media", allowfullscreen: true, loading: "lazy", referrerpolicy: "strict-origin-when-cross-origin" }));
     if (f.type === "html") {
       // Cleaned again here: the browser never trusts what it's sent.
       const box = el("div", { class: "hx" });
@@ -1679,8 +1770,8 @@ export class ClaritiaForm extends Base {
 
   /** A file upload: sent the moment it's picked, so the answer is the upload's token (docs/forms-plan.md 3.1). */
   private filePick(f: Field, id: string, common: Record<string, string | undefined>, set: (v: unknown, picked?: boolean) => void): HTMLElement {
-    const accept = { pdf: ".pdf,application/pdf", image: "image/png,image/jpeg,image/gif,image/webp", office: ".doc,.docx,.xls,.xlsx,.ppt,.pptx" };
-    const input = el("input", { type: "file", class: "in", ...common, accept: (f.file?.kinds ?? []).map((k) => accept[k]).join(",") }) as HTMLInputElement;
+    const accept = { pdf: ".pdf,application/pdf", image: "image/png,image/jpeg,image/gif,image/webp", office: ".doc,.docx,.xls,.xlsx,.ppt,.pptx", audio: "audio/*", video: "video/*" };
+    const input = el("input", { type: "file", class: "in", ...common, accept: (f.file?.kinds ?? []).map((k) => accept[k]).join(","), capture: f.file?.capture ? "environment" : undefined }) as HTMLInputElement;
     const cur = typeof this.answers[f.id] === "string" ? (this.answers[f.id] as string) : "";
     const state = el("p", { class: "hp", "aria-live": "polite", text: cur ? cur.slice(cur.indexOf(":") + 1) : "" });
     input.addEventListener("change", async () => {
@@ -1690,20 +1781,75 @@ export class ClaritiaForm extends Base {
         this.errors[f.id] = `Files can be up to ${f.file.maxMb} MB.`;
         return this.later();
       }
-      if (this.quiet) return set(`up_00000000-0000-4000-8000-000000000000:${file.name.slice(0, 120)}`, true);
       state.textContent = "Uploading…";
-      const body = new FormData();
-      body.append("field", f.id);
-      body.append("file", file);
-      const res = await fetch(`${this.base}/api/forms/${this.data!.id}/upload`, { method: "POST", body, credentials: "omit" }).catch(() => null);
-      const j = (await res?.json().catch(() => ({}))) as { token?: string; error?: string } | undefined;
-      if (res?.ok && j?.token) set(j.token, true);
-      else {
-        this.errors[f.id] = j?.error ?? "Upload didn't go through. Try again.";
-        this.later();
-      }
+      const tok = await this.upload(f, file, file.name);
+      if (tok) set(tok, true);
     });
     return el("div", { class: "ch" }, input, state);
+  }
+
+  /** Send a file for a field: its answer token, or null with the error shown. A hiccup is tried again twice. */
+  private async upload(f: Field, file: Blob, name: string): Promise<string | null> {
+    if (f.file && file.size > f.file.maxMb * 1024 * 1024) {
+      this.errors[f.id] = `Files can be up to ${f.file.maxMb} MB.`;
+      this.later();
+      return null;
+    }
+    if (this.quiet) return `up_00000000-0000-4000-8000-000000000000:${name.slice(0, 120)}`;
+    let error = "";
+    for (let i = 0; i < 3; i++) {
+      const body = new FormData();
+      body.append("field", f.id);
+      body.append("file", file, name);
+      const res = await fetch(`${this.base}/api/forms/${this.data!.id}/upload`, { method: "POST", body, credentials: "omit" }).catch(() => null);
+      const j = (await res?.json().catch(() => ({}))) as { token?: string; error?: string } | undefined;
+      if (res?.ok && j?.token) return j.token;
+      error = j?.error ?? "";
+      if (res && res.status < 500 && res.status !== 429) break;
+      await new Promise((r) => setTimeout(r, 800 * (i + 1)));
+    }
+    this.errors[f.id] = error || "Upload didn't go through. Try again.";
+    this.later();
+    return null;
+  }
+
+  /**
+   * A field the second part draws (extras.ts). Its widget is kept across draws while its answer and error stay the
+   * same, so a recording, a map or a half-typed table isn't lost when another field changes.
+   */
+  private xKept = new Map<string, { node: HTMLElement; v: unknown; err: string | undefined }>();
+  private extra(f: Field, id: string, common: Record<string, string | undefined>, set: (v: unknown, picked?: boolean) => void): HTMLElement {
+    const X = xOf();
+    if (!X) {
+      if (xTries < 3) void loadX(this.base).then(() => this.render(), () => setTimeout(() => this.render(), 1500 * xTries));
+      return el("p", { class: "hp", "aria-live": "polite", text: xTries >= 3 ? "This question couldn't load. Reload the page to answer it." : "Loading…" });
+    }
+    if (!this.root.querySelector("style[data-x]")) this.root.append(el("style", { "data-x": "", text: X.css }));
+    const k = this.xKept.get(f.id);
+    if (k && k.v === this.answers[f.id] && k.err === this.errors[f.id]) return k.node;
+    const node = X.draw({
+      f,
+      id,
+      common,
+      value: this.answers[f.id],
+      set: (v, picked) => {
+        set(v, picked);
+        const kk = this.xKept.get(f.id);
+        if (kk) kk.v = this.answers[f.id];
+        // Totals, payments and results follow (a page's own, or a form's).
+        const body = this.data?.body;
+        if (body?.page && this.pg) this.pageLive(body);
+        else this.refreshLive();
+      },
+      el,
+      root: this.root,
+      options: optionsFor(f, this.answers, this.ctx),
+      upload: (b, n) => this.upload(f, b, n),
+      mapToken: this.data?.map,
+      redraw: () => this.render(),
+    });
+    this.xKept.set(f.id, { node, v: this.answers[f.id], err: this.errors[f.id] });
+    return node;
   }
 
   /**
@@ -1957,7 +2103,8 @@ export class ClaritiaForm extends Base {
     if (!isOpen) return wrap;
     const search = options.length > 8;
     const list = el("ul", { class: "ls", role: "listbox", "aria-label": f.label });
-    const shownOpts = this.filter ? options.filter((o) => o.label.toLowerCase().includes(this.filter.toLowerCase())) : options;
+    // A long list shows the first 200 that match; typing finds the rest.
+    const shownOpts = (this.filter ? options.filter((o) => o.label.toLowerCase().includes(this.filter.toLowerCase())) : options).slice(0, 200);
     const items: HTMLElement[] = [];
     const move = (i: number) => {
       const n = Math.max(0, Math.min(items.length - 1, i));
@@ -2299,8 +2446,85 @@ export class ClaritiaForm extends Base {
     return ["full", "slider", "popup", "popover", "side-tab"].find((a) => this.hasAttribute(a))?.replace("-", "") ?? "inline";
   }
 
+  /** The first field that needs a code typed before the form sends, and what it was sent to. */
+  private needCode(): { f: Field; to: string } | null {
+    const d = this.data!;
+    for (const f of allFields(d.body)) {
+      if (!f.verify || !(f.type === "email" ? d.codes?.email : f.type === "phone" ? d.codes?.sms : false)) continue;
+      const to = typeof this.answers[f.id] === "string" ? (this.answers[f.id] as string).trim() : "";
+      if (to && this.codes[f.id]?.to !== to) return { f, to };
+    }
+    return null;
+  }
+
+  private async askCode(f: Field, to: string) {
+    this.coding = { id: f.id, to, err: "", busy: true };
+    this.render();
+    let err = "";
+    for (let i = 0; i < 2; i++) {
+      const res = await fetch(`${this.base}/api/forms/${this.data!.id}/code`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ field: f.id, to }), credentials: "omit" }).catch(() => null);
+      if (res?.ok) {
+        err = "";
+        break;
+      }
+      err = ((await res?.json().catch(() => ({}))) as { error?: string } | undefined)?.error ?? "The code didn't send. Try again.";
+      if (res && res.status < 500 && res.status !== 429) break;
+      await new Promise((r) => setTimeout(r, 1200));
+    }
+    if (this.coding?.id !== f.id) return;
+    this.coding = { ...this.coding, busy: false, err };
+    this.render();
+    (this.root.querySelector(".cl-code input") as HTMLInputElement | null)?.focus();
+  }
+
+  /** "Enter the code we sent": shown before the send until the code is typed. */
+  private codePanel(): HTMLElement | null {
+    const c = this.coding;
+    if (!c) return null;
+    const f = allFields(this.data!.body).find((x) => x.id === c.id);
+    if (!f) return null;
+    const input = el("input", { class: "in field", type: "text", inputmode: "numeric", autocomplete: "one-time-code", maxlength: "6", "aria-label": "Code", placeholder: "123456" }) as HTMLInputElement;
+    const ok = el("button", { type: "button", class: "bt btn", text: "Confirm", disabled: c.busy });
+    const again = el("button", { type: "button", class: "pl btn-secondary", text: "Send a new code", disabled: c.busy });
+    const go = async () => {
+      const code = input.value.replace(/\D/g, "");
+      if (code.length !== 6) {
+        this.coding = { ...c, err: "Enter the 6 digits." };
+        return this.render();
+      }
+      // The server checks the code and answers a proof for the send to carry.
+      this.coding = { ...c, busy: true, err: "" };
+      this.render();
+      const res = await fetch(`${this.base}/api/forms/${this.data!.id}/code`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ field: c.id, to: c.to, code }), credentials: "omit" }).catch(() => null);
+      const j = (await res?.json().catch(() => ({}))) as { proof?: string; error?: string } | undefined;
+      if (!res?.ok || !j?.proof) {
+        this.coding = { ...c, busy: false, err: j?.error ?? "The code couldn't be checked. Try again." };
+        return this.render();
+      }
+      this.codes[c.id] = { to: c.to, code: j.proof };
+      this.coding = null;
+      void this.send();
+    };
+    ok.addEventListener("click", () => void go());
+    input.addEventListener("keydown", (e) => {
+      if (e.key !== "Enter") return;
+      e.preventDefault();
+      void go();
+    });
+    again.addEventListener("click", () => void this.askCode(f, c.to));
+    return el(
+      "div",
+      { class: "cl-code", role: "group", "aria-label": "Confirm with a code", style: "display:flex;flex-direction:column;gap:8px" },
+      el("p", { class: "i text", text: c.busy ? `Sending a code to ${c.to}…` : `Enter the 6-digit code we sent to ${c.to}.` }),
+      el("div", { style: "display:flex;flex-wrap:wrap;gap:8px;align-items:center" }, input, ok, again),
+      c.err ? el("p", { class: "er error", role: "alert", text: c.err }) : null,
+    );
+  }
+
   private async send() {
     const d = this.data!;
+    const need = this.needCode();
+    if (need) return this.askCode(need.f, need.to);
     this.sending = true;
     this.render();
     const t = touch();
@@ -2324,6 +2548,7 @@ export class ClaritiaForm extends Base {
       today: localDay(),
       channel: this.channel(),
       personal: personalParam() || undefined,
+      codes: Object.keys(this.codes).length ? Object.fromEntries(Object.entries(this.codes).map(([k, v]) => [k, v.code])) : undefined,
     });
     const url = `${this.base}/api/forms/${d.id}/submit`;
     let res: Response | null = null;
@@ -2337,6 +2562,8 @@ export class ClaritiaForm extends Base {
       // The server's own check found something the browser didn't (a free email on a work email field).
       const j = (await res.json().catch(() => ({}))) as { errors?: Record<string, string>; error?: string };
       this.errors = j.errors ?? {};
+      // A code that didn't match is asked for again.
+      for (const id of Object.keys(this.errors)) delete this.codes[id];
       for (const id of Object.keys(this.errors)) this.row(id)[2]++;
       this.alert = j.errors ? "" : (j.error ?? "Check the form and try again.");
       const firstStep = d.body.steps.findIndex((s) => s.fields.some((f) => this.errors[f.id]));

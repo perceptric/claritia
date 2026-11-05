@@ -20,6 +20,9 @@ Run `supabase/migrations/045_form_builder.sql` through `048_form_checks.sql` in 
 | `ANTHROPIC_API_KEY` | The form chat. Without it the Chat tab answers that the chat isn't set up; everything else works. |
 | `FORMS_CHAT_MODEL` | Optional. Defaults to `claude-sonnet-5-5`. |
 | `TURNSTILE_SITE_KEY`, `TURNSTILE_SECRET_KEY` | Optional. Cloudflare Turnstile for forms that turn it on. Without them the honeypot and timing checks still run. |
+| `MAPBOX_TOKEN` | Optional. A public Mapbox token (starts with `pk.`) for address suggestions, Map pin and the place name in Current location (docs/fields-plan.md). Without it, addresses are typed in and Map pin works as Current location. Limit the token to your domains in Mapbox. |
+| `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_VERIFY_SID` | Optional. Twilio Verify for phone fields set to "Verify with a code". Without them, phone fields don't ask for a code. |
+| `FORM_CODE_SECRET` | Optional. Signs email and phone codes; `SECRETS_KEY` is used when it isn't set. Email codes send through `RESEND_API_KEY`. |
 | `SECRETS_KEY` | Already set. Seals Slack and webhook addresses, and signs the daily check's token. |
 
 `npm run build` now also builds the form script (`scripts/build-forms.mts`) into `.next/static/forms/v1.js`, served at `/forms/v1.js`. The Docker image copies `.next`, so nothing else changes.

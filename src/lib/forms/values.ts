@@ -115,6 +115,66 @@ function structured(f: Field, raw: unknown, opts: Choice[]): { value?: Value; er
       const t = words(raw, 200);
       return !t ? {} : FILE_ANSWER.test(t) ? { value: t } : { error: "Sign again." };
     }
+    case "sum": {
+      // Points spread over the options: whole numbers, none below zero, adding up to the total.
+      const o = obj(raw);
+      const v: Record<string, string> = {};
+      let n = 0;
+      for (const x of opts) {
+        const t = words(o[x.value], 12);
+        if (!t) continue;
+        const k = Number(t);
+        if (!Number.isInteger(k) || k < 0) return { error: "Use whole numbers." };
+        if (k) v[x.value] = String(k);
+        n += k;
+      }
+      if (!n) return {};
+      const total = f.total ?? 100;
+      return n === total ? { value: v } : { error: `The points add up to ${total} (now ${n}).` };
+    }
+    case "range": {
+      const o = obj(raw);
+      const from = Number(words(o.from, 20)), to = Number(words(o.to, 20));
+      if (words(o.from) === "" && words(o.to) === "") return {};
+      if (!Number.isFinite(from) || !Number.isFinite(to)) return { error: "Pick the lowest and the highest." };
+      if (to < from) return { error: "The highest comes after the lowest." };
+      if ((c.min !== undefined && from < c.min) || (c.max !== undefined && to > c.max)) return { error: `Stay between ${c.min} and ${c.max}.` };
+      return { value: { from: String(from), to: String(to) } };
+    }
+    case "table": {
+      // Each cell by row and column: "Row: Column".
+      const o = obj(raw);
+      const v: Record<string, string> = {};
+      for (const r of f.grid?.rows ?? []) for (const col of f.grid?.cols ?? []) {
+        const t = words(o[`${r.value}: ${col.value}`], 500);
+        if (t) v[`${r.value}: ${col.value}`] = t;
+      }
+      return Object.keys(v).length ? { value: v } : {};
+    }
+    case "slots": {
+      // The times that work on each row (a day), many per row.
+      const o = obj(raw);
+      const cols = new Set((f.grid?.cols ?? []).map((x) => x.value));
+      const v: Record<string, string> = {};
+      for (const r of f.grid?.rows ?? []) {
+        const picked = (Array.isArray(o[r.value]) ? (o[r.value] as unknown[]) : String(o[r.value] ?? "").split("|")).map((x) => String(x).trim()).filter(Boolean);
+        if (picked.some((x) => !cols.has(x))) return { error: "Pick from the times shown." };
+        if (picked.length) v[r.value] = [...new Set(picked)].join("|");
+      }
+      return Object.keys(v).length ? { value: v } : {};
+    }
+    case "products": {
+      const o = obj(raw);
+      const v: Record<string, string> = {};
+      for (const x of opts) {
+        const t = words(o[x.value], 6);
+        if (!t || t === "0") continue;
+        const k = Number(t);
+        if (!Number.isInteger(k) || k < 0 || k > 999) return { error: "Pick how many, up to 999." };
+        v[x.value] = String(k);
+      }
+      return Object.keys(v).length ? { value: v } : {};
+    }
   }
   return null;
 }

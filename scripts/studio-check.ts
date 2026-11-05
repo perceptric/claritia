@@ -590,7 +590,7 @@ try {
   await $("#blankBtn").click();
   check((await form.locator("input[type='email']").count()) === 1 && (await form.locator("[type=submit]").count()) === 1 && (await $("#adds").isVisible()), "Start blank makes an email question and a send button, and opens Edit with the Add list");
   // The new fields: 39 in the Add list, each added in one click
-  check((await $("#addList [data-add]").count()) === 40, "the Add list has 40 fields");
+  check((await $("#addList [data-add]").count()) === 78, "the Add list has 78 fields");
   await $("#addList [data-add='nps']").click();
   await $("#addList [data-add='website']").click();
   await $("#addList [data-add='matrix']").click();
@@ -598,6 +598,19 @@ try {
   const npsNums = await form.locator(".cl-rate .cl-num").allTextContents();
   check(npsNums[0] === "0" && npsNums.at(-1) === "10" && (await form.locator(".cl-ends").textContent())!.includes("Not likely"), "Net Promoter Score runs 0 to 10 with words at each end");
   check((await form.locator("input[type='url']").count()) === 1 && (await form.locator(".cl-grid tr").count()) === 4 && (await form.locator("input[type='range']").count()) === 1, "Website, Matrix and Slider add in one click");
+  // A dependent dropdown comes with the list it follows; a quiz's score adds up its questions
+  await $("#addList [data-add='dependent']").click();
+  check((await form.locator("select[name='category']").count()) === 1 && (await form.locator("[data-cl-field='list'][data-cl-by='category']").count()) === 1, "a dependent dropdown adds the list it follows");
+  await $("#addList [data-add='quiz']").click();
+  await $("#addList [data-add='score']").click();
+  const quizName = await form.locator("[data-cl-quiz] input").first().getAttribute("name");
+  check((await p.evaluate(() => document.querySelector("#studio")!.shadowRoot!.getElementById("host")!.shadowRoot!.querySelector('[data-cl-field="calc"][data-cl-quiz]')?.getAttribute("data-cl-formula"))) === `{${quizName}}`, "the score adds up the quiz questions");
+  await $("#addList [data-add='video']").click();
+  check((await form.locator(".cl-media").last().textContent())!.includes("Video"), "a video shows where it plays");
+  await $("#pscroll input[aria-label='Video link']").fill("https://youtu.be/dQw4w9WgXcQ");
+  await $("#pscroll input[aria-label='Video link']").press("Enter");
+  await $("#pscroll input[aria-label='Video link']").blur();
+  check((await form.locator(".cl-media").last().textContent())!.includes("youtu.be"), "its link is set in Settings");
   // Add page: a one-page form becomes two pages, the send button on the last
   await $("#stepBar [data-add-page]").click();
   check((await form.locator("[data-cl-step]").count()) === 2 && (await $("#stepBar .sp").filter({ hasText: "New page" }).count()) === 1, "Add page splits a one-page form into pages");

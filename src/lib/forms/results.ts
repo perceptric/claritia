@@ -77,6 +77,13 @@ export function answerText(col: Column | undefined, v: unknown): string {
   if (f?.type === "daterange" && v && typeof v === "object") return `${(v as Record<string, string>).from} to ${(v as Record<string, string>).to}`;
   if (f?.type === "grid" && v && typeof v === "object")
     return (f.grid?.rows ?? []).filter((r) => (v as Record<string, string>)[r.value]).map((r) => `${r.label}: ${f.grid?.cols.find((c) => c.value === (v as Record<string, string>)[r.value])?.label ?? (v as Record<string, string>)[r.value]}`).join("; ");
+  if (f?.type === "rating" && f.rating?.style === "thumbs") return Number(v) === 2 ? "Thumbs up" : "Thumbs down";
+  if (f?.type === "rating" && f.rating?.style === "faces") return ["Very unhappy", "Unhappy", "Neutral", "Happy", "Very happy"][Number(v) - 1] ?? String(v);
+  const lab = (list: { value: string; label: string }[] | undefined, x: string) => list?.find((o) => o.value === x)?.label ?? x;
+  if ((f?.type === "sum" || f?.type === "products") && v && typeof v === "object") return Object.entries(v as Record<string, string>).map(([k, n]) => (f.type === "products" ? `${n} × ${lab(f.options, k)}` : `${lab(f.options, k)}: ${n}`)).join(", ");
+  if (f?.type === "range" && v && typeof v === "object") return `${(v as Record<string, string>).from} to ${(v as Record<string, string>).to}`;
+  if (f?.type === "table" && v && typeof v === "object") return Object.entries(v as Record<string, string>).map(([k, t]) => `${k}: ${t}`).join("; ");
+  if (f?.type === "slots" && v && typeof v === "object") return (f.grid?.rows ?? []).filter((r) => (v as Record<string, string>)[r.value]).map((r) => `${r.label}: ${(v as Record<string, string>)[r.value]!.split("|").map((x) => lab(f.grid?.cols, x)).join(", ")}`).join("; ");
   if (f?.type === "group" && Array.isArray(v)) return v.map((row) => (f.group?.fields ?? []).map((sf) => (row as Record<string, string>)[sf.id]).filter(Boolean).join(", ")).join("; ");
   const label = (x: string) => (col?.field ? everyOption(col.field).find((o) => o.value === x)?.label : undefined) ?? x;
   if (Array.isArray(v)) return v.map((x) => label(String(x))).join(", ");

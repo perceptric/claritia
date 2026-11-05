@@ -2,8 +2,19 @@ import { after } from "next/server";
 import { allRegions, usesRegions } from "@/lib/forms/regions";
 import { regionOf } from "@/lib/web/policy";
 import { accessShut, closedMessage } from "@/lib/forms/access";
-import { publicForm } from "@/lib/forms/schema";
 import { cors, edgeCountry, forgetPublic, json, loadPublic, turnstileSiteKey } from "@/lib/forms/server";
+import { emailCodesReady, smsCodesReady } from "@/lib/forms/codes";
+import { allFields, publicForm, type Form } from "@/lib/forms/schema";
+
+/** What the form's fields need from the server's services: the map key and which codes can be sent. */
+function formServices(body: Form): { map?: string; codes?: { email?: boolean; sms?: boolean } } {
+  const fs = allFields(body);
+  const map = process.env.MAPBOX_TOKEN?.trim();
+  const needsMap = fs.some((f) => (f.type === "address" && f.auto) || f.ui === "map" || f.ui === "location");
+  const email = fs.some((f) => f.verify && f.type === "email") && emailCodesReady();
+  const sms = fs.some((f) => f.verify && f.type === "phone") && smsCodesReady();
+  return { ...(needsMap && map?.startsWith("pk.") ? { map } : {}), ...(email || sms ? { codes: { ...(email ? { email } : {}), ...(sms ? { sms } : {}) } } : {}) };
+}
 import { serviceClient } from "@/lib/serviceClient";
 import { persistStudio } from "@/lib/studio/persist";
 import { knownFor } from "@/lib/share/known";
@@ -47,7 +58,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     const known = person ? await knownFor(db, person, f.body).catch(() => ({})) : null;
     return json(
       // tokens: always empty, only so a form script cached from before 123 (5 minutes at most) doesn't stop on it.
-      { id: f.id, version: f.version, status, ...(closed ? { closed } : {}), body: publicForm(f.body), tokens: {}, logo_url: f.logo_url, strict: regionOf(country ?? "", "") === "strict", turnstile: turnstileSiteKey() || undefined, ...(usesRegions(f.body) ? { regions: allRegions() } : {}), ...(known ? { known } : {}) },
+      { id: f.id, version: f.version, status, ...(closed ? { closed } : {}), body: publicForm(f.body), tokens: {}, logo_url: f.logo_url, strict: regionOf(country ?? "", "") === "strict", turnstile: turnstileSiteKey() || undefined, ...formServices(f.body), ...(usesRegions(f.body) ? { regions: allRegions() } : {}), ...(known ? { known } : {}) },
       200,
       token ? { "Cache-Control": "private, no-store" } : { "Cache-Control": `public, max-age=${f.body.access ? 10 : 30}`, Vary: "cf-ipcountry" },
     );
