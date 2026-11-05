@@ -303,7 +303,10 @@ Everything a form needs can be made in Edit without Tia (`src/lib/studio/builder
   brand dialog covers the templates; the brand button opens Add a brand when there are none. Adding a field to an
   empty form starts it blank first. A click on a template opens it in full first, page by page in Preview, in the look
   it will be made in, with All templates and Use this template; nothing is made or saved until Use.
-- **Add page** sits in the steps bar after the pages. It adds a page after the one in view; a one-page form becomes
+- **The steps** (pages, Thank-you, On submission, All pages) sit in the bar over the form, in 13 px body text that
+  wraps and is never cut short. **The bar under the form** holds the page tools: Add page, Move earlier and later,
+  Duplicate, Timer and Delete, with Undo and Redo at its end.
+- **Add page** sits in the bar under the form. It adds a page after the one in view; a one-page form becomes
   pages first, with what it asks on page 1 and the send button on the new last page.
 - **78 fields** in the Add list in twelve groups (docs/fields-plan.md, Built), each with its own settings: lists of
   up to 10,000 options, dependent dropdowns, picture cards, quizzes with a score, products a payment charges, codes for

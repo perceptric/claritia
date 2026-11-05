@@ -102,7 +102,7 @@ input, textarea { user-select: text; -webkit-user-select: text; }
 
 /* Stage */
 .stage { flex: 1; min-width: 0; display: flex; flex-direction: column; min-height: 0; }
-.bar { height: 52px; flex: none; display: flex; align-items: center; gap: 6px; padding: 0 12px; border-bottom: 1px solid var(--line); }
+.bar { min-height: 52px; flex: none; display: flex; align-items: center; flex-wrap: wrap; gap: 6px; padding: 8px 12px; border-bottom: 1px solid var(--line); }
 .grp { display: inline-flex; align-items: center; gap: 2px; padding: 2px; border-radius: 999px; background: var(--paper-deep); }
 .grp .ib { width: 32px; height: 28px; }
 .grp .ib[aria-selected="true"], .grp .ib[aria-pressed="true"], .ib.on { background: var(--bg); color: var(--ink); box-shadow: 0 0 0 1px var(--line), 0 1px 2px rgb(10 10 10 / .06); }
@@ -126,13 +126,11 @@ input, textarea { user-select: text; -webkit-user-select: text; }
 .tipright[data-tip]:hover::after, .tipright[data-tip]:focus-visible::after { transform: none; }
 .work { flex: 1; min-height: 0; display: flex; }
 .mid { flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; }
-.steps { flex: 0 1 auto; min-width: 0; display: flex; align-items: center; gap: 6px; overflow-x: auto; scrollbar-width: none; padding: 2px; }
-.steps::-webkit-scrollbar { display: none; }
-.steps { gap: 0; }
-.steps .sp { height: 30px; padding: 0 6px; border-radius: 8px; border: 0; background: transparent; color: var(--muted); font-size: 12.5px; white-space: nowrap; display: inline-flex; align-items: center; gap: 7px; flex: none; max-width: 200px; }
-.steps .sp span:last-child { overflow: hidden; text-overflow: ellipsis; }
+.steps { flex: 0 1 auto; min-width: 0; display: flex; align-items: center; flex-wrap: wrap; row-gap: 4px; padding: 2px; }
+.steps .sp { min-height: 32px; padding: 4px 8px; border-radius: 8px; border: 0; background: transparent; color: var(--body); font-size: 13px; line-height: 1.3; text-align: start; display: inline-flex; align-items: center; gap: 8px; flex: 0 1 auto; min-width: 0; }
+.steps .sp span:last-child { min-width: 0; overflow-wrap: anywhere; }
 .steps .sp:hover { color: var(--ink); background: var(--hover); }
-.steps .sp .n { width: 20px; height: 20px; border-radius: 999px; border: 1.5px solid var(--line-strong); display: inline-flex; align-items: center; justify-content: center; flex: none; font: 600 10.5px var(--sans); color: var(--muted); background: var(--bg); }
+.steps .sp .n { width: 22px; height: 22px; border-radius: 999px; border: 1.5px solid var(--line-strong); display: inline-flex; align-items: center; justify-content: center; flex: none; font: 600 11px var(--sans); color: var(--body); background: var(--bg); }
 .steps .sp[aria-pressed="true"] { color: var(--ink); font-weight: 500; }
 .steps .sp[aria-pressed="true"] .n { background: var(--ink); border-color: var(--ink); color: var(--bg); }
 .steps .sp.done .n { background: var(--signal-soft); border-color: var(--signal); color: var(--signal); }
@@ -149,7 +147,6 @@ input, textarea { user-select: text; -webkit-user-select: text; }
 .themes .sw2.brand b { font-size: 14px; color: var(--ink); }
 .themes .th[aria-pressed="true"] .sw2 { box-shadow: 0 0 0 2px var(--ink); }
 .themes .nm { font-size: 11.5px; color: var(--body); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.steps .tools { display: flex; gap: 2px; flex: none; padding-left: 6px; margin-left: 2px; border-left: 1px solid var(--line); }
 .navi { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 .navi .ptitle { display: none; }
 .adds { flex: 1; min-height: 0; display: flex; flex-direction: column; padding-top: 10px; }
@@ -171,12 +168,15 @@ input, textarea { user-select: text; -webkit-user-select: text; }
 .addlist.grid button:hover { box-shadow: 0 0 0 1px var(--line-strong), 0 2px 6px rgb(0 0 0 / .06); background: var(--bg); }
 .addlist.grid button i { width: 26px; height: 26px; border-radius: 7px; box-shadow: none; }
 .addlist.grid button .nm { overflow-wrap: anywhere; }
-.stepdock { flex: none; display: flex; align-items: center; min-height: 48px; padding: 6px 12px; border-top: 1px solid var(--line); background: var(--bg); }
-.stepdock .steps { flex: 1; flex-wrap: wrap; row-gap: 4px; overflow: visible; }
+.stepdock { flex: none; display: flex; align-items: center; flex-wrap: wrap; gap: 4px; min-height: 48px; padding: 6px 12px; border-top: 1px solid var(--line); background: var(--bg); }
+.ptools { display: flex; align-items: center; flex-wrap: wrap; gap: 2px; min-width: 0; }
+.ptools .pill { margin-inline-end: 6px; }
+.ptools .vsep { margin: 0 4px; }
+.tipup[data-tip]::after { top: auto; bottom: calc(100% + 6px); transform: translateX(-50%) translateY(2px); }
+.tipup.tipleft[data-tip]::after { transform: translateY(2px); }
+.tipup[data-tip]:hover::after, .tipup[data-tip]:focus-visible::after { transform: translateX(-50%); }
+.tipup.tipleft[data-tip]:hover::after, .tipup.tipleft[data-tip]:focus-visible::after { transform: none; }
 .steps .sp.after .n { border-style: dashed; }
-.steps .addp { height: 30px; padding: 0 8px; margin-inline-start: 6px; border-radius: 8px; border: 0; background: transparent; color: var(--muted); font-size: 12.5px; white-space: nowrap; display: inline-flex; align-items: center; gap: 7px; flex: none; }
-.steps .addp:hover { color: var(--ink); background: var(--hover); }
-.steps .addp .n { width: 20px; height: 20px; border-radius: 999px; border: 1.5px dashed var(--line-strong); display: inline-flex; align-items: center; justify-content: center; flex: none; background: var(--bg); }
 .exitprev { display: inline-flex; align-items: center; gap: 6px; }
 .peekbar { flex: 1; min-width: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; }
 .peeknm { font-weight: 600; color: var(--ink); min-width: 0; overflow-wrap: anywhere; }
@@ -432,6 +432,7 @@ export const STUDIO_HTML = `
     <div class="bar">
       <button class="pill exitprev" id="exitPrev" hidden>${SVG(P.back, 14)}Back to editor</button>
       <div class="peekbar" id="peekBar" hidden><button class="pill" id="peekBack">${SVG(P.back, 14)}All templates</button><span class="peeknm" id="peekName"></span><button class="pill primary" id="peekUse">Use this template</button></div>
+      <div class="steps" id="stepBar" role="toolbar" aria-label="Pages" hidden></div>
       <span class="spacer"></span>
       <div class="grp" role="group" aria-label="Device">
         <button class="ib" id="d-desk" data-tip="Desktop" aria-label="Desktop" aria-pressed="true">${SVG(P.desk)}</button>
@@ -440,8 +441,6 @@ export const STUDIO_HTML = `
       </div>
       <button class="langbtn" id="langBtn" data-tip="Languages" aria-label="Languages" aria-haspopup="menu"></button>
       <span class="vsep"></span>
-      <button class="ib" id="undo" data-tip="Undo" aria-label="Undo" disabled>${SVG(P.undo)}</button>
-      <button class="ib" id="redo" data-tip="Redo" aria-label="Redo" disabled>${SVG(P.redo)}</button>
       <button class="ib tipleft" id="moreBtn" data-tip="More" aria-label="More" aria-haspopup="menu">${SVG(P.more)}</button>
     </div>
     <div class="work" id="work">
@@ -462,7 +461,7 @@ export const STUDIO_HTML = `
         <div><button class="pill primary" id="codeApply">Apply</button></div>
       </div>
       <div class="after" id="afterView" hidden><div class="inner" id="afterInner"></div></div>
-      <div class="stepdock" id="stepDock"><div class="steps" id="stepBar" role="toolbar" aria-label="Pages" hidden></div></div>
+      <div class="stepdock" id="stepDock"><div class="ptools" id="pageTools" role="toolbar" aria-label="Page tools"></div><span class="spacer"></span><button class="ib tipup" id="undo" data-tip="Undo" aria-label="Undo" disabled>${SVG(P.undo)}</button><button class="ib tipup tipleft" id="redo" data-tip="Redo" aria-label="Redo" disabled>${SVG(P.redo)}</button></div>
       </div>
       <aside class="panel" id="panel" aria-label="Element" hidden>
         <div class="ptabs" role="tablist">
@@ -686,7 +685,7 @@ ${CAL_CSS}
     $("empty").hidden = has || !cur;
     host.hidden = !has;
     root.innerHTML = "";
-    if (!has) { if (cur) { emptyUi(); void tplLoad(); } runCheck(); return overlay(); }
+    if (!has) { $("stepBar").hidden = $("stepDock").hidden = true; if (cur) { emptyUi(); void tplLoad(); } runCheck(); return overlay(); }
     const st = document.createElement("style");
     st.textContent = `${BASE}\n/* brand */\n${cssFor(PK ? PK.brand : brandOf(cur)?.css || S.hold)}\n/* form */\n${cssFor(PK ? PK.css : body().css)}`;
     const wrap = h("div", { class: S.mode === "edit" ? "cl-root cl-edit" : "cl-root" });
@@ -1040,6 +1039,8 @@ ${CAL_CSS}
     const bar = $("stepBar");
     const steps = stepsIn(src), thanks = src.querySelector("[data-cl-thanks]");
     bar.hidden = !cur || !built() || S.mode === "code";
+    // The page tools sit under the form while editing; undo and redo stay there in every view.
+    $("stepDock").hidden = bar.hidden;
     if (bar.hidden) return;
     const editing = S.mode === "edit";
     if (editing && typeof S.view === "number" && S.view >= Math.max(1, steps.length)) S.view = 0;
@@ -1058,23 +1059,30 @@ ${CAL_CSS}
     const passed = (i) => !editing && (done || (typeof at === "number" && i < at));
     if (steps.length) steps.forEach((st, i) => { if (i) bar.append(conn()); bar.append(pill(String(i + 1), stepName(st, i), !after && (editing ? S.view === i : !done && stepAt === i), () => go(i), passed(i) ? "done" : "")); });
     else bar.append(pill("1", "Form", !after && (editing ? S.view === 0 : !done), () => go(0), !editing && !after && done ? "done" : ""));
-    if (editing) bar.append(h("button", { class: "addp", "data-add-page": "", onclick: addPage }, h("span", { class: "n", html: SVG(P.plus, 11) }), h("span", { text: "Add page" })));
     if (thanks) { bar.append(conn()); bar.append(pill("tick", "Thank-you", !after && (editing ? S.view === "thanks" : done), () => go("thanks"))); }
     // On submission is the last step: what happens once it's sent (the meeting, routing, the team's email).
     if (S.mode !== "preview") { bar.append(conn()); bar.append(pill("bolt", "On submission", after, () => go("after"), "after")); }
     if (editing && (steps.length > 1 || thanks)) bar.append(h("button", { class: "sp all", "aria-pressed": String(S.view === "all"), "aria-label": "All pages", "data-tip": "All pages", html: SVG(P.layers, 15), onclick: () => go("all") }));
-    if (editing && typeof S.view === "number" && steps.length) {
-      const i = S.view;
-      const tool = (tip, ic, fn, off) => h("button", { class: "ib", "data-tip": tip, "aria-label": tip, html: SVG(ic, 15), disabled: off || null, onclick: fn });
-      bar.append(h("div", { class: "tools" },
-        tool("Move earlier", '<path d="m15 18-6-6 6-6"/>', () => moveStep(i, -1), i === 0),
-        tool("Move later", '<path d="m9 18 6-6-6-6"/>', () => moveStep(i, 1), i === steps.length - 1),
-        tool("Add a page after", P.plus, () => addStep(i)),
-        tool("Duplicate the page", P.dup, () => dupStep(i)),
-        timerTool(i),
-        tool("Delete the page", P.del, () => delStep(i), steps.length < 2)));
-      bar.lastChild.lastChild.classList.add("tipleft");
-    }
+    pageTools(steps);
+  }
+  /** The bar under the form: what to do with the page in view (Add page, move, copy, time, delete), then undo. */
+  function pageTools(steps) {
+    const box = $("pageTools");
+    box.innerHTML = "";
+    if (S.mode !== "edit") return;
+    box.append(h("button", { class: "pill", "data-add-page": "", "aria-label": "Add page", html: `${SVG(P.plus, 14)}Add page`, onclick: addPage }));
+    if (typeof S.view !== "number" || !steps.length) return;
+    const i = S.view;
+    const tool = (tip, ic, fn, off) => h("button", { class: "ib tipup", "data-tip": tip, "aria-label": tip, html: SVG(ic, 15), disabled: off || null, onclick: fn });
+    const t = timerTool(i);
+    t.classList.add("tipup");
+    box.append(
+      tool("Move earlier", '<path d="m15 18-6-6 6-6"/>', () => moveStep(i, -1), i === 0),
+      tool("Move later", '<path d="m9 18 6-6-6-6"/>', () => moveStep(i, 1), i === steps.length - 1),
+      tool("Duplicate the page", P.dup, () => dupStep(i)),
+      t,
+      tool("Delete the page", P.del, () => delStep(i), steps.length < 2),
+    );
   }
   // Next on every step but the last, the send button on the last, no Back on the first.
   function normalizeSteps() {

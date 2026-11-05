@@ -209,9 +209,9 @@ try {
   await $("#stepBar .sp").nth(4).click();
   check((await form.locator(".cl-divider").count()) === 3, "All shows every step with a divider");
   await $("#stepBar .sp").nth(0).click();
-  await $("#stepBar button[aria-label='Add a page after']").click();
+  await $("#pageTools [data-add-page]").click();
   check((await $("#stepBar .sp").count()) === 6 && (await form.locator("section[data-cl-step]").nth(1).locator("[data-cl-next]").count()) === 1 && (await form.locator("section[data-cl-step]").nth(2).locator("[type=submit]").count()) === 1, "a new step goes in with Next, and the send button stays on the last step");
-  await $("#stepBar button[aria-label='Move later']").click();
+  await $("#pageTools button[aria-label='Move later']").click();
   check((await form.locator("section[data-cl-step]").nth(2).locator("[type=submit]").count()) === 1 && (await form.locator("section[data-cl-step]").nth(1).locator("[type=submit]").count()) === 0, "moving a step keeps Next and send in order");
   await $("#undo").click();
   await $("#undo").click();
@@ -323,7 +323,7 @@ try {
   check(((await form.locator("#title").textContent()) ?? "").endsWith("{name}") && (await form.locator("#title").getAttribute("data-cl-pipe")) !== null, "an earlier answer goes into a text as {name}");
   // A jump: three pages, and Tender skips the second.
   await $("#stepBar .sp").nth(0).click();
-  await $("#stepBar button[aria-label='Add a page after']").click();
+  await $("#pageTools [data-add-page]").click();
   await $("#stepBar .sp").nth(0).click();
   await form.locator("label:has(input[name='mood'])").first().click();
   await $("#pscroll button").filter({ hasText: "Add skip rule" }).click();
@@ -370,11 +370,15 @@ try {
   check((await $("#publish").count()) + (await $("#checkBtn").count()) + (await $("#shareBtn").count()) + (await $("#backBtn").count()) === 0, "Publish, the check, Share and Back live in the page's header, never in the Studio's bar");
   for (const id of ["d-desk", "d-tab", "d-phone"]) if (!(await $(`#${id}`).getAttribute("data-tip"))) check(false, `${id} has a tooltip`);
   check((await $("#t-edit").count()) + (await $("#t-preview").count()) + (await $("#t-after").count()) + (await $("#addBtn").count()) === 0, "no Preview, Edit and On submission tabs, and no Add button in the bar");
-  // The steps sit under the form.
+  // The steps sit in the bar over the form; the page tools and undo sit under it.
   const canvasBox = await $("#canvas").boundingBox();
   const stepsBox = await $("#stepBar").boundingBox();
-  check(!!canvasBox && !!stepsBox && stepsBox.y >= canvasBox.y + canvasBox.height - 2, "the steps sit under the form");
+  const toolsBox = await $("#pageTools").boundingBox();
+  check(!!canvasBox && !!stepsBox && stepsBox.y + stepsBox.height <= canvasBox.y + 2, "the steps sit in the bar over the form");
+  check(!!canvasBox && !!toolsBox && toolsBox.y >= canvasBox.y + canvasBox.height - 2 && (await $("#stepDock #undo").count()) === 1, "the page tools and undo sit under the form");
+  check(await $("#stepBar .sp").first().evaluate((e) => parseFloat(getComputedStyle(e).fontSize) >= 13 && getComputedStyle(e).textOverflow !== "ellipsis"), "step names are 13 px and never cut short");
   const controls = await p.evaluate(() => [...document.querySelector("#studio")!.shadowRoot!.querySelectorAll("section.stage > .bar > button, section.stage > .bar > a, section.stage > .bar > .grp > button")].filter((b) => !(b as HTMLElement).hidden).length);
+  if (shots) await p.screenshot({ path: `${shots}/bars.png` });
   check(controls <= 11, `the bar holds at most 11 controls besides the steps (${controls})`);
   await $("#moreBtn").click();
   check((await $("#layer .menu").textContent())!.includes("Back to page 1"), "⋯ holds Back to page 1");
@@ -612,12 +616,12 @@ try {
   await $("#pscroll input[aria-label='Video link']").blur();
   check((await form.locator(".cl-media").last().textContent())!.includes("youtu.be"), "its link is set in Settings");
   // Add page: a one-page form becomes two pages, the send button on the last
-  await $("#stepBar [data-add-page]").click();
+  await $("#pageTools [data-add-page]").click();
   check((await form.locator("[data-cl-step]").count()) === 2 && (await $("#stepBar .sp").filter({ hasText: "New page" }).count()) === 1, "Add page splits a one-page form into pages");
   const pg1 = form.locator("[data-cl-step]").first(), pg2 = form.locator("[data-cl-step]").last();
   check((await pg1.locator("[data-cl-next]").count()) === 1 && (await pg1.locator("[type=submit]").count()) === 0 && (await pg1.locator("input[type='url']").count()) === 1, "the first page keeps the fields and gets Next");
   check((await pg2.locator("[type=submit]").count()) === 1, "the send button moves to the last page");
-  await $("#stepBar [data-add-page]").click();
+  await $("#pageTools [data-add-page]").click();
   check((await form.locator("[data-cl-step]").count()) === 3, "Add page on a form with pages adds one more");
   if (shots) await p.screenshot({ path: `${shots}/9-pages.png` });
   await $("#chatPick").click();
