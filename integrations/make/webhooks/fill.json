@@ -1,0 +1,36 @@
+{
+  "label": "Claritia form.submitted",
+  "type": "dedicated",
+  "connection": "claritia",
+  "parameters": [
+    {
+      "name": "form",
+      "label": "Form",
+      "type": "select",
+      "options": "rpc://listForms",
+      "required": false
+    }
+  ],
+  "attach": {
+    "url": "/hooks",
+    "method": "POST",
+    "body": {
+      "url": "{{webhook.url}}",
+      "event": "form.submitted",
+      "description": "Make",
+      "form": "{{ifempty(parameters.form; omit)}}"
+    },
+    "response": {
+      "data": {
+        "externalHookId": "{{body.id}}"
+      }
+    }
+  },
+  "detach": {
+    "url": "/hooks/{{webhook.externalHookId}}",
+    "method": "DELETE"
+  },
+  "communication": {
+    "output": "{{merge(ifempty(body.data.fill; ifempty(body.data.meeting; body.data.lead)); object(\"event\"; body.event; \"event_id\"; body.id))}}"
+  }
+}

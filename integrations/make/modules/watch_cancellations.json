@@ -1,0 +1,19 @@
+{
+  "name": "watch_cancellations",
+  "label": "Watch Canceled Bookings",
+  "description": "Starts when a meeting is canceled.",
+  "typeOf": "instant_trigger",
+  "webhook": "cancellation",
+  "connection": "claritia",
+  "communication": {
+    "output": "{{trigger.data}}",
+    "trigger": {
+      "id": "{{item.event_id}}"
+    }
+  },
+  "samples": {
+    "event": "meeting.canceled",
+    "event_id": "evt_test",
+    "test": true
+  }
+}

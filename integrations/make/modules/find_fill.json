@@ -1,0 +1,44 @@
+{
+  "name": "find_fill",
+  "label": "Find Fills",
+  "description": "Finds the latest fills from an email.",
+  "typeOf": "search",
+  "connection": "claritia",
+  "parameters": [
+    {
+      "name": "email",
+      "label": "Email",
+      "type": "email",
+      "required": true
+    },
+    {
+      "name": "form",
+      "label": "Form",
+      "type": "select",
+      "options": "rpc://listForms",
+      "required": false
+    },
+    {
+      "name": "limit",
+      "label": "Limit",
+      "type": "uinteger",
+      "default": 1,
+      "validate": {
+        "max": 100
+      }
+    }
+  ],
+  "communication": {
+    "url": "/events",
+    "qs": {
+      "event": "form.submitted",
+      "email": "{{parameters.email}}",
+      "form": "{{ifempty(parameters.form; \"\")}}",
+      "limit": "{{parameters.limit}}"
+    },
+    "response": {
+      "iterate": "{{body.items}}",
+      "output": "{{item}}"
+    }
+  }
+}

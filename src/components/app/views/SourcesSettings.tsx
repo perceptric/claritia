@@ -3,9 +3,12 @@
 // Settings › Integrations: the tools a form sends its leads to (Form › Sync and Form Studio's Send to), and the form
 // and meeting tools whose webhooks come in (fills from Typeform, Tally and Webflow; bookings from Calendly and Cal.com,
 // linked to the fill they followed). Connected in one click where the tool allows it, and disconnected here.
+// Zapier, Make and Activepieces connect from their own side (src/lib/oauth/apps.ts); signing in there makes an API key
+// with the app's name, and Disconnect here revokes it, which also removes the app's hooks.
 
 import { useState } from "react";
 import { CATALOG, entryOf, type Entry } from "@/lib/sources/catalog";
+import { AUTOMATION_APPS } from "@/lib/oauth/apps";
 import { CopyButton } from "../CopyButton";
 import { Plug } from "../../Icons";
 import { BrandLogo } from "../BrandLogo";
@@ -32,7 +35,18 @@ export function SourcesSettings({ sb, session, ws, role }: Pick<ViewProps, "sb" 
   // Omniscient's own Connect button sends people to /settings/suite?connect=omniscient.
   const [connect, setConnect] = useState<Entry | null>(() => entryOf(search().get("connect") ?? "") ?? null);
   const [error, setError] = useState(() => search().get("error") ?? "");
+  const appKeys = useLoad(async () => must(await sb.from("api_keys").select("id, name").eq("workspace_id", ws.id).is("revoked_at", null)) as { id: string; name: string }[], ws.id);
   const owner = role === "owner";
+  const disconnectApp = async (name: string) => {
+    setError("");
+    try {
+      if (!(await askConfirm(`Disconnect ${name}?`, { body: `${name} stops getting events from Claritia.`, ok: "Disconnect", danger: true }))) return;
+      for (const k of (appKeys.data ?? []).filter((x) => x.name === name)) must(await sb.rpc("revoke_api_key", { p_key: k.id }));
+      appKeys.reload();
+    } catch (e) {
+      setError(errorText(e));
+    }
+  };
   const connected = new Map((sources.data ?? []).map((s) => [s.kind, s]));
   const [hooks, setHooks] = useState<Record<string, string>>({});
   const showHook = async (s: Source) => {
@@ -95,6 +109,33 @@ export function SourcesSettings({ sb, session, ws, role }: Pick<ViewProps, "sb" 
                 <div className="flex w-full min-w-0 items-center gap-2">
                   <code className="min-w-0 flex-1 truncate rounded-sm border border-line bg-paper px-2.5 py-1.5 font-mono text-[12px]">{hooks[on.id]}</code>
                   <CopyButton text={hooks[on.id]!} label="Copy" />
+                </div>
+              ) : null}
+            </div>
+          );
+        })}
+        {AUTOMATION_APPS.map((a) => {
+          const on = (appKeys.data ?? []).some((k) => k.name === a.name);
+          return (
+            <div key={a.id} className="flex min-w-0 flex-col gap-3 rounded-lg bg-card shadow-rest px-4 py-3.5 text-[13px]">
+              <div className="flex min-w-0 items-center gap-3">
+                <BrandLogo domain={a.domain} name={a.name} size={24} />
+                <span className="min-w-0 flex-1 font-medium wrap-break-word">{a.name}</span>
+                {on ? (
+                  <Badge tone="green" dot>
+                    Connected
+                  </Badge>
+                ) : (
+                  <a href={a.url} target="_blank" rel="noopener noreferrer" className="press inline-flex h-7 shrink-0 items-center rounded-full bg-card px-3 text-[12.5px] font-medium text-ink shadow-outline hover:bg-paper">
+                    Connect
+                  </a>
+                )}
+              </div>
+              {on && owner ? (
+                <div className="flex min-w-0 flex-wrap items-center gap-2">
+                  <Button variant="ghost" size="sm" onClick={() => void disconnectApp(a.name)}>
+                    Disconnect
+                  </Button>
                 </div>
               ) : null}
             </div>

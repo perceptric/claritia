@@ -1,0 +1,19 @@
+{
+  "name": "watch_bookings",
+  "label": "Watch Bookings",
+  "description": "Starts when someone books a meeting.",
+  "typeOf": "instant_trigger",
+  "webhook": "booking",
+  "connection": "claritia",
+  "communication": {
+    "output": "{{trigger.data}}",
+    "trigger": {
+      "id": "{{item.event_id}}"
+    }
+  },
+  "samples": {
+    "event": "meeting.booked",
+    "event_id": "evt_test",
+    "test": true
+  }
+}

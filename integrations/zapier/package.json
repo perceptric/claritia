@@ -1,0 +1,17 @@
+{
+  "name": "claritia-zapier",
+  "version": "1.0.0",
+  "description": "Claritia for Zapier: new fills, bookings and routing results; find a fill; add someone to a workflow.",
+  "main": "index.js",
+  "private": true,
+  "scripts": {
+    "test": "zapier test",
+    "push": "zapier push"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "zapier-platform-core": "15.5.1"
+  }
+}

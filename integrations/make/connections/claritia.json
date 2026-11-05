@@ -1,0 +1,59 @@
+{
+  "type": "oauth2",
+  "label": "Claritia",
+  "communication": {
+    "authorize": {
+      "url": "https://app.tryclaritia.com/oauth/authorize",
+      "qs": {
+        "client_id": "{{common.clientId}}",
+        "redirect_uri": "{{oauth.redirectUri}}",
+        "response_type": "code"
+      },
+      "response": {
+        "temp": {
+          "code": "{{query.code}}"
+        }
+      }
+    },
+    "token": {
+      "url": "https://app.tryclaritia.com/api/oauth/token",
+      "method": "POST",
+      "type": "urlencoded",
+      "body": {
+        "code": "{{temp.code}}",
+        "client_id": "{{common.clientId}}",
+        "client_secret": "{{common.clientSecret}}",
+        "grant_type": "authorization_code",
+        "redirect_uri": "{{oauth.redirectUri}}"
+      },
+      "response": {
+        "data": {
+          "accessToken": "{{body.access_token}}"
+        }
+      },
+      "log": {
+        "sanitize": [
+          "request.body.client_secret",
+          "response.body.access_token"
+        ]
+      }
+    },
+    "info": {
+      "url": "https://app.tryclaritia.com/api/v1/me",
+      "headers": {
+        "authorization": "Bearer {{connection.accessToken}}"
+      },
+      "response": {
+        "uid": "{{body.workspace.id}}",
+        "metadata": {
+          "type": "text",
+          "value": "{{body.workspace.name}}"
+        }
+      }
+    }
+  },
+  "common": {
+    "clientId": "make",
+    "clientSecret": "(the server's OAUTH_MAKE_SECRET)"
+  }
+}

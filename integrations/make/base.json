@@ -1,0 +1,16 @@
+{
+  "baseUrl": "https://app.tryclaritia.com/api/v1",
+  "headers": {
+    "authorization": "Bearer {{connection.accessToken}}"
+  },
+  "response": {
+    "error": {
+      "message": "[{{statusCode}}] {{body.error}}"
+    }
+  },
+  "log": {
+    "sanitize": [
+      "request.headers.authorization"
+    ]
+  }
+}

@@ -42,9 +42,9 @@ webhook), HubSpot Meetings and SavvyCal (book from a form by link).
 | Integration | What's there | What's missing |
 |---|---|---|
 | Intercom | Key and the client (reads contacts) | Make a contact, and a conversation or ticket, per fill |
-| Zapier | Works now through the Webhook (paste a Zapier Catch Hook address) | A listed Zapier app: a Forms API with API keys and subscribe hooks; triggers New fill and New booking |
-| Make | The same, through the Webhook | A listed Make app on the same API |
-| Activepieces | The same, through the Webhook | A listed piece on the same API |
+| Zapier | The Forms API, sign-in, hooks and the app's code are built (Next step 1) | Publish the app from `integrations/zapier` and set its secret |
+| Make | The same | Publish the app from `integrations/make` |
+| Activepieces | The same | Publish the piece from `integrations/activepieces` |
 | Microsoft Teams | Teams meetings as a meeting location | Fill alerts in a Teams channel |
 | Gmail | Emails go from the workspace's verified domain (Resend) | Send workflow emails from a team member's own Gmail |
 | Google Docs | A PDF copy of each fill | A Google Doc from a template, filled with the answers |
@@ -135,18 +135,35 @@ tests cover. Every send is a job on the claritia-intel worker with retries and t
 tool that's down or rate limited tries again with growing waits; a wrong or revoked sign-in stops and says sign in
 again; a run after a timeout looks for its Fill ID first and makes no second record.
 
-### 1. Forms API, Zapier, Make and Activepieces (about 1 week)
+### 1. Forms API, Zapier, Make and Activepieces (built; the apps wait to be published)
 
-- **What:** listed apps on Zapier, Make and Activepieces with the triggers New fill, New booking, Booking canceled and
-  Lead routed, and the actions Find fill and Add contact to workflow.
-- **Where:** Settings › Integrations shows each app with "Connect"; the app signs in with OAuth (the Claritia approve
-  page). API keys stay under Settings › API keys (`src/app/api/keys`).
-- **How:** a Forms API at `/api/v1/forms` (list forms, read fills, read bookings) and REST hooks at `/api/v1/hooks`
-  (subscribe and unsubscribe, the way Zapier's REST hooks ask). Hook sends reuse the signed Webhook send in
-  `src/lib/delivery/send.ts`. A hook that answers 410 is removed; one that fails for 3 days is paused and the team is
-  told once.
-- **Tests:** a hook that times out twice and then takes the send gets one fill; two subscribes for the same address
-  make one hook; a fill from before the subscribe is never sent; a sample fill answers the app's test step.
+- **What:** apps for Zapier, Make and Activepieces with the triggers New fill (one form or all), New booking, Booking
+  canceled and Lead routed, the search Find fill (by email), and the action Add contact to workflow.
+- **Where:** Settings › Integrations shows each app with Connect, which opens the app's own Claritia page, and
+  Disconnect once it's connected. Signing in from the app opens Claritia's approve screen (`/oauth/authorize`,
+  `src/components/app/OAuthApprove.tsx`); Allow sends the person back with a one-time code. The app trades it at
+  `/api/oauth/token` for an API key named after the app, so it also shows in Settings › API keys.
+- **How:** the Forms API (`/api/v1`, a key as `Authorization: Bearer clr_...`, 120 calls a minute per key):
+  `GET me`, `GET forms`, `GET workflows`, `GET events?event=&form=&email=&limit=&sample=1` (each trigger's sample,
+  and Find fill), `POST hooks` and `DELETE hooks/<id>` (REST hooks), `POST workflows/<id>/contacts`. Hooks are
+  meeting webhook endpoints an app made (`127_api_hooks.sql`): a fill and a routing result now write sends too, in
+  the same transaction, and the `meeting_webhook` job sends them signed, with retries over 8 tries. A fill's body is
+  built on its first try (5 seconds after the fill, with its contact and uploads in) and kept for every retry; its
+  id is the fill's, so a receiver can drop a repeat. A hook whose address answers 410 Gone is removed. One that has
+  failed for 3 days is paused, with the reason as its last error. Revoking the key removes its hooks. The Webhooks
+  tab lists and counts only the hooks people made. Spam, test fills and fills past the plan's monthly fills never go.
+  Sign-in codes work once for 10 minutes; a code used twice revokes the key it made; PKCE (S256) is checked when
+  the app sends it. Code: `src/lib/hooks`, `src/lib/oauth`, `src/app/api/v1`, `src/app/api/oauth`,
+  `worker-intel/jobs/webhooks.ts`. The apps: `integrations/zapier` (Zapier CLI), `integrations/make` (Make's app
+  blocks), `integrations/activepieces` (a piece).
+- **Tests:** `tests/apiHooks.test.ts`: a fill hook that times out twice and then takes it gets one fill with the same
+  bytes each time; an app's hook that answers 410 is removed and a person's isn't; spam, held and deleted fills never
+  go; only each app's own return address; PKCE. `tests/pg/apiHooks.pg.ts` on a real Postgres: one send per hook and
+  fill, only its forms, none for spam or tests; routing sends; a revoked key takes its hooks; the 3-day pause; a code
+  used twice.
+- **To go live:** set `OAUTH_ZAPIER_SECRET`, `OAUTH_MAKE_SECRET` and `OAUTH_ACTIVEPIECES_SECRET` on claritia-web
+  (`docs/sources-setup.md`), then publish each app with the same secret. Each app's return address is in
+  `src/lib/oauth/clients.ts` (check against each app's settings when it's made).
 
 ### 2. Tracking: Google Analytics, Google Tag Manager, Meta Pixel, Google Ads (about 1 week)
 

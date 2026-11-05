@@ -1,0 +1,27 @@
+{
+  "label": "Claritia lead.routed",
+  "type": "dedicated",
+  "connection": "claritia",
+  "parameters": [],
+  "attach": {
+    "url": "/hooks",
+    "method": "POST",
+    "body": {
+      "url": "{{webhook.url}}",
+      "event": "lead.routed",
+      "description": "Make"
+    },
+    "response": {
+      "data": {
+        "externalHookId": "{{body.id}}"
+      }
+    }
+  },
+  "detach": {
+    "url": "/hooks/{{webhook.externalHookId}}",
+    "method": "DELETE"
+  },
+  "communication": {
+    "output": "{{merge(ifempty(body.data.fill; ifempty(body.data.meeting; body.data.lead)); object(\"event\"; body.event; \"event_id\"; body.id))}}"
+  }
+}

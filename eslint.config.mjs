@@ -14,6 +14,8 @@ const eslintConfig = defineConfig([
     "next-env.d.ts",
     "packages/*/dist/**",
     ".forms/**",
+    // The Zapier, Make and Activepieces apps build with their own tools.
+    "integrations/**",
   ]),
 ]);
 

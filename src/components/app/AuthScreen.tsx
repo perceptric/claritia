@@ -6,8 +6,9 @@ import { Logo } from "../Logo";
 import { Catch } from "./Catch";
 import { Button, ErrorNote, errorText } from "./ui";
 
-// Where people land after signing in.
-const appUrl = () => `${window.location.origin}${window.location.pathname === "/" ? "/tests" : window.location.pathname}`;
+// Where people land after signing in. An app's sign-in (/oauth/authorize) keeps its request.
+const appUrl = () =>
+  `${window.location.origin}${window.location.pathname === "/" ? "/tests" : window.location.pathname}${window.location.pathname.startsWith("/oauth/") ? window.location.search : ""}`;
 
 function message(e: unknown) {
   const text = errorText(e);

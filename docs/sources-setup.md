@@ -215,3 +215,20 @@ After 5 failed runs in a row, a source stops. Fix the cause, then press Resume o
 ## Running cost
 
 None of this adds a paid service. The 1 GB worker is about $3 a month (check). The developer accounts for HubSpot, Salesforce, Pipedrive, Attio and Mailchimp are free.
+
+## Zapier, Make and Activepieces
+
+The apps sign in with OAuth (docs/integrations-plan.md, Next step 1). Each needs a client secret on claritia-web:
+make a long random one per app, set it on the server, and give the same value to the app.
+
+```bash
+fly secrets set --app claritia-web OAUTH_ZAPIER_SECRET=... OAUTH_MAKE_SECRET=... OAUTH_ACTIVEPIECES_SECRET=...
+```
+
+| App | Client id | Where the secret goes |
+|---|---|---|
+| Zapier | `zapier` | `zapier env:set 1.0.0 CLIENT_ID=zapier CLIENT_SECRET=...` in `integrations/zapier` |
+| Make | `make` | The connection's `common` block in Make's app editor (`integrations/make/connections/claritia.json`) |
+| Activepieces | `activepieces` | The piece's OAuth app settings in Activepieces |
+
+An app with no secret set can't sign in: its approve screen says it isn't set up yet.

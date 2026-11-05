@@ -1,0 +1,19 @@
+{
+  "name": "watch_routed",
+  "label": "Watch Routed Leads",
+  "description": "Starts when routing gives a lead an owner, or finds none.",
+  "typeOf": "instant_trigger",
+  "webhook": "routed",
+  "connection": "claritia",
+  "communication": {
+    "output": "{{trigger.data}}",
+    "trigger": {
+      "id": "{{item.event_id}}"
+    }
+  },
+  "samples": {
+    "event": "lead.routed",
+    "event_id": "evt_test",
+    "test": true
+  }
+}

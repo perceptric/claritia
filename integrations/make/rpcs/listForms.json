@@ -1,0 +1,15 @@
+{
+  "name": "listForms",
+  "label": "List Forms",
+  "connection": "claritia",
+  "communication": {
+    "url": "/forms",
+    "response": {
+      "iterate": "{{body.forms}}",
+      "output": {
+        "label": "{{item.name}}",
+        "value": "{{item.id}}"
+      }
+    }
+  }
+}

@@ -43,6 +43,7 @@
     "collect",
     "worker-intel",
     "scripts",
+    "integrations",
     "packages/*/dist"
   ]
 }

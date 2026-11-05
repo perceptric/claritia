@@ -1,0 +1,15 @@
+{
+  "name": "listWorkflows",
+  "label": "List Workflows",
+  "connection": "claritia",
+  "communication": {
+    "url": "/workflows",
+    "response": {
+      "iterate": "{{body.workflows}}",
+      "output": {
+        "label": "{{item.name}}",
+        "value": "{{item.id}}"
+      }
+    }
+  }
+}

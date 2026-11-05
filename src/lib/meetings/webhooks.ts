@@ -63,6 +63,10 @@ export type Taken = {
   attempts: number;
   active: boolean;
   sealed: string;
+  /** From 127: the hook's id, the app that made it ("app" when a person did), and the fill a fill send is for. */
+  endpoint_id?: string;
+  via?: string;
+  submission_id?: string | null;
   meeting: { id: string; token_hash: string; token_sealed: string | null; status: string; location: Record<string, unknown> } | null;
 };
 

@@ -1,0 +1,44 @@
+{
+  "name": "add_to_workflow",
+  "label": "Add a Contact to a Workflow",
+  "description": "Adds someone to a live workflow, making the contact if it's new.",
+  "typeOf": "action",
+  "connection": "claritia",
+  "parameters": [
+    {
+      "name": "workflow",
+      "label": "Workflow",
+      "type": "select",
+      "options": "rpc://listWorkflows",
+      "required": true
+    },
+    {
+      "name": "email",
+      "label": "Email",
+      "type": "email",
+      "required": true
+    },
+    {
+      "name": "first_name",
+      "label": "First name",
+      "type": "text"
+    },
+    {
+      "name": "last_name",
+      "label": "Last name",
+      "type": "text"
+    }
+  ],
+  "communication": {
+    "url": "/workflows/{{parameters.workflow}}/contacts",
+    "method": "POST",
+    "body": {
+      "email": "{{parameters.email}}",
+      "first_name": "{{parameters.first_name}}",
+      "last_name": "{{parameters.last_name}}"
+    },
+    "response": {
+      "output": "{{body}}"
+    }
+  }
+}

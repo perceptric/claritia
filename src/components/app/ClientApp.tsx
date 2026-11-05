@@ -9,6 +9,7 @@ import { NAV, resolveRoute, routingPage, schedulingPage } from "@/lib/nav";
 import { LogOut, Moon, Sun } from "../Icons";
 import { Logo } from "../Logo";
 import { AuthScreen } from "./AuthScreen";
+import { OAuthApprove } from "./OAuthApprove";
 import { Dots } from "./Ai";
 import { CommandBar, type Command } from "./CommandBar";
 import { DialogHost, tell } from "./Dialogs";
@@ -132,6 +133,8 @@ export function ClientApp({ config }: { config: SupaConfig }) {
 
   useEffect(() => {
     const sync = () => {
+      // An app's sign-in keeps its own address (the approve screen reads it).
+      if (window.location.pathname.startsWith("/oauth/")) return;
       const l = readLoc();
       setLoc(l);
       // Old and unknown addresses show where they landed.
@@ -190,6 +193,7 @@ export function ClientApp({ config }: { config: SupaConfig }) {
       </main>
     );
   if (!ws) return <Splash />;
+  if (typeof window !== "undefined" && window.location.pathname === "/oauth/authorize") return <OAuthApprove session={session} ws={ws} />;
 
   const props: ViewProps = { sb, session, ws, role, navigate, id: loc.id, onWorkspace };
   const email = session.user.email ?? "";

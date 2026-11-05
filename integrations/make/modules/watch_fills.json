@@ -1,0 +1,19 @@
+{
+  "name": "watch_fills",
+  "label": "Watch Fills",
+  "description": "Starts when someone fills in a form.",
+  "typeOf": "instant_trigger",
+  "webhook": "fill",
+  "connection": "claritia",
+  "communication": {
+    "output": "{{trigger.data}}",
+    "trigger": {
+      "id": "{{item.event_id}}"
+    }
+  },
+  "samples": {
+    "event": "form.submitted",
+    "event_id": "evt_test",
+    "test": true
+  }
+}
