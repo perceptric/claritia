@@ -127,6 +127,9 @@ function names(form: Form): Map<string, string> {
   return out;
 }
 
+/** A date question asking for a birthday. */
+const BIRTH = /\b(date of birth|birth ?date|birthday|dob)\b/i;
+
 const listItems = (xs: { value: string; label: string }[] | undefined) => writeList((xs ?? []).map((o) => ({ value: o.value, label: o.label || o.value })));
 
 function fieldHtml(f: Field, n: string, ifs: string, ctx: { name: (id: string) => string | undefined; lost: Set<string> }): string {
@@ -167,13 +170,18 @@ function fieldHtml(f: Field, n: string, ifs: string, ctx: { name: (id: string) =
       const t = f.type === "text" ? "text" : f.type;
       const mm = f.type === "number" && f.valid ? `${(f.valid as { min?: number }).min !== undefined ? ` min="${(f.valid as { min?: number }).min}"` : ""}${(f.valid as { max?: number }).max !== undefined ? ` max="${(f.valid as { max?: number }).max}"` : ""}` : "";
       const work = f.type === "email" && f.check === "work_email" ? ` data-cl-check="work_email"` : "";
-      return `<div class="q"${show}>${label}${help}<input class="field" id="${id}" name="${n}" type="${t}"${ph}${mm}${req}${cid}${save}${work}>${err}</div>`;
+      // Money is Form Studio's Currency: cents, never below zero unless the form says, and the number keypad on phones.
+      const money = f.type === "number" && f.unit === "money" ? `${/ min="/.test(mm) ? "" : ' min="0"'} step="0.01"${ph ? "" : ' placeholder="0.00"'} inputmode="decimal"` : "";
+      return `<div class="q"${show}>${label}${help}<input class="field" id="${id}" name="${n}" type="${t}"${ph}${mm}${money}${req}${cid}${save}${work}>${err}</div>`;
     }
     case "textarea":
       return `<div class="q"${show}>${label}${help}<textarea class="field" id="${id}" name="${n}" rows="4"${ph}${req}${cid}${save}></textarea>${err}</div>`;
     case "phone":
       return block("phone");
     case "date":
+      // A date of birth is Form Studio's Date of birth: the browser's own date box, which it can fill in.
+      if (BIRTH.test(f.label)) return `<div class="q"${show}>${label}${help}<input class="field" id="${id}" name="${n}" type="date" autocomplete="bday"${req}${cid}${save}>${err}</div>`;
+      return block("date");
     case "time":
     case "daterange":
     case "address":
@@ -186,7 +194,7 @@ function fieldHtml(f: Field, n: string, ifs: string, ctx: { name: (id: string) =
       return block("file", ` data-cl-kinds="${(f.file?.kinds ?? ["pdf", "image", "office"]).join(" ")}" data-cl-max="${f.file?.maxMb ?? 10}"`);
     case "hidden": {
       const h = f.hidden ?? { from: "param" as const, name: n };
-      return `<div data-cl-field="hidden" data-cl-name="${n}"${cid} data-cl-from="${h.from}"${h.name ? ` data-cl-param="${esc(h.name)}"` : ""}${h.value ? ` data-cl-value="${esc(h.value)}"` : ""}></div>`;
+      return `<div data-cl-field="hidden" data-cl-name="${n}" data-cl-label="${esc(f.label || n)}"${cid} data-cl-from="${h.from}"${h.name ? ` data-cl-param="${esc(h.name)}"` : ""}${h.value ? ` data-cl-value="${esc(h.value)}"` : ""}></div>`;
     }
     case "grid":
       return block("grid", ` data-cl-rows="${esc(listItems(f.grid?.rows))}" data-cl-cols="${esc(listItems(f.grid?.cols))}"`);
@@ -226,10 +234,17 @@ function fieldHtml(f: Field, n: string, ifs: string, ctx: { name: (id: string) =
       if (!opts.length) return `<div class="q"${show}>${label}${help}<input class="field" id="${id}" name="${n}" type="text"${ph}${req}${cid}${save}>${err}</div>`;
       return `<div class="q"${show}>${label}${help}<select class="field" id="${id}" name="${n}"${req}${cid}${save}><option value="">Choose one</option>${opts.map((o) => `<option value="${esc(o.value)}"${score(o)}>${esc(o.label || o.value)}</option>`).join("")}</select>${err}</div>`;
     case "checkbox":
-      return `<div class="q"${show}><label class="check"><input type="checkbox" name="${n}" id="${id}"${req}${cid} data-cl-label="${esc(f.label)}"> ${esc(f.label)}</label>${help}${err}</div>`;
-    case "group":
-      ctx.lost.add(`${f.label}: its "add another" rows are one box to write in`);
-      return `<div class="q"${show}>${label}${help}<textarea class="field" id="${id}" name="${n}" rows="4"${req}${cid}></textarea>${err}</div>`;
+      // Form Studio's Agreement: one boxed choice that says Yes when it's ticked.
+      return `<div class="q"${show}><label class="choice"><input type="checkbox" name="${n}" id="${id}" value="Yes"${req}${cid} data-cl-label="${esc(f.label)}"> ${esc(f.label)}</label>${help}${err}</div>`;
+    case "group": {
+      // Form Studio's Repeating group: a row of small questions and Add another. A row's list is a text box there.
+      const parts = (f.group?.fields ?? []).map((x) => {
+        if (x.type === "dropdown") ctx.lost.add(`${f.label}: ${x.label} is a box to type in`);
+        return `${x.label.replace(/[|:]/g, " ").trim()}::${x.type === "dropdown" ? "text" : x.type}`;
+      });
+      if (!parts.length) return `<div class="q"${show}>${label}${help}<textarea class="field" id="${id}" name="${n}" rows="4"${req}${cid}></textarea>${err}</div>`;
+      return block("group", ` data-cl-fields="${esc(parts.join("|"))}" data-cl-max="${f.group?.max ?? 5}"${f.group?.add ? ` data-cl-add="${esc(f.group.add)}"` : ""}`);
+    }
     default:
       return "";
   }
@@ -298,7 +313,9 @@ export function formToPage(form: Form): Converted {
       if (j.to >= form.steps.length) sendNow[i] = [...sendNow[i]!, ...d];
     }
   });
-  const many = form.steps.length > 1;
+  // A cover (a first screen with a title, a line and Start) is a page of its own before the questions.
+  const cover = form.layout?.cover;
+  const many = form.steps.length > 1 || !!cover;
   const submit = esc(form.submit?.label || "Submit");
   const stepHtml = (s: Step, i: number) => {
     // Fields sit in a grid: a half-width one shares its row with the next, as on the website's template pages.
@@ -311,7 +328,7 @@ export function formToPage(form: Form): Converted {
     const last = i === form.steps.length - 1;
     const now = text(sendNow[i]!.length ? sendNow[i]! : null);
     const buttons = [
-      i > 0 ? `<button class="btn-secondary" type="button" data-cl-back>Back</button>` : "",
+      i > 0 || cover ? `<button class="btn-secondary" type="button" data-cl-back>Back</button>` : "",
       last ? `<button class="btn" type="submit">${submit}</button>` : now ? `<button class="btn" type="button" data-cl-next data-cl-show-if="${esc(text(not(sendNow[i]!)))}">Next</button><button class="btn" type="submit" data-cl-show-if="${esc(now)}">${submit}</button>` : `<button class="btn" type="button" data-cl-next>Next</button>`,
     ].join("");
     const cond = text(stepIf[i]!);
@@ -325,15 +342,19 @@ export function formToPage(form: Form): Converted {
   const thanks = `<section data-cl-thanks hidden id="thanks"><h2 class="heading">${esc(end?.kind === "message" ? end.title : "Thanks, we got it.")}</h2>${thanksText}${books ? `<div data-cl-book id="book"></div>` : ""}</section>`;
   const intro = form.intro ? `<p class="text">${esc(form.intro)}</p>` : "";
   const bar = many && form.layout?.progress !== "none" ? `<div class="bar" data-cl-progress aria-hidden="true"><i></i></div>` : "";
+  // With a cover, its title is the form's one title: the header keeps the logo and the progress bar.
+  const head = cover ? "" : `${form.title ? `<h1 class="heading">${esc(form.title)}</h1>` : ""}${intro}`;
+  const coverHtml = cover
+    ? `<section data-cl-step id="cover"><h1 class="heading">${esc(cover.title || form.title || "")}</h1>${cover.text ? `<p class="text">${esc(cover.text)}</p>` : ""}${intro}\n<div class="nav"><button class="btn" type="button" data-cl-next>${esc(cover.button || "Start")}</button></div></section>\n`
+    : "";
   const html = `<div class="page" id="page"><div class="form-card" id="card">
-<header><img data-cl-logo alt="Brand logo" class="logo">${form.title ? `<h1 class="heading">${esc(form.title)}</h1>` : ""}${intro}${bar}</header>
+<header><img data-cl-logo alt="Brand logo" class="logo">${head}${bar}</header>
 <form id="form">
-${form.steps.map(stepHtml).join("\n")}
+${coverHtml}${form.steps.map(stepHtml).join("\n")}
 </form>
 ${thanks}
 </div></div>`;
-  if (form.layout?.cover || form.layout?.side) lost.add("The cover picture: a page shows only the brand's logo");
-  if (form.copy) lost.add("A copy of the answers emailed to the person");
+  if (form.layout?.side) lost.add("The picture beside the form: a page shows only the brand's logo");
   if ((form.constants ?? []).length) lost.add("Settings formulas read are now numbers in the formulas");
   return { html, css: pageCss(form), after: afterOf(form, name, lost), title: form.title ?? "", lost: [...lost] };
 }

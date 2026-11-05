@@ -299,15 +299,13 @@ export const MANUFACTURING = [
           one("How would you like to be paid?", ["ACH transfer", "Wire transfer", "Check"], { required: true }),
           text("Bank name", { show: when("How would you like to be paid?", "not", "Check") }),
           text("Name on the account", { show: when("How would you like to be paid?", "not", "Check") }),
-          text("Routing number", { show: when("How would you like to be paid?", "not", "Check"), half: true }),
-          text("Account number", { show: when("How would you like to be paid?", "not", "Check"), half: true }),
           file("Voided check or bank letter", { show: when("How would you like to be paid?", "not", "Check") }),
           address("Remit-to address", { show: when("How would you like to be paid?", "is", "Check"), map: undefined, key: "remit_to" }),
         ],
       },
       {
         title: "Tax and insurance",
-        fields: [text("Tax ID", { required: true }), files("W-9 or equivalent", { required: true }), files("Insurance certificate", { required: true }), date("Insurance expiry date")],
+        fields: [files("W-9 or equivalent", { required: true }), files("Insurance certificate", { required: true }), date("Insurance expiry date")],
         skip: go("Do you hold any quality or industry certifications?", "is", false, "Sign"),
       },
       {

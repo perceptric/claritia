@@ -113,7 +113,7 @@ export const formTools: Tool<ApiCaller>[] = [
       if (typeof args.html !== "string" || !args.html.trim()) throw new ToolError("Pass html: the whole page.");
       const { form: next, questions } = pageForm({ html: args.html, css: typeof args.css === "string" ? args.css : page.css, brand: page.brand, after: (page.after ?? { kind: "thanks" }) as PageAfter, title: f.name, prevIds: page.ids });
       if (!questions.length) throw new ToolError("The page has no questions to send.");
-      for (const k of ["reply", "keep", "notify", "share", "consent", "spam"] as const) if (f.draft[k] !== undefined) (next as Record<string, unknown>)[k] = f.draft[k];
+      for (const k of ["reply", "keep", "notify", "share", "copy", "consent", "spam"] as const) if (f.draft[k] !== undefined) (next as Record<string, unknown>)[k] = f.draft[k];
       const check = checkForm(next, { custom: await customOf(ctx) });
       if ("errors" in check) throw new ToolError(`The page was refused: ${check.errors.join(" ")}`);
       const { data, error } = await ctx.sb.from("forms").update({ draft: check.form, draft_rev: f.draft_rev + 1, updated_at: new Date().toISOString() }).eq("id", f.id).eq("draft_rev", f.draft_rev).select("id");

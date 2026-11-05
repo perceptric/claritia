@@ -131,7 +131,7 @@ export const NONPROFIT = [
           company("Organization name", { required: true }),
           website(),
           one("Organization type", ["Nonprofit or charity", "School", "Faith group", "Community group", "Public agency", "Other"], { required: true }),
-          text("Tax ID or registration number"),
+          file("Proof of nonprofit or charity status"),
           long("Your mission", { required: true }),
           one("What are you applying for?", ["A project grant", "General operating support"], { required: true }),
         ],

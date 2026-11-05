@@ -15,6 +15,8 @@ function fieldsFor(f: FormField, id: () => string): Field[] {
   const half = f.half ? { width: "half" as const } : {};
   switch (f.kind) {
     case "short_text":
+      // A country answer is Form Studio's Country list, as the Add list makes it.
+      if (f.map === "country") return [{ ...base, type: "country", ...half }];
       return [{ ...base, type: "text", ...half }];
     case "long_text":
       return [{ ...base, key: q, type: "textarea" }];
@@ -67,6 +69,19 @@ function fieldsFor(f: FormField, id: () => string): Field[] {
       return [{ ...base, key: q, type: "file", file: { maxMb: 10, kinds: ["pdf", "image", "office"] } }];
     case "signature":
       return [{ ...base, key: q, type: "signature" }];
+    case "group":
+      return [
+        {
+          ...base,
+          key: q,
+          type: "group",
+          group: {
+            fields: (f.parts ?? []).slice(0, 6).map((p, i) => ({ id: `${base.id}r${i}`, key: `q.${base.id}r${i}` as FieldKey, type: p.type, label: p.label, required: i === 0 })),
+            max: Math.min(Math.max(f.max ?? 10, 1), 20),
+            ...(f.add ? { add: f.add } : {}),
+          },
+        },
+      ];
     case "statement":
       return [{ id: base.id, key: `c.${base.id}` as FieldKey, type: "paragraph", label: "Text", required: false, content: { text: [f.label, f.help].filter(Boolean).join("\n\n").slice(0, 1000) } }];
     case "hidden":

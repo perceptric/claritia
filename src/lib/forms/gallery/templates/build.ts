@@ -2,7 +2,7 @@
 // refers to an earlier field by its label or key. tpl() turns a draft into a FormTemplate and checks it.
 
 import { keyFrom } from "../key.ts";
-import type { Cond, FieldKind, FormEnd, FormField, FormPage, FormSchema, FormTemplate, Industry, PageJump, TemplateKit, UseCase } from "../types.ts";
+import type { Cond, FieldKind, GroupPart, FormEnd, FormField, FormPage, FormSchema, FormTemplate, Industry, PageJump, TemplateKit, UseCase } from "../types.ts";
 
 type Draft = Omit<FormField, "key" | "show"> & { key?: string; save?: string; show?: Cond };
 type Opts = Partial<Omit<Draft, "kind" | "label">>;
@@ -57,6 +57,17 @@ export const file = f("file", { maxFiles: 1 });
 export const files = f("file", { maxFiles: 5 });
 export const sign = f("signature", { required: true });
 export const statement = f("statement");
+/**
+ * A repeating group (Form Studio's): one row of small questions and Add another, up to `max` rows. A part is a label,
+ * or [label, type]: `rows("Medicines", ["Medicine", "Dose"], { add: "Add a medicine" })`.
+ */
+export const rows = (label: string, parts: (string | [string, GroupPart])[], o: Opts = {}): Draft => ({
+  kind: "group",
+  label,
+  parts: parts.map((p) => (typeof p === "string" ? { label: p, type: "text" as const } : { label: p[0], type: p[1] })),
+  max: 10,
+  ...o,
+});
 export const hidden = f("hidden");
 
 /** Show a field only when an earlier one (by label or key) matches. */

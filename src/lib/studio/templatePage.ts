@@ -16,8 +16,9 @@ export function templateDraft(t: FormTemplate, brandCss: string, meeting?: strin
   if ("errors" in checked) throw new Error(checked.errors[0] ?? "This form template can't be used right now.");
   const page = formToPage(checked.form);
   const { form } = pageForm({ html: page.html, css: page.css, brand: brandCss || DEFAULT_BRAND_CSS, after: page.after, title: page.title });
-  // An internal form (a staff check-in) asks no consent, as the template says.
-  const draft = checkForm({ ...form, consent: checked.form.consent });
+  // An internal form (a staff check-in) asks no consent, as the template says; a form that offers a PDF copy of the
+  // answers after the send keeps it.
+  const draft = checkForm({ ...form, consent: checked.form.consent, ...(checked.form.copy ? { copy: true } : {}) });
   if ("errors" in draft) throw new Error(draft.errors[0] ?? "This form template can't be used right now.");
   return draft.form;
 }

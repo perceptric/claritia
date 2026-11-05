@@ -1,7 +1,7 @@
 // Wave 1, orders and payments: orders, price calculators, payments, deposits, donations, subscriptions and
 // sponsorships across food, retail, ecommerce, nonprofits, home services, solar, SaaS, farms, sports, faith and media.
 import type { Cond } from "../types.ts";
-import { address, agree, company, date, drop, email, email2, file, fullName, go, jobTitle, long, many, money, num, one, phone, phone2, range, sign, text, TIMELINE, tpl, website, when, yesno } from "./build.ts";
+import { address, agree, company, date, drop, email, email2, file, fullName, go, jobTitle, long, many, money, num, one, phone, phone2, range, sign, text, TIMELINE, tpl, website, when, yesno, rows } from "./build.ts";
 
 /** A calculation that reads earlier answers by key. Money in USD unless the format says otherwise. */
 const calc = (label: string, key: string, formula: string, format: "money" | "number" | "percent" = "money", o: { visible?: boolean } = {}) => ({
@@ -796,7 +796,7 @@ export const WAVE1_MONEY = [
         title: "Medical",
         fields: [
           long("Allergies and what to do if there's a reaction"),
-          long("Medicines to take at camp"),
+          rows("Medicines to take at camp", ["Medicine", "Dose", "When to take it"], { add: "Add a medicine" }),
           long("Health conditions staff should know about"),
           text("Doctor's name and phone"),
           file("Camp health form"),

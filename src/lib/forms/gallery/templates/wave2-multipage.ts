@@ -1,7 +1,7 @@
 // Wave 2, multi-page (docs/multipage-forms-plan.md, Step 2): long forms for jobs that need pages, with pages skipped
 // when they don't apply, paths by answer, a cover on the longest, save and finish later, and a PDF copy.
 import type { FormTemplate } from "../types.ts";
-import { address, agree, company, CONTACT_PREF, DAYPART, date, drop, email, email2, files, fullName, go, HEARD, long, many, matrix, money, nps, num, one, phone, phone2, range, scale, sign, stars, statement, text, tpl, when, yesno } from "./build.ts";
+import { address, agree, company, CONTACT_PREF, DAYPART, date, drop, email, email2, files, fullName, go, HEARD, long, many, matrix, money, nps, num, one, phone, phone2, range, scale, sign, stars, statement, text, tpl, when, yesno, rows } from "./build.ts";
 
 const ADDED = "2026-11-03";
 /** A price or amount worked out from earlier answers by their keys. */
@@ -55,7 +55,7 @@ export const WAVE2_MULTIPAGE: FormTemplate[] = [
         fields: [
           money("Car loan payments a month", { key: "car" }),
           money("Student loan payments a month", { key: "student" }),
-          money("Credit card minimum payments a month", { key: "cards" }),
+          money("Minimum card payments a month", { key: "cards" }),
           money("Other loan payments a month", { key: "other_debt" }),
           calc("Monthly debt payments", "debts", "ifempty({car}, 0) + ifempty({student}, 0) + ifempty({cards}, 0) + ifempty({other_debt}, 0)"),
           one("How would you rate your credit?", ["Excellent", "Good", "Fair", "Poor", "Not sure"], { save: "credit" }),
@@ -256,7 +256,7 @@ export const WAVE2_MULTIPAGE: FormTemplate[] = [
         title: "Current care",
         fields: [
           yesno("Are you taking any medicines now?"),
-          long("Which medicines and doses?", { show: when("Are you taking any medicines now?", "is", true) }),
+          rows("Which medicines and doses?", ["Medicine", "Dose"], { add: "Add a medicine", show: when("Are you taking any medicines now?", "is", true) }),
           text("Primary care doctor"),
           yesno("Are you seeing a psychiatrist or another counselor now?"),
           text("Their name and practice", { show: when("Are you seeing a psychiatrist or another counselor now?", "is", true) }),
@@ -369,7 +369,7 @@ export const WAVE2_MULTIPAGE: FormTemplate[] = [
         title: "Accounts",
         fields: [
           num("Business bank accounts", { min: 0, max: 30, half: true }),
-          num("Business credit cards", { min: 0, max: 30, half: true }),
+          num("Company cards (credit or charge)", { min: 0, max: 30, half: true }),
           many("Other accounts", ["Loans", "Lines of credit", "PayPal", "Stripe", "Square", "Shopify"]),
           yesno("Do you ever pay personal costs from business accounts?"),
           one("How current are your books?", ["Up to date", "1–3 months behind", "3–12 months behind", "More than a year behind", "Never kept"], { required: true, save: "books_status" }),

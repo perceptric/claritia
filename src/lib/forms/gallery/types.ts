@@ -26,6 +26,7 @@ export type FieldKind =
   | "address"
   | "file"
   | "signature"
+  | "group"
   | "statement"
   | "hidden"
   | "calc"
@@ -56,6 +57,7 @@ export const KINDS: { value: FieldKind; label: string; group: string }[] = [
   { value: "address", label: "Address", group: "People" },
   { value: "file", label: "File upload", group: "Files" },
   { value: "signature", label: "Signature", group: "Files" },
+  { value: "group", label: "Repeating group", group: "Layout" },
   { value: "statement", label: "Statement", group: "Layout" },
   { value: "hidden", label: "Hidden", group: "Layout" },
   { value: "calc", label: "Calculation", group: "Money" },
@@ -113,7 +115,13 @@ export type FormField = {
   /** payment: a fixed amount, or the key of the calc to charge. */
   amount?: number;
   from?: string;
+  /** group: the small questions in each row (Add another makes one more row, up to max), and the button's words. */
+  parts?: { label: string; type: GroupPart }[];
+  add?: string;
 };
+
+/** The question types a repeating group's row can hold, as Form Studio's Repeating group draws them. */
+export type GroupPart = "text" | "email" | "phone" | "number" | "date";
 
 /**
  * Where a page goes next (docs/multipage-forms-plan.md, Step 1), on an answer from this page or one before it.

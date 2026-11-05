@@ -63,6 +63,30 @@ them. Each count is what that pick would show.
   through the step cache, and only ids in the catalog come back. **Build with AI** opens Form Studio with the words in
   its message box (`/forms/new?ask=`), unsent.
 
+## Templates in Form Studio
+
+Use template turns a template into a Form Studio page (`src/lib/studio/templatePage.ts`, through `convert.ts` and
+`src/lib/studio/fromForm.ts`), and every page passes the Studio's own check, so it can be saved after it's edited.
+Each question becomes the field the Studio's Add list makes:
+
+| Template | Studio page |
+| --- | --- |
+| A cover (title, line, Start) | The first page, with the form's one title; the first page of questions has Back |
+| Money | Currency: cents, never below zero unless the template says, the number keypad on phones |
+| A date asking for a birthday | Date of birth: the browser's own date box, which it can fill in |
+| Agree | Agreement: a boxed choice that says Yes when ticked |
+| Country (`country()`) | The Country list, saved to the contact's country |
+| A list of people or things (`rows()`) | Repeating group: a row of small questions and Add another, up to `max` rows |
+| Hidden | A hidden value with its label |
+| "Email a PDF copy" (`copy`) | Kept on the form; the page's thank-you shows Download a copy |
+
+Lists that are one thing per row (medicines, guests, children, dependents) are `rows()`; notes that mix several
+things (allergies and medicines together) stay a long answer. Templates never ask for bank or routing numbers, tax or
+ID numbers, card details or passwords in a box: a file upload (a voided check, a W-9, proof of status) asks instead.
+
+13 health templates ask about medicines, allergies or medical history. The Studio holds those questions until the
+workspace has health data turned on (`docs/studio-v2-plan.md`), so those pages can be used but not saved until then.
+
 ## The website
 
 `node scripts/export-templates.ts > ../claritia-site/tools/templates.json`, then `python3 tools/templates.py` in the
@@ -92,6 +116,13 @@ website carried into the new workspace.
 - `tests/formGalleryMore.test.ts`: the brand peek (the button color, never white or gray; text that reads; a Google
   font only; nothing it can't see), the catalog match (only catalog ids), starter kits and seasons.
 - `tests/formPay.test.ts`: a payment a rule hides is never charged.
+- `tests/templateStudioFit.test.ts`: every template's page passes the Studio's check (health records aside), a
+  check box question with three or more choices is one question while a real repeat is still caught, a cover is the
+  first page with its title once, the PDF copy is kept, and money, dates of birth, agreements, countries, hidden values
+  and lists use the Studio's fields.
+- `scripts/template-studio-check.ts` (browser): a template opens on its cover, Start and Back, an Agreement shows what
+  it unlocks, a repeating group sends two rows, and the thank-you shows Download a copy once; the first send failing,
+  and a copy link the server didn't make, are the flaky cases.
 - `tests/studioStyle.test.ts`: every style survives the page's CSS cleaner whole and is known again by its first
   line; Use template makes the style asked for, the template's own, a brand or plain.
 - `scripts/studio-blocks-check.ts` (browser): Poster's stage, frames and buttons, Grove's drawing beside the form and
@@ -104,6 +135,7 @@ website carried into the new workspace.
 | Item | Beta (50 teams) | Growth (500 teams) |
 | --- | --- | --- |
 | Templates, menus, kits and pages: data in the app, static pages on the website | $0 | $0 |
+| Templates as Studio fields (covers, Currency, Date of birth, Agreement, Country, Repeating group, the PDF copy): code only | $0 | $0 |
 | Style fonts: Google Fonts | $0 | $0 |
 | Use template and kits: no AI call; styles are stylesheets written by code | $0 | $0 |
 | Claude Haiku: catalog match when the words hit nothing (about 20,000 and 200,000 a month, about 9,000 tokens in with the catalog cached, 60 out, repeats free) | about $5 | about $50 |

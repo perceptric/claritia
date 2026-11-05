@@ -234,7 +234,7 @@ export const WAVE1_QUIZZES = [
       {
         title: "The quiz",
         fields: [
-          one("An email from your bank asks you to confirm your password through a link. What should you do?", ["Click the link and confirm", "Reply with your password", "Go to the bank's site yourself or call them", "Forward it to a coworker"], { required: true, points: [0, 0, 1, 0] }),
+          one("An email from your bank asks you to sign in through its link to check your account. What should you do?", ["Click the link and confirm", "Reply with your password", "Go to the bank's site yourself or call them", "Forward it to a coworker"], { required: true, points: [0, 0, 1, 0] }),
           one("Which sender address is most likely fake?", ["support@yourbank.com", "support@yourbank-alerts-login.net", "news@yourbank.com", "help@yourbank.com"], { required: true, points: [0, 1, 0, 0] }),
           one("Your CEO emails asking you to buy gift cards fast and keep it quiet. What is this most likely?", ["A real request", "A scam", "A team surprise", "A test of trust"], { required: true, points: [0, 1, 0, 0] }),
           one("Before you click a link in an email, what should you check?", ["The color of the button", "Where the link really goes", "How long the email is", "The time it was sent"], { required: true, points: [0, 1, 0, 0] }),

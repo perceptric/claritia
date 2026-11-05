@@ -1,6 +1,6 @@
 // Healthcare, dental and wellness, fitness and beauty. Forms that collect health details carry phi and stay drafts
 // until the workspace confirms a BAA (docs/form-templates.md, Healthcare).
-import { address, agree, date, DAYPART, drop, email, file, fullName, go, long, many, matrix, one, phone, phone2, scale, sign, stars, text, tpl, when, yesno } from "./build.ts";
+import { address, agree, date, DAYPART, drop, email, file, fullName, go, long, many, matrix, one, phone, phone2, scale, sign, stars, text, tpl, when, yesno, rows } from "./build.ts";
 
 export const HEALTHCARE = [
   tpl("healthcare.appointment", "healthcare", "Appointment request", ["booking", "request"], "Let patients ask for an appointment.", {
@@ -74,7 +74,7 @@ export const HEALTHCARE = [
         title: "Medicines and allergies",
         fields: [
           yesno("Do you take any medicines?", { required: true }),
-          long("Medicines and doses", { placeholder: "Include vitamins and supplements", show: when("Do you take any medicines?", "is", true) }),
+          rows("Medicines and doses", ["Medicine", "Dose"], { help: "Include vitamins and supplements.", add: "Add a medicine", show: when("Do you take any medicines?", "is", true) }),
           yesno("Do you have any allergies?", { required: true }),
           long("What are you allergic to, and what happens?", { show: when("Do you have any allergies?", "is", true) }),
           text("Preferred pharmacy"),

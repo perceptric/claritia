@@ -31,7 +31,7 @@ function conditional(form: Form): Set<string> {
   });
   return out;
 }
-const TYPE: Partial<Record<Field["type"], Field["type"]>> = { group: "textarea" };
+const TYPE: Partial<Record<Field["type"], Field["type"]>> = {};
 
 /** An answer of the right shape for each question, so both forms can take it. */
 function sample(f: Field): unknown {
@@ -94,6 +94,8 @@ test("every template turns into a page that keeps its questions, choices, points
       if (f.pay) assert.deepEqual(g.pay, f.pay, `${at} payment`);
       if (f.check) assert.equal(g.check, f.check, `${at} work email`);
       if (f.grid) assert.deepEqual(g.grid, f.grid, `${at} grid`);
+      // A repeating group keeps its row's questions, their types and how many rows it allows.
+      if (f.group) assert.deepEqual([g.group?.fields.map((x) => [x.label, x.type]), g.group?.max, g.group?.add], [f.group.fields.map((x) => [x.label, x.type]), f.group.max, f.group.add], `${at} group`);
     }
   }
 });

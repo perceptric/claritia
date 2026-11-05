@@ -390,7 +390,7 @@ export function cleanPage(raw: string, prevIds: Record<string, string> = {}): { 
       q = { name, id: "", type, label: "", labelFrom: "name", required: false, ...(save ? { save } : {}), ...(fixed ? { fixed } : {}), ...(key ? { key } : {}), ...(attrs["data-cl-check"] === "work_email" ? { work: true as const } : {}), ...("data-cl-verify" in attrs ? { verify: true as const } : {}), options: [] };
       byName.set(name, q);
       qs.push(q);
-    } else if (q.type === "checkbox" && type === "checkbox") q.type = "multi";
+    } else if ((q.type === "checkbox" || q.type === "multi") && type === "checkbox") q.type = "multi";
     else if (!(q.type === "radio" && type === "radio")) q.twice = true;
     if ("required" in attrs && !open.some((o) => o.showIf) && !("data-cl-show-if" in attrs)) q.required = true;
     // A group of choices names its question with data-cl-label on its inputs (its legend is only words on screen).

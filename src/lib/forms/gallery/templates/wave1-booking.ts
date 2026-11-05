@@ -1,7 +1,7 @@
 // Wave 1, booking: appointments, bookings, reservations, rentals, classes and callbacks for salons, spas, tattoo
 // studios, pets, hotels, vacation rentals, restaurants, studios, tutors, courts, photographers, car rental, venues and
 // advisors. Prices in options are examples the business edits.
-import { address, agree, company, date, DAYPART, drop, email, email2, file, files, fullName, long, many, num, one, phone, range, sign, text, time, tpl, when, yesno } from "./build.ts";
+import { address, agree, company, date, DAYPART, drop, email, email2, file, files, fullName, long, many, num, one, phone, range, sign, text, time, tpl, when, yesno, rows } from "./build.ts";
 
 const ADDED = "2026-11-03";
 const DIET = ["Vegetarian", "Vegan", "Gluten free", "Dairy free", "Nut allergy", "None"];
@@ -325,7 +325,7 @@ export const WAVE1_BOOKING = [
       range("Stay dates", { required: true }),
       time("Arrival time", { required: true }),
       num("Number of guests", { required: true, min: 1 }),
-      long("Names of all guests", { required: true }),
+      rows("Names of all guests", ["Full name"], { required: true, add: "Add a guest", max: 20 }),
       file("Photo ID of the main guest", { required: true }),
       text("Car make and license plate"),
       agree("I agree to the house rules: no parties, quiet hours after 10 pm and no smoking."),

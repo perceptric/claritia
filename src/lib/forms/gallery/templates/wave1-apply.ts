@@ -1,7 +1,7 @@
 // Wave 1, apply and join: memberships, enrollment, volunteers, grants, tenants, vendors, job applications, patient
 // intake, project briefs and client onboarding, across coaching, creative, architecture, media, education, health,
 // legal, faith, sports, government, security, agriculture and real estate.
-import { address, agree, BUDGET, company, CONTACT_PREF, country, DAYPART, date, drop, email, file, files, fullName, go, HEARD, jobTitle, long, many, money, num, one, phone, phone2, range, rank, scale, sign, text, time, TIMELINE, tpl, url, website, when, yesno } from "./build.ts";
+import { address, agree, BUDGET, company, CONTACT_PREF, country, DAYPART, date, drop, email, file, files, fullName, go, HEARD, jobTitle, long, many, money, num, one, phone, phone2, range, rank, scale, sign, text, time, TIMELINE, tpl, url, website, when, yesno, rows } from "./build.ts";
 
 const ADDED = "2026-11-03";
 
@@ -217,7 +217,7 @@ export const WAVE1_APPLY = [
           text("Second child's full name", { required: true }),
           date("Second child's date of birth", { required: true }),
           one("Second child's program", CARE_PROGRAMS, { required: true }),
-          long("Other children's names, birth dates and programs", { show: when("children", "is", "3 or more") }),
+          rows("Other children", ["Full name", ["Date of birth", "date"], "Program"], { add: "Add a child", max: 8, show: when("children", "is", "3 or more") }),
         ],
       },
       {
@@ -328,7 +328,7 @@ export const WAVE1_APPLY = [
       {
         title: "Health history",
         fields: [
-          long("Current medicines"),
+          rows("Current medicines", ["Medicine", "Dose"], { add: "Add a medicine" }),
           long("Allergies"),
           yesno("Are vaccines up to date?", { required: true }),
           many("Has your child had any of these?", ["Asthma", "Ear infections", "Eczema", "Seizures", "Heart problems", "None of these"]),
@@ -406,7 +406,7 @@ export const WAVE1_APPLY = [
         title: "Medical history",
         fields: [
           many("Do you have any of these?", ["Heart condition", "Diabetes", "High blood pressure", "Bleeding problems", "Joint replacement", "None of these"], { required: true }),
-          long("Medicines you take"),
+          rows("Medicines you take", ["Medicine", "Dose"], { add: "Add a medicine" }),
           many("Allergies", ["Penicillin", "Latex", "Local anesthetic", "Aspirin", "None"]),
           yesno("Are you pregnant or could you be?"),
           agree("The information above is true and complete."),
@@ -570,8 +570,8 @@ export const WAVE1_APPLY = [
           text("Spouse's full name", { show: when("Marital status", "is", "Married") }),
           drop("Spouse's status", ["US citizen", "Green card holder", "Visa holder", "No current status", "Lives outside the US"], { show: when("Marital status", "is", "Married") }),
           num("Number of children", { min: 0, max: 20 }),
-          long("Children's names, birth dates and where they live", { show: when("Number of children", "gte", 1) }),
-          long("Parents, children or siblings who are US citizens or green card holders"),
+          rows("Children", ["Full name", ["Date of birth", "date"], "Where they live"], { add: "Add a child", show: when("Number of children", "gte", 1) }),
+          rows("Parents, children or siblings who are US citizens or green card holders", ["Full name", "Relationship", "Citizen or green card"], { add: "Add a relative" }),
         ],
       },
       {
@@ -995,7 +995,7 @@ export const WAVE1_APPLY = [
       {
         title: "Dependents and signature",
         fields: [
-          long("Dependents (name, date of birth, relationship)", { show: when("Coverage for", "not", "Just me") }),
+          rows("Dependents", ["Full name", ["Date of birth", "date"], "Relationship"], { add: "Add a dependent", show: when("Coverage for", "not", "Just me") }),
           agree("I have read the plan summaries."),
           sign("Signature"),
         ],

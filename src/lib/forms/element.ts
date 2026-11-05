@@ -1080,6 +1080,10 @@ export class ClaritiaForm extends Base {
       end.querySelectorAll(".bt").forEach((x) => x.classList.add("btn"));
       end.querySelectorAll(".pl").forEach((x) => x.classList.add(x.getAttribute("aria-pressed") === "true" ? "btn" : "btn-secondary"));
       spot.replaceChildren(end);
+    } else if (this.copy) {
+      // The page's own thank-you, with the PDF copy of the answers under it.
+      const t = wrap.querySelector<HTMLElement>("[data-cl-thanks]");
+      if (t && !t.querySelector("[data-cl-copy]")) t.append(el("p", { class: "text", "data-cl-copy": "" }, el("a", { href: `${this.base}${this.copy}`, target: "_blank", rel: "noopener", text: "Download a copy" })));
     }
   }
 

@@ -329,6 +329,7 @@ const SECONDS: Record<FieldKind, number> = {
   address: 20,
   file: 20,
   signature: 10,
+  group: 30,
   statement: 5,
   hidden: 0,
   calc: 3,
