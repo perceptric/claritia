@@ -36,6 +36,70 @@ export function triggerWords(t: Trigger, n: Names = {}): string {
   }
 }
 
+/** The trigger card's name, a noun: "Meeting booked", "Form submitted". */
+export function triggerTitle(t: Trigger): string {
+  switch (t.kind) {
+    case "form":
+      return "Form submitted";
+    case "meeting": {
+      const EV: Record<string, string> = { booked: "booked", canceled: "canceled", held: "held", no_show: "no-show" };
+      return `Meeting ${t.events.length ? list(t.events.map((e) => EV[e] ?? e)) : "booked"}`;
+    }
+    case "not_booked":
+      return "No booking after form";
+    case "routed":
+      return t.result === "unassigned" ? "Lead unassigned" : t.result === "routed" ? "Lead assigned" : "Lead routed";
+    case "clicked":
+      return "Email clicked";
+  }
+}
+
+/** What the trigger is limited to, under its name: the forms, meeting types or emails picked. */
+export function triggerDetail(t: Trigger, n: Names = {}): string {
+  switch (t.kind) {
+    case "form":
+    case "not_booked":
+      return named(t.forms, n.forms, "Any form", "A deleted form");
+    case "meeting":
+      return named(t.types, n.types, "Any meeting type", "A deleted meeting type");
+    case "routed":
+      return "Any lead";
+    case "clicked":
+      return named(t.emails, n.emails, "Any email", "A deleted email");
+  }
+}
+
+/** A card's name, a noun: Email, Delay, Slack message. */
+export const STEP_TITLE: Record<Step["kind"], string> = { email: "Email", wait: "Delay", wait_until: "Event wait", branch: "Branch", split: "Split", route: "Route", slack: "Slack message", webhook: "Webhook", exit: "Exit" };
+
+/** A card's detail under its name: "See you tomorrow", from owner; 1 day before meeting; To owner. */
+export function stepDetail(s: Step, n: Names = {}): string {
+  switch (s.kind) {
+    case "email":
+      return s.email.subject ? `"${s.email.subject}"${s.from === "owner" ? ", from owner" : ""}` : "No subject yet";
+    case "wait": {
+      const parts = [s.days ? plural(s.days, "day") : "", s.hours ? plural(s.hours, "hour") : ""].filter(Boolean);
+      if (s.before === "meeting") return `${parts.join(" and ") || "The time"} before meeting`;
+      const days = s.weekday?.length ? (s.weekday.length === 5 && !s.weekday.includes(0) && !s.weekday.includes(6) ? ", weekdays" : ", allowed days") : "";
+      return `${parts.join(" and ") || "A moment"}${days}${s.at ? ` at ${s.at}` : ""}`;
+    }
+    case "wait_until":
+      return `Up to ${plural(s.days, "day")} for ${EVENT_WORDS[s.event] ?? s.event}`;
+    case "branch":
+      return stepWords(s, n);
+    case "split":
+      return `${s.percent}% and ${100 - s.percent}%`;
+    case "route":
+      return "Right person";
+    case "slack":
+      return `To ${s.to === "owner" ? "owner" : (n.people?.[s.to] ?? "a teammate")}`;
+    case "webhook":
+      return s.url ? hostOf(s.url) : "No address yet";
+    case "exit":
+      return "End of workflow";
+  }
+}
+
 const EVENT_WORDS: Record<string, string> = { "meeting.booked": "a booked meeting", "email.clicked": "a click on an email", "form.submitted": "a form" };
 
 export function waitWords(s: Extract<Step, { kind: "wait" }>): string {
@@ -86,9 +150,9 @@ export function goalWords(g: Goal): string {
 export function diffWords(live: Body | null, draft: Body, n: Names = {}): string[] {
   if (!live) return ["Goes live for the first time"];
   const out: string[] = [];
-  if (JSON.stringify(live.trigger) !== JSON.stringify(draft.trigger)) out.push(`Starts: ${triggerWords(draft.trigger, n)}`);
-  if (JSON.stringify(live.goals) !== JSON.stringify(draft.goals)) out.push(draft.goals.length ? `Ends early when ${draft.goals.map(goalWords).join(" or ")}` : "No longer ends early");
-  if (JSON.stringify(live.entry) !== JSON.stringify(draft.entry)) out.push(draft.entry.mode === "once" ? "People go through once" : `People can go through again after ${plural(draft.entry.gapDays, "day")}`);
+  if (JSON.stringify(live.trigger) !== JSON.stringify(draft.trigger)) out.push(`Trigger: ${triggerTitle(draft.trigger)}, ${triggerDetail(draft.trigger, n)}`);
+  if (JSON.stringify(live.goals) !== JSON.stringify(draft.goals)) out.push(draft.goals.length ? "Exit condition: meeting booked" : "No exit condition");
+  if (JSON.stringify(live.entry) !== JSON.stringify(draft.entry)) out.push(draft.entry.mode === "once" ? "Re-entry: once" : `Re-entry: repeat after ${plural(draft.entry.gapDays, "day")}`);
   const before = new Map<string, Step>();
   walk(live.steps, (s) => before.set(s.id, s));
   const after = new Map<string, Step>();

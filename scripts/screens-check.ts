@@ -390,10 +390,10 @@ try {
   await page.getByRole("dialog").getByRole("button", { name: "Make live", exact: true }).click({ timeout: 30_000 });
   await until(async () => (await db.query(`select status, live_version from workflows where workspace_id = $1`, [ws])).rows[0]?.live_version === 1, 30_000, "the workflow to go live");
   check(true, "a workflow goes live");
-  await page.getByRole("button", { name: "Try a contact", exact: true }).first().click({ timeout: 30_000 });
+  await page.getByRole("button", { name: "Test", exact: true }).first().click({ timeout: 30_000 });
   await page.getByRole("textbox", { name: "Find a contact" }).fill("lee");
-  await page.getByRole("dialog", { name: "Try a contact" }).getByRole("button", { name: /Lee/ }).first().click({ timeout: 30_000 });
-  await page.getByRole("dialog", { name: "Try a contact" }).getByText("Task for their rep: Follow up").waitFor({ timeout: 30_000 });
+  await page.getByRole("dialog", { name: "Test" }).getByRole("button", { name: /Lee/ }).first().click({ timeout: 30_000 });
+  await page.getByRole("dialog", { name: "Test" }).getByText("Task for their rep: Follow up").waitFor({ timeout: 30_000 });
   check(true, "Try a contact reads the path a contact would take");
   await page.goto(`${base}/templates`);
   await page.getByRole("button", { name: "New template" }).first().click({ timeout: 60_000 });

@@ -281,13 +281,13 @@ export function WorkflowEditor({
         <Trash size={14} />
       </IconButton>
       <Button variant="ghost" size="sm" onClick={() => setPanel("history")}>
-        History
+        Run history
       </Button>
       <Button variant="ghost" size="sm" onClick={() => setPanel("versions")}>
         Versions
       </Button>
       <Button variant="ghost" size="sm" aria-pressed={panel === "try"} onClick={() => setPanel("try")}>
-        Try a contact
+        Test
       </Button>
       {status === "live" ? (
         <Button variant="ghost" size="sm" onClick={() => void setStatus("paused")}>

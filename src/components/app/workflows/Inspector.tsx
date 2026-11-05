@@ -77,8 +77,8 @@ export function TriggerPanel({ body, names, onChange, readOnly }: { body: Body; 
   const setGoal = (kind: Goal["kind"], g: Goal | null) => onChange({ ...body, goals: [...body.goals.filter((x) => x.kind !== kind), ...(g ? [g] : [])] });
   return (
     <div className="flex flex-col gap-5">
-      <Row name="Starts">
-        <Select value={t.kind} options={TRIGGERS.map((x) => ({ value: x.kind, label: x.label }))} onChange={(k) => onChange({ ...body, trigger: blankTrigger(k) })} ariaLabel="Starts" className="h-9 w-full" disabled={readOnly} />
+      <Row name="Trigger">
+        <Select value={t.kind} options={TRIGGERS.map((x) => ({ value: x.kind, label: x.label }))} onChange={(k) => onChange({ ...body, trigger: blankTrigger(k) })} ariaLabel="Trigger" className="h-9 w-full" disabled={readOnly} />
       </Row>
       {t.kind === "form" || t.kind === "not_booked" ? (
         <Row name="Forms">
@@ -87,7 +87,7 @@ export function TriggerPanel({ body, names, onChange, readOnly }: { body: Body; 
       ) : null}
       {t.kind === "meeting" ? (
         <>
-          <Row name="When it's">
+          <Row name="Status">
             <Pills
               options={[
                 { value: "booked", label: "Booked" },
@@ -106,33 +106,33 @@ export function TriggerPanel({ body, names, onChange, readOnly }: { body: Body; 
         </>
       ) : null}
       {t.kind === "routed" ? (
-        <Row name="When">
-          <Segmented value={t.result} options={[{ value: "routed", label: "Gets assigned" }, { value: "unassigned", label: "No one found" }, { value: "any", label: "Either" }]} onChange={(result) => set({ result })} />
+        <Row name="Result">
+          <Segmented value={t.result} options={[{ value: "routed", label: "Assigned" }, { value: "unassigned", label: "Unassigned" }, { value: "any", label: "Either" }]} onChange={(result) => set({ result })} />
         </Row>
       ) : null}
 
       <div className="flex flex-col gap-3 border-t border-line pt-4">
-        <span className={label}>Who can go through</span>
+        <span className={label}>Re-entry</span>
         <Segmented
           value={body.entry.mode}
           options={[
             { value: "once", label: "Once" },
-            { value: "repeat", label: "Again later" },
+            { value: "repeat", label: "Repeat" },
           ]}
           onChange={(mode) => onChange({ ...body, entry: { ...body.entry, mode } })}
         />
         {body.entry.mode === "repeat" ? (
-          <Row name="Days between">
+          <Row name="Re-entry delay (days)">
             <Input type="number" min={1} value={body.entry.gapDays} onChange={(e) => onChange({ ...body, entry: { ...body.entry, gapDays: Math.max(1, Math.round(Number(e.target.value) || 1)) } }, "gap")} className="h-9 w-28" disabled={readOnly} />
           </Row>
         ) : null}
       </div>
 
       <div className="flex flex-col gap-3 border-t border-line pt-4">
-        <span className={label}>Ends early when</span>
+        <span className={label}>Exit condition</span>
         <div className="flex items-center justify-between gap-3 text-[13px] text-ink">
-          They book a meeting
-          <Toggle label="Ends when they book a meeting" on={!!goal("meeting_booked")} onChange={(v) => setGoal("meeting_booked", v ? { kind: "meeting_booked" } : null)} disabled={readOnly} />
+          Meeting booked
+          <Toggle label="Exit when a meeting is booked" on={!!goal("meeting_booked")} onChange={(v) => setGoal("meeting_booked", v ? { kind: "meeting_booked" } : null)} disabled={readOnly} />
         </div>
       </div>
     </div>
@@ -289,9 +289,9 @@ export function EmailForm({ email, onChange, readOnly, builder }: { email: Email
 
 const WEEK = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((d, i) => ({ value: String(i), label: d }));
 const EVENTS = [
-  { value: "meeting.booked", label: "They book a meeting" },
-  { value: "email.clicked", label: "They click an email" },
-  { value: "form.submitted", label: "They send a form" },
+  { value: "meeting.booked", label: "Meeting booked" },
+  { value: "email.clicked", label: "Email clicked" },
+  { value: "form.submitted", label: "Form submitted" },
 ];
 
 export function StepPanel(p: {
@@ -362,7 +362,7 @@ export function StepPanel(p: {
       {s.kind === "email" ? (
         <>
           <div className="flex flex-wrap items-center gap-2">
-            <Segmented value={s.from} options={[{ value: "team", label: "From the team" }, { value: "owner", label: "From their owner" }]} onChange={(from) => p.onPatch({ from } as Partial<Step>)} />
+            <Segmented value={s.from} options={[{ value: "team", label: "Team" }, { value: "owner", label: "Owner" }]} onChange={(from) => p.onPatch({ from } as Partial<Step>)} />
             {!p.readOnly ? (
               <Button variant="ghost" onClick={() => void draft()} disabled={busy}>
                 <AiMark size={13} /> Write with AI

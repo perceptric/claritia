@@ -45,22 +45,22 @@ export type Body = { trigger: Trigger; steps: Step[]; goals: Goal[]; entry: Entr
 
 /** The steps a person can add, in the order the picker shows them, grouped. */
 export const STEP_KINDS: { kind: StepKind; label: string; group: "Email" | "Time" | "Logic" | "Lead" | "Outside" | "End" }[] = [
-  { kind: "email", label: "Send email", group: "Email" },
-  { kind: "wait", label: "Wait", group: "Time" },
-  { kind: "wait_until", label: "Wait until", group: "Time" },
+  { kind: "email", label: "Email", group: "Email" },
+  { kind: "wait", label: "Delay", group: "Time" },
+  { kind: "wait_until", label: "Event wait", group: "Time" },
   { kind: "branch", label: "Branch", group: "Logic" },
   { kind: "split", label: "Split", group: "Logic" },
   { kind: "route", label: "Route", group: "Lead" },
-  { kind: "slack", label: "Slack", group: "Outside" },
+  { kind: "slack", label: "Slack message", group: "Outside" },
   { kind: "webhook", label: "Webhook", group: "Outside" },
   { kind: "exit", label: "Exit", group: "End" },
 ];
 
 export const TRIGGERS: { kind: TriggerKind; label: string }[] = [
   { kind: "form", label: "Form submitted" },
-  { kind: "meeting", label: "Meeting booked, canceled, held or no-show" },
-  { kind: "not_booked", label: "Didn't book after a form" },
-  { kind: "routed", label: "Routed, or no one found" },
+  { kind: "meeting", label: "Meeting event" },
+  { kind: "not_booked", label: "No booking after form" },
+  { kind: "routed", label: "Lead routed" },
   { kind: "clicked", label: "Email clicked" },
 ];
 

@@ -7,7 +7,7 @@
 
 import { useState } from "react";
 import { stepProblems } from "@/lib/workflows/check";
-import { stepWords, triggerWords, waitWords, type Names as WordNames } from "@/lib/workflows/explain";
+import { STEP_TITLE, stepDetail, triggerDetail, triggerTitle, type Names as WordNames } from "@/lib/workflows/explain";
 import { pathsOf, type At, type PathName } from "@/lib/workflows/tree";
 import { STEP_KINDS, type Body, type Step, type StepKind } from "@/lib/workflows/types";
 import { ArrowDown, ArrowUp, Bell, Branch, Clock, Code, Copy, Flag, Mail, Plus, Shuffle, Signpost, Trash } from "../../Icons";
@@ -51,8 +51,9 @@ export function Flow(p: {
         onClick={() => p.onSelect("trigger")}
         className={`anim-rise-sm w-full max-w-[420px] rounded-2xl border bg-card px-4 py-3.5 text-left transition-[transform,box-shadow] duration-[140ms] ${p.sel === "trigger" ? "border-ink" : "border-line hover:-translate-y-px hover:shadow-soft"}`}
       >
-        <span className="label-mono">Starts</span>
-        <span className="mt-1 block text-[14px] font-medium text-ink">{triggerWords(p.body.trigger, p.names)}</span>
+        <span className="label-mono">Trigger</span>
+        <span className="mt-1 block text-[14px] font-medium text-ink">{triggerTitle(p.body.trigger)}</span>
+        <span className="mt-0.5 block text-[13px] text-body [overflow-wrap:anywhere]">{triggerDetail(p.body.trigger, p.names)}</span>
         <span className="mt-1 block text-[12px] text-muted tabular-nums">{p.entered ? `${p.entered.toLocaleString("en-US")} entered in 7 days` : "No one yet"}</span>
       </button>
       <List {...p} steps={p.body.steps} parent={null} path={undefined} />
@@ -95,7 +96,8 @@ function Card(p: ListProps & { step: Step; first: boolean; last: boolean }) {
   const probs = stepProblems(s);
   const on = p.sel === s.id;
   const lit = p.lit?.has(s.id);
-  const words = s.kind === "wait" ? waitWords(s) : stepWords(s, p.names);
+  const title = STEP_TITLE[s.kind];
+  const detail = stepDetail(s, p.names);
   return (
     <div className={`group relative w-full max-w-[420px] ${p.lit && !lit ? "opacity-45" : ""} transition-opacity duration-[320ms]`}>
       <button
@@ -107,10 +109,10 @@ function Card(p: ListProps & { step: Step; first: boolean; last: boolean }) {
           <Icon size={14} />
         </span>
         <span className="flex min-w-0 flex-1 flex-col">
-          <span className="truncate text-[13.5px] font-medium text-ink">{words}</span>
-          <span className="flex items-center gap-2 text-[12px] text-muted tabular-nums">
-            {STEP_KINDS.find((k) => k.kind === s.kind)?.label}
-            {p.counts[s.id] ? <span>· {p.counts[s.id]!.toLocaleString("en-US")} in 7 days</span> : null}
+          <span className="text-[13.5px] font-medium text-ink">{title}</span>
+          <span className="flex flex-wrap items-center gap-x-2 text-[12.5px] text-body tabular-nums">
+            <span className="min-w-0 [overflow-wrap:anywhere]">{detail}</span>
+            {p.counts[s.id] ? <span className="text-muted">{p.counts[s.id]!.toLocaleString("en-US")} in 7 days</span> : null}
           </span>
         </span>
         {s.kind === "email" && s.ai ? <Badge tone="violet">AI</Badge> : null}

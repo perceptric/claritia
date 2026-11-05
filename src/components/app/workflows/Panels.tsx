@@ -82,7 +82,7 @@ export function TryPanel({ sb, session, ws, body, names, onPath, onClose }: { sb
   };
 
   return (
-    <Drawer title="Try a contact" onClose={close} wide>
+    <Drawer title="Test" onClose={close} wide>
       <div className="flex flex-col gap-3 border-b border-line p-5">
         {who ? (
           <div className="flex items-center gap-2">
@@ -198,7 +198,7 @@ export function HistoryDrawer({ sb, id, versions, live, names, onClose }: { sb: 
   };
 
   return (
-    <Drawer title="History" onClose={onClose} wide>
+    <Drawer title="Run history" onClose={onClose} wide>
       <div className="border-b border-line px-5">
         <Tabs
           bare
