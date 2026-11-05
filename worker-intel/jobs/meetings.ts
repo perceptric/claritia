@@ -8,7 +8,7 @@
 //       not booked and the lead gets "Pick a time with <host>", unless a meeting for it exists by now.
 // Every email is started in meeting_mails under a dedupe key before it's handed to SES, and one that may have gone out
 // is never sent again, so a job delivered twice sends one email. Emails go from the workspace's From address when its
-// domain is verified, else from MEETINGS_FROM (default meetings@tryclaritia.com, which must be verified in SES).
+// domain is verified, else from MEETINGS_FROM (default meetings@mail.tryclaritia.com, the domain verified in Resend).
 
 import { slackNote } from "../../src/lib/delivery/send.ts";
 import { outcomeOf, SendError } from "../../src/lib/email/provider.ts";
@@ -66,7 +66,7 @@ export function mailerFromEnv(env: NodeJS.ProcessEnv = process.env): Mailer | nu
 /** The Claritia address meeting emails use when the workspace has no verified domain. */
 export const systemFrom = (env: NodeJS.ProcessEnv = process.env) => {
   const v = env.MEETINGS_FROM?.trim().toLowerCase();
-  return v && validAddress(v) ? v : "meetings@tryclaritia.com";
+  return v && validAddress(v) ? v : "meetings@mail.tryclaritia.com";
 };
 
 export type MeetingOpts = {
@@ -282,7 +282,7 @@ function ics(info: Info, method: "REQUEST" | "CANCEL", now: number, x?: InviteEx
     x && method === "REQUEST"
       ? meetingDescription({ typeName: v.typeName, about: v.about, guest: { name: m.guest_name, email: m.guest_email }, form: x.form, answers: [...x.formAnswers, ...v.answers], join: v.where.url, manage: manage ?? null })
       : [v.where.url ? `Join: ${v.where.url}` : "", ...v.answers.map((a) => `${a.label}: ${a.value}`)].filter(Boolean).join("\n");
-  const organizer = info.hosts[0] ? { name: info.hosts[0].name, email: info.hosts[0].email } : { name: info.workspace.name, email: info.sending.from_email ?? "meetings@tryclaritia.com" };
+  const organizer = info.hosts[0] ? { name: info.hosts[0].name, email: info.hosts[0].email } : { name: info.workspace.name, email: info.sending.from_email ?? systemFrom() };
   return {
     method,
     body: buildIcs({

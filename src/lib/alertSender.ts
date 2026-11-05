@@ -9,7 +9,7 @@ type RunRow = { id: string; test_name: string; environment_name: string; trigger
 
 /** A failed delivery is tried again each minute, up to this many times. */
 const MAX_ATTEMPTS = 5;
-export const alertsFrom = () => process.env.ALERTS_FROM?.trim() || "Claritia <alerts@tryclaritia.com>";
+export const alertsFrom = () => process.env.ALERTS_FROM?.trim() || "Claritia <alerts@mail.tryclaritia.com>";
 
 export type Channels = { slack: string | null; emails: string[] };
 export type Message = { project: string; failures: AlertFailure[]; heals: AlertHeal[] };

@@ -121,7 +121,7 @@ test("queued alerts go out as one Slack message and one email per project, then 
   assert.ok(!JSON.stringify(slack).includes("h2"));
   const mail = calls.find((c) => c.url.includes("resend"))!.body;
   assert.deepEqual(mail.to, ["qa@acme.com"]);
-  assert.equal(mail.from, "Claritia <alerts@tryclaritia.com>");
+  assert.equal(mail.from, "Claritia <alerts@mail.tryclaritia.com>");
   assert.ok(db.alert_events.every((e) => e.sent_at));
   assert.equal((await sendAlerts(sb as never, fetchFn)).sent, 0, "sent twice");
 });

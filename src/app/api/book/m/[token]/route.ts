@@ -39,7 +39,7 @@ export async function GET(request: Request, ctx: Ctx) {
         description: `Reschedule or cancel: ${new URL(request.url).origin}/book/m/${(await ctx.params).token}`,
         location: g.join ?? g.location?.detail ?? null,
         url: g.join,
-        organizer: { email: "meetings@tryclaritia.com", name: g.hosts[0]?.name ?? "Claritia" },
+        organizer: { email: "meetings@mail.tryclaritia.com", name: g.hosts[0]?.name ?? "Claritia" },
         attendees: [{ email: g.guest.email, name: g.guest.name || null }],
       });
       return new Response(file, { headers: { "content-type": "text/calendar; charset=utf-8", "content-disposition": 'attachment; filename="meeting.ics"', "cache-control": "no-store" } });
