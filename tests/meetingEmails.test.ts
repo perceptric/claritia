@@ -82,15 +82,16 @@ test("where: each kind of place, from the guest's side and the host's", () => {
   assert.equal(whereOf({ kind: "google_meet" }, { ...o, joinUrl: null }).url, null, "no link yet: no made-up link");
 });
 
-test("the MIME message carries text, HTML, the inline invite and the attachment, with safe headers", () => {
+test("the MIME message carries text, HTML and one named invite, with safe headers", () => {
   const e = confirmEmail(v({ typeName: "Démo für Sie" }));
   const raw = mime({ from: { name: "Sam Lee", email: "meetings@tryclaritia.com" }, to: "dana@lead.io", replyTo: "sam@acme.com", subject: e.subject, html: e.html, text: e.text, ics: { method: "REQUEST", body: "BEGIN:VCALENDAR\r\nEND:VCALENDAR\r\n" }, boundary: "b1", date: new Date(NOW) });
   const head = raw.split("\r\n\r\n")[0]!;
   assert.match(head, /^From: "Sam Lee" <meetings@tryclaritia.com>\r\nTo: dana@lead.io\r\nReply-To: sam@acme.com\r\nSubject: =\?UTF-8\?B\?/);
-  assert.ok(head.includes(`Content-Type: multipart/mixed; boundary="mixed_b1"`));
-  assert.ok(raw.includes("Content-Type: text/calendar; charset=UTF-8; method=REQUEST"));
-  assert.ok(raw.includes(`Content-Disposition: attachment; filename="invite.ics"`));
-  assert.ok(raw.includes("--alt_b1--") && raw.trimEnd().endsWith("--mixed_b1--"));
+  assert.ok(head.includes(`Content-Type: multipart/alternative; boundary="alt_b1"`));
+  // One invite, named, so no mail app shows an unnamed "attachment-0".
+  assert.ok(raw.includes(`Content-Type: text/calendar; charset=UTF-8; method=REQUEST; name="invite.ics"`));
+  assert.equal(raw.split("invite.ics").length - 1, 2, "the one invite part carries the name twice (type and file), and there's no second copy");
+  assert.ok(raw.trimEnd().endsWith("--alt_b1--"));
   // The subject decodes back to the original.
   const words = [...head.matchAll(/=\?UTF-8\?B\?([^?]+)\?=/g)].map((m) => Buffer.from(m[1]!, "base64").toString("utf8")).join("");
   assert.equal(words, e.subject);

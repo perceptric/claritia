@@ -1,6 +1,7 @@
 // Meeting emails (docs/meetings-scheduler.md 1.7 and 2.4): the subject, HTML and text of each, and the raw MIME
-// message with the calendar file. Plain and short: what, when (in the reader's own time zone), who, where, and the
-// links. Every value from a person (names, answers, addresses) is escaped. Server only.
+// message with the calendar file. Each meeting email leads with a card: a date tile, the meeting, its time (in the
+// reader's own time zone) and place, then the Join button, Add to calendar, the answers and the manage links, with a
+// short footer. Every value from a person (names, answers, addresses) is escaped. Server only.
 
 import { fromHeader } from "../email/provider.ts";
 import { validZone } from "./time.ts";
@@ -23,6 +24,38 @@ export function fmtWhen(ms: number, tz: string | null | undefined, now = Date.no
 /** "10:00 AM EST" */
 export function fmtTime(ms: number, tz: string | null | undefined): string {
   return new Intl.DateTimeFormat("en-US", { timeZone: zone(tz), hour: "numeric", minute: "2-digit", timeZoneName: "short" }).format(ms);
+}
+
+/** "Monday, November 9" (with the year when it isn't this year's). */
+export function fmtDay(ms: number, tz: string | null | undefined, now = Date.now()): string {
+  const z = zone(tz);
+  const year = (t: number) => new Intl.DateTimeFormat("en-US", { timeZone: z, year: "numeric" }).format(t);
+  return new Intl.DateTimeFormat("en-US", { timeZone: z, weekday: "long", month: "long", day: "numeric", ...(year(ms) !== year(now) ? { year: "numeric" } : {}) }).format(ms);
+}
+
+/** "9:30 – 10:00 AM GMT+7" */
+export function fmtRange(start: number, end: number, tz: string | null | undefined): string {
+  const z = zone(tz);
+  const t = (ms: number, zoneName: boolean) => new Intl.DateTimeFormat("en-US", { timeZone: z, hour: "numeric", minute: "2-digit", ...(zoneName ? { timeZoneName: "short" } : {}) }).format(ms);
+  return `${t(start, false)} – ${t(end, true)}`;
+}
+
+/** Add to calendar links: Google Calendar and Outlook (the attached invite.ics covers Apple and the rest). */
+export function addToCalendar(v: { title: string; start: number; end: number; details?: string; location?: string }): { google: string; outlook: string } {
+  const g = (ms: number) => new Date(ms).toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
+  const google = new URL("https://calendar.google.com/calendar/render");
+  google.searchParams.set("action", "TEMPLATE");
+  google.searchParams.set("text", v.title);
+  google.searchParams.set("dates", `${g(v.start)}/${g(v.end)}`);
+  if (v.details) google.searchParams.set("details", v.details.slice(0, 1500));
+  if (v.location) google.searchParams.set("location", v.location.slice(0, 300));
+  const outlook = new URL("https://outlook.live.com/calendar/0/action/compose");
+  outlook.searchParams.set("subject", v.title);
+  outlook.searchParams.set("startdt", new Date(v.start).toISOString());
+  outlook.searchParams.set("enddt", new Date(v.end).toISOString());
+  if (v.details) outlook.searchParams.set("body", v.details.slice(0, 1500));
+  if (v.location) outlook.searchParams.set("location", v.location.slice(0, 300));
+  return { google: google.href, outlook: outlook.href };
 }
 
 /** "Tue, Nov 3, 10:00 AM EST" for lists of times. */
@@ -91,7 +124,14 @@ type Block =
   | { rows: [string, string, string?][] }
   | { list: string[] }
   | { buttons: { label: string; url: string; primary?: boolean }[] }
-  | { small: string };
+  | { small: string }
+  /** The meeting card: a date tile (month and day), the title, the day, the time and the place. */
+  | { card: { month: string; day: string; title: string; date: string; time: string; place?: string; struck?: boolean } }
+  /** A small gray heading over the next block. */
+  | { label: string }
+  | { divider: true }
+  /** Lines only the text version has (the card says them in the HTML). */
+  | { textOnly: string[] };
 
 const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 const safeUrl = (u: string) => (/^https?:\/\/[^\s"'<>]+$/i.test(u) ? u : "");
@@ -99,19 +139,46 @@ const safeUrl = (u: string) => (/^https?:\/\/[^\s"'<>]+$/i.test(u) ? u : "");
 // Email clients don't read CSS variables, so the brand's paper, ink and muted gray are written out here.
 const PAPER = "#f7f7f5";
 const CARD = "#ffffff";
-const INK = "#0a0a0a";
-const MUTED = "#6b6b6b";
-const LINE = "#e7e7e4";
+const INK = "#0f0f0f";
+const BODY = "#3d3d3d";
+const MUTED = "#737373";
+const LINE = "#ebebeb";
+const BRAND = "#333333";
+const SIGNAL = "#0c8c5e";
 const FONT = "Inter,-apple-system,'Segoe UI',Roboto,Arial,sans-serif";
 
-function render(o: { preheader: string; heading: string; blocks: Block[] }): { html: string; text: string } {
+function render(o: { preheader: string; heading: string; blocks: Block[]; footer?: string }): { html: string; text: string } {
   const html: string[] = [];
   const text: string[] = [o.heading, ""];
   for (const b of o.blocks) {
     if ("p" in b) {
       // Line breaks the writer typed (a meeting's description) stay.
-      html.push(`<p style="margin:0 0 16px">${esc(b.p).replace(/\n/g, "<br>")}</p>`);
+      html.push(`<p style="margin:0 0 16px;color:${BODY}">${esc(b.p).replace(/\n/g, "<br>")}</p>`);
       text.push(b.p, "");
+    } else if ("card" in b) {
+      const c = b.card;
+      const strike = c.struck ? "text-decoration:line-through;" : "";
+      html.push(
+        `<table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;margin:4px 0 22px;background:${PAPER};border:1px solid ${LINE};border-radius:14px;border-collapse:separate"><tr>` +
+          `<td style="width:64px;padding:16px 0 16px 16px;vertical-align:top">` +
+          `<table role="presentation" cellpadding="0" cellspacing="0" style="width:56px;background:${CARD};border:1px solid ${LINE};border-radius:12px;border-collapse:separate;overflow:hidden;text-align:center">` +
+          `<tr><td style="background:${c.struck ? MUTED : SIGNAL};color:#ffffff;font:600 11px/22px ${FONT};letter-spacing:.06em;border-radius:11px 11px 0 0">${esc(c.month.toUpperCase())}</td></tr>` +
+          `<tr><td style="font:600 24px/38px ${FONT};color:${INK}">${esc(c.day)}</td></tr></table></td>` +
+          `<td style="padding:16px 18px 16px 14px;vertical-align:top;font:14px/1.5 ${FONT};color:${BODY}">` +
+          `<div style="font:600 17px/1.35 ${FONT};color:${INK};${strike}">${esc(c.title)}</div>` +
+          `<div style="margin-top:4px;${strike}">${esc(c.date)}</div>` +
+          `<div style="${strike}">${esc(c.time)}</div>` +
+          (c.place ? `<div style="margin-top:4px;color:${MUTED}">${esc(c.place)}</div>` : "") +
+          `</td></tr></table>`,
+      );
+      text.push(c.title, `${c.date}, ${c.time}`, ...(c.place ? [c.place] : []), "");
+    } else if ("label" in b) {
+      html.push(`<p style="margin:8px 0 8px;font:600 12px/1.4 ${FONT};color:${MUTED};letter-spacing:.02em">${esc(b.label)}</p>`);
+      text.push(/[?:]$/.test(b.label) ? b.label : `${b.label}:`);
+    } else if ("textOnly" in b) {
+      text.push(...b.textOnly, "");
+    } else if ("divider" in b) {
+      html.push(`<div style="height:1px;background:${LINE};margin:8px 0 20px;line-height:1px;font-size:1px">&nbsp;</div>`);
     } else if ("small" in b) {
       html.push(`<p style="margin:16px 0 0;font-size:13px;color:${MUTED}">${esc(b.small)}</p>`);
       text.push(b.small, "");
@@ -141,9 +208,9 @@ function render(o: { preheader: string; heading: string; blocks: Block[] }): { h
           items
             .map((x) => {
               const style = x.primary
-                ? `background:${INK};color:${PAPER};border:1px solid ${INK}`
-                : `background:${CARD};color:${INK};border:1px solid ${LINE}`;
-              return `<a href="${esc(x.url)}" style="display:inline-block;margin:0 8px 8px 0;padding:9px 18px;border-radius:999px;font-weight:500;font-size:14px;text-decoration:none;${style}">${esc(x.label)}</a>`;
+                ? `background:${BRAND};color:#ffffff;border:1px solid ${BRAND};padding:11px 22px;font-size:15px`
+                : `background:${CARD};color:${INK};border:1px solid ${LINE};padding:8px 16px;font-size:14px`;
+              return `<a href="${esc(x.url)}" style="display:inline-block;margin:0 8px 8px 0;border-radius:999px;font-weight:500;text-decoration:none;${style}">${esc(x.label)}</a>`;
             })
             .join("") +
           `</p>`,
@@ -158,9 +225,13 @@ function render(o: { preheader: string; heading: string; blocks: Block[] }): { h
     `<div style="display:none;max-height:0;overflow:hidden;opacity:0">${esc(o.preheader)}</div>` +
     `<table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;background:${PAPER}"><tr><td style="padding:32px 16px">` +
     `<table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;max-width:520px;margin:0 auto;background:${CARD};border:1px solid ${LINE};border-radius:20px"><tr><td style="padding:28px;font:15px/1.55 ${FONT};color:${INK}">` +
-    `<h1 style="margin:0 0 16px;font:600 22px/1.25 ${FONT};letter-spacing:-0.02em;color:${INK}">${esc(o.heading)}</h1>` +
+    `<h1 style="margin:0 0 14px;font:600 22px/1.25 ${FONT};letter-spacing:-0.02em;color:${INK}">${esc(o.heading)}</h1>` +
     html.join("") +
-    `</td></tr></table></td></tr></table></body></html>`;
+    `</td></tr></table>` +
+    // The footer: who it's from, under the card.
+    `<p style="max-width:520px;margin:16px auto 0;text-align:center;font:12px/1.5 ${FONT};color:${MUTED}">${o.footer ? `${esc(o.footer)}<br>` : ""}Scheduled with <a href="https://tryclaritia.com" style="color:${MUTED};text-decoration:underline">Claritia</a></p>` +
+    `</td></tr></table></body></html>`;
+  if (o.footer) text.push("", o.footer);
   return { html: doc, text: text.join("\n").replace(/\n{3,}/g, "\n\n").trim() + "\n" };
 }
 
@@ -181,12 +252,33 @@ export type MeetingView = {
   where: Where;
   /** Guest emails: the reschedule and cancel page. */
   manage?: string | null;
+  /** The workspace's name, in the footer. */
+  brand?: string | null;
   now?: number;
 };
 
 const guestLabel = (v: MeetingView) => v.guestName?.trim() || v.guestEmail;
 const hostNames = (v: MeetingView) => names(v.hosts.map((h) => h.name));
 const hi = (name: string | null | undefined) => (firstName(name) ? `Hi ${firstName(name)},` : "Hi,");
+
+const monthDay = (ms: number, tz: string) => {
+  const z = zone(tz);
+  return { month: new Intl.DateTimeFormat("en-US", { timeZone: z, month: "short" }).format(ms), day: new Intl.DateTimeFormat("en-US", { timeZone: z, day: "numeric" }).format(ms) };
+};
+
+/** The meeting card at the top of every meeting email. */
+function meetingCard(v: MeetingView, forHost: boolean, struck = false): Block {
+  return {
+    card: {
+      ...monthDay(v.start, v.tz),
+      title: forHost ? `${v.typeName} with ${guestLabel(v)}` : `${v.typeName} with ${hostNames(v)}`,
+      date: fmtDay(v.start, v.tz, v.now),
+      time: `${fmtRange(v.start, v.end, v.tz)} (${lengthOf(v.start, v.end)})`,
+      place: v.where.url ? v.where.label : v.where.detail ? `${v.where.label}: ${v.where.detail}` : v.where.label,
+      struck,
+    },
+  };
+}
 
 function meetingRows(v: MeetingView, forHost: boolean): Block {
   return {
@@ -199,21 +291,49 @@ function meetingRows(v: MeetingView, forHost: boolean): Block {
   };
 }
 
-const answerRows = (v: MeetingView): Block[] => (v.answers.length ? [{ rows: v.answers.map((a) => [a.label, a.value] as [string, string]) }] : []);
+/** The big Join button, for a meeting with a video link. */
+const joinButton = (v: MeetingView): Block[] => (v.where.url ? [{ buttons: [{ label: `Join ${v.where.label === "Online" ? "the meeting" : v.where.label}`, url: v.where.url, primary: true }] }] : []);
+
+/** Add to calendar: Google and Outlook; the invite file covers the rest. */
+function calendarButtons(v: MeetingView): Block[] {
+  const links = addToCalendar({ title: `${v.typeName} with ${hostNames(v)}`, start: v.start, end: v.end, details: [v.where.url ? `Join: ${v.where.url}` : "", v.manage ? `Reschedule or cancel: ${v.manage}` : ""].filter(Boolean).join("\n"), location: whereLine(v.where) });
+  return [{ label: "Add to calendar" }, { buttons: [{ label: "Google Calendar", url: links.google }, { label: "Outlook", url: links.outlook }] }, { small: "Apple Calendar and others: open the attached invite.ics." }];
+}
+
+const footerFor = (v: MeetingView) => (v.brand?.trim() ? `Sent for ${v.brand.trim()} because you booked a meeting.` : "You got this because you booked a meeting.");
+
+const answerRows = (v: MeetingView, label?: string): Block[] => (v.answers.length ? [...(label ? [{ label }] : []), { rows: v.answers.map((a) => [a.label, a.value] as [string, string]) }] : []);
 
 const manageButtons = (v: MeetingView): Block[] =>
-  v.manage ? [{ buttons: [{ label: "Reschedule", url: v.manage }, { label: "Cancel", url: v.manage }] }] : [];
+  v.manage ? [{ divider: true }, { label: "Need to make a change?" }, { buttons: [{ label: "Reschedule", url: v.manage }, { label: "Cancel", url: v.manage }] }] : [];
+
+/** The plain lines the text version keeps (what, when, with, where), under the card. */
+const textRows = (v: MeetingView, forHost: boolean): Block => {
+  const r = meetingRows(v, forHost) as { rows: [string, string, string?][] };
+  return { textOnly: r.rows.filter(([, x]) => x).map(([k, x]) => `${k}: ${x}`) };
+};
 
 export function confirmEmail(v: MeetingView): MailParts {
   const subject = `Confirmed: ${v.typeName} with ${hostNames(v)} on ${fmtWhen(v.start, v.tz, v.now)}`;
-  const about: Block[] = v.about?.trim() ? [{ p: v.about.trim() }] : [];
-  return { subject, ...render({ preheader: `${fmtWhen(v.start, v.tz, v.now)} with ${hostNames(v)}`, heading: "Your meeting is booked", blocks: [{ p: hi(v.guestName) }, meetingRows(v, false), ...about, ...answerRows(v), ...manageButtons(v), { small: "The invite is attached." }] }) };
+  const about: Block[] = v.about?.trim() ? [{ label: "About this meeting" }, { p: v.about.trim() }] : [];
+  return {
+    subject,
+    ...render({
+      preheader: `${fmtWhen(v.start, v.tz, v.now)} with ${hostNames(v)}`,
+      heading: "Your meeting is booked",
+      blocks: [{ p: `${hi(v.guestName)} you're booked with ${hostNames(v)}.` }, meetingCard(v, false), ...joinButton(v), textRows(v, false), ...about, ...answerRows(v, "Your answers"), ...calendarButtons(v), ...manageButtons(v)],
+      footer: footerFor(v),
+    }),
+  };
 }
 
 export function updateEmail(v: MeetingView, from?: number | null): MailParts {
   const subject = `Updated: ${v.typeName} with ${hostNames(v)} is now ${fmtWhen(v.start, v.tz, v.now)}`;
   const was: Block[] = from ? [{ p: `It was ${fmtWhen(from, v.tz, v.now)}.` }] : [];
-  return { subject, ...render({ preheader: `Now ${fmtWhen(v.start, v.tz, v.now)}`, heading: "Your meeting moved", blocks: [{ p: hi(v.guestName) }, meetingRows(v, false), ...was, ...manageButtons(v), { small: "The updated invite is attached." }] }) };
+  return {
+    subject,
+    ...render({ preheader: `Now ${fmtWhen(v.start, v.tz, v.now)}`, heading: "Your meeting moved", blocks: [{ p: `${hi(v.guestName)} here's the new time.` }, meetingCard(v, false), ...was, ...joinButton(v), textRows(v, false), ...calendarButtons(v), ...manageButtons(v)], footer: footerFor(v) }),
+  };
 }
 
 export function cancelEmail(v: MeetingView, o: { reason?: string | null; bookAgain?: string | null } = {}): MailParts {
@@ -225,28 +345,32 @@ export function cancelEmail(v: MeetingView, o: { reason?: string | null; bookAga
       heading: "Your meeting is canceled",
       blocks: [
         { p: hi(v.guestName) },
+        meetingCard(v, false, true),
         { rows: [["What", v.typeName], ["When", fmtWhen(v.start, v.tz, v.now)], ["With", hostNames(v)], ["Reason", o.reason?.trim() ?? ""]] },
         ...(o.bookAgain ? [{ buttons: [{ label: "Book a new time", url: o.bookAgain, primary: true }] }] : []),
       ],
+      footer: footerFor(v),
     }),
   };
 }
 
 export function reminderEmail(v: MeetingView, min: number): MailParts {
   const subject = `Reminder: ${v.typeName} with ${hostNames(v)} ${fromNow(min)}`;
-  const join: Block[] = v.where.url ? [{ buttons: [{ label: "Join", url: v.where.url, primary: true }] }] : [];
-  return { subject, ...render({ preheader: fmtWhen(v.start, v.tz, v.now), heading: `Your meeting is ${fromNow(min)}`, blocks: [{ p: hi(v.guestName) }, meetingRows(v, false), ...join, ...manageButtons(v)] }) };
+  return {
+    subject,
+    ...render({ preheader: fmtWhen(v.start, v.tz, v.now), heading: `Your meeting is ${fromNow(min)}`, blocks: [{ p: hi(v.guestName) }, meetingCard(v, false), ...joinButton(v), textRows(v, false), ...manageButtons(v)], footer: footerFor(v) }),
+  };
 }
 
 export function hostBookedEmail(v: MeetingView): MailParts {
   const subject = `New meeting: ${guestLabel(v)} on ${fmtWhen(v.start, v.tz, v.now)}`;
-  return { subject, ...render({ preheader: `${v.typeName}, ${fmtWhen(v.start, v.tz, v.now)}`, heading: `${guestLabel(v)} booked ${v.typeName}`, blocks: [meetingRows(v, true), ...answerRows(v)] }) };
+  return { subject, ...render({ preheader: `${v.typeName}, ${fmtWhen(v.start, v.tz, v.now)}`, heading: `${guestLabel(v)} booked ${v.typeName}`, blocks: [meetingCard(v, true), ...joinButton(v), textRows(v, true), ...answerRows(v, "Their answers")] }) };
 }
 
 export function hostMovedEmail(v: MeetingView, from?: number | null): MailParts {
   const subject = `Moved: ${guestLabel(v)} is now ${fmtWhen(v.start, v.tz, v.now)}`;
   const was: Block[] = from ? [{ p: `It was ${fmtWhen(from, v.tz, v.now)}.` }] : [];
-  return { subject, ...render({ preheader: `${v.typeName}, now ${fmtWhen(v.start, v.tz, v.now)}`, heading: `${guestLabel(v)} moved ${v.typeName}`, blocks: [meetingRows(v, true), ...was] }) };
+  return { subject, ...render({ preheader: `${v.typeName}, now ${fmtWhen(v.start, v.tz, v.now)}`, heading: `${guestLabel(v)} moved ${v.typeName}`, blocks: [meetingCard(v, true), ...was, textRows(v, true)] }) };
 }
 
 export function hostCanceledEmail(v: MeetingView, reason?: string | null): MailParts {
@@ -256,7 +380,7 @@ export function hostCanceledEmail(v: MeetingView, reason?: string | null): MailP
     ...render({
       preheader: `${v.typeName}, ${fmtWhen(v.start, v.tz, v.now)}`,
       heading: `${v.typeName} with ${guestLabel(v)} is canceled`,
-      blocks: [{ rows: [["When", fmtWhen(v.start, v.tz, v.now)], ["Guest", v.guestEmail], ["Reason", reason?.trim() ?? ""]] }],
+      blocks: [meetingCard(v, true, true), { rows: [["When", fmtWhen(v.start, v.tz, v.now)], ["Guest", v.guestEmail], ["Reason", reason?.trim() ?? ""]] }],
     }),
   };
 }
@@ -384,7 +508,7 @@ export type MimeInput = {
   subject: string;
   html: string;
   text: string;
-  /** The calendar file: shown inline as an invite and attached as invite.ics. */
+  /** The calendar file: the invite, named invite.ics. */
   ics?: { method: "REQUEST" | "CANCEL"; body: string } | null;
   date?: Date;
   /** Makes the part boundaries; random when not given. */
@@ -397,7 +521,6 @@ export function mime(m: MimeInput): string {
   if (!validAddress(m.from.email)) throw new Error(`Not an email address: ${m.from.email}`);
   if (m.replyTo && !validAddress(m.replyTo)) throw new Error(`Not an email address: ${m.replyTo}`);
   const tag = m.boundary ?? Math.random().toString(36).slice(2, 12);
-  const mixed = `mixed_${tag}`;
   const alt = `alt_${tag}`;
   const headers = [
     `From: ${fromHeader(m.from.name ? oneLine(m.from.name) : null, m.from.email)}`,
@@ -413,25 +536,10 @@ export function mime(m: MimeInput): string {
     part("text/plain; charset=UTF-8", m.text),
     `--${alt}`,
     part("text/html; charset=UTF-8", m.html),
-    ...(m.ics ? [`--${alt}`, part(`text/calendar; charset=UTF-8; method=${m.ics.method}`, m.ics.body)] : []),
+    // The invite, named, so mail apps show "invite.ics" and never an unnamed "attachment-0".
+    ...(m.ics ? [`--${alt}`, [`Content-Type: text/calendar; charset=UTF-8; method=${m.ics.method}; name="invite.ics"`, `Content-Disposition: inline; filename="invite.ics"`, "Content-Transfer-Encoding: base64", "", b64(m.ics.body)].join("\r\n")] : []),
     `--${alt}--`,
   ].join("\r\n");
-  if (!m.ics) return [...headers, `Content-Type: multipart/alternative; boundary="${alt}"`, "", alternative, ""].join("\r\n");
-  return [
-    ...headers,
-    `Content-Type: multipart/mixed; boundary="${mixed}"`,
-    "",
-    `--${mixed}`,
-    `Content-Type: multipart/alternative; boundary="${alt}"`,
-    "",
-    alternative,
-    `--${mixed}`,
-    `Content-Type: application/ics; name="invite.ics"`,
-    `Content-Disposition: attachment; filename="invite.ics"`,
-    "Content-Transfer-Encoding: base64",
-    "",
-    b64(m.ics.body),
-    `--${mixed}--`,
-    "",
-  ].join("\r\n");
+  // One invite, in the message itself: the calendar apps read it there, and it shows as invite.ics.
+  return [...headers, `Content-Type: multipart/alternative; boundary="${alt}"`, "", alternative, ""].join("\r\n");
 }

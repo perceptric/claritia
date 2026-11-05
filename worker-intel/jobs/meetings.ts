@@ -270,6 +270,7 @@ function view(info: Info, reader: "guest" | Person, now: number, manage?: string
     tz: forHost ? tzOr(reader.tz) : tzOr(m.guest_tz, info.hosts[0]?.tz),
     where: whereOf(m.location?.kind ? m.location : info.type?.settings?.location, { joinUrl: joinUrl(m), host, guest: m.guest_name || m.guest_email, guestPhone: guestPhone(m), forHost }),
     manage: manage ?? null,
+    brand: info.workspace.name,
     now,
   };
 }
