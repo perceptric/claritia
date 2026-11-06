@@ -135,6 +135,16 @@ export const OAUTH: Record<string, OauthCfg> = {
     extra: { prompt: "select_account" },
     refreshScope: true,
   },
+  // Documents (Next step 11). Google Docs: the Google app the calendars use, with the Docs scope (to read a pasted
+  // template) and drive.file (only the docs it makes), both sensitive. DocuSign: its app, the signature scope.
+  google_docs: {
+    env: "GOOGLE",
+    authorize: "https://accounts.google.com/o/oauth2/v2/auth",
+    token: "https://oauth2.googleapis.com/token",
+    scope: "https://www.googleapis.com/auth/documents https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/userinfo.email",
+    extra: { access_type: "offline", prompt: "consent", include_granted_scopes: "true" },
+  },
+  docusign: { env: "DOCUSIGN", authorize: "https://account.docusign.com/oauth/auth", token: "https://account.docusign.com/oauth/token", scope: "signature", basic: true },
   // Chat alerts (docs/integrations-plan.md, Next step 5). Teams: the Microsoft app meetings use, with the Teams scopes
   // added. Discord: Add to Discord picks one channel and answers with its webhook, kept with the sign-in.
   teams: {

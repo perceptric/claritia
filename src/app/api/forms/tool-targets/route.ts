@@ -1,6 +1,7 @@
 import { isMember } from "@/lib/contacts/server";
 import { prepareTable } from "@/lib/sources/dbRows";
 import { workbookFromLink } from "@/lib/sources/excel";
+import { docFromLink } from "@/lib/sources/documents";
 import { createSheet, sheetFromLink } from "@/lib/sources/rows";
 import { deps } from "@/lib/sources/run";
 import { requireUser } from "@/lib/serverAuth";
@@ -54,6 +55,14 @@ export async function POST(request: Request) {
     if (b.action !== "table" || typeof b.name !== "string") return bad("Name the table.");
     try {
       return Response.json({ target: await prepareTable(l.d.ctx, b.name.slice(0, 200)) });
+    } catch (e) {
+      return bad(why(e), 502);
+    }
+  }
+  if (l.kind === "google_docs") {
+    if (b.action !== "link" || typeof b.link !== "string") return bad("Paste the template doc's link.");
+    try {
+      return Response.json({ target: await docFromLink(l.d.ctx, b.link.slice(0, 2000)) });
     } catch (e) {
       return bad(why(e), 502);
     }

@@ -36,6 +36,9 @@ export type Entry = {
   /** A chat tool: form fills and workflow steps post alerts to its channel (Next step 5); `channels` when one is picked. */
   chat?: boolean;
   channels?: boolean;
+  /** Documents (Next step 11): a document per fill from a template; `link` when the template's link is pasted. */
+  docs?: boolean;
+  link?: boolean;
 };
 
 const key = (label = "API key"): KeyField[] => [{ key: "api_key", label, secret: true }];
@@ -210,6 +213,9 @@ export const CATALOG: Entry[] = [
     objects: [],
     texts: true,
   },
+  { kind: "google_docs", label: "Google Docs", group: "docs", domain: "docs.google.com", oauth: true, objects: [], pushes: true, docs: true, link: true },
+  { kind: "docusign", label: "DocuSign", group: "docs", domain: "docusign.com", oauth: true, objects: [], pushes: true, docs: true },
+  { kind: "pandadoc", label: "PandaDoc", group: "docs", domain: "pandadoc.com", keys: key("API key"), objects: [], pushes: true, docs: true },
   { kind: "teams", label: "Microsoft Teams", group: "chat", domain: "teams.microsoft.com", oauth: true, objects: [], pushes: true, chat: true, channels: true },
   { kind: "discord", label: "Discord", group: "chat", domain: "discord.com", oauth: true, keys: [{ key: "url", label: "Channel webhook address", placeholder: "https://discord.com/api/webhooks/123/abc" }], objects: [], pushes: true, chat: true },
   { kind: "google_sheets", label: "Google Sheets", group: "sheets", domain: "sheets.google.com", oauth: true, objects: [], pushes: true, rows: true },
