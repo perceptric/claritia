@@ -138,6 +138,16 @@ export const OAUTH: Record<string, OauthCfg> = {
   // Work tools (Next step 10). Zendesk signs in per account address, so it takes an API token instead.
   linear: { env: "LINEAR", authorize: "https://linear.app/oauth/authorize", token: "https://api.linear.app/oauth/token", scope: "read,write,issues:create", extra: { prompt: "consent" } },
   clickup: { env: "CLICKUP", authorize: "https://app.clickup.com/api", token: "https://api.clickup.com/api/v2/oauth/token" },
+  // Documents (Next step 11). Google Docs: the Google app the calendars use, with the Docs scope (to read a pasted
+  // template) and drive.file (only the docs it makes), both sensitive. DocuSign: its app, the signature scope.
+  google_docs: {
+    env: "GOOGLE",
+    authorize: "https://accounts.google.com/o/oauth2/v2/auth",
+    token: "https://oauth2.googleapis.com/token",
+    scope: "https://www.googleapis.com/auth/documents https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/userinfo.email",
+    extra: { access_type: "offline", prompt: "consent", include_granted_scopes: "true" },
+  },
+  docusign: { env: "DOCUSIGN", authorize: "https://account.docusign.com/oauth/auth", token: "https://account.docusign.com/oauth/token", scope: "signature", basic: true },
   // Chat alerts (docs/integrations-plan.md, Next step 5). Teams: the Microsoft app meetings use, with the Teams scopes
   // added. Discord: Add to Discord picks one channel and answers with its webhook, kept with the sign-in.
   teams: {

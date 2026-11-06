@@ -15,6 +15,7 @@ import { allFields, isContent, type Form } from "../forms/schema.ts";
 import { DUPLICATE, listOf, pushOptions, rulesOf, targetOf } from "./rules.ts";
 import { fillRow } from "./fillRow.ts";
 import { isRefusal } from "../sources/chat.ts";
+import type { DocFill } from "../documents/tags.ts";
 import { APP_URL } from "../site.ts";
 
 export type Taken = {
@@ -104,6 +105,8 @@ async function toSource(t: Taken, d: SendDeps): Promise<Result> {
   if (dep?.connector.append) return toRow(t, dep);
   // Chat tools alert on every fill too (Next step 5).
   if (dep?.connector.alert) return toAlert(t, dep);
+  // Documents: one per fill from the picked template (Next step 11).
+  if (dep?.connector.document) return toDocument(t, dep);
   // A sheet whose sign-in is gone still owes this fill a row, contact or not.
   if (!dep && (t.contact || targetOf(t.destination.config))) return { status: "failed", error: `Connect ${t.destination.name} again.` };
   if (!t.contact || !dep) return { status: "skipped", reason: "No contact to send." };
@@ -177,6 +180,37 @@ async function toAlert(t: Taken, dep: Deps): Promise<Result> {
     if (e instanceof AuthError) return { status: "failed", error: `Sign in to ${t.destination.name} again: ${e.message}`.slice(0, 500) };
     if (e instanceof RateLimited) return { status: "retry", error: e.message, retryAfterS: e.retryAfterS };
     return { status: "retry", error: String((e as Error).message ?? e).slice(0, 500) };
+  }
+}
+
+/** The fill as a document gets it: the person and each answer by its label. */
+export function docFill(t: Taken): DocFill {
+  const c = t.contact;
+  return {
+    id: t.submission.id,
+    at: t.submission.created_at,
+    form: t.form?.name ?? "Form",
+    email: c?.email ?? null,
+    name: c ? [c.first_name, c.last_name].filter(Boolean).join(" ") || null : null,
+    fields: labeled(t),
+  };
+}
+
+/** One document from the template; a tool still making it is tried again shortly; a refusal says what to do. */
+async function toDocument(t: Taken, dep: Deps): Promise<Result> {
+  const target = targetOf(t.destination.config);
+  if (!target) return { status: "failed", error: "Pick the template in the form's Sync tab." };
+  if (dep.ctx.source.status === "paused") return { status: "retry", error: `${t.destination.name} is paused in Settings › Tools.`, retryAfterS: 1800 };
+  try {
+    const r = await dep.connector.document!(dep.ctx, target, docFill(t), { retry: t.delivery.attempts > 1 });
+    if ("wait" in r) return { status: "retry", error: r.reason, retryAfterS: r.wait };
+    return { status: "done", externalId: r.externalId, ...(r.url ? { externalUrl: r.url } : {}), ...(r.notes?.length ? { notes: r.notes } : {}) };
+  } catch (e) {
+    if (isRefusal(e)) return { status: "failed", error: String((e as Error).message).slice(0, 500) };
+    if (e instanceof AuthError) return { status: "failed", error: `Sign in to ${t.destination.name} again: ${e.message}`.slice(0, 500) };
+    if (e instanceof RateLimited) return { status: "retry", error: e.message, retryAfterS: e.retryAfterS };
+    const msg = String((e as Error).message ?? e).slice(0, 500);
+    return TRANSIENT.test(msg) ? { status: "retry", error: msg } : { status: "failed", error: msg };
   }
 }
 

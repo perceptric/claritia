@@ -373,14 +373,37 @@ again; a run after a timeout looks for its Fill ID first and makes no second rec
   email and API token. Endpoints, fields and links are checked against a real account of each before launch
   (check). Cost: $0; each runs on the team's own account.
 
-### 11. Documents and signing: Google Docs, DocuSign, PandaDoc (about 1 week)
+### 11. Documents and signing: Google Docs, DocuSign, PandaDoc (built)
 
-- **What:** a Google Doc from a template, filled with the answers; a DocuSign or PandaDoc document sent to sign after
-  a fill or a booking.
-- **Where:** form › Sync, and a workflow step.
-- **How:** `{{Question}}` tags in the team's template are filled with the answers. DocuSign goes through its free
-  go-live review (check). A signed document can start a workflow.
-- **Tests:** a missing tag is left blank and logged; a template that's gone fails with what to do.
+- **What:** each fill makes a document from the team's own template: a Google Doc filled with the answers, a
+  DocuSign envelope sent to the person to sign, or a PandaDoc document sent to them.
+- **Where:** connect in Settings › Integrations (Google Docs and DocuSign sign in; PandaDoc takes an API key), then
+  form › Sync: paste the template doc's link for Google Docs, or pick the template for DocuSign and PandaDoc. Each
+  fill's document links from the form's Submissions.
+- **How:** connectors with a `document` (`src/lib/sources/documents.ts`), sent through the same deliveries, retries
+  and Send again as every other tool. Tags in the template are `{{Question label}}` (or the question's key), plus
+  `{{email}}`, `{{name}}` and `{{date}}`, in any case and spacing (`src/lib/documents/tags.ts`). A tag with no answer
+  is left blank and named in the delivery's note.
+  - Google Docs reads the template, makes a new doc named for the form and the person, and writes the text with the
+    tags filled. It keeps each paragraph's heading style and each word's bold, italic and underline. Tables,
+    pictures, lists, colors and fonts are left out of the new doc. The new doc is marked with the fill, so a retry
+    finds it and never makes a second one.
+  - DocuSign sends an envelope from the template to the person as its first signer role. Text tabs whose labels
+    match a question's label get the answer. A retry looks for the envelope by the fill first.
+  - PandaDoc makes a document from the template with the answers as tokens and the person as recipient. It takes a
+    few seconds to become a draft, so the delivery waits 5 seconds and tries again, then sends it once. A retry
+    finds the document by the fill.
+  - A template that's gone, or a fill with no email for a signing tool, fails with what to do.
+  - Left out for now: a signed document starting a workflow (DocuSign Connect and PandaDoc webhooks). The plan
+    keeps it for later.
+- **Tests:** `tests/documents.test.ts`: tags filled, missing ones blank and listed; the Google Doc's text, styles and
+  a tag split across styles; each tool's requests; a retry finding the doc, envelope or document with nothing made
+  twice; PandaDoc's draft waited for and sent once; a gone template.
+- **To go live:** add the Docs (`documents`) and `drive.file` scopes to the Google app's consent screen (both
+  sensitive, so Google's free app check covers them, check). Register a DocuSign app (`DOCUSIGN_CLIENT_ID`,
+  `DOCUSIGN_CLIENT_SECRET`) with the return address `https://app.tryclaritia.com/api/sources/callback`; it goes
+  through DocuSign's go-live review, free (check). PandaDoc needs nothing on the server.
+- **Monthly cost:** $0 at Beta (50 teams) and $0 at Growth (500 teams). Each tool runs on the team's own account.
 
 ### 12. Meetings and payments: Webex, Whereby, PayPal, Square (about 1 week)
 

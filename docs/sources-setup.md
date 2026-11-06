@@ -300,3 +300,14 @@ step 10).
   `CLICKUP_CLIENT_SECRET`. Without them, people paste a personal API token.
 - **Trello, monday.com, SmartSuite, Zendesk, Freshdesk, Intercom:** keys in Settings › Integrations. Nothing to set on
   the server.
+## Google Docs, DocuSign and PandaDoc
+
+A document per fill from a template (docs/integrations-plan.md, Next step 11).
+
+- **Google Docs:** on the Google app the calendars use, add the `https://www.googleapis.com/auth/documents` and
+  `https://www.googleapis.com/auth/drive.file` scopes to the consent screen. Both are sensitive scopes: Google checks
+  the app once, free (check).
+- **DocuSign:** make an app (an integration key) in DocuSign's developer account, with the redirect
+  `https://app.tryclaritia.com/api/sources/callback`, and set `DOCUSIGN_CLIENT_ID` and `DOCUSIGN_CLIENT_SECRET` on
+  claritia-web and claritia-intel. It works on DocuSign's live accounts after their go-live review, free (check).
+- **PandaDoc:** people paste their API key in Settings › Integrations. Nothing to set on the server.

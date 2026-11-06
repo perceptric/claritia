@@ -92,6 +92,8 @@ export function Sync(props: Props) {
             <Start logo={cur.logo} name={cur.title} button={`Connect ${cur.title}`} onClick={() => props.navigate("settings", "sources")} />
           ) : entryOf(tools.find((s) => s.id === cur.key)!.kind)?.lists ? (
             <ListPane {...props} source={tools.find((s) => s.id === cur.key)!} logo={cur.logo} />
+          ) : entryOf(tools.find((s) => s.id === cur.key)!.kind)?.docs ? (
+            <DocPane {...props} source={tools.find((s) => s.id === cur.key)!} logo={cur.logo} />
           ) : entryOf(tools.find((s) => s.id === cur.key)!.kind)?.chat ? (
             <AlertPane {...props} source={tools.find((s) => s.id === cur.key)!} logo={cur.logo} />
           ) : entryOf(tools.find((s) => s.id === cur.key)!.kind)?.rows ? (
@@ -442,6 +444,126 @@ function ListPane({ sb, session, ws, formId, dests, failed, reload, source, logo
 }
 
 /** What a row tool calls the place rows go. */
+/** Google Docs, DocuSign and PandaDoc (docs/integrations-plan.md, Next step 11): a document per fill from a template. */
+function DocPane({ sb, session, ws, formId, dests, failed, reload, patchDests, source, logo }: Props & { source: SourceRow; logo: React.ReactNode }) {
+  const d = dests.find((x) => x.kind === "source" && x.source_id === source.id);
+  const byLink = !!entryOf(source.kind)?.link;
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [link, setLink] = useState("");
+  const note = useNote();
+  const headers = { Authorization: `Bearer ${session.access_token}` };
+  const templates = useQuery(byLink ? null : `tool_targets:${source.id}`, async () => {
+    const res = await fetch(`/api/forms/tool-targets?workspaceId=${encodeURIComponent(ws.id)}&sourceId=${encodeURIComponent(source.id)}`, { headers });
+    const j = (await res.json().catch(() => ({}))) as { targets?: Target[]; error?: string };
+    if (!j.targets) throw new Error(j.error ?? "Couldn't read the templates.");
+    return j.targets;
+  });
+  const run = async (fn: () => Promise<unknown>, words?: string) => {
+    setError("");
+    setBusy(true);
+    try {
+      await fn();
+      if (words) note.show(words);
+      reload();
+    } catch (e) {
+      setError(errorText(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+  const save = (target: Target) => postJson(session, "/api/forms/destination", { workspaceId: ws.id, formId, kind: "source", sourceId: source.id, name: source.name, ...(d ? { id: d.id } : {}), target });
+  const target = d ? targetOf(d.config) : null;
+  const week = d ? (failed[d.id] ?? 0) : 0;
+  const takeLink = () => {
+    const l = link.trim();
+    if (!l) return;
+    void run(async () => {
+      const t = (await postJson<{ target: Target }>(session, "/api/forms/tool-targets", { workspaceId: ws.id, sourceId: source.id, action: "link", link: l })).target;
+      await save(t);
+      setLink("");
+    }, "Each fill makes a doc from that template now");
+  };
+  return (
+    <>
+      <div className="flex flex-wrap items-center gap-[10px]">
+        {logo}
+        <H3>{source.name}</H3>
+        {d ? <Badge tone={d.paused ? "gray" : "green"} dot>{d.paused ? "Paused" : "On"}</Badge> : null}
+      </div>
+      <ErrorNote message={error || templates.error} />
+      <div className={CARD}>
+        {byLink ? (
+          <div className={CROW}>
+            <RowText title={target ? `Template: ${target.name}` : "Template doc"} />
+            <div className="flex min-w-0 flex-1 items-center justify-end gap-[6px] max-[860px]:basis-full">
+              <input
+                value={link}
+                maxLength={1000}
+                aria-label="Template doc link"
+                placeholder="Paste the template doc's link"
+                onChange={(e) => setLink(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    takeLink();
+                  }
+                }}
+                className="h-[32px] min-w-0 flex-1 rounded-[8px] bg-card px-[10px] text-[13px] text-ink shadow-input outline-none placeholder:text-faint focus:shadow-focus"
+              />
+              <button type="button" className={GHOST_SM} disabled={busy || !link.trim()} onClick={takeLink}>
+                Use
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className={CROW}>
+            <RowText title="Template" />
+            <Select
+              value={target?.id ?? ""}
+              options={[...(templates.data ?? []), ...(target && !templates.data?.some((t) => t.id === target.id) ? [target] : [])].map((t) => ({ value: t.id, label: t.name }))}
+              ariaLabel="Template"
+              placeholder={templates.data ? "Pick a template" : "Reading…"}
+              disabled={!templates.data || busy}
+              className="h-[32px] min-w-[200px] rounded-[8px] bg-card px-[10px] text-[13px] text-ink shadow-input"
+              onChange={(id) => {
+                const t = templates.data?.find((x) => x.id === id);
+                if (t) void run(() => save(t), `Each fill gets ${t.name} now`);
+              }}
+            />
+          </div>
+        )}
+        {d ? (
+          <div className={CROW}>
+            <RowText title="A document for each fill" sub={week ? `${week} didn't go this week` : undefined} tone={week ? "bad" : undefined} />
+            <Tg
+              label="A document for each fill"
+              on={!d.paused}
+              onChange={(on) => {
+                patchDests?.((ds) => ds.map((x) => (x.id === d.id ? { ...x, paused: !on } : x)));
+                void run(async () => must(await sb.rpc("form_destination_pause", { p_id: d.id, p_paused: !on })));
+              }}
+            />
+          </div>
+        ) : null}
+      </div>
+      {d ? (
+        <button
+          type="button"
+          className={`${GHOST_SM_RED} self-start`}
+          onClick={async () => {
+            if (!(await askConfirm(`Stop making documents in ${source.name}?`, { ok: "Remove", danger: true }))) return;
+            await run(async () => must(await sb.rpc("form_destination_delete", { p_id: d.id })));
+          }}
+        >
+          Remove
+        </button>
+      ) : null}
+      {note.node}
+    </>
+  );
+}
+
 /** Teams and Discord (docs/integrations-plan.md, Next step 5): an alert in a channel for each fill, beside Slack. */
 function AlertPane({ sb, session, ws, formId, dests, failed, reload, patchDests, source, logo }: Props & { source: SourceRow; logo: React.ReactNode }) {
   const d = dests.find((x) => x.kind === "source" && x.source_id === source.id);

@@ -4,7 +4,7 @@
 
 import type { Target } from "../contacts/fields.ts";
 
-export type Group = "crm" | "email" | "sheets" | "form" | "event" | "product" | "warehouse" | "api" | "ads" | "chat";
+export type Group = "crm" | "email" | "sheets" | "form" | "event" | "product" | "warehouse" | "api" | "ads" | "chat" | "docs";
 export type ObjectKind = "contacts" | "companies" | "opportunities" | "lists" | "suppressions" | "events" | "records";
 
 /** One record as the tool has it. `id` is the tool's own id; `data` is flat (column → value). */
@@ -154,6 +154,11 @@ export type Connector = {
   owners?(ctx: Ctx): Promise<{ id: string; label: string }[]>;
   /** The tool's columns a push can set, when it takes fewer than it sends us. */
   writable?: string[];
+  /**
+   * Documents (Next step 11): a document per fill from the target template. `retry`: an earlier try may have made
+   * it, so look for it first. `wait`: the tool is still making it; the delivery tries again in that many seconds.
+   */
+  document?(ctx: Ctx, target: RowTarget, fill: import("../documents/tags.ts").DocFill, o: { retry: boolean }): Promise<import("./documents.ts").DocOut>;
   /** Chat tools (docs/integrations-plan.md, Next step 5): post an alert to the channel (`target` for Teams). */
   alert?(ctx: Ctx, target: RowTarget | null, note: import("../chat/note.ts").ChatNote): Promise<void>;
   /** The record's address in the tool, for the form's Submissions (a link back to what a delivery made). */
