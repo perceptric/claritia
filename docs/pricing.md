@@ -90,7 +90,7 @@ isn't built yet.
 - Sharing: Share form by link, Embed form with one script tag, Popup embed, QR code
 - Automation workflows: Confirmation email with a calendar invite, Email reminders a day and an hour before, Emails when a meeting moves or is canceled
 - Tia, the AI form builder: Build a form from plain language sentence, Add and fix questions, Write a meeting's text
-- Integrations: Webhooks, CSV export
+- Integrations: Webhooks, CSV export, Embeds on WordPress, Webflow, Framer, Shopify and Squarespace, Google Analytics, Google Tag Manager, Meta Pixel and Google Ads tags, Google Forms import
 - Security & Compliance: Cloudflare spam protection, Honeypot and rate limit, Disposable email blocking, GDPR wording
 - Results: Every answer and booking saved, Repeat people merged by email, Views, starts and answers for each form
 - Help: Help center, Email help
@@ -99,7 +99,7 @@ isn't built yet.
 - Forms: e-Signatures, Stripe payment, Redirect on completion, Custom brand
 - Meetings: Calendars per seat (6), Meeting types (Unlimited), Booking pages for each person and the team, Group meetings with a guest limit, One-off meetings and single-use links, Secret meeting types, Meeting polls, Paid meetings with Stripe, Questions on the booking page, Copy open times into an email
 - Automation workflows: Your own wording and times, Follow-up the next day until they book
-- Integrations: HubSpot, Omniscient, Slack, Google Sheets, Airtable and Notion, Mailchimp, Klaviyo, ActiveCampaign, Brevo, Kit and MailerLite, Answers and bookings from Typeform, Tally, Webflow, Calendly and Cal.com
+- Integrations: HubSpot, Omniscient, Pipedrive, Attio, Close, Zoho CRM, Dynamics 365, GoHighLevel, Freshsales, Copper, Keap and monday CRM, Slack, Microsoft Teams and Discord, Google Sheets, Airtable, Notion, Excel Online, PostgreSQL and MySQL, Mailchimp, Klaviyo, ActiveCampaign, Brevo, Kit and MailerLite, Emails from your own Gmail or Outlook, Linear, Trello, ClickUp, monday.com, SmartSuite, Zendesk, Freshdesk and Intercom, Google Docs, DocuSign and PandaDoc, Files to Google Drive, OneDrive, Dropbox, Box and Amazon S3, Segment, PostHog, Mixpanel and Amplitude, Meta Conversions API and Google Ads offline conversions, Text and WhatsApp messages on your own Twilio, Webex and Whereby links, PayPal and Square payments, Answers and bookings from Typeform, Tally, Webflow, Calendly and Cal.com
 - Help: Email help (Within 1 business day)
 
 **Pro**, everything in Starter, plus
