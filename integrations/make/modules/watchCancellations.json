@@ -1,9 +1,9 @@
 {
-  "name": "watch_routed",
-  "label": "Watch Routed Leads",
-  "description": "Starts when routing gives a lead an owner, or finds none.",
+  "name": "watchCancellations",
+  "label": "Watch Canceled Bookings",
+  "description": "Starts when a meeting is canceled.",
   "typeOf": "instant_trigger",
-  "webhook": "routed",
+  "webhook": "cancellation",
   "connection": "claritia",
   "communication": {
     "output": "{{trigger.data}}",
@@ -12,7 +12,7 @@
     }
   },
   "samples": {
-    "event": "lead.routed",
+    "event": "meeting.canceled",
     "event_id": "evt_test",
     "test": true
   }

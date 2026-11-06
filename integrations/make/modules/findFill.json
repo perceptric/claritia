@@ -1,5 +1,5 @@
 {
-  "name": "find_fill",
+  "name": "findFill",
   "label": "Find Fills",
   "description": "Finds the latest fills from an email.",
   "typeOf": "search",

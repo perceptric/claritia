@@ -9,7 +9,7 @@ for VS Code. The connection signs in with OAuth (client id `make`, secret = the 
 | Base | `base.json` |
 | Connection | `connections/claritia.json` |
 | Webhooks (one per event) | `webhooks/*.json` |
-| Instant triggers | `modules/watch_*.json` |
-| Search | `modules/find_fill.json` |
-| Action | `modules/add_to_workflow.json` |
+| Instant triggers | `modules/watch*.json` |
+| Search | `modules/findFill.json` |
+| Action | `modules/addToWorkflow.json` |
 | Lists for pickers | `rpcs/*.json` |

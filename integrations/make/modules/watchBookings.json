@@ -1,9 +1,9 @@
 {
-  "name": "watch_fills",
-  "label": "Watch Fills",
-  "description": "Starts when someone fills in a form.",
+  "name": "watchBookings",
+  "label": "Watch Bookings",
+  "description": "Starts when someone books a meeting.",
   "typeOf": "instant_trigger",
-  "webhook": "fill",
+  "webhook": "booking",
   "connection": "claritia",
   "communication": {
     "output": "{{trigger.data}}",
@@ -12,7 +12,7 @@
     }
   },
   "samples": {
-    "event": "form.submitted",
+    "event": "meeting.booked",
     "event_id": "evt_test",
     "test": true
   }

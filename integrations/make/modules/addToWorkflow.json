@@ -1,5 +1,5 @@
 {
-  "name": "add_to_workflow",
+  "name": "addToWorkflow",
   "label": "Add a Contact to a Workflow",
   "description": "Adds someone to a live workflow, making the contact if it's new.",
   "typeOf": "action",
