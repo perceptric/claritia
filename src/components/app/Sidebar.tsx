@@ -12,6 +12,7 @@ import {
   Box,
   Branch,
   CalendarIcon,
+  Check,
   ChevronDown,
   FormIcon,
   LogOut,
@@ -68,6 +69,8 @@ function useRail(): [boolean, () => void] {
 }
 
 export type CreateItem = { group: string; label: string; run: () => void };
+/** A workspace this person is in (133_signup.sql). */
+export type WorkspaceChoice = { id: string; name: string; role: string };
 
 export type SidebarProps = {
   route: Route;
@@ -77,6 +80,10 @@ export type SidebarProps = {
   /** A small amber dot when an item needs a step (a rep with no calendar, routing not live). */
   dots?: Partial<Record<string, boolean>>;
   wsName: string;
+  /** Every workspace this person is in; more than one shows a switcher on the name. */
+  workspaces?: WorkspaceChoice[];
+  wsId?: string;
+  onPickWorkspace?: (id: string) => void;
   email: string;
   theme: "light" | "dark";
   onTheme: () => void;
@@ -101,7 +108,11 @@ export function Sidebar(p: SidebarProps) {
       {/* The mark and the name, never cut; the workspace on its own line, in full. Folded to icons: the mark alone. */}
       <div className={`flex flex-col gap-1 px-2 md:items-center ${xl("xl:items-stretch")}`}>
         <Logo nameClass={`md:hidden ${xl("xl:inline")}`} />
-        {p.wsName ? <span className={`text-[12px] leading-snug text-faint [overflow-wrap:anywhere] md:hidden ${xl("xl:block")}`}>{p.wsName}</span> : null}
+        {p.wsName && (p.workspaces?.length ?? 0) > 1 && p.onPickWorkspace ? (
+          <WorkspaceSwitch name={p.wsName} current={p.wsId ?? ""} workspaces={p.workspaces!} onPick={p.onPickWorkspace} className={`md:hidden ${xl("xl:flex")}`} />
+        ) : p.wsName ? (
+          <span className={`text-[12px] leading-snug text-faint [overflow-wrap:anywhere] md:hidden ${xl("xl:block")}`}>{p.wsName}</span>
+        ) : null}
       </div>
       <CreateButton items={p.create} rail={rail} />
       <button
@@ -231,6 +242,47 @@ function CreateButton({ items, rail }: { items: CreateItem[]; rail?: boolean }) 
                     </button>
                   ))}
               </div>
+            ))}
+          </div>
+        </Popover>
+      ) : null}
+    </>
+  );
+}
+
+/** The workspace name as a button: the workspaces this person is in, the open one ticked. */
+function WorkspaceSwitch({ name, current, workspaces, onPick, className }: { name: string; current: string; workspaces: WorkspaceChoice[]; onPick: (id: string) => void; className: string }) {
+  const [anchor, setAnchor] = useState<HTMLElement | null>(null);
+  return (
+    <>
+      <button
+        type="button"
+        aria-haspopup="menu"
+        aria-expanded={!!anchor}
+        onClick={(e) => setAnchor(anchor ? null : e.currentTarget)}
+        className={`-mx-1 items-start gap-1 rounded-md px-1 py-0.5 text-left text-[12px] leading-snug text-faint hover:bg-hover hover:text-ink ${className}`}
+      >
+        <span className="min-w-0 flex-1 [overflow-wrap:anywhere]">{name}</span>
+        <ChevronDown size={12} className="mt-0.5 shrink-0" />
+      </button>
+      {anchor ? (
+        <Popover anchor={anchor} onClose={() => setAnchor(null)} width={240}>
+          <div role="menu" aria-label="Workspaces" className="flex max-h-[60vh] flex-col overflow-y-auto py-1">
+            {workspaces.map((w) => (
+              <button
+                key={w.id}
+                type="button"
+                role="menuitemradio"
+                aria-checked={w.id === current}
+                onClick={() => {
+                  setAnchor(null);
+                  if (w.id !== current) onPick(w.id);
+                }}
+                className="mx-1 flex min-h-8 items-start gap-2 rounded-lg px-2.5 py-1.5 text-left text-[13px] text-ink hover:bg-hover focus-visible:bg-hover focus-visible:outline-none"
+              >
+                <span className="min-w-0 flex-1 [overflow-wrap:anywhere]">{w.name}</span>
+                {w.id === current ? <Check size={13} className="mt-0.5 shrink-0 text-signal" /> : null}
+              </button>
             ))}
           </div>
         </Popover>

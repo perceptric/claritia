@@ -12,10 +12,12 @@ import { AuthScreen } from "./AuthScreen";
 import { OAuthApprove } from "./OAuthApprove";
 import { Dots } from "./Ai";
 import { CommandBar, type Command } from "./CommandBar";
-import { DialogHost, tell } from "./Dialogs";
+import { askText, DialogHost, tell } from "./Dialogs";
 import { bookingOrigin, bookingUrl } from "@/lib/meetings/handles";
 import { cache, ErrorNote, errorText, Loading, mayLeave, must, postJson, type Role, type Route, type ViewProps, type Workspace } from "./ui";
-import { NAV_ICONS, Sidebar, type CreateItem } from "./Sidebar";
+import { NAV_ICONS, Sidebar, type CreateItem, type WorkspaceChoice } from "./Sidebar";
+import { GetStarted } from "./GetStarted";
+import { isMissingFn } from "@/lib/forms/newer";
 import { useRoutingCommands } from "./routing/commands";
 import { useAppCounts } from "./appCounts";
 
@@ -75,6 +77,22 @@ const readLoc = (): Loc => {
   return { route: r.route, id: WITH_ID.has(r.route) && uuid(a) ? a : "" };
 };
 
+// The workspace picked on this computer, for people in more than one.
+const PICK_KEY = "claritia:workspace";
+const readPicked = (): string | null => {
+  try {
+    const v = localStorage.getItem(PICK_KEY);
+    return v && /^[0-9a-f-]{36}$/.test(v) ? v : null;
+  } catch {
+    return null;
+  }
+};
+const savePicked = (id: string) => {
+  try {
+    localStorage.setItem(PICK_KEY, id);
+  } catch {}
+};
+
 function Splash() {
   return (
     <main className="flex min-h-screen items-center justify-center">
@@ -105,7 +123,10 @@ function useTheme() {
 export function ClientApp({ config }: { config: SupaConfig }) {
   const sb = useMemo(() => getSupabase(config), [config]);
   const [session, setSession] = useState<Session | null | undefined>(undefined);
-  const [ws, setWs] = useState<Workspace | null>(null);
+  const [ws, setWs] = useState<(Workspace & { named?: boolean }) | null>(null);
+  const [workspaces, setWorkspaces] = useState<WorkspaceChoice[]>([]);
+  // Bumped to open another workspace: app_start runs again with the new pick.
+  const [wsPick, setWsPick] = useState(0);
   const [role, setRole] = useState<Role>("member");
   const [loc, setLoc] = useState<Loc>({ route: "forms", id: "" });
   const [error, setError] = useState("");
@@ -149,15 +170,40 @@ export function ClientApp({ config }: { config: SupaConfig }) {
 
   const userId = session?.user.id;
 
-  // Your workspace (made on first sign-in) and your role, in one call.
+  // Your workspace (made on first sign-in), your role and the workspaces to switch to, in one call. A workspace just
+  // joined from an invite opens first, then the one picked on this computer (133_signup.sql).
   useEffect(() => {
     if (!userId) return;
     (async () => {
-      const r = must(await sb.rpc("app_start")) as { workspace: Workspace; role: Role };
+      const picked = readPicked();
+      let res = await sb.rpc("app_start", { p_ws: picked });
+      // The database before 133: the old call, one workspace.
+      if (isMissingFn(res.error)) res = await sb.rpc("app_start");
+      const r = must(res) as { workspace: Workspace & { named?: boolean }; role: Role; workspaces?: WorkspaceChoice[] };
       setWs(r.workspace);
       setRole(r.role);
+      setWorkspaces(r.workspaces ?? [{ id: r.workspace.id, name: r.workspace.name, role: r.role }]);
+      savePicked(r.workspace.id);
     })().catch((e) => setError(errorText(e)));
-  }, [sb, userId]);
+  }, [sb, userId, wsPick]);
+  // A new workspace is named after the email: its owner is asked for the team's name once (133_signup.sql).
+  const unnamed = !!ws && ws.named === false && role === "owner" ? ws.id : null;
+  useEffect(() => {
+    if (!unnamed) return;
+    const key = `claritia:named:${unnamed}`;
+    try {
+      if (localStorage.getItem(key)) return;
+      localStorage.setItem(key, "1");
+    } catch {}
+    (async () => {
+      const name = (await askText("What's your team called?", { placeholder: "Acme", ok: "Continue" }))?.trim();
+      if (!name) return;
+      must(await sb.rpc("workspace_name_set", { p_ws: unnamed, p_name: name }));
+      setWs((w) => (w && w.id === unnamed ? { ...w, name, named: true } : w));
+      setWorkspaces((list) => list.map((x) => (x.id === unnamed ? { ...x, name } : x)));
+    })().catch((e) => setError(errorText(e)));
+  }, [sb, unnamed]);
+
   // Signing out empties the cache, so the next person starts clean.
   useEffect(() => {
     if (session === null) cache.clear();
@@ -178,11 +224,26 @@ export function ClientApp({ config }: { config: SupaConfig }) {
       setLoc({ route: r, id });
     });
   }, []);
-  const onWorkspace = useCallback((patch: Partial<Workspace>) => setWs((w) => (w ? { ...w, ...patch } : w)), []);
+  const onWorkspace = useCallback((patch: Partial<Workspace>) => {
+    setWs((w) => (w ? { ...w, ...patch } : w));
+    if (patch.name) setWorkspaces((list) => list.map((x) => (x.id === ws?.id ? { ...x, name: patch.name! } : x)));
+  }, [ws?.id]);
+  // Another workspace: forget this one's screens and open Forms there.
+  const pickWorkspace = useCallback((id: string) => {
+    mayLeave().then((ok) => {
+      if (!ok) return;
+      savePicked(id);
+      cache.clear();
+      setWs(null);
+      window.history.pushState(null, "", "/forms");
+      setLoc({ route: "forms", id: "" });
+      setWsPick((n) => n + 1);
+    });
+  }, []);
   const routingCommands = useRoutingCommands({ sb, session, ws: ws?.id ?? null, navigate });
 
   if (session === undefined) return <Splash />;
-  if (!session) return <AuthScreen sb={sb} />;
+  if (!session) return <AuthScreen sb={sb} config={config} />;
   if (error && !ws)
     return (
       <main className="flex min-h-screen items-center justify-center px-4">
@@ -241,6 +302,10 @@ export function ClientApp({ config }: { config: SupaConfig }) {
         counts={counts}
         dots={dots}
         wsName={ws.name}
+        wsId={ws.id}
+        workspaces={workspaces}
+        onPickWorkspace={pickWorkspace}
+        start={<GetStarted sb={sb} ws={ws} navigate={navigate} />}
         email={email}
         theme={theme}
         onTheme={flip}

@@ -1,6 +1,7 @@
 "use client";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
+import type { SupaConfig } from "@/lib/supa";
 import { useEffect, useState } from "react";
 import { Logo } from "../Logo";
 import { Catch } from "./Catch";
@@ -8,7 +9,7 @@ import { Button, ErrorNote, errorText } from "./ui";
 
 // Where people land after signing in. An app's sign-in (/oauth/authorize) keeps its request.
 const appUrl = () =>
-  `${window.location.origin}${window.location.pathname === "/" ? "/tests" : window.location.pathname}${window.location.pathname.startsWith("/oauth/") ? window.location.search : ""}`;
+  `${window.location.origin}${window.location.pathname === "/" ? "/forms" : window.location.pathname}${window.location.pathname.startsWith("/oauth/") ? window.location.search : ""}`;
 
 function message(e: unknown) {
   const text = errorText(e);
@@ -31,6 +32,17 @@ function GoogleLogo() {
       <path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z" />
       <path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.2 0-9.6-3.3-11.3-8l-6.5 5C9.5 39.6 16.2 44 24 44z" />
       <path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.2 5.2C37 39.2 44 34 44 24c0-1.3-.1-2.4-.4-3.5z" />
+    </svg>
+  );
+}
+
+function MicrosoftLogo() {
+  return (
+    <svg aria-hidden="true" width="16" height="16" viewBox="0 0 23 23">
+      <path fill="#F25022" d="M1 1h10v10H1z" />
+      <path fill="#7FBA00" d="M12 1h10v10H12z" />
+      <path fill="#00A4EF" d="M1 12h10v10H1z" />
+      <path fill="#FFB900" d="M12 12h10v10H12z" />
     </svg>
   );
 }
@@ -68,9 +80,20 @@ function Frame({ children }: { children: React.ReactNode }) {
   );
 }
 
-/** One screen for everyone: Google or GitHub first, an email link as the backup. New people get an account on first sign-in. */
-export function AuthScreen({ sb }: { sb: SupabaseClient }) {
+/** One screen for everyone: Google, Microsoft or GitHub first, an email link as the backup. New people get an account on first sign-in. */
+export function AuthScreen({ sb, config }: { sb: SupabaseClient; config?: SupaConfig }) {
   const [email, setEmail] = useState("");
+  // The sign-in options turned on in Supabase (its public settings); Google and GitHub until it answers.
+  const [on, setOn] = useState<Record<string, boolean>>({ google: true, azure: false, github: true });
+  useEffect(() => {
+    if (!config) return;
+    fetch(`${config.url}/auth/v1/settings`, { headers: { apikey: config.key } })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j: { external?: Record<string, boolean> } | null) => {
+        if (j?.external) setOn({ google: !!j.external.google, azure: !!j.external.azure, github: !!j.external.github });
+      })
+      .catch(() => undefined);
+  }, [config]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [sentTo, setSentTo] = useState("");
@@ -82,11 +105,12 @@ export function AuthScreen({ sb }: { sb: SupabaseClient }) {
     return () => clearTimeout(t);
   }, [wait]);
 
-  async function oauth(provider: "google" | "github") {
+  async function oauth(provider: "google" | "azure" | "github") {
     setBusy(true);
     setError("");
     try {
-      const { error } = await sb.auth.signInWithOAuth({ provider, options: { redirectTo: appUrl() } });
+      // Microsoft's sign-in gives the email only when asked for it.
+      const { error } = await sb.auth.signInWithOAuth({ provider, options: { redirectTo: appUrl(), ...(provider === "azure" ? { scopes: "email" } : {}) } });
       if (error) throw error;
     } catch (err) {
       setError(message(err));
@@ -141,14 +165,24 @@ export function AuthScreen({ sb }: { sb: SupabaseClient }) {
         <p className="mt-1 text-sm text-muted">Sign in or create your account.</p>
       </div>
       <div className="space-y-2.5">
-        <button type="button" onClick={() => oauth("google")} disabled={busy} className={ssoClass}>
-          <GoogleLogo />
-          Continue with Google
-        </button>
-        <button type="button" onClick={() => oauth("github")} disabled={busy} className={ssoClass}>
-          <GitHubLogo />
-          Continue with GitHub
-        </button>
+        {on.google ? (
+          <button type="button" onClick={() => oauth("google")} disabled={busy} className={ssoClass}>
+            <GoogleLogo />
+            Continue with Google
+          </button>
+        ) : null}
+        {on.azure ? (
+          <button type="button" onClick={() => oauth("azure")} disabled={busy} className={ssoClass}>
+            <MicrosoftLogo />
+            Continue with Microsoft
+          </button>
+        ) : null}
+        {on.github ? (
+          <button type="button" onClick={() => oauth("github")} disabled={busy} className={ssoClass}>
+            <GitHubLogo />
+            Continue with GitHub
+          </button>
+        ) : null}
       </div>
       <div className="flex items-center gap-3 text-xs text-muted">
         <span className="h-px flex-1 bg-line" />
@@ -177,6 +211,17 @@ export function AuthScreen({ sb }: { sb: SupabaseClient }) {
         </Button>
       </form>
       <ErrorNote message={error} />
+      <p className="text-center text-xs leading-relaxed text-muted">
+        By continuing, you agree to the{" "}
+        <a href="https://tryclaritia.com/terms" className="text-ink underline-offset-4 hover:underline">
+          Terms
+        </a>{" "}
+        and{" "}
+        <a href="https://tryclaritia.com/privacy" className="text-ink underline-offset-4 hover:underline">
+          Privacy Policy
+        </a>
+        .
+      </p>
     </Frame>
   );
 }

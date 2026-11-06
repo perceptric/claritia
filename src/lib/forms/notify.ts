@@ -94,10 +94,10 @@ export function merge(text: string, v: MergeValues): string {
   });
 }
 
-const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
+export const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
 const FONT = "font-family:Inter,ui-sans-serif,system-ui,-apple-system,'Segoe UI',sans-serif";
 
-function page(inner: string, preheader: string): string {
+export function page(inner: string, preheader: string): string {
   return `<!doctype html><html><body style="margin:0;background:#f4f4f5;${FONT}"><span style="display:none;max-height:0;overflow:hidden">${esc(preheader)}</span><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f5;padding:24px 12px"><tr><td align="center"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;background:#ffffff;border:1px solid #e7e7e9;border-radius:10px"><tr><td style="padding:28px 28px 24px;color:#0a0a0a;font-size:15px;line-height:1.55">${inner}</td></tr></table></td></tr></table></body></html>`;
 }
 
