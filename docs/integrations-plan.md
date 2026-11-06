@@ -331,13 +331,26 @@ again; a run after a timeout looks for its Fill ID first and makes no second rec
 - **Tests:** a file over 100 MB uploads in parts and a lost part is sent again; a run after a timeout finds the file
   first and makes no copy.
 
-### 10. Work tools: Linear, Trello, ClickUp, Monday.com, SmartSuite, Zendesk, Freshdesk, Intercom (about 1 week)
+### 10. Work tools: Linear, Trello, ClickUp, Monday.com, SmartSuite, Zendesk, Freshdesk, Intercom (built)
 
-- **What:** a task, card, issue, item or ticket per fill, with the answers in its body.
-- **Where:** form › Sync, and a workflow step.
-- **How:** one shape for all: pick the board, list or project; map the title and fields. Zendesk, Freshdesk and
-  Intercom also find or make the person.
-- **Tests:** the same as the CRMs.
+- **What:** each fill becomes one item in the place picked: a Linear issue, a Trello card, a ClickUp task, a
+  monday.com item, a SmartSuite record, a Zendesk or Freshdesk ticket, or an Intercom conversation.
+- **Where:** connect in Settings › Integrations, then form › Sync: pick the team, list, board, table or group.
+  Linear and ClickUp sign in (or take a personal key); Trello, monday.com, SmartSuite, Zendesk, Freshdesk and
+  Intercom take keys.
+- **How:** they use the sheets' shape (`targets` and `append` in `src/lib/sources/work.ts`), so deliveries, retries
+  and Send again work as for every other tool. The title names the form and the person, with the fill's short id;
+  the body has every answer, the fill's id and a link to the form. Zendesk and Freshdesk tickets come from the
+  person; Intercom finds the person by email (or makes a lead) and opens a conversation from them. A run again after
+  a lost answer looks for the fill first (by its id in the text, the title, Zendesk's external id or Freshdesk's
+  tag) and makes no second item. A place that was deleted fails with what to do. Each links back to its item.
+- **Tests:** `tests/workTools.test.ts`: each tool's request; a run again finding the item and making none; a deleted
+  list or board; a 429 waiting for its Retry-After; each link.
+- **To go live:** register a Linear app (`LINEAR_CLIENT_ID`, `LINEAR_CLIENT_SECRET`) and a ClickUp app
+  (`CLICKUP_CLIENT_ID`, `CLICKUP_CLIENT_SECRET`) with the return address
+  `https://app.tryclaritia.com/api/sources/callback`. Zendesk signs in per account address, so it takes an agent's
+  email and API token. Endpoints, fields and links are checked against a real account of each before launch
+  (check). Cost: $0; each runs on the team's own account.
 
 ### 11. Documents and signing: Google Docs, DocuSign, PandaDoc (about 1 week)
 

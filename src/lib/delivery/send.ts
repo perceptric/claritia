@@ -187,8 +187,11 @@ async function toRow(t: Taken, dep: Deps): Promise<Result> {
   if (dep.ctx.source.status === "paused") return { status: "retry", error: `${t.destination.name} is paused in Settings › Tools.`, retryAfterS: 1800 };
   try {
     const row = fillRow({ id: t.submission.id, created_at: t.submission.created_at, values: t.submission.values ?? {}, hidden: (t.submission.hidden ?? {}) as Record<string, string> }, { name: t.form?.name ?? "Form", body: t.form?.body ?? null });
-    const r = await dep.connector.append!(dep.ctx, target, row, { retry: t.delivery.attempts > 1 });
-    return { status: "done", externalId: r.externalId, ...(target.url ? { externalUrl: target.url } : {}) };
+    // Work tools (Next step 10) name the person and link back to the fill's form.
+    const person = t.contact ? { email: t.contact.email, name: [t.contact.first_name, t.contact.last_name].filter(Boolean).join(" ") || null } : null;
+    const r = await dep.connector.append!(dep.ctx, target, row, { retry: t.delivery.attempts > 1, person, ...(t.form?.id ? { link: `${APP_URL}/forms/${t.form.id}` } : {}) });
+    const url = r.url ?? dep.connector.link?.(dep.ctx.source, r.externalId, dep.ctx.secret) ?? target.url;
+    return { status: "done", externalId: r.externalId, ...(url ? { externalUrl: url } : {}) };
   } catch (e) {
     if (e instanceof AuthError) return { status: "failed", error: `Sign in to ${t.destination.name} again: ${e.message}`.slice(0, 500) };
     if (e instanceof RateLimited) return { status: "retry", error: e.message, retryAfterS: e.retryAfterS };

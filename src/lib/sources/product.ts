@@ -1,6 +1,7 @@
 // Product and billing tools (docs/contact-sources.md Part 7): Stripe customers come in as customers, Intercom
 // users and leads with their email preference. Endpoints rechecked against a real account before launch ("check").
 
+import { INTERCOM_INBOX, intercomAppend } from "./work.ts";
 import { qs, readCursor } from "./ctx.ts";
 import type { Connector, Page } from "./types.ts";
 
@@ -29,6 +30,10 @@ type IcContact = { id: string; email: string | null; name: string | null; phone:
 
 export const intercom: Connector = {
   kind: "intercom",
+  // A form fill opens a conversation from the person (docs/integrations-plan.md, Next step 10).
+  targets: async () => [INTERCOM_INBOX],
+  append: intercomAppend,
+  link: (s, id) => (s.account ? `https://app.intercom.com/a/apps/${encodeURIComponent(s.account)}/inbox/inbox/conversation/${encodeURIComponent(id)}` : undefined),
   objects: ["contacts"],
   gapMs: 100,
   async account(ctx) {

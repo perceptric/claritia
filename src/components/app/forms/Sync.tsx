@@ -533,7 +533,23 @@ function AlertPane({ sb, session, ws, formId, dests, failed, reload, patchDests,
   );
 }
 
-const TARGET_WORD: Record<string, string> = { google_sheets: "Sheet", airtable: "Table", notion: "Database", postgres: "Table", mysql: "Table", excel: "Workbook" };
+const TARGET_WORD: Record<string, string> = {
+  google_sheets: "Sheet",
+  airtable: "Table",
+  notion: "Database",
+  postgres: "Table",
+  mysql: "Table",
+  excel: "Workbook",
+  // Work tools (docs/integrations-plan.md, Next step 10): where each fill's item goes.
+  linear: "Team",
+  trello: "List",
+  clickup: "List",
+  monday_work: "Board",
+  smartsuite: "Table",
+  zendesk: "Group",
+  freshdesk: "Group",
+  intercom: "Inbox",
+};
 type Target = { id: string; name: string; url?: string; sheet?: string };
 
 // Google Sheets, Airtable, Notion, Excel Online, PostgreSQL and MySQL (docs/integrations-plan.md step 2): a row per
@@ -548,6 +564,8 @@ function RowsPane({ sb, session, ws, form, formId, dests, failed, reload, source
   const thing = xl ? "workbook" : "sheet";
   const sql = source.kind === "postgres" || source.kind === "mysql";
   const word = TARGET_WORD[source.kind] ?? "Table";
+  // A work tool makes an item per fill; the sheets and databases a row.
+  const goes = entryOf(source.kind)?.work ? "Fills go" : "Rows go";
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [link, setLink] = useState("");
@@ -604,7 +622,7 @@ function RowsPane({ sb, session, ws, form, formId, dests, failed, reload, source
       className="h-[32px] min-w-[200px] rounded-[8px] bg-card px-[10px] text-[13px] text-ink shadow-input"
       onChange={(id) => {
         const t = targets.data?.find((x) => x.id === id);
-        if (t) void run(() => save(t), `Rows go to ${t.name} now`);
+        if (t) void run(() => save(t), `${goes} to ${t.name} now`);
       }}
     />
   );
@@ -766,8 +784,8 @@ function RowsPane({ sb, session, ws, form, formId, dests, failed, reload, source
             className={d.paused ? GHOST_SM : GHOST_SM_RED}
             disabled={busy}
             onClick={async () => {
-              if (!d.paused && !(await askConfirm(`Stop adding rows to ${source.name}?`, { body: "Fills stay in Claritia. Turn it on again any time.", ok: "Turn off", danger: true }))) return;
-              await run(async () => must(await sb.rpc("form_destination_pause", { p_id: d.id, p_paused: !d.paused })), d.paused ? `Rows go to ${source.name} again` : `Stopped sending to ${source.name}`);
+              if (!d.paused && !(await askConfirm(`Stop sending fills to ${source.name}?`, { body: "Fills stay in Claritia. Turn it on again any time.", ok: "Turn off", danger: true }))) return;
+              await run(async () => must(await sb.rpc("form_destination_pause", { p_id: d.id, p_paused: !d.paused })), d.paused ? `${goes} to ${source.name} again` : `Stopped sending to ${source.name}`);
             }}
           >
             {d.paused ? "Turn on" : "Turn off"}

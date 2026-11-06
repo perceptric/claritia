@@ -33,6 +33,8 @@ export type Entry = {
   ads?: boolean;
   /** Sends workflow texts (docs/integrations-plan.md, Next step 3). */
   texts?: boolean;
+  /** A work tool (Next step 10): each fill is one item (issue, card, task, ticket) in the place picked; `rows` too. */
+  work?: boolean;
   /** A chat tool: form fills and workflow steps post alerts to its channel (Next step 5); `channels` when one is picked. */
   chat?: boolean;
   channels?: boolean;
@@ -88,7 +90,7 @@ export const CATALOG: Entry[] = [
   { kind: "kit", label: "Kit", group: "email", domain: "kit.com", keys: key("API secret"), objects: ["contacts", "suppressions"], pushes: true, lists: true, tags: true },
   { kind: "mailerlite", label: "MailerLite", group: "email", domain: "mailerlite.com", keys: key("API token"), objects: ["contacts"], pushes: true, lists: true },
   { kind: "stripe", label: "Stripe", group: "product", domain: "stripe.com", keys: key("Restricted key"), objects: ["contacts"] },
-  { kind: "intercom", label: "Intercom", group: "product", domain: "intercom.com", keys: key("Access token"), objects: ["contacts"] },
+  { kind: "intercom", label: "Intercom", group: "product", domain: "intercom.com", keys: key("Access token"), objects: ["contacts"], pushes: true, rows: true, work: true },
   { kind: "typeform", label: "Typeform", group: "form", domain: "typeform.com", hook: true, hookSecret: true, objects: ["contacts"] },
   { kind: "tally", label: "Tally", group: "form", domain: "tally.so", hook: true, hookSecret: true, objects: ["contacts"] },
   { kind: "webflow", label: "Webflow forms", group: "form", domain: "webflow.com", hook: true, objects: ["contacts"] },
@@ -212,6 +214,24 @@ export const CATALOG: Entry[] = [
   },
   { kind: "teams", label: "Microsoft Teams", group: "chat", domain: "teams.microsoft.com", oauth: true, objects: [], pushes: true, chat: true, channels: true },
   { kind: "discord", label: "Discord", group: "chat", domain: "discord.com", oauth: true, keys: [{ key: "url", label: "Channel webhook address", placeholder: "https://discord.com/api/webhooks/123/abc" }], objects: [], pushes: true, chat: true },
+  // docs/integrations-plan.md, Next step 10.
+  { kind: "linear", label: "Linear", group: "product", domain: "linear.app", oauth: true, keys: key("Personal API key"), objects: [], pushes: true, rows: true, work: true },
+  { kind: "trello", label: "Trello", group: "product", domain: "trello.com", keys: [...key(), { key: "token", label: "Token", secret: true }], objects: [], pushes: true, rows: true, work: true },
+  { kind: "clickup", label: "ClickUp", group: "product", domain: "clickup.com", oauth: true, keys: key("Personal API token"), objects: [], pushes: true, rows: true, work: true },
+  { kind: "monday_work", label: "monday.com", group: "product", domain: "monday.com", keys: key("API token"), objects: [], pushes: true, rows: true, work: true },
+  { kind: "smartsuite", label: "SmartSuite", group: "product", domain: "smartsuite.com", keys: [...key(), { key: "workspace", label: "Workspace ID" }], objects: [], pushes: true, rows: true, work: true },
+  {
+    kind: "zendesk",
+    label: "Zendesk",
+    group: "product",
+    domain: "zendesk.com",
+    keys: [{ key: "subdomain", label: "Zendesk address", placeholder: "acme.zendesk.com" }, { key: "email", label: "Agent email" }, { key: "api_token", label: "API token", secret: true }],
+    objects: [],
+    pushes: true,
+    rows: true,
+    work: true,
+  },
+  { kind: "freshdesk", label: "Freshdesk", group: "product", domain: "freshdesk.com", keys: [{ key: "domain", label: "Freshdesk address", placeholder: "acme.freshdesk.com" }, ...key()], objects: [], pushes: true, rows: true, work: true },
   { kind: "google_sheets", label: "Google Sheets", group: "sheets", domain: "sheets.google.com", oauth: true, objects: [], pushes: true, rows: true },
   { kind: "airtable", label: "Airtable", group: "sheets", domain: "airtable.com", oauth: true, keys: key("Personal access token"), objects: [], pushes: true, rows: true },
   { kind: "excel", label: "Excel Online", group: "sheets", domain: "excel.cloud.microsoft", oauth: true, objects: [], pushes: true, rows: true },

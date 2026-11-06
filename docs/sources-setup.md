@@ -287,3 +287,16 @@ Meetings › Availability › My calendar, "Email from you" (docs/integrations-p
 - **Outlook:** on the Microsoft app, add the delegated `Mail.Send` permission and the same redirect.
 
 Nothing else to set: both use the Google and Microsoft keys already on the server.
+
+## Work tools
+
+Linear, Trello, ClickUp, monday.com, SmartSuite, Zendesk, Freshdesk and Intercom (docs/integrations-plan.md, Next
+step 10).
+
+- **Linear:** an OAuth app in Linear's settings, with the return address
+  `https://app.tryclaritia.com/api/sources/callback`. Set `LINEAR_CLIENT_ID` and `LINEAR_CLIENT_SECRET` on claritia-web
+  and claritia-intel. Without them, people paste a personal API key.
+- **ClickUp:** an app in ClickUp's settings with the same return address. Set `CLICKUP_CLIENT_ID` and
+  `CLICKUP_CLIENT_SECRET`. Without them, people paste a personal API token.
+- **Trello, monday.com, SmartSuite, Zendesk, Freshdesk, Intercom:** keys in Settings › Integrations. Nothing to set on
+  the server.
