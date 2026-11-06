@@ -58,6 +58,14 @@ export const OAUTH: Record<string, OauthCfg> = {
     scope: "https://www.googleapis.com/auth/adwords https://www.googleapis.com/auth/userinfo.email",
     extra: { access_type: "offline", prompt: "consent", include_granted_scopes: "true" },
   },
+  // Import from Google Forms (Next step 13): the Google app, reading forms only.
+  google_forms: {
+    env: "GOOGLE",
+    authorize: "https://accounts.google.com/o/oauth2/v2/auth",
+    token: "https://oauth2.googleapis.com/token",
+    scope: "https://www.googleapis.com/auth/forms.body.readonly https://www.googleapis.com/auth/userinfo.email",
+    extra: { access_type: "offline", prompt: "consent", include_granted_scopes: "true" },
+  },
   airtable: { env: "AIRTABLE", authorize: "https://airtable.com/oauth2/v1/authorize", token: "https://airtable.com/oauth2/v1/token", scope: "data.records:read data.records:write schema.bases:read schema.bases:write user.email:read", pkce: true, basic: true },
   // Excel Online (step 2c): the Microsoft app meetings use, with Files.ReadWrite added to it.
   excel: {

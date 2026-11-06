@@ -287,3 +287,10 @@ Meetings › Availability › My calendar, "Email from you" (docs/integrations-p
 - **Outlook:** on the Microsoft app, add the delegated `Mail.Send` permission and the same redirect.
 
 Nothing else to set: both use the Google and Microsoft keys already on the server.
+
+## Import from Google Forms
+
+Forms, Import from Google Forms (docs/integrations-plan.md, Next step 13). On the Google app the calendars use, add
+the `https://www.googleapis.com/auth/forms.body.readonly` scope to the consent screen, turn on the Google Forms API
+in the app's Google Cloud project, and add `https://app.tryclaritia.com/api/forms/google-import/callback` as a
+redirect. `forms.body.readonly` is a sensitive scope: Google checks the app once, free (check). Nothing else to set.
