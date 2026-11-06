@@ -76,6 +76,8 @@ function location(raw: unknown, errors: string[]): Location {
   switch (r.kind) {
     case "teams":
     case "zoom":
+    case "webex":
+    case "whereby":
     case "phone_guest":
     case "google_meet":
       return { kind: r.kind };
@@ -118,7 +120,7 @@ export function checkSettings(raw: unknown, kind: Kind): { settings: TypeSetting
   if (p && typeof p === "object" && Number(p.amount) > 0) {
     const currency = str(p.currency, 3).toLowerCase();
     if (!/^[a-z]{3}$/.test(currency)) errors.push("Pick the currency for the price.");
-    price = { amount: int(p.amount, 50, 10_000_000, 0), currency };
+    price = { amount: int(p.amount, 50, 10_000_000, 0), currency, ...(p.provider === "paypal" || p.provider === "square" ? { provider: p.provider } : {}) };
   }
   const questions: TypeSettings["questions"] = [];
   for (const q of Array.isArray(r.questions) ? r.questions.slice(0, 20) : []) {

@@ -65,6 +65,8 @@ export const LOCATION_LABEL: Record<Location["kind"], string> = {
   google_meet: "Google Meet",
   teams: "Microsoft Teams",
   zoom: "Zoom",
+  webex: "Webex",
+  whereby: "Whereby",
   phone_guest: "Phone call",
   phone_host: "Phone call",
   in_person: "In person",

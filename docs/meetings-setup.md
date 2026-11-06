@@ -110,3 +110,11 @@ Check it works: Routing › Alerts › **Add to Slack**, approve, then route a t
 pressing Mark contacted shows "Marked contacted" and ends the lead's response time. `/book` with a lead's email answers
 with a link that books once.
 
+
+## Webex, Whereby, PayPal and Square
+
+Run `supabase/migrations/132_payments_locations.sql`, then set `WEBEX_CLIENT_ID` and `WEBEX_CLIENT_SECRET` for
+Webex. Each team connects Webex, Whereby, PayPal or Square in Settings › Integrations (the steps for each are in
+`docs/sources-setup.md`). Check it works: pick Whereby in a meeting type's Location and book a test time; the
+confirmation and the calendar event carry the room's link. Pick PayPal under Price › Paid with, book in sandbox mode
+and pay; the meeting turns booked once PayPal's order is read back.

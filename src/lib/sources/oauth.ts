@@ -192,6 +192,8 @@ export const OAUTH: Record<string, OauthCfg> = {
     extra: { token_access_type: "offline" },
   },
   box: { env: "BOX", authorize: "https://account.box.com/api/oauth2/authorize", token: "https://api.box.com/oauth2/token" },
+  // Meeting places (Next step 12): the team's Webex makes a meeting per booking.
+  webex: { env: "WEBEX", authorize: "https://webexapis.com/v1/authorize", token: "https://webexapis.com/v1/access_token", scope: "meeting:schedules_write meeting:schedules_read spark:people_read" },
   // Zoom's scopes (meeting:write) are set on the Marketplace app itself, not in the sign-in link.
   zoom: { env: "ZOOM", authorize: "https://zoom.us/oauth/authorize", token: "https://zoom.us/oauth/token", basic: true },
 };

@@ -51,6 +51,9 @@ export type Location =
   | { kind: "google_meet" }
   | { kind: "teams" }
   | { kind: "zoom" }
+  /** A Webex meeting or a Whereby room per booking, on the team's own Webex or Whereby (Next step 12). */
+  | { kind: "webex" }
+  | { kind: "whereby" }
   | { kind: "phone_guest" }
   | { kind: "phone_host"; number: string }
   | { kind: "in_person"; address: string }
@@ -89,7 +92,8 @@ export type TypeSettings = {
    */
   description?: string;
   /** Paid types: amount in the smallest unit (cents) and the currency; refunded when the host cancels. */
-  price?: { amount: number; currency: string };
+  /** provider: who takes the payment; Stripe when left out (Next step 12 adds PayPal and Square). */
+  price?: { amount: number; currency: string; provider?: "paypal" | "square" };
   /** A named schedule (availability_schedules): each host's schedule of this name, else their default hours. */
   schedule?: string;
   /**

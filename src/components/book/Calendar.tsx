@@ -795,7 +795,7 @@ function Done({ type, reply, tz, hour12, email, preview }: { type: GuestType; re
   const links = calendarLinks({ title: hosts.length ? `${type.name} with ${hostLine(hosts)}` : type.name, start: reply.start, end: reply.end, details: `Reschedule or cancel: ${reply.manage}` });
   const ics = preview ? "#" : icsUrl(reply.manage);
   const join = type.location.detail && /^https:\/\/\S+$/.test(type.location.detail) ? type.location.detail : null;
-  const video = type.location.kind === "google_meet" || type.location.kind === "zoom" || type.location.kind === "teams";
+  const video = type.location.kind === "google_meet" || type.location.kind === "zoom" || type.location.kind === "teams" || type.location.kind === "webex" || type.location.kind === "whereby";
   const manage = (to: "move" | "cancel") => (preview ? "#" : `${reply.manage}${reply.manage.includes("?") ? "&" : "?"}do=${to}`);
   return (
     <div className="cb-done cb-step" role="status">

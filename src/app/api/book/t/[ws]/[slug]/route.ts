@@ -1,3 +1,4 @@
+import { keysFor, providerCheckout } from "@/lib/pay/server";
 import { cors } from "@/lib/forms/server";
 import { checkGuest } from "@/lib/meetings/guest";
 import { bookingTextConsent } from "@/lib/texts/booking";
@@ -66,6 +67,8 @@ export async function POST(request: Request, ctx: Ctx) {
     const host = typeof body.host === "string" ? body.host.slice(0, 64) : null;
     const submissionId = typeof body.ref === "string" ? readBookRef(body.ref) : null;
     const type = await routedType(x.rpc, x.db, { ws: x.t.ws.id, type: x.type, answers: answersOf(body.route) });
+    // A type paid on PayPal or Square takes payments once that's connected (docs/integrations-plan.md, Next step 12).
+    const own = type.settings.price?.provider;
     const r = await bookType(x.rpc, {
       ws: x.t.ws.id,
       type,
@@ -75,15 +78,19 @@ export async function POST(request: Request, ctx: Ctx) {
       source: "page",
       submissionId,
       prefer: host ? { host, profiles: x.t.profiles } : null,
-      payReady: x.t.pay,
+      payReady: own ? !!(await keysFor(x.rpc, x.t.ws.id, own)) : x.t.pay,
       liveBusy: liveFor(x.rpc, x.t.ws.id),
     });
     if (!r.ok) return failed(r);
     await bookingTextConsent(x.rpc, x.t.ws.id, g.guest, x.type.settings.questions);
     let checkout: string | undefined;
     if (r.pending) {
-      const stripe = stripeClient();
-      const co = stripe ? await startCheckout(x.rpc, payStripe(stripe), { meetingId: r.meetingId, token: r.token, base: base() }) : { ok: false as const };
+      const stripe = own ? null : stripeClient();
+      const co = own
+        ? await providerCheckout(x.rpc, { ws: x.t.ws.id, provider: own, meetingId: r.meetingId, token: r.token, base: base() })
+        : stripe
+          ? await startCheckout(x.rpc, payStripe(stripe), { meetingId: r.meetingId, token: r.token, base: base() })
+          : { ok: false as const };
       if (!co.ok) {
         if (!stripe) await x.rpc("meeting_status", { p_id: r.meetingId, p_status: "canceled", p_reason: "Checkout could not start.", p_by: null });
         return json({ ok: false, error: "Payment couldn't start. Try again in a moment.", code: "payment", slots: [] }, 503);

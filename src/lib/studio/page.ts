@@ -115,6 +115,8 @@ export type Block = {
   alt?: string;
   /** payment: coupon codes at checkout. address: suggestions as it's typed. phone: a code is sent to it. */
   coupons?: true;
+  /** payment: who takes it (data-cl-pay-with), Stripe when left out. */
+  provider?: "paypal" | "square";
   auto?: true;
   verify?: true;
 };
@@ -228,6 +230,7 @@ function readBlock(attrs: Record<string, string>): Block | null {
     if (attrs["data-cl-alt"]) b.alt = attrs["data-cl-alt"].slice(0, 200);
   }
   if (type === "payment" && "data-cl-coupons" in attrs) b.coupons = true;
+  if (type === "payment" && (attrs["data-cl-pay-with"] === "paypal" || attrs["data-cl-pay-with"] === "square")) b.provider = attrs["data-cl-pay-with"];
   if (type === "address" && "data-cl-auto" in attrs) b.auto = true;
   if (type === "phone" && "data-cl-verify" in attrs) b.verify = true;
   if (type === "rating") {
@@ -624,7 +627,7 @@ function shownField(q: PageQuestion, b: Block, byName: (n: string | undefined) =
   if (b.type === "payment") {
     const field = byName(b.from);
     // A payment that names a calc the page doesn't have keeps its name, so the form check says the calc is gone.
-    return { ...base, pay: { currency: b.currency ?? "USD", ...(field ? { field } : b.from ? { field: b.from } : b.amount ? { amount: b.amount } : {}), ...(b.coupons ? { coupons: true } : {}) } };
+    return { ...base, pay: { currency: b.currency ?? "USD", ...(field ? { field } : b.from ? { field: b.from } : b.amount ? { amount: b.amount } : {}), ...(b.coupons ? { coupons: true } : {}), ...(b.provider ? { provider: b.provider } : {}) } };
   }
   if (b.type === "image" || b.type === "video") return { ...base, content: { src: b.src ?? "", ...(b.alt ? { alt: b.alt } : {}) } };
   const of = (b.of ?? []).map((n) => byName(n) ?? n);

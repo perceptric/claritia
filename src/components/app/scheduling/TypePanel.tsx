@@ -64,6 +64,10 @@ const placeIcon = (kind: Location["kind"] | "phone", size = 14) =>
     <BrandLogo domain="meet.google.com" name="Google Meet" size={size} />
   ) : kind === "zoom" ? (
     <BrandLogo domain="zoom.us" name="Zoom" size={size} />
+  ) : kind === "webex" ? (
+    <BrandLogo domain="webex.com" name="Webex" size={size} />
+  ) : kind === "whereby" ? (
+    <BrandLogo domain="whereby.com" name="Whereby" size={size} />
   ) : kind === "teams" ? (
     <BrandLogo domain="teams.microsoft.com" name="Microsoft Teams" size={size} />
   ) : kind === "in_person" ? (
