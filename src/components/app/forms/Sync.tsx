@@ -94,6 +94,8 @@ export function Sync(props: Props) {
             <ListPane {...props} source={tools.find((s) => s.id === cur.key)!} logo={cur.logo} />
           ) : entryOf(tools.find((s) => s.id === cur.key)!.kind)?.docs ? (
             <DocPane {...props} source={tools.find((s) => s.id === cur.key)!} logo={cur.logo} />
+          ) : entryOf(tools.find((s) => s.id === cur.key)!.kind)?.files ? (
+            <FilesPane {...props} source={tools.find((s) => s.id === cur.key)!} logo={cur.logo} />
           ) : entryOf(tools.find((s) => s.id === cur.key)!.kind)?.analytics ? (
             <EventPane {...props} source={tools.find((s) => s.id === cur.key)!} logo={cur.logo} />
           ) : entryOf(tools.find((s) => s.id === cur.key)!.kind)?.chat ? (
@@ -567,6 +569,115 @@ function DocPane({ sb, session, ws, formId, dests, failed, reload, patchDests, s
 }
 
 /** Teams and Discord (docs/integrations-plan.md, Next step 5): an alert in a channel for each fill, beside Slack. */
+/**
+ * Google Drive, OneDrive, Dropbox, Box and Amazon S3 (docs/integrations-plan.md, Next step 9): each fill's uploads
+ * copied into a folder named after the fill. Pick the folder (Drive: a new one Claritia makes; S3: the bucket the
+ * connection names), then on or off.
+ */
+function FilesPane({ sb, session, ws, form, formId, dests, failed, reload, patchDests, source, logo }: Props & { source: SourceRow; logo: React.ReactNode }) {
+  const d = dests.find((x) => x.kind === "source" && x.source_id === source.id);
+  const s3 = source.kind === "s3";
+  const listable = source.kind === "onedrive" || source.kind === "dropbox" || source.kind === "box";
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+  const note = useNote();
+  const headers = { Authorization: `Bearer ${session.access_token}` };
+  const folders = useQuery(listable ? `tool_targets:${source.id}` : null, async () => {
+    const res = await fetch(`/api/forms/tool-targets?workspaceId=${encodeURIComponent(ws.id)}&sourceId=${encodeURIComponent(source.id)}`, { headers });
+    const j = (await res.json().catch(() => ({}))) as { targets?: Target[]; error?: string };
+    if (!j.targets) throw new Error(j.error ?? "Couldn't read the folders.");
+    return j.targets;
+  });
+  const run = async (fn: () => Promise<unknown>, words?: string) => {
+    setError("");
+    setBusy(true);
+    try {
+      await fn();
+      if (words) note.show(words);
+      reload();
+    } catch (e) {
+      setError(errorText(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+  const save = (target?: Target) => postJson(session, "/api/forms/destination", { workspaceId: ws.id, formId, kind: "source", sourceId: source.id, name: source.name, ...(d ? { id: d.id } : {}), ...(target ? { target } : {}) });
+  const makeNew = () =>
+    void run(async () => {
+      const r = await postJson<{ target: Target }>(session, "/api/forms/tool-targets", { workspaceId: ws.id, sourceId: source.id, action: "folder", name: `${form.title?.trim() || "Form"} uploads` });
+      await save(r.target);
+    }, "Files go to the new folder now");
+  const target = d ? targetOf(d.config) : null;
+  const week = d ? (failed[d.id] ?? 0) : 0;
+  return (
+    <>
+      <div className="flex flex-wrap items-center gap-[10px]">
+        {logo}
+        <H3>{source.name}</H3>
+        {d && (target || s3) ? <Badge tone={d.paused ? "gray" : "green"} dot>{d.paused ? "Paused" : "On"}</Badge> : null}
+      </div>
+      <ErrorNote message={error || folders.error} />
+      <div className={CARD}>
+        {!s3 ? (
+          <div className={CROW}>
+            <RowText title="Folder" sub={target?.name} />
+            <div className="flex min-w-0 flex-wrap items-center justify-end gap-[8px]">
+              {listable ? (
+                <Select
+                  value={target?.id ?? ""}
+                  options={[...(folders.data ?? []), ...(target && !folders.data?.some((t) => t.id === target.id) ? [target] : [])].map((t) => ({ value: t.id, label: t.name }))}
+                  ariaLabel="Folder"
+                  placeholder={folders.data ? "Pick a folder" : "Reading…"}
+                  disabled={!folders.data || busy}
+                  className="h-[32px] min-w-[200px] rounded-[8px] bg-card px-[10px] text-[13px] text-ink shadow-input"
+                  onChange={(id) => {
+                    const t = folders.data?.find((x) => x.id === id);
+                    if (t) void run(() => save(t), `Files go to ${t.name} now`);
+                  }}
+                />
+              ) : null}
+              <button type="button" className={GHOST_SM} disabled={busy} onClick={makeNew}>
+                New folder
+              </button>
+            </div>
+          </div>
+        ) : null}
+        {d && (target || s3) ? (
+          <div className={CROW}>
+            <RowText title="Copy each fill's files" sub={week ? `${week} didn't copy this week` : undefined} tone={week ? "bad" : undefined} />
+            <Tg
+              label="Copy each fill's files"
+              on={!d.paused}
+              onChange={(on) => {
+                patchDests?.((ds) => ds.map((x) => (x.id === d.id ? { ...x, paused: !on } : x)));
+                void run(async () => must(await sb.rpc("form_destination_pause", { p_id: d.id, p_paused: !on })));
+              }}
+            />
+          </div>
+        ) : null}
+      </div>
+      {s3 && !d ? (
+        <button type="button" className={`${BTN} self-start`} disabled={busy} onClick={() => void run(() => save(), `Files go to ${source.name} now`)}>
+          {`Copy files to ${source.name}`}
+        </button>
+      ) : null}
+      {d ? (
+        <button
+          type="button"
+          className={`${GHOST_SM_RED} self-start`}
+          onClick={async () => {
+            if (!(await askConfirm(`Stop copying files to ${source.name}?`, { ok: "Remove", danger: true }))) return;
+            await run(async () => must(await sb.rpc("form_destination_delete", { p_id: d.id })));
+          }}
+        >
+          Remove
+        </button>
+      ) : null}
+      {note.node}
+    </>
+  );
+}
+
 /** Segment, PostHog, Mixpanel and Amplitude (docs/integrations-plan.md, Next step 8): a Form Submitted event for each fill. */
 function EventPane({ sb, session, ws, formId, dests, failed, reload, patchDests, source, logo }: Props & { source: SourceRow; logo: React.ReactNode }) {
   const d = dests.find((x) => x.kind === "source" && x.source_id === source.id);

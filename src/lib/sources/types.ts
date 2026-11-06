@@ -4,7 +4,7 @@
 
 import type { Target } from "../contacts/fields.ts";
 
-export type Group = "crm" | "email" | "sheets" | "form" | "event" | "product" | "warehouse" | "api" | "ads" | "chat" | "docs";
+export type Group = "crm" | "email" | "sheets" | "form" | "event" | "product" | "warehouse" | "api" | "ads" | "chat" | "docs" | "files";
 export type ObjectKind = "contacts" | "companies" | "opportunities" | "lists" | "suppressions" | "events" | "records";
 
 /** One record as the tool has it. `id` is the tool's own id; `data` is flat (column → value). */
@@ -94,6 +94,11 @@ export type Ctx = {
   secret(name: string): string;
   /** The access token, refreshed when it's about to expire. */
   token(): Promise<string>;
+  /**
+   * One call answering the Response as it came (file uploads read 308s and headers): the sign-in added unless `auth`
+   * is false, refreshed once on a 401, within the call's time limit. No retries: the caller decides.
+   */
+  raw?(url: string, init?: RequestInit & { auth?: boolean; timeoutMs?: number }): Promise<Response>;
   signal?: AbortSignal;
   /** Tests only: reach local databases without TLS. */
   local?: boolean;
@@ -117,6 +122,9 @@ export type HookRequest = { headers: Headers; body: string; url: string; method:
 
 /** Where a fill's row goes: a spreadsheet (and its tab), a base's table, a database; `url` opens it. */
 export type RowTarget = { id: string; name: string; url?: string; sheet?: string };
+/** File tools (Next step 9): one upload, and a fill's uploads with the folder they go in. */
+export type CopyFile = { name: string; type: string; bytes: Uint8Array };
+export type CopyFill = { folder: string; files: CopyFile[] };
 /** One form fill as a row: its id, when, the form, then a cell per question (named by its label). */
 export type FillRow = { id: string; at: string; form: string; cells: { name: string; value: string }[] };
 
@@ -175,6 +183,14 @@ export type Connector = {
   alert?(ctx: Ctx, target: RowTarget | null, note: import("../chat/note.ts").ChatNote): Promise<void>;
   /** Product analytics (Next step 8): send one event, with its dedupe id, for the person. */
   event?(ctx: Ctx, ev: AnalyticsEvent): Promise<void>;
+  /**
+   * File tools (docs/integrations-plan.md, Next step 9): copy a fill's uploads into a folder named after the fill,
+   * inside `target` (S3: the bucket and prefix the connection names, so `target` may be null). Answers the fill's
+   * folder. A run again finds what's there by name first and copies nothing twice.
+   */
+  copy?(ctx: Ctx, target: RowTarget | null, fill: CopyFill): Promise<{ id: string; url?: string }>;
+  /** File tools: make a new folder to copy into, named `name`. */
+  makeFolder?(ctx: Ctx, name: string): Promise<RowTarget>;
   /** The record's address in the tool, for the form's Submissions (a link back to what a delivery made). */
   link?(source: SourceRow, externalId: string, secret: (k: string) => string): string | undefined;
   /** Done once after connect: custom properties, webhook subscriptions. */

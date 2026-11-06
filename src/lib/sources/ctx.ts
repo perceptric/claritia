@@ -106,12 +106,29 @@ export function makeCtx(o: CtxOpts): Ctx {
     }
   }
 
+  async function raw(url: string, init: RequestInit & { auth?: boolean; timeoutMs?: number } = {}): Promise<Response> {
+    const { auth = true, timeoutMs, ...rest } = init;
+    for (let attempt = 0; ; attempt++) {
+      if (o.signal?.aborted) throw new Error("Stopped");
+      const headers = new Headers(rest.headers);
+      if (auth && !headers.has("authorization")) headers.set("authorization", `${OAUTH[o.source.kind]?.scheme ?? "Bearer"} ${await token()}`);
+      const timer = AbortSignal.timeout(timeoutMs ?? o.callTimeoutMs ?? CALL_TIMEOUT_MS * 4);
+      const res = await fetcher(url, { ...rest, headers, signal: o.signal ? AbortSignal.any([o.signal, timer]) : timer });
+      if (res.status === 401 && auth && creds.type === "oauth" && attempt === 0) {
+        await refreshNow();
+        continue;
+      }
+      return res;
+    }
+  }
+
   return {
     source: o.source,
     get creds() {
       return creds;
     },
     api,
+    raw,
     token,
     secret: (name) => (creds.type === "key" ? (creds.values[name] ?? "") : creds.type === "oauth" ? (creds.extra?.[name] ?? "") : ""),
     signal: o.signal,

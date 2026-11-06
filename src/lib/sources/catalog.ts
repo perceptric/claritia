@@ -37,6 +37,8 @@ export type Entry = {
   work?: boolean;
   /** A chat tool: form fills and workflow steps post alerts to its channel (Next step 5); `channels` when one is picked. */
   chat?: boolean;
+  /** A file tool: each fill's uploads are copied into a folder in it (docs/integrations-plan.md, Next step 9). */
+  files?: boolean;
   channels?: boolean;
   /** Documents (Next step 11): a document per fill from a template; `link` when the template's link is pasted. */
   docs?: boolean;
@@ -220,6 +222,26 @@ export const CATALOG: Entry[] = [
   { kind: "google_docs", label: "Google Docs", group: "docs", domain: "docs.google.com", oauth: true, objects: [], pushes: true, docs: true, link: true },
   { kind: "docusign", label: "DocuSign", group: "docs", domain: "docusign.com", oauth: true, objects: [], pushes: true, docs: true },
   { kind: "pandadoc", label: "PandaDoc", group: "docs", domain: "pandadoc.com", keys: key("API key"), objects: [], pushes: true, docs: true },
+  { kind: "google_drive", label: "Google Drive", group: "files", domain: "drive.google.com", oauth: true, objects: [], pushes: true, files: true },
+  { kind: "onedrive", label: "OneDrive", group: "files", domain: "onedrive.live.com", oauth: true, objects: [], pushes: true, files: true },
+  { kind: "dropbox", label: "Dropbox", group: "files", domain: "dropbox.com", oauth: true, objects: [], pushes: true, files: true },
+  { kind: "box", label: "Box", group: "files", domain: "box.com", oauth: true, objects: [], pushes: true, files: true },
+  {
+    kind: "s3",
+    label: "Amazon S3",
+    group: "files",
+    domain: "aws.amazon.com",
+    keys: [
+      { key: "bucket", label: "Bucket" },
+      { key: "region", label: "Region", placeholder: "us-east-1" },
+      { key: "prefix", label: "Folder in the bucket", placeholder: "claritia/", optional: true },
+      { key: "access_key_id", label: "Access key ID" },
+      { key: "secret_access_key", label: "Secret access key", secret: true },
+    ],
+    objects: [],
+    pushes: true,
+    files: true,
+  },
   { kind: "teams", label: "Microsoft Teams", group: "chat", domain: "teams.microsoft.com", oauth: true, objects: [], pushes: true, chat: true, channels: true },
   { kind: "discord", label: "Discord", group: "chat", domain: "discord.com", oauth: true, keys: [{ key: "url", label: "Channel webhook address", placeholder: "https://discord.com/api/webhooks/123/abc" }], objects: [], pushes: true, chat: true },
   // docs/integrations-plan.md, Next step 10.

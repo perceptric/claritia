@@ -18,6 +18,8 @@ import { isRefusal } from "../sources/chat.ts";
 import type { DocFill } from "../documents/tags.ts";
 import type { AnalyticsEvent } from "../sources/types.ts";
 import { APP_URL } from "../site.ts";
+import { fillFolder, readUpload, type CopyFile } from "../sources/files.ts";
+import { uploadIds } from "../forms/files.ts";
 
 export type Taken = {
   /** allow_duplicate: Create anyway was clicked on a possible duplicate. */
@@ -110,6 +112,8 @@ async function toSource(t: Taken, d: SendDeps): Promise<Result> {
   if (dep?.connector.document) return toDocument(t, dep);
   // Product analytics get every fill as an event (Next step 8).
   if (dep?.connector.event) return toEvent(t, dep);
+  // File tools copy every fill's uploads (Next step 9).
+  if (dep?.connector.copy) return toCopy(t, dep, d);
   // A sheet whose sign-in is gone still owes this fill a row, contact or not.
   if (!dep && (t.contact || targetOf(t.destination.config))) return { status: "failed", error: `Connect ${t.destination.name} again.` };
   if (!t.contact || !dep) return { status: "skipped", reason: "No contact to send." };
@@ -173,6 +177,36 @@ export function fillNote(t: Taken) {
 }
 
 /** One alert to a Teams channel or a Discord channel. A refusal that won't change says what to do; the rest retries. */
+/**
+ * A fill's uploads, copied into a folder named after the fill in the destination's folder. A run again finds what's
+ * there by name first; a file that's gone from Claritia or a folder that's gone there fails with what to do.
+ */
+async function toCopy(t: Taken, dep: Deps, d: SendDeps): Promise<Result> {
+  const ids = new Set(uploadIds(Object.values(t.submission.values).flat()));
+  if (!ids.size) return { status: "skipped", reason: "No files on this fill." };
+  try {
+    const ups = ((await call<{ id: string; path: string; name: string; kind: string }[] | null>(dep.rpc, "form_uploads_of", { p_sid: t.submission.id })) ?? []).filter((u) => ids.has(u.id));
+    if (!ups.length) return { status: "skipped", reason: "No files on this fill." };
+    const files: CopyFile[] = [];
+    for (const u of ups) files.push({ name: u.name, type: u.kind, bytes: await readUpload(u.path, d.fetcher) });
+    // Two files with one name each keep theirs: the second gets its upload's first characters.
+    const seen = new Set<string>();
+    for (const f of files) {
+      if (seen.has(f.name)) f.name = f.name.replace(/(\.[^.]*)?$/, (ext) => ` ${ups[files.indexOf(f)]!.id.slice(0, 6)}${ext}`);
+      seen.add(f.name);
+    }
+    const r = await dep.connector.copy!(dep.ctx, targetOf(t.destination.config), { folder: fillFolder(t.form?.name ?? "Form", t.submission.created_at, t.submission.id), files });
+    return { status: "done", externalId: r.id.slice(0, 200), ...(r.url ? { externalUrl: r.url } : {}) };
+  } catch (e) {
+    if (isRefusal(e)) return { status: "failed", error: `${(e as Error).message}${dep.ctx.source.kind === "s3" ? " Check it in Settings › Integrations." : " Pick another folder in the form's Sync tab."}`.slice(0, 500) };
+    if (e instanceof AuthError) return { status: "failed", error: `Sign in to ${t.destination.name} again: ${e.message}`.slice(0, 500) };
+    if (e instanceof RateLimited) return { status: "retry", error: e.message, retryAfterS: e.retryAfterS };
+    const status = (e as { status?: number }).status;
+    if (status && status >= 400 && status < 500 && status !== 408 && status !== 429) return { status: "failed", error: String((e as Error).message).slice(0, 500) };
+    return { status: "retry", error: String((e as Error).message ?? e).slice(0, 500) };
+  }
+}
+
 async function toAlert(t: Taken, dep: Deps): Promise<Result> {
   const target = targetOf(t.destination.config);
   try {
