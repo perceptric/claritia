@@ -15,6 +15,7 @@ import { allFields, isContent, type Form } from "../forms/schema.ts";
 import { DUPLICATE, listOf, pushOptions, rulesOf, targetOf } from "./rules.ts";
 import { fillRow } from "./fillRow.ts";
 import { isRefusal } from "../sources/chat.ts";
+import type { AnalyticsEvent } from "../sources/types.ts";
 import { APP_URL } from "../site.ts";
 
 export type Taken = {
@@ -104,6 +105,8 @@ async function toSource(t: Taken, d: SendDeps): Promise<Result> {
   if (dep?.connector.append) return toRow(t, dep);
   // Chat tools alert on every fill too (Next step 5).
   if (dep?.connector.alert) return toAlert(t, dep);
+  // Product analytics get every fill as an event (Next step 8).
+  if (dep?.connector.event) return toEvent(t, dep);
   // A sheet whose sign-in is gone still owes this fill a row, contact or not.
   if (!dep && (t.contact || targetOf(t.destination.config))) return { status: "failed", error: `Connect ${t.destination.name} again.` };
   if (!t.contact || !dep) return { status: "skipped", reason: "No contact to send." };
@@ -176,6 +179,35 @@ async function toAlert(t: Taken, dep: Deps): Promise<Result> {
     if (isRefusal(e)) return { status: "failed", error: `${(e as Error).message}${dep.ctx.source.kind === "teams" ? " Pick it in the form's Sync tab." : ""}`.slice(0, 500) };
     if (e instanceof AuthError) return { status: "failed", error: `Sign in to ${t.destination.name} again: ${e.message}`.slice(0, 500) };
     if (e instanceof RateLimited) return { status: "retry", error: e.message, retryAfterS: e.retryAfterS };
+    return { status: "retry", error: String((e as Error).message ?? e).slice(0, 500) };
+  }
+}
+
+/** A fill as an analytics event: its id to dedupe on, the person's email as their id, answers by label and where it came from. */
+export function fillEvent(t: Taken): AnalyticsEvent {
+  const c = t.contact;
+  const traits = c ? Object.fromEntries(Object.entries({ first_name: c.first_name, last_name: c.last_name, title: c.title, company: c.company, country: c.country }).filter(([, v]) => !!v)) as Record<string, string> : undefined;
+  const from = Object.fromEntries(Object.entries(t.submission.hidden ?? {}).filter(([k, v]) => /^(utm_[a-z]+|page|referrer|gclid|fbclid)$/.test(k) && typeof v === "string"));
+  return {
+    id: t.submission.id,
+    name: "Form Submitted",
+    userId: c?.email ?? null,
+    at: t.submission.created_at,
+    props: { form_id: t.form?.id ?? null, form_name: t.form?.name ?? null, ...(t.submission.test ? { test: true } : {}), ...from, answers: Object.fromEntries(labeled(t).map((r) => [r.label, r.value])) },
+    ...(traits && Object.keys(traits).length ? { traits } : {}),
+  };
+}
+
+/** One event to Segment, PostHog, Mixpanel or Amplitude. A wrong key stops; down, slow or rate limited tries again. */
+async function toEvent(t: Taken, dep: Deps): Promise<Result> {
+  try {
+    await dep.connector.event!(dep.ctx, fillEvent(t));
+    return { status: "done" };
+  } catch (e) {
+    const status = (e as { status?: number }).status ?? 0;
+    if (e instanceof AuthError || status === 401 || status === 403) return { status: "failed", error: `Sign in to ${t.destination.name} again: check its key in Settings › Integrations.` };
+    if (e instanceof RateLimited) return { status: "retry", error: e.message, retryAfterS: e.retryAfterS };
+    if (status >= 400 && status < 500 && status !== 408 && status !== 429) return { status: "failed", error: `${t.destination.name}: ${(e as Error).message}`.slice(0, 500) };
     return { status: "retry", error: String((e as Error).message ?? e).slice(0, 500) };
   }
 }

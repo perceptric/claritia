@@ -287,3 +287,16 @@ Meetings › Availability › My calendar, "Email from you" (docs/integrations-p
 - **Outlook:** on the Microsoft app, add the delegated `Mail.Send` permission and the same redirect.
 
 Nothing else to set: both use the Google and Microsoft keys already on the server.
+
+## Segment, PostHog, Mixpanel and Amplitude
+
+Product analytics (docs/integrations-plan.md, Next step 8). Each team pastes its own key in Settings › Integrations:
+
+| Tool | Key | Where to find it |
+|---|---|---|
+| Segment | Write key (and region: us or eu) | An HTTP API source's settings |
+| PostHog | Project API key (and its address, like https://eu.i.posthog.com) | Project settings |
+| Mixpanel | Project token (and region: us or eu) | Project settings |
+| Amplitude | API key (and region: us or eu) | Project settings |
+
+Nothing to set on the server.

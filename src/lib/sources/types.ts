@@ -101,6 +101,18 @@ export type Ctx = {
   query?: import("./sql.ts").WhQuery;
 };
 
+/** One product analytics event (src/lib/sources/analytics.ts). */
+export type AnalyticsEvent = {
+  /** The dedupe id: the fill's id, or the run and step's for a workflow event. */
+  id: string;
+  name: string;
+  /** The person's email; null for a fill with no email (then the id stands in). */
+  userId: string | null;
+  at: string;
+  props: Record<string, unknown>;
+  traits?: Record<string, string>;
+};
+
 export type HookRequest = { headers: Headers; body: string; url: string; method: string };
 
 /** Where a fill's row goes: a spreadsheet (and its tab), a base's table, a database; `url` opens it. */
@@ -156,6 +168,8 @@ export type Connector = {
   writable?: string[];
   /** Chat tools (docs/integrations-plan.md, Next step 5): post an alert to the channel (`target` for Teams). */
   alert?(ctx: Ctx, target: RowTarget | null, note: import("../chat/note.ts").ChatNote): Promise<void>;
+  /** Product analytics (Next step 8): send one event, with its dedupe id, for the person. */
+  event?(ctx: Ctx, ev: AnalyticsEvent): Promise<void>;
   /** The record's address in the tool, for the form's Submissions (a link back to what a delivery made). */
   link?(source: SourceRow, externalId: string, secret: (k: string) => string): string | undefined;
   /** Done once after connect: custom properties, webhook subscriptions. */

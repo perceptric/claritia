@@ -315,12 +315,23 @@ again; a run after a timeout looks for its Fill ID first and makes no second rec
 - **Tests:** an embed with a wrong form id shows nothing and logs once; a page with two forms keeps both; the
   plugin works on the last 3 WordPress versions.
 
-### 8. Product analytics: Segment, PostHog, Mixpanel, Amplitude (about 3 days)
+### 8. Product analytics: Segment, PostHog, Mixpanel, Amplitude (built)
 
-- **What:** fill and booking events with the person's email as their id, on the team's own key.
-- **Where:** form › Sync, and a workflow step.
-- **How:** server-side calls to each tool's HTTP API, from the same job as the other sends.
-- **Tests:** the same fill sent twice has one event id; a wrong key stops with sign in again.
+- **What:** each fill goes to the team's own analytics tool as a Form Submitted event, with the person's email as
+  their id and their name and company set on them. A workflow's Analytics event step sends any event name for the
+  contact (Meeting Booked, for one).
+- **Where:** connect in Settings › Integrations with the tool's key (and its region or address when it isn't the
+  US one), then form › Sync to turn it on for a form, and the workflow step list.
+- **How:** connectors with an `event` (`src/lib/sources/analytics.ts`), sent through the same deliveries, retries
+  and Send again as every other tool (`fillEvent` and `toEvent` in `src/lib/delivery/send.ts`). The event carries the
+  form, its answers by label, and where the fill came from (page, UTM, click ids). Each tool gets the fill's id as its
+  own dedupe id (Segment's messageId, PostHog's uuid, Mixpanel's $insert_id, Amplitude's insert_id), so a retry after
+  a lost answer counts once. A workflow event uses its run and step as that id. Segment gets identify then track,
+  PostHog one capture with $set, Mixpanel track then engage, Amplitude one event with user properties. A wrong key
+  stops with "sign in again"; a 429 or 5xx tries again.
+- **Tests:** `tests/analytics.test.ts`: each tool's request and dedupe id; the US and EU addresses; a repeat with the
+  same id; a wrong key, a 503 and a 400 through the real send path; the workflow step's checks.
+- **To go live:** nothing on the server. Each team pastes its own key.
 
 ### 9. Files: Google Drive, OneDrive, Dropbox, Box, Amazon S3 (about 1 week)
 

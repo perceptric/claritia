@@ -78,6 +78,8 @@ export type Names = {
   templates: { id: string; name: string; /** Read when picked. */ body?: unknown }[];
   /** Teams and Discord connections, for the chat step. */
   chats?: { id: string; name: string; kind: string }[];
+  /** Segment, PostHog, Mixpanel and Amplitude connections, for the event step. */
+  events?: { id: string; name: string; kind: string }[];
 };
 
 export const byId = (xs: { id: string; name: string }[]) => Object.fromEntries(xs.map((x) => [x.id, x.name]));

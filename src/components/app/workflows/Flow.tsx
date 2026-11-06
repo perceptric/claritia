@@ -28,6 +28,7 @@ const ICON: Record<StepKind, (p: { size?: number }) => React.ReactNode> = {
   sms: Message,
   whatsapp: Chat,
   chat: Message,
+  event: Flag,
   exit: Flag,
 };
 

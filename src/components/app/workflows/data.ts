@@ -22,7 +22,7 @@ export type Loaded = { wf: Workflow; draft: Body; live: Body | null; versions: V
 export const loadNames = (sb: SupabaseClient, ws: string): Promise<Names> => cached(`workflow_names:${ws}`, () => readNames(sb, ws));
 
 async function readNames(sb: SupabaseClient, ws: string): Promise<Names> {
-  const [forms, typeRows, people, profiles, templates, chats] = await Promise.all([
+  const [forms, typeRows, people, profiles, templates, chats, events] = await Promise.all([
     sb.from("forms").select("id, name").eq("workspace_id", ws).order("name"),
     meetingTypes(sb, ws),
     workspacePeople(sb, ws),
@@ -30,6 +30,7 @@ async function readNames(sb: SupabaseClient, ws: string): Promise<Names> {
     // Names only; a template's body is read when it's picked.
     sb.from("email_templates").select("id, name").eq("workspace_id", ws).order("name"),
     sb.from("sources").select("id, name, kind, account").eq("workspace_id", ws).in("kind", ["teams", "discord"]).neq("status", "disconnected").order("created_at"),
+    sb.from("sources").select("id, name, kind").eq("workspace_id", ws).in("kind", ["segment", "posthog", "mixpanel", "amplitude"]).neq("status", "disconnected").order("created_at"),
   ]);
   const types = { data: [...typeRows].sort((a, b) => a.name.localeCompare(b.name)).map((t) => ({ id: t.id, name: t.name })), error: null };
   const named = new Map(((profiles.data ?? []) as { user_id: string; name: string }[]).map((p) => [p.user_id, p.name]));
@@ -38,11 +39,12 @@ async function readNames(sb: SupabaseClient, ws: string): Promise<Names> {
     types: (must(types) ?? []) as Names["types"],
     members: people.map((p) => ({ id: p.id, email: p.email, name: named.get(p.id) || p.email.replace(/@.*/, "") })),
     templates: (must(templates) ?? []) as Names["templates"],
+    events: ((events.data ?? []) as { id: string; name: string; kind: string }[]).map((c) => ({ id: c.id, kind: c.kind, name: c.name })),
     chats: ((chats.data ?? []) as { id: string; name: string; kind: string; account: string | null }[]).map((c) => ({ id: c.id, kind: c.kind, name: c.name })),
   };
 }
 
-export const wordsOf = (n: Names): WordNames => ({ forms: byId(n.forms), types: byId(n.types), people: { owner: "their owner", ...byId(n.members) }, chats: byId(n.chats ?? []) });
+export const wordsOf = (n: Names): WordNames => ({ forms: byId(n.forms), types: byId(n.types), people: { owner: "their owner", ...byId(n.members) }, chats: byId(n.chats ?? []), events: byId(n.events ?? []) });
 
 /** A workflow with its versions, names and counts, all asked for at once. */
 export async function loadWorkflow(sb: SupabaseClient, ws: string, id: string): Promise<Loaded> {

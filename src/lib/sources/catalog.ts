@@ -36,6 +36,8 @@ export type Entry = {
   /** A chat tool: form fills and workflow steps post alerts to its channel (Next step 5); `channels` when one is picked. */
   chat?: boolean;
   channels?: boolean;
+  /** Product analytics: each fill and a workflow's event step go to it as an event (Next step 8). */
+  analytics?: boolean;
 };
 
 const key = (label = "API key"): KeyField[] => [{ key: "api_key", label, secret: true }];
@@ -212,6 +214,10 @@ export const CATALOG: Entry[] = [
   },
   { kind: "teams", label: "Microsoft Teams", group: "chat", domain: "teams.microsoft.com", oauth: true, objects: [], pushes: true, chat: true, channels: true },
   { kind: "discord", label: "Discord", group: "chat", domain: "discord.com", oauth: true, keys: [{ key: "url", label: "Channel webhook address", placeholder: "https://discord.com/api/webhooks/123/abc" }], objects: [], pushes: true, chat: true },
+  { kind: "segment", label: "Segment", group: "product", domain: "segment.com", keys: [{ key: "write_key", label: "Write key", secret: true }, { key: "region", label: "Region (us or eu)", optional: true, placeholder: "us" }], objects: [], pushes: true, analytics: true },
+  { kind: "posthog", label: "PostHog", group: "product", domain: "posthog.com", keys: [{ key: "api_key", label: "Project API key", secret: true }, { key: "host", label: "PostHog address", optional: true, placeholder: "https://us.i.posthog.com" }], objects: [], pushes: true, analytics: true },
+  { kind: "mixpanel", label: "Mixpanel", group: "product", domain: "mixpanel.com", keys: [{ key: "token", label: "Project token", secret: true }, { key: "region", label: "Region (us or eu)", optional: true, placeholder: "us" }], objects: [], pushes: true, analytics: true },
+  { kind: "amplitude", label: "Amplitude", group: "product", domain: "amplitude.com", keys: [{ key: "api_key", label: "API key", secret: true }, { key: "region", label: "Region (us or eu)", optional: true, placeholder: "us" }], objects: [], pushes: true, analytics: true },
   { kind: "google_sheets", label: "Google Sheets", group: "sheets", domain: "sheets.google.com", oauth: true, objects: [], pushes: true, rows: true },
   { kind: "airtable", label: "Airtable", group: "sheets", domain: "airtable.com", oauth: true, keys: key("Personal access token"), objects: [], pushes: true, rows: true },
   { kind: "excel", label: "Excel Online", group: "sheets", domain: "excel.cloud.microsoft", oauth: true, objects: [], pushes: true, rows: true },
