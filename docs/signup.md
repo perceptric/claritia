@@ -33,7 +33,7 @@ sign-in links through Resend instead:
    - Host `smtp.resend.com`, port `465`, username `resend`, password: a Resend API key with sending access.
 2. Authentication › Rate Limits: raise "Rate limit for sending emails" to 100 an hour.
 3. Authentication › Emails › Templates: for **Magic Link** and **Confirm signup**, set the subject to
-   `Sign in to Claritia` and paste `supabase/templates/sign-in.html` as the body.
+   `Sign in to Claritia` and paste `supabase/templates/magic-link.html` as the Magic Link body and `supabase/templates/confirm-signup.html` (subject `Welcome to Claritia`) as the Confirm signup body.
 
 ### Microsoft sign-in
 
