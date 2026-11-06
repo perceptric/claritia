@@ -44,7 +44,7 @@ webhook), HubSpot Meetings and SavvyCal (book from a form by link).
 | Intercom | Key and the client (reads contacts) | Make a contact, and a conversation or ticket, per fill |
 | Zapier | The Forms API, sign-in, hooks and the app's code are built (Next step 1) | Publish the app from `integrations/zapier` and set its secret |
 | Make | The same | Publish the app from `integrations/make` |
-| Activepieces | The same | Publish the piece from `integrations/activepieces` |
+| Activepieces | The same | Send the piece in `integrations/activepieces/claritia` to the Activepieces repo as a pull request |
 | Microsoft Teams | Teams meetings as a meeting location | Fill alerts in a Teams channel |
 | Gmail | Built (Next step 6): workflow and meeting emails from a team member's own Gmail or Outlook | Google's app check for the gmail.send scope |
 | Google Docs | A PDF copy of each fill | A Google Doc from a template, filled with the answers |
@@ -155,7 +155,7 @@ again; a run after a timeout looks for its Fill ID first and makes no second rec
   Sign-in codes work once for 10 minutes; a code used twice revokes the key it made; PKCE (S256) is checked when
   the app sends it. Code: `src/lib/hooks`, `src/lib/oauth`, `src/app/api/v1`, `src/app/api/oauth`,
   `worker-intel/jobs/webhooks.ts`. The apps: `integrations/zapier` (Zapier CLI), `integrations/make` (Make's app
-  blocks), `integrations/activepieces` (a piece).
+  blocks), `integrations/activepieces/claritia` (a piece in Activepieces' current layout, copied to `packages/pieces/community/claritia`).
 - **Tests:** `tests/apiHooks.test.ts`: a fill hook that times out twice and then takes it gets one fill with the same
   bytes each time; an app's hook that answers 410 is removed and a person's isn't; spam, held and deleted fills never
   go; only each app's own return address; PKCE. `tests/pg/apiHooks.pg.ts` on a real Postgres: one send per hook and
