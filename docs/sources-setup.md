@@ -287,3 +287,20 @@ Meetings › Availability › My calendar, "Email from you" (docs/integrations-p
 - **Outlook:** on the Microsoft app, add the delegated `Mail.Send` permission and the same redirect.
 
 Nothing else to set: both use the Google and Microsoft keys already on the server.
+
+## Google Drive, OneDrive, Dropbox, Box and Amazon S3
+
+File copies (docs/integrations-plan.md, Next step 9). All use the return address
+`https://app.tryclaritia.com/api/sources/callback`.
+
+| Tool | Where | Environment variables (claritia-web and claritia-intel) |
+|---|---|---|
+| Google Drive | The Google app: add the `drive.file` scope to the consent screen (a non-sensitive scope) | (the Google ones already set) |
+| OneDrive | The Microsoft app: add the delegated `Files.ReadWrite` permission | (the Microsoft ones already set) |
+| Dropbox | Dropbox App Console, "Scoped access", with `account_info.read`, `files.metadata.read`, `files.content.read`, `files.content.write` | `DROPBOX_CLIENT_ID`, `DROPBOX_CLIENT_SECRET` |
+| Box | Box Developer Console, a Custom App with user authentication (OAuth 2.0), "Write all files and folders" | `BOX_CLIENT_ID`, `BOX_CLIENT_SECRET` |
+| Amazon S3 | The team pastes a bucket, its region and an access key in Settings › Integrations | (none) |
+
+The copies read files from the form-uploads bucket, so claritia-intel needs `SUPABASE_URL` and `SUPABASE_SECRET_KEY`.
+For S3, the team's key needs `s3:PutObject`, `s3:GetObject` (to find a file already copied) and `s3:ListBucket` on
+the bucket; nothing else.

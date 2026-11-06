@@ -50,6 +50,14 @@ export async function POST(request: Request) {
   const b = (await request.json().catch(() => ({}))) as { workspaceId?: unknown; sourceId?: unknown; action?: unknown; name?: unknown; link?: unknown };
   const l = await load(request, b.workspaceId, b.sourceId);
   if ("denied" in l) return l.denied;
+  // A file tool's new folder for a form's uploads (docs/integrations-plan.md, Next step 9).
+  if (b.action === "folder" && l.d.connector.makeFolder) {
+    try {
+      return Response.json({ target: await l.d.connector.makeFolder(l.d.ctx, typeof b.name === "string" ? b.name.trim().slice(0, 100) : "") });
+    } catch (e) {
+      return bad(why(e), 502);
+    }
+  }
   if (l.kind === "postgres" || l.kind === "mysql") {
     if (b.action !== "table" || typeof b.name !== "string") return bad("Name the table.");
     try {

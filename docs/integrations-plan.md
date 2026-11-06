@@ -322,14 +322,32 @@ again; a run after a timeout looks for its Fill ID first and makes no second rec
 - **How:** server-side calls to each tool's HTTP API, from the same job as the other sends.
 - **Tests:** the same fill sent twice has one event id; a wrong key stops with sign in again.
 
-### 9. Files: Google Drive, OneDrive, Dropbox, Box, Amazon S3 (about 1 week)
+### 9. Files: Google Drive, OneDrive, Dropbox, Box, Amazon S3 (built)
 
-- **What:** each upload copied into a chosen folder, in a subfolder per fill.
-- **Where:** form › Sync.
-- **How:** a job reads the file from Supabase Storage and writes it with the tool's upload (in chunks over 4 MB).
-  Drive asks only for `drive.file`. S3 uses the team's bucket with a key that can only write.
-- **Tests:** a file over 100 MB uploads in parts and a lost part is sent again; a run after a timeout finds the file
-  first and makes no copy.
+- **What:** each fill's uploads are copied into a folder named after the fill (the form, the day and the fill's id),
+  inside the folder picked for the form.
+- **Where:** connect in Settings › Integrations, then form › Sync. Drive makes a new folder (it asks only for
+  `drive.file`, so it sees just the folders Claritia makes). OneDrive, Dropbox and Box pick a folder from a list or
+  make a new one. S3 uses the bucket and the folder in it that the connection names, with the team's own key.
+- **How:** each tool is a connector with `copy` (`src/lib/sources/files.ts`), sent through the same deliveries,
+  retries and Send again as the other tools. The job reads each file from the form-uploads bucket in Supabase
+  Storage (`131_file_copies.sql` lists a fill's uploads). Files over 4 MB go in parts: Drive's resumable upload,
+  OneDrive's upload session and Dropbox's upload session; S3 uses multipart over 8 MB, and Box takes our largest
+  file (20 MB) in one call. A part that fails is sent again from where the tool says it stopped. A run again finds
+  the folder and each file by name first, so nothing is copied twice. A folder that's gone fails with what to do.
+  S3 calls are signed by hand with AWS Signature Version 4, with no AWS library.
+- **Tests:** `tests/fileCopies.test.ts`: each tool's calls; Drive and OneDrive parts with one failing once and sent
+  again from the tool's own count; Dropbox's offset after a lost answer; an S3 part sent again under its number; no
+  second copy on a run again; a folder in the trash or not found; the S3 signature against AWS's published example;
+  the delivery reading a fill's files and skipping a fill with none. `tests/pg/fileCopies.pg.ts`: only the fill's
+  own uploads.
+- **Cost:** $0 a month at Beta (50 teams) and $0 at Growth (500 teams). The copies are read out of Supabase Storage,
+  about 1 GB and 12 GB a month, inside the plan's included downloads (check). The tools' storage is the team's own.
+- **To go live:** run `131_file_copies.sql`. Add the `drive.file` scope to the Google app and `Files.ReadWrite` to
+  the Microsoft app. Make a Dropbox app and a Box app with the return address
+  `https://app.tryclaritia.com/api/sources/callback` (`DROPBOX_CLIENT_ID`, `DROPBOX_CLIENT_SECRET`,
+  `BOX_CLIENT_ID`, `BOX_CLIENT_SECRET`). Set `SUPABASE_URL` and `SUPABASE_SECRET_KEY` on claritia-intel if they
+  aren't there yet. Endpoints are checked against a real account of each before launch (check).
 
 ### 10. Work tools: Linear, Trello, ClickUp, Monday.com, SmartSuite, Zendesk, Freshdesk, Intercom (about 1 week)
 

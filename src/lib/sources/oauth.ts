@@ -146,6 +146,31 @@ export const OAUTH: Record<string, OauthCfg> = {
     refreshScope: true,
   },
   discord: { env: "DISCORD", authorize: "https://discord.com/oauth2/authorize", token: "https://discord.com/api/oauth2/token", scope: "webhook.incoming" },
+  // File copies (Next step 9). Drive asks only for drive.file: the folders and files Claritia makes. OneDrive is the
+  // Microsoft app with Files.ReadWrite; Dropbox and Box have apps of their own.
+  google_drive: {
+    env: "GOOGLE",
+    authorize: "https://accounts.google.com/o/oauth2/v2/auth",
+    token: "https://oauth2.googleapis.com/token",
+    scope: "https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/userinfo.email",
+    extra: { access_type: "offline", prompt: "consent", include_granted_scopes: "true" },
+  },
+  onedrive: {
+    env: "MICROSOFT",
+    authorize: "https://login.microsoftonline.com/common/oauth2/v2.0/authorize",
+    token: "https://login.microsoftonline.com/common/oauth2/v2.0/token",
+    scope: "offline_access User.Read Files.ReadWrite",
+    extra: { prompt: "select_account" },
+    refreshScope: true,
+  },
+  dropbox: {
+    env: "DROPBOX",
+    authorize: "https://www.dropbox.com/oauth2/authorize",
+    token: "https://api.dropboxapi.com/oauth2/token",
+    scope: "account_info.read files.metadata.read files.content.read files.content.write",
+    extra: { token_access_type: "offline" },
+  },
+  box: { env: "BOX", authorize: "https://account.box.com/api/oauth2/authorize", token: "https://api.box.com/oauth2/token" },
   // Zoom's scopes (meeting:write) are set on the Marketplace app itself, not in the sign-in link.
   zoom: { env: "ZOOM", authorize: "https://zoom.us/oauth/authorize", token: "https://zoom.us/oauth/token", basic: true },
 };
