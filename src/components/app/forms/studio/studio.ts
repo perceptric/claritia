@@ -428,11 +428,11 @@ export const STUDIO_HTML = `
       <button class="chatpick" id="chatPick" aria-haspopup="menu" aria-expanded="false" aria-label="Chats"></button>
       <button class="ib foldbtn tipleft" id="chatFold"></button>
     </div>
+    <div class="brandrow"><button class="brandbtn" id="brandBtn" aria-haspopup="menu" aria-label="Brand"></button><button class="profile" id="profileBtn" aria-haspopup="menu" aria-label="Industry, country and language" hidden></button><div class="bstatus" id="brandStatus" hidden></div></div>
     <div class="sidemode"><div class="mseg" role="tablist" aria-label="Editor"><button role="tab" id="m-build" aria-selected="true">${SVG(P.cursor, 14)}Build</button><button role="tab" id="m-ai" aria-selected="false">${tiaSvg(16)}AI<span class="mdot" id="aiDot" hidden></span></button></div><div class="subt" id="subt" role="tablist" aria-label="Build"><button role="tab" id="s-add" aria-selected="true">Add fields</button><button role="tab" id="s-layers" aria-selected="false">Layers</button></div></div>
     <aside class="adds" id="adds" aria-label="Add fields" hidden><div class="ptitle">Add</div><input class="in" id="addQ" placeholder="Search fields" aria-label="Search fields" autocomplete="off"><div class="addlist grid" id="addList"></div></aside>
     <aside class="navi" id="navi" aria-label="Layers" hidden><div class="ptitle">Layers</div><div class="tree" id="tree"></div></aside>
     <div class="aibody" id="aiBody">
-    <div class="brandrow"><button class="brandbtn" id="brandBtn" aria-haspopup="menu" aria-label="Brand"></button><button class="profile" id="profileBtn" aria-haspopup="menu" aria-label="Industry, country and language" hidden></button><div class="bstatus" id="brandStatus" hidden></div></div>
     <div class="msgs" id="msgs" aria-live="polite"></div>
     <div class="compose">
       <div class="about" id="about" hidden><span id="aboutText"></span><button id="aboutX" aria-label="Not about this element">${SVG(P.x, 12)}</button></div>
@@ -1403,6 +1403,14 @@ ${CAL_CSS}
     const input = el.matches("input,textarea,select") ? el : el.querySelector("input[name],textarea[name],select[name]") || el.closest("label")?.querySelector("input[name],textarea[name],select[name]");
     if (input?.name) questionSettings(p, input);
     if (!input?.name && leaf(el) && !el.matches("button,a,option")) textSettings(p, el);
+    // Width in the form's two-column grid: the whole row, or half of it beside the next field.
+    const q = (input || el).closest?.(".q");
+    if (q?.parentElement?.matches(".fields")) {
+      const half = q.classList.contains("half");
+      p.append(h("div", { class: "sec" }, h("div", { class: "row2" }, h("span", { class: "lbl", text: "Width" }), h("div", { class: "seg" },
+        h("button", { "aria-pressed": String(!half), text: "Full", onclick: () => { if (!half) return; snap(); q.classList.remove("half"); commit(); } }),
+        h("button", { "aria-pressed": String(half), text: "Half", onclick: () => { if (half) return; snap(); q.classList.add("half"); commit(); } })))));
+    }
     // Show if, with pickers. A page that a jump skips keeps its own condition apart (data-cl-own).
     const C = h("div", { class: "sec" }, h("h4", { text: "Display condition" }));
     const IF = el.hasAttribute("data-cl-own") ? "data-cl-own" : "data-cl-show-if";
@@ -2122,6 +2130,28 @@ ${CAL_CSS}
     F.append(h("div", { class: "row2" }, h("span", { class: "lbl", text: "Corner radius" }), pick(corners.find(([v]) => v === rad)?.[1] || "Theme default", corners.map(([v, t]) => [t, () => ruleSet(":root", [["--brand-radius", v], ["--brand-card-radius", v ? `${parseInt(v, 10) + 6}px` : ""], ...(ruleGet(":root", "--brand-btn-radius") === "999px" ? [] : [["--brand-btn-radius", v]])]), v === rad]))));
     const pill = ruleGet(":root", "--brand-btn-radius") === "999px";
     F.append(h("div", { class: "row2" }, h("span", { class: "lbl", text: "Button style" }), pick(pill ? "Rounded" : "Solid", [["Solid", () => ruleSet(":root", [["--brand-btn-radius", rad]]), !pill], ["Rounded", () => ruleSet(":root", [["--brand-btn-radius", "999px"]]), pill]])));
+    // Fields: the theme's look, a soft fill, an outline, or a line underneath.
+    // A line any style shows: the text color, faded.
+    const LINE = "color-mix(in srgb, var(--brand-text) 24%, transparent)";
+    const fv = ruleGet(":root", "--brand-field"), fu = ruleGet(".field", "border-width");
+    const fieldNow = fu ? "line" : fv === "transparent" ? "outline" : fv ? "fill" : "";
+    const FIELDS = [
+      ["", "Theme default", [["--brand-field", ""], ["--brand-bw", ""]], []],
+      ["fill", "Filled", [["--brand-field", "color-mix(in srgb, var(--brand-primary) 7%, var(--brand-surface))"], ["--brand-bw", "0px"]], []],
+      ["outline", "Outlined", [["--brand-field", "transparent"], ["--brand-bw", "1px"]], [["border-color", LINE]]],
+      ["line", "Underlined", [["--brand-field", "transparent"], ["--brand-bw", "1px"]], [["border-color", LINE], ["border-width", "0 0 1px 0"], ["border-radius", "0"], ["padding-inline", "0"]]],
+    ];
+    const fieldLook = (root, field) => {
+      snap();
+      const r = rules();
+      const put = (sel, pairs) => { r[sel] = r[sel] || {}; for (const [k, v] of pairs) { if (v === "") delete r[sel][k]; else r[sel][k] = v; } if (!Object.keys(r[sel]).length) delete r[sel]; };
+      put(":root", root);
+      put(".field", [["border-color", ""], ["border-width", ""], ["border-radius", ""], ["padding-inline", ""], ...field]);
+      // Choices keep their box: outlined when the fields are outlined or underlined.
+      put(".choice", [["border-color", field.length ? LINE : ""]]);
+      writeRules(r); commit();
+    };
+    F.append(h("div", { class: "row2" }, h("span", { class: "lbl", text: "Fields" }), pick(FIELDS.find(([v]) => v === fieldNow)?.[1] || "Theme default", FIELDS.map(([v, t, root, field]) => [t, () => fieldLook(root, field), v === fieldNow]))));
     const bg = ruleGet(":root", "--brand-bg");
     const bgs = [["", "Theme default"], ["#ffffff", "White"], ["color-mix(in srgb, var(--brand-primary) 6%, #ffffff)", "Tinted"]];
     F.append(h("div", { class: "row2" }, h("span", { class: "lbl", text: "Background" }), pick(bgs.find(([v]) => v === bg)?.[1] || "Custom", bgs.map(([v, t]) => [t, () => ruleSet(":root", [["--brand-bg", v]]), v === bg]))));
