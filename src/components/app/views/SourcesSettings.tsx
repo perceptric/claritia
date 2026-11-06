@@ -3,7 +3,7 @@
 // Settings › Integrations: the tools a form sends its leads to (Form › Sync and Form Studio's Send to), and the form
 // and meeting tools whose webhooks come in (fills from Typeform, Tally and Webflow; bookings from Calendly and Cal.com,
 // linked to the fill they followed). Connected in one click where the tool allows it, and disconnected here.
-// Zapier, Make and Activepieces connect from their own side (src/lib/oauth/apps.ts); signing in there makes an API key
+// Zapier and Make connect from their own side (src/lib/oauth/apps.ts); signing in there makes an API key
 // with the app's name, and Disconnect here revokes it, which also removes the app's hooks.
 
 import { useState } from "react";

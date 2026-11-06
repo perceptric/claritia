@@ -5,5 +5,4 @@
 export const AUTOMATION_APPS = [
   { id: "zapier", name: "Zapier", domain: "zapier.com", url: "https://zapier.com/apps/claritia/integrations" },
   { id: "make", name: "Make", domain: "make.com", url: "https://www.make.com/en/integrations/claritia" },
-  { id: "activepieces", name: "Activepieces", domain: "activepieces.com", url: "https://www.activepieces.com/pieces/claritia" },
 ] as const;
