@@ -135,6 +135,9 @@ export const OAUTH: Record<string, OauthCfg> = {
     extra: { prompt: "select_account" },
     refreshScope: true,
   },
+  // Work tools (Next step 10). Zendesk signs in per account address, so it takes an API token instead.
+  linear: { env: "LINEAR", authorize: "https://linear.app/oauth/authorize", token: "https://api.linear.app/oauth/token", scope: "read,write,issues:create", extra: { prompt: "consent" } },
+  clickup: { env: "CLICKUP", authorize: "https://app.clickup.com/api", token: "https://api.clickup.com/api/v2/oauth/token" },
   // Chat alerts (docs/integrations-plan.md, Next step 5). Teams: the Microsoft app meetings use, with the Teams scopes
   // added. Discord: Add to Discord picks one channel and answers with its webhook, kept with the sign-in.
   teams: {

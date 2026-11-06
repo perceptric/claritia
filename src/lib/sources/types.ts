@@ -143,7 +143,7 @@ export type Connector = {
    * spreadsheet, a table, a database). Columns the target doesn't have yet are added. With `retry` (the delivery ran
    * before and may have landed), the target is searched for the fill's id first, so a retry never adds a second row.
    */
-  append?(ctx: Ctx, target: RowTarget, row: FillRow, o: { retry: boolean }): Promise<{ externalId: string }>;
+  append?(ctx: Ctx, target: RowTarget, row: FillRow, o: { retry: boolean; person?: { email: string | null; name: string | null } | null; link?: string }): Promise<{ externalId: string; url?: string }>;
   /** The targets a fill can go to (Airtable's tables, Notion's databases), for the form's Sync tab. */
   targets?(ctx: Ctx): Promise<RowTarget[]>;
   /** Records with this first and last name and an email at this domain (the duplicate check in sync rules). */
