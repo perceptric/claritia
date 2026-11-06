@@ -45,9 +45,14 @@ function useAuthAddress(): "signin" | "signup" {
         sessionStorage.setItem(NEXT_KEY, pathname + search);
       } catch {}
     }
-    if (!isAuthPath(pathname)) window.history.replaceState(null, "", "/signin");
+    // From the website (a template's "Use this form template", say): a new account is the likely ask.
+    const fromSite = /^https:\/\/(www\.)?tryclaritia\.com\//.test(document.referrer);
     const onPop = () => setMode(window.location.pathname === "/signup" ? "signup" : "signin");
     window.addEventListener("popstate", onPop);
+    if (!isAuthPath(pathname)) {
+      window.history.replaceState(null, "", fromSite ? "/signup" : "/signin");
+      window.dispatchEvent(new PopStateEvent("popstate"));
+    }
     return () => window.removeEventListener("popstate", onPop);
   }, []);
   return mode;
