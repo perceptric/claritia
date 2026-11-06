@@ -1,0 +1,13 @@
+# Claritia for Shopify (docs/integrations-plan.md, Next step 7): a theme app extension with two blocks, a form in a
+# page section and a popup over every page. Fill in the client id from the Shopify Partner Dashboard, then run
+# `shopify app deploy`.
+name = "Claritia"
+client_id = ""
+application_url = "https://app.tryclaritia.com"
+embedded = false
+
+[access_scopes]
+scopes = ""
+
+[build]
+include_config_on_deploy = true

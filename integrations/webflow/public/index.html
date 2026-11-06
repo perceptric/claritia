@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Claritia</title>
+    <style>
+      :root { --ink: #1f1f1f; --muted: #6b6b6b; --line: #e5e5e5; --brand: #333; --signal: #0c8c5e; --bad: #c2410c; }
+      * { box-sizing: border-box; }
+      body { margin: 0; padding: 12px; font: 12px/1.45 Inter, system-ui, sans-serif; color: var(--ink); background: #fff; }
+      label { display: block; margin: 10px 0 4px; color: var(--muted); font-weight: 500; }
+      input, select { width: 100%; min-width: 0; height: 30px; padding: 0 8px; border: 1px solid var(--line); border-radius: 8px; font: inherit; color: var(--ink); background: #fff; }
+      input:focus, select:focus { outline: 2px solid var(--signal); outline-offset: 0; }
+      .row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+      button { height: 28px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--line); background: #fff; font: inherit; font-weight: 500; cursor: pointer; }
+      button.primary { background: var(--brand); border-color: var(--brand); color: #fff; }
+      button:disabled { opacity: 0.45; cursor: default; }
+      pre { margin: 10px 0 0; padding: 8px; border-radius: 8px; background: #f6f6f6; font: 11px/1.4 ui-monospace, monospace; white-space: pre-wrap; overflow-wrap: anywhere; }
+      .note { margin-top: 8px; color: var(--muted); overflow-wrap: anywhere; }
+      .note.bad { color: var(--bad); }
+    </style>
+  </head>
+  <body>
+    <label for="form">Form link</label>
+    <input id="form" placeholder="https://app.tryclaritia.com/f/…" autocomplete="off" spellcheck="false" />
+    <label for="mode">Show it</label>
+    <select id="mode">
+      <option value="inline">In the page</option>
+      <option value="full">Full page</option>
+      <option value="popup">Popup</option>
+      <option value="slider">Slider</option>
+      <option value="popover">Popover</option>
+      <option value="sidetab">Side tab</option>
+    </select>
+    <div id="text-row" hidden>
+      <label for="text">Button text</label>
+      <input id="text" placeholder="Open the form" />
+    </div>
+    <div class="row">
+      <button id="add" class="primary" type="button">Add to page</button>
+      <button id="copy" type="button">Copy code</button>
+    </div>
+    <p id="note" class="note"></p>
+    <pre id="code"></pre>
+    <script type="module" src="./main.js"></script>
+  </body>
+</html>

@@ -306,14 +306,35 @@ again; a run after a timeout looks for its Fill ID first and makes no second rec
 - **To go live:** run `130_mailboxes.sql`. Add `gmail.send` to the Google app's consent screen and `Mail.Send` to
   the Microsoft app, with the return address `https://app.tryclaritia.com/api/mailbox/callback` on both.
 
-### 7. Site apps: WordPress, Webflow, Framer, Shopify (about 1 week)
+### 7. Site apps: WordPress, Webflow, Framer, Shopify (built; the apps wait to be listed)
 
-- **What:** add a Claritia form or booking page from inside the site builder.
-- **Where:** each tool's own app store, signed in with the Claritia approve page.
-- **How:** a WordPress plugin with a block and a shortcode; a Webflow app and a Framer plugin that drop the embed; a
-  Shopify app block for themes. Each one places the same embed the Share tab gives today.
-- **Tests:** an embed with a wrong form id shows nothing and logs once; a page with two forms keeps both; the
-  plugin works on the last 3 WordPress versions.
+- **What:** add a Claritia form to a site from inside its builder. Paste the form's link from its Share tab, pick
+  how it shows (in the page, full page, popup, slider, popover or side tab), and the app puts in the same code as the
+  Share tab.
+- **Where:** each tool's own app store, once listed. No sign-in: the form's link is all an app needs.
+- **How:** the app code lives in `integrations/`, outside the app's build.
+  - WordPress (`integrations/wordpress/claritia`): a plugin with a Claritia form block and the
+    `[claritia form="..." mode="..." text="..."]` shortcode. The server draws the block, so the page gets plain code.
+    WordPress 6.3 and up.
+  - Webflow (`integrations/webflow`): a Designer Extension. Add to page places the form after the picked element;
+    Copy code gives the code for a Code Embed or the site's footer code.
+  - Framer (`integrations/framer`): a code component with controls for the link, the mode and the button text. It
+    loads the form script once.
+  - Shopify (`integrations/shopify`): a theme app extension with two blocks. Claritia form goes in a page section
+    (in the section, full page, or a popup from a button). Claritia popup is an app embed over every page (a popover,
+    a side tab, or a popup after 10 seconds or when the visitor goes to leave).
+  - Each finds the form id in a pasted link and prints nothing when there isn't one. Every value it prints is
+    escaped.
+- **Tests:** `tests/siteApps.test.ts` runs the WordPress plugin's own PHP and the Webflow and Framer code for every
+  mode and checks each against the Share tab's `formEmbedCode`. A bad link or id prints nothing, and a hostile id or
+  button text is escaped. For Shopify it checks that only a form id passes, that every printed value is escaped, and
+  that each mode's lines are the Share tab's own.
+- **To go live:** submit the WordPress plugin to WordPress.org. Make a Webflow app in the Webflow Developer Portal and
+  upload `integrations/webflow` (check that Add to page can place a script and the custom element through the
+  Designer API; if it can't, Copy code still works). Publish the Framer component to the Framer Marketplace. Make a
+  Shopify app in the Partner Dashboard, set its `client_id` in `shopify.app.toml`, and run `shopify app deploy`.
+- **Monthly cost:** $0. Listing is free on WordPress.org, Webflow and Framer (check). The Shopify App Store takes a
+  one-time fee of about $19 (check).
 
 ### 8. Product analytics: Segment, PostHog, Mixpanel, Amplitude (about 3 days)
 

@@ -1,0 +1,23 @@
+{
+  "claritia": {
+    "form": {
+      "name": "Claritia form",
+      "link": "Form link",
+      "mode": "Show it",
+      "button": "Button text"
+    },
+    "popup": {
+      "name": "Claritia popup",
+      "tab": "Tab text"
+    },
+    "mode": {
+      "inline": "In the section",
+      "full": "Full page",
+      "popup": "Popup, from a button",
+      "popover": "Popover",
+      "sidetab": "Side tab",
+      "popup_10": "Popup after 10 seconds",
+      "popup_exit": "Popup when they go to leave"
+    }
+  }
+}

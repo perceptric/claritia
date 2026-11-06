@@ -1,0 +1,56 @@
+{%- comment -%}
+  A Claritia form over every page of the store, as an app embed (Online Store › Themes › Customize › App embeds):
+  a popover, a side tab, or a popup after 10 seconds or when the visitor goes to leave. The same code as the form's
+  Share tab (src/lib/share/embed.ts); a link without a form id prints nothing. Every value is escaped.
+{%- endcomment -%}
+{%- liquid
+  assign raw = block.settings.form | strip | downcase | replace: '?', '/' | replace: '#', '/' | replace: '&', '/' | replace: '=', '/'
+  assign id = ''
+  assign parts = raw | split: '/'
+  for p in parts
+    assign bits = p | split: '-'
+    if p.size == 36 and bits.size == 5
+      assign id = p
+    endif
+  endfor
+  assign mode = block.settings.mode
+  assign text = block.settings.text | strip | truncate: 40, ''
+  if text == blank
+    assign text = 'Contact us'
+  endif
+-%}
+{%- if id != blank -%}
+<script src="https://app.tryclaritia.com/forms/v1.js" async></script>
+{%- if mode == 'sidetab' %}
+<claritia-form form-id="{{ id | escape }}" side-tab="{{ text | escape }}"></claritia-form>
+{%- elsif mode == 'popup_10' %}
+<claritia-form form-id="{{ id | escape }}" popup="delay:10" size="m" once></claritia-form>
+{%- elsif mode == 'popup_exit' %}
+<claritia-form form-id="{{ id | escape }}" popup="exit" size="m" once></claritia-form>
+{%- else %}
+<claritia-form form-id="{{ id | escape }}" popover icon="chat"></claritia-form>
+{%- endif -%}
+{%- endif -%}
+
+{% schema %}
+{
+  "name": "t:claritia.popup.name",
+  "target": "body",
+  "settings": [
+    { "type": "text", "id": "form", "label": "t:claritia.form.link", "placeholder": "https://app.tryclaritia.com/f/" },
+    {
+      "type": "select",
+      "id": "mode",
+      "label": "t:claritia.form.mode",
+      "default": "popover",
+      "options": [
+        { "value": "popover", "label": "t:claritia.mode.popover" },
+        { "value": "sidetab", "label": "t:claritia.mode.sidetab" },
+        { "value": "popup_10", "label": "t:claritia.mode.popup_10" },
+        { "value": "popup_exit", "label": "t:claritia.mode.popup_exit" }
+      ]
+    },
+    { "type": "text", "id": "text", "label": "t:claritia.popup.tab", "placeholder": "Contact us" }
+  ]
+}
+{% endschema %}

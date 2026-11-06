@@ -1,0 +1,56 @@
+{%- comment -%}
+  A Claritia form in a page section (docs/integrations-plan.md, Next step 7): the same code as the form's Share tab
+  (src/lib/share/embed.ts). The form's link or id is checked for a form id first; a link without one prints nothing.
+  Every value from the settings is escaped.
+{%- endcomment -%}
+{%- liquid
+  assign raw = block.settings.form | strip | downcase | replace: '?', '/' | replace: '#', '/' | replace: '&', '/' | replace: '=', '/'
+  assign id = ''
+  assign parts = raw | split: '/'
+  for p in parts
+    assign bits = p | split: '-'
+    if p.size == 36 and bits.size == 5
+      assign id = p
+    endif
+  endfor
+  assign mode = block.settings.mode
+  assign text = block.settings.text | strip | truncate: 60, ''
+  if text == blank
+    assign text = 'Open the form'
+  endif
+-%}
+{%- if id != blank -%}
+<script src="https://app.tryclaritia.com/forms/v1.js" async></script>
+{%- if mode == 'full' %}
+<claritia-form form-id="{{ id | escape }}" full></claritia-form>
+{%- elsif mode == 'popup' %}
+<claritia-form form-id="{{ id | escape }}" popup="click" size="m"></claritia-form>
+<button data-claritia-open="{{ id | escape }}">{{ text | escape }}</button>
+{%- else %}
+<claritia-form form-id="{{ id | escape }}"></claritia-form>
+{%- endif -%}
+{%- elsif request.design_mode -%}
+<p>{{ 'claritia.form.missing' | t }}</p>
+{%- endif -%}
+
+{% schema %}
+{
+  "name": "t:claritia.form.name",
+  "target": "section",
+  "settings": [
+    { "type": "text", "id": "form", "label": "t:claritia.form.link", "placeholder": "https://app.tryclaritia.com/f/" },
+    {
+      "type": "select",
+      "id": "mode",
+      "label": "t:claritia.form.mode",
+      "default": "inline",
+      "options": [
+        { "value": "inline", "label": "t:claritia.mode.inline" },
+        { "value": "full", "label": "t:claritia.mode.full" },
+        { "value": "popup", "label": "t:claritia.mode.popup" }
+      ]
+    },
+    { "type": "text", "id": "text", "label": "t:claritia.form.button", "placeholder": "Open the form" }
+  ]
+}
+{% endschema %}

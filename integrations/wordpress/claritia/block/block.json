@@ -1,0 +1,18 @@
+{
+  "$schema": "https://schemas.wp.org/trunk/block.json",
+  "apiVersion": 3,
+  "name": "claritia/form",
+  "title": "Claritia form",
+  "category": "widgets",
+  "icon": "feedback",
+  "description": "A Claritia form, in the page or over it.",
+  "keywords": ["form", "claritia", "booking"],
+  "textdomain": "claritia",
+  "attributes": {
+    "form": { "type": "string", "default": "" },
+    "mode": { "type": "string", "enum": ["inline", "full", "popup", "slider", "popover", "sidetab"], "default": "inline" },
+    "text": { "type": "string", "default": "" }
+  },
+  "supports": { "html": false },
+  "editorScript": "file:./index.js"
+}
