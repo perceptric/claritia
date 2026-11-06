@@ -42,7 +42,7 @@ function useAuthAddress(): "signin" | "signup" {
     if (pathname.startsWith("/oauth/")) return;
     if (isAppPath(pathname)) {
       try {
-        sessionStorage.setItem(NEXT_KEY, pathname + search);
+        sessionStorage.setItem(NEXT_KEY, pathname + cleanSearch(search));
       } catch {}
     }
     // From the website (a template's "Use this form template", say): a new account is the likely ask.
@@ -58,6 +58,27 @@ function useAuthAddress(): "signin" | "signup" {
   return mode;
 }
 
+/** What went wrong with a sign-in link, when Supabase sends someone back with an error; read before the address is cleaned. */
+function linkError(): string {
+  if (typeof window === "undefined") return "";
+  const q = new URLSearchParams(window.location.search);
+  const hsh = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+  const raw = q.get("error_description") || hsh.get("error_description") || q.get("error") || hsh.get("error") || "";
+  if (!raw) return "";
+  if (/verifier|code challenge|flow state/i.test(raw)) return "Open the sign-in link in the same browser you asked for it from, or send a new one here.";
+  if (/expired|invalid|otp/i.test(raw)) return "That sign-in link has expired or was already used. Send a new one.";
+  if (/access_denied|cancel/i.test(raw)) return "";
+  return raw.replace(/\+/g, " ");
+}
+const ERROR_KEYS = ["error", "error_code", "error_description", "code"];
+/** The address without what a failed sign-in left on it. */
+const cleanSearch = (search: string) => {
+  const q = new URLSearchParams(search);
+  for (const k of ERROR_KEYS) q.delete(k);
+  const out = q.toString();
+  return out ? `?${out}` : "";
+};
+
 /** Between /signin and /signup without a reload. */
 function go(to: "signin" | "signup") {
   window.history.pushState(null, "", `/${to}`);
@@ -68,6 +89,7 @@ function message(e: unknown) {
   const text = errorText(e);
   if (/rate limit/i.test(text)) return "Too many emails were sent in a short time. Wait a minute and try again.";
   if (/provider is not enabled/i.test(text)) return "This sign-in option is not turned on yet. Use email for now.";
+  if (/took too long/i.test(text)) return "This is taking longer than usual. Check your inbox; if nothing arrives in a minute, try again.";
   return text;
 }
 
@@ -77,6 +99,7 @@ function withTimeout<T>(p: Promise<T>, ms = 20000): Promise<T> {
 }
 
 const RESEND_AFTER = 30;
+type Provider = "google" | "azure" | "github";
 
 function GoogleLogo() {
   return (
@@ -148,10 +171,27 @@ export function AuthScreen({ sb, config }: { sb: SupabaseClient; config?: SupaCo
       })
       .catch(() => undefined);
   }, [config]);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
+  // What's waiting: one sign-in option, or the email link. Each button says what it's doing; the rest wait.
+  const [pending, setPending] = useState<null | Provider | "email">(null);
+  const busy = pending !== null;
+  const [error, setError] = useState(linkError);
   const [sentTo, setSentTo] = useState("");
   const [wait, setWait] = useState(0);
+
+  // Back from Google or Microsoft without signing in: the browser shows this page as it was left, still waiting.
+  // Coming back unlocks it; so does a sign-in page that never opened.
+  useEffect(() => {
+    const back = (e: PageTransitionEvent) => {
+      if (e.persisted) setPending(null);
+    };
+    window.addEventListener("pageshow", back);
+    return () => window.removeEventListener("pageshow", back);
+  }, []);
+  useEffect(() => {
+    if (pending === null || pending === "email") return;
+    const t = setTimeout(() => setPending(null), 15000);
+    return () => clearTimeout(t);
+  }, [pending]);
 
   useEffect(() => {
     if (wait <= 0) return;
@@ -159,8 +199,8 @@ export function AuthScreen({ sb, config }: { sb: SupabaseClient; config?: SupaCo
     return () => clearTimeout(t);
   }, [wait]);
 
-  async function oauth(provider: "google" | "azure" | "github") {
-    setBusy(true);
+  async function oauth(provider: Provider) {
+    setPending(provider);
     setError("");
     try {
       // Microsoft's sign-in gives the email only when asked for it.
@@ -168,12 +208,14 @@ export function AuthScreen({ sb, config }: { sb: SupabaseClient; config?: SupaCo
       if (error) throw error;
     } catch (err) {
       setError(message(err));
-      setBusy(false);
+      setPending(null);
     }
   }
 
-  async function sendLink(to: string) {
-    setBusy(true);
+  async function sendLink(raw: string) {
+    const to = raw.trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)) return setError("Enter your email address.");
+    setPending("email");
     setError("");
     try {
       const { error } = await withTimeout(sb.auth.signInWithOtp({ email: to, options: { emailRedirectTo: appUrl() } }));
@@ -183,7 +225,7 @@ export function AuthScreen({ sb, config }: { sb: SupabaseClient; config?: SupaCo
     } catch (err) {
       setError(message(err));
     } finally {
-      setBusy(false);
+      setPending(null);
     }
   }
 
@@ -202,7 +244,7 @@ export function AuthScreen({ sb, config }: { sb: SupabaseClient; config?: SupaCo
             Use a different email
           </button>
           <button type="button" className="font-medium text-ink underline-offset-4 hover:underline disabled:text-muted disabled:no-underline" disabled={busy || wait > 0} onClick={() => sendLink(sentTo)}>
-            {busy ? "Sending…" : wait > 0 ? `Send again in ${wait}s` : "Send again"}
+            {pending === "email" ? "Sending…" : wait > 0 ? `Send again in ${wait}s` : "Send again"}
           </button>
         </div>
       </Frame>
@@ -234,19 +276,19 @@ export function AuthScreen({ sb, config }: { sb: SupabaseClient; config?: SupaCo
         {on.google ? (
           <button type="button" onClick={() => oauth("google")} disabled={busy} className={ssoClass}>
             <GoogleLogo />
-            Continue with Google
+            {pending === "google" ? "Opening Google…" : "Continue with Google"}
           </button>
         ) : null}
         {on.azure ? (
           <button type="button" onClick={() => oauth("azure")} disabled={busy} className={ssoClass}>
             <MicrosoftLogo />
-            Continue with Microsoft
+            {pending === "azure" ? "Opening Microsoft…" : "Continue with Microsoft"}
           </button>
         ) : null}
         {on.github ? (
           <button type="button" onClick={() => oauth("github")} disabled={busy} className={ssoClass}>
             <GitHubLogo />
-            Continue with GitHub
+            {pending === "github" ? "Opening GitHub…" : "Continue with GitHub"}
           </button>
         ) : null}
       </div>
@@ -273,7 +315,7 @@ export function AuthScreen({ sb, config }: { sb: SupabaseClient; config?: SupaCo
           className="h-11 w-full rounded-md bg-card shadow-input px-3.5 text-[14px] outline-none focus:shadow-focus"
         />
         <Button type="submit" className="h-11 w-full" disabled={busy}>
-          {busy ? "Sending…" : "Continue with email"}
+          {pending === "email" ? "Sending…" : "Continue with email"}
         </Button>
       </form>
       <ErrorNote message={error} />
