@@ -8,7 +8,7 @@ import { getSupabase, type SupaConfig } from "@/lib/supa";
 import { NAV, resolveRoute, routingPage, schedulingPage } from "@/lib/nav";
 import { LogOut, Moon, Sun } from "../Icons";
 import { Logo } from "../Logo";
-import { AuthScreen } from "./AuthScreen";
+import { AuthScreen, isAuthPath, takeNext } from "./AuthScreen";
 import { OAuthApprove } from "./OAuthApprove";
 import { Dots } from "./Ai";
 import { CommandBar, type Command } from "./CommandBar";
@@ -154,8 +154,8 @@ export function ClientApp({ config }: { config: SupaConfig }) {
 
   useEffect(() => {
     const sync = () => {
-      // An app's sign-in keeps its own address (the approve screen reads it).
-      if (window.location.pathname.startsWith("/oauth/")) return;
+      // An app's sign-in keeps its own address (the approve screen reads it); so do the sign-in screens.
+      if (window.location.pathname.startsWith("/oauth/") || isAuthPath(window.location.pathname)) return;
       const l = readLoc();
       setLoc(l);
       // Old and unknown addresses show where they landed.
@@ -169,6 +169,14 @@ export function ClientApp({ config }: { config: SupaConfig }) {
   }, []);
 
   const userId = session?.user.id;
+
+  // Signed in on /signin or /signup: on to the page they first opened, else Forms.
+  useEffect(() => {
+    if (!userId || !isAuthPath(window.location.pathname)) return;
+    window.history.replaceState(null, "", takeNext());
+    // The address sync reads the new page.
+    window.dispatchEvent(new PopStateEvent("popstate"));
+  }, [userId]);
 
   // Your workspace (made on first sign-in), your role and the workspaces to switch to, in one call. A workspace just
   // joined from an invite opens first, then the one picked on this computer (133_signup.sql).

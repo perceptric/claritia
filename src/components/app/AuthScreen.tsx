@@ -7,9 +7,57 @@ import { Logo } from "../Logo";
 import { Catch } from "./Catch";
 import { Button, ErrorNote, errorText } from "./ui";
 
-// Where people land after signing in. An app's sign-in (/oauth/authorize) keeps its request.
-const appUrl = () =>
-  `${window.location.origin}${window.location.pathname === "/" ? "/forms" : window.location.pathname}${window.location.pathname.startsWith("/oauth/") ? window.location.search : ""}`;
+// Signed out, the screen has its own address: /signin, or /signup from "Start free". The page someone first opened is
+// kept for after signing in; an app's sign-in (/oauth/authorize) keeps its own address and request.
+const NEXT_KEY = "claritia:next";
+export const isAuthPath = (p: string) => p === "/signin" || p === "/signup";
+const isAppPath = (p: string) => p !== "/" && !isAuthPath(p) && /^\/[a-z0-9/_-]*$/i.test(p);
+
+/** The page to open after signing in, once. */
+export function takeNext(): string {
+  let next = "/forms";
+  try {
+    const v = sessionStorage.getItem(NEXT_KEY);
+    if (v && isAppPath(v.split("?")[0]!)) next = v;
+    sessionStorage.removeItem(NEXT_KEY);
+  } catch {}
+  return next;
+}
+
+const appUrl = () => {
+  if (window.location.pathname.startsWith("/oauth/")) return window.location.href;
+  let next = "/forms";
+  try {
+    const v = sessionStorage.getItem(NEXT_KEY);
+    if (v && isAppPath(v.split("?")[0]!)) next = v;
+  } catch {}
+  return `${window.location.origin}${next}`;
+};
+
+/** Moves a signed-out visit to /signin (or keeps /signup), remembering the page it was for. */
+function useAuthAddress(): "signin" | "signup" {
+  const [mode, setMode] = useState<"signin" | "signup">(() => (typeof window !== "undefined" && window.location.pathname === "/signup" ? "signup" : "signin"));
+  useEffect(() => {
+    const { pathname, search } = window.location;
+    if (pathname.startsWith("/oauth/")) return;
+    if (isAppPath(pathname)) {
+      try {
+        sessionStorage.setItem(NEXT_KEY, pathname + search);
+      } catch {}
+    }
+    if (!isAuthPath(pathname)) window.history.replaceState(null, "", "/signin");
+    const onPop = () => setMode(window.location.pathname === "/signup" ? "signup" : "signin");
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, []);
+  return mode;
+}
+
+/** Between /signin and /signup without a reload. */
+function go(to: "signin" | "signup") {
+  window.history.pushState(null, "", `/${to}`);
+  window.dispatchEvent(new PopStateEvent("popstate"));
+}
 
 function message(e: unknown) {
   const text = errorText(e);
@@ -82,6 +130,7 @@ function Frame({ children }: { children: React.ReactNode }) {
 
 /** One screen for everyone: Google, Microsoft or GitHub first, an email link as the backup. New people get an account on first sign-in. */
 export function AuthScreen({ sb, config }: { sb: SupabaseClient; config?: SupaConfig }) {
+  const mode = useAuthAddress();
   const [email, setEmail] = useState("");
   // The sign-in options turned on in Supabase (its public settings); Google and GitHub until it answers.
   const [on, setOn] = useState<Record<string, boolean>>({ google: true, azure: false, github: true });
@@ -158,11 +207,23 @@ export function AuthScreen({ sb, config }: { sb: SupabaseClient; config?: SupaCo
   return (
     <Frame>
       <div>
-        <h1 className="font-semibold tracking-[-0.02em] text-[31px] leading-[1.05]">
-          Welcome
-          <span className="text-muted"> to Claritia</span>
-        </h1>
-        <p className="mt-1 text-sm text-muted">Sign in or create your account.</p>
+        {mode === "signup" ? (
+          <h1 className="font-semibold tracking-[-0.02em] text-[31px] leading-[1.05]">
+            Create
+            <span className="text-muted"> your account</span>
+          </h1>
+        ) : (
+          <h1 className="font-semibold tracking-[-0.02em] text-[31px] leading-[1.05]">
+            Welcome
+            <span className="text-muted"> back</span>
+          </h1>
+        )}
+        <p className="mt-1 text-sm text-muted">
+          {mode === "signup" ? "Already have an account? " : "New to Claritia? "}
+          <button type="button" onClick={() => go(mode === "signup" ? "signin" : "signup")} className="font-medium text-ink underline-offset-4 hover:underline">
+            {mode === "signup" ? "Sign in" : "Create an account"}
+          </button>
+        </p>
       </div>
       <div className="space-y-2.5">
         {on.google ? (

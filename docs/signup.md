@@ -4,10 +4,12 @@ How people get into Claritia, and the setup it needs.
 
 ## The flow
 
-1. "Start free" and "Sign in" on tryclaritia.com open app.tryclaritia.com.
-2. One screen for everyone (`src/components/app/AuthScreen.tsx`): Continue with Google, Microsoft or GitHub, or an
-   email sign-in link. Only the options turned on in Supabase show (its public `/auth/v1/settings`). Terms and
-   Privacy link under the buttons. After signing in, the app opens Forms.
+1. "Start free" on tryclaritia.com opens app.tryclaritia.com/signup ("Create your account"); "Sign in" opens /signin
+   ("Welcome back"). Each links to the other. Any app page opened while signed out moves to /signin and opens after
+   signing in (kept for the tab).
+2. The screen (`src/components/app/AuthScreen.tsx`): Continue with Google, Microsoft or GitHub, or an email sign-in
+   link. Only the options turned on in Supabase show (its public `/auth/v1/settings`). Terms and Privacy link under
+   the buttons. After signing in, the app opens the page first asked for, else Forms.
 3. First sign-in makes a workspace named after the email (`ensure_workspace`, 133). Its owner is asked "What's your
    team called?" once; Settings › Workspace renames it any time.
 4. The Get started card in the sidebar lists six first steps and ticks them as they're done (`GetStarted.tsx`).
