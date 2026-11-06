@@ -13,12 +13,13 @@ import { twilio } from "./twilio.ts";
 import { MORE_CRMS } from "./moreCrms.ts";
 import { discord, teams } from "./chat.ts";
 import { WORK_TOOLS } from "./work.ts";
+import { ANALYTICS } from "./analytics.ts";
 import { DOC_TOOLS } from "./documents.ts";
 import { airtable, googleForms, googleSheets, notion } from "./rows.ts";
 import type { Connector } from "./types.ts";
 import { WAREHOUSES } from "./warehouse.ts";
 
-const ALL: Connector[] = [hubspot, salesforce, omniscient, pipedrive, attio, close, mailchimp, klaviyo, activecampaign, brevo, kit, mailerlite, stripe, intercom, typeform, tally, webflow, calendly, calcom, api, googleSheets, airtable, notion, googleForms, excel, metaAds, googleAds, twilio, ...MORE_CRMS, teams, discord, ...WORK_TOOLS, ...DOC_TOOLS, ...WAREHOUSES];
+const ALL: Connector[] = [hubspot, salesforce, omniscient, pipedrive, attio, close, mailchimp, klaviyo, activecampaign, brevo, kit, mailerlite, stripe, intercom, typeform, tally, webflow, calendly, calcom, api, googleSheets, airtable, notion, googleForms, excel, metaAds, googleAds, twilio, ...MORE_CRMS, teams, discord, ...WORK_TOOLS, ...DOC_TOOLS, ...ANALYTICS, ...WAREHOUSES];
 const BY_KIND = new Map(ALL.map((c) => [c.kind, c]));
 
 export const connectorFor = (kind: string): Connector | undefined => BY_KIND.get(kind);

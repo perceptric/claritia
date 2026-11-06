@@ -317,3 +317,15 @@ Forms, Import from Google Forms (docs/integrations-plan.md, Next step 13). On th
 the `https://www.googleapis.com/auth/forms.body.readonly` scope to the consent screen, turn on the Google Forms API
 in the app's Google Cloud project, and add `https://app.tryclaritia.com/api/forms/google-import/callback` as a
 redirect. `forms.body.readonly` is a sensitive scope: Google checks the app once, free (check). Nothing else to set.
+## Segment, PostHog, Mixpanel and Amplitude
+
+Product analytics (docs/integrations-plan.md, Next step 8). Each team pastes its own key in Settings › Integrations:
+
+| Tool | Key | Where to find it |
+|---|---|---|
+| Segment | Write key (and region: us or eu) | An HTTP API source's settings |
+| PostHog | Project API key (and its address, like https://eu.i.posthog.com) | Project settings |
+| Mixpanel | Project token (and region: us or eu) | Project settings |
+| Amplitude | API key (and region: us or eu) | Project settings |
+
+Nothing to set on the server.

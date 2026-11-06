@@ -561,6 +561,25 @@ export function StepPanel(p: {
         </>
       ) : null}
 
+      {s.kind === "event" ? (
+        <>
+          <Row name="Send to">
+            <Select
+              value={s.source}
+              options={(p.names.events ?? []).map((c) => ({ value: c.id, label: c.name }))}
+              placeholder={(p.names.events ?? []).length ? "Pick a tool" : "Connect Segment, PostHog, Mixpanel or Amplitude first"}
+              onChange={(source) => p.onPatch({ source } as Partial<Step>)}
+              ariaLabel="Send to"
+              className="h-9 w-full"
+              disabled={p.readOnly || !(p.names.events ?? []).length}
+            />
+          </Row>
+          <Row name="Event name">
+            <Input value={s.name} onChange={(e) => p.onPatch({ name: e.target.value } as Partial<Step>, "name")} placeholder="Meeting Booked" className="h-9" disabled={p.readOnly} />
+          </Row>
+        </>
+      ) : null}
+
       {s.kind === "chat" ? <ChatStep step={s} names={p.names} session={p.session} ws={p.ws} readOnly={p.readOnly} onPatch={p.onPatch} /> : null}
 
       {s.kind === "whatsapp" ? (

@@ -94,6 +94,8 @@ export function Sync(props: Props) {
             <ListPane {...props} source={tools.find((s) => s.id === cur.key)!} logo={cur.logo} />
           ) : entryOf(tools.find((s) => s.id === cur.key)!.kind)?.docs ? (
             <DocPane {...props} source={tools.find((s) => s.id === cur.key)!} logo={cur.logo} />
+          ) : entryOf(tools.find((s) => s.id === cur.key)!.kind)?.analytics ? (
+            <EventPane {...props} source={tools.find((s) => s.id === cur.key)!} logo={cur.logo} />
           ) : entryOf(tools.find((s) => s.id === cur.key)!.kind)?.chat ? (
             <AlertPane {...props} source={tools.find((s) => s.id === cur.key)!} logo={cur.logo} />
           ) : entryOf(tools.find((s) => s.id === cur.key)!.kind)?.rows ? (
@@ -565,6 +567,75 @@ function DocPane({ sb, session, ws, formId, dests, failed, reload, patchDests, s
 }
 
 /** Teams and Discord (docs/integrations-plan.md, Next step 5): an alert in a channel for each fill, beside Slack. */
+/** Segment, PostHog, Mixpanel and Amplitude (docs/integrations-plan.md, Next step 8): a Form Submitted event for each fill. */
+function EventPane({ sb, session, ws, formId, dests, failed, reload, patchDests, source, logo }: Props & { source: SourceRow; logo: React.ReactNode }) {
+  const d = dests.find((x) => x.kind === "source" && x.source_id === source.id);
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+  const note = useNote();
+  const run = async (fn: () => Promise<unknown>, words?: string) => {
+    setError("");
+    setBusy(true);
+    try {
+      await fn();
+      if (words) note.show(words);
+      reload();
+    } catch (e) {
+      setError(errorText(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+  const week = d ? (failed[d.id] ?? 0) : 0;
+  return (
+    <>
+      <div className="flex flex-wrap items-center gap-[10px]">
+        {logo}
+        <H3>{source.name}</H3>
+        {d ? <Badge tone={d.paused ? "gray" : "green"} dot>{d.paused ? "Paused" : "On"}</Badge> : null}
+      </div>
+      <ErrorNote message={error} />
+      {d ? (
+        <div className={CARD}>
+          <div className={CROW}>
+            <RowText title="Form Submitted event on each fill" sub={week ? `${week} didn't go this week` : undefined} tone={week ? "bad" : undefined} />
+            <Tg
+              label="Form Submitted event on each fill"
+              on={!d.paused}
+              onChange={(on) => {
+                patchDests?.((ds) => ds.map((x) => (x.id === d.id ? { ...x, paused: !on } : x)));
+                void run(async () => must(await sb.rpc("form_destination_pause", { p_id: d.id, p_paused: !on })));
+              }}
+            />
+          </div>
+        </div>
+      ) : (
+        <button
+          type="button"
+          className={`${BTN} self-start`}
+          disabled={busy}
+          onClick={() => void run(() => postJson(session, "/api/forms/destination", { workspaceId: ws.id, formId, kind: "source", sourceId: source.id, name: source.name }), `Fills go to ${source.name} now`)}
+        >
+          {`Send fills to ${source.name}`}
+        </button>
+      )}
+      {d ? (
+        <button
+          type="button"
+          className={`${GHOST_SM_RED} self-start`}
+          onClick={async () => {
+            if (!(await askConfirm(`Stop sending fills to ${source.name}?`, { ok: "Remove", danger: true }))) return;
+            await run(async () => must(await sb.rpc("form_destination_delete", { p_id: d.id })));
+          }}
+        >
+          Remove
+        </button>
+      ) : null}
+      {note.node}
+    </>
+  );
+}
+
 function AlertPane({ sb, session, ws, formId, dests, failed, reload, patchDests, source, logo }: Props & { source: SourceRow; logo: React.ReactNode }) {
   const d = dests.find((x) => x.kind === "source" && x.source_id === source.id);
   const pick = !!entryOf(source.kind)?.channels;

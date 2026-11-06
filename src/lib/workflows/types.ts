@@ -39,6 +39,8 @@ export type Step =
   | { id: string; kind: "whatsapp"; template: string; vars: string[] }
   /** A post in a Teams or Discord channel (src/lib/sources/chat.ts): the connection, Teams' channel, and the words. */
   | { id: string; kind: "chat"; source: string; target?: { id: string; name: string }; text: string }
+  /** An event for the contact in Segment, PostHog, Mixpanel or Amplitude (src/lib/sources/analytics.ts). */
+  | { id: string; kind: "event"; source: string; name: string }
   | { id: string; kind: "exit" };
 
 export type StepKind = Step["kind"];
@@ -61,6 +63,7 @@ export const STEP_KINDS: { kind: StepKind; label: string; group: "Email" | "Time
   { kind: "sms", label: "Text message", group: "Outside" },
   { kind: "whatsapp", label: "WhatsApp message", group: "Outside" },
   { kind: "chat", label: "Teams or Discord message", group: "Outside" },
+  { kind: "event", label: "Analytics event", group: "Outside" },
   { kind: "webhook", label: "Webhook", group: "Outside" },
   { kind: "exit", label: "Exit", group: "End" },
 ];
@@ -107,6 +110,8 @@ export function newStep(kind: StepKind): Step {
       return { id, kind, template: "", vars: [] };
     case "chat":
       return { id, kind, source: "", text: "A new meeting was just booked." };
+    case "event":
+      return { id, kind, source: "", name: "Meeting Booked" };
     default:
       return { id, kind } as Step;
   }

@@ -111,6 +111,27 @@ async function runStep(rpc: Rpc, ws: string, run: Claimed, step: Step, f: Facts,
       });
       return r.skip ? { status: "skipped", result: { why: r.skip } } : { status: "done", result: { text: r.id ?? null } };
     }
+    case "event": {
+      // The run and step are the event's dedupe id, so a step run again after a crash counts once.
+      const dep = await sourceDeps({ rpc, clean: async () => ({ custom: [] }) as never, fetcher: d.fetcher }, step.source).catch(() => null);
+      if (!dep?.connector.event) return { status: "skipped", result: { why: "The analytics tool isn't connected" } };
+      const traits = Object.fromEntries(Object.entries({ first_name: c.first_name, last_name: c.last_name, title: c.title, company: f.company?.name as string | undefined }).filter(([, v]) => !!v)) as Record<string, string>;
+      try {
+        await dep.connector.event(dep.ctx, {
+          id: `${run.id}:${step.id}`,
+          name: step.name,
+          userId: c.email ?? null,
+          at: new Date(now).toISOString(),
+          props: { workflow_id: run.workflow_id, workflow_name: run.workflow_name },
+          ...(Object.keys(traits).length ? { traits } : {}),
+        });
+        return { status: "done" };
+      } catch (e) {
+        const status = (e as { status?: number }).status ?? 0;
+        if (e instanceof AuthError || status === 401 || status === 403) return { status: "failed", result: { error: "Check the tool's key in Settings › Integrations" } };
+        return { status: "failed", result: { error: String((e as Error).message).slice(0, 200) } };
+      }
+    }
     case "chat": {
       // A chat post has no key the tools honor: one found half-sent after a crash isn't sent again.
       if (redo) return { status: "unknown", result: { why: "the worker stopped mid-send" } };
