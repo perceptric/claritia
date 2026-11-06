@@ -81,7 +81,7 @@ export function MyCalendar({ sb, session, ws, parts = ["calendars", "hours", "pr
   const [error, setError] = useState(() => back.get("error")?.slice(0, 200) ?? "");
   const note = back.get("connected") ? `${providerOf(back.get("connected") as Provider).name} connected` : "";
   useEffect(() => {
-    if (back.has("error") || back.has("connected")) history.replaceState(null, "", window.location.pathname);
+    if (back.has("error") || back.has("connected") || back.has("mailbox")) history.replaceState(null, "", window.location.pathname);
   }, [back]);
 
   const act = async (fn: () => Promise<unknown>) => {
@@ -152,6 +152,7 @@ export function MyCalendar({ sb, session, ws, parts = ["calendars", "hours", "pr
         </div>
       </Panel>
       ) : null}
+      {parts.includes("calendars") ? <MailboxPanel sb={sb} session={session} ws={ws.id} back={back.get("mailbox")} /> : null}
       {parts.includes("hours") ? <HoursPanel session={session} ws={ws.id} saved={data.data.hours} onSaved={data.reload} /> : null}
       {parts.includes("profile") ? <ProfilePanel session={session} ws={ws.id} email={session.user.email ?? ""} saved={data.data.profile} onSaved={data.reload} /> : null}
     </div>
@@ -351,3 +352,87 @@ function Labeled({ label, children }: { label: string; children: React.ReactNode
   );
 }
 
+
+// Email from your own mailbox (docs/integrations-plan.md, Next step 6) ----------------------------------------------
+
+type Mailbox = { id: string; provider: "gmail" | "outlook"; email: string; status: "ok" | "reconnect" };
+const MAILBOXES = [
+  { id: "gmail", name: "Gmail", domain: "gmail.com" },
+  { id: "outlook", name: "Outlook", domain: "outlook.com" },
+] as const;
+
+/** Workflow emails from you and your meetings' guest emails go from your own Gmail or Outlook when it's connected. */
+function MailboxPanel({ sb, session, ws, back }: { sb: ViewProps["sb"]; session: ViewProps["session"]; ws: string; back: string | null }) {
+  const me = session.user.id;
+  const box = useQuery(`mailbox:${ws}:${me}`, async () => {
+    const r = await sb.from("mailboxes").select("id, provider, email, status").eq("workspace_id", ws).eq("user_id", me).maybeSingle();
+    // Before migration 130 there's no mailboxes table: nothing connected yet.
+    if (r.error && /mailboxes|schema cache|does not exist/i.test(r.error.message)) return null;
+    return must(r) as Mailbox | null;
+  });
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+  const connect = async (provider: string) => {
+    setError("");
+    setBusy(true);
+    try {
+      const r = await postJson<{ url: string }>(session, "/api/mailbox/connect", { workspaceId: ws, provider });
+      window.location.assign(r.url);
+    } catch (e) {
+      setError(errorText(e));
+      setBusy(false);
+    }
+  };
+  const disconnect = async (b: Mailbox) => {
+    if (!(await askConfirm(`Stop sending from ${b.email}?`, { body: "Your emails go from your team's address again.", ok: "Disconnect", danger: true }))) return;
+    setError("");
+    try {
+      await postJson(session, "/api/mailbox/disconnect", { workspaceId: ws });
+      box.reload();
+    } catch (e) {
+      setError(errorText(e));
+    }
+  };
+  const b = box.data;
+  const p = b ? MAILBOXES.find((x) => x.id === b.provider)! : null;
+  return (
+    <Panel className="overflow-hidden">
+      <CardHead label="Email from you">
+        {back && b?.status === "ok" ? (
+          <Badge tone="green" dot>
+            {`${p?.name ?? "Mailbox"} connected`}
+          </Badge>
+        ) : null}
+      </CardHead>
+      <ErrorNote message={error || box.error} />
+      {b && p ? (
+        <div className="flex min-w-0 flex-wrap items-center gap-3 px-5 py-4">
+          <BrandLogo domain={p.domain} name={p.name} size={20} />
+          <span className="min-w-0 flex-1 text-[13.5px] text-ink wrap-anywhere">{b.email}</span>
+          {b.status === "reconnect" ? <Badge tone="amber">Reconnect</Badge> : <Badge tone="green" dot>Sending</Badge>}
+          <div className="flex flex-wrap gap-2">
+            {b.status === "reconnect" ? (
+              <Button variant="ghost" size="sm" disabled={busy} onClick={() => void connect(b.provider)}>
+                Reconnect
+              </Button>
+            ) : null}
+            <Button variant="ghost" size="sm" onClick={() => void disconnect(b)}>
+              Disconnect
+            </Button>
+          </div>
+        </div>
+      ) : box.data === null ? (
+        <div className="flex flex-wrap gap-2 px-5 py-4">
+          {MAILBOXES.map((m) => (
+            <Button key={m.id} variant="ghost" disabled={busy} onClick={() => void connect(m.id)}>
+              <BrandLogo domain={m.domain} name={m.name} size={15} />
+              {`Connect ${m.name}`}
+            </Button>
+          ))}
+        </div>
+      ) : (
+        <Loading />
+      )}
+    </Panel>
+  );
+}

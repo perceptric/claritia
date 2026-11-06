@@ -513,6 +513,8 @@ export type MimeInput = {
   date?: Date;
   /** Makes the part boundaries; random when not given. */
   boundary?: string;
+  /** More headers (List-Unsubscribe on a workflow email sent from someone's own mailbox). */
+  extra?: { name: string; value: string }[];
 };
 
 /** The whole message, ready for a raw send over SMTP. Refuses addresses that could break the headers. */
@@ -529,6 +531,7 @@ export function mime(m: MimeInput): string {
     `Subject: ${encodeHeader(m.subject)}`,
     `Date: ${(m.date ?? new Date()).toUTCString()}`,
     "MIME-Version: 1.0",
+    ...(m.extra ?? []).filter((h) => /^[A-Za-z][A-Za-z0-9-]{1,60}$/.test(h.name) && !/[\r\n]/.test(h.value)).map((h) => `${h.name}: ${h.value}`),
   ];
   const part = (type: string, body: string) => [`Content-Type: ${type}`, "Content-Transfer-Encoding: base64", "", b64(body)].join("\r\n");
   const alternative = [

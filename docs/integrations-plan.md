@@ -46,7 +46,7 @@ webhook), HubSpot Meetings and SavvyCal (book from a form by link).
 | Make | The same | Publish the app from `integrations/make` |
 | Activepieces | The same | Publish the piece from `integrations/activepieces` |
 | Microsoft Teams | Teams meetings as a meeting location | Fill alerts in a Teams channel |
-| Gmail | Emails go from the workspace's verified domain (Resend) | Send workflow emails from a team member's own Gmail |
+| Gmail | Built (Next step 6): workflow and meeting emails from a team member's own Gmail or Outlook | Google's app check for the gmail.send scope |
 | Google Docs | A PDF copy of each fill | A Google Doc from a template, filled with the answers |
 | Google Tag Manager | Built (Next step 2): form › Settings › Tracking pushes the form's events to `dataLayer` | Nothing |
 
@@ -278,15 +278,33 @@ again; a run after a timeout looks for its Fill ID first and makes no second rec
   `https://app.tryclaritia.com/api/sources/callback` (`DISCORD_CLIENT_ID`, `DISCORD_CLIENT_SECRET`). Admin consent
   may be needed for ChannelMessage.Send in some Microsoft tenants (check).
 
-### 6. Sending as the host: Gmail and Outlook (about 4 days)
+### 6. Sending as the host: Gmail and Outlook (built)
 
-- **What:** workflow emails and meeting emails go from the team member's own mailbox, so replies land there.
-- **Where:** Settings › Profile › Email, "Connect Gmail" or "Connect Outlook".
-- **How:** Gmail's `gmail.send` scope (a sensitive scope, so Google's free app check covers it) and Graph's
-  `Mail.Send` on the Microsoft app. A mailbox that's disconnected sends from the workspace's domain on Resend, as
-  today. Each mailbox is held to its provider's daily limit.
-- **Tests:** a revoked token falls back to Resend and tells the member once; a send near the daily limit waits for
-  the next day; a 5xx from Gmail tries again and sends once.
+- **What:** workflow emails "from their owner" and meeting emails to a host's guests (confirmations, changes,
+  cancellations, reminders, no-show follow-ups, Pick a time) go from the team member's own Gmail or Outlook, so
+  replies land in their inbox.
+- **Where:** Meetings › Availability › My calendar, "Email from you": Connect Gmail or Connect Outlook, then
+  Reconnect when it needs it, and Disconnect.
+- **How:** each person's mailbox is kept sealed (`130_mailboxes.sql`), signed in on the Google app with `gmail.send`
+  (a sensitive scope, so Google's free app check covers it) or the Microsoft app with `Mail.Send`. The email is
+  built the same way (the same MIME, the invite included) and sent whole through Gmail's send or Graph's sendMail,
+  from the mailbox's address with the sender's name (`src/lib/mailbox`). The send job sends a round's mailbox
+  emails one by one and the rest on Resend as before (`mailboxRound` in `worker-intel/jobs/email.ts`); meeting
+  emails do the same in `sendOne` (`worker-intel/jobs/meetings.ts`). Each mailbox is held to a daily limit a little
+  under its provider's (Gmail 450, Outlook 2,000, check): a workflow email waits until the oldest send of the last 24
+  hours is a day old, without using a try, while the round goes on; a meeting email goes from the team's address
+  instead of waiting. A refresh the provider refuses (or a 401 right after a fresh token, or Gmail's insufficient
+  scopes) turns the mailbox to Reconnect: that email and the next go from the team's domain on Resend, and the
+  person gets one email per break. A 429 or 5xx is tried again (the workflow email's usual three tries); a send with
+  no answer is unknown and never sent again, like Resend's. Before 130 runs, everything sends as it did.
+- **Tests:** `tests/mailbox.test.ts`: each provider's format; refresh before expiry and on a 401; a refused
+  refresh, insufficient scopes, 5xx, timeout and 400; the daily limit's wait; a revoked sign-in falling back and
+  telling once for two emails in a row; a 5xx tried again and sent once; the From and List-Unsubscribe kept.
+  `tests/pg/mailboxes.pg.ts` on a real Postgres: an owner's email from Gmail and the team's on Resend in one round;
+  a full mailbox holding without a try; a broken sign-in on Resend, told once, cleared by a reconnect; the owner
+  named by the workflow step and the old call still working.
+- **To go live:** run `130_mailboxes.sql`. Add `gmail.send` to the Google app's consent screen and `Mail.Send` to
+  the Microsoft app, with the return address `https://app.tryclaritia.com/api/mailbox/callback` on both.
 
 ### 7. Site apps: WordPress, Webflow, Framer, Shopify (about 1 week)
 
@@ -357,7 +375,7 @@ worker. No Claude calls.
 | Line | Beta (50 teams) | Growth (500 teams) |
 |---|---|---|
 | Steps 1, 2, 4, 5, 7 to 13 (APIs free or on the team's account) | $0 | $0 |
-| Gmail and Outlook send: `gmail.send` is a sensitive scope, so Google's app check is free (check) | $0 | $0 |
+| Gmail and Outlook send (built): `gmail.send` is a sensitive scope, so Google's app check is free (check) | $0 | $0 |
 | SMS: Twilio $0.0083 a segment plus carrier fees of about $0.0045, and a toll-free number at about $2.15 (check). 1,200 and 12,000 texts | about $18 (check) | about $165 (check) |
 | WhatsApp: on the team's own Twilio, so Twilio's $0.005 a message and Meta's template fee are the team's (check) | $0 | $0 |
 | Files copied out of Supabase Storage: about 1 GB and 12 GB, inside the 250 GB included (check) | $0 | $0 |

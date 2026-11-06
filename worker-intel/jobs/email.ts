@@ -12,6 +12,8 @@ import { outcomeOf, SendError, type Outcome, type Outgoing } from "../../src/lib
 import { renderMessage, type Claimed } from "../../src/lib/email/render.ts";
 import type { Resend, ResendDomain } from "../../src/lib/email/resend.ts";
 import { JobError, type Handler, type Rpc } from "../../src/lib/jobs.ts";
+import { reconnectNote, viaMailbox, type Broken } from "../../src/lib/mailbox/server.ts";
+import { mime } from "../../src/lib/meetings/emails.ts";
 
 const NOT_SET = "Resend isn't set up on the worker (RESEND_API_KEY).";
 
@@ -23,9 +25,49 @@ async function call<T>(rpc: Rpc, fn: string, args: Record<string, unknown>): Pro
 
 /** The part of Resend sending uses; tests pass a fake. */
 export type Sender = Pick<Resend, "send" | "batch">;
-export type SendOpts = { sender: Sender | null; base: string; secret?: string; roundMs?: number; sleep?: (ms: number) => Promise<void> };
+export type SendOpts = { sender: Sender | null; base: string; secret?: string; roundMs?: number; sleep?: (ms: number) => Promise<void>; fetcher?: typeof fetch; system?: string };
 
-type Result = { id: string; outcome: Outcome; providerId: string | null; error: string | null; delayS?: number };
+type Result = { id: string; outcome: Outcome | "wait"; providerId: string | null; error: string | null; delayS?: number };
+
+/** The parts of a rendered email as the person's own mailbox sends it: from their address, everything else the same. */
+const fromName = (from: string) => /^"?(.*?)"?\s*<[^>]+>$/.exec(from)?.[1]?.replace(/\\"/g, '"') ?? null;
+export function mailboxRaw(out: Outgoing, address: string): string {
+  return mime({ from: { name: fromName(out.from), email: address }, to: out.to, replyTo: null, subject: out.subject, html: out.html, text: out.text, extra: out.headers });
+}
+
+/**
+ * Messages that go from a person's own mailbox (Next step 6), one by one: sent there, held until it has room, or
+ * (no mailbox, or its sign-in is gone) left for Resend with the rest of the round.
+ */
+export async function mailboxRound(rpc: Rpc, ws: string, batch: Claimed[], render: (m: Claimed) => Outgoing, o: Pick<SendOpts, "fetcher" | "sender" | "base" | "system">): Promise<{ results: Result[]; rest: Claimed[] }> {
+  const results: Result[] = [];
+  const rest: Claimed[] = [];
+  const tell = async (b: Broken) => {
+    const n = reconnectNote(b, o.base);
+    await o.sender?.send({ from: o.system ?? "Claritia <alerts@mail.tryclaritia.com>", to: b.email, subject: n.subject, html: n.html, text: n.text, headers: [], tags: { mailbox: "reconnect" } }, `mailbox-reconnect:${b.mailbox}:${new Date().toISOString().slice(0, 10)}`);
+  };
+  for (const m of batch) {
+    const user = (m as Claimed & { sender_user?: string | null }).sender_user;
+    if (!user) {
+      rest.push(m);
+      continue;
+    }
+    let out: Outgoing;
+    try {
+      out = render(m);
+    } catch {
+      rest.push(m);
+      continue;
+    }
+    const v = await viaMailbox(rpc, ws, user, (address) => mailboxRaw(out, address), { fetcher: o.fetcher, tell });
+    if (v.kind === "none") rest.push(m);
+    else if (v.kind === "full") results.push({ id: m.id, outcome: "wait", providerId: null, error: "The mailbox reached today's limit; it goes when there's room.", delayS: v.waitS });
+    else if (v.out.status === "sent") results.push({ id: m.id, outcome: "ok", providerId: v.out.id, error: null });
+    // A 5xx or 429 wasn't taken: tried again, alone. No answer may have gone: never sent again.
+    else results.push({ id: m.id, outcome: v.out.status === "retry" ? "retry" : v.out.status === "unknown" ? "unknown" : "failed", providerId: null, error: v.out.error, delayS: v.out.status === "retry" ? v.out.retryAfterS : undefined });
+  }
+  return { results, rest };
+}
 
 /**
  * Hand one round to the provider. Every message gets exactly one result. A single send carries its message's key,
@@ -96,7 +138,9 @@ export const send =
       if (!batch?.length) return;
       limit = batch[0].per_second || limit;
       // A failure to record an answer leaves the message 'sending'; send_claim turns it 'unknown', never resent.
-      const results = await sendRound(sender, batch, (m) => renderMessage(m, { base: o.base, secret: o.secret }));
+      const render = (m: Claimed) => renderMessage(m, { base: o.base, secret: o.secret });
+      const own = await mailboxRound(rpc, ws, batch, render, o);
+      const results = [...own.results, ...(own.rest.length ? await sendRound(sender, own.rest, render) : [])];
       await call(rpc, "send_done_many", { p_rows: results.map((r) => ({ id: r.id, outcome: r.outcome, provider_id: r.providerId, error: r.error, delay_s: r.delayS ?? 60 })) });
       const later = results.find((r) => r.outcome === "later");
       if (later) {

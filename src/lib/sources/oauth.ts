@@ -117,6 +117,24 @@ export const OAUTH: Record<string, OauthCfg> = {
     tokenBody: { user_type: "Location" },
   },
   keap: { env: "KEAP", authorize: "https://accounts.infusionsoft.com/app/oauth/authorize", token: "https://api.infusionsoft.com/token", scope: "full" },
+  // Sending as the host (Next step 6): each person's own mailbox, on the Google app and the Microsoft app the
+  // calendars use, with the send-only scopes added to them. Connected from Settings › Profile through
+  // /api/mailbox/connect.
+  gmail: {
+    env: "GOOGLE",
+    authorize: "https://accounts.google.com/o/oauth2/v2/auth",
+    token: "https://oauth2.googleapis.com/token",
+    scope: "https://www.googleapis.com/auth/gmail.send https://www.googleapis.com/auth/userinfo.email",
+    extra: { access_type: "offline", prompt: "consent", include_granted_scopes: "true" },
+  },
+  outlook_mail: {
+    env: "MICROSOFT",
+    authorize: "https://login.microsoftonline.com/common/oauth2/v2.0/authorize",
+    token: "https://login.microsoftonline.com/common/oauth2/v2.0/token",
+    scope: "offline_access User.Read Mail.Send",
+    extra: { prompt: "select_account" },
+    refreshScope: true,
+  },
   // Chat alerts (docs/integrations-plan.md, Next step 5). Teams: the Microsoft app meetings use, with the Teams scopes
   // added. Discord: Add to Discord picks one channel and answers with its webhook, kept with the sign-in.
   teams: {

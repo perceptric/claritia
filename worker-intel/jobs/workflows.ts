@@ -78,7 +78,14 @@ async function runStep(rpc: Rpc, ws: string, run: Claimed, step: Step, f: Facts,
         .catch(() => null);
       const vars = { first_name: c.first_name, last_name: c.last_name, company: (f.company?.name as string | undefined) ?? null, title: c.title, ...meetingVars(meeting, { base: d.base, secret: d.secret, tz: f.tz }) };
       const owner = step.from === "owner" ? f.owner : null;
-      const id = await call<string | null>(rpc, "workflow_email", { p_run: run.id, p_step: step.id, p_vars: vars, p_from_name: owner?.name ?? null, p_reply_to: owner?.email ?? null });
+      // With 130, the owner too, so the send can go from their own mailbox; before it, the email goes as it did.
+      const args = { p_run: run.id, p_step: step.id, p_vars: vars, p_from_name: owner?.name ?? null, p_reply_to: owner?.email ?? null };
+      const id = owner?.id
+        ? await call<string | null>(rpc, "workflow_email", { ...args, p_from_user: owner.id }).catch((e: Error) => {
+            if (/workflow_email|function|p_from_user/i.test(e.message) && /does not exist|could not find|schema cache/i.test(e.message)) return call<string | null>(rpc, "workflow_email", args);
+            throw e;
+          })
+        : await call<string | null>(rpc, "workflow_email", args);
       return { status: "done", result: id ? { message: id } : { message: null, why: "queued before" } };
     }
     case "sms":

@@ -34,6 +34,7 @@ import {
   type MeetingView,
 } from "../../src/lib/meetings/emails.ts";
 import { buildIcs } from "../../src/lib/meetings/ics.ts";
+import { reconnectNote, viaMailbox } from "../../src/lib/mailbox/server.ts";
 import { meetingDescription } from "../../src/lib/meetings/description.ts";
 import { inviteExtras, type InviteExtras } from "../../src/lib/meetings/inviteInfo.ts";
 import { bookingUrl, bookRef, keptManageToken, manageUrl, newNonce, outcomeToken, outcomeUrl } from "../../src/lib/meetings/links.ts";
@@ -77,6 +78,8 @@ export type MeetingOpts = {
   secret?: string;
   /** MEETINGS_FROM. */
   from?: string;
+  /** Gmail's and Graph's network, for a host's own mailbox (docs/integrations-plan.md, Next step 6); tests pass a fake. */
+  fetcher?: typeof fetch;
   now?: () => number;
   /** Set for one job by inJob: the provider's wait after a rate limit. */
   retryAfterS?: number;
@@ -128,6 +131,8 @@ type Send = {
   optional?: boolean;
   fromName: string | null;
   replyTo?: string | null;
+  /** A guest's email: the host, whose own mailbox it goes from when they connected one (Next step 6). */
+  host?: string | null;
   parts: () => MailParts;
   ics?: () => { method: "REQUEST" | "CANCEL"; body: string };
 };
@@ -154,8 +159,29 @@ async function sendOne(rpc: Rpc, o: MeetingOpts, sending: Sending, s: Send): Pro
   let error: string | null = null;
   try {
     const parts = s.parts();
-    const raw = mime({ from: { name: s.fromName, email: fromEmail }, to, replyTo: s.replyTo && validAddress(s.replyTo) ? s.replyTo : null, subject: parts.subject, html: parts.html, text: parts.text, ics: s.ics?.() ?? null });
-    providerId = await o.mailer.send({ from: fromEmail, to, raw, tags: { meeting_mail: id, kind: s.kind } });
+    const ics = s.ics?.() ?? null;
+    const build = (address: string, replyTo: string | null) => mime({ from: { name: s.fromName, email: address }, to, replyTo, subject: parts.subject, html: parts.html, text: parts.text, ics });
+    // From the host's own mailbox when it works and has room; otherwise (and when its sign-in is gone) as before.
+    const via = s.host
+      ? await viaMailbox(rpc, s.ws, s.host, (address) => build(address, null), {
+          fetcher: o.fetcher,
+          tell: async (b) => {
+            const n = reconnectNote(b, o.base);
+            const from = systemFrom();
+            await o.mailer!.send({ from, to: b.email, raw: mime({ from: { name: "Claritia", email: from }, to: b.email, subject: n.subject, html: n.html, text: n.text }), tags: { mailbox: "reconnect" } });
+          },
+        })
+      : ({ kind: "none" } as const);
+    if (via.kind === "done") {
+      if (via.out.status === "sent") providerId = via.out.id;
+      else {
+        outcome = via.out.status;
+        error = via.out.error;
+      }
+    } else if (via.kind === "full") {
+      // The host's mailbox is full today: this one goes from the team's address instead of waiting a day.
+      providerId = await o.mailer.send({ from: fromEmail, to, raw: build(fromEmail, s.replyTo && validAddress(s.replyTo) ? s.replyTo : null), tags: { meeting_mail: id, kind: s.kind } });
+    } else providerId = await o.mailer.send({ from: fromEmail, to, raw: build(fromEmail, s.replyTo && validAddress(s.replyTo) ? s.replyTo : null), tags: { meeting_mail: id, kind: s.kind } });
   } catch (e) {
     const out = outcomeOf(e);
     outcome = out === "later" ? "retry" : out === "ok" ? "failed" : out;
@@ -386,6 +412,7 @@ export const meetingNotify =
             dedupe: moved ? `update:${m.id}:${info.sequence}` : `confirm:${m.id}`,
             fromName: fromHost(info),
             replyTo: info.hosts[0]?.email,
+            host: info.hosts[0]?.id,
             parts: () => (moved ? updateEmail(view(info, "guest", now, manage), from) : confirmEmail(view(info, "guest", now, manage))),
             ics: () => ics(info, "REQUEST", now, extras, manage),
           }),
@@ -401,6 +428,7 @@ export const meetingNotify =
               dedupe: moved ? `update:${m.id}:${info.sequence}:${g}` : `confirm:${m.id}:${g}`,
               fromName: fromHost(info),
               replyTo: info.hosts[0]?.email,
+              host: info.hosts[0]?.id,
               parts: () => (moved ? updateEmail(view(info, "guest", now, null), from) : confirmEmail(view(info, "guest", now, null))),
               ics: () => ics(info, "REQUEST", now, extras, null),
             }),
@@ -440,6 +468,7 @@ export const meetingNotify =
             dedupe: `cancel:${m.id}`,
             fromName: fromHost(info),
             replyTo: info.hosts[0]?.email,
+            host: info.hosts[0]?.id,
             parts: () => cancelEmail(view(info, "guest", now), { reason: m.cancel_reason, bookAgain }),
             ics: () => ics(info, "CANCEL", now),
           }),
@@ -454,6 +483,7 @@ export const meetingNotify =
               dedupe: `cancel:${m.id}:${g}`,
               fromName: fromHost(info),
               replyTo: info.hosts[0]?.email,
+              host: info.hosts[0]?.id,
               parts: () => cancelEmail(view(info, "guest", now), { reason: m.cancel_reason, bookAgain: null }),
               ics: () => ics(info, "CANCEL", now),
             }),
@@ -500,6 +530,7 @@ export const meetingNotify =
           optional: true,
           fromName: fromHost(info),
           replyTo: host?.email,
+          host: host?.id,
           parts: () => noShowEmail({ name: m.guest_name, host: host?.name ?? info.workspace.name, typeName: t.name, times, tz, link, now }),
         }),
       );
@@ -532,6 +563,7 @@ export const meetingRemind =
           dedupe: `remind:${m.id}:${new Date(start).toISOString()}:${min}`,
           fromName: fromHost(info),
           replyTo: info.hosts[0]?.email,
+          host: info.hosts[0]?.id,
           // The subject says how long is left now, in case the job ran late.
           parts: () => reminderEmail(view(info, "guest", now, manage), Math.abs(left - min) <= 5 ? min : left),
         }),
@@ -545,6 +577,7 @@ export const meetingRemind =
               dedupe: `remind:${m.id}:${new Date(start).toISOString()}:${min}:${g}`,
               fromName: fromHost(info),
               replyTo: info.hosts[0]?.email,
+              host: info.hosts[0]?.id,
               parts: () => reminderEmail(view(info, "guest", now, null), Math.abs(left - min) <= 5 ? min : left),
             }),
           ),
@@ -648,6 +681,7 @@ export const meetingBookLater =
           optional: true,
           fromName: person?.name ?? info.sending.from_name ?? info.workspace.name,
           replyTo: person?.email,
+          host: person?.id,
           parts: () => bookLaterEmail({ name, host: person?.name ?? info.workspace.name, typeName: t.name, times, tz: tzOr(c.timezone, person?.tz), link, now }),
         }),
       ]);

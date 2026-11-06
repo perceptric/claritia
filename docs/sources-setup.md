@@ -276,3 +276,14 @@ Chat alerts (docs/integrations-plan.md, Next step 5).
 - **Discord:** make an app in the Discord Developer Portal, add `https://app.tryclaritia.com/api/sources/callback` as
   a redirect, and set `DISCORD_CLIENT_ID` and `DISCORD_CLIENT_SECRET` on claritia-web. Without them, people paste a
   channel's webhook address (Channel settings › Integrations › Webhooks).
+
+## Gmail and Outlook (sending as the host)
+
+Meetings › Availability › My calendar, "Email from you" (docs/integrations-plan.md, Next step 6).
+
+- **Gmail:** on the Google app the calendars use, add the `https://www.googleapis.com/auth/gmail.send` scope to the
+  consent screen and `https://app.tryclaritia.com/api/mailbox/callback` as a redirect. `gmail.send` is a sensitive
+  scope: Google checks the app once, free (check).
+- **Outlook:** on the Microsoft app, add the delegated `Mail.Send` permission and the same redirect.
+
+Nothing else to set: both use the Google and Microsoft keys already on the server.
