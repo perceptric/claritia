@@ -53,6 +53,17 @@ export async function sheetFromLink(ctx: Ctx, link: string): Promise<RowTarget> 
   return { id, name: d.properties.title, url: d.spreadsheetUrl, sheet: d.sheets?.[0]?.properties.title ?? "Sheet1" };
 }
 
+/** Import from Google Forms (docs/integrations-plan.md, Next step 13): only its account; the import reads the form. */
+export const googleForms: Connector = {
+  kind: "google_forms",
+  objects: [],
+  async account(ctx) {
+    const d = await ctx.api<{ id: string; email: string }>("https://www.googleapis.com/oauth2/v2/userinfo");
+    return { id: d.id, label: d.email };
+  },
+  defaults: { contact: {} },
+};
+
 export const googleSheets: Connector = {
   kind: "google_sheets",
   objects: [],

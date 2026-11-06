@@ -415,12 +415,27 @@ again; a run after a timeout looks for its Fill ID first and makes no second rec
 - **Tests:** a booking whose link fails to make keeps the booking and retries the link; a payment the page never
   confirmed is checked by the server before the fill counts as paid.
 
-### 13. Imports and the rest: Google Forms import, Firebase, MongoDB, GraphQL, SAP
+### 13. Imports and the rest: Google Forms import (built), Firebase, MongoDB, GraphQL, SAP
 
-- **What:** import a Google Form as a Claritia form. Firebase, MongoDB, GraphQL and SAP stay reachable through the
-  Webhook and Zapier.
-- **How:** the Google Forms API reads the questions; each type maps to a Claritia field, and the ones with no match
-  come in as Short answer with a note in the import log.
+- **What:** import a Google Form as a Form Studio form, saved as a draft and opened. Firebase, MongoDB, GraphQL and
+  SAP stay reachable through the Webhook and Zapier.
+- **Where:** Forms, Import from Google Forms: paste the form's edit link. The first import signs in to Google
+  (read-only, `forms.body.readonly`) and then goes on by itself with the same link.
+- **How:** `/api/forms/google-import` reads the form with Google Forms' API (forms.get), and
+  `src/lib/forms/googleImport.ts` turns each item into the Studio question it matches, with its label, help text,
+  options and required kept: short and paragraph text, multiple choice and checkboxes (Other as an option),
+  dropdown, linear scale as an opinion scale (its range and end labels), rating, date, time, choice grids as a
+  Matrix, file upload, and YouTube videos. Text items become a heading and a line. Page breaks become pages with
+  Next and Back. When Google collected emails, an Email question comes first and saves to the contact. The page is
+  saved the way a new form is (`/api/studio`, mode save). Anything with no match comes in as Short answer, and the
+  import names it, along with what changed on the way (a quiz's answer key, a date with a time, a grid with several
+  picks per row, images, whose Google links expire after a few minutes).
+- **Tests:** `tests/googleImport.test.ts`: a forms.get answer with every item type reads back as the right
+  questions, options, required and pages; the notes; text stays text; the edit link, the fill-in link and Google's
+  403 and 404 in words.
+- **To go live:** add the `forms.body.readonly` scope to the Google app and
+  `https://app.tryclaritia.com/api/forms/google-import/callback` as a redirect (`docs/sources-setup.md`). It's a
+  sensitive scope, so Google's app check is free (check). Monthly cost: $0 (Google's API is free, no Claude calls).
 
 ## Monthly cost
 

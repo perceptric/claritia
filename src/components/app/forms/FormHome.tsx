@@ -5,12 +5,12 @@
 // more menu opens, copies, pauses and deletes. With no forms yet, Form Studio is the first screen, and New form
 // opens it too (docs/forms-chat-plan.md).
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { Tokens } from "@/lib/forms/brand";
 import type { Form } from "@/lib/forms/schema";
 import { Studio } from "./studio/Studio";
-import { askConfirm } from "../Dialogs";
-import { Badge, ErrorNote, errorText, invalidate, Loading, must, useKept, useQuery, type ViewProps } from "../ui";
+import { askConfirm, askText, tell } from "../Dialogs";
+import { Badge, ErrorNote, errorText, invalidate, Loading, must, postJson, useKept, useQuery, type ViewProps } from "../ui";
 import { ago, whereWords } from "./formModel";
 import { Ic } from "./ic";
 import { BTN, copyText, GHOST, IB, Seg, SegN, Thumb, useNote } from "./parts";
@@ -38,10 +38,12 @@ export type ListRow = {
   edited?: boolean;
   brand_kit_id?: string | null;
 };
+/** Where a Google Form's link waits while its first import signs in to Google. */
+const GIMPORT = "clr-gimport-link";
 type KitLite = { id: string; tokens: Partial<Tokens>; source_url: string | null; scan_status: string | null; logo_url?: string | null; logo_svg?: string | null };
 
 export function FormHome(props: ViewProps & { folder?: string }) {
-  const { sb, ws, navigate, folder = "" } = props;
+  const { sb, session, ws, navigate, folder = "" } = props;
   const fq = useFormFolders(sb, ws.id);
   const folders = fq.data?.folders ?? [];
   const inFolder = folder ? folders.find((f) => f.id === folder) ?? null : null;
@@ -52,7 +54,8 @@ export function FormHome(props: ViewProps & { folder?: string }) {
     const all = (kits.data ?? []) as KitLite[];
     return { rows: must(rows) as ListRow[], kits: [...all.filter((k) => k.id === brand), ...all.filter((k) => k.id !== brand)] };
   });
-  const [error, setError] = useState("");
+  // Back from a Google sign-in that didn't work: its words.
+  const [error, setError] = useState(() => (typeof window === "undefined" ? "" : (new URLSearchParams(window.location.search).get("gimport_error") ?? "").slice(0, 200)));
   const [filter, setFilter] = useKept<"all" | "live" | "draft">(`forms:${ws.id}:filter`, "all");
   const [q, setQ] = useKept(`forms:${ws.id}:q`, "");
   const [menu, setMenu] = useState<{ id: string; at: HTMLElement } | null>(null);
@@ -102,6 +105,49 @@ export function FormHome(props: ViewProps & { folder?: string }) {
       note.show(`${r.name} deleted`);
     });
 
+  // Import from Google Forms (docs/integrations-plan.md, Next step 13): the form read from Google, saved the way a new
+  // form is saved, opened as a draft. A first import signs in to Google, then picks up here with the same link.
+  const [importing, setImporting] = useState(false);
+  const importGoogle = async (resume?: string) => {
+    const link = resume ?? (await askText("Google Form link", { placeholder: "https://docs.google.com/forms/d/…/edit", ok: "Import" }));
+    if (!link?.trim()) return;
+    setImporting(true);
+    setError("");
+    try {
+      const r = await postJson<{ signIn?: string; name?: string; html?: string; css?: string; brand?: string; notes?: string[]; questions?: number }>(session, "/api/forms/google-import", { workspaceId: ws.id, link });
+      if (r.signIn) {
+        try {
+          sessionStorage.setItem(GIMPORT, link);
+        } catch {}
+        window.location.assign(r.signIn);
+        return;
+      }
+      const saved = await postJson<{ formId: string }>(session, "/api/studio", { workspaceId: ws.id, mode: "save", name: r.name, html: r.html, css: r.css ?? "", brand: r.brand ?? "", after: { kind: "thanks" } });
+      invalidate(`forms:${ws.id}:home`);
+      if (r.notes?.length) await tell(`Imported ${r.questions ?? 0} ${r.questions === 1 ? "question" : "questions"}`, r.notes.join("\n"));
+      navigate("forms", saved.formId);
+    } catch (e) {
+      setError(errorText(e));
+    } finally {
+      setImporting(false);
+    }
+  };
+  // Back from Google's sign-in: the import goes on with the link kept before it.
+  useEffect(() => {
+    const p = new URLSearchParams(window.location.search);
+    if (!p.has("gimport") && !p.has("gimport_error")) return;
+    history.replaceState(null, "", window.location.pathname);
+    let link = "";
+    try {
+      link = sessionStorage.getItem(GIMPORT) ?? "";
+      sessionStorage.removeItem(GIMPORT);
+    } catch {}
+    // A sign-in that failed shows its words (the error's first value reads them); one that worked goes on.
+    if (!p.get("gimport_error") && link) void Promise.resolve().then(() => importGoogle(link));
+    // Once, on the way back.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // New form from a folder lands in it (FormsView's Studio page moves it once it exists).
   const startNew = () => {
     try {
@@ -146,6 +192,12 @@ export function FormHome(props: ViewProps & { folder?: string }) {
             Delete folder
           </button>
         </>
+      ) : null}
+      {rows?.length ? (
+        <button type="button" className={GHOST} disabled={importing} onClick={() => void importGoogle()}>
+          <Ic n="down" />
+          {importing ? "Importing" : "Import from Google Forms"}
+        </button>
       ) : null}
       {rows?.length ? (
         <button type="button" className={GHOST} onClick={() => navigate("forms", "templates")}>

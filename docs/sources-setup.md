@@ -311,3 +311,9 @@ A document per fill from a template (docs/integrations-plan.md, Next step 11).
   `https://app.tryclaritia.com/api/sources/callback`, and set `DOCUSIGN_CLIENT_ID` and `DOCUSIGN_CLIENT_SECRET` on
   claritia-web and claritia-intel. It works on DocuSign's live accounts after their go-live review, free (check).
 - **PandaDoc:** people paste their API key in Settings › Integrations. Nothing to set on the server.
+## Import from Google Forms
+
+Forms, Import from Google Forms (docs/integrations-plan.md, Next step 13). On the Google app the calendars use, add
+the `https://www.googleapis.com/auth/forms.body.readonly` scope to the consent screen, turn on the Google Forms API
+in the app's Google Cloud project, and add `https://app.tryclaritia.com/api/forms/google-import/callback` as a
+redirect. `forms.body.readonly` is a sensitive scope: Google checks the app once, free (check). Nothing else to set.
