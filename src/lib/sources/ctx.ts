@@ -2,7 +2,7 @@
 // calls (half the tool's limit), a token refreshed before it expires and once more on a 401, and a stop when
 // the job loses its lease.
 
-import { oauthRefresh } from "./oauth.ts";
+import { OAUTH, oauthRefresh } from "./oauth.ts";
 import { AuthError, RateLimited, type Creds, type Ctx, type SourceRow } from "./types.ts";
 
 export type CtxOpts = {
@@ -37,7 +37,7 @@ export function makeCtx(o: CtxOpts): Ctx {
 
   async function refreshNow() {
     if (creds.type !== "oauth" || !creds.refresh) throw new AuthError("Sign in again: the tool turned the connection down.");
-    const t = o.refresh ? await o.refresh(creds.refresh) : await oauthRefresh(o.source.kind, creds.refresh, fetcher);
+    const t = o.refresh ? await o.refresh(creds.refresh) : await oauthRefresh(o.source.kind, creds.refresh, fetcher, { server: creds.extra?.server });
     creds = { ...creds, access: t.access, refresh: t.refresh ?? creds.refresh, expiresAt: t.expiresAt };
     await o.saveCreds?.(creds);
   }
@@ -61,7 +61,7 @@ export function makeCtx(o: CtxOpts): Ctx {
       if (gap > 0) await sleep(gap);
       last = Date.now();
       const headers = new Headers(rest.headers);
-      if (auth && !headers.has("authorization")) headers.set("authorization", `Bearer ${await token()}`);
+      if (auth && !headers.has("authorization")) headers.set("authorization", `${OAUTH[o.source.kind]?.scheme ?? "Bearer"} ${await token()}`);
       if (rest.body && typeof rest.body === "string" && !headers.has("content-type")) headers.set("content-type", "application/json");
       headers.set("accept", headers.get("accept") ?? "application/json");
       let res: Response;

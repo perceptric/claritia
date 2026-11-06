@@ -154,6 +154,8 @@ export type Connector = {
   owners?(ctx: Ctx): Promise<{ id: string; label: string }[]>;
   /** The tool's columns a push can set, when it takes fewer than it sends us. */
   writable?: string[];
+  /** The record's address in the tool, for the form's Submissions (a link back to what a delivery made). */
+  link?(source: SourceRow, externalId: string, secret: (k: string) => string): string | undefined;
   /** Done once after connect: custom properties, webhook subscriptions. */
   setup?(ctx: Ctx, hookUrl: string): Promise<Record<string, string> | void>;
   /** The consent cell for a record: a basis, "unsubscribed" or "bounced", or null when the record doesn't say. */

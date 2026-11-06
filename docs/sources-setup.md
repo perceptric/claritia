@@ -252,3 +252,17 @@ fly secrets set --app claritia-intel GOOGLE_ADS_DEVELOPER_TOKEN=...
 ```
 
 Without the token, Offline conversions says Google Ads isn't set up yet, and fills are not uploaded.
+
+## More CRMs
+
+Zoho CRM, Dynamics 365, GoHighLevel and Keap sign in (docs/integrations-plan.md, Next step 4). Each needs Claritia's
+app registered once, with the return address `https://app.tryclaritia.com/api/sources/callback`:
+
+| Tool | Where | Environment variables (claritia-web and claritia-intel) |
+|---|---|---|
+| Zoho CRM | Zoho API Console, a server-based app; turn on multi-DC so it works in every data center | `ZOHO_CLIENT_ID`, `ZOHO_CLIENT_SECRET` |
+| Dynamics 365 | The Microsoft app meetings use: add the Dynamics CRM `user_impersonation` permission | (the Microsoft ones already set) |
+| GoHighLevel | GoHighLevel Marketplace, a sub-account app with contacts and locations scopes | `GHL_CLIENT_ID`, `GHL_CLIENT_SECRET` |
+| Keap | Keap Developer portal | `KEAP_CLIENT_ID`, `KEAP_CLIENT_SECRET` |
+
+Freshsales, Copper and monday CRM take keys in Settings › Integrations; nothing to set on the server.

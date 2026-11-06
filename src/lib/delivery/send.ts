@@ -145,7 +145,7 @@ async function toSource(t: Taken, d: SendDeps): Promise<Result> {
     return {
       status: "done",
       externalId: o.externalId,
-      externalUrl: o.externalId ? recordUrl(dep.ctx.source.kind, dep.ctx.source.account, o.externalId, dep.ctx.secret) : undefined,
+      externalUrl: o.externalId ? (dep.connector.link?.(dep.ctx.source, o.externalId, dep.ctx.secret) ?? recordUrl(dep.ctx.source.kind, dep.ctx.source.account, o.externalId, dep.ctx.secret)) : undefined,
       ...(notes.length ? { notes } : {}),
     };
   } catch (e) {

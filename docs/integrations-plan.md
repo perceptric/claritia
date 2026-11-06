@@ -228,15 +228,32 @@ again; a run after a timeout looks for its Fill ID first and makes no second rec
   for the webhooks. Point the number's incoming messages at `https://app.tryclaritia.com/api/texts/inbound`
   (`docs/forms-setup.md`). Toll-free verification is free (check).
 
-### 4. More CRMs: Zoho CRM, Dynamics 365, GoHighLevel, Freshsales, Copper, Keap, monday CRM (about 1 week)
+### 4. More CRMs: Zoho CRM, Dynamics 365, GoHighLevel, Freshsales, Copper, Keap, monday CRM (built)
 
-- **What:** a form sends each lead, fields mapped, no duplicates, a link back to the record, like HubSpot.
-- **Where:** form › Sync, with sign-in in Settings › Integrations.
-- **How:** each is a client in `src/lib/sources/crms.ts` on the same find-or-make shape. Zoho picks its data center
-  (US, EU, IN, AU) at sign-in. Dynamics uses the Microsoft app meetings use, with the Dynamics scope added.
-  GoHighLevel uses its marketplace app with the location picked at sign-in.
-- **Tests:** the same person twice is one record; a field the team deleted in the CRM is skipped with its name in the
-  log; a token that expires mid-run refreshes and goes on.
+- **What:** a form sends each lead to them, with no duplicates and a link back to the record in the form's
+  Submissions, like Pipedrive and Close.
+- **Where:** form › Sync, with the connection in Settings › Integrations. Zoho CRM, Dynamics 365, GoHighLevel and
+  Keap sign in; Freshsales (its address and API key), Copper (API key and the person's Copper email) and monday CRM
+  (API token, and the Leads board's link when it isn't named Leads) take keys.
+- **How:** each is a connector in `src/lib/sources/moreCrms.ts` on the same find-or-make shape: the person is found
+  by email first, so the same person twice is one record and a retry after a lost answer updates the record it made.
+  GoHighLevel, Freshsales and Keap use their own create-or-update by email. Zoho and Dynamics make Leads; the others
+  make contacts (monday CRM: an item on the Leads board, with email and phone by column type and job title and
+  company by column name). A record deleted on their side comes back gone, and the delivery makes it again. Zoho
+  signs in once for every data center: its accounts server comes back with the sign-in and every refresh goes there
+  (`server` in `src/lib/sources/oauth.ts`), with Zoho's own "Zoho-oauthtoken" header. Dynamics signs in to
+  Microsoft's discovery service on the Microsoft app meetings use; the first environment the person can open is the
+  connection, and each run gets a token for that address from the same sign-in. GoHighLevel keeps the sub-account
+  picked at sign-in. Fields are the standard ones (email, first and last name, phone, job title, company); linking a
+  form's other questions to custom CRM fields stays with HubSpot and Salesforce.
+- **Tests:** `tests/moreCrms.test.ts`: the same person twice is one record for each; a deleted record comes back
+  gone; Zoho's data center, header word and a token that expires mid-run refreshing and going on; Dynamics' token
+  for its own address, once a run; a 503 tried again and one bad row never stopping the rest; each link back.
+- **To go live:** register an app with Zoho (one app for every data center; `ZOHO_CLIENT_ID`, `ZOHO_CLIENT_SECRET`),
+  GoHighLevel's Marketplace (`GHL_CLIENT_ID`, `GHL_CLIENT_SECRET`, sub-account install) and Keap (`KEAP_CLIENT_ID`,
+  `KEAP_CLIENT_SECRET`), with Claritia's sign-in return address `https://app.tryclaritia.com/api/sources/callback`.
+  Add Dynamics CRM's `user_impersonation` permission to the Microsoft app. Endpoints, fields and record links are
+  checked against a real account of each before launch (check).
 
 ### 5. Chat alerts: Microsoft Teams and Discord (about 3 days)
 

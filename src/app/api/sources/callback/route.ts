@@ -1,5 +1,5 @@
 import { appBase } from "@/lib/billing";
-import { oauthExchange, readState } from "@/lib/sources/oauth";
+import { oauthExchange, readState, serverOf } from "@/lib/sources/oauth";
 import { connectSource } from "@/lib/sources/server";
 import { serviceClient } from "@/lib/serviceClient";
 
@@ -26,7 +26,7 @@ export async function GET(request: Request) {
       const s = await connectSource(db, { ws: state.ws, user: state.user, kind: "omniscient", creds: { type: "key", values: { api_key: t.key, url: omni } } });
       return go({ connected: s.id });
     }
-    const tok = await oauthExchange(state.kind, code, redirect, state.verifier);
+    const tok = await oauthExchange(state.kind, code, redirect, state.verifier, undefined, serverOf(state.kind, url.searchParams.get("accounts-server")));
     const s = await connectSource(db, { ws: state.ws, user: state.user, kind: state.kind, creds: { type: "oauth", access: tok.access, refresh: tok.refresh, expiresAt: tok.expiresAt, extra: tok.extra } });
     return go({ connected: s.id });
   } catch (e) {

@@ -14,6 +14,17 @@ export type OauthCfg = {
   extra?: Record<string, string>;
   /** Send the scope again when refreshing (Microsoft's identity platform asks for it). */
   refreshScope?: boolean;
+  /** The word before the token in the Authorization header, when it isn't Bearer (Zoho's "Zoho-oauthtoken"). */
+  scheme?: string;
+  /**
+   * A tool with data centers (Zoho): the sign-in comes back with the person's own accounts server in this query
+   * field; their token calls go there (`path` on it), and it's kept with the sign-in for each refresh.
+   */
+  server?: { param: string; ok: RegExp; path: string };
+  /** Fields of the token answer to keep with the sign-in (GoHighLevel's locationId), beyond the usual ones. */
+  keep?: string[];
+  /** More fields for the code exchange and each refresh. */
+  tokenBody?: Record<string, string>;
 };
 
 export const OAUTH: Record<string, OauthCfg> = {
@@ -76,6 +87,36 @@ export const OAUTH: Record<string, OauthCfg> = {
     extra: { prompt: "select_account" },
     refreshScope: true,
   },
+  // More CRMs (docs/integrations-plan.md, Next step 4). Zoho: one app for every data center; the person's own comes
+  // back as accounts-server. Dynamics 365: the Microsoft app meetings use, with Dynamics CRM's user_impersonation
+  // added; it signs in to Microsoft's discovery service, and each call gets a token for the team's own Dynamics
+  // address from the same sign-in. GoHighLevel: its Marketplace app, one location per sign-in. Keap: its app.
+  zoho: {
+    env: "ZOHO",
+    authorize: "https://accounts.zoho.com/oauth/v2/auth",
+    token: "https://accounts.zoho.com/oauth/v2/token",
+    scope: "ZohoCRM.modules.leads.ALL,ZohoCRM.org.READ",
+    extra: { access_type: "offline", prompt: "consent" },
+    scheme: "Zoho-oauthtoken",
+    server: { param: "accounts-server", ok: /^https:\/\/accounts\.zoho\.(com|eu|in|com\.au|jp|ca|sa|uk|com\.cn)$/, path: "/oauth/v2/token" },
+  },
+  dynamics: {
+    env: "MICROSOFT",
+    authorize: "https://login.microsoftonline.com/common/oauth2/v2.0/authorize",
+    token: "https://login.microsoftonline.com/common/oauth2/v2.0/token",
+    scope: "offline_access User.Read https://globaldisco.crm.dynamics.com/user_impersonation",
+    extra: { prompt: "select_account" },
+    refreshScope: true,
+  },
+  gohighlevel: {
+    env: "GHL",
+    authorize: "https://marketplace.gohighlevel.com/oauth/chooselocation",
+    token: "https://services.leadconnectorhq.com/oauth/token",
+    scope: "contacts.readonly contacts.write locations.readonly",
+    keep: ["locationId", "companyId"],
+    tokenBody: { user_type: "Location" },
+  },
+  keap: { env: "KEAP", authorize: "https://accounts.infusionsoft.com/app/oauth/authorize", token: "https://api.infusionsoft.com/token", scope: "full" },
   // Zoom's scopes (meeting:write) are set on the Marketplace app itself, not in the sign-in link.
   zoom: { env: "ZOOM", authorize: "https://zoom.us/oauth/authorize", token: "https://zoom.us/oauth/token", basic: true },
 };
@@ -142,20 +183,31 @@ export class OauthError extends Error {
   }
 }
 
-async function tokenCall(kind: string, params: Record<string, string>, fetcher: typeof fetch = fetch): Promise<Token> {
+/** The accounts server a sign-in came back with, when the tool has data centers and it's one of theirs. */
+export function serverOf(kind: string, raw: string | null | undefined): string | undefined {
+  const c = OAUTH[kind]?.server;
+  return c && raw && c.ok.test(raw) ? raw : undefined;
+}
+
+type CallOpts = { server?: string; scope?: string };
+
+async function tokenCall(kind: string, params: Record<string, string>, fetcher: typeof fetch = fetch, o: CallOpts = {}): Promise<Token> {
   const c = OAUTH[kind];
-  const scoped = c.refreshScope && params.grant_type === "refresh_token" && c.scope ? { ...params, scope: c.scope } : params;
+  const scope = o.scope ?? (c.refreshScope && params.grant_type === "refresh_token" ? c.scope : undefined);
+  const scoped = { ...params, ...(c.tokenBody ?? {}), ...(scope ? { scope } : {}) };
   const body = new URLSearchParams(c.basic ? scoped : { ...scoped, client_id: clientId(kind), client_secret: clientSecret(kind) });
   const headers: Record<string, string> = { "Content-Type": "application/x-www-form-urlencoded", Accept: "application/json" };
   if (c.basic) headers.Authorization = `Basic ${Buffer.from(`${clientId(kind)}:${clientSecret(kind)}`).toString("base64")}`;
-  const res = await fetcher(c.token, { method: "POST", headers, body, signal: AbortSignal.timeout(10_000) });
+  const server = o.server && c.server?.ok.test(o.server) ? o.server : undefined;
+  const res = await fetcher(server ? `${server}${c.server!.path}` : c.token, { method: "POST", headers, body, signal: AbortSignal.timeout(10_000) });
   const t = (await res.json().catch(() => ({}))) as Record<string, unknown>;
   if (!res.ok || typeof t.access_token !== "string") {
     throw new OauthError(String(t.error_description ?? t.message ?? t.error ?? `Sign-in failed (${res.status})`), typeof t.error === "string" ? t.error : "", res.status);
   }
   const extra: Record<string, string> = {};
   // Salesforce's org address, Pipedrive's company address.
-  for (const k of ["instance_url", "api_domain", "id"]) if (typeof t[k] === "string") extra[k] = t[k] as string;
+  for (const k of ["instance_url", "api_domain", "id", ...(c.keep ?? [])]) if (typeof t[k] === "string") extra[k] = t[k] as string;
+  if (server) extra.server = server;
   return {
     access: t.access_token,
     refresh: typeof t.refresh_token === "string" ? t.refresh_token : null,
@@ -165,7 +217,17 @@ async function tokenCall(kind: string, params: Record<string, string>, fetcher: 
   };
 }
 
-export const oauthExchange = (kind: string, code: string, redirectUri: string, verifier?: string, fetcher?: typeof fetch) =>
-  tokenCall(kind, { grant_type: "authorization_code", code, redirect_uri: redirectUri, ...(verifier ? { code_verifier: verifier } : {}) }, fetcher);
+export const oauthExchange = (kind: string, code: string, redirectUri: string, verifier?: string, fetcher?: typeof fetch, server?: string) =>
+  tokenCall(kind, { grant_type: "authorization_code", code, redirect_uri: redirectUri, ...(verifier ? { code_verifier: verifier } : {}) }, fetcher, { server });
 
-export const oauthRefresh = (kind: string, refresh: string, fetcher?: typeof fetch) => tokenCall(kind, { grant_type: "refresh_token", refresh_token: refresh }, fetcher);
+/**
+ * The refresh call for a token to another resource (Dynamics: the team's own address), for a connector to send
+ * through its context, so it takes the same retries and the test's network.
+ */
+export function refreshRequest(kind: string, refresh: string, scope: string): { url: string; body: string } {
+  const c = OAUTH[kind];
+  return { url: c.token, body: new URLSearchParams({ grant_type: "refresh_token", refresh_token: refresh, scope, client_id: clientId(kind), client_secret: clientSecret(kind) }).toString() };
+}
+
+/** A fresh token. `server`: the data center the sign-in came from; `scope`: a token for another resource (Dynamics). */
+export const oauthRefresh = (kind: string, refresh: string, fetcher?: typeof fetch, o: CallOpts = {}) => tokenCall(kind, { grant_type: "refresh_token", refresh_token: refresh }, fetcher, o);

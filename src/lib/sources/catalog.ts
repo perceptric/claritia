@@ -52,6 +52,22 @@ export const CATALOG: Entry[] = [
   { kind: "pipedrive", label: "Pipedrive", group: "crm", domain: "pipedrive.com", oauth: true, keys: key("API token"), pushes: true, objects: ["companies", "contacts", "opportunities"] },
   { kind: "attio", label: "Attio", group: "crm", domain: "attio.com", oauth: true, keys: key("Access token"), pushes: true, objects: ["companies", "contacts", "opportunities"] },
   { kind: "close", label: "Close", group: "crm", domain: "close.com", keys: key(), pushes: true, objects: ["contacts"] },
+  // docs/integrations-plan.md, Next step 4.
+  { kind: "zoho", label: "Zoho CRM", group: "crm", domain: "zoho.com", oauth: true, pushes: true, objects: ["contacts"] },
+  { kind: "dynamics", label: "Dynamics 365", group: "crm", domain: "dynamics.microsoft.com", oauth: true, pushes: true, objects: ["contacts"] },
+  { kind: "gohighlevel", label: "GoHighLevel", group: "crm", domain: "gohighlevel.com", oauth: true, pushes: true, objects: ["contacts"] },
+  {
+    kind: "freshsales",
+    label: "Freshsales",
+    group: "crm",
+    domain: "freshworks.com",
+    keys: [{ key: "domain", label: "Freshsales address", placeholder: "acme.myfreshworks.com" }, ...key()],
+    pushes: true,
+    objects: ["contacts"],
+  },
+  { kind: "copper", label: "Copper", group: "crm", domain: "copper.com", keys: [...key(), { key: "email", label: "Your Copper email" }], pushes: true, objects: ["contacts"] },
+  { kind: "keap", label: "Keap", group: "crm", domain: "keap.com", oauth: true, pushes: true, objects: ["contacts"] },
+  { kind: "monday", label: "monday CRM", group: "crm", domain: "monday.com", keys: [...key("API token"), { key: "board", label: "Leads board link", optional: true, placeholder: "https://acme.monday.com/boards/1234567890" }], pushes: true, objects: ["contacts"] },
   { kind: "mailchimp", label: "Mailchimp", group: "email", domain: "mailchimp.com", oauth: true, keys: key(), objects: ["contacts"], pushes: true, lists: true, tags: true },
   { kind: "klaviyo", label: "Klaviyo", group: "email", domain: "klaviyo.com", keys: key("Private API key"), objects: ["contacts"], pushes: true, lists: true },
   {
