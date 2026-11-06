@@ -5,12 +5,7 @@
   "typeOf": "instant_trigger",
   "webhook": "booking",
   "connection": "claritia",
-  "communication": {
-    "output": "{{trigger.data}}",
-    "trigger": {
-      "id": "{{item.event_id}}"
-    }
-  },
+  "communication": {},
   "samples": {
     "event": "meeting.booked",
     "event_id": "evt_test",

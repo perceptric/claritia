@@ -5,12 +5,7 @@
   "typeOf": "instant_trigger",
   "webhook": "routed",
   "connection": "claritia",
-  "communication": {
-    "output": "{{trigger.data}}",
-    "trigger": {
-      "id": "{{item.event_id}}"
-    }
-  },
+  "communication": {},
   "samples": {
     "event": "lead.routed",
     "event_id": "evt_test",
