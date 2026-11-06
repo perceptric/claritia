@@ -255,15 +255,28 @@ again; a run after a timeout looks for its Fill ID first and makes no second rec
   Add Dynamics CRM's `user_impersonation` permission to the Microsoft app. Endpoints, fields and record links are
   checked against a real account of each before launch (check).
 
-### 5. Chat alerts: Microsoft Teams and Discord (about 3 days)
+### 5. Chat alerts: Microsoft Teams and Discord (built)
 
-- **What:** fill and booking alerts in a channel, beside Slack, from a form or a workflow step.
-- **Where:** form › Sync and the workflow step list.
-- **How:** Teams posts with Microsoft Graph (`ChannelMessage.Send`) on the Microsoft app meetings use, with the team
-  and channel picked from a list. Discord uses its "Add to Server" sign-in, which hands back the channel's webhook.
-  The message is the Slack alert's card in each tool's format.
-- **Tests:** a deleted channel fails with what to do; a Discord 429 waits for its `retry_after`; long answers are cut
-  to the tool's limit with the link to the full fill.
+- **What:** an alert in a Teams or Discord channel for each fill, beside Slack, and a Teams or Discord message step
+  in workflows (for bookings, cancellations and the rest).
+- **Where:** connect in Settings › Integrations, then form › Sync (Teams: pick the channel) and the workflow step
+  list (Teams or Discord message). Teams signs in on the Microsoft app meetings use. Discord's Add to Discord picks
+  a server's channel and hands back its webhook, so a connection is one channel; a channel's webhook address can be
+  pasted when Claritia's Discord app isn't set up.
+- **How:** both are connectors with an `alert` (`src/lib/sources/chat.ts`), so a form's fills go through the same
+  deliveries, retries and Send again as every other tool. The message is the Slack alert's line and rows with a link
+  to the form in Claritia (`src/lib/chat/note.ts`): Teams gets a channel message in its HTML through Microsoft Graph
+  (each answer up to 1,000 characters, under 20,000 in all); Discord gets one embed (25 fields of 1,024 characters,
+  6,000 in all), with mentions turned off, so an answer can never ping a channel. A deleted channel or webhook fails
+  with what to do; a Discord 429 waits for its Retry-After, or goes back to the jobs queue when it's long. A workflow
+  post that may have half-sent after a crash isn't sent again.
+- **Tests:** `tests/chat.test.ts`: each tool's limits with cut answers and the link; escaping; the Teams channel
+  list and post address; a deleted channel or webhook; a short and a long Discord 429; the webhook kept from Add to
+  Discord; the workflow step's checks.
+- **To go live:** add the Teams scopes (Team.ReadBasic.All, Channel.ReadBasic.All, ChannelMessage.Send) to the
+  Microsoft app; register a Discord app with the `webhook.incoming` scope and the return address
+  `https://app.tryclaritia.com/api/sources/callback` (`DISCORD_CLIENT_ID`, `DISCORD_CLIENT_SECRET`). Admin consent
+  may be needed for ChannelMessage.Send in some Microsoft tenants (check).
 
 ### 6. Sending as the host: Gmail and Outlook (about 4 days)
 

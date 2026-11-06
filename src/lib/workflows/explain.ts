@@ -5,7 +5,7 @@ import { BASE_FIELDS, ruleWords } from "../router/conditions.ts";
 import { find, walk } from "./tree.ts";
 import type { Body, Goal, Step, Trigger } from "./types.ts";
 
-export type Names = { forms?: Record<string, string>; segments?: Record<string, string>; types?: Record<string, string>; people?: Record<string, string>; emails?: Record<string, string> };
+export type Names = { forms?: Record<string, string>; segments?: Record<string, string>; types?: Record<string, string>; people?: Record<string, string>; emails?: Record<string, string>; chats?: Record<string, string> };
 
 const list = (xs: string[]) => (xs.length <= 1 ? (xs[0] ?? "") : `${xs.slice(0, -1).join(", ")} or ${xs[xs.length - 1]}`);
 /** The names of the picked ids. Deleted ones drop out; when all are gone, `gone` says so. */
@@ -70,7 +70,7 @@ export function triggerDetail(t: Trigger, n: Names = {}): string {
 }
 
 /** A card's name, a noun: Email, Delay, Slack message. */
-export const STEP_TITLE: Record<Step["kind"], string> = { email: "Email", wait: "Delay", wait_until: "Event wait", branch: "Branch", split: "Split", route: "Route", slack: "Slack message", webhook: "Webhook", sms: "Text message", whatsapp: "WhatsApp message", exit: "Exit" };
+export const STEP_TITLE: Record<Step["kind"], string> = { email: "Email", wait: "Delay", wait_until: "Event wait", branch: "Branch", split: "Split", route: "Route", slack: "Slack message", webhook: "Webhook", sms: "Text message", whatsapp: "WhatsApp message", chat: "Chat message", exit: "Exit" };
 
 /** A card's detail under its name: "See you tomorrow", from owner; 1 day before meeting; To owner. */
 export function stepDetail(s: Step, n: Names = {}): string {
@@ -99,6 +99,8 @@ export function stepDetail(s: Step, n: Names = {}): string {
       return s.text.trim() ? `"${s.text.trim().split("\n")[0]}"${s.fallback ? ", email if it can't go" : ""}` : "No text yet";
     case "whatsapp":
       return s.template ? "Approved template" : "No template yet";
+    case "chat":
+      return s.target?.name ? `To ${s.target.name}` : s.source ? (n.chats?.[s.source] ? `To ${n.chats[s.source]}` : "To a channel") : "No channel yet";
     case "exit":
       return "End of workflow";
   }
@@ -136,6 +138,8 @@ export function stepWords(s: Step, n: Names = {}): string {
       return "Send a text";
     case "whatsapp":
       return "Send a WhatsApp message";
+    case "chat":
+      return "Post in a channel";
     case "exit":
       return "End here";
   }

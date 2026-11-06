@@ -92,6 +92,8 @@ export function Sync(props: Props) {
             <Start logo={cur.logo} name={cur.title} button={`Connect ${cur.title}`} onClick={() => props.navigate("settings", "sources")} />
           ) : entryOf(tools.find((s) => s.id === cur.key)!.kind)?.lists ? (
             <ListPane {...props} source={tools.find((s) => s.id === cur.key)!} logo={cur.logo} />
+          ) : entryOf(tools.find((s) => s.id === cur.key)!.kind)?.chat ? (
+            <AlertPane {...props} source={tools.find((s) => s.id === cur.key)!} logo={cur.logo} />
           ) : entryOf(tools.find((s) => s.id === cur.key)!.kind)?.rows ? (
             <RowsPane {...props} source={tools.find((s) => s.id === cur.key)!} logo={cur.logo} />
           ) : (
@@ -440,6 +442,97 @@ function ListPane({ sb, session, ws, formId, dests, failed, reload, source, logo
 }
 
 /** What a row tool calls the place rows go. */
+/** Teams and Discord (docs/integrations-plan.md, Next step 5): an alert in a channel for each fill, beside Slack. */
+function AlertPane({ sb, session, ws, formId, dests, failed, reload, patchDests, source, logo }: Props & { source: SourceRow; logo: React.ReactNode }) {
+  const d = dests.find((x) => x.kind === "source" && x.source_id === source.id);
+  const pick = !!entryOf(source.kind)?.channels;
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+  const note = useNote();
+  const channels = useQuery(pick ? `tool_targets:${source.id}` : null, async () => {
+    const res = await fetch(`/api/forms/tool-targets?workspaceId=${encodeURIComponent(ws.id)}&sourceId=${encodeURIComponent(source.id)}`, { headers: { Authorization: `Bearer ${session.access_token}` } });
+    const j = (await res.json().catch(() => ({}))) as { targets?: Target[]; error?: string };
+    if (!j.targets) throw new Error(j.error ?? "Couldn't read the channels.");
+    return j.targets;
+  });
+  const run = async (fn: () => Promise<unknown>, words?: string) => {
+    setError("");
+    setBusy(true);
+    try {
+      await fn();
+      if (words) note.show(words);
+      reload();
+    } catch (e) {
+      setError(errorText(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+  const save = (target?: Target) => postJson(session, "/api/forms/destination", { workspaceId: ws.id, formId, kind: "source", sourceId: source.id, name: source.name, ...(d ? { id: d.id } : {}), ...(target ? { target } : {}) });
+  const target = d ? targetOf(d.config) : null;
+  const week = d ? (failed[d.id] ?? 0) : 0;
+  return (
+    <>
+      <div className="flex flex-wrap items-center gap-[10px]">
+        {logo}
+        <H3>{source.name}</H3>
+        {d ? <Badge tone={d.paused ? "gray" : "green"} dot>{d.paused ? "Paused" : "On"}</Badge> : null}
+      </div>
+      <ErrorNote message={error || channels.error} />
+      <div className={CARD}>
+        {pick ? (
+          <div className={CROW}>
+            <RowText title="Channel" />
+            <Select
+              value={target?.id ?? ""}
+              options={[...(channels.data ?? []), ...(target && !channels.data?.some((t) => t.id === target.id) ? [target] : [])].map((t) => ({ value: t.id, label: t.name }))}
+              ariaLabel="Channel"
+              placeholder={channels.data ? "Pick a channel" : "Reading…"}
+              disabled={!channels.data || busy}
+              className="h-[32px] min-w-[200px] rounded-[8px] bg-card px-[10px] text-[13px] text-ink shadow-input"
+              onChange={(id) => {
+                const t = channels.data?.find((x) => x.id === id);
+                if (t) void run(() => save(t), `Alerts go to ${t.name} now`);
+              }}
+            />
+          </div>
+        ) : null}
+        {d ? (
+          <div className={CROW}>
+            <RowText title="Alert on each fill" sub={week ? `${week} didn't go this week` : undefined} tone={week ? "bad" : undefined} />
+            <Tg
+              label="Alert on each fill"
+              on={!d.paused}
+              onChange={(on) => {
+                patchDests?.((ds) => ds.map((x) => (x.id === d.id ? { ...x, paused: !on } : x)));
+                void run(async () => must(await sb.rpc("form_destination_pause", { p_id: d.id, p_paused: !on })));
+              }}
+            />
+          </div>
+        ) : null}
+      </div>
+      {!d && !pick ? (
+        <button type="button" className={`${BTN} self-start`} disabled={busy} onClick={() => void run(() => save(), `Alerts go to ${source.name} now`)}>
+          {`Alert ${source.name} on each fill`}
+        </button>
+      ) : null}
+      {d ? (
+        <button
+          type="button"
+          className={`${GHOST_SM_RED} self-start`}
+          onClick={async () => {
+            if (!(await askConfirm(`Stop alerts in ${source.name}?`, { ok: "Remove", danger: true }))) return;
+            await run(async () => must(await sb.rpc("form_destination_delete", { p_id: d.id })));
+          }}
+        >
+          Remove
+        </button>
+      ) : null}
+      {note.node}
+    </>
+  );
+}
+
 const TARGET_WORD: Record<string, string> = { google_sheets: "Sheet", airtable: "Table", notion: "Database", postgres: "Table", mysql: "Table", excel: "Workbook" };
 type Target = { id: string; name: string; url?: string; sheet?: string };
 

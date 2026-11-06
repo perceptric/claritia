@@ -14,6 +14,8 @@ import { AuthError, RateLimited } from "../sources/types.ts";
 import { allFields, isContent, type Form } from "../forms/schema.ts";
 import { DUPLICATE, listOf, pushOptions, rulesOf, targetOf } from "./rules.ts";
 import { fillRow } from "./fillRow.ts";
+import { isRefusal } from "../sources/chat.ts";
+import { APP_URL } from "../site.ts";
 
 export type Taken = {
   /** allow_duplicate: Create anyway was clicked on a possible duplicate. */
@@ -100,6 +102,8 @@ async function toSource(t: Taken, d: SendDeps): Promise<Result> {
   const dep = await deps(d.run, t.destination.source_id!);
   // Sheets and databases take every fill, with or without an email (docs/integrations-plan.md step 2).
   if (dep?.connector.append) return toRow(t, dep);
+  // Chat tools alert on every fill too (Next step 5).
+  if (dep?.connector.alert) return toAlert(t, dep);
   // A sheet whose sign-in is gone still owes this fill a row, contact or not.
   if (!dep && (t.contact || targetOf(t.destination.config))) return { status: "failed", error: `Connect ${t.destination.name} again.` };
   if (!t.contact || !dep) return { status: "skipped", reason: "No contact to send." };
@@ -149,6 +153,27 @@ async function toSource(t: Taken, d: SendDeps): Promise<Result> {
       ...(notes.length ? { notes } : {}),
     };
   } catch (e) {
+    if (e instanceof AuthError) return { status: "failed", error: `Sign in to ${t.destination.name} again: ${e.message}`.slice(0, 500) };
+    if (e instanceof RateLimited) return { status: "retry", error: e.message, retryAfterS: e.retryAfterS };
+    return { status: "retry", error: String((e as Error).message ?? e).slice(0, 500) };
+  }
+}
+
+/** The alert a chat tool gets for a fill: the Slack alert's line and rows, and a link to the form in Claritia. */
+export function fillNote(t: Taken) {
+  const name = t.form?.name ?? "A form";
+  const who = t.contact ? [t.contact.first_name, t.contact.last_name].filter(Boolean).join(" ") || t.contact.email : null;
+  return { title: `${t.submission.test ? "[Test] " : ""}New fill on ${name}${who ? `: ${who}` : ""}`, rows: labeled(t), ...(t.form?.id ? { link: `${APP_URL}/forms/${t.form.id}` } : {}) };
+}
+
+/** One alert to a Teams channel or a Discord channel. A refusal that won't change says what to do; the rest retries. */
+async function toAlert(t: Taken, dep: Deps): Promise<Result> {
+  const target = targetOf(t.destination.config);
+  try {
+    await dep.connector.alert!(dep.ctx, target, fillNote(t));
+    return { status: "done" };
+  } catch (e) {
+    if (isRefusal(e)) return { status: "failed", error: `${(e as Error).message}${dep.ctx.source.kind === "teams" ? " Pick it in the form's Sync tab." : ""}`.slice(0, 500) };
     if (e instanceof AuthError) return { status: "failed", error: `Sign in to ${t.destination.name} again: ${e.message}`.slice(0, 500) };
     if (e instanceof RateLimited) return { status: "retry", error: e.message, retryAfterS: e.retryAfterS };
     return { status: "retry", error: String((e as Error).message ?? e).slice(0, 500) };

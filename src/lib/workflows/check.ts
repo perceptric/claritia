@@ -94,6 +94,10 @@ export function stepProblems(s: Step): string[] {
       if (s.fallback && !s.fallback.subject.trim()) out.push("Write the email's subject");
       break;
     }
+    case "chat":
+      if (!s.source) out.push("Pick Teams or Discord");
+      if (!s.text.trim()) out.push("Write the message");
+      break;
     case "whatsapp":
       if (!isContentSid(s.template)) out.push("Paste the template's Content SID (HX and 32 characters)");
       if (s.vars.some((v) => mergeGaps(v).length)) out.push("Give each variable's field a fallback, like {{first_name|there}}");
@@ -150,7 +154,7 @@ function cleanTrigger(t: Record<string, unknown>): Body["trigger"] | null {
 }
 
 // Steps of removed parts (Enrich, Qualify, Update field, Add to list, Create task, Push to CRM) are dropped.
-const KINDS = new Set(["email", "wait", "wait_until", "branch", "split", "route", "slack", "webhook", "sms", "whatsapp", "exit"]);
+const KINDS = new Set(["email", "wait", "wait_until", "branch", "split", "route", "slack", "webhook", "sms", "whatsapp", "chat", "exit"]);
 const WAIT_EVENTS = new Set(["meeting.booked", "email.clicked", "form.submitted"]);
 
 function cleanSteps(raw: unknown, depth: number): Step[] {
@@ -210,6 +214,10 @@ function cleanStep(x: unknown, depth: number): Step | null {
     case "sms": {
       const fb = s.fallback && typeof s.fallback === "object" ? (s.fallback as Record<string, unknown>) : null;
       return { id, kind: "sms", text: str(s.text, TEXT_MAX + 100), ...(fb ? { fallback: { subject: str(fb.subject, 200) } } : {}) };
+    }
+    case "chat": {
+      const t = s.target && typeof s.target === "object" ? (s.target as Record<string, unknown>) : null;
+      return { id, kind: "chat", source: str(s.source, 40), ...(t && str(t.id, 300) ? { target: { id: str(t.id, 300), name: str(t.name, 200) } } : {}), text: str(s.text, 1000) };
     }
     case "whatsapp":
       return { id, kind: "whatsapp", template: str(s.template, 40).trim(), vars: (Array.isArray(s.vars) ? s.vars : []).slice(0, 10).map((v) => str(v, 300)) };

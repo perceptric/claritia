@@ -27,6 +27,7 @@ const ICON: Record<StepKind, (p: { size?: number }) => React.ReactNode> = {
   webhook: Code,
   sms: Message,
   whatsapp: Chat,
+  chat: Message,
   exit: Flag,
 };
 

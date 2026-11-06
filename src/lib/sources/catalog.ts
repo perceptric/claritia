@@ -33,6 +33,9 @@ export type Entry = {
   ads?: boolean;
   /** Sends workflow texts (docs/integrations-plan.md, Next step 3). */
   texts?: boolean;
+  /** A chat tool: form fills and workflow steps post alerts to its channel (Next step 5); `channels` when one is picked. */
+  chat?: boolean;
+  channels?: boolean;
 };
 
 const key = (label = "API key"): KeyField[] => [{ key: "api_key", label, secret: true }];
@@ -207,6 +210,8 @@ export const CATALOG: Entry[] = [
     objects: [],
     texts: true,
   },
+  { kind: "teams", label: "Microsoft Teams", group: "chat", domain: "teams.microsoft.com", oauth: true, objects: [], pushes: true, chat: true, channels: true },
+  { kind: "discord", label: "Discord", group: "chat", domain: "discord.com", oauth: true, keys: [{ key: "url", label: "Channel webhook address", placeholder: "https://discord.com/api/webhooks/123/abc" }], objects: [], pushes: true, chat: true },
   { kind: "google_sheets", label: "Google Sheets", group: "sheets", domain: "sheets.google.com", oauth: true, objects: [], pushes: true, rows: true },
   { kind: "airtable", label: "Airtable", group: "sheets", domain: "airtable.com", oauth: true, keys: key("Personal access token"), objects: [], pushes: true, rows: true },
   { kind: "excel", label: "Excel Online", group: "sheets", domain: "excel.cloud.microsoft", oauth: true, objects: [], pushes: true, rows: true },

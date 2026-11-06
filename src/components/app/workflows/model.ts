@@ -71,6 +71,13 @@ export function nudge(b: Body, id: string, d: -1 | 1): Body {
   return moveStep(b, id, { parent: w.parent?.step.id ?? null, path: w.parent?.path, index: d > 0 ? to + 1 : to });
 }
 
-export type Names = { forms: { id: string; name: string }[]; types: { id: string; name: string }[]; members: { id: string; name: string; email: string }[]; templates: { id: string; name: string; /** Read when picked. */ body?: unknown }[] };
+export type Names = {
+  forms: { id: string; name: string }[];
+  types: { id: string; name: string }[];
+  members: { id: string; name: string; email: string }[];
+  templates: { id: string; name: string; /** Read when picked. */ body?: unknown }[];
+  /** Teams and Discord connections, for the chat step. */
+  chats?: { id: string; name: string; kind: string }[];
+};
 
 export const byId = (xs: { id: string; name: string }[]) => Object.fromEntries(xs.map((x) => [x.id, x.name]));

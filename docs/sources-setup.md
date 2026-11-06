@@ -266,3 +266,13 @@ app registered once, with the return address `https://app.tryclaritia.com/api/so
 | Keap | Keap Developer portal | `KEAP_CLIENT_ID`, `KEAP_CLIENT_SECRET` |
 
 Freshsales, Copper and monday CRM take keys in Settings › Integrations; nothing to set on the server.
+
+## Microsoft Teams and Discord
+
+Chat alerts (docs/integrations-plan.md, Next step 5).
+
+- **Microsoft Teams:** the Microsoft app meetings use. Add the delegated Graph permissions `Team.ReadBasic.All`,
+  `Channel.ReadBasic.All` and `ChannelMessage.Send`. Some tenants need an admin to consent once (check).
+- **Discord:** make an app in the Discord Developer Portal, add `https://app.tryclaritia.com/api/sources/callback` as
+  a redirect, and set `DISCORD_CLIENT_ID` and `DISCORD_CLIENT_SECRET` on claritia-web. Without them, people paste a
+  channel's webhook address (Channel settings › Integrations › Webhooks).

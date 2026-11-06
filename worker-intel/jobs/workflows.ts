@@ -19,6 +19,9 @@ import { enterPath, find, nextAfter, type PathName } from "../../src/lib/workflo
 import type { Body, Step } from "../../src/lib/workflows/types.ts";
 import { valuesOf, webhookSecret, type Facts } from "../../src/lib/workflows/facts.ts";
 import { fillText, withStop } from "../../src/lib/texts/words.ts";
+import { deps as sourceDeps } from "../../src/lib/sources/run.ts";
+import { isRefusal } from "../../src/lib/sources/chat.ts";
+import { AuthError, RateLimited } from "../../src/lib/sources/types.ts";
 
 async function call<T>(rpc: Rpc, fn: string, args: Record<string, unknown>): Promise<T> {
   const { data, error } = await rpc(fn, args);
@@ -100,6 +103,27 @@ async function runStep(rpc: Rpc, ws: string, run: Claimed, step: Step, f: Facts,
         p_fallback: sms && step.fallback && text ? { subject: fillText(step.fallback.subject, vars).slice(0, 200), text } : null,
       });
       return r.skip ? { status: "skipped", result: { why: r.skip } } : { status: "done", result: { text: r.id ?? null } };
+    }
+    case "chat": {
+      // A chat post has no key the tools honor: one found half-sent after a crash isn't sent again.
+      if (redo) return { status: "unknown", result: { why: "the worker stopped mid-send" } };
+      const dep = await sourceDeps({ rpc, clean: async () => ({ custom: [] }) as never, fetcher: d.fetcher }, step.source).catch(() => null);
+      if (!dep?.connector.alert) return { status: "skipped", result: { why: "Teams or Discord isn't connected" } };
+      const name = [c.first_name, c.last_name].filter(Boolean).join(" ") || c.email || "A lead";
+      const rows = [
+        { label: "Name", value: name },
+        ...(c.email ? [{ label: "Email", value: c.email }] : []),
+        ...(f.company?.name ? [{ label: "Company", value: String(f.company.name) }] : []),
+        ...(f.owner?.name ? [{ label: "Owner", value: f.owner.name }] : []),
+      ];
+      try {
+        await dep.connector.alert(dep.ctx, step.target ?? null, { title: step.text, rows });
+        return { status: "done" };
+      } catch (e) {
+        // Refused, signed out or rate limited: it didn't go, and a retry by hand can send it.
+        if (isRefusal(e) || e instanceof AuthError || e instanceof RateLimited) return { status: "failed", result: { error: String((e as Error).message).slice(0, 200) } };
+        return { status: "unknown", result: { why: "no answer from the channel" } };
+      }
     }
     case "route": {
       // No second routing (docs/scheduling-plan.md Part 13.5): a lead Routing just routed keeps that rep.

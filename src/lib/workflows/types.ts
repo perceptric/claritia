@@ -37,6 +37,8 @@ export type Step =
   | { id: string; kind: "sms"; text: string; fallback?: { subject: string } }
   /** A WhatsApp message on an approved template (its Content SID), its variables in order, through the team's own Twilio. */
   | { id: string; kind: "whatsapp"; template: string; vars: string[] }
+  /** A post in a Teams or Discord channel (src/lib/sources/chat.ts): the connection, Teams' channel, and the words. */
+  | { id: string; kind: "chat"; source: string; target?: { id: string; name: string }; text: string }
   | { id: string; kind: "exit" };
 
 export type StepKind = Step["kind"];
@@ -58,6 +60,7 @@ export const STEP_KINDS: { kind: StepKind; label: string; group: "Email" | "Time
   { kind: "slack", label: "Slack message", group: "Outside" },
   { kind: "sms", label: "Text message", group: "Outside" },
   { kind: "whatsapp", label: "WhatsApp message", group: "Outside" },
+  { kind: "chat", label: "Teams or Discord message", group: "Outside" },
   { kind: "webhook", label: "Webhook", group: "Outside" },
   { kind: "exit", label: "Exit", group: "End" },
 ];
@@ -102,6 +105,8 @@ export function newStep(kind: StepKind): Step {
       return { id, kind, text: "Hi {{first_name|there}}, a reminder: we meet {{meeting_time|soon}}. {{meeting_link|}}" };
     case "whatsapp":
       return { id, kind, template: "", vars: [] };
+    case "chat":
+      return { id, kind, source: "", text: "A new meeting was just booked." };
     default:
       return { id, kind } as Step;
   }

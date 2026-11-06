@@ -6,7 +6,7 @@
 import type { Session, SupabaseClient } from "@supabase/supabase-js";
 import { docFromBody, newBlock, newSection } from "@/lib/design/email/doc";
 import { EmailBuilder } from "../email/EmailBuilder";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { BASE_FIELDS, isPast, needsValue, opsFor } from "@/lib/router/conditions";
 import { OPS, type Cond } from "@/lib/router/types";
 import { stepProblems } from "@/lib/workflows/check";
@@ -295,6 +295,64 @@ const EVENTS = [
   { value: "form.submitted", label: "Form submitted" },
 ];
 
+/** A Teams or Discord post: the connection, Teams' channel (read from Teams when it's picked) and the words. */
+function ChatStep(p: { step: Extract<Step, { kind: "chat" }>; names: Names; session: Session; ws: string; readOnly: boolean; onPatch: (patch: Partial<Step>, key?: string) => void }) {
+  const s = p.step;
+  const chats = p.names.chats ?? [];
+  const tool = chats.find((c) => c.id === s.source);
+  const [read, setRead] = useState<{ for: string; channels: { id: string; name: string }[] | null; error: string }>({ for: "", channels: null, error: "" });
+  const teamsId = tool?.kind === "teams" ? tool.id : "";
+  const token = p.session.access_token;
+  useEffect(() => {
+    if (!teamsId) return;
+    let live = true;
+    fetch(`/api/forms/tool-targets?workspaceId=${encodeURIComponent(p.ws)}&sourceId=${encodeURIComponent(teamsId)}`, { headers: { Authorization: `Bearer ${token}` } })
+      .then((r) => r.json())
+      .then((j: { targets?: { id: string; name: string }[]; error?: string }) => live && setRead({ for: teamsId, channels: j.targets ?? null, error: j.targets ? "" : (j.error ?? "Couldn't read the channels.") }))
+      .catch(() => live && setRead({ for: teamsId, channels: null, error: "Couldn't read the channels." }));
+    return () => {
+      live = false;
+    };
+  }, [teamsId, p.ws, token]);
+  const channels = read.for === teamsId ? read.channels : null;
+  const error = read.for === teamsId ? read.error : "";
+  return (
+    <>
+      <Row name="Post in">
+        <Select
+          value={s.source}
+          options={chats.map((c) => ({ value: c.id, label: c.name }))}
+          placeholder={chats.length ? "Teams or Discord" : "Connect Teams or Discord first"}
+          onChange={(source) => p.onPatch({ source, target: undefined } as Partial<Step>)}
+          ariaLabel="Post in"
+          className="h-9 w-full"
+          disabled={p.readOnly || !chats.length}
+        />
+      </Row>
+      {tool?.kind === "teams" ? (
+        <Row name="Channel">
+          <Select
+            value={s.target?.id ?? ""}
+            options={[...(channels ?? []), ...(s.target && !channels?.some((c) => c.id === s.target!.id) ? [s.target] : [])].map((c) => ({ value: c.id, label: c.name }))}
+            placeholder={channels ? "Pick a channel" : "Reading…"}
+            onChange={(id) => {
+              const c = channels?.find((x) => x.id === id);
+              if (c) p.onPatch({ target: { id: c.id, name: c.name } } as Partial<Step>);
+            }}
+            ariaLabel="Channel"
+            className="h-9 w-full"
+            disabled={p.readOnly || !channels}
+          />
+        </Row>
+      ) : null}
+      <Row name="Message">
+        <textarea value={s.text} onChange={(e) => p.onPatch({ text: e.target.value } as Partial<Step>, "text")} className={area} disabled={p.readOnly} />
+      </Row>
+      <ErrorNote message={error} />
+    </>
+  );
+}
+
 export function StepPanel(p: {
   step: Step;
   names: Names;
@@ -502,6 +560,8 @@ export function StepPanel(p: {
           ) : null}
         </>
       ) : null}
+
+      {s.kind === "chat" ? <ChatStep step={s} names={p.names} session={p.session} ws={p.ws} readOnly={p.readOnly} onPatch={p.onPatch} /> : null}
 
       {s.kind === "whatsapp" ? (
         <>

@@ -117,6 +117,17 @@ export const OAUTH: Record<string, OauthCfg> = {
     tokenBody: { user_type: "Location" },
   },
   keap: { env: "KEAP", authorize: "https://accounts.infusionsoft.com/app/oauth/authorize", token: "https://api.infusionsoft.com/token", scope: "full" },
+  // Chat alerts (docs/integrations-plan.md, Next step 5). Teams: the Microsoft app meetings use, with the Teams scopes
+  // added. Discord: Add to Discord picks one channel and answers with its webhook, kept with the sign-in.
+  teams: {
+    env: "MICROSOFT",
+    authorize: "https://login.microsoftonline.com/common/oauth2/v2.0/authorize",
+    token: "https://login.microsoftonline.com/common/oauth2/v2.0/token",
+    scope: "offline_access User.Read Team.ReadBasic.All Channel.ReadBasic.All ChannelMessage.Send",
+    extra: { prompt: "select_account" },
+    refreshScope: true,
+  },
+  discord: { env: "DISCORD", authorize: "https://discord.com/oauth2/authorize", token: "https://discord.com/api/oauth2/token", scope: "webhook.incoming" },
   // Zoom's scopes (meeting:write) are set on the Marketplace app itself, not in the sign-in link.
   zoom: { env: "ZOOM", authorize: "https://zoom.us/oauth/authorize", token: "https://zoom.us/oauth/token", basic: true },
 };
@@ -208,6 +219,12 @@ async function tokenCall(kind: string, params: Record<string, string>, fetcher: 
   // Salesforce's org address, Pipedrive's company address.
   for (const k of ["instance_url", "api_domain", "id", ...(c.keep ?? [])]) if (typeof t[k] === "string") extra[k] = t[k] as string;
   if (server) extra.server = server;
+  // Discord's Add to Discord: the channel's webhook comes back with the token.
+  const wh = t.webhook as Record<string, unknown> | undefined;
+  if (wh && typeof wh.url === "string") {
+    extra.webhook_url = wh.url;
+    for (const k of ["channel_id", "guild_id", "name"]) if (typeof wh[k] === "string") extra[k === "name" ? "webhook_name" : k] = wh[k] as string;
+  }
   return {
     access: t.access_token,
     refresh: typeof t.refresh_token === "string" ? t.refresh_token : null,
