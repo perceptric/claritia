@@ -348,15 +348,40 @@ again; a run after a timeout looks for its Fill ID first and makes no second rec
   go-live review (check). A signed document can start a workflow.
 - **Tests:** a missing tag is left blank and logged; a template that's gone fails with what to do.
 
-### 12. Meetings and payments: Webex, Whereby, PayPal, Square (about 1 week)
+### 12. Meetings and payments: Webex, Whereby, PayPal, Square (built)
 
-- **What:** Webex and Whereby as meeting locations with a link per booking; PayPal and Square as payment options in
-  the payment block and paid meeting types.
-- **Where:** Meetings › Locations and the payment block's settings.
-- **How:** new providers in `src/lib/meetings/providers` and payment options beside Stripe in `src/lib/meetings/pay.ts`.
-  Prices are checked on the server, like Stripe.
-- **Tests:** a booking whose link fails to make keeps the booking and retries the link; a payment the page never
-  confirmed is checked by the server before the fill counts as paid.
+- **What:** Webex and Whereby as meeting places, with their own link for each booking. PayPal and Square as ways to
+  pay in the payment block and in paid meeting types. Stripe stays the default.
+- **Where:** connect each one in Settings › Integrations. Webex signs in. Whereby takes the team's Embedded API key.
+  PayPal takes the team's REST app Client ID and Secret, plus its Webhook ID. Square takes the team's access token,
+  its location and its webhook signature key. Then pick Webex or Whereby in the meeting type's Location, and pick
+  "Paid with" under a paid type's Price or in the payment block's settings.
+- **How:** Webex and Whereby are workspace connections (`src/lib/meetings/video.ts`). The calendar job makes a Webex
+  meeting or a Whereby room for each booking and keeps its id at once, so a retry uses it again and never makes two.
+  A Whereby room stays open an hour past the end. A move updates the Webex meeting; on Whereby it makes a new room
+  and drops the old one. A cancel deletes it. If the link fails to make, the booking stays and the job tries again,
+  the same as Zoom. With no connection, the calendar's own video link stands in. PayPal and Square run beside Stripe
+  (`src/lib/pay`). The amount is always the server's (`payAmount`, the type's price). PayPal makes an Orders v2
+  order with return and cancel addresses; coming back captures it. Square makes a Payment Link with its own order.
+  The guest comes back through our own signed address (`/api/pay/return`), so the page never says what was paid.
+  The server reads the payment back from PayPal or Square and checks the order, amount and currency before the
+  fill or booking counts as paid. A capture that times out is read back with GET first. Webhooks do the same check
+  when the guest never comes back: PayPal's are checked with its verify-webhook-signature, Square's with the
+  signature key; a bad signature is refused. A paid time taken while the guest paid is refunded at once, and a
+  host's cancel refunds on the team's own account. Migration `132_payments_locations.sql` adds `workspace_source`.
+- **Tests:** `tests/paymentsLocations.test.ts`: the Webex and Whereby request shapes; a link that fails keeps the
+  booking and is tried again; a calendar that fails after the link reuses the same link; PayPal and Square charge
+  the server's amount; a timed-out capture is read back before it counts; bad webhook signatures are refused; a
+  page that says paid isn't enough; a wrong amount is never paid; a taken time is refunded.
+  `tests/pg/paymentsLocations.pg.ts`: `workspace_source` finds only the team's own live connection, for the server.
+- **Cost:** $0 a month to Claritia at Beta (50 teams) and Growth (500 teams). The API calls are free. PayPal and
+  Square fees come out of each team's own payments (check).
+- **To go live:** run `132_payments_locations.sql`. Register a Webex integration with the return address
+  `https://app.tryclaritia.com/api/sources/callback` and the scopes `meeting:schedules_write`,
+  `meeting:schedules_read` and `spark:people_read` (`WEBEX_CLIENT_ID`, `WEBEX_CLIENT_SECRET`). Try each tool once on
+  a sandbox account, since the endpoints come from their docs (check). Setup for teams is in `docs/sources-setup.md`.
+  Left for later: after a Whereby move, the calendar event's text keeps the old link (the meeting page has the new
+  one).
 
 ### 13. Imports and the rest: Google Forms import, Firebase, MongoDB, GraphQL, SAP
 

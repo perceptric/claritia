@@ -33,6 +33,8 @@ export type Entry = {
   ads?: boolean;
   /** Sends workflow texts (docs/integrations-plan.md, Next step 3). */
   texts?: boolean;
+  /** Meeting places and payments on the team's own account (Next step 12). */
+  meetPay?: boolean;
   /** A chat tool: form fills and workflow steps post alerts to its channel (Next step 5); `channels` when one is picked. */
   chat?: boolean;
   channels?: boolean;
@@ -212,6 +214,36 @@ export const CATALOG: Entry[] = [
   },
   { kind: "teams", label: "Microsoft Teams", group: "chat", domain: "teams.microsoft.com", oauth: true, objects: [], pushes: true, chat: true, channels: true },
   { kind: "discord", label: "Discord", group: "chat", domain: "discord.com", oauth: true, keys: [{ key: "url", label: "Channel webhook address", placeholder: "https://discord.com/api/webhooks/123/abc" }], objects: [], pushes: true, chat: true },
+  { kind: "webex", label: "Webex", group: "event", domain: "webex.com", oauth: true, objects: [], meetPay: true },
+  { kind: "whereby", label: "Whereby", group: "event", domain: "whereby.com", keys: key("Embedded API key"), objects: [], meetPay: true },
+  {
+    kind: "paypal",
+    label: "PayPal",
+    group: "product",
+    domain: "paypal.com",
+    keys: [
+      { key: "client_id", label: "Client ID" },
+      { key: "client_secret", label: "Secret", secret: true },
+      { key: "webhook_id", label: "Webhook ID", optional: true },
+      { key: "mode", label: "Mode", placeholder: "live or sandbox", optional: true },
+    ],
+    objects: [],
+    meetPay: true,
+  },
+  {
+    kind: "square",
+    label: "Square",
+    group: "product",
+    domain: "squareup.com",
+    keys: [
+      { key: "access_token", label: "Access token", secret: true },
+      { key: "location_id", label: "Location ID" },
+      { key: "signature_key", label: "Webhook signature key", secret: true, optional: true },
+      { key: "env", label: "Environment", placeholder: "production or sandbox", optional: true },
+    ],
+    objects: [],
+    meetPay: true,
+  },
   { kind: "google_sheets", label: "Google Sheets", group: "sheets", domain: "sheets.google.com", oauth: true, objects: [], pushes: true, rows: true },
   { kind: "airtable", label: "Airtable", group: "sheets", domain: "airtable.com", oauth: true, keys: key("Personal access token"), objects: [], pushes: true, rows: true },
   { kind: "excel", label: "Excel Online", group: "sheets", domain: "excel.cloud.microsoft", oauth: true, objects: [], pushes: true, rows: true },

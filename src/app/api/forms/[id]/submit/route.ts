@@ -1,3 +1,5 @@
+import { clientFor, formProvider } from "@/lib/pay/server";
+import { startFormPay } from "@/lib/pay/flow";
 import { cleaningCtx } from "@/lib/contacts/server";
 import { allowed, clientIp, cors, edgeCountry, json, loadForSend, sendCtx, turnstileOk } from "@/lib/forms/server";
 import { appBase, stripeClient } from "@/lib/billing";
@@ -54,6 +56,26 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       secret: process.env.SECRETS_KEY,
       // A payment block: Checkout on the workspace's connected Stripe account (docs/form-kinds-plan.md step 3).
       pay: async (p) => {
+        // PayPal or Square, when the payment block names one (docs/integrations-plan.md, Next step 12).
+        const provider = formProvider(f.body);
+        if (provider) {
+          const rpc = (fn: string, args: Record<string, unknown>) => db.rpc(fn, args);
+          const client = await clientFor(rpc, f.workspace_id, provider);
+          if (!client) return null;
+          const [cur, named] = await Promise.all([db.from("submissions").select("payment").eq("id", p.submissionId).maybeSingle(), db.from("forms").select("name").eq("id", id).maybeSingle()]);
+          return startFormPay(rpc, client, {
+            form: f.body,
+            formName: ((named.data as { name?: string } | null)?.name ?? "Payment"),
+            workspaceId: f.workspace_id,
+            submissionId: p.submissionId,
+            answers: p.answers,
+            email: p.email,
+            page: p.page,
+            hosted: `${appBase()}/f/${id}`,
+            base: appBase(),
+            existing: ((cur.data as { payment?: { url?: string; status?: string } | null } | null)?.payment ?? null),
+          });
+        }
         const stripe = stripeClient();
         if (!stripe) return null;
         const [acct, cur] = await Promise.all([

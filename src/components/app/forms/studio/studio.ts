@@ -2024,6 +2024,10 @@ ${CAL_CSS}
       if (!from) M.append(textRow("Price", bl.getAttribute("data-cl-amount"), (v) => (/^\d+(\.\d{1,2})?$/.test(v) ? bl.setAttribute("data-cl-amount", v) : null), "49"));
       M.append(curRow());
       M.append(swRow("Allow coupon codes", bl.hasAttribute("data-cl-coupons"), (on) => (on ? bl.setAttribute("data-cl-coupons", "") : bl.removeAttribute("data-cl-coupons"))));
+      // Who takes the payment (docs/integrations-plan.md, Next step 12): Stripe, or the team's PayPal or Square.
+      const via = bl.getAttribute("data-cl-pay-with") || "";
+      const VIA = [["", "Stripe"], ["paypal", "PayPal"], ["square", "Square"]];
+      M.append(row("Paid with", pick(VIA.find(([v]) => v === via)?.[1] || "Stripe", VIA.map(([v, t]) => [t, () => { snap(); v ? bl.setAttribute("data-cl-pay-with", v) : bl.removeAttribute("data-cl-pay-with"); commit(); }, v === via]))));
       p.append(M);
     }
     if (type === "list" && !bl.hasAttribute("data-cl-by")) { bulkSec(p, bl, "data-cl-options", "Options"); const M2 = sec("Picks"); M2.append(swRow("Allow several", bl.hasAttribute("data-cl-multi"), (on) => (on ? bl.setAttribute("data-cl-multi", "") : bl.removeAttribute("data-cl-multi")))); p.append(M2); }

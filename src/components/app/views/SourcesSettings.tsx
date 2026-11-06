@@ -19,7 +19,7 @@ import { Sheet } from "../Sheet";
 type Source = { id: string; kind: string; name: string; account: string | null; status: string };
 
 /** The tools a form can send to, then the form and meeting tools whose webhooks come in. */
-const SENDS = [...CATALOG.filter((e) => e.twoWay || e.pushes), ...CATALOG.filter((e) => e.hook && (e.group === "form" || e.group === "event") && !(e.twoWay || e.pushes)), ...CATALOG.filter((e) => e.ads || e.texts)];
+const SENDS = [...CATALOG.filter((e) => e.twoWay || e.pushes), ...CATALOG.filter((e) => e.hook && (e.group === "form" || e.group === "event") && !(e.twoWay || e.pushes)), ...CATALOG.filter((e) => e.ads || e.texts || e.meetPay)];
 
 async function hookUrlOf(session: ViewProps["session"], id: string): Promise<string> {
   const res = await fetch(`/api/sources/hook-url?id=${id}`, { headers: { Authorization: `Bearer ${session.access_token}` } });

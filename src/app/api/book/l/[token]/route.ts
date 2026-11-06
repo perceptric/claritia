@@ -1,3 +1,4 @@
+import { keysFor, providerCheckout } from "@/lib/pay/server";
 import { cors } from "@/lib/forms/server";
 import { checkGuest } from "@/lib/meetings/guest";
 import { bookingTextConsent } from "@/lib/texts/booking";
@@ -62,13 +63,20 @@ export async function POST(request: Request, ctx: Ctx) {
       return r.ok ? booked(r, { profiles: v.profiles, confirmation: v.type?.settings.confirmation }) : failed(r);
     }
     const type = v.type!;
-    const r = await bookType(rpc, { ws: v.link.workspace_id, type, length: Number(body.length), start, guest: g.guest, source: "page", linkId: v.link.id, payReady: !!v.ws.pay?.ready, liveBusy: live });
+    // A type paid on PayPal or Square takes payments once that's connected (docs/integrations-plan.md, Next step 12).
+    const own = type.settings.price?.provider;
+    const payReady = own ? !!(await keysFor(rpc, v.link.workspace_id, own)) : !!v.ws.pay?.ready;
+    const r = await bookType(rpc, { ws: v.link.workspace_id, type, length: Number(body.length), start, guest: g.guest, source: "page", linkId: v.link.id, payReady, liveBusy: live });
     if (!r.ok) return failed(r);
     await bookingTextConsent(rpc, v.link.workspace_id, g.guest, gt.questions);
     let checkout: string | undefined;
     if (r.pending) {
-      const stripe = stripeClient();
-      const co = stripe ? await startCheckout(rpc, payStripe(stripe), { meetingId: r.meetingId, token: r.token, base: base() }) : { ok: false as const };
+      const stripe = own ? null : stripeClient();
+      const co = own
+        ? await providerCheckout(rpc, { ws: v.link.workspace_id, provider: own, meetingId: r.meetingId, token: r.token, base: base() })
+        : stripe
+          ? await startCheckout(rpc, payStripe(stripe), { meetingId: r.meetingId, token: r.token, base: base() })
+          : { ok: false as const };
       if (!co.ok) {
         if (!stripe) await rpc("meeting_status", { p_id: r.meetingId, p_status: "canceled", p_reason: "Checkout could not start.", p_by: null });
         return json({ ok: false, error: "Payment couldn't start. Try again in a moment.", code: "payment", slots: [] }, 503);

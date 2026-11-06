@@ -179,7 +179,8 @@ export type Field = {
   /** Grid: the rows asked about, each answered with one of the columns. */
   grid?: { rows: Choice[]; cols: Choice[] };
   /** Payment: the amount from a calc (its value, in the currency's main unit) or a fixed amount, and the currency. */
-  pay?: { field?: string; amount?: number; currency: string; coupons?: true };
+  /** provider: who takes the payment; Stripe when left out (Next step 12 adds PayPal and Square). */
+  pay?: { field?: string; amount?: number; currency: string; coupons?: true; provider?: "paypal" | "square" };
   /** Group: the small questions in each row, and how many rows. */
   group?: { fields: Field[]; min?: number; max: number; add?: string };
   /** How this field's rules combine for each action: any one of them (the default) or all of them. */
@@ -683,7 +684,7 @@ function contentBlock(id: string, type: FieldType, fo: Record<string, unknown>, 
     const field = str(po.field, 24);
     const amount = Number(po.amount);
     const currency = (str(po.currency, 3) ?? "USD").toUpperCase();
-    f.pay = { currency: PAY_CURRENCIES.includes(currency) ? currency : "USD", ...(field && ID.test(field) ? { field } : Number.isFinite(amount) && amount > 0 ? { amount: Math.min(Math.round(amount * 100) / 100, 100000) } : {}), ...(po.coupons === true ? { coupons: true as const } : {}) };
+    f.pay = { currency: PAY_CURRENCIES.includes(currency) ? currency : "USD", ...(field && ID.test(field) ? { field } : Number.isFinite(amount) && amount > 0 ? { amount: Math.min(Math.round(amount * 100) / 100, 100000) } : {}), ...(po.coupons === true ? { coupons: true as const } : {}), ...(po.provider === "paypal" || po.provider === "square" ? { provider: po.provider } : {}) };
     if (!f.pay.field && !f.pay.amount) errors.push(`${name === "A field" ? "A payment" : name} needs an amount or a calculation to charge.`);
   }
   if (c.align === "center") content.align = "center";

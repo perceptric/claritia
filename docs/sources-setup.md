@@ -287,3 +287,23 @@ Meetings › Availability › My calendar, "Email from you" (docs/integrations-p
 - **Outlook:** on the Microsoft app, add the delegated `Mail.Send` permission and the same redirect.
 
 Nothing else to set: both use the Google and Microsoft keys already on the server.
+
+## Webex, Whereby, PayPal and Square (integrations plan, Next step 12)
+
+Run `supabase/migrations/132_payments_locations.sql` first.
+
+- **Webex (Claritia's app):** make an integration at developer.webex.com with the return address
+  `https://app.tryclaritia.com/api/sources/callback` and the scopes `meeting:schedules_write`,
+  `meeting:schedules_read` and `spark:people_read`. Set `WEBEX_CLIENT_ID` and `WEBEX_CLIENT_SECRET`. Teams then
+  click Connect Webex in Settings › Integrations.
+- **Whereby (the team's key):** in Whereby, Settings › API, make an Embedded API key and paste it in Settings ›
+  Integrations › Whereby.
+- **PayPal (the team's app):** at developer.paypal.com, make a REST app and paste its Client ID and Secret. Add a
+  webhook to the app at `https://app.tryclaritia.com/api/pay/paypal?w=<workspace id>` for
+  `CHECKOUT.ORDER.APPROVED` and `PAYMENT.CAPTURE.COMPLETED`, then paste its Webhook ID. Without the Webhook ID,
+  payments still count when the guest comes back, and webhooks are refused. Type `sandbox` in Mode to test.
+- **Square (the team's app):** at developer.squareup.com, paste the app's access token and the location's ID. Add a
+  webhook subscription at `https://app.tryclaritia.com/api/pay/square?w=<workspace id>` for `payment.updated`, then
+  paste its signature key. Type `sandbox` in Environment to test.
+- **Using them:** pick Webex or Whereby in a meeting type's Location. Pick PayPal or Square in "Paid with" under a
+  paid type's Price, or in the payment block's settings. Stripe stays the default.

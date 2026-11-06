@@ -101,6 +101,10 @@ export function whereOf(loc: Location | Record<string, unknown> | null | undefin
       return { label: "Microsoft Teams", url: join };
     case "zoom":
       return { label: "Zoom", url: join };
+    case "webex":
+      return { label: "Webex", url: join };
+    case "whereby":
+      return { label: "Whereby", url: join };
     case "phone_guest":
       return { label: "Phone", detail: o.forHost ? (o.guestPhone ? `Call ${o.guest} at ${o.guestPhone}` : `Call ${o.guest}`) : `${o.host} will call you` };
     case "phone_host":

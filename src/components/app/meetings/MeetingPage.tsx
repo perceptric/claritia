@@ -38,6 +38,8 @@ const PLACE: Record<Location["kind"], string> = {
   google_meet: "Google Meet",
   teams: "Microsoft Teams",
   zoom: "Zoom",
+  webex: "Webex",
+  whereby: "Whereby",
   phone_guest: "Phone, the guest's number",
   phone_host: "Phone",
   in_person: "In person",

@@ -35,6 +35,8 @@ export const PLACES: { value: Location["kind"]; label: string }[] = [
   { value: "google_meet", label: "Google Meet" },
   { value: "teams", label: "Microsoft Teams" },
   { value: "zoom", label: "Zoom" },
+  { value: "webex", label: "Webex" },
+  { value: "whereby", label: "Whereby" },
   { value: "phone_guest", label: "Phone, guest's number" },
   { value: "phone_host", label: "Phone, your number" },
   { value: "in_person", label: "In person" },
@@ -385,6 +387,21 @@ export function TypeEditor(props: ViewProps) {
                   <span className="w-[84px] shrink-0">
                     <Pick<string> label="Currency" value={s.price.currency} options={CURRENCIES.map((c) => ({ value: c, label: c.toUpperCase() }))} onChange={(c) => !isLocked("price") && setS("price", { ...s.price!, currency: c })} />
                   </span>
+                </Row>
+              ) : null}
+              {s.price ? (
+                <Row label="Paid with">
+                  <Pick<string>
+                    label="Paid with"
+                    value={s.price.provider ?? "stripe"}
+                    options={[{ value: "stripe", label: "Stripe" }, { value: "paypal", label: "PayPal" }, { value: "square", label: "Square" }]}
+                    onChange={(v) => {
+                      if (isLocked("price")) return;
+                      const { provider: _was, ...rest } = s.price!;
+                      void _was;
+                      setS("price", v === "paypal" || v === "square" ? { ...rest, provider: v } : rest);
+                    }}
+                  />
                 </Row>
               ) : null}
             </Block>

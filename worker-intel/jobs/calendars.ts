@@ -23,6 +23,9 @@ import {
   type ZoomClient,
 } from "../../src/lib/meetings/providers/index.ts";
 import { meetingDescription } from "../../src/lib/meetings/description.ts";
+import { videoClient, type VideoClient, type VideoKind } from "../../src/lib/meetings/video.ts";
+import { deps as sourceDeps } from "../../src/lib/sources/run.ts";
+import { AuthError } from "../../src/lib/sources/types.ts";
 import { inviteExtras } from "../../src/lib/meetings/inviteInfo.ts";
 
 const DAY = 86_400_000;
@@ -35,6 +38,8 @@ export type CalendarOpts = {
   /** Tests: the provider for an account (the real one when this gives nothing). */
   provider?: (a: AccountRow) => FullProvider | undefined;
   zoom?: (a: AccountRow) => ZoomClient | undefined;
+  /** Tests: the Webex or Whereby client for a workspace's connection (Next step 12). */
+  video?: (kind: VideoKind, source: string) => VideoClient | undefined;
   /** Where pushes go; null skips them. Defaults to APP_URL's /api/calendar/hook when it's https. */
   hook?: string | null;
   now?: () => number;
@@ -164,7 +169,8 @@ export const calendarWatch =
 
 // Meetings on calendars -----------------------------------------------------------------------------------------
 
-type Ref = { provider: ProviderKind; account: string; calendar: string; event?: string; zoom?: { account: string; id: string; url?: string } };
+type Video = { kind: VideoKind; source: string; id: string; url: string };
+type Ref = { provider: ProviderKind; account: string; calendar: string; event?: string; zoom?: { account: string; id: string; url?: string }; video?: Video };
 type HostIn = { user_id: string; email: string | null; cal: (AccountRow & { write: string }) | null; zoom: AccountRow | null };
 type Inputs = {
   meeting: {
@@ -258,8 +264,8 @@ export const meetingSync =
 async function run(rpc: Rpc, o: CalendarOpts, job: Job, inp: Inputs, action: keyof typeof EVENT, signal: AbortSignal): Promise<boolean> {
   const m = inp.meeting;
   const events = { ...(m.events ?? {}) };
-  // Everything on a calendar or on Zoom for this meeting (a Zoom meeting alone is a create cut short).
-  const placed = Object.entries(events).filter(([, r]) => r.event || r.zoom);
+  // Everything on a calendar, on Zoom or on Webex or Whereby for this meeting (one alone is a create cut short).
+  const placed = Object.entries(events).filter(([, r]) => r.event || r.zoom || r.video);
 
   const sharers = inp.sharing ?? [];
   if (action === "cancel") {
@@ -308,6 +314,14 @@ async function run(rpc: Rpc, o: CalendarOpts, job: Job, inp: Inputs, action: key
       const description = inp.group ? undefined : await describe(rpc, o, inp);
       await guarded(rpc, acc, () => providerOf(rpc, o, acc, signal).update(r.calendar, r.event!, { start, end, guests, leads: leadsOf(m), description }));
       if (r.zoom) await moveZoom(rpc, o, r.zoom, start, end, signal);
+      if (r.video) {
+        // A Whereby room ends at a set time, so a move makes a new one with a new link.
+        const moved = await videoOf(rpc, o, r.video.kind, r.video.source, signal).then((c) => (c ? c.move(r.video!.id, start, end, inp.title) : null));
+        if (moved) {
+          r.video = { ...r.video, id: moved.id, url: moved.joinUrl };
+          await call(rpc, "meeting_calendar_save", { p_meeting: m.id, p_events: { [org.user_id]: r }, p_location: { url: moved.joinUrl } });
+        }
+      }
       // Anyone else's old event (an earlier lead host) comes off.
       for (const [u, x] of placed) if (u !== org.user_id) await takeDown(rpc, o, x, signal);
       await call(rpc, "meeting_calendar_save", { p_meeting: m.id, p_events: { [org.user_id]: r }, p_location: {} });
@@ -331,6 +345,26 @@ async function place(rpc: Rpc, o: CalendarOpts, job: Job, inp: Inputs, org: Host
   // A Zoom meeting made by an earlier try of this create (no event yet) is used again.
   const partial = m.events?.[org.user_id];
   let zoom = partial && !partial.event ? partial.zoom : undefined;
+  // The same for a Webex meeting or a Whereby room (Next step 12), made on the team's own connection.
+  let video = partial && !partial.event ? partial.video : undefined;
+  if (loc.kind === "webex" || loc.kind === "whereby") {
+    if (!video) {
+      const source = await call<string | null>(rpc, "workspace_source", { p_ws: m.workspace_id, p_kind: loc.kind }).catch(() => null);
+      const c = source ? await videoOf(rpc, o, loc.kind, source, signal) : null;
+      if (c && source) {
+        const made = await c.create({ topic: title, start, end }).catch((e) => {
+          // A sign-in that's gone won't come back by trying again; anything else is tried again with the job.
+          if (e instanceof AuthError) throw new Final(`Connect ${loc.kind === "webex" ? "Webex" : "Whereby"} again: ${e.message}`);
+          throw e;
+        });
+        video = { kind: loc.kind, source, id: made.id, url: made.joinUrl };
+        await call(rpc, "meeting_calendar_save", { p_meeting: m.id, p_events: { [org.user_id]: { provider: cal.provider, account: cal.id, calendar: cal.write, video } }, p_location: { url: made.joinUrl } });
+      }
+    }
+    if (video?.url) where = video.url;
+    // Not connected: the calendar's own video link stands in.
+    else conference = true;
+  }
   if (loc.kind === "zoom") {
     if (org.zoom && !zoom) {
       const z = org.zoom;
@@ -346,8 +380,8 @@ async function place(rpc: Rpc, o: CalendarOpts, job: Job, inp: Inputs, org: Host
   // A group event is shared by every seat: no one guest's answers or links on it.
   const description = inp.group ? "" : await describe(rpc, o, inp);
   const made = await guarded(rpc, cal, () => providerOf(rpc, o, cal, signal).create(cal.write, { title, description, start, end, guests, leads: leadsOf(m), conference, where, key: `${job.key}|${org.user_id}` }));
-  const ref: Ref = { provider: cal.provider, account: cal.id, calendar: cal.write, event: made.id, ...(zoom ? { zoom } : {}) };
-  const url = zoom?.url ?? made.joinUrl;
+  const ref: Ref = { provider: cal.provider, account: cal.id, calendar: cal.write, event: made.id, ...(zoom ? { zoom } : {}), ...(video ? { video } : {}) };
+  const url = zoom?.url ?? video?.url ?? made.joinUrl;
   await call(rpc, "meeting_calendar_save", { p_meeting: m.id, p_events: { [org.user_id]: ref }, p_location: url ? { url } : {} });
 }
 
@@ -407,6 +441,18 @@ async function takeDown(rpc: Rpc, o: CalendarOpts, r: Ref, signal: AbortSignal) 
     const z = await accountById(rpc, o, r.zoom.account);
     if (z && z.status === "ok") await guarded(rpc, z, () => zoomOf(rpc, o, z, signal).cancel(r.zoom!.id));
   }
+  if (r.video) {
+    const c = await videoOf(rpc, o, r.video.kind, r.video.source, signal);
+    if (c) await c.cancel(r.video.id);
+  }
+}
+
+/** The workspace's Webex or Whereby client, or null when the connection is gone. */
+async function videoOf(rpc: Rpc, o: CalendarOpts, kind: VideoKind, source: string, signal?: AbortSignal): Promise<VideoClient | null> {
+  const own = o.video?.(kind, source);
+  if (own) return own;
+  const d = await sourceDeps({ rpc, clean: async () => ({ custom: [] }) as never, fetcher: o.http?.fetcher, signal }, source);
+  return d ? videoClient(kind, d.ctx) : null;
 }
 
 async function moveZoom(rpc: Rpc, o: CalendarOpts, zoom: NonNullable<Ref["zoom"]>, start: number, end: number, signal: AbortSignal) {
