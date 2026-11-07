@@ -75,15 +75,16 @@ two cards side by side in the gallery with the same photo), and about 400 for pi
 
 | Step | How |
 |---|---|
-| Find | A script (`scripts/template-photos.ts`) searches Pexels for each template's subject list (Part 2) and saves 8 options for each slot |
+| Find | A script (`scripts/template-photos.ts`) searches Burst (Shopify's free stock photos, its public search page, no key) for each slot's words, with StockSnap's CC0 photos through Openverse when Burst finds too few, and saves 8 options for each slot |
 | Check | Claude reads each option once and writes its alt words, its focus point, whether it's light or dark, and whether it fits the template. A failed fit is dropped |
 | Choose | A contact sheet per family (like the one made for this plan) for a person to approve or swap, slot by slot |
-| Store | Approved photos go to the shared `form-media/starter/` folder in three sizes (`docs/forms-media-plan.md` Part 2), with a manifest: Pexels ID, photographer, alt words, focus point, light or dark |
+| Store | Approved photos go to the website's `assets/form-photos/` (served at https://tryclaritia.com/assets/form-photos/) as a 1920 wide JPEG and WebP at 640, 1280 and 1920, without their metadata, with a manifest: the source, its id and page, the words for screen readers, the focus point |
 | Keep | A starter photo is never deleted while a form uses it. A customer swaps any of them for their own in one click |
 
-**License:** the Pexels license allows free use on websites and in products, with changes, and no credit needed. It
-doesn't allow selling a photo on its own or making it look like a person in it backs a product (check the current
-license page before the first download). We keep the manifest so every photo can be traced.
+**License:** Burst's photos are free for commercial use with no credit needed, and StockSnap's are CC0 (check both
+license pages before each new batch). Neither allows selling a photo on its own, and a photo of a person never
+suggests that person backs a product. We keep the manifest so every photo can be traced. Pexels and Unsplash were
+the first choice: Pexels needs a key, and Unsplash refuses this session's network without one.
 
 **Icons:** the icon cards use Lucide (ISC license), drawn as one SVG set inside the form script's second part, so a
 form without icon cards loads nothing more. About 150 icons are enough for every template.
@@ -148,5 +149,5 @@ form without icon cards loads nothing more. About 150 icons are enough for every
 | Item | Cost |
 |---|---|
 | Claude checking about 5,600 photo options (700 slots, 8 each; about 2,000 tokens in and 200 out each with Sonnet, check) | about $50 |
-| Pexels API (free, check) | $0 |
+| Burst and Openverse (free, no key, check) | $0 |
 | A person reviewing the contact sheets (about 10 families, 1 to 2 hours each) | Time only |

@@ -78,6 +78,12 @@ export type Cond = {
   value?: string | number | boolean | string[];
 };
 
+/**
+ * A template's photo: one of the starter photos (docs/template-pictures-plan.md), by its file name without .jpg, where
+ * it goes on the screen, the words for screen readers and the spot kept in view ("50,30").
+ */
+export type GalleryPhoto = { name: string; alt: string; layout: "left" | "right" | "top" | "behind"; focus?: string };
+
 export type FormField = {
   key: string;
   kind: FieldKind;
@@ -93,6 +99,8 @@ export type FormField = {
   points?: number[];
   /** Adds an "Other" choice with a text box. */
   other?: boolean;
+  /** single and multi: a starter photo per option (by name), shown as picture cards. */
+  images?: string[];
   /** number, money and scale bounds; rating's star count. */
   min?: number;
   max?: number;
@@ -122,7 +130,7 @@ export type FormField = {
 export type PageJump = { when: Cond; to: number };
 
 /** A page. `skip`: past pages that don't apply. `jumps`: paths by answer, checked in order before `skip`. */
-export type FormPage = { title?: string; fields: FormField[]; skip?: PageJump; jumps?: PageJump[] };
+export type FormPage = { title?: string; fields: FormField[]; skip?: PageJump; jumps?: PageJump[]; photo?: GalleryPhoto };
 
 export type ScoreBand = { min: number; title: string; text: string };
 
@@ -135,6 +143,7 @@ export type FormEnd = {
   booking?: boolean;
   /** Quizzes: the score's bands, highest min first or any order. */
   score?: ScoreBand[];
+  photo?: GalleryPhoto;
 };
 
 export type FormSchema = {
@@ -145,7 +154,9 @@ export type FormSchema = {
   submit: string;
   end: FormEnd;
   /** A first screen with a title, a line and a Start button. */
-  cover?: { title: string; text?: string; button?: string };
+  cover?: { title: string; text?: string; button?: string; photo?: GalleryPhoto };
+  /** One question at a time. */
+  one?: true;
   /** "Save and finish later": a link by email that opens the form where they stopped. */
   resume?: true;
   /** After the send, a link to download a PDF copy of the answers. */

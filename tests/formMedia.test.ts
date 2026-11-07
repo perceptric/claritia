@@ -96,3 +96,29 @@ test("one question at a time: a question's show-if joins its page's, every way e
     assert.equal(holds(e, v), (a === "x" || a === "y") && (b === "1" || c === "2"), JSON.stringify(v));
   }
 });
+
+test("a template with photos becomes a page with its welcome screen, page and end photos, picture cards and one question at a time", async () => {
+  const { templateById, TEMPLATES } = await import("../src/lib/forms/gallery/catalog.ts");
+  const { templateDraft } = await import("../src/lib/studio/templatePage.ts");
+  const { DEFAULT_BRAND_CSS } = await import("../src/lib/studio/brandDefault.ts");
+  const base = templateById("general.newsletter-signup") ?? TEMPLATES.find((x) => x.schema.pages.length === 1 && x.schema.pages[0]!.fields.some((f) => f.kind === "multi"))!;
+  const choiceAt = base.schema.pages[0]!.fields.findIndex((f) => f.kind === "single" || f.kind === "multi");
+  const fields = base.schema.pages[0]!.fields.map((f, i) => (i === choiceAt ? { ...f, images: (f.options ?? []).map((_, k) => `test-option-${k}`) } : f));
+  const t = { ...base, schema: { ...base.schema, one: true as const, cover: { title: "Talk to us", text: "Two minutes.", button: "Let's go", photo: { name: "team-at-desk", alt: "Two people at a desk", layout: "left" as const, focus: "40,30" } }, pages: [{ ...base.schema.pages[0]!, fields, photo: { name: "office-window", alt: "An office", layout: "behind" as const } }, ...base.schema.pages.slice(1)], end: { ...base.schema.end, photo: { name: "handshake", alt: "A handshake", layout: "behind" as const } } } };
+  const html = templateDraft(t, DEFAULT_BRAND_CSS).page!.html;
+  assert.match(html, /<section data-cl-cover id="cover" data-cl-media="https:\/\/tryclaritia\.com\/assets\/form-photos\/team-at-desk\.jpg" data-cl-layout="left" data-cl-alt="Two people at a desk" data-cl-focus="40,30">/);
+  assert.match(html, /data-cl-start[^>]*>Let&#39;s go<\/button>|data-cl-start[^>]*>Let's go<\/button>/);
+  // A page never takes "behind": its photo goes across the top.
+  assert.match(html, /<(section data-cl-step|form id="form")[^>]*data-cl-media="[^"]*office-window\.jpg" data-cl-layout="top"/);
+  assert.match(html, /data-cl-thanks[^>]*data-cl-media="[^"]*handshake\.jpg" data-cl-layout="behind"/);
+  assert.match(html, /<form id="form" data-cl-one/);
+  const choice = base.schema.pages[0]!.fields[choiceAt]!;
+  assert.match(html, new RegExp(`data-cl-field="pictures"[^>]*data-cl-images="[^"]*test-option-0-640\\.webp`));
+  // The cards send the same values as the plain list.
+  const plain = templateDraft(base, DEFAULT_BRAND_CSS);
+  const cards = templateDraft(t, DEFAULT_BRAND_CSS);
+  const opts = (f: typeof plain) => f.steps.flatMap((s) => s.fields).find((x) => x.label === choice.label)?.options?.map((o) => o.value);
+  assert.deepEqual(opts(cards), opts(plain));
+  // Every template with a welcome screen keeps it now.
+  for (const x of TEMPLATES.filter((y) => y.schema.cover)) assert.match(templateDraft(x, DEFAULT_BRAND_CSS).page!.html, /data-cl-cover/, x.id);
+});

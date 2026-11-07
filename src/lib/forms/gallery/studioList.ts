@@ -7,6 +7,7 @@ import { filterTemplates, valuesIn } from "./filter.ts";
 import { categoryLabel, FAMILIES } from "./taxonomy.ts";
 import { themeById } from "./themes.ts";
 import { FONTS } from "./themes.ts";
+import { focusOf, sizedUrl, STARTER_PHOTOS } from "../media.ts";
 import type { FieldKind, FormField, FormTemplate } from "./types.ts";
 
 /** A question as its card shows it: the label, what kind of answer, and the first options. */
@@ -20,7 +21,7 @@ export type StudioTemplate = {
   n: number;
   words: string;
   /** The card: the form's title, its first questions and its button, in its style's colors, type and corners. */
-  form: { title: string; qs: CardQuestion[]; button: string; font: string; head: string; headWeight: number; radius: number; btnRadius: number; accent: string; accentInk: string; card: string; text: string; muted: string; field: string; border: string };
+  form: { title: string; qs: CardQuestion[]; button: string; photo?: { src: string; layout: string; focus: string }; font: string; head: string; headWeight: number; radius: number; btnRadius: number; accent: string; accentInk: string; card: string; text: string; muted: string; field: string; border: string };
 };
 
 /** How many questions a card shows. */
@@ -51,7 +52,9 @@ export function studioTemplate(t: FormTemplate): StudioTemplate {
     form: {
       title: t.schema.title,
       qs,
-      button: t.schema.pages.length > 1 ? "Next" : t.schema.submit,
+      button: t.schema.cover?.photo ? (t.schema.cover.button ?? "Start") : t.schema.pages.length > 1 ? "Next" : t.schema.submit,
+      // A template with a welcome photo shows its welcome screen, as it opens.
+      ...(t.schema.cover?.photo ? { photo: { src: sizedUrl(`${STARTER_PHOTOS}${t.schema.cover.photo.name}.jpg`, 640), layout: t.schema.cover.photo.layout, focus: focusOf(t.schema.cover.photo.focus) } } : {}),
       font: FONTS[s.font].css,
       head: FONTS[s.head].css,
       headWeight: s.headWeight,

@@ -2,10 +2,17 @@
 // (src/lib/studio/templatePage.ts). Every template converts to a form checkForm passes (tests/formGallery.test.ts).
 
 import { DEFAULT_CONSENT, type Choice, type Cond, type Field, type FieldKey, type Form, type Op, type Rule, type Step } from "../schema.ts";
-import type { Cond as GCond, FormField, FormTemplate } from "./types.ts";
+import type { Cond as GCond, FormField, FormTemplate, GalleryPhoto } from "./types.ts";
+import { sizedUrl, STARTER_PHOTOS } from "../media.ts";
 
 const BUILTIN: Record<string, FieldKey> = { email: "email", phone: "phone", title: "title", company: "company", website: "website", country: "country", region: "region" };
 const opts = (xs: string[] = [], points?: number[]): Choice[] => xs.map((x, i) => ({ value: x, label: x, ...(points?.[i] !== undefined ? { score: points[i] } : {}) }));
+
+/** A starter photo's address, and its 640 wide copy for a picture card. */
+const starter = (name: string) => `${STARTER_PHOTOS}${name}.jpg`;
+const pics = (o: Choice[], images?: string[]) => (images?.length ? o.map((c, i) => (images[i] ? { ...c, image: sizedUrl(starter(images[i]!), 640) } : c)) : o);
+/** A template's photo as the form saves it. */
+const photo = (p?: GalleryPhoto) => (p ? { url: starter(p.name), alt: p.alt, layout: p.layout, ...(p.focus ? { focus: p.focus } : {}) } : undefined);
 
 /** The app's field (or fields: a full name is first and last) for one gallery question. */
 function fieldsFor(f: FormField, id: () => string): Field[] {
@@ -29,9 +36,9 @@ function fieldsFor(f: FormField, id: () => string): Field[] {
     case "money":
       return [{ ...base, key: q, type: "number", unit: "money", ...half, ...(f.min !== undefined ? { valid: { min: f.min } } : {}) }];
     case "single":
-      return [{ ...base, key: f.map === "title" ? "title" : q, type: "choice", options: opts(f.options, f.points), ...(f.other ? { other: true } : {}) }];
+      return [{ ...base, key: f.map === "title" ? "title" : q, type: "choice", options: pics(opts(f.options, f.points), f.images), ...(f.images?.length ? { cards: true as const } : {}), ...(f.other ? { other: true } : {}) }];
     case "multi":
-      return [{ ...base, key: q, type: "multi", options: opts(f.options, f.points) }];
+      return [{ ...base, key: q, type: "multi", options: pics(opts(f.options, f.points), f.images), ...(f.images?.length ? { cards: true as const } : {}) }];
     case "dropdown":
       return [{ ...base, key: f.map === "title" ? "title" : q, type: "dropdown", options: opts(f.options, f.points), ...half }];
     case "yes_no":
@@ -104,7 +111,7 @@ export function templateForm(t: FormTemplate): Form {
       if (made[0]) byKey.set(f.key, { app: made[0], src: f });
       fields.push(...made);
     }
-    return { id: `s${i}`, ...(p.title ? { title: p.title } : {}), fields };
+    return { id: `s${i}`, ...(p.title ? { title: p.title } : {}), fields, ...(p.photo ? { photo: photo(p.photo) } : {}) };
   });
   // Calculations and payments name answers by key: swap in the app's field ids.
   const idOf = (k: string) => byKey.get(k)?.app.id;
@@ -149,7 +156,8 @@ export function templateForm(t: FormTemplate): Form {
       labels: "above",
       width: "narrow",
       ...(steps.length > 1 ? { progress: "bar" as const } : {}),
-      ...(t.schema.cover ? { cover: t.schema.cover } : {}),
+      ...(t.schema.cover ? { cover: { title: t.schema.cover.title, ...(t.schema.cover.text ? { text: t.schema.cover.text } : {}), ...(t.schema.cover.button ? { button: t.schema.cover.button } : {}), ...(t.schema.cover.photo ? { photo: photo(t.schema.cover.photo) } : {}) } } : {}),
+      ...(t.schema.one ? { mode: "screens" as const } : {}),
     },
     title: t.schema.title,
     ...(t.schema.intro ? { intro: t.schema.intro } : {}),
@@ -163,7 +171,7 @@ export function templateForm(t: FormTemplate): Form {
     after: {
       end: end.redirect
         ? { kind: "redirect", url: end.redirect }
-        : { kind: "message", title: end.title.slice(0, 300), ...(end.text || bands.length ? { text: (end.text || bands.map((b) => `${b.title}: ${b.text}`).join("\n")).slice(0, 1000) } : {}) },
+        : { kind: "message", title: end.title.slice(0, 300), ...(end.text || bands.length ? { text: (end.text || bands.map((b) => `${b.title}: ${b.text}`).join("\n")).slice(0, 1000) } : {}), ...(end.photo ? { photo: photo(end.photo) } : {}) },
     },
   };
 }

@@ -21,6 +21,7 @@ import { WAVE1_OPS } from "./templates/wave1-ops.ts";
 import { WAVE1_QUIZZES } from "./templates/wave1-quizzes.ts";
 import { WAVE2_MULTIPAGE } from "./templates/wave2-multipage.ts";
 import { defaultThemes } from "./themes.ts";
+import { withPhotos } from "./photos/index.ts";
 import { INDUSTRIES, type FormTemplate, type Industry, type UseCase } from "./types.ts";
 
 const RAW: FormTemplate[] = [
@@ -77,7 +78,7 @@ export function withMenus(t: FormTemplate): FormTemplate {
 }
 
 /** Every template, with its menus. */
-export const TEMPLATES: FormTemplate[] = RAW.map(withMenus);
+export const TEMPLATES: FormTemplate[] = RAW.map(withMenus).map(withPhotos);
 
 const BY_ID = new Map(TEMPLATES.map((t) => [t.id, t]));
 const THEME_OF = defaultThemes(TEMPLATES);

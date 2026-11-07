@@ -17,3 +17,7 @@ next-env.d.ts
 !.env.example
 dist/
 /.forms/
+
+# Template photo search results (scripts/template-photos.ts)
+scripts/template-photos/*.candidates.json
+.template-photos/

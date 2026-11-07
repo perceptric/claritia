@@ -56,3 +56,24 @@ export function focusOf(raw: unknown): string {
   const c = (n: string) => Math.max(0, Math.min(100, Number(n)));
   return `${c(m[1]!)}% ${c(m[2]!)}%`;
 }
+
+/** A photo on a screen, as a form saves it. */
+export type Photo = { url: string; alt: string; layout: Layout; focus?: string; sizes?: number[] };
+
+/** A saved photo, cleaned: an allowed address, a layout the screen takes, short words, a focus and its widths. */
+export function cleanPhoto(raw: unknown, page: boolean): Photo | undefined {
+  if (!raw || typeof raw !== "object") return undefined;
+  const x = raw as Record<string, unknown>;
+  const url = String(x.url ?? "").trim();
+  const layout = layoutOf(x.layout, page);
+  if (!mediaOk(url) || !layout) return undefined;
+  const alt = String(x.alt ?? "").replace(/\s+/g, " ").trim().slice(0, 200);
+  const focus = /^\d{1,3},\d{1,3}$/.test(String(x.focus ?? "")) ? String(x.focus) : undefined;
+  const sizes = Array.isArray(x.sizes) ? widthsOf(url, x.sizes.join(",")) : [];
+  return { url, alt, layout, ...(focus ? { focus } : {}), ...(sizes.length && !url.startsWith(STARTER_PHOTOS) ? { sizes } : {}) };
+}
+
+const attrEsc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+/** A photo as a studio page's attributes (src/lib/studio/runtime.ts draws them). */
+export const photoAttrs = (p: Photo | undefined) =>
+  p ? ` data-cl-media="${attrEsc(p.url)}" data-cl-layout="${p.layout}"${p.alt ? ` data-cl-alt="${attrEsc(p.alt)}"` : ""}${p.focus ? ` data-cl-focus="${p.focus}"` : ""}${p.sizes?.length ? ` data-cl-sizes="${p.sizes.join(",")}"` : ""}` : "";

@@ -264,6 +264,11 @@ input, textarea { user-select: text; -webkit-user-select: text; }
 .tpl .t-stars { font-size: 13px; letter-spacing: 2px; color: var(--f-line); }
 .tpl .t-chk { display: flex; align-items: flex-start; gap: 6px; }
 .tpl .t-chk i { flex: none; width: 10px; height: 10px; margin-top: 1px; border: 1px solid var(--f-muted); border-radius: 2px; }
+.tpl .t-cov { display: grid; grid-template-columns: 40% minmax(0, 1fr); border-bottom: 1px solid var(--line); background: var(--f-card); color: var(--f-text); min-height: 150px; }
+.tpl .t-cov.right { grid-template-columns: minmax(0, 1fr) 40%; }
+.tpl .t-cov.right img { order: 2; }
+.tpl .t-cov img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.tpl .t-cov .t-form { border-bottom: 0; justify-content: center; }
 .tpl .t-btn { align-self: flex-start; max-width: 100%; padding: 5px 12px; font-size: 10.5px; font-weight: 600; line-height: 1.3; overflow-wrap: anywhere; }
 .tpl .t-tx { display: flex; flex-direction: column; gap: 4px; padding: 10px 12px 12px; min-width: 0; }
 .tpl .t-nm { font: 500 13px/1.35 var(--sans); color: var(--ink); overflow-wrap: anywhere; }
@@ -2374,7 +2379,12 @@ ${CAL_CSS}
       }
       return box(`t-in${q.kind === "long_text" || q.kind === "address" || q.kind === "file" || q.kind === "signature" || q.kind === "matrix" ? " tall" : ""}`);
     };
-    return h("div", { class: "t-form", "aria-hidden": "true", style: `font-family:${f.font};--f-card:${f.card};--f-text:${f.text};--f-muted:${f.muted};--f-field:${f.field};--f-line:${f.border}` },
+    const vars = `font-family:${f.font};--f-card:${f.card};--f-text:${f.text};--f-muted:${f.muted};--f-field:${f.field};--f-line:${f.border}`;
+    // A welcome photo: the welcome screen as it opens, the photo on its side.
+    if (f.photo) return h("div", { class: `t-cov${f.photo.layout === "right" ? " right" : ""}`, "aria-hidden": "true", style: vars },
+      h("img", { src: f.photo.src, alt: "", loading: "lazy", style: `object-position:${f.photo.focus}` }),
+      h("div", { class: "t-form" }, h("span", { class: "t-h", style: `font-family:${f.head};font-weight:${f.headWeight}`, text: f.title }), h("span", { class: "t-btn", style: `background:${f.accent};color:${f.accentInk};border-radius:${f.btnRadius}px`, text: f.button })));
+    return h("div", { class: "t-form", "aria-hidden": "true", style: vars },
       h("span", { class: "t-h", style: `font-family:${f.head};font-weight:${f.headWeight}`, text: f.title }),
       ...f.qs.map((q) => q.kind === "agree"
         ? h("span", { class: "t-q t-chk" }, h("i"), h("span", { class: "t-l", text: q.label }))

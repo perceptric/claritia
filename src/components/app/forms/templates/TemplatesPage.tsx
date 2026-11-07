@@ -10,6 +10,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { industryLabel, questionCount, templateById, templateBySlug, templateSlug, templateTheme, TEMPLATES } from "@/lib/forms/gallery/catalog";
 import { styleCssById } from "@/lib/studio/styleCss";
+import { focusOf, sizedUrl, STARTER_PHOTOS } from "@/lib/forms/media";
 import { templateDraft } from "@/lib/studio/templatePage";
 import { kitBooks, kitWorkflows } from "@/lib/forms/gallery/kit";
 import { inSeason, kitById, KITS, type Kit } from "@/lib/forms/gallery/kits";
@@ -41,6 +42,23 @@ function useStyleFonts() {
  * colors, type and corners, with no stage, card frame or drawing around it. */
 function StyleThumb({ t, th }: { t: FormTemplate; th: Theme }) {
   const s = t.schema;
+  // A welcome photo: the welcome screen as it opens, the photo on its side.
+  const ph = s.cover?.photo;
+  if (ph)
+    return (
+      <div aria-hidden="true" className={`grid min-h-[150px] border-b border-line ${ph.layout === "right" ? "grid-cols-[minmax(0,1fr)_40%]" : "grid-cols-[40%_minmax(0,1fr)]"}`} style={{ fontFamily: FONTS[th.font].css, background: th.card, color: th.text }}>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={sizedUrl(`${STARTER_PHOTOS}${ph.name}.jpg`, 640)} alt="" loading="lazy" className={`size-full object-cover ${ph.layout === "right" ? "order-2" : ""}`} style={{ objectPosition: focusOf(ph.focus) }} />
+        <span className="flex min-w-0 flex-col justify-center gap-[10px] p-[16px]">
+          <span className="text-[14px] leading-tight tracking-[-0.01em] wrap-anywhere" style={{ fontFamily: FONTS[th.head].css, fontWeight: th.headWeight, fontStyle: th.headItalic ? "italic" : "normal" }}>
+            {s.cover!.title}
+          </span>
+          <span className="self-start px-[12px] py-[5px] text-[10.5px] leading-[1.3] font-semibold wrap-anywhere" style={{ background: th.accent, color: th.accentInk, borderRadius: Math.min(th.btnRadius, 999) }}>
+            {s.cover!.button ?? "Start"}
+          </span>
+        </span>
+      </div>
+    );
   const r = Math.min(th.radius, 10);
   const field = /^#[0-9a-f]{6}$/i.test(th.field) ? th.field : th.card;
   const box = "border";
