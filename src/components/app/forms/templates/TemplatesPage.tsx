@@ -9,7 +9,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { industryLabel, questionCount, templateById, templateBySlug, templateSlug, templateTheme, TEMPLATES } from "@/lib/forms/gallery/catalog";
-import { STYLE_ART, styleCssById } from "@/lib/studio/styleCss";
+import { styleCssById } from "@/lib/studio/styleCss";
 import { templateDraft } from "@/lib/studio/templatePage";
 import { kitBooks, kitWorkflows } from "@/lib/forms/gallery/kit";
 import { inSeason, kitById, KITS, type Kit } from "@/lib/forms/gallery/kits";
@@ -37,78 +37,64 @@ function useStyleFonts() {
   }, []);
 }
 
-const solid = (c: string, th: Theme) => (/^#[0-9a-f]{6}$/i.test(c) ? c : th.card);
-
-/** A card's picture: the template's first questions, drawn small in its style. */
+/** A card's picture: the form itself (its title, first real questions and button) in its style's type, corners and
+ * button color, with no page color, card, frame or drawing around it. */
 function StyleThumb({ t, th }: { t: FormTemplate; th: Theme }) {
   const s = t.schema;
-  const box = {
-    border: `${th.bw}px solid ${th.border}`,
-    borderRadius: Math.min(th.radius, 8),
-    background: solid(th.field, th),
-  } as const;
-  const field = th.input === "line" ? { borderBottom: `1px solid ${th.border}`, background: "transparent" } : box;
-  const shown = s.pages[0]!.fields.filter((f) => f.kind !== "hidden").slice(0, 4);
-  const art = th.art ? `${STYLE_ART}/${th.id}.svg` : "";
-  const split = !!art && th.layout === "split";
+  const r = Math.min(th.radius, 10);
+  const box = "border border-line-strong bg-card";
+  const shown = s.pages[0]!.fields.filter((f) => f.kind !== "hidden" && f.kind !== "statement" && f.kind !== "calc").slice(0, 3);
+  const choice = (f: FormTemplate["schema"]["pages"][number]["fields"][number]) => (f.kind === "yes_no" ? ["Yes", "No"] : (f.options ?? []).slice(0, 3));
   return (
-    <div aria-hidden="true" className="relative h-[200px] overflow-hidden border-b border-line px-[14px] pt-[14px]" style={{ background: th.bg }}>
-      <div
-        className="flex h-full overflow-hidden"
-        style={{
-          background: th.layout === "plain" ? "transparent" : th.card,
-          border: th.layout === "plain" ? 0 : `${th.bw}px solid ${th.border}`,
-          borderBottom: 0,
-          borderRadius: `${Math.min(th.cardRadius, 12)}px ${Math.min(th.cardRadius, 12)}px 0 0`,
-          flexDirection: split ? "row" : "column",
-          fontFamily: FONTS[th.font].css,
-          color: th.text,
-        }}
+    <div aria-hidden="true" className="flex flex-col gap-[10px] border-b border-line px-[16px] pt-[16px] pb-[14px] text-ink" style={{ fontFamily: FONTS[th.font].css }}>
+      <span className="text-[14px] leading-tight tracking-[-0.01em] wrap-anywhere" style={{ fontFamily: FONTS[th.head].css, fontWeight: th.headWeight, fontStyle: th.headItalic ? "italic" : "normal" }}>
+        {s.title}
+      </span>
+      {shown.map((f) =>
+        f.kind === "agree" ? (
+          <span key={f.key} className="flex items-start gap-[6px]">
+            <span className={`mt-[1px] size-[10px] shrink-0 rounded-[2px] ${box}`} />
+            <span className="text-[11px] leading-[1.35] font-medium wrap-anywhere">{f.label}</span>
+          </span>
+        ) : (
+          <span key={f.key} className="flex min-w-0 flex-col gap-[5px]">
+            <span className="text-[11px] leading-[1.35] font-medium wrap-anywhere">{f.label}</span>
+            {(f.kind === "single" || f.kind === "multi" || f.kind === "yes_no" || f.kind === "ranking") && choice(f).length ? (
+              <span className="flex flex-col gap-[4px]">
+                {choice(f).map((o) => (
+                  <span key={o} className={`flex min-h-[22px] items-center gap-[6px] px-[8px] py-[3px] text-[10.5px] leading-[1.3] text-body wrap-anywhere ${box}`} style={{ borderRadius: r }}>
+                    <span className={`size-[8px] shrink-0 border border-line-strong ${f.kind === "multi" ? "rounded-[2px]" : "rounded-full"}`} />
+                    {o}
+                  </span>
+                ))}
+              </span>
+            ) : f.kind === "dropdown" ? (
+              <span className={`flex min-h-[22px] items-center justify-between px-[8px] text-[10.5px] text-faint ${box}`} style={{ borderRadius: r }}>
+                <span>Choose one</span>
+                <span>{"\u25be"}</span>
+              </span>
+            ) : f.kind === "rating" ? (
+              <span className="text-[13px] tracking-[2px] text-line-strong">{"\u2605".repeat(Math.min(f.max ?? 5, 10))}</span>
+            ) : f.kind === "nps" || f.kind === "scale" ? (
+              <span className="flex flex-wrap gap-[3px]">
+                {Array.from({ length: Math.min((f.kind === "nps" ? 10 : (f.max ?? 5)) - (f.kind === "nps" ? 0 : (f.min ?? 1)) + 1, 11) }, (_, i) => (f.kind === "nps" ? 0 : (f.min ?? 1)) + i).map((n) => (
+                  <span key={n} className={`inline-flex h-[18px] min-w-[16px] items-center justify-center px-[3px] text-[9.5px] text-body ${box}`} style={{ borderRadius: r }}>
+                    {n}
+                  </span>
+                ))}
+              </span>
+            ) : (
+              <span className={`${f.kind === "long_text" || f.kind === "address" || f.kind === "file" || f.kind === "signature" || f.kind === "matrix" ? "min-h-[40px]" : "min-h-[22px]"} ${box}`} style={{ borderRadius: r }} />
+            )}
+          </span>
+        ),
+      )}
+      <span
+        className="self-start px-[12px] py-[5px] text-[10.5px] leading-[1.3] font-semibold shadow-chip wrap-anywhere"
+        style={{ background: th.accent, color: th.accentInk, borderRadius: Math.min(th.btnRadius, 999) }}
       >
-        {art ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={art} alt="" className={split ? "h-full w-[34%] shrink-0 object-cover object-left-top" : "h-[44px] w-full shrink-0 object-cover"} />
-        ) : null}
-        <div className="flex min-w-0 flex-1 flex-col gap-[7px] overflow-hidden p-[12px]">
-          <span
-            className="truncate text-[13px] leading-tight"
-            style={{
-              fontFamily: FONTS[th.head].css,
-              fontWeight: th.headWeight,
-              fontStyle: th.headItalic ? "italic" : "normal",
-            }}
-          >
-            {s.title}
-          </span>
-          {shown.map((f) => (
-            <span key={f.key} className="flex flex-col gap-[3px]">
-              <span className="truncate text-[9px] font-medium">{f.kind === "agree" ? "" : f.label}</span>
-              {f.kind === "single" || f.kind === "multi" || f.kind === "yes_no" ? (
-                <span className="flex gap-[4px]">
-                  {(f.options?.length ? f.options : ["Yes", "No"]).slice(0, 2).map((o) => (
-                    <span key={o} className="h-[14px] flex-1 truncate px-[5px] text-[8px] leading-[12px]" style={field}>
-                      {o}
-                    </span>
-                  ))}
-                </span>
-              ) : (
-                <span className={f.kind === "long_text" || f.kind === "file" || f.kind === "matrix" ? "h-[24px]" : "h-[14px]"} style={field} />
-              )}
-            </span>
-          ))}
-          <span
-            className="mt-[2px] self-start px-[10px] py-[3px] text-[8.5px] font-semibold"
-            style={{
-              background: th.accent,
-              color: th.accentInk,
-              borderRadius: Math.min(th.btnRadius, 99),
-              boxShadow: th.shadow === "hard" ? `2px 2px 0 ${th.text}` : undefined,
-            }}
-          >
-            {s.pages.length > 1 ? "Next" : s.submit}
-          </span>
-        </div>
-      </div>
+        {s.pages.length > 1 ? "Next" : s.submit}
+      </span>
     </div>
   );
 }

@@ -55,6 +55,17 @@ const built = ready(
     after: { kind: "thanks" },
   }).form,
 );
+// A page in a gallery style with a dropdown: the form's own list, never the browser's, and nothing around the form.
+const PICK = "88888888-8888-4888-8888-888888888888";
+const picky = ready(
+  pageForm({
+    html: `<main class="page"><form class="form-card"><h1 class="heading">Contact us</h1><div class="fields"><div class="q"><label class="label" for="q_topic">What's this about?</label><select class="field" id="q_topic" name="topic" required><option value="">Choose one</option><option value="sales">Sales</option><option value="support">Support</option><option value="billing">Billing</option></select><p class="error" data-cl-error-for="topic"></p></div><div class="q" id="more" data-cl-show-if="topic == 'billing'"><label class="label" for="q_inv">Invoice number</label><input class="field" id="q_inv" name="invoice" type="text"></div><div class="q"><label class="label" for="q_email">Email</label><input class="field" id="q_email" name="email" type="email" required></div></div><button class="btn" type="submit">Send</button></form><section data-cl-thanks hidden><h2>Thanks</h2></section></main>`,
+    css: "",
+    brand: styleCssById("coral"),
+    after: { kind: "thanks" },
+  }).form,
+);
+const pickSent: string[] = [];
 const styled = (() => {
   const r = studioForm(plain, styleCssById("grove"));
   if ("error" in r) throw new Error(r.error);
@@ -91,6 +102,13 @@ const server = createServer((req, res) => {
   if (u.startsWith("/forms/v1.js")) return res.writeHead(200, { "content-type": "text/javascript" }).end(formsJs);
   if (u === "/react.js") return res.writeHead(200, { "content-type": "text/javascript" }).end(reactJs);
   if (u === `/api/forms/${STEPS}/submit`) return json({ id: "s1" });
+  if (u === `/api/forms/${PICK}/submit`) {
+    let b = "";
+    req.on("data", (c) => (b += c));
+    req.on("end", () => (pickSent.push(b), json({ id: "p1" })));
+    return;
+  }
+  if (u === `/api/forms/${PICK}`) return json({ id: PICK, version: 1, status: "live", body: picky, logo_url: null });
   if (u === `/api/forms/${FORM}`) return json({ id: FORM, version: 1, status: "live", body: plain, tokens: {}, logo_url: null });
   if (u === `/api/forms/${PAGE}`) return json({ id: PAGE, version: 1, status: "live", body: studio, tokens: {}, logo_url: null });
   if (u === `/api/forms/${STEPS}`) return json({ id: STEPS, version: 1, status: "live", body: twoSteps, tokens: {}, logo_url: null });
@@ -152,6 +170,62 @@ try {
   await bf.locator("input[value='big']").check();
   await bf.locator("[data-cl-next]").first().click();
   check((await bf.locator("input[name='email']").isVisible()) && !(await bf.locator("#two").isVisible()), "built: Big jumps past page two");
+
+  // A gallery style is only the form: no page color, pattern, drawing, card or shadow around it
+  await desk.goto(add("/pure", formEmbedCode(origin, PICK, { mode: "inline" })));
+  const pf0 = host(desk);
+  await pf0.locator("button.cl-pick").waitFor();
+  const look = await pf0.locator(".page").evaluate((pg) => {
+    const card = pg.querySelector(".form-card")!;
+    const cs = getComputedStyle(pg), cc = getComputedStyle(card), before = getComputedStyle(card, "::before");
+    return { bg: cs.backgroundColor, img: cs.backgroundImage, pad: cs.paddingTop, card: cc.backgroundColor, shadow: cc.boxShadow, border: cc.borderTopWidth, cpad: cc.paddingTop, art: before.content };
+  });
+  check(look.bg === "rgba(0, 0, 0, 0)" && look.img === "none" && look.pad === "0px", `pure form: no page color or pattern around it (${look.bg}, ${look.img}, ${look.pad})`);
+  check(look.card === "rgba(0, 0, 0, 0)" && look.shadow === "none" && look.border === "0px" && look.cpad === "0px" && (look.art === "none" || look.art === "normal"), `pure form: no card, frame, shadow or drawing (${JSON.stringify(look)})`);
+
+  // Its dropdown is the form's own list, never the browser's
+  const pk = pf0.locator("button.cl-pick");
+  check((await pf0.locator("select").count()) === 1 && (await pf0.locator("select").evaluate((x) => getComputedStyle(x).opacity === "0" && x.getBoundingClientRect().width <= 1 && x.tabIndex === -1)), "dropdown: the browser's select is out of sight and out of the tab order");
+  check((await pk.textContent())?.trim() === "Choose one" && (await pk.getAttribute("aria-haspopup")) === "listbox", "dropdown: the form's own button says Choose one");
+  check((await pf0.locator("label[for='q_topic']").evaluate((l, b) => (l as HTMLLabelElement).control === b, await pk.elementHandle())), "dropdown: the question's label names the button");
+  // Sent with nothing picked: the question says so, and the button takes the focus
+  await pf0.locator("input[name='email']").fill("dana@acme.com");
+  await pf0.locator("button[type='submit']").click();
+  check(((await pf0.locator('[data-cl-error-for="topic"]').textContent()) ?? "") === "Fill this in." && pickSent.length === 0, "dropdown: a required one left empty stops the send");
+  check(await pk.evaluate((b) => (b.getRootNode() as ShadowRoot).activeElement === b), "dropdown: the button takes the focus when it needs an answer");
+  check((await pk.getAttribute("aria-invalid")) === "true", "dropdown: the button is marked as needing an answer");
+  // The keyboard: down opens, down moves, Escape closes without a change, a letter jumps, Enter picks
+  await desk.keyboard.press("ArrowDown");
+  check(await pf0.locator(".cl-list").isVisible(), "dropdown: the down arrow opens the list in the page");
+  check((await pf0.locator(".cl-list li").allTextContents()).join("|") === "Sales|Support|Billing", "dropdown: the list holds the choices and not the placeholder");
+  await desk.keyboard.press("Escape");
+  check(!(await pf0.locator(".cl-list").isVisible()) && (await pk.textContent())?.trim() === "Choose one", "dropdown: Escape closes it with nothing picked");
+  await desk.keyboard.press("ArrowDown");
+  await desk.keyboard.press("ArrowDown");
+  await desk.keyboard.press("Enter");
+  check((await pk.textContent())?.trim() === "Support" && (await pf0.locator("select").inputValue()) === "support", "dropdown: arrows and Enter pick Support");
+  check(((await pf0.locator('[data-cl-error-for="topic"]').textContent()) ?? "") === "" && (await pk.getAttribute("aria-invalid")) === "false", "dropdown: a pick clears its error");
+  await desk.keyboard.press("Enter");
+  await desk.keyboard.type("b");
+  await desk.keyboard.press("Enter");
+  check((await pk.textContent())?.trim() === "Billing", "dropdown: a letter jumps to its choice");
+  check(await pf0.locator("#more").isVisible(), "dropdown: a pick shows the question that follows it");
+  // A click picks too, and clicking away closes it
+  await pk.click();
+  await pf0.locator(".cl-list li", { hasText: "Sales" }).click();
+  check((await pk.textContent())?.trim() === "Sales" && !(await pf0.locator("#more").isVisible()), "dropdown: a click picks Sales and hides the question again");
+  await pk.click();
+  await pf0.locator("h1").click();
+  check(!(await pf0.locator(".cl-list").isVisible()), "dropdown: clicking away closes it");
+  await pf0.locator("button[type='submit']").click();
+  await desk.waitForFunction(() => document.querySelector("claritia-form")!.shadowRoot!.querySelector("[data-cl-thanks]:not([hidden])"), null, { timeout: 4000 });
+  check(pickSent.length === 1 && pickSent[0]!.includes('"sales"') && !pickSent[0]!.includes("billing"), `dropdown: the send carries the pick (${pickSent[0]?.slice(0, 160)})`);
+  // An answer from an email link fills it before anyone clicks
+  const topicId = picky.page!.ids.topic!;
+  await desk.goto(`${add("/pure-answer", formEmbedCode(origin, PICK, { mode: "inline" }))}?clr_a=${encodeURIComponent(`${topicId}:billing`)}`);
+  await host(desk).locator("button.cl-pick").waitFor();
+  await desk.waitForTimeout(100);
+  check((await host(desk).locator("button.cl-pick").textContent())?.trim() === "Billing", "dropdown: an email's answer shows on the button");
 
   // Closed by Settings › Access: the form's own closed message in place of the form
   await desk.goto(add("/shut", formEmbedCode(origin, SHUT, { mode: "inline" })));

@@ -1,7 +1,7 @@
 // The template gallery in a real browser (docs/form-templates.md), with a fake database and server
 // (scripts/templates/entry.tsx): a template opened from the website keeps the style picked there; a card opens in its
 // own style; the style menu, a workspace brand and Plain each change the preview; Use template asks for the look
-// shown; and the cards' drawings come from the website's copy.
+// shown; and the cards show the form itself, its real questions, with no drawing or page color around it.
 //   CHROMIUM_PATH=… node scripts/templates-check.ts   (SHOTS=dir saves screenshots)
 
 import { readFileSync } from "node:fs";
@@ -53,13 +53,19 @@ try {
     await page.waitForTimeout(150);
     return page.evaluate(() => getComputedStyle(document.querySelector("claritia-form")!.shadowRoot!.querySelector(".page")!).backgroundColor);
   };
+  /** The preview's send button color: a style shows in its button, with no page color around the form. */
+  const button = async () => {
+    await stage();
+    return page.evaluate(() => getComputedStyle(document.querySelector("claritia-form")!.shadowRoot!.querySelector(".btn, button[type=submit]")!).backgroundColor);
+  };
   const used = () => page.evaluate(() => (window as unknown as { calls: { path: string; body: Record<string, unknown> }[] }).calls.filter((c) => c.path === "/api/forms/templates").map((c) => c.body).at(-1));
 
   // ── From the website: Poster picked there ──
   await page.goto(`${base}/forms/templates/${templateSlug(inquiry)}?theme=poster`);
   await sheet.waitFor();
   check((await page.getByRole("button", { name: "Style", exact: true }).textContent())?.includes("Poster style") === true, "the style picked on the website is the look");
-  check((await stage()) === rgb(themeById("poster").bg), "the preview wears Poster");
+  check((await button()) === rgb(themeById("poster").accent), "the preview wears Poster");
+  check((await stage()) === "rgba(0, 0, 0, 0)", "a style puts no page color around the form");
   await shot("1-poster");
   await page.getByRole("button", { name: "Use form template" }).click();
   await page.waitForFunction(() => (window as unknown as { nav: unknown[] }).nav.length > 0);
@@ -71,7 +77,7 @@ try {
   await sheet.waitFor();
   await page.getByRole("button", { name: "Style", exact: true }).click();
   await page.getByRole("option", { name: /^Midnight/ }).click();
-  check((await stage()) === rgb(themeById("midnight").bg), "a style from the menu changes the preview");
+  check((await button()) === rgb(themeById("midnight").accent), "a style from the menu changes the preview");
   check(page.url().includes("theme=midnight"), "the address keeps the style");
   // ── A workspace brand, then Plain ──
   await page.getByRole("radio", { name: "acme.com" }).click();
@@ -92,17 +98,20 @@ try {
   await sheet.waitFor();
   await page.getByRole("radio", { name: "Plain" }).click();
   await page.getByRole("radio", { name: /style$/ }).click();
-  check((await stage()) === rgb(themeById(templateTheme(inquiry)).bg), "the style chip brings the style back");
+  check((await button()) === rgb(themeById(templateTheme(inquiry)).accent), "the style chip brings the style back");
 
   // ── From the gallery: a card opens in its own style ──
   await page.goto(`${base}/forms/templates`);
   await page.getByPlaceholder(/^Search/).fill(other.name);
   await page.getByRole("button", { name: `Preview ${other.name}`, exact: true }).first().click();
   await page.getByRole("dialog", { name: other.name }).waitFor();
-  check((await stage()) === rgb(themeById("midnight").bg), `a card opens in its own style, as the card shows (${other.name})`);
+  check((await button()) === rgb(themeById("midnight").accent), `a card opens in its own style, as the card shows (${other.name})`);
   await shot("2-card");
   const arts = await page.evaluate(() => [...document.querySelectorAll("img, [style]")].map((n) => (n as HTMLImageElement).src || (n as HTMLElement).style.backgroundImage || "").filter((s) => s.includes("form-art")));
-  check(arts.length > 0 && arts.every((s) => s.includes("https://tryclaritia.com/assets/form-art/")), `the cards' drawings come from the website (${arts.length})`);
+  check(arts.length === 0, `the cards have no drawings (${arts.length})`);
+  const firstQ = other.schema.pages[0]!.fields.find((f) => f.kind !== "hidden" && f.kind !== "statement" && f.kind !== "calc")!.label;
+  await page.keyboard.press("Escape");
+  check(((await page.getByRole("button", { name: `Preview ${other.name}`, exact: true }).first().textContent()) ?? "").includes(firstQ), `a card shows the form's own first question (${firstQ})`);
 } finally {
   await browser.close();
   server.close();

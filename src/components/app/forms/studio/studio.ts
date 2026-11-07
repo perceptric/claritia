@@ -10,7 +10,7 @@ import { THEMES } from "../../../../lib/forms/gallery/themes";
 import { cleanRoute, OP_LABEL, PAST_ROUTES, ROUTE_OPS, routeKind, routeMeeting, routeStart } from "../../../../lib/studio/routes";
 import { linkProblem, SCHEDULERS } from "../../../../lib/forms/schedule";
 import { INDUSTRIES, industryOf, isRtl, languageName, profileWords, recipeText } from "../../../../lib/studio/industries";
-import { ACCESS_CSS, around, CAL_CSS, consentSpot, limitMsg, linkErrors, pipes, shuffle, zoneWords } from "../../../../lib/studio/runtime";
+import { ACCESS_CSS, around, CAL_CSS, consentSpot, limitMsg, linkErrors, PICK_CSS, pickers, pipes, shuffle, zoneWords } from "../../../../lib/studio/runtime";
 import { baseName, isLayout, PICK_KINDS, SAVES, QGROUPS, QNAME, questionHtml, readJumps, renameValueIn, stepShowIfs, TEXT_KINDS, uniqueName, uniqueValue, valueFollows, writeJumps } from "../../../../lib/studio/builder";
 import { TIA_STYLE, tiaSvg } from "../../../../lib/studio/tia";
 import { markSvg } from "../../../Logo";
@@ -224,8 +224,8 @@ input, textarea { user-select: text; -webkit-user-select: text; }
 .tpls { display: flex; flex-direction: column; gap: 14px; width: 100%; max-width: 1040px; margin: 0 auto; }
 .tplhead { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; }
 .tplhead h2 { margin: 0; font: 600 18px/1.3 var(--sans); color: var(--ink); min-width: 0; }
-.tplact { display: flex; flex-wrap: wrap; gap: 8px; min-width: 0; flex: 0 1 auto; }
-.tplq { display: flex; align-items: center; gap: 6px; height: 30px; padding: 0 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); color: var(--faint); flex: 0 1 240px; min-width: 160px; }
+.tplact { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 0; flex: 0 1 auto; }
+.tplq { display: flex; align-items: center; gap: 6px; height: 30px; padding: 0 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); color: var(--faint); width: 240px; flex: 0 1 240px; min-width: 160px; box-sizing: border-box; }
 .tplq:focus-within { border-color: var(--signal); box-shadow: 0 0 0 3px var(--signal-soft); }
 .tplq input { flex: 1; min-width: 0; border: 0; outline: 0; background: transparent; color: var(--ink); font: 13px var(--sans); }
 .tplfam { display: flex; flex-wrap: wrap; gap: 6px; }
@@ -238,12 +238,22 @@ input, textarea { user-select: text; -webkit-user-select: text; }
 .tpl:hover:not(:disabled) { border-color: var(--line-strong); box-shadow: 0 8px 20px -12px rgb(0 0 0 / .25); transform: translateY(-1px); }
 .tpl:disabled { opacity: .55; }
 .tpl.making { opacity: 1; border-color: var(--signal); }
-.tpl .t-art { height: 92px; padding: 14px 18px 0; display: flex; align-items: flex-end; border-bottom: 1px solid var(--line); }
-.tpl .t-mini { width: 100%; height: 100%; border-radius: 6px 6px 0 0; padding: 10px 12px; display: flex; flex-direction: column; gap: 6px; }
-.tpl .t-mini i { display: block; height: 6px; border-radius: 3px; background: currentColor; opacity: .22; }
-.tpl .t-mini i.h { height: 8px; width: 58%; opacity: .55; }
-.tpl .t-mini i.f { height: 14px; width: 100%; background: transparent; border: 1px solid currentColor; opacity: .25; border-radius: 4px; }
-.tpl .t-mini i.b { height: 12px; width: 34%; opacity: 1; border-radius: 999px; }
+.tpl .t-form { display: flex; flex-direction: column; gap: 10px; padding: 16px 16px 14px; border-bottom: 1px solid var(--line); color: var(--ink); text-align: start; }
+.tpl .t-h { font-size: 14px; line-height: 1.25; letter-spacing: -.01em; color: var(--ink); overflow-wrap: anywhere; }
+.tpl .t-q { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+.tpl .t-l { font-size: 11px; line-height: 1.35; font-weight: 500; color: var(--ink); overflow-wrap: anywhere; }
+.tpl .t-in { display: flex; align-items: center; justify-content: space-between; gap: 6px; min-height: 22px; padding: 0 8px; border: 1px solid var(--line-strong); background: var(--bg); font-size: 10.5px; color: var(--faint); box-sizing: border-box; }
+.tpl .t-in.tall { min-height: 40px; }
+.tpl .t-ops { display: flex; flex-direction: column; gap: 4px; }
+.tpl .t-op { display: flex; align-items: center; gap: 6px; min-height: 22px; padding: 3px 8px; border: 1px solid var(--line-strong); font-size: 10.5px; line-height: 1.3; color: var(--body); overflow-wrap: anywhere; box-sizing: border-box; }
+.tpl .t-op i { flex: none; width: 8px; height: 8px; border: 1px solid var(--line-strong); border-radius: 50%; }
+.tpl .t-op i.sq { border-radius: 2px; }
+.tpl .t-sc { display: flex; flex-wrap: wrap; gap: 3px; }
+.tpl .t-sc span { min-width: 16px; height: 18px; padding: 0 3px; display: inline-flex; align-items: center; justify-content: center; border: 1px solid var(--line-strong); font-size: 9.5px; color: var(--body); box-sizing: border-box; }
+.tpl .t-stars { font-size: 13px; letter-spacing: 2px; color: var(--line-strong); }
+.tpl .t-chk { display: flex; align-items: flex-start; gap: 6px; }
+.tpl .t-chk i { flex: none; width: 10px; height: 10px; margin-top: 1px; border: 1px solid var(--line-strong); border-radius: 2px; }
+.tpl .t-btn { align-self: flex-start; max-width: 100%; padding: 5px 12px; font-size: 10.5px; font-weight: 600; line-height: 1.3; box-shadow: 0 0 0 1px rgb(0 0 0 / .08); overflow-wrap: anywhere; }
 .tpl .t-tx { display: flex; flex-direction: column; gap: 4px; padding: 10px 12px 12px; min-width: 0; }
 .tpl .t-nm { font: 500 13px/1.35 var(--sans); color: var(--ink); overflow-wrap: anywhere; }
 .tpl .t-bl { font-size: 12px; line-height: 1.45; color: var(--muted); overflow-wrap: anywhere; }
@@ -685,7 +695,7 @@ export function mountStudio(shell: ShadowRoot, api: StudioApi): StudioControl {
   // ── Drawing ───────────────────────────────────────────────────────────────────────────────────────────
   const host = $("host");
   const root = host.attachShadow({ mode: "open" });
-  const BASE = `${ACCESS_CSS}.cl-bookph{border:1px dashed rgba(127,127,127,.6);border-radius:10px;padding:18px;text-align:center;font:500 12px system-ui,sans-serif;opacity:.7}.cl-divider{font:600 11px/1 system-ui,sans-serif;letter-spacing:.06em;text-transform:uppercase;color:#7a7a7a;border-top:1px dashed rgba(127,127,127,.55);padding:10px 0 0;margin:20px 0 10px}.cl-edit [data-cl-if]{outline:1px dashed rgba(109,40,217,.55);outline-offset:3px}.cl-edit [data-cl-if]::before{content:attr(data-cl-if);display:block;width:max-content;max-width:100%;font:500 11px/1.7 system-ui,sans-serif;color:#6d28d9;background:rgba(109,40,217,.08);border-radius:4px;padding:0 6px;margin-bottom:6px;white-space:normal}.cl-block{display:flex;flex-direction:column;gap:8px}.cl-two{display:grid;grid-template-columns:1fr 1fr;gap:8px}.cl-addr{display:flex;flex-direction:column;gap:8px}.cl-rate{display:flex;flex-wrap:wrap;gap:6px;font-size:26px;line-height:1;opacity:.6}.cl-ends{display:flex;justify-content:space-between;gap:12px;font-size:12px;opacity:.6}.cl-num{font-size:14px;border:1px solid currentColor;border-radius:8px;padding:8px 12px}.cl-sign{min-height:110px}.cl-calc{display:block;font-variant-numeric:tabular-nums}.cl-pay{display:flex;justify-content:space-between;gap:12px;align-items:baseline}.cl-pay b,.cl-res b{font-size:1.4em;font-variant-numeric:tabular-nums}.cl-res{display:flex;flex-direction:column;gap:4px}.cl-grid{width:100%;border-collapse:collapse}.cl-grid th,.cl-grid td{padding:6px;text-align:center}.cl-grid th:first-child,.cl-grid td:first-child{text-align:start}.cl-rank{margin:0;padding-inline-start:20px;display:flex;flex-direction:column;gap:6px}.cl-hid{font:500 11px/1.8 system-ui,sans-serif;opacity:.6;border:1px dashed currentColor;border-radius:6px;padding:0 8px;width:max-content}
+  const BASE = `${ACCESS_CSS}${PICK_CSS}.cl-bookph{border:1px dashed rgba(127,127,127,.6);border-radius:10px;padding:18px;text-align:center;font:500 12px system-ui,sans-serif;opacity:.7}.cl-divider{font:600 11px/1 system-ui,sans-serif;letter-spacing:.06em;text-transform:uppercase;color:#7a7a7a;border-top:1px dashed rgba(127,127,127,.55);padding:10px 0 0;margin:20px 0 10px}.cl-edit [data-cl-if]{outline:1px dashed rgba(109,40,217,.55);outline-offset:3px}.cl-edit [data-cl-if]::before{content:attr(data-cl-if);display:block;width:max-content;max-width:100%;font:500 11px/1.7 system-ui,sans-serif;color:#6d28d9;background:rgba(109,40,217,.08);border-radius:4px;padding:0 6px;margin-bottom:6px;white-space:normal}.cl-block{display:flex;flex-direction:column;gap:8px}.cl-two{display:grid;grid-template-columns:1fr 1fr;gap:8px}.cl-addr{display:flex;flex-direction:column;gap:8px}.cl-rate{display:flex;flex-wrap:wrap;gap:6px;font-size:26px;line-height:1;opacity:.6}.cl-ends{display:flex;justify-content:space-between;gap:12px;font-size:12px;opacity:.6}.cl-num{font-size:14px;border:1px solid currentColor;border-radius:8px;padding:8px 12px}.cl-sign{min-height:110px}.cl-calc{display:block;font-variant-numeric:tabular-nums}.cl-pay{display:flex;justify-content:space-between;gap:12px;align-items:baseline}.cl-pay b,.cl-res b{font-size:1.4em;font-variant-numeric:tabular-nums}.cl-res{display:flex;flex-direction:column;gap:4px}.cl-grid{width:100%;border-collapse:collapse}.cl-grid th,.cl-grid td{padding:6px;text-align:center}.cl-grid th:first-child,.cl-grid td:first-child{text-align:start}.cl-rank{margin:0;padding-inline-start:20px;display:flex;flex-direction:column;gap:6px}.cl-hid{font:500 11px/1.8 system-ui,sans-serif;opacity:.6;border:1px dashed currentColor;border-radius:6px;padding:0 8px;width:max-content}
 .cl-consent{display:flex;gap:8px;align-items:flex-start;font-size:13px;line-height:1.4;opacity:.85}.cl-consent input{margin:2px 0 0}
 .cl-pick{display:flex;justify-content:space-between;align-items:center;gap:8px;opacity:.75}.cl-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:8px}.cl-card{display:flex;flex-direction:column;gap:6px;padding:8px;height:auto}.cl-card img,.cl-ph{width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:6px;background:rgba(127,127,127,.15);display:block}.cl-row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}.cl-row>input{flex:1 1 120px;min-width:0}.cl-btn2{display:inline-flex;width:max-content;font:500 12px/1 system-ui,sans-serif;border:1px solid currentColor;border-radius:999px;padding:7px 12px;opacity:.7}.cl-qty{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px 12px;align-items:center}.cl-step{display:inline-flex;gap:12px;align-items:center;border:1px solid rgba(127,127,127,.5);border-radius:999px;padding:4px 12px}.cl-chips{display:flex;flex-wrap:wrap;gap:6px;align-items:center}.cl-chip{display:inline-flex;align-items:center;padding:6px 12px;height:auto;width:auto;border-radius:999px;border:1px solid rgba(127,127,127,.5);font-size:13px}.cl-map{height:160px;position:relative;background:repeating-linear-gradient(45deg,rgba(127,127,127,.08) 0 12px,rgba(127,127,127,.14) 12px 24px)}.cl-pin{position:absolute;left:50%;top:50%;width:16px;height:16px;margin:-16px 0 0 -8px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);background:#d93025}.cl-crop{width:160px;aspect-ratio:1;height:auto}.cl-media{border:1px dashed rgba(127,127,127,.6);border-radius:10px;padding:22px;text-align:center;font:500 12px system-ui,sans-serif;opacity:.7;overflow-wrap:anywhere}.cl-edit [data-cl-review]:empty::before{content:"Answer review: the answers show here before sending";display:block;font:500 12px system-ui,sans-serif;opacity:.6;border:1px dashed rgba(127,127,127,.6);border-radius:8px;padding:14px}.cl-edit .cl-section{outline:1px dashed rgba(127,127,127,.45);outline-offset:6px;border-radius:4px}
 :host{all:initial;display:flex;flex-direction:column;flex:1}*,*::before,*::after{box-sizing:border-box}[hidden]{display:none!important}.cl-root{flex:1;min-height:560px;display:flex;flex-direction:column}.cl-root>*{flex:1 0 auto}
@@ -808,7 +818,7 @@ ${CAL_CSS}
   }
   function run(w) {
     linkErrors(w);
-    if (S.mode !== "edit") shuffle(w);
+    if (S.mode !== "edit") { shuffle(w); pickers(w); }
     const steps = [...w.querySelectorAll("[data-cl-step]")], thanks = w.querySelector("[data-cl-thanks]"), editing = S.mode === "edit";
     // Totals, payments and scores, worked out the way the live form and the server do; calcs join the answers by name.
     const nums = () => {
@@ -2225,6 +2235,29 @@ ${CAL_CSS}
     const words = TG.q.toLowerCase().split(/\s+/).filter(Boolean);
     return (TG.list || []).filter((t) => (TG.fam === "all" || t.fams.includes(TG.fam)) && words.every((w) => t.words.includes(w)));
   }
+  /** A card's picture: the form itself, its title, first questions and button, with nothing around it. */
+  function tplCard(t) {
+    const f = t.form, r = `border-radius:${f.radius}px`;
+    const box = (cls, ...kids) => h("span", { class: cls, style: r }, ...kids);
+    const answer = (q) => {
+      if (q.kind === "agree") return null;
+      if (q.kind === "dropdown") return box("t-in", h("span", { text: "Choose one" }), h("span", { text: "\u25be" }));
+      if (q.opts && (q.kind === "single" || q.kind === "multi" || q.kind === "yes_no" || q.kind === "ranking")) return h("span", { class: "t-ops" }, ...q.opts.map((o) => box("t-op", h("i", { class: q.kind === "multi" ? "sq" : "" }), h("span", { text: o }))));
+      if (q.kind === "rating") return h("span", { class: "t-stars", text: "\u2605".repeat(Math.min(q.hi || 5, 10)) });
+      if ((q.kind === "nps" || q.kind === "scale") && q.hi !== undefined) {
+        const lo = q.lo ?? 0, nums = [];
+        for (let i = lo; i <= q.hi && nums.length < 11; i++) nums.push(h("span", { style: r, text: String(i) }));
+        return h("span", { class: "t-sc" }, ...nums);
+      }
+      return box(`t-in${q.kind === "long_text" || q.kind === "address" || q.kind === "file" || q.kind === "signature" || q.kind === "matrix" ? " tall" : ""}`);
+    };
+    return h("div", { class: "t-form", "aria-hidden": "true", style: `font-family:${f.font}` },
+      h("span", { class: "t-h", style: `font-family:${f.head};font-weight:${f.headWeight}`, text: f.title }),
+      ...f.qs.map((q) => q.kind === "agree"
+        ? h("span", { class: "t-q t-chk" }, h("i"), h("span", { class: "t-l", text: q.label }))
+        : h("span", { class: "t-q" }, h("span", { class: "t-l", text: q.label }), answer(q))),
+      h("span", { class: "t-btn", style: `background:${f.accent};color:${f.accentInk};border-radius:${f.btnRadius}px`, text: f.button }));
+  }
   function tplUi() {
     if (!TG.list) return;
     const all = TG.list;
@@ -2241,10 +2274,8 @@ ${CAL_CSS}
     if (!all.length) grid.append(h("div", { class: "tplnone", text: "Loading templates" }));
     else if (!shown.length) grid.append(h("div", { class: "tplnone", text: "No templates match" }));
     for (const t of shown.slice(0, TG.n)) {
-      const a = t.art;
-      const mini = h("div", { class: "t-mini", style: `background:${a.card};color:${a.ink};box-shadow:0 0 0 1px ${a.line}` }, h("i", { class: "h" }), h("i", { style: "width:80%" }), h("i", { class: "f" }), h("i", { class: "b", style: `background:${a.accent}` }));
       grid.append(h("button", { class: `tpl${TG.making === t.id ? " making" : ""}`, "data-tpl": t.id, disabled: TG.making ? "" : null, onclick: () => peek(t) },
-        h("div", { class: "t-art", style: `background:${a.bg}` }, mini),
+        tplCard(t),
         h("div", { class: "t-tx" }, h("span", { class: "t-nm", text: t.name }), h("span", { class: "t-bl", text: t.blurb }), h("span", { class: "t-mt", text: TG.making === t.id ? "Opening" : `${t.n} ${t.n === 1 ? "question" : "questions"}` }))));
     }
     $("tplMore").hidden = shown.length <= TG.n;

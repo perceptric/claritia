@@ -20,8 +20,11 @@ test("every style is a stylesheet the cleaner keeps whole, known again by its fi
     assert.equal(styleOf(css), th.id);
     assert.equal(styleOf(cleanPageCss(css)), th.id);
     assert.match(css, /^@import url\("https:\/\/fonts\.googleapis\.com\//m, `${th.id} loads its fonts`);
-    assert.ok(css.includes(`--brand-primary:${th.accent}`) && css.includes(`--brand-bg:${th.bg}`), `${th.id} sets its colors`);
-    if (th.art && th.layout !== "card" && th.layout !== "plain") assert.ok(css.includes(`${STYLE_ART}/${th.id}.svg`), `${th.id} draws its picture`);
+    assert.ok(css.includes(`--brand-primary:${th.accent}`) && css.includes(`--brand-field:${th.field}`), `${th.id} sets its colors`);
+    // Only the form: no page color, pattern, drawing, card or shadow around it.
+    assert.ok(css.includes("--brand-bg:transparent") && css.includes("--brand-surface:transparent"), `${th.id} has no page or card color`);
+    assert.ok(!css.includes(STYLE_ART) && !/background-(color|image):/.test(css) && !/gradient\(/.test(css) && !/::before/.test(css), `${th.id} has no background, pattern or drawing`);
+    assert.match(css, /\.page \.form-card\{[^}]*padding:0;background:transparent;border:0;border-radius:0;box-shadow:none/, `${th.id} has no card around the form`);
     if (th.dark) assert.ok(css.includes("color-scheme:dark"), `${th.id} is dark`);
     assert.ok(!/<|javascript:|expression\(/i.test(css));
   }

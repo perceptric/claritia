@@ -201,10 +201,176 @@ export function linkErrors(w: ParentNode) {
   });
 }
 
-/** Focus always shows, choice cards with hidden inputs too, and motion stops for people who ask for less. */
+/** Focus always shows, choice cards with hidden inputs too, the consent line takes its own row above the button, and
+ * motion stops for people who ask for less. */
 export const ACCESS_CSS =
-  ".cl-unit{display:flex;align-items:center;gap:8px}.cl-unit>input{flex:1;min-width:0}.cl-switch input{appearance:none;-webkit-appearance:none;width:36px;height:20px;border-radius:999px;background:rgba(127,127,127,.45);position:relative;flex:none;margin:0;cursor:pointer}.cl-switch input::after{content:'';position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:#fff;transition:transform .15s}.cl-switch input:checked{background:var(--brand-primary,#111)}.cl-switch input:checked::after{transform:translateX(16px)}.cl-section{display:flex;flex-direction:column;gap:inherit}.cl-progress{height:6px;border-radius:999px;background:rgba(127,127,127,.2);overflow:hidden}.cl-progress>i{display:block;height:100%;width:calc(var(--cl-progress,0)*100%);background:var(--brand-primary,currentColor);transition:width .3s}.cl-review{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,2fr);gap:6px 16px;margin:0}.cl-review dt{opacity:.7}.cl-review dd{margin:0;overflow-wrap:anywhere}.cl-timer{font-variant-numeric:tabular-nums}" +
+  ".cl-consent,.cl-notice{flex:1 0 100%;margin:0}.cl-unit{display:flex;align-items:center;gap:8px}.cl-unit>input{flex:1;min-width:0}.cl-switch input{appearance:none;-webkit-appearance:none;width:36px;height:20px;border-radius:999px;background:rgba(127,127,127,.45);position:relative;flex:none;margin:0;cursor:pointer}.cl-switch input::after{content:'';position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:#fff;transition:transform .15s}.cl-switch input:checked{background:var(--brand-primary,#111)}.cl-switch input:checked::after{transform:translateX(16px)}.cl-section{display:flex;flex-direction:column;gap:inherit}.cl-progress{height:6px;border-radius:999px;background:rgba(127,127,127,.2);overflow:hidden}.cl-progress>i{display:block;height:100%;width:calc(var(--cl-progress,0)*100%);background:var(--brand-primary,currentColor);transition:width .3s}.cl-review{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,2fr);gap:6px 16px;margin:0}.cl-review dt{opacity:.7}.cl-review dd{margin:0;overflow-wrap:anywhere}.cl-timer{font-variant-numeric:tabular-nums}" +
   "@layer base{:where(input,button,select,textarea,a,summary):focus-visible{outline:2px solid currentColor;outline-offset:2px}label:has(input:focus-visible){outline:2px solid currentColor;outline-offset:2px}}@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important;scroll-behavior:auto!important}}";
+
+/** The look of the form's own dropdowns (pickers); colors, corners and fonts come from the page's .field. */
+export const PICK_CSS =
+  ".cl-native{position:absolute!important;width:1px!important;height:1px!important;margin:-1px!important;padding:0!important;border:0!important;opacity:0!important;pointer-events:none!important;clip-path:inset(50%)!important}.cl-pick{display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;text-align:start;cursor:pointer}.cl-pick>span:first-child{min-width:0;overflow-wrap:anywhere}.cl-pick[data-empty]>span:first-child{opacity:.6}.cl-pick>svg{flex:none;opacity:.7;transition:transform .15s}.cl-pick[aria-expanded=true]>svg{transform:rotate(180deg)}.cl-list{margin:4px 0 0;padding:4px;list-style:none;max-height:260px;overflow-y:auto;border:1px solid var(--brand-line,rgba(127,127,127,.35));border-radius:min(var(--brand-radius,8px),12px);background:var(--brand-field,#fff);color:var(--brand-text,inherit);box-sizing:border-box}.cl-list[hidden]{display:none}.cl-list li{padding:8px 10px;border-radius:min(var(--brand-radius,8px),8px);cursor:pointer;overflow-wrap:anywhere;font-size:14px}.cl-list li:hover,.cl-list li[data-on]{background:var(--brand-soft,rgba(127,127,127,.12))}.cl-list li[aria-selected=true]{font-weight:600}";
+
+let pickSeq = 0;
+
+/**
+ * Every <select> in a page as the form's own dropdown: a button that opens the list of its options in the page (never
+ * the browser's own menu), with the keyboard: arrows, Home, End, Enter, Space, Escape and a letter to jump. The select
+ * stays in the page out of sight and keeps the answer, so the checks, show-if and the send read it as before, and a
+ * value set on it from outside (a prefill, a language switch, a personal link) shows on the button.
+ */
+export function pickers(w: HTMLElement) {
+  const doc = w.ownerDocument;
+  const all: (() => void)[] = [];
+  w.querySelectorAll<HTMLSelectElement>("select").forEach((sel) => {
+    if (sel.hasAttribute("data-cl-picker") || sel.multiple) return;
+    sel.setAttribute("data-cl-picker", "");
+    const n = ++pickSeq;
+    const btn = doc.createElement("button");
+    btn.type = "button";
+    btn.className = `${sel.className} cl-pick`.trim();
+    // The question's label names the button: the select's id moves to it.
+    btn.id = sel.id || `cl-pick-${n}`;
+    if (sel.id) sel.id = `${sel.id}-list`;
+    btn.setAttribute("aria-haspopup", "listbox");
+    btn.setAttribute("aria-expanded", "false");
+    const listId = `cl-picks-${n}`;
+    btn.setAttribute("aria-controls", listId);
+    const text = doc.createElement("span");
+    const NS = "http://www.w3.org/2000/svg";
+    const chev = doc.createElementNS(NS, "svg");
+    chev.setAttribute("viewBox", "0 0 16 16");
+    chev.setAttribute("width", "14");
+    chev.setAttribute("height", "14");
+    chev.setAttribute("aria-hidden", "true");
+    const path = doc.createElementNS(NS, "path");
+    path.setAttribute("d", "M4 6l4 4 4-4");
+    path.setAttribute("fill", "none");
+    path.setAttribute("stroke", "currentColor");
+    path.setAttribute("stroke-width", "1.6");
+    path.setAttribute("stroke-linecap", "round");
+    path.setAttribute("stroke-linejoin", "round");
+    chev.append(path);
+    btn.append(text, chev);
+    const list = doc.createElement("ul");
+    list.className = "cl-list";
+    list.id = listId;
+    list.setAttribute("role", "listbox");
+    list.hidden = true;
+    sel.classList.add("cl-native");
+    sel.tabIndex = -1;
+    sel.setAttribute("aria-hidden", "true");
+    // Beside the select, so the question's own rules (its required mark, its width) still find it.
+    sel.after(btn, list);
+    const name = () => (btn.labels?.[0]?.textContent ?? "").replace(/\s*\*\s*$/, "").trim();
+    // The placeholder (an option with no value) is what the button says before a pick, never a choice in the list.
+    const opts = () => [...sel.options].filter((o) => o.value !== "" && !o.disabled && !o.hidden);
+    const holder = () => [...sel.options].find((o) => o.value === "")?.textContent?.trim() || "Choose one";
+    const sync = () => {
+      const o = sel.selectedIndex >= 0 ? sel.options[sel.selectedIndex] : null;
+      const picked = !!o && o.value !== "";
+      text.textContent = picked ? (o!.textContent ?? o!.value) : holder();
+      btn.toggleAttribute("data-empty", !picked);
+      btn.disabled = sel.disabled;
+      btn.setAttribute("aria-invalid", sel.getAttribute("aria-invalid") ?? "false");
+      const d = sel.getAttribute("aria-describedby");
+      if (d) btn.setAttribute("aria-describedby", d);
+      if (sel.required) btn.setAttribute("aria-required", "true");
+      const nm = name();
+      if (nm) list.setAttribute("aria-label", nm);
+    };
+    all.push(sync);
+    let on = -1;
+    const items = () => [...list.querySelectorAll<HTMLLIElement>("li")];
+    const mark = (i: number) => {
+      const li = items();
+      if (!li.length) return;
+      on = Math.max(0, Math.min(li.length - 1, i));
+      li.forEach((x, k) => x.toggleAttribute("data-on", k === on));
+      btn.setAttribute("aria-activedescendant", li[on]!.id);
+      li[on]!.scrollIntoView?.({ block: "nearest" });
+    };
+    const close = (focus: boolean) => {
+      if (list.hidden) return;
+      list.hidden = true;
+      btn.setAttribute("aria-expanded", "false");
+      btn.removeAttribute("aria-activedescendant");
+      if (focus) btn.focus();
+    };
+    const pick = (value: string) => {
+      const was = sel.value;
+      sel.value = value;
+      sync();
+      close(true);
+      if (was !== value) {
+        sel.dispatchEvent(new Event("input", { bubbles: true }));
+        sel.dispatchEvent(new Event("change", { bubbles: true }));
+      }
+    };
+    const open = () => {
+      if (sel.disabled) return;
+      list.replaceChildren(
+        ...opts().map((o, i) => {
+          const li = doc.createElement("li");
+          li.id = `${listId}-${i}`;
+          li.setAttribute("role", "option");
+          li.setAttribute("aria-selected", o.selected ? "true" : "false");
+          li.textContent = o.textContent ?? o.value;
+          li.addEventListener("mousedown", (e) => e.preventDefault());
+          li.addEventListener("click", () => pick(o.value));
+          return li;
+        }),
+      );
+      list.hidden = false;
+      btn.setAttribute("aria-expanded", "true");
+      mark(Math.max(0, opts().findIndex((o) => o.selected)));
+    };
+    let typed = "";
+    let typedAt = 0;
+    btn.addEventListener("click", () => (list.hidden ? open() : close(false)));
+    btn.addEventListener("keydown", (e) => {
+      const k = e.key;
+      if (list.hidden) {
+        if (k === "ArrowDown" || k === "ArrowUp" || k === "Enter" || k === " ") {
+          e.preventDefault();
+          open();
+        }
+        return;
+      }
+      const li = items();
+      if (k === "ArrowDown") mark(on + 1);
+      else if (k === "ArrowUp") mark(on - 1);
+      else if (k === "Home") mark(0);
+      else if (k === "End") mark(li.length - 1);
+      else if (k === "Enter" || k === " ") {
+        const o = opts()[on];
+        if (o) pick(o.value);
+        else close(true);
+      } else if (k === "Escape") close(true);
+      else if (k === "Tab") return close(false);
+      else if (k.length === 1 && /\S/.test(k)) {
+        typed = Date.now() - typedAt > 700 ? k.toLowerCase() : typed + k.toLowerCase();
+        typedAt = Date.now();
+        const i = li.findIndex((x) => (x.textContent ?? "").trim().toLowerCase().startsWith(typed));
+        if (i >= 0) mark(i);
+      } else return;
+      e.preventDefault();
+    });
+    // The checks focus the question that needs an answer: that's the button.
+    sel.addEventListener("focus", () => btn.focus());
+    btn.addEventListener("blur", (e) => {
+      if (!list.contains(e.relatedTarget as Node | null)) close(false);
+    });
+    sync();
+    // aria-invalid and the error's id are set on the select by the checks: the button follows. Only the select is
+    // watched, so the button's own changes never call this again.
+    new MutationObserver(sync).observe(sel, { attributes: true, attributeFilter: ["aria-invalid", "aria-describedby", "disabled", "required"] });
+  });
+  if (!all.length) return;
+  const syncAll = () => all.forEach((f) => f());
+  w.addEventListener("input", syncAll);
+  w.addEventListener("change", syncAll);
+}
 
 /** Run a page in `w`. `onSend` gets the answers once every shown question checks out. */
 export function runPage(w: HTMLElement, onSend: (v: Vals) => void): PageRun {
@@ -213,6 +379,7 @@ export function runPage(w: HTMLElement, onSend: (v: Vals) => void): PageRun {
   let at = 0;
   linkErrors(w);
   shuffle(w);
+  pickers(w);
   let finished = false;
   const errFor = (n: string) => w.querySelector<HTMLElement>(`[data-cl-error-for="${CSS.escape(n)}"]`);
   // A page with a timer (data-cl-timer, in seconds) moves on by itself when its time is up.
