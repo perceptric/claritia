@@ -75,14 +75,15 @@ two cards side by side in the gallery with the same photo), and about 400 for pi
 
 | Step | How |
 |---|---|
-| Find | A script (`scripts/template-photos.ts`) searches Burst (Shopify's free stock photos, its public search page, no key) for each slot's words, with StockSnap's CC0 photos through Openverse when Burst finds too few, and saves 8 options for each slot |
+| Find | A script (`scripts/template-photos.ts`) searches CC0 photos through Openverse (no key, 200 searches a day) for each slot's words, StockSnap first and the WordPress Photo Directory when StockSnap finds too few, and saves 8 options for each slot. Burst (Shopify's free photos) is tried first with BURST=1, but it turns a client away after a few searches |
 | Check | Claude reads each option once and writes its alt words, its focus point, whether it's light or dark, and whether it fits the template. A failed fit is dropped |
 | Choose | A contact sheet per family (like the one made for this plan) for a person to approve or swap, slot by slot |
 | Store | Approved photos go to the website's `assets/form-photos/` (served at https://tryclaritia.com/assets/form-photos/) as a 1920 wide JPEG and WebP at 640, 1280 and 1920, without their metadata, with a manifest: the source, its id and page, the words for screen readers, the focus point |
 | Keep | A starter photo is never deleted while a form uses it. A customer swaps any of them for their own in one click |
 
-**License:** Burst's photos are free for commercial use with no credit needed, and StockSnap's are CC0 (check both
-license pages before each new batch). Neither allows selling a photo on its own, and a photo of a person never
+**License:** StockSnap's and the WordPress Photo Directory's photos are CC0, and Burst's are free for commercial use
+with no credit needed (check the license pages before each new batch). StockSnap serves 960 wide copies: enough for
+side photos and cards, soft as a full background. Neither allows selling a photo on its own, and a photo of a person never
 suggests that person backs a product. We keep the manifest so every photo can be traced. Pexels and Unsplash were
 the first choice: Pexels needs a key, and Unsplash refuses this session's network without one.
 
@@ -149,5 +150,5 @@ form without icon cards loads nothing more. About 150 icons are enough for every
 | Item | Cost |
 |---|---|
 | Claude checking about 5,600 photo options (700 slots, 8 each; about 2,000 tokens in and 200 out each with Sonnet, check) | about $50 |
-| Burst and Openverse (free, no key, check) | $0 |
+| Openverse, Burst (free, no key, check) | $0 |
 | A person reviewing the contact sheets (about 10 families, 1 to 2 hours each) | Time only |

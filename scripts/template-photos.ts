@@ -1,5 +1,5 @@
-// Starter photos for the templates (docs/template-pictures-plan.md Part 3), from Burst (Shopify's free stock photos,
-// read from its public search page, no key) with StockSnap's CC0 photos through Openverse when Burst has too few.
+// Starter photos for the templates (docs/template-pictures-plan.md Part 3), CC0 photos through Openverse (no key, 200
+// searches a day): StockSnap first, then the WordPress Photo Directory; Burst (Shopify's free photos) with BURST=1.
 // Three steps:
 //   node scripts/template-photos.ts search scripts/template-photos/leads.json
 //     Searches each slot's words and keeps 8 options (leads.candidates.json), with a contact sheet per 40 slots
@@ -11,14 +11,15 @@
 //   node scripts/template-photos.ts apply scripts/template-photos/leads.json
 //     Writes src/lib/forms/gallery/photos/<family>.ts: each template's welcome photo and picture cards.
 // Burst's license: free for commercial use, no credit needed (check https://burst.shopify.com/licenses before each
-// new batch); StockSnap's photos are CC0. One search every 3 seconds, so neither site is pushed.
+// new batch); StockSnap's and the WordPress Photo Directory's are CC0. One search every 3.5 seconds (Openverse allows
+// 20 a minute).
 import { execFile } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 type Slot = { slot: string; template: string; kind: "cover" | "card"; query: string; layout?: "left" | "right" | "top" | "behind"; noFaces?: boolean; field?: string; option?: number };
-type Option = { id: string; from: "burst" | "stocksnap"; url: string; photographer: string; photographer_url: string; alt: string; src: string; thumb: string; width: number; height: number };
+type Option = { id: string; from: "burst" | "stocksnap" | "wordpress"; url: string; photographer: string; photographer_url: string; alt: string; src: string; thumb: string; width: number; height: number };
 type Pick = { n: number; alt: string; focus?: string };
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -68,22 +69,39 @@ async function burst(query: string, n: number): Promise<Option[]> {
   throw new Error(`Burst kept failing for "${query}"`);
 }
 
-/** StockSnap's CC0 photos through Openverse (960 wide: fine for side photos and cards). */
-async function stocksnap(query: string, n: number): Promise<Option[]> {
-  const r = await fetch(`https://api.openverse.org/v1/images/?q=${encodeURIComponent(query)}&source=stocksnap&license=cc0&page_size=${n}`);
-  if (!r.ok) return [];
-  const j = (await r.json()) as { results: { id: string; url: string; foreign_landing_url: string; creator?: string; creator_url?: string; title: string; width: number; height: number }[] };
-  return j.results.map((x) => ({ id: x.id, url: x.foreign_landing_url, photographer: x.creator ?? "", photographer_url: x.creator_url ?? "", alt: x.title, src: x.url, thumb: x.url, width: x.width, height: x.height, from: "stocksnap" }));
+/** CC0 photos through Openverse from one source (stocksnap: 960 wide; wordpress: the WordPress Photo Directory). */
+async function openverse(query: string, n: number, source: "stocksnap" | "wordpress"): Promise<Option[]> {
+  for (let i = 0; i < 4; i++) {
+    const r = await fetch(`https://api.openverse.org/v1/images/?q=${encodeURIComponent(query)}&source=${source}&license=cc0&page_size=${n}`);
+    if (r.status === 429) {
+      const left = r.headers.get("x-ratelimit-available-anon_sustained");
+      if (left === "0") throw new Error("Openverse's 200 searches a day are used up: run search again tomorrow, it picks up where it stopped.");
+      await wait(20000 * 2 ** i);
+      continue;
+    }
+    if (!r.ok) return [];
+    const j = (await r.json()) as { results: { id: string; url: string; foreign_landing_url: string; creator?: string; creator_url?: string; title: string; width: number; height: number }[] };
+    return j.results.map((x) => ({ id: x.id, url: x.foreign_landing_url, photographer: x.creator ?? "", photographer_url: x.creator_url ?? "", alt: x.title, src: x.url, thumb: x.url, width: x.width, height: x.height, from: source }));
+  }
+  return [];
 }
 
 if (step === "search") {
   const out: Record<string, Option[]> = existsSync(`${base}.candidates.json`) ? JSON.parse(readFileSync(`${base}.candidates.json`, "utf8")) : {};
   for (const s of plan.slots) {
     if (out[s.slot]?.length) continue;
-    let got = await burst(s.query, 8);
-    if (got.length < 4) got = [...got, ...(await stocksnap(s.query, 8 - got.length))];
+    // Burst is the best, but turns a client away after a few searches; BURST=1 tries it first.
+    let got: Option[] = process.env.BURST ? await burst(s.query, 8).catch(() => []) : [];
+    const more = async (q: string, src: "stocksnap" | "wordpress") => {
+      if (got.length >= 4) return;
+      await wait(3500);
+      const ids = new Set(got.map((o) => o.id));
+      got = [...got, ...(await openverse(q, 8, src)).filter((o) => !ids.has(o.id))].slice(0, 8);
+    };
+    await more(s.query, "stocksnap");
+    await more(s.query.split(" ").slice(0, 2).join(" "), "stocksnap");
+    await more(s.query, "wordpress");
     out[s.slot] = got;
-    await wait(3000);
     writeFileSync(`${base}.candidates.json`, JSON.stringify(out, null, 1));
     console.log(`${s.slot}: ${out[s.slot]!.length}`);
   }
