@@ -4,6 +4,7 @@
 // routing and meetings work as for every form), and the page rides along on the form as `page`.
 // The same code runs in the browser and on the server: no DOM, a small tokenizer.
 
+import { layoutOf, mediaOk } from "../forms/media.ts";
 import { CONTACT_KEYS, DEFAULT_CONSENT, type FieldKey, type FieldType } from "../forms/schema.ts";
 import { DEFAULT_NOTIFY } from "../forms/notify.ts";
 import { cleanRoute, routeCond, routeField, routeKind, type StudioRoute } from "./routes.ts";
@@ -486,6 +487,15 @@ export function cleanPage(raw: string, prevIds: Record<string, string> = {}): { 
         continue;
       }
       if (k.startsWith("data-cl-")) {
+        // A photo: only from the library or the starter photos, with its layout, focus and widths in their own shapes.
+        if (k === "data-cl-media") {
+          if (mediaOk(v)) kept.push(`${k}="${esc(v.trim())}"`);
+          continue;
+        }
+        if (k === "data-cl-layout" || k === "data-cl-focus" || k === "data-cl-sizes") {
+          if (k === "data-cl-layout" ? layoutOf(v, false) : k === "data-cl-focus" ? /^\d{1,3},\d{1,3}$/.test(v.trim()) : /^\d{3,4}(,\d{3,4}){0,3}$/.test(v.trim())) kept.push(`${k}="${esc(v.trim())}"`);
+          continue;
+        }
         // A grid's rows and columns, a ranking's options and a formula run longer than other settings.
         if (/^data-cl-[a-z-]{1,20}$/.test(k)) kept.push(v ? `${k}="${esc(v.slice(0, attrMax(k)))}"` : k);
         continue;

@@ -14,7 +14,7 @@ import pw from "playwright-core";
 import { sampleSlots } from "../src/lib/forms/calendar.ts";
 import { checkForm, type Form } from "../src/lib/forms/schema.ts";
 import { pageForm, type PageAfter } from "../src/lib/studio/page.ts";
-import { buildForms } from "./build-forms.mts";
+import { buildExtras, buildForms } from "./build-forms.mts";
 
 const failures: string[] = [];
 const check = (ok: boolean, what: string) => {
@@ -27,7 +27,8 @@ const bundle = await build({ entryPoints: [`${root}scripts/studio/entry.ts`], bu
 const js = bundle.outputFiles[0]!.contents;
 const globals = `${root}src/app/globals.css`;
 const css = (await postcss([tailwind()]).process(readFileSync(globals, "utf8"), { from: globals })).css;
-const formsJs = await buildForms();
+const x1Js = await buildExtras();
+const formsJs = await buildForms(x1Js);
 // The live form: the published body comes from the studio's Publish (set below), answers and bookings are kept.
 let live: Form | null = null;
 const sends: { answers: Record<string, unknown> }[] = [];
@@ -37,6 +38,7 @@ const server = createServer((req, res) => {
   const body = () => new Promise<string>((r) => { let b = ""; req.on("data", (c) => (b += c)); req.on("end", () => r(b)); });
   const json = (o: unknown) => res.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify(o));
   if (req.url === "/forms/v1.js") return void res.writeHead(200, { "content-type": "text/javascript" }).end(formsJs);
+  if (req.url?.startsWith("/forms/x1.js")) return void res.writeHead(200, { "content-type": "text/javascript" }).end(x1Js);
   if (req.url === `/live`) return void res.writeHead(200, { "content-type": "text/html" }).end(`<!doctype html><html><head><meta charset="utf-8"><script src="/forms/v1.js"></script></head><body style="margin:0"><claritia-form form-id="${LIVE_ID}" host="http://localhost:${(server.address() as { port: number }).port}"></claritia-form></body></html>`);
   if (req.url === `/api/forms/${LIVE_ID}`) return json({ id: LIVE_ID, version: 1, status: "live", body: live, tokens: {}, logo_url: "https://cdn.example/logo.svg" });
   if (req.url === `/api/forms/${LIVE_ID}/submit`) return void body().then((b) => (sends.push(JSON.parse(b)), json({ id: "s1", booking: { token: "t", slots: sampleSlots(Date.now()), lengths: [30], length: 30 } })));
@@ -52,6 +54,10 @@ const browser = await pw.chromium.launch({ executablePath: process.env.CHROMIUM_
 const shots = process.env.SHOTS;
 try {
   const p = await browser.newPage({ viewport: { width: 1360, height: 860 } });
+  // The library's photos, as a real JPEG and its WebP widths.
+  const sharp = (await import("sharp")).default;
+  const jpg = await sharp({ create: { width: 1600, height: 1000, channels: 3, background: { r: 40, g: 110, b: 90 } } }).jpeg().toBuffer();
+  await p.route("https://media.test/**", (r) => r.fulfill({ status: 200, contentType: "image/jpeg", body: jpg }));
   const errors: string[] = [];
   p.on("pageerror", (e) => errors.push(e.message));
   await p.goto(`http://localhost:${port}/`);
@@ -684,6 +690,39 @@ try {
   await $("#chatPick").click();
   await $("#layer .menu .mi").filter({ hasText: "Daily check-in" }).click();
   await form.locator("#title").waitFor();
+
+  // 9d. A welcome screen with a photo: the switch adds it first, the library's photo goes beside it, then behind it,
+  // its words are kept, an upload goes in, and Preview starts on it until Start
+  await toEdit();
+  await $("#stepBar .sp").first().click();
+  await $("#p-set").click();
+  await $("#pscroll button[aria-label='Welcome screen']").click();
+  check((await form.locator("[data-cl-cover] [data-cl-start]").count()) === 1 && (await $("#stepBar .sp").first().textContent()) === "Welcome" && (await $("#stepBar .sp").first().getAttribute("aria-pressed")) === "true", "the Welcome screen switch adds a first screen with Start, shown in Edit");
+  await $("#pscroll button").filter({ hasText: "Add photo" }).click();
+  await $("#pscroll .phgrid button[aria-label='Team photo']").click();
+  await form.locator(".page[data-cl-lay='left'] > .cl-fig img").waitFor();
+  check((await form.locator("[data-cl-cover]").getAttribute("data-cl-sizes")) === "640,1280,1920", "a photo from the library goes beside the welcome screen, with its widths");
+  await $("#pscroll .seg button").filter({ hasText: "Behind" }).click();
+  check((await form.locator(".page").getAttribute("data-cl-lay")) === "behind", "Place: Behind puts the photo behind the words");
+  await $("#pscroll button[aria-label='Top left']").click();
+  await $("#pscroll input[aria-label='Words for screen readers']").fill("Our team at work");
+  await $("#pscroll input[aria-label='Words for screen readers']").press("Enter");
+  await $("#pscroll input[aria-label='Words for screen readers']").blur();
+  check((await form.locator("[data-cl-cover]").getAttribute("data-cl-focus")) === "15,15" && (await form.locator("[data-cl-cover]").getAttribute("data-cl-alt")) === "Our team at work", "the spot kept in view and the words for screen readers are kept");
+  await $("#pscroll button").filter({ hasText: "Change photo" }).click();
+  await $("#pscroll .phgrid input[type=file]").setInputFiles({ name: "office.png", mimeType: "image/png", buffer: await sharp({ create: { width: 800, height: 500, channels: 3, background: { r: 200, g: 200, b: 200 } } }).png().toBuffer() });
+  await p.waitForFunction(() => (window as unknown as { calls: { mode: string }[] }).calls.some((c) => c.mode === "uploadPicture"));
+  await p.waitForTimeout(150);
+  check(((await form.locator("[data-cl-cover]").getAttribute("data-cl-media")) ?? "").endsWith("bb.png"), "an uploaded photo takes its place");
+  await toPreview();
+  await $("#stepBar .sp").first().click();
+  await form.locator("[data-cl-cover]").waitFor();
+  check((await form.locator("[data-cl-step]").first().isHidden()) && (await form.locator("[data-cl-cover] [data-cl-start]").isVisible()), "Preview starts on the welcome screen, the questions wait");
+  if (shots) await p.screenshot({ path: `${shots}/9d-cover.png` });
+  await form.locator("[data-cl-start]").click();
+  check((await form.locator("[data-cl-cover]").isHidden()) && (await form.locator("[data-cl-step]").first().isVisible()), "Start goes to the first page");
+  if (shots) await p.screenshot({ path: `${shots}/9d-welcome.png` });
+  await toEdit();
 
   // 10. Delete a brand from the menu
   await $("#brandBtn").click();

@@ -4,6 +4,7 @@
 // for every other field. Built by scripts/build-forms.mts. Browser only.
 
 import { track, trackInfo } from "./track.ts";
+import { MEDIA_CSS, pickers, PICK_CSS, showMedia } from "../studio/pageParts.ts";
 import { ADDRESS_PARTS, type Choice, type Field } from "./schema.ts";
 
 type El = <K extends keyof HTMLElementTagNameMap>(tag: K, attrs?: Record<string, string | boolean | undefined>, ...kids: (Node | string | null | false)[]) => HTMLElementTagNameMap[K];
@@ -795,4 +796,6 @@ function address(c: XCtx): HTMLElement {
   return el("div", { class: "mn", role: "group", "aria-labelledby": `${c.id}-l` }, parts.line1!, list, parts.line2!, el("div", { class: "xw" }, parts.city!, parts.region!), el("div", { class: "xw" }, parts.postal!, parts.country!));
 }
 
-(window as unknown as { __clrX?: { draw: (c: XCtx) => HTMLElement; css: string; track: typeof track; info: typeof trackInfo } }).__clrX = { draw, css: CSS, track, info: trackInfo };
+/** A studio page's parts: its dropdowns and its photos, with their look (src/lib/studio/pageParts.ts). */
+const page = { pickers, media: showMedia, css: PICK_CSS + MEDIA_CSS };
+(window as unknown as { __clrX?: { draw: (c: XCtx) => HTMLElement; css: string; track: typeof track; info: typeof trackInfo; page: typeof page } }).__clrX = { draw, css: CSS, track, info: trackInfo, page };

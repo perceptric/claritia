@@ -212,6 +212,13 @@ export function checkStudioPage(p: { html: string; after: PageAfter; meetings: {
   // The logo has words for screen readers.
   for (const n of all(tree, (x) => x.tag === "img" && "data-cl-logo" in x.attrs)) if (!(n.attrs.alt ?? "").trim()) add("warning", "logo-alt", "The logo has no words for screen readers.", "Give the logo image an alt with the brand's name.");
 
+  // A photo needs words for screen readers before the form goes live (docs/forms-media-plan.md Part 2).
+  for (const n of all(tree, (x) => !!x.attrs["data-cl-media"])) {
+    if ((n.attrs["data-cl-alt"] ?? "").trim()) continue;
+    const where = "data-cl-cover" in n.attrs ? "The welcome screen's photo" : "data-cl-thanks" in n.attrs ? "The thank-you's photo" : "A page's photo";
+    add("error", "photo-alt", `${where} has no words for screen readers.`, `Give it data-cl-alt with a few words on what the photo shows.`);
+  }
+
   // A file box of the page's own can't upload: uploads are the file block.
   if (/<input[^>]*type\s*=\s*["']?file/i.test(p.html)) add("error", "file-input", "A file box on the page can't upload files. Use the file upload block.", 'Replace the file input with the Claritia file block: <div data-cl-field="file" data-cl-name="..." data-cl-label="..."></div>.');
   // The page as written: the cleaner turns a password box into a text box, so it's read before cleaning.

@@ -12,6 +12,7 @@ import tailwind from "@tailwindcss/postcss";
 import pw from "playwright-core";
 import { templateById, templateSlug, templateTheme, TEMPLATES } from "../src/lib/forms/gallery/catalog.ts";
 import { themeById } from "../src/lib/forms/gallery/themes.ts";
+import { buildExtras } from "./build-forms.mts";
 
 const failures: string[] = [];
 const check = (ok: boolean, what: string) => {
@@ -28,7 +29,10 @@ const bundle = await build({ entryPoints: [`${root}scripts/templates/entry.tsx`]
 const js = bundle.outputFiles[0]!.contents;
 const globals = `${root}src/app/globals.css`;
 const css = (await postcss([tailwind()]).process(readFileSync(globals, "utf8"), { from: globals })).css;
+// The form script's second part: dropdowns and photos on the previews.
+const x1Js = await buildExtras();
 const server = createServer((req, res) => {
+  if (req.url?.startsWith("/forms/x1.js")) return void res.writeHead(200, { "content-type": "text/javascript" }).end(x1Js);
   if (req.url?.startsWith("/app.css")) return void res.writeHead(200, { "content-type": "text/css" }).end(css);
   if (req.url?.startsWith("/app.js")) return void res.writeHead(200, { "content-type": "text/javascript" }).end(js);
   res.writeHead(200, { "content-type": "text/html" }).end(`<!doctype html><link rel="stylesheet" href="/app.css"><body style="margin:0"><div id="root"></div><script type="module" src="/app.js"></script></body>`);

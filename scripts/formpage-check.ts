@@ -158,7 +158,7 @@ try {
     const pg = inner?.querySelector(".page");
     return pg ? getComputedStyle(pg).backgroundColor : "";
   });
-  check(stage === "rgb(255, 223, 61)", `the Studio's preview wears the style (${stage})`);
+  check(stage === "rgb(255, 255, 255)", `the Studio's preview wears the style: Poster's own white fills the box (${stage})`);
   // The chat saves as the page closes: it keeps the style and no brand.
   await page.evaluate(() => window.dispatchEvent(new Event("pagehide")));
   await page.waitForTimeout(200);

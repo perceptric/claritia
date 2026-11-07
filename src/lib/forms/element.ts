@@ -18,12 +18,12 @@ import { allFields, isContent, nextStep, numOf, optionsFor, pickOutcome, product
 import { checkAnswers, OTHER, stepPath, type Answers } from "./values.ts";
 import { answerFrom } from "../share/emailForm.ts";
 import { VIA } from "../share/channels.ts";
-import { ACCESS_CSS, CAL_CSS, consentSpot, PICK_CSS, pageValues, runPage, shownValues, showsByIf, zoneWords, type PageRun, type Vals } from "../studio/runtime.ts";
+import { ACCESS_CSS, CAL_CSS, consentSpot, pageValues, runPage, shownValues, showsByIf, zoneWords, type PageRun, type Vals } from "../studio/runtime.ts";
 import type { XCtx } from "./extras.ts";
 
 /** The form script's second part (extras.ts, /forms/x1.js): loaded once, on the first form that has one of its fields. */
 declare const __X1__: string;
-type Extras = { draw(c: XCtx): HTMLElement; css: string; track?: typeof import("./track.ts").track; info?: typeof import("./track.ts").trackInfo };
+type Extras = { draw(c: XCtx): HTMLElement; css: string; track?: typeof import("./track.ts").track; info?: typeof import("./track.ts").trackInfo; page?: { pickers(w: HTMLElement): void; media(page: HTMLElement, screen: Element | null): void; css: string } };
 const xOf = () => (window as unknown as { __clrX?: Extras }).__clrX;
 let xLoading: Promise<void> | null = null;
 let xTries = 0;
@@ -966,7 +966,7 @@ export class ClaritiaForm extends Base {
       const langs = [p.lang || "", ...Object.keys(p.langs ?? {})].filter(Boolean);
       if (!this.pgLang) this.pgLang = (typeof navigator !== "undefined" ? navigator.languages ?? [] : []).map((l) => langs.find((x) => x === l || x.slice(0, 2) === l.slice(0, 2))).find(Boolean) ?? langs[0] ?? "";
       const html = this.pgLang && p.langs?.[this.pgLang] ? p.langs[this.pgLang]! : p.html;
-      const st = el("style", { text: `${style.textContent}\n${ACCESS_CSS}${PICK_CSS}.cl-langs{display:flex;justify-content:flex-end;gap:4px;padding:8px 12px}.cl-langs button{font:inherit;font-size:12px;border:1px solid rgba(127,127,127,.45);background:rgba(255,255,255,.9);color:#222;border-radius:999px;padding:5px 11px;cursor:pointer}.cl-langs button[aria-pressed=true]{background:#111;color:#fff;border-color:#111}.cl .ps,.cl .tm{gap:8px}\n:host{display:block}.cl-root{min-height:inherit;display:flex;flex-direction:column}.cl-root>*{flex:1 0 auto}[hidden]{display:none!important}.cl-alert{color:#b23a26}\n${css.replace(/(^|[\s,{}])(?::root|html|body)(?=[\s,{:.[])/g, "$1:host")}` });
+      const st = el("style", { text: `${style.textContent}\n${ACCESS_CSS}.cl-langs{display:flex;justify-content:flex-end;gap:4px;padding:8px 12px}.cl-langs button{font:inherit;font-size:12px;border:1px solid rgba(127,127,127,.45);background:rgba(255,255,255,.9);color:#222;border-radius:999px;padding:5px 11px;cursor:pointer}.cl-langs button[aria-pressed=true]{background:#111;color:#fff;border-color:#111}.cl .ps,.cl .tm{gap:8px}\n:host{display:block}.cl-root{min-height:inherit;display:flex;flex-direction:column}.cl-root>*{flex:1 0 auto}[hidden]{display:none!important}.cl-alert{color:#b23a26}\n${css.replace(/(^|[\s,{}])(?::root|html|body)(?=[\s,{:.[])/g, "$1:host")}` });
       const wrap = el("div", { class: "cl-root" });
       wrap.innerHTML = html;
       if (this.pgLang) {
@@ -1044,8 +1044,21 @@ export class ClaritiaForm extends Base {
             x.value = v;
             if (x.value === v) filled.push(x);
           });
-      const run = runPage(wrap, (v) => void this.pageSend(form, v));
+      const run = runPage(wrap, (v) => void this.pageSend(form, v), { media: (pg, screen) => xOf()?.page?.media(pg, screen) });
       this.pg = { wrap, run, blocks };
+      // Dropdowns and photos come with the second part: once it's there, the page's own dropdowns and its photos.
+      if (/<select[\s>]|data-cl-media=/.test(html)) {
+        const parts = () => {
+          const P = xOf()?.page;
+          if (!P || !wrap.isConnected || wrap.hasAttribute("data-cl-parts")) return;
+          wrap.setAttribute("data-cl-parts", "");
+          wrap.before(el("style", { text: P.css }));
+          P.pickers(wrap);
+          run.refresh();
+        };
+        if (xOf()) queueMicrotask(parts);
+        else void loadX(this.base).then(parts, () => {});
+      }
       for (const x of filled) x.dispatchEvent(new Event("input", { bubbles: true }));
       // A studio page keeps its answers in its own inputs: the email's answer is checked there.
       if (this.emailAnswer) {
@@ -1054,6 +1067,8 @@ export class ClaritiaForm extends Base {
         if (input instanceof HTMLInputElement) input.checked = true;
         else if (input) input.value = this.emailAnswer.value;
         input?.dispatchEvent(new Event("change", { bubbles: true }));
+        // They answered in the email: past the welcome screen, straight to the form.
+        if (input) run.start();
       }
       // In the page, or over it (a popup, a slider, a popover or a side tab), like every form.
       this.put(st, wrap);

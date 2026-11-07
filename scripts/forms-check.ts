@@ -12,7 +12,7 @@
 import { createServer } from "node:http";
 import pg from "pg";
 import pw from "playwright-core";
-import { buildForms } from "./build-forms.mts";
+import { buildExtras, buildForms } from "./build-forms.mts";
 import { embedScript } from "../src/lib/forms/render.ts";
 import { allRegions, usesRegions } from "../src/lib/forms/regions.ts";
 import { checkForm, emptyForm, type Form } from "../src/lib/forms/schema.ts";
@@ -74,7 +74,8 @@ const capHubspot = await live("captured:hubspot", mapFields);
 
 let down = false;
 let posts = 0;
-const code = Buffer.from(await buildForms());
+const x1Js = await buildExtras();
+const code = Buffer.from(await buildForms(x1Js));
 const server = createServer((req, res) => void handle(req, res).catch((e: Error) => {
   console.log("SERVER ERROR", e.message);
   res.writeHead(500).end();
@@ -83,6 +84,7 @@ async function handle(req: import("node:http").IncomingMessage, res: import("nod
   const u = new URL(req.url!, "http://localhost");
   const send = (status: number, body: unknown) => res.writeHead(status, { "content-type": "application/json", "access-control-allow-origin": "*" }).end(JSON.stringify(body));
   if (u.pathname === "/forms/v1.js") return void res.writeHead(200, { "content-type": "text/javascript" }).end(code);
+  if (u.pathname === "/forms/x1.js") return void res.writeHead(200, { "content-type": "text/javascript" }).end(x1Js);
   // The app's side of the old embed: the script, and the form's own page it frames (src/app/f/[id]/page.tsx).
   if (u.pathname === "/f/embed.js") return void res.writeHead(200, { "content-type": "text/javascript" }).end(embedScript(app));
   const own = /^\/f\/([0-9a-f-]{36})$/.exec(u.pathname);

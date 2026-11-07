@@ -12,7 +12,7 @@ import { formEmbedCode, meetingEmbedCode } from "../src/lib/share/embed.ts";
 import { studioForm } from "../src/lib/studio/liveForm.ts";
 import { pageForm } from "../src/lib/studio/page.ts";
 import { styleCssById } from "../src/lib/studio/styleCss.ts";
-import { buildForms } from "./build-forms.mts";
+import { buildExtras, buildForms } from "./build-forms.mts";
 
 const failures: string[] = [];
 const check = (ok: boolean, what: string) => {
@@ -66,12 +66,25 @@ const picky = ready(
   }).form,
 );
 const pickSent: string[] = [];
+// A welcome screen with a photo beside it, a page with a photo band, and a photo behind the thank-you.
+const COVER = "99999999-9999-4999-8999-999999999999";
+const PHOTO = "https://media.test/storage/v1/object/public/assets/0192f3a1-0000-7000-8000-000000000001/0192f3a1-0000-7000-8000-0000000000aa.jpg";
+const covered = ready(
+  pageForm({
+    html: `<main class="page"><section data-cl-cover data-cl-media="${PHOTO}" data-cl-sizes="640,1280,1920" data-cl-layout="left" data-cl-focus="30,40" data-cl-alt="Two people at a desk"><h1 class="heading" id="welcome">Talk to sales</h1><p class="text">Two minutes.</p><button class="btn" type="button" data-cl-start>Start</button></section><div class="form-card"><form><section data-cl-step data-cl-media="${PHOTO}" data-cl-layout="top" data-cl-alt=""><fieldset class="q"><legend class="label">Plan</legend><label class="choice"><input type="radio" name="plan" value="team"> Team</label><label class="choice"><input type="radio" name="plan" value="ent"> Enterprise</label></fieldset><div class="q"><label class="label" for="q_email">Email</label><input class="field" id="q_email" name="email" type="email" required></div><button class="btn" type="submit">Send</button></section></form><section data-cl-thanks hidden data-cl-media="${PHOTO}" data-cl-layout="behind"><h2 class="heading" id="done">Thanks</h2></section></div></main>`,
+    css: "",
+    brand: styleCssById("paper"),
+    after: { kind: "thanks" },
+  }).form,
+);
+const coverSent: string[] = [];
 const styled = (() => {
   const r = studioForm(plain, styleCssById("grove"));
   if ("error" in r) throw new Error(r.error);
   return r.form;
 })();
-const formsJs = await buildForms();
+const x1Js = await buildExtras();
+const formsJs = await buildForms(x1Js);
 // The npm package's React components, bundled the way a site's build would (packages/embed).
 const reactJs = (
   await build({
@@ -100,6 +113,7 @@ const server = createServer((req, res) => {
   const json = (b: unknown) => res.writeHead(200, { "content-type": "application/json", "access-control-allow-origin": "*" }).end(JSON.stringify(b));
   const u = req.url ?? "";
   if (u.startsWith("/forms/v1.js")) return res.writeHead(200, { "content-type": "text/javascript" }).end(formsJs);
+  if (u.startsWith("/forms/x1.js")) return res.writeHead(200, { "content-type": "text/javascript" }).end(x1Js);
   if (u === "/react.js") return res.writeHead(200, { "content-type": "text/javascript" }).end(reactJs);
   if (u === `/api/forms/${STEPS}/submit`) return json({ id: "s1" });
   if (u === `/api/forms/${PICK}/submit`) {
@@ -108,6 +122,13 @@ const server = createServer((req, res) => {
     req.on("end", () => (pickSent.push(b), json({ id: "p1" })));
     return;
   }
+  if (u === `/api/forms/${COVER}/submit`) {
+    let b = "";
+    req.on("data", (c) => (b += c));
+    req.on("end", () => (coverSent.push(b), json({ id: "c1" })));
+    return;
+  }
+  if (u === `/api/forms/${COVER}`) return json({ id: COVER, version: 1, status: "live", body: covered, logo_url: null });
   if (u === `/api/forms/${PICK}`) return json({ id: PICK, version: 1, status: "live", body: picky, logo_url: null });
   if (u === `/api/forms/${FORM}`) return json({ id: FORM, version: 1, status: "live", body: plain, tokens: {}, logo_url: null });
   if (u === `/api/forms/${PAGE}`) return json({ id: PAGE, version: 1, status: "live", body: studio, tokens: {}, logo_url: null });
@@ -132,6 +153,19 @@ try {
   const phone = await browser.newPage({ viewport: { width: 390, height: 780 } });
   const errors: string[] = [];
   for (const p of [desk, phone]) p.on("pageerror", (e) => errors.push(e.message));
+  // The library's photos, served as a real JPEG and its WebP widths; "blocked" fails them all.
+  const sharp = (await import("sharp")).default;
+  const jpg = await sharp({ create: { width: 1600, height: 1000, channels: 3, background: { r: 40, g: 110, b: 90 } } }).jpeg().toBuffer();
+  const webp = await sharp(jpg).resize(640).webp().toBuffer();
+  let blocked = false;
+  const photos: string[] = [];
+  for (const p of [desk, phone])
+    await p.route("https://media.test/**", (r) => {
+      photos.push(r.request().url());
+      if (blocked) return r.abort();
+      const u = r.request().url();
+      return r.fulfill({ status: 200, contentType: u.endsWith(".webp") ? "image/webp" : "image/jpeg", body: u.endsWith(".webp") ? webp : jpg });
+    });
   const host = (p: typeof desk) => p.locator("claritia-form");
   const box = (p: typeof desk) => host(p).locator(".pbox");
   const rect = (l: ReturnType<typeof box>) => l.boundingBox();
@@ -229,6 +263,58 @@ try {
   await host(desk).locator("button.cl-pick").waitFor();
   await desk.waitForTimeout(100);
   check((await host(desk).locator("button.cl-pick").textContent())?.trim() === "Billing", "dropdown: an email's answer shows on the button");
+
+  // A welcome screen with a photo beside it: the photo fills 40% of the box edge to edge, the rest waits until Start
+  await desk.goto(add("/cover", formEmbedCode(origin, COVER, { mode: "inline" })));
+  const cf = host(desk);
+  await cf.locator("#welcome").waitFor();
+  await desk.waitForFunction(() => (document.querySelector("claritia-form")!.shadowRoot!.querySelector(".cl-fig img") as HTMLImageElement | null)?.complete);
+  const cv = await cf.locator(".page").evaluate((pg) => {
+    const fig = pg.querySelector(".cl-fig")!.getBoundingClientRect(), box = pg.getBoundingClientRect(), cover = pg.querySelector("[data-cl-cover]")!.getBoundingClientRect();
+    const img = pg.querySelector(".cl-fig img") as HTMLImageElement;
+    return { lay: pg.getAttribute("data-cl-lay"), fig: [fig.left - box.left, fig.top - box.top, fig.width / box.width, fig.height - box.height], coverLeft: cover.left - fig.right, img: img.currentSrc, alt: img.alt, pos: img.style.objectPosition, natural: img.naturalWidth };
+  });
+  check(cv.lay === "left" && Math.abs(cv.fig[0]!) < 1 && Math.abs(cv.fig[1]!) < 1 && Math.abs(cv.fig[2]! - 0.4) < 0.01 && Math.abs(cv.fig[3]!) < 1, `welcome: the photo fills the left 40% of the box, edge to edge (${JSON.stringify(cv.fig)})`);
+  check(cv.coverLeft >= 20, `welcome: the words sit beside the photo, never on it (${Math.round(cv.coverLeft)}px)`);
+  check(cv.natural > 0 && cv.img.endsWith(".webp") && cv.alt === "Two people at a desk" && cv.pos === "30% 40%", `welcome: a WebP width loads, with its words and its focus (${cv.img.split("/").pop()}, ${cv.pos})`);
+  check(!(await cf.locator("input[name='email']").isVisible()), "welcome: the questions wait until Start");
+  await cf.locator("[data-cl-start]").click();
+  check(!(await cf.locator("#welcome").isVisible()) && (await cf.locator("input[value='team']").evaluate((x) => (x.getRootNode() as ShadowRoot).activeElement === x)), "welcome: Start shows the first question, ready to answer");
+  const band = await cf.locator(".page").evaluate((pg) => {
+    const fig = pg.querySelector(".cl-fig")!.getBoundingClientRect(), box = pg.getBoundingClientRect(), q = pg.querySelector("input[name=email]")!.getBoundingClientRect();
+    return { lay: pg.getAttribute("data-cl-lay"), w: fig.width / box.width, h: fig.height, below: q.top - fig.bottom, hidden: pg.querySelector(".cl-fig")!.getAttribute("aria-hidden") };
+  });
+  check(band.lay === "top" && band.w > 0.99 && band.h === 180 && band.below > 0 && band.hidden === "true", `a page with a photo band: across the top, the questions under it (${JSON.stringify(band)})`);
+  await cf.locator("input[name='email']").fill("dana@acme.com");
+  await cf.locator("button[type='submit']").click();
+  await cf.locator("#done").waitFor();
+  const end = await cf.locator(".page").evaluate((pg) => ({ lay: pg.getAttribute("data-cl-lay"), color: getComputedStyle(pg.querySelector("#done")!).color }));
+  check(end.lay === "behind" && end.color === "rgb(255, 255, 255)" && coverSent.length === 1 && coverSent[0]!.includes("dana@acme.com"), `the thank-you: the photo behind, the words in white, the fill sent once (${JSON.stringify(end)})`);
+  // On a phone the side photo goes on top, and the words start under it
+  await phone.goto(add("/cover-phone", formEmbedCode(origin, COVER, { mode: "inline" })));
+  await host(phone).locator("#welcome").waitFor();
+  await phone.waitForTimeout(150);
+  const ph = await host(phone).locator(".page").evaluate((pg) => {
+    const fig = pg.querySelector(".cl-fig")!.getBoundingClientRect(), box = pg.getBoundingClientRect(), t = pg.querySelector("#welcome")!.getBoundingClientRect();
+    return { narrow: pg.hasAttribute("data-cl-narrow"), w: fig.width / box.width, h: fig.height, below: t.top - fig.bottom, scroll: document.documentElement.scrollWidth };
+  });
+  check(ph.narrow && ph.w > 0.99 && ph.h === 220 && ph.below > 0 && ph.scroll <= 390, `on a phone: the photo on top, the words under it, nothing wider than the screen (${JSON.stringify(ph)})`);
+  // A photo that can't load leaves plain words, and the form still sends
+  blocked = true;
+  await desk.goto(add("/cover-blocked", formEmbedCode(origin, COVER, { mode: "inline" })));
+  await host(desk).locator("#welcome").waitFor();
+  await desk.waitForFunction(() => !document.querySelector("claritia-form")!.shadowRoot!.querySelector(".page")!.hasAttribute("data-cl-lay"), null, { timeout: 4000 });
+  await host(desk).locator("[data-cl-start]").click();
+  await host(desk).locator("input[name='email']").fill("lee@acme.com");
+  await host(desk).locator("button[type='submit']").click();
+  await host(desk).locator("#done").waitFor();
+  check(coverSent.length === 2 && coverSent[1]!.includes("lee@acme.com"), "a photo that can't load: plain words, and the form still sends");
+  blocked = false;
+  // An answer from an email goes past the welcome screen
+  const planId = covered.page!.ids.plan!;
+  await desk.goto(`${add("/cover-answer", formEmbedCode(origin, COVER, { mode: "inline" }))}?clr_a=${encodeURIComponent(`${planId}:ent`)}`);
+  await host(desk).locator("input[name='email']").waitFor({ state: "visible" });
+  check(!(await host(desk).locator("#welcome").isVisible()) && (await host(desk).locator("input[value='ent']").isChecked()), "an email's answer goes past the welcome screen to the form, picked");
 
   // Closed by Settings › Access: the form's own closed message in place of the form
   await desk.goto(add("/shut", formEmbedCode(origin, SHUT, { mode: "inline" })));

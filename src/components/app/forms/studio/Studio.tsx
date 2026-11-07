@@ -295,6 +295,21 @@ export function Studio({ sb, session, ws, navigate, formId = "", chatId = "", fr
         return r;
       },
       openForm: (id) => navRef.current("forms", id),
+      // Photos: the workspace's library (/api/assets), the same one the email builder uses.
+      pictures: async () => {
+        const res = await sb.from("design_assets").select("id, url, name, sizes").eq("workspace_id", ws.id).eq("kind", "image").order("created_at", { ascending: false }).limit(60);
+        return (must(res) ?? []) as { id: string; url: string; name: string; sizes: number[] }[];
+      },
+      uploadPicture: async (file) => {
+        const body = new FormData();
+        body.set("workspaceId", ws.id);
+        body.set("file", file);
+        const res = await fetch("/api/assets", { method: "POST", headers: { Authorization: `Bearer ${sessionRef.current.access_token}` }, body });
+        const data = (await res.json().catch(() => ({}))) as { url?: string; sizes?: number[]; error?: string };
+        if (!res.ok || !data.url) throw new Error(data.error ?? "Couldn't upload this photo. Try again.");
+        invalidate(`design_assets:${ws.id}`);
+        return { url: data.url, sizes: data.sizes ?? [] };
+      },
       people: async () => {
         const screen = await rt<Screen>(sessionRef.current, ws.id, "rt_screen").catch(() => null);
         return [...new Set((screen?.people ?? []).map((p) => (p as { name?: string | null; email?: string | null }).name || (p as { email?: string | null }).email || "").filter(Boolean))].slice(0, 200);

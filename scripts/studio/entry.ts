@@ -53,6 +53,11 @@ const api: StudioApi = {
     return { id: "77777777-7777-4777-8777-777777777777" };
   },
   openForm: (id) => void calls.push({ mode: "openForm", body: id }),
+  pictures: async () => [{ id: "p1", url: "https://media.test/storage/v1/object/public/assets/0192f3a1-0000-7000-8000-000000000001/0192f3a1-0000-7000-8000-0000000000aa.jpg", name: "Team photo", sizes: [640, 1280, 1920] }],
+  uploadPicture: async (f) => {
+    calls.push({ mode: "uploadPicture", body: f.name });
+    return { url: "https://media.test/storage/v1/object/public/assets/0192f3a1-0000-7000-8000-000000000001/0192f3a1-0000-7000-8000-0000000000bb.png", sizes: [] };
+  },
   chats: async () => Object.values(w.saved),
   chat: async (id) => w.saved[id] ?? null,
   fromForm: async () => null,
