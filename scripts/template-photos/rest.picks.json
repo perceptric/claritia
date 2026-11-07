@@ -1,0 +1,838 @@
+{
+ "consulting.workshop-registration:cover": {
+  "n": 1,
+  "alt": "A person at a pottery wheel in a workshop"
+ },
+ "real_estate.rental-application:cover": {
+  "n": 0,
+  "alt": "A bright, furnished bedroom"
+ },
+ "construction.service-request:cover": {
+  "n": 6,
+  "alt": "A hard hat, gloves and tools"
+ },
+ "healthcare.appointment:cover": {
+  "n": 1,
+  "alt": "A clean treatment room"
+ },
+ "wellness.new-patient:cover": {
+  "n": 3,
+  "alt": "A bright, quiet room with a table"
+ },
+ "fitness.salon-booking:cover": {
+  "n": 0,
+  "alt": "A pair of salon scissors"
+ },
+ "education.tutoring:cover": {
+  "n": 1,
+  "alt": "A child doing homework at a table"
+ },
+ "automotive.test-drive:cover": {
+  "n": 1,
+  "alt": "Inside a convertible car"
+ },
+ "automotive.service:cover": {
+  "n": 3,
+  "alt": "Close-up of a car engine"
+ },
+ "hospitality.group-booking:cover": {
+  "n": 3,
+  "alt": "Glasses of sparkling wine raised for a toast"
+ },
+ "hospitality.reservation:cover": {
+  "n": 4,
+  "alt": "A set table in a warm restaurant"
+ },
+ "events.meeting-request:cover": {
+  "n": 4,
+  "alt": "An empty meeting room with a long table"
+ },
+ "beauty.bridal-hair-makeup:cover": {
+  "n": 3,
+  "alt": "A bride in her wedding dress"
+ },
+ "beauty.spa-day:cover": {
+  "n": 4,
+  "alt": "Rolled towels, stones and candles at a spa"
+ },
+ "beauty.massage-appointment:cover": {
+  "n": 3,
+  "alt": "A woman relaxing during a massage"
+ },
+ "beauty.piercing-appointment:cover": {
+  "n": 5,
+  "alt": "An earring on an ear"
+ },
+ "pets.grooming:cover": {
+  "n": 0,
+  "alt": "A small dog being brushed"
+ },
+ "pets.boarding:cover": {
+  "n": 5,
+  "alt": "A dog playing with a frisbee"
+ },
+ "pets.pet-sitting:cover": {
+  "n": 0,
+  "alt": "A cat stretched out on the grass"
+ },
+ "hospitality.room-reservation:cover": {
+  "n": 7,
+  "alt": "A made bed in a bright hotel room"
+ },
+ "hospitality.rental-inquiry:cover": {
+  "n": 2,
+  "alt": "A small cabin in the woods"
+ },
+ "hospitality.guest-check-in:cover": {
+  "n": 2,
+  "alt": "A key in a front door"
+ },
+ "food.private-dining:cover": {
+  "n": 6,
+  "alt": "A long wooden table in a dining room"
+ },
+ "food.cooking-class:cover": {
+  "n": 0,
+  "alt": "Fresh ingredients ready for cooking"
+ },
+ "fitness.private-session:cover": {
+  "n": 5,
+  "alt": "A woman on a running track"
+ },
+ "education.test-prep-callback:cover": {
+  "n": 1,
+  "alt": "Glasses resting on a practice test"
+ },
+ "education.music-lessons:cover": {
+  "n": 5,
+  "alt": "Piano keys up close"
+ },
+ "sports.court-booking:cover": {
+  "n": 0,
+  "alt": "An empty tennis court"
+ },
+ "automotive.car-rental:cover": {
+  "n": 3,
+  "alt": "A car on a coastal road"
+ },
+ "events.party-rental:cover": {
+  "n": 0,
+  "alt": "Bright balloons"
+ },
+ "food.tasting-dinner:cover": {
+  "n": 1,
+  "alt": "Wine glasses on a dinner table"
+ },
+ "hospitality.wedding-room-block:cover": {
+  "n": 6,
+  "alt": "A hotel pool from above"
+ },
+ "construction.cleaning-appointment:cover": {
+  "n": 3,
+  "alt": "A mop cleaning a wooden floor"
+ },
+ "construction.hvac-emergency-callback:cover": {
+  "n": 0,
+  "alt": "A sunny room with a radiator under the window"
+ },
+ "construction.sewer-camera-inspection:cover": {
+  "n": 4,
+  "alt": "Pipes running along a wall"
+ },
+ "construction.roof-leak-callback:cover": {
+  "n": 5,
+  "alt": "The roofline of a house"
+ },
+ "construction.equipment-rental:cover": {
+  "n": 0,
+  "alt": "A riding mower on a lawn"
+ },
+ "construction.yard-cleanup:cover": {
+  "n": 2,
+  "alt": "Autumn leaves on the ground"
+ },
+ "construction.electrician-appointment:cover": {
+  "n": 1,
+  "alt": "An electrician at a breaker panel"
+ },
+ "construction.pest-inspection:cover": {
+  "n": 4,
+  "alt": "A window box on a blue house"
+ },
+ "construction.moving-truck-rental:cover": {
+  "n": 3,
+  "alt": "A classic red truck"
+ },
+ "fitness.workout-style-quiz:cover": {
+  "n": 7,
+  "alt": "A bright gym with equipment"
+ },
+ "hospitality.rental-deposit:cover": {
+  "n": 6,
+  "alt": "A deck with a view of the hills"
+ },
+ "real_estate.open-house:cover": {
+  "n": 6,
+  "alt": "A bright living room with a sofa"
+ },
+ "events.registration:cover": {
+  "n": 5,
+  "alt": "A crowd under stage lights"
+ },
+ "events.speaker-application:cover": {
+  "n": 1,
+  "alt": "A microphone on an empty stage"
+ },
+ "events.exhibitor:cover": {
+  "n": 4,
+  "alt": "A large hall with rows of seats"
+ },
+ "nonprofit.event-rsvp:cover": {
+  "n": 3,
+  "alt": "People gathered at an outdoor event"
+ },
+ "events.wedding-rsvp:cover": {
+  "n": 4,
+  "alt": "A couple sitting by a lake at sunset"
+ },
+ "events.wedding-show-exhibitor:cover": {
+  "n": 4,
+  "alt": "A wedding bouquet on the grass"
+ },
+ "events.conference-registration:cover": {
+  "n": 3,
+  "alt": "People looking out over a city from a high window"
+ },
+ "events.call-for-proposals:cover": {
+  "n": 0,
+  "alt": "A performer on a lit stage"
+ },
+ "events.speaker-details:cover": {
+  "n": 1,
+  "alt": "A lecture hall with a stage"
+ },
+ "events.virtual-summit:cover": {
+  "n": 0,
+  "alt": "A dog on a video call screen"
+ },
+ "personal.birthday-rsvp:cover": {
+  "n": 4,
+  "alt": "A birthday cake with candles"
+ },
+ "personal.baby-shower:cover": {
+  "n": 0,
+  "alt": "Flowers and a gift box"
+ },
+ "personal.bachelor-weekend:cover": {
+  "n": 4,
+  "alt": "Fireworks over the water"
+ },
+ "faith.retreat-registration:cover": {
+  "n": 6,
+  "alt": "A waterfall in a green forest"
+ },
+ "faith.craft-fair-vendor:cover": {
+  "n": 4,
+  "alt": "A ferris wheel at a fair"
+ },
+ "sports.tournament-registration:cover": {
+  "n": 3,
+  "alt": "An outdoor basketball court"
+ },
+ "sports.awards-banquet:cover": {
+  "n": 3,
+  "alt": "A gold trophy"
+ },
+ "education.career-day-speaker:cover": {
+  "n": 0,
+  "alt": "An apple on a stack of books"
+ },
+ "nonprofit.charity-run:cover": {
+  "n": 2,
+  "alt": "Runners in a road race"
+ },
+ "media.podcast-guest:cover": {
+  "n": 1,
+  "alt": "A studio microphone"
+ },
+ "saas.free-trial:cover": {
+  "n": 4,
+  "alt": "A laptop and coffee on a wooden desk"
+ },
+ "saas.advisory-board:cover": {
+  "n": 6,
+  "alt": "A man at a boardroom table"
+ },
+ "agency.freelancer-application:cover": {
+  "n": 7,
+  "alt": "Hands typing on a laptop"
+ },
+ "finance.loan-prequal:cover": {
+  "n": 6,
+  "alt": "A pile of old keys"
+ },
+ "finance.business-funding:cover": {
+  "n": 0,
+  "alt": "A laptop showing charts"
+ },
+ "fitness.membership:cover": {
+  "n": 7,
+  "alt": "A barbell on a wooden floor"
+ },
+ "education.application:cover": {
+  "n": 2,
+  "alt": "A college building across a green lawn"
+ },
+ "education.scholarship:cover": {
+  "n": 1,
+  "alt": "Graduates in caps and gowns"
+ },
+ "logistics.driver-application:cover": {
+  "n": 2,
+  "alt": "Hands on a steering wheel in the rain"
+ },
+ "events.volunteer:cover": {
+  "n": 0,
+  "alt": "A volunteer in an orange vest"
+ },
+ "nonprofit.grant-application:cover": {
+  "n": 4,
+  "alt": "A field of sunflowers"
+ },
+ "nonprofit.program-intake:cover": {
+  "n": 6,
+  "alt": "A city street lined with parked cars"
+ },
+ "hr.job-application:cover": {
+  "n": 2,
+  "alt": "Hands at a laptop with notes"
+ },
+ "nonprofit.grant-eligibility:cover": {
+  "n": 2,
+  "alt": "An open notebook and a pencil"
+ },
+ "media.contributor-application:cover": {
+  "n": 2,
+  "alt": "Someone writing in a notebook on the grass"
+ },
+ "education.childcare-enrollment:cover": {
+  "n": 3,
+  "alt": "Colorful wooden blocks"
+ },
+ "education.course-enrollment:cover": {
+  "n": 0,
+  "alt": "Rows of seats in a lecture hall"
+ },
+ "faith.membership:cover": {
+  "n": 6,
+  "alt": "A white church overlooking the sea"
+ },
+ "sports.club-membership:cover": {
+  "n": 0,
+  "alt": "A soccer field under lights at night"
+ },
+ "sports.coach-application:cover": {
+  "n": 3,
+  "alt": "A coach training with a client outdoors"
+ },
+ "sports.fee-assistance:cover": {
+  "n": 2,
+  "alt": "A soccer ball on the grass"
+ },
+ "government.vendor-permit:cover": {
+  "n": 0,
+  "alt": "A food truck lit up at night"
+ },
+ "government.small-business-grant:cover": {
+  "n": 1,
+  "alt": "An old shop doorway"
+ },
+ "security.guard-application:cover": {
+  "n": 4,
+  "alt": "A secure door with a keypad"
+ },
+ "agriculture.market-vendor:cover": {
+  "n": 5,
+  "alt": "Fruit piled up at a market stall"
+ },
+ "real_estate.commercial-lease:cover": {
+  "n": 4,
+  "alt": "Glass offices along a hallway"
+ },
+ "real_estate.coworking-membership:cover": {
+  "n": 3,
+  "alt": "A woman working at a laptop"
+ },
+ "real_estate.guarantor-form:cover": {
+  "n": 5,
+  "alt": "A modern apartment building"
+ },
+ "nonprofit.association-membership:cover": {
+  "n": 6,
+  "alt": "A group meeting around a table"
+ },
+ "nonprofit.community-grant:cover": {
+  "n": 2,
+  "alt": "Autumn trees in a neighborhood"
+ },
+ "hr.internship-application:cover": {
+  "n": 5,
+  "alt": "A young man reading by a window"
+ },
+ "sports.season-registration:cover": {
+  "n": 4,
+  "alt": "A baseball game on a sunny field"
+ },
+ "finance.mortgage-prequal:cover": {
+  "n": 5,
+  "alt": "A cozy living room with bookshelves"
+ },
+ "pets.adoption-application:cover": {
+  "n": 0,
+  "alt": "A brown puppy looking up"
+ },
+ "ecommerce.custom-order:cover": {
+  "n": 1,
+  "alt": "Colorful woven baskets"
+ },
+ "manufacturing.sample:cover": {
+  "n": 1,
+  "alt": "A fan of color swatches"
+ },
+ "hospitality.catering:cover": {
+  "n": 4,
+  "alt": "Small pastries on a platter"
+ },
+ "nonprofit.donation-pledge:cover": {
+  "n": 2,
+  "alt": "A yellow donations bucket"
+ },
+ "construction.cleaning-plan:cover": {
+  "n": 3,
+  "alt": "A tidy sofa with cushions"
+ },
+ "construction.lawn-care-plan:cover": {
+  "n": 6,
+  "alt": "Sneakers on a green lawn"
+ },
+ "construction.pest-control-plan:cover": {
+  "n": 6,
+  "alt": "Watering a garden with a hose"
+ },
+ "media.advertiser-brief:cover": {
+  "n": 3,
+  "alt": "Bright billboards in a city at night"
+ },
+ "food.custom-cake-order:cover": {
+  "n": 4,
+  "alt": "A slice of rainbow layer cake"
+ },
+ "food.catering-calculator:cover": {
+  "n": 2,
+  "alt": "A breakfast spread with fruit and juice"
+ },
+ "food.gift-card-order:cover": {
+  "n": 4,
+  "alt": "A greeting card and a pen"
+ },
+ "retail.layaway-plan:cover": {
+  "n": 1,
+  "alt": "Someone carrying shopping bags"
+ },
+ "retail.flower-subscription:cover": {
+  "n": 7,
+  "alt": "A bunch of colorful tulips"
+ },
+ "ecommerce.subscribe-and-save:cover": {
+  "n": 4,
+  "alt": "A cup of coffee with beans"
+ },
+ "ecommerce.custom-merch-order:cover": {
+  "n": 3,
+  "alt": "Folded shirts and sunglasses"
+ },
+ "nonprofit.student-sponsorship:cover": {
+  "n": 5,
+  "alt": "A sign that says Back to school"
+ },
+ "creative.wedding-photo-package:cover": {
+  "n": 0,
+  "alt": "A camera resting on a wedding dress"
+ },
+ "construction.carpet-cleaning-order:cover": {
+  "n": 4,
+  "alt": "A bright bedroom with a soft rug"
+ },
+ "construction.roofing-approval:cover": {
+  "n": 1,
+  "alt": "Rows of dark roof tiles"
+ },
+ "construction.mulch-stone-order:cover": {
+  "n": 4,
+  "alt": "A stone path through a garden"
+ },
+ "agriculture.csa-share:cover": {
+  "n": 0,
+  "alt": "A crate of fresh vegetables"
+ },
+ "sports.sponsor-signup:cover": {
+  "n": 3,
+  "alt": "A stadium lit up at night"
+ },
+ "faith.online-giving:cover": {
+  "n": 1,
+  "alt": "Rows of lit candles"
+ },
+ "media.subscription-signup:cover": {
+  "n": 6,
+  "alt": "A newspaper and a cup of coffee"
+ },
+ "events.sponsorship-builder:cover": {
+  "n": 7,
+  "alt": "A bright meeting room with white chairs"
+ },
+ "fitness.gym-membership:cover": {
+  "n": 6,
+  "alt": "Blue dumbbells on a wooden floor"
+ },
+ "education.summer-camp:cover": {
+  "n": 2,
+  "alt": "A child paddling a kayak on a lake"
+ },
+ "saas.onboarding-survey:cover": {
+  "n": 1,
+  "alt": "A laptop and a plant on a table"
+ },
+ "agency.client-intake:cover": {
+  "n": 2,
+  "alt": "Paints and brushes on a table"
+ },
+ "agency.creative-brief:cover": {
+  "n": 0,
+  "alt": "A tablet and a sheet of paper on a desk"
+ },
+ "consulting.discovery:cover": {
+  "n": 6,
+  "alt": "A flowchart drawn on a whiteboard"
+ },
+ "legal.new-client-intake:cover": {
+  "n": 4,
+  "alt": "An open book on a table"
+ },
+ "healthcare.patient-intake:cover": {
+  "n": 2,
+  "alt": "A treatment room with equipment"
+ },
+ "healthcare.telehealth:cover": {
+  "n": 0,
+  "alt": "Hands holding a tablet"
+ },
+ "fitness.pt-intake:cover": {
+  "n": 2,
+  "alt": "Sneakers and small dumbbells"
+ },
+ "creative.contract-signoff:cover": {
+  "n": 0,
+  "alt": "Someone signing a document"
+ },
+ "saas.account-closure:cover": {
+  "n": 0,
+  "alt": "A hand on a keyboard"
+ },
+ "coaching.new-client-intake:cover": {
+  "n": 0,
+  "alt": "Someone writing in a journal"
+ },
+ "architecture.design-brief:cover": {
+  "n": 3,
+  "alt": "A detailed floor plan drawing"
+ },
+ "wellness.dental-history:cover": {
+  "n": 0,
+  "alt": "A toothbrush with toothpaste"
+ },
+ "wellness.nutrition-intake:cover": {
+  "n": 2,
+  "alt": "Fresh fruit and herbs on a table"
+ },
+ "legal.immigration-intake:cover": {
+  "n": 0,
+  "alt": "Two passports on a table"
+ },
+ "wellness.therapy-intake:cover": {
+  "n": 4,
+  "alt": "A purple armchair"
+ },
+ "accounting.bookkeeping-onboarding:cover": {
+  "n": 7,
+  "alt": "A calculator in someone's hand"
+ },
+ "finance.risk-quiz:cover": {
+  "n": 0,
+  "alt": "A stock chart on a laptop screen"
+ },
+ "wellness.assessment:cover": {
+  "n": 4,
+  "alt": "Someone meditating at sunset"
+ },
+ "education.knowledge-check:cover": {
+  "n": 7,
+  "alt": "The pages of an open book"
+ },
+ "ecommerce.product-quiz:cover": {
+  "n": 2,
+  "alt": "Makeup products laid out on a table"
+ },
+ "it.security-quiz:cover": {
+  "n": 2,
+  "alt": "An old padlock on a green door"
+ },
+ "coaching.leadership-style-quiz:cover": {
+  "n": 6,
+  "alt": "A leader talking with a team"
+ },
+ "hr.culture-fit-quiz:cover": {
+  "n": 4,
+  "alt": "A team working around a table"
+ },
+ "personal.travel-style-quiz:cover": {
+  "n": 1,
+  "alt": "A stack of old suitcases"
+ },
+ "education.grammar-quiz:cover": {
+  "n": 4,
+  "alt": "A dictionary page up close"
+ },
+ "finance.money-basics-quiz:cover": {
+  "n": 2,
+  "alt": "A pile of coins"
+ },
+ "it.phishing-quiz:cover": {
+  "n": 0,
+  "alt": "A laptop glowing in a dark room"
+ },
+ "insurance.coverage-checkup:cover": {
+  "n": 3,
+  "alt": "Colorful umbrellas against the sky"
+ },
+ "consulting.ai-readiness:cover": {
+  "n": 0,
+  "alt": "A small white robot"
+ },
+ "ecommerce.mattress-finder:cover": {
+  "n": 2,
+  "alt": "A bright bedroom with a made bed"
+ },
+ "retail.running-shoe-finder:cover": {
+  "n": 2,
+  "alt": "A runner's feet on an open road"
+ },
+ "beauty.skin-type-quiz:cover": {
+  "n": 6,
+  "alt": "A woman applying skincare"
+ },
+ "food.coffee-finder:cover": {
+  "n": 7,
+  "alt": "A cup of coffee on a cozy table"
+ },
+ "pets.breed-finder:cover": {
+  "n": 4,
+  "alt": "A golden dog yawning"
+ },
+ "solar.eligibility-check:cover": {
+  "n": 1,
+  "alt": "Solar panels in a sunny field"
+ },
+ "fitness.fitness-assessment:cover": {
+  "n": 0,
+  "alt": "People running across a bridge"
+ },
+ "general.customer-feedback:cover": {
+  "n": 7,
+  "alt": "A latte on a cafe table"
+ },
+ "general.nps:cover": {
+  "n": 2,
+  "alt": "A woman with a big smile"
+ },
+ "general.testimonial-request:cover": {
+  "n": 3,
+  "alt": "A bright cafe interior"
+ },
+ "general.product-feedback:cover": {
+  "n": 7,
+  "alt": "Small products laid out on a pink table"
+ },
+ "healthcare.patient-feedback:cover": {
+  "n": 0,
+  "alt": "A bright hospital corridor"
+ },
+ "education.course-feedback:cover": {
+  "n": 3,
+  "alt": "Pages of open books"
+ },
+ "ecommerce.review:cover": {
+  "n": 7,
+  "alt": "A small wrapped package"
+ },
+ "hospitality.guest-feedback:cover": {
+  "n": 0,
+  "alt": "A quiet lobby with a bench"
+ },
+ "events.post-event:cover": {
+  "n": 2,
+  "alt": "Stage lights at a concert"
+ },
+ "ecommerce.post-purchase:cover": {
+  "n": 3,
+  "alt": "A woman carrying shopping bags"
+ },
+ "hospitality.tour-review:cover": {
+  "n": 5,
+  "alt": "A road through a tall forest"
+ },
+ "education.parent-survey:cover": {
+  "n": 1,
+  "alt": "A school sports field"
+ },
+ "retail.shopper-survey:cover": {
+  "n": 6,
+  "alt": "A shopper browsing a bookstore"
+ },
+ "food.menu-vote:cover": {
+  "n": 2,
+  "alt": "A cafe menu on a chalkboard"
+ },
+ "construction.satisfaction:cover": {
+  "n": 0,
+  "alt": "A living room with yellow chairs"
+ },
+ "construction.roofing-review:cover": {
+  "n": 7,
+  "alt": "A metal roof against a blue sky"
+ },
+ "construction.moving-review:cover": {
+  "n": 0,
+  "alt": "Someone packing a moving box"
+ },
+ "general.website-feedback:cover": {
+  "n": 3,
+  "alt": "Someone pointing at a website on a big screen"
+ },
+ "media.reader-survey:cover": {
+  "n": 4,
+  "alt": "An open book beside a coffee"
+ },
+ "real_estate.showing-request:cover": {
+  "n": 4,
+  "alt": "A brick house with wooden doors"
+ },
+ "fitness.trial-class:cover": {
+  "n": 1,
+  "alt": "A small yoga class"
+ },
+ "pets.vet-appointment:cover": {
+  "n": 2,
+  "alt": "A pug resting on a soft bed"
+ },
+ "fitness.class-pack:cover": {
+  "n": 3,
+  "alt": "People out for a run"
+ },
+ "creative.photo-session:cover": {
+  "n": 7,
+  "alt": "Someone taking a photo with a camera"
+ },
+ "construction.hvac-tune-up:cover": {
+  "n": 2,
+  "alt": "Air handling units on a roof"
+ },
+ "construction.plumbing-appointment:cover": {
+  "n": 4,
+  "alt": "A sink and faucet"
+ },
+ "consulting.speaker-request:cover": {
+  "n": 0,
+  "alt": "An audience facing stage lights"
+ },
+ "personal.reunion:cover": {
+  "n": 4,
+  "alt": "A picnic basket on the grass"
+ },
+ "education.career-fair-employer:cover": {
+  "n": 3,
+  "alt": "Two chairs ready for an interview"
+ },
+ "nonprofit.gala-tickets:cover": {
+  "n": 0,
+  "alt": "A chandelier in a grand hall"
+ },
+ "events.event-waiver:cover": {
+  "n": 0,
+  "alt": "A crowd at an outdoor festival"
+ },
+ "saas.beta-program:cover": {
+  "n": 3,
+  "alt": "App icons on a phone screen"
+ },
+ "nonprofit.volunteer:cover": {
+  "n": 6,
+  "alt": "A woman reading to a child"
+ },
+ "construction.hvac-maintenance-plan:cover": {
+  "n": 0,
+  "alt": "Ventilation grilles on a wall"
+ },
+ "nonprofit.online-donation:cover": {
+  "n": 6,
+  "alt": "Hands making a heart shape"
+ },
+ "nonprofit.gala-sponsorship:cover": {
+  "n": 0,
+  "alt": "Two glasses raised in a toast"
+ },
+ "general.invoice-payment:cover": {
+  "n": 5,
+  "alt": "A hand holding a payment card"
+ },
+ "accounting.tax-intake:cover": {
+  "n": 2,
+  "alt": "Red binders on a shelf"
+ },
+ "real_estate.seller-intake:cover": {
+  "n": 0,
+  "alt": "A porch looking out over the hills"
+ },
+ "it.cloud-migration:cover": {
+  "n": 0,
+  "alt": "A network cable plugged in"
+ },
+ "architecture.project-intake:cover": {
+  "n": 6,
+  "alt": "Notes on a clipboard"
+ },
+ "healthcare.pediatric-intake:cover": {
+  "n": 1,
+  "alt": "Colored pencils in a row"
+ },
+ "healthcare.physical-therapy-intake:cover": {
+  "n": 0,
+  "alt": "Someone stretching outdoors"
+ },
+ "wellness.chiropractic-intake:cover": {
+  "n": 0,
+  "alt": "Folded towels on a shelf"
+ },
+ "education.math-placement-quiz:cover": {
+  "n": 0,
+  "alt": "A blank chalkboard"
+ },
+ "accounting.rd-credit-check:cover": {
+  "n": 7,
+  "alt": "A model of a DNA strand"
+ },
+ "sports.season-survey:cover": {
+  "n": 1,
+  "alt": "A sports field on a clear day"
+ }
+}

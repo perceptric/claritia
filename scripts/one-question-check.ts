@@ -44,12 +44,18 @@ const p = await b.newPage({ viewport: { width: 1100, height: 900 } });
 const errors: string[] = [];
 p.on("pageerror", (e) => errors.push(e.message));
 for (let i = 0; i < ids.length; i++) {
-  await p.goto(`http://localhost:${port}/0000000${i}-0000-4000-8000-000000000000`);
+  await p.goto(`http://localhost:${port}/${fid(i)}`);
   const f = p.locator("claritia-form");
   await f.locator("[data-cl-one-step]").first().waitFor({ state: "attached" });
   let screens = 0;
   for (let guard = 0; guard < 80; guard++) {
     if (await f.locator("[data-cl-thanks]:not([hidden])").count()) break;
+    // A welcome screen first: Start.
+    if (await f.locator("[data-cl-cover]:not([hidden]) [data-cl-start]").isVisible()) {
+      await f.locator("[data-cl-start]").click();
+      await p.waitForTimeout(300);
+      continue;
+    }
     const s = f.locator("[data-cl-one-step]:not([hidden])").first();
     if (!(await s.count())) { await p.waitForTimeout(200); continue; }
     screens++;
