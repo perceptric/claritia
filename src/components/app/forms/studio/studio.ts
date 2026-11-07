@@ -2020,7 +2020,14 @@ ${CAL_CSS}
     const opts = String(bl.getAttribute("data-cl-options") || "").split("|").filter(Boolean).map((x) => (x.includes("::") ? x.slice(x.indexOf("::") + 2) : x));
     const imgs = String(bl.getAttribute("data-cl-images") || "").split("|");
     const S2 = sec("Pictures");
-    opts.forEach((o, i) => S2.append(textRow(o, imgs[i], (v) => { if (v && !/^https:\/\/\S+$/.test(v)) return toast("Use an address that starts with https://"); const next = opts.map((_, k) => (k === i ? v : imgs[k] || "")); bl.setAttribute("data-cl-images", next.join("|")); }, "https://")));
+    const setImg = (i, v) => { snap(); bl.setAttribute("data-cl-images", opts.map((_, k) => (k === i ? v : imgs[k] || "")).join("|")); commit(); panel(); };
+    opts.forEach((o, i) => {
+      const img = imgs[i] || "";
+      // A library photo: its 640 wide copy, since a card is small.
+      const pickBtn = h("button", { class: "pill", "aria-expanded": String(S.photoFor === i), text: img ? "Change" : "Add photo", onclick: () => { S.photoFor = S.photoFor === i ? null : i; panel(); } });
+      S2.append(h("div", { class: "row2" }, h("span", { class: "lbl", text: o }), h("div", { class: "phacts" }, img ? h("img", { src: img, alt: "", style: "width:40px;height:30px;object-fit:cover;border-radius:4px" }) : null, pickBtn, img ? h("button", { class: "ib", "aria-label": `Remove the photo for ${o}`, "data-tip": "Remove photo", html: SVG(P.del, 13), onclick: () => setImg(i, "") }) : null)));
+      if (S.photoFor === i && api.pictures) S2.append(photoGrid(img, (pic) => { S.photoFor = null; setImg(i, (pic.sizes || []).includes(640) ? sizedUrl(pic.url, 640) : pic.url); }));
+    });
     p.append(S2);
   }
   /** Product picker: each product's name and price. */
@@ -2236,6 +2243,21 @@ ${CAL_CSS}
     } }))));
     p.append(W);
   }
+  /** The library's photos to pick from, an upload first. */
+  function photoGrid(current, choose) {
+    const grid = h("div", { class: "phgrid", role: "group", "aria-label": "Photos" });
+    const file = h("input", { type: "file", accept: "image/png,image/jpeg,image/webp,image/gif", hidden: true });
+    const up = h("button", { "aria-label": "Upload a photo", "data-tip": "Upload a photo", html: SVG(P.up, 16), onclick: () => file.click() });
+    file.addEventListener("change", async () => {
+      const f = file.files?.[0]; if (!f) return;
+      up.disabled = true;
+      try { const pic = await api.uploadPicture(f); if (alive) choose(pic); } catch (e) { toast(e?.message || "Couldn't upload this photo. Try again."); up.disabled = false; }
+    });
+    grid.append(up, file);
+    const small = (pic) => ((pic.sizes || []).includes(640) ? sizedUrl(pic.url, 640) : pic.url);
+    api.pictures().then((list) => { if (!alive) return; for (const pic of list) grid.append(h("button", { "aria-label": pic.name || "Photo", "aria-pressed": String(pic.url === current || small(pic) === current), onclick: () => choose(pic) }, h("img", { src: small(pic), alt: "", loading: "lazy" }))); }, () => toast("Couldn't load your photos. Try again."));
+    return grid;
+  }
   /** Photo: the screen in view's photo from the library or an upload, where it goes, the spot kept in view, its words. */
   function photoSec(p) {
     const el = screenEl();
@@ -2248,20 +2270,7 @@ ${CAL_CSS}
     const acts = h("div", { class: "phacts" }, h("button", { class: "pill", "aria-expanded": String(!!S.photoLib), text: url ? "Change photo" : "Add photo", onclick: () => { S.photoLib = !S.photoLib; panel(); } }));
     if (url) acts.append(h("button", { class: "ib", "data-tip": "Remove photo", "aria-label": "Remove photo", html: SVG(P.del, 14), onclick: () => set([["data-cl-media", ""], ["data-cl-sizes", ""], ["data-cl-layout", ""], ["data-cl-focus", ""], ["data-cl-alt", ""]]) }));
     Ph.append(acts);
-    if (S.photoLib) {
-      const grid = h("div", { class: "phgrid", role: "group", "aria-label": "Photos" });
-      const file = h("input", { type: "file", accept: "image/png,image/jpeg,image/webp,image/gif", hidden: true });
-      const choose = (pic) => { S.photoLib = false; set([["data-cl-media", pic.url], ["data-cl-sizes", (pic.sizes || []).join(",")], ["data-cl-layout", el.getAttribute("data-cl-layout") || (page ? "top" : el.hasAttribute("data-cl-cover") ? "left" : "behind")]]); };
-      file.addEventListener("change", async () => {
-        const f = file.files?.[0]; if (!f) return;
-        up.disabled = true; up.setAttribute("aria-label", "Uploading");
-        try { const pic = await api.uploadPicture(f); if (alive) choose(pic); } catch (e) { toast(e?.message || "Couldn't upload this photo. Try again."); up.disabled = false; }
-      });
-      const up = h("button", { "aria-label": "Upload a photo", "data-tip": "Upload a photo", html: SVG(P.up, 16), onclick: () => file.click() });
-      grid.append(up, file);
-      Ph.append(grid);
-      api.pictures().then((list) => { if (!alive) return; for (const pic of list) grid.append(h("button", { "aria-label": pic.name || "Photo", "aria-pressed": String(pic.url === url), onclick: () => choose(pic) }, h("img", { src: (pic.sizes || []).includes(640) ? sizedUrl(pic.url, 640) : pic.url, alt: "", loading: "lazy" }))); }, () => toast("Couldn't load your photos. Try again."));
-    }
+    if (S.photoLib) Ph.append(photoGrid(url, (pic) => { S.photoLib = false; set([["data-cl-media", pic.url], ["data-cl-sizes", (pic.sizes || []).join(",")], ["data-cl-layout", el.getAttribute("data-cl-layout") || (page ? "top" : el.hasAttribute("data-cl-cover") ? "left" : "behind")]]); }));
     if (url) {
       const lay = el.getAttribute("data-cl-layout") || "";
       const opts = [["left", "Left"], ["right", "Right"], ["top", "Top"], ...(page ? [] : [["behind", "Behind"]])];
