@@ -7,7 +7,8 @@
    "kind": "cover",
    "query": "friendly receptionist office desk",
    "layout": "right",
-   "noFaces": false
+   "noFaces": false,
+   "short": "reception"
   },
   {
    "slot": "general.newsletter:cover",
@@ -15,7 +16,8 @@
    "kind": "cover",
    "query": "person reading laptop coffee",
    "layout": "left",
-   "noFaces": false
+   "noFaces": false,
+   "short": "reading"
   },
   {
    "slot": "general.book-a-call:cover",
@@ -23,7 +25,8 @@
    "kind": "cover",
    "query": "woman phone call laptop office",
    "layout": "right",
-   "noFaces": false
+   "noFaces": false,
+   "short": "phone call"
   },
   {
    "slot": "general.waitlist:cover",
@@ -31,7 +34,8 @@
    "kind": "cover",
    "query": "people waiting line city",
    "layout": "right",
-   "noFaces": false
+   "noFaces": false,
+   "short": "crowd"
   },
   {
    "slot": "general.referral:cover",
@@ -39,7 +43,8 @@
    "kind": "cover",
    "query": "two friends talking coffee shop",
    "layout": "left",
-   "noFaces": false
+   "noFaces": false,
+   "short": "friends"
   },
   {
    "slot": "general.partner-application:cover",
@@ -47,7 +52,8 @@
    "kind": "cover",
    "query": "business partners handshake office",
    "layout": "right",
-   "noFaces": false
+   "noFaces": false,
+   "short": "handshake"
   },
   {
    "slot": "general.quote-request:cover",
@@ -55,7 +61,8 @@
    "kind": "cover",
    "query": "small business owner laptop workshop",
    "layout": "right",
-   "noFaces": false
+   "noFaces": false,
+   "short": "workshop"
   },
   {
    "slot": "general.callback-request:cover",
@@ -63,7 +70,8 @@
    "kind": "cover",
    "query": "customer service phone headset smiling",
    "layout": "left",
-   "noFaces": false
+   "noFaces": false,
+   "short": "headset"
   },
   {
    "slot": "general.email-preferences:cover",
@@ -71,7 +79,8 @@
    "kind": "cover",
    "query": "inbox laptop morning coffee",
    "layout": "right",
-   "noFaces": false
+   "noFaces": false,
+   "short": "email"
   },
   {
    "slot": "general.content-download:cover",
@@ -79,7 +88,8 @@
    "kind": "cover",
    "query": "person reading report tablet",
    "layout": "right",
-   "noFaces": false
+   "noFaces": false,
+   "short": "tablet"
   },
   {
    "slot": "saas.demo-request:cover",
@@ -87,7 +97,8 @@
    "kind": "cover",
    "query": "software team laptop meeting",
    "layout": "left",
-   "noFaces": false
+   "noFaces": false,
+   "short": "laptop"
   },
   {
    "slot": "saas.contact-sales:cover",
@@ -95,7 +106,8 @@
    "kind": "cover",
    "query": "sales meeting office laptop",
    "layout": "right",
-   "noFaces": false
+   "noFaces": false,
+   "short": "meeting"
   },
   {
    "slot": "saas.pricing-lead:cover",
@@ -103,7 +115,8 @@
    "kind": "cover",
    "query": "startup team planning whiteboard",
    "layout": "right",
-   "noFaces": false
+   "noFaces": false,
+   "short": "whiteboard"
   },
   {
    "slot": "agency.project-inquiry:cover",
@@ -111,7 +124,8 @@
    "kind": "cover",
    "query": "creative agency studio team",
    "layout": "left",
-   "noFaces": false
+   "noFaces": false,
+   "short": "studio"
   },
   {
    "slot": "agency.seo-audit:cover",
@@ -119,7 +133,8 @@
    "kind": "cover",
    "query": "analytics dashboard laptop desk",
    "layout": "right",
-   "noFaces": false
+   "noFaces": false,
+   "short": "analytics"
   },
   {
    "slot": "agency.website-brief:cover",
@@ -127,7 +142,8 @@
    "kind": "cover",
    "query": "web designer sketching wireframes",
    "layout": "right",
-   "noFaces": false
+   "noFaces": false,
+   "short": "sketch"
   },
   {
    "slot": "agency.marketing-audit:cover",
@@ -135,7 +151,8 @@
    "kind": "cover",
    "query": "marketing team strategy meeting",
    "layout": "left",
-   "noFaces": false
+   "noFaces": false,
+   "short": "strategy"
   },
   {
    "slot": "consulting.consultation:cover",
@@ -143,7 +160,8 @@
    "kind": "cover",
    "query": "consultant meeting client office",
    "layout": "right",
-   "noFaces": false
+   "noFaces": false,
+   "short": "consultant"
   },
   {
    "slot": "consulting.proposal-request:cover",
@@ -151,7 +169,8 @@
    "kind": "cover",
    "query": "business documents meeting table",
    "layout": "right",
-   "noFaces": false
+   "noFaces": false,
+   "short": "documents"
   },
   {
    "slot": "legal.case-evaluation:cover",
@@ -159,7 +178,8 @@
    "kind": "cover",
    "query": "lawyer office books desk",
    "layout": "left",
-   "noFaces": true
+   "noFaces": true,
+   "short": "books"
   },
   {
    "slot": "legal.consultation-booking:cover",
@@ -167,7 +187,8 @@
    "kind": "cover",
    "query": "law office meeting room",
    "layout": "right",
-   "noFaces": true
+   "noFaces": true,
+   "short": "office"
   },
   {
    "slot": "accounting.bookkeeping-quote:cover",
@@ -175,7 +196,8 @@
    "kind": "cover",
    "query": "accountant calculator paperwork",
    "layout": "right",
-   "noFaces": true
+   "noFaces": true,
+   "short": "calculator"
   },
   {
    "slot": "accounting.new-business:cover",
@@ -183,7 +205,8 @@
    "kind": "cover",
    "query": "new shop owner open sign",
    "layout": "left",
-   "noFaces": false
+   "noFaces": false,
+   "short": "shop"
   },
   {
    "slot": "finance.review-request:cover",
@@ -191,7 +214,8 @@
    "kind": "cover",
    "query": "financial advisor meeting couple",
    "layout": "right",
-   "noFaces": true
+   "noFaces": true,
+   "short": "finance"
   },
   {
    "slot": "finance.retirement:cover",
@@ -199,7 +223,8 @@
    "kind": "cover",
    "query": "retired couple walking beach",
    "layout": "right",
-   "noFaces": true
+   "noFaces": true,
+   "short": "beach"
   },
   {
    "slot": "insurance.quote:cover",
@@ -207,7 +232,8 @@
    "kind": "cover",
    "query": "family home front porch",
    "layout": "left",
-   "noFaces": false
+   "noFaces": false,
+   "short": "house"
   },
   {
    "slot": "insurance.business-intake:cover",
@@ -215,7 +241,8 @@
    "kind": "cover",
    "query": "small business storefront owner",
    "layout": "right",
-   "noFaces": false
+   "noFaces": false,
+   "short": "storefront"
   },
   {
    "slot": "insurance.policy-review:cover",
@@ -223,7 +250,8 @@
    "kind": "cover",
    "query": "couple reviewing documents kitchen table",
    "layout": "right",
-   "noFaces": true
+   "noFaces": true,
+   "short": "paperwork"
   },
   {
    "slot": "real_estate.home-valuation:cover",
@@ -231,7 +259,8 @@
    "kind": "cover",
    "query": "house exterior front yard",
    "layout": "left",
-   "noFaces": false
+   "noFaces": false,
+   "short": "house"
   },
   {
    "slot": "real_estate.buyer-inquiry:cover",
@@ -239,7 +268,8 @@
    "kind": "cover",
    "query": "couple house keys new home",
    "layout": "right",
-   "noFaces": false
+   "noFaces": false,
+   "short": "keys"
   },
   {
    "slot": "real_estate.commercial-space:cover",
@@ -247,7 +277,8 @@
    "kind": "cover",
    "query": "empty modern office space",
    "layout": "right",
-   "noFaces": false
+   "noFaces": false,
+   "short": "office"
   },
   {
    "slot": "construction.free-estimate:cover",
@@ -255,7 +286,8 @@
    "kind": "cover",
    "query": "contractor measuring renovation",
    "layout": "left",
-   "noFaces": false
+   "noFaces": false,
+   "short": "construction"
   },
   {
    "slot": "construction.remodel-planner:cover",
@@ -263,7 +295,8 @@
    "kind": "cover",
    "query": "bright renovated living room",
    "layout": "right",
-   "noFaces": false
+   "noFaces": false,
+   "short": "living room"
   },
   {
    "slot": "solar.savings-check:cover",
@@ -271,7 +304,8 @@
    "kind": "cover",
    "query": "solar panels house roof",
    "layout": "right",
-   "noFaces": false
+   "noFaces": false,
+   "short": "solar"
   },
   {
    "slot": "solar.commercial-audit:cover",
@@ -279,7 +313,8 @@
    "kind": "cover",
    "query": "commercial building solar roof",
    "layout": "left",
-   "noFaces": false
+   "noFaces": false,
+   "short": "solar"
   },
   {
    "slot": "solar.ev-charger:cover",
@@ -287,7 +322,8 @@
    "kind": "cover",
    "query": "electric car charging home garage",
    "layout": "right",
-   "noFaces": false
+   "noFaces": false,
+   "short": "electric car"
   },
   {
    "slot": "healthcare.provider-referral:cover",
@@ -295,7 +331,8 @@
    "kind": "cover",
    "query": "doctor clinic consultation",
    "layout": "right",
-   "noFaces": true
+   "noFaces": true,
+   "short": "clinic"
   },
   {
    "slot": "wellness.therapy-consultation:cover",
@@ -303,7 +340,8 @@
    "kind": "cover",
    "query": "calm therapy room chairs",
    "layout": "left",
-   "noFaces": true
+   "noFaces": true,
+   "short": "armchair"
   },
   {
    "slot": "education.course-inquiry:cover",
@@ -311,7 +349,8 @@
    "kind": "cover",
    "query": "students campus library",
    "layout": "right",
-   "noFaces": false
+   "noFaces": false,
+   "short": "library"
   },
   {
    "slot": "education.corporate-training:cover",
@@ -319,7 +358,8 @@
    "kind": "cover",
    "query": "corporate training workshop room",
    "layout": "right",
-   "noFaces": false
+   "noFaces": false,
+   "short": "workshop"
   },
   {
    "slot": "ecommerce.wholesale:cover",
@@ -327,7 +367,8 @@
    "kind": "cover",
    "query": "boxes warehouse shelves products",
    "layout": "left",
-   "noFaces": false
+   "noFaces": false,
+   "short": "warehouse"
   },
   {
    "slot": "ecommerce.back-in-stock:cover",
@@ -335,7 +376,8 @@
    "kind": "cover",
    "query": "shop shelves products neat",
    "layout": "right",
-   "noFaces": false
+   "noFaces": false,
+   "short": "shelves"
   },
   {
    "slot": "ecommerce.influencer:cover",
@@ -343,7 +385,8 @@
    "kind": "cover",
    "query": "creator filming phone ring light",
    "layout": "right",
-   "noFaces": false
+   "noFaces": false,
+   "short": "camera"
   },
   {
    "slot": "manufacturing.rfq:cover",
@@ -351,7 +394,8 @@
    "kind": "cover",
    "query": "factory machining metal parts",
    "layout": "left",
-   "noFaces": false
+   "noFaces": false,
+   "short": "factory"
   },
   {
    "slot": "manufacturing.distributor:cover",
@@ -359,7 +403,8 @@
    "kind": "cover",
    "query": "distribution warehouse forklift",
    "layout": "right",
-   "noFaces": false
+   "noFaces": false,
+   "short": "forklift"
   },
   {
    "slot": "logistics.freight-quote:cover",
@@ -367,7 +412,8 @@
    "kind": "cover",
    "query": "truck highway freight",
    "layout": "right",
-   "noFaces": false
+   "noFaces": false,
+   "short": "truck"
   },
   {
    "slot": "logistics.warehouse:cover",
@@ -375,7 +421,8 @@
    "kind": "cover",
    "query": "warehouse aisles pallets",
    "layout": "left",
-   "noFaces": false
+   "noFaces": false,
+   "short": "warehouse"
   },
   {
    "slot": "automotive.trade-in:cover",
@@ -383,7 +430,8 @@
    "kind": "cover",
    "query": "car dealership lot",
    "layout": "right",
-   "noFaces": false
+   "noFaces": false,
+   "short": "car"
   },
   {
    "slot": "automotive.fleet:cover",
@@ -391,7 +439,8 @@
    "kind": "cover",
    "query": "fleet vans parked row",
    "layout": "right",
-   "noFaces": false
+   "noFaces": false,
+   "short": "van"
   },
   {
    "slot": "hospitality.travel-inquiry:cover",
@@ -399,7 +448,8 @@
    "kind": "cover",
    "query": "travel coastline village",
    "layout": "left",
-   "noFaces": false
+   "noFaces": false,
+   "short": "travel"
   },
   {
    "slot": "events.sponsor-inquiry:cover",
@@ -407,7 +457,8 @@
    "kind": "cover",
    "query": "conference stage audience",
    "layout": "right",
-   "noFaces": false
+   "noFaces": false,
+   "short": "conference"
   },
   {
    "slot": "it.assessment:cover",
@@ -415,7 +466,8 @@
    "kind": "cover",
    "query": "it technician server room",
    "layout": "right",
-   "noFaces": false
+   "noFaces": false,
+   "short": "server"
   },
   {
    "slot": "beauty.color-consultation:cover",
@@ -423,7 +475,8 @@
    "kind": "cover",
    "query": "hair salon colorist",
    "layout": "left",
-   "noFaces": false
+   "noFaces": false,
+   "short": "salon"
   },
   {
    "slot": "beauty.tattoo-consultation:cover",
@@ -431,7 +484,8 @@
    "kind": "cover",
    "query": "tattoo studio artist drawing",
    "layout": "right",
-   "noFaces": false
+   "noFaces": false,
+   "short": "tattoo"
   },
   {
    "slot": "hospitality.group-rate-callback:cover",
@@ -439,7 +493,8 @@
    "kind": "cover",
    "query": "hotel lobby group",
    "layout": "right",
-   "noFaces": false
+   "noFaces": false,
+   "short": "hotel"
   },
   {
    "slot": "fitness.trainer-callback:cover",
@@ -447,7 +502,8 @@
    "kind": "cover",
    "query": "personal trainer gym client",
    "layout": "left",
-   "noFaces": false
+   "noFaces": false,
+   "short": "gym"
   },
   {
    "slot": "events.venue-tour:cover",
@@ -455,7 +511,8 @@
    "kind": "cover",
    "query": "event venue ballroom empty",
    "layout": "right",
-   "noFaces": false
+   "noFaces": false,
+   "short": "ballroom"
   },
   {
    "slot": "finance.advisor-callback:cover",
@@ -463,7 +520,8 @@
    "kind": "cover",
    "query": "financial advisor phone office",
    "layout": "right",
-   "noFaces": true
+   "noFaces": true,
+   "short": "desk"
   },
   {
    "slot": "events.wedding-planner-inquiry:cover",
@@ -471,7 +529,8 @@
    "kind": "cover",
    "query": "wedding table flowers",
    "layout": "left",
-   "noFaces": false
+   "noFaces": false,
+   "short": "wedding"
   },
   {
    "slot": "events.venue-inquiry:cover",
@@ -479,7 +538,8 @@
    "kind": "cover",
    "query": "garden venue string lights",
    "layout": "right",
-   "noFaces": false
+   "noFaces": false,
+   "short": "string lights"
   },
   {
    "slot": "education.info-session:cover",
@@ -487,7 +547,8 @@
    "kind": "cover",
    "query": "student laptop online class home",
    "layout": "right",
-   "noFaces": false
+   "noFaces": false,
+   "short": "student"
   },
   {
    "slot": "saas.product-webinar:cover",
@@ -495,7 +556,8 @@
    "kind": "cover",
    "query": "webinar presenter laptop screen",
    "layout": "left",
-   "noFaces": false
+   "noFaces": false,
+   "short": "presentation"
   },
   {
    "slot": "coaching.masterclass:cover",
@@ -503,7 +565,8 @@
    "kind": "cover",
    "query": "woman taking notes online class",
    "layout": "right",
-   "noFaces": false
+   "noFaces": false,
+   "short": "notebook"
   },
   {
    "slot": "construction.house-cleaning-price:cover",
@@ -511,7 +574,8 @@
    "kind": "cover",
    "query": "clean bright kitchen",
    "layout": "right",
-   "noFaces": false
+   "noFaces": false,
+   "short": "kitchen"
   },
   {
    "slot": "construction.office-cleaning-quote:cover",
@@ -519,7 +583,8 @@
    "kind": "cover",
    "query": "clean modern office",
    "layout": "left",
-   "noFaces": false
+   "noFaces": false,
+   "short": "office"
   },
   {
    "slot": "construction.hvac-replacement-estimate:cover",
@@ -527,7 +592,8 @@
    "kind": "cover",
    "query": "hvac technician air conditioner",
    "layout": "right",
-   "noFaces": false
+   "noFaces": false,
+   "short": "air conditioner"
   },
   {
    "slot": "construction.water-heater-quote:cover",
@@ -535,7 +601,8 @@
    "kind": "cover",
    "query": "plumber utility room",
    "layout": "right",
-   "noFaces": false
+   "noFaces": false,
+   "short": "plumbing"
   },
   {
    "slot": "construction.roof-inspection:cover",
@@ -543,7 +610,8 @@
    "kind": "cover",
    "query": "roofer roof inspection",
    "layout": "left",
-   "noFaces": false
+   "noFaces": false,
+   "short": "roof"
   },
   {
    "slot": "construction.roof-cost-calculator:cover",
@@ -551,7 +619,8 @@
    "kind": "cover",
    "query": "new roof shingles house",
    "layout": "right",
-   "noFaces": false
+   "noFaces": false,
+   "short": "roof"
   },
   {
    "slot": "construction.landscape-design:cover",
@@ -559,7 +628,8 @@
    "kind": "cover",
    "query": "landscaped backyard garden",
    "layout": "right",
-   "noFaces": false
+   "noFaces": false,
+   "short": "garden"
   },
   {
    "slot": "construction.panel-upgrade-estimate:cover",
@@ -567,7 +637,8 @@
    "kind": "cover",
    "query": "electrician electrical panel",
    "layout": "left",
-   "noFaces": false
+   "noFaces": false,
+   "short": "electrician"
   },
   {
    "slot": "construction.lighting-install-price:cover",
@@ -575,7 +646,8 @@
    "kind": "cover",
    "query": "pendant lights modern kitchen",
    "layout": "right",
-   "noFaces": false
+   "noFaces": false,
+   "short": "lamp"
   },
   {
    "slot": "construction.moving-cost-calculator:cover",
@@ -583,7 +655,8 @@
    "kind": "cover",
    "query": "moving boxes new apartment",
    "layout": "right",
-   "noFaces": false
+   "noFaces": false,
+   "short": "boxes"
   },
   {
    "slot": "general.email-digest:cover",
@@ -591,7 +664,8 @@
    "kind": "cover",
    "query": "person reading newsletter phone",
    "layout": "left",
-   "noFaces": false
+   "noFaces": false,
+   "short": "phone"
   },
   {
    "slot": "general.report-download:cover",
@@ -599,7 +673,8 @@
    "kind": "cover",
    "query": "business report charts desk",
    "layout": "right",
-   "noFaces": false
+   "noFaces": false,
+   "short": "charts"
   },
   {
    "slot": "saas.enterprise-demo:cover",
@@ -607,7 +682,8 @@
    "kind": "cover",
    "query": "enterprise team boardroom presentation",
    "layout": "right",
-   "noFaces": false
+   "noFaces": false,
+   "short": "boardroom"
   },
   {
    "slot": "saas.quick-demo:cover",
@@ -615,7 +691,8 @@
    "kind": "cover",
    "query": "person laptop video call",
    "layout": "left",
-   "noFaces": false
+   "noFaces": false,
+   "short": "video call"
   },
   {
    "slot": "saas.partner-program:cover",
@@ -623,7 +700,8 @@
    "kind": "cover",
    "query": "two colleagues laptop collaboration",
    "layout": "right",
-   "noFaces": false
+   "noFaces": false,
+   "short": "collaboration"
   },
   {
    "slot": "saas.early-access:cover",
@@ -631,7 +709,8 @@
    "kind": "cover",
    "query": "people looking at new app phone",
    "layout": "right",
-   "noFaces": false
+   "noFaces": false,
+   "short": "smartphone"
   },
   {
    "slot": "agency.growth-call:cover",
@@ -639,7 +718,8 @@
    "kind": "cover",
    "query": "marketing team video call",
    "layout": "left",
-   "noFaces": false
+   "noFaces": false,
+   "short": "team"
   },
   {
    "slot": "agency.referral-partner:cover",
@@ -647,7 +727,8 @@
    "kind": "cover",
    "query": "freelancer designer desk",
    "layout": "right",
-   "noFaces": false
+   "noFaces": false,
+   "short": "designer"
   },
   {
    "slot": "consulting.client-referral:cover",
@@ -655,7 +736,8 @@
    "kind": "cover",
    "query": "colleagues coffee conversation",
    "layout": "right",
-   "noFaces": false
+   "noFaces": false,
+   "short": "coffee"
   },
   {
    "slot": "consulting.benchmark-report:cover",
@@ -663,7 +745,8 @@
    "kind": "cover",
    "query": "executive reading report office",
    "layout": "left",
-   "noFaces": false
+   "noFaces": false,
+   "short": "report"
   },
   {
    "slot": "it.managed-it-quote:cover",
@@ -671,7 +754,8 @@
    "kind": "cover",
    "query": "it support help desk",
    "layout": "right",
-   "noFaces": false
+   "noFaces": false,
+   "short": "computer"
   },
   {
    "slot": "coaching.discovery-call:cover",
@@ -679,7 +763,8 @@
    "kind": "cover",
    "query": "coach video call laptop",
    "layout": "right",
-   "noFaces": false
+   "noFaces": false,
+   "short": "coaching"
   },
   {
    "slot": "coaching.program-waitlist:cover",
@@ -687,7 +772,8 @@
    "kind": "cover",
    "query": "small group workshop table",
    "layout": "left",
-   "noFaces": false
+   "noFaces": false,
+   "short": "workshop"
   },
   {
    "slot": "creative.photography-inquiry:cover",
@@ -695,7 +781,8 @@
    "kind": "cover",
    "query": "photographer camera studio",
    "layout": "right",
-   "noFaces": false
+   "noFaces": false,
+   "short": "photographer"
   },
   {
    "slot": "creative.video-quote:cover",
@@ -703,7 +790,8 @@
    "kind": "cover",
    "query": "video crew filming set",
    "layout": "right",
-   "noFaces": false
+   "noFaces": false,
+   "short": "filming"
   },
   {
    "slot": "architecture.project-consultation:cover",
@@ -711,7 +799,8 @@
    "kind": "cover",
    "query": "architect plans model",
    "layout": "left",
-   "noFaces": false
+   "noFaces": false,
+   "short": "architect"
   },
   {
    "slot": "architecture.fee-estimate:cover",
@@ -719,7 +808,8 @@
    "kind": "cover",
    "query": "architect drawing plans desk",
    "layout": "right",
-   "noFaces": false
+   "noFaces": false,
+   "short": "blueprint"
   },
   {
    "slot": "architecture.planning-guide:cover",
@@ -727,7 +817,8 @@
    "kind": "cover",
    "query": "modern house exterior architecture",
    "layout": "right",
-   "noFaces": false
+   "noFaces": false,
+   "short": "architecture"
   },
   {
    "slot": "security.system-quote:cover",
@@ -735,7 +826,8 @@
    "kind": "cover",
    "query": "home security camera house",
    "layout": "left",
-   "noFaces": false
+   "noFaces": false,
+   "short": "security camera"
   },
   {
    "slot": "security.guard-services:cover",
@@ -743,7 +835,8 @@
    "kind": "cover",
    "query": "security guard building lobby",
    "layout": "right",
-   "noFaces": false
+   "noFaces": false,
+   "short": "lobby"
   },
   {
    "slot": "security.camera-demo:cover",
@@ -751,7 +844,8 @@
    "kind": "cover",
    "query": "security cameras monitor room",
    "layout": "right",
-   "noFaces": false
+   "noFaces": false,
+   "short": "cctv"
   },
   {
    "slot": "agriculture.equipment-demo:cover",
@@ -759,7 +853,8 @@
    "kind": "cover",
    "query": "tractor field farm",
    "layout": "left",
-   "noFaces": false
+   "noFaces": false,
+   "short": "tractor"
   },
   {
    "slot": "agriculture.market-report:cover",
@@ -767,7 +862,8 @@
    "kind": "cover",
    "query": "wheat field harvest",
    "layout": "right",
-   "noFaces": false
+   "noFaces": false,
+   "short": "wheat"
   },
   {
    "slot": "media.advertising-inquiry:cover",
@@ -775,7 +871,8 @@
    "kind": "cover",
    "query": "magazine print media desk",
    "layout": "right",
-   "noFaces": false
+   "noFaces": false,
+   "short": "magazine"
   },
   {
    "slot": "government.business-contact:cover",
@@ -783,7 +880,8 @@
    "kind": "cover",
    "query": "main street small businesses",
    "layout": "left",
-   "noFaces": false
+   "noFaces": false,
+   "short": "main street"
   },
   {
    "slot": "retail.vip-list:cover",
@@ -791,7 +889,8 @@
    "kind": "cover",
    "query": "boutique clothing store",
    "layout": "right",
-   "noFaces": false
+   "noFaces": false,
+   "short": "boutique"
   },
   {
    "slot": "pets.puppy-waitlist:cover",
@@ -799,7 +898,8 @@
    "kind": "cover",
    "query": "puppy garden",
    "layout": "right",
-   "noFaces": false
+   "noFaces": false,
+   "short": "puppy"
   },
   {
    "slot": "sports.club-sponsorship:cover",
@@ -807,7 +907,8 @@
    "kind": "cover",
    "query": "youth soccer team field",
    "layout": "left",
-   "noFaces": false
+   "noFaces": false,
+   "short": "soccer"
   },
   {
    "slot": "faith.contact-us:cover",
@@ -815,7 +916,8 @@
    "kind": "cover",
    "query": "community gathering hall",
    "layout": "right",
-   "noFaces": false
+   "noFaces": false,
+   "short": "community"
   },
   {
    "slot": "food.wholesale-inquiry:cover",
@@ -823,7 +925,8 @@
    "kind": "cover",
    "query": "bakery bread display",
    "layout": "right",
-   "noFaces": false
+   "noFaces": false,
+   "short": "bakery"
   },
   {
    "slot": "saas.data-maturity-scorecard:cover",
@@ -831,7 +934,8 @@
    "kind": "cover",
    "query": "data dashboard team screen",
    "layout": "left",
-   "noFaces": false
+   "noFaces": false,
+   "short": "dashboard"
   },
   {
    "slot": "agency.marketing-scorecard:cover",
@@ -839,7 +943,8 @@
    "kind": "cover",
    "query": "marketing plan notebook laptop",
    "layout": "right",
-   "noFaces": false
+   "noFaces": false,
+   "short": "planning"
   },
   {
    "slot": "real_estate.buying-readiness:cover",
@@ -847,7 +952,8 @@
    "kind": "cover",
    "query": "couple looking at house for sale",
    "layout": "right",
-   "noFaces": false
+   "noFaces": false,
+   "short": "for sale"
   },
   {
    "slot": "legal.divorce-eligibility:cover",
@@ -855,7 +961,8 @@
    "kind": "cover",
    "query": "calm office desk documents",
    "layout": "left",
-   "noFaces": true
+   "noFaces": true,
+   "short": "desk"
   },
   {
    "slot": "coaching.program-application:cover",
@@ -863,7 +970,8 @@
    "kind": "cover",
    "query": "coaching session two people",
    "layout": "right",
-   "noFaces": false
+   "noFaces": false,
+   "short": "conversation"
   },
   {
    "slot": "creative.video-brief:cover",
@@ -871,7 +979,8 @@
    "kind": "cover",
    "query": "video editing desk",
    "layout": "right",
-   "noFaces": false
+   "noFaces": false,
+   "short": "editing"
   },
   {
    "slot": "healthcare.home-care-assessment:cover",
@@ -879,7 +988,8 @@
    "kind": "cover",
    "query": "caregiver elderly home",
    "layout": "left",
-   "noFaces": true
+   "noFaces": true,
+   "short": "caregiver"
   },
   {
    "slot": "legal.family-law-intake:cover",
@@ -887,7 +997,8 @@
    "kind": "cover",
    "query": "law office calm meeting room",
    "layout": "right",
-   "noFaces": true
+   "noFaces": true,
+   "short": "office"
   },
   {
    "slot": "solar.savings-calculator:cover",
@@ -895,7 +1006,8 @@
    "kind": "cover",
    "query": "rooftop solar panels sunny",
    "layout": "right",
-   "noFaces": false
+   "noFaces": false,
+   "short": "solar"
   },
   {
    "slot": "saas.roi-calculator:cover",
@@ -903,7 +1015,8 @@
    "kind": "cover",
    "query": "team reviewing numbers laptop",
    "layout": "left",
-   "noFaces": false
+   "noFaces": false,
+   "short": "numbers"
   },
   {
    "slot": "insurance.auto-quote:cover",
@@ -911,7 +1024,8 @@
    "kind": "cover",
    "query": "car driving road",
    "layout": "right",
-   "noFaces": false
+   "noFaces": false,
+   "short": "car"
   },
   {
    "slot": "insurance.home-quote:cover",
@@ -919,7 +1033,8 @@
    "kind": "cover",
    "query": "suburban house front",
    "layout": "right",
-   "noFaces": false
+   "noFaces": false,
+   "short": "house"
   },
   {
    "slot": "construction.kitchen-remodel-estimate:cover",
@@ -927,7 +1042,8 @@
    "kind": "cover",
    "query": "modern kitchen remodel",
    "layout": "left",
-   "noFaces": false
+   "noFaces": false,
+   "short": "kitchen"
   },
   {
    "slot": "general.franchise-inquiry:cover",
@@ -935,7 +1051,8 @@
    "kind": "cover",
    "query": "franchise storefront owner",
    "layout": "right",
-   "noFaces": false
+   "noFaces": false,
+   "short": "store"
   },
   {
    "slot": "hospitality.trip-planner:cover",
@@ -943,7 +1060,8 @@
    "kind": "cover",
    "query": "travel planning map",
    "layout": "right",
-   "noFaces": false
+   "noFaces": false,
+   "short": "map"
   },
   {
    "slot": "real_estate.commercial-space:Space type:0",
@@ -951,7 +1069,8 @@
    "kind": "card",
    "field": "Space type",
    "option": 0,
-   "query": "modern open office"
+   "query": "modern open office",
+   "short": "office"
   },
   {
    "slot": "real_estate.commercial-space:Space type:1",
@@ -959,7 +1078,8 @@
    "kind": "card",
    "field": "Space type",
    "option": 1,
-   "query": "retail shop interior"
+   "query": "retail shop interior",
+   "short": "shop"
   },
   {
    "slot": "real_estate.commercial-space:Space type:2",
@@ -967,7 +1087,8 @@
    "kind": "card",
    "field": "Space type",
    "option": 2,
-   "query": "industrial warehouse interior"
+   "query": "industrial warehouse interior",
+   "short": "warehouse"
   },
   {
    "slot": "real_estate.commercial-space:Space type:3",
@@ -975,7 +1096,8 @@
    "kind": "card",
    "field": "Space type",
    "option": 3,
-   "query": "flexible workspace"
+   "query": "flexible workspace",
+   "short": "coworking"
   },
   {
    "slot": "real_estate.commercial-space:Space type:4",
@@ -983,7 +1105,8 @@
    "kind": "card",
    "field": "Space type",
    "option": 4,
-   "query": "restaurant interior"
+   "query": "restaurant interior",
+   "short": "restaurant"
   },
   {
    "slot": "solar.ev-charger:Parking:0",
@@ -991,7 +1114,8 @@
    "kind": "card",
    "field": "Parking",
    "option": 0,
-   "query": "home garage car"
+   "query": "home garage car",
+   "short": "garage"
   },
   {
    "slot": "solar.ev-charger:Parking:1",
@@ -999,7 +1123,8 @@
    "kind": "card",
    "field": "Parking",
    "option": 1,
-   "query": "driveway house car"
+   "query": "driveway house car",
+   "short": "driveway"
   },
   {
    "slot": "solar.ev-charger:Parking:2",
@@ -1007,7 +1132,8 @@
    "kind": "card",
    "field": "Parking",
    "option": 2,
-   "query": "street parking houses"
+   "query": "street parking houses",
+   "short": "street"
   },
   {
    "slot": "hospitality.travel-inquiry:Interests:0",
@@ -1015,7 +1141,8 @@
    "kind": "card",
    "field": "Interests",
    "option": 0,
-   "query": "tropical beach"
+   "query": "tropical beach",
+   "short": "beach"
   },
   {
    "slot": "hospitality.travel-inquiry:Interests:1",
@@ -1023,7 +1150,8 @@
    "kind": "card",
    "field": "Interests",
    "option": 1,
-   "query": "old town architecture"
+   "query": "old town architecture",
+   "short": "architecture"
   },
   {
    "slot": "hospitality.travel-inquiry:Interests:2",
@@ -1031,7 +1159,8 @@
    "kind": "card",
    "field": "Interests",
    "option": 2,
-   "query": "street food market"
+   "query": "street food market",
+   "short": "food market"
   },
   {
    "slot": "hospitality.travel-inquiry:Interests:3",
@@ -1039,7 +1168,8 @@
    "kind": "card",
    "field": "Interests",
    "option": 3,
-   "query": "mountain hiking"
+   "query": "mountain hiking",
+   "short": "hiking"
   },
   {
    "slot": "hospitality.travel-inquiry:Interests:4",
@@ -1047,7 +1177,8 @@
    "kind": "card",
    "field": "Interests",
    "option": 4,
-   "query": "spa relaxation pool"
+   "query": "spa relaxation pool",
+   "short": "spa"
   },
   {
    "slot": "hospitality.travel-inquiry:Interests:5",
@@ -1055,7 +1186,8 @@
    "kind": "card",
    "field": "Interests",
    "option": 5,
-   "query": "family vacation kids beach"
+   "query": "family vacation kids beach",
+   "short": "family"
   },
   {
    "slot": "events.venue-tour:Spaces you'd like to see:0",
@@ -1063,7 +1195,8 @@
    "kind": "card",
    "field": "Spaces you'd like to see",
    "option": 0,
-   "query": "ballroom chandelier"
+   "query": "ballroom chandelier",
+   "short": "ballroom"
   },
   {
    "slot": "events.venue-tour:Spaces you'd like to see:1",
@@ -1071,7 +1204,8 @@
    "kind": "card",
    "field": "Spaces you'd like to see",
    "option": 1,
-   "query": "garden wedding venue"
+   "query": "garden wedding venue",
+   "short": "garden"
   },
   {
    "slot": "events.venue-tour:Spaces you'd like to see:2",
@@ -1079,7 +1213,8 @@
    "kind": "card",
    "field": "Spaces you'd like to see",
    "option": 2,
-   "query": "rooftop terrace city"
+   "query": "rooftop terrace city",
+   "short": "rooftop"
   },
   {
    "slot": "events.venue-tour:Spaces you'd like to see:3",
@@ -1087,7 +1222,8 @@
    "kind": "card",
    "field": "Spaces you'd like to see",
    "option": 3,
-   "query": "private dining room"
+   "query": "private dining room",
+   "short": "dining room"
   },
   {
    "slot": "construction.roof-cost-calculator:Material:0",
@@ -1095,7 +1231,8 @@
    "kind": "card",
    "field": "Material",
    "option": 0,
-   "query": "asphalt shingle roof"
+   "query": "asphalt shingle roof",
+   "short": "shingles"
   },
   {
    "slot": "construction.roof-cost-calculator:Material:1",
@@ -1103,7 +1240,8 @@
    "kind": "card",
    "field": "Material",
    "option": 1,
-   "query": "metal roof"
+   "query": "metal roof",
+   "short": "metal roof"
   },
   {
    "slot": "construction.roof-cost-calculator:Material:2",
@@ -1111,7 +1249,8 @@
    "kind": "card",
    "field": "Material",
    "option": 2,
-   "query": "clay tile roof"
+   "query": "clay tile roof",
+   "short": "tiles"
   },
   {
    "slot": "construction.roof-cost-calculator:Material:3",
@@ -1119,7 +1258,8 @@
    "kind": "card",
    "field": "Material",
    "option": 3,
-   "query": "flat roof building"
+   "query": "flat roof building",
+   "short": "flat roof"
   },
   {
    "slot": "construction.moving-cost-calculator:Type of home:0",
@@ -1127,7 +1267,8 @@
    "kind": "card",
    "field": "Type of home",
    "option": 0,
-   "query": "suburban house"
+   "query": "suburban house",
+   "short": "house"
   },
   {
    "slot": "construction.moving-cost-calculator:Type of home:1",
@@ -1135,7 +1276,8 @@
    "kind": "card",
    "field": "Type of home",
    "option": 1,
-   "query": "apartment building"
+   "query": "apartment building",
+   "short": "apartment"
   },
   {
    "slot": "construction.moving-cost-calculator:Type of home:2",
@@ -1143,7 +1285,8 @@
    "kind": "card",
    "field": "Type of home",
    "option": 2,
-   "query": "townhouses row"
+   "query": "townhouses row",
+   "short": "townhouse"
   },
   {
    "slot": "construction.moving-cost-calculator:Type of home:3",
@@ -1151,7 +1294,8 @@
    "kind": "card",
    "field": "Type of home",
    "option": 3,
-   "query": "storage units"
+   "query": "storage units",
+   "short": "storage"
   },
   {
    "slot": "food.wholesale-inquiry:Products you're interested in:0",
@@ -1159,7 +1303,8 @@
    "kind": "card",
    "field": "Products you're interested in",
    "option": 0,
-   "query": "artisan bread loaves"
+   "query": "artisan bread loaves",
+   "short": "bread"
   },
   {
    "slot": "food.wholesale-inquiry:Products you're interested in:1",
@@ -1167,7 +1312,8 @@
    "kind": "card",
    "field": "Products you're interested in",
    "option": 1,
-   "query": "croissants pastries"
+   "query": "croissants pastries",
+   "short": "croissant"
   },
   {
    "slot": "food.wholesale-inquiry:Products you're interested in:2",
@@ -1175,7 +1321,8 @@
    "kind": "card",
    "field": "Products you're interested in",
    "option": 2,
-   "query": "layer cake"
+   "query": "layer cake",
+   "short": "cake"
   },
   {
    "slot": "food.wholesale-inquiry:Products you're interested in:3",
@@ -1183,7 +1330,8 @@
    "kind": "card",
    "field": "Products you're interested in",
    "option": 3,
-   "query": "cookies tray"
+   "query": "cookies tray",
+   "short": "cookies"
   },
   {
    "slot": "food.wholesale-inquiry:Products you're interested in:4",
@@ -1191,7 +1339,8 @@
    "kind": "card",
    "field": "Products you're interested in",
    "option": 4,
-   "query": "gluten free muffins"
+   "query": "gluten free muffins",
+   "short": "muffins"
   },
   {
    "slot": "food.wholesale-inquiry:Products you're interested in:5",
@@ -1199,7 +1348,8 @@
    "kind": "card",
    "field": "Products you're interested in",
    "option": 5,
-   "query": "seasonal pie"
+   "query": "seasonal pie",
+   "short": "pie"
   },
   {
    "slot": "retail.vip-list:What do you shop for?:0",
@@ -1207,7 +1357,8 @@
    "kind": "card",
    "field": "What do you shop for?",
    "option": 0,
-   "query": "womens fashion rack"
+   "query": "womens fashion rack",
+   "short": "dress"
   },
   {
    "slot": "retail.vip-list:What do you shop for?:1",
@@ -1215,7 +1366,8 @@
    "kind": "card",
    "field": "What do you shop for?",
    "option": 1,
-   "query": "mens clothing store"
+   "query": "mens clothing store",
+   "short": "menswear"
   },
   {
    "slot": "retail.vip-list:What do you shop for?:2",
@@ -1223,7 +1375,8 @@
    "kind": "card",
    "field": "What do you shop for?",
    "option": 2,
-   "query": "kids clothes"
+   "query": "kids clothes",
+   "short": "kids"
   },
   {
    "slot": "retail.vip-list:What do you shop for?:3",
@@ -1231,7 +1384,8 @@
    "kind": "card",
    "field": "What do you shop for?",
    "option": 3,
-   "query": "home decor shop"
+   "query": "home decor shop",
+   "short": "decor"
   },
   {
    "slot": "retail.vip-list:What do you shop for?:4",
@@ -1239,7 +1393,8 @@
    "kind": "card",
    "field": "What do you shop for?",
    "option": 4,
-   "query": "gift boxes wrapped"
+   "query": "gift boxes wrapped",
+   "short": "gift"
   },
   {
    "slot": "retail.vip-list:What do you shop for?:5",
@@ -1247,7 +1402,8 @@
    "kind": "card",
    "field": "What do you shop for?",
    "option": 5,
-   "query": "fashion accessories"
+   "query": "fashion accessories",
+   "short": "accessories"
   },
   {
    "slot": "pets.puppy-waitlist:Your home:0",
@@ -1255,7 +1411,8 @@
    "kind": "card",
    "field": "Your home",
    "option": 0,
-   "query": "house fenced backyard"
+   "query": "house fenced backyard",
+   "short": "backyard"
   },
   {
    "slot": "pets.puppy-waitlist:Your home:1",
@@ -1263,7 +1420,8 @@
    "kind": "card",
    "field": "Your home",
    "option": 1,
-   "query": "house front lawn"
+   "query": "house front lawn",
+   "short": "lawn"
   },
   {
    "slot": "pets.puppy-waitlist:Your home:2",
@@ -1271,7 +1429,8 @@
    "kind": "card",
    "field": "Your home",
    "option": 2,
-   "query": "apartment balcony"
+   "query": "apartment balcony",
+   "short": "apartment"
   },
   {
    "slot": "pets.puppy-waitlist:Your home:3",
@@ -1279,7 +1438,8 @@
    "kind": "card",
    "field": "Your home",
    "option": 3,
-   "query": "farm countryside"
+   "query": "farm countryside",
+   "short": "farm"
   },
   {
    "slot": "logistics.freight-quote:Mode:0",
@@ -1287,7 +1447,8 @@
    "kind": "card",
    "field": "Mode",
    "option": 0,
-   "query": "semi truck highway"
+   "query": "semi truck highway",
+   "short": "truck"
   },
   {
    "slot": "logistics.freight-quote:Mode:1",
@@ -1295,7 +1456,8 @@
    "kind": "card",
    "field": "Mode",
    "option": 1,
-   "query": "delivery truck pallets"
+   "query": "delivery truck pallets",
+   "short": "pallets"
   },
   {
    "slot": "logistics.freight-quote:Mode:2",
@@ -1303,7 +1465,8 @@
    "kind": "card",
    "field": "Mode",
    "option": 2,
-   "query": "intermodal container train"
+   "query": "intermodal container train",
+   "short": "train"
   },
   {
    "slot": "logistics.freight-quote:Mode:3",
@@ -1311,7 +1474,8 @@
    "kind": "card",
    "field": "Mode",
    "option": 3,
-   "query": "cargo airplane"
+   "query": "cargo airplane",
+   "short": "airplane"
   },
   {
    "slot": "logistics.freight-quote:Mode:4",
@@ -1319,7 +1483,8 @@
    "kind": "card",
    "field": "Mode",
    "option": 4,
-   "query": "container ship"
+   "query": "container ship",
+   "short": "ship"
   },
   {
    "slot": "architecture.fee-estimate:Project type:0",
@@ -1327,7 +1492,8 @@
    "kind": "card",
    "field": "Project type",
    "option": 0,
-   "query": "new modern house"
+   "query": "new modern house",
+   "short": "modern house"
   },
   {
    "slot": "architecture.fee-estimate:Project type:1",
@@ -1335,7 +1501,8 @@
    "kind": "card",
    "field": "Project type",
    "option": 1,
-   "query": "home addition construction"
+   "query": "home addition construction",
+   "short": "construction"
   },
   {
    "slot": "architecture.fee-estimate:Project type:2",
@@ -1343,7 +1510,8 @@
    "kind": "card",
    "field": "Project type",
    "option": 2,
-   "query": "home renovation interior"
+   "query": "home renovation interior",
+   "short": "renovation"
   },
   {
    "slot": "architecture.fee-estimate:Project type:3",
@@ -1351,7 +1519,8 @@
    "kind": "card",
    "field": "Project type",
    "option": 3,
-   "query": "small commercial building"
+   "query": "small commercial building",
+   "short": "building"
   },
   {
    "slot": "agriculture.equipment-demo:Where would you like the demo?:0",
@@ -1359,7 +1528,8 @@
    "kind": "card",
    "field": "Where would you like the demo?",
    "option": 0,
-   "query": "farm field tractor"
+   "query": "farm field tractor",
+   "short": "tractor"
   },
   {
    "slot": "agriculture.equipment-demo:Where would you like the demo?:1",
@@ -1367,7 +1537,8 @@
    "kind": "card",
    "field": "Where would you like the demo?",
    "option": 1,
-   "query": "tractor dealership"
+   "query": "tractor dealership",
+   "short": "dealership"
   },
   {
    "slot": "agriculture.equipment-demo:Where would you like the demo?:2",
@@ -1375,7 +1546,8 @@
    "kind": "card",
    "field": "Where would you like the demo?",
    "option": 2,
-   "query": "farm field day crowd"
+   "query": "farm field day crowd",
+   "short": "field"
   },
   {
    "slot": "construction.kitchen-remodel-estimate:Home type:0",
@@ -1383,7 +1555,8 @@
    "kind": "card",
    "field": "Home type",
    "option": 0,
-   "query": "suburban house"
+   "query": "suburban house",
+   "short": "house"
   },
   {
    "slot": "construction.kitchen-remodel-estimate:Home type:1",
@@ -1391,7 +1564,8 @@
    "kind": "card",
    "field": "Home type",
    "option": 1,
-   "query": "condo building"
+   "query": "condo building",
+   "short": "condo"
   },
   {
    "slot": "construction.kitchen-remodel-estimate:Home type:2",
@@ -1399,7 +1573,8 @@
    "kind": "card",
    "field": "Home type",
    "option": 2,
-   "query": "townhouses"
+   "query": "townhouses",
+   "short": "townhouse"
   },
   {
    "slot": "solar.savings-calculator:Type of home:0",
@@ -1407,7 +1582,8 @@
    "kind": "card",
    "field": "Type of home",
    "option": 0,
-   "query": "single family house"
+   "query": "single family house",
+   "short": "house"
   },
   {
    "slot": "solar.savings-calculator:Type of home:1",
@@ -1415,7 +1591,8 @@
    "kind": "card",
    "field": "Type of home",
    "option": 1,
-   "query": "townhouses"
+   "query": "townhouses",
+   "short": "townhouse"
   },
   {
    "slot": "solar.savings-calculator:Type of home:2",
@@ -1423,7 +1600,8 @@
    "kind": "card",
    "field": "Type of home",
    "option": 2,
-   "query": "condo building"
+   "query": "condo building",
+   "short": "condo"
   },
   {
    "slot": "solar.savings-calculator:Type of home:3",
@@ -1431,7 +1609,8 @@
    "kind": "card",
    "field": "Type of home",
    "option": 3,
-   "query": "mobile home"
+   "query": "mobile home",
+   "short": "trailer"
   },
   {
    "slot": "events.venue-inquiry:Spaces you'd like to see:0",
@@ -1439,7 +1618,8 @@
    "kind": "card",
    "field": "Spaces you'd like to see",
    "option": 0,
-   "query": "ballroom chandelier"
+   "query": "ballroom chandelier",
+   "short": "ballroom"
   },
   {
    "slot": "events.venue-inquiry:Spaces you'd like to see:1",
@@ -1447,7 +1627,8 @@
    "kind": "card",
    "field": "Spaces you'd like to see",
    "option": 1,
-   "query": "garden venue"
+   "query": "garden venue",
+   "short": "garden"
   },
   {
    "slot": "events.venue-inquiry:Spaces you'd like to see:2",
@@ -1455,7 +1636,8 @@
    "kind": "card",
    "field": "Spaces you'd like to see",
    "option": 2,
-   "query": "terrace evening"
+   "query": "terrace evening",
+   "short": "terrace"
   },
   {
    "slot": "events.venue-inquiry:Spaces you'd like to see:3",
@@ -1463,7 +1645,8 @@
    "kind": "card",
    "field": "Spaces you'd like to see",
    "option": 3,
-   "query": "private dining room"
+   "query": "private dining room",
+   "short": "dining room"
   },
   {
    "slot": "events.venue-inquiry:Spaces you'd like to see:4",
@@ -1471,7 +1654,8 @@
    "kind": "card",
    "field": "Spaces you'd like to see",
    "option": 4,
-   "query": "event venue exterior"
+   "query": "event venue exterior",
+   "short": "venue"
   }
  ]
 }

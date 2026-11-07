@@ -18,7 +18,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-type Slot = { slot: string; template: string; kind: "cover" | "card"; query: string; layout?: "left" | "right" | "top" | "behind"; noFaces?: boolean; field?: string; option?: number };
+type Slot = { slot: string; template: string; kind: "cover" | "card"; query: string; short?: string; layout?: "left" | "right" | "top" | "behind"; noFaces?: boolean; field?: string; option?: number };
 type Option = { id: string; from: "burst" | "stocksnap" | "wordpress"; url: string; photographer: string; photographer_url: string; alt: string; src: string; thumb: string; width: number; height: number };
 type Pick = { n: number; alt: string; focus?: string };
 
@@ -89,7 +89,7 @@ async function openverse(query: string, n: number, source: "stocksnap" | "wordpr
 if (step === "search") {
   const out: Record<string, Option[]> = existsSync(`${base}.candidates.json`) ? JSON.parse(readFileSync(`${base}.candidates.json`, "utf8")) : {};
   for (const s of plan.slots) {
-    if (out[s.slot]?.length) continue;
+    if ((out[s.slot]?.length ?? 0) >= 4) continue;
     // Burst is the best, but turns a client away after a few searches; BURST=1 tries it first.
     let got: Option[] = process.env.BURST ? await burst(s.query, 8).catch(() => []) : [];
     const more = async (q: string, src: "stocksnap" | "wordpress") => {
@@ -98,9 +98,10 @@ if (step === "search") {
       const ids = new Set(got.map((o) => o.id));
       got = [...got, ...(await openverse(q, 8, src)).filter((o) => !ids.has(o.id))].slice(0, 8);
     };
+    // Openverse matches every word, so a long search often finds nothing: then the slot's short words.
     await more(s.query, "stocksnap");
-    await more(s.query.split(" ").slice(0, 2).join(" "), "stocksnap");
-    await more(s.query, "wordpress");
+    if (s.short) await more(s.short, "stocksnap");
+    if (s.short) await more(s.short, "wordpress");
     out[s.slot] = got;
     writeFileSync(`${base}.candidates.json`, JSON.stringify(out, null, 1));
     console.log(`${s.slot}: ${out[s.slot]!.length}`);
