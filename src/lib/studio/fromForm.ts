@@ -216,7 +216,8 @@ function fieldHtml(f: Field, n: string, ifs: string, ctx: { name: (id: string) =
     case "choice":
     case "multi": {
       // Picture cards: the picture choice block, with the same values, so answers line up with the plain list's.
-      if (f.cards && opts.some((o) => o.image)) {
+      // Choices that carry points (a price, a score) stay a plain list: the block has no points.
+      if (f.cards && opts.some((o) => o.image) && !opts.some((o) => o.score !== undefined)) {
         if (f.other) ctx.lost.add(`${f.label}: no Other box on picture cards`);
         return block("pictures", `${f.type === "multi" ? " data-cl-multi" : ""} data-cl-options="${esc(writeList(opts.map((o) => ({ value: o.value, label: o.label || o.value }))))}" data-cl-images="${esc(opts.map((o) => o.image ?? "").join("|"))}"`).replace(`</div>${help}</div>`, `</div>${help}${err}</div>`);
       }

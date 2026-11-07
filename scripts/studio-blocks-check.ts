@@ -115,6 +115,8 @@ try {
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
   const f = page.locator("claritia-form");
+  // A template that opens on a welcome screen: Start, then the questions.
+  const past = async () => { await f.locator("[data-cl-cover] [data-cl-start], [data-cl-step], input").first().waitFor(); if (await f.locator("[data-cl-cover]:not([hidden]) [data-cl-start]").isVisible()) await f.locator("[data-cl-start]").click(); };
 
   await page.goto(`${origin}/${PRICED}`);
   await f.locator("#g").waitFor();
@@ -158,14 +160,16 @@ try {
 
   // A converted template: its first page, then a skip passes over pages for some answers.
   await page.goto(`${origin}/${SKIPS}`);
+  await past();
   await f.locator("[data-cl-step]").first().waitFor();
   check((await f.locator("[data-cl-step]").count()) === tpl.schema.pages.length, `the template's ${tpl.schema.pages.length} pages are steps`);
   check((await f.locator("[data-cl-progress]").count()) === 1, "a progress bar shows");
-  check(await f.locator("img[data-cl-logo]").count() === 1, "the logo spot is there");
+  check((await f.locator("img[data-cl-logo]").count()) >= 1, "the logo spot is there (on the welcome screen too when there is one)");
 
   // A template in Poster: the form fills its box in its own white, with no stage, frame or shadow; black buttons with
   // yellow words, and first and last name on one row.
   await page.goto(`${origin}/${POSTER}`);
+  await past();
   await f.locator("input").first().waitFor();
   const look = await f.evaluate((host) => {
     const r = (host as HTMLElement).shadowRoot!;
@@ -180,6 +184,7 @@ try {
   check(look.names.length === 2 && look.names[0] === look.names[1], `half-width fields share a row (${look.names})`);
   // Grove: no drawing on a wide screen or a phone; the form's own cream fills the box.
   await page.goto(`${origin}/${GROVE}`);
+  await past();
   await f.locator("input").first().waitFor();
   const side = () => f.evaluate((host) => { const r = (host as HTMLElement).shadowRoot!; const b = getComputedStyle(r.querySelector(".form-card")!, "::before"); return { art: b.backgroundImage, content: b.content, stage: getComputedStyle(r.querySelector(".page")!).backgroundColor }; });
   const wide = await side();
@@ -190,6 +195,7 @@ try {
   // A form live from before the Studio: a page in its kit's style, and its send keeps the older form's field ids.
   await page.setViewportSize({ width: 1100, height: 900 });
   await page.goto(`${origin}/${OLDER}`);
+  await past();
   await f.locator("input").first().waitFor();
   const old = await f.evaluate((host) => { const r = (host as HTMLElement).shadowRoot!; return { page: !!r.querySelector(".page"), stage: r.querySelector(".page") ? getComputedStyle(r.querySelector(".page")!).backgroundColor : "", oldLook: !!r.querySelector(".f") }; });
   check(old.page && old.stage === "rgb(255, 255, 255)" && !old.oldLook, `an older live form is served as a page in its kit's style (${JSON.stringify(old)})`);
@@ -222,7 +228,8 @@ try {
   const sendPers = async (query: string) => {
     sent.length = 0;
     await page.goto(`${origin}/${PERS}${query}`);
-    await f.locator("input").first().waitFor();
+    await past();
+  await f.locator("input").first().waitFor();
     await page.waitForTimeout(200);
     const vals = await f.evaluate((host) => Object.fromEntries([...(host as HTMLElement).shadowRoot!.querySelectorAll<HTMLInputElement>("input[data-cl-save]")].map((x) => [x.getAttribute("data-cl-save"), x.value])));
     await f.evaluate((host) => {

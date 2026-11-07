@@ -112,8 +112,11 @@ if (step === "search") {
   const pw = (await import("playwright-core")).default;
   const browser = await pw.chromium.launch({ executablePath: process.env.CHROMIUM_PATH || undefined });
   const page = await browser.newPage({ viewport: { width: 1600, height: 1000 } });
-  for (let i = 0; i < plan.slots.length; i += 40) {
-    const rows = plan.slots.slice(i, i + 40).map((s) => `<div style="display:grid;grid-template-columns:180px repeat(8,1fr);gap:4px;align-items:center;margin-bottom:6px"><div style="font:11px sans-serif">${s.slot}<br><i>${s.query}</i></div>${(out[s.slot] ?? []).map((o, k) => `<div style="position:relative"><img src="${o.thumb}" style="width:100%;height:110px;object-fit:cover;display:block"><b style="position:absolute;top:2px;left:4px;background:#fff;font:12px sans-serif;padding:0 4px">${k}</b></div>`).join("")}</div>`);
+  // ONLY=slot,slot makes sheets for just those slots (a second look at a few).
+  const only = process.env.ONLY ? new Set(process.env.ONLY.split("|")) : null;
+  const sheetSlots = only ? plan.slots.filter((s) => only.has(s.slot)) : plan.slots;
+  for (let i = 0; i < sheetSlots.length; i += 40) {
+    const rows = sheetSlots.slice(i, i + 40).map((s) => `<div style="display:grid;grid-template-columns:180px repeat(8,1fr);gap:4px;align-items:center;margin-bottom:6px"><div style="font:11px sans-serif">${s.slot}<br><i>${s.query}</i></div>${(out[s.slot] ?? []).map((o, k) => `<div style="position:relative"><img src="${o.thumb}" style="width:100%;height:110px;object-fit:cover;display:block"><b style="position:absolute;top:2px;left:4px;background:#fff;font:12px sans-serif;padding:0 4px">${k}</b></div>`).join("")}</div>`);
     await page.setContent(`<body style="margin:8px">${rows.join("")}</body>`, { waitUntil: "networkidle" });
     await page.screenshot({ path: join(dir, `${plan.family}-${String(i / 40).padStart(2, "0")}.png`), fullPage: true });
   }
@@ -158,8 +161,13 @@ if (step === "apply") {
     if (s.kind === "cover") t.cover = { name: nameOf(s), alt: p.alt, layout: s.layout ?? "right", ...(p.focus ? { focus: p.focus } : {}) };
     else ((t.images ??= {})[s.field!] ??= [])[s.option!] = nameOf(s);
   }
-  // A picture card set only when every answer has its photo.
-  for (const t of Object.values(out)) for (const [k, v] of Object.entries(t.images ?? {})) if (v.some((x) => !x)) delete t.images![k];
+  // A picture card set only when every answer has its photo (a gap in the list counts as missing).
+  for (const [id, t] of Object.entries(out))
+    for (const [k, v] of Object.entries(t.images ?? {})) {
+      const want = plan.slots.filter((s) => s.template === id && s.field === k).length;
+      if (v.length !== want || Array.from(v).some((x) => !x)) delete t.images![k];
+    }
+  for (const t of Object.values(out)) if (t.images && !Object.keys(t.images).length) delete t.images;
   const file = join(root, "src", "lib", "forms", "gallery", "photos", `${plan.family}.ts`);
   mkdirSync(dirname(file), { recursive: true });
   writeFileSync(file, `// The ${plan.family} templates' starter photos (docs/template-pictures-plan.md), written by scripts/template-photos.ts.\n// Each template's welcome photo and, by question, a photo per answer for picture cards.\nimport type { TemplatePhotos } from "./index.ts";\n\nexport const PHOTOS: TemplatePhotos = ${JSON.stringify(out, null, 2)};\n`);

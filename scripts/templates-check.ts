@@ -4,7 +4,7 @@
 // shown; and the cards show the form itself, its real questions, with no drawing or page color around it.
 //   CHROMIUM_PATH=… node scripts/templates-check.ts   (SHOTS=dir saves screenshots)
 
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { createServer } from "node:http";
 import { build } from "esbuild";
 import postcss from "postcss";
@@ -48,6 +48,12 @@ const other = TEMPLATES.find((t) => templateTheme(t) === "midnight")!;
 
 try {
   const page = await browser.newPage({ viewport: { width: 1360, height: 900 } });
+  // The starter photos, from the website's folder (they go live when the website deploys).
+  const photos = new URL("../../claritia-site/assets/form-photos/", import.meta.url).pathname;
+  await page.route("https://tryclaritia.com/assets/form-photos/**", (r) => {
+    const f = photos + r.request().url().split("/").pop();
+    return existsSync(f) ? r.fulfill({ status: 200, contentType: f.endsWith(".webp") ? "image/webp" : "image/jpeg", body: readFileSync(f) }) : r.fulfill({ status: 404 });
+  });
   page.on("pageerror", (e) => check(false, `no page errors (${e.message})`));
   const shot = (name: string) => (shots ? page.screenshot({ path: `${shots}/${name}.png` }) : Promise.resolve());
   const sheet = page.getByRole("dialog", { name: inquiry.name });
@@ -113,9 +119,26 @@ try {
   await shot("2-card");
   const arts = await page.evaluate(() => [...document.querySelectorAll("img, [style]")].map((n) => (n as HTMLImageElement).src || (n as HTMLElement).style.backgroundImage || "").filter((s) => s.includes("form-art")));
   check(arts.length === 0, `the cards have no drawings (${arts.length})`);
+
   const firstQ = other.schema.pages[0]!.fields.find((f) => f.kind !== "hidden" && f.kind !== "statement" && f.kind !== "calc")!.label;
   await page.keyboard.press("Escape");
-  check(((await page.getByRole("button", { name: `Preview ${other.name}`, exact: true }).first().textContent()) ?? "").includes(firstQ), `a card shows the form's own first question (${firstQ})`);
+  // A card shows the form's own first question, or its welcome screen's title when it opens on one.
+  const expect = other.schema.cover?.photo ? other.schema.cover.title : firstQ;
+  check(((await page.getByRole("button", { name: `Preview ${other.name}`, exact: true }).first().textContent()) ?? "").includes(expect), `a card shows the form as it opens (${expect})`);
+  // A template with a welcome photo: its card shows the photo, and it opens on its welcome screen.
+  await page.goto(`${base}/forms/templates`);
+  const withPhoto = TEMPLATES.find((x) => x.schema.cover?.photo)!;
+  await page.getByPlaceholder(/^Search/).fill(withPhoto.name);
+  const card = page.getByRole("button", { name: `Preview ${withPhoto.name}`, exact: true }).first();
+  await card.locator("img").first().waitFor();
+  await page.waitForFunction((n) => [...document.querySelectorAll(`button[aria-label="Preview ${n}"] img`)].some((i) => (i as HTMLImageElement).naturalWidth > 0), withPhoto.name);
+  check(true, `a card with a welcome photo shows it (${withPhoto.name})`);
+  if (shots) await page.screenshot({ path: `${shots}/3-photo-cards.png` });
+  await card.click();
+  await page.waitForFunction(() => !!document.querySelector("claritia-form")?.shadowRoot?.querySelector("[data-cl-cover]:not([hidden]) [data-cl-start]"), null, { timeout: 10000 });
+  check(true, "it opens on its welcome screen");
+  await page.waitForTimeout(800);
+  if (shots) await page.screenshot({ path: `${shots}/4-photo-open.png` });
 } finally {
   await browser.close();
   server.close();

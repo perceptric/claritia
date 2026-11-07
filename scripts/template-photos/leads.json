@@ -320,19 +320,19 @@
    "slot": "solar.ev-charger:cover",
    "template": "solar.ev-charger",
    "kind": "cover",
-   "query": "electric car charging home garage",
+   "query": "electric vehicle",
    "layout": "right",
    "noFaces": false,
-   "short": "electric car"
+   "short": "charging"
   },
   {
    "slot": "healthcare.provider-referral:cover",
    "template": "healthcare.provider-referral",
    "kind": "cover",
-   "query": "doctor clinic consultation",
+   "query": "stethoscope",
    "layout": "right",
    "noFaces": true,
-   "short": "clinic"
+   "short": "clinic hallway"
   },
   {
    "slot": "wellness.therapy-consultation:cover",
@@ -356,19 +356,19 @@
    "slot": "education.corporate-training:cover",
    "template": "education.corporate-training",
    "kind": "cover",
-   "query": "corporate training workshop room",
+   "query": "classroom",
    "layout": "right",
    "noFaces": false,
-   "short": "workshop"
+   "short": "seminar"
   },
   {
    "slot": "ecommerce.wholesale:cover",
    "template": "ecommerce.wholesale",
    "kind": "cover",
-   "query": "boxes warehouse shelves products",
+   "query": "packages",
    "layout": "left",
    "noFaces": false,
-   "short": "warehouse"
+   "short": "cardboard boxes"
   },
   {
    "slot": "ecommerce.back-in-stock:cover",
@@ -401,7 +401,7 @@
    "slot": "manufacturing.distributor:cover",
    "template": "manufacturing.distributor",
    "kind": "cover",
-   "query": "distribution warehouse forklift",
+   "query": "pallets",
    "layout": "right",
    "noFaces": false,
    "short": "forklift"
@@ -419,10 +419,10 @@
    "slot": "logistics.warehouse:cover",
    "template": "logistics.warehouse",
    "kind": "cover",
-   "query": "warehouse aisles pallets",
+   "query": "shelving",
    "layout": "left",
    "noFaces": false,
-   "short": "warehouse"
+   "short": "storage"
   },
   {
    "slot": "automotive.trade-in:cover",
@@ -563,10 +563,10 @@
    "slot": "coaching.masterclass:cover",
    "template": "coaching.masterclass",
    "kind": "cover",
-   "query": "woman taking notes online class",
+   "query": "notes",
    "layout": "right",
    "noFaces": false,
-   "short": "notebook"
+   "short": "notebook pen"
   },
   {
    "slot": "construction.house-cleaning-price:cover",
@@ -590,10 +590,10 @@
    "slot": "construction.hvac-replacement-estimate:cover",
    "template": "construction.hvac-replacement-estimate",
    "kind": "cover",
-   "query": "hvac technician air conditioner",
+   "query": "thermostat",
    "layout": "right",
    "noFaces": false,
-   "short": "air conditioner"
+   "short": "air vent"
   },
   {
    "slot": "construction.water-heater-quote:cover",
@@ -689,10 +689,10 @@
    "slot": "saas.quick-demo:cover",
    "template": "saas.quick-demo",
    "kind": "cover",
-   "query": "person laptop video call",
+   "query": "webcam",
    "layout": "left",
    "noFaces": false,
-   "short": "video call"
+   "short": "laptop desk"
   },
   {
    "slot": "saas.partner-program:cover",
@@ -707,10 +707,10 @@
    "slot": "saas.early-access:cover",
    "template": "saas.early-access",
    "kind": "cover",
-   "query": "people looking at new app phone",
+   "query": "smartphone",
    "layout": "right",
    "noFaces": false,
-   "short": "smartphone"
+   "short": "mobile app"
   },
   {
    "slot": "agency.growth-call:cover",
@@ -770,10 +770,10 @@
    "slot": "coaching.program-waitlist:cover",
    "template": "coaching.program-waitlist",
    "kind": "cover",
-   "query": "small group workshop table",
+   "query": "seminar",
    "layout": "left",
    "noFaces": false,
-   "short": "workshop"
+   "short": "group"
   },
   {
    "slot": "creative.photography-inquiry:cover",
@@ -932,10 +932,10 @@
    "slot": "saas.data-maturity-scorecard:cover",
    "template": "saas.data-maturity-scorecard",
    "kind": "cover",
-   "query": "data dashboard team screen",
+   "query": "data",
    "layout": "left",
    "noFaces": false,
-   "short": "dashboard"
+   "short": "spreadsheet"
   },
   {
    "slot": "agency.marketing-scorecard:cover",
@@ -968,10 +968,10 @@
    "slot": "coaching.program-application:cover",
    "template": "coaching.program-application",
    "kind": "cover",
-   "query": "coaching session two people",
+   "query": "mentor",
    "layout": "right",
    "noFaces": false,
-   "short": "conversation"
+   "short": "coffee meeting"
   },
   {
    "slot": "creative.video-brief:cover",
@@ -986,10 +986,10 @@
    "slot": "healthcare.home-care-assessment:cover",
    "template": "healthcare.home-care-assessment",
    "kind": "cover",
-   "query": "caregiver elderly home",
+   "query": "tea",
    "layout": "left",
    "noFaces": true,
-   "short": "caregiver"
+   "short": "cozy home"
   },
   {
    "slot": "legal.family-law-intake:cover",
@@ -1195,8 +1195,8 @@
    "kind": "card",
    "field": "Spaces you'd like to see",
    "option": 0,
-   "query": "ballroom chandelier",
-   "short": "ballroom"
+   "query": "banquet",
+   "short": "chandelier"
   },
   {
    "slot": "events.venue-tour:Spaces you'd like to see:1",
@@ -1294,8 +1294,8 @@
    "kind": "card",
    "field": "Type of home",
    "option": 3,
-   "query": "storage units",
-   "short": "storage"
+   "query": "storage",
+   "short": "garage doors"
   },
   {
    "slot": "food.wholesale-inquiry:Products you're interested in:0",
@@ -1366,7 +1366,7 @@
    "kind": "card",
    "field": "What do you shop for?",
    "option": 1,
-   "query": "mens clothing store",
+   "query": "suit",
    "short": "menswear"
   },
   {
@@ -1456,8 +1456,8 @@
    "kind": "card",
    "field": "Mode",
    "option": 1,
-   "query": "delivery truck pallets",
-   "short": "pallets"
+   "query": "pallet",
+   "short": "delivery truck"
   },
   {
    "slot": "logistics.freight-quote:Mode:2",
@@ -1537,8 +1537,8 @@
    "kind": "card",
    "field": "Where would you like the demo?",
    "option": 1,
-   "query": "tractor dealership",
-   "short": "dealership"
+   "query": "tractors",
+   "short": "farm machinery"
   },
   {
    "slot": "agriculture.equipment-demo:Where would you like the demo?:2",
@@ -1609,7 +1609,7 @@
    "kind": "card",
    "field": "Type of home",
    "option": 3,
-   "query": "mobile home",
+   "query": "caravan",
    "short": "trailer"
   },
   {
@@ -1618,8 +1618,8 @@
    "kind": "card",
    "field": "Spaces you'd like to see",
    "option": 0,
-   "query": "ballroom chandelier",
-   "short": "ballroom"
+   "query": "banquet",
+   "short": "chandelier"
   },
   {
    "slot": "events.venue-inquiry:Spaces you'd like to see:1",
