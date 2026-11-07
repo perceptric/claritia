@@ -238,22 +238,22 @@ input, textarea { user-select: text; -webkit-user-select: text; }
 .tpl:hover:not(:disabled) { border-color: var(--line-strong); box-shadow: 0 8px 20px -12px rgb(0 0 0 / .25); transform: translateY(-1px); }
 .tpl:disabled { opacity: .55; }
 .tpl.making { opacity: 1; border-color: var(--signal); }
-.tpl .t-form { display: flex; flex-direction: column; gap: 10px; padding: 16px 16px 14px; border-bottom: 1px solid var(--line); color: var(--ink); text-align: start; }
-.tpl .t-h { font-size: 14px; line-height: 1.25; letter-spacing: -.01em; color: var(--ink); overflow-wrap: anywhere; }
+.tpl .t-form { display: flex; flex-direction: column; gap: 10px; padding: 16px 16px 14px; border-bottom: 1px solid var(--line); background: var(--f-card); color: var(--f-text); text-align: start; }
+.tpl .t-h { font-size: 14px; line-height: 1.25; letter-spacing: -.01em; color: var(--f-text); overflow-wrap: anywhere; }
 .tpl .t-q { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
-.tpl .t-l { font-size: 11px; line-height: 1.35; font-weight: 500; color: var(--ink); overflow-wrap: anywhere; }
-.tpl .t-in { display: flex; align-items: center; justify-content: space-between; gap: 6px; min-height: 22px; padding: 0 8px; border: 1px solid var(--line-strong); background: var(--bg); font-size: 10.5px; color: var(--faint); box-sizing: border-box; }
+.tpl .t-l { font-size: 11px; line-height: 1.35; font-weight: 500; color: var(--f-text); overflow-wrap: anywhere; }
+.tpl .t-in { display: flex; align-items: center; justify-content: space-between; gap: 6px; min-height: 22px; padding: 0 8px; border: 1px solid var(--f-line); background: var(--f-field); font-size: 10.5px; color: var(--f-muted); box-sizing: border-box; }
 .tpl .t-in.tall { min-height: 40px; }
 .tpl .t-ops { display: flex; flex-direction: column; gap: 4px; }
-.tpl .t-op { display: flex; align-items: center; gap: 6px; min-height: 22px; padding: 3px 8px; border: 1px solid var(--line-strong); font-size: 10.5px; line-height: 1.3; color: var(--body); overflow-wrap: anywhere; box-sizing: border-box; }
-.tpl .t-op i { flex: none; width: 8px; height: 8px; border: 1px solid var(--line-strong); border-radius: 50%; }
+.tpl .t-op { display: flex; align-items: center; gap: 6px; min-height: 22px; padding: 3px 8px; border: 1px solid var(--f-line); background: var(--f-field); font-size: 10.5px; line-height: 1.3; color: var(--f-text); overflow-wrap: anywhere; box-sizing: border-box; }
+.tpl .t-op i { flex: none; width: 8px; height: 8px; border: 1px solid var(--f-muted); border-radius: 50%; }
 .tpl .t-op i.sq { border-radius: 2px; }
 .tpl .t-sc { display: flex; flex-wrap: wrap; gap: 3px; }
-.tpl .t-sc span { min-width: 16px; height: 18px; padding: 0 3px; display: inline-flex; align-items: center; justify-content: center; border: 1px solid var(--line-strong); font-size: 9.5px; color: var(--body); box-sizing: border-box; }
-.tpl .t-stars { font-size: 13px; letter-spacing: 2px; color: var(--line-strong); }
+.tpl .t-sc span { min-width: 16px; height: 18px; padding: 0 3px; display: inline-flex; align-items: center; justify-content: center; border: 1px solid var(--f-line); background: var(--f-field); font-size: 9.5px; color: var(--f-text); box-sizing: border-box; }
+.tpl .t-stars { font-size: 13px; letter-spacing: 2px; color: var(--f-line); }
 .tpl .t-chk { display: flex; align-items: flex-start; gap: 6px; }
-.tpl .t-chk i { flex: none; width: 10px; height: 10px; margin-top: 1px; border: 1px solid var(--line-strong); border-radius: 2px; }
-.tpl .t-btn { align-self: flex-start; max-width: 100%; padding: 5px 12px; font-size: 10.5px; font-weight: 600; line-height: 1.3; box-shadow: 0 0 0 1px rgb(0 0 0 / .08); overflow-wrap: anywhere; }
+.tpl .t-chk i { flex: none; width: 10px; height: 10px; margin-top: 1px; border: 1px solid var(--f-muted); border-radius: 2px; }
+.tpl .t-btn { align-self: flex-start; max-width: 100%; padding: 5px 12px; font-size: 10.5px; font-weight: 600; line-height: 1.3; overflow-wrap: anywhere; }
 .tpl .t-tx { display: flex; flex-direction: column; gap: 4px; padding: 10px 12px 12px; min-width: 0; }
 .tpl .t-nm { font: 500 13px/1.35 var(--sans); color: var(--ink); overflow-wrap: anywhere; }
 .tpl .t-bl { font-size: 12px; line-height: 1.45; color: var(--muted); overflow-wrap: anywhere; }
@@ -2235,7 +2235,7 @@ ${CAL_CSS}
     const words = TG.q.toLowerCase().split(/\s+/).filter(Boolean);
     return (TG.list || []).filter((t) => (TG.fam === "all" || t.fams.includes(TG.fam)) && words.every((w) => t.words.includes(w)));
   }
-  /** A card's picture: the form itself, its title, first questions and button, with nothing around it. */
+  /** A card's picture: the form itself, its title, first questions and button, filling the card in its own colors. */
   function tplCard(t) {
     const f = t.form, r = `border-radius:${f.radius}px`;
     const box = (cls, ...kids) => h("span", { class: cls, style: r }, ...kids);
@@ -2251,7 +2251,7 @@ ${CAL_CSS}
       }
       return box(`t-in${q.kind === "long_text" || q.kind === "address" || q.kind === "file" || q.kind === "signature" || q.kind === "matrix" ? " tall" : ""}`);
     };
-    return h("div", { class: "t-form", "aria-hidden": "true", style: `font-family:${f.font}` },
+    return h("div", { class: "t-form", "aria-hidden": "true", style: `font-family:${f.font};--f-card:${f.card};--f-text:${f.text};--f-muted:${f.muted};--f-field:${f.field};--f-line:${f.border}` },
       h("span", { class: "t-h", style: `font-family:${f.head};font-weight:${f.headWeight}`, text: f.title }),
       ...f.qs.map((q) => q.kind === "agree"
         ? h("span", { class: "t-q t-chk" }, h("i"), h("span", { class: "t-l", text: q.label }))

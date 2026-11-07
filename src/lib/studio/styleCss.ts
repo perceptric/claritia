@@ -29,9 +29,9 @@ export function styleCss(th: Theme): string {
   const out: string[] = [
     `/* claritia-style: ${th.id} */`,
     `@import url("${fontsUrl([th.font, th.head])}");`,
-    `:root{--brand-primary:${th.accent};--brand-on-primary:${th.accentInk};--brand-text:${th.text};--brand-muted:${th.muted};--brand-faint:${th.faint};--brand-bg:transparent;--brand-surface:transparent;--brand-field:${th.field};--brand-line:${th.border};--brand-hover:${th.hover};--brand-soft:${th.soft};--brand-focus:${th.accent};--brand-font:${FONTS[th.font].css};--brand-head:${FONTS[th.head].css};--brand-radius:${px(th.radius)};--brand-btn-radius:${px(th.btnRadius)};--brand-card-radius:0px;--brand-bw:${px(th.bw)}${th.dark ? ";color-scheme:dark" : ""}}`,
-    // Only the form: no page color, pattern, drawing, card, frame or shadow around it. It sits on whatever is behind it.
-    `.page.page{font-family:var(--brand-font);color:var(--brand-text);background:transparent;padding:0;font-size:15px;line-height:1.5;-webkit-font-smoothing:antialiased;container-type:inline-size}`,
+    `:root{--brand-primary:${th.accent};--brand-on-primary:${th.accentInk};--brand-text:${th.text};--brand-muted:${th.muted};--brand-faint:${th.faint};--brand-bg:${th.card};--brand-surface:${th.card};--brand-field:${th.field};--brand-line:${th.border};--brand-hover:${th.hover};--brand-soft:${th.soft};--brand-focus:${th.accent};--brand-font:${FONTS[th.font].css};--brand-head:${FONTS[th.head].css};--brand-radius:${px(th.radius)};--brand-btn-radius:${px(th.btnRadius)};--brand-card-radius:0px;--brand-bw:${px(th.bw)}${th.dark ? ";color-scheme:dark" : ""}}`,
+    // The form is the whole page, in its own color: no stage, pattern, drawing, card frame or shadow around it.
+    `.page.page{font-family:var(--brand-font);color:var(--brand-text);background:var(--brand-bg);padding:clamp(24px,6cqi,48px) clamp(16px,5cqi,40px);font-size:15px;line-height:1.5;-webkit-font-smoothing:antialiased;container-type:inline-size}`,
     `.page .form-card{position:relative;max-width:680px;gap:24px;padding:0;background:transparent;border:0;border-radius:0;box-shadow:none;box-sizing:border-box}`,
     `.page .logo{height:28px;width:auto;max-width:140px;object-fit:contain;object-position:left center}`,
     // Words.

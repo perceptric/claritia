@@ -1,6 +1,6 @@
 // The templates the Form Studio shows on an empty canvas (docs/form-templates.md): every template, most used first,
 // with its families, question count, the words search looks in, and what the card shows: the form's title, its first
-// real questions and its button, in the style's font, corners and button color, with nothing around them. Browser.
+// real questions and its button, filling the card in the style's own colors, font and corners. Browser.
 
 import { industryLabel, questionCount, templateTheme } from "./catalog.ts";
 import { filterTemplates, valuesIn } from "./filter.ts";
@@ -19,8 +19,8 @@ export type StudioTemplate = {
   fams: string[];
   n: number;
   words: string;
-  /** The card: the form's title, its first questions and its button, in its style's type, corners and button color. */
-  form: { title: string; qs: CardQuestion[]; button: string; font: string; head: string; headWeight: number; radius: number; btnRadius: number; accent: string; accentInk: string };
+  /** The card: the form's title, its first questions and its button, in its style's colors, type and corners. */
+  form: { title: string; qs: CardQuestion[]; button: string; font: string; head: string; headWeight: number; radius: number; btnRadius: number; accent: string; accentInk: string; card: string; text: string; muted: string; field: string; border: string };
 };
 
 /** How many questions a card shows. */
@@ -59,6 +59,11 @@ export function studioTemplate(t: FormTemplate): StudioTemplate {
       btnRadius: Math.min(s.btnRadius, 999),
       accent: s.accent,
       accentInk: s.accentInk,
+      card: s.card,
+      text: s.text,
+      muted: s.muted,
+      field: /^#[0-9a-f]{6}$/i.test(s.field) ? s.field : s.card,
+      border: s.border,
     },
   };
 }

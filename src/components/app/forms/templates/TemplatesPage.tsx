@@ -37,23 +37,25 @@ function useStyleFonts() {
   }, []);
 }
 
-/** A card's picture: the form itself (its title, first real questions and button) in its style's type, corners and
- * button color, with no page color, card, frame or drawing around it. */
+/** A card's picture: the form itself (its title, first real questions and button), filling the card in its style's own
+ * colors, type and corners, with no stage, card frame or drawing around it. */
 function StyleThumb({ t, th }: { t: FormTemplate; th: Theme }) {
   const s = t.schema;
   const r = Math.min(th.radius, 10);
-  const box = "border border-line-strong bg-card";
+  const field = /^#[0-9a-f]{6}$/i.test(th.field) ? th.field : th.card;
+  const box = "border";
+  const ink = { borderColor: th.border, background: field, color: th.text };
   const shown = s.pages[0]!.fields.filter((f) => f.kind !== "hidden" && f.kind !== "statement" && f.kind !== "calc").slice(0, 3);
   const choice = (f: FormTemplate["schema"]["pages"][number]["fields"][number]) => (f.kind === "yes_no" ? ["Yes", "No"] : (f.options ?? []).slice(0, 3));
   return (
-    <div aria-hidden="true" className="flex flex-col gap-[10px] border-b border-line px-[16px] pt-[16px] pb-[14px] text-ink" style={{ fontFamily: FONTS[th.font].css }}>
+    <div aria-hidden="true" className="flex flex-col gap-[10px] border-b border-line px-[16px] pt-[16px] pb-[14px]" style={{ fontFamily: FONTS[th.font].css, background: th.card, color: th.text }}>
       <span className="text-[14px] leading-tight tracking-[-0.01em] wrap-anywhere" style={{ fontFamily: FONTS[th.head].css, fontWeight: th.headWeight, fontStyle: th.headItalic ? "italic" : "normal" }}>
         {s.title}
       </span>
       {shown.map((f) =>
         f.kind === "agree" ? (
           <span key={f.key} className="flex items-start gap-[6px]">
-            <span className={`mt-[1px] size-[10px] shrink-0 rounded-[2px] ${box}`} />
+            <span className={`mt-[1px] size-[10px] shrink-0 rounded-[2px] ${box}`} style={ink} />
             <span className="text-[11px] leading-[1.35] font-medium wrap-anywhere">{f.label}</span>
           </span>
         ) : (
@@ -62,35 +64,35 @@ function StyleThumb({ t, th }: { t: FormTemplate; th: Theme }) {
             {(f.kind === "single" || f.kind === "multi" || f.kind === "yes_no" || f.kind === "ranking") && choice(f).length ? (
               <span className="flex flex-col gap-[4px]">
                 {choice(f).map((o) => (
-                  <span key={o} className={`flex min-h-[22px] items-center gap-[6px] px-[8px] py-[3px] text-[10.5px] leading-[1.3] text-body wrap-anywhere ${box}`} style={{ borderRadius: r }}>
-                    <span className={`size-[8px] shrink-0 border border-line-strong ${f.kind === "multi" ? "rounded-[2px]" : "rounded-full"}`} />
+                  <span key={o} className={`flex min-h-[22px] items-center gap-[6px] px-[8px] py-[3px] text-[10.5px] leading-[1.3] wrap-anywhere ${box}`} style={{ ...ink, borderRadius: r }}>
+                    <span className={`size-[8px] shrink-0 border ${f.kind === "multi" ? "rounded-[2px]" : "rounded-full"}`} style={{ borderColor: th.muted }} />
                     {o}
                   </span>
                 ))}
               </span>
             ) : f.kind === "dropdown" ? (
-              <span className={`flex min-h-[22px] items-center justify-between px-[8px] text-[10.5px] text-faint ${box}`} style={{ borderRadius: r }}>
+              <span className={`flex min-h-[22px] items-center justify-between px-[8px] text-[10.5px] ${box}`} style={{ ...ink, color: th.muted, borderRadius: r }}>
                 <span>Choose one</span>
                 <span>{"\u25be"}</span>
               </span>
             ) : f.kind === "rating" ? (
-              <span className="text-[13px] tracking-[2px] text-line-strong">{"\u2605".repeat(Math.min(f.max ?? 5, 10))}</span>
+              <span className="text-[13px] tracking-[2px]" style={{ color: th.border }}>{"\u2605".repeat(Math.min(f.max ?? 5, 10))}</span>
             ) : f.kind === "nps" || f.kind === "scale" ? (
               <span className="flex flex-wrap gap-[3px]">
                 {Array.from({ length: Math.min((f.kind === "nps" ? 10 : (f.max ?? 5)) - (f.kind === "nps" ? 0 : (f.min ?? 1)) + 1, 11) }, (_, i) => (f.kind === "nps" ? 0 : (f.min ?? 1)) + i).map((n) => (
-                  <span key={n} className={`inline-flex h-[18px] min-w-[16px] items-center justify-center px-[3px] text-[9.5px] text-body ${box}`} style={{ borderRadius: r }}>
+                  <span key={n} className={`inline-flex h-[18px] min-w-[16px] items-center justify-center px-[3px] text-[9.5px] ${box}`} style={{ ...ink, borderRadius: r }}>
                     {n}
                   </span>
                 ))}
               </span>
             ) : (
-              <span className={`${f.kind === "long_text" || f.kind === "address" || f.kind === "file" || f.kind === "signature" || f.kind === "matrix" ? "min-h-[40px]" : "min-h-[22px]"} ${box}`} style={{ borderRadius: r }} />
+              <span className={`${f.kind === "long_text" || f.kind === "address" || f.kind === "file" || f.kind === "signature" || f.kind === "matrix" ? "min-h-[40px]" : "min-h-[22px]"} ${box}`} style={{ ...ink, borderRadius: r }} />
             )}
           </span>
         ),
       )}
       <span
-        className="self-start px-[12px] py-[5px] text-[10.5px] leading-[1.3] font-semibold shadow-chip wrap-anywhere"
+        className="self-start px-[12px] py-[5px] text-[10.5px] leading-[1.3] font-semibold wrap-anywhere"
         style={{ background: th.accent, color: th.accentInk, borderRadius: Math.min(th.btnRadius, 999) }}
       >
         {s.pages.length > 1 ? "Next" : s.submit}

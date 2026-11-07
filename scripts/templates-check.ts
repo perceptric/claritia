@@ -65,7 +65,7 @@ try {
   await sheet.waitFor();
   check((await page.getByRole("button", { name: "Style", exact: true }).textContent())?.includes("Poster style") === true, "the style picked on the website is the look");
   check((await button()) === rgb(themeById("poster").accent), "the preview wears Poster");
-  check((await stage()) === "rgba(0, 0, 0, 0)", "a style puts no page color around the form");
+  check((await stage()) === rgb(themeById("poster").card), "the form fills the preview in its own color, with no stage color around it");
   await shot("1-poster");
   await page.getByRole("button", { name: "Use form template" }).click();
   await page.waitForFunction(() => (window as unknown as { nav: unknown[] }).nav.length > 0);

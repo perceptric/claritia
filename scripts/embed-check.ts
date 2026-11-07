@@ -171,7 +171,7 @@ try {
   await bf.locator("[data-cl-next]").first().click();
   check((await bf.locator("input[name='email']").isVisible()) && !(await bf.locator("#two").isVisible()), "built: Big jumps past page two");
 
-  // A gallery style is only the form: no page color, pattern, drawing, card or shadow around it
+  // A gallery style is only the form, filling its box in its own color: no stage, pattern, drawing or card inside it
   await desk.goto(add("/pure", formEmbedCode(origin, PICK, { mode: "inline" })));
   const pf0 = host(desk);
   await pf0.locator("button.cl-pick").waitFor();
@@ -180,8 +180,11 @@ try {
     const cs = getComputedStyle(pg), cc = getComputedStyle(card), before = getComputedStyle(card, "::before");
     return { bg: cs.backgroundColor, img: cs.backgroundImage, pad: cs.paddingTop, card: cc.backgroundColor, shadow: cc.boxShadow, border: cc.borderTopWidth, cpad: cc.paddingTop, art: before.content };
   });
-  check(look.bg === "rgba(0, 0, 0, 0)" && look.img === "none" && look.pad === "0px", `pure form: no page color or pattern around it (${look.bg}, ${look.img}, ${look.pad})`);
-  check(look.card === "rgba(0, 0, 0, 0)" && look.shadow === "none" && look.border === "0px" && look.cpad === "0px" && (look.art === "none" || look.art === "normal"), `pure form: no card, frame, shadow or drawing (${JSON.stringify(look)})`);
+  check(look.bg === "rgb(255, 255, 255)" && look.img === "none", `only the form: its own color fills the box, with no stage color or pattern (${look.bg}, ${look.img})`);
+  check(look.card === "rgba(0, 0, 0, 0)" && look.shadow === "none" && look.border === "0px" && look.cpad === "0px" && (look.art === "none" || look.art === "normal"), `only the form: no card, frame, shadow or drawing inside it (${JSON.stringify(look)})`);
+
+  const full = await pf0.locator(".page").evaluate((pg) => [pg.getBoundingClientRect().width, (pg.getRootNode() as ShadowRoot).host.getBoundingClientRect().width]);
+  check(Math.abs(full[0]! - full[1]!) <= 1, `only the form: it fills the whole width of its box (${full.map(Math.round).join(" of ")})`);
 
   // Its dropdown is the form's own list, never the browser's
   const pk = pf0.locator("button.cl-pick");
