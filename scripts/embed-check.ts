@@ -78,6 +78,18 @@ const covered = ready(
   }).form,
 );
 const coverSent: string[] = [];
+// One question at a time: three pages (the second only for Enterprise), questions inside a .fields wrapper, a hidden
+// value, a choice that moves on by itself, and long text last.
+const ONE = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+const oneForm = ready(
+  pageForm({
+    html: `<main class="page"><div class="form-card"><form data-cl-one><section data-cl-step><h2 class="heading" id="about">About you</h2><div class="fields"><div class="q"><label class="label" for="q_name">Your name</label><input class="field" id="q_name" name="name" type="text" required><p class="error" data-cl-error-for="name"></p></div><fieldset class="q"><legend class="label">Plan</legend><label class="choice"><input type="radio" name="plan" value="team" required> Team</label><label class="choice"><input type="radio" name="plan" value="ent"> Enterprise</label><p class="error" data-cl-error-for="plan"></p></fieldset><div data-cl-field="hidden" data-cl-name="campaign" data-cl-from="param" data-cl-param="ref"></div></div><div class="nav"><button class="btn" type="button" data-cl-next>Next</button></div></section><section data-cl-step data-cl-show-if="plan == 'ent'"><div class="q"><label class="label" for="q_seats">Seats</label><input class="field" id="q_seats" name="seats" type="number" required><p class="error" data-cl-error-for="seats"></p></div><div class="nav"><button class="btn-secondary" type="button" data-cl-back>Back</button><button class="btn" type="button" data-cl-next>Next</button></div></section><section data-cl-step><div class="q"><label class="label" for="q_email">Email</label><input class="field" id="q_email" name="email" type="email" required><p class="error" data-cl-error-for="email"></p></div><div class="q"><label class="label" for="q_notes">Notes</label><textarea class="field" id="q_notes" name="notes"></textarea></div><div class="nav"><button class="btn-secondary" type="button" data-cl-back>Back</button><button class="btn" type="submit">Send</button></div></section></form><section data-cl-thanks hidden><h2 class="heading" id="oneDone">Thanks</h2></section></div></main>`,
+    css: "",
+    brand: styleCssById("paper"),
+    after: { kind: "thanks" },
+  }).form,
+);
+const oneSent: string[] = [];
 const styled = (() => {
   const r = studioForm(plain, styleCssById("grove"));
   if ("error" in r) throw new Error(r.error);
@@ -128,6 +140,13 @@ const server = createServer((req, res) => {
     req.on("end", () => (coverSent.push(b), json({ id: "c1" })));
     return;
   }
+  if (u === `/api/forms/${ONE}/submit`) {
+    let b = "";
+    req.on("data", (c) => (b += c));
+    req.on("end", () => (oneSent.push(b), json({ id: "o1" })));
+    return;
+  }
+  if (u === `/api/forms/${ONE}`) return json({ id: ONE, version: 1, status: "live", body: oneForm, logo_url: null });
   if (u === `/api/forms/${COVER}`) return json({ id: COVER, version: 1, status: "live", body: covered, logo_url: null });
   if (u === `/api/forms/${PICK}`) return json({ id: PICK, version: 1, status: "live", body: picky, logo_url: null });
   if (u === `/api/forms/${FORM}`) return json({ id: FORM, version: 1, status: "live", body: plain, tokens: {}, logo_url: null });
@@ -315,6 +334,50 @@ try {
   await desk.goto(`${add("/cover-answer", formEmbedCode(origin, COVER, { mode: "inline" }))}?clr_a=${encodeURIComponent(`${planId}:ent`)}`);
   await host(desk).locator("input[name='email']").waitFor({ state: "visible" });
   check(!(await host(desk).locator("#welcome").isVisible()) && (await host(desk).locator("input[value='ent']").isChecked()), "an email's answer goes past the welcome screen to the form, picked");
+
+  // One question at a time: one question a screen; Enter, letters and a single pick move on, once, never past a
+  // required question left empty; Back keeps the answer; a page hidden by a changed answer is skipped and its answer
+  // never sent; the fill is sent once with every answer
+  await desk.goto(`${add("/one", formEmbedCode(origin, ONE, { mode: "inline" }))}?ref=spring`);
+  const of = host(desk);
+  const shown = () => of.locator("[data-cl-one-step]:not([hidden])");
+  const screen = async () => (await shown().locator("input:not([type=hidden]),textarea").first().getAttribute("name")) ?? "";
+  await of.locator("input[name='name']").waitFor({ state: "visible" });
+  check((await of.locator("[data-cl-one-step]").count()) === 5 && (await shown().count()) === 1 && (await screen()) === "name" && (await shown().locator("#about").count()) === 1, `one question a screen: 5 screens, the page's heading with its first question (${await of.locator("[data-cl-one-step]").count()})`);
+  check(await of.locator("input[name='name']").evaluate((x) => (x.getRootNode() as ShadowRoot).activeElement !== x), "the first question doesn't take the focus by itself (the site's page doesn't jump to it)");
+  await of.locator("input[name='name']").click();
+  await desk.keyboard.press("Enter");
+  check((await screen()) === "name" && ((await of.locator('[data-cl-error-for="name"]').textContent()) ?? "") === "Fill this in.", "Enter on a required question left empty stays, with its error");
+  await desk.keyboard.type("Dana");
+  await desk.keyboard.press("Enter");
+  await desk.keyboard.press("Enter");
+  await desk.waitForTimeout(100);
+  check((await screen()) === "plan" && ((await of.locator('[data-cl-error-for="plan"]').textContent()) ?? "") === "Fill this in.", `Enter twice fast moves on once, and never past the next required question (${await screen()})`);
+  check((await shown().locator("label[data-cl-key='B']").count()) === 1, "choices carry their letters");
+  await desk.keyboard.press("b");
+  await desk.keyboard.press("b");
+  await desk.waitForTimeout(500);
+  check((await screen()) === "seats", `a letter picks Enterprise and moves on once, to the page Enterprise opens (${await screen()})`);
+  await shown().locator("[data-cl-back]").click();
+  check((await screen()) === "plan" && (await of.locator("input[value='ent']").isChecked()), "Back shows the answer still picked");
+  await shown().locator("label").filter({ hasText: "Team" }).dblclick();
+  await desk.waitForTimeout(500);
+  check((await screen()) === "email", `a double tap on Team moves on once, past the page only Enterprise sees (${await screen()})`);
+  await desk.keyboard.press("Enter");
+  check((await screen()) === "email" && ((await of.locator('[data-cl-error-for="email"]').textContent()) ?? "") === "Fill this in.", "Enter on an empty email stays");
+  await desk.keyboard.type("dana@acme.com");
+  await desk.keyboard.press("Enter");
+  await desk.waitForTimeout(100);
+  check((await screen()) === "notes" && (await shown().locator("[type=submit]").count()) === 1 && (await shown().locator("[data-cl-next]").count()) === 0, "the last question carries the send button, no OK");
+  await desk.keyboard.type("Line one");
+  await desk.keyboard.press("Shift+Enter");
+  await desk.keyboard.type("Line two");
+  check((await of.locator("textarea[name='notes']").inputValue()) === "Line one\nLine two" && oneSent.length === 0, "Shift+Enter makes a new line in long text");
+  await desk.keyboard.press("Enter");
+  await of.locator("#oneDone").waitFor();
+  await desk.waitForTimeout(300);
+  const sent = oneSent[0] ?? "";
+  check(oneSent.length === 1 && sent.includes("Dana") && sent.includes('"team"') && sent.includes("dana@acme.com") && sent.includes("Line one\\nLine two") && sent.includes("spring") && !sent.includes("seats") , `the fill is sent once, with every answer and the hidden value, and no answer from the skipped page (${sent.slice(0, 300)})`);
 
   // Closed by Settings › Access: the form's own closed message in place of the form
   await desk.goto(add("/shut", formEmbedCode(origin, SHUT, { mode: "inline" })));

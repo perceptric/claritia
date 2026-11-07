@@ -84,3 +84,15 @@ test("the form check stops Publish while a photo has no words for screen readers
   const withAlt = checkStudioPage({ html: html(' data-cl-alt="Two people at a desk"'), after: { kind: "thanks" }, meetings: [] });
   assert.ok(!withAlt.some((i) => i.code === "photo-alt"));
 });
+
+test("one question at a time: a question's show-if joins its page's, every way each holds", async () => {
+  const { bothIf } = await import("../src/lib/studio/one.ts");
+  const { holds } = await import("../src/lib/studio/runtime.ts");
+  assert.equal(bothIf(null, "a == 'x'"), "a == 'x'");
+  assert.equal(bothIf("a == 'x'", null), "a == 'x'");
+  const e = bothIf("a == 'x' or a == 'y'", "b == '1' or c == '2'")!;
+  for (const a of ["x", "y", "z"]) for (const b of ["1", "0"]) for (const c of ["2", "0"]) {
+    const v = { a, b, c };
+    assert.equal(holds(e, v), (a === "x" || a === "y") && (b === "1" || c === "2"), JSON.stringify(v));
+  }
+});

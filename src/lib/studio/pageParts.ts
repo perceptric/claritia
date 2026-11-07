@@ -4,9 +4,10 @@
 // code. Browser only.
 
 import { focusOf, layoutOf, mediaOk, sizedUrl, srcsetOf, widthsOf } from "../forms/media.ts";
+export { ONE_CSS, oneKeys, splitOne } from "./one.ts";
 
 /** Whether a page needs these parts. */
-export const needsParts = (html: string) => /<select[\s>]|data-cl-media=/.test(html);
+export const needsParts = (html: string) => /<select[\s>]|data-cl-media=|data-cl-one[\s=>]/.test(html);
 
 /** The look of the form's own dropdowns (pickers); colors, corners and fonts come from the page's .field. */
 export const PICK_CSS =

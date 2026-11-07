@@ -723,6 +723,22 @@ try {
   check((await form.locator("[data-cl-cover]").isHidden()) && (await form.locator("[data-cl-step]").first().isVisible()), "Start goes to the first page");
   if (shots) await p.screenshot({ path: `${shots}/9d-welcome.png` });
   await toEdit();
+  // One question at a time: the switch, then Preview shows one question a screen and OK moves on
+  await $("#stepBar .sp").nth(1).click();
+  await $("#p-set").click();
+  await $("#pscroll button[aria-label='One question at a time']").click();
+  check((await form.locator("form[data-cl-one]").count()) === 1, "the One question at a time switch turns it on");
+  await toPreview();
+  await $("#stepBar .sp").nth(1).click();
+  const visibleQs = () => form.locator("[data-cl-one-step]:not([hidden]) :is(input:not([type=hidden]):not([type=checkbox]),textarea)").count();
+  await form.locator("[data-cl-one-step]:not([hidden])").first().waitFor();
+  check((await visibleQs()) === 1 && (await form.locator("[data-cl-one-step]:not([hidden]) [data-cl-next]").count()) === 1, "Preview shows one question a screen, with OK");
+  if (shots) await p.screenshot({ path: `${shots}/9e-one.png` });
+  await toEdit();
+  await $("#stepBar .sp").nth(1).click();
+  await $("#p-set").click();
+  await $("#pscroll button[aria-label='One question at a time']").click();
+  check((await form.locator("form[data-cl-one]").count()) === 0, "and off again");
 
   // 10. Delete a brand from the menu
   await $("#brandBtn").click();

@@ -11,7 +11,7 @@ import { cleanRoute, OP_LABEL, PAST_ROUTES, ROUTE_OPS, routeKind, routeMeeting, 
 import { linkProblem, SCHEDULERS } from "../../../../lib/forms/schedule";
 import { INDUSTRIES, industryOf, isRtl, languageName, profileWords, recipeText } from "../../../../lib/studio/industries";
 import { ACCESS_CSS, around, CAL_CSS, consentSpot, limitMsg, linkErrors, pageBox, pipes, showCover, shuffle, zoneWords } from "../../../../lib/studio/runtime";
-import { MEDIA_CSS, PICK_CSS, pickers, showMedia } from "../../../../lib/studio/pageParts";
+import { MEDIA_CSS, ONE_CSS, oneKeys, PICK_CSS, pickers, showMedia, splitOne } from "../../../../lib/studio/pageParts";
 import { sizedUrl, widthsOf } from "../../../../lib/forms/media";
 import { baseName, isLayout, PICK_KINDS, SAVES, QGROUPS, QNAME, questionHtml, readJumps, renameValueIn, stepShowIfs, TEXT_KINDS, uniqueName, uniqueValue, valueFollows, writeJumps } from "../../../../lib/studio/builder";
 import { TIA_STYLE, tiaSvg } from "../../../../lib/studio/tia";
@@ -710,13 +710,15 @@ export function mountStudio(shell: ShadowRoot, api: StudioApi): StudioControl {
   // ── Drawing ───────────────────────────────────────────────────────────────────────────────────────────
   const host = $("host");
   const root = host.attachShadow({ mode: "open" });
-  const BASE = `${ACCESS_CSS}${PICK_CSS}${MEDIA_CSS}.cl-bookph{border:1px dashed rgba(127,127,127,.6);border-radius:10px;padding:18px;text-align:center;font:500 12px system-ui,sans-serif;opacity:.7}.cl-divider{font:600 11px/1 system-ui,sans-serif;letter-spacing:.06em;text-transform:uppercase;color:#7a7a7a;border-top:1px dashed rgba(127,127,127,.55);padding:10px 0 0;margin:20px 0 10px}.cl-edit [data-cl-if]{outline:1px dashed rgba(109,40,217,.55);outline-offset:3px}.cl-edit [data-cl-if]::before{content:attr(data-cl-if);display:block;width:max-content;max-width:100%;font:500 11px/1.7 system-ui,sans-serif;color:#6d28d9;background:rgba(109,40,217,.08);border-radius:4px;padding:0 6px;margin-bottom:6px;white-space:normal}.cl-block{display:flex;flex-direction:column;gap:8px}.cl-two{display:grid;grid-template-columns:1fr 1fr;gap:8px}.cl-addr{display:flex;flex-direction:column;gap:8px}.cl-rate{display:flex;flex-wrap:wrap;gap:6px;font-size:26px;line-height:1;opacity:.6}.cl-ends{display:flex;justify-content:space-between;gap:12px;font-size:12px;opacity:.6}.cl-num{font-size:14px;border:1px solid currentColor;border-radius:8px;padding:8px 12px}.cl-sign{min-height:110px}.cl-calc{display:block;font-variant-numeric:tabular-nums}.cl-pay{display:flex;justify-content:space-between;gap:12px;align-items:baseline}.cl-pay b,.cl-res b{font-size:1.4em;font-variant-numeric:tabular-nums}.cl-res{display:flex;flex-direction:column;gap:4px}.cl-grid{width:100%;border-collapse:collapse}.cl-grid th,.cl-grid td{padding:6px;text-align:center}.cl-grid th:first-child,.cl-grid td:first-child{text-align:start}.cl-rank{margin:0;padding-inline-start:20px;display:flex;flex-direction:column;gap:6px}.cl-hid{font:500 11px/1.8 system-ui,sans-serif;opacity:.6;border:1px dashed currentColor;border-radius:6px;padding:0 8px;width:max-content}
+  const BASE = `${ACCESS_CSS}${PICK_CSS}${MEDIA_CSS}${ONE_CSS}.cl-bookph{border:1px dashed rgba(127,127,127,.6);border-radius:10px;padding:18px;text-align:center;font:500 12px system-ui,sans-serif;opacity:.7}.cl-divider{font:600 11px/1 system-ui,sans-serif;letter-spacing:.06em;text-transform:uppercase;color:#7a7a7a;border-top:1px dashed rgba(127,127,127,.55);padding:10px 0 0;margin:20px 0 10px}.cl-edit [data-cl-if]{outline:1px dashed rgba(109,40,217,.55);outline-offset:3px}.cl-edit [data-cl-if]::before{content:attr(data-cl-if);display:block;width:max-content;max-width:100%;font:500 11px/1.7 system-ui,sans-serif;color:#6d28d9;background:rgba(109,40,217,.08);border-radius:4px;padding:0 6px;margin-bottom:6px;white-space:normal}.cl-block{display:flex;flex-direction:column;gap:8px}.cl-two{display:grid;grid-template-columns:1fr 1fr;gap:8px}.cl-addr{display:flex;flex-direction:column;gap:8px}.cl-rate{display:flex;flex-wrap:wrap;gap:6px;font-size:26px;line-height:1;opacity:.6}.cl-ends{display:flex;justify-content:space-between;gap:12px;font-size:12px;opacity:.6}.cl-num{font-size:14px;border:1px solid currentColor;border-radius:8px;padding:8px 12px}.cl-sign{min-height:110px}.cl-calc{display:block;font-variant-numeric:tabular-nums}.cl-pay{display:flex;justify-content:space-between;gap:12px;align-items:baseline}.cl-pay b,.cl-res b{font-size:1.4em;font-variant-numeric:tabular-nums}.cl-res{display:flex;flex-direction:column;gap:4px}.cl-grid{width:100%;border-collapse:collapse}.cl-grid th,.cl-grid td{padding:6px;text-align:center}.cl-grid th:first-child,.cl-grid td:first-child{text-align:start}.cl-rank{margin:0;padding-inline-start:20px;display:flex;flex-direction:column;gap:6px}.cl-hid{font:500 11px/1.8 system-ui,sans-serif;opacity:.6;border:1px dashed currentColor;border-radius:6px;padding:0 8px;width:max-content}
 .cl-consent{display:flex;gap:8px;align-items:flex-start;font-size:13px;line-height:1.4;opacity:.85}.cl-consent input{margin:2px 0 0}
 .cl-pick{display:flex;justify-content:space-between;align-items:center;gap:8px;opacity:.75}.cl-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:8px}.cl-card{display:flex;flex-direction:column;gap:6px;padding:8px;height:auto}.cl-card img,.cl-ph{width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:6px;background:rgba(127,127,127,.15);display:block}.cl-row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}.cl-row>input{flex:1 1 120px;min-width:0}.cl-btn2{display:inline-flex;width:max-content;font:500 12px/1 system-ui,sans-serif;border:1px solid currentColor;border-radius:999px;padding:7px 12px;opacity:.7}.cl-qty{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px 12px;align-items:center}.cl-step{display:inline-flex;gap:12px;align-items:center;border:1px solid rgba(127,127,127,.5);border-radius:999px;padding:4px 12px}.cl-chips{display:flex;flex-wrap:wrap;gap:6px;align-items:center}.cl-chip{display:inline-flex;align-items:center;padding:6px 12px;height:auto;width:auto;border-radius:999px;border:1px solid rgba(127,127,127,.5);font-size:13px}.cl-map{height:160px;position:relative;background:repeating-linear-gradient(45deg,rgba(127,127,127,.08) 0 12px,rgba(127,127,127,.14) 12px 24px)}.cl-pin{position:absolute;left:50%;top:50%;width:16px;height:16px;margin:-16px 0 0 -8px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);background:#d93025}.cl-crop{width:160px;aspect-ratio:1;height:auto}.cl-media{border:1px dashed rgba(127,127,127,.6);border-radius:10px;padding:22px;text-align:center;font:500 12px system-ui,sans-serif;opacity:.7;overflow-wrap:anywhere}.cl-edit [data-cl-review]:empty::before{content:"Answer review: the answers show here before sending";display:block;font:500 12px system-ui,sans-serif;opacity:.6;border:1px dashed rgba(127,127,127,.6);border-radius:8px;padding:14px}.cl-edit .cl-section{outline:1px dashed rgba(127,127,127,.45);outline-offset:6px;border-radius:4px}
 :host{all:initial;display:flex;flex-direction:column;flex:1}*,*::before,*::after{box-sizing:border-box}[hidden]{display:none!important}.cl-root{flex:1;min-height:560px;display:flex;flex-direction:column}.cl-root>*{flex:1 0 auto}
 ${CAL_CSS}
 .cl-edit [data-k]{cursor:default}.cl-edit [contenteditable]{outline:none;cursor:text}`;
   let stepAt = 0, done = false, coverOn = true;
+  // One question at a time in Preview: each screen's page in Edit (oneMap), and the page Preview was opened on.
+  let oneMap = [], previewFrom = null;
   function draw() {
     const has = built();
     // Nothing shows until a chat is open: a form that's still loading never flashes the templates.
@@ -832,6 +834,12 @@ ${CAL_CSS}
     return m[2] === ">" ? n > t : m[2] === "<" ? n < t : m[2] === ">=" ? n >= t : n <= t;
   }
   function run(w) {
+    oneMap = S.mode !== "edit" ? splitOne(w) : [];
+    if (oneMap.length) {
+      oneKeys(w);
+      if (previewFrom !== null) { const i = oneMap.indexOf(previewFrom); stepAt = i >= 0 ? i : 0; }
+    }
+    previewFrom = null;
     linkErrors(w);
     if (S.mode !== "edit") { shuffle(w); pickers(w); }
     const steps = [...w.querySelectorAll("[data-cl-step]")], thanks = w.querySelector("[data-cl-thanks]"), editing = S.mode === "edit";
@@ -1097,16 +1105,16 @@ ${CAL_CSS}
     const go = (v) => {
       if (v === "after") return setMode("after");
       if (S.mode === "after") { S.view = v; return setMode("edit"); }
-      if (editing) { S.view = v; S.sel = null; draw(); panel(); tree(); } else { if (v === "thanks") done = true; else if (v === "cover") { done = false; coverOn = true; } else { done = false; coverOn = false; stepAt = v; } draw(); }
+      if (editing) { S.view = v; S.sel = null; draw(); panel(); tree(); } else { if (v === "thanks") done = true; else if (v === "cover") { done = false; coverOn = true; } else { done = false; coverOn = false; stepAt = oneMap.length ? Math.max(0, oneMap.indexOf(v)) : v; } draw(); }
     };
     const conn = () => h("span", { class: "conn", "aria-hidden": "true" });
     const pill = (n, text, on, fn, cls = "") => h("button", { class: `sp${cls ? ` ${cls}` : ""}`, "aria-pressed": String(on), onclick: fn }, h("span", { class: "n", ...(n === "tick" ? { html: SVG(P.check, 11) } : n === "bolt" ? { html: SVG(P.bolt, 11) } : n === "img" ? { html: SVG(P.image, 11) } : { text: n }) }), h("span", { text }));
     const after = S.mode === "after";
-    const at = editing ? S.view : done ? "thanks" : stepAt;
+    const at = editing ? S.view : done ? "thanks" : oneMap.length ? (oneMap[stepAt] ?? 0) : stepAt;
     const passed = (i) => !editing && (done || (typeof at === "number" && i < at));
     if (cover) { bar.append(pill("img", "Welcome", !after && (editing ? S.view === "cover" : coverOn && !done), () => go("cover"), !editing && !after && (!coverOn || done) ? "done" : "")); bar.append(conn()); }
     const onCov = !editing && !!cover && coverOn && !done;
-    if (steps.length) steps.forEach((st, i) => { if (i) bar.append(conn()); bar.append(pill(String(i + 1), stepName(st, i), !after && (editing ? S.view === i : !done && !onCov && stepAt === i), () => go(i), passed(i) && !onCov ? "done" : "")); });
+    if (steps.length) steps.forEach((st, i) => { if (i) bar.append(conn()); bar.append(pill(String(i + 1), stepName(st, i), !after && (editing ? S.view === i : !done && !onCov && at === i), () => go(i), passed(i) && !onCov ? "done" : "")); });
     else bar.append(pill("1", "Form", !after && (editing ? S.view === 0 : !done && !onCov), () => go(0), !editing && !after && done ? "done" : ""));
     if (thanks) { bar.append(conn()); bar.append(pill("tick", "Thank-you", !after && (editing ? S.view === "thanks" : done), () => go("thanks"))); }
     // On submission is the last step: what happens once it's sent (the meeting, routing, the team's email).
@@ -2258,6 +2266,13 @@ ${CAL_CSS}
     api.pictures().then((list) => { if (!alive) return; for (const pic of list) grid.append(h("button", { "aria-label": pic.name || "Photo", "aria-pressed": String(pic.url === current || small(pic) === current), onclick: () => choose(pic) }, h("img", { src: small(pic), alt: "", loading: "lazy" }))); }, () => toast("Couldn't load your photos. Try again."));
     return grid;
   }
+  /** One question at a time: each question on its own screen, with Enter, letter keys and single picks moving on. */
+  function oneSec(p) {
+    const f = src.querySelector("form");
+    if (!f) return;
+    const on = f.hasAttribute("data-cl-one");
+    p.append(h("div", { class: "sec" }, h("h4", { text: "Layout" }), h("div", { class: "row2" }, h("span", { class: "lbl", text: "One question at a time" }), h("div", {}, h("button", { class: "sw", role: "switch", "aria-checked": String(on), "aria-label": "One question at a time", onclick: () => { snap(); on ? f.removeAttribute("data-cl-one") : f.setAttribute("data-cl-one", ""); commit(); panel(); } })))));
+  }
   /** Photo: the screen in view's photo from the library or an upload, where it goes, the spot kept in view, its words. */
   function photoSec(p) {
     const el = screenEl();
@@ -2290,6 +2305,7 @@ ${CAL_CSS}
   function formSettings(p) {
     p.append(h("div", { class: "sec" }, h("p", { class: "hint0", text: "Select a field on the form to edit it. Click selected text again to type." })));
     welcomeSec(p);
+    oneSec(p);
     photoSec(p);
     // Hidden values from the link: ?utm_source=… or ?ref=… kept with each fill.
     const Hd = h("div", { class: "sec" }, h("h4", { text: "Hidden fields" }));
@@ -2492,8 +2508,8 @@ ${CAL_CSS}
     $("chat").classList.toggle("prev", m === "preview");
     $("exitPrev").hidden = m !== "preview" || !!PK;
     if (m !== "edit") { S.sel = null; $("hov").hidden = true; }
-    if (m === "edit" && was === "preview") S.view = done ? (src.querySelector("[data-cl-thanks]") ? "thanks" : 0) : coverOn && src.querySelector("[data-cl-cover]") ? "cover" : stepAt;
-    if (m === "preview" && was !== "preview") { stepAt = typeof S.view === "number" ? S.view : 0; done = S.view === "thanks"; coverOn = S.view === "cover"; }
+    if (m === "edit" && was === "preview") S.view = done ? (src.querySelector("[data-cl-thanks]") ? "thanks" : 0) : coverOn && src.querySelector("[data-cl-cover]") ? "cover" : oneMap.length ? (oneMap[stepAt] ?? 0) : stepAt;
+    if (m === "preview" && was !== "preview") { stepAt = typeof S.view === "number" ? S.view : 0; previewFrom = typeof S.view === "number" ? S.view : null; done = S.view === "thanks"; coverOn = S.view === "cover"; }
     if ((m === "edit" || m === "code") && S.lang) { S.lang = ""; langUi(); toast(`${m === "edit" ? "Edit" : "Code"} works on the form's own language`); }
     sideUi();
     draw();
