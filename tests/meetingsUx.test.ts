@@ -81,3 +81,25 @@ test("the calendar file a guest adds by hand is PUBLISH, with the join link", ()
   assert.match(f, /STATUS:CONFIRMED/);
   assert.match(f, /URL:https:\/\/meet\.google\.com\/x/);
 });
+
+test("visibility: one choice over secret and active, and Off keeps whether it was hidden", async () => {
+  const { visibilityOf, visibilityPatch, VISIBILITY } = await import("../src/components/app/meetings/model.ts");
+  assert.deepEqual(VISIBILITY.map((v) => v.label), ["Public", "Link only", "Off"]);
+  assert.ok(VISIBILITY.every((v) => v.hint), "every choice has a helper line");
+  assert.equal(visibilityOf({ secret: false, active: true }), "public");
+  assert.equal(visibilityOf({ secret: true, active: true }), "link");
+  assert.equal(visibilityOf({ secret: true, active: false }), "off");
+  assert.deepEqual(visibilityPatch("public", { secret: true }), { secret: false, active: true });
+  assert.deepEqual(visibilityPatch("link", { secret: false }), { secret: true, active: true });
+  assert.deepEqual(visibilityPatch("off", { secret: true }), { secret: true, active: false });
+});
+
+test("questions move to a new spot, the others keep their order, and a bad move changes nothing", async () => {
+  const { moveItem } = await import("../src/components/app/meetings/model.ts");
+  assert.deepEqual(moveItem(["a", "b", "c", "d"], 0, 2), ["b", "c", "a", "d"]);
+  assert.deepEqual(moveItem(["a", "b", "c", "d"], 3, 0), ["d", "a", "b", "c"]);
+  const same = ["a", "b"];
+  assert.equal(moveItem(same, 1, 1), same);
+  assert.equal(moveItem(same, 0, 5), same);
+  assert.equal(moveItem(same, -1, 0), same);
+});

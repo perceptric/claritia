@@ -127,10 +127,8 @@ export function checkSettings(raw: unknown, kind: Kind): { settings: TypeSetting
     const qo = (q && typeof q === "object" ? q : {}) as Record<string, unknown>;
     const label = str(qo.label, 200);
     const type = QUESTION_KINDS.has(qo.type as string) ? (qo.type as TypeSettings["questions"][number]["type"]) : "text";
-    if (!label) {
-      errors.push("Every question needs a label.");
-      continue;
-    }
+    // A question with no words yet (just added) is left out, so it never blocks the save or shows on the page.
+    if (!label) continue;
     const options = hasOptions(type) ? (Array.isArray(qo.options) ? qo.options : []).map((o) => str(o, 100).replace(/\s*\n\s*/g, " ")).filter(Boolean).slice(0, 30) : undefined;
     if (hasOptions(type) && !options?.length) errors.push(`${label} needs choices.`);
     questions.push({ id: /^[a-z0-9]{1,24}$/.test(str(qo.id, 24)) ? str(qo.id, 24) : Math.random().toString(36).slice(2, 10), label, type, required: qo.required === true, ...(options ? { options } : {}) });

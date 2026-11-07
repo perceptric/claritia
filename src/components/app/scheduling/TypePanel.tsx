@@ -23,6 +23,7 @@ import { slugify } from "../meetings/model";
 import { HoursEditor } from "../meetings/HoursEditor";
 import { copyText, meetingsApi, PersonAvatar, type Person } from "../meetings/parts";
 import { CURRENCIES, draftOf, Questions, type Draft } from "../meetings/TypeEditor";
+import { THANKS } from "../meetings/model";
 import type { TypeRow } from "../meetings/TypesList";
 import { confirmationWords, KIND_WORDS, lengthWords, limitsWords, nextOff, offWords, PLACE_WORDS, priceWords, questionsWords, teamOf, weeklyWords } from "./model";
 import { Chip, Eyebrow, Labeled, PanelFooter, PanelSection, TextLink } from "./panel";
@@ -544,14 +545,14 @@ export function TypePanel({
           <TextLink onClick={() => navigate("workflows")}>Reminders</TextLink>
         </PanelSection>
 
-        <PanelSection icon={<Check />} title="Confirmation page" summary={confirmationWords(s.confirmation)} open={open === "confirm"} onToggle={() => toggle("confirm")} locked={isLocked("confirmation")}>
+        <PanelSection icon={<Check />} title="On successful booking" summary={confirmationWords(s.confirmation)} open={open === "confirm"} onToggle={() => toggle("confirm")} locked={isLocked("confirmation")}>
           <Segmented<"message" | "redirect">
             size="sm"
-            label="After booking"
+            label="On successful booking"
             value={s.confirmation.kind}
             options={[
-              { value: "message", label: "Message" },
-              { value: "redirect", label: "Redirect" },
+              { value: "message", label: "Show a message" },
+              { value: "redirect", label: "Redirect to a page" },
             ]}
             onChange={(k) => setS("confirmation", k === "message" ? { kind: "message" } : { kind: "redirect", url: "" })}
           />
@@ -561,7 +562,7 @@ export function TypePanel({
               value={s.confirmation.text ?? ""}
               maxLength={500}
               rows={3}
-              placeholder="You're booked."
+              placeholder={THANKS}
               onChange={(e) => setS("confirmation", { kind: "message", ...(e.target.value ? { text: e.target.value } : {}) })}
               className="w-full resize-none rounded-md bg-card shadow-input px-2.5 py-2 text-[13px] text-ink outline-none placeholder:text-faint focus:shadow-focus"
             />
