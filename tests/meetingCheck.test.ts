@@ -92,3 +92,12 @@ test("a Dynamic meeting keeps checked rules: bad destinations, ids and condition
   assert.ok("type" in plain);
   assert.equal("dynamic" in plain.type.settings, false, "an Individual meeting stays Individual");
 });
+
+test("a question with no words is left out: it never blocks the save or shows on the booking page", async () => {
+  const { toGuestType } = await import("../src/lib/meetings/guest.ts");
+  const r = checkType({ name: "Intro", slug: "intro", kind: "one", hosts: [{ user_id: A }], settings: { questions: [{ id: "a1", label: "Company", type: "text", required: true }, { id: "b2", label: "  ", type: "text", required: true }] } }, members);
+  assert.ok("type" in r, "saves");
+  assert.deepEqual(r.type.settings.questions.map((q) => q.id), ["a1"]);
+  const blank = { ...r.type, settings: { ...r.type.settings, questions: [...r.type.settings.questions, { id: "c3", label: "", type: "text" as const, required: false }] } };
+  assert.deepEqual(toGuestType(blank, []).questions.map((q) => q.id), ["a1"]);
+});

@@ -218,7 +218,8 @@ function WeekColumn({
   onDatesClose: () => void;
 }) {
   const [draft, setDraft] = useState<Availability>(() => saved ?? DEFAULT_AVAILABILITY(ownZone()));
-  const [base, setBase] = useState(() => JSON.stringify(saved ?? DEFAULT_AVAILABILITY(ownZone())));
+  // No hours saved yet: the starting hours on screen save themselves, so what you see is what bookings use.
+  const [base, setBase] = useState(() => (saved ? JSON.stringify(saved) : ""));
   const [was, setWas] = useState(saved);
   // What this column last sent: the shared copy coming back with it isn't a change from outside.
   const [sending, setSending] = useState("");

@@ -11,14 +11,15 @@ import { toGuestType, type Profile as GuestProfile } from "@/lib/meetings/guest"
 import { sampleSlots } from "@/lib/meetings/guest";
 import { slots as engine } from "@/lib/meetings/slots";
 import { DEFAULT_SETTINGS, KINDS, type Availability, type Host, type Kind, type Location, type MeetingType, type TypeSettings } from "@/lib/meetings/types";
-import { CalendarIcon, Check, Link as LinkIcon, Lock, Plus, Trash, Users, X } from "../../Icons";
+import { CalendarIcon, Check, Grip, Link as LinkIcon, Lock, Plus, Trash, Users, X } from "../../Icons";
 import { askConfirm } from "../Dialogs";
 import { Select } from "../Select";
-import { AreaIn, INPUT, LabelWidth, NumIn, NumRow, Pick, Row, Seg, Switch, TagInput, TextIn } from "../forms/controls";
+import { HelpTip } from "./HelpTip";
+import { AreaIn, INPUT, LabelWidth, NumIn, NumRow, Pick, PICK, Row, Seg, Switch, TagInput, TextIn } from "../forms/controls";
 import { Button, Empty, ErrorNote, errorText, IconButton, invalidate, Loading, must, Page, setLeaveGuard, Toggle, useLoad, type ViewProps } from "../ui";
 import { BookingCalendar } from "@/components/book/BookingCalendar";
 import { LinkDialog } from "./LinkDialog";
-import { minutesText, slugify } from "./model";
+import { minutesText, moveItem, slugify, THANKS, VISIBILITY, visibilityOf, visibilityPatch, type Visibility } from "./model";
 import { CopyButton, meetingsApi, Modal, ownZone, PersonAvatar, useNow, usePeople, useWorkspaceSlug, type Person } from "./parts";
 import { TYPE_COLS, type TypeRow } from "./TypesList";
 import { bookingBase } from "@/lib/meetings/handles";
@@ -55,9 +56,9 @@ const LOCKABLE: { key: LockKey; label: string }[] = [
   { key: "perDay", label: "Per day" },
   { key: "perWeek", label: "Per week" },
   { key: "questions", label: "Questions" },
-  { key: "confirmation", label: "After booking" },
+  { key: "confirmation", label: "On successful booking" },
   { key: "noShowFollowUp", label: "No-show follow-up" },
-  { key: "price", label: "Price" },
+  { key: "price", label: "Paid meeting" },
 ];
 
 export const fresh = (me: string): Draft => ({ name: "", slug: "", kind: "one", hosts: [{ user_id: me }], settings: { ...DEFAULT_SETTINGS }, secret: false, active: true, locked: [], owner_user_id: null });
@@ -166,7 +167,8 @@ export function TypeEditor(props: ViewProps) {
   const s = draft.settings;
   const pool = POOL_KINDS.includes(draft.kind);
   const owner = role === "owner";
-  const canManage = owner && !copy && !isNew && (draft.kind === "one" || draft.kind === "group");
+  // Team copies only make sense with a team; copies already given stay reachable so they can be taken back.
+  const canManage = owner && !copy && !isNew && (draft.kind === "one" || draft.kind === "group") && ((people.data?.list.length ?? 0) > 1 || data.data.copies.length > 0);
   const url = slug.data && draft.slug ? `${bookingBase(window.location.origin)}/book/${slug.data}/${draft.slug}` : "";
 
   const save = async () => {
@@ -327,6 +329,7 @@ export function TypeEditor(props: ViewProps) {
 
             <Block
               title="Questions"
+              tip="Guests answer these when they book. Name and email are always asked. Drag a question to change its order."
               locked={isLocked("questions")}
               action={
                 isLocked("questions") || s.questions.length >= 10 ? null : (
@@ -339,25 +342,25 @@ export function TypeEditor(props: ViewProps) {
               <Questions value={s.questions} disabled={isLocked("questions")} onChange={(v) => setS("questions", v)} />
             </Block>
 
-            <Block title="After booking" locked={isLocked("confirmation") || isLocked("noShowFollowUp")}>
-              <Row label="Show">
-                <Seg<"message" | "redirect">
-                  label="After booking"
+            <Block title="On successful booking" tip="What guests see right after they book." locked={isLocked("confirmation") || isLocked("noShowFollowUp")}>
+              <Row label="Action">
+                <Pick<"message" | "redirect">
+                  label="Action"
                   value={s.confirmation.kind}
                   options={[
-                    { value: "message", label: "Message" },
-                    { value: "redirect", label: "Page" },
+                    { value: "message", label: "Show a message" },
+                    { value: "redirect", label: "Redirect to a page" },
                   ]}
-                  onChange={(k) => !isLocked("confirmation") && setS("confirmation", k === "message" ? { kind: "message" } : { kind: "redirect", url: "" })}
+                  onChange={(k) => !isLocked("confirmation") && k !== s.confirmation.kind && setS("confirmation", k === "message" ? { kind: "message" } : { kind: "redirect", url: "" })}
                 />
               </Row>
               {s.confirmation.kind === "message" ? (
                 <Row label="Message" top>
-                  <AreaIn label="Message" value={s.confirmation.text ?? ""} placeholder="You're booked." onChange={(text) => !isLocked("confirmation") && setS("confirmation", { kind: "message", ...(text ? { text } : {}) })} />
+                  <AreaIn label="Message" value={s.confirmation.text ?? ""} placeholder={THANKS} onChange={(text) => !isLocked("confirmation") && setS("confirmation", { kind: "message", ...(text ? { text } : {}) })} />
                 </Row>
               ) : (
-                <Row label="Page">
-                  <TextIn label="Page" value={s.confirmation.url} placeholder="https://" onChange={(u) => !isLocked("confirmation") && setS("confirmation", { kind: "redirect", url: u })} />
+                <Row label="Page address">
+                  <TextIn label="Page address" value={s.confirmation.url} placeholder="https://" onChange={(u) => !isLocked("confirmation") && setS("confirmation", { kind: "redirect", url: u })} />
                 </Row>
               )}
               <Switch label="No-show follow-up" on={s.noShowFollowUp !== false} disabled={isLocked("noShowFollowUp")} onChange={(on) => setS("noShowFollowUp", on)} />
@@ -379,8 +382,12 @@ export function TypeEditor(props: ViewProps) {
               </Block>
             ) : null}
 
-            <Block title="Price" locked={isLocked("price")}>
-              <Switch label="Paid" on={!!s.price} disabled={isLocked("price")} onChange={(on) => setS("price", on ? { amount: 5000, currency: "usd" } : undefined)} />
+            <Block
+              title="Paid meeting"
+              tip="Guests pay when they book. The meeting is booked once the payment goes through."
+              locked={isLocked("price")}
+              action={<Toggle label="Paid meeting" on={!!s.price} disabled={isLocked("price")} onChange={(on) => setS("price", on ? { amount: 5000, currency: "usd" } : undefined)} />}
+            >
               {s.price ? (
                 <Row label="Amount">
                   <NumIn label="Amount" value={s.price.amount / 100} min={0.5} max={100000} step={1} onChange={(v) => !isLocked("price") && setS("price", { ...s.price!, amount: Math.round((v ?? 0) * 100) })} />
@@ -406,13 +413,21 @@ export function TypeEditor(props: ViewProps) {
               ) : null}
             </Block>
 
-            <Block title="Visibility">
-              <Switch label="Secret" on={draft.secret} onChange={(secret) => set({ secret })} />
-              <Switch label="Bookable" on={draft.active} onChange={(active) => set({ active })} />
+            <Block title="Visibility" tip="Who can find and book this meeting.">
+              <Row label="Who can book">
+                <Select<Visibility>
+                  value={visibilityOf(draft)}
+                  options={VISIBILITY}
+                  onChange={(v) => set(visibilityPatch(v, draft))}
+                  ariaLabel="Visibility"
+                  menuWidth={280}
+                  className={PICK}
+                />
+              </Row>
             </Block>
 
             {canManage ? (
-              <Block title="Managed">
+              <Block title="Team copies" tip="Set up this meeting once and give each teammate their own copy. Locked settings can't be changed in their copies.">
                 <Row label="Locked" top>
                   <span className="flex flex-wrap gap-1">
                     {LOCKABLE.map((l) => {
@@ -432,12 +447,12 @@ export function TypeEditor(props: ViewProps) {
                     })}
                   </span>
                 </Row>
-                <Row label="People">
+                <Row label="Copies">
                   <span className="flex min-w-0 flex-1 items-center gap-2">
                     <span className="text-[12.5px] text-body tabular-nums">{data.data.copies.length}</span>
                     <Button variant="ghost" size="sm" className="ml-auto h-7 px-3" disabled={dirty} onClick={() => setGiving(true)}>
                       <Users size={13} />
-                      Give to people
+                      Give copies
                     </Button>
                   </span>
                 </Row>
@@ -498,11 +513,14 @@ function hoursFor(hours: Map<string, Availability>, named: ({ user_id: string; n
   return out;
 }
 
-function Block({ title, children, action, first = false, locked = false }: { title: string; children: React.ReactNode; action?: React.ReactNode; first?: boolean; locked?: boolean }) {
+function Block({ title, tip, children, action, first = false, locked = false }: { title: string; tip?: string; children: React.ReactNode; action?: React.ReactNode; first?: boolean; locked?: boolean }) {
   return (
     <section className={`flex flex-col gap-2.5 px-5 py-4 ${first ? "" : "border-t border-line"}`}>
       <div className="flex min-h-7 items-center gap-2">
-        <h3 className="flex-1 text-[13px] font-semibold tracking-[-0.01em] text-ink">{title}</h3>
+        <span className="flex min-w-0 flex-1 items-center gap-1">
+          <h3 className="text-[13px] font-semibold tracking-[-0.01em] text-ink">{title}</h3>
+          {tip ? <HelpTip text={tip} /> : null}
+        </span>
         {locked ? (
           <span aria-label="Locked" className="text-faint">
             <Lock size={12} />
@@ -682,12 +700,60 @@ const Q_TYPES = QUESTION_TYPES.map(({ value, label }) => ({ value, label }));
 
 export function Questions({ value, disabled, onChange }: { value: TypeSettings["questions"]; disabled: boolean; onChange: (v: TypeSettings["questions"]) => void }) {
   const put = (i: number, patch: Partial<TypeSettings["questions"][number]>) => onChange(value.map((q, j) => (j === i ? { ...q, ...patch } : q)));
+  const [dragging, setDragging] = useState<number | null>(null);
+  const [over, setOver] = useState<number | null>(null);
+  const move = (from: number, to: number) => onChange(moveItem(value, from, to));
   if (!value.length) return null;
+  const canMove = !disabled && value.length > 1;
   return (
     <ul className="flex flex-col gap-2">
       {value.map((q, i) => (
-        <li key={q.id} className="anim-rise-sm flex flex-col gap-2 rounded-lg shadow-rest p-2.5">
+        <li
+          key={q.id}
+          onDragOver={(e) => {
+            if (dragging === null) return;
+            e.preventDefault();
+            e.dataTransfer.dropEffect = "move";
+            setOver(i);
+          }}
+          onDrop={(e) => {
+            e.preventDefault();
+            if (dragging !== null) move(dragging, i);
+            setDragging(null);
+            setOver(null);
+          }}
+          className={`anim-rise-sm flex flex-col gap-2 rounded-lg p-2.5 transition-[box-shadow,opacity] duration-[120ms] ${over === i && dragging !== null && dragging !== i ? "shadow-focus" : "shadow-rest"} ${dragging === i ? "opacity-50" : ""}`}
+        >
           <span className="flex items-center gap-1.5">
+            {canMove ? (
+              <span
+                role="button"
+                tabIndex={0}
+                draggable
+                aria-label={`Move ${q.label || "question"}. Use the up and down arrow keys.`}
+                title="Drag to move"
+                onDragStart={(e) => {
+                  e.dataTransfer.effectAllowed = "move";
+                  e.dataTransfer.setData("text/plain", q.id);
+                  const card = e.currentTarget.closest("li");
+                  if (card) e.dataTransfer.setDragImage(card, 16, 16);
+                  setDragging(i);
+                }}
+                onDragEnd={() => (setDragging(null), setOver(null))}
+                onKeyDown={(e) => {
+                  if (e.key !== "ArrowUp" && e.key !== "ArrowDown") return;
+                  e.preventDefault();
+                  const to = e.key === "ArrowUp" ? i - 1 : i + 1;
+                  if (to < 0 || to >= value.length) return;
+                  move(i, to);
+                  const el = e.currentTarget;
+                  requestAnimationFrame(() => (el.closest("ul")?.querySelectorAll<HTMLElement>("[draggable]")[to])?.focus());
+                }}
+                className="flex size-7 shrink-0 cursor-grab items-center justify-center rounded-md text-faint outline-none hover:bg-hover hover:text-ink focus-visible:shadow-focus active:cursor-grabbing"
+              >
+                <Grip size={13} />
+              </span>
+            ) : null}
             <input aria-label="Question" value={q.label} disabled={disabled} placeholder="Question" onChange={(e) => put(i, { label: e.target.value })} className={`${INPUT} flex-1`} />
             {!disabled ? (
               <IconButton label="Remove question" className="size-7" onClick={() => onChange(value.filter((_, j) => j !== i))}>
@@ -719,7 +785,7 @@ function GiveDialog({ people, copies, onClose, onGive }: { people: Person[]; cop
   const dropping = copies.filter((c) => !picked.has(c)).length;
   return (
     <Modal
-      title="Give to people"
+      title="Give copies"
       onClose={onClose}
       footer={
         <>

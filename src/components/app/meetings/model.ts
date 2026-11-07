@@ -341,3 +341,24 @@ export function paintRows(weekly: Availability["weekly"], step = 30): { from: nu
     }
   return { from: Math.floor(from / step), to: Math.ceil(to / step) };
 }
+
+// Who can find and book a type: one choice over the two stored flags (secret, active).
+export type Visibility = "public" | "link" | "off";
+export const VISIBILITY: { value: Visibility; label: string; hint: string }[] = [
+  { value: "public", label: "Public", hint: "Shown on your booking page. Anyone can book." },
+  { value: "link", label: "Link only", hint: "Hidden from your booking page. Only people with the link can book." },
+  { value: "off", label: "Off", hint: "No one can book it, even with the link." },
+];
+export const visibilityOf = (d: Pick<MeetingType, "secret" | "active">): Visibility => (!d.active ? "off" : d.secret ? "link" : "public");
+/** The flags for a choice. Off keeps whether it was hidden, so turning it back on returns it as it was. */
+export const visibilityPatch = (v: Visibility, was: Pick<MeetingType, "secret">): Pick<MeetingType, "secret" | "active"> => (v === "off" ? { secret: was.secret, active: false } : { secret: v === "link", active: true });
+export const THANKS = "Thank you for booking a meeting with us. You'll receive a notification shortly.";
+
+/** Where a question lands when moved from `from` to `to`, the others keeping their order. */
+export function moveItem<T>(list: T[], from: number, to: number): T[] {
+  if (from === to || from < 0 || to < 0 || from >= list.length || to >= list.length) return list;
+  const out = [...list];
+  const [it] = out.splice(from, 1);
+  out.splice(to, 0, it!);
+  return out;
+}

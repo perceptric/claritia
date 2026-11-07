@@ -30,3 +30,9 @@ test("one primary button per tab header", () => {
   assert.ok(!/New poll/.test(links), "one New button, with Poll in its menu");
   assert.match(read("scheduling/TypesPage.tsx"), /New meeting type/);
 });
+
+test("working hours shown before any are saved save themselves", () => {
+  // The page shows 9 to 5 to someone with no hours yet; unsaved, the booking engine says "Set your hours first."
+  const page = read("scheduling/AvailabilityPage.tsx");
+  assert.match(page, /useState\(\(\) => \(saved \? JSON\.stringify\(saved\) : ""\)\)/);
+});

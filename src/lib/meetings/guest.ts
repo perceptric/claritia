@@ -54,7 +54,7 @@ export function toGuestType(t: Pick<MeetingType, "slug" | "name" | "kind" | "hos
     kind: t.kind,
     lengths: [...s.lengths].sort((a, b) => a - b),
     location: guestLocation(s.location),
-    questions: s.questions ?? [],
+    questions: (s.questions ?? []).filter((q) => q.label.trim()),
     price,
     seats: t.kind === "group" ? Math.max(1, s.seats) : null,
     hosts: (t.kind === "group" || t.kind === "one" ? hosts.slice(0, 1) : hosts).map((p) => ({ name: p.name, photo: p.photo_url, slug: p.slug })),
