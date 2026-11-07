@@ -18,7 +18,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-type Slot = { slot: string; template: string; kind: "cover" | "card"; query: string; short?: string; layout?: "left" | "right" | "top" | "behind"; noFaces?: boolean; field?: string; option?: number };
+type Slot = { slot: string; template: string; kind: "cover" | "card"; query: string; short?: string; one?: boolean; layout?: "left" | "right" | "top" | "behind"; noFaces?: boolean; field?: string; option?: number };
 type Option = { id: string; from: "burst" | "stocksnap" | "wordpress"; url: string; photographer: string; photographer_url: string; alt: string; src: string; thumb: string; width: number; height: number };
 type Pick = { n: number; alt: string; focus?: string };
 
@@ -100,8 +100,8 @@ if (step === "search") {
     };
     // Openverse matches every word, so a long search often finds nothing: then the slot's short words.
     await more(s.query, "stocksnap");
-    if (s.short) await more(s.short, "stocksnap");
-    if (s.short) await more(s.short, "wordpress");
+    if (s.short && s.short !== s.query) await more(s.short, "stocksnap");
+    await more(s.short ?? s.query, "wordpress");
     out[s.slot] = got;
     writeFileSync(`${base}.candidates.json`, JSON.stringify(out, null, 1));
     console.log(`${s.slot}: ${out[s.slot]!.length}`);
@@ -153,12 +153,13 @@ if (step === "fetch") {
 
 if (step === "apply") {
   const picks = JSON.parse(readFileSync(`${base}.picks.json`, "utf8")) as Record<string, Pick>;
-  const out: Record<string, { cover?: { name: string; alt: string; layout: string; focus?: string }; images?: Record<string, string[]> }> = {};
+  const out: Record<string, { cover?: { name: string; alt: string; layout: string; focus?: string }; images?: Record<string, string[]>; one?: true }> = {};
   for (const s of plan.slots) {
     const p = picks[s.slot];
     if (!p) continue;
     const t = (out[s.template] ??= {});
     if (s.kind === "cover") t.cover = { name: nameOf(s), alt: p.alt, layout: s.layout ?? "right", ...(p.focus ? { focus: p.focus } : {}) };
+    if (s.one) t.one = true;
     else ((t.images ??= {})[s.field!] ??= [])[s.option!] = nameOf(s);
   }
   // A picture card set only when every answer has its photo (a gap in the list counts as missing).
