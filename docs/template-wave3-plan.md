@@ -46,10 +46,10 @@ Booking, Application, Event registration, Feedback, Survey, Request).
 | Orders and payments | 7 | 21 | Simple order, Reorder, Pay an invoice (amount and reference), Quick donation, Deposit request, Pause my subscription, Sponsor interest, Simple price check |
 | Apply and join | 10 | 31 | Express interest in a role, Short application, Membership interest, Enroll in one class, Quick registration, Join the list, Volunteer interest, Grant interest, Viewing request for a rental, Vendor interest |
 | Events | 7 | 22 | Quick RSVP (yes, no, guests), Save my seat, Party headcount, Wedding song request, Webinar sign-up (name and email), Speaker interest, Booth interest |
-| Feedback and surveys | 13 | 41 | One-question feedback, Thumbs up or down, Rate your visit, Short survey, Quick evaluation, NPS with one reason, Quick CSAT, Suggest a feature, Report a problem (what, where, email), Why you left, Pulse check, Two-question poll, Leave a short review |
+| Feedback and surveys | 14 | 44 | One-question feedback, Thumbs up or down, Rate your visit, Short survey, Quick evaluation, NPS with one reason, Quick CSAT, Suggest a feature, Report a problem (what, where, email), Why you left, Pulse check, Two-question poll, Leave a short review |
 | Quizzes and assessments | 6 | 18 | Three-question quiz, Quick personality check, Pop quiz, Five-point scorecard, Quick finder, Am I eligible? |
 | Intake and onboarding | 6 | 18 | Two-minute intake, Welcome questions, First-day details, New patient basics, One-page brief, Exit reason |
-| Operations | 13 | 40 | Quick checklist, Spot check, End-of-day report, Simple request, Status update, Near miss, Day off request, Password reset, Buy this, Receipt upload, Fix this, Return request |
+| Operations | 12 | 37 | Quick checklist, Spot check, End-of-day report, Simple request, Status update, Near miss, Day off request, Password reset, Buy this, Receipt upload, Fix this, Return request |
 | Consent and legal | 5 | 15 | Simple consent, Quick waiver, Photo OK, Delete my data, Accept the terms |
 | **Total** | **85** | **265** | |
 
