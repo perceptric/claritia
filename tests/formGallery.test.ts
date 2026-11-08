@@ -201,3 +201,18 @@ test("wired templates: the meeting only when there's one to pick, and follow-ups
   assert.deepEqual(kitWorkflows(templateById("general.nps")!), []);
   assert.ok(valuesIn(templateById("general.waitlist")!, "does").includes("follow-up"));
 });
+
+test("browsing mixes the gallery: every template once, kinds of form side by side, a search keeps its order", () => {
+  const all = filterTemplates({});
+  assert.equal(all.length, TEMPLATES.length);
+  assert.equal(new Set(all.map((t) => t.id)).size, TEMPLATES.length);
+  assert.deepEqual(filterTemplates({}).map((t) => t.id), all.map((t) => t.id), "same order every time");
+  const top = all.slice(0, 30);
+  const photo = (t: (typeof all)[number]) => !!t.schema.cover?.photo;
+  assert.ok(new Set(top.map((t) => valuesIn(t, "family")[0])).size >= 7, "the first cards cover most groups");
+  assert.ok(top.filter(photo).length <= 18 && top.filter(photo).length >= 10, "photo and plain forms in turn");
+  for (let i = 2; i < 60; i++) assert.ok(!(photo(all[i]!) === photo(all[i - 1]!) && photo(all[i]!) === photo(all[i - 2]!)), `no three of a kind in a row at ${i}`);
+  assert.ok(new Set(top.map((t) => valuesIn(t, "layout")[0])).size >= 2, "one page and steps both show");
+  const search = filterTemplates({}, "demo request");
+  assert.equal(search[0]!.id, "saas.demo-request", "a search keeps its best match first");
+});

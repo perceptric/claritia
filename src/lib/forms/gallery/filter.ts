@@ -2,7 +2,7 @@
 // one value in a menu widens the results; picking in two menus narrows them. Each count is the number of templates a
 // pick would show, given the other menus' picks.
 
-import { TEMPLATES, industryLabel } from "./catalog.ts";
+import { TEMPLATES, industryLabel, templateTheme } from "./catalog.ts";
 import { CATEGORIES, DOES, FAMILIES, FEATURES, LAYOUTS, LENGTHS, MIN_SHOWN, SUBS, TEAMS, categoryLabel, facetsOf, familyLabel, subLabel, teamLabel, type Facets } from "./taxonomy.ts";
 import { INDUSTRIES, type FormTemplate } from "./types.ts";
 
@@ -219,10 +219,61 @@ export function filterTemplates(picks: Picks, text = "", sort: Sort = "popular",
   if (sort === "az") return [...out].sort((a, b) => a.name.localeCompare(b.name));
   if (sort === "new") return [...out].sort((a, b) => (b.added ?? "").localeCompare(a.added ?? ""));
   const used = (t: FormTemplate) => ((usage[t.id] ?? 0) >= MIN_USES ? usage[t.id]! : 0);
-  return out
+  const ranked = out
     .map((t, i) => ({ t, i }))
     .sort((a, b) => used(b.t) - used(a.t) || Number(!!b.t.featured) - Number(!!a.t.featured) || a.i - b.i)
     .map((x) => x.t);
+  // Browsing (no words typed): templates with real use keep their order, the rest are mixed so the grid shows every
+  // kind of form. A search keeps its best matches first.
+  const n = ranked.findIndex((t) => !used(t));
+  return text.trim() || n < 0 ? ranked : [...ranked.slice(0, n), ...mixTemplates(ranked.slice(n))];
+}
+
+/** How far ahead the mix looks for a template unlike the last few. */
+const MIX_WINDOW = 160;
+/** How many cards back the mix compares against. */
+const MIX_BACK = 6;
+
+/**
+ * The same templates in an order where neighbors differ: a different group, a welcome photo or a plain form in turn,
+ * one page, steps and one question at a time, a different style and industry, and features not shown just before
+ * (a calculator, a payment, a score, a signature). Earlier templates still come first when they fit. Same input, same order.
+ */
+export function mixTemplates(list: FormTemplate[]): FormTemplate[] {
+  const left = [...list];
+  const out: FormTemplate[] = [];
+  const photo = (t: FormTemplate) => !!t.schema.cover?.photo;
+  while (left.length) {
+    const back = out.slice(-MIX_BACK);
+    let best = 0;
+    let bestScore = -Infinity;
+    for (let i = 0; i < Math.min(left.length, MIX_WINDOW); i++) {
+      const t = left[i]!;
+      const f = facets(t);
+      let s = -0.03 * i;
+      back.forEach((p, k) => {
+        const g = facets(p);
+        const near = MIX_BACK - (back.length - 1 - k); // the last card weighs most
+        if (g.families[0] === f.families[0]) s -= 1.2 * near;
+        if (g.industries[0] === f.industries[0]) s -= 0.6 * near;
+        if (templateTheme(p) === templateTheme(t)) s -= 0.5 * near;
+        if (g.layout === f.layout && f.layout === "one") s -= 0.15 * near;
+      });
+      const last = back.slice(-2);
+      if (last.length === 2 && last.every((p) => photo(p) === photo(t))) s -= 10;
+      else if (last.length && photo(last[last.length - 1]!) === photo(t)) s -= 4;
+      // A group missing from the last dozen cards comes back sooner.
+      if (!out.slice(-12).some((p) => facets(p).families.includes(f.families[0]!))) s += 3;
+      const seen = new Set(back.flatMap((p) => facets(p).features));
+      s += Math.min(3, f.features.filter((x) => !seen.has(x)).length) * 0.8;
+      if (s > bestScore) {
+        bestScore = s;
+        best = i;
+      }
+    }
+    out.push(left.splice(best, 1)[0]!);
+  }
+  return out;
 }
 
 /** For each menu value: how many templates picking it would show, given the other menus and the words. */

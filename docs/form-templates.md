@@ -32,7 +32,13 @@ templates that come wired with their meeting and follow-up. It lives on the webs
 | Layout | One page, Steps, One question at a time | From the form |
 | Length | Under 1 minute, 1 to 3 minutes, Over 3 minutes | From the form |
 
-A value shows once 4 templates have it (`MIN_SHOWN`). Two values in one menu widen the results; two menus narrow
+A value shows once 4 templates have it (`MIN_SHOWN`).
+
+**The mix.** Browsing with no words typed, the grid is mixed (`mixTemplates` in `filter.ts`): neighbors come from
+different groups and industries, a form with a welcome photo and a plain one take turns (never three of a kind in a
+row), styles and layouts vary, and a form with a feature not shown just before (a calculator, a payment, a score, a
+signature) comes up sooner. Templates with real use keep their place first, and earlier templates still win when
+they fit. The first 30 cards cover 9 of the 10 groups and 16 styles. A search keeps its best match first. Two values in one menu widen the results; two menus narrow
 them. Each count is what that pick would show.
 
 ## In the app
@@ -84,7 +90,8 @@ website carried into the new workspace.
 
 ## Tests
 
-- `tests/formGallery.test.ts`: every template passes `checkForm` in its own style and the demo request in all 18,
+- `tests/formGallery.test.ts`: the mix (every template once, the same order each time, groups and photo and plain
+  forms side by side, a search's order kept); every template passes `checkForm` in its own style and the demo request in all 18,
   show-if logic runs in `visibility`, question kinds map to the app's types, styles pass `cleanTokens` whole, menus use
   real ids, menus worked out from the form match its fields, filters widen and narrow with counts that match the
   results, no repeated question lists in a category, and wired templates (the meeting only when there's one, follow-ups
@@ -104,6 +111,7 @@ website carried into the new workspace.
 | Item | Beta (50 teams) | Growth (500 teams) |
 | --- | --- | --- |
 | Templates, menus, kits and pages: data in the app, static pages on the website | $0 | $0 |
+| The mix and the look menu: code in the browser; learning a website reuses the brand reads that were already there, no new AI call | $0 | $0 |
 | Style fonts: Google Fonts | $0 | $0 |
 | Use template and kits: no AI call; styles are stylesheets written by code | $0 | $0 |
 | Claude Haiku: catalog match when the words hit nothing (about 20,000 and 200,000 a month, about 9,000 tokens in with the catalog cached, 60 out, repeats free) | about $5 | about $50 |
