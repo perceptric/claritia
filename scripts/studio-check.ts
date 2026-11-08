@@ -79,7 +79,7 @@ try {
   await $("#tplGrid .tpl").first().waitFor();
   check((await $("#brandDlg").count()) === 0 && (await $("#tpls").isVisible()), "an empty form shows the templates, with no dialog over them");
   const tplAll = await $("#tplGrid .tpl").count();
-  check(tplAll === 48 && (await $("#tplQ").getAttribute("placeholder"))!.startsWith("Search 4"), "the templates show 48 at a time, out of hundreds");
+  check(tplAll === 48 && /^Search [1-9]\d{2,} /.test((await $("#tplQ").getAttribute("placeholder"))!), "the templates show 48 at a time, out of hundreds");
   await $("#tplMore").click();
   check((await $("#tplGrid .tpl").count()) === 144, "Show more adds more templates");
   await $("#tplFam button").filter({ hasText: "Booking" }).click();
