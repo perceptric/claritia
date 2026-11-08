@@ -5,7 +5,7 @@ should know those parts and put them together for any kind of form, from what th
 Today it offers six goals (quote, assess, recommend, quiz, book, leads). This plan replaces the goals with kinds and
 fills in the parts that are missing.
 
-Status: steps 0 to 3 are built. Run migrations 109 and 110 in Supabase.
+Status: steps 0 to 3 are built. Run migrations 109 and 110 with `psql` on the VPS database.
 
 Step 1 as built:
 - Kinds: `KINDS` in `src/lib/forms/aiBuild.ts`, each with its recipe and whether it needs an email; `form.kind` in the
@@ -125,7 +125,7 @@ Claude Sonnet 5.5 at $2 in and $10 out per million tokens, 10 AI-built forms a t
 | Claude: pick the kind, about 3,000 in and 200 out a form | $4 | $40 |
 | Stripe Connect, Standard accounts: Stripe charges the team, nothing to Claritia (check) | $0 | $0 |
 | PDFs on the existing runner | $0 | $15 for a bigger runner machine (check) |
-| Storage for signatures, uploads and PDFs in Supabase (check) | $0, inside the plan | about $5 |
+| Storage for signatures, uploads and PDFs on the VPS (check) | $0, inside the VPS | about $5 |
 | **Total for AI forms** | **about $154** | **about $1,560** |
 
 Today's total is about $150 at Beta and $1,500 at Growth, so this plan adds about $4 and $60 a month.

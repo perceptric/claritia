@@ -26,7 +26,7 @@ Pick teams with a live sign-up or checkout flow, so their first test matters.
 
 ## Give a partner the Team plan
 
-In the Supabase SQL editor, with their workspace name:
+With `psql` on the VPS database, with their workspace name:
 
 ```sql
 insert into workspace_billing (workspace_id, plan)

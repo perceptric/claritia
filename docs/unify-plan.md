@@ -49,7 +49,7 @@ projects, environments).
 
 One SQL file, `scripts/reset-data.sql`, in a single transaction. It copies every cleared table into the schema
 `reset_backup_20261025`, then empties them with one `TRUNCATE` that has no `CASCADE`: if any kept table still points
-at a cleared one, it stops and changes nothing. You run it in the Supabase SQL editor, or I run it after you say
+at a cleared one, it stops and changes nothing. You run it with `psql` on the VPS database, or I run it after you say
 "go". Drop the backup schema once you're sure.
 
 ---
@@ -210,8 +210,8 @@ Removed: `views/MarketingIntros.tsx` (Pages, Ads), `reports/ReportsView.tsx` (it
 
 ## What's built (25 Oct)
 
-- **Part 0:** `scripts/reset-data.sql`, tested on a copy. Not run on production yet: it runs when you run it in the
-  Supabase SQL editor.
+- **Part 0:** `scripts/reset-data.sql`, tested on a copy. Not run on production yet: it runs when you run it with
+  `psql` on the VPS database.
 - **Part 1:** the four sections; one item per route with tabs under the title (`Section` in `ui.tsx`); Pages, Ads,
   the Reports group and the "Soon" items removed; booking forms fold into Forms; Signals is Visitors; Templates is a
   tab of Emails; Lead scoring and Ideal customer moved out of Settings; reports inside their sections; every old

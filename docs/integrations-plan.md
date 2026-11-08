@@ -362,7 +362,7 @@ again; a run after a timeout looks for its Fill ID first and makes no second rec
   `drive.file`, so it sees just the folders Claritia makes). OneDrive, Dropbox and Box pick a folder from a list or
   make a new one. S3 uses the bucket and the folder in it that the connection names, with the team's own key.
 - **How:** each tool is a connector with `copy` (`src/lib/sources/files.ts`), sent through the same deliveries,
-  retries and Send again as the other tools. The job reads each file from the form-uploads bucket in Supabase
+  retries and Send again as the other tools. The job reads each file from the form-uploads bucket on the VPS
   Storage (`131_file_copies.sql` lists a fill's uploads). Files over 4 MB go in parts: Drive's resumable upload,
   OneDrive's upload session and Dropbox's upload session; S3 uses multipart over 8 MB, and Box takes our largest
   file (20 MB) in one call. A part that fails is sent again from where the tool says it stopped. A run again finds
@@ -373,7 +373,7 @@ again; a run after a timeout looks for its Fill ID first and makes no second rec
   second copy on a run again; a folder in the trash or not found; the S3 signature against AWS's published example;
   the delivery reading a fill's files and skipping a fill with none. `tests/pg/fileCopies.pg.ts`: only the fill's
   own uploads.
-- **Cost:** $0 a month at Beta (50 teams) and $0 at Growth (500 teams). The copies are read out of Supabase Storage,
+- **Cost:** $0 a month at Beta (50 teams) and $0 at Growth (500 teams). The copies are read out of storage on the VPS,
   about 1 GB and 12 GB a month, inside the plan's included downloads (check). The tools' storage is the team's own.
 - **To go live:** run `131_file_copies.sql`. Add the `drive.file` scope to the Google app and `Files.ReadWrite` to
   the Microsoft app. Make a Dropbox app and a Box app with the return address
@@ -504,7 +504,7 @@ worker. No Claude calls.
 | Gmail and Outlook send (built): `gmail.send` is a sensitive scope, so Google's app check is free (check) | $0 | $0 |
 | SMS: Twilio $0.0083 a segment plus carrier fees of about $0.0045, and a toll-free number at about $2.15 (check). 1,200 and 12,000 texts | about $18 (check) | about $165 (check) |
 | WhatsApp: on the team's own Twilio, so Twilio's $0.005 a message and Meta's template fee are the team's (check) | $0 | $0 |
-| Files copied out of Supabase Storage: about 1 GB and 12 GB, inside the 250 GB included (check) | $0 | $0 |
+| Files copied out of storage on the VPS: about 1 GB and 12 GB, inside its bandwidth (check) | $0 | $0 |
 | One more small worker machine for the extra sends (check) | $0 | about $5 (check) |
 | **Added per month** | **about $18** | **about $170** |
 

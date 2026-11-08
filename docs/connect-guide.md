@@ -86,7 +86,7 @@ Do the same on **Contact**. Give the connecting user edit access to all four fie
 
 ### Omniscient (two-way)
 
-1. Omniscient must have migration `032_connect.sql` live, with `SUPABASE_SECRET_KEY` set on its server.
+1. Omniscient must have migration `032_connect.sql` live, with `SUPABASE_SECRET_KEY` set on its server (on the VPS).
 2. Settings › Tools › Omniscient → **Connect Omniscient**.
 3. An Omniscient owner or admin clicks **Allow**.
 

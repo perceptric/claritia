@@ -8,7 +8,7 @@ How people get into Claritia, and the setup it needs.
    ("Welcome back"). Each links to the other. Any app page opened while signed out moves to /signin and opens after
    signing in (kept for the tab).
 2. The screen (`src/components/app/AuthScreen.tsx`): Continue with Google, Microsoft or GitHub, or an email sign-in
-   link. Only the options turned on in Supabase show (its public `/auth/v1/settings`). Terms and Privacy link under
+   link. Only the options turned on in the sign-in service show (its public `/auth/v1/settings`). Terms and Privacy link under
    the buttons. After signing in, the app opens the page first asked for, else Forms.
 3. First sign-in makes a workspace named after the email (`ensure_workspace`, 133). Its owner is asked "What's your
    team called?" once; Settings › Workspace renames it any time.
@@ -27,10 +27,10 @@ Run `supabase/migrations/133_signup.sql` in the SQL editor.
 
 ### Sign-in emails through Resend
 
-Supabase's built-in mailer sends only a few emails an hour (check) and only to team members on some plans. Send the
+The sign-in service's built-in mailer is slow and limited (check). Send the
 sign-in links through Resend instead:
 
-1. Supabase › Authentication › Emails › SMTP Settings: turn on Custom SMTP.
+1. In the sign-in service's settings, turn on Custom SMTP.
    - Sender email: `signin@mail.tryclaritia.com` (a verified Resend domain). Sender name: `Claritia`.
    - Host `smtp.resend.com`, port `465`, username `resend`, password: a Resend API key with sending access.
 2. Authentication › Rate Limits: raise "Rate limit for sending emails" to 100 an hour.
@@ -42,12 +42,12 @@ sign-in links through Resend instead:
 Uses the Microsoft app the calendars already use.
 
 1. Microsoft Entra › App registrations › the Claritia app › Authentication: add the redirect
-   `https://<project>.supabase.co/auth/v1/callback` (the Callback URL Supabase shows in step 2).
-2. Supabase › Authentication › Sign In / Providers › Azure: turn it on, paste the app's client id and a client secret,
+   `<SUPABASE_URL>/auth/v1/callback` (the callback address of the sign-in service on the VPS).
+2. In the sign-in service's providers, Azure: turn it on, paste the app's client id and a client secret,
    and set the Azure Tenant URL to `https://login.microsoftonline.com/common`.
 3. The button shows on the sign-in screen once it's on.
 
 ## Cost
 
 Beta (50 teams): $0 a month. Growth (500 teams): $0 a month. Invite and sign-in emails fit inside the Resend plan
-already paid (check); Microsoft sign-in and Supabase's SMTP setting are free.
+already paid (check); Microsoft sign-in and the SMTP setting are free.

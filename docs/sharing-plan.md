@@ -192,7 +192,7 @@ A form link for one person, which fills in what Claritia knows about them (`src/
 No Claude calls. QR codes and email HTML are made in the browser.
 
 Step 7 adds $0 a month at Beta (50 teams) and Growth (500 teams): the emails go through the current sender (Resend,
-inside the current plan, check), the people lists are reads Supabase already serves, and a form with a fill limit
+inside the current plan, check), the people lists are reads the VPS database already serves, and a form with a fill limit
 counts its fills once per read and send. No Claude calls.
 
 Steps 5 and 6 add $0 a month at Beta (50 teams) and Growth (500 teams): one more value on each fill, a signed token

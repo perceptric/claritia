@@ -46,7 +46,7 @@ Every workspace gets a library of pictures that any form can use.
 | Stock photos | Search Pexels from the picker. A picked photo is copied into the library, so the form never links to Pexels. |
 | Video | A YouTube, Vimeo or Loom link, as the `video` block reads today. |
 
-**Storage:** a public Supabase Storage bucket, `form-media`, one folder per workspace. On upload the worker makes
+**Storage:** a public storage bucket on the VPS, `form-media`, one folder per workspace. On upload the worker makes
 three sizes (640, 1280, 1920 wide) in WebP with sharp, and keeps the original. Forms use `srcset`, so a phone loads
 the small one. Pictures are cached for a year by their content hash, so a changed picture is a new address.
 
@@ -188,8 +188,8 @@ views a month with about 150 KB of pictures each, 20 picture picks by Tia a mont
 
 | Item | Beta (50 teams) | Growth (500 teams) |
 |---|---|---|
-| Picture storage (1.25 GB / 12.5 GB, Supabase Storage at $0.021/GB, check) | $0.03 | $0.26 |
-| Picture traffic (37 GB / 375 GB; Supabase Pro includes 250 GB, then $0.09/GB, check) | $0 | $11 |
+| Picture storage (1.25 GB / 12.5 GB, VPS disk, check) | $0.03 | $0.26 |
+| Picture traffic (37 GB / 375 GB, VPS bandwidth, check) | $0 | $11 |
 | Pexels API (free, check) | $0 | $0 |
 | Resizing with sharp on the existing worker machines | $0 | $0 |
 | Claude: Tia's picture picks and alt words (Sonnet, about 3,000 tokens in and 300 out each, about $0.014, check) | $14 | $140 |

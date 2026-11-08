@@ -27,8 +27,8 @@ Every tool's sign-in or key is sealed with `SECRETS_KEY` (AES-256-GCM) before it
 
 ```
 fly secrets set --app claritia-intel \
-  SECRETS_KEY='<same as Render>' \
-  SUPABASE_URL='https://<project>.supabase.co' \
+  SECRETS_KEY='<same as claritia-web>' \
+  SUPABASE_URL='<the API address on the VPS>' \
   SUPABASE_SECRET_KEY='<service role / secret key>' \
   HUBSPOT_CLIENT_ID='…' HUBSPOT_CLIENT_SECRET='…' \
   SALESFORCE_CLIENT_ID='…' SALESFORCE_CLIENT_SECRET='…' \
@@ -176,7 +176,7 @@ For one-click sign-in:
 
 Nothing to register. Omniscient already knows Claritia (`src/lib/apps.ts` there) and allows return addresses on `tryclaritia.com`.
 
-1. Omniscient's migration `032_connect.sql` must be live, with `SUPABASE_SECRET_KEY` set on Omniscient's Render.
+1. Omniscient's migration `032_connect.sql` must be live, with `SUPABASE_SECRET_KEY` set on Omniscient's app on the VPS.
 2. "Connect Omniscient" in Claritia opens Omniscient's approve page. An Omniscient owner or admin clicks Allow. Claritia trades the one-time code for a key, then registers its own webhook with Omniscient (contact created and updated).
 3. Omniscient's own "Connect Claritia" button sends people to `/settings/suite?connect=omniscient`. That address opens the same connect panel in Claritia.
 

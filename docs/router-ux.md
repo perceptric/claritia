@@ -584,7 +584,7 @@ Only transform, opacity and stroke offset animate. All of it stops under reduced
 | `POST /api/routing/held` | Let through, spam, allow domain, assign (one or many) | Owners |
 | `POST /api/route` (public API) | Route a lead from the team's own systems, with an idempotency key | API key |
 
-Reads that members can do straight from the database (Log, Reps, Held) use Supabase with row security, like the
+Reads that members can do straight from the database (Log, Reps, Held) use the database's row security, like the
 rest of the app.
 
 ### 7.4 The hot path

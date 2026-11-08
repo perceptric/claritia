@@ -43,7 +43,7 @@ This repo holds the marketing site (`/` on tryclaritia.com) and the app (app.try
 
 ## The runner
 
-A separate Render service built from `worker/Dockerfile`. It needs `SUPABASE_URL`, `SUPABASE_SECRET_KEY` and the same `SECRETS_KEY` as the web service. `WORKER_SLOTS` (default 2) sets how many runs it does at once. Run files go to the private `runs` bucket in Supabase Storage.
+`claritia-runner` on the VPS, built from `worker/Dockerfile`. It needs `SUPABASE_URL`, `SUPABASE_SECRET_KEY` and the same `SECRETS_KEY` as the web service. `WORKER_SLOTS` (default 2) sets how many runs it does at once. Run files go to the private `runs` storage bucket.
 
 The AI writer needs `ANTHROPIC_API_KEY` on the runner. `CLAUDE_MODEL` (default `claude-opus-5-5`) and `CLAUDE_EFFORT` (`low`, `medium` or `high`, default `medium`) are optional. Calls use adaptive thinking, structured output, prompt caching on the instructions, and the server-side fallback beta (`fallbacks: "default"`), which re-runs a declined request on another Claude model.
 
@@ -110,8 +110,8 @@ Stripe's fee comes out of revenue, so it grows only with paying customers.
 
 ## Setup
 
-1. **Supabase:** run each file in `supabase/migrations` in order (SQL Editor). Under Authentication → URL Configuration, set the Site URL to `https://app.tryclaritia.com` and add `https://app.tryclaritia.com/**` and `http://localhost:3000/**` to the redirect list. Under Providers, turn on Google and GitHub.
-2. **Render:** add `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY` and `SECRETS_KEY` (32+ random characters, never change it once secrets are saved). The web service also needs `SUPABASE_SECRET_KEY` for the mail and Stripe webhooks and for API keys.
+1. **Database (Postgres on the Hostinger VPS):** run each file in `supabase/migrations` in order with `psql "$DATABASE_URL" -f <file>` (the folder keeps its old name). In the sign-in service's settings, set the Site URL to `https://app.tryclaritia.com` and add `https://app.tryclaritia.com/**` and `http://localhost:3000/**` to the redirect list, and turn on Google and GitHub.
+2. **Apps on the VPS:** give `claritia-web` `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY` and `SECRETS_KEY` (32+ random characters, never change it once secrets are saved). The web app also needs `SUPABASE_SECRET_KEY` for the mail and Stripe webhooks and for API keys. The variable names keep the `SUPABASE_` start because the code reads them.
 3. **Test inboxes (Resend):** in Resend, add the domain `inbox.tryclaritia.com`, turn on receiving, and add the MX record it shows at the domain registrar. Add a webhook for the `email.received` event to `https://app.tryclaritia.com/api/inbox/resend`. Put a full-access API key in `RESEND_API_KEY` on the web service. No webhook secret is needed: the app fetches each email back from Resend with the key before it saves it.
 4. **Billing (Stripe):** set `STRIPE_SECRET_KEY` on the web service. That's all: prices come from `src/lib/plans.ts`, and the first checkout makes the webhook to `/api/billing/webhook` in Stripe, and the first "Manage billing" makes the billing page. The webhook needs no signing secret, because each event is fetched back from Stripe with the secret key before it's used.
 
@@ -138,17 +138,15 @@ npm run build
 
 ## Deploy
 
-**Fly.io:** see `docs/fly.md` to move the site and the runner from Render to Fly (`fly.toml`, `fly.runner.toml`). The app is always on. The runner sleeps when there's nothing to run (`IDLE_EXIT_MS`); the database wakes it when a run is queued and fires schedules itself every minute (`supabase/migrations/011_wake_runner.sql`). About $3.50 to $5 a month before launch instead of about $32 (check).
+Everything runs on the Hostinger VPS. `.github/workflows/build-images.yml` builds `claritia-web`, `claritia-runner`, `claritia-relay` and `claritia-intel` on every push to `main` and publishes them to `ghcr.io/<owner>/<app>:latest` (and `:<commit>`); the VPS pulls them. `.github/workflows/checks.yml` runs lint, typecheck and the unit tests. Postgres runs on the same VPS.
 
-**Render (current):**
+One app (`claritia-web`) serves both domains. `src/proxy.ts` sends `/` on `tryclaritia.com` to the site, and everything on `app.tryclaritia.com` to the app. `www.` goes to the bare domain. Point `tryclaritia.com`, `www.tryclaritia.com` and `app.tryclaritia.com` at the VPS in Hostinger's DNS.
 
-One Render service (`claritia`) serves both domains. `src/proxy.ts` sends `/` on `tryclaritia.com` to the site, and everything on `app.tryclaritia.com` to the app (`/start` for now). `www.` goes to the bare domain.
-
-Add `tryclaritia.com`, `www.tryclaritia.com` and `app.tryclaritia.com` under the web service's Custom Domains, then add the DNS records Render shows at your domain registrar.
+Fly (`docs/fly.md`) and Render (`render.yaml`) are no longer used.
 
 ## Launch numbers
 
-Time from sign-up to a first passing test, per workspace (run in the Supabase SQL editor):
+Time from sign-up to a first passing test, per workspace (run with `psql` on the VPS database):
 
 ```sql
 select w.name, w.created_at, w.first_pass_at, w.first_pass_at - w.created_at as time_to_pass

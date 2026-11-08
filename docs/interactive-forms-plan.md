@@ -340,7 +340,7 @@ Later: PDF of results, payments on a quote, live benchmark feeds, AI-written adv
 | Item | Beta (50 teams) | Growth (500 teams) |
 |---|---|---|
 | Claude: AI builds and AI bar on interactive forms (Sonnet, about 10 builds a team a month at $0.15) | $75 | $750 |
-| Upload storage (about 2 GB a team, Supabase Storage at $0.021/GB, check) | $2 | $21 |
+| Upload storage (about 2 GB a team, VPS disk, check) | $2 | $21 |
 | Result emails (inside Resend, already paid for alerts, check) | $0 | $0 |
 | Server results and the bigger form script (existing Fly machines and edge cache) | $0 | $0 |
 | Database rows for snapshots and events (check) | $0 | $25 |
@@ -378,7 +378,7 @@ Not built yet:
 - Anonymous feedback: every fill still needs an email to land on a contact.
 - The funnel's result count isn't shown on a screen yet (it's stored).
 - Unused uploads are cleared now and then by the upload route, not by a nightly job.
-- Not checked in a browser: the gallery, the builder panels and the contact timeline (the app needs Supabase to run).
+- Not checked in a browser: the gallery, the builder panels and the contact timeline (the app needs its database and sign-in service to run).
   The form script's screens, cards, slider, live result and send were checked in Chromium.
 
 ### Running cost of what's built
@@ -386,7 +386,7 @@ Not built yet:
 | Item | Beta (50 teams) | Growth (500 teams) |
 |---|---|---|
 | Claude: none added per visitor; the AI bar's calls are the same as before | $0 | $0 |
-| Upload storage (about 2 GB a team, Supabase Storage at $0.021/GB, check) | $2 | $21 |
+| Upload storage (about 2 GB a team, VPS disk, check) | $2 | $21 |
 | Result emails (inside Resend, already paid for, check) | $0 | $0 |
 | Database rows for results, uploads and the result count (check) | $0 | $25 |
 | **Added monthly total** | **about $2** | **about $46** |

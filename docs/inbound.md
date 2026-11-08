@@ -303,7 +303,7 @@ Claude prices from `docs/marketing-platform.md` Part 11 (Haiku 5.5 $0.10/$0.50, 
 | Email check | $50 (check) | $500 (check) |
 | Resend for meeting emails (22,500 a month, then 225,000) | $20, Pro plan (check) | $200 (check) |
 | Fly: `collect` for form submits and the before-submit lookup, `claritia-web` for booking pages (the form builder's own lines are in `docs/form-builder.md` Part 14) | $10 (check) | $60 (check) |
-| Supabase: submissions, router runs, busy cache, meetings | $0 (within plan) | $25 (check) |
+| Postgres on the VPS: submissions, router runs, busy cache, meetings | $0 (within the VPS, check) | $25 (check) |
 | Cloudflare Turnstile | $0 (free tier, check) | $0 (check) |
 | Google OAuth verification for calendar scopes | $0 (sensitive scope, no paid audit, check) | $0 |
 | **Added by this plan** | **About $1,780** | **About $17,785** |
