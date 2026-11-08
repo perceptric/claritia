@@ -1,6 +1,6 @@
 # Templates, wave 3: simple one-page forms, plain multi-page forms, and long forms split into pages
 
-Status: plan. 8 November 2026. Builds on `docs/form-templates.md` (the gallery, its menus and format) and
+Status: built. 8 November 2026. Simple forms show under "Under 1 minute" in the Length menu. Builds on `docs/form-templates.md` (the gallery, its menus and format) and
 `docs/template-pictures-plan.md` (the photos).
 
 **The goal:** every kind of form has a few simple versions for simple needs, the bigger jobs get more multi-page forms
