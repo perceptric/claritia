@@ -31,9 +31,6 @@ jobs:
           - image: claritia-relay
             file: relay/Dockerfile
             args: ""
-          - image: claritia-collect
-            file: collect/Dockerfile
-            args: ""
           - image: claritia-intel
             file: worker-intel/Dockerfile
             args: ""
