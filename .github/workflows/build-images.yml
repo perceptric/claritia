@@ -4,7 +4,7 @@ name: Build images
 
 on:
   push:
-    branches: [main, claude/adoring-wozniak-16a48r, claude/relaxed-fermat-jk5bjb]
+    branches: [main]
   workflow_dispatch:
 
 permissions:
