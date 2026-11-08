@@ -33,5 +33,6 @@ select migration, applied from (values
   ('124', exists(select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.proname = 'form_fill_channels')),
   ('135', to_regclass('public.team_domains') is not null),
   ('136', to_regclass('public.identity_settings') is null),
-  ('137', exists(select 1 from pg_constraint where conname = 'saved_views_screen_check' and pg_get_constraintdef(oid) not like '%accounts%'))
+  ('137', exists(select 1 from pg_constraint where conname = 'saved_views_screen_check' and pg_get_constraintdef(oid) not like '%accounts%')),
+  ('138', exists(select 1 from pg_constraint where conname = 'team_domains_pkey'))
 ) as v(migration, applied) order by migration;
