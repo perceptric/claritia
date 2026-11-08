@@ -24,5 +24,5 @@ kill_timeout = 30
 
 [[vm]]
   size = "shared-cpu-1x"
-  # 1 GB: big Excel imports read in steady memory, but the reader and a 5,000-row page need the room.
-  memory = "1gb"
+  # 512 MB: peak use was ~290 MB, big Excel imports included.
+  memory = "512mb"
