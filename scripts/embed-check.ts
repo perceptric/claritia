@@ -12,7 +12,7 @@ import { formEmbedCode, meetingEmbedCode } from "../src/lib/share/embed.ts";
 import { studioForm } from "../src/lib/studio/liveForm.ts";
 import { pageForm } from "../src/lib/studio/page.ts";
 import { styleCssById } from "../src/lib/studio/styleCss.ts";
-import { buildForms } from "./build-forms.mts";
+import { buildExtras, buildForms } from "./build-forms.mts";
 
 const failures: string[] = [];
 const check = (ok: boolean, what: string) => {
@@ -55,12 +55,48 @@ const built = ready(
     after: { kind: "thanks" },
   }).form,
 );
+// A page in a gallery style with a dropdown: the form's own list, never the browser's, and nothing around the form.
+const PICK = "88888888-8888-4888-8888-888888888888";
+const picky = ready(
+  pageForm({
+    html: `<main class="page"><form class="form-card"><h1 class="heading">Contact us</h1><div class="fields"><div class="q"><label class="label" for="q_topic">What's this about?</label><select class="field" id="q_topic" name="topic" required><option value="">Choose one</option><option value="sales">Sales</option><option value="support">Support</option><option value="billing">Billing</option></select><p class="error" data-cl-error-for="topic"></p></div><div class="q" id="more" data-cl-show-if="topic == 'billing'"><label class="label" for="q_inv">Invoice number</label><input class="field" id="q_inv" name="invoice" type="text"></div><div class="q"><label class="label" for="q_email">Email</label><input class="field" id="q_email" name="email" type="email" required></div></div><button class="btn" type="submit">Send</button></form><section data-cl-thanks hidden><h2>Thanks</h2></section></main>`,
+    css: "",
+    brand: styleCssById("coral"),
+    after: { kind: "thanks" },
+  }).form,
+);
+const pickSent: string[] = [];
+// A welcome screen with a photo beside it, a page with a photo band, and a photo behind the thank-you.
+const COVER = "99999999-9999-4999-8999-999999999999";
+const PHOTO = "https://media.test/storage/v1/object/public/assets/0192f3a1-0000-7000-8000-000000000001/0192f3a1-0000-7000-8000-0000000000aa.jpg";
+const covered = ready(
+  pageForm({
+    html: `<main class="page"><section data-cl-cover data-cl-media="${PHOTO}" data-cl-sizes="640,1280,1920" data-cl-layout="left" data-cl-focus="30,40" data-cl-alt="Two people at a desk"><h1 class="heading" id="welcome">Talk to sales</h1><p class="text">Two minutes.</p><button class="btn" type="button" data-cl-start>Start</button></section><div class="form-card"><form><section data-cl-step data-cl-media="${PHOTO}" data-cl-layout="top" data-cl-alt=""><fieldset class="q"><legend class="label">Plan</legend><label class="choice"><input type="radio" name="plan" value="team"> Team</label><label class="choice"><input type="radio" name="plan" value="ent"> Enterprise</label></fieldset><div class="q"><label class="label" for="q_email">Email</label><input class="field" id="q_email" name="email" type="email" required></div><button class="btn" type="submit">Send</button></section></form><section data-cl-thanks hidden data-cl-media="${PHOTO}" data-cl-layout="behind"><h2 class="heading" id="done">Thanks</h2></section></div></main>`,
+    css: "",
+    brand: styleCssById("paper"),
+    after: { kind: "thanks" },
+  }).form,
+);
+const coverSent: string[] = [];
+// One question at a time: three pages (the second only for Enterprise), questions inside a .fields wrapper, a hidden
+// value, a choice that moves on by itself, and long text last.
+const ONE = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+const oneForm = ready(
+  pageForm({
+    html: `<main class="page"><div class="form-card"><form data-cl-one><section data-cl-step><h2 class="heading" id="about">About you</h2><div class="fields"><div class="q"><label class="label" for="q_name">Your name</label><input class="field" id="q_name" name="name" type="text" required><p class="error" data-cl-error-for="name"></p></div><fieldset class="q"><legend class="label">Plan</legend><label class="choice"><input type="radio" name="plan" value="team" required> Team</label><label class="choice"><input type="radio" name="plan" value="ent"> Enterprise</label><p class="error" data-cl-error-for="plan"></p></fieldset><div data-cl-field="hidden" data-cl-name="campaign" data-cl-from="param" data-cl-param="ref"></div></div><div class="nav"><button class="btn" type="button" data-cl-next>Next</button></div></section><section data-cl-step data-cl-show-if="plan == 'ent'"><div class="q"><label class="label" for="q_seats">Seats</label><input class="field" id="q_seats" name="seats" type="number" required><p class="error" data-cl-error-for="seats"></p></div><div class="nav"><button class="btn-secondary" type="button" data-cl-back>Back</button><button class="btn" type="button" data-cl-next>Next</button></div></section><section data-cl-step><div class="q"><label class="label" for="q_email">Email</label><input class="field" id="q_email" name="email" type="email" required><p class="error" data-cl-error-for="email"></p></div><div class="q"><label class="label" for="q_notes">Notes</label><textarea class="field" id="q_notes" name="notes"></textarea></div><div class="nav"><button class="btn-secondary" type="button" data-cl-back>Back</button><button class="btn" type="submit">Send</button></div></section></form><section data-cl-thanks hidden><h2 class="heading" id="oneDone">Thanks</h2></section></div></main>`,
+    css: "",
+    brand: styleCssById("paper"),
+    after: { kind: "thanks" },
+  }).form,
+);
+const oneSent: string[] = [];
 const styled = (() => {
   const r = studioForm(plain, styleCssById("grove"));
   if ("error" in r) throw new Error(r.error);
   return r.form;
 })();
-const formsJs = await buildForms();
+const x1Js = await buildExtras();
+const formsJs = await buildForms(x1Js);
 // The npm package's React components, bundled the way a site's build would (packages/embed).
 const reactJs = (
   await build({
@@ -89,8 +125,30 @@ const server = createServer((req, res) => {
   const json = (b: unknown) => res.writeHead(200, { "content-type": "application/json", "access-control-allow-origin": "*" }).end(JSON.stringify(b));
   const u = req.url ?? "";
   if (u.startsWith("/forms/v1.js")) return res.writeHead(200, { "content-type": "text/javascript" }).end(formsJs);
+  if (u.startsWith("/forms/x1.js")) return res.writeHead(200, { "content-type": "text/javascript" }).end(x1Js);
   if (u === "/react.js") return res.writeHead(200, { "content-type": "text/javascript" }).end(reactJs);
   if (u === `/api/forms/${STEPS}/submit`) return json({ id: "s1" });
+  if (u === `/api/forms/${PICK}/submit`) {
+    let b = "";
+    req.on("data", (c) => (b += c));
+    req.on("end", () => (pickSent.push(b), json({ id: "p1" })));
+    return;
+  }
+  if (u === `/api/forms/${COVER}/submit`) {
+    let b = "";
+    req.on("data", (c) => (b += c));
+    req.on("end", () => (coverSent.push(b), json({ id: "c1" })));
+    return;
+  }
+  if (u === `/api/forms/${ONE}/submit`) {
+    let b = "";
+    req.on("data", (c) => (b += c));
+    req.on("end", () => (oneSent.push(b), json({ id: "o1" })));
+    return;
+  }
+  if (u === `/api/forms/${ONE}`) return json({ id: ONE, version: 1, status: "live", body: oneForm, logo_url: null });
+  if (u === `/api/forms/${COVER}`) return json({ id: COVER, version: 1, status: "live", body: covered, logo_url: null });
+  if (u === `/api/forms/${PICK}`) return json({ id: PICK, version: 1, status: "live", body: picky, logo_url: null });
   if (u === `/api/forms/${FORM}`) return json({ id: FORM, version: 1, status: "live", body: plain, tokens: {}, logo_url: null });
   if (u === `/api/forms/${PAGE}`) return json({ id: PAGE, version: 1, status: "live", body: studio, tokens: {}, logo_url: null });
   if (u === `/api/forms/${STEPS}`) return json({ id: STEPS, version: 1, status: "live", body: twoSteps, tokens: {}, logo_url: null });
@@ -114,6 +172,19 @@ try {
   const phone = await browser.newPage({ viewport: { width: 390, height: 780 } });
   const errors: string[] = [];
   for (const p of [desk, phone]) p.on("pageerror", (e) => errors.push(e.message));
+  // The library's photos, served as a real JPEG and its WebP widths; "blocked" fails them all.
+  const sharp = (await import("sharp")).default;
+  const jpg = await sharp({ create: { width: 1600, height: 1000, channels: 3, background: { r: 40, g: 110, b: 90 } } }).jpeg().toBuffer();
+  const webp = await sharp(jpg).resize(640).webp().toBuffer();
+  let blocked = false;
+  const photos: string[] = [];
+  for (const p of [desk, phone])
+    await p.route("https://media.test/**", (r) => {
+      photos.push(r.request().url());
+      if (blocked) return r.abort();
+      const u = r.request().url();
+      return r.fulfill({ status: 200, contentType: u.endsWith(".webp") ? "image/webp" : "image/jpeg", body: u.endsWith(".webp") ? webp : jpg });
+    });
   const host = (p: typeof desk) => p.locator("claritia-form");
   const box = (p: typeof desk) => host(p).locator(".pbox");
   const rect = (l: ReturnType<typeof box>) => l.boundingBox();
@@ -152,6 +223,161 @@ try {
   await bf.locator("input[value='big']").check();
   await bf.locator("[data-cl-next]").first().click();
   check((await bf.locator("input[name='email']").isVisible()) && !(await bf.locator("#two").isVisible()), "built: Big jumps past page two");
+
+  // A gallery style is only the form, filling its box in its own color: no stage, pattern, drawing or card inside it
+  await desk.goto(add("/pure", formEmbedCode(origin, PICK, { mode: "inline" })));
+  const pf0 = host(desk);
+  await pf0.locator("button.cl-pick").waitFor();
+  const look = await pf0.locator(".page").evaluate((pg) => {
+    const card = pg.querySelector(".form-card")!;
+    const cs = getComputedStyle(pg), cc = getComputedStyle(card), before = getComputedStyle(card, "::before");
+    return { bg: cs.backgroundColor, img: cs.backgroundImage, pad: cs.paddingTop, card: cc.backgroundColor, shadow: cc.boxShadow, border: cc.borderTopWidth, cpad: cc.paddingTop, art: before.content };
+  });
+  check(look.bg === "rgb(255, 255, 255)" && look.img === "none", `only the form: its own color fills the box, with no stage color or pattern (${look.bg}, ${look.img})`);
+  check(look.card === "rgba(0, 0, 0, 0)" && look.shadow === "none" && look.border === "0px" && look.cpad === "0px" && (look.art === "none" || look.art === "normal"), `only the form: no card, frame, shadow or drawing inside it (${JSON.stringify(look)})`);
+
+  const full = await pf0.locator(".page").evaluate((pg) => [pg.getBoundingClientRect().width, (pg.getRootNode() as ShadowRoot).host.getBoundingClientRect().width]);
+  check(Math.abs(full[0]! - full[1]!) <= 1, `only the form: it fills the whole width of its box (${full.map(Math.round).join(" of ")})`);
+
+  // Its dropdown is the form's own list, never the browser's
+  const pk = pf0.locator("button.cl-pick");
+  check((await pf0.locator("select").count()) === 1 && (await pf0.locator("select").evaluate((x) => getComputedStyle(x).opacity === "0" && x.getBoundingClientRect().width <= 1 && x.tabIndex === -1)), "dropdown: the browser's select is out of sight and out of the tab order");
+  check((await pk.textContent())?.trim() === "Choose one" && (await pk.getAttribute("aria-haspopup")) === "listbox", "dropdown: the form's own button says Choose one");
+  check((await pf0.locator("label[for='q_topic']").evaluate((l, b) => (l as HTMLLabelElement).control === b, await pk.elementHandle())), "dropdown: the question's label names the button");
+  // Sent with nothing picked: the question says so, and the button takes the focus
+  await pf0.locator("input[name='email']").fill("dana@acme.com");
+  await pf0.locator("button[type='submit']").click();
+  check(((await pf0.locator('[data-cl-error-for="topic"]').textContent()) ?? "") === "Fill this in." && pickSent.length === 0, "dropdown: a required one left empty stops the send");
+  check(await pk.evaluate((b) => (b.getRootNode() as ShadowRoot).activeElement === b), "dropdown: the button takes the focus when it needs an answer");
+  check((await pk.getAttribute("aria-invalid")) === "true", "dropdown: the button is marked as needing an answer");
+  // The keyboard: down opens, down moves, Escape closes without a change, a letter jumps, Enter picks
+  await desk.keyboard.press("ArrowDown");
+  check(await pf0.locator(".cl-list").isVisible(), "dropdown: the down arrow opens the list in the page");
+  check((await pf0.locator(".cl-list li").allTextContents()).join("|") === "Sales|Support|Billing", "dropdown: the list holds the choices and not the placeholder");
+  await desk.keyboard.press("Escape");
+  check(!(await pf0.locator(".cl-list").isVisible()) && (await pk.textContent())?.trim() === "Choose one", "dropdown: Escape closes it with nothing picked");
+  await desk.keyboard.press("ArrowDown");
+  await desk.keyboard.press("ArrowDown");
+  await desk.keyboard.press("Enter");
+  check((await pk.textContent())?.trim() === "Support" && (await pf0.locator("select").inputValue()) === "support", "dropdown: arrows and Enter pick Support");
+  check(((await pf0.locator('[data-cl-error-for="topic"]').textContent()) ?? "") === "" && (await pk.getAttribute("aria-invalid")) === "false", "dropdown: a pick clears its error");
+  await desk.keyboard.press("Enter");
+  await desk.keyboard.type("b");
+  await desk.keyboard.press("Enter");
+  check((await pk.textContent())?.trim() === "Billing", "dropdown: a letter jumps to its choice");
+  check(await pf0.locator("#more").isVisible(), "dropdown: a pick shows the question that follows it");
+  // A click picks too, and clicking away closes it
+  await pk.click();
+  await pf0.locator(".cl-list li", { hasText: "Sales" }).click();
+  check((await pk.textContent())?.trim() === "Sales" && !(await pf0.locator("#more").isVisible()), "dropdown: a click picks Sales and hides the question again");
+  await pk.click();
+  await pf0.locator("h1").click();
+  check(!(await pf0.locator(".cl-list").isVisible()), "dropdown: clicking away closes it");
+  await pf0.locator("button[type='submit']").click();
+  await desk.waitForFunction(() => document.querySelector("claritia-form")!.shadowRoot!.querySelector("[data-cl-thanks]:not([hidden])"), null, { timeout: 4000 });
+  check(pickSent.length === 1 && pickSent[0]!.includes('"sales"') && !pickSent[0]!.includes("billing"), `dropdown: the send carries the pick (${pickSent[0]?.slice(0, 160)})`);
+  // An answer from an email link fills it before anyone clicks
+  const topicId = picky.page!.ids.topic!;
+  await desk.goto(`${add("/pure-answer", formEmbedCode(origin, PICK, { mode: "inline" }))}?clr_a=${encodeURIComponent(`${topicId}:billing`)}`);
+  await host(desk).locator("button.cl-pick").waitFor();
+  await desk.waitForTimeout(100);
+  check((await host(desk).locator("button.cl-pick").textContent())?.trim() === "Billing", "dropdown: an email's answer shows on the button");
+
+  // A welcome screen with a photo beside it: the photo fills 40% of the box edge to edge, the rest waits until Start
+  await desk.goto(add("/cover", formEmbedCode(origin, COVER, { mode: "inline" })));
+  const cf = host(desk);
+  await cf.locator("#welcome").waitFor();
+  await desk.waitForFunction(() => (document.querySelector("claritia-form")!.shadowRoot!.querySelector(".cl-fig img") as HTMLImageElement | null)?.complete);
+  const cv = await cf.locator(".page").evaluate((pg) => {
+    const fig = pg.querySelector(".cl-fig")!.getBoundingClientRect(), box = pg.getBoundingClientRect(), cover = pg.querySelector("[data-cl-cover]")!.getBoundingClientRect();
+    const img = pg.querySelector(".cl-fig img") as HTMLImageElement;
+    return { lay: pg.getAttribute("data-cl-lay"), fig: [fig.left - box.left, fig.top - box.top, fig.width / box.width, fig.height - box.height], coverLeft: cover.left - fig.right, img: img.currentSrc, alt: img.alt, pos: img.style.objectPosition, natural: img.naturalWidth };
+  });
+  check(cv.lay === "left" && Math.abs(cv.fig[0]!) < 1 && Math.abs(cv.fig[1]!) < 1 && Math.abs(cv.fig[2]! - 0.4) < 0.01 && Math.abs(cv.fig[3]!) < 1, `welcome: the photo fills the left 40% of the box, edge to edge (${JSON.stringify(cv.fig)})`);
+  check(cv.coverLeft >= 20, `welcome: the words sit beside the photo, never on it (${Math.round(cv.coverLeft)}px)`);
+  check(cv.natural > 0 && cv.img.endsWith(".webp") && cv.alt === "Two people at a desk" && cv.pos === "30% 40%", `welcome: a WebP width loads, with its words and its focus (${cv.img.split("/").pop()}, ${cv.pos})`);
+  check(!(await cf.locator("input[name='email']").isVisible()), "welcome: the questions wait until Start");
+  await cf.locator("[data-cl-start]").click();
+  check(!(await cf.locator("#welcome").isVisible()) && (await cf.locator("input[value='team']").evaluate((x) => (x.getRootNode() as ShadowRoot).activeElement === x)), "welcome: Start shows the first question, ready to answer");
+  const band = await cf.locator(".page").evaluate((pg) => {
+    const fig = pg.querySelector(".cl-fig")!.getBoundingClientRect(), box = pg.getBoundingClientRect(), q = pg.querySelector("input[name=email]")!.getBoundingClientRect();
+    return { lay: pg.getAttribute("data-cl-lay"), w: fig.width / box.width, h: fig.height, below: q.top - fig.bottom, hidden: pg.querySelector(".cl-fig")!.getAttribute("aria-hidden") };
+  });
+  check(band.lay === "top" && band.w > 0.99 && band.h === 180 && band.below > 0 && band.hidden === "true", `a page with a photo band: across the top, the questions under it (${JSON.stringify(band)})`);
+  await cf.locator("input[name='email']").fill("dana@acme.com");
+  await cf.locator("button[type='submit']").click();
+  await cf.locator("#done").waitFor();
+  const end = await cf.locator(".page").evaluate((pg) => ({ lay: pg.getAttribute("data-cl-lay"), color: getComputedStyle(pg.querySelector("#done")!).color }));
+  check(end.lay === "behind" && end.color === "rgb(255, 255, 255)" && coverSent.length === 1 && coverSent[0]!.includes("dana@acme.com"), `the thank-you: the photo behind, the words in white, the fill sent once (${JSON.stringify(end)})`);
+  // On a phone the side photo goes on top, and the words start under it
+  await phone.goto(add("/cover-phone", formEmbedCode(origin, COVER, { mode: "inline" })));
+  await host(phone).locator("#welcome").waitFor();
+  await phone.waitForTimeout(150);
+  const ph = await host(phone).locator(".page").evaluate((pg) => {
+    const fig = pg.querySelector(".cl-fig")!.getBoundingClientRect(), box = pg.getBoundingClientRect(), t = pg.querySelector("#welcome")!.getBoundingClientRect();
+    return { narrow: pg.hasAttribute("data-cl-narrow"), w: fig.width / box.width, h: fig.height, below: t.top - fig.bottom, scroll: document.documentElement.scrollWidth };
+  });
+  check(ph.narrow && ph.w > 0.99 && ph.h === 220 && ph.below > 0 && ph.scroll <= 390, `on a phone: the photo on top, the words under it, nothing wider than the screen (${JSON.stringify(ph)})`);
+  // A photo that can't load leaves plain words, and the form still sends
+  blocked = true;
+  await desk.goto(add("/cover-blocked", formEmbedCode(origin, COVER, { mode: "inline" })));
+  await host(desk).locator("#welcome").waitFor();
+  await desk.waitForFunction(() => !document.querySelector("claritia-form")!.shadowRoot!.querySelector(".page")!.hasAttribute("data-cl-lay"), null, { timeout: 4000 });
+  await host(desk).locator("[data-cl-start]").click();
+  await host(desk).locator("input[name='email']").fill("lee@acme.com");
+  await host(desk).locator("button[type='submit']").click();
+  await host(desk).locator("#done").waitFor();
+  check(coverSent.length === 2 && coverSent[1]!.includes("lee@acme.com"), "a photo that can't load: plain words, and the form still sends");
+  blocked = false;
+  // An answer from an email goes past the welcome screen
+  const planId = covered.page!.ids.plan!;
+  await desk.goto(`${add("/cover-answer", formEmbedCode(origin, COVER, { mode: "inline" }))}?clr_a=${encodeURIComponent(`${planId}:ent`)}`);
+  await host(desk).locator("input[name='email']").waitFor({ state: "visible" });
+  check(!(await host(desk).locator("#welcome").isVisible()) && (await host(desk).locator("input[value='ent']").isChecked()), "an email's answer goes past the welcome screen to the form, picked");
+
+  // One question at a time: one question a screen; Enter, letters and a single pick move on, once, never past a
+  // required question left empty; Back keeps the answer; a page hidden by a changed answer is skipped and its answer
+  // never sent; the fill is sent once with every answer
+  await desk.goto(`${add("/one", formEmbedCode(origin, ONE, { mode: "inline" }))}?ref=spring`);
+  const of = host(desk);
+  const shown = () => of.locator("[data-cl-one-step]:not([hidden])");
+  const screen = async () => (await shown().locator("input:not([type=hidden]),textarea").first().getAttribute("name")) ?? "";
+  await of.locator("input[name='name']").waitFor({ state: "visible" });
+  check((await of.locator("[data-cl-one-step]").count()) === 5 && (await shown().count()) === 1 && (await screen()) === "name" && (await shown().locator("#about").count()) === 1, `one question a screen: 5 screens, the page's heading with its first question (${await of.locator("[data-cl-one-step]").count()})`);
+  check(await of.locator("input[name='name']").evaluate((x) => (x.getRootNode() as ShadowRoot).activeElement !== x), "the first question doesn't take the focus by itself (the site's page doesn't jump to it)");
+  await of.locator("input[name='name']").click();
+  await desk.keyboard.press("Enter");
+  check((await screen()) === "name" && ((await of.locator('[data-cl-error-for="name"]').textContent()) ?? "") === "Fill this in.", "Enter on a required question left empty stays, with its error");
+  await desk.keyboard.type("Dana");
+  await desk.keyboard.press("Enter");
+  await desk.keyboard.press("Enter");
+  await desk.waitForTimeout(100);
+  check((await screen()) === "plan" && ((await of.locator('[data-cl-error-for="plan"]').textContent()) ?? "") === "Fill this in.", `Enter twice fast moves on once, and never past the next required question (${await screen()})`);
+  check((await shown().locator("label[data-cl-key='B']").count()) === 1, "choices carry their letters");
+  await desk.keyboard.press("b");
+  await desk.keyboard.press("b");
+  await desk.waitForTimeout(500);
+  check((await screen()) === "seats", `a letter picks Enterprise and moves on once, to the page Enterprise opens (${await screen()})`);
+  await shown().locator("[data-cl-back]").click();
+  check((await screen()) === "plan" && (await of.locator("input[value='ent']").isChecked()), "Back shows the answer still picked");
+  await shown().locator("label").filter({ hasText: "Team" }).dblclick();
+  await desk.waitForTimeout(500);
+  check((await screen()) === "email", `a double tap on Team moves on once, past the page only Enterprise sees (${await screen()})`);
+  await desk.keyboard.press("Enter");
+  check((await screen()) === "email" && ((await of.locator('[data-cl-error-for="email"]').textContent()) ?? "") === "Fill this in.", "Enter on an empty email stays");
+  await desk.keyboard.type("dana@acme.com");
+  await desk.keyboard.press("Enter");
+  await desk.waitForTimeout(100);
+  check((await screen()) === "notes" && (await shown().locator("[type=submit]").count()) === 1 && (await shown().locator("[data-cl-next]").count()) === 0, "the last question carries the send button, no OK");
+  await desk.keyboard.type("Line one");
+  await desk.keyboard.press("Shift+Enter");
+  await desk.keyboard.type("Line two");
+  check((await of.locator("textarea[name='notes']").inputValue()) === "Line one\nLine two" && oneSent.length === 0, "Shift+Enter makes a new line in long text");
+  await desk.keyboard.press("Enter");
+  await of.locator("#oneDone").waitFor();
+  await desk.waitForTimeout(300);
+  const sent = oneSent[0] ?? "";
+  check(oneSent.length === 1 && sent.includes("Dana") && sent.includes('"team"') && sent.includes("dana@acme.com") && sent.includes("Line one\\nLine two") && sent.includes("spring") && !sent.includes("seats") , `the fill is sent once, with every answer and the hidden value, and no answer from the skipped page (${sent.slice(0, 300)})`);
 
   // Closed by Settings › Access: the form's own closed message in place of the form
   await desk.goto(add("/shut", formEmbedCode(origin, SHUT, { mode: "inline" })));

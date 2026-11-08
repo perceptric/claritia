@@ -1,0 +1,714 @@
+{
+ "general.contact-us:cover": {
+  "n": 5,
+  "alt": "A person working at a laptop on a bright desk"
+ },
+ "general.newsletter:cover": {
+  "n": 5,
+  "alt": "A person reading an open book"
+ },
+ "general.book-a-call:cover": {
+  "n": 0,
+  "alt": "A woman at her desk with her phone"
+ },
+ "general.waitlist:cover": {
+  "n": 6,
+  "alt": "A person checking their phone by a sunny window"
+ },
+ "general.referral:cover": {
+  "n": 0,
+  "alt": "Two friends smiling together outdoors"
+ },
+ "general.partner-application:cover": {
+  "n": 0,
+  "alt": "Two people shaking hands over a desk"
+ },
+ "general.quote-request:cover": {
+  "n": 2,
+  "alt": "Building plans and tools on a table"
+ },
+ "general.callback-request:cover": {
+  "n": 3,
+  "alt": "A hand holding a pair of headphones"
+ },
+ "general.email-preferences:cover": {
+  "n": 1,
+  "alt": "A woman with a laptop and a cup of coffee"
+ },
+ "general.content-download:cover": {
+  "n": 4,
+  "alt": "A man reading on a tablet in an office"
+ },
+ "saas.demo-request:cover": {
+  "n": 7,
+  "alt": "People working on laptops at a shared table"
+ },
+ "saas.contact-sales:cover": {
+  "n": 7,
+  "alt": "A team meeting around a table with laptops"
+ },
+ "saas.pricing-lead:cover": {
+  "n": 3,
+  "alt": "A team planning with notes on a table"
+ },
+ "agency.project-inquiry:cover": {
+  "n": 2,
+  "alt": "A designer smiling at her desk in a studio"
+ },
+ "agency.seo-audit:cover": {
+  "n": 6,
+  "alt": "A computer showing charts on a white desk"
+ },
+ "agency.website-brief:cover": {
+  "n": 0,
+  "alt": "Hands sketching a website layout on paper"
+ },
+ "agency.marketing-audit:cover": {
+  "n": 6,
+  "alt": "A team talking around a table"
+ },
+ "consulting.consultation:cover": {
+  "n": 7,
+  "alt": "Two people talking across a desk"
+ },
+ "consulting.proposal-request:cover": {
+  "n": 2,
+  "alt": "A signed document and a pen on a table"
+ },
+ "legal.case-evaluation:cover": {
+  "n": 5,
+  "alt": "Shelves full of books"
+ },
+ "legal.consultation-booking:cover": {
+  "n": 7,
+  "alt": "An empty office with tall windows"
+ },
+ "accounting.bookkeeping-quote:cover": {
+  "n": 6,
+  "alt": "Hands working through numbers with a calculator"
+ },
+ "accounting.new-business:cover": {
+  "n": 1,
+  "alt": "An Open sign in a shop window"
+ },
+ "finance.review-request:cover": {
+  "n": 4,
+  "alt": "A notebook, a pen and a calculator"
+ },
+ "finance.retirement:cover": {
+  "n": 2,
+  "alt": "An older couple walking along the shore"
+ },
+ "insurance.quote:cover": {
+  "n": 3,
+  "alt": "A family playing together at home"
+ },
+ "insurance.business-intake:cover": {
+  "n": 0,
+  "alt": "A small flower shop's storefront"
+ },
+ "insurance.policy-review:cover": {
+  "n": 3,
+  "alt": "A document and a pen on a table"
+ },
+ "real_estate.home-valuation:cover": {
+  "n": 2,
+  "alt": "A house with a front yard"
+ },
+ "real_estate.buyer-inquiry:cover": {
+  "n": 3,
+  "alt": "A couple relaxing at home"
+ },
+ "real_estate.commercial-space:cover": {
+  "n": 0,
+  "alt": "A bright, empty room with white walls"
+ },
+ "construction.free-estimate:cover": {
+  "n": 6,
+  "alt": "A builder looking at a new house"
+ },
+ "construction.remodel-planner:cover": {
+  "n": 7,
+  "alt": "A bright living room with a white sofa"
+ },
+ "solar.savings-check:cover": {
+  "n": 0,
+  "alt": "Solar panels under a blue sky"
+ },
+ "solar.commercial-audit:cover": {
+  "n": 1,
+  "alt": "A glass office building"
+ },
+ "wellness.therapy-consultation:cover": {
+  "n": 1,
+  "alt": "A yellow armchair in a quiet room"
+ },
+ "education.course-inquiry:cover": {
+  "n": 5,
+  "alt": "Library shelves full of books"
+ },
+ "ecommerce.back-in-stock:cover": {
+  "n": 0,
+  "alt": "Shelves of bowls and cups in a shop"
+ },
+ "ecommerce.influencer:cover": {
+  "n": 6,
+  "alt": "A creator filming with a camera"
+ },
+ "manufacturing.rfq:cover": {
+  "n": 3,
+  "alt": "Close-up of metal machine parts"
+ },
+ "logistics.freight-quote:cover": {
+  "n": 0,
+  "alt": "A truck on the highway"
+ },
+ "automotive.trade-in:cover": {
+  "n": 6,
+  "alt": "A car parked in a sunny field"
+ },
+ "automotive.fleet:cover": {
+  "n": 6,
+  "alt": "A van parked in front of a house"
+ },
+ "hospitality.travel-inquiry:cover": {
+  "n": 2,
+  "alt": "A green coastline with a waterfall"
+ },
+ "events.sponsor-inquiry:cover": {
+  "n": 0,
+  "alt": "A conference hall with stage lights"
+ },
+ "it.assessment:cover": {
+  "n": 4,
+  "alt": "Close-up of a computer circuit board"
+ },
+ "beauty.color-consultation:cover": {
+  "n": 0,
+  "alt": "Chairs and mirrors in a hair salon"
+ },
+ "beauty.tattoo-consultation:cover": {
+  "n": 3,
+  "alt": "A colorful tattoo on an arm"
+ },
+ "hospitality.group-rate-callback:cover": {
+  "n": 7,
+  "alt": "The front of a grand hotel"
+ },
+ "fitness.trainer-callback:cover": {
+  "n": 3,
+  "alt": "A trainer going over a plan with a client"
+ },
+ "events.venue-tour:cover": {
+  "n": 0,
+  "alt": "A long hall set with tables for an event"
+ },
+ "finance.advisor-callback:cover": {
+  "n": 7,
+  "alt": "A tidy desk with a laptop and a plant"
+ },
+ "events.wedding-planner-inquiry:cover": {
+  "n": 0,
+  "alt": "A wedding table with flowers"
+ },
+ "events.venue-inquiry:cover": {
+  "n": 5,
+  "alt": "Warm string lights at dusk"
+ },
+ "education.info-session:cover": {
+  "n": 0,
+  "alt": "A student at a laptop by a window"
+ },
+ "saas.product-webinar:cover": {
+  "n": 7,
+  "alt": "A presenter talking to a small group"
+ },
+ "construction.house-cleaning-price:cover": {
+  "n": 4,
+  "alt": "A clean, bright kitchen"
+ },
+ "construction.office-cleaning-quote:cover": {
+  "n": 0,
+  "alt": "A clean white desk with a plant"
+ },
+ "construction.water-heater-quote:cover": {
+  "n": 5,
+  "alt": "A plumber at work on pipes"
+ },
+ "construction.roof-inspection:cover": {
+  "n": 0,
+  "alt": "A house with a dark pitched roof"
+ },
+ "construction.roof-cost-calculator:cover": {
+  "n": 4,
+  "alt": "A tiled roof with a small window"
+ },
+ "construction.landscape-design:cover": {
+  "n": 0,
+  "alt": "Two garden chairs on a patio"
+ },
+ "construction.panel-upgrade-estimate:cover": {
+  "n": 2,
+  "alt": "An electrician wiring a breaker panel"
+ },
+ "construction.lighting-install-price:cover": {
+  "n": 3,
+  "alt": "A single bulb hanging in a dark room"
+ },
+ "construction.moving-cost-calculator:cover": {
+  "n": 0,
+  "alt": "Someone packing a moving box"
+ },
+ "general.email-digest:cover": {
+  "n": 6,
+  "alt": "Hands holding a phone next to a coffee"
+ },
+ "general.report-download:cover": {
+  "n": 1,
+  "alt": "Printed charts and phones on a desk"
+ },
+ "saas.enterprise-demo:cover": {
+  "n": 7,
+  "alt": "A man standing in a boardroom"
+ },
+ "saas.partner-program:cover": {
+  "n": 5,
+  "alt": "Two colleagues working on laptops together"
+ },
+ "agency.growth-call:cover": {
+  "n": 7,
+  "alt": "A team meeting in an office"
+ },
+ "agency.referral-partner:cover": {
+  "n": 0,
+  "alt": "A bright desk by a window"
+ },
+ "consulting.client-referral:cover": {
+  "n": 2,
+  "alt": "People talking in a busy cafe"
+ },
+ "consulting.benchmark-report:cover": {
+  "n": 4,
+  "alt": "Printed reports with charts on a desk"
+ },
+ "it.managed-it-quote:cover": {
+  "n": 0,
+  "alt": "A laptop with code on screen beside a coffee"
+ },
+ "coaching.discovery-call:cover": {
+  "n": 0,
+  "alt": "A coach working with a client outdoors"
+ },
+ "creative.photography-inquiry:cover": {
+  "n": 0,
+  "alt": "Close-up of a camera lens"
+ },
+ "creative.video-quote:cover": {
+  "n": 2,
+  "alt": "A film clapperboard on set"
+ },
+ "architecture.project-consultation:cover": {
+  "n": 2,
+  "alt": "A bright, modern living room"
+ },
+ "architecture.fee-estimate:cover": {
+  "n": 7,
+  "alt": "An architect's sketch on paper"
+ },
+ "architecture.planning-guide:cover": {
+  "n": 0,
+  "alt": "The roofline of a modern house against the sky"
+ },
+ "security.system-quote:cover": {
+  "n": 2,
+  "alt": "Security cameras on a wall"
+ },
+ "security.guard-services:cover": {
+  "n": 4,
+  "alt": "A bright lobby with stairs"
+ },
+ "security.camera-demo:cover": {
+  "n": 1,
+  "alt": "Two security cameras against a blue sky"
+ },
+ "agriculture.equipment-demo:cover": {
+  "n": 2,
+  "alt": "A tractor working a green field"
+ },
+ "agriculture.market-report:cover": {
+  "n": 3,
+  "alt": "A field of ripe wheat"
+ },
+ "media.advertising-inquiry:cover": {
+  "n": 4,
+  "alt": "Open magazines on a table"
+ },
+ "government.business-contact:cover": {
+  "n": 0,
+  "alt": "A small-town main street with shops"
+ },
+ "retail.vip-list:cover": {
+  "n": 1,
+  "alt": "A woman browsing a clothing rack"
+ },
+ "pets.puppy-waitlist:cover": {
+  "n": 3,
+  "alt": "A puppy sitting on a white floor"
+ },
+ "sports.club-sponsorship:cover": {
+  "n": 7,
+  "alt": "A soccer stadium on a bright day"
+ },
+ "faith.contact-us:cover": {
+  "n": 5,
+  "alt": "People gathered around a table talking"
+ },
+ "food.wholesale-inquiry:cover": {
+  "n": 3,
+  "alt": "Fresh pastries on a bakery counter"
+ },
+ "agency.marketing-scorecard:cover": {
+  "n": 5,
+  "alt": "A planning board with weeks and notes"
+ },
+ "real_estate.buying-readiness:cover": {
+  "n": 3,
+  "alt": "Someone browsing homes on a laptop"
+ },
+ "legal.divorce-eligibility:cover": {
+  "n": 0,
+  "alt": "A quiet desk in a white room"
+ },
+ "creative.video-brief:cover": {
+  "n": 2,
+  "alt": "Someone editing a video at a desk"
+ },
+ "legal.family-law-intake:cover": {
+  "n": 4,
+  "alt": "An office with tall windows"
+ },
+ "solar.savings-calculator:cover": {
+  "n": 2,
+  "alt": "Rows of solar panels on a hillside"
+ },
+ "saas.roi-calculator:cover": {
+  "n": 3,
+  "alt": "A calculator and a pencil on a desk"
+ },
+ "insurance.auto-quote:cover": {
+  "n": 2,
+  "alt": "A winding road through green hills"
+ },
+ "insurance.home-quote:cover": {
+  "n": 0,
+  "alt": "A house with its lights on at dusk"
+ },
+ "construction.kitchen-remodel-estimate:cover": {
+  "n": 0,
+  "alt": "A bright white kitchen"
+ },
+ "general.franchise-inquiry:cover": {
+  "n": 4,
+  "alt": "A busy cafe counter"
+ },
+ "hospitality.trip-planner:cover": {
+  "n": 0,
+  "alt": "A hand pointing at a map"
+ },
+ "real_estate.commercial-space:Space type:0": {
+  "n": 0,
+  "alt": "An office building"
+ },
+ "real_estate.commercial-space:Space type:1": {
+  "n": 7,
+  "alt": "A shop window at night"
+ },
+ "real_estate.commercial-space:Space type:2": {
+  "n": 7,
+  "alt": "An empty industrial building inside"
+ },
+ "real_estate.commercial-space:Space type:3": {
+  "n": 7,
+  "alt": "People working together at a shared desk"
+ },
+ "real_estate.commercial-space:Space type:4": {
+  "n": 5,
+  "alt": "Set tables in a restaurant"
+ },
+ "solar.ev-charger:Parking:0": {
+  "n": 0,
+  "alt": "A car parked in a home garage"
+ },
+ "solar.ev-charger:Parking:1": {
+  "n": 6,
+  "alt": "A car parked in a driveway"
+ },
+ "solar.ev-charger:Parking:2": {
+  "n": 7,
+  "alt": "Cars parked along a street"
+ },
+ "hospitality.travel-inquiry:Interests:0": {
+  "n": 2,
+  "alt": "A sunny beach with palm trees"
+ },
+ "hospitality.travel-inquiry:Interests:1": {
+  "n": 2,
+  "alt": "Old town rooftops"
+ },
+ "hospitality.travel-inquiry:Interests:2": {
+  "n": 3,
+  "alt": "Fruit at a street market"
+ },
+ "hospitality.travel-inquiry:Interests:3": {
+  "n": 4,
+  "alt": "A hiker on a mountain top"
+ },
+ "hospitality.travel-inquiry:Interests:4": {
+  "n": 5,
+  "alt": "Spa towels and stones"
+ },
+ "hospitality.travel-inquiry:Interests:5": {
+  "n": 0,
+  "alt": "A family walking into the sea"
+ },
+ "events.venue-tour:Spaces you'd like to see:1": {
+  "n": 1,
+  "alt": "A garden with a white table and chairs"
+ },
+ "events.venue-tour:Spaces you'd like to see:2": {
+  "n": 0,
+  "alt": "A rooftop terrace over the city"
+ },
+ "events.venue-tour:Spaces you'd like to see:3": {
+  "n": 0,
+  "alt": "A cozy dining room"
+ },
+ "construction.roof-cost-calculator:Material:0": {
+  "n": 0,
+  "alt": "Dark roof shingles"
+ },
+ "construction.roof-cost-calculator:Material:1": {
+  "n": 6,
+  "alt": "A metal roof"
+ },
+ "construction.roof-cost-calculator:Material:2": {
+  "n": 6,
+  "alt": "Red clay roof tiles"
+ },
+ "construction.roof-cost-calculator:Material:3": {
+  "n": 1,
+  "alt": "A building with a flat roof"
+ },
+ "construction.moving-cost-calculator:Type of home:0": {
+  "n": 1,
+  "alt": "A quiet suburban street"
+ },
+ "construction.moving-cost-calculator:Type of home:1": {
+  "n": 2,
+  "alt": "An apartment building"
+ },
+ "construction.moving-cost-calculator:Type of home:2": {
+  "n": 0,
+  "alt": "A row of colorful townhouses"
+ },
+ "food.wholesale-inquiry:Products you're interested in:0": {
+  "n": 7,
+  "alt": "A loaf of bread on a board"
+ },
+ "food.wholesale-inquiry:Products you're interested in:1": {
+  "n": 0,
+  "alt": "A pile of croissants"
+ },
+ "food.wholesale-inquiry:Products you're interested in:2": {
+  "n": 1,
+  "alt": "A layer cake with fresh berries"
+ },
+ "food.wholesale-inquiry:Products you're interested in:3": {
+  "n": 1,
+  "alt": "Cookies on a baking tray"
+ },
+ "food.wholesale-inquiry:Products you're interested in:4": {
+  "n": 6,
+  "alt": "Muffins with seeds on top"
+ },
+ "food.wholesale-inquiry:Products you're interested in:5": {
+  "n": 1,
+  "alt": "A pie with a golden crust"
+ },
+ "retail.vip-list:What do you shop for?:0": {
+  "n": 6,
+  "alt": "A woman in a flowing dress"
+ },
+ "retail.vip-list:What do you shop for?:2": {
+  "n": 1,
+  "alt": "A child playing in autumn leaves"
+ },
+ "retail.vip-list:What do you shop for?:3": {
+  "n": 1,
+  "alt": "A living room with a dark sofa"
+ },
+ "retail.vip-list:What do you shop for?:4": {
+  "n": 7,
+  "alt": "Wrapped gifts on a table"
+ },
+ "retail.vip-list:What do you shop for?:5": {
+  "n": 2,
+  "alt": "A watch and a tie on a table"
+ },
+ "pets.puppy-waitlist:Your home:0": {
+  "n": 3,
+  "alt": "A backyard with a fence"
+ },
+ "pets.puppy-waitlist:Your home:1": {
+  "n": 4,
+  "alt": "An open green lawn"
+ },
+ "pets.puppy-waitlist:Your home:2": {
+  "n": 2,
+  "alt": "Apartment balconies"
+ },
+ "pets.puppy-waitlist:Your home:3": {
+  "n": 7,
+  "alt": "A farm gate in the countryside"
+ },
+ "logistics.freight-quote:Mode:0": {
+  "n": 5,
+  "alt": "A truck on an open road"
+ },
+ "logistics.freight-quote:Mode:2": {
+  "n": 4,
+  "alt": "A train coming into a city"
+ },
+ "logistics.freight-quote:Mode:3": {
+  "n": 4,
+  "alt": "A plane flying through the clouds"
+ },
+ "logistics.freight-quote:Mode:4": {
+  "n": 1,
+  "alt": "Stacked shipping containers"
+ },
+ "architecture.fee-estimate:Project type:0": {
+  "n": 4,
+  "alt": "A new modern house among trees"
+ },
+ "architecture.fee-estimate:Project type:1": {
+  "n": 2,
+  "alt": "A builder at work on a site"
+ },
+ "architecture.fee-estimate:Project type:2": {
+  "n": 2,
+  "alt": "A room in the middle of a renovation"
+ },
+ "architecture.fee-estimate:Project type:3": {
+  "n": 1,
+  "alt": "Office buildings seen from below"
+ },
+ "agriculture.equipment-demo:Where would you like the demo?:0": {
+  "n": 0,
+  "alt": "Rows in a farm field"
+ },
+ "agriculture.equipment-demo:Where would you like the demo?:2": {
+  "n": 0,
+  "alt": "A sunny field with a tree"
+ },
+ "construction.kitchen-remodel-estimate:Home type:0": {
+  "n": 1,
+  "alt": "A quiet suburban street"
+ },
+ "construction.kitchen-remodel-estimate:Home type:1": {
+  "n": 3,
+  "alt": "A tall condo building"
+ },
+ "construction.kitchen-remodel-estimate:Home type:2": {
+  "n": 0,
+  "alt": "A row of colorful townhouses"
+ },
+ "solar.savings-calculator:Type of home:0": {
+  "n": 0,
+  "alt": "A family house at dusk"
+ },
+ "solar.savings-calculator:Type of home:1": {
+  "n": 0,
+  "alt": "A row of colorful townhouses"
+ },
+ "solar.savings-calculator:Type of home:2": {
+  "n": 4,
+  "alt": "A condo building"
+ },
+ "events.venue-inquiry:Spaces you'd like to see:1": {
+  "n": 1,
+  "alt": "A garden with a white table and chairs"
+ },
+ "events.venue-inquiry:Spaces you'd like to see:2": {
+  "n": 3,
+  "alt": "A terrace with a table and chairs"
+ },
+ "events.venue-inquiry:Spaces you'd like to see:3": {
+  "n": 0,
+  "alt": "A cozy dining room"
+ },
+ "events.venue-inquiry:Spaces you'd like to see:4": {
+  "n": 0,
+  "alt": "A long hall set for an event"
+ },
+ "healthcare.provider-referral:cover": {
+  "n": 0,
+  "alt": "A stethoscope on a desk"
+ },
+ "education.corporate-training:cover": {
+  "n": 1,
+  "alt": "An open notebook and a pen"
+ },
+ "ecommerce.wholesale:cover": {
+  "n": 1,
+  "alt": "Wrapped parcels on a table"
+ },
+ "coaching.masterclass:cover": {
+  "n": 3,
+  "alt": "Handwritten notes beside a coffee"
+ },
+ "saas.quick-demo:cover": {
+  "n": 0,
+  "alt": "A laptop and a plant on a white desk"
+ },
+ "saas.early-access:cover": {
+  "n": 1,
+  "alt": "Hands holding a phone and a coffee"
+ },
+ "coaching.program-waitlist:cover": {
+  "n": 2,
+  "alt": "A small group laughing together"
+ },
+ "saas.data-maturity-scorecard:cover": {
+  "n": 2,
+  "alt": "Charts and a tablet on a desk"
+ },
+ "coaching.program-application:cover": {
+  "n": 3,
+  "alt": "Two people talking over coffee"
+ },
+ "healthcare.home-care-assessment:cover": {
+  "n": 1,
+  "alt": "A cup of tea on an open book"
+ },
+ "events.venue-tour:Spaces you'd like to see:0": {
+  "n": 4,
+  "alt": "A banquet room with round tables"
+ },
+ "events.venue-inquiry:Spaces you'd like to see:0": {
+  "n": 4,
+  "alt": "A banquet room with round tables"
+ },
+ "retail.vip-list:What do you shop for?:1": {
+  "n": 1,
+  "alt": "A man buttoning a blue suit"
+ },
+ "agriculture.equipment-demo:Where would you like the demo?:1": {
+  "n": 3,
+  "alt": "A red tractor"
+ },
+ "solar.savings-calculator:Type of home:3": {
+  "n": 0,
+  "alt": "A trailer home in the desert"
+ }
+}

@@ -3,6 +3,7 @@
 // the renderer, so a form that fails it can't go live. Labels and copy are plain text; nothing in a form is ever
 // read as HTML. Runs in the browser and on the server.
 
+import { cleanPhoto, type Photo } from "./media.ts";
 import { readFormDesign, type FormDesign } from "../design/model.ts";
 import { CONST_ID, evalFormula, parseFormula, type Ast } from "./formula.ts";
 import { cleanHtml } from "./html.ts";
@@ -288,7 +289,7 @@ export type Rule = {
  */
 /** result: a result screen, worked out live from the answers so far; it holds result blocks, text and calcs only. */
 export type Jump = { when: Cond; to: number };
-export type Step = { id: string; title?: string; fields: Field[]; skip?: Jump; jumps?: Jump[]; result?: true; image?: string };
+export type Step = { id: string; title?: string; fields: Field[]; skip?: Jump; jumps?: Jump[]; result?: true; image?: string; photo?: Photo };
 
 /** What a form is for (docs/form-kinds-plan.md): the AI builds each kind from its own recipe. */
 export const FORM_KINDS = ["lead", "quote", "order", "booking", "qualify", "quiz", "survey", "testimonial", "registration", "application", "support", "consent", "internal"] as const;
@@ -332,7 +333,7 @@ export function opsFor(type: FieldType): Op[] {
 export const CALC_INPUTS: FieldType[] = ["number", "rating", "choice", "multi", "dropdown", "checkbox", "calc"];
 
 export type After = {
-  end: { kind: "message"; title: string; text?: string } | { kind: "redirect"; url: string };
+  end: { kind: "message"; title: string; text?: string; photo?: Photo } | { kind: "redirect"; url: string };
   /** Book a meeting after the submit: Claritia calendar in the form, or an outside scheduler (src/lib/forms/schedule.ts). */
   schedule?: Schedule;
 };
@@ -352,7 +353,7 @@ export type Form = {
     mode?: "screens";
     auto?: true;
     /** A first screen with a title, a line and a Start button. */
-    cover?: { title: string; text?: string; button?: string };
+    cover?: { title: string; text?: string; button?: string; photo?: Photo };
     /** false hides the brand's logo over the form (it shows by default when the brand kit has one). */
     logo?: false;
     /** Split screen: a picture beside every step (a step's own image wins), on the left unless at is "right". */
@@ -967,7 +968,8 @@ export function checkForm(raw: unknown, ctx: Ctx = {}): { form: Form } | { error
     }
     if (so.result === true && fields.some((x) => !isContent(x.type) && x.type !== "calc")) errors.push("A result screen holds results, text and calculations only.");
     const img = typeof so.image === "string" && so.image.startsWith("https://") && safeUrl(so.image) ? so.image.slice(0, 1000) : "";
-    steps.push({ id: sid, ...(str(so.title, LIMITS.label) ? { title: str(so.title, LIMITS.label) } : {}), fields, ...(so.result === true ? { result: true as const } : {}), ...(img ? { image: img } : {}) });
+    const photo = cleanPhoto(so.photo, true);
+    steps.push({ id: sid, ...(str(so.title, LIMITS.label) ? { title: str(so.title, LIMITS.label) } : {}), fields, ...(so.result === true ? { result: true as const } : {}), ...(img ? { image: img } : {}), ...(photo ? { photo } : {}) });
   }
   if (count > LIMITS.fields) errors.push(`Up to ${LIMITS.fields} fields.`);
   if (!keys.has("email") && r.emailOptional !== true) errors.push("Add an email field, so each answer reaches a contact.");
@@ -1112,7 +1114,8 @@ export function checkForm(raw: unknown, ctx: Ctx = {}): { form: Form } | { error
     if (!safeUrl(url)) errors.push("The page to open after the submit needs a full https:// address.");
     end = { kind: "redirect", url };
   } else {
-    end = { kind: "message", title: str(after.end?.title, LIMITS.label) || "Thanks, we got it.", ...(str(after.end?.text, LIMITS.text) ? { text: str(after.end?.text, LIMITS.text) } : {}) };
+    const photo = cleanPhoto((after.end as { photo?: unknown } | undefined)?.photo, false);
+    end = { kind: "message", title: str(after.end?.title, LIMITS.label) || "Thanks, we got it.", ...(str(after.end?.text, LIMITS.text) ? { text: str(after.end?.text, LIMITS.text) } : {}), ...(photo ? { photo } : {}) };
   }
   let schedule: Schedule | undefined;
   const sch = (after as { schedule?: Record<string, unknown> }).schedule;
@@ -1246,7 +1249,8 @@ function cleanCover(raw: unknown): NonNullable<Form["layout"]["cover"]> | undefi
   if (!title) return undefined;
   const text = str(c.text, LIMITS.text);
   const button = str(c.button, 40);
-  return { title, ...(text ? { text } : {}), ...(button ? { button } : {}) };
+  const photo = cleanPhoto(c.photo, false);
+  return { title, ...(text ? { text } : {}), ...(button ? { button } : {}), ...(photo ? { photo } : {}) };
 }
 
 /** The owner's settings, cleaned: a unique name for each, a number or not set yet. */

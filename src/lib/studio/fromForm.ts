@@ -8,6 +8,7 @@
 import type { Cond, Field, Form, Rule, Step } from "../forms/schema.ts";
 import type { PageAfter } from "./page.ts";
 import { writeList } from "./page.ts";
+import { photoAttrs } from "../forms/media.ts";
 import type { StudioRoute } from "./routes.ts";
 
 export type Converted = { html: string; css: string; after: PageAfter; title: string; lost: string[] };
@@ -214,6 +215,12 @@ function fieldHtml(f: Field, n: string, ifs: string, ctx: { name: (id: string) =
     }
     case "choice":
     case "multi": {
+      // Picture cards: the picture choice block, with the same values, so answers line up with the plain list's.
+      // Choices that carry points (a price, a score) stay a plain list: the block has no points.
+      if (f.cards && opts.some((o) => o.image) && !opts.some((o) => o.score !== undefined)) {
+        if (f.other) ctx.lost.add(`${f.label}: no Other box on picture cards`);
+        return block("pictures", `${f.type === "multi" ? " data-cl-multi" : ""} data-cl-options="${esc(writeList(opts.map((o) => ({ value: o.value, label: o.label || o.value }))))}" data-cl-images="${esc(opts.map((o) => o.image ?? "").join("|"))}"`).replace(`</div>${help}</div>`, `</div>${help}${err}</div>`);
+      }
       const t = f.type === "choice" ? "radio" : "checkbox";
       const items = opts.map((o, i) => `<label class="choice"><input type="${t}" name="${n}" value="${esc(o.value)}"${i === 0 ? `${req}${cid} data-cl-label="${esc(f.label)}"` : ""}${score(o)}> ${esc(o.label || o.value)}</label>`);
       const other = f.other ? `<label class="choice"><input type="${t}" name="${n}" value="Other"${score({})}> Other</label>` : "";
@@ -316,23 +323,26 @@ export function formToPage(form: Form): Converted {
     ].join("");
     const cond = text(stepIf[i]!);
     if (stepIf[i] === null) lost.add(`Page ${i + 1}: shows for everyone, its skip is too long for show-if words`);
-    return `<section data-cl-step id="s${i}"${cond ? ` data-cl-show-if="${esc(cond)}"` : ""}>${s.title ? `<h2 class="heading">${esc(s.title)}</h2>` : ""}\n${body}\n<div class="nav">${buttons}</div></section>`;
+    return `<section data-cl-step id="s${i}"${cond ? ` data-cl-show-if="${esc(cond)}"` : ""}${photoAttrs(s.photo)}>${s.title ? `<h2 class="heading">${esc(s.title)}</h2>` : ""}\n${body}\n<div class="nav">${buttons}</div></section>`;
   };
   const end = form.after?.end;
   const thanksText = end?.kind === "message" ? (end.text ?? "").split("\n").filter((x) => x.trim()).map((x) => `<p class="text">${esc(x)}</p>`).join("") : "";
   const sch = form.after?.schedule;
   const books = !!sch && ((sch.tool === "claritia" && !!sch.meetingTypeId) || (sch.tool !== "claritia" && !!sch.url));
-  const thanks = `<section data-cl-thanks hidden id="thanks"><h2 class="heading">${esc(end?.kind === "message" ? end.title : "Thanks, we got it.")}</h2>${thanksText}${books ? `<div data-cl-book id="book"></div>` : ""}</section>`;
+  const thanks = `<section data-cl-thanks hidden id="thanks"${end?.kind === "message" ? photoAttrs(end.photo) : ""}><h2 class="heading">${esc(end?.kind === "message" ? end.title : "Thanks, we got it.")}</h2>${thanksText}${books ? `<div data-cl-book id="book"></div>` : ""}</section>`;
   const intro = form.intro ? `<p class="text">${esc(form.intro)}</p>` : "";
   const bar = many && form.layout?.progress !== "none" ? `<div class="bar" data-cl-progress aria-hidden="true"><i></i></div>` : "";
-  const html = `<div class="page" id="page"><div class="form-card" id="card">
+  // The welcome screen, first on the page, with its photo; one question at a time when the form showed screens.
+  const cv = form.layout?.cover;
+  const cover = cv ? `<section data-cl-cover id="cover"${photoAttrs(cv.photo)}><img data-cl-logo alt="Brand logo" class="logo"><h1 class="heading">${esc(cv.title)}</h1>${cv.text ? `<p class="text">${esc(cv.text)}</p>` : ""}<button class="btn" type="button" data-cl-start>${esc(cv.button || "Start")}</button></section>\n` : "";
+  const html = `<div class="page" id="page">${cover}<div class="form-card" id="card">
 <header><img data-cl-logo alt="Brand logo" class="logo">${form.title ? `<h1 class="heading">${esc(form.title)}</h1>` : ""}${intro}${bar}</header>
-<form id="form">
+<form id="form"${form.layout?.mode === "screens" ? " data-cl-one" : ""}${many ? "" : photoAttrs(form.steps[0]?.photo)}>
 ${form.steps.map(stepHtml).join("\n")}
 </form>
 ${thanks}
 </div></div>`;
-  if (form.layout?.cover || form.layout?.side) lost.add("The cover picture: a page shows only the brand's logo");
+  if (form.layout?.side || form.steps.some((st) => st.image && !st.photo)) lost.add("The picture beside the form: add it again as the page's photo");
   if (form.copy) lost.add("A copy of the answers emailed to the person");
   if ((form.constants ?? []).length) lost.add("Settings formulas read are now numbers in the formulas");
   return { html, css: pageCss(form), after: afterOf(form, name, lost), title: form.title ?? "", lost: [...lost] };

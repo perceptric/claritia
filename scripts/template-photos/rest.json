@@ -1,0 +1,2137 @@
+{
+ "family": "rest",
+ "slots": [
+  {
+   "slot": "consulting.workshop-registration:cover",
+   "template": "consulting.workshop-registration",
+   "kind": "cover",
+   "query": "workshop",
+   "short": "workshop",
+   "layout": "right",
+   "noFaces": false,
+   "family": "booking"
+  },
+  {
+   "slot": "real_estate.showing-request:cover",
+   "template": "real_estate.showing-request",
+   "kind": "cover",
+   "query": "front door",
+   "short": "door",
+   "layout": "left",
+   "noFaces": false,
+   "family": "booking"
+  },
+  {
+   "slot": "real_estate.rental-application:cover",
+   "template": "real_estate.rental-application",
+   "kind": "cover",
+   "query": "apartment",
+   "short": "apartment",
+   "layout": "right",
+   "noFaces": false,
+   "family": "booking"
+  },
+  {
+   "slot": "construction.service-request:cover",
+   "template": "construction.service-request",
+   "kind": "cover",
+   "query": "tools",
+   "short": "tools",
+   "layout": "left",
+   "noFaces": false,
+   "family": "booking"
+  },
+  {
+   "slot": "healthcare.appointment:cover",
+   "template": "healthcare.appointment",
+   "kind": "cover",
+   "query": "clinic",
+   "short": "clinic",
+   "layout": "right",
+   "noFaces": true,
+   "family": "booking"
+  },
+  {
+   "slot": "wellness.new-patient:cover",
+   "template": "wellness.new-patient",
+   "kind": "cover",
+   "query": "waiting room",
+   "short": "room",
+   "layout": "left",
+   "noFaces": true,
+   "family": "booking"
+  },
+  {
+   "slot": "fitness.trial-class:cover",
+   "template": "fitness.trial-class",
+   "kind": "cover",
+   "query": "yoga",
+   "short": "yoga mat",
+   "layout": "behind",
+   "noFaces": false,
+   "family": "booking"
+  },
+  {
+   "slot": "fitness.salon-booking:cover",
+   "template": "fitness.salon-booking",
+   "kind": "cover",
+   "query": "hair salon",
+   "short": "salon",
+   "layout": "behind",
+   "noFaces": false,
+   "family": "booking"
+  },
+  {
+   "slot": "education.tutoring:cover",
+   "template": "education.tutoring",
+   "kind": "cover",
+   "query": "homework",
+   "short": "homework",
+   "layout": "right",
+   "noFaces": false,
+   "family": "booking"
+  },
+  {
+   "slot": "automotive.test-drive:cover",
+   "template": "automotive.test-drive",
+   "kind": "cover",
+   "query": "car interior",
+   "short": "interior",
+   "layout": "left",
+   "noFaces": false,
+   "family": "booking"
+  },
+  {
+   "slot": "automotive.service:cover",
+   "template": "automotive.service",
+   "kind": "cover",
+   "query": "mechanic",
+   "short": "mechanic",
+   "layout": "right",
+   "noFaces": false,
+   "family": "booking"
+  },
+  {
+   "slot": "hospitality.group-booking:cover",
+   "template": "hospitality.group-booking",
+   "kind": "cover",
+   "query": "banquet",
+   "short": "banquet",
+   "layout": "behind",
+   "noFaces": false,
+   "family": "booking"
+  },
+  {
+   "slot": "hospitality.reservation:cover",
+   "template": "hospitality.reservation",
+   "kind": "cover",
+   "query": "restaurant",
+   "short": "restaurant",
+   "layout": "behind",
+   "noFaces": false,
+   "family": "booking"
+  },
+  {
+   "slot": "events.meeting-request:cover",
+   "template": "events.meeting-request",
+   "kind": "cover",
+   "query": "conference",
+   "short": "conference",
+   "layout": "left",
+   "noFaces": false,
+   "family": "booking"
+  },
+  {
+   "slot": "beauty.bridal-hair-makeup:cover",
+   "template": "beauty.bridal-hair-makeup",
+   "kind": "cover",
+   "query": "bride",
+   "short": "bride",
+   "layout": "behind",
+   "noFaces": false,
+   "family": "booking"
+  },
+  {
+   "slot": "beauty.spa-day:cover",
+   "template": "beauty.spa-day",
+   "kind": "cover",
+   "query": "spa",
+   "short": "spa",
+   "layout": "behind",
+   "noFaces": false,
+   "family": "booking"
+  },
+  {
+   "slot": "beauty.massage-appointment:cover",
+   "template": "beauty.massage-appointment",
+   "kind": "cover",
+   "query": "massage",
+   "short": "massage",
+   "layout": "behind",
+   "noFaces": false,
+   "family": "booking"
+  },
+  {
+   "slot": "beauty.piercing-appointment:cover",
+   "template": "beauty.piercing-appointment",
+   "kind": "cover",
+   "query": "earrings",
+   "short": "earrings",
+   "layout": "behind",
+   "noFaces": false,
+   "family": "booking"
+  },
+  {
+   "slot": "pets.vet-appointment:cover",
+   "template": "pets.vet-appointment",
+   "kind": "cover",
+   "query": "dog",
+   "short": "puppy",
+   "layout": "right",
+   "noFaces": false,
+   "family": "booking"
+  },
+  {
+   "slot": "pets.grooming:cover",
+   "template": "pets.grooming",
+   "kind": "cover",
+   "query": "dog grooming",
+   "short": "grooming",
+   "layout": "left",
+   "noFaces": false,
+   "family": "booking"
+  },
+  {
+   "slot": "pets.boarding:cover",
+   "template": "pets.boarding",
+   "kind": "cover",
+   "query": "dogs playing",
+   "short": "playing",
+   "layout": "right",
+   "noFaces": false,
+   "family": "booking"
+  },
+  {
+   "slot": "pets.pet-sitting:cover",
+   "template": "pets.pet-sitting",
+   "kind": "cover",
+   "query": "cat",
+   "short": "cat",
+   "layout": "left",
+   "noFaces": false,
+   "family": "booking"
+  },
+  {
+   "slot": "hospitality.room-reservation:cover",
+   "template": "hospitality.room-reservation",
+   "kind": "cover",
+   "query": "hotel room",
+   "short": "room",
+   "layout": "behind",
+   "noFaces": false,
+   "family": "booking"
+  },
+  {
+   "slot": "hospitality.rental-inquiry:cover",
+   "template": "hospitality.rental-inquiry",
+   "kind": "cover",
+   "query": "cabin",
+   "short": "cabin",
+   "layout": "behind",
+   "noFaces": false,
+   "family": "booking"
+  },
+  {
+   "slot": "hospitality.guest-check-in:cover",
+   "template": "hospitality.guest-check-in",
+   "kind": "cover",
+   "query": "keys",
+   "short": "keys",
+   "layout": "behind",
+   "noFaces": false,
+   "family": "booking"
+  },
+  {
+   "slot": "food.private-dining:cover",
+   "template": "food.private-dining",
+   "kind": "cover",
+   "query": "dining room",
+   "short": "room",
+   "layout": "behind",
+   "noFaces": false,
+   "family": "booking"
+  },
+  {
+   "slot": "food.cooking-class:cover",
+   "template": "food.cooking-class",
+   "kind": "cover",
+   "query": "cooking",
+   "short": "cooking",
+   "layout": "behind",
+   "noFaces": false,
+   "family": "booking"
+  },
+  {
+   "slot": "fitness.class-pack:cover",
+   "template": "fitness.class-pack",
+   "kind": "cover",
+   "query": "spinning",
+   "short": "fitness",
+   "layout": "behind",
+   "noFaces": false,
+   "family": "booking"
+  },
+  {
+   "slot": "fitness.private-session:cover",
+   "template": "fitness.private-session",
+   "kind": "cover",
+   "query": "personal trainer",
+   "short": "trainer",
+   "layout": "behind",
+   "noFaces": false,
+   "family": "booking"
+  },
+  {
+   "slot": "education.test-prep-callback:cover",
+   "template": "education.test-prep-callback",
+   "kind": "cover",
+   "query": "studying",
+   "short": "studying",
+   "layout": "left",
+   "noFaces": false,
+   "family": "booking"
+  },
+  {
+   "slot": "education.music-lessons:cover",
+   "template": "education.music-lessons",
+   "kind": "cover",
+   "query": "piano",
+   "short": "piano",
+   "layout": "right",
+   "noFaces": false,
+   "family": "booking"
+  },
+  {
+   "slot": "sports.court-booking:cover",
+   "template": "sports.court-booking",
+   "kind": "cover",
+   "query": "tennis court",
+   "short": "court",
+   "layout": "behind",
+   "noFaces": false,
+   "family": "booking"
+  },
+  {
+   "slot": "creative.photo-session:cover",
+   "template": "creative.photo-session",
+   "kind": "cover",
+   "query": "photographer",
+   "short": "camera",
+   "layout": "right",
+   "noFaces": false,
+   "family": "booking"
+  },
+  {
+   "slot": "automotive.car-rental:cover",
+   "template": "automotive.car-rental",
+   "kind": "cover",
+   "query": "road trip",
+   "short": "trip",
+   "layout": "left",
+   "noFaces": false,
+   "family": "booking"
+  },
+  {
+   "slot": "events.party-rental:cover",
+   "template": "events.party-rental",
+   "kind": "cover",
+   "query": "party",
+   "short": "party",
+   "layout": "right",
+   "noFaces": false,
+   "family": "booking"
+  },
+  {
+   "slot": "food.tasting-dinner:cover",
+   "template": "food.tasting-dinner",
+   "kind": "cover",
+   "query": "fine dining",
+   "short": "dining",
+   "layout": "behind",
+   "noFaces": false,
+   "family": "booking"
+  },
+  {
+   "slot": "hospitality.wedding-room-block:cover",
+   "template": "hospitality.wedding-room-block",
+   "kind": "cover",
+   "query": "hotel",
+   "short": "hotel",
+   "layout": "behind",
+   "noFaces": false,
+   "family": "booking"
+  },
+  {
+   "slot": "construction.cleaning-appointment:cover",
+   "template": "construction.cleaning-appointment",
+   "kind": "cover",
+   "query": "cleaning",
+   "short": "cleaning",
+   "layout": "left",
+   "noFaces": false,
+   "family": "booking"
+  },
+  {
+   "slot": "construction.hvac-tune-up:cover",
+   "template": "construction.hvac-tune-up",
+   "kind": "cover",
+   "query": "vent",
+   "short": "fan",
+   "layout": "right",
+   "noFaces": false,
+   "family": "booking"
+  },
+  {
+   "slot": "construction.hvac-emergency-callback:cover",
+   "template": "construction.hvac-emergency-callback",
+   "kind": "cover",
+   "query": "radiator",
+   "short": "radiator",
+   "layout": "left",
+   "noFaces": false,
+   "family": "booking"
+  },
+  {
+   "slot": "construction.plumbing-appointment:cover",
+   "template": "construction.plumbing-appointment",
+   "kind": "cover",
+   "query": "faucet",
+   "short": "sink",
+   "layout": "right",
+   "noFaces": false,
+   "family": "booking"
+  },
+  {
+   "slot": "construction.sewer-camera-inspection:cover",
+   "template": "construction.sewer-camera-inspection",
+   "kind": "cover",
+   "query": "pipes",
+   "short": "pipes",
+   "layout": "left",
+   "noFaces": false,
+   "family": "booking"
+  },
+  {
+   "slot": "construction.roof-leak-callback:cover",
+   "template": "construction.roof-leak-callback",
+   "kind": "cover",
+   "query": "rain roof",
+   "short": "roof",
+   "layout": "right",
+   "noFaces": false,
+   "family": "booking"
+  },
+  {
+   "slot": "construction.equipment-rental:cover",
+   "template": "construction.equipment-rental",
+   "kind": "cover",
+   "query": "lawn mower",
+   "short": "mower",
+   "layout": "left",
+   "noFaces": false,
+   "family": "booking"
+  },
+  {
+   "slot": "construction.yard-cleanup:cover",
+   "template": "construction.yard-cleanup",
+   "kind": "cover",
+   "query": "autumn leaves",
+   "short": "leaves",
+   "layout": "right",
+   "noFaces": false,
+   "family": "booking"
+  },
+  {
+   "slot": "construction.electrician-appointment:cover",
+   "template": "construction.electrician-appointment",
+   "kind": "cover",
+   "query": "electrician",
+   "short": "electrician",
+   "layout": "left",
+   "noFaces": false,
+   "family": "booking"
+  },
+  {
+   "slot": "construction.pest-inspection:cover",
+   "template": "construction.pest-inspection",
+   "kind": "cover",
+   "query": "house exterior",
+   "short": "exterior",
+   "layout": "right",
+   "noFaces": false,
+   "family": "booking"
+  },
+  {
+   "slot": "construction.moving-truck-rental:cover",
+   "template": "construction.moving-truck-rental",
+   "kind": "cover",
+   "query": "moving truck",
+   "short": "truck",
+   "layout": "left",
+   "noFaces": false,
+   "family": "booking"
+  },
+  {
+   "slot": "fitness.workout-style-quiz:cover",
+   "template": "fitness.workout-style-quiz",
+   "kind": "cover",
+   "query": "workout",
+   "short": "workout",
+   "layout": "behind",
+   "noFaces": false,
+   "family": "booking"
+  },
+  {
+   "slot": "hospitality.rental-deposit:cover",
+   "template": "hospitality.rental-deposit",
+   "kind": "cover",
+   "query": "vacation home",
+   "short": "home",
+   "layout": "behind",
+   "noFaces": false,
+   "family": "booking"
+  },
+  {
+   "slot": "general.webinar-registration:cover",
+   "template": "general.webinar-registration",
+   "kind": "cover",
+   "query": "presentation",
+   "short": "headphones",
+   "layout": "behind",
+   "noFaces": false,
+   "family": "events"
+  },
+  {
+   "slot": "consulting.speaker-request:cover",
+   "template": "consulting.speaker-request",
+   "kind": "cover",
+   "query": "audience",
+   "short": "stage",
+   "layout": "behind",
+   "noFaces": false,
+   "family": "events"
+  },
+  {
+   "slot": "real_estate.open-house:cover",
+   "template": "real_estate.open-house",
+   "kind": "cover",
+   "query": "open house",
+   "short": "house",
+   "layout": "behind",
+   "noFaces": false,
+   "family": "events"
+  },
+  {
+   "slot": "events.registration:cover",
+   "template": "events.registration",
+   "kind": "cover",
+   "query": "event",
+   "short": "event",
+   "layout": "behind",
+   "noFaces": false,
+   "family": "events"
+  },
+  {
+   "slot": "events.speaker-application:cover",
+   "template": "events.speaker-application",
+   "kind": "cover",
+   "query": "microphone",
+   "short": "microphone",
+   "layout": "behind",
+   "noFaces": false,
+   "family": "events"
+  },
+  {
+   "slot": "events.exhibitor:cover",
+   "template": "events.exhibitor",
+   "kind": "cover",
+   "query": "trade show",
+   "short": "show",
+   "layout": "behind",
+   "noFaces": false,
+   "family": "events"
+  },
+  {
+   "slot": "nonprofit.event-rsvp:cover",
+   "template": "nonprofit.event-rsvp",
+   "kind": "cover",
+   "query": "gathering",
+   "short": "gathering",
+   "layout": "behind",
+   "noFaces": false,
+   "family": "events"
+  },
+  {
+   "slot": "events.wedding-rsvp:cover",
+   "template": "events.wedding-rsvp",
+   "kind": "cover",
+   "query": "wedding",
+   "short": "wedding",
+   "layout": "behind",
+   "noFaces": false,
+   "family": "events"
+  },
+  {
+   "slot": "events.wedding-show-exhibitor:cover",
+   "template": "events.wedding-show-exhibitor",
+   "kind": "cover",
+   "query": "wedding flowers",
+   "short": "flowers",
+   "layout": "behind",
+   "noFaces": false,
+   "family": "events"
+  },
+  {
+   "slot": "events.conference-registration:cover",
+   "template": "events.conference-registration",
+   "kind": "cover",
+   "query": "conference",
+   "short": "conference",
+   "layout": "behind",
+   "noFaces": false,
+   "family": "events"
+  },
+  {
+   "slot": "events.call-for-proposals:cover",
+   "template": "events.call-for-proposals",
+   "kind": "cover",
+   "query": "stage",
+   "short": "stage",
+   "layout": "behind",
+   "noFaces": false,
+   "family": "events"
+  },
+  {
+   "slot": "events.speaker-details:cover",
+   "template": "events.speaker-details",
+   "kind": "cover",
+   "query": "podium",
+   "short": "podium",
+   "layout": "behind",
+   "noFaces": false,
+   "family": "events"
+  },
+  {
+   "slot": "events.trade-show-booth:cover",
+   "template": "events.trade-show-booth",
+   "kind": "cover",
+   "query": "convention",
+   "short": "expo",
+   "layout": "behind",
+   "noFaces": false,
+   "family": "events"
+  },
+  {
+   "slot": "events.virtual-summit:cover",
+   "template": "events.virtual-summit",
+   "kind": "cover",
+   "query": "video call",
+   "short": "call",
+   "layout": "behind",
+   "noFaces": false,
+   "family": "events"
+  },
+  {
+   "slot": "personal.birthday-rsvp:cover",
+   "template": "personal.birthday-rsvp",
+   "kind": "cover",
+   "query": "birthday",
+   "short": "birthday",
+   "layout": "behind",
+   "noFaces": false,
+   "family": "events"
+  },
+  {
+   "slot": "personal.baby-shower:cover",
+   "template": "personal.baby-shower",
+   "kind": "cover",
+   "query": "baby shower",
+   "short": "shower",
+   "layout": "behind",
+   "noFaces": false,
+   "family": "events"
+  },
+  {
+   "slot": "personal.reunion:cover",
+   "template": "personal.reunion",
+   "kind": "cover",
+   "query": "picnic",
+   "short": "friends",
+   "layout": "behind",
+   "noFaces": false,
+   "family": "events"
+  },
+  {
+   "slot": "personal.bachelor-weekend:cover",
+   "template": "personal.bachelor-weekend",
+   "kind": "cover",
+   "query": "celebration",
+   "short": "celebration",
+   "layout": "behind",
+   "noFaces": false,
+   "family": "events"
+  },
+  {
+   "slot": "faith.retreat-registration:cover",
+   "template": "faith.retreat-registration",
+   "kind": "cover",
+   "query": "retreat",
+   "short": "retreat",
+   "layout": "behind",
+   "noFaces": false,
+   "family": "events"
+  },
+  {
+   "slot": "faith.craft-fair-vendor:cover",
+   "template": "faith.craft-fair-vendor",
+   "kind": "cover",
+   "query": "craft fair",
+   "short": "fair",
+   "layout": "behind",
+   "noFaces": false,
+   "family": "events"
+  },
+  {
+   "slot": "sports.tournament-registration:cover",
+   "template": "sports.tournament-registration",
+   "kind": "cover",
+   "query": "basketball",
+   "short": "basketball",
+   "layout": "behind",
+   "noFaces": false,
+   "family": "events"
+  },
+  {
+   "slot": "sports.awards-banquet:cover",
+   "template": "sports.awards-banquet",
+   "kind": "cover",
+   "query": "trophy",
+   "short": "trophy",
+   "layout": "behind",
+   "noFaces": false,
+   "family": "events"
+  },
+  {
+   "slot": "education.career-day-speaker:cover",
+   "template": "education.career-day-speaker",
+   "kind": "cover",
+   "query": "classroom",
+   "short": "classroom",
+   "layout": "behind",
+   "noFaces": false,
+   "family": "events"
+  },
+  {
+   "slot": "education.career-fair-employer:cover",
+   "template": "education.career-fair-employer",
+   "kind": "cover",
+   "query": "handshake",
+   "short": "interview",
+   "layout": "behind",
+   "noFaces": false,
+   "family": "events"
+  },
+  {
+   "slot": "nonprofit.gala-tickets:cover",
+   "template": "nonprofit.gala-tickets",
+   "kind": "cover",
+   "query": "chandelier",
+   "short": "ballroom",
+   "layout": "behind",
+   "noFaces": false,
+   "family": "events"
+  },
+  {
+   "slot": "nonprofit.charity-run:cover",
+   "template": "nonprofit.charity-run",
+   "kind": "cover",
+   "query": "running race",
+   "short": "race",
+   "layout": "behind",
+   "noFaces": false,
+   "family": "events"
+  },
+  {
+   "slot": "media.podcast-guest:cover",
+   "template": "media.podcast-guest",
+   "kind": "cover",
+   "query": "podcast",
+   "short": "podcast",
+   "layout": "behind",
+   "noFaces": false,
+   "family": "events"
+  },
+  {
+   "slot": "events.event-waiver:cover",
+   "template": "events.event-waiver",
+   "kind": "cover",
+   "query": "festival",
+   "short": "outdoors",
+   "layout": "behind",
+   "noFaces": false,
+   "family": "events"
+  },
+  {
+   "slot": "saas.free-trial:cover",
+   "template": "saas.free-trial",
+   "kind": "cover",
+   "query": "laptop",
+   "short": "laptop",
+   "layout": "right",
+   "noFaces": false,
+   "family": "apply"
+  },
+  {
+   "slot": "saas.beta-program:cover",
+   "template": "saas.beta-program",
+   "kind": "cover",
+   "query": "app",
+   "short": "smartphone",
+   "layout": "left",
+   "noFaces": false,
+   "family": "apply"
+  },
+  {
+   "slot": "saas.advisory-board:cover",
+   "template": "saas.advisory-board",
+   "kind": "cover",
+   "query": "boardroom",
+   "short": "boardroom",
+   "layout": "right",
+   "noFaces": false,
+   "family": "apply"
+  },
+  {
+   "slot": "agency.freelancer-application:cover",
+   "template": "agency.freelancer-application",
+   "kind": "cover",
+   "query": "freelancer",
+   "short": "freelancer",
+   "layout": "left",
+   "noFaces": false,
+   "family": "apply"
+  },
+  {
+   "slot": "finance.loan-prequal:cover",
+   "template": "finance.loan-prequal",
+   "kind": "cover",
+   "query": "house keys",
+   "short": "keys",
+   "layout": "right",
+   "noFaces": true,
+   "family": "apply"
+  },
+  {
+   "slot": "finance.business-funding:cover",
+   "template": "finance.business-funding",
+   "kind": "cover",
+   "query": "small business",
+   "short": "business",
+   "layout": "left",
+   "noFaces": true,
+   "family": "apply"
+  },
+  {
+   "slot": "fitness.membership:cover",
+   "template": "fitness.membership",
+   "kind": "cover",
+   "query": "gym",
+   "short": "gym",
+   "layout": "right",
+   "noFaces": false,
+   "family": "apply"
+  },
+  {
+   "slot": "education.application:cover",
+   "template": "education.application",
+   "kind": "cover",
+   "query": "campus",
+   "short": "campus",
+   "layout": "left",
+   "noFaces": false,
+   "family": "apply"
+  },
+  {
+   "slot": "education.scholarship:cover",
+   "template": "education.scholarship",
+   "kind": "cover",
+   "query": "graduation",
+   "short": "graduation",
+   "layout": "right",
+   "noFaces": false,
+   "family": "apply"
+  },
+  {
+   "slot": "logistics.driver-application:cover",
+   "template": "logistics.driver-application",
+   "kind": "cover",
+   "query": "truck driver",
+   "short": "driver",
+   "layout": "left",
+   "noFaces": false,
+   "family": "apply"
+  },
+  {
+   "slot": "events.volunteer:cover",
+   "template": "events.volunteer",
+   "kind": "cover",
+   "query": "volunteers",
+   "short": "volunteers",
+   "layout": "right",
+   "noFaces": false,
+   "family": "apply"
+  },
+  {
+   "slot": "nonprofit.volunteer:cover",
+   "template": "nonprofit.volunteer",
+   "kind": "cover",
+   "query": "helping",
+   "short": "charity",
+   "layout": "left",
+   "noFaces": false,
+   "family": "apply"
+  },
+  {
+   "slot": "nonprofit.grant-application:cover",
+   "template": "nonprofit.grant-application",
+   "kind": "cover",
+   "query": "community garden",
+   "short": "garden",
+   "layout": "right",
+   "noFaces": false,
+   "family": "apply"
+  },
+  {
+   "slot": "nonprofit.program-intake:cover",
+   "template": "nonprofit.program-intake",
+   "kind": "cover",
+   "query": "community center",
+   "short": "center",
+   "layout": "left",
+   "noFaces": true,
+   "family": "apply"
+  },
+  {
+   "slot": "hr.job-application:cover",
+   "template": "hr.job-application",
+   "kind": "cover",
+   "query": "office",
+   "short": "office",
+   "layout": "right",
+   "noFaces": false,
+   "family": "apply"
+  },
+  {
+   "slot": "nonprofit.grant-eligibility:cover",
+   "template": "nonprofit.grant-eligibility",
+   "kind": "cover",
+   "query": "notebook",
+   "short": "notebook",
+   "layout": "left",
+   "noFaces": true,
+   "family": "apply"
+  },
+  {
+   "slot": "media.contributor-application:cover",
+   "template": "media.contributor-application",
+   "kind": "cover",
+   "query": "writing",
+   "short": "writing",
+   "layout": "right",
+   "noFaces": false,
+   "family": "apply"
+  },
+  {
+   "slot": "education.childcare-enrollment:cover",
+   "template": "education.childcare-enrollment",
+   "kind": "cover",
+   "query": "toys",
+   "short": "toys",
+   "layout": "left",
+   "noFaces": false,
+   "family": "apply"
+  },
+  {
+   "slot": "education.course-enrollment:cover",
+   "template": "education.course-enrollment",
+   "kind": "cover",
+   "query": "lecture",
+   "short": "lecture",
+   "layout": "right",
+   "noFaces": false,
+   "family": "apply"
+  },
+  {
+   "slot": "faith.membership:cover",
+   "template": "faith.membership",
+   "kind": "cover",
+   "query": "church",
+   "short": "church",
+   "layout": "left",
+   "noFaces": false,
+   "family": "apply"
+  },
+  {
+   "slot": "sports.club-membership:cover",
+   "template": "sports.club-membership",
+   "kind": "cover",
+   "query": "soccer",
+   "short": "soccer",
+   "layout": "right",
+   "noFaces": false,
+   "family": "apply"
+  },
+  {
+   "slot": "sports.coach-application:cover",
+   "template": "sports.coach-application",
+   "kind": "cover",
+   "query": "coach",
+   "short": "coach",
+   "layout": "left",
+   "noFaces": false,
+   "family": "apply"
+  },
+  {
+   "slot": "sports.fee-assistance:cover",
+   "template": "sports.fee-assistance",
+   "kind": "cover",
+   "query": "soccer ball",
+   "short": "ball",
+   "layout": "right",
+   "noFaces": true,
+   "family": "apply"
+  },
+  {
+   "slot": "government.vendor-permit:cover",
+   "template": "government.vendor-permit",
+   "kind": "cover",
+   "query": "food truck",
+   "short": "truck",
+   "layout": "left",
+   "noFaces": false,
+   "family": "apply"
+  },
+  {
+   "slot": "government.small-business-grant:cover",
+   "template": "government.small-business-grant",
+   "kind": "cover",
+   "query": "shopfront",
+   "short": "shopfront",
+   "layout": "right",
+   "noFaces": false,
+   "family": "apply"
+  },
+  {
+   "slot": "security.guard-application:cover",
+   "template": "security.guard-application",
+   "kind": "cover",
+   "query": "security",
+   "short": "security",
+   "layout": "left",
+   "noFaces": false,
+   "family": "apply"
+  },
+  {
+   "slot": "agriculture.market-vendor:cover",
+   "template": "agriculture.market-vendor",
+   "kind": "cover",
+   "query": "farmers market",
+   "short": "market",
+   "layout": "right",
+   "noFaces": false,
+   "family": "apply"
+  },
+  {
+   "slot": "real_estate.commercial-lease:cover",
+   "template": "real_estate.commercial-lease",
+   "kind": "cover",
+   "query": "office space",
+   "short": "space",
+   "layout": "left",
+   "noFaces": false,
+   "family": "apply"
+  },
+  {
+   "slot": "real_estate.coworking-membership:cover",
+   "template": "real_estate.coworking-membership",
+   "kind": "cover",
+   "query": "coworking",
+   "short": "coworking",
+   "layout": "right",
+   "noFaces": false,
+   "family": "apply"
+  },
+  {
+   "slot": "real_estate.guarantor-form:cover",
+   "template": "real_estate.guarantor-form",
+   "kind": "cover",
+   "query": "apartment building",
+   "short": "building",
+   "layout": "left",
+   "noFaces": false,
+   "family": "apply"
+  },
+  {
+   "slot": "nonprofit.association-membership:cover",
+   "template": "nonprofit.association-membership",
+   "kind": "cover",
+   "query": "meeting",
+   "short": "meeting",
+   "layout": "right",
+   "noFaces": false,
+   "family": "apply"
+  },
+  {
+   "slot": "nonprofit.community-grant:cover",
+   "template": "nonprofit.community-grant",
+   "kind": "cover",
+   "query": "neighborhood",
+   "short": "neighborhood",
+   "layout": "left",
+   "noFaces": false,
+   "family": "apply"
+  },
+  {
+   "slot": "hr.internship-application:cover",
+   "template": "hr.internship-application",
+   "kind": "cover",
+   "query": "intern",
+   "short": "intern",
+   "layout": "right",
+   "noFaces": false,
+   "family": "apply"
+  },
+  {
+   "slot": "sports.season-registration:cover",
+   "template": "sports.season-registration",
+   "kind": "cover",
+   "query": "baseball",
+   "short": "baseball",
+   "layout": "left",
+   "noFaces": false,
+   "family": "apply"
+  },
+  {
+   "slot": "finance.mortgage-prequal:cover",
+   "template": "finance.mortgage-prequal",
+   "kind": "cover",
+   "query": "new home",
+   "short": "home",
+   "layout": "right",
+   "noFaces": true,
+   "family": "apply"
+  },
+  {
+   "slot": "pets.adoption-application:cover",
+   "template": "pets.adoption-application",
+   "kind": "cover",
+   "query": "puppy",
+   "short": "puppy",
+   "layout": "left",
+   "noFaces": false,
+   "family": "apply"
+  },
+  {
+   "slot": "ecommerce.custom-order:cover",
+   "template": "ecommerce.custom-order",
+   "kind": "cover",
+   "query": "handmade",
+   "short": "handmade",
+   "layout": "top",
+   "noFaces": false,
+   "family": "money"
+  },
+  {
+   "slot": "manufacturing.sample:cover",
+   "template": "manufacturing.sample",
+   "kind": "cover",
+   "query": "samples",
+   "short": "samples",
+   "layout": "top",
+   "noFaces": false,
+   "family": "money"
+  },
+  {
+   "slot": "hospitality.catering:cover",
+   "template": "hospitality.catering",
+   "kind": "cover",
+   "query": "catering",
+   "short": "catering",
+   "layout": "top",
+   "noFaces": false,
+   "family": "money"
+  },
+  {
+   "slot": "nonprofit.donation-pledge:cover",
+   "template": "nonprofit.donation-pledge",
+   "kind": "cover",
+   "query": "donation",
+   "short": "donation",
+   "layout": "top",
+   "noFaces": false,
+   "family": "money"
+  },
+  {
+   "slot": "construction.cleaning-plan:cover",
+   "template": "construction.cleaning-plan",
+   "kind": "cover",
+   "query": "clean home",
+   "short": "home",
+   "layout": "top",
+   "noFaces": false,
+   "family": "money"
+  },
+  {
+   "slot": "construction.hvac-maintenance-plan:cover",
+   "template": "construction.hvac-maintenance-plan",
+   "kind": "cover",
+   "query": "ventilation",
+   "short": "vent",
+   "layout": "top",
+   "noFaces": false,
+   "family": "money"
+  },
+  {
+   "slot": "construction.lawn-care-plan:cover",
+   "template": "construction.lawn-care-plan",
+   "kind": "cover",
+   "query": "lawn",
+   "short": "lawn",
+   "layout": "top",
+   "noFaces": false,
+   "family": "money"
+  },
+  {
+   "slot": "construction.pest-control-plan:cover",
+   "template": "construction.pest-control-plan",
+   "kind": "cover",
+   "query": "garden",
+   "short": "garden",
+   "layout": "top",
+   "noFaces": false,
+   "family": "money"
+  },
+  {
+   "slot": "media.advertiser-brief:cover",
+   "template": "media.advertiser-brief",
+   "kind": "cover",
+   "query": "billboard",
+   "short": "billboard",
+   "layout": "top",
+   "noFaces": false,
+   "family": "money"
+  },
+  {
+   "slot": "food.custom-cake-order:cover",
+   "template": "food.custom-cake-order",
+   "kind": "cover",
+   "query": "cake",
+   "short": "cake",
+   "layout": "top",
+   "noFaces": false,
+   "family": "money"
+  },
+  {
+   "slot": "food.catering-calculator:cover",
+   "template": "food.catering-calculator",
+   "kind": "cover",
+   "query": "buffet",
+   "short": "buffet",
+   "layout": "top",
+   "noFaces": false,
+   "family": "money"
+  },
+  {
+   "slot": "food.gift-card-order:cover",
+   "template": "food.gift-card-order",
+   "kind": "cover",
+   "query": "gift card",
+   "short": "card",
+   "layout": "top",
+   "noFaces": false,
+   "family": "money"
+  },
+  {
+   "slot": "retail.layaway-plan:cover",
+   "template": "retail.layaway-plan",
+   "kind": "cover",
+   "query": "shopping bags",
+   "short": "bags",
+   "layout": "top",
+   "noFaces": false,
+   "family": "money"
+  },
+  {
+   "slot": "retail.flower-subscription:cover",
+   "template": "retail.flower-subscription",
+   "kind": "cover",
+   "query": "flowers",
+   "short": "flowers",
+   "layout": "top",
+   "noFaces": false,
+   "family": "money"
+  },
+  {
+   "slot": "ecommerce.subscribe-and-save:cover",
+   "template": "ecommerce.subscribe-and-save",
+   "kind": "cover",
+   "query": "coffee beans",
+   "short": "beans",
+   "layout": "top",
+   "noFaces": false,
+   "family": "money"
+  },
+  {
+   "slot": "ecommerce.custom-merch-order:cover",
+   "template": "ecommerce.custom-merch-order",
+   "kind": "cover",
+   "query": "t-shirt",
+   "short": "t-shirt",
+   "layout": "top",
+   "noFaces": false,
+   "family": "money"
+  },
+  {
+   "slot": "nonprofit.online-donation:cover",
+   "template": "nonprofit.online-donation",
+   "kind": "cover",
+   "query": "heart",
+   "short": "hands",
+   "layout": "top",
+   "noFaces": false,
+   "family": "money"
+  },
+  {
+   "slot": "nonprofit.student-sponsorship:cover",
+   "template": "nonprofit.student-sponsorship",
+   "kind": "cover",
+   "query": "school",
+   "short": "school",
+   "layout": "top",
+   "noFaces": false,
+   "family": "money"
+  },
+  {
+   "slot": "nonprofit.gala-sponsorship:cover",
+   "template": "nonprofit.gala-sponsorship",
+   "kind": "cover",
+   "query": "champagne",
+   "short": "toast",
+   "layout": "top",
+   "noFaces": false,
+   "family": "money"
+  },
+  {
+   "slot": "creative.wedding-photo-package:cover",
+   "template": "creative.wedding-photo-package",
+   "kind": "cover",
+   "query": "wedding photographer",
+   "short": "photographer",
+   "layout": "top",
+   "noFaces": false,
+   "family": "money"
+  },
+  {
+   "slot": "construction.carpet-cleaning-order:cover",
+   "template": "construction.carpet-cleaning-order",
+   "kind": "cover",
+   "query": "carpet",
+   "short": "carpet",
+   "layout": "top",
+   "noFaces": false,
+   "family": "money"
+  },
+  {
+   "slot": "construction.roofing-approval:cover",
+   "template": "construction.roofing-approval",
+   "kind": "cover",
+   "query": "roof",
+   "short": "roof",
+   "layout": "top",
+   "noFaces": false,
+   "family": "money"
+  },
+  {
+   "slot": "construction.mulch-stone-order:cover",
+   "template": "construction.mulch-stone-order",
+   "kind": "cover",
+   "query": "stones",
+   "short": "stones",
+   "layout": "top",
+   "noFaces": false,
+   "family": "money"
+  },
+  {
+   "slot": "agriculture.csa-share:cover",
+   "template": "agriculture.csa-share",
+   "kind": "cover",
+   "query": "vegetables",
+   "short": "vegetables",
+   "layout": "top",
+   "noFaces": false,
+   "family": "money"
+  },
+  {
+   "slot": "sports.sponsor-signup:cover",
+   "template": "sports.sponsor-signup",
+   "kind": "cover",
+   "query": "stadium",
+   "short": "stadium",
+   "layout": "top",
+   "noFaces": false,
+   "family": "money"
+  },
+  {
+   "slot": "faith.online-giving:cover",
+   "template": "faith.online-giving",
+   "kind": "cover",
+   "query": "candles",
+   "short": "candles",
+   "layout": "top",
+   "noFaces": false,
+   "family": "money"
+  },
+  {
+   "slot": "media.subscription-signup:cover",
+   "template": "media.subscription-signup",
+   "kind": "cover",
+   "query": "newspaper",
+   "short": "newspaper",
+   "layout": "top",
+   "noFaces": false,
+   "family": "money"
+  },
+  {
+   "slot": "events.sponsorship-builder:cover",
+   "template": "events.sponsorship-builder",
+   "kind": "cover",
+   "query": "conference",
+   "short": "conference",
+   "layout": "top",
+   "noFaces": false,
+   "family": "money"
+  },
+  {
+   "slot": "fitness.gym-membership:cover",
+   "template": "fitness.gym-membership",
+   "kind": "cover",
+   "query": "weights",
+   "short": "weights",
+   "layout": "top",
+   "noFaces": false,
+   "family": "money"
+  },
+  {
+   "slot": "general.invoice-payment:cover",
+   "template": "general.invoice-payment",
+   "kind": "cover",
+   "query": "receipt",
+   "short": "payment",
+   "layout": "top",
+   "noFaces": false,
+   "family": "money"
+  },
+  {
+   "slot": "education.summer-camp:cover",
+   "template": "education.summer-camp",
+   "kind": "cover",
+   "query": "summer camp",
+   "short": "camp",
+   "layout": "top",
+   "noFaces": false,
+   "family": "money"
+  },
+  {
+   "slot": "saas.onboarding-survey:cover",
+   "template": "saas.onboarding-survey",
+   "kind": "cover",
+   "query": "laptop desk",
+   "short": "desk",
+   "layout": "left",
+   "noFaces": false,
+   "family": "intake"
+  },
+  {
+   "slot": "agency.client-intake:cover",
+   "template": "agency.client-intake",
+   "kind": "cover",
+   "query": "creative studio",
+   "short": "studio",
+   "layout": "right",
+   "noFaces": false,
+   "family": "intake"
+  },
+  {
+   "slot": "agency.creative-brief:cover",
+   "template": "agency.creative-brief",
+   "kind": "cover",
+   "query": "moodboard",
+   "short": "moodboard",
+   "layout": "left",
+   "noFaces": false,
+   "family": "intake"
+  },
+  {
+   "slot": "consulting.discovery:cover",
+   "template": "consulting.discovery",
+   "kind": "cover",
+   "query": "whiteboard",
+   "short": "whiteboard",
+   "layout": "right",
+   "noFaces": false,
+   "family": "intake"
+  },
+  {
+   "slot": "legal.new-client-intake:cover",
+   "template": "legal.new-client-intake",
+   "kind": "cover",
+   "query": "law books",
+   "short": "books",
+   "layout": "left",
+   "noFaces": true,
+   "family": "intake"
+  },
+  {
+   "slot": "accounting.tax-intake:cover",
+   "template": "accounting.tax-intake",
+   "kind": "cover",
+   "query": "paperwork",
+   "short": "documents",
+   "layout": "right",
+   "noFaces": true,
+   "family": "intake"
+  },
+  {
+   "slot": "real_estate.seller-intake:cover",
+   "template": "real_estate.seller-intake",
+   "kind": "cover",
+   "query": "porch",
+   "short": "house",
+   "layout": "left",
+   "noFaces": false,
+   "family": "intake"
+  },
+  {
+   "slot": "healthcare.patient-intake:cover",
+   "template": "healthcare.patient-intake",
+   "kind": "cover",
+   "query": "clinic",
+   "short": "clinic",
+   "layout": "right",
+   "noFaces": true,
+   "family": "intake"
+  },
+  {
+   "slot": "healthcare.telehealth:cover",
+   "template": "healthcare.telehealth",
+   "kind": "cover",
+   "query": "tablet",
+   "short": "tablet",
+   "layout": "left",
+   "noFaces": true,
+   "family": "intake"
+  },
+  {
+   "slot": "fitness.pt-intake:cover",
+   "template": "fitness.pt-intake",
+   "kind": "cover",
+   "query": "dumbbells",
+   "short": "dumbbells",
+   "layout": "right",
+   "noFaces": false,
+   "family": "intake"
+  },
+  {
+   "slot": "it.cloud-migration:cover",
+   "template": "it.cloud-migration",
+   "kind": "cover",
+   "query": "cables",
+   "short": "network",
+   "layout": "left",
+   "noFaces": false,
+   "family": "intake"
+  },
+  {
+   "slot": "creative.contract-signoff:cover",
+   "template": "creative.contract-signoff",
+   "kind": "cover",
+   "query": "signature",
+   "short": "signature",
+   "layout": "right",
+   "noFaces": false,
+   "family": "intake"
+  },
+  {
+   "slot": "saas.account-closure:cover",
+   "template": "saas.account-closure",
+   "kind": "cover",
+   "query": "keyboard",
+   "short": "keyboard",
+   "layout": "left",
+   "noFaces": false,
+   "family": "intake"
+  },
+  {
+   "slot": "coaching.new-client-intake:cover",
+   "template": "coaching.new-client-intake",
+   "kind": "cover",
+   "query": "journal",
+   "short": "journal",
+   "layout": "right",
+   "noFaces": false,
+   "family": "intake"
+  },
+  {
+   "slot": "architecture.design-brief:cover",
+   "template": "architecture.design-brief",
+   "kind": "cover",
+   "query": "floor plan",
+   "short": "plan",
+   "layout": "left",
+   "noFaces": false,
+   "family": "intake"
+  },
+  {
+   "slot": "architecture.project-intake:cover",
+   "template": "architecture.project-intake",
+   "kind": "cover",
+   "query": "blueprint",
+   "short": "architect",
+   "layout": "right",
+   "noFaces": false,
+   "family": "intake"
+  },
+  {
+   "slot": "healthcare.pediatric-intake:cover",
+   "template": "healthcare.pediatric-intake",
+   "kind": "cover",
+   "query": "crayons",
+   "short": "toys",
+   "layout": "left",
+   "noFaces": true,
+   "family": "intake"
+  },
+  {
+   "slot": "healthcare.physical-therapy-intake:cover",
+   "template": "healthcare.physical-therapy-intake",
+   "kind": "cover",
+   "query": "stretching",
+   "short": "yoga mat",
+   "layout": "right",
+   "noFaces": true,
+   "family": "intake"
+  },
+  {
+   "slot": "wellness.dental-history:cover",
+   "template": "wellness.dental-history",
+   "kind": "cover",
+   "query": "toothbrush",
+   "short": "toothbrush",
+   "layout": "left",
+   "noFaces": true,
+   "family": "intake"
+  },
+  {
+   "slot": "wellness.chiropractic-intake:cover",
+   "template": "wellness.chiropractic-intake",
+   "kind": "cover",
+   "query": "towels",
+   "short": "spa",
+   "layout": "right",
+   "noFaces": true,
+   "family": "intake"
+  },
+  {
+   "slot": "wellness.nutrition-intake:cover",
+   "template": "wellness.nutrition-intake",
+   "kind": "cover",
+   "query": "healthy food",
+   "short": "food",
+   "layout": "left",
+   "noFaces": true,
+   "family": "intake"
+  },
+  {
+   "slot": "legal.immigration-intake:cover",
+   "template": "legal.immigration-intake",
+   "kind": "cover",
+   "query": "passport",
+   "short": "passport",
+   "layout": "right",
+   "noFaces": true,
+   "family": "intake"
+  },
+  {
+   "slot": "wellness.therapy-intake:cover",
+   "template": "wellness.therapy-intake",
+   "kind": "cover",
+   "query": "armchair",
+   "short": "armchair",
+   "layout": "left",
+   "noFaces": true,
+   "family": "intake"
+  },
+  {
+   "slot": "accounting.bookkeeping-onboarding:cover",
+   "template": "accounting.bookkeeping-onboarding",
+   "kind": "cover",
+   "query": "calculator",
+   "short": "calculator",
+   "layout": "right",
+   "noFaces": true,
+   "family": "intake"
+  },
+  {
+   "slot": "finance.risk-quiz:cover",
+   "template": "finance.risk-quiz",
+   "kind": "cover",
+   "query": "stock chart",
+   "short": "chart",
+   "layout": "behind",
+   "noFaces": true,
+   "family": "quizzes",
+   "one": true
+  },
+  {
+   "slot": "wellness.assessment:cover",
+   "template": "wellness.assessment",
+   "kind": "cover",
+   "query": "meditation",
+   "short": "meditation",
+   "layout": "behind",
+   "noFaces": true,
+   "family": "quizzes",
+   "one": true
+  },
+  {
+   "slot": "education.knowledge-check:cover",
+   "template": "education.knowledge-check",
+   "kind": "cover",
+   "query": "books",
+   "short": "books",
+   "layout": "behind",
+   "noFaces": false,
+   "family": "quizzes",
+   "one": true
+  },
+  {
+   "slot": "ecommerce.product-quiz:cover",
+   "template": "ecommerce.product-quiz",
+   "kind": "cover",
+   "query": "products",
+   "short": "products",
+   "layout": "behind",
+   "noFaces": false,
+   "family": "quizzes",
+   "one": true
+  },
+  {
+   "slot": "it.security-quiz:cover",
+   "template": "it.security-quiz",
+   "kind": "cover",
+   "query": "padlock",
+   "short": "padlock",
+   "layout": "behind",
+   "noFaces": false,
+   "family": "quizzes",
+   "one": true
+  },
+  {
+   "slot": "coaching.leadership-style-quiz:cover",
+   "template": "coaching.leadership-style-quiz",
+   "kind": "cover",
+   "query": "leadership",
+   "short": "leadership",
+   "layout": "behind",
+   "noFaces": false,
+   "family": "quizzes",
+   "one": true
+  },
+  {
+   "slot": "hr.culture-fit-quiz:cover",
+   "template": "hr.culture-fit-quiz",
+   "kind": "cover",
+   "query": "team",
+   "short": "team",
+   "layout": "behind",
+   "noFaces": false,
+   "family": "quizzes",
+   "one": true
+  },
+  {
+   "slot": "personal.travel-style-quiz:cover",
+   "template": "personal.travel-style-quiz",
+   "kind": "cover",
+   "query": "suitcase",
+   "short": "suitcase",
+   "layout": "behind",
+   "noFaces": false,
+   "family": "quizzes",
+   "one": true
+  },
+  {
+   "slot": "education.math-placement-quiz:cover",
+   "template": "education.math-placement-quiz",
+   "kind": "cover",
+   "query": "chalkboard",
+   "short": "calculator",
+   "layout": "behind",
+   "noFaces": false,
+   "family": "quizzes",
+   "one": true
+  },
+  {
+   "slot": "education.grammar-quiz:cover",
+   "template": "education.grammar-quiz",
+   "kind": "cover",
+   "query": "dictionary",
+   "short": "dictionary",
+   "layout": "behind",
+   "noFaces": false,
+   "family": "quizzes",
+   "one": true
+  },
+  {
+   "slot": "finance.money-basics-quiz:cover",
+   "template": "finance.money-basics-quiz",
+   "kind": "cover",
+   "query": "coins",
+   "short": "coins",
+   "layout": "behind",
+   "noFaces": true,
+   "family": "quizzes",
+   "one": true
+  },
+  {
+   "slot": "it.phishing-quiz:cover",
+   "template": "it.phishing-quiz",
+   "kind": "cover",
+   "query": "email",
+   "short": "email",
+   "layout": "behind",
+   "noFaces": false,
+   "family": "quizzes",
+   "one": true
+  },
+  {
+   "slot": "insurance.coverage-checkup:cover",
+   "template": "insurance.coverage-checkup",
+   "kind": "cover",
+   "query": "umbrella",
+   "short": "umbrella",
+   "layout": "behind",
+   "noFaces": true,
+   "family": "quizzes",
+   "one": true
+  },
+  {
+   "slot": "consulting.ai-readiness:cover",
+   "template": "consulting.ai-readiness",
+   "kind": "cover",
+   "query": "robot",
+   "short": "robot",
+   "layout": "behind",
+   "noFaces": false,
+   "family": "quizzes",
+   "one": true
+  },
+  {
+   "slot": "ecommerce.mattress-finder:cover",
+   "template": "ecommerce.mattress-finder",
+   "kind": "cover",
+   "query": "bedroom",
+   "short": "bedroom",
+   "layout": "behind",
+   "noFaces": false,
+   "family": "quizzes",
+   "one": true
+  },
+  {
+   "slot": "retail.running-shoe-finder:cover",
+   "template": "retail.running-shoe-finder",
+   "kind": "cover",
+   "query": "running shoes",
+   "short": "shoes",
+   "layout": "behind",
+   "noFaces": false,
+   "family": "quizzes",
+   "one": true
+  },
+  {
+   "slot": "beauty.skin-type-quiz:cover",
+   "template": "beauty.skin-type-quiz",
+   "kind": "cover",
+   "query": "skincare",
+   "short": "skincare",
+   "layout": "behind",
+   "noFaces": false,
+   "family": "quizzes",
+   "one": true
+  },
+  {
+   "slot": "food.coffee-finder:cover",
+   "template": "food.coffee-finder",
+   "kind": "cover",
+   "query": "coffee",
+   "short": "coffee",
+   "layout": "behind",
+   "noFaces": false,
+   "family": "quizzes",
+   "one": true
+  },
+  {
+   "slot": "pets.breed-finder:cover",
+   "template": "pets.breed-finder",
+   "kind": "cover",
+   "query": "dogs",
+   "short": "dogs",
+   "layout": "behind",
+   "noFaces": false,
+   "family": "quizzes",
+   "one": true
+  },
+  {
+   "slot": "solar.eligibility-check:cover",
+   "template": "solar.eligibility-check",
+   "kind": "cover",
+   "query": "solar panels",
+   "short": "panels",
+   "layout": "behind",
+   "noFaces": false,
+   "family": "quizzes",
+   "one": true
+  },
+  {
+   "slot": "accounting.rd-credit-check:cover",
+   "template": "accounting.rd-credit-check",
+   "kind": "cover",
+   "query": "microscope",
+   "short": "science",
+   "layout": "behind",
+   "noFaces": true,
+   "family": "quizzes",
+   "one": true
+  },
+  {
+   "slot": "fitness.fitness-assessment:cover",
+   "template": "fitness.fitness-assessment",
+   "kind": "cover",
+   "query": "running",
+   "short": "running",
+   "layout": "behind",
+   "noFaces": false,
+   "family": "quizzes",
+   "one": true
+  },
+  {
+   "slot": "general.customer-feedback:cover",
+   "template": "general.customer-feedback",
+   "kind": "cover",
+   "query": "coffee shop",
+   "short": "shop",
+   "layout": "top",
+   "noFaces": false,
+   "family": "feedback"
+  },
+  {
+   "slot": "general.nps:cover",
+   "template": "general.nps",
+   "kind": "cover",
+   "query": "smile",
+   "short": "smile",
+   "layout": "top",
+   "noFaces": false,
+   "family": "feedback"
+  },
+  {
+   "slot": "general.testimonial-request:cover",
+   "template": "general.testimonial-request",
+   "kind": "cover",
+   "query": "happy customer",
+   "short": "customer",
+   "layout": "top",
+   "noFaces": false,
+   "family": "feedback"
+  },
+  {
+   "slot": "general.product-feedback:cover",
+   "template": "general.product-feedback",
+   "kind": "cover",
+   "query": "product",
+   "short": "product",
+   "layout": "top",
+   "noFaces": false,
+   "family": "feedback"
+  },
+  {
+   "slot": "healthcare.patient-feedback:cover",
+   "template": "healthcare.patient-feedback",
+   "kind": "cover",
+   "query": "hospital",
+   "short": "hospital",
+   "layout": "top",
+   "noFaces": true,
+   "family": "feedback"
+  },
+  {
+   "slot": "education.course-feedback:cover",
+   "template": "education.course-feedback",
+   "kind": "cover",
+   "query": "classroom",
+   "short": "classroom",
+   "layout": "top",
+   "noFaces": false,
+   "family": "feedback"
+  },
+  {
+   "slot": "ecommerce.review:cover",
+   "template": "ecommerce.review",
+   "kind": "cover",
+   "query": "package",
+   "short": "package",
+   "layout": "top",
+   "noFaces": false,
+   "family": "feedback"
+  },
+  {
+   "slot": "hospitality.guest-feedback:cover",
+   "template": "hospitality.guest-feedback",
+   "kind": "cover",
+   "query": "hotel lobby",
+   "short": "lobby",
+   "layout": "top",
+   "noFaces": false,
+   "family": "feedback"
+  },
+  {
+   "slot": "events.post-event:cover",
+   "template": "events.post-event",
+   "kind": "cover",
+   "query": "concert",
+   "short": "concert",
+   "layout": "top",
+   "noFaces": false,
+   "family": "feedback"
+  },
+  {
+   "slot": "ecommerce.post-purchase:cover",
+   "template": "ecommerce.post-purchase",
+   "kind": "cover",
+   "query": "shopping",
+   "short": "shopping",
+   "layout": "top",
+   "noFaces": false,
+   "family": "feedback"
+  },
+  {
+   "slot": "hospitality.tour-review:cover",
+   "template": "hospitality.tour-review",
+   "kind": "cover",
+   "query": "tour",
+   "short": "tour",
+   "layout": "top",
+   "noFaces": false,
+   "family": "feedback"
+  },
+  {
+   "slot": "education.parent-survey:cover",
+   "template": "education.parent-survey",
+   "kind": "cover",
+   "query": "school",
+   "short": "school",
+   "layout": "top",
+   "noFaces": false,
+   "family": "feedback"
+  },
+  {
+   "slot": "retail.shopper-survey:cover",
+   "template": "retail.shopper-survey",
+   "kind": "cover",
+   "query": "store",
+   "short": "store",
+   "layout": "top",
+   "noFaces": false,
+   "family": "feedback"
+  },
+  {
+   "slot": "food.menu-vote:cover",
+   "template": "food.menu-vote",
+   "kind": "cover",
+   "query": "menu",
+   "short": "menu",
+   "layout": "top",
+   "noFaces": false,
+   "family": "feedback"
+  },
+  {
+   "slot": "sports.season-survey:cover",
+   "template": "sports.season-survey",
+   "kind": "cover",
+   "query": "whistle",
+   "short": "bleachers",
+   "layout": "top",
+   "noFaces": false,
+   "family": "feedback"
+  },
+  {
+   "slot": "construction.satisfaction:cover",
+   "template": "construction.satisfaction",
+   "kind": "cover",
+   "query": "living room",
+   "short": "room",
+   "layout": "top",
+   "noFaces": false,
+   "family": "feedback"
+  },
+  {
+   "slot": "construction.roofing-review:cover",
+   "template": "construction.roofing-review",
+   "kind": "cover",
+   "query": "roof",
+   "short": "roof",
+   "layout": "top",
+   "noFaces": false,
+   "family": "feedback"
+  },
+  {
+   "slot": "construction.moving-review:cover",
+   "template": "construction.moving-review",
+   "kind": "cover",
+   "query": "moving boxes",
+   "short": "boxes",
+   "layout": "top",
+   "noFaces": false,
+   "family": "feedback"
+  },
+  {
+   "slot": "general.website-feedback:cover",
+   "template": "general.website-feedback",
+   "kind": "cover",
+   "query": "website",
+   "short": "website",
+   "layout": "top",
+   "noFaces": false,
+   "family": "feedback"
+  },
+  {
+   "slot": "media.reader-survey:cover",
+   "template": "media.reader-survey",
+   "kind": "cover",
+   "query": "reading",
+   "short": "reading",
+   "layout": "top",
+   "noFaces": false,
+   "family": "feedback"
+  }
+ ]
+}

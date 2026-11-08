@@ -155,7 +155,7 @@ export function shownValues(w: ParentNode, v: Vals): Vals {
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-export type PageRun = { done(): void; errors(byName: Record<string, string>): void; busy(on: boolean): void; alert(text: string): void };
+export type PageRun = { done(): void; start(): void; refresh(): void; errors(byName: Record<string, string>): void; busy(on: boolean): void; alert(text: string): void };
 
 /** What sits around the thank-you on a one-page form, to hide once it's sent; anything holding the logo stays. */
 export function around(thanks: Element, w: Element): HTMLElement[] {
@@ -201,15 +201,36 @@ export function linkErrors(w: ParentNode) {
   });
 }
 
-/** Focus always shows, choice cards with hidden inputs too, and motion stops for people who ask for less. */
+/** Focus always shows, choice cards with hidden inputs too, the consent line takes its own row above the button, and
+ * motion stops for people who ask for less. */
 export const ACCESS_CSS =
-  ".cl-unit{display:flex;align-items:center;gap:8px}.cl-unit>input{flex:1;min-width:0}.cl-switch input{appearance:none;-webkit-appearance:none;width:36px;height:20px;border-radius:999px;background:rgba(127,127,127,.45);position:relative;flex:none;margin:0;cursor:pointer}.cl-switch input::after{content:'';position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:#fff;transition:transform .15s}.cl-switch input:checked{background:var(--brand-primary,#111)}.cl-switch input:checked::after{transform:translateX(16px)}.cl-section{display:flex;flex-direction:column;gap:inherit}.cl-progress{height:6px;border-radius:999px;background:rgba(127,127,127,.2);overflow:hidden}.cl-progress>i{display:block;height:100%;width:calc(var(--cl-progress,0)*100%);background:var(--brand-primary,currentColor);transition:width .3s}.cl-review{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,2fr);gap:6px 16px;margin:0}.cl-review dt{opacity:.7}.cl-review dd{margin:0;overflow-wrap:anywhere}.cl-timer{font-variant-numeric:tabular-nums}" +
+  "[data-cl-behind-cover]{display:none!important}.cl-consent,.cl-notice{flex:1 0 100%;margin:0}.cl-unit{display:flex;align-items:center;gap:8px}.cl-unit>input{flex:1;min-width:0}.cl-switch input{appearance:none;-webkit-appearance:none;width:36px;height:20px;border-radius:999px;background:rgba(127,127,127,.45);position:relative;flex:none;margin:0;cursor:pointer}.cl-switch input::after{content:'';position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:#fff;transition:transform .15s}.cl-switch input:checked{background:var(--brand-primary,#111)}.cl-switch input:checked::after{transform:translateX(16px)}.cl-section{display:flex;flex-direction:column;gap:inherit}.cl-progress{height:6px;border-radius:999px;background:rgba(127,127,127,.2);overflow:hidden}.cl-progress>i{display:block;height:100%;width:calc(var(--cl-progress,0)*100%);background:var(--brand-primary,currentColor);transition:width .3s}.cl-review{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,2fr);gap:6px 16px;margin:0}.cl-review dt{opacity:.7}.cl-review dd{margin:0;overflow-wrap:anywhere}.cl-timer{font-variant-numeric:tabular-nums}" +
   "@layer base{:where(input,button,select,textarea,a,summary):focus-visible{outline:2px solid currentColor;outline-offset:2px}label:has(input:focus-visible){outline:2px solid currentColor;outline-offset:2px}}@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important;scroll-behavior:auto!important}}";
 
-/** Run a page in `w`. `onSend` gets the answers once every shown question checks out. */
-export function runPage(w: HTMLElement, onSend: (v: Vals) => void): PageRun {
+/** The page box the photo fills: the page's .page, else the root. */
+export const pageBox = (w: HTMLElement) => w.querySelector<HTMLElement>(".page") ?? w;
+
+/** The welcome screen in view (or not): everything else on the page waits behind it. */
+export function showCover(page: HTMLElement, cover: HTMLElement, on: boolean) {
+  if (cover.parentElement !== page) page.prepend(cover);
+  cover.hidden = !on;
+  for (const x of page.children) if (x !== cover && !x.classList.contains("cl-fig")) x.toggleAttribute("data-cl-behind-cover", on);
+}
+
+/** What a page run asks of the form script's second part, once it's loaded (src/lib/studio/pageParts.ts). */
+export type PageHooks = { media?(page: HTMLElement, screen: Element | null): void };
+
+/**
+ * Run a page in `w`. `onSend` gets the answers once every shown question checks out. `hooks.media` draws the photo
+ * for the screen showing, when the second part is there; `refresh` draws again once it arrives.
+ */
+export function runPage(w: HTMLElement, onSend: (v: Vals) => void, hooks: PageHooks = {}): PageRun {
   const steps = [...w.querySelectorAll<HTMLElement>("[data-cl-step]")];
   const thanks = w.querySelector<HTMLElement>("[data-cl-thanks]");
+  const page = pageBox(w);
+  // The welcome screen: shown first, until Start (or an answer from an email, or an error the server sends back).
+  const cover = w.querySelector<HTMLElement>("[data-cl-cover]");
+  let onCover = !!cover;
   let at = 0;
   linkErrors(w);
   shuffle(w);
@@ -221,7 +242,7 @@ export function runPage(w: HTMLElement, onSend: (v: Vals) => void): PageRun {
   const timer = () => {
     const st = steps[at];
     const secs = Number(st?.getAttribute("data-cl-timer"));
-    if (finished || !st || !(secs > 0)) {
+    if (finished || onCover || !st || !(secs > 0)) {
       clearInterval(tick);
       timed = -1;
       return;
@@ -263,8 +284,16 @@ export function runPage(w: HTMLElement, onSend: (v: Vals) => void): PageRun {
     const p = steps.length ? (finished ? 1 : (Math.max(0, pos) + 1) / Math.max(1, shown.length)) : finished ? 1 : 0;
     w.querySelectorAll<HTMLElement>("[data-cl-progress]").forEach((el) => el.style.setProperty("--cl-progress", String(p)));
     pipes(w, v);
+    if (cover) showCover(page, cover, onCover && !finished);
+    hooks.media?.(page, onCover && !finished ? cover : finished ? thanks : (steps[at] ?? w.querySelector("form[data-cl-media],.form-card[data-cl-media]")));
     timer();
     return shown;
+  };
+  const start = () => {
+    if (!onCover) return;
+    onCover = false;
+    apply();
+    visible(steps[at] ?? w)[0]?.focus();
   };
   const visible = (scope: ParentNode) => [...scope.querySelectorAll<HTMLInputElement>("input[name],textarea[name],select[name]")].filter((el) => el.type !== "hidden" && !el.closest("[hidden]"));
   const check = (scope: ParentNode) => {
@@ -309,9 +338,10 @@ export function runPage(w: HTMLElement, onSend: (v: Vals) => void): PageRun {
   w.addEventListener("input", (e) => (clear(e), apply()));
   w.addEventListener("change", (e) => (clear(e), apply()));
   w.addEventListener("click", (e) => {
-    const t = (e.target as Element | null)?.closest?.("[data-cl-next],[data-cl-back],[type=submit]");
+    const t = (e.target as Element | null)?.closest?.("[data-cl-next],[data-cl-back],[data-cl-start],[type=submit]");
     if (!t) return;
     e.preventDefault();
+    if (t.hasAttribute("data-cl-start")) return start();
     if (t.hasAttribute("data-cl-back")) return move(-1);
     if (t.hasAttribute("data-cl-next")) return void (check(steps[at] ?? w) && move(1));
     send();
@@ -324,7 +354,10 @@ export function runPage(w: HTMLElement, onSend: (v: Vals) => void): PageRun {
       finished = true;
       apply();
     },
+    start,
+    refresh: () => void apply(),
     errors: (byName) => {
+      onCover = false;
       let first = -1;
       for (const [n, msg] of Object.entries(byName)) {
         const e = errFor(n);

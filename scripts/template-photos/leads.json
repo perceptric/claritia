@@ -1,0 +1,1661 @@
+{
+ "family": "leads",
+ "slots": [
+  {
+   "slot": "general.contact-us:cover",
+   "template": "general.contact-us",
+   "kind": "cover",
+   "query": "friendly receptionist office desk",
+   "layout": "right",
+   "noFaces": false,
+   "short": "reception"
+  },
+  {
+   "slot": "general.newsletter:cover",
+   "template": "general.newsletter",
+   "kind": "cover",
+   "query": "person reading laptop coffee",
+   "layout": "left",
+   "noFaces": false,
+   "short": "reading"
+  },
+  {
+   "slot": "general.book-a-call:cover",
+   "template": "general.book-a-call",
+   "kind": "cover",
+   "query": "woman phone call laptop office",
+   "layout": "right",
+   "noFaces": false,
+   "short": "phone call"
+  },
+  {
+   "slot": "general.waitlist:cover",
+   "template": "general.waitlist",
+   "kind": "cover",
+   "query": "people waiting line city",
+   "layout": "right",
+   "noFaces": false,
+   "short": "crowd"
+  },
+  {
+   "slot": "general.referral:cover",
+   "template": "general.referral",
+   "kind": "cover",
+   "query": "two friends talking coffee shop",
+   "layout": "left",
+   "noFaces": false,
+   "short": "friends"
+  },
+  {
+   "slot": "general.partner-application:cover",
+   "template": "general.partner-application",
+   "kind": "cover",
+   "query": "business partners handshake office",
+   "layout": "right",
+   "noFaces": false,
+   "short": "handshake"
+  },
+  {
+   "slot": "general.quote-request:cover",
+   "template": "general.quote-request",
+   "kind": "cover",
+   "query": "small business owner laptop workshop",
+   "layout": "right",
+   "noFaces": false,
+   "short": "workshop"
+  },
+  {
+   "slot": "general.callback-request:cover",
+   "template": "general.callback-request",
+   "kind": "cover",
+   "query": "customer service phone headset smiling",
+   "layout": "left",
+   "noFaces": false,
+   "short": "headset"
+  },
+  {
+   "slot": "general.email-preferences:cover",
+   "template": "general.email-preferences",
+   "kind": "cover",
+   "query": "inbox laptop morning coffee",
+   "layout": "right",
+   "noFaces": false,
+   "short": "email"
+  },
+  {
+   "slot": "general.content-download:cover",
+   "template": "general.content-download",
+   "kind": "cover",
+   "query": "person reading report tablet",
+   "layout": "right",
+   "noFaces": false,
+   "short": "tablet"
+  },
+  {
+   "slot": "saas.demo-request:cover",
+   "template": "saas.demo-request",
+   "kind": "cover",
+   "query": "software team laptop meeting",
+   "layout": "left",
+   "noFaces": false,
+   "short": "laptop"
+  },
+  {
+   "slot": "saas.contact-sales:cover",
+   "template": "saas.contact-sales",
+   "kind": "cover",
+   "query": "sales meeting office laptop",
+   "layout": "right",
+   "noFaces": false,
+   "short": "meeting"
+  },
+  {
+   "slot": "saas.pricing-lead:cover",
+   "template": "saas.pricing-lead",
+   "kind": "cover",
+   "query": "startup team planning whiteboard",
+   "layout": "right",
+   "noFaces": false,
+   "short": "whiteboard"
+  },
+  {
+   "slot": "agency.project-inquiry:cover",
+   "template": "agency.project-inquiry",
+   "kind": "cover",
+   "query": "creative agency studio team",
+   "layout": "left",
+   "noFaces": false,
+   "short": "studio"
+  },
+  {
+   "slot": "agency.seo-audit:cover",
+   "template": "agency.seo-audit",
+   "kind": "cover",
+   "query": "analytics dashboard laptop desk",
+   "layout": "right",
+   "noFaces": false,
+   "short": "analytics"
+  },
+  {
+   "slot": "agency.website-brief:cover",
+   "template": "agency.website-brief",
+   "kind": "cover",
+   "query": "web designer sketching wireframes",
+   "layout": "right",
+   "noFaces": false,
+   "short": "sketch"
+  },
+  {
+   "slot": "agency.marketing-audit:cover",
+   "template": "agency.marketing-audit",
+   "kind": "cover",
+   "query": "marketing team strategy meeting",
+   "layout": "left",
+   "noFaces": false,
+   "short": "strategy"
+  },
+  {
+   "slot": "consulting.consultation:cover",
+   "template": "consulting.consultation",
+   "kind": "cover",
+   "query": "consultant meeting client office",
+   "layout": "right",
+   "noFaces": false,
+   "short": "consultant"
+  },
+  {
+   "slot": "consulting.proposal-request:cover",
+   "template": "consulting.proposal-request",
+   "kind": "cover",
+   "query": "business documents meeting table",
+   "layout": "right",
+   "noFaces": false,
+   "short": "documents"
+  },
+  {
+   "slot": "legal.case-evaluation:cover",
+   "template": "legal.case-evaluation",
+   "kind": "cover",
+   "query": "lawyer office books desk",
+   "layout": "left",
+   "noFaces": true,
+   "short": "books"
+  },
+  {
+   "slot": "legal.consultation-booking:cover",
+   "template": "legal.consultation-booking",
+   "kind": "cover",
+   "query": "law office meeting room",
+   "layout": "right",
+   "noFaces": true,
+   "short": "office"
+  },
+  {
+   "slot": "accounting.bookkeeping-quote:cover",
+   "template": "accounting.bookkeeping-quote",
+   "kind": "cover",
+   "query": "accountant calculator paperwork",
+   "layout": "right",
+   "noFaces": true,
+   "short": "calculator"
+  },
+  {
+   "slot": "accounting.new-business:cover",
+   "template": "accounting.new-business",
+   "kind": "cover",
+   "query": "new shop owner open sign",
+   "layout": "left",
+   "noFaces": false,
+   "short": "shop"
+  },
+  {
+   "slot": "finance.review-request:cover",
+   "template": "finance.review-request",
+   "kind": "cover",
+   "query": "financial advisor meeting couple",
+   "layout": "right",
+   "noFaces": true,
+   "short": "finance"
+  },
+  {
+   "slot": "finance.retirement:cover",
+   "template": "finance.retirement",
+   "kind": "cover",
+   "query": "retired couple walking beach",
+   "layout": "right",
+   "noFaces": true,
+   "short": "beach"
+  },
+  {
+   "slot": "insurance.quote:cover",
+   "template": "insurance.quote",
+   "kind": "cover",
+   "query": "family home front porch",
+   "layout": "left",
+   "noFaces": false,
+   "short": "house"
+  },
+  {
+   "slot": "insurance.business-intake:cover",
+   "template": "insurance.business-intake",
+   "kind": "cover",
+   "query": "small business storefront owner",
+   "layout": "right",
+   "noFaces": false,
+   "short": "storefront"
+  },
+  {
+   "slot": "insurance.policy-review:cover",
+   "template": "insurance.policy-review",
+   "kind": "cover",
+   "query": "couple reviewing documents kitchen table",
+   "layout": "right",
+   "noFaces": true,
+   "short": "paperwork"
+  },
+  {
+   "slot": "real_estate.home-valuation:cover",
+   "template": "real_estate.home-valuation",
+   "kind": "cover",
+   "query": "house exterior front yard",
+   "layout": "left",
+   "noFaces": false,
+   "short": "house"
+  },
+  {
+   "slot": "real_estate.buyer-inquiry:cover",
+   "template": "real_estate.buyer-inquiry",
+   "kind": "cover",
+   "query": "couple house keys new home",
+   "layout": "right",
+   "noFaces": false,
+   "short": "keys"
+  },
+  {
+   "slot": "real_estate.commercial-space:cover",
+   "template": "real_estate.commercial-space",
+   "kind": "cover",
+   "query": "empty modern office space",
+   "layout": "right",
+   "noFaces": false,
+   "short": "office"
+  },
+  {
+   "slot": "construction.free-estimate:cover",
+   "template": "construction.free-estimate",
+   "kind": "cover",
+   "query": "contractor measuring renovation",
+   "layout": "left",
+   "noFaces": false,
+   "short": "construction"
+  },
+  {
+   "slot": "construction.remodel-planner:cover",
+   "template": "construction.remodel-planner",
+   "kind": "cover",
+   "query": "bright renovated living room",
+   "layout": "right",
+   "noFaces": false,
+   "short": "living room"
+  },
+  {
+   "slot": "solar.savings-check:cover",
+   "template": "solar.savings-check",
+   "kind": "cover",
+   "query": "solar panels house roof",
+   "layout": "right",
+   "noFaces": false,
+   "short": "solar"
+  },
+  {
+   "slot": "solar.commercial-audit:cover",
+   "template": "solar.commercial-audit",
+   "kind": "cover",
+   "query": "commercial building solar roof",
+   "layout": "left",
+   "noFaces": false,
+   "short": "solar"
+  },
+  {
+   "slot": "solar.ev-charger:cover",
+   "template": "solar.ev-charger",
+   "kind": "cover",
+   "query": "electric vehicle",
+   "layout": "right",
+   "noFaces": false,
+   "short": "charging"
+  },
+  {
+   "slot": "healthcare.provider-referral:cover",
+   "template": "healthcare.provider-referral",
+   "kind": "cover",
+   "query": "stethoscope",
+   "layout": "right",
+   "noFaces": true,
+   "short": "clinic hallway"
+  },
+  {
+   "slot": "wellness.therapy-consultation:cover",
+   "template": "wellness.therapy-consultation",
+   "kind": "cover",
+   "query": "calm therapy room chairs",
+   "layout": "left",
+   "noFaces": true,
+   "short": "armchair"
+  },
+  {
+   "slot": "education.course-inquiry:cover",
+   "template": "education.course-inquiry",
+   "kind": "cover",
+   "query": "students campus library",
+   "layout": "right",
+   "noFaces": false,
+   "short": "library"
+  },
+  {
+   "slot": "education.corporate-training:cover",
+   "template": "education.corporate-training",
+   "kind": "cover",
+   "query": "classroom",
+   "layout": "right",
+   "noFaces": false,
+   "short": "seminar"
+  },
+  {
+   "slot": "ecommerce.wholesale:cover",
+   "template": "ecommerce.wholesale",
+   "kind": "cover",
+   "query": "packages",
+   "layout": "left",
+   "noFaces": false,
+   "short": "cardboard boxes"
+  },
+  {
+   "slot": "ecommerce.back-in-stock:cover",
+   "template": "ecommerce.back-in-stock",
+   "kind": "cover",
+   "query": "shop shelves products neat",
+   "layout": "right",
+   "noFaces": false,
+   "short": "shelves"
+  },
+  {
+   "slot": "ecommerce.influencer:cover",
+   "template": "ecommerce.influencer",
+   "kind": "cover",
+   "query": "creator filming phone ring light",
+   "layout": "right",
+   "noFaces": false,
+   "short": "camera"
+  },
+  {
+   "slot": "manufacturing.rfq:cover",
+   "template": "manufacturing.rfq",
+   "kind": "cover",
+   "query": "factory machining metal parts",
+   "layout": "left",
+   "noFaces": false,
+   "short": "factory"
+  },
+  {
+   "slot": "manufacturing.distributor:cover",
+   "template": "manufacturing.distributor",
+   "kind": "cover",
+   "query": "pallets",
+   "layout": "right",
+   "noFaces": false,
+   "short": "forklift"
+  },
+  {
+   "slot": "logistics.freight-quote:cover",
+   "template": "logistics.freight-quote",
+   "kind": "cover",
+   "query": "truck highway freight",
+   "layout": "right",
+   "noFaces": false,
+   "short": "truck"
+  },
+  {
+   "slot": "logistics.warehouse:cover",
+   "template": "logistics.warehouse",
+   "kind": "cover",
+   "query": "shelving",
+   "layout": "left",
+   "noFaces": false,
+   "short": "storage"
+  },
+  {
+   "slot": "automotive.trade-in:cover",
+   "template": "automotive.trade-in",
+   "kind": "cover",
+   "query": "car dealership lot",
+   "layout": "right",
+   "noFaces": false,
+   "short": "car"
+  },
+  {
+   "slot": "automotive.fleet:cover",
+   "template": "automotive.fleet",
+   "kind": "cover",
+   "query": "fleet vans parked row",
+   "layout": "right",
+   "noFaces": false,
+   "short": "van"
+  },
+  {
+   "slot": "hospitality.travel-inquiry:cover",
+   "template": "hospitality.travel-inquiry",
+   "kind": "cover",
+   "query": "travel coastline village",
+   "layout": "left",
+   "noFaces": false,
+   "short": "travel"
+  },
+  {
+   "slot": "events.sponsor-inquiry:cover",
+   "template": "events.sponsor-inquiry",
+   "kind": "cover",
+   "query": "conference stage audience",
+   "layout": "right",
+   "noFaces": false,
+   "short": "conference"
+  },
+  {
+   "slot": "it.assessment:cover",
+   "template": "it.assessment",
+   "kind": "cover",
+   "query": "it technician server room",
+   "layout": "right",
+   "noFaces": false,
+   "short": "server"
+  },
+  {
+   "slot": "beauty.color-consultation:cover",
+   "template": "beauty.color-consultation",
+   "kind": "cover",
+   "query": "hair salon colorist",
+   "layout": "left",
+   "noFaces": false,
+   "short": "salon"
+  },
+  {
+   "slot": "beauty.tattoo-consultation:cover",
+   "template": "beauty.tattoo-consultation",
+   "kind": "cover",
+   "query": "tattoo studio artist drawing",
+   "layout": "right",
+   "noFaces": false,
+   "short": "tattoo"
+  },
+  {
+   "slot": "hospitality.group-rate-callback:cover",
+   "template": "hospitality.group-rate-callback",
+   "kind": "cover",
+   "query": "hotel lobby group",
+   "layout": "right",
+   "noFaces": false,
+   "short": "hotel"
+  },
+  {
+   "slot": "fitness.trainer-callback:cover",
+   "template": "fitness.trainer-callback",
+   "kind": "cover",
+   "query": "personal trainer gym client",
+   "layout": "left",
+   "noFaces": false,
+   "short": "gym"
+  },
+  {
+   "slot": "events.venue-tour:cover",
+   "template": "events.venue-tour",
+   "kind": "cover",
+   "query": "event venue ballroom empty",
+   "layout": "right",
+   "noFaces": false,
+   "short": "ballroom"
+  },
+  {
+   "slot": "finance.advisor-callback:cover",
+   "template": "finance.advisor-callback",
+   "kind": "cover",
+   "query": "financial advisor phone office",
+   "layout": "right",
+   "noFaces": true,
+   "short": "desk"
+  },
+  {
+   "slot": "events.wedding-planner-inquiry:cover",
+   "template": "events.wedding-planner-inquiry",
+   "kind": "cover",
+   "query": "wedding table flowers",
+   "layout": "left",
+   "noFaces": false,
+   "short": "wedding"
+  },
+  {
+   "slot": "events.venue-inquiry:cover",
+   "template": "events.venue-inquiry",
+   "kind": "cover",
+   "query": "garden venue string lights",
+   "layout": "right",
+   "noFaces": false,
+   "short": "string lights"
+  },
+  {
+   "slot": "education.info-session:cover",
+   "template": "education.info-session",
+   "kind": "cover",
+   "query": "student laptop online class home",
+   "layout": "right",
+   "noFaces": false,
+   "short": "student"
+  },
+  {
+   "slot": "saas.product-webinar:cover",
+   "template": "saas.product-webinar",
+   "kind": "cover",
+   "query": "webinar presenter laptop screen",
+   "layout": "left",
+   "noFaces": false,
+   "short": "presentation"
+  },
+  {
+   "slot": "coaching.masterclass:cover",
+   "template": "coaching.masterclass",
+   "kind": "cover",
+   "query": "notes",
+   "layout": "right",
+   "noFaces": false,
+   "short": "notebook pen"
+  },
+  {
+   "slot": "construction.house-cleaning-price:cover",
+   "template": "construction.house-cleaning-price",
+   "kind": "cover",
+   "query": "clean bright kitchen",
+   "layout": "right",
+   "noFaces": false,
+   "short": "kitchen"
+  },
+  {
+   "slot": "construction.office-cleaning-quote:cover",
+   "template": "construction.office-cleaning-quote",
+   "kind": "cover",
+   "query": "clean modern office",
+   "layout": "left",
+   "noFaces": false,
+   "short": "office"
+  },
+  {
+   "slot": "construction.hvac-replacement-estimate:cover",
+   "template": "construction.hvac-replacement-estimate",
+   "kind": "cover",
+   "query": "thermostat",
+   "layout": "right",
+   "noFaces": false,
+   "short": "air vent"
+  },
+  {
+   "slot": "construction.water-heater-quote:cover",
+   "template": "construction.water-heater-quote",
+   "kind": "cover",
+   "query": "plumber utility room",
+   "layout": "right",
+   "noFaces": false,
+   "short": "plumbing"
+  },
+  {
+   "slot": "construction.roof-inspection:cover",
+   "template": "construction.roof-inspection",
+   "kind": "cover",
+   "query": "roofer roof inspection",
+   "layout": "left",
+   "noFaces": false,
+   "short": "roof"
+  },
+  {
+   "slot": "construction.roof-cost-calculator:cover",
+   "template": "construction.roof-cost-calculator",
+   "kind": "cover",
+   "query": "new roof shingles house",
+   "layout": "right",
+   "noFaces": false,
+   "short": "roof"
+  },
+  {
+   "slot": "construction.landscape-design:cover",
+   "template": "construction.landscape-design",
+   "kind": "cover",
+   "query": "landscaped backyard garden",
+   "layout": "right",
+   "noFaces": false,
+   "short": "garden"
+  },
+  {
+   "slot": "construction.panel-upgrade-estimate:cover",
+   "template": "construction.panel-upgrade-estimate",
+   "kind": "cover",
+   "query": "electrician electrical panel",
+   "layout": "left",
+   "noFaces": false,
+   "short": "electrician"
+  },
+  {
+   "slot": "construction.lighting-install-price:cover",
+   "template": "construction.lighting-install-price",
+   "kind": "cover",
+   "query": "pendant lights modern kitchen",
+   "layout": "right",
+   "noFaces": false,
+   "short": "lamp"
+  },
+  {
+   "slot": "construction.moving-cost-calculator:cover",
+   "template": "construction.moving-cost-calculator",
+   "kind": "cover",
+   "query": "moving boxes new apartment",
+   "layout": "right",
+   "noFaces": false,
+   "short": "boxes"
+  },
+  {
+   "slot": "general.email-digest:cover",
+   "template": "general.email-digest",
+   "kind": "cover",
+   "query": "person reading newsletter phone",
+   "layout": "left",
+   "noFaces": false,
+   "short": "phone"
+  },
+  {
+   "slot": "general.report-download:cover",
+   "template": "general.report-download",
+   "kind": "cover",
+   "query": "business report charts desk",
+   "layout": "right",
+   "noFaces": false,
+   "short": "charts"
+  },
+  {
+   "slot": "saas.enterprise-demo:cover",
+   "template": "saas.enterprise-demo",
+   "kind": "cover",
+   "query": "enterprise team boardroom presentation",
+   "layout": "right",
+   "noFaces": false,
+   "short": "boardroom"
+  },
+  {
+   "slot": "saas.quick-demo:cover",
+   "template": "saas.quick-demo",
+   "kind": "cover",
+   "query": "webcam",
+   "layout": "left",
+   "noFaces": false,
+   "short": "laptop desk"
+  },
+  {
+   "slot": "saas.partner-program:cover",
+   "template": "saas.partner-program",
+   "kind": "cover",
+   "query": "two colleagues laptop collaboration",
+   "layout": "right",
+   "noFaces": false,
+   "short": "collaboration"
+  },
+  {
+   "slot": "saas.early-access:cover",
+   "template": "saas.early-access",
+   "kind": "cover",
+   "query": "smartphone",
+   "layout": "right",
+   "noFaces": false,
+   "short": "mobile app"
+  },
+  {
+   "slot": "agency.growth-call:cover",
+   "template": "agency.growth-call",
+   "kind": "cover",
+   "query": "marketing team video call",
+   "layout": "left",
+   "noFaces": false,
+   "short": "team"
+  },
+  {
+   "slot": "agency.referral-partner:cover",
+   "template": "agency.referral-partner",
+   "kind": "cover",
+   "query": "freelancer designer desk",
+   "layout": "right",
+   "noFaces": false,
+   "short": "designer"
+  },
+  {
+   "slot": "consulting.client-referral:cover",
+   "template": "consulting.client-referral",
+   "kind": "cover",
+   "query": "colleagues coffee conversation",
+   "layout": "right",
+   "noFaces": false,
+   "short": "coffee"
+  },
+  {
+   "slot": "consulting.benchmark-report:cover",
+   "template": "consulting.benchmark-report",
+   "kind": "cover",
+   "query": "executive reading report office",
+   "layout": "left",
+   "noFaces": false,
+   "short": "report"
+  },
+  {
+   "slot": "it.managed-it-quote:cover",
+   "template": "it.managed-it-quote",
+   "kind": "cover",
+   "query": "it support help desk",
+   "layout": "right",
+   "noFaces": false,
+   "short": "computer"
+  },
+  {
+   "slot": "coaching.discovery-call:cover",
+   "template": "coaching.discovery-call",
+   "kind": "cover",
+   "query": "coach video call laptop",
+   "layout": "right",
+   "noFaces": false,
+   "short": "coaching"
+  },
+  {
+   "slot": "coaching.program-waitlist:cover",
+   "template": "coaching.program-waitlist",
+   "kind": "cover",
+   "query": "seminar",
+   "layout": "left",
+   "noFaces": false,
+   "short": "group"
+  },
+  {
+   "slot": "creative.photography-inquiry:cover",
+   "template": "creative.photography-inquiry",
+   "kind": "cover",
+   "query": "photographer camera studio",
+   "layout": "right",
+   "noFaces": false,
+   "short": "photographer"
+  },
+  {
+   "slot": "creative.video-quote:cover",
+   "template": "creative.video-quote",
+   "kind": "cover",
+   "query": "video crew filming set",
+   "layout": "right",
+   "noFaces": false,
+   "short": "filming"
+  },
+  {
+   "slot": "architecture.project-consultation:cover",
+   "template": "architecture.project-consultation",
+   "kind": "cover",
+   "query": "architect plans model",
+   "layout": "left",
+   "noFaces": false,
+   "short": "architect"
+  },
+  {
+   "slot": "architecture.fee-estimate:cover",
+   "template": "architecture.fee-estimate",
+   "kind": "cover",
+   "query": "architect drawing plans desk",
+   "layout": "right",
+   "noFaces": false,
+   "short": "blueprint"
+  },
+  {
+   "slot": "architecture.planning-guide:cover",
+   "template": "architecture.planning-guide",
+   "kind": "cover",
+   "query": "modern house exterior architecture",
+   "layout": "right",
+   "noFaces": false,
+   "short": "architecture"
+  },
+  {
+   "slot": "security.system-quote:cover",
+   "template": "security.system-quote",
+   "kind": "cover",
+   "query": "home security camera house",
+   "layout": "left",
+   "noFaces": false,
+   "short": "security camera"
+  },
+  {
+   "slot": "security.guard-services:cover",
+   "template": "security.guard-services",
+   "kind": "cover",
+   "query": "security guard building lobby",
+   "layout": "right",
+   "noFaces": false,
+   "short": "lobby"
+  },
+  {
+   "slot": "security.camera-demo:cover",
+   "template": "security.camera-demo",
+   "kind": "cover",
+   "query": "security cameras monitor room",
+   "layout": "right",
+   "noFaces": false,
+   "short": "cctv"
+  },
+  {
+   "slot": "agriculture.equipment-demo:cover",
+   "template": "agriculture.equipment-demo",
+   "kind": "cover",
+   "query": "tractor field farm",
+   "layout": "left",
+   "noFaces": false,
+   "short": "tractor"
+  },
+  {
+   "slot": "agriculture.market-report:cover",
+   "template": "agriculture.market-report",
+   "kind": "cover",
+   "query": "wheat field harvest",
+   "layout": "right",
+   "noFaces": false,
+   "short": "wheat"
+  },
+  {
+   "slot": "media.advertising-inquiry:cover",
+   "template": "media.advertising-inquiry",
+   "kind": "cover",
+   "query": "magazine print media desk",
+   "layout": "right",
+   "noFaces": false,
+   "short": "magazine"
+  },
+  {
+   "slot": "government.business-contact:cover",
+   "template": "government.business-contact",
+   "kind": "cover",
+   "query": "main street small businesses",
+   "layout": "left",
+   "noFaces": false,
+   "short": "main street"
+  },
+  {
+   "slot": "retail.vip-list:cover",
+   "template": "retail.vip-list",
+   "kind": "cover",
+   "query": "boutique clothing store",
+   "layout": "right",
+   "noFaces": false,
+   "short": "boutique"
+  },
+  {
+   "slot": "pets.puppy-waitlist:cover",
+   "template": "pets.puppy-waitlist",
+   "kind": "cover",
+   "query": "puppy garden",
+   "layout": "right",
+   "noFaces": false,
+   "short": "puppy"
+  },
+  {
+   "slot": "sports.club-sponsorship:cover",
+   "template": "sports.club-sponsorship",
+   "kind": "cover",
+   "query": "youth soccer team field",
+   "layout": "left",
+   "noFaces": false,
+   "short": "soccer"
+  },
+  {
+   "slot": "faith.contact-us:cover",
+   "template": "faith.contact-us",
+   "kind": "cover",
+   "query": "community gathering hall",
+   "layout": "right",
+   "noFaces": false,
+   "short": "community"
+  },
+  {
+   "slot": "food.wholesale-inquiry:cover",
+   "template": "food.wholesale-inquiry",
+   "kind": "cover",
+   "query": "bakery bread display",
+   "layout": "right",
+   "noFaces": false,
+   "short": "bakery"
+  },
+  {
+   "slot": "saas.data-maturity-scorecard:cover",
+   "template": "saas.data-maturity-scorecard",
+   "kind": "cover",
+   "query": "data",
+   "layout": "left",
+   "noFaces": false,
+   "short": "spreadsheet"
+  },
+  {
+   "slot": "agency.marketing-scorecard:cover",
+   "template": "agency.marketing-scorecard",
+   "kind": "cover",
+   "query": "marketing plan notebook laptop",
+   "layout": "right",
+   "noFaces": false,
+   "short": "planning"
+  },
+  {
+   "slot": "real_estate.buying-readiness:cover",
+   "template": "real_estate.buying-readiness",
+   "kind": "cover",
+   "query": "couple looking at house for sale",
+   "layout": "right",
+   "noFaces": false,
+   "short": "for sale"
+  },
+  {
+   "slot": "legal.divorce-eligibility:cover",
+   "template": "legal.divorce-eligibility",
+   "kind": "cover",
+   "query": "calm office desk documents",
+   "layout": "left",
+   "noFaces": true,
+   "short": "desk"
+  },
+  {
+   "slot": "coaching.program-application:cover",
+   "template": "coaching.program-application",
+   "kind": "cover",
+   "query": "mentor",
+   "layout": "right",
+   "noFaces": false,
+   "short": "coffee meeting"
+  },
+  {
+   "slot": "creative.video-brief:cover",
+   "template": "creative.video-brief",
+   "kind": "cover",
+   "query": "video editing desk",
+   "layout": "right",
+   "noFaces": false,
+   "short": "editing"
+  },
+  {
+   "slot": "healthcare.home-care-assessment:cover",
+   "template": "healthcare.home-care-assessment",
+   "kind": "cover",
+   "query": "tea",
+   "layout": "left",
+   "noFaces": true,
+   "short": "cozy home"
+  },
+  {
+   "slot": "legal.family-law-intake:cover",
+   "template": "legal.family-law-intake",
+   "kind": "cover",
+   "query": "law office calm meeting room",
+   "layout": "right",
+   "noFaces": true,
+   "short": "office"
+  },
+  {
+   "slot": "solar.savings-calculator:cover",
+   "template": "solar.savings-calculator",
+   "kind": "cover",
+   "query": "rooftop solar panels sunny",
+   "layout": "right",
+   "noFaces": false,
+   "short": "solar"
+  },
+  {
+   "slot": "saas.roi-calculator:cover",
+   "template": "saas.roi-calculator",
+   "kind": "cover",
+   "query": "team reviewing numbers laptop",
+   "layout": "left",
+   "noFaces": false,
+   "short": "numbers"
+  },
+  {
+   "slot": "insurance.auto-quote:cover",
+   "template": "insurance.auto-quote",
+   "kind": "cover",
+   "query": "car driving road",
+   "layout": "right",
+   "noFaces": false,
+   "short": "car"
+  },
+  {
+   "slot": "insurance.home-quote:cover",
+   "template": "insurance.home-quote",
+   "kind": "cover",
+   "query": "suburban house front",
+   "layout": "right",
+   "noFaces": false,
+   "short": "house"
+  },
+  {
+   "slot": "construction.kitchen-remodel-estimate:cover",
+   "template": "construction.kitchen-remodel-estimate",
+   "kind": "cover",
+   "query": "modern kitchen remodel",
+   "layout": "left",
+   "noFaces": false,
+   "short": "kitchen"
+  },
+  {
+   "slot": "general.franchise-inquiry:cover",
+   "template": "general.franchise-inquiry",
+   "kind": "cover",
+   "query": "franchise storefront owner",
+   "layout": "right",
+   "noFaces": false,
+   "short": "store"
+  },
+  {
+   "slot": "hospitality.trip-planner:cover",
+   "template": "hospitality.trip-planner",
+   "kind": "cover",
+   "query": "travel planning map",
+   "layout": "right",
+   "noFaces": false,
+   "short": "map"
+  },
+  {
+   "slot": "real_estate.commercial-space:Space type:0",
+   "template": "real_estate.commercial-space",
+   "kind": "card",
+   "field": "Space type",
+   "option": 0,
+   "query": "modern open office",
+   "short": "office"
+  },
+  {
+   "slot": "real_estate.commercial-space:Space type:1",
+   "template": "real_estate.commercial-space",
+   "kind": "card",
+   "field": "Space type",
+   "option": 1,
+   "query": "retail shop interior",
+   "short": "shop"
+  },
+  {
+   "slot": "real_estate.commercial-space:Space type:2",
+   "template": "real_estate.commercial-space",
+   "kind": "card",
+   "field": "Space type",
+   "option": 2,
+   "query": "industrial warehouse interior",
+   "short": "warehouse"
+  },
+  {
+   "slot": "real_estate.commercial-space:Space type:3",
+   "template": "real_estate.commercial-space",
+   "kind": "card",
+   "field": "Space type",
+   "option": 3,
+   "query": "flexible workspace",
+   "short": "coworking"
+  },
+  {
+   "slot": "real_estate.commercial-space:Space type:4",
+   "template": "real_estate.commercial-space",
+   "kind": "card",
+   "field": "Space type",
+   "option": 4,
+   "query": "restaurant interior",
+   "short": "restaurant"
+  },
+  {
+   "slot": "solar.ev-charger:Parking:0",
+   "template": "solar.ev-charger",
+   "kind": "card",
+   "field": "Parking",
+   "option": 0,
+   "query": "home garage car",
+   "short": "garage"
+  },
+  {
+   "slot": "solar.ev-charger:Parking:1",
+   "template": "solar.ev-charger",
+   "kind": "card",
+   "field": "Parking",
+   "option": 1,
+   "query": "driveway house car",
+   "short": "driveway"
+  },
+  {
+   "slot": "solar.ev-charger:Parking:2",
+   "template": "solar.ev-charger",
+   "kind": "card",
+   "field": "Parking",
+   "option": 2,
+   "query": "street parking houses",
+   "short": "street"
+  },
+  {
+   "slot": "hospitality.travel-inquiry:Interests:0",
+   "template": "hospitality.travel-inquiry",
+   "kind": "card",
+   "field": "Interests",
+   "option": 0,
+   "query": "tropical beach",
+   "short": "beach"
+  },
+  {
+   "slot": "hospitality.travel-inquiry:Interests:1",
+   "template": "hospitality.travel-inquiry",
+   "kind": "card",
+   "field": "Interests",
+   "option": 1,
+   "query": "old town architecture",
+   "short": "architecture"
+  },
+  {
+   "slot": "hospitality.travel-inquiry:Interests:2",
+   "template": "hospitality.travel-inquiry",
+   "kind": "card",
+   "field": "Interests",
+   "option": 2,
+   "query": "street food market",
+   "short": "food market"
+  },
+  {
+   "slot": "hospitality.travel-inquiry:Interests:3",
+   "template": "hospitality.travel-inquiry",
+   "kind": "card",
+   "field": "Interests",
+   "option": 3,
+   "query": "mountain hiking",
+   "short": "hiking"
+  },
+  {
+   "slot": "hospitality.travel-inquiry:Interests:4",
+   "template": "hospitality.travel-inquiry",
+   "kind": "card",
+   "field": "Interests",
+   "option": 4,
+   "query": "spa relaxation pool",
+   "short": "spa"
+  },
+  {
+   "slot": "hospitality.travel-inquiry:Interests:5",
+   "template": "hospitality.travel-inquiry",
+   "kind": "card",
+   "field": "Interests",
+   "option": 5,
+   "query": "family vacation kids beach",
+   "short": "family"
+  },
+  {
+   "slot": "events.venue-tour:Spaces you'd like to see:0",
+   "template": "events.venue-tour",
+   "kind": "card",
+   "field": "Spaces you'd like to see",
+   "option": 0,
+   "query": "banquet",
+   "short": "chandelier"
+  },
+  {
+   "slot": "events.venue-tour:Spaces you'd like to see:1",
+   "template": "events.venue-tour",
+   "kind": "card",
+   "field": "Spaces you'd like to see",
+   "option": 1,
+   "query": "garden wedding venue",
+   "short": "garden"
+  },
+  {
+   "slot": "events.venue-tour:Spaces you'd like to see:2",
+   "template": "events.venue-tour",
+   "kind": "card",
+   "field": "Spaces you'd like to see",
+   "option": 2,
+   "query": "rooftop terrace city",
+   "short": "rooftop"
+  },
+  {
+   "slot": "events.venue-tour:Spaces you'd like to see:3",
+   "template": "events.venue-tour",
+   "kind": "card",
+   "field": "Spaces you'd like to see",
+   "option": 3,
+   "query": "private dining room",
+   "short": "dining room"
+  },
+  {
+   "slot": "construction.roof-cost-calculator:Material:0",
+   "template": "construction.roof-cost-calculator",
+   "kind": "card",
+   "field": "Material",
+   "option": 0,
+   "query": "asphalt shingle roof",
+   "short": "shingles"
+  },
+  {
+   "slot": "construction.roof-cost-calculator:Material:1",
+   "template": "construction.roof-cost-calculator",
+   "kind": "card",
+   "field": "Material",
+   "option": 1,
+   "query": "metal roof",
+   "short": "metal roof"
+  },
+  {
+   "slot": "construction.roof-cost-calculator:Material:2",
+   "template": "construction.roof-cost-calculator",
+   "kind": "card",
+   "field": "Material",
+   "option": 2,
+   "query": "clay tile roof",
+   "short": "tiles"
+  },
+  {
+   "slot": "construction.roof-cost-calculator:Material:3",
+   "template": "construction.roof-cost-calculator",
+   "kind": "card",
+   "field": "Material",
+   "option": 3,
+   "query": "flat roof building",
+   "short": "flat roof"
+  },
+  {
+   "slot": "construction.moving-cost-calculator:Type of home:0",
+   "template": "construction.moving-cost-calculator",
+   "kind": "card",
+   "field": "Type of home",
+   "option": 0,
+   "query": "suburban house",
+   "short": "house"
+  },
+  {
+   "slot": "construction.moving-cost-calculator:Type of home:1",
+   "template": "construction.moving-cost-calculator",
+   "kind": "card",
+   "field": "Type of home",
+   "option": 1,
+   "query": "apartment building",
+   "short": "apartment"
+  },
+  {
+   "slot": "construction.moving-cost-calculator:Type of home:2",
+   "template": "construction.moving-cost-calculator",
+   "kind": "card",
+   "field": "Type of home",
+   "option": 2,
+   "query": "townhouses row",
+   "short": "townhouse"
+  },
+  {
+   "slot": "construction.moving-cost-calculator:Type of home:3",
+   "template": "construction.moving-cost-calculator",
+   "kind": "card",
+   "field": "Type of home",
+   "option": 3,
+   "query": "storage",
+   "short": "garage doors"
+  },
+  {
+   "slot": "food.wholesale-inquiry:Products you're interested in:0",
+   "template": "food.wholesale-inquiry",
+   "kind": "card",
+   "field": "Products you're interested in",
+   "option": 0,
+   "query": "artisan bread loaves",
+   "short": "bread"
+  },
+  {
+   "slot": "food.wholesale-inquiry:Products you're interested in:1",
+   "template": "food.wholesale-inquiry",
+   "kind": "card",
+   "field": "Products you're interested in",
+   "option": 1,
+   "query": "croissants pastries",
+   "short": "croissant"
+  },
+  {
+   "slot": "food.wholesale-inquiry:Products you're interested in:2",
+   "template": "food.wholesale-inquiry",
+   "kind": "card",
+   "field": "Products you're interested in",
+   "option": 2,
+   "query": "layer cake",
+   "short": "cake"
+  },
+  {
+   "slot": "food.wholesale-inquiry:Products you're interested in:3",
+   "template": "food.wholesale-inquiry",
+   "kind": "card",
+   "field": "Products you're interested in",
+   "option": 3,
+   "query": "cookies tray",
+   "short": "cookies"
+  },
+  {
+   "slot": "food.wholesale-inquiry:Products you're interested in:4",
+   "template": "food.wholesale-inquiry",
+   "kind": "card",
+   "field": "Products you're interested in",
+   "option": 4,
+   "query": "gluten free muffins",
+   "short": "muffins"
+  },
+  {
+   "slot": "food.wholesale-inquiry:Products you're interested in:5",
+   "template": "food.wholesale-inquiry",
+   "kind": "card",
+   "field": "Products you're interested in",
+   "option": 5,
+   "query": "seasonal pie",
+   "short": "pie"
+  },
+  {
+   "slot": "retail.vip-list:What do you shop for?:0",
+   "template": "retail.vip-list",
+   "kind": "card",
+   "field": "What do you shop for?",
+   "option": 0,
+   "query": "womens fashion rack",
+   "short": "dress"
+  },
+  {
+   "slot": "retail.vip-list:What do you shop for?:1",
+   "template": "retail.vip-list",
+   "kind": "card",
+   "field": "What do you shop for?",
+   "option": 1,
+   "query": "suit",
+   "short": "menswear"
+  },
+  {
+   "slot": "retail.vip-list:What do you shop for?:2",
+   "template": "retail.vip-list",
+   "kind": "card",
+   "field": "What do you shop for?",
+   "option": 2,
+   "query": "kids clothes",
+   "short": "kids"
+  },
+  {
+   "slot": "retail.vip-list:What do you shop for?:3",
+   "template": "retail.vip-list",
+   "kind": "card",
+   "field": "What do you shop for?",
+   "option": 3,
+   "query": "home decor shop",
+   "short": "decor"
+  },
+  {
+   "slot": "retail.vip-list:What do you shop for?:4",
+   "template": "retail.vip-list",
+   "kind": "card",
+   "field": "What do you shop for?",
+   "option": 4,
+   "query": "gift boxes wrapped",
+   "short": "gift"
+  },
+  {
+   "slot": "retail.vip-list:What do you shop for?:5",
+   "template": "retail.vip-list",
+   "kind": "card",
+   "field": "What do you shop for?",
+   "option": 5,
+   "query": "fashion accessories",
+   "short": "accessories"
+  },
+  {
+   "slot": "pets.puppy-waitlist:Your home:0",
+   "template": "pets.puppy-waitlist",
+   "kind": "card",
+   "field": "Your home",
+   "option": 0,
+   "query": "house fenced backyard",
+   "short": "backyard"
+  },
+  {
+   "slot": "pets.puppy-waitlist:Your home:1",
+   "template": "pets.puppy-waitlist",
+   "kind": "card",
+   "field": "Your home",
+   "option": 1,
+   "query": "house front lawn",
+   "short": "lawn"
+  },
+  {
+   "slot": "pets.puppy-waitlist:Your home:2",
+   "template": "pets.puppy-waitlist",
+   "kind": "card",
+   "field": "Your home",
+   "option": 2,
+   "query": "apartment balcony",
+   "short": "apartment"
+  },
+  {
+   "slot": "pets.puppy-waitlist:Your home:3",
+   "template": "pets.puppy-waitlist",
+   "kind": "card",
+   "field": "Your home",
+   "option": 3,
+   "query": "farm countryside",
+   "short": "farm"
+  },
+  {
+   "slot": "logistics.freight-quote:Mode:0",
+   "template": "logistics.freight-quote",
+   "kind": "card",
+   "field": "Mode",
+   "option": 0,
+   "query": "semi truck highway",
+   "short": "truck"
+  },
+  {
+   "slot": "logistics.freight-quote:Mode:1",
+   "template": "logistics.freight-quote",
+   "kind": "card",
+   "field": "Mode",
+   "option": 1,
+   "query": "pallet",
+   "short": "delivery truck"
+  },
+  {
+   "slot": "logistics.freight-quote:Mode:2",
+   "template": "logistics.freight-quote",
+   "kind": "card",
+   "field": "Mode",
+   "option": 2,
+   "query": "intermodal container train",
+   "short": "train"
+  },
+  {
+   "slot": "logistics.freight-quote:Mode:3",
+   "template": "logistics.freight-quote",
+   "kind": "card",
+   "field": "Mode",
+   "option": 3,
+   "query": "cargo airplane",
+   "short": "airplane"
+  },
+  {
+   "slot": "logistics.freight-quote:Mode:4",
+   "template": "logistics.freight-quote",
+   "kind": "card",
+   "field": "Mode",
+   "option": 4,
+   "query": "container ship",
+   "short": "ship"
+  },
+  {
+   "slot": "architecture.fee-estimate:Project type:0",
+   "template": "architecture.fee-estimate",
+   "kind": "card",
+   "field": "Project type",
+   "option": 0,
+   "query": "new modern house",
+   "short": "modern house"
+  },
+  {
+   "slot": "architecture.fee-estimate:Project type:1",
+   "template": "architecture.fee-estimate",
+   "kind": "card",
+   "field": "Project type",
+   "option": 1,
+   "query": "home addition construction",
+   "short": "construction"
+  },
+  {
+   "slot": "architecture.fee-estimate:Project type:2",
+   "template": "architecture.fee-estimate",
+   "kind": "card",
+   "field": "Project type",
+   "option": 2,
+   "query": "home renovation interior",
+   "short": "renovation"
+  },
+  {
+   "slot": "architecture.fee-estimate:Project type:3",
+   "template": "architecture.fee-estimate",
+   "kind": "card",
+   "field": "Project type",
+   "option": 3,
+   "query": "small commercial building",
+   "short": "building"
+  },
+  {
+   "slot": "agriculture.equipment-demo:Where would you like the demo?:0",
+   "template": "agriculture.equipment-demo",
+   "kind": "card",
+   "field": "Where would you like the demo?",
+   "option": 0,
+   "query": "farm field tractor",
+   "short": "tractor"
+  },
+  {
+   "slot": "agriculture.equipment-demo:Where would you like the demo?:1",
+   "template": "agriculture.equipment-demo",
+   "kind": "card",
+   "field": "Where would you like the demo?",
+   "option": 1,
+   "query": "tractors",
+   "short": "farm machinery"
+  },
+  {
+   "slot": "agriculture.equipment-demo:Where would you like the demo?:2",
+   "template": "agriculture.equipment-demo",
+   "kind": "card",
+   "field": "Where would you like the demo?",
+   "option": 2,
+   "query": "farm field day crowd",
+   "short": "field"
+  },
+  {
+   "slot": "construction.kitchen-remodel-estimate:Home type:0",
+   "template": "construction.kitchen-remodel-estimate",
+   "kind": "card",
+   "field": "Home type",
+   "option": 0,
+   "query": "suburban house",
+   "short": "house"
+  },
+  {
+   "slot": "construction.kitchen-remodel-estimate:Home type:1",
+   "template": "construction.kitchen-remodel-estimate",
+   "kind": "card",
+   "field": "Home type",
+   "option": 1,
+   "query": "condo building",
+   "short": "condo"
+  },
+  {
+   "slot": "construction.kitchen-remodel-estimate:Home type:2",
+   "template": "construction.kitchen-remodel-estimate",
+   "kind": "card",
+   "field": "Home type",
+   "option": 2,
+   "query": "townhouses",
+   "short": "townhouse"
+  },
+  {
+   "slot": "solar.savings-calculator:Type of home:0",
+   "template": "solar.savings-calculator",
+   "kind": "card",
+   "field": "Type of home",
+   "option": 0,
+   "query": "single family house",
+   "short": "house"
+  },
+  {
+   "slot": "solar.savings-calculator:Type of home:1",
+   "template": "solar.savings-calculator",
+   "kind": "card",
+   "field": "Type of home",
+   "option": 1,
+   "query": "townhouses",
+   "short": "townhouse"
+  },
+  {
+   "slot": "solar.savings-calculator:Type of home:2",
+   "template": "solar.savings-calculator",
+   "kind": "card",
+   "field": "Type of home",
+   "option": 2,
+   "query": "condo building",
+   "short": "condo"
+  },
+  {
+   "slot": "solar.savings-calculator:Type of home:3",
+   "template": "solar.savings-calculator",
+   "kind": "card",
+   "field": "Type of home",
+   "option": 3,
+   "query": "caravan",
+   "short": "trailer"
+  },
+  {
+   "slot": "events.venue-inquiry:Spaces you'd like to see:0",
+   "template": "events.venue-inquiry",
+   "kind": "card",
+   "field": "Spaces you'd like to see",
+   "option": 0,
+   "query": "banquet",
+   "short": "chandelier"
+  },
+  {
+   "slot": "events.venue-inquiry:Spaces you'd like to see:1",
+   "template": "events.venue-inquiry",
+   "kind": "card",
+   "field": "Spaces you'd like to see",
+   "option": 1,
+   "query": "garden venue",
+   "short": "garden"
+  },
+  {
+   "slot": "events.venue-inquiry:Spaces you'd like to see:2",
+   "template": "events.venue-inquiry",
+   "kind": "card",
+   "field": "Spaces you'd like to see",
+   "option": 2,
+   "query": "terrace evening",
+   "short": "terrace"
+  },
+  {
+   "slot": "events.venue-inquiry:Spaces you'd like to see:3",
+   "template": "events.venue-inquiry",
+   "kind": "card",
+   "field": "Spaces you'd like to see",
+   "option": 3,
+   "query": "private dining room",
+   "short": "dining room"
+  },
+  {
+   "slot": "events.venue-inquiry:Spaces you'd like to see:4",
+   "template": "events.venue-inquiry",
+   "kind": "card",
+   "field": "Spaces you'd like to see",
+   "option": 4,
+   "query": "event venue exterior",
+   "short": "venue"
+  }
+ ]
+}

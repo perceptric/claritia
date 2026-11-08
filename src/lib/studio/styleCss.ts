@@ -3,7 +3,7 @@
 // pages draw that style (claritia-site assets/forms.css), so a template used in a style looks the same in the app and
 // on the form's page. Made by code, never by Claude. The first line names the style, so the Studio knows it again.
 
-import { artBg, FONTS, fontsUrl, isTheme, themeById, type Theme } from "../forms/gallery/themes.ts";
+import { FONTS, fontsUrl, isTheme, themeById, type Theme } from "../forms/gallery/themes.ts";
 
 /** Where the style drawings are served (the website's copy of themeArt); a stylesheet may only link https pictures. */
 export const STYLE_ART = "https://tryclaritia.com/assets/form-art";
@@ -24,31 +24,15 @@ export const styleCssById = (id: string | null | undefined) => styleCss(themeByI
 
 export function styleCss(th: Theme): string {
   const px = (n: number) => `${n}px`;
-  const pattern =
-    th.pattern === "dots"
-      ? `background-image:radial-gradient(circle,${th.patternColor} 1.2px,transparent 1.2px);background-size:18px 18px;`
-      : th.pattern === "grid"
-        ? `background-image:linear-gradient(${th.patternColor} 1px,transparent 1px),linear-gradient(90deg,${th.patternColor} 1px,transparent 1px);background-size:28px 28px;`
-        : "";
   const hard = th.shadow === "hard";
-  const cardShadow = hard ? `6px 6px 0 ${th.text}` : th.shadow === "soft" ? "0 24px 48px -28px rgb(10 10 10 / .35),0 2px 6px rgb(10 10 10 / .05)" : "none";
-  const art = th.art ? `url("${STYLE_ART}/${th.id}.svg")` : "";
   const plain = th.layout === "plain";
   const out: string[] = [
     `/* claritia-style: ${th.id} */`,
     `@import url("${fontsUrl([th.font, th.head])}");`,
-    `:root{--brand-primary:${th.accent};--brand-on-primary:${th.accentInk};--brand-text:${th.text};--brand-muted:${th.muted};--brand-faint:${th.faint};--brand-bg:${th.bg};--brand-surface:${th.card};--brand-field:${th.field};--brand-line:${th.border};--brand-hover:${th.hover};--brand-soft:${th.soft};--brand-focus:${th.accent};--brand-font:${FONTS[th.font].css};--brand-head:${FONTS[th.head].css};--brand-radius:${px(th.radius)};--brand-btn-radius:${px(th.btnRadius)};--brand-card-radius:${px(th.cardRadius)};--brand-bw:${px(th.bw)}${th.dark ? ";color-scheme:dark" : ""}}`,
-    // The stage: the style's color (and dots or grid) around the card.
-    `.page.page{font-family:var(--brand-font);color:var(--brand-text);background-color:var(--brand-bg);${pattern}padding:clamp(20px,6cqi,48px) clamp(14px,5cqi,40px);font-size:15px;line-height:1.5;-webkit-font-smoothing:antialiased;container-type:inline-size}`,
-    `.page .form-card{--card-pad:clamp(22px,5cqi,40px);position:relative;overflow:hidden;max-width:${th.layout === "split" ? 880 : 680}px;gap:24px;padding:var(--card-pad);background:var(--brand-surface);border:var(--brand-bw) solid var(--brand-line);border-radius:var(--brand-card-radius);box-shadow:${cardShadow};box-sizing:border-box}`,
-    plain ? `.page .form-card{background:transparent;border-color:transparent;box-shadow:none;padding-inline:4px}` : "",
-    // The drawing: a band across the top (cover), or a panel beside the form (split) once there's room.
-    art && (th.layout === "cover" || th.layout === "split")
-      ? `.page .form-card::before{content:"";display:block;height:140px;margin:calc(var(--card-pad) * -1) calc(var(--card-pad) * -1) 0;background:${artBg(th)} ${art} center/cover no-repeat;${th.layout === "cover" ? "border-bottom:var(--brand-bw) solid var(--brand-line)" : ""}}`
-      : "",
-    art && th.layout === "split"
-      ? `@container (min-width:760px){.page .form-card{--art:clamp(220px,34cqi,330px);padding-left:calc(var(--art) + var(--card-pad))}.page .form-card::before{position:absolute;inset:0 auto 0 0;width:var(--art);height:auto;margin:0;background:${artBg(th)} ${art} center top/100% auto no-repeat}}`
-      : "",
+    `:root{--brand-primary:${th.accent};--brand-on-primary:${th.accentInk};--brand-text:${th.text};--brand-muted:${th.muted};--brand-faint:${th.faint};--brand-bg:${th.card};--brand-surface:${th.card};--brand-field:${th.field};--brand-line:${th.border};--brand-hover:${th.hover};--brand-soft:${th.soft};--brand-focus:${th.accent};--brand-font:${FONTS[th.font].css};--brand-head:${FONTS[th.head].css};--brand-radius:${px(th.radius)};--brand-btn-radius:${px(th.btnRadius)};--brand-card-radius:0px;--brand-bw:${px(th.bw)}${th.dark ? ";color-scheme:dark" : ""}}`,
+    // The form is the whole page, in its own color: no stage, pattern, drawing, card frame or shadow around it.
+    `.page.page{font-family:var(--brand-font);color:var(--brand-text);background:var(--brand-bg);padding:clamp(24px,6cqi,48px) clamp(16px,5cqi,40px);font-size:15px;line-height:1.5;-webkit-font-smoothing:antialiased;container-type:inline-size}`,
+    `.page .form-card{position:relative;max-width:680px;gap:24px;padding:0;background:transparent;border:0;border-radius:0;box-shadow:none;box-sizing:border-box}`,
     `.page .logo{height:28px;width:auto;max-width:140px;object-fit:contain;object-position:left center}`,
     // Words.
     `.heading{font-family:var(--brand-head);font-weight:${th.headWeight};font-style:${th.headItalic ? "italic" : "normal"};letter-spacing:-.02em;line-height:1.12;color:var(--brand-text);margin:0}`,

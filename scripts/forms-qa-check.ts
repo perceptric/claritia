@@ -8,7 +8,7 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import pg from "pg";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { buildForms } from "./build-forms.mts";
+import { buildExtras, buildForms } from "./build-forms.mts";
 import { checkForm, type Form } from "../src/lib/forms/schema.ts";
 import { acceptFill, qaOk, type Incoming } from "../src/lib/forms/submit.ts";
 import { allRegions, usesRegions } from "../src/lib/forms/regions.ts";
@@ -75,11 +75,13 @@ const sender = (async () => {
   }
 })();
 
-const code = Buffer.from(await buildForms());
+const x1Js = await buildExtras();
+const code = Buffer.from(await buildForms(x1Js));
 async function handle(req: IncomingMessage, res: ServerResponse) {
   const u = new URL(req.url!, "http://localhost");
   const send = (status: number, body: unknown) => res.writeHead(status, { "content-type": "application/json", "access-control-allow-origin": "*" }).end(JSON.stringify(body));
   if (u.pathname === "/forms/v1.js") return void res.writeHead(200, { "content-type": "text/javascript" }).end(code);
+  if (u.pathname === "/forms/x1.js") return void res.writeHead(200, { "content-type": "text/javascript" }).end(x1Js);
   const page = /^\/f\/([0-9a-f-]{36})$/.exec(u.pathname);
   if (page) return void res.writeHead(200, { "content-type": "text/html" }).end(`<!doctype html><title>Form</title><main><claritia-form form-id="${page[1]}"></claritia-form></main><script src="/forms/v1.js"></script>`);
   const m = /^\/api\/forms\/([0-9a-f-]{36})(\/submit)?$/.exec(u.pathname);

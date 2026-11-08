@@ -78,3 +78,9 @@ export function stripImageMeta(b: Uint8Array): Uint8Array {
   }
   return out;
 }
+
+/** The widths a photo is kept in besides its original: the ones smaller than it (none for a GIF, which may move). */
+export function photoWidths(kind: Pick<Sniffed, "type" | "width">): number[] {
+  if (kind.type === "image/gif") return [];
+  return [640, 1280, 1920].filter((w) => w < kind.width);
+}

@@ -44,6 +44,8 @@ THE FORM'S HTML
 - Attributes the form runs on:
   data-cl-step on a <section> makes a step (shown one at a time). Without steps it's one page.
   data-cl-next and data-cl-back on buttons move between steps. type="submit" sends.
+  A welcome screen is <section data-cl-cover> as the first thing inside .page: a <h1 class="heading">, a short <p class="text"> and <button type="button" class="btn" data-cl-start>Start</button>. Add one only when asked.
+  Photos are set by people from their library with data-cl-media (and data-cl-sizes, data-cl-layout, data-cl-focus, data-cl-alt) on the welcome screen, a step or the thank-you. Keep those attributes exactly as they are. Never write a picture address yourself. You may write data-cl-alt: a few words on what the photo shows.
   data-cl-show-if="name == 'value'" shows an element only when the condition holds. Ops: == != > < in filled empty, joined with and / or. Example: data-cl-show-if="size in ('51-200','200+') and role != 'student'". On a step, a hidden step is skipped.
   data-cl-progress on any element: the form sets the CSS variable --cl-progress (0 to 1) on it.
   data-cl-error-for="name": where that question's error shows.

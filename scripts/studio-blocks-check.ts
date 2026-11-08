@@ -1,8 +1,8 @@
 // Studio blocks and converted forms in a real browser, in the real forms/v1.js (src/lib/studio/page.ts, fromForm.ts):
 // a price that adds up as people answer, a hidden deposit and its payment, a score's outcome by show-if, a grid and a
 // ranking that send their answers, an extra picked and then hidden by a later answer that is never sent or charged,
-// a template turned into a page whose skip passes over a page, and templates in the website's styles (Poster's
-// yellow stage and black frames, Grove's picture beside the form) with half-width fields side by side, and a form
+// a template turned into a page whose skip passes over a page, and templates in the website's styles (the form fills
+// its box in the style's own color, with no stage, frame, shadow or drawing) with half-width fields side by side, and a form
 // live from before the Studio, served as the page it turns into (src/lib/forms/submit.ts studioPublic), whose send
 // keeps the older form's field ids. Then Share: a personal link fills in what's known and sends as Email with its
 // token, and the hosted link, a QR code and a full-page embed each send their own channel. A small server stands in for the form's read and
@@ -18,7 +18,7 @@ import { pageForm } from "../src/lib/studio/page.ts";
 import { styleCssById } from "../src/lib/studio/styleCss.ts";
 import { templateDraft } from "../src/lib/studio/templatePage.ts";
 import { studioPublic } from "../src/lib/studio/liveForm.ts";
-import { buildForms } from "./build-forms.mts";
+import { buildExtras, buildForms } from "./build-forms.mts";
 
 const failures: string[] = [];
 const check = (ok: boolean, what: string) => {
@@ -72,12 +72,14 @@ const PERS = "aaaaaaaa-1111-4111-8111-111111111111";
 const TOKEN = "abcdefghijk.ABCDEFGHIJKLMNOPQRSTUV";
 const older = studioPublic({ id: OLDER, workspace_id: "w", version: 4, status: "live", body: olderBody, logo_url: null, studio_css: null, kit_notes: ["style:poster"] });
 
-const formsJs = await buildForms();
+const x1Js = await buildExtras();
+const formsJs = await buildForms(x1Js);
 const sent: { id: string; body: Record<string, unknown> }[] = [];
 const server = createServer((req, res) => {
   const json = (b: unknown) => res.writeHead(200, { "content-type": "application/json", "access-control-allow-origin": "*" }).end(JSON.stringify(b));
   const u = req.url ?? "";
   if (u.startsWith("/forms/v1.js")) return res.writeHead(200, { "content-type": "text/javascript" }).end(formsJs);
+  if (u.startsWith("/forms/x1.js")) return res.writeHead(200, { "content-type": "text/javascript" }).end(x1Js);
   const m = /^\/api\/forms\/([0-9a-f-]{36})\/submit/.exec(u);
   if (m) {
     let raw = "";
@@ -113,6 +115,8 @@ try {
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
   const f = page.locator("claritia-form");
+  // A template that opens on a welcome screen: Start, then the questions.
+  const past = async () => { await f.locator("[data-cl-cover] [data-cl-start], [data-cl-step], input").first().waitFor(); if (await f.locator("[data-cl-cover]:not([hidden]) [data-cl-start]").isVisible()) await f.locator("[data-cl-start]").click(); };
 
   await page.goto(`${origin}/${PRICED}`);
   await f.locator("#g").waitFor();
@@ -156,14 +160,16 @@ try {
 
   // A converted template: its first page, then a skip passes over pages for some answers.
   await page.goto(`${origin}/${SKIPS}`);
+  await past();
   await f.locator("[data-cl-step]").first().waitFor();
   check((await f.locator("[data-cl-step]").count()) === tpl.schema.pages.length, `the template's ${tpl.schema.pages.length} pages are steps`);
   check((await f.locator("[data-cl-progress]").count()) === 1, "a progress bar shows");
-  check(await f.locator("img[data-cl-logo]").count() === 1, "the logo spot is there");
+  check((await f.locator("img[data-cl-logo]").count()) >= 1, "the logo spot is there (on the welcome screen too when there is one)");
 
-  // A template in Poster: the yellow stage, the white card in a black frame with a hard shadow, black buttons, and
-  // first and last name on one row.
+  // A template in Poster: the form fills its box in its own white, with no stage, frame or shadow; black buttons with
+  // yellow words, and first and last name on one row.
   await page.goto(`${origin}/${POSTER}`);
+  await past();
   await f.locator("input").first().waitFor();
   const look = await f.evaluate((host) => {
     const r = (host as HTMLElement).shadowRoot!;
@@ -171,26 +177,28 @@ try {
     const names = [...r.querySelectorAll(".q.half")].slice(0, 2).map((n) => Math.round(n.getBoundingClientRect().top));
     return { stage: cs(".page").backgroundColor, card: cs(".form-card").borderTopWidth, shadow: cs(".form-card").boxShadow, btn: cs(".btn").backgroundColor, btnInk: cs(".btn").color, field: cs(".field").borderTopWidth, font: cs(".page").fontFamily, names };
   });
-  check(look.stage === "rgb(255, 223, 61)", `Poster: the yellow stage (${look.stage})`);
-  check(look.card === "2px" && look.shadow.includes("6px 6px"), `Poster: the card's black frame and hard shadow (${look.card}, ${look.shadow})`);
+  check(look.stage === "rgb(255, 255, 255)", `Poster: the form's own white fills the box, no yellow stage (${look.stage})`);
+  check(look.card === "0px" && look.shadow === "none", `Poster: no card frame or shadow inside the box (${look.card}, ${look.shadow})`);
   check(look.btn === "rgb(0, 0, 0)" && look.btnInk === "rgb(255, 223, 61)", `Poster: black buttons with yellow words (${look.btn}, ${look.btnInk})`);
   check(look.field === "2px" && look.font.includes("Space Grotesk"), `Poster: 2px fields in Space Grotesk (${look.field}, ${look.font})`);
   check(look.names.length === 2 && look.names[0] === look.names[1], `half-width fields share a row (${look.names})`);
-  // Grove: its picture beside the form on a wide screen, across the top on a phone.
+  // Grove: no drawing on a wide screen or a phone; the form's own cream fills the box.
   await page.goto(`${origin}/${GROVE}`);
+  await past();
   await f.locator("input").first().waitFor();
-  const side = () => f.evaluate((host) => { const c = (host as HTMLElement).shadowRoot!.querySelector(".form-card")!; const b = getComputedStyle(c, "::before"); return { pos: b.position, img: b.backgroundImage }; });
+  const side = () => f.evaluate((host) => { const r = (host as HTMLElement).shadowRoot!; const b = getComputedStyle(r.querySelector(".form-card")!, "::before"); return { art: b.backgroundImage, content: b.content, stage: getComputedStyle(r.querySelector(".page")!).backgroundColor }; });
   const wide = await side();
-  check(wide.pos === "absolute" && wide.img.includes("/form-art/grove.svg"), `Grove: the picture beside the form (${wide.pos})`);
+  check(wide.art === "none" && wide.stage === "rgb(247, 242, 231)", `Grove: no drawing, the form's own color fills the box (${JSON.stringify(wide)})`);
   await page.setViewportSize({ width: 390, height: 800 });
   await page.waitForTimeout(150);
-  check((await side()).pos !== "absolute", "Grove: the picture goes across the top on a phone");
+  check((await side()).art === "none", "Grove: no drawing on a phone either");
   // A form live from before the Studio: a page in its kit's style, and its send keeps the older form's field ids.
   await page.setViewportSize({ width: 1100, height: 900 });
   await page.goto(`${origin}/${OLDER}`);
+  await past();
   await f.locator("input").first().waitFor();
   const old = await f.evaluate((host) => { const r = (host as HTMLElement).shadowRoot!; return { page: !!r.querySelector(".page"), stage: r.querySelector(".page") ? getComputedStyle(r.querySelector(".page")!).backgroundColor : "", oldLook: !!r.querySelector(".f") }; });
-  check(old.page && old.stage === "rgb(255, 223, 61)" && !old.oldLook, `an older live form is served as a page in its kit's style (${JSON.stringify(old)})`);
+  check(old.page && old.stage === "rgb(255, 255, 255)" && !old.oldLook, `an older live form is served as a page in its kit's style (${JSON.stringify(old)})`);
   const want = olderBody.steps.flatMap((x) => x.fields).filter((x) => x.required && (x.type === "text" || x.type === "email"));
   // Every question it asks, answered as a visitor would.
   await f.evaluate((host) => {
@@ -220,7 +228,8 @@ try {
   const sendPers = async (query: string) => {
     sent.length = 0;
     await page.goto(`${origin}/${PERS}${query}`);
-    await f.locator("input").first().waitFor();
+    await past();
+  await f.locator("input").first().waitFor();
     await page.waitForTimeout(200);
     const vals = await f.evaluate((host) => Object.fromEntries([...(host as HTMLElement).shadowRoot!.querySelectorAll<HTMLInputElement>("input[data-cl-save]")].map((x) => [x.getAttribute("data-cl-save"), x.value])));
     await f.evaluate((host) => {

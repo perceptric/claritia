@@ -10,7 +10,9 @@ import { THEMES } from "../../../../lib/forms/gallery/themes";
 import { cleanRoute, OP_LABEL, PAST_ROUTES, ROUTE_OPS, routeKind, routeMeeting, routeStart } from "../../../../lib/studio/routes";
 import { linkProblem, SCHEDULERS } from "../../../../lib/forms/schedule";
 import { INDUSTRIES, industryOf, isRtl, languageName, profileWords, recipeText } from "../../../../lib/studio/industries";
-import { ACCESS_CSS, around, CAL_CSS, consentSpot, limitMsg, linkErrors, pipes, shuffle, zoneWords } from "../../../../lib/studio/runtime";
+import { ACCESS_CSS, around, CAL_CSS, consentSpot, limitMsg, linkErrors, pageBox, pipes, showCover, shuffle, zoneWords } from "../../../../lib/studio/runtime";
+import { MEDIA_CSS, ONE_CSS, oneKeys, PICK_CSS, pickers, showMedia, splitOne } from "../../../../lib/studio/pageParts";
+import { sizedUrl, widthsOf } from "../../../../lib/forms/media";
 import { baseName, isLayout, PICK_KINDS, SAVES, QGROUPS, QNAME, questionHtml, readJumps, renameValueIn, stepShowIfs, TEXT_KINDS, uniqueName, uniqueValue, valueFollows, writeJumps } from "../../../../lib/studio/builder";
 import { TIA_STYLE, tiaSvg } from "../../../../lib/studio/tia";
 import { markSvg } from "../../../Logo";
@@ -195,6 +197,15 @@ input, textarea { user-select: text; -webkit-user-select: text; }
 .swatches button { width: 24px; height: 24px; border-radius: 999px; border: 0; box-shadow: 0 0 0 1px rgb(0 0 0 / .12); }
 .swatches button[aria-pressed="true"] { box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--ink); }
 .hchips { display: flex; flex-wrap: wrap; gap: 6px; }
+.phthumb { display: block; width: 100%; aspect-ratio: 16 / 9; object-fit: cover; border-radius: 8px; background: var(--paper-deep); }
+.phacts { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.phgrid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.phgrid button { aspect-ratio: 1; padding: 0; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; background: var(--paper-deep); color: var(--muted); display: flex; align-items: center; justify-content: center; }
+.phgrid button[aria-pressed="true"] { border-color: var(--signal); box-shadow: 0 0 0 2px var(--signal-soft); }
+.phgrid img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.focus3 { display: grid; grid-template-columns: repeat(3, 22px); gap: 4px; }
+.focus3 button { width: 22px; height: 22px; padding: 0; border-radius: 4px; border: 1px solid var(--line-strong); background: var(--bg); }
+.focus3 button[aria-pressed="true"] { background: var(--ink); border-color: var(--ink); }
 .hchip { height: 24px; display: inline-flex; align-items: center; gap: 2px; padding: 0 2px 0 9px; border-radius: 999px; background: var(--paper-deep); font: 11.5px var(--mono); }
 .ptitle { height: 38px; flex: none; display: flex; align-items: center; padding: 0 12px; font-size: 11px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; color: var(--muted); }
 .tree { flex: 1; min-height: 0; overflow-y: auto; padding: 0 6px 10px; display: flex; flex-direction: column; }
@@ -224,8 +235,8 @@ input, textarea { user-select: text; -webkit-user-select: text; }
 .tpls { display: flex; flex-direction: column; gap: 14px; width: 100%; max-width: 1040px; margin: 0 auto; }
 .tplhead { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; }
 .tplhead h2 { margin: 0; font: 600 18px/1.3 var(--sans); color: var(--ink); min-width: 0; }
-.tplact { display: flex; flex-wrap: wrap; gap: 8px; min-width: 0; flex: 0 1 auto; }
-.tplq { display: flex; align-items: center; gap: 6px; height: 30px; padding: 0 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); color: var(--faint); flex: 0 1 240px; min-width: 160px; }
+.tplact { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 0; flex: 0 1 auto; }
+.tplq { display: flex; align-items: center; gap: 6px; height: 30px; padding: 0 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); color: var(--faint); width: 240px; flex: 0 1 240px; min-width: 160px; box-sizing: border-box; }
 .tplq:focus-within { border-color: var(--signal); box-shadow: 0 0 0 3px var(--signal-soft); }
 .tplq input { flex: 1; min-width: 0; border: 0; outline: 0; background: transparent; color: var(--ink); font: 13px var(--sans); }
 .tplfam { display: flex; flex-wrap: wrap; gap: 6px; }
@@ -238,12 +249,27 @@ input, textarea { user-select: text; -webkit-user-select: text; }
 .tpl:hover:not(:disabled) { border-color: var(--line-strong); box-shadow: 0 8px 20px -12px rgb(0 0 0 / .25); transform: translateY(-1px); }
 .tpl:disabled { opacity: .55; }
 .tpl.making { opacity: 1; border-color: var(--signal); }
-.tpl .t-art { height: 92px; padding: 14px 18px 0; display: flex; align-items: flex-end; border-bottom: 1px solid var(--line); }
-.tpl .t-mini { width: 100%; height: 100%; border-radius: 6px 6px 0 0; padding: 10px 12px; display: flex; flex-direction: column; gap: 6px; }
-.tpl .t-mini i { display: block; height: 6px; border-radius: 3px; background: currentColor; opacity: .22; }
-.tpl .t-mini i.h { height: 8px; width: 58%; opacity: .55; }
-.tpl .t-mini i.f { height: 14px; width: 100%; background: transparent; border: 1px solid currentColor; opacity: .25; border-radius: 4px; }
-.tpl .t-mini i.b { height: 12px; width: 34%; opacity: 1; border-radius: 999px; }
+.tpl .t-form { display: flex; flex-direction: column; gap: 10px; padding: 16px 16px 14px; border-bottom: 1px solid var(--line); background: var(--f-card); color: var(--f-text); text-align: start; }
+.tpl .t-h { font-size: 14px; line-height: 1.25; letter-spacing: -.01em; color: var(--f-text); overflow-wrap: anywhere; }
+.tpl .t-q { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+.tpl .t-l { font-size: 11px; line-height: 1.35; font-weight: 500; color: var(--f-text); overflow-wrap: anywhere; }
+.tpl .t-in { display: flex; align-items: center; justify-content: space-between; gap: 6px; min-height: 22px; padding: 0 8px; border: 1px solid var(--f-line); background: var(--f-field); font-size: 10.5px; color: var(--f-muted); box-sizing: border-box; }
+.tpl .t-in.tall { min-height: 40px; }
+.tpl .t-ops { display: flex; flex-direction: column; gap: 4px; }
+.tpl .t-op { display: flex; align-items: center; gap: 6px; min-height: 22px; padding: 3px 8px; border: 1px solid var(--f-line); background: var(--f-field); font-size: 10.5px; line-height: 1.3; color: var(--f-text); overflow-wrap: anywhere; box-sizing: border-box; }
+.tpl .t-op i { flex: none; width: 8px; height: 8px; border: 1px solid var(--f-muted); border-radius: 50%; }
+.tpl .t-op i.sq { border-radius: 2px; }
+.tpl .t-sc { display: flex; flex-wrap: wrap; gap: 3px; }
+.tpl .t-sc span { min-width: 16px; height: 18px; padding: 0 3px; display: inline-flex; align-items: center; justify-content: center; border: 1px solid var(--f-line); background: var(--f-field); font-size: 9.5px; color: var(--f-text); box-sizing: border-box; }
+.tpl .t-stars { font-size: 13px; letter-spacing: 2px; color: var(--f-line); }
+.tpl .t-chk { display: flex; align-items: flex-start; gap: 6px; }
+.tpl .t-chk i { flex: none; width: 10px; height: 10px; margin-top: 1px; border: 1px solid var(--f-muted); border-radius: 2px; }
+.tpl .t-cov { display: grid; grid-template-columns: 40% minmax(0, 1fr); border-bottom: 1px solid var(--line); background: var(--f-card); color: var(--f-text); min-height: 150px; }
+.tpl .t-cov.right { grid-template-columns: minmax(0, 1fr) 40%; }
+.tpl .t-cov.right img { order: 2; }
+.tpl .t-cov img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.tpl .t-cov .t-form { border-bottom: 0; justify-content: center; }
+.tpl .t-btn { align-self: flex-start; max-width: 100%; padding: 5px 12px; font-size: 10.5px; font-weight: 600; line-height: 1.3; overflow-wrap: anywhere; }
 .tpl .t-tx { display: flex; flex-direction: column; gap: 4px; padding: 10px 12px 12px; min-width: 0; }
 .tpl .t-nm { font: 500 13px/1.35 var(--sans); color: var(--ink); overflow-wrap: anywhere; }
 .tpl .t-bl { font-size: 12px; line-height: 1.45; color: var(--muted); overflow-wrap: anywhere; }
@@ -547,6 +573,10 @@ export type StudioApi = {
   useTemplate(id: string, look: { kitId?: string; theme?: string }): Promise<{ id: string; workflowError?: string }>;
   /** Open a form in the Studio. */
   openForm(id: string): void;
+  /** The workspace's photos (Settings › Brand's library), newest first, with the widths each one has. */
+  pictures?(): Promise<{ id: string; url: string; name: string; sizes: number[] }[]>;
+  /** Upload a photo to the library: its address and widths. */
+  uploadPicture?(file: File): Promise<{ url: string; sizes: number[] }>;
   /** The page's header draws the state, the form check and Publish (docs/form-ui-plan.md step 1). */
   onState?(s: StudioState): void;
   /** Where to start: a published form's chat, one chat, a new chat (New form), or the last one. */
@@ -685,13 +715,15 @@ export function mountStudio(shell: ShadowRoot, api: StudioApi): StudioControl {
   // ── Drawing ───────────────────────────────────────────────────────────────────────────────────────────
   const host = $("host");
   const root = host.attachShadow({ mode: "open" });
-  const BASE = `${ACCESS_CSS}.cl-bookph{border:1px dashed rgba(127,127,127,.6);border-radius:10px;padding:18px;text-align:center;font:500 12px system-ui,sans-serif;opacity:.7}.cl-divider{font:600 11px/1 system-ui,sans-serif;letter-spacing:.06em;text-transform:uppercase;color:#7a7a7a;border-top:1px dashed rgba(127,127,127,.55);padding:10px 0 0;margin:20px 0 10px}.cl-edit [data-cl-if]{outline:1px dashed rgba(109,40,217,.55);outline-offset:3px}.cl-edit [data-cl-if]::before{content:attr(data-cl-if);display:block;width:max-content;max-width:100%;font:500 11px/1.7 system-ui,sans-serif;color:#6d28d9;background:rgba(109,40,217,.08);border-radius:4px;padding:0 6px;margin-bottom:6px;white-space:normal}.cl-block{display:flex;flex-direction:column;gap:8px}.cl-two{display:grid;grid-template-columns:1fr 1fr;gap:8px}.cl-addr{display:flex;flex-direction:column;gap:8px}.cl-rate{display:flex;flex-wrap:wrap;gap:6px;font-size:26px;line-height:1;opacity:.6}.cl-ends{display:flex;justify-content:space-between;gap:12px;font-size:12px;opacity:.6}.cl-num{font-size:14px;border:1px solid currentColor;border-radius:8px;padding:8px 12px}.cl-sign{min-height:110px}.cl-calc{display:block;font-variant-numeric:tabular-nums}.cl-pay{display:flex;justify-content:space-between;gap:12px;align-items:baseline}.cl-pay b,.cl-res b{font-size:1.4em;font-variant-numeric:tabular-nums}.cl-res{display:flex;flex-direction:column;gap:4px}.cl-grid{width:100%;border-collapse:collapse}.cl-grid th,.cl-grid td{padding:6px;text-align:center}.cl-grid th:first-child,.cl-grid td:first-child{text-align:start}.cl-rank{margin:0;padding-inline-start:20px;display:flex;flex-direction:column;gap:6px}.cl-hid{font:500 11px/1.8 system-ui,sans-serif;opacity:.6;border:1px dashed currentColor;border-radius:6px;padding:0 8px;width:max-content}
+  const BASE = `${ACCESS_CSS}${PICK_CSS}${MEDIA_CSS}${ONE_CSS}.cl-bookph{border:1px dashed rgba(127,127,127,.6);border-radius:10px;padding:18px;text-align:center;font:500 12px system-ui,sans-serif;opacity:.7}.cl-divider{font:600 11px/1 system-ui,sans-serif;letter-spacing:.06em;text-transform:uppercase;color:#7a7a7a;border-top:1px dashed rgba(127,127,127,.55);padding:10px 0 0;margin:20px 0 10px}.cl-edit [data-cl-if]{outline:1px dashed rgba(109,40,217,.55);outline-offset:3px}.cl-edit [data-cl-if]::before{content:attr(data-cl-if);display:block;width:max-content;max-width:100%;font:500 11px/1.7 system-ui,sans-serif;color:#6d28d9;background:rgba(109,40,217,.08);border-radius:4px;padding:0 6px;margin-bottom:6px;white-space:normal}.cl-block{display:flex;flex-direction:column;gap:8px}.cl-two{display:grid;grid-template-columns:1fr 1fr;gap:8px}.cl-addr{display:flex;flex-direction:column;gap:8px}.cl-rate{display:flex;flex-wrap:wrap;gap:6px;font-size:26px;line-height:1;opacity:.6}.cl-ends{display:flex;justify-content:space-between;gap:12px;font-size:12px;opacity:.6}.cl-num{font-size:14px;border:1px solid currentColor;border-radius:8px;padding:8px 12px}.cl-sign{min-height:110px}.cl-calc{display:block;font-variant-numeric:tabular-nums}.cl-pay{display:flex;justify-content:space-between;gap:12px;align-items:baseline}.cl-pay b,.cl-res b{font-size:1.4em;font-variant-numeric:tabular-nums}.cl-res{display:flex;flex-direction:column;gap:4px}.cl-grid{width:100%;border-collapse:collapse}.cl-grid th,.cl-grid td{padding:6px;text-align:center}.cl-grid th:first-child,.cl-grid td:first-child{text-align:start}.cl-rank{margin:0;padding-inline-start:20px;display:flex;flex-direction:column;gap:6px}.cl-hid{font:500 11px/1.8 system-ui,sans-serif;opacity:.6;border:1px dashed currentColor;border-radius:6px;padding:0 8px;width:max-content}
 .cl-consent{display:flex;gap:8px;align-items:flex-start;font-size:13px;line-height:1.4;opacity:.85}.cl-consent input{margin:2px 0 0}
 .cl-pick{display:flex;justify-content:space-between;align-items:center;gap:8px;opacity:.75}.cl-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:8px}.cl-card{display:flex;flex-direction:column;gap:6px;padding:8px;height:auto}.cl-card img,.cl-ph{width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:6px;background:rgba(127,127,127,.15);display:block}.cl-row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}.cl-row>input{flex:1 1 120px;min-width:0}.cl-btn2{display:inline-flex;width:max-content;font:500 12px/1 system-ui,sans-serif;border:1px solid currentColor;border-radius:999px;padding:7px 12px;opacity:.7}.cl-qty{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px 12px;align-items:center}.cl-step{display:inline-flex;gap:12px;align-items:center;border:1px solid rgba(127,127,127,.5);border-radius:999px;padding:4px 12px}.cl-chips{display:flex;flex-wrap:wrap;gap:6px;align-items:center}.cl-chip{display:inline-flex;align-items:center;padding:6px 12px;height:auto;width:auto;border-radius:999px;border:1px solid rgba(127,127,127,.5);font-size:13px}.cl-map{height:160px;position:relative;background:repeating-linear-gradient(45deg,rgba(127,127,127,.08) 0 12px,rgba(127,127,127,.14) 12px 24px)}.cl-pin{position:absolute;left:50%;top:50%;width:16px;height:16px;margin:-16px 0 0 -8px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);background:#d93025}.cl-crop{width:160px;aspect-ratio:1;height:auto}.cl-media{border:1px dashed rgba(127,127,127,.6);border-radius:10px;padding:22px;text-align:center;font:500 12px system-ui,sans-serif;opacity:.7;overflow-wrap:anywhere}.cl-edit [data-cl-review]:empty::before{content:"Answer review: the answers show here before sending";display:block;font:500 12px system-ui,sans-serif;opacity:.6;border:1px dashed rgba(127,127,127,.6);border-radius:8px;padding:14px}.cl-edit .cl-section{outline:1px dashed rgba(127,127,127,.45);outline-offset:6px;border-radius:4px}
 :host{all:initial;display:flex;flex-direction:column;flex:1}*,*::before,*::after{box-sizing:border-box}[hidden]{display:none!important}.cl-root{flex:1;min-height:560px;display:flex;flex-direction:column}.cl-root>*{flex:1 0 auto}
 ${CAL_CSS}
 .cl-edit [data-k]{cursor:default}.cl-edit [contenteditable]{outline:none;cursor:text}`;
-  let stepAt = 0, done = false;
+  let stepAt = 0, done = false, coverOn = true;
+  // One question at a time in Preview: each screen's page in Edit (oneMap), and the page Preview was opened on.
+  let oneMap = [], previewFrom = null;
   function draw() {
     const has = built();
     // Nothing shows until a chat is open: a form that's still loading never flashes the templates.
@@ -807,9 +839,18 @@ ${CAL_CSS}
     return m[2] === ">" ? n > t : m[2] === "<" ? n < t : m[2] === ">=" ? n >= t : n <= t;
   }
   function run(w) {
+    oneMap = S.mode !== "edit" ? splitOne(w) : [];
+    if (oneMap.length) {
+      oneKeys(w);
+      if (previewFrom !== null) { const i = oneMap.indexOf(previewFrom); stepAt = i >= 0 ? i : 0; }
+    }
+    previewFrom = null;
     linkErrors(w);
-    if (S.mode !== "edit") shuffle(w);
+    if (S.mode !== "edit") { shuffle(w); pickers(w); }
     const steps = [...w.querySelectorAll("[data-cl-step]")], thanks = w.querySelector("[data-cl-thanks]"), editing = S.mode === "edit";
+    // The welcome screen and the photos (docs/forms-media-plan.md): Edit shows the screen picked, Preview runs them.
+    const cover = w.querySelector("[data-cl-cover]"), page = pageBox(w);
+    const single = () => w.querySelector("form[data-cl-media],.form-card[data-cl-media]");
     // Totals, payments and scores, worked out the way the live form and the server do; calcs join the answers by name.
     const nums = () => {
       if (!w.querySelector("[data-cl-num]")) return {};
@@ -834,6 +875,10 @@ ${CAL_CSS}
       w.querySelectorAll("[data-cl-progress]").forEach((el) => el.style.setProperty("--cl-progress", String(editing ? 0.5 : p)));
       // Answers in text show as typed in Preview; Edit keeps {first_name} so it can be changed.
       if (!editing) pipes(w, v);
+      const onC = !!cover && (editing ? view === "cover" : coverOn && !done);
+      if (cover && editing && view === "all") { cover.hidden = false; for (const x of page.children) x.removeAttribute("data-cl-behind-cover"); }
+      else if (cover) showCover(page, cover, onC);
+      showMedia(page, editing ? (view === "all" ? null : view === "cover" ? cover : view === "thanks" ? thanks : (steps[view] ?? single())) : onC ? cover : done ? thanks : (steps[stepAt] ?? single()));
       return shown;
     };
     const check = (scope) => {
@@ -853,9 +898,10 @@ ${CAL_CSS}
     w.addEventListener("input", apply); w.addEventListener("change", apply);
     w.addEventListener("click", (e) => {
       if (editing) return;
-      const t = e.target.closest?.("[data-cl-next],[data-cl-back],[type=submit]");
+      const t = e.target.closest?.("[data-cl-next],[data-cl-back],[data-cl-start],[type=submit]");
       if (!t) return;
       e.preventDefault();
+      if (t.hasAttribute("data-cl-start")) { coverOn = false; apply(); stepUi(); return; }
       if (t.hasAttribute("data-cl-back")) return move(-1);
       if (t.hasAttribute("data-cl-next")) { if (check(steps[stepAt] || w)) move(1); return; }
       if (check(w)) { done = true; apply(); booking(w, values(w)); }
@@ -992,8 +1038,8 @@ ${CAL_CSS}
     const el = byK(k);
     if (S.mode === "edit" && el && S.view !== "all") {
       const steps = stepsIn(src), st = steps.findIndex((x) => x.contains(el));
-      const v = el.closest("[data-cl-thanks]") ? "thanks" : st >= 0 ? st : S.view;
-      if (v !== S.view && (st >= 0 || v === "thanks")) { S.view = v; draw(); }
+      const v = el.closest("[data-cl-cover]") ? "cover" : el.closest("[data-cl-thanks]") ? "thanks" : st >= 0 ? st : S.view;
+      if (v !== S.view && (st >= 0 || v === "thanks" || v === "cover")) { S.view = v; draw(); }
     }
     if (S.mode === "edit") { panel(); tree(); overlay(); }
     $("hov").hidden = true;
@@ -1056,22 +1102,25 @@ ${CAL_CSS}
     $("stepDock").hidden = bar.hidden;
     if (bar.hidden) return;
     const editing = S.mode === "edit";
-    if (editing && typeof S.view === "number" && S.view >= Math.max(1, steps.length)) S.view = 0;
+    const cover = src.querySelector("[data-cl-cover]");
+    if (editing && ((typeof S.view === "number" && S.view >= Math.max(1, steps.length)) || (S.view === "cover" && !cover))) S.view = 0;
     bar.innerHTML = "";
     // Pages as steps: numbered circles joined by a line, the thank-you last with a tick; pages already passed in
     // Preview show done. All is an icon beside them.
     const go = (v) => {
       if (v === "after") return setMode("after");
       if (S.mode === "after") { S.view = v; return setMode("edit"); }
-      if (editing) { S.view = v; S.sel = null; draw(); panel(); tree(); } else { if (v === "thanks") done = true; else { done = false; stepAt = v; } draw(); }
+      if (editing) { S.view = v; S.sel = null; draw(); panel(); tree(); } else { if (v === "thanks") done = true; else if (v === "cover") { done = false; coverOn = true; } else { done = false; coverOn = false; stepAt = oneMap.length ? Math.max(0, oneMap.indexOf(v)) : v; } draw(); }
     };
     const conn = () => h("span", { class: "conn", "aria-hidden": "true" });
-    const pill = (n, text, on, fn, cls = "") => h("button", { class: `sp${cls ? ` ${cls}` : ""}`, "aria-pressed": String(on), onclick: fn }, h("span", { class: "n", ...(n === "tick" ? { html: SVG(P.check, 11) } : n === "bolt" ? { html: SVG(P.bolt, 11) } : { text: n }) }), h("span", { text }));
+    const pill = (n, text, on, fn, cls = "") => h("button", { class: `sp${cls ? ` ${cls}` : ""}`, "aria-pressed": String(on), onclick: fn }, h("span", { class: "n", ...(n === "tick" ? { html: SVG(P.check, 11) } : n === "bolt" ? { html: SVG(P.bolt, 11) } : n === "img" ? { html: SVG(P.image, 11) } : { text: n }) }), h("span", { text }));
     const after = S.mode === "after";
-    const at = editing ? S.view : done ? "thanks" : stepAt;
+    const at = editing ? S.view : done ? "thanks" : oneMap.length ? (oneMap[stepAt] ?? 0) : stepAt;
     const passed = (i) => !editing && (done || (typeof at === "number" && i < at));
-    if (steps.length) steps.forEach((st, i) => { if (i) bar.append(conn()); bar.append(pill(String(i + 1), stepName(st, i), !after && (editing ? S.view === i : !done && stepAt === i), () => go(i), passed(i) ? "done" : "")); });
-    else bar.append(pill("1", "Form", !after && (editing ? S.view === 0 : !done), () => go(0), !editing && !after && done ? "done" : ""));
+    if (cover) { bar.append(pill("img", "Welcome", !after && (editing ? S.view === "cover" : coverOn && !done), () => go("cover"), !editing && !after && (!coverOn || done) ? "done" : "")); bar.append(conn()); }
+    const onCov = !editing && !!cover && coverOn && !done;
+    if (steps.length) steps.forEach((st, i) => { if (i) bar.append(conn()); bar.append(pill(String(i + 1), stepName(st, i), !after && (editing ? S.view === i : !done && !onCov && at === i), () => go(i), passed(i) && !onCov ? "done" : "")); });
+    else bar.append(pill("1", "Form", !after && (editing ? S.view === 0 : !done && !onCov), () => go(0), !editing && !after && done ? "done" : ""));
     if (thanks) { bar.append(conn()); bar.append(pill("tick", "Thank-you", !after && (editing ? S.view === "thanks" : done), () => go("thanks"))); }
     // On submission is the last step: what happens once it's sent (the meeting, routing, the team's email).
     if (S.mode !== "preview") { bar.append(conn()); bar.append(pill("bolt", "On submission", after, () => go("after"), "after")); }
@@ -1984,7 +2033,14 @@ ${CAL_CSS}
     const opts = String(bl.getAttribute("data-cl-options") || "").split("|").filter(Boolean).map((x) => (x.includes("::") ? x.slice(x.indexOf("::") + 2) : x));
     const imgs = String(bl.getAttribute("data-cl-images") || "").split("|");
     const S2 = sec("Pictures");
-    opts.forEach((o, i) => S2.append(textRow(o, imgs[i], (v) => { if (v && !/^https:\/\/\S+$/.test(v)) return toast("Use an address that starts with https://"); const next = opts.map((_, k) => (k === i ? v : imgs[k] || "")); bl.setAttribute("data-cl-images", next.join("|")); }, "https://")));
+    const setImg = (i, v) => { snap(); bl.setAttribute("data-cl-images", opts.map((_, k) => (k === i ? v : imgs[k] || "")).join("|")); commit(); panel(); };
+    opts.forEach((o, i) => {
+      const img = imgs[i] || "";
+      // A library photo: its 640 wide copy, since a card is small.
+      const pickBtn = h("button", { class: "pill", "aria-expanded": String(S.photoFor === i), text: img ? "Change" : "Add photo", onclick: () => { S.photoFor = S.photoFor === i ? null : i; panel(); } });
+      S2.append(h("div", { class: "row2" }, h("span", { class: "lbl", text: o }), h("div", { class: "phacts" }, img ? h("img", { src: img, alt: "", style: "width:40px;height:30px;object-fit:cover;border-radius:4px" }) : null, pickBtn, img ? h("button", { class: "ib", "aria-label": `Remove the photo for ${o}`, "data-tip": "Remove photo", html: SVG(P.del, 13), onclick: () => setImg(i, "") }) : null)));
+      if (S.photoFor === i && api.pictures) S2.append(photoGrid(img, (pic) => { S.photoFor = null; setImg(i, (pic.sizes || []).includes(640) ? sizedUrl(pic.url, 640) : pic.url); }));
+    });
     p.append(S2);
   }
   /** Product picker: each product's name and price. */
@@ -2171,9 +2227,91 @@ ${CAL_CSS}
     }
     p.append(F);
   }
+  /** The screen in view in Edit: the welcome screen, a page, the thank-you, or the whole form when it has no pages. */
+  function screenEl() {
+    const v = S.view;
+    if (v === "cover") return src.querySelector("[data-cl-cover]");
+    if (v === "thanks") return src.querySelector("[data-cl-thanks]");
+    if (typeof v !== "number") return null;
+    const st = stepsIn(src);
+    return st.length ? st[v] || null : src.querySelector("form");
+  }
+  /** Welcome screen: a first screen with the title, a line and Start, before the questions. */
+  function welcomeSec(p) {
+    const cov = src.querySelector("[data-cl-cover]");
+    const W = h("div", { class: "sec" }, h("h4", { text: "Welcome screen" }));
+    W.append(h("div", { class: "row2" }, h("span", { class: "lbl", text: "Show first" }), h("div", {}, h("button", { class: "sw", role: "switch", "aria-checked": String(!!cov), "aria-label": "Welcome screen", onclick: () => {
+      snap();
+      if (cov) { cov.remove(); S.view = 0; }
+      else {
+        const title = (src.querySelector("h1")?.textContent || cur?.name || "Welcome").trim().slice(0, 120);
+        const el = clean('<section data-cl-cover><h1 class="heading"></h1><p class="text"></p><button type="button" class="btn" data-cl-start>Start</button></section>').firstElementChild;
+        el.querySelector("h1").textContent = title;
+        el.querySelector("p").textContent = (src.querySelector("header .text")?.textContent || "").trim().slice(0, 300) || "It takes about a minute.";
+        [el, ...el.querySelectorAll("*")].forEach((x) => x.setAttribute("data-k", String(++kSeq)));
+        (src.querySelector(".page") || src).prepend(el);
+        S.view = "cover";
+      }
+      commit(); panel();
+    } }))));
+    p.append(W);
+  }
+  /** The library's photos to pick from, an upload first. */
+  function photoGrid(current, choose) {
+    const grid = h("div", { class: "phgrid", role: "group", "aria-label": "Photos" });
+    const file = h("input", { type: "file", accept: "image/png,image/jpeg,image/webp,image/gif", hidden: true });
+    const up = h("button", { "aria-label": "Upload a photo", "data-tip": "Upload a photo", html: SVG(P.up, 16), onclick: () => file.click() });
+    file.addEventListener("change", async () => {
+      const f = file.files?.[0]; if (!f) return;
+      up.disabled = true;
+      try { const pic = await api.uploadPicture(f); if (alive) choose(pic); } catch (e) { toast(e?.message || "Couldn't upload this photo. Try again."); up.disabled = false; }
+    });
+    grid.append(up, file);
+    const small = (pic) => ((pic.sizes || []).includes(640) ? sizedUrl(pic.url, 640) : pic.url);
+    api.pictures().then((list) => { if (!alive) return; for (const pic of list) grid.append(h("button", { "aria-label": pic.name || "Photo", "aria-pressed": String(pic.url === current || small(pic) === current), onclick: () => choose(pic) }, h("img", { src: small(pic), alt: "", loading: "lazy" }))); }, () => toast("Couldn't load your photos. Try again."));
+    return grid;
+  }
+  /** One question at a time: each question on its own screen, with Enter, letter keys and single picks moving on. */
+  function oneSec(p) {
+    const f = src.querySelector("form");
+    if (!f) return;
+    const on = f.hasAttribute("data-cl-one");
+    p.append(h("div", { class: "sec" }, h("h4", { text: "Layout" }), h("div", { class: "row2" }, h("span", { class: "lbl", text: "One question at a time" }), h("div", {}, h("button", { class: "sw", role: "switch", "aria-checked": String(on), "aria-label": "One question at a time", onclick: () => { snap(); on ? f.removeAttribute("data-cl-one") : f.setAttribute("data-cl-one", ""); commit(); panel(); } })))));
+  }
+  /** Photo: the screen in view's photo from the library or an upload, where it goes, the spot kept in view, its words. */
+  function photoSec(p) {
+    const el = screenEl();
+    if (!el || !api.pictures) return;
+    const page = el.hasAttribute("data-cl-step") || el.tagName === "FORM";
+    const url = el.getAttribute("data-cl-media") || "";
+    const set = (pairs) => { snap(); for (const [k, v] of pairs) v ? el.setAttribute(k, v) : el.removeAttribute(k); commit(); panel(); };
+    const Ph = h("div", { class: "sec" }, h("h4", { text: "Photo" }));
+    if (url) Ph.append(h("img", { class: "phthumb", src: widthsOf(url, el.getAttribute("data-cl-sizes")).includes(640) ? sizedUrl(url, 640) : url, alt: "" }));
+    const acts = h("div", { class: "phacts" }, h("button", { class: "pill", "aria-expanded": String(!!S.photoLib), text: url ? "Change photo" : "Add photo", onclick: () => { S.photoLib = !S.photoLib; panel(); } }));
+    if (url) acts.append(h("button", { class: "ib", "data-tip": "Remove photo", "aria-label": "Remove photo", html: SVG(P.del, 14), onclick: () => set([["data-cl-media", ""], ["data-cl-sizes", ""], ["data-cl-layout", ""], ["data-cl-focus", ""], ["data-cl-alt", ""]]) }));
+    Ph.append(acts);
+    if (S.photoLib) Ph.append(photoGrid(url, (pic) => { S.photoLib = false; set([["data-cl-media", pic.url], ["data-cl-sizes", (pic.sizes || []).join(",")], ["data-cl-layout", el.getAttribute("data-cl-layout") || (page ? "top" : el.hasAttribute("data-cl-cover") ? "left" : "behind")]]); }));
+    if (url) {
+      const lay = el.getAttribute("data-cl-layout") || "";
+      const opts = [["left", "Left"], ["right", "Right"], ["top", "Top"], ...(page ? [] : [["behind", "Behind"]])];
+      Ph.append(h("div", { class: "row2" }, h("span", { class: "lbl", text: "Place" }), h("div", { class: "seg" }, ...opts.map(([v, t]) => h("button", { "aria-pressed": String(lay === v), text: t, onclick: () => set([["data-cl-layout", v]]) })))));
+      const fo = el.getAttribute("data-cl-focus") || "50,50";
+      const f3 = h("div", { class: "focus3", role: "group", "aria-label": "Keep in view" });
+      for (const y of [15, 50, 85]) for (const x of [15, 50, 85]) { const v = `${x},${y}`; f3.append(h("button", { "aria-label": `${y === 15 ? "Top" : y === 50 ? "Middle" : "Bottom"} ${x === 15 ? "left" : x === 50 ? "center" : "right"}`, "aria-pressed": String(fo === v), onclick: () => set([["data-cl-focus", v === "50,50" ? "" : v]]) })); }
+      Ph.append(h("div", { class: "row2" }, h("span", { class: "lbl", text: "Keep in view" }), f3));
+      const alt = h("input", { class: "in", "aria-label": "Words for screen readers", placeholder: "What the photo shows" });
+      alt.value = el.getAttribute("data-cl-alt") || "";
+      alt.addEventListener("change", () => set([["data-cl-alt", alt.value.trim().slice(0, 200)]]));
+      Ph.append(h("div", { class: "row2" }, h("span", { class: "lbl", text: "Words for screen readers" }), alt));
+    }
+    p.append(Ph);
+  }
   /** Settings with nothing picked: the whole form's settings, starting with hidden values from the link. */
   function formSettings(p) {
     p.append(h("div", { class: "sec" }, h("p", { class: "hint0", text: "Select a field on the form to edit it. Click selected text again to type." })));
+    welcomeSec(p);
+    oneSec(p);
+    photoSec(p);
     // Hidden values from the link: ?utm_source=… or ?ref=… kept with each fill.
     const Hd = h("div", { class: "sec" }, h("h4", { text: "Hidden fields" }));
     const hidden = [...src.querySelectorAll('[data-cl-field="hidden"][data-cl-from="param"]')];
@@ -2225,6 +2363,34 @@ ${CAL_CSS}
     const words = TG.q.toLowerCase().split(/\s+/).filter(Boolean);
     return (TG.list || []).filter((t) => (TG.fam === "all" || t.fams.includes(TG.fam)) && words.every((w) => t.words.includes(w)));
   }
+  /** A card's picture: the form itself, its title, first questions and button, filling the card in its own colors. */
+  function tplCard(t) {
+    const f = t.form, r = `border-radius:${f.radius}px`;
+    const box = (cls, ...kids) => h("span", { class: cls, style: r }, ...kids);
+    const answer = (q) => {
+      if (q.kind === "agree") return null;
+      if (q.kind === "dropdown") return box("t-in", h("span", { text: "Choose one" }), h("span", { text: "\u25be" }));
+      if (q.opts && (q.kind === "single" || q.kind === "multi" || q.kind === "yes_no" || q.kind === "ranking")) return h("span", { class: "t-ops" }, ...q.opts.map((o) => box("t-op", h("i", { class: q.kind === "multi" ? "sq" : "" }), h("span", { text: o }))));
+      if (q.kind === "rating") return h("span", { class: "t-stars", text: "\u2605".repeat(Math.min(q.hi || 5, 10)) });
+      if ((q.kind === "nps" || q.kind === "scale") && q.hi !== undefined) {
+        const lo = q.lo ?? 0, nums = [];
+        for (let i = lo; i <= q.hi && nums.length < 11; i++) nums.push(h("span", { style: r, text: String(i) }));
+        return h("span", { class: "t-sc" }, ...nums);
+      }
+      return box(`t-in${q.kind === "long_text" || q.kind === "address" || q.kind === "file" || q.kind === "signature" || q.kind === "matrix" ? " tall" : ""}`);
+    };
+    const vars = `font-family:${f.font};--f-card:${f.card};--f-text:${f.text};--f-muted:${f.muted};--f-field:${f.field};--f-line:${f.border}`;
+    // A welcome photo: the welcome screen as it opens, the photo on its side.
+    if (f.photo) return h("div", { class: `t-cov${f.photo.layout === "right" ? " right" : ""}`, "aria-hidden": "true", style: vars },
+      h("img", { src: f.photo.src, alt: "", loading: "lazy", style: `object-position:${f.photo.focus}` }),
+      h("div", { class: "t-form" }, h("span", { class: "t-h", style: `font-family:${f.head};font-weight:${f.headWeight}`, text: f.title }), h("span", { class: "t-btn", style: `background:${f.accent};color:${f.accentInk};border-radius:${f.btnRadius}px`, text: f.button })));
+    return h("div", { class: "t-form", "aria-hidden": "true", style: vars },
+      h("span", { class: "t-h", style: `font-family:${f.head};font-weight:${f.headWeight}`, text: f.title }),
+      ...f.qs.map((q) => q.kind === "agree"
+        ? h("span", { class: "t-q t-chk" }, h("i"), h("span", { class: "t-l", text: q.label }))
+        : h("span", { class: "t-q" }, h("span", { class: "t-l", text: q.label }), answer(q))),
+      h("span", { class: "t-btn", style: `background:${f.accent};color:${f.accentInk};border-radius:${f.btnRadius}px`, text: f.button }));
+  }
   function tplUi() {
     if (!TG.list) return;
     const all = TG.list;
@@ -2241,10 +2407,8 @@ ${CAL_CSS}
     if (!all.length) grid.append(h("div", { class: "tplnone", text: "Loading templates" }));
     else if (!shown.length) grid.append(h("div", { class: "tplnone", text: "No templates match" }));
     for (const t of shown.slice(0, TG.n)) {
-      const a = t.art;
-      const mini = h("div", { class: "t-mini", style: `background:${a.card};color:${a.ink};box-shadow:0 0 0 1px ${a.line}` }, h("i", { class: "h" }), h("i", { style: "width:80%" }), h("i", { class: "f" }), h("i", { class: "b", style: `background:${a.accent}` }));
       grid.append(h("button", { class: `tpl${TG.making === t.id ? " making" : ""}`, "data-tpl": t.id, disabled: TG.making ? "" : null, onclick: () => peek(t) },
-        h("div", { class: "t-art", style: `background:${a.bg}` }, mini),
+        tplCard(t),
         h("div", { class: "t-tx" }, h("span", { class: "t-nm", text: t.name }), h("span", { class: "t-bl", text: t.blurb }), h("span", { class: "t-mt", text: TG.making === t.id ? "Opening" : `${t.n} ${t.n === 1 ? "question" : "questions"}` }))));
     }
     $("tplMore").hidden = shown.length <= TG.n;
@@ -2262,7 +2426,7 @@ ${CAL_CSS}
     if (!pg || !alive || built()) return;
     PK = { t, ...pg, logo: b?.css ? b.logo : null };
     setSource(pg.html);
-    stepAt = 0; done = false; S.view = 0;
+    stepAt = 0; done = false; coverOn = true; S.view = 0;
     setMode("preview");
     peekUi();
   }
@@ -2354,8 +2518,8 @@ ${CAL_CSS}
     $("chat").classList.toggle("prev", m === "preview");
     $("exitPrev").hidden = m !== "preview" || !!PK;
     if (m !== "edit") { S.sel = null; $("hov").hidden = true; }
-    if (m === "edit" && was === "preview") S.view = done ? (src.querySelector("[data-cl-thanks]") ? "thanks" : 0) : stepAt;
-    if (m === "preview" && was !== "preview") { stepAt = typeof S.view === "number" ? S.view : 0; done = S.view === "thanks"; }
+    if (m === "edit" && was === "preview") S.view = done ? (src.querySelector("[data-cl-thanks]") ? "thanks" : 0) : coverOn && src.querySelector("[data-cl-cover]") ? "cover" : oneMap.length ? (oneMap[stepAt] ?? 0) : stepAt;
+    if (m === "preview" && was !== "preview") { stepAt = typeof S.view === "number" ? S.view : 0; previewFrom = typeof S.view === "number" ? S.view : null; done = S.view === "thanks"; coverOn = S.view === "cover"; }
     if ((m === "edit" || m === "code") && S.lang) { S.lang = ""; langUi(); toast(`${m === "edit" ? "Edit" : "Code"} works on the form's own language`); }
     sideUi();
     draw();
@@ -2395,7 +2559,7 @@ ${CAL_CSS}
       return b;
     };
     openMenu($("moreBtn"), [
-      item("restart", P.restart, "Back to page 1", () => { if (S.mode !== "preview") setMode("preview"); stepAt = 0; done = false; draw(); }),
+      item("restart", P.restart, "Back to page 1", () => { if (S.mode !== "preview") setMode("preview"); stepAt = 0; done = false; coverOn = true; draw(); }),
       live ? item("openBtn", P.open, "Open the live form", () => window.open(api.formUrl(cur.formId), "_blank", "noopener")) : null,
     ].filter(Boolean), 220);
   }
@@ -2767,7 +2931,7 @@ ${CAL_CSS}
     cur = c;
     PK = null; peekUi();
     setSource(c.body.html || "");
-    stepAt = 0; done = false; S.sel = null; S.about = null; S.pubMsg = "";
+    stepAt = 0; done = false; coverOn = true; S.sel = null; S.about = null; S.pubMsg = "";
     S.lang = "";
     if (!c.body.lang && brandOf(c)?.profile?.language) c.body.lang = brandOf(c).profile.language;
     // A form with nothing built yet opens on AI (Tia builds it, or Start blank); a built one on the side last used.
