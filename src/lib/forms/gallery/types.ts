@@ -289,6 +289,8 @@ export type FormTemplate = {
   phi?: boolean;
   /** Consent block off by default (internal forms). */
   internal?: boolean;
+  /** A simple form (docs/template-wave3-plan.md Part 2): one page, 3 to 6 questions, no logic, payment or welcome screen. */
+  simple?: boolean;
   /** The menus set by hand (taxonomy.ts): 1 to 3 categories and teams, sub-industries, other industries it fits. */
   categories?: string[];
   teams?: string[];

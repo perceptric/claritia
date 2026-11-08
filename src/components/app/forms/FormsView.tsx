@@ -7,7 +7,7 @@
 // Drafts save as you go; Publish checks the form first and makes the draft live.
 
 import { folderPage, moveForm, useFormFolders } from "./folders";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { applyOp, type Op } from "@/lib/forms/ops";
 import { checkForm, emptyForm, type Form } from "@/lib/forms/schema";
 import type { CustomField } from "@/lib/records/fields";
@@ -28,16 +28,23 @@ import { Sync } from "./Sync";
 import { useCrm } from "./useCrm";
 import { meetingTypes, type TypeRow } from "../meetings/TypesList";
 import { Studio } from "./studio/Studio";
-import { TemplatesPage } from "./templates/TemplatesPage";
 import type { StudioControl, StudioState } from "./studio/studio";
 import { FormCheck, FormHeader, type FormTab, type HeaderAction, type HeaderState } from "./FormHeader";
 import { sameJson } from "@/lib/sameJson";
+
+// Forms › Templates holds the whole template catalog: it loads when opened, never with the Forms list.
+const TemplatesPage = lazy(() => import("./templates/TemplatesPage").then((m) => ({ default: m.TemplatesPage })));
 
 export function FormsView(props: ViewProps) {
   // New form is Form Studio (docs/forms-chat-plan.md): chat with Tia on the left, the live form on the right.
   if (props.id === "studio") return <StudioPage key={`studio:${chatParam()}`} {...props} />;
   if (props.id === "new") return <StudioPage key="new" {...props} fresh />;
-  if (props.id === "templates" || props.id.startsWith("templates/")) return <TemplatesPage {...props} />;
+  if (props.id === "templates" || props.id.startsWith("templates/"))
+    return (
+      <Suspense fallback={<Loading />}>
+        <TemplatesPage {...props} />
+      </Suspense>
+    );
   if (props.id.startsWith("folder:")) return <FormHome key={props.id} {...props} folder={props.id.slice(7)} />;
   if (props.id && props.id !== "overview") return <FormPage key={props.id} {...props} />;
   return <FormHome {...props} />;

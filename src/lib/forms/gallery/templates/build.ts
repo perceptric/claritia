@@ -96,6 +96,7 @@ type Def = {
   featured?: boolean;
   phi?: boolean;
   internal?: boolean;
+  simple?: boolean;
   version?: number;
   /** Menus (../taxonomy.ts): categories and teams as space-separated ids, sub-industries, other industries. */
   cats?: string;
@@ -156,6 +157,7 @@ export function tpl(id: string, industry: Industry, name: string, tags: UseCase[
     ...(d.featured ? { featured: true } : {}),
     ...(d.phi ? { phi: true } : {}),
     ...(d.internal ? { internal: true } : {}),
+    ...(d.simple ? { simple: true } : {}),
     ...(d.cats ? { categories: d.cats.split(/\s+/).filter(Boolean) } : {}),
     ...(d.teams ? { teams: d.teams.split(/\s+/).filter(Boolean) } : {}),
     ...(d.subs ? { subs: d.subs.split(/\s+/).filter(Boolean) } : {}),
