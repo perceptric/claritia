@@ -1,0 +1,24 @@
+# Lint, typecheck, tests and the embed build on every push. The apps run on the Hostinger VPS; build-images.yml builds
+# their images and the VPS picks them up on its own.
+name: Checks
+
+on:
+  push:
+    branches: [main, claude/adoring-wozniak-16a48r]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build:embed
