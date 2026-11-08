@@ -96,6 +96,7 @@ type Def = {
   featured?: boolean;
   phi?: boolean;
   internal?: boolean;
+  simple?: boolean;
   version?: number;
   /** Menus (../taxonomy.ts): categories and teams as space-separated ids, sub-industries, other industries. */
   cats?: string;
@@ -156,6 +157,7 @@ export function tpl(id: string, industry: Industry, name: string, tags: UseCase[
     ...(d.featured ? { featured: true } : {}),
     ...(d.phi ? { phi: true } : {}),
     ...(d.internal ? { internal: true } : {}),
+    ...(d.simple ? { simple: true } : {}),
     ...(d.cats ? { categories: d.cats.split(/\s+/).filter(Boolean) } : {}),
     ...(d.teams ? { teams: d.teams.split(/\s+/).filter(Boolean) } : {}),
     ...(d.subs ? { subs: d.subs.split(/\s+/).filter(Boolean) } : {}),
@@ -177,5 +179,23 @@ export function tpl(id: string, industry: Industry, name: string, tags: UseCase[
     },
   };
 }
+
+/**
+ * A simple form (docs/template-wave3-plan.md Part 2): one page, 3 to 6 questions, no welcome screen, logic or payment.
+ * `cats` and `teams` are space-separated ids.
+ */
+export const quick = (
+  id: string,
+  industry: Industry,
+  name: string,
+  tags: UseCase[],
+  blurb: string,
+  cats: string,
+  teams: string,
+  fields: Draft[],
+  submit: string,
+  end: FormEnd | [string, string],
+  more: Partial<Def> = {},
+): FormTemplate => tpl(id, industry, name, tags, blurb, { cats, teams, added: "2026-11-08", simple: true, fields, submit, end, ...more });
 
 export const THANKS = (when = "within one business day"): [string, string] => ["Thanks, we got it", `We'll get back to you ${when}.`];

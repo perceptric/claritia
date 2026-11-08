@@ -242,17 +242,27 @@ export const ECOMMERCE = [
 export const MANUFACTURING = [
   tpl("manufacturing.rfq", "manufacturing", "RFQ (request for quote)", ["request", "lead"], "Quotes with drawings, materials and volumes.", {
     featured: true,
-    fields: [
-      fullName(),
-      email(),
-      company(undefined, { required: true }),
-      phone(),
-      text("Part name or number", { required: true }),
-      drop("Material", ["Aluminum", "Steel", "Stainless steel", "Plastic", "Other"], { required: true }),
-      num("Quantity", { required: true, min: 1 }),
-      files("Drawings (PDF, STEP, DWG)", { required: true }),
-      date("Quote needed by"),
-      long("Notes"),
+    pages: [
+      {
+        title: "About you",
+        fields: [
+          fullName(),
+          email(),
+          company(undefined, { required: true }),
+          phone(),
+        ],
+      },
+      {
+        title: "The part",
+        fields: [
+          text("Part name or number", { required: true }),
+          drop("Material", ["Aluminum", "Steel", "Stainless steel", "Plastic", "Other"], { required: true }),
+          num("Quantity", { required: true, min: 1 }),
+          files("Drawings (PDF, STEP, DWG)", { required: true }),
+          date("Quote needed by"),
+          long("Notes"),
+        ],
+      },
     ],
     submit: "Request quote",
     end: ["RFQ received", "Our estimators will reply within two business days."],

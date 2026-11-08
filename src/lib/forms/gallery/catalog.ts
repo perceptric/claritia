@@ -20,6 +20,13 @@ import { WAVE1_LEGAL } from "./templates/wave1-legal.ts";
 import { WAVE1_OPS } from "./templates/wave1-ops.ts";
 import { WAVE1_QUIZZES } from "./templates/wave1-quizzes.ts";
 import { WAVE2_MULTIPAGE } from "./templates/wave2-multipage.ts";
+import { WAVE3_LEADS } from "./templates/wave3-leads.ts";
+import { WAVE3_MULTIPAGE_B } from "./templates/wave3-multipage-b.ts";
+import { WAVE3_MULTIPAGE_A } from "./templates/wave3-multipage-a.ts";
+import { WAVE3_INTAKE, WAVE3_OPS, WAVE3_LEGAL } from "./templates/wave3-ops.ts";
+import { WAVE3_FEEDBACK, WAVE3_QUIZZES } from "./templates/wave3-feedback.ts";
+import { WAVE3_APPLY, WAVE3_EVENTS } from "./templates/wave3-apply.ts";
+import { WAVE3_BOOKING, WAVE3_MONEY } from "./templates/wave3-booking.ts";
 import { defaultThemes } from "./themes.ts";
 import { withPhotos } from "./photos/index.ts";
 import { INDUSTRIES, type FormTemplate, type Industry, type UseCase } from "./types.ts";
@@ -62,6 +69,19 @@ const RAW: FormTemplate[] = [
   ...WAVE1_MONEY,
   // Wave 2: long multi-page form templates (docs/multipage-forms-plan.md).
   ...WAVE2_MULTIPAGE,
+  // Wave 3: simple one-page forms and plain multi-page forms (docs/template-wave3-plan.md).
+  ...WAVE3_LEADS,
+  ...WAVE3_MULTIPAGE_B,
+  ...WAVE3_MULTIPAGE_A,
+  ...WAVE3_INTAKE,
+  ...WAVE3_OPS,
+  ...WAVE3_LEGAL,
+  ...WAVE3_FEEDBACK,
+  ...WAVE3_QUIZZES,
+  ...WAVE3_APPLY,
+  ...WAVE3_EVENTS,
+  ...WAVE3_BOOKING,
+  ...WAVE3_MONEY,
 ];
 
 /** A template with its menus: the first 150 take theirs from tags.ts unless they set their own. */

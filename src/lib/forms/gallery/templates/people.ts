@@ -46,7 +46,28 @@ export const EVENTS = [
   }),
   tpl("events.speaker-application", "events", "Speaker application", ["application"], "A call for papers with abstracts and video.", {
     featured: true,
-    fields: [fullName(), email(), company(), jobTitle(), text("Talk title", { required: true }), long("Abstract", { required: true }), one("Format", ["Talk", "Panel", "Workshop", "Lightning talk"], { required: true }), long("Short bio", { required: true }), url("Video of a past talk"), file("Headshot")],
+    pages: [
+      {
+        title: "About you",
+        fields: [
+          fullName(),
+          email(),
+          company(),
+          jobTitle(),
+        ],
+      },
+      {
+        title: "Your talk",
+        fields: [
+          text("Talk title", { required: true }),
+          long("Abstract", { required: true }),
+          one("Format", ["Talk", "Panel", "Workshop", "Lightning talk"], { required: true }),
+          long("Short bio", { required: true }),
+          url("Video of a past talk"),
+          file("Headshot"),
+        ],
+      },
+    ],
     end: ["Thanks for submitting", "We'll announce speakers by email."],
   }),
   tpl("events.sponsor-inquiry", "events", "Sponsor inquiry", ["lead"], "Qualify sponsors by level and goals.", {

@@ -139,17 +139,27 @@ export const WAVE1_FEEDBACK = [
     teams: "marketing",
     subs: "tours",
     added: "2026-11-03",
-    fields: [
-      text("Which tour did you take?", { required: true, half: true }),
-      date("Tour date", { half: true }),
-      stars("Overall rating", { required: true }),
-      stars("How was your guide?"),
-      text("Guide's name"),
-      long("Your review", { required: true, placeholder: "What made the day for you?" }),
-      files("Photos from the tour"),
-      fullName("Name to show with your review"),
-      email("Email"),
-      agree("You may share my review and photos on your website and social media."),
+    pages: [
+      {
+        title: "Your tour",
+        fields: [
+          text("Which tour did you take?", { required: true, half: true }),
+          date("Tour date", { half: true }),
+          stars("Overall rating", { required: true }),
+          stars("How was your guide?"),
+          text("Guide's name"),
+          long("Your review", { required: true, placeholder: "What made the day for you?" }),
+          files("Photos from the tour"),
+        ],
+      },
+      {
+        title: "Your details",
+        fields: [
+          fullName("Name to show with your review"),
+          email("Email"),
+          agree("You may share my review and photos on your website and social media."),
+        ],
+      },
     ],
     submit: "Send my review",
     end: ["Thanks for the review", "We'll let you know if we share it."],
@@ -210,17 +220,32 @@ export const WAVE1_FEEDBACK = [
     teams: "marketing teachers",
     subs: "online-courses",
     added: "2026-11-03",
-    fields: [
-      fullName(),
-      email("Email"),
-      text("Course you took", { required: true, half: true }),
-      date("When did you finish?", { half: true }),
-      long("Where were you before the course?", { required: true }),
-      long("What changed after it?", { required: true, placeholder: "A new job, a raise, a skill you use every day" }),
-      scale("How much did the course help?", "A little", "A lot"),
-      url("LinkedIn profile"),
-      file("Photo of you"),
-      agree("You may use my story, name and photo in your marketing."),
+    pages: [
+      {
+        title: "About you",
+        fields: [
+          fullName(),
+          email("Email"),
+        ],
+      },
+      {
+        title: "Your story",
+        fields: [
+          text("Course you took", { required: true, half: true }),
+          date("When did you finish?", { half: true }),
+          long("Where were you before the course?", { required: true }),
+          long("What changed after it?", { required: true, placeholder: "A new job, a raise, a skill you use every day" }),
+        ],
+      },
+      {
+        title: "Sharing",
+        fields: [
+          scale("How much did the course help?", "A little", "A lot"),
+          url("LinkedIn profile"),
+          file("Photo of you"),
+          agree("You may use my story, name and photo in your marketing."),
+        ],
+      },
     ],
     submit: "Share my story",
     end: ["Thank you for sharing", "We'll send you the final version before it goes live."],
