@@ -157,11 +157,19 @@ const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export type PageRun = { done(): void; start(): void; refresh(): void; errors(byName: Record<string, string>): void; busy(on: boolean): void; alert(text: string): void };
 
-/** What sits around the thank-you on a one-page form, to hide once it's sent; anything holding the logo stays. */
+/**
+ * What sits around the thank-you on a one-page form, to hide once it's sent: everything but the logo, so the form's
+ * own heading and line go too. The welcome screen hides on its own.
+ */
 export function around(thanks: Element, w: Element): HTMLElement[] {
   const out: HTMLElement[] = [];
+  const add = (el: Element): void => {
+    if (el.matches("img[data-cl-logo],[data-cl-cover]")) return;
+    if (!el.querySelector("img[data-cl-logo]")) out.push(el as HTMLElement);
+    else for (const c of el.children) add(c);
+  };
   for (let n: Element | null = thanks; n && n !== w && n.parentElement; n = n.parentElement)
-    for (const sib of n.parentElement.children) if (sib !== n && !sib.contains(thanks) && !sib.querySelector("img[data-cl-logo]") && !sib.matches("img[data-cl-logo]")) out.push(sib as HTMLElement);
+    for (const sib of n.parentElement.children) if (sib !== n && !sib.contains(thanks)) add(sib);
   return out;
 }
 
@@ -204,7 +212,7 @@ export function linkErrors(w: ParentNode) {
 /** Focus always shows, choice cards with hidden inputs too, the consent line takes its own row above the button, and
  * motion stops for people who ask for less. */
 export const ACCESS_CSS =
-  "[data-cl-behind-cover]{display:none!important}.cl-consent,.cl-notice{flex:1 0 100%;margin:0}.cl-unit{display:flex;align-items:center;gap:8px}.cl-unit>input{flex:1;min-width:0}.cl-switch input{appearance:none;-webkit-appearance:none;width:36px;height:20px;border-radius:999px;background:rgba(127,127,127,.45);position:relative;flex:none;margin:0;cursor:pointer}.cl-switch input::after{content:'';position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:#fff;transition:transform .15s}.cl-switch input:checked{background:var(--brand-primary,#111)}.cl-switch input:checked::after{transform:translateX(16px)}.cl-section{display:flex;flex-direction:column;gap:inherit}.cl-progress{height:6px;border-radius:999px;background:rgba(127,127,127,.2);overflow:hidden}.cl-progress>i{display:block;height:100%;width:calc(var(--cl-progress,0)*100%);background:var(--brand-primary,currentColor);transition:width .3s}.cl-review{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,2fr);gap:6px 16px;margin:0}.cl-review dt{opacity:.7}.cl-review dd{margin:0;overflow-wrap:anywhere}.cl-timer{font-variant-numeric:tabular-nums}" +
+  "[data-cl-behind-cover]{display:none!important}.cl-consent,.cl-notice{flex:1 0 100%;margin:14px 0 8px}.cl-unit{display:flex;align-items:center;gap:8px}.cl-unit>input{flex:1;min-width:0}.cl-switch input{appearance:none;-webkit-appearance:none;width:36px;height:20px;border-radius:999px;background:rgba(127,127,127,.45);position:relative;flex:none;margin:0;cursor:pointer}.cl-switch input::after{content:'';position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:#fff;transition:transform .15s}.cl-switch input:checked{background:var(--brand-primary,#111)}.cl-switch input:checked::after{transform:translateX(16px)}.cl-section{display:flex;flex-direction:column;gap:inherit}.cl-progress{height:6px;border-radius:999px;background:rgba(127,127,127,.2);overflow:hidden}.cl-progress>i{display:block;height:100%;width:calc(var(--cl-progress,0)*100%);background:var(--brand-primary,currentColor);transition:width .3s}.cl-review{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,2fr);gap:6px 16px;margin:0}.cl-review dt{opacity:.7}.cl-review dd{margin:0;overflow-wrap:anywhere}.cl-timer{font-variant-numeric:tabular-nums}" +
   "@layer base{:where(input,button,select,textarea,a,summary):focus-visible{outline:2px solid currentColor;outline-offset:2px}label:has(input:focus-visible){outline:2px solid currentColor;outline-offset:2px}}@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important;scroll-behavior:auto!important}}";
 
 /** The page box the photo fills: the page's .page, else the root. */

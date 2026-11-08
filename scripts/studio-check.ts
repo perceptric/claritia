@@ -79,7 +79,7 @@ try {
   await $("#tplGrid .tpl").first().waitFor();
   check((await $("#brandDlg").count()) === 0 && (await $("#tpls").isVisible()), "an empty form shows the templates, with no dialog over them");
   const tplAll = await $("#tplGrid .tpl").count();
-  check(tplAll === 48 && (await $("#tplQ").getAttribute("placeholder"))!.startsWith("Search 4"), "the templates show 48 at a time, out of hundreds");
+  check(tplAll === 48 && /^Search [1-9]\d{2,} /.test((await $("#tplQ").getAttribute("placeholder"))!), "the templates show 48 at a time, out of hundreds");
   await $("#tplMore").click();
   check((await $("#tplGrid .tpl").count()) === 144, "Show more adds more templates");
   await $("#tplFam button").filter({ hasText: "Booking" }).click();
@@ -283,6 +283,9 @@ try {
   await $("#addList button[data-add='dropdown']").click();
   const dd = form.locator("select[name='pick']");
   check((await dd.locator("option").count()) === 4, "a new dropdown comes with three options");
+  const ddLook = await dd.evaluate((e) => { const c = getComputedStyle(e); return { app: c.appearance, img: c.backgroundImage.startsWith("url(") }; });
+  check(ddLook.app === "none" && ddLook.img, `a dropdown in Edit wears the form's own look, never the browser's (${JSON.stringify(ddLook)})`);
+  if (shots) await dd.locator("xpath=..").screenshot({ path: `${shots}/2e-dropdown.png` });
   await $("#pscroll input[aria-label='Option 1']").fill("Small team");
   await $("#pscroll input[aria-label='Option 1']").press("Enter");
   check((await dd.locator("option[value='Small team']").textContent()) === "Small team", "a renamed option saves what it says");

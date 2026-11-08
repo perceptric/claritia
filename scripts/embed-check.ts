@@ -59,7 +59,7 @@ const built = ready(
 const PICK = "88888888-8888-4888-8888-888888888888";
 const picky = ready(
   pageForm({
-    html: `<main class="page"><form class="form-card"><h1 class="heading">Contact us</h1><div class="fields"><div class="q"><label class="label" for="q_topic">What's this about?</label><select class="field" id="q_topic" name="topic" required><option value="">Choose one</option><option value="sales">Sales</option><option value="support">Support</option><option value="billing">Billing</option></select><p class="error" data-cl-error-for="topic"></p></div><div class="q" id="more" data-cl-show-if="topic == 'billing'"><label class="label" for="q_inv">Invoice number</label><input class="field" id="q_inv" name="invoice" type="text"></div><div class="q"><label class="label" for="q_email">Email</label><input class="field" id="q_email" name="email" type="email" required></div></div><button class="btn" type="submit">Send</button></form><section data-cl-thanks hidden><h2>Thanks</h2></section></main>`,
+    html: `<main class="page"><div class="form-card"><header><img data-cl-logo alt="" class="logo"><h1 class="heading" id="pickHead">Contact us</h1><p class="text" id="pickLine">Send us a note.</p></header><form><div class="fields"><div class="q"><label class="label" for="q_topic">What's this about?</label><select class="field" id="q_topic" name="topic" required><option value="">Choose one</option><option value="sales">Sales</option><option value="support">Support</option><option value="billing">Billing</option></select><p class="error" data-cl-error-for="topic"></p></div><div class="q" id="more" data-cl-show-if="topic == 'billing'"><label class="label" for="q_inv">Invoice number</label><input class="field" id="q_inv" name="invoice" type="text"></div><div class="q"><label class="label" for="q_email">Email</label><input class="field" id="q_email" name="email" type="email" required></div></div><button class="btn" type="submit">Send</button></form><section data-cl-thanks hidden><h2>Thanks</h2></section></div></main>`,
     css: "",
     brand: styleCssById("coral"),
     after: { kind: "thanks" },
@@ -275,6 +275,7 @@ try {
   check(!(await pf0.locator(".cl-list").isVisible()), "dropdown: clicking away closes it");
   await pf0.locator("button[type='submit']").click();
   await desk.waitForFunction(() => document.querySelector("claritia-form")!.shadowRoot!.querySelector("[data-cl-thanks]:not([hidden])"), null, { timeout: 4000 });
+  check(!(await pf0.locator("#pickHead").isVisible()) && !(await pf0.locator("#pickLine").isVisible()), "thank-you: the form's heading and line go once it's sent, even beside the logo");
   check(pickSent.length === 1 && pickSent[0]!.includes('"sales"') && !pickSent[0]!.includes("billing"), `dropdown: the send carries the pick (${pickSent[0]?.slice(0, 160)})`);
   // An answer from an email link fills it before anyone clicks
   const topicId = picky.page!.ids.topic!;
