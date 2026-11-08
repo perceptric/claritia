@@ -402,6 +402,77 @@ input, textarea { user-select: text; -webkit-user-select: text; }
 .nameedit { font-size: 16px !important; font-weight: 600; }
 .working { display: inline-flex; align-items: center; gap: 8px; color: var(--muted); font-size: 12.5px; }
 
+/* The look menu under the brand button: your own brand from its website, the workspace's brands, then every style */
+.menu.lookmenu { max-height: min(640px, calc(100vh - 80px)); padding: 6px; }
+.lookmenu .mh { display: flex; align-items: center; gap: 8px; padding: 8px 8px 6px; font-size: 12px; font-weight: 500; color: var(--muted); }
+.ownsite { display: flex; flex-direction: column; padding: 2px 4px 6px; }
+.ownsite .mh { color: var(--ink); font-size: 13px; padding: 6px 4px 8px; }
+.ownsite .siteform .in { flex: 1; min-width: 0; height: 34px; }
+.ownsite .siteform .pill { height: 34px; }
+.lookmenu .themes { padding: 2px 6px 6px; }
+.lookmenu .themes .nm { white-space: normal; overflow: visible; }
+
+/* Learning a website's look: a sketch of the site that Tia's corners move over, then paint in the brand's colors */
+.dlgbox.learnbox { width: min(560px, 100%); padding: 0; gap: 0; }
+.learn { display: flex; flex-direction: column; }
+.lsite { position: relative; margin: 16px 16px 0; border-radius: 12px; overflow: hidden; background: var(--paper); box-shadow: 0 0 0 1px var(--line); font-family: var(--sans); }
+.lsite .lbar { display: flex; align-items: center; gap: 8px; height: 32px; padding: 0 12px; background: var(--bg); box-shadow: 0 1px 0 var(--line); font-size: 12px; color: var(--muted); }
+.lsite .lbar .fav { width: 14px; height: 14px; border-radius: 4px; background: var(--line-strong); flex: none; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+.lsite .lbar .fav img { max-width: 100%; max-height: 100%; object-fit: contain; }
+.lsite .lbar .host { min-width: 0; overflow-wrap: anywhere; }
+.lpage { position: relative; display: flex; flex-direction: column; gap: 18px; padding: 16px 20px 22px; background: var(--paper); color: var(--ink); transition: background-color .38s var(--ease), color .38s var(--ease); }
+.lnav { display: flex; align-items: center; gap: 14px; min-height: 26px; }
+.llogo { height: 24px; min-width: 64px; max-width: 140px; display: flex; align-items: center; }
+.llogo img { max-height: 24px; max-width: 140px; object-fit: contain; }
+.llogo .ph { width: 64px; height: 12px; border-radius: 3px; background: var(--line-strong); }
+.lnav .links { display: flex; gap: 10px; flex: 1; justify-content: flex-end; }
+.lnav .links i, .lhero .ln i { display: block; height: 6px; border-radius: 3px; background: var(--line-strong); transition: background-color .38s var(--ease), opacity .38s var(--ease); }
+.lnav .links i { width: 34px; }
+.lbody { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 20px; align-items: center; }
+.lhero { display: flex; flex-direction: column; gap: 10px; }
+.lh1 { margin: 0; font-size: 22px; line-height: 1.12; font-weight: 650; letter-spacing: -.02em; color: var(--ink); overflow-wrap: anywhere; transition: color .38s var(--ease); }
+.lhero .ln { display: flex; flex-direction: column; gap: 6px; }
+.lbtn { align-self: flex-start; height: 28px; padding: 0 14px; border-radius: 6px; background: var(--line-strong); color: transparent; display: inline-flex; align-items: center; font-size: 12px; font-weight: 600; transition: background-color .38s var(--ease), color .38s var(--ease), border-radius .38s var(--ease); }
+.lform { display: flex; flex-direction: column; gap: 8px; padding: 12px; border-radius: 10px; background: var(--bg); box-shadow: 0 0 0 1px var(--line); transition: background-color .38s var(--ease), box-shadow .38s var(--ease), border-radius .38s var(--ease); }
+.lform .fl { height: 26px; border-radius: 6px; background: var(--paper); box-shadow: inset 0 0 0 1px var(--line); transition: background-color .38s var(--ease), box-shadow .38s var(--ease), border-radius .38s var(--ease); }
+.lform .lbtn { align-self: stretch; justify-content: center; }
+.lcatch { position: absolute; left: 0; top: 0; width: 40px; height: 40px; pointer-events: none; transition: transform .38s var(--ease), width .38s var(--ease), height .38s var(--ease), opacity .28s var(--ease); }
+.lcatch i { position: absolute; width: 12px; height: 12px; border: 0 solid var(--signal); }
+.lcatch i:nth-child(1) { left: 0; top: 0; border-left-width: 2px; border-top-width: 2px; }
+.lcatch i:nth-child(2) { right: 0; top: 0; border-right-width: 2px; border-top-width: 2px; }
+.lcatch i:nth-child(3) { left: 0; bottom: 0; border-left-width: 2px; border-bottom-width: 2px; }
+.lcatch i:nth-child(4) { right: 0; bottom: 0; border-right-width: 2px; border-bottom-width: 2px; }
+.lscan { position: absolute; left: 0; right: 0; top: 0; height: 2px; background: var(--signal); opacity: .5; pointer-events: none; animation: lscan 2.4s var(--ease) infinite alternate; }
+@keyframes lscan { from { transform: translateY(32px); } to { transform: translateY(var(--lscan-to, 220px)); } }
+.learn.done .lscan, .learn.done .lcatch { opacity: 0; }
+/* Painted: the sketch in the brand's own colors, fonts and corners */
+.learn.painted .lpage { background: var(--brand-bg, var(--paper)); color: var(--brand-text, var(--ink)); font-family: var(--brand-font, var(--sans)); }
+.learn.painted .lh1 { color: var(--brand-text, var(--ink)); font-family: var(--brand-head, var(--brand-font, var(--sans))); }
+.learn.painted .lnav .links i, .learn.painted .lhero .ln i { background: var(--brand-muted, var(--brand-text, var(--line-strong))); opacity: .35; }
+.learn.painted .lbtn { background: var(--brand-primary, var(--ink)); color: var(--brand-on-primary, var(--bg)); border-radius: var(--brand-btn-radius, 6px); }
+.learn.painted .lform { background: var(--brand-surface, var(--brand-bg, var(--bg))); box-shadow: 0 0 0 1px var(--brand-line, var(--line)); border-radius: var(--brand-card-radius, 10px); }
+.learn.painted .lform .fl { background: var(--brand-field, var(--brand-bg, var(--paper))); box-shadow: inset 0 0 0 var(--brand-bw, 1px) var(--brand-line, var(--line)); border-radius: var(--brand-radius, 6px); }
+.llower { display: flex; flex-direction: column; gap: 14px; padding: 18px 20px 20px; }
+.llower h2 { margin: 0; font-size: 17px; font-weight: 600; overflow-wrap: anywhere; }
+.lsteps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.lsteps li { display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--faint); transition: color .15s var(--ease); }
+.lsteps li .dot { width: 18px; height: 18px; flex: none; display: flex; align-items: center; justify-content: center; }
+.lsteps li .dot::before { content: ""; width: 6px; height: 6px; border-radius: 999px; background: var(--line-strong); }
+.lsteps li.now { color: var(--ink); }
+.lsteps li.now .dot::before { display: none; }
+.lsteps li.ok { color: var(--body); }
+.lsteps li.ok .dot { color: var(--signal); }
+.lsteps li.ok .dot::before { display: none; }
+.lsteps li { animation: lrise .28s var(--ease) both; }
+@keyframes lrise { from { opacity: 0; transform: translateY(6px); } }
+.lfound { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.lfound .chip { display: inline-flex; align-items: center; gap: 8px; min-height: 30px; padding: 4px 12px 4px 5px; border-radius: 999px; box-shadow: 0 0 0 1px var(--line); font-size: 12.5px; color: var(--body); }
+.lfound .chip b { width: 20px; height: 20px; border-radius: 999px; box-shadow: inset 0 0 0 1px rgb(0 0 0 / .08); flex: none; }
+.lfound .chip .aa { font-size: 15px; color: var(--ink); line-height: 1; }
+.llower .confirm { padding: 12px 14px; }
+@media (max-width: 520px) { .lbody { grid-template-columns: minmax(0, 1fr); } .lform { display: none; } }
+@media (prefers-reduced-motion: reduce) { .lcatch, .lpage, .lh1, .lbtn, .lform, .lform .fl, .lnav .links i, .lhero .ln i, .lsteps li { transition: none; animation: none; } .lscan { animation: none; display: none; } }
+
 @media (max-width: 900px) {
   .app { flex-direction: column; height: auto; }
   .chat, .chat.folded { width: auto; border-right: 0; border-bottom: 1px solid var(--line); }
@@ -2166,14 +2237,13 @@ ${CAL_CSS}
     changed(); brandUi(); chatHead(); draw(); refresh();
     toast(`${styleName(id)} applied. Undo with Cmd+Z.`);
   }
+  // The styles grid: the look menu under the brand button shows it (the Theme tab keeps the changes on top of it).
+  function stylesGrid(after) {
+    const grid = h("div", { class: "themes", role: "group", "aria-label": "Styles" });
+    for (const th of THEMES) grid.append(h("button", { class: "th", "aria-pressed": String(body().style === th.id), "aria-label": `${th.name} style`, onclick: () => { after?.(); useStyle(th.id); } }, h("span", { class: "sw2", style: `background:${th.bg}` }, h("i", { style: `background:${th.card}` }, h("u", { style: `background:${th.accent}` }))), h("span", { class: "nm", text: th.name })));
+    return grid;
+  }
   function themePanel(p) {
-    const now = brandOf(cur);
-    const T = h("div", { class: "sec" }, h("h4", { text: "Themes" }));
-    const grid = h("div", { class: "themes", role: "group", "aria-label": "Theme" });
-    for (const b of brands) grid.append(h("button", { class: "th", "aria-pressed": String(!body().style && cur.brandId === b.id), "aria-label": b.name, onclick: () => useBrand(b.id) }, h("span", { class: "sw2 brand" }, b.logo ? h("img", { src: b.logo, alt: "" }) : h("b", { text: b.name.charAt(0) })), h("span", { class: "nm", text: b.name })));
-    for (const th of THEMES) grid.append(h("button", { class: "th", "aria-pressed": String(body().style === th.id), "aria-label": `${th.name} style`, onclick: () => useStyle(th.id) }, h("span", { class: "sw2", style: `background:${th.bg}` }, h("i", { style: `background:${th.card}` }, h("u", { style: `background:${th.accent}` }))), h("span", { class: "nm", text: th.name })));
-    T.append(grid);
-    p.append(T);
     const F = h("div", { class: "sec" }, h("h4", { text: "Customize" }));
     const accent = ruleGet(":root", "--brand-primary");
     const sw = h("div", { class: "swatches", role: "group", "aria-label": "Main color" });
@@ -2465,9 +2535,9 @@ ${CAL_CSS}
 
   // ── Floating menus (never the browser's) and the toast ───────────────────────────────────────────────
   let menuEl = null, menuFor = null;
-  function openMenu(anchor, items, width) {
+  function openMenu(anchor, items, width, cls = "") {
     closeMenu();
-    const m = h("div", { class: "menu", role: "menu" }, ...items);
+    const m = h("div", { class: `menu${cls ? ` ${cls}` : ""}`, role: "menu" }, ...items);
     if (width) m.style.width = `${width}px`;
     $("layer").append(m);
     const r = anchor.getBoundingClientRect();
@@ -2920,7 +2990,7 @@ ${CAL_CSS}
   function newChat(silent) {
     const c = blank(cur?.brandId && brandOf(cur) ? cur.brandId : brands[0]?.id || "");
     chats.unshift(c);
-    if (!silent) { open(c); if (!brands.length) openDialog(); }
+    if (!silent) { open(c); if (!brands.length && !c.body.style) setTimeout(brandMenu, 0); }
     return c;
   }
   async function open(c) {
@@ -2947,7 +3017,7 @@ ${CAL_CSS}
   function brandUi() {
     const btn = $("brandBtn"); btn.innerHTML = "";
     const b = brandOf(cur);
-    btn.append(mark(b), h("span", { class: "nm", text: b ? b.name : loaded ? "Pick a brand" : "Loading brands" }), h("span", { html: SVG(P.chev, 14), style: "color:var(--muted);display:inline-flex" }));
+    btn.append(mark(b), h("span", { class: "nm", text: b ? b.name : loaded ? "Pick your brand or a style" : "Loading brands" }), h("span", { html: SVG(P.chev, 14), style: "color:var(--muted);display:inline-flex" }));
     const pb = $("profileBtn");
     pb.hidden = !b?.profile;
     if (b?.profile) { pb.innerHTML = ""; pb.append(h("span", { text: profileWords(b.profile) }), h("span", { html: SVG(P.chev, 12), style: "display:inline-flex;color:var(--muted)" })); }
@@ -2964,12 +3034,19 @@ ${CAL_CSS}
           brandUi(); chatHead(); draw(); renderLog(); brandMenu();
         } }), h("button", { class: "pill", text: "Keep", onclick: () => { brandDeleting = ""; brandMenu(); } }))
       : h("div", { class: "mrow" }, h("button", { class: "mi", role: "menuitemradio", "aria-checked": String(b.id === cur?.brandId), onclick: () => { closeMenu(); useBrand(b.id); } }, mark(b), h("span", { class: "nm", text: b.name })), h("button", { class: "ib", "aria-label": `Delete ${b.name}`, html: SVG(P.del, 14), onclick: (e) => { e.stopPropagation(); brandDeleting = b.id; brandMenu(); } })));
-    // The chat's style, when its form wears one, first and picked.
-    const st = cur?.body?.style && !brands.some((b) => b.id === cur.brandId) ? styleBrand(cur) : null;
-    if (st) rows.unshift(h("div", { class: "mrow" }, h("button", { class: "mi", role: "menuitemradio", "aria-checked": "true", onclick: closeMenu }, mark(st), h("span", { class: "nm", text: st.name }))));
-    openMenu($("brandBtn"), [...rows, rows.length ? h("div", { class: "msep" }) : null, h("button", { class: "mi small", html: `${SVG(P.plus, 14)}<span class="nm">Add a brand</span>`, onclick: () => { closeMenu(); openDialog(); } })].filter(Boolean), $("brandBtn").offsetWidth);
+    // Your own brand first: type the website and Tia learns its look.
+    const site = h("input", { class: "in", id: "ownSite", placeholder: "yourwebsite.com", "aria-label": "Your website", autocomplete: "off", inputmode: "url" });
+    const go = h("button", { class: "pill primary", type: "submit", text: "Learn", disabled: true });
+    site.addEventListener("input", () => { go.disabled = !hostOf(site.value).includes("."); });
+    const own = h("form", { class: "ownsite", onsubmit: (e) => { e.preventDefault(); if (!hostOf(site.value).includes(".")) return; const u = site.value; closeMenu(); learnSite(u); } },
+      h("div", { class: "mh", html: `${SVG(P.globe, 14)}<span>Use your own brand</span>` }), h("div", { class: "siteform" }, site, go));
+    const items = [own];
+    if (rows.length) items.push(h("div", { class: "msep" }), h("div", { class: "mh", text: "Your brands" }), ...rows);
+    if (cur) items.push(h("div", { class: "msep" }), h("div", { class: "mh", text: "Styles" }), stylesGrid(closeMenu));
+    const m = openMenu($("brandBtn"), items, Math.max($("brandBtn").offsetWidth, 320), "lookmenu");
+    if (!rows.length) setTimeout(() => m.querySelector("#ownSite")?.focus(), 0);
   }
-  $("brandBtn").onclick = () => (!brands.length && loaded ? openDialog() : menuEl && menuFor === $("brandBtn") ? closeMenu() : brandMenu());
+  $("brandBtn").onclick = () => (menuEl && menuFor === $("brandBtn") ? closeMenu() : brandMenu());
   // One click fixes what the site told Tia about the brand.
   $("profileBtn").onclick = () => {
     const b = brandOf(cur);
@@ -2984,7 +3061,7 @@ ${CAL_CSS}
     if (built() && old && old.id !== id) return switchDialog(old, b);
     if (cur.brandId !== id || cur.body.style) { snap(); cur.brandId = id; delete cur.body.style; delete cur.body.styleCss; changed(); }
     brandUi(); chatHead(); draw(); renderLog();
-    if (!b.css) void readLook(b);
+    return b.css ? Promise.resolve() : readLook(b);
   }
   function switchDialog(old, b) {
     closeDialog();
@@ -3023,39 +3100,167 @@ ${CAL_CSS}
   }
   const hostOf = (u) => { try { return new URL(/^https?:\/\//i.test(String(u).trim()) ? String(u).trim() : `https://${String(u).trim()}`).hostname.replace(/^www\./, ""); } catch { return ""; } };
 
-  // Add a brand: the website, then "Is this the brand?" with its name and real logo, then its look.
-  let draft = { step: 1, url: "", look: null, busy: "", err: "", browser: false };
-  function openDialog() { draft = { step: 1, url: "", look: null, busy: "", err: "", browser: false }; $("layer").append(h("div", { class: "dlg", id: "brandDlg", role: "dialog", "aria-modal": "true", "aria-label": "Add a brand", onmousedown: (e) => { if (e.target.id === "brandDlg" && !draft.busy) closeDialog(); } }, h("div", { class: "dlgbox", id: "dlgBody" }))); dialog(); }
-  function closeDialog() { $("brandDlg")?.remove(); }
+  // Your own brand: the website, then a screen where Tia learns it. The site is read for its name and logo ("Is this the
+  // brand?"), then for its look, while Tia's corners move over a sketch of the site; the sketch ends in the brand's colors.
+  let draft = { step: 1, url: "", look: null, busy: "", err: "", browser: false, stage: 0, kit: null, el: null, vars: null };
+  let stageT = 0;
+  const STAGES = (host) => [`Opening ${host}`, "Finding your logo and name", "Reading your colors", "Reading your fonts", "Reading buttons and fields", "Building your form theme"];
+  // What the corners frame at each stage.
+  const STAGE_AT = ["lpage", "llogo", "lhero", "lh1", "lform", "lpage"];
+  function openDialog(url = "") {
+    closeDialog();
+    draft = { step: 1, url, look: null, busy: "", err: "", browser: false, stage: 0, kit: null, el: null, vars: null };
+    $("layer").append(h("div", { class: "dlg", id: "brandDlg", role: "dialog", "aria-modal": "true", "aria-label": "Use your own brand", onmousedown: (e) => { if (e.target.id === "brandDlg" && !draft.busy) closeDialog(); } }, h("div", { class: "dlgbox", id: "dlgBody" })));
+    dialog();
+  }
+  function closeDialog() { clearInterval(stageT); stageT = 0; $("brandDlg")?.remove(); }
+  /** From the look menu: the website typed there, learned at once. */
+  function learnSite(url) { openDialog(url); void readSiteNow(); }
+  /** Move through the stages on a clock while a read runs, never past the last one of the read (it ends with the read). */
+  function runStages(from, to, ms) {
+    clearInterval(stageT);
+    draft.stage = from; dialog();
+    stageT = setInterval(() => { if (draft.stage >= to || !$("brandDlg")) { clearInterval(stageT); return; } draft.stage++; dialog(); }, ms);
+  }
   function dialog() {
     const box = $("dlgBody"); if (!box) return;
+    const learning = draft.busy === "site" || draft.busy === "browser" || draft.step >= 2;
+    box.classList.toggle("learnbox", learning);
+    if (learning) return learnUi(box);
     box.innerHTML = "";
-    const working = (t) => { const w = h("div", { class: "working", html: tiaSvg(16, true) }); w.append(h("span", { text: t })); return w; };
     const acts = h("div", { class: "acts" });
-    if (draft.step === 1) {
-      box.append(h("h2", { text: "Add a brand" }));
-      const site = h("input", { class: "in", placeholder: "Website, like acme.com", value: draft.url, id: "dlgSite", "aria-label": "Website", autocomplete: "off", disabled: !!draft.busy || null });
-      const go = h("button", { class: "pill primary", type: "submit", text: draft.busy === "site" ? "Reading" : "Read", disabled: !!draft.busy || !hostOf(draft.url).includes(".") || null });
-      site.addEventListener("input", () => { draft.url = site.value; draft.err = ""; go.disabled = !hostOf(draft.url).includes("."); });
-      const f = h("form", { class: "siteform", onsubmit: (e) => { e.preventDefault(); void readSiteNow(); } }, site, go);
-      box.append(f);
-      if (draft.busy === "site") box.append(working(`Reading ${hostOf(draft.url)}`));
-      if (draft.busy === "browser") box.append(working(`Opening ${hostOf(draft.url)} in a browser`));
-      if (draft.err) box.append(h("div", { class: "err", text: draft.err }));
-      if (draft.browser && !draft.busy) acts.append(h("button", { class: "pill", text: "Read it in a browser", onclick: () => void scanNow() }));
-      acts.append(h("button", { class: "pill", text: "Cancel", disabled: !!draft.busy || null, onclick: closeDialog }));
-      box.append(acts);
-      setTimeout(() => site.focus(), 0);
-    } else {
-      box.append(h("h2", { text: "Is this the brand?" }));
-      const name = h("input", { class: "in nameedit", value: draft.look.name, id: "dlgName", "aria-label": "Brand name" });
+    box.append(h("h2", { text: "Use your own brand" }));
+    const site = h("input", { class: "in", placeholder: "yourwebsite.com", value: draft.url, id: "dlgSite", "aria-label": "Website", autocomplete: "off" });
+    const go = h("button", { class: "pill primary", type: "submit", text: "Learn", disabled: !hostOf(draft.url).includes(".") || null });
+    site.addEventListener("input", () => { draft.url = site.value; draft.err = ""; go.disabled = !hostOf(draft.url).includes("."); });
+    box.append(h("form", { class: "siteform", onsubmit: (e) => { e.preventDefault(); void readSiteNow(); } }, site, go));
+    if (draft.err) box.append(h("div", { class: "err", text: draft.err }));
+    if (draft.browser) acts.append(h("button", { class: "pill", text: "Read it in a browser", onclick: () => void scanNow() }));
+    acts.append(h("button", { class: "pill", text: "Cancel", onclick: closeDialog }));
+    box.append(acts);
+    setTimeout(() => site.focus(), 0);
+  }
+  /** The learning screen: built once, then kept in step so the corners and colors move instead of jumping. */
+  function learnUi(box) {
+    const host = hostOf(draft.look?.site || draft.url);
+    if (!draft.el) {
+      const ln = (...w) => h("div", { class: "ln" }, ...w.map((x) => h("i", { style: `width:${x}%` })));
+      draft.el = h("div", { class: "learn" },
+        h("div", { class: "lsite", "aria-hidden": "true" },
+          h("div", { class: "lbar" }, h("span", { class: "fav" }), h("span", { class: "host" })),
+          h("div", { class: "lpage" },
+            h("div", { class: "lnav" }, h("div", { class: "llogo" }, h("span", { class: "ph" })), h("div", { class: "links" }, h("i"), h("i"), h("i"))),
+            h("div", { class: "lbody" },
+              h("div", { class: "lhero" }, h("p", { class: "lh1" }), ln(92, 70, 40), h("span", { class: "lbtn", text: "Get started" })),
+              h("div", { class: "lform" }, h("span", { class: "fl" }), h("span", { class: "fl" }), h("span", { class: "lbtn", text: "Send" })))),
+          h("div", { class: "lscan" }),
+          h("div", { class: "lcatch" }, h("i"), h("i"), h("i"), h("i"))),
+        h("div", { class: "llower" }));
+    }
+    const el = draft.el;
+    if (el.parentElement !== box) { box.innerHTML = ""; box.append(el); }
+    // The sketch: the site's address, its real logo once found, its name as the headline.
+    el.querySelector(".host").textContent = host;
+    const name = draft.look?.name || draft.kit?.name || "";
+    el.querySelector(".lh1").textContent = name || host;
+    const logo = draft.look?.logo || draft.kit?.logo || "";
+    const slot = el.querySelector(".llogo"), fav = el.querySelector(".fav");
+    if (logo && slot.querySelector("img")?.getAttribute("src") !== logo) { slot.replaceChildren(h("img", { src: logo, alt: "" })); fav.replaceChildren(h("img", { src: logo, alt: "" })); }
+    const done = draft.step === 4;
+    el.classList.toggle("done", done);
+    // The brand's own variables on the screen, so the sketch paints in them.
+    if (draft.kit?.css && !draft.vars) {
+      loadFonts(draft.kit.css);
+      draft.vars = measureBrand(draft.kit.css);
+      for (const [k, v] of draft.vars) el.style.setProperty(k, v);
+      requestAnimationFrame(() => requestAnimationFrame(() => el.classList.add("painted")));
+    }
+    // The corners: over what's being read now.
+    const sk = el.querySelector(".lsite");
+    const target = el.querySelector(`.${STAGE_AT[Math.min(draft.stage, STAGE_AT.length - 1)]}`);
+    requestAnimationFrame(() => {
+      if (!target || !sk.isConnected) return;
+      const a = sk.getBoundingClientRect(), r = target.getBoundingClientRect(), pad = 6;
+      const c = el.querySelector(".lcatch");
+      c.style.width = `${r.width + pad * 2}px`; c.style.height = `${r.height + pad * 2}px`;
+      c.style.transform = `translate(${r.left - a.left - pad}px, ${r.top - a.top - pad}px)`;
+      sk.style.setProperty("--lscan-to", `${Math.max(60, a.height - 8)}px`);
+    });
+    // Under the sketch: the steps, then what's asked or found.
+    const low = el.querySelector(".llower"); low.innerHTML = "";
+    const st = STAGES(host);
+    const ok = draft.step === 2 ? 2 : done ? st.length : draft.stage;
+    low.append(h("h2", { text: done ? `${name || host}'s look` : draft.step === 2 ? "Is this the brand?" : `Learning ${host}` }));
+    if (draft.step !== 2 && !done) {
+      const list = h("ol", { class: "lsteps", "aria-live": "polite" });
+      st.forEach((t, i) => { if (i > ok) return; const now = i === ok && !draft.err; list.append(h("li", { class: i < ok ? "ok" : now ? "now" : "" }, h("span", { class: "dot", html: i < ok ? SVG(P.check, 14) : now ? tiaSvg(16, true) : "" }), h("span", { text: t }))); });
+      low.append(list);
+    }
+    if (draft.step === 2) {
+      const nm = h("input", { class: "in nameedit", value: draft.look.name, id: "dlgName", "aria-label": "Brand name" });
       const yes = h("button", { class: "pill primary", text: draft.busy === "confirm" ? "Saving" : "Yes, use this brand", disabled: !!draft.busy || !draft.look.name.trim() || null, onclick: () => void confirmNow() });
-      name.addEventListener("input", () => { draft.look.name = name.value; yes.disabled = !name.value.trim(); });
-      box.append(h("div", { class: "confirm" }, draft.look.logo ? h("img", { src: draft.look.logo, alt: "" }) : h("span", { class: "bempty", text: draft.look.name.charAt(0) }), h("div", { class: "t" }, name, h("span", { text: draft.look.site }))));
-      if (!draft.look.logo) box.append(h("p", { class: "hint0", text: "No logo found on the site. Forms show the name until one is added in Settings, Brand." }));
-      if (draft.err) box.append(h("div", { class: "err", text: draft.err }));
-      acts.append(h("button", { class: "pill", text: "Back", disabled: !!draft.busy || null, onclick: () => { draft.step = 1; draft.err = ""; dialog(); } }), yes);
-      box.append(acts);
+      nm.addEventListener("input", () => { draft.look.name = nm.value; yes.disabled = !nm.value.trim(); el.querySelector(".lh1").textContent = nm.value || host; });
+      low.append(h("div", { class: "confirm" }, draft.look.logo ? h("img", { src: draft.look.logo, alt: "" }) : h("span", { class: "bempty", text: draft.look.name.charAt(0) }), h("div", { class: "t" }, nm, h("span", { text: draft.look.site }))));
+      if (!draft.look.logo) low.append(h("p", { class: "hint0", text: "No logo found on the site. Forms show the name until one is added in Settings, Brand." }));
+      if (draft.err) low.append(h("div", { class: "err", text: draft.err }));
+      low.append(h("div", { class: "acts" }, h("button", { class: "pill", text: "Back", disabled: !!draft.busy || null, onclick: () => { draft.step = 1; draft.err = ""; draft.el = null; dialog(); } }), yes));
+      return;
+    }
+    if (done) {
+      const found = h("div", { class: "lfound" });
+      for (const [v, t] of [["--brand-primary", "Main"], ["--brand-text", "Text"], ["--brand-bg", "Background"]]) if (draft.vars?.get(v)) found.append(h("span", { class: "chip" }, h("b", { style: `background:var(${v})` }), h("span", { text: t })));
+      const font = fontName(draft.vars?.get("--brand-head") || draft.vars?.get("--brand-font"));
+      if (font) found.append(h("span", { class: "chip" }, h("span", { class: "aa", style: "font-family:var(--brand-head, var(--brand-font))", text: "Aa" }), h("span", { text: font })));
+      low.append(found);
+      low.append(h("div", { class: "acts" }, h("button", { class: "pill primary", id: "learnDone", text: "Start building", onclick: closeDialog })));
+      setTimeout(() => $("learnDone")?.focus(), 0);
+      return;
+    }
+    if (draft.err) {
+      low.append(h("div", { class: "err", text: draft.err }));
+      const b = brands.find((x) => x.id === draft.kit?.id);
+      low.append(h("div", { class: "acts" }, h("button", { class: "pill", text: "Close", onclick: closeDialog }), b ? h("button", { class: "pill primary", text: "Try again", onclick: () => void learnLook(b, true) }) : null));
+      return;
+    }
+    if (draft.step === 3) low.append(h("div", { class: "acts" }, h("button", { class: "pill", text: "Hide", onclick: closeDialog })));
+  }
+  /**
+   * The brand's look as the form will wear it: a hidden sample page (heading, line, field, button) in the brand's CSS,
+   * read back from the browser, so any brand stylesheet works, with or without --brand-* variables.
+   */
+  function measureBrand(css) {
+    const host = h("div", { style: "position:fixed;left:-9999px;top:0;width:480px;visibility:hidden;pointer-events:none", "aria-hidden": "true" });
+    document.body.append(host);
+    const root = host.attachShadow({ mode: "open" });
+    root.innerHTML = `<style>${String(css).replace(/:root\b/g, ":host")}</style><div class="page"><h1 class="heading">Aa</h1><p class="text">Aa</p><input class="field"><button class="btn" type="button">Aa</button></div>`;
+    const cs = (sel) => getComputedStyle(root.querySelector(sel));
+    const clear = (c) => !c || c === "transparent" || /rgba\([^)]*,\s*0\)$/.test(c);
+    const pg = cs(".page"), hd = cs(".heading"), tx = cs(".text"), fd = cs(".field"), bt = cs(".btn");
+    const primary = !clear(bt.backgroundColor) ? bt.backgroundColor : !clear(bt.borderTopColor) && bt.borderTopWidth !== "0px" ? bt.borderTopColor : hd.color;
+    const out = new Map([
+      ["--brand-bg", clear(pg.backgroundColor) ? "" : pg.backgroundColor],
+      ["--brand-text", hd.color],
+      ["--brand-muted", tx.color],
+      ["--brand-font", pg.fontFamily],
+      ["--brand-head", hd.fontFamily],
+      ["--brand-primary", primary],
+      ["--brand-on-primary", clear(bt.backgroundColor) ? primary : bt.color],
+      ["--brand-btn-radius", bt.borderTopLeftRadius],
+      ["--brand-field", clear(fd.backgroundColor) ? "" : fd.backgroundColor],
+      ["--brand-line", fd.borderTopColor],
+      ["--brand-bw", fd.borderTopWidth],
+      ["--brand-radius", fd.borderTopLeftRadius],
+    ].filter(([, v]) => v));
+    host.remove();
+    return out;
+  }
+  /** The first font family's name. */
+  const fontName = (family) => (/^\s*["']?([^"',]+)/.exec(family || "") || [])[1]?.trim() || "";
+  /** The Google fonts a brand's CSS imports, loaded on the page so the sketch can show them. */
+  function loadFonts(css) {
+    for (const m of String(css).matchAll(/@import url\(\s*["']?(https:\/\/fonts\.googleapis\.com\/css2\?[^"')]+)["']?\s*\)/g)) {
+      if ([...document.head.querySelectorAll("link[data-cl-font]")].some((l) => l.getAttribute("href") === m[1])) continue;
+      document.head.append(h("link", { rel: "stylesheet", href: m[1], "data-cl-font": "" }));
     }
   }
   async function readSiteNow() {
@@ -3063,14 +3268,16 @@ ${CAL_CSS}
     if (!host.includes(".") || draft.busy) return;
     const had = brands.find((b) => hostOf(b.site) === host);
     if (had) { closeDialog(); useBrand(had.id); return; }
-    draft.busy = "site"; draft.err = ""; draft.browser = false; dialog();
+    draft.busy = "site"; draft.err = ""; draft.browser = false; draft.el = null;
+    runStages(0, 1, 1200);
     try { draft.look = await api.readSite(host); draft.step = 2; }
     catch (e) { draft.err = e?.message || `Couldn't open ${host}.`; draft.browser = !!e?.browser; }
-    finally { draft.busy = ""; if (alive) dialog(); }
+    finally { draft.busy = ""; clearInterval(stageT); if (alive) dialog(); }
   }
   async function scanNow() {
     const host = hostOf(draft.url);
-    draft.busy = "browser"; draft.err = ""; dialog();
+    draft.busy = "browser"; draft.err = ""; draft.el = null;
+    runStages(0, 1, 2400);
     try {
       const { kitId } = await api.scan(host);
       let kit = null;
@@ -3082,8 +3289,8 @@ ${CAL_CSS}
       if (!kit || kit.scanStatus === "failed") throw new Error(`Couldn't read ${host} in a browser either.`);
       draft.look = { site: host, url: `https://${host}`, name: kit.name, logo: kit.logo, logoUrl: kit.logoUrl, logoSvg: kit.logoSvg };
       draft.step = 2;
-    } catch (e) { draft.err = e?.message || `Couldn't read ${host} in a browser.`; }
-    finally { draft.busy = ""; if (alive) dialog(); }
+    } catch (e) { draft.err = e?.message || `Couldn't read ${host} in a browser.`; draft.browser = false; }
+    finally { draft.busy = ""; clearInterval(stageT); if (alive) dialog(); }
   }
   async function confirmNow() {
     if (draft.busy) return;
@@ -3093,10 +3300,26 @@ ${CAL_CSS}
       const had = brands.find((x) => x.id === kitId);
       const b = had || { id: kitId, name: draft.look.name.trim(), site: draft.look.site, logo: draft.look.logo, css: "" };
       if (!had) brands = [...brands, b];
-      draft.busy = ""; closeDialog();
+      draft.busy = "";
       if (!cur) await open(newChat(true));
-      useBrand(kitId);
+      // A built form on another brand asks first (the switch dialog takes the screen); otherwise learn the look here.
+      const old = brandOf(cur);
+      if (built() && old && old.id !== kitId) { closeDialog(); useBrand(kitId); return; }
+      await learnLook(b, false);
     } catch (e) { draft.busy = ""; draft.err = e?.message || "Couldn't save the brand."; dialog(); }
+  }
+  /** The look, read with the steps showing; ends painted in the brand, or with the error and Try again. */
+  async function learnLook(b, fresh) {
+    draft.kit = b; draft.step = 3; draft.err = "";
+    runStages(2, 5, 2400);
+    if (fresh) await readLook(b, true);
+    else await useBrand(b.id);
+    while (looking.has(b.id) && alive) await new Promise((r) => setTimeout(r, 200));
+    clearInterval(stageT);
+    if (!alive || !$("brandDlg") || draft.kit !== b) return;
+    if (b.css) { draft.step = 4; draft.stage = 5; }
+    else draft.err = b.lookErr || `Couldn't read ${b.name}'s look.`;
+    dialog();
   }
 
   // ── The chat with Tia ─────────────────────────────────────────────────────────────────────────────────
@@ -3110,7 +3333,7 @@ ${CAL_CSS}
     if (!log.some((m) => m.who === "me")) {
       const g = h("div", { class: "msg ai" }, h("div", { class: "who", html: `${tiaSvg(18)}<span>Tia</span>` }));
       for (const m of log) if (m.who === "ai" && m.text) g.append(h("div", { class: "text", text: m.text }));
-      g.append(h("div", { class: "text", text: !b ? "Pick a brand to start. Forms use its logo and its look." : built() ? `What should we change on ${cur.name}?` : `What do you want to build for ${b.name}?` }));
+      g.append(h("div", { class: "text", text: !b ? "Pick your brand or a style to start." : built() ? `What should we change on ${cur.name}?` : `What do you want to build for ${b.name}?` }));
       if (b && !built() && ready) g.append(h("div", { class: "starts" }, ...(b.profile ? industryOf(b.profile.industry).forms : STARTS).map((s) => h("button", { text: s, onclick: () => send(s) }))));
       boxEl.append(g);
     }
@@ -3128,7 +3351,7 @@ ${CAL_CSS}
     boxEl.scrollTop = boxEl.scrollHeight;
     const input = $("input");
     input.disabled = !b;
-    input.placeholder = !b ? (loaded ? "Pick a brand to start" : "Loading brands") : !ready && b.lookErr ? "Try reading the brand again" : !ready ? `Reading ${b.name}'s look` : built() ? "Ask Tia to change anything" : "Describe the form";
+    input.placeholder = !b ? (loaded ? "Pick your brand or a style" : "Loading brands") : !ready && b.lookErr ? "Try reading the brand again" : !ready ? `Reading ${b.name}'s look` : built() ? "Ask Tia to change anything" : "Describe the form";
     if (!S.busy) $("send").disabled = !ready;
   }
   function aboutUi() { $("about").hidden = !S.about; $("aboutText").textContent = S.about ? `About: ${S.about.label}` : ""; }
@@ -3302,10 +3525,7 @@ ${CAL_CSS}
       autosize();
     }
     emit();
-    if (!brandOf(cur) && built()) {
-      if (!brands.length) openDialog();
-      else brandMenu();
-    }
+    if (!brandOf(cur) && built()) brandMenu();
   })();
 
   return {

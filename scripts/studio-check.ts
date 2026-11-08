@@ -106,14 +106,18 @@ try {
   await $("#tplGrid .tpl").first().waitFor();
   check(await $("#peekBar").isHidden() && (await form.locator("input").count()) === 0, "All templates goes back to the list, with the form still empty");
 
-  // 1b. No brand yet: the chat waits, and the brand button opens Add a brand
+  // 1b. No brand yet: the chat waits, and the brand button opens the look menu: your own brand, then every style
   check(await $("#input").isDisabled(), "the chat waits for a brand");
   await $("#brandBtn").click();
-  await $("#brandDlg").waitFor();
+  await $("#ownSite").waitFor();
+  check((await $("#layer .lookmenu .themes .th").count()) >= 18, "the look menu lists every style under Use your own brand");
+  if (shots) await p.screenshot({ path: `${shots}/0-look-menu.png` });
 
-  // 2. Add a brand: the site is read for its name and logo, and confirmed before the look
-  await $("#dlgSite").fill("nope.dev");
-  await $("#dlgBody button[type=submit]").click();
+  // 2. Use your own brand: the site is learned on its own screen, its name and logo confirmed before the look
+  await $("#ownSite").fill("nope.dev");
+  await $("#ownSite").press("Enter");
+  await $("#brandDlg .learn").waitFor();
+  check(((await $("#brandDlg .lsteps").textContent()) ?? "").includes("Opening nope.dev"), "the learning screen opens on the site typed in the menu");
   await $("#dlgBody .err").waitFor();
   check((await $("#dlgBody").textContent())!.includes("Read it in a browser"), "a site that can't be read offers the browser read");
   await $("#dlgSite").fill("finch.care");
@@ -124,10 +128,17 @@ try {
   check(!(await calls()).some((c) => c.mode === "look"), "the look isn't read before the brand is confirmed");
   if (shots) await p.screenshot({ path: `${shots}/1-confirm.png` });
   await $("#dlgBody button").filter({ hasText: "Yes, use this brand" }).click();
+  await $("#brandDlg .lsteps li.now").filter({ hasText: "Reading your colors" }).waitFor();
+  check(await $("#send").isDisabled(), "send waits while the brand's look is read");
+  if (shots) await p.screenshot({ path: `${shots}/1b-learning.png` });
+  await $("#learnDone").waitFor();
+  check(await $("#brandDlg .learn.painted").isVisible(), "the sketch of the site ends painted in the brand's look");
+  check(((await $("#brandDlg .lfound").textContent()) ?? "").includes("Main"), "what was found shows under the sketch");
+  if (shots) await p.screenshot({ path: `${shots}/1c-learned.png` });
+  await $("#learnDone").click();
   await $("#brandDlg").waitFor({ state: "detached" });
   check((await calls()).some((c) => c.mode === "confirm" && (c.body as { logoUrl: string }).logoUrl === "https://finch.care/logo.png"), "confirming saves the name and the logo's address");
   check((await $("#brandBtn").textContent())!.trim() === "Finch", "the brand shows as its logo and name only");
-  check(await $("#send").isDisabled(), "send waits while the brand's look is read");
   await p.waitForFunction(() => !document.querySelector("#studio")!.shadowRoot!.getElementById("send")!.hasAttribute("disabled"));
   check((await calls()).some((c) => c.mode === "look"), "the look is read after confirming");
   check((await $("#msgs").textContent())!.includes("soft green"), "what Tia found in the look shows in the chat");
@@ -352,7 +363,7 @@ try {
   // The Form tab: the look over the brand's, and a hidden field.
   check(((await $("#panel .ptabs").textContent()) ?? "").replace(/\s+/g, "").startsWith("SettingsStyleTheme"), "the panel's tabs are Settings, Style, then Theme");
   await $("#p-theme").click();
-  check((await $("#pscroll .themes .th").count()) >= 18, "the Theme tab lists the brand and every gallery style");
+  check((await $("#pscroll .themes .th").count()) === 0, "the styles moved to the look menu; the Theme tab keeps the changes on top");
   if (shots) await p.screenshot({ path: `${shots}/2d-theme.png` });
   await $("#pscroll button[aria-label='blue']").click();
   await p.waitForFunction(() => Object.values((window as unknown as { saved: Record<string, { body?: { css: string } }> }).saved).some((c) => c.body?.css.includes("--brand-primary:#1e6bf0")));
@@ -661,9 +672,8 @@ try {
   // 9b. A built form switches brand only when asked, keeps its look until the new one is ready, then Tia moves it
   await $("#m-ai").click();
   await $("#brandBtn").click();
-  await $("#layer .menu .mi").filter({ hasText: "Add a brand" }).click();
-  await $("#dlgSite").fill("acme.dev");
-  await $("#dlgBody button[type=submit]").click();
+  await $("#ownSite").fill("acme.dev");
+  await $("#ownSite").press("Enter");
   await $("#dlgBody button").filter({ hasText: "Yes, use this brand" }).click();
   await $("#brandDlg h2").filter({ hasText: "Switch this form to Acme?" }).waitFor();
   check(true, "adding a brand on a built form asks before switching it");

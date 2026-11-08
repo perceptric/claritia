@@ -289,18 +289,25 @@ Everything a form needs can be made in Edit without Tia (`src/lib/studio/builder
   (`data-cl-pipe`, also on the thank-you).
 - **The panel's tabs** are Settings, Style, then Theme. Settings opens first; with nothing picked (a click beside the
   form) it holds the whole form's settings, starting with hidden fields from the link (`?ref=`).
-- **The Theme tab**: the workspace's brands and every gallery style as small pictures; a style switches the form at
-  once and undo puts it back (the look is part of each undo step), a brand on a built form asks first and Tia moves it.
-  Under them, Adjust: color, font, corners, buttons, background, width and the progress bar, written into the form's
-  own CSS over the theme's.
+- **The look menu** (the brand button at the top of the left side): Use your own brand first (type the website and
+  press Learn), then the workspace's brands, then every gallery style as small pictures. A style switches the form at
+  once and undo puts it back (the look is part of each undo step); a brand on a built form asks first and Tia moves it.
+- **Learning a website**: Use your own brand opens a screen with a sketch of the site. Tia's corners move over the
+  part being read (the page, the logo, the colors, the headline, the form) while the steps tick off: the site is read
+  for its name and logo, "Is this the brand?" asks to confirm, then the look is read. The sketch ends painted in the
+  brand: its colors, fonts, corners and button, measured from a hidden sample page in the brand's CSS, so any
+  stylesheet works. Hide leaves it reading in the background (the line under the brand button); a failed read shows
+  the error with Try again.
+- **The Theme tab**: Adjust only (the presets moved to the look menu): color, font, corners, buttons, background,
+  width and the progress bar, written into the form's own CSS over the theme's.
 - **Pages as steps**: the bar shows the pages as numbered steps joined by a line, the thank-you last with a tick, and
   All pages as an icon; in Preview the pages already passed show done.
 - **Start blank**: an email question and a send button in the brand's look, with no AI.
-- **Templates on an empty form**: a new form's canvas shows every gallery template (`studioList.ts`), most used
-  first, with the families as chips, search, and Start blank. Each card is drawn in its style's colors. Picking one
+- **Templates on an empty form**: a new form's canvas shows every gallery template (`studioList.ts`), mixed as
+  Forms › Templates mixes them, with the families as chips, search, and Start blank. Each card is drawn in its style's colors. Picking one
   makes the form the way Forms › Templates does (`/api/forms/templates`), in the chat's brand or style, or the
   template's own style; it opens in its own chat, joins the folder it was started from, and the empty chat goes. No
-  brand dialog covers the templates; the brand button opens Add a brand when there are none. Adding a field to an
+  brand dialog covers the templates; the brand button opens the look menu. Adding a field to an
   empty form starts it blank first. A click on a template opens it in full first, page by page in Preview, in the look
   it will be made in, with All templates and Use this template; nothing is made or saved until Use.
 - **The steps** (pages, Thank-you, On submission, All pages) sit in the bar over the form, in 13 px body text that
