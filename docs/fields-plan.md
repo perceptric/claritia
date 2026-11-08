@@ -88,7 +88,7 @@ sums get number rules; picture choices work like choices.
 | Current location | The browser's own location | One tap on phones; no service |
 | Email code | Resend (already paid) | Sends a 6-digit code to prove the email is real before the form sends |
 | SMS code | Twilio Verify (check) | The same for phone numbers; an add-on teams turn on |
-| Audio and video answer | Supabase Storage | Record a short answer in the browser, up to 2 minutes |
+| Audio and video answer | Storage on the VPS | Record a short answer in the browser, up to 2 minutes |
 | Product picker with quantity, coupon, donation amounts, tips | Stripe (already wired for Payment) | Order forms and donations; fees are the team's own Stripe fees |
 
 ## How each field is built
@@ -128,7 +128,7 @@ lookups per fill. Map pin on 10% of teams. Email code on 10% of teams. SMS code 
 | Map pin: Mapbox, 50,000 map loads a month free, then about $5 per 1,000 (check). About 5,000 and 50,000 loads | $0 | $0 (check) |
 | Email code: inside the Resend volume already planned. About 1,500 and 15,000 emails | $0 | $0 to $15 (check) |
 | SMS code: Twilio Verify, about $0.05 a check plus about $0.008 a text in the US (check). About 750 and 7,500 checks | about $45 (check) | about $435 (check) |
-| Audio and video storage: Supabase, 100 GB included, then about $0.021 a GB, plus downloads at about $0.09 a GB (check). About 5 GB and 50 GB more a month | $0 | about $20 (check) |
+| Audio and video storage: the VPS disk and bandwidth (check). About 5 GB and 50 GB more a month | $0 | about $20 (check) |
 | Tia knowing the new fields: about 1,500 more prompt tokens, read from the prompt cache (check) | about $2 | about $20 |
 | **Added per month** | **about $47** | **about $550** |
 

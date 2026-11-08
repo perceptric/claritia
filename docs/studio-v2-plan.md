@@ -6,7 +6,7 @@ and a Tia that stops asking setup questions once the form is built.
 
 Since docs/form-ui-plan.md step 1, the Studio is a Studio form's Build tab under the form page's header, which shows the state, the form check and Publish (`FormHeader.tsx`); New form uses the same header. Status: Parts 1 to 5 are built (`src/components/app/forms/studio/studio.ts`, `Studio.tsx`, `Sidebar.tsx`, checked by
 `scripts/studio-check.ts`). Chats and the brand's CSS are kept on the server once `supabase/migrations/112_form_chats.sql`
-is applied (Supabase, SQL editor); until then they stay in the browser and move to the server by themselves after.
+is applied (`psql` on the VPS database); until then they stay in the browser and move to the server by themselves after.
 Part 6: step 6 is built (the form check in `src/lib/studio/check.ts`, run in the Studio and again at Publish; question
 ids kept with `data-cl-id`; consent by region, the spam trap and the bot check on studio pages; tests in
 `tests/studioCheck.test.ts`). Step 7 is built: Claritia blocks (file, phone, address, date, time, date range, rating,
@@ -229,7 +229,7 @@ Warnings let the owner publish; errors don't. Code edits run the same check, so 
 
 ## Part 8. Running cost
 
-Nothing new is bought. Chats are a few rows per form in the database (Supabase, already paid).
+Nothing new is bought. Chats are a few rows per form in the database (Postgres on the VPS, already paid).
 
 "Built is built" makes changes cheaper: a change becomes a patch of a few hundred tokens out in place of the whole
 form again (about 10,000), so the first line is a ceiling. The form check, the access checks, phone and address

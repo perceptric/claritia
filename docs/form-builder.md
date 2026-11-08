@@ -428,7 +428,7 @@ These lines come on top of `docs/inbound.md` Part 10, which already counts `coll
 | Claude ($1.20 per team) | $60 | $600 |
 | Runner time for brand scans and form QA | $25 (check) | $250 (check) |
 | Edge cache for the form script and schemas (Cloudflare in front of `collect`) | $0 (free plan, check) | $20 (check) |
-| Supabase: submissions, deliveries and ops | $0 (within plan) | $15 (check) |
+| Postgres on the VPS: submissions, deliveries and ops | $0 (within the VPS, check) | $15 (check) |
 | Sign-in apps for new CRMs (Zoho, Dynamics and the rest) | $0 | $0 |
 | **Added by the form builder** | **About $85** | **About $885** |
 | **Per team** | **About $1.70** | **About $1.77** |
@@ -484,12 +484,12 @@ These lines come on top of `docs/inbound.md` Part 10, which already counts `coll
 
 **Left for later:** Google Sheets, Airtable, Notion, Microsoft Teams and email destinations; Zoho, Dynamics, Copper, Freshsales, monday CRM, Folk, Twenty, Affinity and Keap pushes; Chili Piper; HubSpot form submission API mirroring; Salesforce assignment rules header; the `@claritia/forms` React package (Share shows a snippet); pop-up and slide-in placement; Claritia's own calendar in the form (`docs/inbound.md` I5).
 
-**Running cost of what's built:** Claude for the chat, about 60 turns a team a month with the cache: about $1.10 a team with the look check. Runner time for scans and the daily check of 3 forms a team: well under $0.10 a team (check). Supabase disk for fills, deliveries and checks. The web app serves the form script with a 5-minute cache and takes the fills.
+**Running cost of what's built:** Claude for the chat, about 60 turns a team a month with the cache: about $1.10 a team with the look check. Runner time for scans and the daily check of 3 forms a team: well under $0.10 a team (check). VPS disk for fills, deliveries and checks. The web app serves the form script with a 5-minute cache and takes the fills.
 
 | Line | Beta (50 teams) | Growth (500 teams) |
 |---|---|---|
 | Claude (chat and look check) | $55 | $550 |
 | Runner time (scans, daily checks) | $5 (check) | $25 (check) |
-| Supabase disk (fills, deliveries, checks, AI log) | $0 (within plan) | $15 (check) |
+| VPS disk (fills, deliveries, checks, AI log) | $0 (within the VPS, check) | $15 (check) |
 | Render: the form script and fills on the web app | $0 (within plan) | $25, one size up (check) |
 | **Added by weeks 9 to 11** | **About $60** | **About $615** |

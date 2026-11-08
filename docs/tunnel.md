@@ -36,7 +36,7 @@ browser (runner) → runner intercepts localhost requests → relay (Fly) → de
 
 1. Make a long random secret: `openssl rand -hex 32`.
 2. `fly apps create claritia-relay`, then
-   `fly secrets set --app claritia-relay SUPABASE_URL=... SUPABASE_SERVICE_ROLE_KEY=... RELAY_SECRET=<secret>`.
+   set `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` and `RELAY_SECRET=<secret>` on `claritia-relay` on the VPS.
    The deploy workflow deploys it with the app and the runner.
 3. On the runner: `fly secrets set --app claritia-runner RELAY_URL=wss://claritia-relay.fly.dev RELAY_SECRET=<secret>`.
 

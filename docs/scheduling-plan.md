@@ -335,7 +335,7 @@ Each step ships on its own; nothing is half-moved.
 
 ### 11.7 Running cost
 
-No new services, jobs or AI calls. Photo uploads go to the existing Supabase storage bucket (under 100 KB each after
+No new services, jobs or AI calls. Photo uploads go to the existing storage bucket on the VPS (under 100 KB each after
 resizing in the browser). **$0 more a month at Beta (50 teams) and Growth (500 teams).**
 
 ## Part 12. Calendar and Routing as one system (plan)

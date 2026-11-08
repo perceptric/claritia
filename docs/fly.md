@@ -1,5 +1,7 @@
 # Moving Claritia from Render to Fly.io
 
+No longer used: everything runs on the Hostinger VPS now, with Postgres on the same machine (README, Deploy). This page is kept for its history.
+
 Two Fly apps, both in Tokyo (`nrt`), next to the Supabase database:
 
 | App | Config | Machine | Cost a month (check) |

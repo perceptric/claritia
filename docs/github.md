@@ -60,7 +60,7 @@ pull request's files on private repositories; owners accept the new permission o
      GITHUB_APP_PRIVATE_KEY="$(cat claritia.private-key.pem)"
    ```
 
-4. Tell the database where to send check updates (Supabase SQL editor; already done for the live project):
+4. Tell the database where to send check updates (`psql` on the VPS database; already done for the live project):
 
    ```sql
    update app_config set value = 'https://app.tryclaritia.com/api/github/sync' where key = 'github_sync_url';

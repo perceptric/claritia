@@ -140,7 +140,7 @@ form without icon cards loads nothing more. About 150 icons are enough for every
 
 | Item | Beta (50 teams) | Growth (500 teams) |
 |---|---|---|
-| Storing 700 starter photos in three sizes (about 1 GB, Supabase Storage at $0.021/GB, check) | $0.02 | $0.02 |
+| Storing 700 starter photos in three sizes (about 1 GB on the VPS disk, check) | $0.02 | $0.02 |
 | Picture traffic | Already counted in `docs/forms-media-plan.md` ($0 / about $11) | Same |
 | Claude | $0: templates are built once, and visitors never call a model | $0 |
 | **Added monthly total** | **about $0.02** | **about $0.02** |

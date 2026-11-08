@@ -700,7 +700,7 @@ emails sent with about 150 KB of images each, 30% of them opened with images loa
 | Screenshot imports: Sonnet with an image, about 3,000 in and 4,000 out, 2 a team | $5 | $45 |
 | Look check on new emails (exists for forms) | $3 | $25 |
 | Asset storage: 50 MB a team a month, kept | $0 (inside plan) | $1 (check) |
-| Image delivery from opened emails: about 45 GB at Beta and 450 GB at Growth. Supabase includes 250 GB, then about $0.09 a GB (check) | $0 (inside plan) | $18 (check) |
+| Image delivery from opened emails: about 45 GB at Beta and 450 GB at Growth. served from the VPS, inside its bandwidth (check) | $0 (check) | $18 (check) |
 | Image resizing: on the worker we already run | $0 | $0 |
 | Real inbox test accounts (Gmail, Outlook.com, Yahoo, iCloud) | $0 | $0 |
 | Rendering service for Outlook for Windows tests, weekly in CI: Email on Acid or Litmus, one seat (check) | $99 (check) | $99 (check) |
@@ -713,7 +713,7 @@ Notes:
   roughly $0.10 to $0.50 a test (check). At 4 tests a team a month that's about $20 to $100 at Beta and $200 to
   $1,000 at Growth. It's left out of the totals and could be a paid add-on.
 - Image delivery grows with sends. Past about 2 TB a month, Cloudflare R2 (no egress fee, check) would cost less
-  than Supabase.
+  than serving them from the VPS.
 
 ---
 
@@ -721,7 +721,7 @@ Notes:
 
 | Question | Options | Suggestion |
 |---|---|---|
-| Image host | Supabase storage with its CDN, or Cloudflare R2 | Supabase now; move to R2 past about 2 TB a month (Part 13) |
+| Image host | Storage on the VPS, or Cloudflare R2 | The VPS now; move to R2 past about 2 TB a month (Part 13) |
 | Customer inbox previews | Leave out, include, or paid add-on | Paid add-on after Release 2 |
 | Old `brand_kits` table | Keep as a view for a release, or drop with the migration | Keep for one release |
 | Tablet breakpoint in emails | Add, or keep desktop and phone | Keep two; email clients don't need a third |
@@ -787,7 +787,7 @@ design check), `tests/email.test.ts` (link places, conditions and footers at sen
 found and fixed phone-and-dark values) and `scripts/email-builder-check.ts` (the builder end to end).
 
 Running cost of Release 2 as built: no AI calls and no new service. Image delivery and storage are the lines in
-Part 13: Beta (50 teams) $0 inside the Supabase plan; Growth (500 teams) about $19 (check). The rendering service for
+Part 13: Beta (50 teams) $0 inside the VPS (check); Growth (500 teams) about $19 (check). The rendering service for
 Outlook tests (Part 11.2, $99 a month, check) isn't bought yet. Beta: about $0. Growth: about $19 (check).
 
 Changes from the plan:

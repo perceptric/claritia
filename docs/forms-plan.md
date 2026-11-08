@@ -288,7 +288,7 @@ emails, 2 extra languages on 2 forms, published 3 times each.
 | Search index on submissions: a few hundred MB at Growth | $0 | $0 |
 | Exports: streamed, no storage | $0 | $0 |
 | Calc, conditions and dropdowns: code only | $0 | $0 |
-| File storage on Supabase: 100 GB included, then about $0.021 a GB (check). Beta holds about 70 GB after a year; Growth about 700 GB | $0 | $13 (check) |
+| File storage on the VPS disk (check). Beta holds about 70 GB after a year; Growth about 700 GB | $0 | $13 (check) |
 | File downloads: about 30% of files opened, at about $0.09 a GB past the included amount (check) | $0 | $2 (check) |
 | ClamAV scans on the worker: fits on the current machine at Beta; one more small machine at Growth | $0 | $30 (check) |
 | Resume emails: inside the Resend volume already planned | $0 added | $0 added |
@@ -359,4 +359,4 @@ Rename folder and Delete folder (its forms stay, under All forms); New form from
 it exists. A form moves from its row's menu (Move to folder, or No folder), and its page shows the folder in its path:
 Forms / Sales / Book a demo. Before 126 there are no folders and nothing about them shows.
 
-Running cost: $0 a month at Beta (50 teams) and Growth (500 teams): a small table Supabase already serves.
+Running cost: $0 a month at Beta (50 teams) and Growth (500 teams): a small table the VPS database already serves.
